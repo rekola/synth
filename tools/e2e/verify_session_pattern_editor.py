@@ -42,6 +42,23 @@ def first_pattern_row(scr):
     return -1
 
 
+def session_top(scr):
+    """Screen row index of Session view's first pattern row - two below the
+    "▌◂ T0" track title row (each column shows its own row numbers, so
+    there's no shared "00 │" gutter to find)."""
+    lines = scr.dump().splitlines()
+    return next((i for i, line in enumerate(lines) if "▌◂ T0" in line), -1) + 2
+
+
+def session_columns(scr, top):
+    """Screen columns in Session view's pattern editor: T0's effect column
+    (a cell of its own that isn't the cursor's note cell), T1's note
+    column, and the "│" divider between them."""
+    line = scr.dump().splitlines()[top]
+    dividers = [i for i, c in enumerate(line) if c == "│"]
+    return {"t0": dividers[0] - 3, "t1": dividers[0] + 5, "divider": dividers[0]}
+
+
 def main():
     pid, fd = vk.spawn()
     scr = vk.Screen(fd)
@@ -88,16 +105,20 @@ def main():
     other_window(scr)  # -> clip grid
     scr.send(b"\r")
     scr.pump(0.2)
-    top = first_pattern_row(scr)
+    top = session_top(scr)
+    columns = session_columns(scr, top)
     # playhead_tint_color over a plain row and over a bar row.
     PLAYHEAD_BG = {"245361", "3e6d7b"}
+    # A cell of T0's own, its effect column - not its note cell, which is
+    # the cursor's (on T0's playhead while it plays) and shows the cursor.
+    T0_COL = columns["t0"]
     playing_t0 = playing_t1 = tinted_divider = False
     for _ in range(12):
         scr.pump(0.2)
-        for r in range(4):
-            t0 = scr.screen.buffer[top + r][6].bg
-            t1 = scr.screen.buffer[top + r][22].bg
-            divider = scr.screen.buffer[top + r][20].bg  # the "│" between T0 and T1
+        for r in range(16):
+            t0 = scr.screen.buffer[top + r][T0_COL].bg
+            t1 = scr.screen.buffer[top + r][columns["t1"]].bg
+            divider = scr.screen.buffer[top + r][columns["divider"]].bg
             playing_t0 |= t0 in PLAYHEAD_BG
             playing_t1 |= t1 in PLAYHEAD_BG
             tinted_divider |= t0 in PLAYHEAD_BG and divider in PLAYHEAD_BG
@@ -112,7 +133,7 @@ def main():
     still_playing = False
     for _ in range(8):
         scr.pump(0.2)
-        still_playing |= any(scr.screen.buffer[top + r][6].bg in PLAYHEAD_BG for r in range(4))
+        still_playing |= any(scr.screen.buffer[top + r][T0_COL].bg in PLAYHEAD_BG for r in range(16))
     check("launching the playing clip again restarts it rather than stopping it", still_playing, scr)
 
     # Space is the transport in Session view too: the launch started it,
@@ -129,7 +150,7 @@ def main():
     moving = False
     for _ in range(8):
         scr.pump(0.2)
-        moving |= any(scr.screen.buffer[top + r][6].bg in PLAYHEAD_BG for r in range(4))
+        moving |= any(scr.screen.buffer[top + r][T0_COL].bg in PLAYHEAD_BG for r in range(16))
     check("the stopped clip stays stopped", not moving, scr)
 
     os.kill(pid, 9)

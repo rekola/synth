@@ -47,11 +47,12 @@ class VisibleTrackInfo;
 //
 // track_info must already reflect new_row (its per-track column counts are
 // scoped to whatever rows are currently visible - see
-// PatternEditor::getTrackInformation's own doc comment).
+// PatternEditor::getTrackInformation's own doc comment). `gutter_width`
+// is the row-number gutter's width, left of the first track.
 GridPosition computeScrollPosition(const GridPosition & current_scroll, int new_row,
 				    int cursor_track, int cursor_col,
 				    const std::vector<int> & track_ids,
 				    const std::unordered_map<int, VisibleTrackInfo> & track_info,
-				    int cols);
+				    int cols, int gutter_width = 5);
 
 #endif

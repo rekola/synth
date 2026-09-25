@@ -55,6 +55,9 @@ class ClipGrid : public UIElement {
   // clipHighlight()), shown on its row the way a Launchpad pad shows it.
   // Unset, the grid shows no clip states.
   void setClipStateSource(std::function<SessionPadHighlight(int track_id, int clip_index)> source) { clip_state_source_ = std::move(source); }
+  // The clip each track is at (its position in the pattern editor below) -
+  // marked, faintly, in that track's own column. Unset, nothing is.
+  void setTrackClipSource(std::function<int(int track_id)> source) { track_clip_source_ = std::move(source); }
   bool offerInput(const InputEvent & input) override;
   // See PatternEditor::isReaderActive()/cancelReaderEdit().
   bool isReaderActive() const { return inline_editor_.isOpen(); }
@@ -154,6 +157,10 @@ class ClipGrid : public UIElement {
   // still notices the record indicator (see its own drawing code) needing
   // to appear or disappear.
   std::function<SessionPadHighlight(int track_id, int clip_index)> clip_state_source_;
+  std::function<int(int track_id)> track_clip_source_;
+  // Each track's clip (track_clip_source_) at the last redraw - a change
+  // redraws.
+  std::vector<int> current_track_clips_;
   // The visible clip slots' states at the last redraw - a change redraws.
   std::vector<SessionPadHighlight> current_clip_states_;
 

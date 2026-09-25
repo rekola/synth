@@ -2076,11 +2076,13 @@ TerminalUI::initializeWidgets() {
   // scene button.
   commands_.define("launch-clip", [this]() {
     if (!pattern_editor_->isSessionMode()) return;
-    getController().getSessionPlayer().triggerClip(getController().getSong().getCurrentTrackId(), pattern_editor_->getSessionScene());
+    auto track_id = getController().getSong().getCurrentTrackId();
+    getController().getSessionPlayer().triggerClip(track_id, pattern_editor_->getSessionScene(track_id));
   });
   commands_.define("launch-scene", [this]() {
     if (!pattern_editor_->isSessionMode()) return;
-    getController().getSessionPlayer().launchScene(pattern_editor_->getSessionScene(), getController().getSong().getPlayableTrackIds());
+    auto & song = getController().getSong();
+    getController().getSessionPlayer().launchScene(pattern_editor_->getSessionScene(song.getCurrentTrackId()), song.getPlayableTrackIds());
   });
   commands_.define("stop-all-clips", [this]() {
     getController().getSessionPlayer().stopAllTracks();
@@ -2369,17 +2371,21 @@ TerminalUI::renderComponents(bool refresh) {
     }
   }
 
+  // Every frame, whichever view shows: a track whose clip stops stays
+  // where playback left it.
+  std::unordered_map<int, ScenePatternSource::Playhead> playheads;
+  for (auto & [ track_id, playhead ] : getController().getSessionPlayer().playheads()) {
+    if (playhead.clip_index >= 0) playheads[track_id] = { playhead.clip_index, playhead.row };
+  }
+  pattern_editor_->setSessionPlayheads(std::move(playheads));
+
   // Only what the current view shows (see layout()) - a hidden widget
   // drawing would paint over whichever visible one shares its rect.
   if (getView() == View::SESSION) {
-    std::unordered_map<int, ScenePatternSource::Playhead> playheads;
-    for (auto & [ track_id, playhead ] : getController().getSessionPlayer().playheads()) {
-      if (playhead.clip_index >= 0) playheads[track_id] = { playhead.clip_index, playhead.row };
-    }
-    pattern_editor_->setSessionPlayheads(std::move(playheads));
     clip_grid_->setClipStateSource([this](int track_id, int clip_index) {
       return getController().getSessionPlayer().clipHighlight(track_id, clip_index);
     });
+    clip_grid_->setTrackClipSource([this](int track_id) { return pattern_editor_->getSessionScene(track_id); });
     render |= clip_grid_->render(styles_, refresh, active == clip_grid_);
     if (isOutlineVisible()) render |= outline_view_->render(styles_, refresh, active == outline_view_);
   }
@@ -2413,19 +2419,6 @@ bool
 TerminalUI::syncSessionView() {
   auto & song = getController().getSong();
 
-  // The scene: whichever widget moved since last frame wins. The clip
-  // grid only follows while its cursor is on a clip row, not the header or
-  // the Sends/Direction rows.
-  int editor_scene = pattern_editor_->getSessionScene();
-  int grid_scene = clip_grid_->getCursorClipIndex();
-  if (editor_scene != synced_scene_) {
-    if (grid_scene >= 0) clip_grid_->setCursorClipIndex(editor_scene);
-    synced_scene_ = editor_scene;
-  } else if (grid_scene >= 0 && grid_scene != synced_scene_) {
-    pattern_editor_->setSessionScene(grid_scene);
-    synced_scene_ = pattern_editor_->getSessionScene();
-  }
-
   // The track: the shared current track, in each widget's own index space.
   int track_id = song.getCurrentTrackId();
   if (track_id != synced_track_id_) {
@@ -2436,6 +2429,11 @@ TerminalUI::syncSessionView() {
     if (it != roots.end() && pattern_editor_->getCursorTrackIndex() != it - roots.begin()) pattern_editor_->setCursorTrack(static_cast<int>(it - roots.begin()));
     synced_track_id_ = track_id;
   }
+
+  // No clip row is shared: the clip grid's cursor is its own, and never
+  // moves a track's position (only the pattern editor, or a launched clip
+  // starting to play, does) - each column marks its own track's clip
+  // instead (setTrackClipSource()).
 
   if (clip_grid_->preferredHeight() == laid_out_clip_grid_height_) return false;
   layout();
@@ -2480,9 +2478,8 @@ TerminalUI::viewChanged() {
   // sections and placed clips.
   pattern_editor_->cancelReaderEdit();
   pattern_editor_->setSessionMode(getView() == View::SESSION);
-  // Entering Session view, the clip grid starts on the pattern editor's
-  // scene (syncSessionView() keeps them together from here).
-  synced_scene_ = -1;
+  // Entering Session view, the clip grid and the pattern editor start on
+  // the same track (syncSessionView() keeps them together from here).
   synced_track_id_ = -1;
   layout();
   // Not a direct renderComponents(true) call here - see

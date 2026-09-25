@@ -138,7 +138,7 @@ private:
   // shows it - see layout().
   bool scopes_visible_ = true;
   // What syncSessionView() last left both widgets showing.
-  int synced_scene_ = -1, synced_track_id_ = -1, laid_out_clip_grid_height_ = -1;
+  int synced_track_id_ = -1, laid_out_clip_grid_height_ = -1;
   // Set by a handler that changes what's on screen (the view changing,
   // NCKEY_RESIZE) from *inside* input handling - before this
   // class's own main loop (startUI()) reaches its own renderComponents()

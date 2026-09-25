@@ -34,12 +34,45 @@ class PatternSource {
   // current track).
   virtual RowAddress cursor() const = 0;
   virtual void moveCursor(int delta_rows) = 0;
+  // The track the cursor is on, for a source where each track keeps its
+  // own position: the cursor is that track's, and every other track's
+  // rows are shown relative to it.
+  virtual void setCursorTrack(int) { }
+  // Whether the cursor can't be moved right now - it follows a playhead.
+  virtual bool cursorLocked() const { return false; }
+  // The block `track_id` is showing at the cursor row, when tracks can be
+  // in different ones; nullopt otherwise.
+  virtual std::optional<int> trackBlock(int) const { return std::nullopt; }
+  // Where `track_id`'s own position is shown, as a row of the editor - the
+  // cursor row itself where every track shares one position.
+  virtual RowAddress trackCursor(int) const { return cursor(); }
+  // `address`, a row of the editor (the cursor track's), as `track_id`'s
+  // own - the same row where every track shares one position.
+  virtual RowAddress trackAddress(int, RowAddress address) const { return address; }
 
   // `row` rows past the start of `block`, carried across block boundaries.
   // A block of blockCount() or more means past the end.
   virtual RowAddress normalize(int block, int row) const = 0;
   virtual int blockCount() const = 0;
   virtual int blockLength(int block) const = 0;
+
+  // Rows from `from` to `to`, negative when `to` comes first.
+  int rowsBetween(RowAddress from, RowAddress to) const {
+    if (to.block < from.block) return -rowsBetween(to, from);
+    int rows = to.row - from.row;
+    for (auto block = from.block; block < to.block; block++) rows += blockLength(block);
+    return rows;
+  }
+  // `address` moved by `rows`, carried across blocks. Rows before the
+  // first block stay negative rows of block 0.
+  RowAddress advance(RowAddress address, int rows) const {
+    address.row += rows;
+    while (address.row < 0 && address.block > 0) {
+      address.block--;
+      address.row += blockLength(address.block);
+    }
+    return address.row < 0 ? address : normalize(address.block, address.row);
+  }
 
   // Note content: what's shown at, and what an edit writes to, a cell.
   virtual ReadTarget read(int track_id, RowAddress address) const = 0;

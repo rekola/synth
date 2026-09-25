@@ -8,7 +8,7 @@ Session view, clip grid and clip editing this builds on are already in
 place.
 
 Status: Phase 1 done; Phase 2 done but for the two items under its "Still
-open". Phases 3-4 not started. Every phase lands as its own
+open"; Phase 3 done. Phase 4 not started. Every phase lands as its own
 commit(s), with `ctest` and the e2e scripts green.
 
 ## Phase 1: a Controller-owned SessionPlayer
@@ -73,46 +73,18 @@ Still open:
 
 ## Phase 3: per-track playheads in the Session view pattern editor
 
-In Arrangement view the transport is the cursor row: the pattern
-editor's highlighted row is where playback is, and moving it moves the
-transport. Session view should work the same way per track: each track
-has its own position - a clip (scene row) and a row in it - and while
-that track plays a clip, its position is its playhead. There's no
-separate session cursor: `ScenePatternSource`'s per-buffer scene cursor
-is replaced by these per-track positions.
-
-- **Playing track:** its column follows its playhead exactly the way
-  Arrangement view follows the transport - the playhead sits on the
-  pattern editor's highlighted row and the column's content scrolls under
-  it, crossing into the next clip or looping as the clip does. You can't
-  move it: Up/Down on that track do nothing (or the status line says it's
-  playing), as moving the transport does nothing while recording.
-- **Stopped track:** its position is yours to move - Up/Down, Page, jumps
-  to a clip - and stays where playback left it when the clip stops.
-  Launching a clip jumps the track's position to that clip's row 0.
-- **Different scenes per track:** so the Session view pattern editor can
-  show a different clip - a different scene row - in every column: some
-  tracks playing different scenes, some stopped wherever they were left.
-  Each column's header shows which clip (scene row) it's in.
-- **Moving between tracks:** Left/Right keep the highlighted screen row;
-  each column shows its own track's position there. The row-number
-  gutter shows the cursor track's rows.
-- **The clip grid:** its scene row marks the cursor track's position
-  (its clip); a playing track's slot already shows its state. Moving the
-  clip grid's cursor onto a clip of a stopped track moves that track's
-  position there (row 0) - the one shared cursor of the two widgets
-  (`TerminalUI::syncSessionView()`), per track.
-- **Regions:** a multi-track mark/kill/yank spans the same screen rows
-  in each column, each track's rows resolved through its own position -
-  so one region can cover different clips in different tracks. Editing a
-  playing track's clip while it plays is allowed (the notes change under
-  the playhead), the same as editing under the transport.
-- **Space** is the transport, in Session view too, once Phase 2 lands.
-- **Source of positions:** a playing track's clip and row come from the
-  playback snapshot (Phase 2's per-track overrides; until then
-  `LaunchpadManager::sessionPlayheads()`); stopped tracks' positions
-  live beside them, per buffer, in `ScenePatternSource`.
-- Tests: two tracks launched on different scenes show their own clips in
-  one pattern editor; a playing track's column can't be moved and follows
-  its playhead; a stopped track's can, and keeps its position after
-  stopping; launching jumps the position to the clip.
+Done: each track has its own position in `ScenePatternSource` - a playing
+track's is its playhead (it can't be moved; Up/Down say so), a stopped
+track's is wherever playback or the cursor left it, per buffer. Every
+column is shown relative to the cursor track's position
+(`trackAddress()`), so columns can show different clips and a playing
+column shows its playhead on the highlighted row; moving the cursor moves
+every stopped track along, so the highlighted row moves across still
+columns and the view scrolls only near its edges, and while the cursor
+track plays that row holds still and its column scrolls under it; any
+other playing track shows its playhead on a line of its own, which
+stays put as the cursor moves; regions resolve each track's
+rows the same way (`PositionedSceneGrid`). Each column's heading names
+its clip, and each clip grid column marks its own track's clip - the
+clip grid's own cursor never moves a track; only the pattern editor or
+a launched clip starting does.

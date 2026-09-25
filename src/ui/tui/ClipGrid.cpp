@@ -422,8 +422,11 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
       clip_states.push_back(column < num_tracks ? clipState(column, scroll_row_ + vr) : sceneState(scroll_row_ + vr));
     }
   }
-  bool clip_states_changed = clip_states != current_clip_states_;
+  std::vector<int> track_clips;
+  for (auto track_id : track_ids) track_clips.push_back(track_clip_source_ ? track_clip_source_(track_id) : -1);
+  bool clip_states_changed = clip_states != current_clip_states_ || track_clips != current_track_clips_;
   current_clip_states_ = std::move(clip_states);
+  current_track_clips_ = std::move(track_clips);
 
   // The meters, in bar steps (negative while clipping) - only a visible
   // change redraws.
@@ -543,12 +546,12 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
       auto physical_row = scroll_row_ + vr;
       auto y = 1 + vr;
       bool is_cursor_cell = focused && track_index == cursor_track_index_ && physical_row == cursor_physical;
-      // Unfocused, the cursor's clip cell still shows faintly - it's the
-      // clip the pattern editor below is on (TerminalUI::syncSessionView()).
+      // Unfocused, the cursor's clip cell still shows faintly - where a
+      // launch from here would land.
       bool is_editing_cell = !focused && track_index == cursor_track_index_ && physical_row == cursor_physical;
-      // The cursor's clip row is the scene the pattern editor shows - the
-      // whole row is marked, faintly, across every track.
-      bool is_scene_row = physical_row == cursor_physical && physical_row < clip_rows;
+      // The clip this track is at in the pattern editor below - each
+      // track can be in a different one - is marked, faintly.
+      bool is_scene_row = track_clip_source_ && physical_row < clip_rows && physical_row == track_clip_source_(track_id);
 
       // The Sends value row mixes a cursive unit label with plain-weight
       // numbers, which a single putstr call can't do - handled directly
@@ -709,11 +712,9 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     setFgColor(styles.window_border_color);
     setBgColor(styles.heading_bg_color); // the header row's own backdrop, not the plain window background below it
     putstr(0, x + kColWidth, "│");
-    auto scene_y = cursor_physical < clip_rows ? 1 + cursor_physical - scroll_row_ : -1;
-    for (auto y = 1; y < rows; y++) {
-      setBgColor(y == scene_y ? styles.cursorRowTint(styles.window_bg_color) : styles.window_bg_color);
-      putstr(y, x + kColWidth, "│");
-    }
+    // Dividers belong to no track, so no track's clip mark reaches them.
+    setBgColor(styles.window_bg_color);
+    for (auto y = 1; y < rows; y++) putstr(y, x + kColWidth, "│");
   }
 
   inline_editor_.paintBackdrop();
@@ -754,15 +755,12 @@ ClipGrid::renderMasterColumn(const StyleProvider & styles, int x, int rows, bool
     if (physical_row >= physicalRowCount()) break;
     bool is_cursor_cell = focused && cursor_here && physical_row == cursor_physical;
     bool is_editing_cell = !focused && cursor_here && physical_row == cursor_physical;
-    bool is_scene_row = physical_row == cursor_physical && physical_row < clip_rows;
     Color fg = styles.window_fg_color, bg = styles.window_bg_color;
     if (is_cursor_cell) {
       fg = styles.highlight_fg_color;
       bg = styles.highlight_bg_color;
     } else if (is_editing_cell) {
       bg = styles.highlight_unfocused_bg_color;
-    } else if (is_scene_row) {
-      bg = styles.cursorRowTint(bg);
     }
 
     if (physical_row < clip_rows) {
@@ -820,11 +818,8 @@ ClipGrid::renderMasterColumn(const StyleProvider & styles, int x, int rows, bool
   setFgColor(styles.window_border_color);
   setBgColor(styles.heading_bg_color);
   putstr(0, x + kColWidth, "│");
-  auto scene_y = cursor_physical < clip_rows ? 1 + cursor_physical - scroll_row_ : -1;
-  for (auto y = 1; y < rows && scroll_row_ + y - 1 < physicalRowCount(); y++) {
-    setBgColor(y == scene_y ? styles.cursorRowTint(styles.window_bg_color) : styles.window_bg_color);
-    putstr(y, x + kColWidth, "│");
-  }
+  setBgColor(styles.window_bg_color);
+  for (auto y = 1; y < rows && scroll_row_ + y - 1 < physicalRowCount(); y++) putstr(y, x + kColWidth, "│");
 }
 
 void

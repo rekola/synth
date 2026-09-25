@@ -77,13 +77,28 @@ you're changing.
 - **`verify_session_pattern_editor.py`** - PatternEditor's session mode
   (Session view): annotations only in Arrangement view, typing into an
   empty slot creates a clip (not arrangement content), a launched clip's
-  playhead shows in its own track's column only, and Space plays/stops
-  the scene rather than the transport. Independent of Launchpad
-  hardware.
+  playhead shows in its own track's column only (never on the divider
+  after it), and Space is the transport in Session view too. Independent
+  of Launchpad hardware.
+- **`verify_session_track_positions.py`** - Session view's per-track
+  positions: moved in the pattern editor or by launching a clip, never by
+  the clip grid's cursor; each column's own header clip number, row
+  numbers and row accents; a playing track's position can't be moved (Up
+  says so) while a stopped one's can; and moving one track never moves
+  another.
 - **`verify_session_view_layout.py`** - Session view's layout: no scope
-  row, the clip grid and pattern editor kept on the same scene whichever
-  moves, the clip grid's cursor never on its header row, and the outline
-  panel's button bar and `?` details popup.
+  row, the clip grid's cursor its own (never moving the pattern
+  editor's track, nor following it) and never on its header row, each track's column
+  marking its own clip, and the outline panel's button bar and `?`
+  details popup.
+- **`verify_session_playing_columns.py`** - with the focused track
+  playing, the columns to its right don't change at all (text or
+  colors), and the rows the playing track doesn't have (before its first
+  clip) draw blank.
+- **`verify_scroll_margin.py`** - the pattern editor's scroll margin:
+  the highlighted row moves down the screen without scrolling until it
+  comes within 3 rows of the bottom, and stays there as the view
+  scrolls.
 - **`verify_mouse_wheel.py`** - the wheel scrolls the widget under the
   mouse without moving focus, scrolls its view but never its cursor (or
   the transport), Shift scrolls tracks sideways, and the next cursor move

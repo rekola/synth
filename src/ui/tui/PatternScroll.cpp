@@ -69,7 +69,7 @@ FitResult fitWithTarget(const GridPosition & current_scroll, int new_row,
 			 int cursor_track, int group_lo, int cursor_target_hi,
 			 const vector<int> & track_ids,
 			 const unordered_map<int, VisibleTrackInfo> & track_info,
-			 int cols, bool is_annotation_target) {
+			 int cols, bool is_annotation_target, int gutter_width) {
   GridPosition new_scroll;
   new_scroll.row = new_row;
 
@@ -116,7 +116,7 @@ FitResult fitWithTarget(const GridPosition & current_scroll, int new_row,
 
     // pos is an exclusive upper bound (the position just past the last
     // character drawn), so pos == cols is an exact fit, not an overflow.
-    int pos = 5;
+    int pos = gutter_width;
     for (int i = new_scroll.track; i <= cursor_track; i++) {
       auto it = track_info.find(track_ids[static_cast<size_t>(i)]);
       if (it == track_info.end()) continue;
@@ -150,7 +150,7 @@ computeScrollPosition(const GridPosition & current_scroll, int new_row,
 		      int cursor_track, int cursor_col,
 		      const vector<int> & track_ids,
 		      const unordered_map<int, VisibleTrackInfo> & track_info,
-		      int cols) {
+		      int cols, int gutter_width) {
   if (track_ids.empty() || cursor_track < 0 || cursor_track > static_cast<int>(track_ids.size())) {
     GridPosition new_scroll;
     new_scroll.row = new_row;
@@ -198,9 +198,9 @@ computeScrollPosition(const GridPosition & current_scroll, int new_row,
   // ahead of it.
   auto full_last_col = cursor_it != track_info.end() ? cursor_it->second.getColumnCount() - 1 : group_hi;
   auto whole_track = fitWithTarget(current_scroll, new_row, cursor_track, group_lo, full_last_col,
-				    track_ids, track_info, cols, is_annotation_target);
+				    track_ids, track_info, cols, is_annotation_target, gutter_width);
   if (whole_track.fits) return whole_track.scroll;
 
   return fitWithTarget(current_scroll, new_row, cursor_track, group_lo, group_hi,
-			track_ids, track_info, cols, is_annotation_target).scroll;
+			track_ids, track_info, cols, is_annotation_target, gutter_width).scroll;
 }

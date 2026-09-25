@@ -69,6 +69,10 @@ public:
   // real end" reasoning as the border above; trackWidthRange() does that
   // too.
   int getColumnWidth(int k) const {
+    return (k == 0 && !collapsed_ ? row_number_width_ : 0) + getContentColumnWidth(k);
+  }
+  // getColumnWidth() without the track's own row number (column 0 only).
+  int getContentColumnWidth(int k) const {
     // A collapsed track hides every column's own content (see
     // PatternEditor::renderRow) - collapsed_content_width_ blank
     // content cells plus its own trailing "│" border, instead of the
@@ -218,6 +222,10 @@ public:
   // (>= 0) - one shared rule for both, rather than two independently-
   // maintained checks that could drift apart.
   int color_ordinal_ = -1;
+  // Cells before column 0 for the track's own row number - where tracks
+  // are each at their own row (Session view); 0 elsewhere, and never while
+  // collapsed.
+  int row_number_width_ = 0;
 };
 
 #endif

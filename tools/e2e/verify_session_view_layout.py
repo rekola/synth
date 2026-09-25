@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Drive Session view's layout through a pty: no scope row, the clip grid
-and the pattern editor kept on the same scene whichever one moves, the clip
-grid's cursor never on its header row, the scene's row marked across every
-track, and the outline panel's button bar
+"""Drive Session view's layout through a pty: no scope row, the clip
+grid's cursor its own - never moving the pattern editor's track, nor
+following it - and never on its header row, each track's column marking the
+clip that track is at, and the outline panel's button bar
 and details popup (Escape closes it at once, yet still starts an Alt
 chord).
 """
@@ -68,20 +68,23 @@ def main():
         scr.send(DOWN)
         scr.pump(0.1)
     other_window(scr)  # -> pattern editor
-    # A note typed into the pattern editor creates a clip in its scene.
+    # A note typed into the pattern editor creates a clip where the track
+    # is - its first clip - not at the clip grid's cursor (row 4).
     scr.send(b"q")
     scr.pump(0.4)
-    check("moving the clip grid to row 4 moves the pattern editor to scene 4", "Clip" in scr.dump().splitlines()[5], scr)
+    lines = scr.dump().splitlines()
+    check("the clip grid's cursor doesn't move the pattern editor's track",
+          "Clip" in lines[2] and "Clip" not in lines[5], scr)
+
+    other_track_x = OUTLINE_COLS + 1 + 19  # the next track's column
+    check("another track's column marks its own clip, not the cursor's row",
+          [y for y in range(2, 14) if scr.screen.buffer[y][other_track_x].bg not in ("151515", "default")] == [2], scr)
 
     scr.send(PGDN)
     scr.pump(0.3)
     scr.send(PGDN)
     scr.pump(0.5)
-    check("the unfocused clip grid marks the pattern editor's scene", grid_cursor_rows(scr) == [9], scr)
-    other_track_x = OUTLINE_COLS + 1 + 19  # the next track's column
-    check("the scene's whole row is marked, across every track",
-          [y for y in range(2, 14) if scr.screen.buffer[y][other_track_x].bg not in ("151515", "default")] == [9], scr)
-
+    check("the unfocused clip grid's cursor keeps its own row", grid_cursor_rows(scr) == [5], scr)
     other_window(scr)  # -> outline panel
     scr.send(DOWN)
     scr.pump(0.1)

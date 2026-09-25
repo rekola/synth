@@ -79,12 +79,8 @@ class PatternEditor : public UIElement {
   // one scene at a time (ScenePatternSource).
   void setSessionMode(bool session);
   bool isSessionMode() const { return source_ == scene_source_.get(); }
-  // The scene the session-mode cursor is in. Setting it to a different
-  // scene lands on that scene's first row.
-  int getSessionScene() const { return scene_source_->cursor().block; }
-  void setSessionScene(int scene) {
-    if (scene != getSessionScene()) scene_source_->setCursor({ scene, 0 });
-  }
+  // The scene (clip) `track_id`'s own session-mode position is in.
+  int getSessionScene(int track_id) const { return scene_source_->trackBlock(track_id).value_or(0); }
   // Where each track's launched clip is playing, for session mode's
   // per-track playhead rows.
   void setSessionPlayheads(std::unordered_map<int, ScenePatternSource::Playhead> playheads);
@@ -366,6 +362,24 @@ protected:
   PatternSource * source_ = nullptr;
   std::unique_ptr<PatternSource> arrangement_source_;
   std::unique_ptr<ScenePatternSource> scene_source_;
+  // Tells the source which track the cursor is on (PatternSource::
+  // setCursorTrack()), once per change.
+  void syncCursorTrack(const Song & song);
+  int synced_cursor_track_id_ = -1;
+  // The row-number gutter left of the first track: a margin only where
+  // each track shows its own row numbers (VisibleTrackInfo::
+  // row_number_width_, kTrackRowNumberWidth wide).
+  int gutterWidth() const { return isSessionMode() ? 1 : 5; }
+  static constexpr int kTrackRowNumberWidth = 3;
+  // How close the highlighted row gets to the top or bottom before the
+  // whole view scrolls.
+  static constexpr int kScrollMargin = 3;
+  // The cursor's screen row (from the first pattern row) last frame, or -1
+  // before one - held while the cursor follows a playhead.
+  int cursor_line_ = -1;
+  // Says so on the status line when the cursor can't move - it follows a
+  // playing track's playhead. True then.
+  bool reportLockedCursor();
   // Set when what's shown changed in a way render()'s own dirty checks
   // don't see (the source switching, per-track playheads moving).
   bool force_full_redraw_ = false;

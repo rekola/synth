@@ -243,15 +243,213 @@ TEST(scene_source_cursor_moves_across_scenes_without_touching_the_transport) {
   CHECK(f.controller.getPlaybackInfo().getRowIndex() == transport);
 }
 
-TEST(scene_source_reports_a_tracks_playhead_only_in_its_own_scene) {
+TEST(scene_source_shows_a_playing_tracks_playhead_at_the_cursor_row) {
   Fixture f;
   ScenePatternSource source(f.controller);
+  source.setCursorTrack(f.track_id);
   source.setPlayheads({ { f.track_id, { 1, 5 } } });
+  CHECK(source.cursor() == (RowAddress{ 1, 5 }));
   CHECK(source.playheadRow(f.track_id, 1) == 5);
   CHECK(!source.playheadRow(f.track_id, 0));
   CHECK(!source.hasAnnotations());
   CHECK(!source.showsClipIndirection());
   CHECK(!source.cursorFollowsTransport());
+}
+
+namespace {
+
+// `track_id` gets a looping clip at `index` whose row r plays note base+r.
+void placeCountingClip(Song & song, int track_id, int index, int length, int base) {
+  auto & clip = song.ensureClipAt(track_id, index);
+  clip.setId(song.generateUniqueClipId());
+  clip.setLength(length);
+  clip.setLooping(true);
+  for (int row = 0; row < length; row++) clip.getLeafPattern().setNote(row, 0, Note(base + row, 100));
+}
+
+int noteAt(const ReadTarget & target) {
+  auto & note = target.pattern->getNote(target.effective_row, 0);
+  return note.isDefined() ? note.getValue() : -1;
+}
+
+}
+
+TEST(scene_source_each_track_is_shown_at_its_own_position) {
+  Fixture f;
+  auto & song = f.song();
+  auto other = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
+  placeCountingClip(song, f.track_id, 0, f.rows, 40);
+  placeCountingClip(song, other, 2, f.rows, 80);
+  ScenePatternSource source(f.controller);
+
+  source.setCursorTrack(other);
+  source.setCursor({ 2, 1 });
+  source.setCursorTrack(f.track_id);
+  source.moveCursor(3);
+  CHECK(source.cursor() == (RowAddress{ 0, 3 }));
+  CHECK(source.trackBlock(f.track_id) == 0);
+  CHECK(source.trackBlock(other) == 2);
+
+  // The other track, stopped, moved along with the cursor: the cursor row
+  // shows it at its own position, rows around it follow on from there.
+  CHECK(noteAt(source.read(f.track_id, { 0, 3 })) == 43);
+  CHECK(noteAt(source.read(other, { 0, 3 })) == 84);
+  CHECK(noteAt(source.read(other, { 0, 5 })) == 86);
+  CHECK(noteAt(source.read(other, { 0, -2 })) == -1); // the scene before is empty
+
+  // On the other track, the cursor is at that position.
+  source.setCursorTrack(other);
+  CHECK(source.cursor() == (RowAddress{ 2, 4 }));
+}
+
+TEST(scene_source_moving_the_cursor_moves_stopped_tracks_but_not_playing_ones) {
+  Fixture f;
+  auto & song = f.song();
+  auto stopped = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
+  auto playing = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
+  ScenePatternSource source(f.controller);
+  source.setCursorTrack(stopped);
+  source.setCursor({ 1, 2 });
+  source.setCursorTrack(f.track_id);
+  source.setPlayheads({ { playing, { 2, 5 } } });
+
+  source.moveCursor(f.rows + 1); // into the next scene
+  CHECK(source.cursor() == (RowAddress{ 1, 1 }));
+  CHECK(source.trackBlock(stopped) == 2);
+  source.setCursorTrack(stopped);
+  CHECK(source.cursor() == (RowAddress{ 2, 3 }));
+  source.setCursorTrack(playing);
+  CHECK(source.cursor() == (RowAddress{ 2, 5 })); // still on its playhead
+
+  // The cursor stops at the first row; the stopped track moves only as far.
+  source.setCursorTrack(f.track_id);
+  source.moveCursor(-10 * f.rows);
+  CHECK(source.cursor() == (RowAddress{ 0, 0 }));
+  source.setCursorTrack(stopped);
+  CHECK(source.cursor() == (RowAddress{ 1, 2 }));
+}
+
+TEST(scene_source_cursor_tracks_playhead_never_moves_stopped_tracks) {
+  Fixture f;
+  auto & song = f.song();
+  auto stopped = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
+  ScenePatternSource source(f.controller);
+  source.setCursorTrack(stopped);
+  source.setCursor({ 0, 5 });
+  source.setCursorTrack(f.track_id);
+
+  source.setPlayheads({ { f.track_id, { 1, 0 } } });
+  source.setPlayheads({ { f.track_id, { 1, 2 } } });
+  source.setCursorTrack(stopped);
+  CHECK(source.cursor() == (RowAddress{ 0, 5 }));
+}
+
+TEST(scene_source_playing_track_follows_its_playhead_and_stays_where_it_stops) {
+  Fixture f;
+  auto & song = f.song();
+  auto other = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
+  placeCountingClip(song, other, 1, f.rows, 80);
+  ScenePatternSource source(f.controller);
+  source.setCursorTrack(f.track_id);
+  source.setCursor({ 0, 2 });
+
+  source.setPlayheads({ { other, { 1, 3 } } });
+  CHECK(source.playheadRow(other, 0) == 2); // shown at the cursor row
+  CHECK(noteAt(source.read(other, { 0, 2 })) == 83);
+
+  source.setCursorTrack(other);
+  CHECK(source.cursor() == (RowAddress{ 1, 3 }));
+  CHECK(source.cursorLocked());
+  source.moveCursor(2);
+  source.setCursor({ 0, 0 });
+  CHECK(source.cursor() == (RowAddress{ 1, 3 }));
+
+  source.setPlayheads({ { other, { 1, 4 } } });
+  source.setPlayheads({}); // it stops
+  CHECK(!source.cursorLocked());
+  CHECK(source.cursor() == (RowAddress{ 1, 4 }));
+  source.moveCursor(1);
+  CHECK(source.cursor() == (RowAddress{ 1, 5 }));
+}
+
+TEST(scene_source_playing_track_keeps_its_line_as_the_cursor_moves) {
+  Fixture f;
+  auto & song = f.song();
+  auto playing = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
+  placeCountingClip(song, playing, 1, f.rows, 80);
+  ScenePatternSource source(f.controller);
+  source.setCursorTrack(f.track_id);
+  source.setCursor({ 0, 2 });
+  source.setPlayheads({ { playing, { 1, 3 } } });
+  CHECK(source.playheadRow(playing, 0) == 2);
+  CHECK(noteAt(source.read(playing, { 0, 2 })) == 83);
+
+  // Moving the stopped cursor track leaves the playing column as it was.
+  source.moveCursor(2);
+  CHECK(source.cursor() == (RowAddress{ 0, 4 }));
+  CHECK(source.playheadRow(playing, 0) == 2);
+  CHECK(noteAt(source.read(playing, { 0, 2 })) == 83);
+  CHECK(noteAt(source.read(playing, { 0, 4 })) == 85);
+
+  // As it plays, its column scrolls under that line.
+  source.setPlayheads({ { playing, { 1, 4 } } });
+  CHECK(source.playheadRow(playing, 0) == 2);
+  CHECK(noteAt(source.read(playing, { 0, 2 })) == 84);
+
+  // Focused, the cursor row moves to its line - 2 rows up - taking the
+  // stopped track along; back again, the cursor is where that left it.
+  source.setCursorTrack(playing);
+  CHECK(source.cursor() == (RowAddress{ 1, 4 }));
+  CHECK(source.trackCursor(f.track_id) == source.cursor());
+  source.setCursorTrack(f.track_id);
+  CHECK(source.cursor() == (RowAddress{ 0, 2 }));
+  CHECK(source.playheadRow(playing, 0) == 2);
+  CHECK(noteAt(source.read(playing, { 0, 2 })) == 84);
+
+  // Stopping, it stays as shown: its position is the row at the cursor row.
+  source.setPlayheads({});
+  CHECK(noteAt(source.read(playing, { 0, 2 })) == 84);
+  source.setCursorTrack(playing);
+  CHECK(source.cursor() == (RowAddress{ 1, 4 }));
+}
+
+TEST(scene_source_keeps_a_playing_tracks_line_in_view) {
+  Fixture f;
+  auto & song = f.song();
+  auto playing = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
+  ScenePatternSource source(f.controller);
+  source.setCursorTrack(f.track_id);
+  source.setPlayheads({ { playing, { 1, 3 } } });
+  source.moveCursor(10); // its line is left 10 rows above the cursor row
+  RowAddress top = source.advance(source.cursor(), -3);
+  CHECK(source.keepPlayheadsVisible(top, 8, 2));
+  CHECK(source.rowsBetween(top, source.trackCursor(playing)) == 2);
+  CHECK(!source.keepPlayheadsVisible(top, 8, 2));
+}
+
+TEST(scene_source_region_acts_on_each_track_at_its_own_position) {
+  Fixture f;
+  auto & song = f.song();
+  auto other = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
+  placeCountingClip(song, f.track_id, 0, f.rows, 40);
+  placeCountingClip(song, other, 1, f.rows, 80);
+  ScenePatternSource source(f.controller);
+  source.setCursorTrack(other);
+  source.setCursor({ 1, 2 });
+  source.setCursorTrack(f.track_id);
+
+  // Rows 0-1 of the cursor track's scene: rows 2-3 of the other track's.
+  auto grid = source.editGrid({ 0, 0 }, false);
+  clearPatternBlock(*grid, 0, 1, { f.track_id, other }, 0, 1);
+  auto & mine = song.getClips(f.track_id)[0].getLeafPattern();
+  auto & theirs = song.getClips(other)[1].getLeafPattern();
+  CHECK(!mine.getNote(0, 0).isDefined());
+  CHECK(!mine.getNote(1, 0).isDefined());
+  CHECK(mine.getNote(2, 0).getValue() == 42);
+  CHECK(theirs.getNote(1, 0).getValue() == 81);
+  CHECK(!theirs.getNote(2, 0).isDefined());
+  CHECK(!theirs.getNote(3, 0).isDefined());
+  CHECK(theirs.getNote(4, 0).getValue() == 84);
 }
 
 // --- SectionRegionGrid: block operations act on one content only ---

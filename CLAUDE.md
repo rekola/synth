@@ -909,9 +909,13 @@ would otherwise resume showing.
   `UIElement::wantsBareEscape()` without it losing its Alt-prefix role),
   above `PatternEditor` (`TerminalUI::layout()`) - no scope row
   (Arrangement view's is optional too, "toggle-scopes"). The clip grid
-  and the pattern editor share one cursor: the current track, and the
-  clip grid's clip row is the pattern editor's scene
-  (`TerminalUI::syncSessionView()`). Each track header ends in "◆IMS" (the ◆ double width):
+  and the pattern editor share the current track; each clip grid column
+  faintly marks the clip its own track is at (`ClipGrid::
+  setTrackClipSource()`). The clip grid's cursor row is its own
+  (`TerminalUI::syncSessionView()` shares only the track): it never
+  moves a track's position, nor follows one - a track's position moves
+  only in the pattern editor, or when a clip launched on it starts
+  playing. Each track header ends in "◆IMS" (the ◆ double width):
   an orange ◆ while Session view has taken the track over from the
   arrangement, then Monitor (`LeafTrack::Monitor`, "cycle-monitor"), Mute, Solo. Monitor
   gates whether live-played input is heard (`Controller::
@@ -960,9 +964,35 @@ would otherwise resume showing.
   (View menu). `PatternEditor` reads and writes through a `PatternSource`
   (`src/ui/PatternSource.h`): `ArrangementPatternSource` in Arrangement
   view (sections and placed clips, the transport as its cursor row),
-  `ScenePatternSource` in Session view (clips directly, one scene - clip
-  row k across every track - at a time, its own cursor, a per-track
-  playhead for each launched clip, no annotations). Space toggles the
+  `ScenePatternSource` in Session view (clips directly, no annotations).
+  There each track has its own position - a clip (scene row) and a row
+  in it: a playing track's is its playhead, which can't be moved (Up/Down
+  say so on the status line), a stopped track's is wherever it was left,
+  remembered per buffer. The cursor is the cursor track's position and
+  every other column is shown relative to it (`ScenePatternSource::
+  trackAddress()`), so one screen row can show a different clip in each
+  column, a playing column's content scrolls under the highlighted row,
+  and regions act on each track at its own rows (`PositionedSceneGrid`).
+  Moving the cursor moves every stopped track along by as many rows, so
+  the highlighted row moves across still columns and the whole view
+  scrolls only within `PatternEditor::kScrollMargin` rows of an edge
+  (starting before the first clip, on blank rows, where needed -
+  Arrangement view scrolls by the same margin, but never before its
+  first row). A playhead never moves another track: while the cursor
+  track plays, the highlighted row holds its screen row and the playing
+  column scrolls under it. Any other playing track shows its playhead on
+  a line of its own (`ScenePatternSource::trackCursor()`, an offset from
+  the cursor row), which stays put as the cursor moves - its column
+  scrolls under that line - and is brought back within the margin if
+  the view scrolls it off (`keepPlayheadsVisible()`). Focusing a playing
+  track moves the cursor row onto its line, taking the stopped tracks
+  along; a track that stops keeps what it shows.
+  Each column shows its own row numbers before its notes
+  (`VisibleTrackInfo::row_number_width_`, counted into its first column;
+  the shared gutter is only a margin here), its own bar/beat accents and
+  dimming (a row outside its own clip), and draws blank where it has no
+  row at all (before its first clip); its second heading line starts
+  with the number of the clip it's in. Space toggles the
   one transport in both views. The mouse wheel
   scrolls the widget under the mouse without moving focus, and scrolls its
   view, never its cursor (so never the transport); Shift scrolls tracks
