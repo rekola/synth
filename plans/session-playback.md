@@ -89,3 +89,68 @@ rows the same way (`PositionedSceneGrid`). Each column's heading names
 its clip, and each clip grid column marks its own track's clip - the
 clip grid's own cursor never moves a track; only the pattern editor or
 a launched clip starting does.
+
+---
+
+## Phase 4: one flat arrangement timeline, shown as bar.beat.sixteenth
+
+With one transport driving both views, the transport's position is the
+number a musician reads all the time, and `Section` is the last thing
+making that number awkward: a row is meaningful only relative to whichever
+section it falls in. Drop sections and show a musical position instead.
+
+- **Position in the info bar.** Done: the transport reads `1.3.3` - bar,
+  beat within the bar, sixteenth within the beat, all 1-based
+  (`Song::formatPosition()`, a row being a sixteenth and a bar
+  `getRowsPerBar()` rows) - replacing the hex absolute row and
+  `pattern:N`. The elapsed time went with them, and the three fields
+  printed from hardcoded zeros (edit step size, the cursor's
+  track:column); tuning, key, voice counts and tempo stay.
+- **No sections.** `Song`'s `vector<Section>` becomes one continuous
+  timeline: a single set of per-track content keyed by absolute row -
+  instance events, inline patterns and `SampleTrack` background beds,
+  three of the four kinds `Section` holds today (annotations become
+  locators, below). The
+  arrangement's length is where its last content ends, not a sum of
+  section lengths, and `getEffectiveSectionLength()`/`SectionRegionGrid`/
+  the per-section row wrapping go with it. No compatibility path: the
+  reader stops understanding `<section>` entirely, and `songs/` is
+  converted by hand - those songs are documentation, few, and worth
+  reading as examples of the format that actually exists.
+- **What changes above the model:** `ArrangementGrid` drops its title rows
+  and renders one continuous run of bars (a name in the scope row has no
+  home until locators exist); `ArrangementPatternSource`'s blocks become
+  bars rather than sections; `PatternSource::sourceRows()` and the
+  background resolution lose their section bounds; `ScenePatternSource` is
+  untouched - a clip's own content was never section-scoped.
+- **Locators, from annotations.** A section's name went somewhere: an
+  annotation - already a row-keyed note about a moment in the song rather
+  than about any one track - becomes a named marker on the timeline, and
+  that's the only thing left that names a position. They move from
+  `Section` to the song, keyed by absolute row, and the section titles
+  `ArrangementGrid` draws today go away with nothing in their place - for
+  now locators are model-and-command only, shown in the pattern editor's
+  annotation column as annotations already are.
+- **Locators are bar-quantized:** placed and stored per bar, so the
+  overview can draw them exactly and `ZBxx` always lands on a bar.
+- **`ZBxx` jumps to the next locator.** Its destination today is a row in
+  the *next* section, which is the concept being removed - but the
+  command itself keeps its shape and its place in the Implemented table
+  (`Command::getBreakDestinationRow()`, `SongState`'s command loop,
+  `docs/commands.md`): it now sends the transport to a locator - `xx` is
+  its 1-based number, and `00` the next one after the current row,
+  wrapping to the first when there is none. Songs using it get their
+  destinations re-expressed as locators (`songs/backup/arptest1.xml` is
+  the only one today).
+- **File format.** `<sections>` is replaced by one arrangement element
+  holding the same per-track content at absolute rows, plus the song's own
+  locator list; the reader gains no legacy path for the old form.
+- **Why after Phase 3:** per-track overrides and playheads (Phases 2-3)
+  are what stop the arrangement from being the only source of a track's
+  content, and they're easier to land against the section model that
+  already works than against a timeline being rewritten underneath them.
+- Tests: a converted song renders the same as its sectioned original did;
+  the position helper against several rows-per-bar and beats-per-bar
+  settings, including a bar boundary and a row that isn't on a sixteenth;
+  `ZBxx` reaching the next locator, and wrapping from the last one; a
+  region spanning what used to be a section boundary.
