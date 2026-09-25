@@ -226,9 +226,12 @@
         </clip>
       </trackClips>
     </clips>
+    <locators>
+        <locator row="0">C Minor</locator>
+        <locator row="128">C Minor</locator>
+    </locators>
     <sections>
       <section length="8">
-        <annotation row="0">C Minor</annotation>
         <arrangement track="chords">
           <instance row="0">chords-a</instance>
         </arrangement>
@@ -243,7 +246,6 @@
         </arrangement>
       </section>
       <section length="8">
-        <annotation row="0">C Minor</annotation>
         <arrangement track="bass">
           <instance row="0">bass-b</instance>
         </arrangement>

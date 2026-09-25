@@ -24,9 +24,12 @@
     <track id="0" instrument="0" sendA="-6.9357" elevation="50" azimuth="30" />
   </tracks>
   
+  <locators>
+    <locator row="0">Major</locator>
+    <locator row="48">Major</locator>
+  </locators>
   <sections>
     <section length="3">
-      <annotation row="0">Major</annotation>
       <pattern track="0">
         <note row="0" velocity="40">C-4</note>
         <note row="2" velocity="40">Db4</note>
@@ -43,7 +46,6 @@
       </pattern>
     </section>
     <section length="3">
-      <annotation row="0">Major</annotation>
       <pattern track="0">
         <note row="0" velocity="40">C-4 E-4 G-4</note>
         <note row="4" velocity="40">Db4 F-4 Ab4</note>

@@ -8,6 +8,20 @@
     <track id="0" instrument="0" azimuth="30" distance="0" elevation="50" volume="1.0" preset="subtle"/>
   </tracks>
   
+  <locators>
+    <locator row="48">C minor</locator>
+    <locator row="52">Db major</locator>
+    <locator row="56">D minor</locator>
+    <locator row="60">Eb major</locator>
+    <locator row="64">E minor</locator>
+    <locator row="68">F minor</locator>
+    <locator row="72">G</locator>
+    <locator row="76">Ab major</locator>
+    <locator row="80">A minor</locator>
+    <locator row="84">Bb minor</locator>
+    <locator row="88">B quartal minor</locator>
+    <locator row="92">C minor</locator>
+  </locators>
   <sections>
     <section length="3">
       <pattern track="0">
@@ -24,18 +38,6 @@
       </pattern>
     </section>
     <section length="3">
-      <annotation row="0">C minor</annotation>
-      <annotation row="4">Db major</annotation>
-      <annotation row="8">D minor</annotation>
-      <annotation row="12">Eb major</annotation>
-      <annotation row="16">E minor</annotation>
-      <annotation row="20">F minor</annotation>
-      <annotation row="24">G</annotation>
-      <annotation row="28">Ab major</annotation>
-      <annotation row="32">A minor</annotation>
-      <annotation row="36">Bb minor</annotation>
-      <annotation row="40">B quartal minor</annotation>
-      <annotation row="44">C minor</annotation>
       <pattern track="0">
         <note row="0" velocity="40">C-4 Eb4 G-4</note>
         <note row="4" velocity="40">Db4 F-4 Ab4</note>

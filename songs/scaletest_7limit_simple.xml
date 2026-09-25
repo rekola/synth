@@ -25,9 +25,50 @@
             <lane note="CR"/>
         </percussionTrack>
     </tracks>
+    <locators>
+        <locator row="0">Major</locator>
+        <locator row="64">C quartal major</locator>
+        <locator row="68">D# quartal</locator>
+        <locator row="72">C/E</locator>
+        <locator row="76">F major</locator>
+        <locator row="80">G quartal major</locator>
+        <locator row="84">A major</locator>
+        <locator row="88">A# quartal minor</locator>
+        <locator row="92">C major</locator>
+        <locator row="128">C major harmonic seventh</locator>
+        <locator row="132">D#</locator>
+        <locator row="136">E</locator>
+        <locator row="140">F major seventh</locator>
+        <locator row="144">G quartal major</locator>
+        <locator row="148">A major</locator>
+        <locator row="152">A# quartal minor</locator>
+        <locator row="156">C major</locator>
+        <locator row="192">Minor</locator>
+        <locator row="256">C minor</locator>
+        <locator row="260">E𝄫</locator>
+        <locator row="264">E♭</locator>
+        <locator row="268">F minor</locator>
+        <locator row="272">G quartal minor</locator>
+        <locator row="276">A♭ major</locator>
+        <locator row="280">B𝄫 quartal major</locator>
+        <locator row="284">C minor</locator>
+        <locator row="320">C minor</locator>
+        <locator row="324">C major</locator>
+        <locator row="328">C minor 6th</locator>
+        <locator row="332">C major 6th</locator>
+        <locator row="336">C minor 7th</locator>
+        <locator row="340">C major 7th</locator>
+        <locator row="344">G quartal major</locator>
+        <locator row="348">G quartal major something</locator>
+        <locator row="352">G quartal major something something</locator>
+        <locator row="356">G quartal minor</locator>
+        <locator row="360">G quartal minor</locator>
+        <locator row="364">G quartal minor</locator>
+        <locator row="384">C major harmonic seventh</locator>
+        <locator row="388">C major harmonic seventh</locator>
+    </locators>
     <sections>
       <section length="4">
-        <annotation row="0">Major</annotation>
         <pattern track="perc">
           <note row="0" velocity="33">CH </note>
           <note row="4" velocity="25">CH </note>
@@ -46,14 +87,6 @@
         </pattern>
       </section>
       <section length="4">
-        <annotation row="0">C quartal major</annotation>
-        <annotation row="4">D# quartal</annotation>
-        <annotation row="8">C/E</annotation>
-        <annotation row="12">F major</annotation>
-        <annotation row="16">G quartal major</annotation>
-        <annotation row="20">A major</annotation>
-        <annotation row="24">A# quartal minor</annotation>
-        <annotation row="28">C major</annotation>
         <pattern track="perc">
           <note row="0" velocity="7">CH </note>
           <note row="4" velocity="17">CH </note>
@@ -100,14 +133,6 @@
         </pattern>
       </section>
       <section length="4">
-        <annotation row="0">C major harmonic seventh</annotation>
-        <annotation row="4">D#</annotation>
-        <annotation row="8">E</annotation>
-        <annotation row="12">F major seventh</annotation>
-        <annotation row="16">G quartal major</annotation>
-        <annotation row="20">A major</annotation>
-        <annotation row="24">A# quartal minor</annotation>
-        <annotation row="28">C major</annotation>
         <pattern track="0">
           <note row="0" velocity="40">C-4</note>
           <note row="0" column="1" velocity="40">D♯4</note>
@@ -137,7 +162,6 @@
         </pattern>
       </section>
       <section length="4">
-        <annotation row="0">Minor</annotation>
         <pattern track="0">
           <note row="0" velocity="40">C-4</note>
           <note row="2" velocity="40">E𝄫4</note>
@@ -150,14 +174,6 @@
         </pattern>
       </section>
       <section length="4">
-        <annotation row="0">C minor</annotation>
-        <annotation row="4">E𝄫</annotation>
-        <annotation row="8">E♭</annotation>
-        <annotation row="12">F minor</annotation>
-        <annotation row="16">G quartal minor</annotation>
-        <annotation row="20">A♭ major</annotation>
-        <annotation row="24">B𝄫 quartal major</annotation>
-        <annotation row="28">C minor</annotation>
         <pattern track="0">
           <note row="0" velocity="40">C-4</note>
           <note row="0" column="1" velocity="40">E♭4</note>
@@ -194,18 +210,6 @@
         </pattern>
       </section>
       <section length="4">
-        <annotation row="0">C minor</annotation>
-        <annotation row="4">C major</annotation>
-        <annotation row="8">C minor 6th</annotation>
-        <annotation row="12">C major 6th</annotation>
-        <annotation row="16">C minor 7th</annotation>
-        <annotation row="20">C major 7th</annotation>
-        <annotation row="24">G quartal major</annotation>
-        <annotation row="28">G quartal major something</annotation>
-        <annotation row="32">G quartal major something something</annotation>
-        <annotation row="36">G quartal minor</annotation>
-        <annotation row="40">G quartal minor</annotation>
-        <annotation row="44">G quartal minor</annotation>
         <pattern track="0">
           <note row="0" velocity="40">C-4</note>
           <note row="0" column="1" velocity="40">E♭4</note>
@@ -256,8 +260,6 @@
         </pattern>
       </section>
       <section length="4">
-        <annotation row="0">C major harmonic seventh</annotation>
-        <annotation row="4">C major harmonic seventh</annotation>
         <pattern track="0">
           <note row="0" velocity="40">C-4</note>
           <note row="0" column="1" velocity="40">D♯4</note>

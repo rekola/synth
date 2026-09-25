@@ -24,14 +24,16 @@
     <track id="0" instrument="0" azimuth="30" distance="0" elevation="50" />
   </tracks>
   
+  <locators>
+    <locator row="0">C minor + Bb</locator>
+    <locator row="4">C major + Bb</locator>
+    <locator row="8">C minor + Ax</locator>
+    <locator row="12">C major + Ax</locator>
+    <locator row="16">C minor + B</locator>
+    <locator row="20">C major + B</locator>
+  </locators>
   <sections>
     <section length="2">
-      <annotation row="0">C minor + Bb</annotation>
-      <annotation row="4">C major + Bb</annotation>
-      <annotation row="8">C minor + Ax</annotation>
-      <annotation row="12">C major + Ax</annotation>
-      <annotation row="16">C minor + B</annotation>
-      <annotation row="20">C major + B</annotation>
       <pattern track="0">
         <note row="0" column="0" velocity="40">C-4 E♭4 G-4 Bb4</note>
         <note row="4" column="0" velocity="40">C-4 E-4 G-4 Bb4</note>

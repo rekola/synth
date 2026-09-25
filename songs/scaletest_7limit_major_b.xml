@@ -8,6 +8,17 @@
     <track id="0" instrument="0" azimuth="30" distance="0" elevation="50" volume="1.0" preset="subtle"/>
   </tracks>
   
+  <locators>
+    <locator row="48">C major</locator>
+    <locator row="52">Db</locator>
+    <locator row="56">D</locator>
+    <locator row="60">E</locator>
+    <locator row="64">F</locator>
+    <locator row="68">G</locator>
+    <locator row="72">A</locator>
+    <locator row="76">B</locator>
+    <locator row="80">C</locator>
+  </locators>
   <sections>
     <section length="3">
       <pattern track="0">
@@ -24,15 +35,6 @@
       </pattern>
     </section>
     <section length="3">
-      <annotation row="0">C major</annotation>
-      <annotation row="4">Db</annotation>
-      <annotation row="8">D</annotation>
-      <annotation row="12">E</annotation>
-      <annotation row="16">F</annotation>
-      <annotation row="20">G</annotation>
-      <annotation row="24">A</annotation>
-      <annotation row="28">B</annotation>
-      <annotation row="32">C</annotation>
       <pattern track="0">
         <note row="0" column="0" velocity="40" value="C-4" />
         <note row="0" column="1" velocity="40" value="E-4" />

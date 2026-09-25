@@ -25,9 +25,12 @@
         <track id="pad" instrument="3" azimuth="15" distance="5" elevation="0" extent="20" color="" sendA="-7.3595" sendB="0.0000" noteColumns="3"/>
         <track id="bass" instrument="4" azimuth="60" distance="1" elevation="20" color="" noteColumns="2"/>
     </tracks>
+    <locators>
+        <locator row="0">C Minor</locator>
+        <locator row="64">C Minor</locator>
+    </locators>
     <sections>
       <section>
-        <annotation row="0">C Minor</annotation>
         <pattern track="chords">
           <note row="0" velocity="40">C-4</note>
           <note row="0" column="1" velocity="40">E♭4</note>
@@ -115,7 +118,6 @@
         </pattern>
       </section>
       <section>
-        <annotation row="0">C Minor</annotation>
         <pattern track="bass">
           <note row="0" velocity="40">C-1</note>
           <note row="6" velocity="40">C-1</note>

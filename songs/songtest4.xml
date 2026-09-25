@@ -8,9 +8,11 @@
     <track id="0" instrument="0" sendA="-9.1186" />
   </tracks>
   
+  <locators>
+    <locator row="48">B𝄫3 quartal major</locator>
+  </locators>
   <sections>
     <section length="4">
-      <annotation row="48">B𝄫3 quartal major</annotation>
       <pattern track="0">
         <note row="0" column="0" velocity="40">C-3 G-3 C-4</note>
         <note row="2" column="2" velocity="40" value="Eb4" />
