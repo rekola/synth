@@ -1593,23 +1593,23 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
   // Quantizes a human performer's own real-time press to whichever
   // Session clock step it's actually closer to (SessionPlayer::
   // quantizedStep()). Row-only, deliberately: a raw sub-row offset
-  // (the same idea Note's own delay column captures for the transport-
-  // driven path, via info.getCurrentDelay() - meaningless here, since the
-  // transport itself never advances during a Session View take) would
-  // just re-encode the human's own imprecise timing instead of cleaning
+  // (the same idea Note's own delay column captures for arrangement
+  // recording, via info.getCurrentDelay()) would just re-encode the human's own imprecise timing instead of cleaning
   // it up - snapping fully to the row grid is the whole point of
   // quantizing a live take at all. One shared decision for every target
   // track below (the primary and every fan-out one alike), not
   // recomputed per track.
   auto & session_player = controller.getSessionPlayer();
-  auto quantized_step = [&]() { return session_player.quantizedStep(); };
+  auto quantized_row = [&](int take_track_id) {
+    auto step = session_player.quantizedStep();
+    return controller.ensureSessionRecordingClip(take_track_id, step.step, step.bar_start);
+  };
 
   if (ev.getKind() == LaunchpadPadEvent::PRESS) {
     // A Session View take targeting this exact track writes into that
-    // take's own clip directly, indexed by the Session clock (this device's
+    // take's own clip directly, indexed by the session clock (this device's
     // NOTE grid is the only way a Session View take ever receives notes at
-    // all), never the global transport position - a
-    // Session View take runs with the transport stopped by design.
+    // all), never the arrangement position.
     // ensureSessionRecordingClip() itself owns turning an absolute clock
     // step into a row relative to this take's own row 0 (established from
     // whichever step happens to be this take's *first* one - see its own
@@ -1618,7 +1618,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     bool session_recording_here = controller.isSessionRecording(track_id);
     auto row = info.getRowIndex();
     if (session_recording_here) {
-      row = controller.ensureSessionRecordingClip(track_id, quantized_step());
+      row = quantized_row(track_id);
     }
     auto & state = deviceState(device_id);
 
@@ -1727,7 +1727,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // just above), always quantized the same way, each independently
     // finding its own free column and its own take's own current row.
     for (auto fan_out_track_id : fan_out_track_ids) {
-      auto fan_out_row = controller.ensureSessionRecordingClip(fan_out_track_id, quantized_step());
+      auto fan_out_row = quantized_row(fan_out_track_id);
       if (fan_out_row < 0) continue;
       auto & fan_out_clips = song.getClips(fan_out_track_id);
       auto fan_out_clip_index = controller.getSessionRecordingClipIndex(fan_out_track_id);
@@ -1780,18 +1780,17 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
       // Always silence the live-audition voice.
       event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, controller.getActiveBufferName(), held.track_id, held.note_column));
 
-      // A Session View take never reaches info.isPlaying() below - it runs
-      // with the transport stopped by design - so it needs its own release-
-      // off write, keyed off the same audition-clock step (rounded the same
-      // way the PRESS branch above rounds it) rather than the transport's
-      // own row.
+      // A Session View take writes its own release off into the take's
+      // clip, keyed off the same session clock step (rounded the same way
+      // the PRESS branch above rounds it) rather than the arrangement
+      // row.
       bool session_recording_here = controller.isSessionRecording(held.track_id);
       if (session_recording_here) {
         any_session_recording = true;
         // session_recording_here is its own permission to write,
         // independent of capture_enabled - see the PRESS branch's own
         // identical reasoning.
-        auto release_row = controller.ensureSessionRecordingClip(held.track_id, quantized_step());
+        auto release_row = quantized_row(held.track_id);
         auto & clips = song.getClips(held.track_id);
         auto clip_index = controller.getSessionRecordingClipIndex(held.track_id);
         // Same "not the row the note itself is on" rule as the ordinary
@@ -2938,11 +2937,8 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   array<bool, 8> track_picker_muted {};
   array<bool, 8> track_picker_armed {};
   {
-    // While the transport plays, SessionPlayer's launches are stale -
-    // its clock only runs while stopped - so what's sounding is whatever
-    // resolveInstanceAt() resolves at the live position.
-    bool use_real_position = playback_info.isPlaying();
-    const Section * current_section = use_real_position ? &song.getSection(playback_info.getPatternIndex()) : nullptr;
+    auto & session_player = controller.getSessionPlayer();
+    const Section * current_section = playback_info.isPlaying() ? &song.getSection(playback_info.getPatternIndex()) : nullptr;
     for (int x = 0; x < 8; x++) {
       if (x >= static_cast<int>(session.track_ids.size())) continue;
       auto session_track_id = session.track_ids[static_cast<size_t>(x)];
@@ -2953,14 +2949,14 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
       // tuned independently here rather than sharing one constant.
       auto identity = Color::fromHSL(structure.getBaselineInfo(session_track_id).getHue(), 0.8f, 0.3f);
       auto & clips = song.getClips(session_track_id);
-      // STOP_CLIP's own picker-row state: a real clip instance is active
-      // right now (playing) - see SessionPlayer::clipHighlight() on which
-      // source that reads while playing vs. stopped.
+      // STOP_CLIP's own picker-row state: a clip is playing right now - a
+      // launched one on a taken-over track, else whatever the arrangement
+      // has at the transport's position.
       bool any_playing = false;
-      if (use_real_position) {
+      if (session_player.isTakenOver(session_track_id)) {
+        any_playing = session_player.isLaunched(session_track_id);
+      } else if (current_section) {
         any_playing = resolveInstanceAt(song, *current_section, session_track_id, playback_info.getRowIndex()).clip_index >= 0;
-      } else {
-        any_playing = controller.getSessionPlayer().isLaunched(session_track_id);
       }
       track_picker_playing[static_cast<size_t>(x)] = any_playing;
       track_picker_armed[static_cast<size_t>(x)] = controller.isTrackArmed(session_track_id);

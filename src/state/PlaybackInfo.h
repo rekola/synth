@@ -3,6 +3,7 @@
 
 #include "TrackInfo.h"
 #include "ActiveVoiceInfo.h"
+#include "SessionTrackInfo.h"
 
 #include <vector>
 #include <unordered_map>
@@ -31,6 +32,7 @@ class PlaybackInfo {
   int getPatternIndex() const { return pattern_idx_; }
   int getRowIndex() const { return row_idx_; }
   int getSamplePos() const { return sample_pos_; }
+  int getSampleInterval() const { return sample_interval_; }
   // sample_interval_/outSampleRate_ are both 0 in a default-constructed
   // PlaybackInfo - Controller::playback_info starts out that way and only
   // gets overwritten once the Player thread's first PlaybackEvent reaches
@@ -72,6 +74,27 @@ class PlaybackInfo {
   }
   void setActiveVoices(std::unordered_map<int, std::vector<ActiveVoiceInfo> > voices) { active_voices_ = std::move(voices); }
 
+  // Session view's launched clips (SongState::getSessionTracks()) - the
+  // tracks taken over from the arrangement and what's queued for them.
+  const SessionTracks & getSessionTracks() const { return session_tracks_; }
+  void setSessionTracks(SessionTracks tracks) { session_tracks_ = std::move(tracks); }
+  const SessionTrackInfo * getSessionTrack(int track_id) const {
+    auto it = session_tracks_.find(track_id);
+    return it != session_tracks_.end() ? &it->second : nullptr;
+  }
+  // The session clock at the current row - rows played, unaffected by
+  // seeks and pattern breaks - that launched clips advance on.
+  int getSessionClock() const { return session_clock_; }
+  void setSessionClock(int clock) { session_clock_ = clock; }
+  // The session clock when the transport last started - where a UI that
+  // first sees the transport playing a few rows in picks up from.
+  int getSessionStartClock() const { return session_start_clock_; }
+  void setSessionStartClock(int clock) { session_start_clock_ = clock; }
+  // The last Session view change the audio thread had applied when this
+  // snapshot was taken - see SessionPlayer's own prediction of it.
+  int getSessionSeq() const { return session_seq_; }
+  void setSessionSeq(int seq) { session_seq_ = seq; }
+
 private:
   // SongState::is_playing_ (the real, audio-thread-owned state this
   // mirrors) starts false - playback is stopped at launch. Before the
@@ -91,6 +114,10 @@ private:
   int voice_count_ = 0, allocated_voice_count_ = 0;
   int round_trip_latency_frames_ = -1;
   bool latency_is_nominal_ = false;
+  SessionTracks session_tracks_;
+  int session_clock_ = 0;
+  int session_start_clock_ = 0;
+  int session_seq_ = 0;
 
   std::unordered_map<int, TrackInfo> effect_info_;
   std::unordered_map<int, std::vector<ActiveVoiceInfo> > active_voices_;

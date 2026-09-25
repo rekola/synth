@@ -2,9 +2,10 @@
 """Drive PatternEditor's session mode (Session view) through a pty:
 annotations exist only in Arrangement view, typing a note into an empty
 slot creates a clip there (and not in the arrangement), launching that
-clip from the clip grid moves a playhead in its own track's column only,
-and Space - the transport, Arrangement view's - does nothing in Session
-view: it neither starts the transport nor stops a running one.
+clip from the clip grid starts the transport and moves a playhead in its
+own track's column only, and Space is the transport in Session view too:
+stopping it stops the launched clip, which stays stopped when the
+transport starts again.
 """
 import os
 import sys
@@ -111,25 +112,22 @@ def main():
         still_playing |= any(scr.screen.buffer[top + r][6].bg in PLAYHEAD_BG for r in range(4))
     check("launching the playing clip again restarts it rather than stopping it", still_playing, scr)
 
-    # Space is the transport, Arrangement view's: in Session view it does
-    # nothing at all.
+    # Space is the transport in Session view too: the launch started it,
+    # and stopping it stops the launched clip.
     other_window(scr)  # clip grid -> pattern editor
-    scr.send(b" ")
-    scr.pump(0.4)
-    check("Space in Session view doesn't start the transport", not vk.is_playing(scr), scr)
-    check("and says so", "Space plays in Arrangement view" in scr.dump(), scr)
-
-    # Nor does it stop a transport started in Arrangement view.
-    scr.send(b"\t")  # -> Arrangement view
-    scr.pump(0.8)
+    check("launching started the transport", vk.is_playing(scr), scr)
+    check("the clip grid marks the launched track as taken over", "◆" in scr.dump(), scr)
     scr.send(b" ")
     scr.pump(0.6)
-    started = vk.is_playing(scr)
-    scr.send(b"\t")  # -> Session view
-    scr.pump(0.8)
+    check("Space in Session view stops the transport", not vk.is_playing(scr), scr)
     scr.send(b" ")
     scr.pump(0.6)
-    check("Space in Session view doesn't stop a running transport", started and vk.is_playing(scr), scr)
+    check("and starts it again", vk.is_playing(scr), scr)
+    moving = False
+    for _ in range(8):
+        scr.pump(0.2)
+        moving |= any(scr.screen.buffer[top + r][6].bg in PLAYHEAD_BG for r in range(4))
+    check("the stopped clip stays stopped", not moving, scr)
 
     os.kill(pid, 9)
     sys.exit(0 if all(results) else 1)

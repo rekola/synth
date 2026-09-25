@@ -751,6 +751,8 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
 	{ "Launch Clip", "", "launch-clip" },
 	{ "Launch Scene", "", "launch-scene" },
 	{ "Stop All Clips", "", "stop-all-clips" },
+	{ "Back to Arrangement", "", "back-to-arrangement" },
+	{ "Track Back to Arrangement", "", "track-back-to-arrangement" },
 	{ nullptr, nullptr, nullptr },
 	{ "New Clip from Selection", "", "copy-to-clip" },
 	{ "Merge Clip to Background", "C-x m", "merge-clip-to-background" },
@@ -2081,17 +2083,7 @@ TerminalUI::initializeWidgets() {
     getController().getSessionPlayer().launchScene(pattern_editor_->getSessionScene(), getController().getSong().getPlayableTrackIds());
   });
   commands_.define("stop-all-clips", [this]() {
-    getController().getSessionPlayer().silenceAll();
-  });
-  // Space: the transport, which is Arrangement view's - Session view has
-  // its own launches and stops (the clip grid, the Launchpad), so Space
-  // does nothing there.
-  commands_.define("play-or-stop", [this]() {
-    if (getView() == View::SESSION) {
-      setStatus("Space plays in Arrangement view - launch clips or scenes here");
-      return;
-    }
-    commands_.execute("toggle-playing");
+    getController().getSessionPlayer().stopAllTracks();
   });
   // Arrangement view's scope row (cover art, ArrangementGrid, charts) -
   // Session view never shows it.
@@ -2135,7 +2127,7 @@ TerminalUI::initializeWidgets() {
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('o', false, false, false, false), "other-window");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('m', false, false, false, false), "merge-clip-to-background");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('r', false, false, false, false), "toggle-record-arm");
-  keymap_.bind(KeyChord::pack(' ', false, false, false, false), "play-or-stop");
+  keymap_.bind(KeyChord::pack(' ', false, false, false, false), "toggle-playing");
   keymap_.bind(KeyChord::pack('[', false, false, false, false), "octave-down");
   keymap_.bind(KeyChord::pack(']', false, false, false, false), "octave-up");
   keymap_.bind(KeyChord::pack('\t', false, false, false, false), "toggle-view");

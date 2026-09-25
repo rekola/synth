@@ -756,29 +756,41 @@ would otherwise resume showing.
   `PatternEditor::getCursorTrackIndex()` - no per-device track-follow/
   detachment). Record Arm gates trigger-live (off) vs. assign-into-the-
   current-section (on), the same "just play" vs. "store into the pattern"
-  choice ordinary note entry already makes. Launch bookkeeping and
-  playback live in `SessionPlayer` (`src/playback/SessionPlayer.h`,
-  Controller-owned, `Controller::getSessionPlayer()`), so the Launchpad,
-  the clip grid and the launch commands all go through one place; it
-  plays launched clips on its own free-running clock (`SessionPlayer::
-  tick()`, once per UI frame). That clock only ever stops while playing or
-  armed - merely idle with nothing triggered, it free-runs regardless.
-  Every launch and stop is quantized to that clock's next bar (bars
-  counted from its step 0, `rows_per_bar`), the live-sequencer
-  convention - even the first launch into silence waits for it rather
-  than starting at once, and a finished Session View take loops back on
-  the bar its stop resolved on. Explicitly never the
+  choice ordinary note entry already makes. Launched clips play inside
+  the one transport, per track: a launch takes its track over from the
+  arrangement (it plays the clip, looping or one-shot, while the other
+  tracks follow the arrangement), a stop takes it over too (silent), and
+  "back-to-arrangement"/"track-back-to-arrangement" hand it back. The
+  audio thread owns this (`SongState::queueSessionChange()`, per-track
+  `SessionTrackInfo`, `src/state/SessionTrackInfo.h`): each change is
+  queued and applied on the first row of the transport's next bar
+  (`absolute_pos_ % rows_per_bar == 0`) - even the first launch into
+  silence waits for it, the live-sequencer convention; rewind to start
+  from the top. Launched clips advance on a session clock - rows played,
+  which a seek or pattern break doesn't move - and a taken-over track
+  ignores its arrangement content and automation (pattern breaks
+  aside), playing its clip's own notes and commands. Launching while the
+  transport is stopped starts it; stopping the transport stops launched
+  clips, leaving their tracks taken over, silent. `SessionPlayer`
+  (`src/playback/SessionPlayer.h`, Controller-owned, `Controller::
+  getSessionPlayer()`) is the one place the Launchpad, the clip grid and
+  the launch commands go through: it sends each change as a
+  `QUEUE_SESSION_CHANGE` event with a sequence number and predicts it in
+  `PlaybackInfo` until a snapshot has caught up (the same stale-snapshot
+  rule as the edit position), and keeps the Session View takes, resolving
+  them on bar rows it sees in the snapshots (`SessionPlayer::tick()`,
+  once per UI frame). A finished take loops back on the bar its stop
+  resolved on. Explicitly never the
   triggered clip's own loop length (that only decides where *it* loops,
   not when a pending change is allowed to interrupt it) and never
-  immediate (`SessionPlayer`'s `launched_`/`queued_`,
-  `-1` is the queued-stop sentinel) - an unassigned pad queues a stop,
+  immediate - an empty pad queues a stop,
   while repressing the active pad relaunches its clip from row 0 at the
   next boundary (a launch never toggles - the live-sequencer convention;
   a scene launch, the same press on every track, restarts a playing scene
   the same way); a stop releases the track's voices through their
   natural `stopNote()` tail once it actually
-  takes effect (`InstrumentTrackState::stopAllVoices()`, a
-  `STOP_ALL_NOTES` playback event), not left ringing or hard-cut. Stopping
+  takes effect (`InstrumentTrackState::stopAllVoices()`), not left
+  ringing or hard-cut. Stopping
   a track this way (as opposed to a plain press retriggering/reassigning
   it) goes through the track-picker overlay - see its own bullet below.
   A pad's own identity-hue static color (`DeviceState::session_colors`)
@@ -899,8 +911,9 @@ would otherwise resume showing.
   (Arrangement view's is optional too, "toggle-scopes"). The clip grid
   and the pattern editor share one cursor: the current track, and the
   clip grid's clip row is the pattern editor's scene
-  (`TerminalUI::syncSessionView()`). Each track header ends in " IMS":
-  Monitor (`LeafTrack::Monitor`, "cycle-monitor"), Mute, Solo. Monitor
+  (`TerminalUI::syncSessionView()`). Each track header ends in "◆IMS" (the ◆ double width):
+  an orange ◆ while Session view has taken the track over from the
+  arrangement, then Monitor (`LeafTrack::Monitor`, "cycle-monitor"), Mute, Solo. Monitor
   gates whether live-played input is heard (`Controller::
   isMonitoring()`): In always, Off never, Auto while the track is armed
   - and a note track also while nothing is armed, which is how pad,
@@ -949,10 +962,8 @@ would otherwise resume showing.
   view (sections and placed clips, the transport as its cursor row),
   `ScenePatternSource` in Session view (clips directly, one scene - clip
   row k across every track - at a time, its own cursor, a per-track
-  playhead for each launched clip, no annotations). Space
-  ("play-or-stop") toggles the transport, which is Arrangement view's - in
-  Session view it does nothing (clips and scenes launch and stop from the
-  clip grid and the Launchpad). The mouse wheel
+  playhead for each launched clip, no annotations). Space toggles the
+  one transport in both views. The mouse wheel
   scrolls the widget under the mouse without moving focus, and scrolls its
   view, never its cursor (so never the transport); Shift scrolls tracks
   sideways, and the next cursor move brings the view back.

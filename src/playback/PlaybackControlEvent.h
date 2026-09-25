@@ -18,9 +18,12 @@ class PlaybackControlEvent : public Event {
   // separate "the active buffer changed" notification is needed at all.
   // BUFFER_KILLED/BUFFER_RENAMED replace the bookkeeping SONG_CHANGED used
   // to fold in for those two specific cases.
-  // PLAY_SAMPLE_CLIP: live/Session-view triggering of a SampleTrack clip
-  // (parameter1 = track_id, parameter2 = clip_index) - see Player.cpp's
-  // own handler for the transport-driven counterpart it mirrors.
+  // QUEUE_SESSION_CHANGE: Session view launch/stop/return-to-arrangement
+  // for one track at the next bar (SongState::queueSessionChange()) -
+  // parameter1 = track_id, parameter2 = the target (a clip index or a
+  // SessionTrackInfo constant), parameter3 = SessionPlayer's sequence
+  // number. SILENCE_SESSION: stops every launched clip now
+  // (SongState::silenceSession()) - parameter1 = the sequence number.
   //
   // PREVIEW_NOTE/PREVIEW_POOL_NOTE/PREVIEW_GROOVE/PREVIEW_STOP:
   // OutlineView's own instrument/groove audition path, before anything is
@@ -71,7 +74,7 @@ class PlaybackControlEvent : public Event {
   enum Type { PLAY = 1, STOP, TERMINATE, MOVE_POSITION, CLEAR_VOICES, PLAY_NOTE, STOP_NOTE, STOP_ALL_NOTES, NOTE_PRESSURE, MIXER_CHANGED,
               SET_TRACK_MUTED, SET_TRACK_SOLO, SET_TRACK_SEND_A, SET_TRACK_SEND_B, SET_TRACK_SEND_MAIN, SET_TRACK_AZIMUTH,
               CHANNEL_PRESSURE, SET_RECORDING_MUTE, SET_POSITION, BUFFER_KILLED, BUFFER_RENAMED, SET_BUS_EFFECT,
-              PLAY_SAMPLE_CLIP, PREVIEW_NOTE, PREVIEW_POOL_NOTE, PREVIEW_GROOVE, PREVIEW_STOP,
+              QUEUE_SESSION_CHANGE, SILENCE_SESSION, PREVIEW_NOTE, PREVIEW_POOL_NOTE, PREVIEW_GROOVE, PREVIEW_STOP,
               GLIDE_TRACK_SEND_A, GLIDE_TRACK_SEND_B, GLIDE_TRACK_SEND_MAIN, GLIDE_TRACK_AZIMUTH,
               SET_TRACK_MONITORING };
 

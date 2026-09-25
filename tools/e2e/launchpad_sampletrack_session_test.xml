@@ -8,8 +8,7 @@
      own y-flip comment). fake_launchpad_stopclip.c itself is content-
      agnostic (plain CC/pad events, no assumption about what the track
      holds), so it's reused unchanged here to exercise SampleTrack's own
-     Session-view audition path (fireOrTriggerClipStep's SAMPLE branch ->
-     PlaybackControlEvent::PLAY_SAMPLE_CLIP) instead of the note-based one.
+     Session-view launch path instead of the note-based one.
      Clip 7's own explicit length="8" matters the same way the note-based
      fixture's does - a default (0, clamped to 1) would re-trigger every
      single audition-clock step instead of looping normally. loop="1"

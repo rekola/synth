@@ -891,11 +891,12 @@ class Controller {
   // index already holds a clip - see its own comment, and
   // primeSessionRecordingOrigin()'s for the overdub exception to it),
   // never calling placeClipInstance() at all. `absolute_step` is the
-  // Session clock's own raw step (SessionPlayer::quantizedStep(), a Launchpad's NOTE grid being the only
-  // way notes reach here today - keyboard note *recording* not being
-  // viable without key-release events this terminal doesn't deliver), not
-  // getPlaybackInfo().getRowIndex() - a session recording can run with the
-  // transport stopped, so there's no live global position to read.
+  // session clock's step (SessionPlayer::quantizedStep(), a Launchpad's
+  // NOTE grid being the only way notes reach here today - keyboard note
+  // *recording* not being viable without key-release events this
+  // terminal doesn't deliver), not getPlaybackInfo().getRowIndex() - the
+  // clock launched clips play on, which a seek or pattern break doesn't
+  // move.
   //
   // The *first* call for a take is where its own origin_step gets
   // established, unless primeSessionRecordingOrigin() already fixed it -
@@ -903,8 +904,9 @@ class Controller {
   // note happened to land on: a performer may deliberately start playing
   // on the bar's second beat rather than its first, and the clip's own row
   // 0 still has to be the bar's start either way, not wherever they first
-  // happened to play - bars counted from the Session clock's step 0, the
-  // same grid every launched clip lines up with. Every call, first or not, returns this
+  // happened to play: `bar_start_step`, the step that bar began at (the
+  // session clock isn't bar-aligned after a mid-bar seek), or bars
+  // counted from step 0 when it's -1. Every call, first or not, returns this
   // take's own row - -1 when `track_id` has no in-flight take at all
   // (isSessionRecording(track_id) false). For a fresh take that's the raw
   // (absolute_step - origin_step), ever-growing alongside
@@ -915,7 +917,7 @@ class Controller {
   // track's own shared grid, so playing longer than it just means
   // multiple passes merging more notes into the same loop, never growing
   // it (which would desync it from that shared grid).
-  int ensureSessionRecordingClip(int track_id, int absolute_step);
+  int ensureSessionRecordingClip(int track_id, int absolute_step, int bar_start_step = -1);
   // Same growth-loop shape as extendRecordingClipsIfNeeded() above, keyed
   // off `track_id`'s own origin_step (established by
   // ensureSessionRecordingClip() above by the time this is ever
@@ -933,7 +935,7 @@ class Controller {
   // recording). extendSessionRecordingClipIfNeeded() above only ever
   // grows the clip a bar ahead of wherever the take currently is, so by
   // the time the performer stops playing and disarms, its length is
-  // however far the free-running clock had gotten to, not however much of
+  // however far the session clock had gotten to, not however much of
   // it actually holds a note - trimmed back down to the last written row,
   // rounded up to that row's own containing bar (a fresh one-bar clip if
   // nothing ever landed). Also flips it to looping and pushes it via
@@ -1249,8 +1251,8 @@ class Controller {
   // resets an existing one's own Pattern content back to empty (an
   // occupied slot, "overwrite in place"), and every later call for that
   // same take just finds it already prepared. `origin_step` is this take's
-  // own "row 0" - the audition clock's own absolute step, snapped back to
-  // that bar's own start (previousBarRow(), ArrangementOps.h), the moment
+  // own "row 0" - a session clock step, snapped back to that bar's own
+  // start (see ensureSessionRecordingClip()), the moment
   // the *first real note* actually arrives - not the moment arming
   // happens: a performer needs time to get ready before actually playing
   // anything, and fixing row 0 at arm time would bake however long that

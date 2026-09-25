@@ -381,23 +381,12 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     }
     break;
 
-  case PlaybackControlEvent::PLAY_SAMPLE_CLIP:
-    {
-      auto track_id = ev.getParameter1();
-      auto clip_index = ev.getParameter2();
-      auto & clips = song.getClips(track_id);
-      if (clip_index < 0 || clip_index >= static_cast<int>(clips.size())) break;
+  case PlaybackControlEvent::QUEUE_SESSION_CHANGE:
+    state.queueSessionChange(ev.getParameter1(), ev.getParameter2(), ev.getParameter3());
+    break;
 
-      auto * sample_state = dynamic_cast<SampleTrackState *>(state.getChildByInternalId(track_id));
-      // No section to bound against here (Session-view triggering isn't tied
-      // to one), and no block to chunk mid-render either - straight through
-      // to triggerClip(), unlike SongState.h's own transport-driven path
-      // (RenderContext::addPendingSampleStart()/addPendingSampleStop()).
-      // LaunchpadManager::fireOrTriggerClipStep() is what re-fires this
-      // fresh every lap for a looping clip (SampleTrackState::triggerClip()'s
-      // own comment on why no separate loop handling belongs here at all).
-      if (sample_state) sample_state->triggerClip(clips[static_cast<size_t>(clip_index)], song.getTempo());
-    }
+  case PlaybackControlEvent::SILENCE_SESSION:
+    state.silenceSession(ev.getParameter1());
     break;
 
   case PlaybackControlEvent::PLAY:
@@ -414,6 +403,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
       if (old_it != live_states_.end()) {
 	old_it->second->setIsPlaying(false);
 	old_it->second->notePlaybackStopped();
+	old_it->second->silenceSession(-1);
       }
     }
     playing_buffer_name_ = ev.getBufferName();
@@ -434,6 +424,9 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     if (playing_buffer_name_ == ev.getBufferName()) playing_buffer_name_.clear();
     state.setIsPlaying(false);
     state.notePlaybackStopped(); // snapshot for resyncPlayheadAfterStop() above, next PLAY
+    // Stopping the transport stops launched clips too; their tracks stay
+    // taken over, silent, until relaunched or returned to the arrangement.
+    state.silenceSession(-1);
     break;
 
   case PlaybackControlEvent::CLEAR_VOICES:
@@ -1033,6 +1026,10 @@ Player::createPlaybackEvent(const string & buffer_name, const Song & song, const
   info.setRowIdx(row_idx);
   info.setAbsolutePos(state.getAbsolutePosition());
   info.setPositionEditSeq(state.getPositionEditSeq());
+  info.setSessionTracks(state.getSessionTracks());
+  info.setSessionClock(state.getSessionClock());
+  info.setSessionStartClock(state.getSessionStartClock());
+  info.setSessionSeq(state.getSessionSeq());
   info.setVoiceCount(state.getVoiceCount());
   info.setRoundTripLatency(latency_frames_, latency_nominal_);
   info.setAllocatedVoiceCount(state.getAllocatedVoiceCount());

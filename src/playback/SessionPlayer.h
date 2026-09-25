@@ -1,44 +1,37 @@
 #ifndef _SESSIONPLAYER_H_
 #define _SESSIONPLAYER_H_
 
-#include "../launchpad/LaunchpadTiming.h"
 #include "../launchpad/SessionPadHighlight.h"
 
-#include <chrono>
 #include <functional>
 #include <optional>
 #include <unordered_map>
 #include <vector>
 
 class Controller;
-class Clip;
-class Song;
+struct SessionTrackInfo;
 
-// Session view clip playback: which clip each track has launched and from
-// which step, what's queued to launch, stop or record at the next bar,
-// and the free-running clock that plays launched clips while the
-// transport is stopped. Every launch and stop waits for the clock's next
-// bar - bars counted from its step 0 - even the first one into silence. Owned by Controller, so every launch -
-// a Launchpad pad, the clip grid, a command - goes through the same
-// bookkeeping, with or without a device connected.
+// Session view: launching clips, stopping tracks and returning them to
+// the arrangement, all inside the one transport. A launch takes its track
+// over from the arrangement at the transport's next bar; the audio thread
+// (SongState::queueSessionChange()) owns that and plays the launched
+// clips, and each playback snapshot reports it back. This keeps the
+// UI-side bookkeeping - the Session view takes - and predicts a queued
+// change until a snapshot has caught up with it. Owned by Controller, so
+// every launch - a Launchpad pad, the clip grid, a command - goes through
+// the same place, with or without a device connected.
 class SessionPlayer {
  public:
-  using Clock = std::chrono::steady_clock;
-
   explicit SessionPlayer(Controller & controller) : controller_(controller) { }
 
-  // Replaces the wall clock tick() reads - for tests, which drive time by
-  // hand.
-  void setTimeSource(std::function<Clock::time_point()> now) { now_ = std::move(now); }
-
   // A Session view pad press on (track_id, clip_index). With Record Arm
-  // off, a populated slot queues the clip for live playback, touching no
-  // song data; on an armed track an empty slot queues a fresh take, and
-  // pressing the slot being recorded into queues that take's stop - a
-  // populated slot only ever launches, never records (overdubbing is
-  // toggleOverdub()'s job). With Record Arm on it places the clip into the
-  // arrangement at the transport's bar instead. An out-of-range or empty
-  // clip_index on an unarmed track stops it.
+  // off, a populated slot queues the clip to launch at the next bar,
+  // starting the transport if it's stopped; on an armed track an empty
+  // slot queues a fresh take, and pressing the slot being recorded into
+  // queues that take's stop - a populated slot only ever launches, never
+  // records (overdubbing is toggleOverdub()'s job). With Record Arm on it
+  // places the clip into the arrangement at the transport's bar instead.
+  // An out-of-range or empty clip_index on an unarmed track stops it.
   void triggerClip(int track_id, int clip_index);
   // Session Record: overdubs the clip playing on each armed track (the
   // fallback track if none is armed) from the next bar, in place - the
@@ -49,14 +42,19 @@ class SessionPlayer {
   // Queues `track_ids`' clip at `clip_index`, launching together at the
   // next bar.
   void launchScene(int clip_index, const std::vector<int> & track_ids);
-  // Stop Clip for one track: a quantized stop of its launched clip (or a
-  // cancel of a pending launch), a queued stop of its take while
-  // recording, or a stop instance in the arrangement with Record Arm on.
+  // Stop Clip for one track: silences it from the next bar, taking it over
+  // from the arrangement if it wasn't already; a queued stop of its take
+  // while recording; a stop instance in the arrangement with Record Arm
+  // on.
   void stopTrack(int track_id);
   // stopTrack() for every playable track.
   void stopAllTracks();
-  // Releases every launched clip now and forgets everything queued.
+  // Stops every launched clip now and forgets everything queued.
   void silenceAll();
+  // Back to arrangement: the track (or every taken-over track) follows
+  // the arrangement again from the next bar, at the transport's position.
+  void returnToArrangement(int track_id);
+  void returnAllToArrangement();
 
   // Where an arrangement assign (a launch with Record Arm on) writes when
   // the transport doesn't start: the arrangement cursor's section.
@@ -65,25 +63,29 @@ class SessionPlayer {
   // whoever tracks auto-started playback can stop it again on disarm.
   void setAssignPlaybackStarter(std::function<void()> start) { assign_playback_starter_ = std::move(start); }
 
-  // Once per UI frame: reacts to Record Arm arming, lets a just-finished
-  // take join playback, and advances the clock - firing every step it
-  // crossed. The clock runs only while the transport is stopped and
-  // Record Arm is off, or a Session view take is recording (it's what
-  // indexes that take).
+  // Once per UI frame: lets a finished take loop back, and walks the
+  // transport's rows since the last call, resolving queued takes on the
+  // first row of a bar and growing the takes in flight.
   void tick();
 
-  // The clock's step nearest to now - a live press just after a step
-  // boundary is more likely an early attempt at the next one.
-  int quantizedStep() const;
+  // The session clock's step nearest to now - a live press just after a
+  // row boundary is more likely an early attempt at the next one - and the
+  // step the bar it falls in began at.
+  struct Step { int step; int bar_start; };
+  Step quantizedStep() const;
 
-  bool isLaunched(int track_id) const { return launched_.count(track_id) > 0; }
+  // Whether a launched clip is playing on `track_id`, and whether Session
+  // view has taken the track over from the arrangement at all (a stopped
+  // track stays taken over, silent).
+  bool isLaunched(int track_id) const;
+  bool isTakenOver(int track_id) const;
 
   // What a track's clip playback is doing right now, for display. A track
-  // with nothing playing or queued has no entry.
+  // with nothing launched or queued has no entry.
   struct Playhead {
     int clip_index = -1; // the clip playing, or -1 if none
-    int row = -1; // its current row; -1 while the clock isn't running
-    std::optional<int> queued_clip; // a pending launch (clip index) or stop (-1), taking effect at the next bar
+    int row = -1; // its current row; -1 while the transport is stopped
+    std::optional<int> queued_clip; // a pending launch (clip index) or stop/return (-1), taking effect at the next bar
   };
   std::unordered_map<int, Playhead> playheads() const;
 
@@ -93,16 +95,19 @@ class SessionPlayer {
   SessionPadHighlight clipHighlight(int track_id, int clip_index) const;
 
  private:
-  // Plays `step` rows into a launched clip: that row's notes, or for a
-  // SampleTrack the whole clip at the start of each loop.
-  void fireClipStep(int track_id, int clip_index, const Clip & clip, int step);
-  // Applies whatever's queued at `step` if it's a bar boundary, then fires
-  // that step of every launched clip.
-  void advanceToStep(int step);
-  // Launches every take that just finished: at `step` (the bar its stop
-  // resolved on) for `track_id`, at the next bar for any other track.
-  void joinCompletedTakes(int track_id = -1, int step = -1);
-  void clear();
+  const SessionTrackInfo * sessionTrack(int track_id) const;
+  // Sends a queued change to the audio thread and predicts it locally.
+  void queueChange(int track_id, int target);
+  void startTransport();
+  // Queues the stop of `track_id`'s note take for the next bar - where a
+  // fresh take also starts looping, launched on the same bar.
+  void queueTakeStop(int track_id);
+  // One transport row, `step` on the session clock and `row` in the
+  // arrangement.
+  void advanceToRow(int step, int row);
+  // Queues every take that just finished to loop back from the next bar,
+  // except `launched_track_id`'s, already launched on the bar it stopped.
+  void joinCompletedTakes(int launched_track_id = -1);
 
   // A stop instance at the transport's bar, while recording an
   // arrangement. A no-op while the transport is stopped.
@@ -117,25 +122,18 @@ class SessionPlayer {
   bool triggerSampleCapture(int track_id, int clip_index);
 
   Controller & controller_;
-  std::function<Clock::time_point()> now_ = [] { return Clock::now(); };
 
-  StepClock clock_;
-  Clock::time_point last_tick_;
+  // The last sequence number sent with a queued change.
+  int seq_ = 0;
+  // The session clock step tick() last walked to, or -1 while stopped.
+  int last_step_ = -1;
 
-  // launch_step is the clock step the clip's row 0 fired at.
-  struct Launched { int clip_index; int launch_step; };
-  std::unordered_map<int, Launched> launched_;
-  // A pending launch (clip index, which relaunches an already-playing
-  // clip from row 0) or stop (-1), per track, taking effect at the next
-  // bar - a track can have one with nothing launched yet.
-  std::unordered_map<int, int> queued_;
   // A pending take. STOP ends just the in-flight take, leaving the track
   // armed; FRESH_TAKE carries the pressed empty slot; OVERDUB the playing
   // clip to record into without restarting it.
   struct QueuedRecording { enum Kind { STOP, FRESH_TAKE, OVERDUB } kind; int clip_index = 0; };
   std::unordered_map<int, QueuedRecording> queued_recording_;
 
-  bool was_note_capture_armed_ = false;
   int assign_section_idx_ = 0;
   std::function<void()> assign_playback_starter_;
 };

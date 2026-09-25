@@ -103,6 +103,12 @@ UI::initializeCommands() {
     bool playing = getController().togglePlaying();
     setStatus(playing ? "Playing" : "Stopped");
   });
+  // Tracks Session view took over follow the arrangement again from the
+  // next bar - every one, or just the current track.
+  commands_.define("back-to-arrangement", [this]() { getController().getSessionPlayer().returnAllToArrangement(); });
+  commands_.define("track-back-to-arrangement", [this]() {
+    getController().getSessionPlayer().returnToArrangement(getController().getSong().getCurrentTrackId());
+  });
   // Global, not any one widget's own - both computer-keyboard note entry
   // and every connected Launchpad's own octave read
   // Controller::getGlobalOctave(), so these two should work regardless of

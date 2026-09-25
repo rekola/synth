@@ -3,12 +3,10 @@ track-picker overlay Stop Clip (CC49) opens, triggering/stopping a
 raw-audio clip rather than a note-based one. Reuses fake_launchpad_stopclip.c
 unchanged (it's plain CC/pad events, no assumption about what the track
 holds) against launchpad_sampletrack_session_test.xml (see that fixture's
-own comment) - this is what actually proves
-LaunchpadManager::fireOrTriggerClipStep()'s SAMPLE branch
-(PlaybackControlEvent::PLAY_SAMPLE_CLIP, consumed by Player.cpp on the
-audio thread) is wired all the way through the real ALSA + audio-thread
-path, not just reachable in-process the way SampleTrackTests.cpp's own
-triggerClip() calls are. Same LED-based checks as
+own comment) - this is what actually proves a launched SampleTrack clip
+plays through the real ALSA + audio-thread path (SongState's own
+launched-clip scheduling), not just in-process the way
+SampleTrackTests.cpp's own triggerClip() calls are. Same LED-based checks as
 verify_launchpad_stopclip.py: pad (0,0)'s own LED switches from a static
 color to a real hardware pulse (green) on trigger, the picker row dims it
 to red once picking that track's column (the

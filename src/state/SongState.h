@@ -8,6 +8,7 @@
 #include "SampleTrackState.h"
 #include "../instruments/Tuner.h"
 #include "RenderContext.h"
+#include "SessionTrackInfo.h"
 #include "../model/NoteCoordinate.h"
 #include "../ambisonic/Mixer.h"
 #include "../bus/SendBusProcessor.h"
@@ -118,9 +119,13 @@ class SongState : public TrackState {
   // processed, not just one - a row can carry more than one
   // concurrently-recordable command (Pattern::setCommand(row,
   // command_column, Command)'s own comment).
-  void applyRowCommands(const Pattern & pattern, int pattern_row, int track_id, int frame_offset, bool allow_pattern_break) {
+  // `breaks_only` applies nothing but a pattern break - for a track
+  // Session view has taken over, whose arrangement automation doesn't
+  // apply while the song's flow still does.
+  void applyRowCommands(const Pattern & pattern, int pattern_row, int track_id, int frame_offset, bool allow_pattern_break, bool breaks_only = false) {
     for (auto & command : pattern.getCommandsAt(pattern_row)) {
 	if (!command.isDefined()) continue;
+	if (breaks_only && !command.isPatternBreak()) continue;
 	if (command.isPatternBreak()) {
 	  // Song-level, so only the section's own background gets one - a clip
 	  // carrying one is placed wherever, with no business jumping the song.
@@ -263,7 +268,10 @@ class SongState : public TrackState {
     // instance the playhead now lands in, regardless of whether this
     // SongState's own last-seen clip_index already happens to match (its
     // own comment has the full reasoning).
-    if (isPlaying() && !was_playing_) pending_resume_retrigger_ = true;
+    if (isPlaying() && !was_playing_) {
+      pending_resume_retrigger_ = true;
+      session_start_clock_ = session_clock_;
+    }
     // The mirror case: the very first call after the transport *stops*
     // (isPlaying() flips true -> false). A SampleTrack voice has no
     // pause-awareness of its own - only start/stop - so left alone it
@@ -310,6 +318,7 @@ class SongState : public TrackState {
 	// NOTE_PRESSURE path the live performance itself is heard
 	// through - so recording mute is inaudible for anything the
 	// player is actually doing, only for the song's own old content.
+	if (getSamplePos() == 0) advanceSessionTracks(song, i);
 	if (getSamplePos() == 0 && !recording_muted_) {
 	  // pending_resume_retrigger_ only actually describes the very first
 	  // row scheduled after a (re)start - once one row here has
@@ -352,6 +361,11 @@ class SongState : public TrackState {
 	  for (auto & [ track_id, background ] : section.getSampleBackgroundsByTrack()) {
 	    if (background.getBuffer()) scheduled_track_ids.insert(track_id);
 	  }
+	  // Tracks Session view has taken over play their launched clip
+	  // (or nothing) instead of whatever the arrangement has here.
+	  for (auto & [ track_id, session_track ] : session_tracks_) {
+	    if (session_track.isTakenOver()) scheduled_track_ids.insert(track_id);
+	  }
 
 	  for (auto track_id : scheduled_track_ids) {
 	    // What's actually active here: a real clip's own leaf Pattern,
@@ -369,7 +383,22 @@ class SongState : public TrackState {
 	    bool from_clip = false; // active_pattern is a placed clip's own, not the background
 	    int effective_row = row_idx;
 
-	    auto active = resolveInstanceAt(song, section, track_id, row_idx);
+	    // A taken-over track's launched clip counts its rows from its
+	    // launch on the session clock; an arrangement instance from the
+	    // row it was placed at.
+	    auto session_it = session_tracks_.find(track_id);
+	    bool taken_over = session_it != session_tracks_.end() && session_it->second.isTakenOver();
+	    ActiveInstance active{Section::kStopInstance};
+	    int rows_since_start = 0;
+	    if (taken_over) {
+	      if (session_it->second.clip_index >= 0) {
+		active.clip_index = session_it->second.clip_index;
+		rows_since_start = session_clock_ - session_it->second.launch_clock;
+	      }
+	    } else {
+	      active = resolveInstanceAt(song, section, track_id, row_idx);
+	      rows_since_start = row_idx - active.start_row;
+	    }
 
 	    bool is_sample_track = false;
 	    {
@@ -392,7 +421,7 @@ class SongState : public TrackState {
 	    // as this section stays the current one, and changes the instant a
 	    // different section (a different bed, or none at all) is entered.
 	    if (is_sample_track) {
-	      auto * background = section.getSampleBackgroundContent(track_id);
+	      auto * background = taken_over ? nullptr : section.getSampleBackgroundContent(track_id);
 	      auto last_it = last_background_by_track_.find(track_id);
 	      auto * previous_background = last_it == last_background_by_track_.end() ? nullptr : last_it->second;
 
@@ -472,7 +501,6 @@ class SongState : public TrackState {
 	      // SampleTrackState::triggerClip()'s own comment for why this is
 	      // the right place for lap timing to live, not the voice itself.
 	      if (is_sample_track) {
-		auto rows_since_start = row_idx - active.start_row;
 		auto loop_rows = clip.getLength() > 0 ? clip.getLength() : 1;
 		// How far into the *current* lap this row actually is - 0 at
 		// every ordinary trigger point (a fresh transition always
@@ -519,7 +547,9 @@ class SongState : public TrackState {
 		// clip - its own next lap's re-trigger already supersedes
 		// whatever's still sounding, the same as any other
 		// transition.
-		if (!clip.isLooping() && row_idx == song.getEffectiveSectionLength(section) - 1) {
+		// A launched one-shot ends on its own last row instead.
+		bool last_row = taken_over ? rows_since_start == loop_rows - 1 : row_idx == song.getEffectiveSectionLength(section) - 1;
+		if (!clip.isLooping() && last_row) {
 		  render_context_.addPendingSampleStop(track_id, i + getChannelConfiguration().getSampleInterval(tempo_), false);
 		}
 		continue;
@@ -528,7 +558,7 @@ class SongState : public TrackState {
 	      active_pattern = &clip.getLeafPattern();
 	      from_clip = true;
 	      auto length = clip.getLength() > 0 ? clip.getLength() : 1;
-	      effective_row = active_pattern->getEffectiveRow(row_idx - active.start_row, length);
+	      effective_row = active_pattern->getEffectiveRow(rows_since_start, length);
 	    } else if (active.clip_index == Section::kNoInstance) {
 	      auto it = section.getPatternsByTrack().find(track_id);
 	      if (it != section.getPatternsByTrack().end()) {
@@ -568,7 +598,7 @@ class SongState : public TrackState {
 	    auto background_it = section.getPatternsByTrack().find(track_id);
 	    if (background_it != section.getPatternsByTrack().end()) {
 	      auto background_row = background_it->second.getEffectiveRow(row_idx, song.getEffectiveSectionLength(section));
-	      applyRowCommands(background_it->second, background_row, track_id, i, true);
+	      applyRowCommands(background_it->second, background_row, track_id, i, true, taken_over);
 	    }
 	    if (from_clip) applyRowCommands(*active_pattern, effective_row, track_id, i, false);
 	  }
@@ -577,6 +607,7 @@ class SongState : public TrackState {
 	auto remaining = samplesUntilNextRow();
 	if (i + remaining <= frames) {
 	  i += remaining;
+	  session_clock_++;
 	  if (pending_break_) {
 	    pending_break_ = false;
 	    jumpToPatternBreak(song, pending_break_row_);
@@ -864,6 +895,30 @@ class SongState : public TrackState {
   // live and pattern-driven NoteCoordinates always agree on its ordinal.
   const SongStructure & getSongStructure() const { return song_structure_; }
 
+  // Session view: queues `target` for `track_id` - a clip index to launch,
+  // SessionTrackInfo::kSilent to stop, kArrangement to follow the
+  // arrangement again, or kNothingQueued to cancel - taking effect at the
+  // start of the transport's next bar. `seq` is reported back in
+  // getSessionSeq().
+  void queueSessionChange(int track_id, int target, int seq) {
+    ::queueSessionChange(session_tracks_, track_id, target);
+    session_seq_ = std::max(session_seq_, seq);
+  }
+  // Stops every launched clip now, releasing its voices, and forgets
+  // everything queued - on a transport stop too (seq -1 for that).
+  void silenceSession(int seq) {
+    for (auto & [ track_id, session_track ] : session_tracks_) {
+      if (session_track.clip_index >= 0) releaseSessionTrack(track_id, 0);
+    }
+    silenceSessionTracks(session_tracks_);
+    session_seq_ = std::max(session_seq_, seq);
+  }
+  const SessionTracks & getSessionTracks() const { return session_tracks_; }
+  int getSessionClock() const { return session_clock_; }
+  // The session clock when the transport last started.
+  int getSessionStartClock() const { return session_start_clock_; }
+  int getSessionSeq() const { return session_seq_; }
+
 private:
   int tempo_ = 0;
   bool is_playing_ = false;
@@ -904,6 +959,66 @@ private:
     }
     master_meter_value_ = frames > 0 ? std::sqrt(sum_squares / static_cast<float>(frames)) : 0.0f;
     master_clipping_ = clipping;
+  }
+
+  // Session view's launched clips and stops, per track (see
+  // queueSessionChange()), and the clock they play on: rows played,
+  // advancing with the transport but never jumping with it, so a seek or
+  // a pattern break doesn't move a launched clip.
+  SessionTracks session_tracks_;
+  int session_clock_ = 0;
+  int session_start_clock_ = 0;
+  int session_seq_ = 0;
+
+  // At the start of every row played: ends a launched one-shot that has
+  // played through, and on the first row of a bar applies whatever is
+  // queued.
+  void advanceSessionTracks(const Song & song, int frame) {
+    int rows_per_bar = std::max(1, song.getRowsPerBar());
+    bool bar_start = absolute_pos_ % rows_per_bar == 0;
+    for (auto it = session_tracks_.begin(); it != session_tracks_.end(); ) {
+      auto track_id = it->first;
+      auto & session_track = it->second;
+      auto & clips = song.getClips(track_id);
+      if (session_track.clip_index >= 0) {
+	bool gone = session_track.clip_index >= static_cast<int>(clips.size());
+	bool finished = false;
+	if (!gone) {
+	  auto & clip = clips[static_cast<size_t>(session_track.clip_index)];
+	  finished = !clip.isLooping() && session_clock_ - session_track.launch_clock >= std::max(1, clip.getLength());
+	}
+	if (gone || finished) {
+	  releaseSessionTrack(track_id, frame);
+	  session_track.clip_index = SessionTrackInfo::kSilent;
+	}
+      }
+      if (bar_start && session_track.queued != SessionTrackInfo::kNothingQueued) {
+	auto target = session_track.queued;
+	// An empty slot has nothing to launch.
+	if (target >= 0 && (target >= static_cast<int>(clips.size()) || clips[static_cast<size_t>(target)].isEmpty())) target = SessionTrackInfo::kSilent;
+	releaseSessionTrack(track_id, frame);
+	session_track.clip_index = target;
+	session_track.launch_clock = session_clock_;
+	session_track.queued = SessionTrackInfo::kNothingQueued;
+      }
+      if (session_track.isIdle()) it = session_tracks_.erase(it);
+      else ++it;
+    }
+  }
+
+  // Whatever `track_id` was sounding gives way - a launch, stop or return
+  // to the arrangement taking effect - through its natural release, and
+  // the next row starts it afresh rather than as a continuation.
+  void releaseSessionTrack(int track_id, int frame) {
+    auto * track_state = getChildByInternalId(track_id);
+    if (dynamic_cast<SampleTrackState *>(track_state)) {
+      render_context_.addPendingSampleStop(track_id, frame, false);
+      render_context_.addPendingSampleStop(track_id, frame, true);
+    } else if (auto * instrument_state = dynamic_cast<InstrumentTrackState *>(track_state)) {
+      instrument_state->stopAllVoices();
+    }
+    last_active_clip_index_by_track_.erase(track_id);
+    last_background_by_track_.erase(track_id);
   }
 
   int song_structure_version_ = -1; // never equals a real song.getMajorVersion() until initialize()/renderBlock() runs

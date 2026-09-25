@@ -7,8 +7,9 @@ Session view pattern editor follows each track's own playhead. The
 Session view, clip grid and clip editing this builds on are already in
 place.
 
-Status: Phase 1 done (`SessionPlayer`); Phases 2-4 not started. Every
-phase lands as its own commit(s), with `ctest` and the e2e scripts green.
+Status: Phase 1 done; Phase 2 done but for the two items under its "Still
+open". Phases 3-4 not started. Every phase lands as its own
+commit(s), with `ctest` and the e2e scripts green.
 
 ## Phase 1: a Controller-owned SessionPlayer
 
@@ -42,59 +43,31 @@ first, with no behaviour change at all:
 
 ## Phase 2: launched clips play inside the transport, per track
 
-Today Session-view launches and the transport are two separate playback
-modes: launched clips run on `LaunchpadManager`'s own audition clock and
-only while the transport is stopped, so starting the transport over them
-clashes (Space in Session view does nothing for that reason). The
-live-sequencer convention is one transport for both views, with each
-track following either its arrangement or its Session view clip:
+Done: one transport for both views (Space included); a launch or stop
+takes its track over from the arrangement at the next bar, with the
+first launch into silence waiting too (rewind to start from the top);
+`back-to-arrangement`/`track-back-to-arrangement` hand tracks back; the
+clip grid header marks a taken-over track (◆); launched clips play
+through `SongState` (`queueSessionChange()`, `SessionTrackInfo`) on a
+session clock that seeks and pattern breaks don't move, with their own
+commands; `SessionPlayer` predicts each change until a snapshot catches
+up and keeps the Session View takes, now running on the transport.
 
-- **One transport.** Space starts and stops it in both views. Every
-  track plays its arrangement unless it's been taken over.
-- **Per-track override.** Launching a clip on a track takes that track
-  over: it plays the clip, looping or one-shot, while the other tracks
-  follow the arrangement. Stopping a track's clip takes it over too - it
-  stays silent while the arrangement plays.
-- **Back to arrangement.** A global command and a per-track one drop the
-  override, so the track follows the arrangement again at the
-  transport's position (bar-quantized, like a launch). The clip grid
-  shows which tracks are taken over, and the Launchpad gets the same.
-- **Launching while stopped** starts the transport, as a launch does
-  today from silence.
-- **Every launch waits for the next bar**, the first one into silence
-  included - the live-sequencer convention. There's no separate launch
-  origin: `SessionPlayer` already quantizes to its clock's own bar grid
-  (from Phase 1's follow-up), which becomes the transport's here. To
-  start from the top, rewind; the metronome will make the wait audible.
-- **Engine:** launched-clip playback moves from the UI-thread audition
-  clock (`LaunchpadManager::fireClipStep()`'s `PLAY_NOTE`s) into
-  `SongState`, which already resolves each track's content per row: a
-  per-track override (the launched clip and its launch step, or a stop)
-  replaces the arrangement's instance resolution for that track.
-  `SessionPlayer` (Phase 1) keeps owning the launch bookkeeping - which
-  clip, from which step, what's queued - and feeds it to `SongState`
-  instead of firing notes itself; its audition clock goes away with the
-  transport taking over. Step-grid preview keeps its own clock.
-- **Clip commands play too.** A launched clip's effect commands
-  (`0Lxx`, the `Y`-namespace glides, ...) reach the audio thread today
-  as nothing at all: `LaunchpadManager::fireClipStep()` sends only
-  `PLAY_NOTE`/`STOP_NOTE`. Once a launched clip plays through
-  `SongState`, its commands come for free, read by the same
-  `applyRowCommands()` the arrangement uses for a placed clip, with
-  `ZBxx` ignored there as it already is.
-- **Recording automation:** Launchpad fader moves recorded while a clip
-  plays (`recordFaderAutomationIfArmed()`) go to the section background.
-  Decide whether a Session-view take should write them into the clip
-  instead, now that a clip's own commands play.
-- **Knock-on:** Phase 3's per-track playheads read the override's
-  position from the snapshot.
-- **Space** in Session view becomes the transport again, like Arrangement
-  view's.
-- Tests: a render test with one track taken over by a clip and another
-  following the arrangement, both audible, the arrangement's position
-  unaffected; back-to-arrangement at a bar boundary; a stopped override
-  staying silent while the arrangement plays; a launched clip's own
-  volume command changing its level.
+Still open:
+
+- **The Launchpad's taken-over indicator.** The clip grid shows which
+  tracks are taken over; the Launchpad doesn't yet. Pick where it shows -
+  a button's LED (a "back to arrangement" button, lit while any track is
+  taken over, would also give the hardware the command itself), or a
+  per-column mark in Session view - and whether a press there returns
+  every track or just the column's.
+- **Recording automation.** Launchpad fader moves recorded while a clip
+  plays (`recordFaderAutomationIfArmed()`) still go to the section
+  background. Now that a launched clip's own commands play, and a
+  taken-over track ignores its arrangement automation, decide whether a
+  Session View take (or an overdub) should write them into the clip
+  instead - otherwise a fader move recorded during a take is inaudible
+  until the track returns to the arrangement.
 
 ---
 

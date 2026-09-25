@@ -40,8 +40,9 @@ std::string sendValues(const SendLevels & sends) {
   return fmt::format("{:>4.0f}{:>4.0f}{:>4.0f}", sendDb(sends.main), sendDb(sends.a), sendDb(sends.b));
 }
 
-// A header's trailing " IMS": Monitor, Mute, Solo.
-constexpr int kHeaderFlagsWidth = 4;
+// A header's trailing " ◆IMS": taken over by Session view (a double-width
+// glyph), Monitor, Mute, Solo.
+constexpr int kHeaderFlagsWidth = 5;
 
 }
 
@@ -233,7 +234,7 @@ ClipGrid::startTrackRename(const Song & song, const std::vector<int> & track_ids
   // The editable span excludes the leading "T<N> " structural label
   // (N = color_ordinal_) - PatternEditor's own startTrackNameEdit() draws
   // that same prefix and leaves it out of what's editable too - and the
-  // trailing " IMS" Monitor/Mute/Solo flags, matching render()'s own
+  // trailing " ◆IMS" flags, matching render()'s own
   // header layout exactly so the reader lands right over the name it's
   // replacing.
   SongStructure structure(song);
@@ -524,15 +525,19 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     bool muted = leaf && leaf->isMuted();
     bool solo = leaf && leaf->isSolo();
     auto monitor = leaf ? leaf->getMonitor() : LeafTrack::Monitor::AUTO;
-    // The leading space of " IMS" is left to fill()'s own blank - only the
-    // three letters need their own color.
+    // The leading two cells mark a track playing Session view rather than
+    // the arrangement; otherwise they're left to the header's own blank.
+    if (getController().getSessionPlayer().isTakenOver(track_id)) {
+      setFgColor(styles.session_override_color);
+      putstr(0, x + name_width, "◆");
+    }
     setFgColor(monitor == LeafTrack::Monitor::IN ? styles.monitor_color :
                monitor == LeafTrack::Monitor::AUTO ? styles.window_fg_color : styles.window_border_color);
-    putstr(0, x + name_width + 1, monitor == LeafTrack::Monitor::AUTO ? "A" : "I");
+    putstr(0, x + name_width + 2, monitor == LeafTrack::Monitor::AUTO ? "A" : "I");
     setFgColor(muted ? styles.mute_color : styles.window_border_color);
-    putstr(0, x + name_width + 2, "M");
+    putstr(0, x + name_width + 3, "M");
     setFgColor(solo ? styles.solo_color : styles.window_border_color);
-    putstr(0, x + name_width + 3, "S");
+    putstr(0, x + name_width + 4, "S");
 
     for (auto vr = 0; vr < visible_rows; vr++) {
       auto physical_row = scroll_row_ + vr;

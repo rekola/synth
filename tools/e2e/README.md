@@ -232,11 +232,10 @@ you're changing.
   `verify_launchpad_sampletrack_stopclip.py`** - the SampleTrack twin of
   the script above: structurally the same fixture (one track, pool index
   7 populated - a real sample clip this time, `length="8"` for the same
-  reason), reusing `fake_launchpad_stopclip.c` unchanged, to prove
-  `LaunchpadManager::fireOrTriggerClipStep()`'s SAMPLE branch
-  (`PlaybackControlEvent::PLAY_SAMPLE_CLIP`) is wired all the way through
-  the real ALSA + audio-thread path, not just reachable in-process the way
-  `SampleTrackTests.cpp`'s own `triggerClip()` calls are.
+  reason), reusing `fake_launchpad_stopclip.c` unchanged, to prove a
+  launched SampleTrack clip plays through the real ALSA + audio-thread
+  path (`SongState`'s own launched-clip scheduling), not just in-process
+  the way `SampleTrackTests.cpp`'s own `triggerClip()` calls are.
 - **`fake_launchpad_mute_picker.c` / `verify_launchpad_mute_picker.py`** -
   the track-picker overlay's Mute purpose (CC39): presses CC95 a second
   time to enter Session's own mixer submode first (required before CC39

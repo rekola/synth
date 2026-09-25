@@ -36,6 +36,7 @@ add_executable(synth_tests
 	LaunchpadProtocolTests.cpp
 	LaunchpadTimingTests.cpp
 	SessionPlayerTests.cpp
+	SessionPlaybackTests.cpp
 	DrumRankTableTests.cpp
 	PercussionTrackTests.cpp
 	SF2ModulatorTests.cpp

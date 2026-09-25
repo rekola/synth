@@ -761,6 +761,7 @@ Controller::receivePlaybackSnapshot(const string & buffer_name, const PlaybackIn
     playback_infos_[buffer_name] = info;
     return;
   }
+  auto merged = info;
   if (info.getPositionEditSeq() < local_position_edit_seq_) {
     // Stale: the audio thread took this snapshot before draining our most
     // recent moveEditPosition()/setEditPosition() control event. Keep
@@ -768,15 +769,18 @@ Controller::receivePlaybackSnapshot(const string & buffer_name, const PlaybackIn
     // meters, ...) but preserve the local, already-correct edit-position
     // fields rather than regressing them - see this method's own doc
     // comment on Controller.h.
-    auto merged = info;
     merged.setAbsolutePos(playback_info.getAbsolutePosition());
     merged.setPatternIdx(playback_info.getPatternIndex());
     merged.setRowIdx(playback_info.getRowIndex());
     merged.setPositionEditSeq(playback_info.getPositionEditSeq());
-    setPlaybackInfo(merged);
-  } else {
-    setPlaybackInfo(info);
   }
+  if (info.getSessionSeq() < playback_info.getSessionSeq()) {
+    // The same for Session view: SessionPlayer's prediction of a launch
+    // or stop the audio thread hasn't applied yet stands.
+    merged.setSessionTracks(playback_info.getSessionTracks());
+    merged.setSessionSeq(playback_info.getSessionSeq());
+  }
+  setPlaybackInfo(merged);
   // Position fields aside (the only thing the merge above ever touches),
   // `info`'s own per-track data is exactly what actually arrived - the
   // live engine's own real, possibly-still-gliding Send Main/A/B/azimuth,
@@ -1222,7 +1226,7 @@ Controller::extendRecordingClipsIfNeeded(std::unordered_map<int, std::string> & 
 }
 
 int
-Controller::ensureSessionRecordingClip(int track_id, int absolute_step) {
+Controller::ensureSessionRecordingClip(int track_id, int absolute_step, int bar_start_step) {
   auto it = session_recording_takes_.find(track_id);
   if (it == session_recording_takes_.end() || it->second.clip_index < 0) return -1;
   auto & take = it->second;
@@ -1266,7 +1270,7 @@ Controller::ensureSessionRecordingClip(int track_id, int absolute_step) {
     // second beat rather than its first, and the clip's own loop point
     // still has to be the bar boundary either way.
     if (take.origin_step < 0) {
-      take.origin_step = previousBarRow(absolute_step, std::max(1, song->getRowsPerBar()));
+      take.origin_step = bar_start_step >= 0 ? bar_start_step : previousBarRow(absolute_step, std::max(1, song->getRowsPerBar()));
     }
   }
   extendSessionRecordingClipIfNeeded(track_id, absolute_step); // no-op for an overdub take - see its own comment

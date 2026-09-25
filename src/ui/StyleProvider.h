@@ -62,6 +62,8 @@ class StyleProvider {
   Color mute_color = "#ff5a5a";
   Color solo_color = "#ffdc5a";
   Color monitor_color = "#5ad2ff";
+  // The mark on a track Session view has taken over from the arrangement.
+  Color session_override_color = "#ff9a3c";
 
   // A clip slot's state glyph in the clip grid (SessionPadHighlight):
   // playing or queued; recording or queued to record; an armed track's
