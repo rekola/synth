@@ -45,15 +45,17 @@ int main() {
   // Session View clip slot instead of entering a note; CC96 selects
   // NOTES mode. A press also only actually writes into the pattern
   // (rather than just auditioning) with Record Arm on, reached here via
-  // a quick CC98 tap (CC19 itself is a full member of the scene-launch/
-  // mixer radio group now, not this command).
+  // shift+CC98 (a plain CC98 tap is Session Record).
   fprintf(stderr, "sending CC96 press (Note mode)\n");
   send_cc(seq, port, 96, 127);
   sleep(1);
-  fprintf(stderr, "sending CC98 quick tap (Record Arm on)\n");
+  fprintf(stderr, "sending shift+CC98 (Record Arm on)\n");
+  send_cc(seq, port, 91, 127); // shift held: CC98 is then the arrangement's Record Arm
+  usleep(50 * 1000);
   send_cc(seq, port, 98, 127);
   usleep(100 * 1000);
   send_cc(seq, port, 98, 0);
+  send_cc(seq, port, 91, 0);
   sleep(1);
 
   // Pads (0,0)=note 11, (1,0)=note 12, (2,0)=note 13 - a 3-note chord,
