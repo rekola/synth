@@ -41,10 +41,6 @@ class PlaybackInfo {
   // here with a zero divisor - guard both rather than dividing by it.
   int getCurrentDelay() const { return sample_interval_ > 0 ? 256 * sample_pos_ / sample_interval_ : 0; }
 
-  float getTime() const {
-    return outSampleRate_ > 0 ? (float)(absolute_pos_ * sample_interval_ + sample_pos_) / outSampleRate_ : 0.0f;
-  }
-
   // The round-trip latency of live input - the playback queue plus the
   // capture queue, plus whatever monitored input is waiting - while
   // capture runs (recording, threshold-armed or monitoring), else -1.

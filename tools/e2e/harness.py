@@ -178,7 +178,7 @@ def wait_ready(scr, timeout=10.0):
     end = time.time() + timeout
     while time.time() < end:
         scr.pump(0.3)
-        if "pattern:" in scr.dump():
+        if "voices:" in scr.dump():
             return True
     return False
 
@@ -199,7 +199,7 @@ def new_buffer(scr, name):
 
 def is_playing(scr):
     d = scr.dump()
-    info_lines = [l for l in d.splitlines() if "pattern:" in l]
+    info_lines = [l for l in d.splitlines() if "voices:" in l]
     return bool(info_lines) and "PLAYING" in info_lines[-1]
 
 

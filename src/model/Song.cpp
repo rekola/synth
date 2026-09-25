@@ -1079,6 +1079,13 @@ Song::loadParameters(const ParameterSource & input) {
   resetBusToDefaults();
 }
 
+std::string
+Song::formatPosition(int absolute_row) const {
+  auto row = std::max(absolute_row, 0);
+  auto in_bar = row % rows_per_bar_;
+  return std::to_string(row / rows_per_bar_ + 1) + "." + std::to_string(in_bar / 4 + 1) + "." + std::to_string(in_bar % 4 + 1);
+}
+
 void
 Song::storeParameters(ParameterSource & output) const {
   SongObject::storeParameters(output);

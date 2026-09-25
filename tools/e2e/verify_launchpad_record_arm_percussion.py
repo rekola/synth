@@ -76,9 +76,11 @@ print(clip_grid_text)
 
 # ClipGrid.cpp's own populated-clip icon ("▸"), as a row's own first
 # non-space character - not a plain substring search, since the status
-# line's own "Octave: ◂ 4 ▸" also contains "▸".
+# line's own "Octave: ◂ 4 ▸" also contains "▸" - and not the pattern
+# editor's master heading ("▌▸ master"), which starts with one too
+# should its leading edge ever be missed in the dump.
 lines = clip_grid_text.splitlines()
-populated_lines = [l for l in lines if l.strip().startswith("▸")]
+populated_lines = [l for l in lines if l.strip().startswith("▸") and "master" not in l]
 check("the armed clip shows real, recorded content - the note reached the take, not the step grid's background pattern",
       len(populated_lines) == 1, populated_lines)
 

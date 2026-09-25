@@ -33,7 +33,7 @@ def pattern_rows(scr):
 
 
 def transport_row(scr):
-    info = [line for line in scr.dump().splitlines() if "pattern:" in line][-1]
+    info = [line for line in scr.dump().splitlines() if "voices:" in line][-1]
     return info.split()[1]
 
 
@@ -55,7 +55,7 @@ def main():
     for _ in range(2):
         wheel(scr, 20, 50)
     check("the wheel scrolls the pattern editor's view one row per notch", pattern_rows(scr)[0] == "02", scr)
-    check("but not the transport", transport_row(scr) == "00", scr)
+    check("but not the transport", transport_row(scr) == "1.1.1", scr)
 
     wheel(scr, 20, 50, shift=True)
     check("Shift+wheel scrolls tracks sideways", first_track_title(scr) != "T0", scr)
@@ -63,7 +63,7 @@ def main():
     wheel(scr, 3, 20)  # over the arrangement grid
     scr.send(b"\x1b[B")  # Down - still reaches the pattern editor
     scr.pump(0.4)
-    check("wheeling over another widget leaves focus where it was", transport_row(scr) == "01", scr)
+    check("wheeling over another widget leaves focus where it was", transport_row(scr) == "1.1.2", scr)
     check("a cursor move brings the view back to the cursor", "01" in pattern_rows(scr)[:4], scr)
 
     # Session view: the outline panel and the session-mode pattern editor.

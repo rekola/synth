@@ -4,7 +4,9 @@
 #include "../UIElement.h"
 #include "../../Controller.h"
 #include "../../state/SongState.h"
+#include "../../util/Utf8.h"
 
+#include <algorithm>
 #include <fmt/core.h>
 
 using namespace std;
@@ -40,13 +42,7 @@ class InfoLine : public UIElement {
 	num_voices != current_num_voices_ || num_allocated_voices != current_num_allocated_voices_ ||
 	buffer_name != current_buffer_name_ || buffer_names != current_buffer_names_ ||
 	latency_ms != current_latency_ms_ || is_playing != current_is_playing_) {
-      auto seconds = (int)info.getTime();
-      auto minutes = seconds / 60;
-      seconds %= 60;
-
       auto [ rows, cols ] = getDim();
-
-      auto pattern_idx = info.getPatternIndex();
 
       // Controller::getBufferDisplayName()'s own text - basename-only,
       // unless another open buffer shares it, in which case just enough
@@ -63,8 +59,12 @@ class InfoLine : public UIElement {
       // figure, one that couldn't be measured.
       auto latency = latency_ms < 0 ? std::string() :
         fmt::format(" lat {}{}ms", info.isRoundTripLatencyNominal() ? "~" : "", latency_ms);
-      auto s = fmt::format(" {} {:02x} {:02d}:{:02d}{}{} pattern:{} voices:{}/{}", buffer_display_name, info.getAbsolutePosition(), minutes, seconds,
-                           info.isPlaying() ? " PLAYING" : "", latency, pattern_idx, num_voices, num_allocated_voices);
+      // The transport's musical position (Song::formatPosition()).
+      auto s = fmt::format(" {} {}{}{} voices:{}/{}", buffer_display_name, song.formatPosition(info.getAbsolutePosition()),
+                           info.isPlaying() ? " PLAYING" : "", latency, num_voices, num_allocated_voices);
+      // The right half starts mid-line, or just past the left half's text
+      // when a long buffer name reaches that far.
+      auto right_col = std::max(cols / 2, Utf8::displayWidth(s) + 2);
       while (s.size() < static_cast<size_t>(cols)) s += ' ';
 
       putstr(0, 0, s);
@@ -76,8 +76,7 @@ class InfoLine : public UIElement {
       auto key = song.getKey() >= 0 ? Note::keyToString(song.getTuning(), song.getKey()) : "?";
       auto tempo = song.getTempo();
 
-      int edit_step_size = 0, current_score_cursor_track = 0, current_score_cursor_col = 0;
-      putstr(0, cols / 2, fmt::format("{:2d} {} {} {} {}:{}", edit_step_size, tuning_text, key, tempo, current_score_cursor_track, current_score_cursor_col));
+      putstr(0, right_col, fmt::format("{} {} {}", tuning_text, key, tempo));
 
       current_version_ = new_version;
       current_position_ = new_position;

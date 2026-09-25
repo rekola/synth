@@ -35,7 +35,7 @@ def dump_pattern_rows(screen):
 
 def is_playing(scr):
     d = scr.dump()
-    info_lines = [l for l in d.splitlines() if "pattern:" in l]
+    info_lines = [l for l in d.splitlines() if "voices:" in l]
     return bool(info_lines) and "PLAYING" in info_lines[-1]
 
 def has_note(line):

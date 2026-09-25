@@ -8,7 +8,8 @@ Session view, clip grid and clip editing this builds on are already in
 place.
 
 Status: Phase 1 done; Phase 2 done but for the two items under its "Still
-open"; Phase 3 done. Phase 4 not started. Every phase lands as its own
+open"; Phase 3 done; Phase 4's position in the info bar done, the rest
+not started. Every phase lands as its own
 commit(s), with `ctest` and the e2e scripts green.
 
 ## Phase 1: a Controller-owned SessionPlayer

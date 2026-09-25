@@ -1392,3 +1392,18 @@ TEST(remove_instrument_with_an_out_of_range_index_is_a_no_op) {
 
   CHECK(song.getInstrumentPool().getInstruments().size() == 1);
 }
+
+// The transport's musical position: bar.beat.sixteenth, all 1-based, a
+// row being a sixteenth and a bar getRowsPerBar() rows.
+TEST(song_formats_a_row_as_bar_beat_sixteenth) {
+  Song song;
+  song.setRowsPerBar(16); // 4/4
+  CHECK(song.formatPosition(0) == "1.1.1");
+  CHECK(song.formatPosition(5) == "1.2.2");
+  CHECK(song.formatPosition(15) == "1.4.4");
+  CHECK(song.formatPosition(16) == "2.1.1");
+  song.setRowsPerBar(12); // 3/4
+  CHECK(song.formatPosition(11) == "1.3.4");
+  CHECK(song.formatPosition(12) == "2.1.1");
+  CHECK(song.formatPosition(30) == "3.2.3");
+}

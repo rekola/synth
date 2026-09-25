@@ -117,6 +117,11 @@ class Song : public SongObject {
   // ordinary 4/4 bar without inventing a second tempo-adjacent constant.
   int getRowsPerBar() const { return rows_per_bar_; }
   void setRowsPerBar(int rows) { rows_per_bar_ = rows > 0 ? rows : 1; }
+  // `absolute_row` as a musical position, "bar.beat.sixteenth", each
+  // 1-based - what the transport shows, and anything else that names a
+  // position. A row is a sixteenth (ChannelConfiguration::
+  // getRowDuration()), so a beat is 4 rows and a bar getRowsPerBar().
+  std::string formatPosition(int absolute_row) const;
 
   // Floor-reflection parameters (see InstrumentVoice.h) - fixed for the
   // whole song, not live-editable (no live control path exists for any
