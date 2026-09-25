@@ -4,6 +4,7 @@
 #include "../src/model/PatternGrid.h"
 #include "../src/model/Section.h"
 #include "../src/model/Clip.h"
+#include "../src/model/Song.h"
 
 #include <vector>
 
@@ -485,4 +486,16 @@ TEST(extract_clip_reads_a_repeated_row_through_the_tracks_own_length) {
   // getEffectiveRow() comment).
   auto clip = extractClip(p_grid, track_id, 20, 20, 4);
   CHECK(clip.getLeafPattern().getNote(0, 0).getValue() == 60);
+}
+
+TEST(locator_block_ops_address_rows_from_the_blocks_first_row) {
+  Song song;
+  song.setLocator(18, "b");
+  song.setLocator(20, "c");
+  auto block = copyPatternBlockLocators(song, 16, 1, 3); // rows 17-19
+  CHECK(block.size() == 3 && block[0].empty() && block[1] == "b" && block[2].empty());
+  clearPatternBlockLocators(song, 16, 1, 3);
+  CHECK(song.getLocators().size() == 1 && song.getLocator(20) == "c");
+  pastePatternBlockLocators(song, 32, block, 3, 1); // row 34; row 35 falls outside
+  CHECK(song.getLocators().size() == 2 && song.getLocator(34) == "b");
 }

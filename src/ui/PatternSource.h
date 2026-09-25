@@ -93,10 +93,9 @@ class PatternSource {
   // starting `first.row` rows into `first.block`.
   virtual void collectTrackInfo(RowAddress first, int rows, std::unordered_map<int, VisibleTrackInfo> & track_info) const = 0;
 
-  // Row annotations for `block`, or nullptr when this source has none.
-  // `create` as for editGrid().
-  virtual const Section * annotations(int block) const = 0;
-  virtual Section * annotations(int block, bool create) = 0;
+  // The song's own row (Song::getLocators()' key) at `address`, where
+  // this source shows locators; nullopt where it doesn't.
+  virtual std::optional<int> locatorRow(RowAddress address) const = 0;
 
   // Shifts one track's rows down from `address`, within its block.
   virtual void insertRow(int track_id, RowAddress address) = 0;

@@ -1011,8 +1011,8 @@ TEST(clips_are_independent_of_a_sections_own_inline_pattern) {
 }
 
 // The arrangement layer's own instance events - a real clip reference and
-// an explicit stop, round-tripped through the same <section> a <pattern>/
-// <annotation> already lives in.
+// an explicit stop, round-tripped through the same <section> a <pattern>
+// already lives in.
 TEST(instance_events_round_trip_through_save_and_load) {
   namespace fs = std::filesystem;
   auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_instance_events_scratch.xml").string();
@@ -1406,4 +1406,42 @@ TEST(song_formats_a_row_as_bar_beat_sixteenth) {
   CHECK(song.formatPosition(11) == "1.3.4");
   CHECK(song.formatPosition(12) == "2.1.1");
   CHECK(song.formatPosition(30) == "3.2.3");
+}
+
+TEST(locators_are_numbered_in_row_order_and_next_wraps) {
+  Song song(Tuning::TET12);
+  song.setLocator(32, "chorus");
+  song.setLocator(0, "intro");
+  song.setLocator(16, "verse");
+  CHECK(song.getLocatorRow(1) == 0);
+  CHECK(song.getLocatorRow(3) == 32);
+  CHECK(song.getLocatorRow(4) == -1);
+  CHECK(song.getLocatorRow(0) == -1);
+  CHECK(song.getNextLocatorRow(0) == 16);
+  CHECK(song.getNextLocatorRow(20) == 32);
+  CHECK(song.getNextLocatorRow(32) == 0);
+  song.setLocator(16, "");
+  CHECK(song.getLocators().size() == 2);
+  CHECK(song.getLocator(16).empty());
+  CHECK(Song(Tuning::TET12).getNextLocatorRow(0) == -1);
+}
+
+TEST(locators_round_trip_through_save_and_load) {
+  namespace fs = std::filesystem;
+  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_locators_scratch.xml").string();
+
+  Song song(Tuning::TET12);
+  song.addSection();
+  song.setLocator(0, "intro");
+  song.setLocator(37, "Am7 & <b>");
+  song.save(scratch_path);
+
+  InstrumentProvider provider;
+  Song reloaded(Tuning::TET12);
+  CHECK(reloaded.open(scratch_path, provider));
+  CHECK(reloaded.getLocators().size() == 2);
+  CHECK(reloaded.getLocator(0) == "intro");
+  CHECK(reloaded.getLocator(37) == "Am7 & <b>");
+
+  fs::remove(scratch_path);
 }

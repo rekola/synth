@@ -58,8 +58,7 @@ class ScenePatternSource : public PatternSource {
 
   void collectTrackInfo(RowAddress first, int rows, std::unordered_map<int, VisibleTrackInfo> & track_info) const override;
 
-  const Section * annotations(int) const override { return nullptr; }
-  Section * annotations(int, bool) override { return nullptr; }
+  std::optional<int> locatorRow(RowAddress) const override { return std::nullopt; }
 
   void insertRow(int track_id, RowAddress address) override;
   bool hasInstance(int, RowAddress) const override { return false; }

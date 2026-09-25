@@ -109,16 +109,9 @@ ArrangementPatternSource::collectTrackInfo(RowAddress first, int rows, std::unor
   }
 }
 
-const Section *
-ArrangementPatternSource::annotations(int block) const {
-  const Song & s = song();
-  return &s.getSection(block);
-}
-
-Section *
-ArrangementPatternSource::annotations(int block, bool create) {
-  auto & s = song();
-  return create ? &s.getOrCreateSection(block) : &s.getSection(block);
+std::optional<int>
+ArrangementPatternSource::locatorRow(RowAddress address) const {
+  return song().toAbsoluteRow(address.block, address.row);
 }
 
 void

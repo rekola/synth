@@ -271,9 +271,9 @@ permissive (any letter, not just hex `a-f`) since `docs/commands.md`'s
 two-character mnemonics (`0U`/`0D`/`0G`/`1V`/`1I`/`1O`/`1T`/`ZB`) use
 letters outside the hex range in their first two characters — only the
 velocity/delay nibble-entry path was tightened to strict `0-9a-f`; a
-mnemonic's own trailing hex-digit argument (e.g. `ZBxx`'s destination row)
+mnemonic's own trailing hex-digit argument (e.g. `ZBxx`'s locator number)
 stays permissive too, parsing a non-hex character as digit 0 rather than
-rejecting it (`Command::getBreakDestinationRow()`).
+rejecting it (`Command::getBreakLocatorNumber()`).
 
 `C-SPC` doesn't register on every terminal: its legacy encoding is a
 literal NUL byte, which notcurses's input decoder silently drops instead of
@@ -964,7 +964,7 @@ would otherwise resume showing.
   (View menu). `PatternEditor` reads and writes through a `PatternSource`
   (`src/ui/PatternSource.h`): `ArrangementPatternSource` in Arrangement
   view (sections and placed clips, the transport as its cursor row),
-  `ScenePatternSource` in Session view (clips directly, no annotations).
+  `ScenePatternSource` in Session view (clips directly, no locators).
   There each track has its own position - a clip (scene row) and a row
   in it: a playing track's is its playhead, which can't be moved (Up/Down
   say so on the status line), a stopped track's is wherever it was left,
@@ -1078,15 +1078,16 @@ would otherwise resume showing.
     `Track` (`Song` holds a flat, sequentially-played `vector<Section>`;
     each `Section` is one span in the song's linear arrangement (a real
     length in bars, not a single-row marker), holding up
-    to four kinds of per-track content - the arrangement layer's own
+    to three kinds of per-track content - the arrangement layer's own
     instance events (which `Clip`, if any, starts at a given row, or an
     explicit stop - the primary way content reaches a `Section` today, see
     `Clips`/`ArrangementOps.h` below), a directly-inline `Pattern` — a
     track's own note/command content, no `track_id` in it anywhere, always
-    an independent copy unlike a `Clip`'s own shared content — a
-    `SampleTrack`'s own merged background audio bed, and that section's own
-    row-keyed annotations) and their value types (`Note`, `Command`,
-    `SendLevels`, …).
+    an independent copy unlike a `Clip`'s own shared content — and a
+    `SampleTrack`'s own merged background audio bed), the song's
+    locators (`Song::getLocators()`, named markers keyed by absolute row,
+    shown in Arrangement view's annotation column; `ZBxx` jumps to one)
+    and their value types (`Note`, `Command`, `SendLevels`, …).
   - `src/state/` — the parallel, cheaply-resettable playback-state
     objects (`*State.h`) mirroring the model objects above.
   - `src/playback/` — `Player` (sequencer), the event vocabulary it

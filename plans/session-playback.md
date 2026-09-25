@@ -131,8 +131,10 @@ section it falls in. Drop sections and show a musical position instead.
   `ArrangementGrid` draws today go away with nothing in their place - for
   now locators are model-and-command only, shown in the pattern editor's
   annotation column as annotations already are.
-- **Locators are bar-quantized:** placed and stored per bar, so the
-  overview can draw them exactly and `ZBxx` always lands on a bar.
+- **Locators aren't bar-quantized yet:** they keep every row an
+  annotation had (songs use them as per-beat chord labels), and
+  `ArrangementGrid` shows none of them. Drawing them in the overview, and
+  whether that needs them on bars, comes later.
 - **`ZBxx` jumps to the next locator.** Its destination today is a row in
   the *next* section, which is the concept being removed - but the
   command itself keeps its shape and its place in the Implemented table

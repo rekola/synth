@@ -131,7 +131,7 @@ class SongState : public TrackState {
 	  // carrying one is placed wherever, with no business jumping the song.
 	  if (!allow_pattern_break) continue;
 	  pending_break_ = true;
-	  pending_break_row_ = command.getBreakDestinationRow();
+	  pending_break_locator_ = command.getBreakLocatorNumber();
 	} else if (command.isAzimuthSlide()) {
 	  scheduleAzimuthSlide(track_id, frame_offset, command.getAzimuthSlidePerTick());
 	} else if (command.isVolumeSet() || command.isSendASet() || command.isSendBSet() || command.isAzimuthSet()) {
@@ -613,7 +613,7 @@ class SongState : public TrackState {
 	  session_clock_++;
 	  if (pending_break_) {
 	    pending_break_ = false;
-	    jumpToPatternBreak(song, pending_break_row_);
+	    jumpToLocator(song, pending_break_locator_);
 	  } else {
 	    movePosition(1);
 	  }
@@ -829,20 +829,14 @@ class SongState : public TrackState {
     position_edit_seq_ = edit_seq;
   }
 
-  // ZBxx (Command::isPatternBreak()) landing spot: row `dest_row` of the
-  // pattern *after* whichever one `absolute_pos_` currently falls in -
-  // used in place of movePosition(1) at the one place a row ever
-  // completes (render()'s own row-boundary check above), so the rest of
-  // the current pattern is simply never reached. Landing past the last
-  // pattern behaves exactly like normal end-of-song run-off - nothing
-  // special-cased.
-  void jumpToPatternBreak(const Song & song, int dest_row) {
-    auto section_idx = song.normalizePosition(0, std::max(0, absolute_pos_)).first;
-    auto next_section_idx = section_idx + 1;
-    auto len = song.getEffectiveSectionLength(next_section_idx);
-    if (len <= 0) { movePosition(1); return; }
-    auto row = dest_row < 0 ? 0 : (dest_row >= len ? len - 1 : dest_row);
-    setPosition(song.toAbsoluteRow(next_section_idx, row));
+  // ZBxx (Command::isPatternBreak()): in place of movePosition(1) when the
+  // row completes, go to locator `number` (1-based), or with 0 the next
+  // one after this row, wrapping to the first. With no such locator the
+  // break does nothing.
+  void jumpToLocator(const Song & song, int number) {
+    auto row = number == 0 ? song.getNextLocatorRow(absolute_pos_) : song.getLocatorRow(number);
+    if (row < 0) movePosition(1);
+    else setPosition(row);
   }
 
   // YLxx/YRxx (Command::isAzimuthSlide()) - spreads constants::TICKS_PER_ROW
@@ -930,7 +924,7 @@ private:
   int position_edit_seq_ = 0;
   int position_edit_seq_at_stop_ = -1; // see notePlaybackStopped()/resyncPlayheadAfterStop()
   bool pending_break_ = false; // ZBxx seen on the row currently completing
-  int pending_break_row_ = 0;
+  int pending_break_locator_ = 0;
   RenderContext render_context_;
   SendBusProcessor send_bus_;
   AudioBuffer aux_a_sum_, aux_b_sum_;

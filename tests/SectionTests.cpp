@@ -248,7 +248,6 @@ TEST(section_insert_row_for_track_shifts_only_that_tracks_own_content) {
   Section section;
   section.setNote(0, 1, 0, Note(60, 100)); // track 1
   section.setNote(0, 2, 0, Note(64, 100)); // track 2
-  section.setAnnotation(0, "hello");
 
   section.insertRowForTrack(1, 0, 8); // insert a blank row at row 0, track 1 only
 
@@ -256,13 +255,12 @@ TEST(section_insert_row_for_track_shifts_only_that_tracks_own_content) {
   CHECK(section.getNotes(0, 1).empty());
   CHECK(section.getNote(1, 1, 0).getValue() == 60);
 
-  // Track 2 and the row's own annotation are both untouched.
+  // Track 2 is untouched.
   CHECK(section.getNote(0, 2, 0).getValue() == 64);
-  CHECK(section.getAnnotation(0) == "hello");
 }
 
 // The arrangement layer's own instance events - independent of any
-// track's own Pattern (notes/commands), same as annotations already are.
+// track's own Pattern (notes/commands).
 TEST(section_instance_events_default_to_absent) {
   Section section;
   CHECK(section.getInstance(1, 0).empty());

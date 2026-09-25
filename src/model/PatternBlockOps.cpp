@@ -1,6 +1,7 @@
 #include "PatternBlockOps.h"
 
 #include "../model/Section.h"
+#include "../model/Song.h"
 #include "../model/Clip.h"
 #include "PatternGrid.h"
 
@@ -229,22 +230,22 @@ extractClip(const PatternGrid & grid, int track_id, int row_lo, int row_hi, int 
 }
 
 vector<string>
-copyPatternBlockAnnotations(const Section & section, int row_lo, int row_hi) {
+copyPatternBlockLocators(const Song & song, int first_row, int row_lo, int row_hi) {
   vector<string> block;
-  for (int row = row_lo; row <= row_hi; row++) block.push_back(section.getAnnotation(row));
+  for (int row = row_lo; row <= row_hi; row++) block.push_back(song.getLocator(first_row + row));
   return block;
 }
 
 void
-clearPatternBlockAnnotations(Section & section, int row_lo, int row_hi) {
-  for (int row = row_lo; row <= row_hi; row++) section.setAnnotation(row, "");
+clearPatternBlockLocators(Song & song, int first_row, int row_lo, int row_hi) {
+  for (int row = row_lo; row <= row_hi; row++) song.setLocator(first_row + row, "");
 }
 
 void
-pastePatternBlockAnnotations(Section & section, const vector<string> & block, int num_rows, int target_row) {
+pastePatternBlockLocators(Song & song, int first_row, const vector<string> & block, int num_rows, int target_row) {
   for (size_t row_offset = 0; row_offset < block.size(); row_offset++) {
     int row = target_row + static_cast<int>(row_offset);
     if (row < 0 || row >= num_rows) continue;
-    section.setAnnotation(row, block[row_offset]);
+    song.setLocator(first_row + row, block[row_offset]);
   }
 }

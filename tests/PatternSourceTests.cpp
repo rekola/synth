@@ -104,7 +104,7 @@ TEST(arrangement_source_edit_grid_creates_a_section_only_when_asked) {
 
   source.editGrid({ 5, 0 }, false);
   CHECK(song.getSections().size() == 2);
-  CHECK(source.annotations(5, false) != nullptr);
+  CHECK(source.locatorRow({ 5, 0 }).has_value());
   CHECK(song.getSections().size() == 2);
 
   int row;
@@ -523,4 +523,12 @@ TEST(region_grid_follows_a_focused_clip_across_the_whole_section) {
   CHECK((grid.sourceRows(f.track_id) == make_pair(0, f.song.getEffectiveSectionLength(*f.section) - 1)));
   int row;
   CHECK(grid.find(f.track_id, 1, row) == &f.clipPattern());
+}
+
+TEST(arrangement_source_locator_rows_are_absolute_and_scene_source_has_none) {
+  Fixture f;
+  ArrangementPatternSource arrangement(f.controller);
+  CHECK(arrangement.locatorRow({ 1, 2 }) == f.rows + 2);
+  ScenePatternSource scenes(f.controller);
+  CHECK(!scenes.locatorRow({ 0, 0 }).has_value());
 }

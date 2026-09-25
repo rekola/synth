@@ -13,8 +13,10 @@
 #include "../util/constants.h"
 
 #include <algorithm>
+#include <map>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -123,6 +125,19 @@ class Song : public SongObject {
   // getRowDuration()), so a beat is 4 rows and a bar getRowsPerBar().
   std::string formatPosition(int absolute_row) const;
 
+  // Locators: named moments of the whole song ("chorus starts here", a
+  // chord's name) rather than of any one track's content, keyed by
+  // absolute row - shown in the pattern editor's annotation column, and
+  // what ZBxx jumps to (<locators><locator row="N">name</locator>).
+  const std::string & getLocator(int row) const;
+  // An empty name removes the locator.
+  void setLocator(int row, std::string name);
+  const std::map<int, std::string> & getLocators() const { return locators_; }
+  // The row of locator `number` (1-based, in row order), or -1.
+  int getLocatorRow(int number) const;
+  // The first locator after `row`, wrapping to the first; -1 with none.
+  int getNextLocatorRow(int row) const;
+
   // Floor-reflection parameters (see InstrumentVoice.h) - fixed for the
   // whole song, not live-editable (no live control path exists for any
   // of these). getEarHeight() is clamped to [0.1, 50] meters at load time
@@ -214,7 +229,7 @@ class Song : public SongObject {
   // into that sentinel would silently alias every other out-of-range
   // position in the whole process together, not persist as real song
   // content at all. Reserved for call sites about to *write* (note entry,
-  // annotation edit, paste, insert-row, ...) - getSection() stays the one to
+  // paste, insert-row, ...) - getSection() stays the one to
   // use for anything read-only (rendering, copy), which must never grow
   // the song just from being looked at. i < 0 is defensive-only (no caller
   // should ever pass one) and falls back to the same sentinel getSection()
@@ -594,6 +609,7 @@ private:
   // from Song's now-null pointer is never dereferenced in practice.
   mutable std::unique_ptr<std::mutex> tracks_mutex_ = std::make_unique<std::mutex>();
   std::vector<Section> sections_;
+  std::map<int, std::string> locators_;
   std::unordered_map<int, std::vector<Clip> > clips_by_track_;
 
   static inline Section empty_section_;

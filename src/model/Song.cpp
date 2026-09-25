@@ -611,6 +611,14 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
     // track's own note/command content - the exact same shape a section's
     // own inline <pattern> uses (parsePatternContent() above), just with
     // no name/loop/length of its own (those are the enclosing <clip>'s).
+    if (auto locators = song->FirstChildElement("locators")) {
+      for (auto it = locators->FirstChildElement("locator"); it; it = it->NextSiblingElement("locator")) {
+        auto row_text = it->Attribute("row");
+        auto name = it->GetText();
+        if (row_text && name) setLocator(atoi(row_text), name);
+      }
+    }
+
     auto clips_element = song->FirstChildElement("clips");
     if (clips_element) {
       for (auto track_it = clips_element->FirstChildElement("trackClips"); track_it; track_it = track_it->NextSiblingElement("trackClips")) {
@@ -700,15 +708,6 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	// sections file included) just takes Section's own compiled default
 	// (4 bars) - see Section::loadParameters()'s own comment.
 	section.loadParameters(XMLParameterSource(it));
-
-	for (auto it2 = it->FirstChildElement("annotation"); it2; it2 = it2->NextSiblingElement("annotation")) {
-	  auto row_text = it2->Attribute("row");
-	  if (row_text) {
-	    int row = atoi(row_text);
-	    auto s = it2->GetText();
-	    section.setAnnotation(row, s ? s : "");
-	  }
-	}
 
 	// One <pattern track="..."> per track that has anything at this
 	// section - <note>/<command> no longer carry their own "track"
@@ -940,6 +939,17 @@ Song::save(const std::string & filename) const {
     }
   }
 
+  if (!locators_.empty()) {
+    auto locators = doc.NewElement("locators");
+    root->InsertEndChild(locators);
+    for (auto & [ row, name ] : locators_) {
+      auto locator = doc.NewElement("locator");
+      locator->SetAttribute("row", row);
+      locator->SetText(name.c_str());
+      locators->InsertEndChild(locator);
+    }
+  }
+
   // <sections>/<section> - see the reader's own comment above on the
   // rename from <scenes>/<scene> (still read, never written).
   auto sections = doc.NewElement("sections");
@@ -949,17 +959,6 @@ Song::save(const std::string & filename) const {
     auto section_element = doc.NewElement("section");
     XMLParameterSource section_parameters(section_element);
     section.storeParameters(section_parameters);
-
-    // Every annotation this section actually has, not just the ones within
-    // its own current length - a row past the section's own bounds (e.g.
-    // one left behind by a later shrink) is still real authored content,
-    // and silently dropping it on save would be data loss.
-    for (auto & [ row, annotation ] : section.getAnnotations()) {
-      auto annotation_element = doc.NewElement("annotation");
-      annotation_element->SetAttribute("row", static_cast<int>(row));
-      annotation_element->SetText(annotation.c_str());
-      section_element->InsertEndChild(annotation_element);
-    }
 
     // One <pattern track="..."> per track that has anything in this
     // section - "track" moves here from every <note>/<command> (see this
@@ -1077,6 +1076,32 @@ Song::loadParameters(const ParameterSource & input) {
   // doesn't retain a stale bus configuration from whatever it loaded
   // previously.
   resetBusToDefaults();
+}
+
+const std::string &
+Song::getLocator(int row) const {
+  static const std::string none;
+  auto it = locators_.find(row);
+  return it != locators_.end() ? it->second : none;
+}
+
+void
+Song::setLocator(int row, std::string name) {
+  if (name.empty()) locators_.erase(row);
+  else locators_[row] = std::move(name);
+}
+
+int
+Song::getLocatorRow(int number) const {
+  if (number < 1 || number > static_cast<int>(locators_.size())) return -1;
+  return std::next(locators_.begin(), number - 1)->first;
+}
+
+int
+Song::getNextLocatorRow(int row) const {
+  if (locators_.empty()) return -1;
+  auto it = locators_.upper_bound(row);
+  return it != locators_.end() ? it->first : locators_.begin()->first;
 }
 
 std::string

@@ -9,6 +9,7 @@
 #include <vector>
 
 class Section;
+class Song;
 class Clip;
 class PatternGrid;
 
@@ -95,13 +96,13 @@ void pastePatternBlockCommand(PatternGrid & grid, const std::vector<Command> & b
 Clip extractClip(const PatternGrid & grid, int track_id, int row_lo, int row_hi, int rows_per_bar);
 
 // Row-only siblings of the copy/clear/paste families above, for
-// PatternEditor's SelectionScope::ANNOTATION - a Section's annotations are
-// keyed by row alone (see Section.h's own comment on why they live there
-// rather than on Pattern), so unlike every other family here there's no
-// track_id/note range involved at all.
-std::vector<std::string> copyPatternBlockAnnotations(const Section & section, int row_lo, int row_hi);
-void clearPatternBlockAnnotations(Section & section, int row_lo, int row_hi);
-void pastePatternBlockAnnotations(Section & section, const std::vector<std::string> & block, int num_rows,
-				  int target_row);
+// PatternEditor's SelectionScope::ANNOTATION - the song's locators
+// (Song::getLocators()), keyed by row alone, so unlike every other family
+// here there's no track_id/note range involved at all. Rows count from
+// `first_row`, the song's own row the block starts at.
+std::vector<std::string> copyPatternBlockLocators(const Song & song, int first_row, int row_lo, int row_hi);
+void clearPatternBlockLocators(Song & song, int first_row, int row_lo, int row_hi);
+void pastePatternBlockLocators(Song & song, int first_row, const std::vector<std::string> & block, int num_rows,
+			       int target_row);
 
 #endif

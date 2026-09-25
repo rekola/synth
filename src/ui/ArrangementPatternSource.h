@@ -31,8 +31,7 @@ class ArrangementPatternSource : public PatternSource {
 
   void collectTrackInfo(RowAddress first, int rows, std::unordered_map<int, VisibleTrackInfo> & track_info) const override;
 
-  const Section * annotations(int block) const override;
-  Section * annotations(int block, bool create) override;
+  std::optional<int> locatorRow(RowAddress address) const override;
 
   void insertRow(int track_id, RowAddress address) override;
   bool hasInstance(int track_id, RowAddress address) const override;

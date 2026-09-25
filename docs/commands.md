@@ -52,7 +52,7 @@ no business jumping the song.
 
 | Command | Description | Source |
 |---|---|---|
-| `ZBxx` | Pattern break - jump straight to row `xx` of the next pattern instead of playing out the rest of this one. | Renoise (`ZBxx`) |
+| `ZBxx` | Pattern break - when this row ends, jump to locator `xx` (1-based, in row order) instead of playing on; `ZB00` jumps to the next locator after this row, wrapping to the first. With no such locator it does nothing. | Renoise (`ZBxx`), adapted: its `xx` is a row of the next pattern |
 | `-Lxx` | Set Volume (Send Main) - an absolute level: `xx` (0-255) maps linearly in dB from -80dB up to 0dB/unity at 255, applied the instant this row starts and reaching every already-sounding voice too. | Renoise (`Lxx`, "Track Level") |
 | `-Fxx` | Set Send A - same encoding/behavior as `-Lxx`, for the track's own Send A level. Deprecated in favor of `YAxy`. | Own |
 | `-Mxx` | Set Send B - same encoding/behavior as `-Lxx`, for the track's own Send B level. Deprecated in favor of `YBxy`. | Own |

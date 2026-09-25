@@ -119,7 +119,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
     auto point = source_->cursor();
     auto track_ids = song.getRootTrackIds();
     auto grid = source_->editGrid(selectionAnchor(), false);
-    auto * annotations = source_->annotations(point.block, false);
+    auto locator_base = source_->locatorRow({ point.block, 0 });
 
     auto b = getEffectiveSelectionBounds(song, track_ids);
     clipboard_.scope = b.scope;
@@ -144,20 +144,20 @@ PatternEditor::PatternEditor(UIPlane & parent)
       clipboard_.track_tunings.clear(); // Command has no tuning-dependent semantics
       clearPatternBlockCommand(*grid, b.row_lo, b.row_hi, track_id);
     } else if (b.scope == SelectionScope::ANNOTATION) {
-      clipboard_.annotations = copyPatternBlockAnnotations(*annotations, b.row_lo, b.row_hi);
+      clipboard_.annotations = locator_base ? copyPatternBlockLocators(song, *locator_base, b.row_lo, b.row_hi) : std::vector<std::string>();
       clipboard_.cells.clear();
       clipboard_.commands.clear();
       clipboard_.track_tunings.clear(); // not track-scoped at all
-      clearPatternBlockAnnotations(*annotations, b.row_lo, b.row_hi);
+      if (locator_base) clearPatternBlockLocators(song, *locator_base, b.row_lo, b.row_hi);
     } else { // EVERYTHING - every track (TRACK's own PatternBlock capture)
       // plus the annotation (ANNOTATION's own capture), both at once - see
       // ClipboardEntry.h's own comment.
       clipboard_.cells = copyPatternBlock(*grid, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi);
       clipboard_.commands.clear();
-      clipboard_.annotations = copyPatternBlockAnnotations(*annotations, b.row_lo, b.row_hi);
+      clipboard_.annotations = locator_base ? copyPatternBlockLocators(song, *locator_base, b.row_lo, b.row_hi) : std::vector<std::string>();
       clipboard_.track_tunings = tuningsForTrackRange(song, track_ids, b.track_lo, b.track_hi);
       clearPatternBlock(*grid, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi);
-      clearPatternBlockAnnotations(*annotations, b.row_lo, b.row_hi);
+      if (locator_base) clearPatternBlockLocators(song, *locator_base, b.row_lo, b.row_hi);
     }
     song.incVersion();
     setSelectionActive(false);
@@ -211,7 +211,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
     auto point = source_->cursor();
     auto track_ids = song.getRootTrackIds();
     auto grid = source_->readGrid(selectionAnchor());
-    auto * annotations = source_->annotations(point.block);
+    auto locator_base = source_->locatorRow({ point.block, 0 });
 
     auto b = getEffectiveSelectionBounds(song, track_ids);
     clipboard_.scope = b.scope;
@@ -231,14 +231,14 @@ PatternEditor::PatternEditor(UIPlane & parent)
       clipboard_.annotations.clear();
       clipboard_.track_tunings.clear();
     } else if (b.scope == SelectionScope::ANNOTATION) {
-      clipboard_.annotations = copyPatternBlockAnnotations(*annotations, b.row_lo, b.row_hi);
+      clipboard_.annotations = locator_base ? copyPatternBlockLocators(song, *locator_base, b.row_lo, b.row_hi) : std::vector<std::string>();
       clipboard_.cells.clear();
       clipboard_.commands.clear();
       clipboard_.track_tunings.clear();
     } else { // EVERYTHING - see kill-region's own comment.
       clipboard_.cells = copyPatternBlock(*grid, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi);
       clipboard_.commands.clear();
-      clipboard_.annotations = copyPatternBlockAnnotations(*annotations, b.row_lo, b.row_hi);
+      clipboard_.annotations = locator_base ? copyPatternBlockLocators(song, *locator_base, b.row_lo, b.row_hi) : std::vector<std::string>();
       clipboard_.track_tunings = tuningsForTrackRange(song, track_ids, b.track_lo, b.track_hi);
     }
     setSelectionActive(false);
@@ -288,7 +288,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
 
       // yank writes, so it may create the block's storage.
       auto grid = source_->editGrid(point, true);
-      auto * annotations = source_->annotations(point.block, true);
+      auto locator_base = source_->locatorRow({ point.block, 0 });
       auto context_length = source_->blockLength(point.block);
       if (clipboard_.scope == SelectionScope::TRACK) {
         pastePatternBlock(*grid, clipboard_.cells, context_length, point.row, track_ids, current_cursor.track);
@@ -302,7 +302,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
         pastePatternBlockCommand(*grid, clipboard_.commands, context_length, point.row, track_id);
       } else if (clipboard_.scope == SelectionScope::ANNOTATION) {
         // Row-keyed only, no track involved at all.
-        pastePatternBlockAnnotations(*annotations, clipboard_.annotations, context_length, point.row);
+        if (locator_base) pastePatternBlockLocators(song, *locator_base, clipboard_.annotations, context_length, point.row);
       } else { // EVERYTHING - cells always cover every track (that's what
         // "every track, and the annotation" means - see
         // getEffectiveSelectionBounds()), so unlike TRACK's own paste this
@@ -310,7 +310,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
         // no sense in which a whole-row block gets "shifted" to start at a
         // different track, only the row can move.
         pastePatternBlock(*grid, clipboard_.cells, context_length, point.row, track_ids, 0);
-        pastePatternBlockAnnotations(*annotations, clipboard_.annotations, context_length, point.row);
+        if (locator_base) pastePatternBlockLocators(song, *locator_base, clipboard_.annotations, context_length, point.row);
       }
       song.incVersion();
       getController().getUIEventQueue().push(make_unique<LogEvent>("Yanked"));
@@ -409,7 +409,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
       transposePatternBlockNotes(*grid, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi, true, is_percussion(track_id));
     }
     // SelectionScope::COMMAND/ANNOTATION: nothing to transpose - Command.h
-    // and Section's annotation text both have no numeric/transposable
+    // and a locator's name both have no numeric/transposable
     // semantics. EVERYTHING: deliberately left alone too, even though its
     // PatternBlock half does have transposable notes - see
     // SelectionScope.h's own comment on why.
@@ -735,8 +735,8 @@ PatternEditor::startAnnotationEdit() {
   if (inline_editor_.isOpen()) return;
 
   auto point = source_->cursor();
-  auto * annotations = source_->annotations(point.block);
-  if (!annotations) return;
+  auto locator_row = source_->locatorRow(point);
+  if (!locator_row) return;
 
   // Already true in practice (the only caller is offerInput()'s Enter
   // check, gated on new_cursor.isOnAnnotation() already) - set directly
@@ -757,12 +757,12 @@ PatternEditor::startAnnotationEdit() {
   field.row = row;
   field.col = col;
   field.width = width;
-  field.initial_text = annotations->getAnnotation(point.row);
-  inline_editor_.open(field, [this, point](std::string text) {
-    if (auto * target = source_->annotations(point.block, true)) {
-      target->setAnnotation(point.row, std::move(text));
-      getController().getSong().incVersion();
-    }
+  auto & song = getController().getSong();
+  field.initial_text = song.getLocator(*locator_row);
+  inline_editor_.open(field, [this, locator_row](std::string text) {
+    auto & target = getController().getSong();
+    target.setLocator(*locator_row, std::move(text));
+    target.incVersion();
   });
 }
 
@@ -3300,8 +3300,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 
   if (current_pos < cols && source_->hasAnnotations()) {
     static const std::string no_annotation;
-    auto * annotations = source_->annotations(pattern_idx);
-    auto & annotation = annotations ? annotations->getAnnotation(pattern_row) : no_annotation;
+    auto locator_row = source_->locatorRow({ pattern_idx, pattern_row });
+    auto & annotation = locator_row ? getController().getSong().getLocator(*locator_row) : no_annotation;
     // Cursor parked on this row's annotation slot (see GridPosition::
     // scope's own comment), or this row falls inside an EVERYTHING-scoped
     // selection (getEffectiveSelectionBounds() - one end on the

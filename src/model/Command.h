@@ -101,13 +101,13 @@ class Command {
   bool isDefined() const { return values_[0] != '-' || values_[1] != '-' || values_[2] != '-' || values_[3] != '-'; }
 
   // ZBxx ("Z" being the group every native/global command not tied to a
-  // specific per-note effect lives under) - pattern break: jump straight
-  // to row `xx` (see getBreakDestinationRow() below) of the *next*
-  // pattern instead of playing out the rest of this one. See
-  // docs/commands.md.
+  // specific per-note effect lives under) - pattern break: once this row
+  // ends, jump to locator `xx` (getBreakLocatorNumber() below) instead of
+  // playing on. See docs/commands.md.
   bool isPatternBreak() const { return values_[0] == 'Z' && values_[1] == 'B'; }
 
-  // The 2-hex-digit row argument for ZBxx (values_[2..3], 0-255) - a
+  // ZBxx's 1-based locator number, 0 for the next locator (values_[2..3],
+  // 2 hex digits, 0-255) - a
   // non-hex character parses as digit 0 rather than being rejected
   // (digit() returns -1 for those). Live typed entry can no longer
   // actually produce one (updateData() validates columns 2/3 to
@@ -115,7 +115,7 @@ class Command {
   // constructor - straight from a hand-edited/malformed XML file -
   // bypasses updateData() entirely, so this stays permissive rather than
   // asserting on data this class didn't itself validate.
-  int getBreakDestinationRow() const {
+  int getBreakLocatorNumber() const {
     auto hi = digit(values_[2], 16), lo = digit(values_[3], 16);
     return (hi < 0 ? 0 : hi) * 16 + (lo < 0 ? 0 : lo);
   }
@@ -133,7 +133,7 @@ class Command {
   }
 
   // Signed degrees-per-tick for isAzimuthSlide() (values_[2..3], same
-  // permissive 2-hex-digit parsing as getBreakDestinationRow() above) -
+  // permissive 2-hex-digit parsing as getBreakLocatorNumber() above) -
   // negative for left (YLxx), positive for right (YRxx).
   float getAzimuthSlidePerTick() const {
     auto hi = digit(values_[2], 16), lo = digit(values_[3], 16);
@@ -176,7 +176,7 @@ class Command {
   bool isSendBSet() const { return values_[0] == '0' && values_[1] == 'M'; }
 
   // Shared decode for all three above - xx (0-255, permissive 2-hex-digit
-  // parsing, same as getBreakDestinationRow()/getAzimuthSlidePerTick())
+  // parsing, same as getBreakLocatorNumber()/getAzimuthSlidePerTick())
   // maps linearly in dB from -80dB (perceptually silent - not a true
   // hard-off floor like a fader's own bottom position, but close enough
   // that the distinction is inaudible) up to 0dB/unity at 255 - a finer,

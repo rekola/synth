@@ -23,10 +23,8 @@
 // own note/command content, patterns_by_track_id_ below - unlike a Clip's
 // content, always an independent copy, never shared across sections), a
 // SampleTrack's own merged background audio bed
-// (sample_backgrounds_by_track_id_ below), and this section's own row-keyed
-// annotations (a note about a moment in the song, "chorus starts here",
-// not about any one track's musical content, so it lives here rather than
-// on Pattern).
+// (sample_backgrounds_by_track_id_ below). Notes about a moment in the
+// whole song are the song's own locators (Song::getLocators()).
 //
 // Every row+track_id-keyed accessor here (setNote/getNote/setCommand/
 // getCommand/...) is a thin wrapper delegating to the right per-track
@@ -99,31 +97,9 @@ class Section : public SongObject {
     if (it != patterns_by_track_id_.end()) it->second.deleteNote(row, column);
   }
 
-  // Whole-row, not single-track: every track's own Pattern (notes and
-  // command alike - Pattern::insertRow() shifts both together) shifts in
-  // lockstep, plus this section's own row-keyed annotation. A row is one
-  // moment in the whole song, not a per-track thing, so shifting it here
-  // has to mean all of it moving together or the tracks would drift out
-  // of alignment with each other - unlike insertRowForTrack() below,
-  // which deliberately shifts just one track's own content and leaves
-  // every other track's own alignment with the song's own row numbers
-  // exactly as it was.
-  void insertRow(int row, int num_rows) {
-    for (auto & [ track_id, pattern ] : patterns_by_track_id_) pattern.insertRow(row, num_rows);
-    for (int i = num_rows - 1; i > row; i--) shiftAnnotation(i, i - 1);
-    annotations_.erase(static_cast<unsigned short>(row));
-  }
-
-  void deleteRow(int row, int num_rows) {
-    for (auto & [ track_id, pattern ] : patterns_by_track_id_) pattern.deleteRow(row, num_rows);
-    for (int i = row; i < num_rows - 1; i++) shiftAnnotation(i, i + 1);
-    annotations_.erase(static_cast<unsigned short>(num_rows - 1));
-  }
-
-  // Single-track counterpart of insertRow() above - shifts just this one
-  // track's own Pattern (notes and command together, Pattern::
-  // insertRow()'s own contract), leaving every other track and the row's
-  // own annotation (not this one track's own content) untouched.
+  // Shifts just this one track's own Pattern (notes and command together,
+  // Pattern::insertRow()'s own contract), leaving every other track
+  // untouched.
   void insertRowForTrack(int track_id, int row, int num_rows) {
     patterns_by_track_id_[track_id].insertRow(row, num_rows);
   }
@@ -174,17 +150,6 @@ class Section : public SongObject {
     }
   }
 
-  void setAnnotation(int row, std::string a) {
-    annotations_[static_cast<unsigned short>(row)] = std::move(a);
-  }
-
-  const std::string & getAnnotation(int row) const {
-    auto it = annotations_.find(static_cast<unsigned short>(row));
-    return it != annotations_.end() ? it->second : empty_string;
-  }
-
-  const std::unordered_map<unsigned short, std::string> & getAnnotations() const { return annotations_; }
-
   // Raw per-track access - see this class's own doc comment above for why
   // this exists alongside the row+track_id-keyed wrappers rather than
   // instead of them.
@@ -204,9 +169,8 @@ class Section : public SongObject {
   // *start* event, not a span: either a real clip (its own id - Clip.h's
   // own comment on why an id, not its ordinal position in the track's
   // clip list) or an explicit stop ("OFF") - "instantiate nothing," not a
-  // separate kind of object. Lives here, not on Pattern, for the same
-  // reason annotations do (Section's own class comment) - this doesn't
-  // belong to any one track's own Pattern either. An empty string (never
+  // separate kind of object. Lives here, not on Pattern - this doesn't
+  // belong to any one track's own Pattern. An empty string (never
   // actually stored - only ever a getInstance() return value, this
   // class's own empty_string sentinel below) means no event was placed at
   // that exact row at all.
@@ -236,15 +200,14 @@ class Section : public SongObject {
     return it2 != it->second.end() ? it2->second : empty_string;
   }
 
-  // Raw per-track access, same reasoning as getPatternsByTrack()/
-  // getAnnotations() above - placement's own clearing logic and
+  // Raw per-track access, same reasoning as getPatternsByTrack() above - placement's own clearing logic and
   // playback's own row resolution both need "every instance event on
   // this one track, in row order" at once, not a single (row, track)
   // cell at a time. Ordered (std::map, not this class's usual
   // unordered_map) because both of those actually are range queries -
   // "the most recent event at or before row R" (resolution), "every
   // event at or after row R" (clearing) - not just point lookups by
-  // exact row the way notes/commands/annotations above always are.
+  // exact row the way notes/commands above always are.
   const std::map<unsigned short, std::string> & getInstancesForTrack(int track_id) const {
     auto it = instances_by_track_id_.find(track_id);
     return it != instances_by_track_id_.end() ? it->second : empty_instances_;
@@ -286,22 +249,11 @@ class Section : public SongObject {
   const std::unordered_map<int, SampleContent> & getSampleBackgroundsByTrack() const { return sample_backgrounds_by_track_id_; }
 
 private:
-  // insertRow()/deleteRow()'s own annotation-shifting step - same "copy if
-  // present, else erase rather than store an explicit empty string" shape
-  // as Pattern::shiftCommand(), so a row with no annotation stays absent
-  // from annotations_ rather than accumulating empty entries.
-  void shiftAnnotation(int dst_row, int src_row) {
-    auto it = annotations_.find(static_cast<unsigned short>(src_row));
-    if (it != annotations_.end()) annotations_[static_cast<unsigned short>(dst_row)] = it->second;
-    else annotations_.erase(static_cast<unsigned short>(dst_row));
-  }
-
   // 4 bars - a freshly constructed section's own starting length, matching
   // this codebase's old song-wide default (64 rows / 16 rows-per-bar).
   int length_bars_ = 4;
 
   std::unordered_map<int, Pattern> patterns_by_track_id_;
-  std::unordered_map<unsigned short, std::string> annotations_;
   std::unordered_map<int, std::map<unsigned short, std::string> > instances_by_track_id_;
   std::unordered_map<int, SampleContent> sample_backgrounds_by_track_id_;
 

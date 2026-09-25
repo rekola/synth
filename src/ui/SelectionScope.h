@@ -14,10 +14,10 @@
 // as selecting "some tracks plus the annotation," so growing between the
 // two covers the whole row instead (every track, and the annotation).
 // kill-region/kill-ring-save/yank support ANNOTATION (one row-keyed string
-// per row - see PatternBlockOps.h's copy/clear/pastePatternBlockAnnotations)
+// per row - see PatternBlockOps.h's copy/clear/pastePatternBlockLocators)
 // and EVERYTHING (both that and a whole-row PatternBlock, TRACK's own
 // capture, acted on together - see ClipboardEntry.h's own comment).
-// transpose-region-* does nothing with either: Section's annotation text has
+// transpose-region-* does nothing with either: a locator's name has
 // no numeric/transposable semantics, and while EVERYTHING's PatternBlock
 // half technically has transposable notes, there's no single mark/point
 // gesture that reaches EVERYTHING without also touching the annotation, so
