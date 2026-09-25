@@ -266,12 +266,15 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   auto [ rows, cols ] = getDim();
   if (rows < 1 || cols < 1) return false;
   // 2 columns per track - the identifier cell itself, plus one shared
-  // half-width padding cell (see the render loop's own draw_edge below)
-  // - and one more standalone padding cell at the very start, for the
-  // first track's own left edge.
+  // half-width padding cell (see the render loop's own draw_edge below) -
+  // one more standalone padding cell before the first track, for its own
+  // left edge, and a locator column last, where the pattern editor shows
+  // them too.
+  constexpr int kLocatorWidth = 1;
   constexpr int kColWidth = 2;
   auto visible_rows = rows;
-  auto visible_cols = max(0, cols - 1) / kColWidth;
+  auto visible_cols = max(0, cols - kLocatorWidth - 1) / kColWidth;
+  auto & locators = song.getLocators();
 
   // Exactly one of the two ever drives the scroll position in a given
   // frame, never both (letting both run unconditionally, one after the
@@ -375,6 +378,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
     auto in_range = bar < bar_count;
     auto raw_row = bar * rows_per_bar;
     auto is_playing_row = in_range && bar == playing_bar;
+
 
     // The left edge of the whole row has no neighboring track to blend
     // with, so its own half of the leading padding cell is plain
@@ -508,6 +512,14 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
       setBgColor(styles.window_bg_color);
       putstr(vr, visible_cols * kColWidth, "▌");
     }
+
+    // A locator anywhere in this bar - which row isn't shown. The playing
+    // bar brightens the mark itself rather than tinting its background.
+    auto locator = locators.lower_bound(raw_row);
+    bool has_locator = in_range && locator != locators.end() && locator->first < raw_row + rows_per_bar;
+    setFgColor(is_playing_row ? styles.cursor_tint_color : styles.locator_mark_color);
+    setBgColor(styles.window_bg_color);
+    putstr(vr, visible_cols * kColWidth + kLocatorWidth, has_locator ? "›" : " ");
   }
 
   return true;

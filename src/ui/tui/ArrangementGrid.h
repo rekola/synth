@@ -12,7 +12,9 @@ class Song;
 
 // Always-visible overview of the whole song: one row per bar of the
 // arrangement (Song::getRowsPerBar() rows each), running on one bar past
-// where its content ends (Song::getArrangementLength()). Columns = tracks -
+// where its content ends (Song::getArrangementLength()). A "›" in the
+// rightmost column marks a bar with a locator in it (Song::getLocators()),
+// at whichever of its rows. Columns = tracks -
 // Song::getRootTrackIds() filtered down to only color-eligible ones (see
 // getVisibleTrackIds()). A clip instance renders as a colored capsule
 // (that track's own identity color, the same one PatternEditor's own

@@ -113,8 +113,8 @@ starts at row 0), `<arrangement>` in the file with no legacy reader.
 Its length is where its content ends (`Song::getArrangementLength()`; a
 clip counts one pass, a stop its own row); a looping clip plays on until
 its track's next event, and placing one clears only its first pass.
-Annotations became song-level locators (not bar-quantized, not shown in
-`ArrangementGrid`), and `ZBxx` jumps to locator `xx`, `00` the next one;
+Annotations became song-level locators (not bar-quantized; `ArrangementGrid`
+marks each bar that has one, not the row), and `ZBxx` jumps to locator `xx`, `00` the next one;
 an offline render ends where a break jumps back. `ArrangementGrid` is one
 run of bars; `ArrangementPatternSource` is one block of absolute rows
 rather than a block per bar, since a block bounds a selection and a

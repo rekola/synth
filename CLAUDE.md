@@ -887,7 +887,8 @@ would otherwise resume showing.
 - **`ArrangementGrid`** (`src/ui/tui/ArrangementGrid.h`/`.cpp`) - the terminal-
   side counterpart: an always-visible overview in the scope row - one row
   per bar of the arrangement, running one bar past where its content ends
-  (`Song::getArrangementLength()`), columns = tracks. A placed clip instance renders as
+  (`Song::getArrangementLength()`), columns = tracks, then one marking
+  (›) each bar that has a locator somewhere in it. A placed clip instance renders as
   a colored block (that track's own identity color) spanning its own
   active length in bars, its leading bar showing a single hex digit - its
   ordinal position in that track's own clip list, the same index Session

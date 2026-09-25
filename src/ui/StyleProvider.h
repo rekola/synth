@@ -75,6 +75,8 @@ class StyleProvider {
   // Pattern editor locators.
   Color locator_color = "#e03030";
   Color locator_bg_color = "#702020";
+  // The arrangement grid's mark for a bar with a locator.
+  Color locator_mark_color = "#c8c8c8";
 
   // The Session view's panel headers (OutlineView's heading, ClipGrid's
   // track header row, and the divider between them) - brighter than

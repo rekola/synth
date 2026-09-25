@@ -2249,10 +2249,10 @@ TerminalUI::layout() {
   auto num_tracks = static_cast<int>(getController().getSong().getPlayableTrackIds().size());
   // ArrangementGrid spends 2 columns per track (its own identifier cell
   // plus a shared padding cell - see ArrangementGrid.cpp's own
-  // kColWidth) plus 1 more for the leading padding cell before the first
-  // track, so its width needs doubling (plus one) here to actually fit
-  // the same track count this clamp implies.
-  int matrix_width = std::clamp(num_tracks, 4, 24) * 2 + 1;
+  // kColWidth), 1 for the leading padding cell before the first track
+  // and 1 for its locator column, so its width is doubled plus two here
+  // to actually fit the same track count this clamp implies.
+  int matrix_width = std::clamp(num_tracks, 4, 24) * 2 + 2;
   int matrix_x = cover_art_divider_x + 1;
   int matrix_divider_x = matrix_x + matrix_width;
   arrangement_grid_->resize(kScopeHeight, matrix_width).move(scope_row, matrix_x);
