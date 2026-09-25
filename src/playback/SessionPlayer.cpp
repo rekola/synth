@@ -330,6 +330,21 @@ SessionPlayer::playheads() const {
     if (session_track.queued != SessionTrackInfo::kNothingQueued) playhead.queued_clip = max(-1, session_track.queued);
     if (playhead.clip_index >= 0 || playhead.queued_clip) result[track_id] = playhead;
   }
+  // A track following the arrangement plays whatever clip is placed at the
+  // transport's row.
+  if (info.isPlaying()) {
+    auto position = info.getAbsolutePosition();
+    for (auto track_id : song.getPlayableTrackIds()) {
+      auto * session_track = info.getSessionTrack(track_id);
+      if (session_track && session_track->isTakenOver()) continue;
+      auto active = resolveInstanceAt(song, track_id, position);
+      if (active.clip_index < 0) continue;
+      auto & clip = song.getClips(track_id)[static_cast<size_t>(active.clip_index)];
+      auto & playhead = result[track_id];
+      playhead.clip_index = active.clip_index;
+      playhead.row = clipPlayheadRow(position, active.start_row, clip.getLength(), clip.isLooping());
+    }
+  }
   return result;
 }
 

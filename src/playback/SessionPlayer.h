@@ -80,8 +80,10 @@ class SessionPlayer {
   bool isLaunched(int track_id) const;
   bool isTakenOver(int track_id) const;
 
-  // What a track's clip playback is doing right now, for display. A track
-  // with nothing launched or queued has no entry.
+  // What a track's clip playback is doing right now, for display - a
+  // launched clip, or while the transport runs the clip the arrangement
+  // plays on it. A track with no clip playing and nothing queued has no
+  // entry.
   struct Playhead {
     int clip_index = -1; // the clip playing, or -1 if none
     int row = -1; // its current row; -1 while the transport is stopped

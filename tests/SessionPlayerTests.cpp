@@ -3,6 +3,7 @@
 #include "../src/Controller.h"
 #include "../src/model/Song.h"
 #include "../src/model/Clip.h"
+#include "../src/model/ArrangementOps.h"
 #include "../src/model/InstrumentTrack.h"
 #include "../src/instruments/Oscillator.h"
 #include "../src/instruments/WaveformType.h"
@@ -268,4 +269,28 @@ TEST(session_player_session_record_with_nothing_playing_does_nothing) {
   auto track = f.addTrack(1);
   CHECK(!f.player().toggleOverdub(track));
   CHECK(!f.controller.isSessionRecording(track));
+}
+
+// A track the arrangement plays shows the placed clip's playhead too, at
+// the row the placement has reached - while the transport runs.
+TEST(session_player_playheads_follow_clips_the_arrangement_plays) {
+  SessionFixture f;
+  auto track = f.addTrack(2);
+  placeClipInstance(f.song(), track, 0, 0); // loops until the next event
+  placeClipInstance(f.song(), track, 8, 1);
+  CHECK(f.player().playheads().count(track) == 0);
+
+  f.controller.togglePlaying();
+  f.playRows(2);
+  CHECK(f.player().playheads().at(track).clip_index == 0);
+  CHECK(f.player().playheads().at(track).row == 2);
+  f.playRows(4); // row 6: the loop's second pass
+  CHECK(f.player().playheads().at(track).row == 2);
+  f.playRows(3); // row 9
+  CHECK(f.player().playheads().at(track).clip_index == 1);
+  CHECK(f.player().playheads().at(track).row == 1);
+
+  f.controller.togglePlaying();
+  f.playRows(1);
+  CHECK(f.player().playheads().count(track) == 0);
 }
