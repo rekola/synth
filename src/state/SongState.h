@@ -301,7 +301,9 @@ class SongState : public TrackState {
     was_playing_ = isPlaying();
 
     if (isPlaying()) {
-      for (int i = 0; i < frames; i++) {
+      // i only ever advances by a whole row's remaining samples: each row
+      // starts on the exact frame the previous one ended.
+      for (int i = 0; i < frames; ) {
 	// recording_muted_: a live-hold recording session (Launchpad/
 	// keyboard auto-play-while-held - see LaunchpadManager::
 	// onRowAdvanced()/PatternEditor::onRowAdvanced() and their own
@@ -605,6 +607,7 @@ class SongState : public TrackState {
 	}
 	
 	auto remaining = samplesUntilNextRow();
+	if (remaining <= 0) break; // a degenerate tempo - no rows to advance through
 	if (i + remaining <= frames) {
 	  i += remaining;
 	  session_clock_++;
