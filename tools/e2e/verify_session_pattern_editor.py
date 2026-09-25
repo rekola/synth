@@ -91,16 +91,19 @@ def main():
     top = first_pattern_row(scr)
     # playhead_tint_color over a plain row and over a bar row.
     PLAYHEAD_BG = {"245361", "3e6d7b"}
-    playing_t0 = playing_t1 = False
+    playing_t0 = playing_t1 = tinted_divider = False
     for _ in range(12):
         scr.pump(0.2)
         for r in range(4):
             t0 = scr.screen.buffer[top + r][6].bg
             t1 = scr.screen.buffer[top + r][22].bg
+            divider = scr.screen.buffer[top + r][20].bg  # the "│" between T0 and T1
             playing_t0 |= t0 in PLAYHEAD_BG
             playing_t1 |= t1 in PLAYHEAD_BG
+            tinted_divider |= t0 in PLAYHEAD_BG and divider in PLAYHEAD_BG
     check("the launched clip's playhead shows in its own track's column", playing_t0, scr)
     check("no playhead in a track with nothing launched", not playing_t1, scr)
+    check("the playhead stops short of the divider between tracks", playing_t0 and not tinted_divider, scr)
 
     # Launching the playing clip again relaunches it at the next bar - a
     # launch never toggles - so past that bar its playhead still moves.

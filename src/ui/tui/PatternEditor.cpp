@@ -2454,6 +2454,11 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     if (!highlight) return base;
     return styles.cursorRowTint(base);
   };
+  // The divider between two tracks belongs to neither, so it takes only
+  // the row's own tint, never one track's playhead.
+  auto tintForRow = [&](Color base) -> Color {
+    return highlight ? styles.cursorRowTint(base) : base;
+  };
 
   // A clip instance's own identifier digit (below) - superscript, not a
   // plain digit, so it visually reads as an annotation sitting on top of
@@ -3115,7 +3120,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       // does). The instance tint below is skipped when in_selection - a
       // real selection wins outright, same as every other cell.
       bool right_is_instance = false;
-      Color right_bg = in_selection ? bg : tintForPlayhead(row_base_bg);
+      Color right_bg = in_selection ? bg : tintForRow(row_base_bg);
       if (i + 1 < static_cast<int>(track_ids.size())) {
 	auto next_track_id = track_ids[static_cast<size_t>(i + 1)];
 	right_is_instance = source_->hasInstance(next_track_id, address);
@@ -3146,7 +3151,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	// tinted span reads as one continuous block right up to wherever
 	// an instance actually starts/ends instead of the divider always
 	// breaking it one character early.
-	setFgColor(in_selection ? bg : tintForPlayhead(is_continuation_row ? row_base_bg : bg));
+	setFgColor(in_selection ? bg : tintForRow(is_continuation_row ? row_base_bg : bg));
 	setBgColor(right_bg);
 	putstr(display_row, current_pos, "▌");
       } else {
@@ -3157,7 +3162,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	// reaches the selection highlight too, same reasoning as right_bg
 	// above.
 	setFgColor(styles.window_border_color);
-	setBgColor(in_selection ? bg : tintForPlayhead(row_base_bg));
+	setBgColor(in_selection ? bg : tintForRow(row_base_bg));
 	putstr(display_row, current_pos, "│");
       }
       current_pos++;
