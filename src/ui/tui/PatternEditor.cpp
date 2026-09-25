@@ -321,7 +321,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
 
   // Scoped to the cursor's own current track only, same as kill-row
   // below: shifts just that one track's own content down by one row
-  // (Section::insertRowForTrack()), leaving every other track and the
+  // (Arrangement::insertRowForTrack()), leaving every other track and the
   // row's own locator (not this one track's own content) untouched.
   // Promoted from the raw key handler, now reachable by name (M-x, a
   // menu item, Launchpad) rather than only a keystroke notcurses happens
@@ -629,7 +629,6 @@ PatternEditor::tuningsForTrackRange(const Song & song, const vector<int> & track
 void
 PatternEditor::setSelectionActive(bool active) {
   selection_active_ = active;
-  getController().setPatternSelectionActive(active);
 }
 
 void
@@ -984,6 +983,13 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   auto & song = getController().getSong();
   syncCursorTrack(song);
   auto point = source_->cursor();
+  {
+    auto last_row = std::max(song.getArrangementLength(), point.row + 1) - 1;
+    int digits = 2;
+    while (digits < 4 && (last_row >> (4 * digits)) > 0) digits++;
+    if (digits != row_digits_) render_all = true;
+    row_digits_ = digits;
+  }
   auto score_pattern = point.block;
   auto score_playing_row = point.row;
 
@@ -1268,7 +1274,7 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
 
     // Pressure lands at the transport's row, which is only the cursor's in
     // arrangement mode.
-    if (source_->cursorFollowsTransport()) getController().applyNotePressure(info.getPatternIndex(), info.getRowIndex(), track_id, note_column, ev.getVelocity(), current_delay);
+    if (source_->cursorFollowsTransport()) getController().applyNotePressure(info.getAbsolutePosition(), track_id, note_column, ev.getVelocity(), current_delay);
     row_edited = true;
     song.incMinorVersion();
   }
@@ -1280,7 +1286,7 @@ PatternEditor::onRowAdvanced(Controller & controller) {
 
   auto & info = controller.getPlaybackInfo();
   auto track_ids = getActiveNoteTrackIds();
-  controller.sweepAutoRecordRows(auto_record_cleared_rows_, last_cleared_row_, last_cleared_pattern_idx_, info.getPatternIndex(), info.getRowIndex(), track_ids);
+  controller.sweepAutoRecordRows(auto_record_cleared_rows_, last_cleared_row_, info.getAbsolutePosition(), track_ids);
 }
 
 vector<int>
@@ -1314,7 +1320,6 @@ PatternEditor::saveEditingState(const string & name) {
   state.auto_started_playback = auto_started_playback_;
   state.auto_record_cleared_rows = auto_record_cleared_rows_;
   state.last_cleared_row = last_cleared_row_;
-  state.last_cleared_pattern_idx = last_cleared_pattern_idx_;
   state.selection_active = selection_active_;
   state.selection_start_pattern = selection_start_pattern_;
   state.selection_start_row = selection_start_row_;
@@ -1343,7 +1348,6 @@ PatternEditor::loadEditingState(const string & name) {
   auto_started_playback_ = state.auto_started_playback;
   auto_record_cleared_rows_ = state.auto_record_cleared_rows;
   last_cleared_row_ = state.last_cleared_row;
-  last_cleared_pattern_idx_ = state.last_cleared_pattern_idx;
   selection_start_pattern_ = state.selection_start_pattern;
   selection_start_row_ = state.selection_start_row;
   selection_start_track_ = state.selection_start_track;
@@ -1354,7 +1358,7 @@ PatternEditor::loadEditingState(const string & name) {
   locator_screen_col_ = state.locator_screen_col;
   track_name_screen_col_ = state.track_name_screen_col;
   track_name_screen_width_ = state.track_name_screen_width;
-  setSelectionActive(state.selection_active); // also mirrors into Controller::pattern_selection_active_
+  setSelectionActive(state.selection_active);
 }
 
 void
@@ -1463,9 +1467,9 @@ PatternEditor::offerInput(const InputEvent & input) {
     // - unless that's still the note's own row, which would erase the
     // note it belongs to instead of ending it.
     if (transport_owns_row) {
-      auto release_row = info.getRowIndex();
+      auto release_row = info.getAbsolutePosition();
       if (release_row != held.row) {
-	getController().writeReleaseOff(auto_record_cleared_rows_, auto_started_playback_, info.getPatternIndex(), release_row, held.track_id, held.note_column, info.getCurrentDelay());
+	getController().writeReleaseOff(auto_record_cleared_rows_, auto_started_playback_, release_row, held.track_id, held.note_column, info.getCurrentDelay());
       }
     }
 
@@ -1664,8 +1668,8 @@ PatternEditor::offerInput(const InputEvent & input) {
 
       if (column_type == ColumnType::EFFECT) {
 	// A Command lives in the block's grid, not necessarily where this
-	// row's notes come from - in the arrangement always the background
-	// Section, never an active Clip's own Pattern (SongState.h's own
+	// row's notes come from - in the arrangement always the track's
+	// background, never an active Clip's own Pattern (SongState.h's own
 	// playback masking-fix), the one row/track address a Command
 	// recorded here is actually going to play back from. Written with
 	// obtain() only when it actually changes, so merely typing an
@@ -1836,23 +1840,23 @@ PatternEditor::offerInput(const InputEvent & input) {
 	    // ahead of this note landing on it, not after.
 	    bool was_first_held_note = has_hold_info && active_keyboard_notes_.empty();
 	    if (was_first_held_note && source_->cursorFollowsTransport() && !info.isPlaying()) {
-	      getController().startAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, last_cleared_row_, last_cleared_pattern_idx_, auto_record_clip_ids_);
+	      getController().startAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, last_cleared_row_, auto_record_clip_ids_);
 	    }
 
 	    // A live take writes into a real, individually-manageable Clip
-	    // instance, not directly into the section's own background Pattern -
+	    // instance, not directly into the track's own background Pattern -
 	    // a no-op once that clip already exists (or if a clip is focused,
 	    // which already resolves correctly without this). Re-resolves
 	    // edit_target immediately after: it was computed before this take
 	    // could have just placed a brand new instance here, so it would
 	    // otherwise still point at the (now superseded) background.
 	    if (transport_owns_row) {
-	      getController().ensureNoteRecordingClip(auto_record_clip_ids_, track_id, info.getPatternIndex(), info.getRowIndex());
+	      getController().ensureNoteRecordingClip(auto_record_clip_ids_, track_id, info.getAbsolutePosition());
 	      edit_target = source_->edit(track_id, point);
 	    }
 
 	    if (input.hasShift()) {
-	      if (auto_started_playback_) getController().ensureRowCleared(auto_record_cleared_rows_, info.getPatternIndex(), info.getRowIndex(), track_id);
+	      if (auto_started_playback_) getController().ensureRowCleared(auto_record_cleared_rows_, info.getAbsolutePosition(), track_id);
 	      note_column = edit_target.pattern->pushNote(edit_target.effective_row, note);
 	    } else {
 	      // A lone key still lands exactly on the cursor's own column,
@@ -1869,14 +1873,14 @@ PatternEditor::offerInput(const InputEvent & input) {
 	      // ensureRowCleared's own comment), safe to call defensively -
 	      // only actually does anything the first time (row, track_id) is
 	      // touched this session.
-	      if (auto_started_playback_) getController().ensureRowCleared(auto_record_cleared_rows_, info.getPatternIndex(), info.getRowIndex(), track_id);
+	      if (auto_started_playback_) getController().ensureRowCleared(auto_record_cleared_rows_, info.getAbsolutePosition(), track_id);
 	      edit_target.pattern->setNote(edit_target.effective_row, note_column, note);
 	    }
 
 	    if (getController().isMonitoring(track_id)) {
 	      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, getController().getActiveBufferName(), track_id, note_column, note.getValue(), note.getVelocity()));
 	    }
-	    if (has_hold_info) active_keyboard_notes_[input.getId()] = { note_column, info.getRowIndex(), track_id };
+	    if (has_hold_info) active_keyboard_notes_[input.getId()] = { note_column, info.getAbsolutePosition(), track_id };
 	  }
 
 	  row_edited = true;
@@ -2749,7 +2753,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       setFgColor(in_selection ? fg : tintForPlayhead(fg));
       setBgColor(in_selection ? bg : tintForPlayhead(bg));
 
-      putstr(display_row, current_pos, pattern_row < 0 ? string("    ") : format(" {:02x} ", pattern_row));
+      putstr(display_row, current_pos, pattern_row < 0 ? string(static_cast<size_t>(row_digits_ + 2), ' ') : format(" {:0{}x} ", pattern_row, row_digits_));
 	
       setFgColor(styles.window_border_color);
       setBgColor(styles.window_bg_color);
@@ -2841,7 +2845,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       auto & notes = read_target.pattern->getNotes(read_target.effective_row);
       // From the block's grid, deliberately not read_target.pattern's own
       // command column - in the arrangement a Command lives at the
-      // track/section level only (SongState.h's own playback masking-
+      // track's background only (SongState.h's own playback masking-
       // fix), never a Clip's, so this always reads what's actually going
       // to play regardless of which Pattern supplied this row's notes.
       static const Command no_command;
@@ -2940,7 +2944,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  auto width = std::max(track_info.getTrackWidth() - 1, 0);
 	  putstr(display_row, current_pos, std::string(static_cast<size_t>(width), ' '));
 	  // An instance's own content never shows the "·" - it's specifically
-	  // a background-content marker (Section's own inline Pattern, no
+	  // a background-content marker (the track's own inline Pattern, no
 	  // instance involved), superseded here by the digit on the
 	  // instance's own leading row and plain blank on every other row it
 	  // covers (matching the uncollapsed divider's own "cells below just
@@ -2990,6 +2994,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  const Clip * sample_clip = (read_target.is_instance && read_target.clip_index >= 0 &&
 	    read_target.clip_index < static_cast<int>(clips.size())) ? &clips[static_cast<size_t>(read_target.clip_index)] : nullptr;
 	  auto * background = source_->sampleBackground(track_id, pattern_idx);
+	  auto background_rows = background ? background->getRowCount(song.getTempo()) : 0;
+	  if (background && pattern_row >= background_rows) background = nullptr; // past the bed's end
 	  if (sample_clip && sample_clip->hasSample()) {
 	    auto & peaks = sample_clip->getWaveformPeaks(waveform_subrows * kWaveformSupersample);
 	    // A looping clip's own later laps wrap back into its own row
@@ -3022,7 +3028,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  } else if (read_target.is_instance) {
 	    // An instance is placed here, but its own clip has no sample
 	    // content yet - nothing to show a shape for, but a solid fill
-	    // still reads as "something's supposed to be here." The section's
+	    // still reads as "something's supposed to be here." The track's
 	    // own background bed, if it has one, keeps playing underneath a
 	    // placed clip too (SongState.h's own comment on why they're two
 	    // independent, simultaneously-mixing voices) - not shown here
@@ -3030,17 +3036,16 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	    // placement; only the no-instance-at-all case below draws it.
 	    putstr(display_row, current_pos, std::string(static_cast<size_t>(width), 'x'));
 	  } else if (background) {
-	    // No clip instance placed here, but this section has a real
-	    // background bed for this track (Section::
-	    // getSampleBackgroundContent(), ArrangementOps.h's own
-	    // mergeClipToBackground()) - it plays here exactly like a real
-	    // clip would (SongState.h's own renderBlock()), so it gets the
-	    // same waveform treatment, not the plain dot placeholder below.
-	    // Row-indexed directly by this section's own raw row (unlike a
-	    // clip's own instance-relative wf_row above) - the bed has no
-	    // trim/loop/instance-offset concept of its own to account for
-	    // (Section.h's own comment on why).
-	    auto & peaks = background->getWaveformPeaks(source_->blockLength(pattern_idx), waveform_subrows * kWaveformSupersample);
+	    // No clip instance placed here, but this track has a real
+	    // background bed (Arrangement::getSampleBackgroundContent(),
+	    // ArrangementOps.h's own mergeClipToBackground()) - it plays here
+	    // exactly like a real clip would (SongState.h's own
+	    // renderBlock()), so it gets the same waveform treatment, not the
+	    // plain dot placeholder below. Row-indexed directly by the
+	    // arrangement's own row (unlike a clip's own instance-relative
+	    // wf_row above) - the bed starts at row 0 and has no trim/loop/
+	    // instance-offset concept of its own to account for.
+	    auto & peaks = background->getWaveformPeaks(background_rows, waveform_subrows * kWaveformSupersample);
 	    auto wf_row = pattern_row;
 	    if (peaks.rowCount() > 0) wf_row = std::min(wf_row, peaks.rowCount() - 1);
 	    if (wf_row < 0) wf_row = 0;

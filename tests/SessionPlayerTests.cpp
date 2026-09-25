@@ -27,7 +27,7 @@ namespace {
 // A Controller with a stand-in for the audio thread: events the
 // SessionPlayer queues reach a real SongState, which plays one row at a
 // time and reports back through Controller::receivePlaybackSnapshot(), the
-// way Player does. 4 rows per bar, one long section.
+// way Player does. 4 rows per bar.
 struct SessionFixture {
   ChannelConfiguration config{44100, 1};
   Controller controller{config};
@@ -39,7 +39,6 @@ struct SessionFixture {
     auto & song = controller.getSong();
     song.setRowsPerBar(4);
     song.addInstrument(std::make_unique<Oscillator>(WaveformType::SINE));
-    song.getOrCreateSection(0).setLengthBars(16);
     mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
     state = std::make_unique<SongState>(config);
     state->initialize(song);
@@ -85,12 +84,9 @@ struct SessionFixture {
 
   void sendSnapshot() {
     PlaybackInfo info;
-    auto [ section_idx, row_idx ] = state->getRelativePosition(song());
     info.setIsPlaying(state->isPlaying());
     info.setSampleInterval(config.getSampleInterval(song().getTempo()));
     info.setSamplePos(state->getSamplePos());
-    info.setPatternIdx(section_idx);
-    info.setRowIdx(row_idx);
     info.setAbsolutePos(state->getAbsolutePosition());
     info.setPositionEditSeq(state->getPositionEditSeq());
     info.setSessionTracks(state->getSessionTracks());

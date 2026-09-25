@@ -8,7 +8,7 @@
 #include "../src/model/Clip.h"
 #include "../src/model/InstrumentTrack.h"
 #include "../src/model/PatternGrid.h"
-#include "../src/model/Section.h"
+#include "../src/model/Arrangement.h"
 #include "../src/model/Song.h"
 #include "../src/ambisonic/ChannelConfiguration.h"
 
@@ -18,20 +18,17 @@ using namespace std;
 
 namespace {
 
-// A fresh buffer (which starts with one section of its own), trimmed to two
-// one-bar sections, plus an instrument track.
+// A fresh buffer plus an instrument track.
 struct Fixture {
   ChannelConfiguration config{44100, 1};
   Controller controller{config};
   int track_id = -1;
-  int rows = 0; // rows per section
+  int rows = 0; // rows per bar
 
   Fixture() {
     controller.switchToBuffer(controller.freshBufferName());
     auto & song = controller.getSong();
     track_id = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
-    song.getSection(0).setLengthBars(1);
-    song.addSection().setLengthBars(1);
     rows = song.getRowsPerBar();
   }
   Song & song() { return controller.getSong(); }
@@ -39,25 +36,27 @@ struct Fixture {
 
 }
 
-TEST(arrangement_source_cursor_moves_across_sections) {
+TEST(arrangement_source_cursor_is_the_absolute_row) {
   Fixture f;
   ArrangementPatternSource source(f.controller);
 
   CHECK(source.cursor() == (RowAddress{ 0, 0 }));
   source.moveCursor(f.rows + 2);
-  CHECK(source.cursor() == (RowAddress{ 1, 2 }));
+  CHECK(source.cursor() == (RowAddress{ 0, f.rows + 2 }));
   source.moveCursor(-3);
   CHECK(source.cursor() == (RowAddress{ 0, f.rows - 1 }));
+  source.moveCursor(-f.rows);
+  CHECK(source.cursor() == (RowAddress{ 0, 0 }));
 }
 
-TEST(arrangement_source_normalize_carries_across_sections_and_past_the_end) {
+TEST(arrangement_source_is_one_block_of_every_addressable_row) {
   Fixture f;
   ArrangementPatternSource source(f.controller);
 
-  CHECK(source.blockCount() == 2);
-  CHECK(source.blockLength(0) == f.rows);
-  CHECK(source.normalize(0, f.rows + 1) == (RowAddress{ 1, 1 }));
-  CHECK(source.normalize(0, 2 * f.rows).block >= source.blockCount());
+  CHECK(source.blockCount() == 1);
+  CHECK(source.blockLength(0) == Song::kMaxArrangementRows);
+  CHECK(source.normalize(0, f.rows + 1) == (RowAddress{ 0, f.rows + 1 }));
+  CHECK(source.normalize(0, Song::kMaxArrangementRows).block >= source.blockCount());
 }
 
 TEST(arrangement_source_notes_follow_a_placed_clip_but_commands_stay_on_the_background) {
@@ -68,17 +67,18 @@ TEST(arrangement_source_notes_follow_a_placed_clip_but_commands_stay_on_the_back
   clip.setLooping(true);
   clip.getLeafPattern().setNote(0, 0, Note(60, 100));
   song.addClip(move(clip));
-  auto & section = song.getSection(0);
-  placeClipInstance(song, section, f.track_id, 0, 0);
-  section.setNote(0, f.track_id, 0, Note(40, 100));
-  section.setCommand(0, f.track_id, Command("0L40"));
+  auto & arrangement = song.getArrangement();
+  placeClipInstance(song, f.track_id, 0, 0);
+  placeStopInstance(song, f.track_id, f.rows);
+  arrangement.setNote(0, f.track_id, 0, Note(40, 100));
+  arrangement.setCommand(0, f.track_id, Command("0L40"));
   ArrangementPatternSource source(f.controller);
 
   auto read = source.read(f.track_id, { 0, 0 });
   CHECK(read.is_instance);
   CHECK(read.pattern->getNote(read.effective_row, 0).getValue() == 60);
   CHECK(source.hasInstance(f.track_id, { 0, 0 }));
-  CHECK(!source.hasInstance(f.track_id, { 1, 0 }));
+  CHECK(!source.hasInstance(f.track_id, { 0, f.rows }));
 
   auto edit = source.edit(f.track_id, { 0, 1 });
   edit.pattern->setNote(edit.effective_row, 0, Note(62, 100));
@@ -97,21 +97,17 @@ TEST(arrangement_source_notes_follow_a_placed_clip_but_commands_stay_on_the_back
   CHECK(background->getCommand(row).isDefined());
 }
 
-TEST(arrangement_source_edit_grid_creates_a_section_only_when_asked) {
+TEST(arrangement_source_edit_grid_writes_at_absolute_rows) {
   Fixture f;
   ArrangementPatternSource source(f.controller);
   auto & song = f.song();
 
-  source.editGrid({ 5, 0 }, false);
-  CHECK(song.getSections().size() == 2);
-  CHECK(source.locatorRow({ 5, 0 }).has_value());
-  CHECK(song.getSections().size() == 2);
-
   int row;
-  auto grid = source.editGrid({ 3, 0 }, true);
-  CHECK(song.getSections().size() == 4);
-  grid->obtain(f.track_id, 1, row)->setNote(row, 0, Note(64, 100));
-  CHECK(song.getSection(3).getNote(1, f.track_id, 0).getValue() == 64);
+  auto grid = source.editGrid({ 0, 100 }, true);
+  grid->obtain(f.track_id, 101, row)->setNote(row, 0, Note(64, 100));
+  CHECK(row == 101);
+  CHECK(song.getArrangement().getNote(101, f.track_id, 0).getValue() == 64);
+  CHECK(source.locatorRow({ 0, 101 }) == 101);
 }
 
 TEST(arrangement_source_stop_instance_only_acts_where_a_clip_is_placed) {
@@ -119,15 +115,15 @@ TEST(arrangement_source_stop_instance_only_acts_where_a_clip_is_placed) {
   auto & song = f.song();
   Clip clip(f.track_id);
   clip.setLength(f.rows);
-  clip.setLooping(true);
+  clip.setLooping(false);
   song.addClip(move(clip));
-  placeClipInstance(song, song.getSection(0), f.track_id, 0, 0);
+  placeClipInstance(song, f.track_id, 0, 0);
   ArrangementPatternSource source(f.controller);
 
-  CHECK(!source.stopInstance(f.track_id, { 1, 0 }));
+  CHECK(!source.stopInstance(f.track_id, { 0, f.rows + 1 })); // the one-shot is over
   CHECK(source.stopInstance(f.track_id, { 0, 4 }));
-  CHECK(resolveInstanceAt(song, song.getSection(0), f.track_id, 4).clip_index == Section::kStopInstance);
-  CHECK(resolveInstanceAt(song, song.getSection(0), f.track_id, 3).clip_index == 0);
+  CHECK(resolveInstanceAt(song, f.track_id, 4).clip_index == Arrangement::kStopInstance);
+  CHECK(resolveInstanceAt(song, f.track_id, 3).clip_index == 0);
 }
 
 // --- ScenePatternSource / SceneGrid ---
@@ -232,7 +228,7 @@ TEST(scene_source_cursor_moves_across_scenes_without_touching_the_transport) {
   auto & song = f.song();
   placeClip(song, f.track_id, 1, f.rows, true);
   ScenePatternSource source(f.controller);
-  auto transport = f.controller.getPlaybackInfo().getRowIndex();
+  auto transport = f.controller.getPlaybackInfo().getAbsolutePosition();
 
   source.moveCursor(f.rows + 2);
   CHECK(source.cursor() == (RowAddress{ 1, 2 }));
@@ -240,7 +236,7 @@ TEST(scene_source_cursor_moves_across_scenes_without_touching_the_transport) {
   CHECK(source.cursor() == (RowAddress{ 0, f.rows - 1 }));
   source.moveCursor(100 * f.rows); // clamps at the last scene's last row
   CHECK(source.cursor() == (RowAddress{ 7, f.rows - 1 }));
-  CHECK(f.controller.getPlaybackInfo().getRowIndex() == transport);
+  CHECK(f.controller.getPlaybackInfo().getAbsolutePosition() == transport);
 }
 
 TEST(scene_source_shows_a_playing_tracks_playhead_at_the_cursor_row) {
@@ -452,27 +448,26 @@ TEST(scene_source_region_acts_on_each_track_at_its_own_position) {
   CHECK(theirs.getNote(4, 0).getValue() == 84);
 }
 
-// --- SectionRegionGrid: block operations act on one content only ---
+// --- ArrangementRegionGrid: block operations act on one content only ---
 
 namespace {
 
-// One track, a 16-row section with background notes on every row, and a
-// 4-row one-shot clip (its own notes on every row) placed at row 4.
+// One track with background notes on its first 16 rows, and a 4-row
+// one-shot clip (its own notes on every row) placed at row 4.
 struct RegionFixture {
   Song song;
   int track_id;
-  Section * section;
+  Arrangement * arrangement;
   RegionFixture() {
     track_id = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
-    section = &song.addSection();
-    section->setLengthBars(16 / std::max(1, song.getRowsPerBar()));
+    arrangement = &song.getArrangement();
     Clip clip(track_id);
     clip.setLength(4);
     clip.setLooping(false);
     for (int row = 0; row < 4; row++) clip.getLeafPattern().setNote(row, 0, Note(70, 100));
     song.addClip(move(clip));
-    placeClipInstance(song, *section, track_id, 4, 0);
-    for (int row = 0; row < song.getEffectiveSectionLength(*section); row++) section->setNote(row, track_id, 0, Note(40, 100));
+    placeClipInstance(song, track_id, 4, 0);
+    for (int row = 0; row < 16; row++) arrangement->setNote(row, track_id, 0, Note(40, 100));
   }
   const Pattern & clipPattern() const { return song.getClips(track_id)[0].getLeafPattern(); }
 };
@@ -481,46 +476,46 @@ struct RegionFixture {
 
 TEST(region_grid_reports_where_each_content_supplies_a_track) {
   RegionFixture f;
-  auto length = f.song.getEffectiveSectionLength(*f.section);
-  CHECK((SectionRegionGrid(f.song, *f.section, 0, "").sourceRows(f.track_id) == make_pair(0, 3)));
-  CHECK((SectionRegionGrid(f.song, *f.section, 5, "").sourceRows(f.track_id) == make_pair(4, 7)));
-  CHECK((SectionRegionGrid(f.song, *f.section, 9, "").sourceRows(f.track_id) == make_pair(8, length - 1)));
+  auto last = Song::kMaxArrangementRows - 1;
+  CHECK((ArrangementRegionGrid(f.song, 0, "").sourceRows(f.track_id) == make_pair(0, 3)));
+  CHECK((ArrangementRegionGrid(f.song, 5, "").sourceRows(f.track_id) == make_pair(4, 7)));
+  CHECK((ArrangementRegionGrid(f.song, 9, "").sourceRows(f.track_id) == make_pair(8, last)));
 }
 
 TEST(region_grid_anchored_on_the_background_leaves_the_clip_alone) {
   RegionFixture f;
-  SectionRegionGrid grid(f.song, *f.section, 0, "");
+  ArrangementRegionGrid grid(f.song, 0, "");
   clearPatternBlock(grid, 0, 7, { f.track_id }, 0, 0);
-  CHECK(!f.section->getNote(2, f.track_id, 0).isDefined()); // background cleared
-  CHECK(f.section->getNote(5, f.track_id, 0).isDefined()); // background under the clip: not shown, not touched
+  CHECK(!f.arrangement->getNote(2, f.track_id, 0).isDefined()); // background cleared
+  CHECK(f.arrangement->getNote(5, f.track_id, 0).isDefined()); // background under the clip: not shown, not touched
   CHECK(f.clipPattern().getNote(1, 0).isDefined()); // the clip untouched
 }
 
 TEST(region_grid_anchored_on_a_clip_acts_on_the_clip) {
   RegionFixture f;
-  SectionRegionGrid grid(f.song, *f.section, 5, "");
+  ArrangementRegionGrid grid(f.song, 5, "");
   clearPatternBlock(grid, 0, 7, { f.track_id }, 0, 0);
-  CHECK(!f.clipPattern().getNote(1, 0).isDefined()); // clip row 1 = section row 5
-  CHECK(f.section->getNote(2, f.track_id, 0).isDefined()); // the background before it untouched
-  CHECK(f.section->getNote(5, f.track_id, 0).isDefined()); // and the background under it
+  CHECK(!f.clipPattern().getNote(1, 0).isDefined()); // clip row 1 = arrangement row 5
+  CHECK(f.arrangement->getNote(2, f.track_id, 0).isDefined()); // the background before it untouched
+  CHECK(f.arrangement->getNote(5, f.track_id, 0).isDefined()); // and the background under it
 }
 
 TEST(region_grid_paste_into_a_clip_stops_at_its_end) {
   RegionFixture f;
   PatternBlock block(4);
   for (auto & row : block) row.push_back({ { Note(64, 100) }, Command(), 0 });
-  SectionRegionGrid grid(f.song, *f.section, 6, "");
-  pastePatternBlock(grid, block, f.song.getEffectiveSectionLength(*f.section), 6, { f.track_id }, 0);
+  ArrangementRegionGrid grid(f.song, 6, "");
+  pastePatternBlock(grid, block, Song::kMaxArrangementRows, 6, { f.track_id }, 0);
   CHECK(f.clipPattern().getNote(2, 0).getValue() == 64); // rows 6, 7 are the clip's rows 2, 3
   CHECK(f.clipPattern().getNote(3, 0).getValue() == 64);
-  CHECK(f.section->getNote(8, f.track_id, 0).getValue() == 40); // past the clip: not written
+  CHECK(f.arrangement->getNote(8, f.track_id, 0).getValue() == 40); // past the clip: not written
 }
 
-TEST(region_grid_follows_a_focused_clip_across_the_whole_section) {
+TEST(region_grid_follows_a_focused_clip_across_the_whole_arrangement) {
   RegionFixture f;
   auto focused = f.song.getClips(f.track_id)[0].getId();
-  SectionRegionGrid grid(f.song, *f.section, 0, focused);
-  CHECK((grid.sourceRows(f.track_id) == make_pair(0, f.song.getEffectiveSectionLength(*f.section) - 1)));
+  ArrangementRegionGrid grid(f.song, 0, focused);
+  CHECK((grid.sourceRows(f.track_id) == make_pair(0, Song::kMaxArrangementRows - 1)));
   int row;
   CHECK(grid.find(f.track_id, 1, row) == &f.clipPattern());
 }
@@ -528,7 +523,7 @@ TEST(region_grid_follows_a_focused_clip_across_the_whole_section) {
 TEST(arrangement_source_locator_rows_are_absolute_and_scene_source_has_none) {
   Fixture f;
   ArrangementPatternSource arrangement(f.controller);
-  CHECK(arrangement.locatorRow({ 1, 2 }) == f.rows + 2);
+  CHECK(arrangement.locatorRow({ 0, f.rows + 2 }) == f.rows + 2);
   ScenePatternSource scenes(f.controller);
   CHECK(!scenes.locatorRow({ 0, 0 }).has_value());
 }

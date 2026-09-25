@@ -651,16 +651,16 @@ LaunchpadManager::recordFaderAutomationIfArmed(Controller & controller, FaderSta
   // stopped) - isNoteCaptureArmed() rather than the narrower
   // isSessionRecording() (that one's scoped to Session view's own
   // clip-capture path; a fader move isn't about any one clip, it's
-  // track/section-level automation regardless of what's playing there).
+  // track-level automation regardless of what's playing there).
   auto & playback_info = controller.getPlaybackInfo();
   if (!controller.isNoteCaptureArmed() || !playback_info.isPlaying()) return;
   auto & song = controller.getSong();
-  auto & section = song.getOrCreateSection(playback_info.getPatternIndex());
-  auto row = playback_info.getRowIndex();
+  auto & arrangement = song.getArrangement();
+  auto row = playback_info.getAbsolutePosition();
   if (fader.automation_row == row && fader.automation_column >= 0) {
-    section.setCommand(row, track_id, fader.automation_column, command);
+    arrangement.setCommand(row, track_id, fader.automation_column, command);
   } else {
-    fader.automation_column = section.pushCommand(row, track_id, command);
+    fader.automation_column = arrangement.pushCommand(row, track_id, command);
     fader.automation_row = row;
   }
 }
@@ -953,7 +953,7 @@ LaunchpadManager::onRowAdvanced(Controller & controller) {
 
   auto & info = controller.getPlaybackInfo();
   auto track_ids = getActiveNoteTrackIds();
-  controller.sweepAutoRecordRows(auto_record_cleared_rows_, last_cleared_row_, last_cleared_pattern_idx_, info.getPatternIndex(), info.getRowIndex(), track_ids);
+  controller.sweepAutoRecordRows(auto_record_cleared_rows_, last_cleared_row_, info.getAbsolutePosition(), track_ids);
 }
 
 vector<int>
@@ -1226,7 +1226,7 @@ LaunchpadManager::handleCommand(string_view name, int device_id, int fallback_tr
     // A no-op for a PercussionTrack's own step grid - its lanes are a
     // small, fixed, manually-curated list (never more than 8) with
     // nothing to scroll to - but still swallowed here (returns true)
-    // rather than falling through to the Session-only section-move
+    // rather than falling through to the Session-only bar-move
     // meaning below, the same as "next-track"/"prev-track" already
     // swallow their own no-op paging case rather than declining. Every
     // connected device, not just the one pressed - resetStepGridView()
@@ -1244,16 +1244,15 @@ LaunchpadManager::handleCommand(string_view name, int device_id, int fallback_tr
       return true;
     }
     // Only meaningful in GridMode::SESSION otherwise - moves the overview's
-    // own section cursor via session_move_section_callback_ (see that
-    // member's own comment for why this doesn't scroll a local row window
-    // the way the old plain-navigation overview did: Session view's rows
-    // are a track's own clips, not sections). Outside SESSION,
+    // own bar cursor via session_move_bar_callback_ (see that member's own
+    // comment for why this doesn't scroll a local row window: Session
+    // view's rows are a track's own clips). Outside SESSION,
     // "move-row-up"/"move-row-down" isn't this class's command at all
     // (PatternEditor's own row navigation owns it, reached via
     // UI::executeCommand()'s fallback, not through here) - declining lets
     // that happen normally.
     if (gridMode(device_id) != GridMode::SESSION) return false;
-    if (session_move_section_callback_) session_move_section_callback_(name == "move-row-down" ? 1 : -1);
+    if (session_move_bar_callback_) session_move_bar_callback_(name == "move-row-down" ? 1 : -1);
     return true;
   }
   if (name == "next-track" || name == "prev-track") {
@@ -1512,8 +1511,8 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
   // here regardless keeps a press doing exactly what its own display
   // shows, never silently falling through to free/chromatic entry
   // underneath a grid that looks like it isn't one. The step grid only
-  // ever edits a clip this way, never the section's own background
-  // Pattern - that has no pagination and spans the whole scene, far more
+  // ever edits a clip this way, never the track's own background
+  // Pattern - that has no pagination and spans the whole song, far more
   // than this fixed grid could ever show meaningfully, so merely
   // navigating the shared cursor onto either track type (or recording
   // into it - a live take needs real free-drumming/chromatic pad entry
@@ -1580,13 +1579,6 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     if (candidate_is_percussion == track_is_percussion) fan_out_track_ids.push_back(candidate);
   }
 
-  // Pad-press note entry writes - see Song::getOrCreateSection()'s own
-  // comment (Song.h) on why that's the one to use here, not plain
-  // getSection(): the edit position can legitimately be past the last real
-  // Section (PatternEditor's own row navigation already tolerates that), and
-  // getSection() would silently write into a shared, process-wide sentinel
-  // instead of real song content in that case.
-  auto & section = song.getOrCreateSection(info.getPatternIndex());
   auto current_delay = info.getCurrentDelay();
   auto & event_queue = controller.getPlaybackEventQueue();
 
@@ -1616,7 +1608,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // comment), so row 0 always means "the start of the bar this take
     // began in", not the instant of this specific press.
     bool session_recording_here = controller.isSessionRecording(track_id);
-    auto row = info.getRowIndex();
+    auto row = info.getAbsolutePosition();
     if (session_recording_here) {
       row = quantized_row(track_id);
     }
@@ -1642,7 +1634,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // (a same-row-or-not comparison against a later release, unaffected
     // by any remap).
     auto edit_target = session_pattern ? EditTarget{ session_pattern, session_row }
-      : resolveEditTarget(song, section, track_id, row, controller.getFocusedClip());
+      : resolveEditTarget(song, track_id, row, controller.getFocusedClip());
     if (session_recording_here && !session_pattern) return; // nothing valid to write into (shouldn't normally happen)
 
     // The transport itself is already running by the time any press can
@@ -1651,7 +1643,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // for a Session View take, which never starts it at all.
 
     // A live take writes into a real, individually-manageable Clip
-    // instance, not directly into the section's own background Pattern - a
+    // instance, not directly into the track's own background Pattern - a
     // no-op once that clip already exists (or if a clip is focused, which
     // already resolves correctly without this). Re-resolves edit_target
     // immediately after: it was computed before this take could have just
@@ -1659,8 +1651,8 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // at the (now superseded) background - the free-slot search and this
     // press's own write below both need the fresh one.
     if (!session_recording_here && state.capture_enabled && info.isPlaying()) {
-      controller.ensureNoteRecordingClip(auto_record_clip_ids_, track_id, info.getPatternIndex(), row);
-      edit_target = resolveEditTarget(song, section, track_id, row, controller.getFocusedClip());
+      controller.ensureNoteRecordingClip(auto_record_clip_ids_, track_id, row);
+      edit_target = resolveEditTarget(song, track_id, row, controller.getFocusedClip());
     }
 
     // Whole-row replace semantics for a live take: idempotent (see its
@@ -1671,9 +1663,9 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // erased note reads as "taken" and gets skipped past, when the old
     // note is actually gone (or about to be, from this same call) and
     // the new one should be free to land in the very first column.
-    if (state.capture_enabled && auto_started_playback_) controller.ensureRowCleared(auto_record_cleared_rows_, info.getPatternIndex(), row, track_id);
+    if (state.capture_enabled && auto_started_playback_) controller.ensureRowCleared(auto_record_cleared_rows_, row, track_id);
 
-    // Free-slot search (mirrors Section::pushNote), deliberately not
+    // Free-slot search (mirrors Arrangement::pushNote), deliberately not
     // "map size" the way active_midi_notes assigns columns - that has a
     // latent collision bug on non-LIFO release order, which is the common
     // case for a chordally-played grid controller (see the plan's design
@@ -1810,9 +1802,9 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
         // and its own note-off), a release fast enough to land before the
         // row has advanced must not be recorded as an off, or it would
         // instantly erase the note it belongs to.
-        auto release_row = info.getRowIndex();
+        auto release_row = info.getAbsolutePosition();
         if (release_row != held.row) {
-          controller.writeReleaseOff(auto_record_cleared_rows_, auto_started_playback_, info.getPatternIndex(), release_row, held.track_id, held.note_column, current_delay);
+          controller.writeReleaseOff(auto_record_cleared_rows_, auto_started_playback_, release_row, held.track_id, held.note_column, current_delay);
         }
       }
     }
@@ -1878,12 +1870,12 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
       // (only reachable with Capture on if the auto-play push hasn't been
       // processed by the Player thread yet), modulate the row the note
       // actually landed on.
-      auto target_row = info.isPlaying() ? info.getRowIndex() : held.row;
+      auto target_row = info.isPlaying() ? info.getAbsolutePosition() : held.row;
       // Clear before reading, not just before writing - otherwise the
       // isDefined() check below could pick up stale pre-existing data from
       // before this row was cleared for the live take.
-      if (auto_started_playback_) controller.ensureRowCleared(auto_record_cleared_rows_, info.getPatternIndex(), target_row, held.track_id);
-      controller.applyNotePressure(info.getPatternIndex(), target_row, held.track_id, held.note_column, static_cast<short>(ev.getVelocity()), current_delay);
+      if (auto_started_playback_) controller.ensureRowCleared(auto_record_cleared_rows_, target_row, held.track_id);
+      controller.applyNotePressure(target_row, held.track_id, held.note_column, static_cast<short>(ev.getVelocity()), current_delay);
     }
     if (write_pressure) song.incVersion();
   }
@@ -1999,7 +1991,7 @@ LaunchpadManager::handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & co
     // Writes unconditionally, regardless of capture_enabled - "the arm
     // flag gates performance capture, not editing": the step grid writes
     // in both arm states, only free playing is gated. A step is an
-    // ordinary Note in this section's own Pattern for this track now (see
+    // ordinary Note in a Pattern of this track's (see
     // PercussionTrack.h's own "A step is a Note" comment) - "was_hit" is
     // decided by value, not by a fixed column, so this stays consistent
     // with getHitLaneValues()'s own by-value identification (ArrangementOps.h)
@@ -2008,13 +2000,11 @@ LaunchpadManager::handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & co
     // hit still lands at this lane's own column (y), the step grid's own
     // convention for keeping a lane's column stable across rows.
     auto & song = controller.getSong();
-    auto & info = controller.getPlaybackInfo();
-    auto & section = song.getOrCreateSection(info.getPatternIndex());
     // Writes into the clip actually open for editing on this track
     // (Controller::getFocusedClipTrackId() == track_id, guaranteed by
     // handlePadEvent()'s own step-grid gate - this handler is never
     // reached otherwise) via its own (live-linked) Pattern
-    // (ArrangementOps.h's own resolveEditTarget()) - never the section's
+    // (ArrangementOps.h's own resolveEditTarget()) - never the track's
     // own background Pattern, which this grid doesn't edit at all
     // (DeviceState::show_step_grid's own comment). A focused clip can be
     // longer than the grid's fixed 8 columns, so this device's own
@@ -2025,7 +2015,7 @@ LaunchpadManager::handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & co
     auto max_offset = std::max(0, length - 8);
     auto offset = std::clamp(deviceState(ev.getDeviceIndex()).drum_edit_step_offset, 0, max_offset);
     auto row = offset + x;
-    auto edit_target = resolveEditTarget(song, section, track_id, row, controller.getFocusedClip());
+    auto edit_target = resolveEditTarget(song, track_id, row, controller.getFocusedClip());
     auto & row_notes = edit_target.pattern->getNotes(edit_target.effective_row);
     int existing_column = -1;
     for (size_t i = 0; i < row_notes.size(); i++) {
@@ -2066,7 +2056,7 @@ LaunchpadManager::handleDrumPickerPadEvent(LaunchpadPadEvent & ev, Controller & 
   if (note < 0) return; // unused pad in the free-drumming layout
 
   // removeLane() deletes every existing step referencing this note across
-  // every section, not just the lane itself - see PercussionTrack.h's own
+  // the track's Patterns, not just the lane itself - see PercussionTrack.h's own
   // comment. Silent, no confirmation, no undo, per the brief's own
   // accepted risk for this gesture. addLane() is itself a silent no-op
   // once the track is already at
@@ -2104,8 +2094,6 @@ LaunchpadManager::triggerAuditionStep(const Song & song, int track_id, Controlle
   if (!track) return;
 
   auto & event_queue = controller.getPlaybackEventQueue();
-  auto & info = controller.getPlaybackInfo();
-  auto & section = song.getSection(info.getPatternIndex()); // read-only audition - never grows the song
 
   // Idle auditioning only ever previews an explicitly focused clip
   // (Controller::getFocusedClip()), never the background/whatever
@@ -2115,7 +2103,7 @@ LaunchpadManager::triggerAuditionStep(const Song & song, int track_id, Controlle
   // two apart; falling through to ordinary resolution (no focus, or a
   // focus that belongs to some other track) means there's nothing to
   // preview here right now.
-  auto read_target = resolveReadTarget(song, section, track_id, step, controller.getFocusedClip());
+  auto read_target = resolveReadTarget(song, track_id, step, controller.getFocusedClip());
   if (!read_target.is_focused_override) return;
 
   // Every leaf track type plays the same way here, driven purely by
@@ -2554,7 +2542,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // 92/93/94 go dark in GridMode::SESSION - handleCommand()'s own
   // comments on "next-track"/"prev-track" (reserved there, an
   // unconditional no-op returning true) and "move-row-down" (moves the
-  // *terminal* overview's own section cursor, which Session view's own
+  // *terminal* overview's own bar cursor, which Session view's own
   // clip-pool/track-column grid never reflects - nothing on this device
   // itself ever visibly changes) - a lit static color would otherwise
   // misleadingly suggest a press here does something a performer looking
@@ -2759,7 +2747,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     // slot directly with no arrangement involved at all, so there's
     // nothing for the transport to be running for.
     if (!controller.isAnySessionRecording() && !playback_info.isPlaying()) {
-      controller.startAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, last_cleared_row_, last_cleared_pattern_idx_, auto_record_clip_ids_);
+      controller.startAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, last_cleared_row_, auto_record_clip_ids_);
     }
   } else if (!note_capture_armed && was_note_capture_armed_ && auto_started_playback_) {
     // Disarming while a recording session this class itself auto-started
@@ -2938,7 +2926,6 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   array<bool, 8> track_picker_armed {};
   {
     auto & session_player = controller.getSessionPlayer();
-    const Section * current_section = playback_info.isPlaying() ? &song.getSection(playback_info.getPatternIndex()) : nullptr;
     for (int x = 0; x < 8; x++) {
       if (x >= static_cast<int>(session.track_ids.size())) continue;
       auto session_track_id = session.track_ids[static_cast<size_t>(x)];
@@ -2955,8 +2942,8 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
       bool any_playing = false;
       if (session_player.isTakenOver(session_track_id)) {
         any_playing = session_player.isLaunched(session_track_id);
-      } else if (current_section) {
-        any_playing = resolveInstanceAt(song, *current_section, session_track_id, playback_info.getRowIndex()).clip_index >= 0;
+      } else if (playback_info.isPlaying()) {
+        any_playing = resolveInstanceAt(song, session_track_id, playback_info.getAbsolutePosition()).clip_index >= 0;
       }
       track_picker_playing[static_cast<size_t>(x)] = any_playing;
       track_picker_armed[static_cast<size_t>(x)] = controller.isTrackArmed(session_track_id);
@@ -3017,7 +3004,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     int drum_max_step_offset = 0;
     // Whether a specific clip is actually open for editing on this
     // track (Controller::getFocusedClipTrackId()) - the step grid only
-    // ever edits a clip this way, never the section's own background
+    // ever edits a clip this way, never the track's own background
     // Pattern (DeviceState::show_step_grid's own comment has the full
     // reasoning), so this doubles as "should the step grid show at all".
     bool drum_clip_editing = false;
@@ -3068,7 +3055,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
         auto ready_count = launchpad_io_ ? static_cast<int>(launchpad_io_->readySessionIds().size()) : 0;
         drum_max_step_offset = drum_clip_length > 0 ? std::max(0, drum_clip_length - ready_count * 8) : 0;
         auto drum_offset = drum_clip_editing ? std::clamp(state.drum_edit_step_offset, 0, std::max(0, drum_clip_length - 8)) : 0;
-        // A lane's own hit state, this section - by value
+        // A lane's own hit state - by value
         // (getHitLaneValues(), ArrangementOps.h - matching
         // handleStepGridPadEvent()'s own by-value "was_hit" check), not
         // by assuming it's sitting at this lane's usual column. Per step,
@@ -3076,9 +3063,8 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
         // resolveReadTarget()) - a placed clip instance's own content, or
         // this track's own background Pattern otherwise - rather than one
         // background-only lookup reused across all 8 steps.
-        auto & drum_section = song.getSection(playback_info.getPatternIndex());
         for (int step = 0; step < 8; step++) {
-          auto read_target = resolveReadTarget(song, drum_section, track_id, drum_offset + step, controller.getFocusedClip());
+          auto read_target = resolveReadTarget(song, track_id, drum_offset + step, controller.getFocusedClip());
           for (int hit_note : getHitLaneValues(*read_target.pattern, read_target.effective_row, drum_lane_notes)) {
             auto lane_it = find(drum_lane_notes.begin(), drum_lane_notes.end(), hit_note);
             if (lane_it == drum_lane_notes.end()) continue;
@@ -3095,7 +3081,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
         // playhead here (scrolling elsewhere on the same device brings it
         // back into view instead).
         if (playback_info.isPlaying()) {
-          drum_playhead_step = playback_info.getRowIndex() % 8;
+          drum_playhead_step = playback_info.getAbsolutePosition() % 8;
         } else if (audition_step >= 0) {
           auto clip_row = drum_clip_length > 0 ? audition_step % drum_clip_length : audition_step % 8;
           drum_playhead_step = (clip_row >= drum_offset && clip_row < drum_offset + 8) ? clip_row - drum_offset : -1;

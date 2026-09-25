@@ -206,10 +206,10 @@ track) extends the region from there the usual way.
 In Arrangement view, a region acts on the notes it shows: per selected
 track, whatever supplies that track at the region's anchor row (the mark,
 or the cursor with no mark) - a placed clip, the Launchpad-focused clip, or
-the section's background - and its rows stop where another content takes
-over (`PatternSource::sourceRows()`, `SectionRegionGrid`). A yank writes
+the track's background - and its rows stop where another content takes
+over (`PatternSource::sourceRows()`, `ArrangementRegionGrid`). A yank writes
 into whatever the cursor is on and stops where that ends. A region's
-effect commands always go to the section's background, where recorded
+effect commands always go to the track's background, where recorded
 automation lives; playback reads a row's commands from there first and
 then from a placed clip's own pattern, so a clip's own command wins on a
 conflict (`SongState::applyRowCommands()`, `docs/commands.md`).
@@ -513,15 +513,15 @@ would otherwise resume showing.
   (free note entry through the free-drumming percussion pad layout, a
   fixed family/color arrangement of GM sounds, not an isomorphic pitched
   grid); once it has at least one lane (`isStepSequenced()`) its grid
-  becomes a step sequencer instead. Its step data is a real per-section
+  becomes a step sequencer instead. Its step data is a real
   `Pattern` like any other track's (a step is a `Note`), not
   track-global, so it's copy/paste-able through `PatternEditor`'s own
   clipboard and renders as its compact one-cell-per-lane view. On a
   Launchpad, the step grid (rows = lanes, columns = steps) only ever
   edits a specific `Clip` actually open for editing on the assigned track
-  (`Controller::getFocusedClipTrackId()`) - never the section's own
+  (`Controller::getFocusedClipTrackId()`) - never the track's own
   background `Pattern`, which has no pagination and spans the whole
-  scene, far more than this fixed grid (even split across several
+  song, far more than this fixed grid (even split across several
   connected devices) could ever show meaningfully. Opening a clip is
   reachable two ways, both funneled through the same shared
   `Controller::toggleDrumClipFocus(track_id, clip_index)`: the
@@ -696,13 +696,13 @@ would otherwise resume showing.
 - **Clips** (`Clip`, `src/model/Clip.h`; `Song::getClips(track_id)`/
   `addClip()`/`ensureClipAt()`, backed by `std::unordered_map<int,
   std::vector<Clip>> clips_by_track_`) - reusable, shareable content for
-  one leaf track, outside any one section position: a single `Pattern`
+  one leaf track, outside any one arrangement position: a single `Pattern`
   (once a command can target any of a track's own parent tracks directly
   - see the Run section's own `docs/commands.md` discussion above for
   `Command`'s own chain-position digit, reserved for this but not
   implemented beyond the track's own chain position (`0`) yet - a clip
-  will never need a second track's worth of content the way a Section's
-  own per-track content does, so this is already shaped for that). A
+  will never need a second track's worth of content the way the
+  arrangement's own per-track content does, so this is already shaped for that). A
   `SampleTrack`'s own clip carries raw audio instead, via one or more
   `SampleContent` layers (`Clip::getSampleLayers()`, a `std::deque` so an
   existing layer's own address survives a later append - `SongState.h`'s
@@ -720,8 +720,8 @@ would otherwise resume showing.
   final, never computed live on a trigger. Editing a clip through any
   one of its placements (`ArrangementOps.h`'s `placeClipInstance()`/
   `resolveInstanceAt()`, see `ArrangementGrid` below) updates every other
-  placement of it immediately - unlike a section's own inline Pattern
-  content, which is always an independent copy. A gap in the middle of a
+  placement of it immediately - unlike a track's own inline arrangement
+  Pattern, which is always an independent copy. A gap in the middle of a
   track's own clip list (a scene where this instrument is silent on
   purpose) is a real, empty `Clip` (`Clip::isEmpty()`), not a missing
   vector slot - `Song::ensureClipAt(track_id, index)` places/reuses a clip
@@ -737,7 +737,7 @@ would otherwise resume showing.
   genuinely out-of-bounds row - erasing one would shift every later
   clip's own index down, silently misaligning every other track's own
   scene rows against it). Persisted in a top-level `<clips>` element,
-  sibling to `<tracks>`/`<sections>` (`<trackClips track="..."><clip
+  sibling to `<tracks>`/`<arrangement>` (`<trackClips track="..."><clip
   id="..." name="..." loop="..." length="..."><pattern>...</pattern>
   </clip></trackClips>`, one `<trackClips>` per track; an empty filler
   round-trips as a `<clip>` with no `<pattern>` child at all). A
@@ -755,7 +755,7 @@ would otherwise resume showing.
   every connected device follows (`fallback_track_index`, from
   `PatternEditor::getCursorTrackIndex()` - no per-device track-follow/
   detachment). Record Arm gates trigger-live (off) vs. assign-into-the-
-  current-section (on), the same "just play" vs. "store into the pattern"
+  arrangement (on), the same "just play" vs. "store into the pattern"
   choice ordinary note entry already makes. Launched clips play inside
   the one transport, per track: a launch takes its track over from the
   arrangement (it plays the clip, looping or one-shot, while the other
@@ -885,10 +885,9 @@ would otherwise resume showing.
   way - "toggle-mute"/"toggle-solo" (`PatternEditor`'s own `commands_`)
   are still reachable unchanged via keybinding/M-x.
 - **`ArrangementGrid`** (`src/ui/tui/ArrangementGrid.h`/`.cpp`) - the terminal-
-  side counterpart: an always-visible overview in the scope row. A section
-  is a title row (its own name, full width - sections are told apart by
-  name, not by number; Enter on a title row edits it in place) followed
-  by its own bar rows, columns = tracks. A placed clip instance renders as
+  side counterpart: an always-visible overview in the scope row - one row
+  per bar of the arrangement, running one bar past where its content ends
+  (`Song::getArrangementLength()`), columns = tracks. A placed clip instance renders as
   a colored block (that track's own identity color) spanning its own
   active length in bars, its leading bar showing a single hex digit - its
   ordinal position in that track's own clip list, the same index Session
@@ -896,8 +895,9 @@ would otherwise resume showing.
   (`ArrangementOps.h`'s `resolveInstanceAt()`). A bar with no active
   instance falls back to a page/empty-page glyph showing whether the
   background has anything there. No per-cell copy/paste - placing/moving
-  clip content is `copy-to-clip`'s own job, from `PatternEditor`. Track/
-  section selection is the one shared cursor Session view also follows.
+  clip content is `copy-to-clip`'s own job, from `PatternEditor`. Track
+  selection is the one shared cursor Session view also follows; Enter
+  moves the transport to the cursor's bar.
 - **Views** (`UI::View`, `ARRANGEMENT`/`SESSION`) - how the active song is
   laid out, UI state independent of which buffer (song) is active; a
   buffer is just a song. Arrangement view: the scope row (with
@@ -963,7 +963,8 @@ would otherwise resume showing.
   "arrangement-view"/"session-view"/"outline-view" select one directly
   (View menu). `PatternEditor` reads and writes through a `PatternSource`
   (`src/ui/PatternSource.h`): `ArrangementPatternSource` in Arrangement
-  view (sections and placed clips, the transport as its cursor row),
+  view (the arrangement's one timeline and placed clips, a single block of
+  absolute rows, the transport as its cursor row),
   `ScenePatternSource` in Session view (clips directly, no locators).
   There each track has its own position - a clip (scene row) and a row
   in it: a playing track's is its playhead, which can't be moved (Up/Down
@@ -1074,14 +1075,15 @@ would otherwise resume showing.
   state, playback, instruments, ambisonic mixer selection, UI wiring -
   so it sits above the split rather than being forced into one slice of
   it). The topic directories:
-  - `src/model/` — the persisted song data: `Song`/`Section`/`Pattern`/
-    `Track` (`Song` holds a flat, sequentially-played `vector<Section>`;
-    each `Section` is one span in the song's linear arrangement (a real
-    length in bars, not a single-row marker), holding up
-    to three kinds of per-track content - the arrangement layer's own
+  - `src/model/` — the persisted song data: `Song`/`Arrangement`/`Pattern`/
+    `Track` (`Song` holds one `Arrangement`, a single timeline keyed by
+    absolute row - `<arrangement>` in the file - whose length is where its
+    content ends (`Song::getArrangementLength()`), holding three kinds of
+    per-track content - the arrangement layer's own
     instance events (which `Clip`, if any, starts at a given row, or an
-    explicit stop - the primary way content reaches a `Section` today, see
-    `Clips`/`ArrangementOps.h` below), a directly-inline `Pattern` — a
+    explicit stop - the primary way content reaches the arrangement, see
+    `Clips`/`ArrangementOps.h` below; a looping clip plays on until the
+    track's next event), a directly-inline `Pattern` — a
     track's own note/command content, no `track_id` in it anywhere, always
     an independent copy unlike a `Clip`'s own shared content — and a
     `SampleTrack`'s own merged background audio bed), the song's

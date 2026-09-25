@@ -13,7 +13,7 @@ renderSongOffline(const Song & song, const ChannelConfiguration & channel_config
   result.channels = channel_config.getDeviceChannels();
   result.sampleRate = channel_config.getAudioOutSampleRate();
 
-  int total_rows = song.toAbsoluteRow(static_cast<int>(song.getSections().size()), 0);
+  int total_rows = song.getArrangementLength();
   if (!total_rows) return result;
 
   SongState state(channel_config);
@@ -23,11 +23,16 @@ renderSongOffline(const Song & song, const ChannelConfiguration & channel_config
   auto mixer = createMixer(channel_config, mixer_type, use_legacy_binaural);
 
   int tail_frames = 0;
+  int last_position = 0;
 
   while (true) {
-    if (state.isPlaying() && state.getAbsolutePosition() >= total_rows) {
-      state.setIsPlaying(false); // song ended; keep rendering the tail
+    // The song ends past its last row, or where a jump back (a pattern
+    // break to an earlier locator) would loop it - one pass renders.
+    auto position = state.getAbsolutePosition();
+    if (state.isPlaying() && (position >= total_rows || position < last_position)) {
+      state.setIsPlaying(false); // keep rendering the tail
     }
+    last_position = position;
 
     state.renderBlock(block_frames, song, *mixer);
     auto master = mixer->encode();

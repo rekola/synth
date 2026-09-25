@@ -100,7 +100,7 @@ TEST(controller_per_buffer_state_survives_switching_away_and_back) {
   controller.switchToBuffer(buffer_a);
   controller.setRecordingTrackId(3);
   PlaybackInfo info_a;
-  info_a.setRowIdx(5);
+  info_a.setAbsolutePos(5);
   controller.setPlaybackInfo(info_a);
 
   auto buffer_b = controller.freshBufferName();
@@ -108,20 +108,20 @@ TEST(controller_per_buffer_state_survives_switching_away_and_back) {
   // A brand-new buffer must start out with fresh, default state, not
   // buffer_a's - not merely leftover live-scalar values.
   CHECK(controller.getRecordingTrackId() == 0);
-  CHECK(controller.getPlaybackInfo().getRowIndex() == 0);
+  CHECK(controller.getPlaybackInfo().getAbsolutePosition() == 0);
 
   controller.setRecordingTrackId(7);
   PlaybackInfo info_b;
-  info_b.setRowIdx(9);
+  info_b.setAbsolutePos(9);
   controller.setPlaybackInfo(info_b);
 
   controller.switchToBuffer(buffer_a);
   CHECK(controller.getRecordingTrackId() == 3);
-  CHECK(controller.getPlaybackInfo().getRowIndex() == 5);
+  CHECK(controller.getPlaybackInfo().getAbsolutePosition() == 5);
 
   controller.switchToBuffer(buffer_b);
   CHECK(controller.getRecordingTrackId() == 7);
-  CHECK(controller.getPlaybackInfo().getRowIndex() == 9);
+  CHECK(controller.getPlaybackInfo().getAbsolutePosition() == 9);
 }
 
 // Regression: receivePlaybackSnapshot()'s staleness check compares a
@@ -152,11 +152,10 @@ TEST(controller_position_edit_seq_does_not_leak_across_buffers) {
   // local mirror.
   PlaybackInfo snapshot;
   snapshot.setAbsolutePos(5);
-  snapshot.setRowIdx(5);
   snapshot.setPositionEditSeq(1);
   controller.receivePlaybackSnapshot(buffer_b, snapshot);
 
-  CHECK(controller.getPlaybackInfo().getRowIndex() == 5);
+  CHECK(controller.getPlaybackInfo().getAbsolutePosition() == 5);
 }
 
 // syncLiveGlideStateIntoModel() - receivePlaybackSnapshot()'s own
@@ -340,41 +339,6 @@ TEST(controller_command_completions_merges_literal_and_fallback_names) {
   CHECK(all.count("set-mark") == 1);
 }
 
-TEST(extend_recording_section_grows_the_playing_section_near_its_own_last_bar) {
-  ChannelConfiguration config(44100, 1);
-  Controller controller(config);
-  controller.switchToBuffer(controller.freshBufferName());
-  auto & song = controller.getSong();
-  song.setRowsPerBar(1); // 1 bar = 1 row, for simple arithmetic below
-  auto & section = song.getOrCreateSection(0);
-  section.setLengthBars(3); // rows 0-2
-
-  PlaybackInfo info;
-  info.setIsPlaying(true);
-  info.setPatternIdx(0);
-  info.setRowIdx(0); // well inside the section - not near the end yet
-  controller.setPlaybackInfo(info);
-  controller.extendRecordingSectionIfNeeded(true);
-  CHECK(section.getLengthBars() == 3); // untouched
-
-  info.setRowIdx(2); // the section's own last row
-  controller.setPlaybackInfo(info);
-  controller.extendRecordingSectionIfNeeded(true);
-  CHECK(section.getLengthBars() == 4); // grew by one more bar
-
-  // Not recording: no-op even at the very end.
-  info.setRowIdx(3);
-  controller.setPlaybackInfo(info);
-  controller.extendRecordingSectionIfNeeded(false);
-  CHECK(section.getLengthBars() == 4);
-
-  // Stopped: no-op even while "recording".
-  info.setIsPlaying(false);
-  controller.setPlaybackInfo(info);
-  controller.extendRecordingSectionIfNeeded(true);
-  CHECK(section.getLengthBars() == 4);
-}
-
 // A clip focus is a single, exclusive "what am I currently looking at to
 // edit" pointer, not Session-view style multi-track launching - setting a
 // new one must silence whatever the *previous* focus was actively
@@ -527,7 +491,7 @@ TEST(armed_sample_capture_places_at_the_snapshotted_row_and_trims_the_measured_l
   controller.setRecordingTrackId(track_id);
   controller.startRecording();
 
-  controller.armRecordingStart(0, 2); // section 0, row 2 - the take's own real start
+  controller.armRecordingStart(2); // row 2 - the take's own real start
   CHECK(controller.isRecordingArmed());
 
   AudioBuffer block(1, 800);
@@ -547,11 +511,10 @@ TEST(armed_sample_capture_places_at_the_snapshotted_row_and_trims_the_measured_l
 
   // Placed at the snapshotted row (2), not row 0 - resolveInstanceAt()
   // only finds it active there.
-  auto & section = controller.getSong().getSection(0);
-  auto active_at_start = resolveInstanceAt(controller.getSong(), section, track_id, 2);
+  auto active_at_start = resolveInstanceAt(controller.getSong(), track_id, 2);
   CHECK(active_at_start.clip_index == 0);
-  auto active_at_zero = resolveInstanceAt(controller.getSong(), section, track_id, 0);
-  CHECK(active_at_zero.clip_index == Section::kNoInstance);
+  auto active_at_zero = resolveInstanceAt(controller.getSong(), track_id, 0);
+  CHECK(active_at_zero.clip_index == Arrangement::kNoInstance);
 
   controller.finishSampleCapture();
   CHECK(!controller.isRecordingArmed()); // reset back to unarmed for the next take
@@ -661,7 +624,7 @@ TEST(a_second_take_into_an_already_recorded_slot_overdubs_rather_than_replaces) 
 }
 
 // A real bug report: a captured take defaulted to Clip's own looping=true,
-// so a placed instance reached through the rest of the section and kept
+// so a placed instance kept looping and kept
 // re-triggering the (short) recording over and over instead of playing
 // once and stopping - same reasoning ensureNoteRecordingClip() already
 // applies to a live note-recording take.
@@ -706,12 +669,11 @@ TEST(extend_recording_sample_clip_if_needed_grows_the_clip_and_clears_a_stale_st
 
   // An old stop marker, well ahead of where the new take starts - left
   // over from some earlier, unrelated arrangement edit.
-  auto & section = controller.getSong().getSection(0);
-  placeStopInstance(section, track_id, 20);
+  placeStopInstance(controller.getSong(), track_id, 20);
 
   controller.setRecordingTrackId(track_id);
   controller.startRecording();
-  controller.armRecordingStart(0, 0);
+  controller.armRecordingStart(0);
 
   AudioBuffer block(1, 400);
   auto data = block.getChannelData(0);
@@ -725,15 +687,14 @@ TEST(extend_recording_sample_clip_if_needed_grows_the_clip_and_clears_a_stale_st
 
   // The old stop marker is still there - the take hasn't grown anywhere
   // near it yet.
-  CHECK(resolveInstanceAt(controller.getSong(), section, track_id, 20).clip_index == Section::kStopInstance);
+  CHECK(resolveInstanceAt(controller.getSong(), track_id, 20).clip_index == Arrangement::kStopInstance);
 
   // The transport advances well past the take's own current (small)
   // reach, the same way real per-row playback would while recording
   // continues.
   PlaybackInfo info;
   info.setIsPlaying(true);
-  info.setPatternIdx(0);
-  info.setRowIdx(20);
+  info.setAbsolutePos(20);
   controller.setPlaybackInfo(info);
   controller.extendRecordingSampleClipIfNeeded();
 
@@ -741,7 +702,7 @@ TEST(extend_recording_sample_clip_if_needed_grows_the_clip_and_clears_a_stale_st
   // The stale stop marker is gone, swept by the same placeClipInstance()
   // re-run extendRecordingClipsIfNeeded() already uses for note takes -
   // row 20 now resolves to the still-active recording clip instead.
-  CHECK(resolveInstanceAt(controller.getSong(), section, track_id, 20).clip_index == 0);
+  CHECK(resolveInstanceAt(controller.getSong(), track_id, 20).clip_index == 0);
 }
 
 // The other half: a take that never called armRecordingStart() at all
@@ -767,9 +728,8 @@ TEST(unarmed_sample_capture_stays_unplaced) {
   controller.beginSampleCapture(track_id); // no latency argument - matches UI::handleRecordEvent()'s own lazy call
   CHECK(controller.hasRecordingClip());
 
-  auto & section = controller.getSong().addSection();
-  auto active = resolveInstanceAt(controller.getSong(), section, track_id, 0);
-  CHECK(active.clip_index == Section::kNoInstance); // never placed anywhere
+  auto active = resolveInstanceAt(controller.getSong(), track_id, 0);
+  CHECK(active.clip_index == Arrangement::kNoInstance); // never placed anywhere
 
   controller.finishSampleCapture();
   auto & clips = controller.getSong().getClips(track_id);
@@ -1001,8 +961,7 @@ TEST(toggle_record_arm_clip_grid_focused_arms_a_sample_track_without_arrangement
 
   auto & clips = song.getClips(track_id);
   CHECK(clips.size() == 1);
-  auto & section = song.getOrCreateSection(0);
-  CHECK(resolveInstanceAt(song, section, track_id, 0).clip_index == Section::kNoInstance);
+  CHECK(resolveInstanceAt(song, track_id, 0).clip_index == Arrangement::kNoInstance);
 
   controller.sendCommand("toggle-record-arm"); // disarm
   CHECK(!controller.isSessionRecording(track_id));
@@ -1115,8 +1074,7 @@ TEST(toggle_record_arm_on_an_empty_drum_machine_slot_creates_a_clip) {
   // patterns_by_track_ has never had an entry created for this track,
   // which a clip built only via addClip()+setters (no note ever written)
   // never gets.
-  auto & section = song.getOrCreateSection(0);
-  auto read_target = resolveReadTarget(song, section, track_id, 0, controller.getFocusedClip());
+  auto read_target = resolveReadTarget(song, track_id, 0, controller.getFocusedClip());
   CHECK(read_target.is_focused_override);
   CHECK(read_target.pattern != nullptr);
 }
@@ -1326,8 +1284,7 @@ TEST(ensure_session_recording_clip_creates_and_grows_at_the_exact_pressed_index)
   controller.extendSessionRecordingClipIfNeeded(track_id, 5);
   CHECK(clips[2].getLength() > 4); // grew ahead of row 5, same growth shape as extendRecordingClipsIfNeeded()
 
-  auto & section = song.getOrCreateSection(0);
-  CHECK(resolveInstanceAt(song, section, track_id, 0).clip_index == Section::kNoInstance);
+  CHECK(resolveInstanceAt(song, track_id, 0).clip_index == Arrangement::kNoInstance);
 }
 
 // Arming into a Session View slot that already holds a clip overwrites it
@@ -1700,20 +1657,17 @@ TEST(merge_clip_to_background_command_resolves_from_current_track_and_playhead) 
   shot.getLeafPattern().setNote(0, 0, Note(60, 100));
   song.addClip(std::move(shot)); // index 0
 
-  // switchToBuffer() already seeded section 0 for a fresh buffer - reuse it
-  // rather than addSection()'ing a second one, so the playhead (which
-  // normalizes against section 0 first) actually lands where the clip is.
-  auto & section = song.getSection(0);
-  placeClipInstance(song, section, track_id, 5, 0); // covers rows 5-8
+  auto & arrangement = song.getArrangement();
+  placeClipInstance(song, track_id, 5, 0); // covers rows 5-8
 
   song.setCurrentTrackId(track_id);
-  controller.setEditPosition(5); // lands inside section 0's own row 5
+  controller.setEditPosition(5); // lands on the clip's first row
 
   controller.sendCommand("merge-clip-to-background");
 
-  CHECK(resolveInstanceAt(song, section, track_id, 5).clip_index == Section::kStopInstance);
-  CHECK(section.getNotes(5, track_id).size() == 1);
-  CHECK(section.getNotes(5, track_id)[0].getValue() == 60);
+  CHECK(resolveInstanceAt(song, track_id, 5).clip_index == Arrangement::kStopInstance);
+  CHECK(arrangement.getNotes(5, track_id).size() == 1);
+  CHECK(arrangement.getNotes(5, track_id)[0].getValue() == 60);
 }
 
 // No current track set (Song::getCurrentTrackId()'s own -1 default) -
@@ -1733,19 +1687,18 @@ TEST(merge_clip_to_background_command_is_a_noop_with_no_current_track_set) {
   shot.setLooping(false);
   song.addClip(std::move(shot)); // index 0
 
-  auto & section = song.getSection(0); // switchToBuffer() already seeded this one - see the other test's own comment
-  placeClipInstance(song, section, track_id, 5, 0);
+  placeClipInstance(song, track_id, 5, 0);
 
   CHECK(song.getCurrentTrackId() == -1); // never set
   controller.setEditPosition(5);
 
   controller.sendCommand("merge-clip-to-background");
 
-  CHECK(resolveInstanceAt(song, section, track_id, 5).clip_index == 0); // still placed, untouched
+  CHECK(resolveInstanceAt(song, track_id, 5).clip_index == 0); // still placed, untouched
 }
 
 // A live note-recording take writes into a real, individually-manageable
-// Clip instance instead of falling through to the section's own background
+// Clip instance instead of falling through to the track's own background
 // Pattern - ensureNoteRecordingClip()'s own core contract.
 TEST(ensure_note_recording_clip_creates_and_places_a_real_clip_on_first_write) {
   ChannelConfiguration config(44100, 1);
@@ -1756,7 +1709,7 @@ TEST(ensure_note_recording_clip_creates_and_places_a_real_clip_on_first_write) {
   auto track_id = track.getInternalId();
 
   std::unordered_map<int, std::string> clip_ids;
-  controller.ensureNoteRecordingClip(clip_ids, track_id, 0, 0);
+  controller.ensureNoteRecordingClip(clip_ids, track_id, 0);
 
   auto & clips = controller.getSong().getClips(track_id);
   CHECK(clips.size() == 1);
@@ -1764,8 +1717,7 @@ TEST(ensure_note_recording_clip_creates_and_places_a_real_clip_on_first_write) {
   CHECK(clip_ids.count(track_id) == 1);
   if (!clips.empty()) CHECK(clip_ids[track_id] == clips[0].getId());
 
-  auto & section = controller.getSong().getSection(0);
-  auto active = resolveInstanceAt(controller.getSong(), section, track_id, 0);
+  auto active = resolveInstanceAt(controller.getSong(), track_id, 0);
   CHECK(active.clip_index == 0);
 }
 
@@ -1783,10 +1735,9 @@ TEST(ensure_note_recording_clip_places_the_clip_at_the_start_of_its_own_bar) {
   auto track_id = track.getInternalId();
 
   std::unordered_map<int, std::string> clip_ids;
-  controller.ensureNoteRecordingClip(clip_ids, track_id, 0, 4); // row 4 - mid-bar, not the raw row the clip should land on
+  controller.ensureNoteRecordingClip(clip_ids, track_id, 4); // row 4 - mid-bar, not the raw row the clip should land on
 
-  auto & section = controller.getSong().getSection(0);
-  auto active = resolveInstanceAt(controller.getSong(), section, track_id, 4);
+  auto active = resolveInstanceAt(controller.getSong(), track_id, 4);
   CHECK(active.clip_index == 0);
   CHECK(active.start_row == 0); // rounded back to bar 0's own start, not row 4
 }
@@ -1802,8 +1753,8 @@ TEST(ensure_note_recording_clip_does_not_duplicate_at_the_same_row) {
   auto track_id = track.getInternalId();
 
   std::unordered_map<int, std::string> clip_ids;
-  controller.ensureNoteRecordingClip(clip_ids, track_id, 0, 0);
-  controller.ensureNoteRecordingClip(clip_ids, track_id, 0, 0);
+  controller.ensureNoteRecordingClip(clip_ids, track_id, 0);
+  controller.ensureNoteRecordingClip(clip_ids, track_id, 0);
 
   CHECK(controller.getSong().getClips(track_id).size() == 1);
 }
@@ -1819,16 +1770,15 @@ TEST(ensure_note_recording_clip_leaves_an_already_active_clip_alone) {
   auto & track = controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
   auto & song = controller.getSong();
-  auto & section = song.getSection(0); // switchToBuffer(freshBufferName()) already seeded section 0 - the same one ensureNoteRecordingClip() below resolves against
 
   Clip pre_existing(track_id);
   pre_existing.setLooping(true);
   auto clip_index = 0;
   song.addClip(std::move(pre_existing));
-  placeClipInstance(song, section, track_id, 0, clip_index);
+  placeClipInstance(song, track_id, 0, clip_index);
 
   std::unordered_map<int, std::string> clip_ids;
-  controller.ensureNoteRecordingClip(clip_ids, track_id, 0, 0);
+  controller.ensureNoteRecordingClip(clip_ids, track_id, 0);
 
   CHECK(song.getClips(track_id).size() == 1); // no new clip
   CHECK(clip_ids.empty()); // never touched - resolveInstanceAt() already found something real
@@ -1846,13 +1796,12 @@ TEST(ensure_note_recording_clip_does_nothing_while_a_clip_is_focused) {
   controller.setFocusedClip(track_id, "some-clip-id");
 
   std::unordered_map<int, std::string> clip_ids;
-  controller.ensureNoteRecordingClip(clip_ids, track_id, 0, 0);
+  controller.ensureNoteRecordingClip(clip_ids, track_id, 0);
 
   CHECK(controller.getSong().getClips(track_id).empty());
 }
 
-// Clip::setLength()'s own counterpart to extendRecordingSectionIfNeeded() -
-// a long take's own clip keeps growing so resolveInstanceAt()'s one-shot
+// A long take's own clip keeps growing so resolveInstanceAt()'s one-shot
 // expiry (non-looping by default) never silently drops it back to the
 // background mid-take.
 TEST(extend_recording_clips_if_needed_grows_the_clip_as_the_take_continues) {
@@ -1865,13 +1814,12 @@ TEST(extend_recording_clips_if_needed_grows_the_clip_as_the_take_continues) {
   auto track_id = track.getInternalId();
 
   std::unordered_map<int, std::string> clip_ids;
-  controller.ensureNoteRecordingClip(clip_ids, track_id, 0, 0);
+  controller.ensureNoteRecordingClip(clip_ids, track_id, 0);
   CHECK(controller.getSong().getClips(track_id)[0].getLength() == 4); // a full bar right away, not left at 0 - see ensureNoteRecordingClip()'s own comment on why
 
   PlaybackInfo info;
   info.setIsPlaying(true);
-  info.setPatternIdx(0);
-  info.setRowIdx(0);
+  info.setAbsolutePos(0);
   controller.setPlaybackInfo(info);
   controller.extendRecordingClipsIfNeeded(clip_ids, { track_id });
 
@@ -1884,7 +1832,7 @@ TEST(extend_recording_clips_if_needed_grows_the_clip_as_the_take_continues) {
 
   // Advance close enough to the end of the current window to force
   // another grow.
-  info.setRowIdx(length_after_first_grow - 1);
+  info.setAbsolutePos(length_after_first_grow - 1);
   controller.setPlaybackInfo(info);
   controller.extendRecordingClipsIfNeeded(clip_ids, { track_id });
   CHECK(controller.getSong().getClips(track_id)[0].getLength() > length_after_first_grow);
@@ -1899,7 +1847,7 @@ TEST(extend_recording_clips_if_needed_is_a_no_op_while_stopped_or_with_no_clips)
   auto track_id = track.getInternalId();
 
   std::unordered_map<int, std::string> clip_ids;
-  controller.ensureNoteRecordingClip(clip_ids, track_id, 0, 0);
+  controller.ensureNoteRecordingClip(clip_ids, track_id, 0);
 
   controller.extendRecordingClipsIfNeeded(clip_ids, { track_id }); // still stopped - PlaybackInfo defaults to not playing
   CHECK(controller.getSong().getClips(track_id)[0].getLength() == 16); // unchanged from its own creation-time length (a full bar, default rowsPerBar)
@@ -1907,8 +1855,7 @@ TEST(extend_recording_clips_if_needed_is_a_no_op_while_stopped_or_with_no_clips)
   std::unordered_map<int, std::string> empty_clip_ids;
   PlaybackInfo info;
   info.setIsPlaying(true);
-  info.setPatternIdx(0);
-  info.setRowIdx(0);
+  info.setAbsolutePos(0);
   controller.setPlaybackInfo(info);
   controller.extendRecordingClipsIfNeeded(empty_clip_ids, { track_id }); // playing, but this caller has no clips of its own
   CHECK(controller.getSong().getClips(track_id)[0].getLength() == 16);
@@ -1920,7 +1867,7 @@ TEST(extend_recording_clips_if_needed_is_a_no_op_while_stopped_or_with_no_clips)
 // everything in its own path via placeClipInstance()) for as long as the
 // session merely stayed armed, long after the performer had released the
 // note and stopped playing anything - eventually consuming the whole rest
-// of the section.
+// of the song.
 TEST(extend_recording_clips_if_needed_does_not_grow_a_track_with_no_note_currently_held) {
   ChannelConfiguration config(44100, 1);
   Controller controller(config);
@@ -1931,13 +1878,12 @@ TEST(extend_recording_clips_if_needed_does_not_grow_a_track_with_no_note_current
   auto track_id = track.getInternalId();
 
   std::unordered_map<int, std::string> clip_ids;
-  controller.ensureNoteRecordingClip(clip_ids, track_id, 0, 0);
+  controller.ensureNoteRecordingClip(clip_ids, track_id, 0);
   auto initial_length = controller.getSong().getClips(track_id)[0].getLength();
 
   PlaybackInfo info;
   info.setIsPlaying(true);
-  info.setPatternIdx(0);
-  info.setRowIdx(initial_length - 1); // right at the edge of the clip's own current window
+  info.setAbsolutePos(initial_length - 1); // right at the edge of the clip's own current window
   controller.setPlaybackInfo(info);
   controller.extendRecordingClipsIfNeeded(clip_ids, {}); // nothing currently held for this track
 
@@ -1950,8 +1896,7 @@ TEST(extend_recording_clips_if_needed_does_not_grow_a_track_with_no_note_current
 // at all - isAutoRecording() stays false for the whole take, since this
 // session never itself started the transport. A clip that already exists
 // (this map's own entry) must still keep growing regardless - gating on
-// isAutoRecording() the way extendRecordingSectionIfNeeded() does would
-// silently stop right after the clip's own initial one-bar length, real
+// isAutoRecording() would silently stop right after the clip's own initial one-bar length, real
 // playback quietly outrunning it with nothing left to grow it further.
 TEST(extend_recording_clips_if_needed_keeps_growing_even_when_this_session_never_started_the_transport) {
   ChannelConfiguration config(44100, 1);
@@ -1963,13 +1908,12 @@ TEST(extend_recording_clips_if_needed_keeps_growing_even_when_this_session_never
   auto track_id = track.getInternalId();
 
   std::unordered_map<int, std::string> clip_ids;
-  controller.ensureNoteRecordingClip(clip_ids, track_id, 0, 0);
+  controller.ensureNoteRecordingClip(clip_ids, track_id, 0);
   auto initial_length = controller.getSong().getClips(track_id)[0].getLength();
 
   PlaybackInfo info;
   info.setIsPlaying(true); // playback already running, e.g. started manually - not this session's own doing
-  info.setPatternIdx(0);
-  info.setRowIdx(initial_length - 1); // right at the edge of the clip's own current window
+  info.setAbsolutePos(initial_length - 1); // right at the edge of the clip's own current window
   controller.setPlaybackInfo(info);
   controller.extendRecordingClipsIfNeeded(clip_ids, { track_id });
 
@@ -1993,25 +1937,23 @@ TEST(extend_recording_clips_if_needed_overwrites_a_stop_it_grows_across) {
   auto & track = controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
   auto & song = controller.getSong();
-  auto & section = song.getSection(0);
 
   std::unordered_map<int, std::string> clip_ids;
-  controller.ensureNoteRecordingClip(clip_ids, track_id, 0, 0);
+  controller.ensureNoteRecordingClip(clip_ids, track_id, 0);
   auto initial_length = song.getClips(track_id)[0].getLength(); // one bar - see ensureNoteRecordingClip()'s own comment
 
-  placeStopInstance(section, track_id, initial_length); // right where the clip's own window currently ends
+  placeStopInstance(song, track_id, initial_length); // right where the clip's own window currently ends
 
   PlaybackInfo info;
   info.setIsPlaying(true);
-  info.setPatternIdx(0);
-  info.setRowIdx(initial_length - 1); // right at the edge - forces a grow
+  info.setAbsolutePos(initial_length - 1); // right at the edge - forces a grow
   controller.setPlaybackInfo(info);
   controller.extendRecordingClipsIfNeeded(clip_ids, { track_id });
 
   CHECK(song.getClips(track_id)[0].getLength() > initial_length);
   // The stop is gone, not merely outrun - resolveInstanceAt() at its own
   // former row now finds the recording clip itself, not kStopInstance.
-  auto active = resolveInstanceAt(song, section, track_id, initial_length);
+  auto active = resolveInstanceAt(song, track_id, initial_length);
   CHECK(active.clip_index == 0);
 }
 
@@ -2026,10 +1968,9 @@ TEST(extend_recording_clips_if_needed_overwrites_a_different_clip_it_grows_acros
   auto & track = controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
   auto & song = controller.getSong();
-  auto & section = song.getSection(0);
 
   std::unordered_map<int, std::string> clip_ids;
-  controller.ensureNoteRecordingClip(clip_ids, track_id, 0, 0);
+  controller.ensureNoteRecordingClip(clip_ids, track_id, 0);
   auto initial_length = song.getClips(track_id)[0].getLength();
   auto recording_clip_id = clip_ids[track_id];
 
@@ -2037,18 +1978,17 @@ TEST(extend_recording_clips_if_needed_overwrites_a_different_clip_it_grows_acros
   other.setLooping(true);
   song.addClip(std::move(other));
   auto other_index = static_cast<int>(song.getClips(track_id).size()) - 1;
-  placeClipInstance(song, section, track_id, initial_length, other_index);
-  CHECK(resolveInstanceAt(song, section, track_id, initial_length).clip_index == other_index);
+  placeClipInstance(song, track_id, initial_length, other_index);
+  CHECK(resolveInstanceAt(song, track_id, initial_length).clip_index == other_index);
 
   PlaybackInfo info;
   info.setIsPlaying(true);
-  info.setPatternIdx(0);
-  info.setRowIdx(initial_length - 1);
+  info.setAbsolutePos(initial_length - 1);
   controller.setPlaybackInfo(info);
   controller.extendRecordingClipsIfNeeded(clip_ids, { track_id });
 
   CHECK(song.getClips(track_id)[0].getLength() > initial_length);
-  auto active = resolveInstanceAt(song, section, track_id, initial_length);
+  auto active = resolveInstanceAt(song, track_id, initial_length);
   CHECK(active.clip_index >= 0);
   CHECK(song.getClips(track_id)[static_cast<size_t>(active.clip_index)].getId() == recording_clip_id);
 }
@@ -2057,7 +1997,7 @@ TEST(extend_recording_clips_if_needed_overwrites_a_different_clip_it_grows_acros
 // take's aftertouch arriving on a later row than the note-on it belongs
 // to (the transport has moved on while the note is still held) writes a
 // genuine aftertouch entry (Note::isAftertouch() - value stays -1,
-// velocity becomes the pressure) at that row, into the section's own
+// velocity becomes the pressure) at that row, into the track's own
 // background Pattern here (no clip involved).
 TEST(apply_note_pressure_writes_an_aftertouch_note) {
   ChannelConfiguration config(8000, 1);
@@ -2069,18 +2009,18 @@ TEST(apply_note_pressure_writes_an_aftertouch_note) {
   auto track_id = track.getInternalId();
   song.setCurrentTrackId(track_id);
 
-  auto & section = song.getOrCreateSection(0);
-  section.setNote(0, track_id, 0, Note(60, 100));
+  auto & arrangement = song.getArrangement();
+  arrangement.setNote(0, track_id, 0, Note(60, 100));
 
-  controller.applyNotePressure(0, 2, track_id, 0, 90, 0);
+  controller.applyNotePressure(2, track_id, 0, 90, 0);
 
-  auto & note = section.getNote(2, track_id, 0);
+  auto & note = arrangement.getNote(2, track_id, 0);
   CHECK(note.isAftertouch());
   CHECK(note.getVelocity() == 90);
 }
 
 // The same, but through a real recording clip (ensureNoteRecordingClip())
-// rather than the section's own background Pattern - applyNotePressure()
+// rather than the track's own background Pattern - applyNotePressure()
 // resolves through resolveEditTarget() exactly like the note-on write
 // itself did, so it lands in the clip's own leaf Pattern too, not the
 // background underneath it.
@@ -2096,16 +2036,15 @@ TEST(apply_note_pressure_writes_aftertouch_into_a_recording_clip) {
   song.setCurrentTrackId(track_id);
 
   std::unordered_map<int, std::string> clip_ids;
-  controller.ensureNoteRecordingClip(clip_ids, track_id, 0, 0);
+  controller.ensureNoteRecordingClip(clip_ids, track_id, 0);
   CHECK(!clip_ids.empty());
 
-  auto & section = song.getSection(0);
-  auto edit_target = resolveEditTarget(song, section, track_id, 0, controller.getFocusedClip());
+  auto edit_target = resolveEditTarget(song, track_id, 0, controller.getFocusedClip());
   edit_target.pattern->setNote(edit_target.effective_row, 0, Note(60, 100));
 
-  controller.applyNotePressure(0, 4, track_id, 0, 90, 0);
+  controller.applyNotePressure(4, track_id, 0, 90, 0);
 
-  auto read_target = resolveReadTarget(song, section, track_id, 4, controller.getFocusedClip());
+  auto read_target = resolveReadTarget(song, track_id, 4, controller.getFocusedClip());
   auto & note = read_target.pattern->getNote(read_target.effective_row, 0);
   CHECK(read_target.is_instance); // landed in the recording clip, not the background
   CHECK(note.isAftertouch());

@@ -1,25 +1,27 @@
 #include "PatternGrid.h"
-#include "Section.h"
+#include "Arrangement.h"
 #include "Song.h"
 #include "Clip.h"
 #include "ArrangementOps.h"
 
+#include <algorithm>
+#include <set>
 #include <string>
 
 const Pattern *
-SectionBackgroundGrid::find(int track_id, int row, int & pattern_row) const {
+ArrangementBackgroundGrid::find(int track_id, int row, int & pattern_row) const {
   auto & patterns = read_.getPatternsByTrack();
   auto it = patterns.find(track_id);
   if (it == patterns.end()) {
     pattern_row = row;
     return nullptr;
   }
-  pattern_row = it->second.getEffectiveRow(row, context_length_);
+  pattern_row = it->second.getEffectiveRow(row, 0);
   return &it->second;
 }
 
 Pattern *
-SectionBackgroundGrid::find(int track_id, int row, int & pattern_row) {
+ArrangementBackgroundGrid::find(int track_id, int row, int & pattern_row) {
   if (!write_) {
     pattern_row = row;
     return nullptr;
@@ -30,12 +32,12 @@ SectionBackgroundGrid::find(int track_id, int row, int & pattern_row) {
     pattern_row = row;
     return nullptr;
   }
-  pattern_row = it->second.getEffectiveRow(row, context_length_);
+  pattern_row = it->second.getEffectiveRow(row, 0);
   return &it->second;
 }
 
 Pattern *
-SectionBackgroundGrid::obtain(int track_id, int row, int & pattern_row) {
+ArrangementBackgroundGrid::obtain(int track_id, int row, int & pattern_row) {
   if (!write_) {
     pattern_row = row;
     return nullptr;
@@ -99,31 +101,29 @@ SceneGrid::obtain(int track_id, int row, int & pattern_row) {
   return &clip.getLeafPattern();
 }
 
-SectionRegionGrid::SectionRegionGrid(Song & song, Section & section, int anchor_row, std::string focused_clip_id)
-  : read_song_(song), write_song_(&song), read_section_(section),
-    background_(section, song.getEffectiveSectionLength(section)),
+ArrangementRegionGrid::ArrangementRegionGrid(Song & song, int anchor_row, std::string focused_clip_id)
+  : read_song_(song), write_song_(&song), background_(song.getArrangement()),
     anchor_row_(anchor_row), focused_clip_id_(std::move(focused_clip_id)) { }
 
-SectionRegionGrid::SectionRegionGrid(const Song & song, const Section & section, int anchor_row, std::string focused_clip_id)
-  : read_song_(song), write_song_(nullptr), read_section_(section),
-    background_(section, song.getEffectiveSectionLength(section)),
+ArrangementRegionGrid::ArrangementRegionGrid(const Song & song, int anchor_row, std::string focused_clip_id)
+  : read_song_(song), write_song_(nullptr), background_(song.getArrangement()),
     anchor_row_(anchor_row), focused_clip_id_(std::move(focused_clip_id)) { }
 
-SectionRegionGrid::Source
-SectionRegionGrid::sourceAt(int track_id, int row) const {
+ArrangementRegionGrid::Source
+ArrangementRegionGrid::sourceAt(int track_id, int row) const {
   auto & clips = read_song_.getClips(track_id);
   if (!focused_clip_id_.empty()) {
     for (size_t i = 0; i < clips.size(); i++) {
       if (clips[i].getId() == focused_clip_id_) return { SourceKind::FOCUSED, static_cast<int>(i), 0 };
     }
   }
-  auto active = resolveInstanceAt(read_song_, read_section_, track_id, row);
+  auto active = resolveInstanceAt(read_song_, track_id, row);
   if (active.clip_index >= 0) return { SourceKind::INSTANCE, active.clip_index, active.start_row };
   return {};
 }
 
 const Pattern *
-SectionRegionGrid::clipPattern(int track_id, const Source & source, int row, int & pattern_row) const {
+ArrangementRegionGrid::clipPattern(int track_id, const Source & source, int row, int & pattern_row) const {
   pattern_row = row;
   if (source.kind == SourceKind::BACKGROUND) return nullptr;
   auto & clip = read_song_.getClips(track_id)[static_cast<size_t>(source.clip_index)];
@@ -135,7 +135,7 @@ SectionRegionGrid::clipPattern(int track_id, const Source & source, int row, int
 }
 
 const Pattern *
-SectionRegionGrid::find(int track_id, int row, int & pattern_row) const {
+ArrangementRegionGrid::find(int track_id, int row, int & pattern_row) const {
   pattern_row = row;
   auto source = sourceAt(track_id, anchor_row_);
   if (!(sourceAt(track_id, row) == source)) return nullptr;
@@ -144,13 +144,13 @@ SectionRegionGrid::find(int track_id, int row, int & pattern_row) const {
 }
 
 Pattern *
-SectionRegionGrid::find(int track_id, int row, int & pattern_row) {
-  auto found = static_cast<const SectionRegionGrid &>(*this).find(track_id, row, pattern_row);
+ArrangementRegionGrid::find(int track_id, int row, int & pattern_row) {
+  auto found = static_cast<const ArrangementRegionGrid &>(*this).find(track_id, row, pattern_row);
   return write_song_ ? const_cast<Pattern *>(found) : nullptr;
 }
 
 Pattern *
-SectionRegionGrid::obtain(int track_id, int row, int & pattern_row) {
+ArrangementRegionGrid::obtain(int track_id, int row, int & pattern_row) {
   pattern_row = row;
   if (!write_song_) return nullptr;
   auto source = sourceAt(track_id, anchor_row_);
@@ -160,11 +160,25 @@ SectionRegionGrid::obtain(int track_id, int row, int & pattern_row) {
 }
 
 std::pair<int, int>
-SectionRegionGrid::sourceRows(int track_id) const {
-  auto length = read_song_.getEffectiveSectionLength(read_section_);
+ArrangementRegionGrid::sourceRows(int track_id) const {
+  // A track's source can only change where an event is placed or a
+  // one-shot clip ends.
+  std::set<int> boundaries;
+  auto & clips = read_song_.getClips(track_id);
+  for (auto & [ row, clip_id ] : read_song_.getArrangement().getInstancesForTrack(track_id)) {
+    boundaries.insert(row);
+    for (auto & clip : clips) {
+      if (clip.getId() == clip_id && !clip.isLooping()) boundaries.insert(row + std::max(clip.getLength(), 1));
+    }
+  }
   auto source = sourceAt(track_id, anchor_row_);
-  int first = anchor_row_, last = anchor_row_;
-  while (first > 0 && sourceAt(track_id, first - 1) == source) first--;
-  while (last + 1 < length && sourceAt(track_id, last + 1) == source) last++;
+  int first = 0, last = Song::kMaxArrangementRows - 1;
+  for (auto it = boundaries.upper_bound(anchor_row_); it != boundaries.end(); ++it) {
+    if (!(sourceAt(track_id, *it) == source)) { last = *it - 1; break; }
+  }
+  for (auto it = boundaries.upper_bound(anchor_row_); it != boundaries.begin(); ) {
+    --it;
+    if (*it > 0 && !(sourceAt(track_id, *it - 1) == source)) { first = *it; break; }
+  }
   return { first, last };
 }

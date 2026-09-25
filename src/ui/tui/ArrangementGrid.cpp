@@ -5,11 +5,10 @@
 #include "../StyleProvider.h"
 #include "../../Controller.h"
 #include "../../model/Song.h"
-#include "../../model/Section.h"
+#include "../../model/Arrangement.h"
 #include "../../model/Clip.h"
 #include "../../model/ArrangementOps.h"
 #include "../../model/SongStructure.h"
-#include "../../util/Utf8.h"
 #include "../KeyChord.h"
 
 #include <algorithm>
@@ -23,46 +22,20 @@ ArrangementGrid::getVisibleTrackIds(const Song & song) const {
 }
 
 int
-ArrangementGrid::barsPerSection(const Song & song, int section_idx) const {
+ArrangementGrid::barCount(const Song & song, int playing_bar) const {
   auto rows_per_bar = max(1, song.getRowsPerBar());
-  return max(1, song.getEffectiveSectionLength(section_idx) / rows_per_bar);
+  auto bars = (song.getArrangementLength() + rows_per_bar - 1) / rows_per_bar;
+  return max({ bars + 1, cursor_bar_ + 1, playing_bar + 1 });
 }
 
-vector<int>
-ArrangementGrid::buildSectionFlatStarts(const Song & song) const {
-  auto num_sections = static_cast<int>(song.getSections().size());
-  vector<int> starts(static_cast<size_t>(num_sections) + 1);
-  int flat = 0;
-  for (int i = 0; i < num_sections; i++) {
-    starts[static_cast<size_t>(i)] = flat;
-    flat += 1 + barsPerSection(song, i); // title row + this section's own bar rows
-  }
-  starts[static_cast<size_t>(num_sections)] = flat; // the virtual "one past the end" section's own title row
-  return starts;
-}
-
-pair<int, int>
-ArrangementGrid::decodeFlatRow(const vector<int> & starts, int flat_row) const {
-  auto it = upper_bound(starts.begin(), starts.end(), flat_row);
-  auto idx = clamp(static_cast<int>(it - starts.begin()) - 1, 0, static_cast<int>(starts.size()) - 2);
-  return { idx, flat_row - starts[static_cast<size_t>(idx)] };
+int
+ArrangementGrid::getCursorRow(const Song & song) const {
+  return cursor_bar_ * max(1, song.getRowsPerBar());
 }
 
 void
-ArrangementGrid::moveCursorSection(const Song & song, int delta) {
-  auto num_sections = static_cast<int>(song.getSections().size());
-  cursor_section_ = clamp(cursor_section_ + delta, 0, num_sections);
-  cursor_bar_ = 0;
-}
-
-void
-ArrangementGrid::moveCursorRow(const Song & song, int delta) {
-  auto starts = buildSectionFlatStarts(song);
-  auto cur_flat = starts[static_cast<size_t>(cursor_section_)] + (cursor_bar_ + 1);
-  auto flat = clamp(cur_flat + delta, 0, starts.back());
-  auto [ section_idx, local ] = decodeFlatRow(starts, flat);
-  cursor_section_ = section_idx;
-  cursor_bar_ = local - 1;
+ArrangementGrid::moveCursorBar(int delta) {
+  cursor_bar_ = clamp(cursor_bar_ + delta, 0, Song::kMaxArrangementRows - 1);
 }
 
 ArrangementGrid::ArrangementGrid(UIPlane & parent) : UIElement(parent) {
@@ -82,22 +55,13 @@ ArrangementGrid::ArrangementGrid(UIPlane & parent) : UIElement(parent) {
 }
 
 void
-ArrangementGrid::ensureCursorVisible(const Song & song, int visible_rows, int visible_cols, int num_tracks, bool follow_cursor) {
-  auto starts = buildSectionFlatStarts(song);
-  auto num_sections = static_cast<int>(song.getSections().size());
-  // starts.back()+1: the cursor (and the scrolled viewport) may reach
-  // exactly the virtual "one past the end" section's own title row (==
-  // starts.back()) - a not-yet-instantiated section (see offerInput()'s own
-  // NCKEY_ENTER/NCKEY_DOWN comments; this widget has no clipboard of its
-  // own - committing there is what creates it).
-  auto row_slots = starts.back() + 1;
-  cursor_section_ = clamp(cursor_section_, 0, num_sections);
-  cursor_bar_ = clamp(cursor_bar_, -1, barsPerSection(song, cursor_section_) - 1);
+ArrangementGrid::ensureCursorVisible(int bar_count, int visible_rows, int visible_cols, int num_tracks, bool follow_cursor) {
+  cursor_bar_ = clamp(cursor_bar_, 0, bar_count - 1);
   cursor_track_index_ = clamp(cursor_track_index_, 0, max(0, num_tracks - 1));
 
   // Always kept in bounds (a shrunk song must never leave a stale
   // out-of-range scroll position behind), regardless of follow_cursor.
-  scroll_row_ = clamp(scroll_row_, 0, max(0, row_slots - visible_rows));
+  scroll_row_ = clamp(scroll_row_, 0, max(0, bar_count - visible_rows));
   scroll_col_ = clamp(scroll_col_, 0, max(0, num_tracks - visible_cols));
 
   // Not focused - render() keeps the playhead in view instead (see its
@@ -105,10 +69,9 @@ ArrangementGrid::ensureCursorVisible(const Song & song, int visible_rows, int vi
   // position in a given frame).
   if (!follow_cursor) return;
 
-  auto cursor_flat = starts[static_cast<size_t>(cursor_section_)] + (cursor_bar_ + 1);
-  if (cursor_flat < scroll_row_) scroll_row_ = cursor_flat;
-  if (visible_rows > 0 && cursor_flat >= scroll_row_ + visible_rows) scroll_row_ = cursor_flat - visible_rows + 1;
-  scroll_row_ = clamp(scroll_row_, 0, max(0, row_slots - visible_rows));
+  if (cursor_bar_ < scroll_row_) scroll_row_ = cursor_bar_;
+  if (visible_rows > 0 && cursor_bar_ >= scroll_row_ + visible_rows) scroll_row_ = cursor_bar_ - visible_rows + 1;
+  scroll_row_ = clamp(scroll_row_, 0, max(0, bar_count - visible_rows));
 
   if (cursor_track_index_ < scroll_col_) scroll_col_ = cursor_track_index_;
   if (visible_cols > 0 && cursor_track_index_ >= scroll_col_ + visible_cols) scroll_col_ = cursor_track_index_ - visible_cols + 1;
@@ -117,9 +80,6 @@ ArrangementGrid::ensureCursorVisible(const Song & song, int visible_rows, int vi
 
 bool
 ArrangementGrid::offerInput(const InputEvent & input) {
-  // While the section-name editor is open it owns every key.
-  if (inline_editor_.offerInput(input)) return true;
-
   // The mouse wheel scrolls the view (Shift: tracks), not the cursor, and
   // detaches it from the cursor/playhead until the cursor next moves.
   if (input.getId() == NCKEY_BUTTON4 || input.getId() == NCKEY_BUTTON5) {
@@ -139,47 +99,41 @@ ArrangementGrid::offerInput(const InputEvent & input) {
   auto num_tracks = static_cast<int>(track_ids.size());
   auto rows_per_bar = max(1, song.getRowsPerBar());
 
+  // The cursor moves over the arrangement's bars and one empty one past
+  // them (barCount()).
+  auto move_cursor = [&](int delta) {
+    auto playing_bar = getController().getPlaybackInfo().getAbsolutePosition() / rows_per_bar;
+    cursor_bar_ = clamp(cursor_bar_ + delta, 0, barCount(song, playing_bar) - 1);
+  };
+
   if (input.getId() == NCKEY_ENTER) {
-    // On the title row, there's no (track, row) to commit - open the
-    // section's own name for editing instead.
-    if (cursor_bar_ < 0) {
-      startSectionRename();
-      return true;
-    }
-    // cursor_section_ pointing at the one-past-the-end virtual section is a
-    // real, valid target here, not refused: it just moves the playhead/
-    // track selection there, same as PatternEditor's own row navigation
-    // already tolerates running off the end of the last real Section.
-    // Deliberately NOT instantiating a Section on commit - keeping "look
-    // at/jump to this position" and "put real content here" as two
-    // separate actions.
+    // A bar past the arrangement's end is a valid target: it just moves
+    // the playhead/track selection there - "look at/jump to this
+    // position" and "put real content here" stay two separate actions.
     if (commit_callback_ && cursor_track_index_ < num_tracks) {
-      commit_callback_(track_ids[static_cast<size_t>(cursor_track_index_)], cursor_section_, cursor_bar_ * rows_per_bar);
+      commit_callback_(track_ids[static_cast<size_t>(cursor_track_index_)], cursor_bar_ * rows_per_bar);
     }
     return true;
   }
 
-  if (input.getId() == NCKEY_UP) moveCursorRow(song, -1);
-  else if (input.getId() == NCKEY_DOWN) moveCursorRow(song, 1);
+  if (input.getId() == NCKEY_UP) move_cursor(-1);
+  else if (input.getId() == NCKEY_DOWN) move_cursor(1);
   // A full screenful at a time - same "jump by the viewport's own
   // height" reading Page Up/Down carry everywhere else in this app,
   // rather than PatternEditor's own fixed 16-row jump (which counts raw
-  // pattern rows, not this grid's own bar/title rows, so a fixed count
+  // pattern rows, not this grid's own bar rows, so a fixed count
   // wouldn't mean the same thing here).
-  else if (input.getId() == NCKEY_PGUP) moveCursorRow(song, -getDim().first);
-  else if (input.getId() == NCKEY_PGDOWN) moveCursorRow(song, getDim().first);
+  else if (input.getId() == NCKEY_PGUP) move_cursor(-getDim().first);
+  else if (input.getId() == NCKEY_PGDOWN) move_cursor(getDim().first);
   else if (input.getId() == NCKEY_BACKSPACE) {
-    // Meaningless on the title row - there's no (track, row) there to
-    // place a stop instance at.
-    if (cursor_bar_ < 0) return false;
     if (cursor_track_index_ < num_tracks) {
-      auto & section = song.getOrCreateSection(cursor_section_);
+      auto & arrangement = song.getArrangement();
       auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
       auto bar_start_row = cursor_bar_ * rows_per_bar;
-      auto active = resolveInstanceForBar(song, section, track_id, bar_start_row, rows_per_bar);
+      auto active = resolveInstanceForBar(song, track_id, bar_start_row, rows_per_bar);
       if (active.clip_index >= 0 && active.start_row >= bar_start_row) {
         // On the instance's own leading (head) bar - removes the
-        // placement event outright (Section::clearInstance()) rather than
+        // placement event outright (Arrangement::clearInstance()) rather than
         // replacing it with a stop: there's nothing "after" to silence
         // here, the instance's own event genuinely lives at this exact
         // row, so removing it is both sufficient and more correct than
@@ -189,14 +143,14 @@ ArrangementGrid::offerInput(const InputEvent & input) {
         // there might be nothing to silence at all. The clip itself is
         // untouched, still in the track's own clip list - this only ends
         // this one placement of it, same scope Backspace already had.
-        section.clearInstance(track_id, active.start_row);
+        arrangement.clearInstance(track_id, active.start_row);
         song.incVersion();
       } else if (active.clip_index >= 0) {
         // A later (tail) bar the same instance merely continues through -
         // no single event's own row to remove here, only a stop can
         // truncate/mark it, landing at this bar's own row regardless of
         // wherever the instance being truncated actually started.
-        placeStopInstance(section, track_id, bar_start_row);
+        placeStopInstance(song, track_id, bar_start_row);
         song.incVersion();
       }
       // Else: this bar was already silent (an earlier stop already
@@ -214,11 +168,9 @@ ArrangementGrid::offerInput(const InputEvent & input) {
     // placement going forward and leaves the clip itself in the track's
     // own clip list, reusable elsewhere. Matches the same Del/Ctrl-K ->
     // delete-clip convention Session view's own clip list already uses.
-    if (cursor_bar_ < 0) return false;
     if (cursor_track_index_ < num_tracks) {
-      auto & section = song.getOrCreateSection(cursor_section_);
       auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
-      auto active = resolveInstanceForBar(song, section, track_id, cursor_bar_ * rows_per_bar, rows_per_bar);
+      auto active = resolveInstanceForBar(song, track_id, cursor_bar_ * rows_per_bar, rows_per_bar);
       if (active.clip_index >= 0) {
         auto & clips = song.getClips(track_id);
         auto clip_id = clips[static_cast<size_t>(active.clip_index)].getId();
@@ -231,9 +183,9 @@ ArrangementGrid::offerInput(const InputEvent & input) {
         deleteClip(song, track_id, active.clip_index); // already calls song.incVersion() itself
         auto text = "Deleted clip: " + (name.empty() ? string("(unnamed)") : name);
         getController().getUIEventQueue().push(make_unique<LogEvent>(std::move(text)));
-      } else if (active.clip_index == Section::kStopInstance) {
+      } else if (active.clip_index == Arrangement::kStopInstance) {
         // No clip to delete - just the stop event itself
-        // (Section::clearInstance(), not placeStopInstance() with some
+        // (Arrangement::clearInstance(), not placeStopInstance() with some
         // other value - there's nothing to replace it with, only to take
         // away). Removing it, not overwriting it with another stop or
         // leaving it in place, restores whatever's actually still active
@@ -242,17 +194,14 @@ ArrangementGrid::offerInput(const InputEvent & input) {
         // reverts to whatever's underneath" semantics deleting a clip
         // already has. deleteClip() has its own unconditional incVersion();
         // this needs one too, since it isn't going through that.
-        section.clearInstance(track_id, active.start_row);
+        song.getArrangement().clearInstance(track_id, active.start_row);
         song.incVersion();
         getController().getUIEventQueue().push(make_unique<LogEvent>("Deleted stop"));
       }
     }
   }
-  // Left/Right move across per-track columns, which only exist on a bar
-  // row - meaningless on the title row (cursor_bar_ < 0), so left alone
-  // for Up/Down to handle instead of moving a column index nothing is
-  // showing right now. Both stop at the grid's own edges.
-  else if (cursor_bar_ < 0) return false;
+  // Left/Right move across per-track columns, stopping at the grid's
+  // own edges.
   else if (input.getId() == NCKEY_LEFT) cursor_track_index_--;
   else if (input.getId() == NCKEY_RIGHT) cursor_track_index_++;
   else return false;
@@ -268,31 +217,6 @@ ArrangementGrid::offerInput(const InputEvent & input) {
   return true;
 }
 
-void
-ArrangementGrid::startSectionRename() {
-  if (inline_editor_.isOpen()) return;
-
-  auto & song = getController().getSong();
-  // Section i's own title row is exactly starts[i] - no multiplication
-  // needed (each section can be a different size now).
-  auto starts = buildSectionFlatStarts(song);
-  auto row = starts[static_cast<size_t>(cursor_section_)] - scroll_row_;
-  auto [ rows, cols ] = getDim();
-  if (row < 0 || row >= rows) return; // off-screen - shouldn't happen given ensureCursorVisible(), a cosmetic nuisance if it ever does
-
-  InlineEditor::Field field;
-  field.row = row;
-  field.col = 0;
-  field.width = cols;
-  field.initial_text = song.getSection(cursor_section_).getName();
-  auto section_idx = cursor_section_;
-  inline_editor_.open(field, [this, section_idx](std::string text) {
-    auto & target_song = getController().getSong();
-    target_song.getOrCreateSection(section_idx).setName(std::move(text));
-    target_song.incVersion();
-  });
-}
-
 namespace {
 
 // Whether `track_id`'s own background Pattern has anything defined
@@ -301,18 +225,18 @@ namespace {
 // note-on apart from a bar that's non-empty purely from note-offs/
 // aftertouch/Command data (Pattern::hasSoundingNote()'s own distinction,
 // applied per-bar instead of to a whole Pattern).
-bool barHasBackgroundContent(const Section & section, int track_id, int raw_row, int rows_per_bar, int context_length, bool & has_sounding_note) {
+bool barHasBackgroundContent(const Arrangement & arrangement, int track_id, int raw_row, int rows_per_bar, bool & has_sounding_note) {
   bool has_any = false;
   has_sounding_note = false;
   for (int row = raw_row; row < raw_row + rows_per_bar; row++) {
-    auto effective_row = section.getEffectiveRow(track_id, row, context_length);
-    for (auto & note : section.getNotes(effective_row, track_id)) {
+    auto effective_row = arrangement.getEffectiveRow(track_id, row, 0);
+    for (auto & note : arrangement.getNotes(effective_row, track_id)) {
       if (note.isDefined()) {
         has_any = true;
         if (!note.isOff() && !note.isAftertouch()) has_sounding_note = true;
       }
     }
-    if (section.getCommand(effective_row, track_id).isDefined()) has_any = true;
+    if (arrangement.getCommand(effective_row, track_id).isDefined()) has_any = true;
   }
   return has_any;
 }
@@ -324,8 +248,8 @@ bool barHasBackgroundContent(const Section & section, int track_id, int raw_row,
 // answering for every later bar too). The marker glyph is drawn purely
 // because a stop is actually on this line, not because playback is
 // currently stopped here.
-bool barHasOwnStop(const Section & section, int track_id, int raw_row, int rows_per_bar) {
-  auto & instances = section.getInstancesForTrack(track_id);
+bool barHasOwnStop(const Arrangement & arrangement, int track_id, int raw_row, int rows_per_bar) {
+  auto & instances = arrangement.getInstancesForTrack(track_id);
   auto it = instances.lower_bound(static_cast<unsigned short>(raw_row));
   return it != instances.end() && static_cast<int>(it->first) < raw_row + rows_per_bar && it->second == "OFF";
 }
@@ -336,10 +260,8 @@ bool
 ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused, int selected_track_id) {
   auto & song = getController().getSong();
   auto track_ids = getVisibleTrackIds(song);
-  auto num_sections = static_cast<int>(song.getSections().size());
   auto num_tracks = static_cast<int>(track_ids.size());
   auto rows_per_bar = max(1, song.getRowsPerBar());
-  auto starts = buildSectionFlatStarts(song);
 
   auto [ rows, cols ] = getDim();
   if (rows < 1 || cols < 1) return false;
@@ -363,45 +285,38 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   // (local, user-driven) cursor while this widget is focused, same as any
   // other focused/scrollable widget in this app; once focus moves
   // elsewhere (working in PatternEditor, say), the viewport follows the
-  // transport position instead - getPatternIndex()/getRowIndex() is the
-  // edit position while stopped, matching PatternEditor's own
-  // stopped-row highlight, which isn't gated on isPlaying() either.
+  // transport position instead - the edit position while stopped,
+  // matching PatternEditor's own stopped-row highlight, which isn't gated
+  // on isPlaying() either.
   auto & playback_info = getController().getPlaybackInfo();
+  auto playing_row = playback_info.getAbsolutePosition();
+  auto playing_bar = playing_row / rows_per_bar;
+  auto bar_count = barCount(song, playing_bar);
   // A moved cursor reattaches a view the mouse wheel detached - this
   // grid's own, or (while stopped) the edit position it follows unfocused.
-  bool edit_position_moved = !playback_info.isPlaying() &&
-    (playback_info.getPatternIndex() != current_playing_section_ || playback_info.getRowIndex() != current_playing_row_);
-  if (view_detached_ && (edit_position_moved || cursor_section_ != current_cursor_section_ || cursor_bar_ != current_cursor_bar_ ||
+  bool edit_position_moved = !playback_info.isPlaying() && playing_row != current_playing_row_;
+  if (view_detached_ && (edit_position_moved || cursor_bar_ != current_cursor_bar_ ||
                          cursor_track_index_ != current_cursor_track_index_)) view_detached_ = false;
   auto follow_cursor = !playback_info.isPlaying() && focused && !view_detached_;
-  ensureCursorVisible(song, visible_rows, visible_cols, num_tracks, follow_cursor);
+  ensureCursorVisible(bar_count, visible_rows, visible_cols, num_tracks, follow_cursor);
 
-  auto playing_section = playback_info.getPatternIndex();
-  auto playing_row = playback_info.getRowIndex();
-
-  if (!follow_cursor && !view_detached_ && playing_section >= 0 && playing_section < num_sections) {
-    auto playhead_flat = starts[static_cast<size_t>(playing_section)] + 1 + playing_row / rows_per_bar;
-    if (playhead_flat < scroll_row_) scroll_row_ = playhead_flat;
-    if (visible_rows > 0 && playhead_flat >= scroll_row_ + visible_rows) scroll_row_ = playhead_flat - visible_rows + 1;
-    auto row_slots = starts.back() + 1;
-    scroll_row_ = clamp(scroll_row_, 0, max(0, row_slots - visible_rows));
+  if (!follow_cursor && !view_detached_) {
+    if (playing_bar < scroll_row_) scroll_row_ = playing_bar;
+    if (visible_rows > 0 && playing_bar >= scroll_row_ + visible_rows) scroll_row_ = playing_bar - visible_rows + 1;
+    scroll_row_ = clamp(scroll_row_, 0, max(0, bar_count - visible_rows));
   }
 
   auto new_version = song.getMajorVersion();
-  bool editor_redraw = inline_editor_.consumeRedrawRequest();
 
-  if (!refresh && !editor_redraw && new_version == current_song_version_ && playing_section == current_playing_section_ &&
-      playing_row == current_playing_row_ &&
-      cursor_section_ == current_cursor_section_ && cursor_bar_ == current_cursor_bar_ &&
+  if (!refresh && new_version == current_song_version_ && playing_row == current_playing_row_ &&
+      cursor_bar_ == current_cursor_bar_ &&
       cursor_track_index_ == current_cursor_track_index_ &&
       scroll_row_ == current_scroll_row_ && scroll_col_ == current_scroll_col_ &&
       focused == current_focused_ && selected_track_id == current_selected_track_id_) {
     return false;
   }
   current_song_version_ = new_version;
-  current_playing_section_ = playing_section;
   current_playing_row_ = playing_row;
-  current_cursor_section_ = cursor_section_;
   current_cursor_bar_ = cursor_bar_;
   current_cursor_track_index_ = cursor_track_index_;
   current_scroll_row_ = scroll_row_;
@@ -439,59 +354,27 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   // resolving on whichever bar's own leading row is the first at or past
   // it - that bar is still its own leading bar for this grid's purposes,
   // even though active.start_row itself doesn't equal that bar's raw_row).
-  // Reset to "nothing active" at every title row (see below) - an
-  // instance never carries across a section boundary, so two different
-  // sections each starting a placement at the same clip_index/start_row
-  // must never look like one continuing across them.
-  vector<int> prev_clip_index(static_cast<size_t>(visible_cols), Section::kNoInstance);
+  // Seeded from the bar above the view, so an instance continuing into
+  // it doesn't show its digit again.
+  vector<int> prev_clip_index(static_cast<size_t>(visible_cols), Arrangement::kNoInstance);
   vector<int> prev_start_row(static_cast<size_t>(visible_cols), -1);
+  if (scroll_row_ > 0) {
+    for (auto vc = 0; vc < visible_cols && scroll_col_ + vc < num_tracks; vc++) {
+      auto above = resolveInstanceForBar(song, track_ids[static_cast<size_t>(scroll_col_ + vc)], (scroll_row_ - 1) * rows_per_bar, rows_per_bar);
+      prev_clip_index[static_cast<size_t>(vc)] = above.clip_index;
+      prev_start_row[static_cast<size_t>(vc)] = above.start_row;
+    }
+  }
+  auto & arrangement = song.getArrangement();
 
   for (auto vr = 0; vr < visible_rows; vr++) {
-    auto flat_row = scroll_row_ + vr;
-    auto [ section_idx, local ] = decodeFlatRow(starts, flat_row);
-    auto is_title_row = local == 0;
-    auto bar_in_section = local - 1;
-    // Past the virtual "one past the end" section - or, within it, past its
-    // own single valid title row (nothing exists there yet to have any
-    // bars) - nothing left to show. Still painted explicitly below rather
-    // than left to whatever an earlier frame drew in this same screen
-    // cell: erase()'s own fallback background doesn't reach a cell that
-    // never gets its own putstr() call.
-    auto in_range = section_idx < num_sections || (section_idx == num_sections && is_title_row);
-    auto & section = song.getSection(section_idx);
-
-    if (is_title_row) {
-      auto is_cursor_row = in_range && section_idx == cursor_section_ && cursor_bar_ < 0;
-      // Plain window_bg_color, same as every other cell in this grid -
-      // only the accent foreground (below) sets a title row apart from
-      // an ordinary blank one.
-      Color fg = styles.window_fg_color, bg = styles.window_bg_color;
-      if (in_range) fg = styles.window_accent_fg_color;
-      if (is_cursor_row && focused) {
-        fg = styles.highlight_fg_color;
-        bg = styles.highlight_bg_color;
-      } else if (is_cursor_row) {
-        bg = styles.highlight_unfocused_bg_color;
-      }
-      setFgColor(fg);
-      setBgColor(bg);
-      // The virtual section has no name of its own to show yet (nothing's
-      // been placed there - see startSectionRename()'s own comment on what
-      // renaming it does); a real section falls back to a placeholder
-      // rather than a blank row, so an unnamed section still reads as "a
-      // section is here" rather than looking like empty space.
-      string name;
-      if (in_range && section_idx < num_sections) name = section.getName().empty() ? "(untitled)" : section.getName();
-      name = Utf8::truncateToWidth(name, cols);
-      name = Utf8::padToWidth(name, cols);
-      putstr(vr, 0, name);
-      std::fill(prev_clip_index.begin(), prev_clip_index.end(), Section::kNoInstance);
-      std::fill(prev_start_row.begin(), prev_start_row.end(), -1);
-      continue;
-    }
-
-    auto raw_row = bar_in_section * rows_per_bar;
-    auto is_playing_row = in_range && section_idx == playing_section && bar_in_section == playing_row / rows_per_bar;
+    auto bar = scroll_row_ + vr;
+    // Past the bars there are, nothing left to show - still painted
+    // explicitly below rather than left to whatever an earlier frame drew
+    // in this same screen cell.
+    auto in_range = bar < bar_count;
+    auto raw_row = bar * rows_per_bar;
+    auto is_playing_row = in_range && bar == playing_bar;
 
     // The left edge of the whole row has no neighboring track to blend
     // with, so its own half of the leading padding cell is plain
@@ -516,7 +399,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
 
       string glyph = " ";
       Color fg = styles.window_fg_color, bg = styles.window_bg_color;
-      int cur_clip_index = Section::kNoInstance, cur_start_row = -1;
+      int cur_clip_index = Arrangement::kNoInstance, cur_start_row = -1;
 
       if (in_range && track_index < num_tracks) {
         auto track_id = track_ids[static_cast<size_t>(track_index)];
@@ -525,7 +408,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
         // entirely inside this one bar's own row span would otherwise
         // never touch any bar's plain per-row sample at all (see
         // resolveInstanceForBar()'s own comment).
-        auto active = resolveInstanceForBar(song, section, track_id, raw_row, rows_per_bar);
+        auto active = resolveInstanceForBar(song, track_id, raw_row, rows_per_bar);
         cur_clip_index = active.clip_index;
         cur_start_row = active.start_row;
         if (active.clip_index >= 0) {
@@ -544,7 +427,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
           if (cur_clip_index != prev_clip_index[static_cast<size_t>(vc)] || cur_start_row != prev_start_row[static_cast<size_t>(vc)]) {
             glyph = fmt::format("{:x}", active.clip_index % 16);
           }
-        } else if (active.clip_index == Section::kStopInstance) {
+        } else if (active.clip_index == Arrangement::kStopInstance) {
           // An explicit stop was previously indistinguishable from plain
           // silence here - background left uncolored (there's nothing to
           // tint it with, unlike a real instance's own identity color).
@@ -557,7 +440,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
           // it. Every real stop still shows, each on its own row, nothing
           // hidden - a later bar simply has nothing of its own to draw.
           fg = styles.window_fg_color;
-          if (barHasOwnStop(section, track_id, raw_row, rows_per_bar)) {
+          if (barHasOwnStop(arrangement, track_id, raw_row, rows_per_bar)) {
             // U+00D7 (multiplication sign), not the '*'/'.' glyphs above -
             // an ordinary narrow character, unlike the circle glyphs those
             // deliberately avoid, so no width-ambiguity risk of its own.
@@ -565,7 +448,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
           }
         } else {
           bool has_sounding_note = false;
-          if (barHasBackgroundContent(section, track_id, raw_row, rows_per_bar, song.getEffectiveSectionLength(section), has_sounding_note)) {
+          if (barHasBackgroundContent(arrangement, track_id, raw_row, rows_per_bar, has_sounding_note)) {
             // fg left at its plain default (styles.window_fg_color) - see
             // track_color()'s own comment on why this stays uncolored.
             // Plain ASCII, not a circle glyph (U+25CF/U+25CB) - those fall
@@ -598,7 +481,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
       // already shows it through the selected column's brightening above.
       // Focused, a colored cell brightens further rather than losing its
       // track color.
-      auto is_cursor_cell = in_range && section_idx == cursor_section_ && bar_in_section == cursor_bar_ && track_index == cursor_track_index_;
+      auto is_cursor_cell = in_range && bar == cursor_bar_ && track_index == cursor_track_index_;
       if (is_cursor_cell && focused) {
         fg = styles.highlight_fg_color;
         bg = cur_clip_index >= 0 ? bg.blend(0.5f, styles.cursor_tint_color) : styles.highlight_bg_color;
@@ -627,6 +510,5 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
     }
   }
 
-  inline_editor_.paintBackdrop();
   return true;
 }

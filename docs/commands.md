@@ -40,8 +40,8 @@ just guessed.
 ## Where commands are read from
 
 Playback reads a row's commands from two places, in this order
-(`SongState::applyRowCommands()`): the section's own background pattern
-for that track, then a placed clip's own pattern at the row the clip is
+(`SongState::applyRowCommands()`): the track's own background pattern
+in the arrangement, then a placed clip's own pattern at the row the clip is
 supplying. So automation recorded into the background keeps playing
 under any clip, and a clip's own command wins where both set the same
 thing on the same row. `ZBxx` (pattern break) is song-level, so only the

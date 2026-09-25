@@ -27,9 +27,8 @@ struct Transport {
   Transport() {
     song.setRowsPerBar(4);
     auto track_id = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
-    auto & section = song.addSection();
-    section.setLengthBars(16);
-    for (int row = 0; row < 64; row++) section.setNote(row, track_id, 0, Note(60, 100));
+    auto & arrangement = song.getArrangement();
+    for (int row = 0; row < 64; row++) arrangement.setNote(row, track_id, 0, Note(60, 100));
     state.initialize(song);
     state.setIsPlaying(true);
   }

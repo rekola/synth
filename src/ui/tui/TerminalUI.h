@@ -98,10 +98,10 @@ protected:
   // Shared by arrangement_grid_'s own Enter commit and a Launchpad "assign"
   // pad press in GridMode::SESSION (see wireLaunchpad()/initializeWidgets()
   // for how each is wired to this) - one implementation of "commit this
-  // (track, section, row) cell", not two competing ones. See
+  // (track, row) cell", not two competing ones. See
   // ArrangementGrid.h's own comment on why ArrangementGrid itself never
   // calls this directly.
-  void commitOverviewCell(int track_id, int section_idx, int row);
+  void commitOverviewCell(int track_id, int row);
   bool tryActivate(int y, int x, std::shared_ptr<UIElement> element);
   // The widgets the current view shows that can take focus, in C-x o
   // (other-window) order.

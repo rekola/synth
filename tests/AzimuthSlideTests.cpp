@@ -84,7 +84,7 @@ TEST(azimuth_slide_moves_the_track_over_the_row) {
   song.addInstrument(make_unique<Oscillator>(WaveformType::SINE)); // instrument_id 0
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
 
-  auto & scene0 = song.addSection();
+  auto & scene0 = song.getArrangement();
   scene0.setNote(0, track.getInternalId(), 0, Note(60, 100));
   scene0.setCommand(0, track.getInternalId(), Command("YR05")); // +5 deg/tick, right
 
@@ -102,9 +102,9 @@ TEST(azimuth_slide_moves_the_track_over_the_row) {
   CHECK_NEAR(track_state->getAzimuth(), constants::TICKS_PER_ROW * 5.0f, 0.01f);
 }
 
-// A section-level command still fires while a real Clip instance is what's
+// An arrangement-level command still fires while a real Clip instance is what's
 // actually supplying that row's notes - SongState.h's own per-row loop
-// reads commands from the section's own background pattern unconditionally,
+// reads commands from the track's own background pattern unconditionally,
 // never a Clip's own leaf pattern, so track-level automation (what a live
 // mixer-move recording is meant to write into - see
 // plans/launchpad-novation-unification.md) is never masked out just
@@ -119,10 +119,10 @@ TEST(azimuth_slide_command_fires_even_while_a_clip_supplies_the_row_notes) {
   clip.getLeafPattern().setNote(0, 0, Note(60, 100)); // the clip's own note - no command of its own
   auto clip_id = song.addClip(move(clip)).getId(); // index 0
 
-  auto & section = song.addSection();
-  placeClipInstance(song, section, track_id, 0, 0);
-  CHECK(section.getInstance(track_id, 0) == clip_id);
-  section.setCommand(0, track_id, Command("YR05")); // +5 deg/tick, right - section-level, not on the clip
+  auto & arrangement = song.getArrangement();
+  placeClipInstance(song, track_id, 0, 0);
+  CHECK(arrangement.getInstance(track_id, 0) == clip_id);
+  arrangement.setCommand(0, track_id, Command("YR05")); // +5 deg/tick, right - on the background, not on the clip
 
   ChannelConfiguration config(44100, 1);
   auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
@@ -169,7 +169,7 @@ TEST(track_state_set_azimuth_reaches_an_already_active_voice) {
   // and ignores azimuth entirely, returning a fixed W-only gain set.
   track.setDistance(1.0f);
 
-  auto & scene0 = song.addSection();
+  auto & scene0 = song.getArrangement();
   scene0.setNote(0, track.getInternalId(), 0, Note(60, 100));
 
   ChannelConfiguration config(44100, 1);
@@ -216,7 +216,7 @@ TEST(azimuth_set_command_parses_and_decodes) {
   CHECK(!unrelated.isAzimuthSet());
 }
 
-// Full pipeline: a 0Pxx command at a section-level row sets the track's
+// Full pipeline: a 0Pxx command at a background row sets the track's
 // own live azimuth the instant the row starts, reaching an already-
 // sounding voice too - the same live-knob mechanism Controller::
 // setTrackAzimuth()/etc. (a real Launchpad Pan-row press) already uses,
@@ -228,9 +228,9 @@ TEST(azimuth_set_command_sets_azimuth_over_the_row) {
   auto & track = static_cast<InstrumentTrack &>(song.addTrack(make_unique<InstrumentTrack>(0)));
   track.setDistance(1.0f); // computeAmbisonicGains() ignores azimuth entirely at distance <= 0
 
-  auto & section = song.addSection();
-  section.setNote(0, track.getInternalId(), 0, Note(60, 100));
-  section.setCommand(0, track.getInternalId(), Command("0PFF")); // hard right
+  auto & arrangement = song.getArrangement();
+  arrangement.setNote(0, track.getInternalId(), 0, Note(60, 100));
+  arrangement.setCommand(0, track.getInternalId(), Command("0PFF")); // hard right
 
   ChannelConfiguration config(44100, 1);
   auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);

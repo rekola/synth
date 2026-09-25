@@ -6,43 +6,23 @@
 #include "Command.h"
 #include "VisibleTrackInfo.h"
 
+#include <algorithm>
 #include <string>
 #include <vector>
 #include <unordered_map>
 
-// One track's own note/command content for one Section (Section.h) - what used
-// to be one track's slice of the old, all-tracks-at-once class also named
-// Pattern, now a standalone object in its own right rather than
-// interleaved with every other track's content in one shared
-// row->track_id->notes map. No track_id anywhere in here: which track this
-// belongs to is whichever container holds it - Section::patterns_by_track_id_'s
-// key for a section's own inline Pattern, or a Clip's own leaf_track_id_
-// (Clip.h) for a reusable one - not this class's own concern.
+// One track's own note/command content, keyed by row. No track_id in
+// here: which track it belongs to is whichever container holds it - the
+// arrangement's patterns_by_track_id_ key for a track's inline content, or
+// a Clip's own leaf_track_id_ (Clip.h) for a reusable one.
 class Pattern : public SongObject {
  public:
-  // A Pattern has a length. `length_ == 0` (the default) isn't a "looping
-  // is off" flag - it means this particular Pattern was never given a
-  // length of its own, so it takes on whatever length the caller-supplied
-  // `context_length` provides (in practice, the containing section's own
-  // effective length - Song::getEffectiveSectionLength() - the same
-  // implicit default every Pattern already has). Giving it a shorter
-  // length explicitly is the only thing that changes: reads/writes past
-  // it wrap, which is simply what "shorter than the span it's played
-  // across" already means - not a separate feature to turn on.
-  //
-  // Every row-taking accessor below takes a raw row, not this effective
-  // one - a caller resolves it once via getEffectiveRow(row,
-  // song.getEffectiveSectionLength(section)) before reading or writing,
-  // rather than this class remapping internally. Resolved fresh at each
-  // call rather than baked in at construction time so a Pattern that was
-  // never given its own length keeps tracking its section's own length live
-  // if that ever changes (Section::setLengthBars()) - snapshotting it in at
-  // creation would silently desync the moment the section's own length
-  // changed afterward. No divisibility requirement between length_ and
-  // context_length - row % length_ is well-defined either way; a 5-row
-  // pattern inside a 64-row context just plays some full repeats plus one
-  // partial one, cut off wherever the context ends, the same as stopping
-  // a real loop mid-cycle.
+  // A Pattern has a length. `length_ == 0` (the default) means it has none
+  // of its own and takes the caller's `context_length` (a clip's length;
+  // 0 for the arrangement, which never wraps). Reads past a nonzero length
+  // wrap - a shorter pattern repeats across its context. Every row-taking
+  // accessor below takes a raw row; a caller resolves it once via
+  // getEffectiveRow() before reading or writing.
   int getLength() const { return length_; }
   void setLength(int length) { length_ = length; }
 
@@ -56,7 +36,7 @@ class Pattern : public SongObject {
   // a Pattern has no name or id of its own, just its length
   // (<pattern length="...">). Called from Song.cpp's shared reader/writer
   // helpers (parsePatternContent()/storePatternContent()), used by both
-  // the per-section and per-clip paths.
+  // the arrangement and per-clip paths.
   void loadParameters(const ParameterSource & input) override {
     setLength(input.get<int>("length", 0));
   }
@@ -256,15 +236,19 @@ class Pattern : public SongObject {
   const std::unordered_map<unsigned short, std::vector<Command> > & getCommandsByRow() const { return commands_; }
 
   // The raw sparse row->note-columns map - notes_ itself, letting a caller
-  // list every defined row without an outside bound to loop against. A
-  // section's own inline Pattern is always written by looping row 0..the
-  // song's own pattern length (its natural bound - see Song.cpp's writer);
-  // a clip's own leaf Pattern has no such context, so Song.cpp's own clip
-  // writer uses this instead.
+  // list every defined row without an outside bound to loop against.
   const std::unordered_map<unsigned short, std::vector<Note> > & getNotesByRow() const { return notes_; }
 
+  // One past the last row with a note or command; 0 when empty.
+  int getContentEnd() const {
+    int end = 0;
+    for (auto & [ row, notes ] : notes_) end = std::max(end, row + 1);
+    for (auto & [ row, commands ] : commands_) end = std::max(end, row + 1);
+    return end;
+  }
+
   // Scans every row this Pattern actually has content on, tracking the
-  // widest note-column count seen - Section::getTrackInformation() calls
+  // widest note-column count seen - Arrangement::getTrackInformation() calls
   // this once per track rather than reconstructing the old flat
   // row->track_id->notes map just to re-derive the same thing.
   void updateSubtrackInfo(VisibleTrackInfo & info) const {

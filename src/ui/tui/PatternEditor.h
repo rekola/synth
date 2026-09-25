@@ -74,7 +74,7 @@ class PatternEditor : public UIElement {
   void setCursorTrack(int track_index);
   int getEditStepSize() const { return edit_step_size; }
 
-  // Arrangement mode (the default) edits sections and placed clips, with
+  // Arrangement mode (the default) edits the arrangement and placed clips, with
   // the transport as the cursor row; session mode edits clips directly,
   // one scene at a time (ScenePatternSource).
   void setSessionMode(bool session);
@@ -97,18 +97,9 @@ class PatternEditor : public UIElement {
   // A no-op outside such a session.
   void onRowAdvanced(Controller & controller);
 
-  // Whether a realtime auto-play-while-held recording session (see
-  // onRowAdvanced()'s own comment) is active right now - Controller::
-  // extendRecordingSectionIfNeeded() (UI::handlePlaybackEvent()) reads this
-  // (unioned with LaunchpadManager's own identical flag) to decide
-  // whether the actively-playing section should keep growing rather than
-  // wrapping into the next one.
-  bool isAutoRecording() const { return auto_started_playback_; }
-
   // Which real Clip (by id) this session has created so far, keyed by
   // track_id (Controller::ensureNoteRecordingClip()) - Controller::
-  // extendRecordingClipsIfNeeded() (UI::handlePlaybackEvent(), alongside
-  // extendRecordingSectionIfNeeded() above) reads/mutates this directly to
+  // extendRecordingClipsIfNeeded() (UI::handlePlaybackEvent()) reads/mutates this directly to
   // grow each one's own window as the take continues.
   std::unordered_map<int, std::string> & getAutoRecordClipIds() { return auto_record_clip_ids_; }
 
@@ -146,12 +137,7 @@ protected:
   // editGrid()'s own anchor).
   RowAddress selectionAnchor() const;
 
-  // The single place selection_active_ is ever written - also mirrors the
-  // new value to Controller::setPatternSelectionActive() so
-  // moveEditPosition()/setEditPosition() know whether row navigation
-  // needs to stay clamped to the current pattern (see that method's own
-  // comment). A raw `selection_active_ = ...` assignment anywhere else
-  // would silently desync the two.
+  // The single place selection_active_ is ever written.
   void setSelectionActive(bool active);
 
   // scroll_row is a separate parameter (not always current_scroll_.row)
@@ -284,7 +270,7 @@ protected:
 
   // Whole-row-replace bookkeeping for a realtime-recording session -
   // mirrors LaunchpadManager's own auto_record_cleared_rows_/
-  // last_cleared_row_/last_cleared_pattern_idx_ exactly (see its comment
+  // last_cleared_row_ exactly (see its comment
   // for the full reasoning): the actual clear-once-per-session logic is
   // centralized on Controller::ensureRowCleared() (this set is just the
   // per-session bookkeeping it's called with - see that method's own
@@ -294,7 +280,6 @@ protected:
   // playhead just passed through.
   std::set<std::pair<int, int>> auto_record_cleared_rows_;
   int last_cleared_row_ = -1;
-  int last_cleared_pattern_idx_ = -1;
 
   // Which real Clip this session has recorded into, per track (see
   // getAutoRecordClipIds()'s own comment) - reset the same moments
@@ -369,7 +354,12 @@ protected:
   // The row-number gutter left of the first track: a margin only where
   // each track shows its own row numbers (VisibleTrackInfo::
   // row_number_width_, kTrackRowNumberWidth wide).
-  int gutterWidth() const { return isSessionMode() ? 1 : 5; }
+  // The row-number gutter: " 1f │" in Arrangement view, as many hex
+  // digits as its rows need (row_digits_); a margin in Session view.
+  int gutterWidth() const { return isSessionMode() ? 1 : row_digits_ + 3; }
+  // Hex digits the arrangement's row numbers take - at least 2, enough
+  // for its content and the cursor. Updated once per render().
+  int row_digits_ = 2;
   static constexpr int kTrackRowNumberWidth = 3;
   // How close the highlighted row gets to the top or bottom before the
   // whole view scrolls.
@@ -426,7 +416,7 @@ protected:
     std::unordered_map<int, ActiveKeyboardNote> active_keyboard_notes;
     bool auto_started_playback = false;
     std::set<std::pair<int, int>> auto_record_cleared_rows;
-    int last_cleared_row = -1, last_cleared_pattern_idx = -1;
+    int last_cleared_row = -1;
     bool selection_active = false;
     int selection_start_pattern = 0, selection_start_row = 0, selection_start_track = 0;
     int selection_start_col = 0;

@@ -40,38 +40,39 @@ TEST(add_lane_is_a_no_op_when_the_lane_already_exists) {
   CHECK(track.getLaneNotes().size() == 1);
 }
 
-TEST(remove_lane_deletes_the_notes_referencing_it_from_every_section) {
+TEST(remove_lane_deletes_the_notes_referencing_it_everywhere) {
   // The single most important property this data model has to guarantee:
   // step data is keyed by GM note number, never by lane index, so
   // removing a lane must never disturb any *other* lane's steps, and
-  // removeLane() must fan out across every section, not just the current
-  // one.
+  // removeLane() must reach its clips too, not just the arrangement.
   Song song;
   auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(make_unique<PercussionTrack>()));
   track.addLane(36);
   track.addLane(38);
   track.addLane(42);
-  song.getOrCreateSection(0).setNote(0, track.getInternalId(), 0, Note(36, 100));
-  song.getOrCreateSection(0).setNote(2, track.getInternalId(), 0, Note(38, 100));
-  song.getOrCreateSection(1).setNote(4, track.getInternalId(), 0, Note(42, 100));
-  song.getOrCreateSection(1).setNote(4, track.getInternalId(), 1, Note(38, 100));
+  song.getArrangement().setNote(0, track.getInternalId(), 0, Note(36, 100));
+  song.getArrangement().setNote(2, track.getInternalId(), 0, Note(38, 100));
+  song.getArrangement().setNote(4, track.getInternalId(), 0, Note(42, 100));
+  Clip clip(track.getInternalId());
+  clip.getLeafPattern().setNote(1, 0, Note(38, 100));
+  song.addClip(move(clip));
 
   track.removeLane(38, song);
 
   CHECK(!track.hasLane(38));
-  CHECK(!song.getSection(0).getNote(2, track.getInternalId(), 0).isDefined());
-  CHECK(song.getSection(0).getNote(0, track.getInternalId(), 0).getValue() == 36); // untouched
-  CHECK(song.getSection(1).getNote(4, track.getInternalId(), 0).getValue() == 42); // untouched
-  CHECK(!song.getSection(1).getNote(4, track.getInternalId(), 1).isDefined()); // the other section's own 38 is gone too
+  CHECK(!song.getArrangement().getNote(2, track.getInternalId(), 0).isDefined());
+  CHECK(song.getArrangement().getNote(0, track.getInternalId(), 0).getValue() == 36); // untouched
+  CHECK(song.getArrangement().getNote(4, track.getInternalId(), 0).getValue() == 42); // untouched
+  CHECK(!song.getClips(track.getInternalId())[0].getLeafPattern().getNote(1, 0).isDefined()); // the clip's own 38 is gone too
 
   vector<int> expected = { 36, 42 };
   CHECK(track.getLaneNotes() == expected);
 }
 
 TEST(remove_lane_deletes_the_notes_referencing_it_from_every_clip_too) {
-  // Same guarantee as the section-background test above, extended to a
+  // Same guarantee as the background test above, extended to a
   // clip's own leaf Pattern - step data placed there (ArrangementOps.h)
-  // is just as real as a section's own background content, and a lane
+  // is just as real as the track's own background content, and a lane
   // removal must clean it up the same way.
   Song song;
   auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(make_unique<PercussionTrack>()));
@@ -95,10 +96,10 @@ TEST(removing_and_re_adding_a_lane_starts_it_with_no_notes) {
   Song song;
   auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(make_unique<PercussionTrack>()));
   track.addLane(36);
-  song.getOrCreateSection(0).setNote(0, track.getInternalId(), 0, Note(36, 100));
+  song.getArrangement().setNote(0, track.getInternalId(), 0, Note(36, 100));
   track.removeLane(36, song);
   track.addLane(36);
-  CHECK(!song.getSection(0).getNote(0, track.getInternalId(), 0).isDefined());
+  CHECK(!song.getArrangement().getNote(0, track.getInternalId(), 0).isDefined());
 }
 
 TEST(add_lane_stops_at_kMaxLanes_since_the_step_grid_has_exactly_that_many_rows) {
@@ -213,7 +214,7 @@ TEST(lane_less_percussion_track_round_trips_through_save_and_load) {
 
   Song song;
   song.addTrack(make_unique<PercussionTrack>());
-  song.addSection();
+  song.getArrangement();
   song.save(scratch_path);
 
   InstrumentProvider provider;
@@ -238,7 +239,7 @@ TEST(step_sequenced_percussion_track_round_trips_its_lanes) {
   Song song;
   auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(make_unique<PercussionTrack>()));
   track.applyPreset(PercussionTrack::Preset::LATIN, song);
-  song.addSection();
+  song.getArrangement();
   song.save(scratch_path);
 
   InstrumentProvider provider;
@@ -426,9 +427,9 @@ TEST(percussion_track_seek_directly_to_a_later_repetition_still_triggers_the_rig
 }
 
 TEST(percussion_track_loop_truncates_at_the_end_of_a_short_pattern) {
-  // Pattern length 8 inside a 20-row section, one lane hit only at step 4 -
-  // repetitions land at rows 4 and 12; a would-be third repetition at row
-  // 20 never happens because the section ends at row 19. Exactly 2 audible
+  // An 8-row pattern repeated through row 19, one lane hit only at step 4
+  // - hits land at rows 4 and 12; a would-be third repetition at row 20
+  // never happens because the song ends at row 19. Exactly 2 audible
   // onsets, not 3.
   InstrumentProvider provider;
   registerFastDecayKit(provider);
@@ -449,12 +450,9 @@ TEST(percussion_track_loop_truncates_at_the_end_of_a_short_pattern) {
   CHECK(hits == 2);
 }
 
-TEST(percussion_track_switches_pattern_content_at_each_section_boundary) {
-  // Two sections, each 5 rows (patternRows="5"), with genuinely different
-  // content: section 0 hits BD at row 0, section 1 hits SD at row 1 - proving
-  // both that section 1's own Pattern actually takes over (not a leftover
-  // copy of section 0's) and that row indexing resets to section-relative 0
-  // at the boundary (absolute row 5 = section 1's own row 0).
+TEST(percussion_track_plays_each_row_of_its_pattern_once) {
+  // BD at row 0 and SD at row 6, with nothing in between - both sound, at
+  // their own rows, and nothing else does.
   InstrumentProvider provider;
   registerFastDecayKit(provider);
   Song song;
@@ -468,10 +466,10 @@ TEST(percussion_track_switches_pattern_content_at_each_section_boundary) {
   state.setIsPlaying(true);
 
   int hits = 0;
-  for (int row = 0; row < 7; row++) { // section 0's 5 rows + section 1's first 2
+  for (int row = 0; row < 7; row++) {
     if (renderRowPeak(state, song, *mixer, row_samples) > kAudiblePeak) hits++;
   }
-  CHECK(hits == 2); // absolute row 0 (section 0's BD) and absolute row 6 (section 1's SD)
+  CHECK(hits == 2); // row 0's BD and row 6's SD
 }
 
 TEST(percussion_track_retrigger_chokes_the_previous_hit_instead_of_stacking) {

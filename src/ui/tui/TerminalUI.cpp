@@ -1866,7 +1866,7 @@ int indexOfTrack(const vector<int> & track_ids, int track_id) {
 } // namespace
 
 void
-TerminalUI::commitOverviewCell(int track_id, int section_idx, int row) {
+TerminalUI::commitOverviewCell(int track_id, int row) {
   // The whole commit refuses while playing - matches PatternEditor's own
   // move-row-up/move-row-down guard (row navigation only ever runs while
   // stopped), and avoids a commit that silently only did half of what it
@@ -1874,12 +1874,7 @@ TerminalUI::commitOverviewCell(int track_id, int section_idx, int row) {
   if (getController().getPlaybackInfo().isPlaying()) return;
 
   auto & song = getController().getSong();
-  // NOTE: if PatternEditor's own mark/selection happens to still be active
-  // (selection_active_, unrelated to anything this grid/Launchpad does),
-  // setEditPosition() below clamps to the pattern that selection is in
-  // rather than actually jumping to (section_idx, row) - a real, narrow edge
-  // case, not handled here.
-  getController().setEditPosition(song.toAbsoluteRow(section_idx, row));
+  getController().setEditPosition(row);
 
   auto track_ids = song.getRootTrackIds();
   auto it = find(track_ids.begin(), track_ids.end(), track_id);
@@ -1904,7 +1899,7 @@ TerminalUI::initializeWidgets() {
   // it later, after main.cpp's own ui.initialize()/ui.start() call order -
   // see that method for the equivalent Launchpad wiring), so that half of
   // commitOverviewCell()'s callers is wired there instead.
-  arrangement_grid_->setCommitCallback([this](int track_id, int section_idx, int row) { commitOverviewCell(track_id, section_idx, row); });
+  arrangement_grid_->setCommitCallback([this](int track_id, int row) { commitOverviewCell(track_id, row); });
   cover_art_ = make_shared<CoverArt>(getPlane());
   info_line_ = make_shared<InfoLine>(getPlane());
   status_line_ = make_shared<StatusLine>(getPlane());
@@ -1913,7 +1908,6 @@ TerminalUI::initializeWidgets() {
   // inline editor rather than opening on top of it.
   status_line_->setBeforeShowPromptCallback([this]() {
     pattern_editor_->cancelReaderEdit();
-    arrangement_grid_->cancelReaderEdit();
     clip_grid_->cancelReaderEdit();
   });
   // The info bar's own colors - this widget sits inline in that bar (see
@@ -2396,7 +2390,7 @@ TerminalUI::renderComponents(bool refresh) {
   render |= octave_control_->render(styles_, refresh);
 
   auto & session_player = getController().getSessionPlayer();
-  session_player.setAssignSection(arrangement_grid_->getCursorSection());
+  session_player.setAssignRow(arrangement_grid_->getCursorRow(song));
   session_player.tick();
 
   if (launchpad_manager_) {
@@ -2475,7 +2469,7 @@ TerminalUI::viewChanged() {
   if (getView() == View::ARRANGEMENT) clip_grid_->cancelReaderEdit();
   if (getView() != View::SESSION || !isOutlineVisible()) outline_view_->closeInfoPopup();
   // Session view edits clips one scene at a time; Arrangement view edits
-  // sections and placed clips.
+  // the arrangement and placed clips.
   pattern_editor_->cancelReaderEdit();
   pattern_editor_->setSessionMode(getView() == View::SESSION);
   // Entering Session view, the clip grid and the pattern editor start on
@@ -2509,7 +2503,7 @@ TerminalUI::offerInput(const InputEvent & input) {
   // global keybinding (Space/toggle-playing, C-x C-c/quit, ...) steal a
   // keystroke meant for it.
   bool reader_active = status_line_->isReaderActive() || pattern_editor_->isReaderActive() ||
-    arrangement_grid_->isReaderActive() || clip_grid_->isReaderActive();
+    clip_grid_->isReaderActive();
   if (!reader_active && !octave_control_->isEditing() && dispatchCommand(input)) return true;
 
   if (input.getId() == NCKEY_RESIZE) {
@@ -2659,27 +2653,11 @@ TerminalUI::handlePlaybackEvent(PlaybackEvent & ev) {
   if (launchpad_manager_) launchpad_manager_->onRowAdvanced(getController());
   if (pattern_editor_) pattern_editor_->onRowAdvanced(getController());
 
-  // Same union-of-input-sources reasoning as the two calls above - section
-  // growth isn't tied to which one is actually recording, so it isn't
-  // folded into either's own onRowAdvanced(). isRecording() (mic capture
-  // into a SampleTrack clip) is a third, independent input source that
-  // needs the same growth - it never touches PatternEditor's/
-  // LaunchpadManager's own isAutoRecording() flags at all.
-  bool recording = (launchpad_manager_ && launchpad_manager_->isAutoRecording()) ||
-                    (pattern_editor_ && pattern_editor_->isAutoRecording()) ||
-                    getController().isRecording();
-  getController().extendRecordingSectionIfNeeded(recording);
-
-  // Clip::setLength()'s own counterpart to the section growth above - each
-  // caller's own note-recording clips (Controller::ensureNoteRecordingClip())
-  // grown independently. Deliberately not gated on `recording` at all
-  // (unlike extendRecordingSectionIfNeeded() above) - see
-  // extendRecordingClipsIfNeeded()'s own comment on why a clip that
-  // already exists needs no further proof a genuine session is driving
-  // it, and why gating on isAutoRecording() here would silently stop
-  // growing a take recorded against playback the performer had already
-  // started manually. Each call's own held-track-ids argument scopes
-  // growth further, to only a track with a note actually held right now.
+  // Each caller's own note-recording clips (Controller::
+  // ensureNoteRecordingClip()) grow independently - see
+  // extendRecordingClipsIfNeeded()'s own comment on why this needs no
+  // gate. Each call's own held-track-ids argument scopes growth to a
+  // track with a note actually held right now.
   if (pattern_editor_) getController().extendRecordingClipsIfNeeded(pattern_editor_->getAutoRecordClipIds(), pattern_editor_->getActiveNoteTrackIds());
   if (launchpad_manager_) getController().extendRecordingClipsIfNeeded(launchpad_manager_->getAutoRecordClipIds(), launchpad_manager_->getActiveNoteTrackIds());
   // A live mic take's own counterpart to the two calls above - see
@@ -2818,7 +2796,7 @@ TerminalUI::handleThresholdRecordingTriggeredEvent(ThresholdRecordingTriggeredEv
   // Never for a Session View take (isSessionRecording(track_id)) - that
   // populates a clip slot directly with no arrangement position at all,
   // so there's nothing here to quantize or snapshot; beginSampleCapture()
-  // already treats recording_start_section_'s own untouched -1 default as
+  // already treats recording_start_row_'s own untouched -1 default as
   // "stays unplaced."
   bool is_session_recording_take = getController().isSessionRecording(ev.getTrackId());
   auto start_row = ev.getRow();
@@ -2851,7 +2829,7 @@ TerminalUI::handleThresholdRecordingTriggeredEvent(ThresholdRecordingTriggeredEv
   }
 
   getController().addToSample(ev.getPreroll());
-  if (!is_session_recording_take) getController().armRecordingStart(ev.getSection(), start_row);
+  if (!is_session_recording_take) getController().armRecordingStart(start_row);
   getController().beginSampleCapture(ev.getTrackId());
   getController().clearThresholdArmed();
 }
@@ -3010,10 +2988,10 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
   // launchpad_manager_ itself is already set by UI::start() before this
   // hook runs.
   // "move-row-up"/"move-row-down" while in GridMode::SESSION move
-  // ArrangementGrid's own section cursor instead of scrolling a pad-grid row
-  // window - see LaunchpadManager::session_move_section_callback_'s own
+  // ArrangementGrid's own bar cursor instead of scrolling a pad-grid row
+  // window - see LaunchpadManager::session_move_bar_callback_'s own
   // comment for why.
-  launchpad_manager.setSessionMoveSectionCallback([this](int delta) { arrangement_grid_->moveCursorSection(getController().getSong(), delta); });
+  launchpad_manager.setSessionMoveBarCallback([this](int delta) { arrangement_grid_->moveCursorBar(delta); });
   // "next-track"/"prev-track" outside GridMode::SESSION move the one
   // shared cursor every connected Launchpad follows - see
   // LaunchpadManager::track_move_callback_'s own comment for why. Also

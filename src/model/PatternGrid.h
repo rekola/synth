@@ -5,7 +5,7 @@
 #include <utility>
 
 class Pattern;
-class Section;
+class Arrangement;
 class Song;
 class Clip;
 
@@ -13,7 +13,7 @@ class Clip;
 // PatternBlockOps reads and writes. Each implementation decides which
 // Pattern holds a cell and which of that Pattern's own rows it is (a
 // Pattern shorter than its context repeats), so the same block operations
-// work on a section's background as well as on clip content.
+// work on the arrangement's background as well as on clip content.
 class PatternGrid {
  public:
   virtual ~PatternGrid() = default;
@@ -33,38 +33,35 @@ class PatternGrid {
   virtual Pattern * obtainCommands(int track_id, int row, int & pattern_row) { return obtain(track_id, row, pattern_row); }
 };
 
-// A section's own background Patterns (never its clip instances), rows
-// resolved against `context_length`. Built over a const Section, it's
-// read-only: the writable find() and obtain() return nullptr.
-class SectionBackgroundGrid : public PatternGrid {
+// The arrangement's own background Patterns (never its clip instances).
+// Built over a const Arrangement, it's read-only: the writable find() and
+// obtain() return nullptr.
+class ArrangementBackgroundGrid : public PatternGrid {
  public:
-  SectionBackgroundGrid(Section & section, int context_length)
-    : read_(section), write_(&section), context_length_(context_length) { }
-  SectionBackgroundGrid(const Section & section, int context_length)
-    : read_(section), write_(nullptr), context_length_(context_length) { }
+  explicit ArrangementBackgroundGrid(Arrangement & arrangement) : read_(arrangement), write_(&arrangement) { }
+  explicit ArrangementBackgroundGrid(const Arrangement & arrangement) : read_(arrangement), write_(nullptr) { }
 
   const Pattern * find(int track_id, int row, int & pattern_row) const override;
   Pattern * find(int track_id, int row, int & pattern_row) override;
   Pattern * obtain(int track_id, int row, int & pattern_row) override;
 
  private:
-  const Section & read_;
-  Section * write_;
-  int context_length_;
+  const Arrangement & read_;
+  Arrangement * write_;
 };
 
-// A section as the arrangement shows it, anchored at `anchor_row`: each
-// track's notes come from whatever supplies that track at the anchor row -
-// the Launchpad-focused clip, a placed clip instance, or the section's own
-// background - for as long as the same source supplies it; rows where
-// another source takes over have no Pattern (so a block operation never
-// spills from a clip into the background or another clip). Effect commands
-// always come from the background, where playback reads them. Built over a
-// const Song, it's read-only.
-class SectionRegionGrid : public PatternGrid {
+// The arrangement as the pattern editor shows it, anchored at
+// `anchor_row`: each track's notes come from whatever supplies that track
+// at the anchor row - the Launchpad-focused clip, a placed clip instance,
+// or the track's own background - for as long as the same source supplies
+// it; rows where another source takes over have no Pattern (so a block
+// operation never spills from a clip into the background or another
+// clip). Effect commands always come from the background, where playback
+// reads them. Built over a const Song, it's read-only.
+class ArrangementRegionGrid : public PatternGrid {
  public:
-  SectionRegionGrid(Song & song, Section & section, int anchor_row, std::string focused_clip_id);
-  SectionRegionGrid(const Song & song, const Section & section, int anchor_row, std::string focused_clip_id);
+  ArrangementRegionGrid(Song & song, int anchor_row, std::string focused_clip_id);
+  ArrangementRegionGrid(const Song & song, int anchor_row, std::string focused_clip_id);
 
   const Pattern * find(int track_id, int row, int & pattern_row) const override;
   Pattern * find(int track_id, int row, int & pattern_row) override;
@@ -91,8 +88,7 @@ class SectionRegionGrid : public PatternGrid {
 
   const Song & read_song_;
   Song * write_song_;
-  const Section & read_section_;
-  SectionBackgroundGrid background_;
+  ArrangementBackgroundGrid background_;
   int anchor_row_;
   std::string focused_clip_id_;
 };

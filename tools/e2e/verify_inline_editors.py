@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Drive every widget's inline text editor (InlineEditor) through a pty:
-ArrangementGrid's section rename, PatternEditor's track-name and
-locator editors, and ClipGrid's clip and track renames. Checks that
+PatternEditor's track-name and locator editors, and ClipGrid's clip and
+track renames. Checks that
 Enter commits, Ctrl-g cancels, M-x cancels an open editor, and that a
 typed space never reaches the global toggle-playing binding.
 """
@@ -44,15 +44,7 @@ def start(song=vk.SONG):
 def arrangement_and_pattern_editor():
     pid, scr = start()
 
-    # Initial focus is the ArrangementGrid, its cursor on a section title row.
-    scr.send(b"\r")
-    scr.pump(0.4)
-    type_text(scr, "Intro X")
-    scr.send(b"\r")
-    scr.pump(0.5)
-    check("section rename commits", "Intro X" in scr.dump(), scr)
-    check("space in section name does not start playback", not vk.is_playing(scr), scr)
-
+    # Initial focus is the ArrangementGrid.
     vk.other_window(scr)
     scr.send(F2)
     scr.pump(0.4)

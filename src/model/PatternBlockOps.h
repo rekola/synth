@@ -8,7 +8,6 @@
 #include <string>
 #include <vector>
 
-class Section;
 class Song;
 class Clip;
 class PatternGrid;

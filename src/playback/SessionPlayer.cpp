@@ -108,10 +108,8 @@ SessionPlayer::triggerClip(int track_id, int clip_index) {
   }
   auto & playback_info = controller_.getPlaybackInfo();
   if (!playback_info.isPlaying() && assign_playback_starter_) assign_playback_starter_();
-  auto section_idx = playback_info.isPlaying() ? playback_info.getPatternIndex() : assign_section_idx_;
-  auto & section = song.getOrCreateSection(section_idx);
-  auto raw_row = playback_info.isPlaying() ? playback_info.getRowIndex() : 0;
-  placeClipInstance(song, section, track_id, quantizedBarRow(raw_row, song.getRowsPerBar()), clip_index);
+  auto raw_row = playback_info.isPlaying() ? playback_info.getAbsolutePosition() : assign_row_;
+  placeClipInstance(song, track_id, quantizedBarRow(raw_row, song.getRowsPerBar()), clip_index);
   song.incVersion();
 }
 
@@ -241,8 +239,8 @@ SessionPlayer::placeRecordingStop(int track_id) {
   auto & playback_info = controller_.getPlaybackInfo();
   if (!playback_info.isPlaying()) return;
   auto & song = controller_.getSong();
-  auto row = quantizedBarRow(playback_info.getRowIndex(), song.getRowsPerBar());
-  placeStopInstance(song.getOrCreateSection(playback_info.getPatternIndex()), track_id, row);
+  auto row = quantizedBarRow(playback_info.getAbsolutePosition(), song.getRowsPerBar());
+  placeStopInstance(song, track_id, row);
   song.incVersion();
 }
 
@@ -369,8 +367,7 @@ SessionPlayer::clipHighlight(int track_id, int clip_index) const {
   if (session_track && session_track->isTakenOver()) {
     playing = session_track->clip_index == clip_index;
   } else if (playback_info.isPlaying()) {
-    auto & section = song.getSection(playback_info.getPatternIndex());
-    playing = resolveInstanceAt(song, section, track_id, playback_info.getRowIndex()).clip_index == clip_index;
+    playing = resolveInstanceAt(song, track_id, playback_info.getAbsolutePosition()).clip_index == clip_index;
   }
   if (playing) return SessionPadHighlight::PLAYING;
   if (session_track && session_track->queued == clip_index) return SessionPadHighlight::QUEUED;

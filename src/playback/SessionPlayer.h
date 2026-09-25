@@ -57,8 +57,8 @@ class SessionPlayer {
   void returnAllToArrangement();
 
   // Where an arrangement assign (a launch with Record Arm on) writes when
-  // the transport doesn't start: the arrangement cursor's section.
-  void setAssignSection(int section_idx) { assign_section_idx_ = section_idx; }
+  // the transport doesn't start: the arrangement cursor's row.
+  void setAssignRow(int row) { assign_row_ = row; }
   // Starts the transport for an arrangement assign made while stopped, so
   // whoever tracks auto-started playback can stop it again on disarm.
   void setAssignPlaybackStarter(std::function<void()> start) { assign_playback_starter_ = std::move(start); }
@@ -134,7 +134,7 @@ class SessionPlayer {
   struct QueuedRecording { enum Kind { STOP, FRESH_TAKE, OVERDUB } kind; int clip_index = 0; };
   std::unordered_map<int, QueuedRecording> queued_recording_;
 
-  int assign_section_idx_ = 0;
+  int assign_row_ = 0;
   std::function<void()> assign_playback_starter_;
 };
 

@@ -269,9 +269,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
       // the target row in pending_positions_ - stateFor() applies it the
       // moment some later, genuinely sound-producing event actually
       // constructs the state.
-      auto song_ptr = controller_->getSongByName(ev.getBufferName());
-      if (!song_ptr) return;
-      auto & song = *song_ptr;
+      if (!controller_->getSongByName(ev.getBufferName())) return;
 
       auto it = live_states_.find(ev.getBufferName());
       int base;
@@ -283,18 +281,11 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
       }
 
       // Mirrors Controller::moveEditPosition()/setEditPosition()'s own
-      // decision on the UI-thread side - both derive the same result
+      // clamp on the UI-thread side - both derive the same result
       // independently from the same (unclamped) delta_rows/absolute_row
       // rather than one side trusting a value computed by the other
-      // across the thread boundary. parameter2 carries whether a
-      // pattern-editor selection was open there (clamp to the current
-      // pattern, via clampRowToCurrentPattern()) or not (cross pattern
-      // boundaries freely - setPosition() already floors at 0, and
-      // there's no upper bound either way, same as real playback's own
-      // run-off-the-end).
-      int new_pos = ev.getType() == PlaybackControlEvent::MOVE_POSITION ?
-	(ev.getParameter2() ? song.clampRowToCurrentPattern(base, base + ev.getParameter1()) : base + ev.getParameter1()) :
-	(ev.getParameter2() ? song.clampRowToCurrentPattern(base, ev.getParameter1()) : ev.getParameter1());
+      // across the thread boundary.
+      int new_pos = Song::clampArrangementRow(ev.getType() == PlaybackControlEvent::MOVE_POSITION ? base + ev.getParameter1() : ev.getParameter1());
 
       if (it != live_states_.end()) {
 	it->second->setPosition(new_pos);
@@ -362,7 +353,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	      Note note(midi_note, midi_velocity);
 	      auto frequency = Tuner::getFrequency(tuning, note);
 
-	      // A live note has no authored (section, row) position to build a
+	      // A live note has no authored row to build a
 	      // real NoteCoordinate from - live_note_counter_ (this Player's
 	      // own, advanced once per live note-on) stands in for
 	      // absolute_row instead, so InstrumentVoice can still derive a
@@ -978,7 +969,7 @@ Player::play(AudioAPI & audio) {
 		threshold_triggered_this_arm_cycle_ = true;
 		auto preroll = threshold_ring_buffer_.drain();
 
-		// Backdated (section, row): the transport's own position right
+		// Backdated row: the transport's own position right
 		// now, minus the pre-roll's own span converted to rows -
 		// resolved here, directly against this same audio thread's
 		// own live SongState (Controller::getPlaybackInfo() is a
@@ -987,23 +978,19 @@ Player::play(AudioAPI & audio) {
 		// never written directly into Controller (which owns this
 		// position - see ThresholdRecordingTriggeredEvent's own
 		// comment). Falls
-		// back to (0, 0) if this buffer somehow has no live state
+		// back to row 0 if this buffer somehow has no live state
 		// yet - can't happen in practice (armThresholdRecording()'s
 		// own auto-start already gave it one), stays defensive
 		// rather than assuming.
-		int section = 0, row = 0;
-		auto buffer_name = controller_->getActiveBufferNameThreadSafe();
-		auto song_ptr = controller_->getSongByName(buffer_name);
-		auto state_it = live_states_.find(buffer_name);
-		if (song_ptr && state_it != live_states_.end()) {
+		int row = 0;
+		auto state_it = live_states_.find(controller_->getActiveBufferNameThreadSafe());
+		if (state_it != live_states_.end()) {
 		  auto & state = *state_it->second;
 		  auto preroll_rows = channel_config_.framesToRows(preroll.numberOfFrames(), state.getTempo());
-		  auto backdated = song_ptr->normalizePosition(0, std::max(0, state.getAbsolutePosition() - preroll_rows));
-		  section = backdated.first;
-		  row = backdated.second;
+		  row = std::max(0, state.getAbsolutePosition() - preroll_rows);
 		}
 		controller_->getUIEventQueue().push(make_unique<ThresholdRecordingTriggeredEvent>(
-		  controller_->getRecordingTrackId(), std::move(preroll), section, row));
+		  controller_->getRecordingTrackId(), std::move(preroll), row));
 	      }
 	    }
 	  }
@@ -1015,15 +1002,11 @@ Player::play(AudioAPI & audio) {
 
 std::unique_ptr<PlaybackEvent>
 Player::createPlaybackEvent(const string & buffer_name, const Song & song, const SongState & state) {
-  auto [ pattern_idx, row_idx ] = state.getRelativePosition(song);
-
   PlaybackInfo info;
   info.setIsPlaying(state.isPlaying());
   info.setOutSampleRate(state.getChannelConfiguration().getAudioOutSampleRate());
   info.setSampleInterval(state.getChannelConfiguration().getSampleInterval(state.getTempo()));
   info.setSamplePos(state.getSamplePos());
-  info.setPatternIdx(pattern_idx);
-  info.setRowIdx(row_idx);
   info.setAbsolutePos(state.getAbsolutePosition());
   info.setPositionEditSeq(state.getPositionEditSeq());
   info.setSessionTracks(state.getSessionTracks());

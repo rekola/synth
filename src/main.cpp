@@ -27,7 +27,7 @@ static bool renderSongToWav(Controller & controller, const ChannelConfiguration 
   auto result = renderSongOffline(song, channel_config, controller.getMixerType(), 1024, 10, 1e-5f, controller.getUseLegacyBinaural());
 
   if (result.interleaved.empty()) {
-    fmt::print(stderr, "Song has no patterns to render\n");
+    fmt::print(stderr, "Song has nothing to render\n");
     return false;
   }
 

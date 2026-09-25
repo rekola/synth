@@ -10,11 +10,10 @@
 #include <unordered_map>
 
 class PatternGrid;
-class Section;
 class SampleContent;
 
 // A position in a pattern editor's row space: `row` rows into `block` (a
-// section, in arrangement mode).
+// scene in Session view; the arrangement is one block).
 struct RowAddress {
   int block = 0;
   int row = 0;

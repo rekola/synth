@@ -37,7 +37,7 @@ struct ClipboardEntry {
   // track-offset dimension - NOTE_COLUMN/COMMAND populate exactly one
   // (that single track_id), TRACK/EVERYTHING populate one per track in
   // [track_lo, track_hi], LOCATOR populates none (it isn't
-  // track-scoped at all - see Section.h's own comment on why). yank()
+  // track-scoped at all - Song::getLocators()). yank()
   // checks each offset it's about to write against the destination
   // track's own tuning here (Song::getTuningForTrack()) before writing
   // anything - a Note::getValue() means a different kind of value under

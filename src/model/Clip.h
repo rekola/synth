@@ -10,7 +10,7 @@
 
 // A reusable, shareable unit of musical content for one leaf track - its
 // own note/command Pattern. Deliberately not keyed by track_id the way
-// Section's own per-row content is: a nested Effect track's automation
+// the arrangement's own per-row content is: a nested Effect track's automation
 // captured alongside a clip would be redundant once a command can target
 // any of its parent tracks directly from that one Pattern (`Command`'s
 // own device-index digit - planned, not implemented beyond the track's
@@ -34,15 +34,15 @@
 // supported, but which of the two a given Clip actually uses is a matter
 // of which one has real content, not which one physically exists.
 //
-// Distinct from a Section's own inline Pattern in one crucial way: a clip
-// is a single shared object that can be placed at more than one position
-// at once, and editing it through any one of those updates every other
-// placement immediately. A Section's own inline content is never shared
-// this way - it's always a plain, independent copy.
+// Distinct from a track's own inline arrangement Pattern in one crucial
+// way: a clip is a single shared object that can be placed at more than
+// one position at once, and editing it through any one of those updates
+// every other placement immediately. The inline content is never shared
+// this way.
 //
 // Extends SongObject for its own display name (getName()/setName(),
 // inherited as-is) - a clip's name is the clip's own property, not its
-// leaf Pattern's; a section's own inline Pattern has no name at all. Also
+// leaf Pattern's; the arrangement's inline Pattern has no name at all. Also
 // for id_/getId()/setId() - Song::addClip() assigns one when a clip is
 // created without one already set (see its own comment), same as a track
 // created through the UI; see this field's own comment further down for
@@ -70,10 +70,9 @@ class Clip : public SongObject {
   bool isEmpty() const { return pattern_.isEmpty() && !hasSample(); }
 
   // A clip's own length, independent of its leaf Pattern's own length_
-  // (Pattern.h) - a clip is addressed and triggered outside any section's
-  // row context, so it needs a real length of its own rather than
-  // deferring to a context_length the way a section's own inline Pattern
-  // does. 0 means "not given a length of its own" (see Pattern.h's own
+  // (Pattern.h) - a clip is addressed and triggered outside the
+  // arrangement's row context, so it needs a real length of its own. 0
+  // means "not given a length of its own" (see Pattern.h's own
   // comment on that same convention); callers already clamp it to at
   // least 1 before using it (SessionPlayer::advanceToStep()).
   int getLength() const { return length_; }
@@ -85,10 +84,8 @@ class Clip : public SongObject {
   // playback path's behavior. false makes it a one-shot: SessionPlayer::
   // advanceToStep() releases the track's voices and stops
   // triggering it, rather than wrapping back to row 0, once it's played
-  // through its own length once. Scoped to Session-view triggering only -
-  // a section's own inline Pattern (ordinary transport-driven playback,
-  // bounded by the section/song's own row range regardless) has no
-  // equivalent and isn't a Clip in the first place.
+  // through its own length once. A placed one-shot in the arrangement
+  // likewise ends after its own length.
   bool isLooping() const { return loop_; }
   void setLooping(bool loop) { loop_ = loop; }
 
@@ -123,7 +120,7 @@ class Clip : public SongObject {
 
   // What a real trigger (SampleTrackState::triggerClip()) actually plays,
   // and what ArrangementOps.cpp's own mergeClipToBackground() bakes into a
-  // section's background bed: layer 0 directly when there's at most one
+  // track's background bed: layer 0 directly when there's at most one
   // real layer (the overwhelming majority of clips - no copying, no
   // resampling, the exact same object getSampleContent() already
   // returns), or the cached, pre-mixed sum of every layer once there's

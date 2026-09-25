@@ -4,6 +4,7 @@
 #include "../audio/AudioBuffer.h"
 #include "WaveformPeaks.h"
 
+#include <cmath>
 #include <memory>
 
 class ParameterSource;
@@ -29,6 +30,14 @@ class SampleContent {
  public:
   const std::shared_ptr<AudioBuffer> & getBuffer() const { return buffer_; }
   void setBuffer(std::shared_ptr<AudioBuffer> buffer) { buffer_ = std::move(buffer); waveform_peaks_dirty_ = true; stretched_dirty_ = true; }
+
+  // Rows the whole buffer spans at `tempo`, rounded up - a row is a
+  // sixteenth, 4 * tempo rows a minute.
+  int getRowCount(int tempo) const {
+    if (!buffer_ || native_sample_rate_ <= 0) return 0;
+    auto seconds = static_cast<double>(buffer_->numberOfFrames()) / native_sample_rate_;
+    return static_cast<int>(std::ceil(seconds * tempo * 4 / 60.0));
+  }
 
   // Trim points, in seconds, each measured as "how much to cut from that
   // end" rather than an absolute timestamp - symmetric by design, so 0.0

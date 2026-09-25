@@ -53,13 +53,13 @@ TEST(demoted_songstate_keeps_ringing_a_held_voice_while_the_new_playing_state_ad
   Song song_a;
   song_a.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
   auto & track_a = song_a.addTrack(make_unique<InstrumentTrack>(0));
-  auto & scene_a = song_a.addSection();
+  auto & scene_a = song_a.getArrangement();
   scene_a.setNote(0, track_a.getInternalId(), 0, Note(60, 100)); // never followed by a note-off - held indefinitely
 
   Song song_b;
   song_b.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
   auto & track_b = song_b.addTrack(make_unique<InstrumentTrack>(0));
-  auto & scene_b = song_b.addSection();
+  auto & scene_b = song_b.getArrangement();
   scene_b.setNote(0, track_b.getInternalId(), 0, Note(67, 100));
 
   ChannelConfiguration config(44100, 1);

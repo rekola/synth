@@ -1,6 +1,6 @@
 #include "PatternBlockOps.h"
 
-#include "../model/Section.h"
+#include "../model/Arrangement.h"
 #include "../model/Song.h"
 #include "../model/Clip.h"
 #include "PatternGrid.h"

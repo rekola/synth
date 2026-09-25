@@ -23,7 +23,7 @@ add_executable(synth_tests
 	PatternBlockOpsTests.cpp
 	PatternSourceTests.cpp
 	ArrangementOpsTests.cpp
-	SectionTests.cpp
+	ArrangementTests.cpp
 	PatternScrollTests.cpp
 	PatternBreakTests.cpp
 	CommandTests.cpp

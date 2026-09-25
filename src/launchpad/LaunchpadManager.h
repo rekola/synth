@@ -176,8 +176,7 @@ class LaunchpadManager {
   // callback (UI::start()), alongside forceNotesModeOnAllDevices() above.
   void resetStepGridView();
 
-  // The Launchpad's own session/launch view, replacing what used to be a
-  // plain arrangement-navigation overview (rows=sections) - rows are now a
+  // The Launchpad's own session/launch view - rows are a
   // track's own available clips (Song::getClips()), columns are tracks,
   // same layout ArrangementGrid's own terminal grid uses. Which of two
   // things a press does is gated by Record Arm (DeviceState::
@@ -197,17 +196,17 @@ class LaunchpadManager {
   // meaningful independent of both. No scroll position of any kind yet,
   // row or column - a track with more than 8 clips only shows
   // the first 8 for now, and Up/Down instead move the overview's own
-  // section cursor (see session_move_section_callback_'s own comment), not a
+  // bar cursor (see session_move_bar_callback_'s own comment), not a
   // row window.
   struct SessionWindow {
     std::vector<int> track_ids;
   };
 
   // Called with +1/-1 when "move-row-up"/"move-row-down" is pressed while
-  // a device is in GridMode::SESSION - moves the overview's own section
-  // cursor (see session_move_section_callback_'s own comment) rather than
+  // a device is in GridMode::SESSION - moves the overview's own bar
+  // cursor (see session_move_bar_callback_'s own comment) rather than
   // scrolling a pad-grid row window.
-  void setSessionMoveSectionCallback(std::function<void(int delta)> cb) { session_move_section_callback_ = std::move(cb); }
+  void setSessionMoveBarCallback(std::function<void(int delta)> cb) { session_move_bar_callback_ = std::move(cb); }
 
   // Called with the new track index when "next-track"/"prev-track" is
   // pressed outside GridMode::SESSION (see track_move_callback_'s own
@@ -503,18 +502,9 @@ class LaunchpadManager {
   // of merging with it. A no-op outside such a session.
   void onRowAdvanced(Controller & controller);
 
-  // Whether a realtime auto-play-while-held recording session (see
-  // onRowAdvanced()'s own comment) is active right now - Controller::
-  // extendRecordingSectionIfNeeded() (UI::handlePlaybackEvent()) reads this
-  // (unioned with PatternEditor's own identical flag) to decide whether
-  // the actively-playing section should keep growing rather than wrapping
-  // into the next one.
-  bool isAutoRecording() const { return auto_started_playback_; }
-
   // Which real Clip (by id) this session has created so far, keyed by
   // track_id (Controller::ensureNoteRecordingClip()) - Controller::
-  // extendRecordingClipsIfNeeded() (UI::handlePlaybackEvent(), alongside
-  // extendRecordingSectionIfNeeded() above) reads/mutates this directly to
+  // extendRecordingClipsIfNeeded() (UI::handlePlaybackEvent()) reads/mutates this directly to
   // grow each one's own window as the take continues.
   std::unordered_map<int, std::string> & getAutoRecordClipIds() { return auto_record_clip_ids_; }
 
@@ -525,7 +515,7 @@ class LaunchpadManager {
   // than for as long as the session merely stays armed (Record Arm has no
   // auto-stop-on-release the way PatternEditor's own keyboard session
   // does, so an unheld clip would otherwise keep growing, and clearing
-  // everything in its path, all the way to the end of the section).
+  // everything in its path).
   std::vector<int> getActiveNoteTrackIds() const;
 
   // Called once per render() frame: recomputes each ready device's LED
@@ -629,8 +619,8 @@ class LaunchpadManager {
     // Draw/Custom stay fully usable on a device currently assigned to a
     // PercussionTrack), it only ever edits a specific clip actually open
     // for editing on this track (Controller::getFocusedClipTrackId(),
-    // show_step_grid's own comment) - never the section's own background
-    // Pattern, which has no pagination and spans the whole scene, far
+    // show_step_grid's own comment) - never the track's own background
+    // Pattern, which has no pagination and spans the whole song, far
     // more than this fixed 8x8 grid (even split across several connected
     // devices) could ever show meaningfully. assigned_track_is_percussion
     // itself doesn't imply a focused clip - it's also what gates
@@ -674,7 +664,7 @@ class LaunchpadManager {
     // to edit anything; the step grid is reachable only by deliberately
     // opening one of this track's own clips, the same gesture Record
     // Arm's own drum-clip repurposing already uses, never by exposing
-    // (and risking silently editing) the section's own live background
+    // (and risking silently editing) the track's own live background
     // Pattern just because the cursor happened to land here.
     bool show_step_grid = false;
     // The highest step offset device 0 could still scroll to and have
@@ -1014,17 +1004,13 @@ class LaunchpadManager {
   // session (see Controller::ensureRowCleared, which owns the actual
   // clear-once-per-session logic - this is just the per-session
   // bookkeeping it's called with) - reset whenever a fresh session
-  // starts (auto_started_playback_ false -> true). last_cleared_row_/
-  // last_cleared_pattern_idx_ track how far onRowAdvanced()'s sweep has
-  // already reached, so it only clears newly-passed rows, not the whole
-  // pattern on every call - reset the same way, and also resynced
-  // (rather than trying to backfill a range) if the pattern index itself
-  // changes or the row goes backwards (a loop/pattern-sequence
-  // wraparound), since a range spanning that boundary has no single
-  // well-defined meaning here.
+  // starts (auto_started_playback_ false -> true). last_cleared_row_
+  // tracks how far onRowAdvanced()'s sweep has already reached, so it
+  // only clears newly-passed rows - reset the same way, and resynced
+  // (rather than trying to backfill a range) if the row goes backwards,
+  // since a range spanning a jump has no single well-defined meaning.
   std::set<std::pair<int, int>> auto_record_cleared_rows_;
   int last_cleared_row_ = -1;
-  int last_cleared_pattern_idx_ = -1;
 
   // Which real Clip this session has recorded into, per track (see
   // getAutoRecordClipIds()'s own comment) - reset the same moments
@@ -1110,11 +1096,11 @@ class LaunchpadManager {
     // last one) updates that one column in place rather than each
     // claiming a fresh column via pushCommand() and leaving a trail of
     // near-duplicate commands behind. A genuinely new row claims a fresh
-    // column instead (Section::pushCommand()) - never column 0
+    // column instead (Arrangement::pushCommand()) - never column 0
     // unconditionally, since that could already hold an unrelated
     // hand-typed command this shouldn't silently overwrite.
     // Not session-scoped: revisiting the exact same row number much
-    // later (e.g. a looping section) could in principle reuse a stale
+    // later (e.g. after a jump back) could in principle reuse a stale
     // column from an earlier, disconnected recording pass rather than
     // claiming a fresh one - a known, narrow edge case, not solved here.
     int automation_row = -1;
@@ -1183,15 +1169,15 @@ class LaunchpadManager {
   // right now" condition note entry already gates on, not the narrower
   // Session-view-clip-specific isSessionRecording() - a fader move isn't
   // about any one clip), writes `command` into the current playback
-  // row/section's own background Pattern for `track_id` - a fresh column
-  // (Section::pushCommand(), never unconditionally column 0, which could
+  // row of the track's own background Pattern for `track_id` - a fresh column
+  // (Arrangement::pushCommand(), never unconditionally column 0, which could
   // already hold an unrelated hand-typed command) the first time this
   // fader (`fader`, for its own automation_row/automation_column - see
   // FaderState's own comment) records into a given row, reused in place
   // if a later press lands on that same still-current row rather than
-  // spawning a new column each time. Auto-creates the Section/Pattern to
-  // write into if this track has never had any content here at all
-  // (Section::patterns_by_track_id_'s own map access already does this -
+  // spawning a new column each time. Auto-creates the Pattern to
+  // write into if this track has never had any content at all
+  // (Arrangement::patterns_by_track_id_'s own map access already does this -
   // no separate "ensure a place to write exists" step needed the way a
   // Clip would). A no-op otherwise - a fader move made while just
   // auditioning (not recording) still moves the live value, same as
@@ -1294,15 +1280,15 @@ class LaunchpadManager {
   // needing its own copy threaded through.
   SessionWindow session_;
   // "move-row-up"/"move-row-down" (CC91/92) while a device is in
-  // GridMode::SESSION move the overview's own section cursor (via
-  // ArrangementGrid::moveCursorSection()) rather than scrolling a pad-grid row
-  // window - Session view's rows are a track's own clips, not
-  // sections, so there's no local row scroll for those buttons to drive; the
-  // section cursor is what an "assign" press actually targets
-  // (SessionPlayer::setAssignSection()), so moving it is the meaningful thing left for
+  // GridMode::SESSION move the overview's own bar cursor (via
+  // ArrangementGrid::moveCursorBar()) rather than scrolling a pad-grid row
+  // window - Session view's rows are a track's own clips, so there's no
+  // local row scroll for those buttons to drive; the bar cursor is where
+  // an "assign" press made while stopped lands (SessionPlayer::
+  // setAssignRow()), so moving it is the meaningful thing left for
   // up/down to do here. +1/-1 is the caller's own delta convention (see
   // handleCommand()).
-  std::function<void(int delta)> session_move_section_callback_;
+  std::function<void(int delta)> session_move_bar_callback_;
 
   // "next-track"/"prev-track" outside GridMode::SESSION move the one
   // shared cursor (via this callback, wired to PatternEditor::

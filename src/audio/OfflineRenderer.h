@@ -19,7 +19,8 @@ struct OfflineRenderResult {
   }
 };
 
-// Renders `song` from the start through all pattern rows, then continues
+// Renders `song` from the start through its arrangement (Song::
+// getArrangementLength(), or until a pattern break jumps back), then continues
 // rendering the tail (voice releases, reverb/delay decay) until the output
 // falls silent or max_tail_seconds elapses. Used by both --render and the
 // test suite so they exercise identical playback logic. `mixer_type` is

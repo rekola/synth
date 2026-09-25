@@ -8,9 +8,19 @@ Session view, clip grid and clip editing this builds on are already in
 place.
 
 Status: Phase 1 done; Phase 2 done but for the two items under its "Still
-open"; Phase 3 done; Phase 4's position in the info bar done, the rest
-not started. Every phase lands as its own
-commit(s), with `ctest` and the e2e scripts green.
+open"; Phases 3 and 4 done; Phase 5 waits on its open question.
+Every phase lands as its own commit(s), with `ctest` and the e2e scripts
+green.
+
+## Open questions
+
+- **Should pausing the transport pause launched clips, so play resumes
+  them?** Today stopping the transport stops every launched clip and
+  forgets what's queued (`SongState::silenceSession()` on `STOP`),
+  leaving the tracks taken over and silent until relaunched or returned
+  to the arrangement - the live-sequencer convention for its Stop
+  button. But the transport toggle here has no separate pause, so a
+  quick pause kills the whole scene. Phase 5 settles it.
 
 ## Phase 1: a Controller-owned SessionPlayer
 
@@ -94,65 +104,43 @@ a launched clip starting does.
 
 ## Phase 4: one flat arrangement timeline, shown as bar.beat.sixteenth
 
-With one transport driving both views, the transport's position is the
-number a musician reads all the time, and `Section` is the last thing
-making that number awkward: a row is meaningful only relative to whichever
-section it falls in. Drop sections and show a musical position instead.
+Done: the transport reads `1.3.3` - bar, beat, sixteenth, all 1-based
+(`Song::formatPosition()`) - in the info bar, replacing the hex row and
+`pattern:N`; the elapsed time went with them. `Section` is gone: `Song`
+holds one `Arrangement`, a timeline keyed by absolute row (instance
+events, inline patterns, `SampleTrack` background beds - the bed now
+starts at row 0), `<arrangement>` in the file with no legacy reader.
+Its length is where its content ends (`Song::getArrangementLength()`; a
+clip counts one pass, a stop its own row); a looping clip plays on until
+its track's next event, and placing one clears only its first pass.
+Annotations became song-level locators (not bar-quantized, not shown in
+`ArrangementGrid`), and `ZBxx` jumps to locator `xx`, `00` the next one;
+an offline render ends where a break jumps back. `ArrangementGrid` is one
+run of bars; `ArrangementPatternSource` is one block of absolute rows
+rather than a block per bar, since a block bounds a selection and a
+region must span bars (the row-number gutter widens past `ff`). Songs
+were converted by `tools/annotations_to_locators.py` and
+`tools/sections_to_arrangement.py`: a clip still in effect where its
+section ended gets a stop there, rows past a section's end (never
+played) are dropped, and section names become locators; every tracked
+song renders sample-identical over its length except where the old
+reader or scheduler was wrong (a leftover empty `<sections>` read
+instead of the real one; a clip's track not released at a section end).
 
-- **Position in the info bar.** Done: the transport reads `1.3.3` - bar,
-  beat within the bar, sixteenth within the beat, all 1-based
-  (`Song::formatPosition()`, a row being a sixteenth and a bar
-  `getRowsPerBar()` rows) - replacing the hex absolute row and
-  `pattern:N`. The elapsed time went with them, and the three fields
-  printed from hardcoded zeros (edit step size, the cursor's
-  track:column); tuning, key, voice counts and tempo stay.
-- **No sections.** `Song`'s `vector<Section>` becomes one continuous
-  timeline: a single set of per-track content keyed by absolute row -
-  instance events, inline patterns and `SampleTrack` background beds,
-  three of the four kinds `Section` holds today (annotations become
-  locators, below). The
-  arrangement's length is where its last content ends, not a sum of
-  section lengths, and `getEffectiveSectionLength()`/`SectionRegionGrid`/
-  the per-section row wrapping go with it. No compatibility path: the
-  reader stops understanding `<section>` entirely, and `songs/` is
-  converted by hand - those songs are documentation, few, and worth
-  reading as examples of the format that actually exists.
-- **What changes above the model:** `ArrangementGrid` drops its title rows
-  and renders one continuous run of bars (a name in the scope row has no
-  home until locators exist); `ArrangementPatternSource`'s blocks become
-  bars rather than sections; `PatternSource::sourceRows()` and the
-  background resolution lose their section bounds; `ScenePatternSource` is
-  untouched - a clip's own content was never section-scoped.
-- **Locators, from annotations.** A section's name went somewhere: an
-  annotation - already a row-keyed note about a moment in the song rather
-  than about any one track - becomes a named marker on the timeline, and
-  that's the only thing left that names a position. They move from
-  `Section` to the song, keyed by absolute row, and the section titles
-  `ArrangementGrid` draws today go away with nothing in their place - for
-  now locators are model-and-command only, shown in the pattern editor's
-  locator column (the annotation column renamed).
-- **Locators aren't bar-quantized yet:** they keep every row an
-  annotation had (songs use them as per-beat chord labels), and
-  `ArrangementGrid` shows none of them. Drawing them in the overview, and
-  whether that needs them on bars, comes later.
-- **`ZBxx` jumps to the next locator.** Its destination today is a row in
-  the *next* section, which is the concept being removed - but the
-  command itself keeps its shape and its place in the Implemented table
-  (`Command::getBreakDestinationRow()`, `SongState`'s command loop,
-  `docs/commands.md`): it now sends the transport to a locator - `xx` is
-  its 1-based number, and `00` the next one after the current row,
-  wrapping to the first when there is none. Songs using it get their
-  destinations re-expressed as locators (`songs/backup/arptest1.xml` is
-  the only one today).
-- **File format.** `<sections>` is replaced by one arrangement element
-  holding the same per-track content at absolute rows, plus the song's own
-  locator list; the reader gains no legacy path for the old form.
-- **Why after Phase 3:** per-track overrides and playheads (Phases 2-3)
-  are what stop the arrangement from being the only source of a track's
-  content, and they're easier to land against the section model that
-  already works than against a timeline being rewritten underneath them.
-- Tests: a converted song renders the same as its sectioned original did;
-  the position helper against several rows-per-bar and beats-per-bar
-  settings, including a bar boundary and a row that isn't on a sixteenth;
-  `ZBxx` reaching the next locator, and wrapping from the last one; a
-  region spanning what used to be a section boundary.
+---
+
+## Phase 5: pausing and resuming launched clips
+
+Resolves the open question above. Candidate: a stop while playing is a
+pause - voices are released, but each taken-over track keeps its clip,
+its row on the session clock (which only advances while the transport
+runs) and anything queued, so play continues every clip where it was. A
+stop while already stopped, or stopping all clips, clears the session
+as a stop does today - the "stop once pauses, twice resets" transport
+convention. The alternative is keeping today's behavior and saying so
+in the docs.
+
+- Tests: pause and play resumes a launched clip on the row it paused
+  at, with no voices sounding in between; a queued launch survives a
+  pause and lands on the first bar after play; a second stop clears
+  every launched clip and the queue.

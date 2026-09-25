@@ -242,8 +242,7 @@ class Controller {
   // Per-buffer (which track is armed follows whichever buffer is active -
   // see recording_track_ids_' own comment): a live mirror, swapped for the
   // active buffer's own saved value on every switchToBuffer()/addBuffer()/
-  // killActiveBuffer(), same as getPlaybackInfo()/setPatternSelectionActive()
-  // below.
+  // killActiveBuffer(), same as getPlaybackInfo() below.
   int getRecordingTrackId() const { return recording_track_id; }
   void setRecordingTrackId(int track_id) { recording_track_id = track_id; }
   const AudioBuffer & getCurrentSample() const { return current_sample ? *current_sample : empty_sample; }
@@ -259,15 +258,15 @@ class Controller {
   // so the take is just as latency-compensable either way). Overwrites
   // whatever an earlier take may have left behind - a fresh call every
   // time capture starts, never a stale leftover. beginSampleCapture()
-  // below reads this back for placement; -1/-1 (the construction-time
+  // below reads this back for placement; -1 (the construction-time
   // default - "no position to place at") means unplaced, for anything
   // that creates a recording clip without ever calling this.
-  void armRecordingStart(int section, int row) { recording_start_section_ = section; recording_start_row_ = row; }
+  void armRecordingStart(int row) { recording_start_row_ = row; }
   // Whether this take has a snapshotted start position at all - UI::
   // handleRecordEvent()'s own guard against creating the clip lazily,
   // uncompensated, for a take that's actually waiting on
   // handleRecordingLatencyEvent() to do it properly instead.
-  bool isRecordingArmed() const { return recording_start_section_ >= 0; }
+  bool isRecordingArmed() const { return recording_start_row_ >= 0; }
 
   // Loudness-threshold-armed recording (a SampleTrack's own Record Arm) -
   // waiting for input to actually cross a threshold before the take
@@ -595,24 +594,9 @@ class Controller {
   void moveEditPosition(int delta_rows);
   void setEditPosition(int absolute_row);
 
-  // Whether a pattern-editor selection (mark) is currently open -
-  // PatternEditor mirrors its own selection_active_ here on every change
-  // (set-mark, kill-region/kill-ring-save's own clear, keyboard-quit, the
-  // auto-clear on playback start/pattern crossing in its render()).
-  // moveEditPosition()/setEditPosition() only clamp row navigation to the
-  // current pattern (Song::clampRowToCurrentPattern() - keeps a mark from
-  // ending up stranded in a different pattern than the cursor) while this
-  // is true; with no selection open there's nothing to strand, so
-  // navigation crosses pattern boundaries freely, the same way playback's
-  // own row-by-row advance (SongState::movePosition()) already does.
-  // Per-buffer, same swap-on-switch shape as getPlaybackInfo()/
-  // getRecordingTrackId() above - a selection open in one buffer shouldn't
-  // silently constrain navigation in a different one you've since switched
-  // to.
-  void setPatternSelectionActive(bool active) { pattern_selection_active_ = active; }
 
   // Which clip (if any) is currently focused for editing, independent of
-  // section position/instance placement - ArrangementOps.h's
+  // arrangement position/instance placement - ArrangementOps.h's
   // resolveEditTarget()/resolveReadTarget() take this as an override.
   // Empty string means no focus. Only one clip is ever focused at a
   // time, song-wide, not one per track - a clip's own id is already
@@ -797,7 +781,7 @@ class Controller {
   // end (which clears its own bookkeeping) reset the other's mid-session
   // and cause a stray re-clear that wipes notes the other session already
   // wrote this take.
-  void ensureRowCleared(std::set<std::pair<int, int>> & cleared_rows, int pattern_idx, int row, int track_id);
+  void ensureRowCleared(std::set<std::pair<int, int>> & cleared_rows, int row, int track_id);
 
   // Sweeps ensureRowCleared() over every row the transport has newly
   // passed through since the last call, for every track named in
@@ -805,37 +789,20 @@ class Controller {
   // session, shared by PatternEditor and LaunchpadManager the same way
   // ensureRowCleared() itself is (see its own comment for why the session
   // bookkeeping stays owned by the caller). Resyncs to just `new_row`
-  // rather than trying to backfill a range, if the pattern changed or the
-  // row went backwards (a loop/pattern-sequence wraparound) - a range
-  // spanning that boundary has no single well-defined meaning. `track_ids`
+  // rather than trying to backfill a range if the row went backwards (a
+  // jump back) - a range spanning that has no single well-defined
+  // meaning. `track_ids`
   // stays a caller-computed parameter rather than something this method
   // resolves itself: PatternEditor derives it from active_keyboard_notes_,
   // LaunchpadManager unions it across every device's own active_notes -
   // different data structures per input source, not shareable here.
-  void sweepAutoRecordRows(std::set<std::pair<int, int>> & cleared_rows, int & last_cleared_row, int & last_cleared_pattern_idx, int pattern_idx, int new_row, const std::vector<int> & track_ids);
-
-  // Called once per PlaybackEvent (UI::handlePlaybackEvent(), right
-  // alongside the two onRowAdvanced() calls above) while `recording` is
-  // true (the caller's own union of PatternEditor::isAutoRecording()/
-  // LaunchpadManager::isAutoRecording() - a single shared model-level
-  // concern, not tied to which input source is actually recording) and
-  // the transport is playing: if the currently-playing section
-  // (PlaybackInfo::getPatternIndex()) is already in its own last bar,
-  // grows it by one more (Section::setLengthBars()) - keeping it
-  // comfortably ahead of the actual playhead for as long as recording
-  // continues (this runs far more often than once per bar at any
-  // reasonable tempo), so a live take is never confined to a fixed
-  // pre-existing length the way ordinary (non-recording) playback still
-  // is. A no-op while stopped or not recording - ordinary note entry
-  // never needs this (PatternEditor's cursor navigation already can't
-  // reach a row past the current section's own bounds).
-  void extendRecordingSectionIfNeeded(bool recording);
+  void sweepAutoRecordRows(std::set<std::pair<int, int>> & cleared_rows, int & last_cleared_row, int new_row, const std::vector<int> & track_ids);
 
   // Generalizes beginSampleCapture()'s own lazy-creation precedent to
   // PatternEditor's/LaunchpadManager's realtime held-note recording: a
   // live take should write into a real, individually-manageable Clip
   // instance, the same as Session-view's own pooled clips, not directly
-  // into the section's own background Pattern with no identity of its own.
+  // into the track's own background Pattern with no identity of its own.
   // Called right before a live take's own note write, at (track_id, row) -
   // a no-op if a real clip is already active there (resolveInstanceAt()),
   // or if `focused_clip_id` (Controller::getFocusedClip()) overrides
@@ -848,28 +815,17 @@ class Controller {
   // has - PatternEditor's and LaunchpadManager's own recording sessions
   // are independent, so one's own map must never let the other's session
   // affect it.
-  void ensureNoteRecordingClip(std::unordered_map<int, std::string> & clip_ids, int track_id, int pattern_idx, int row);
+  void ensureNoteRecordingClip(std::unordered_map<int, std::string> & clip_ids, int track_id, int row);
 
-  // Clip::setLength()'s own counterpart to extendRecordingSectionIfNeeded()
-  // above - grows a note-recording clip's own window the same way, once
-  // the currently-playing row is near its own end, so a long live take is
-  // never silently dropped back to the background Pattern mid-take
-  // (resolveInstanceAt()'s own one-shot-expiry check would otherwise stop
-  // considering it active). Same per-row-advance call site
-  // (UI::handlePlaybackEvent(), alongside extendRecordingSectionIfNeeded()
-  // itself) - just a different target, and deliberately *not* the same
-  // trigger condition: extendRecordingSectionIfNeeded() is gated on
-  // isAutoRecording() (did *this* caller's own session start the
-  // transport - stays false if the performer had already started
-  // playback manually, e.g. from row 0, before ever arming/holding a
-  // note), but a clip this method already knows it created
-  // (`clip_ids` non-empty) needs no such gate at all - its own existence
-  // already proves a genuine live-recording write put it there, entirely
-  // independent of who happened to start the transport. Gating on
-  // isAutoRecording() here too would silently stop growing exactly the
-  // "record from the very start of the song" take that scenario
-  // describes, real playback quietly outrunning a clip nothing is
-  // extending any more. `clip_ids` names only the clips *this* caller's
+  // Grows a note-recording clip's own window once the currently-playing
+  // row is near its own end, so a long live take is never silently
+  // dropped back to the background Pattern mid-take (resolveInstanceAt()'s
+  // own one-shot-expiry check would otherwise stop considering it
+  // active). Called on every row advance (UI::handlePlaybackEvent()),
+  // ungated on who started the transport: a clip this method already
+  // knows it created (`clip_ids` non-empty) proves a genuine
+  // live-recording write put it there, so a take recorded with the
+  // transport started by hand grows the same. `clip_ids` names only the clips *this* caller's
   // own session created (ensureNoteRecordingClip() above) - never a
   // pre-existing, unrelated clip the transport merely happens to be
   // passing over while some other track's session is active, which would
@@ -960,10 +916,10 @@ class Controller {
   // beginSampleCapture()'s own counterpart to extendRecordingClipsIfNeeded()
   // above - same reasoning, same growth shape, but scoped to the one
   // SampleTrack take a mic capture session can ever have in progress
-  // (recording_clip_id_/recording_start_section_/recording_start_row_), so
+  // (recording_clip_id_/recording_start_row_), so
   // it needs no clip_ids/held_track_ids parameters of its own. A no-op
   // unless hasRecordingClip() and this take was actually placed
-  // (recording_start_section_ >= 0 - an unarmed, freeform take has nothing
+  // (recording_start_row_ >= 0 - an unarmed, freeform take has nothing
   // to grow into either, same as it has nothing to place at all). Same
   // per-row-advance call site as extendRecordingClipsIfNeeded()
   // (UI::handlePlaybackEvent()), ungated on any auto-started-playback
@@ -984,7 +940,7 @@ class Controller {
   // note, and are we not already playing" check (again per-input-source
   // state, not shareable) - so it's only ever called once per session,
   // right before that session's first write.
-  void startAutoRecordSession(bool & auto_started_playback, std::set<std::pair<int, int>> & cleared_rows, int & last_cleared_row, int & last_cleared_pattern_idx, std::unordered_map<int, std::string> & clip_ids);
+  void startAutoRecordSession(bool & auto_started_playback, std::set<std::pair<int, int>> & cleared_rows, int & last_cleared_row, std::unordered_map<int, std::string> & clip_ids);
 
   // Starts the transport for Session-view clip-trigger recording
   // (LaunchpadManager::handleSessionPadEvent()'s assign path) - unlike
@@ -1028,7 +984,7 @@ class Controller {
   // unconditionally would erase the note it belongs to instead of ending
   // it. Sweeps the row clean first (like every other live write site) when
   // this caller's own session started the transport.
-  void writeReleaseOff(std::set<std::pair<int, int>> & cleared_rows, bool auto_started_playback, int pattern_idx, int row, int track_id, int note_column, int delay);
+  void writeReleaseOff(std::set<std::pair<int, int>> & cleared_rows, bool auto_started_playback, int row, int track_id, int note_column, int delay);
 
   // Applies a pressure/aftertouch update to an already-written note -
   // shared by PatternEditor::handleMidiEvent()'s NOTE_PRESSURE handling
@@ -1039,7 +995,7 @@ class Controller {
   // reasoning elsewhere), and to resolve which row/rate-limiting rules
   // apply before calling this - only the actual read-modify-write of the
   // note itself is shared.
-  void applyNotePressure(int pattern_idx, int row, int track_id, int note_column, short velocity, int delay);
+  void applyNotePressure(int row, int track_id, int note_column, short velocity, int delay);
 
   // Emacs prefix-argument style: transient, one-shot context a caller (the
   // Launchpad command-dispatch path, UI::handleLaunchpadButtonEvent) sets
@@ -1135,19 +1091,19 @@ class Controller {
   // itself.
   void renameActiveBuffer(const std::string & new_name, Version saved_version);
   // Saves the *currently* active buffer's own live playback_info/
-  // recording_track_id/pattern_selection_active_/local_position_edit_seq_/
-  // focused_clip_id_ into their map slots - a no-op before any buffer has
+  // recording_track_id/local_position_edit_seq_/focused_clip_id_ into
+  // their map slots - a no-op before any buffer has
   // ever been active, at startup. Called right *before* a caller
   // (addBuffer()/switchToBuffer()/killActiveBuffer() below) reassigns
   // active_buffer_name_ itself under song_mutex_ - kept as its own step
   // rather than folded into a single "set the active buffer" method so it
-  // never needs to take that lock itself (these five scalars are
+  // never needs to take that lock itself (these scalars are
   // UI-thread-only, untouched by the audio thread, so they don't need it
   // - but calling in from inside a caller's own already-held lock_guard
   // would deadlock on a plain, non-recursive std::mutex).
   void saveActiveBufferState();
   // The other half of saveActiveBufferState(): loads `name`'s own map
-  // slot into the five live scalars - each defaults freshly the first
+  // slot into the live scalars - each defaults freshly the first
   // time any given buffer name is switched to, via plain
   // std::map::operator[] auto-inserting a default-constructed value, so
   // there's no separate "is this a first visit" case to handle. Called
@@ -1155,8 +1111,7 @@ class Controller {
   // `name` (so `name` here is expected to equal it).
   void loadActiveBufferState(const std::string & name);
   // Drops `name`'s own playback_info/recording_track_id/
-  // pattern_selection_active_/local_position_edit_seq_/focused_clip_id_
-  // map slot entirely - killActiveBuffer()'s own tail (nothing worth
+  // local_position_edit_seq_/focused_clip_id_ map slot entirely - killActiveBuffer()'s own tail (nothing worth
   // keeping for a buffer that's gone) and renameActiveBuffer()'s (the
   // live scalars stay authoritative through a mere rename, untouched by
   // save/loadActiveBufferState(); the *old* key's slot would just be
@@ -1176,15 +1131,14 @@ class Controller {
   std::shared_ptr<AudioBuffer> current_sample;
   InstrumentProvider instrument_provider;
   EventQueue ui_event_queue, playback_event_queue, visualization_queue;
-  // playback_info/recording_track_id/pattern_selection_active_/
-  // local_position_edit_seq_/focused_clip_id_ below are each a live
-  // mirror of whichever buffer is currently active; these five maps
+  // playback_info/recording_track_id/local_position_edit_seq_/
+  // focused_clip_id_ below are each a live mirror of whichever buffer is
+  // currently active; these maps
   // (mirroring last_saved_versions_' own shape, keyed the same way) hold
   // every *other* open buffer's own saved copy. save/loadActiveBufferState()
   // are the one place that swap between a live scalar and its map slot.
   std::map<std::string, PlaybackInfo> playback_infos_;
   std::map<std::string, int> recording_track_ids_;
-  std::map<std::string, bool> pattern_selection_actives_;
   std::map<std::string, int> local_position_edit_seqs_;
   std::map<std::string, std::string> focused_clip_ids_;
   std::map<std::string, int> focused_clip_track_ids_;
@@ -1211,7 +1165,7 @@ class Controller {
   // *start* of every take rather than only read once, so a later take
   // never accidentally inherits an earlier one's position. See
   // beginSampleCapture()'s own comment for how these get used.
-  int recording_start_section_ = -1, recording_start_row_ = -1;
+  int recording_start_row_ = -1;
   // The round-trip latency (frames) beginSampleCapture() actually trimmed
   // off this take's own in-point, if any (0 for an uncompensated/freeform
   // take) - finishSampleCapture() needs it again to compute the clip's
@@ -1281,7 +1235,6 @@ class Controller {
   std::function<void()> buffer_change_listener_;
   std::function<void(int track_id, bool opened)> drum_edit_requested_;
   int pending_command_track_ = -1;
-  bool pattern_selection_active_ = false;
   // Live mirror of the active buffer's own focused_clip_ids_/
   // focused_clip_track_ids_ slots - see getFocusedClip()'s own comment.
   // Swapped the same save/loadActiveBufferState() cycle as the other

@@ -5,7 +5,7 @@
 #include "Track.h"
 #include "MasterTrack.h"
 #include "InstrumentPool.h"
-#include "Section.h"
+#include "Arrangement.h"
 #include "Clip.h"
 #include "Scale.h"
 #include "Version.h"
@@ -96,24 +96,10 @@ class Song : public SongObject {
   short getTempo() const { return bpm_; }
   void setTempo(short bpm) { bpm_ = bpm; }
 
-  // The number of rows `section` actually spans - its own getLengthBars()
-  // converted to rows via getRowsPerBar(). The one place "how long is
-  // this section" is computed; every call site that used to read the old
-  // song-wide getPatternLength() as a stand-in for "the length of
-  // whichever section is in play" calls this instead.
-  int getEffectiveSectionLength(const Section & section) const { return section.getLengthBars() * getRowsPerBar(); }
-  // Convenience overload for a call site that only has an index, not
-  // already holding a Section& - getSection()'s own out-of-range sentinel
-  // (empty_section_) has a real length_bars_ of its own (Section's usual
-  // compiled default, same as any other section), so an out-of-range index
-  // here still returns something sane rather than 0.
-  int getEffectiveSectionLength(int section_idx) const { return getEffectiveSectionLength(getSection(section_idx)); }
-
   // The shared quantization grid (<song rowsPerBar="N">) both the
   // Launchpad Session view (SessionPlayer::advanceToStep())
   // and PatternEditor's own bar-boundary highlight measure against -
-  // independent of a section's own length (a section can span many bars;
-  // this is how many rows make just one of them). Default 16 matches this
+  // (how many rows make one bar). Default 16 matches this
   // codebase's own fixed "a row is a 16th note" convention
   // (ChannelConfiguration::getRowDuration()), so the default is an
   // ordinary 4/4 bar without inventing a second tempo-adjacent constant.
@@ -218,94 +204,28 @@ class Song : public SongObject {
   int getCurrentTrackId() const { return current_track_id_; }
   void setCurrentTrackId(int track_id) { current_track_id_ = track_id; }
 
-  const std::vector<Section> & getSections() const { return sections_; }
-  const Section & getSection(int i) const { return i >= 0 && i < static_cast<int>(sections_.size()) ? sections_[static_cast<size_t>(i)] : empty_section_; }
-  Section & getSection(int i) { return i >= 0 && i < static_cast<int>(sections_.size()) ? sections_[static_cast<size_t>(i)] : empty_section_; }
+  // The one timeline every track's arrangement content lives on.
+  const Arrangement & getArrangement() const { return arrangement_; }
+  Arrangement & getArrangement() { return arrangement_; }
 
-  // getSection()'s own write-intent counterpart: grows sections_ (via addSection(),
-  // repeated as needed) up to and including index i, so the caller always
-  // gets back a real, distinct Section rather than getSection()'s shared,
-  // process-wide empty_section_ sentinel for an out-of-range index - writing
-  // into that sentinel would silently alias every other out-of-range
-  // position in the whole process together, not persist as real song
-  // content at all. Reserved for call sites about to *write* (note entry,
-  // paste, insert-row, ...) - getSection() stays the one to
-  // use for anything read-only (rendering, copy), which must never grow
-  // the song just from being looked at. i < 0 is defensive-only (no caller
-  // should ever pass one) and falls back to the same sentinel getSection()
-  // would.
-  Section & getOrCreateSection(int i) {
-    if (i < 0) return empty_section_;
-    while (static_cast<int>(sections_.size()) <= i) addSection();
-    return sections_[static_cast<size_t>(i)];
-  }
+  // Rows the arrangement can address: row keys are 16-bit.
+  static constexpr int kMaxArrangementRows = 65536;
 
-  // Clamps `target` so it can't leave the pattern `current` falls in -
-  // used by the UI-thread edit cursor (Controller::moveEditPosition()/
-  // setEditPosition(), only ever called while stopped) and the audio
-  // thread's own handling of the MOVE_POSITION/SET_POSITION events those
-  // push (Player::handlePlaybackControlEvent()), so both sides derive the
-  // identical clamped result independently instead of one trusting a
-  // value computed by the other across the thread boundary - the same
-  // "self-clamp on both sides" pattern SongState::movePosition()/
-  // setPosition() already use for the plain "never go negative" clamp.
-  // Real playback's own row-by-row advance (SongState::renderBlock()) never
-  // goes through this - only stopped-transport cursor navigation does,
-  // which is what keeps a selection from silently spanning two patterns.
-  int clampRowToCurrentPattern(int current, int target) const {
-    auto floored = std::max(0, current);
-    auto [ section_idx, row_in_section ] = normalizePosition(0, floored);
-    auto len = getEffectiveSectionLength(section_idx);
-    if (len <= 0) return std::max(0, target);
-    auto pattern_start = floored - row_in_section;
-    return std::clamp(target, pattern_start, pattern_start + len - 1);
-  }
+  // Where the arrangement's content ends, rounded up to whole bars: its
+  // last note or command, a clip placed there playing its length once, a
+  // stop (at its own row), a background bed or a locator. 0 when empty.
+  int getArrangementLength() const;
 
-  // Turns a flat row count (row_idx, possibly spanning many sections) into
-  // (section_idx, row_in_section) - a section-by-section cumulative walk, not a
-  // uniform div/mod, since each section can have its own length. pattern_idx
-  // is the section to start the walk from (almost always 0, a flat absolute
-  // row - see toAbsoluteRow() below for the exact inverse). Contract:
-  // row_idx >= 0 on entry, true at every call site. getEffectiveSectionLength()
-  // for an out-of-range pattern_idx keeps returning a real (sentinel)
-  // value forever, so this reproduces the old "run off the end into an
-  // infinite series of same-length virtual sections" behavior exactly - a
-  // caller that stops once pattern_idx reaches the real section count
-  // (e.g. PatternEditor's own section-boundary walk) keeps working
-  // unchanged.
-  std::pair<int, int> normalizePosition(int pattern_idx, int row_idx) const {
-    while (row_idx >= 0) {
-      auto len = getEffectiveSectionLength(pattern_idx);
-      if (len <= 0 || row_idx < len) break;
-      row_idx -= len;
-      pattern_idx++;
-    }
-    return { pattern_idx, row_idx };
-  }
-
-  // The exact inverse of normalizePosition(0, ...): the flat absolute row
-  // for (section_idx, row_in_section) - every section before section_idx, summed,
-  // plus row_in_section. The one centralized place for what several call
-  // sites used to hand-roll independently as "section_idx * (the song-wide
-  // pattern length) + row".
-  int toAbsoluteRow(int section_idx, int row_in_section) const {
-    int absolute = 0;
-    for (int i = 0; i < section_idx; i++) absolute += getEffectiveSectionLength(i);
-    return absolute + row_in_section;
-  }
-
-  Section & addSection(Section section) {
-    incVersion();
-    sections_.push_back(std::move(section));
-    return sections_.back();
-  }
-
-  Section & addSection() { return addSection(Section()); }
+  // `target` clamped to the rows the arrangement can address - the
+  // UI-thread edit cursor and the audio thread's own handling of the
+  // position events it sends both apply this, so both sides derive the
+  // same result.
+  static int clampArrangementRow(int target) { return std::clamp(target, 0, kMaxArrangementRows - 1); }
 
   // The song's own flat, per-track clip list - each track's own reusable
-  // Clips, available to trigger live or assign into a section from the
-  // Launchpad's session/launch view, unconnected to any one section
-  // position (and, once actually placed as an instance, the shared
+  // Clips, available to trigger live or place in the arrangement from the
+  // Launchpad's session/launch view, unconnected to any one position
+  // (and, once actually placed as an instance, the shared
   // content behind that placement - editing it through any instance
   // updates every other one immediately). Every caller here still
   // addresses a clip by (track_id, vector index) - it's what's physically
@@ -398,28 +318,6 @@ class Song : public SongObject {
           if (clip.getId() == candidate) { taken = true; break; }
         }
         if (taken) break;
-      }
-      if (!taken) return candidate;
-    }
-  }
-
-  // A section has no id of its own by default (unlike a track or a clip,
-  // Song::addSection() never assigns one) - most sections never need one, so
-  // most songs never carry the extra XML noise. Only once a section first
-  // needs a stable identity of its own (ArrangementOps.cpp's own
-  // mergeClipToBackground(), the moment a SampleTrack background bed's
-  // sidecar file needs a name that survives the section later being
-  // reordered/another section inserted ahead of it - an ordinal position
-  // isn't stable across that, see Song.cpp's own
-  // sampleBackgroundSidecarPath() comment) does anything call this and
-  // assign the result via Section::setId(), mirroring generateUniqueClipId()
-  // above - same "assign lazily, once, on first real need" convention.
-  std::string generateUniqueSectionId() const {
-    for (int n = 1; ; n++) {
-      auto candidate = "section" + std::to_string(n);
-      bool taken = false;
-      for (auto & section : sections_) {
-        if (section.getId() == candidate) { taken = true; break; }
       }
       if (!taken) return candidate;
     }
@@ -608,11 +506,10 @@ private:
   // Song (Controller always holds one behind a shared_ptr), so a moved-
   // from Song's now-null pointer is never dereferenced in practice.
   mutable std::unique_ptr<std::mutex> tracks_mutex_ = std::make_unique<std::mutex>();
-  std::vector<Section> sections_;
+  Arrangement arrangement_;
   std::map<int, std::string> locators_;
   std::unordered_map<int, std::vector<Clip> > clips_by_track_;
 
-  static inline Section empty_section_;
   static inline std::vector<Clip> empty_clips_;
 };
 

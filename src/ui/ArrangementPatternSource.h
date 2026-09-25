@@ -6,11 +6,11 @@
 class Controller;
 class Song;
 
-// The arrangement: blocks are the song's sections, the cursor row is the
-// transport's edit position, and a cell shows whatever actually plays
-// there - a placed clip instance's notes, or the section's background.
-// Block operations act on the content the anchor row shows, per track
-// (SectionRegionGrid); effect commands always live on the section's
+// The arrangement: one block, its rows the timeline's absolute rows; the
+// cursor row is the transport's edit position, and a cell shows whatever
+// actually plays there - a placed clip instance's notes, or the track's
+// background. Block operations act on the content the anchor row shows,
+// per track (ArrangementRegionGrid); effect commands always live on the
 // background, where playback reads them.
 class ArrangementPatternSource : public PatternSource {
  public:
@@ -20,7 +20,7 @@ class ArrangementPatternSource : public PatternSource {
   void moveCursor(int delta_rows) override;
 
   RowAddress normalize(int block, int row) const override;
-  int blockCount() const override;
+  int blockCount() const override { return 1; }
   int blockLength(int block) const override;
 
   ReadTarget read(int track_id, RowAddress address) const override;

@@ -24,7 +24,7 @@ class Pattern;
 // it has at least one lane
 // (lane_notes_ - which drums this track can play, not what triggers when),
 // its grid becomes a step sequencer instead - a lane hit's actual step data
-// is an ordinary Pattern, per section, in Section::patterns_by_track_id_,
+// is an ordinary Pattern, in Arrangement::patterns_by_track_id_,
 // exactly like any other track's content (a step is just a Note whose
 // value is the lane's own GM number and whose row is the step index - see
 // getHitNotesForRow() below). isStepSequenced() is the single predicate
@@ -65,14 +65,12 @@ class PercussionTrack : public LeafTrack {
   // Adds a lane for `note` (no-op if it already has one, or if the track
   // is already at kMaxLanes) and re-derives lane order immediately. A
   // freshly added lane starts with no step data anywhere - there's
-  // nothing to seed, since steps live in each section's own Pattern, not
-  // here.
+  // nothing to seed, since steps live in the track's Patterns, not here.
   void addLane(int note);
 
   // Removes `note`'s lane and deletes every step referencing it - no
-  // confirmation, no undo - from *every* section's own Pattern for this
-  // track, not just a single track-global map, since that's where step
-  // data lives now. No-op if `note` has no lane.
+  // confirmation, no undo - from the track's arrangement Pattern and every
+  // one of its clips. No-op if `note` has no lane.
   void removeLane(int note, Song & song);
 
   // Removes every lane at once.
@@ -95,7 +93,7 @@ class PercussionTrack : public LeafTrack {
   void applyPreset(Preset preset, Song & song);
 
   // Which of this track's own lane_notes_ are hit at pattern-relative row
-  // `pattern_row` of `pattern` (that section's own Pattern for this track,
+  // `pattern_row` of `pattern` (the arrangement's own Pattern for this track,
   // or a clip's own leaf Pattern - see ArrangementOps.h - the caller
   // already has it either way) - resolved through Pattern::
   // getEffectiveRow(pattern_row, context_length) first, so a shorter
@@ -114,7 +112,7 @@ class PercussionTrack : public LeafTrack {
   // for a caller that already has one from ArrangementOps.h's
   // resolveReadTarget() (ReadTarget::effective_row), which is already
   // wrapped against the *correct* context length (a clip's own length, or
-  // the containing section's own effective length for the background) -
+  // none for the arrangement's background) -
   // calling getHitNotesForRow() on an already-wrapped row would risk
   // wrapping it a second time against the wrong one.
   std::vector<int> getHitNotesAtRow(const Pattern & pattern, int effective_row) const;

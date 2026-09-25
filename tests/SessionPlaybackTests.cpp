@@ -28,7 +28,7 @@ using namespace std;
 
 namespace {
 
-// Two tracks over one 16-row section (4 bars of 4 rows). Each track's
+// Two tracks over 16 rows (4 bars of 4 rows). Each track's
 // background plays a note on every row whose value names the row -
 // `a` 40+row, `b` 70+row - and `a` has one 4-row clip playing 100+row.
 struct SessionSong {
@@ -44,10 +44,10 @@ struct SessionSong {
     song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
     a = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
     b = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
-    auto & section = song.addSection();
+    auto & arrangement = song.getArrangement();
     for (int row = 0; row < 16; row++) {
-      section.setNote(row, a, 0, Note(40 + row, 100));
-      section.setNote(row, b, 0, Note(70 + row, 100));
+      arrangement.setNote(row, a, 0, Note(40 + row, 100));
+      arrangement.setNote(row, b, 0, Note(70 + row, 100));
     }
     Clip clip(a);
     clip.setLength(4);
@@ -178,7 +178,7 @@ TEST(session_launched_clips_own_volume_command_plays) {
 
 TEST(session_taken_over_track_ignores_its_arrangement_automation) {
   SessionSong s;
-  s.song.getSection(0).setCommand(1, s.a, Command("0L10"));
+  s.song.getArrangement().setCommand(1, s.a, Command("0L10"));
   s.queue(s.a, 0);
   s.play(2);
   unordered_map<int, TrackInfo> info;

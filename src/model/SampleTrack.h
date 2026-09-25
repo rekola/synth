@@ -70,12 +70,12 @@ RealtimeSampleAudio resolveRealtimeSampleAudio(const SampleContent & content, in
 // Additively mixes frame_count frames of `source` into `dest`'s own
 // channel-0 buffer starting at dest_offset frames in, growing/zero-filling
 // it first if it doesn't yet reach that far - the same lazy-growth shape
-// a section's own background Pattern already has (its row-keyed content is
+// a track's own background Pattern already has (its row-keyed content is
 // only ever created on first write, never pre-sized). `gain` is a plain
-// per-call multiplier, not (yet) anything Clip/Section stores anywhere -
+// per-call multiplier, not (yet) anything Clip/Arrangement stores anywhere -
 // every call site today passes 1.0 (a real per-instance loudness/velocity
 // concept doesn't exist yet). Shared by ArrangementOps.cpp's own
-// mergeClipToBackground() (baking a clip into a section's background bed)
+// mergeClipToBackground() (baking a clip into a track's background bed)
 // and Clip::rebuildMixedContent() (baking an overdubbed clip's own layers
 // down to one playable composite) - the same "sum real audio into a
 // SampleContent's own buffer" primitive either way.

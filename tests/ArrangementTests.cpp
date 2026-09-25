@@ -1,6 +1,6 @@
 #include "TestFramework.h"
 
-#include "../src/model/Section.h"
+#include "../src/model/Arrangement.h"
 #include "../src/model/Song.h"
 #include "../src/model/InstrumentTrack.h"
 #include "../src/instruments/InstrumentProvider.h"
@@ -113,39 +113,39 @@ TEST(pattern_insert_row_shifts_every_command_column) {
   CHECK(to_string(p.getCommand(1, 1)) == "1V40");
 }
 
-TEST(section_command_columns_round_trip_by_row_and_track) {
-  Section section;
-  section.setCommand(0, 1, Command("0K05"));
-  section.setCommand(0, 1, 1, Command("1V40"));
-  CHECK(to_string(section.getCommand(0, 1)) == "0K05");
-  CHECK(to_string(section.getCommand(0, 1, 1)) == "1V40");
-  CHECK(section.getCommandsAt(0, 1).size() == 2);
+TEST(arrangement_command_columns_round_trip_by_row_and_track) {
+  Arrangement arrangement;
+  arrangement.setCommand(0, 1, Command("0K05"));
+  arrangement.setCommand(0, 1, 1, Command("1V40"));
+  CHECK(to_string(arrangement.getCommand(0, 1)) == "0K05");
+  CHECK(to_string(arrangement.getCommand(0, 1, 1)) == "1V40");
+  CHECK(arrangement.getCommandsAt(0, 1).size() == 2);
 }
 
-TEST(section_push_command_finds_the_first_free_column) {
-  Section section;
-  CHECK(section.pushCommand(0, 1, Command("0K05")) == 0);
-  CHECK(section.pushCommand(0, 1, Command("1V40")) == 1);
+TEST(arrangement_push_command_finds_the_first_free_column) {
+  Arrangement arrangement;
+  CHECK(arrangement.pushCommand(0, 1, Command("0K05")) == 0);
+  CHECK(arrangement.pushCommand(0, 1, Command("1V40")) == 1);
 }
 
-TEST(section_set_pattern_for_track_replaces_the_whole_pattern) {
-  Section section;
-  section.setNote(0, 1, 0, Note(60, 100));
-  section.setNote(1, 1, 0, Note(62, 100));
+TEST(arrangement_set_pattern_for_track_replaces_the_whole_pattern) {
+  Arrangement arrangement;
+  arrangement.setNote(0, 1, 0, Note(60, 100));
+  arrangement.setNote(1, 1, 0, Note(62, 100));
 
   Pattern replacement;
   replacement.setNote(5, 0, Note(67, 100));
-  section.setPatternForTrack(1, replacement);
+  arrangement.setPatternForTrack(1, replacement);
 
-  CHECK(section.getNotes(0, 1).empty());
-  CHECK(section.getNote(5, 1, 0).getValue() == 67);
+  CHECK(arrangement.getNotes(0, 1).empty());
+  CHECK(arrangement.getNote(5, 1, 0).getValue() == 67);
 }
 
-TEST(section_set_pattern_for_track_is_a_deep_copy) {
-  Section source;
+TEST(arrangement_set_pattern_for_track_is_a_deep_copy) {
+  Arrangement source;
   source.setNote(0, 1, 0, Note(60, 100));
 
-  Section dest;
+  Arrangement dest;
   dest.setPatternForTrack(1, source.getPatternsByTrack().at(1));
 
   // Mutating the destination must never reach back into the source.
@@ -195,9 +195,9 @@ TEST(pattern_write_redirect_is_readable_from_both_the_written_and_repeated_row) 
 TEST(pattern_length_xml_round_trip) {
   Song song;
   song.addTrack(std::make_unique<InstrumentTrack>(0));
-  auto & section = song.addSection();
-  section.setNote(0, song.getRootTrackIds()[0], 0, Note(60, 100));
-  section.getPatternsByTrack()[song.getRootTrackIds()[0]].setLength(16);
+  auto & arrangement = song.getArrangement();
+  arrangement.setNote(0, song.getRootTrackIds()[0], 0, Note(60, 100));
+  arrangement.getPatternsByTrack()[song.getRootTrackIds()[0]].setLength(16);
 
   auto path = std::string(TESTS_SCRATCH_DIR) + "/pattern_length_round_trip.xml";
   song.save(path);
@@ -206,7 +206,7 @@ TEST(pattern_length_xml_round_trip) {
   InstrumentProvider provider;
   CHECK(reloaded.open(path, provider));
   auto track_id = reloaded.getRootTrackIds()[0];
-  CHECK(reloaded.getSection(0).getPatternsByTrack().at(track_id).getLength() == 16);
+  CHECK(reloaded.getArrangement().getPatternsByTrack().at(track_id).getLength() == 16);
 
   std::filesystem::remove(path);
 }
@@ -214,8 +214,8 @@ TEST(pattern_length_xml_round_trip) {
 TEST(pattern_length_absent_from_xml_when_unset) {
   Song song;
   song.addTrack(std::make_unique<InstrumentTrack>(0));
-  auto & section = song.addSection();
-  section.setNote(0, song.getRootTrackIds()[0], 0, Note(60, 100)); // length_ left at its default (0)
+  auto & arrangement = song.getArrangement();
+  arrangement.setNote(0, song.getRootTrackIds()[0], 0, Note(60, 100)); // length_ left at its default (0)
 
   auto path = std::string(TESTS_SCRATCH_DIR) + "/pattern_length_absent.xml";
   song.save(path);
@@ -224,84 +224,84 @@ TEST(pattern_length_absent_from_xml_when_unset) {
   InstrumentProvider provider;
   CHECK(reloaded.open(path, provider));
   auto track_id = reloaded.getRootTrackIds()[0];
-  CHECK(reloaded.getSection(0).getPatternsByTrack().at(track_id).getLength() == 0);
+  CHECK(reloaded.getArrangement().getPatternsByTrack().at(track_id).getLength() == 0);
 
   std::filesystem::remove(path);
 }
 
-// Section::getEffectiveRow() - the row+track_id-keyed convenience callers
+// Arrangement::getEffectiveRow() - the row+track_id-keyed convenience callers
 // without a direct Pattern reference use (PatternEditor.cpp/
 // LaunchpadManager.cpp's own note-entry write sites).
-TEST(section_effective_row_falls_back_to_raw_row_for_an_unknown_track) {
-  Section section;
-  CHECK(section.getEffectiveRow(0, 20, 64) == 20);
+TEST(arrangement_effective_row_falls_back_to_raw_row_for_an_unknown_track) {
+  Arrangement arrangement;
+  CHECK(arrangement.getEffectiveRow(0, 20, 64) == 20);
 }
 
-TEST(section_effective_row_uses_that_tracks_own_pattern_length) {
-  Section section;
-  section.setNote(0, 1, 0, Note(60, 100));
-  section.getPatternsByTrack()[1].setLength(16);
-  CHECK(section.getEffectiveRow(1, 20, 64) == 4);
+TEST(arrangement_effective_row_uses_that_tracks_own_pattern_length) {
+  Arrangement arrangement;
+  arrangement.setNote(0, 1, 0, Note(60, 100));
+  arrangement.getPatternsByTrack()[1].setLength(16);
+  CHECK(arrangement.getEffectiveRow(1, 20, 64) == 4);
 }
 
-TEST(section_insert_row_for_track_shifts_only_that_tracks_own_content) {
-  Section section;
-  section.setNote(0, 1, 0, Note(60, 100)); // track 1
-  section.setNote(0, 2, 0, Note(64, 100)); // track 2
+TEST(arrangement_insert_row_for_track_shifts_only_that_tracks_own_content) {
+  Arrangement arrangement;
+  arrangement.setNote(0, 1, 0, Note(60, 100)); // track 1
+  arrangement.setNote(0, 2, 0, Note(64, 100)); // track 2
 
-  section.insertRowForTrack(1, 0, 8); // insert a blank row at row 0, track 1 only
+  arrangement.insertRowForTrack(1, 0, 8); // insert a blank row at row 0, track 1 only
 
   // Track 1's own note shifted down to row 1.
-  CHECK(section.getNotes(0, 1).empty());
-  CHECK(section.getNote(1, 1, 0).getValue() == 60);
+  CHECK(arrangement.getNotes(0, 1).empty());
+  CHECK(arrangement.getNote(1, 1, 0).getValue() == 60);
 
   // Track 2 is untouched.
-  CHECK(section.getNote(0, 2, 0).getValue() == 64);
+  CHECK(arrangement.getNote(0, 2, 0).getValue() == 64);
 }
 
 // The arrangement layer's own instance events - independent of any
 // track's own Pattern (notes/commands).
-TEST(section_instance_events_default_to_absent) {
-  Section section;
-  CHECK(section.getInstance(1, 0).empty());
-  CHECK(section.getInstancesForTrack(1).empty());
+TEST(arrangement_instance_events_default_to_absent) {
+  Arrangement arrangement;
+  CHECK(arrangement.getInstance(1, 0).empty());
+  CHECK(arrangement.getInstancesForTrack(1).empty());
 }
 
-TEST(section_instance_events_round_trip_a_real_clip_and_a_stop) {
-  Section section;
-  section.setInstance(1, 0, "clip2"); // starting at row 0
-  section.setInstance(1, 16, "OFF"); // stop at row 16
+TEST(arrangement_instance_events_round_trip_a_real_clip_and_a_stop) {
+  Arrangement arrangement;
+  arrangement.setInstance(1, 0, "clip2"); // starting at row 0
+  arrangement.setInstance(1, 16, "OFF"); // stop at row 16
 
-  CHECK(section.getInstance(1, 0) == "clip2");
-  CHECK(section.getInstance(1, 16) == "OFF");
-  CHECK(section.getInstance(1, 8).empty()); // nothing placed there
+  CHECK(arrangement.getInstance(1, 0) == "clip2");
+  CHECK(arrangement.getInstance(1, 16) == "OFF");
+  CHECK(arrangement.getInstance(1, 8).empty()); // nothing placed there
 
-  auto & track_instances = section.getInstancesForTrack(1);
+  auto & track_instances = arrangement.getInstancesForTrack(1);
   CHECK(track_instances.size() == 2);
 
   // A different track's own instance list is entirely independent.
-  CHECK(section.getInstancesForTrack(2).empty());
+  CHECK(arrangement.getInstancesForTrack(2).empty());
 }
 
-TEST(section_instance_events_can_be_cleared) {
-  Section section;
-  section.setInstance(1, 0, "clip2");
-  section.clearInstance(1, 0);
-  CHECK(section.getInstance(1, 0).empty());
-  CHECK(section.getInstancesForTrack(1).empty());
+TEST(arrangement_instance_events_can_be_cleared) {
+  Arrangement arrangement;
+  arrangement.setInstance(1, 0, "clip2");
+  arrangement.clearInstance(1, 0);
+  CHECK(arrangement.getInstance(1, 0).empty());
+  CHECK(arrangement.getInstancesForTrack(1).empty());
 }
 
 // getInstancesForTrack() is ordered (std::map), not this class's usual
 // unordered_map, precisely so a caller can walk it in row order - insert
 // out of order here and confirm it comes back sorted.
-TEST(section_instance_events_for_a_track_are_kept_in_row_order) {
-  Section section;
-  section.setInstance(1, 32, "clip0");
-  section.setInstance(1, 0, "clip1");
-  section.setInstance(1, 16, "OFF");
+TEST(arrangement_instance_events_for_a_track_are_kept_in_row_order) {
+  Arrangement arrangement;
+  arrangement.setInstance(1, 32, "clip0");
+  arrangement.setInstance(1, 0, "clip1");
+  arrangement.setInstance(1, 16, "OFF");
 
   std::vector<unsigned short> rows;
-  for (auto & [ row, clip_id ] : section.getInstancesForTrack(1)) rows.push_back(row);
+  for (auto & [ row, clip_id ] : arrangement.getInstancesForTrack(1)) rows.push_back(row);
   CHECK(rows.size() == 3);
   if (rows.size() == 3) {
     CHECK(rows[0] == 0);

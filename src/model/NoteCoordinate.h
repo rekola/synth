@@ -23,15 +23,8 @@
 //
 // track_id/column mirror GridPosition.h's own track/col addressing
 // (minus its UI-only subcol/scope fields, which have no equivalent
-// here). absolute_row stands in for what would otherwise be two fields -
-// which Section (Section.h - "one span in the song's linear arrangement") and which row within
-// it - collapsed into one plain row count by whoever builds this
-// coordinate, not by this class: NoteCoordinate has no business knowing
-// how to turn (section_idx, row_idx) into one flat row count (each section
-// can have its own length - Song::toAbsoluteRow() is the one place that
-// encoding actually happens) - that's SongState.h's own computation, done
-// once, right where it already has both section_idx/row_idx and the Song in
-// scope. Built from the note's *authored* position only - never from how
+// here). absolute_row is the note's row on the arrangement's timeline.
+// Built from the note's *authored* position only - never from how
 // many rows the transport has actually played (which varies with
 // pattern-break jumps/loops and would make the same authored cell draw a
 // different coordinate depending on playback history - the exact
