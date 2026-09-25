@@ -13,17 +13,36 @@
       <lane note="CR"/>
     </percussionTrack>
   </tracks>
-  <sections>
-    <section length="32">
-      <pattern track="0" length="8">
-        <note row="0" velocity="100" value="BD"/>
-        <note row="4" velocity="100" value="BD"/>
-        <note row="4" column="1" velocity="100" value="SD"/>
-        <note row="0" column="2" velocity="100" value="CH"/>
-        <note row="2" column="2" velocity="100" value="CH"/>
-        <note row="4" column="2" velocity="100" value="CH"/>
-        <note row="6" column="2" velocity="100" value="CH"/>
-      </pattern>
-    </section>
-  </sections>
+  <arrangement>
+    <pattern track="0">
+      <note row="0" velocity="100" value="BD"/>
+      <note row="4" velocity="100" value="BD"/>
+      <note row="4" column="1" velocity="100" value="SD"/>
+      <note row="0" column="2" velocity="100" value="CH"/>
+      <note row="2" column="2" velocity="100" value="CH"/>
+      <note row="4" column="2" velocity="100" value="CH"/>
+      <note row="6" column="2" velocity="100" value="CH"/>
+      <note row="8" velocity="100" value="BD"/>
+      <note row="12" velocity="100" value="BD"/>
+      <note row="12" column="1" velocity="100" value="SD"/>
+      <note row="8" column="2" velocity="100" value="CH"/>
+      <note row="10" column="2" velocity="100" value="CH"/>
+      <note row="12" column="2" velocity="100" value="CH"/>
+      <note row="14" column="2" velocity="100" value="CH"/>
+      <note row="16" velocity="100" value="BD"/>
+      <note row="20" velocity="100" value="BD"/>
+      <note row="20" column="1" velocity="100" value="SD"/>
+      <note row="16" column="2" velocity="100" value="CH"/>
+      <note row="18" column="2" velocity="100" value="CH"/>
+      <note row="20" column="2" velocity="100" value="CH"/>
+      <note row="22" column="2" velocity="100" value="CH"/>
+      <note row="24" velocity="100" value="BD"/>
+      <note row="28" velocity="100" value="BD"/>
+      <note row="28" column="1" velocity="100" value="SD"/>
+      <note row="24" column="2" velocity="100" value="CH"/>
+      <note row="26" column="2" velocity="100" value="CH"/>
+      <note row="28" column="2" velocity="100" value="CH"/>
+      <note row="30" column="2" velocity="100" value="CH"/>
+    </pattern>
+  </arrangement>
 </song>

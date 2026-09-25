@@ -6,16 +6,10 @@
       <lane note="SD"/>
     </percussionTrack>
   </tracks>
-  <sections>
-    <section length="5">
-      <pattern track="0">
-        <note row="0" velocity="100" value="BD"/>
-      </pattern>
-    </section>
-    <section length="5">
-      <pattern track="0">
-        <note row="1" velocity="100" value="SD"/>
-      </pattern>
-    </section>
-  </sections>
+  <arrangement>
+    <pattern track="0">
+      <note row="0" velocity="100" value="BD"/>
+      <note row="6" velocity="100" value="SD"/>
+    </pattern>
+  </arrangement>
 </song>

@@ -73,37 +73,29 @@
     <track id="3" instrument="3" sendA="-9.1186" distance="1" azimuth="90" extent="1.5" />
   </tracks>
   
-  <sections>
-    <section length="4">
-      <pattern track="0">
-        <note row="0" velocity="40">G-3</note>
-        <note row="16" velocity="40">F-3</note>
-        <note row="32" velocity="40">Eb3</note>
-        <note row="48" velocity="40">C-3</note>
-      </pattern>
-      <pattern track="1">
-        <note row="0" velocity="40">G-4 B-4 D-5</note>
-        <note row="16" velocity="40">F-4 A-4 C-5</note>
-        <note row="32" velocity="40">Eb4 G-4 Bb4</note>
-        <note row="48" velocity="40">C-4 Eb4 G-4</note>
-      </pattern>
-    </section>
-    <section length="4">
-      <pattern track="0">
-        <note row="0" velocity="40">G-3</note>
-        <note row="16" velocity="40">F-3</note>
-        <note row="32" velocity="40">Eb3</note>
-        <note row="48" velocity="40">C-3</note>
-      </pattern>
-      <pattern track="1">
-        <note row="0" velocity="40">G-4 B-4 D-5</note>
-        <note row="16" velocity="40">F-4 A-4 C-5</note>
-        <note row="32" velocity="40">Eb4 G-4 Bb4</note>
-        <note row="48" velocity="40">C-4 Eb4 G-4</note>
-      </pattern>
-      <pattern track="2">
-        <note row="0" velocity="40">G-4</note>
-      </pattern>
-    </section>
-  </sections>
+  <arrangement>
+    <pattern track="0">
+      <note row="0" velocity="40">G-3</note>
+      <note row="16" velocity="40">F-3</note>
+      <note row="32" velocity="40">Eb3</note>
+      <note row="48" velocity="40">C-3</note>
+      <note row="64" velocity="40">G-3</note>
+      <note row="80" velocity="40">F-3</note>
+      <note row="96" velocity="40">Eb3</note>
+      <note row="112" velocity="40">C-3</note>
+    </pattern>
+    <pattern track="1">
+      <note row="0" velocity="40">G-4 B-4 D-5</note>
+      <note row="16" velocity="40">F-4 A-4 C-5</note>
+      <note row="32" velocity="40">Eb4 G-4 Bb4</note>
+      <note row="48" velocity="40">C-4 Eb4 G-4</note>
+      <note row="64" velocity="40">G-4 B-4 D-5</note>
+      <note row="80" velocity="40">F-4 A-4 C-5</note>
+      <note row="96" velocity="40">Eb4 G-4 Bb4</note>
+      <note row="112" velocity="40">C-4 Eb4 G-4</note>
+    </pattern>
+    <pattern track="2">
+      <note row="64" velocity="40">G-4</note>
+    </pattern>
+  </arrangement>
 </song>

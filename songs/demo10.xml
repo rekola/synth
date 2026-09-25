@@ -16,94 +16,84 @@
     <locator row="72">F Major</locator>
     <locator row="128">Major Scale test</locator>
   </locators>
-  <sections>
-    <section length="4">
-      <!--
+  <arrangement>
+    <!--
         <note track="0" row="2" velocity="40" value="D𝄫4" uncertain="1" />
         <note track="0" row="4" velocity="40" value="C♯4" uncertain="1" />
         <note track="0" row="6" velocity="40" value="D♭4"/>
         <note track="0" row="8" velocity="40" value="C𝄪4"/>
         -->
-      <!--
+    <!--
         <annotation row="10">D minor</annotation>
         <note track="0" row="10" velocity="40" value="D-4" />
         <note track="0" row="10" column="1" velocity="40" value="F-4" />
         <note track="0" row="10" column="2" velocity="40" value="A-4"  />
         -->
-      <!--
+    <!--
         <note track="0" row="12" velocity="40" value="E𝄫4"/>
         -->
-      <!--
+    <!--
         <note track="0" row="16" velocity="40" value="E♭4"/>
         <note track="0" row="18" velocity="40" value="E-4"/>
         -->
-      <!--
+    <!--
         <note track="0" row="22" velocity="40" value="G-4"/>
         -->
-      <!--
+    <!--
         <annotation row="24">A quartal major</annotation>
         <note track="0" row="24" velocity="40" value="A-4"/>
         <note track="0" row="24" column="1" velocity="40" value="B#4"/>
         <note track="0" row="24" column="2" velocity="40" value="D-5"/>
         -->
-      <pattern track="0">
-        <note row="0" velocity="40" value="C-4" />
-        <note row="0" column="1" velocity="40" value="D♯4" />
-        <note row="0" column="2" velocity="40" value="F-4" />
-        <note row="14" velocity="40" value="D♯4" keep="1" />
-        <note row="14" column="1" velocity="40" value="F-4" keep="1" />
-        <note row="14" column="2" velocity="40" value="A#4" keep="1" />
-        <note row="20" velocity="40" value="F-4" />
-        <note row="20" column="1" velocity="40" value="A#4" />
-        <note row="20" column="2" velocity="40" value="C-5" />
-        <note row="26" velocity="40" value="A♯4" />
-        <note row="26" column="1" velocity="40" value="C-5" />
-        <note row="26" column="2" velocity="40" value="D♯5" />
-        <!--
+    <pattern track="0">
+      <note row="0" velocity="40" value="C-4" />
+      <note row="0" column="1" velocity="40" value="D♯4" />
+      <note row="0" column="2" velocity="40" value="F-4" />
+      <note row="14" velocity="40" value="D♯4" keep="1" />
+      <note row="14" column="1" velocity="40" value="F-4" keep="1" />
+      <note row="14" column="2" velocity="40" value="A#4" keep="1" />
+      <note row="20" velocity="40" value="F-4" />
+      <note row="20" column="1" velocity="40" value="A#4" />
+      <note row="20" column="2" velocity="40" value="C-5" />
+      <note row="26" velocity="40" value="A♯4" />
+      <note row="26" column="1" velocity="40" value="C-5" />
+      <note row="26" column="2" velocity="40" value="D♯5" />
+      <!--
         <note track="0" row="28" velocity="40" value="B♭4"/>
         <note track="0" row="30" velocity="40" value="A𝄪4"/>
         <note track="0" row="32" velocity="40" value="B-4"/>
         <note track="0" row="34" velocity="40" value="Cb5"/>
         <note track="0" row="36" velocity="40" value="B♯4" uncertain="1"/>
         -->
-      </pattern>
-    </section>
-    <section length="4">
-      <pattern track="0">
-        <note row="0" velocity="40" value="C-4" />
-        <note row="0" column="1" velocity="40" value="E𝄫4" />
-        <note row="0" column="2" velocity="40" value="F-4" />
-        <note row="4" velocity="40" value="E𝄫4" keep="1" />
-        <note row="4" column="1" velocity="40" value="F-4" keep="1" />
-        <note row="4" column="2" velocity="40" value="A#4" keep="1" />
-        <note row="8" velocity="40" value="F-4" />
-        <note row="8" column="1" velocity="40" value="A#4" />
-        <note row="8" column="2" velocity="40" value="C-5" />
-      </pattern>
-    </section>
-    <section length="4">
-      <pattern track="0">
-        <note row="0" velocity="40" value="C-4" />
-        <note row="2" velocity="40" value="D𝄫4" />
-        <note row="4" velocity="40" value="C♯4" />
-        <note row="6" velocity="40" value="D♭4" />
-        <note row="8" velocity="40" value="C𝄪4" />
-        <note row="10" velocity="40" value="D-4" />
-        <note row="12" velocity="40" value="E𝄫4" />
-        <note row="14" velocity="40" value="D♯4" />
-        <note row="16" velocity="40" value="E♭4" />
-        <note row="18" velocity="40" value="E-4" keep="1" />
-        <note row="20" velocity="40" value="F-4" />
-        <note row="22" velocity="40" value="G-4" keep="1" />
-        <note row="24" velocity="40" value="A-4" />
-        <note row="26" velocity="40" value="A♯4" />
-        <note row="28" velocity="40" value="B♭4" />
-        <note row="30" velocity="40" value="A𝄪4" />
-        <note row="32" velocity="40" value="B-4" />
-        <note row="34" velocity="40" value="Cb5" />
-        <note row="36" velocity="40" value="B♯4" />
-        <note row="38" velocity="40" value="C-5" />
-      </pattern>
-    </section>
-  </sections>
+      <note row="64" velocity="40" value="C-4" />
+      <note row="64" column="1" velocity="40" value="E𝄫4" />
+      <note row="64" column="2" velocity="40" value="F-4" />
+      <note row="68" velocity="40" value="E𝄫4" keep="1" />
+      <note row="68" column="1" velocity="40" value="F-4" keep="1" />
+      <note row="68" column="2" velocity="40" value="A#4" keep="1" />
+      <note row="72" velocity="40" value="F-4" />
+      <note row="72" column="1" velocity="40" value="A#4" />
+      <note row="72" column="2" velocity="40" value="C-5" />
+      <note row="128" velocity="40" value="C-4" />
+      <note row="130" velocity="40" value="D𝄫4" />
+      <note row="132" velocity="40" value="C♯4" />
+      <note row="134" velocity="40" value="D♭4" />
+      <note row="136" velocity="40" value="C𝄪4" />
+      <note row="138" velocity="40" value="D-4" />
+      <note row="140" velocity="40" value="E𝄫4" />
+      <note row="142" velocity="40" value="D♯4" />
+      <note row="144" velocity="40" value="E♭4" />
+      <note row="146" velocity="40" value="E-4" keep="1" />
+      <note row="148" velocity="40" value="F-4" />
+      <note row="150" velocity="40" value="G-4" keep="1" />
+      <note row="152" velocity="40" value="A-4" />
+      <note row="154" velocity="40" value="A♯4" />
+      <note row="156" velocity="40" value="B♭4" />
+      <note row="158" velocity="40" value="A𝄪4" />
+      <note row="160" velocity="40" value="B-4" />
+      <note row="162" velocity="40" value="Cb5" />
+      <note row="164" velocity="40" value="B♯4" />
+      <note row="166" velocity="40" value="C-5" />
+    </pattern>
+  </arrangement>
 </song>

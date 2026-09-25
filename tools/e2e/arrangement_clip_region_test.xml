@@ -21,29 +21,28 @@
       </clip>
     </trackClips>
   </clips>
-  <sections>
-    <section length="4">
-      <pattern track="0">
-        <note row="0" velocity="80" value="C-4" />
-        <note row="1" velocity="80" value="C-4" />
-        <note row="2" velocity="80" value="C-4" />
-        <note row="3" velocity="80" value="C-4" />
-        <note row="4" velocity="80" value="C-4" />
-        <note row="5" velocity="80" value="C-4" />
-        <note row="6" velocity="80" value="C-4" />
-        <note row="7" velocity="80" value="C-4" />
-        <note row="8" velocity="80" value="C-4" />
-        <note row="9" velocity="80" value="C-4" />
-        <note row="10" velocity="80" value="C-4" />
-        <note row="11" velocity="80" value="C-4" />
-        <note row="12" velocity="80" value="C-4" />
-        <note row="13" velocity="80" value="C-4" />
-        <note row="14" velocity="80" value="C-4" />
-        <note row="15" velocity="80" value="C-4" />
-      </pattern>
-      <arrangement track="0">
-        <instance row="4">c0</instance>
-      </arrangement>
-    </section>
-  </sections>
+  <arrangement>
+    <pattern track="0">
+      <note row="0" velocity="80" value="C-4" />
+      <note row="1" velocity="80" value="C-4" />
+      <note row="2" velocity="80" value="C-4" />
+      <note row="3" velocity="80" value="C-4" />
+      <note row="4" velocity="80" value="C-4" />
+      <note row="5" velocity="80" value="C-4" />
+      <note row="6" velocity="80" value="C-4" />
+      <note row="7" velocity="80" value="C-4" />
+      <note row="8" velocity="80" value="C-4" />
+      <note row="9" velocity="80" value="C-4" />
+      <note row="10" velocity="80" value="C-4" />
+      <note row="11" velocity="80" value="C-4" />
+      <note row="12" velocity="80" value="C-4" />
+      <note row="13" velocity="80" value="C-4" />
+      <note row="14" velocity="80" value="C-4" />
+      <note row="15" velocity="80" value="C-4" />
+    </pattern>
+    <instances track="0">
+      <instance row="4">c0</instance>
+      <instance row="16">OFF</instance>
+    </instances>
+  </arrangement>
 </song>

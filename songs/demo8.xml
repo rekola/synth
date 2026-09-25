@@ -6,62 +6,56 @@
   <tracks>
     <track id="1" azimuth="30" distance="0" elevation="50" volume="0.5" instrument="0"/>
   </tracks>
-  <sections>
-    <section length="2">
-      <pattern track="1">
-        <note row="0" velocity="63" value="C-4" />
-        <note row="0" column="1" velocity="63" value="D#4" />
-        <note row="0" column="2" velocity="63" value="F-4" />
-        <note row="4" velocity="63" value="D♯4" />
-        <note row="4" column="1" velocity="63" value="F-4" />
-        <note row="4" column="2" velocity="63" value="A♯4" />
-        <note row="8" velocity="63" value="D♯4" />
-        <note row="8" column="1" velocity="63" value="F-4" />
-        <note row="8" column="2" velocity="63" value="A♯4" />
-        <note row="11" velocity="63" value="F-4" />
-        <note row="11" column="1" velocity="63" value="A#4" />
-        <note row="11" column="2" velocity="63" value="C-5" />
-        <note row="16" velocity="63" value="C-4" />
-        <note row="16" column="1" velocity="63" value="D#4" />
-        <note row="16" column="2" velocity="63" value="F-4" />
-        <note row="20" velocity="63" value="D♯4" />
-        <note row="20" column="1" velocity="63" value="F-4" />
-        <note row="20" column="2" velocity="63" value="A♯4" />
-        <note row="24" velocity="63" value="D♯4" />
-        <note row="24" column="1" velocity="63" value="F-4" />
-        <note row="24" column="2" velocity="63" value="A♯4" />
-        <note row="27" velocity="63" value="F-4" />
-        <note row="27" column="1" velocity="63" value="A#4" />
-        <note row="27" column="2" velocity="63" value="C-5" />
-      </pattern>
-    </section>
-    <section length="2">
-      <pattern track="1">
-        <note row="0" velocity="63" value="C-4" />
-        <note row="0" column="1" velocity="63" value="E-4" />
-        <note row="0" column="2" velocity="63" value="G-4" />
-        <note row="4" velocity="63" value="D♯4" />
-        <note row="4" column="1" velocity="63" value="G-4" />
-        <note row="4" column="2" velocity="63" value="A♯4" />
-        <note row="8" velocity="63" value="D♯4" />
-        <note row="8" column="1" velocity="63" value="G-4" />
-        <note row="8" column="2" velocity="63" value="A♯4" />
-        <note row="11" velocity="63" value="F-4" />
-        <note row="11" column="1" velocity="63" value="A-4" />
-        <note row="11" column="2" velocity="63" value="C-5" />
-        <note row="16" velocity="63" value="C-4" />
-        <note row="16" column="1" velocity="63" value="E-4" />
-        <note row="16" column="2" velocity="63" value="G-4" />
-        <note row="20" velocity="63" value="D♯4" />
-        <note row="20" column="1" velocity="63" value="G-4" />
-        <note row="20" column="2" velocity="63" value="A♯4" />
-        <note row="24" velocity="63" value="D♯4" />
-        <note row="24" column="1" velocity="63" value="G-4" />
-        <note row="24" column="2" velocity="63" value="A♯4" />
-        <note row="27" velocity="63" value="F-4" />
-        <note row="27" column="1" velocity="63" value="A-4" />
-        <note row="27" column="2" velocity="63" value="C-5" />
-      </pattern>
-    </section>
-  </sections>
+  <arrangement>
+    <pattern track="1">
+      <note row="0" velocity="63" value="C-4" />
+      <note row="0" column="1" velocity="63" value="D#4" />
+      <note row="0" column="2" velocity="63" value="F-4" />
+      <note row="4" velocity="63" value="D♯4" />
+      <note row="4" column="1" velocity="63" value="F-4" />
+      <note row="4" column="2" velocity="63" value="A♯4" />
+      <note row="8" velocity="63" value="D♯4" />
+      <note row="8" column="1" velocity="63" value="F-4" />
+      <note row="8" column="2" velocity="63" value="A♯4" />
+      <note row="11" velocity="63" value="F-4" />
+      <note row="11" column="1" velocity="63" value="A#4" />
+      <note row="11" column="2" velocity="63" value="C-5" />
+      <note row="16" velocity="63" value="C-4" />
+      <note row="16" column="1" velocity="63" value="D#4" />
+      <note row="16" column="2" velocity="63" value="F-4" />
+      <note row="20" velocity="63" value="D♯4" />
+      <note row="20" column="1" velocity="63" value="F-4" />
+      <note row="20" column="2" velocity="63" value="A♯4" />
+      <note row="24" velocity="63" value="D♯4" />
+      <note row="24" column="1" velocity="63" value="F-4" />
+      <note row="24" column="2" velocity="63" value="A♯4" />
+      <note row="27" velocity="63" value="F-4" />
+      <note row="27" column="1" velocity="63" value="A#4" />
+      <note row="27" column="2" velocity="63" value="C-5" />
+      <note row="32" velocity="63" value="C-4" />
+      <note row="32" column="1" velocity="63" value="E-4" />
+      <note row="32" column="2" velocity="63" value="G-4" />
+      <note row="36" velocity="63" value="D♯4" />
+      <note row="36" column="1" velocity="63" value="G-4" />
+      <note row="36" column="2" velocity="63" value="A♯4" />
+      <note row="40" velocity="63" value="D♯4" />
+      <note row="40" column="1" velocity="63" value="G-4" />
+      <note row="40" column="2" velocity="63" value="A♯4" />
+      <note row="43" velocity="63" value="F-4" />
+      <note row="43" column="1" velocity="63" value="A-4" />
+      <note row="43" column="2" velocity="63" value="C-5" />
+      <note row="48" velocity="63" value="C-4" />
+      <note row="48" column="1" velocity="63" value="E-4" />
+      <note row="48" column="2" velocity="63" value="G-4" />
+      <note row="52" velocity="63" value="D♯4" />
+      <note row="52" column="1" velocity="63" value="G-4" />
+      <note row="52" column="2" velocity="63" value="A♯4" />
+      <note row="56" velocity="63" value="D♯4" />
+      <note row="56" column="1" velocity="63" value="G-4" />
+      <note row="56" column="2" velocity="63" value="A♯4" />
+      <note row="59" velocity="63" value="F-4" />
+      <note row="59" column="1" velocity="63" value="A-4" />
+      <note row="59" column="2" velocity="63" value="C-5" />
+    </pattern>
+  </arrangement>
 </song>

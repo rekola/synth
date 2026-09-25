@@ -32,16 +32,14 @@
     <locator row="16">C minor + B</locator>
     <locator row="20">C major + B</locator>
   </locators>
-  <sections>
-    <section length="2">
-      <pattern track="0">
-        <note row="0" column="0" velocity="40">C-4 E♭4 G-4 Bb4</note>
-        <note row="4" column="0" velocity="40">C-4 E-4 G-4 Bb4</note>
-        <note row="8" column="0" velocity="40">C-4 E♭4 G-4 Ax4</note>
-        <note row="12" column="0" velocity="40">C-4 E-4 G-4 Ax4</note>
-        <note row="16" column="0" velocity="40">C-4 E♭4 G-4 B-4</note>
-        <note row="20" column="0" velocity="40">C-4 E-4 G-4 B-4</note>
-      </pattern>
-    </section>
-  </sections>
+  <arrangement>
+    <pattern track="0">
+      <note row="0" column="0" velocity="40">C-4 E♭4 G-4 Bb4</note>
+      <note row="4" column="0" velocity="40">C-4 E-4 G-4 Bb4</note>
+      <note row="8" column="0" velocity="40">C-4 E♭4 G-4 Ax4</note>
+      <note row="12" column="0" velocity="40">C-4 E-4 G-4 Ax4</note>
+      <note row="16" column="0" velocity="40">C-4 E♭4 G-4 B-4</note>
+      <note row="20" column="0" velocity="40">C-4 E-4 G-4 B-4</note>
+    </pattern>
+  </arrangement>
 </song>

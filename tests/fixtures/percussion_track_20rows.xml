@@ -5,11 +5,10 @@
       <lane note="BD"/>
     </percussionTrack>
   </tracks>
-  <sections>
-    <section length="20">
-      <pattern track="0" length="8">
-        <note row="4" velocity="100" value="BD"/>
-      </pattern>
-    </section>
-  </sections>
+  <arrangement>
+    <pattern track="0">
+      <note row="4" velocity="100" value="BD"/>
+      <note row="12" velocity="100" value="BD"/>
+    </pattern>
+  </arrangement>
 </song>

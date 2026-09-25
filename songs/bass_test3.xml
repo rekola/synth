@@ -41,32 +41,30 @@
     </amplifier>
   </tracks>
   
-  <sections>
-    <section length="8">
-      <pattern track="lead">
-        <note row="0" velocity="40">D#5</note>
-        <note row="4" velocity="40">D#5</note>
-        <note row="8" velocity="40">D#5</note>
-        <note row="12" velocity="40">D#5</note>
-        <note row="16" velocity="40">D#5</note>
-        <note row="18" velocity="40" delay="240">C-5</note>
-        <note row="20" velocity="40" delay="128">A𝄰4</note>
-        <note row="22" velocity="40" delay="240">A-4</note>
-        <note row="27" velocity="40">A𝄰4</note>
-        <note row="28" velocity="40" delay="40">A-4</note>
-        <note row="30" velocity="40" delay="128">G-4</note>
-        <note row="32" velocity="40">D#5</note>
-        <note row="36" velocity="40">D#5</note>
-        <note row="40" velocity="40">D#5</note>
-        <note row="44" velocity="40">D#5</note>
-        <note row="48" velocity="40">D#5</note>
-        <note row="50" velocity="40" delay="240">A𝄰4</note>
-        <note row="52" velocity="40" delay="128">G-4</note>
-        <note row="54" velocity="40" delay="240">C-4</note>
-      </pattern>
-      <pattern track="chords">
-        <note row="0">D#3 C-4 A𝄰4</note>
-      </pattern>
-    </section>
-  </sections>
+  <arrangement>
+    <pattern track="lead">
+      <note row="0" velocity="40">D#5</note>
+      <note row="4" velocity="40">D#5</note>
+      <note row="8" velocity="40">D#5</note>
+      <note row="12" velocity="40">D#5</note>
+      <note row="16" velocity="40">D#5</note>
+      <note row="18" velocity="40" delay="240">C-5</note>
+      <note row="20" velocity="40" delay="128">A𝄰4</note>
+      <note row="22" velocity="40" delay="240">A-4</note>
+      <note row="27" velocity="40">A𝄰4</note>
+      <note row="28" velocity="40" delay="40">A-4</note>
+      <note row="30" velocity="40" delay="128">G-4</note>
+      <note row="32" velocity="40">D#5</note>
+      <note row="36" velocity="40">D#5</note>
+      <note row="40" velocity="40">D#5</note>
+      <note row="44" velocity="40">D#5</note>
+      <note row="48" velocity="40">D#5</note>
+      <note row="50" velocity="40" delay="240">A𝄰4</note>
+      <note row="52" velocity="40" delay="128">G-4</note>
+      <note row="54" velocity="40" delay="240">C-4</note>
+    </pattern>
+    <pattern track="chords">
+      <note row="0">D#3 C-4 A𝄰4</note>
+    </pattern>
+  </arrangement>
 </song>

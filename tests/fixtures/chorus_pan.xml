@@ -10,11 +10,9 @@
       <track id="0" instrument="0" azimuth="90"/>
     </chorus>
   </tracks>
-  <sections>
-    <section length="8">
-      <pattern track="0">
-        <note row="0" velocity="80" value="C-4" />
-      </pattern>
-    </section>
-  </sections>
+  <arrangement>
+    <pattern track="0">
+      <note row="0" velocity="80" value="C-4" />
+    </pattern>
+  </arrangement>
 </song>

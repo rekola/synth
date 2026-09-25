@@ -22,8 +22,6 @@
     <percussionTrack id="0" instrument="0" />
     <track id="1" instrument="0" />
   </tracks>
-  <sections>
-    <section>
-    </section>
-  </sections>
+  <arrangement>
+  </arrangement>
 </song>

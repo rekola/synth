@@ -20,34 +20,28 @@
     <locator row="80">Bb minor</locator>
     <locator row="84">C minor</locator>
   </locators>
-  <sections>
-    <section length="3">
-      <pattern track="0">
-        <note row="0" velocity="40" value="C-4" />
-        <note row="2" velocity="40" value="Db4" />
-        <note row="4" velocity="40" value="E𝄫4" />
-        <note row="6" velocity="40" value="Eb4" />
-        <note row="8" velocity="40" value="F-4" />
-        <note row="10" velocity="40" value="G-4" />
-        <note row="12" velocity="40" value="Ab4" />
-        <note row="14" velocity="40" value="B𝄫4" />
-        <note row="16" velocity="40" value="Bb4" />
-        <note row="18" velocity="40" value="C-5" />
-      </pattern>
-    </section>
-    <section length="3">
-      <pattern track="0">
-        <note row="0" velocity="40">C-4 Eb4 G-4</note>
-        <note row="4" velocity="40">Db4 F-4 Ab4</note>
-        <note row="8" velocity="40">E𝄫4 F-4 B𝄫4</note>
-        <note row="12" velocity="40">Eb4 G-4 Bb4</note>
-        <note row="16" velocity="40">F-4 Ab4 C-5</note>
-        <note row="20" velocity="40">G-4 B𝄫4 C-5</note>
-        <note row="24" velocity="40">Ab4 C-5 Eb5</note>
-        <note row="28" velocity="40">B𝄫4 C-5 E𝄫5</note>
-        <note row="32" velocity="40">Bb4 Db5 F-5</note>
-        <note row="36" velocity="40">C-5 Eb5 G-5</note>
-      </pattern>
-    </section>
-  </sections>
+  <arrangement>
+    <pattern track="0">
+      <note row="0" velocity="40" value="C-4" />
+      <note row="2" velocity="40" value="Db4" />
+      <note row="4" velocity="40" value="E𝄫4" />
+      <note row="6" velocity="40" value="Eb4" />
+      <note row="8" velocity="40" value="F-4" />
+      <note row="10" velocity="40" value="G-4" />
+      <note row="12" velocity="40" value="Ab4" />
+      <note row="14" velocity="40" value="B𝄫4" />
+      <note row="16" velocity="40" value="Bb4" />
+      <note row="18" velocity="40" value="C-5" />
+      <note row="48" velocity="40">C-4 Eb4 G-4</note>
+      <note row="52" velocity="40">Db4 F-4 Ab4</note>
+      <note row="56" velocity="40">E𝄫4 F-4 B𝄫4</note>
+      <note row="60" velocity="40">Eb4 G-4 Bb4</note>
+      <note row="64" velocity="40">F-4 Ab4 C-5</note>
+      <note row="68" velocity="40">G-4 B𝄫4 C-5</note>
+      <note row="72" velocity="40">Ab4 C-5 Eb5</note>
+      <note row="76" velocity="40">B𝄫4 C-5 E𝄫5</note>
+      <note row="80" velocity="40">Bb4 Db5 F-5</note>
+      <note row="84" velocity="40">C-5 Eb5 G-5</note>
+    </pattern>
+  </arrangement>
 </song>

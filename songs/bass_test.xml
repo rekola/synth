@@ -32,18 +32,16 @@
     <track id="2" instrument="2" />
   </tracks>
   
-  <sections>
-    <section length="8">
-      <pattern track="0">
-        <note row="0" velocity="40">C-1</note>
-        <note row="6" velocity="40">F-1</note>
-        <note row="9" velocity="40">Db1</note>
-        <note row="16" velocity="40">OFF</note>
-        <note row="24" velocity="40">C-1</note>
-        <note row="30" velocity="40">F-1</note>
-        <note row="33" velocity="40">Db1</note>
-        <note row="40" velocity="40">OFF</note>
-      </pattern>
-    </section>
-  </sections>
+  <arrangement>
+    <pattern track="0">
+      <note row="0" velocity="40">C-1</note>
+      <note row="6" velocity="40">F-1</note>
+      <note row="9" velocity="40">Db1</note>
+      <note row="16" velocity="40">OFF</note>
+      <note row="24" velocity="40">C-1</note>
+      <note row="30" velocity="40">F-1</note>
+      <note row="33" velocity="40">Db1</note>
+      <note row="40" velocity="40">OFF</note>
+    </pattern>
+  </arrangement>
 </song>

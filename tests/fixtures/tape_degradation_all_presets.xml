@@ -15,16 +15,30 @@
     <tapeDegradation preset="dictaphone" azimuth="0" distance="1"><track id="6" instrument="0"/></tapeDegradation>
     <tapeDegradation preset="opticalFilm" azimuth="0" distance="1"><track id="7" instrument="0"/></tapeDegradation>
   </tracks>
-  <sections>
-    <section length="8">
-      <pattern track="0"><note row="0" velocity="80" value="C-4" /></pattern>
-      <pattern track="1"><note row="0" velocity="80" value="C-4" /></pattern>
-      <pattern track="2"><note row="0" velocity="80" value="C-4" /></pattern>
-      <pattern track="3"><note row="0" velocity="80" value="C-4" /></pattern>
-      <pattern track="4"><note row="0" velocity="80" value="C-4" /></pattern>
-      <pattern track="5"><note row="0" velocity="80" value="C-4" /></pattern>
-      <pattern track="6"><note row="0" velocity="80" value="C-4" /></pattern>
-      <pattern track="7"><note row="0" velocity="80" value="C-4" /></pattern>
-    </section>
-  </sections>
+  <arrangement>
+    <pattern track="0">
+      <note row="0" velocity="80" value="C-4" />
+    </pattern>
+    <pattern track="1">
+      <note row="0" velocity="80" value="C-4" />
+    </pattern>
+    <pattern track="2">
+      <note row="0" velocity="80" value="C-4" />
+    </pattern>
+    <pattern track="3">
+      <note row="0" velocity="80" value="C-4" />
+    </pattern>
+    <pattern track="4">
+      <note row="0" velocity="80" value="C-4" />
+    </pattern>
+    <pattern track="5">
+      <note row="0" velocity="80" value="C-4" />
+    </pattern>
+    <pattern track="6">
+      <note row="0" velocity="80" value="C-4" />
+    </pattern>
+    <pattern track="7">
+      <note row="0" velocity="80" value="C-4" />
+    </pattern>
+  </arrangement>
 </song>

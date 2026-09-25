@@ -9,15 +9,13 @@
     <track id="0" instrument="0" sendA="-9.1186" />
   </tracks>
   
-  <sections>
-    <section length="4">
-      <pattern track="0">
-        <note row="0" velocity="40" value="A#4" />
-        <note row="2" velocity="40" value="A-4" />
-        <note row="4" velocity="40" value="G-4" />
-        <note row="8" velocity="40" value="D-4" />
-        <note row="12" velocity="40" value="C-4" />
-      </pattern>
-    </section>
-  </sections>
+  <arrangement>
+    <pattern track="0">
+      <note row="0" velocity="40" value="A#4" />
+      <note row="2" velocity="40" value="A-4" />
+      <note row="4" velocity="40" value="G-4" />
+      <note row="8" velocity="40" value="D-4" />
+      <note row="12" velocity="40" value="C-4" />
+    </pattern>
+  </arrangement>
 </song>

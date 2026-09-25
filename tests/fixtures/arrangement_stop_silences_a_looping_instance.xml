@@ -17,12 +17,13 @@
       </clip>
     </trackClips>
   </clips>
-  <sections>
-    <section length="8">
-      <arrangement track="0">
-        <instance row="0">c0</instance>
-        <instance row="8">OFF</instance>
-      </arrangement>
-    </section>
-  </sections>
+  <locators>
+    <locator row="31">end</locator>
+  </locators>
+  <arrangement>
+    <instances track="0">
+      <instance row="0">c0</instance>
+      <instance row="8">OFF</instance>
+    </instances>
+  </arrangement>
 </song>

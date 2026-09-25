@@ -230,39 +230,27 @@
         <locator row="0">C Minor</locator>
         <locator row="128">C Minor</locator>
     </locators>
-    <sections>
-      <section length="8">
-        <arrangement track="chords">
-          <instance row="0">chords-a</instance>
-        </arrangement>
-        <arrangement track="perc">
-          <instance row="0">perc-a</instance>
-        </arrangement>
-        <arrangement track="pad">
-          <instance row="0">pad-a</instance>
-        </arrangement>
-        <arrangement track="bass">
-          <instance row="0">bass-a</instance>
-        </arrangement>
-      </section>
-      <section length="8">
-        <arrangement track="bass">
-          <instance row="0">bass-b</instance>
-        </arrangement>
-        <arrangement track="perc">
-          <instance row="0">perc-b</instance>
-        </arrangement>
-        <arrangement track="chords">
-          <instance row="0">chords-b</instance>
-        </arrangement>
-        <arrangement track="pad">
-          <instance row="0">pad-a</instance>
-        </arrangement>
-      </section>
-      <section length="8">
-        <arrangement track="bass">
-          <instance row="0">bass-c</instance>
-        </arrangement>
-      </section>
-    </sections>
+    <arrangement>
+        <instances track="chords">
+            <instance row="0">chords-a</instance>
+            <instance row="128">chords-b</instance>
+            <instance row="256">OFF</instance>
+        </instances>
+        <instances track="perc">
+            <instance row="0">perc-a</instance>
+            <instance row="128">perc-b</instance>
+            <instance row="256">OFF</instance>
+        </instances>
+        <instances track="pad">
+            <instance row="0">pad-a</instance>
+            <instance row="128">pad-a</instance>
+            <instance row="256">OFF</instance>
+        </instances>
+        <instances track="bass">
+            <instance row="0">bass-a</instance>
+            <instance row="128">bass-b</instance>
+            <instance row="256">bass-c</instance>
+            <instance row="384">OFF</instance>
+        </instances>
+    </arrangement>
 </song>

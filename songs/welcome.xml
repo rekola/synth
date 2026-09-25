@@ -53,19 +53,19 @@
       </clip>
     </trackClips>
   </clips>
-  <sections>
-    <section name="Intro" length="4">
-      <arrangement track="drums">
-        <instance row="0">verse</instance>
-      </arrangement>
-      <arrangement track="bass">
-        <instance row="16">groove</instance>
-      </arrangement>
-    </section>
-    <section name="Fill" length="4">
-      <arrangement track="drums">
-        <instance row="0">fill</instance>
-      </arrangement>
-    </section>
-  </sections>
+  <locators>
+    <locator row="0">Intro</locator>
+    <locator row="64">Fill</locator>
+  </locators>
+  <arrangement>
+    <instances track="drums">
+      <instance row="0">verse</instance>
+      <instance row="64">fill</instance>
+      <instance row="128">OFF</instance>
+    </instances>
+    <instances track="bass">
+      <instance row="16">groove</instance>
+      <instance row="64">OFF</instance>
+    </instances>
+  </arrangement>
 </song>

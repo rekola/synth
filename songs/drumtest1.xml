@@ -30,146 +30,108 @@
     <percussionTrack id="perc" distance="1" azimuth="90" />
   </tracks>
   
-  <sections>
-    <section length="1">
-      <pattern track="bell">
-        <note row="0" velocity="4">C-5</note>
-        <note row="2" velocity="4">C-5</note>
-        <note row="4" velocity="4">C-5</note>
-        <note row="5" velocity="4">C-5</note>
-        <note row="7" velocity="4">C-5</note>
-        <note row="9" velocity="4">C-5</note>
-        <note row="11" velocity="4">C-5</note>
-        <note row="12" velocity="4">C-5</note>
-        <note row="14" velocity="4">C-5</note>
-      </pattern>
-      <pattern track="piano">
-        <note row="0" velocity="80">C-4 E-4 G-4</note>
-      </pattern>
-      <pattern track="bass">
-        <note row="0" velocity="30">C-2</note>
-        <note row="6" velocity="30">G-1</note>
-        <note row="8" velocity="30">A#1</note>
-        <note row="11" velocity="30">C-2</note>
-        <note row="14" velocity="30">C-2</note>
-      </pattern>
-      <pattern track="perc">
-        <note row="0" velocity="40">BD2</note>
-        <note row="2" velocity="40">SH</note>
-        <note row="3" velocity="40">BD2</note>
-        <note row="4" velocity="40">SD</note>
-        <note row="6" velocity="40">SH</note>
-        <note row="7" velocity="40">BD2</note>
-        <note row="10" velocity="40">BD SH</note>
-        <note row="12" velocity="40">SD</note>
-        <note row="14" velocity="40">SH</note>
-      </pattern>
-    </section>
-    <section length="1">
-      <pattern track="bell">
-        <note row="0" velocity="4">C-5</note>
-        <note row="2" velocity="4">C-5</note>
-        <note row="4" velocity="4">C-5</note>
-        <note row="5" velocity="4">C-5</note>
-        <note row="7" velocity="4">C-5</note>
-        <note row="9" velocity="4">C-5</note>
-        <note row="11" velocity="4">C-5</note>
-        <note row="12" velocity="4">C-5</note>
-        <note row="14" velocity="4">C-5</note>
-      </pattern>
-      <pattern track="piano">
-        <note row="0" velocity="80">E-3 E-4 C-5 A-5</note>
-      </pattern>
-      <pattern track="bass">
-        <note row="0" velocity="30">E-2</note>
-        <note row="6" velocity="30">E-2</note>
-        <note row="8" velocity="30">E-2</note>
-        <note row="11" velocity="30">E-2</note>
-        <note row="14" velocity="30">E-2</note>
-      </pattern>
-      <pattern track="perc">
-        <note row="0" velocity="40">BD2</note>
-        <note row="2" velocity="40">SH</note>
-        <note row="3" velocity="40">BD2</note>
-        <note row="4" velocity="40">SD</note>
-        <note row="6" velocity="40">SH</note>
-        <note row="7" velocity="40">BD2</note>
-        <note row="10" velocity="40">BD SH</note>
-        <note row="12" velocity="40">SD</note>
-        <note row="14" velocity="40">SH</note>
-      </pattern>
-    </section>
-    <section length="1">
-      <pattern track="bell">
-        <note row="0" velocity="4">C-5</note>
-        <note row="2" velocity="4">C-5</note>
-        <note row="4" velocity="4">C-5</note>
-        <note row="5" velocity="4">C-5</note>
-        <note row="7" velocity="4">C-5</note>
-        <note row="9" velocity="4">C-5</note>
-        <note row="11" velocity="4">C-5</note>
-        <note row="12" velocity="4">C-5</note>
-        <note row="14" velocity="4">C-5</note>
-      </pattern>
-      <pattern track="piano">
-        <note row="0" velocity="80">D-4 F-4 A-4 C-5</note>
-      </pattern>
-      <pattern track="bass">
-        <note row="0" velocity="30">D-2</note>
-        <note row="8" velocity="30">D-2</note>
-      </pattern>
-      <pattern track="perc">
-        <note row="0" velocity="40">BD2</note>
-        <note row="2" velocity="40">SH</note>
-        <note row="3" velocity="40">BD2</note>
-        <note row="4" velocity="40">SD</note>
-        <note row="6" velocity="40">SH</note>
-        <note row="7" velocity="40">BD2</note>
-        <note row="10" velocity="40">BD SH</note>
-        <note row="12" velocity="40">SD</note>
-        <note row="14" velocity="40">SH</note>
-      </pattern>
-    </section>
-    <section length="1">
-      <pattern track="bell">
-        <note row="0" velocity="4">C-5</note>
-        <note row="2" velocity="4">C-5</note>
-        <note row="4" velocity="4">C-5</note>
-        <note row="5" velocity="4">C-5</note>
-        <note row="7" velocity="4">C-5</note>
-        <note row="9" velocity="4">C-5</note>
-        <note row="11" velocity="4">C-5</note>
-        <note row="12" velocity="4">C-5</note>
-        <note row="14" velocity="4">C-5</note>
-      </pattern>
-      <pattern track="piano">
-        <note row="0" velocity="80">F-4 A-4 C-5</note>
-        <note row="8" velocity="80">A-4 C-5 E-5</note>
-      </pattern>
-      <pattern track="bass">
-        <note row="0" velocity="30">F-2</note>
-        <note row="8" velocity="30">A-2</note>
-        <note row="12" velocity="30">G-2</note>
-      </pattern>
-      <pattern track="perc">
-        <note row="0" velocity="40">BD2</note>
-        <note row="2" velocity="40">SH</note>
-        <note row="3" velocity="40">BD2</note>
-        <note row="4" velocity="40">SD</note>
-        <note row="6" velocity="40">SH</note>
-        <note row="7" velocity="40">BD2</note>
-        <note row="10" velocity="40">BD SH</note>
-        <note row="12" velocity="40">SD</note>
-        <note row="14" velocity="40">SH</note>
-      </pattern>
-    </section>
-    <section length="1">
-      <pattern track="piano">
-        <note row="0" velocity="80">C-4 E-4 G-4</note>
-      </pattern>
-      <pattern track="bass">
-        <note row="0" velocity="30">C-2</note>
-      </pattern>
-    </section>
-  </sections>
+  <arrangement>
+    <pattern track="bell">
+      <note row="0" velocity="4">C-5</note>
+      <note row="2" velocity="4">C-5</note>
+      <note row="4" velocity="4">C-5</note>
+      <note row="5" velocity="4">C-5</note>
+      <note row="7" velocity="4">C-5</note>
+      <note row="9" velocity="4">C-5</note>
+      <note row="11" velocity="4">C-5</note>
+      <note row="12" velocity="4">C-5</note>
+      <note row="14" velocity="4">C-5</note>
+      <note row="16" velocity="4">C-5</note>
+      <note row="18" velocity="4">C-5</note>
+      <note row="20" velocity="4">C-5</note>
+      <note row="21" velocity="4">C-5</note>
+      <note row="23" velocity="4">C-5</note>
+      <note row="25" velocity="4">C-5</note>
+      <note row="27" velocity="4">C-5</note>
+      <note row="28" velocity="4">C-5</note>
+      <note row="30" velocity="4">C-5</note>
+      <note row="32" velocity="4">C-5</note>
+      <note row="34" velocity="4">C-5</note>
+      <note row="36" velocity="4">C-5</note>
+      <note row="37" velocity="4">C-5</note>
+      <note row="39" velocity="4">C-5</note>
+      <note row="41" velocity="4">C-5</note>
+      <note row="43" velocity="4">C-5</note>
+      <note row="44" velocity="4">C-5</note>
+      <note row="46" velocity="4">C-5</note>
+      <note row="48" velocity="4">C-5</note>
+      <note row="50" velocity="4">C-5</note>
+      <note row="52" velocity="4">C-5</note>
+      <note row="53" velocity="4">C-5</note>
+      <note row="55" velocity="4">C-5</note>
+      <note row="57" velocity="4">C-5</note>
+      <note row="59" velocity="4">C-5</note>
+      <note row="60" velocity="4">C-5</note>
+      <note row="62" velocity="4">C-5</note>
+    </pattern>
+    <pattern track="piano">
+      <note row="0" velocity="80">C-4 E-4 G-4</note>
+      <note row="16" velocity="80">E-3 E-4 C-5 A-5</note>
+      <note row="32" velocity="80">D-4 F-4 A-4 C-5</note>
+      <note row="48" velocity="80">F-4 A-4 C-5</note>
+      <note row="56" velocity="80">A-4 C-5 E-5</note>
+      <note row="64" velocity="80">C-4 E-4 G-4</note>
+    </pattern>
+    <pattern track="bass">
+      <note row="0" velocity="30">C-2</note>
+      <note row="6" velocity="30">G-1</note>
+      <note row="8" velocity="30">A#1</note>
+      <note row="11" velocity="30">C-2</note>
+      <note row="14" velocity="30">C-2</note>
+      <note row="16" velocity="30">E-2</note>
+      <note row="22" velocity="30">E-2</note>
+      <note row="24" velocity="30">E-2</note>
+      <note row="27" velocity="30">E-2</note>
+      <note row="30" velocity="30">E-2</note>
+      <note row="32" velocity="30">D-2</note>
+      <note row="40" velocity="30">D-2</note>
+      <note row="48" velocity="30">F-2</note>
+      <note row="56" velocity="30">A-2</note>
+      <note row="60" velocity="30">G-2</note>
+      <note row="64" velocity="30">C-2</note>
+    </pattern>
+    <pattern track="perc">
+      <note row="0" velocity="40">BD2</note>
+      <note row="2" velocity="40">SH</note>
+      <note row="3" velocity="40">BD2</note>
+      <note row="4" velocity="40">SD</note>
+      <note row="6" velocity="40">SH</note>
+      <note row="7" velocity="40">BD2</note>
+      <note row="10" velocity="40">BD SH</note>
+      <note row="12" velocity="40">SD</note>
+      <note row="14" velocity="40">SH</note>
+      <note row="16" velocity="40">BD2</note>
+      <note row="18" velocity="40">SH</note>
+      <note row="19" velocity="40">BD2</note>
+      <note row="20" velocity="40">SD</note>
+      <note row="22" velocity="40">SH</note>
+      <note row="23" velocity="40">BD2</note>
+      <note row="26" velocity="40">BD SH</note>
+      <note row="28" velocity="40">SD</note>
+      <note row="30" velocity="40">SH</note>
+      <note row="32" velocity="40">BD2</note>
+      <note row="34" velocity="40">SH</note>
+      <note row="35" velocity="40">BD2</note>
+      <note row="36" velocity="40">SD</note>
+      <note row="38" velocity="40">SH</note>
+      <note row="39" velocity="40">BD2</note>
+      <note row="42" velocity="40">BD SH</note>
+      <note row="44" velocity="40">SD</note>
+      <note row="46" velocity="40">SH</note>
+      <note row="48" velocity="40">BD2</note>
+      <note row="50" velocity="40">SH</note>
+      <note row="51" velocity="40">BD2</note>
+      <note row="52" velocity="40">SD</note>
+      <note row="54" velocity="40">SH</note>
+      <note row="55" velocity="40">BD2</note>
+      <note row="58" velocity="40">BD SH</note>
+      <note row="60" velocity="40">SD</note>
+      <note row="62" velocity="40">SH</note>
+    </pattern>
+  </arrangement>
 </song>

@@ -10,11 +10,10 @@
       </clip>
     </trackClips>
   </clips>
-  <sections>
-    <section length="2">
-      <arrangement track="0">
-        <instance row="0">c0</instance>
-      </arrangement>
-    </section>
-  </sections>
+  <arrangement>
+    <instances track="0">
+      <instance row="0">c0</instance>
+      <instance row="8">OFF</instance>
+    </instances>
+  </arrangement>
 </song>
