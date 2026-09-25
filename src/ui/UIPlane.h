@@ -56,12 +56,12 @@ class UIPlane {
   virtual void drawBorder() = 0;
   virtual bool offerInput(const InputEvent & input) = 0;
   // y/x/rows/cols position and size the reader plane explicitly, for a
-  // caller (PatternEditor's annotation editing) that isn't a one-line
+  // caller (PatternEditor's locator editing) that isn't a one-line
   // plane like StatusLine - x == -1 (default) means "right after the
   // prompt" and rows/cols == -1 means "the rest of the plane", both
   // matching the historical no-args behavior every existing call site
   // still relies on. initial_text seeds the reader's own content (e.g.
-  // editing an existing annotation starts from what it already says, not
+  // editing an existing locator starts from what it already says, not
   // blank) rather than requiring a second call after this one. text_color
   // is the reader's own typed-glyph color - the theme's reader_text_color
   // by default (matching

@@ -69,7 +69,7 @@ class ScenePatternSource : public PatternSource {
   std::optional<int> playheadRow(int track_id, int block) const override;
 
   bool showsClipIndirection() const override { return false; }
-  bool hasAnnotations() const override { return false; }
+  bool hasLocators() const override { return false; }
   bool cursorFollowsTransport() const override { return false; }
 
   // Scenes shown: every used one plus one empty one to create clips in,

@@ -130,7 +130,7 @@ section it falls in. Drop sections and show a musical position instead.
   `Section` to the song, keyed by absolute row, and the section titles
   `ArrangementGrid` draws today go away with nothing in their place - for
   now locators are model-and-command only, shown in the pattern editor's
-  annotation column as annotations already are.
+  locator column (the annotation column renamed).
 - **Locators aren't bar-quantized yet:** they keep every row an
   annotation had (songs use them as per-beat chord labels), and
   `ArrangementGrid` shows none of them. Drawing them in the overview, and

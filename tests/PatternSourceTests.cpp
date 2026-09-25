@@ -251,7 +251,7 @@ TEST(scene_source_shows_a_playing_tracks_playhead_at_the_cursor_row) {
   CHECK(source.cursor() == (RowAddress{ 1, 5 }));
   CHECK(source.playheadRow(f.track_id, 1) == 5);
   CHECK(!source.playheadRow(f.track_id, 0));
-  CHECK(!source.hasAnnotations());
+  CHECK(!source.hasLocators());
   CHECK(!source.showsClipIndirection());
   CHECK(!source.cursorFollowsTransport());
 }

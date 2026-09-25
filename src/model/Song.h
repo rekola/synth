@@ -127,7 +127,7 @@ class Song : public SongObject {
 
   // Locators: named moments of the whole song ("chorus starts here", a
   // chord's name) rather than of any one track's content, keyed by
-  // absolute row - shown in the pattern editor's annotation column, and
+  // absolute row - shown in the pattern editor's locator column, and
   // what ZBxx jumps to (<locators><locator row="N">name</locator>).
   const std::string & getLocator(int row) const;
   // An empty name removes the locator.

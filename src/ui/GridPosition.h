@@ -20,9 +20,9 @@
 // scope is the same story, cursor-only, reusing SelectionScope.h's own
 // vocabulary rather than a one-off boolean: it says which parameters of
 // *this* position actually describe where the cursor is. Today the only
-// value the cursor itself ever sets is ANNOTATION - ANNOTATION means the
+// value the cursor itself ever sets is LOCATOR - LOCATOR means the
 // cursor has moved past every real track onto the current row's
-// annotation "slot" (PatternEditor::startAnnotationEdit(), reached via
+// locator "slot" (PatternEditor::startLocatorEdit(), reached via
 // Right arrow past the last track's last column), and track/col are
 // meaningless there - not "point past track_ids" meaningless, but really
 // left exactly where they already were (that same last column), since
@@ -40,16 +40,16 @@
 // The eventual plan is hierarchical cursor navigation through this same
 // field: TRACK to pick a whole track, in to NOTE_COLUMN to pick one voice
 // slot within it, in again to pick a specific sub-column (velocity,
-// delay, ...) within that slot - not just the single ANNOTATION case this
+// delay, ...) within that slot - not just the single LOCATOR case this
 // started as.
 class GridPosition {
  public:
   GridPosition() { }
 
   bool isHighlighted(int _track, int _col) const {
-    return scope != SelectionScope::ANNOTATION && _track == track && _col == col;
+    return scope != SelectionScope::LOCATOR && _track == track && _col == col;
   }
-  bool isOnAnnotation() const { return scope == SelectionScope::ANNOTATION; }
+  bool isOnLocator() const { return scope == SelectionScope::LOCATOR; }
 
   bool operator==(const GridPosition & other) const {
     return row == other.row && track == other.track && col == other.col && subcol == other.subcol &&

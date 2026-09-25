@@ -75,7 +75,7 @@ you're changing.
 - **`verify_keybindings.py`** - general Emacs-keybinding smoke test
   (Ctrl-B/W/Y/G/Space/C-x o/C-x b/C-x C-c), independent of Launchpad.
 - **`verify_session_pattern_editor.py`** - PatternEditor's session mode
-  (Session view): annotations only in Arrangement view, typing into an
+  (Session view): locators only in Arrangement view, typing into an
   empty slot creates a clip (not arrangement content), a launched clip's
   playhead shows in its own track's column only (never on the divider
   after it), and Space is the transport in Session view too. Independent
@@ -109,7 +109,7 @@ you're changing.
   kills the clip's notes, never the background's; a yank lands in whatever
   the cursor is on and stops where that content ends.
 - **`verify_inline_editors.py`** - every widget's inline text editor
-  (section, track, annotation, clip names): Enter commits, Ctrl-g and M-x
+  (section, track, locator, clip names): Enter commits, Ctrl-g and M-x
   cancel, and a typed space never reaches the global toggle-playing
   binding. Independent of Launchpad.
 - **`fake_launchpad.c` / `verify_launchpad_e2e.py`** - baseline single

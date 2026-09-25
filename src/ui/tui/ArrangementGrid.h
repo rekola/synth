@@ -84,7 +84,7 @@ class ArrangementGrid : public UIElement {
   // the cursor has bar-level granularity within a section, not just a
   // section-level one. Not a commands_-registered command - Enter plays
   // the same special, directly-checked role here that it already does in
-  // PatternEditor's own offerInput() (reader commit, annotation edit,
+  // PatternEditor's own offerInput() (reader commit, locator edit,
   // ...), not a keymap-bound one.
   void setCommitCallback(std::function<void(int track_id, int section_idx, int row)> cb) { commit_callback_ = std::move(cb); }
 
@@ -184,7 +184,7 @@ class ArrangementGrid : public UIElement {
   // cursor_bar_ is -1) - positions the reader at exactly the screen row
   // ensureCursorVisible() already guarantees the title row occupies
   // (cursor_section_'s own flat position minus scroll_row_), so unlike
-  // PatternEditor's own analogous editors (annotation/track-name) this
+  // PatternEditor's own analogous editors (locator/track-name) this
   // needs no separately cached screen coordinate from the last render()
   // pass.
   void startSectionRename();

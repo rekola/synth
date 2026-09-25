@@ -115,7 +115,7 @@ class PatternSource {
   // Whether a cell whose notes come from a clip (ReadTarget::is_instance)
   // is drawn tinted, marking that they don't live where they're shown.
   virtual bool showsClipIndirection() const = 0;
-  virtual bool hasAnnotations() const = 0;
+  virtual bool hasLocators() const = 0;
   // Whether the cursor row is the transport's position: it follows
   // playback, can't be moved while playing, and live recording writes
   // there.

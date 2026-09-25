@@ -45,7 +45,7 @@ class PatternEditor : public UIElement {
   // toggle-playing, C-x C-c/quit, ...) steal a keystroke meant for it.
   bool isReaderActive() const { return inline_editor_.isOpen(); }
 
-  // Aborts the annotation/track-name editor without committing anything -
+  // Aborts the locator/track-name editor without committing anything -
   // used by StatusLine so opening M-x takes focus away from it rather than
   // opening on top of it. A no-op if nothing is open.
   void cancelReaderEdit();
@@ -66,7 +66,7 @@ class PatternEditor : public UIElement {
   // fallback_track_index actually reads - would keep reporting the old
   // track for as long as PatternEditor stays offscreen, silently
   // stranding a caller like ClipGrid's own focus-jump callback (same
-  // immediate-commit precedent startAnnotationEdit() already sets for
+  // immediate-commit precedent startLocatorEdit() already sets for
   // .scope, elsewhere in this class).
   // Defined in the .cpp, not inline - needs Song's own full definition
   // (getRootTrackIds()) for the Song::setCurrentTrackId() sync described
@@ -122,7 +122,7 @@ class PatternEditor : public UIElement {
   // Called via Controller::setBufferChangeListener()'s UI.cpp fan-out
   // whenever the active buffer changes (switch, kill landing on a
   // different buffer, or a fresh buffer created) - saves the outgoing
-  // buffer's own cursor/scroll/selection/live-note/annotation-editing
+  // buffer's own cursor/scroll/selection/live-note/locator-editing
   // state into buffer_states_ (private, below) and restores the incoming
   // buffer's own saved copy (or a fresh default, for a never-before-
   // visited buffer). Unlike Controller's own internal
@@ -167,15 +167,15 @@ protected:
   void renderHeading(const StyleProvider & styles, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info, bool focused);
   void renderRow(const StyleProvider & styles, int heading_height, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info, int row, bool highlight, const SelectionBounds & sel_bounds, bool focused);
 
-  // Opens the annotation editor for the cursor's current row - called
+  // Opens the locator editor for the cursor's current row - called
   // once offerInput() sees Enter pressed while the cursor is parked on
-  // the annotation slot (Right arrow past the last track's last column).
-  // Positions the reader at annotation_screen_row_/annotation_screen_col_,
+  // the locator slot (Right arrow past the last track's last column).
+  // Positions the reader at locator_screen_row_/locator_screen_col_,
   // cached by renderRow() itself (whenever it draws the cursor's own row)
   // rather than recomputed here, so the two can never disagree about
-  // where the annotation actually sits on screen. A no-op if the editor
+  // where the locator actually sits on screen. A no-op if the editor
   // is already open.
-  void startAnnotationEdit();
+  void startLocatorEdit();
 
   // Opens the in-place track-name editor for whatever track the cursor's
   // column currently belongs to. A no-op for a track with no name field
@@ -183,7 +183,7 @@ protected:
   // renderHeading()'s is_color_eligible) - or while the editor is already
   // open. Positions the reader at track_name_screen_col_/
   // track_name_screen_width_, cached by renderHeading() itself, same
-  // reasoning as startAnnotationEdit()'s own comment.
+  // reasoning as startLocatorEdit()'s own comment.
   void startTrackNameEdit();
 
   // `copy-to-clip` - saves the current selection as a new, unnamed clip.
@@ -196,15 +196,15 @@ protected:
   // any real track list, just defensive).
   void copyToClip();
 
-  // Whether the cursor is parked on the current row's annotation "slot"
-  // (GridPosition::scope == SelectionScope::ANNOTATION - reached by Right
+  // Whether the cursor is parked on the current row's locator "slot"
+  // (GridPosition::scope == SelectionScope::LOCATOR - reached by Right
   // arrow past the last track's last column) lives on current_cursor/
   // new_cursor themselves, not a separate flag here - see GridPosition.h's
   // own comment on why that's the field to check instead of a one-off
   // bool, and getEffectiveSelectionBounds()/isHighlighted() for the two
   // places it actually matters. Reaching the slot must not start editing
   // on its own; only Enter (see offerInput()) does that
-  // (startAnnotationEdit()).
+  // (startLocatorEdit()).
   GridPosition current_cursor, new_cursor;
 
   int current_score_playing_row = 0;
@@ -312,10 +312,10 @@ protected:
   // touching the effect column at all, not just which note number it
   // started on. selection_start_scope_ mirrors current_cursor.scope at
   // mark time the same way (see GridPosition.h) - the only value that
-  // ever actually differs from the default is ANNOTATION, and comparing
+  // ever actually differs from the default is LOCATOR, and comparing
   // it against current_cursor.scope is what lets
   // getEffectiveSelectionBounds() tell "the mark and point are on
-  // opposite sides of the grid/annotation boundary" apart from "both are
+  // opposite sides of the grid/locator boundary" apart from "both are
   // on the same side" - see its own comment on SelectionScope::EVERYTHING.
   bool selection_active_ = false;
   int selection_start_pattern_ = 0, selection_start_row_ = 0, selection_start_track_ = 0;
@@ -335,13 +335,13 @@ protected:
   ClipboardEntry clipboard_;
 
 
-  // The on-screen (row, col) renderRow()'s own (display-only) annotation
+  // The on-screen (row, col) renderRow()'s own (display-only) locator
   // code draws at for the cursor/playhead's current row - cached there
   // (set whenever its `highlight` parameter is true, which is exactly
   // when it's rendering that row, in every call site - see render()) for
-  // startAnnotationEdit() to read rather than re-deriving the same
+  // startLocatorEdit() to read rather than re-deriving the same
   // current_pos accumulation independently. -1 until the first render.
-  int annotation_screen_row_ = -1, annotation_screen_col_ = -1;
+  int locator_screen_row_ = -1, locator_screen_col_ = -1;
 
   // The on-screen col/width renderHeading()'s own level-0 branch draws
   // the cursor's current track's name field at - row isn't cached since
@@ -350,11 +350,11 @@ protected:
   // startTrackNameEdit()). Set whenever that track is color-eligible and
   // has room to show a name; left at -1/-1 otherwise (including every
   // other track type), same "always recomputed by rendering, never
-  // re-derived independently" reasoning as annotation_screen_row_/
-  // annotation_screen_col_ above.
+  // re-derived independently" reasoning as locator_screen_row_/
+  // locator_screen_col_ above.
   int track_name_screen_col_ = -1, track_name_screen_width_ = -1;
 
-  // Shared by the annotation and track-name editors; only one is ever open.
+  // Shared by the locator and track-name editors; only one is ever open.
   InlineEditor inline_editor_{getPlane()};
 
   // Where rows, cells and edits come from - see PatternSource.h. Points at
@@ -432,7 +432,7 @@ protected:
     int selection_start_col = 0;
     SelectionScope selection_start_scope = SelectionScope::NOTE_COLUMN;
     SelectionBounds current_sel_bounds;
-    int annotation_screen_row = -1, annotation_screen_col = -1;
+    int locator_screen_row = -1, locator_screen_col = -1;
     int track_name_screen_col = -1, track_name_screen_width = -1;
   };
 

@@ -72,9 +72,9 @@ class StyleProvider {
   Color clip_recording_color = "#ff3c3c";
   Color clip_armed_color = "#a04040";
 
-  // Pattern editor annotations.
-  Color annotation_color = "#e03030";
-  Color annotation_bg_color = "#702020";
+  // Pattern editor locators.
+  Color locator_color = "#e03030";
+  Color locator_bg_color = "#702020";
 
   // The Session view's panel headers (OutlineView's heading, ClipGrid's
   // track header row, and the divider between them) - brighter than

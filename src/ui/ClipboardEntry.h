@@ -15,14 +15,14 @@
 // cells/commands is ever populated, per scope: cells for TRACK (every note
 // column plus the row's Command) and NOTE_COLUMN (just the selected
 // note-slot range, same PatternBlock shape), commands for COMMAND (one
-// Command per row, independent of any note data). annotations is populated
-// for ANNOTATION (one row's locator name per row, independent of any track
+// Command per row, independent of any note data). locators is populated
+// for LOCATOR (one row's locator name per row, independent of any track
 // at all - Song::getLocators()) *and*
 // alongside cells for EVERYTHING (a selection spanning every track plus the
-// annotation - see SelectionScope.h) - the only scope where two of these
+// locator - see SelectionScope.h) - the only scope where two of these
 // fields are ever both non-empty at once, since EVERYTHING really is two
 // captures (a whole-row PatternBlock, same shape as TRACK's, plus the same
-// per-row annotation text ANNOTATION captures) glued to the same row range.
+// per-row locator text LOCATOR captures) glued to the same row range.
 // Its own file (rather than nested inside PatternEditor) so a future
 // kill-ring - several of these, cycled through via an Emacs-style M-y/
 // yank-pop - is just std::vector<ClipboardEntry> plus a rotation index
@@ -31,12 +31,12 @@ struct ClipboardEntry {
   SelectionScope scope = SelectionScope::TRACK;
   PatternBlock cells;
   std::vector<Command> commands;
-  std::vector<std::string> annotations;
+  std::vector<std::string> locators;
 
   // One entry per track actually captured in `cells`, parallel to its own
   // track-offset dimension - NOTE_COLUMN/COMMAND populate exactly one
   // (that single track_id), TRACK/EVERYTHING populate one per track in
-  // [track_lo, track_hi], ANNOTATION populates none (it isn't
+  // [track_lo, track_hi], LOCATOR populates none (it isn't
   // track-scoped at all - see Section.h's own comment on why). yank()
   // checks each offset it's about to write against the destination
   // track's own tuning here (Song::getTuningForTrack()) before writing

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Drive PatternEditor's session mode (Session view) through a pty:
-annotations exist only in Arrangement view, typing a note into an empty
+locators exist only in Arrangement view, typing a note into an empty
 slot creates a clip there (and not in the arrangement), launching that
 clip from the clip grid starts the transport and moves a playhead in its
 own track's column only, and Space is the transport in Session view too:
@@ -67,7 +67,7 @@ def main():
         os.kill(pid, 9)
         sys.exit(2)
 
-    # An annotation in Arrangement view.
+    # A locator in Arrangement view.
     vk.other_window(scr)
     for _ in range(12):
         scr.send(CTRL_RIGHT)
@@ -76,12 +76,12 @@ def main():
     scr.pump(0.4)
     scr.send(b"hello note\r")
     scr.pump(0.5)
-    check("annotation shows in Arrangement view", "hello note" in scr.dump(), scr)
+    check("locator shows in Arrangement view", "hello note" in scr.dump(), scr)
 
-    # Session view: clip grid on top, pattern editor below, no annotations.
+    # Session view: clip grid on top, pattern editor below, no locators.
     scr.send(b"\t")
     scr.pump(0.8)
-    check("Session view hides annotations", "hello note" not in scr.dump(), scr)
+    check("Session view hides locators", "hello note" not in scr.dump(), scr)
 
     # The pattern editor keeps focus across the view switch.
     scr.send(vk.ctrl('a'))  # back to the first track

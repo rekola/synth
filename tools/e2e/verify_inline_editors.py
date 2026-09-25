@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Drive every widget's inline text editor (InlineEditor) through a pty:
 ArrangementGrid's section rename, PatternEditor's track-name and
-annotation editors, and ClipGrid's clip and track renames. Checks that
+locator editors, and ClipGrid's clip and track renames. Checks that
 Enter commits, Ctrl-g cancels, M-x cancels an open editor, and that a
 typed space never reaches the global toggle-playing binding.
 """
@@ -87,7 +87,7 @@ def arrangement_and_pattern_editor():
     type_text(scr, "hello note")
     scr.send(b"\r")
     scr.pump(0.5)
-    check("annotation edit commits", "hello note" in scr.dump(), scr)
+    check("locator edit commits", "hello note" in scr.dump(), scr)
 
     os.kill(pid, 9)
 

@@ -96,7 +96,7 @@ void pastePatternBlockCommand(PatternGrid & grid, const std::vector<Command> & b
 Clip extractClip(const PatternGrid & grid, int track_id, int row_lo, int row_hi, int rows_per_bar);
 
 // Row-only siblings of the copy/clear/paste families above, for
-// PatternEditor's SelectionScope::ANNOTATION - the song's locators
+// PatternEditor's SelectionScope::LOCATOR - the song's locators
 // (Song::getLocators()), keyed by row alone, so unlike every other family
 // here there's no track_id/note range involved at all. Rows count from
 // `first_row`, the song's own row the block starts at.

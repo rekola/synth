@@ -104,7 +104,7 @@ static inline ncintype_e to_ncintype(InputEvent::Kind kind) {
   }
 }
 
-// use_true_case is for an active reader (track name/annotation/M-x text
+// use_true_case is for an active reader (track name/locator/M-x text
 // entry) only: TerminalUI::readInput()'s dispatchRawKey unconditionally
 // lowercases a plain letter's own id (needed for case-insensitive
 // keybinding dispatch and note-entry - see InputEvent's own comment on
@@ -136,8 +136,8 @@ static inline ncinput to_ncinput(const InputEvent & input, bool use_true_case = 
 // codepoints one at a time. Splitting on codepoint boundaries rather than
 // full Unicode grapheme clusters (combining marks/ZWJ sequences would each
 // become a separate write instead of one grouped EGC) is an acceptable
-// first-pass approximation for plain annotation/command text - see
-// PatternEditor's own annotation-editing entry points and StatusLine's M-x
+// first-pass approximation for plain locator/command text - see
+// PatternEditor's own locator-editing entry points and StatusLine's M-x
 // autocomplete.
 static inline void writeEgcString(ncreader * reader, const string & text) {
   size_t i = 0;
@@ -258,7 +258,7 @@ public:
   }
   
   // y/x/rows/cols let a caller that isn't a one-line plane (PatternEditor's
-  // annotation editing, which needs the reader positioned at the cursor's
+  // locator editing, which needs the reader positioned at the cursor's
   // own screen row, not row 0) place and size the reader plane explicitly.
   // x == -1/rows == -1/cols == -1 (the defaults) reproduce exactly what
   // this used to hardcode - StatusLine's existing calls are untouched.
@@ -284,8 +284,8 @@ public:
       // right edge, via ncplane_erase_region() rather than erase() (the
       // whole plane) - StatusLine passes x/y as their unset defaults,
       // always starting from this row's very first column same as
-      // before, but PatternEditor's annotation editor
-      // (startAnnotationEdit()) reuses this same call on its own much
+      // before, but PatternEditor's locator editor
+      // (startLocatorEdit()) reuses this same call on its own much
       // taller plane with an explicit x placed after real pattern grid
       // content on that row, which a whole-row-from-0 erase wiped out
       // from under the reader right along with the actual stale content
@@ -2165,7 +2165,7 @@ TerminalUI::initializeWidgets() {
     for (auto & name : names) display_names.push_back(getController().getBufferDisplayName(name));
     menu_->refreshBuffers(names, display_names, getController().getActiveBufferName());
 
-    // Cursor/scroll/selection/live-note/annotation-editing state - see
+    // Cursor/scroll/selection/live-note/locator-editing state - see
     // PatternEditor::handleBufferChanged()'s own comment. The view (UI::
     // View) is untouched: a buffer switch changes which song is shown, not
     // how.

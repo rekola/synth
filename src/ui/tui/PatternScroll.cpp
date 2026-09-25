@@ -40,16 +40,16 @@ int trackWidthRange(const VisibleTrackInfo & info, int from_col, int to_col, boo
 }
 
 // Minimum characters of headroom to guarantee past the last track when
-// the cursor is parked on the annotation slot - "the last track is fully
+// the cursor is parked on the locator slot - "the last track is fully
 // visible" alone (see computeScrollPosition()'s own comment) can still
-// leave zero width for the annotation itself if the tracks happen to
+// leave zero width for the locator itself if the tracks happen to
 // fill the screen right up to the edge, which is the whole reason
 // reaching the slot didn't reliably bring it into view. Sized to fit
-// PatternEditor.cpp's own "(add annotation)" placeholder (17 characters)
+// PatternEditor.cpp's own "(add locator)" placeholder (13 characters)
 // plus the 2-character leading gap renderRow() always puts before
-// annotation content - not a promise about arbitrary (unbounded) real
-// annotation text, which can always run off the right edge regardless.
-constexpr int kAnnotationMinWidth = 20;
+// locator content - not a promise about arbitrary (unbounded) real
+// locator text, which can always run off the right edge regardless.
+constexpr int kLocatorMinWidth = 15;
 
 struct FitResult {
   GridPosition scroll;
@@ -69,7 +69,7 @@ FitResult fitWithTarget(const GridPosition & current_scroll, int new_row,
 			 int cursor_track, int group_lo, int cursor_target_hi,
 			 const vector<int> & track_ids,
 			 const unordered_map<int, VisibleTrackInfo> & track_info,
-			 int cols, bool is_annotation_target, int gutter_width) {
+			 int cols, bool is_locator_target, int gutter_width) {
   GridPosition new_scroll;
   new_scroll.row = new_row;
 
@@ -124,7 +124,7 @@ FitResult fitWithTarget(const GridPosition & current_scroll, int new_row,
       auto to_col = (i == cursor_track) ? cursor_target_hi : it->second.getColumnCount() - 1;
       pos += trackWidthRange(it->second, from_col, to_col, i == cursor_track);
     }
-    if (is_annotation_target) pos += kAnnotationMinWidth;
+    if (is_locator_target) pos += kLocatorMinWidth;
     if (pos <= cols) return { new_scroll, true };
 
     if (new_scroll.track == cursor_track) {
@@ -160,16 +160,16 @@ computeScrollPosition(const GridPosition & current_scroll, int new_row,
   }
 
   // One past every real track - the cursor is parked on the current row's
-  // annotation slot (PatternEditor::render() passes track_ids.size() as
+  // locator slot (PatternEditor::render() passes track_ids.size() as
   // the target for this, since the cursor's own track/col stay on the
   // last real column the whole time it's parked there - see
   // GridPosition::scope's own comment). Substitute the last track's own
   // last column as the concrete target - reusing the exact same growth
-  // loop below - and separately reserve kAnnotationMinWidth beyond it
+  // loop below - and separately reserve kLocatorMinWidth beyond it
   // (below), since "the last track is fully visible" alone doesn't
-  // reserve *any* width for the annotation itself.
-  bool is_annotation_target = cursor_track == static_cast<int>(track_ids.size());
-  if (is_annotation_target) {
+  // reserve *any* width for the locator itself.
+  bool is_locator_target = cursor_track == static_cast<int>(track_ids.size());
+  if (is_locator_target) {
     cursor_track -= 1;
     auto it = track_info.find(track_ids[static_cast<size_t>(cursor_track)]);
     cursor_col = it != track_info.end() ? it->second.getColumnCount() - 1 : 0;
@@ -198,9 +198,9 @@ computeScrollPosition(const GridPosition & current_scroll, int new_row,
   // ahead of it.
   auto full_last_col = cursor_it != track_info.end() ? cursor_it->second.getColumnCount() - 1 : group_hi;
   auto whole_track = fitWithTarget(current_scroll, new_row, cursor_track, group_lo, full_last_col,
-				    track_ids, track_info, cols, is_annotation_target, gutter_width);
+				    track_ids, track_info, cols, is_locator_target, gutter_width);
   if (whole_track.fits) return whole_track.scroll;
 
   return fitWithTarget(current_scroll, new_row, cursor_track, group_lo, group_hi,
-			track_ids, track_info, cols, is_annotation_target, gutter_width).scroll;
+			track_ids, track_info, cols, is_locator_target, gutter_width).scroll;
 }

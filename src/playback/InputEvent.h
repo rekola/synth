@@ -77,7 +77,7 @@ class InputEvent : public Event {
   // key: id is unconditionally lowercased there (case-insensitive
   // keybinding dispatch and note-entry both need that - see that
   // lambda's own comment), which would otherwise make it impossible for
-  // an active reader (track name/annotation/M-x text entry, none of
+  // an active reader (track name/locator/M-x text entry, none of
   // which care about keybindings or note-entry at all) to ever receive a
   // genuine uppercase letter. getTrueCaseId() is what a reader is fed
   // instead - see UIPlane::offerInput()'s own use of it.

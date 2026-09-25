@@ -1086,7 +1086,7 @@ would otherwise resume showing.
     an independent copy unlike a `Clip`'s own shared content — and a
     `SampleTrack`'s own merged background audio bed), the song's
     locators (`Song::getLocators()`, named markers keyed by absolute row,
-    shown in Arrangement view's annotation column; `ZBxx` jumps to one)
+    shown in Arrangement view's locator column; `ZBxx` jumps to one)
     and their value types (`Note`, `Command`, `SendLevels`, …).
   - `src/state/` — the parallel, cheaply-resettable playback-state
     objects (`*State.h`) mirroring the model objects above.

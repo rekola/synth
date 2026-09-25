@@ -11,7 +11,7 @@ class UIPlane;
 class InputEvent;
 
 // A one-line, in-place text field over a widget's own cells (a track,
-// clip, section or annotation name). Enter commits through the callback
+// clip, section or locator name). Enter commits through the callback
 // given to open(), Ctrl-g cancels; while open, every other key goes to the
 // reader rather than the owning widget's own bindings.
 //
