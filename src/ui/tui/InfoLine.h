@@ -34,11 +34,12 @@ class InfoLine : public UIElement {
     auto num_voices = info.getVoiceCount();
     auto num_allocated_voices = info.getAllocatedVoiceCount();
     auto latency_ms = info.getRoundTripLatencyMs();
+    auto is_playing = info.isPlaying();
 
     if (refresh || new_version != current_version_ || new_position != current_position_ ||
 	num_voices != current_num_voices_ || num_allocated_voices != current_num_allocated_voices_ ||
 	buffer_name != current_buffer_name_ || buffer_names != current_buffer_names_ ||
-	latency_ms != current_latency_ms_) {
+	latency_ms != current_latency_ms_ || is_playing != current_is_playing_) {
       auto seconds = (int)info.getTime();
       auto minutes = seconds / 60;
       seconds %= 60;
@@ -83,6 +84,7 @@ class InfoLine : public UIElement {
       current_num_voices_ = num_voices;
       current_num_allocated_voices_ = num_allocated_voices;
       current_latency_ms_ = latency_ms;
+      current_is_playing_ = is_playing;
       current_buffer_name_ = buffer_name;
       current_buffer_names_ = std::move(buffer_names);
 
@@ -102,6 +104,8 @@ private:
   // tick down as voices actually finish.
   int current_num_voices_ = 0, current_num_allocated_voices_ = 0;
   int current_latency_ms_ = -1;
+  // Stopping at the same row changes nothing else shown.
+  bool current_is_playing_ = false;
   // Its own dirty-check input too, for the same reason: switching to a
   // different open buffer (Controller::switchToBuffer()) doesn't
   // necessarily change the new song's own version number to something
