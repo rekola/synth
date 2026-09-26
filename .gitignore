@@ -64,6 +64,7 @@ tools/e2e/fake_launchpad_clear_on_exit
 tools/e2e/fake_launchpad_paging_lockstep
 tools/e2e/fake_launchpad_shift_no_lanes
 tools/e2e/fake_launchpad_shift_stepgrid_pitched
+tools/e2e/fake_launchpad_session_automation
 tools/e2e/*.log
 tools/e2e/__pycache__
 

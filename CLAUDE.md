@@ -1036,7 +1036,10 @@ would otherwise resume showing.
   covers the same eight buttons' own momentary hold-to-preview gesture
   (`armMixerHoldPreview()`/`handleMixerFunctionRelease()`) - a quick tap
   stays (sticky), a real hold reverts to whatever was showing before it
-  once released. `verify_launchpad_sampletrack_record_arm.py` covers the
+  once released. `verify_launchpad_session_automation.py` covers a fader
+  move during a Session View take landing in the take's own clip
+  (`recordFaderAutomationIfArmed()`) rather than the arrangement, which a
+  taken-over track ignores. `verify_launchpad_sampletrack_record_arm.py` covers the
   SampleTrack twin of `verify_launchpad_record_arm_holes.py` - a
   Session-grid press on a SampleTrack armed via the track-picker overlay
   actually arming real audio capture, and a second press cancelling it -

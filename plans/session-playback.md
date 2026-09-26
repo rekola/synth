@@ -7,7 +7,7 @@ Session view pattern editor follows each track's own playhead. The
 Session view, clip grid and clip editing this builds on are already in
 place.
 
-Status: Phase 1 done; Phase 2 done but for the two items under its "Still
+Status: Phase 1 done; Phase 2 done but for the item under its "Still
 open"; Phases 3 and 4 done; Phase 5 waits on its open question.
 Every phase lands as its own commit(s), with `ctest` and the e2e scripts
 green.
@@ -62,7 +62,11 @@ clip grid header marks a taken-over track (◆); launched clips play
 through `SongState` (`queueSessionChange()`, `SessionTrackInfo`) on a
 session clock that seeks and pattern breaks don't move, with their own
 commands; `SessionPlayer` predicts each change until a snapshot catches
-up and keeps the Session View takes, now running on the transport.
+up and keeps the Session View takes, now running on the transport. A
+Launchpad fader move made while a Session View take records on its track
+goes into the take's clip, at the row a note pressed then would land on
+(`recordFaderAutomationIfArmed()`); otherwise it goes to the arrangement
+background, as before.
 
 Still open:
 
@@ -72,13 +76,6 @@ Still open:
   taken over, would also give the hardware the command itself), or a
   per-column mark in Session view - and whether a press there returns
   every track or just the column's.
-- **Recording automation.** Launchpad fader moves recorded while a clip
-  plays (`recordFaderAutomationIfArmed()`) still go to the section
-  background. Now that a launched clip's own commands play, and a
-  taken-over track ignores its arrangement automation, decide whether a
-  Session View take (or an overdub) should write them into the clip
-  instead - otherwise a fader move recorded during a take is inaudible
-  until the track returns to the arrangement.
 
 ---
 

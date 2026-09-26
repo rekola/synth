@@ -167,6 +167,12 @@ you're changing.
   reflects the new one after the press - the non-NOTES branch of
   `PatternEditor::handleLaunchpadPadEvent` (Send A/B/Main/Pan) had no
   coverage before this script.
+- **`fake_launchpad_session_automation.c` / `verify_launchpad_session_automation.py`** -
+  arms the fixture's only track through the Record Arm picker, starts a
+  Session View take in an empty clip slot, and moves the track's Send A
+  fader while it records; confirms the move lands as a `YAxy` command in
+  the take's own clip (shown in the Session view pattern editor) rather
+  than the arrangement, which a taken-over track ignores.
 - **`fake_launchpad_sendmode_autocreate.c` / `verify_launchpad_sendmode_autocreate.py`** -
   loads `songs/songtest1.xml` (2 tracks), enters mixer submode, toggles
   Send A mode, and presses column 5 (no track there yet); confirms

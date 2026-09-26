@@ -23,6 +23,7 @@ class Song;
 class PlaybackInfo;
 class Controller;
 class Command;
+class Pattern;
 class LaunchpadPadEvent;
 class LaunchpadChannelPressureEvent;
 class PercussionTrack;
@@ -1090,8 +1091,8 @@ class LaunchpadManager {
     // comment).
     int micro_step = 0;
     // recordFaderAutomationIfArmed()'s own "which column am I writing
-    // this fader's automation into" state - which row/command-column
-    // its most recent write landed on, so a second press landing on the
+    // this fader's automation into" state - which Pattern, row and
+    // command column its most recent write landed on, so a second press landing on the
     // *same* still-current row (the transport hasn't advanced since the
     // last one) updates that one column in place rather than each
     // claiming a fresh column via pushCommand() and leaving a trail of
@@ -1103,6 +1104,7 @@ class LaunchpadManager {
     // later (e.g. after a jump back) could in principle reuse a stale
     // column from an earlier, disconnected recording pass rather than
     // claiming a fresh one - a known, narrow edge case, not solved here.
+    const Pattern * automation_pattern = nullptr;
     int automation_row = -1;
     int automation_column = -1;
   };
@@ -1164,12 +1166,14 @@ class LaunchpadManager {
   // Applies a held-back single press whose window has run out.
   void flushPendingPanPresses(Controller & controller);
 
-  // Live-recording's own write path: while Record Arm is on and the
-  // transport is genuinely playing (the same "you're recording a take
-  // right now" condition note entry already gates on, not the narrower
-  // Session-view-clip-specific isSessionRecording() - a fader move isn't
-  // about any one clip), writes `command` into the current playback
-  // row of the track's own background Pattern for `track_id` - a fresh column
+  // Live-recording's own write path: while a Session View take records on
+  // `track_id` (Controller::isSessionRecording()), writes `command` into
+  // that take's clip at its current row - the same quantized row a note
+  // pressed now would land on - since a track Session view has taken
+  // over ignores its arrangement automation. Otherwise, while Record Arm
+  // is on and the transport is genuinely playing (the same condition
+  // arrangement note entry gates on), writes it into the current playback
+  // row of the track's own background Pattern. Either way a fresh column
   // (Arrangement::pushCommand(), never unconditionally column 0, which could
   // already hold an unrelated hand-typed command) the first time this
   // fader (`fader`, for its own automation_row/automation_column - see

@@ -646,23 +646,36 @@ LaunchpadManager::flushPendingPanPresses(Controller & controller) {
 
 void
 LaunchpadManager::recordFaderAutomationIfArmed(Controller & controller, FaderState & fader, int track_id, Command command) {
-  // The same "you're recording a take right now" condition note entry
-  // already gates on (armed + genuinely playing, not just armed-while-
-  // stopped) - isNoteCaptureArmed() rather than the narrower
-  // isSessionRecording() (that one's scoped to Session view's own
-  // clip-capture path; a fader move isn't about any one clip, it's
-  // track-level automation regardless of what's playing there).
-  auto & playback_info = controller.getPlaybackInfo();
-  if (!controller.isNoteCaptureArmed() || !playback_info.isPlaying()) return;
   auto & song = controller.getSong();
-  auto & arrangement = song.getArrangement();
-  auto row = playback_info.getAbsolutePosition();
-  if (fader.automation_row == row && fader.automation_column >= 0) {
-    arrangement.setCommand(row, track_id, fader.automation_column, command);
+  Pattern * pattern = nullptr;
+  int row = 0;
+  if (controller.isSessionRecording(track_id)) {
+    // Into the take's clip, at the row a note pressed now lands on.
+    auto step = controller.getSessionPlayer().quantizedStep();
+    auto take_row = controller.ensureSessionRecordingClip(track_id, step.step, step.bar_start);
+    auto clip_index = controller.getSessionRecordingClipIndex(track_id);
+    auto & clips = song.getClips(track_id);
+    if (take_row < 0 || clip_index < 0 || clip_index >= static_cast<int>(clips.size())) return;
+    auto & clip = clips[static_cast<size_t>(clip_index)];
+    pattern = &clip.getLeafPattern();
+    row = take_row % std::max(1, clip.getLength());
   } else {
-    fader.automation_column = arrangement.pushCommand(row, track_id, command);
+    // The same "you're recording a take right now" condition arrangement
+    // note entry gates on - armed and genuinely playing, not just
+    // armed-while-stopped.
+    auto & playback_info = controller.getPlaybackInfo();
+    if (!controller.isNoteCaptureArmed() || !playback_info.isPlaying()) return;
+    pattern = &song.getArrangement().getPatternsByTrack()[track_id];
+    row = playback_info.getAbsolutePosition();
+  }
+  if (fader.automation_pattern == pattern && fader.automation_row == row && fader.automation_column >= 0) {
+    pattern->setCommand(row, fader.automation_column, command);
+  } else {
+    fader.automation_column = pattern->pushCommand(row, command);
+    fader.automation_pattern = pattern;
     fader.automation_row = row;
   }
+  song.incMinorVersion();
 }
 
 LaunchpadManager::DeviceState &
