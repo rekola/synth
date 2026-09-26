@@ -19,17 +19,16 @@ class Song;
 // playing a launched clip is at its playhead, which can't be moved; a
 // stopped one is wherever it was left (where playback left it, or where
 // it was moved to), remembered per buffer. The cursor is the cursor
-// track's position, and every other track's rows are shown relative to
-// it: the editor's row that is the cursor row shows each track at its own
-// position, the next row each track's next row, and so on, so one screen
-// row can show different scenes in different columns. When the cursor is
-// moved, every track that isn't playing moves along by as much, so the
-// stopped columns stay put while the cursor row moves across them; a
-// playhead never moves another track. A playing track other than the
-// cursor's shows its playhead on a line of its own, offset from the
-// cursor row, which stays put as the cursor moves - the playing column
-// scrolls under that line instead. Effect commands and block operations
-// resolve each track's rows the same way.
+// track's position. Every other track shows its position on a line of its
+// own, offset from the cursor row (per buffer too), and its other rows
+// around that line, so one screen row can show different scenes in
+// different columns. Moving the cursor by hand takes every stopped track
+// along, each on its own line, so the stopped columns stay put while their
+// lines move with the cursor row; a playing track's line stays put. As a
+// track plays - the cursor track too - its line moves down with its
+// playhead, and every other line stays where it is, until the view
+// scrolls within its margin. Effect commands and block operations resolve
+// each track's rows the same way.
 class ScenePatternSource : public PatternSource {
  public:
   explicit ScenePatternSource(Controller & controller) : controller_(controller) { }
@@ -64,9 +63,8 @@ class ScenePatternSource : public PatternSource {
   bool hasInstance(int, RowAddress) const override { return false; }
   bool stopInstance(int, RowAddress) override { return false; }
   const SampleContent * sampleBackground(int, int) const override { return nullptr; }
-  // A playing track's playhead is always at its position, shown on its
-  // own line (trackCursor()).
-  std::optional<int> playheadRow(int track_id, int block) const override;
+  // Every track's position is shown on its own line (trackCursor()).
+  std::optional<int> positionRow(int track_id, int block) const override;
 
   bool showsClipIndirection() const override { return false; }
   bool hasLocators() const override { return false; }
@@ -78,14 +76,13 @@ class ScenePatternSource : public PatternSource {
   static int sceneCount(const Song & song);
 
   // Where each track's launched clip is playing: its scene and row. A
-  // track whose playhead goes away stays as it's shown - its position the
-  // row shown at the cursor row.
+  // track whose playhead goes away stays where it left it, on its line.
   struct Playhead { int scene; int row; };
   void setPlayheads(std::unordered_map<int, Playhead> playheads);
-  // Brings every playing track's playhead line (other than the cursor
-  // track's) back within `margin` rows of the edges of the `rows` rows
-  // starting at `top`, when it has left them. True if any moved.
-  bool keepPlayheadsVisible(RowAddress top, int rows, int margin);
+  // Brings every track's line (other than the cursor track's) back within
+  // `margin` rows of the edges of the `rows` rows starting at `top`, when
+  // it has left them. True if any moved.
+  bool keepTrackLinesVisible(RowAddress top, int rows, int margin);
 
   // `address`, a row of the editor (the cursor track's), as `track_id`'s
   // own: its position moved by as many rows as `address` is from the
@@ -103,16 +100,19 @@ class ScenePatternSource : public PatternSource {
   // Moves every stopped track but the cursor's by `rows`, keeping each
   // one within the scenes.
   void moveStoppedTracks(int rows);
-  // A playing track's playhead line, in rows from the cursor row; 0 for
-  // any other track.
+  // Moves every track's line but the cursor track's by `rows`.
+  void moveOtherLines(int rows);
+  // A track's line, in rows from the cursor row; 0 for the cursor track.
   int offset(int track_id) const;
+  std::unordered_map<int, int> & offsets() const;
 
   Controller & controller_;
   int cursor_track_id_ = -1;
   // Stopped tracks' positions, per buffer name.
   mutable std::unordered_map<std::string, std::unordered_map<int, RowAddress>> positions_;
   std::unordered_map<int, Playhead> playheads_;
-  std::unordered_map<int, int> offsets_;
+  // Each track's line (offset()), per buffer name.
+  mutable std::unordered_map<std::string, std::unordered_map<int, int>> offsets_;
 };
 
 #endif

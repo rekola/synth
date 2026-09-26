@@ -37,7 +37,7 @@ class ArrangementPatternSource : public PatternSource {
   bool hasInstance(int track_id, RowAddress address) const override;
   bool stopInstance(int track_id, RowAddress address) override;
   const SampleContent * sampleBackground(int track_id, int block) const override;
-  std::optional<int> playheadRow(int, int) const override { return std::nullopt; }
+  std::optional<int> positionRow(int, int) const override { return std::nullopt; }
   bool showsClipIndirection() const override { return true; }
   bool hasLocators() const override { return true; }
   bool cursorFollowsTransport() const override { return true; }

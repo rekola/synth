@@ -91,10 +91,11 @@ column is shown relative to the cursor track's position
 (`trackAddress()`), so columns can show different clips and a playing
 column shows its playhead on the highlighted row; moving the cursor moves
 every stopped track along, so the highlighted row moves across still
-columns and the view scrolls only near its edges, and while the cursor
-track plays that row holds still and its column scrolls under it; any
-other playing track shows its playhead on a line of its own, which
-stays put as the cursor moves; regions resolve each track's
+columns and the view scrolls only near its edges; every other track
+shows its position on a line of its own, which follows its playhead
+within the margins as it plays - the cursor row the cursor track's - and
+otherwise stays put, a stopped one moving only with the cursor moved by
+hand; regions resolve each track's
 rows the same way (`PositionedSceneGrid`). Each column's heading names
 its clip, and each clip grid column marks its own track's clip - the
 clip grid's own cursor never moves a track; only the pattern editor or

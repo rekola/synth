@@ -245,8 +245,8 @@ TEST(scene_source_shows_a_playing_tracks_playhead_at_the_cursor_row) {
   source.setCursorTrack(f.track_id);
   source.setPlayheads({ { f.track_id, { 1, 5 } } });
   CHECK(source.cursor() == (RowAddress{ 1, 5 }));
-  CHECK(source.playheadRow(f.track_id, 1) == 5);
-  CHECK(!source.playheadRow(f.track_id, 0));
+  CHECK(source.positionRow(f.track_id, 1) == 5);
+  CHECK(!source.positionRow(f.track_id, 0));
   CHECK(!source.hasLocators());
   CHECK(!source.showsClipIndirection());
   CHECK(!source.cursorFollowsTransport());
@@ -325,7 +325,10 @@ TEST(scene_source_moving_the_cursor_moves_stopped_tracks_but_not_playing_ones) {
   CHECK(source.cursor() == (RowAddress{ 1, 2 }));
 }
 
-TEST(scene_source_cursor_tracks_playhead_never_moves_stopped_tracks) {
+// As the cursor track plays, the cursor row follows its playhead, but a
+// stopped track stays where it is, on its own line - only moving the
+// cursor by hand takes it along.
+TEST(scene_source_cursor_tracks_playhead_leaves_stopped_tracks_where_they_are) {
   Fixture f;
   auto & song = f.song();
   auto stopped = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
@@ -336,6 +339,7 @@ TEST(scene_source_cursor_tracks_playhead_never_moves_stopped_tracks) {
 
   source.setPlayheads({ { f.track_id, { 1, 0 } } });
   source.setPlayheads({ { f.track_id, { 1, 2 } } });
+  CHECK(source.positionRow(stopped, 1) == 0); // 2 rows up from the cursor row
   source.setCursorTrack(stopped);
   CHECK(source.cursor() == (RowAddress{ 0, 5 }));
 }
@@ -350,7 +354,7 @@ TEST(scene_source_playing_track_follows_its_playhead_and_stays_where_it_stops) {
   source.setCursor({ 0, 2 });
 
   source.setPlayheads({ { other, { 1, 3 } } });
-  CHECK(source.playheadRow(other, 0) == 2); // shown at the cursor row
+  CHECK(source.positionRow(other, 0) == 2); // shown at the cursor row
   CHECK(noteAt(source.read(other, { 0, 2 })) == 83);
 
   source.setCursorTrack(other);
@@ -377,34 +381,36 @@ TEST(scene_source_playing_track_keeps_its_line_as_the_cursor_moves) {
   source.setCursorTrack(f.track_id);
   source.setCursor({ 0, 2 });
   source.setPlayheads({ { playing, { 1, 3 } } });
-  CHECK(source.playheadRow(playing, 0) == 2);
+  CHECK(source.positionRow(playing, 0) == 2);
   CHECK(noteAt(source.read(playing, { 0, 2 })) == 83);
 
   // Moving the stopped cursor track leaves the playing column as it was.
   source.moveCursor(2);
   CHECK(source.cursor() == (RowAddress{ 0, 4 }));
-  CHECK(source.playheadRow(playing, 0) == 2);
+  CHECK(source.positionRow(playing, 0) == 2);
   CHECK(noteAt(source.read(playing, { 0, 2 })) == 83);
   CHECK(noteAt(source.read(playing, { 0, 4 })) == 85);
 
-  // As it plays, its column scrolls under that line.
+  // As it plays, its line moves down with it.
   source.setPlayheads({ { playing, { 1, 4 } } });
-  CHECK(source.playheadRow(playing, 0) == 2);
-  CHECK(noteAt(source.read(playing, { 0, 2 })) == 84);
+  CHECK(source.positionRow(playing, 0) == 3);
+  CHECK(noteAt(source.read(playing, { 0, 3 })) == 84);
+  CHECK(noteAt(source.read(playing, { 0, 2 })) == 83);
 
-  // Focused, the cursor row moves to its line - 2 rows up - taking the
-  // stopped track along; back again, the cursor is where that left it.
+  // Focused, the cursor row moves to its line - 1 row up - and the stopped
+  // track stays on its own line, 1 row below; back again, it's unmoved.
   source.setCursorTrack(playing);
   CHECK(source.cursor() == (RowAddress{ 1, 4 }));
-  CHECK(source.trackCursor(f.track_id) == source.cursor());
+  CHECK(source.rowsBetween(source.cursor(), source.trackCursor(f.track_id)) == 1);
   source.setCursorTrack(f.track_id);
-  CHECK(source.cursor() == (RowAddress{ 0, 2 }));
-  CHECK(source.playheadRow(playing, 0) == 2);
-  CHECK(noteAt(source.read(playing, { 0, 2 })) == 84);
+  CHECK(source.cursor() == (RowAddress{ 0, 4 }));
+  CHECK(source.positionRow(playing, 0) == 3);
+  CHECK(noteAt(source.read(playing, { 0, 3 })) == 84);
 
-  // Stopping, it stays as shown: its position is the row at the cursor row.
+  // Stopping, it stays where its playhead left it, on its line.
   source.setPlayheads({});
-  CHECK(noteAt(source.read(playing, { 0, 2 })) == 84);
+  CHECK(source.positionRow(playing, 0) == 3);
+  CHECK(noteAt(source.read(playing, { 0, 3 })) == 84);
   source.setCursorTrack(playing);
   CHECK(source.cursor() == (RowAddress{ 1, 4 }));
 }
@@ -418,9 +424,9 @@ TEST(scene_source_keeps_a_playing_tracks_line_in_view) {
   source.setPlayheads({ { playing, { 1, 3 } } });
   source.moveCursor(10); // its line is left 10 rows above the cursor row
   RowAddress top = source.advance(source.cursor(), -3);
-  CHECK(source.keepPlayheadsVisible(top, 8, 2));
+  CHECK(source.keepTrackLinesVisible(top, 8, 2));
   CHECK(source.rowsBetween(top, source.trackCursor(playing)) == 2);
-  CHECK(!source.keepPlayheadsVisible(top, 8, 2));
+  CHECK(!source.keepTrackLinesVisible(top, 8, 2));
 }
 
 TEST(scene_source_region_acts_on_each_track_at_its_own_position) {

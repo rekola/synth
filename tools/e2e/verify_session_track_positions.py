@@ -48,9 +48,6 @@ def clip_numbers(scr):
     return re.findall(r"(\d+) \S", lines[heading + 1])
 
 
-PLAYHEAD_BG = {"245361", "3e6d7b"}
-
-
 def columns(scr):
     """T0's whole column, and T0's and T1's effect columns, found from the
     "│" dividers after each track."""
@@ -69,9 +66,6 @@ def column_text(scr, cols):
     return ["".join(scr.screen.buffer[top + r][c].data for c in cols) for r in range(16)]
 
 
-def playhead_rows(scr, col):
-    top = first_pattern_row(scr)
-    return [r for r in range(16) if scr.screen.buffer[top + r][col].bg in PLAYHEAD_BG]
 
 
 def first_pattern_row(scr):
@@ -186,17 +180,13 @@ def main():
     check("a stopped track's column stays still under a playing cursor track", all(f == before for f in frames), scr)
     check("it shows its note", any("D♭4" in line for line in before), scr)
 
-    # T0 is stopped: moving it leaves the playing T1's playhead on the same
-    # screen row, and Up moves it.
+    # T0 is stopped: Up moves it.
     scr.send(CTRL_LEFT)
     scr.pump(0.4)
-    playhead_before = playhead_rows(scr, columns(scr)[2])
     scr.send(DOWN)
     scr.pump(0.4)
     scr.send(DOWN)
     scr.pump(0.4)
-    check("moving a stopped track leaves the playing track's playhead row alone",
-          playhead_before and playhead_rows(scr, columns(scr)[2]) == playhead_before, scr)
     scr.send(UP)
     scr.pump(0.3)
     scr.send(UP)

@@ -663,7 +663,6 @@ PatternEditor::syncCursorTrack(const Song & song) {
     top = source_->advance(source_->cursor(), -line);
     view_block_ = top.block;
     current_scroll_.row = top.row;
-    cursor_line_ = line;
   }
   synced_cursor_track_id_ = track_id;
 }
@@ -675,7 +674,6 @@ PatternEditor::setSessionMode(bool session) {
   source_ = source;
   synced_cursor_track_id_ = -1;
   view_block_ = 0;
-  cursor_line_ = -1;
   // A mark's block and a scroll position mean nothing in the other
   // source's row space.
   setSelectionActive(false);
@@ -1029,28 +1027,23 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   }
   auto new_row = current_scroll_.row;
   if (!view_detached_) {
-    // The highlighted row moves freely until it comes within kScrollMargin
-    // rows of an edge, and only then does the whole view scroll - across
-    // block boundaries. Session view can start before the first block, on
-    // rows that don't exist (negative), blank for the cursor track;
-    // Arrangement view has nothing before its first row.
+    // The highlighted row moves freely - with the cursor, or the playhead
+    // it follows - until it comes within kScrollMargin rows of an edge, and
+    // only then does the whole view scroll - across block boundaries.
+    // Session view can start before the first block, on rows that don't
+    // exist (negative), blank for the cursor track; Arrangement view has
+    // nothing before its first row.
     auto visible = std::max(rows - heading_height, 1);
     auto margin = std::min(kScrollMargin, (visible - 1) / 2);
     RowAddress top{ view_block_, current_scroll_.row };
     auto line = source_->rowsBetween(top, point);
-    if (source_->cursorLocked() && cursor_line_ >= 0) {
-      // A cursor following its track's playhead holds its screen row: the
-      // playing column scrolls under it, and every other column - drawn
-      // relative to that row - stays put.
-      top = source_->advance(point, -cursor_line_);
-    } else if (line < margin) {
+    if (line < margin) {
       top = source_->advance(point, -margin);
     } else if (line > visible - 1 - margin) {
       top = source_->advance(point, -(visible - 1 - margin));
     }
     if (!isSessionMode() && top.row < 0) top = { 0, 0 };
-    cursor_line_ = source_->rowsBetween(top, point);
-    if (isSessionMode() && scene_source_->keepPlayheadsVisible(top, visible, margin)) force_full_redraw_ = true;
+    if (isSessionMode() && scene_source_->keepTrackLinesVisible(top, visible, margin)) force_full_redraw_ = true;
     view_block_ = top.block;
     new_row = top.row;
   }
@@ -2517,19 +2510,18 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // work). A real selection is still a stronger, fully-replacing cue
   // (cur_fg/cur_bg, computed per column further down) - callers check
   // for that themselves and skip this entirely when it applies.
-  // The cursor row (in arrangement mode also the transport's row) and,
-  // in session mode, each track's own playing row (track_playhead, set per
-  // track below).
-  bool track_playhead = false;
+  // The cursor row (in arrangement mode also the transport's row), or -
+  // where each track has a line of its own (session mode) - only that
+  // track's own position row (track_marked, set per track below).
+  std::optional<bool> track_marked;
   auto tintForPlayhead = [&](Color base) -> Color {
-    if (track_playhead) return styles.playheadTint(base);
-    if (!highlight) return base;
-    return styles.cursorRowTint(base);
+    return track_marked.value_or(highlight) ? styles.cursorRowTint(base) : base;
   };
   // The divider between two tracks belongs to neither, so it takes only
-  // the row's own tint, never one track's playhead.
+  // the row's own tint, never one track's playhead - none in session
+  // mode, where tracks mark their own rows.
   auto tintForRow = [&](Color base) -> Color {
-    return highlight ? styles.cursorRowTint(base) : base;
+    return highlight && !isSessionMode() ? styles.cursorRowTint(base) : base;
   };
 
   // A clip instance's own identifier digit (below) - superscript, not a
@@ -2696,8 +2688,11 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 
   auto current_pos = 0;
   for (int i = -1; i < static_cast<int>(track_ids.size()); i++) {
-    auto playhead = i >= 0 ? source_->playheadRow(track_ids[static_cast<size_t>(i)], pattern_idx) : std::nullopt;
-    track_playhead = playhead && *playhead == pattern_row;
+    track_marked.reset();
+    if (isSessionMode()) {
+      auto own_row = i >= 0 ? source_->positionRow(track_ids[static_cast<size_t>(i)], pattern_idx) : std::nullopt;
+      track_marked = own_row && *own_row == pattern_row;
+    }
     if (i >= 0 && i < current_scroll_.track) continue;
     if (current_pos >= cols) break;
 
@@ -3290,7 +3285,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     }
   }
 
-  track_playhead = false;
+  track_marked.reset();
 
   // Cache this row's locator on-screen position whenever it's the
   // cursor/playhead's own row - highlight is true exactly then, in every

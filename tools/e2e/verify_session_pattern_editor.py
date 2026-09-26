@@ -42,6 +42,31 @@ def first_pattern_row(scr):
     return -1
 
 
+def row_tint(base):
+    """StyleProvider::cursorRowTint() over `base` (hex)."""
+    tint, alpha = (0x90, 0xb8, 0xcc), 0.35
+    rgb = [int(base[i:i + 2], 16) for i in (0, 2, 4)]
+    return "".join("%02x" % int(c * (1 - alpha) + t * alpha) for c, t in zip(rgb, tint))
+
+
+# The marked row's tint over a plain, a beat and a bar row.
+TINTED = {row_tint(b) for b in ("151515", "292929", "3d3d3d")}
+
+
+def tinted_lines(scr, top, col):
+    return tuple(r for r in range(16) if scr.screen.buffer[top + r][col].bg in TINTED)
+
+
+def watch(scr, top, col, samples=8):
+    """The distinct sets of tinted lines `col` shows over `samples` frames -
+    more than one means its marked row moves: it's playing."""
+    seen = set()
+    for _ in range(samples):
+        scr.pump(0.2)
+        seen.add(tinted_lines(scr, top, col))
+    return seen
+
+
 def session_top(scr):
     """Screen row index of Session view's first pattern row - two below the
     "▌◂ T0" track title row (each column shows its own row numbers, so
@@ -107,34 +132,25 @@ def main():
     scr.pump(0.2)
     top = session_top(scr)
     columns = session_columns(scr, top)
-    # playhead_tint_color over a plain row and over a bar row.
-    PLAYHEAD_BG = {"245361", "3e6d7b"}
     # A cell of T0's own, its effect column - not its note cell, which is
     # the cursor's (on T0's playhead while it plays) and shows the cursor.
     T0_COL = columns["t0"]
-    playing_t0 = playing_t1 = tinted_divider = False
+    t0_seen, t1_seen = set(), set()
+    tinted_divider = False
     for _ in range(12):
         scr.pump(0.2)
-        for r in range(16):
-            t0 = scr.screen.buffer[top + r][T0_COL].bg
-            t1 = scr.screen.buffer[top + r][columns["t1"]].bg
-            divider = scr.screen.buffer[top + r][columns["divider"]].bg
-            playing_t0 |= t0 in PLAYHEAD_BG
-            playing_t1 |= t1 in PLAYHEAD_BG
-            tinted_divider |= t0 in PLAYHEAD_BG and divider in PLAYHEAD_BG
-    check("the launched clip's playhead shows in its own track's column", playing_t0, scr)
-    check("no playhead in a track with nothing launched", not playing_t1, scr)
-    check("the playhead stops short of the divider between tracks", playing_t0 and not tinted_divider, scr)
+        t0_seen.add(tinted_lines(scr, top, T0_COL))
+        t1_seen.add(tinted_lines(scr, top, columns["t1"]))
+        tinted_divider |= bool(tinted_lines(scr, top, columns["divider"]))
+    check("the launched clip's playhead moves through its own track's column", len(t0_seen) > 1, scr)
+    check("a track with nothing launched keeps its position still", len(t1_seen) == 1, scr)
+    check("the playhead stops short of the divider between tracks", not tinted_divider, scr)
 
     # Launching the playing clip again relaunches it at the next bar - a
     # launch never toggles - so past that bar its playhead still moves.
     scr.send(b"\r")
     scr.wait(3.0)  # past the next bar
-    still_playing = False
-    for _ in range(8):
-        scr.pump(0.2)
-        still_playing |= any(scr.screen.buffer[top + r][T0_COL].bg in PLAYHEAD_BG for r in range(16))
-    check("launching the playing clip again restarts it rather than stopping it", still_playing, scr)
+    check("launching the playing clip again restarts it rather than stopping it", len(watch(scr, top, T0_COL)) > 1, scr)
 
     # Space is the transport in Session view too: the launch started it,
     # and stopping it stops the launched clip.
@@ -147,11 +163,7 @@ def main():
     scr.send(b" ")
     scr.pump(0.6)
     check("and starts it again", vk.is_playing(scr), scr)
-    moving = False
-    for _ in range(8):
-        scr.pump(0.2)
-        moving |= any(scr.screen.buffer[top + r][T0_COL].bg in PLAYHEAD_BG for r in range(16))
-    check("the stopped clip stays stopped", not moving, scr)
+    check("the stopped clip stays stopped", len(watch(scr, top, T0_COL)) == 1, scr)
 
     os.kill(pid, 9)
     sys.exit(0 if all(results) else 1)

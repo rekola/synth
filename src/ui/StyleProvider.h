@@ -17,15 +17,12 @@ class StyleProvider {
   // under a cursor or playhead, instead of taking either background above.
   Color cursor_tint_color = "#d0ecff";
   // The translucent tint over a marked row: the pattern editor's cursor
-  // row (in Arrangement view, the transport's playing row), the clip
-  // grid's scene row and the arrangement grid's playing row.
+  // row and playheads (in Arrangement view the transport's row, in
+  // Session view each track's own), the clip grid's scene row and the
+  // arrangement grid's playing row.
   Color cursor_row_tint_color = "#90b8cc";
-  // The same over a Session view track's own playing row, more saturated
-  // so a launched clip's playhead stands apart from the cursor row.
-  Color playhead_tint_color = "#40c8f0";
   static constexpr float kRowTintAlpha = 0.35f;
   Color cursorRowTint(Color base) const { return base.blend(kRowTintAlpha, cursor_row_tint_color); }
-  Color playheadTint(Color base) const { return base.blend(kRowTintAlpha, playhead_tint_color); }
 
   Color window_border_color = "#323232";
   Color window_fg_color = "#9e9e9e";

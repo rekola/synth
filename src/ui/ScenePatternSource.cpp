@@ -106,67 +106,81 @@ ScenePatternSource::position(int track_id) const {
   return clamp(positions()[track_id]);
 }
 
+std::unordered_map<int, int> &
+ScenePatternSource::offsets() const {
+  return offsets_[controller_.getActiveBufferName()];
+}
+
 int
 ScenePatternSource::offset(int track_id) const {
-  auto it = offsets_.find(track_id);
-  return track_id != cursor_track_id_ && it != offsets_.end() && isPlaying(track_id) ? it->second : 0;
+  if (track_id == cursor_track_id_) return 0;
+  auto & lines = offsets();
+  auto it = lines.find(track_id);
+  return it != lines.end() ? it->second : 0;
+}
+
+void
+ScenePatternSource::moveOtherLines(int rows) {
+  if (rows == 0) return;
+  for (auto track_id : song().getRootTrackIds()) {
+    if (track_id != cursor_track_id_) offsets()[track_id] = offset(track_id) + rows;
+  }
 }
 
 void
 ScenePatternSource::setPlayheads(std::unordered_map<int, Playhead> playheads) {
-  // A track that stops stays as it's shown: its position is the row at the
-  // cursor row.
+  // A track that stops stays where its playhead left it, on its line.
   for (auto & [ track_id, playhead ] : playheads_) {
     auto it = playheads.find(track_id);
     if (playhead.row < 0 || (it != playheads.end() && it->second.row >= 0)) continue;
-    auto left = advance({ playhead.scene, playhead.row }, -offset(track_id));
-    positions()[track_id] = left.row < 0 ? RowAddress{ 0, 0 } : clamp(left);
-    offsets_.erase(track_id);
+    positions()[track_id] = clamp({ playhead.scene, playhead.row });
+  }
+  // How far each playhead that keeps playing has moved.
+  std::unordered_map<int, int> moved;
+  for (auto & [ track_id, playhead ] : playheads) {
+    auto it = playheads_.find(track_id);
+    if (playhead.row < 0 || it == playheads_.end() || it->second.row < 0) continue;
+    moved[track_id] = rowsBetween(clamp({ it->second.scene, it->second.row }), clamp({ playhead.scene, playhead.row }));
   }
   playheads_ = std::move(playheads);
+  // Each playhead's line moves down the screen with it - the cursor row
+  // with the cursor track's - until the view scrolls within the margin of
+  // an edge (PatternEditor, keepTrackLinesVisible()); every other line
+  // stays where it is.
+  auto cursor_it = moved.find(cursor_track_id_);
+  auto cursor_moved = cursor_it != moved.end() ? cursor_it->second : 0;
+  moveOtherLines(-cursor_moved);
+  for (auto & [ track_id, rows ] : moved) {
+    if (track_id != cursor_track_id_) offsets()[track_id] = offset(track_id) + rows;
+  }
 }
 
 void
 ScenePatternSource::setCursorTrack(int track_id) {
   if (track_id == cursor_track_id_) return;
-  // The cursor row moves to where the new track's position is shown, so
-  // every playing track's line is now that much nearer to it.
+  // The cursor row moves to the new track's line, so every other line is
+  // now that much nearer to it - the old cursor track's, at the old cursor
+  // row, among them.
   auto shift = offset(track_id);
   auto old_cursor_track_id = cursor_track_id_;
   cursor_track_id_ = track_id;
-  for (auto & [ playing_id, playhead ] : playheads_) {
-    if (playhead.row < 0 || playing_id == track_id) continue;
-    offsets_[playing_id] = (playing_id == old_cursor_track_id ? 0 : offsets_[playing_id]) - shift;
-  }
-  offsets_.erase(track_id);
-  // The stopped tracks move along with the cursor row, as they do when it
-  // moves - the old cursor track among them.
-  moveStoppedTracks(shift);
+  offsets().erase(track_id);
+  if (old_cursor_track_id >= 0) offsets()[old_cursor_track_id] = 0;
+  moveOtherLines(-shift);
 }
 
 bool
-ScenePatternSource::keepPlayheadsVisible(RowAddress top, int rows, int margin) {
+ScenePatternSource::keepTrackLinesVisible(RowAddress top, int rows, int margin) {
   bool moved = false;
-  for (auto & [ track_id, playhead ] : playheads_) {
-    if (playhead.row < 0 || track_id == cursor_track_id_) continue;
+  for (auto track_id : song().getRootTrackIds()) {
+    if (track_id == cursor_track_id_) continue;
     auto line = rowsBetween(top, trackCursor(track_id));
     auto kept = std::clamp(line, margin, std::max(margin, rows - 1 - margin));
     if (kept == line) continue;
-    offsets_[track_id] = offset(track_id) + kept - line;
+    offsets()[track_id] = offset(track_id) + kept - line;
     moved = true;
   }
   return moved;
-}
-
-void
-ScenePatternSource::moveStoppedTracks(int rows) {
-  if (rows == 0) return;
-  for (auto track_id : song().getRootTrackIds()) {
-    if (track_id == cursor_track_id_ || isPlaying(track_id)) continue;
-    auto moved = advance(position(track_id), rows);
-    if (moved.row < 0) moved = { 0, 0 };
-    positions()[track_id] = clamp(moved);
-  }
 }
 
 RowAddress
@@ -182,11 +196,23 @@ ScenePatternSource::moveCursor(int delta_rows) {
   if (address.row < 0) address = { 0, 0 };
   if (address.block >= blockCount()) address = { blockCount() - 1, blockLength(blockCount() - 1) - 1 };
   positions()[cursor_track_id_] = address;
+  // Moved by hand, the stopped tracks move along, each on its own line;
+  // the playing tracks' lines stay put as the cursor row moves away.
   auto moved = rowsBetween(old_cursor, address);
   moveStoppedTracks(moved);
-  // Playing tracks' lines stay put as the cursor row moves away.
   for (auto & [ track_id, playhead ] : playheads_) {
-    if (playhead.row >= 0 && track_id != cursor_track_id_) offsets_[track_id] = offset(track_id) - moved;
+    if (playhead.row >= 0 && track_id != cursor_track_id_) offsets()[track_id] = offset(track_id) - moved;
+  }
+}
+
+void
+ScenePatternSource::moveStoppedTracks(int rows) {
+  if (rows == 0) return;
+  for (auto track_id : song().getRootTrackIds()) {
+    if (track_id == cursor_track_id_ || isPlaying(track_id)) continue;
+    auto moved = advance(position(track_id), rows);
+    if (moved.row < 0) moved = { 0, 0 };
+    positions()[track_id] = clamp(moved);
   }
 }
 
@@ -288,8 +314,7 @@ ScenePatternSource::insertRow(int track_id, RowAddress address) {
 }
 
 std::optional<int>
-ScenePatternSource::playheadRow(int track_id, int block) const {
-  if (!isPlaying(track_id)) return std::nullopt;
+ScenePatternSource::positionRow(int track_id, int block) const {
   auto at = trackCursor(track_id);
   if (at.block != block) return std::nullopt;
   return at.row;

@@ -107,9 +107,10 @@ class PatternSource {
   // Audio a sample track plays at `block` with no clip placed.
   virtual const SampleContent * sampleBackground(int track_id, int block) const = 0;
 
-  // The row `track_id` is playing in `block`, when that differs per track
-  // (clips launched independently); nullopt otherwise.
-  virtual std::optional<int> playheadRow(int track_id, int block) const = 0;
+  // The row of `block` showing `track_id`'s own position - its playhead
+  // while it plays - when each track has its own line (tracks launched and
+  // moved independently); nullopt otherwise, the cursor row showing it.
+  virtual std::optional<int> positionRow(int track_id, int block) const = 0;
 
   // Whether a cell whose notes come from a clip (ReadTarget::is_instance)
   // is drawn tinted, marking that they don't live where they're shown.

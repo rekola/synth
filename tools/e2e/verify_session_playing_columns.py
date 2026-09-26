@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Drive Session view's pattern editor through a pty with the focused track
-playing: the columns to its right - stopped tracks - must stay exactly as
-they are, text and colors, while the playing column scrolls, including
-while the playing track shows rows it doesn't have (before its first
-clip), which draw blank.
+playing: the columns to its right - stopped tracks - must show the same
+rows while the highlighted row moves down with the playhead over them,
+including while the playing track shows rows it doesn't have (before its
+first clip), which draw blank.
 """
 import os
 import sys
@@ -62,8 +62,7 @@ def main():
     divider = [i for i, c in enumerate(lines[top + 6]) if c == "│"][0]
 
     def right_of_t0():
-        return [[(scr.screen.buffer[top + r][c].data, scr.screen.buffer[top + r][c].bg, scr.screen.buffer[top + r][c].fg)
-                 for c in range(divider + 1, divider + 90)] for r in range(12)]
+        return ["".join(scr.screen.buffer[top + r][c].data for c in range(divider + 1, divider + 90)) for r in range(12)]
 
     def t0_blank_rows():
         return sum(1 for r in range(12)
@@ -77,7 +76,7 @@ def main():
         unchanged = unchanged and right_of_t0() == first
         saw_blank = saw_blank or t0_blank_rows() > 0
     check("the playing track shows the rows before its first clip blank", saw_blank, scr)
-    check("the columns right of a playing track don't change as it plays", unchanged, scr)
+    check("the columns right of a playing track show the same rows as it plays", unchanged, scr)
 
     os.kill(pid, 9)
     sys.exit(0 if all(results) else 1)

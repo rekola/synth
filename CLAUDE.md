@@ -227,9 +227,11 @@ shows where its edits land. A colored cell (a clip, an arrangement
 instance) brightens toward `cursor_tint_color` instead of taking either
 grey. A marked row - the pattern editor's cursor row (in Arrangement
 view, the transport's row), the clip grid's scene row, the arrangement
-grid's playing row - takes one tint (`StyleProvider::cursorRowTint()`);
-a Session view track's own playing row the more saturated
-`playheadTint()`. Every color lives in `StyleProvider`, so one color
+grid's playing row - takes one tint (`StyleProvider::cursorRowTint()`).
+In Session view each pattern editor column marks only its own position,
+in that tint, on its own line (`PatternSource::positionRow()`) - a
+playing track's playhead, a stopped one's position - so no column shows
+two marked rows. Every color lives in `StyleProvider`, so one color
 is one constant. The theme is `TerminalUI`'s own `styles_`: widgets get
 it in `render()`, and every `UIPlane` carries it too (`getStyles()`,
 handed down to child planes), so plane-level drawing - the charts, the
@@ -973,22 +975,22 @@ would otherwise resume showing.
   remembered per buffer. The cursor is the cursor track's position and
   every other column is shown relative to it (`ScenePatternSource::
   trackAddress()`), so one screen row can show a different clip in each
-  column, a playing column's content scrolls under the highlighted row,
-  and regions act on each track at its own rows (`PositionedSceneGrid`).
-  Moving the cursor moves every stopped track along by as many rows, so
-  the highlighted row moves across still columns and the whole view
-  scrolls only within `PatternEditor::kScrollMargin` rows of an edge
-  (starting before the first clip, on blank rows, where needed -
-  Arrangement view scrolls by the same margin, but never before its
-  first row). A playhead never moves another track: while the cursor
-  track plays, the highlighted row holds its screen row and the playing
-  column scrolls under it. Any other playing track shows its playhead on
-  a line of its own (`ScenePatternSource::trackCursor()`, an offset from
-  the cursor row), which stays put as the cursor moves - its column
-  scrolls under that line - and is brought back within the margin if
-  the view scrolls it off (`keepPlayheadsVisible()`). Focusing a playing
-  track moves the cursor row onto its line, taking the stopped tracks
-  along; a track that stops keeps what it shows.
+  column, and regions act on each track at its own rows (`PositionedSceneGrid`).
+  Every track other than the cursor's shows its position on a line of
+  its own (`ScenePatternSource::trackCursor()`, an offset from the cursor
+  row, per buffer). Moving the cursor by hand moves every stopped track
+  along by as many rows, each on its own line, so the highlighted rows
+  move across still columns and the whole view scrolls only within
+  `PatternEditor::kScrollMargin` rows of an edge (starting before the
+  first clip, on blank rows, where needed - Arrangement view scrolls by
+  the same margin, but never before its first row); a playing track's
+  line stays put. As a track plays - the cursor track included - its
+  line follows its playhead down the screen by the same margin rule,
+  every other line staying where it is, and each line is held within the
+  margin of an edge, its column scrolling under it there
+  (`keepTrackLinesVisible()`). Focusing a track moves the cursor row onto
+  its line, every other line staying put; a track that stops stays where
+  its playhead left it.
   Each column shows its own row numbers before its notes
   (`VisibleTrackInfo::row_number_width_`, counted into its first column;
   the shared gutter is only a margin here), its own bar/beat accents and

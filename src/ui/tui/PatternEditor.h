@@ -364,9 +364,6 @@ protected:
   // How close the highlighted row gets to the top or bottom before the
   // whole view scrolls.
   static constexpr int kScrollMargin = 3;
-  // The cursor's screen row (from the first pattern row) last frame, or -1
-  // before one - held while the cursor follows a playhead.
-  int cursor_line_ = -1;
   // Says so on the status line when the cursor can't move - it follows a
   // playing track's playhead. True then.
   bool reportLockedCursor();
