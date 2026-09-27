@@ -6,7 +6,6 @@
 #include "TrackState.h"
 #include "InstrumentTrackState.h"
 #include "SampleTrackState.h"
-#include "../instruments/Tuner.h"
 #include "RenderContext.h"
 #include "SessionTrackInfo.h"
 #include "../model/NoteCoordinate.h"
@@ -540,16 +539,10 @@ class SongState : public TrackState {
 	    for (size_t j = 0; j < notes.size(); j++) {
 	      if (notes[j].isDefined()) {
 		auto & note = notes[j];
-		float frequency = 0.0f, velocity = 0.0f;
-		if (note.isAftertouch()) {
-		  velocity = note.getVelocityAsFloat();
-		} else if (!note.isOff()) {
-		  frequency = Tuner::getFrequency(tuning, note);
-		  velocity = note.getVelocityAsFloat();
-		}
+		float velocity = note.isOff() ? 0.0f : note.getVelocityAsFloat();
 		auto delay_samples = int(note.getDelayAsFloat() * getChannelConfiguration().getSampleInterval(tempo_));
 		int note_value = (note.isAftertouch() || note.isOff()) ? -1 : note.getValue();
-		render_context_.addPendingEvent(track_id, i + delay_samples, int(j), frequency, velocity, note_value, NoteCoordinate(song_structure_.getOrdinalFor(track_id), row_idx, int(j)));
+		render_context_.addPendingEvent(track_id, i + delay_samples, int(j), tuning, velocity, note_value, NoteCoordinate(song_structure_.getOrdinalFor(track_id), row_idx, int(j)));
 	      }
 	    }
 

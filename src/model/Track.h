@@ -7,6 +7,7 @@
 #include "../ambisonic/SphericalPosition.h"
 #include "SendLevels.h"
 #include "NoteCoordinate.h"
+#include "../instruments/Tuning.h"
 
 #include <string_view>
 #include <vector>
@@ -103,11 +104,11 @@ class Track : public StatefulSongObject {
   // simultaneous copy of the same instrument for this note; read only by
   // sample-playback leaves (SoundFontVoice) deciding whether to delay
   // their start - see SoundFontVoice's own start_delay_samples_ comment.
-  virtual std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}, bool needs_decorrelation = false) const {
+  virtual std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}, bool needs_decorrelation = false) const {
     auto group = createVoiceState(config);
     auto child_config = getChildChannelConfiguration(config);
     for (auto & child : getChildren()) {
-      auto voice = child->playNote(child_config, position, frequency, detune, velocity, note_value, sends, note_coord, needs_decorrelation);
+      auto voice = child->playNote(child_config, position, tuning, detune, velocity, note_value, sends, note_coord, needs_decorrelation);
       if (voice.get()) group->addChild(child->getInternalId(), std::move(voice));
     }
     return group;

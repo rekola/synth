@@ -49,11 +49,11 @@ class GenericInstrument : public Instrument {
   const std::unordered_map<SF2Generator, float> & getGeneratorOverrides() const { return generator_overrides_; }
   const std::vector<std::pair<std::string, float>> & getUnknownGeneratorOverrides() const { return unknown_generator_overrides_; }
 
-  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}, bool needs_decorrelation = false) const override {
+  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}, bool needs_decorrelation = false) const override {
     detune *= getHarmonic();
     detune /= getSubharmonic();
 
-    auto voice = concrete_instrument_->playNote(channel_config, position, frequency, detune, velocity, note_value, sends, note_coord, needs_decorrelation);
+    auto voice = concrete_instrument_->playNote(channel_config, position, tuning, detune, velocity, note_value, sends, note_coord, needs_decorrelation);
 
     // don't pass velocity, position, or sends to children - a modulator
     // doesn't produce audible output of its own that should reach a bus
@@ -62,7 +62,7 @@ class GenericInstrument : public Instrument {
     // needs_decorrelation still forward unchanged - see Oscillator::playNote()'s
     // identical note.
     for (auto & child : getChildren()) {
-      auto modulator = child->playNote(channel_config, SphericalPosition{}, frequency, detune, 1.0, note_value, SendLevels{}, note_coord, needs_decorrelation);
+      auto modulator = child->playNote(channel_config, SphericalPosition{}, tuning, detune, 1.0, note_value, SendLevels{}, note_coord, needs_decorrelation);
       if (modulator) voice->addChild(child->getInternalId(), std::move(modulator));
     }
 

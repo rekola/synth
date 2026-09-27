@@ -6,19 +6,19 @@
 using namespace std;
 
 void
-ArpeggiatorState::noteOn(int column, const Track & instrument, float frequency, float velocity, int note_value, NoteOrigin origin, const NoteCoordinate & note_coord) {
+ArpeggiatorState::noteOn(int column, const Track & instrument, Tuning tuning, float velocity, int note_value, NoteOrigin origin, const NoteCoordinate & note_coord) {
   bool was_empty = held_notes_.empty();
 
   instrument_ = &instrument;
+  tuning_ = tuning;
   note_coord_ = note_coord;
 
   auto it = find_if(held_notes_.begin(), held_notes_.end(), [&](const HeldNote & n) { return n.id == column; });
   if (it != held_notes_.end()) {
-    it->frequency = frequency;
     it->velocity = velocity;
     it->note_value = note_value;
   } else {
-    held_notes_.push_back({ column, frequency, velocity, note_value });
+    held_notes_.push_back({ column, velocity, note_value });
   }
 
   rebuildStepPool();
@@ -195,13 +195,19 @@ void
 ArpeggiatorState::rebuildStepPool() {
   step_pool_.clear();
 
+  // A step's own octave shift is expressed in scale-degree terms (steps
+  // of edoStepsFor(tuning_)), not as a raw frequency multiplier - always
+  // exactly one octave regardless of tuning, and lets playNote() derive
+  // the actual Hz from (tuning_, note_value) itself rather than this
+  // class needing to know how.
   int octaves = std::max(0, arp_.getOctaves());
+  int steps_per_octave = edoStepsFor(tuning_);
   for (auto & note : held_notes_) {
     for (int o = 0; o <= octaves; o++) {
-      step_pool_.push_back({ note.frequency * powf(2.0f, (float)o), note.velocity, note.note_value });
+      step_pool_.push_back({ note.velocity, note.note_value + o * steps_per_octave });
     }
   }
-  sort(step_pool_.begin(), step_pool_.end(), [](const Step & a, const Step & b) { return a.frequency < b.frequency; });
+  sort(step_pool_.begin(), step_pool_.end(), [](const Step & a, const Step & b) { return a.note_value < b.note_value; });
 
   if (step_pool_.empty()) step_index_ = -1;
   else if (step_index_ >= (int)step_pool_.size()) step_index_ = (int)step_pool_.size() - 1;
@@ -261,7 +267,7 @@ ArpeggiatorState::triggerNextStep() {
   // hence its InstrumentVoice-derived start phase - is built from can
   // actually use it.
   int voice_id = next_voice_id_++;
-  auto voice = instrument_->playNote(getChannelConfiguration(), resolved_position, step.frequency, 1.0f, step.velocity, step.note_value, getSends(), note_coord_.withInstance(voice_id));
+  auto voice = instrument_->playNote(getChannelConfiguration(), resolved_position, tuning_, 1.0f, step.velocity, step.note_value, getSends(), note_coord_.withInstance(voice_id));
   addVoice(voice_id, move(voice));
   pending_gates_.push_back({ voice_id, gateLengthSamples() });
 

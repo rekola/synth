@@ -1,6 +1,7 @@
 #ifndef _TUNING_H_
 #define _TUNING_H_
 
+#include <cmath>
 #include <string>
 
 enum class Tuning {
@@ -38,5 +39,26 @@ static inline int edoStepsFor(Tuning tuning) {
   }
   return 0;
 }
+
+// PERCUSSION reuses the TET12 formula (steps=12, center=69) rather than
+// returning something derived from edoStepsFor(PERCUSSION) == 0 - a
+// percussion note's own frequency (when one is even needed, e.g. a
+// non-SoundFont percussion voice) is meaningless as a scale degree, but
+// still has to resolve to *some* pitch, and 12-TET/A440 is as good a
+// convention as any single fixed one.
+inline float getFrequencyFor(Tuning tuning, int note_value) {
+  switch (tuning) {
+  case Tuning::TET12:
+  case Tuning::PERCUSSION: return 440.0f * powf(2.0f, (note_value - 69) / 12.0f);
+  case Tuning::TET19: return 440.0f * powf(2.0f, (note_value - 109) / 19.0f);
+  case Tuning::TET31: return 440.0f * powf(2.0f, (note_value - 178) / 31.0f);
+  case Tuning::TET53: return 440.0f * powf(2.0f, (note_value - 304) / 53.0f);
+  }
+  return 0.0f;
+}
+
+// The const Note & overload lives in Note.h, not here - Note.h already
+// includes this header, so declaring it here too would make the two
+// headers include each other.
 
 #endif

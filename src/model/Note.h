@@ -24,7 +24,7 @@ class Note {
   // int, not short: value is stored as int (transpose() can legitimately
   // grow it well past SHRT_MAX for a high-EDO tuning many octaves up -
   // see its own comment), and every caller already treats the result as
-  // int (Tuner::getFrequency(Tuning, int)/noteOn's int note_value/...) -
+  // int (getFrequencyFor(Tuning, int)/noteOn's int note_value/...) -
   // returning short here was pure incidental narrowing on the way out,
   // not something any caller actually needed.
   int getValue() const { return value; }
@@ -384,7 +384,17 @@ class Note {
  private:
   int value; // sample position, note value or -1 for undefined note
   short velocity;
-  short delay;  
+  short delay;
 };
+
+// The Note-taking overload of getFrequencyFor() (Tuning.h) lives here
+// rather than there, since Tuning.h is included by Note.h and can't
+// include it back without the two headers including each other.
+inline float getFrequencyFor(Tuning tuning, const Note & note) {
+  if (note.isOff() || !note.isDefined() || note.isAftertouch()) {
+    return 0.0f;
+  }
+  return getFrequencyFor(tuning, note.getValue());
+}
 
 #endif

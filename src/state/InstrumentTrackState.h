@@ -5,6 +5,7 @@
 #include "RenderContext.h"
 #include "NoteOrigin.h"
 #include "../model/NoteCoordinate.h"
+#include "../instruments/Tuning.h"
 #include "../model/InstrumentPool.h" // getInstrumentSource() below indexes into it directly - needs
                     // the complete type, not just TrackState.h's own forward declaration.
 
@@ -80,7 +81,7 @@ public:
 		// spawning a voice inline here, so an arpeggiator-rooted
 		// track's pattern-authored notes drive its stepper too, not
 		// just live-triggered ones.
-		noteOn(ev.getId(), *instrument, ev.getFrequency(), ev.getVelocity(), ev.getNoteValue(), NoteOrigin::PATTERN, ev.getNoteCoordinate());
+		noteOn(ev.getId(), *instrument, ev.getTuning(), ev.getVelocity(), ev.getNoteValue(), NoteOrigin::PATTERN, ev.getNoteCoordinate());
 	      }
 	    }
 	    it = pending_events.erase(it);
@@ -152,7 +153,7 @@ public:
   // stepper's held chord instead - see its own override) can redefine it,
   // letting both callers treat every InstrumentTrackState the same way
   // instead of needing their own subclass-aware dispatch.
-  virtual void noteOn(int column, const Track & instrument, float frequency, float velocity, int note_value, NoteOrigin /*origin*/, const NoteCoordinate & note_coord = {}) {
+  virtual void noteOn(int column, const Track & instrument, Tuning tuning, float velocity, int note_value, NoteOrigin /*origin*/, const NoteCoordinate & note_coord = {}) {
     retriggerVoices(column, note_value);
 
     // position_.extent < 0 means "not authored on this track" (see
@@ -163,7 +164,7 @@ public:
     auto resolved_position = getPosition();
     if (resolved_position.extent < 0.0f) resolved_position.extent = instrument.getDefaultExtent();
 
-    auto voice = instrument.playNote(getChannelConfiguration(), resolved_position, frequency, 1.0f, velocity, note_value, getSends(), note_coord);
+    auto voice = instrument.playNote(getChannelConfiguration(), resolved_position, tuning, 1.0f, velocity, note_value, getSends(), note_coord);
     chokeExclusiveClasses(*voice);
     addVoice(column, move(voice));
   }

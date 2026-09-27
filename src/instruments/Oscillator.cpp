@@ -5,7 +5,7 @@
 using namespace std;
 
 std::unique_ptr<VoiceState>
-Oscillator::playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord, bool needs_decorrelation) const {
+Oscillator::playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord, bool needs_decorrelation) const {
   detune *= getHarmonic();
   detune /= getSubharmonic();
 
@@ -14,7 +14,7 @@ Oscillator::playNote(const ChannelConfiguration & config, const SphericalPositio
   // re-encode step needed. Its own start phase is derived internally from
   // note_coord (InstrumentVoice's own constructor), not computed here.
   auto voice = std::make_unique<OscillatorVoice>(config, position, detune, type_, level_, pulse_width_, sends, note_coord);
-  voice->playNote(frequency, velocity, note_value);
+  voice->playNote(getFrequencyFor(tuning, note_value), velocity, note_value);
 
   // don't pass velocity, position, or sends to children - a modulator
   // doesn't produce audible output of its own that should reach a bus (see
@@ -24,7 +24,7 @@ Oscillator::playNote(const ChannelConfiguration & config, const SphericalPositio
   // audio path, so a modulator child composing its own jitter from it
   // still wants the same coordinate this oscillator itself got.
   for (auto & child : getChildren()) {
-    auto modulator = child->playNote(config, SphericalPosition{}, frequency, detune, 1.0, note_value, SendLevels{}, note_coord, needs_decorrelation);
+    auto modulator = child->playNote(config, SphericalPosition{}, tuning, detune, 1.0, note_value, SendLevels{}, note_coord, needs_decorrelation);
     if (modulator) voice->addChild(child->getInternalId(), move(modulator));
   }
 

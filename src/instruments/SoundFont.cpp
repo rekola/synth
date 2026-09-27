@@ -1916,7 +1916,8 @@ public:
     }
   }
 
-  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}, bool needs_decorrelation = false) const override {
+  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}, bool needs_decorrelation = false) const override {
+    float frequency = getFrequencyFor(tuning, note_value);
     assert(frequency > 0);
 
     detune *= getHarmonic();
@@ -1926,8 +1927,14 @@ public:
 
     auto f = sf_.get();
     if (preset_ <= f->presets_.size()) {
-      // don't use detune for sample selection
-      auto midiKey = int(round(log2(frequency / 440) * 12 + 69));
+      // don't use detune for sample selection - percussion's note_value is
+      // already the literal GM MIDI key directly (no scale/EDO structure -
+      // edoStepsFor(PERCUSSION) == 0), so deriving it by round-tripping
+      // through a frequency computed via the same TET12-shaped formula is
+      // unnecessary precision loss; every other tuning's note_value is a
+      // scale-step index, not a MIDI key, and still needs the real Hz
+      // round-trip to find the nearest 12-TET-mapped SF2 sample key.
+      int midiKey = (tuning == Tuning::PERCUSSION) ? note_value : int(round(log2(frequency / 440) * 12 + 69));
       auto midiVelocity = (short)(velocity * 127);
       if (midiVelocity > 127) midiVelocity = 127;
 
@@ -1996,7 +2003,7 @@ public:
 	  // create modulators for voice - see SendLevels.h's own doc comment
 	  // for why SendLevels{} (not sends) is correct here.
 	  for (auto & child : getChildren()) {
-	    auto modulator = child->playNote(channel_config, SphericalPosition{}, frequency, detune, velocity, note_value, SendLevels{}, note_coord, needs_decorrelation);
+	    auto modulator = child->playNote(channel_config, SphericalPosition{}, tuning, detune, velocity, note_value, SendLevels{}, note_coord, needs_decorrelation);
 	    if (modulator.get()) voice->addChild(child->getInternalId(), move(modulator));
 	  }
 	}

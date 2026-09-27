@@ -57,7 +57,7 @@ class ArpeggiatorState : public InstrumentTrackState {
   // PATTERN `origin` shapes *when*, and whether, that restart's first
   // step actually fires - a step already ringing is never cut short to
   // make room for it).
-  void noteOn(int column, const Track & instrument, float frequency, float velocity, int note_value, NoteOrigin origin, const NoteCoordinate & note_coord = {}) override;
+  void noteOn(int column, const Track & instrument, Tuning tuning, float velocity, int note_value, NoteOrigin origin, const NoteCoordinate & note_coord = {}) override;
   void noteOff(int column) override;
 
   // The whole-chord counterpart to noteOff() above (see
@@ -139,8 +139,8 @@ class ArpeggiatorState : public InstrumentTrackState {
   void resyncPlayhead() override;
 
  private:
-  struct HeldNote { int id; float frequency, velocity; int note_value; };
-  struct Step { float frequency, velocity; int note_value; };
+  struct HeldNote { int id; float velocity; int note_value; };
+  struct Step { float velocity; int note_value; };
 
   // A step's gate deadline, tracked independently of step-advance timing
   // so that gate_ >= noteDuration_ (legato/no gap) doesn't need any
@@ -160,6 +160,7 @@ class ArpeggiatorState : public InstrumentTrackState {
 
   const Arpeggiator & arp_;
   const Track * instrument_ = nullptr; // last note-on's resolved instrument - see noteOn()
+  Tuning tuning_ = Tuning::TET12; // last note-on's own tuning - see noteOn()/rebuildStepPool()
   NoteCoordinate note_coord_; // last note-on's own coordinate - see noteOn()/triggerNextStep()
 
   std::vector<HeldNote> held_notes_;

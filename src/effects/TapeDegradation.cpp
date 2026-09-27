@@ -568,7 +568,7 @@ TapeDegradation::createVoiceState(const ChannelConfiguration & channel_config) c
 }
 
 std::unique_ptr<VoiceState>
-TapeDegradation::playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune,
+TapeDegradation::playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune,
                            float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord, bool needs_decorrelation) const {
   // Mirrors Track::playNote()'s own default body (Track.h) exactly,
   // except the group node it builds is a real TapeDegradationVoiceState
@@ -579,7 +579,7 @@ TapeDegradation::playNote(const ChannelConfiguration & config, const SphericalPo
                                                         swoopTimeMs_, swoopStartCents_, spinDownMs_, droopDepthCents_, note_coord);
   auto child_config = getChildChannelConfiguration(config);
   for (auto & child : getChildren()) {
-    auto voice = child->playNote(child_config, position, frequency, detune, velocity, note_value, sends, note_coord, needs_decorrelation);
+    auto voice = child->playNote(child_config, position, tuning, detune, velocity, note_value, sends, note_coord, needs_decorrelation);
     if (voice.get()) group->addChild(child->getInternalId(), std::move(voice));
   }
   return group;
