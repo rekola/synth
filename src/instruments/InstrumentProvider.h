@@ -89,7 +89,16 @@ class InstrumentProvider {
   // overwrite - provider *load order* already expresses priority (load the
   // system font, then a user's font), so the registry itself doesn't need
   // a separate priority scheme; see the doc's own "Collisions" note.
-  void registerPath(std::string path, std::shared_ptr<Instrument> instrument) {
+  //
+  // Takes a Track, not an Instrument: a library entry is often an
+  // <envelope>-wrapped oscillator (EnvelopeFilter, an Effect, as its root)
+  // rather than a bare leaf - the same shape docs/effects.md documents for
+  // any hand-authored instrument. playNote()/getDefaultExtent() are both
+  // Track-level virtuals, so GenericInstrument's delegation needs nothing
+  // Instrument-specific from what it resolves to; only the SF2-generator-
+  // override path (cloneWithOverrides(), Instrument-only) has to check
+  // first - see GenericInstrument::prepare().
+  void registerPath(std::string path, std::shared_ptr<Track> instrument) {
     paths_by_taxonomy_path[std::move(path)] = std::move(instrument);
   }
 
@@ -110,7 +119,7 @@ class InstrumentProvider {
   // forever - confirmed by a stack overflow before this comment existed.
   // Returns nullptr on a full miss; callers decide their own final fallback
   // (see GenericInstrument::prepare()).
-  std::shared_ptr<Instrument> resolvePath(const std::string & path) const {
+  std::shared_ptr<Track> resolvePath(const std::string & path) const {
     if (auto found = walkUp(path)) return found;
     for (std::string_view prefix = path; ; ) {
       for (auto & entry : kGmPathDefaults) {
@@ -133,7 +142,7 @@ class InstrumentProvider {
   // own comment on why those exist at all: a font-specific fallback for a
   // preset with no curated path yet, not what a user browsing "the"
   // instrument library should see first).
-  const std::unordered_map<std::string, std::shared_ptr<Instrument> > & getTaxonomyPaths() const { return paths_by_taxonomy_path; }
+  const std::unordered_map<std::string, std::shared_ptr<Track> > & getTaxonomyPaths() const { return paths_by_taxonomy_path; }
 
 protected:
   void addInstrument(std::shared_ptr<Instrument> instrument) {
@@ -141,7 +150,7 @@ protected:
   }
 
  private:
-  std::shared_ptr<Instrument> walkUp(const std::string & path) const {
+  std::shared_ptr<Track> walkUp(const std::string & path) const {
     for (std::string_view prefix = path; ; ) {
       auto it = paths_by_taxonomy_path.find(std::string(prefix));
       if (it != paths_by_taxonomy_path.end()) return it->second;
@@ -152,7 +161,7 @@ protected:
   }
 
   std::unordered_map<std::string, std::shared_ptr<Instrument> > instruments_by_name;
-  std::unordered_map<std::string, std::shared_ptr<Instrument> > paths_by_taxonomy_path;
+  std::unordered_map<std::string, std::shared_ptr<Track> > paths_by_taxonomy_path;
   std::shared_ptr<Instrument> default_instrument;
 };
 

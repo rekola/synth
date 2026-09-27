@@ -146,7 +146,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
       // that fails to resolve previews silence rather than substituting
       // the wrong sound.
       auto & provider = controller_->getInstrumentProvider();
-      auto instrument = provider.tryGetByLiteralName(ev.getBufferName());
+      std::shared_ptr<Track> instrument = provider.tryGetByLiteralName(ev.getBufferName());
       if (!instrument) instrument = provider.resolvePath(ev.getBufferName());
       auto song = controller_->getCurrentSong();
       if (instrument && song) startPreviewNote(instrument.get(), *song, ev.getParameter1(), ev.getParameter2());
