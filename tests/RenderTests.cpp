@@ -3,6 +3,8 @@
 #include "../src/model/Song.h"
 #include "../src/model/SampleTrack.h"
 #include "../src/model/Clip.h"
+#include "../src/model/InstrumentTrack.h"
+#include "../src/instruments/Oscillator.h"
 #include "../src/model/SampleContent.h"
 #include "../src/model/ArrangementOps.h"
 #include "../src/instruments/InstrumentProvider.h"
@@ -2024,4 +2026,27 @@ TEST(render_prefers_a_clips_command_over_the_backgrounds_on_the_same_row) {
   // own -6dB set is applied after it, so the note is heard at that level.
   CHECK(rms(out, 0) > 1e-4f);
   CHECK_NEAR(rms(out, 0), rms(expected, 0), rms(expected, 0) * 0.05f);
+}
+
+// A clip giving way releases its voices on the transition's own sample,
+// like a note-off - not at the start of the render block that row falls
+// in. Row 6 at 120 BPM starts 0.75s in, inside a 1024-frame block that
+// starts at 0.743s: the note has to sound right up to 0.75s.
+TEST(render_a_clips_stop_releases_its_voices_on_the_rows_own_sample) {
+  Song song;
+  song.setTempo(120);
+  song.setRowsPerBar(4);
+  song.addInstrument(std::make_unique<Oscillator>(WaveformType::SINE));
+  auto track_id = song.addTrack(std::make_unique<InstrumentTrack>(0)).getInternalId();
+  Clip clip(track_id);
+  clip.setLength(16);
+  clip.getLeafPattern().setNote(0, 0, Note(69, 100));
+  song.addClip(std::move(clip));
+  placeClipInstance(song, track_id, 0, 0);
+  placeStopInstance(song, track_id, 6);
+
+  ChannelConfiguration config(44100, 1);
+  auto result = renderSongOffline(song, config);
+  CHECK(windowedRms(result, 0, 0.745f, 0.749f) > 1e-3f); // still sounding just before the stop
+  CHECK(windowedRms(result, 0, 0.9f, 1.0f) < 1e-4f); // released after it
 }

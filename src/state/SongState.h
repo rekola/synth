@@ -439,25 +439,18 @@ class SongState : public TrackState {
 	    // a looping clip has no natural end of its own to rely on at
 	    // all). Redundant-safe against a clip whose own content already
 	    // ends with an explicit note-off - firing this unconditionally
-	    // costs nothing extra there. A SampleTrack routes this through
-	    // RenderContext instead of calling InstrumentTrackState::
-	    // stopAllVoices() directly (the same one Session view's own
-	    // explicit stops already use for every other track type) - see
-	    // SampleTrackEvent's own comment for why: an abrupt stop here
-	    // would land wherever this row happens to fall in the current
-	    // render block, not the exact sample the transition is actually
-	    // due on.
+	    // costs nothing extra there. Queued through RenderContext at this
+	    // row's own frame, for either track type, so the release lands on
+	    // the exact sample the transition is due on, not wherever this
+	    // row happens to fall in the current render block - and ahead of
+	    // the row's own new notes, queued after it.
 	    int previous_clip_index = Arrangement::kNoInstance;
 	    {
 	      auto last_it = last_active_clip_index_by_track_.find(track_id);
 	      previous_clip_index = last_it == last_active_clip_index_by_track_.end() ? Arrangement::kNoInstance : last_it->second;
 	      if (previous_clip_index >= 0 && previous_clip_index != active.clip_index) {
-		if (is_sample_track) {
-		  render_context_.addPendingSampleStop(track_id, i, false);
-		} else {
-		  auto * track_state = dynamic_cast<InstrumentTrackState *>(getChildByInternalId(track_id));
-		  if (track_state) track_state->stopAllVoices();
-		}
+		if (is_sample_track) render_context_.addPendingSampleStop(track_id, i, false);
+		else render_context_.addPendingStopAll(track_id, i);
 	      }
 	      last_active_clip_index_by_track_[track_id] = active.clip_index;
 	    }
@@ -968,8 +961,8 @@ private:
     if (dynamic_cast<SampleTrackState *>(track_state)) {
       render_context_.addPendingSampleStop(track_id, frame, false);
       render_context_.addPendingSampleStop(track_id, frame, true);
-    } else if (auto * instrument_state = dynamic_cast<InstrumentTrackState *>(track_state)) {
-      instrument_state->stopAllVoices();
+    } else if (dynamic_cast<InstrumentTrackState *>(track_state)) {
+      render_context_.addPendingStopAll(track_id, frame);
     }
     last_active_clip_index_by_track_.erase(track_id);
     last_background_by_track_.erase(track_id);
