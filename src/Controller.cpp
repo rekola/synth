@@ -7,6 +7,7 @@
 #include "model/PercussionTrack.h"
 #include "model/ArrangementOps.h"
 #include "model/Clip.h"
+#include "instruments/InstrumentLibrary.h"
 #include "playback/PlaybackControlEvent.h"
 #include "playback/LogEvent.h"
 
@@ -180,6 +181,14 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
   if (std::filesystem::is_regular_file("data/Essential Keys-sforzando-v9.6.sf2", ec)) {
     instrument_provider.loadSoundFont("data/Essential Keys-sforzando-v9.6.sf2", false);
   }
+
+  // After every loadSoundFont() call, whether or not one actually found a
+  // font: the GM pad overrides need loadSoundFont()'s own registrations to
+  // already be in place to take priority over (registerPath()'s last-
+  // write-wins), and the additive piano's fallback role needs to see
+  // whether a SoundFont piano is already registered - both true regardless
+  // of whether any SoundFont was found at all.
+  registerLibraryInstruments(instrument_provider);
 
   // MixerFactory falls back to AMBISONIC_STEREO at actual mixer-
   // construction time if no SOFA file resolves (or libmysofa isn't

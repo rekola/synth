@@ -83,6 +83,7 @@ add_executable(synth_tests
 	AdditiveTests.cpp
 	PadSynthWavetableTests.cpp
 	PadSynthTests.cpp
+	InstrumentLibraryTests.cpp
 )
 
 target_link_libraries(synth_tests synth_engine)
