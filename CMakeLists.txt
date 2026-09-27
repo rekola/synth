@@ -59,6 +59,8 @@ endif()
 add_library(synth_engine STATIC
 	src/instruments/Oscillator.cpp
 	src/instruments/Noise.cpp
+	src/instruments/Additive.cpp
+	src/instruments/SinusoidBank.cpp
 	src/Controller.cpp
 	src/ui/tui/InstrumentList.cpp
 	src/instruments/SoundFont.cpp
