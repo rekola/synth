@@ -25,7 +25,7 @@
 // above partial_limit drift by the same fractional-Hz amount an ordinary
 // harmonic wavetable's would.
 inline float tuningMatchedPartialRatio(int n, int edo_steps, int partial_limit, bool tuning_matched) {
-  if (!tuning_matched || edo_steps <= 0 || n > partial_limit) {
+  if (!tuning_matched || edo_steps <= 0 || n < 1 || n > partial_limit) {
     return static_cast<float>(n);
   }
   float steps = std::round(static_cast<float>(edo_steps) * std::log2(static_cast<float>(n)));

@@ -81,6 +81,8 @@ add_executable(synth_tests
 	ValueRampTests.cpp
 	SinusoidBankTests.cpp
 	AdditiveTests.cpp
+	PadSynthWavetableTests.cpp
+	PadSynthTests.cpp
 )
 
 target_link_libraries(synth_tests synth_engine)

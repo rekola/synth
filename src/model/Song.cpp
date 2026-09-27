@@ -11,6 +11,7 @@
 #include "../instruments/NoteMultiplier.h"
 #include "../instruments/Arpeggiator.h"
 #include "../instruments/Oscillator.h"
+#include "../instruments/PadSynth.h"
 #include "../instruments/Noise.h"
 #include "../instruments/Additive.h"
 #include "../instruments/LFO.h"
@@ -202,6 +203,7 @@ static unique_ptr<Track> createTrack(string_view name) {
   // instruments
   else if (name == "instrument") return make_unique<GenericInstrument>();
   else if (name == "oscillator") return make_unique<Oscillator>(WaveformType::SAW);
+  else if (name == "padsynth") return make_unique<PadSynth>();
   else if (name == "noise") return make_unique<Noise>();
   else if (name == "additive") return make_unique<Additive>();
   else if (name == "LFO") return make_unique<LFO>();
