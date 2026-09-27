@@ -17,6 +17,12 @@ namespace {
     return clip_index >= 0 && clip_index < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(clip_index)].isEmpty();
   }
 
+  // Whether an empty slot stops its track when launched - a slot past the
+  // end of the list has its default stop button.
+  bool hasStopButtonAt(const vector<Clip> & clips, int clip_index) {
+    return clip_index < 0 || clip_index >= static_cast<int>(clips.size()) || clips[static_cast<size_t>(clip_index)].hasStopButton();
+  }
+
   // How many rows tick() walks to catch up after a slow frame; a longer
   // gap is a jump, not rows played.
   constexpr int kMaxCatchUpRows = 64;
@@ -60,6 +66,9 @@ void
 SessionPlayer::triggerClip(int track_id, int clip_index) {
   auto & song = controller_.getSong();
   bool has_clip = hasClipAt(song.getClips(track_id), clip_index);
+  // An empty slot without a stop button leaves the track alone - alone
+  // or in a scene, armed or not.
+  if (!has_clip && !hasStopButtonAt(song.getClips(track_id), clip_index)) return;
   auto * track = song.getMasterTrack().getChildByInternalId(track_id);
   bool is_sample_track = track && track->getType() == TrackType::SAMPLE;
 
@@ -371,7 +380,7 @@ SessionPlayer::clipHighlight(int track_id, int clip_index) const {
     if (has_queued_recording && queued_recording_kind != QueuedRecording::STOP && queued_recording_clip_index == clip_index) {
       return SessionPadHighlight::RECORD_QUEUED;
     }
-    if (armed && !has_clip) return SessionPadHighlight::ARMED_EMPTY;
+    if (armed && !has_clip && hasStopButtonAt(song.getClips(track_id), clip_index)) return SessionPadHighlight::ARMED_EMPTY;
   }
   if (!has_clip) return SessionPadHighlight::NONE;
 

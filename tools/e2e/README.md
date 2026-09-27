@@ -108,8 +108,12 @@ you're changing.
   over a placed clip: a region marked inside the clip stops at its end and
   kills the clip's notes, never the background's; a yank lands in whatever
   the cursor is on and stops where that content ends.
+- **`verify_clipgrid_stop_button.py`** - the clip grid's stop buttons:
+  delete-clip on an empty slot removes its stop button (its ⏹ goes), a
+  second press has nothing left to delete, and toggle-stop-button brings
+  it back.
 - **`verify_inline_editors.py`** - every widget's inline text editor
-  (section, track, locator, clip names): Enter commits, Ctrl-g and M-x
+  (track, locator, clip names): Enter commits, Ctrl-g and M-x
   cancel, and a typed space never reaches the global toggle-playing
   binding. Independent of Launchpad.
 - **`fake_launchpad.c` / `verify_launchpad_e2e.py`** - baseline single

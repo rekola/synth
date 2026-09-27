@@ -86,11 +86,12 @@ ClipGrid::ClipGrid(UIPlane & parent) : UIElement(parent) {
   keymap_.bind(KeyChord::pack('\\', false, false, false, false), "toggle-mute");
   keymap_.bind(KeyChord::pack('\\', true, false, false, false), "toggle-solo");
 
-  // Only meaningful on a populated clip row; a no-op anywhere else, same
-  // "always does something or nothing, never falls through" precedent
-  // 'l' (loop toggle) already follows. A real, unprompted deletion (no
-  // confirmation dialog) - see the keymap_.bind() calls below for which
-  // keys reach it and why.
+  // Deletes what the slot under the cursor has, one layer per press: its
+  // clip, and once it's empty its stop button; a no-op on a slot with
+  // neither, or off the clip rows, same "always does something or
+  // nothing, never falls through" precedent 'l' (loop toggle) already
+  // follows. A real, unprompted deletion (no confirmation dialog) - see
+  // the keymap_.bind() calls below for which keys reach it and why.
   commands_.define("delete-clip", [this]() {
     if (rowKindFor(cursor_row_) != RowKind::CLIP) return;
     auto & song = getController().getSong();
@@ -104,7 +105,14 @@ ClipGrid::ClipGrid(UIPlane & parent) : UIElement(parent) {
     // as "no clip here" either way - erasing a filler would shift every
     // later clip's own index down, silently misaligning every other
     // track's own scene rows against it.
-    if (clip_row < 0 || static_cast<size_t>(clip_row) >= clips.size() || clips[static_cast<size_t>(clip_row)].isEmpty()) return; // no clip here to delete
+    if (clip_row < 0) return;
+    if (static_cast<size_t>(clip_row) >= clips.size() || clips[static_cast<size_t>(clip_row)].isEmpty()) {
+      // No clip here: its stop button goes next.
+      if (static_cast<size_t>(clip_row) < clips.size() && !clips[static_cast<size_t>(clip_row)].hasStopButton()) return;
+      song.ensureClipAt(track_id, clip_row).setStopButton(false);
+      song.incVersion();
+      return;
+    }
     auto clip_id = clips[static_cast<size_t>(clip_row)].getId();
     auto name = clips[static_cast<size_t>(clip_row)].getName();
     // Clears any live preview/edit focus on the clip being deleted -
@@ -121,7 +129,7 @@ ClipGrid::ClipGrid(UIPlane & parent) : UIElement(parent) {
     getController().getUIEventQueue().push(std::make_unique<LogEvent>(std::move(text)));
   });
   // Copies the clip under the cursor into the next empty slot below it -
-  // a no-op on an empty slot, same as delete-clip.
+  // a no-op on an empty slot.
   commands_.define("duplicate-clip", [this]() {
     if (rowKindFor(cursor_row_) != RowKind::CLIP) return;
     auto & song = getController().getSong();
@@ -130,6 +138,21 @@ ClipGrid::ClipGrid(UIPlane & parent) : UIElement(parent) {
     auto slot = duplicateClip(song, track_ids[static_cast<size_t>(cursor_track_index_)], physicalFor(cursor_row_));
     if (slot < 0) return;
     getController().getUIEventQueue().push(std::make_unique<LogEvent>("Duplicated clip into row " + std::to_string(slot + 1)));
+  });
+  // Adds or removes the stop button of the empty slot under the cursor -
+  // a no-op on a slot with a clip, same as delete-clip on an empty one.
+  commands_.define("toggle-stop-button", [this]() {
+    if (rowKindFor(cursor_row_) != RowKind::CLIP) return;
+    auto & song = getController().getSong();
+    auto track_ids = song.getPlayableTrackIds();
+    if (cursor_track_index_ < 0 || cursor_track_index_ >= static_cast<int>(track_ids.size())) return;
+    auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
+    auto clip_row = physicalFor(cursor_row_);
+    auto & clips = song.getClips(track_id);
+    if (clip_row < 0 || (static_cast<size_t>(clip_row) < clips.size() && !clips[static_cast<size_t>(clip_row)].isEmpty())) return;
+    auto & slot = song.ensureClipAt(track_id, clip_row);
+    slot.setStopButton(!slot.hasStopButton());
+    song.incVersion();
   });
   // Del, Backspace, and Ctrl-K all reach it - the same three keys this
   // app already treats as "delete something at the cursor" elsewhere
@@ -623,7 +646,9 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
           text = fmt::format("{}▸ {}", marker, name_field);
           row_bg = structure.getBaselineInfo(track_id).getColor();
         } else {
-          text = " ⏹";
+          // Without a stop button, launching the slot does nothing.
+          bool stops = clip_row >= clips.size() || clips[clip_row].hasStopButton();
+          text = stops ? " ⏹" : "  ";
           // Dim - an empty slot is background information, not something
           // to draw the eye the way a real clip's own bright white does -
           // but not window_border_color's own near-invisible divider

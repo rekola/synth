@@ -1341,3 +1341,31 @@ TEST(arrangement_rows_clamp_to_what_the_arrangement_addresses) {
   CHECK(Song::clampArrangementRow(17) == 17);
   CHECK(Song::clampArrangementRow(Song::kMaxArrangementRows) == Song::kMaxArrangementRows - 1);
 }
+
+// An empty slot's missing stop button round-trips on its placeholder
+// <clip>; a slot with one writes nothing extra.
+TEST(an_empty_slots_stop_button_round_trips_through_save_and_load) {
+  namespace fs = std::filesystem;
+  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_stop_button_scratch.xml").string();
+
+  Song song(Tuning::TET12);
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  track.setId("keys");
+  song.ensureClipAt(track.getInternalId(), 1).setStopButton(false);
+  song.save(scratch_path);
+  auto saved = readFile(scratch_path);
+  CHECK(saved.find("stop=\"false\"") != string::npos);
+  CHECK(saved.find("stop=\"true\"") == string::npos);
+
+  InstrumentProvider provider;
+  Song reloaded(Tuning::TET12);
+  CHECK(reloaded.open(scratch_path, provider));
+  auto reloaded_track = reloaded.getMasterTrack().getChildById("keys");
+  CHECK(reloaded_track != nullptr);
+  if (reloaded_track) {
+    auto & clips = reloaded.getClips(reloaded_track->getInternalId());
+    CHECK(clips.size() == 2);
+    if (clips.size() == 2) CHECK(clips[0].hasStopButton() && !clips[1].hasStopButton());
+  }
+  fs::remove(scratch_path);
+}

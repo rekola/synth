@@ -336,3 +336,34 @@ TEST(session_player_playheads_follow_clips_the_arrangement_plays) {
   f.playRows(1);
   CHECK(f.player().playheads().count(track) == 0);
 }
+
+// An empty slot without a stop button leaves its track alone - pressed
+// on its own or launched with its scene.
+TEST(session_player_empty_slot_without_a_stop_button_leaves_the_track_alone) {
+  SessionFixture f;
+  auto playing = f.addTrack(2);
+  auto other = f.addTrack(2);
+  f.player().triggerClip(playing, 0);
+  f.player().triggerClip(other, 0);
+  f.playRows(1);
+  CHECK(f.player().isLaunched(playing) && f.player().isLaunched(other));
+
+  f.song().ensureClipAt(playing, 3).setStopButton(false);
+  f.player().triggerClip(playing, 3);
+  f.player().launchScene(3, { playing, other }); // `other`'s slot 3 has its stop button
+  f.playRows(4); // to the next bar
+  CHECK(f.player().isLaunched(playing));
+  CHECK(!f.player().isLaunched(other));
+}
+
+TEST(session_player_armed_track_slot_without_a_stop_button_records_nothing) {
+  SessionFixture f;
+  auto track = f.addTrack(0);
+  f.armForSessionRecording(track);
+  f.song().ensureClipAt(track, 0).setStopButton(false);
+  CHECK(f.player().clipHighlight(track, 0) == SessionPadHighlight::NONE);
+  f.player().triggerClip(track, 0);
+  CHECK(!f.controller.getPlaybackInfo().isPlaying());
+  f.playRows(4);
+  CHECK(!f.controller.isSessionRecording(track));
+}
