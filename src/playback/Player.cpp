@@ -415,9 +415,8 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     if (playing_buffer_name_ == ev.getBufferName()) playing_buffer_name_.clear();
     state.setIsPlaying(false);
     state.notePlaybackStopped(); // snapshot for resyncPlayheadAfterStop() above, next PLAY
-    // Stopping the transport stops launched clips too; their tracks stay
-    // taken over, silent, until relaunched or returned to the arrangement.
-    state.silenceSession(-1);
+    // Only a pause: launched clips, queued changes and taken-over tracks
+    // all stay, and play resumes them where they were.
     break;
 
   case PlaybackControlEvent::CLEAR_VOICES:

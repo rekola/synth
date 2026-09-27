@@ -409,6 +409,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
       auto s = clipState(t, clip_row);
       if (s == SessionPadHighlight::QUEUED || s == SessionPadHighlight::RECORD_QUEUED) return SessionPadHighlight::QUEUED;
       if (s == SessionPadHighlight::PLAYING || s == SessionPadHighlight::RECORDING) state = SessionPadHighlight::PLAYING;
+      if (s == SessionPadHighlight::PAUSED && state == SessionPadHighlight::NONE) state = SessionPadHighlight::PAUSED;
     }
     return state;
   };
@@ -632,7 +633,8 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
         }
         // The slot's transport/recording state, as its Launchpad pad shows
         // it (SessionPadHighlight): a colored glyph in the icon's place -
-        // green for a clip playing or queued to launch, red for an armed
+        // green for a clip playing or queued to launch (dim while the
+        // transport is paused), red for an armed
         // track's slots (dim while merely armed or stopping, bright while
         // a take is queued or recording). Terminal cells can't pulse, so
         // the glyph's shape tells queued from running.
@@ -642,6 +644,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
         switch (state) {
         case SessionPadHighlight::NONE: break;
         case SessionPadHighlight::PLAYING: glyph = "▸"; glyph_fg = styles.clip_playing_color; break;
+        case SessionPadHighlight::PAUSED: glyph = "▸"; glyph_fg = styles.clip_paused_color; break;
         case SessionPadHighlight::QUEUED: glyph = "▹"; glyph_fg = styles.clip_playing_color; break;
         case SessionPadHighlight::ARMED_EMPTY: glyph = "○"; glyph_fg = styles.clip_armed_color; break;
         case SessionPadHighlight::RECORD_QUEUED: glyph = "○"; glyph_fg = styles.clip_recording_color; break;
@@ -777,9 +780,9 @@ ClipGrid::renderMasterColumn(const StyleProvider & styles, int x, int rows, bool
       setBgColor(bg);
       putstr(y, x, Utf8::padToWidth(" ▸", kColWidth));
       auto state = scene_state(physical_row);
-      if (state == SessionPadHighlight::PLAYING || state == SessionPadHighlight::QUEUED) {
-        setFgColor(styles.clip_playing_color);
-        putstr(y, x + 1, state == SessionPadHighlight::PLAYING ? "▸" : "▹");
+      if (state == SessionPadHighlight::PLAYING || state == SessionPadHighlight::QUEUED || state == SessionPadHighlight::PAUSED) {
+        setFgColor(state == SessionPadHighlight::PAUSED ? styles.clip_paused_color : styles.clip_playing_color);
+        putstr(y, x + 1, state == SessionPadHighlight::QUEUED ? "▹" : "▸");
       }
       continue;
     }

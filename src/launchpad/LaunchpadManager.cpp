@@ -279,6 +279,8 @@ namespace {
   // own hue, just flashing" instead.
   constexpr uint8_t LAUNCHPAD_SESSION_GREEN_PALETTE_BRIGHT = 21;
   constexpr uint8_t LAUNCHPAD_SESSION_GREEN_PALETTE_DIM = 23;
+  // A launched clip while the transport is paused: the same green, static.
+  constexpr Rgb LAUNCHPAD_SESSION_PAUSED = { 0, 127, 0 };
 
   // An armed track's own red equivalent of the two above (SessionPadHighlight::
   // RECORD_QUEUED/RECORDING/RECORD_STOPPING) - unlike the green pair, not
@@ -2215,6 +2217,11 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
           pad.type = LaunchpadProtocol::LightingType::FLASH;
           pad.flash_to = LAUNCHPAD_SESSION_GREEN_PALETTE_BRIGHT;
           pad.flash_from = LAUNCHPAD_SESSION_GREEN_PALETTE_DIM;
+          break;
+        case SessionPadHighlight::PAUSED:
+          pad.r = LAUNCHPAD_SESSION_PAUSED.r;
+          pad.g = LAUNCHPAD_SESSION_PAUSED.g;
+          pad.b = LAUNCHPAD_SESSION_PAUSED.b;
           break;
         // An armed track's own red overlay - RECORDING/RECORD_QUEUED are
         // the exact same pulse/flash treatment as PLAYING/QUEUED above,

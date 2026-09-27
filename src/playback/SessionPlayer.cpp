@@ -384,7 +384,8 @@ SessionPlayer::clipHighlight(int track_id, int clip_index) const {
   } else if (playback_info.isPlaying()) {
     playing = resolveInstanceAt(song, track_id, playback_info.getAbsolutePosition()).clip_index == clip_index;
   }
-  if (playing) return SessionPadHighlight::PLAYING;
+  // A launched clip stays launched while the transport is paused.
+  if (playing) return playback_info.isPlaying() ? SessionPadHighlight::PLAYING : SessionPadHighlight::PAUSED;
   if (session_track && session_track->queued == clip_index) return SessionPadHighlight::QUEUED;
   return SessionPadHighlight::NONE;
 }

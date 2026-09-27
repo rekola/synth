@@ -75,7 +75,7 @@ struct SessionFixture {
       if (!control) continue;
       switch (control->getType()) {
       case PlaybackControlEvent::PLAY: state->setIsPlaying(true); break;
-      case PlaybackControlEvent::STOP: state->setIsPlaying(false); state->silenceSession(-1); break;
+      case PlaybackControlEvent::STOP: state->setIsPlaying(false); break;
       case PlaybackControlEvent::QUEUE_SESSION_CHANGE: state->queueSessionChange(control->getParameter1(), control->getParameter2(), control->getParameter3()); break;
       case PlaybackControlEvent::SILENCE_SESSION: state->silenceSession(control->getParameter1()); break;
       default: break;
@@ -188,17 +188,59 @@ TEST(session_player_scene_launches_every_track_together) {
   CHECK(f.plays(second, 90));
 }
 
-TEST(session_player_transport_stop_silences_launched_clips) {
+// The transport toggle only pauses: a launched clip stays launched,
+// shown paused, and resumes on the row it paused at.
+TEST(session_player_pause_keeps_a_launched_clip_and_resumes_it_where_it_was) {
   SessionFixture f;
   auto track = f.addTrack(1);
   f.player().triggerClip(track, 0);
+  f.playRows(3);
+  CHECK(f.player().isLaunched(track));
+  auto row = f.player().playheads().at(track).row;
+
+  f.controller.togglePlaying();
   f.playRows(2);
   CHECK(f.player().isLaunched(track));
+  CHECK(f.player().clipHighlight(track, 0) == SessionPadHighlight::PAUSED);
 
   f.controller.togglePlaying();
   f.playRows(1);
-  CHECK(!f.player().isLaunched(track));
-  CHECK(f.player().isTakenOver(track));
+  CHECK(f.player().clipHighlight(track, 0) == SessionPadHighlight::PLAYING);
+  CHECK(f.player().playheads().at(track).row == (row + 1) % 4);
+}
+
+TEST(session_player_queued_launch_survives_a_pause) {
+  SessionFixture f;
+  auto track = f.addTrack(2);
+  f.player().triggerClip(track, 0);
+  f.playRows(2); // rows 0-1
+  f.player().triggerClip(track, 1);
+
+  f.controller.togglePlaying();
+  f.playRows(2);
+  CHECK(f.player().clipHighlight(track, 1) == SessionPadHighlight::QUEUED);
+
+  f.controller.togglePlaying();
+  f.playRows(2); // rows 2-3: still waiting for the bar
+  CHECK(f.player().clipHighlight(track, 1) == SessionPadHighlight::QUEUED);
+  f.playRows(1); // row 4, the next bar
+  CHECK(f.player().clipHighlight(track, 1) == SessionPadHighlight::PLAYING);
+}
+
+TEST(session_player_take_survives_a_pause) {
+  SessionFixture f;
+  auto track = f.addTrack(0);
+  f.armForSessionRecording(track);
+  f.player().triggerClip(track, 0); // a fresh take, starting the transport
+  f.playRows(1);
+  CHECK(f.controller.isSessionRecording(track));
+
+  f.controller.togglePlaying();
+  f.playRows(2);
+  CHECK(f.controller.isSessionRecording(track));
+  f.controller.togglePlaying();
+  f.playRows(1);
+  CHECK(f.controller.isSessionRecording(track));
 }
 
 TEST(session_player_take_starts_at_the_bar_and_loops_back_on_the_bar_it_stops) {

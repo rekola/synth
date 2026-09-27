@@ -289,7 +289,8 @@ class SongState : public TrackState {
     // is already a direct child of the master track (no nesting to walk
     // to find one some other way). Both of a SampleTrack's own voices
     // (SampleTrackState's own doc comment) get one each - the background
-    // bed has no pause-awareness of its own either.
+    // bed has no pause-awareness of its own either. Instrument voices are
+    // left as they are, a launched clip's included.
     if (!isPlaying() && was_playing_) {
       for (auto * track : track_snapshot) {
 	if (track->getType() == TrackType::SAMPLE) {

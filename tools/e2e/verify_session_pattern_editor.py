@@ -4,8 +4,7 @@ locators exist only in Arrangement view, typing a note into an empty
 slot creates a clip there (and not in the arrangement), launching that
 clip from the clip grid starts the transport and moves a playhead in its
 own track's column only, and Space is the transport in Session view too:
-stopping it stops the launched clip, which stays stopped when the
-transport starts again.
+it only pauses, and playing again resumes the launched clip.
 """
 import os
 import sys
@@ -153,7 +152,7 @@ def main():
     check("launching the playing clip again restarts it rather than stopping it", len(watch(scr, top, T0_COL)) > 1, scr)
 
     # Space is the transport in Session view too: the launch started it,
-    # and stopping it stops the launched clip.
+    # and it only pauses - playing again resumes the launched clip.
     other_window(scr)  # clip grid -> pattern editor
     check("launching started the transport", vk.is_playing(scr), scr)
     check("the clip grid marks the launched track as taken over", "◆" in scr.dump(), scr)
@@ -163,7 +162,7 @@ def main():
     scr.send(b" ")
     scr.pump(0.6)
     check("and starts it again", vk.is_playing(scr), scr)
-    check("the stopped clip stays stopped", len(watch(scr, top, T0_COL)) == 1, scr)
+    check("the launched clip resumes", len(watch(scr, top, T0_COL)) > 1, scr)
 
     os.kill(pid, 9)
     sys.exit(0 if all(results) else 1)

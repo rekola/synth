@@ -7,20 +7,20 @@ Session view pattern editor follows each track's own playhead. The
 Session view, clip grid and clip editing this builds on are already in
 place.
 
-Status: Phase 1 done; Phase 2 done but for the item under its "Still
-open"; Phases 3 and 4 done; Phase 5 waits on its open question.
+Status: Phases 1-4 done; Phase 5 next.
 Every phase lands as its own commit(s), with `ctest` and the e2e scripts
 green.
 
 ## Open questions
 
-- **Should pausing the transport pause launched clips, so play resumes
-  them?** Today stopping the transport stops every launched clip and
-  forgets what's queued (`SongState::silenceSession()` on `STOP`),
-  leaving the tracks taken over and silent until relaunched or returned
-  to the arrangement - the live-sequencer convention for its Stop
-  button. But the transport toggle here has no separate pause, so a
-  quick pause kills the whole scene. Phase 5 settles it.
+- **Pausing isn't settled for good.** Phase 5 makes the transport toggle
+  a plain pause (below) - an interim choice, not the final design. Still
+  unresolved: where an arpeggiator resumes after a pause (it keeps its
+  own step position on a clock of its own - maybe it should run from
+  clips instead, positioned by their rows like everything else), and
+  what becomes of sustained voices (a pause leaves an instrument's
+  voices as they are - a held note rings on through it, and whatever
+  starts on resume layers over it).
 
 ## Phase 1: a Controller-owned SessionPlayer
 
@@ -67,15 +67,6 @@ Launchpad fader move made while a Session View take records on its track
 goes into the take's clip, at the row a note pressed then would land on
 (`recordFaderAutomationIfArmed()`); otherwise it goes to the arrangement
 background, as before.
-
-Still open:
-
-- **The Launchpad's taken-over indicator.** The clip grid shows which
-  tracks are taken over; the Launchpad doesn't yet. Pick where it shows -
-  a button's LED (a "back to arrangement" button, lit while any track is
-  taken over, would also give the hardware the command itself), or a
-  per-column mark in Session view - and whether a press there returns
-  every track or just the column's.
 
 ---
 
@@ -127,18 +118,30 @@ instead of the real one; a clip's track not released at a section end).
 
 ---
 
-## Phase 5: pausing and resuming launched clips
+## Phase 5: the transport toggle only pauses
 
-Resolves the open question above. Candidate: a stop while playing is a
-pause - voices are released, but each taken-over track keeps its clip,
-its row on the session clock (which only advances while the transport
-runs) and anything queued, so play continues every clip where it was. A
-stop while already stopped, or stopping all clips, clears the session
-as a stop does today - the "stop once pauses, twice resets" transport
-convention. The alternative is keeping today's behavior and saying so
-in the docs.
+The transport toggle (Space, and every other play/stop) pauses and
+resumes the transport and nothing else. The live-sequencer convention
+stops every session clip with the transport and doesn't bring them back
+on play; pausing launched clips instead fills a long-requested gap. See
+the open question above: this is interim.
 
+- **Pause:** nothing is stopped or forgotten: the arrangement position,
+  each launched clip at its row (the session clock only advances while
+  the transport runs), anything queued, which tracks are taken over, and
+  a note take in progress all stay. Voices do what the arrangement's
+  already do on a pause: a sample track's stop, an instrument's are left
+  as they are (see the open question). A sample take ends, as before -
+  audio capture has no pause.
+- **Resume:** everything continues where it was.
+- **Stopping clips** stays its own action - the stop pads, the master
+  column's stop row, `back-to-arrangement` - and so does rewinding.
+- **While paused,** a launched clip shows as launched but not moving:
+  static green on its Launchpad pad and a static mark in the clip grid,
+  rather than the playing pulse and ▸.
+- **Launching while paused** starts the transport, as now, which resumes
+  every other paused clip too.
 - Tests: pause and play resumes a launched clip on the row it paused
   at, with no voices sounding in between; a queued launch survives a
-  pause and lands on the first bar after play; a second stop clears
-  every launched clip and the queue.
+  pause and lands on the first bar after play; a take in progress
+  survives a pause; a paused clip's highlight is the paused one.

@@ -772,8 +772,15 @@ would otherwise resume showing.
   which a seek or pattern break doesn't move - and a taken-over track
   ignores its arrangement content and automation (pattern breaks
   aside), playing its clip's own notes and commands. Launching while the
-  transport is stopped starts it; stopping the transport stops launched
-  clips, leaving their tracks taken over, silent. `SessionPlayer`
+  transport is stopped starts it (resuming every other paused clip too).
+  The transport toggle only pauses - an interim choice (where an
+  arpeggiator resumes, and what becomes of sustained voices, are still
+  open): launched clips keep their clip and row, queued changes
+  and taken-over tracks stay, and play resumes them where they were;
+  voices do what the arrangement's already do (a sample track's stop,
+  an instrument's are left as they are), and a note take survives while
+  a sample take ends. Stopping clips stays its own action (the stop pads,
+  the master column's stop row, back-to-arrangement). `SessionPlayer`
   (`src/playback/SessionPlayer.h`, Controller-owned, `Controller::
   getSessionPlayer()`) is the one place the Launchpad, the clip grid and
   the launch commands go through: it sends each change as a
@@ -938,7 +945,8 @@ would otherwise resume showing.
   Each clip slot shows its transport/recording state the way its
   Launchpad pad does (`SessionPlayer::clipHighlight()`, the one
   source for both, `SessionPadHighlight`): a colored glyph in its icon's
-  place - green for playing (▸) or queued (▹), red for recording (●) or
+  place - green for playing (▸) or queued (▹), dim green (▸) while the
+  transport is paused, red for recording (●) or
   queued to record (○), dim red for an armed track's empty slot (○) or a
   take queued to stop (●). Terminal cells can't pulse, so the glyph's
   shape tells queued from running.

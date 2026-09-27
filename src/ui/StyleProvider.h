@@ -63,9 +63,11 @@ class StyleProvider {
   Color session_override_color = "#ff9a3c";
 
   // A clip slot's state glyph in the clip grid (SessionPadHighlight):
-  // playing or queued; recording or queued to record; an armed track's
-  // empty slot, or a take queued to stop.
+  // playing or queued; launched while the transport is paused; recording
+  // or queued to record; an armed track's empty slot, or a take queued to
+  // stop.
   Color clip_playing_color = "#50e070";
+  Color clip_paused_color = "#2e7a3e";
   Color clip_recording_color = "#ff3c3c";
   Color clip_armed_color = "#a04040";
 
