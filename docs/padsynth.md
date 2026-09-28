@@ -69,21 +69,58 @@ recompute or perturb the snap.
 
 ## Presets
 
+Per explicit request, every preset below that corresponds to a real
+uploaded ZynAddSubFX factory patch now uses that patch's own real data
+(via `harmonic_amplitudes`, see "Explicit per-harmonic amplitudes"
+below) rather than a from-scratch approximation, wherever the real
+patch's own data is actually portable - see "What's real data vs. an
+approximation" below for which is which and why. `warm` and `glass`
+survive as this codebase's own generic infrastructure (the engine's
+unrecognized-name fallback, and a couple of bandwidth-comparison demo
+sections that are about the bandwidth parameter itself, not about
+matching a specific instrument) - not claimed to represent any real
+patch. `choir-ooh` also survives - genuinely novel, since the uploaded
+patches have no "ooh" choir.
+
 | Preset | Character |
 |---|---|
-| `warm` (default) | Moderate bandwidth, natural 1/n harmonic rolloff - a sensible general-purpose pad. |
-| `formant-vocal` (= `choir-aah`) | Narrow bandwidth plus four fixed vowel-like formant resonances - F1/F2/F3 (loosely an "ah") plus a "singer's formant" (F3-F5 cluster, ~3kHz) - and a nonzero `harmonic_amplitude_jitter` (0.15), steeper overall rolloff so the boosted bands stand out. `choir-aah` is an explicit alias for the same parameters - use whichever name reads more clearly at the call site. |
-| `choir-ooh` | A genuinely different vowel from `choir-aah`, not just a renamed copy: real acoustic "oo" has its first two formants both low and close together (F1~300Hz, F2~870Hz, versus "ah"'s 700/1220), which is what gives it a dark, rounded, "hooting" quality. The base spectrum is darkened to match (steeper rolloff, a quieter third formant), plus its own (weaker) singer's-formant bump and harmonic jitter, so the vowel reads through rather than defaulting back to "ah" underneath. |
-| `bowed-ensemble` | Wide, fast-growing bandwidth and a gentle rolloff (closer to a sawtooth than a clean sine stack). Genuine ensemble beating (several independent, slightly-detuned voices, the way `pad.choir`/`pad.choir.ooh` now get it via `<multiply>` - see "Known limitations") isn't layered on top of this preset itself; a song can add it the same way. |
-| `glass` | Narrow bandwidth, steep rolloff - most energy in the fundamental and a handful of clean, minimally-beating overtones. |
-| `mellotron` | Close to `bowed-ensemble` (a real Mellotron "strings" tape *is* a recording of a bowed string ensemble) but slightly narrower/steeper - reads a little more "tape," a little less "live." Spectral character only; the tape-machine wow/flutter/hiss/attack-swoop is `<tapeDegradation preset="mellotron">`, layered on top separately (`docs/tape_degradation.md`) - see the instrument library's own `keyboard.tape.mellotron` for the full combination. |
-| `keyboard` | Ported data, not a from-scratch approximation: the uploaded ZynAddSubFX factory patch "Synth Piano 3" has an explicit, sparse harmonic array - only harmonics 1/2/5/6 carry energy, everything else silent (see "Explicit per-harmonic amplitudes" below). A comparison point against the additive piano: the same instrument-family idea, but PadSynth has no per-partial decay of its own, so its "struck" quality comes entirely from the wrapping `<envelope>`'s own decay-to-zero-sustain shape (matching the real patch's own S_val=0 - no held plateau at all) rather than any true time-varying spectral evolution. |
-| `organ-pipe` | Even narrower than `glass` (5 vs. 8 cents) for a steady, near-beat-free harmonic stack, with a brighter/richer rolloff (1.2) than `glass`'s own bell-like one - a pipe organ's flue pipes are close to PADsynth's own ideal case. Used with a matching envelope (no decay stage, full sustain, quick release - an organ's own on/off wind valve, not a dying resonance) as a fallback at `organ.pipe` (Church Organ is a real acoustic instrument - a loaded SoundFont's own recorded organ always wins; this only fills the leaf when none is available). |
-| `synth-brass` | Bright, fairly rich sawtooth-like rolloff (near 1.0, brighter than every other preset here) with no formants - the punchy "sawtooth brass" character analog synth-brass patches are built from. A little harmonic jitter, same reasoning as the choir presets. Used at `brass.synth`/`brass.synth.soft` (GM's own deliberately-synthetic brass programs, unlike `brass.trumpet`/`brass.section`'s real acoustic ones) - `brass.synth` adds real `<multiply>` unison for a "section" of voices and a punchy attack; `brass.synth.soft` is the same preset without the unison layer, mellower and slower, matching GM's own "softer, mellower synth brass" description. |
-| `church-organ` | Ported data, not a from-scratch approximation: the uploaded ZynAddSubFX factory patch "Church Organ 3" has an explicit, sparse harmonic array - only harmonics 1/2/4/8/12/16/24/32 carry energy, a drawbar-organ-style spectrum a smooth rolloff curve can't produce (see "Explicit per-harmonic amplitudes" below). Replaces `organ-pipe` at `organ.pipe`'s own fallback registration. |
-| `bells` | Also ported: the real "Bells" patch has just 3 explicit harmonics (1/2/4), everything else silent - a real bell/chime's own small handful of dominant partials, which is what actually reads as a bell rather than `glass`'s own smooth-rolloff approximation. Used with `tuningMatched="false"` on top (same reasoning as `pad.metallic`) for the non-integer-relative-to-scale dissonance real bell overtones have. |
+| `warm` (default) | Moderate bandwidth, natural 1/n harmonic rolloff - a sensible general-purpose pad, and the engine's own fallback for an unrecognized preset name. Not a ported patch. |
+| `glass` | Narrow bandwidth, steep rolloff - most energy in the fundamental and a handful of clean, minimally-beating overtones. Not a ported patch; kept for `pad.metallic`'s own detuned/inharmonic bell character. |
+| `formant-vocal` (= `choir-aah`) | Narrow bandwidth plus four fixed vowel-like formant resonances - F1/F2/F3 (loosely an "ah") plus a "singer's formant" (F3-F5 cluster, ~3kHz) - and a nonzero `harmonic_amplitude_jitter` (0.15). An approximation, not ported data: the real "Choir Pad4" patch's own harmonic content comes from ZynAddSubFX's internal `adaptive_harmonics`/`base_function` oscillator-to-spectrum generator (GPL application logic, not exposed parameter data - only 1 harmonic is ever listed explicitly in the file, everything else is generated internally), so it can't be faithfully ported the way a fully-explicit array can. `choir-aah` is an explicit alias for the same parameters. |
+| `choir-ooh` | Genuinely novel - no "ooh" choir patch exists in the uploaded data. A darker, rounder vowel than `choir-aah` (lower/closer-together first two formants, steeper rolloff, a quieter singer's formant). |
+| `keyboard` | Ported data: the real "Synth Piano 3" patch has an explicit, sparse harmonic array (adaptive_harmonics=0, so fully portable) - only harmonics 1/2/5/6 carry energy. Its own envelope decays all the way to S_val=0 (no sustain plateau) - a genuinely percussive piano character, matched by the wrapping `<envelope>`. |
+| `saw-piano` | Also ported: the real "Saw Piano 1" patch (adaptive_harmonics=0), 4 explicit harmonics (1/2/4/16). Unlike `keyboard`, its own envelope sustains at full level (S_val=127) - a sustained "piano pad," not a percussive one. |
+| `soft-pad` | Also ported: the real "Soft Pad" patch (adaptive_harmonics=0) is genuinely just harmonic 1 - a single pure partial, which is what "soft" means spectrally here, not a simplification on this codebase's part. Used at `pad.newAge` (GM's own "soft, airy new-age pad" description is a direct match). |
+| `strings` | Also ported: the real "Strings" patch (adaptive_harmonics=0), 2 explicit harmonics (1/2). A simple base tone on its own - real ensemble motion comes from `<multiply>` unison layered on top (`pad.bowed`/`string.synth.slow`/`songs/oscillator_demo.xml`'s own "Dual Strings"/"Strings" tracks), the same reasoning `pad.choir`'s own unison already established. |
+| `mellotron` | Uses `strings`'s own real harmonic array (a Mellotron "strings" tape *is* a recording of a bowed string ensemble - the same real-world instrument family) with its own slightly narrower/steeper bandwidth/rolloff, reading a little more "tape," a little less "live." Spectral character only; the tape-machine wow/flutter/hiss/attack-swoop is `<tapeDegradation preset="mellotron">`, layered on top separately (`docs/tape_degradation.md`) - see the instrument library's own `keyboard.tape.mellotron` for the full combination. |
+| `church-organ` | Ported data: the real "Church Organ 3" patch has an explicit, sparse harmonic array (adaptive_harmonics=0) - only harmonics 1/2/4/8/12/16/24/32 carry energy, a drawbar-organ-style spectrum a smooth rolloff curve can't produce. Used as a fallback at `organ.pipe` (Church Organ is a real acoustic instrument - a loaded SoundFont's own recorded organ always wins; this only fills the leaf when none is available). |
+| `bells` | Ported, with a caveat: the real "Bells" patch's own `adaptive_harmonics` is nonzero (2), so its 3 explicit harmonics (1/2/4) are only part of the real spectrum, not the whole thing (the rest comes from the same internal generator `choir-aah` can't port either) - treated here as the complete spectrum, a reasonable approximation rather than a byte-for-byte match. Used with `tuningMatched="false"` on top (same reasoning as `pad.metallic`) for the non-integer-relative-to-scale dissonance real bell overtones have. |
+| `synth-brass` | Bright, fairly rich sawtooth-like rolloff (near 1.0, brighter than every other preset here) with no formants - the punchy "sawtooth brass" character analog synth-brass patches are built from. No real brass patch exists in the uploaded data, so this stays this codebase's own approximation. Used at `brass.synth`/`brass.synth.soft` (GM's own deliberately-synthetic brass programs, unlike `brass.trumpet`/`brass.section`'s real acoustic ones) - `brass.synth` adds real `<multiply>` unison for a "section" of voices and a punchy attack; `brass.synth.soft` is the same preset without the unison layer, mellower and slower, matching GM's own "softer, mellower synth brass" description. |
 
 An unrecognized `preset` name falls back to `warm`.
+
+## What's real data vs. an approximation
+
+Not every uploaded patch is equally portable. ZynAddSubFX's own
+`<HARMONICS>` list is only the *complete* spectrum when that patch's own
+`adaptive_harmonics` is 0 - `church-organ`/`keyboard`/`saw-piano`/
+`soft-pad`/`strings` are all like this, so their harmonic content here is
+real, complete, ported data. When `adaptive_harmonics` is nonzero (Choir
+Pad4: 1, Long SpaceChoir2: 3, Bells: 2, Bells 3: 7, Dual Strings Oct2's
+own richer character beyond a bare fundamental), the explicit
+`<HARMONICS>` list is only a partial view - the rest of the real spectrum
+comes from ZynAddSubFX's own internal `base_function`/adaptive-harmonics
+generator, which is compiled GPL application logic, not exposed parameter
+data, and stays off-limits by this project's own constraint (checking
+real *data*, never the GPL *application source* - see the
+`formant-vocal`/`bells` entries above for exactly where that line falls
+for each one). Those patches keep this codebase's own hand-tuned
+approximations (`choir-aah` for Choir Pad4, `choir-aah`+`<phaser>` for
+Long SpaceChoir2 - `songs/oscillator_demo.xml`'s "Phased Choir" - and
+`strings`+`<multiply octaves="1">` standing in for Dual Strings Oct2's
+own octave-layering idea) rather than a false claim of full fidelity.
+Bells 3 isn't represented as its own preset at all for the same reason,
+given how much of its real character sits behind that same generator.
 
 ## Formant boost (formant-vocal)
 
@@ -175,12 +212,13 @@ generic, pre-existing per-instrument unison/detune/spread wrapper usable
 around any child instrument, not padsynth-specific, and not yet written
 up in its own doc page) already solves it by wrapping any child
 instrument in several independently-detuned copies. `pad.choir`/
-`pad.choir.ooh` (`InstrumentLibrary.cpp`) are wrapped this way; a plain `formant-vocal`/
-`bowed-ensemble`/`mellotron` `<padsynth>` used directly (as most of
-`songs/oscillator_demo.xml`'s own comparison tracks deliberately are, to
-isolate the padsynth parameters themselves) is not, and reads noticeably
-thinner/more static as a result - wrap it in `<multiply>` the same way if
-genuine ensemble motion matters more than isolating the raw preset.
+`pad.choir.ooh`/`pad.bowed`/`string.synth.slow` (`InstrumentLibrary.cpp`)
+are wrapped this way; a plain `formant-vocal`/`strings`/`mellotron`
+`<padsynth>` used directly (as most of `songs/oscillator_demo.xml`'s own
+comparison tracks deliberately are, to isolate the padsynth parameters
+themselves) is not, and reads noticeably thinner/more static as a result -
+wrap it in `<multiply>` the same way if genuine ensemble motion matters
+more than isolating the raw preset.
 
 ## Performance
 

@@ -163,33 +163,11 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
     /* harmonic_amplitude_jitter  */ 0.15f,
   };
 
-  // A real bowed string is rich in harmonics with only a gentle rolloff
-  // (closer to a sawtooth than a clean sine stack). The original design
-  // tried to get "ensemble" beating purely from a wide, fast-growing
-  // Gaussian bandwidth (no actual unison/detune voices) - first pass
-  // (rolloff 0.9, bandwidthScale 1.0, 56 partials) read as mostly noise;
-  // a tamer second pass (rolloff 1.3, bandwidthScale 0.7, 40 partials)
-  // still read as "a buzzy drone swarm," with the reasonable suggestion
-  // to get a single clean bowed instrument right before attempting
-  // "ensemble" on top of it at all. Retuned as exactly that: bandwidth
-  // brought down close to Warm's own (25 vs 18 cents, bandwidthScale
-  // 0.5), so this preset's own distinguishing trait becomes almost
-  // entirely its harmonic *profile* (a real, moderately-rolled-off
-  // sawtooth-like richness - the amplitude_rolloff_exponent below) rather
-  // than band-spreading; a small amount of extra bandwidth over Warm
-  // supplies only a touch of natural live-bowing roughness, not a swarm.
-  // Genuine multi-instrument ensemble beating (several truly independent,
-  // detuned voices) isn't something a single PADsynth table can produce
-  // convincingly - that would need real unison layering on top (e.g. a
-  // parent <multiply>/NoteMultiplier, the way the additive piano's own
-  // multi-string unison works), not attempted here.
-  static const PadSynthPresetParams kBowedEnsemble{
-    /* bandwidth_cents            */ 25.0f,
-    /* bandwidth_scale_exponent   */ 0.5f,
-    /* partial_count              */ 40,
-    /* amplitude_rolloff_exponent */ 1.4f,
-    /* formants                   */ {},
-  };
+  // "bowed-ensemble" (a from-scratch, formula-only approximation) is
+  // dropped entirely, per explicit request, now that the real ZynAddSubFX
+  // "Strings" patch is available (kStrings below) - see
+  // InstrumentLibrary.cpp's own pad.bowed/string.synth.slow registrations
+  // and this file's own kMellotron for what replaced it.
 
   // Narrow bandwidth and a steep rolloff - most of the energy sits in the
   // fundamental and a handful of clean, minimally-beating overtones, the
@@ -206,43 +184,33 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
   // preset's own job is purely spectral character (what a massed bowed
   // string ensemble sounds like), not literal unison/detune voices; that
   // comes from <tapeDegradation preset="mellotron"> layered on top instead
-  // (built separately - see docs/tape_degradation.md).
-  // Close to Bowed Ensemble's own bandwidth (a bowed string ensemble is
-  // exactly what a real Mellotron strings tape captured) but slightly
-  // narrower/steeper, reading a little more "recorded tape" and a little
-  // less "live" than Bowed Ensemble's own spread. Retuned twice alongside
-  // Bowed Ensemble's own fixes even though not separately reported on -
-  // this preset shared the identical shape each time, so it almost
-  // certainly had the same problems; not yet verified by ear at all.
+  // (built separately - see docs/tape_degradation.md). Now uses the same
+  // real ported harmonic array as "strings" (kStrings below - the real
+  // ZynAddSubFX "Strings" patch, fully portable, adaptive_harmonics=0)
+  // rather than the earlier invented smooth rolloff dropped alongside
+  // "bowed-ensemble" - a Mellotron strings tape and this preset's own
+  // "strings" are literally the same real-world instrument family, so
+  // there's no reason for them to rest on different (and, before, both
+  // invented) spectral data. Bandwidth/rolloff stay this preset's own
+  // slightly narrower/steeper values, reading a little more "recorded
+  // tape" than a live "strings" pad.
   static const PadSynthPresetParams kMellotron{
-    /* bandwidth_cents            */ 20.0f,
+    /* bandwidth_cents            */ 8.0f,
     /* bandwidth_scale_exponent   */ 0.45f,
-    /* partial_count              */ 32,
-    /* amplitude_rolloff_exponent */ 1.7f,
+    /* partial_count              */ 2,
+    /* amplitude_rolloff_exponent */ 1.0f, // unused - harmonic_amplitudes below replaces it
     /* formants                   */ {},
+    /* harmonic_amplitude_jitter  */ 0.0f,
+    /* harmonic_amplitudes        */ { 127.0f/127.0f, 117.0f/127.0f },
   };
 
   // A pipe organ's flue pipes are about as close to PADsynth's own
   // idealized case as a real instrument gets - a steady, essentially
   // beat-free harmonic stack with no per-note decay of its own (the
-  // "struck"/decaying quality every other preset's wrapping <envelope>
-  // supplies instead comes from an organ's own on/off wind valve, not a
-  // dying resonance - see InstrumentLibrary.cpp's own organ.pipe envelope:
-  // near-instant attack, no decay stage, full sustain, quick release).
-  // Narrower than even Glass (5 vs 8 cents) for that steadiness, with a
-  // brighter/richer rolloff than Glass's own bell-like one (1.2 vs 1.5) -
-  // a flue pipe is richer in upper harmonics than a struck bell/glass
-  // tone, closer to a gentle sawtooth than a near-sine.
-  static const PadSynthPresetParams kOrganPipe{
-    /* bandwidth_cents            */ 5.0f,
-    /* bandwidth_scale_exponent   */ 0.5f,
-    /* partial_count              */ 32,
-    /* amplitude_rolloff_exponent */ 1.2f,
-    /* formants                   */ {},
-  };
-
-  // "church-organ" - unlike kOrganPipe above (a from-scratch, formula-only
-  // approximation), this ports real data: the uploaded ZynAddSubFX factory
+  // "church-organ" - ports real data (dropping the earlier from-scratch,
+  // formula-only "organ-pipe" preset entirely, per explicit request - a
+  // from-scratch approximation isn't worth keeping once the real patch
+  // it was standing in for is actually available): the uploaded ZynAddSubFX factory
   // patch "Church Organ 3" (noefx_organ_choir.xmz, PART id="1") has an
   // explicit, sparse <HARMONICS> list - only harmonics 1/2/4/8/12/16/24/32
   // carry real energy (mag/127, everything else silent) - a genuine
@@ -295,6 +263,15 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
   // dissonant against a fixed pitch. Same porting caveats as
   // kChurchOrgan above - real data, not GPL application logic; the real
   // patch's own filter/filter-envelope isn't ported for the same reason.
+  // Caveat worth flagging: the real patch's own `adaptive_harmonics` is 2
+  // (nonzero), meaning ZynAddSubFX's own internal harmonic generator
+  // contributes to the real spectrum beyond just these 3 explicit
+  // entries - that generator is GPL application logic, not exposed
+  // parameter data, so it stays off-limits (see docs/padsynth.md). This
+  // preset treats the 3 explicit harmonics as the *complete* spectrum,
+  // which is the most this codebase can faithfully claim from the data
+  // alone - a reasonable approximation, not a byte-for-byte match to
+  // what the real patch actually sounds like.
   static const PadSynthPresetParams kBells{
     /* bandwidth_cents            */ 8.0f,
     /* bandwidth_scale_exponent   */ 0.5f,
@@ -303,6 +280,65 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
     /* formants                   */ {},
     /* harmonic_amplitude_jitter  */ 0.0f,
     /* harmonic_amplitudes        */ { 127.0f/127.0f, 75.0f/127.0f, 0.0f, 84.0f/127.0f },
+  };
+
+  // "strings" - the real "Strings" patch (noefx_bell_strings.xmz, PART
+  // id="1") - unlike Bells above, its own adaptive_harmonics is 0, so its
+  // 2 explicit harmonics (1/2, mag 127/117) genuinely are the complete
+  // spectrum, not a partial view of something a GPL-internal generator
+  // also shapes. A very simple, near-octave-doubled tone on its own -
+  // the real "ensemble" character comes from unison layering on top (see
+  // InstrumentLibrary.cpp's own string.synth.slow registration), same
+  // reasoning as this codebase's own earlier bowed-ensemble+<multiply>
+  // choice.
+  static const PadSynthPresetParams kStrings{
+    /* bandwidth_cents            */ 10.0f,
+    /* bandwidth_scale_exponent   */ 0.5f,
+    /* partial_count              */ 2,
+    /* amplitude_rolloff_exponent */ 1.0f, // unused - harmonic_amplitudes below replaces it
+    /* formants                   */ {},
+    /* harmonic_amplitude_jitter  */ 0.0f,
+    /* harmonic_amplitudes        */ { 127.0f/127.0f, 117.0f/127.0f },
+  };
+
+  // "saw-piano" - the real "Saw Piano 1" patch (noefx_saw_piano.xmz,
+  // adaptive_harmonics=0, so fully portable): 4 explicit harmonics
+  // (1/2/4/16, mag 127/123/127/100). Notably its own amplitude envelope
+  // sustains at S_val=127 (full level, no decay-to-silence) rather than
+  // Synth Piano 3's own S_val=0 - a sustained "piano pad" character, not
+  // a percussive one; kept that way here rather than assumed-percussive,
+  // since the data says otherwise (see InstrumentLibrary.cpp's/the demo
+  // song's own envelope for this preset).
+  static const PadSynthPresetParams kSawPiano{
+    /* bandwidth_cents            */ 8.0f,
+    /* bandwidth_scale_exponent   */ 0.5f,
+    /* partial_count              */ 16,
+    /* amplitude_rolloff_exponent */ 1.0f, // unused - harmonic_amplitudes below replaces it
+    /* formants                   */ {},
+    /* harmonic_amplitude_jitter  */ 0.0f,
+    /* harmonic_amplitudes        */ {
+      127.0f/127.0f, 123.0f/127.0f, 0.0f, 127.0f/127.0f,   //  1- 4
+      0.0f, 0.0f, 0.0f, 0.0f,                              //  5- 8
+      0.0f, 0.0f, 0.0f, 0.0f,                              //  9-12
+      0.0f, 0.0f, 0.0f, 100.0f/127.0f,                     // 13-16
+    },
+  };
+
+  // "soft-pad" - the real "Soft Pad" patch (noefx_soft_pad.xmz),
+  // adaptive_harmonics=0 so fully portable, and genuinely just harmonic 1
+  // - a pure, single-partial tone is exactly what "soft" means spectrally
+  // (no upper harmonics to roughen it at all), not an approximation this
+  // time. A_dt=31/D_dt=40/S_val=127/R_dt=87 (see InstrumentLibrary.cpp's/
+  // the demo song's own envelope for this preset) - moderate attack,
+  // settling at full sustain, longish release.
+  static const PadSynthPresetParams kSoftPad{
+    /* bandwidth_cents            */ 10.0f,
+    /* bandwidth_scale_exponent   */ 0.5f,
+    /* partial_count              */ 1,
+    /* amplitude_rolloff_exponent */ 1.0f, // unused - harmonic_amplitudes below replaces it
+    /* formants                   */ {},
+    /* harmonic_amplitude_jitter  */ 0.0f,
+    /* harmonic_amplitudes        */ { 1.0f },
   };
 
   // GM's Synth Brass programs (62/63) are the deliberately-synthesized
@@ -370,13 +406,14 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
   if (name == "formant-vocal") return kFormantVocal;
   if (name == "choir-aah") return kFormantVocal;
   if (name == "choir-ooh") return kChoirOoh;
-  if (name == "bowed-ensemble") return kBowedEnsemble;
   if (name == "glass") return kGlass;
   if (name == "mellotron") return kMellotron;
   if (name == "keyboard") return kKeyboard;
-  if (name == "organ-pipe") return kOrganPipe;
   if (name == "church-organ") return kChurchOrgan;
   if (name == "bells") return kBells;
+  if (name == "strings") return kStrings;
+  if (name == "saw-piano") return kSawPiano;
+  if (name == "soft-pad") return kSoftPad;
   if (name == "synth-brass") return kSynthBrass;
   return kWarm;
 }

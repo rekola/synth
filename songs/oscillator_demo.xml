@@ -50,9 +50,11 @@
     <envelope name="PadSynth Formant-Vocal" attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
       <padsynth preset="formant-vocal"/>
     </envelope>
-    <!-- 5: PadSynth "bowed-ensemble" -->
-    <envelope name="PadSynth Bowed-Ensemble" attack="0.3" hold="0" decay="0.4" sustain="0.85" release="0.8">
-      <padsynth preset="bowed-ensemble"/>
+    <!-- 5: PadSynth "strings" - real ported ZynAddSubFX data (replaces
+         the earlier invented "bowed-ensemble", dropped per explicit
+         request - see PadSynthPresets.h's own kStrings comment). -->
+    <envelope name="PadSynth Strings" attack="0.3" hold="0" decay="0.4" sustain="0.85" release="0.8">
+      <padsynth preset="strings"/>
     </envelope>
     <!-- 6: PadSynth "glass" -->
     <envelope name="PadSynth Glass" attack="0.02" hold="0" decay="0.8" sustain="0.5" release="1.2">
@@ -96,7 +98,7 @@
          darker base spectrum for a rounded "oo" character. Both wrapped in
          <multiply unisons="3"> - a single static PADsynth table can't
          produce genuine ensemble-of-singers beating on its own (see
-         PadSynthPresets.h's own bowed-ensemble comment); real independent,
+         PadSynthPresets.h's own kStrings comment); real independent,
          slightly-detuned unison voices are what src/instruments/
          InstrumentLibrary.cpp's own pad.choir/pad.choir.ooh
          registrations now use for exactly this reason, so this song
@@ -122,11 +124,14 @@
          PadSynth combination placed alongside its named inspiration so
          the two are easy to compare by ear. -->
 
-    <!-- 14: "Soft Pad" - warm's own gentle rolloff, slower/softer envelope
-         than instrument 11's own plain "PadSynth Warm" for a gentler
-         onset. -->
-    <envelope name="PadSynth Soft Pad" attack="1.2" hold="0" decay="0.5" sustain="0.9" release="1.8">
-      <padsynth preset="warm" bandwidth="14"/>
+    <!-- 14: "Soft Pad" - real ported data (PadSynthPresets.h's own
+         kSoftPad): the actual patch is just harmonic 1 - a single, pure
+         partial, which is what "soft" genuinely means spectrally here,
+         not an approximation. Envelope follows the real patch's own
+         shape too (moderate attack, settling at full sustain, longish
+         release), replacing the earlier invented "warm"-based one. -->
+    <envelope name="PadSynth Soft Pad" attack="0.8" hold="0" decay="0.3" sustain="0.9" release="1.5">
+      <padsynth preset="soft-pad"/>
     </envelope>
 
     <!-- 15: "Bells" - real ported data now (PadSynthPresets.h's own
@@ -144,27 +149,35 @@
       <padsynth preset="bells" tuningMatched="false"/>
     </envelope>
 
-    <!-- 16: "Dual Strings Oct2" - bowed-ensemble wrapped in
+    <!-- 16: "Dual Strings Oct2" - the real "strings" preset (its own
+         explicit patch's harmonic content is real ported data; Dual
+         Strings Oct2 itself relies on ZynAddSubFX's internal
+         adaptive_harmonics generator - GPL logic, not portable - so
+         "strings" stands in for its base tone) wrapped in
          <multiply octaves="1">, real octave-doubled voices (not just a
          wider Gaussian band) - the "Oct2" in the real patch's own name
          is exactly this: a second layer an octave up/down from the
          first. -->
     <multiply name="PadSynth Dual Strings" octaves="1" detune="6">
       <envelope attack="0.4" hold="0" decay="0.3" sustain="0.9" release="0.7">
-        <padsynth preset="bowed-ensemble"/>
+        <padsynth preset="strings"/>
       </envelope>
     </multiply>
 
-    <!-- 17: "Saw Piano" - a bright, sawtooth-like rolloff (1.0, gentler
-         than every other preset here) with a piano-style percussive
-         envelope (no sustain plateau, long decay so PADsynth's own
-         time-invariant spectrum - no true per-partial decay the way
-         instrument 9's additive piano has - still reads as struck, not
-         held). A deliberate comparison point against the additive piano:
-         same "keyboard, percussive" idea, a completely different
-         synthesis engine under it. -->
-    <envelope name="PadSynth Saw Piano" attack="0.005" hold="0" decay="2.5" sustain="0.0" release="0.3">
-      <padsynth preset="warm" bandwidth="10" bandwidthScale="0.4" partials="40"/>
+    <!-- 17: "Saw Piano" - real ported data (PadSynthPresets.h's own
+         kSawPiano, from the uploaded "Saw Piano 1" factory patch),
+         replacing the earlier invented "warm"-based approximation.
+         Notably the real patch's own envelope sustains at full level
+         (S_val=127) rather than decaying to silence like Synth Piano 3 -
+         a sustained "piano pad" character, not a percussive one, which is
+         what's authored here (instant attack, a brief decay stage that
+         settles at a still-substantial sustain, not zero) rather than
+         assumed. Compare against instrument 0's own genuinely percussive
+         "keyboard" (Synth Piano 3) and instrument 9's additive piano
+         (true per-partial decay, a third distinct synthesis approach to
+         the same "piano" idea). -->
+    <envelope name="PadSynth Saw Piano" attack="0.005" hold="0" decay="0.3" sustain="0.85" release="0.4">
+      <padsynth preset="saw-piano"/>
     </envelope>
 
     <!-- 18: "Long SpaceChoir2" - choir-aah wrapped directly in <phaser>
@@ -221,7 +234,7 @@
     <track id="2" name="PadSynth Warm (narrow)" instrument="2"/>
     <track id="3" name="PadSynth Warm (wide)" instrument="3"/>
     <track id="4" name="PadSynth Formant-Vocal" instrument="4"/>
-    <track id="5" name="PadSynth Bowed-Ensemble" instrument="5"/>
+    <track id="5" name="PadSynth Strings" instrument="5"/>
     <track id="6" name="PadSynth Glass" instrument="6"/>
     <track id="7" name="Additive Struck-String" instrument="7"/>
     <track id="8" name="Mellotron" instrument="8"/>
@@ -260,7 +273,7 @@
     <locator row="128">PadSynth warm, NARROW bandwidth (8c) - triad, compare to row 176</locator>
     <locator row="136">PadSynth warm, WIDE bandwidth (80c) - triad, compare to row 176/128</locator>
     <locator row="144">PadSynth formant-vocal - single note</locator>
-    <locator row="152">PadSynth bowed-ensemble - single note</locator>
+    <locator row="152">PadSynth strings - single note</locator>
     <locator row="160">PadSynth glass - single note</locator>
     <locator row="168">Additive piano in unison with SoundFont guitar</locator>
     <locator row="176">PadSynth warm (tuningMatched=on) - single note</locator>
@@ -360,7 +373,7 @@
       <note row="150" value="off"/>
     </pattern>
 
-    <!-- PadSynth bowed-ensemble - single note (rows 152-159) -->
+    <!-- PadSynth strings - single note (rows 152-159) -->
     <pattern track="5">
       <note row="152" value="C-4"/>
       <note row="158" value="off"/>

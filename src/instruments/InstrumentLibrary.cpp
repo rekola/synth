@@ -115,18 +115,18 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // pad's own GM character; see this function's own end for the one pad
   // (Sweep) an oscillator-based instrument can't fully deliver.
   //
-  // Only 5 base padsynth spectral shapes exist for 8 GM pads (choir-aah/
-  // choir-ooh share formant-vocal's underlying shape family - see
-  // PadSynthPresets.h), so three pairs below
-  // deliberately share a base preset (newAge/metallic both "glass",
-  // choir/halo both "formant-vocal", warm/poly both "warm") - an actual
+  // GM's own description for New Age is "a soft, airy new-age pad" - the
+  // real ZynAddSubFX "Soft Pad" patch (kSoftPad, a single pure partial) is
+  // a direct semantic match, replacing the earlier "glass"-based
+  // approximation (glass is bell/mallet-like, not soft/airy - a mismatch
+  // this pairing had lived with since before real data was available).
+  // choir/halo still share "formant-vocal"'s underlying shape family (see
+  // PadSynthPresets.h) and warm/poly still share "warm" - an actual
   // listen found envelope timing alone isn't audible enough to tell a
   // static pad tone apart ("pad.choir and pad.halo sound exactly the
-  // same," same for metallic/newAge), so each pair now also gets an
-  // explicit bandwidth/bandwidthScale/tuningMatched override on top of its
-  // shared preset, specifically chosen to give the two members of each
-  // pair a genuinely different texture, not just a different envelope.
-  provider.registerPath("pad.newAge", makeEnvelopePad("glass", 0.8f, 0.0f, 0.3f, 0.9f, 1.2f));
+  // same"), so those two pairs still get an explicit bandwidth/
+  // bandwidthScale/tuningMatched override on top of their shared preset.
+  provider.registerPath("pad.newAge", makeEnvelopePad("soft-pad", 0.8f, 0.0f, 0.3f, 0.9f, 1.2f));
   provider.registerPath("pad.warm", makeEnvelopePad("warm", 0.6f, 0.0f, 0.4f, 0.85f, 1.0f));
   // Poly: brighter/more chorused than Warm - a classic analog polysynth
   // pad reads as more "moving"/present than a plain warm pad, via a wider
@@ -154,7 +154,13 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // its ensemble-of-singers motion, not any padsynth-side parameter alone.
   provider.registerPath("pad.choir", makeUnisonPad("choir-aah", 3, 16.0f, 0.5f, 0.5f, 0.0f, 0.3f, 0.9f, 0.8f));
   provider.registerPath("pad.choir.ooh", makeUnisonPad("choir-ooh", 3, 16.0f, 0.5f, 0.6f, 0.0f, 0.35f, 0.9f, 0.9f));
-  provider.registerPath("pad.bowed", makeEnvelopePad("bowed-ensemble", 0.4f, 0.0f, 0.3f, 0.9f, 0.7f));
+  // "strings" (not the earlier invented "bowed-ensemble", dropped per
+  // explicit request now that real data is available) - the uploaded
+  // ZynAddSubFX factory patch "Strings" (noefx_bell_strings.xmz), a fully
+  // portable 2-harmonic array (adaptive_harmonics=0). Real ensemble
+  // beating comes from real <multiply> unison on top, same reasoning as
+  // pad.choir/string.synth.slow below.
+  provider.registerPath("pad.bowed", makeUnisonPad("strings", 3, 14.0f, 0.5f, 0.4f, 0.0f, 0.3f, 0.9f, 0.7f));
   // Metallic: Glass's own clean/bell-like base, but tuningMatched=false -
   // inharmonic (non-scale-step) overtones, which is what actually reads as
   // "metallic"/bell-like dissonance (a real bell's overtones are famously
@@ -276,8 +282,10 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // Gaussian band - see docs/padsynth.md's own "Known limitations") is
   // actually suited to. "slow" (2, not 1) since that's the sustained-pad
   // half of the pair - the same reasoning "String Ensemble 2"'s own
-  // "slow" naming already established for the acoustic side.
-  provider.registerPath("string.synth.slow", makeUnisonPad("bowed-ensemble", 3, 14.0f, 0.5f, 0.5f, 0.0f, 0.4f, 0.85f, 0.9f));
+  // "slow" naming already established for the acoustic side. "strings"
+  // (real ported data, PadSynthPresets.h's own kStrings) replaces the
+  // earlier invented "bowed-ensemble", dropped per explicit request.
+  provider.registerPath("string.synth.slow", makeUnisonPad("strings", 3, 14.0f, 0.5f, 0.5f, 0.0f, 0.4f, 0.85f, 0.9f));
 
   // Synth Brass 1/2 (brass.synth/brass.synth.soft) - the same GM
   // "deliberately synthetic" distinction as lead.voice above, not the
