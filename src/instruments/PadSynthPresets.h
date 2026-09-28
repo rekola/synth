@@ -119,8 +119,23 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
   //    smooth rolloff-plus-formants curve can produce on its own, which
   //    is exactly the kind of texture that tells "a real resonant body"
   //    apart from "a clean synthesized curve."
+  // Round 4: still reported metallic after the singer's-formant/jitter
+  // addition above. The likely culprit isn't the formant idea itself -
+  // it's the same failure mode this preset's own round-2 history already
+  // diagnosed once (see above): a formant boost lands on a *sparse comb
+  // of narrow, individually-discrete partials* (22-cent-wide bands, each
+  // nearly a clean sine) rather than a dense cluster, so a strong gain
+  // there spotlights one or two overtones instead of reading as a
+  // resonant region - and a spotlighted overtone is exactly what "bell"/
+  // "metallic" means. Widened the base bandwidth again (22 to 28 cents -
+  // still well inside the 18-25 cent range every other non-glass preset
+  // already uses safely, nowhere near the 40+ cents that read as "mostly
+  // noise") so more neighboring partials actually blur together under
+  // each formant, and pulled the singer's-formant gain back down (4.0 to
+  // 2.5 - present but no longer the loudest peak in the spectrum) so it
+  // adds "ring" without becoming its own spotlighted spike.
   static const PadSynthPresetParams kFormantVocal{
-    /* bandwidth_cents            */ 22.0f,
+    /* bandwidth_cents            */ 28.0f,
     /* bandwidth_scale_exponent   */ 0.6f,
     /* partial_count              */ 56,
     /* amplitude_rolloff_exponent */ 1.8f,
@@ -128,7 +143,7 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
       { /* center_hz */ 700.0f,  /* bandwidth_hz */ 120.0f, /* gain */ 6.0f },  // F1
       { /* center_hz */ 1220.0f, /* bandwidth_hz */ 160.0f, /* gain */ 4.5f },  // F2
       { /* center_hz */ 2600.0f, /* bandwidth_hz */ 220.0f, /* gain */ 3.0f },  // F3
-      { /* center_hz */ 3000.0f, /* bandwidth_hz */ 350.0f, /* gain */ 4.0f },  // singer's formant (F3-F5 cluster)
+      { /* center_hz */ 3000.0f, /* bandwidth_hz */ 350.0f, /* gain */ 2.5f },  // singer's formant (F3-F5 cluster)
     },
     /* harmonic_amplitude_jitter  */ 0.15f,
   };
@@ -232,11 +247,18 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
   // reason: neither is about this vowel's own formant frequencies being
   // wrong, both are about what a smooth rolloff-plus-formant-bumps curve
   // structurally can't produce at all. The singer's formant here is
-  // deliberately weaker (gain 2.5 vs kFormantVocal's 4.0) - a closed,
-  // rounded "oo" is a genuinely darker vowel than an open "ah" even in a
-  // trained voice, and a full-strength ring would fight that.
+  // deliberately weaker than kFormantVocal's own - a closed, rounded "oo"
+  // is a genuinely darker vowel than an open "ah" even in a trained
+  // voice, and a full-strength ring would fight that.
+  //
+  // Round 4: same fix as kFormantVocal's own round 4 above, same reason -
+  // widened bandwidth (20 to 26 cents) so formant boosts land on a real
+  // cluster of blurred-together partials rather than spotlighting one or
+  // two discrete ones (the actual "metallic" mechanism), singer's-formant
+  // gain pulled back (2.5 to 1.8, keeping it weaker than aah's own 2.5 -
+  // preserving the relative "aah rings more than ooh" relationship).
   static const PadSynthPresetParams kChoirOoh{
-    /* bandwidth_cents            */ 20.0f,
+    /* bandwidth_cents            */ 26.0f,
     /* bandwidth_scale_exponent   */ 0.6f,
     /* partial_count              */ 48,
     /* amplitude_rolloff_exponent */ 2.2f,
@@ -244,7 +266,7 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
       { /* center_hz */ 300.0f,  /* bandwidth_hz */ 100.0f, /* gain */ 6.0f },  // F1
       { /* center_hz */ 870.0f,  /* bandwidth_hz */ 140.0f, /* gain */ 4.0f },  // F2
       { /* center_hz */ 2240.0f, /* bandwidth_hz */ 200.0f, /* gain */ 2.0f },  // F3
-      { /* center_hz */ 2900.0f, /* bandwidth_hz */ 350.0f, /* gain */ 2.5f },  // singer's formant (F3-F5 cluster), weaker
+      { /* center_hz */ 2900.0f, /* bandwidth_hz */ 350.0f, /* gain */ 1.8f },  // singer's formant (F3-F5 cluster), weaker
     },
     /* harmonic_amplitude_jitter  */ 0.15f,
   };

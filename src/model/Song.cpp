@@ -21,6 +21,7 @@
 #include "../effects/ResonantFilter.h"
 #include "../effects/BiquadFilter.h"
 #include "../effects/Chorus.h"
+#include "../effects/Phaser.h"
 #include "../effects/Tremolo.h"
 #include "../effects/Amplifier.h"
 #include "../effects/EnvelopeFilter.h"
@@ -193,6 +194,7 @@ static unique_ptr<Track> createTrack(string_view name) {
   else if (name == "resonantFilter") return make_unique<ResonantFilter>();
   else if (name == "biquadFilter") return make_unique<BiquadFilter>();
   else if (name == "chorus") return make_unique<Chorus>();
+  else if (name == "phaser") return make_unique<Phaser>();
   else if (name == "tremolo") return make_unique<Tremolo>();
   else if (name == "multiply") return make_unique<NoteMultiplier>();
   else if (name == "envelope") return make_unique<EnvelopeFilter>();

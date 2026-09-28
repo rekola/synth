@@ -83,6 +83,7 @@ add_library(synth_engine STATIC
 	src/effects/Distortion.cpp
 	src/effects/Tremolo.cpp
 	src/effects/Chorus.cpp
+	src/effects/Phaser.cpp
 	src/dsp/ChorusEngine.cpp
 	src/dsp/GranularEngine.cpp
 	src/bus/BusEffect.cpp

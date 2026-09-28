@@ -7,6 +7,7 @@
 #include "../effects/EnvelopeFilter.h"
 #include "../effects/TapeDegradation.h"
 #include "../effects/BiquadFilter.h"
+#include "../effects/Phaser.h"
 #include "../state/MemoryParameterSource.h"
 #include "../ambisonic/ChannelConfiguration.h"
 
@@ -160,10 +161,31 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // non-integer) rather than Glass's own clean, consonant partials -
   // plus a wider bandwidth for more clangorous beating.
   provider.registerPath("pad.metallic", makeEnvelopePad("glass", 0.3f, 0.0f, 0.5f, 0.7f, 1.0f, /*bandwidth*/ 20.0f, /*bandwidthScale*/ 0.7f, /*tuningMatched*/ false));
-  // Halo: Choir's own formant-vocal base, but wider/faster-growing
-  // bandwidth - a diffuse, shimmering "halo" texture instead of Choir's
-  // more focused, speech-like one.
-  provider.registerPath("pad.halo", makeEnvelopePad("formant-vocal", 1.0f, 0.0f, 0.4f, 0.9f, 1.5f, /*bandwidth*/ 40.0f, /*bandwidthScale*/ 0.8f));
+  // Halo: Choir's own formant-vocal base, wider/faster-growing bandwidth
+  // for a more diffuse texture than Choir's own focused, speech-like one -
+  // now also wrapped in <phaser>. A real ZynAddSubFX factory choir patch
+  // ("Long SpaceChoir2", checked among the example data referenced
+  // elsewhere in this file) is specifically a *phased* choir pad - slow,
+  // sweeping notches are exactly the "shimmering, ethereal" motion GM's
+  // own Halo name implies, and a static PADsynth table alone can't
+  // produce it any more than it can produce real ensemble beating (the
+  // same "needs real motion layered on top" reasoning as pad.choir's own
+  // <multiply> unison - a different kind of motion, same underlying gap).
+  // A slow rate (0.15Hz - one full sweep every ~6.7s) keeps it a slow
+  // shimmer, not an obvious/fast "phaser pedal" swoosh.
+  {
+    auto phaser = make_unique<Phaser>();
+    MemoryParameterSource phaser_params;
+    phaser_params.set("stages", 6);
+    phaser_params.set("rate", 0.15f);
+    phaser_params.set("minFreq", 300.0f);
+    phaser_params.set("maxFreq", 2500.0f);
+    phaser_params.set("feedback", 0.3f);
+    phaser_params.set("mix", 0.5f);
+    phaser->loadParameters(phaser_params);
+    phaser->addChild(makeEnvelopePad("formant-vocal", 1.0f, 0.0f, 0.4f, 0.9f, 1.5f, /*bandwidth*/ 40.0f, /*bandwidthScale*/ 0.8f));
+    provider.registerPath("pad.halo", move(phaser));
+  }
 
   // Sweep (pad.sweep) is a slow filter sweep over the note's own life -
   // motion no static oscillator (PADsynth included) can produce; there is

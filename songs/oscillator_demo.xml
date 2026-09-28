@@ -106,6 +106,75 @@
         <padsynth preset="choir-ooh"/>
       </envelope>
     </multiply>
+
+    <!-- 14-19: reference points for real ZynAddSubFX factory patches
+         (checked as example data for this project, per docs/padsynth.md's
+         own "Formant boost"/"Known limitations" sections) - none of these
+         are attempts at faithful recreations (their own real character
+         mostly comes from an explicit per-harmonic array this codebase
+         doesn't have - see those docs sections), just a same-family
+         PadSynth combination placed alongside its named inspiration so
+         the two are easy to compare by ear. -->
+
+    <!-- 14: "Soft Pad" - warm's own gentle rolloff, slower/softer envelope
+         than instrument 11's own plain "PadSynth Warm" for a gentler
+         onset. -->
+    <envelope name="PadSynth Soft Pad" attack="1.2" hold="0" decay="0.5" sustain="0.9" release="1.8">
+      <padsynth preset="warm" bandwidth="14"/>
+    </envelope>
+
+    <!-- 15: "Bells"/"Bells 3" - Glass's own clean base, detuned
+         (tuningMatched=false) the same way pad.metallic's own registration
+         is (InstrumentLibrary.cpp) - a real bell's overtones are famously
+         non-integer, which is what actually reads as bell-like/metallic
+         rather than Glass's own clean, consonant partials. Compare to
+         instrument 6's own plain (tuning-matched) Glass. -->
+    <envelope name="PadSynth Bells" attack="0.02" hold="0" decay="1.0" sustain="0.3" release="1.5">
+      <padsynth preset="glass" bandwidth="18" tuningMatched="false"/>
+    </envelope>
+
+    <!-- 16: "Dual Strings Oct2" - bowed-ensemble wrapped in
+         <multiply octaves="1">, real octave-doubled voices (not just a
+         wider Gaussian band) - the "Oct2" in the real patch's own name
+         is exactly this: a second layer an octave up/down from the
+         first. -->
+    <multiply name="PadSynth Dual Strings" octaves="1" detune="6">
+      <envelope attack="0.4" hold="0" decay="0.3" sustain="0.9" release="0.7">
+        <padsynth preset="bowed-ensemble"/>
+      </envelope>
+    </multiply>
+
+    <!-- 17: "Saw Piano" - a bright, sawtooth-like rolloff (1.0, gentler
+         than every other preset here) with a piano-style percussive
+         envelope (no sustain plateau, long decay so PADsynth's own
+         time-invariant spectrum - no true per-partial decay the way
+         instrument 9's additive piano has - still reads as struck, not
+         held). A deliberate comparison point against the additive piano:
+         same "keyboard, percussive" idea, a completely different
+         synthesis engine under it. -->
+    <envelope name="PadSynth Saw Piano" attack="0.005" hold="0" decay="2.5" sustain="0.0" release="0.3">
+      <padsynth preset="warm" bandwidth="10" bandwidthScale="0.4" partials="40"/>
+    </envelope>
+
+    <!-- 18: "Long SpaceChoir2" - choir-aah wrapped directly in <phaser>
+         (a faster, more obvious sweep than pad.halo's own slow-shimmer
+         combination, InstrumentLibrary.cpp - that one aims for a subtle
+         background texture; this one is the phaser itself as the point of
+         comparison). See docs/effects.md for <phaser>'s own attributes. -->
+    <phaser name="PadSynth Phased Choir" stages="8" rate="0.35" minFreq="250" maxFreq="3000" feedback="0.5" mix="0.6">
+      <envelope attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
+        <padsynth preset="choir-aah"/>
+      </envelope>
+    </phaser>
+
+    <!-- 19: "Church Organ 3" - organ.pipe's own preset/envelope shape,
+         referenced directly (not through the taxonomy path, so this
+         plays even when a real SoundFont organ is loaded and would
+         otherwise win at organ.pipe itself - see InstrumentLibrary.cpp's
+         own registerFallbackPath() comment on that fallback). -->
+    <envelope name="PadSynth Organ Pipe" attack="0.015" hold="0" decay="0.05" sustain="1.0" release="0.08">
+      <padsynth preset="organ-pipe"/>
+    </envelope>
   </instruments>
 
   <tracks>
@@ -123,6 +192,12 @@
     <track id="11" name="PadSynth Warm" instrument="11"/>
     <track id="12" name="PadSynth Choir Aah" instrument="12"/>
     <track id="13" name="PadSynth Choir Ooh" instrument="13"/>
+    <track id="14" name="PadSynth Soft Pad" instrument="14"/>
+    <track id="15" name="PadSynth Bells" instrument="15"/>
+    <track id="16" name="PadSynth Dual Strings" instrument="16"/>
+    <track id="17" name="PadSynth Saw Piano" instrument="17"/>
+    <track id="18" name="PadSynth Phased Choir" instrument="18"/>
+    <track id="19" name="PadSynth Organ Pipe" instrument="19"/>
   </tracks>
 
   <locators>
@@ -154,6 +229,12 @@
     <locator row="200">PadSynth warm (tuningMatched=on) - C-E-G-A# harmonic 7th</locator>
     <locator row="208">PadSynth choir-aah - single note, compare to row 216</locator>
     <locator row="216">PadSynth choir-ooh - single note, compare to row 208</locator>
+    <locator row="224">PadSynth "Soft Pad" - single note</locator>
+    <locator row="232">PadSynth "Bells" (untuned/detuned) - single note</locator>
+    <locator row="240">PadSynth "Dual Strings" (octave-doubled) - single note</locator>
+    <locator row="248">PadSynth "Saw Piano" - single note</locator>
+    <locator row="256">PadSynth "Phased Choir" (choir-aah + phaser) - single note</locator>
+    <locator row="264">PadSynth "Church Organ" (organ-pipe) - single note</locator>
   </locators>
 
   <arrangement>
@@ -271,6 +352,32 @@
     <pattern track="13">
       <note row="216" value="C-4"/>
       <note row="222" value="off"/>
+    </pattern>
+
+    <!-- ZynAddSubFX-example reference points (rows 224-271) -->
+    <pattern track="14">
+      <note row="224" value="C-4"/>
+      <note row="230" value="off"/>
+    </pattern>
+    <pattern track="15">
+      <note row="232" value="C-4"/>
+      <note row="238" value="off"/>
+    </pattern>
+    <pattern track="16">
+      <note row="240" value="C-4"/>
+      <note row="246" value="off"/>
+    </pattern>
+    <pattern track="17">
+      <note row="248" value="C-4"/>
+      <note row="254" value="off"/>
+    </pattern>
+    <pattern track="18">
+      <note row="256" value="C-4"/>
+      <note row="262" value="off"/>
+    </pattern>
+    <pattern track="19">
+      <note row="264" value="C-4"/>
+      <note row="270" value="off"/>
     </pattern>
   </arrangement>
 </song>
