@@ -162,6 +162,21 @@ PadSynthWavetable::generateTable(int octave) const {
   // full period of the looping waveform, seamless by construction (any
   // inverse FFT of a discrete spectrum is exactly periodic in its own
   // length - see this class's own header comment and PadSynthVoice.h's
-  // render() for how a voice reads it back at a different pitch).
-  return fft.inverse(spectrum);
+  // render() for how a voice reads it back at a different pitch). That
+  // 1/size() scaling alone leaves the waveform's actual peak amplitude an
+  // arbitrary function of table_size_/partial_count_/bandwidth (energy
+  // spread across a quarter-million-plus samples, summed from many small
+  // per-bin Gaussian contributions) - nowhere near Oscillator's own ±1
+  // output - so it's rescaled here to a fixed target peak, the same
+  // "level=1.0 means roughly full scale" contract every other Instrument
+  // leaf's own `level` parameter already assumes.
+  auto table = fft.inverse(spectrum);
+  float peak = 0.0f;
+  for (float sample : table) peak = std::max(peak, std::fabs(sample));
+  if (peak > 0.0f) {
+    constexpr float kTargetPeak = 0.9f;
+    float scale = kTargetPeak / peak;
+    for (float & sample : table) sample *= scale;
+  }
+  return table;
 }
