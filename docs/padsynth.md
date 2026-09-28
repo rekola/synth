@@ -72,7 +72,8 @@ recompute or perturb the snap.
 | Preset | Character |
 |---|---|
 | `warm` (default) | Moderate bandwidth, natural 1/n harmonic rolloff - a sensible general-purpose pad. |
-| `formant-vocal` | Narrow bandwidth plus three fixed vowel-like formant resonances (loosely an "ah"), steeper overall rolloff so the boosted bands stand out. |
+| `formant-vocal` (= `choir-aah`) | Narrow bandwidth plus three fixed vowel-like formant resonances (loosely an "ah"), steeper overall rolloff so the boosted bands stand out. `choir-aah` is an explicit alias for the same parameters - use whichever name reads more clearly at the call site. |
+| `choir-ooh` | A genuinely different vowel from `choir-aah`, not just a renamed copy: real acoustic "oo" has its first two formants both low and close together (F1~300Hz, F2~870Hz, versus "ah"'s 700/1220), which is what gives it a dark, rounded, "hooting" quality. The base spectrum is darkened to match (steeper rolloff, a quieter third formant) so the vowel reads through rather than defaulting back to "ah" underneath. |
 | `bowed-ensemble` | Wide, fast-growing bandwidth and a gentle rolloff (closer to a sawtooth than a clean sine stack) - natural ensemble-like beating from the Gaussian spread alone, no unison/detune layered on top. |
 | `glass` | Narrow bandwidth, steep rolloff - most energy in the fundamental and a handful of clean, minimally-beating overtones. |
 | `mellotron` | Close to `bowed-ensemble` (a real Mellotron "strings" tape *is* a recording of a bowed string ensemble) but slightly narrower/steeper - reads a little more "tape," a little less "live." Spectral character only; the tape-machine wow/flutter/hiss/attack-swoop is `<tapeDegradation preset="mellotron">`, layered on top separately (`docs/tape_degradation.md`) - see the instrument library's own `keyboard.tape.mellotron` for the full combination. |
@@ -87,10 +88,34 @@ harmonic bands regardless of fundamental - a fixed resonance the way a
 vocal tract's own cavities work, not tracking the note's own pitch. Each
 formant is a center frequency, a Gaussian falloff width, and a linear
 gain at its center; several combine multiplicatively. Not exposed as its
-own XML attribute today - only `formant-vocal`'s three built-in formants
-(`PadSynthPresets.h`) use this, a simple multiplicative-Gaussian-bump
-model rather than true resonant-filter/LPC formant synthesis - adequate
-for a distinct "vocal-ish" character, not acoustically rigorous.
+own XML attribute today - only `formant-vocal`/`choir-aah` and
+`choir-ooh`'s built-in formants (`PadSynthPresets.h`) use this, a simple
+multiplicative-Gaussian-bump model rather than true resonant-filter/LPC
+formant synthesis - adequate for a distinct "vocal-ish" character, not
+acoustically rigorous.
+
+Real ZynAddSubFX factory choir/pad patches (`.xmz`, gzip-compressed XML)
+were checked as a reference for anything directly borrowable here. Their
+`bandwidth`/`bandwidthScale`-equivalent values turned out to cluster
+tightly (raw UI-slider units, roughly 515-678 out of several patches
+spanning choir pads, bells, strings, and a piano) regardless of how
+different the instruments actually sound, and `amplitude_multiplier_type`
+was uniformly the "off" value across all of them - the real character
+differentiator in those patches is an explicit per-harmonic amplitude/
+phase array (and an oscillator-driven harmonic generator feeding it),
+a feature this codebase doesn't have (see "Known limitations" below),
+not a bandwidth number worth porting.
+
+## Known limitations
+
+PADsynth here only supports two ways to shape the harmonic spectrum: a
+single closed-form 1/n^`amplitude_rolloff_exponent` rolloff, plus the
+fixed multiplicative formant bumps above. Real ZynAddSubFX patches
+(including its own public-domain PADsynth algorithm description's worked
+examples) get much more of their character from an arbitrary, explicitly
+authored per-harmonic amplitude (and sometimes phase) array, generated
+from an internal oscillator waveform rather than a formula - a
+potentially worthwhile future extension, not implemented here.
 
 ## Performance
 

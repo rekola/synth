@@ -82,6 +82,18 @@
     <envelope name="PadSynth Warm" attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
       <padsynth preset="warm"/>
     </envelope>
+    <!-- 12/13: choir-aah vs choir-ooh, back to back - two genuinely
+         different vowels (not just a renamed copy of each other, see
+         PadSynthPresets.h): choir-aah is the same open "ah" formant shape
+         instrument 4 above already used under the "formant-vocal" name;
+         choir-ooh has its own lower, closer-together formants and a
+         darker base spectrum for a rounded "oo" character. -->
+    <envelope name="PadSynth Choir Aah" attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
+      <padsynth preset="choir-aah"/>
+    </envelope>
+    <envelope name="PadSynth Choir Ooh" attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
+      <padsynth preset="choir-ooh"/>
+    </envelope>
   </instruments>
 
   <tracks>
@@ -97,6 +109,8 @@
     <track id="9" name="Additive Piano" instrument="9"/>
     <track id="10" name="SoundFont Guitar" instrument="10"/>
     <track id="11" name="PadSynth Warm" instrument="11"/>
+    <track id="12" name="PadSynth Choir Aah" instrument="12"/>
+    <track id="13" name="PadSynth Choir Ooh" instrument="13"/>
   </tracks>
 
   <locators>
@@ -126,6 +140,8 @@
     <locator row="184">PadSynth warm (tuningMatched=on) - sustained fifth</locator>
     <locator row="192">PadSynth warm (tuningMatched=on) - 31-EDO C-E-G triad</locator>
     <locator row="200">PadSynth warm (tuningMatched=on) - C-E-G-A# harmonic 7th</locator>
+    <locator row="208">PadSynth choir-aah - single note, compare to row 216</locator>
+    <locator row="216">PadSynth choir-ooh - single note, compare to row 208</locator>
   </locators>
 
   <arrangement>
@@ -232,6 +248,17 @@
       <note row="198">off off off</note>
       <note row="200">C-4 E-4 G-4 A#4</note>
       <note row="206">off off off off</note>
+    </pattern>
+
+    <!-- Choir aah vs. ooh, back to back for direct comparison (rows
+         208-223) -->
+    <pattern track="12">
+      <note row="208" value="C-4"/>
+      <note row="214" value="off"/>
+    </pattern>
+    <pattern track="13">
+      <note row="216" value="C-4"/>
+      <note row="222" value="off"/>
     </pattern>
   </arrangement>
 </song>

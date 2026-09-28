@@ -166,7 +166,37 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
     /* formants                   */ {},
   };
 
+  // "choir-aah" is just an explicit, discoverable name for the same F1/F2/
+  // F3 shape kFormantVocal already tuned toward an open "ah" vowel - kept
+  // as a distinct alias (not a rename) so "formant-vocal" keeps working for
+  // any song/preset reference already using it.
+  //
+  // "choir-ooh" is a genuinely different vowel, not a copy with new
+  // numbers: real acoustic "oo" (as in "boot") has its first two formants
+  // both low and close together (F1~300Hz, F2~870Hz - versus "ah"'s
+  // 700/1220), which is what actually gives it that dark, rounded,
+  // "hooting" quality rather than an open one. Reusing kFormantVocal's own
+  // base spectrum unchanged would still read as "ah" underneath, so the
+  // base is darkened to match: a steeper rolloff (2.2 vs 1.8, less
+  // high-harmonic energy for a vocal tract shaped for a closed, rounded
+  // vowel) and a weaker/narrower F3 (an "oo"'s third formant is real but
+  // comparatively quiet - gain 2.0 vs "ah"'s 3.0 - so the mouth-cavity
+  // darkness doesn't get undone by a bright top end).
+  static const PadSynthPresetParams kChoirOoh{
+    /* bandwidth_cents            */ 20.0f,
+    /* bandwidth_scale_exponent   */ 0.6f,
+    /* partial_count              */ 48,
+    /* amplitude_rolloff_exponent */ 2.2f,
+    /* formants                   */ {
+      { /* center_hz */ 300.0f,  /* bandwidth_hz */ 100.0f, /* gain */ 6.0f },  // F1
+      { /* center_hz */ 870.0f,  /* bandwidth_hz */ 140.0f, /* gain */ 4.0f },  // F2
+      { /* center_hz */ 2240.0f, /* bandwidth_hz */ 200.0f, /* gain */ 2.0f },  // F3
+    },
+  };
+
   if (name == "formant-vocal") return kFormantVocal;
+  if (name == "choir-aah") return kFormantVocal;
+  if (name == "choir-ooh") return kChoirOoh;
   if (name == "bowed-ensemble") return kBowedEnsemble;
   if (name == "glass") return kGlass;
   if (name == "mellotron") return kMellotron;

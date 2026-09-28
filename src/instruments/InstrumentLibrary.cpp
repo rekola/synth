@@ -86,7 +86,9 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // pad's own GM character; see this function's own end for the one pad
   // (Sweep) an oscillator-based instrument can't fully deliver.
   //
-  // Only 5 padsynth presets exist for 8 GM pads, so three pairs below
+  // Only 5 base padsynth spectral shapes exist for 8 GM pads (choir-aah/
+  // choir-ooh share formant-vocal's underlying shape family - see
+  // PadSynthPresets.h), so three pairs below
   // deliberately share a base preset (newAge/metallic both "glass",
   // choir/halo both "formant-vocal", warm/poly both "warm") - an actual
   // listen found envelope timing alone isn't audible enough to tell a
@@ -101,7 +103,18 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // pad reads as more "moving"/present than a plain warm pad, via a wider
   // bandwidth than Warm's own default alone (not just a faster attack).
   provider.registerPath("pad.poly", makeEnvelopePad("warm", 0.2f, 0.0f, 0.3f, 0.8f, 0.6f, /*bandwidth*/ 32.0f, /*bandwidthScale*/ 0.7f));
-  provider.registerPath("pad.choir", makeEnvelopePad("formant-vocal", 0.5f, 0.0f, 0.3f, 0.9f, 0.8f));
+  // Choir: "choir-aah" by name now (same params "formant-vocal" already
+  // had - an explicit alias, see PadSynthPresets.h) since GM's own Choir
+  // Aahs patch is specifically the open "ah" vowel, not a generic "vocal"
+  // one. pad.choirOoh isn't a GM patch (GM has no separate "ooh" choir) -
+  // added alongside it purely as a second, genuinely different vowel
+  // character (a real ZynAddSubFX factory choir patch's own example
+  // parameters were checked for anything directly borrowable here; its
+  // bandwidth/bandwidthScale values turned out to cluster tightly across
+  // every one of its patches regardless of instrument character, so there
+  // was nothing preset-specific to port - see docs/padsynth.md).
+  provider.registerPath("pad.choir", makeEnvelopePad("choir-aah", 0.5f, 0.0f, 0.3f, 0.9f, 0.8f));
+  provider.registerPath("pad.choirOoh", makeEnvelopePad("choir-ooh", 0.6f, 0.0f, 0.35f, 0.9f, 0.9f));
   provider.registerPath("pad.bowed", makeEnvelopePad("bowed-ensemble", 0.4f, 0.0f, 0.3f, 0.9f, 0.7f));
   // Metallic: Glass's own clean/bell-like base, but tuningMatched=false -
   // inharmonic (non-scale-step) overtones, which is what actually reads as
