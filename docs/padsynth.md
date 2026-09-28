@@ -74,7 +74,7 @@ recompute or perturb the snap.
 | `warm` (default) | Moderate bandwidth, natural 1/n harmonic rolloff - a sensible general-purpose pad. |
 | `formant-vocal` (= `choir-aah`) | Narrow bandwidth plus three fixed vowel-like formant resonances (loosely an "ah"), steeper overall rolloff so the boosted bands stand out. `choir-aah` is an explicit alias for the same parameters - use whichever name reads more clearly at the call site. |
 | `choir-ooh` | A genuinely different vowel from `choir-aah`, not just a renamed copy: real acoustic "oo" has its first two formants both low and close together (F1~300Hz, F2~870Hz, versus "ah"'s 700/1220), which is what gives it a dark, rounded, "hooting" quality. The base spectrum is darkened to match (steeper rolloff, a quieter third formant) so the vowel reads through rather than defaulting back to "ah" underneath. |
-| `bowed-ensemble` | Wide, fast-growing bandwidth and a gentle rolloff (closer to a sawtooth than a clean sine stack). Genuine ensemble beating (several independent, slightly-detuned voices, the way `pad.choir.aah`/`pad.choir.ooh` now get it via `<multiply>` - see "Known limitations") isn't layered on top of this preset itself; a song can add it the same way. |
+| `bowed-ensemble` | Wide, fast-growing bandwidth and a gentle rolloff (closer to a sawtooth than a clean sine stack). Genuine ensemble beating (several independent, slightly-detuned voices, the way `pad.choir`/`pad.choir.ooh` now get it via `<multiply>` - see "Known limitations") isn't layered on top of this preset itself; a song can add it the same way. |
 | `glass` | Narrow bandwidth, steep rolloff - most energy in the fundamental and a handful of clean, minimally-beating overtones. |
 | `mellotron` | Close to `bowed-ensemble` (a real Mellotron "strings" tape *is* a recording of a bowed string ensemble) but slightly narrower/steeper - reads a little more "tape," a little less "live." Spectral character only; the tape-machine wow/flutter/hiss/attack-swoop is `<tapeDegradation preset="mellotron">`, layered on top separately (`docs/tape_degradation.md`) - see the instrument library's own `keyboard.tape.mellotron` for the full combination. |
 | `keyboard` | A narrow-ish, moderately-rolled-off "keys"/electric-piano-like spectral character - a comparison point against the additive piano: the same instrument-family idea, but PadSynth has no per-partial decay of its own, so its "struck" quality comes entirely from the wrapping `<envelope>`'s decay stage rather than any true time-varying spectral evolution. |
@@ -127,9 +127,8 @@ unisons="3" detune="16" spread="0.5">` (`NoteMultiplier.h`/`.cpp` - a
 generic, pre-existing per-instrument unison/detune/spread wrapper usable
 around any child instrument, not padsynth-specific, and not yet written
 up in its own doc page) already solves it by wrapping any child
-instrument in several independently-detuned copies. `pad.choir.aah`/
-`pad.choir.ooh`
-(`InstrumentLibrary.cpp`) are wrapped this way; a plain `formant-vocal`/
+instrument in several independently-detuned copies. `pad.choir`/
+`pad.choir.ooh` (`InstrumentLibrary.cpp`) are wrapped this way; a plain `formant-vocal`/
 `bowed-ensemble`/`mellotron` `<padsynth>` used directly (as most of
 `songs/oscillator_demo.xml`'s own comparison tracks deliberately are, to
 isolate the padsynth parameters themselves) is not, and reads noticeably

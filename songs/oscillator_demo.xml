@@ -92,7 +92,7 @@
          produce genuine ensemble-of-singers beating on its own (see
          PadSynthPresets.h's own bowed-ensemble comment); real independent,
          slightly-detuned unison voices are what src/instruments/
-         InstrumentLibrary.cpp's own pad.choir.aah/pad.choir.ooh
+         InstrumentLibrary.cpp's own pad.choir/pad.choir.ooh
          registrations now use for exactly this reason, so this song
          mirrors it rather than sounding thinner than the library version -
          kept in sync by hand, same as the additive piano above. -->

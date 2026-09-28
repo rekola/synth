@@ -131,31 +131,27 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // pad reads as more "moving"/present than a plain warm pad, via a wider
   // bandwidth than Warm's own default alone (not just a faster attack).
   provider.registerPath("pad.poly", makeEnvelopePad("warm", 0.2f, 0.0f, 0.3f, 0.8f, 0.6f, /*bandwidth*/ 32.0f, /*bandwidthScale*/ 0.7f));
-  // Choir: registered at both "pad.choir" (GM program 91's own literal
-  // taxonomy path, GmInstrumentTable.h - preserves the ordinary GM
-  // override behavior every other pad.* entry here relies on) and
-  // "pad.choir.aah" (the same shared instance, under the explicit,
-  // discoverable dotted name that pairs it with pad.choir.ooh below) - the
-  // same "register the same instrument at two paths for two different
-  // reasons" shape registerFallbackPath()'s own additive-piano callers use
-  // (piano.additive/piano.acoustic.grand). "choir-aah" by preset name
-  // since GM's own Choir Aahs patch is specifically the open "ah" vowel,
-  // not a generic "vocal" one.
-  // pad.choir.ooh isn't a GM patch (GM has no separate "ooh" choir) -
-  // added alongside it purely as a second, genuinely different vowel
-  // character (a real ZynAddSubFX factory choir patch's own example
-  // parameters were checked for anything directly borrowable here; its
-  // bandwidth/bandwidthScale values turned out to cluster tightly across
-  // every one of its patches regardless of instrument character, so there
-  // was nothing preset-specific to port - see docs/padsynth.md).
+  // Choir: two registrations, not three. "pad.choir" is GM program 91's
+  // own literal taxonomy path (GmInstrumentTable.h) - it has to exist
+  // under exactly that name for the ordinary GM override behavior every
+  // other pad.* entry here relies on to work at all (resolvePath() only
+  // ever walks from a request *up* to shorter prefixes, never down into a
+  // more specific child, so "pad.choir.aah" alone would leave a plain
+  // "pad.choir" request falling through to the unrelated pad.warm
+  // default - see docs/padsynth.md). Since GM's own Choir Aahs patch is
+  // specifically the open "ah" vowel, "pad.choir" itself IS the aah
+  // variant - no separate "pad.choir.aah" alias needed on top of it.
+  // "pad.choir.ooh" is the one addition beyond GM (which has no separate
+  // "ooh" choir program) - a second, genuinely different vowel character
+  // (a real ZynAddSubFX factory choir patch's own example parameters were
+  // checked for anything directly borrowable here; its bandwidth/
+  // bandwidthScale values turned out to cluster tightly across every one
+  // of its patches regardless of instrument character, so there was
+  // nothing preset-specific to port - see docs/padsynth.md).
   // 3 unison voices, 16 cents detune spread, moderate stereo spread - see
   // makeUnisonPad()'s own comment: this is what actually gives the choir
   // its ensemble-of-singers motion, not any padsynth-side parameter alone.
-  {
-    auto choir_aah = shared_ptr<Track>(makeUnisonPad("choir-aah", 3, 16.0f, 0.5f, 0.5f, 0.0f, 0.3f, 0.9f, 0.8f).release());
-    provider.registerPath("pad.choir", choir_aah);
-    provider.registerPath("pad.choir.aah", choir_aah);
-  }
+  provider.registerPath("pad.choir", makeUnisonPad("choir-aah", 3, 16.0f, 0.5f, 0.5f, 0.0f, 0.3f, 0.9f, 0.8f));
   provider.registerPath("pad.choir.ooh", makeUnisonPad("choir-ooh", 3, 16.0f, 0.5f, 0.6f, 0.0f, 0.35f, 0.9f, 0.9f));
   provider.registerPath("pad.bowed", makeEnvelopePad("bowed-ensemble", 0.4f, 0.0f, 0.3f, 0.9f, 0.7f));
   // Metallic: Glass's own clean/bell-like base, but tuningMatched=false -
@@ -227,7 +223,7 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   provider.registerPath("organ.pipe", makeEnvelopePad("organ-pipe", 0.015f, 0.0f, 0.05f, 1.0f, 0.08f));
 
   // String Ensemble 2 ("slow" - GM's own name already says "ensemble", the
-  // same reasoning as pad.choir.aah/.ooh above) - bowed-ensemble's own
+  // same reasoning as pad.choir/pad.choir.ooh above) - bowed-ensemble's own
   // harmonic profile plus real <multiply> unison for genuine multi-player
   // beating, not just a wide Gaussian band (see docs/padsynth.md's own
   // "Known limitations"). Tremolo Strings/Pizzicato Strings (the other two
