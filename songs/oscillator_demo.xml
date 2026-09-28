@@ -55,9 +55,15 @@
       </envelope>
     </tapeDegradation>
     <!-- 9: Additive piano - sustain 0, long decay so it never truncates the
-         additive engine's own per-partial decay, short release -->
+         additive engine's own per-partial decay, short release. Overrides
+         on top of struck-string (3-voice unison for a piano's own doubled/
+         tripled strings per note, quieter/duller hammer attack, brighter
+         tilt) matching src/instruments/InstrumentLibrary.cpp's own
+         registerLibraryInstruments() - this song builds instruments
+         directly rather than referencing that registration, so the two
+         copies must be kept in sync by hand. -->
     <envelope attack="0.005" hold="0" decay="8.0" sustain="0.0" release="0.3">
-      <additive preset="struck-string"/>
+      <additive preset="struck-string" unisonVoices="3" attackNoiseLevel="0.04" tilt="-6"/>
     </envelope>
     <!-- 10: A real SoundFont guitar, for the unison comparison at the end -
          the one instrument here not built directly. -->
