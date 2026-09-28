@@ -59,23 +59,37 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
     /* formants                   */ {},
   };
 
-  // A static, held-chord-friendly "keys"/electric-piano-like spectral
-  // character - added specifically as a PadSynth-side comparison point
-  // against the additive piano (docs/additive.md's struck-string-based
-  // one): the same instrument-family idea (a keyboard note), but PadSynth
-  // has no per-partial decay of its own - its whole "struck" quality has
-  // to come from the wrapping <envelope>'s own decay stage instead of any
-  // time-varying spectral evolution, a real and audible difference from
-  // additive's true per-partial decay worth hearing side by side. Sits
-  // between Glass (very narrow/clean/bell-like) and the retuned Warm
-  // (fuller): narrow-ish bandwidth for clarity/presence, a moderate
-  // rolloff for a bit more bite/definition than Warm's own mellow one.
+  // Ported data, not a from-scratch approximation (the earlier version of
+  // this preset was invented before the uploaded ZynAddSubFX example data
+  // was checked, and is dropped now that the real patch is available):
+  // the uploaded factory patch "Synth Piano 3" (synth_piano.xmz/
+  // noefx_synth_piano.xmz) has an explicit, sparse <HARMONICS> list - only
+  // harmonics 1/2/5/6 carry real energy, everything else silent - and a
+  // percussive amplitude envelope (instant attack, long decay all the way
+  // to S_val=0, no sustain plateau at all) rather than a held tone. Same
+  // porting boundary as kChurchOrgan/kBells: real numeric data, never the
+  // GPL application code that reads/renders it. Used as a PadSynth-side
+  // comparison point against the additive piano (docs/additive.md's
+  // struck-string-based one): PadSynth has no per-partial decay of its
+  // own, so this preset's own "struck" quality has to come entirely from
+  // the wrapping `<envelope>`'s own decay-to-zero-sustain shape (see
+  // InstrumentLibrary.cpp's/songs/oscillator_demo.xml's own "PadSynth
+  // Keyboard" envelope) rather than any true time-varying spectral
+  // evolution - a real and audible difference from additive's true
+  // per-partial decay worth hearing side by side. bandwidth_cents is
+  // still an approximation (the real patch's own raw "bandwidth" units,
+  // 450, have no confirmed conversion to cents - see docs/padsynth.md);
+  // kept narrow, for clarity/presence on a small, sparse harmonic set.
+  // The real patch's own filter+filter-envelope isn't ported, same reason
+  // as kChurchOrgan.
   static const PadSynthPresetParams kKeyboard{
-    /* bandwidth_cents            */ 14.0f,
+    /* bandwidth_cents            */ 12.0f,
     /* bandwidth_scale_exponent   */ 0.6f,
-    /* partial_count              */ 32,
-    /* amplitude_rolloff_exponent */ 1.6f,
+    /* partial_count              */ 6,
+    /* amplitude_rolloff_exponent */ 1.0f, // unused - harmonic_amplitudes below replaces it
     /* formants                   */ {},
+    /* harmonic_amplitude_jitter  */ 0.0f,
+    /* harmonic_amplitudes        */ { 127.0f/127.0f, 127.0f/127.0f, 0.0f, 0.0f, 99.0f/127.0f, 104.0f/127.0f },
   };
 
   // A handful of vowel-like formant resonances (loosely modeled on an "ah"

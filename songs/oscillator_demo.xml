@@ -16,11 +16,17 @@
 -->
 <song temperament="31edo" tempo="90" rowsPerBar="4" volume="1.0">
   <instruments>
-    <!-- 0: PadSynth "keyboard" - a static-spectrum, envelope-shaped "keys"
-         character (comparison point against the additive piano's own true
-         per-partial decay), used first for the chord-testing sections
-         since it's the clearest/most keys-like tone to judge a chord by. -->
-    <envelope name="PadSynth Keyboard" attack="0.01" hold="0" decay="1.5" sustain="0.15" release="0.3">
+    <!-- 0: PadSynth "keyboard" - ported from the uploaded ZynAddSubFX
+         factory patch "Synth Piano 3" (see PadSynthPresets.h's own
+         kKeyboard comment): a sparse 4-harmonic array plus a percussive
+         envelope, matched here as closely as this engine's ADSR shape
+         allows - near-instant attack, decay all the way to sustain=0 (the
+         real patch's own S_val=0, no held plateau at all), long enough
+         (2.0s) to still be clearly audible/decaying across this file's
+         own 6-row-held-chord convention rather than dying out
+         immediately. Used first for the chord-testing sections since
+         it's the clearest/most keys-like tone to judge a chord by. -->
+    <envelope name="PadSynth Keyboard" attack="0.005" hold="0" decay="2.0" sustain="0.0" release="0.3">
       <padsynth preset="keyboard"/>
     </envelope>
     <!-- 1: PadSynth "warm", tuning-matched OFF - A/B against instrument 11
@@ -204,7 +210,7 @@
          fully make tuningMatched's own point either - see the new
          locators/patterns below (rows 280-325) for quartal triads that
          actually stress its partial-snapping behavior. -->
-    <envelope name="PadSynth Keyboard (unmatched)" attack="0.01" hold="0" decay="1.5" sustain="0.15" release="0.3">
+    <envelope name="PadSynth Keyboard (unmatched)" attack="0.005" hold="0" decay="2.0" sustain="0.0" release="0.3">
       <padsynth preset="keyboard" tuningMatched="false"/>
     </envelope>
   </instruments>
