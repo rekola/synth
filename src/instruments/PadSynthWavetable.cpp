@@ -112,7 +112,21 @@ PadSynthWavetable::generateTable(int octave) const {
   // (musical, recognizably harmonic) and one ~50% wide (heavily overlapping
   // neighboring harmonics into broadband noise) - confirmed by ear as the
   // actual bug behind an early "padsynth is mostly noise" report.
-  float base_bandwidth_hz = f0 * (std::exp2(bandwidth_cents_ / 1200.0f) - 1.0f);
+  //
+  // The 1/(2*sqrt(2)) factor converts bw_Hz (as bw_Hz is defined above and
+  // in every reference PADsynth implementation) into an actual Gaussian
+  // standard deviation. Checked directly against Paul Nasca's own public-
+  // domain reference implementation (PADsynth.cpp, per-gron/HSPad on
+  // GitHub): its profile function is exp(-x^2) with x = distance/bwi and
+  // bwi = bw_Hz/(2*samplerate) - i.e. its Gaussian's width parameter is
+  // bw_Hz/2 in Hz, used in exp(-x^2) rather than the standard exp(-0.5*x^2)
+  // form this class uses. Equating exp(-0.5*(d/sigma)^2) to
+  // exp(-(d/(bw_Hz/2))^2) and solving for sigma gives
+  // sigma = bw_Hz/(2*sqrt(2)) - using bw_Hz directly as sigma (this file's
+  // very first version) made every band roughly 2.83x wider than the
+  // reference implementation produces for the same bandwidth_cents value.
+  constexpr float kBandwidthToSigma = 1.0f / (2.0f * 1.4142135623730951f);
+  float base_bandwidth_hz = f0 * (std::exp2(bandwidth_cents_ / 1200.0f) - 1.0f) * kBandwidthToSigma;
 
   for (int n_harmonic = 1; n_harmonic <= partial_count_; n_harmonic++) {
     float ratio = tuningMatchedPartialRatio(n_harmonic, edo_steps_, partial_limit_, tuning_matched_);

@@ -33,14 +33,21 @@ struct PadSynthFormant {
 // applies):
 //   - Per-harmonic bandwidth (standard deviation, in Hz) of the Gaussian
 //     band centered at f_center = f0 * ratio(n):
-//       sigma_hz = f0 * (2^(bandwidth_cents/1200) - 1) * n^bandwidth_scale_exponent
+//       sigma_hz = f0 * (2^(bandwidth_cents/1200) - 1) * n^bandwidth_scale_exponent / (2*sqrt(2))
 //     (2^(cents/1200) - 1 is the standard cents-to-relative-ratio
 //     conversion - the fractional bandwidth a 1st-harmonic band would have
 //     at `bandwidth_cents`; n^bandwidth_scale_exponent is what makes
 //     higher harmonics progressively wider, controlled by the caller.
 //     Anchored to f0, not f_center(n) - see PadSynthWavetable.cpp's own
 //     comment on why using f_center here would silently blow up relative
-//     bandwidth by an extra factor of n.)
+//     bandwidth by an extra factor of n. The 1/(2*sqrt(2)) converts what
+//     every reference PADsynth implementation calls "bw_Hz" into an actual
+//     standard deviation for this class's own exp(-0.5*x^2) profile shape -
+//     checked directly against Paul Nasca's own public-domain reference
+//     implementation, whose exp(-x^2) profile uses bw_Hz/2 as its own width
+//     parameter; omitting this factor (this file's original version) made
+//     every band ~2.83x wider than the reference produces for the same
+//     bandwidth_cents value.)
 //   - Per-bin Gaussian amplitude profile (linear amplitude, not power),
 //     peak-normalized by the band's own width in bins (sigma_hz/bin_hz) so
 //     a harmonic's TOTAL summed energy across its band stays proportional
