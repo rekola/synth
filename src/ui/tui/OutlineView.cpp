@@ -831,13 +831,28 @@ OutlineView::offerInput(const InputEvent & input) {
 
     auto & row = data_[static_cast<size_t>(new_cursor_row_)];
     if (row.kind == OutlineRowKind::LIBRARY_INSTRUMENT) {
+      // Resolved here too (the same literal-name-then-taxonomy-path order
+      // Player::handlePlaybackControlEvent() uses for the real PREVIEW_NOTE
+      // handling) purely to prewarm it - see prewarmInstrumentForPreview()'s
+      // own comment for why this must happen on this (UI) thread, before
+      // the event reaches the audio thread, not just once at startup.
+      auto & provider = getController().getInstrumentProvider();
+      shared_ptr<Track> track_instrument = provider.tryGetByLiteralName(row.ref_name);
+      if (!track_instrument) track_instrument = provider.resolvePath(row.ref_name);
+      getController().prewarmInstrumentForPreview(track_instrument.get(), midi_note);
       getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(
         PlaybackControlEvent::PREVIEW_NOTE, row.ref_name, midi_note, constants::DEFAULT_VELOCITY));
     } else {
       // POOL_INSTRUMENT - addresses row.ref_id (the pool's own index) via
       // PREVIEW_POOL_NOTE rather than PREVIEW_NOTE, so the exact pool slot
       // (generator overrides/custom Oscillator parameters included) is
-      // what sounds, not a fresh re-resolve of some name.
+      // what sounds, not a fresh re-resolve of some name. Never
+      // provider-registered, so it's never covered by the constructor-time
+      // taxonomy-wide prewarm sweep at all - prewarming it here is the only
+      // time it ever happens.
+      auto song = getController().getCurrentSong();
+      auto pool_instrument = song ? song->getInstrumentPool().getByIndex(row.ref_id) : nullptr;
+      getController().prewarmInstrumentForPreview(pool_instrument, midi_note);
       getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(
         PlaybackControlEvent::PREVIEW_POOL_NOTE, "", row.ref_id, midi_note, constants::DEFAULT_VELOCITY));
     }

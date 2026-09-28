@@ -3,6 +3,7 @@
 #include "InstrumentProvider.h"
 #include "PadSynth.h"
 #include "Additive.h"
+#include "NoteMultiplier.h"
 #include "../effects/EnvelopeFilter.h"
 #include "../effects/TapeDegradation.h"
 #include "../effects/BiquadFilter.h"
@@ -62,6 +63,33 @@ unique_ptr<Track> makeEnvelopePad(const string & padsynth_preset, float attack, 
   return env;
 }
 
+// <multiply>+envelope+padsynth - the "real unison layering" PadSynthPresets.h's
+// own bowed-ensemble comment named as the one thing a single static
+// PADsynth table can never produce on its own: genuine ensemble beating
+// needs several truly independent voices, each landing on a slightly
+// different pitch, not just a wider Gaussian band (which only spreads one
+// voice's own partials, with no time-varying interference between
+// separately-drifting singers/instruments at all). <multiply>
+// (NoteMultiplier) already exists for exactly this - a generic
+// unison/detune/spread wrapper usable around any child instrument, not
+// PadSynth-specific - so this reuses it rather than adding anything new to
+// PadSynthWavetable's own math. Each voice reads the identical shared
+// wavetable (unisons this small keep every voice within the same cached
+// octave region - no extra table builds), just resampled at its own
+// slightly-detuned pitch, exactly the way a real ensemble's own singers/
+// players never quite land on the identical pitch or timing.
+unique_ptr<Track> makeUnisonPad(const string & padsynth_preset, int unisons, float detune_cents, float spread,
+                                 float attack, float hold, float decay, float sustain, float release) {
+  auto multiplier = make_unique<NoteMultiplier>();
+  MemoryParameterSource params;
+  params.set("unisons", unisons);
+  params.set("detune", detune_cents);
+  params.set("spread", spread);
+  multiplier->loadParameters(params);
+  multiplier->addChild(makeEnvelopePad(padsynth_preset, attack, hold, decay, sustain, release));
+  return multiplier;
+}
+
 // Registers `path` only when nothing (no SoundFont, no earlier library
 // registration) has already claimed that exact taxonomy leaf - the
 // "fallback when the SoundFont has no piano" half of the additive piano's
@@ -103,18 +131,32 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // pad reads as more "moving"/present than a plain warm pad, via a wider
   // bandwidth than Warm's own default alone (not just a faster attack).
   provider.registerPath("pad.poly", makeEnvelopePad("warm", 0.2f, 0.0f, 0.3f, 0.8f, 0.6f, /*bandwidth*/ 32.0f, /*bandwidthScale*/ 0.7f));
-  // Choir: "choir-aah" by name now (same params "formant-vocal" already
-  // had - an explicit alias, see PadSynthPresets.h) since GM's own Choir
-  // Aahs patch is specifically the open "ah" vowel, not a generic "vocal"
-  // one. pad.choirOoh isn't a GM patch (GM has no separate "ooh" choir) -
+  // Choir: registered at both "pad.choir" (GM program 91's own literal
+  // taxonomy path, GmInstrumentTable.h - preserves the ordinary GM
+  // override behavior every other pad.* entry here relies on) and
+  // "pad.choir.aah" (the same shared instance, under the explicit,
+  // discoverable dotted name that pairs it with pad.choir.ooh below) - the
+  // same "register the same instrument at two paths for two different
+  // reasons" shape registerFallbackPath()'s own additive-piano callers use
+  // (piano.additive/piano.acoustic.grand). "choir-aah" by preset name
+  // since GM's own Choir Aahs patch is specifically the open "ah" vowel,
+  // not a generic "vocal" one.
+  // pad.choir.ooh isn't a GM patch (GM has no separate "ooh" choir) -
   // added alongside it purely as a second, genuinely different vowel
   // character (a real ZynAddSubFX factory choir patch's own example
   // parameters were checked for anything directly borrowable here; its
   // bandwidth/bandwidthScale values turned out to cluster tightly across
   // every one of its patches regardless of instrument character, so there
   // was nothing preset-specific to port - see docs/padsynth.md).
-  provider.registerPath("pad.choir", makeEnvelopePad("choir-aah", 0.5f, 0.0f, 0.3f, 0.9f, 0.8f));
-  provider.registerPath("pad.choirOoh", makeEnvelopePad("choir-ooh", 0.6f, 0.0f, 0.35f, 0.9f, 0.9f));
+  // 3 unison voices, 16 cents detune spread, moderate stereo spread - see
+  // makeUnisonPad()'s own comment: this is what actually gives the choir
+  // its ensemble-of-singers motion, not any padsynth-side parameter alone.
+  {
+    auto choir_aah = shared_ptr<Track>(makeUnisonPad("choir-aah", 3, 16.0f, 0.5f, 0.5f, 0.0f, 0.3f, 0.9f, 0.8f).release());
+    provider.registerPath("pad.choir", choir_aah);
+    provider.registerPath("pad.choir.aah", choir_aah);
+  }
+  provider.registerPath("pad.choir.ooh", makeUnisonPad("choir-ooh", 3, 16.0f, 0.5f, 0.6f, 0.0f, 0.35f, 0.9f, 0.9f));
   provider.registerPath("pad.bowed", makeEnvelopePad("bowed-ensemble", 0.4f, 0.0f, 0.3f, 0.9f, 0.7f));
   // Metallic: Glass's own clean/bell-like base, but tuningMatched=false -
   // inharmonic (non-scale-step) overtones, which is what actually reads as
@@ -151,6 +193,51 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
     filter->addChild(makeEnvelopePad("warm", 0.9f, 0.0f, 0.4f, 0.85f, 1.2f));
     provider.registerPath("pad.sweep", move(filter));
   }
+
+  // A few PadSynth overrides outside the pad.* family - checked against
+  // every other GM program family (leads especially, per an explicit
+  // request) for where PADsynth's own character (a Gaussian-band
+  // resynthesis, inherently a little soft/diffuse even at its narrowest,
+  // never a crisp single-cycle waveform) is actually a good fit, not a
+  // regression against a plain analog-style Oscillator. Most of GM's 8
+  // leads are a poor fit precisely because they want that crisp precision
+  // (Lead 1 Square/Lead 2 Sawtooth: a plain Oscillator already is the
+  // correct, better tool; Lead 4 Chiff needs a noise-burst attack
+  // transient, not a spectral-shape choice; Lead 5 Charang wants
+  // Distortion on a sharp Oscillator; Lead 7 Fifths is `<multiply
+  // fifths="1">` layered on a plain Oscillator, not a spectral question at
+  // all; Lead 8 Bass+Lead is a two-Oscillator layering problem) - none of
+  // that changes by swapping in PadSynth underneath. Lead 6 (Voice) is the
+  // one genuine exception: a real "synth voice" lead patch already wants
+  // exactly the vowel-formant, slightly-soft character `choir-aah` was
+  // built for, just played as a focused melodic lead rather than a
+  // sustained chorused pad - fast attack/release, no unison layered on
+  // (a lead stays one focused voice; that's what tells it apart from a
+  // choir pad using the identical spectral shape).
+  provider.registerPath("lead.voice", makeEnvelopePad("choir-aah", 0.03f, 0.0f, 0.15f, 0.9f, 0.2f));
+
+  // Church Organ (organ.pipe) - see PadSynthPresets.h's own "organ-pipe"
+  // comment for why a pipe organ is close to PADsynth's ideal case (a
+  // steady, near-beat-free harmonic stack). The envelope is what actually
+  // carries the organ character here, at least as much as the preset does
+  // - no decay stage and full sustain (an organ holds at exactly one
+  // level for as long as the key/wind valve stays open, never decaying on
+  // its own the way a struck/plucked/bowed instrument does), near-instant
+  // attack and a quick release (no swell, no ring-on).
+  provider.registerPath("organ.pipe", makeEnvelopePad("organ-pipe", 0.015f, 0.0f, 0.05f, 1.0f, 0.08f));
+
+  // String Ensemble 2 ("slow" - GM's own name already says "ensemble", the
+  // same reasoning as pad.choir.aah/.ooh above) - bowed-ensemble's own
+  // harmonic profile plus real <multiply> unison for genuine multi-player
+  // beating, not just a wide Gaussian band (see docs/padsynth.md's own
+  // "Known limitations"). Tremolo Strings/Pizzicato Strings (the other two
+  // GM string-ensemble programs) aren't touched here - both are about a
+  // specific articulation (a fast bowed tremolo, a plucked attack
+  // transient) that a static PADsynth table has no more mechanism for
+  // than it does for genuine per-note decay; only the plain sustained
+  // "slow" ensemble patch is a spectral-shape-and-unison problem PadSynth
+  // actually solves.
+  provider.registerPath("string.bowed.ensemble.slow", makeUnisonPad("bowed-ensemble", 3, 14.0f, 0.5f, 0.5f, 0.0f, 0.4f, 0.85f, 0.9f));
 
   // Additive piano - <envelope>+<additive preset="struck-string">, with a
   // few explicit overrides on top of the base preset rather than retuning
@@ -234,20 +321,20 @@ int centerNoteFor(Tuning tuning) {
   return 178;
 }
 
-void prewarmTree(const Track & track, const ChannelConfiguration & config, Tuning tuning, int note_value) {
+}
+
+void prewarmInstrumentTree(const Track & track, const ChannelConfiguration & config, Tuning tuning, int note_value) {
   if (auto * padsynth = dynamic_cast<const PadSynth *>(&track)) {
     padsynth->prewarm(config, tuning, note_value);
   }
   for (auto & child : track.getChildren()) {
-    prewarmTree(*child, config, tuning, note_value);
+    prewarmInstrumentTree(*child, config, tuning, note_value);
   }
-}
-
 }
 
 void prewarmLibraryInstruments(InstrumentProvider & provider, const ChannelConfiguration & config, Tuning tuning) {
   int note_value = centerNoteFor(tuning);
   for (auto & entry : provider.getTaxonomyPaths()) {
-    if (entry.second) prewarmTree(*entry.second, config, tuning, note_value);
+    if (entry.second) prewarmInstrumentTree(*entry.second, config, tuning, note_value);
   }
 }

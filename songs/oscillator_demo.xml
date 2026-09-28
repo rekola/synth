@@ -87,13 +87,25 @@
          PadSynthPresets.h): choir-aah is the same open "ah" formant shape
          instrument 4 above already used under the "formant-vocal" name;
          choir-ooh has its own lower, closer-together formants and a
-         darker base spectrum for a rounded "oo" character. -->
-    <envelope name="PadSynth Choir Aah" attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
-      <padsynth preset="choir-aah"/>
-    </envelope>
-    <envelope name="PadSynth Choir Ooh" attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
-      <padsynth preset="choir-ooh"/>
-    </envelope>
+         darker base spectrum for a rounded "oo" character. Both wrapped in
+         <multiply unisons="3"> - a single static PADsynth table can't
+         produce genuine ensemble-of-singers beating on its own (see
+         PadSynthPresets.h's own bowed-ensemble comment); real independent,
+         slightly-detuned unison voices are what src/instruments/
+         InstrumentLibrary.cpp's own pad.choir.aah/pad.choir.ooh
+         registrations now use for exactly this reason, so this song
+         mirrors it rather than sounding thinner than the library version -
+         kept in sync by hand, same as the additive piano above. -->
+    <multiply name="PadSynth Choir Aah" unisons="3" detune="16" spread="0.5">
+      <envelope attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
+        <padsynth preset="choir-aah"/>
+      </envelope>
+    </multiply>
+    <multiply name="PadSynth Choir Ooh" unisons="3" detune="16" spread="0.5">
+      <envelope attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
+        <padsynth preset="choir-ooh"/>
+      </envelope>
+    </multiply>
   </instruments>
 
   <tracks>

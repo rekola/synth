@@ -166,6 +166,25 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
     /* formants                   */ {},
   };
 
+  // A pipe organ's flue pipes are about as close to PADsynth's own
+  // idealized case as a real instrument gets - a steady, essentially
+  // beat-free harmonic stack with no per-note decay of its own (the
+  // "struck"/decaying quality every other preset's wrapping <envelope>
+  // supplies instead comes from an organ's own on/off wind valve, not a
+  // dying resonance - see InstrumentLibrary.cpp's own organ.pipe envelope:
+  // near-instant attack, no decay stage, full sustain, quick release).
+  // Narrower than even Glass (5 vs 8 cents) for that steadiness, with a
+  // brighter/richer rolloff than Glass's own bell-like one (1.2 vs 1.5) -
+  // a flue pipe is richer in upper harmonics than a struck bell/glass
+  // tone, closer to a gentle sawtooth than a near-sine.
+  static const PadSynthPresetParams kOrganPipe{
+    /* bandwidth_cents            */ 5.0f,
+    /* bandwidth_scale_exponent   */ 0.5f,
+    /* partial_count              */ 32,
+    /* amplitude_rolloff_exponent */ 1.2f,
+    /* formants                   */ {},
+  };
+
   // "choir-aah" is just an explicit, discoverable name for the same F1/F2/
   // F3 shape kFormantVocal already tuned toward an open "ah" vowel - kept
   // as a distinct alias (not a rename) so "formant-vocal" keeps working for
@@ -201,6 +220,7 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
   if (name == "glass") return kGlass;
   if (name == "mellotron") return kMellotron;
   if (name == "keyboard") return kKeyboard;
+  if (name == "organ-pipe") return kOrganPipe;
   return kWarm;
 }
 

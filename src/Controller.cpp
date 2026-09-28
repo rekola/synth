@@ -1586,3 +1586,11 @@ Controller::finishSampleCapture() {
   recording_start_row_ = -1;
   stopRecording();
 }
+
+void
+Controller::prewarmInstrumentForPreview(const Track * instrument, int note_value) const {
+  if (!instrument) return;
+  auto song = getCurrentSong();
+  Tuning tuning = song ? song->getTuning() : Tuning::TET31;
+  prewarmInstrumentTree(*instrument, channel_config, tuning, note_value);
+}

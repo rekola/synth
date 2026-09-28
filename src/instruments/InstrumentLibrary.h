@@ -5,6 +5,7 @@
 
 class InstrumentProvider;
 class ChannelConfiguration;
+class Track;
 
 // Registers synth's own hand-built library instruments on top of whatever
 // loadSoundFont() already registered: the GM synth-pad overrides
@@ -36,5 +37,20 @@ void registerLibraryInstruments(InstrumentProvider & provider);
 // possible first-note stall, just the overwhelmingly common preview case
 // (auditioning a Library pad at a default pitch, default 31-EDO tuning).
 void prewarmLibraryInstruments(InstrumentProvider & provider, const ChannelConfiguration & config, Tuning tuning);
+
+// The single-instrument sibling of prewarmLibraryInstruments() above -
+// walks one already-resolved Track's own subtree (not the whole provider
+// taxonomy) for PadSynth nodes and forces each to build its wavetable at
+// note_value's own octave region now. Exposed for callers that resolve a
+// specific instrument themselves (a name, a taxonomy path, or a song's own
+// instrument-pool slot) right before triggering a preview note at a
+// specific pitch - the taxonomy-wide sweep above only ever warms one fixed
+// middle-register octave, so any preview at a different octave, or of a
+// song's own pool instrument (never covered by the taxonomy sweep at all,
+// since it isn't provider-registered), still built its table lazily on the
+// real-time audio thread without this - see OutlineView.cpp's own call
+// site, on the UI thread, right before it pushes the PREVIEW_NOTE/
+// PREVIEW_POOL_NOTE event.
+void prewarmInstrumentTree(const Track & track, const ChannelConfiguration & config, Tuning tuning, int note_value);
 
 #endif
