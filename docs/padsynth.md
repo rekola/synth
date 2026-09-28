@@ -76,6 +76,7 @@ recompute or perturb the snap.
 | `bowed-ensemble` | Wide, fast-growing bandwidth and a gentle rolloff (closer to a sawtooth than a clean sine stack) - natural ensemble-like beating from the Gaussian spread alone, no unison/detune layered on top. |
 | `glass` | Narrow bandwidth, steep rolloff - most energy in the fundamental and a handful of clean, minimally-beating overtones. |
 | `mellotron` | Close to `bowed-ensemble` (a real Mellotron "strings" tape *is* a recording of a bowed string ensemble) but slightly narrower/steeper - reads a little more "tape," a little less "live." Spectral character only; the tape-machine wow/flutter/hiss/attack-swoop is `<tapeDegradation preset="mellotron">`, layered on top separately (`docs/tape_degradation.md`) - see the instrument library's own `keyboard.tape.mellotron` for the full combination. |
+| `keyboard` | A narrow-ish, moderately-rolled-off "keys"/electric-piano-like spectral character - a comparison point against the additive piano: the same instrument-family idea, but PadSynth has no per-partial decay of its own, so its "struck" quality comes entirely from the wrapping `<envelope>`'s decay stage rather than any true time-varying spectral evolution. |
 
 An unrecognized `preset` name falls back to `warm`.
 

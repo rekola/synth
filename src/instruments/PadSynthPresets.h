@@ -31,63 +31,107 @@ struct PadSynthPresetParams {
 // the same "unrecognized name falls back to a real default" shape
 // TapeDegradationPresets.h's own getTapeDegradationPreset() already uses.
 inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) {
-  // The sensible middle-ground default: moderate bandwidth (some
-  // beating/chorus-like richness without smearing into noise) and a
-  // steep-enough rolloff (1/n^2, not the original 1/n - a bare 1/n
-  // spectrum is a sawtooth, which reads as bright/buzzy, not "warm"; a
-  // real warm pad needs most of its energy concentrated in the low
-  // harmonics) that the upper partials this bandwidth still spreads
-  // widely stay too quiet to be heard as anything but a gentle richness,
-  // rather than the audible high-frequency wash an early listening pass
-  // reported ("much high frequencies... doesn't sound like a pad").
+  // The sensible middle-ground default. Steepening the rolloff (1/n, a
+  // bright sawtooth spectrum, to 1/n^2) fixed the earlier "buzzy, high
+  // frequencies, doesn't sound like a pad" report, but a second listen
+  // found it still didn't read as "warm" - the demo's own narrow-
+  // bandwidth A/B comparison (bandwidth=8, i.e. this preset's own
+  // bandwidth_cents overridden down near Glass's own value) sounded
+  // warmer than the unmodified preset. That points at bandwidth itself,
+  // not just rolloff: even with quiet high harmonics, a wide Gaussian
+  // band spreads and beats *every* partial including the loud low ones,
+  // and that spread/beating itself reads as bright/synthetic rather than
+  // warm - "warm" wants each low partial closer to a clean tone. Narrowed
+  // bandwidth_cents from 40 to 18 (between Glass's 8 and the original 40)
+  // for exactly that.
   static const PadSynthPresetParams kWarm{
-    /* bandwidth_cents            */ 40.0f,
+    /* bandwidth_cents            */ 18.0f,
     /* bandwidth_scale_exponent   */ 0.6f,
     /* partial_count              */ 32,
     /* amplitude_rolloff_exponent */ 2.0f,
     /* formants                   */ {},
   };
 
+  // A static, held-chord-friendly "keys"/electric-piano-like spectral
+  // character - added specifically as a PadSynth-side comparison point
+  // against the additive piano (docs/additive.md's struck-string-based
+  // one): the same instrument-family idea (a keyboard note), but PadSynth
+  // has no per-partial decay of its own - its whole "struck" quality has
+  // to come from the wrapping <envelope>'s own decay stage instead of any
+  // time-varying spectral evolution, a real and audible difference from
+  // additive's true per-partial decay worth hearing side by side. Sits
+  // between Glass (very narrow/clean/bell-like) and the retuned Warm
+  // (fuller): narrow-ish bandwidth for clarity/presence, a moderate
+  // rolloff for a bit more bite/definition than Warm's own mellow one.
+  static const PadSynthPresetParams kKeyboard{
+    /* bandwidth_cents            */ 14.0f,
+    /* bandwidth_scale_exponent   */ 0.6f,
+    /* partial_count              */ 32,
+    /* amplitude_rolloff_exponent */ 1.6f,
+    /* formants                   */ {},
+  };
+
   // A handful of vowel-like formant resonances (loosely modeled on an "ah"
   // vowel's own F1/F2/F3) boost specific harmonic bands regardless of
   // fundamental, the way a vocal tract's own fixed resonant cavities do.
-  // A first attempt at this (gain 1.4-3x, 100-250Hz-wide bumps, a mild
-  // 1.3 rolloff) read as "synth string," not vocal, on an actual listen -
-  // the boosts were too gentle and too wide relative to a fairly bright
-  // background spectrum to stand out as distinct resonant peaks the way a
-  // real formant does (which sits 20-30dB above its own neighboring
-  // valleys, not +3-10dB). Fixed by making both sides of the contrast much
-  // more extreme: narrow bandwidth (15 cents at the fundamental, so each
-  // partial is a near-discrete line) plus a steep 2.2 rolloff empties out
-  // the background between formants, while far larger, narrower formant
-  // gains (6-10x = +16 to +20dB) than before actually punch through it.
+  //
+  // Two rounds of retuning so far. Round 1 (gain 1.4-3x, 100-250Hz-wide
+  // bumps, a mild 1.3 rolloff) read as "synth string," not vocal - the
+  // boosts were too gentle to stand out. Round 2 overcorrected: very
+  // narrow base partials (15 cents) plus very narrow, very strong formant
+  // bumps (50-100Hz wide, +16-20dB) read as "metallic," not choir. The
+  // actual problem with round 2: a real vocal formant isn't a spike on
+  // one partial, it's a broad resonance boosting a *cluster* of several
+  // neighboring harmonics together - at a single narrow band's typical
+  // fundamental (e.g. middle C, harmonics ~260Hz apart), a 50-100Hz-wide
+  // formant mostly only reaches ONE nearby harmonic, so a strong gain
+  // there just spotlights a single overtone (bell/metallic), not a
+  // resonant region. Fixed by widening the formant bumps back out (120-
+  // 220Hz, wide enough to span several neighboring harmonics into a
+  // genuine cluster) while moderating their gain (4-6x, not 7-10x, since
+  // several boosted harmonics together read as loud even at a lower
+  // per-partial gain) and loosening the base spectrum back toward a more
+  // natural richness (22 cents, 1.8 rolloff - between round 1's too-mild
+  // 1.3 and round 2's too-sparse 2.2) so there's enough underlying
+  // harmonic density for a formant to actually have several partials to
+  // cluster, rather than reading as glassy/discrete on its own.
   static const PadSynthPresetParams kFormantVocal{
-    /* bandwidth_cents            */ 15.0f,
+    /* bandwidth_cents            */ 22.0f,
     /* bandwidth_scale_exponent   */ 0.6f,
-    /* partial_count              */ 48,
-    /* amplitude_rolloff_exponent */ 2.2f,
+    /* partial_count              */ 56,
+    /* amplitude_rolloff_exponent */ 1.8f,
     /* formants                   */ {
-      { /* center_hz */ 700.0f,  /* bandwidth_hz */ 50.0f, /* gain */ 10.0f },  // F1
-      { /* center_hz */ 1220.0f, /* bandwidth_hz */ 70.0f, /* gain */ 7.0f },  // F2
-      { /* center_hz */ 2600.0f, /* bandwidth_hz */ 100.0f, /* gain */ 4.0f },  // F3
+      { /* center_hz */ 700.0f,  /* bandwidth_hz */ 120.0f, /* gain */ 6.0f },  // F1
+      { /* center_hz */ 1220.0f, /* bandwidth_hz */ 160.0f, /* gain */ 4.5f },  // F2
+      { /* center_hz */ 2600.0f, /* bandwidth_hz */ 220.0f, /* gain */ 3.0f },  // F3
     },
   };
 
   // A real bowed string is rich in harmonics with only a gentle rolloff
-  // (closer to a sawtooth than a clean sine stack), and a wide, fast-
-  // growing bandwidth gives each partial its own natural, ensemble-like
-  // beating even from a single generated table - no unison/detune voices
-  // layered on top, the beating comes purely from the Gaussian spread
-  // itself. The original values (rolloff 0.9, bandwidthScale 1.0, 56
-  // partials) pushed this too far and read as mostly noise on an actual
-  // listen - "gentle rolloff" still needs enough falloff that a fast-
-  // growing bandwidth's own upper-harmonic energy doesn't dominate; tamed
-  // to a still-rich-but-recognizably-pitched middle ground.
+  // (closer to a sawtooth than a clean sine stack). The original design
+  // tried to get "ensemble" beating purely from a wide, fast-growing
+  // Gaussian bandwidth (no actual unison/detune voices) - first pass
+  // (rolloff 0.9, bandwidthScale 1.0, 56 partials) read as mostly noise;
+  // a tamer second pass (rolloff 1.3, bandwidthScale 0.7, 40 partials)
+  // still read as "a buzzy drone swarm," with the reasonable suggestion
+  // to get a single clean bowed instrument right before attempting
+  // "ensemble" on top of it at all. Retuned as exactly that: bandwidth
+  // brought down close to Warm's own (25 vs 18 cents, bandwidthScale
+  // 0.5), so this preset's own distinguishing trait becomes almost
+  // entirely its harmonic *profile* (a real, moderately-rolled-off
+  // sawtooth-like richness - the amplitude_rolloff_exponent below) rather
+  // than band-spreading; a small amount of extra bandwidth over Warm
+  // supplies only a touch of natural live-bowing roughness, not a swarm.
+  // Genuine multi-instrument ensemble beating (several truly independent,
+  // detuned voices) isn't something a single PADsynth table can produce
+  // convincingly - that would need real unison layering on top (e.g. a
+  // parent <multiply>/NoteMultiplier, the way the additive piano's own
+  // multi-string unison works), not attempted here.
   static const PadSynthPresetParams kBowedEnsemble{
-    /* bandwidth_cents            */ 50.0f,
-    /* bandwidth_scale_exponent   */ 0.7f,
+    /* bandwidth_cents            */ 25.0f,
+    /* bandwidth_scale_exponent   */ 0.5f,
     /* partial_count              */ 40,
-    /* amplitude_rolloff_exponent */ 1.3f,
+    /* amplitude_rolloff_exponent */ 1.4f,
     /* formants                   */ {},
   };
 
@@ -107,19 +151,18 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
   // string ensemble sounds like), not literal unison/detune voices; that
   // comes from <tapeDegradation preset="mellotron"> layered on top instead
   // (built separately - see docs/tape_degradation.md).
-  // Close to Bowed Ensemble's own wide, beating bandwidth (a bowed string
-  // ensemble is exactly what a real Mellotron strings tape captured) but
-  // slightly narrower/steeper, reading a little more "recorded tape"
-  // and a little less "live" than Bowed Ensemble's own wider spread.
-  // Retuned alongside Bowed Ensemble's own fix (rolloff/bandwidthScale too
-  // low, read as mostly noise) even though not separately reported on -
-  // this preset shared the identical under-damped shape, so it almost
-  // certainly had the same problem; not yet re-verified by ear.
+  // Close to Bowed Ensemble's own bandwidth (a bowed string ensemble is
+  // exactly what a real Mellotron strings tape captured) but slightly
+  // narrower/steeper, reading a little more "recorded tape" and a little
+  // less "live" than Bowed Ensemble's own spread. Retuned twice alongside
+  // Bowed Ensemble's own fixes even though not separately reported on -
+  // this preset shared the identical shape each time, so it almost
+  // certainly had the same problems; not yet verified by ear at all.
   static const PadSynthPresetParams kMellotron{
-    /* bandwidth_cents            */ 45.0f,
-    /* bandwidth_scale_exponent   */ 0.7f,
-    /* partial_count              */ 36,
-    /* amplitude_rolloff_exponent */ 1.6f,
+    /* bandwidth_cents            */ 20.0f,
+    /* bandwidth_scale_exponent   */ 0.45f,
+    /* partial_count              */ 32,
+    /* amplitude_rolloff_exponent */ 1.7f,
     /* formants                   */ {},
   };
 
@@ -127,6 +170,7 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
   if (name == "bowed-ensemble") return kBowedEnsemble;
   if (name == "glass") return kGlass;
   if (name == "mellotron") return kMellotron;
+  if (name == "keyboard") return kKeyboard;
   return kWarm;
 }
 

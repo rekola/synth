@@ -117,7 +117,7 @@ nothing here does.
 | Preset | Character |
 |---|---|
 | `default` | A modest, generic electric-piano-ish tone - harmonic (B=0), mild tilt, single voice, moderate decay. Falls back to this for any unrecognized `preset` name. |
-| `struck-string` | A real struck string: 28 partials, B=0.0004 (a mid-register wound-string-like coefficient), decay tuned so the fundamental's time constant is around a second while a several-kHz partial's is tens of milliseconds, a short attack-noise burst for the hammer/pluck transient, and two unison voices a few cents apart (a piano's own multiple-strings-per-note). |
+| `struck-string` | A real struck string: 28 partials, B=0.0008 with `partialLimit=3` (only the fundamental/2nd/3rd harmonic stay pinned to the scale - see below), decay tuned so the fundamental's time constant is around 2 seconds while a several-kHz partial's is tens of milliseconds, a short attack-noise burst for the hammer/pluck transient, and two unison voices a few cents apart (a piano's own multiple-strings-per-note). |
 
 ## Not yet implemented
 

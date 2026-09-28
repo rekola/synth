@@ -16,40 +16,48 @@
 -->
 <song temperament="31edo" tempo="90" rowsPerBar="4" volume="1.0">
   <instruments>
-    <!-- 0: PadSynth "warm", tuning-matched partials (default) -->
-    <envelope attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
-      <padsynth preset="warm"/>
+    <!-- 0: PadSynth "keyboard" - a static-spectrum, envelope-shaped "keys"
+         character (comparison point against the additive piano's own true
+         per-partial decay), used first for the chord-testing sections
+         since it's the clearest/most keys-like tone to judge a chord by. -->
+    <envelope name="PadSynth Keyboard" attack="0.01" hold="0" decay="1.5" sustain="0.15" release="0.3">
+      <padsynth preset="keyboard"/>
     </envelope>
-    <!-- 1: PadSynth "warm", tuning-matched OFF - A/B against instrument 0 -->
-    <envelope attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
+    <!-- 1: PadSynth "warm", tuning-matched OFF - A/B against instrument 11
+         (PadSynth warm, tuning-matched ON, moved to the end of this file) -->
+    <envelope name="PadSynth Warm (unmatched)" attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
       <padsynth preset="warm" tuningMatched="false"/>
     </envelope>
     <!-- 2: PadSynth "warm", narrow bandwidth (8 cents) -->
-    <envelope attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
+    <envelope name="PadSynth Warm (narrow)" attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
       <padsynth preset="warm" bandwidth="8"/>
     </envelope>
-    <!-- 3: PadSynth "warm", wide bandwidth (150 cents) -->
-    <envelope attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
-      <padsynth preset="warm" bandwidth="150"/>
+    <!-- 3: PadSynth "warm", wide bandwidth (80 cents - 150 was tried first
+         and read as mostly noise even after the bandwidth-anchoring fix:
+         at that width even the fundamental's own band is ~9% of its own
+         frequency wide, smearing the most important partial before rolloff
+         even gets a say) -->
+    <envelope name="PadSynth Warm (wide)" attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
+      <padsynth preset="warm" bandwidth="80"/>
     </envelope>
     <!-- 4: PadSynth "formant-vocal" -->
-    <envelope attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
+    <envelope name="PadSynth Formant-Vocal" attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
       <padsynth preset="formant-vocal"/>
     </envelope>
     <!-- 5: PadSynth "bowed-ensemble" -->
-    <envelope attack="0.3" hold="0" decay="0.4" sustain="0.85" release="0.8">
+    <envelope name="PadSynth Bowed-Ensemble" attack="0.3" hold="0" decay="0.4" sustain="0.85" release="0.8">
       <padsynth preset="bowed-ensemble"/>
     </envelope>
     <!-- 6: PadSynth "glass" -->
-    <envelope attack="0.02" hold="0" decay="0.8" sustain="0.5" release="1.2">
+    <envelope name="PadSynth Glass" attack="0.02" hold="0" decay="0.8" sustain="0.5" release="1.2">
       <padsynth preset="glass"/>
     </envelope>
     <!-- 7: Additive "struck-string" -->
-    <envelope attack="0.005" hold="0" decay="1.5" sustain="0.3" release="0.5">
+    <envelope name="Additive Struck-String" attack="0.005" hold="0" decay="1.5" sustain="0.3" release="0.5">
       <additive preset="struck-string"/>
     </envelope>
     <!-- 8: Mellotron - tape machine wrapping envelope+padsynth(mellotron) -->
-    <tapeDegradation preset="mellotron">
+    <tapeDegradation name="Mellotron" preset="mellotron">
       <envelope attack="0.05" hold="0" decay="0.3" sustain="0.95" release="0.4">
         <padsynth preset="mellotron"/>
       </envelope>
@@ -62,33 +70,40 @@
          registerLibraryInstruments() - this song builds instruments
          directly rather than referencing that registration, so the two
          copies must be kept in sync by hand. -->
-    <envelope attack="0.005" hold="0" decay="8.0" sustain="0.0" release="0.3">
+    <envelope name="Additive Piano" attack="0.005" hold="0" decay="8.0" sustain="0.0" release="0.3">
       <additive preset="struck-string" unisonVoices="3" attackNoiseLevel="0.04" tilt="-6"/>
     </envelope>
     <!-- 10: A real SoundFont guitar, for the unison comparison at the end -
          the one instrument here not built directly. -->
-    <instrument from="guitar.acoustic.steel"/>
+    <instrument name="SoundFont Guitar" from="guitar.acoustic.steel"/>
+    <!-- 11: PadSynth "warm", tuning-matched partials (default) - moved here
+         (was instrument 0) once instrument 0's own chord-testing slot was
+         given to the new "keyboard" preset instead. -->
+    <envelope name="PadSynth Warm" attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
+      <padsynth preset="warm"/>
+    </envelope>
   </instruments>
 
   <tracks>
-    <track id="0" instrument="0"/>
-    <track id="1" instrument="1"/>
-    <track id="2" instrument="2"/>
-    <track id="3" instrument="3"/>
-    <track id="4" instrument="4"/>
-    <track id="5" instrument="5"/>
-    <track id="6" instrument="6"/>
-    <track id="7" instrument="7"/>
-    <track id="8" instrument="8"/>
-    <track id="9" instrument="9"/>
-    <track id="10" instrument="10"/>
+    <track id="0" name="PadSynth Keyboard" instrument="0"/>
+    <track id="1" name="PadSynth Warm (unmatched)" instrument="1"/>
+    <track id="2" name="PadSynth Warm (narrow)" instrument="2"/>
+    <track id="3" name="PadSynth Warm (wide)" instrument="3"/>
+    <track id="4" name="PadSynth Formant-Vocal" instrument="4"/>
+    <track id="5" name="PadSynth Bowed-Ensemble" instrument="5"/>
+    <track id="6" name="PadSynth Glass" instrument="6"/>
+    <track id="7" name="Additive Struck-String" instrument="7"/>
+    <track id="8" name="Mellotron" instrument="8"/>
+    <track id="9" name="Additive Piano" instrument="9"/>
+    <track id="10" name="SoundFont Guitar" instrument="10"/>
+    <track id="11" name="PadSynth Warm" instrument="11"/>
   </tracks>
 
   <locators>
-    <locator row="0">PadSynth warm (tuningMatched=on) - single note</locator>
-    <locator row="8">PadSynth warm (tuningMatched=on) - sustained fifth</locator>
-    <locator row="16">PadSynth warm (tuningMatched=on) - 31-EDO C-E-G triad</locator>
-    <locator row="24">PadSynth warm (tuningMatched=on) - C-E-G-A# harmonic 7th</locator>
+    <locator row="0">PadSynth keyboard - single note</locator>
+    <locator row="8">PadSynth keyboard - sustained fifth</locator>
+    <locator row="16">PadSynth keyboard - 31-EDO C-E-G triad</locator>
+    <locator row="24">PadSynth keyboard - C-E-G-A# harmonic 7th</locator>
     <locator row="32">PadSynth warm (tuningMatched=OFF) - single note</locator>
     <locator row="40">PadSynth warm (tuningMatched=OFF) - sustained fifth</locator>
     <locator row="48">PadSynth warm (tuningMatched=OFF) - 31-EDO C-E-G triad</locator>
@@ -101,16 +116,20 @@
     <locator row="104">Mellotron (tape+padsynth) - sustained fifth</locator>
     <locator row="112">Mellotron (tape+padsynth) - 31-EDO C-E-G triad</locator>
     <locator row="120">Mellotron (tape+padsynth) - C-E-G-A# harmonic 7th</locator>
-    <locator row="128">PadSynth warm, NARROW bandwidth (8c) - triad, compare to row 16</locator>
-    <locator row="136">PadSynth warm, WIDE bandwidth (150c) - triad, compare to row 16/128</locator>
+    <locator row="128">PadSynth warm, NARROW bandwidth (8c) - triad, compare to row 176</locator>
+    <locator row="136">PadSynth warm, WIDE bandwidth (80c) - triad, compare to row 176/128</locator>
     <locator row="144">PadSynth formant-vocal - single note</locator>
     <locator row="152">PadSynth bowed-ensemble - single note</locator>
     <locator row="160">PadSynth glass - single note</locator>
     <locator row="168">Additive piano in unison with SoundFont guitar</locator>
+    <locator row="176">PadSynth warm (tuningMatched=on) - single note</locator>
+    <locator row="184">PadSynth warm (tuningMatched=on) - sustained fifth</locator>
+    <locator row="192">PadSynth warm (tuningMatched=on) - 31-EDO C-E-G triad</locator>
+    <locator row="200">PadSynth warm (tuningMatched=on) - C-E-G-A# harmonic 7th</locator>
   </locators>
 
   <arrangement>
-    <!-- PadSynth warm, tuning-matched ON (rows 0-31) -->
+    <!-- PadSynth keyboard (rows 0-31) -->
     <pattern track="0">
       <note row="0" value="C-4"/>
       <note row="6" value="off"/>
@@ -164,7 +183,7 @@
       <note row="134">off off off</note>
     </pattern>
 
-    <!-- PadSynth warm, wide bandwidth - triad only (rows 136-143) -->
+    <!-- PadSynth warm, wide bandwidth (80c) - triad only (rows 136-143) -->
     <pattern track="3">
       <note row="136">C-4 E-4 G-4</note>
       <note row="142">off off off</note>
@@ -201,6 +220,18 @@
       <note row="170" value="D-4"/>
       <note row="172" value="E-4"/>
       <note row="174" value="G-4"/>
+    </pattern>
+
+    <!-- PadSynth warm, tuning-matched ON (rows 176-207) - moved from track 0 -->
+    <pattern track="11">
+      <note row="176" value="C-4"/>
+      <note row="182" value="off"/>
+      <note row="184">C-4 G-4</note>
+      <note row="190">off off</note>
+      <note row="192">C-4 E-4 G-4</note>
+      <note row="198">off off off</note>
+      <note row="200">C-4 E-4 G-4 A#4</note>
+      <note row="206">off off off off</note>
     </pattern>
   </arrangement>
 </song>

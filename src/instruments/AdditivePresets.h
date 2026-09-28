@@ -52,16 +52,29 @@ inline const AdditivePresetParams & getAdditivePreset(const std::string & name) 
   // and decay behavior:
   //  - partials: 28, comfortably covering a piano/guitar-like spectrum
   //    (Nyquist-skip trims the rest for a low-pitched note anyway).
-  //  - inharmonicity: 0.0004, in the range real struck strings actually
+  //  - inharmonicity: 0.0008, in the range real struck strings actually
   //    exhibit - a piano's own coefficient runs roughly 0.0001 (low bass
-  //    strings) to the low 0.001s (high treble), and 0.0004 is
-  //    representative of a mid-register wound string rather than either
-  //    extreme.
+  //    strings) to the low 0.001s (high treble). partialLimit lowered to
+  //    3 (from 8) specifically so this preset's own stretch is actually
+  //    audible: the inharmonicity model (see docs/additive.md) only
+  //    stretches partials *above* partialLimit, so at the default
+  //    partialLimit=8 essentially every audible, energetic partial (1-8)
+  //    stayed exactly harmonic and only the already-quiet tail stretched
+  //    a little - reported as "no metallicity/inharmonicity at all."
+  //    partialLimit=3 keeps the fundamental/2nd/3rd harmonic (a struck
+  //    string's own biggest energy, and the ones that most want to stay
+  //    correctly pitched) locked to the scale, while letting the
+  //    remaining, still-clearly-audible partials 4 and up stretch for
+  //    real (e.g. partial 8 lands roughly half a semitone sharp of pure
+  //    harmonic at this B - clearly audible "metallic" character without
+  //    losing the note's own core pitch).
   //  - decayA/decayB/decayP tuned so alpha_n = a + b*f_n^1.5 gives a
-  //    fundamental time constant (1/alpha) around a second while a
-  //    several-kHz partial's own time constant is tens of milliseconds -
+  //    fundamental time constant (1/alpha) around 2 seconds - a real
+  //    struck string's own natural (damper-off) ring, not the ~0.3s the
+  //    original decayB gave (reported as "very dampened") - while a
+  //    several-kHz partial's own time constant stays tens of milliseconds,
   //    the audible "high partials vanish first, the fundamental rings on"
-  //    character a struck string has.
+  //    character a struck string has either way.
   //  - attackNoiseLevel: a short, modest noise burst standing in for the
   //    hammer/pluck transient (see AdditiveVoice.h).
   //  - unisonVoices/unisonDetune: two voices, a few cents apart - just
@@ -74,12 +87,12 @@ inline const AdditivePresetParams & getAdditivePreset(const std::string & name) 
     /* velocityTilt     */ 6.0f,
     /* unisonVoices     */ 2,
     /* unisonDetune     */ 6.0f,
-    /* inharmonicity    */ 0.0004f,
-    /* decayA           */ 0.1f,
-    /* decayB           */ 0.0008f,
+    /* inharmonicity    */ 0.0008f,
+    /* decayA           */ 0.05f,
+    /* decayB           */ 0.0001f,
     /* decayP           */ 1.5f,
     /* tuningMatched    */ true,
-    /* partialLimit     */ 8,
+    /* partialLimit     */ 3,
     /* attackNoiseLevel */ 0.08f,
   };
 
