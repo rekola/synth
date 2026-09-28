@@ -131,6 +131,26 @@ PadSynthWavetable::generateTable(int octave) const {
       harmonic_amplitude *= 1.0f + (formant.gain - 1.0f) * std::exp(-0.5f * x * x);
     }
 
+    // Normalized by the band's own width in bins (sigma_hz/bin_hz) so this
+    // harmonic's TOTAL summed energy across its own band - not just its
+    // peak bin - stays proportional to harmonic_amplitude alone, independent
+    // of bandwidth. Without this, a peak-height Gaussian's own area under
+    // the curve grows linearly with sigma (confirmed by direct summation:
+    // sum_bins peak*exp(-0.5*x^2) ~= peak*sigma*sqrt(2*pi)/bin_hz) - so a
+    // wider band (whether from a larger bandwidth_scale_exponent or a wider
+    // bandwidth_cents) silently adds *loudness*, not just width, fighting
+    // amplitude_rolloff_exponent's own intended falloff. In practice this
+    // meant the *actual* per-harmonic energy falloff was always
+    // (amplitude_rolloff_exponent - bandwidth_scale_exponent), far gentler
+    // than the nominal exponent suggested (e.g. "warm"'s nominal 2.0 rolloff
+    // behaved like 1.4) - confirmed by hand-summing the Gaussian - and is
+    // the real reason repeated "steepen the rolloff" retuning kept
+    // under-delivering on taming brightness/buzziness. This decouples
+    // bandwidth (now purely a width/detuning-character knob) from loudness
+    // (now purely amplitude_rolloff_exponent's own job), independent of
+    // sigma's floor-clamp above.
+    float peak_amplitude = harmonic_amplitude / (sigma_hz / bin_hz);
+
     // Only bins within a handful of standard deviations actually matter -
     // evaluating the Gaussian out to the whole spectrum for every harmonic
     // would be needlessly slow for a table this long.
@@ -145,7 +165,7 @@ PadSynthWavetable::generateTable(int octave) const {
       float x = (f_bin - f_center) / sigma_hz;
       // Linear-amplitude Gaussian band, summed by plain addition across
       // harmonics (not RMS/power) - see this class's own header comment.
-      amplitude_spectrum[bin] += harmonic_amplitude * std::exp(-0.5f * x * x);
+      amplitude_spectrum[bin] += peak_amplitude * std::exp(-0.5f * x * x);
     }
   }
 

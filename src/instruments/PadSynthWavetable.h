@@ -41,8 +41,16 @@ struct PadSynthFormant {
 //     Anchored to f0, not f_center(n) - see PadSynthWavetable.cpp's own
 //     comment on why using f_center here would silently blow up relative
 //     bandwidth by an extra factor of n.)
-//   - Per-bin Gaussian amplitude profile (linear amplitude, not power):
-//       amplitude(f_bin) = harmonic_amplitude(n) * exp(-0.5 * ((f_bin - f_center) / sigma_hz)^2)
+//   - Per-bin Gaussian amplitude profile (linear amplitude, not power),
+//     peak-normalized by the band's own width in bins (sigma_hz/bin_hz) so
+//     a harmonic's TOTAL summed energy across its band stays proportional
+//     to harmonic_amplitude(n) alone, independent of bandwidth - a
+//     peak-height Gaussian's own area otherwise grows linearly with sigma,
+//     which would silently add loudness as bandwidth widens and decouple
+//     amplitude_rolloff_exponent from what a preset's partials actually
+//     sound like:
+//       peak_amplitude(n) = harmonic_amplitude(n) / (sigma_hz(n) / bin_hz)
+//       amplitude(f_bin) = peak_amplitude(n) * exp(-0.5 * ((f_bin - f_center) / sigma_hz)^2)
 //   - Every harmonic's band is summed into the full spectrum by plain
 //     linear-amplitude addition (matching PADsynth's own public
 //     description - not a power/RMS sum): amplitude_spectrum[bin] +=
