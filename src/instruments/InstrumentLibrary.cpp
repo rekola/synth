@@ -7,8 +7,10 @@
 #include "../effects/TapeDegradation.h"
 #include "../effects/BiquadFilter.h"
 #include "../state/MemoryParameterSource.h"
+#include "../ambisonic/ChannelConfiguration.h"
 
 #include <memory>
+#include <optional>
 #include <string>
 
 using namespace std;
@@ -27,10 +29,22 @@ unique_ptr<EnvelopeFilter> makeEnvelope(float attack, float hold, float decay, f
   return env;
 }
 
-unique_ptr<PadSynth> makePadSynth(const string & preset) {
+// bandwidth/bandwidthScale/tuningMatched left unset (nullopt) mean "keep
+// the named preset's own default" - only set them to actually differentiate
+// a pad from another one sharing the same base preset (see the GM pad
+// registrations below: several pairs share a preset by design, since only
+// 5 padsynth presets exist for 8 GM pads, but envelope timing alone isn't
+// audible enough to tell a static pad tone apart - confirmed by an actual
+// listen, "pad.choir and pad.halo sound exactly the same" - so these
+// overrides are what actually keeps each pad distinct).
+unique_ptr<PadSynth> makePadSynth(const string & preset, optional<float> bandwidth = nullopt,
+                                   optional<float> bandwidth_scale = nullopt, optional<bool> tuning_matched = nullopt) {
   auto pad = make_unique<PadSynth>();
   MemoryParameterSource params;
   params.set("preset", preset);
+  if (bandwidth) params.set("bandwidth", *bandwidth);
+  if (bandwidth_scale) params.set("bandwidthScale", *bandwidth_scale);
+  if (tuning_matched) params.set("tuningMatched", *tuning_matched);
   pad->loadParameters(params);
   return pad;
 }
@@ -40,9 +54,11 @@ unique_ptr<PadSynth> makePadSynth(const string & preset) {
 // pattern), assembled directly in C++ via MemoryParameterSource rather
 // than parsed from an XML string, the same round-trip-without-XML
 // technique SongState::initialize() already uses for bus-slot effects.
-unique_ptr<Track> makeEnvelopePad(const string & padsynth_preset, float attack, float hold, float decay, float sustain, float release) {
+unique_ptr<Track> makeEnvelopePad(const string & padsynth_preset, float attack, float hold, float decay, float sustain, float release,
+                                   optional<float> bandwidth = nullopt, optional<float> bandwidth_scale = nullopt,
+                                   optional<bool> tuning_matched = nullopt) {
   auto env = makeEnvelope(attack, hold, decay, sustain, release);
-  env->addChild(makePadSynth(padsynth_preset));
+  env->addChild(makePadSynth(padsynth_preset, bandwidth, bandwidth_scale, tuning_matched));
   return env;
 }
 
@@ -69,13 +85,34 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // GenericInstrument's resolution. ADSR/preset choices below aim for each
   // pad's own GM character; see this function's own end for the one pad
   // (Sweep) an oscillator-based instrument can't fully deliver.
+  //
+  // Only 5 padsynth presets exist for 8 GM pads, so three pairs below
+  // deliberately share a base preset (newAge/metallic both "glass",
+  // choir/halo both "formant-vocal", warm/poly both "warm") - an actual
+  // listen found envelope timing alone isn't audible enough to tell a
+  // static pad tone apart ("pad.choir and pad.halo sound exactly the
+  // same," same for metallic/newAge), so each pair now also gets an
+  // explicit bandwidth/bandwidthScale/tuningMatched override on top of its
+  // shared preset, specifically chosen to give the two members of each
+  // pair a genuinely different texture, not just a different envelope.
   provider.registerPath("pad.newAge", makeEnvelopePad("glass", 0.8f, 0.0f, 0.3f, 0.9f, 1.2f));
   provider.registerPath("pad.warm", makeEnvelopePad("warm", 0.6f, 0.0f, 0.4f, 0.85f, 1.0f));
-  provider.registerPath("pad.poly", makeEnvelopePad("warm", 0.2f, 0.0f, 0.3f, 0.8f, 0.6f));
+  // Poly: brighter/more chorused than Warm - a classic analog polysynth
+  // pad reads as more "moving"/present than a plain warm pad, via a wider
+  // bandwidth than Warm's own default alone (not just a faster attack).
+  provider.registerPath("pad.poly", makeEnvelopePad("warm", 0.2f, 0.0f, 0.3f, 0.8f, 0.6f, /*bandwidth*/ 32.0f, /*bandwidthScale*/ 0.7f));
   provider.registerPath("pad.choir", makeEnvelopePad("formant-vocal", 0.5f, 0.0f, 0.3f, 0.9f, 0.8f));
   provider.registerPath("pad.bowed", makeEnvelopePad("bowed-ensemble", 0.4f, 0.0f, 0.3f, 0.9f, 0.7f));
-  provider.registerPath("pad.metallic", makeEnvelopePad("glass", 0.3f, 0.0f, 0.5f, 0.7f, 1.0f));
-  provider.registerPath("pad.halo", makeEnvelopePad("formant-vocal", 1.0f, 0.0f, 0.4f, 0.9f, 1.5f));
+  // Metallic: Glass's own clean/bell-like base, but tuningMatched=false -
+  // inharmonic (non-scale-step) overtones, which is what actually reads as
+  // "metallic"/bell-like dissonance (a real bell's overtones are famously
+  // non-integer) rather than Glass's own clean, consonant partials -
+  // plus a wider bandwidth for more clangorous beating.
+  provider.registerPath("pad.metallic", makeEnvelopePad("glass", 0.3f, 0.0f, 0.5f, 0.7f, 1.0f, /*bandwidth*/ 20.0f, /*bandwidthScale*/ 0.7f, /*tuningMatched*/ false));
+  // Halo: Choir's own formant-vocal base, but wider/faster-growing
+  // bandwidth - a diffuse, shimmering "halo" texture instead of Choir's
+  // more focused, speech-like one.
+  provider.registerPath("pad.halo", makeEnvelopePad("formant-vocal", 1.0f, 0.0f, 0.4f, 0.9f, 1.5f, /*bandwidth*/ 40.0f, /*bandwidthScale*/ 0.8f));
 
   // Sweep (pad.sweep) is a slow filter sweep over the note's own life -
   // motion no static oscillator (PADsynth included) can produce; there is
@@ -88,7 +125,14 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
     auto filter = make_unique<BiquadFilter>();
     MemoryParameterSource filter_params;
     filter_params.set("type", string("lowpass"));
-    filter_params.set("fc", 0.15f);
+    // fc is a raw Hz value (BiquadFilter::createVoiceState() normalizes it
+    // by the output sample rate internally, see BiquadFilter.cpp) - NOT a
+    // pre-normalized 0.0-0.5 fraction, despite docs/effects.md's own (now
+    // corrected) claim to the contrary. The original fc="0.15" was
+    // effectively an inaudible near-zero-Hz cutoff (0.15/48000), which is
+    // why this preset was reported completely silent - confirmed against
+    // songs/subtractive_test.xml's own real usage (fc="2000").
+    filter_params.set("fc", 2000.0f);
     filter_params.set("Q", 0.7071f); // Butterworth Q - BiquadFilter has no default, 0 would divide by zero
     filter->loadParameters(filter_params);
     filter->addChild(makeEnvelopePad("warm", 0.9f, 0.0f, 0.4f, 0.85f, 1.2f));
@@ -156,5 +200,41 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
     tape->loadParameters(tape_params);
     tape->addChild(makeEnvelopePad("mellotron", 0.05f, 0.0f, 0.3f, 0.95f, 0.4f));
     provider.registerPath("keyboard.tape.mellotron", move(tape));
+  }
+}
+
+namespace {
+
+// A4 (440Hz) in each tuning's own note-value numbering - Tuning.h/Note.h's
+// own per-tuning center, duplicated here in miniature rather than shared,
+// since this is the only place outside Tuning.h itself that ever needs a
+// plain "a reasonable middle-register note" rather than a specific
+// authored pitch.
+int centerNoteFor(Tuning tuning) {
+  switch (tuning) {
+  case Tuning::TET12: return 69;
+  case Tuning::TET19: return 109;
+  case Tuning::TET31: return 178;
+  case Tuning::TET53: return 304;
+  case Tuning::PERCUSSION: return 69;
+  }
+  return 178;
+}
+
+void prewarmTree(const Track & track, const ChannelConfiguration & config, Tuning tuning, int note_value) {
+  if (auto * padsynth = dynamic_cast<const PadSynth *>(&track)) {
+    padsynth->prewarm(config, tuning, note_value);
+  }
+  for (auto & child : track.getChildren()) {
+    prewarmTree(*child, config, tuning, note_value);
+  }
+}
+
+}
+
+void prewarmLibraryInstruments(InstrumentProvider & provider, const ChannelConfiguration & config, Tuning tuning) {
+  int note_value = centerNoteFor(tuning);
+  for (auto & entry : provider.getTaxonomyPaths()) {
+    if (entry.second) prewarmTree(*entry.second, config, tuning, note_value);
   }
 }

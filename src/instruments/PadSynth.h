@@ -24,7 +24,26 @@ class PadSynth : public Instrument {
   void storeParameters(ParameterSource & output) const override;
   std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}, bool needs_decorrelation = false) const override;
 
+  // Forces the wavetable covering `note_value`'s own octave region to
+  // (re)build now, off any real-time audio thread, instead of leaving it
+  // to happen lazily inside the first voice's first render() call - table
+  // generation is a real, non-trivial cost (measured ~10-16ms per octave
+  // region), and both playNote() and render() run on the real-time audio
+  // thread (Player::startPreviewNote(), in particular - reported as an
+  // audible click every time a not-yet-built preset/register is
+  // previewed). Callable from anywhere that already has the right
+  // ChannelConfiguration/Tuning before real-time playback starts - see
+  // InstrumentLibrary.cpp's own call site, right after
+  // registerLibraryInstruments() in Controller's constructor (a
+  // startup-time context, not the audio thread). Only warms the one
+  // octave region `note_value` falls in - a note played in a different
+  // register still builds lazily on first use, same as before.
+  void prewarm(const ChannelConfiguration & config, Tuning tuning, int note_value) const;
+
  private:
+  void ensureWavetable(const ChannelConfiguration & config, Tuning tuning) const;
+
+
   // Built lazily on first playNote() (mutable, matching SampleContent.h's
   // own waveform_peaks_/stretched_buffer_ lazy-cache precedent) since
   // table generation needs the real output sample rate, which only a

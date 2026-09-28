@@ -1,7 +1,10 @@
 #ifndef _INSTRUMENTLIBRARY_H_
 #define _INSTRUMENTLIBRARY_H_
 
+#include "Tuning.h"
+
 class InstrumentProvider;
+class ChannelConfiguration;
 
 // Registers synth's own hand-built library instruments on top of whatever
 // loadSoundFont() already registered: the GM synth-pad overrides
@@ -18,5 +21,20 @@ class InstrumentProvider;
 // InstrumentProvider (e.g. restarting synth without these registrations),
 // a deliberate simplification.
 void registerLibraryInstruments(InstrumentProvider & provider);
+
+// Forces every registered library instrument's PadSynth node(s) to build
+// their wavetable now, at a representative pitch, rather than leaving it
+// to happen lazily inside the first real-time playNote() call - see
+// PadSynth::prewarm()'s own doc comment for why (a real, non-trivial cost,
+// measured ~10-16ms per octave region, that must never run on the audio
+// thread). Call once, after registerLibraryInstruments(), as soon as the
+// real ChannelConfiguration is known and before the audio thread starts -
+// see Controller.cpp's own call site. Only warms `tuning`'s own octave
+// region around middle C; a song played in a different tuning, or a note
+// far from that register, still builds lazily on first use exactly as
+// before - a real, accepted limitation, not a full fix for every
+// possible first-note stall, just the overwhelmingly common preview case
+// (auditioning a Library pad at a default pitch, default 31-EDO tuning).
+void prewarmLibraryInstruments(InstrumentProvider & provider, const ChannelConfiguration & config, Tuning tuning);
 
 #endif

@@ -16,12 +16,32 @@ PadSynth::playNote(const ChannelConfiguration & config, const SphericalPosition 
   detune *= getHarmonic();
   detune /= getSubharmonic();
 
-  // Lazily (re)built the first time this instrument is actually played, or
-  // if the output sample rate or the song's own tuning has changed since -
-  // see this class's header comment for why prepare() can't do this
-  // instead. N (edo_steps) comes from the engine's own current tuning, not
-  // a hardcoded constant, so a tuning-matched table always snaps to
-  // whatever scale the song is actually using.
+  ensureWavetable(config, tuning);
+
+  auto voice = std::make_unique<PadSynthVoice>(config, position, detune, wavetable_, level_, sends, note_coord);
+  voice->playNote(getFrequencyFor(tuning, note_value), velocity, note_value);
+  return voice;
+}
+
+void
+PadSynth::prewarm(const ChannelConfiguration & config, Tuning tuning, int note_value) const {
+  ensureWavetable(config, tuning);
+  // ensureWavetable() only constructs the (cheap) PadSynthWavetable object
+  // itself - the actual expensive inverse-FFT table generation happens
+  // lazily inside PadSynthWavetable::getTable(f0), normally not called
+  // until a voice's first render(). Force it now, for the octave region
+  // `note_value` falls in, so that first render() finds it already built.
+  wavetable_->getTable(getFrequencyFor(tuning, note_value));
+}
+
+void
+PadSynth::ensureWavetable(const ChannelConfiguration & config, Tuning tuning) const {
+  // (Re)built the first time this instrument is actually played (or
+  // prewarm()ed), or if the output sample rate or the song's own tuning
+  // has changed since - see this class's header comment for why prepare()
+  // can't do this instead. N (edo_steps) comes from the engine's own
+  // current tuning, not a hardcoded constant, so a tuning-matched table
+  // always snaps to whatever scale the song is actually using.
   int edo_steps = edoStepsFor(tuning);
   if (!wavetable_ || wavetable_->getSampleRate() != config.getAudioOutSampleRate() || wavetable_tuning_ != tuning) {
     auto & preset = getPadSynthPreset(preset_);
@@ -31,10 +51,6 @@ PadSynth::playNote(const ChannelConfiguration & config, const SphericalPosition 
       preset.amplitude_rolloff_exponent, preset.formants);
     wavetable_tuning_ = tuning;
   }
-
-  auto voice = std::make_unique<PadSynthVoice>(config, position, detune, wavetable_, level_, sends, note_coord);
-  voice->playNote(getFrequencyFor(tuning, note_value), velocity, note_value);
-  return voice;
 }
 
 void
