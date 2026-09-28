@@ -52,13 +52,14 @@ PadSynthWavetable::PadSynthWavetable(int sample_rate, int partial_count, float b
                                       bool tuning_matched, uint64_t seed,
                                       float amplitude_rolloff_exponent,
                                       std::vector<PadSynthFormant> formants,
-                                      float harmonic_amplitude_jitter)
+                                      float harmonic_amplitude_jitter,
+                                      std::vector<float> harmonic_amplitudes)
   : sample_rate_(sample_rate), table_size_(computeTableSize(sample_rate)),
     partial_count_(partial_count), bandwidth_cents_(bandwidth_cents),
     bandwidth_scale_exponent_(bandwidth_scale_exponent), edo_steps_(edo_steps),
     partial_limit_(partial_limit), tuning_matched_(tuning_matched), seed_(seed),
     amplitude_rolloff_exponent_(amplitude_rolloff_exponent), formants_(std::move(formants)),
-    harmonic_amplitude_jitter_(harmonic_amplitude_jitter) {
+    harmonic_amplitude_jitter_(harmonic_amplitude_jitter), harmonic_amplitudes_(std::move(harmonic_amplitudes)) {
 }
 
 int
@@ -150,7 +151,13 @@ PadSynthWavetable::generateTable(int octave) const {
     // it still lands as a single sharp spectral line instead of NaN.
     if (sigma_hz < bin_hz * 0.5f) sigma_hz = bin_hz * 0.5f;
 
-    float harmonic_amplitude = 1.0f / std::pow(static_cast<float>(n_harmonic), amplitude_rolloff_exponent_);
+    // An explicit harmonic_amplitudes_ entry replaces the rolloff formula
+    // outright (0 past the array's own end - silence, not a fallback to
+    // the formula) - see this class's own header comment on why a sparse
+    // explicit array is something the formula alone can never express.
+    float harmonic_amplitude = harmonic_amplitudes_.empty()
+      ? 1.0f / std::pow(static_cast<float>(n_harmonic), amplitude_rolloff_exponent_)
+      : (static_cast<size_t>(n_harmonic) <= harmonic_amplitudes_.size() ? harmonic_amplitudes_[static_cast<size_t>(n_harmonic) - 1] : 0.0f);
     for (auto & formant : formants_) {
       float x = (f_center - formant.center_hz) / formant.bandwidth_hz;
       harmonic_amplitude *= 1.0f + (formant.gain - 1.0f) * std::exp(-0.5f * x * x);

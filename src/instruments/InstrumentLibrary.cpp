@@ -258,8 +258,11 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // and full sustain (an organ holds at exactly one level for as long as
   // the key/wind valve stays open, never decaying on its own the way a
   // struck/plucked/bowed instrument does), near-instant attack and a
-  // quick release (no swell, no ring-on).
-  registerFallbackPath(provider, "organ.pipe", makeEnvelopePad("organ-pipe", 0.015f, 0.0f, 0.05f, 1.0f, 0.08f));
+  // quick release (no swell, no ring-on). "church-organ" (not "organ-pipe")
+  // since a real ZynAddSubFX factory patch ("Church Organ 3") was checked
+  // for this specifically and ported - see PadSynthPresets.h's own
+  // kChurchOrgan comment for exactly what was and wasn't carried over.
+  registerFallbackPath(provider, "organ.pipe", makeEnvelopePad("church-organ", 0.015f, 0.0f, 0.05f, 1.0f, 0.08f));
 
   // Synth Strings 2 (string.synth.slow) - NOT String Ensemble 2
   // (string.bowed.ensemble.slow, under the string.bowed.* branch with

@@ -48,7 +48,8 @@ PadSynth::ensureWavetable(const ChannelConfiguration & config, Tuning tuning) co
     wavetable_ = std::make_shared<PadSynthWavetable>(
       config.getAudioOutSampleRate(), partial_count_, bandwidth_cents_, bandwidth_scale_exponent_,
       edo_steps, partial_limit_, tuning_matched_, seed_,
-      preset.amplitude_rolloff_exponent, preset.formants, preset.harmonic_amplitude_jitter);
+      preset.amplitude_rolloff_exponent, preset.formants, preset.harmonic_amplitude_jitter,
+      preset.harmonic_amplitudes);
     wavetable_tuning_ = tuning;
   }
 }

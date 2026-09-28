@@ -97,12 +97,27 @@ class PadSynthWavetable {
   // real, fixed vocal-tract-style resonant structure would actually
   // behave: its own irregularities come from the filter, not the source
   // pitch, so they don't reset or redraw per register).
+  // harmonic_amplitudes, when non-empty, is a full replacement for the
+  // 1/n^amplitude_rolloff_exponent formula above, not another multiplier
+  // on top of it: harmonic n's own base amplitude becomes
+  // harmonic_amplitudes[n-1] (0 for any n beyond the array's own length -
+  // silence, not "fall back to the rolloff formula"). This is the genuine
+  // "explicit, arbitrary per-harmonic array" real PADsynth implementations
+  // support (ZynAddSubFX's own OSCIL/HARMONICS mechanism) that neither the
+  // rolloff exponent nor harmonic_amplitude_jitter's own bounded
+  // perturbation can produce - a real explicit array can be *sparse*
+  // (e.g. a drawbar organ's handful of strong harmonics with everything
+  // else silent), which no formula-plus-noise combination can express.
+  // Formants and harmonic_amplitude_jitter still apply multiplicatively
+  // on top when both are given, same as always - only the rolloff formula
+  // itself is replaced.
   PadSynthWavetable(int sample_rate, int partial_count, float bandwidth_cents,
                      float bandwidth_scale_exponent, int edo_steps, int partial_limit,
                      bool tuning_matched, uint64_t seed,
                      float amplitude_rolloff_exponent = 1.0f,
                      std::vector<PadSynthFormant> formants = {},
-                     float harmonic_amplitude_jitter = 0.0f);
+                     float harmonic_amplitude_jitter = 0.0f,
+                     std::vector<float> harmonic_amplitudes = {});
 
   // Returns the wavetable covering f0's own pitch region, building and
   // caching it on first use (one table per octave region - see .cpp).
@@ -178,6 +193,7 @@ class PadSynthWavetable {
   float amplitude_rolloff_exponent_;
   std::vector<PadSynthFormant> formants_;
   float harmonic_amplitude_jitter_;
+  std::vector<float> harmonic_amplitudes_;
 
   // Lazily built/cached per octave region - mutable so getTable() (the
   // read-only public API every voice calls from render(), a const method)

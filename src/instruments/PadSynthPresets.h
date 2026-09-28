@@ -28,6 +28,10 @@ struct PadSynthPresetParams {
   float amplitude_rolloff_exponent;
   std::vector<PadSynthFormant> formants;
   float harmonic_amplitude_jitter = 0.0f;
+  // Non-empty replaces amplitude_rolloff_exponent's formula outright (see
+  // PadSynthWavetable.h's own doc comment) - real, explicit per-harmonic
+  // data ported from a real PADsynth patch, index 0 = harmonic 1.
+  std::vector<float> harmonic_amplitudes = {};
 };
 
 // An unrecognized preset name falls back to "warm" rather than asserting -
@@ -223,6 +227,70 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
     /* formants                   */ {},
   };
 
+  // "church-organ" - unlike kOrganPipe above (a from-scratch, formula-only
+  // approximation), this ports real data: the uploaded ZynAddSubFX factory
+  // patch "Church Organ 3" (noefx_organ_choir.xmz, PART id="1") has an
+  // explicit, sparse <HARMONICS> list - only harmonics 1/2/4/8/12/16/24/32
+  // carry real energy (mag/127, everything else silent) - a genuine
+  // drawbar-organ-style spectrum a smooth 1/n^rolloff curve structurally
+  // cannot produce, which is exactly why kOrganPipe's own formula-only
+  // approximation read as "quite bad": it never had this sparse structure
+  // at all. Ported as data (the numeric harmonic magnitudes themselves),
+  // not the GPL application code that reads/renders them - the same
+  // "public description plus real parameter data, never the app source"
+  // boundary this file's own choir-vs-ZynAddSubFX research already
+  // established. bandwidth_cents is still an approximation (the real
+  // patch's own raw "bandwidth" units, 365, have no confirmed/documented
+  // conversion to cents outside ZynAddSubFX's own GPL source, which stays
+  // off-limits - see docs/padsynth.md) - kept narrow, matching a real
+  // organ pipe's own steady, minimally-beating tone. The real patch's own
+  // filter (a 2-stage highpass with its own attack/decay/release
+  // envelope, freq_track=127 for full keyboard tracking) also isn't
+  // ported - this codebase's <biquadFilter> has no filter-envelope
+  // modulation mechanism yet (its own `envelope_` member is unused -
+  // BiquadFilterDsp never reads it to modulate fc), a separate, larger gap
+  // than this preset alone.
+  static const PadSynthPresetParams kChurchOrgan{
+    /* bandwidth_cents            */ 6.0f,
+    /* bandwidth_scale_exponent   */ 0.5f,
+    /* partial_count              */ 32,
+    /* amplitude_rolloff_exponent */ 1.0f, // unused - harmonic_amplitudes below replaces it
+    /* formants                   */ {},
+    /* harmonic_amplitude_jitter  */ 0.0f,
+    /* harmonic_amplitudes        */ {
+      127.0f/127.0f, 111.0f/127.0f, 0.0f, 96.0f/127.0f,          //  1- 4
+      0.0f, 0.0f, 0.0f, 92.0f/127.0f,                            //  5- 8
+      0.0f, 0.0f, 0.0f, 74.0f/127.0f,                            //  9-12
+      0.0f, 0.0f, 0.0f, 94.0f/127.0f,                            // 13-16
+      0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 76.0f/127.0f,    // 17-24
+      0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 74.0f/127.0f,    // 25-32
+    },
+  };
+
+  // "bells" - the uploaded ZynAddSubFX factory patch "Bells"
+  // (noefx_bell_strings.xmz) has just 3 explicit harmonics (1/2/4 - mag
+  // 127/75/84), everything else silent - the actual reason a real
+  // bell/chime reads as a bell at all: a small handful of dominant
+  // partials, not a dense harmonic series. tuningMatched=false (an
+  // explicit override, set in InstrumentLibrary.cpp's own bells
+  // registration, matching pad.metallic's identical "false" reasoning)
+  // is still what supplies pad.metallic's own dissonant/bell-like
+  // character on top of this - exact-integer harmonics read as
+  // "out of tune" against this engine's own scale-quantized tuning
+  // system the same way a real bell's non-integer partials read as
+  // dissonant against a fixed pitch. Same porting caveats as
+  // kChurchOrgan above - real data, not GPL application logic; the real
+  // patch's own filter/filter-envelope isn't ported for the same reason.
+  static const PadSynthPresetParams kBells{
+    /* bandwidth_cents            */ 8.0f,
+    /* bandwidth_scale_exponent   */ 0.5f,
+    /* partial_count              */ 8,
+    /* amplitude_rolloff_exponent */ 1.0f, // unused - harmonic_amplitudes below replaces it
+    /* formants                   */ {},
+    /* harmonic_amplitude_jitter  */ 0.0f,
+    /* harmonic_amplitudes        */ { 127.0f/127.0f, 75.0f/127.0f, 0.0f, 84.0f/127.0f },
+  };
+
   // GM's Synth Brass programs (62/63) are the deliberately-synthesized
   // brass slots, unlike brass.trumpet/brass.section's own real acoustic
   // instruments (see InstrumentLibrary.cpp's own brass.synth/
@@ -293,6 +361,8 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
   if (name == "mellotron") return kMellotron;
   if (name == "keyboard") return kKeyboard;
   if (name == "organ-pipe") return kOrganPipe;
+  if (name == "church-organ") return kChurchOrgan;
+  if (name == "bells") return kBells;
   if (name == "synth-brass") return kSynthBrass;
   return kWarm;
 }

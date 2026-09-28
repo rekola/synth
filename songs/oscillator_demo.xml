@@ -123,14 +123,19 @@
       <padsynth preset="warm" bandwidth="14"/>
     </envelope>
 
-    <!-- 15: "Bells"/"Bells 3" - Glass's own clean base, detuned
-         (tuningMatched=false) the same way pad.metallic's own registration
-         is (InstrumentLibrary.cpp) - a real bell's overtones are famously
-         non-integer, which is what actually reads as bell-like/metallic
-         rather than Glass's own clean, consonant partials. Compare to
-         instrument 6's own plain (tuning-matched) Glass. -->
+    <!-- 15: "Bells" - real ported data now (PadSynthPresets.h's own
+         kBells), not a retuned Glass: the uploaded ZynAddSubFX factory
+         patch "Bells" has just 3 explicit harmonics (1/2/4), everything
+         else silent - a real bell/chime's own small handful of dominant
+         partials, which is what actually makes it read as a bell rather
+         than a generic tone. tuningMatched=false on top, same reasoning
+         as pad.metallic's own registration (InstrumentLibrary.cpp) - a
+         real bell's overtones are non-integer, and exact-integer harmonics
+         read as "out of tune"/dissonant against this engine's own
+         scale-quantized tuning the same way. Compare to instrument 6's
+         own plain (tuning-matched, smooth-rolloff) Glass. -->
     <envelope name="PadSynth Bells" attack="0.02" hold="0" decay="1.0" sustain="0.3" release="1.5">
-      <padsynth preset="glass" bandwidth="18" tuningMatched="false"/>
+      <padsynth preset="bells" tuningMatched="false"/>
     </envelope>
 
     <!-- 16: "Dual Strings Oct2" - bowed-ensemble wrapped in
@@ -167,13 +172,17 @@
       </envelope>
     </phaser>
 
-    <!-- 19: "Church Organ 3" - organ.pipe's own preset/envelope shape,
-         referenced directly (not through the taxonomy path, so this
-         plays even when a real SoundFont organ is loaded and would
-         otherwise win at organ.pipe itself - see InstrumentLibrary.cpp's
-         own registerFallbackPath() comment on that fallback). -->
+    <!-- 19: "Church Organ 3" - real ported data now (PadSynthPresets.h's
+         own kChurchOrgan: an explicit, sparse harmonic array - 1/2/4/8/
+         12/16/24/32 only - taken directly from the uploaded ZynAddSubFX
+         factory patch, not the earlier from-scratch "organ-pipe"
+         approximation). Referenced directly (not through the taxonomy
+         path, so this plays even when a real SoundFont organ is loaded
+         and would otherwise win at organ.pipe itself - see
+         InstrumentLibrary.cpp's own registerFallbackPath() comment on
+         that fallback). -->
     <envelope name="PadSynth Organ Pipe" attack="0.015" hold="0" decay="0.05" sustain="1.0" release="0.08">
-      <padsynth preset="organ-pipe"/>
+      <padsynth preset="church-organ"/>
     </envelope>
 
     <!-- 20: Synth Brass - referenced straight from the library
@@ -183,6 +192,19 @@
          unlike the additive piano/choir above, there's no divergent-copy
          risk to keep in sync by hand. -->
     <instrument name="PadSynth Synth Brass" from="brass.synth"/>
+
+    <!-- 21: "PadSynth Saw Piano (unmatched)" - instrument 17's own exact
+         preset, tuningMatched="false" only - the same paired-instrument
+         shape instrument 1/11 ("PadSynth Warm (unmatched)"/"PadSynth
+         Warm") already established at the top of this file, applied to
+         the synth piano instead: a tuningMatched A/B on a genuinely
+         piano-like PadSynth voice, not just a generic pad, and on chords
+         a plain triad can't fully make the point with - see the new
+         locators/patterns below (rows 280-325) for quartal triads that
+         actually stress tuningMatched's own partial-snapping behavior. -->
+    <envelope name="PadSynth Saw Piano (unmatched)" attack="0.005" hold="0" decay="2.5" sustain="0.0" release="0.3">
+      <padsynth preset="warm" bandwidth="10" bandwidthScale="0.4" partials="40" tuningMatched="false"/>
+    </envelope>
   </instruments>
 
   <tracks>
@@ -207,6 +229,7 @@
     <track id="18" name="PadSynth Phased Choir" instrument="18"/>
     <track id="19" name="PadSynth Organ Pipe" instrument="19"/>
     <track id="20" name="PadSynth Synth Brass" instrument="20"/>
+    <track id="21" name="PadSynth Saw Piano (unmatched)" instrument="21"/>
   </tracks>
 
   <locators>
@@ -245,6 +268,12 @@
     <locator row="256">PadSynth "Phased Choir" (choir-aah + phaser) - single note</locator>
     <locator row="264">PadSynth "Church Organ" (organ-pipe) - single note</locator>
     <locator row="272">PadSynth "Synth Brass" (brass.synth) - single note</locator>
+    <locator row="280">Synth piano, tuningMatched=ON - plain C-E-G triad</locator>
+    <locator row="288">Synth piano, tuningMatched=OFF - plain C-E-G triad, compare to row 280</locator>
+    <locator row="296">Synth piano, tuningMatched=ON - quartal triad C D# F</locator>
+    <locator row="304">Synth piano, tuningMatched=OFF - quartal triad C D# F, compare to row 296</locator>
+    <locator row="312">Synth piano, tuningMatched=ON - quartal triad C Ebb F</locator>
+    <locator row="320">Synth piano, tuningMatched=OFF - quartal triad C Ebb F, compare to row 312</locator>
   </locators>
 
   <arrangement>
@@ -380,6 +409,15 @@
     <pattern track="17">
       <note row="248" value="C-4"/>
       <note row="254" value="off"/>
+
+      <!-- tuningMatched showcase, ON half (rows 280-318) - see track 21
+           for the OFF half at the interleaved rows between these. -->
+      <note row="280">C-4 E-4 G-4</note>
+      <note row="286">off off off</note>
+      <note row="296">C-4 D#4 F-4</note>
+      <note row="302">off off off</note>
+      <note row="312">C-4 Ebb4 F-4</note>
+      <note row="318">off off off</note>
     </pattern>
     <pattern track="18">
       <note row="256" value="C-4"/>
@@ -392,6 +430,19 @@
     <pattern track="20">
       <note row="272" value="C-4"/>
       <note row="278" value="off"/>
+    </pattern>
+
+    <!-- tuningMatched showcase, OFF half (rows 288-326) - interleaved
+         between track 17's own ON-half rows above so playback alternates
+         ON/OFF for each chord in turn: plain triad, then quartal C D# F,
+         then quartal C Ebb F. -->
+    <pattern track="21">
+      <note row="288">C-4 E-4 G-4</note>
+      <note row="294">off off off</note>
+      <note row="304">C-4 D#4 F-4</note>
+      <note row="310">off off off</note>
+      <note row="320">C-4 Ebb4 F-4</note>
+      <note row="326">off off off</note>
     </pattern>
   </arrangement>
 </song>

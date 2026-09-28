@@ -80,6 +80,8 @@ recompute or perturb the snap.
 | `keyboard` | A narrow-ish, moderately-rolled-off "keys"/electric-piano-like spectral character - a comparison point against the additive piano: the same instrument-family idea, but PadSynth has no per-partial decay of its own, so its "struck" quality comes entirely from the wrapping `<envelope>`'s decay stage rather than any true time-varying spectral evolution. |
 | `organ-pipe` | Even narrower than `glass` (5 vs. 8 cents) for a steady, near-beat-free harmonic stack, with a brighter/richer rolloff (1.2) than `glass`'s own bell-like one - a pipe organ's flue pipes are close to PADsynth's own ideal case. Used with a matching envelope (no decay stage, full sustain, quick release - an organ's own on/off wind valve, not a dying resonance) as a fallback at `organ.pipe` (Church Organ is a real acoustic instrument - a loaded SoundFont's own recorded organ always wins; this only fills the leaf when none is available). |
 | `synth-brass` | Bright, fairly rich sawtooth-like rolloff (near 1.0, brighter than every other preset here) with no formants - the punchy "sawtooth brass" character analog synth-brass patches are built from. A little harmonic jitter, same reasoning as the choir presets. Used at `brass.synth`/`brass.synth.soft` (GM's own deliberately-synthetic brass programs, unlike `brass.trumpet`/`brass.section`'s real acoustic ones) - `brass.synth` adds real `<multiply>` unison for a "section" of voices and a punchy attack; `brass.synth.soft` is the same preset without the unison layer, mellower and slower, matching GM's own "softer, mellower synth brass" description. |
+| `church-organ` | Ported data, not a from-scratch approximation: the uploaded ZynAddSubFX factory patch "Church Organ 3" has an explicit, sparse harmonic array - only harmonics 1/2/4/8/12/16/24/32 carry energy, a drawbar-organ-style spectrum a smooth rolloff curve can't produce (see "Explicit per-harmonic amplitudes" below). Replaces `organ-pipe` at `organ.pipe`'s own fallback registration. |
+| `bells` | Also ported: the real "Bells" patch has just 3 explicit harmonics (1/2/4), everything else silent - a real bell/chime's own small handful of dominant partials, which is what actually reads as a bell rather than `glass`'s own smooth-rolloff approximation. Used with `tuningMatched="false"` on top (same reasoning as `pad.metallic`) for the non-integer-relative-to-scale dissonance real bell overtones have. |
 
 An unrecognized `preset` name falls back to `warm`.
 
@@ -130,19 +132,38 @@ reset or redraw per note. `formant-vocal`/`choir-aah`/`choir-ooh` are the
 only presets using it so far (0.15); every other preset defaults to 0
 (no effect, unchanged behavior).
 
+## Explicit per-harmonic amplitudes
+
+`harmonic_amplitudes` (preset-only, like formants and jitter above) is a
+full replacement for the `amplitude_rolloff_exponent` formula, not
+another multiplier on top of it: harmonic n's own base amplitude becomes
+`harmonic_amplitudes[n-1]` (0 - silence - for any n beyond the array's
+own length, not a fallback to the formula). This is what actually closes
+the gap `harmonic_amplitude_jitter` above only narrowed: a real explicit
+array can be *sparse* (a drawbar organ's handful of strong harmonics with
+everything else silent, or a bell's 2-3 dominant partials), which no
+formula-plus-bounded-noise combination can express, since a rolloff
+formula always gives every harmonic *some* nonzero amplitude. `church-organ`
+and `bells` (below) are ported directly from real ZynAddSubFX factory
+patch data this way - the numeric harmonic magnitudes themselves, not the
+GPL application code that reads/renders them (the same "public
+description plus real parameter data, never the app source" boundary
+this page's own formant research already established). Formants and
+`harmonic_amplitude_jitter` still apply multiplicatively on top when
+given alongside an explicit array.
+
 ## Known limitations
 
-`harmonic_amplitude_jitter` above narrows, but doesn't close, PADsynth's
-gap against a real oscillator-driven per-harmonic array: it adds
-irregular *amplitude* detail, but nothing here touches per-harmonic
-*phase* (real PADsynth implementations can author phase per harmonic
-too), and a hashed jitter is still a bounded random perturbation, not an
-arbitrary hand-drawn or waveform-derived shape - a genuinely different
-per-harmonic *contour* (not just noise around the existing rolloff/
-formant curve) still isn't expressible. A full explicit per-harmonic
-array (as its own XML-authorable attribute, replacing rather than
-perturbing the rolloff/formant-derived amplitude) remains a larger,
-not-yet-implemented extension beyond this.
+The explicit array above still doesn't touch per-harmonic *phase* (real
+PADsynth implementations can author phase per harmonic too, this
+codebase always draws phase randomly per bin - see this page's own
+algorithm summary). The real patches it was ported from also carry a
+filter with its own *filter envelope* (the cutoff frequency itself has an
+attack/decay/release shape) and keyboard tracking - `<biquadFilter>` has
+an `envelope_` member but never actually reads it to modulate `fc` today,
+so that part of a patch like Church Organ 3 isn't carried over; a real
+filter-envelope mechanism is a separate, larger gap than the harmonic
+array closed.
 
 A single `<padsynth>` table also can't produce genuine ensemble motion on
 its own, no matter how its Gaussian bands are tuned: real beating needs

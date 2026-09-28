@@ -208,3 +208,36 @@ TEST(padsynth_harmonic_jitter_changes_per_harmonic_amplitude) {
   }
   CHECK(any_deviates);
 }
+
+TEST(padsynth_explicit_harmonic_amplitudes_produce_a_sparse_spectrum) {
+  // A real ported patch (Church Organ 3, PadSynthPresets.h's own
+  // kChurchOrgan) has energy at harmonics 1/2/4 but silence at harmonic 3
+  // - something no 1/n^rolloff formula could ever produce, since every
+  // harmonic gets *some* nonzero amplitude under that formula. Checked
+  // directly: harmonics 1/2/4 (listed, nonzero) must have real spectral
+  // peaks; harmonic 3 (not listed - implicitly 0) must not.
+  const float f0_request = 2093.0f;
+  const int partial_count = 4;
+  std::vector<float> harmonic_amplitudes = { 1.0f, 0.6f, 0.0f, 0.4f }; // 1, 2, (3 silent), 4
+
+  PadSynthWavetable table(48000, partial_count, 6.0f, 0.5f, 31, 8, true, 42,
+                           1.0f, {}, 0.0f, harmonic_amplitudes);
+  auto & wave = table.getTable(f0_request);
+  float f0 = table.tableBaseFrequency(f0_request);
+  auto magnitude = magnitudeSpectrum(wave);
+  float bin_hz = 48000.0f / static_cast<float>(wave.size());
+
+  auto peakAt = [&](int n) {
+    float expected_bin = (f0 * static_cast<float>(n)) / bin_hz;
+    return magnitude[static_cast<size_t>(std::lround(findPeakBin(magnitude, expected_bin, 40)))];
+  };
+
+  float peak1 = peakAt(1), peak2 = peakAt(2), peak3 = peakAt(3), peak4 = peakAt(4);
+  CHECK(peak1 > 0.0f);
+  CHECK(peak2 > 0.0f);
+  CHECK(peak4 > 0.0f);
+  // Harmonic 3 has no real peak of its own - whatever tiny energy leaks in
+  // from neighboring bands' own Gaussian tails must stay far below a real
+  // harmonic's own peak.
+  CHECK(peak3 < peak1 * 0.05f);
+}
