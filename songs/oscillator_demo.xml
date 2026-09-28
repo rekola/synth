@@ -193,17 +193,19 @@
          risk to keep in sync by hand. -->
     <instrument name="PadSynth Synth Brass" from="brass.synth"/>
 
-    <!-- 21: "PadSynth Saw Piano (unmatched)" - instrument 17's own exact
-         preset, tuningMatched="false" only - the same paired-instrument
-         shape instrument 1/11 ("PadSynth Warm (unmatched)"/"PadSynth
-         Warm") already established at the top of this file, applied to
-         the synth piano instead: a tuningMatched A/B on a genuinely
-         piano-like PadSynth voice, not just a generic pad, and on chords
-         a plain triad can't fully make the point with - see the new
+    <!-- 21: "PadSynth Keyboard (unmatched)" - instrument 0's own exact
+         "keyboard" preset/envelope, tuningMatched="false" only - the same
+         paired-instrument shape instrument 1/11 ("PadSynth Warm
+         (unmatched)"/"PadSynth Warm") already established at the top of
+         this file, applied to the synth piano (instrument 0, already used
+         for every chord-testing section in this file) rather than the
+         Saw Piano (instrument 17, a single-note comparison point against
+         the additive piano, not built for chords). A plain triad can't
+         fully make tuningMatched's own point either - see the new
          locators/patterns below (rows 280-325) for quartal triads that
-         actually stress tuningMatched's own partial-snapping behavior. -->
-    <envelope name="PadSynth Saw Piano (unmatched)" attack="0.005" hold="0" decay="2.5" sustain="0.0" release="0.3">
-      <padsynth preset="warm" bandwidth="10" bandwidthScale="0.4" partials="40" tuningMatched="false"/>
+         actually stress its partial-snapping behavior. -->
+    <envelope name="PadSynth Keyboard (unmatched)" attack="0.01" hold="0" decay="1.5" sustain="0.15" release="0.3">
+      <padsynth preset="keyboard" tuningMatched="false"/>
     </envelope>
   </instruments>
 
@@ -229,26 +231,26 @@
     <track id="18" name="PadSynth Phased Choir" instrument="18"/>
     <track id="19" name="PadSynth Organ Pipe" instrument="19"/>
     <track id="20" name="PadSynth Synth Brass" instrument="20"/>
-    <track id="21" name="PadSynth Saw Piano (unmatched)" instrument="21"/>
+    <track id="21" name="PadSynth Keyboard (unmatched)" instrument="21"/>
   </tracks>
 
   <locators>
     <locator row="0">PadSynth keyboard - single note</locator>
     <locator row="8">PadSynth keyboard - sustained fifth</locator>
     <locator row="16">PadSynth keyboard - 31-EDO C-E-G triad</locator>
-    <locator row="24">PadSynth keyboard - C-E-G-A# harmonic 7th</locator>
+    <locator row="24">PadSynth keyboard - C-E-G-A♯ harmonic 7th</locator>
     <locator row="32">PadSynth warm (tuningMatched=OFF) - single note</locator>
     <locator row="40">PadSynth warm (tuningMatched=OFF) - sustained fifth</locator>
     <locator row="48">PadSynth warm (tuningMatched=OFF) - 31-EDO C-E-G triad</locator>
-    <locator row="56">PadSynth warm (tuningMatched=OFF) - C-E-G-A# harmonic 7th</locator>
+    <locator row="56">PadSynth warm (tuningMatched=OFF) - C-E-G-A♯ harmonic 7th</locator>
     <locator row="64">Additive struck-string - single note</locator>
     <locator row="72">Additive struck-string - sustained fifth</locator>
     <locator row="80">Additive struck-string - 31-EDO C-E-G triad</locator>
-    <locator row="88">Additive struck-string - C-E-G-A# harmonic 7th</locator>
+    <locator row="88">Additive struck-string - C-E-G-A♯ harmonic 7th</locator>
     <locator row="96">Mellotron (tape+padsynth) - single note</locator>
     <locator row="104">Mellotron (tape+padsynth) - sustained fifth</locator>
     <locator row="112">Mellotron (tape+padsynth) - 31-EDO C-E-G triad</locator>
-    <locator row="120">Mellotron (tape+padsynth) - C-E-G-A# harmonic 7th</locator>
+    <locator row="120">Mellotron (tape+padsynth) - C-E-G-A♯ harmonic 7th</locator>
     <locator row="128">PadSynth warm, NARROW bandwidth (8c) - triad, compare to row 176</locator>
     <locator row="136">PadSynth warm, WIDE bandwidth (80c) - triad, compare to row 176/128</locator>
     <locator row="144">PadSynth formant-vocal - single note</locator>
@@ -258,7 +260,7 @@
     <locator row="176">PadSynth warm (tuningMatched=on) - single note</locator>
     <locator row="184">PadSynth warm (tuningMatched=on) - sustained fifth</locator>
     <locator row="192">PadSynth warm (tuningMatched=on) - 31-EDO C-E-G triad</locator>
-    <locator row="200">PadSynth warm (tuningMatched=on) - C-E-G-A# harmonic 7th</locator>
+    <locator row="200">PadSynth warm (tuningMatched=on) - C-E-G-A♯ harmonic 7th</locator>
     <locator row="208">PadSynth choir-aah - single note, compare to row 216</locator>
     <locator row="216">PadSynth choir-ooh - single note, compare to row 208</locator>
     <locator row="224">PadSynth "Soft Pad" - single note</locator>
@@ -270,10 +272,10 @@
     <locator row="272">PadSynth "Synth Brass" (brass.synth) - single note</locator>
     <locator row="280">Synth piano, tuningMatched=ON - plain C-E-G triad</locator>
     <locator row="288">Synth piano, tuningMatched=OFF - plain C-E-G triad, compare to row 280</locator>
-    <locator row="296">Synth piano, tuningMatched=ON - quartal triad C D# F</locator>
-    <locator row="304">Synth piano, tuningMatched=OFF - quartal triad C D# F, compare to row 296</locator>
-    <locator row="312">Synth piano, tuningMatched=ON - quartal triad C Ebb F</locator>
-    <locator row="320">Synth piano, tuningMatched=OFF - quartal triad C Ebb F, compare to row 312</locator>
+    <locator row="296">Synth piano, tuningMatched=ON - quartal triad C D♯ F</locator>
+    <locator row="304">Synth piano, tuningMatched=OFF - quartal triad C D♯ F, compare to row 296</locator>
+    <locator row="312">Synth piano, tuningMatched=ON - quartal triad C E𝄫 F</locator>
+    <locator row="320">Synth piano, tuningMatched=OFF - quartal triad C E𝄫 F, compare to row 312</locator>
   </locators>
 
   <arrangement>
@@ -285,8 +287,17 @@
       <note row="14">off off</note>
       <note row="16">C-4 E-4 G-4</note>
       <note row="22">off off off</note>
-      <note row="24">C-4 E-4 G-4 A#4</note>
+      <note row="24">C-4 E-4 G-4 A♯4</note>
       <note row="30">off off off off</note>
+
+      <!-- tuningMatched showcase, ON half (rows 280-318) - see track 21
+           for the OFF half at the interleaved rows between these. -->
+      <note row="280">C-4 E-4 G-4</note>
+      <note row="286">off off off</note>
+      <note row="296">C-4 D♯4 F-4</note>
+      <note row="302">off off off</note>
+      <note row="312">C-4 E𝄫4 F-4</note>
+      <note row="318">off off off</note>
     </pattern>
 
     <!-- PadSynth warm, tuning-matched OFF (rows 32-63) -->
@@ -297,7 +308,7 @@
       <note row="46">off off</note>
       <note row="48">C-4 E-4 G-4</note>
       <note row="54">off off off</note>
-      <note row="56">C-4 E-4 G-4 A#4</note>
+      <note row="56">C-4 E-4 G-4 A♯4</note>
       <note row="62">off off off off</note>
     </pattern>
 
@@ -309,7 +320,7 @@
       <note row="78">off off</note>
       <note row="80">C-4 E-4 G-4</note>
       <note row="86">off off off</note>
-      <note row="88">C-4 E-4 G-4 A#4</note>
+      <note row="88">C-4 E-4 G-4 A♯4</note>
       <note row="94">off off off off</note>
     </pattern>
 
@@ -321,7 +332,7 @@
       <note row="110">off off</note>
       <note row="112">C-4 E-4 G-4</note>
       <note row="118">off off off</note>
-      <note row="120">C-4 E-4 G-4 A#4</note>
+      <note row="120">C-4 E-4 G-4 A♯4</note>
       <note row="126">off off off off</note>
     </pattern>
 
@@ -378,7 +389,7 @@
       <note row="190">off off</note>
       <note row="192">C-4 E-4 G-4</note>
       <note row="198">off off off</note>
-      <note row="200">C-4 E-4 G-4 A#4</note>
+      <note row="200">C-4 E-4 G-4 A♯4</note>
       <note row="206">off off off off</note>
     </pattern>
 
@@ -409,15 +420,6 @@
     <pattern track="17">
       <note row="248" value="C-4"/>
       <note row="254" value="off"/>
-
-      <!-- tuningMatched showcase, ON half (rows 280-318) - see track 21
-           for the OFF half at the interleaved rows between these. -->
-      <note row="280">C-4 E-4 G-4</note>
-      <note row="286">off off off</note>
-      <note row="296">C-4 D#4 F-4</note>
-      <note row="302">off off off</note>
-      <note row="312">C-4 Ebb4 F-4</note>
-      <note row="318">off off off</note>
     </pattern>
     <pattern track="18">
       <note row="256" value="C-4"/>
@@ -433,15 +435,15 @@
     </pattern>
 
     <!-- tuningMatched showcase, OFF half (rows 288-326) - interleaved
-         between track 17's own ON-half rows above so playback alternates
-         ON/OFF for each chord in turn: plain triad, then quartal C D# F,
-         then quartal C Ebb F. -->
+         between track 0's own ON-half rows above so playback alternates
+         ON/OFF for each chord in turn: plain triad, then quartal C D♯ F,
+         then quartal C E𝄫 F. -->
     <pattern track="21">
       <note row="288">C-4 E-4 G-4</note>
       <note row="294">off off off</note>
-      <note row="304">C-4 D#4 F-4</note>
+      <note row="304">C-4 D♯4 F-4</note>
       <note row="310">off off off</note>
-      <note row="320">C-4 Ebb4 F-4</note>
+      <note row="320">C-4 E𝄫4 F-4</note>
       <note row="326">off off off</note>
     </pattern>
   </arrangement>
