@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Demo/listening song for the <padsynth>/<additive> oscillators and the
+  hand-built library instruments (mellotron, additive piano). Every
+  instrument here is constructed directly (envelope+padsynth/additive/
+  tapeDegradation), not by referencing a GM taxonomy path - the one
+  deliberate exception is the "guitarSf2" track in the final section,
+  which exists specifically to compare the additive piano against a real
+  SoundFont guitar, and needs an actual SoundFont loaded to be audible
+  (silent/fallback-oscillator otherwise, which is harmless, just quiet).
+
+  Render with:
+    ./build/synth --render demo.wav songs/oscillator_demo.xml
+  and scrub/listen against the <locators> below, or open it in the UI and
+  use the arrangement overview's locator column (each marks ›).
+-->
+<song temperament="31edo" tempo="90" rowsPerBar="4" volume="1.0">
+  <instruments>
+    <!-- 0: PadSynth "warm", tuning-matched partials (default) -->
+    <envelope attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
+      <padsynth preset="warm"/>
+    </envelope>
+    <!-- 1: PadSynth "warm", tuning-matched OFF - A/B against instrument 0 -->
+    <envelope attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
+      <padsynth preset="warm" tuningMatched="false"/>
+    </envelope>
+    <!-- 2: PadSynth "warm", narrow bandwidth (8 cents) -->
+    <envelope attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
+      <padsynth preset="warm" bandwidth="8"/>
+    </envelope>
+    <!-- 3: PadSynth "warm", wide bandwidth (150 cents) -->
+    <envelope attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
+      <padsynth preset="warm" bandwidth="150"/>
+    </envelope>
+    <!-- 4: PadSynth "formant-vocal" -->
+    <envelope attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
+      <padsynth preset="formant-vocal"/>
+    </envelope>
+    <!-- 5: PadSynth "bowed-ensemble" -->
+    <envelope attack="0.3" hold="0" decay="0.4" sustain="0.85" release="0.8">
+      <padsynth preset="bowed-ensemble"/>
+    </envelope>
+    <!-- 6: PadSynth "glass" -->
+    <envelope attack="0.02" hold="0" decay="0.8" sustain="0.5" release="1.2">
+      <padsynth preset="glass"/>
+    </envelope>
+    <!-- 7: Additive "struck-string" -->
+    <envelope attack="0.005" hold="0" decay="1.5" sustain="0.3" release="0.5">
+      <additive preset="struck-string"/>
+    </envelope>
+    <!-- 8: Mellotron - tape machine wrapping envelope+padsynth(mellotron) -->
+    <tapeDegradation preset="mellotron">
+      <envelope attack="0.05" hold="0" decay="0.3" sustain="0.95" release="0.4">
+        <padsynth preset="mellotron"/>
+      </envelope>
+    </tapeDegradation>
+    <!-- 9: Additive piano - sustain 0, long decay so it never truncates the
+         additive engine's own per-partial decay, short release -->
+    <envelope attack="0.005" hold="0" decay="8.0" sustain="0.0" release="0.3">
+      <additive preset="struck-string"/>
+    </envelope>
+    <!-- 10: A real SoundFont guitar, for the unison comparison at the end -
+         the one instrument here not built directly. -->
+    <instrument from="guitar.acoustic.steel"/>
+  </instruments>
+
+  <tracks>
+    <track id="0" instrument="0"/>
+    <track id="1" instrument="1"/>
+    <track id="2" instrument="2"/>
+    <track id="3" instrument="3"/>
+    <track id="4" instrument="4"/>
+    <track id="5" instrument="5"/>
+    <track id="6" instrument="6"/>
+    <track id="7" instrument="7"/>
+    <track id="8" instrument="8"/>
+    <track id="9" instrument="9"/>
+    <track id="10" instrument="10"/>
+  </tracks>
+
+  <locators>
+    <locator row="0">PadSynth warm (tuningMatched=on) - single note</locator>
+    <locator row="8">PadSynth warm (tuningMatched=on) - sustained fifth</locator>
+    <locator row="16">PadSynth warm (tuningMatched=on) - 31-EDO C-E-G triad</locator>
+    <locator row="24">PadSynth warm (tuningMatched=on) - C-E-G-A# harmonic 7th</locator>
+    <locator row="32">PadSynth warm (tuningMatched=OFF) - single note</locator>
+    <locator row="40">PadSynth warm (tuningMatched=OFF) - sustained fifth</locator>
+    <locator row="48">PadSynth warm (tuningMatched=OFF) - 31-EDO C-E-G triad</locator>
+    <locator row="56">PadSynth warm (tuningMatched=OFF) - C-E-G-A# harmonic 7th</locator>
+    <locator row="64">Additive struck-string - single note</locator>
+    <locator row="72">Additive struck-string - sustained fifth</locator>
+    <locator row="80">Additive struck-string - 31-EDO C-E-G triad</locator>
+    <locator row="88">Additive struck-string - C-E-G-A# harmonic 7th</locator>
+    <locator row="96">Mellotron (tape+padsynth) - single note</locator>
+    <locator row="104">Mellotron (tape+padsynth) - sustained fifth</locator>
+    <locator row="112">Mellotron (tape+padsynth) - 31-EDO C-E-G triad</locator>
+    <locator row="120">Mellotron (tape+padsynth) - C-E-G-A# harmonic 7th</locator>
+    <locator row="128">PadSynth warm, NARROW bandwidth (8c) - triad, compare to row 16</locator>
+    <locator row="136">PadSynth warm, WIDE bandwidth (150c) - triad, compare to row 16/128</locator>
+    <locator row="144">PadSynth formant-vocal - single note</locator>
+    <locator row="152">PadSynth bowed-ensemble - single note</locator>
+    <locator row="160">PadSynth glass - single note</locator>
+    <locator row="168">Additive piano in unison with SoundFont guitar</locator>
+  </locators>
+
+  <arrangement>
+    <!-- PadSynth warm, tuning-matched ON (rows 0-31) -->
+    <pattern track="0">
+      <note row="0" value="C-4"/>
+      <note row="6" value="off"/>
+      <note row="8">C-4 G-4</note>
+      <note row="14">off off</note>
+      <note row="16">C-4 E-4 G-4</note>
+      <note row="22">off off off</note>
+      <note row="24">C-4 E-4 G-4 A#4</note>
+      <note row="30">off off off off</note>
+    </pattern>
+
+    <!-- PadSynth warm, tuning-matched OFF (rows 32-63) -->
+    <pattern track="1">
+      <note row="32" value="C-4"/>
+      <note row="38" value="off"/>
+      <note row="40">C-4 G-4</note>
+      <note row="46">off off</note>
+      <note row="48">C-4 E-4 G-4</note>
+      <note row="54">off off off</note>
+      <note row="56">C-4 E-4 G-4 A#4</note>
+      <note row="62">off off off off</note>
+    </pattern>
+
+    <!-- Additive struck-string (rows 64-95) -->
+    <pattern track="7">
+      <note row="64" value="C-4"/>
+      <note row="70" value="off"/>
+      <note row="72">C-4 G-4</note>
+      <note row="78">off off</note>
+      <note row="80">C-4 E-4 G-4</note>
+      <note row="86">off off off</note>
+      <note row="88">C-4 E-4 G-4 A#4</note>
+      <note row="94">off off off off</note>
+    </pattern>
+
+    <!-- Mellotron (rows 96-127) -->
+    <pattern track="8">
+      <note row="96" value="C-4"/>
+      <note row="102" value="off"/>
+      <note row="104">C-4 G-4</note>
+      <note row="110">off off</note>
+      <note row="112">C-4 E-4 G-4</note>
+      <note row="118">off off off</note>
+      <note row="120">C-4 E-4 G-4 A#4</note>
+      <note row="126">off off off off</note>
+    </pattern>
+
+    <!-- PadSynth warm, narrow bandwidth - triad only (rows 128-135) -->
+    <pattern track="2">
+      <note row="128">C-4 E-4 G-4</note>
+      <note row="134">off off off</note>
+    </pattern>
+
+    <!-- PadSynth warm, wide bandwidth - triad only (rows 136-143) -->
+    <pattern track="3">
+      <note row="136">C-4 E-4 G-4</note>
+      <note row="142">off off off</note>
+    </pattern>
+
+    <!-- PadSynth formant-vocal - single note (rows 144-151) -->
+    <pattern track="4">
+      <note row="144" value="C-4"/>
+      <note row="150" value="off"/>
+    </pattern>
+
+    <!-- PadSynth bowed-ensemble - single note (rows 152-159) -->
+    <pattern track="5">
+      <note row="152" value="C-4"/>
+      <note row="158" value="off"/>
+    </pattern>
+
+    <!-- PadSynth glass - single note (rows 160-167) -->
+    <pattern track="6">
+      <note row="160" value="C-4"/>
+      <note row="166" value="off"/>
+    </pattern>
+
+    <!-- Additive piano in unison with the SoundFont guitar (rows 168-175) -
+         the same short ascending phrase on both tracks simultaneously. -->
+    <pattern track="9">
+      <note row="168" value="C-4"/>
+      <note row="170" value="D-4"/>
+      <note row="172" value="E-4"/>
+      <note row="174" value="G-4"/>
+    </pattern>
+    <pattern track="10">
+      <note row="168" value="C-4"/>
+      <note row="170" value="D-4"/>
+      <note row="172" value="E-4"/>
+      <note row="174" value="G-4"/>
+    </pattern>
+  </arrangement>
+</song>
