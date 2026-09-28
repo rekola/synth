@@ -47,8 +47,10 @@ class Additive : public Instrument {
   float velocityTilt_ = getAdditivePreset("default").velocityTilt;
   int unisonVoices_ = getAdditivePreset("default").unisonVoices;
   float unisonDetune_ = getAdditivePreset("default").unisonDetune;
-  // Stretched-partial coefficient B in the standard formula
-  // n * sqrt(1 + B*n^2) - 0 means plain harmonic partials (no stretch).
+  // Stretched-partial coefficient B - 0 means plain harmonic/tuning-matched
+  // partials (no stretch). Only affects partials above partialLimit_ when
+  // tuningMatched_ is on (a continuous cents-space shift from there) - see
+  // SinusoidBank.cpp's additivePartialRatio() for the exact formula and why.
   float inharmonicity_ = getAdditivePreset("default").inharmonicity;
   // alpha_n = decayA_ + decayB_ * f_n^decayP_, nepers/second - see
   // SinusoidBank.h's own doc comment for the exact per-sample envelope

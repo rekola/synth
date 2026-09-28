@@ -29,25 +29,45 @@ inline float cullThresholdRatio() {
   return ratio;
 }
 
-// Snaps partial n's frequency ratio to the song's own tuning, same formula
-// as SpectralBandProfile.h's tuningMatchedPartialRatio() but generalized to
-// take the *natural* (possibly inharmonicity-stretched) ratio rather than
-// assuming it's exactly n - see this file's own doc comment on the header
-// for why: inharmonicity computes the stretched ratio first, and
-// tuning-matching (when enabled) snaps that, not the plain harmonic index.
-// With inharmonicity_b == 0 this reduces to calling
-// tuningMatchedPartialRatio() directly (natural ratio is exactly n), so the
-// two paths agree exactly in the common case.
+// Partial n's frequency ratio, folding in inharmonicity B (default 0 - pure
+// harmonic/tuning-matched, no stretch). When tuning-matching is off (or
+// there's no scale to map onto, edo_steps<=0), B stretches every partial via
+// the standard stiff-string formula n*sqrt(1+B*n^2) - simple, since nothing
+// is being snapped to begin with.
+//
+// When tuning-matching is on, B has no effect at all within the
+// tuning-matched region (n <= partial_limit): every partial there stays
+// exactly on its scale step, same as B==0 - a real stiff string's own
+// fundamental drifts sharp of its "ideal" pitch under the plain formula
+// above (see the session discussion this replaced), which is physically
+// accurate but meant a note's own audible pitch could drift with B; pinning
+// the matched region to the scale entirely avoids that. Above the limit,
+// the stretch is applied as a direct cents-space shift referenced from the
+// limit partial's own snapped cents value - 866*B*(n^2 - n_lim^2) - so the
+// curve is exactly continuous at n_lim (the shift is 0 there, matching
+// tuningMatchedPartialRatio(n_lim, ...) exactly) rather than jumping from a
+// snapped value to an unrelated stretched one. 866 = 1200/(2*ln 2), the
+// small-angle linearization of 1200*log2(sqrt(1+B*n^2)) directly in cents -
+// avoids a sqrt/log per partial and matches the plain stiff-string formula
+// closely for the small B values real strings actually have.
 float additivePartialRatio(int n, float inharmonicity_b, int edo_steps, int partial_limit, bool tuning_matched) {
   if (inharmonicity_b <= 0.0f) {
     return tuningMatchedPartialRatio(n, edo_steps, partial_limit, tuning_matched);
   }
 
-  float natural = static_cast<float>(n) * sqrtf(1.0f + inharmonicity_b * static_cast<float>(n) * static_cast<float>(n));
-  if (!tuning_matched || edo_steps <= 0 || n > partial_limit) return natural;
+  if (!tuning_matched || edo_steps <= 0 || partial_limit < 1) {
+    return static_cast<float>(n) * sqrtf(1.0f + inharmonicity_b * static_cast<float>(n) * static_cast<float>(n));
+  }
 
-  float steps = roundf(static_cast<float>(edo_steps) * log2f(natural));
-  return powf(2.0f, steps / static_cast<float>(edo_steps));
+  if (n <= partial_limit) {
+    return tuningMatchedPartialRatio(n, edo_steps, partial_limit, tuning_matched);
+  }
+
+  float limit_steps = roundf(static_cast<float>(edo_steps) * log2f(static_cast<float>(partial_limit)));
+  float limit_cents = limit_steps / static_cast<float>(edo_steps) * 1200.0f;
+  float n_f = static_cast<float>(n), limit_f = static_cast<float>(partial_limit);
+  float cents = limit_cents + 866.0f * inharmonicity_b * (n_f * n_f - limit_f * limit_f);
+  return powf(2.0f, cents / 1200.0f);
 }
 
 // Symmetric, HashField-jittered detune spread across unison_voices copies,

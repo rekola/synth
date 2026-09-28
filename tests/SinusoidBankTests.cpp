@@ -160,3 +160,27 @@ TEST(sinusoid_bank_culls_fully_decayed_partial) {
   CHECK(bank.getActivePartialCountForTest() == 0);
   CHECK(!bank.isActive());
 }
+
+// Inharmonicity must have zero effect within the tuning-matched region
+// (n <= partial_limit): the fundamental (n=1, always <= partial_limit) is
+// pinned to exactly the tuning-matched ratio (1.0) regardless of B, so a
+// single-partial bank (partial_count=1) renders bit-identically whether B
+// is 0 or nonzero - a strong, exact check, not just a tolerance-based one.
+TEST(sinusoid_bank_inharmonicity_does_not_affect_partials_within_tuning_matched_limit) {
+  auto params_flat = baseParams(220.0f, 1, 44100.0f);
+  auto params_stretched = params_flat;
+  params_stretched.inharmonicity_b = 0.001f;
+
+  NoteCoordinate coord(2, 7, 0);
+  SinusoidBank flat(params_flat, coord);
+  SinusoidBank stretched(params_stretched, coord);
+
+  const int frames = 1024;
+  vector<float> out_flat(static_cast<size_t>(frames), 0.0f), out_stretched(static_cast<size_t>(frames), 0.0f);
+  flat.render(out_flat.data(), frames);
+  stretched.render(out_stretched.data(), frames);
+
+  for (int i = 0; i < frames; i++) {
+    CHECK(out_flat[static_cast<size_t>(i)] == out_stretched[static_cast<size_t>(i)]);
+  }
+}

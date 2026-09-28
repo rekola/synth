@@ -52,7 +52,10 @@ class SinusoidBank {
     float frequency;           // fundamental, Hz
     int partial_count;         // 1-indexed partials 1..partial_count
     float spectral_tilt_db;    // dB/octave-ish rolloff on initial partial amplitude
-    float inharmonicity_b;     // stretched-partial coefficient B, 0 = pure harmonic
+    float inharmonicity_b;     // stretched-partial coefficient B, 0 = pure harmonic;
+                               // only stretches partials above partial_limit
+                               // when tuning_matched - see SinusoidBank.cpp's
+                               // additivePartialRatio()
     int edo_steps;             // 0 = no tuning structure (Tuning::PERCUSSION)
     bool tuning_matched;
     int partial_limit;         // only the first N partials get tuning-snapped
