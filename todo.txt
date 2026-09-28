@@ -43,14 +43,8 @@ filter sweep is bad (must be exponential) (hz or note)
 could we create band filtered noise, with the filter tied to the key?
 
 I-V-iii-iisus4
-	    
-add units to envelope so that it can be specified in pattern steps
-
-if sustain is zero, envelope must be stopped
 
 songtest11.xml has duplicate ids
-
-If all tracks are in same toplevel filter, hierarchyview only shows one track
 
 		31edo	  		53edo
 --------------------------------		
@@ -308,10 +302,3 @@ G'	P12					3:1
 	M13
 	m14
 	P15
-
-Other:
-
-9/7  septimal major third
-5/7   septimal minor ninth, BP ninth
-16/7   septimal major ninth
-17/14  supraminor third

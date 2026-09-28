@@ -3,13 +3,14 @@
 [![Linux x86-64](https://github.com/rekola/synth/actions/workflows/ci-linux-x86_64.yml/badge.svg)](https://github.com/rekola/synth/actions/workflows/ci-linux-x86_64.yml)
 [![Linux ARM64](https://github.com/rekola/synth/actions/workflows/ci-linux-arm64.yml/badge.svg)](https://github.com/rekola/synth/actions/workflows/ci-linux-arm64.yml)
 
-A Microtonal Synth: Tracker style music production system with microtonality.
+A microtonal multiparadigm music production system, which combines live sequencer with a traditional tracker.
 
 # Features
 
 - Microtonal (31-EDO)
 - Ambisonic Bus
 - Launchpad support and Live arrangement
+- Sample and note based clips
 - Emacs-style buffers and keybindings
 - SoundFont2
 
@@ -94,5 +95,6 @@ for the full picture, or run `synth --licenses` to print it.
 * Aftertouch filtering and aggregating
 * Continuous MIDI recording with retroactive capture
 * Ambient textures (waves, campfire, thunder, rain etc.)
+* Launch modes and Follow actions
 * Emacs features:
     - Kill-ring rotation (yank-pop / M-y)
