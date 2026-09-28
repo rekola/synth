@@ -53,17 +53,21 @@ resonant filter, both persistent for that one track.
 | `<chorus>` | Multi-voice, LFO-modulated delay-line chorus. `voices`, `rate` (Hz), `delay`/`depth` (ms, center/modulation range), `mix`. |
 | `<distortion>` | Waveshaping distortion. `type` (`hardclip`/`softclip`/`tanh`/`bitcrush`), `drive` (pre-gain before the nonlinearity, all types), `param` - meaning depends on `type`: clip threshold for `hardclip`, bit depth (1-24, default 8) for `bitcrush`, unused for `softclip`/`tanh`. |
 | `<compressor>` | Dynamics compressor. `pregain`/`postgain` (dB), `threshold` (dB), `knee` (dB), `ratio`. |
-| `<envelope>` | ADSR amplitude envelope. `attack`/`hold`/`decay`/`release` (seconds), `sustain` (0.0-1.0 level). The building block almost every instrument definition wraps its oscillator/sample in. |
+| `<envelope>` | ADSR amplitude envelope. `attack`/`hold`/`decay`/`release` (seconds), `sustain` (0.0-1.0 level). The building block almost every instrument definition wraps its oscillator/padsynth/additive/sample in. |
 | `<amplifier>` | Flat gain. `gain` (dB). |
 | `<tremolo>` | Amplitude LFO. `frequency` (Hz), `amplitude` (0.0-1.0 depth), `aftertouch` (boolean - depth follows channel pressure instead of being fixed). |
 | `<biquadFilter>` | A single biquad (see `dsp/Biquad.h`'s `FilterType`). `type`, `fc` (0.0-0.5, normalized), `Q`, `peakGainDB`, `aftertouch` (boolean - `fc` follows channel pressure). |
 | `<resonantFilter>` | Moog-style resonant lowpass (`dsp/MoogVCF.h`). `cut`/`cutmin`/`cutmax`, `res`, `aftertouch`. |
 | `<tapeDegradation>` | Tape/media degradation - wow/flutter, hiss, dropouts, saturation. See `docs/tape_degradation.md` for the full reference; it's also the one effect here where the track/voice distinction above changes its *character*, not just its scope - worth reading if you only read one section of that page. |
 
-Only `<tapeDegradation>` has its own dedicated reference page so far -
-the rest are documented here at the attribute-name level; read the
-corresponding `effects/*.h`/`.cpp` for exact defaults and ranges if
-something isn't obvious from the name.
+`<tapeDegradation>` has its own dedicated reference page
+(`docs/tape_degradation.md`); the rest of the effects above are
+documented here at the attribute-name level - read the corresponding
+`effects/*.h`/`.cpp` for exact defaults and ranges if something isn't
+obvious from the name. The oscillator-family elements an `<envelope>`
+here commonly wraps (`<padsynth>`, `<additive>`) are `Instrument` leaves,
+not effects, so they're out of this page's scope - see `docs/padsynth.md`/
+`docs/additive.md`.
 
 ## Position, sends, and other track-only attributes
 

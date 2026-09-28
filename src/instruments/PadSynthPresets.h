@@ -85,10 +85,11 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
     /* formants                   */ {},
   };
 
-  // A Mellotron's "strings" tape was 3 real violins recorded per note - see
-  // this preset's own doc comment in the task spec for why this preset's
-  // job is purely spectral character, not literal unison/detune (that's
-  // <tapeDegradation preset="mellotron"> layered on top, built separately).
+  // A Mellotron's "strings" tape was 3 real violins recorded per note - this
+  // preset's own job is purely spectral character (what a massed bowed
+  // string ensemble sounds like), not literal unison/detune voices; that
+  // comes from <tapeDegradation preset="mellotron"> layered on top instead
+  // (built separately - see docs/tape_degradation.md).
   // Close to Bowed Ensemble's own wide, beating bandwidth (a bowed string
   // ensemble is exactly what a real Mellotron strings tape captured) but
   // slightly narrower/steeper, reading a little more "recorded tape"
