@@ -276,6 +276,25 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // "slow" naming already established for the acoustic side.
   provider.registerPath("string.synth.slow", makeUnisonPad("bowed-ensemble", 3, 14.0f, 0.5f, 0.5f, 0.0f, 0.4f, 0.85f, 0.9f));
 
+  // Synth Brass 1/2 (brass.synth/brass.synth.soft) - the same GM
+  // "deliberately synthetic" distinction as lead.voice above, not the
+  // fallback-only treatment organ.pipe/string.synth.slow need: brass.*
+  // also has real acoustic programs (brass.trumpet/brass.section/...),
+  // but brass.synth/brass.synth.soft are specifically GM's own synth-brass
+  // slots (their own GmInstrumentDescriptions.h text already says "A
+  // synthesized brass section"/"A softer, mellower synth brass"), so an
+  // unconditional override is correct here, the same as every pad.*/
+  // lead.voice entry. A real analog synth-brass patch is a bright,
+  // fairly rich sawtooth-like tone (kSynthBrass's own rolloff near 1.0)
+  // with a punchy attack, not a vowel/formant character - and, being a
+  // "section," real unison layering for genuine multi-voice thickness
+  // (the same reasoning pad.choir/string.synth.slow already use), not
+  // just a wider Gaussian band. brass.synth.soft is the same preset,
+  // mellower/slower and without the unison layer - GM's own "softer,
+  // mellower" description, closer to a sustained pad than a punchy stab.
+  provider.registerPath("brass.synth", makeUnisonPad("synth-brass", 3, 12.0f, 0.4f, 0.04f, 0.0f, 0.1f, 0.85f, 0.25f));
+  provider.registerPath("brass.synth.soft", makeEnvelopePad("synth-brass", 0.25f, 0.0f, 0.3f, 0.9f, 0.6f, /*bandwidth*/ 12.0f));
+
   // Additive piano - <envelope>+<additive preset="struck-string">, with a
   // few explicit overrides on top of the base preset rather than retuning
   // "struck-string" itself (which stays the generic, guitar-reads-fine

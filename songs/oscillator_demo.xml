@@ -175,6 +175,14 @@
     <envelope name="PadSynth Organ Pipe" attack="0.015" hold="0" decay="0.05" sustain="1.0" release="0.08">
       <padsynth preset="organ-pipe"/>
     </envelope>
+
+    <!-- 20: Synth Brass - referenced straight from the library
+         (InstrumentLibrary.cpp's own brass.synth registration), not
+         rebuilt here, since it's a plain preset+envelope+multiply
+         combination with nothing song-specific to demonstrate on top -
+         unlike the additive piano/choir above, there's no divergent-copy
+         risk to keep in sync by hand. -->
+    <instrument name="PadSynth Synth Brass" from="brass.synth"/>
   </instruments>
 
   <tracks>
@@ -198,6 +206,7 @@
     <track id="17" name="PadSynth Saw Piano" instrument="17"/>
     <track id="18" name="PadSynth Phased Choir" instrument="18"/>
     <track id="19" name="PadSynth Organ Pipe" instrument="19"/>
+    <track id="20" name="PadSynth Synth Brass" instrument="20"/>
   </tracks>
 
   <locators>
@@ -235,6 +244,7 @@
     <locator row="248">PadSynth "Saw Piano" - single note</locator>
     <locator row="256">PadSynth "Phased Choir" (choir-aah + phaser) - single note</locator>
     <locator row="264">PadSynth "Church Organ" (organ-pipe) - single note</locator>
+    <locator row="272">PadSynth "Synth Brass" (brass.synth) - single note</locator>
   </locators>
 
   <arrangement>
@@ -378,6 +388,10 @@
     <pattern track="19">
       <note row="264" value="C-4"/>
       <note row="270" value="off"/>
+    </pattern>
+    <pattern track="20">
+      <note row="272" value="C-4"/>
+      <note row="278" value="off"/>
     </pattern>
   </arrangement>
 </song>

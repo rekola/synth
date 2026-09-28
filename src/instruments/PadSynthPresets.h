@@ -226,6 +226,25 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
     /* formants                   */ {},
   };
 
+  // GM's Synth Brass programs (62/63) are the deliberately-synthesized
+  // brass slots, unlike brass.trumpet/brass.section's own real acoustic
+  // instruments (see InstrumentLibrary.cpp's own brass.synth/
+  // brass.synth.soft comment for why that distinction matters here) - a
+  // bright, fairly rich harmonic series (rolloff near 1.0, closer to
+  // Warm's own mellow 2.0 than Keyboard's 1.6) for the punchy "sawtooth
+  // brass" character analog synth brass patches are built from, no vowel
+  // formants (a brass stab has no vocal-tract-style resonance to model).
+  // A little harmonic jitter, same reasoning as the choir presets - a
+  // real analog synth's own oscillators are never perfectly clean either.
+  static const PadSynthPresetParams kSynthBrass{
+    /* bandwidth_cents            */ 16.0f,
+    /* bandwidth_scale_exponent   */ 0.6f,
+    /* partial_count              */ 40,
+    /* amplitude_rolloff_exponent */ 1.0f,
+    /* formants                   */ {},
+    /* harmonic_amplitude_jitter  */ 0.05f,
+  };
+
   // "choir-aah" is just an explicit, discoverable name for the same F1/F2/
   // F3 shape kFormantVocal already tuned toward an open "ah" vowel - kept
   // as a distinct alias (not a rename) so "formant-vocal" keeps working for
@@ -279,6 +298,7 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
   if (name == "mellotron") return kMellotron;
   if (name == "keyboard") return kKeyboard;
   if (name == "organ-pipe") return kOrganPipe;
+  if (name == "synth-brass") return kSynthBrass;
   return kWarm;
 }
 
