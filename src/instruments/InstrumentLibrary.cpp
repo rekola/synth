@@ -95,11 +95,26 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
     provider.registerPath("pad.sweep", move(filter));
   }
 
-  // Additive piano - <envelope>+<additive preset="struck-string">. Sustain
-  // 0 (a piano's own sound is entirely percussive/decaying, never a held
-  // plateau) with a long decay stage (8s, well past where the additive
-  // engine's own per-partial decay has already gone inaudible - see
-  // SinusoidBank's -90dB culling) so the envelope itself never audibly
+  // Additive piano - <envelope>+<additive preset="struck-string">, with a
+  // few explicit overrides on top of the base preset rather than retuning
+  // "struck-string" itself (which stays the generic, guitar-reads-fine
+  // plucked-string starting point usable standalone). Heard by ear as
+  // reading more like a single plucked nylon string than a piano with the
+  // bare preset - three targeted differences a piano actually has against
+  // a guitar's single string per note:
+  //  - unisonVoices=3: a real piano doubles or triples each note's string
+  //    in the mid/treble register (a guitar has exactly one string per
+  //    note) - the base preset's 2 voices likely read as too subtly
+  //    chorused to sound like multiple strings at all.
+  //  - attackNoiseLevel lower (0.04 vs the base preset's 0.08): a felt
+  //    hammer strike is a softer, duller transient than a plucked/
+  //    fingerpicked nylon string's own sharper attack noise.
+  //  - tilt less negative (-6 vs -9 dB/octave): a hammer-struck string
+  //    reads brighter/fuller than a plucked one at the same register.
+  // Sustain 0 (a piano's own sound is entirely percussive/decaying, never
+  // a held plateau) with a long decay stage (8s, well past where the
+  // additive engine's own per-partial decay has already gone inaudible -
+  // see SinusoidBank's -90dB culling) so the envelope itself never audibly
   // truncates the tail, and a short release (0.3s) so lifting the key ends
   // the note promptly rather than ringing on indefinitely.
   auto additive_piano_envelope = []() {
@@ -107,6 +122,9 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
     auto additive = make_unique<Additive>();
     MemoryParameterSource additive_params;
     additive_params.set("preset", string("struck-string"));
+    additive_params.set("unisonVoices", 3);
+    additive_params.set("attackNoiseLevel", 0.04f);
+    additive_params.set("tilt", -6.0f);
     additive->loadParameters(additive_params);
     env->addChild(move(additive));
     return env;

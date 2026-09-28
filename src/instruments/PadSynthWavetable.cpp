@@ -100,15 +100,26 @@ PadSynthWavetable::generateTable(int octave) const {
 
   // Standard cents-to-relative-ratio conversion (2^(cents/1200) - 1): the
   // fractional bandwidth a 1st-harmonic band would have at bandwidth_cents_
-  // - see this class's own header comment for the full formula.
-  float base_bandwidth_ratio = std::exp2(bandwidth_cents_ / 1200.0f) - 1.0f;
+  // - see this class's own header comment for the full formula. Bandwidth
+  // in Hz is anchored to f0 (the fundamental), not each harmonic's own
+  // center frequency - the standard PADsynth formula is
+  // bw_Hz(n) = f0 * base_ratio * n^bandwidth_scale_exponent, so the n^scale
+  // growth is the *only* place harmonic number enters the bandwidth. Using
+  // f_center(n) (~f0*n) here instead would silently multiply in an extra
+  // factor of n, making relative bandwidth (sigma/f_center) blow up as
+  // roughly n^(1+scale) instead of n^scale - at n=48 with scale=0.8 that's
+  // the difference between a band ~1% of its own center frequency wide
+  // (musical, recognizably harmonic) and one ~50% wide (heavily overlapping
+  // neighboring harmonics into broadband noise) - confirmed by ear as the
+  // actual bug behind an early "padsynth is mostly noise" report.
+  float base_bandwidth_hz = f0 * (std::exp2(bandwidth_cents_ / 1200.0f) - 1.0f);
 
   for (int n_harmonic = 1; n_harmonic <= partial_count_; n_harmonic++) {
     float ratio = tuningMatchedPartialRatio(n_harmonic, edo_steps_, partial_limit_, tuning_matched_);
     float f_center = f0 * ratio;
     if (f_center >= nyquist) break; // every higher harmonic is out of range too
 
-    float sigma_hz = f_center * base_bandwidth_ratio * std::pow(static_cast<float>(n_harmonic), bandwidth_scale_exponent_);
+    float sigma_hz = base_bandwidth_hz * std::pow(static_cast<float>(n_harmonic), bandwidth_scale_exponent_);
     // A harmonic whose bandwidth formula collapses to ~0 (e.g. bandwidth_cents_
     // == 0) would divide by zero below - floor it at one bin's own width so
     // it still lands as a single sharp spectral line instead of NaN.

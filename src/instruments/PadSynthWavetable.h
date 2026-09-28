@@ -22,8 +22,7 @@ struct PadSynthFormant {
 // description only (Gaussian-shaped amplitude band per harmonic in
 // frequency-bin space, one random phase per bin once every band's
 // contribution to that bin is summed, single inverse FFT to resynthesize
-// one full period of a seamlessly-looping wavetable) - no ZynAddSubFX
-// source was read or ported to build this.
+// one full period of a seamlessly-looping wavetable).
 //
 // One instance serves a whole <padsynth> instrument node: every voice/note
 // played through it shares this same table cache (see getTable()) - table
@@ -34,11 +33,14 @@ struct PadSynthFormant {
 // applies):
 //   - Per-harmonic bandwidth (standard deviation, in Hz) of the Gaussian
 //     band centered at f_center = f0 * ratio(n):
-//       sigma_hz = f_center * (2^(bandwidth_cents/1200) - 1) * n^bandwidth_scale_exponent
+//       sigma_hz = f0 * (2^(bandwidth_cents/1200) - 1) * n^bandwidth_scale_exponent
 //     (2^(cents/1200) - 1 is the standard cents-to-relative-ratio
 //     conversion - the fractional bandwidth a 1st-harmonic band would have
 //     at `bandwidth_cents`; n^bandwidth_scale_exponent is what makes
-//     higher harmonics progressively wider, controlled by the caller.)
+//     higher harmonics progressively wider, controlled by the caller.
+//     Anchored to f0, not f_center(n) - see PadSynthWavetable.cpp's own
+//     comment on why using f_center here would silently blow up relative
+//     bandwidth by an extra factor of n.)
 //   - Per-bin Gaussian amplitude profile (linear amplitude, not power):
 //       amplitude(f_bin) = harmonic_amplitude(n) * exp(-0.5 * ((f_bin - f_center) / sigma_hz)^2)
 //   - Every harmonic's band is summed into the full spectrum by plain
