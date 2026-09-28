@@ -377,12 +377,13 @@ TEST(preview_note_sounds_the_named_instrument_and_stop_reclaims_it) {
 // sounding used to just destroy the old VoiceState outright (a plain
 // unique_ptr assignment) - a hard cut mid-waveform, an audible click,
 // reported as happening when auditioning several instruments in quick
-// succession. Fixed to fastRelease() the old voice and hand it off to
-// preview_voices_ to finish its own tail instead (Player.h's own
-// preview_note_voice_ comment) - checked structurally here (both voices
-// still count right after retriggering, before renderPreview() has even
-// run once) rather than by trying to tell an audible click apart from a
-// legitimately fast attack by ear.
+// succession. Fixed to release the old voice (its own natural
+// stopNote(), not fastRelease()'s compressed one - see the next test
+// below and Player.h's own preview_note_voice_ comment for why) and hand
+// it off to preview_voices_ to finish its own tail instead - checked
+// structurally here (both voices still count right after retriggering,
+// before renderPreview() has even run once) rather than by trying to
+// tell an audible click apart from a legitimately fast attack by ear.
 TEST(preview_note_retrigger_releases_the_previous_voice_instead_of_cutting_it) {
   ChannelConfiguration config(44100, 1);
   Controller controller(config);
@@ -399,14 +400,76 @@ TEST(preview_note_retrigger_releases_the_previous_voice_instead_of_cutting_it) {
   // The first voice must still be there - handed off, not destroyed.
   CHECK(player.getPreviewVoiceCountForTest() == 2);
 
-  // Eventually reclaimed once its (now fastRelease()'d) tail actually
-  // finishes.
+  // Eventually reclaimed once its tail actually finishes (a plain leaf
+  // voice like this one has no release tail of its own to wait out - see
+  // the next test's own comment - so this happens on the very next
+  // render, same as it always did).
   bool reclaimed = false;
   for (int i = 0; i < 200 && !reclaimed; i++) {
     player.renderPreview(256);
     if (player.getPreviewVoiceCountForTest() == 1) reclaimed = true;
   }
   CHECK(reclaimed);
+}
+
+// Regression: the fix above originally used fastRelease() (a compressed
+// ~10ms release, borrowed from InstrumentTrackState::retriggerVoices()'s
+// own same-identity reclaim, which exists to bound real polyphony under
+// rapid retriggering in an actual performance - a concern this
+// single-slot preview context doesn't share). Measured directly: for a
+// slow-attack instrument (PadSynth's own choir/pad presets, ~0.4-0.5s
+// attack), forcing the just-released voice's level to collapse in 10ms
+// while the newly-retriggered voice's own attack was still barely
+// audible left a real ~85% RMS dip for the first several milliseconds
+// after every retrigger - not a genuine sample-level discontinuity, but
+// a real, audible dropout easily mistaken for a click, and the actual
+// cause behind reports of clicking while auditioning choir/pad presets
+// (not, as first suspected, PadSynth's own wavetable build latency).
+// Fixed by using the old voice's own natural stopNote() release instead
+// (Player.h's own preview_note_voice_ comment) - for a long-release
+// instrument like this one, that keeps it close to full level right
+// through the new voice's attack ramp, closing the gap. Checked here by
+// rendering a small block immediately after retriggering (well within
+// the old fastRelease()'s ~10ms collapse window, so a regression back to
+// it would fail this) and confirming the block's level hasn't dropped
+// toward silence.
+TEST(preview_note_retrigger_does_not_dip_a_slow_attack_instrument) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+
+  Player player(config, &controller);
+
+  PlaybackControlEvent first(PlaybackControlEvent::PREVIEW_NOTE, "pad.choir", 60, 100);
+  player.handlePlaybackControlEvent(first);
+
+  // Well into the attack ramp but short of full sustain - the same
+  // "mid-attack, moderate gain" scenario the dip was measured under.
+  for (int i = 0; i < 40; i++) player.renderPreview(256);
+
+  auto before_retrigger = player.renderPreview(64);
+  float peak_before = 0.0f;
+  for (int c = 0; c < before_retrigger.numberOfChannels(); c++) {
+    auto data = before_retrigger.getChannelData(c);
+    for (int i = 0; i < before_retrigger.numberOfFrames(); i++) peak_before = std::max(peak_before, std::fabs(data[i]));
+  }
+  CHECK(peak_before > 0.0f);
+
+  PlaybackControlEvent second(PlaybackControlEvent::PREVIEW_NOTE, "pad.choir", 64, 100);
+  player.handlePlaybackControlEvent(second);
+
+  // Immediately after retrigger, the newly-retriggered voice's own
+  // attack has barely begun, so almost all of this block's level still
+  // comes from the just-released old voice.
+  auto right_after = player.renderPreview(64);
+  float peak_after = 0.0f;
+  for (int c = 0; c < right_after.numberOfChannels(); c++) {
+    auto data = right_after.getChannelData(c);
+    for (int i = 0; i < right_after.numberOfFrames(); i++) peak_after = std::max(peak_after, std::fabs(data[i]));
+  }
+  // Not a tight bound (the two voices' own encoded channel layouts can
+  // differ) - just confirms no collapse toward silence.
+  CHECK(peak_after > peak_before * 0.3f);
 }
 
 // Same fix, the groove-preview side: retriggering PREVIEW_GROOVE used to

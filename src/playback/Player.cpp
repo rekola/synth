@@ -109,15 +109,17 @@ Player::stateFor(const string & name, const Song & song) {
 void
 Player::startPreviewNote(const Track * instrument, const Song & song, int note_value, int velocity) {
   Note note(note_value, velocity);
-  // Whatever was already occupying this slot gets fastRelease()'d and
-  // moved into preview_voices_ to finish its own tail, rather than just
-  // destroyed outright - see preview_note_voice_'s own comment on
-  // Player.h for why a hard cut here is an audible click.
+  // Whatever was already occupying this slot gets its own natural
+  // stopNote() release and moved into preview_voices_ to finish its own
+  // tail, rather than just destroyed outright (a hard cut) or
+  // fastRelease()'d (measured to leave an audible dropout for a
+  // slow-attack instrument) - see preview_note_voice_'s own comment on
+  // Player.h for the full reasoning/measurement.
   // live_note_counter_ stands in for a real NoteCoordinate's absolute_row
   // here too, same reasoning as the real live PLAY_NOTE case below (a
   // preview note has no authored position either).
   if (preview_note_voice_) {
-    preview_note_voice_->fastRelease();
+    preview_note_voice_->stopNote();
     preview_voices_.push_back(std::move(preview_note_voice_));
   }
   preview_note_voice_ = instrument->playNote(channel_config_, SphericalPosition{}, song.getTuning(), 1.0f,
