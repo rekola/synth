@@ -78,11 +78,31 @@ class PadSynthWavetable {
   // bandwidth - harmonic n's own base amplitude (before the Gaussian band
   // and any formant boost) is 1/n^amplitude_rolloff_exponent, the
   // standard sawtooth-like 1/n falloff at the default exponent of 1.0.
+  //
+  // harmonic_amplitude_jitter is this class's answer to the one thing a
+  // rolloff exponent plus a handful of smooth Gaussian formant bumps can
+  // never produce on their own: irregular, harmonic-to-harmonic amplitude
+  // variation that doesn't follow any smooth curve. Real PADsynth
+  // implementations (ZynAddSubFX's own OSCIL/HARMONICS mechanism, an
+  // explicit per-harmonic array typically drawn from an oscillator
+  // waveform's own spectrum) get exactly this kind of irregular detail -
+  // this codebase has no oscillator-driven harmonic generator to match
+  // that, but a small deterministic per-harmonic jitter is the same shape
+  // of fix at a fraction of the complexity: 0 (the default) means no
+  // effect (every existing preset's own behavior, unchanged); a nonzero
+  // value multiplies harmonic n's own amplitude by a value in
+  // [1-jitter, 1+jitter), one fixed draw per harmonic index (via
+  // HashField, keyed on n and this instance's own seed - so it's the same
+  // set of small irregularities in every octave region, matching how a
+  // real, fixed vocal-tract-style resonant structure would actually
+  // behave: its own irregularities come from the filter, not the source
+  // pitch, so they don't reset or redraw per register).
   PadSynthWavetable(int sample_rate, int partial_count, float bandwidth_cents,
                      float bandwidth_scale_exponent, int edo_steps, int partial_limit,
                      bool tuning_matched, uint64_t seed,
                      float amplitude_rolloff_exponent = 1.0f,
-                     std::vector<PadSynthFormant> formants = {});
+                     std::vector<PadSynthFormant> formants = {},
+                     float harmonic_amplitude_jitter = 0.0f);
 
   // Returns the wavetable covering f0's own pitch region, building and
   // caching it on first use (one table per octave region - see .cpp).
@@ -157,6 +177,7 @@ class PadSynthWavetable {
   uint64_t seed_;
   float amplitude_rolloff_exponent_;
   std::vector<PadSynthFormant> formants_;
+  float harmonic_amplitude_jitter_;
 
   // Lazily built/cached per octave region - mutable so getTable() (the
   // read-only public API every voice calls from render(), a const method)

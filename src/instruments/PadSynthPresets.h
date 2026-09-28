@@ -12,19 +12,22 @@
 // its preset default (see PadSynth::loadParameters()'s own
 // get<float>(name, preset.field) calls).
 //
-// amplitude_rolloff_exponent and formants are this codebase's own
-// extension beyond the bare bandwidth/bandwidthScale/partials PADsynth
-// parameters (see PadSynthWavetable.h's own doc comment on
-// amplitude_rolloff_exponent/PadSynthFormant) - without them, every preset
-// would only be able to differ by bandwidth and partial count, which
-// can't tell a clean "glass" bell apart from a "formant-vocal" character
-// the way a real per-harmonic amplitude shape can.
+// amplitude_rolloff_exponent, formants and harmonic_amplitude_jitter are
+// this codebase's own extension beyond the bare bandwidth/bandwidthScale/
+// partials PADsynth parameters (see PadSynthWavetable.h's own doc comment
+// on amplitude_rolloff_exponent/PadSynthFormant/harmonic_amplitude_jitter)
+// - without them, every preset would only be able to differ by bandwidth
+// and partial count, which can't tell a clean "glass" bell apart from a
+// "formant-vocal" character the way a real per-harmonic amplitude shape
+// can, and can't add the irregular, non-smooth per-harmonic detail real
+// PADsynth's own oscillator-driven harmonic arrays have either.
 struct PadSynthPresetParams {
   float bandwidth_cents;
   float bandwidth_scale_exponent;
   int partial_count;
   float amplitude_rolloff_exponent;
   std::vector<PadSynthFormant> formants;
+  float harmonic_amplitude_jitter = 0.0f;
 };
 
 // An unrecognized preset name falls back to "warm" rather than asserting -
@@ -95,6 +98,27 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
   // 1.3 and round 2's too-sparse 2.2) so there's enough underlying
   // harmonic density for a formant to actually have several partials to
   // cluster, rather than reading as glassy/discrete on its own.
+  //
+  // Round 3: F1/F2/F3 alone (three smooth Gaussian bumps) still read as
+  // "synth string"/"metallic," not "human," even correctly widened and
+  // balanced - because a smooth multi-bump curve is fundamentally the
+  // wrong shape of thing to fix this with. Two real, specific pieces were
+  // missing, not just wrong numbers:
+  //  - A "singer's formant" - a well-documented acoustic feature of
+  //    trained/choral voices (a real F3-F4-F5 cluster merging into one
+  //    bright resonance around 2.8-3.4kHz, giving a voice its
+  //    characteristic "ring"/cut-through-an-ensemble quality) - F3 alone,
+  //    even boosted, sits below and reads as a generic upper-formant
+  //    bump rather than that specific ring. Added as a fourth formant.
+  //  - Irregular, non-smooth per-harmonic detail - what a real PADsynth
+  //    implementation gets from an oscillator-driven per-harmonic array
+  //    (ZynAddSubFX's own OSCIL/HARMONICS mechanism) and this codebase
+  //    has no equivalent generator for; harmonic_amplitude_jitter is the
+  //    fix (see PadSynthWavetable.h's own doc comment) - a small,
+  //    deterministic amount of harmonic-to-harmonic unevenness that no
+  //    smooth rolloff-plus-formants curve can produce on its own, which
+  //    is exactly the kind of texture that tells "a real resonant body"
+  //    apart from "a clean synthesized curve."
   static const PadSynthPresetParams kFormantVocal{
     /* bandwidth_cents            */ 22.0f,
     /* bandwidth_scale_exponent   */ 0.6f,
@@ -104,7 +128,9 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
       { /* center_hz */ 700.0f,  /* bandwidth_hz */ 120.0f, /* gain */ 6.0f },  // F1
       { /* center_hz */ 1220.0f, /* bandwidth_hz */ 160.0f, /* gain */ 4.5f },  // F2
       { /* center_hz */ 2600.0f, /* bandwidth_hz */ 220.0f, /* gain */ 3.0f },  // F3
+      { /* center_hz */ 3000.0f, /* bandwidth_hz */ 350.0f, /* gain */ 4.0f },  // singer's formant (F3-F5 cluster)
     },
+    /* harmonic_amplitude_jitter  */ 0.15f,
   };
 
   // A real bowed string is rich in harmonics with only a gentle rolloff
@@ -201,6 +227,14 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
   // vowel) and a weaker/narrower F3 (an "oo"'s third formant is real but
   // comparatively quiet - gain 2.0 vs "ah"'s 3.0 - so the mouth-cavity
   // darkness doesn't get undone by a bright top end).
+  //
+  // Same round-3 fixes as kFormantVocal above, in both cases for the same
+  // reason: neither is about this vowel's own formant frequencies being
+  // wrong, both are about what a smooth rolloff-plus-formant-bumps curve
+  // structurally can't produce at all. The singer's formant here is
+  // deliberately weaker (gain 2.5 vs kFormantVocal's 4.0) - a closed,
+  // rounded "oo" is a genuinely darker vowel than an open "ah" even in a
+  // trained voice, and a full-strength ring would fight that.
   static const PadSynthPresetParams kChoirOoh{
     /* bandwidth_cents            */ 20.0f,
     /* bandwidth_scale_exponent   */ 0.6f,
@@ -210,7 +244,9 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
       { /* center_hz */ 300.0f,  /* bandwidth_hz */ 100.0f, /* gain */ 6.0f },  // F1
       { /* center_hz */ 870.0f,  /* bandwidth_hz */ 140.0f, /* gain */ 4.0f },  // F2
       { /* center_hz */ 2240.0f, /* bandwidth_hz */ 200.0f, /* gain */ 2.0f },  // F3
+      { /* center_hz */ 2900.0f, /* bandwidth_hz */ 350.0f, /* gain */ 2.5f },  // singer's formant (F3-F5 cluster), weaker
     },
+    /* harmonic_amplitude_jitter  */ 0.15f,
   };
 
   if (name == "formant-vocal") return kFormantVocal;

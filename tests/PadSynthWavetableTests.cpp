@@ -159,3 +159,52 @@ TEST(padsynth_partial_limit_leaves_higher_harmonics_unmatched) {
   CHECK(tuningMatchedPartialRatio(9, 31, 8, true) == 9.0f);
   CHECK(tuningMatchedPartialRatio(1, 31, 8, true) == 1.0f); // harmonic 1 is always exactly the fundamental
 }
+
+TEST(padsynth_harmonic_jitter_is_deterministic) {
+  // Same reasoning as padsynth_wavetable_generation_is_deterministic above
+  // - a nonzero harmonic_amplitude_jitter draws from HashField, not
+  // std::rand()/<random>, so two identically-configured instances must
+  // still produce byte-identical tables.
+  PadSynthWavetable a(48000, 16, 40.0f, 0.8f, 31, 8, true, 12345, 1.0f, {}, 0.3f);
+  PadSynthWavetable b(48000, 16, 40.0f, 0.8f, 31, 8, true, 12345, 1.0f, {}, 0.3f);
+
+  const auto & table_a = a.getTable(220.0f);
+  const auto & table_b = b.getTable(220.0f);
+  CHECK(table_a.size() == table_b.size());
+  for (size_t i = 0; i < table_a.size(); i++) CHECK(table_a[i] == table_b[i]);
+}
+
+TEST(padsynth_harmonic_jitter_changes_per_harmonic_amplitude) {
+  // With jitter off, every harmonic's peak amplitude should fall off
+  // smoothly as 1/n^amplitude_rolloff_exponent (no formants here) - with
+  // it on, at least one harmonic's peak must measurably deviate from that
+  // smooth prediction (see PadSynthWavetable.h's own doc comment: this is
+  // the entire point of harmonic_amplitude_jitter - irregular,
+  // non-smooth per-harmonic detail no rolloff-exponent curve alone can
+  // produce).
+  const float f0_request = 2093.0f;
+  const float rolloff = 1.0f;
+  const int partial_count = 8;
+
+  PadSynthWavetable plain(48000, partial_count, 6.0f, 0.5f, 31, 8, true, 42, rolloff);
+  PadSynthWavetable jittered(48000, partial_count, 6.0f, 0.5f, 31, 8, true, 42, rolloff, {}, 0.3f);
+
+  auto & wave_plain = plain.getTable(f0_request);
+  auto & wave_jittered = jittered.getTable(f0_request);
+  float f0 = plain.tableBaseFrequency(f0_request);
+  auto magnitude_plain = magnitudeSpectrum(wave_plain);
+  auto magnitude_jittered = magnitudeSpectrum(wave_jittered);
+  float bin_hz = 48000.0f / static_cast<float>(wave_plain.size());
+
+  bool any_deviates = false;
+  for (int n = 1; n <= partial_count; n++) {
+    float expected_bin = (f0 * static_cast<float>(n)) / bin_hz;
+    float peak_plain = magnitude_plain[static_cast<size_t>(std::lround(findPeakBin(magnitude_plain, expected_bin, 40)))];
+    float peak_jittered = magnitude_jittered[static_cast<size_t>(std::lround(findPeakBin(magnitude_jittered, expected_bin, 40)))];
+    if (peak_plain > 0.0f) {
+      float ratio = peak_jittered / peak_plain;
+      if (ratio < 0.85f || ratio > 1.15f) any_deviates = true;
+    }
+  }
+  CHECK(any_deviates);
+}

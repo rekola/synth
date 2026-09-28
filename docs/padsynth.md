@@ -72,8 +72,8 @@ recompute or perturb the snap.
 | Preset | Character |
 |---|---|
 | `warm` (default) | Moderate bandwidth, natural 1/n harmonic rolloff - a sensible general-purpose pad. |
-| `formant-vocal` (= `choir-aah`) | Narrow bandwidth plus three fixed vowel-like formant resonances (loosely an "ah"), steeper overall rolloff so the boosted bands stand out. `choir-aah` is an explicit alias for the same parameters - use whichever name reads more clearly at the call site. |
-| `choir-ooh` | A genuinely different vowel from `choir-aah`, not just a renamed copy: real acoustic "oo" has its first two formants both low and close together (F1~300Hz, F2~870Hz, versus "ah"'s 700/1220), which is what gives it a dark, rounded, "hooting" quality. The base spectrum is darkened to match (steeper rolloff, a quieter third formant) so the vowel reads through rather than defaulting back to "ah" underneath. |
+| `formant-vocal` (= `choir-aah`) | Narrow bandwidth plus four fixed vowel-like formant resonances - F1/F2/F3 (loosely an "ah") plus a "singer's formant" (F3-F5 cluster, ~3kHz) - and a nonzero `harmonic_amplitude_jitter` (0.15), steeper overall rolloff so the boosted bands stand out. `choir-aah` is an explicit alias for the same parameters - use whichever name reads more clearly at the call site. |
+| `choir-ooh` | A genuinely different vowel from `choir-aah`, not just a renamed copy: real acoustic "oo" has its first two formants both low and close together (F1~300Hz, F2~870Hz, versus "ah"'s 700/1220), which is what gives it a dark, rounded, "hooting" quality. The base spectrum is darkened to match (steeper rolloff, a quieter third formant), plus its own (weaker) singer's-formant bump and harmonic jitter, so the vowel reads through rather than defaulting back to "ah" underneath. |
 | `bowed-ensemble` | Wide, fast-growing bandwidth and a gentle rolloff (closer to a sawtooth than a clean sine stack). Genuine ensemble beating (several independent, slightly-detuned voices, the way `pad.choir`/`pad.choir.ooh` now get it via `<multiply>` - see "Known limitations") isn't layered on top of this preset itself; a song can add it the same way. |
 | `glass` | Narrow bandwidth, steep rolloff - most energy in the fundamental and a handful of clean, minimally-beating overtones. |
 | `mellotron` | Close to `bowed-ensemble` (a real Mellotron "strings" tape *is* a recording of a bowed string ensemble) but slightly narrower/steeper - reads a little more "tape," a little less "live." Spectral character only; the tape-machine wow/flutter/hiss/attack-swoop is `<tapeDegradation preset="mellotron">`, layered on top separately (`docs/tape_degradation.md`) - see the instrument library's own `keyboard.tape.mellotron` for the full combination. |
@@ -104,19 +104,44 @@ different the instruments actually sound, and `amplitude_multiplier_type`
 was uniformly the "off" value across all of them - the real character
 differentiator in those patches is an explicit per-harmonic amplitude/
 phase array (and an oscillator-driven harmonic generator feeding it),
-a feature this codebase doesn't have (see "Known limitations" below),
-not a bandwidth number worth porting.
+not a bandwidth number worth porting. `harmonic_amplitude_jitter` below
+is this codebase's own answer to that array, at a fraction of the
+complexity.
+
+## Per-harmonic amplitude jitter
+
+`harmonic_amplitude_jitter` (preset-only today, not an XML attribute -
+same as formants) multiplies each harmonic's own amplitude by a fixed,
+deterministic value in `[1-jitter, 1+jitter)`, one independent draw per
+harmonic index (`dsp/HashField.h`, not `<random>`/`rand()` - reproducible
+across platforms for a fixed seed). This is what a single closed-form
+rolloff exponent plus a handful of smooth Gaussian formant bumps can
+never produce on their own: irregular, harmonic-to-harmonic amplitude
+variation that doesn't follow any smooth curve - the actual missing
+piece behind real PADsynth's own oscillator-driven per-harmonic arrays
+(ZynAddSubFX's OSCIL/HARMONICS mechanism), which this codebase has no
+generator to match. The jitter is drawn per harmonic *index* only, not
+per octave region - the same set of small irregularities recurs in every
+register, matching how a real, fixed resonant structure (a vocal tract's
+own cavities, a resonant body) would actually behave: its own
+irregularities come from the filter, not the source pitch, so they don't
+reset or redraw per note. `formant-vocal`/`choir-aah`/`choir-ooh` are the
+only presets using it so far (0.15); every other preset defaults to 0
+(no effect, unchanged behavior).
 
 ## Known limitations
 
-PADsynth here only supports two ways to shape the harmonic spectrum: a
-single closed-form 1/n^`amplitude_rolloff_exponent` rolloff, plus the
-fixed multiplicative formant bumps above. Real ZynAddSubFX patches
-(including its own public-domain PADsynth algorithm description's worked
-examples) get much more of their character from an arbitrary, explicitly
-authored per-harmonic amplitude (and sometimes phase) array, generated
-from an internal oscillator waveform rather than a formula - a
-potentially worthwhile future extension, not implemented here.
+`harmonic_amplitude_jitter` above narrows, but doesn't close, PADsynth's
+gap against a real oscillator-driven per-harmonic array: it adds
+irregular *amplitude* detail, but nothing here touches per-harmonic
+*phase* (real PADsynth implementations can author phase per harmonic
+too), and a hashed jitter is still a bounded random perturbation, not an
+arbitrary hand-drawn or waveform-derived shape - a genuinely different
+per-harmonic *contour* (not just noise around the existing rolloff/
+formant curve) still isn't expressible. A full explicit per-harmonic
+array (as its own XML-authorable attribute, replacing rather than
+perturbing the rolloff/formant-derived amplitude) remains a larger,
+not-yet-implemented extension beyond this.
 
 A single `<padsynth>` table also can't produce genuine ensemble motion on
 its own, no matter how its Gaussian bands are tuned: real beating needs

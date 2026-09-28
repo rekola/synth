@@ -20,6 +20,11 @@ namespace {
 // HashField-derived value anything else might draw.
 constexpr uint64_t kPadSynthPhaseSalt = 0xD37C2A6F91B8E043ull;
 
+// Decorrelates harmonic_amplitude_jitter_'s own per-harmonic draws from
+// the phase draws above (and from anything else HashField-derived) - same
+// reasoning as kPadSynthPhaseSalt, a distinct fixed salt per feature.
+constexpr uint64_t kPadSynthHarmonicJitterSalt = 0x5A17B0F4E8C6D291ull;
+
 // >= 2^18 samples at 48kHz (the task's own floor), scaled so a different
 // output sample rate still gets an equivalently long/seamless table -
 // rounded up to the next power of two for FFT efficiency (PocketFFT's own
@@ -46,12 +51,14 @@ PadSynthWavetable::PadSynthWavetable(int sample_rate, int partial_count, float b
                                       float bandwidth_scale_exponent, int edo_steps, int partial_limit,
                                       bool tuning_matched, uint64_t seed,
                                       float amplitude_rolloff_exponent,
-                                      std::vector<PadSynthFormant> formants)
+                                      std::vector<PadSynthFormant> formants,
+                                      float harmonic_amplitude_jitter)
   : sample_rate_(sample_rate), table_size_(computeTableSize(sample_rate)),
     partial_count_(partial_count), bandwidth_cents_(bandwidth_cents),
     bandwidth_scale_exponent_(bandwidth_scale_exponent), edo_steps_(edo_steps),
     partial_limit_(partial_limit), tuning_matched_(tuning_matched), seed_(seed),
-    amplitude_rolloff_exponent_(amplitude_rolloff_exponent), formants_(std::move(formants)) {
+    amplitude_rolloff_exponent_(amplitude_rolloff_exponent), formants_(std::move(formants)),
+    harmonic_amplitude_jitter_(harmonic_amplitude_jitter) {
 }
 
 int
@@ -128,6 +135,10 @@ PadSynthWavetable::generateTable(int octave) const {
   constexpr float kBandwidthToSigma = 1.0f / (2.0f * 1.4142135623730951f);
   float base_bandwidth_hz = f0 * (std::exp2(bandwidth_cents_ / 1200.0f) - 1.0f) * kBandwidthToSigma;
 
+  // One fixed draw per harmonic index, not per bin/octave - see this
+  // class's own header comment on harmonic_amplitude_jitter_ for why.
+  HashField jitter_field(kPadSynthHarmonicJitterSalt ^ seed_);
+
   for (int n_harmonic = 1; n_harmonic <= partial_count_; n_harmonic++) {
     float ratio = tuningMatchedPartialRatio(n_harmonic, edo_steps_, partial_limit_, tuning_matched_);
     float f_center = f0 * ratio;
@@ -143,6 +154,10 @@ PadSynthWavetable::generateTable(int octave) const {
     for (auto & formant : formants_) {
       float x = (f_center - formant.center_hz) / formant.bandwidth_hz;
       harmonic_amplitude *= 1.0f + (formant.gain - 1.0f) * std::exp(-0.5f * x * x);
+    }
+    if (harmonic_amplitude_jitter_ > 0.0f) {
+      float jitter = jitter_field.bipolar(n_harmonic, paramId("padsynth_harmonic_jitter"), harmonic_amplitude_jitter_);
+      harmonic_amplitude *= std::max(0.0f, 1.0f + jitter);
     }
 
     // Normalized by the band's own width in bins (sigma_hz/bin_hz) so this
