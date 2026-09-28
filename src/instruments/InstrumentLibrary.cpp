@@ -212,28 +212,47 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // choir pad using the identical spectral shape).
   provider.registerPath("lead.voice", makeEnvelopePad("choir-aah", 0.03f, 0.0f, 0.15f, 0.9f, 0.2f));
 
-  // Church Organ (organ.pipe) - see PadSynthPresets.h's own "organ-pipe"
-  // comment for why a pipe organ is close to PADsynth's ideal case (a
-  // steady, near-beat-free harmonic stack). The envelope is what actually
-  // carries the organ character here, at least as much as the preset does
-  // - no decay stage and full sustain (an organ holds at exactly one
-  // level for as long as the key/wind valve stays open, never decaying on
-  // its own the way a struck/plucked/bowed instrument does), near-instant
-  // attack and a quick release (no swell, no ring-on).
-  provider.registerPath("organ.pipe", makeEnvelopePad("organ-pipe", 0.015f, 0.0f, 0.05f, 1.0f, 0.08f));
+  // Church Organ (organ.pipe) - unlike lead.voice above (GM's own "Lead"
+  // family is a synth-lead category by definition, so overriding it
+  // unconditionally the same way every pad.* entry does is correct),
+  // Church Organ is a real acoustic instrument, and GM's organ family has
+  // no separate synth-organ program the way strings did (string.synth) to
+  // redirect to instead. A real SoundFont's own recorded/sampled organ
+  // will always be more convincing than this resynthesis, and shouldn't
+  // lose to it - registered as a fallback (registerFallbackPath(), the
+  // same "only fill the leaf in if a SoundFont didn't already claim it"
+  // role piano.acoustic.grand/the additive piano use), not an
+  // unconditional override. See PadSynthPresets.h's own "organ-pipe"
+  // comment for why a pipe organ is nonetheless close to PADsynth's ideal
+  // case *when nothing better is available*: a single organ pipe's own
+  // tone is a steady, near-beat-free standing wave, not several
+  // independent players drifting relative to each other the way a bowed
+  // ensemble needs (the mistake string.bowed.ensemble.slow's own
+  // registration made, now string.synth.slow instead) - so the "PADsynth
+  // can't fake real human/ensemble variance" objection doesn't apply here
+  // the same way, even though "a real recording still wins when one
+  // exists" still does. The envelope is what actually carries the organ
+  // character here, at least as much as the preset does - no decay stage
+  // and full sustain (an organ holds at exactly one level for as long as
+  // the key/wind valve stays open, never decaying on its own the way a
+  // struck/plucked/bowed instrument does), near-instant attack and a
+  // quick release (no swell, no ring-on).
+  registerFallbackPath(provider, "organ.pipe", makeEnvelopePad("organ-pipe", 0.015f, 0.0f, 0.05f, 1.0f, 0.08f));
 
-  // String Ensemble 2 ("slow" - GM's own name already says "ensemble", the
-  // same reasoning as pad.choir/pad.choir.ooh above) - bowed-ensemble's own
-  // harmonic profile plus real <multiply> unison for genuine multi-player
-  // beating, not just a wide Gaussian band (see docs/padsynth.md's own
-  // "Known limitations"). Tremolo Strings/Pizzicato Strings (the other two
-  // GM string-ensemble programs) aren't touched here - both are about a
-  // specific articulation (a fast bowed tremolo, a plucked attack
-  // transient) that a static PADsynth table has no more mechanism for
-  // than it does for genuine per-note decay; only the plain sustained
-  // "slow" ensemble patch is a spectral-shape-and-unison problem PadSynth
-  // actually solves.
-  provider.registerPath("string.bowed.ensemble.slow", makeUnisonPad("bowed-ensemble", 3, 14.0f, 0.5f, 0.5f, 0.0f, 0.4f, 0.85f, 0.9f));
+  // Synth Strings 2 (string.synth.slow) - NOT String Ensemble 2
+  // (string.bowed.ensemble.slow, under the string.bowed.* branch with
+  // violin/viola/cello/contrabass): that path means a real, acoustic
+  // bowed-string section, which a PADsynth resynthesis has no business
+  // standing in for - a SoundFont's own recorded/sampled strings are the
+  // right (and only convincing) source there, left untouched. GM's own
+  // Synth Strings 1/2 (programs 50-51) are the deliberately synthetic
+  // pair, exactly what bowed-ensemble's own harmonic profile plus real
+  // <multiply> unison for genuine multi-player beating (not just a wide
+  // Gaussian band - see docs/padsynth.md's own "Known limitations") is
+  // actually suited to. "slow" (2, not 1) since that's the sustained-pad
+  // half of the pair - the same reasoning "String Ensemble 2"'s own
+  // "slow" naming already established for the acoustic side.
+  provider.registerPath("string.synth.slow", makeUnisonPad("bowed-ensemble", 3, 14.0f, 0.5f, 0.5f, 0.0f, 0.4f, 0.85f, 0.9f));
 
   // Additive piano - <envelope>+<additive preset="struck-string">, with a
   // few explicit overrides on top of the base preset rather than retuning
