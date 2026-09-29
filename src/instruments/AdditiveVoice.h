@@ -3,6 +3,7 @@
 
 #include "InstrumentVoice.h"
 #include "SinusoidBank.h"
+#include "../dsp/SpectralEnvelopeRemap.h"
 #include "../ambisonic/SphericalPosition.h"
 #include "../model/NoteCoordinate.h"
 #include "../dsp/HashField.h"
@@ -63,6 +64,8 @@ class AdditiveVoice : public InstrumentVoice {
                int edo_steps, bool tuning_matched, int partial_limit,
                float decay_a, float decay_b, float decay_p,
                int unison_voices, float unison_detune_cents,
+               float envelope_anchor_hz, float envelope_tracking,
+               SpectralPostprocessKind postprocess_kind, int postprocess_n, int postprocess_r, float postprocess_amount,
                const NoteCoordinate & note_coord) {
     float sample_rate = static_cast<float>(getChannelConfiguration().getAudioOutSampleRate());
     float effective_tilt = tilt_db + velocity_tilt_db * (velocity_ - kReferenceVelocity);
@@ -72,7 +75,9 @@ class AdditiveVoice : public InstrumentVoice {
       edo_steps, tuning_matched, partial_limit,
       decay_a, decay_b, decay_p,
       unison_voices, unison_detune_cents,
-      sample_rate
+      sample_rate,
+      envelope_anchor_hz, envelope_tracking,
+      postprocess_kind, postprocess_n, postprocess_r, postprocess_amount
     };
     bank_ = std::make_unique<SinusoidBank>(params, note_coord);
 

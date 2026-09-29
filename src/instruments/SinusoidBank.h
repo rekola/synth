@@ -2,6 +2,7 @@
 #define _SINUSOIDBANK_H_
 
 #include "../model/NoteCoordinate.h"
+#include "../dsp/SpectralEnvelopeRemap.h"
 
 #include <vector>
 #include <cstddef>
@@ -63,6 +64,17 @@ class SinusoidBank {
     int unison_voices;         // 1-3
     float unison_detune_cents; // spread across unison_voices, meaningless when 1
     float sample_rate;
+
+    // Anchored spectral-envelope remap (dsp/SpectralEnvelopeRemap.h),
+    // evaluated once here at note-on against `frequency` - see
+    // AdditiveVoice.h's own trigger() doc comment for why no pitch-bend
+    // re-evaluation. envelope_anchor_hz <= 0 means off.
+    float envelope_anchor_hz = 0.0f;
+    float envelope_tracking = 0.0f;
+    SpectralPostprocessKind postprocess_kind = SpectralPostprocessKind::None;
+    int postprocess_n = 0;
+    int postprocess_r = 0;
+    float postprocess_amount = 0.0f;
   };
 
   SinusoidBank(const Params & params, const NoteCoordinate & note_coord);

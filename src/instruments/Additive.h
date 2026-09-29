@@ -62,6 +62,19 @@ class Additive : public Instrument {
   int partialLimit_ = getAdditivePreset("default").partialLimit;
   float attackNoiseLevel_ = getAdditivePreset("default").attackNoiseLevel;
   float level_ = 1.0f;
+
+  // Anchored spectral-envelope remap (dsp/SpectralEnvelopeRemap.h) - see
+  // PadSynth.h's own identical attributes for the shared naming/contract;
+  // evaluated once, at note-on, against this note's own real frequency
+  // (unlike PadSynth's per-table-region evaluation) - see AdditiveVoice.h's
+  // own trigger() for where. 0 for either means off (every pre-existing
+  // additive preset's own behavior, unchanged).
+  float envelopeAnchor_ = 0.0f;
+  float envelopeTracking_ = 0.0f;
+  std::string envelopePostprocess_ = "";
+  int envelopePostprocessN_ = 0;
+  int envelopePostprocessR_ = 0;
+  float envelopePostprocessAmount_ = 0.0f;
 };
 
 #endif

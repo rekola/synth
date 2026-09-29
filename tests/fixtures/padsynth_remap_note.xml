@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="12edo" tempo="900" rowsPerBar="1" volume="1.0">
+  <instruments>
+    <envelope attack="0.01" hold="0" decay="1" sustain="0.6" release="0.5">
+      <padsynth preset="warm" partials="8" envelopeAnchor="233.2" envelopeTracking="0.634" envelopePostprocess="residue" envelopePostprocessN="2" envelopePostprocessR="1" envelopePostprocessAmount="0.646"/>
+    </envelope>
+  </instruments>
+  <tracks>
+    <track id="0" instrument="0"/>
+  </tracks>
+  <arrangement>
+    <pattern track="0">
+      <note row="0" velocity="100" value="C-4" />
+    </pattern>
+  </arrangement>
+</song>

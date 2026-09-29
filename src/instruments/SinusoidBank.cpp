@@ -1,6 +1,7 @@
 #include "SinusoidBank.h"
 #include "SpectralBandProfile.h"
 #include "../dsp/HashField.h"
+#include "../dsp/SpectralEnvelopeRemap.h"
 
 #include <cmath>
 
@@ -100,6 +101,43 @@ SinusoidBank::buildPartials(const Params & params, const NoteCoordinate & note_c
   float nyquist = params.sample_rate * 0.5f;
   HashField phase_field(kAdditivePhaseSalt);
 
+  // Shaping (spectral tilt) then the anchored spectral-envelope remap/
+  // postprocess, both evaluated once here against this note's own real
+  // frequency (not per unison voice - a detuned unison copy differs only
+  // by a few cents, negligible for where an absolute-Hz-anchored envelope
+  // lands) - see dsp/SpectralEnvelopeRemap.h's own doc comment for why
+  // this happens before per-partial frequency/decay computation below.
+  // Additive's own partial phases are independent random draws (see
+  // addPartial()/phase_field below, one draw per (voice, partial)), so the
+  // remap's scatter branch accumulates in power here too, same reasoning
+  // as PadSynthWavetable.cpp's own identical choice.
+  std::vector<float> prototype(static_cast<size_t>(std::max(0, params.partial_count)), 0.0f);
+  for (int n = 1; n <= params.partial_count; n++) {
+    // n=1 (the fundamental) is always exactly 1.0 regardless of tilt.
+    prototype[static_cast<size_t>(n - 1)] = powf(10.0f, params.spectral_tilt_db * log2f(static_cast<float>(n)) / 20.0f);
+  }
+  std::vector<float> remapped;
+  if (params.envelope_anchor_hz > 0.0f && params.envelope_tracking != 0.0f) {
+    anchoredSpectralEnvelopeRemap(prototype, params.frequency, params.envelope_anchor_hz, params.envelope_tracking,
+                                   /* accumulate_in_power */ true, remapped);
+  } else {
+    remapped = prototype;
+  }
+  std::vector<float> shaped;
+  switch (params.postprocess_kind) {
+    case SpectralPostprocessKind::ResidueClassWeighting:
+      shaped = remapped;
+      residueClassWeighting(shaped, params.postprocess_n, params.postprocess_r, params.postprocess_amount);
+      break;
+    case SpectralPostprocessKind::StretchMix:
+      stretchMix(remapped, params.postprocess_n, params.postprocess_amount, shaped);
+      break;
+    case SpectralPostprocessKind::None:
+    default:
+      shaped = remapped;
+      break;
+  }
+
   for (int voice = 0; voice < unison_voices; voice++) {
     float detune_cents = unisonDetuneCentsFor(voice, unison_voices, params.unison_detune_cents, note_coord);
     float voice_f0 = params.frequency * powf(2.0f, detune_cents / 1200.0f);
@@ -109,11 +147,9 @@ SinusoidBank::buildPartials(const Params & params, const NoteCoordinate & note_c
       float freq_hz = voice_f0 * ratio;
       if (freq_hz >= nyquist) continue; // Nyquist skip - never rendered, never even allocated.
 
-      // Spectral tilt: amplitude_n = 10^(tilt_db_per_oct * log2(n) / 20) -
-      // n=1 (the fundamental) is always exactly 1.0 regardless of tilt.
       // Normalized by unison_voices so a wider unison doesn't get louder
       // just from having more simultaneous copies.
-      float amplitude = powf(10.0f, params.spectral_tilt_db * log2f(static_cast<float>(n)) / 20.0f) / static_cast<float>(unison_voices);
+      float amplitude = shaped[static_cast<size_t>(n - 1)] / static_cast<float>(unison_voices);
 
       float alpha = params.decay_a + params.decay_b * powf(freq_hz, params.decay_p);
 

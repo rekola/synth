@@ -66,6 +66,19 @@ class PadSynth : public Instrument {
   bool tuning_matched_ = true;
   float level_ = 1.0f;
   uint64_t seed_ = 1;
+
+  // Anchored spectral-envelope remap (dsp/SpectralEnvelopeRemap.h) - XML
+  // attributes envelopeAnchor (Hz)/envelopeTracking (float, [0,2]); 0 for
+  // either means off, matching every pre-existing preset's own behavior.
+  // envelopePostprocess selects "residue"/"stretch" (absent means off,
+  // independent of the remap above); envelopePostprocessN/-R/-Amount are
+  // its own integer/integer/float [0,1] parameters.
+  float envelope_anchor_hz_ = 0.0f;
+  float envelope_tracking_ = 0.0f;
+  std::string envelope_postprocess_ = "";
+  int envelope_postprocess_n_ = 0;
+  int envelope_postprocess_r_ = 0;
+  float envelope_postprocess_amount_ = 0.0f;
 };
 
 #endif

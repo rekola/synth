@@ -32,4 +32,37 @@ inline float tuningMatchedPartialRatio(int n, int edo_steps, int partial_limit, 
   return std::pow(2.0f, steps / static_cast<float>(edo_steps));
 }
 
+// m with every factor of 2 removed - e.g. oddPart(24) == 3, oddPart(32) == 1.
+inline int oddPart(int m) {
+  m = m < 0 ? -m : m;
+  while (m > 0 && m % 2 == 0) m /= 2;
+  return m;
+}
+
+// PadSynth's own tuning-matching rule (the anchored-spectral-envelope-
+// remap feature - see dsp/SpectralEnvelopeRemap.h/PartialPosition.h):
+// applied to a single partial already placed at g_h (harmonic-ratio units,
+// from PartialPosition.h's partialPosition()) - independent of the
+// partial's own index/count, unlike tuningMatchedPartialRatio()'s
+// partial_limit cutoff above (that function is unchanged, still used by
+// SinusoidBank.cpp's own additive-oscillator inharmonicity model, a
+// separate, pre-existing feature this one doesn't touch).
+//
+// m is the nearest integer harmonic number to g_h. Partial h is "tuned" -
+// placed exactly at m's own tuned position, discarding any fractional
+// stretch g_h had - when m's odd part (m with every factor of 2 removed)
+// is <= L: at the default L=7 this is every m in {1-8, 10, 12, 14, 16, 20,
+// 24, 28, 32, ...} - every octave-doubling of a small odd number, not just
+// a fixed initial run. Every other partial keeps g_h exactly as given
+// (untempered, stretch intact). tuning_matched==false or edo_steps<=0
+// always returns g_h unchanged - same "nothing to snap to" contract as
+// tuningMatchedPartialRatio() above.
+inline float tuningMatchedPartialPosition(float g_h, int edo_steps, bool tuning_matched, int L = 7) {
+  if (!tuning_matched || edo_steps <= 0) return g_h;
+  int m = static_cast<int>(std::lround(g_h));
+  if (m < 1 || oddPart(m) > L) return g_h;
+  float steps = std::round(static_cast<float>(edo_steps) * std::log2(static_cast<float>(m)));
+  return std::pow(2.0f, steps / static_cast<float>(edo_steps));
+}
+
 #endif

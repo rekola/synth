@@ -1,11 +1,19 @@
 #ifndef _PADSYNTHWAVETABLE_H_
 #define _PADSYNTHWAVETABLE_H_
 
+#include "PartialPosition.h"
+#include "../dsp/SpectralEnvelopeRemap.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <unordered_map>
 #include <vector>
+
+// Alias kept for this file's own existing call sites/tests - the
+// postprocess-kind enum itself is shared with <additive>, see
+// dsp/SpectralEnvelopeRemap.h's own SpectralPostprocessKind.
+using PadSynthPostprocessKind = SpectralPostprocessKind;
 
 // One formant-style resonance boost applied on top of a harmonic's own
 // base amplitude while a table is generated - PadSynthPresetParams'
@@ -111,13 +119,28 @@ class PadSynthWavetable {
   // Formants and harmonic_amplitude_jitter still apply multiplicatively
   // on top when both are given, same as always - only the rolloff formula
   // itself is replaced.
+  // envelope_anchor_hz/envelope_tracking are Stage 1 (the anchored
+  // spectral-envelope remap itself, dsp/SpectralEnvelopeRemap.h's own
+  // anchoredSpectralEnvelopeRemap()) - envelope_anchor_hz <= 0 means off
+  // (the default, identity - every pre-existing preset's own behavior,
+  // unchanged). postprocess_kind/postprocess_n/postprocess_r/
+  // postprocess_amount are Stage 2 (independent of Stage 1 - either may be
+  // used alone). position_spec is g(h) (PartialPosition.h) - defaults to
+  // the plain harmonic series.
   PadSynthWavetable(int sample_rate, int partial_count, float bandwidth_cents,
                      float bandwidth_scale_exponent, int edo_steps, int partial_limit,
                      bool tuning_matched, uint64_t seed,
                      float amplitude_rolloff_exponent = 1.0f,
                      std::vector<PadSynthFormant> formants = {},
                      float harmonic_amplitude_jitter = 0.0f,
-                     std::vector<float> harmonic_amplitudes = {});
+                     std::vector<float> harmonic_amplitudes = {},
+                     float envelope_anchor_hz = 0.0f,
+                     float envelope_tracking = 0.0f,
+                     PadSynthPostprocessKind postprocess_kind = PadSynthPostprocessKind::None,
+                     int postprocess_n = 0,
+                     int postprocess_r = 0,
+                     float postprocess_amount = 0.0f,
+                     PartialPositionSpec position_spec = {});
 
   // Returns the wavetable covering f0's own pitch region, building and
   // caching it on first use (one table per octave region - see .cpp).
@@ -194,6 +217,13 @@ class PadSynthWavetable {
   std::vector<PadSynthFormant> formants_;
   float harmonic_amplitude_jitter_;
   std::vector<float> harmonic_amplitudes_;
+  float envelope_anchor_hz_;
+  float envelope_tracking_;
+  PadSynthPostprocessKind postprocess_kind_;
+  int postprocess_n_;
+  int postprocess_r_;
+  float postprocess_amount_;
+  PartialPositionSpec position_spec_;
 
   // Lazily built/cached per octave region - mutable so getTable() (the
   // read-only public API every voice calls from render(), a const method)

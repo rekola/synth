@@ -49,6 +49,8 @@ add_executable(synth_tests
 	AmbisonicMagLSDecoderTests.cpp
 	ChorusEngineTests.cpp
 	AllpassFilterTests.cpp
+	SpectralEnvelopeRemapTests.cpp
+	PartialPositionTests.cpp
 	FloorReflectionTests.cpp
 	NoiseGeneratorTests.cpp
 	FDNReverbTests.cpp

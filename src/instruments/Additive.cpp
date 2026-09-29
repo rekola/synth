@@ -2,6 +2,7 @@
 
 #include "AdditiveVoice.h"
 #include "Tuning.h"
+#include "../dsp/SpectralEnvelopeRemap.h"
 
 using namespace std;
 
@@ -14,10 +15,15 @@ Additive::playNote(const ChannelConfiguration & config, const SphericalPosition 
   voice->playNote(getFrequencyFor(tuning, note_value), velocity, note_value);
 
   int edo_steps = edoStepsFor(tuning);
+  SpectralPostprocessKind postprocess_kind = envelopePostprocess_ == "residue" ? SpectralPostprocessKind::ResidueClassWeighting
+    : envelopePostprocess_ == "stretch" ? SpectralPostprocessKind::StretchMix
+    : SpectralPostprocessKind::None;
   voice->trigger(partials_, tilt_, velocityTilt_, inharmonicity_,
                  edo_steps, tuningMatched_, partialLimit_,
                  decayA_, decayB_, decayP_,
                  unisonVoices_, unisonDetune_,
+                 envelopeAnchor_, envelopeTracking_,
+                 postprocess_kind, envelopePostprocessN_, envelopePostprocessR_, envelopePostprocessAmount_,
                  note_coord);
 
   // No children loop, unlike Oscillator - <additive> has no established
@@ -49,6 +55,13 @@ Additive::loadParameters(const ParameterSource & input) {
   attackNoiseLevel_ = input.get<float>("attackNoiseLevel", preset.attackNoiseLevel);
 
   level_ = input.get<float>("level", 1.0f);
+
+  envelopeAnchor_ = input.get<float>("envelopeAnchor", 0.0f);
+  envelopeTracking_ = input.get<float>("envelopeTracking", 0.0f);
+  envelopePostprocess_ = input.get<std::string>("envelopePostprocess", std::string());
+  envelopePostprocessN_ = input.get<int>("envelopePostprocessN", 0);
+  envelopePostprocessR_ = input.get<int>("envelopePostprocessR", 0);
+  envelopePostprocessAmount_ = input.get<float>("envelopePostprocessAmount", 0.0f);
 }
 
 void
@@ -72,4 +85,11 @@ Additive::storeParameters(ParameterSource & output) const {
   output.set("attackNoiseLevel", attackNoiseLevel_, preset.attackNoiseLevel);
 
   output.set("level", level_, 1.0f);
+
+  output.set("envelopeAnchor", envelopeAnchor_, 0.0f);
+  output.set("envelopeTracking", envelopeTracking_, 0.0f);
+  output.set("envelopePostprocess", envelopePostprocess_, std::string());
+  output.set("envelopePostprocessN", envelopePostprocessN_, 0);
+  output.set("envelopePostprocessR", envelopePostprocessR_, 0);
+  output.set("envelopePostprocessAmount", envelopePostprocessAmount_, 0.0f);
 }

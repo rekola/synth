@@ -63,9 +63,51 @@ recompute or perturb the snap.
 | `bandwidthScale` | Exponent controlling how fast bandwidth grows with harmonic number (`n^bandwidthScale`) - higher harmonics get progressively wider bands. |
 | `partials` | How many harmonics to sum (a harmonic past Nyquist is skipped automatically). |
 | `partialLimit` | How many low partials get tuning-matched (above). Default 8. |
-| `tuningMatched` | `false` disables tuning-matching entirely - every partial stays purely harmonic, for A/B comparison. Default `true`. |
+| `tuningMatched` | `false` disables tuning-matching entirely - every partial stays purely harmonic, for A/B comparison. Defaults to the preset's own `tuning_matched` value (`true` unless a preset overrides it - e.g. `keyboard`/`synth-piano-3-b` default `false`, to keep their own real stretched partials intact). |
 | `level` | Output gain multiplier, matching `<oscillator>`'s own `level`. Default 1.0. |
 | `seed` | Integer seed for the table's random phases (`dsp/HashField.h`) - deterministic across platforms for a fixed seed; change it to get a different (still fully deterministic) phase draw for the same preset/parameters. Default 1. |
+| `envelopeAnchor` | Anchor frequency in Hz for the anchored spectral-envelope resampler (below). `<= 0` (the default) means off. |
+| `envelopeTracking` | Tracking exponent `p`, `[0, 2]`. `0` is identity; `1` pins the harmonic envelope to a fixed Hz position regardless of the note played; values between 0 and 1 give partial tracking, above 1 overcompensates. |
+| `envelopePostprocess` | `"residue"` or `"stretch"` - the postprocess stage (below). Absent means off; independent of `envelopeAnchor`/`envelopeTracking`. |
+| `envelopePostprocessN`, `envelopePostprocessR`, `envelopePostprocessAmount` | The selected postprocess primitive's own integer/integer/`[0,1]` parameters. |
+
+## Anchored spectral-envelope resampling
+
+A plain harmonic oscillator gives harmonic `h` the same amplitude at
+every pitch, so its spectral envelope scales with the played note's own
+fundamental - the "chipmunk effect" when transposed. This feature
+resamples the harmonic-amplitude profile along the harmonic-number axis
+(`dsp/SpectralEnvelopeRemap.h`) so the envelope instead stays pinned to
+fixed absolute frequencies, the way a real formant or a body resonance
+does - the note still contains only integer harmonics of its own
+fundamental, only each harmonic's *amplitude* is resampled.
+
+With `r = (f / envelopeAnchor)^envelopeTracking` (`f` is the table's own
+region frequency for `<padsynth>`, or the note's real frequency,
+evaluated once at note-on, for `<additive>`): `r <= 1` reads the
+prototype envelope at a compressed/expanded fractional position (gather);
+`r > 1` distributes each prototype harmonic's own amplitude across its
+two neighboring output harmonics, several prototype harmonics converging
+on one output harmonic where they overlap (scatter) - accumulated in
+power (`sqrt(sum of squares)`), correct for `<padsynth>`'s/`<additive>`'s
+own independent-random-phase partials. Runs after every other shaping
+step and before partial positioning/tuning-matching.
+
+An optional, independent postprocess stage shapes the result further:
+`"residue"` (residue-class weighting) keeps harmonics `h` with `h mod n
+== r mod n` at full amplitude and scales every other harmonic by
+`(1 - amount)`; `"stretch"` (stretch-mix) mixes the spectrum with a copy
+of itself stretched by a factor of `n` along the harmonic axis
+(`out = (1-amount)*S + amount*S'`, `S'[n*h] = S[h]`).
+
+Partial positioning (`g(h)` - where a preset's own partials actually
+sit, e.g. an explicit non-integer sequence or a fractional stiff-string-
+style stretch) and this codebase's own redesigned tuning-matching rule
+(a partial is tuning-matched when the nearest integer harmonic's odd part,
+with every factor of 2 removed, is `<= 7` - not a fixed first-N-partials
+cutoff) are preset-only, like `harmonic_amplitudes`/formants above -
+`ParameterSource` has no array type, and these are curated per ported
+patch rather than user-authorable song data.
 
 ## Presets
 

@@ -49,7 +49,13 @@ PadSynth::ensureWavetable(const ChannelConfiguration & config, Tuning tuning) co
       config.getAudioOutSampleRate(), partial_count_, bandwidth_cents_, bandwidth_scale_exponent_,
       edo_steps, partial_limit_, tuning_matched_, seed_,
       preset.amplitude_rolloff_exponent, preset.formants, preset.harmonic_amplitude_jitter,
-      preset.harmonic_amplitudes);
+      preset.harmonic_amplitudes,
+      envelope_anchor_hz_, envelope_tracking_,
+      envelope_postprocess_ == "residue" ? PadSynthPostprocessKind::ResidueClassWeighting
+        : envelope_postprocess_ == "stretch" ? PadSynthPostprocessKind::StretchMix
+        : PadSynthPostprocessKind::None,
+      envelope_postprocess_n_, envelope_postprocess_r_, envelope_postprocess_amount_,
+      preset.position_spec);
     wavetable_tuning_ = tuning;
   }
 }
@@ -68,9 +74,18 @@ PadSynth::loadParameters(const ParameterSource & input) {
   bandwidth_scale_exponent_ = input.get<float>("bandwidthScale", preset.bandwidth_scale_exponent);
   partial_count_ = input.get<int>("partials", preset.partial_count);
   partial_limit_ = input.get<int>("partialLimit", 8);
-  tuning_matched_ = input.get<bool>("tuningMatched", true);
+  tuning_matched_ = input.get<bool>("tuningMatched", preset.tuning_matched);
   level_ = input.get<float>("level", 1.0f);
   seed_ = static_cast<uint64_t>(input.get<int>("seed", 1));
+
+  envelope_anchor_hz_ = input.get<float>("envelopeAnchor", preset.envelope_anchor_hz);
+  envelope_tracking_ = input.get<float>("envelopeTracking", preset.envelope_tracking);
+  std::string default_postprocess = preset.postprocess_kind == PadSynthPostprocessKind::ResidueClassWeighting ? "residue"
+    : preset.postprocess_kind == PadSynthPostprocessKind::StretchMix ? "stretch" : "";
+  envelope_postprocess_ = input.get<std::string>("envelopePostprocess", default_postprocess);
+  envelope_postprocess_n_ = input.get<int>("envelopePostprocessN", preset.postprocess_n);
+  envelope_postprocess_r_ = input.get<int>("envelopePostprocessR", preset.postprocess_r);
+  envelope_postprocess_amount_ = input.get<float>("envelopePostprocessAmount", preset.postprocess_amount);
 
   // Forces the next playNote() to rebuild the table against the new
   // parameters rather than keep serving whatever an earlier load (or
@@ -88,7 +103,16 @@ PadSynth::storeParameters(ParameterSource & output) const {
   output.set("bandwidthScale", bandwidth_scale_exponent_, preset.bandwidth_scale_exponent);
   output.set("partials", partial_count_, preset.partial_count);
   output.set("partialLimit", partial_limit_, 8);
-  output.set("tuningMatched", tuning_matched_, true);
+  output.set("tuningMatched", tuning_matched_, preset.tuning_matched);
   output.set("level", level_, 1.0f);
   output.set("seed", static_cast<int>(seed_), 1);
+
+  output.set("envelopeAnchor", envelope_anchor_hz_, preset.envelope_anchor_hz);
+  output.set("envelopeTracking", envelope_tracking_, preset.envelope_tracking);
+  std::string default_postprocess = preset.postprocess_kind == PadSynthPostprocessKind::ResidueClassWeighting ? "residue"
+    : preset.postprocess_kind == PadSynthPostprocessKind::StretchMix ? "stretch" : "";
+  output.set("envelopePostprocess", envelope_postprocess_, default_postprocess);
+  output.set("envelopePostprocessN", envelope_postprocess_n_, preset.postprocess_n);
+  output.set("envelopePostprocessR", envelope_postprocess_r_, preset.postprocess_r);
+  output.set("envelopePostprocessAmount", envelope_postprocess_amount_, preset.postprocess_amount);
 }

@@ -241,3 +241,32 @@ TEST(padsynth_explicit_harmonic_amplitudes_produce_a_sparse_spectrum) {
   // harmonic's own peak.
   CHECK(peak3 < peak1 * 0.05f);
 }
+
+static float rms(const std::vector<float> & table) {
+  double sum_sq = 0.0;
+  for (float s : table) sum_sq += static_cast<double>(s) * static_cast<double>(s);
+  return static_cast<float>(std::sqrt(sum_sq / static_cast<double>(table.size())));
+}
+
+TEST(padsynth_envelope_remap_does_not_change_level) {
+  // Requirement 8 (Level): enabling the remap must not itself jump
+  // loudness - both tables are peak-normalized to the same fixed target
+  // (PadSynthWavetable.cpp's own kTargetPeak), so their RMS should stay
+  // within the same rough envelope even though the underlying harmonic
+  // shape differs.
+  std::vector<float> harmonics = { 1.0f, 0.75f, 0.5f, 0.4f, 0.3f, 0.2f };
+
+  PadSynthWavetable off(48000, 6, 21.2f, 0.5f, 31, 8, true, 7,
+                         1.0f, {}, 0.0f, harmonics,
+                         /* envelope_anchor_hz */ 0.0f, /* envelope_tracking */ 0.0f);
+  PadSynthWavetable on(48000, 6, 21.2f, 0.5f, 31, 8, true, 7,
+                        1.0f, {}, 0.0f, harmonics,
+                        /* envelope_anchor_hz */ 233.2f, /* envelope_tracking */ 0.634f);
+
+  float rms_off = rms(off.getTable(440.0f));
+  float rms_on = rms(on.getTable(440.0f));
+  CHECK(rms_off > 0.0f);
+  CHECK(rms_on > 0.0f);
+  float ratio = rms_on / rms_off;
+  CHECK(ratio > 0.3f && ratio < 3.0f);
+}

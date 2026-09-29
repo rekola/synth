@@ -3,6 +3,7 @@
 #include "SpectralBandProfile.h"
 #include "../dsp/HashField.h"
 #include "../dsp/RealFFT.h"
+#include "../dsp/SpectralEnvelopeRemap.h"
 
 #include <algorithm>
 #include <cmath>
@@ -53,13 +54,23 @@ PadSynthWavetable::PadSynthWavetable(int sample_rate, int partial_count, float b
                                       float amplitude_rolloff_exponent,
                                       std::vector<PadSynthFormant> formants,
                                       float harmonic_amplitude_jitter,
-                                      std::vector<float> harmonic_amplitudes)
+                                      std::vector<float> harmonic_amplitudes,
+                                      float envelope_anchor_hz,
+                                      float envelope_tracking,
+                                      PadSynthPostprocessKind postprocess_kind,
+                                      int postprocess_n,
+                                      int postprocess_r,
+                                      float postprocess_amount,
+                                      PartialPositionSpec position_spec)
   : sample_rate_(sample_rate), table_size_(computeTableSize(sample_rate)),
     partial_count_(partial_count), bandwidth_cents_(bandwidth_cents),
     bandwidth_scale_exponent_(bandwidth_scale_exponent), edo_steps_(edo_steps),
     partial_limit_(partial_limit), tuning_matched_(tuning_matched), seed_(seed),
     amplitude_rolloff_exponent_(amplitude_rolloff_exponent), formants_(std::move(formants)),
-    harmonic_amplitude_jitter_(harmonic_amplitude_jitter), harmonic_amplitudes_(std::move(harmonic_amplitudes)) {
+    harmonic_amplitude_jitter_(harmonic_amplitude_jitter), harmonic_amplitudes_(std::move(harmonic_amplitudes)),
+    envelope_anchor_hz_(envelope_anchor_hz), envelope_tracking_(envelope_tracking),
+    postprocess_kind_(postprocess_kind), postprocess_n_(postprocess_n), postprocess_r_(postprocess_r),
+    postprocess_amount_(postprocess_amount), position_spec_(std::move(position_spec)) {
 }
 
 int
@@ -136,12 +147,72 @@ PadSynthWavetable::generateTable(int octave) const {
   constexpr float kBandwidthToSigma = 1.0f / (2.0f * 1.4142135623730951f);
   float base_bandwidth_hz = f0 * (std::exp2(bandwidth_cents_ / 1200.0f) - 1.0f) * kBandwidthToSigma;
 
-  // One fixed draw per harmonic index, not per bin/octave - see this
-  // class's own header comment on harmonic_amplitude_jitter_ for why.
+  // Pass 1: the shaping chain, per harmonic index - this codebase's own
+  // extensions (explicit harmonic_amplitudes_/amplitude_rolloff_exponent_,
+  // formants_, harmonic_amplitude_jitter_), evaluated at each harmonic's
+  // own *nominal* frequency (f0*n, the plain integer ratio) rather than its
+  // final tuned/positioned one - shaping runs before remap/postprocess/
+  // positioning in the pipeline (see dsp/SpectralEnvelopeRemap.h's own doc
+  // comment), so it can't yet know where a partial will actually land; a
+  // formant's own center_hz is already an absolute-Hz target anyway, and
+  // real positioning only ever moves a partial a few percent at most, so
+  // this is a negligible difference in practice.
+  std::vector<float> prototype(static_cast<size_t>(std::max(0, partial_count_)), 0.0f);
   HashField jitter_field(kPadSynthHarmonicJitterSalt ^ seed_);
+  for (int n_harmonic = 1; n_harmonic <= partial_count_; n_harmonic++) {
+    // An explicit harmonic_amplitudes_ entry replaces the rolloff formula
+    // outright (0 past the array's own end - silence, not a fallback to
+    // the formula) - see this class's own header comment on why a sparse
+    // explicit array is something the formula alone can never express.
+    float harmonic_amplitude = harmonic_amplitudes_.empty()
+      ? 1.0f / std::pow(static_cast<float>(n_harmonic), amplitude_rolloff_exponent_)
+      : (static_cast<size_t>(n_harmonic) <= harmonic_amplitudes_.size() ? harmonic_amplitudes_[static_cast<size_t>(n_harmonic) - 1] : 0.0f);
+    float f_nominal = f0 * static_cast<float>(n_harmonic);
+    for (auto & formant : formants_) {
+      float x = (f_nominal - formant.center_hz) / formant.bandwidth_hz;
+      harmonic_amplitude *= 1.0f + (formant.gain - 1.0f) * std::exp(-0.5f * x * x);
+    }
+    if (harmonic_amplitude_jitter_ > 0.0f) {
+      float jitter = jitter_field.bipolar(n_harmonic, paramId("padsynth_harmonic_jitter"), harmonic_amplitude_jitter_);
+      harmonic_amplitude *= std::max(0.0f, 1.0f + jitter);
+    }
+    prototype[static_cast<size_t>(n_harmonic - 1)] = harmonic_amplitude;
+  }
+
+  // Stage 1 (envelope remap) then Stage 2 (postprocess), each independent
+  // and each a no-op when not configured - `shaped` is P[h] with every
+  // shaping stage this class implements already applied, ready for
+  // per-harmonic positioning/tuning/rendering below. Padsynth's own
+  // partial phases are drawn independently per bin further down (not per
+  // harmonic, and not coherent), so the scatter branch accumulates in
+  // power (see this file's own header comment / dsp/SpectralEnvelopeRemap.h).
+  std::vector<float> remapped;
+  if (envelope_anchor_hz_ > 0.0f && envelope_tracking_ != 0.0f) {
+    anchoredSpectralEnvelopeRemap(prototype, f0, envelope_anchor_hz_, envelope_tracking_, /* accumulate_in_power */ true, remapped);
+  } else {
+    remapped = prototype;
+  }
+  std::vector<float> shaped;
+  switch (postprocess_kind_) {
+    case PadSynthPostprocessKind::ResidueClassWeighting:
+      shaped = remapped;
+      residueClassWeighting(shaped, postprocess_n_, postprocess_r_, postprocess_amount_);
+      break;
+    case PadSynthPostprocessKind::StretchMix:
+      stretchMix(remapped, postprocess_n_, postprocess_amount_, shaped);
+      break;
+    case PadSynthPostprocessKind::None:
+    default:
+      shaped = remapped;
+      break;
+  }
 
   for (int n_harmonic = 1; n_harmonic <= partial_count_; n_harmonic++) {
-    float ratio = tuningMatchedPartialRatio(n_harmonic, edo_steps_, partial_limit_, tuning_matched_);
+    // Partial positioning (g(h), PartialPosition.h) then tuning matching
+    // (SpectralBandProfile.h's tuningMatchedPartialPosition()) - the last
+    // two pipeline stages before spectral rendering.
+    float g_h = partialPosition(n_harmonic, position_spec_);
+    float ratio = tuningMatchedPartialPosition(g_h, edo_steps_, tuning_matched_);
     float f_center = f0 * ratio;
     if (f_center >= nyquist) break; // every higher harmonic is out of range too
 
@@ -151,21 +222,7 @@ PadSynthWavetable::generateTable(int octave) const {
     // it still lands as a single sharp spectral line instead of NaN.
     if (sigma_hz < bin_hz * 0.5f) sigma_hz = bin_hz * 0.5f;
 
-    // An explicit harmonic_amplitudes_ entry replaces the rolloff formula
-    // outright (0 past the array's own end - silence, not a fallback to
-    // the formula) - see this class's own header comment on why a sparse
-    // explicit array is something the formula alone can never express.
-    float harmonic_amplitude = harmonic_amplitudes_.empty()
-      ? 1.0f / std::pow(static_cast<float>(n_harmonic), amplitude_rolloff_exponent_)
-      : (static_cast<size_t>(n_harmonic) <= harmonic_amplitudes_.size() ? harmonic_amplitudes_[static_cast<size_t>(n_harmonic) - 1] : 0.0f);
-    for (auto & formant : formants_) {
-      float x = (f_center - formant.center_hz) / formant.bandwidth_hz;
-      harmonic_amplitude *= 1.0f + (formant.gain - 1.0f) * std::exp(-0.5f * x * x);
-    }
-    if (harmonic_amplitude_jitter_ > 0.0f) {
-      float jitter = jitter_field.bipolar(n_harmonic, paramId("padsynth_harmonic_jitter"), harmonic_amplitude_jitter_);
-      harmonic_amplitude *= std::max(0.0f, 1.0f + jitter);
-    }
+    float harmonic_amplitude = shaped[static_cast<size_t>(n_harmonic - 1)];
 
     // Normalized by the band's own width in bins (sigma_hz/bin_hz) so this
     // harmonic's TOTAL summed energy across its own band - not just its
