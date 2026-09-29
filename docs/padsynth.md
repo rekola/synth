@@ -11,12 +11,14 @@ something wrapping another instrument.
 ```xml
 <instruments>
   <envelope attack="0.6" decay="0.4" sustain="0.85" release="1.0">
-    <padsynth preset="warm"/>
+    <padsynth preset="strings"/>
   </envelope>
 </instruments>
 ```
 
-Implements Paul Nasca's PADsynth algorithm: a harmonic's energy is spread
+Every preset reproduces the real spectrum of a specific instrument patch:
+a small named oscillator shape (see "Oscillator shape" below) is run
+through Paul Nasca's PADsynth algorithm - a harmonic's energy is spread
 across a narrow Gaussian-shaped band of frequency bins rather than a
 single sharp line, and every bin in the resulting spectrum gets its own
 random phase before a single inverse FFT resynthesizes the whole thing
@@ -26,48 +28,40 @@ harmonic material. One wavetable is built per pitch region and shared by
 every voice/note played through that `<padsynth>` node - a real but
 one-time cost (see "Performance" below), not something repeated per note.
 
-Some presets (see "Presets" below) instead reproduce the real spectrum of
-a specific instrument patch from ZynAddSubFX, a free/open-source software
-synthesizer that also implements PADsynth - its own factory sound bank
-supplied the numeric patch data those presets are built from.
+The patch data behind each preset was sourced from ZynAddSubFX, a free/
+open-source synthesizer that also implements PADsynth - its own factory
+sound bank supplied the numeric parameters these presets are built from.
 
 ## Tuning-matched partials
 
 Every oscillator that generates its own harmonic content (`<padsynth>`,
-`<additive>`) shares one rule: a low
-partial can be snapped to the nearest step of the song's own tuning
-instead of sitting at its plain harmonic ratio, so it doesn't beat
-against the tuning's own notes. Harmonic *n*'s ratio becomes
-`2^(round(N·log2(n))/N)`, where *N* is the tuning's own steps-per-octave
-(`edoStepsFor()`, `src/instruments/Tuning.h` - 31 for a fresh song's
-default 31-EDO, 12/19/53 for the others, always plain-harmonic for
-`Tuning::PERCUSSION`, which has no scale to snap to). Only the first
-`partialLimit` partials are ever snapped; higher ones stay purely
-harmonic, since scale steps get denser than the harmonic series as *n*
-grows and snapping them would just be quantization noise. `N` is read
-from the *song's own current tuning* at play time, not a hardcoded
-constant - a song's temperament change is reflected the next time the
-instrument's table is (re)built.
+`<additive>`) shares one rule: a partial can be snapped to the nearest
+step of the song's own tuning instead of sitting at its plain harmonic
+ratio, so it doesn't beat against the tuning's own notes. A partial is
+tuning-matched when the nearest integer harmonic's odd part (that
+harmonic number with every factor of 2 removed) is `<= 7` - so every
+octave-doubling of a small odd number gets matched (1-8, 10, 12, 14, 16,
+20, 24, 28, 32, ...), not just a fixed initial run of low partials. `N`
+(steps per octave) is read from the *song's own current tuning* at play
+time, not a hardcoded constant - a song's temperament change is reflected
+the next time the instrument's table is (re)built. `Tuning::PERCUSSION`
+has no scale to snap to, so tuning-matching is always a no-op there.
 
-Resampling a table built for one octave region to a different pitch
-within that region keeps every snapped partial locked to its own scale
-step: the snap happens once, at generation time, in cents relative to
-the table's own fixed reference fundamental, and resampling shifts every
-partial (snapped or not) by the same multiplicative ratio - it doesn't
-recompute or perturb the snap.
+Resampling a table built for one pitch region to a different pitch within
+that region keeps every snapped partial locked to its own scale step: the
+snap happens once, at generation time, in cents relative to the table's
+own fixed reference fundamental, and resampling shifts every partial
+(snapped or not) by the same multiplicative ratio - it doesn't recompute
+or perturb the snap.
 
 ## Attributes
 
 | Attribute | Meaning |
 |---|---|
 | `preset` | Below. Supplies every other attribute's default; an explicit attribute always overrides its preset's value. |
-| `bandwidth` | Base bandwidth in cents at the fundamental (harmonic 1) - how wide/beating each Gaussian band is. |
-| `bandwidthScale` | Exponent controlling how fast bandwidth grows with harmonic number (`n^bandwidthScale`) - higher harmonics get progressively wider bands. |
-| `partials` | How many harmonics to sum (a harmonic past Nyquist is skipped automatically). |
-| `partialLimit` | How many low partials get tuning-matched (above). Default 8. |
-| `tuningMatched` | `false` disables tuning-matching entirely - every partial stays purely harmonic, for A/B comparison. Defaults to the preset's own `tuning_matched` value (`true` unless a preset overrides it - e.g. `keyboard`/`synth-piano-3-b` default `false`, to keep their own real stretched partials intact). |
+| `tuningMatched` | `false` disables tuning-matching entirely - every partial stays purely harmonic, for A/B comparison. Defaults to the preset's own value (`true` unless a preset overrides it - e.g. `keyboard`/`synth-piano-3-b` default `false`, to keep their own stretched partials intact). |
 | `level` | Output gain multiplier, matching `<oscillator>`'s own `level`. Default 1.0. |
-| `seed` | Integer seed for the table's random phases (`dsp/HashField.h`) - deterministic across platforms for a fixed seed; change it to get a different (still fully deterministic) phase draw for the same preset/parameters. Default 1. |
+| `seed` | Integer seed for the table's random phases (`dsp/HashField.h`) - deterministic across platforms for a fixed seed; change it to get a different (still fully deterministic) phase draw for the same preset. Default 1. |
 | `envelopeAnchor` | Anchor frequency in Hz for the anchored spectral-envelope resampler (below). `<= 0` (the default) means off. |
 | `envelopeTracking` | Tracking exponent `p`, `[0, 2]`. `0` is identity; `1` pins the harmonic envelope to a fixed Hz position regardless of the note played; values between 0 and 1 give partial tracking, above 1 overcompensates. |
 | `envelopePostprocess` | `"residue"` or `"stretch"` - the postprocess stage (below). Absent means off; independent of `envelopeAnchor`/`envelopeTracking`. |
@@ -85,15 +79,13 @@ does - the note still contains only integer harmonics of its own
 fundamental, only each harmonic's *amplitude* is resampled.
 
 With `r = (f / envelopeAnchor)^envelopeTracking` (`f` is the table's own
-region frequency for `<padsynth>`, or the note's real frequency,
-evaluated once at note-on, for `<additive>`): `r <= 1` reads the
-prototype envelope at a compressed/expanded fractional position (gather);
-`r > 1` distributes each prototype harmonic's own amplitude across its
-two neighboring output harmonics, several prototype harmonics converging
-on one output harmonic where they overlap (scatter) - accumulated in
-power (`sqrt(sum of squares)`), correct for `<padsynth>`'s/`<additive>`'s
-own independent-random-phase partials. Runs after every other shaping
-step and before partial positioning/tuning-matching.
+region frequency): `r <= 1` reads the prototype envelope at a compressed/
+expanded fractional position (gather); `r > 1` distributes each prototype
+harmonic's own amplitude across its two neighboring output harmonics,
+several prototype harmonics converging on one output harmonic where they
+overlap (scatter) - accumulated in power (`sqrt(sum of squares)`), correct
+for independent-random-phase partials. Runs after the oscillator shape's
+own shaping stages and before partial positioning/tuning-matching.
 
 An optional, independent postprocess stage shapes the result further:
 `"residue"` (residue-class weighting) keeps harmonics `h` with `h mod n
@@ -104,108 +96,52 @@ of itself stretched by a factor of `n` along the harmonic axis
 
 Partial positioning (`g(h)` - where a preset's own partials actually sit,
 e.g. an explicit non-integer sequence or a fractional stiff-string-style
-stretch) is preset-only, like `harmonic_amplitudes`/formants above - not
-an XML attribute, since it's curated per preset rather than something a
-song would author directly. Tuning-matching itself uses one rule
-regardless of preset: a partial is tuning-matched when the nearest
-integer harmonic's odd part (that harmonic number with every factor of 2
-removed) is `<= 7` - so every octave-doubling of a small odd number gets
-matched, not just a fixed initial run of low partials.
+stretch) is preset-only, not an XML attribute, since it's curated per
+preset rather than something a song would author directly.
 
 ## Presets
 
-Most presets below reproduce the real spectrum of a specific instrument
-patch, generated by running that patch's own oscillator shape (see
-"Oscillator-shaped presets" below) through the PADsynth algorithm above.
-A few are hand-built approximations instead, either because no matching
-patch exists or because the target is a general-purpose/comparison tone
-rather than a specific instrument.
-
 | Preset | Character |
 |---|---|
-| `warm` (default) | Moderate bandwidth, natural 1/n harmonic rolloff - a sensible general-purpose pad, and the fallback for an unrecognized preset name. |
-| `glass` | Narrow bandwidth, steep rolloff - most energy in the fundamental and a handful of clean, minimally-beating overtones. Used for `pad.metallic`'s own detuned/inharmonic bell character. |
-| `formant-vocal` (= `choir-aah`) | Narrow bandwidth plus four fixed vowel-like formant resonances - F1/F2/F3 (loosely an "ah") plus a "singer's formant" (F3-F5 cluster, ~3kHz) - and a small amount of per-harmonic jitter. |
-| `choir-ooh` | A darker, rounder vowel than `choir-aah` (lower/closer-together first two formants, steeper rolloff, a quieter singer's formant). |
-| `choir-pad4` | A warped-half-sine oscillator shape with its own time warp, an exponential-lowpass filter, and a harmonic shift of 7, plus its own anchored-spectral-envelope-remap settings. Used at `pad.choir`/`lead.voice`. |
-| `long-spacechoir2` | The same warped-half-sine/warp/lowpass/shift-of-7 family as `choir-pad4`, with its own warp constants and a spectrum-adjustment stage. Used at `pad.halo`, wrapped in `<phaser>` for its own slow, shimmering motion. |
 | `keyboard` | A power-ramp oscillator shape, an arctangent waveshaper, an oscillator time warp, and fractional-stretch partial positions (partial 10 lands slightly sharp, at 10.04) - tuning matching is off by default so that stretch survives. |
 | `synth-piano-3-b` | A sibling of `keyboard`: a Gaussian-pulse oscillator shape, an arctangent-plus-single-harmonic-boost filter chain (the same shaping family as `bells-3`), a slightly stronger partial-10 stretch (10.06), and its own stretch-mix postprocess. |
 | `saw-piano` | A power-ramp oscillator shape against 4 harmonics (1/2/4/16). Sustains at full level rather than decaying (not percussive like `keyboard`). |
 | `saw-piano-wide` | A wider-bandwidth sibling of `saw-piano`, the same oscillator shape against harmonics 1/2/4. |
 | `soft-pad` | A much steeper power-ramp oscillator shape against just harmonic 1, reshaped by a spectrum-adjustment stage - genuinely a single reshaped partial. Used at `pad.newAge`. |
-| `strings` | A power-ramp oscillator shape against 2 harmonics. A simple base tone on its own - real ensemble motion comes from `<multiply>` unison layered on top (`pad.bowed`/`string.synth.slow`), the same reasoning `pad.choir`'s own unison uses. |
-| `dual-strings` | The same power-ramp oscillator shape as `strings`, against just harmonic 1 and its own wider bandwidth. |
-| `mellotron` | `strings`'s own harmonic content, rendered as a plain Gaussian-band pad with a slightly narrower/steeper bandwidth, reading a little more "tape," a little less "live." Spectral character only; the tape-machine wow/flutter/hiss/attack-swoop is `<tapeDegradation preset="mellotron">`, layered on top separately (`docs/tape_degradation.md`). |
+| `strings` | A power-ramp oscillator shape against 2 harmonics. A simple base tone on its own - real ensemble motion comes from `<multiply>` unison layered on top (`pad.bowed`/`string.synth.slow`), the same reasoning `pad.choir`'s own unison uses. Also the generic "plain pad" tone (`pad.warm`, `pad.sweep`) and the base of the Mellotron (`keyboard.tape.mellotron` - a Mellotron "strings" tape *is* a recording of a bowed string ensemble, the same real-world instrument family, so its own tape-machine wow/flutter/hiss/attack-swoop, `<tapeDegradation preset="mellotron">`, is what tells it apart from a live strings pad, not a different spectrum). |
+| `dual-strings` | The same power-ramp oscillator shape as `strings`, against just harmonic 1 and its own wider bandwidth. Used at `pad.poly`. |
 | `church-organ` | A clipped-triangle oscillator shape against 8 harmonics, shaped by an exponential-lowpass filter - a drawbar-organ-style spectrum. Used as a fallback at `organ.pipe`. |
-| `bells` | 3 harmonics placed directly, then reshaped nonlinearly by a logistic-sigmoid waveshaper, with partials landing at 1,2,4,5,7,9,11,13,... rather than a plain harmonic series. Used with `tuningMatched="false"` in some songs for a deliberately dissonant bell character; the preset's own default is tuning-matched on. |
+| `bells` | 3 harmonics placed directly, then reshaped nonlinearly by a logistic-sigmoid waveshaper, with partials landing at 1,2,4,5,7,9,11,13,... rather than a plain harmonic series. The preset's own default is tuning-matched on; used with `tuningMatched="false"` in some songs for a deliberately dissonant bell character (`pad.metallic`). |
 | `bells-3` | A Gaussian-pulse oscillator shape against harmonic 1, reshaped by an arctangent waveshaper and a single-harmonic boost filter - the same shaping family as `synth-piano-3-b`. Partials land at 1,3,5,8,12,16,21,27,... |
-| `synth-brass` | Bright, fairly rich sawtooth-like rolloff (near 1.0, brighter than every other preset here) with no formants - the punchy "sawtooth brass" character analog synth-brass patches are built from. Used at `brass.synth`/`brass.synth.soft` (GM's own deliberately-synthetic brass programs, unlike `brass.trumpet`/`brass.section`'s real acoustic ones) - `brass.synth` adds `<multiply>` unison for a "section" of voices and a punchy attack; `brass.synth.soft` is the same preset without the unison layer, mellower and slower, matching GM's own "softer, mellower synth brass" description. |
+| `choir-pad4` | A warped-half-sine oscillator shape with its own time warp, an exponential-lowpass filter, and a harmonic shift of 7, plus its own anchored-spectral-envelope-remap settings. Used at `pad.choir`/`lead.voice`. |
+| `choir-pad4-ooh` | `choir-pad4` darkened toward a closed, rounded "oo" vowel: the same oscillator shape/warp/filter/shift, plus a spectrum-adjustment stage rolling off the upper harmonics. Used at `pad.choir.ooh`. |
+| `long-spacechoir2` | The same warped-half-sine/warp/lowpass/shift-of-7 family as `choir-pad4`, with its own warp constants and a spectrum-adjustment stage. Used at `pad.halo`, wrapped in `<phaser>` for its own slow, shimmering motion. |
 
-An unrecognized `preset` name falls back to `warm`.
+An unrecognized `preset` name falls back to `strings`.
 
-## Oscillator-shaped presets
+Two presets outside this list stand in for a character no real patch
+covers: `brass.synth`/`brass.synth.soft` use `saw-piano-wide`/`saw-piano`
+(a power-ramp oscillator shape reads as a bright, sawtooth-like tone, the
+closest real character to a synth-brass section) rather than a preset
+built to represent brass specifically.
 
-Presets marked above as reproducing a specific instrument patch are built
-from that patch's own oscillator shape - a small named base waveform
-(clipped triangle, power ramp, Gaussian pulse, or warped half-sine), each
-with an optional time warp, run through harmonic expansion against an
-explicit list of partials, then optionally reshaped by a waveshaper, a
-harmonic filter, a second time warp, spectrum adjustment, and/or a
-harmonic shift - before the result feeds into PADsynth's own partial
-profile/placement stage (a windowed profile placed per partial, its
-window width and placement chosen so a partial's total energy stays the
-same regardless of how wide its band is) at that patch's own base note,
-octave span, and sample layout.
+## Oscillator shape
 
-This lets several presets reproduce a real instrument's spectrum in
-full - including ones with a sparse harmonic list reshaped into something
-much richer by a waveshaper or filter (`bells`, `bells-3`) - rather than
-approximating it by ear.
+Every preset is built from a real instrument's own oscillator shape: a
+small named base waveform (clipped triangle, power ramp, Gaussian pulse,
+or warped half-sine), optionally run through a time warp, then harmonic
+expansion against an explicit list of partials, then optionally reshaped
+by a waveshaper, a harmonic filter, a second time warp, spectrum
+adjustment, and/or a harmonic shift - before the result feeds into
+PADsynth's own partial profile/placement stage (a windowed profile placed
+per partial, its window width and placement chosen so a partial's total
+energy stays the same regardless of how wide its band is) at that
+patch's own base note, octave span, and sample layout.
 
-## Formant boost (formant-vocal)
-
-Beyond the bare PADsynth parameter set, a preset can also boost specific
-harmonic bands regardless of fundamental - a fixed resonance the way a
-vocal tract's own cavities work, not tracking the note's own pitch. Each
-formant is a center frequency, a Gaussian falloff width, and a linear
-gain at its center; several combine multiplicatively. Not exposed as its
-own XML attribute today - only `formant-vocal`/`choir-aah` and
-`choir-ooh`'s built-in formants use this, a simple multiplicative-
-Gaussian-bump model rather than true resonant-filter/LPC formant
-synthesis - adequate for a distinct "vocal-ish" character, not
-acoustically rigorous.
-
-## Per-harmonic amplitude jitter
-
-`harmonic_amplitude_jitter` (preset-only today, not an XML attribute -
-same as formants) multiplies each harmonic's own amplitude by a fixed,
-deterministic value in `[1-jitter, 1+jitter)`, one independent draw per
-harmonic index (reproducible across platforms for a fixed seed). This is
-what a single closed-form rolloff exponent plus a handful of smooth
-Gaussian formant bumps can never produce on their own: irregular,
-harmonic-to-harmonic amplitude variation that doesn't follow any smooth
-curve. The jitter is drawn per harmonic *index* only, not per octave
-region - the same set of small irregularities recurs in every register,
-matching how a real, fixed resonant structure (a vocal tract's own
-cavities, a resonant body) would actually behave: its own irregularities
-come from the filter, not the source pitch, so they don't reset or
-redraw per note. `formant-vocal`/`choir-aah`/`choir-ooh` are the only
-presets using it so far (0.15); every other preset defaults to 0 (no
-effect, unchanged behavior).
-
-## Explicit per-harmonic amplitudes
-
-`harmonic_amplitudes` (preset-only, like formants and jitter above) is a
-full replacement for the `amplitude_rolloff_exponent` formula, not
-another multiplier on top of it: harmonic n's own base amplitude becomes
-`harmonic_amplitudes[n-1]` (0 - silence - for any n beyond the array's
-own length, not a fallback to the formula). A rolloff formula always
-gives every harmonic *some* nonzero amplitude, so this is what lets a
-preset be genuinely *sparse* instead - a drawbar organ's handful of
-strong harmonics with everything else silent, or a bell's 2-3 dominant
-partials. Formants and `harmonic_amplitude_jitter` still apply
-multiplicatively on top when given alongside an explicit array.
+This lets even a preset with a sparse explicit harmonic list (`bells`,
+`bells-3`) reproduce its own real, much richer spectrum - the sparse list
+is only the starting point the waveshaper/filter then reshapes, not the
+whole story.
 
 ## Known limitations
 
@@ -218,7 +154,7 @@ whose real instrument has one (`church-organ`, for instance) doesn't
 carry that motion over.
 
 A single `<padsynth>` table also can't produce genuine ensemble motion on
-its own, no matter how its Gaussian bands are tuned: real beating needs
+its own, no matter how narrow or wide its bands are: real beating needs
 several truly independent voices that each drift to a slightly different
 pitch over time, not one voice with wider partials. This isn't a padsynth
 feature gap so much as a wrong layer to fix it at - `<multiply
@@ -228,26 +164,21 @@ around any child instrument, not padsynth-specific, and not yet written
 up in its own doc page) already solves it by wrapping any child
 instrument in several independently-detuned copies. `pad.choir`/
 `pad.choir.ooh`/`pad.bowed`/`string.synth.slow` (`InstrumentLibrary.cpp`)
-are wrapped this way; a plain `formant-vocal`/`strings`/`mellotron`
-`<padsynth>` used directly (as most of `songs/oscillator_demo.xml`'s own
-comparison tracks deliberately are, to isolate the padsynth parameters
-themselves) is not, and reads noticeably thinner/more static as a result -
-wrap it in `<multiply>` the same way if genuine ensemble motion matters
-more than isolating the raw preset.
+are wrapped this way; a plain `<padsynth>` used directly (as most of
+`songs/oscillator_demo.xml`'s own comparison tracks deliberately are, to
+isolate the preset itself) is not, and reads noticeably thinner/more
+static as a result - wrap it in `<multiply>` the same way if genuine
+ensemble motion matters more than isolating the raw preset.
 
 ## Performance
 
-Table generation (48 partials, 48kHz, the default 2^18-sample table) took
-roughly 10-16ms per octave region in measurement - real but one-time
-work, amortized across every note/voice that plays through the same
-`<padsynth>` node afterward (cached re-fetch of an already-built table is
-sub-microsecond). Per-voice `render()` reads from the cached table with
-interpolation and costs on the order of 1000x real time - negligible
-next to the one-time table build.
-
-Oscillator-shaped presets cost about the same per sample point (one
-inverse FFT at the preset's own table length, 2^17-2^18) - still one-time,
-cached work per region.
+Table generation costs one inverse FFT per sample point at the preset's
+own table length (2^17-2^18 samples) - real but one-time work, amortized
+across every note/voice that plays through the same `<padsynth>` node
+afterward (cached re-fetch of an already-built table is sub-microsecond).
+Per-voice `render()` reads from the cached table with interpolation and
+costs on the order of 1000x real time - negligible next to the one-time
+table build.
 
 ## Not yet implemented
 

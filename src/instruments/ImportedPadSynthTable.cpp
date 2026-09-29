@@ -13,13 +13,11 @@ using namespace ImportedPadSynth;
 
 namespace {
 constexpr uint64_t kImportedPadSynthPhaseSalt = 0x8C4F2B7A19E6D3F0ull;
-// The final rendered waveform's target RMS level - this class's own
-// analogue of PadSynthWavetable.cpp's kTargetPeak, just RMS-based per
-// docs/padsynth.md's own literal "RMS-normalize" step 4, rather than
-// peak-based. Chosen empirically low enough that a rich, many-partial
-// preset (Church Organ 3's own dense harmonic stack) doesn't clip once
-// resampled and gained by a voice - see PadSynthVoice.h's own `level`
-// contract ("level=1.0 means roughly full scale").
+// The final rendered waveform's target RMS level, per docs/padsynth.md's
+// own literal "RMS-normalize" step 4. Chosen empirically low enough that
+// a rich, many-partial preset (Church Organ's own dense harmonic stack)
+// doesn't clip once resampled and gained by a voice - see PadSynthVoice.h's
+// own `level` contract ("level=1.0 means roughly full scale").
 constexpr float kTargetRMS = 0.2f;
 } // namespace
 

@@ -50,7 +50,7 @@ add_executable(synth_tests
 	ChorusEngineTests.cpp
 	AllpassFilterTests.cpp
 	SpectralEnvelopeRemapTests.cpp
-	PartialPositionTests.cpp
+	SpectralBandProfileTests.cpp
 	ImportedOscillatorChainTests.cpp
 	ImportedPadSynthProfileTests.cpp
 	FloorReflectionTests.cpp
@@ -86,7 +86,6 @@ add_executable(synth_tests
 	ValueRampTests.cpp
 	SinusoidBankTests.cpp
 	AdditiveTests.cpp
-	PadSynthWavetableTests.cpp
 	PadSynthTests.cpp
 	InstrumentLibraryTests.cpp
 )

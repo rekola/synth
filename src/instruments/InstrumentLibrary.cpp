@@ -31,54 +31,41 @@ unique_ptr<EnvelopeFilter> makeEnvelope(float attack, float hold, float decay, f
   return env;
 }
 
-// bandwidth/bandwidthScale/tuningMatched left unset (nullopt) mean "keep
-// the named preset's own default" - only set them to actually differentiate
-// a pad from another one sharing the same base preset (see the GM pad
-// registrations below: several pairs share a preset by design, since only
-// 5 padsynth presets exist for 8 GM pads, but envelope timing alone isn't
-// audible enough to tell a static pad tone apart - confirmed by an actual
-// listen, "pad.choir and pad.halo sound exactly the same" - so these
-// overrides are what actually keeps each pad distinct).
-unique_ptr<PadSynth> makePadSynth(const string & preset, optional<float> bandwidth = nullopt,
-                                   optional<float> bandwidth_scale = nullopt, optional<bool> tuning_matched = nullopt) {
+// tuning_matched left unset (nullopt) means "keep the named preset's own
+// default" - only set it to actually differentiate a pad from another one
+// sharing the same base preset.
+unique_ptr<PadSynth> makePadSynth(const string & preset, optional<bool> tuning_matched = nullopt) {
   auto pad = make_unique<PadSynth>();
   MemoryParameterSource params;
   params.set("preset", preset);
-  if (bandwidth) params.set("bandwidth", *bandwidth);
-  if (bandwidth_scale) params.set("bandwidthScale", *bandwidth_scale);
   if (tuning_matched) params.set("tuningMatched", *tuning_matched);
   pad->loadParameters(params);
   return pad;
 }
 
-// <envelope>+<padsynth> - the shape every GM synth-pad override and the
-// mellotron are built from (docs/effects.md's own canonical nesting
-// pattern), assembled directly in C++ via MemoryParameterSource rather
-// than parsed from an XML string, the same round-trip-without-XML
-// technique SongState::initialize() already uses for bus-slot effects.
+// <envelope>+<padsynth> - the shape every GM synth-pad override is built
+// from (docs/effects.md's own canonical nesting pattern), assembled
+// directly in C++ via MemoryParameterSource rather than parsed from an
+// XML string, the same round-trip-without-XML technique SongState::
+// initialize() already uses for bus-slot effects.
 unique_ptr<Track> makeEnvelopePad(const string & padsynth_preset, float attack, float hold, float decay, float sustain, float release,
-                                   optional<float> bandwidth = nullopt, optional<float> bandwidth_scale = nullopt,
                                    optional<bool> tuning_matched = nullopt) {
   auto env = makeEnvelope(attack, hold, decay, sustain, release);
-  env->addChild(makePadSynth(padsynth_preset, bandwidth, bandwidth_scale, tuning_matched));
+  env->addChild(makePadSynth(padsynth_preset, tuning_matched));
   return env;
 }
 
-// <multiply>+envelope+padsynth - the "real unison layering" PadSynthPresets.h's
-// own bowed-ensemble comment named as the one thing a single static
-// PADsynth table can never produce on its own: genuine ensemble beating
-// needs several truly independent voices, each landing on a slightly
-// different pitch, not just a wider Gaussian band (which only spreads one
-// voice's own partials, with no time-varying interference between
-// separately-drifting singers/instruments at all). <multiply>
-// (NoteMultiplier) already exists for exactly this - a generic
+// <multiply>+envelope+padsynth - genuine ensemble beating needs several
+// truly independent voices, each landing on a slightly different pitch,
+// not just a single voice's own partials (which have no time-varying
+// interference between separately-drifting singers/instruments at all).
+// <multiply> (NoteMultiplier) already exists for exactly this - a generic
 // unison/detune/spread wrapper usable around any child instrument, not
-// PadSynth-specific - so this reuses it rather than adding anything new to
-// PadSynthWavetable's own math. Each voice reads the identical shared
-// wavetable (unisons this small keep every voice within the same cached
-// octave region - no extra table builds), just resampled at its own
-// slightly-detuned pitch, exactly the way a real ensemble's own singers/
-// players never quite land on the identical pitch or timing.
+// PadSynth-specific. Each voice reads the identical shared wavetable
+// (unisons this small keep every voice within the same cached region - no
+// extra table builds), just resampled at its own slightly-detuned pitch,
+// exactly the way a real ensemble's own singers/players never quite land
+// on the identical pitch or timing.
 unique_ptr<Track> makeUnisonPad(const string & padsynth_preset, int unisons, float detune_cents, float spread,
                                  float attack, float hold, float decay, float sustain, float release) {
   auto multiplier = make_unique<NoteMultiplier>();
@@ -117,16 +104,13 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   //
   // GM's own description for New Age is "a soft, airy new-age pad" -
   // "soft-pad" (a single pure partial, no upper harmonics) is a direct
-  // semantic match. warm/poly share the "warm" preset - envelope timing
-  // alone isn't audible enough to tell a static pad tone apart ("warm and
-  // poly sound exactly the same" otherwise), so that pair gets an explicit
-  // bandwidth/bandwidthScale override on top of their shared preset.
+  // semantic match. Warm uses "strings" (a simple, mellow base tone).
   provider.registerPath("pad.newAge", makeEnvelopePad("soft-pad", 0.8f, 0.0f, 0.3f, 0.9f, 1.2f));
-  provider.registerPath("pad.warm", makeEnvelopePad("warm", 0.6f, 0.0f, 0.4f, 0.85f, 1.0f));
-  // Poly: brighter/more chorused than Warm - a classic analog polysynth
-  // pad reads as more "moving"/present than a plain warm pad, via a wider
-  // bandwidth than Warm's own default alone (not just a faster attack).
-  provider.registerPath("pad.poly", makeEnvelopePad("warm", 0.2f, 0.0f, 0.3f, 0.8f, 0.6f, /*bandwidth*/ 32.0f, /*bandwidthScale*/ 0.7f));
+  provider.registerPath("pad.warm", makeEnvelopePad("strings", 0.6f, 0.0f, 0.4f, 0.85f, 1.0f));
+  // Poly: brighter/more chorused than Warm - "dual-strings"' own wider
+  // bandwidth reads as more "moving"/present than Warm's plain strings
+  // tone (not just a faster attack).
+  provider.registerPath("pad.poly", makeEnvelopePad("dual-strings", 0.2f, 0.0f, 0.3f, 0.8f, 0.6f));
   // Choir: two registrations, not three. "pad.choir" is GM program 91's
   // own literal taxonomy path (GmInstrumentTable.h) - it has to exist
   // under exactly that name for the ordinary GM override behavior every
@@ -151,12 +135,11 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // "strings" preset's own simple base tone, same reasoning as
   // pad.choir/string.synth.slow below.
   provider.registerPath("pad.bowed", makeUnisonPad("strings", 3, 14.0f, 0.5f, 0.4f, 0.0f, 0.3f, 0.9f, 0.7f));
-  // Metallic: Glass's own clean/bell-like base, but tuningMatched=false -
-  // inharmonic (non-scale-step) overtones, which is what actually reads as
-  // "metallic"/bell-like dissonance (a real bell's overtones are famously
-  // non-integer) rather than Glass's own clean, consonant partials -
-  // plus a wider bandwidth for more clangorous beating.
-  provider.registerPath("pad.metallic", makeEnvelopePad("glass", 0.3f, 0.0f, 0.5f, 0.7f, 1.0f, /*bandwidth*/ 20.0f, /*bandwidthScale*/ 0.7f, /*tuningMatched*/ false));
+  // Metallic: "bells", with tuningMatched=false - inharmonic (non-scale-
+  // step) overtones, which is what actually reads as "metallic"/bell-like
+  // dissonance (a real bell's overtones are famously non-integer) rather
+  // than a clean, consonant partial series.
+  provider.registerPath("pad.metallic", makeEnvelopePad("bells", 0.3f, 0.0f, 0.5f, 0.7f, 1.0f, /*tuningMatched*/ false));
   // Halo: "long-spacechoir2" is specifically a *phased* choir pad, so its
   // own envelope-remap character plus the wrapping <phaser> below together
   // give it its own shimmering motion. A slow rate (0.15Hz - one full
@@ -172,17 +155,16 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
     phaser_params.set("feedback", 0.3f);
     phaser_params.set("mix", 0.5f);
     phaser->loadParameters(phaser_params);
-    phaser->addChild(makeEnvelopePad("long-spacechoir2", 1.0f, 0.0f, 0.4f, 0.9f, 1.5f, /*bandwidth*/ 40.0f, /*bandwidthScale*/ 0.8f));
+    phaser->addChild(makeEnvelopePad("long-spacechoir2", 1.0f, 0.0f, 0.4f, 0.9f, 1.5f));
     provider.registerPath("pad.halo", move(phaser));
   }
 
   // Sweep (pad.sweep) is a slow filter sweep over the note's own life -
   // motion no static oscillator (PADsynth included) can produce; there is
   // no LFO-modulated per-voice filter in this codebase to drive one
-  // dynamically (see this function's own doc comment / the task's final
-  // report for this open item). Approximated instead with a static
-  // <biquadFilter> darkening a warm pad - a real, audible difference from
-  // the other pads, just not the sweeping motion GM's own Sweep implies.
+  // dynamically. Approximated instead with a static <biquadFilter>
+  // darkening a plain pad - a real, audible difference from the other
+  // pads, just not the sweeping motion GM's own Sweep implies.
   {
     auto filter = make_unique<BiquadFilter>();
     MemoryParameterSource filter_params;
@@ -197,7 +179,7 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
     filter_params.set("fc", 2000.0f);
     filter_params.set("Q", 0.7071f); // Butterworth Q - BiquadFilter has no default, 0 would divide by zero
     filter->loadParameters(filter_params);
-    filter->addChild(makeEnvelopePad("warm", 0.9f, 0.0f, 0.4f, 0.85f, 1.2f));
+    filter->addChild(makeEnvelopePad("strings", 0.9f, 0.0f, 0.4f, 0.85f, 1.2f));
     provider.registerPath("pad.sweep", move(filter));
   }
 
@@ -275,16 +257,16 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // slots (their own GmInstrumentDescriptions.h text already says "A
   // synthesized brass section"/"A softer, mellower synth brass"), so an
   // unconditional override is correct here, the same as every pad.*/
-  // lead.voice entry. A real analog synth-brass patch is a bright,
-  // fairly rich sawtooth-like tone (kSynthBrass's own rolloff near 1.0)
-  // with a punchy attack, not a vowel/formant character - and, being a
-  // "section," real unison layering for genuine multi-voice thickness
-  // (the same reasoning pad.choir/string.synth.slow already use), not
-  // just a wider Gaussian band. brass.synth.soft is the same preset,
-  // mellower/slower and without the unison layer - GM's own "softer,
-  // mellower" description, closer to a sustained pad than a punchy stab.
-  provider.registerPath("brass.synth", makeUnisonPad("synth-brass", 3, 12.0f, 0.4f, 0.04f, 0.0f, 0.1f, 0.85f, 0.25f));
-  provider.registerPath("brass.synth.soft", makeEnvelopePad("synth-brass", 0.25f, 0.0f, 0.3f, 0.9f, 0.6f, /*bandwidth*/ 12.0f));
+  // lead.voice entry. "saw-piano-wide"'s own power-ramp oscillator shape
+  // is a bright, sawtooth-like tone - the punchy character a synth-brass
+  // section wants - and, being a "section," real unison layering for
+  // genuine multi-voice thickness (the same reasoning pad.choir/
+  // string.synth.slow already use). brass.synth.soft uses "saw-piano"
+  // instead - the same oscillator shape, narrower/cleaner, without the
+  // unison layer - GM's own "softer, mellower" description, closer to a
+  // sustained pad than a punchy stab.
+  provider.registerPath("brass.synth", makeUnisonPad("saw-piano-wide", 3, 12.0f, 0.4f, 0.04f, 0.0f, 0.1f, 0.85f, 0.25f));
+  provider.registerPath("brass.synth.soft", makeEnvelopePad("saw-piano", 0.25f, 0.0f, 0.3f, 0.9f, 0.6f));
 
   // Additive piano - <envelope>+<additive preset="struck-string">, with a
   // few explicit overrides on top of the base preset rather than retuning
@@ -330,22 +312,22 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   registerFallbackPath(provider, "piano.acoustic.grand", additive_piano_envelope());
 
   // Mellotron - tapeDegradation(preset="mellotron") wrapping
-  // envelope+padsynth(preset="mellotron"), the exact tape+envelope+
-  // oscillator nesting docs/tape_degradation.md already documents for a
-  // voice-attached tape machine. Not a General MIDI instrument - GM has no
-  // mellotron program - so it's registered under the existing `keyboard`
-  // taxonomy root instead, following the same root.technology.name shape
-  // GM's own electric-keyboard entries use (piano.electric.tine,
-  // keyboard.electric.clavinet): keyboard.tape.mellotron. OutlineView's
-  // Library section lists every taxonomy path generically (it doesn't
-  // distinguish GM-backed from hand-registered entries), so this shows up
-  // there automatically, sorted alongside the other keyboard.* entries.
+  // envelope+padsynth(preset="strings") - a Mellotron "strings" tape is a
+  // recording of a bowed string ensemble, the same real-world instrument
+  // family as the "strings" preset, so the tape machine's own wow/
+  // flutter/hiss/attack-swoop (docs/tape_degradation.md) is what actually
+  // tells this apart from a live strings pad, not a different underlying
+  // spectrum. Not a General MIDI instrument - GM has no mellotron program
+  // - so it's registered under the existing `keyboard` taxonomy root
+  // instead, following the same root.technology.name shape GM's own
+  // electric-keyboard entries use (piano.electric.tine,
+  // keyboard.electric.clavinet): keyboard.tape.mellotron.
   {
     auto tape = make_unique<TapeDegradation>();
     MemoryParameterSource tape_params;
     tape_params.set("preset", string("mellotron"));
     tape->loadParameters(tape_params);
-    tape->addChild(makeEnvelopePad("mellotron", 0.05f, 0.0f, 0.3f, 0.95f, 0.4f));
+    tape->addChild(makeEnvelopePad("strings", 0.05f, 0.0f, 0.3f, 0.95f, 0.4f));
     provider.registerPath("keyboard.tape.mellotron", move(tape));
   }
 }

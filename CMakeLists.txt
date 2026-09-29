@@ -59,7 +59,6 @@ endif()
 add_library(synth_engine STATIC
 	src/instruments/Oscillator.cpp
 	src/instruments/PadSynth.cpp
-	src/instruments/PadSynthWavetable.cpp
 	src/instruments/Noise.cpp
 	src/instruments/Additive.cpp
 	src/instruments/SinusoidBank.cpp

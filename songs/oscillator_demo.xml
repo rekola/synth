@@ -25,44 +25,43 @@
     <envelope name="PadSynth Keyboard" attack="0.005" hold="0" decay="2.0" sustain="0.0" release="0.3">
       <padsynth preset="keyboard"/>
     </envelope>
-    <!-- 1: PadSynth "warm", tuning-matched OFF - A/B against instrument 11
-         (PadSynth warm, tuning-matched ON, moved to the end of this file) -->
-    <envelope name="PadSynth Warm (unmatched)" attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
-      <padsynth preset="warm" tuningMatched="false"/>
+    <!-- 1: PadSynth "strings", tuning-matched OFF - A/B against instrument
+         11 (PadSynth strings, tuning-matched ON, moved to the end of this
+         file) -->
+    <envelope name="PadSynth Strings (unmatched)" attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
+      <padsynth preset="strings" tuningMatched="false"/>
     </envelope>
-    <!-- 2: PadSynth "warm", narrow bandwidth (8 cents) -->
-    <envelope name="PadSynth Warm (narrow)" attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
-      <padsynth preset="warm" bandwidth="8"/>
+    <!-- 2: PadSynth "bells-3", a narrow-band bell-like tone. -->
+    <envelope name="PadSynth Bells 3" attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
+      <padsynth preset="bells-3"/>
     </envelope>
-    <!-- 3: PadSynth "warm", wide bandwidth (80 cents - 150 was tried first
-         and read as mostly noise even after the bandwidth-anchoring fix:
-         at that width even the fundamental's own band is ~9% of its own
-         frequency wide, smearing the most important partial before rolloff
-         even gets a say) -->
-    <envelope name="PadSynth Warm (wide)" attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
-      <padsynth preset="warm" bandwidth="80"/>
+    <!-- 3: PadSynth "dual-strings", a wide-band single-partial tone. -->
+    <envelope name="PadSynth Dual Strings (wide)" attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
+      <padsynth preset="dual-strings"/>
     </envelope>
-    <!-- 4: PadSynth "formant-vocal" -->
-    <envelope name="PadSynth Formant-Vocal" attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
-      <padsynth preset="formant-vocal"/>
+    <!-- 4: PadSynth "choir-pad4" -->
+    <envelope name="PadSynth Choir Pad4" attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
+      <padsynth preset="choir-pad4"/>
     </envelope>
     <!-- 5: PadSynth "strings" - a simple, near-octave-doubled bowed
          string tone. -->
     <envelope name="PadSynth Strings" attack="0.3" hold="0" decay="0.4" sustain="0.85" release="0.8">
       <padsynth preset="strings"/>
     </envelope>
-    <!-- 6: PadSynth "glass" -->
-    <envelope name="PadSynth Glass" attack="0.02" hold="0" decay="0.8" sustain="0.5" release="1.2">
-      <padsynth preset="glass"/>
+    <!-- 6: PadSynth "bells" -->
+    <envelope name="PadSynth Bells (matched)" attack="0.02" hold="0" decay="0.8" sustain="0.5" release="1.2">
+      <padsynth preset="bells"/>
     </envelope>
     <!-- 7: Additive "struck-string" -->
     <envelope name="Additive Struck-String" attack="0.005" hold="0" decay="1.5" sustain="0.3" release="0.5">
       <additive preset="struck-string"/>
     </envelope>
-    <!-- 8: Mellotron - tape machine wrapping envelope+padsynth(mellotron) -->
+    <!-- 8: Mellotron - tape machine wrapping envelope+padsynth(strings): a
+         Mellotron "strings" tape is a recording of a bowed string
+         ensemble, the same real-world instrument family as "strings". -->
     <tapeDegradation name="Mellotron" preset="mellotron">
       <envelope attack="0.05" hold="0" decay="0.3" sustain="0.95" release="0.4">
-        <padsynth preset="mellotron"/>
+        <padsynth preset="strings"/>
       </envelope>
     </tapeDegradation>
     <!-- 9: Additive piano - sustain 0, long decay so it never truncates the
@@ -79,27 +78,26 @@
     <!-- 10: A real SoundFont guitar, for the unison comparison at the end -
          the one instrument here not built directly. -->
     <instrument name="SoundFont Guitar" from="guitar.acoustic.steel"/>
-    <!-- 11: PadSynth "warm", tuning-matched partials (default) - moved here
-         (was instrument 0) once instrument 0's own chord-testing slot was
-         given to the new "keyboard" preset instead. -->
-    <envelope name="PadSynth Warm" attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
-      <padsynth preset="warm"/>
+    <!-- 11: PadSynth "strings", tuning-matched partials (default) - moved
+         here (was instrument 0) once instrument 0's own chord-testing slot
+         was given to the new "keyboard" preset instead. -->
+    <envelope name="PadSynth Strings (matched)" attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
+      <padsynth preset="strings"/>
     </envelope>
-    <!-- 12/13: choir-aah vs choir-ooh, back to back - two genuinely
+    <!-- 12/13: choir-pad4 vs choir-pad4-ooh, back to back - two genuinely
          different vowels, not a renamed copy of each other: "aah" is an
-         open vowel (the same shape instrument 4 uses under the
-         "formant-vocal" name), "ooh" is darker and rounder (lower,
-         closer-together formants). Both wrapped in <multiply unisons="3">
-         for genuine ensemble-of-singers detuning/beating, which a single
-         static table can't produce on its own. -->
-    <multiply name="PadSynth Choir Aah" unisons="3" detune="16" spread="0.5">
+         open vowel (the same shape instrument 4 uses), "ooh" is darker and
+         rounder. Both wrapped in <multiply unisons="3"> for genuine
+         ensemble-of-singers detuning/beating, which a single static table
+         can't produce on its own. -->
+    <multiply name="PadSynth Choir Pad4" unisons="3" detune="16" spread="0.5">
       <envelope attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
-        <padsynth preset="choir-aah"/>
+        <padsynth preset="choir-pad4"/>
       </envelope>
     </multiply>
-    <multiply name="PadSynth Choir Ooh" unisons="3" detune="16" spread="0.5">
+    <multiply name="PadSynth Choir Pad4 Ooh" unisons="3" detune="16" spread="0.5">
       <envelope attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
-        <padsynth preset="choir-ooh"/>
+        <padsynth preset="choir-pad4-ooh"/>
       </envelope>
     </multiply>
 
@@ -117,7 +115,7 @@
          partials, tuningMatched=false so those partials stay untempered -
          a real bell's own non-integer overtones read as dissonant against
          a fixed pitch the same way. Compare to instrument 6's own plain,
-         tuning-matched Glass. -->
+         tuning-matched Bells. -->
     <envelope name="PadSynth Bells" attack="0.02" hold="0" decay="1.0" sustain="0.3" release="1.5">
       <padsynth preset="bells" tuningMatched="false"/>
     </envelope>
@@ -140,13 +138,13 @@
       <padsynth preset="saw-piano"/>
     </envelope>
 
-    <!-- 18: "Phased Choir" - choir-aah wrapped directly in <phaser>, a
+    <!-- 18: "Phased Choir" - choir-pad4 wrapped directly in <phaser>, a
          faster and more obvious sweep than pad.halo's own slow-shimmer
          combination - the phaser itself is the point of comparison here.
          See docs/effects.md for <phaser>'s own attributes. -->
     <phaser name="PadSynth Phased Choir" stages="8" rate="0.35" minFreq="250" maxFreq="3000" feedback="0.5" mix="0.6">
       <envelope attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
-        <padsynth preset="choir-aah"/>
+        <padsynth preset="choir-pad4"/>
       </envelope>
     </phaser>
 
@@ -168,9 +166,9 @@
 
     <!-- 21: "PadSynth Keyboard (unmatched)" - instrument 0's own exact
          "keyboard" preset/envelope, tuningMatched="false" only - the same
-         paired-instrument shape instrument 1/11 ("PadSynth Warm
-         (unmatched)"/"PadSynth Warm") already established at the top of
-         this file, applied to the synth piano (instrument 0, already used
+         paired-instrument shape instrument 1/11 ("PadSynth Strings
+         (unmatched)"/"PadSynth Strings (matched)") already established at
+         the top of this file, applied to the synth piano (instrument 0, already used
          for every chord-testing section in this file) rather than the
          Saw Piano (instrument 17, a single-note comparison point against
          the additive piano, not built for chords). A plain triad can't
@@ -184,19 +182,19 @@
 
   <tracks>
     <track id="0" name="PadSynth Keyboard" instrument="0"/>
-    <track id="1" name="PadSynth Warm (unmatched)" instrument="1"/>
-    <track id="2" name="PadSynth Warm (narrow)" instrument="2"/>
-    <track id="3" name="PadSynth Warm (wide)" instrument="3"/>
-    <track id="4" name="PadSynth Formant-Vocal" instrument="4"/>
+    <track id="1" name="PadSynth Strings (unmatched)" instrument="1"/>
+    <track id="2" name="PadSynth Bells 3" instrument="2"/>
+    <track id="3" name="PadSynth Dual Strings (wide)" instrument="3"/>
+    <track id="4" name="PadSynth Choir Pad4" instrument="4"/>
     <track id="5" name="PadSynth Strings" instrument="5"/>
-    <track id="6" name="PadSynth Glass" instrument="6"/>
+    <track id="6" name="PadSynth Bells (matched)" instrument="6"/>
     <track id="7" name="Additive Struck-String" instrument="7"/>
     <track id="8" name="Mellotron" instrument="8"/>
     <track id="9" name="Additive Piano" instrument="9"/>
     <track id="10" name="SoundFont Guitar" instrument="10"/>
-    <track id="11" name="PadSynth Warm" instrument="11"/>
-    <track id="12" name="PadSynth Choir Aah" instrument="12"/>
-    <track id="13" name="PadSynth Choir Ooh" instrument="13"/>
+    <track id="11" name="PadSynth Strings (matched)" instrument="11"/>
+    <track id="12" name="PadSynth Choir Pad4 (unison)" instrument="12"/>
+    <track id="13" name="PadSynth Choir Pad4 Ooh (unison)" instrument="13"/>
     <track id="14" name="PadSynth Soft Pad" instrument="14"/>
     <track id="15" name="PadSynth Bells" instrument="15"/>
     <track id="16" name="PadSynth Dual Strings" instrument="16"/>
@@ -212,10 +210,10 @@
     <locator row="8">PadSynth keyboard - sustained fifth</locator>
     <locator row="16">PadSynth keyboard - 31-EDO C-E-G triad</locator>
     <locator row="24">PadSynth keyboard - C-E-G-A♯ harmonic 7th</locator>
-    <locator row="32">PadSynth warm (tuningMatched=OFF) - single note</locator>
-    <locator row="40">PadSynth warm (tuningMatched=OFF) - sustained fifth</locator>
-    <locator row="48">PadSynth warm (tuningMatched=OFF) - 31-EDO C-E-G triad</locator>
-    <locator row="56">PadSynth warm (tuningMatched=OFF) - C-E-G-A♯ harmonic 7th</locator>
+    <locator row="32">PadSynth strings (tuningMatched=OFF) - single note</locator>
+    <locator row="40">PadSynth strings (tuningMatched=OFF) - sustained fifth</locator>
+    <locator row="48">PadSynth strings (tuningMatched=OFF) - 31-EDO C-E-G triad</locator>
+    <locator row="56">PadSynth strings (tuningMatched=OFF) - C-E-G-A♯ harmonic 7th</locator>
     <locator row="64">Additive struck-string - single note</locator>
     <locator row="72">Additive struck-string - sustained fifth</locator>
     <locator row="80">Additive struck-string - 31-EDO C-E-G triad</locator>
@@ -224,23 +222,23 @@
     <locator row="104">Mellotron (tape+padsynth) - sustained fifth</locator>
     <locator row="112">Mellotron (tape+padsynth) - 31-EDO C-E-G triad</locator>
     <locator row="120">Mellotron (tape+padsynth) - C-E-G-A♯ harmonic 7th</locator>
-    <locator row="128">PadSynth warm, NARROW bandwidth (8c) - triad, compare to row 176</locator>
-    <locator row="136">PadSynth warm, WIDE bandwidth (80c) - triad, compare to row 176/128</locator>
-    <locator row="144">PadSynth formant-vocal - single note</locator>
+    <locator row="128">PadSynth "Bells 3", a narrow-band tone - triad, compare to row 136</locator>
+    <locator row="136">PadSynth "Dual Strings" (wide), a wide-band tone - triad, compare to row 128</locator>
+    <locator row="144">PadSynth "Choir Pad4" - single note</locator>
     <locator row="152">PadSynth strings - single note</locator>
-    <locator row="160">PadSynth glass - single note</locator>
+    <locator row="160">PadSynth "Bells" (tuning-matched) - single note</locator>
     <locator row="168">Additive piano in unison with SoundFont guitar</locator>
-    <locator row="176">PadSynth warm (tuningMatched=on) - single note</locator>
-    <locator row="184">PadSynth warm (tuningMatched=on) - sustained fifth</locator>
-    <locator row="192">PadSynth warm (tuningMatched=on) - 31-EDO C-E-G triad</locator>
-    <locator row="200">PadSynth warm (tuningMatched=on) - C-E-G-A♯ harmonic 7th</locator>
-    <locator row="208">PadSynth choir-aah - single note, compare to row 216</locator>
-    <locator row="216">PadSynth choir-ooh - single note, compare to row 208</locator>
+    <locator row="176">PadSynth strings (tuningMatched=on) - single note</locator>
+    <locator row="184">PadSynth strings (tuningMatched=on) - sustained fifth</locator>
+    <locator row="192">PadSynth strings (tuningMatched=on) - 31-EDO C-E-G triad</locator>
+    <locator row="200">PadSynth strings (tuningMatched=on) - C-E-G-A♯ harmonic 7th</locator>
+    <locator row="208">PadSynth choir-pad4 - single note, compare to row 216</locator>
+    <locator row="216">PadSynth choir-pad4-ooh - single note, compare to row 208</locator>
     <locator row="224">PadSynth "Soft Pad" - single note</locator>
     <locator row="232">PadSynth "Bells" (untuned/detuned) - single note</locator>
     <locator row="240">PadSynth "Dual Strings" (octave-doubled) - single note</locator>
     <locator row="248">PadSynth "Saw Piano" - single note</locator>
-    <locator row="256">PadSynth "Phased Choir" (choir-aah + phaser) - single note</locator>
+    <locator row="256">PadSynth "Phased Choir" (choir-pad4 + phaser) - single note</locator>
     <locator row="264">PadSynth "Church Organ" (organ-pipe) - single note</locator>
     <locator row="272">PadSynth "Synth Brass" (brass.synth) - single note</locator>
     <locator row="280">Synth piano, tuningMatched=ON - plain C-E-G triad</locator>
@@ -273,7 +271,7 @@
       <note row="318">off off off</note>
     </pattern>
 
-    <!-- PadSynth warm, tuning-matched OFF (rows 32-63) -->
+    <!-- PadSynth strings, tuning-matched OFF (rows 32-63) -->
     <pattern track="1">
       <note row="32" value="C-4"/>
       <note row="38" value="off"/>
@@ -309,19 +307,19 @@
       <note row="126">off off off off</note>
     </pattern>
 
-    <!-- PadSynth warm, narrow bandwidth - triad only (rows 128-135) -->
+    <!-- PadSynth Bells 3, narrow-band - triad only (rows 128-135) -->
     <pattern track="2">
       <note row="128">C-4 E-4 G-4</note>
       <note row="134">off off off</note>
     </pattern>
 
-    <!-- PadSynth warm, wide bandwidth (80c) - triad only (rows 136-143) -->
+    <!-- PadSynth Dual Strings (wide), wide-band - triad only (rows 136-143) -->
     <pattern track="3">
       <note row="136">C-4 E-4 G-4</note>
       <note row="142">off off off</note>
     </pattern>
 
-    <!-- PadSynth formant-vocal - single note (rows 144-151) -->
+    <!-- PadSynth Choir Pad4 - single note (rows 144-151) -->
     <pattern track="4">
       <note row="144" value="C-4"/>
       <note row="150" value="off"/>
@@ -333,7 +331,7 @@
       <note row="158" value="off"/>
     </pattern>
 
-    <!-- PadSynth glass - single note (rows 160-167) -->
+    <!-- PadSynth Bells (tuning-matched) - single note (rows 160-167) -->
     <pattern track="6">
       <note row="160" value="C-4"/>
       <note row="166" value="off"/>
@@ -354,7 +352,7 @@
       <note row="174" value="G-4"/>
     </pattern>
 
-    <!-- PadSynth warm, tuning-matched ON (rows 176-207) - moved from track 0 -->
+    <!-- PadSynth strings, tuning-matched ON (rows 176-207) - moved from track 0 -->
     <pattern track="11">
       <note row="176" value="C-4"/>
       <note row="182" value="off"/>
@@ -366,8 +364,8 @@
       <note row="206">off off off off</note>
     </pattern>
 
-    <!-- Choir aah vs. ooh, back to back for direct comparison (rows
-         208-223) -->
+    <!-- Choir Pad4 vs. Choir Pad4 Ooh, back to back for direct comparison
+         (rows 208-223) -->
     <pattern track="12">
       <note row="208" value="C-4"/>
       <note row="214" value="off"/>

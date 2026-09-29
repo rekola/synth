@@ -62,9 +62,9 @@ TEST(padsynth_note_renders_nonsilent_and_finite) {
 }
 
 TEST(padsynth_element_round_trips_through_save_and_load) {
-  // <padsynth> attributes (preset/bandwidth/bandwidthScale/partials/
-  // partialLimit/tuningMatched/level) must survive a save/reload the same
-  // way any other instrument's own attributes do - loadFixture() above
+  // <padsynth> attributes (preset/tuningMatched/level) must survive a
+  // save/reload the same way any other instrument's own attributes do -
+  // loadFixture() above
   // only exercises the load half.
   auto loaded = loadFixture("padsynth_note.xml");
   CHECK(loaded.ok);

@@ -2,7 +2,7 @@
 #define _PADSYNTHVOICE_H_
 
 #include "InstrumentVoice.h"
-#include "PadSynthTableSource.h"
+#include "ImportedPadSynthTable.h"
 #include "../ambisonic/SphericalPosition.h"
 #include "../model/NoteCoordinate.h"
 
@@ -13,7 +13,7 @@
 class PadSynthVoice : public InstrumentVoice {
 public:
   PadSynthVoice(const ChannelConfiguration & config, const SphericalPosition & position, float detune,
-                std::shared_ptr<PadSynthTableSource> table, float level,
+                std::shared_ptr<ImportedPadSynthTable> table, float level,
                 const SendLevels & sends = {}, const NoteCoordinate & note_coord = {})
     : InstrumentVoice(config, position, detune, sends, note_coord), table_(std::move(table)), level_(level) {
   }
@@ -31,7 +31,7 @@ public:
     // pitch. This deliberately never reintroduces off-tuning-step
     // partials: every partial in the table was already snapped to a scale
     // step in cents-space at generation time (SpectralBandProfile.h's
-    // tuningMatchedPartialRatio()), and resampling multiplies every
+    // tuningMatchedPartialPosition()), and resampling multiplies every
     // partial's absolute frequency by this same single ratio - which
     // preserves each partial's own cents-distance from the fundamental
     // exactly, it doesn't recompute or re-snap anything. A partial that
@@ -71,7 +71,7 @@ public:
   }
 
 private:
-  std::shared_ptr<PadSynthTableSource> table_;
+  std::shared_ptr<ImportedPadSynthTable> table_;
   float level_;
   std::vector<float> dry_;
 };
