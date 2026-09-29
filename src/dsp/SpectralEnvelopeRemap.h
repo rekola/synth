@@ -21,7 +21,7 @@ enum class SpectralPostprocessKind { None, ResidueClassWeighting, StretchMix };
 // Pure, allocation-free (beyond the caller's own output vector, which is
 // only resized, never grown/shrunk per call in the steady state), caller-
 // owns-the-array utilities - no engine/instrument-specific state. Two
-// distinct callers use these at two different times: ImportedPadSynthTable
+// distinct callers use these at two different times: PadSynthTable
 // evaluates them once per generated table (per pitch region, at that
 // region's own reference frequency); SinusoidBank evaluates them once per
 // note-on (at that note's real frequency) - see each file's own comment for

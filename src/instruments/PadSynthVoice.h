@@ -2,7 +2,7 @@
 #define _PADSYNTHVOICE_H_
 
 #include "InstrumentVoice.h"
-#include "ImportedPadSynthTable.h"
+#include "PadSynthTable.h"
 #include "../ambisonic/SphericalPosition.h"
 #include "../model/NoteCoordinate.h"
 
@@ -13,7 +13,7 @@
 class PadSynthVoice : public InstrumentVoice {
 public:
   PadSynthVoice(const ChannelConfiguration & config, const SphericalPosition & position, float detune,
-                std::shared_ptr<ImportedPadSynthTable> table, float level,
+                std::shared_ptr<PadSynthTable> table, float level,
                 const SendLevels & sends = {}, const NoteCoordinate & note_coord = {})
     : InstrumentVoice(config, position, detune, sends, note_coord), table_(std::move(table)), level_(level) {
   }
@@ -71,7 +71,7 @@ public:
   }
 
 private:
-  std::shared_ptr<ImportedPadSynthTable> table_;
+  std::shared_ptr<PadSynthTable> table_;
   float level_;
   std::vector<float> dry_;
 };

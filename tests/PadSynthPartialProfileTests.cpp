@@ -1,11 +1,11 @@
 #include "TestFramework.h"
 
-#include "../src/instruments/ImportedPadSynthProfile.h"
+#include "../src/instruments/PadSynthPartialProfile.h"
 
 #include <algorithm>
 #include <stdexcept>
 
-using namespace ImportedPadSynth;
+using namespace PadSynthProfile;
 
 TEST(profile_alpha_matches_given_values_for_gauss_6_258) {
   ProfileParams p;

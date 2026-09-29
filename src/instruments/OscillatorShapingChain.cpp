@@ -1,4 +1,4 @@
-#include "ImportedOscillatorChain.h"
+#include "OscillatorShapingChain.h"
 
 #include "../dsp/RealFFT.h"
 
@@ -8,7 +8,7 @@
 
 using namespace std;
 
-namespace ImportedOscillator {
+namespace OscillatorShaping {
 
 namespace {
 
@@ -261,4 +261,4 @@ vector<float> computeOscillatorMagnitudes(const OscillatorChainParams & params) 
   return A;
 }
 
-} // namespace ImportedOscillator
+} // namespace OscillatorShaping

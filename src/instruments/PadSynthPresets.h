@@ -1,35 +1,35 @@
 #ifndef _PADSYNTHPRESETS_H_
 #define _PADSYNTHPRESETS_H_
 
-#include "ImportedPadSynthTable.h"
+#include "PadSynthTable.h"
 
 #include <string>
 
 // Short local aliases - only used to keep the preset data below readable;
 // never exposed outside this file.
-using OCP = ImportedOscillator::OscillatorChainParams;
-using ImportedBaseFunction = ImportedOscillator::BaseFunction;
-using ImportedWaveshaperKind = ImportedOscillator::WaveshaperKind;
-using ImportedFilterKind = ImportedOscillator::FilterKind;
-using ImportedFilterParams = ImportedOscillator::HarmonicFilterParams;
-using ImportedTimeWarp = ImportedOscillator::TimeWarp;
-using ImportedSpectrumAdjustKind = ImportedOscillator::SpectrumAdjustKind;
-using ImportedProfileParams = ImportedPadSynth::ProfileParams;
-using ImportedProfileType = ImportedPadSynth::ProfileType;
-using ImportedPositionParams = ImportedPadSynth::PositionParams;
+using OCP = OscillatorShaping::OscillatorChainParams;
+using OscBaseFunction = OscillatorShaping::BaseFunction;
+using OscWaveshaperKind = OscillatorShaping::WaveshaperKind;
+using OscFilterKind = OscillatorShaping::FilterKind;
+using OscFilterParams = OscillatorShaping::HarmonicFilterParams;
+using OscTimeWarp = OscillatorShaping::TimeWarp;
+using OscSpectrumAdjustKind = OscillatorShaping::SpectrumAdjustKind;
+using ProfileParams = PadSynthProfile::ProfileParams;
+using ProfileType = PadSynthProfile::ProfileType;
+using PositionParams = PadSynthProfile::PositionParams;
 
-// Builds an ImportedPadSynthParams - see PadSynth::loadParameters() for how
+// Builds a PadSynthParams - see PadSynth::loadParameters() for how
 // tuning_matched/envelope_*/postprocess_* still act as this preset's own
 // default for the matching XML attribute (an explicit attribute always
 // overrides it); edo_steps/seed are filled in per-instance at table-build
 // time, not here.
-inline ImportedPadSynthParams preset(OCP oscillator, ImportedProfileParams profile, ImportedPositionParams position,
+inline PadSynthParams preset(OCP oscillator, ProfileParams profile, PositionParams position,
                                       float bandwidth_cents, float base_frequency_hz, int octaves, int samples_per_octave,
                                       int table_length, bool tuning_matched,
                                       float envelope_anchor_hz = 0.0f, float envelope_tracking = 0.0f,
                                       SpectralPostprocessKind postprocess_kind = SpectralPostprocessKind::None,
                                       int postprocess_n = 0, int postprocess_r = 0, float postprocess_amount = 0.0f) {
-  ImportedPadSynthParams params;
+  PadSynthParams params;
   params.oscillator = std::move(oscillator);
   params.profile = profile;
   params.position = position;
@@ -52,7 +52,7 @@ inline ImportedPadSynthParams preset(OCP oscillator, ImportedProfileParams profi
 // asserting - the same "unrecognized name falls back to a real default"
 // shape TapeDegradationPresets.h's own getTapeDegradationPreset() already
 // uses.
-inline const ImportedPadSynthParams & getPadSynthPreset(const std::string & name) {
+inline const PadSynthParams & getPadSynthPreset(const std::string & name) {
   // "keyboard" - a sparse, few-harmonic piano tone: a power-ramp
   // oscillator shape, an arctangent waveshaper, an oscillator time warp,
   // and fractional-stretch partial positions (partial 10 lands at 10.04).
@@ -62,19 +62,19 @@ inline const ImportedPadSynthParams & getPadSynthPreset(const std::string & name
   // (docs/additive.md): PadSynth has no per-partial decay of its own, so
   // this preset's "struck" quality comes entirely from the wrapping
   // `<envelope>`'s own decay-to-zero-sustain shape.
-  static const ImportedPadSynthParams kKeyboard = preset(
+  static const PadSynthParams kKeyboard = preset(
     []{
       OCP o;
-      o.base_function = ImportedBaseFunction::PowerRamp;
+      o.base_function = OscBaseFunction::PowerRamp;
       o.base_shape_param = 2.871f;
       o.harmonics = { { 1, 0.984f }, { 2, 0.984f }, { 5, 0.547f }, { 6, 0.625f } };
-      o.waveshaper_kind = ImportedWaveshaperKind::Arctangent;
+      o.waveshaper_kind = OscWaveshaperKind::Arctangent;
       o.waveshaper_k = 46.72f;
-      o.oscillator_warp = ImportedTimeWarp{ true, 0.1053f, -0.0039f, 1.0f };
+      o.oscillator_warp = OscTimeWarp{ true, 0.1053f, -0.0039f, 1.0f };
       return o;
     }(),
-    ImportedProfileParams{ ImportedProfileType::Rectangular, 6.258f, 127, true },
-    ImportedPositionParams{ 6, 78, 56, 0 },
+    ProfileParams{ ProfileType::Rectangular, 6.258f, 127, true },
+    PositionParams{ 6, 78, 56, 0 },
     /* bandwidth_cents */ 11.5f, /* base_frequency_hz */ 392.4f, /* octaves */ 5, /* samples_per_octave */ 2,
     /* table_length */ 1 << 17, /* tuning_matched */ false,
     /* envelope_anchor_hz */ 115.6f, /* envelope_tracking */ 0.980f);
@@ -84,19 +84,19 @@ inline const ImportedPadSynthParams & getPadSynthPreset(const std::string & name
   // chain (the same shaping family as "bells-3"), a slightly stronger
   // partial-10 stretch (10.06 vs "keyboard"'s 10.04), and its own
   // stretch-mix postprocess.
-  static const ImportedPadSynthParams kSynthPiano3B = preset(
+  static const PadSynthParams kSynthPiano3B = preset(
     []{
       OCP o;
-      o.base_function = ImportedBaseFunction::GaussianPulse;
+      o.base_function = OscBaseFunction::GaussianPulse;
       o.base_shape_param = 0.5273f;
       o.harmonics = { { 1, 0.984f } };
-      o.waveshaper_kind = ImportedWaveshaperKind::Arctangent;
+      o.waveshaper_kind = OscWaveshaperKind::Arctangent;
       o.waveshaper_k = 6.247f;
-      o.filter = ImportedFilterParams{ ImportedFilterKind::SingleHarmonicBoost, 0.0f, 0.0f, 1, 1.946f };
+      o.filter = OscFilterParams{ OscFilterKind::SingleHarmonicBoost, 0.0f, 0.0f, 1, 1.946f };
       return o;
     }(),
-    ImportedProfileParams{ ImportedProfileType::Gaussian, 6.258f, 127, true },
-    ImportedPositionParams{ 6, 92, 56, 0 },
+    ProfileParams{ ProfileType::Gaussian, 6.258f, 127, true },
+    PositionParams{ 6, 92, 56, 0 },
     /* bandwidth_cents */ 32.5f, /* base_frequency_hz */ 392.4f, /* octaves */ 6, /* samples_per_octave */ 2,
     /* table_length */ 1 << 17, /* tuning_matched */ false,
     /* envelope_anchor_hz */ 233.2f, /* envelope_tracking */ 0.634f,
@@ -110,18 +110,18 @@ inline const ImportedPadSynthParams & getPadSynthPreset(const std::string & name
   // organ-style spectrum. Used as a fallback at organ.pipe (a real
   // acoustic organ from a loaded instrument sample library always wins;
   // this only fills the leaf when none is available).
-  static const ImportedPadSynthParams kChurchOrgan = preset(
+  static const PadSynthParams kChurchOrgan = preset(
     []{
       OCP o;
-      o.base_function = ImportedBaseFunction::ClippedTriangle;
+      o.base_function = OscBaseFunction::ClippedTriangle;
       o.base_shape_param = 0.8477f;
       o.harmonics = { { 1, 0.984f }, { 2, 0.734f }, { 4, 0.500f }, { 8, 0.438f },
                        { 12, 0.156f }, { 16, 0.469f }, { 24, 0.188f }, { 32, 0.156f } };
-      o.filter = ImportedFilterParams{ ImportedFilterKind::ExponentialLowpass, 0.977975f, 0.032346f, 0, 1.0f };
+      o.filter = OscFilterParams{ OscFilterKind::ExponentialLowpass, 0.977975f, 0.032346f, 0, 1.0f };
       return o;
     }(),
-    ImportedProfileParams{ ImportedProfileType::Gaussian, 21.72f, 127, true },
-    ImportedPositionParams{ 0, 0, 0, 0 },
+    ProfileParams{ ProfileType::Gaussian, 21.72f, 127, true },
+    PositionParams{ 0, 0, 0, 0 },
     /* bandwidth_cents */ 5.2f, /* base_frequency_hz */ 261.6f, /* octaves */ 4, /* samples_per_octave */ 2,
     /* table_length */ 1 << 17, /* tuning_matched */ true);
 
@@ -137,17 +137,17 @@ inline const ImportedPadSynthParams & getPadSynthPreset(const std::string & name
   // "out of tune" against the engine's own scale-quantized tuning the
   // same way a real bell's non-integer partials read as dissonant against
   // a fixed pitch) sets tuningMatched="false" explicitly.
-  static const ImportedPadSynthParams kBells = preset(
+  static const PadSynthParams kBells = preset(
     []{
       OCP o;
-      o.base_function = ImportedBaseFunction::None;
+      o.base_function = OscBaseFunction::None;
       o.harmonics = { { 1, 0.984f }, { 2, 0.172f }, { 4, 0.313f } };
-      o.waveshaper_kind = ImportedWaveshaperKind::LogisticSigmoid;
+      o.waveshaper_kind = OscWaveshaperKind::LogisticSigmoid;
       o.waveshaper_k = 8.443f;
       return o;
     }(),
-    ImportedProfileParams{ ImportedProfileType::Gaussian, 6.258f, 127, true },
-    ImportedPositionParams{ 6, 255, 75, 255 },
+    ProfileParams{ ProfileType::Gaussian, 6.258f, 127, true },
+    PositionParams{ 6, 255, 75, 255 },
     /* bandwidth_cents */ 21.2f, /* base_frequency_hz */ 392.4f, /* octaves */ 5, /* samples_per_octave */ 2,
     /* table_length */ 1 << 17, /* tuning_matched */ true,
     /* envelope_anchor_hz */ 233.2f, /* envelope_tracking */ 0.634f,
@@ -160,16 +160,16 @@ inline const ImportedPadSynthParams & getPadSynthPreset(const std::string & name
   // string.synth.slow/pad.bowed registrations). Also the generic
   // fallback/"plain pad" tone (pad.warm, pad.sweep) where nothing more
   // specific applies.
-  static const ImportedPadSynthParams kStrings = preset(
+  static const PadSynthParams kStrings = preset(
     []{
       OCP o;
-      o.base_function = ImportedBaseFunction::PowerRamp;
+      o.base_function = OscBaseFunction::PowerRamp;
       o.base_shape_param = 0.3766f;
       o.harmonics = { { 1, 0.984f }, { 2, 0.828f } };
       return o;
     }(),
-    ImportedProfileParams{ ImportedProfileType::Gaussian, 6.258f, 127, true },
-    ImportedPositionParams{ 0, 0, 0, 0 },
+    ProfileParams{ ProfileType::Gaussian, 6.258f, 127, true },
+    PositionParams{ 0, 0, 0, 0 },
     /* bandwidth_cents */ 57.3f, /* base_frequency_hz */ 261.6f, /* octaves */ 6, /* samples_per_octave */ 2,
     /* table_length */ 1 << 18, /* tuning_matched */ true);
 
@@ -178,16 +178,16 @@ inline const ImportedPadSynthParams & getPadSynthPreset(const std::string & name
   // "dual"/octave-doubled character comes from unison layering on top,
   // same as "strings" - see InstrumentLibrary.cpp's own pad.bowed/
   // PadSynth Dual Strings <multiply> wrapping.
-  static const ImportedPadSynthParams kDualStrings = preset(
+  static const PadSynthParams kDualStrings = preset(
     []{
       OCP o;
-      o.base_function = ImportedBaseFunction::PowerRamp;
+      o.base_function = OscBaseFunction::PowerRamp;
       o.base_shape_param = 0.3766f;
       o.harmonics = { { 1, 0.984f } };
       return o;
     }(),
-    ImportedProfileParams{ ImportedProfileType::Gaussian, 6.258f, 127, true },
-    ImportedPositionParams{ 0, 0, 0, 0 },
+    ProfileParams{ ProfileType::Gaussian, 6.258f, 127, true },
+    PositionParams{ 0, 0, 0, 0 },
     /* bandwidth_cents */ 101.5f, /* base_frequency_hz */ 261.6f, /* octaves */ 6, /* samples_per_octave */ 2,
     /* table_length */ 1 << 18, /* tuning_matched */ true);
 
@@ -195,16 +195,16 @@ inline const ImportedPadSynthParams & getPadSynthPreset(const std::string & name
   // (1/2/4/16), a narrow bandwidth for a clean-toned band. Its own
   // envelope sustains at full level (no decay-to-silence) rather than
   // "keyboard"'s own percussive one - a sustained "piano pad" character.
-  static const ImportedPadSynthParams kSawPiano = preset(
+  static const PadSynthParams kSawPiano = preset(
     []{
       OCP o;
-      o.base_function = ImportedBaseFunction::PowerRamp;
+      o.base_function = OscBaseFunction::PowerRamp;
       o.base_shape_param = 0.3766f;
       o.harmonics = { { 1, 0.984f }, { 2, 0.922f }, { 4, 0.984f }, { 16, 0.563f } };
       return o;
     }(),
-    ImportedProfileParams{ ImportedProfileType::Gaussian, 6.258f, 127, true },
-    ImportedPositionParams{ 0, 0, 0, 0 },
+    ProfileParams{ ProfileType::Gaussian, 6.258f, 127, true },
+    PositionParams{ 0, 0, 0, 0 },
     /* bandwidth_cents */ 1.3f, /* base_frequency_hz */ 261.6f, /* octaves */ 6, /* samples_per_octave */ 2,
     /* table_length */ 1 << 17, /* tuning_matched */ true);
 
@@ -213,16 +213,16 @@ inline const ImportedPadSynthParams & getPadSynthPreset(const std::string & name
   // bandwidth (21.6 vs 1.3 cents), giving it a fatter/more-detuned
   // character from otherwise similar harmonic content - the brighter,
   // more analog-synth-like end of that shared oscillator shape.
-  static const ImportedPadSynthParams kSawPianoWide = preset(
+  static const PadSynthParams kSawPianoWide = preset(
     []{
       OCP o;
-      o.base_function = ImportedBaseFunction::PowerRamp;
+      o.base_function = OscBaseFunction::PowerRamp;
       o.base_shape_param = 0.3766f;
       o.harmonics = { { 1, 0.984f }, { 2, 0.922f }, { 4, 0.984f } };
       return o;
     }(),
-    ImportedProfileParams{ ImportedProfileType::Gaussian, 6.258f, 127, true },
-    ImportedPositionParams{ 0, 0, 0, 0 },
+    ProfileParams{ ProfileType::Gaussian, 6.258f, 127, true },
+    PositionParams{ 0, 0, 0, 0 },
     /* bandwidth_cents */ 21.6f, /* base_frequency_hz */ 261.6f, /* octaves */ 6, /* samples_per_octave */ 2,
     /* table_length */ 1 << 18, /* tuning_matched */ true);
 
@@ -232,37 +232,37 @@ inline const ImportedPadSynthParams & getPadSynthPreset(const std::string & name
   // own overtone-free purity - "soft" spectrally, genuinely just one
   // reshaped partial. Profile autoscale is off for this preset
   // specifically (alpha fixed at 0.5), unlike every other preset here.
-  static const ImportedPadSynthParams kSoftPad = preset(
+  static const PadSynthParams kSoftPad = preset(
     []{
       OCP o;
-      o.base_function = ImportedBaseFunction::PowerRamp;
+      o.base_function = OscBaseFunction::PowerRamp;
       o.base_shape_param = 2.871f;
       o.harmonics = { { 1, 0.984f } };
-      o.spectrum_adjust_kind = ImportedSpectrumAdjustKind::PowerLaw;
+      o.spectrum_adjust_kind = OscSpectrumAdjustKind::PowerLaw;
       o.spectrum_adjust_gamma = 2.936f;
       return o;
     }(),
-    ImportedProfileParams{ ImportedProfileType::Gaussian, 6.258f, 127, /* autoscale */ false },
-    ImportedPositionParams{ 0, 0, 0, 0 },
+    ProfileParams{ ProfileType::Gaussian, 6.258f, 127, /* autoscale */ false },
+    PositionParams{ 0, 0, 0, 0 },
     /* bandwidth_cents */ 25.6f, /* base_frequency_hz */ 261.6f, /* octaves */ 3, /* samples_per_octave */ 2,
     /* table_length */ 1 << 17, /* tuning_matched */ true);
 
   // "choir-pad4" - a warped-half-sine oscillator shape with its own time
   // warp (k1=0.1671, phi=0.5039, k3=10), an exponential-lowpass filter,
   // and a harmonic shift of 7. Used at pad.choir/lead.voice.
-  static const ImportedPadSynthParams kChoirPad4 = preset(
+  static const PadSynthParams kChoirPad4 = preset(
     []{
       OCP o;
-      o.base_function = ImportedBaseFunction::WarpedHalfSine;
+      o.base_function = OscBaseFunction::WarpedHalfSine;
       o.base_shape_param = 0.943f;
-      o.base_warp = ImportedTimeWarp{ true, 0.1671f, 0.5039f, 10.0f };
+      o.base_warp = OscTimeWarp{ true, 0.1671f, 0.5039f, 10.0f };
       o.harmonics = { { 1, 0.984f } };
-      o.filter = ImportedFilterParams{ ImportedFilterKind::ExponentialLowpass, 0.994256f, 0.00055f, 0, 1.0f };
+      o.filter = OscFilterParams{ OscFilterKind::ExponentialLowpass, 0.994256f, 0.00055f, 0, 1.0f };
       o.harmonic_shift = 7;
       return o;
     }(),
-    ImportedProfileParams{ ImportedProfileType::Gaussian, 21.72f, 127, true },
-    ImportedPositionParams{ 0, 0, 0, 0 },
+    ProfileParams{ ProfileType::Gaussian, 21.72f, 127, true },
+    PositionParams{ 0, 0, 0, 0 },
     /* bandwidth_cents */ 63.7f, /* base_frequency_hz */ 261.6f, /* octaves */ 4, /* samples_per_octave */ 3,
     /* table_length */ 1 << 17, /* tuning_matched */ true,
     /* envelope_anchor_hz */ 289.4f, /* envelope_tracking */ 0.782f);
@@ -273,21 +273,21 @@ inline const ImportedPadSynthParams & getPadSynthPreset(const std::string & name
   // harmonics (the same darkening amount "long-spacechoir2" - a sibling
   // in this same warped-half-sine family - already uses for its own
   // spectrum adjustment).
-  static const ImportedPadSynthParams kChoirPad4Ooh = preset(
+  static const PadSynthParams kChoirPad4Ooh = preset(
     []{
       OCP o;
-      o.base_function = ImportedBaseFunction::WarpedHalfSine;
+      o.base_function = OscBaseFunction::WarpedHalfSine;
       o.base_shape_param = 0.943f;
-      o.base_warp = ImportedTimeWarp{ true, 0.1671f, 0.5039f, 10.0f };
+      o.base_warp = OscTimeWarp{ true, 0.1671f, 0.5039f, 10.0f };
       o.harmonics = { { 1, 0.984f } };
-      o.filter = ImportedFilterParams{ ImportedFilterKind::ExponentialLowpass, 0.994256f, 0.00055f, 0, 1.0f };
-      o.spectrum_adjust_kind = ImportedSpectrumAdjustKind::PowerLaw;
+      o.filter = OscFilterParams{ OscFilterKind::ExponentialLowpass, 0.994256f, 0.00055f, 0, 1.0f };
+      o.spectrum_adjust_kind = OscSpectrumAdjustKind::PowerLaw;
       o.spectrum_adjust_gamma = 0.6427f;
       o.harmonic_shift = 7;
       return o;
     }(),
-    ImportedProfileParams{ ImportedProfileType::Gaussian, 21.72f, 127, true },
-    ImportedPositionParams{ 0, 0, 0, 0 },
+    ProfileParams{ ProfileType::Gaussian, 21.72f, 127, true },
+    PositionParams{ 0, 0, 0, 0 },
     /* bandwidth_cents */ 63.7f, /* base_frequency_hz */ 261.6f, /* octaves */ 4, /* samples_per_octave */ 3,
     /* table_length */ 1 << 17, /* tuning_matched */ true,
     /* envelope_anchor_hz */ 289.4f, /* envelope_tracking */ 0.782f);
@@ -297,21 +297,21 @@ inline const ImportedPadSynthParams & getPadSynthPreset(const std::string & name
   // constants (k1=0.1599, phi=0.5118, k3=13) and an added spectrum-
   // adjustment stage (gamma=0.6427). Used at pad.halo, wrapped in
   // <phaser> for its own slow, shimmering motion.
-  static const ImportedPadSynthParams kLongSpaceChoir2 = preset(
+  static const PadSynthParams kLongSpaceChoir2 = preset(
     []{
       OCP o;
-      o.base_function = ImportedBaseFunction::WarpedHalfSine;
+      o.base_function = OscBaseFunction::WarpedHalfSine;
       o.base_shape_param = 0.943f;
-      o.base_warp = ImportedTimeWarp{ true, 0.1599f, 0.5118f, 13.0f };
+      o.base_warp = OscTimeWarp{ true, 0.1599f, 0.5118f, 13.0f };
       o.harmonics = { { 1, 0.984f } };
-      o.filter = ImportedFilterParams{ ImportedFilterKind::ExponentialLowpass, 0.994256f, 0.00055f, 0, 1.0f };
-      o.spectrum_adjust_kind = ImportedSpectrumAdjustKind::PowerLaw;
+      o.filter = OscFilterParams{ OscFilterKind::ExponentialLowpass, 0.994256f, 0.00055f, 0, 1.0f };
+      o.spectrum_adjust_kind = OscSpectrumAdjustKind::PowerLaw;
       o.spectrum_adjust_gamma = 0.6427f;
       o.harmonic_shift = 7;
       return o;
     }(),
-    ImportedProfileParams{ ImportedProfileType::Gaussian, 21.72f, 127, true },
-    ImportedPositionParams{ 0, 0, 0, 0 },
+    ProfileParams{ ProfileType::Gaussian, 21.72f, 127, true },
+    PositionParams{ 0, 0, 0, 0 },
     /* bandwidth_cents */ 64.9f, /* base_frequency_hz */ 261.6f, /* octaves */ 4, /* samples_per_octave */ 2,
     /* table_length */ 1 << 17, /* tuning_matched */ true,
     /* envelope_anchor_hz */ 126.5f, /* envelope_tracking */ 0.782f,
@@ -322,19 +322,19 @@ inline const ImportedPadSynthParams & getPadSynthPreset(const std::string & name
   // 1, reshaped by an arctangent waveshaper and a single-harmonic boost
   // filter (harmonic 1 x1.946) - the same shaping family as
   // "synth-piano-3-b". Partial positions land at 1,3,5,8,12,16,21,27,...
-  static const ImportedPadSynthParams kBells3 = preset(
+  static const PadSynthParams kBells3 = preset(
     []{
       OCP o;
-      o.base_function = ImportedBaseFunction::GaussianPulse;
+      o.base_function = OscBaseFunction::GaussianPulse;
       o.base_shape_param = 0.5508f;
       o.harmonics = { { 1, 0.984f } };
-      o.waveshaper_kind = ImportedWaveshaperKind::Arctangent;
+      o.waveshaper_kind = OscWaveshaperKind::Arctangent;
       o.waveshaper_k = 6.247f;
-      o.filter = ImportedFilterParams{ ImportedFilterKind::SingleHarmonicBoost, 0.0f, 0.0f, 1, 1.946f };
+      o.filter = OscFilterParams{ OscFilterKind::SingleHarmonicBoost, 0.0f, 0.0f, 1, 1.946f };
       return o;
     }(),
-    ImportedProfileParams{ ImportedProfileType::Gaussian, 6.258f, 127, true },
-    ImportedPositionParams{ 6, 255, 107, 255 },
+    ProfileParams{ ProfileType::Gaussian, 6.258f, 127, true },
+    PositionParams{ 6, 255, 107, 255 },
     /* bandwidth_cents */ 15.9f, /* base_frequency_hz */ 392.4f, /* octaves */ 5, /* samples_per_octave */ 2,
     /* table_length */ 1 << 17, /* tuning_matched */ true,
     /* envelope_anchor_hz */ 392.9f, /* envelope_tracking */ 0.634f,

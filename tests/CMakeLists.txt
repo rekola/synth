@@ -51,8 +51,8 @@ add_executable(synth_tests
 	AllpassFilterTests.cpp
 	SpectralEnvelopeRemapTests.cpp
 	SpectralBandProfileTests.cpp
-	ImportedOscillatorChainTests.cpp
-	ImportedPadSynthProfileTests.cpp
+	OscillatorShapingChainTests.cpp
+	PadSynthPartialProfileTests.cpp
 	FloorReflectionTests.cpp
 	NoiseGeneratorTests.cpp
 	FDNReverbTests.cpp

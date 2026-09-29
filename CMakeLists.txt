@@ -62,9 +62,9 @@ add_library(synth_engine STATIC
 	src/instruments/Noise.cpp
 	src/instruments/Additive.cpp
 	src/instruments/SinusoidBank.cpp
-	src/instruments/ImportedOscillatorChain.cpp
-	src/instruments/ImportedPadSynthProfile.cpp
-	src/instruments/ImportedPadSynthTable.cpp
+	src/instruments/OscillatorShapingChain.cpp
+	src/instruments/PadSynthPartialProfile.cpp
+	src/instruments/PadSynthTable.cpp
 	src/instruments/InstrumentLibrary.cpp
 	src/Controller.cpp
 	src/ui/tui/InstrumentList.cpp

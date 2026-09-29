@@ -110,7 +110,7 @@ SinusoidBank::buildPartials(const Params & params, const NoteCoordinate & note_c
   // Additive's own partial phases are independent random draws (see
   // addPartial()/phase_field below, one draw per (voice, partial)), so the
   // remap's scatter branch accumulates in power here too, same reasoning
-  // as ImportedPadSynthTable.cpp's own identical choice.
+  // as PadSynthTable.cpp's own identical choice.
   std::vector<float> prototype(static_cast<size_t>(std::max(0, params.partial_count)), 0.0f);
   for (int n = 1; n <= params.partial_count; n++) {
     // n=1 (the fundamental) is always exactly 1.0 regardless of tilt.

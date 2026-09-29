@@ -1,11 +1,11 @@
-#include "ImportedPadSynthProfile.h"
+#include "PadSynthPartialProfile.h"
 
 #include <cmath>
 #include <stdexcept>
 
 using namespace std;
 
-namespace ImportedPadSynth {
+namespace PadSynthProfile {
 
 namespace {
 float frac(float x) { return x - std::floor(x); }
@@ -117,4 +117,4 @@ float partialPosition(int h, const PositionParams & params) {
   return rho + (1.0f - static_cast<float>(params.p3) / 255.0f) * (r - rho);
 }
 
-} // namespace ImportedPadSynth
+} // namespace PadSynthProfile

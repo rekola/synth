@@ -2,7 +2,7 @@
 #define _PADSYNTH_H_
 
 #include "Instrument.h"
-#include "ImportedPadSynthTable.h"
+#include "PadSynthTable.h"
 #include "../ambisonic/SphericalPosition.h"
 #include "../model/SendLevels.h"
 #include "../model/NoteCoordinate.h"
@@ -13,7 +13,7 @@
 
 // A PADsynth-resynthesis oscillator - modeled directly on Oscillator's own
 // shape (same base class, same loadParameters()/storeParameters()/
-// playNote() pattern), but reading from an ImportedPadSynthTable instead
+// playNote() pattern), but reading from a PadSynthTable instead
 // of computing an analytic waveform per sample.
 class PadSynth : public Instrument {
  public:
@@ -53,7 +53,7 @@ class PadSynth : public Instrument {
   // built (e.g. --samplerate, or a song-tuning change, between one
   // playNote() and the next) - neither happens mid-song in practice but
   // both are checked rather than assumed.
-  mutable std::shared_ptr<ImportedPadSynthTable> wavetable_;
+  mutable std::shared_ptr<PadSynthTable> wavetable_;
   mutable Tuning wavetable_tuning_ = Tuning::TET31;
 
   std::string preset_ = "strings";

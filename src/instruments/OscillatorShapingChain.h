@@ -16,7 +16,7 @@
 // per-harmonic magnitude profile an imported PADsynth preset's own real
 // oscillator shape actually has, before the anchored-spectral-envelope
 // remap (main prompt/dsp/SpectralEnvelopeRemap.h) and PADsynth rendering
-// (ImportedPadSynthTable.h) run on top of it.
+// (PadSynthTable.h) run on top of it.
 //
 // Every stage here is deterministic and allocation-light (each call builds
 // its own small fixed-size (512-point) FFT plan via RealFFT - acceptable
@@ -24,7 +24,7 @@
 // or per-note); "the importer must reject any other value" is enforced by
 // throwing std::invalid_argument for any enum field outside the values
 // this file actually implements, rather than silently guessing.
-namespace ImportedOscillator {
+namespace OscillatorShaping {
 
 constexpr int kSize = 512;               // N
 constexpr int kHarmonicCount = kSize / 2; // k = 0 .. kHarmonicCount-1 (255 = highest harmonic)
@@ -96,6 +96,6 @@ struct OscillatorChainParams {
 // normalization (step 10) - both applied by the caller.
 std::vector<float> computeOscillatorMagnitudes(const OscillatorChainParams & params);
 
-} // namespace ImportedOscillator
+} // namespace OscillatorShaping
 
 #endif

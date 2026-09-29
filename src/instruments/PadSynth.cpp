@@ -26,7 +26,7 @@ PadSynth::playNote(const ChannelConfiguration & config, const SphericalPosition 
 void
 PadSynth::prewarm(const ChannelConfiguration & config, Tuning tuning, int note_value) const {
   ensureWavetable(config, tuning);
-  // ensureWavetable() only constructs the (cheap) ImportedPadSynthTable
+  // ensureWavetable() only constructs the (cheap) PadSynthTable
   // object itself - the actual expensive table generation happens lazily
   // inside its own getTable(f0), normally not called until a voice's
   // first render(). Force it now, for the region `note_value` falls in,
@@ -44,11 +44,11 @@ PadSynth::ensureWavetable(const ChannelConfiguration & config, Tuning tuning) co
   // always snaps to whatever scale the song is actually using.
   int edo_steps = edoStepsFor(tuning);
   if (!wavetable_ || wavetable_->getSampleRate() != config.getAudioOutSampleRate() || wavetable_tuning_ != tuning) {
-    // ImportedPadSynthTable owns a full copy of the preset's own
+    // PadSynthTable owns a full copy of the preset's own
     // oscillator/profile/position data - only the instance-level
     // overrides (tuning/remap/seed) come from this instrument's own XML
     // attributes.
-    ImportedPadSynthParams params = getPadSynthPreset(preset_);
+    PadSynthParams params = getPadSynthPreset(preset_);
     params.edo_steps = edo_steps;
     params.tuning_matched = tuning_matched_;
     params.envelope_anchor_hz = envelope_anchor_hz_;
@@ -60,7 +60,7 @@ PadSynth::ensureWavetable(const ChannelConfiguration & config, Tuning tuning) co
     params.postprocess_r = envelope_postprocess_r_;
     params.postprocess_amount = envelope_postprocess_amount_;
     params.seed = seed_;
-    wavetable_ = std::make_shared<ImportedPadSynthTable>(config.getAudioOutSampleRate(), std::move(params));
+    wavetable_ = std::make_shared<PadSynthTable>(config.getAudioOutSampleRate(), std::move(params));
     wavetable_tuning_ = tuning;
   }
 }

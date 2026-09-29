@@ -1,13 +1,13 @@
 #include "TestFramework.h"
 
-#include "../src/instruments/ImportedOscillatorChain.h"
+#include "../src/instruments/OscillatorShapingChain.h"
 
 #include <algorithm>
 #include <cmath>
 #include <vector>
 
 using namespace std;
-using namespace ImportedOscillator;
+using namespace OscillatorShaping;
 
 namespace {
 

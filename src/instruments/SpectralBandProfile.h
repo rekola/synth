@@ -40,9 +40,9 @@ inline int oddPart(int m) {
 }
 
 // PadSynth's own tuning-matching rule (the anchored-spectral-envelope-
-// remap feature - see dsp/SpectralEnvelopeRemap.h/ImportedPadSynthProfile.h):
+// remap feature - see dsp/SpectralEnvelopeRemap.h/PadSynthPartialProfile.h):
 // applied to a single partial already placed at g_h (harmonic-ratio units,
-// from ImportedPadSynthProfile.h's partialPosition()) - independent of the
+// from PadSynthPartialProfile.h's partialPosition()) - independent of the
 // partial's own index/count, unlike tuningMatchedPartialRatio()'s
 // partial_limit cutoff above (that function is unchanged, still used by
 // SinusoidBank.cpp's own additive-oscillator inharmonicity model, a

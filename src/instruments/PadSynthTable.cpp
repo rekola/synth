@@ -1,4 +1,4 @@
-#include "ImportedPadSynthTable.h"
+#include "PadSynthTable.h"
 
 #include "SpectralBandProfile.h"
 #include "../dsp/HashField.h"
@@ -8,11 +8,11 @@
 #include <cmath>
 
 using namespace std;
-using namespace ImportedOscillator;
-using namespace ImportedPadSynth;
+using namespace OscillatorShaping;
+using namespace PadSynthProfile;
 
 namespace {
-constexpr uint64_t kImportedPadSynthPhaseSalt = 0x8C4F2B7A19E6D3F0ull;
+constexpr uint64_t kPadSynthProfilePhaseSalt = 0x8C4F2B7A19E6D3F0ull;
 // The final rendered waveform's target RMS level, per docs/padsynth.md's
 // own literal "RMS-normalize" step 4. Chosen empirically low enough that
 // a rich, many-partial preset (Church Organ's own dense harmonic stack)
@@ -21,12 +21,12 @@ constexpr uint64_t kImportedPadSynthPhaseSalt = 0x8C4F2B7A19E6D3F0ull;
 constexpr float kTargetRMS = 0.2f;
 } // namespace
 
-ImportedPadSynthTable::ImportedPadSynthTable(int sample_rate, ImportedPadSynthParams params)
+PadSynthTable::PadSynthTable(int sample_rate, PadSynthParams params)
   : sample_rate_(sample_rate), params_(std::move(params)) {
 }
 
 const std::vector<float> &
-ImportedPadSynthTable::oscillatorMagnitudes() const {
+PadSynthTable::oscillatorMagnitudes() const {
   if (!oscillator_magnitudes_built_) {
     // Steps 1-8 of the chain never depend on frequency - see this class's
     // own header comment - so this is computed once and shared by every
@@ -38,7 +38,7 @@ ImportedPadSynthTable::oscillatorMagnitudes() const {
 }
 
 float
-ImportedPadSynthTable::sampleFrequency(int j) const {
+PadSynthTable::sampleFrequency(int j) const {
   int M = sampleCount();
   float O = static_cast<float>(params_.octaves);
   return params_.base_frequency_hz * std::exp2(
@@ -46,7 +46,7 @@ ImportedPadSynthTable::sampleFrequency(int j) const {
 }
 
 int
-ImportedPadSynthTable::nearestSampleIndex(float f0) const {
+PadSynthTable::nearestSampleIndex(float f0) const {
   int M = sampleCount();
   float O = static_cast<float>(params_.octaves);
   float safe_f0 = f0 > 0.0f ? f0 : params_.base_frequency_hz;
@@ -58,12 +58,12 @@ ImportedPadSynthTable::nearestSampleIndex(float f0) const {
 }
 
 float
-ImportedPadSynthTable::tableBaseFrequency(float f0) const {
+PadSynthTable::tableBaseFrequency(float f0) const {
   return sampleFrequency(nearestSampleIndex(f0));
 }
 
 const std::vector<float> &
-ImportedPadSynthTable::getTable(float f0) const {
+PadSynthTable::getTable(float f0) const {
   int j = nearestSampleIndex(f0);
   auto it = tables_.find(j);
   if (it != tables_.end()) return it->second;
@@ -73,7 +73,7 @@ ImportedPadSynthTable::getTable(float f0) const {
 }
 
 std::vector<float>
-ImportedPadSynthTable::renderSample(int j) const {
+PadSynthTable::renderSample(int j) const {
   float f_j = sampleFrequency(j);
   const std::vector<float> & prototype = oscillatorMagnitudes();
 
@@ -136,7 +136,7 @@ ImportedPadSynthTable::renderSample(int j) const {
   amplitude_spectrum[0] = 0.0f;
 
   RealFFT<float> fft(static_cast<size_t>(L));
-  HashField phase_field(kImportedPadSynthPhaseSalt ^ params_.seed ^ (static_cast<uint64_t>(static_cast<uint32_t>(j)) << 32));
+  HashField phase_field(kPadSynthProfilePhaseSalt ^ params_.seed ^ (static_cast<uint64_t>(static_cast<uint32_t>(j)) << 32));
   std::vector<std::complex<float>> spectrum(fft.binCount(), std::complex<float>(0.0f, 0.0f));
   for (int bin = 0; bin < S; bin++) {
     float amp = amplitude_spectrum[static_cast<size_t>(bin)];

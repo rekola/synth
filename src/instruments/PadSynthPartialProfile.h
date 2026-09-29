@@ -8,9 +8,9 @@
 // The PADsynth partial profile (docs/padsynth.md's "Partial profile
 // p[0…511]") and partial-position g(h) formulas, clean-room-implemented
 // from ZynAddSubFX's own public PADsynth algorithm description - see
-// ImportedOscillatorChain.h's own doc comment for the same GPL-source
+// OscillatorShapingChain.h's own doc comment for the same GPL-source
 // boundary this stays inside of.
-namespace ImportedPadSynth {
+namespace PadSynthProfile {
 
 constexpr int kProfileSize = 512;
 
@@ -63,6 +63,6 @@ void placePartial(std::vector<float> & amplitude_spectrum, float amplitude, floa
                    float bandwidth_cents, float alpha, const std::array<float, kProfileSize> & profile,
                    float sample_rate);
 
-} // namespace ImportedPadSynth
+} // namespace PadSynthProfile
 
 #endif
