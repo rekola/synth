@@ -16,16 +16,12 @@
 -->
 <song temperament="31edo" tempo="90" rowsPerBar="4" volume="1.0">
   <instruments>
-    <!-- 0: PadSynth "keyboard" - ported from the uploaded ZynAddSubFX
-         factory patch "Synth Piano 3" (see PadSynthPresets.h's own
-         kKeyboard comment): a sparse 4-harmonic array plus a percussive
-         envelope, matched here as closely as this engine's ADSR shape
-         allows - near-instant attack, decay all the way to sustain=0 (the
-         real patch's own S_val=0, no held plateau at all), long enough
-         (2.0s) to still be clearly audible/decaying across this file's
-         own 6-row-held-chord convention rather than dying out
-         immediately. Used first for the chord-testing sections since
-         it's the clearest/most keys-like tone to judge a chord by. -->
+    <!-- 0: PadSynth "keyboard" - a sparse, few-harmonic piano-like tone
+         with a percussive envelope (near-instant attack, decaying all the
+         way to silence, no sustain plateau) - long enough (2.0s) to stay
+         audible across this file's 6-row-held-chord convention. Used
+         first for the chord-testing sections since it's the clearest,
+         most keys-like tone to judge a chord by. -->
     <envelope name="PadSynth Keyboard" attack="0.005" hold="0" decay="2.0" sustain="0.0" release="0.3">
       <padsynth preset="keyboard"/>
     </envelope>
@@ -50,9 +46,8 @@
     <envelope name="PadSynth Formant-Vocal" attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
       <padsynth preset="formant-vocal"/>
     </envelope>
-    <!-- 5: PadSynth "strings" - real ported ZynAddSubFX data (replaces
-         the earlier invented "bowed-ensemble", dropped per explicit
-         request - see PadSynthPresets.h's own kStrings comment). -->
+    <!-- 5: PadSynth "strings" - a simple, near-octave-doubled bowed
+         string tone. -->
     <envelope name="PadSynth Strings" attack="0.3" hold="0" decay="0.4" sustain="0.85" release="0.8">
       <padsynth preset="strings"/>
     </envelope>
@@ -91,19 +86,12 @@
       <padsynth preset="warm"/>
     </envelope>
     <!-- 12/13: choir-aah vs choir-ooh, back to back - two genuinely
-         different vowels (not just a renamed copy of each other, see
-         PadSynthPresets.h): choir-aah is the same open "ah" formant shape
-         instrument 4 above already used under the "formant-vocal" name;
-         choir-ooh has its own lower, closer-together formants and a
-         darker base spectrum for a rounded "oo" character. Both wrapped in
-         <multiply unisons="3"> - a single static PADsynth table can't
-         produce genuine ensemble-of-singers beating on its own (see
-         PadSynthPresets.h's own kStrings comment); real independent,
-         slightly-detuned unison voices are what src/instruments/
-         InstrumentLibrary.cpp's own pad.choir/pad.choir.ooh
-         registrations now use for exactly this reason, so this song
-         mirrors it rather than sounding thinner than the library version -
-         kept in sync by hand, same as the additive piano above. -->
+         different vowels, not a renamed copy of each other: "aah" is an
+         open vowel (the same shape instrument 4 uses under the
+         "formant-vocal" name), "ooh" is darker and rounder (lower,
+         closer-together formants). Both wrapped in <multiply unisons="3">
+         for genuine ensemble-of-singers detuning/beating, which a single
+         static table can't produce on its own. -->
     <multiply name="PadSynth Choir Aah" unisons="3" detune="16" spread="0.5">
       <envelope attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
         <padsynth preset="choir-aah"/>
@@ -115,91 +103,57 @@
       </envelope>
     </multiply>
 
-    <!-- 14-19: reference points for real ZynAddSubFX factory patches
-         (checked as example data for this project, per docs/padsynth.md's
-         own "Formant boost"/"Known limitations" sections) - none of these
-         are attempts at faithful recreations (their own real character
-         mostly comes from an explicit per-harmonic array this codebase
-         doesn't have - see those docs sections), just a same-family
-         PadSynth combination placed alongside its named inspiration so
-         the two are easy to compare by ear. -->
+    <!-- 14-19: a further set of PadSynth character presets, each placed
+         next to a plain envelope so its own spectral shape is easy to
+         judge in isolation. -->
 
-    <!-- 14: "Soft Pad" - real ported data (PadSynthPresets.h's own
-         kSoftPad): the actual patch is just harmonic 1 - a single, pure
-         partial, which is what "soft" genuinely means spectrally here,
-         not an approximation. Envelope follows the real patch's own
-         shape too (moderate attack, settling at full sustain, longish
-         release), replacing the earlier invented "warm"-based one. -->
+    <!-- 14: "Soft Pad" - a single pure partial, no upper harmonics at all -
+         "soft" in the most literal spectral sense. -->
     <envelope name="PadSynth Soft Pad" attack="0.8" hold="0" decay="0.3" sustain="0.9" release="1.5">
       <padsynth preset="soft-pad"/>
     </envelope>
 
-    <!-- 15: "Bells" - real ported data now (PadSynthPresets.h's own
-         kBells), not a retuned Glass: the uploaded ZynAddSubFX factory
-         patch "Bells" has just 3 explicit harmonics (1/2/4), everything
-         else silent - a real bell/chime's own small handful of dominant
-         partials, which is what actually makes it read as a bell rather
-         than a generic tone. tuningMatched=false on top, same reasoning
-         as pad.metallic's own registration (InstrumentLibrary.cpp) - a
-         real bell's overtones are non-integer, and exact-integer harmonics
-         read as "out of tune"/dissonant against this engine's own
-         scale-quantized tuning the same way. Compare to instrument 6's
-         own plain (tuning-matched, smooth-rolloff) Glass. -->
+    <!-- 15: "Bells" - a small handful of dominant, non-scale-tuned
+         partials, tuningMatched=false so those partials stay untempered -
+         a real bell's own non-integer overtones read as dissonant against
+         a fixed pitch the same way. Compare to instrument 6's own plain,
+         tuning-matched Glass. -->
     <envelope name="PadSynth Bells" attack="0.02" hold="0" decay="1.0" sustain="0.3" release="1.5">
       <padsynth preset="bells" tuningMatched="false"/>
     </envelope>
 
-    <!-- 16: "Dual Strings Oct2" - the real "strings" preset (its own
-         explicit patch's harmonic content is real ported data; Dual
-         Strings Oct2 itself relies on ZynAddSubFX's internal
-         adaptive_harmonics generator - GPL logic, not portable - so
-         "strings" stands in for its base tone) wrapped in
-         <multiply octaves="1">, real octave-doubled voices (not just a
-         wider Gaussian band) - the "Oct2" in the real patch's own name
-         is exactly this: a second layer an octave up/down from the
-         first. -->
+    <!-- 16: "Dual Strings" - the strings tone wrapped in
+         <multiply octaves="1">, layering a real octave-doubled voice on
+         top rather than just widening the band. -->
     <multiply name="PadSynth Dual Strings" octaves="1" detune="6">
       <envelope attack="0.4" hold="0" decay="0.3" sustain="0.9" release="0.7">
         <padsynth preset="strings"/>
       </envelope>
     </multiply>
 
-    <!-- 17: "Saw Piano" - real ported data (PadSynthPresets.h's own
-         kSawPiano, from the uploaded "Saw Piano 1" factory patch),
-         replacing the earlier invented "warm"-based approximation.
-         Notably the real patch's own envelope sustains at full level
-         (S_val=127) rather than decaying to silence like Synth Piano 3 -
-         a sustained "piano pad" character, not a percussive one, which is
-         what's authored here (instant attack, a brief decay stage that
-         settles at a still-substantial sustain, not zero) rather than
-         assumed. Compare against instrument 0's own genuinely percussive
-         "keyboard" (Synth Piano 3) and instrument 9's additive piano
-         (true per-partial decay, a third distinct synthesis approach to
-         the same "piano" idea). -->
+    <!-- 17: "Saw Piano" - a sustained "piano pad" character (holds at a
+         substantial level rather than decaying to silence), unlike
+         instrument 0's own percussive "keyboard" tone or instrument 9's
+         additive piano (true per-partial decay) - three different takes
+         on "piano". -->
     <envelope name="PadSynth Saw Piano" attack="0.005" hold="0" decay="0.3" sustain="0.85" release="0.4">
       <padsynth preset="saw-piano"/>
     </envelope>
 
-    <!-- 18: "Long SpaceChoir2" - choir-aah wrapped directly in <phaser>
-         (a faster, more obvious sweep than pad.halo's own slow-shimmer
-         combination, InstrumentLibrary.cpp - that one aims for a subtle
-         background texture; this one is the phaser itself as the point of
-         comparison). See docs/effects.md for <phaser>'s own attributes. -->
+    <!-- 18: "Phased Choir" - choir-aah wrapped directly in <phaser>, a
+         faster and more obvious sweep than pad.halo's own slow-shimmer
+         combination - the phaser itself is the point of comparison here.
+         See docs/effects.md for <phaser>'s own attributes. -->
     <phaser name="PadSynth Phased Choir" stages="8" rate="0.35" minFreq="250" maxFreq="3000" feedback="0.5" mix="0.6">
       <envelope attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
         <padsynth preset="choir-aah"/>
       </envelope>
     </phaser>
 
-    <!-- 19: "Church Organ 3" - real ported data now (PadSynthPresets.h's
-         own kChurchOrgan: an explicit, sparse harmonic array - 1/2/4/8/
-         12/16/24/32 only - taken directly from the uploaded ZynAddSubFX
-         factory patch, not the earlier from-scratch "organ-pipe"
-         approximation). Referenced directly (not through the taxonomy
-         path, so this plays even when a real SoundFont organ is loaded
-         and would otherwise win at organ.pipe itself - see
-         InstrumentLibrary.cpp's own registerFallbackPath() comment on
-         that fallback). -->
+    <!-- 19: "Church Organ" - a sparse drawbar-organ-style harmonic stack.
+         Referenced directly (not through the taxonomy path, so this plays
+         even when a real SoundFont organ is loaded and would otherwise
+         win at organ.pipe itself). -->
     <envelope name="PadSynth Organ Pipe" attack="0.015" hold="0" decay="0.05" sustain="1.0" release="0.08">
       <padsynth preset="church-organ"/>
     </envelope>
@@ -423,7 +377,7 @@
       <note row="222" value="off"/>
     </pattern>
 
-    <!-- ZynAddSubFX-example reference points (rows 224-271) -->
+    <!-- Further PadSynth character presets (rows 224-271) -->
     <pattern track="14">
       <note row="224" value="C-4"/>
       <note row="230" value="off"/>

@@ -15,15 +15,13 @@
 // its preset default (see PadSynth::loadParameters()'s own
 // get<float>(name, preset.field) calls).
 //
-// amplitude_rolloff_exponent, formants and harmonic_amplitude_jitter are
-// this codebase's own extension beyond the bare bandwidth/bandwidthScale/
-// partials PADsynth parameters (see PadSynthWavetable.h's own doc comment
-// on amplitude_rolloff_exponent/PadSynthFormant/harmonic_amplitude_jitter)
-// - without them, every preset would only be able to differ by bandwidth
-// and partial count, which can't tell a clean "glass" bell apart from a
-// "formant-vocal" character the way a real per-harmonic amplitude shape
-// can, and can't add the irregular, non-smooth per-harmonic detail real
-// PADsynth's own oscillator-driven harmonic arrays have either.
+// amplitude_rolloff_exponent, formants and harmonic_amplitude_jitter
+// extend the bare bandwidth/bandwidthScale/partials PADsynth parameters
+// (see PadSynthWavetable.h's own doc comment) - without them, every
+// preset could only differ by bandwidth and partial count, which can't
+// tell a clean "glass" bell apart from a "formant-vocal" character, and
+// can't add the kind of irregular, non-smooth per-harmonic detail a real
+// instrument's own spectrum has.
 struct PadSynthPresetParams {
   float bandwidth_cents;
   float bandwidth_scale_exponent;
@@ -32,15 +30,12 @@ struct PadSynthPresetParams {
   std::vector<PadSynthFormant> formants;
   float harmonic_amplitude_jitter = 0.0f;
   // Non-empty replaces amplitude_rolloff_exponent's formula outright (see
-  // PadSynthWavetable.h's own doc comment) - real, explicit per-harmonic
-  // data ported from a real PADsynth patch, index 0 = harmonic 1.
+  // PadSynthWavetable.h's own doc comment) - an explicit per-harmonic
+  // amplitude array, index 0 = harmonic 1.
   std::vector<float> harmonic_amplitudes = {};
 
   // Preset-level default for the "tuningMatched" XML attribute - an
-  // explicit attribute still always overrides this (see PadSynth::
-  // loadParameters()) but a preset ported from real patch data supplies
-  // its own known-correct default rather than every preset silently
-  // inheriting the engine's own hardcoded `true`.
+  // explicit attribute still always overrides this.
   bool tuning_matched = true;
 
   // The anchored spectral-envelope remap (dsp/SpectralEnvelopeRemap.h) and
@@ -57,21 +52,16 @@ struct PadSynthPresetParams {
   // harmonic_amplitudes above (ParameterSource has no array type).
   PartialPositionSpec position_spec = {};
 
-  // Non-null selects ImportedPadSynthTable (the clean-room, ZynAddSubFX-
-  // faithful oscillator-chain + profile-placement renderer, docs/
-  // padsynth.md) over PadSynthWavetable's own from-scratch Gaussian-band
-  // one for this preset entirely - every field above except
-  // tuning_matched/envelope_*/postprocess_* (still read the same way by
-  // both renderers) is then unused. Every real ZynAddSubFX-imported
-  // preset with a fully or mostly portable oscillator chain uses this;
-  // this codebase's own invented presets (warm/glass/formant-vocal/
-  // choir-ooh/synth-brass/mellotron) do not.
+  // Non-null selects ImportedPadSynthTable (the oscillator-chain +
+  // profile-placement renderer, docs/padsynth.md) over PadSynthWavetable's
+  // own Gaussian-band one for this preset entirely - every field above
+  // except tuning_matched/envelope_*/postprocess_* (read the same way by
+  // both renderers) is then unused.
   std::shared_ptr<ImportedPadSynthParams> imported;
 };
 
-// Short local aliases - only used to keep the imported-preset data tables
-// below (ported directly from ZynAddSubFX's own public algorithm
-// description, docs/padsynth.md) readable; never exposed outside this file.
+// Short local aliases - only used to keep the oscillator-shaped preset
+// data below readable; never exposed outside this file.
 using OCP = ImportedOscillator::OscillatorChainParams;
 using ImportedBaseFunction = ImportedOscillator::BaseFunction;
 using ImportedWaveshaperKind = ImportedOscillator::WaveshaperKind;
@@ -83,13 +73,13 @@ using ImportedProfileParams = ImportedPadSynth::ProfileParams;
 using ImportedProfileType = ImportedPadSynth::ProfileType;
 using ImportedPositionParams = ImportedPadSynth::PositionParams;
 
-// Builds a PadSynthPresetParams for an imported (ZynAddSubFX-sourced)
-// preset that uses ImportedPadSynthTable's own oscillator-chain +
-// profile-placement rendering (docs/padsynth.md) - every field of the
-// outer PadSynthPresetParams this codebase's own Gaussian-band renderer
-// would otherwise read is irrelevant here except tuning_matched/
-// envelope_*/postprocess_*, which both renderers read the same way (an
-// explicit XML attribute still always overrides these).
+// Builds a PadSynthPresetParams for a preset that uses
+// ImportedPadSynthTable's own oscillator-chain + profile-placement
+// rendering (docs/padsynth.md) - every field of the outer
+// PadSynthPresetParams the Gaussian-band renderer would otherwise read is
+// irrelevant here except tuning_matched/envelope_*/postprocess_*, which
+// both renderers read the same way (an explicit XML attribute still
+// always overrides these).
 inline PadSynthPresetParams importedPreset(OCP oscillator, ImportedProfileParams profile, ImportedPositionParams position,
                                             float bandwidth_cents, float base_frequency_hz, int octaves, int samples_per_octave,
                                             int table_length, bool tuning_matched,
@@ -130,19 +120,8 @@ inline PadSynthPresetParams importedPreset(OCP oscillator, ImportedProfileParams
 // the same "unrecognized name falls back to a real default" shape
 // TapeDegradationPresets.h's own getTapeDegradationPreset() already uses.
 inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) {
-  // The sensible middle-ground default. Steepening the rolloff (1/n, a
-  // bright sawtooth spectrum, to 1/n^2) fixed the earlier "buzzy, high
-  // frequencies, doesn't sound like a pad" report, but a second listen
-  // found it still didn't read as "warm" - the demo's own narrow-
-  // bandwidth A/B comparison (bandwidth=8, i.e. this preset's own
-  // bandwidth_cents overridden down near Glass's own value) sounded
-  // warmer than the unmodified preset. That points at bandwidth itself,
-  // not just rolloff: even with quiet high harmonics, a wide Gaussian
-  // band spreads and beats *every* partial including the loud low ones,
-  // and that spread/beating itself reads as bright/synthetic rather than
-  // warm - "warm" wants each low partial closer to a clean tone. Narrowed
-  // bandwidth_cents from 40 to 18 (between Glass's 8 and the original 40)
-  // for exactly that.
+  // Moderate bandwidth, a natural 1/n^2 rolloff - a sensible general-
+  // purpose pad and the engine's own fallback for an unrecognized name.
   static const PadSynthPresetParams kWarm{
     /* bandwidth_cents            */ 18.0f,
     /* bandwidth_scale_exponent   */ 0.6f,
@@ -151,39 +130,15 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
     /* formants                   */ {},
   };
 
-  // Ported data, not a from-scratch approximation (the earlier version of
-  // this preset was invented before the uploaded ZynAddSubFX example data
-  // was checked, and is dropped now that the real patch is available):
-  // the uploaded factory patch "Synth Piano 3" (synth_piano.xmz/
-  // noefx_synth_piano.xmz) has an explicit, sparse <HARMONICS> list - only
-  // harmonics 1/2/5/6 carry real energy, everything else silent - and a
-  // percussive amplitude envelope (instant attack, long decay all the way
-  // to S_val=0, no sustain plateau at all) rather than a held tone. Same
-  // porting boundary as kChurchOrgan/kBells: real numeric data, never the
-  // GPL application code that reads/renders it. Used as a PadSynth-side
-  // comparison point against the additive piano (docs/additive.md's
-  // struck-string-based one): PadSynth has no per-partial decay of its
-  // own, so this preset's own "struck" quality has to come entirely from
-  // the wrapping `<envelope>`'s own decay-to-zero-sustain shape (see
-  // InstrumentLibrary.cpp's/songs/oscillator_demo.xml's own "PadSynth
-  // Keyboard" envelope) rather than any true time-varying spectral
-  // evolution - a real and audible difference from additive's true
-  // per-partial decay worth hearing side by side. bandwidth_cents is
-  // still an approximation (the real patch's own raw "bandwidth" units,
-  // 450, have no confirmed conversion to cents - see docs/padsynth.md);
-  // kept narrow, for clarity/presence on a small, sparse harmonic set.
-  // The real patch's own filter+filter-envelope isn't ported, same reason
-  // as kChurchOrgan.
-  // "keyboard" is Synth Piano 3 (A) - now the real full oscillator chain
-  // (power-ramp base waveform e=2.871, explicit harmonics 1/2/5/6,
-  // arctangent waveshaper, a real oscillator time warp) plus real PADsynth
-  // rendering data (rectangular profile, type-6 fractional-stretch partial
-  // positions landing partial 10 at 10.04), clean-room-implemented from
-  // ZynAddSubFX's own public algorithm description (see docs/padsynth.md;
-  // ImportedOscillatorChain.h/ImportedPadSynthTable.h for the renderer).
-  // Tuning matching stays explicitly OFF - turning it on would erase the
-  // very stretch that makes this preset's own low partials read as a real
-  // piano string's rather than a plain harmonic tone.
+  // "keyboard" - a sparse, few-harmonic piano tone: a power-ramp
+  // oscillator shape, an arctangent waveshaper, an oscillator time warp,
+  // and fractional-stretch partial positions (partial 10 lands at 10.04).
+  // Tuning matching stays off - turning it on would erase the stretch
+  // that gives the low partials their piano-string character. Used as a
+  // PadSynth-side comparison point against the additive piano
+  // (docs/additive.md): PadSynth has no per-partial decay of its own, so
+  // this preset's "struck" quality comes entirely from the wrapping
+  // `<envelope>`'s own decay-to-zero-sustain shape.
   static const PadSynthPresetParams kKeyboard = importedPreset(
     []{
       OCP o;
@@ -201,11 +156,11 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
     /* table_length */ 1 << 17, /* tuning_matched */ false,
     /* envelope_anchor_hz */ 115.6f, /* envelope_tracking */ 0.980f);
 
-  // Synth Piano 3 (B) - the same real patch's second documented instance:
-  // a Gaussian-pulse base waveform instead of (A)'s power ramp, the same
-  // arctangent-plus-single-harmonic-boost shaping Bells 3 uses, a slightly
-  // stronger partial-10 stretch (10.06 vs (A)'s 10.04), and its own
-  // distinct remap/postprocess (stretch-mix, which (A) doesn't have).
+  // "synth-piano-3-b" - a sibling of "keyboard": a Gaussian-pulse
+  // oscillator shape, an arctangent-plus-single-harmonic-boost filter
+  // chain (the same shaping family as "bells-3"), a slightly stronger
+  // partial-10 stretch (10.06 vs "keyboard"'s 10.04), and its own
+  // stretch-mix postprocess.
   static const PadSynthPresetParams kSynthPiano3B = importedPreset(
     []{
       OCP o;
@@ -224,63 +179,16 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
     /* envelope_anchor_hz */ 233.2f, /* envelope_tracking */ 0.634f,
     /* postprocess_kind */ PadSynthPostprocessKind::StretchMix, /* postprocess_n */ 2, /* postprocess_r */ 0, /* postprocess_amount */ 0.646f);
 
-  // A handful of vowel-like formant resonances (loosely modeled on an "ah"
-  // vowel's own F1/F2/F3) boost specific harmonic bands regardless of
-  // fundamental, the way a vocal tract's own fixed resonant cavities do.
-  //
-  // Two rounds of retuning so far. Round 1 (gain 1.4-3x, 100-250Hz-wide
-  // bumps, a mild 1.3 rolloff) read as "synth string," not vocal - the
-  // boosts were too gentle to stand out. Round 2 overcorrected: very
-  // narrow base partials (15 cents) plus very narrow, very strong formant
-  // bumps (50-100Hz wide, +16-20dB) read as "metallic," not choir. The
-  // actual problem with round 2: a real vocal formant isn't a spike on
-  // one partial, it's a broad resonance boosting a *cluster* of several
-  // neighboring harmonics together - at a single narrow band's typical
-  // fundamental (e.g. middle C, harmonics ~260Hz apart), a 50-100Hz-wide
-  // formant mostly only reaches ONE nearby harmonic, so a strong gain
-  // there just spotlights a single overtone (bell/metallic), not a
-  // resonant region. Fixed by widening the formant bumps back out (120-
-  // 220Hz, wide enough to span several neighboring harmonics into a
-  // genuine cluster) while moderating their gain (4-6x, not 7-10x, since
-  // several boosted harmonics together read as loud even at a lower
-  // per-partial gain) and loosening the base spectrum back toward a more
-  // natural richness (22 cents, 1.8 rolloff - between round 1's too-mild
-  // 1.3 and round 2's too-sparse 2.2) so there's enough underlying
-  // harmonic density for a formant to actually have several partials to
-  // cluster, rather than reading as glassy/discrete on its own.
-  //
-  // Round 3: F1/F2/F3 alone (three smooth Gaussian bumps) still read as
-  // "synth string"/"metallic," not "human," even correctly widened and
-  // balanced - because a smooth multi-bump curve is fundamentally the
-  // wrong shape of thing to fix this with. Two real, specific pieces were
-  // missing, not just wrong numbers:
-  //  - A "singer's formant" - a well-documented acoustic feature of
-  //    trained/choral voices (a real F3-F4-F5 cluster merging into one
-  //    bright resonance around 2.8-3.4kHz, giving a voice its
-  //    characteristic "ring"/cut-through-an-ensemble quality) - F3 alone,
-  //    even boosted, sits below and reads as a generic upper-formant
-  //    bump rather than that specific ring. Added as a fourth formant.
-  //  - Irregular, non-smooth per-harmonic detail - what a real PADsynth
-  //    implementation gets from an oscillator-driven per-harmonic array
-  //    (ZynAddSubFX's own OSCIL/HARMONICS mechanism) and this codebase
-  //    has no equivalent generator for; harmonic_amplitude_jitter is the
-  //    fix (see PadSynthWavetable.h's own doc comment) - a small,
-  //    deterministic amount of harmonic-to-harmonic unevenness that no
-  //    smooth rolloff-plus-formants curve can produce on its own, which
-  //    is exactly the kind of texture that tells "a real resonant body"
-  //    apart from "a clean synthesized curve."
-  // Round 4 (since reverted): a "still metallic" report after the
-  // singer's-formant/jitter addition above was initially met by widening
-  // the base bandwidth further (22 to 28 cents) and pulling the singer's-
-  // formant gain back (4.0 to 2.5), on the theory that a formant boost on
-  // a sparse comb of narrow, discrete partials spotlights one or two
-  // overtones rather than reading as a resonant cluster. Reverted at the
-  // user's own request, to keep this first version's parameters matching
-  // what the demo song was actually built and shared against, rather than
-  // an unheard, unvalidated guess on top of it - round 3's own numbers
-  // below (22 cents, gain 4.0) are what ships; a further metallic-focused
-  // retuning pass is a decision for a later round, informed by an actual
-  // listen, not made unilaterally again here.
+  // A handful of vowel-like formant resonances (loosely modeled on an
+  // open "ah" vowel's own F1/F2/F3, plus a "singer's formant" - a
+  // well-documented acoustic feature of trained/choral voices, a real
+  // F3-F4-F5 cluster merging into one bright resonance around 2.8-3.4kHz
+  // that gives a voice its characteristic "ring") boost specific harmonic
+  // bands regardless of fundamental, the way a vocal tract's own fixed
+  // resonant cavities do. `harmonic_amplitude_jitter` adds irregular,
+  // non-smooth per-harmonic detail on top - what a smooth rolloff-plus-
+  // formant-bumps curve alone can't produce, and what actually tells a
+  // resonant body apart from a clean synthesized curve.
   static const PadSynthPresetParams kFormantVocal{
     /* bandwidth_cents            */ 22.0f,
     /* bandwidth_scale_exponent   */ 0.6f,
@@ -295,12 +203,6 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
     /* harmonic_amplitude_jitter  */ 0.15f,
   };
 
-  // "bowed-ensemble" (a from-scratch, formula-only approximation) is
-  // dropped entirely, per explicit request, now that the real ZynAddSubFX
-  // "Strings" patch is available (kStrings below) - see
-  // InstrumentLibrary.cpp's own pad.bowed/string.synth.slow registrations
-  // and this file's own kMellotron for what replaced it.
-
   // Narrow bandwidth and a steep rolloff - most of the energy sits in the
   // fundamental and a handful of clean, minimally-beating overtones, the
   // bell/glass-like clarity a wide band would otherwise smear away.
@@ -312,20 +214,14 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
     /* formants                   */ {},
   };
 
-  // A Mellotron's "strings" tape was 3 real violins recorded per note - this
-  // preset's own job is purely spectral character (what a massed bowed
-  // string ensemble sounds like), not literal unison/detune voices; that
-  // comes from <tapeDegradation preset="mellotron"> layered on top instead
-  // (built separately - see docs/tape_degradation.md). Now uses the same
-  // real ported harmonic array as "strings" (kStrings below - the real
-  // ZynAddSubFX "Strings" patch, fully portable, adaptive_harmonics=0)
-  // rather than the earlier invented smooth rolloff dropped alongside
-  // "bowed-ensemble" - a Mellotron strings tape and this preset's own
-  // "strings" are literally the same real-world instrument family, so
-  // there's no reason for them to rest on different (and, before, both
-  // invented) spectral data. Bandwidth/rolloff stay this preset's own
-  // slightly narrower/steeper values, reading a little more "recorded
-  // tape" than a live "strings" pad.
+  // A Mellotron's "strings" tape was 3 real violins recorded per note -
+  // this preset's own job is purely spectral character (what a massed
+  // bowed string ensemble sounds like, the same harmonic content as
+  // "strings" below), not literal unison/detune voices; that comes from
+  // <tapeDegradation preset="mellotron"> layered on top instead (built
+  // separately - see docs/tape_degradation.md). Bandwidth/rolloff stay
+  // slightly narrower/steeper than "strings", reading a little more
+  // "recorded tape" than a live pad.
   static const PadSynthPresetParams kMellotron{
     /* bandwidth_cents            */ 8.0f,
     /* bandwidth_scale_exponent   */ 0.45f,
@@ -336,40 +232,14 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
     /* harmonic_amplitudes        */ { 127.0f/127.0f, 117.0f/127.0f },
   };
 
-  // A pipe organ's flue pipes are about as close to PADsynth's own
-  // idealized case as a real instrument gets - a steady, essentially
-  // beat-free harmonic stack with no per-note decay of its own (the
-  // "church-organ" - ports real data (dropping the earlier from-scratch,
-  // formula-only "organ-pipe" preset entirely, per explicit request - a
-  // from-scratch approximation isn't worth keeping once the real patch
-  // it was standing in for is actually available): the uploaded ZynAddSubFX factory
-  // patch "Church Organ 3" (noefx_organ_choir.xmz, PART id="1") has an
-  // explicit, sparse <HARMONICS> list - only harmonics 1/2/4/8/12/16/24/32
-  // carry real energy (mag/127, everything else silent) - a genuine
-  // drawbar-organ-style spectrum a smooth 1/n^rolloff curve structurally
-  // cannot produce, which is exactly why kOrganPipe's own formula-only
-  // approximation read as "quite bad": it never had this sparse structure
-  // at all. Ported as data (the numeric harmonic magnitudes themselves),
-  // not the GPL application code that reads/renders them - the same
-  // "public description plus real parameter data, never the app source"
-  // boundary this file's own choir-vs-ZynAddSubFX research already
-  // established. bandwidth_cents is still an approximation (the real
-  // patch's own raw "bandwidth" units, 365, have no confirmed/documented
-  // conversion to cents outside ZynAddSubFX's own GPL source, which stays
-  // off-limits - see docs/padsynth.md) - kept narrow, matching a real
-  // organ pipe's own steady, minimally-beating tone. The real patch's own
-  // filter (a 2-stage highpass with its own attack/decay/release
-  // envelope, freq_track=127 for full keyboard tracking) also isn't
-  // ported - this codebase's <biquadFilter> has no filter-envelope
-  // modulation mechanism yet (its own `envelope_` member is unused -
-  // BiquadFilterDsp never reads it to modulate fc), a separate, larger gap
-  // than this preset alone.
-  // Now the real full oscillator chain: a clipped-triangle base waveform
-  // (a'=0.8477) whose harmonic expansion, against the same 8 explicit
-  // partials, plus an exponential-lowpass harmonic filter, reproduces this
-  // patch's own real drawbar-organ-style spectrum - not just the bare
-  // harmonic-magnitude list the earlier version used. bandwidth_cents is
-  // now the real converted figure (5.2), not an approximation.
+  // "church-organ" - a pipe organ's flue pipes are about as close to
+  // PADsynth's own idealized case as a real instrument gets: a steady,
+  // essentially beat-free harmonic stack with no per-note decay of its
+  // own. A clipped-triangle oscillator shape against 8 harmonics, plus an
+  // exponential-lowpass harmonic filter, gives this preset its drawbar-
+  // organ-style spectrum. Used as a fallback at organ.pipe (a real
+  // acoustic organ from a loaded instrument sample library always wins;
+  // this only fills the leaf when none is available).
   static const PadSynthPresetParams kChurchOrgan = importedPreset(
     []{
       OCP o;
@@ -385,45 +255,18 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
     /* bandwidth_cents */ 5.2f, /* base_frequency_hz */ 261.6f, /* octaves */ 4, /* samples_per_octave */ 2,
     /* table_length */ 1 << 17, /* tuning_matched */ true);
 
-  // "bells" - the uploaded ZynAddSubFX factory patch "Bells"
-  // (noefx_bell_strings.xmz) has just 3 explicit harmonics (1/2/4 - mag
-  // 127/75/84), everything else silent - the actual reason a real
-  // bell/chime reads as a bell at all: a small handful of dominant
-  // partials, not a dense harmonic series. tuningMatched=false (an
-  // explicit override, set in InstrumentLibrary.cpp's own bells
-  // registration, matching pad.metallic's identical "false" reasoning)
-  // is still what supplies pad.metallic's own dissonant/bell-like
-  // character on top of this - exact-integer harmonics read as
-  // "out of tune" against this engine's own scale-quantized tuning
-  // system the same way a real bell's non-integer partials read as
-  // dissonant against a fixed pitch. Same porting caveats as
-  // kChurchOrgan above - real data, not GPL application logic; the real
-  // patch's own filter/filter-envelope isn't ported for the same reason.
-  // Caveat worth flagging: the real patch's own `adaptive_harmonics` is 2
-  // (nonzero), meaning ZynAddSubFX's own internal harmonic generator
-  // contributes to the real spectrum beyond just these 3 explicit
-  // entries - that generator is GPL application logic, not exposed
-  // parameter data, so it stays off-limits (see docs/padsynth.md). This
-  // preset treats the 3 explicit harmonics as the *complete* spectrum,
-  // which is the most this codebase can faithfully claim from the data
-  // alone - a reasonable approximation, not a byte-for-byte match to
-  // what the real patch actually sounds like.
-  //
-  // Now the real full oscillator chain: base_function "none" places the 3
-  // explicit harmonics (1/2/4) directly, then a logistic-sigmoid
-  // waveshaper reshapes that sparse set nonlinearly - genuinely producing
-  // the rest of this patch's real spectrum (the earlier version's bare
-  // 3-harmonic array, with nothing past harmonic 4, undersold how rich the
-  // real patch actually is; the waveshaper is exactly what fills that in).
-  // Partial positions are the explicit type-6 stretch formula (P1=255,
-  // P2=75, P3=255 - integer positions, landing at 1,2,4,5,7,9,11,13,...),
-  // not a plain harmonic series - a real bell/chime's own strike-tone
-  // partials aren't simple integer multiples. bandwidth_cents/remap are
-  // the real converted figures. Any song that still wants Bells' own bare,
-  // untempered dissonance (e.g. a deliberately bell-like/out-of-tune
-  // character) sets tuningMatched="false" explicitly, same as any other
-  // preset's default - an explicit XML attribute always overrides a
-  // preset's own default.
+  // "bells" - base_function "none" places 3 harmonics (1/2/4) directly,
+  // then a logistic-sigmoid waveshaper reshapes that sparse set
+  // nonlinearly, filling in the rest of the spectrum - the small handful
+  // of dominant partials plus that reshaping is what actually makes this
+  // read as a bell rather than a generic tone. Partial positions land at
+  // 1,2,4,5,7,9,11,13,... rather than a plain harmonic series - a real
+  // bell's strike-tone partials aren't simple integer multiples. The
+  // preset's own default is tuning-matched on; a song that wants the bare,
+  // untempered dissonance instead (exact-integer partials read as
+  // "out of tune" against the engine's own scale-quantized tuning the
+  // same way a real bell's non-integer partials read as dissonant against
+  // a fixed pitch) sets tuningMatched="false" explicitly.
   static const PadSynthPresetParams kBells = importedPreset(
     []{
       OCP o;
@@ -441,20 +284,10 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
     /* postprocess_kind */ PadSynthPostprocessKind::ResidueClassWeighting,
     /* postprocess_n */ 2, /* postprocess_r */ 1, /* postprocess_amount */ 0.646f);
 
-  // "strings" - the real "Strings" patch (noefx_bell_strings.xmz, PART
-  // id="1") - unlike Bells above, its own adaptive_harmonics is 0, so its
-  // 2 explicit harmonics (1/2, mag 127/117) genuinely are the complete
-  // spectrum, not a partial view of something a GPL-internal generator
-  // also shapes. A very simple, near-octave-doubled tone on its own -
-  // the real "ensemble" character comes from unison layering on top (see
-  // InstrumentLibrary.cpp's own string.synth.slow registration), same
-  // reasoning as this codebase's own earlier bowed-ensemble+<multiply>
-  // choice.
-  // Now the real full oscillator chain: a power-ramp base waveform
-  // (e=0.3766) against the 2 explicit harmonics - real, converted
-  // bandwidth (57.3 cents, notably wider than the earlier approximated
-  // 10.0, giving this preset a real beating/chorusing character on its
-  // own even before the <multiply> layering InstrumentLibrary.cpp adds).
+  // "strings" - a power-ramp oscillator shape against 2 harmonics. A very
+  // simple, near-octave-doubled tone on its own - real ensemble character
+  // comes from unison layering on top (InstrumentLibrary.cpp's own
+  // string.synth.slow/pad.bowed registrations).
   static const PadSynthPresetParams kStrings = importedPreset(
     []{
       OCP o;
@@ -468,17 +301,11 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
     /* bandwidth_cents */ 57.3f, /* base_frequency_hz */ 261.6f, /* octaves */ 6, /* samples_per_octave */ 2,
     /* table_length */ 1 << 18, /* tuning_matched */ true);
 
-  // "dual-strings" - the real "Dual Strings Oct2" patch: same power-ramp
-  // base waveform as "strings" (a different real patch, not a duplicate -
-  // its own e is 0.3766 here, distinct from "strings" only in harmonic
-  // content/bandwidth), genuinely just harmonic 1. Several instances of
-  // this same named patch appear across the example set at different
-  // bandwidths (11.5-101.5 cents observed, table lengths 2^17-2^18); the
-  // "0km, part 0" instance (101.5 cents, 2^18) is used here as the single
-  // representative one exposed under this preset name. Its own "dual"/
-  // octave-doubled character comes from unison layering on top, same as
-  // "strings" - see InstrumentLibrary.cpp's own pad.bowed/PadSynth Dual
-  // Strings <multiply> wrapping.
+  // "dual-strings" - the same power-ramp oscillator shape as "strings",
+  // against just harmonic 1 and a wider bandwidth of its own. Its own
+  // "dual"/octave-doubled character comes from unison layering on top,
+  // same as "strings" - see InstrumentLibrary.cpp's own pad.bowed/
+  // PadSynth Dual Strings <multiply> wrapping.
   static const PadSynthPresetParams kDualStrings = importedPreset(
     []{
       OCP o;
@@ -492,13 +319,10 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
     /* bandwidth_cents */ 101.5f, /* base_frequency_hz */ 261.6f, /* octaves */ 6, /* samples_per_octave */ 2,
     /* table_length */ 1 << 18, /* tuning_matched */ true);
 
-  // "saw-piano" - the real "Saw Piano 1" patch: power-ramp base waveform
-  // (e=0.3766) against 4 explicit harmonics (1/2/4/16). Notably its own
-  // amplitude envelope sustains at full level (no decay-to-silence)
-  // rather than Synth Piano 3's own percussive one - a sustained "piano
-  // pad" character, not a percussive one (see InstrumentLibrary.cpp's/the
-  // demo song's own envelope for this preset). bandwidth_cents is the
-  // real converted figure (1.3 - a very narrow, clean-toned band).
+  // "saw-piano" - a power-ramp oscillator shape against 4 harmonics
+  // (1/2/4/16), a narrow bandwidth for a clean-toned band. Its own
+  // envelope sustains at full level (no decay-to-silence) rather than
+  // "keyboard"'s own percussive one - a sustained "piano pad" character.
   static const PadSynthPresetParams kSawPiano = importedPreset(
     []{
       OCP o;
@@ -512,11 +336,10 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
     /* bandwidth_cents */ 1.3f, /* base_frequency_hz */ 261.6f, /* octaves */ 6, /* samples_per_octave */ 2,
     /* table_length */ 1 << 17, /* tuning_matched */ true);
 
-  // "saw-piano-wide" - the same base waveform/harmonics 1/2/4 as
-  // "saw-piano" above, minus its own 16th harmonic - a distinct real
-  // patch ("Saw Piano" in piano_saw_choir.xmz, not "Saw Piano 1"), with a
-  // markedly wider real bandwidth (21.6 vs 1.3 cents), giving it a
-  // fatter/more-detuned character from otherwise similar harmonic content.
+  // "saw-piano-wide" - the same oscillator shape/harmonics 1/2/4 as
+  // "saw-piano" (minus its own 16th harmonic), with a markedly wider
+  // bandwidth (21.6 vs 1.3 cents), giving it a fatter/more-detuned
+  // character from otherwise similar harmonic content.
   static const PadSynthPresetParams kSawPianoWide = importedPreset(
     []{
       OCP o;
@@ -530,13 +353,12 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
     /* bandwidth_cents */ 21.6f, /* base_frequency_hz */ 261.6f, /* octaves */ 6, /* samples_per_octave */ 2,
     /* table_length */ 1 << 18, /* tuning_matched */ true);
 
-  // "soft-pad" - the real "Soft Pad" patch: a much steeper power-ramp base
-  // waveform (e=2.871) than the strings/piano family above, against just
-  // harmonic 1, plus a real spectrum-adjustment stage (gamma=2.936) that
-  // reshapes even that single partial's own overtone-free purity - "soft"
-  // spectrally, not an approximation. Profile autoscale is off for this
-  // preset specifically (alpha fixed at 0.5, per the real patch's own
-  // data), unlike every other imported preset here.
+  // "soft-pad" - a much steeper power-ramp oscillator shape than the
+  // strings/piano family above, against just harmonic 1, plus a
+  // spectrum-adjustment stage that reshapes even that single partial's
+  // own overtone-free purity - "soft" spectrally, genuinely just one
+  // reshaped partial. Profile autoscale is off for this preset
+  // specifically (alpha fixed at 0.5), unlike every other preset here.
   static const PadSynthPresetParams kSoftPad = importedPreset(
     []{
       OCP o;
@@ -552,16 +374,15 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
     /* bandwidth_cents */ 25.6f, /* base_frequency_hz */ 261.6f, /* octaves */ 3, /* samples_per_octave */ 2,
     /* table_length */ 1 << 17, /* tuning_matched */ true);
 
-  // GM's Synth Brass programs (62/63) are the deliberately-synthesized
-  // brass slots, unlike brass.trumpet/brass.section's own real acoustic
+  // GM's Synth Brass programs are the deliberately-synthesized brass
+  // slots, unlike brass.trumpet/brass.section's own real acoustic
   // instruments (see InstrumentLibrary.cpp's own brass.synth/
-  // brass.synth.soft comment for why that distinction matters here) - a
-  // bright, fairly rich harmonic series (rolloff near 1.0, closer to
-  // Warm's own mellow 2.0 than Keyboard's 1.6) for the punchy "sawtooth
-  // brass" character analog synth brass patches are built from, no vowel
-  // formants (a brass stab has no vocal-tract-style resonance to model).
-  // A little harmonic jitter, same reasoning as the choir presets - a
-  // real analog synth's own oscillators are never perfectly clean either.
+  // brass.synth.soft comment) - a bright, fairly rich harmonic series
+  // (rolloff near 1.0) for the punchy "sawtooth brass" character analog
+  // synth brass patches are built from, no vowel formants (a brass stab
+  // has no vocal-tract-style resonance to model). A little harmonic
+  // jitter, same reasoning as the choir presets - a real analog synth's
+  // own oscillators are never perfectly clean either.
   static const PadSynthPresetParams kSynthBrass{
     /* bandwidth_cents            */ 16.0f,
     /* bandwidth_scale_exponent   */ 0.6f,
@@ -571,35 +392,22 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
     /* harmonic_amplitude_jitter  */ 0.05f,
   };
 
-  // "choir-aah" is just an explicit, discoverable name for the same F1/F2/
-  // F3 shape kFormantVocal already tuned toward an open "ah" vowel - kept
-  // as a distinct alias (not a rename) so "formant-vocal" keeps working for
-  // any song/preset reference already using it.
+  // "choir-aah" is an explicit, discoverable name for the same F1/F2/F3
+  // shape kFormantVocal already uses, tuned toward an open "ah" vowel -
+  // kept as a distinct alias (not a rename) so "formant-vocal" keeps
+  // working for any song/preset reference already using it.
   //
   // "choir-ooh" is a genuinely different vowel, not a copy with new
   // numbers: real acoustic "oo" (as in "boot") has its first two formants
   // both low and close together (F1~300Hz, F2~870Hz - versus "ah"'s
   // 700/1220), which is what actually gives it that dark, rounded,
-  // "hooting" quality rather than an open one. Reusing kFormantVocal's own
-  // base spectrum unchanged would still read as "ah" underneath, so the
-  // base is darkened to match: a steeper rolloff (2.2 vs 1.8, less
-  // high-harmonic energy for a vocal tract shaped for a closed, rounded
-  // vowel) and a weaker/narrower F3 (an "oo"'s third formant is real but
-  // comparatively quiet - gain 2.0 vs "ah"'s 3.0 - so the mouth-cavity
-  // darkness doesn't get undone by a bright top end).
-  //
-  // Same round-3 fixes as kFormantVocal above, in both cases for the same
-  // reason: neither is about this vowel's own formant frequencies being
-  // wrong, both are about what a smooth rolloff-plus-formant-bumps curve
-  // structurally can't produce at all. The singer's formant here is
-  // deliberately weaker than kFormantVocal's own - a closed, rounded "oo"
-  // is a genuinely darker vowel than an open "ah" even in a trained
-  // voice, and a full-strength ring would fight that.
-  //
-  // Round 4 (since reverted): same fix as kFormantVocal's own round 4
-  // above, same reason, and reverted for the same reason too - see that
-  // preset's own comment. Round 3's own numbers below (20 cents, gain
-  // 2.5) are what ships.
+  // "hooting" quality rather than an open one. The base spectrum is
+  // darkened to match: a steeper rolloff (2.2 vs "ah"'s 1.8) and a
+  // weaker/narrower F3 (an "oo"'s third formant is real but comparatively
+  // quiet - gain 2.0 vs "ah"'s 3.0). The singer's formant here is
+  // deliberately weaker than "ah"'s own - a closed, rounded "oo" is a
+  // genuinely darker vowel than an open "ah" even in a trained voice, and
+  // a full-strength ring would fight that.
   static const PadSynthPresetParams kChoirOoh{
     /* bandwidth_cents            */ 20.0f,
     /* bandwidth_scale_exponent   */ 0.6f,
@@ -614,18 +422,9 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
     /* harmonic_amplitude_jitter  */ 0.15f,
   };
 
-  // "choir-pad4" - the real ZynAddSubFX "Choir Pad4" patch. Its own
-  // explicit <HARMONICS> list has just harmonic 1 - but that's only a
-  // limitation of the harmonic-*list*, not of what this codebase can
-  // faithfully reproduce: the real spectrum comes from a warped-half-sine
-  // base waveform (e=0.943) with its own real base time warp (k1=0.1671,
-  // phi=0.5039, k3=10), an exponential-lowpass filter, and a harmonic
-  // shift of 7 - all real, public-algorithm-derived oscillator parameters
-  // (docs/padsynth.md), not ZynAddSubFX's own internal adaptive_harmonics
-  // generator. This replaces the earlier version's own approximated base
-  // spectrum (kFormantVocal's vowel formants standing in for the real
-  // patch) entirely - the real oscillator chain now genuinely produces
-  // this patch's own real harmonic content.
+  // "choir-pad4" - a warped-half-sine oscillator shape with its own time
+  // warp (k1=0.1671, phi=0.5039, k3=10), an exponential-lowpass filter,
+  // and a harmonic shift of 7. Used at pad.choir/lead.voice.
   static const PadSynthPresetParams kChoirPad4 = importedPreset(
     []{
       OCP o;
@@ -643,12 +442,36 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
     /* table_length */ 1 << 17, /* tuning_matched */ true,
     /* envelope_anchor_hz */ 289.4f, /* envelope_tracking */ 0.782f);
 
-  // "long-spacechoir2" - the real "Long SpaceChoir2" patch: the same
-  // warped-half-sine/base-warp/lowpass-filter/shift-of-7 family as Choir
-  // Pad4 above, with its own distinct warp constants (k1=0.1599,
-  // phi=0.5118, k3=13) and an added real spectrum-adjustment stage
-  // (gamma=0.6427) - again the real oscillator chain, not an approximated
-  // base spectrum.
+  // "choir-pad4-ooh" - "choir-pad4" darkened toward a closed, rounded "oo"
+  // vowel: the same oscillator shape, time warp, filter, and harmonic
+  // shift, plus a spectrum-adjustment stage that rolls off the upper
+  // harmonics (the same darkening amount "long-spacechoir2" - a sibling
+  // in this same warped-half-sine family - already uses for its own
+  // spectrum adjustment).
+  static const PadSynthPresetParams kChoirPad4Ooh = importedPreset(
+    []{
+      OCP o;
+      o.base_function = ImportedBaseFunction::WarpedHalfSine;
+      o.base_shape_param = 0.943f;
+      o.base_warp = ImportedTimeWarp{ true, 0.1671f, 0.5039f, 10.0f };
+      o.harmonics = { { 1, 0.984f } };
+      o.filter = ImportedFilterParams{ ImportedFilterKind::ExponentialLowpass, 0.994256f, 0.00055f, 0, 1.0f };
+      o.spectrum_adjust_kind = ImportedSpectrumAdjustKind::PowerLaw;
+      o.spectrum_adjust_gamma = 0.6427f;
+      o.harmonic_shift = 7;
+      return o;
+    }(),
+    ImportedProfileParams{ ImportedProfileType::Gaussian, 21.72f, 127, true },
+    ImportedPositionParams{ 0, 0, 0, 0 },
+    /* bandwidth_cents */ 63.7f, /* base_frequency_hz */ 261.6f, /* octaves */ 4, /* samples_per_octave */ 3,
+    /* table_length */ 1 << 17, /* tuning_matched */ true,
+    /* envelope_anchor_hz */ 289.4f, /* envelope_tracking */ 0.782f);
+
+  // "long-spacechoir2" - the same warped-half-sine/time-warp/lowpass-
+  // filter/shift-of-7 family as "choir-pad4", with its own distinct warp
+  // constants (k1=0.1599, phi=0.5118, k3=13) and an added spectrum-
+  // adjustment stage (gamma=0.6427). Used at pad.halo, wrapped in
+  // <phaser> for its own slow, shimmering motion.
   static const PadSynthPresetParams kLongSpaceChoir2 = importedPreset(
     []{
       OCP o;
@@ -670,13 +493,10 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
     /* postprocess_kind */ PadSynthPostprocessKind::ResidueClassWeighting,
     /* postprocess_n */ 2, /* postprocess_r */ 0, /* postprocess_amount */ 0.646f);
 
-  // "bells-3" - the real "Bells 3" patch: a gaussian-pulse base waveform
-  // (a=0.5508) against just harmonic 1, reshaped by a real arctangent
-  // waveshaper and a single-harmonic boost filter (harmonic 1 x1.946) -
-  // genuinely producing this patch's own dense bell-like spectrum, not an
-  // approximation borrowed from "bells". Partial positions are the
-  // explicit type-6 stretch formula (P1=255, P2=107, P3=255 - integer
-  // positions, landing at 1,3,5,8,12,16,21,27,...).
+  // "bells-3" - a Gaussian-pulse oscillator shape against just harmonic
+  // 1, reshaped by an arctangent waveshaper and a single-harmonic boost
+  // filter (harmonic 1 x1.946) - the same shaping family as
+  // "synth-piano-3-b". Partial positions land at 1,3,5,8,12,16,21,27,...
   static const PadSynthPresetParams kBells3 = importedPreset(
     []{
       OCP o;
@@ -700,6 +520,7 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
   if (name == "choir-aah") return kFormantVocal;
   if (name == "choir-ooh") return kChoirOoh;
   if (name == "choir-pad4") return kChoirPad4;
+  if (name == "choir-pad4-ooh") return kChoirPad4Ooh;
   if (name == "long-spacechoir2") return kLongSpaceChoir2;
   if (name == "glass") return kGlass;
   if (name == "mellotron") return kMellotron;
