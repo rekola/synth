@@ -127,3 +127,19 @@ TEST(padsynth_envelope_remap_attributes_round_trip_and_affect_render) {
 
   std::remove(tmp_path.c_str());
 }
+
+TEST(imported_oscillator_presets_render_nonsilent_and_finite) {
+  // choir-pad4/long-spacechoir2/bells-3/dual-strings/synth-piano-3-b are
+  // the presets added by the anchored-spectral-envelope-remap feature's
+  // own oscillator-chain/PADsynth-rendering import (ImportedOscillatorChain.h/
+  // ImportedPadSynthTable.h) that aren't wired into any InstrumentLibrary.cpp
+  // registration or the demo song yet - this is their own coverage.
+  auto loaded = loadFixture("padsynth_imported_presets.xml");
+  CHECK(loaded.ok);
+
+  ChannelConfiguration config(44100, 1);
+  auto result = renderSongOffline(loaded.song, config);
+
+  CHECK(!hasNonFiniteSample(result));
+  CHECK(peakAbs(result) > 1e-4f);
+}

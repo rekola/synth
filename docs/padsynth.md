@@ -111,58 +111,83 @@ patch rather than user-authorable song data.
 
 ## Presets
 
-Per explicit request, every preset below that corresponds to a real
-uploaded ZynAddSubFX factory patch now uses that patch's own real data
-(via `harmonic_amplitudes`, see "Explicit per-harmonic amplitudes"
-below) rather than a from-scratch approximation, wherever the real
-patch's own data is actually portable - see "What's real data vs. an
-approximation" below for which is which and why. `warm` and `glass`
-survive as this codebase's own generic infrastructure (the engine's
-unrecognized-name fallback, and a couple of bandwidth-comparison demo
-sections that are about the bandwidth parameter itself, not about
-matching a specific instrument) - not claimed to represent any real
-patch. `choir-ooh` also survives - genuinely novel, since the uploaded
-patches have no "ooh" choir.
+Every preset below that corresponds to a real uploaded ZynAddSubFX
+factory patch now reproduces that patch's own real *oscillator chain*
+(base waveform, harmonic expansion, waveshaper, harmonic filter, time
+warps, spectrum adjustment, harmonic shift - `ImportedOscillatorChain.h`)
+and real PADsynth rendering (the partial profile/autoscale/placement
+algorithm - `ImportedPadSynthTable.h`), clean-room-implemented from
+ZynAddSubFX's own public algorithm description, not this codebase's own
+Gaussian-band approximation - see "Imported oscillator chain and PADsynth
+rendering" below. `warm` and `glass` survive as this codebase's own
+generic infrastructure (the engine's unrecognized-name fallback, and a
+couple of bandwidth-comparison demo sections that are about the bandwidth
+parameter itself, not about matching a specific instrument) - not claimed
+to represent any real patch. `choir-ooh`/`synth-brass`/`mellotron` also
+stay this codebase's own approximations (genuinely novel, or no real
+patch data exists to import).
 
 | Preset | Character |
 |---|---|
 | `warm` (default) | Moderate bandwidth, natural 1/n harmonic rolloff - a sensible general-purpose pad, and the engine's own fallback for an unrecognized preset name. Not a ported patch. |
 | `glass` | Narrow bandwidth, steep rolloff - most energy in the fundamental and a handful of clean, minimally-beating overtones. Not a ported patch; kept for `pad.metallic`'s own detuned/inharmonic bell character. |
-| `formant-vocal` (= `choir-aah`) | Narrow bandwidth plus four fixed vowel-like formant resonances - F1/F2/F3 (loosely an "ah") plus a "singer's formant" (F3-F5 cluster, ~3kHz) - and a nonzero `harmonic_amplitude_jitter` (0.15). An approximation, not ported data: the real "Choir Pad4" patch's own harmonic content comes from ZynAddSubFX's internal `adaptive_harmonics`/`base_function` oscillator-to-spectrum generator (GPL application logic, not exposed parameter data - only 1 harmonic is ever listed explicitly in the file, everything else is generated internally), so it can't be faithfully ported the way a fully-explicit array can. `choir-aah` is an explicit alias for the same parameters. |
+| `formant-vocal` (= `choir-aah`) | Narrow bandwidth plus four fixed vowel-like formant resonances - F1/F2/F3 (loosely an "ah") plus a "singer's formant" (F3-F5 cluster, ~3kHz) - and a nonzero `harmonic_amplitude_jitter` (0.15). This codebase's own approximation, kept as `pad.choir`'s own base spectral character; the real "Choir Pad4"/"Long SpaceChoir2" patches now have their own dedicated presets below instead. |
 | `choir-ooh` | Genuinely novel - no "ooh" choir patch exists in the uploaded data. A darker, rounder vowel than `choir-aah` (lower/closer-together first two formants, steeper rolloff, a quieter singer's formant). |
-| `keyboard` | Ported data: the real "Synth Piano 3" patch has an explicit, sparse harmonic array (adaptive_harmonics=0, so fully portable) - only harmonics 1/2/5/6 carry energy. Its own envelope decays all the way to S_val=0 (no sustain plateau) - a genuinely percussive piano character, matched by the wrapping `<envelope>`. |
-| `saw-piano` | Also ported: the real "Saw Piano 1" patch (adaptive_harmonics=0), 4 explicit harmonics (1/2/4/16). Unlike `keyboard`, its own envelope sustains at full level (S_val=127) - a sustained "piano pad," not a percussive one. |
-| `soft-pad` | Also ported: the real "Soft Pad" patch (adaptive_harmonics=0) is genuinely just harmonic 1 - a single pure partial, which is what "soft" means spectrally here, not a simplification on this codebase's part. Used at `pad.newAge` (GM's own "soft, airy new-age pad" description is a direct match). |
-| `strings` | Also ported: the real "Strings" patch (adaptive_harmonics=0), 2 explicit harmonics (1/2). A simple base tone on its own - real ensemble motion comes from `<multiply>` unison layered on top (`pad.bowed`/`string.synth.slow`/`songs/oscillator_demo.xml`'s own "Dual Strings"/"Strings" tracks), the same reasoning `pad.choir`'s own unison already established. |
-| `mellotron` | Uses `strings`'s own real harmonic array (a Mellotron "strings" tape *is* a recording of a bowed string ensemble - the same real-world instrument family) with its own slightly narrower/steeper bandwidth/rolloff, reading a little more "tape," a little less "live." Spectral character only; the tape-machine wow/flutter/hiss/attack-swoop is `<tapeDegradation preset="mellotron">`, layered on top separately (`docs/tape_degradation.md`) - see the instrument library's own `keyboard.tape.mellotron` for the full combination. |
-| `church-organ` | Ported data: the real "Church Organ 3" patch has an explicit, sparse harmonic array (adaptive_harmonics=0) - only harmonics 1/2/4/8/12/16/24/32 carry energy, a drawbar-organ-style spectrum a smooth rolloff curve can't produce. Used as a fallback at `organ.pipe` (Church Organ is a real acoustic instrument - a loaded SoundFont's own recorded organ always wins; this only fills the leaf when none is available). |
-| `bells` | Ported, with a caveat: the real "Bells" patch's own `adaptive_harmonics` is nonzero (2), so its 3 explicit harmonics (1/2/4) are only part of the real spectrum, not the whole thing (the rest comes from the same internal generator `choir-aah` can't port either) - treated here as the complete spectrum, a reasonable approximation rather than a byte-for-byte match. Used with `tuningMatched="false"` on top (same reasoning as `pad.metallic`) for the non-integer-relative-to-scale dissonance real bell overtones have. |
+| `choir-pad4` | The real "Choir Pad4" patch's own real oscillator chain: a warped-half-sine base waveform with a real base time warp, an exponential-lowpass filter, and a harmonic shift of 7 - plus its own real anchored-spectral-envelope-remap parameters. Used at `pad.choir`/`lead.voice`. |
+| `long-spacechoir2` | The real "Long SpaceChoir2" patch - the same warped-half-sine/warp/lowpass/shift-of-7 family as `choir-pad4`, with its own warp constants and a real spectrum-adjustment stage. Used at `pad.halo` (wrapped in `<phaser>` on top, since this codebase has no way to reproduce this patch's own internal phasing directly). |
+| `keyboard` | The real "Synth Piano 3" (instance A) patch's own oscillator chain: a power-ramp base waveform, an arctangent waveshaper, a real oscillator time warp, and type-6 fractional-stretch partial positions (partial 10 lands at 10.04) - tuning matching explicitly off, so that real stretch survives. |
+| `synth-piano-3-b` | The same real patch's second documented instance: a Gaussian-pulse base waveform, an arctangent-plus-single-harmonic-boost filter chain (same shaping family as `bells-3`), a slightly stronger partial-10 stretch (10.06), and its own stretch-mix postprocess. |
+| `saw-piano` | The real "Saw Piano 1" patch: a power-ramp base waveform against 4 explicit harmonics (1/2/4/16). Its own envelope sustains at full level (not percussive like `keyboard`). |
+| `saw-piano-wide` | The real "Saw Piano" patch (a distinct, wider-bandwidth sibling of "Saw Piano 1" - not a duplicate): the same power-ramp base waveform against harmonics 1/2/4. |
+| `soft-pad` | The real "Soft Pad" patch: a much steeper power-ramp base waveform against just harmonic 1, reshaped by a real spectrum-adjustment stage - genuinely just one partial, reshaped, not a simplification on this codebase's part. Used at `pad.newAge`. |
+| `strings` | The real "Strings" patch: a power-ramp base waveform against 2 explicit harmonics. A simple base tone on its own - real ensemble motion comes from `<multiply>` unison layered on top (`pad.bowed`/`string.synth.slow`), same reasoning `pad.choir`'s own unison already established. |
+| `dual-strings` | The real "Dual Strings Oct2" patch - a different real patch from `strings`, genuinely just harmonic 1 through the same power-ramp base waveform; several near-identical instances of this patch exist across the example set at different bandwidths, one representative instance is used here. |
+| `mellotron` | Uses `strings`'s own real harmonic content but stays on this codebase's own Gaussian-band renderer (a Mellotron "strings" tape *is* a recording of a bowed string ensemble - the same real-world instrument family) with its own slightly narrower/steeper bandwidth, reading a little more "tape," a little less "live." Spectral character only; the tape-machine wow/flutter/hiss/attack-swoop is `<tapeDegradation preset="mellotron">`, layered on top separately (`docs/tape_degradation.md`). |
+| `church-organ` | The real "Church Organ 3" patch: a clipped-triangle base waveform against 8 explicit harmonics, shaped by a real exponential-lowpass filter - a genuine drawbar-organ-style spectrum. Used as a fallback at `organ.pipe`. |
+| `bells` | The real "Bells" patch: base_function "none" places 3 explicit harmonics directly, then a real logistic-sigmoid waveshaper reshapes that sparse set nonlinearly - genuinely producing the rest of this patch's real spectrum (not an approximation). Type-6 partial positions (integer, landing at 1,2,4,5,7,9,11,13,...). Used with `tuningMatched="false"` on top in some songs (same reasoning as `pad.metallic`) for a deliberately dissonant bell character; the preset's own default is tuning-matched on. |
+| `bells-3` | The real "Bells 3" patch: a Gaussian-pulse base waveform against harmonic 1, reshaped by a real arctangent waveshaper and a single-harmonic boost filter - the same shaping family as `synth-piano-3-b`. Type-6 partial positions (integer, landing at 1,3,5,8,12,16,21,27,...). |
 | `synth-brass` | Bright, fairly rich sawtooth-like rolloff (near 1.0, brighter than every other preset here) with no formants - the punchy "sawtooth brass" character analog synth-brass patches are built from. No real brass patch exists in the uploaded data, so this stays this codebase's own approximation. Used at `brass.synth`/`brass.synth.soft` (GM's own deliberately-synthetic brass programs, unlike `brass.trumpet`/`brass.section`'s real acoustic ones) - `brass.synth` adds real `<multiply>` unison for a "section" of voices and a punchy attack; `brass.synth.soft` is the same preset without the unison layer, mellower and slower, matching GM's own "softer, mellower synth brass" description. |
 
 An unrecognized `preset` name falls back to `warm`.
 
-## What's real data vs. an approximation
+## Imported oscillator chain and PADsynth rendering
 
-Not every uploaded patch is equally portable. ZynAddSubFX's own
-`<HARMONICS>` list is only the *complete* spectrum when that patch's own
-`adaptive_harmonics` is 0 - `church-organ`/`keyboard`/`saw-piano`/
-`soft-pad`/`strings` are all like this, so their harmonic content here is
-real, complete, ported data. When `adaptive_harmonics` is nonzero (Choir
-Pad4: 1, Long SpaceChoir2: 3, Bells: 2, Bells 3: 7, Dual Strings Oct2's
-own richer character beyond a bare fundamental), the explicit
-`<HARMONICS>` list is only a partial view - the rest of the real spectrum
-comes from ZynAddSubFX's own internal `base_function`/adaptive-harmonics
-generator, which is compiled GPL application logic, not exposed parameter
-data, and stays off-limits by this project's own constraint (checking
-real *data*, never the GPL *application source* - see the
-`formant-vocal`/`bells` entries above for exactly where that line falls
-for each one). Those patches keep this codebase's own hand-tuned
-approximations (`choir-aah` for Choir Pad4, `choir-aah`+`<phaser>` for
-Long SpaceChoir2 - `songs/oscillator_demo.xml`'s "Phased Choir" - and
-`strings`+`<multiply octaves="1">` standing in for Dual Strings Oct2's
-own octave-layering idea) rather than a false claim of full fidelity.
-Bells 3 isn't represented as its own preset at all for the same reason,
-given how much of its real character sits behind that same generator.
+Every preset in the table above marked as a real patch (everything except
+`warm`/`glass`/`formant-vocal`/`choir-ooh`/`mellotron`/`synth-brass`) is
+rendered by `ImportedPadSynthTable`, not `PadSynthWavetable` - a
+completely separate implementation of ZynAddSubFX's own real algorithm,
+clean-room-built from its public description (never its GPL application
+source): `ImportedOscillatorChain.h` reproduces the OSCIL shaping chain
+(a small set of named base waveforms - clipped triangle, power ramp,
+Gaussian pulse, warped half-sine - each with an optional time warp,
+harmonic expansion against an explicit list of listed partials, a
+waveshaper, a harmonic filter, a second time warp, spectrum adjustment,
+and a harmonic shift), and `ImportedPadSynthTable.h` reproduces PADsynth's
+own real partial-profile placement algorithm (a supersampled profile
+array with its own "autoscale" width correction, placed per partial via
+two energy-preserving branches depending on window width) over the
+preset's own real sample-set layout (base note, octave span, samples per
+octave, table length) - all real, public-algorithm-derived numeric
+parameters ported directly from the uploaded ZynAddSubFX example patches,
+not GPL application code. Both `PadSynthWavetable` and
+`ImportedPadSynthTable` implement the same `PadSynthTableSource`
+interface, so `PadSynthVoice` reads through either transparently -
+`PadSynth::ensureWavetable()` is what picks between them, per preset
+(`PadSynthPresetParams::imported`).
+
+This closes what used to be a real gap: earlier versions of this file
+could only port a patch whose `adaptive_harmonics` was 0 (meaning its
+explicit `<HARMONICS>` list, alone, happened to be the complete spectrum)
+and had to fall back to a hand-tuned approximation (`choir-aah`'s vowel
+formants) for anything else, since a bare harmonic-magnitude list can't
+represent what a real base waveform/warp/filter/waveshaper actually does
+to a sparse harmonic set. The oscillator chain removes that limitation
+entirely: `choir-pad4`/`long-spacechoir2`/`bells`/`bells-3` all reproduce
+their real patch's own real spectrum now (via their own real base
+waveform, warp, filter, and/or waveshaper), not an approximation
+standing in for a "GPL-only" gap that turned out not to exist once the
+oscillator chain itself - not just the raw harmonic-magnitude list - was
+implemented from ZynAddSubFX's own public description.
 
 ## Formant boost (formant-vocal)
 
@@ -271,6 +296,14 @@ work, amortized across every note/voice that plays through the same
 sub-microsecond). Per-voice `render()` reads from the cached table with
 interpolation and costs on the order of 1000x real time - negligible
 next to the one-time table build.
+
+`ImportedPadSynthTable`'s own per-sample-point cost is broadly similar
+(one inverse FFT at the preset's own real table length, 2^17-2^18, plus
+the oscillator chain's own fixed 512-point cost, computed once and shared
+across every sample point of a preset) - table generation for a full
+demo-song render (multiple imported presets, several octave/sample
+regions each) measured a few seconds real time, still one-time/cached
+work per region.
 
 ## Not yet implemented
 

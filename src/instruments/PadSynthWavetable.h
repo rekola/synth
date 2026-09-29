@@ -2,6 +2,7 @@
 #define _PADSYNTHWAVETABLE_H_
 
 #include "PartialPosition.h"
+#include "PadSynthTableSource.h"
 #include "../dsp/SpectralEnvelopeRemap.h"
 
 #include <cstddef>
@@ -75,7 +76,7 @@ struct PadSynthFormant {
 //     not per-band - so two harmonics whose bands overlap the same bin
 //     still get one shared, coherent phase there, not two independently
 //     rotated contributions that would otherwise partially cancel.
-class PadSynthWavetable {
+class PadSynthWavetable : public PadSynthTableSource {
  public:
   // sample_rate/partial_count/bandwidth_cents/bandwidth_scale_exponent/
   // edo_steps/partial_limit/tuning_matched/seed are exactly the PADsynth
@@ -144,14 +145,14 @@ class PadSynthWavetable {
 
   // Returns the wavetable covering f0's own pitch region, building and
   // caching it on first use (one table per octave region - see .cpp).
-  const std::vector<float> & getTable(float f0) const;
+  const std::vector<float> & getTable(float f0) const override;
 
   // The pitch region's own reference fundamental (Hz) that getTable(f0)'s
   // table was actually generated at - see PadSynthVoice.h's own render()
   // for how a voice resamples from this to its note's real pitch.
-  float tableBaseFrequency(float f0) const;
+  float tableBaseFrequency(float f0) const override;
 
-  int getSampleRate() const { return sample_rate_; }
+  int getSampleRate() const override { return sample_rate_; }
   size_t getTableSize() const { return table_size_; }
 
  private:

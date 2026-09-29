@@ -2,7 +2,7 @@
 #define _PADSYNTH_H_
 
 #include "Instrument.h"
-#include "PadSynthWavetable.h"
+#include "PadSynthTableSource.h"
 #include "../ambisonic/SphericalPosition.h"
 #include "../model/SendLevels.h"
 #include "../model/NoteCoordinate.h"
@@ -55,7 +55,7 @@ class PadSynth : public Instrument {
   // Tuning changes since the table was built (e.g. --samplerate, or a
   // song-tuning change, between one playNote() and the next) - neither
   // happens mid-song in practice but both are checked rather than assumed.
-  mutable std::shared_ptr<PadSynthWavetable> wavetable_;
+  mutable std::shared_ptr<PadSynthTableSource> wavetable_;
   mutable Tuning wavetable_tuning_ = Tuning::TET31;
 
   std::string preset_ = "warm";

@@ -2,6 +2,8 @@
 
 #include "PadSynthPresets.h"
 #include "PadSynthVoice.h"
+#include "PadSynthWavetable.h"
+#include "ImportedPadSynthTable.h"
 
 using namespace std;
 
@@ -45,17 +47,37 @@ PadSynth::ensureWavetable(const ChannelConfiguration & config, Tuning tuning) co
   int edo_steps = edoStepsFor(tuning);
   if (!wavetable_ || wavetable_->getSampleRate() != config.getAudioOutSampleRate() || wavetable_tuning_ != tuning) {
     auto & preset = getPadSynthPreset(preset_);
-    wavetable_ = std::make_shared<PadSynthWavetable>(
-      config.getAudioOutSampleRate(), partial_count_, bandwidth_cents_, bandwidth_scale_exponent_,
-      edo_steps, partial_limit_, tuning_matched_, seed_,
-      preset.amplitude_rolloff_exponent, preset.formants, preset.harmonic_amplitude_jitter,
-      preset.harmonic_amplitudes,
-      envelope_anchor_hz_, envelope_tracking_,
-      envelope_postprocess_ == "residue" ? PadSynthPostprocessKind::ResidueClassWeighting
-        : envelope_postprocess_ == "stretch" ? PadSynthPostprocessKind::StretchMix
-        : PadSynthPostprocessKind::None,
-      envelope_postprocess_n_, envelope_postprocess_r_, envelope_postprocess_amount_,
-      preset.position_spec);
+    auto postprocess_kind = envelope_postprocess_ == "residue" ? SpectralPostprocessKind::ResidueClassWeighting
+      : envelope_postprocess_ == "stretch" ? SpectralPostprocessKind::StretchMix
+      : SpectralPostprocessKind::None;
+
+    if (preset.imported) {
+      // ImportedPadSynthTable owns a full copy of the preset's own
+      // oscillator/profile/position data - only the instance-level
+      // overrides (tuning/remap/seed) come from this instrument's own
+      // XML attributes, same values either renderer would use.
+      ImportedPadSynthParams params = *preset.imported;
+      params.edo_steps = edo_steps;
+      params.tuning_matched = tuning_matched_;
+      params.envelope_anchor_hz = envelope_anchor_hz_;
+      params.envelope_tracking = envelope_tracking_;
+      params.postprocess_kind = postprocess_kind;
+      params.postprocess_n = envelope_postprocess_n_;
+      params.postprocess_r = envelope_postprocess_r_;
+      params.postprocess_amount = envelope_postprocess_amount_;
+      params.seed = seed_;
+      wavetable_ = std::make_shared<ImportedPadSynthTable>(config.getAudioOutSampleRate(), std::move(params));
+    } else {
+      wavetable_ = std::make_shared<PadSynthWavetable>(
+        config.getAudioOutSampleRate(), partial_count_, bandwidth_cents_, bandwidth_scale_exponent_,
+        edo_steps, partial_limit_, tuning_matched_, seed_,
+        preset.amplitude_rolloff_exponent, preset.formants, preset.harmonic_amplitude_jitter,
+        preset.harmonic_amplitudes,
+        envelope_anchor_hz_, envelope_tracking_,
+        postprocess_kind,
+        envelope_postprocess_n_, envelope_postprocess_r_, envelope_postprocess_amount_,
+        preset.position_spec);
+    }
     wavetable_tuning_ = tuning;
   }
 }

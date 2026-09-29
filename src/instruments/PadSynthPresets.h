@@ -3,7 +3,9 @@
 
 #include "PadSynthWavetable.h"
 #include "PartialPosition.h"
+#include "ImportedPadSynthTable.h"
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -54,7 +56,75 @@ struct PadSynthPresetParams {
   // g(h) - PartialPosition.h - preset-only, like formants/
   // harmonic_amplitudes above (ParameterSource has no array type).
   PartialPositionSpec position_spec = {};
+
+  // Non-null selects ImportedPadSynthTable (the clean-room, ZynAddSubFX-
+  // faithful oscillator-chain + profile-placement renderer, docs/
+  // padsynth.md) over PadSynthWavetable's own from-scratch Gaussian-band
+  // one for this preset entirely - every field above except
+  // tuning_matched/envelope_*/postprocess_* (still read the same way by
+  // both renderers) is then unused. Every real ZynAddSubFX-imported
+  // preset with a fully or mostly portable oscillator chain uses this;
+  // this codebase's own invented presets (warm/glass/formant-vocal/
+  // choir-ooh/synth-brass/mellotron) do not.
+  std::shared_ptr<ImportedPadSynthParams> imported;
 };
+
+// Short local aliases - only used to keep the imported-preset data tables
+// below (ported directly from ZynAddSubFX's own public algorithm
+// description, docs/padsynth.md) readable; never exposed outside this file.
+using OCP = ImportedOscillator::OscillatorChainParams;
+using ImportedBaseFunction = ImportedOscillator::BaseFunction;
+using ImportedWaveshaperKind = ImportedOscillator::WaveshaperKind;
+using ImportedFilterKind = ImportedOscillator::FilterKind;
+using ImportedFilterParams = ImportedOscillator::HarmonicFilterParams;
+using ImportedTimeWarp = ImportedOscillator::TimeWarp;
+using ImportedSpectrumAdjustKind = ImportedOscillator::SpectrumAdjustKind;
+using ImportedProfileParams = ImportedPadSynth::ProfileParams;
+using ImportedProfileType = ImportedPadSynth::ProfileType;
+using ImportedPositionParams = ImportedPadSynth::PositionParams;
+
+// Builds a PadSynthPresetParams for an imported (ZynAddSubFX-sourced)
+// preset that uses ImportedPadSynthTable's own oscillator-chain +
+// profile-placement rendering (docs/padsynth.md) - every field of the
+// outer PadSynthPresetParams this codebase's own Gaussian-band renderer
+// would otherwise read is irrelevant here except tuning_matched/
+// envelope_*/postprocess_*, which both renderers read the same way (an
+// explicit XML attribute still always overrides these).
+inline PadSynthPresetParams importedPreset(OCP oscillator, ImportedProfileParams profile, ImportedPositionParams position,
+                                            float bandwidth_cents, float base_frequency_hz, int octaves, int samples_per_octave,
+                                            int table_length, bool tuning_matched,
+                                            float envelope_anchor_hz = 0.0f, float envelope_tracking = 0.0f,
+                                            PadSynthPostprocessKind postprocess_kind = PadSynthPostprocessKind::None,
+                                            int postprocess_n = 0, int postprocess_r = 0, float postprocess_amount = 0.0f) {
+  PadSynthPresetParams params;
+  params.bandwidth_cents = bandwidth_cents;
+  params.tuning_matched = tuning_matched;
+  params.envelope_anchor_hz = envelope_anchor_hz;
+  params.envelope_tracking = envelope_tracking;
+  params.postprocess_kind = postprocess_kind;
+  params.postprocess_n = postprocess_n;
+  params.postprocess_r = postprocess_r;
+  params.postprocess_amount = postprocess_amount;
+
+  auto imported = std::make_shared<ImportedPadSynthParams>();
+  imported->oscillator = std::move(oscillator);
+  imported->profile = profile;
+  imported->position = position;
+  imported->bandwidth_cents = bandwidth_cents;
+  imported->base_frequency_hz = base_frequency_hz;
+  imported->octaves = octaves;
+  imported->samples_per_octave = samples_per_octave;
+  imported->table_length = table_length;
+  imported->tuning_matched = tuning_matched;
+  imported->envelope_anchor_hz = envelope_anchor_hz;
+  imported->envelope_tracking = envelope_tracking;
+  imported->postprocess_kind = postprocess_kind;
+  imported->postprocess_n = postprocess_n;
+  imported->postprocess_r = postprocess_r;
+  imported->postprocess_amount = postprocess_amount;
+  params.imported = std::move(imported);
+  return params;
+}
 
 // An unrecognized preset name falls back to "warm" rather than asserting -
 // the same "unrecognized name falls back to a real default" shape
@@ -104,61 +174,55 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
   // kept narrow, for clarity/presence on a small, sparse harmonic set.
   // The real patch's own filter+filter-envelope isn't ported, same reason
   // as kChurchOrgan.
-  // "keyboard" is Synth Piano 3 (A) in the anchored-spectral-envelope-remap
-  // feature's own preset table - a real patch has two documented instances
-  // in the ZynAddSubFX example set with different remap settings (see
-  // kSynthPiano3B below for instance B); this one is the original ported
-  // "keyboard" preset, now with its own real position/bandwidth/tuning data
-  // filled in: partial 10's own real stretch anchor (10.04, a real stiff-
-  // string-style inharmonicity, not the plain harmonic series -
-  // stretchCoefficientForAnchor() solves the stretch coefficient from that
-  // one measured point, PartialPosition.h), bandwidth_cents corrected to
-  // 11.5, and tuning matching explicitly OFF - turning it on would erase
-  // the very stretch that makes this preset's own low partials read as a
-  // real piano string's rather than a plain harmonic tone (see
-  // PadSynthPresets.h's own "## Tuning matching" rationale in docs/
-  // padsynth.md).
-  static const PadSynthPresetParams kKeyboard{
-    /* bandwidth_cents            */ 11.5f,
-    /* bandwidth_scale_exponent   */ 0.6f,
-    /* partial_count              */ 6,
-    /* amplitude_rolloff_exponent */ 1.0f, // unused - harmonic_amplitudes below replaces it
-    /* formants                   */ {},
-    /* harmonic_amplitude_jitter  */ 0.0f,
-    /* harmonic_amplitudes        */ { 127.0f/127.0f, 127.0f/127.0f, 0.0f, 0.0f, 99.0f/127.0f, 104.0f/127.0f },
-    /* tuning_matched             */ false,
-    /* envelope_anchor_hz         */ 115.6f,
-    /* envelope_tracking          */ 0.980f,
-    /* postprocess_kind           */ PadSynthPostprocessKind::None,
-    /* postprocess_n              */ 0,
-    /* postprocess_r              */ 0,
-    /* postprocess_amount         */ 0.0f,
-    /* position_spec              */ PartialPositionSpec{ PartialPositionSpec::Kind::FractionalStretch, {}, stretchCoefficientForAnchor(10, 10.04f) },
-  };
+  // "keyboard" is Synth Piano 3 (A) - now the real full oscillator chain
+  // (power-ramp base waveform e=2.871, explicit harmonics 1/2/5/6,
+  // arctangent waveshaper, a real oscillator time warp) plus real PADsynth
+  // rendering data (rectangular profile, type-6 fractional-stretch partial
+  // positions landing partial 10 at 10.04), clean-room-implemented from
+  // ZynAddSubFX's own public algorithm description (see docs/padsynth.md;
+  // ImportedOscillatorChain.h/ImportedPadSynthTable.h for the renderer).
+  // Tuning matching stays explicitly OFF - turning it on would erase the
+  // very stretch that makes this preset's own low partials read as a real
+  // piano string's rather than a plain harmonic tone.
+  static const PadSynthPresetParams kKeyboard = importedPreset(
+    []{
+      OCP o;
+      o.base_function = ImportedBaseFunction::PowerRamp;
+      o.base_shape_param = 2.871f;
+      o.harmonics = { { 1, 0.984f }, { 2, 0.984f }, { 5, 0.547f }, { 6, 0.625f } };
+      o.waveshaper_kind = ImportedWaveshaperKind::Arctangent;
+      o.waveshaper_k = 46.72f;
+      o.oscillator_warp = ImportedTimeWarp{ true, 0.1053f, -0.0039f, 1.0f };
+      return o;
+    }(),
+    ImportedProfileParams{ ImportedProfileType::Rectangular, 6.258f, 127, true },
+    ImportedPositionParams{ 6, 78, 56, 0 },
+    /* bandwidth_cents */ 11.5f, /* base_frequency_hz */ 392.4f, /* octaves */ 5, /* samples_per_octave */ 2,
+    /* table_length */ 1 << 17, /* tuning_matched */ false,
+    /* envelope_anchor_hz */ 115.6f, /* envelope_tracking */ 0.980f);
 
-  // Synth Piano 3 (B) - the same real patch's second documented instance,
-  // with its own distinct remap/postprocess/stretch settings (a slightly
-  // stronger partial-10 stretch, 10.06 vs instance A's 10.04, plus a
-  // stretch-mix postprocess instance A doesn't have) - kept as a fully
-  // separate preset rather than a variant flag, per the remap feature's own
-  // preset table treating the two as distinct entries.
-  static const PadSynthPresetParams kSynthPiano3B{
-    /* bandwidth_cents            */ 32.5f,
-    /* bandwidth_scale_exponent   */ 0.6f,
-    /* partial_count              */ 6,
-    /* amplitude_rolloff_exponent */ 1.0f, // unused - harmonic_amplitudes below replaces it
-    /* formants                   */ {},
-    /* harmonic_amplitude_jitter  */ 0.0f,
-    /* harmonic_amplitudes        */ { 127.0f/127.0f, 127.0f/127.0f, 0.0f, 0.0f, 99.0f/127.0f, 104.0f/127.0f },
-    /* tuning_matched             */ false,
-    /* envelope_anchor_hz         */ 233.2f,
-    /* envelope_tracking          */ 0.634f,
-    /* postprocess_kind           */ PadSynthPostprocessKind::StretchMix,
-    /* postprocess_n              */ 2,
-    /* postprocess_r              */ 0,
-    /* postprocess_amount         */ 0.646f,
-    /* position_spec              */ PartialPositionSpec{ PartialPositionSpec::Kind::FractionalStretch, {}, stretchCoefficientForAnchor(10, 10.06f) },
-  };
+  // Synth Piano 3 (B) - the same real patch's second documented instance:
+  // a Gaussian-pulse base waveform instead of (A)'s power ramp, the same
+  // arctangent-plus-single-harmonic-boost shaping Bells 3 uses, a slightly
+  // stronger partial-10 stretch (10.06 vs (A)'s 10.04), and its own
+  // distinct remap/postprocess (stretch-mix, which (A) doesn't have).
+  static const PadSynthPresetParams kSynthPiano3B = importedPreset(
+    []{
+      OCP o;
+      o.base_function = ImportedBaseFunction::GaussianPulse;
+      o.base_shape_param = 0.5273f;
+      o.harmonics = { { 1, 0.984f } };
+      o.waveshaper_kind = ImportedWaveshaperKind::Arctangent;
+      o.waveshaper_k = 6.247f;
+      o.filter = ImportedFilterParams{ ImportedFilterKind::SingleHarmonicBoost, 0.0f, 0.0f, 1, 1.946f };
+      return o;
+    }(),
+    ImportedProfileParams{ ImportedProfileType::Gaussian, 6.258f, 127, true },
+    ImportedPositionParams{ 6, 92, 56, 0 },
+    /* bandwidth_cents */ 32.5f, /* base_frequency_hz */ 392.4f, /* octaves */ 6, /* samples_per_octave */ 2,
+    /* table_length */ 1 << 17, /* tuning_matched */ false,
+    /* envelope_anchor_hz */ 233.2f, /* envelope_tracking */ 0.634f,
+    /* postprocess_kind */ PadSynthPostprocessKind::StretchMix, /* postprocess_n */ 2, /* postprocess_r */ 0, /* postprocess_amount */ 0.646f);
 
   // A handful of vowel-like formant resonances (loosely modeled on an "ah"
   // vowel's own F1/F2/F3) boost specific harmonic bands regardless of
@@ -300,26 +364,26 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
   // modulation mechanism yet (its own `envelope_` member is unused -
   // BiquadFilterDsp never reads it to modulate fc), a separate, larger gap
   // than this preset alone.
-  // bandwidth_cents corrected to 5.2 (this patch's own real bandwidth-unit-
-  // to-cents figure); tuning matching stays on (already this preset's own
-  // default), now via the odd-part(m)<=7 rule rather than the old count cutoff.
-  static const PadSynthPresetParams kChurchOrgan{
-    /* bandwidth_cents            */ 5.2f,
-    /* bandwidth_scale_exponent   */ 0.5f,
-    /* partial_count              */ 32,
-    /* amplitude_rolloff_exponent */ 1.0f, // unused - harmonic_amplitudes below replaces it
-    /* formants                   */ {},
-    /* harmonic_amplitude_jitter  */ 0.0f,
-    /* harmonic_amplitudes        */ {
-      127.0f/127.0f, 111.0f/127.0f, 0.0f, 96.0f/127.0f,          //  1- 4
-      0.0f, 0.0f, 0.0f, 92.0f/127.0f,                            //  5- 8
-      0.0f, 0.0f, 0.0f, 74.0f/127.0f,                            //  9-12
-      0.0f, 0.0f, 0.0f, 94.0f/127.0f,                            // 13-16
-      0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 76.0f/127.0f,    // 17-24
-      0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 74.0f/127.0f,    // 25-32
-    },
-    /* tuning_matched             */ true,
-  };
+  // Now the real full oscillator chain: a clipped-triangle base waveform
+  // (a'=0.8477) whose harmonic expansion, against the same 8 explicit
+  // partials, plus an exponential-lowpass harmonic filter, reproduces this
+  // patch's own real drawbar-organ-style spectrum - not just the bare
+  // harmonic-magnitude list the earlier version used. bandwidth_cents is
+  // now the real converted figure (5.2), not an approximation.
+  static const PadSynthPresetParams kChurchOrgan = importedPreset(
+    []{
+      OCP o;
+      o.base_function = ImportedBaseFunction::ClippedTriangle;
+      o.base_shape_param = 0.8477f;
+      o.harmonics = { { 1, 0.984f }, { 2, 0.734f }, { 4, 0.500f }, { 8, 0.438f },
+                       { 12, 0.156f }, { 16, 0.469f }, { 24, 0.188f }, { 32, 0.156f } };
+      o.filter = ImportedFilterParams{ ImportedFilterKind::ExponentialLowpass, 0.977975f, 0.032346f, 0, 1.0f };
+      return o;
+    }(),
+    ImportedProfileParams{ ImportedProfileType::Gaussian, 21.72f, 127, true },
+    ImportedPositionParams{ 0, 0, 0, 0 },
+    /* bandwidth_cents */ 5.2f, /* base_frequency_hz */ 261.6f, /* octaves */ 4, /* samples_per_octave */ 2,
+    /* table_length */ 1 << 17, /* tuning_matched */ true);
 
   // "bells" - the uploaded ZynAddSubFX factory patch "Bells"
   // (noefx_bell_strings.xmz) has just 3 explicit harmonics (1/2/4 - mag
@@ -345,38 +409,37 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
   // alone - a reasonable approximation, not a byte-for-byte match to
   // what the real patch actually sounds like.
   //
-  // Partial positions and bandwidth updated to the exact anchored-spectral-
-  // envelope-remap-feature figures given for the real "Bells" patch: partial
-  // positions are the explicit integer sequence 1,2,4,5,7,9,11,13 (not the
-  // plain harmonic series - a real bell/chime's own strike-tone partials
-  // aren't simple integer multiples, this is the most this codebase can
-  // faithfully claim from the data alone, same porting caveat as before),
-  // bandwidth_cents corrected to 21.2 (this patch's own real bandwidth-unit-
-  // to-cents figure), tuning matching turned on (the engine's own default
-  // for a ZynAddSubFX-imported preset now that it uses a real per-partial
-  // odd-part(m)<=7 rule rather than a blunt first-N-count cutoff - see
-  // SpectralBandProfile.h's own tuningMatchedPartialPosition()). Any song
-  // that still wants Bells' own bare, untempered dissonance (e.g. a
-  // deliberately bell-like/out-of-tune character) sets tuningMatched="false"
-  // explicitly, same as any other preset's default - an explicit XML
-  // attribute always overrides a preset's own default.
-  static const PadSynthPresetParams kBells{
-    /* bandwidth_cents            */ 21.2f,
-    /* bandwidth_scale_exponent   */ 0.5f,
-    /* partial_count              */ 8,
-    /* amplitude_rolloff_exponent */ 1.0f, // unused - harmonic_amplitudes below replaces it
-    /* formants                   */ {},
-    /* harmonic_amplitude_jitter  */ 0.0f,
-    /* harmonic_amplitudes        */ { 127.0f/127.0f, 75.0f/127.0f, 0.0f, 84.0f/127.0f },
-    /* tuning_matched             */ true,
-    /* envelope_anchor_hz         */ 233.2f,
-    /* envelope_tracking          */ 0.634f,
-    /* postprocess_kind           */ PadSynthPostprocessKind::ResidueClassWeighting,
-    /* postprocess_n              */ 2,
-    /* postprocess_r              */ 1,
-    /* postprocess_amount         */ 0.646f,
-    /* position_spec              */ PartialPositionSpec{ PartialPositionSpec::Kind::IntegerList, { 1, 2, 4, 5, 7, 9, 11, 13 }, 0.0f },
-  };
+  // Now the real full oscillator chain: base_function "none" places the 3
+  // explicit harmonics (1/2/4) directly, then a logistic-sigmoid
+  // waveshaper reshapes that sparse set nonlinearly - genuinely producing
+  // the rest of this patch's real spectrum (the earlier version's bare
+  // 3-harmonic array, with nothing past harmonic 4, undersold how rich the
+  // real patch actually is; the waveshaper is exactly what fills that in).
+  // Partial positions are the explicit type-6 stretch formula (P1=255,
+  // P2=75, P3=255 - integer positions, landing at 1,2,4,5,7,9,11,13,...),
+  // not a plain harmonic series - a real bell/chime's own strike-tone
+  // partials aren't simple integer multiples. bandwidth_cents/remap are
+  // the real converted figures. Any song that still wants Bells' own bare,
+  // untempered dissonance (e.g. a deliberately bell-like/out-of-tune
+  // character) sets tuningMatched="false" explicitly, same as any other
+  // preset's default - an explicit XML attribute always overrides a
+  // preset's own default.
+  static const PadSynthPresetParams kBells = importedPreset(
+    []{
+      OCP o;
+      o.base_function = ImportedBaseFunction::None;
+      o.harmonics = { { 1, 0.984f }, { 2, 0.172f }, { 4, 0.313f } };
+      o.waveshaper_kind = ImportedWaveshaperKind::LogisticSigmoid;
+      o.waveshaper_k = 8.443f;
+      return o;
+    }(),
+    ImportedProfileParams{ ImportedProfileType::Gaussian, 6.258f, 127, true },
+    ImportedPositionParams{ 6, 255, 75, 255 },
+    /* bandwidth_cents */ 21.2f, /* base_frequency_hz */ 392.4f, /* octaves */ 5, /* samples_per_octave */ 2,
+    /* table_length */ 1 << 17, /* tuning_matched */ true,
+    /* envelope_anchor_hz */ 233.2f, /* envelope_tracking */ 0.634f,
+    /* postprocess_kind */ PadSynthPostprocessKind::ResidueClassWeighting,
+    /* postprocess_n */ 2, /* postprocess_r */ 1, /* postprocess_amount */ 0.646f);
 
   // "strings" - the real "Strings" patch (noefx_bell_strings.xmz, PART
   // id="1") - unlike Bells above, its own adaptive_harmonics is 0, so its
@@ -387,112 +450,107 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
   // InstrumentLibrary.cpp's own string.synth.slow registration), same
   // reasoning as this codebase's own earlier bowed-ensemble+<multiply>
   // choice.
-  // bandwidth_cents corrected to 57.3 (this patch's own real bandwidth-unit-
-  // to-cents figure - notably much wider than the earlier approximated
-  // 10.0, giving this preset a real beating/chorusing character on its own
-  // even before the <multiply> layering InstrumentLibrary.cpp adds).
-  static const PadSynthPresetParams kStrings{
-    /* bandwidth_cents            */ 57.3f,
-    /* bandwidth_scale_exponent   */ 0.5f,
-    /* partial_count              */ 2,
-    /* amplitude_rolloff_exponent */ 1.0f, // unused - harmonic_amplitudes below replaces it
-    /* formants                   */ {},
-    /* harmonic_amplitude_jitter  */ 0.0f,
-    /* harmonic_amplitudes        */ { 127.0f/127.0f, 117.0f/127.0f },
-    /* tuning_matched             */ true,
-  };
+  // Now the real full oscillator chain: a power-ramp base waveform
+  // (e=0.3766) against the 2 explicit harmonics - real, converted
+  // bandwidth (57.3 cents, notably wider than the earlier approximated
+  // 10.0, giving this preset a real beating/chorusing character on its
+  // own even before the <multiply> layering InstrumentLibrary.cpp adds).
+  static const PadSynthPresetParams kStrings = importedPreset(
+    []{
+      OCP o;
+      o.base_function = ImportedBaseFunction::PowerRamp;
+      o.base_shape_param = 0.3766f;
+      o.harmonics = { { 1, 0.984f }, { 2, 0.828f } };
+      return o;
+    }(),
+    ImportedProfileParams{ ImportedProfileType::Gaussian, 6.258f, 127, true },
+    ImportedPositionParams{ 0, 0, 0, 0 },
+    /* bandwidth_cents */ 57.3f, /* base_frequency_hz */ 261.6f, /* octaves */ 6, /* samples_per_octave */ 2,
+    /* table_length */ 1 << 18, /* tuning_matched */ true);
 
-  // "dual-strings" - the real "Dual Strings Oct2" patch
-  // (piano_saw_choir.xmz PART id="0", also duplicated in 0km.xmz):
-  // adaptive_harmonics=0, and genuinely just harmonic 1, like Soft Pad -
-  // a different real patch from "Strings" above (its own bandwidth raw
-  // units, 637, are distinct from Strings' own 620), not a duplicate.
-  // Several instances of this same patch appear across the example set at
-  // slightly different bandwidth settings (11.5-101.5 cents observed); a
-  // representative mid-range value is used here rather than one specific
-  // instance's own exact figure. Its own "dual"/octave-doubled character
-  // comes from unison layering on top, same as "strings" - see
-  // InstrumentLibrary.cpp's own pad.bowed/PadSynth Dual Strings <multiply>
-  // wrapping.
-  static const PadSynthPresetParams kDualStrings{
-    /* bandwidth_cents            */ 30.0f,
-    /* bandwidth_scale_exponent   */ 0.5f,
-    /* partial_count              */ 1,
-    /* amplitude_rolloff_exponent */ 1.0f, // unused - harmonic_amplitudes below replaces it
-    /* formants                   */ {},
-    /* harmonic_amplitude_jitter  */ 0.0f,
-    /* harmonic_amplitudes        */ { 1.0f },
-    /* tuning_matched             */ true,
-  };
+  // "dual-strings" - the real "Dual Strings Oct2" patch: same power-ramp
+  // base waveform as "strings" (a different real patch, not a duplicate -
+  // its own e is 0.3766 here, distinct from "strings" only in harmonic
+  // content/bandwidth), genuinely just harmonic 1. Several instances of
+  // this same named patch appear across the example set at different
+  // bandwidths (11.5-101.5 cents observed, table lengths 2^17-2^18); the
+  // "0km, part 0" instance (101.5 cents, 2^18) is used here as the single
+  // representative one exposed under this preset name. Its own "dual"/
+  // octave-doubled character comes from unison layering on top, same as
+  // "strings" - see InstrumentLibrary.cpp's own pad.bowed/PadSynth Dual
+  // Strings <multiply> wrapping.
+  static const PadSynthPresetParams kDualStrings = importedPreset(
+    []{
+      OCP o;
+      o.base_function = ImportedBaseFunction::PowerRamp;
+      o.base_shape_param = 0.3766f;
+      o.harmonics = { { 1, 0.984f } };
+      return o;
+    }(),
+    ImportedProfileParams{ ImportedProfileType::Gaussian, 6.258f, 127, true },
+    ImportedPositionParams{ 0, 0, 0, 0 },
+    /* bandwidth_cents */ 101.5f, /* base_frequency_hz */ 261.6f, /* octaves */ 6, /* samples_per_octave */ 2,
+    /* table_length */ 1 << 18, /* tuning_matched */ true);
 
-  // "saw-piano" - the real "Saw Piano 1" patch (noefx_saw_piano.xmz,
-  // adaptive_harmonics=0, so fully portable): 4 explicit harmonics
-  // (1/2/4/16, mag 127/123/127/100). Notably its own amplitude envelope
-  // sustains at S_val=127 (full level, no decay-to-silence) rather than
-  // Synth Piano 3's own S_val=0 - a sustained "piano pad" character, not
-  // a percussive one; kept that way here rather than assumed-percussive,
-  // since the data says otherwise (see InstrumentLibrary.cpp's/the demo
-  // song's own envelope for this preset).
-  // bandwidth_cents corrected to 1.3 (this patch's own real bandwidth-unit-
-  // to-cents figure - a very narrow, clean-toned band).
-  static const PadSynthPresetParams kSawPiano{
-    /* bandwidth_cents            */ 1.3f,
-    /* bandwidth_scale_exponent   */ 0.5f,
-    /* partial_count              */ 16,
-    /* amplitude_rolloff_exponent */ 1.0f, // unused - harmonic_amplitudes below replaces it
-    /* formants                   */ {},
-    /* harmonic_amplitude_jitter  */ 0.0f,
-    /* harmonic_amplitudes        */ {
-      127.0f/127.0f, 123.0f/127.0f, 0.0f, 127.0f/127.0f,   //  1- 4
-      0.0f, 0.0f, 0.0f, 0.0f,                              //  5- 8
-      0.0f, 0.0f, 0.0f, 0.0f,                              //  9-12
-      0.0f, 0.0f, 0.0f, 100.0f/127.0f,                     // 13-16
-    },
-    /* tuning_matched             */ true,
-  };
+  // "saw-piano" - the real "Saw Piano 1" patch: power-ramp base waveform
+  // (e=0.3766) against 4 explicit harmonics (1/2/4/16). Notably its own
+  // amplitude envelope sustains at full level (no decay-to-silence)
+  // rather than Synth Piano 3's own percussive one - a sustained "piano
+  // pad" character, not a percussive one (see InstrumentLibrary.cpp's/the
+  // demo song's own envelope for this preset). bandwidth_cents is the
+  // real converted figure (1.3 - a very narrow, clean-toned band).
+  static const PadSynthPresetParams kSawPiano = importedPreset(
+    []{
+      OCP o;
+      o.base_function = ImportedBaseFunction::PowerRamp;
+      o.base_shape_param = 0.3766f;
+      o.harmonics = { { 1, 0.984f }, { 2, 0.922f }, { 4, 0.984f }, { 16, 0.563f } };
+      return o;
+    }(),
+    ImportedProfileParams{ ImportedProfileType::Gaussian, 6.258f, 127, true },
+    ImportedPositionParams{ 0, 0, 0, 0 },
+    /* bandwidth_cents */ 1.3f, /* base_frequency_hz */ 261.6f, /* octaves */ 6, /* samples_per_octave */ 2,
+    /* table_length */ 1 << 17, /* tuning_matched */ true);
 
-  // "saw-piano-wide" - the same real per-harmonic data as "saw-piano"
-  // above (harmonics 1/2/4/16 also appear, at the same mag values, in the
-  // distinct "Saw Piano" patch found in piano_saw_choir.xmz PART id="1" -
-  // a wider-bandwidth sibling of "Saw Piano 1", not a duplicate entry: its
-  // own real bandwidth-unit-to-cents figure (21.6) is markedly wider,
-  // giving it a fatter/more-detuned character from the same underlying
-  // harmonic content.
-  static const PadSynthPresetParams kSawPianoWide{
-    /* bandwidth_cents            */ 21.6f,
-    /* bandwidth_scale_exponent   */ 0.5f,
-    /* partial_count              */ 16,
-    /* amplitude_rolloff_exponent */ 1.0f, // unused - harmonic_amplitudes below replaces it
-    /* formants                   */ {},
-    /* harmonic_amplitude_jitter  */ 0.0f,
-    /* harmonic_amplitudes        */ {
-      127.0f/127.0f, 123.0f/127.0f, 0.0f, 127.0f/127.0f,   //  1- 4
-      0.0f, 0.0f, 0.0f, 0.0f,                              //  5- 8
-      0.0f, 0.0f, 0.0f, 0.0f,                              //  9-12
-      0.0f, 0.0f, 0.0f, 100.0f/127.0f,                     // 13-16
-    },
-    /* tuning_matched             */ true,
-  };
+  // "saw-piano-wide" - the same base waveform/harmonics 1/2/4 as
+  // "saw-piano" above, minus its own 16th harmonic - a distinct real
+  // patch ("Saw Piano" in piano_saw_choir.xmz, not "Saw Piano 1"), with a
+  // markedly wider real bandwidth (21.6 vs 1.3 cents), giving it a
+  // fatter/more-detuned character from otherwise similar harmonic content.
+  static const PadSynthPresetParams kSawPianoWide = importedPreset(
+    []{
+      OCP o;
+      o.base_function = ImportedBaseFunction::PowerRamp;
+      o.base_shape_param = 0.3766f;
+      o.harmonics = { { 1, 0.984f }, { 2, 0.922f }, { 4, 0.984f } };
+      return o;
+    }(),
+    ImportedProfileParams{ ImportedProfileType::Gaussian, 6.258f, 127, true },
+    ImportedPositionParams{ 0, 0, 0, 0 },
+    /* bandwidth_cents */ 21.6f, /* base_frequency_hz */ 261.6f, /* octaves */ 6, /* samples_per_octave */ 2,
+    /* table_length */ 1 << 18, /* tuning_matched */ true);
 
-  // "soft-pad" - the real "Soft Pad" patch (noefx_soft_pad.xmz),
-  // adaptive_harmonics=0 so fully portable, and genuinely just harmonic 1
-  // - a pure, single-partial tone is exactly what "soft" means spectrally
-  // (no upper harmonics to roughen it at all), not an approximation this
-  // time. A_dt=31/D_dt=40/S_val=127/R_dt=87 (see InstrumentLibrary.cpp's/
-  // the demo song's own envelope for this preset) - moderate attack,
-  // settling at full sustain, longish release.
-  // bandwidth_cents corrected to 25.6 (this patch's own real bandwidth-
-  // unit-to-cents figure).
-  static const PadSynthPresetParams kSoftPad{
-    /* bandwidth_cents            */ 25.6f,
-    /* bandwidth_scale_exponent   */ 0.5f,
-    /* partial_count              */ 1,
-    /* amplitude_rolloff_exponent */ 1.0f, // unused - harmonic_amplitudes below replaces it
-    /* formants                   */ {},
-    /* harmonic_amplitude_jitter  */ 0.0f,
-    /* harmonic_amplitudes        */ { 1.0f },
-    /* tuning_matched             */ true,
-  };
+  // "soft-pad" - the real "Soft Pad" patch: a much steeper power-ramp base
+  // waveform (e=2.871) than the strings/piano family above, against just
+  // harmonic 1, plus a real spectrum-adjustment stage (gamma=2.936) that
+  // reshapes even that single partial's own overtone-free purity - "soft"
+  // spectrally, not an approximation. Profile autoscale is off for this
+  // preset specifically (alpha fixed at 0.5, per the real patch's own
+  // data), unlike every other imported preset here.
+  static const PadSynthPresetParams kSoftPad = importedPreset(
+    []{
+      OCP o;
+      o.base_function = ImportedBaseFunction::PowerRamp;
+      o.base_shape_param = 2.871f;
+      o.harmonics = { { 1, 0.984f } };
+      o.spectrum_adjust_kind = ImportedSpectrumAdjustKind::PowerLaw;
+      o.spectrum_adjust_gamma = 2.936f;
+      return o;
+    }(),
+    ImportedProfileParams{ ImportedProfileType::Gaussian, 6.258f, 127, /* autoscale */ false },
+    ImportedPositionParams{ 0, 0, 0, 0 },
+    /* bandwidth_cents */ 25.6f, /* base_frequency_hz */ 261.6f, /* octaves */ 3, /* samples_per_octave */ 2,
+    /* table_length */ 1 << 17, /* tuning_matched */ true);
 
   // GM's Synth Brass programs (62/63) are the deliberately-synthesized
   // brass slots, unlike brass.trumpet/brass.section's own real acoustic
@@ -556,81 +614,87 @@ inline const PadSynthPresetParams & getPadSynthPreset(const std::string & name) 
     /* harmonic_amplitude_jitter  */ 0.15f,
   };
 
-  // "choir-pad4" - the real ZynAddSubFX "Choir Pad4" patch
-  // (noefx_organ_choir.xmz PART id="0") has adaptive_harmonics=1: its own
-  // explicit <HARMONICS> list has just harmonic 1, with the rest of its
-  // real spectrum generated by ZynAddSubFX's own internal, GPL-only
-  // algorithm (see docs/padsynth.md's own "What's real data vs. an
-  // approximation" section) - not portable as data. Reuses kFormantVocal's
-  // own vowel-formant approximation as its base spectrum (the same
-  // reasoning "choir-aah" already stands in for this patch on), now with
-  // this patch's own real, exact anchored-spectral-envelope-remap
-  // parameters layered on top - the remap settings ARE real ported data
-  // (given directly, not reverse-engineered from the patch's own raw
-  // "bandwidth"/adaptive_harmonics units), even though the base spectrum
-  // underneath them is still an approximation.
-  static const PadSynthPresetParams kChoirPad4{
-    kFormantVocal.bandwidth_cents,
-    kFormantVocal.bandwidth_scale_exponent,
-    kFormantVocal.partial_count,
-    kFormantVocal.amplitude_rolloff_exponent,
-    kFormantVocal.formants,
-    kFormantVocal.harmonic_amplitude_jitter,
-    kFormantVocal.harmonic_amplitudes,
-    /* tuning_matched     */ true,
-    /* envelope_anchor_hz */ 289.4f,
-    /* envelope_tracking  */ 0.782f,
-    /* postprocess_kind   */ PadSynthPostprocessKind::None,
-  };
+  // "choir-pad4" - the real ZynAddSubFX "Choir Pad4" patch. Its own
+  // explicit <HARMONICS> list has just harmonic 1 - but that's only a
+  // limitation of the harmonic-*list*, not of what this codebase can
+  // faithfully reproduce: the real spectrum comes from a warped-half-sine
+  // base waveform (e=0.943) with its own real base time warp (k1=0.1671,
+  // phi=0.5039, k3=10), an exponential-lowpass filter, and a harmonic
+  // shift of 7 - all real, public-algorithm-derived oscillator parameters
+  // (docs/padsynth.md), not ZynAddSubFX's own internal adaptive_harmonics
+  // generator. This replaces the earlier version's own approximated base
+  // spectrum (kFormantVocal's vowel formants standing in for the real
+  // patch) entirely - the real oscillator chain now genuinely produces
+  // this patch's own real harmonic content.
+  static const PadSynthPresetParams kChoirPad4 = importedPreset(
+    []{
+      OCP o;
+      o.base_function = ImportedBaseFunction::WarpedHalfSine;
+      o.base_shape_param = 0.943f;
+      o.base_warp = ImportedTimeWarp{ true, 0.1671f, 0.5039f, 10.0f };
+      o.harmonics = { { 1, 0.984f } };
+      o.filter = ImportedFilterParams{ ImportedFilterKind::ExponentialLowpass, 0.994256f, 0.00055f, 0, 1.0f };
+      o.harmonic_shift = 7;
+      return o;
+    }(),
+    ImportedProfileParams{ ImportedProfileType::Gaussian, 21.72f, 127, true },
+    ImportedPositionParams{ 0, 0, 0, 0 },
+    /* bandwidth_cents */ 63.7f, /* base_frequency_hz */ 261.6f, /* octaves */ 4, /* samples_per_octave */ 3,
+    /* table_length */ 1 << 17, /* tuning_matched */ true,
+    /* envelope_anchor_hz */ 289.4f, /* envelope_tracking */ 0.782f);
 
-  // "long-spacechoir2" - the real "Long SpaceChoir2" patch
-  // (noefx_organ_choir.xmz... PART; adaptive_harmonics=3) has the same
-  // "explicit HARMONICS list is only a partial view" caveat as Choir Pad4
-  // above - same approximated base spectrum (kFormantVocal), same "the
-  // remap parameters themselves are real, the base spectrum isn't" split.
-  static const PadSynthPresetParams kLongSpaceChoir2{
-    kFormantVocal.bandwidth_cents,
-    kFormantVocal.bandwidth_scale_exponent,
-    kFormantVocal.partial_count,
-    kFormantVocal.amplitude_rolloff_exponent,
-    kFormantVocal.formants,
-    kFormantVocal.harmonic_amplitude_jitter,
-    kFormantVocal.harmonic_amplitudes,
-    /* tuning_matched     */ true,
-    /* envelope_anchor_hz */ 126.5f,
-    /* envelope_tracking  */ 0.782f,
-    /* postprocess_kind   */ PadSynthPostprocessKind::ResidueClassWeighting,
-    /* postprocess_n      */ 2,
-    /* postprocess_r      */ 0,
-    /* postprocess_amount */ 0.646f,
-  };
+  // "long-spacechoir2" - the real "Long SpaceChoir2" patch: the same
+  // warped-half-sine/base-warp/lowpass-filter/shift-of-7 family as Choir
+  // Pad4 above, with its own distinct warp constants (k1=0.1599,
+  // phi=0.5118, k3=13) and an added real spectrum-adjustment stage
+  // (gamma=0.6427) - again the real oscillator chain, not an approximated
+  // base spectrum.
+  static const PadSynthPresetParams kLongSpaceChoir2 = importedPreset(
+    []{
+      OCP o;
+      o.base_function = ImportedBaseFunction::WarpedHalfSine;
+      o.base_shape_param = 0.943f;
+      o.base_warp = ImportedTimeWarp{ true, 0.1599f, 0.5118f, 13.0f };
+      o.harmonics = { { 1, 0.984f } };
+      o.filter = ImportedFilterParams{ ImportedFilterKind::ExponentialLowpass, 0.994256f, 0.00055f, 0, 1.0f };
+      o.spectrum_adjust_kind = ImportedSpectrumAdjustKind::PowerLaw;
+      o.spectrum_adjust_gamma = 0.6427f;
+      o.harmonic_shift = 7;
+      return o;
+    }(),
+    ImportedProfileParams{ ImportedProfileType::Gaussian, 21.72f, 127, true },
+    ImportedPositionParams{ 0, 0, 0, 0 },
+    /* bandwidth_cents */ 64.9f, /* base_frequency_hz */ 261.6f, /* octaves */ 4, /* samples_per_octave */ 2,
+    /* table_length */ 1 << 17, /* tuning_matched */ true,
+    /* envelope_anchor_hz */ 126.5f, /* envelope_tracking */ 0.782f,
+    /* postprocess_kind */ PadSynthPostprocessKind::ResidueClassWeighting,
+    /* postprocess_n */ 2, /* postprocess_r */ 0, /* postprocess_amount */ 0.646f);
 
-  // "bells-3" - the real "Bells 3" patch (0km.xmz PART id="2") has
-  // adaptive_harmonics=7, so like Choir Pad4/Long SpaceChoir2 above its
-  // real spectrum beyond harmonic 1 is GPL-generated, not portable. Reuses
-  // kBells' own small-dominant-partials shape (a plain 1/n rolloff over a
-  // handful of partials, the same "a bell reads as a bell from a sparse
-  // set of strong partials" idea kBells itself is built on) as its base
-  // spectrum, with this patch's own real integer partial-position list
-  // (1,3,5,8,12,16,21,27), bandwidth, and remap/postprocess parameters -
-  // again, real ported remap data over an approximated base spectrum.
-  static const PadSynthPresetParams kBells3{
-    /* bandwidth_cents            */ 15.9f,
-    /* bandwidth_scale_exponent   */ 0.5f,
-    /* partial_count              */ 8,
-    /* amplitude_rolloff_exponent */ 1.2f,
-    /* formants                   */ {},
-    /* harmonic_amplitude_jitter  */ 0.0f,
-    /* harmonic_amplitudes        */ {},
-    /* tuning_matched             */ true,
-    /* envelope_anchor_hz         */ 392.9f,
-    /* envelope_tracking          */ 0.634f,
-    /* postprocess_kind           */ PadSynthPostprocessKind::ResidueClassWeighting,
-    /* postprocess_n              */ 4,
-    /* postprocess_r              */ 0,
-    /* postprocess_amount         */ 0.646f,
-    /* position_spec              */ PartialPositionSpec{ PartialPositionSpec::Kind::IntegerList, { 1, 3, 5, 8, 12, 16, 21, 27 }, 0.0f },
-  };
+  // "bells-3" - the real "Bells 3" patch: a gaussian-pulse base waveform
+  // (a=0.5508) against just harmonic 1, reshaped by a real arctangent
+  // waveshaper and a single-harmonic boost filter (harmonic 1 x1.946) -
+  // genuinely producing this patch's own dense bell-like spectrum, not an
+  // approximation borrowed from "bells". Partial positions are the
+  // explicit type-6 stretch formula (P1=255, P2=107, P3=255 - integer
+  // positions, landing at 1,3,5,8,12,16,21,27,...).
+  static const PadSynthPresetParams kBells3 = importedPreset(
+    []{
+      OCP o;
+      o.base_function = ImportedBaseFunction::GaussianPulse;
+      o.base_shape_param = 0.5508f;
+      o.harmonics = { { 1, 0.984f } };
+      o.waveshaper_kind = ImportedWaveshaperKind::Arctangent;
+      o.waveshaper_k = 6.247f;
+      o.filter = ImportedFilterParams{ ImportedFilterKind::SingleHarmonicBoost, 0.0f, 0.0f, 1, 1.946f };
+      return o;
+    }(),
+    ImportedProfileParams{ ImportedProfileType::Gaussian, 6.258f, 127, true },
+    ImportedPositionParams{ 6, 255, 107, 255 },
+    /* bandwidth_cents */ 15.9f, /* base_frequency_hz */ 392.4f, /* octaves */ 5, /* samples_per_octave */ 2,
+    /* table_length */ 1 << 17, /* tuning_matched */ true,
+    /* envelope_anchor_hz */ 392.9f, /* envelope_tracking */ 0.634f,
+    /* postprocess_kind */ PadSynthPostprocessKind::ResidueClassWeighting,
+    /* postprocess_n */ 4, /* postprocess_r */ 0, /* postprocess_amount */ 0.646f);
 
   if (name == "formant-vocal") return kFormantVocal;
   if (name == "choir-aah") return kFormantVocal;
