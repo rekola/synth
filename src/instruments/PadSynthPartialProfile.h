@@ -5,6 +5,10 @@
 #include <cstdint>
 #include <vector>
 
+// These formulas come from Paul Nasca's PADsynth algorithm description
+// (https://zynaddsubfx.sourceforge.io/doc/PADsynth/PADsynth.htm) and its
+// example parameter files.
+//
 // The PADsynth partial profile (docs/padsynth.md's "Partial profile
 // p[0…511]") and partial-position g(h) formulas.
 namespace PadSynthProfile {
