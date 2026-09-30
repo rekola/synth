@@ -160,7 +160,7 @@ TEST(placed_partial_energy_is_independent_of_bandwidth_wide_branch) {
 
 TEST(unsupported_position_type_is_rejected) {
   PositionParams p;
-  p.type = static_cast<PositionType>(3); // neither Harmonic (0) nor Stretch (6)
+  p.type = static_cast<PositionType>(3); // past Stretch, the last valid value
   bool threw = false;
   try {
     partialPosition(1, p);

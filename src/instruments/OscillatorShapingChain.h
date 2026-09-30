@@ -28,18 +28,18 @@ namespace OscillatorShaping {
 constexpr int kSize = 512;               // N
 constexpr int kHarmonicCount = kSize / 2; // k = 0 .. kHarmonicCount-1 (255 = highest harmonic)
 
-// base_function - only the values real imported presets actually use.
+// base_function - only the values the presets here actually use.
 enum class BaseFunction {
-  None = 0,           // "sine case" - skip straight to harmonic expansion, no B[k] needed
-  ClippedTriangle = 1,
-  PowerRamp = 4,
-  GaussianPulse = 5,
-  WarpedHalfSine = 7,
+  None,           // "sine case" - skip straight to harmonic expansion, no B[k] needed
+  ClippedTriangle,
+  PowerRamp,
+  GaussianPulse,
+  WarpedHalfSine,
 };
 
-enum class WaveshaperKind { None = 0, Arctangent = 1, LogisticSigmoid = 14 };
-enum class FilterKind { None = 0, ExponentialLowpass = 1, SingleHarmonicBoost = 13 };
-enum class SpectrumAdjustKind { None = 0, PowerLaw = 1 };
+enum class WaveshaperKind { None, Arctangent, LogisticSigmoid };
+enum class FilterKind { None, ExponentialLowpass, SingleHarmonicBoost };
+enum class SpectrumAdjustKind { None, PowerLaw };
 
 // A time-domain warp (base warp or oscillator warp) shares the same
 // (k1, phi, k3) parameterization - see docs/padsynth.md.

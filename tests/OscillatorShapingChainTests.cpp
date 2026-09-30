@@ -123,7 +123,7 @@ TEST(base_time_warp_is_identity_for_k1_zero_k3_one) {
 
 TEST(unsupported_base_function_is_rejected) {
   OscillatorChainParams p;
-  p.base_function = static_cast<BaseFunction>(2); // not in {None,1,4,5,7}
+  p.base_function = static_cast<BaseFunction>(5); // past WarpedHalfSine, the last valid value
   p.harmonics = { { 1, 1.0f } };
   bool threw = false;
   try {

@@ -11,7 +11,7 @@ namespace PadSynthProfile {
 
 constexpr int kProfileSize = 512;
 
-enum class ProfileType { Gaussian = 0, Rectangular = 1 };
+enum class ProfileType { Gaussian, Rectangular };
 
 struct ProfileParams {
   ProfileType type = ProfileType::Gaussian;
@@ -39,7 +39,7 @@ float computeProfileAlpha(const std::array<float, kProfileSize> & profile, bool 
 // Stretch is a stiff-string-style stretch/position formula - "the importer
 // must reject any other value" is enforced by throwing
 // std::invalid_argument for any other `type`.
-enum class PositionType { Harmonic = 0, Stretch = 6 };
+enum class PositionType { Harmonic, Stretch };
 
 struct PositionParams {
   PositionType type = PositionType::Harmonic;
