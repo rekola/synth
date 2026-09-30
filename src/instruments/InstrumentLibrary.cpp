@@ -107,10 +107,17 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // semantic match. Warm uses "strings" (a simple, mellow base tone).
   provider.registerPath("pad.newAge", makeEnvelopePad("soft-pad", 0.8f, 0.0f, 0.3f, 0.9f, 1.2f));
   provider.registerPath("pad.warm", makeEnvelopePad("strings", 0.6f, 0.0f, 0.4f, 0.85f, 1.0f));
-  // Poly: brighter/more chorused than Warm - "dual-strings"' own wider
-  // bandwidth reads as more "moving"/present than Warm's plain strings
-  // tone (not just a faster attack).
-  provider.registerPath("pad.poly", makeEnvelopePad("dual-strings", 0.2f, 0.0f, 0.3f, 0.8f, 0.6f));
+  // Poly: the vintage-poly-synth chorus GM's own description calls for is
+  // real ensemble beating, the same reasoning pad.choir/pad.bowed/
+  // string.synth.slow below use - not something "dual-strings"' own wider
+  // bandwidth can deliver by itself (a single voice's spectral shape,
+  // however wide, has no independent per-voice drift to beat against).
+  // Real unison on "dual-strings" (already the brighter/wider of the two
+  // strings-family presets) gives both the brightness and the genuine
+  // chorus motion; detune/spread stay modest (10 cents, narrower than
+  // pad.choir/pad.bowed's 14-16) since a poly-synth chorus reads as
+  // subtler than a choir or bowed-string ensemble.
+  provider.registerPath("pad.poly", makeUnisonPad("dual-strings", 3, 10.0f, 0.4f, 0.2f, 0.0f, 0.3f, 0.8f, 0.6f));
   // Choir: two registrations, not three. "pad.choir" is GM program 91's
   // own literal taxonomy path (GmInstrumentTable.h) - it has to exist
   // under exactly that name for the ordinary GM override behavior every
