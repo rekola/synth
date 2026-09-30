@@ -17,6 +17,7 @@ using OscSpectrumAdjustKind = OscillatorShaping::SpectrumAdjustKind;
 using ProfileParams = PadSynthProfile::ProfileParams;
 using ProfileType = PadSynthProfile::ProfileType;
 using PositionParams = PadSynthProfile::PositionParams;
+using PositionType = PadSynthProfile::PositionType;
 
 // Builds a PadSynthParams - see PadSynth::loadParameters() for how
 // tuning_matched/envelope_*/postprocess_* still act as this preset's own
@@ -73,8 +74,8 @@ inline const PadSynthParams & getPadSynthPreset(const std::string & name) {
       o.oscillator_warp = OscTimeWarp{ true, 0.1053f, -0.0039f, 1.0f };
       return o;
     }(),
-    ProfileParams{ ProfileType::Rectangular, 6.258f, 127, true },
-    PositionParams{ 6, 78, 56, 0 },
+    ProfileParams{ ProfileType::Rectangular, 6.258f, true },
+    PositionParams{ PositionType::Stretch, 0.00827269256f, 0.219607845f, 1.0f },
     /* bandwidth_cents */ 11.5f, /* base_frequency_hz */ 392.4f, /* octaves */ 5, /* samples_per_octave */ 2,
     /* table_length */ 1 << 17, /* tuning_matched */ false,
     /* envelope_anchor_hz */ 115.6f, /* envelope_tracking */ 0.980f);
@@ -95,8 +96,8 @@ inline const PadSynthParams & getPadSynthPreset(const std::string & name) {
       o.filter = OscFilterParams{ OscFilterKind::SingleHarmonicBoost, 0.0f, 0.0f, 1, 1.946f };
       return o;
     }(),
-    ProfileParams{ ProfileType::Gaussian, 6.258f, 127, true },
-    PositionParams{ 6, 92, 56, 0 },
+    ProfileParams{ ProfileType::Gaussian, 6.258f, true },
+    PositionParams{ PositionType::Stretch, 0.0120879561f, 0.219607845f, 1.0f },
     /* bandwidth_cents */ 32.5f, /* base_frequency_hz */ 392.4f, /* octaves */ 6, /* samples_per_octave */ 2,
     /* table_length */ 1 << 17, /* tuning_matched */ false,
     /* envelope_anchor_hz */ 233.2f, /* envelope_tracking */ 0.634f,
@@ -120,8 +121,8 @@ inline const PadSynthParams & getPadSynthPreset(const std::string & name) {
       o.filter = OscFilterParams{ OscFilterKind::ExponentialLowpass, 0.977975f, 0.032346f, 0, 1.0f };
       return o;
     }(),
-    ProfileParams{ ProfileType::Gaussian, 21.72f, 127, true },
-    PositionParams{ 0, 0, 0, 0 },
+    ProfileParams{ ProfileType::Gaussian, 21.72f, true },
+    PositionParams{},
     /* bandwidth_cents */ 5.2f, /* base_frequency_hz */ 261.6f, /* octaves */ 4, /* samples_per_octave */ 2,
     /* table_length */ 1 << 17, /* tuning_matched */ true);
 
@@ -146,8 +147,8 @@ inline const PadSynthParams & getPadSynthPreset(const std::string & name) {
       o.waveshaper_k = 8.443f;
       return o;
     }(),
-    ProfileParams{ ProfileType::Gaussian, 6.258f, 127, true },
-    PositionParams{ 6, 255, 75, 255 },
+    ProfileParams{ ProfileType::Gaussian, 6.258f, true },
+    PositionParams{ PositionType::Stretch, 1.0f, 0.294117659f, 0.0f },
     /* bandwidth_cents */ 21.2f, /* base_frequency_hz */ 392.4f, /* octaves */ 5, /* samples_per_octave */ 2,
     /* table_length */ 1 << 17, /* tuning_matched */ true,
     /* envelope_anchor_hz */ 233.2f, /* envelope_tracking */ 0.634f,
@@ -168,8 +169,8 @@ inline const PadSynthParams & getPadSynthPreset(const std::string & name) {
       o.harmonics = { { 1, 0.984f }, { 2, 0.828f } };
       return o;
     }(),
-    ProfileParams{ ProfileType::Gaussian, 6.258f, 127, true },
-    PositionParams{ 0, 0, 0, 0 },
+    ProfileParams{ ProfileType::Gaussian, 6.258f, true },
+    PositionParams{},
     /* bandwidth_cents */ 57.3f, /* base_frequency_hz */ 261.6f, /* octaves */ 6, /* samples_per_octave */ 2,
     /* table_length */ 1 << 18, /* tuning_matched */ true);
 
@@ -186,8 +187,8 @@ inline const PadSynthParams & getPadSynthPreset(const std::string & name) {
       o.harmonics = { { 1, 0.984f } };
       return o;
     }(),
-    ProfileParams{ ProfileType::Gaussian, 6.258f, 127, true },
-    PositionParams{ 0, 0, 0, 0 },
+    ProfileParams{ ProfileType::Gaussian, 6.258f, true },
+    PositionParams{},
     /* bandwidth_cents */ 101.5f, /* base_frequency_hz */ 261.6f, /* octaves */ 6, /* samples_per_octave */ 2,
     /* table_length */ 1 << 18, /* tuning_matched */ true);
 
@@ -203,8 +204,8 @@ inline const PadSynthParams & getPadSynthPreset(const std::string & name) {
       o.harmonics = { { 1, 0.984f }, { 2, 0.922f }, { 4, 0.984f }, { 16, 0.563f } };
       return o;
     }(),
-    ProfileParams{ ProfileType::Gaussian, 6.258f, 127, true },
-    PositionParams{ 0, 0, 0, 0 },
+    ProfileParams{ ProfileType::Gaussian, 6.258f, true },
+    PositionParams{},
     /* bandwidth_cents */ 1.3f, /* base_frequency_hz */ 261.6f, /* octaves */ 6, /* samples_per_octave */ 2,
     /* table_length */ 1 << 17, /* tuning_matched */ true);
 
@@ -221,8 +222,8 @@ inline const PadSynthParams & getPadSynthPreset(const std::string & name) {
       o.harmonics = { { 1, 0.984f }, { 2, 0.922f }, { 4, 0.984f } };
       return o;
     }(),
-    ProfileParams{ ProfileType::Gaussian, 6.258f, 127, true },
-    PositionParams{ 0, 0, 0, 0 },
+    ProfileParams{ ProfileType::Gaussian, 6.258f, true },
+    PositionParams{},
     /* bandwidth_cents */ 21.6f, /* base_frequency_hz */ 261.6f, /* octaves */ 6, /* samples_per_octave */ 2,
     /* table_length */ 1 << 18, /* tuning_matched */ true);
 
@@ -242,8 +243,8 @@ inline const PadSynthParams & getPadSynthPreset(const std::string & name) {
       o.spectrum_adjust_gamma = 2.936f;
       return o;
     }(),
-    ProfileParams{ ProfileType::Gaussian, 6.258f, 127, /* autoscale */ false },
-    PositionParams{ 0, 0, 0, 0 },
+    ProfileParams{ ProfileType::Gaussian, 6.258f, /* autoscale */ false },
+    PositionParams{},
     /* bandwidth_cents */ 25.6f, /* base_frequency_hz */ 261.6f, /* octaves */ 3, /* samples_per_octave */ 2,
     /* table_length */ 1 << 17, /* tuning_matched */ true);
 
@@ -261,8 +262,8 @@ inline const PadSynthParams & getPadSynthPreset(const std::string & name) {
       o.harmonic_shift = 7;
       return o;
     }(),
-    ProfileParams{ ProfileType::Gaussian, 21.72f, 127, true },
-    PositionParams{ 0, 0, 0, 0 },
+    ProfileParams{ ProfileType::Gaussian, 21.72f, true },
+    PositionParams{},
     /* bandwidth_cents */ 63.7f, /* base_frequency_hz */ 261.6f, /* octaves */ 4, /* samples_per_octave */ 3,
     /* table_length */ 1 << 17, /* tuning_matched */ true,
     /* envelope_anchor_hz */ 289.4f, /* envelope_tracking */ 0.782f);
@@ -286,8 +287,8 @@ inline const PadSynthParams & getPadSynthPreset(const std::string & name) {
       o.harmonic_shift = 7;
       return o;
     }(),
-    ProfileParams{ ProfileType::Gaussian, 21.72f, 127, true },
-    PositionParams{ 0, 0, 0, 0 },
+    ProfileParams{ ProfileType::Gaussian, 21.72f, true },
+    PositionParams{},
     /* bandwidth_cents */ 63.7f, /* base_frequency_hz */ 261.6f, /* octaves */ 4, /* samples_per_octave */ 3,
     /* table_length */ 1 << 17, /* tuning_matched */ true,
     /* envelope_anchor_hz */ 289.4f, /* envelope_tracking */ 0.782f);
@@ -310,8 +311,8 @@ inline const PadSynthParams & getPadSynthPreset(const std::string & name) {
       o.harmonic_shift = 7;
       return o;
     }(),
-    ProfileParams{ ProfileType::Gaussian, 21.72f, 127, true },
-    PositionParams{ 0, 0, 0, 0 },
+    ProfileParams{ ProfileType::Gaussian, 21.72f, true },
+    PositionParams{},
     /* bandwidth_cents */ 64.9f, /* base_frequency_hz */ 261.6f, /* octaves */ 4, /* samples_per_octave */ 2,
     /* table_length */ 1 << 17, /* tuning_matched */ true,
     /* envelope_anchor_hz */ 126.5f, /* envelope_tracking */ 0.782f,
@@ -333,8 +334,8 @@ inline const PadSynthParams & getPadSynthPreset(const std::string & name) {
       o.filter = OscFilterParams{ OscFilterKind::SingleHarmonicBoost, 0.0f, 0.0f, 1, 1.946f };
       return o;
     }(),
-    ProfileParams{ ProfileType::Gaussian, 6.258f, 127, true },
-    PositionParams{ 6, 255, 107, 255 },
+    ProfileParams{ ProfileType::Gaussian, 6.258f, true },
+    PositionParams{ PositionType::Stretch, 1.0f, 0.419607848f, 0.0f },
     /* bandwidth_cents */ 15.9f, /* base_frequency_hz */ 392.4f, /* octaves */ 5, /* samples_per_octave */ 2,
     /* table_length */ 1 << 17, /* tuning_matched */ true,
     /* envelope_anchor_hz */ 392.9f, /* envelope_tracking */ 0.634f,

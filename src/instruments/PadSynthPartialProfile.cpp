@@ -13,8 +13,7 @@ std::array<float, kProfileSize> buildProfile(const ProfileParams & params) {
   constexpr int kSupersample = 16;
   std::array<float, kProfileSize> profile{};
 
-  float w = 150.0f / (static_cast<float>(params.width) + 22.0f);
-  w = w * w;
+  float w = params.width_scale;
 
   for (int bin = 0; bin < kProfileSize; bin++) {
     float sum = 0.0f;
@@ -103,16 +102,14 @@ void placePartial(std::vector<float> & amplitude_spectrum, float amplitude, floa
 }
 
 float partialPosition(int h, const PositionParams & params) {
-  if (params.type == 0) return static_cast<float>(h);
-  if (params.type != 6) throw std::invalid_argument("partialPosition: unsupported position type");
+  if (params.type == PositionType::Harmonic) return static_cast<float>(h);
+  if (params.type != PositionType::Stretch) throw std::invalid_argument("partialPosition: unsupported position type");
 
-  float pi1 = std::pow(10.0f, -3.0f * (1.0f - static_cast<float>(params.p1) / 255.0f));
-  float pi2 = static_cast<float>(params.p2) / 255.0f;
   float h0 = static_cast<float>(h - 1);
-  float e = (2.0f * pi2) * (2.0f * pi2) + 0.1f;
-  float r = h0 * std::pow(1.0f + pi1 * std::pow(0.8f * h0, e), e) + 1.0f;
+  float e = (2.0f * params.stretch_curvature) * (2.0f * params.stretch_curvature) + 0.1f;
+  float r = h0 * std::pow(1.0f + params.stretch_strength * std::pow(0.8f * h0, e), e) + 1.0f;
   float rho = std::floor(r + 0.5f);
-  return rho + (1.0f - static_cast<float>(params.p3) / 255.0f) * (r - rho);
+  return rho + params.position_mix * (r - rho);
 }
 
 } // namespace PadSynthProfile

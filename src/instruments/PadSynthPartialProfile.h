@@ -19,14 +19,13 @@ enum class ProfileType { Gaussian = 0, Rectangular = 1 };
 struct ProfileParams {
   ProfileType type = ProfileType::Gaussian;
   float beta = 1.0f;
-  // "width" (ZynAddSubFX's own HARMONIC_PROFILE `width` parameter, 0-127) -
-  // not given directly by any imported preset's own derived-value table
-  // (every preset observed in the example data leaves it at its neutral/
-  // full-width setting), so this defaults to 127 (the value actually
-  // observed in the raw extracted patch data) rather than being left
-  // unparameterized - see docs/padsynth.md.
-  int width = 127;
   bool autoscale = true;
+  // The profile's own width scale - already the derived multiplier
+  // buildProfile() applies directly (not ZynAddSubFX's own raw 0-127
+  // HARMONIC_PROFILE `width` knob). Every preset observed in the example
+  // data leaves the knob at its neutral/full-width setting (127), so this
+  // defaults to that setting's own derived value - see docs/padsynth.md.
+  float width_scale = 1.01346779f;
 };
 
 // Builds p[0..511]: supersamples 16 points per bin, averages into the bin,
@@ -38,14 +37,23 @@ std::array<float, kProfileSize> buildProfile(const ProfileParams & params);
 // docs/padsynth.md's own accumulation rule.
 float computeProfileAlpha(const std::array<float, kProfileSize> & profile, bool autoscale);
 
-// Partial position g(h), h >= 1. `type` 0 is the plain harmonic series;
-// `type` 6 is ZynAddSubFX's own stretch/position formula, parameterized by
-// three raw stored bytes (P1/P2/P3, 0-255) exactly as the imported preset
-// data gives them - "the importer must reject any other value" is
-// enforced by throwing std::invalid_argument for any other `type`.
+// Partial position g(h), h >= 1. Harmonic is the plain harmonic series;
+// Stretch is ZynAddSubFX's own stretch/position formula - "the importer
+// must reject any other value" is enforced by throwing
+// std::invalid_argument for any other `type`.
+enum class PositionType { Harmonic = 0, Stretch = 6 };
+
 struct PositionParams {
-  int type = 0;
-  int p1 = 0, p2 = 0, p3 = 0; // type 6 only
+  PositionType type = PositionType::Harmonic;
+  // Stretch only - already-derived quantities (not ZynAddSubFX's own raw
+  // stored bytes P1/P2/P3, 0-255), see partialPosition()'s own formula:
+  //   stretch_strength  = 10^(-3 * (1 - P1/255))
+  //   stretch_curvature = P2/255
+  //   position_mix      = 1 - P3/255 (0 = snapped to the nearest harmonic,
+  //                                    1 = the fully continuous position)
+  float stretch_strength = 0.0f;
+  float stretch_curvature = 0.0f;
+  float position_mix = 0.0f;
 };
 
 float partialPosition(int h, const PositionParams & params);

@@ -61,16 +61,16 @@ TEST(profile_is_normalized_and_nonnegative) {
 
 TEST(positions_type_zero_is_identity) {
   PositionParams p;
-  p.type = 0;
+  p.type = PositionType::Harmonic;
   for (int h = 1; h <= 20; h++) CHECK_NEAR(partialPosition(h, p), static_cast<float>(h), 1e-6f);
 }
 
 TEST(bells_positions_land_as_specified) {
   PositionParams p;
-  p.type = 6;
-  p.p1 = 255;
-  p.p2 = 75;
-  p.p3 = 255;
+  p.type = PositionType::Stretch;
+  p.stretch_strength = 1.0f;         // P1 = 255
+  p.stretch_curvature = 0.294117659f; // P2 = 75
+  p.position_mix = 0.0f;             // P3 = 255
   int expected[10] = { 1, 2, 4, 5, 7, 9, 11, 13, 15, 17 };
   for (int h = 1; h <= 10; h++) {
     CHECK_NEAR(partialPosition(h, p), static_cast<float>(expected[h - 1]), 1e-3f);
@@ -79,10 +79,10 @@ TEST(bells_positions_land_as_specified) {
 
 TEST(bells3_positions_land_as_specified) {
   PositionParams p;
-  p.type = 6;
-  p.p1 = 255;
-  p.p2 = 107;
-  p.p3 = 255;
+  p.type = PositionType::Stretch;
+  p.stretch_strength = 1.0f;         // P1 = 255
+  p.stretch_curvature = 0.419607848f; // P2 = 107
+  p.position_mix = 0.0f;             // P3 = 255
   int expected[10] = { 1, 3, 5, 8, 12, 16, 21, 27, 32, 38 };
   for (int h = 1; h <= 10; h++) {
     CHECK_NEAR(partialPosition(h, p), static_cast<float>(expected[h - 1]), 1e-3f);
@@ -91,19 +91,19 @@ TEST(bells3_positions_land_as_specified) {
 
 TEST(synth_piano3_a_partial_ten_lands_at_10_04) {
   PositionParams p;
-  p.type = 6;
-  p.p1 = 78;
-  p.p2 = 56;
-  p.p3 = 0;
+  p.type = PositionType::Stretch;
+  p.stretch_strength = 0.00827269256f; // P1 = 78
+  p.stretch_curvature = 0.219607845f;  // P2 = 56
+  p.position_mix = 1.0f;               // P3 = 0
   CHECK_NEAR(partialPosition(10, p), 10.04f, 0.01f);
 }
 
 TEST(synth_piano3_b_partial_ten_lands_at_10_06) {
   PositionParams p;
-  p.type = 6;
-  p.p1 = 92;
-  p.p2 = 56;
-  p.p3 = 0;
+  p.type = PositionType::Stretch;
+  p.stretch_strength = 0.0120879561f; // P1 = 92
+  p.stretch_curvature = 0.219607845f; // P2 = 56
+  p.position_mix = 1.0f;              // P3 = 0
   CHECK_NEAR(partialPosition(10, p), 10.06f, 0.01f);
 }
 
@@ -160,7 +160,7 @@ TEST(placed_partial_energy_is_independent_of_bandwidth_wide_branch) {
 
 TEST(unsupported_position_type_is_rejected) {
   PositionParams p;
-  p.type = 3;
+  p.type = static_cast<PositionType>(3); // neither Harmonic (0) nor Stretch (6)
   bool threw = false;
   try {
     partialPosition(1, p);
