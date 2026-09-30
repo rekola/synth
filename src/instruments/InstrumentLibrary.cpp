@@ -118,26 +118,22 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // pad.choir/pad.bowed's 14-16) since a poly-synth chorus reads as
   // subtler than a choir or bowed-string ensemble.
   provider.registerPath("pad.poly", makeUnisonPad("dual-strings", 3, 10.0f, 0.4f, 0.2f, 0.0f, 0.3f, 0.8f, 0.6f));
-  // Choir: two registrations, not three. "pad.choir" is GM program 91's
-  // own literal taxonomy path (GmInstrumentTable.h) - it has to exist
-  // under exactly that name for the ordinary GM override behavior every
-  // other pad.* entry here relies on to work at all (resolvePath() only
-  // ever walks from a request *up* to shorter prefixes, never down into a
-  // more specific child, so "pad.choir.aah" alone would leave a plain
-  // "pad.choir" request falling through to the unrelated pad.warm
-  // default - see docs/padsynth.md). Since GM's own Choir Aahs patch is
-  // specifically the open "ah" vowel, "pad.choir" itself IS the aah
-  // variant - no separate "pad.choir.aah" alias needed on top of it.
-  // "pad.choir.ooh" is the one addition beyond GM (which has no separate
-  // "ooh" choir program) - a second, genuinely different vowel character,
-  // built from "pad.choir"'s own preset ("choir-pad4-ooh" is "choir-pad4"
-  // darkened toward a closed "oo", see PadSynthPresets.h) so both choir
-  // presets share the same underlying oscillator shape. 3 unison voices,
-  // 16 cents detune spread, moderate stereo spread - see makeUnisonPad()'s
-  // own comment: this is what actually gives the choir its ensemble-of-
-  // singers motion, not any padsynth-side parameter alone.
+  // Choir: "pad.choir" is GM program 91's own literal taxonomy path
+  // (GmInstrumentTable.h) - it has to exist under exactly that name for
+  // the ordinary GM override behavior every other pad.* entry here relies
+  // on to work at all (resolvePath() only ever walks from a request *up*
+  // to shorter prefixes, never down into a more specific child, so
+  // "pad.choir.aah" alone would leave a plain "pad.choir" request falling
+  // through to the unrelated pad.warm default - see docs/padsynth.md).
+  // Since GM's own Choir Aahs patch is specifically the open "ah" vowel,
+  // "pad.choir" itself IS the aah variant - no separate "pad.choir.aah"
+  // alias needed on top of it. A second, "ooh" vowel variant was tried and
+  // pulled again (didn't actually read as a distinct vowel) - not
+  // registered until a real one exists. 3 unison voices, 16 cents detune
+  // spread, moderate stereo spread - see makeUnisonPad()'s own comment:
+  // this is what actually gives the choir its ensemble-of-singers motion,
+  // not any padsynth-side parameter alone.
   provider.registerPath("pad.choir", makeUnisonPad("choir-pad4", 3, 16.0f, 0.5f, 0.5f, 0.0f, 0.3f, 0.9f, 0.8f));
-  provider.registerPath("pad.choir.ooh", makeUnisonPad("choir-pad4-ooh", 3, 16.0f, 0.5f, 0.6f, 0.0f, 0.35f, 0.9f, 0.9f));
   // Real ensemble beating comes from <multiply> unison on top of the
   // "strings" preset's own simple base tone, same reasoning as
   // pad.choir/string.synth.slow below.

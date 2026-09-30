@@ -84,10 +84,7 @@
     <envelope name="PadSynth Strings (matched)" attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
       <padsynth preset="strings"/>
     </envelope>
-    <!-- 12/13: choir-pad4 vs choir-pad4-ooh, back to back - two genuinely
-         different vowels, not a renamed copy of each other: "aah" is an
-         open vowel (the same shape instrument 4 uses), "ooh" is darker and
-         rounder. Both wrapped in <multiply unisons="3"> for genuine
+    <!-- 12: choir-pad4, wrapped in <multiply unisons="3"> for genuine
          ensemble-of-singers detuning/beating, which a single static table
          can't produce on its own. -->
     <multiply name="PadSynth Choir Pad4" unisons="3" detune="16" spread="0.5">
@@ -95,9 +92,14 @@
         <padsynth preset="choir-pad4"/>
       </envelope>
     </multiply>
-    <multiply name="PadSynth Choir Pad4 Ooh" unisons="3" detune="16" spread="0.5">
+    <!-- 13: reserved - was a second, "ooh" vowel variant (choir-pad4-ooh);
+         pulled since it didn't actually read as a distinct vowel, to be
+         redone properly later. Silent for now (empty pattern below), kept
+         as a valid instrument (a plain copy of instrument 12's own
+         choir-pad4) rather than left referencing the removed preset. -->
+    <multiply name="PadSynth Choir Pad4 (reserved)" unisons="3" detune="16" spread="0.5">
       <envelope attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
-        <padsynth preset="choir-pad4-ooh"/>
+        <padsynth preset="choir-pad4"/>
       </envelope>
     </multiply>
 
@@ -194,7 +196,7 @@
     <track id="10" name="SoundFont Guitar" instrument="10"/>
     <track id="11" name="PadSynth Strings (matched)" instrument="11"/>
     <track id="12" name="PadSynth Choir Pad4 (unison)" instrument="12"/>
-    <track id="13" name="PadSynth Choir Pad4 Ooh (unison)" instrument="13"/>
+    <track id="13" name="PadSynth Choir Pad4 (reserved)" instrument="13"/>
     <track id="14" name="PadSynth Soft Pad" instrument="14"/>
     <track id="15" name="PadSynth Bells" instrument="15"/>
     <track id="16" name="PadSynth Dual Strings" instrument="16"/>
@@ -232,8 +234,7 @@
     <locator row="184">PadSynth strings (tuningMatched=on) - sustained fifth</locator>
     <locator row="192">PadSynth strings (tuningMatched=on) - 31-EDO C-E-G triad</locator>
     <locator row="200">PadSynth strings (tuningMatched=on) - C-E-G-A♯ harmonic 7th</locator>
-    <locator row="208">PadSynth choir-pad4 - single note, compare to row 216</locator>
-    <locator row="216">PadSynth choir-pad4-ooh - single note, compare to row 208</locator>
+    <locator row="208">PadSynth choir-pad4 - single note (track 13 reserved, silent for now)</locator>
     <locator row="224">PadSynth "Soft Pad" - single note</locator>
     <locator row="232">PadSynth "Bells" (untuned/detuned) - single note</locator>
     <locator row="240">PadSynth "Dual Strings" (octave-doubled) - single note</locator>
@@ -364,15 +365,11 @@
       <note row="206">off off off off</note>
     </pattern>
 
-    <!-- Choir Pad4 vs. Choir Pad4 Ooh, back to back for direct comparison
-         (rows 208-223) -->
+    <!-- Choir Pad4 (rows 208-223; track 13 - reserved for a future "ooh"
+         variant - stays silent, no notes) -->
     <pattern track="12">
       <note row="208" value="C-4"/>
       <note row="214" value="off"/>
-    </pattern>
-    <pattern track="13">
-      <note row="216" value="C-4"/>
-      <note row="222" value="off"/>
     </pattern>
 
     <!-- Further PadSynth character presets (rows 224-271) -->

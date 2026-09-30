@@ -268,31 +268,6 @@ inline const PadSynthParams & getPadSynthPreset(const std::string & name) {
     /* table_length */ 1 << 17, /* tuning_matched */ true,
     /* envelope_anchor_hz */ 289.4f, /* envelope_tracking */ 0.782f);
 
-  // "choir-pad4-ooh" - "choir-pad4" darkened toward a closed, rounded "oo"
-  // vowel: the same oscillator shape, time warp, filter, and harmonic
-  // shift, plus a spectrum-adjustment stage that rolls off the upper
-  // harmonics (the same darkening amount "long-spacechoir2" - a sibling
-  // in this same warped-half-sine family - already uses for its own
-  // spectrum adjustment).
-  static const PadSynthParams kChoirPad4Ooh = preset(
-    []{
-      OCP o;
-      o.base_function = OscBaseFunction::WarpedHalfSine;
-      o.base_shape_param = 0.943f;
-      o.base_warp = OscTimeWarp{ true, 0.1671f, 0.5039f, 10.0f };
-      o.harmonics = { { 1, 0.984f } };
-      o.filter = OscFilterParams{ OscFilterKind::ExponentialLowpass, 0.994256f, 0.00055f, 0, 1.0f };
-      o.spectrum_adjust_kind = OscSpectrumAdjustKind::PowerLaw;
-      o.spectrum_adjust_gamma = 0.6427f;
-      o.harmonic_shift = 7;
-      return o;
-    }(),
-    ProfileParams{ ProfileType::Gaussian, 21.72f, true },
-    PositionParams{},
-    /* bandwidth_cents */ 63.7f, /* base_frequency_hz */ 261.6f, /* octaves */ 4, /* samples_per_octave */ 3,
-    /* table_length */ 1 << 17, /* tuning_matched */ true,
-    /* envelope_anchor_hz */ 289.4f, /* envelope_tracking */ 0.782f);
-
   // "long-spacechoir2" - the same warped-half-sine/time-warp/lowpass-
   // filter/shift-of-7 family as "choir-pad4", with its own distinct warp
   // constants (k1=0.1599, phi=0.5118, k3=13) and an added spectrum-
@@ -353,7 +328,6 @@ inline const PadSynthParams & getPadSynthPreset(const std::string & name) {
   if (name == "saw-piano-wide") return kSawPianoWide;
   if (name == "soft-pad") return kSoftPad;
   if (name == "choir-pad4") return kChoirPad4;
-  if (name == "choir-pad4-ooh") return kChoirPad4Ooh;
   if (name == "long-spacechoir2") return kLongSpaceChoir2;
   return kStrings;
 }

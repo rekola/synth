@@ -114,7 +114,6 @@ preset rather than something a song would author directly.
 | `bells` | 3 harmonics placed directly, then reshaped nonlinearly by a logistic-sigmoid waveshaper, with partials landing at 1,2,4,5,7,9,11,13,... rather than a plain harmonic series. The preset's own default is tuning-matched on; used with `tuningMatched="false"` in some songs for a deliberately dissonant bell character (`pad.metallic`). |
 | `bells-3` | A Gaussian-pulse oscillator shape against harmonic 1, reshaped by an arctangent waveshaper and a single-harmonic boost filter - the same shaping family as `synth-piano-3-b`. Partials land at 1,3,5,8,12,16,21,27,... |
 | `choir-pad4` | A warped-half-sine oscillator shape with its own time warp, an exponential-lowpass filter, and a harmonic shift of 7, plus its own anchored-spectral-envelope-remap settings. Used at `pad.choir`/`lead.voice`. |
-| `choir-pad4-ooh` | `choir-pad4` darkened toward a closed, rounded "oo" vowel: the same oscillator shape/warp/filter/shift, plus a spectrum-adjustment stage rolling off the upper harmonics. Used at `pad.choir.ooh`. |
 | `long-spacechoir2` | The same warped-half-sine/warp/lowpass/shift-of-7 family as `choir-pad4`, with its own warp constants and a spectrum-adjustment stage. Used at `pad.halo`, wrapped in `<phaser>` for its own slow, shimmering motion. |
 
 An unrecognized `preset` name falls back to `strings`.
@@ -163,7 +162,7 @@ generic, pre-existing per-instrument unison/detune/spread wrapper usable
 around any child instrument, not padsynth-specific, and not yet written
 up in its own doc page) already solves it by wrapping any child
 instrument in several independently-detuned copies. `pad.choir`/
-`pad.choir.ooh`/`pad.bowed`/`string.synth.slow` (`InstrumentLibrary.cpp`)
+`pad.poly`/`pad.bowed`/`string.synth.slow` (`InstrumentLibrary.cpp`)
 are wrapped this way; a plain `<padsynth>` used directly (as most of
 `songs/oscillator_demo.xml`'s own comparison tracks deliberately are, to
 isolate the preset itself) is not, and reads noticeably thinner/more
