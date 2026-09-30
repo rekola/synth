@@ -12,15 +12,11 @@ namespace OscillatorShaping {
 
 namespace {
 
-constexpr float kPi = 3.14159265358979323846f;
+constexpr float kPi = static_cast<float>(M_PI);
 
 float frac(float x) {
   float f = x - std::floor(x);
   return f;
-}
-
-float clamp(float x, float lo, float hi) {
-  return x < lo ? lo : (x > hi ? hi : x);
 }
 
 // The shared (k1, phi, k3) warp position formula - identical for the base
@@ -40,7 +36,7 @@ float baseWaveformSample(BaseFunction fn, float param, float x) {
       float xp = frac(x + 0.25f);
       float a_prime = std::max(param, 1e-5f);
       float v = (xp < 0.5f) ? (4.0f * xp - 1.0f) : (4.0f * (1.0f - xp) - 1.0f);
-      return clamp(-v / a_prime, -1.0f, 1.0f);
+      return std::clamp(-v / a_prime, -1.0f, 1.0f);
     }
     case BaseFunction::PowerRamp: {
       float e = param;
@@ -144,7 +140,7 @@ vector<complex<float>> applyWaveshaper(vector<complex<float>> X, WaveshaperKind 
     } else if (kind == WaveshaperKind::LogisticSigmoid) {
       auto sigma = [](float z) { return 0.5f - 1.0f / (std::exp(z) + 1.0f); };
       float denom = (k > 10.0f) ? 0.5f : sigma(k);
-      for (float & s : samples) s = sigma(clamp(k * s, -10.0f, 10.0f)) / denom;
+      for (float & s : samples) s = sigma(std::clamp(k * s, -10.0f, 10.0f)) / denom;
     } else {
       throw std::invalid_argument("applyWaveshaper: unsupported waveshaper kind");
     }
