@@ -7,9 +7,8 @@
 #include <utility>
 #include <vector>
 
-// The oscillator shaping chain and its numeric parameters come from Paul
-// Nasca's PADsynth algorithm description
-// (https://zynaddsubfx.sourceforge.io/doc/PADsynth/PADsynth.htm) and its
+// Implements part of Paul Nasca's PADsynth algorithm - see
+// https://zynaddsubfx.sourceforge.io/doc/PADsynth/PADsynth.htm and its
 // example parameter files.
 //
 // The oscillator shaping chain - per-preset numeric parameters run through

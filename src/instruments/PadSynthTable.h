@@ -9,9 +9,8 @@
 #include <unordered_map>
 #include <vector>
 
-// The PADsynth rendering algorithm comes from Paul Nasca's PADsynth
-// algorithm description
-// (https://zynaddsubfx.sourceforge.io/doc/PADsynth/PADsynth.htm) and its
+// Implements Paul Nasca's PADsynth algorithm - see
+// https://zynaddsubfx.sourceforge.io/doc/PADsynth/PADsynth.htm and its
 // example parameter files.
 //
 // PADsynth rendering (docs/padsynth.md) for a preset whose spectrum is
