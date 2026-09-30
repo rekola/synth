@@ -5,6 +5,12 @@
 
 #include <string>
 
+// The numeric parameters behind each preset below come from Paul Nasca's
+// PADsynth algorithm description (https://zynaddsubfx.sourceforge.io/doc/
+// PADsynth/PADsynth.htm) and its own example parameter files, presented
+// in ZynAddSubFX's patch-parameter format - the format the numbers
+// happen to be written in, not their source.
+
 // Short local aliases - only used to keep the preset data below readable;
 // never exposed outside this file.
 using OCP = OscillatorShaping::OscillatorChainParams;
