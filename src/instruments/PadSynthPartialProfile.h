@@ -23,8 +23,10 @@ struct ProfileParams {
   // The profile's own width scale - already the derived multiplier
   // buildProfile() applies directly (not ZynAddSubFX's own raw 0-127
   // HARMONIC_PROFILE `width` knob). Every preset observed in the example
-  // data leaves the knob at its neutral/full-width setting (127), so this
-  // defaults to that setting's own derived value - see docs/padsynth.md.
+  // data leaves the knob at its maximum, full-width setting (127) - this
+  // defaults to that setting's own derived value, (150/(127+22))^2, not
+  // 1.0 (127 is merely the knob's own ceiling, not a value chosen to
+  // cancel the formula) - see docs/padsynth.md.
   float width_scale = 1.01346779f;
 };
 
