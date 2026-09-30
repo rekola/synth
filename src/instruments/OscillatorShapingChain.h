@@ -1,5 +1,5 @@
-#ifndef _IMPORTEDOSCILLATORCHAIN_H_
-#define _IMPORTEDOSCILLATORCHAIN_H_
+#ifndef _OSCILLATORSHAPINGCHAIN_H_
+#define _OSCILLATORSHAPINGCHAIN_H_
 
 #include <complex>
 #include <cstdint>

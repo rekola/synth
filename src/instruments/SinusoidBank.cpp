@@ -22,7 +22,7 @@ constexpr uint64_t kAdditivePhaseSalt = 0x5F1E8C2A6D93B047ull;
 constexpr uint64_t kAdditiveUnisonDetuneSalt = 0x3B79A1D06E4C852Full;
 
 constexpr float kCullThresholdDb = -90.0f;
-constexpr float kPi = 3.14159265358979323846f;
+constexpr float kPi = static_cast<float>(M_PI);
 
 // -90dB relative amplitude, in linear gain.
 inline float cullThresholdRatio() {

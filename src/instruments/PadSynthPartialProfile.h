@@ -1,5 +1,5 @@
-#ifndef _IMPORTEDPADSYNTHPROFILE_H_
-#define _IMPORTEDPADSYNTHPROFILE_H_
+#ifndef _PADSYNTHPARTIALPROFILE_H_
+#define _PADSYNTHPARTIALPROFILE_H_
 
 #include <array>
 #include <cstdint>

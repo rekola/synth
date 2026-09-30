@@ -1,5 +1,5 @@
-#ifndef _IMPORTEDPADSYNTHTABLE_H_
-#define _IMPORTEDPADSYNTHTABLE_H_
+#ifndef _PADSYNTHTABLE_H_
+#define _PADSYNTHTABLE_H_
 
 #include "OscillatorShapingChain.h"
 #include "PadSynthPartialProfile.h"
