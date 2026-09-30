@@ -82,7 +82,8 @@ NoteMultiplier::playNote(const ChannelConfiguration & channel_config, const Sphe
 
     // fourths
     for (int i = 0; i < fourths_; i++) {
-      float detune = input_detune * powf(4.0f / 3.0f, i + 1) * (1 + detune_field.unit(note_coord.withInstance(voice_id).toHashCoord(), paramId("notemul_detune")) * (detune_ - 0.5f * detune_));
+      float cents_jitter = detune_field.bipolar(note_coord.withInstance(voice_id).toHashCoord(), paramId("notemul_detune"), detune_);
+      float detune = input_detune * powf(4.0f / 3.0f, i + 1) * powf(2.0f, cents_jitter / 1200.0f);
       float v = velocity * powf(0.5f, i + 1);
 
       auto voice = child->playNote(channel_config, input_position, tuning, detune, v, note_value, sends, note_coord.withInstance(voice_id), decorrelate);
@@ -91,7 +92,8 @@ NoteMultiplier::playNote(const ChannelConfiguration & channel_config, const Sphe
 
     // fifths
     for (int i = 0; i < fifths_; i++) {
-      float detune = input_detune * powf(3.0f / 2.0f, i + 1) * (1 + detune_field.unit(note_coord.withInstance(voice_id).toHashCoord(), paramId("notemul_detune")) * (detune_ - 0.5f * detune_));
+      float cents_jitter = detune_field.bipolar(note_coord.withInstance(voice_id).toHashCoord(), paramId("notemul_detune"), detune_);
+      float detune = input_detune * powf(3.0f / 2.0f, i + 1) * powf(2.0f, cents_jitter / 1200.0f);
       float v = velocity * powf(0.5f, i + 1);
 
       auto voice = child->playNote(channel_config, input_position, tuning, detune, v, note_value, sends, note_coord.withInstance(voice_id), decorrelate);
@@ -100,7 +102,8 @@ NoteMultiplier::playNote(const ChannelConfiguration & channel_config, const Sphe
 
     // octaves
     for (int i = 0; i < octaves_; i++) {
-      float detune = input_detune * powf(2.0f, i + 1) * (1 + detune_field.unit(note_coord.withInstance(voice_id).toHashCoord(), paramId("notemul_detune")) * (detune_ - 0.5f * detune_));
+      float cents_jitter = detune_field.bipolar(note_coord.withInstance(voice_id).toHashCoord(), paramId("notemul_detune"), detune_);
+      float detune = input_detune * powf(2.0f, i + 1) * powf(2.0f, cents_jitter / 1200.0f);
       float v = velocity * powf(0.5f, i + 1);
 
       auto voice = child->playNote(channel_config, input_position, tuning, detune, v, note_value, sends, note_coord.withInstance(voice_id), decorrelate);

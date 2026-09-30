@@ -28,6 +28,9 @@ private:
   int fifths_ = 0;
   int fourths_ = 0;
 
+  // Cents - the unison spread (unisons_ >= 2) or the per-voice random
+  // jitter (fourths_/fifths_/octaves_) around each copy's exact interval,
+  // both symmetric around it.
   float detune_ = 0;
   float spread_ = 0;
 };
