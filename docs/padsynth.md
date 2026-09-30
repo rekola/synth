@@ -30,10 +30,7 @@ one-time cost (see "Performance" below), not something repeated per note.
 
 The numeric parameters behind each preset come from Paul Nasca's
 [PADsynth algorithm description](https://zynaddsubfx.sourceforge.io/doc/PADsynth/PADsynth.htm)
-and its own example parameter files, presented in ZynAddSubFX's
-patch-parameter format (that free/open-source synthesizer's
-implementation of the same algorithm) - the format the numbers happen
-to be written in, not their source.
+and its own example parameter files.
 
 ## Tuning-matched partials
 
