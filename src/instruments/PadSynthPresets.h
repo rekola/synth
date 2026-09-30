@@ -7,7 +7,7 @@
 
 // The numeric parameters behind each preset below come from Paul Nasca's
 // PADsynth algorithm description (https://zynaddsubfx.sourceforge.io/doc/
-// PADsynth/PADsynth.htm) and its own example parameter files.
+// PADsynth/PADsynth.htm) and its example parameter files.
 
 // Short local aliases - only used to keep the preset data below readable;
 // never exposed outside this file.

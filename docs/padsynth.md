@@ -30,7 +30,7 @@ one-time cost (see "Performance" below), not something repeated per note.
 
 The numeric parameters behind each preset come from Paul Nasca's
 [PADsynth algorithm description](https://zynaddsubfx.sourceforge.io/doc/PADsynth/PADsynth.htm)
-and its own example parameter files.
+and its example parameter files.
 
 ## Tuning-matched partials
 
@@ -103,7 +103,7 @@ preset rather than something a song would author directly.
 
 Sourced from Paul Nasca's
 [PADsynth algorithm description](https://zynaddsubfx.sourceforge.io/doc/PADsynth/PADsynth.htm)
-and its own example parameter files.
+and its example parameter files.
 
 | Preset | Character |
 |---|---|
