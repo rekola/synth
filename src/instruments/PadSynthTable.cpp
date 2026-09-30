@@ -141,7 +141,7 @@ PadSynthTable::renderSample(int j) const {
   for (int bin = 0; bin < S; bin++) {
     float amp = amplitude_spectrum[static_cast<size_t>(bin)];
     if (amp <= 0.0f) continue;
-    float phase = phase_field.range(static_cast<int64_t>(bin), paramId("imported_padsynth_phase"), 0.0f, 2.0f * static_cast<float>(M_PI));
+    float phase = phase_field.range(static_cast<int64_t>(bin), paramId("padsynth_phase"), 0.0f, 2.0f * static_cast<float>(M_PI));
     spectrum[static_cast<size_t>(bin)] = std::complex<float>(amp * std::cos(phase), amp * std::sin(phase));
   }
 

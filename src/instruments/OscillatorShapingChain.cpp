@@ -237,7 +237,7 @@ vector<float> computeOscillatorMagnitudes(const OscillatorChainParams & params) 
     X = harmonicExpansion(params, B);
   }
 
-  // Step 3 (harmonic_shift_first) is always "no" in every imported preset
+  // Step 3 (harmonic_shift_first) is always "no" in every preset here
   // (see docs/padsynth.md) - the shift always runs at step 7 instead, so
   // step 3 here is a deliberate no-op.
 
