@@ -1,15 +1,13 @@
 #include "PadSynthPartialProfile.h"
 
+#include "../util/MathUtils.h"
+
 #include <cmath>
 #include <stdexcept>
 
 using namespace std;
 
 namespace PadSynthProfile {
-
-namespace {
-float frac(float x) { return x - std::floor(x); }
-} // namespace
 
 std::array<float, kProfileSize> buildProfile(const ProfileParams & params) {
   constexpr int kSupersample = 16;

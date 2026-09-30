@@ -1,6 +1,7 @@
 #include "OscillatorShapingChain.h"
 
 #include "../dsp/RealFFT.h"
+#include "../util/MathUtils.h"
 
 #include <algorithm>
 #include <cmath>
@@ -13,11 +14,6 @@ namespace OscillatorShaping {
 namespace {
 
 constexpr float kPi = static_cast<float>(M_PI);
-
-float frac(float x) {
-  float f = x - std::floor(x);
-  return f;
-}
 
 // The shared (k1, phi, k3) warp position formula - identical for the base
 // waveform's own warp (evaluated directly, b(warpedPosition(x))) and the
