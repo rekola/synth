@@ -89,6 +89,13 @@ class Clip : public SongObject {
   bool isLooping() const { return loop_; }
   void setLooping(bool loop) { loop_ = loop; }
 
+  // Whether this slot, while empty, has a stop button (the default):
+  // launching it - alone, or with its scene - stops the track. Without
+  // one, launching it leaves the track alone. Kept on the slot: a clip
+  // recorded into it keeps the setting, and deleting that clip resets it.
+  bool hasStopButton() const { return stop_button_; }
+  void setStopButton(bool stop_button) { stop_button_ = stop_button; }
+
   // Audio content for a SampleTrack's own clip - see SampleContent.h.
   // hasSample() is true the moment *any* layer has a real buffer - empty
   // for every other track type's clip, and for a fresh/filler one with no
@@ -209,8 +216,8 @@ class Clip : public SongObject {
   // now-stale position as whichever different clip happens to occupy it
   // afterward.
 
-  // Reads/writes id_/name_ (via the SongObject base)/loop_/length_
-  // (<clip id="..." name="..." loop="..." length="...">). Neither a
+  // Reads/writes id_/name_ (via the SongObject base)/loop_/length_/
+  // stop_button_ (<clip id="..." name="..." loop="..." length="..." stop="...">). Neither a
   // sample clip's own nested <sample> child (SampleContent's own
   // in/out/originalTempo, plus its `file` reference) nor a note clip's
   // own <pattern> child are read/written here - both need more than a
@@ -221,12 +228,14 @@ class Clip : public SongObject {
     SongObject::loadParameters(input);
     setLooping(input.get<bool>("loop", true));
     setLength(input.get<int>("length", 0));
+    setStopButton(input.get<bool>("stop", true));
   }
 
   void storeParameters(ParameterSource & output) const override {
     SongObject::storeParameters(output);
     output.set("loop", isLooping(), true);
     output.set("length", getLength(), 0);
+    output.set("stop", hasStopButton(), true);
   }
 
  private:
@@ -248,6 +257,7 @@ class Clip : public SongObject {
   bool mixed_content_valid_ = false;
   bool loop_ = true;
   int length_ = 0;
+  bool stop_button_ = true;
 };
 
 #endif

@@ -65,7 +65,9 @@ public:
 	  assert(i <= it->first);
 	  if (i == it->first) {
 	    for (auto & ev : it->second) {
-	      if (ev.isAftertouch()) {
+	      if (ev.isStopAll()) {
+		stopAllVoices();
+	      } else if (ev.isAftertouch()) {
 		notePressure(ev.getId(), ev.getVelocity());
 	      } else if (ev.isOff()) {
 		noteOff(ev.getId());

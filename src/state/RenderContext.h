@@ -32,8 +32,13 @@ class TrackEvent {
   TrackEvent(short _id, Tuning _tuning, float _velocity, int _note_value = -1, const NoteCoordinate & _note_coord = {})
     : id(_id), tuning(_tuning), velocity(_velocity), note_value(_note_value), note_coord(_note_coord) { }
 
+  // A clip ending or giving way: every voice of the track released (no
+  // column's id is negative).
+  static constexpr short kStopAll = -1;
+
   short getId() const { return id; }
 
+  bool isStopAll() const { return id == kStopAll; }
   // note_value is -1 for both of these (the caller never has a real
   // scale-degree/MIDI key for either) - velocity is what actually tells
   // them apart.
@@ -101,6 +106,15 @@ class RenderContext {
     pending_events_[track_id][frame].push_back(TrackEvent(id, tuning, velocity, note_value, note_coord));
   }
   
+  // Every voice of `track_id` released at `frame` - the transition's own
+  // sample, like a note-off, not wherever its render block starts. The
+  // tuning argument is never read for a stop-all event (isStopAll() short-
+  // circuits straight to stopAllVoices() before anything looks at it) -
+  // any valid value works; TET31 is just this engine's own default.
+  void addPendingStopAll(int track_id, int frame) {
+    pending_events_[track_id][frame].push_back(TrackEvent(TrackEvent::kStopAll, Tuning::TET31, 0.0f));
+  }
+
   std::map<int, std::vector<TrackEvent> > & getPendingEvents(int track_id) {
     return pending_events_[track_id];
   }

@@ -742,7 +742,8 @@ would otherwise resume showing.
   sibling to `<tracks>`/`<arrangement>` (`<trackClips track="..."><clip
   id="..." name="..." loop="..." length="..."><pattern>...</pattern>
   </clip></trackClips>`, one `<trackClips>` per track; an empty filler
-  round-trips as a `<clip>` with no `<pattern>` child at all). A
+  round-trips as a `<clip>` with no `<pattern>` child at all, carrying
+  `stop="false"` when the slot's stop button was removed - see below). A
   `SampleTrack` clip's `<clip>` holds one `<sample file="...">` child per
   layer instead, in take order - a single-layer clip (an old file
   included) is just the size-1 case of the same reader loop - each
@@ -792,7 +793,10 @@ would otherwise resume showing.
   resolved on. Explicitly never the
   triggered clip's own loop length (that only decides where *it* loops,
   not when a pending change is allowed to interrupt it) and never
-  immediate - an empty pad queues a stop,
+  immediate - an empty pad queues a stop (unless its stop button was
+  removed - `Clip::hasStopButton()`: "toggle-stop-button" in the clip
+  grid, or "delete-clip" on an empty slot, which then shows no ⏹: launching that slot, alone or in its
+  scene, leaves the track alone, armed or not),
   while repressing the active pad relaunches its clip from row 0 at the
   next boundary (a launch never toggles - the live-sequencer convention;
   a scene launch, the same press on every track, restarts a playing scene
