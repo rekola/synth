@@ -16,7 +16,7 @@ something wrapping another instrument.
 </instruments>
 ```
 
-Every preset reproduces the real spectrum of a specific instrument patch:
+Every preset reproduces the spectrum of a specific instrument patch:
 a small named oscillator shape (see "Oscillator shape" below) is run
 through Paul Nasca's PADsynth algorithm - a harmonic's energy is spread
 across a narrow Gaussian-shaped band of frequency bins rather than a
@@ -122,15 +122,15 @@ and its example parameter files.
 
 An unrecognized `preset` name falls back to `strings`.
 
-Two presets outside this list stand in for a character no real patch
+Two presets outside this list stand in for a character no preset here
 covers: `brass.synth`/`brass.synth.soft` use `saw-piano-wide`/`saw-piano`
 (a power-ramp oscillator shape reads as a bright, sawtooth-like tone, the
-closest real character to a synth-brass section) rather than a preset
-built to represent brass specifically.
+closest character to a synth-brass section) rather than a preset built
+to represent brass specifically.
 
 ## Oscillator shape
 
-Every preset is built from a real instrument's oscillator shape: a
+Every preset is built from a specific instrument patch's oscillator shape: a
 small named base waveform (clipped triangle, power ramp, Gaussian pulse,
 or warped half-sine), optionally run through a time warp, then harmonic
 expansion against an explicit list of partials, then optionally reshaped
@@ -142,7 +142,7 @@ energy stays the same regardless of how wide its band is) at that
 patch's base note, octave span, and sample layout.
 
 This lets even a preset with a sparse explicit harmonic list (`bells`,
-`bells-3`) reproduce its real, much richer spectrum - the sparse list
+`bells-3`) reproduce its much richer spectrum - the sparse list
 is only the starting point the waveshaper/filter then reshapes, not the
 whole story.
 

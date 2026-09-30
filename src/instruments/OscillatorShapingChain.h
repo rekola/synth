@@ -17,7 +17,7 @@
 // "Oscillator shape" section). Produces A[h], h = 1 .. kHarmonicCount - 1
 // (kHarmonicCount-1 = 255 total harmonics, from a fixed N=512-point
 // oscillator table), the per-harmonic magnitude profile a PADsynth
-// preset's own real oscillator shape actually has, before the anchored-
+// preset's own oscillator shape actually has, before the anchored-
 // spectral-envelope remap (dsp/SpectralEnvelopeRemap.h) and PADsynth
 // rendering (PadSynthTable.h) run on top of it.
 //
