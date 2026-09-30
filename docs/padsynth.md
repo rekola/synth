@@ -33,8 +33,7 @@ The numeric parameters behind each preset come from Paul Nasca's
 which presents its worked examples in ZynAddSubFX's patch-parameter
 format (that free/open-source synthesizer's implementation of the same
 algorithm) - the format the numbers happen to be written in, not their
-source. The oscillator-shaping and PADsynth-rendering here were built
-from that page's algorithm description, never any application source.
+source.
 
 ## Tuning-matched partials
 

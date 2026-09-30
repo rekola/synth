@@ -7,16 +7,15 @@
 #include <utility>
 #include <vector>
 
-// Clean-room reimplementation of ZynAddSubFX's OSCIL shaping chain, from
-// its public algorithm description (per-preset numeric parameters, never
-// ZynAddSubFX's own application source) - see docs/padsynth.md's own
-// "What's real data vs. an approximation" section for the boundary this
-// keeps to. Produces A[h], h = 1 .. kHarmonicCount - 1 (kHarmonicCount-1 =
-// 255 total harmonics, from a fixed N=512-point oscillator table), the
-// per-harmonic magnitude profile an imported PADsynth preset's own real
-// oscillator shape actually has, before the anchored-spectral-envelope
-// remap (main prompt/dsp/SpectralEnvelopeRemap.h) and PADsynth rendering
-// (PadSynthTable.h) run on top of it.
+// The oscillator shaping chain - per-preset numeric parameters run through
+// a small named base waveform, harmonic expansion, and optional waveshaper/
+// filter/warp/spectrum-adjustment/shift stages (docs/padsynth.md's own
+// "Oscillator shape" section). Produces A[h], h = 1 .. kHarmonicCount - 1
+// (kHarmonicCount-1 = 255 total harmonics, from a fixed N=512-point
+// oscillator table), the per-harmonic magnitude profile a PADsynth
+// preset's own real oscillator shape actually has, before the anchored-
+// spectral-envelope remap (dsp/SpectralEnvelopeRemap.h) and PADsynth
+// rendering (PadSynthTable.h) run on top of it.
 //
 // Every stage here is deterministic and allocation-light (each call builds
 // its own small fixed-size (512-point) FFT plan via RealFFT - acceptable

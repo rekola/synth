@@ -6,10 +6,7 @@
 #include <vector>
 
 // The PADsynth partial profile (docs/padsynth.md's "Partial profile
-// p[0…511]") and partial-position g(h) formulas, clean-room-implemented
-// from ZynAddSubFX's own public PADsynth algorithm description - see
-// OscillatorShapingChain.h's own doc comment for the same GPL-source
-// boundary this stays inside of.
+// p[0…511]") and partial-position g(h) formulas.
 namespace PadSynthProfile {
 
 constexpr int kProfileSize = 512;
@@ -21,12 +18,11 @@ struct ProfileParams {
   float beta = 1.0f;
   bool autoscale = true;
   // The profile's own width scale - already the derived multiplier
-  // buildProfile() applies directly (not ZynAddSubFX's own raw 0-127
-  // HARMONIC_PROFILE `width` knob). Every preset observed in the example
-  // data leaves the knob at its maximum, full-width setting (127) - this
-  // defaults to that setting's own derived value, (150/(127+22))^2, not
-  // 1.0 (127 is merely the knob's own ceiling, not a value chosen to
-  // cancel the formula) - see docs/padsynth.md.
+  // buildProfile() applies directly. Every preset observed in the example
+  // data leaves this at its maximum, full-width setting - the derived
+  // value, (150/(127+22))^2, not 1.0 (127 is merely the source knob's own
+  // ceiling, not a value chosen to cancel the formula) - see
+  // docs/padsynth.md.
   float width_scale = 1.01346779f;
 };
 
@@ -40,19 +36,21 @@ std::array<float, kProfileSize> buildProfile(const ProfileParams & params);
 float computeProfileAlpha(const std::array<float, kProfileSize> & profile, bool autoscale);
 
 // Partial position g(h), h >= 1. Harmonic is the plain harmonic series;
-// Stretch is ZynAddSubFX's own stretch/position formula - "the importer
+// Stretch is a stiff-string-style stretch/position formula - "the importer
 // must reject any other value" is enforced by throwing
 // std::invalid_argument for any other `type`.
 enum class PositionType { Harmonic = 0, Stretch = 6 };
 
 struct PositionParams {
   PositionType type = PositionType::Harmonic;
-  // Stretch only - already-derived quantities (not ZynAddSubFX's own raw
-  // stored bytes P1/P2/P3, 0-255), see partialPosition()'s own formula:
+  // Stretch only - already-derived quantities, see partialPosition()'s
+  // own formula:
   //   stretch_strength  = 10^(-3 * (1 - P1/255))
   //   stretch_curvature = P2/255
   //   position_mix      = 1 - P3/255 (0 = snapped to the nearest harmonic,
   //                                    1 = the fully continuous position)
+  // (P1/P2/P3 are the source data's own raw 0-255 bytes this was derived
+  // from.)
   float stretch_strength = 0.0f;
   float stretch_curvature = 0.0f;
   float position_mix = 0.0f;
