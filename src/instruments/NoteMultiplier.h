@@ -20,7 +20,7 @@ class NoteMultiplier : public Instrument {
   const char * getElementName() const override { return "multiply"; }
   void loadParameters(const ParameterSource & input) override;
   void storeParameters(ParameterSource & output) const override;
-  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}, bool needs_decorrelation = false) const override;
+  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}, bool needs_decorrelation = false) const override;
 
 private:
   int unisons_ = 1;
@@ -28,6 +28,9 @@ private:
   int fifths_ = 0;
   int fourths_ = 0;
 
+  // Cents - the unison spread (unisons_ >= 2) or the per-voice random
+  // jitter (fourths_/fifths_/octaves_) around each copy's exact interval,
+  // both symmetric around it.
   float detune_ = 0;
   float spread_ = 0;
 };

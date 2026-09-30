@@ -48,6 +48,11 @@ add_executable(synth_tests
 	AmbisonicEncodingTests.cpp
 	AmbisonicMagLSDecoderTests.cpp
 	ChorusEngineTests.cpp
+	AllpassFilterTests.cpp
+	SpectralEnvelopeRemapTests.cpp
+	SpectralBandProfileTests.cpp
+	OscillatorShapingChainTests.cpp
+	PadSynthPartialProfileTests.cpp
 	FloorReflectionTests.cpp
 	NoiseGeneratorTests.cpp
 	FDNReverbTests.cpp
@@ -79,6 +84,11 @@ add_executable(synth_tests
 	LaunchpadPanTests.cpp
 	GroovePatternLibraryTests.cpp
 	ValueRampTests.cpp
+	SinusoidBankTests.cpp
+	AdditiveTests.cpp
+	PadSynthTests.cpp
+	InstrumentLibraryTests.cpp
+	NoteMultiplierTests.cpp
 )
 
 target_link_libraries(synth_tests synth_engine)

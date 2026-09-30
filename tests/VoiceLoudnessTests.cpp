@@ -28,16 +28,16 @@ TEST(oscillator_voice_reports_note_value_and_velocity_loudness) {
 }
 
 TEST(track_event_and_render_context_carry_note_value) {
-  TrackEvent on(0, 440.0f, 0.8f, 60);
+  TrackEvent on(0, Tuning::TET12, 0.8f, 60);
   CHECK(on.getNoteValue() == 60);
   CHECK(!on.isOff());
 
-  TrackEvent off(0, 0.0f, 0.0f); // default note_value, matching an off event
+  TrackEvent off(0, Tuning::TET12, 0.0f); // default note_value, matching an off event
   CHECK(off.isOff());
   CHECK(off.getNoteValue() == -1);
 
   RenderContext context(ChannelConfiguration(44100));
-  context.addPendingEvent(/*track_id*/ 1, /*frame*/ 0, /*id*/ 0, 440.0f, 0.8f, 60);
+  context.addPendingEvent(/*track_id*/ 1, /*frame*/ 0, /*id*/ 0, Tuning::TET12, 0.8f, 60);
   auto & events = context.getPendingEvents(1);
   CHECK(events.size() == 1);
   CHECK(events[0].size() == 1);

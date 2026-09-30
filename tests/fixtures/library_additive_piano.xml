@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="12edo" tempo="120" rowsPerBar="4" volume="1.0">
+  <instruments>
+    <instrument from="piano.additive"/>
+  </instruments>
+  <tracks>
+    <track id="0" instrument="0"/>
+  </tracks>
+  <arrangement>
+    <pattern track="0">
+      <note row="0" velocity="100" value="C-4" />
+    </pattern>
+  </arrangement>
+</song>

@@ -158,10 +158,6 @@ Progression:
 C F A
 C Eb G
  
-Copy effects from Zynaddsubfx
- - https://zynaddsubfx.sourceforge.io/
- - http://yoshimi.sourceforge.net/
-
 samplePosition should be long long and we could increment it by one all the time
  
 Make song:

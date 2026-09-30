@@ -57,15 +57,6 @@ inline int16_t packKeyRange(uint8_t lo, uint8_t hi) {
   return static_cast<int16_t>(static_cast<uint16_t>(lo) | (static_cast<uint16_t>(hi) << 8));
 }
 
-// MIDI-key-number -> frequency, the same 12-TET formula Tuner::
-// getFrequency(Tuning::PERCUSSION, ...) uses - lets exclusive-class
-// tests select a specific region by key the same way a real percussion
-// note-on would, via SoundFontInstrument::playNote()'s own
-// frequency->midiKey round trip.
-inline float frequencyForMidiKey(int key) {
-  return 440.0f * std::pow(2.0f, static_cast<float>(key - 69) / 12.0f);
-}
-
 // One instrument-zone modulator, in the same raw packed-field shape
 // SF2Mod::Connection itself uses.
 struct ModSpec { uint16_t src, dest, amtSrc, trans; int16_t amount; };

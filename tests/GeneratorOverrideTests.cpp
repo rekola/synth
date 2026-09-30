@@ -47,7 +47,7 @@ float outputLevel(const AudioBuffer & buf) {
 }
 
 AudioBuffer renderOneNote(const Instrument & instrument, const ChannelConfiguration & config) {
-  auto voice = instrument.playNote(config, SphericalPosition{}, frequencyForMidiKey(60), 1.0f, 0.8f, 60, SendLevels{});
+  auto voice = instrument.playNote(config, SphericalPosition{}, Tuning::TET12, 1.0f, 0.8f, 60, SendLevels{});
   return voice->render(4096);
 }
 
@@ -55,7 +55,7 @@ AudioBuffer renderOneNote(const Instrument & instrument, const ChannelConfigurat
 // keynumToVolEnvDecay's sign-convention test below, which compares the same
 // override applied at two different note numbers.
 AudioBuffer renderOneNoteAtKey(const Instrument & instrument, const ChannelConfiguration & config, int key) {
-  auto voice = instrument.playNote(config, SphericalPosition{}, frequencyForMidiKey(key), 1.0f, 0.8f, key, SendLevels{});
+  auto voice = instrument.playNote(config, SphericalPosition{}, Tuning::TET12, 1.0f, 0.8f, key, SendLevels{});
   return voice->render(4096);
 }
 

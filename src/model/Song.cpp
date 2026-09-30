@@ -11,7 +11,9 @@
 #include "../instruments/NoteMultiplier.h"
 #include "../instruments/Arpeggiator.h"
 #include "../instruments/Oscillator.h"
+#include "../instruments/PadSynth.h"
 #include "../instruments/Noise.h"
+#include "../instruments/Additive.h"
 #include "../instruments/LFO.h"
 #include "../instruments/GenericInstrument.h"
 
@@ -19,6 +21,7 @@
 #include "../effects/ResonantFilter.h"
 #include "../effects/BiquadFilter.h"
 #include "../effects/Chorus.h"
+#include "../effects/Phaser.h"
 #include "../effects/Tremolo.h"
 #include "../effects/Amplifier.h"
 #include "../effects/EnvelopeFilter.h"
@@ -191,6 +194,7 @@ static unique_ptr<Track> createTrack(string_view name) {
   else if (name == "resonantFilter") return make_unique<ResonantFilter>();
   else if (name == "biquadFilter") return make_unique<BiquadFilter>();
   else if (name == "chorus") return make_unique<Chorus>();
+  else if (name == "phaser") return make_unique<Phaser>();
   else if (name == "tremolo") return make_unique<Tremolo>();
   else if (name == "multiply") return make_unique<NoteMultiplier>();
   else if (name == "envelope") return make_unique<EnvelopeFilter>();
@@ -201,7 +205,9 @@ static unique_ptr<Track> createTrack(string_view name) {
   // instruments
   else if (name == "instrument") return make_unique<GenericInstrument>();
   else if (name == "oscillator") return make_unique<Oscillator>(WaveformType::SAW);
+  else if (name == "padsynth") return make_unique<PadSynth>();
   else if (name == "noise") return make_unique<Noise>();
+  else if (name == "additive") return make_unique<Additive>();
   else if (name == "LFO") return make_unique<LFO>();
 
   else {

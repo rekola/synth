@@ -2,7 +2,6 @@
 #include "../audio/AudioAPI.h"
 #include "../Controller.h"
 #include "../util/Logger.h"
-#include "../instruments/Tuner.h"
 #include "../instruments/GenericInstrument.h"
 
 #include "LogEvent.h"
@@ -110,19 +109,20 @@ Player::stateFor(const string & name, const Song & song) {
 void
 Player::startPreviewNote(const Track * instrument, const Song & song, int note_value, int velocity) {
   Note note(note_value, velocity);
-  auto frequency = Tuner::getFrequency(song.getTuning(), note);
-  // Whatever was already occupying this slot gets fastRelease()'d and
-  // moved into preview_voices_ to finish its own tail, rather than just
-  // destroyed outright - see preview_note_voice_'s own comment on
-  // Player.h for why a hard cut here is an audible click.
+  // Whatever was already occupying this slot gets its own natural
+  // stopNote() release and moved into preview_voices_ to finish its own
+  // tail, rather than just destroyed outright (a hard cut) or
+  // fastRelease()'d (measured to leave an audible dropout for a
+  // slow-attack instrument) - see preview_note_voice_'s own comment on
+  // Player.h for the full reasoning/measurement.
   // live_note_counter_ stands in for a real NoteCoordinate's absolute_row
   // here too, same reasoning as the real live PLAY_NOTE case below (a
   // preview note has no authored position either).
   if (preview_note_voice_) {
-    preview_note_voice_->fastRelease();
+    preview_note_voice_->stopNote();
     preview_voices_.push_back(std::move(preview_note_voice_));
   }
-  preview_note_voice_ = instrument->playNote(channel_config_, SphericalPosition{}, frequency, 1.0f,
+  preview_note_voice_ = instrument->playNote(channel_config_, SphericalPosition{}, song.getTuning(), 1.0f,
                                               note.getVelocityAsFloat(), note.getValue(), SendLevels{},
                                               NoteCoordinate(-1, live_note_counter_++, 0));
 }
@@ -148,7 +148,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
       // that fails to resolve previews silence rather than substituting
       // the wrong sound.
       auto & provider = controller_->getInstrumentProvider();
-      auto instrument = provider.tryGetByLiteralName(ev.getBufferName());
+      std::shared_ptr<Track> instrument = provider.tryGetByLiteralName(ev.getBufferName());
       if (!instrument) instrument = provider.resolvePath(ev.getBufferName());
       auto song = controller_->getCurrentSong();
       if (instrument && song) startPreviewNote(instrument.get(), *song, ev.getParameter1(), ev.getParameter2());
@@ -351,7 +351,6 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	    if (ev.getType() == PlaybackControlEvent::PLAY_NOTE) {
 	      auto tuning = track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
 	      Note note(midi_note, midi_velocity);
-	      auto frequency = Tuner::getFrequency(tuning, note);
 
 	      // A live note has no authored row to build a
 	      // real NoteCoordinate from - live_note_counter_ (this Player's
@@ -361,7 +360,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	      // real coordinate does (see Player.h's own comment on why this
 	      // counter's monotonic growth is fine here, unlike everywhere
 	      // else this migration cares about reproducibility).
-	      track_state->noteOn(column, *instrument, frequency, note.getVelocityAsFloat(), note.getValue(), NoteOrigin::LIVE,
+	      track_state->noteOn(column, *instrument, tuning, note.getVelocityAsFloat(), note.getValue(), NoteOrigin::LIVE,
 				   NoteCoordinate(state.getSongStructure().getOrdinalFor(*track), live_note_counter_++, column));
 	    } else {
 	      track_state->notePressure(column, midi_velocity / 127.0f);
@@ -652,8 +651,7 @@ Player::renderPreview(int frames) {
         auto ahead = (hit_frame - preview_groove_frame_ + loop_frames) % loop_frames;
         if (ahead < frames) {
           Note note(hit.note, hit.velocity);
-          auto frequency = Tuner::getFrequency(Tuning::PERCUSSION, note);
-          preview_voices_.push_back(preview_groove_instrument_->playNote(channel_config_, SphericalPosition{}, frequency, 1.0f,
+          preview_voices_.push_back(preview_groove_instrument_->playNote(channel_config_, SphericalPosition{}, Tuning::PERCUSSION, 1.0f,
                                                                                  note.getVelocityAsFloat(), note.getValue(), SendLevels{},
                                                                                  NoteCoordinate(-1, live_note_counter_++, 0)));
         }

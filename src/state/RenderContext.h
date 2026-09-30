@@ -4,6 +4,7 @@
 #include "../model/Command.h"
 #include "../model/NoteCoordinate.h"
 #include "../ambisonic/ChannelConfiguration.h"
+#include "../instruments/Tuning.h"
 
 #include <cstdint>
 #include <map>
@@ -23,13 +24,13 @@ class SampleContent;
 // producer should never need to know why or when it's being started or
 // stopped - that scheduling problem belongs entirely up here.
 
-// A pattern note's own on/off, resolved (frequency/velocity/note_value)
+// A pattern note's own on/off, resolved (tuning/velocity/note_value)
 // by the caller before queuing - see NoteCoordinate.h for why this stays
 // separate from the coordinate itself.
 class TrackEvent {
  public:
-  TrackEvent(short _id, float _frequency, float _velocity, int _note_value = -1, const NoteCoordinate & _note_coord = {})
-    : id(_id), frequency(_frequency), velocity(_velocity), note_value(_note_value), note_coord(_note_coord) { }
+  TrackEvent(short _id, Tuning _tuning, float _velocity, int _note_value = -1, const NoteCoordinate & _note_coord = {})
+    : id(_id), tuning(_tuning), velocity(_velocity), note_value(_note_value), note_coord(_note_coord) { }
 
   // A clip ending or giving way: every voice of the track released (no
   // column's id is negative).
@@ -38,17 +39,21 @@ class TrackEvent {
   short getId() const { return id; }
 
   bool isStopAll() const { return id == kStopAll; }
-  bool isAftertouch() const { return frequency == 0.0f && velocity > 0.0f; }
+  // note_value is -1 for both of these (the caller never has a real
+  // scale-degree/MIDI key for either) - velocity is what actually tells
+  // them apart.
+  bool isAftertouch() const { return note_value == -1 && velocity > 0.0f; }
   bool isOff() const { return velocity == 0.0f; }
 
-  float getFrequency() const { return frequency; }
+  Tuning getTuning() const { return tuning; }
   float getVelocity() const { return velocity; }
   int getNoteValue() const { return note_value; }
   const NoteCoordinate & getNoteCoordinate() const { return note_coord; }
 
  private:
   short id;
-  float frequency, velocity;
+  Tuning tuning;
+  float velocity;
   int note_value;
   NoteCoordinate note_coord;
 };
@@ -97,14 +102,17 @@ class RenderContext {
  public:
   RenderContext(ChannelConfiguration config) : channel_config_(config) { }
 
-  void addPendingEvent(int track_id, int frame, short id, float frequency, float velocity, int note_value = -1, const NoteCoordinate & note_coord = {}) {
-    pending_events_[track_id][frame].push_back(TrackEvent(id, frequency, velocity, note_value, note_coord));
+  void addPendingEvent(int track_id, int frame, short id, Tuning tuning, float velocity, int note_value = -1, const NoteCoordinate & note_coord = {}) {
+    pending_events_[track_id][frame].push_back(TrackEvent(id, tuning, velocity, note_value, note_coord));
   }
   
   // Every voice of `track_id` released at `frame` - the transition's own
-  // sample, like a note-off, not wherever its render block starts.
+  // sample, like a note-off, not wherever its render block starts. The
+  // tuning argument is never read for a stop-all event (isStopAll() short-
+  // circuits straight to stopAllVoices() before anything looks at it) -
+  // any valid value works; TET31 is just this engine's own default.
   void addPendingStopAll(int track_id, int frame) {
-    pending_events_[track_id][frame].push_back(TrackEvent(TrackEvent::kStopAll, 0.0f, 0.0f));
+    pending_events_[track_id][frame].push_back(TrackEvent(TrackEvent::kStopAll, Tuning::TET31, 0.0f));
   }
 
   std::map<int, std::vector<TrackEvent> > & getPendingEvents(int track_id) {

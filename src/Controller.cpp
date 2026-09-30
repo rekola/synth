@@ -7,6 +7,7 @@
 #include "model/PercussionTrack.h"
 #include "model/ArrangementOps.h"
 #include "model/Clip.h"
+#include "instruments/InstrumentLibrary.h"
 #include "playback/PlaybackControlEvent.h"
 #include "playback/LogEvent.h"
 
@@ -180,6 +181,24 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
   if (std::filesystem::is_regular_file("data/Essential Keys-sforzando-v9.6.sf2", ec)) {
     instrument_provider.loadSoundFont("data/Essential Keys-sforzando-v9.6.sf2", false);
   }
+
+  // After every loadSoundFont() call, whether or not one actually found a
+  // font: the GM pad overrides need loadSoundFont()'s own registrations to
+  // already be in place to take priority over (registerPath()'s last-
+  // write-wins), and the additive piano's fallback role needs to see
+  // whether a SoundFont piano is already registered - both true regardless
+  // of whether any SoundFont was found at all.
+  registerLibraryInstruments(instrument_provider);
+
+  // Forces every library PadSynth's middle-register wavetable to build now
+  // (startup, main thread) rather than lazily on the real-time audio
+  // thread's first render() of it - table generation is ~10-16ms, easily
+  // enough to glitch a real-time audio callback; reported in practice as
+  // an audible click the first time a Library pad is previewed. Only
+  // covers 31-EDO (a fresh song's own default tuning) at a middle
+  // register - a song in a different tuning, or a note far from that
+  // register, still builds lazily on first use, same as before.
+  prewarmLibraryInstruments(instrument_provider, channel_config, Tuning::TET31);
 
   // MixerFactory falls back to AMBISONIC_STEREO at actual mixer-
   // construction time if no SOFA file resolves (or libmysofa isn't
@@ -1566,4 +1585,12 @@ Controller::finishSampleCapture() {
   // silently inherit this one's now-stale position.
   recording_start_row_ = -1;
   stopRecording();
+}
+
+void
+Controller::prewarmInstrumentForPreview(const Track * instrument, int note_value) const {
+  if (!instrument) return;
+  auto song = getCurrentSong();
+  Tuning tuning = song ? song->getTuning() : Tuning::TET31;
+  prewarmInstrumentTree(*instrument, channel_config, tuning, note_value);
 }

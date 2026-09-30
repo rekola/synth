@@ -245,14 +245,28 @@ private:
   // note-producing event, which always resolves through
   // stateFor()/live_states_ above. Retriggering (a fresh PREVIEW_NOTE
   // while one is already sounding) hands this slot's own previous
-  // occupant a quick fastRelease() and moves it into preview_voices_
-  // below to finish its own tail, exactly like InstrumentTrackState::
-  // retriggerVoices() already does for a real track's own retriggered
-  // note - a hard cut (just destroying the old VoiceState outright)
-  // truncates its waveform mid-cycle, an audible click, especially
-  // noticeable auditioning several notes in quick succession. See
-  // renderPreview() above and PlaybackControlEvent::PREVIEW_NOTE/
-  // PREVIEW_STOP's own doc comment.
+  // occupant its ordinary stopNote() (its own authored release, not
+  // fastRelease()'s compressed ~10ms one) and moves it into
+  // preview_voices_ below to finish its own tail - a hard cut (just
+  // destroying the old VoiceState outright) truncates its waveform
+  // mid-cycle, an audible click. fastRelease() was tried first here,
+  // matching InstrumentTrackState::retriggerVoices()'s own same-identity
+  // reclaim - but that mechanism exists to bound real polyphony under
+  // rapid retriggering in an actual performance, a concern this
+  // single-slot preview context doesn't share (a handful of fading
+  // preview voices is a bounded, harmless cost, never real voice
+  // pileup). Measured directly: for a slow-attack instrument (PadSynth's
+  // own choir/pad presets, ~0.4-0.5s attack), forcing the old voice's
+  // level to collapse in 10ms while the new voice's own attack is still
+  // barely audible left a real ~85% RMS dip for the first several tens
+  // of milliseconds after every retrigger - not a genuine sample-level
+  // discontinuity, but a real, audible dropout, easily mistaken for a
+  // click, especially auditioning several presets in quick succession.
+  // Using the old voice's own (typically much longer) natural release
+  // instead means it stays near full level right through the new voice's
+  // attack ramp, closing the gap entirely - confirmed by the same
+  // measurement showing no dip at all once the old voice's identity
+  // differs from the new one (retriggerVoices()'s own stopNote() branch).
   std::unique_ptr<VoiceState> preview_note_voice_;
 
   // OutlineView's own groove-pattern (Library > Grooves) preview path - a

@@ -58,7 +58,14 @@ endif()
 # be linked into the test suite and any future offline tooling.
 add_library(synth_engine STATIC
 	src/instruments/Oscillator.cpp
+	src/instruments/PadSynth.cpp
 	src/instruments/Noise.cpp
+	src/instruments/Additive.cpp
+	src/instruments/SinusoidBank.cpp
+	src/instruments/OscillatorShapingChain.cpp
+	src/instruments/PadSynthPartialProfile.cpp
+	src/instruments/PadSynthTable.cpp
+	src/instruments/InstrumentLibrary.cpp
 	src/Controller.cpp
 	src/ui/tui/InstrumentList.cpp
 	src/instruments/SoundFont.cpp
@@ -78,6 +85,7 @@ add_library(synth_engine STATIC
 	src/effects/Distortion.cpp
 	src/effects/Tremolo.cpp
 	src/effects/Chorus.cpp
+	src/effects/Phaser.cpp
 	src/dsp/ChorusEngine.cpp
 	src/dsp/GranularEngine.cpp
 	src/bus/BusEffect.cpp

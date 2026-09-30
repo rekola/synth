@@ -5,7 +5,6 @@
 #include "../../state/SongState.h"
 #include "../../Controller.h"
 #include "../StyleProvider.h"
-#include "../../instruments/Tuner.h"
 #include "../../instruments/Tuning.h"
 #include "../../model/LeafTrack.h"
 #include "../../model/PatternGrid.h"
@@ -1227,9 +1226,9 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
   int note_value = 0;
   if (song.getTuning() == Tuning::TET12) note_value = ev.getNote();
   else {
-    float best_diff = 1000000.0f, f = Tuner::getFrequency(Tuning::TET12, ev.getNote());
+    float best_diff = 1000000.0f, f = getFrequencyFor(Tuning::TET12, ev.getNote());
     for (int i = 0; i < 255; i++) {
-      float diff = fabsf(f - Tuner::getFrequency(song.getTuning(), i));
+      float diff = fabsf(f - getFrequencyFor(song.getTuning(), i));
       if (diff < best_diff) {
 	note_value = i;
 	best_diff = diff;

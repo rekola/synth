@@ -1037,6 +1037,22 @@ class Controller {
 
   const InstrumentProvider & getInstrumentProvider() const { return instrument_provider; }
 
+  // Forces `instrument`'s own PadSynth node(s), if any, to build their
+  // wavetable for note_value's octave region right now, synchronously, on
+  // whatever thread calls this - meant to be called from the UI thread,
+  // right before pushing a PREVIEW_NOTE/PREVIEW_POOL_NOTE event, so the
+  // audio thread that actually renders the preview always finds the table
+  // already built. Controller's constructor-time prewarmLibraryInstruments()
+  // call only ever covers one fixed middle-register octave for
+  // provider-registered library instruments - not a different octave (the
+  // outline view's own preview note tracks Controller::getGlobalOctave(),
+  // which can be moved away from that default), and not a song's own
+  // instrument-pool instruments at all (never provider-registered, so the
+  // taxonomy-wide sweep never reaches them) - both gaps this closes for
+  // whichever one instrument is about to actually sound. A no-op for an
+  // instrument with no PadSynth node (nothing to build) or a null pointer.
+  void prewarmInstrumentForPreview(const Track * instrument, int note_value) const;
+
  private:
   // receivePlaybackSnapshot()'s own model-sync half - see
   // glideTrackSendA()/B()/Main()/glideTrackAzimuth()'s own comment for why

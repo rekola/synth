@@ -44,7 +44,7 @@ class Distortion : public MonoEffect {
   // Overridden (not just createVoiceState()) so the note's real position
   // can be captured - createVoiceState() alone never sees it. Mirrors
   // TapeDegradation::playNote() exactly - see its own doc comment.
-  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune,
+  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune,
                                         float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}, bool needs_decorrelation = false) const override;
 
  private:

@@ -5,7 +5,7 @@
 
 namespace {
 
-constexpr float kTwoPi = 6.28318530717958647692f;
+constexpr float kTwoPi = 2.0f * static_cast<float>(M_PI);
 
 // Self-contained (not TreeNode::decibelsToGain()/gainToDecibels(), which
 // only free-standing TreeNode<Derived> subclasses - VoiceState/TrackState

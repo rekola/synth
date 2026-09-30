@@ -74,8 +74,8 @@ private:
 };
 
 std::unique_ptr<VoiceState>
-Noise::playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord, bool needs_decorrelation) const {
+Noise::playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord, bool needs_decorrelation) const {
   auto voice = std::make_unique<NoiseVoice>(config, position, level_, color_, sends, note_coord);
-  voice->playNote(frequency, velocity, note_value);
+  voice->playNote(getFrequencyFor(tuning, note_value), velocity, note_value);
   return voice;
 }
