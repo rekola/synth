@@ -28,9 +28,13 @@ harmonic material. One wavetable is built per pitch region and shared by
 every voice/note played through that `<padsynth>` node - a real but
 one-time cost (see "Performance" below), not something repeated per note.
 
-The patch data behind each preset was sourced from ZynAddSubFX, a free/
-open-source synthesizer that also implements PADsynth - its own factory
-sound bank supplied the numeric parameters these presets are built from.
+The numeric parameters behind each preset come from Paul Nasca's own
+[PADsynth algorithm description](https://zynaddsubfx.sourceforge.io/doc/PADsynth/PADsynth.htm),
+which presents its worked examples in ZynAddSubFX's own patch-parameter
+format (that free/open-source synthesizer's own implementation of the
+algorithm) - the format the numbers happen to be written in, not their
+source. The oscillator-shaping and PADsynth-rendering here were built from
+that page's own algorithm description, never any application source.
 
 ## Tuning-matched partials
 
