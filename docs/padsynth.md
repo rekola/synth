@@ -101,6 +101,10 @@ preset rather than something a song would author directly.
 
 ## Presets
 
+Sourced from Paul Nasca's
+[PADsynth algorithm description](https://zynaddsubfx.sourceforge.io/doc/PADsynth/PADsynth.htm)
+and its own example parameter files.
+
 | Preset | Character |
 |---|---|
 | `keyboard` | A power-ramp oscillator shape, an arctangent waveshaper, an oscillator time warp, and fractional-stretch partial positions (partial 10 lands slightly sharp, at 10.04) - tuning matching is off by default so that stretch survives. |
