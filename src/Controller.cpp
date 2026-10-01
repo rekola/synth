@@ -1392,6 +1392,14 @@ Controller::writeReleaseOff(std::set<std::pair<int, int>> & cleared_rows, bool a
 }
 
 void
+Controller::clearNoteCell(int row, int track_id, int note_column) {
+  auto song = getCurrentSong();
+  auto target = resolveEditTarget(*song, track_id, row, getFocusedClip());
+  target.pattern->setNote(target.effective_row, note_column, Note());
+  song->incVersion();
+}
+
+void
 Controller::applyNotePressure(int row, int track_id, int note_column, short velocity, int delay) {
   auto song = getCurrentSong();
   auto target = resolveEditTarget(*song, track_id, row, getFocusedClip());

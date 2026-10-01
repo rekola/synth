@@ -241,7 +241,7 @@ protected:
   // on for MIDI note numbers). Populated on a fresh note-on press, erased
   // and used to target the right STOP_NOTE on that same key's eventual
   // Kitty-protocol release - see offerInput()'s raw note-entry code.
-  struct ActiveKeyboardNote { int note_column, row, track_id; };
+  struct ActiveKeyboardNote { int note_column, row, track_id; int cleared_to = -1; };
   std::unordered_map<int, ActiveKeyboardNote> active_keyboard_notes_;
 
   // True iff some other currently-held key already occupies (track_id,

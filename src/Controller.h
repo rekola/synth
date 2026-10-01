@@ -985,6 +985,8 @@ class Controller {
   // it. Sweeps the row clean first (like every other live write site) when
   // this caller's own session started the transport.
   void writeReleaseOff(std::set<std::pair<int, int>> & cleared_rows, bool auto_started_playback, int row, int track_id, int note_column, int delay);
+  // Empties one note cell - what a held note clears ahead of its release.
+  void clearNoteCell(int row, int track_id, int note_column);
 
   // Applies a pressure/aftertouch update to an already-written note -
   // shared by PatternEditor::handleMidiEvent()'s NOTE_PRESSURE handling
