@@ -19,8 +19,13 @@
 #include "../model/PercussionTrack.h"
 #include "../model/SampleTrack.h"
 #include "../model/Song.h"
+#include "../model/ArrangementOps.h"
+#include "../playback/RecordEvent.h"
+#include "../playback/RecordingLatencyEvent.h"
+#include "../playback/ThresholdRecordingTriggeredEvent.h"
 
 #include <algorithm>
+#include <fmt/core.h>
 #include <memory>
 #include <thread>
 
@@ -222,6 +227,93 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
   if (launchpad_manager_->handleRawButton(ev.getCCNumber(), device_id, getController())) return;
 
   dispatch_named_command(ev.getCCNumber());
+}
+
+void
+UI::handleRecordEvent(RecordEvent & ev) {
+  if (getController().isRecording()) {
+    setStatus(fmt::format("recorded {} frames", ev.getData().size()));
+    getController().addToSample(ev.getData());
+    // Lazily, exactly once per take, but only for a take that was never
+    // armed (Controller::isRecordingArmed()) - an armed take's own clip
+    // is created by handleRecordingLatencyEvent() below instead, once its
+    // own round-trip measurement arrives, so it can be placed/trimmed
+    // correctly from the start rather than created here uncompensated
+    // and only adjusted afterward.
+    if (!getController().hasRecordingClip() && !getController().isRecordingArmed()) {
+      getController().beginSampleCapture(getController().getRecordingTrackId());
+    }
+  }
+}
+
+void
+UI::handleRecordingLatencyEvent(RecordingLatencyEvent & ev) {
+  // Both guards defensive - Player.cpp only ever pushes this once per
+  // take (the false -> true edge of Controller::isRecording()), and
+  // hasRecordingClip() being already true would mean a second, spurious
+  // measurement somehow arrived for the same take - but this is where
+  // the clip actually gets created, trimmed, and placed, all as one step,
+  // so it stays defensive rather than assuming either can't happen.
+  if (getController().isRecording() && !getController().hasRecordingClip()) {
+    getController().beginSampleCapture(getController().getRecordingTrackId(), ev.getLatencyFrames());
+  }
+}
+
+void
+UI::handleThresholdRecordingTriggeredEvent(ThresholdRecordingTriggeredEvent & ev) {
+  // Defensive, same reasoning as handleRecordingLatencyEvent() above -
+  // Player.cpp only ever pushes this once per arm cycle (its own
+  // threshold_triggered_this_arm_cycle_ latch).
+  if (getController().hasRecordingClip()) return;
+
+  // This is where a threshold-triggered take actually begins, as if it
+  // had been recording this whole time - startRecording() first (a fresh
+  // current_sample), then (for an ordinary, non-Session-View take - see
+  // below) a bar-quantized start row is derived and any gap it opens up
+  // is filled with real silence, then the ring buffer's own already-
+  // captured lead-in is appended, then the (possibly quantized) start
+  // position is armed for beginSampleCapture() to place at.
+  getController().startRecording();
+
+  // Never for a Session View take (isSessionRecording(track_id)) - that
+  // populates a clip slot directly with no arrangement position at all,
+  // so there's nothing here to quantize or snapshot; beginSampleCapture()
+  // already treats recording_start_row_'s own untouched -1 default as
+  // "stays unplaced."
+  bool is_session_recording_take = getController().isSessionRecording(ev.getTrackId());
+  auto start_row = ev.getRow();
+  if (!is_session_recording_take) {
+    // Bar-quantized the same way ensureNoteRecordingClip() already
+    // quantizes a brand-new live-recorded clip's own origin - rounded
+    // back (previousBarRow()), never forward, so the take's own true
+    // first frame is never placed later than it was actually captured.
+    // Unlike a note's own row (just recomputed relative to the clip's
+    // new, earlier origin, preserving its real timing automatically), a
+    // SampleTrack clip's raw audio has no such per-frame repositioning -
+    // so the gap between the quantized bar and the true (backdated)
+    // onset is filled with that many frames of real silence up front
+    // instead, keeping the captured content's own timing exactly where
+    // it was actually performed rather than shifting the whole take
+    // earlier to the bar.
+    auto & song = getController().getSong();
+    auto rows_per_bar = std::max(1, song.getRowsPerBar());
+    auto quantized_row = previousBarRow(ev.getRow(), rows_per_bar);
+    auto gap_rows = ev.getRow() - quantized_row;
+    if (gap_rows > 0) {
+      auto gap_frames = gap_rows * getController().getChannelConfiguration().getSampleInterval(song.getTempo());
+      if (gap_frames > 0) {
+        AudioBuffer silence(1, gap_frames);
+        silence.zero();
+        getController().addToSample(silence);
+      }
+    }
+    start_row = quantized_row;
+  }
+
+  getController().addToSample(ev.getPreroll());
+  if (!is_session_recording_take) getController().armRecordingStart(start_row);
+  getController().beginSampleCapture(ev.getTrackId());
+  getController().clearThresholdArmed();
 }
 
 void

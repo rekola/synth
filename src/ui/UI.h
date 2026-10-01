@@ -53,6 +53,11 @@ class UI : public UIElement {
   // (launchpadEditStepSize()/executeLaunchpadCommand()) are the only
   // backend-specific parts.
   void handleLaunchpadChannelPressureEvent(LaunchpadChannelPressureEvent & ev) override;
+  // Sample recording (live mic takes) is pure Controller bookkeeping, so
+  // every backend shares it.
+  void handleRecordEvent(RecordEvent & ev) override;
+  void handleRecordingLatencyEvent(RecordingLatencyEvent & ev) override;
+  void handleThresholdRecordingTriggeredEvent(ThresholdRecordingTriggeredEvent & ev) override;
   void handleLaunchpadPadEvent(LaunchpadPadEvent & ev) override;
   void handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) override;
 

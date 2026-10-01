@@ -58,9 +58,6 @@ class TerminalUI : public UI {
 
   void handlePlaybackEvent(PlaybackEvent & ev) override;
   void handleLogEvent(LogEvent & ev) override;
-  void handleRecordEvent(RecordEvent & ev) override;
-  void handleRecordingLatencyEvent(RecordingLatencyEvent & ev) override;
-  void handleThresholdRecordingTriggeredEvent(ThresholdRecordingTriggeredEvent & ev) override;
   void handleMidiEvent(MidiEvent & ev) override;
   // handleLaunchpadChannelPressureEvent() is UI's own now - a pure
   // LaunchpadManager passthrough, with no widget dependency to override

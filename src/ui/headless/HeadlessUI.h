@@ -5,6 +5,7 @@
 #include "../StyleProvider.h"
 
 #include <memory>
+#include <unordered_map>
 #include <string>
 
 // UI backend with no screen or keyboard: plays the song and keeps the
@@ -24,6 +25,9 @@ class HeadlessUI : public UI {
 
   void handlePlaybackEvent(PlaybackEvent & ev) override;
   void handleLogEvent(LogEvent & ev) override;
+  // Plays incoming MIDI live on the current track. Unlike the terminal
+  // UI there is no edit cursor, so notes are not written into patterns.
+  void handleMidiEvent(MidiEvent & ev) override;
 
 protected:
   void startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) override;
@@ -36,6 +40,8 @@ private:
   StyleProvider styles_;
   bool autoplay_ = false;
   bool was_playing_ = false;
+  // MIDI note number -> note column (voice slot) of a sounding note.
+  std::unordered_map<int, int> active_midi_notes_;
 };
 
 #endif

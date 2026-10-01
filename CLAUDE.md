@@ -57,7 +57,7 @@ works via the cardioid stereo decoder fallback.
 
 `--headless` runs without the terminal UI (`HeadlessUI`, `src/ui/headless/`):
 it plays the song, keeps a Launchpad working, and prints timestamped status
-lines to stderr; `--autoplay` starts the transport, `--daemon` (with optional
+lines to stderr, plays MIDI input live and records samples; `--autoplay` starts the transport, `--daemon` (with optional
 `--log-file`/`--pid-file`) detaches it. SIGINT/SIGTERM/SIGHUP end any UI
 mode's main loop cleanly (`util/ShutdownSignal.h`, `UI::shouldClose()`).
 See `docs/headless.md`; `tools/e2e/verify_headless.py` covers it.

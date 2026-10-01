@@ -5,12 +5,16 @@
 #include "../../launchpad/LaunchpadManager.h"
 #include "../../audio/AudioAPI.h"
 #include "../../playback/LogEvent.h"
+#include "../../playback/MidiEvent.h"
+#include "../../playback/PlaybackControlEvent.h"
+#include "../../instruments/Tuning.h"
 #include "../../playback/PlaybackEvent.h"
 #include "../../playback/SessionPlayer.h"
 #include "../../Controller.h"
 #include "../../model/Song.h"
 
 #include <algorithm>
+#include <cmath>
 #include <chrono>
 #include <cstdio>
 #include <ctime>
@@ -83,6 +87,64 @@ HeadlessUI::setStatus(std::string s) {
 void
 HeadlessUI::handleLogEvent(LogEvent & ev) {
   setStatus(ev.getText());
+}
+
+void
+HeadlessUI::handleMidiEvent(MidiEvent & ev) {
+  auto & controller = getController();
+  auto & song = controller.getSong();
+  auto & queue = controller.getPlaybackEventQueue();
+  int track_id = song.getCurrentTrackId();
+  auto buffer = controller.getActiveBufferName();
+
+  if (ev.getType() == MidiEvent::CHANNEL_PRESSURE) {
+    queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CHANNEL_PRESSURE, buffer, track_id, ev.getVelocity()));
+    return;
+  }
+
+  // The nearest note of the song's tuning to the 12-EDO pitch received.
+  int note_value = 0;
+  if (song.getTuning() == Tuning::TET12) {
+    note_value = ev.getNote();
+  } else {
+    float best_diff = 1e6f, f = getFrequencyFor(Tuning::TET12, ev.getNote());
+    for (int i = 0; i < 255; i++) {
+      float diff = fabsf(f - getFrequencyFor(song.getTuning(), i));
+      if (diff < best_diff) {
+	note_value = i;
+	best_diff = diff;
+      }
+    }
+  }
+
+  // Each held note gets the lowest free voice slot, the way chords land
+  // in separate note columns.
+  auto it = active_midi_notes_.find(ev.getNote());
+  int note_column;
+  if (it != active_midi_notes_.end()) {
+    note_column = it->second;
+  } else {
+    note_column = 0;
+    auto taken = [&](int c) {
+      return any_of(active_midi_notes_.begin(), active_midi_notes_.end(), [c](auto & kv) { return kv.second == c; });
+    };
+    while (taken(note_column)) note_column++;
+  }
+
+  bool is_off = ev.getType() == MidiEvent::NOTE_OFF || (ev.getType() == MidiEvent::NOTE_ON && ev.getVelocity() == 0);
+  if (is_off) {
+    if (it == active_midi_notes_.end()) return;
+    active_midi_notes_.erase(it);
+    queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, buffer, track_id, note_column));
+  } else if (ev.getType() == MidiEvent::NOTE_ON) {
+    // A repeated note-on for a held note retriggers the same voice slot.
+    active_midi_notes_[ev.getNote()] = note_column;
+    if (controller.isMonitoring(track_id)) {
+      queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, buffer, track_id, note_column, note_value, ev.getVelocity()));
+    }
+  } else if (ev.getType() == MidiEvent::NOTE_PRESSURE && it != active_midi_notes_.end()) {
+    queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, buffer, track_id, note_column, note_value, ev.getVelocity()));
+  }
 }
 
 void
@@ -177,9 +239,7 @@ HeadlessUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
 	    handleEvent(*event);
 	  }
 	} else if (i < launchpad_base) {
-	  // Raw MIDI input only drives note entry in the terminal UI; drain it
-	  // so the descriptor doesn't stay readable.
-	  audio.recordMIDI();
+	  for (auto & ev : audio.recordMIDI()) handleEvent(ev);
 	} else {
 	  for (auto & ev : launchpad_io.pollEvents()) handleEvent(*ev);
 	}
