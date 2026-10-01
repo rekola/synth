@@ -71,15 +71,13 @@ class Note {
 	auto key_name = keyToString(tuning, getValue());
 	if (tuning != Tuning::PERCUSSION) {
 	  if (key_name.size() == 1) key_name += '-';
-	  if (tuning == Tuning::TET53) {
-	    key_name += std::to_string((getValue() / 53) - 1);
-	  } else if (tuning == Tuning::TET31) {
-	    key_name += std::to_string((getValue() / 31) - 1);
-	  } else if (tuning == Tuning::TET19) {
-	    key_name += std::to_string((getValue() / 19) - 1);
-	  } else {
-	    key_name += std::to_string((getValue() / 12) - 1);
-	  }
+	  int period = tuning == Tuning::TET53 ? 53 : tuning == Tuning::TET31 ? 31
+	    : tuning == Tuning::TET19 ? 19 : 12;
+	  int octave = (getValue() / period) - 1;
+	  // A C-spelled name at the top of the index range (C♭) belongs to
+	  // the next octave number, though its value is still below it.
+	  if (key_name[0] == 'C' && getValue() % period > period / 2) octave++;
+	  key_name += std::to_string(octave);
 	}
 	return key_name;
       }
