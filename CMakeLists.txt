@@ -126,6 +126,7 @@ add_library(synth_engine STATIC
 	src/model/WaveformPeaks.cpp
 	src/ambisonic/MixerFactory.cpp
 	src/util/Utf8.cpp
+	src/util/ShutdownSignal.cpp
 )
 target_include_directories(synth_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 # Vendored code (third_party/) as a SYSTEM include path: headers reached
@@ -241,6 +242,8 @@ add_executable(synth src/main.cpp
 	src/audio/AlsaAudio.cpp
 	src/launchpad/LaunchpadIO.cpp
 	src/launchpad/LaunchpadManager.cpp
+	src/ui/headless/HeadlessUI.cpp
+	src/util/Daemon.cpp
 	src/ui/tui/TerminalUI.cpp
 	src/ui/tui/EscapeCoalescer.cpp
 	src/ui/tui/NotcursesInputEventSource.cpp

@@ -5,11 +5,15 @@
 #include "../util/Logger.h"
 
 #include <string>
+#include <string_view>
+#include <vector>
 
 class AudioAPI;
 class LaunchpadIO;
 class LaunchpadManager;
 class LaunchpadChannelPressureEvent;
+class LaunchpadPadEvent;
+class LaunchpadButtonEvent;
 class UI;
 
 class StatusLogger : public Logger {
@@ -45,10 +49,12 @@ class UI : public UIElement {
   // Launchpad hardware input isn't tied to any one visual frontend, so its
   // event handling lives here rather than in a concrete backend - this one
   // is a pure passthrough to LaunchpadManager, with no widget dependency of
-  // its own. handleLaunchpadPadEvent/handleLaunchpadButtonEvent stay
-  // backend-defined for now (they reach into a concrete backend's own
-  // current-note-entry-surface/command-dispatch state).
+  // its own. Pad and button events are shared too; the two hooks below
+  // (launchpadEditStepSize()/executeLaunchpadCommand()) are the only
+  // backend-specific parts.
   void handleLaunchpadChannelPressureEvent(LaunchpadChannelPressureEvent & ev) override;
+  void handleLaunchpadPadEvent(LaunchpadPadEvent & ev) override;
+  void handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) override;
 
   // Which layout the active song is shown in - UI state, independent of
   // which buffer is active. Arrangement: the arrangement overview plus the
@@ -77,7 +83,27 @@ protected:
   // start()) by the time this runs.
   virtual void wireLaunchpad(LaunchpadManager & launchpad_manager) { }
 
+  // Rows a Launchpad note-entry press advances the edit position by.
+  virtual int launchpadEditStepSize() const { return 1; }
+  // Runs a command named by a Launchpad button; a backend overrides this to
+  // route it through its own focus-aware dispatch.
+  virtual bool executeLaunchpadCommand(std::string_view name) { return executeCommand(name); }
+
+  // Song::getCurrentTrackId()'s own id, converted to whichever index-space
+  // `track_ids` uses - every LaunchpadManager call still takes a plain
+  // index (a real per-list position, needed for arithmetic like "move one
+  // track over" and for auto-growing a brand-new song up to a target
+  // count), just no longer sourced from any one widget's own cursor. Falls
+  // back to 0 (not -1) when the id isn't found (unset, or a track this
+  // list doesn't include) - the same "just pick the first one" fallback
+  // PatternEditor's own cursor starts at.
+  static int indexOfTrack(const std::vector<int> & track_ids, int track_id);
+
   Logger & getLogger() { return logger_; }
+
+  // True once a backend's main loop should end: close_ui_ was set, or a
+  // shutdown signal (SIGINT/SIGTERM/SIGHUP) arrived.
+  bool shouldClose() const;
 
   bool close_ui_ = false;
 
