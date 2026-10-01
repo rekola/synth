@@ -26,16 +26,17 @@ class StyleProvider {
 
   Color window_border_color = "#323232";
   Color window_fg_color = "#9e9e9e";
-  Color window_bg_color = "#151515";
+  Color window_bg_color = "#111111";
   Color window_accent_fg_color = "#ffffff";
   Color window_accent_bg_color = "#292929";
 
-  // A bar boundary (Song::getRowsPerBar()) - a stronger accent
-  // than window_accent_*_color's own plain beat one, since a bar-start
-  // row is always also a beat-start row and should read as "more
-  // important" than an ordinary one.
+  // The pattern editor's beat rows, and its bar rows (Song::
+  // getRowsPerBar()) a step above them. Both stay well below the cursor
+  // row's tint, so the cursor still stands out on an accented row.
+  Color window_beat_accent_fg_color = "#c4c4c4";
+  Color window_beat_accent_bg_color = "#232323";
   Color window_bar_accent_fg_color = "#ffffff";
-  Color window_bar_accent_bg_color = "#3d3d3d";
+  Color window_bar_accent_bg_color = "#323232";
 
   Color command_column_color = "#c67610";
 

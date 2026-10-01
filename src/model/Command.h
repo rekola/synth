@@ -3,6 +3,7 @@
 
 #include "../util/digit.h"
 
+#include <algorithm>
 #include <cmath>
 #include <string>
 #include <string_view>
@@ -139,6 +140,33 @@ class Command {
     auto hi = digit(values_[2], 16), lo = digit(values_[3], 16);
     float magnitude = static_cast<float>((hi < 0 ? 0 : hi) * 16 + (lo < 0 ? 0 : lo));
     return values_[1] == 'L' ? -magnitude : magnitude;
+  }
+
+  // 0Rxy - retrigger the track's most recently played note every `y` ticks
+  // (constants::TICKS_PER_ROW per row) for the rest of this row, changing
+  // its velocity by `x` at each retrigger. `y` = 0 retriggers nothing.
+  bool isRetrigger() const { return values_[0] == '0' && values_[1] == 'R'; }
+  int getRetriggerVolumeCode() const { auto d = digit(values_[2], 16); return d < 0 ? 0 : d; }
+  int getRetriggerIntervalTicks() const { auto d = digit(values_[3], 16); return d < 0 ? 0 : d; }
+
+  // Velocity (0..1) of the next retrigger: `base` is the note's original
+  // velocity, `current` the previous retrigger's. Codes 1-5/9-D lower/raise
+  // the base by a fixed 3/6/12/25/50% (of full scale, the same every
+  // retrigger); 6/7/E/F compound on `current` (x2/3, x1/2, x3/2, x2); 0
+  // and 8 leave it unchanged.
+  static float retriggerVelocityStep(float base, float current, int code) {
+    static const float kOffsets[] = { 0.03125f, 0.0625f, 0.125f, 0.25f, 0.5f };
+    float v = current;
+    switch (code & 15) {
+    case 1: case 2: case 3: case 4: case 5: v = base - kOffsets[(code & 15) - 1]; break;
+    case 6: v = current * (2.0f / 3.0f); break;
+    case 7: v = current * 0.5f; break;
+    case 9: case 10: case 11: case 12: case 13: v = base + kOffsets[(code & 15) - 9]; break;
+    case 14: v = current * 1.5f; break;
+    case 15: v = current * 2.0f; break;
+    default: break;
+    }
+    return std::min(std::max(v, 0.0f), 1.0f);
   }
 
   // 0Pxx - set azimuth to an absolute position, unlike YLxx/YRxx's own
