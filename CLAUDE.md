@@ -175,7 +175,7 @@ kill-row (Emacs's own C-k, kill-line, repurposed the same way), not an
 M-x trigger.
 `docs/commands.md` lists the pattern effect commands (slides, vibrato, …),
 split into **Implemented** (`ZBxx` pattern break; `0Pxx` azimuth set;
-`0Lxx`/`0Fxx`/`0Mxx` Volume/Send A/Send B set; the real-time
+`0Lxx` Volume set; the real-time
 `Y`-namespace commands `YLxx`/`YRxx` (azimuth slide left/right) and
 `YMxy`/`YAxy`/`YBxy`/`YZxy` (Volume/Send A/Send B/azimuth, each with an
 explicit glide duration) - see `SongState.h`'s command-handling loop) and

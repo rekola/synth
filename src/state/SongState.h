@@ -136,8 +136,8 @@ class SongState : public TrackState {
 	  scheduleRetrigger(track_id, frame_offset, command.getRetriggerIntervalTicks(), command.getRetriggerVolumeCode());
 	} else if (command.isAzimuthSlide()) {
 	  scheduleAzimuthSlide(track_id, frame_offset, command.getAzimuthSlidePerTick());
-	} else if (command.isVolumeSet() || command.isSendASet() || command.isSendBSet() || command.isAzimuthSet()) {
-	  // 0Lxx/0Fxx/0Mxx/0Pxx - an absolute set, applied the instant
+	} else if (command.isVolumeSet() || command.isAzimuthSet()) {
+	  // 0Lxx/0Pxx - an absolute set, applied the instant
 	  // this row starts (unlike the slide commands above, there's
 	  // no per-tick ramp to schedule - see Command::
 	  // getSendSetLinear()/getAzimuthSetDegrees()'s own comments on
@@ -150,8 +150,6 @@ class SongState : public TrackState {
 	  auto * leaf_state = dynamic_cast<LeafTrackState *>(getChildByInternalId(track_id));
 	  if (leaf_state) {
 	    if (command.isVolumeSet()) leaf_state->setSendMain(command.getSendSetLinear());
-	    else if (command.isSendASet()) leaf_state->setSendA(command.getSendSetLinear());
-	    else if (command.isSendBSet()) leaf_state->setSendB(command.getSendSetLinear());
 	    else leaf_state->setAzimuth(command.getAzimuthSetDegrees());
 	  }
 	} else if (command.isVolumeGlide() || command.isSendAGlide() || command.isSendBGlide()) {
