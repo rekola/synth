@@ -103,6 +103,7 @@ add_library(synth_engine STATIC
 	src/dsp/TapeTransport.cpp
 	src/playback/Player.cpp
 	src/playback/SessionPlayer.cpp
+	src/playback/MidiNoteInput.cpp
 	src/playback/VisualizationThread.cpp
 	src/dsp/DiracAnalyzer.cpp
 	src/instruments/NoteMultiplier.cpp

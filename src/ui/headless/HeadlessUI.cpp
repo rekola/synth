@@ -11,6 +11,7 @@
 #include "../../playback/PlaybackEvent.h"
 #include "../../playback/SessionPlayer.h"
 #include "../../Controller.h"
+#include "../../model/ArrangementOps.h"
 #include "../../model/Song.h"
 
 #include <algorithm>
@@ -93,58 +94,20 @@ void
 HeadlessUI::handleMidiEvent(MidiEvent & ev) {
   auto & controller = getController();
   auto & song = controller.getSong();
-  auto & queue = controller.getPlaybackEventQueue();
   int track_id = song.getCurrentTrackId();
-  auto buffer = controller.getActiveBufferName();
 
-  if (ev.getType() == MidiEvent::CHANNEL_PRESSURE) {
-    queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CHANNEL_PRESSURE, buffer, track_id, ev.getVelocity()));
-    return;
-  }
-
-  // The nearest note of the song's tuning to the 12-EDO pitch received.
-  int note_value = 0;
-  if (song.getTuning() == Tuning::TET12) {
-    note_value = ev.getNote();
-  } else {
-    float best_diff = 1e6f, f = getFrequencyFor(Tuning::TET12, ev.getNote());
-    for (int i = 0; i < 255; i++) {
-      float diff = fabsf(f - getFrequencyFor(song.getTuning(), i));
-      if (diff < best_diff) {
-	note_value = i;
-	best_diff = diff;
-      }
-    }
-  }
-
-  // Each held note gets the lowest free voice slot, the way chords land
-  // in separate note columns.
-  auto it = active_midi_notes_.find(ev.getNote());
-  int note_column;
-  if (it != active_midi_notes_.end()) {
-    note_column = it->second;
-  } else {
-    note_column = 0;
-    auto taken = [&](int c) {
-      return any_of(active_midi_notes_.begin(), active_midi_notes_.end(), [c](auto & kv) { return kv.second == c; });
-    };
-    while (taken(note_column)) note_column++;
-  }
-
-  bool is_off = ev.getType() == MidiEvent::NOTE_OFF || (ev.getType() == MidiEvent::NOTE_ON && ev.getVelocity() == 0);
-  if (is_off) {
-    if (it == active_midi_notes_.end()) return;
-    active_midi_notes_.erase(it);
-    queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, buffer, track_id, note_column));
-  } else if (ev.getType() == MidiEvent::NOTE_ON) {
-    // A repeated note-on for a held note retriggers the same voice slot.
-    active_midi_notes_[ev.getNote()] = note_column;
-    if (controller.isMonitoring(track_id)) {
-      queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, buffer, track_id, note_column, note_value, ev.getVelocity()));
-    }
-  } else if (ev.getType() == MidiEvent::NOTE_PRESSURE && it != active_midi_notes_.end()) {
-    queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, buffer, track_id, note_column, note_value, ev.getVelocity()));
-  }
+  // The same rule as a Launchpad note take: capture armed, transport
+  // running; the note lands at the playhead.
+  MidiNoteInput::Options options;
+  options.write = controller.isNoteCaptureArmed() && controller.getPlaybackInfo().isPlaying();
+  options.pressure_follows_transport = options.write;
+  midi_input_.handle(ev, controller, track_id, options, [&](int id) {
+    int row = controller.getPlaybackInfo().getAbsolutePosition();
+    // A live take goes into its own clip instance rather than the track's
+    // background pattern.
+    controller.ensureNoteRecordingClip(midi_record_clip_ids_, id, row);
+    return resolveEditTarget(song, id, row, controller.getFocusedClip());
+  });
 }
 
 void
@@ -164,6 +127,7 @@ HeadlessUI::handlePlaybackEvent(PlaybackEvent & ev) {
     launchpad_manager_->onRowAdvanced(getController());
     getController().extendRecordingClipsIfNeeded(launchpad_manager_->getAutoRecordClipIds(), launchpad_manager_->getActiveNoteTrackIds());
   }
+  getController().extendRecordingClipsIfNeeded(midi_record_clip_ids_, midi_input_.heldTrackIds());
   getController().extendRecordingSampleClipIfNeeded();
 }
 

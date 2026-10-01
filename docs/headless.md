@@ -35,15 +35,18 @@ If no song is given, `songs/welcome.xml` is used as in the terminal UI.
 
 - Playback, Session view clip launching and everything else the engine does.
 - Launchpad input and LEDs (the same pad/button handling as the terminal UI).
-- MIDI input: notes (with release, note and channel pressure) play live on
-  the current track, in the song's tuning, one voice slot per held note;
-  respects the track's Monitor setting.
+- MIDI input (`MidiNoteInput`, shared with the terminal UI): notes (with
+  release, note and channel pressure) play live on the current track, in the
+  song's tuning, one voice slot per held note; respects the track's Monitor
+  setting. While note capture is armed and the transport plays, notes are
+  also recorded at the playhead into a clip, the same rule as a Launchpad
+  take.
 - Sample recording from the audio input (armed, threshold-triggered and
   Session view takes), shared with the terminal UI.
 
 Not available: anything that needs the terminal UI (editing, M-x, the
-keyboard), writing MIDI notes into patterns (the terminal UI does that at its
-edit cursor, which headless mode doesn't have), and other peripherals.
+keyboard), and other peripherals. The "cursor" headless mode uses is the
+song's current track plus the transport position, both held outside the UI.
 
 ## Testing
 

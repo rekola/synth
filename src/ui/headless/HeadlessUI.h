@@ -5,6 +5,9 @@
 #include "../StyleProvider.h"
 
 #include <memory>
+#include "../../playback/MidiNoteInput.h"
+
+#include <string>
 #include <unordered_map>
 #include <string>
 
@@ -25,8 +28,8 @@ class HeadlessUI : public UI {
 
   void handlePlaybackEvent(PlaybackEvent & ev) override;
   void handleLogEvent(LogEvent & ev) override;
-  // Plays incoming MIDI live on the current track. Unlike the terminal
-  // UI there is no edit cursor, so notes are not written into patterns.
+  // Plays incoming MIDI live on the current track; while note capture is
+  // armed and the transport plays, also records it at the playhead.
   void handleMidiEvent(MidiEvent & ev) override;
 
 protected:
@@ -40,8 +43,9 @@ private:
   StyleProvider styles_;
   bool autoplay_ = false;
   bool was_playing_ = false;
-  // MIDI note number -> note column (voice slot) of a sounding note.
-  std::unordered_map<int, int> active_midi_notes_;
+  MidiNoteInput midi_input_;
+  // Clips this UI's own MIDI takes created (Controller::ensureNoteRecordingClip()).
+  std::unordered_map<int, std::string> midi_record_clip_ids_;
 };
 
 #endif
