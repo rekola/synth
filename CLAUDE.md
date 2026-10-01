@@ -1420,3 +1420,6 @@ would otherwise resume showing.
   silently goes stale if the binding ever changes; name the command
   instead and let the actual binding site be the only place the key
   appears).
+- Pull requests: when pushing more commits to a branch that has an open PR,
+  update the PR description in the same step if the push changes what it
+  says - a push updates the diff but never the description.
