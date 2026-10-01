@@ -223,7 +223,8 @@ its whole extent. Every widget's cursor uses the same colors
 grey bar/beat highlighting: dark on bright grey (`highlight_fg_color`/
 `highlight_bg_color`) while focused, plain text on a faint grey
 (`highlight_unfocused_bg_color`) otherwise - an unfocused widget still
-shows where its edits land. A colored cell (a clip, an arrangement
+shows where its edits land (`ClipGrid` is the exception: unfocused, it shows no
+cursor at all). A colored cell (a clip, an arrangement
 instance) brightens toward `cursor_tint_color` instead of taking either
 grey. A marked row - the pattern editor's cursor row (in Arrangement
 view, the transport's row), the clip grid's scene row, the arrangement
@@ -923,9 +924,11 @@ would otherwise resume showing.
   `UIElement::wantsBareEscape()` without it losing its Alt-prefix role),
   above `PatternEditor` (`TerminalUI::layout()`) - no scope row
   (Arrangement view's is optional too, "toggle-scopes"). The clip grid
-  and the pattern editor share the current track; each clip grid column
-  faintly marks the clip its own track is at (`ClipGrid::
-  setTrackClipSource()`). The clip grid's cursor row is its own
+  and the pattern editor share the current track; the clip grid marks the clip
+  the pattern editor is editing for the cursor track
+  with a pencil (✎) beside its loop icon (`ClipGrid::
+  setTrackClipSource()`) - an icon, not a colour, so a Launchpad can show
+  the same thing. The clip grid's cursor row is its own
   (`TerminalUI::syncSessionView()` shares only the track): it never
   moves a track's position, nor follows one - a track's position moves
   only in the pattern editor, or when a clip launched on it starts

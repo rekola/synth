@@ -2427,8 +2427,8 @@ TerminalUI::syncSessionView() {
 
   // No clip row is shared: the clip grid's cursor is its own, and never
   // moves a track's position (only the pattern editor, or a launched clip
-  // starting to play, does) - each column marks its own track's clip
-  // instead (setTrackClipSource()).
+  // starting to play, does) - the cursor track's clip being edited is
+  // marked instead (setTrackClipSource()).
 
   if (clip_grid_->preferredHeight() == laid_out_clip_grid_height_) return false;
   layout();

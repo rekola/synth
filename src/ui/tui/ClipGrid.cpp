@@ -570,12 +570,9 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
       auto physical_row = scroll_row_ + vr;
       auto y = 1 + vr;
       bool is_cursor_cell = focused && track_index == cursor_track_index_ && physical_row == cursor_physical;
-      // Unfocused, the cursor's clip cell still shows faintly - where a
-      // launch from here would land.
-      bool is_editing_cell = !focused && track_index == cursor_track_index_ && physical_row == cursor_physical;
-      // The clip this track is at in the pattern editor below - each
-      // track can be in a different one - is marked, faintly.
-      bool is_scene_row = track_clip_source_ && physical_row < clip_rows && physical_row == track_clip_source_(track_id);
+      // The cursor track's clip being edited in the pattern editor below
+      // is marked with a pencil.
+      bool is_edited_clip = track_clip_source_ && track_index == cursor_track_index_ && physical_row < clip_rows && physical_row == track_clip_source_(track_id);
 
       // The Sends value row mixes a cursive unit label with plain-weight
       // numbers, which a single putstr call can't do - handled directly
@@ -583,7 +580,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
       // text/pad/put path every other row below shares.
       if (physical_row == clip_rows + kSendsValue) {
         Color row_fg = is_cursor_cell ? styles.highlight_fg_color : styles.window_fg_color;
-        Color row_bg = is_cursor_cell ? styles.highlight_bg_color : is_editing_cell ? styles.highlight_unfocused_bg_color : styles.window_bg_color;
+        Color row_bg = is_cursor_cell ? styles.highlight_bg_color : styles.window_bg_color;
         setFgColor(row_fg);
         setBgColor(row_bg);
         putstr(y, x, string(static_cast<size_t>(kColWidth), ' ')); // opaque row background first
@@ -641,7 +638,8 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
           // than this row's own background-painting already accounts
           // for, so an over-wide render spills into blank space of its
           // own row rather than the divider column just past it.
-          auto clip_name_width = kColWidth - 5; // marker + "▸ " + the 2 trailing columns
+          // The pencil takes 2 more, next to the loop icon.
+          auto clip_name_width = kColWidth - 5 - (is_edited_clip ? 2 : 0); // marker + "▸ " + the 2 trailing columns
           auto name_field = Utf8::padToWidth(Utf8::truncateToWidth(name, clip_name_width), clip_name_width);
           text = fmt::format("{}▸ {}", marker, name_field);
           row_bg = structure.getBaselineInfo(track_id).getColor();
@@ -685,16 +683,13 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
           // ArrangementGrid's cursor on its colored instance cells.
           row_fg = styles.highlight_fg_color;
           row_bg = row_bg.blend(0.5f, styles.cursor_tint_color);
-        } else if (is_editing_cell) {
-          row_bg = has_real_clip ? row_bg.blend(0.25f, styles.cursor_tint_color) : styles.highlight_unfocused_bg_color;
-        } else if (is_scene_row) {
-          row_bg = styles.cursorRowTint(row_bg);
         }
         setFgColor(row_fg);
         setBgColor(row_bg);
         putstr(y, x, string(static_cast<size_t>(kColWidth), ' ')); // opaque row background first
         putstr(y, x, text);
         if (has_real_clip && clips[clip_row].isLooping()) putstr(y, x + kColWidth - 2, "↻");
+        if (is_edited_clip) putstr(y, x + kColWidth - 4, "✎");
         if (glyph) {
           setFgColor(glyph_fg);
           putstr(y, x + 1, glyph);
@@ -726,8 +721,6 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
       if (is_cursor_cell) {
         fg = styles.highlight_fg_color;
         bg = styles.highlight_bg_color;
-      } else if (is_editing_cell && physical_row == clip_rows + kDirectionValue) {
-        bg = styles.highlight_unfocused_bg_color;
       }
       setFgColor(fg);
       setBgColor(bg);
@@ -782,13 +775,10 @@ ClipGrid::renderMasterColumn(const StyleProvider & styles, int x, int rows, bool
     auto y = 1 + vr;
     if (physical_row >= physicalRowCount()) break;
     bool is_cursor_cell = focused && cursor_here && physical_row == cursor_physical;
-    bool is_editing_cell = !focused && cursor_here && physical_row == cursor_physical;
     Color fg = styles.window_fg_color, bg = styles.window_bg_color;
     if (is_cursor_cell) {
       fg = styles.highlight_fg_color;
       bg = styles.highlight_bg_color;
-    } else if (is_editing_cell) {
-      bg = styles.highlight_unfocused_bg_color;
     }
 
     if (physical_row < clip_rows) {
