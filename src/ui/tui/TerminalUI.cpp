@@ -1465,10 +1465,27 @@ protected:
     // Opaque background: a transparent pixel would composite against the raw
     // terminal's background instead of this app's.
     vector<uint32_t> buffer(static_cast<size_t>(pxy) * pxx, pixelOf(styles.window_bg_color));
-    uint32_t bar_pixel = pixelOf(styles.meter_active_color);
+    auto mix = [&](float t) { // bg -> bar colour, t in 0..1
+      auto ch = [&](int bg, int fg) { return static_cast<uint32_t>(static_cast<float>(bg) + t * static_cast<float>(fg - bg) + 0.5f); };
+      auto & bg = styles.window_bg_color; auto & fg = styles.meter_active_color;
+      return (0xffu << 24) | (ch(bg.getBlue(), fg.getBlue()) << 16) | (ch(bg.getGreen(), fg.getGreen()) << 8) | ch(bg.getRed(), fg.getRed());
+    };
+    uint32_t fill_pixel = mix(0.22f);
+    // The curve's height at each column, in pixels from the bottom.
+    float top = static_cast<float>(pxy) - 2.0f;
+    auto height = [&](unsigned x) { return levels[x] * top + 1.0f; };
     for (unsigned x = 0; x < pxx; x++) {
-      unsigned bar_height = static_cast<unsigned>(levels[x] * static_cast<float>(pxy) + 0.5f);
-      for (unsigned y = 0; y < bar_height && y < pxy; y++) buffer[(pxy - 1 - y) * pxx + x] = bar_pixel;
+      float h = height(x);
+      // The line reaches the neighbours' midpoints so steep slopes stay connected.
+      float prev = x > 0 ? 0.5f * (h + height(x - 1)) : h, next = x + 1 < pxx ? 0.5f * (h + height(x + 1)) : h;
+      float lo = std::min({h, prev, next}) - 0.9f, hi = std::max({h, prev, next}) + 0.9f;
+      for (unsigned y = 0; y < pxy; y++) {
+        float yc = static_cast<float>(y) + 0.5f; // pixel centre, from the bottom
+        if (yc < lo) { buffer[(pxy - 1 - y) * pxx + x] = fill_pixel; continue; }
+        float cover = std::clamp(std::min(yc - lo, hi - yc), 0.0f, 1.0f);
+        if (cover <= 0.0f) break;
+        buffer[(pxy - 1 - y) * pxx + x] = mix(std::max(0.22f, cover));
+      }
     }
     ncpp::Visual visual(buffer.data(), static_cast<int>(pxy), static_cast<int>(pxx * 4), static_cast<int>(pxx));
     ncvisual_options vopts{};

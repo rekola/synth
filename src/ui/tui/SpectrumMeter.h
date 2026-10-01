@@ -26,6 +26,8 @@ protected:
   // redraws the whole plane.
   virtual void drawBars(const std::vector<float> & levels);
 
+  static std::vector<float> splineSample(const std::vector<float> & knots, size_t count);
+
 private:
   // The dBFS span shown, 0 dB at the top; the axis is log-frequency from
   // kMinHz up to Nyquist.

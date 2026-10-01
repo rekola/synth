@@ -17,7 +17,9 @@ SpectrumMeter::setSpectrum(const std::vector<float> & db, float bin_hz) {
   // Log-frequency display bins. A display bin spanning several linear bins
   // shows the loudest; one narrower than a linear bin (the bass) interpolates
   // between its neighbours instead of going blank.
-  size_t num_bins = std::max<size_t>(barCount(cols), 1);
+  // Few knots, interpolated by a spline afterwards: reads as a smooth curve
+  // rather than jittery bars.
+  size_t num_bins = std::clamp<size_t>(static_cast<size_t>(cols) / 3, 8, 48);
   float start = std::log2(kMinHz), step = (std::log2(nyquist) - start) / static_cast<float>(num_bins);
   auto level = [&](float index) {
     float clamped = std::clamp(index, 0.0f, static_cast<float>(db.size() - 1));
@@ -38,7 +40,26 @@ SpectrumMeter::setSpectrum(const std::vector<float> & db, float bin_hz) {
     }
     fractions[b] = std::clamp(1.0f + value / kRangeDb, 0.0f, 1.0f);
   }
-  drawBars(fractions);
+  drawBars(splineSample(fractions, barCount(cols)));
+}
+
+// Samples a Catmull-Rom spline through `knots` (evenly spaced) at `count`
+// evenly spaced positions, clamped to 0..1.
+std::vector<float>
+SpectrumMeter::splineSample(const std::vector<float> & knots, size_t count) {
+  std::vector<float> out(count, 0.0f);
+  if (knots.empty() || count == 0) return out;
+  auto at = [&](long i) { return knots[static_cast<size_t>(std::clamp<long>(i, 0, static_cast<long>(knots.size()) - 1))]; };
+  for (size_t i = 0; i < count; i++) {
+    // Knots sit at cell centres of an n-wide axis.
+    float pos = (static_cast<float>(i) + 0.5f) / static_cast<float>(count) * static_cast<float>(knots.size()) - 0.5f;
+    long k = static_cast<long>(std::floor(pos));
+    float t = pos - static_cast<float>(k);
+    float p0 = at(k - 1), p1 = at(k), p2 = at(k + 1), p3 = at(k + 2);
+    float v = 0.5f * (2.0f * p1 + (p2 - p0) * t + (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3) * t * t + (3.0f * (p1 - p2) + p3 - p0) * t * t * t);
+    out[i] = std::clamp(v, 0.0f, 1.0f);
+  }
+  return out;
 }
 
 void
