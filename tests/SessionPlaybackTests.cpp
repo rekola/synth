@@ -185,3 +185,27 @@ TEST(session_taken_over_track_ignores_its_arrangement_automation) {
   s.state->getAllTrackInfo(info);
   CHECK_NEAR(info[s.a].getLiveSendMain(), 1.0f, 1e-4);
 }
+
+// -Rxy re-fires the notes still playing on its track - never a note a
+// clip launched before it left behind, which the launch released.
+TEST(session_retrigger_ignores_notes_of_the_previous_clip) {
+  SessionSong s;
+  Clip chord(s.a);
+  chord.setLength(4);
+  chord.getLeafPattern().setNote(0, 0, Note(110, 100));
+  chord.getLeafPattern().setNote(0, 1, Note(111, 100));
+  s.song.addClip(move(chord)); // clip 1
+  Clip retrig(s.a);
+  retrig.setLength(4);
+  retrig.getLeafPattern().setNote(0, 0, Note(120, 100));
+  for (int row = 0; row < 4; row++) retrig.getLeafPattern().setCommand(row, Command("-R03"));
+  s.song.addClip(move(retrig)); // clip 2
+
+  s.queue(s.a, 1);
+  s.play(4); // clip 1's bar
+  CHECK(s.plays(s.a, 111));
+  s.queue(s.a, 2);
+  s.play(4); // clip 2's bar, retriggering every row
+  CHECK(s.plays(s.a, 120));
+  CHECK(!s.plays(s.a, 111));
+}

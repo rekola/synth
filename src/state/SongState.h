@@ -451,6 +451,7 @@ class SongState : public TrackState {
 	      if (previous_clip_index >= 0 && previous_clip_index != active.clip_index) {
 		if (is_sample_track) render_context_.addPendingSampleStop(track_id, i, false);
 		else render_context_.addPendingStopAll(track_id, i);
+		last_notes_.erase(track_id);
 	      }
 	      last_active_clip_index_by_track_[track_id] = active.clip_index;
 	    }
@@ -996,6 +997,7 @@ private:
     }
     last_active_clip_index_by_track_.erase(track_id);
     last_background_by_track_.erase(track_id);
+    last_notes_.erase(track_id);
   }
 
   int song_structure_version_ = -1; // never equals a real song.getMajorVersion() until initialize()/renderBlock() runs
