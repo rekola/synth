@@ -17,7 +17,7 @@ namespace ncpp {
 };
 
 class UIMenu;
-class Chart;
+class SpectrumMeter;
 class HeatmapChart;
 class ChannelMeter;
 class InfoLine;
@@ -113,7 +113,7 @@ private:
   std::shared_ptr<ncpp::NotCurses> nc;
 
   std::shared_ptr<UIMenu> menu_;
-  std::shared_ptr<Chart> chart_;
+  std::shared_ptr<SpectrumMeter> chart_;
   std::shared_ptr<ChannelMeter> volume_meter_;
   std::shared_ptr<HeatmapChart> heatmap_;
   std::shared_ptr<StatusLine> status_line_;

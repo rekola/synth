@@ -4,6 +4,7 @@
 #include "RealFFT.h"
 #include "../audio/AudioBuffer.h"
 
+#include <algorithm>
 #include <cmath>
 #include <memory>
 #include <vector>
@@ -57,7 +58,9 @@ class SpectrumAnalyzer {
     for (int i = 0; i < actual_data_size; i++) {
       auto re = spectrum[static_cast<size_t>(i)].real();
       auto im = spectrum[static_cast<size_t>(i)].imag();
-      float mag = (re == 0.0f && im == 0.0f) ? 0.0f : 10.0f * log10f(re * re + im * im);
+      // Floored, not special-cased to 0 dB: exact silence must read as the
+      // quietest value, not as a mid-scale one.
+      float mag = 10.0f * log10f(std::max(re * re + im * im, 1e-20f));
       v.push_back(mag);
     }
 

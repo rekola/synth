@@ -3,7 +3,6 @@
 #include "../../playback/InputEvent.h"
 #include "../../Controller.h"
 #include "../UIMenu.h"
-#include "../Chart.h"
 #include "../HeatmapChart.h"
 #include "InfoLine.h"
 #include "StatusLine.h"
@@ -11,6 +10,7 @@
 #include "ArrangementGrid.h"
 #include "ClipGrid.h"
 #include "ChannelMeter.h"
+#include "SpectrumMeter.h"
 #include "OutlineView.h"
 #include "CoverArt.h"
 #include "SpinBox.h"
@@ -985,202 +985,6 @@ private:
   string activated_command_;
 };
 
-class TerminalChart : public Chart {
-public:
-  TerminalChart(UIPlane & parent, ChartType type, double min_y = 0.0, double max_y = 0.0) : Chart(parent, type, min_y, max_y) {
-    // Same window_bg_color base-cell fix as plot_plane_ gets below, but
-    // for this widget's own outer plane - the footer label row is
-    // deliberately left uncovered by plot_plane_ so its text shows
-    // through, and any of that row's cells the label text itself doesn't
-    // reach (getMeterLabel() rarely fills the whole width) need this too.
-    auto & tplane = dynamic_cast<TerminalPlane&>(getPlane());
-    auto & bg = getPlane().getStyles().window_bg_color;
-    uint64_t base_channels = channelsOf(bg, bg);
-    ncplane_set_base(tplane.getPlane().to_ncplane(), " ", 0, base_channels);
-  }
-
-  void setSample(int i, double v) override {
-    if (!plot_) {
-      // ncdplot_create()/ncdplot_destroy() take ownership of the ncplane
-      // passed in and destroy it together with the plot (confirmed
-      // empirically: resizing the plane after destroying the plot
-      // segfaults). Since this chart's own plane (getPlane()) must survive
-      // resizes for the chart's whole lifetime, give the plot a dedicated,
-      // disposable child plane instead of handing away our own.
-      auto [rows, cols] = getDim();
-      auto [y, x] = getPosition();
-      plot_plane_ = getPlane().createChild();
-      // createChild()'s underlying Plane ctor has no parent-plane argument -
-      // it places the new plane at (0,0) in the standard plane's coordinate
-      // space, not relative to our own (already correctly positioned)
-      // plane. Reposition it explicitly to match, or it always ends up at
-      // whatever raw (0,0) createChild() hardcodes regardless of where this
-      // chart actually is on screen.
-      // When a footer label is set, the plot only gets rows-1 - it's a
-      // child plane, so leaving the last row of our own (outer) plane_
-      // uncovered is what lets that row's putstr() in commit() actually
-      // show through, rather than being hidden behind the plot child.
-      int plot_rows = footer_label_.empty() ? rows : rows - 1;
-      if (plot_rows <= 0) plot_rows = rows;
-      plot_plane_->resize(plot_rows, cols);
-      plot_plane_->move(y, x);
-
-      auto & tplane = dynamic_cast<TerminalPlane&>(*plot_plane_);
-      tplane.setOwning(false);
-
-      // Set the plane's *base* cell to the same idle background every
-      // scope shares (StyleProvider::window_bg_color) - this, not a plain
-      // putstr()-based fill (tried and reverted here), is what actually
-      // survives ncdplot's own rendering: ncdplot_create()/every
-      // subsequent redraw calls ncplane_erase() internally on its own
-      // plane before repainting the "lit" portion of each column, and
-      // per notcurses's own contract "the base cell is not affected by
-      // ncplane_erase()" - it's what shows through any cell whose real
-      // content is still blank (gcluster 0) after that erase. A plain
-      // fill got wiped by that same erase every render, leaving a freshly
-      // created plane's own default (the raw terminal's background, not
-      // this app's) showing through the "no data" portion of the chart -
-      // a real, confirmed bug.
-      auto & bg = getPlane().getStyles().window_bg_color;
-      uint64_t base_channels = channelsOf(bg, bg);
-      ncplane_set_base(tplane.getPlane().to_ncplane(), " ", 0, base_channels);
-
-      ncplot_options opts;
-      memset(&opts, 0, sizeof(opts));
-      opts.flags = 0
-	// | NCPLOT_OPTION_LABELTICKSD
-	// | NCPLOT_OPTION_EXPONENTIALD
-	// | NCPLOT_OPTION_PRINTSAMPLE
-	;
-      opts.gridtype = getType() == DOTS ? NCBLIT_BRAILLE : NCBLIT_2x2;
-      // opts.gridtype = NCBLIT_8x1;
-
-      // Opaque window_bg_color background, not NCALPHA_BLEND -
-      // blend mode composites against whatever's on the plane beneath at
-      // render time, which for a cell ncdplot actually writes to isn't
-      // reliably this app's own background (a real, confirmed bug: every
-      // rendered dot showed the raw terminal's own background bleeding
-      // through, even though ncplane_set_base() above already fixed the
-      // *untouched* cells around them). Foreground gradient (dot color)
-      // is unchanged - only the background channel/alpha needed fixing.
-      opts.minchannels = channelsOf(Color(0x80, 0x80, 0xff), bg);
-      opts.maxchannels = channelsOf(Color(0x80, 0xff, 0x80), bg);
-
-      plot_ = std::make_shared<PlotD>(tplane.getPlane(), &opts);
-    }
-
-    plot_->set_sample(static_cast<uint64_t>(i), v);
-  }
-
-  void commit() override {
-    if (!footer_label_.empty()) {
-      auto [rows, cols] = getDim();
-      // Without this, the label text drew with whatever fg/bg the
-      // outer plane's draw state last happened to be left in - unset in
-      // practice, showing the raw terminal's own background instead of
-      // this app's (the outer-plane counterpart of the ncplot fix above -
-      // that one only covers plot_plane_, not this row, which is
-      // deliberately left uncovered by it so this text shows through).
-      auto & styles = getPlane().getStyles();
-      setFgColor(styles.window_fg_color);
-      setBgColor(styles.window_bg_color);
-      putstr(rows - 1, 0, footer_label_);
-    }
-  }
-
-protected:
-  void onResize() override {
-    plot_.reset();       // destroys the ncdplot, which destroys plot_plane_'s ncplane too
-    plot_plane_.reset();  // drop our now-hollow wrapper (owner=false, so no double-free)
-    // next setSample() lazily rebuilds both against the new dimensions
-  }
-
-private:
-  std::shared_ptr<PlotD> plot_;
-  std::unique_ptr<UIPlane> plot_plane_;
-};
-
-// Renders via notcurses's ncvisual/pixel-graphics subsystem (sixel/kitty-
-// graphics/iTerm2, whichever the terminal supports) instead of ncplot's
-// braille/block glyphs, for much higher effective resolution. Buffers
-// samples cheaply per setSample() call and does the actual RGBA-build-and-
-// blit work once per commit(), directly onto this chart's own plane (no
-// widget/plane-ownership landmine like TerminalChart's ncplot - ncvisual
-// blitting draws onto an existing plane, it doesn't adopt/destroy it).
-class TerminalPixelChart : public Chart {
-public:
-  TerminalPixelChart(UIPlane & parent, ChartType type, double min_y = 0.0, double max_y = 0.0) : Chart(parent, type, min_y, max_y) { }
-
-  void setSample(int i, double v) override {
-    if (i >= static_cast<int>(samples_.size())) samples_.resize(static_cast<size_t>(i + 1));
-    samples_[static_cast<size_t>(i)] = v;
-  }
-
-  void commit() override {
-    if (samples_.empty()) return;
-
-    auto & tplane = dynamic_cast<TerminalPlane&>(getPlane());
-    auto native_plane = tplane.getPlane().to_ncplane();
-
-    unsigned pxy = 0, pxx = 0, celldimy = 0;
-    ncplane_pixel_geom(native_plane, &pxy, &pxx, &celldimy, nullptr, nullptr, nullptr);
-    if (pxy == 0 || pxx == 0) return;
-
-    // Reserve exactly one character row's worth of pixels at the bottom for
-    // the footer label (see Chart::setFooterLabel), so the bar image itself
-    // never gets drawn under/behind the text - pxy is always an exact
-    // multiple of celldimy per ncplane_pixel_geom's own contract, so this
-    // shrinks the image by exactly one whole cell row, not a partial one.
-    if (!footer_label_.empty() && celldimy > 0 && pxy > celldimy) pxy -= celldimy;
-
-    // Opaque window_bg_color, not transparent (0 alpha) - a
-    // transparent pixel here composites against the raw terminal's own
-    // background instead of this app's, since pixel-graphics blitting
-    // replaces a cell's usual text-mode background entirely rather than
-    // layering over whatever this plane's cells were otherwise painted
-    // (a real, confirmed bug: this chart's empty area showed Ubuntu's
-    // default terminal color instead of window_bg_color).
-    vector<uint32_t> buffer(static_cast<size_t>(pxy) * pxx, pixelOf(getPlane().getStyles().window_bg_color));
-
-    auto range = max_y_ - min_y_;
-    auto num_samples = samples_.size();
-    for (unsigned x = 0; x < pxx; x++) {
-      auto sample_idx = min(static_cast<size_t>(x) * num_samples / pxx, num_samples - 1);
-      auto v = samples_[sample_idx];
-      auto frac = range > 0 ? (v - min_y_) / range : 0.0;
-      if (frac < 0) frac = 0;
-      else if (frac > 1) frac = 1;
-      auto bar_height = static_cast<unsigned>(frac * pxy);
-
-      for (unsigned y = 0; y < bar_height; y++) {
-	// dim blue-ish at the bottom (quiet) to green at the top (loud),
-	// matching TerminalChart's existing min/max channel colors.
-	double t = pxy > 1 ? static_cast<double>(y) / (pxy - 1) : 0.0;
-	uint8_t r = static_cast<uint8_t>(0x80);
-	uint8_t g = static_cast<uint8_t>(0x80 * (1 - t) + 0xff * t);
-	uint8_t b = static_cast<uint8_t>(0xff * (1 - t) + 0x80 * t);
-	unsigned py = pxy - 1 - y; // bars grow upward from the bottom
-	buffer[py * pxx + x] = (0xffu << 24) | (static_cast<uint32_t>(b) << 16) | (static_cast<uint32_t>(g) << 8) | r;
-      }
-    }
-
-    ncpp::Visual visual(buffer.data(), static_cast<int>(pxy), static_cast<int>(pxx * 4), static_cast<int>(pxx));
-    ncvisual_options vopts{};
-    vopts.n = native_plane;
-    vopts.scaling = NCSCALE_NONE;
-    vopts.blitter = NCBLIT_PIXEL;
-    visual.blit(&vopts);
-
-    if (!footer_label_.empty()) {
-      auto [rows, cols] = getDim();
-      putstr(rows - 1, 0, footer_label_);
-    }
-  }
-
-private:
-  std::vector<double> samples_;
-};
-
 namespace {
 
 // Lerps from `background` (value == 0) to the fully-bright HSV color
@@ -1656,11 +1460,7 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
   }
 
   bool use_pixel = notcurses_check_pixel_support(*nc) != NCPIXEL_NONE;
-  auto make_chart = [&](Chart::ChartType type, double min_y, double max_y) -> shared_ptr<Chart> {
-    if (use_pixel) return make_shared<TerminalPixelChart>(getPlane(), type, min_y, max_y);
-    else return make_shared<TerminalChart>(getPlane(), type, min_y, max_y);
-  };
-  chart_ = make_chart(Chart::DOTS, 0.0, 0.0);
+  chart_ = make_shared<SpectrumMeter>(getPlane());
   volume_meter_ = make_shared<ChannelMeter>(getPlane());
 
   if (use_pixel) heatmap_ = make_shared<TerminalPixelHeatmapChart>(getPlane(), DiracAnalyzer::kAzimuthBins, DiracAnalyzer::kElevationBins);
@@ -2726,7 +2526,7 @@ TerminalUI::handleVisualizationResultEvent(VisualizationResultEvent & ev) {
     volume_meter_->setLevels(ev.getChannelLoudness(), ev.getMeterLabel());
 
     if (!ev.getFFT().empty()) {
-      chart_->displayFFT(ev.getFFT());
+      chart_->setSpectrum(ev.getFFT());
     }
 
     if (ev.hasDiracGrid()) {
