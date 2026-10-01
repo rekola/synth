@@ -1042,7 +1042,11 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
       top = source_->advance(point, -(visible - 1 - margin));
     }
     if (!isSessionMode() && top.row < 0) top = { 0, 0 };
-    if (isSessionMode() && scene_source_->keepTrackLinesVisible(top, visible, margin)) force_full_redraw_ = true;
+    if (isSessionMode()) {
+      // The view following a playhead doesn't carry the stopped tracks along.
+      if (scene_source_->cursorLocked()) scene_source_->holdStoppedTracks(source_->rowsBetween({ view_block_, current_scroll_.row }, top));
+      if (scene_source_->keepTrackLinesVisible(top, visible, margin)) force_full_redraw_ = true;
+    }
     view_block_ = top.block;
     new_row = top.row;
   }

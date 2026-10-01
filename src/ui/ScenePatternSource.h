@@ -81,6 +81,9 @@ class ScenePatternSource : public PatternSource {
   // track whose playhead goes away stays where it left it, on its line.
   struct Playhead { int scene; int row; };
   void setPlayheads(std::unordered_map<int, Playhead> playheads);
+  // Keeps every stopped track but the cursor's where it is on screen as
+  // the view scrolls `rows` down.
+  void holdStoppedTracks(int rows);
   // Brings every track's line (other than the cursor track's) back within
   // `margin` rows of the edges of the `rows` rows starting at `top`, when
   // it has left them. True if any moved.

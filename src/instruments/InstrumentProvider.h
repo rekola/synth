@@ -33,7 +33,7 @@ class InstrumentProvider {
       // empty instrument, exactly the "no provider at this path" case
       // resolvePath()'s walk-up is designed to handle.
       for (auto & entry : kGmBank0Table) {
-	auto instrument = sf->createInstrumentByProgram(0, entry.program, entry.path);
+	auto instrument = sf->createInstrumentByProgram(0, entry.program);
 	if (instrument) registerPath(entry.path, move(instrument));
       }
 
@@ -47,7 +47,7 @@ class InstrumentProvider {
       // given font may not carry, gracefully skipped by the same nullptr
       // contract as any other under-provided bank-0 entry.
       for (auto & entry : kGmBank128Table) {
-	auto instrument = sf->createInstrumentByProgram(128, entry.program, entry.path);
+	auto instrument = sf->createInstrumentByProgram(128, entry.program);
 	if (instrument) registerPath(entry.path, move(instrument));
       }
     }

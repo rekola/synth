@@ -42,9 +42,14 @@ struct outline_row_s {
 // picking one of its candidates never reaches here at all.
 enum class DetailsAction { NONE, DELETE, ADD_TO_SONG, PREVIEW, STOP, TOGGLE_TARGET_PICKER, TOGGLE_INFO };
 
+// How the Info popup draws a line: TITLE is bold (the row's name), HINT
+// italic (an instruction).
+enum class DetailsStyle { PLAIN, TITLE, HINT };
+
 struct DetailsLine {
   std::string text;
   DetailsAction action = DetailsAction::NONE;
+  DetailsStyle style = DetailsStyle::PLAIN;
 };
 
 // A read-only, indented tree of the active song - Song/Instruments/
@@ -94,6 +99,8 @@ class OutlineView : public UIElement {
   void closeInfoPopup();
   // Escape closes the details popup.
   bool wantsBareEscape() const override { return info_popup_open_; }
+  // The Info popup takes all input while it is open.
+  bool isModal() const { return info_popup_open_; }
 
 protected:
   void renderRow(const StyleProvider & styles, int row, bool cursor, bool focused);
@@ -128,6 +135,7 @@ protected:
   // `details_width` is only needed to word-wrap a groove's own
   // description to the panel's current width.
   std::vector<DetailsLine> buildDetailsLines(const outline_row_s & row, int details_width) const;
+  std::string libraryInstrumentName(const std::string & ref_name) const;
   // NCKEY_BUTTON1 - hit-tests the click against whichever of the tree/
   // Details panel it landed in (see this class's own header comment) and
   // either moves the cursor straight to the clicked row (tree side) or
@@ -213,7 +221,7 @@ protected:
   // "[?] Info" button.
   std::vector<ButtonPlacement> placeButtons(const outline_row_s & row) const;
   // The details popup's text for `row`: its non-button lines.
-  std::vector<std::string> infoLines(const outline_row_s & row) const;
+  std::vector<DetailsLine> infoLines(const outline_row_s & row) const;
 
   static constexpr int kButtonBarRows = 3;
   static constexpr int kInfoPopupWidth = 40;

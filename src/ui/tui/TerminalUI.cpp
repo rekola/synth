@@ -1810,7 +1810,7 @@ TerminalUI::readInput() {
       // buffered here and in the Alt coalescer, so it can go on to be an
       // Alt chord's prefix or part of a keypad sequence - it's just never
       // delivered a second time (kp_escape_delivered_).
-      auto active = active_element_.lock();
+      auto active = outline_view_ && outline_view_->isModal() ? outline_view_ : active_element_.lock();
       if (active && active->wantsBareEscape()) {
 	InputEvent escape(NCKEY_ESC, ni.y, ni.x, false, false, false, false, kind);
 	active->offerInput(escape);
@@ -2505,6 +2505,11 @@ TerminalUI::offerInput(const InputEvent & input) {
   // keystroke meant for it.
   bool reader_active = status_line_->isReaderActive() || pattern_editor_->isReaderActive() ||
     clip_grid_->isReaderActive();
+  // A modal popup takes everything but a resize or redraw.
+  if (outline_view_ && outline_view_->isModal() && input.getId() != NCKEY_RESIZE && !(input.hasCtrl() && input.getId() == 'l')) {
+    outline_view_->offerInput(input);
+    return true;
+  }
   if (!reader_active && !octave_control_->isEditing() && dispatchCommand(input)) return true;
 
   if (input.getId() == NCKEY_RESIZE) {
