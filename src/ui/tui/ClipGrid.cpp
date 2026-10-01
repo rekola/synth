@@ -638,8 +638,10 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
           // than this row's own background-painting already accounts
           // for, so an over-wide render spills into blank space of its
           // own row rather than the divider column just past it.
-          // The pencil takes 2 more, next to the loop icon.
-          auto clip_name_width = kColWidth - 5 - (is_edited_clip ? 2 : 0); // marker + "▸ " + the 2 trailing columns
+          // Icons pack against the right edge (loop rightmost), two columns
+          // each: they may render two cells wide.
+          auto trailing = std::max(2, 2 * ((is_edited_clip ? 1 : 0) + (clip.isLooping() ? 1 : 0)));
+          auto clip_name_width = kColWidth - 3 - trailing; // marker + "▸ " + the trailing columns
           auto name_field = Utf8::padToWidth(Utf8::truncateToWidth(name, clip_name_width), clip_name_width);
           text = fmt::format("{}▸ {}", marker, name_field);
           row_bg = structure.getBaselineInfo(track_id).getColor();
@@ -689,7 +691,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
         putstr(y, x, string(static_cast<size_t>(kColWidth), ' ')); // opaque row background first
         putstr(y, x, text);
         if (has_real_clip && clips[clip_row].isLooping()) putstr(y, x + kColWidth - 2, "↻");
-        if (is_edited_clip) putstr(y, x + kColWidth - 4, "✎");
+        if (is_edited_clip) putstr(y, x + kColWidth - (has_real_clip && clips[clip_row].isLooping() ? 4 : 2), "✎");
         if (glyph) {
           setFgColor(glyph_fg);
           putstr(y, x + 1, glyph);
