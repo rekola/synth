@@ -1154,6 +1154,16 @@ would otherwise resume showing.
     `EscapeCoalescer`) and text-cell rendering helpers (`SubcellGlyphs.h`)
     that wouldn't apply to a pixel-based UI.
 
+    Info dialogs (the outline panel's details popup, the About dialog) have
+    their content written as Markdown, parsed by `ui/Markdown.h` - a tiny
+    subset (`#` headings, paragraphs, `*italic*`, `**bold**`, `\` escapes)
+    and nothing else - so any backend can show the same text. `UI::
+    showInfoDialog(title, markdown)` is the backend hook the shared `about`
+    command calls (text in `ui/AboutText.h`); `tui/InfoDialog` is the
+    terminal rendering (`markdown::layout()` word-wraps to cells; a GUI
+    would lay out the parsed `Document` itself). The terminal one is modal
+    and closes on Escape/Enter/q/C-g or a click.
+
     Commands (`CommandRegistry`-named, dispatched by both a keybinding and
     M-x) default to living in `UI::initializeCommands()` (`ui/UI.cpp`),
     not `TerminalUI`, since a future GUI backend shares the same command
