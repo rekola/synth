@@ -2526,7 +2526,7 @@ TerminalUI::handleVisualizationResultEvent(VisualizationResultEvent & ev) {
     volume_meter_->setLevels(ev.getChannelLoudness(), ev.getMeterLabel());
 
     if (!ev.getFFT().empty()) {
-      chart_->setSpectrum(ev.getFFT());
+      chart_->setSpectrum(ev.getFFT(), ev.getFFTBinHz());
     }
 
     if (ev.hasDiracGrid()) {
