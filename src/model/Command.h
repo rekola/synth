@@ -149,29 +149,24 @@ class Command {
   int getRetriggerVolumeCode() const { auto d = digit(values_[2], 16); return d < 0 ? 0 : d; }
   int getRetriggerIntervalTicks() const { auto d = digit(values_[3], 16); return d < 0 ? 0 : d; }
 
-  // Velocity (0..1) after one retrigger step, per the tracker-standard
-  // volume-change table: 0/8 no change, 1-5 subtract 1/2/4/8/16 (of 64),
-  // 6 two thirds, 7 half, 9-D add 1/2/4/8/16, E three halves, F double.
-  static float retriggerVelocityStep(float velocity, int code) {
-    float v = velocity * 64.0f;
+  // Velocity (0..1) of the next retrigger: `base` is the note's original
+  // velocity, `current` the previous retrigger's. Codes 1-5/9-D lower/raise
+  // the base by a fixed 3/6/12/25/50% (of full scale, the same every
+  // retrigger); 6/7/E/F compound on `current` (x2/3, x1/2, x3/2, x2); 0
+  // and 8 leave it unchanged.
+  static float retriggerVelocityStep(float base, float current, int code) {
+    static const float kOffsets[] = { 0.03125f, 0.0625f, 0.125f, 0.25f, 0.5f };
+    float v = current;
     switch (code & 15) {
-    case 1: v -= 1; break;
-    case 2: v -= 2; break;
-    case 3: v -= 4; break;
-    case 4: v -= 8; break;
-    case 5: v -= 16; break;
-    case 6: v *= 2.0f / 3.0f; break;
-    case 7: v *= 0.5f; break;
-    case 9: v += 1; break;
-    case 10: v += 2; break;
-    case 11: v += 4; break;
-    case 12: v += 8; break;
-    case 13: v += 16; break;
-    case 14: v *= 1.5f; break;
-    case 15: v *= 2.0f; break;
+    case 1: case 2: case 3: case 4: case 5: v = base - kOffsets[(code & 15) - 1]; break;
+    case 6: v = current * (2.0f / 3.0f); break;
+    case 7: v = current * 0.5f; break;
+    case 9: case 10: case 11: case 12: case 13: v = base + kOffsets[(code & 15) - 9]; break;
+    case 14: v = current * 1.5f; break;
+    case 15: v = current * 2.0f; break;
     default: break;
     }
-    return std::min(std::max(v, 0.0f), 64.0f) / 64.0f;
+    return std::min(std::max(v, 0.0f), 1.0f);
   }
 
   // 0Pxx - set azimuth to an absolute position, unlike YLxx/YRxx's own

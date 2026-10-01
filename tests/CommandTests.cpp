@@ -256,8 +256,13 @@ TEST(command_retrigger_decodes_volume_and_interval) {
 }
 
 TEST(command_retrigger_velocity_steps) {
-  CHECK_NEAR(Command::retriggerVelocityStep(0.5f, 0), 0.5f, 1e-6f);
-  CHECK_NEAR(Command::retriggerVelocityStep(0.5f, 7), 0.25f, 1e-6f);
-  CHECK_NEAR(Command::retriggerVelocityStep(0.5f, 15), 1.0f, 1e-6f);
-  CHECK_NEAR(Command::retriggerVelocityStep(0.0625f, 3), 0.0f, 1e-6f);
+  CHECK_NEAR(Command::retriggerVelocityStep(0.5f, 0.5f, 0), 0.5f, 1e-6f);
+  CHECK_NEAR(Command::retriggerVelocityStep(0.5f, 0.5f, 8), 0.5f, 1e-6f);
+  // 1-5/9-D are fixed offsets from the original, not compounding.
+  CHECK_NEAR(Command::retriggerVelocityStep(0.75f, 0.5f, 4), 0.5f, 1e-6f);
+  CHECK_NEAR(Command::retriggerVelocityStep(0.5f, 0.25f, 12), 0.75f, 1e-6f);
+  // 6/7/E/F compound.
+  CHECK_NEAR(Command::retriggerVelocityStep(0.5f, 0.5f, 7), 0.25f, 1e-6f);
+  CHECK_NEAR(Command::retriggerVelocityStep(0.5f, 0.25f, 15), 0.5f, 1e-6f);
+  CHECK_NEAR(Command::retriggerVelocityStep(1.0f, 1.0f, 15), 1.0f, 1e-6f);
 }

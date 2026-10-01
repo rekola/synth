@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cmath>
 #include <memory>
+#include <map>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -538,7 +539,8 @@ class SongState : public TrackState {
 		auto delay_samples = int(note.getDelayAsFloat() * getChannelConfiguration().getSampleInterval(tempo_));
 		int note_value = (note.isAftertouch() || note.isOff()) ? -1 : note.getValue();
 		render_context_.addPendingEvent(track_id, i + delay_samples, int(j), tuning, velocity, note_value, NoteCoordinate(song_structure_.getOrdinalFor(track_id), row_idx, int(j)));
-		if (note_value >= 0 && velocity > 0.0f) last_notes_[track_id] = LastNote { int(j), tuning, velocity, note_value, row_idx };
+		if (note.isOff()) last_notes_[track_id].erase(int(j));
+		else if (note_value >= 0 && velocity > 0.0f) last_notes_[track_id][int(j)] = LastNote { int(j), tuning, velocity, note_value, row_idx };
 	      }
 	    }
 
@@ -785,24 +787,25 @@ class SongState : public TrackState {
     else setPosition(row);
   }
 
-  // 0Rxy (Command::isRetrigger()) - re-fires the track's last played note
-  // every `interval_ticks` ticks across the row starting at block-relative
-  // sample offset `row_start`, its velocity stepped by `volume_code` each
-  // time. Same-id events retrigger the voice in place.
+  // 0Rxy (Command::isRetrigger()) - re-fires every note still playing on
+  // the track every `interval_ticks` ticks across the row starting at
+  // block-relative sample offset `row_start`, velocity per `volume_code`.
+  // Same-id events retrigger the voice in place.
   void scheduleRetrigger(int track_id, int row_start, int interval_ticks, int volume_code) {
     auto it = last_notes_.find(track_id);
     if (it == last_notes_.end() || interval_ticks <= 0) return;
-    auto & last = it->second;
     int row_samples = getChannelConfiguration().getSampleInterval(tempo_);
     int tick_interval = std::max(1, row_samples / constants::TICKS_PER_ROW);
-    float velocity = last.velocity;
-    for (int tick = interval_ticks; tick < constants::TICKS_PER_ROW; tick += interval_ticks) {
-      int offset = tick * tick_interval;
-      if (offset >= row_samples) break;
-      velocity = Command::retriggerVelocityStep(velocity, volume_code);
-      if (velocity <= 0.0f) break;
-      render_context_.addPendingEvent(track_id, row_start + offset, static_cast<short>(last.column), last.tuning, velocity, last.note_value,
-                                      NoteCoordinate(song_structure_.getOrdinalFor(track_id), last.row, last.column));
+    for (auto & [ column, last ] : it->second) {
+      float velocity = last.velocity;
+      for (int tick = interval_ticks; tick < constants::TICKS_PER_ROW; tick += interval_ticks) {
+        int offset = tick * tick_interval;
+        if (offset >= row_samples) break;
+        velocity = Command::retriggerVelocityStep(last.velocity, velocity, volume_code);
+        if (velocity <= 0.0f) break;
+        render_context_.addPendingEvent(track_id, row_start + offset, static_cast<short>(column), last.tuning, velocity, last.note_value,
+                                        NoteCoordinate(song_structure_.getOrdinalFor(track_id), last.row, last.column));
+      }
     }
   }
 
@@ -899,9 +902,9 @@ private:
   int sample_pos_ = 0, absolute_pos_ = 0;
   int position_edit_seq_ = 0;
   int position_edit_seq_at_stop_ = -1; // see notePlaybackStopped()/resyncPlayheadAfterStop()
-  // The last note-on scheduled per track, what 0Rxy retriggers.
+  // The notes still playing per track (last note-on per column), what 0Rxy retriggers.
   struct LastNote { int column; Tuning tuning; float velocity; int note_value; int row; };
-  std::unordered_map<int, LastNote> last_notes_;
+  std::unordered_map<int, std::map<int, LastNote>> last_notes_; // track -> note column
   bool pending_break_ = false; // ZBxx seen on the row currently completing
   int pending_break_locator_ = 0;
   RenderContext render_context_;
