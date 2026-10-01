@@ -618,7 +618,9 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
         bool has_real_clip = clip_row < clips.size() && !clips[clip_row].isEmpty();
         if (has_real_clip) {
           auto & clip = clips[clip_row];
-          auto name = clip.getName().empty() ? "(unnamed)" : clip.getName();
+          // The number as the pattern editor counts clips, then the name if it has one.
+          auto name = std::to_string(clip_row + 1);
+          if (!clip.getName().empty()) name += " " + clip.getName();
           // Leading marker: whether this clip is the one currently
           // focused for editing (Controller::getFocusedClip(), set by
           // Record Arm's own drum-machine-clip repurposing - Controller.cpp's
