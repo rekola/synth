@@ -61,7 +61,7 @@ MidiNoteInput::handle(const MidiEvent & ev, Controller & controller, int track_i
   }
 
   auto held_it = held_.find(ev.getNote());
-  auto current_delay = controller.getPlaybackInfo().getCurrentDelay();
+  auto current_delay = options.delay;
   bool is_off = ev.getType() == MidiEvent::NOTE_OFF || (ev.getType() == MidiEvent::NOTE_ON && ev.getVelocity() == 0);
 
   if (is_off) {

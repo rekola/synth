@@ -58,6 +58,19 @@ SessionPlayer::queueChange(int track_id, int target) {
 }
 
 void
+SessionPlayer::shiftLaunchedClips(int delta_rows) {
+  if (delta_rows == 0) return;
+  seq_++;
+  controller_.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SHIFT_SESSION_POSITION, controller_.getActiveBufferName(), delta_rows, seq_));
+  auto info = controller_.getPlaybackInfo();
+  auto tracks = info.getSessionTracks();
+  shiftSessionTracks(tracks, info.getSessionClock(), delta_rows);
+  info.setSessionTracks(move(tracks));
+  info.setSessionSeq(seq_);
+  controller_.setPlaybackInfo(info);
+}
+
+void
 SessionPlayer::startTransport() {
   if (!controller_.getPlaybackInfo().isPlaying()) controller_.togglePlaying();
 }
@@ -185,6 +198,8 @@ SessionPlayer::toggleOverdub(int fallback_track_id) {
 void
 SessionPlayer::launchScene(int clip_index, const vector<int> & track_ids) {
   for (auto track_id : track_ids) triggerClip(track_id, clip_index);
+  // A scene starts the transport even when every slot in it is empty.
+  if (!track_ids.empty() && !controller_.isNoteCaptureArmed()) startTransport();
 }
 
 void
@@ -334,7 +349,7 @@ SessionPlayer::playheads() const {
     if (session_track.clip_index >= 0 && session_track.clip_index < static_cast<int>(clips.size())) {
       auto & clip = clips[static_cast<size_t>(session_track.clip_index)];
       playhead.clip_index = session_track.clip_index;
-      if (info.isPlaying()) playhead.row = clipPlayheadRow(info.getSessionClock(), session_track.launch_clock, clip.getLength(), clip.isLooping());
+      playhead.row = clipPlayheadRow(info.getSessionClock(), session_track.launch_clock, clip.getLength(), clip.isLooping());
     }
     if (session_track.queued != SessionTrackInfo::kNothingQueued) playhead.queued_clip = max(-1, session_track.queued);
     if (playhead.clip_index >= 0 || playhead.queued_clip) result[track_id] = playhead;

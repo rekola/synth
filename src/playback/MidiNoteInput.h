@@ -24,6 +24,8 @@ class MidiNoteInput {
     // Note pressure is also recorded as automation at the transport's row
     // (only meaningful where the edit position follows the transport).
     bool pressure_follows_transport = false;
+    // Sub-row timing offset stored with a written note.
+    int delay = 0;
   };
   // Where a note for `track_id` lands now.
   using TargetResolver = std::function<EditTarget(int track_id)>;

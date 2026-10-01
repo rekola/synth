@@ -2,6 +2,9 @@
 
 #include "../src/model/Song.h"
 #include "../src/instruments/InstrumentProvider.h"
+#include "../src/instruments/GenericInstrument.h"
+#include "../src/state/MemoryParameterSource.h"
+#include <filesystem>
 #include "../src/audio/OfflineRenderer.h"
 #include "../src/ambisonic/ChannelConfiguration.h"
 
@@ -44,4 +47,17 @@ TEST(render_additive_struck_string_note_is_audible_and_finite) {
 
   CHECK(!hasNonFiniteSample(result));
   CHECK(peakAbs(result) > 1e-4f);
+}
+
+TEST(generic_instrument_shows_the_soundfont_preset_name_not_its_path) {
+  const char * font = "/usr/share/sounds/sf2/FluidR3_GM.sf2";
+  if (!std::filesystem::exists(font)) return;
+  InstrumentProvider provider;
+  provider.loadSoundFont(font);
+  MemoryParameterSource params;
+  params.set("from", std::string("bass.electric.pick"));
+  GenericInstrument instrument;
+  instrument.loadParameters(params);
+  instrument.prepare(provider);
+  CHECK(instrument.getDisplayName() == "Picked Bass");
 }

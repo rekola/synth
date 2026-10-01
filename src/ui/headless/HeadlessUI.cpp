@@ -101,6 +101,7 @@ HeadlessUI::handleMidiEvent(MidiEvent & ev) {
   MidiNoteInput::Options options;
   options.write = controller.isNoteCaptureArmed() && controller.getPlaybackInfo().isPlaying();
   options.pressure_follows_transport = options.write;
+  options.delay = controller.getPlaybackInfo().getCurrentDelay();
   midi_input_.handle(ev, controller, track_id, options, [&](int id) {
     int row = controller.getPlaybackInfo().getAbsolutePosition();
     // A live take goes into its own clip instance rather than the track's

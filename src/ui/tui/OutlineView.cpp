@@ -236,13 +236,13 @@ OutlineView::renderHeading(const StyleProvider & styles) {
   putstr(0, 1, "Outline");
 }
 
-vector<string>
+vector<DetailsLine>
 OutlineView::infoLines(const outline_row_s & row) const {
-  vector<string> lines;
+  vector<DetailsLine> lines;
   for (auto & line : buildDetailsLines(row, kInfoPopupWidth - 4)) {
     if (line.action != DetailsAction::NONE) continue;
     if (line.text.empty() && lines.empty()) continue; // no leading blank line
-    lines.push_back(line.text);
+    lines.push_back(line);
   }
   return lines;
 }
@@ -311,7 +311,7 @@ OutlineView::closeInfoPopup() {
 
 void
 OutlineView::renderInfoPopup(const StyleProvider & styles) {
-  vector<string> lines;
+  vector<DetailsLine> lines;
   if (info_popup_open_ && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size())) {
     lines = infoLines(data_[static_cast<size_t>(new_cursor_row_)]);
   }
@@ -341,8 +341,27 @@ OutlineView::renderInfoPopup(const StyleProvider & styles) {
   info_popup_->putstr(rows - 1, 0, "└" + repeatUtf8("─", width - 2) + "┘");
   info_popup_->setFgColor(fg.getRed(), fg.getGreen(), fg.getBlue());
   for (size_t i = 0; i < lines.size(); i++) {
-    info_popup_->putstr(static_cast<int>(i) + 1, 2, Utf8::truncateToWidth(lines[i], width - 4));
+    // One style at a time: each setter replaces the plane's whole style set.
+    if (lines[i].style == DetailsStyle::TITLE) info_popup_->setBold(true);
+    else if (lines[i].style == DetailsStyle::HINT) info_popup_->setItalic(true);
+    else info_popup_->setBold(false);
+    info_popup_->putstr(static_cast<int>(i) + 1, 2, Utf8::truncateToWidth(lines[i].text, width - 4));
   }
+  info_popup_->setBold(false);
+}
+
+// The instrument's own name (a SoundFont's preset name, without the
+// registry's namespace prefix) - empty when it has none.
+string
+OutlineView::libraryInstrumentName(const string & ref_name) const {
+  auto & provider = getController().getInstrumentProvider();
+  shared_ptr<Track> instrument = provider.tryGetByLiteralName(ref_name);
+  if (!instrument) instrument = provider.resolvePath(ref_name);
+  if (!instrument) return "";
+  auto name = instrument->getName();
+  constexpr string_view kNativePrefix = "native:";
+  if (name.compare(0, kNativePrefix.size(), kNativePrefix) == 0) name = name.substr(kNativePrefix.size());
+  return name;
 }
 
 vector<DetailsLine>
@@ -356,7 +375,8 @@ OutlineView::buildDetailsLines(const outline_row_s & row, int details_width) con
     lines.push_back({ "[Del] Delete", DetailsAction::DELETE });
     lines.push_back({ "[a] Stop", DetailsAction::STOP });
     lines.push_back({ "", DetailsAction::NONE });
-    lines.push_back({ "Play note keys to preview", DetailsAction::NONE });
+    lines.push_back({ row.label, DetailsAction::NONE, DetailsStyle::TITLE });
+    lines.push_back({ "Play note keys to preview", DetailsAction::NONE, DetailsStyle::HINT });
     auto description = poolInstrumentDescription(getController().getSong().getInstrumentPool().getByIndex(row.ref_id));
     if (!description.empty()) {
       lines.push_back({ "", DetailsAction::NONE });
@@ -368,7 +388,11 @@ OutlineView::buildDetailsLines(const outline_row_s & row, int details_width) con
     lines.push_back({ "[Enter] Add to Song", DetailsAction::ADD_TO_SONG });
     lines.push_back({ "[a] Stop", DetailsAction::STOP });
     lines.push_back({ "", DetailsAction::NONE });
-    lines.push_back({ "Play note keys to preview", DetailsAction::NONE });
+    {
+      auto name = libraryInstrumentName(row.ref_name);
+      lines.push_back({ name.empty() ? row.label : name, DetailsAction::NONE, DetailsStyle::TITLE });
+    }
+    lines.push_back({ "Play note keys to preview", DetailsAction::NONE, DetailsStyle::HINT });
     if (auto * description = findGmInstrumentDescription(row.ref_name)) {
       lines.push_back({ "", DetailsAction::NONE });
       for (auto & wrapped : wrapText(description, details_width)) lines.push_back({ wrapped, DetailsAction::NONE });
@@ -383,8 +407,8 @@ OutlineView::buildDetailsLines(const outline_row_s & row, int details_width) con
     lines.push_back({ "[t] Target: " + targetTrackLabel(resolveTargetTrackId()), DetailsAction::TOGGLE_TARGET_PICKER });
     lines.push_back({ "[p] Preview", DetailsAction::PREVIEW });
     lines.push_back({ "[a] Stop", DetailsAction::STOP });
+    lines.push_back({ row.label, DetailsAction::NONE, DetailsStyle::TITLE });
     if (auto * pattern = findGroovePattern(row.ref_name)) {
-      lines.push_back({ "", DetailsAction::NONE });
       for (auto & wrapped : wrapText(pattern->description, details_width)) lines.push_back({ wrapped, DetailsAction::NONE });
     }
     break;
@@ -693,6 +717,20 @@ OutlineView::handleClick(const InputEvent & input) {
 
 bool
 OutlineView::offerInput(const InputEvent & input) {
+  // The Info popup is modal: it closes on its own keys or a click, and
+  // swallows everything else. A key's release still gets through, to stop
+  // a preview note held when it opened.
+  if (info_popup_open_) {
+    bool is_click = input.getId() == NCKEY_BUTTON1;
+    bool closes = is_click ? input.getKind() == InputEvent::Kind::RELEASE
+      : input.getKind() != InputEvent::Kind::RELEASE && (input.getId() == '?' || input.getId() == NCKEY_ESC || (input.hasCtrl() && input.getId() == 'g'));
+    if (closes) {
+      runDetailsAction(DetailsAction::TOGGLE_INFO);
+      return true;
+    }
+    if (is_click || input.getKind() != InputEvent::Kind::RELEASE) return true;
+  }
+
   // While the target-track picker is open, every keystroke/click goes to
   // it instead of anything below - mirrors PatternEditor::offerInput()'s
   // identical readerActive() handling. Enter and a click landing on an

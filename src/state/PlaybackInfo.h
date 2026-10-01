@@ -35,7 +35,8 @@ class PlaybackInfo {
   // the UI (see Controller::receivePlaybackSnapshot()), so a pad/key press that
   // lands before that first event (e.g. right at startup) can still reach
   // here with a zero divisor - guard both rather than dividing by it.
-  int getCurrentDelay() const { return sample_interval_ > 0 ? 256 * sample_pos_ / sample_interval_ : 0; }
+  // Zero while paused: the position inside a row is only meaningful while rows advance.
+  int getCurrentDelay() const { return is_playing_ && sample_interval_ > 0 ? 256 * sample_pos_ / sample_interval_ : 0; }
 
   // The round-trip latency of live input - the playback queue plus the
   // capture queue, plus whatever monitored input is waiting - while

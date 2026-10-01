@@ -37,7 +37,9 @@ class ScenePatternSource : public PatternSource {
   void moveCursor(int delta_rows) override;
   void setCursorTrack(int track_id) override;
   RowAddress trackCursor(int track_id) const override { return advance(cursor(), offset(track_id)); }
-  bool cursorLocked() const override { return isPlaying(cursor_track_id_); }
+  // Only while the transport runs: paused, moving the cursor moves every
+  // launched clip's playhead instead.
+  bool cursorLocked() const override;
   std::optional<int> trackBlock(int track_id) const override { return position(track_id).block; }
   // Moves the cursor track (or `track_id`) to `address`, unless it's
   // playing.
@@ -79,6 +81,9 @@ class ScenePatternSource : public PatternSource {
   // track whose playhead goes away stays where it left it, on its line.
   struct Playhead { int scene; int row; };
   void setPlayheads(std::unordered_map<int, Playhead> playheads);
+  // Keeps every stopped track but the cursor's where it is on screen as
+  // the view scrolls `rows` down.
+  void holdStoppedTracks(int rows);
   // Brings every track's line (other than the cursor track's) back within
   // `margin` rows of the edges of the `rows` rows starting at `top`, when
   // it has left them. True if any moved.

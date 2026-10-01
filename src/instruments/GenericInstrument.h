@@ -99,6 +99,7 @@ class GenericInstrument : public Instrument {
   void prepare(const InstrumentProvider & provider) override {
     std::shared_ptr<Track> resolved = provider.tryGetByLiteralName(getFrom());
     if (!resolved) resolved = provider.resolvePath(getFrom());
+    resolved_from_name_ = resolved != nullptr;
     if (!resolved) resolved = provider.getDefaultInstrument();
 
     // cloneWithOverrides() is Instrument-only (SF2 generator overrides
@@ -119,23 +120,24 @@ class GenericInstrument : public Instrument {
 
   // What a UI should show for this instrument - never persisted (see
   // Track::getDisplayName()'s own doc comment). Preference order: an
-  // explicit user-assigned name; else from's last path segment, prettified;
-  // else, once resolved, the concrete instrument's own registered name
-  // (already human-readable for a native SF2 preset, e.g. "Glockenspiel" -
-  // stripped of InstrumentProvider's "native:" namespace prefix, since that
-  // prefix exists to keep the registry unambiguous, not to be shown to a
-  // user); else a last-resort placeholder for the not-yet-prepare()d case.
+  // explicit user-assigned name; else, once `from` resolved to a real
+  // instrument, that instrument's own registered name (a SoundFont's
+  // preset name, e.g. "Glockenspiel" - stripped of InstrumentProvider's
+  // "native:" namespace prefix, since that prefix exists to keep the
+  // registry unambiguous, not to be shown to a user); else `from`'s last
+  // path segment, prettified (also what an unresolved `from` shows, rather
+  // than the generic fallback instrument's name); else a last-resort
+  // placeholder for the not-yet-prepare()d case.
   std::string getDisplayName() const override {
     if (!getName().empty()) return getName();
-    if (!from_.empty()) return prettifyPathSegment(from_);
-    if (concrete_instrument_) {
-      const auto & native_name = concrete_instrument_->getName();
+    if (resolved_from_name_ && concrete_instrument_ && !concrete_instrument_->getName().empty()) {
+      const auto & resolved_name = concrete_instrument_->getName();
       constexpr std::string_view kNativePrefix = "native:";
-      if (native_name.compare(0, kNativePrefix.size(), kNativePrefix) == 0) {
-	return native_name.substr(kNativePrefix.size());
-      }
-      return native_name;
+      if (resolved_name.compare(0, kNativePrefix.size(), kNativePrefix) == 0) return resolved_name.substr(kNativePrefix.size());
+      return resolved_name;
     }
+    if (!from_.empty()) return prettifyPathSegment(from_);
+    if (concrete_instrument_) return concrete_instrument_->getName();
     return "(instrument)";
   }
 
@@ -164,6 +166,8 @@ class GenericInstrument : public Instrument {
   }
 
   std::string from_;
+  // `from_` named a real instrument (rather than falling back to the default one).
+  bool resolved_from_name_ = false;
   std::unordered_map<SF2Generator, float> generator_overrides_;
   std::vector<std::pair<std::string, float>> unknown_generator_overrides_;
   std::shared_ptr<Track> concrete_instrument_;

@@ -1043,7 +1043,11 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
       top = source_->advance(point, -(visible - 1 - margin));
     }
     if (!isSessionMode() && top.row < 0) top = { 0, 0 };
-    if (isSessionMode() && scene_source_->keepTrackLinesVisible(top, visible, margin)) force_full_redraw_ = true;
+    if (isSessionMode()) {
+      // The view following a playhead doesn't carry the stopped tracks along.
+      if (scene_source_->cursorLocked()) scene_source_->holdStoppedTracks(source_->rowsBetween({ view_block_, current_scroll_.row }, top));
+      if (scene_source_->keepTrackLinesVisible(top, visible, margin)) force_full_redraw_ = true;
+    }
     view_block_ = top.block;
     new_row = top.row;
   }
@@ -1205,6 +1209,10 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
   MidiNoteInput::Options options;
   options.write = true;
   options.pressure_follows_transport = source_->cursorFollowsTransport();
+  // A cursor that neither follows the transport nor a playing clip's
+  // playhead isn't on the transport's row, so its sub-row position says
+  // nothing about where a note belongs.
+  options.delay = source_->cursorFollowsTransport() || source_->cursorLocked() ? getController().getPlaybackInfo().getCurrentDelay() : 0;
   // Writes into whatever's actually active at the cursor's row - see
   // offerInput()'s own raw-key note entry for the same resolution.
   if (midi_input_.handle(ev, getController(), track_id, options, [this](int id) { return source_->edit(id, source_->cursor()); })) {
@@ -1214,11 +1222,16 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
 
 void
 PatternEditor::onRowAdvanced(Controller & controller) {
-  if (!auto_started_playback_) return;
-
   auto & info = controller.getPlaybackInfo();
-  auto track_ids = getActiveNoteTrackIds();
-  controller.sweepAutoRecordRows(auto_record_cleared_rows_, last_cleared_row_, info.getAbsolutePosition(), track_ids);
+  if (!info.isPlaying() || !source_->cursorFollowsTransport()) return;
+  // A held note owns its column until its release: whatever the take
+  // passes there (an old note-off included) would otherwise cut it short.
+  for (auto & [ key, held ] : active_keyboard_notes_) {
+    for (int row = std::max(held.row, held.cleared_to) + 1; row <= info.getAbsolutePosition(); row++) {
+      controller.clearNoteCell(row, held.track_id, held.note_column);
+    }
+    held.cleared_to = std::max(held.cleared_to, info.getAbsolutePosition());
+  }
 }
 
 vector<int>
@@ -1703,7 +1716,10 @@ PatternEditor::offerInput(const InputEvent & input) {
 	bool is_off = input.getId() == 'a';
 	bool is_delete = input.getId() == NCKEY_DEL || input.getId() == NCKEY_BACKSPACE;
 	auto note_column = track_info.getNoteNumber(new_cursor.col);
-	auto current_delay = info.getCurrentDelay();
+	// A cursor that neither follows the transport nor a playing clip's
+  // playhead isn't on the transport's row, so its sub-row position says
+  // nothing about where a note belongs.
+  auto current_delay = source_->cursorFollowsTransport() || source_->cursorLocked() ? info.getCurrentDelay() : 0;
 
 	// A held note key's terminal-generated auto-repeat must not retrigger
 	// a fresh note-on (holding a key should sustain one note, not restart
@@ -1775,20 +1791,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	      getController().startAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, last_cleared_row_, auto_record_clip_ids_);
 	    }
 
-	    // A live take writes into a real, individually-manageable Clip
-	    // instance, not directly into the track's own background Pattern -
-	    // a no-op once that clip already exists (or if a clip is focused,
-	    // which already resolves correctly without this). Re-resolves
-	    // edit_target immediately after: it was computed before this take
-	    // could have just placed a brand new instance here, so it would
-	    // otherwise still point at the (now superseded) background.
-	    if (transport_owns_row) {
-	      getController().ensureNoteRecordingClip(auto_record_clip_ids_, track_id, info.getAbsolutePosition());
-	      edit_target = source_->edit(track_id, point);
-	    }
-
 	    if (input.hasShift()) {
-	      if (auto_started_playback_) getController().ensureRowCleared(auto_record_cleared_rows_, info.getAbsolutePosition(), track_id);
 	      note_column = edit_target.pattern->pushNote(edit_target.effective_row, note);
 	    } else {
 	      // A lone key still lands exactly on the cursor's own column,
@@ -1801,11 +1804,12 @@ PatternEditor::offerInput(const InputEvent & input) {
 	      // isn't distinguishable from quick sequential taps on a
 	      // terminal with no hold tracking at all.
 	      while (isKeyColumnLiveHeld(track_id, note_column)) note_column++;
-	      // Whole-row replace semantics for a live take: idempotent (see
-	      // ensureRowCleared's own comment), safe to call defensively -
-	      // only actually does anything the first time (row, track_id) is
-	      // touched this session.
-	      if (auto_started_playback_) getController().ensureRowCleared(auto_record_cleared_rows_, info.getAbsolutePosition(), track_id);
+	      // A live take overdubs: it steps past columns already holding
+	      // something rather than replacing it - except the note that
+	      // starts the take, which replaces the cell the cursor is on.
+	      if (auto_started_playback_ && !(was_first_held_note && !transport_owns_row)) {
+		while (edit_target.pattern->getNote(edit_target.effective_row, note_column).isDefined()) note_column++;
+	      }
 	      edit_target.pattern->setNote(edit_target.effective_row, note_column, note);
 	    }
 

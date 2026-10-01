@@ -1,6 +1,7 @@
 #ifndef _SESSIONTRACKINFO_H_
 #define _SESSIONTRACKINFO_H_
 
+#include <algorithm>
 #include <unordered_map>
 
 // What Session view has done to one track: whether a launched clip (or a
@@ -29,6 +30,16 @@ inline void queueSessionChange(SessionTracks & tracks, int track_id, int target)
   auto & track = tracks[track_id];
   track.queued = target == SessionTrackInfo::kArrangement && !track.isTakenOver() ? SessionTrackInfo::kNothingQueued : target;
   if (track.isIdle()) tracks.erase(track_id);
+}
+
+// Moves every launched clip's playhead by `delta` rows at session clock
+// `clock`, none before its row 0 - the one rule SongState and the UI's
+// prediction of it share.
+inline void shiftSessionTracks(SessionTracks & tracks, int clock, int delta) {
+  for (auto & [ track_id, track ] : tracks) {
+    if (track.clip_index < 0) continue;
+    track.launch_clock = clock - std::max(0, clock - track.launch_clock + delta);
+  }
 }
 
 // Stops every launched clip at once and forgets everything queued; the

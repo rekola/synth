@@ -357,6 +357,10 @@ TEST(scene_source_playing_track_follows_its_playhead_and_stays_where_it_stops) {
   CHECK(source.positionRow(other, 0) == 2); // shown at the cursor row
   CHECK(noteAt(source.read(other, { 0, 2 })) == 83);
 
+  auto info = f.controller.getPlaybackInfo();
+  info.setIsPlaying(true);
+  f.controller.setPlaybackInfo(info);
+
   source.setCursorTrack(other);
   CHECK(source.cursor() == (RowAddress{ 1, 3 }));
   CHECK(source.cursorLocked());
@@ -370,6 +374,32 @@ TEST(scene_source_playing_track_follows_its_playhead_and_stays_where_it_stops) {
   CHECK(source.cursor() == (RowAddress{ 1, 4 }));
   source.moveCursor(1);
   CHECK(source.cursor() == (RowAddress{ 1, 5 }));
+}
+
+TEST(scene_source_paused_cursor_moves_every_launched_playhead) {
+  Fixture f;
+  auto & song = f.song();
+  auto other = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
+  placeCountingClip(song, other, 1, f.rows, 80);
+  ScenePatternSource source(f.controller);
+  source.setCursorTrack(other);
+  source.setPlayheads({ { other, { 1, 3 } } });
+
+  auto info = f.controller.getPlaybackInfo();
+  info.setIsPlaying(false);
+  info.setSessionClock(10);
+  SessionTracks tracks;
+  tracks[other].clip_index = 1;
+  tracks[other].launch_clock = 7; // row 3
+  info.setSessionTracks(tracks);
+  f.controller.setPlaybackInfo(info);
+
+  CHECK(!source.cursorLocked());
+  source.moveCursor(2);
+  CHECK(f.controller.getPlaybackInfo().getSessionTrack(other)->launch_clock == 5); // row 5
+  source.setPlayheads({ { other, { 1, 5 } } }); // the next frame's
+  source.moveCursor(-100); // clamped at the clip's first row
+  CHECK(f.controller.getPlaybackInfo().getSessionTrack(other)->launch_clock == 10);
 }
 
 TEST(scene_source_playing_track_keeps_its_line_as_the_cursor_moves) {

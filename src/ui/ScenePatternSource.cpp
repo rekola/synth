@@ -169,6 +169,14 @@ ScenePatternSource::setCursorTrack(int track_id) {
   moveOtherLines(-shift);
 }
 
+void
+ScenePatternSource::holdStoppedTracks(int rows) {
+  if (rows == 0) return;
+  for (auto track_id : song().getRootTrackIds()) {
+    if (track_id != cursor_track_id_ && !isPlaying(track_id)) offsets()[track_id] = offset(track_id) + rows;
+  }
+}
+
 bool
 ScenePatternSource::keepTrackLinesVisible(RowAddress top, int rows, int margin) {
   bool moved = false;
@@ -188,9 +196,24 @@ ScenePatternSource::cursor() const {
   return position(cursor_track_id_);
 }
 
+bool
+ScenePatternSource::cursorLocked() const {
+  return isPlaying(cursor_track_id_) && controller_.getPlaybackInfo().isPlaying();
+}
+
 void
 ScenePatternSource::moveCursor(int delta_rows) {
   if (cursorLocked()) return;
+  if (isPlaying(cursor_track_id_)) {
+    // Paused with a launched clip under the cursor: its playhead is the
+    // cursor, within the clip, and every other launched clip moves along.
+    auto & playhead = playheads_.at(cursor_track_id_);
+    auto & clips = song().getClips(cursor_track_id_);
+    if (playhead.scene < 0 || playhead.scene >= static_cast<int>(clips.size())) return;
+    auto length = std::max(1, clips[static_cast<size_t>(playhead.scene)].getLength());
+    controller_.getSessionPlayer().shiftLaunchedClips(std::clamp(playhead.row + delta_rows, 0, length - 1) - playhead.row);
+    return;
+  }
   auto old_cursor = cursor();
   auto address = advance(old_cursor, delta_rows);
   if (address.row < 0) address = { 0, 0 };
