@@ -29,7 +29,9 @@ public:
   // FFT magnitude-dB vector for the live spectrum chart, computed by
   // VisualizationThread (see VisualizationThread.h) - never by the audio
   // thread, which must stay free of FFT-sized work.
-  void setFFT(std::vector<float> data) { fft_data_ = std::move(data); }
+  // Bins are dBFS (0 = full-scale sine), `bin_hz` apart starting at DC.
+  void setFFT(std::vector<float> data, float bin_hz) { fft_data_ = std::move(data); fft_bin_hz_ = bin_hz; }
+  float getFFTBinHz() const { return fft_bin_hz_; }
   const std::vector<float> & getFFT() const { return fft_data_; }
 
   // Raw, pre-mixdown per-channel loudness (ambisonic bus channels,
@@ -69,6 +71,7 @@ public:
 
 private:
   std::vector<float> fft_data_;
+  float fft_bin_hz_ = 0.0f;
   std::vector<float> channel_loudness_;
   std::string meter_label_;
   bool has_dirac_grid_ = false;

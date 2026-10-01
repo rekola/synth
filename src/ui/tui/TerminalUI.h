@@ -17,7 +17,7 @@ namespace ncpp {
 };
 
 class UIMenu;
-class Chart;
+class SpectrumMeter;
 class HeatmapChart;
 class ChannelMeter;
 class InfoLine;
@@ -113,7 +113,7 @@ private:
   std::shared_ptr<ncpp::NotCurses> nc;
 
   std::shared_ptr<UIMenu> menu_;
-  std::shared_ptr<Chart> chart_;
+  std::shared_ptr<SpectrumMeter> chart_;
   std::shared_ptr<ChannelMeter> volume_meter_;
   std::shared_ptr<HeatmapChart> heatmap_;
   std::shared_ptr<StatusLine> status_line_;
@@ -145,6 +145,8 @@ private:
   // Arrangement view's scope row (toggle-scopes); Session view never
   // shows it - see layout().
   bool scopes_visible_ = true;
+  // Whether the spectrum/heatmap are on screen, as of the last layout().
+  bool scopes_on_screen_ = true;
   // What syncSessionView() last left both widgets showing.
   int synced_track_id_ = -1, laid_out_clip_grid_height_ = -1;
   // Set by a handler that changes what's on screen (the view changing,

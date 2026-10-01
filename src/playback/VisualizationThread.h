@@ -47,7 +47,7 @@ class VisualizationThread : public EventHandler {
   void configure(int sample_rate, int frame_count) {
     int size = 0;
     for (; size + frame_count <= sample_rate / 10; size += frame_count) { }
-    spectrum_.setSize(size);
+    spectrum_.setSize(size, sample_rate);
     dirac_ = std::make_unique<DiracAnalyzer>(sample_rate);
   }
 

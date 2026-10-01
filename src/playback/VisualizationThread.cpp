@@ -95,7 +95,7 @@ VisualizationThread::handleAudioBlockEvent(AudioBlockEvent & ev) {
 
   if (spectrum_.addData(active_master)) {
     spectrum_.reset();
-    result->setFFT(spectrum_.calculateFFT());
+    result->setFFT(spectrum_.calculateFFT(), spectrum_.binHz());
   }
 
   dirac_->process(ev.getRawBus());
