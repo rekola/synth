@@ -309,12 +309,10 @@ OutlineView::renderInfoPopup(const StyleProvider & styles) {
     return;
   }
 
-  // A plane of its own beside the panel, over whatever's to its right.
-  // createChild() places a plane in screen coordinates, so it's moved
-  // there explicitly.
-  auto [pos_y, pos_x] = getPosition();
-  info_popup_.show(getPlane(), "Details", text, kInfoPopupWidth, 1000);
-  info_popup_.move(pos_y + kTreeTop, pos_x + getDim().second);
+  // A modal box centered on the screen (createChild() places a plane in
+  // screen coordinates).
+  info_popup_.show(getPlane(), "Details", text, std::min(kInfoPopupWidth, screen_cols_), screen_rows_);
+  info_popup_.center(screen_rows_, screen_cols_);
 }
 
 // The instrument's own name (a SoundFont's preset name, without the

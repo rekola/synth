@@ -18,6 +18,10 @@ class InfoDialog {
   void show(UIPlane & parent, const std::string & title, const std::string & source, int width, int max_rows);
   // Screen position of the box's top-left corner.
   void move(int y, int x);
+  // Centers the box on a screen of `screen_rows` x `screen_cols`.
+  void center(int screen_rows, int screen_cols) {
+    move((screen_rows - rows_) / 2, (screen_cols - width_) / 2);
+  }
   void close() { plane_.reset(); }
 
   int rows() const { return rows_; }

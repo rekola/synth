@@ -2227,6 +2227,7 @@ TerminalUI::commandCompletions(std::string_view prefix) const {
 void
 TerminalUI::layout() {
   auto [ rows, cols ] = getDim();
+  outline_view_->setScreenSize(rows, cols);
 
   constexpr int kHeatmapWidth = 31; // 20 * 1.5, rounded up to the nearest odd width
   constexpr int kScopeHeight = 5;
@@ -2661,7 +2662,7 @@ TerminalUI::layoutInfoDialog() {
   auto [screen_rows, screen_cols] = getDim();
   auto width = std::min(60, screen_cols);
   info_dialog_.show(getPlane(), info_dialog_title_, info_dialog_markdown_, width, screen_rows);
-  info_dialog_.move((screen_rows - info_dialog_.rows()) / 2, (screen_cols - width) / 2);
+  info_dialog_.center(screen_rows, screen_cols);
 }
 
 void

@@ -91,6 +91,8 @@ class OutlineView : public UIElement {
   // Closes the details popup - for when this panel stops being shown
   // (the popup is a separate plane that would otherwise stay up).
   void closeInfoPopup();
+  // The screen the details popup is centered on.
+  void setScreenSize(int rows, int cols) { screen_rows_ = rows; screen_cols_ = cols; }
   // Escape closes the details popup.
   bool wantsBareEscape() const override { return info_open_; }
   // The Info popup takes all input while it is open.
@@ -257,6 +259,7 @@ protected:
   // as cursor_changed.
   bool details_dirty_ = false;
   InfoDialog info_popup_;
+  int screen_rows_ = 24, screen_cols_ = 80;
   bool info_open_ = false;
 };
 
