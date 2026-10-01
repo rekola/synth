@@ -60,13 +60,17 @@ public:
   // itself doesn't exist yet) - transmitted regardless, since
   // VisualizationThread's own throttling/computation is already complete
   // and tested independently of the widget that will eventually read it.
-  void setDiracGrid(std::array<float, DiracAnalyzer::kGridSize> grid, std::array<float, DiracAnalyzer::kNumBands> diffuse_energy) {
-    dirac_grid_ = grid;
+  void setDiracGrid(std::vector<float> grid, int azimuth_bins, int elevation_bins, std::array<float, DiracAnalyzer::kNumBands> diffuse_energy) {
+    dirac_grid_ = std::move(grid);
+    dirac_azimuth_bins_ = azimuth_bins;
+    dirac_elevation_bins_ = elevation_bins;
     dirac_diffuse_energy_ = diffuse_energy;
     has_dirac_grid_ = true;
   }
   bool hasDiracGrid() const { return has_dirac_grid_; }
-  const std::array<float, DiracAnalyzer::kGridSize> & getDiracGrid() const { return dirac_grid_; }
+  const std::vector<float> & getDiracGrid() const { return dirac_grid_; }
+  int getDiracAzimuthBins() const { return dirac_azimuth_bins_; }
+  int getDiracElevationBins() const { return dirac_elevation_bins_; }
   const std::array<float, DiracAnalyzer::kNumBands> & getDiracDiffuseEnergy() const { return dirac_diffuse_energy_; }
 
 private:
@@ -75,7 +79,8 @@ private:
   std::vector<float> channel_loudness_;
   std::string meter_label_;
   bool has_dirac_grid_ = false;
-  std::array<float, DiracAnalyzer::kGridSize> dirac_grid_ {};
+  std::vector<float> dirac_grid_;
+  int dirac_azimuth_bins_ = 0, dirac_elevation_bins_ = 0;
   std::array<float, DiracAnalyzer::kNumBands> dirac_diffuse_energy_ {};
 };
 

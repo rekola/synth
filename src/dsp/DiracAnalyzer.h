@@ -27,19 +27,16 @@ class DiracAnalyzer {
   static constexpr int kFFTSize = 1024;
   static constexpr int kHopSize = 512;
   static constexpr int kNumBands = 8;
-  // 72, not 36 (5 degrees/bin, not 10): TerminalHeatmapChart's fallback
-  // renderer resamples this grid to a fixed sub-column resolution
-  // (kHeatmapWidth*2 = 62, UI.cpp) regardless of terminal size, and 36
-  // source bins upsampled to 62 destination columns hit a real,
-  // confirmed asymmetric-rounding bug in that resampling (see
-  // TerminalUI.cpp's axisRange()) - widening the source grid past the
-  // display's own resolution avoids upsampling altogether, the more
-  // robust fix (axisRange() still handles upsampling correctly too, but
-  // not needing to is simpler and matches elevation's own comfortably-
-  // downsampled situation, 18 bins against at most 15 sub-rows).
-  static constexpr int kAzimuthBins = 72;   // 5 degrees/bin
-  static constexpr int kElevationBins = 18; // 10 degrees/bin
-  static constexpr int kGridSize = kAzimuthBins * kElevationBins;
+  // The grid's resolution is the display's (setResolution()): azimuth
+  // columns span -180..180, elevation rows -90..90. Each source is splatted
+  // as a Gaussian of fixed angular width, so what a source looks like
+  // doesn't depend on the resolution.
+  static constexpr int kDefaultAzimuthBins = 72;
+  static constexpr int kDefaultElevationBins = 18;
+  // Cell count the diffuse haze's per-cell share is defined against, so its
+  // brightness stays the same at any resolution.
+  static constexpr int kNominalCells = kDefaultAzimuthBins * kDefaultElevationBins;
+  static constexpr float kSplatSigmaDegrees = 6.0f;
 
   // Channel order within a per-channel magnitude array - ACN, matching
   // every other array/index in this codebase (see AmbisonicEncoding.h).
@@ -73,12 +70,18 @@ class DiracAnalyzer {
 
   const BandResult & getBandResult(int band) const { return bands_[static_cast<size_t>(band)]; }
 
-  // The smoothed, splatted directional-energy grid (SS6) - kAzimuthBins
-  // columns x kElevationBins rows, row-major (cell = el_bin*kAzimuthBins +
-  // az_bin). Does not include the per-band diffuse haze - callers add
-  // getDiffuseEnergy(band) summed and spread uniformly, per SS6's
-  // rendering formula.
-  const std::array<float, kGridSize> & getGrid() const { return grid_; }
+  // Requests a grid of `azimuth_bins` x `elevation_bins` cells; applied
+  // before the next analysis frame, starting that grid from silence.
+  void setResolution(int azimuth_bins, int elevation_bins);
+  int getAzimuthBins() const { return azimuth_bins_; }
+  int getElevationBins() const { return elevation_bins_; }
+
+  // The smoothed, splatted directional-energy grid (SS6) - getAzimuthBins()
+  // columns x getElevationBins() rows, row-major (cell = el_bin *
+  // getAzimuthBins() + az_bin), row 0 the lowest elevation. Does not
+  // include the per-band diffuse haze - callers add getDiffuseEnergy(band)
+  // summed and spread uniformly, per SS6's rendering formula.
+  const std::vector<float> & getGrid() const { return grid_; }
   float getDiffuseEnergy(int band) const { return diffuse_energy_[static_cast<size_t>(band)]; }
 
  private:
@@ -102,7 +105,10 @@ class DiracAnalyzer {
   std::array<BandFilterState, kNumBands> bands_state_;
   std::array<BandResult, kNumBands> bands_;
   std::array<float, kNumBands> diffuse_energy_ {};
-  std::array<float, kGridSize> grid_ {};
+  std::vector<float> grid_ = std::vector<float>(static_cast<size_t>(kDefaultAzimuthBins * kDefaultElevationBins), 0.0f);
+  std::vector<float> frame_grid_; // scratch, one frame's raw splat
+  int azimuth_bins_ = kDefaultAzimuthBins, elevation_bins_ = kDefaultElevationBins;
+  int pending_azimuth_bins_ = kDefaultAzimuthBins, pending_elevation_bins_ = kDefaultElevationBins;
   int analysis_frame_count_ = 0;
 };
 

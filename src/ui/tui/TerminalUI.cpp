@@ -1167,6 +1167,13 @@ public:
     markers_ = std::move(markers);
   }
 
+  std::pair<int, int> preferredGridSize() override {
+    auto [rows, cols] = getDim();
+    int usable_rows = footer_label_.empty() ? rows : rows - 1;
+    if (usable_rows <= 0 || cols <= 0) return HeatmapChart::preferredGridSize();
+    return { cols * 2, usable_rows * (use_sextants_ ? 3 : 2) };
+  }
+
   void commit() override {
     if (brightness_.empty()) return;
     auto & background = getPlane().getStyles().window_bg_color;
@@ -1263,8 +1270,8 @@ private:
 
 // Pixel-graphics HeatmapChart renderer - same ncvisual/pixel-blit approach
 // as TerminalPixelChart, but a genuine 2D image resampled (resampleGrid(),
-// above - typically upscaling here, since real pixel counts usually exceed
-// the logical grid's 36x18) to the plane's real pixel dimensions, instead
+// above - typically the identity, since the grid follows the pixel size
+// (capped, so it upscales past that)) to the plane's real pixel dimensions, instead
 // of vertical bars.
 class TerminalPixelHeatmapChart : public HeatmapChart {
 public:
@@ -1278,6 +1285,15 @@ public:
 
   void setMarkers(std::vector<Marker> markers) override {
     markers_ = std::move(markers);
+  }
+
+  // One cell per pixel, capped so the analysis and the colour mapping stay cheap.
+  std::pair<int, int> preferredGridSize() override {
+    auto native_plane = dynamic_cast<TerminalPlane&>(getPlane()).getPlane().to_ncplane();
+    unsigned pxy = 0, pxx = 0;
+    ncplane_pixel_geom(native_plane, &pxy, &pxx, nullptr, nullptr, nullptr, nullptr);
+    if (pxy == 0 || pxx == 0) return HeatmapChart::preferredGridSize();
+    return { static_cast<int>(std::min(pxx, 256u)), static_cast<int>(std::min(pxy, 128u)) };
   }
 
   void commit() override {
@@ -1529,8 +1545,8 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
   else chart_ = make_shared<SpectrumMeter>(getPlane());
   volume_meter_ = make_shared<ChannelMeter>(getPlane());
 
-  if (use_pixel) heatmap_ = make_shared<TerminalPixelHeatmapChart>(getPlane(), DiracAnalyzer::kAzimuthBins, DiracAnalyzer::kElevationBins);
-  else heatmap_ = make_shared<TerminalHeatmapChart>(getPlane(), DiracAnalyzer::kAzimuthBins, DiracAnalyzer::kElevationBins);
+  if (use_pixel) heatmap_ = make_shared<TerminalPixelHeatmapChart>(getPlane(), DiracAnalyzer::kDefaultAzimuthBins, DiracAnalyzer::kDefaultElevationBins);
+  else heatmap_ = make_shared<TerminalHeatmapChart>(getPlane(), DiracAnalyzer::kDefaultAzimuthBins, DiracAnalyzer::kDefaultElevationBins);
 
   // No footer legend on either scope: the heatmap's axis extremes are
   // drawn directly in the grid area instead (axisLabels(), above), and the
@@ -2229,6 +2245,12 @@ TerminalUI::layout() {
   auto octave_width = octave_control_->preferredWidth();
   octave_control_->resize(1, octave_width).move(rows - 2, std::max(0, cols - octave_width));
   status_line_->resize(1, cols - 1).move(rows - 1, 0);
+
+  // The DirAC analysis follows the heatmap's own resolution.
+  if (scopes_on_screen_) {
+    auto [grid_cols, grid_rows] = heatmap_->preferredGridSize();
+    getController().setDiracResolution(grid_cols, grid_rows);
+  }
 }
 
 bool
@@ -2637,11 +2659,12 @@ TerminalUI::handleVisualizationResultEvent(VisualizationResultEvent & ev) {
       auto & diffuse_energy = ev.getDiracDiffuseEnergy();
       float diffuse_sum = 0.0f;
       for (auto e : diffuse_energy) diffuse_sum += e;
-      float local_diffuse = diffuse_sum / static_cast<float>(DiracAnalyzer::kGridSize);
+      float local_diffuse = diffuse_sum / static_cast<float>(DiracAnalyzer::kNominalCells);
 
-      std::array<float, DiracAnalyzer::kGridSize> displayed;
+      const size_t cell_count = grid.size();
+      std::vector<float> displayed(cell_count);
       float frame_max = 0.0f;
-      for (size_t i = 0; i < DiracAnalyzer::kGridSize; i++) {
+      for (size_t i = 0; i < cell_count; i++) {
         displayed[i] = grid[i] + local_diffuse;
         if (displayed[i] > frame_max) frame_max = displayed[i];
       }
@@ -2672,13 +2695,14 @@ TerminalUI::handleVisualizationResultEvent(VisualizationResultEvent & ev) {
       // against how quickly a decaying cell now visibly reads as "gone".
       constexpr float kRatioCompression = 16.0f;
       float log_max = log1pf(kRatioCompression);
-      std::vector<float> brightness(DiracAnalyzer::kGridSize), saturation(DiracAnalyzer::kGridSize);
-      for (size_t i = 0; i < DiracAnalyzer::kGridSize; i++) {
+      std::vector<float> brightness(cell_count), saturation(cell_count);
+      for (size_t i = 0; i < cell_count; i++) {
         float ratio = dirac_running_max_ > 0.0f ? displayed[i] / dirac_running_max_ : 0.0f;
         brightness[i] = log1pf(kRatioCompression * ratio) / log_max;
         if (brightness[i] > 1.0f) brightness[i] = 1.0f;
         saturation[i] = displayed[i] > 1e-12f ? grid[i] / displayed[i] : 0.0f;
       }
+      heatmap_->setGridSize(ev.getDiracAzimuthBins(), ev.getDiracElevationBins());
       heatmap_->setGrid(brightness, saturation);
       heatmap_->commit();
     }

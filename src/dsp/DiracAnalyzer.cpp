@@ -1,5 +1,6 @@
 #include "DiracAnalyzer.h"
 
+#include <algorithm>
 #include <cmath>
 
 using namespace std;
@@ -92,7 +93,17 @@ DiracAnalyzer::processFrame() {
   auto & Z = *spectra[kZ];
   auto & X = *spectra[kX];
 
-  array<float, kGridSize> frame_grid {};
+  if (pending_azimuth_bins_ != azimuth_bins_ || pending_elevation_bins_ != elevation_bins_) {
+    azimuth_bins_ = pending_azimuth_bins_;
+    elevation_bins_ = pending_elevation_bins_;
+    grid_.assign(static_cast<size_t>(azimuth_bins_) * static_cast<size_t>(elevation_bins_), 0.0f);
+  }
+  frame_grid_.assign(grid_.size(), 0.0f);
+  const float az_cell_deg = 360.0f / static_cast<float>(azimuth_bins_);
+  const float el_cell_deg = 180.0f / static_cast<float>(elevation_bins_);
+  // Separable Gaussian: 1D weights along each axis, reaching 2.5 sigma.
+  const float reach_deg = 2.5f * kSplatSigmaDegrees;
+  const int az_reach = static_cast<int>(ceilf(reach_deg / az_cell_deg)), el_reach = static_cast<int>(ceilf(reach_deg / el_cell_deg));
 
   for (int b = 0; b < kNumBands; b++) {
     auto & st = bands_state_[static_cast<size_t>(b)];
@@ -153,57 +164,33 @@ DiracAnalyzer::processFrame() {
 
     diffuse_energy_[static_cast<size_t>(b)] = E * diffuseness;
 
-    // SS6: bilinear-splat this band's directional energy into the nearest
-    // grid cells - azimuth wraps (mod kAzimuthBins), elevation clamps at
-    // the poles (no wraparound).
+    // SS6: splat this band's directional energy as a Gaussian of fixed
+    // angular width around its direction - azimuth wraps, elevation stops
+    // at the poles. Cell i's centre is at (i + 0.5) * cell size.
     float directional_energy = E * (1.0f - diffuseness);
-    float az_pos = (result.azimuth + 180.0f) * static_cast<float>(kAzimuthBins) / 360.0f;
-    float el_pos = (result.elevation + 90.0f) / 10.0f;
-    if (el_pos < 0.0f) el_pos = 0.0f;
-    if (el_pos > static_cast<float>(kElevationBins) - 1e-4f) el_pos = static_cast<float>(kElevationBins) - 1e-4f;
+    float az_pos = (result.azimuth + 180.0f) / az_cell_deg - 0.5f;
+    float el_pos = (std::clamp(result.elevation, -90.0f, 90.0f) + 90.0f) / el_cell_deg - 0.5f;
+    int az_center = static_cast<int>(floorf(az_pos + 0.5f)), el_center = static_cast<int>(floorf(el_pos + 0.5f));
+    const float inv_two_sigma_sq = 0.5f / (kSplatSigmaDegrees * kSplatSigmaDegrees);
 
-    // Shift both from bin-*edge* to bin-*center* coordinates before the
-    // floor/frac split below - bin i's center sits at az_pos/el_pos == i+0.5,
-    // not i, so without this shift a source sitting exactly on a bin edge
-    // (e.g. elevation=0, exactly between an even elevation-bin count's two
-    // middle rows) floors to frac=0 and dumps 100% of its energy into a
-    // single cell instead of splitting evenly across its two nearest bins -
-    // a real, confirmed bug (ambisonic_directions.xml's elevation=0 sweep
-    // landed entirely in one row instead of splitting across the two
-    // middle rows). Elevation is re-clamped at 0 after the shift since it
-    // doesn't wrap (no bin -1 to fall into); azimuth needs no such clamp
-    // since it wraps via modulo below.
-    az_pos -= 0.5f;
-    el_pos -= 0.5f;
-    if (el_pos < 0.0f) el_pos = 0.0f;
-
-    int az0 = static_cast<int>(floorf(az_pos));
-    float frac_az = az_pos - static_cast<float>(az0);
-    az0 = ((az0 % kAzimuthBins) + kAzimuthBins) % kAzimuthBins;
-    int az1 = (az0 + 1) % kAzimuthBins;
-
-    int el0 = static_cast<int>(floorf(el_pos));
-    if (el0 < 0) el0 = 0;
-    if (el0 > kElevationBins - 1) el0 = kElevationBins - 1;
-    float frac_el = el_pos - static_cast<float>(el0);
-    int el1 = el0 + 1 < kElevationBins ? el0 + 1 : el0;
-
-    float w00 = (1.0f - frac_az) * (1.0f - frac_el);
-    float w10 = frac_az * (1.0f - frac_el);
-    float w01 = (1.0f - frac_az) * frac_el;
-    float w11 = frac_az * frac_el;
-
-    frame_grid[static_cast<size_t>(el0 * kAzimuthBins + az0)] += w00 * directional_energy;
-    frame_grid[static_cast<size_t>(el0 * kAzimuthBins + az1)] += w10 * directional_energy;
-    frame_grid[static_cast<size_t>(el1 * kAzimuthBins + az0)] += w01 * directional_energy;
-    frame_grid[static_cast<size_t>(el1 * kAzimuthBins + az1)] += w11 * directional_energy;
+    for (int de = -el_reach; de <= el_reach; de++) {
+      int el = el_center + de;
+      if (el < 0 || el >= elevation_bins_) continue;
+      float d_el = (static_cast<float>(el) - el_pos) * el_cell_deg;
+      float w_el = expf(-d_el * d_el * inv_two_sigma_sq);
+      for (int da = -az_reach; da <= az_reach; da++) {
+        float d_az = (static_cast<float>(az_center + da) - az_pos) * az_cell_deg;
+        int az = ((az_center + da) % azimuth_bins_ + azimuth_bins_) % azimuth_bins_;
+        frame_grid_[static_cast<size_t>(el * azimuth_bins_ + az)] += directional_energy * w_el * expf(-d_az * d_az * inv_two_sigma_sq);
+      }
+    }
   }
 
   // SS1/6: asymmetric attack/release ballistics applied per grid cell,
   // every analysis frame.
-  for (int cell = 0; cell < kGridSize; cell++) {
-    float raw = frame_grid[static_cast<size_t>(cell)];
-    float & smoothed = grid_[static_cast<size_t>(cell)];
+  for (size_t cell = 0; cell < grid_.size(); cell++) {
+    float raw = frame_grid_[cell];
+    float & smoothed = grid_[cell];
     float alpha = raw > smoothed ? grid_attack_alpha_ : grid_release_alpha_;
     smoothed += alpha * (raw - smoothed);
     // A one-pole decay only asymptotes toward 0 and, in float32, ends up
@@ -220,4 +207,10 @@ DiracAnalyzer::processFrame() {
   }
 
   analysis_frame_count_++;
+}
+
+void
+DiracAnalyzer::setResolution(int azimuth_bins, int elevation_bins) {
+  pending_azimuth_bins_ = std::max(azimuth_bins, 1);
+  pending_elevation_bins_ = std::max(elevation_bins, 1);
 }

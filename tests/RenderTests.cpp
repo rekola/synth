@@ -1505,13 +1505,14 @@ TEST(render_dirac_heatmap_peak_matches_encoded_azimuth_sweep) {
       auto & grid = analyzer.getGrid();
       int peak_cell = 0;
       float peak_value = grid[0];
-      for (int c = 1; c < DiracAnalyzer::kGridSize; c++) {
+      const int az_bins = analyzer.getAzimuthBins(), el_bins = analyzer.getElevationBins();
+      for (int c = 1; c < az_bins * el_bins; c++) {
         if (grid[static_cast<size_t>(c)] > peak_value) { peak_value = grid[static_cast<size_t>(c)]; peak_cell = c; }
       }
-      int az_bin = peak_cell % DiracAnalyzer::kAzimuthBins;
-      int el_bin = peak_cell / DiracAnalyzer::kAzimuthBins;
-      float peak_azimuth = (static_cast<float>(az_bin) + 0.5f) * 360.0f / static_cast<float>(DiracAnalyzer::kAzimuthBins) - 180.0f;
-      float peak_elevation = (static_cast<float>(el_bin) + 0.5f) * 10.0f - 90.0f;
+      int az_bin = peak_cell % az_bins;
+      int el_bin = peak_cell / az_bins;
+      float peak_azimuth = (static_cast<float>(az_bin) + 0.5f) * 360.0f / static_cast<float>(az_bins) - 180.0f;
+      float peak_elevation = (static_cast<float>(el_bin) + 0.5f) * 180.0f / static_cast<float>(el_bins) - 90.0f;
 
       CHECK(peak_value > 0.0f);
 

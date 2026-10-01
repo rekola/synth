@@ -17,9 +17,9 @@ SpectrumMeter::setSpectrum(const std::vector<float> & db, float bin_hz) {
   // Log-frequency display bins. A display bin spanning several linear bins
   // shows the loudest; one narrower than a linear bin (the bass) interpolates
   // between its neighbours instead of going blank.
-  // Few knots, interpolated by a spline afterwards: reads as a smooth curve
-  // rather than jittery bars.
-  size_t num_bins = std::clamp<size_t>(static_cast<size_t>(cols) / 3, 8, 48);
+  // Two knots per cell; the spline interpolates between them for the
+  // finer pixel renderer.
+  size_t num_bins = std::max<size_t>(static_cast<size_t>(2 * cols), 8);
   float start = std::log2(kMinHz), step = (std::log2(nyquist) - start) / static_cast<float>(num_bins);
   auto level = [&](float index) {
     float clamped = std::clamp(index, 0.0f, static_cast<float>(db.size() - 1));
