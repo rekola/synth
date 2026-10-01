@@ -246,3 +246,18 @@ TEST(azimuth_glide_factory_wraps_and_round_trips) {
   auto wrapped = Command::azimuthGlide(190.0f, 0.03f);
   CHECK_NEAR(wrapped.getAzimuthGlideTargetDegrees(), -170.0f, 11.25f);
 }
+
+TEST(command_retrigger_decodes_volume_and_interval) {
+  Command c("-R34");
+  CHECK(c.isRetrigger());
+  CHECK(c.getRetriggerVolumeCode() == 3);
+  CHECK(c.getRetriggerIntervalTicks() == 4);
+  CHECK(!Command("-L34").isRetrigger());
+}
+
+TEST(command_retrigger_velocity_steps) {
+  CHECK_NEAR(Command::retriggerVelocityStep(0.5f, 0), 0.5f, 1e-6f);
+  CHECK_NEAR(Command::retriggerVelocityStep(0.5f, 7), 0.25f, 1e-6f);
+  CHECK_NEAR(Command::retriggerVelocityStep(0.5f, 15), 1.0f, 1e-6f);
+  CHECK_NEAR(Command::retriggerVelocityStep(0.0625f, 3), 0.0f, 1e-6f);
+}

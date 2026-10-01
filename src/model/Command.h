@@ -3,6 +3,7 @@
 
 #include "../util/digit.h"
 
+#include <algorithm>
 #include <cmath>
 #include <string>
 #include <string_view>
@@ -139,6 +140,38 @@ class Command {
     auto hi = digit(values_[2], 16), lo = digit(values_[3], 16);
     float magnitude = static_cast<float>((hi < 0 ? 0 : hi) * 16 + (lo < 0 ? 0 : lo));
     return values_[1] == 'L' ? -magnitude : magnitude;
+  }
+
+  // 0Rxy - retrigger the track's most recently played note every `y` ticks
+  // (constants::TICKS_PER_ROW per row) for the rest of this row, changing
+  // its velocity by `x` at each retrigger. `y` = 0 retriggers nothing.
+  bool isRetrigger() const { return values_[0] == '0' && values_[1] == 'R'; }
+  int getRetriggerVolumeCode() const { auto d = digit(values_[2], 16); return d < 0 ? 0 : d; }
+  int getRetriggerIntervalTicks() const { auto d = digit(values_[3], 16); return d < 0 ? 0 : d; }
+
+  // Velocity (0..1) after one retrigger step, per the tracker-standard
+  // volume-change table: 0/8 no change, 1-5 subtract 1/2/4/8/16 (of 64),
+  // 6 two thirds, 7 half, 9-D add 1/2/4/8/16, E three halves, F double.
+  static float retriggerVelocityStep(float velocity, int code) {
+    float v = velocity * 64.0f;
+    switch (code & 15) {
+    case 1: v -= 1; break;
+    case 2: v -= 2; break;
+    case 3: v -= 4; break;
+    case 4: v -= 8; break;
+    case 5: v -= 16; break;
+    case 6: v *= 2.0f / 3.0f; break;
+    case 7: v *= 0.5f; break;
+    case 9: v += 1; break;
+    case 10: v += 2; break;
+    case 11: v += 4; break;
+    case 12: v += 8; break;
+    case 13: v += 16; break;
+    case 14: v *= 1.5f; break;
+    case 15: v *= 2.0f; break;
+    default: break;
+    }
+    return std::min(std::max(v, 0.0f), 64.0f) / 64.0f;
   }
 
   // 0Pxx - set azimuth to an absolute position, unlike YLxx/YRxx's own
