@@ -21,7 +21,7 @@ SpectrumMeter::setSpectrum(const std::vector<float> & db, float bin_hz) {
   // Log-frequency display bins. A display bin spanning several linear bins
   // shows the loudest; one narrower than a linear bin (the bass) interpolates
   // between its neighbours instead of going blank.
-  size_t num_bins = static_cast<size_t>(2 * cols);
+  size_t num_bins = std::max<size_t>(barCount(cols), 1);
   float start = std::log2(kMinHz), step = (std::log2(nyquist) - start) / static_cast<float>(num_bins);
   auto level = [&](float index) {
     float clamped = std::clamp(index, 0.0f, static_cast<float>(db.size() - 1));
@@ -43,19 +43,23 @@ SpectrumMeter::setSpectrum(const std::vector<float> & db, float bin_hz) {
     fractions[b] = std::clamp(1.0f + value / kRangeDb, 0.0f, 1.0f);
   }
   peak_holds_.resize(num_bins);
+  std::vector<float> peaks(num_bins);
+  for (size_t b = 0; b < num_bins; b++) peaks[b] = peak_holds_[b].update(fractions[b], dt);
+  drawBars(fractions, peaks);
+}
 
+void
+SpectrumMeter::drawBars(const std::vector<float> & levels, const std::vector<float> & peaks) {
+  auto [ rows, cols ] = getDim();
   auto & styles = getPlane().getStyles();
   setBgColor(styles.window_bg_color);
   fill();
   setFgColor(styles.meter_active_color);
   for (int c = 0; c < cols; c++) {
     auto column = [&](size_t bin) {
-      float peak = peak_holds_[bin].update(fractions[bin], dt);
-      return level_meter::BarColumn{level_meter::barSteps(fractions[bin], rows), level_meter::barSteps(peak, rows)};
+      return level_meter::BarColumn{level_meter::barSteps(levels[bin], rows), level_meter::barSteps(peaks[bin], rows)};
     };
-    auto left = column(static_cast<size_t>(2 * c));
-    auto right = column(static_cast<size_t>(2 * c + 1));
-    auto bar = level_meter::verticalBar(level_meter::Glyphs::BRAILLE, rows, left, right);
+    auto bar = level_meter::verticalBar(level_meter::Glyphs::BRAILLE, rows, column(static_cast<size_t>(2 * c)), column(static_cast<size_t>(2 * c + 1)));
     for (int i = 0; i < rows; i++) putstr(i, c, bar[static_cast<size_t>(i)]);
   }
 }

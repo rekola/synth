@@ -1442,6 +1442,59 @@ TerminalUI::escapeIndicatorPollTimeoutMs() const {
   return static_cast<int>(std::clamp<long long>(remaining_ms, 0, kDefaultPollTimeoutMs));
 }
 
+// Pixel-graphics spectrum (sixel/Kitty/iTerm2, whichever the terminal
+// negotiates): one bar per pixel column, blitted onto the meter's own plane.
+class TerminalPixelSpectrumMeter : public SpectrumMeter {
+public:
+  using SpectrumMeter::SpectrumMeter;
+
+protected:
+  size_t barCount(int cols) override {
+    unsigned pxx = 0;
+    if (pixelGeom(nullptr, &pxx) && pxx > 0) return pxx;
+    return SpectrumMeter::barCount(cols);
+  }
+
+  void drawBars(const std::vector<float> & levels, const std::vector<float> & peaks) override {
+    unsigned pxy = 0, pxx = 0;
+    if (!pixelGeom(&pxy, &pxx) || levels.size() != pxx) {
+      SpectrumMeter::drawBars(levels, peaks);
+      return;
+    }
+    auto & styles = getPlane().getStyles();
+    // Opaque background: a transparent pixel would composite against the raw
+    // terminal's background instead of this app's.
+    vector<uint32_t> buffer(static_cast<size_t>(pxy) * pxx, pixelOf(styles.window_bg_color));
+    uint32_t bar_pixel = pixelOf(styles.meter_active_color);
+    unsigned peak_thickness = std::max(1u, pxy / 48);
+    for (unsigned x = 0; x < pxx; x++) {
+      unsigned bar_height = static_cast<unsigned>(levels[x] * static_cast<float>(pxy) + 0.5f);
+      for (unsigned y = 0; y < bar_height && y < pxy; y++) buffer[(pxy - 1 - y) * pxx + x] = bar_pixel;
+      unsigned peak_top = static_cast<unsigned>(peaks[x] * static_cast<float>(pxy) + 0.5f);
+      if (peak_top > bar_height) {
+        for (unsigned y = peak_top > peak_thickness ? peak_top - peak_thickness : 0; y < peak_top && y < pxy; y++) buffer[(pxy - 1 - y) * pxx + x] = bar_pixel;
+      }
+    }
+    ncpp::Visual visual(buffer.data(), static_cast<int>(pxy), static_cast<int>(pxx * 4), static_cast<int>(pxx));
+    ncvisual_options vopts{};
+    vopts.n = nativePlane();
+    vopts.scaling = NCSCALE_NONE;
+    vopts.blitter = NCBLIT_PIXEL;
+    visual.blit(&vopts);
+  }
+
+private:
+  ncplane * nativePlane() { return dynamic_cast<TerminalPlane&>(getPlane()).getPlane().to_ncplane(); }
+
+  bool pixelGeom(unsigned * pxy, unsigned * pxx) {
+    unsigned y = 0, x = 0;
+    ncplane_pixel_geom(nativePlane(), &y, &x, nullptr, nullptr, nullptr, nullptr);
+    if (pxy) *pxy = y;
+    if (pxx) *pxx = x;
+    return y > 0 && x > 0;
+  }
+};
+
 void
 TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
   auto root_plane = make_unique<TerminalPlane>(controller, styles_, nc->get_stdplane(), false);
@@ -1460,7 +1513,8 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
   }
 
   bool use_pixel = notcurses_check_pixel_support(*nc) != NCPIXEL_NONE;
-  chart_ = make_shared<SpectrumMeter>(getPlane());
+  if (use_pixel) chart_ = make_shared<TerminalPixelSpectrumMeter>(getPlane());
+  else chart_ = make_shared<SpectrumMeter>(getPlane());
   volume_meter_ = make_shared<ChannelMeter>(getPlane());
 
   if (use_pixel) heatmap_ = make_shared<TerminalPixelHeatmapChart>(getPlane(), DiracAnalyzer::kAzimuthBins, DiracAnalyzer::kElevationBins);
