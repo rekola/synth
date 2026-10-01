@@ -29,26 +29,24 @@ asLeafTrack(const Song & song, int track_id) {
   return dynamic_cast<const LeafTrack *>(song.getMasterTrack().getChildByInternalId(track_id));
 }
 
-// How strongly a clip slot's state color shows in its background right now:
-// playing and recording pulse smoothly, queued states flash on and off, the
-// paused state stays steady - the terminal's stand-in for the Launchpad's
-// own hardware-animated pulse/flash.
+// Where a clip slot's background sits between its dark and bright state
+// color right now (0..1): playing and recording pulse smoothly, queued
+// states flash on and off - the terminal's stand-in for the Launchpad's own
+// hardware-animated pulse/flash.
 float
-stateOverlayAlpha(SessionPadHighlight state) {
+statePulse(SessionPadHighlight state) {
   using Clock = std::chrono::steady_clock;
   auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now().time_since_epoch()).count();
-  constexpr float kMaxAlpha = 0.6f;
   switch (state) {
   case SessionPadHighlight::PLAYING:
   case SessionPadHighlight::RECORDING: {
     float phase = static_cast<float>(ms % 1000) / 1000.0f;
-    return kMaxAlpha * (0.4f + 0.6f * (0.5f - 0.5f * std::cos(phase * 6.2831853f)));
+    return 0.5f - 0.5f * std::cos(phase * 6.2831853f);
   }
   case SessionPadHighlight::QUEUED:
   case SessionPadHighlight::RECORD_QUEUED:
   case SessionPadHighlight::RECORD_STOPPING:
-    return (ms / 250) % 2 == 0 ? kMaxAlpha : 0.0f;
-  case SessionPadHighlight::PAUSED: return kMaxAlpha * 0.5f;
+    return (ms / 250) % 2 == 0 ? 1.0f : 0.0f;
   default: return 0.0f;
   }
 }
@@ -702,14 +700,16 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
         case SessionPadHighlight::RECORDING: glyph = "●"; glyph_fg = styles.clip_recording_color; break;
         case SessionPadHighlight::RECORD_STOPPING: glyph = "●"; glyph_fg = styles.clip_armed_color; break;
         }
-        // The slot's own color shifts toward the state color, pulsing or
-        // flashing like the Launchpad pad (before the cursor/tint below, so
-        // those still apply on top).
+        // The slot takes the state color, pulsing or flashing between its
+        // dark and bright shade like the Launchpad pad (before the cursor/
+        // tint below, so those still apply on top).
         if (has_real_clip && state != SessionPadHighlight::NONE) {
-          Color state_color = state == SessionPadHighlight::RECORDING || state == SessionPadHighlight::RECORD_QUEUED
-            || state == SessionPadHighlight::RECORD_STOPPING ? styles.clip_recording_color
-            : state == SessionPadHighlight::PAUSED ? styles.clip_paused_color : styles.clip_playing_color;
-          row_bg = row_bg.blend(stateOverlayAlpha(state), state_color);
+          bool red = state == SessionPadHighlight::RECORDING || state == SessionPadHighlight::RECORD_QUEUED
+            || state == SessionPadHighlight::RECORD_STOPPING;
+          Color bright = red ? styles.clip_recording_color : styles.clip_playing_color;
+          Color dark = bright.blend(0.6f, Color(0, 0, 0));
+          row_bg = state == SessionPadHighlight::PAUSED ? styles.clip_paused_color
+            : dark.blend(statePulse(state), bright);
         }
         if (is_cursor_cell && !has_real_clip) {
           row_fg = styles.highlight_fg_color;
