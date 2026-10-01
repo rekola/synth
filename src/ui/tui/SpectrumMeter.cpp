@@ -11,10 +11,6 @@ SpectrumMeter::setSpectrum(const std::vector<float> & db, float bin_hz) {
   auto [ rows, cols ] = getDim();
   if (rows <= 0 || cols <= 0 || db.empty()) return;
 
-  auto now = std::chrono::steady_clock::now();
-  auto dt = std::min(std::chrono::duration<float>(now - last_update_).count(), 0.25f);
-  last_update_ = now;
-
   float nyquist = static_cast<float>(db.size()) * bin_hz;
   if (bin_hz <= 0.0f || nyquist <= kMinHz) return;
 
@@ -42,14 +38,11 @@ SpectrumMeter::setSpectrum(const std::vector<float> & db, float bin_hz) {
     }
     fractions[b] = std::clamp(1.0f + value / kRangeDb, 0.0f, 1.0f);
   }
-  peak_holds_.resize(num_bins);
-  std::vector<float> peaks(num_bins);
-  for (size_t b = 0; b < num_bins; b++) peaks[b] = peak_holds_[b].update(fractions[b], dt);
-  drawBars(fractions, peaks);
+  drawBars(fractions);
 }
 
 void
-SpectrumMeter::drawBars(const std::vector<float> & levels, const std::vector<float> & peaks) {
+SpectrumMeter::drawBars(const std::vector<float> & levels) {
   auto [ rows, cols ] = getDim();
   auto & styles = getPlane().getStyles();
   setBgColor(styles.window_bg_color);
@@ -57,7 +50,7 @@ SpectrumMeter::drawBars(const std::vector<float> & levels, const std::vector<flo
   setFgColor(styles.meter_active_color);
   for (int c = 0; c < cols; c++) {
     auto column = [&](size_t bin) {
-      return level_meter::BarColumn{level_meter::barSteps(levels[bin], rows), level_meter::barSteps(peaks[bin], rows)};
+      return level_meter::BarColumn{level_meter::barSteps(levels[bin], rows), 0};
     };
     auto bar = level_meter::verticalBar(level_meter::Glyphs::BRAILLE, rows, column(static_cast<size_t>(2 * c)), column(static_cast<size_t>(2 * c + 1)));
     for (int i = 0; i < rows; i++) putstr(i, c, bar[static_cast<size_t>(i)]);
