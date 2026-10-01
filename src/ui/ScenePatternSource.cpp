@@ -98,10 +98,16 @@ ScenePatternSource::isPlaying(int track_id) const {
 }
 
 int
-ScenePatternSource::sceneRow(const Playhead & playhead) const {
+ScenePatternSource::loopLength(int track_id, int scene) const {
+  auto & clips = song().getClips(track_id);
+  if (scene < 0 || scene >= static_cast<int>(clips.size())) return 1;
+  return std::max(1, clips[static_cast<size_t>(scene)].getLength());
+}
+
+int
+ScenePatternSource::sceneRow(int track_id, const Playhead & playhead) const {
   if (!playhead.looping || playhead.elapsed < 0) return playhead.row;
-  auto scene = std::clamp(playhead.scene, 0, blockCount() - 1);
-  return playhead.elapsed % blockLength(scene);
+  return playhead.elapsed % loopLength(track_id, playhead.scene);
 }
 
 bool
@@ -114,7 +120,7 @@ RowAddress
 ScenePatternSource::position(int track_id) const {
   if (isPlaying(track_id)) {
     auto & playhead = playheads_.at(track_id);
-    return clamp({ playhead.scene, sceneRow(playhead) });
+    return clamp({ playhead.scene, sceneRow(track_id, playhead) });
   }
   return clamp(positions()[track_id]);
 }
@@ -146,7 +152,7 @@ ScenePatternSource::setPlayheads(std::unordered_map<int, Playhead> playheads) {
   for (auto & [ track_id, playhead ] : playheads_) {
     auto it = playheads.find(track_id);
     if (playhead.row < 0 || (it != playheads.end() && it->second.row >= 0)) continue;
-    positions()[track_id] = clamp({ playhead.scene, sceneRow(playhead) });
+    positions()[track_id] = clamp({ playhead.scene, sceneRow(track_id, playhead) });
   }
   // How far each playhead that keeps playing has moved - through a loop
   // too, where its position wraps back.
@@ -156,7 +162,7 @@ ScenePatternSource::setPlayheads(std::unordered_map<int, Playhead> playheads) {
     auto it = playheads_.find(track_id);
     if (playhead.row < 0 || it == playheads_.end() || it->second.row < 0) continue;
     auto & old = it->second;
-    auto between = rowsBetween(clamp({ old.scene, sceneRow(old) }), clamp({ playhead.scene, sceneRow(playhead) }));
+    auto between = rowsBetween(clamp({ old.scene, sceneRow(track_id, old) }), clamp({ playhead.scene, sceneRow(track_id, playhead) }));
     auto rows = between;
     if (old.scene == playhead.scene && old.looping && playhead.looping && old.elapsed >= 0 && playhead.elapsed >= 0) {
       rows = playhead.elapsed - old.elapsed;
@@ -287,7 +293,7 @@ RowAddress
 ScenePatternSource::trackAddress(int track_id, RowAddress address) const {
   if (isLooping(track_id)) {
     auto at = position(track_id);
-    auto length = blockLength(at.block);
+    auto length = loopLength(track_id, at.block);
     auto row = at.row + rowsFromPosition(track_id, address);
     return { at.block, ((row % length) + length) % length };
   }
@@ -300,7 +306,7 @@ ScenePatternSource::isOtherLoopPass(int track_id, RowAddress address) const {
   if (!isLooping(track_id)) return false;
   auto at = position(track_id);
   auto row = at.row + rowsFromPosition(track_id, address);
-  return row < 0 || row >= blockLength(at.block);
+  return row < 0 || row >= loopLength(track_id, at.block);
 }
 
 ReadTarget

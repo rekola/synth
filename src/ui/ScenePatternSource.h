@@ -97,8 +97,9 @@ class ScenePatternSource : public PatternSource {
   // the last one the block is blockCount().
   //
   // A track playing a looping clip is periodic instead: rows past the end
-  // of its scene are the start of the same scene again (and rows before
-  // its start the end), so its line carries on through the loop.
+  // of its clip are the start of the same clip again (and rows before
+  // its start the end), so its line carries on through the loop, the
+  // passes either side of the one it's in shown dimmed.
   RowAddress trackAddress(int track_id, RowAddress address) const override;
   bool isOtherLoopPass(int track_id, RowAddress address) const override;
   // How far the cursor track's position jumped back (or forward) as its
@@ -112,9 +113,9 @@ class ScenePatternSource : public PatternSource {
   RowAddress clamp(RowAddress address) const;
   bool isPlaying(int track_id) const;
   // The row of its scene a playhead is at: a looping clip's elapsed rows
-  // wrap by the scene, not the clip, so a shorter clip plays on into its
-  // dimmed repeats until the whole scene loops.
-  int sceneRow(const Playhead & playhead) const;
+  // wrapped by the clip's length.
+  int sceneRow(int track_id, const Playhead & playhead) const;
+  int loopLength(int track_id, int scene) const;
   bool isLooping(int track_id) const;
   // `track_id`'s position moved by `address`'s distance from the cursor
   // (its line's offset taken off), not yet wrapped by a loop.
