@@ -145,6 +145,8 @@ private:
   // Arrangement view's scope row (toggle-scopes); Session view never
   // shows it - see layout().
   bool scopes_visible_ = true;
+  // Whether the scope row is on screen: Arrangement view only, unless hidden.
+  bool scopesShown() { return getView() == View::ARRANGEMENT && scopes_visible_; }
   // What syncSessionView() last left both widgets showing.
   int synced_track_id_ = -1, laid_out_clip_grid_height_ = -1;
   // Set by a handler that changes what's on screen (the view changing,

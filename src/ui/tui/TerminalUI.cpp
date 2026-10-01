@@ -2085,7 +2085,7 @@ TerminalUI::layout() {
   // row's widgets move below the screen rather than shrinking away (see
   // the workspace comment below) - resize() tears down a chart's plot
   // plane, so the next one is built there too, off screen.
-  bool show_scopes = getView() == View::ARRANGEMENT && scopes_visible_;
+  bool show_scopes = scopesShown();
   int scope_row = show_scopes ? 1 : rows + 1;
 
   // cover_art_ claims the scope row's own leftmost columns first (the
@@ -2568,7 +2568,8 @@ TerminalUI::handleVisualizationResultEvent(VisualizationResultEvent & ev) {
   // work once per superseded event during a catch-up burst, so the app
   // catches up faster instead of falling further behind.
   bool superseded = getController().getUIEventQueue().hasEvents();
-  if (!superseded) {
+  // Scopes that are off screen (Session view, or hidden) aren't updated at all.
+  if (!superseded && scopesShown()) {
     // Raw, pre-mixdown per-channel levels (ambisonic bus, then always
     // AuxA/AuxB last - see VisualizationThread.cpp) rather than the final
     // decoded L/R output.
