@@ -1,6 +1,7 @@
 #ifndef _OUTLINEVIEW_H_
 #define _OUTLINEVIEW_H_
 
+#include "InfoDialog.h"
 #include "../UIElement.h"
 #include "../../model/TrackType.h"
 
@@ -33,23 +34,16 @@ struct outline_row_s {
 };
 
 // What clicking a Details panel line does, if anything - see
-// OutlineView::buildDetailsLines()/handleClick(). NONE covers a line
-// with nothing to click (an informational hint like "[note keys]
-// Preview", a blank spacer, a wrapped description line).
+// OutlineView::buildDetailsLines()/handleClick().
 // TOGGLE_TARGET_PICKER opens/closes a Library > Grooves row's own
 // target-track picker - a real floating ncselector plane (see
 // OutlineView::openTargetPicker()), not another Details panel line, so
 // picking one of its candidates never reaches here at all.
-enum class DetailsAction { NONE, DELETE, ADD_TO_SONG, PREVIEW, STOP, TOGGLE_TARGET_PICKER, TOGGLE_INFO };
-
-// How the Info popup draws a line: TITLE is bold (the row's name), HINT
-// italic (an instruction).
-enum class DetailsStyle { PLAIN, TITLE, HINT };
+enum class DetailsAction { DELETE, ADD_TO_SONG, PREVIEW, STOP, TOGGLE_TARGET_PICKER, TOGGLE_INFO };
 
 struct DetailsLine {
   std::string text;
-  DetailsAction action = DetailsAction::NONE;
-  DetailsStyle style = DetailsStyle::PLAIN;
+  DetailsAction action;
 };
 
 // A read-only, indented tree of the active song - Song/Instruments/
@@ -98,9 +92,9 @@ class OutlineView : public UIElement {
   // (the popup is a separate plane that would otherwise stay up).
   void closeInfoPopup();
   // Escape closes the details popup.
-  bool wantsBareEscape() const override { return info_popup_open_; }
+  bool wantsBareEscape() const override { return info_open_; }
   // The Info popup takes all input while it is open.
-  bool isModal() const { return info_popup_open_; }
+  bool isModal() const { return info_open_; }
 
 protected:
   void renderRow(const StyleProvider & styles, int row, bool cursor, bool focused);
@@ -132,9 +126,9 @@ protected:
   // source both renderButtonBar()/the details popup (drawing) and handleClick() (hit-
   // testing a click against whichever line it lands on) build from, so
   // the two can never show/dispatch different things for the same row.
-  // `details_width` is only needed to word-wrap a groove's own
-  // description to the panel's current width.
-  std::vector<DetailsLine> buildDetailsLines(const outline_row_s & row, int details_width) const;
+  // Only the clickable button lines - the descriptive text is Markdown,
+  // see infoMarkdown().
+  std::vector<DetailsLine> buildDetailsLines(const outline_row_s & row) const;
   std::string libraryInstrumentName(const std::string & ref_name) const;
   // NCKEY_BUTTON1 - hit-tests the click against whichever of the tree/
   // Details panel it landed in (see this class's own header comment) and
@@ -220,8 +214,8 @@ protected:
   // the bar's last row are dropped. A row with details text gets an extra
   // "[?] Info" button.
   std::vector<ButtonPlacement> placeButtons(const outline_row_s & row) const;
-  // The details popup's text for `row`: its non-button lines.
-  std::vector<DetailsLine> infoLines(const outline_row_s & row) const;
+  // The details popup's Markdown for `row` - empty if it has none.
+  std::string infoMarkdown(const outline_row_s & row) const;
 
   static constexpr int kButtonBarRows = 3;
   static constexpr int kInfoPopupWidth = 40;
@@ -262,8 +256,8 @@ protected:
   // (applyTargetPickerSelection()). Checked/cleared in render() the same
   // as cursor_changed.
   bool details_dirty_ = false;
-  std::unique_ptr<UIPlane> info_popup_;
-  bool info_popup_open_ = false;
+  InfoDialog info_popup_;
+  bool info_open_ = false;
 };
 
 #endif

@@ -118,6 +118,7 @@ add_library(synth_engine STATIC
 	src/ui/tui/PatternScroll.cpp
 	src/ui/ArrangementPatternSource.cpp
 	src/ui/ScenePatternSource.cpp
+	src/ui/Markdown.cpp
 	src/launchpad/LaunchpadLayout.cpp
 	src/launchpad/LaunchpadProtocol.cpp
 	src/instruments/DrumRankTable.cpp
@@ -245,6 +246,7 @@ add_executable(synth src/main.cpp
 	src/ui/tui/EscapeCoalescer.cpp
 	src/ui/tui/NotcursesInputEventSource.cpp
 	src/ui/tui/OutlineView.cpp
+	src/ui/tui/InfoDialog.cpp
 	src/ui/tui/PatternEditor.cpp
 	src/ui/tui/ArrangementGrid.cpp
 	src/ui/tui/InlineEditor.cpp

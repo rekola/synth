@@ -799,6 +799,9 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
   buffer_items.push_back({ "Previous Buffer", "C-x Left", "previous-buffer" });
   buffer_items.push_back({ "Select Named Buffer...", "C-x b", "select-named-buffer" });
   spec.push_back({ "Buffers", 'b', std::move(buffer_items) });
+  spec.push_back({ "Help", 'h', {
+      { "About", "", "about" },
+    } });
 
   return spec;
 }
@@ -1811,7 +1814,10 @@ TerminalUI::readInput() {
       // Alt chord's prefix or part of a keypad sequence - it's just never
       // delivered a second time (kp_escape_delivered_).
       auto active = outline_view_ && outline_view_->isModal() ? outline_view_ : active_element_.lock();
-      if (active && active->wantsBareEscape()) {
+      if (info_dialog_.isOpen()) {
+	closeInfoDialog();
+	kp_escape_delivered_ = true;
+      } else if (active && active->wantsBareEscape()) {
 	InputEvent escape(NCKEY_ESC, ni.y, ni.x, false, false, false, false, kind);
 	active->offerInput(escape);
 	kp_escape_delivered_ = true;
@@ -2505,6 +2511,15 @@ TerminalUI::offerInput(const InputEvent & input) {
   // keystroke meant for it.
   bool reader_active = status_line_->isReaderActive() || pattern_editor_->isReaderActive() ||
     clip_grid_->isReaderActive();
+  // The info dialog is modal: it closes on its own keys or a click and
+  // swallows everything else but a resize or redraw.
+  if (info_dialog_.isOpen() && input.getId() != NCKEY_RESIZE && !(input.hasCtrl() && input.getId() == 'l')) {
+    auto id = input.getId();
+    if (id == NCKEY_ESC || id == NCKEY_ENTER || id == 'q' || id == NCKEY_BUTTON1 || (input.hasCtrl() && id == 'g')) {
+      closeInfoDialog();
+    }
+    return true;
+  }
   // A modal popup takes everything but a resize or redraw.
   if (outline_view_ && outline_view_->isModal() && input.getId() != NCKEY_RESIZE && !(input.hasCtrl() && input.getId() == 'l')) {
     outline_view_->offerInput(input);
@@ -2519,6 +2534,7 @@ TerminalUI::offerInput(const InputEvent & input) {
     refresh();
     getPlane().refresh();
     layout();
+    layoutInfoDialog();
     // Deferred, not a direct renderComponents(true) call - see
     // force_next_render_'s own comment on TerminalUI.h: this runs from
     // inside input handling, before startUI()'s own main loop reaches its
@@ -2628,6 +2644,24 @@ TerminalUI::setStatus(std::string s) {
     status_line_->setMessage(std::move(s));
     render();
   }
+}
+
+void
+TerminalUI::showInfoDialog(const std::string & title, const std::string & markdown) {
+  info_dialog_title_ = title;
+  info_dialog_markdown_ = markdown;
+  layoutInfoDialog();
+  force_next_render_ = true;
+}
+
+// Centers the dialog on the screen.
+void
+TerminalUI::layoutInfoDialog() {
+  if (info_dialog_title_.empty()) return;
+  auto [screen_rows, screen_cols] = getDim();
+  auto width = std::min(60, screen_cols);
+  info_dialog_.show(getPlane(), info_dialog_title_, info_dialog_markdown_, width, screen_rows);
+  info_dialog_.move((screen_rows - info_dialog_.rows()) / 2, (screen_cols - width) / 2);
 }
 
 void

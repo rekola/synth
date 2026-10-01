@@ -1,4 +1,5 @@
 #include "UI.h"
+#include "AboutText.h"
 
 #include "../audio/AudioAPI.h"
 #include "../audio/AudioBuffer.h"
@@ -80,6 +81,7 @@ UI::initializeCommands() {
   // that does need a backend-specific dialog/prompt, or reaches into a
   // concrete widget, stays defined in that backend instead (e.g.
   // TerminalUI::initializeWidgets()).
+  commands_.define("about", [this]() { showInfoDialog(kAboutTitle, kAboutMarkdown); });
   commands_.define("next-buffer", [this]() {
     getController().cycleBuffer(true);
   });
