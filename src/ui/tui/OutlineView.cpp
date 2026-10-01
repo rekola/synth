@@ -12,6 +12,7 @@
 #include "../../playback/PlaybackControlEvent.h"
 #include "../../util/constants.h"
 #include "../../util/Utf8.h"
+#include "../Markdown.h"
 #include "../StyleProvider.h"
 
 #include <algorithm>
@@ -21,37 +22,6 @@
 using namespace std;
 
 namespace {
-
-// A plain greedy word-wrap, breaking only at spaces (never mid-word) -
-// good enough for the details panel's own short, plain-English groove
-// descriptions (GroovePatternTemplate::description), not a general
-// typesetting routine. Uses Utf8::displayWidth() per candidate line, not
-// a raw byte-length count, for the same reason every other width
-// comparison in this codebase does (a multi-byte UTF-8 character - e.g.
-// "güira" in one of the groove descriptions - is one display column, not
-// several bytes' worth of them).
-vector<string> wrapText(const string & text, int width) {
-  vector<string> lines;
-  if (width <= 0) return lines;
-
-  string current;
-  size_t pos = 0;
-  while (pos <= text.size()) {
-    auto space = text.find(' ', pos);
-    auto word = text.substr(pos, space == string::npos ? string::npos : space - pos);
-    auto candidate = current.empty() ? word : current + " " + word;
-    if (Utf8::displayWidth(candidate) <= width) {
-      current = move(candidate);
-    } else {
-      if (!current.empty()) lines.push_back(current);
-      current = move(word);
-    }
-    if (space == string::npos) break;
-    pos = space + 1;
-  }
-  if (!current.empty()) lines.push_back(current);
-  return lines;
-}
 
 // Repeats a single-glyph UTF-8 string `count` display columns wide (the
 // glyph is assumed to itself be exactly one display column, true of every
@@ -236,25 +206,44 @@ OutlineView::renderHeading(const StyleProvider & styles) {
   putstr(0, 1, "Outline");
 }
 
-vector<DetailsLine>
-OutlineView::infoLines(const outline_row_s & row) const {
-  vector<DetailsLine> lines;
-  for (auto & line : buildDetailsLines(row, kInfoPopupWidth - 4)) {
-    if (line.action != DetailsAction::NONE) continue;
-    if (line.text.empty() && lines.empty()) continue; // no leading blank line
-    lines.push_back(line);
+// The details popup's text for `row`, as Markdown: a heading, an optional
+// hint and the description. Empty when the row has none.
+string
+OutlineView::infoMarkdown(const outline_row_s & row) const {
+  string title, hint, description;
+  switch (row.kind) {
+  case OutlineRowKind::POOL_INSTRUMENT:
+    title = row.label;
+    hint = "Play note keys to preview";
+    description = poolInstrumentDescription(getController().getSong().getInstrumentPool().getByIndex(row.ref_id));
+    break;
+  case OutlineRowKind::LIBRARY_INSTRUMENT: {
+    auto name = libraryInstrumentName(row.ref_name);
+    title = name.empty() ? row.label : name;
+    hint = "Play note keys to preview";
+    if (auto * found = findGmInstrumentDescription(row.ref_name)) description = found;
+    break;
   }
-  return lines;
+  case OutlineRowKind::LIBRARY_GROOVE:
+    title = row.label;
+    if (auto * pattern = findGroovePattern(row.ref_name)) description = pattern->description;
+    break;
+  case OutlineRowKind::TRACK:
+  case OutlineRowKind::SECTION:
+    return "";
+  }
+  string text = "# " + markdown::escape(title) + "\n";
+  if (!hint.empty()) text += "\n*" + markdown::escape(hint) + "*\n";
+  if (!description.empty()) text += "\n" + markdown::escape(description) + "\n";
+  return text;
 }
 
 vector<OutlineView::ButtonPlacement>
 OutlineView::placeButtons(const outline_row_s & row) const {
   auto cols = getDim().second;
   vector<pair<DetailsAction, string>> buttons;
-  for (auto & line : buildDetailsLines(row, cols)) {
-    if (line.action != DetailsAction::NONE) buttons.push_back({ line.action, line.text });
-  }
-  if (!infoLines(row).empty()) buttons.push_back({ DetailsAction::TOGGLE_INFO, "[?] Info" });
+  for (auto & line : buildDetailsLines(row)) buttons.push_back({ line.action, line.text });
+  if (!infoMarkdown(row).empty()) buttons.push_back({ DetailsAction::TOGGLE_INFO, "[?] Info" });
 
   vector<ButtonPlacement> placed;
   int bar_row = 0, x = 0;
@@ -305,49 +294,25 @@ OutlineView::renderButtonBar(const StyleProvider & styles) {
 
 void
 OutlineView::closeInfoPopup() {
-  info_popup_open_ = false;
-  info_popup_.reset();
+  info_open_ = false;
+  info_popup_.close();
 }
 
 void
 OutlineView::renderInfoPopup(const StyleProvider & styles) {
-  vector<DetailsLine> lines;
-  if (info_popup_open_ && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size())) {
-    lines = infoLines(data_[static_cast<size_t>(new_cursor_row_)]);
+  string text;
+  if (info_open_ && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size())) {
+    text = infoMarkdown(data_[static_cast<size_t>(new_cursor_row_)]);
   }
-  if (lines.empty()) {
-    info_popup_.reset();
+  if (text.empty()) {
+    info_popup_.close();
     return;
   }
 
-  // A plane of its own beside the panel, over whatever's to its right.
-  // createChild() places a plane in screen coordinates, so it's moved
-  // there explicitly.
-  if (!info_popup_) info_popup_ = getPlane().createChild();
-  auto [pos_y, pos_x] = getPosition();
-  auto rows = static_cast<int>(lines.size()) + 2;
-  auto width = kInfoPopupWidth;
-  info_popup_->resize(rows, width);
-  info_popup_->move(pos_y + kTreeTop, pos_x + getDim().second);
-  info_popup_->moveToTop();
-
-  auto bg = styles.window_accent_bg_color, fg = styles.window_fg_color, border = styles.window_border_color;
-  info_popup_->setBgColor(bg.getRed(), bg.getGreen(), bg.getBlue());
-  info_popup_->setFgColor(border.getRed(), border.getGreen(), border.getBlue());
-  info_popup_->putstr(0, 0, "┌─ Details " + repeatUtf8("─", width - 12) + "┐");
-  for (int row = 1; row < rows - 1; row++) {
-    info_popup_->putstr(row, 0, "│" + string(static_cast<size_t>(width - 2), ' ') + "│");
-  }
-  info_popup_->putstr(rows - 1, 0, "└" + repeatUtf8("─", width - 2) + "┘");
-  info_popup_->setFgColor(fg.getRed(), fg.getGreen(), fg.getBlue());
-  for (size_t i = 0; i < lines.size(); i++) {
-    // One style at a time: each setter replaces the plane's whole style set.
-    if (lines[i].style == DetailsStyle::TITLE) info_popup_->setBold(true);
-    else if (lines[i].style == DetailsStyle::HINT) info_popup_->setItalic(true);
-    else info_popup_->setBold(false);
-    info_popup_->putstr(static_cast<int>(i) + 1, 2, Utf8::truncateToWidth(lines[i].text, width - 4));
-  }
-  info_popup_->setBold(false);
+  // A modal box centered on the screen (createChild() places a plane in
+  // screen coordinates).
+  info_popup_.show(getPlane(), "Details", text, std::min(kInfoPopupWidth, screen_cols_), screen_rows_);
+  info_popup_.center(screen_rows_, screen_cols_);
 }
 
 // The instrument's own name (a SoundFont's preset name, without the
@@ -365,40 +330,21 @@ OutlineView::libraryInstrumentName(const string & ref_name) const {
 }
 
 vector<DetailsLine>
-OutlineView::buildDetailsLines(const outline_row_s & row, int details_width) const {
+OutlineView::buildDetailsLines(const outline_row_s & row) const {
   vector<DetailsLine> lines;
   switch (row.kind) {
   case OutlineRowKind::TRACK:
     lines.push_back({ "[Del] Delete", DetailsAction::DELETE });
     break;
-  case OutlineRowKind::POOL_INSTRUMENT: {
+  case OutlineRowKind::POOL_INSTRUMENT:
     lines.push_back({ "[Del] Delete", DetailsAction::DELETE });
     lines.push_back({ "[a] Stop", DetailsAction::STOP });
-    lines.push_back({ "", DetailsAction::NONE });
-    lines.push_back({ row.label, DetailsAction::NONE, DetailsStyle::TITLE });
-    lines.push_back({ "Play note keys to preview", DetailsAction::NONE, DetailsStyle::HINT });
-    auto description = poolInstrumentDescription(getController().getSong().getInstrumentPool().getByIndex(row.ref_id));
-    if (!description.empty()) {
-      lines.push_back({ "", DetailsAction::NONE });
-      for (auto & wrapped : wrapText(description, details_width)) lines.push_back({ wrapped, DetailsAction::NONE });
-    }
     break;
-  }
   case OutlineRowKind::LIBRARY_INSTRUMENT:
     lines.push_back({ "[Enter] Add to Song", DetailsAction::ADD_TO_SONG });
     lines.push_back({ "[a] Stop", DetailsAction::STOP });
-    lines.push_back({ "", DetailsAction::NONE });
-    {
-      auto name = libraryInstrumentName(row.ref_name);
-      lines.push_back({ name.empty() ? row.label : name, DetailsAction::NONE, DetailsStyle::TITLE });
-    }
-    lines.push_back({ "Play note keys to preview", DetailsAction::NONE, DetailsStyle::HINT });
-    if (auto * description = findGmInstrumentDescription(row.ref_name)) {
-      lines.push_back({ "", DetailsAction::NONE });
-      for (auto & wrapped : wrapText(description, details_width)) lines.push_back({ wrapped, DetailsAction::NONE });
-    }
     break;
-  case OutlineRowKind::LIBRARY_GROOVE: {
+  case OutlineRowKind::LIBRARY_GROOVE:
     lines.push_back({ "[Enter] Add to Song", DetailsAction::ADD_TO_SONG });
     // Shows Add to Song's own current destination - 't' or a click opens
     // a real floating picker plane over this one to change it
@@ -407,12 +353,7 @@ OutlineView::buildDetailsLines(const outline_row_s & row, int details_width) con
     lines.push_back({ "[t] Target: " + targetTrackLabel(resolveTargetTrackId()), DetailsAction::TOGGLE_TARGET_PICKER });
     lines.push_back({ "[p] Preview", DetailsAction::PREVIEW });
     lines.push_back({ "[a] Stop", DetailsAction::STOP });
-    lines.push_back({ row.label, DetailsAction::NONE, DetailsStyle::TITLE });
-    if (auto * pattern = findGroovePattern(row.ref_name)) {
-      for (auto & wrapped : wrapText(pattern->description, details_width)) lines.push_back({ wrapped, DetailsAction::NONE });
-    }
     break;
-  }
   case OutlineRowKind::SECTION:
     break;
   }
@@ -641,8 +582,6 @@ OutlineView::deleteSelectedRow() {
 void
 OutlineView::runDetailsAction(DetailsAction action) {
   switch (action) {
-  case DetailsAction::NONE:
-    break;
   case DetailsAction::DELETE:
     deleteSelectedRow();
     break;
@@ -673,7 +612,7 @@ OutlineView::runDetailsAction(DetailsAction action) {
     if (getPlane().pickerActive()) closeTargetPicker(); else openTargetPicker();
     break;
   case DetailsAction::TOGGLE_INFO:
-    info_popup_open_ = !info_popup_open_;
+    info_open_ = !info_open_;
     details_dirty_ = true;
     break;
   }
@@ -720,7 +659,7 @@ OutlineView::offerInput(const InputEvent & input) {
   // The Info popup is modal: it closes on its own keys or a click, and
   // swallows everything else. A key's release still gets through, to stop
   // a preview note held when it opened.
-  if (info_popup_open_) {
+  if (info_open_) {
     bool is_click = input.getId() == NCKEY_BUTTON1;
     bool closes = is_click ? input.getKind() == InputEvent::Kind::RELEASE
       : input.getKind() != InputEvent::Kind::RELEASE && (input.getId() == '?' || input.getId() == NCKEY_ESC || (input.hasCtrl() && input.getId() == 'g'));
@@ -795,7 +734,7 @@ OutlineView::offerInput(const InputEvent & input) {
     // preview.
     runDetailsAction(DetailsAction::TOGGLE_INFO);
     return true;
-  } else if (((input.hasCtrl() && input.getId() == 'g') || input.getId() == NCKEY_ESC) && info_popup_open_) {
+  } else if (((input.hasCtrl() && input.getId() == 'g') || input.getId() == NCKEY_ESC) && info_open_) {
     runDetailsAction(DetailsAction::TOGGLE_INFO);
     return true;
   } else if (input.getId() == NCKEY_UP) {
