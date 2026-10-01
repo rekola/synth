@@ -15,6 +15,8 @@
 #include "../../util/Utf8.h"
 
 #include <algorithm>
+#include <chrono>
+#include <cmath>
 #include <memory>
 #include <fmt/core.h>
 
@@ -25,6 +27,28 @@ namespace {
 const LeafTrack *
 asLeafTrack(const Song & song, int track_id) {
   return dynamic_cast<const LeafTrack *>(song.getMasterTrack().getChildByInternalId(track_id));
+}
+
+// Where a clip slot's background sits between its dark and bright state
+// color right now (0..1): playing and recording pulse smoothly, queued
+// states flash on and off - the terminal's stand-in for the Launchpad's own
+// hardware-animated pulse/flash.
+float
+statePulse(SessionPadHighlight state) {
+  using Clock = std::chrono::steady_clock;
+  auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now().time_since_epoch()).count();
+  switch (state) {
+  case SessionPadHighlight::PLAYING:
+  case SessionPadHighlight::RECORDING: {
+    float phase = static_cast<float>(ms % 1000) / 1000.0f;
+    return 0.5f - 0.5f * std::cos(phase * 6.2831853f);
+  }
+  case SessionPadHighlight::QUEUED:
+  case SessionPadHighlight::RECORD_QUEUED:
+  case SessionPadHighlight::RECORD_STOPPING:
+    return (ms / 250) % 2 == 0 ? 1.0f : 0.0f;
+  default: return 0.0f;
+  }
 }
 
 // A send's linear level in dB, clamped so a 3-character column (sign + 2
@@ -663,8 +687,8 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
         // green for a clip playing or queued to launch (dim while the
         // transport is paused), red for an armed
         // track's slots (dim while merely armed or stopping, bright while
-        // a take is queued or recording). Terminal cells can't pulse, so
-        // the glyph's shape tells queued from running.
+        // a take is queued or recording). The glyph's shape tells queued
+        // from running; the slot's background below also pulses/flashes.
         auto state = clipState(track_index, static_cast<int>(clip_row));
         const char * glyph = nullptr;
         Color glyph_fg = row_fg;
@@ -677,6 +701,17 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
         case SessionPadHighlight::RECORD_QUEUED: glyph = "○"; glyph_fg = styles.clip_recording_color; break;
         case SessionPadHighlight::RECORDING: glyph = "●"; glyph_fg = styles.clip_recording_color; break;
         case SessionPadHighlight::RECORD_STOPPING: glyph = "●"; glyph_fg = styles.clip_armed_color; break;
+        }
+        // The slot takes the state color, pulsing or flashing between its
+        // dark and bright shade like the Launchpad pad (before the cursor/
+        // tint below, so those still apply on top).
+        if (has_real_clip && state != SessionPadHighlight::NONE) {
+          bool red = state == SessionPadHighlight::RECORDING || state == SessionPadHighlight::RECORD_QUEUED
+            || state == SessionPadHighlight::RECORD_STOPPING;
+          Color bright = red ? styles.clip_recording_color : styles.clip_playing_color;
+          Color dark = bright.blend(0.6f, Color(0, 0, 0));
+          row_bg = state == SessionPadHighlight::PAUSED ? styles.clip_paused_color
+            : dark.blend(statePulse(state), bright);
         }
         if (is_cursor_cell && !has_real_clip) {
           row_fg = styles.highlight_fg_color;
