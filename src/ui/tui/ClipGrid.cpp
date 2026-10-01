@@ -430,7 +430,9 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   if (rows < 2 || cols < 1) return false;
 
   auto visible_rows = max(0, rows - 1); // row 0 is the header, never scrolled
-  auto visible_cols = max(0, cols) / (kColWidth + 1);
+  auto visible_cols = max(0, cols) / (kColWidth + 1); // whole columns, what the cursor is kept within
+  // Columns drawn: a last one cut off by the edge too, so the whole width fills.
+  auto drawn_cols = (max(0, cols) + kColWidth) / (kColWidth + 1);
 
   // A moved cursor reattaches a view the mouse wheel detached.
   if (view_detached_ && (cursor_track_index_ != current_cursor_track_index_ || cursor_row_ != current_cursor_row_)) view_detached_ = false;
@@ -464,7 +466,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   // The track (or, past the last track, the master) a column index shows.
   auto columnTrackId = [&](int column) { return column < num_tracks ? track_ids[static_cast<size_t>(column)] : master_id; };
   std::vector<SessionPadHighlight> clip_states;
-  for (auto vc = 0; vc < visible_cols && scroll_col_ + vc <= num_tracks; vc++) {
+  for (auto vc = 0; vc < drawn_cols && scroll_col_ + vc <= num_tracks; vc++) {
     auto column = scroll_col_ + vc;
     for (auto vr = 0; vr < visible_rows; vr++) {
       clip_states.push_back(column < num_tracks ? clipState(column, scroll_row_ + vr) : sceneState(scroll_row_ + vr));
@@ -483,7 +485,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   auto meter_dt = std::min(std::chrono::duration<float>(now - last_meter_update_).count(), 0.25f);
   last_meter_update_ = now;
   std::vector<int> meter_steps;
-  for (auto vc = 0; vc < visible_cols && scroll_col_ + vc <= num_tracks; vc++) {
+  for (auto vc = 0; vc < drawn_cols && scroll_col_ + vc <= num_tracks; vc++) {
     auto track_id = columnTrackId(scroll_col_ + vc);
     auto & track_info = playback_info.getTrackInfo(track_id);
     auto & meter = meters_[track_id];
@@ -530,7 +532,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   SongStructure structure(song);
   auto cursor_physical = physicalFor(cursor_row_);
 
-  for (auto vc = 0; vc < visible_cols; vc++) {
+  for (auto vc = 0; vc < drawn_cols; vc++) {
     auto track_index = scroll_col_ + vc;
     if (track_index == num_tracks) {
       auto & master_info = playback_info.getTrackInfo(master_id);

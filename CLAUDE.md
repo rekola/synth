@@ -1003,7 +1003,12 @@ would otherwise resume showing.
   line follows its playhead down the screen by the same margin rule,
   every other line staying where it is, and each line is held within the
   margin of an edge, its column scrolling under it there
-  (`keepTrackLinesVisible()`). Focusing a track moves the cursor row onto
+  (`keepTrackLinesVisible()`). A looping playing clip is periodic: its line carries on
+  forward through the loop point, the passes either side of the one it is in
+  (the clip's previous and next repeats, `ScenePatternSource::isOtherLoopPass()`)
+  dimmed - fading over a few hundred ms as the playhead crosses into a pass,
+  and carrying no bar/beat accent or row tint; rows from before the launch
+  are blank - the view moving with it (`takeCursorJump()`). Focusing a track moves the cursor row onto
   its line, every other line staying put; a track that stops stays where
   its playhead left it.
   Each column shows its own row numbers before its notes
@@ -1415,3 +1420,6 @@ would otherwise resume showing.
   silently goes stale if the binding ever changes; name the command
   instead and let the actual binding site be the only place the key
   appears).
+- Pull requests: when pushing more commits to a branch that has an open PR,
+  update the PR description in the same step if the push changes what it
+  says - a push updates the diff but never the description.

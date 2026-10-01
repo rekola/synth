@@ -718,6 +718,13 @@ PatternEditor::setSessionPlayheads(std::unordered_map<int, ScenePatternSource::P
   if (!changed) return;
   session_playheads_ = playheads;
   scene_source_->setPlayheads(std::move(playheads));
+  // The cursor track's position wrapping with its loop moves the view with
+  // it, so the line carries on down the screen instead of jumping.
+  if (auto jump = scene_source_->takeCursorJump(); jump != 0 && !view_detached_) {
+    auto top = source_->advance({ view_block_, current_scroll_.row }, jump);
+    view_block_ = top.block;
+    current_scroll_.row = top.row;
+  }
   if (isSessionMode()) force_full_redraw_ = true;
 }
 
@@ -1117,6 +1124,10 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   // inputs, so a single comparison against last frame's bounds stands in
   // for what used to be a hand-rolled diff of each of those pieces
   // separately (see SelectionBounds::operator==).
+  // A pass fading in or out keeps redrawing, once more after it ends.
+  bool fading = isSessionMode() && scene_source_->isFading();
+  if (fading || fading_drawn_) force_full_redraw_ = true;
+  fading_drawn_ = fading;
   if (score_pattern != current_score_pattern ||
       song.getMajorVersion() != current_song_version ||
       score_total_columns != current_score_total_columns ||
@@ -2476,21 +2487,25 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // A row's ambient base colors (bar/beat accent, else plain), dimmed
   // outside its block. The playhead's own row highlight is deliberately
   // not part of this - see tintForPlayhead() below.
-  auto baseColors = [&](int row, bool neighboring, Color & base_fg, Color & base_bg) {
+  // `dim`: how much of kFadedRowDim applies. A dimmed row loses its bar/beat
+  // accent in proportion.
+  auto baseColors = [&](int row, float dim, Color & base_fg, Color & base_bg) {
+    base_fg = styles.window_fg_color;
+    base_bg = styles.window_bg_color;
+    Color accent_fg = base_fg, accent_bg = base_bg;
     if (row >= 0 && row_rows_per_bar > 0 && row % row_rows_per_bar == 0) {
-      base_fg = styles.window_bar_accent_fg_color;
-      base_bg = styles.window_bar_accent_bg_color;
+      accent_fg = styles.window_bar_accent_fg_color;
+      accent_bg = styles.window_bar_accent_bg_color;
     } else if (row >= 0 && row % 4 == 0) {
-      base_fg = styles.window_beat_accent_fg_color;
-      base_bg = styles.window_beat_accent_bg_color;
-    } else {
-      base_fg = styles.window_fg_color;
-      base_bg = styles.window_bg_color;
+      accent_fg = styles.window_beat_accent_fg_color;
+      accent_bg = styles.window_beat_accent_bg_color;
     }
-    if (neighboring) {
+    base_fg = accent_fg.blend(dim, base_fg);
+    base_bg = accent_bg.blend(dim, base_bg);
+    if (dim > 0.0f) {
       Color black;
-      base_bg = base_bg.blend(kFadedRowDim, black);
-      base_fg = base_fg.blend(kFadedRowDim, black);
+      base_bg = base_bg.blend(kFadedRowDim * dim, black);
+      base_fg = base_fg.blend(kFadedRowDim * dim, black);
     }
   };
   // The editor row's own - the row numbers', and each track's where every
@@ -2498,12 +2513,12 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // is accented by its own row instead, and the dividers between columns,
   // belonging to neither, stay plain.
   Color row_base_fg, row_base_bg;
-  baseColors(pattern_row, is_neighboring_pattern, row_base_fg, row_base_bg);
+  baseColors(pattern_row, is_neighboring_pattern ? 1.0f : 0.0f, row_base_fg, row_base_bg);
   bool per_track_rows = !track_ids.empty() && source_->trackBlock(track_ids.front()).has_value();
   Color divider_base_bg = row_base_bg;
   if (per_track_rows) {
     Color unused;
-    baseColors(-1, false, unused, divider_base_bg);
+    baseColors(-1, 0.0f, unused, divider_base_bg);
   }
 
   // The playhead's own row highlight - a translucent overlay on
@@ -2520,8 +2535,11 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // where each track has a line of its own (session mode) - only that
   // track's own position row (track_marked, set per track below).
   std::optional<bool> track_marked;
+  // How dimmed the column being drawn is (0 to 1); a dimmed area carries no
+  // row highlight.
+  float track_dim = 0.0f;
   auto tintForPlayhead = [&](Color base) -> Color {
-    return track_marked.value_or(highlight) ? styles.cursorRowTint(base) : base;
+    return track_dim <= 0.0f && track_marked.value_or(highlight) ? styles.cursorRowTint(base) : base;
   };
   // The divider between two tracks belongs to neither, so it takes only
   // the row's own tint, never one track's playhead - none in session
@@ -2705,13 +2723,14 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     Color track_base_fg = row_base_fg, track_base_bg = row_base_bg;
     // Whether this column's own row is outside its current block - the
     // editor row's where every track shares one position, else its own.
-    bool track_neighboring = is_neighboring_pattern;
+    track_dim = is_neighboring_pattern ? 1.0f : 0.0f;
     if (per_track_rows && i >= 0) {
       auto track_id = track_ids[static_cast<size_t>(i)];
       auto own = source_->trackAddress(track_id, address);
       auto own_row = own.block < 0 ? -1 : own.row;
-      track_neighboring = own_row < 0 || own.block != source_->trackBlock(track_id);
-      baseColors(own_row, track_neighboring, track_base_fg, track_base_bg);
+      bool outside = own_row < 0 || own.block != source_->trackBlock(track_id);
+      track_dim = outside ? 1.0f : source_->loopPassDim(track_id, address);
+      baseColors(own_row, track_dim, track_base_fg, track_base_bg);
     }
     Color fg = track_base_fg, bg = track_base_bg, cell_fg, cell_bg;
 
@@ -2839,7 +2858,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       // dimmed row reads consistently across every column type.
       auto dim_fixed_color = [&](Color c) -> Color {
 	Color black;
-	if (track_neighboring) c = c.blend(kFadedRowDim, black);
+	if (track_dim > 0.0f) c = c.blend(kFadedRowDim * track_dim, black);
 	if (is_repeat_row) c = c.blend(kFadedRowDim, black);
 	return c;
       };

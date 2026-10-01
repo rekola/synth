@@ -97,11 +97,30 @@ ScenePatternSource::isPlaying(int track_id) const {
   return it != playheads_.end() && it->second.row >= 0;
 }
 
+int
+ScenePatternSource::loopLength(int track_id, int scene) const {
+  auto & clips = song().getClips(track_id);
+  if (scene < 0 || scene >= static_cast<int>(clips.size())) return 1;
+  return std::max(1, clips[static_cast<size_t>(scene)].getLength());
+}
+
+int
+ScenePatternSource::sceneRow(int track_id, const Playhead & playhead) const {
+  if (!playhead.looping || playhead.elapsed < 0) return playhead.row;
+  return playhead.elapsed % loopLength(track_id, playhead.scene);
+}
+
+bool
+ScenePatternSource::isLooping(int track_id) const {
+  auto it = playheads_.find(track_id);
+  return it != playheads_.end() && it->second.row >= 0 && it->second.looping && it->second.elapsed >= 0;
+}
+
 RowAddress
 ScenePatternSource::position(int track_id) const {
   if (isPlaying(track_id)) {
     auto & playhead = playheads_.at(track_id);
-    return clamp({ playhead.scene, playhead.row });
+    return clamp({ playhead.scene, sceneRow(track_id, playhead) });
   }
   return clamp(positions()[track_id]);
 }
@@ -133,15 +152,29 @@ ScenePatternSource::setPlayheads(std::unordered_map<int, Playhead> playheads) {
   for (auto & [ track_id, playhead ] : playheads_) {
     auto it = playheads.find(track_id);
     if (playhead.row < 0 || (it != playheads.end() && it->second.row >= 0)) continue;
-    positions()[track_id] = clamp({ playhead.scene, playhead.row });
+    positions()[track_id] = clamp({ playhead.scene, sceneRow(track_id, playhead) });
   }
-  // How far each playhead that keeps playing has moved.
+  // How far each playhead that keeps playing has moved - through a loop
+  // too, where its position wraps back.
   std::unordered_map<int, int> moved;
+  int cursor_jump = 0;
   for (auto & [ track_id, playhead ] : playheads) {
     auto it = playheads_.find(track_id);
     if (playhead.row < 0 || it == playheads_.end() || it->second.row < 0) continue;
-    moved[track_id] = rowsBetween(clamp({ it->second.scene, it->second.row }), clamp({ playhead.scene, playhead.row }));
+    auto & old = it->second;
+    auto between = rowsBetween(clamp({ old.scene, sceneRow(track_id, old) }), clamp({ playhead.scene, sceneRow(track_id, playhead) }));
+    auto rows = between;
+    if (old.scene == playhead.scene && old.looping && playhead.looping && old.elapsed >= 0 && playhead.elapsed >= 0) {
+      rows = playhead.elapsed - old.elapsed;
+    }
+    moved[track_id] = rows;
+    if (old.scene == playhead.scene && old.looping && playhead.looping && playhead.elapsed > old.elapsed &&
+        playhead.elapsed / loopLength(track_id, playhead.scene) != old.elapsed / loopLength(track_id, playhead.scene)) {
+      pass_changed_[track_id] = std::chrono::steady_clock::now();
+    }
+    if (track_id == cursor_track_id_) cursor_jump = between - rows;
   }
+  cursor_jump_ += cursor_jump;
   playheads_ = std::move(playheads);
   // Each playhead's line moves down the screen with it - the cursor row
   // with the cursor track's - until the view scrolls within the margin of
@@ -255,10 +288,58 @@ ScenePatternSource::normalize(int block, int row) const {
   return { block, row };
 }
 
+int
+ScenePatternSource::rowsFromPosition(int track_id, RowAddress address) const {
+  return rowsBetween(cursor(), address) - offset(track_id);
+}
+
 RowAddress
 ScenePatternSource::trackAddress(int track_id, RowAddress address) const {
+  if (isLooping(track_id)) {
+    auto at = position(track_id);
+    auto length = loopLength(track_id, at.block);
+    auto delta = rowsFromPosition(track_id, address);
+    // Rows from before the clip was launched don't exist.
+    if (playheads_.at(track_id).elapsed + delta < 0) return { at.block, -1 };
+    auto row = at.row + delta;
+    return { at.block, ((row % length) + length) % length };
+  }
   if (track_id == cursor_track_id_) return address;
-  return advance(position(track_id), rowsBetween(cursor(), address) - offset(track_id));
+  return advance(position(track_id), rowsFromPosition(track_id, address));
+}
+
+namespace {
+constexpr std::chrono::milliseconds kPassFade(300);
+}
+
+float
+ScenePatternSource::fadeProgress(int track_id) const {
+  auto it = pass_changed_.find(track_id);
+  if (it == pass_changed_.end()) return 1.0f;
+  auto elapsed = std::chrono::duration<float>(std::chrono::steady_clock::now() - it->second);
+  return std::min(1.0f, elapsed / std::chrono::duration<float>(kPassFade));
+}
+
+bool
+ScenePatternSource::isFading() const {
+  for (auto & entry : pass_changed_) {
+    if (isLooping(entry.first) && fadeProgress(entry.first) < 1.0f) return true;
+  }
+  return false;
+}
+
+float
+ScenePatternSource::loopPassDim(int track_id, RowAddress address) const {
+  if (!isLooping(track_id)) return 0.0f;
+  auto at = position(track_id);
+  auto length = loopLength(track_id, at.block);
+  auto row = at.row + rowsFromPosition(track_id, address);
+  auto pass = row >= 0 ? row / length : -1 - (-row - 1) / length;
+  // The pass just entered takes the dimming off, the one just left puts it on.
+  auto progress = fadeProgress(track_id);
+  if (pass == 0) return 1.0f - progress;
+  if (pass == -1) return progress;
+  return 1.0f;
 }
 
 ReadTarget
