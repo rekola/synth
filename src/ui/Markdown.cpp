@@ -10,14 +10,12 @@ namespace markdown {
 
 namespace {
 
-bool
-isBlank(const string & line) {
+bool isBlank(const string & line) {
   return line.find_first_not_of(" \t\r") == string::npos;
 }
 
 // Position of the first unescaped `marker` at or after `from`, or npos.
-size_t
-findClosing(const string & s, const string & marker, size_t from) {
+size_t findClosing(const string & s, const string & marker, size_t from) {
   for (size_t i = from; i < s.size(); i++) {
     if (s[i] == '\\') i++;
     else if (s.compare(i, marker.size(), marker) == 0) return i;
@@ -25,15 +23,13 @@ findClosing(const string & s, const string & marker, size_t from) {
   return string::npos;
 }
 
-void
-appendSpan(vector<Span> & out, const string & text, bool bold, bool italic) {
+void appendSpan(vector<Span> & out, const string & text, bool bold, bool italic) {
   if (text.empty()) return;
   if (!out.empty() && out.back().bold == bold && out.back().italic == italic) out.back().text += text;
   else out.push_back({ text, bold, italic });
 }
 
-void
-parseInline(const string & s, bool bold, bool italic, vector<Span> & out) {
+void parseInline(const string & s, bool bold, bool italic, vector<Span> & out) {
   string plain;
   size_t i = 0;
   while (i < s.size()) {
@@ -62,8 +58,7 @@ parseInline(const string & s, bool bold, bool italic, vector<Span> & out) {
 }
 
 // Joins a paragraph's lines into one, single-spaced.
-string
-joinLines(const vector<string> & lines) {
+string joinLines(const vector<string> & lines) {
   string joined;
   for (auto & line : lines) {
     auto begin = line.find_first_not_of(" \t\r");
@@ -75,8 +70,7 @@ joinLines(const vector<string> & lines) {
 }
 
 // The heading level of `line` ("## Foo" -> 2), or 0 if it isn't one.
-int
-headingLevel(const string & line) {
+int headingLevel(const string & line) {
   size_t n = 0;
   while (n < line.size() && line[n] == '#') n++;
   if (n < 1 || n > 6 || n >= line.size() || line[n] != ' ') return 0;
@@ -85,8 +79,7 @@ headingLevel(const string & line) {
 
 } // namespace
 
-Document
-parse(const string & source) {
+Document parse(const string & source) {
   Document doc;
   vector<string> paragraph;
 
@@ -123,8 +116,7 @@ parse(const string & source) {
   return doc;
 }
 
-string
-escape(const string & text) {
+string escape(const string & text) {
   string out;
   for (char c : text) {
     if (c == '*' || c == '\\') out += '\\';
@@ -143,8 +135,7 @@ struct Word {
   bool space_before; // whitespace separated it from the previous word
 };
 
-vector<Word>
-splitWords(const vector<Span> & spans, bool force_bold) {
+vector<Word> splitWords(const vector<Span> & spans, bool force_bold) {
   vector<Word> words;
   bool pending_space = false;
   for (auto & span : spans) {
@@ -166,14 +157,12 @@ splitWords(const vector<Span> & spans, bool force_bold) {
   return words;
 }
 
-void
-appendRun(Line & line, const string & text, bool bold, bool italic) {
+void appendRun(Line & line, const string & text, bool bold, bool italic) {
   if (!line.empty() && line.back().bold == bold && line.back().italic == italic) line.back().text += text;
   else line.push_back({ text, bold, italic });
 }
 
-int
-lineWidth(const Line & line) {
+int lineWidth(const Line & line) {
   int width = 0;
   for (auto & run : line) width += Utf8::displayWidth(run.text);
   return width;
@@ -181,8 +170,7 @@ lineWidth(const Line & line) {
 
 } // namespace
 
-vector<Line>
-layout(const Document & doc, int width) {
+vector<Line> layout(const Document & doc, int width) {
   vector<Line> lines;
   if (width <= 0) return lines;
 

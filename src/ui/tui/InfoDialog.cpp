@@ -9,8 +9,7 @@ using namespace std;
 
 namespace {
 
-string
-repeatUtf8(const string & glyph, int count) {
+string repeatUtf8(const string & glyph, int count) {
   string out;
   for (int i = 0; i < count; i++) out += glyph;
   return out;
