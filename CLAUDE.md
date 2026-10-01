@@ -1006,7 +1006,9 @@ would otherwise resume showing.
   (`keepTrackLinesVisible()`). A looping playing clip is periodic: its line carries on
   forward through the loop point, the passes either side of the one it is in
   (the clip's previous and next repeats, `ScenePatternSource::isOtherLoopPass()`)
-  dimmed, the view moving with it (`takeCursorJump()`). Focusing a track moves the cursor row onto
+  dimmed - fading over a few hundred ms as the playhead crosses into a pass,
+  and carrying no bar/beat accent or row tint; rows from before the launch
+  are blank - the view moving with it (`takeCursorJump()`). Focusing a track moves the cursor row onto
   its line, every other line staying put; a track that stops stays where
   its playhead left it.
   Each column shows its own row numbers before its notes

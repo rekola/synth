@@ -371,6 +371,7 @@ protected:
   // don't see (the source switching, per-track playheads moving).
   bool force_full_redraw_ = false;
   std::unordered_map<int, ScenePatternSource::Playhead> session_playheads_;
+  bool fading_drawn_ = false;
 
   // The block at the top of the view - current_scroll_.row counts from
   // its start. Follows the cursor's own block, scrolled just far enough to

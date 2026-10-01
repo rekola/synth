@@ -168,6 +168,10 @@ ScenePatternSource::setPlayheads(std::unordered_map<int, Playhead> playheads) {
       rows = playhead.elapsed - old.elapsed;
     }
     moved[track_id] = rows;
+    if (old.scene == playhead.scene && old.looping && playhead.looping && playhead.elapsed > old.elapsed &&
+        playhead.elapsed / loopLength(track_id, playhead.scene) != old.elapsed / loopLength(track_id, playhead.scene)) {
+      pass_changed_[track_id] = std::chrono::steady_clock::now();
+    }
     if (track_id == cursor_track_id_) cursor_jump = between - rows;
   }
   cursor_jump_ += cursor_jump;
@@ -294,19 +298,48 @@ ScenePatternSource::trackAddress(int track_id, RowAddress address) const {
   if (isLooping(track_id)) {
     auto at = position(track_id);
     auto length = loopLength(track_id, at.block);
-    auto row = at.row + rowsFromPosition(track_id, address);
+    auto delta = rowsFromPosition(track_id, address);
+    // Rows from before the clip was launched don't exist.
+    if (playheads_.at(track_id).elapsed + delta < 0) return { at.block, -1 };
+    auto row = at.row + delta;
     return { at.block, ((row % length) + length) % length };
   }
   if (track_id == cursor_track_id_) return address;
   return advance(position(track_id), rowsFromPosition(track_id, address));
 }
 
+namespace {
+constexpr std::chrono::milliseconds kPassFade(300);
+}
+
+float
+ScenePatternSource::fadeProgress(int track_id) const {
+  auto it = pass_changed_.find(track_id);
+  if (it == pass_changed_.end()) return 1.0f;
+  auto elapsed = std::chrono::duration<float>(std::chrono::steady_clock::now() - it->second);
+  return std::min(1.0f, elapsed / std::chrono::duration<float>(kPassFade));
+}
+
 bool
-ScenePatternSource::isOtherLoopPass(int track_id, RowAddress address) const {
-  if (!isLooping(track_id)) return false;
+ScenePatternSource::isFading() const {
+  for (auto & entry : pass_changed_) {
+    if (isLooping(entry.first) && fadeProgress(entry.first) < 1.0f) return true;
+  }
+  return false;
+}
+
+float
+ScenePatternSource::loopPassDim(int track_id, RowAddress address) const {
+  if (!isLooping(track_id)) return 0.0f;
   auto at = position(track_id);
+  auto length = loopLength(track_id, at.block);
   auto row = at.row + rowsFromPosition(track_id, address);
-  return row < 0 || row >= loopLength(track_id, at.block);
+  auto pass = row >= 0 ? row / length : -1 - (-row - 1) / length;
+  // The pass just entered takes the dimming off, the one just left puts it on.
+  auto progress = fadeProgress(track_id);
+  if (pass == 0) return 1.0f - progress;
+  if (pass == -1) return progress;
+  return 1.0f;
 }
 
 ReadTarget

@@ -48,10 +48,12 @@ class PatternSource {
   // `address`, a row of the editor (the cursor track's), as `track_id`'s
   // own - the same row where every track shares one position.
   virtual RowAddress trackAddress(int, RowAddress address) const { return address; }
-  // Whether `address` (a row of the editor) is, for `track_id`, another
-  // pass of the loop it's playing rather than the pass its own position is
-  // in - the same content, shown dimmed.
-  virtual bool isOtherLoopPass(int, RowAddress) const { return false; }
+  // How dimmed `address` (a row of the editor) is for `track_id`, 0 to 1:
+  // another pass of the loop it's playing rather than the pass its own
+  // position is in, fading as the playhead crosses into the next one.
+  virtual float loopPassDim(int, RowAddress) const { return 0.0f; }
+  // Whether any such fade is still running, so the view keeps redrawing.
+  virtual bool isFading() const { return false; }
 
   // `row` rows past the start of `block`, carried across block boundaries.
   // A block of blockCount() or more means past the end.
