@@ -198,6 +198,8 @@ SessionPlayer::toggleOverdub(int fallback_track_id) {
 void
 SessionPlayer::launchScene(int clip_index, const vector<int> & track_ids) {
   for (auto track_id : track_ids) triggerClip(track_id, clip_index);
+  // A scene starts the transport even when every slot in it is empty.
+  if (!track_ids.empty() && !controller_.isNoteCaptureArmed()) startTransport();
 }
 
 void
