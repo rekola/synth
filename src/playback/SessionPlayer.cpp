@@ -350,6 +350,8 @@ SessionPlayer::playheads() const {
       auto & clip = clips[static_cast<size_t>(session_track.clip_index)];
       playhead.clip_index = session_track.clip_index;
       playhead.row = clipPlayheadRow(info.getSessionClock(), session_track.launch_clock, clip.getLength(), clip.isLooping());
+      playhead.looping = clip.isLooping();
+      if (playhead.row >= 0) playhead.elapsed = info.getSessionClock() - session_track.launch_clock;
     }
     if (session_track.queued != SessionTrackInfo::kNothingQueued) playhead.queued_clip = max(-1, session_track.queued);
     if (playhead.clip_index >= 0 || playhead.queued_clip) result[track_id] = playhead;
@@ -367,6 +369,8 @@ SessionPlayer::playheads() const {
       auto & playhead = result[track_id];
       playhead.clip_index = active.clip_index;
       playhead.row = clipPlayheadRow(position, active.start_row, clip.getLength(), clip.isLooping());
+      playhead.looping = clip.isLooping();
+      playhead.elapsed = playhead.row >= 0 ? position - active.start_row : -1;
     }
   }
   return result;

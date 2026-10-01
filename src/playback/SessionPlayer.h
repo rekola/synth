@@ -87,6 +87,8 @@ class SessionPlayer {
   struct Playhead {
     int clip_index = -1; // the clip playing, or -1 if none
     int row = -1; // its current row (kept while paused); -1 for a track with no launched clip, or a finished one-shot
+    bool looping = false;
+    int elapsed = -1; // rows since the clip started, not wrapped by its length - continuous across a loop; -1 as row
     std::optional<int> queued_clip; // a pending launch (clip index) or stop/return (-1), taking effect at the next bar
   };
   std::unordered_map<int, Playhead> playheads() const;

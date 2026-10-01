@@ -2370,7 +2370,7 @@ TerminalUI::renderComponents(bool refresh) {
   // where playback left it.
   std::unordered_map<int, ScenePatternSource::Playhead> playheads;
   for (auto & [ track_id, playhead ] : getController().getSessionPlayer().playheads()) {
-    if (playhead.clip_index >= 0) playheads[track_id] = { playhead.clip_index, playhead.row };
+    if (playhead.clip_index >= 0) playheads[track_id] = { playhead.clip_index, playhead.row, playhead.elapsed, playhead.looping };
   }
   pattern_editor_->setSessionPlayheads(std::move(playheads));
 

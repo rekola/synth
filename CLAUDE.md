@@ -1003,7 +1003,11 @@ would otherwise resume showing.
   line follows its playhead down the screen by the same margin rule,
   every other line staying where it is, and each line is held within the
   margin of an edge, its column scrolling under it there
-  (`keepTrackLinesVisible()`). Focusing a track moves the cursor row onto
+  (`keepTrackLinesVisible()`). A looping playing clip is periodic: its line carries on
+  forward through the loop point (the scene's length, not the clip's, so a
+  shorter clip plays on into its dimmed repeats), the pass it just left
+  dimmed above and the next below (`ScenePatternSource::isOtherLoopPass()`),
+  the view moving with it (`takeCursorJump()`). Focusing a track moves the cursor row onto
   its line, every other line staying put; a track that stops stays where
   its playhead left it.
   Each column shows its own row numbers before its notes

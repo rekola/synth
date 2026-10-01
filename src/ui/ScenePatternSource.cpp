@@ -97,11 +97,24 @@ ScenePatternSource::isPlaying(int track_id) const {
   return it != playheads_.end() && it->second.row >= 0;
 }
 
+int
+ScenePatternSource::sceneRow(const Playhead & playhead) const {
+  if (!playhead.looping || playhead.elapsed < 0) return playhead.row;
+  auto scene = std::clamp(playhead.scene, 0, blockCount() - 1);
+  return playhead.elapsed % blockLength(scene);
+}
+
+bool
+ScenePatternSource::isLooping(int track_id) const {
+  auto it = playheads_.find(track_id);
+  return it != playheads_.end() && it->second.row >= 0 && it->second.looping && it->second.elapsed >= 0;
+}
+
 RowAddress
 ScenePatternSource::position(int track_id) const {
   if (isPlaying(track_id)) {
     auto & playhead = playheads_.at(track_id);
-    return clamp({ playhead.scene, playhead.row });
+    return clamp({ playhead.scene, sceneRow(playhead) });
   }
   return clamp(positions()[track_id]);
 }
@@ -133,15 +146,25 @@ ScenePatternSource::setPlayheads(std::unordered_map<int, Playhead> playheads) {
   for (auto & [ track_id, playhead ] : playheads_) {
     auto it = playheads.find(track_id);
     if (playhead.row < 0 || (it != playheads.end() && it->second.row >= 0)) continue;
-    positions()[track_id] = clamp({ playhead.scene, playhead.row });
+    positions()[track_id] = clamp({ playhead.scene, sceneRow(playhead) });
   }
-  // How far each playhead that keeps playing has moved.
+  // How far each playhead that keeps playing has moved - through a loop
+  // too, where its position wraps back.
   std::unordered_map<int, int> moved;
+  int cursor_jump = 0;
   for (auto & [ track_id, playhead ] : playheads) {
     auto it = playheads_.find(track_id);
     if (playhead.row < 0 || it == playheads_.end() || it->second.row < 0) continue;
-    moved[track_id] = rowsBetween(clamp({ it->second.scene, it->second.row }), clamp({ playhead.scene, playhead.row }));
+    auto & old = it->second;
+    auto between = rowsBetween(clamp({ old.scene, sceneRow(old) }), clamp({ playhead.scene, sceneRow(playhead) }));
+    auto rows = between;
+    if (old.scene == playhead.scene && old.looping && playhead.looping && old.elapsed >= 0 && playhead.elapsed >= 0) {
+      rows = playhead.elapsed - old.elapsed;
+    }
+    moved[track_id] = rows;
+    if (track_id == cursor_track_id_) cursor_jump = between - rows;
   }
+  cursor_jump_ += cursor_jump;
   playheads_ = std::move(playheads);
   // Each playhead's line moves down the screen with it - the cursor row
   // with the cursor track's - until the view scrolls within the margin of
@@ -255,10 +278,29 @@ ScenePatternSource::normalize(int block, int row) const {
   return { block, row };
 }
 
+int
+ScenePatternSource::rowsFromPosition(int track_id, RowAddress address) const {
+  return rowsBetween(cursor(), address) - offset(track_id);
+}
+
 RowAddress
 ScenePatternSource::trackAddress(int track_id, RowAddress address) const {
+  if (isLooping(track_id)) {
+    auto at = position(track_id);
+    auto length = blockLength(at.block);
+    auto row = at.row + rowsFromPosition(track_id, address);
+    return { at.block, ((row % length) + length) % length };
+  }
   if (track_id == cursor_track_id_) return address;
-  return advance(position(track_id), rowsBetween(cursor(), address) - offset(track_id));
+  return advance(position(track_id), rowsFromPosition(track_id, address));
+}
+
+bool
+ScenePatternSource::isOtherLoopPass(int track_id, RowAddress address) const {
+  if (!isLooping(track_id)) return false;
+  auto at = position(track_id);
+  auto row = at.row + rowsFromPosition(track_id, address);
+  return row < 0 || row >= blockLength(at.block);
 }
 
 ReadTarget

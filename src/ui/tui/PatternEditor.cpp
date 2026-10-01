@@ -718,6 +718,13 @@ PatternEditor::setSessionPlayheads(std::unordered_map<int, ScenePatternSource::P
   if (!changed) return;
   session_playheads_ = playheads;
   scene_source_->setPlayheads(std::move(playheads));
+  // The cursor track's position wrapping with its loop moves the view with
+  // it, so the line carries on down the screen instead of jumping.
+  if (auto jump = scene_source_->takeCursorJump(); jump != 0 && !view_detached_) {
+    auto top = source_->advance({ view_block_, current_scroll_.row }, jump);
+    view_block_ = top.block;
+    current_scroll_.row = top.row;
+  }
   if (isSessionMode()) force_full_redraw_ = true;
 }
 
@@ -2706,7 +2713,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       auto track_id = track_ids[static_cast<size_t>(i)];
       auto own = source_->trackAddress(track_id, address);
       auto own_row = own.block < 0 ? -1 : own.row;
-      track_neighboring = own_row < 0 || own.block != source_->trackBlock(track_id);
+      track_neighboring = own_row < 0 || own.block != source_->trackBlock(track_id) || source_->isOtherLoopPass(track_id, address);
       baseColors(own_row, track_neighboring, track_base_fg, track_base_bg);
     }
     Color fg = track_base_fg, bg = track_base_bg, cell_fg, cell_bg;

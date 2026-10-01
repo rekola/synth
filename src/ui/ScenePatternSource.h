@@ -79,7 +79,9 @@ class ScenePatternSource : public PatternSource {
 
   // Where each track's launched clip is playing: its scene and row. A
   // track whose playhead goes away stays where it left it, on its line.
-  struct Playhead { int scene; int row; };
+  // `elapsed` is the rows since the clip started, unwrapped, for a looping one
+  // (-1 otherwise): its line keeps moving forward through a loop.
+  struct Playhead { int scene; int row; int elapsed = -1; bool looping = false; };
   void setPlayheads(std::unordered_map<int, Playhead> playheads);
   // Keeps every stopped track but the cursor's where it is on screen as
   // the view scrolls `rows` down.
@@ -93,13 +95,30 @@ class ScenePatternSource : public PatternSource {
   // own: its position moved by as many rows as `address` is from the
   // cursor. Before the first scene the row is negative (of scene 0); past
   // the last one the block is blockCount().
+  //
+  // A track playing a looping clip is periodic instead: rows past the end
+  // of its scene are the start of the same scene again (and rows before
+  // its start the end), so its line carries on through the loop.
   RowAddress trackAddress(int track_id, RowAddress address) const override;
+  bool isOtherLoopPass(int track_id, RowAddress address) const override;
+  // How far the cursor track's position jumped back (or forward) as its
+  // loop wrapped, beyond the rows it played; reset by the call. The view
+  // moves by the same so the line carries on down the screen.
+  int takeCursorJump() { auto jump = cursor_jump_; cursor_jump_ = 0; return jump; }
 
  private:
   // Always the active buffer's song - it changes when the buffer does.
   Song & song() const;
   RowAddress clamp(RowAddress address) const;
   bool isPlaying(int track_id) const;
+  // The row of its scene a playhead is at: a looping clip's elapsed rows
+  // wrap by the scene, not the clip, so a shorter clip plays on into its
+  // dimmed repeats until the whole scene loops.
+  int sceneRow(const Playhead & playhead) const;
+  bool isLooping(int track_id) const;
+  // `track_id`'s position moved by `address`'s distance from the cursor
+  // (its line's offset taken off), not yet wrapped by a loop.
+  int rowsFromPosition(int track_id, RowAddress address) const;
   RowAddress position(int track_id) const;
   std::unordered_map<int, RowAddress> & positions() const;
   // Moves every stopped track but the cursor's by `rows`, keeping each
@@ -113,6 +132,7 @@ class ScenePatternSource : public PatternSource {
 
   Controller & controller_;
   int cursor_track_id_ = -1;
+  int cursor_jump_ = 0;
   // Stopped tracks' positions, per buffer name.
   mutable std::unordered_map<std::string, std::unordered_map<int, RowAddress>> positions_;
   std::unordered_map<int, Playhead> playheads_;
