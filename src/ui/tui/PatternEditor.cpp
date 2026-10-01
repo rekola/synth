@@ -2444,6 +2444,10 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
   }
 }
 
+// How far a row fades toward black when it's outside its block (a clip, in
+// Session view) or repeats a pattern shorter than the block.
+static constexpr float kFadedRowDim = 0.5f;
+
 void
 PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & all_track_info, int display_row, bool highlight, const SelectionBounds & sel_bounds, bool focused) {
   auto [rows, cols] = getDim();
@@ -2477,16 +2481,16 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       base_fg = styles.window_bar_accent_fg_color;
       base_bg = styles.window_bar_accent_bg_color;
     } else if (row >= 0 && row % 4 == 0) {
-      base_fg = styles.window_accent_fg_color;
-      base_bg = styles.window_accent_bg_color;
+      base_fg = styles.window_beat_accent_fg_color;
+      base_bg = styles.window_beat_accent_bg_color;
     } else {
       base_fg = styles.window_fg_color;
       base_bg = styles.window_bg_color;
     }
     if (neighboring) {
       Color black;
-      base_bg = base_bg.blend(0.75f, black);
-      base_fg = base_fg.blend(0.75f, black);
+      base_bg = base_bg.blend(kFadedRowDim, black);
+      base_fg = base_fg.blend(kFadedRowDim, black);
     }
   };
   // The editor row's own - the row numbers', and each track's where every
@@ -2814,8 +2818,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       bool is_repeat_row = pattern_length > 0 && read_target.unwrapped_row >= pattern_length && !highlight;
       if (is_repeat_row) {
 	Color black;
-	bg = bg.blend(0.6f, black);
-	fg = fg.blend(0.6f, black);
+	bg = bg.blend(kFadedRowDim, black);
+	fg = fg.blend(kFadedRowDim, black);
       }
       // Background only, per this class's own "the notes are from an
       // instance" cue - VisibleTrackInfo::getColor() is the same identity
@@ -2835,8 +2839,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       // dimmed row reads consistently across every column type.
       auto dim_fixed_color = [&](Color c) -> Color {
 	Color black;
-	if (track_neighboring) c = c.blend(0.75f, black);
-	if (is_repeat_row) c = c.blend(0.6f, black);
+	if (track_neighboring) c = c.blend(kFadedRowDim, black);
+	if (is_repeat_row) c = c.blend(kFadedRowDim, black);
 	return c;
       };
       auto & notes = read_target.pattern->getNotes(read_target.effective_row);
