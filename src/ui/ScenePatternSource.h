@@ -37,7 +37,9 @@ class ScenePatternSource : public PatternSource {
   void moveCursor(int delta_rows) override;
   void setCursorTrack(int track_id) override;
   RowAddress trackCursor(int track_id) const override { return advance(cursor(), offset(track_id)); }
-  bool cursorLocked() const override { return isPlaying(cursor_track_id_); }
+  // Only while the transport runs: paused, moving the cursor moves every
+  // launched clip's playhead instead.
+  bool cursorLocked() const override;
   std::optional<int> trackBlock(int track_id) const override { return position(track_id).block; }
   // Moves the cursor track (or `track_id`) to `address`, unless it's
   // playing.

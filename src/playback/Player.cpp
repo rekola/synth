@@ -375,6 +375,10 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     state.queueSessionChange(ev.getParameter1(), ev.getParameter2(), ev.getParameter3());
     break;
 
+  case PlaybackControlEvent::SHIFT_SESSION_POSITION:
+    state.shiftSession(ev.getParameter1(), ev.getParameter2());
+    break;
+
   case PlaybackControlEvent::SILENCE_SESSION:
     state.silenceSession(ev.getParameter1());
     break;

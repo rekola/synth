@@ -853,6 +853,12 @@ class SongState : public TrackState {
     silenceSessionTracks(session_tracks_);
     session_seq_ = std::max(session_seq_, seq);
   }
+  // Moves every launched clip's playhead by `delta` rows (a paused
+  // transport's cursor move); same sequence number rule as above.
+  void shiftSession(int delta, int seq) {
+    shiftSessionTracks(session_tracks_, session_clock_, delta);
+    session_seq_ = std::max(session_seq_, seq);
+  }
   const SessionTracks & getSessionTracks() const { return session_tracks_; }
   int getSessionClock() const { return session_clock_; }
   // The session clock when the transport last started.

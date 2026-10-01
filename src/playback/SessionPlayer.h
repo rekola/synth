@@ -86,10 +86,13 @@ class SessionPlayer {
   // entry.
   struct Playhead {
     int clip_index = -1; // the clip playing, or -1 if none
-    int row = -1; // its current row; -1 while the transport is stopped
+    int row = -1; // its current row (kept while paused); -1 for a track with no launched clip, or a finished one-shot
     std::optional<int> queued_clip; // a pending launch (clip index) or stop/return (-1), taking effect at the next bar
   };
   std::unordered_map<int, Playhead> playheads() const;
+  // Moves every launched clip's playhead by `delta_rows` (clamped at row 0)
+  // and predicts it locally; the paused transport's cursor move.
+  void shiftLaunchedClips(int delta_rows);
 
   // A clip slot's transport/recording state - what its Launchpad pad and
   // the terminal's clip grid both show. A slot with no clip on an unarmed
