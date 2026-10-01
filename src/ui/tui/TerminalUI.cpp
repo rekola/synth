@@ -1937,8 +1937,8 @@ TerminalUI::initializeWidgets() {
   commands_.define("stop-all-clips", [this]() {
     getController().getSessionPlayer().stopAllTracks();
   });
-  // Arrangement view's scope row (cover art, ArrangementGrid, charts) -
-  // Session view never shows it.
+  // Arrangement view's scope row (cover art, ArrangementGrid, charts), and
+  // Session view's spectrum/heatmap under the outline panel.
   commands_.define("toggle-scopes", [this]() {
     scopes_visible_ = !scopes_visible_;
     viewChanged();
@@ -2080,13 +2080,24 @@ TerminalUI::layout() {
 
   constexpr int kHeatmapWidth = 31; // 20 * 1.5, rounded up to the nearest odd width
   constexpr int kScopeHeight = 5;
-  // Session view never shows the scope row (the clip grid needs the
-  // rows); Arrangement view shows it unless toggle-scopes hid it. A hidden
+  // Arrangement view shows the scope row unless toggle-scopes hid it
+  // (Session view's own scopes sit in its left column, below). A hidden
   // row's widgets move below the screen rather than shrinking away (see
   // the workspace comment below) - resize() tears down a chart's plot
   // plane, so the next one is built there too, off screen.
-  bool show_scopes = scopesShown();
+  bool show_scopes = getView() == View::ARRANGEMENT && scopes_visible_;
   int scope_row = show_scopes ? 1 : rows + 1;
+
+  constexpr int kOutlineWidth = 30;
+  // Session view: the outline panel runs the full workspace height, with
+  // the spectrum and heatmap stacked under it (and a divider row above
+  // each). Dropped when the terminal is too short to leave the outline a
+  // usable height.
+  int session_outline_cols = isOutlineVisible() ? std::min(kOutlineWidth, cols / 2) : 0;
+  int session_scope_rows = 2 * kScopeHeight + 2;
+  bool session_scopes = getView() == View::SESSION && scopes_visible_ && session_outline_cols > 0
+    && std::max(2, rows - 3) - session_scope_rows >= 6;
+  scopes_on_screen_ = show_scopes || session_scopes;
 
   // cover_art_ claims the scope row's own leftmost columns first (the
   // literal top-left corner) - square-looking, sized off the row height
@@ -2117,8 +2128,11 @@ TerminalUI::layout() {
   int chart_x = matrix_divider_x + 1;
   int chart_width = std::max(1, cols - chart_x - 9 - kHeatmapWidth - 2); // -2 for the single-column dividers on either side of the heatmap
   int divider1_x = chart_x + chart_width, divider2_x = divider1_x + 1 + kHeatmapWidth;
-  chart_->resize(kScopeHeight, chart_width).move(scope_row, chart_x);
-  heatmap_->resize(kScopeHeight, kHeatmapWidth).move(scope_row, divider1_x + 1);
+  // Session view places these in its own left column below.
+  if (getView() == View::ARRANGEMENT) {
+    chart_->resize(kScopeHeight, chart_width).move(scope_row, chart_x);
+    heatmap_->resize(kScopeHeight, kHeatmapWidth).move(scope_row, divider1_x + 1);
+  }
   volume_meter_->resize(kScopeHeight, 9).move(scope_row, divider2_x + 1);
 
   // Single-column dividers between the five scopes - drawn once here
@@ -2139,27 +2153,45 @@ TerminalUI::layout() {
   // shrunk away - it gets the same rect as a visible one instead, and
   // moveToTop() raises the visible ones above it.
   int workspace_row = show_scopes ? 1 + kScopeHeight : 1;
-  constexpr int kOutlineWidth = 30;
   int workspace_rows = std::max(2, rows - 2 - workspace_row);
   if (getView() == View::SESSION) {
-    // Session view: the clip grid (the outline panel on its left, when
-    // shown) takes at most half the workspace, the pattern editor the rest.
+    // Session view: the left column (outline panel, with the scopes under
+    // it) takes the full workspace height; beside it the clip grid takes at
+    // most half the workspace, the pattern editor the rest.
     laid_out_clip_grid_height_ = clip_grid_->preferredHeight();
     int strip_rows = std::min(laid_out_clip_grid_height_, workspace_rows / 2);
-    int outline_cols = isOutlineVisible() ? std::min(kOutlineWidth, cols / 2) : 0;
-    clip_grid_->resize(strip_rows, cols - outline_cols).move(workspace_row, outline_cols);
-    // The outline panel's last column is a divider, drawn here on the
-    // plane underneath (static, like the scope row's dividers); its top
-    // cell carries the header row's backdrop across to the clip grid's.
-    outline_view_->resize(strip_rows, outline_cols > 0 ? outline_cols - 1 : cols).move(workspace_row, 0);
+    int outline_cols = session_outline_cols;
+    int outline_rows = session_scopes ? workspace_rows - session_scope_rows : workspace_rows;
+    int right_cols = cols - outline_cols;
+    clip_grid_->resize(strip_rows, right_cols).move(workspace_row, outline_cols);
+    outline_view_->resize(outline_rows, outline_cols > 0 ? outline_cols - 1 : cols).move(workspace_row, 0);
     if (outline_cols > 0) {
+      // The column's last cell is a divider, drawn here on the plane
+      // underneath (static, like the scope row's dividers); its top cell
+      // carries the header row's backdrop across to the clip grid's.
       setFgColor(styles_.window_border_color);
-      for (int row = 0; row < strip_rows; row++) {
+      for (int row = 0; row < workspace_rows; row++) {
         setBgColor(row == 0 ? styles_.heading_bg_color : styles_.window_bg_color);
         putstr(workspace_row + row, outline_cols - 1, "│");
       }
     }
-    pattern_editor_->resize(workspace_rows - strip_rows, cols).move(workspace_row + strip_rows, 0);
+    if (session_scopes) {
+      int scope_x_width = outline_cols - 1;
+      int chart_row = workspace_row + outline_rows + 1;
+      int heatmap_row = chart_row + kScopeHeight + 1;
+      setFgColor(styles_.window_border_color);
+      setBgColor(styles_.window_bg_color);
+      std::string rule;
+      for (int i = 0; i < scope_x_width; i++) rule += "─";
+      for (int row : { chart_row - 1, heatmap_row - 1 }) putstr(row, 0, rule + "┤");
+      chart_->resize(kScopeHeight, scope_x_width).move(chart_row, 0);
+      heatmap_->resize(kScopeHeight, scope_x_width).move(heatmap_row, 0);
+    } else {
+      // Parked off screen, like a hidden scope row's widgets.
+      chart_->resize(kScopeHeight, std::max(1, cols / 2)).move(rows + 1, 0);
+      heatmap_->resize(kScopeHeight, kHeatmapWidth).move(rows + 1, 0);
+    }
+    pattern_editor_->resize(workspace_rows - strip_rows, right_cols).move(workspace_row + strip_rows, outline_cols);
     if (outline_cols > 0) outline_view_->moveToTop();
     clip_grid_->moveToTop();
     pattern_editor_->moveToTop();
@@ -2568,12 +2600,12 @@ TerminalUI::handleVisualizationResultEvent(VisualizationResultEvent & ev) {
   // work once per superseded event during a catch-up burst, so the app
   // catches up faster instead of falling further behind.
   bool superseded = getController().getUIEventQueue().hasEvents();
-  // Scopes that are off screen (Session view, or hidden) aren't updated at all.
-  if (!superseded && scopesShown()) {
+  // Scopes that are off screen aren't updated at all.
+  if (!superseded && scopes_on_screen_) {
     // Raw, pre-mixdown per-channel levels (ambisonic bus, then always
     // AuxA/AuxB last - see VisualizationThread.cpp) rather than the final
     // decoded L/R output.
-    volume_meter_->setLevels(ev.getChannelLoudness(), ev.getMeterLabel());
+    if (getView() == View::ARRANGEMENT) volume_meter_->setLevels(ev.getChannelLoudness(), ev.getMeterLabel());
 
     if (!ev.getFFT().empty()) {
       chart_->setSpectrum(ev.getFFT(), ev.getFFTBinHz());
