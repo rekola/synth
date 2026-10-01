@@ -1236,7 +1236,10 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
     }
   }
 
-  auto current_delay = info.getCurrentDelay();
+  // A cursor that neither follows the transport nor a playing clip's
+  // playhead isn't on the transport's row, so its sub-row position says
+  // nothing about where a note belongs.
+  auto current_delay = source_->cursorFollowsTransport() || source_->cursorLocked() ? info.getCurrentDelay() : 0;
   
   int note_column;
   auto it = active_midi_notes.find(ev.getNote());
@@ -1763,7 +1766,10 @@ PatternEditor::offerInput(const InputEvent & input) {
 	bool is_off = input.getId() == 'a';
 	bool is_delete = input.getId() == NCKEY_DEL || input.getId() == NCKEY_BACKSPACE;
 	auto note_column = track_info.getNoteNumber(new_cursor.col);
-	auto current_delay = info.getCurrentDelay();
+	// A cursor that neither follows the transport nor a playing clip's
+  // playhead isn't on the transport's row, so its sub-row position says
+  // nothing about where a note belongs.
+  auto current_delay = source_->cursorFollowsTransport() || source_->cursorLocked() ? info.getCurrentDelay() : 0;
 
 	// A held note key's terminal-generated auto-repeat must not retrigger
 	// a fresh note-on (holding a key should sustain one note, not restart

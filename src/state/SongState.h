@@ -857,6 +857,9 @@ class SongState : public TrackState {
   // transport's cursor move); same sequence number rule as above.
   void shiftSession(int delta, int seq) {
     shiftSessionTracks(session_tracks_, session_clock_, delta);
+    // Resume at the start of the new row, not partway through the one
+    // the pause landed in.
+    sample_pos_ = 0;
     session_seq_ = std::max(session_seq_, seq);
   }
   const SessionTracks & getSessionTracks() const { return session_tracks_; }
