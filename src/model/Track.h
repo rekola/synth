@@ -100,16 +100,11 @@ class Track : public StatefulSongObject {
   // (the oscillator stack's detune/spread, TapeDegradation's per-instance
   // seed, ...). Both defaults live only here - every override that
   // recurses into children must forward whatever it received.
-  // needs_decorrelation: true only when a caller is creating >1
-  // simultaneous copy of the same instrument for this note (nothing does
-  // today); read only by
-  // sample-playback leaves (SoundFontVoice) deciding whether to delay
-  // their start - see SoundFontVoice's own start_delay_samples_ comment.
-  virtual std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}, bool needs_decorrelation = false) const {
+  virtual std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}) const {
     auto group = createVoiceState(config);
     auto child_config = getChildChannelConfiguration(config);
     for (auto & child : getChildren()) {
-      auto voice = child->playNote(child_config, position, tuning, detune, velocity, note_value, sends, note_coord, needs_decorrelation);
+      auto voice = child->playNote(child_config, position, tuning, detune, velocity, note_value, sends, note_coord);
       if (voice.get()) group->addChild(child->getInternalId(), std::move(voice));
     }
     return group;

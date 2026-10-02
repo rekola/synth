@@ -6,13 +6,11 @@
 using namespace std;
 
 std::unique_ptr<VoiceState>
-PadSynth::playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord, bool needs_decorrelation) const {
+PadSynth::playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const {
   // Unlike Oscillator, no child-forwarding loop here: PadSynthVoice's
   // render() has no modulator input point (it reads straight from the
   // wavetable), so forwarding children into it would just construct and
   // track voices whose output is never actually consumed.
-  (void)needs_decorrelation;
-
   ensureWavetable(config, tuning);
 
   auto voice = std::make_unique<PadSynthVoice>(config, position, detune, wavetable_, level_, sends, note_coord);

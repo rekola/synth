@@ -140,7 +140,7 @@ TEST(oscillator_default_stack_is_a_single_member) {
   SphericalPosition position;
   position.distance = 1.0f;
 
-  auto voice = osc.playNote(config, position, Tuning::TET31, 1.0f, 1.0f, 60, SendLevels{}, NoteCoordinate(0, 0, 0), false);
+  auto voice = osc.playNote(config, position, Tuning::TET31, 1.0f, 1.0f, 60, SendLevels{}, NoteCoordinate(0, 0, 0));
   CHECK(voice.get() != nullptr);
   CHECK(voice->getAllocatedVoiceCount() == 1);
 }
@@ -159,7 +159,7 @@ TEST(oscillator_voices_attribute_builds_one_stacked_voice) {
   position.distance = 1.0f;
   position.extent = 1.0f;
 
-  auto voice = osc.playNote(config, position, Tuning::TET31, 1.0f, 1.0f, 60, SendLevels{}, NoteCoordinate(0, 0, 0), false);
+  auto voice = osc.playNote(config, position, Tuning::TET31, 1.0f, 1.0f, 60, SendLevels{}, NoteCoordinate(0, 0, 0));
   CHECK(voice->getAllocatedVoiceCount() == 1); // one voice, however many members
 
   bool any = false;

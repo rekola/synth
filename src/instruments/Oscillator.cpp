@@ -5,9 +5,7 @@
 using namespace std;
 
 std::unique_ptr<VoiceState>
-Oscillator::playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord, bool needs_decorrelation) const {
-  (void)needs_decorrelation;
-
+Oscillator::playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const {
   detune *= harmonic_;
   detune /= subharmonic_;
 

@@ -23,8 +23,7 @@ class Song;
 //   the whole process, not anything about the song itself, and so isn't
 //   reproducible across different processes/builds the way
 //   NoteCoordinate-seeded jitter needs its track identity to be. Threaded
-//   through Track::createState()/createStateTree() the same way
-//   needs_decorrelation is threaded through playNote(), so a track can
+//   through Track::createState()/createStateTree(), so a track can
 //   query its own ordinal (structure.getOrdinalFor(*this)) without needing
 //   a back-pointer to the Song it belongs to.
 // - A baseline VisibleTrackInfo (column shape - see getBaselineInfo()),

@@ -56,9 +56,7 @@ private:
 }
 
 std::unique_ptr<VoiceState>
-FM::playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord, bool needs_decorrelation) const {
-  (void)needs_decorrelation;
-
+FM::playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const {
   auto voice = std::make_unique<FMVoice>(config, position, detune, level_, ratio_, index_, index_decay_, sends, note_coord);
   voice->playNote(getFrequencyFor(tuning, note_value), velocity, note_value);
   return voice;
