@@ -75,49 +75,67 @@ class PositionedVoice : public VoiceState {
   // from that one source.
   AudioBuffer encodePosition(const float * dry, int frames) {
     auto & sends = getSends();
-    bool has_main = sends.main > 0.0f;
-    AudioBuffer data(has_main ? getChannelConfiguration().numberOfChannels() : 0, sends.a > 0.0f, sends.b > 0.0f, frames);
-    data.zero();
+    AudioBuffer data = makeSendBuffer(frames);
 
-    if (has_main) {
+    if (sends.main > 0.0f) {
       auto gains = computeAmbisonicGains(getPosition());
       float main_gain = sends.main * getDistanceGain();
       for (auto & g : gains) g *= main_gain;
       encoder_.encodeBlock(data, dry, frames, gains);
 
-      // Geometry-derived floor reflection - a second, independently
-      // directed and delayed copy of the same dry signal, encoded
-      // through its own AmbisonicVoiceEncoder instance. Shares main_gain
-      // (Send Main and 1/distance both apply to the reflection too),
-      // scaled further by floor_gain_ratio_. Never touches AuxA/AuxB -
-      // the reflection is not a send.
-      if (floor_reflection_active_) {
-        if (static_cast<int>(floor_scratch_.size()) != frames) floor_scratch_.resize(static_cast<size_t>(frames));
-        for (int i = 0; i < frames; i++) {
-          floor_delay_line_.write(dry[i]);
-          floor_scratch_[static_cast<size_t>(i)] = floor_absorption_filter_.process(floor_delay_line_.read(floor_delay_samples_));
-        }
-
-        auto floor_gains = computeAmbisonicGains(floor_position_);
-        float floor_main_gain = main_gain * floor_gain_ratio_;
-        for (auto & g : floor_gains) g *= floor_main_gain;
-        floor_encoder_.encodeBlock(data, floor_scratch_.data(), frames, floor_gains);
-      }
+      addFloorReflection(data, dry, frames, main_gain);
     }
 
-    if (auto * aux_a = data.getChannel(Channel::AuxA)) {
-      for (int i = 0; i < frames; i++) aux_a[i] = dry[i] * sends.a;
-    }
-    if (auto * aux_b = data.getChannel(Channel::AuxB)) {
-      for (int i = 0; i < frames; i++) aux_b[i] = dry[i] * sends.b;
-    }
-
+    addAuxSends(data, dry, frames);
     return data;
   }
 
   int64_t note_hash_coord_;
 
  protected:
+  // The pieces encodePosition() is built from, for a voice that encodes its
+  // Main channels itself (several directions at once) but still wants the
+  // shared reflection/sends handling.
+
+  // A zeroed buffer shaped by the Send levels: Main only when Send Main > 0,
+  // AuxA/AuxB only when their sends are.
+  AudioBuffer makeSendBuffer(int frames) const {
+    auto & sends = getSends();
+    AudioBuffer data(sends.main > 0.0f ? getChannelConfiguration().numberOfChannels() : 0, sends.a > 0.0f, sends.b > 0.0f, frames);
+    data.zero();
+    return data;
+  }
+
+  // Geometry-derived floor reflection - a second, independently directed
+  // and delayed copy of the same dry signal, encoded through its own
+  // AmbisonicVoiceEncoder instance. `main_gain` (Send Main and 1/distance)
+  // applies to the reflection too, scaled further by floor_gain_ratio_.
+  // Never touches AuxA/AuxB - the reflection is not a send.
+  void addFloorReflection(AudioBuffer & data, const float * dry, int frames, float main_gain) {
+    if (!floor_reflection_active_) return;
+
+    if (static_cast<int>(floor_scratch_.size()) != frames) floor_scratch_.resize(static_cast<size_t>(frames));
+    for (int i = 0; i < frames; i++) {
+      floor_delay_line_.write(dry[i]);
+      floor_scratch_[static_cast<size_t>(i)] = floor_absorption_filter_.process(floor_delay_line_.read(floor_delay_samples_));
+    }
+
+    auto floor_gains = computeAmbisonicGains(floor_position_);
+    float floor_main_gain = main_gain * floor_gain_ratio_;
+    for (auto & g : floor_gains) g *= floor_main_gain;
+    floor_encoder_.encodeBlock(data, floor_scratch_.data(), frames, floor_gains);
+  }
+
+  void addAuxSends(AudioBuffer & data, const float * dry, int frames) const {
+    auto & sends = getSends();
+    if (auto * aux_a = data.getChannel(Channel::AuxA)) {
+      for (int i = 0; i < frames; i++) aux_a[i] = dry[i] * sends.a;
+    }
+    if (auto * aux_b = data.getChannel(Channel::AuxB)) {
+      for (int i = 0; i < frames; i++) aux_b[i] = dry[i] * sends.b;
+    }
+  }
+
   void setGainDB(float db) { noteGainDB_ = db; }
   float getGainDB() const { return noteGainDB_; }
 
