@@ -1,5 +1,6 @@
 #include "FM.h"
 
+#include "FMIndexDecay.h"
 #include "InstrumentVoice.h"
 
 #include <cmath>
@@ -12,10 +13,8 @@ namespace {
 class FMVoice : public InstrumentVoice {
 public:
   FMVoice(ChannelConfiguration config, const SphericalPosition & position, float detune, float level, float ratio, float index, float index_decay, const SendLevels & sends, const NoteCoordinate & note_coord)
-    : InstrumentVoice(config, position, detune, sends, note_coord), level_(level), ratio_(ratio), index_(index) {
-    float sample_rate = static_cast<float>(getChannelConfiguration().getAudioOutSampleRate());
-    index_step_ = index_decay > 0.0f ? expf(-1.0f / (index_decay * sample_rate)) : 1.0f;
-  }
+    : InstrumentVoice(config, position, detune, sends, note_coord), level_(level), ratio_(ratio),
+      index_(index, index_decay, static_cast<float>(getChannelConfiguration().getAudioOutSampleRate())) { }
 
   AudioBuffer render(int frames) override {
     float gain = decibelsToGain(getGainDB()) * level_;
@@ -31,9 +30,9 @@ public:
       double carrier = pos - floor(pos);
       double modulator = pos * ratio_;
       modulator -= floor(modulator);
-      dry_[static_cast<size_t>(k)] = gain * static_cast<float>(sin(two_pi * carrier + static_cast<double>(index_) * sin(two_pi * modulator)));
+      dry_[static_cast<size_t>(k)] = gain * static_cast<float>(sin(two_pi * carrier + static_cast<double>(index_.value()) * sin(two_pi * modulator)));
 
-      index_ *= index_step_;
+      index_.advance();
       pos += rate;
     }
 
@@ -44,14 +43,13 @@ public:
 
   void playNote(float frequency, float velocity, int note_value) override {
     InstrumentVoice::playNote(frequency, velocity, note_value);
-    index_ *= velocity;
+    index_.scale(velocity);
   }
 
 private:
   float level_;
   float ratio_;
-  float index_;
-  float index_step_;
+  FMIndexDecay index_;
   std::vector<float> dry_;
 };
 

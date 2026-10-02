@@ -1,5 +1,6 @@
 #include "TestFramework.h"
 
+#include "../src/instruments/FMIndexDecay.h"
 #include "../src/instruments/InstrumentProvider.h"
 #include "../src/model/Song.h"
 #include "../src/audio/OfflineRenderer.h"
@@ -60,4 +61,28 @@ TEST(fm_index_adds_sidebands) {
 TEST(a_leaf_instrument_with_children_fails_to_load) {
   OfflineRenderResult unused;
   CHECK(!render("oscillator_with_child.xml", unused));
+}
+
+TEST(fm_index_decay_reaches_exactly_zero_without_denormals) {
+  FMIndexDecay decay(4.0f, 0.06f, 44100.0f);
+  bool reached_zero = false;
+  for (int i = 0; i < 44100 * 30; i++) {
+    decay.advance();
+    CHECK(std::fpclassify(decay.value()) != FP_SUBNORMAL);
+    if (decay.value() == 0.0f) reached_zero = true;
+  }
+  CHECK(reached_zero);
+  CHECK(decay.value() == 0.0f);
+}
+
+TEST(fm_index_decay_with_zero_time_constant_stays_constant) {
+  FMIndexDecay decay(2.0f, 0.0f, 44100.0f);
+  for (int i = 0; i < 44100; i++) decay.advance();
+  CHECK(decay.value() == 2.0f);
+}
+
+TEST(fm_index_decay_follows_the_time_constant) {
+  FMIndexDecay decay(2.0f, 0.5f, 44100.0f);
+  for (int i = 0; i < 22050; i++) decay.advance(); // one time constant
+  CHECK_NEAR(decay.value(), 2.0f * std::exp(-1.0f), 1e-3f);
 }
