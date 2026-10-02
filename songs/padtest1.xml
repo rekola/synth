@@ -55,14 +55,7 @@
     </envelope>
 
     <envelope attack="1" sustain="1" release="1" name="fm pad">
-      <oscillator>
-	<envelope attack="5" sustain="1" release="1" name="fm pad">
-	  <resonantFilter cut="1100" res="0.5">
-	    <oscillator level="0.5" type="square" harmonic="3">
-	    </oscillator>
-	  </resonantFilter>
-	</envelope>
-      </oscillator>
+      <fm ratio="3" index="2" />
     </envelope>
 </instruments>
   

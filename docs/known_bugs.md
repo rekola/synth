@@ -237,19 +237,3 @@ Found 2026-07-11, not yet fixed.
   eighth-note triplet pulses) instead of approximating it inside a 4/4
   grid, so this is scoped to those two entries only, not the row grid in
   general.
-
-- **`pad.sweep` (GM Pad 8, "Sweep") has no actual sweep** - GM's own
-  description is a slow filter sweep moving over the note's own life, but
-  `InstrumentLibrary.cpp`'s registration is a static `<biquadFilter>`
-  (fixed 2kHz lowpass cutoff, never modulated) wrapping a plain "strings"
-  pad, darkening the tone but not moving it. Root cause: there's no
-  per-voice LFO-modulated filter anywhere in this codebase today -
-  `LFO.h` exists and drives pitch/amplitude modulation, but nothing wires
-  an LFO (or an envelope) to `BiquadFilter`'s own cutoff parameter, so a
-  moving cutoff isn't currently buildable from existing pieces the way
-  every other pad.* override is. Not fixed - would need either a new
-  LFO-driven or envelope-driven filter-cutoff modulation path (in
-  `BiquadFilter` itself, or a new effect built on it) before `pad.sweep`
-  can deliver the motion its own GM name promises; the static-filter
-  approximation is a deliberate stand-in, not an oversight, until that
-  exists (see `InstrumentLibrary.cpp`'s own `pad.sweep` comment).

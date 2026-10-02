@@ -50,23 +50,7 @@ class GenericInstrument : public Instrument {
   const std::vector<std::pair<std::string, float>> & getUnknownGeneratorOverrides() const { return unknown_generator_overrides_; }
 
   std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}, bool needs_decorrelation = false) const override {
-    detune *= getHarmonic();
-    detune /= getSubharmonic();
-
-    auto voice = concrete_instrument_->playNote(channel_config, position, tuning, detune, velocity, note_value, sends, note_coord, needs_decorrelation);
-
-    // don't pass velocity, position, or sends to children - a modulator
-    // doesn't produce audible output of its own that should reach a bus
-    // (see SendLevels.h's own doc comment for why SendLevels{} - not sends
-    // - is the correct value here, not just an inert placeholder). note_coord/
-    // needs_decorrelation still forward unchanged - see Oscillator::playNote()'s
-    // identical note.
-    for (auto & child : getChildren()) {
-      auto modulator = child->playNote(channel_config, SphericalPosition{}, tuning, detune, 1.0, note_value, SendLevels{}, note_coord, needs_decorrelation);
-      if (modulator) voice->addChild(child->getInternalId(), std::move(modulator));
-    }
-
-    return voice;
+    return concrete_instrument_->playNote(channel_config, position, tuning, detune, velocity, note_value, sends, note_coord, needs_decorrelation);
   }
 
   const char * getElementName() const override { return "instrument"; }
@@ -143,24 +127,23 @@ class GenericInstrument : public Instrument {
 
  private:
   // getDisplayName()'s path-segment fallback: "piano.acoustic.grand" ->
-  // "Grand", "piano.acoustic.upright.honkyTonk" -> "Honky Tonk" - the last
-  // dotted segment, camelCase split into words, first letter capitalized.
-  // A display nicety, not a parser - doesn't need to handle every possible
-  // taxonomy path perfectly (docs/instrument-paths.md's paths are
-  // lowerCamelCase segments by convention, so this covers the common
-  // case), just read better than the raw segment.
+  // "Grand", "piano.acoustic.upright.honky-tonk" -> "Honky Tonk" - the last
+  // dotted segment, hyphen-separated words, first letter of each
+  // capitalized. A display nicety, not a parser.
   static std::string prettifyPathSegment(const std::string & path) {
     auto dot = path.rfind('.');
     std::string segment = (dot == std::string::npos) ? path : path.substr(dot + 1);
-    if (segment.empty()) return segment;
 
     std::string result;
-    for (size_t i = 0; i < segment.size(); i++) {
-      char c = segment[i];
-      if (i > 0 && isupper(static_cast<unsigned char>(c)) && islower(static_cast<unsigned char>(segment[i - 1]))) {
+    bool word_start = true;
+    for (char c : segment) {
+      if (c == '-') {
 	result += ' ';
+	word_start = true;
+      } else {
+	result += word_start ? static_cast<char>(toupper(static_cast<unsigned char>(c))) : c;
+	word_start = false;
       }
-      result += (i == 0) ? static_cast<char>(toupper(static_cast<unsigned char>(c))) : c;
     }
     return result;
   }

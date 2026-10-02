@@ -1920,9 +1920,6 @@ public:
     float frequency = getFrequencyFor(tuning, note_value);
     assert(frequency > 0);
 
-    detune *= getHarmonic();
-    detune /= getSubharmonic();
-
     vector<pair<int, unique_ptr<VoiceState> > > voices;
 
     auto f = sf_.get();
@@ -1998,15 +1995,6 @@ public:
 	// that folding.
 	auto voice = make_unique<SoundFontVoice>(channel_config, adjusted_position, detune, sf_, preset_, region_idx, sends, position_resolved_by_new_mechanism, note_coord, needs_decorrelation, generator_overrides_);
 	voice->playNote(frequency, velocity, note_value);
-
-	if (!getChildren().empty()) {
-	  // create modulators for voice - see SendLevels.h's own doc comment
-	  // for why SendLevels{} (not sends) is correct here.
-	  for (auto & child : getChildren()) {
-	    auto modulator = child->playNote(channel_config, SphericalPosition{}, tuning, detune, velocity, note_value, SendLevels{}, note_coord, needs_decorrelation);
-	    if (modulator.get()) voice->addChild(child->getInternalId(), move(modulator));
-	  }
-	}
 
 	// Keyed by region_idx, not getInternalId() (constant across every
 	// region this loop matches) - addChild()'s children_[id] = ... would
