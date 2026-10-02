@@ -15,7 +15,7 @@ SpectrumMeter::setSpectrum(const std::vector<float> & db, float bin_hz) {
   if (bin_hz <= 0.0f || nyquist <= kMinHz) return;
 
   // Log-frequency display bins. A display bin spanning several linear bins
-  // shows the loudest; one narrower than a linear bin (the bass) interpolates
+  // shows their mean power; one narrower than a linear bin (the bass) interpolates
   // between its neighbours instead of going blank.
   // Two knots per cell; the spline interpolates between them for the
   // finer pixel renderer.
@@ -35,8 +35,12 @@ SpectrumMeter::setSpectrum(const std::vector<float> & db, float bin_hz) {
     if (hi - lo < 1.0f) {
       value = level(0.5f * (lo + hi));
     } else {
-      value = -kRangeDb;
-      for (size_t i = static_cast<size_t>(lo); i < db.size() && static_cast<float>(i) < hi; i++) value = std::max(value, db[i]);
+      // Mean power, not the max: a wide bin of noise-like content would
+      // otherwise always read at its loudest component.
+      float power = 0.0f;
+      size_t count = 0;
+      for (size_t i = static_cast<size_t>(lo); i < db.size() && static_cast<float>(i) < hi; i++, count++) power += std::pow(10.0f, db[i] / 10.0f);
+      value = count > 0 ? 10.0f * std::log10(std::max(power / static_cast<float>(count), 1e-12f)) : -kRangeDb;
     }
     fractions[b] = std::clamp(1.0f + value / kRangeDb, 0.0f, 1.0f);
   }
