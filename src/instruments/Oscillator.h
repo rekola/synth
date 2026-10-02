@@ -19,6 +19,8 @@ class Oscillator : public Instrument {
  private:
   WaveformType type_;
   float level_ = 1.0f, pulse_width_ = 0.5f;
+  // Frequency ratio harmonic/subharmonic relative to the played note.
+  int harmonic_ = 1, subharmonic_ = 1;
 };
 
 #endif

@@ -13,7 +13,6 @@
 
     <instrument id="harp" from="string.plucked.harp" />
 
-    <LFO frequency="400" level="1" name="lfo"/>
   </instruments>
   
   <tracks>

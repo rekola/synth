@@ -1,8 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="53edo" tempo="150" volume="1.0">
-  <objects>
-    <LFO id="lfo1" />
-  </objects>
   
   <instruments>
     <distortion name="bass2" param="1.0" type="softclip" drive="15.0">

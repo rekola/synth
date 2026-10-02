@@ -60,6 +60,7 @@ add_library(synth_engine STATIC
 	src/instruments/Oscillator.cpp
 	src/instruments/PadSynth.cpp
 	src/instruments/Noise.cpp
+	src/instruments/FM.cpp
 	src/instruments/Additive.cpp
 	src/instruments/SinusoidBank.cpp
 	src/instruments/OscillatorShapingChain.cpp
@@ -108,7 +109,6 @@ add_library(synth_engine STATIC
 	src/instruments/NoteMultiplier.cpp
 	src/instruments/Arpeggiator.cpp
 	src/state/ArpeggiatorState.cpp
-	src/instruments/LFO.cpp
 	src/audio/OfflineRenderer.cpp
 	src/audio/SampleFileLoader.cpp
 	src/audio/TimeStretcher.cpp

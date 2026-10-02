@@ -66,9 +66,9 @@ resonant filter, both persistent for that one track.
 documented here at the attribute-name level - read the corresponding
 `effects/*.h`/`.cpp` for exact defaults and ranges if something isn't
 obvious from the name. The oscillator-family elements an `<envelope>`
-here commonly wraps (`<padsynth>`, `<additive>`) are `Instrument` leaves,
-not effects, so they're out of this page's scope - see `docs/padsynth.md`/
-`docs/additive.md`.
+here commonly wraps (`<padsynth>`, `<additive>`, `<fm>`) are `Instrument`
+leaves, not effects, so they're out of this page's scope - see
+`docs/padsynth.md`/`docs/additive.md`/`docs/fm.md`.
 
 ## Position, sends, and other track-only attributes
 

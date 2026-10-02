@@ -22,23 +22,15 @@ public:
     double pos = getSourceSamplePosition() / getChannelConfiguration().getAudioOutSampleRate();
     double rate = (double)getFrequency() / getChannelConfiguration().getAudioOutSampleRate();
 
-    AudioBuffer modulator;
-    const float * modulator_data = nullptr;
-    if (!getChildren().empty()) {
-      modulator = InstrumentVoice::render(frames);
-      modulator_data = modulator.getChannelData(0);
-    }
-
     if (static_cast<int>(dry_.size()) != frames) dry_.resize(static_cast<size_t>(frames));
 
     for (int k = 0; k < frames; k++) {
-      double phase = pos + (modulator_data ? modulator_data[k] : 0.0);
       float a;
       switch (type_) {
-      case WaveformType::SINE: a = create_sine(phase); break;
-      case WaveformType::SAW: a = create_saw(phase); break;
-      case WaveformType::TRIANGLE: a = create_triangle(phase); break;
-      case WaveformType::SQUARE: a = create_square(phase); break;
+      case WaveformType::SINE: a = create_sine(pos); break;
+      case WaveformType::SAW: a = create_saw(pos); break;
+      case WaveformType::TRIANGLE: a = create_triangle(pos); break;
+      case WaveformType::SQUARE: a = create_square(pos); break;
       default: a = 0.0f; break;
       }
 

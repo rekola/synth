@@ -80,6 +80,27 @@ ArrangementGrid::ensureCursorVisible(int bar_count, int visible_rows, int visibl
 
 bool
 ArrangementGrid::offerInput(const InputEvent & input) {
+  // A left click picks the (bar, track) cell under it; Enter still commits it.
+  if (input.getId() == NCKEY_BUTTON1) {
+    if (input.getKind() == InputEvent::Kind::RELEASE) return true;
+    auto & song = getController().getSong();
+    auto num_tracks = static_cast<int>(getVisibleTrackIds(song).size());
+    auto [ pos_y, pos_x ] = getPosition();
+    auto [ rows, cols ] = getDim();
+    auto y = input.getY() - pos_y, x = input.getX() - pos_x;
+    if (y < 0 || y >= rows || x < 0 || x >= cols) return false;
+    constexpr int kColWidth = 2; // see render()
+    auto track = scroll_col_ + x / kColWidth;
+    if (track >= num_tracks || x >= max(0, cols - 2) / kColWidth * kColWidth) return true; // the locator column, or past the last track
+    auto playing_bar = getController().getPlaybackInfo().getAbsolutePosition() / max(1, song.getRowsPerBar());
+    auto bar = scroll_row_ + y;
+    if (bar >= barCount(song, playing_bar)) return true; // below the last bar
+    cursor_track_index_ = track;
+    cursor_bar_ = bar;
+    view_detached_ = false;
+    return true;
+  }
+
   // The mouse wheel scrolls the view (Shift: tracks), not the cursor, and
   // detaches it from the cursor/playhead until the cursor next moves.
   if (input.getId() == NCKEY_BUTTON4 || input.getId() == NCKEY_BUTTON5) {

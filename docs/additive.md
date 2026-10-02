@@ -121,9 +121,5 @@ nothing here does.
 
 ## Not yet implemented
 
-- No modulator/child input, unlike `<oscillator>` (which reads a child's
-  output as a phase modulator) - `<additive>` has no established
-  modulation-target concept of its own yet; a future one would need its
-  own design, not a copy of `<oscillator>`'s.
 - No live/automatable control of any attribute - XML-only, read once at
   song load, the same as most effects.
