@@ -965,7 +965,9 @@ would otherwise resume showing.
   edits the three values. Every column has a vertical level meter
   beside its Sends/Direction rows (`LevelMeter.h`: one dB mapping, braille
   by default with sextants as an opt-in glyph set, `Ballistics` smoothing
-  a block's RMS in the power domain so a low note doesn't ripple, and a
+  a block's RMS in the power domain so a low note doesn't ripple, bars
+  shaded by height from green through orange to the clip red
+  (`StyleProvider::meterColor()`), and a
   `PeakHold` marker floating above the bar in its right dot column). The
   pattern editor's one-cell track meters and the scope row's
   `ChannelMeter` (two channels per cell, `getChannelLoudness()`, a
