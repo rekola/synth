@@ -6,6 +6,7 @@
 #include "../../model/TrackType.h"
 
 #include <memory>
+#include <optional>
 #include <vector>
 #include <string>
 #include <utility>
@@ -124,6 +125,11 @@ protected:
   // Clamped so the view can never scroll past the point where the last
   // row is already fully visible.
   void scrollBy(int delta);
+  // Scrolls the tree sideways by `delta` columns, so a label wider than
+  // the panel can be read; clamped to the widest label.
+  void scrollColumnsBy(int delta);
+  // How far the tree can scroll sideways: the widest row's overhang.
+  int maxColumnScroll() const;
   // The Details panel's own content for `row`, line by line - the single
   // source both renderButtonBar()/the details popup (drawing) and handleClick() (hit-
   // testing a click against whichever line it lands on) build from, so
@@ -136,9 +142,18 @@ protected:
   // Details panel it landed in (see this class's own header comment) and
   // either moves the cursor straight to the clicked row (tree side) or
   // runs whatever DetailsAction that Details line carries, if any (panel
-  // side). Resolved on RELEASE only, matching SpinBox's own click
-  // convention - PRESS is consumed (returns true) but otherwise a no-op.
+  // side). Resolved on RELEASE, matching SpinBox's own click
+  // convention - a press, or a drag while held, only shows what is
+  // pressed; the release acts on it.
   bool handleClick(const InputEvent & input);
+  // What a click at the screen position lands on: a tree row (data_
+  // index) or a button, or neither.
+  struct ClickTarget {
+    int data_row = -1;
+    std::optional<DetailsAction> action;
+    bool operator==(const ClickTarget & o) const { return data_row == o.data_row && action == o.action; }
+  };
+  ClickTarget hitTest(int screen_y, int screen_x) const;
   // The actual effect behind a DetailsAction - shared by handleClick()
   // above and every keyboard path that already triggers the same thing
   // (NCKEY_ENTER/NCKEY_DEL/'p'/'a'/'t' in offerInput()), so a click and its
@@ -221,6 +236,8 @@ protected:
 
   static constexpr int kButtonBarRows = 3;
   static constexpr int kInfoPopupWidth = 40;
+  static constexpr int kColumnScrollStep = 4;
+  static constexpr int kIndentPerLevel = 3;
   // How many rows the scrollable tree gets, between the heading above and
   // the button bar below. Never negative.
   int treeRows() const;
@@ -237,9 +254,12 @@ protected:
   int current_song_version_ = 0;
   bool current_focused_ = false;
   int new_scroll_pos_ = 0, current_scroll_pos_ = 0;
-  // -1 until the first selection (a cursor key or a click): no row is
+  int new_column_scroll_ = 0, current_column_scroll_ = 0;
+  // -1 until the panel is first focused or clicked: no row is
   // highlighted and no buttons show before that.
   int new_cursor_row_ = -1, current_cursor_row_ = -1;
+  bool click_pending_ = false; // a click pressed here, not yet released
+  ClickTarget pressed_; // what that click is holding down
   // The physical key id currently sounding a Library-instrument preview
   // note (see PlaybackControlEvent::PREVIEW_NOTE/PREVIEW_STOP's own
   // comment), or -1 when nothing is held - mirrors PatternEditor's own

@@ -134,7 +134,24 @@ OutlineView::render(const StyleProvider & styles, bool refresh, bool focused) {
     data_.push_back(std::move(row));
   }
 
-  if (song.getMajorVersion() != current_song_version_ || new_scroll_pos_ != current_scroll_pos_ || focused != current_focused_) {
+  // A click released over another widget never reaches this one.
+  if (!focused && click_pending_) {
+    click_pending_ = false;
+    pressed_ = ClickTarget();
+    details_dirty_ = true;
+  }
+
+  // Focusing the panel puts the cursor on the first row in view - unless
+  // a click did, which picks its own row.
+  if (focused && new_cursor_row_ < 0 && !click_pending_ && !data_.empty()) {
+    new_cursor_row_ = std::min(new_scroll_pos_, static_cast<int>(data_.size()) - 1);
+  }
+
+  // The rows may have narrowed since the last scroll.
+  new_column_scroll_ = std::min(new_column_scroll_, maxColumnScroll());
+
+  if (song.getMajorVersion() != current_song_version_ || new_scroll_pos_ != current_scroll_pos_ ||
+      new_column_scroll_ != current_column_scroll_ || focused != current_focused_) {
     render_all = true;
   }
 
@@ -144,6 +161,7 @@ OutlineView::render(const StyleProvider & styles, bool refresh, bool focused) {
   bool need_refresh = false;
   if (render_all) {
     current_scroll_pos_ = new_scroll_pos_;
+    current_column_scroll_ = new_column_scroll_;
 
     renderHeading(styles);
     for (int i = 0; i < tree_rows; i++) {
@@ -281,6 +299,12 @@ OutlineView::renderButtonBar(const StyleProvider & styles) {
     auto bracket_end = button.text.find(']');
     auto key_part = bracket_end != string::npos ? button.text.substr(0, bracket_end + 1) : string();
     auto rest_part = button.text.substr(key_part.size());
+    if (pressed_.action == button.action) {
+      setFgColor(styles.button_fg_color);
+      setBgColor(styles.button_pressed_bg_color);
+      putstr(top + button.row, button.x, button.text);
+      continue;
+    }
     setFgColor(styles.button_fg_color);
     setBgColor(styles.button_bg_color);
     putstr(top + button.row, button.x, key_part);
@@ -364,7 +388,11 @@ OutlineView::renderRow(const StyleProvider & styles, int display_row, bool curso
   auto tree_width = getDim().second;
 
   if (display_row >= 0 && display_row < tree_rows) {
-    if (cursor && focused) {
+    auto data_row = static_cast<size_t>(display_row + current_scroll_pos_);
+    if (pressed_.data_row >= 0 && static_cast<size_t>(pressed_.data_row) == data_row) {
+      setFgColor(styles.highlight_fg_color);
+      setBgColor(styles.row_pressed_bg_color);
+    } else if (cursor && focused) {
       setFgColor(styles.highlight_fg_color);
       setBgColor(styles.highlight_bg_color);
     } else if (cursor) {
@@ -378,11 +406,16 @@ OutlineView::renderRow(const StyleProvider & styles, int display_row, bool curso
     string padding(static_cast<size_t>(std::max(0, tree_width)), ' ');
     putstr(kTreeTop + display_row, 0, padding);
 
-    auto data_row = static_cast<size_t>(display_row + current_scroll_pos_);
     if (data_row < data_.size()) {
       auto & data = data_[data_row];
 
-      putstr(kTreeTop + display_row, data.level * 3, data.label);
+      auto x = data.level * kIndentPerLevel - current_column_scroll_;
+      auto label = data.label;
+      if (x < 0) {
+        label = Utf8::dropLeadingColumns(label, -x);
+        x = 0;
+      }
+      putstr(kTreeTop + display_row, x, Utf8::truncateToWidth(label, tree_width - x));
     }
   }
 }
@@ -404,6 +437,18 @@ OutlineView::scrollBy(int delta) {
   // visible at the bottom.
   auto max_scroll = std::max(0, static_cast<int>(data_.size()) - treeRows());
   new_scroll_pos_ = std::clamp(new_scroll_pos_ + delta, 0, max_scroll);
+}
+
+void
+OutlineView::scrollColumnsBy(int delta) {
+  new_column_scroll_ = std::clamp(new_column_scroll_ + delta, 0, maxColumnScroll());
+}
+
+int
+OutlineView::maxColumnScroll() const {
+  int widest = 0;
+  for (auto & row : data_) widest = std::max(widest, row.level * kIndentPerLevel + Utf8::displayWidth(row.label));
+  return std::max(0, widest - getDim().second);
 }
 
 void
@@ -618,38 +663,56 @@ OutlineView::runDetailsAction(DetailsAction action) {
 
 bool
 OutlineView::handleClick(const InputEvent & input) {
-  // Resolved on release only, matching SpinBox's own click convention -
-  // PRESS is consumed (returns true, so it never falls through to
-  // anything else) but otherwise a no-op.
-  if (input.getKind() != InputEvent::Kind::RELEASE) return true;
+  // Resolved on release only, matching SpinBox's own click convention.
+  // A press - and each drag while held, which arrives as another press -
+  // shows what is under the mouse as pressed, and holds off placing a
+  // cursor on focus, which the release does instead.
+  auto target = hitTest(input.getY(), input.getX());
+  if (input.getKind() != InputEvent::Kind::RELEASE) {
+    click_pending_ = true;
+    pressed_ = target;
+    details_dirty_ = true;
+    return true;
+  }
+  auto pressed = pressed_;
+  click_pending_ = false;
+  pressed_ = ClickTarget();
+  details_dirty_ = true;
 
+  if (target.action) {
+    // Only what was shown pressed - a terminal that doesn't report drags
+    // never moved it here.
+    if (target == pressed) runDetailsAction(*target.action);
+  } else if (target.data_row >= 0) {
+    // The clicked row is already on screen by definition, so this never
+    // needs to touch new_scroll_pos_ the way moveCursorBy() does.
+    new_cursor_row_ = target.data_row;
+  }
+  return true;
+}
+
+OutlineView::ClickTarget
+OutlineView::hitTest(int screen_y, int screen_x) const {
+  ClickTarget target;
   auto [pos_y, pos_x] = getPosition();
   auto [rows, cols] = getDim();
-  auto y = input.getY() - pos_y, x = input.getX() - pos_x;
-  if (y < 0 || y >= rows || x < 0 || x >= cols) return true; // shouldn't happen - only reached while this is the click's own target
-  if (y < kTreeTop) return true; // the heading row - nothing clickable there
+  auto y = screen_y - pos_y, x = screen_x - pos_x;
+  if (y < kTreeTop || y >= rows || x < 0 || x >= cols) return target; // outside, or the heading row
 
-  auto content_row = y - kTreeTop; // 0-based row within the tree
   auto bar_row = y - buttonBarTop();
-
   if (bar_row < 0) {
-    // A tree click - move the cursor straight to whichever row is
-    // showing there. The clicked row is already on screen by definition,
-    // so this never needs to touch new_scroll_pos_ the way moveCursorBy()
-    // does.
-    auto data_row = content_row + current_scroll_pos_;
-    if (data_row >= 0 && data_row < static_cast<int>(data_.size())) new_cursor_row_ = data_row;
+    auto data_row = y - kTreeTop + current_scroll_pos_;
+    if (data_row < static_cast<int>(data_.size())) target.data_row = data_row;
   } else if (new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size())) {
-    // A button-bar click - hit-test against the exact same placements
-    // renderButtonBar() just drew, and run that button's action.
+    // The exact same placements renderButtonBar() just drew.
     for (auto & button : placeButtons(data_[static_cast<size_t>(new_cursor_row_)])) {
       if (button.row == bar_row && x >= button.x && x < button.x + Utf8::displayWidth(button.text)) {
-        runDetailsAction(button.action);
+        target.action = button.action;
         break;
       }
     }
   }
-  return true;
+  return target;
 }
 
 bool
@@ -741,11 +804,18 @@ OutlineView::offerInput(const InputEvent & input) {
   } else if (input.getId() == NCKEY_DOWN) {
     moveCursorBy(1);
     return true;
-  } else if (input.getId() == NCKEY_BUTTON4) { // scroll wheel up - see scrollBy()'s own comment for why this isn't moveCursorBy()
-    scrollBy(-1);
+  } else if (input.getId() == NCKEY_LEFT) {
+    scrollColumnsBy(-kColumnScrollStep);
     return true;
-  } else if (input.getId() == NCKEY_BUTTON5) { // scroll wheel down
-    scrollBy(1);
+  } else if (input.getId() == NCKEY_RIGHT) {
+    scrollColumnsBy(kColumnScrollStep);
+    return true;
+  } else if (input.getId() == NCKEY_BUTTON4 || input.getId() == NCKEY_BUTTON5) {
+    // The wheel scrolls the view, not the cursor (see scrollBy()); Shift
+    // scrolls sideways.
+    int direction = input.getId() == NCKEY_BUTTON4 ? -1 : 1;
+    if (input.hasShift()) scrollColumnsBy(direction * kColumnScrollStep);
+    else scrollBy(direction);
     return true;
   } else if (input.getId() == NCKEY_PGUP) {
     moveCursorBy(-cursorRows());

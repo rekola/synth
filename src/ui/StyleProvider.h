@@ -123,6 +123,10 @@ class StyleProvider {
   // pattern editor's command-column hue.
   Color button_fg_color = "#ffffff";
   Color button_bg_color = "#c04080";
+  // While the mouse is held down on a button, all of it.
+  Color button_pressed_bg_color = "#7a2850";
+  // While the mouse is held down on a list row (OutlineView's tree).
+  Color row_pressed_bg_color = "#5c7c8c";
 
   // Same hue as command_column_color, but at half that color's lightness
   // and a moderately lower saturation - PatternEditor's master-track

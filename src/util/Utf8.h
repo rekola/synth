@@ -32,6 +32,11 @@ int displayWidth(const std::string & text);
 // or a cluster. max_columns <= 0 returns "".
 std::string truncateToWidth(const std::string & text, int max_columns);
 
+// Drops text's first `columns` display columns - the counterpart of
+// truncateToWidth() for scrolling sideways. A wide cluster straddling the
+// cut becomes spaces, so what follows stays where it was.
+std::string dropLeadingColumns(const std::string & text, int columns);
+
 // Right-pads text with ASCII spaces until displayWidth(text) == width; a
 // no-op if text is already that wide or wider. Never truncates - combine
 // with truncateToWidth() first when a call site needs both.
