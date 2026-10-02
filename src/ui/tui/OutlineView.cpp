@@ -23,17 +23,6 @@ using namespace std;
 
 namespace {
 
-// Repeats a single-glyph UTF-8 string `count` display columns wide (the
-// glyph is assumed to itself be exactly one display column, true of every
-// glyph this is actually called with) - plain string(count, char)
-// doesn't work here since the glyph is multiple bytes.
-string repeatUtf8(const string & glyph, int count) {
-  string result;
-  result.reserve(glyph.size() * static_cast<size_t>(std::max(0, count)));
-  for (int i = 0; i < count; i++) result += glyph;
-  return result;
-}
-
 // The description shown for a Song > Instruments (pool) row - a custom
 // authored one (Instrument::getDescription()) if present, else, for a
 // GenericInstrument slot, whatever its resolved SoundFont/taxonomy entry
@@ -164,18 +153,16 @@ OutlineView::render(const StyleProvider & styles, bool refresh, bool focused) {
     renderInfoPopup(styles);
     need_refresh = true;
   } else if (cursor_changed || details_dirty_) {
-    if (cursor_changed) {
-      renderRow(styles, current_cursor_row_ - current_scroll_pos_, false, focused);
-      renderRow(styles, new_cursor_row_ - current_scroll_pos_, true, focused);
+    // The button bar overlays the tree and depends on which row the cursor
+    // is now on (a different kind may show completely different actions, or
+    // none), so the whole tree is repainted underneath it: rows the old bar
+    // covered come back. Also redrawn (with the cursor itself untouched)
+    // whenever details_dirty_ says this row's own details changed without
+    // moving the cursor at all - the target-track picker committing a new
+    // choice, or the popup opening/closing.
+    for (int i = 0; i < tree_rows; i++) {
+      renderRow(styles, i, i == new_cursor_row_ - current_scroll_pos_, focused);
     }
-    // The button bar and popup depend on which row the cursor is now on (a
-    // different kind may show completely different actions, or none) -
-    // always redrawn whole on a cursor move rather than tracking a
-    // finer-grained diff, unlike renderRow()'s own incremental
-    // old-row/new-row pair above. Also redrawn (with the cursor itself
-    // untouched) whenever details_dirty_ says this row's own details
-    // changed without moving the cursor at all - the target-track picker
-    // committing a new choice, or the popup opening/closing.
     renderButtonBar(styles);
     renderInfoPopup(styles);
     need_refresh = true;
@@ -191,9 +178,22 @@ OutlineView::render(const StyleProvider & styles, bool refresh, bool focused) {
 
 int
 OutlineView::treeRows() const {
-  // Minus the heading row above, and the separator row plus the button
-  // bar below.
-  return std::max(0, getDim().first - kTreeTop - 1 - kButtonBarRows);
+  // Everything under the heading; the button bar is drawn over its bottom rows.
+  return std::max(0, getDim().first - kTreeTop);
+}
+
+int
+OutlineView::cursorRows() const {
+  // The cursor is kept above the tallest the button bar can be.
+  return std::max(1, treeRows() - kButtonBarRows);
+}
+
+int
+OutlineView::buttonBarRows() const {
+  if (new_cursor_row_ < 0 || new_cursor_row_ >= static_cast<int>(data_.size())) return 0;
+  int rows = 0;
+  for (auto & button : placeButtons(data_[static_cast<size_t>(new_cursor_row_)])) rows = std::max(rows, button.row + 1);
+  return rows;
 }
 
 void
@@ -265,14 +265,11 @@ OutlineView::renderButtonBar(const StyleProvider & styles) {
   auto cols = getDim().second;
   auto top = buttonBarTop();
 
-  // The separator row between the tree and the bar.
-  setFgColor(styles.window_border_color);
-  setBgColor(styles.window_bg_color);
-  putstr(top - 1, 0, repeatUtf8("─", cols));
-
+  // Overlays the tree's bottom rows, only as many as the buttons need.
   string blank(static_cast<size_t>(cols), ' ');
   setFgColor(styles.window_fg_color);
-  for (int row = 0; row < kButtonBarRows; row++) putstr(top + row, 0, blank);
+  setBgColor(styles.window_bg_color);
+  for (int row = 0; row < buttonBarRows(); row++) putstr(top + row, 0, blank);
 
   if (new_cursor_row_ < 0 || new_cursor_row_ >= static_cast<int>(data_.size())) return;
   for (auto & button : placeButtons(data_[static_cast<size_t>(new_cursor_row_)])) {
@@ -391,7 +388,7 @@ OutlineView::renderRow(const StyleProvider & styles, int display_row, bool curso
 
 void
 OutlineView::moveCursorBy(int delta) {
-  auto tree_rows = treeRows();
+  auto tree_rows = cursorRows();
 
   new_cursor_row_ = std::clamp(new_cursor_row_ + delta, 0, std::max(0, static_cast<int>(data_.size()) - 1));
   if (new_cursor_row_ < new_scroll_pos_) new_scroll_pos_ = new_cursor_row_;
@@ -464,8 +461,8 @@ OutlineView::openTargetPicker() {
   // bar, so it never covers the button that opened it, capped so it never
   // reaches above the tree's first row.
   auto wanted_rows = item_count + 2;
-  auto picker_rows = std::clamp(wanted_rows, 1, std::max(1, buttonBarTop() - 1 - kTreeTop));
-  auto anchor_y = buttonBarTop() - 1 - picker_rows;
+  auto picker_rows = std::clamp(wanted_rows, 1, std::max(1, buttonBarTop() - kTreeTop));
+  auto anchor_y = buttonBarTop() - picker_rows;
 
   getPlane().showPicker(anchor_y, 0, picker_rows, cols, item_count);
   for (auto * candidate : candidates) getPlane().addItem(candidate->label, "");
@@ -634,14 +631,14 @@ OutlineView::handleClick(const InputEvent & input) {
   auto content_row = y - kTreeTop; // 0-based row within the tree
   auto bar_row = y - buttonBarTop();
 
-  if (content_row < treeRows()) {
+  if (bar_row < 0) {
     // A tree click - move the cursor straight to whichever row is
     // showing there. The clicked row is already on screen by definition,
     // so this never needs to touch new_scroll_pos_ the way moveCursorBy()
     // does.
     auto data_row = content_row + current_scroll_pos_;
     if (data_row >= 0 && data_row < static_cast<int>(data_.size())) new_cursor_row_ = data_row;
-  } else if (bar_row >= 0 && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size())) {
+  } else if (new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size())) {
     // A button-bar click - hit-test against the exact same placements
     // renderButtonBar() just drew, and run that button's action.
     for (auto & button : placeButtons(data_[static_cast<size_t>(new_cursor_row_)])) {
@@ -750,10 +747,10 @@ OutlineView::offerInput(const InputEvent & input) {
     scrollBy(1);
     return true;
   } else if (input.getId() == NCKEY_PGUP) {
-    moveCursorBy(-treeRows());
+    moveCursorBy(-cursorRows());
     return true;
   } else if (input.getId() == NCKEY_PGDOWN) {
-    moveCursorBy(treeRows());
+    moveCursorBy(cursorRows());
     return true;
   } else if (input.getId() == NCKEY_ENTER) {
     runDetailsAction(DetailsAction::ADD_TO_SONG);

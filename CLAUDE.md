@@ -914,7 +914,8 @@ would otherwise resume showing.
   `ArrangementGrid`) plus `PatternEditor`. Session view: `ClipGrid`
   (`src/ui/tui/ClipGrid.h` - per-track clip slots, Sends, Direction), with
   `OutlineView` as a narrow panel on its left (shown by default,
-  "toggle-outline"; the tree, a button bar under it, details in a `?`
+  "toggle-outline"; the tree, with a button bar overlaid on its bottom rows
+  while the cursor's row has any, details in a `?`
   popup that Escape closes at once - a widget can take a bare Escape via
   `UIElement::wantsBareEscape()` without it losing its Alt-prefix role),
   above `PatternEditor` (`TerminalUI::layout()`) - no scope row

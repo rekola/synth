@@ -1162,10 +1162,11 @@ const char * pixelGlyph(char c) {
 }
 
 // Draws a label into the ABGR pixel buffer (row 0 = top), each glyph
-// stretched to fit its character cell and blended in white so the heatmap
+// scaled to the character cell and blended in white so the heatmap
 // still shows through.
 void drawPixelLabel(vector<uint32_t> & buffer, unsigned pxx, unsigned pxy, const AxisLabel & label, unsigned cell_w, unsigned cell_h) {
-  const unsigned sx = max(1u, cell_w / 6), sy = max(1u, cell_h / 8);
+  // About half the cell's height: small, unobtrusive marks.
+  const unsigned sx = max(1u, cell_w / 12), sy = max(1u, cell_h / 16);
   const unsigned glyph_w = 5 * sx, glyph_h = 7 * sy;
   for (unsigned c = 0; label.text[c]; c++) {
     const char * glyph = pixelGlyph(label.text[c]);

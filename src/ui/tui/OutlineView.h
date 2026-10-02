@@ -54,8 +54,8 @@ struct DetailsLine {
 // (UI::View; "toggle-outline"/"outline-view", see TerminalUI::layout()).
 //
 // A narrow panel: an "Outline" heading, the scrollable tree across the
-// whole width, and under it a fixed-height bar of the cursor's row's
-// action buttons - Delete plus note-key preview for a Track/pool
+// whole width, and over its bottom rows (only while the cursor's row has
+// any) a bar of that row's action buttons - Delete plus note-key preview for a Track/pool
 // Instruments row (Song::removeTrack()/removeInstrument()), Add to Song
 // plus preview for a Library row, nothing for a plain section heading.
 // The rest of the row's details (its description, hints) open in a popup
@@ -224,8 +224,14 @@ protected:
   // How many rows the scrollable tree gets, between the heading above and
   // the button bar below. Never negative.
   int treeRows() const;
+  // How many tree rows the cursor is kept within, leaving room for the
+  // bar overlaid on the bottom.
+  int cursorRows() const;
   static constexpr int kTreeTop = 1; // the tree's first row, right below the heading
-  int buttonBarTop() const { return kTreeTop + treeRows() + 1; } // below the tree and its separator row
+  // The rows the current row's buttons occupy (0 when it has none), and
+  // the first of them: the bar sits over the tree's last rows.
+  int buttonBarRows() const;
+  int buttonBarTop() const { return getDim().first - buttonBarRows(); }
 
   std::vector<struct outline_row_s> data_;
   int current_song_version_ = 0;
