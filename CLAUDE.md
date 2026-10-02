@@ -1019,6 +1019,19 @@ would otherwise resume showing.
   scrolls the widget under the mouse without moving focus, and scrolls its
   view, never its cursor (so never the transport); Shift scrolls tracks
   sideways, and the next cursor move brings the view back.
+  The left button picks cells: in `ClipGrid` a click moves the cursor
+  and presses the slot like Enter does (a clip launches, the master's
+  scene/stop-all slots fire; Sends rows only select), in `ArrangementGrid`
+  it moves the cursor to the bar and track (Enter still commits), and in
+  `PatternEditor` it moves the cursor to the cell (a click in a heading
+  picks the track, one past the last track the locator slot) and clears the
+  mark. Dragging in `PatternEditor` sets the mark at the press cell and
+  extends the region to the pointer (`PatternEditor::handleMouse()`, which
+  resolves x against the column spans `renderRow()` records, and moves rows
+  the way Up/Down do, so a playing track's locked row stays put). A drag
+  and a fresh press look alike to the widgets (the held button repeats its
+  press), so each tells them apart by the release in between; `TerminalUI`
+  keeps focus on the widget the press started in until then.
 - **Defaults**: a fresh session opens in Session view on the clip grid
   (`UI::setInitialView()`, the `--view` option) rather than straight into
   note entry, and `GridMode` defaults to `SESSION` on every
