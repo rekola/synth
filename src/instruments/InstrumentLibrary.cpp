@@ -171,12 +171,12 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
     filter_params.set("cutmin", 400.0f);
     filter_params.set("cutmax", 6000.0f);
     filter_params.set("res", 0.5f);
-    filter_params.set("attack", 2.5f);
-    filter_params.set("decay", 3.0f);
+    filter_params.set("attack", 1.0f);
+    filter_params.set("decay", 2.0f);
     filter_params.set("sustain", 0.4f);
     filter_params.set("release", 1.2f);
     filter->loadParameters(filter_params);
-    filter->addChild(makeEnvelopePad("strings", 0.9f, 0.0f, 0.4f, 0.85f, 1.2f));
+    filter->addChild(makeEnvelopePad("strings", 0.3f, 0.0f, 0.4f, 0.85f, 1.2f));
     provider.registerPath("pad.sweep", move(filter));
   }
 

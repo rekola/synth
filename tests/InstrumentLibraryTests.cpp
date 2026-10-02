@@ -221,5 +221,5 @@ TEST(pad_sweep_gets_brighter_over_the_note) {
     }
     return level > 0.0 ? step / level : 0.0;
   };
-  CHECK(brightness(2.0f, 3.0f) > brightness(0.0f, 0.5f) * 1.2);
+  CHECK(brightness(0.9f, 1.3f) > brightness(0.0f, 0.1f) * 1.2);
 }
