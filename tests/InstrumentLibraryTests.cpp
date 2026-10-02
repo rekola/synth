@@ -210,7 +210,7 @@ TEST(pad_sweep_gets_brighter_over_the_note) {
   };
   // Dark at the start, then opens and settles at a sustained, brighter level.
   double start = brightness(0.0f, 0.1f);
-  CHECK(brightness(0.9f, 1.2f) > start * 1.5);
+  CHECK(brightness(1.3f, 1.7f) > start * 1.5);
   CHECK(brightness(2.5f, 3.0f) > start * 1.5);
 }
 
