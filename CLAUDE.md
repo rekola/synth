@@ -346,8 +346,8 @@ negotiates), `TerminalUI.cpp`'s `TerminalPixelSpectrumMeter` overrides
 meter's own plane instead; the choice is made once at startup in
 `TerminalUI::initialize()`. Both the spectrum and the DirAC heatmap show in
 Arrangement view's scope row and in Session view's left column, stacked
-under the full-height outline panel (only while the outline is shown and
-the terminal is tall enough); off-screen scopes are not updated.
+under the full-height outline panel, each below a title bar (only while the
+outline is shown and the terminal is tall enough); off-screen scopes are not updated.
 
 Instruments are resolved from a General MIDI SoundFont, discovered
 automatically (`findDefaultSoundFont()` in `Controller.cpp`): a project-local

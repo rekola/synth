@@ -2224,11 +2224,17 @@ TerminalUI::layout() {
       int scope_x_width = outline_cols - 1;
       int chart_row = workspace_row + outline_rows + 1;
       int heatmap_row = chart_row + kScopeHeight + 1;
-      setFgColor(styles_.window_border_color);
-      setBgColor(styles_.window_bg_color);
-      std::string rule;
-      for (int i = 0; i < scope_x_width; i++) rule += "─";
-      for (int row : { chart_row - 1, heatmap_row - 1 }) putstr(row, 0, rule + "┤");
+      // A title bar above each scope, like the outline's heading; the
+      // column's divider continues through it.
+      const std::pair<int, const char *> titles[] = { { chart_row - 1, "Spectrum" }, { heatmap_row - 1, "DirAC" } };
+      for (auto & [ title_row, title ] : titles) {
+        setFgColor(styles_.window_accent_fg_color);
+        setBgColor(styles_.heading_bg_color);
+        putstr(title_row, 0, std::string(static_cast<size_t>(scope_x_width), ' '));
+        putstr(title_row, 1, title);
+        setFgColor(styles_.window_border_color);
+        putstr(title_row, scope_x_width, "│");
+      }
       chart_->resize(kScopeHeight, scope_x_width).move(chart_row, 0);
       heatmap_->resize(kScopeHeight, scope_x_width).move(heatmap_row, 0);
     } else {
