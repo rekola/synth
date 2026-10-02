@@ -13,8 +13,8 @@
 #include "../instruments/Oscillator.h"
 #include "../instruments/PadSynth.h"
 #include "../instruments/Noise.h"
+#include "../instruments/FM.h"
 #include "../instruments/Additive.h"
-#include "../instruments/LFO.h"
 #include "../instruments/GenericInstrument.h"
 
 #include "../effects/Distortion.h"
@@ -207,8 +207,8 @@ static unique_ptr<Track> createTrack(string_view name) {
   else if (name == "oscillator") return make_unique<Oscillator>(WaveformType::SAW);
   else if (name == "padsynth") return make_unique<PadSynth>();
   else if (name == "noise") return make_unique<Noise>();
+  else if (name == "fm") return make_unique<FM>();
   else if (name == "additive") return make_unique<Additive>();
-  else if (name == "LFO") return make_unique<LFO>();
 
   else {
     assert(0);
@@ -307,6 +307,12 @@ static std::unique_ptr<Track> parseChildTrack(XMLElement & element, const Instru
     auto child = parseChildTrack(*it, provider);
     if (!child) return std::unique_ptr<Track>(nullptr);
     track->addChild(std::move(child));
+  }
+
+  // A leaf instrument has nothing to do with children (they used to be FM
+  // modulators); <multiply> is the instrument that wraps others.
+  if (instrument && !track->getChildren().empty() && !dynamic_cast<NoteMultiplier *>(track.get())) {
+    return std::unique_ptr<Track>(nullptr);
   }
 
   return track;

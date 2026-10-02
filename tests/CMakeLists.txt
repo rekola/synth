@@ -20,6 +20,7 @@ add_executable(synth_tests
 	ChannelConfigurationTests.cpp
 	TunerTests.cpp
 	RenderTests.cpp
+	FMTests.cpp
 	ControllerTests.cpp
 	PatternBlockOpsTests.cpp
 	PatternSourceTests.cpp

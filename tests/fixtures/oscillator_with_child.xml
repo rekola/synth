@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="12edo" tempo="120" rowsPerBar="1" volume="1.0">
+  <instruments>
+    <oscillator type="sine">
+      <oscillator type="sine" harmonic="2"/>
+    </oscillator>
+  </instruments>
+  <tracks>
+    <track id="0" instrument="0"/>
+  </tracks>
+  <arrangement>
+    <pattern track="0">
+      <note row="0" velocity="80" value="C-4" />
+    </pattern>
+  </arrangement>
+</song>

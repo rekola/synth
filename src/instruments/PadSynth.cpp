@@ -13,9 +13,6 @@ PadSynth::playNote(const ChannelConfiguration & config, const SphericalPosition 
   // track voices whose output is never actually consumed.
   (void)needs_decorrelation;
 
-  detune *= getHarmonic();
-  detune /= getSubharmonic();
-
   ensureWavetable(config, tuning);
 
   auto voice = std::make_unique<PadSynthVoice>(config, position, detune, wavetable_, level_, sends, note_coord);

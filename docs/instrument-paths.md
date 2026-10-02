@@ -1,7 +1,7 @@
 # GM instrument path taxonomy
 
 Canonical path for every General MIDI program and percussion kit. This is the registry the
-instrument resolver walks up: a request for `piano.acoustic.grand.yamahaCfx` finds no
+instrument resolver walks up: a request for `piano.acoustic.grand.yamaha-cfx` finds no
 provider at the leaf, walks up, and binds to the GM program registered at
 `piano.acoustic.grand`.
 
@@ -27,8 +27,8 @@ runtime, including leaves that appear nowhere here.
    stated difference, the lower program takes the base path and the higher takes a leaf
    naming its conventional character. Never `.1` and `.2` — those encode GM's numbering
    into paths that are supposed to outlive it.
-5. **Paths are lowerCamelCase segments,** matching the SF2 generator names already used in
-   the song format.
+5. **Paths are kebab-case segments** (`pad.new-age`, `honky-tonk`): lowercase words
+   joined by hyphens, never camelCase.
 
 ## Roots
 
@@ -46,18 +46,18 @@ in completely different situations.
 | 0 | 1 | Acoustic Grand Piano | `piano.acoustic.grand` |
 | 1 | 2 | Bright Acoustic Piano | `piano.acoustic.grand.bright` |
 | 2 | 3 | Electric Grand Piano | `piano.electric.grand` |
-| 3 | 4 | Honky-tonk Piano | `piano.acoustic.upright.honkyTonk` |
+| 3 | 4 | Honky-tonk Piano | `piano.acoustic.upright.honky-tonk` |
 | 4 | 5 | Electric Piano 1 | `piano.electric.tine` |
 | 5 | 6 | Electric Piano 2 | `piano.electric.fm` |
 | 6 | 7 | Harpsichord | `keyboard.plucked.harpsichord` |
 | 7 | 8 | Clavinet | `keyboard.electric.clavinet` |
 | 8 | 9 | Celesta | `percussion.pitched.metal.celesta` |
 | 9 | 10 | Glockenspiel | `percussion.pitched.metal.glockenspiel` |
-| 10 | 11 | Music Box | `percussion.pitched.metal.musicBox` |
+| 10 | 11 | Music Box | `percussion.pitched.metal.music-box` |
 | 11 | 12 | Vibraphone | `percussion.pitched.metal.vibraphone` |
 | 12 | 13 | Marimba | `percussion.pitched.wood.marimba` |
 | 13 | 14 | Xylophone | `percussion.pitched.wood.xylophone` |
-| 14 | 15 | Tubular Bells | `percussion.pitched.metal.tubularBells` |
+| 14 | 15 | Tubular Bells | `percussion.pitched.metal.tubular-bells` |
 | 15 | 16 | Dulcimer | `string.struck.dulcimer` |
 | 16 | 17 | Drawbar Organ | `organ.tonewheel` |
 | 17 | 18 | Percussive Organ | `organ.tonewheel.percussive` |
@@ -98,7 +98,7 @@ in completely different situations.
 | 52 | 53 | Choir Aahs | `voice.choir.ah` |
 | 53 | 54 | Voice Oohs | `voice.choir.ooh` |
 | 54 | 55 | Synth Voice | `voice.synth` |
-| 55 | 56 | Orchestra Hit | `sfx.orchestraHit` |
+| 55 | 56 | Orchestra Hit | `sfx.orchestra-hit` |
 | 56 | 57 | Trumpet | `brass.trumpet` |
 | 57 | 58 | Trombone | `brass.trombone` |
 | 58 | 59 | Tuba | `brass.tuba` |
@@ -112,14 +112,14 @@ in completely different situations.
 | 66 | 67 | Tenor Sax | `reed.single.sax.tenor` |
 | 67 | 68 | Baritone Sax | `reed.single.sax.baritone` |
 | 68 | 69 | Oboe | `reed.double.oboe` |
-| 69 | 70 | English Horn | `reed.double.corAnglais` |
+| 69 | 70 | English Horn | `reed.double.cor-anglais` |
 | 70 | 71 | Bassoon | `reed.double.bassoon` |
 | 71 | 72 | Clarinet | `reed.single.clarinet` |
 | 72 | 73 | Piccolo | `flute.piccolo` |
 | 73 | 74 | Flute | `flute.concert` |
 | 74 | 75 | Recorder | `flute.recorder` |
 | 75 | 76 | Pan Flute | `flute.pan` |
-| 76 | 77 | Blown Bottle | `flute.blownBottle` |
+| 76 | 77 | Blown Bottle | `flute.blown-bottle` |
 | 77 | 78 | Shakuhachi | `flute.shakuhachi` |
 | 78 | 79 | Whistle | `flute.whistle` |
 | 79 | 80 | Ocarina | `flute.ocarina` |
@@ -130,8 +130,8 @@ in completely different situations.
 | 84 | 85 | Lead 5 (charang) | `lead.charang` |
 | 85 | 86 | Lead 6 (voice) | `lead.voice` |
 | 86 | 87 | Lead 7 (fifths) | `lead.fifths` |
-| 87 | 88 | Lead 8 (bass + lead) | `lead.bassLead` |
-| 88 | 89 | Pad 1 (new age) | `pad.newAge` |
+| 87 | 88 | Lead 8 (bass + lead) | `lead.bass-lead` |
+| 88 | 89 | Pad 1 (new age) | `pad.new-age` |
 | 89 | 90 | Pad 2 (warm) | `pad.warm` |
 | 90 | 91 | Pad 3 (polysynth) | `pad.poly` |
 | 91 | 92 | Pad 4 (choir) | `pad.choir` |
@@ -146,7 +146,7 @@ in completely different situations.
 | 100 | 101 | FX 5 (brightness) | `texture.brightness` |
 | 101 | 102 | FX 6 (goblins) | `texture.goblins` |
 | 102 | 103 | FX 7 (echoes) | `texture.echoes` |
-| 103 | 104 | FX 8 (sci-fi) | `texture.sciFi` |
+| 103 | 104 | FX 8 (sci-fi) | `texture.sci-fi` |
 | 104 | 105 | Sitar | `string.plucked.sitar` |
 | 105 | 106 | Banjo | `string.plucked.banjo` |
 | 106 | 107 | Shamisen | `string.plucked.shamisen` |
@@ -155,15 +155,15 @@ in completely different situations.
 | 109 | 110 | Bagpipe | `reed.double.bagpipe` |
 | 110 | 111 | Fiddle | `string.bowed.violin.fiddle` |
 | 111 | 112 | Shanai | `reed.double.shehnai` |
-| 112 | 113 | Tinkle Bell | `percussion.pitched.metal.tinkleBell` |
+| 112 | 113 | Tinkle Bell | `percussion.pitched.metal.tinkle-bell` |
 | 113 | 114 | Agogo | `percussion.pitched.metal.agogo` |
-| 114 | 115 | Steel Drums | `percussion.pitched.metal.steelDrum` |
+| 114 | 115 | Steel Drums | `percussion.pitched.metal.steel-drum` |
 | 115 | 116 | Woodblock | `percussion.unpitched.wood.woodblock` |
 | 116 | 117 | Taiko Drum | `percussion.unpitched.drum.taiko` |
 | 117 | 118 | Melodic Tom | `percussion.pitched.drum.tom` |
 | 118 | 119 | Synth Drum | `percussion.synth.drum` |
 | 119 | 120 | Reverse Cymbal | `percussion.unpitched.metal.cymbal.reverse` |
-| 120 | 121 | Guitar Fret Noise | `sfx.fretNoise` |
+| 120 | 121 | Guitar Fret Noise | `sfx.fret-noise` |
 | 121 | 122 | Breath Noise | `sfx.breath` |
 | 122 | 123 | Seashore | `sfx.seashore` |
 | 123 | 124 | Bird Tweet | `sfx.bird` |
@@ -256,7 +256,7 @@ unresolvable request there should fail loudly.
 Recorded because they were close calls, so anyone revisiting them can see what was weighed
 rather than re-deriving it:
 
-- **Orchestra Hit (55)** at `sfx.orchestraHit`. It is used musically, as a rhythmic stab,
+- **Orchestra Hit (55)** at `sfx.orchestra-hit`. It is used musically, as a rhythmic stab,
   but it is not an instrument and does not belong in any instrument family. `percussion.`
   is the other defensible home.
 - **Clavinet (7)** at `keyboard.electric.clavinet`. The Hohner mechanism is a rubber tip

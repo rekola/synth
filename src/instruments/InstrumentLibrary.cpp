@@ -3,10 +3,11 @@
 #include "InstrumentProvider.h"
 #include "PadSynth.h"
 #include "Additive.h"
+#include "FM.h"
 #include "NoteMultiplier.h"
 #include "../effects/EnvelopeFilter.h"
 #include "../effects/TapeDegradation.h"
-#include "../effects/BiquadFilter.h"
+#include "../effects/ResonantFilter.h"
 #include "../effects/Phaser.h"
 #include "../state/MemoryParameterSource.h"
 #include "../ambisonic/ChannelConfiguration.h"
@@ -99,13 +100,12 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // whatever loadSoundFont() registered at the same pad.* path through the
   // ordinary registerPath() last-write-wins rule, not by special-casing
   // GenericInstrument's resolution. ADSR/preset choices below aim for each
-  // pad's own GM character; see this function's own end for the one pad
-  // (Sweep) an oscillator-based instrument can't fully deliver.
+  // pad's own GM character.
   //
   // GM's own description for New Age is "a soft, airy new-age pad" -
   // "soft-pad" (a single pure partial, no upper harmonics) is a direct
   // semantic match. Warm uses "strings" (a simple, mellow base tone).
-  provider.registerPath("pad.newAge", makeEnvelopePad("soft-pad", 0.8f, 0.0f, 0.3f, 0.9f, 1.2f));
+  provider.registerPath("pad.new-age", makeEnvelopePad("soft-pad", 0.8f, 0.0f, 0.3f, 0.9f, 1.2f));
   provider.registerPath("pad.warm", makeEnvelopePad("strings", 0.6f, 0.0f, 0.4f, 0.85f, 1.0f));
   // Poly: the vintage-poly-synth chorus GM's own description calls for is
   // real ensemble beating, the same reasoning pad.choir/pad.bowed/
@@ -162,25 +162,19 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
     provider.registerPath("pad.halo", move(phaser));
   }
 
-  // Sweep (pad.sweep) is a slow filter sweep over the note's own life -
-  // motion no static oscillator (PADsynth included) can produce; there is
-  // no LFO-modulated per-voice filter in this codebase to drive one
-  // dynamically. Approximated instead with a static <biquadFilter>
-  // darkening a plain pad - a real, audible difference from the other
-  // pads, just not the sweeping motion GM's own Sweep implies.
+  // Sweep (pad.sweep) is a slow filter sweep over the note's own life: a
+  // <resonantFilter>'s own envelope opens the cutoff over the attack, then
+  // settles it back part of the way during the decay, over a plain pad.
   {
-    auto filter = make_unique<BiquadFilter>();
+    auto filter = make_unique<ResonantFilter>();
     MemoryParameterSource filter_params;
-    filter_params.set("type", string("lowpass"));
-    // fc is a raw Hz value (BiquadFilter::createVoiceState() normalizes it
-    // by the output sample rate internally, see BiquadFilter.cpp) - NOT a
-    // pre-normalized 0.0-0.5 fraction, despite docs/effects.md's own (now
-    // corrected) claim to the contrary. The original fc="0.15" was
-    // effectively an inaudible near-zero-Hz cutoff (0.15/48000), which is
-    // why this preset was reported completely silent - confirmed against
-    // songs/subtractive_test.xml's own real usage (fc="2000").
-    filter_params.set("fc", 2000.0f);
-    filter_params.set("Q", 0.7071f); // Butterworth Q - BiquadFilter has no default, 0 would divide by zero
+    filter_params.set("cutmin", 400.0f);
+    filter_params.set("cutmax", 6000.0f);
+    filter_params.set("res", 0.5f);
+    filter_params.set("attack", 2.5f);
+    filter_params.set("decay", 3.0f);
+    filter_params.set("sustain", 0.4f);
+    filter_params.set("release", 1.2f);
     filter->loadParameters(filter_params);
     filter->addChild(makeEnvelopePad("strings", 0.9f, 0.0f, 0.4f, 0.85f, 1.2f));
     provider.registerPath("pad.sweep", move(filter));
@@ -305,6 +299,27 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
     env->addChild(move(additive));
     return env;
   };
+
+  // Electric Piano 2 (piano.electric.fm) - a two-layer FM electric piano: a
+  // sine body whose modulation index decays like a struck tine's brightness,
+  // plus a brief high-ratio layer for the tine's own attack transient.
+  // Velocity scales the index, so harder notes are brighter.
+  {
+    auto fm_layer = [](float ratio, float index, float index_decay, float level) {
+      auto fm = make_unique<FM>();
+      MemoryParameterSource params;
+      params.set("ratio", ratio);
+      params.set("index", index);
+      params.set("indexDecay", index_decay);
+      params.set("level", level);
+      fm->loadParameters(params);
+      return fm;
+    };
+    auto envelope = makeEnvelope(0.003f, 0.0f, 2.0f, 0.0f, 0.25f);
+    envelope->addChild(fm_layer(1.0f, 2.5f, 0.6f, 0.8f));
+    envelope->addChild(fm_layer(14.0f, 1.2f, 0.06f, 0.2f));
+    provider.registerPath("piano.electric.fm", move(envelope));
+  }
 
   // Always registered at its own dedicated leaf so it can be forced for
   // comparison regardless of whether a SoundFont piano exists.
