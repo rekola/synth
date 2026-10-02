@@ -265,10 +265,11 @@ OutlineView::renderButtonBar(const StyleProvider & styles) {
   auto cols = getDim().second;
   auto top = buttonBarTop();
 
-  // Overlays the tree's bottom rows, only as many as the buttons need.
+  // Overlays the tree's bottom rows, only as many as the buttons need, on a
+  // panel color so it reads as separate from the tree.
   string blank(static_cast<size_t>(cols), ' ');
   setFgColor(styles.window_fg_color);
-  setBgColor(styles.window_bg_color);
+  setBgColor(styles.window_accent_bg_color);
   for (int row = 0; row < buttonBarRows(); row++) putstr(top + row, 0, blank);
 
   if (new_cursor_row_ < 0 || new_cursor_row_ >= static_cast<int>(data_.size())) return;
@@ -284,7 +285,7 @@ OutlineView::renderButtonBar(const StyleProvider & styles) {
     setBgColor(styles.button_bg_color);
     putstr(top + button.row, button.x, key_part);
     setFgColor(styles.window_fg_color);
-    setBgColor(styles.window_bg_color);
+    setBgColor(styles.window_accent_bg_color);
     putstr(top + button.row, button.x + Utf8::displayWidth(key_part), rest_part);
   }
 }
