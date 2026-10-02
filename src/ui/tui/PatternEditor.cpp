@@ -1409,9 +1409,109 @@ PatternEditor::handleBufferChanged() {
 }
 
 bool
+PatternEditor::handleMouse(const InputEvent & input) {
+  if (input.getKind() == InputEvent::Kind::RELEASE) {
+    mouse_down_ = false;
+    return true;
+  }
+  auto & song = getController().getSong();
+  auto track_ids = song.getRootTrackIds();
+  auto [ pos_y, pos_x ] = getPosition();
+  auto [ rows, cols ] = getDim();
+  auto y = input.getY() - pos_y, x = input.getX() - pos_x;
+  if (y < 0 || y >= rows || x < 0 || x >= cols) return false;
+  if (track_ids.empty()) return true;
+
+  // A held button repeating its press as the mouse moves is a drag.
+  bool fresh_press = !mouse_down_;
+  mouse_down_ = true;
+
+  // The heading has no spans of its own: it picks a track by the columns
+  // the first row shows.
+  auto heading_height = song.getMasterTrack().getDepth() + 1;
+  bool in_heading = y < heading_height;
+  auto row_index = static_cast<size_t>(in_heading ? 0 : y - heading_height);
+  if (row_index >= row_spans_.size()) return true;
+  auto & spans = row_spans_[row_index];
+
+  // What the pointer is over: the last column starting at or left of it.
+  const ColumnSpan * hit = nullptr;
+  for (auto & span : spans.columns) {
+    if (span.x <= x) hit = &span;
+  }
+  bool on_locator = !in_heading && spans.locator_x >= 0 && x >= spans.locator_x;
+  if (!hit && !on_locator && in_heading) return true;
+
+  GridPosition target = new_cursor;
+  if (on_locator) {
+    target.scope = SelectionScope::LOCATOR;
+  } else if (hit) {
+    target.scope = SelectionScope::NOTE_COLUMN;
+    target.track = hit->track;
+    target.col = in_heading ? 0 : hit->col;
+    target.subcol = 0;
+    auto all_track_info = getTrackInformation(song, current_scroll_.row);
+    auto it = all_track_info.find(track_ids[static_cast<size_t>(hit->track)]);
+    if (it != all_track_info.end() && !in_heading && !it->second.collapsed_) {
+      // A hex-digit column's cell under the pointer is what a nibble edit touches.
+      auto width = 0;
+      switch (it->second.getColumnType(hit->col)) {
+      case ColumnType::EFFECT: width = 4; break;
+      case ColumnType::VELOCITY: case ColumnType::DELAY: width = 2; break;
+      default: break;
+      }
+      if (width > 0) target.subcol = std::clamp(x - hit->content_x, 0, width - 1);
+    } else if (it != all_track_info.end() && it->second.collapsed_) {
+      target.col = 0;
+    }
+  }
+  // Left of every column (the row-number gutter): only the row is picked.
+
+  bool moved_track = target.track != new_cursor.track;
+  if (fresh_press) setSelectionActive(false);
+  auto previous = new_cursor;
+  new_cursor = target;
+  if (moved_track) syncCursorTrack(song); // the new track's own position is where the cursor row goes
+
+  // The row under the pointer, as a move from the cursor's own line.
+  // Playback owns it where the cursor is the transport's position.
+  if (!in_heading) {
+    auto & info = getController().getPlaybackInfo();
+    bool transport_owns_row = info.isPlaying() && source_->cursorFollowsTransport();
+    if (transport_owns_row) {
+      // nothing to move
+    } else if (source_->cursorLocked()) {
+      if (fresh_press) reportLockedCursor();
+    } else {
+      auto line = source_->rowsBetween({ view_block_, current_scroll_.row }, source_->cursor());
+      auto delta = (y - heading_height) - line;
+      if (delta != 0) source_->moveCursor(delta);
+    }
+  }
+
+  auto point = source_->cursor();
+  GridPosition here = new_cursor;
+  if (fresh_press) {
+    mouse_anchor_ = { point.block, point.row, here.track, here.col, here.scope };
+  } else if (!selection_active_ && (here != previous || point.row != mouse_last_row_)) {
+    // The first movement of a drag: the press cell becomes the mark.
+    selection_start_pattern_ = mouse_anchor_.block;
+    selection_start_row_ = mouse_anchor_.row;
+    selection_start_track_ = mouse_anchor_.track;
+    selection_start_col_ = mouse_anchor_.col;
+    selection_start_scope_ = mouse_anchor_.scope;
+    setSelectionActive(true);
+  }
+  mouse_last_row_ = point.row;
+  return true;
+}
+
+bool
 PatternEditor::offerInput(const InputEvent & input) {
   // While the locator or track-name editor is open it owns every key.
   if (inline_editor_.offerInput(input)) return true;
+
+  if (input.getId() == NCKEY_BUTTON1) return handleMouse(input);
 
   // Cursor parked on the locator slot (Right arrow past the last
   // track's last column - see GridPosition::scope's own comment) but not
@@ -2474,6 +2574,12 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   bool is_neighboring_pattern = point.block != pattern_idx || pattern_row < 0;
   auto grid = source_->readGrid(address);
 
+  // Where this row's columns land, for mouse clicks (handleMouse()).
+  auto row_index = static_cast<size_t>(std::max(display_row, 0));
+  if (row_spans_.size() <= row_index) row_spans_.resize(row_index + 1);
+  auto & spans = row_spans_[row_index];
+  spans = RowSpans();
+
   display_row += heading_height;
 
   string padding(static_cast<size_t>(cols), ' ');
@@ -2878,6 +2984,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       // render()'s own comment); every other track always starts at its
       // own column 0.
       auto first_col = i == current_scroll_.track ? current_scroll_.col : 0;
+      auto track_start_x = current_pos;
       if (first_col == 0 && !track_info.collapsed_ && track_info.row_number_width_ > 0) {
         // The track's own row number, blank where it has no row (before
         // its first clip).
@@ -2894,6 +3001,9 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	if (k != first_col) {
 	  putstr(display_row, current_pos++, " ");
 	}
+	// The first column also claims the row number (and, for the last, the
+	// identifier cell and divider after it fall to it as well).
+	spans.columns.push_back({ k == first_col ? track_start_x : current_pos, current_pos, i, k });
 	// Only drives the active-character underline for numeric columns
 	// further down now (which numbers columns are highlighted right at
 	// the cursor's own row, unlike column_selected below) - a single-row,
@@ -3324,6 +3434,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   }
 
   if (current_pos < cols && source_->hasLocators()) {
+    spans.locator_x = current_pos;
     static const std::string no_locator;
     auto locator_row = source_->locatorRow({ pattern_idx, pattern_row });
     auto & locator = locator_row ? getController().getSong().getLocator(*locator_row) : no_locator;

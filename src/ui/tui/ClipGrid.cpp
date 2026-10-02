@@ -305,6 +305,74 @@ ClipGrid::startTrackRename(const Song & song, const std::vector<int> & track_ids
   });
 }
 
+void
+ClipGrid::activateCell(const Song & song, const std::vector<int> & track_ids, bool edit_sends) {
+  auto num_tracks = static_cast<int>(track_ids.size());
+  // A clip row acts exactly like a Launchpad Session view pad press
+  // landing on that same cell (SessionPlayer::triggerClip(), via
+  // trigger_callback_ - see setTriggerCallback()'s own comment) - an empty
+  // row stops/cancels whatever the track is doing, the same as pressing an
+  // unassigned pad would, so it's called unconditionally on any CLIP row
+  // rather than only a populated one.
+  auto kind = rowKindFor(cursor_row_);
+  if (cursor_track_index_ == num_tracks) {
+    // The master column: a clip row launches that scene, the Sends row
+    // edits the master's Send Main (the song's volume), the last row
+    // stops every track.
+    if (kind == RowKind::CLIP && scene_callback_) scene_callback_(physicalFor(cursor_row_));
+    else if (kind == RowKind::SENDS && edit_sends) startSendsEdit(song.getMasterTrack().getInternalId());
+    else if (kind == RowKind::DIRECTION && stop_all_callback_) stop_all_callback_();
+    return;
+  }
+  if (cursor_track_index_ < 0 || cursor_track_index_ > num_tracks) return;
+  if (kind == RowKind::SENDS) {
+    if (edit_sends) startSendsEdit(track_ids[static_cast<size_t>(cursor_track_index_)]);
+  } else if (kind == RowKind::CLIP && trigger_callback_) {
+    trigger_callback_(track_ids[static_cast<size_t>(cursor_track_index_)], physicalFor(cursor_row_));
+  }
+  // DIRECTION: read-only for now - nothing to do.
+}
+
+bool
+ClipGrid::handleMouse(const InputEvent & input) {
+  if (input.getKind() == InputEvent::Kind::RELEASE) {
+    mouse_down_ = false;
+    return true;
+  }
+  const Song & song = getController().getSong(); // see offerInput()'s own comment on why const
+  auto track_ids = song.getPlayableTrackIds();
+  auto num_tracks = static_cast<int>(track_ids.size());
+  auto [ pos_y, pos_x ] = getPosition();
+  auto [ rows, cols ] = getDim();
+  auto y = input.getY() - pos_y, x = input.getX() - pos_x;
+  if (y < 0 || y >= rows || x < 0 || x >= cols) return false;
+
+  // A held button repeating its press as the mouse moves isn't a new click.
+  bool fresh_press = !mouse_down_;
+  mouse_down_ = true;
+
+  auto column = scroll_col_ + x / (kColWidth + 1);
+  if (x % (kColWidth + 1) == kColWidth || column > num_tracks) return true; // a divider, or past the last column
+
+  auto clip_rows = clipRowCount();
+  int logical_row = 0;
+  if (y > 0) {
+    auto physical = scroll_row_ + y - 1;
+    if (physical < clip_rows) logical_row = physical + 1;
+    else if (physical == clip_rows + kSendsValue) logical_row = clip_rows + 1;
+    else if (physical == clip_rows + kDirectionValue) logical_row = clip_rows + 2;
+  }
+
+  cursor_track_index_ = column;
+  if (logical_row == 0) return true; // the header, or a label/divider row: only the track is picked
+  cursor_row_ = logical_row;
+  view_detached_ = false;
+  if (column < num_tracks) getController().getSong().setCurrentTrackId(track_ids[static_cast<size_t>(column)]); // non-const, see offerInput()'s own `song` comment
+
+  if (fresh_press) activateCell(song, track_ids, false);
+  return true;
+}
+
 bool
 ClipGrid::offerInput(const InputEvent & input) {
   // const - Song::getClips() has a non-const overload that inserts an
@@ -321,6 +389,8 @@ ClipGrid::offerInput(const InputEvent & input) {
 
   // While a rename editor is open it owns every key.
   if (inline_editor_.offerInput(input)) return true;
+
+  if (input.getId() == NCKEY_BUTTON1) return handleMouse(input);
 
   // The mouse wheel scrolls the view (Shift: tracks), not the cursor, until
   // the cursor next moves.
@@ -377,31 +447,7 @@ ClipGrid::offerInput(const InputEvent & input) {
     }
     return true;
   } else if (input.getId() == NCKEY_ENTER) {
-    // Acts exactly like a Launchpad Session view pad press landing on this
-    // same cell (SessionPlayer::triggerClip(), via
-    // trigger_callback_ - see setTriggerCallback()'s own comment) - an
-    // empty row stops/cancels whatever the track is doing, the same as
-    // pressing an unassigned pad would, so this is called unconditionally
-    // on any CLIP row rather than only a populated one.
-    auto kind = rowKindFor(cursor_row_);
-    if (cursor_track_index_ == num_tracks) {
-      // The master column: a clip row launches that scene, the Sends row
-      // edits the master's Send Main (the song's volume), the last row
-      // stops every track.
-      if (kind == RowKind::CLIP && scene_callback_) scene_callback_(physicalFor(cursor_row_));
-      else if (kind == RowKind::SENDS) startSendsEdit(song.getMasterTrack().getInternalId());
-      else if (kind == RowKind::DIRECTION && stop_all_callback_) stop_all_callback_();
-      return true;
-    }
-    if (kind == RowKind::SENDS && cursor_track_index_ >= 0 && cursor_track_index_ < num_tracks) {
-      startSendsEdit(track_ids[static_cast<size_t>(cursor_track_index_)]);
-      return true;
-    }
-    if (kind == RowKind::CLIP && cursor_track_index_ >= 0 && cursor_track_index_ < num_tracks && trigger_callback_) {
-      auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
-      trigger_callback_(track_id, physicalFor(cursor_row_));
-    }
-    // DIRECTION: read-only for now - a no-op, still consumed.
+    activateCell(song, track_ids, true);
     return true;
   }
   else return false;

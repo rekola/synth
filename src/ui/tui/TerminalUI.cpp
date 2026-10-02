@@ -2493,6 +2493,15 @@ TerminalUI::offerInput(const InputEvent & input) {
       }
     }
     return true;
+  } else if (input.getId() == NCKEY_BUTTON1 && (input.getKind() == InputEvent::Kind::RELEASE || clip_grid_->isMouseDown() || pattern_editor_->isMouseDown())) {
+    // A release, or a press repeating as a drag moves, belongs to the
+    // widget the button went down on - it must not hand focus to whatever
+    // the pointer is over now. The release also ends the press everywhere,
+    // wherever it lands.
+    if (input.getKind() == InputEvent::Kind::RELEASE) {
+      clip_grid_->releaseMouse();
+      pattern_editor_->releaseMouse();
+    }
   } else if (input.getId() == NCKEY_BUTTON1) {
     auto previous_active_element = active_element_.lock();
     active_element_.reset();

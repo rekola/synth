@@ -342,6 +342,29 @@ protected:
   // Shared by the locator and track-name editors; only one is ever open.
   InlineEditor inline_editor_{getPlane()};
 
+  // Where each column of a drawn row starts on screen (renderRow()), by
+  // row below the heading - what a mouse click is resolved against.
+  // `x` is where the column claims clicks from (its track's row number
+  // included), `content_x` where its own text starts.
+  struct ColumnSpan { int x, content_x, track, col; };
+  struct RowSpans {
+    std::vector<ColumnSpan> columns;
+    int locator_x = -1; // -1 where the row has no locator slot
+  };
+  std::vector<RowSpans> row_spans_;
+  // A left-button press picks a cell, dragging from it selects a region;
+  // handleMouse() tells a drag from a fresh press by the button not having
+  // been released in between.
+  bool handleMouse(const InputEvent & input);
+ public:
+  bool isMouseDown() const { return mouse_down_; }
+  void releaseMouse() { mouse_down_ = false; }
+ protected:
+  struct MouseAnchor { int block = 0, row = 0, track = 0, col = 0; SelectionScope scope = SelectionScope::NOTE_COLUMN; };
+  bool mouse_down_ = false;
+  MouseAnchor mouse_anchor_;
+  int mouse_last_row_ = 0;
+
   // Where rows, cells and edits come from - see PatternSource.h. Points at
   // one of the two sources below, per setSessionMode().
   PatternSource * source_ = nullptr;

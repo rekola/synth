@@ -94,6 +94,9 @@ class ClipGrid : public UIElement {
   // track.
   void setSceneCallback(std::function<void(int clip_index)> cb) { scene_callback_ = std::move(cb); }
   void setStopAllCallback(std::function<void()> cb) { stop_all_callback_ = std::move(cb); }
+  // See handleMouse(): whether a left-button press is still held.
+  bool isMouseDown() const { return mouse_down_; }
+  void releaseMouse() { mouse_down_ = false; }
   // Rows needed to show everything without scrolling (the header plus
   // every row below it).
   int preferredHeight() const { return 1 + physicalRowCount(); }
@@ -193,6 +196,14 @@ class ClipGrid : public UIElement {
   // Edits the Send Main/A/B of the column under the cursor - a track's,
   // or the master's (the dry mix and the send bus's returns).
   void startSendsEdit(int track_id);
+  // What Enter (or a click, which never opens the Sends editor) does on the
+  // cell under the cursor.
+  void activateCell(const Song & song, const std::vector<int> & track_ids, bool edit_sends);
+  // A left-button press or release: picks the cell under it, and a clip
+  // slot (or the master's scene/stop-all slots) acts as a button.
+  bool handleMouse(const InputEvent & input);
+  // Between a press and its release - see handleMouse().
+  bool mouse_down_ = false;
   void startClipRename(const Song & song, const std::vector<int> & track_ids);
   // F2 on any row but a populated clip slot renames the track itself
   // instead (see offerInput()'s own F2 handling) - the header row has no
