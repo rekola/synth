@@ -114,21 +114,6 @@ TEST(additive_piano_does_not_override_an_existing_soundfont_piano) {
   CHECK(dynamic_cast<EnvelopeFilter *>(resolved.get()) == nullptr); // still the real SF2 piano
 }
 
-TEST(additive_piano_always_available_at_its_own_path_for_comparison) {
-  std::string path = std::string(TESTS_SCRATCH_DIR) + "/instrument_library_piano2.sf2";
-  sf2fixture::writeMinimalSf2(path, { {"Grand Piano", 0, {}, {}} });
-
-  InstrumentProvider provider;
-  provider.loadSoundFont(path);
-  registerLibraryInstruments(provider);
-
-  // piano.acoustic.grand keeps the real SF2 piano (previous test), but
-  // piano.additive is always the additive one, forceable for comparison.
-  auto resolved = provider.resolvePath("piano.additive");
-  CHECK(resolved != nullptr);
-  CHECK(dynamic_cast<EnvelopeFilter *>(resolved.get()) != nullptr);
-}
-
 TEST(additive_piano_render_is_non_silent_and_finite) {
   InstrumentProvider provider;
   registerLibraryInstruments(provider);

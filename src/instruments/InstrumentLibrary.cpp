@@ -321,9 +321,6 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
     provider.registerPath("piano.electric.fm", move(envelope));
   }
 
-  // Always registered at its own dedicated leaf so it can be forced for
-  // comparison regardless of whether a SoundFont piano exists.
-  provider.registerPath("piano.additive", additive_piano_envelope());
   // Only takes over piano.acoustic.grand itself when nothing already
   // claimed that exact leaf - the "fallback when the SoundFont has no
   // piano" role; a real SF2 grand piano always wins when one is loaded.

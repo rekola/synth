@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="12edo" tempo="120" rowsPerBar="4" volume="1.0">
   <instruments>
-    <instrument from="piano.additive"/>
+    <instrument from="piano.acoustic.grand"/>
   </instruments>
   <tracks>
     <track id="0" instrument="0"/>
