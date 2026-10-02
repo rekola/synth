@@ -30,6 +30,15 @@ runtime, including leaves that appear nowhere here.
 5. **Paths are kebab-case segments** (`pad.new-age`, `honky-tonk`): lowercase words
    joined by hyphens, never camelCase.
 
+## What belongs in the library
+
+The built-in library (`InstrumentLibrary.cpp`) holds only instruments with a reason to
+exist: either the path is a General MIDI program (`pad.*`, `piano.electric.fm`, and the
+`piano.acoustic.grand` fallback used when no SoundFont supplies a piano), or it is a real
+physical instrument (`keyboard.tape.mellotron`). Comparison variants, experiments and
+"alternative" versions of an existing instrument do not get a path of their own; author
+them in a song instead.
+
 ## Roots
 
 `piano`, `keyboard`, `organ`, `guitar`, `bass`, `string`, `brass`, `reed`, `flute`,

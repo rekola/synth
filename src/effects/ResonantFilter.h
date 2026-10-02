@@ -17,10 +17,14 @@ class ResonantFilter : public Effect {
   float get_cut_min() const { return cut_min_; }
   float get_cut_max() const { return cut_max_; }
   float get_res() const { return res_; }
+  // Linear attack and decay segments, instead of the exponential decay of an
+  // amplitude envelope - for sweeps that rise and fall at the same rate.
+  bool get_linear_envelope() const { return linear_envelope_; }
 
 private:
   float cut_min_ = 0.0f, cut_max_ = 0.0f, res_ = 0.0f;
   bool use_aftertouch_ = false;
+  bool linear_envelope_ = false;
   Envelope envelope_;
 };
 

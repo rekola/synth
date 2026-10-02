@@ -4,6 +4,8 @@
 #include "../src/instruments/InstrumentProvider.h"
 #include "../src/instruments/InstrumentLibrary.h"
 #include "../src/effects/EnvelopeFilter.h"
+#include "../src/state/EnvelopeState.h"
+#include "../src/state/MemoryParameterSource.h"
 #include "../src/effects/TapeDegradation.h"
 #include "../src/instruments/GmInstrumentTable.h"
 #include "../src/model/Song.h"
@@ -206,5 +208,26 @@ TEST(pad_sweep_gets_brighter_over_the_note) {
     }
     return level > 0.0 ? step / level : 0.0;
   };
-  CHECK(brightness(0.9f, 1.3f) > brightness(0.0f, 0.1f) * 1.2);
+  // Dark at the start, brightest in the middle, dark again at the end.
+  double peak = brightness(1.0f, 1.6f);
+  CHECK(peak > brightness(0.0f, 0.1f) * 1.5);
+  CHECK(peak > brightness(2.5f, 3.0f) * 1.5);
+}
+
+TEST(linear_resonant_filter_envelope_falls_as_fast_as_it_rises) {
+  Envelope envelope;
+  MemoryParameterSource params;
+  params.set("attack", 1.0f);
+  params.set("decay", 1.0f);
+  params.set("sustain", 0.0f);
+  envelope.loadParameters(params);
+
+  EnvelopeState state(1000, envelope, 0, 0, false);
+  auto advance = [&](int samples) { for (int i = 0; i < samples; i += 10) state.process(10); };
+  advance(500);
+  float rising = state.getLevel();
+  advance(1000);
+  float falling = state.getLevel(); // half a second into the decay
+  CHECK_NEAR(rising, 0.5f, 0.02f);
+  CHECK_NEAR(falling, 0.5f, 0.02f);
 }

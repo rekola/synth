@@ -58,7 +58,7 @@ resonant filter, both persistent for that one track.
 | `<amplifier>` | Flat gain. `gain` (dB). |
 | `<tremolo>` | Amplitude LFO. `frequency` (Hz), `amplitude` (0.0-1.0 depth), `aftertouch` (boolean - depth follows channel pressure instead of being fixed). |
 | `<biquadFilter>` | A single biquad (see `dsp/Biquad.h`'s `FilterType`). `type`, `fc` (Hz - `BiquadFilter::createVoiceState()` normalizes it internally by the output sample rate, so it's authored as a real cutoff frequency, e.g. `fc="2000"`, not a pre-normalized 0.0-0.5 fraction), `Q`, `peakGainDB`, `aftertouch` (boolean - `fc` follows channel pressure). |
-| `<resonantFilter>` | Moog-style resonant lowpass (`dsp/MoogVCF.h`). `cut`/`cutmin`/`cutmax`, `res`, `aftertouch`. |
+| `<resonantFilter>` | Moog-style resonant lowpass (`dsp/MoogVCF.h`). `cut`/`cutmin`/`cutmax`, `res`, `aftertouch`, and an ADSR sweeping the cutoff between `cutmin` and `cutmax` (exponential decay by default; `linear="true"` makes attack and decay linear, so a sweep falls as fast as it rises). |
 | `<tapeDegradation>` | Tape/media degradation - wow/flutter, hiss, dropouts, saturation. See `docs/tape_degradation.md` for the full reference; it's also the one effect here where the track/voice distinction above changes its *character*, not just its scope - worth reading if you only read one section of that page. |
 
 `<tapeDegradation>` has its own dedicated reference page
