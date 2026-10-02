@@ -346,8 +346,8 @@ negotiates), `TerminalUI.cpp`'s `TerminalPixelSpectrumMeter` overrides
 meter's own plane instead; the choice is made once at startup in
 `TerminalUI::initialize()`. Both the spectrum and the DirAC heatmap show in
 Arrangement view's scope row and in Session view's left column, stacked
-under the full-height outline panel (only while the outline is shown and
-the terminal is tall enough); off-screen scopes are not updated.
+under the full-height outline panel, each below a title bar (only while the
+outline is shown and the terminal is tall enough); off-screen scopes are not updated.
 
 Instruments are resolved from a General MIDI SoundFont, discovered
 automatically (`findDefaultSoundFont()` in `Controller.cpp`): a project-local
@@ -914,7 +914,8 @@ would otherwise resume showing.
   `ArrangementGrid`) plus `PatternEditor`. Session view: `ClipGrid`
   (`src/ui/tui/ClipGrid.h` - per-track clip slots, Sends, Direction), with
   `OutlineView` as a narrow panel on its left (shown by default,
-  "toggle-outline"; the tree, a button bar under it, details in a `?`
+  "toggle-outline"; the tree, with a button bar overlaid on its bottom rows
+  while the cursor's row has any, details in a `?`
   popup that Escape closes at once - a widget can take a bare Escape via
   `UIElement::wantsBareEscape()` without it losing its Alt-prefix role),
   above `PatternEditor` (`TerminalUI::layout()`) - no scope row
@@ -964,7 +965,9 @@ would otherwise resume showing.
   edits the three values. Every column has a vertical level meter
   beside its Sends/Direction rows (`LevelMeter.h`: one dB mapping, braille
   by default with sextants as an opt-in glyph set, `Ballistics` smoothing
-  a block's RMS in the power domain so a low note doesn't ripple, and a
+  a block's RMS in the power domain so a low note doesn't ripple, bars
+  shaded by height from green through orange to the clip red
+  (`StyleProvider::meterColor()`), and a
   `PeakHold` marker floating above the bar in its right dot column). The
   pattern editor's one-cell track meters and the scope row's
   `ChannelMeter` (two channels per cell, `getChannelLoudness()`, a
@@ -1425,6 +1428,10 @@ would otherwise resume showing.
   silently goes stale if the binding ever changes; name the command
   instead and let the actual binding site be the only place the key
   appears).
+- Never link to the chat/session that produced a change (no `Claude-Session:`
+  trailer, no claude.ai/code URL) in commit messages, PR descriptions, or
+  comments; the URL isn't useful to other readers and can't be fully removed
+  from GitHub afterwards.
 - Pull requests: when pushing more commits to a branch that has an open PR,
   update the PR description in the same step if the push changes what it
   says - a push updates the diff but never the description.

@@ -789,9 +789,10 @@ ClipGrid::renderMeter(const StyleProvider & styles, int x, int rows, int track_i
   auto cells = level_meter::verticalBar(meter.fraction, kMeterRows, meter.peak_fraction);
   auto top = clipRowCount() + kSendsLabel; // physical row of the meter's top cell
   setBgColor(styles.window_bg_color);
-  setFgColor(clipping ? styles.meter_clip_color : styles.meter_active_color);
   for (int i = 0; i < kMeterRows; i++) {
     auto y = top + i - scroll_row_ + 1; // +1 for the header row
+    // Shaded by the height of this cell; i = 0 is the top one.
+    setFgColor(clipping ? styles.meter_clip_color : styles.meterColor((static_cast<float>(kMeterRows - i) - 0.5f) / static_cast<float>(kMeterRows)));
     if (y >= 1 && y < rows) putstr(y, x + kColWidth - 1, cells[static_cast<size_t>(i)]);
   }
 }

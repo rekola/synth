@@ -1058,16 +1058,37 @@ void axisRange(int d, int grid_size, int dest_size, int & lo, int & hi) {
   if (hi > grid_size) hi = grid_size;
 }
 
-// Resamples the logical grid_cols x grid_rows brightness/saturation grid
-// to a dest_cols x dest_rows destination resolution, correct whether the
-// destination is coarser (TerminalHeatmapChart's usual case, a handful of
-// quadrant sub-cells) or finer (TerminalPixelHeatmapChart's usual case,
-// real display pixels) than the logical grid: each destination cell
-// aggregates (max, keeping saturation paired with whichever source cell
-// "won" the max rather than maximized independently) over every source
-// cell axisRange() (above) assigns it. Both dest_row 0 and grid row 0 are
-// "bottom" here - callers flip to screen coordinates (row 0 = top)
-// themselves.
+// Brightness and brightness-weighted saturation: interpolating the weighted
+// form keeps a dark cell's saturation from tinting its lit neighbour.
+struct BrightSat { float b = 0.0f, sb = 0.0f; };
+
+// Resamples one line of `src_n` cells to `dst_n`: smoothly (linear between
+// cell centres) when enlarging, and by axisRange()'s max when shrinking, so a
+// narrow peak survives.
+void resampleLine(const BrightSat * in, int in_stride, int src_n, BrightSat * out, int out_stride, int dst_n) {
+  for (int d = 0; d < dst_n; d++) {
+    BrightSat result;
+    if (dst_n > src_n) {
+      float pos = (static_cast<float>(d) + 0.5f) * static_cast<float>(src_n) / static_cast<float>(dst_n) - 0.5f;
+      int i0 = static_cast<int>(std::floor(pos));
+      float t = pos - static_cast<float>(i0);
+      const BrightSat & a = in[std::clamp(i0, 0, src_n - 1) * in_stride];
+      const BrightSat & b = in[std::clamp(i0 + 1, 0, src_n - 1) * in_stride];
+      result = { a.b + (b.b - a.b) * t, a.sb + (b.sb - a.sb) * t };
+    } else {
+      int lo, hi;
+      axisRange(d, src_n, dst_n, lo, hi);
+      for (int i = lo; i < hi; i++) if (in[i * in_stride].b > result.b) result = in[i * in_stride];
+    }
+    out[d * out_stride] = result;
+  }
+}
+
+// Resamples the logical grid_cols x grid_rows brightness/saturation grid to a
+// dest_cols x dest_rows destination resolution (a coarse grid is smoothed up
+// to real pixels or sub-cells, a fine one reduced by max), one axis at a time.
+// Both dest_row 0 and grid row 0 are "bottom" here - callers flip to screen
+// coordinates (row 0 = top) themselves.
 void resampleGrid(const std::vector<float> & brightness, const std::vector<float> & saturation,
                    int grid_cols, int grid_rows, int dest_cols, int dest_rows,
                    std::vector<float> & out_brightness, std::vector<float> & out_saturation) {
@@ -1075,26 +1096,21 @@ void resampleGrid(const std::vector<float> & brightness, const std::vector<float
   out_saturation.assign(static_cast<size_t>(dest_cols) * static_cast<size_t>(dest_rows), 0.0f);
   if (dest_cols <= 0 || dest_rows <= 0) return;
 
-  for (int dy = 0; dy < dest_rows; dy++) {
-    int gy0, gy1;
-    axisRange(dy, grid_rows, dest_rows, gy0, gy1);
-    for (int dx = 0; dx < dest_cols; dx++) {
-      int gx0, gx1;
-      axisRange(dx, grid_cols, dest_cols, gx0, gx1);
+  std::vector<BrightSat> source(static_cast<size_t>(grid_cols) * static_cast<size_t>(grid_rows));
+  for (size_t i = 0; i < source.size(); i++) source[i] = { brightness[i], brightness[i] * saturation[i] };
 
-      float best_brightness = 0.0f, best_saturation = 0.0f;
-      for (int gy = gy0; gy < gy1; gy++) {
-        for (int gx = gx0; gx < gx1; gx++) {
-          size_t src_idx = static_cast<size_t>(gy * grid_cols + gx);
-          if (brightness[src_idx] > best_brightness) {
-            best_brightness = brightness[src_idx];
-            best_saturation = saturation[src_idx];
-          }
-        }
-      }
-      out_brightness[static_cast<size_t>(dy * dest_cols + dx)] = best_brightness;
-      out_saturation[static_cast<size_t>(dy * dest_cols + dx)] = best_saturation;
-    }
+  // Columns first (each grid row to dest_cols), then rows (each dest column to dest_rows).
+  std::vector<BrightSat> wide(static_cast<size_t>(dest_cols) * static_cast<size_t>(grid_rows));
+  for (int gy = 0; gy < grid_rows; gy++) {
+    resampleLine(&source[static_cast<size_t>(gy * grid_cols)], 1, grid_cols, &wide[static_cast<size_t>(gy * dest_cols)], 1, dest_cols);
+  }
+  std::vector<BrightSat> result(static_cast<size_t>(dest_cols) * static_cast<size_t>(dest_rows));
+  for (int dx = 0; dx < dest_cols; dx++) {
+    resampleLine(&wide[static_cast<size_t>(dx)], dest_cols, grid_rows, &result[static_cast<size_t>(dx)], dest_cols, dest_rows);
+  }
+  for (size_t i = 0; i < result.size(); i++) {
+    out_brightness[i] = std::clamp(result[i].b, 0.0f, 1.0f);
+    out_saturation[i] = result[i].b > 1e-9f ? std::clamp(result[i].sb / result[i].b, 0.0f, 1.0f) : 0.0f;
   }
 }
 
@@ -1130,6 +1146,48 @@ std::array<AxisLabel, 4> axisLabels(int usable_rows, int cols) {
     { usable_rows / 2, 0, "-180" },
     { usable_rows / 2, cols - 4, "+180" },
   }};
+}
+
+// 5x7 glyphs for the characters axisLabels() uses, row-major ('#' = ink).
+const char * pixelGlyph(char c) {
+  switch (c) {
+    case '+': return "....." "..#.." "..#.." "#####" "..#.." "..#.." ".....";
+    case '-': return "....." "....." "....." "#####" "....." "....." ".....";
+    case '0': return ".###." "#...#" "#..##" "#.#.#" "##..#" "#...#" ".###.";
+    case '1': return "..#.." ".##.." "..#.." "..#.." "..#.." "..#.." ".###.";
+    case '8': return ".###." "#...#" "#...#" ".###." "#...#" "#...#" ".###.";
+    case '9': return ".###." "#...#" "#...#" ".####" "....#" "#...#" ".###.";
+    default: return nullptr;
+  }
+}
+
+// Draws a label into the ABGR pixel buffer (row 0 = top), each glyph
+// scaled to the character cell and blended in white so the heatmap
+// still shows through.
+void drawPixelLabel(vector<uint32_t> & buffer, unsigned pxx, unsigned pxy, const AxisLabel & label, unsigned cell_w, unsigned cell_h) {
+  // About half the cell's height: small, unobtrusive marks.
+  const unsigned sx = max(1u, cell_w / 12), sy = max(1u, cell_h / 16);
+  const unsigned glyph_w = 5 * sx, glyph_h = 7 * sy;
+  for (unsigned c = 0; label.text[c]; c++) {
+    const char * glyph = pixelGlyph(label.text[c]);
+    if (!glyph) continue;
+    long x0 = static_cast<long>(label.col + static_cast<int>(c)) * cell_w + (cell_w > glyph_w ? (cell_w - glyph_w) / 2 : 0);
+    long y0 = static_cast<long>(label.row) * cell_h + (cell_h > glyph_h ? (cell_h - glyph_h) / 2 : 0);
+    for (unsigned gy = 0; gy < 7; gy++) {
+      for (unsigned gx = 0; gx < 5; gx++) {
+        if (glyph[gy * 5 + gx] != '#') continue;
+        for (unsigned dy = 0; dy < sy; dy++) {
+          for (unsigned dx = 0; dx < sx; dx++) {
+            long x = x0 + static_cast<long>(gx * sx + dx), y = y0 + static_cast<long>(gy * sy + dy);
+            if (x < 0 || y < 0 || x >= static_cast<long>(pxx) || y >= static_cast<long>(pxy)) continue;
+            uint32_t & pixel = buffer[static_cast<size_t>(y) * pxx + static_cast<size_t>(x)];
+            auto mix = [](uint32_t channel) { return static_cast<uint32_t>(kLabelForegroundAlpha * 255.0f + (1.0f - kLabelForegroundAlpha) * static_cast<float>(channel)); };
+            pixel = (0xffu << 24) | (mix((pixel >> 16) & 0xffu) << 16) | (mix((pixel >> 8) & 0xffu) << 8) | mix(pixel & 0xffu);
+          }
+        }
+      }
+    }
+  }
 }
 }
 
@@ -1263,9 +1321,8 @@ private:
 
 // Pixel-graphics HeatmapChart renderer - same ncvisual/pixel-blit approach
 // as TerminalPixelChart, but a genuine 2D image resampled (resampleGrid(),
-// above - typically upscaling here, since real pixel counts usually exceed
-// the logical grid's 36x18) to the plane's real pixel dimensions, instead
-// of vertical bars.
+// above - smoothly upscaled, since real pixel counts exceed the logical
+// grid) to the plane's real pixel dimensions, instead of vertical bars.
 class TerminalPixelHeatmapChart : public HeatmapChart {
 public:
   TerminalPixelHeatmapChart(UIPlane & parent, int grid_cols, int grid_rows)
@@ -1326,6 +1383,16 @@ public:
       }
     }
 
+    // Axis labels go into the image itself: text in the plane's cells would
+    // be hidden under the bitmap.
+    {
+      auto [label_rows, label_cols] = getDim();
+      int usable_rows = footer_label_.empty() ? static_cast<int>(label_rows) : static_cast<int>(label_rows) - 1;
+      for (auto & label : axisLabels(usable_rows, static_cast<int>(label_cols))) {
+        drawPixelLabel(buffer, pxx, pxy, label, celldimx, celldimy);
+      }
+    }
+
     ncpp::Visual visual(buffer.data(), static_cast<int>(pxy), static_cast<int>(pxx * 4), static_cast<int>(pxx));
     ncvisual_options vopts{};
     vopts.n = native_plane;
@@ -1333,46 +1400,7 @@ public:
     vopts.blitter = NCBLIT_PIXEL;
     visual.blit(&vopts);
 
-    // Axis labels overlay the already-blitted image (same "putstr after
-    // blit still shows through" the footer label below already relies on)
-    // - always drawn (see axisLabels()'s own comment): each label
-    // character's pixel footprint is collapsed to a single mean color used
-    // as its background, with the glyph itself in white-blended-with-
-    // transparency (labelForegroundColor()) over that background.
     auto [rows, cols] = getDim();
-    int usable_rows = footer_label_.empty() ? static_cast<int>(rows) : static_cast<int>(rows) - 1;
-    for (auto & label : axisLabels(usable_rows, static_cast<int>(cols))) {
-      std::string text = label.text;
-      for (int c = 0; c < static_cast<int>(text.size()); c++) {
-        int col = label.col + c;
-        if (col < 0 || col >= static_cast<int>(cols)) continue;
-        unsigned px0 = static_cast<unsigned>(col) * celldimx;
-        unsigned px1 = min(pxx, px0 + celldimx);
-        unsigned py0 = static_cast<unsigned>(label.row) * celldimy;
-        unsigned py1 = min(pxy, py0 + celldimy);
-
-        double sum_r = 0.0, sum_g = 0.0, sum_b = 0.0;
-        unsigned count = 0;
-        for (unsigned py = py0; py < py1; py++) {
-          for (unsigned px = px0; px < px1; px++) {
-            uint32_t pixel = buffer[py * pxx + px];
-            sum_r += static_cast<float>(pixel & 0xffu);
-            sum_g += static_cast<float>((pixel >> 8) & 0xffu);
-            sum_b += static_cast<float>((pixel >> 16) & 0xffu);
-            count++;
-          }
-        }
-        if (count == 0) continue;
-        SubcellRgb mean{static_cast<float>(sum_r / count), static_cast<float>(sum_g / count), static_cast<float>(sum_b / count)};
-
-        uint8_t fr, fg, fb;
-        labelForegroundColor(mean, fr, fg, fb);
-        setFgColor(fr, fg, fb);
-        setBgColor(static_cast<int>(mean.r), static_cast<int>(mean.g), static_cast<int>(mean.b));
-        putstr(label.row, col, std::string(1, text[static_cast<size_t>(c)]));
-      }
-    }
-
     if (!footer_label_.empty()) {
       putstr(static_cast<int>(rows) - 1, 0, footer_label_);
     }
@@ -1465,10 +1493,27 @@ protected:
     // Opaque background: a transparent pixel would composite against the raw
     // terminal's background instead of this app's.
     vector<uint32_t> buffer(static_cast<size_t>(pxy) * pxx, pixelOf(styles.window_bg_color));
-    uint32_t bar_pixel = pixelOf(styles.meter_active_color);
+    // The gradient colour at pixel row `y` (from the bottom), blended `t` of
+    // the way from the background.
+    auto shade = [&](unsigned y, float t) {
+      auto color = styles.window_bg_color.blend(t, styles.spectrumColor((static_cast<float>(y) + 0.5f) / static_cast<float>(pxy)));
+      return pixelOf(color);
+    };
+    // The curve's height at each column, in pixels from the bottom.
+    float top = static_cast<float>(pxy) - 2.0f;
+    auto height = [&](unsigned x) { return levels[x] * top + 1.0f; };
     for (unsigned x = 0; x < pxx; x++) {
-      unsigned bar_height = static_cast<unsigned>(levels[x] * static_cast<float>(pxy) + 0.5f);
-      for (unsigned y = 0; y < bar_height && y < pxy; y++) buffer[(pxy - 1 - y) * pxx + x] = bar_pixel;
+      float h = height(x);
+      // The line reaches the neighbours' midpoints so steep slopes stay connected.
+      float prev = x > 0 ? 0.5f * (h + height(x - 1)) : h, next = x + 1 < pxx ? 0.5f * (h + height(x + 1)) : h;
+      float lo = std::min({h, prev, next}) - 0.9f, hi = std::max({h, prev, next}) + 0.9f;
+      for (unsigned y = 0; y < pxy; y++) {
+        float yc = static_cast<float>(y) + 0.5f; // pixel centre, from the bottom
+        if (yc < lo) { buffer[(pxy - 1 - y) * pxx + x] = shade(y, 0.22f); continue; }
+        float cover = std::clamp(std::min(yc - lo, hi - yc), 0.0f, 1.0f);
+        if (cover <= 0.0f) break;
+        buffer[(pxy - 1 - y) * pxx + x] = shade(y, std::max(0.22f, cover));
+      }
     }
     ncpp::Visual visual(buffer.data(), static_cast<int>(pxy), static_cast<int>(pxx * 4), static_cast<int>(pxx));
     ncvisual_options vopts{};
@@ -2179,11 +2224,18 @@ TerminalUI::layout() {
       int scope_x_width = outline_cols - 1;
       int chart_row = workspace_row + outline_rows + 1;
       int heatmap_row = chart_row + kScopeHeight + 1;
-      setFgColor(styles_.window_border_color);
-      setBgColor(styles_.window_bg_color);
-      std::string rule;
-      for (int i = 0; i < scope_x_width; i++) rule += "─";
-      for (int row : { chart_row - 1, heatmap_row - 1 }) putstr(row, 0, rule + "┤");
+      // A title bar above each scope, like the outline's heading; it ends in
+      // a half block over the divider column.
+      const std::pair<int, const char *> titles[] = { { chart_row - 1, "Spectrum" }, { heatmap_row - 1, "DirAC" } };
+      for (auto & [ title_row, title ] : titles) {
+        setFgColor(styles_.window_accent_fg_color);
+        setBgColor(styles_.heading_bg_color);
+        putstr(title_row, 0, std::string(static_cast<size_t>(scope_x_width), ' '));
+        putstr(title_row, 1, title);
+        setFgColor(styles_.heading_bg_color);
+        setBgColor(styles_.window_bg_color);
+        putstr(title_row, scope_x_width, "▌");
+      }
       chart_->resize(kScopeHeight, scope_x_width).move(chart_row, 0);
       heatmap_->resize(kScopeHeight, scope_x_width).move(heatmap_row, 0);
     } else {

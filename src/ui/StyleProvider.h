@@ -3,6 +3,10 @@
 
 #include "../model/Color.h"
 
+#include <algorithm>
+#include <iterator>
+#include <utility>
+
 class StyleProvider {
  public:
   // Cursor and playhead colors lean cyan, so they never read as the
@@ -54,6 +58,34 @@ class StyleProvider {
   // A track's level indicators: clipping, and sounding.
   Color meter_clip_color = "#e01040";
   Color meter_active_color = "#10e040";
+  // The level meters' bars shade by height, quiet to loud: greens, then
+  // lime, orange and hot orange, ending in meter_clip_color at full scale.
+  Color meter_low_color = "#0b5f2a";
+  Color meter_mid_color = "#0f9a3a";
+  Color meter_lime_color = "#9ae02e";
+  Color meter_warn_color = "#f09020";
+  Color meter_hot_color = "#ff5a20";
+  // The spectrum's bars shade from low to high.
+  Color spectrum_low_color = "#1e5fd0";
+  Color spectrum_high_color = "#7af0d8";
+
+  // The color of a level meter at `fraction` (0..1, level_meter::fraction())
+  // of its height.
+  Color meterColor(float fraction) const {
+    const std::pair<float, const Color *> stops[] = {
+      { 0.0f, &meter_low_color }, { 0.3f, &meter_mid_color }, { 0.55f, &meter_active_color }, { 0.78f, &meter_lime_color },
+      { 0.86f, &meter_warn_color }, { 0.94f, &meter_hot_color }, { 1.0f, &meter_clip_color },
+    };
+    fraction = std::clamp(fraction, 0.0f, 1.0f);
+    for (size_t i = 1; i < std::size(stops); i++) {
+      if (fraction <= stops[i].first) {
+        float t = (fraction - stops[i - 1].first) / (stops[i].first - stops[i - 1].first);
+        return stops[i - 1].second->blend(t, *stops[i].second);
+      }
+    }
+    return meter_clip_color;
+  }
+  Color spectrumColor(float fraction) const { return spectrum_low_color.blend(std::clamp(fraction, 0.0f, 1.0f), spectrum_high_color); }
 
   // The clip grid header's track flags when on: Mute, Solo, and a Monitor
   // set to In (Auto shows in window_fg_color, Off in window_border_color).
