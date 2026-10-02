@@ -126,34 +126,3 @@ TEST(dirac_w_only_is_also_near_full_diffuseness) {
   CHECK_NEAR(result.magnitude[DiracAnalyzer::kY], 0.0f, 1e-4f);
   CHECK_NEAR(result.magnitude[DiracAnalyzer::kZ], 0.0f, 1e-4f);
 }
-
-TEST(dirac_grid_follows_requested_resolution_and_peaks_at_source) {
-  float az = -60.0f, el = 30.0f;
-  auto gains = computeAmbisonicGains(SphericalPosition{az, el, 1.0f});
-
-  AudioBuffer data(4, kFrames);
-  auto w = data.getChannelData(0), y = data.getChannelData(1), z = data.getChannelData(2), x = data.getChannelData(3);
-  for (int i = 0; i < kFrames; i++) {
-    float s = sinf(2.0f * static_cast<float>(M_PI) * kTestFrequency * static_cast<float>(i) / static_cast<float>(kSampleRate));
-    w[i] = gains[0] * s;
-    y[i] = gains[1] * s;
-    z[i] = gains[2] * s;
-    x[i] = gains[3] * s;
-  }
-
-  DiracAnalyzer analyzer(kSampleRate);
-  analyzer.setResolution(240, 100);
-  analyzer.process(data);
-
-  CHECK(analyzer.getAzimuthBins() == 240);
-  CHECK(analyzer.getElevationBins() == 100);
-  CHECK(analyzer.getGrid().size() == 24000u);
-
-  auto & grid = analyzer.getGrid();
-  size_t peak = 0;
-  for (size_t i = 1; i < grid.size(); i++) if (grid[i] > grid[peak]) peak = i;
-  float peak_az = (static_cast<float>(peak % 240) + 0.5f) * 360.0f / 240.0f - 180.0f;
-  float peak_el = (static_cast<float>(peak / 240) + 0.5f) * 180.0f / 100.0f - 90.0f;
-  CHECK_NEAR(peak_az, az, 3.0f);
-  CHECK_NEAR(peak_el, el, 3.0f);
-}

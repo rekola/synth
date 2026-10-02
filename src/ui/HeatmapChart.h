@@ -6,7 +6,6 @@
 #include <cmath>
 #include <cstdint>
 #include <string>
-#include <utility>
 #include <vector>
 
 // 2D-grid visualization contract - deliberately separate from Chart's 1D
@@ -27,7 +26,7 @@ class HeatmapChart : public UIElement {
 
   // `brightness`/`saturation` are each gridCols()*gridRows() entries,
   // row-major with row 0 = bottom (matching DiracAnalyzer::getGrid()'s own
-  // el_bin*gridCols()+az_bin indexing, el_bin 0 = the lowest elevation
+  // el_bin*kAzimuthBins+az_bin indexing, el_bin 0 = the lowest elevation
   // band), both already fully computed by the caller and clamped to [0,1]
   // - hue is fixed, owned by the renderer, not passed in (see
   // plans/dirac-heatmap-scope.md SS6).
@@ -41,14 +40,6 @@ class HeatmapChart : public UIElement {
 
   int gridCols() const { return grid_cols_; }
   int gridRows() const { return grid_rows_; }
-
-  // The grid setGrid() delivers from now on; the source follows the
-  // widget's size (preferredGridSize()), so this changes with the layout.
-  void setGridSize(int cols, int rows) { grid_cols_ = cols; grid_rows_ = rows; }
-
-  // The grid size that maps one cell to one sub-cell/pixel of this widget
-  // as it is now laid out.
-  virtual std::pair<int, int> preferredGridSize() { return { grid_cols_, grid_rows_ }; }
 
  protected:
   std::string footer_label_;

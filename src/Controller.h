@@ -11,12 +11,10 @@
 #include "ambisonic/ChannelConfiguration.h"
 #include "ambisonic/MixerType.h"
 #include "bus/BusEffectRegistry.h"
-#include "dsp/DiracAnalyzer.h"
 #include "ui/CommandRegistry.h"
 #include "util/constants.h"
 
 #include <algorithm>
-#include <atomic>
 #include <functional>
 #include <deque>
 #include <map>
@@ -473,16 +471,6 @@ class Controller {
   void finishSampleCapture();
 
   EventQueue & getUIEventQueue() { return ui_event_queue; }
-
-  // The DirAC grid size the UI wants (its scope's own resolution); the
-  // visualization thread follows it. Packed so both dimensions change at once.
-  void setDiracResolution(int azimuth_bins, int elevation_bins) {
-    dirac_resolution_.store((static_cast<uint32_t>(azimuth_bins) << 16) | static_cast<uint32_t>(elevation_bins));
-  }
-  std::pair<int, int> getDiracResolution() const {
-    uint32_t packed = dirac_resolution_.load();
-    return { static_cast<int>(packed >> 16), static_cast<int>(packed & 0xffffu) };
-  }
   EventQueue & getPlaybackEventQueue() { return playback_event_queue; }
 
   // Session view clip launching and its clock - see SessionPlayer.h.
@@ -1161,7 +1149,6 @@ class Controller {
   std::shared_ptr<AudioBuffer> current_sample;
   InstrumentProvider instrument_provider;
   EventQueue ui_event_queue, playback_event_queue, visualization_queue;
-  std::atomic<uint32_t> dirac_resolution_ { (static_cast<uint32_t>(DiracAnalyzer::kDefaultAzimuthBins) << 16) | static_cast<uint32_t>(DiracAnalyzer::kDefaultElevationBins) };
   // playback_info/recording_track_id/local_position_edit_seq_/
   // focused_clip_id_ below are each a live mirror of whichever buffer is
   // currently active; these maps

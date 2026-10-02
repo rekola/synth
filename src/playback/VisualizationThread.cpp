@@ -98,8 +98,6 @@ VisualizationThread::handleAudioBlockEvent(AudioBlockEvent & ev) {
     result->setFFT(spectrum_.calculateFFT(), spectrum_.binHz());
   }
 
-  auto [dirac_az, dirac_el] = controller_->getDiracResolution();
-  dirac_->setResolution(dirac_az, dirac_el);
   dirac_->process(ev.getRawBus());
   // plans/dirac-heatmap-scope.md SS1: deliver the DirAC grid at roughly
   // every 3rd analysis frame (~28.7Hz), not every one (~86Hz) - terminal
@@ -112,7 +110,7 @@ VisualizationThread::handleAudioBlockEvent(AudioBlockEvent & ev) {
     array<float, DiracAnalyzer::kNumBands> diffuse_energy {};
     for (int b = 0; b < DiracAnalyzer::kNumBands; b++) diffuse_energy[static_cast<size_t>(b)] = dirac_->getDiffuseEnergy(b);
 
-    result->setDiracGrid(dirac_->getGrid(), dirac_->getAzimuthBins(), dirac_->getElevationBins(), diffuse_energy);
+    result->setDiracGrid(dirac_->getGrid(), diffuse_energy);
   }
 
   controller_->getUIEventQueue().push(move(result));
