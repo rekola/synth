@@ -31,7 +31,7 @@ public:
       cut_max_(filter.get_cut_max()),
       res_(filter.get_res()),
       sample_rate_(static_cast<float>(channel_config.getAudioOutSampleRate())),
-      envelope_state_(channel_config.getAudioOutSampleRate(), envelope, 0, 0, !filter.get_linear_envelope()),
+      envelope_state_(channel_config.getAudioOutSampleRate(), envelope, 0, 0, true),
       filters_(static_cast<size_t>(channel_config.numberOfChannels()))
   { }
 
@@ -165,7 +165,6 @@ ResonantFilter::loadParameters(const ParameterSource & input) {
 
   res_ = input.get<float>("res");
   use_aftertouch_ = input.get<bool>("aftertouch");
-  linear_envelope_ = input.get<bool>("linear");
 
   envelope_.loadParameters(input);
 }
@@ -183,7 +182,6 @@ ResonantFilter::storeParameters(ParameterSource & output) const {
 
   output.set("res", res_);
   output.set("aftertouch", use_aftertouch_);
-  output.set("linear", linear_envelope_);
 
   envelope_.storeParameters(output);
 }

@@ -162,19 +162,18 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
     provider.registerPath("pad.halo", move(phaser));
   }
 
-  // Sweep (pad.sweep) is a slow filter sweep over the note's own life: a
-  // <resonantFilter>'s own envelope, linear so the cutoff falls back as fast
-  // as it rose, over a plain pad.
+  // Sweep (pad.sweep) is a slow filter sweep: a <resonantFilter>'s own
+  // envelope opens the cutoff over the attack and holds it open, over a plain
+  // pad.
   {
     auto filter = make_unique<ResonantFilter>();
     MemoryParameterSource filter_params;
     filter_params.set("cutmin", 300.0f);
     filter_params.set("cutmax", 9000.0f);
     filter_params.set("res", 0.5f);
-    filter_params.set("linear", true);
     filter_params.set("attack", 1.5f);
-    filter_params.set("decay", 1.5f);
-    filter_params.set("sustain", 0.4f);
+    filter_params.set("decay", 0.0f);
+    filter_params.set("sustain", 1.0f);
     filter_params.set("release", 1.2f);
     filter->loadParameters(filter_params);
     filter->addChild(makeEnvelopePad("strings", 0.3f, 0.0f, 0.4f, 0.85f, 1.2f));
