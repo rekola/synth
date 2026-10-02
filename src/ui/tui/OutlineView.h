@@ -237,7 +237,9 @@ protected:
   int current_song_version_ = 0;
   bool current_focused_ = false;
   int new_scroll_pos_ = 0, current_scroll_pos_ = 0;
-  int new_cursor_row_ = 0, current_cursor_row_ = 0;
+  // -1 until the first selection (a cursor key or a click): no row is
+  // highlighted and no buttons show before that.
+  int new_cursor_row_ = -1, current_cursor_row_ = -1;
   // The physical key id currently sounding a Library-instrument preview
   // note (see PlaybackControlEvent::PREVIEW_NOTE/PREVIEW_STOP's own
   // comment), or -1 when nothing is held - mirrors PatternEditor's own
