@@ -208,10 +208,10 @@ TEST(pad_sweep_gets_brighter_over_the_note) {
     }
     return level > 0.0 ? step / level : 0.0;
   };
-  // Dark at the start, brightest in the middle, dark again at the end.
-  double peak = brightness(1.0f, 1.6f);
-  CHECK(peak > brightness(0.0f, 0.1f) * 1.5);
-  CHECK(peak > brightness(2.5f, 3.0f) * 1.5);
+  // Dark at the start, then opens and settles at a sustained, brighter level.
+  double start = brightness(0.0f, 0.1f);
+  CHECK(brightness(0.9f, 1.2f) > start * 1.5);
+  CHECK(brightness(2.5f, 3.0f) > start * 1.5);
 }
 
 TEST(linear_resonant_filter_envelope_falls_as_fast_as_it_rises) {

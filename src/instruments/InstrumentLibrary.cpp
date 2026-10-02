@@ -174,7 +174,7 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
     filter_params.set("linear", true);
     filter_params.set("attack", 1.0f);
     filter_params.set("decay", 1.0f);
-    filter_params.set("sustain", 0.0f);
+    filter_params.set("sustain", 0.5f);
     filter_params.set("release", 1.2f);
     filter->loadParameters(filter_params);
     filter->addChild(makeEnvelopePad("strings", 0.3f, 0.0f, 0.4f, 0.85f, 1.2f));
