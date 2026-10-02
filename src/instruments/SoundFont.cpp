@@ -1005,8 +1005,8 @@ public:
 	// recording.
 	sourceSamplePosition_ = voiceRegion_->offset;
 
-	// Simultaneous copies of the same region (a NoteMultiplier unison
-	// stack) all reading it from this same offset in lockstep would
+	// Simultaneous copies of the same region (a stack of
+	// simultaneous notes) all reading it from this same offset in lockstep would
 	// phase-lock/comb-filter when summed - start_delay_samples_ holds
 	// each copy fully silent for a small, per-voice hashed delay instead,
 	// so every copy still gets the same click-safe attack, just a few ms
@@ -1765,7 +1765,7 @@ constexpr uint64_t kPercussionJitterSalt = 0x2545f491d2b79f5Bull;
 // extent, horizontal/vertical) into a real azimuth/elevation delta and
 // adds it to `position` - the one shared algebra behind both the
 // percussion table and the pitched arc below (also used, independently,
-// by the floor reflection and NoteMultiplier's own scatter):
+// by the floor reflection and the oscillator stack's spread):
 // x = u*extent, y = v*extent/kExtentShapeRatio, delta = atan2(x or y,
 // distance). A zero-extent instrument (a point source - nothing to
 // offset within) or no position ever set at all (distance <= 0, same
@@ -2014,7 +2014,7 @@ public:
       // plain VoiceState's generic render(int frames) FOA-encodes each one
       // individually using its own (region-pan-adjusted) position as soon
       // as it notices the channel-count mismatch - no group-state override
-      // needed here, same reasoning as NoteMultiplier.
+      // needed here.
       auto group = make_unique<VoiceState>(channel_config);
       for (auto & [ id, voice ] : voices) group->addChild(id, move(voice));
       return group;

@@ -8,7 +8,6 @@
 #include "SampleContent.h"
 #include "Group.h"
 #include "../audio/SampleFileLoader.h"
-#include "../instruments/NoteMultiplier.h"
 #include "../instruments/Arpeggiator.h"
 #include "../instruments/Oscillator.h"
 #include "../instruments/PadSynth.h"
@@ -196,7 +195,6 @@ static unique_ptr<Track> createTrack(string_view name) {
   else if (name == "chorus") return make_unique<Chorus>();
   else if (name == "phaser") return make_unique<Phaser>();
   else if (name == "tremolo") return make_unique<Tremolo>();
-  else if (name == "multiply") return make_unique<NoteMultiplier>();
   else if (name == "envelope") return make_unique<EnvelopeFilter>();
   else if (name == "amplifier") return make_unique<Amplifier>();
   else if (name == "compressor") return make_unique<Compressor>();
@@ -310,8 +308,8 @@ static std::unique_ptr<Track> parseChildTrack(XMLElement & element, const Instru
   }
 
   // A leaf instrument has nothing to do with children (they used to be FM
-  // modulators); <multiply> is the instrument that wraps others.
-  if (instrument && !track->getChildren().empty() && !dynamic_cast<NoteMultiplier *>(track.get())) {
+  // modulators).
+  if (instrument && !track->getChildren().empty()) {
     return std::unique_ptr<Track>(nullptr);
   }
 

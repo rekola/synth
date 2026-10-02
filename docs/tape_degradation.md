@@ -180,10 +180,10 @@ to run forever).
   shares its track's own position exactly, so a held chord's
   independently-drifting tape strips don't also read as physically
   separate points in space the way a real Mellotron's side-by-side tape
-  heads would. `NoteMultiplier`'s own unison spread (`NoteMultiplier.cpp`,
+  heads would. `<oscillator>`'s own stack spread (`OscillatorVoice.h`,
   `atan2f(spread * position.extent, position.distance)` for an angular
   half-width) is the closest existing precedent, but doesn't transfer
-  directly - it spreads a known, fixed unison count within one
+  directly - it spreads a known, fixed voice count within one
   `playNote()` call, whereas a Mellotron chord's notes each arrive via
   their own separate `playNote()` with no visibility into what else is
   currently held.

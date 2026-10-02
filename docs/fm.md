@@ -19,4 +19,4 @@ layer (`ratio="14"`) for the attack.
 
 Instruments no longer take children: nesting an instrument inside a leaf
 instrument (`<oscillator>`, `<fm>`, `<padsynth>`, ...) is a load error.
-Only `<multiply>` wraps other instruments.
+Instruments don't wrap other instruments; only effects and groups take children.

@@ -106,7 +106,6 @@ add_library(synth_engine STATIC
 	src/playback/SessionPlayer.cpp
 	src/playback/VisualizationThread.cpp
 	src/dsp/DiracAnalyzer.cpp
-	src/instruments/NoteMultiplier.cpp
 	src/instruments/OscillatorArray.cpp
 	src/instruments/Arpeggiator.cpp
 	src/state/ArpeggiatorState.cpp

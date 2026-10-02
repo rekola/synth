@@ -21,9 +21,7 @@
       </resonantFilter>
     </envelope>
 
-    <multiply unisons="32" detune="10" spread="7" name="Piano group">
-      <instrument from="piano.acoustic.grand" />
-    </multiply>
+    <instrument from="piano.acoustic.grand" name="Piano group" />
 
     <instrument from="piano.acoustic.grand" />
   </instruments>

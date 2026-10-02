@@ -90,7 +90,6 @@ add_executable(synth_tests
 	AdditiveTests.cpp
 	PadSynthTests.cpp
 	InstrumentLibraryTests.cpp
-	NoteMultiplierTests.cpp
 	OscillatorStackTests.cpp
 )
 

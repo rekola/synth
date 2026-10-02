@@ -25,18 +25,14 @@
       <resonantFilter cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
 	<oscillator type="sine" level="0.75" />
 	<oscillator type="sine" level="0.3750" harmonic="2"/>
-	<multiply unisons="0" octaves="16" detune="5">
-	  <oscillator type="square" level="0.05" />
-	</multiply>
+	<oscillator type="square" level="0.05" voices="16" ratio="2" falloff="0.5" detune="5"/>
       </resonantFilter>
     </envelope>
 
     <envelope attack="1" release="2" name="padtest (3rd)">
       <oscillator type="sine" level="0.75" />
       <resonantFilter cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
-	<multiply unisons="0" octaves="0" thirds="16" detune="5">
-	  <oscillator type="saw" level="0.25" />
-	</multiply>
+	<oscillator type="saw" level="0.25" />
       </resonantFilter>
     </envelope>
 

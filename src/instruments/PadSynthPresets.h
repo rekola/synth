@@ -179,10 +179,7 @@ inline const PadSynthParams & getPadSynthPreset(const std::string & name) {
     /* table_length */ 1 << 18, /* tuning_matched */ true);
 
   // "dual-strings" - the same power-ramp oscillator shape as "strings",
-  // against just harmonic 1 and a wider bandwidth of its own. Its own
-  // "dual"/octave-doubled character comes from unison layering on top,
-  // same as "strings" - see InstrumentLibrary.cpp's own pad.bowed/
-  // PadSynth Dual Strings <multiply> wrapping.
+  // against just harmonic 1 and a wider bandwidth of its own.
   static const PadSynthParams kDualStrings = preset(
     []{
       OCP o;

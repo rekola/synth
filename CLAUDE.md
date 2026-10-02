@@ -1142,7 +1142,7 @@ would otherwise resume showing.
     `OscillatorArray`, a struct-of-arrays vector-extension kernel). Each member
     keeps its own direction; the floor reflection and Aux sends run once on
     the summed signal at the centre. One voice is just the stack of one. Other
-    voice types don't stack; `<multiply>` still wraps them.
+    voice types don't stack.
   - `src/ambisonic/` — spatial encode/decode math and the `Mixer`
     hierarchy (see the `AmbisonicEncoding.h` bullet below).
   - `src/audio/` — `AlsaAudio` (device output), `AudioBuffer`,
