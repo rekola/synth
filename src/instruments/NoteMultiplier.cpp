@@ -1,6 +1,4 @@
 #include "NoteMultiplier.h"
-#include "Oscillator.h"
-#include "OscillatorArrayVoice.h"
 #include "../ambisonic/AmbisonicEncoding.h"
 #include "../dsp/HashField.h"
 
@@ -30,7 +28,7 @@ NoteMultiplier::playNote(const ChannelConfiguration & channel_config, const Sphe
   // ORed with, not replacing, whatever this call already received, so a
   // NoteMultiplier nested inside another still decorrelates when the
   // outer one says so.
-  int total_copies = (unisons_ >= 2 ? unisons_ : 1) + fourths_ + fifths_ + octaves_;
+  int total_copies = (unisons_ >= 2 ? unisons_ : 1) + octaves_;
   bool decorrelate = needs_decorrelation || total_copies > 1;
 
   // No reduction of channel_config here, and no createVoiceState() override
@@ -45,34 +43,15 @@ NoteMultiplier::playNote(const ChannelConfiguration & channel_config, const Sphe
   // override needed here for that to work.
   auto group = createVoiceState(channel_config);
   int voice_id = 0;
-
-  // Every Oscillator child's copies share one OscillatorArrayVoice instead
-  // of each being its own voice; any other child type still gets a voice
-  // per copy. Created on the first Oscillator copy, added to the group
-  // after the loop.
-  std::unique_ptr<OscillatorArrayVoice> array_voice;
-
-  // One copy of `child` - position/detune/velocity_scale are that copy's own.
-  auto spawn = [&](const std::unique_ptr<Track> & child, const SphericalPosition & position, float detune, float velocity_scale) {
-    auto coord = note_coord.withInstance(voice_id);
-    if (auto * osc = dynamic_cast<const Oscillator *>(child.get())) {
-      if (!array_voice) array_voice = std::make_unique<OscillatorArrayVoice>(channel_config, input_position, sends, note_coord);
-      array_voice->addCopy({ osc->getType(), osc->getLevel(), osc->getPulseWidth(), osc->applyHarmonics(detune), velocity_scale, position, coord });
-      voice_id++;
-    } else {
-      auto voice = child->playNote(channel_config, position, tuning, detune, velocity * velocity_scale, note_value, sends, coord, decorrelate);
-      if (voice.get()) group->addChild(voice_id++, move(voice));
-    }
-  };
-
   for (auto & child : getChildren()) {
     if (unisons_ == 1) {
-      // root - each copy's own start phase is derived from its own
+      // root - each child's own start phase is derived from its own
       // coordinate (note_coord.withInstance(voice_id), decorrelating it
       // from every other generated sub-voice) internally, by whichever
-      // leaf actually constructs a voice - nothing computed or injected
-      // here.
-      spawn(child, input_position, input_detune, 1.0f);
+      // leaf actually constructs a voice (InstrumentVoice's own
+      // constructor) - nothing computed or injected here any more.
+      auto voice = child->playNote(channel_config, input_position, tuning, input_detune, velocity, note_value, sends, note_coord.withInstance(voice_id), decorrelate);
+      if (voice.get()) group->addChild(voice_id++, move(voice));
     } else if (unisons_ >= 2) {
       // spread_ is a dimensionless multiplier on the resolved instrument's
       // own extent (not a raw angle) - the actual angular half-width
@@ -96,27 +75,20 @@ NoteMultiplier::playNote(const ChannelConfiguration & channel_config, const Sphe
 	SphericalPosition position = input_position;
 	position.azimuth += azimuth_offset;
 	position.elevation += azimuth_offset / kExtentShapeRatio;
-	spawn(child, position, detune, 1.0f);
+	auto voice = child->playNote(channel_config, position, tuning, detune, velocity, note_value, sends, note_coord.withInstance(voice_id), decorrelate);
+	if (voice.get()) group->addChild(voice_id++, move(voice));
       }
     }
 
-    // fourths, fifths, octaves - each i-th copy an interval higher and
-    // half as loud again, jittered by up to detune_ cents.
-    auto stacked = [&](int count, float interval) {
-      for (int i = 0; i < count; i++) {
-	float cents_jitter = detune_field.bipolar(note_coord.withInstance(voice_id).toHashCoord(), paramId("notemul_detune"), detune_);
-	float detune = input_detune * powf(interval, static_cast<float>(i + 1)) * powf(2.0f, cents_jitter / 1200.0f);
-	spawn(child, input_position, detune, powf(0.5f, static_cast<float>(i + 1)));
-      }
-    };
-    stacked(fourths_, 4.0f / 3.0f);
-    stacked(fifths_, 3.0f / 2.0f);
-    stacked(octaves_, 2.0f);
-  }
+    // octaves
+    for (int i = 0; i < octaves_; i++) {
+      float cents_jitter = detune_field.bipolar(note_coord.withInstance(voice_id).toHashCoord(), paramId("notemul_detune"), detune_);
+      float detune = input_detune * powf(2.0f, i + 1) * powf(2.0f, cents_jitter / 1200.0f);
+      float v = velocity * powf(0.5f, i + 1);
 
-  if (array_voice) {
-    array_voice->playNote(getFrequencyFor(tuning, note_value), velocity, note_value);
-    group->addChild(voice_id, move(array_voice));
+      auto voice = child->playNote(channel_config, input_position, tuning, detune, v, note_value, sends, note_coord.withInstance(voice_id), decorrelate);
+      if (voice.get()) group->addChild(voice_id++, move(voice));
+    }
   }
   return group;
 }
@@ -126,8 +98,6 @@ NoteMultiplier::loadParameters(const ParameterSource & input) {
   Instrument::loadParameters(input);
 
   unisons_ = input.get<int>("unisons", 1);
-  fourths_ = input.get<int>("fourths");
-  fifths_ = input.get<int>("fifths");
   octaves_ = input.get<int>("octaves");
   detune_ = input.get<float>("detune");
   spread_ = input.get<float>("spread");
@@ -139,8 +109,6 @@ NoteMultiplier::storeParameters(ParameterSource & output) const {
 
   output.set("unisons", unisons_);
   output.set("octaves", octaves_);
-  output.set("fifths", fifths_);
-  output.set("fourths", fourths_);
   output.set("detune", detune_);
   output.set("spread", spread_);
 }

@@ -2,9 +2,7 @@
 
 #include "../src/instruments/Oscillator.h"
 #include "../src/instruments/OscillatorArray.h"
-#include "../src/instruments/OscillatorArrayVoice.h"
 #include "../src/instruments/OscillatorVoice.h"
-#include "../src/instruments/NoteMultiplier.h"
 #include "../src/state/MemoryParameterSource.h"
 #include "../src/ambisonic/ChannelConfiguration.h"
 #include "../src/ambisonic/SphericalPosition.h"
@@ -76,41 +74,49 @@ TEST(oscillator_array_sine_polynomial_is_accurate) {
   CHECK(max_err < 2e-6);
 }
 
-// One array voice with several copies must sound like the same copies as
-// separate OscillatorVoices (floor reflection off, so no per-copy/summed
+// A stacked voice must sound like the same members played as separate
+// single-member voices (floor reflection off, so no per-member/summed
 // difference).
-TEST(oscillator_array_voice_matches_separate_voices) {
+TEST(oscillator_stack_matches_separate_voices) {
   ChannelConfiguration config(44100, 1);
   config.setFloorReflectionEnabled(false);
   SendLevels sends;
   NoteCoordinate coord(1, 16, 0);
 
-  struct Spec { float ratio, velocity_scale, azimuth; };
-  const Spec specs[] = { { 1.0f, 1.0f, -30.0f }, { 1.003f, 1.0f, 30.0f }, { 1.5f, 0.5f, 0.0f }, { 2.0f, 0.25f, 90.0f } };
-  const float frequency = 330.0f, velocity = 0.8f;
+  OscillatorStack stack;
+  stack.voices = 4;
+  stack.ratio = 1.5f;
+  stack.falloff = 0.5f;
+  stack.detune_cents = 12.0f;
+  stack.spread = 1.0f;
 
   SphericalPosition centre;
   centre.distance = 2.0f;
+  centre.extent = 3.0f;
 
-  OscillatorArrayVoice array_voice(config, centre, sends, coord);
+  const float frequency = 330.0f, velocity = 0.8f, note_detune = 1.01f;
+  OscillatorVoice stacked(config, centre, note_detune, WaveformType::SAW, 0.7f, 0.5f, sends, coord, stack);
+  CHECK(stacked.memberCount() == 4);
+  stacked.playNote(frequency, velocity, 60);
+
+  const float half_width = atan2f(stack.spread * centre.extent, centre.distance) * 180.0f / static_cast<float>(kPi);
   vector<unique_ptr<OscillatorVoice>> separate;
-  int id = 0;
-  for (auto & s : specs) {
+  for (int k = 0; k < 4; k++) {
+    float place = 2.0f * static_cast<float>(k) / 3.0f - 1.0f;
     SphericalPosition position = centre;
-    position.azimuth += s.azimuth;
-    array_voice.addCopy({ WaveformType::SAW, 0.7f, 0.5f, s.ratio, s.velocity_scale, position, coord.withInstance(id) });
-    auto voice = make_unique<OscillatorVoice>(config, position, s.ratio, WaveformType::SAW, 0.7f, 0.5f, sends, coord.withInstance(id));
-    voice->playNote(frequency, velocity * s.velocity_scale, 60);
+    position.azimuth += place * half_width;
+    position.elevation += place * half_width / kExtentShapeRatio;
+    float ratio = note_detune * powf(stack.ratio, static_cast<float>(k)) * powf(2.0f, place * stack.detune_cents / 2400.0f);
+    auto voice = make_unique<OscillatorVoice>(config, position, ratio, WaveformType::SAW, 0.7f * powf(stack.falloff, static_cast<float>(k)), 0.5f, sends, coord.withInstance(k));
+    voice->playNote(frequency, velocity, 60);
     separate.push_back(move(voice));
-    id++;
   }
-  array_voice.playNote(frequency, velocity, 60);
-  CHECK(array_voice.copyCount() == 4);
 
   int bad = 0, total = 0;
+  double energy = 0.0;
   for (int block = 0; block < 10; block++) {
     const int frames = 512;
-    auto a = array_voice.render(frames);
+    auto a = stacked.render(frames);
     AudioBuffer expected(config.numberOfChannels(), frames);
     expected.zero();
     for (auto & v : separate) expected.mixNamed(v->render(frames));
@@ -118,63 +124,61 @@ TEST(oscillator_array_voice_matches_separate_voices) {
     CHECK(a.regularChannelCount() == config.numberOfChannels());
     for (int c = 0; c < a.regularChannelCount(); c++) {
       for (int k = 0; k < frames; k++, total++) {
+	energy += static_cast<double>(a.getChannelData(c)[k]) * static_cast<double>(a.getChannelData(c)[k]);
 	if (fabsf(a.getChannelData(c)[k] - expected.getChannelData(c)[k]) > 1e-3f) bad++;
       }
     }
   }
+  CHECK(energy > 1.0);
   CHECK(bad < total / 500); // only a saw's wrap sample may differ
 }
 
-namespace {
+// The default stack is one member, rendered exactly like a plain voice.
+TEST(oscillator_default_stack_is_a_single_member) {
+  Oscillator osc(WaveformType::SQUARE);
+  ChannelConfiguration config(44100, 1);
+  SphericalPosition position;
+  position.distance = 1.0f;
 
-// Counts the voices a NoteMultiplier hands back, and which of them are the
-// merged array.
-int countVoices(const VoiceState & v) { return v.getAllocatedVoiceCount(); }
-
-unique_ptr<NoteMultiplier> multiplier(int unisons, int octaves, int fifths, int fourths) {
-  auto m = make_unique<NoteMultiplier>();
-  MemoryParameterSource params;
-  params.set("unisons", unisons);
-  params.set("octaves", octaves);
-  params.set("fifths", fifths);
-  params.set("fourths", fourths);
-  params.set("detune", 4.0f);
-  params.set("spread", 1.0f);
-  m->loadParameters(params);
-  auto osc = make_unique<Oscillator>(WaveformType::SQUARE);
-  MemoryParameterSource osc_params;
-  osc_params.set("type", string("square"));
-  osc->loadParameters(osc_params);
-  m->addChild(std::move(osc));
-  return m;
+  auto voice = osc.playNote(config, position, Tuning::TET31, 1.0f, 1.0f, 60, SendLevels{}, NoteCoordinate(0, 0, 0), false);
+  CHECK(voice.get() != nullptr);
+  CHECK(voice->getAllocatedVoiceCount() == 1);
 }
 
-} // namespace
-
-TEST(note_multiplier_renders_oscillator_copies_as_one_voice) {
-  auto m = multiplier(5, 1, 1, 1);
+TEST(oscillator_voices_attribute_builds_one_stacked_voice) {
+  Oscillator osc(WaveformType::SAW);
+  MemoryParameterSource params;
+  params.set("type", string("saw"));
+  params.set("voices", 8);
+  params.set("detune", 10.0f);
+  params.set("spread", 1.0f);
+  osc.loadParameters(params);
 
   ChannelConfiguration config(44100, 1);
   SphericalPosition position;
   position.distance = 1.0f;
   position.extent = 1.0f;
 
-  auto group = m->playNote(config, position, Tuning::TET31, 1.0f, 1.0f, 60, SendLevels{}, NoteCoordinate(0, 0, 0), false);
-  CHECK(group.get() != nullptr);
-  // The group plus exactly one child, however many copies.
-  CHECK(countVoices(*group) == 2);
+  auto voice = osc.playNote(config, position, Tuning::TET31, 1.0f, 1.0f, 60, SendLevels{}, NoteCoordinate(0, 0, 0), false);
+  CHECK(voice->getAllocatedVoiceCount() == 1); // one voice, however many members
 
+  bool any = false;
   for (int block = 0; block < 4; block++) {
-    auto out = group->render(256);
+    auto out = voice->render(256);
     CHECK(out.hasChannel(Channel::Main));
-    bool any = false;
     for (int c = 0; c < out.regularChannelCount(); c++) {
       for (int k = 0; k < 256; k++) {
-	float s = out.getChannelData(c)[k];
-	CHECK(std::isfinite(s));
-	any = any || s != 0.0f;
+	float v = out.getChannelData(c)[k];
+	CHECK(std::isfinite(v));
+	any = any || v != 0.0f;
       }
     }
-    CHECK(any);
   }
+  CHECK(any);
+
+  // Round-trips through the parameters, defaults omitted.
+  MemoryParameterSource stored;
+  osc.storeParameters(stored);
+  CHECK(stored.get<int>("voices", 1) == 8);
+  CHECK_NEAR(stored.get<float>("detune", 0.0f), 10.0f, 1e-6f);
 }

@@ -3,9 +3,7 @@
   <instruments>
     <envelope attack="0.1" release="2" name="padtest2">
       <resonantFilter cut="20000" res="0">
-	<multiply unisons="4" detune="5">
-	  <oscillator type="saw" level="0.25" />
-	</multiply>
+	<oscillator type="saw" level="0.25" voices="4" detune="5"/>
       </resonantFilter>
     </envelope>
 

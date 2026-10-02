@@ -1134,13 +1134,15 @@ would otherwise resume showing.
   - `src/instruments/` — synthesis and instrument resolution:
     `OscillatorVoice`/`GenericInstrument`/`SoundFont`, `Tuner`/`Tuning`
     (microtonal pitch math), `LFO`, `Arpeggiator`.
-  `NoteMultiplier` renders all copies of its `Oscillator` children
-    (unisons/fourths/fifths/octaves) as one `OscillatorArrayVoice`
-    (`instruments/OscillatorArray.h`/`.cpp`: struct-of-arrays phases and
-    levels, one vector-extension pass per copy) - each copy keeps its own
-    azimuth/elevation from the extent spread, while the floor reflection
-    and Aux sends run once on the summed signal at the centre position.
-    Other child types still get a voice per copy.
+  `Oscillator` can stack itself into one voice: `voices` members, member k at
+    `ratio`^k times the note's frequency and `falloff`^k times its level
+    (ratio 1 = unison choir, 2 = octaves), with `detune` (cents) and `spread`
+    (a multiplier on the position's extent) spread evenly and centred across
+    the members (`OscillatorStack.h`; rendered by `OscillatorVoice` through
+    `OscillatorArray`, a struct-of-arrays vector-extension kernel). Each member
+    keeps its own direction; the floor reflection and Aux sends run once on
+    the summed signal at the centre. One voice is just the stack of one. Other
+    voice types don't stack; `<multiply>` still wraps them.
   - `src/ambisonic/` — spatial encode/decode math and the `Mixer`
     hierarchy (see the `AmbisonicEncoding.h` bullet below).
   - `src/audio/` — `AlsaAudio` (device output), `AudioBuffer`,

@@ -11,9 +11,7 @@
 <song temperament="12edo" tempo="120" rowsPerBar="1" volume="1.0">
   <instruments>
     <envelope attack="0.01" hold="0.2" decay="0.1" sustain="0.0" release="0.02">
-      <multiply unisons="4" spread="0.5774" detune="20">
-        <oscillator type="saw"/>
-      </multiply>
+      <oscillator type="saw" voices="4" detune="20" spread="0.5774"/>
     </envelope>
   </instruments>
   <tracks>
