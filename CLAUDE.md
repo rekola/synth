@@ -460,10 +460,13 @@ would otherwise resume showing.
   - that's shift + CC98 instead (see its own bullet below), reachable
   from any `GridMode`. **Shift** (CC91 held) turns all eight right-side
   buttons into labelled alternate functions, in every `GridMode`
-  (`handleRawButton()`'s shift branch): Volume (CC89) is Duplicate, Solo
-  (CC29, Pro MK3 CC20) is Draw, and the other six do nothing rather than
-  launch or switch anything; their LEDs show only those two while shift
-  is held (Duplicate cyan, Draw purple, the rest dark). 95 ("Session") doubles as the
+  (`handleRawButton()`'s shift branch): Volume (CC89) is Duplicate, Pan (CC79) is the
+  metronome ("toggle-metronome", a click per beat while the transport plays,
+  accented on the bar - `Player::scheduleMetronome()`; its LED is amber, bright
+  while on), Solo
+  (CC29, Pro MK3 CC20) is Draw, and the other five do nothing rather than
+  launch or switch anything; their LEDs show only those three while shift
+  is held (Duplicate cyan, Draw purple, metronome amber, the rest dark). 95 ("Session") doubles as the
   mixer-submode toggle: a repeat press while already at the plain Session
   grid with nothing from the radio group active flips
   `session_mixer_mode`; any press otherwise just lands on (or stays on)

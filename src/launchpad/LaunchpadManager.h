@@ -1276,6 +1276,8 @@ class LaunchpadManager {
   // refreshLeds(), none of which otherwise need it. See octave()'s own
   // comment.
   int cached_global_octave_ = 4;
+  // Mirrored once per frame from Controller::isMetronomeOn(), for the LED.
+  bool cached_metronome_on_ = false;
 
   // refresh()'s own SessionWindow parameter, mirrored here (same
   // once-per-frame pattern) so handleSessionPadEvent() -
