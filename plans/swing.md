@@ -160,19 +160,23 @@ How it maps onto this project's buttons:
   hold-preview uses). The value clamps at its ends, with no wrap. Shift's own
   meaning is unaffected: the arrows are only repurposed while no shift
   combination is in flight.
-- **Number on the grid.** The 8x8 pads can't fit three digits, so only the
-  **middle digit** is drawn in full, in white, centered, and the other digits
-  are drawn beside it in the view's color (blue for Tempo, orange for Swing),
-  clipped by the grid edge. For example 120 shows a white 2 flanked by a blue
-  1 and 0. This is the one detail not spelled out in the description, so
-  treat the layout below as an assumption:
-  - 3x5 pixel digits, one blank column between digits, the middle digit in
-    columns 2-4 (the grid is vertically centered, rows 1-5).
-  - For a number of n digits the middle digit is index `n / 2` (120 -> the 2;
-    75 -> the 5, with the 7 beside it).
+- **Number on the grid.** The 8x8 pads can't fit three digits, so the
+  **tens digit** is always the one drawn in full, in white, centered. The
+  hundreds digit sits to its left and the units digit to its right, in the
+  view's color (blue for Tempo, orange for Swing), clipped by the grid edge.
+  No padding: 120 shows a blue 1, a white 2 and a blue 0; 50 shows a white 5
+  and a blue 0; 9 has no tens digit, so nothing is white and only the blue 9
+  shows at the units position. Fixed slots mean a digit never changes
+  position as the value changes.
+  - 3x5 pixel digits, one blank column between digits, the tens slot in
+    columns 2-4 (vertically centered, rows 1-5), units in columns 6-8 (so
+    only 6-7 are visible) and hundreds in columns -2 to 0 (only 0 visible).
+    The exact column offsets are the implementer's call, and a placement
+    that shows more of the side digits is fine.
   - A pure function `renderNumber(value) -> 8x8 array of {off, side, middle}`
-    in its own header, so it is unit-testable without a device, and the same
-    function can later draw the number in the terminal.
+    in its own header, so it is unit-testable without a device (cases: 120,
+    75, 50, 9), and the same function can later draw the number in the
+    terminal.
 - **Other buttons.** In either view every button with no meaning there goes
   dark (as in the step grid), except CC91/92 (lit white as the arrows) and
   the view's own entry button (lit in its color). Session Record keeps its
@@ -246,7 +250,5 @@ Decided: Add to Song overwrites the song's swing; swing is eighth-note only.
    not fired before the row is reached, so it would need one row of
    lookahead. The plan keeps swing at 50..75 and clamps there. Is that
    acceptable for the MVP?
-3. Novation's description doesn't say how a two-digit number (swing 50..75)
-   is laid out. Is "middle digit = index n/2" (so the units digit is the
-   white one for two digits) right, or should swing be shown padded to three
-   digits (050) so the tens digit is the white one?
+Also decided: the tens digit is always the white one, with no padding
+(50 -> white 5; 120 -> white 2; 9 -> nothing white).
