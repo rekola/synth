@@ -338,6 +338,15 @@ SessionPlayer::quantizedStep() const {
   return { step, step - row % rows_per_bar };
 }
 
+SessionPlayer::Step
+SessionPlayer::rawStep() const {
+  auto & info = controller_.getPlaybackInfo();
+  auto step = info.getSessionClock();
+  auto row = info.getAbsolutePosition();
+  auto rows_per_bar = max(1, controller_.getSong().getRowsPerBar());
+  return { step, step - row % rows_per_bar, min(255, info.getCurrentDelay()) };
+}
+
 unordered_map<int, SessionPlayer::Playhead>
 SessionPlayer::playheads() const {
   auto & song = controller_.getSong();

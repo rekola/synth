@@ -758,6 +758,7 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
 	{ "Merge Clip to Background", "C-x m", "merge-clip-to-background" },
 	{ nullptr, nullptr, nullptr },
 	{ "Duplicate Clip", "", "duplicate-clip" },
+	{ "Quantize Clip", "", "quantize-clip" },
 	{ "Double Clip Length", "", "double-clip-length" },
 	{ "Halve Clip Length", "", "halve-clip-length" },
 	{ "Toggle Clip Loop", "", "toggle-clip-loop" },

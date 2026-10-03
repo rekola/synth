@@ -112,6 +112,14 @@ void deleteClip(Song & song, int track_id, int clip_index);
 // Placed instances of the source keep pointing at the source.
 int duplicateClip(Song & song, int track_id, int from_index, int to_index = -1);
 
+// Snaps every note of the clip at `clip_index` to its closest row (a row is
+// a sixteenth), using the sub-row delay a raw live take records, and clears
+// that delay. A note-off moves with its note. A note landing on an occupied
+// slot takes the next free column, an off the next row. A move past the end
+// wraps in a looping clip and clamps in a one-shot. Commands are left alone.
+// Returns false when there's nothing to quantize (empty slot, audio clip).
+bool quantizeClip(Song & song, int track_id, int clip_index);
+
 // The result of resolveInstanceAt() below. `start_row` is the resolved
 // instance event's own row - only meaningful when `clip_index` is a real
 // clip, but a caller needs it there: rendering that clip's own content

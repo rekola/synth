@@ -240,6 +240,12 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
     setMetronomeOn(!metronome_on_);
     getUIEventQueue().push(make_unique<LogEvent>(metronome_on_ ? "Metronome on" : "Metronome off"));
   });
+  commands_.define("toggle-record-quantize", [this]() {
+    auto & song = getSong();
+    song.setRecordQuantize(!song.getRecordQuantize());
+    song.incVersion();
+    getUIEventQueue().push(make_unique<LogEvent>(song.getRecordQuantize() ? "Record quantise on" : "Record quantise off"));
+  });
   // One Record Arm for every track type, reachable from a Launchpad
   // (CC19), a keybinding, or M-x alike.
   //

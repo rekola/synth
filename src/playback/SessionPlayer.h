@@ -71,8 +71,13 @@ class SessionPlayer {
   // The session clock's step nearest to now - a live press just after a
   // row boundary is more likely an early attempt at the next one - and the
   // step the bar it falls in began at.
-  struct Step { int step; int bar_start; };
+  // `delay` is the sub-row offset (0-255 of a row, a Note's own delay
+  // unit) a raw step carries; a quantized one has none.
+  struct Step { int step; int bar_start; int delay = 0; };
   Step quantizedStep() const;
+  // The session clock's step the press falls in, rounded down, with how far
+  // into that row it landed - what an unquantized live take records.
+  Step rawStep() const;
 
   // Whether a launched clip is playing on `track_id`, and whether Session
   // view has taken the track over from the arrangement at all (a stopped

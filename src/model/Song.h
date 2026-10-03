@@ -105,6 +105,11 @@ class Song : public SongObject {
   // ordinary 4/4 bar without inventing a second tempo-adjacent constant.
   int getRowsPerBar() const { return rows_per_bar_; }
   void setRowsPerBar(int rows) { rows_per_bar_ = rows > 0 ? rows : 1; }
+  // Whether a live Session take snaps each press and release to the nearest
+  // row as it's recorded. Off (the default) records the raw sub-row timing
+  // in the note's delay instead; quantizeClip() can clean it up afterward.
+  bool getRecordQuantize() const { return record_quantize_; }
+  void setRecordQuantize(bool enabled) { record_quantize_ = enabled; }
   // `absolute_row` as a musical position, "bar.beat.sixteenth", each
   // 1-based - what the transport shows, and anything else that names a
   // position. A row is a sixteenth (ChannelConfiguration::
@@ -432,6 +437,7 @@ private:
   Scale scale_ = Scale::NONE;
   int bpm_ = 90;
   int rows_per_bar_ = 16;
+  bool record_quantize_ = false;
   float ear_height_ = constants::DEFAULT_EAR_HEIGHT;
   bool floor_reflection_enabled_ = constants::DEFAULT_FLOOR_REFLECTION_ENABLED;
   float floor_reflection_strength_ = constants::DEFAULT_FLOOR_REFLECTION_STRENGTH;
