@@ -10,6 +10,8 @@
 #include "../src/model/SampleContent.h"
 #include "../src/audio/AudioBuffer.h"
 #include "../src/ambisonic/ChannelConfiguration.h"
+#include "../src/instruments/InstrumentProvider.h"
+#include <filesystem>
 
 using namespace std;
 
@@ -688,4 +690,72 @@ TEST(merge_clip_to_background_mixes_a_sample_clip_into_the_background_bed) {
   // the clip itself stays in the pool.
   CHECK(resolveInstanceAt(song, track_id, 0).clip_index == Arrangement::kStopInstance);
   CHECK(song.getClips(track_id)[0].getId() == clip_id);
+}
+
+TEST(quantize_clip_snaps_each_note_to_its_closest_row_and_clears_the_delay) {
+  Song song;
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto track_id = track.getInternalId();
+  Clip clip(track_id);
+  clip.setLength(16);
+  clip.setLooping(true);
+  clip.getLeafPattern().setNote(2, 0, Note(60, 100, 40));   // early in its row: stays
+  clip.getLeafPattern().setNote(4, 0, Note(62, 100, 200));  // late: next row
+  clip.getLeafPattern().setNote(5, 0, Note(0, 0, 100));     // its off, snaps back onto row 5
+  clip.getLeafPattern().setNote(15, 0, Note(64, 100, 128)); // past the end: wraps
+  song.addClip(move(clip));
+
+  CHECK(quantizeClip(song, track_id, 0));
+  auto & pattern = song.getClips(track_id)[0].getLeafPattern();
+  CHECK(pattern.getNote(2, 0).getValue() == 60 && pattern.getNote(2, 0).getDelay() == 0);
+  CHECK(pattern.getNote(5, 0).getValue() == 62 && pattern.getNote(5, 0).getDelay() == 0);
+  CHECK(!pattern.getNote(4, 0).isDefined());
+  CHECK(pattern.getNote(0, 0).getValue() == 64);
+  CHECK(!pattern.getNote(15, 0).isDefined());
+  // The off collided with the note moved onto its row, so it moves one row on.
+  CHECK(pattern.getNote(6, 0).isOff());
+}
+
+TEST(quantize_clip_clamps_in_a_one_shot_and_moves_a_colliding_note_to_the_next_column) {
+  Song song;
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto track_id = track.getInternalId();
+  Clip clip(track_id);
+  clip.setLength(8);
+  clip.setLooping(false);
+  clip.getLeafPattern().setNote(3, 0, Note(60, 100, 220)); // lands on row 4...
+  clip.getLeafPattern().setNote(4, 0, Note(67, 100, 0));   // ...which is taken
+  clip.getLeafPattern().setNote(7, 0, Note(72, 100, 250)); // past the end: clamped
+  song.addClip(move(clip));
+
+  CHECK(quantizeClip(song, track_id, 0));
+  auto & pattern = song.getClips(track_id)[0].getLeafPattern();
+  CHECK(pattern.getNote(4, 0).getValue() == 60);
+  CHECK(pattern.getNote(4, 1).getValue() == 67);
+  CHECK(pattern.getNote(7, 0).getValue() == 72);
+}
+
+TEST(quantize_clip_refuses_an_empty_or_missing_clip) {
+  Song song;
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto track_id = track.getInternalId();
+  song.ensureClipAt(track_id, 1);
+  CHECK(!quantizeClip(song, track_id, 0));
+  CHECK(!quantizeClip(song, track_id, 1)); // an empty filler
+  CHECK(!quantizeClip(song, track_id, 9));
+}
+
+TEST(record_quantize_is_off_by_default_and_round_trips_through_the_song_file) {
+  Song song;
+  song.addTrack(std::make_unique<InstrumentTrack>(0));
+  CHECK(!song.getRecordQuantize());
+  song.setRecordQuantize(true);
+
+  auto path = std::string(TESTS_SCRATCH_DIR) + "/record_quantize_round_trip.xml";
+  song.save(path);
+  Song reloaded;
+  InstrumentProvider provider;
+  CHECK(reloaded.open(path, provider));
+  CHECK(reloaded.getRecordQuantize());
+  std::filesystem::remove(path);
 }

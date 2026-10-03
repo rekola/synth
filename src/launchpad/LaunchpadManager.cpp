@@ -872,6 +872,9 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
         state.duplicate_source_column = state.duplicate_source_clip = -1;
       } else if (cc_number == 79) {
         controller.sendCommand("toggle-metronome");
+      } else if (cc_number == 69) {
+        state.quantize_held = true;
+        state.quantize_used = false;
       } else if (cc_number == 29 || cc_number == 20) {
         if (state.grid_mode == GridMode::DRAW) {
           state.draw_color_index.fill(0);
@@ -1039,6 +1042,15 @@ LaunchpadManager::endDuplicate(int device_id, Controller & controller) {
   state.duplicate_source_column = state.duplicate_source_clip = -1;
 }
 
+void
+LaunchpadManager::endQuantize(int device_id, Controller & controller) {
+  auto & state = deviceState(device_id);
+  if (!state.quantize_held) return;
+  state.quantize_held = false;
+  if (!state.quantize_used) controller.sendCommand("toggle-record-quantize");
+  state.quantize_used = false;
+}
+
 bool
 LaunchpadManager::handleShiftButton(int device_id, bool is_press) {
   auto & state = deviceState(device_id);
@@ -1109,6 +1121,10 @@ LaunchpadManager::handleMixerFunctionRelease(int device_id, int cc_number, Contr
   auto & state = deviceState(device_id);
   if (cc_number == 89 && state.duplicate_held) {
     endDuplicate(device_id, controller);
+    return;
+  }
+  if (cc_number == 69 && state.quantize_held) {
+    endQuantize(device_id, controller);
     return;
   }
   if (!state.mixer_hold_pending) return; // stray/duplicate release, or this press never armed one (a repress that closed something)
@@ -1599,19 +1615,15 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
   auto current_delay = info.getCurrentDelay();
   auto & event_queue = controller.getPlaybackEventQueue();
 
-  // Quantizes a human performer's own real-time press to whichever
-  // Session clock step it's actually closer to (SessionPlayer::
-  // quantizedStep()). Row-only, deliberately: a raw sub-row offset
-  // (the same idea Note's own delay column captures for arrangement
-  // recording, via info.getCurrentDelay()) would just re-encode the human's own imprecise timing instead of cleaning
-  // it up - snapping fully to the row grid is the whole point of
-  // quantizing a live take at all. One shared decision for every target
-  // track below (the primary and every fan-out one alike), not
-  // recomputed per track.
+  // Where a live press lands on the Session clock: raw by default, the row
+  // it's in plus how far into it (the note's delay), or - with Record
+  // Quantise on (Song::getRecordQuantize()) - the nearest row, no delay.
+  // One shared decision for every target track below (the primary and
+  // every fan-out one alike), not recomputed per track.
   auto & session_player = controller.getSessionPlayer();
+  auto take_step = song.getRecordQuantize() ? session_player.quantizedStep() : session_player.rawStep();
   auto quantized_row = [&](int take_track_id) {
-    auto step = session_player.quantizedStep();
-    return controller.ensureSessionRecordingClip(take_track_id, step.step, step.bar_start);
+    return controller.ensureSessionRecordingClip(take_track_id, take_step.step, take_step.bar_start);
   };
 
   if (ev.getKind() == LaunchpadPadEvent::PRESS) {
@@ -1713,12 +1725,10 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // isTrackArmed()'s own doc comment: "toggle-record-arm" no longer
     // touches capture_enabled at all for a Session View take).
     if (session_recording_here || state.capture_enabled) {
-      // 0, not current_delay, for a Session View take - current_delay
-      // reads the global transport's own delay tracking, meaningless
-      // while it never advances during one; the row-rounding above already
-      // is this take's own quantization, so its notes always land exactly
-      // on a row with no further sub-row offset to record.
-      Note note(note_value, velocity, session_recording_here ? 0 : current_delay);
+      // A Session View take uses take_step's own delay (0 once quantized),
+      // not current_delay, which reads the global transport's own delay
+      // tracking - meaningless while it never advances during one.
+      Note note(note_value, velocity, session_recording_here ? static_cast<short>(take_step.delay) : current_delay);
       edit_target.pattern->setNote(edit_target.effective_row, note_column, note);
       song.incVersion();
     }
@@ -1748,7 +1758,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
              isColumnLiveHeld(fan_out_track_id, fan_out_column)) {
         fan_out_column++;
       }
-      fan_out_pattern.setNote(fan_out_session_row, fan_out_column, Note(note_value, velocity, 0));
+      fan_out_pattern.setNote(fan_out_session_row, fan_out_column, Note(note_value, velocity, static_cast<short>(take_step.delay)));
       song.incVersion();
       if (controller.isMonitoring(fan_out_track_id)) {
         event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), fan_out_track_id, fan_out_column, note_value, velocity));
@@ -1806,7 +1816,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
         if (release_row >= 0 && release_row != held.row &&
             clip_index >= 0 && clip_index < static_cast<int>(clips.size())) {
           auto & clip = clips[static_cast<size_t>(clip_index)];
-          clip.getLeafPattern().setNote(release_row % std::max(1, clip.getLength()), held.note_column, Note(0, 0, 0));
+          clip.getLeafPattern().setNote(release_row % std::max(1, clip.getLength()), held.note_column, Note(0, 0, static_cast<short>(take_step.delay)));
           song.incVersion();
         }
       } else if (state.capture_enabled && info.isPlaying()) {
@@ -1923,6 +1933,21 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
   // slot is picked as the source, an empty slot in the same track column
   // is where the copy lands. The source stays picked until Volume is
   // released, so one hold can fill several slots.
+  // Quantise held (shift + Send A): a press on a populated slot quantizes
+  // that clip; every press is swallowed.
+  if (state.quantize_held) {
+    if (ev.getKind() != LaunchpadPadEvent::PRESS) return;
+    state.quantize_used = true;
+    auto column = ev.getX();
+    if (column < 0 || column >= static_cast<int>(session_.track_ids.size())) return;
+    auto track_id = session_.track_ids[static_cast<size_t>(column)];
+    if (quantizeClip(controller.getSong(), track_id, 7 - ev.getY())) {
+      controller.getUIEventQueue().push(std::make_unique<LogEvent>("Quantised clip"));
+    } else {
+      controller.getUIEventQueue().push(std::make_unique<LogEvent>("Quantise: nothing to quantise there"));
+    }
+    return;
+  }
   if (state.duplicate_held) {
     if (ev.getKind() != LaunchpadPadEvent::PRESS) return;
     auto column = ev.getX();
@@ -2699,11 +2724,13 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // While shift is held (or a duplicate is in progress) the right-side
   // buttons show their alternate functions instead: Duplicate on Volume
   // (bright white while active), Draw on Solo, the rest dark.
-  if (state.row_up_shift_held || state.duplicate_held) {
+  if (state.row_up_shift_held || state.duplicate_held || state.quantize_held) {
     constexpr Rgb kOff{0, 0, 0};
     record_arm_button_color = mute_button_color = stop_clip_button_color = send_b_button_color = send_a_button_color = pan_button_color = kOff;
     solo_button_color = Rgb{90, 0, 127};
     pan_button_color = cached_metronome_on_ ? Rgb{127, 100, 0} : Rgb{40, 30, 0};
+    // Record Quantise: green while on, red while off, white while held.
+    send_a_button_color = state.quantize_held ? Rgb{127, 127, 127} : cached_record_quantize_ ? Rgb{0, 127, 0} : Rgb{127, 0, 0};
     volume_button_color = state.duplicate_held ? Rgb{127, 127, 127} : Rgb{0, 100, 127};
   }
   colors.push_back({19, record_arm_button_color.r, record_arm_button_color.g, record_arm_button_color.b});
@@ -2744,6 +2771,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   // detection below - see cached_global_octave_'s own comment.
   cached_global_octave_ = controller.getGlobalOctave();
   cached_metronome_on_ = controller.isMetronomeOn();
+  cached_record_quantize_ = song.getRecordQuantize();
   // Cached for handleSessionPadEvent() - see session_'s own comment.
   session_ = session;
 

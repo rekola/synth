@@ -348,6 +348,12 @@ class LaunchpadManager {
   // destination copies to the next empty slot.
   void endDuplicate(int device_id, Controller & controller);
 
+  // Quantise (shift + Send A): held, a press on a populated Session pad
+  // quantizes that clip's notes to the nearest row (quantizeClip()); a tap
+  // with no pad pressed toggles Record Quantise instead
+  // ("toggle-record-quantize"), decided on release.
+  void endQuantize(int device_id, Controller & controller);
+
   // True for the mixer radio group's own nine CC numbers (Volume/Pan/
   // Send A/Send B/Stop Clip/Mute/Solo, plus Pro MK3's left-column Mute/
   // Solo twins) - handleRawButton()'s own big dispatch condition reuses
@@ -928,6 +934,10 @@ class LaunchpadManager {
     // that source.
     bool duplicate_held = false;
     bool duplicate_copied = false;
+    // Quantise (shift + Send A, endQuantize()): held while Send A is, and
+    // whether a pad was pressed during the hold.
+    bool quantize_held = false;
+    bool quantize_used = false;
     int duplicate_source_column = -1, duplicate_source_clip = -1;
 
     // LED diff cache: refreshLeds() only calls sendLeds() when the newly
@@ -1168,7 +1178,7 @@ class LaunchpadManager {
 
   // Live-recording's own write path: while a Session View take records on
   // `track_id` (Controller::isSessionRecording()), writes `command` into
-  // that take's clip at its current row - the same quantized row a note
+  // that take's clip at its current row - the same row a note
   // pressed now would land on - since a track Session view has taken
   // over ignores its arrangement automation. Otherwise, while Record Arm
   // is on and the transport is genuinely playing (the same condition
@@ -1278,6 +1288,8 @@ class LaunchpadManager {
   int cached_global_octave_ = 4;
   // Mirrored once per frame from Controller::isMetronomeOn(), for the LED.
   bool cached_metronome_on_ = false;
+  // Mirrored once per frame from Song::getRecordQuantize(), for the LED.
+  bool cached_record_quantize_ = false;
 
   // refresh()'s own SessionWindow parameter, mirrored here (same
   // once-per-frame pattern) so handleSessionPadEvent() -

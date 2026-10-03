@@ -10,6 +10,9 @@
 #include "../ambisonic/ChannelConfiguration.h"
 
 #include <algorithm>
+#include <map>
+#include <tuple>
+#include <vector>
 
 using namespace std;
 
@@ -166,6 +169,59 @@ duplicateClip(Song & song, int track_id, int from_index, int to_index) {
   song.getClips(track_id)[static_cast<size_t>(to_index)] = std::move(copy);
   song.incVersion();
   return to_index;
+}
+
+bool
+quantizeClip(Song & song, int track_id, int clip_index) {
+  auto & clips = song.getClips(track_id);
+  if (clip_index < 0 || clip_index >= static_cast<int>(clips.size())) return false;
+  auto & clip = clips[static_cast<size_t>(clip_index)];
+  auto & pattern = clip.getLeafPattern();
+  if (clip.isEmpty() || clip.hasSample() || pattern.getNotesByRow().empty()) return false;
+
+  struct Entry { int new_row, row, column; Note note; };
+  std::vector<Entry> entries;
+  auto length = std::max(1, clip.getLength());
+  for (auto & [ row, columns ] : pattern.getNotesByRow()) {
+    for (size_t column = 0; column < columns.size(); column++) {
+      auto note = columns[column];
+      if (!note.isDefined()) continue;
+      auto new_row = row + (note.getDelay() >= 128 ? 1 : 0);
+      if (new_row >= length) new_row = clip.isLooping() ? new_row % length : length - 1;
+      note.setDelay(0);
+      entries.push_back({ new_row, row, static_cast<int>(column), note });
+    }
+  }
+  // An earlier note keeps its slot; ties between notes sharing a new row go
+  // to whichever started earlier, then the lower column.
+  std::sort(entries.begin(), entries.end(), [](const Entry & a, const Entry & b) {
+    return std::tie(a.new_row, a.row, a.column) < std::tie(b.new_row, b.row, b.column);
+  });
+
+  std::map<int, std::vector<Note> > placed;
+  auto slot = [&](int row, int column) -> Note & {
+    auto & columns = placed[row];
+    if (column >= static_cast<int>(columns.size())) columns.resize(static_cast<size_t>(column) + 1);
+    return columns[static_cast<size_t>(column)];
+  };
+  for (auto & entry : entries) {
+    auto row = entry.new_row;
+    auto column = entry.column;
+    if (entry.note.isOff()) {
+      // A row can't hold both a note and its own off.
+      for (int tries = 0; slot(row, column).isDefined() && tries < length; tries++) row = (row + 1) % length;
+    } else {
+      while (slot(row, column).isDefined()) column++;
+    }
+    slot(row, column) = entry.note;
+  }
+
+  std::vector<int> old_rows;
+  for (auto & [ row, columns ] : pattern.getNotesByRow()) old_rows.push_back(row);
+  for (auto row : old_rows) pattern.clearNotes(row);
+  for (auto & [ row, columns ] : placed) pattern.setNotes(row, columns);
+  song.incVersion();
+  return true;
 }
 
 ActiveInstance

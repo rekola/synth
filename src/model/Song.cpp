@@ -963,6 +963,7 @@ Song::loadParameters(const ParameterSource & input) {
 
   setTempo(input.get<int>("tempo", 90));
   setRowsPerBar(input.get<int>("rowsPerBar", 16));
+  setRecordQuantize(input.get<bool>("recordQuantize", false));
 
   setEarHeight(input.get<float>("earHeight", constants::DEFAULT_EAR_HEIGHT));
   setFloorReflectionEnabled(input.get<bool>("floorReflection", constants::DEFAULT_FLOOR_REFLECTION_ENABLED));
@@ -1041,6 +1042,7 @@ Song::storeParameters(ParameterSource & output) const {
   output.set("temperament", to_string(getTuning()));
   output.set("tempo", getTempo());
   output.set("rowsPerBar", getRowsPerBar(), 16);
+  if (getRecordQuantize()) output.set("recordQuantize", true);
 
   output.set("earHeight", getEarHeight(), constants::DEFAULT_EAR_HEIGHT);
   if (getFloorReflectionEnabled() != constants::DEFAULT_FLOOR_REFLECTION_ENABLED) output.set("floorReflection", getFloorReflectionEnabled());
