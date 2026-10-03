@@ -963,6 +963,7 @@ Song::loadParameters(const ParameterSource & input) {
 
   setTempo(input.get<int>("tempo", 90));
   setRowsPerBar(input.get<int>("rowsPerBar", 16));
+  setSwing(input.get<int>("swing", swing::kStraight));
   setRecordQuantize(input.get<bool>("recordQuantize", false));
 
   setEarHeight(input.get<float>("earHeight", constants::DEFAULT_EAR_HEIGHT));
@@ -1042,6 +1043,7 @@ Song::storeParameters(ParameterSource & output) const {
   output.set("temperament", to_string(getTuning()));
   output.set("tempo", getTempo());
   output.set("rowsPerBar", getRowsPerBar(), 16);
+  output.set("swing", getSwing(), swing::kStraight);
   if (getRecordQuantize()) output.set("recordQuantize", true);
 
   output.set("earHeight", getEarHeight(), constants::DEFAULT_EAR_HEIGHT);

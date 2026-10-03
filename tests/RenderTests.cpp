@@ -2050,3 +2050,37 @@ TEST(render_a_clips_stop_releases_its_voices_on_the_rows_own_sample) {
   CHECK(windowedRms(result, 0, 0.745f, 0.749f) > 1e-3f); // still sounding just before the stop
   CHECK(windowedRms(result, 0, 0.9f, 1.0f) < 1e-4f); // released after it
 }
+
+// At 120 bpm a row lasts 0.125 s, so the second eighth (row 2) lands at
+// 0.25 s straight and a whole row later, 0.375 s, at the maximum swing; the
+// on-beat notes at rows 0 and 4 (0 s, 0.5 s) never move.
+TEST(render_swing_delays_only_the_second_eighth_of_each_pair) {
+  ChannelConfiguration config(44100, 1);
+
+  auto straight = loadFixture("swing_eighths.xml");
+  CHECK(straight.ok);
+  auto straight_result = renderSongOffline(straight.song, config);
+  CHECK(windowedRms(straight_result, 0, 0.255f, 0.285f) > 1e-3f);
+  CHECK(windowedRms(straight_result, 0, 0.380f, 0.410f) < 1e-4f);
+
+  auto swung = loadFixture("swing_eighths.xml");
+  CHECK(swung.ok);
+  swung.song.setSwing(75);
+  auto swung_result = renderSongOffline(swung.song, config);
+  CHECK(windowedRms(swung_result, 0, 0.255f, 0.285f) < 1e-4f);
+  CHECK(windowedRms(swung_result, 0, 0.380f, 0.410f) > 1e-3f);
+  // On-beat notes are unmoved.
+  CHECK(windowedRms(swung_result, 0, 0.005f, 0.035f) > 1e-3f);
+  CHECK(windowedRms(swung_result, 0, 0.505f, 0.535f) > 1e-3f);
+}
+
+TEST(render_straight_swing_is_identical_to_no_swing_setting) {
+  ChannelConfiguration config(44100, 1);
+  auto plain = loadFixture("swing_eighths.xml");
+  auto explicit_straight = loadFixture("swing_eighths.xml");
+  CHECK(plain.ok && explicit_straight.ok);
+  explicit_straight.song.setSwing(50);
+  auto a = renderSongOffline(plain.song, config);
+  auto b = renderSongOffline(explicit_straight.song, config);
+  CHECK(a.interleaved == b.interleaved);
+}

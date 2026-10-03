@@ -49,9 +49,10 @@ The classification is purely a function of the EDO and key (see
 
 ## Grid modes
 
-Selected with the top-row buttons. 95, 96, 97 and Draw are one exclusive
-group; pressing one always selects it, and the only way out of a mode is
-selecting a different one.
+Selected with the top-row buttons. 95, 96, 97, Draw, Tempo and Swing are one
+exclusive group; pressing one always selects it, and the only way out of a mode is
+selecting a different one (Tempo and Swing also close by repeating their
+gesture).
 
 | Button | Mode |
 | --- | --- |
@@ -59,6 +60,8 @@ selecting a different one.
 | 96 | Note: isomorphic note entry (a step grid while a clip is open for editing) |
 | 97 | Custom: the percussion lane picker |
 | shift + Solo | Draw: a per-pad coloring toy, independent of the song |
+| shift + Send B | Tempo: the song's tempo as a number on the pads |
+| shift + Stop Clip | Swing: the song's swing as a number on the pads |
 
 A second press of 95 while on the plain Session grid toggles **mixer submode**
 (see below). Its LED is dim green away from Session, bright green in Session,
@@ -97,10 +100,14 @@ release so a combination never has to be undone.
 | Volume (89) | **Duplicate** |
 | Pan (79) | **Metronome** |
 | Send A (69) | **Quantise** |
+| Send B (59) | **Tempo** view |
+| Stop Clip (49) | **Swing** view |
+| Mute (39, Pro MK3 30) | **Delete** |
 | Solo (29) | **Draw** |
 
-The assignment is simply the next free button in reading order. It carries no
-meaning.
+Record Arm (19) does nothing under shift. Apart from Swing, which follows the
+Pro MK3's own view, the assignment is simply the next free button. It carries
+no meaning.
 
 #### Duplicate
 
@@ -139,6 +146,50 @@ Here shift + Send A stands in for that button.
   with the song.
 - **LED:** while shift is held, Send A shows red when Record Quantise is off,
   green when it is on, and white while held.
+
+#### Delete
+
+Hold shift and Mute, then press a clip pad to delete what its slot holds, one
+layer per press: a populated slot loses its clip (leaving an empty slot in
+place, so the scene rows of every other track stay aligned), and an empty slot
+loses its stop button. Session view only. The terminal's `delete-clip` does the
+same.
+
+With the transport stopped, or when the clip is not sounding, the delete is
+instant. A clip that is playing, or queued, on its track while the transport
+runs is never pulled out from under the playhead: its track is stopped at the
+next bar, and the clip is removed once that has taken effect. There is no undo
+or confirmation. The LED is red, bright while held.
+
+#### Tempo and Swing views
+
+Shift + Send B opens the **Tempo** view (blue and white) and shift + Stop Clip
+the **Swing** view (orange and white), as on Novation's Launchpad Pro MK3. The
+value is drawn as a number on the pads. The tens digit is always the white one,
+centered; the hundreds and units digits sit beside it in the view's colour,
+clipped by the edge of the grid. There is no padding, so 120 shows a white 2
+between a blue 1 and 0, 50 a white 5 and an orange 0, and a one-digit value has
+nothing white.
+
+- **Arrows:** the up arrow (91) and down arrow (92) change the value by one. A
+  hold repeats, after 400 ms and then every 100 ms. 91 is also shift, so its
+  step happens on release and is skipped if anything was combined with it,
+  including the gesture that switches views.
+- **Leaving:** repeat the gesture that opened the view to go back to the mode
+  you came from, switch to the other view with its gesture, or select a mode
+  with 95, 96, 97 or Draw. The pads, 93, 94 and the rest of the right column do
+  nothing in a view.
+- **LEDs:** the arrows are white, and the button that opened the view stays lit
+  in its colour. While shift is held, Send B (Tempo) is blue and Stop Clip
+  (Swing) is orange.
+- **Tempo** is 20 to 300 bpm and takes effect immediately, also while playing
+  (commands `tempo-increase` and `tempo-decrease`).
+- **Swing** is 50 to 75 per cent (commands `swing-increase` and
+  `swing-decrease`). 50 is straight; about 67 is triplet swing. The second
+  note of every eighth-note pair plays late, applied at playback to everything,
+  never changing the notes themselves. Library rhythms carry a swing of their
+  own: it is heard when previewing one, and Add to Song sets the song's swing
+  to it.
 
 ## Session view
 

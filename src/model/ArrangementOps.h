@@ -103,6 +103,12 @@ bool mergeClipToBackground(Song & song, int track_id, int row, const ChannelConf
 // already expected to wait for before touching disk at all.
 void deleteClip(Song & song, int track_id, int clip_index);
 
+// What deleting a slot removes, one layer per call: its clip, and once the
+// slot is empty its stop button. NOTHING for a slot with neither (or one off
+// the clip list). `deleted_clip_name` receives the removed clip's name.
+enum class SlotDelete { NOTHING, CLIP, STOP_BUTTON };
+SlotDelete deleteClipOrStopButton(Song & song, int track_id, int clip_index, std::string * deleted_clip_name = nullptr);
+
 // Copies the clip at `from_index` into slot `to_index` of the same track
 // (an independent copy under a fresh id, its content and name as they are
 // now), returning the slot it landed in, or -1 when there's nothing to

@@ -12,6 +12,18 @@
 // no device/MIDI dependency.
 namespace LaunchpadLayout {
 
+  // The Tempo/Swing views' number on the 8x8 grid. Three 3x5-pixel digits
+  // don't fit eight columns, so the tens digit is the one drawn in full, in
+  // white (MIDDLE), centered; the hundreds digit sits to its left and the
+  // units digit to its right in the view's colour (SIDE), clipped by the
+  // grid edge. No padding: 120 is a SIDE 1, a MIDDLE 2 and a SIDE 0; 50 is a
+  // MIDDLE 5 and a SIDE 0; 9 has no tens digit, so nothing is MIDDLE and
+  // only the SIDE 9 shows. Rows are top-first: cells[row][column]. Values
+  // are clamped to 0-999.
+  enum class NumberPixel { OFF, SIDE, MIDDLE };
+  using NumberGrid = std::array<std::array<NumberPixel, 8>, 8>;
+  NumberGrid renderNumber(int value);
+
   // Steps per octave for a given tuning, or 0 if the tuning has no fixed
   // pitch structure (PERCUSSION) - callers should treat 0 as "no
   // isomorphic layout available for this tuning".

@@ -5,6 +5,8 @@
 
 #include <functional>
 #include <optional>
+#include <string>
+#include <utility>
 #include <unordered_map>
 #include <vector>
 
@@ -33,6 +35,13 @@ class SessionPlayer {
   // places the clip into the arrangement at the transport's bar instead.
   // An out-of-range or empty clip_index on an unarmed track stops it.
   void triggerClip(int track_id, int clip_index);
+  // Deletes what slot (track_id, clip_index) holds (Controller::
+  // deleteClipSlot()): instantly while the transport is stopped, or when
+  // the clip isn't sounding. A clip that is playing (or queued) on its
+  // track while the transport runs is never pulled out from under the
+  // playhead: its track is stopped at the next bar and the clip removed
+  // once that stop has taken effect (tick()).
+  void deleteClip(int track_id, int clip_index);
   // Session Record: overdubs the clip playing on each armed track (the
   // fallback track if none is armed) from the next bar, in place - the
   // clip keeps looping, the take lines up with it. While any take is in
@@ -133,7 +142,13 @@ class SessionPlayer {
   // slot; false if the track isn't a SampleTrack.
   bool triggerSampleCapture(int track_id, int clip_index);
 
+  // Removes the clips deleteClip() queued once nothing is sounding them.
+  void resolvePendingDeletes();
+
   Controller & controller_;
+
+  // Clips (track, clip id) waiting for their track's stop to take effect.
+  std::vector<std::pair<int, std::string>> pending_deletes_;
 
   // The last sequence number sent with a queued change.
   int seq_ = 0;

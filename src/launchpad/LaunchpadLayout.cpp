@@ -397,4 +397,48 @@ panPadToAzimuth(int column) {
   return column < 4 ? -static_cast<float>(4 - column) * kPanPadDegrees : static_cast<float>(column - 3) * kPanPadDegrees;
 }
 
+
+namespace {
+
+// 3x5 digit glyphs, one string per row, '#' lit.
+constexpr const char * kDigitGlyphs[10][5] = {
+  { "###", "# #", "# #", "# #", "###" }, // 0
+  { " # ", "## ", " # ", " # ", "###" }, // 1
+  { "###", "  #", "###", "#  ", "###" }, // 2
+  { "###", "  #", "###", "  #", "###" }, // 3
+  { "# #", "# #", "###", "  #", "  #" }, // 4
+  { "###", "#  ", "###", "  #", "###" }, // 5
+  { "###", "#  ", "###", "# #", "###" }, // 6
+  { "###", "  #", " # ", " # ", " # " }, // 7
+  { "###", "# #", "###", "# #", "###" }, // 8
+  { "###", "# #", "###", "  #", "###" }, // 9
+};
+
+constexpr int kNumberFirstRow = 1;     // 5-pixel digits centered vertically
+constexpr int kTensColumn = 2;         // the white digit: columns 2-4
+constexpr int kDigitStride = 4;        // 3 pixels plus a blank column
+
+void drawDigit(NumberGrid & grid, int digit, int left_column, NumberPixel pixel) {
+  for (int row = 0; row < 5; row++) {
+    for (int column = 0; column < 3; column++) {
+      int x = left_column + column;
+      if (x < 0 || x >= 8 || kDigitGlyphs[digit][row][column] != '#') continue;
+      grid[static_cast<size_t>(kNumberFirstRow + row)][static_cast<size_t>(x)] = pixel;
+    }
+  }
+}
+
+}
+
+NumberGrid
+renderNumber(int value) {
+  NumberGrid grid;
+  for (auto & row : grid) row.fill(NumberPixel::OFF);
+  value = std::clamp(value, 0, 999);
+  drawDigit(grid, value % 10, kTensColumn + kDigitStride, NumberPixel::SIDE);
+  if (value >= 10) drawDigit(grid, (value / 10) % 10, kTensColumn, NumberPixel::MIDDLE);
+  if (value >= 100) drawDigit(grid, value / 100, kTensColumn - kDigitStride, NumberPixel::SIDE);
+  return grid;
+}
+
 }

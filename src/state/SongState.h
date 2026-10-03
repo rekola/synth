@@ -55,6 +55,7 @@ class SongState : public TrackState {
 
   void initialize(const Song & song) {
     tempo_ = song.getTempo();
+    swing_ = song.getSwing();
     master_sends_ = song.getMasterTrack().getSends();
     render_context_.setBpm(tempo_);
     song_structure_ = SongStructure(song);
@@ -86,6 +87,19 @@ class SongState : public TrackState {
 
       send_bus_.setSlotEffect(slot, std::move(effect));
     }
+  }
+
+  // A tempo edit while playing: everything derived from the tempo is
+  // refreshed - the row length, the tempo the arpeggiators and sample
+  // tracks read, and the bus effects' tempo-synced times. The row already
+  // in flight just ends sooner or later (samplesUntilNextRow()); a sample
+  // clip already sounding keeps the stretch it was triggered with.
+  void applyTempo(int bpm) {
+    if (bpm <= 0 || bpm == tempo_) return;
+    tempo_ = bpm;
+    render_context_.setBpm(static_cast<float>(tempo_));
+    auto row_duration = getChannelConfiguration().getRowDuration(tempo_);
+    for (int slot = 0; slot < 2; slot++) send_bus_.getSlotEffect(slot).setRowDuration(row_duration);
   }
 
   // Runtime slot reconfiguration, unlike initialize()'s "load-time-only"
@@ -210,6 +224,8 @@ class SongState : public TrackState {
       std::lock_guard<std::mutex> guard(song.getTracksMutex());
       song_structure_ = SongStructure(song);
       song_structure_version_ = song.getMajorVersion();
+      swing_ = song.getSwing();
+      applyTempo(song.getTempo());
     }
 
     // Snapshotting the raw Track* pointers under Song::getTracksMutex()
@@ -380,6 +396,10 @@ class SongState : public TrackState {
 	    // row it was placed at.
 	    auto session_it = session_tracks_.find(track_id);
 	    bool taken_over = session_it != session_tracks_.end() && session_it->second.isTakenOver();
+	    // Swing is keyed on the beat grid the row sits on: the transport row,
+	    // or the session clock for a launched clip (launches land on bars, so
+	    // the two agree) - never the clip's own row.
+	    int swing_row = taken_over ? session_clock_ : row_idx;
 	    ActiveInstance active{Arrangement::kStopInstance};
 	    int rows_since_start = 0;
 	    if (taken_over) {
@@ -535,7 +555,7 @@ class SongState : public TrackState {
 	      if (notes[j].isDefined()) {
 		auto & note = notes[j];
 		float velocity = note.isOff() ? 0.0f : note.getVelocityAsFloat();
-		auto delay_samples = int(note.getDelayAsFloat() * getChannelConfiguration().getSampleInterval(tempo_));
+		auto delay_samples = int((note.getDelayAsFloat() + swing::offsetRows(swing_row, swing_)) * getChannelConfiguration().getSampleInterval(tempo_));
 		int note_value = (note.isAftertouch() || note.isOff()) ? -1 : note.getValue();
 		render_context_.addPendingEvent(track_id, i + delay_samples, int(j), tuning, velocity, note_value, NoteCoordinate(song_structure_.getOrdinalFor(track_id), row_idx, int(j)));
 		if (note.isOff()) last_notes_[track_id].erase(int(j));
@@ -721,7 +741,9 @@ class SongState : public TrackState {
     for (int i = 0; i < n; i++) {
       sample_pos_++;
       
-      if (sample_pos_ == sinterval) {
+      // >=, not ==: a tempo change can shorten the row below what has
+      // already elapsed in it.
+      if (sample_pos_ >= sinterval) {
 	movePosition(1);
       }
     }
@@ -729,7 +751,7 @@ class SongState : public TrackState {
 
   int samplesUntilNextRow() const {
     auto sinterval = getChannelConfiguration().getSampleInterval(tempo_);
-    return sample_pos_ == 0 ? sinterval : sinterval - sample_pos_;
+    return sample_pos_ == 0 ? sinterval : std::max(1, sinterval - sample_pos_);
   }
   
   void movePosition(int n_rows) {
@@ -896,6 +918,7 @@ class SongState : public TrackState {
 
 private:
   int tempo_ = 0;
+  int swing_ = swing::kStraight;
   bool is_playing_ = false;
   bool recording_muted_ = false;
   int sample_pos_ = 0, absolute_pos_ = 0;
