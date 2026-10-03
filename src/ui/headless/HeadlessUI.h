@@ -25,6 +25,8 @@ class HeadlessUI : public UI {
   void refresh() override { }
   void render() override { }
   void setStatus(std::string s) override;
+  // No dialogs here: the content goes to the log.
+  void showInfoDialog(const std::string & title, const std::string & markdown) override;
 
   void handlePlaybackEvent(PlaybackEvent & ev) override;
   void handleLogEvent(LogEvent & ev) override;

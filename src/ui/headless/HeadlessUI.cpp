@@ -86,6 +86,11 @@ HeadlessUI::setStatus(std::string s) {
 }
 
 void
+HeadlessUI::showInfoDialog(const std::string & title, const std::string & markdown) {
+  setStatus(title + "\n" + markdown);
+}
+
+void
 HeadlessUI::handleLogEvent(LogEvent & ev) {
   setStatus(ev.getText());
 }
