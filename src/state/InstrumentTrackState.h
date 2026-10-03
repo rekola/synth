@@ -162,7 +162,7 @@ public:
     // LeafTrack::getExtent()) - resolve it to the assigned
     // instrument's own family default (Track::getDefaultExtent(), 0 for
     // anything without one) once, here, before the position ever reaches
-    // playNote()/NoteMultiplier/SoundFontInstrument.
+    // playNote()/SoundFontInstrument.
     auto resolved_position = getPosition();
     if (resolved_position.extent < 0.0f) resolved_position.extent = instrument.getDefaultExtent();
 

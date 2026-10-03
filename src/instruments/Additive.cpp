@@ -7,7 +7,7 @@
 using namespace std;
 
 std::unique_ptr<VoiceState>
-Additive::playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord, bool needs_decorrelation) const {
+Additive::playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const {
   auto voice = std::make_unique<AdditiveVoice>(config, position, detune, level_, attackNoiseLevel_, sends, note_coord);
   voice->playNote(getFrequencyFor(tuning, note_value), velocity, note_value);
 

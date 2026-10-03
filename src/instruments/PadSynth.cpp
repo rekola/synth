@@ -3,17 +3,19 @@
 #include "PadSynthPresets.h"
 #include "PadSynthVoice.h"
 
+#include <cmath>
+
 using namespace std;
 
 std::unique_ptr<VoiceState>
-PadSynth::playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord, bool needs_decorrelation) const {
+PadSynth::playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const {
   // Unlike Oscillator, no child-forwarding loop here: PadSynthVoice's
   // render() has no modulator input point (it reads straight from the
   // wavetable), so forwarding children into it would just construct and
   // track voices whose output is never actually consumed.
-  (void)needs_decorrelation;
-
   ensureWavetable(config, tuning);
+
+  detune *= powf(2.0f, detune_cents_ / 1200.0f);
 
   auto voice = std::make_unique<PadSynthVoice>(config, position, detune, wavetable_, level_, sends, note_coord);
   voice->playNote(getFrequencyFor(tuning, note_value), velocity, note_value);
@@ -28,7 +30,7 @@ PadSynth::prewarm(const ChannelConfiguration & config, Tuning tuning, int note_v
   // inside its own getTable(f0), normally not called until a voice's
   // first render(). Force it now, for the region `note_value` falls in,
   // so that first render() finds it already built.
-  wavetable_->getTable(getFrequencyFor(tuning, note_value));
+  wavetable_->getTable(getFrequencyFor(tuning, note_value) * powf(2.0f, detune_cents_ / 1200.0f));
 }
 
 void
@@ -74,6 +76,7 @@ PadSynth::loadParameters(const ParameterSource & input) {
   // TapeDegradation::loadParameters() already uses.
   tuning_matched_ = input.get<bool>("tuningMatched", preset.tuning_matched);
   level_ = input.get<float>("level", 1.0f);
+  detune_cents_ = input.get<float>("detune", 0.0f);
   seed_ = static_cast<uint64_t>(input.get<int>("seed", 1));
 
   envelope_anchor_hz_ = input.get<float>("envelopeAnchor", preset.envelope_anchor_hz);
@@ -99,6 +102,7 @@ PadSynth::storeParameters(ParameterSource & output) const {
   output.set("preset", preset_, std::string("strings"));
   output.set("tuningMatched", tuning_matched_, preset.tuning_matched);
   output.set("level", level_, 1.0f);
+  output.set("detune", detune_cents_, 0.0f);
   output.set("seed", static_cast<int>(seed_), 1);
 
   output.set("envelopeAnchor", envelope_anchor_hz_, preset.envelope_anchor_hz);

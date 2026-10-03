@@ -4,9 +4,7 @@
     <distortion name="bass2" param="1.0" type="softclip" drive="15.0">
       <envelope attack="0.02" hold="0.519" decay="1.35" sustain="0.0" release="0.5">	
 	<resonantFilter cut="2200" res="0.4">
-	  <multiply unisons="8" detune="10">
-	    <oscillator type="saw" />
-	  </multiply>
+	  <oscillator type="saw" voices="8" detune="10"/>
 	</resonantFilter>
       </envelope>
     </distortion>
@@ -14,9 +12,7 @@
     <envelope name="bass3" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">	
       <resonantFilter cutmin="1100" cutmax="11000" res="0.1" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">
 	<oscillator type="square" />
-	<multiply unisons="8" detune="10">
-	  <oscillator type="triangle" harmonic="2" />
-	</multiply>
+	<oscillator type="triangle" harmonic="2" voices="8" detune="10"/>
       </resonantFilter>
     </envelope>
 

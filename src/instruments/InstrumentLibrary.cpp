@@ -4,7 +4,6 @@
 #include "PadSynth.h"
 #include "Additive.h"
 #include "FM.h"
-#include "NoteMultiplier.h"
 #include "../effects/EnvelopeFilter.h"
 #include "../effects/TapeDegradation.h"
 #include "../effects/ResonantFilter.h"
@@ -56,29 +55,6 @@ unique_ptr<Track> makeEnvelopePad(const string & padsynth_preset, float attack, 
   return env;
 }
 
-// <multiply>+envelope+padsynth - genuine ensemble beating needs several
-// truly independent voices, each landing on a slightly different pitch,
-// not just a single voice's own partials (which have no time-varying
-// interference between separately-drifting singers/instruments at all).
-// <multiply> (NoteMultiplier) already exists for exactly this - a generic
-// unison/detune/spread wrapper usable around any child instrument, not
-// PadSynth-specific. Each voice reads the identical shared wavetable
-// (unisons this small keep every voice within the same cached region - no
-// extra table builds), just resampled at its own slightly-detuned pitch,
-// exactly the way a real ensemble's own singers/players never quite land
-// on the identical pitch or timing.
-unique_ptr<Track> makeUnisonPad(const string & padsynth_preset, int unisons, float detune_cents, float spread,
-                                 float attack, float hold, float decay, float sustain, float release) {
-  auto multiplier = make_unique<NoteMultiplier>();
-  MemoryParameterSource params;
-  params.set("unisons", unisons);
-  params.set("detune", detune_cents);
-  params.set("spread", spread);
-  multiplier->loadParameters(params);
-  multiplier->addChild(makeEnvelopePad(padsynth_preset, attack, hold, decay, sustain, release));
-  return multiplier;
-}
-
 // Registers `path` only when nothing (no SoundFont, no earlier library
 // registration) has already claimed that exact taxonomy leaf - the
 // "fallback when the SoundFont has no piano" half of the additive piano's
@@ -107,17 +83,9 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // semantic match. Warm uses "strings" (a simple, mellow base tone).
   provider.registerPath("pad.new-age", makeEnvelopePad("soft-pad", 0.8f, 0.0f, 0.3f, 0.9f, 1.2f));
   provider.registerPath("pad.warm", makeEnvelopePad("strings", 0.6f, 0.0f, 0.4f, 0.85f, 1.0f));
-  // Poly: the vintage-poly-synth chorus GM's own description calls for is
-  // real ensemble beating, the same reasoning pad.choir/pad.bowed/
-  // string.synth.slow below use - not something "dual-strings"' own wider
-  // bandwidth can deliver by itself (a single voice's spectral shape,
-  // however wide, has no independent per-voice drift to beat against).
-  // Real unison on "dual-strings" (already the brighter/wider of the two
-  // strings-family presets) gives both the brightness and the genuine
-  // chorus motion; detune/spread stay modest (10 cents, narrower than
-  // pad.choir/pad.bowed's 14-16) since a poly-synth chorus reads as
-  // subtler than a choir or bowed-string ensemble.
-  provider.registerPath("pad.poly", makeUnisonPad("dual-strings", 3, 10.0f, 0.4f, 0.2f, 0.0f, 0.3f, 0.8f, 0.6f));
+  // Poly: "dual-strings" is the brighter/wider of the two strings-family
+  // presets, closest to a vintage poly synth.
+  provider.registerPath("pad.poly", makeEnvelopePad("dual-strings", 0.2f, 0.0f, 0.3f, 0.8f, 0.6f));
   // Choir: "pad.choir" is GM program 91's own literal taxonomy path
   // (GmInstrumentTable.h) - it has to exist under exactly that name for
   // the ordinary GM override behavior every other pad.* entry here relies
@@ -129,15 +97,10 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // "pad.choir" itself IS the aah variant - no separate "pad.choir.aah"
   // alias needed on top of it. A second, "ooh" vowel variant was tried and
   // pulled again (didn't actually read as a distinct vowel) - not
-  // registered until a real one exists. 3 unison voices, 16 cents detune
-  // spread, moderate stereo spread - see makeUnisonPad()'s own comment:
-  // this is what actually gives the choir its ensemble-of-singers motion,
-  // not any padsynth-side parameter alone.
-  provider.registerPath("pad.choir", makeUnisonPad("choir-pad4", 3, 16.0f, 0.5f, 0.5f, 0.0f, 0.3f, 0.9f, 0.8f));
-  // Real ensemble beating comes from <multiply> unison on top of the
-  // "strings" preset's own simple base tone, same reasoning as
-  // pad.choir/string.synth.slow below.
-  provider.registerPath("pad.bowed", makeUnisonPad("strings", 3, 14.0f, 0.5f, 0.4f, 0.0f, 0.3f, 0.9f, 0.7f));
+  // registered until a real one exists.
+  provider.registerPath("pad.choir", makeEnvelopePad("choir-pad4", 0.5f, 0.0f, 0.3f, 0.9f, 0.8f));
+  // Bowed: the "strings" preset's own simple base tone.
+  provider.registerPath("pad.bowed", makeEnvelopePad("strings", 0.4f, 0.0f, 0.3f, 0.9f, 0.7f));
   // Metallic: "bells", with tuningMatched=false - inharmonic (non-scale-
   // step) overtones, which is what actually reads as "metallic"/bell-like
   // dissonance (a real bell's overtones are famously non-integer) rather
@@ -190,9 +153,8 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // (Lead 1 Square/Lead 2 Sawtooth: a plain Oscillator already is the
   // correct, better tool; Lead 4 Chiff needs a noise-burst attack
   // transient, not a spectral-shape choice; Lead 5 Charang wants
-  // Distortion on a sharp Oscillator; Lead 7 Fifths is `<multiply
-  // fifths="1">` layered on a plain Oscillator, not a spectral question at
-  // all; Lead 8 Bass+Lead is a two-Oscillator layering problem) - none of
+  // Distortion on a sharp Oscillator; Lead 7 Fifths is two
+  // plain Oscillators a fifth apart, not a spectral question at all; Lead 8 Bass+Lead is a two-Oscillator layering problem) - none of
   // that changes by swapping in PadSynth underneath. Lead 6 (Voice) is the
   // one genuine exception: a real "synth voice" lead patch wants exactly
   // the vowel-formant, slightly-soft character `choir-pad4` was built for
@@ -236,15 +198,12 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // standing in for - a SoundFont's own recorded/sampled strings are the
   // right (and only convincing) source there, left untouched. GM's own
   // Synth Strings 1/2 (programs 50-51) are the deliberately synthetic
-  // pair, exactly what bowed-ensemble's own harmonic profile plus real
-  // <multiply> unison for genuine multi-player beating (not just a wide
-  // Gaussian band - see docs/padsynth.md's own "Known limitations") is
-  // actually suited to. "slow" (2, not 1) since that's the sustained-pad
+  // pair, exactly what a synthetic strings profile is suited to. "slow" (2, not 1) since that's the sustained-pad
   // half of the pair - the same reasoning "String Ensemble 2"'s own
   // "slow" naming already established for the acoustic side. "strings"
   // (real ported data, PadSynthPresets.h's own kStrings) replaces the
   // earlier invented "bowed-ensemble", dropped per explicit request.
-  provider.registerPath("string.synth.slow", makeUnisonPad("strings", 3, 14.0f, 0.5f, 0.5f, 0.0f, 0.4f, 0.85f, 0.9f));
+  provider.registerPath("string.synth.slow", makeEnvelopePad("strings", 0.5f, 0.0f, 0.4f, 0.85f, 0.9f));
 
   // Synth Brass 1/2 (brass.synth/brass.synth.soft) - the same GM
   // "deliberately synthetic" distinction as lead.voice above, not the
@@ -256,13 +215,10 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // unconditional override is correct here, the same as every pad.*/
   // lead.voice entry. "saw-piano-wide"'s own power-ramp oscillator shape
   // is a bright, sawtooth-like tone - the punchy character a synth-brass
-  // section wants - and, being a "section," real unison layering for
-  // genuine multi-voice thickness (the same reasoning pad.choir/
-  // string.synth.slow already use). brass.synth.soft uses "saw-piano"
-  // instead - the same oscillator shape, narrower/cleaner, without the
-  // unison layer - GM's own "softer, mellower" description, closer to a
-  // sustained pad than a punchy stab.
-  provider.registerPath("brass.synth", makeUnisonPad("saw-piano-wide", 3, 12.0f, 0.4f, 0.04f, 0.0f, 0.1f, 0.85f, 0.25f));
+  // section wants. brass.synth.soft uses "saw-piano" instead - the same
+  // oscillator shape, narrower/cleaner - GM's own "softer, mellower"
+  // description, closer to a sustained pad than a punchy stab.
+  provider.registerPath("brass.synth", makeEnvelopePad("saw-piano-wide", 0.04f, 0.0f, 0.1f, 0.85f, 0.25f));
   provider.registerPath("brass.synth.soft", makeEnvelopePad("saw-piano", 0.25f, 0.0f, 0.3f, 0.9f, 0.6f));
 
   // Additive piano - <envelope>+<additive preset="struck-string">, with a

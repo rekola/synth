@@ -5,25 +5,19 @@
 
     <envelope attack="1" release="2" name="padtest2">
       <resonantFilter cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
-	<multiply unisons="16" detune="10">
-	  <oscillator type="triangle" level="0.25" />
-	</multiply>
+	<oscillator type="triangle" level="0.25" voices="16" detune="10"/>
       </resonantFilter>
     </envelope>
 
     <envelope attack="1" release="2" name="simple">
       <resonantFilter cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
-	<multiply unisons="32" detune="10" spread="7">
-	  <oscillator type="saw" level="0.25" />
-	</multiply>
+	<oscillator type="saw" level="0.25" voices="32" detune="10" spread="7"/>
       </resonantFilter>
     </envelope>
 
     <envelope attack="0.1" decay="0.5" sustain="0.9" release="0.5" name="fast">
       <resonantFilter cut="11000" res="0.5">
-	<multiply unisons="32" detune="10" spread="7">
-	  <oscillator type="triangle" level="0.25" />
-	</multiply>
+	<oscillator type="triangle" level="0.25" voices="32" detune="10" spread="7"/>
       </resonantFilter>
     </envelope>
    
@@ -31,26 +25,20 @@
       <resonantFilter cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
 	<oscillator type="sine" level="0.75" />
 	<oscillator type="sine" level="0.3750" harmonic="2"/>
-	<multiply unisons="0" octaves="16" detune="5">
-	  <oscillator type="square" level="0.05" />
-	</multiply>
+	<oscillator type="square" level="0.05" voices="16" ratio="2" falloff="0.5" detune="5"/>
       </resonantFilter>
     </envelope>
 
     <envelope attack="1" release="2" name="padtest (3rd)">
       <oscillator type="sine" level="0.75" />
       <resonantFilter cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
-	<multiply unisons="0" octaves="0" thirds="16" detune="5">
-	  <oscillator type="saw" level="0.25" />
-	</multiply>
+	<oscillator type="saw" level="0.25" />
       </resonantFilter>
     </envelope>
 
     <envelope attack="1" release="2" name="padtest (5th)">
       <resonantFilter cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
-	<multiply unisons="16" detune="5">
-	  <oscillator type="saw" level="0.25" />
-	</multiply>
+	<oscillator type="saw" level="0.25" voices="16" detune="5"/>
       </resonantFilter>
     </envelope>
 

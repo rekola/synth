@@ -61,6 +61,7 @@ or perturb the snap.
 | `preset` | Below. Supplies every other attribute's default; an explicit attribute always overrides its preset's value. |
 | `tuningMatched` | `false` disables tuning-matching entirely - every partial stays purely harmonic, for A/B comparison. Defaults to the preset's value (`true` unless a preset overrides it - e.g. `keyboard`/`synth-piano-3-b` default `false`, to keep their stretched partials intact). |
 | `level` | Output gain multiplier, matching `<oscillator>`'s `level`. Default 1.0. |
+| `detune` | Pitch offset in cents, default 0. The wavetable is read at the detuned pitch, so `1200` is an octave up and `-1200` an octave down. Layer two `<padsynth>` elements in a `<group>` (one detuned) for doubling or a slight detune. |
 | `seed` | Integer seed for the table's random phases (`dsp/HashField.h`) - deterministic across platforms for a fixed seed; change it to get a different (still fully deterministic) phase draw for the same preset. Default 1. |
 | `envelopeAnchor` | Anchor frequency in Hz for the anchored spectral-envelope resampler (below). `<= 0` (the default) means off. |
 | `envelopeTracking` | Tracking exponent `p`, `[0, 2]`. `0` is identity; `1` pins the harmonic envelope to a fixed Hz position regardless of the note played; values between 0 and 1 give partial tracking, above 1 overcompensates. |
@@ -112,7 +113,7 @@ and its example parameter files.
 | `saw-piano` | A power-ramp oscillator shape against 4 harmonics (1/2/4/16). Sustains at full level rather than decaying (not percussive like `keyboard`). |
 | `saw-piano-wide` | A wider-bandwidth sibling of `saw-piano`, the same oscillator shape against harmonics 1/2/4. |
 | `soft-pad` | A much steeper power-ramp oscillator shape against just harmonic 1, reshaped by a spectrum-adjustment stage - genuinely a single reshaped partial. Used at `pad.new-age`. |
-| `strings` | A power-ramp oscillator shape against 2 harmonics. A simple base tone on its own - real ensemble motion comes from `<multiply>` unison layered on top (`pad.bowed`/`string.synth.slow`), the same reasoning `pad.choir`'s unison uses. Also the generic "plain pad" tone (`pad.warm`, `pad.sweep`) and the base of the Mellotron (`keyboard.tape.mellotron` - a Mellotron "strings" tape *is* a recording of a bowed string ensemble, the same real-world instrument family, so its tape-machine wow/flutter/hiss/attack-swoop, `<tapeDegradation preset="mellotron">`, is what tells it apart from a live strings pad, not a different spectrum). |
+| `strings` | A power-ramp oscillator shape against 2 harmonics. A simple base tone on its own - a plain ensemble tone (`pad.bowed`/`string.synth.slow`), the same reasoning `pad.choir`'s unison uses. Also the generic "plain pad" tone (`pad.warm`, `pad.sweep`) and the base of the Mellotron (`keyboard.tape.mellotron` - a Mellotron "strings" tape *is* a recording of a bowed string ensemble, the same real-world instrument family, so its tape-machine wow/flutter/hiss/attack-swoop, `<tapeDegradation preset="mellotron">`, is what tells it apart from a live strings pad, not a different spectrum). |
 | `dual-strings` | The same power-ramp oscillator shape as `strings`, against just harmonic 1 and a wider bandwidth. Used at `pad.poly`. |
 | `church-organ` | A clipped-triangle oscillator shape against 8 harmonics, shaped by an exponential-lowpass filter - a drawbar-organ-style spectrum. Used as a fallback at `organ.pipe`. |
 | `bells` | 3 harmonics placed directly, then reshaped nonlinearly by a logistic-sigmoid waveshaper, with partials landing at 1,2,4,5,7,9,11,13,... rather than a plain harmonic series. The preset's default is tuning-matched on; used with `tuningMatched="false"` in some songs for a deliberately dissonant bell character (`pad.metallic`). |
@@ -159,19 +160,9 @@ carry that motion over.
 A single `<padsynth>` table also can't produce genuine ensemble motion on
 its own, no matter how narrow or wide its bands are: real beating needs
 several truly independent voices that each drift to a slightly different
-pitch over time, not one voice with wider partials. This isn't a padsynth
-feature gap so much as a wrong layer to fix it at - `<multiply
-unisons="3" detune="16" spread="0.5">` (`NoteMultiplier.h`/`.cpp` - a
-generic, pre-existing per-instrument unison/detune/spread wrapper usable
-around any child instrument, not padsynth-specific, and not yet written
-up in its own doc page) already solves it by wrapping any child
-instrument in several independently-detuned copies. `pad.choir`/
-`pad.poly`/`pad.bowed`/`string.synth.slow` (`InstrumentLibrary.cpp`)
-are wrapped this way; a plain `<padsynth>` used directly (as most of
-`songs/oscillator_demo.xml`'s comparison tracks deliberately are, to
-isolate the preset itself) is not, and reads noticeably thinner/more
-static as a result - wrap it in `<multiply>` the same way if genuine
-ensemble motion matters more than isolating the raw preset.
+pitch, not one voice with wider partials. PadSynth voices don't stack
+(only `<oscillator>` does, via `voices`/`detune`/`spread`), so a plain
+`<padsynth>` reads thinner and more static than a real ensemble.
 
 ## Performance
 
