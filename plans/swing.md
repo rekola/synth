@@ -4,8 +4,11 @@ Fixes the `docs/known_bugs.md` entry on the "Swing"/"Boogie" library
 entries: swing becomes a real song-level setting applied at playback time,
 and library entries carry a swing of their own.
 
+Also adds live tempo editing and Tempo/Swing views on the Launchpad (section
+6), copying Novation's Launchpad Pro MK3 views.
+
 Out of scope: per-clip grooves, a no-swing track flag, groove templates
-(velocity/timing maps), swing on automation commands.
+(velocity/timing maps), swing on automation commands, negative swing.
 
 ## Terms
 
@@ -115,29 +118,96 @@ library entries to **Rhythms** and reserve "groove"/"swing" for timing feel.
 ## 5. Setting swing by hand
 
 - Commands in `UI::initializeCommands()` (backend-neutral, M-x reachable):
-  `swing-increase` / `swing-decrease` (1% steps within 50..75) and
+  `swing-increase` / `swing-decrease` (1% steps within 50..75),
+  `tempo-increase` / `tempo-decrease` (1 bpm steps within 20..300) and
   `toggle-swing-grid` (eighths/sixteenths). No keybinding needed for MVP.
+  All go through `Controller::setSwing()` / `setTempo()` (section 6).
 - Show the swing next to the tempo in `InfoLine.h` when it isn't 50.
 
-## 6. Launchpad gesture: shift + Pan (CC79) = Swing
+## 6. Launchpad: Tempo and Swing views (Novation's Launchpad Pro MK3 views)
 
-Shift (CC91 held) already relabels the eight right-side buttons; Volume
-(Duplicate) and Solo (Draw) are taken and the other six do nothing, so one of
-those is free to claim.
+The behavior being copied is Novation's own, from the Launchpad Pro MK3
+documentation (not Ableton Live's): hold shift and press a button to enter a
+view. The **Tempo** view (blue/white) shows the current bpm as a number on
+the pad grid. The **Swing** view (orange/white) shows the swing value the
+same way. The middle digit is drawn in white and the other digits in the
+view's color. The up and down arrow buttons on the left change the value,
+and holding one cycles through values quickly. Per Novation, swing above 50
+makes off-beat notes late and swing below 50 makes them early; the plan
+keeps only the positive half (see Questions).
 
-- `LaunchpadManager::handleRawButton()` shift branch: CC79 cycles the song
-  swing through presets 50 -> 54 -> 58 -> 62 -> 67 -> 71 -> 75 -> 50, one per
-  press, in every `GridMode`, through the same `Song` setter the commands use
-  (so terminal and device always agree). Status line reports the value.
-- LED, shown only while shift is held (like Duplicate/Draw): dark for 50,
-  amber growing brighter with the amount. The other free buttons stay dark.
-- Eighth/sixteenth grid is not on the device in the MVP (command only).
-- Update CLAUDE.md's Extra-button layout bullet (shift list) and
-  `tools/e2e/README.md`.
-- e2e: `tools/e2e/verify_launchpad_swing.py`, modelled on
-  `verify_launchpad_shift_highlight.py`: hold CC91, tap CC79 repeatedly,
-  confirm the InfoLine swing readout steps through the presets, wraps back to
-  50, and that the LED lights only while shift is down.
+How it maps onto this project's buttons:
+
+- **Entering.** Shift is CC91 (held). The Pro MK3's Device and Stop Clip
+  buttons have no exact twin on the X/Mini, so use two of the six right-side
+  shift-alternate buttons that do nothing today (the right column is
+  otherwise Duplicate on Volume and Draw on Solo): **shift + Stop Clip
+  (CC49) = Swing**, as on the Pro MK3, and **shift + Pan (CC79) = Tempo**
+  (stand-in for Device; confirm in Questions). Their LEDs show orange
+  (Swing) and blue (Tempo) while shift is held, like Duplicate and Draw do.
+- **A view, not a hold.** Like DRAW, the two views are new `GridMode`
+  members (`TEMPO`, `SWING`), per-device, reachable from any other
+  `GridMode`, and part of the same exclusive group as Session/Note/Custom:
+  pressing CC95/96/97 leaves the view, and shift + the other view's button
+  switches straight to it. Repeating the entry gesture while already in the
+  view leaves it (back to the mode shown before), as DRAW's gesture does.
+  The value lives in the `Song`, so two connected devices in these views
+  always agree.
+- **Arrows.** CC91 and CC92 (move-row-up/down, printed as arrows) become
+  +1/-1 while a view is showing, the same repurposing the step grid already
+  does for CC91-94. A press steps once. Holding repeats after about 400 ms,
+  every 100 ms (a timer in `LaunchpadManager`, the same polling the mixer
+  hold-preview uses). The value clamps at its ends, with no wrap. Shift's own
+  meaning is unaffected: the arrows are only repurposed while no shift
+  combination is in flight.
+- **Number on the grid.** The 8x8 pads can't fit three digits, so only the
+  **middle digit** is drawn in full, in white, centered, and the other digits
+  are drawn beside it in the view's color (blue for Tempo, orange for Swing),
+  clipped by the grid edge. For example 120 shows a white 2 flanked by a blue
+  1 and 0. This is the one detail not spelled out in the description, so
+  treat the layout below as an assumption:
+  - 3x5 pixel digits, one blank column between digits, the middle digit in
+    columns 2-4 (the grid is vertically centered, rows 1-5).
+  - For a number of n digits the middle digit is index `n / 2` (120 -> the 2;
+    75 -> the 5, with the 7 beside it).
+  - A pure function `renderNumber(value) -> 8x8 array of {off, side, middle}`
+    in its own header, so it is unit-testable without a device, and the same
+    function can later draw the number in the terminal.
+- **Other buttons.** In either view every button with no meaning there goes
+  dark (as in the step grid), except CC91/92 (lit white as the arrows) and
+  the view's own entry button (lit in its color). Session Record keeps its
+  record indicator, like the step grid.
+- **Setting the value** goes through new `Controller::setTempo()` and
+  `Controller::setSwing()` (clamp, write the `Song`, bump the version, tell the
+  audio thread), the same ones the M-x commands use, so the terminal and
+  every device always agree. Status line reports the new value.
+- Update CLAUDE.md's Extra-button layout and GridMode bullets (the shift
+  list, the new modes, the arrows) and `tools/e2e/README.md`.
+- e2e: `tools/e2e/verify_launchpad_tempo_swing.py`, modelled on
+  `verify_launchpad_shift_highlight.py`: shift + CC79 enters Tempo (entry LED
+  blue, arrows lit white), CC92 then CC91 step the bpm down and up and the
+  InfoLine readout follows, a held arrow repeats, shift + CC49 switches to
+  Swing, CC95 leaves. Pad LEDs are checked against `renderNumber()`.
+
+### 6a. Live tempo (prerequisite for the Tempo view)
+
+The tempo is currently only read when a song loads: `SongState` copies it
+(`tempo_`, `SongState.h` initialize) and nothing changes it afterward, so
+the Tempo view needs a real live-tempo path.
+
+- `PlaybackControlEvent::SET_TEMPO` (or reuse the song-version check the
+  swing refresh uses) so the audio thread picks up the new bpm within one
+  block. Only the row in flight keeps its old length.
+- Audit every use of `tempo_` in `SongState.h` that is cached at init
+  rather than read per use: `render_context_.setBpm(tempo_)`, the
+  per-effect `setRowDuration()` call for bus effects (MultiTapDelay), the
+  row duration at line 75, and `SampleTrackState`'s own use of the bpm.
+  Each must be refreshed on a tempo change.
+- Sample clips are stretched against the song tempo
+  (`SampleContent::stretched_song_tempo_`); a clip already playing keeps
+  its old stretch until retriggered, which is acceptable for the MVP and
+  worth a status-line-free comment in the code.
+- Range 20-300 bpm (three digits). `Song::setTempo()` clamps.
 
 ## 7. Tests and docs
 
@@ -159,8 +229,10 @@ those is free to claim.
 1. Rename commit (no behavior change, tests green).
 2. Model + engine + unit/render tests.
 3. Library data + preview + Add to Song.
-4. Commands + InfoLine.
-5. Launchpad gesture + e2e + docs, and delete this file.
+4. Commands + InfoLine (swing first).
+5. Live tempo path (6a) and tempo commands.
+6. Launchpad: `renderNumber()` + Swing view, then Tempo view, + e2e + docs,
+   and delete this file.
 
 ## Questions
 
@@ -168,5 +240,15 @@ those is free to claim.
    only when the song is still straight?
 2. Is the swing-grid choice (eighths/sixteenths) worth it in the MVP, or
    should it be eighths only?
-3. Is CC79 (Pan) the right button for the gesture, or would you rather a
-   different one of the six free ones?
+3. The Pro MK3's Device button has no twin on the X/Mini. Is shift + Pan
+   (CC79) acceptable for Tempo, or would you rather one of the other free
+   buttons (Send A, Send B, Mute, Record Arm)?
+4. Negative swing (off-beats early, as Novation's view allows) cannot be done
+   by the row scheduler as it is: a note can be delayed within its row but
+   not fired before the row is reached, so it would need one row of
+   lookahead. The plan keeps swing at 50..75 and clamps there. Is that
+   acceptable for the MVP?
+5. Novation's description doesn't say how a two-digit number (swing 50..75)
+   is laid out. Is "middle digit = index n/2" (so the units digit is the
+   white one for two digits) right, or should swing be shown padded to three
+   digits (050) so the tens digit is the white one?
