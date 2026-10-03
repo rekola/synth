@@ -58,6 +58,8 @@ class PadSynth : public Instrument {
 
   std::string preset_ = "strings";
   bool tuning_matched_ = true;
+  // Detune in cents - 1200 doubles the pitch, an octave doubling.
+  float detune_cents_ = 0.0f;
   float level_ = 1.0f;
   uint64_t seed_ = 1;
 

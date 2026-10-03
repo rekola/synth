@@ -45,6 +45,10 @@ class OscillatorArray {
   // frequency in cycles per sample. Doesn't advance the phase.
   void renderCopy(size_t i, double base_rate, int frames, float * out) const;
 
+  // The same, but adds into out instead of overwriting it, so a stack sums
+  // its members in the one pass that computes them.
+  void mixCopy(size_t i, double base_rate, int frames, float * out) const;
+
   // Multiplies every copy's level, e.g. by the note's velocity.
   void scaleLevels(float scale) {
     for (auto & c : copies_) c.level *= scale;
@@ -63,6 +67,8 @@ class OscillatorArray {
   static float sineTurns(float turns);
 
  private:
+  template <bool Add> void renderImpl(size_t i, double base_rate, int frames, float * out) const;
+
   std::vector<Copy> copies_;
 };
 

@@ -61,6 +61,7 @@ or perturb the snap.
 | `preset` | Below. Supplies every other attribute's default; an explicit attribute always overrides its preset's value. |
 | `tuningMatched` | `false` disables tuning-matching entirely - every partial stays purely harmonic, for A/B comparison. Defaults to the preset's value (`true` unless a preset overrides it - e.g. `keyboard`/`synth-piano-3-b` default `false`, to keep their stretched partials intact). |
 | `level` | Output gain multiplier, matching `<oscillator>`'s `level`. Default 1.0. |
+| `detune` | Pitch offset in cents, default 0. The wavetable is read at the detuned pitch, so `1200` is an octave up and `-1200` an octave down. Layer two `<padsynth>` elements in a `<group>` (one detuned) for doubling or a slight detune. |
 | `seed` | Integer seed for the table's random phases (`dsp/HashField.h`) - deterministic across platforms for a fixed seed; change it to get a different (still fully deterministic) phase draw for the same preset. Default 1. |
 | `envelopeAnchor` | Anchor frequency in Hz for the anchored spectral-envelope resampler (below). `<= 0` (the default) means off. |
 | `envelopeTracking` | Tracking exponent `p`, `[0, 2]`. `0` is identity; `1` pins the harmonic envelope to a fixed Hz position regardless of the note played; values between 0 and 1 give partial tracking, above 1 overcompensates. |

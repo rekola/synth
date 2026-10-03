@@ -57,8 +57,9 @@ OscillatorArray::sineTurns(float turns) {
   return x * p;
 }
 
+template <bool Add>
 void
-OscillatorArray::renderCopy(size_t index, double base_rate, int frames, float * out) const {
+OscillatorArray::renderImpl(size_t index, double base_rate, int frames, float * out) const {
   const Copy & c = copies_[index];
   const double rate = c.ratio * base_rate;
   const v8f lanes = v8f{ 0, 1, 2, 3, 4, 5, 6, 7 } * splat(static_cast<float>(rate));
@@ -82,6 +83,21 @@ OscillatorArray::renderCopy(size_t index, double base_rate, int frames, float * 
     }
 
     a *= level;
+    if (Add) {
+      v8f existing;
+      std::memcpy(&existing, out + g * kLanes, sizeof(existing));
+      a += existing;
+    }
     std::memcpy(out + g * kLanes, &a, sizeof(a));
   }
+}
+
+void
+OscillatorArray::renderCopy(size_t index, double base_rate, int frames, float * out) const {
+  renderImpl<false>(index, base_rate, frames, out);
+}
+
+void
+OscillatorArray::mixCopy(size_t index, double base_rate, int frames, float * out) const {
+  renderImpl<true>(index, base_rate, frames, out);
 }

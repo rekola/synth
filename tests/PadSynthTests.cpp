@@ -4,6 +4,9 @@
 #include "../src/instruments/InstrumentProvider.h"
 #include "../src/audio/OfflineRenderer.h"
 #include "../src/ambisonic/ChannelConfiguration.h"
+#include "../src/instruments/PadSynth.h"
+#include "../src/state/MemoryParameterSource.h"
+#include "../src/ambisonic/SphericalPosition.h"
 
 #include <cmath>
 #include <cstdio>
@@ -140,4 +143,56 @@ TEST(extra_oscillator_presets_render_nonsilent_and_finite) {
 
   CHECK(!hasNonFiniteSample(result));
   CHECK(peakAbs(result) > 1e-4f);
+}
+
+namespace {
+
+// Rising zero crossings of the W channel over a few blocks of one note.
+int risingCrossings(float detune_cents) {
+  PadSynth pad;
+  MemoryParameterSource params;
+  params.set("preset", string("soft-pad")); // a single partial: a clean sine
+  params.set("detune", detune_cents);
+  pad.loadParameters(params);
+
+  ChannelConfiguration config(44100, 1);
+  SphericalPosition position;
+  position.distance = 1.0f;
+  auto voice = pad.playNote(config, position, Tuning::TET31, 1.0f, 1.0f, 160, SendLevels{}, NoteCoordinate(0, 0, 0)); // ~294 Hz
+
+  int crossings = 0;
+  float prev = 0.0f;
+  for (int block = 0; block < 8; block++) {
+    auto out = voice->render(1024);
+    for (int k = 0; k < 1024; k++) {
+      float v = out.getChannelData(0)[k];
+      if (prev <= 0.0f && v > 0.0f) crossings++;
+      prev = v;
+    }
+  }
+  return crossings;
+}
+
+} // namespace
+
+TEST(padsynth_detune_in_cents_shifts_pitch_and_round_trips) {
+  int base = risingCrossings(0.0f);
+  int octave = risingCrossings(1200.0f);
+  CHECK(base > 20);
+  // 1200 cents is an octave up: twice the cycles, give or take a cycle at
+  // the edges of the measured window.
+  CHECK(octave >= 2 * base - 2 && octave <= 2 * base + 2);
+
+  PadSynth pad;
+  MemoryParameterSource params;
+  params.set("detune", 700.0f);
+  pad.loadParameters(params);
+  MemoryParameterSource stored;
+  pad.storeParameters(stored);
+  CHECK_NEAR(stored.get<float>("detune", 0.0f), 700.0f, 1e-6f);
+
+  PadSynth plain;
+  MemoryParameterSource plain_stored;
+  plain.storeParameters(plain_stored);
+  CHECK(!plain_stored.has("detune")); // the default isn't written
 }

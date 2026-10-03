@@ -133,6 +133,79 @@ TEST(oscillator_stack_matches_separate_voices) {
   CHECK(bad < total / 500); // only a saw's wrap sample may differ
 }
 
+// Members sharing a direction (no spread) are summed and encoded once; the
+// result must still equal the same members played as separate voices.
+TEST(oscillator_stack_without_spread_encodes_once_and_matches_separate_voices) {
+  ChannelConfiguration config(44100, 3);
+  config.setFloorReflectionEnabled(true);
+  SendLevels sends;
+  sends.a = 0.3f;
+  NoteCoordinate coord(2, 8, 0);
+
+  OscillatorStack stack;
+  stack.voices = 8;
+  stack.detune_cents = 14.0f;
+  stack.falloff = 0.9f;
+
+  SphericalPosition centre;
+  centre.azimuth = 25.0f;
+  centre.distance = 3.0f;
+  centre.extent = 2.0f;
+
+  OscillatorVoice stacked(config, centre, 1.0f, WaveformType::TRIANGLE, 0.5f, 0.5f, sends, coord, stack);
+  CHECK(stacked.memberCount() == 8);
+  CHECK(stacked.directionCount() == 1);
+  stacked.playNote(262.0f, 0.7f, 60);
+
+  // Floor reflection is on: the separate voices each reflect their own
+  // copy, the stack reflects the sum - linear, so the same total.
+  vector<unique_ptr<OscillatorVoice>> separate;
+  for (int k = 0; k < 8; k++) {
+    float place = 2.0f * static_cast<float>(k) / 7.0f - 1.0f;
+    float ratio = powf(2.0f, place * stack.detune_cents / 2400.0f);
+    auto voice = make_unique<OscillatorVoice>(config, centre, ratio, WaveformType::TRIANGLE, 0.5f * powf(stack.falloff, static_cast<float>(k)), 0.5f, sends, coord.withInstance(k));
+    voice->playNote(262.0f, 0.7f, 60);
+    separate.push_back(move(voice));
+  }
+
+  double err = 0.0, energy = 0.0;
+  for (int block = 0; block < 12; block++) {
+    const int frames = 256;
+    auto a = stacked.render(frames);
+    AudioBuffer expected(config.numberOfChannels(), true, false, frames);
+    expected.zero();
+    for (auto & v : separate) expected.mixNamed(v->render(frames));
+
+    for (int c = 0; c < a.regularChannelCount(); c++) {
+      for (int k = 0; k < frames; k++) {
+	double d = static_cast<double>(a.getChannelData(c)[k]) - static_cast<double>(expected.getChannelData(c)[k]);
+	err += d * d;
+	energy += static_cast<double>(expected.getChannelData(c)[k]) * static_cast<double>(expected.getChannelData(c)[k]);
+      }
+    }
+    auto * a_aux = a.getChannel(Channel::AuxA);
+    auto * e_aux = expected.getChannel(Channel::AuxA);
+    CHECK(a_aux != nullptr && e_aux != nullptr);
+    for (int k = 0; k < frames; k++) CHECK_NEAR(a_aux[k], e_aux[k], 2e-4f);
+  }
+  CHECK(energy > 1.0);
+  CHECK(err < energy * 1e-6);
+}
+
+TEST(oscillator_stack_with_spread_keeps_distinct_directions) {
+  ChannelConfiguration config(44100, 1);
+  OscillatorStack stack;
+  stack.voices = 5;
+  stack.spread = 1.0f;
+
+  SphericalPosition centre;
+  centre.distance = 2.0f;
+  centre.extent = 2.0f;
+
+  OscillatorVoice voice(config, centre, 1.0f, WaveformType::SINE, 1.0f, 0.5f, SendLevels{}, NoteCoordinate(0, 0, 0), stack);
+  CHECK(voice.directionCount() == 5);
+}
+
 // The default stack is one member, rendered exactly like a plain voice.
 TEST(oscillator_default_stack_is_a_single_member) {
   Oscillator osc(WaveformType::SQUARE);
