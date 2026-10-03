@@ -5,6 +5,7 @@
 #include "OscillatorArray.h"
 #include "OscillatorStack.h"
 #include "WaveformType.h"
+#include "../ambisonic/AmbisonicStackEncoder.h"
 #include "../ambisonic/SphericalPosition.h"
 #include "../model/NoteCoordinate.h"
 
@@ -59,7 +60,6 @@ public:
       if (g == group_positions_.size()) {
         group_positions_.push_back(member);
         group_members_.emplace_back();
-        group_encoders_.emplace_back();
       }
       group_members_[g].push_back(static_cast<size_t>(k));
     }
@@ -96,41 +96,49 @@ public:
     const float main_gain = getSends().main * getDistanceGain();
     AudioBuffer data = makeSendBuffer(frames);
 
-    // One direction: the members' sum is both the stack's dry signal and
-    // the one thing to encode.
-    sum_.assign(padded, 0.0f);
-    if (group_positions_.size() == 1) {
-      for (size_t i = 0; i < array_.size(); i++) array_.mixCopy(i, rate, frames, sum_.data());
-      if (has_main) encodeGroup(0, sum_.data(), frames, main_gain, data);
-    } else {
-      for (size_t g = 0; g < group_positions_.size(); g++) {
-	scratch_.assign(padded, 0.0f);
-	for (size_t i : group_members_[g]) array_.mixCopy(i, rate, frames, scratch_.data());
-	if (has_main) encodeGroup(g, scratch_.data(), frames, main_gain, data);
-	for (size_t k = 0; k < static_cast<size_t>(frames); k++) sum_[k] += scratch_[k];
-      }
+    // Each direction's members are summed into their own row, then every
+    // row is encoded in one pass.
+    const size_t groups = group_positions_.size();
+    group_sums_.assign(groups * padded, 0.0f);
+    for (size_t g = 0; g < groups; g++) {
+      for (size_t i : group_members_[g]) array_.mixCopy(i, rate, frames, group_sums_.data() + g * padded);
     }
     array_.advance(rate, frames);
 
-    if (has_main) addFloorReflection(data, sum_.data(), frames, main_gain);
-    addAuxSends(data, sum_.data(), frames);
+    if (has_main) {
+      targets_.resize(groups);
+      for (size_t g = 0; g < groups; g++) {
+	targets_[g] = computeAmbisonicGains(group_positions_[g]);
+	for (auto & gain : targets_[g]) gain *= main_gain;
+      }
+      encoder_.encodeBlock(data, group_sums_.data(), padded, targets_, frames);
+    }
+
+    // The stack's whole dry signal, for the floor reflection and the sends:
+    // the one row when there's a single direction.
+    const float * dry = group_sums_.data();
+    if (groups > 1) {
+      sum_.assign(padded, 0.0f);
+      for (size_t g = 0; g < groups; g++) {
+	const float * row = group_sums_.data() + g * padded;
+	for (size_t k = 0; k < padded; k++) sum_[k] += row[k];
+      }
+      dry = sum_.data();
+    }
+
+    if (has_main) addFloorReflection(data, dry, frames, main_gain);
+    addAuxSends(data, dry, frames);
     return data;
   }
 
 private:
-  void encodeGroup(size_t g, const float * dry, int frames, float main_gain, AudioBuffer & data) {
-    auto gains = computeAmbisonicGains(group_positions_[g]);
-    for (auto & gain : gains) gain *= main_gain;
-    group_encoders_[g].encodeBlock(data, dry, frames, gains);
-  }
-
   OscillatorArray array_;
-  // Per distinct direction: where it is, which members sit there, and its
-  // own gain-interpolating encoder.
+  // Per distinct direction: where it is and which members sit there.
   std::vector<SphericalPosition> group_positions_;
   std::vector<std::vector<size_t>> group_members_;
-  std::vector<AmbisonicVoiceEncoder> group_encoders_;
-  std::vector<float> scratch_, sum_;
+  AmbisonicStackEncoder encoder_;
+  std::vector<AmbisonicGains> targets_;
+  std::vector<float> scratch_, group_sums_, sum_;
 };
 
 #endif
