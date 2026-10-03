@@ -2,6 +2,7 @@
 #define _OSCILLATORKERNEL_H_
 
 #include "WaveformType.h"
+#include "../dsp/Vec8.h"
 
 #include <cstddef>
 
@@ -10,12 +11,10 @@
 // as the target allows).
 namespace oscillator_kernel {
 
-constexpr int kLanes = 8;
-
 // Samples of space `mix()` needs for `frames`.
 inline size_t paddedFrames(int frames) {
   size_t n = static_cast<size_t>(frames);
-  return (n + kLanes - 1) / kLanes * kLanes;
+  return (n + dsp::kLanes - 1) / dsp::kLanes * dsp::kLanes;
 }
 
 // Adds `level` times the next `frames` samples of the waveform into out
@@ -24,10 +23,6 @@ inline size_t paddedFrames(int frames) {
 // from a double-precision phase, so float rounding doesn't accumulate over a
 // block. `pulse_width` is for SQUARE only.
 void mix(WaveformType type, float pulse_width, double phase, double rate, float level, int frames, float * out);
-
-// sin(2*pi*turns) by range reduction and an odd polynomial - the same
-// function the vector kernel evaluates, exposed so tests can compare.
-float sineTurns(float turns);
 
 }
 

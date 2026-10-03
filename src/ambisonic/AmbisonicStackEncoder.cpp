@@ -1,15 +1,15 @@
 #include "AmbisonicStackEncoder.h"
 
+#include "../dsp/Vec8.h"
+
 #include <algorithm>
 #include <cstring>
 
 namespace {
 
-typedef float v8f __attribute__((vector_size(32)));
-
-constexpr int kLanes = 8;
-
-inline v8f splat(float x) { return v8f{ x, x, x, x, x, x, x, x }; }
+using dsp::kLanes;
+using dsp::splat;
+using dsp::v8f;
 
 // N is the channel count rounded up to what a fixed-size accumulator set
 // can hold; only the first n channels are real (the rest have zero gain and

@@ -27,8 +27,6 @@ public:
   OscillatorVoice(const ChannelConfiguration & config, const SphericalPosition & position, float detune, WaveformType type, float level, float pulse_width, const SendLevels & sends = {}, const NoteCoordinate & note_coord = {}, const OscillatorStack & stack = {})
     : InstrumentVoice(config, position, 1.0f, sends, note_coord), type_(type), pulse_width_(pulse_width) {
     const int n = std::clamp(stack.voices, 1, OscillatorStack::kMaxVoices);
-    members_ = n;
-
     // atan2 rather than atan handles distance <= 0 (an untouched/diffuse
     // position, where the azimuth is ignored anyway) without dividing by 0.
     const float radius_deg = n > 1 ? atan2f(stack.spread * position.extent, position.distance) * 180.0f / static_cast<float>(M_PI) : 0.0f;
@@ -115,7 +113,11 @@ public:
     return p;
   }
 
-  size_t memberCount() const { return static_cast<size_t>(members_); }
+  size_t memberCount() const {
+    size_t n = 0;
+    for (const auto & bucket : buckets_) n += bucket.members.size();
+    return n;
+  }
   size_t bucketCount() const { return buckets_.size(); }
   size_t bucketSize(size_t b) const { return buckets_[b].members.size(); }
   const SphericalPosition & bucketDirection(size_t b) const { return buckets_[b].direction; }
@@ -169,10 +171,12 @@ public:
       encoder_.encodeBlock(data, bucket_sums_.data(), padded, targets_, frames);
     }
 
-    // The stack's whole dry signal, for the floor reflection and the sends:
-    // the one row when there's a single bucket.
+    // The stack's whole dry signal, for the floor reflection and the sends
+    // (the one row when there's a single bucket), summed only if one needs it.
     const float * dry = bucket_sums_.data();
-    if (rows > 1) {
+    const bool reflect = has_main && floorReflectionActive();
+    const bool sends = getSends().a > 0.0f || getSends().b > 0.0f;
+    if (rows > 1 && (reflect || sends)) {
       sum_.assign(padded, 0.0f);
       for (size_t b = 0; b < rows; b++) {
 	const float * row = bucket_sums_.data() + b * padded;
@@ -181,7 +185,7 @@ public:
       dry = sum_.data();
     }
 
-    if (has_main) addFloorReflection(data, dry, frames, main_gain);
+    if (reflect) addFloorReflection(data, dry, frames, main_gain);
     addAuxSends(data, dry, frames);
     return data;
   }
@@ -201,7 +205,6 @@ private:
 
   WaveformType type_;
   float pulse_width_;
-  int members_ = 1;
   std::vector<Bucket> buckets_;
   AmbisonicStackEncoder encoder_;
   std::vector<AmbisonicGains> targets_;

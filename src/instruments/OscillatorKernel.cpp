@@ -1,17 +1,19 @@
 #include "OscillatorKernel.h"
 
-#include <cmath>
+#include "../dsp/Vec8.h"
 
+#include <cmath>
 #include <cstring>
 
 namespace {
 
-typedef float v8f __attribute__((vector_size(32)));
+using dsp::kLanes;
+using dsp::splat;
+using dsp::v8f;
+
 typedef int v8i __attribute__((vector_size(32)));
 
 constexpr float kTwoPi = 6.28318530717958647692f;
-
-inline v8f splat(float x) { return v8f{ x, x, x, x, x, x, x, x }; }
 
 // Fractional part of a non-negative phase.
 inline v8f fract(v8f p) {
@@ -41,25 +43,6 @@ inline v8f sineOfFraction(v8f f) {
 }
 
 namespace oscillator_kernel {
-
-float
-sineTurns(float turns) {
-  float f = turns - std::floor(turns);
-  float u = f > 0.5f ? f - 1.0f : f;
-  u = u > 0.25f ? 0.5f - u : u;
-  u = u < -0.25f ? -0.5f - u : u;
-
-  float x = u * kTwoPi;
-  float x2 = x * x;
-  float p = 1.0f / 6227020800.0f;
-  p = p * x2 - 1.0f / 39916800.0f;
-  p = p * x2 + 1.0f / 362880.0f;
-  p = p * x2 - 1.0f / 5040.0f;
-  p = p * x2 + 1.0f / 120.0f;
-  p = p * x2 - 1.0f / 6.0f;
-  p = p * x2 + 1.0f;
-  return x * p;
-}
 
 void
 mix(WaveformType type, float pulse_width, double phase, double rate, float level, int frames, float * out) {

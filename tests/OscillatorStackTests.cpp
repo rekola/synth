@@ -66,11 +66,11 @@ TEST(oscillator_kernel_matches_the_scalar_waveforms) {
 }
 
 TEST(oscillator_kernel_sine_polynomial_is_accurate) {
+  const int frames = 3000;
+  vector<float> out(oscillator_kernel::paddedFrames(frames), 0.0f);
+  oscillator_kernel::mix(WaveformType::SINE, 0.5f, 0.0, 1.0 / 1000.0, 1.0f, frames, out.data());
   double max_err = 0.0;
-  for (int i = -1000; i <= 2000; i++) {
-    float turns = static_cast<float>(i) / 1000.0f;
-    max_err = max(max_err, fabs(static_cast<double>(oscillator_kernel::sineTurns(turns)) - sin(2.0 * kPi * static_cast<double>(turns))));
-  }
+  for (int i = 0; i < frames; i++) max_err = max(max_err, fabs(static_cast<double>(out[static_cast<size_t>(i)]) - sin(2.0 * kPi * i / 1000.0)));
   CHECK(max_err < 2e-6);
 }
 

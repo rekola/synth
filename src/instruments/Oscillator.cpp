@@ -1,6 +1,6 @@
 #include "Oscillator.h"
-#include "OscillatorVoice.h"
 
+#include "OscillatorVoice.h"
 
 using namespace std;
 

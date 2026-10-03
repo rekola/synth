@@ -97,6 +97,8 @@ class PositionedVoice : public VoiceState {
   // Main channels itself (several directions at once) but still wants the
   // shared reflection/sends handling.
 
+  bool floorReflectionActive() const { return floor_reflection_active_; }
+
   // A zeroed buffer shaped by the Send levels: Main only when Send Main > 0,
   // AuxA/AuxB only when their sends are.
   AudioBuffer makeSendBuffer(int frames) const {
