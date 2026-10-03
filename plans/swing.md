@@ -5,7 +5,8 @@ entries: swing becomes a real song-level setting applied at playback time,
 and library entries carry a swing of their own.
 
 Also adds live tempo editing and Tempo/Swing views on the Launchpad (section
-6), copying Novation's Launchpad Pro MK3 views.
+6), copying Novation's Launchpad Pro MK3 views, and a Delete clip gesture on
+the Launchpad (section 6b), which the Launchpad lacks today.
 
 Out of scope: per-clip grooves, a no-swing track flag, groove templates
 (velocity/timing maps), swing on automation commands, negative swing.
@@ -216,6 +217,56 @@ the Tempo view needs a real live-tempo path.
   worth a status-line-free comment in the code.
 - Range 20-300 bpm (three digits). `Song::setTempo()` clamps.
 
+## 6b. Launchpad: Delete clip (shift + Mute)
+
+Clip deletion exists only in the terminal today (`ClipGrid`'s `delete-clip`).
+The Launchpad has Duplicate (shift + Volume) but no way to delete, so a
+performer has to reach for the keyboard. This adds a twin of Duplicate.
+
+- **Gesture.** Shift (CC91 held) + Mute (CC39; Pro MK3 twin CC30) starts
+  Delete, held for as long as Mute stays down, exactly like Duplicate.
+  Mute's own meaning under shift is nothing today, so nothing is displaced.
+  While held, its LED is red and the Session grid's pad presses are
+  swallowed, never launching anything.
+- **What a press does** (same one-layer-per-press rule as `delete-clip`):
+  - a populated pad deletes that clip: `deleteClip()` (`ArrangementOps.h`;
+    leaves an empty hole in place so later scene rows keep their index and
+    clears the clip's arrangement instances), after clearing the focused
+    clip if it is the one being deleted (`Controller::clearFocusedClip()`),
+    then a "Deleted clip: <name>" status line;
+  - an empty pad that still has its stop button removes the stop button
+    (`setStopButton(false)`), after which that slot shows no stop;
+  - an empty pad with neither does nothing.
+- **Scope.** Session grid only, as Duplicate. In the step grid, Draw, Tempo
+  and Swing views the gesture does nothing.
+- **Held state** is per device, like `duplicate_held` (a `delete_held` flag
+  next to it in `DeviceState`), and the "shift alternates showing" check that
+  keeps the right-side LEDs in their alternate colors after shift is
+  released (`state.row_up_shift_held || state.duplicate_held`) gains
+  `|| state.delete_held`.
+- **Shared code.** Move the body of `ClipGrid`'s `delete-clip` (the
+  clip-or-stop-button decision, the focus clearing, the status text) into one
+  function beside `duplicateClip()` in `ArrangementOps.h`, e.g.
+  `deleteClipOrStopButton(song, track_id, clip_index)` returning what it
+  removed, and call it from both `ClipGrid` and the Launchpad, so the two
+  can't drift apart. The focus clearing needs the `Controller`, so that part
+  stays at the call sites or the function takes a callback.
+- **To check while implementing:** deleting a clip that is playing on its
+  track. `SongState` indexes `song.getClips(track_id)` by the playing clip's
+  index, and a hole is an empty `Clip`, so it should go silent at the next
+  change like a stop, but nothing yet proves it. Cover it with a test, and
+  if it misbehaves, stop the track first, as the Stop Clip pad does.
+- **Undo** doesn't exist for the terminal's delete either; no confirmation
+  step, which matches `delete-clip`. A mistaken delete is recoverable only
+  by not saving.
+- e2e: `tools/e2e/verify_launchpad_delete_clip.py`, modelled on
+  `verify_launchpad_session.py` and `verify_clipgrid_stop_button.py`: hold
+  shift + CC39, press a populated pad and see its clip vanish from the
+  terminal `ClipGrid` text, press the now-empty pad and see its stop button
+  go, release, and confirm a plain pad press launches again.
+- Update CLAUDE.md's shift list (Delete on Mute, red) and the Duplicate
+  bullet's neighbour, and `tools/e2e/README.md`.
+
 ## 7. Tests and docs
 
 - Unit: `swingOffsetRows()` (parity, 50 = 0, 75 = 1 row);
@@ -238,8 +289,9 @@ the Tempo view needs a real live-tempo path.
 3. Library data + preview + Add to Song.
 4. Commands + InfoLine (swing first).
 5. Live tempo path (6a) and tempo commands.
-6. Launchpad: `renderNumber()` + Swing view, then Tempo view, + e2e + docs,
-   and delete this file.
+6. Launchpad: `renderNumber()` + Swing view, then Tempo view, + e2e + docs.
+7. Launchpad Delete clip (6b), independent of everything above and can be
+   done at any point; then delete this file.
 
 ## Questions
 
