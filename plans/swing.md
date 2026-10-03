@@ -12,8 +12,7 @@ Out of scope: per-clip grooves, a no-swing track flag, groove templates
 
 ## Terms
 
-- **Swing**: a timing feel. Notes are grouped in pairs (two eighths, or two
-  sixteenths). Straight timing puts the second note of each pair exactly
+- **Swing**: a timing feel. Eighth notes are grouped in pairs. Straight timing puts the second note of each pair exactly
   halfway; swing delays it, giving a long-short, lilting feel. The amount is
   the share of the pair taken by the first note: 50% is straight, about 67%
   is triplet swing (jazz, shuffle, boogie), 75% is very heavy. Only the
@@ -32,8 +31,7 @@ Out of scope: per-clip grooves, a no-swing track flag, groove templates
   (when those rows sound). The two are independent: the same rhythm can be
   straight or swung. Hence the rename below.
 - **Row**: this engine's grid step, a sixteenth note (4 rows per beat). A
-  swing "pair" is 4 rows for eighth-note swing or 2 rows for sixteenth-note
-  swing.
+  swing "pair" is two eighth notes, 4 rows.
 
 ## 0. Naming (do first, as its own mechanical commit)
 
@@ -56,21 +54,22 @@ library entries to **Rhythms** and reserve "groove"/"swing" for timing feel.
 
 ## 1. Model
 
-- `Song`: `swing` (percent of a pair given to its first note, 50 = straight,
-  clamped 50..75, default 50) and `swing_rows` (the pair length: 4 = eighth
-  notes, 2 = sixteenths, default 4). Both are `<song swing="" swingRows="">`
-  attributes, read/written beside `tempo`/`rowsPerBar` in `Song.cpp`. Omitted
-  attributes load as straight, so old songs are unchanged.
+- `Song`: `swing` (percent of an eighth-note pair given to its first note,
+  50 = straight, clamped 50..75, default 50), saved as `<song swing="">`
+  beside `tempo`/`rowsPerBar` in `Song.cpp`. An omitted attribute loads as
+  straight, so old songs are unchanged. Swing works on eighth-note pairs
+  only (a pair is the constant `kSwingPairRows` = 4 rows); sixteenth-note
+  swing is not needed by any library rhythm or by the device views, and can
+  be added later as one more attribute.
 - Setters bump the major version (`Song::getMajorVersion()`), as the audio
   thread already keys on that.
-- Shared helper, e.g. `swingOffsetRows(int row, int swing, int swing_rows)`:
-  `0` unless `row % swing_rows == swing_rows / 2`, else
-  `(swing / 100.0 - 0.5) * swing_rows` rows. At 67% on the eighth grid that
-  is 0.67 of a row. The max (75%, 4 rows) is exactly 1 row.
+- Shared helper, e.g. `swingOffsetRows(int row, int swing)`: `0` unless
+  `row % 4 == 2`, else `(swing / 100.0 - 0.5) * 4` rows. At 67% that is
+  0.67 of a row. The max (75%) is exactly 1 row.
 
 ## 2. Engine
 
-- `SongState`: cache swing/swing_rows next to `song_structure_version_`
+- `SongState`: cache swing next to `song_structure_version_`
   (refresh in the existing `getMajorVersion()` branch of `renderBlock()`),
   so a swing edit lands within a block, with no new event type.
 - In the note loop (`SongState.h`, the `delay_samples` line): add the swing
@@ -89,8 +88,8 @@ library entries to **Rhythms** and reserve "groove"/"swing" for timing feel.
 
 ## 3. Library entries carry swing
 
-- `RhythmPattern` gains `swing` and `swing_rows` (default 50 / 4).
-  A swung entry's length must be a multiple of `swing_rows` (test it).
+- `RhythmPattern` gains `swing` (default 50). A swung entry's length must
+  be a multiple of 4 rows (test it).
 - **Swing**: rewrite the ride onto the straight grid, `"X...x.x.x...x.x."`
   (beats 1-4 plus the "and" of 2 and 4), swing 67 on the eighth grid. The
   current `"X..x.X..x.X..x.."` is the hand-spaced approximation.
@@ -99,7 +98,8 @@ library entries to **Rhythms** and reserve "groove"/"swing" for timing feel.
   swing 67 (12 rows = 3 pairs, fits).
 - Everything else stays straight. "Slow Rock"/"Shuffle Blues" already use
   real 12/8 triplet rows and must not also be swung. Funk/16 Beat could
-  take a light 16th swing later; not now.
+  take a light 16th swing later, which would need the sixteenth-note
+  option described in section 1; not now.
 - The outline description for a swung entry shows its swing ("swing 67%").
 
 ## 4. Using and previewing a rhythm
@@ -110,17 +110,17 @@ library entries to **Rhythms** and reserve "groove"/"swing" for timing feel.
   Hits are still started at the top of the block that contains them (as
   today), so swing is as accurate as the preview already is.
 - **Add to Song** (`addSelectedLibraryRhythmToSong()`): a swung entry sets
-  the song's swing/swing_rows to its own and says so on the status line
-  ("Swing set to 67%"); a straight entry leaves the song's swing alone, so
-  adding a straight rhythm never silently removes swing set earlier.
-  (Decision to confirm: see questions below.)
+  the song's swing to its own, overwriting whatever was there, and says so
+  on the status line ("Swing set to 67%"). A straight entry leaves the song's
+  swing alone, so adding a straight rhythm never silently removes swing set
+  earlier.
 
 ## 5. Setting swing by hand
 
 - Commands in `UI::initializeCommands()` (backend-neutral, M-x reachable):
   `swing-increase` / `swing-decrease` (1% steps within 50..75),
-  `tempo-increase` / `tempo-decrease` (1 bpm steps within 20..300) and
-  `toggle-swing-grid` (eighths/sixteenths). No keybinding needed for MVP.
+  and `tempo-increase` / `tempo-decrease` (1 bpm steps within 20..300).
+  No keybinding needed for MVP.
   All go through `Controller::setSwing()` / `setTempo()` (section 6).
 - Show the swing next to the tempo in `InfoLine.h` when it isn't 50.
 
@@ -211,13 +211,13 @@ the Tempo view needs a real live-tempo path.
 
 ## 7. Tests and docs
 
-- Unit: `swingOffsetRows()` (parity, 50 = 0, 75 = 1 row, 2 vs 4 rows);
+- Unit: `swingOffsetRows()` (parity, 50 = 0, 75 = 1 row);
   Song XML round trip + old files load straight; clamping.
 - Render (`tests/RenderTests.cpp` style): a fixture with eighth notes at
   swing 67 puts the off-eighth about 2/3 of a row late and the on-beat
   unmoved; swing 50 output is bit-identical to today's; a note-off keeps its
   note's length.
-- Library: every swung entry's length is a multiple of its `swing_rows`;
+- Library: every swung entry's length is a multiple of 4 rows;
   Swing/Boogie/Jazz Waltz are swung, all others straight.
 - Preview: with a swung entry, hits on off rows start later than the same
   row's straight time; a straight entry is unchanged.
@@ -236,19 +236,17 @@ the Tempo view needs a real live-tempo path.
 
 ## Questions
 
-1. Add to Song with a swung rhythm: overwrite the song's swing (proposed), or
-   only when the song is still straight?
-2. Is the swing-grid choice (eighths/sixteenths) worth it in the MVP, or
-   should it be eighths only?
-3. The Pro MK3's Device button has no twin on the X/Mini. Is shift + Pan
+Decided: Add to Song overwrites the song's swing; swing is eighth-note only.
+
+1. The Pro MK3's Device button has no twin on the X/Mini. Is shift + Pan
    (CC79) acceptable for Tempo, or would you rather one of the other free
    buttons (Send A, Send B, Mute, Record Arm)?
-4. Negative swing (off-beats early, as Novation's view allows) cannot be done
+2. Negative swing (off-beats early, as Novation's view allows) cannot be done
    by the row scheduler as it is: a note can be delayed within its row but
    not fired before the row is reached, so it would need one row of
    lookahead. The plan keeps swing at 50..75 and clamps there. Is that
    acceptable for the MVP?
-5. Novation's description doesn't say how a two-digit number (swing 50..75)
+3. Novation's description doesn't say how a two-digit number (swing 50..75)
    is laid out. Is "middle digit = index n/2" (so the units digit is the
    white one for two digits) right, or should swing be shown padded to three
    digits (050) so the tens digit is the white one?

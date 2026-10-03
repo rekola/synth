@@ -32,13 +32,10 @@ Timing with no swing: the second note of every pair falls exactly halfway
 through it. A swing of 50%.
 
 **Swing** *(planned)*
-A timing feel that delays the second note of each pair, giving a long-short,
-lilting feel. Stored as a percentage of the pair taken by its first note:
+A timing feel that delays the second note of each eighth-note pair (4 rows),
+giving a long-short, lilting feel. Stored as a percentage of the pair taken
+by its first note:
 50% is straight, about 67% is triplet swing (jazz, shuffle, boogie), and
 75% is very heavy. Only the second note of a pair moves; on-beat notes
 never do. A song-level setting applied at playback time to everything
 scheduled against it, not baked into note data.
-
-**Swing grid** *(planned)*
-Which pair length swing works on: eighth notes (a pair is 4 rows) or
-sixteenth notes (a pair is 2 rows).
