@@ -134,6 +134,15 @@ ClipGrid::ClipGrid(UIPlane & parent) : UIElement(parent) {
     if (slot < 0) return;
     getController().getUIEventQueue().push(std::make_unique<LogEvent>("Duplicated clip into row " + std::to_string(slot + 1)));
   });
+  // Snaps the notes of the clip under the cursor to the nearest row.
+  commands_.define("quantize-clip", [this]() {
+    if (rowKindFor(cursor_row_) != RowKind::CLIP) return;
+    auto & song = getController().getSong();
+    auto track_ids = song.getPlayableTrackIds();
+    if (cursor_track_index_ < 0 || cursor_track_index_ >= static_cast<int>(track_ids.size())) return;
+    auto done = quantizeClip(song, track_ids[static_cast<size_t>(cursor_track_index_)], physicalFor(cursor_row_));
+    getController().getUIEventQueue().push(std::make_unique<LogEvent>(done ? "Quantised clip" : "Quantise: nothing to quantise there"));
+  });
   // Adds or removes the stop button of the empty slot under the cursor -
   // a no-op on a slot with a clip, same as delete-clip on an empty one.
   commands_.define("toggle-stop-button", [this]() {

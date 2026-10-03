@@ -471,13 +471,18 @@ would otherwise resume showing.
   (`handleRawButton()`'s shift branch): Volume (CC89) is Duplicate, Pan (CC79) is the
   metronome ("toggle-metronome", a click per beat while the transport plays,
   accented on the bar - `Player::scheduleMetronome()`; its LED is amber, bright
-  while on), Send B (CC59) opens the Tempo view and Stop Clip (CC49) the
-  Swing view (their own bullet below), Mute (CC39, Pro MK3 CC30) is Delete
-  (its own bullet below), Solo (CC29, Pro MK3 CC20) is Draw, and the other
-  two (Record Arm, Send A) do nothing rather than launch or switch
-  anything; their LEDs show only those functions while shift is held
-  (Duplicate cyan, Draw purple, metronome amber, Tempo blue, Swing orange,
-  Delete red, the rest dark). 95 ("Session") doubles as the
+  while on), Send A (CC69) is Quantise (`endQuantize()`: held with a pad press,
+  `quantizeClip()` snaps that clip's notes to the nearest row; a tap with no
+  pad toggles `Song::getRecordQuantize()`, "toggle-record-quantize", resolved
+  on release; its LED is red/green for off/on), Send B (CC59) opens the Tempo
+  view and Stop Clip (CC49) the Swing view (their own bullet below), Mute
+  (CC39, Pro MK3 CC30) is Delete (its own bullet below), Solo (CC29, Pro MK3
+  CC20) is Draw, and the other one (Record Arm) does nothing rather than
+  launch or switch anything; their LEDs show only those functions while
+  shift is held (Duplicate cyan, Draw purple, metronome amber, Quantise
+  red/green, Tempo blue, Swing orange, Delete red, the rest dark).
+  User-facing descriptions of every button live in `docs/launchpad.md`.
+  95 ("Session") doubles as the
   mixer-submode toggle: a repeat press while already at the plain Session
   grid with nothing from the radio group active flips
   `session_mixer_mode`; any press otherwise just lands on (or stays on)
@@ -500,7 +505,10 @@ would otherwise resume showing.
   them at the next bar, leaving the clips playing (nothing playing: a
   status message). A pad press never overdubs by accident: on an armed
   track a populated slot only launches, an empty one starts a fresh
-  take. A long hold is Capture MIDI, a stub that only says so. With shift
+  take. A take records raw timing - each note's sub-row offset goes in
+  its delay (`SessionPlayer::rawStep()`) - unless `Song::getRecordQuantize()`
+  is on, which snaps presses/releases to the nearest row
+  (`quantizedStep()`). A long hold is Capture MIDI, a stub that only says so. With shift
   held, CC98 is the arrangement's own Record Arm instead
   (`"toggle-record-arm"`, `Controller::isNoteCaptureArmed()`, which makes
   a Session pad press write the clip into the arrangement). Its LED is

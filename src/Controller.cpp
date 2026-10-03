@@ -244,6 +244,12 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
   commands_.define("tempo-decrease", [this]() { setTempo(getSong().getTempo() - 1); });
   commands_.define("swing-increase", [this]() { setSwing(getSong().getSwing() + 1); });
   commands_.define("swing-decrease", [this]() { setSwing(getSong().getSwing() - 1); });
+  commands_.define("toggle-record-quantize", [this]() {
+    auto & song = getSong();
+    song.setRecordQuantize(!song.getRecordQuantize());
+    song.incVersion();
+    getUIEventQueue().push(make_unique<LogEvent>(song.getRecordQuantize() ? "Record quantise on" : "Record quantise off"));
+  });
   // One Record Arm for every track type, reachable from a Launchpad
   // (CC19), a keybinding, or M-x alike.
   //
