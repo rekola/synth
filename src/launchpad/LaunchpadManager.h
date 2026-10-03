@@ -350,11 +350,10 @@ class LaunchpadManager {
 
   // The Tempo (shift + Send B) and Swing (shift + Stop Clip) views show the
   // value as a number on the grid (LaunchpadLayout::renderNumber()), and CC91
-  // / CC92 become its up / down arrows. A tap steps once and a hold repeats
-  // (tickNumberView(), once per frame). CC91 is also the shift modifier, so
-  // its step waits for the release and is skipped if anything combined with
-  // it, including the gesture that switches views. Pad presses and the other
-  // arrow-row buttons do nothing in a view.
+  // / CC92 become its up / down arrows (CC91 is no longer shift there). A
+  // press steps once and a hold repeats (tickNumberView(), once per frame).
+  // Plain Send B / Stop Clip switch between the views. Pad presses and the
+  // other arrow-row buttons do nothing in a view.
   void tickNumberView(Controller & controller);
   void handleArrowRelease(int device_id, int cc_number);
   // Quantise (shift + Send A): held, a press on a populated Session pad

@@ -1,5 +1,5 @@
 // Simulated Launchpad X exercising the Tempo and Swing views: shift (CC91
-// held) + Send B (CC59) opens Tempo, shift + Stop Clip (CC49) switches to
+// held) + Send B (CC59) opens Tempo, Stop Clip (CC49) switches to
 // Swing, CC91 / CC92 are the up / down arrows, and CC95 leaves. The python
 // script reads the LED frames synth sends back (the number drawn on the
 // pads, the arrows' and entry buttons' colours).
@@ -79,10 +79,8 @@ int main() {
   drain(seq, 600, "tempo up");
 
   fprintf(stderr, "step: shift + Stop Clip (switches to Swing)\n");
-  send_cc(seq, port, 91, 127);
   send_cc(seq, port, 49, 127);
   send_cc(seq, port, 49, 0);
-  send_cc(seq, port, 91, 0);
   drain(seq, 600, "swing view");
 
   fprintf(stderr, "step: CC95 leaves\n");

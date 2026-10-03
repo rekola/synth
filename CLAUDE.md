@@ -541,14 +541,15 @@ would otherwise resume showing.
 - **Tempo and Swing views** (`GridMode::TEMPO`/`SWING`; shift + Send B /
   shift + Stop Clip; Novation's Launchpad Pro MK3 views) - the value is
   drawn as a number on the pads (`LaunchpadLayout::renderNumber()`): the
-  tens digit in white, centered, and the hundreds and units digits beside
-  it in the view's colour (blue Tempo, orange Swing), clipped by the grid
-  edge; no padding, so a one-digit value has nothing white. CC91 / CC92
-  become the up / down arrows: a tap steps once, a hold repeats after
-  400 ms every 100 ms (`tickNumberView()`, once per frame). CC91 is also
-  shift, so its step waits for the release and is skipped if anything
-  combined with it, including the gesture that switches views. Repeating
-  the entry gesture leaves the view (back to `number_view_return_mode`),
+  tens digit in white, centered, with the units digit beside it and a
+  narrow 2-column hundreds digit before it in the view's colour (blue
+  Tempo, orange Swing); the colour change is what lets the three touch
+  with no margin, and a one-digit value has nothing white. CC91 /
+  CC92 become the up / down arrows (CC91 is not shift there): a press
+  steps once, a hold repeats after 400 ms every 100 ms
+  (`tickNumberView()`, once per frame). Plain Send B / Stop Clip switch
+  between the views without shift. Repeating the entry gesture leaves the
+  view (back to `number_view_return_mode`),
   as does CC95/96/97; pads, CC93/94 and the rest of the right column do
   nothing there. Edits go through `Controller::setTempo()` (20-300 bpm,
   live: `SongState::applyTempo()` follows the song version) and

@@ -165,23 +165,23 @@ or confirmation. The LED is red, bright while held.
 
 Shift + Send B opens the **Tempo** view (blue and white) and shift + Stop Clip
 the **Swing** view (orange and white), as on Novation's Launchpad Pro MK3. The
-value is drawn as a number on the pads. The tens digit is always the white one,
-centered; the hundreds and units digits sit beside it in the view's colour,
-clipped by the edge of the grid. There is no padding, so 120 shows a white 2
-between a blue 1 and 0, 50 a white 5 and an orange 0, and a one-digit value has
-nothing white.
+value is drawn as a number on the pads, the digits side by side with no
+margin: the colour change between neighbours keeps them apart. The tens digit
+is the white one, always in the same place (columns 3-5); the units digit
+beside it and a narrow two-column hundreds digit before it are in the view's
+colour. 120 shows a blue 1, a white 2 and a blue 0, 50 a white 5 and an orange
+0, and a one-digit value has nothing white.
 
-- **Arrows:** the up arrow (91) and down arrow (92) change the value by one. A
-  hold repeats, after 400 ms and then every 100 ms. 91 is also shift, so its
-  step happens on release and is skipped if anything was combined with it,
-  including the gesture that switches views.
+- **Arrows:** the up arrow (91) and down arrow (92) change the value by one,
+  on press. A hold repeats, after 400 ms and then every 100 ms. 91 is not
+  shift in a view.
 - **Leaving:** repeat the gesture that opened the view to go back to the mode
-  you came from, switch to the other view with its gesture, or select a mode
-  with 95, 96, 97 or Draw. The pads, 93, 94 and the rest of the right column do
-  nothing in a view.
-- **LEDs:** the arrows are white, and the button that opened the view stays lit
-  in its colour. While shift is held, Send B (Tempo) is blue and Stop Clip
-  (Swing) is orange.
+  you came from, or select a mode with 95, 96, 97 or Draw. Plain Send B and
+  Stop Clip (no shift) switch between the two views. The pads, 93, 94 and the
+  rest of the right column do nothing in a view.
+- **LEDs:** the arrows are white. Send B (Tempo) and Stop Clip (Swing)
+  show their colours, bright for the view showing and dim for the other, which
+  a press switches to.
 - **Tempo** is 20 to 300 bpm and takes effect immediately, also while playing
   (commands `tempo-increase` and `tempo-decrease`).
 - **Swing** is 50 to 75 per cent (commands `swing-increase` and

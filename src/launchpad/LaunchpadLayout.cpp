@@ -414,16 +414,23 @@ constexpr const char * kDigitGlyphs[10][5] = {
   { "###", "# #", "###", "  #", "###" }, // 9
 };
 
+// 2x5 glyphs for the hundreds digit (1-3), which only has 2 columns left.
+constexpr const char * kHundredsGlyphs[4][5] = {
+  { "  ", "  ", "  ", "  ", "  " }, // none
+  { "# ", "# ", "# ", "# ", "# " }, // 1
+  { "##", " #", "##", "# ", "##" }, // 2
+  { "##", " #", "##", " #", "##" }, // 3
+};
+
 constexpr int kNumberFirstRow = 1;     // 5-pixel digits centered vertically
 constexpr int kTensColumn = 2;         // the white digit: columns 2-4
-constexpr int kDigitStride = 4;        // 3 pixels plus a blank column
+constexpr int kUnitsColumn = 5;        // columns 5-7, directly beside it
 
-void drawDigit(NumberGrid & grid, int digit, int left_column, NumberPixel pixel) {
+void drawGlyph(NumberGrid & grid, const char * const * glyph, int width, int left_column, NumberPixel pixel) {
   for (int row = 0; row < 5; row++) {
-    for (int column = 0; column < 3; column++) {
-      int x = left_column + column;
-      if (x < 0 || x >= 8 || kDigitGlyphs[digit][row][column] != '#') continue;
-      grid[static_cast<size_t>(kNumberFirstRow + row)][static_cast<size_t>(x)] = pixel;
+    for (int column = 0; column < width; column++) {
+      if (glyph[row][column] != '#') continue;
+      grid[static_cast<size_t>(kNumberFirstRow + row)][static_cast<size_t>(left_column + column)] = pixel;
     }
   }
 }
@@ -435,9 +442,10 @@ renderNumber(int value) {
   NumberGrid grid;
   for (auto & row : grid) row.fill(NumberPixel::OFF);
   value = std::clamp(value, 0, 999);
-  drawDigit(grid, value % 10, kTensColumn + kDigitStride, NumberPixel::SIDE);
-  if (value >= 10) drawDigit(grid, (value / 10) % 10, kTensColumn, NumberPixel::MIDDLE);
-  if (value >= 100) drawDigit(grid, value / 100, kTensColumn - kDigitStride, NumberPixel::SIDE);
+  // The colour change between neighbours is what lets the digits touch.
+  drawGlyph(grid, kDigitGlyphs[value % 10], 3, kUnitsColumn, NumberPixel::SIDE);
+  if (value >= 10) drawGlyph(grid, kDigitGlyphs[(value / 10) % 10], 3, kTensColumn, NumberPixel::MIDDLE);
+  if (value >= 100) drawGlyph(grid, kHundredsGlyphs[std::min(value / 100, 3)], 2, 0, NumberPixel::SIDE);
   return grid;
 }
 

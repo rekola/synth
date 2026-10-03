@@ -1,5 +1,5 @@
 """Tempo and Swing views on the Launchpad: shift + Send B opens Tempo
-(blue / white), shift + Stop Clip switches to Swing (orange / white), CC91 /
+(blue / white), Stop Clip switches to Swing (orange / white), CC91 /
 CC92 are the up / down arrows and CC95 leaves. The value is drawn as a number
 on the pads (LaunchpadLayout::renderNumber()): the tens digit in white, the
 others in the view's colour.
@@ -8,8 +8,8 @@ Verified through raw LED bytes. The song is launchpad_session_test.xml:
 tempo 120 and the default swing, 50.
 
 Pad (x, y) is LED index 0x0b + 10 * y + x. The glyph rows start at pad row y
-= 6, so the tens digit's top row is on pads 0x49 (x=2), 0x4a and 0x4b, and
-the units digit's top row on 0x4d (x=6) and 0x4e."""
+= 6, so the tens digit's top row (x=2-4) is on pads 0x49, 0x4a and 0x4b, and
+the units digit's top row (x=5-7) on 0x4c, 0x4d and 0x4e."""
 import sys, os, re, subprocess, time
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -83,7 +83,7 @@ after_leave = phase(fake_output, "step: CC95", None)
 
 # Tempo 120: a white 2 (tens digit, top row ###) and a blue 0 beside it.
 check("Tempo view: the tens digit's top row is white", all(last_led_color(tempo_view, i) == WHITE for i in ("49", "4a", "4b")), [last_led_color(tempo_view, i) for i in ("49", "4a", "4b")])
-check("Tempo view: the units digit is blue", last_led_color(tempo_view, "4d") == BLUE, last_led_color(tempo_view, "4d"))
+check("Tempo view: the units digit is blue", last_led_color(tempo_view, "4c") == BLUE, last_led_color(tempo_view, "4c"))
 check("Tempo view: the up arrow (CC91) and down arrow (CC92) are lit", last_led_color(tempo_view, "5b") not in (None, BLACK) and last_led_color(tempo_view, "5c") not in (None, BLACK))
 check("Tempo view: Send B (CC59) is lit blue", last_led_color(tempo_view, "3b") == ('00', '32', '7f'), last_led_color(tempo_view, "3b"))
 
@@ -93,7 +93,7 @@ check("Up arrow tap: back to tempo 120", last_led_color(tempo_up, "49") == WHITE
 
 # Swing 50: a white 5 and an orange 0.
 check("Swing view: the tens digit's top row is white", all(last_led_color(swing_view, i) == WHITE for i in ("49", "4a", "4b")), [last_led_color(swing_view, i) for i in ("49", "4a", "4b")])
-check("Swing view: the units digit is orange", last_led_color(swing_view, "4d") == ORANGE, last_led_color(swing_view, "4d"))
+check("Swing view: the units digit is orange", last_led_color(swing_view, "4c") == ORANGE, last_led_color(swing_view, "4c"))
 check("Swing view: Stop Clip (CC49) is lit orange", last_led_color(swing_view, "31") == ORANGE, last_led_color(swing_view, "31"))
 
 check("CC95 leaves the view: the number is gone from the pads", last_led_color(after_leave, "49") != WHITE, last_led_color(after_leave, "49"))

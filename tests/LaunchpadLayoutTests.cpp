@@ -442,28 +442,29 @@ namespace {
   }
 }
 
-TEST(number_display_draws_the_tens_digit_in_white_and_the_others_beside_it) {
+TEST(number_display_draws_all_three_digits_without_margin) {
   auto grid = renderNumber(120);
   CHECK(middleDigit(grid) == "###/..#/###/#../###/"); // the 2
   CHECK(count(grid, NumberPixel::MIDDLE, 0, 1) == 0); // white only in its own columns 2-4
   CHECK(count(grid, NumberPixel::MIDDLE, 5, 7) == 0);
-  CHECK(count(grid, NumberPixel::SIDE, 6, 7) > 0); // the 0, clipped by the right edge
-  CHECK(count(grid, NumberPixel::SIDE, 0, 0) > 0); // the 1, clipped by the left edge
+  CHECK(count(grid, NumberPixel::SIDE, 0, 1) == 5);   // the 1, a bar in the first column
+  CHECK(count(grid, NumberPixel::SIDE, 5, 7) == 12);  // the 0, whole
   CHECK(count(grid, NumberPixel::SIDE, 2, 4) == 0);
+  CHECK(count(renderNumber(300), NumberPixel::SIDE, 0, 1) == 8); // the 3
 }
 
 TEST(number_display_of_two_digits_has_a_white_tens_digit) {
   auto grid = renderNumber(50);
   CHECK(middleDigit(grid) == "###/#../###/..#/###/"); // the 5
-  CHECK(count(grid, NumberPixel::SIDE, 6, 7) > 0); // the 0
-  CHECK(count(grid, NumberPixel::SIDE, 0, 1) == 0); // no hundreds digit
+  CHECK(count(grid, NumberPixel::SIDE, 5, 7) > 0); // the 0
+  CHECK(count(grid, NumberPixel::SIDE, 0, 1) == 0); // no hundreds
 }
 
 TEST(number_display_of_one_digit_has_nothing_white) {
   auto grid = renderNumber(9);
   CHECK(count(grid, NumberPixel::MIDDLE) == 0);
-  CHECK(count(grid, NumberPixel::SIDE, 6, 7) > 0); // the 9 sits in the units slot
-  CHECK(count(grid, NumberPixel::SIDE, 0, 5) == 0);
+  CHECK(count(grid, NumberPixel::SIDE, 5, 7) > 0); // the 9 sits in the units slot
+  CHECK(count(grid, NumberPixel::SIDE, 0, 4) == 0);
 }
 
 TEST(number_display_keeps_the_digits_in_fixed_slots_and_clamps) {

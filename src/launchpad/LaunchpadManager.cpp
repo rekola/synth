@@ -860,6 +860,13 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
   // reach either.
   if (isMixerFunctionButton(cc_number)) {
     auto & state = deviceState(device_id);
+    // Tempo/Swing views: Send B and Stop Clip switch to (or leave) their view
+    // without shift; the rest of the column does nothing.
+    if (inNumberView(state)) {
+      if (cc_number == 59) toggleNumberView(state, GridMode::TEMPO);
+      else if (cc_number == 49) toggleNumberView(state, GridMode::SWING);
+      return true;
+    }
     // Shift (CC91 held) makes these the labelled alternate functions
     // instead, in every grid mode: Volume duplicates a clip for as long as
     // it stays held, Solo enters DRAW (or blanks its canvas if already
@@ -1060,33 +1067,32 @@ LaunchpadManager::endQuantize(int device_id, Controller & controller) {
 bool
 LaunchpadManager::handleShiftButton(int device_id, bool is_press, Controller & controller) {
   auto & state = deviceState(device_id);
+  // In a Tempo/Swing view CC91 is only the up arrow, never shift: it steps
+  // on press and a hold repeats.
+  if (inNumberView(state)) {
+    state.row_up_shift_held = false;
+    state.row_up_shift_combined = false;
+    if (is_press) {
+      stepNumberView(state, +1, controller);
+      state.arrow_held_cc = 91;
+      state.arrow_repeating = false;
+      state.arrow_press_time = chrono::steady_clock::now();
+    } else if (state.arrow_held_cc == 91) {
+      state.arrow_held_cc = 0;
+      state.arrow_repeating = false;
+    }
+    return false;
+  }
   if (is_press) {
     // A fresh hold - nothing combined with it yet. handleSessionPadEvent()
     // flips row_up_shift_combined the moment a pad press actually uses
     // this held state to open a clip instead of triggering it.
     state.row_up_shift_held = true;
     state.row_up_shift_combined = false;
-    if (inNumberView(state)) {
-      state.arrow_held_cc = 91;
-      state.arrow_repeating = false;
-      state.arrow_press_time = chrono::steady_clock::now();
-    }
     return false; // never fires "move-row-up" on press - see this method's own comment
   }
   state.row_up_shift_held = false;
   auto fire = !state.row_up_shift_combined;
-  // In a Tempo/Swing view CC91 is the up arrow: a tap that combined with
-  // nothing steps once (a hold already stepped by repeating), and "move-row-up"
-  // itself never fires.
-  if (inNumberView(state)) {
-    bool was_repeating = state.arrow_repeating && state.arrow_held_cc == 91;
-    if (fire && !was_repeating) stepNumberView(state, +1, controller);
-    if (state.arrow_held_cc == 91) {
-      state.arrow_held_cc = 0;
-      state.arrow_repeating = false;
-    }
-    fire = false;
-  }
   state.row_up_shift_combined = false;
   return fire;
 }
@@ -1133,9 +1139,6 @@ LaunchpadManager::tickNumberView(Controller & controller) {
   auto now = chrono::steady_clock::now();
   for (auto & [ device_id, state ] : devices_) {
     if (state.arrow_held_cc == 0 || !inNumberView(state)) continue;
-    // CC91 is also shift: once something combined with it, it was never an
-    // arrow press.
-    if (state.arrow_held_cc == 91 && state.row_up_shift_combined) continue;
     if (!state.arrow_repeating) {
       if (now - state.arrow_press_time < kArrowRepeatDelay) continue;
       state.arrow_repeating = true;
@@ -2404,7 +2407,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
     }
   } else if (inNumberView(state)) {
     // Tempo/Swing view: the value as a number (LaunchpadLayout::renderNumber()),
-    // its tens digit white and the others in the view's colour.
+    // its tens digit white and the rest in the view's colour.
     constexpr Rgb kTempoColor{0, 50, 127}, kSwingColor{127, 55, 0}, kWhite{127, 127, 127};
     auto side = state.grid_mode == GridMode::TEMPO ? kTempoColor : kSwingColor;
     auto number = LaunchpadLayout::renderNumber(state.grid_mode == GridMode::TEMPO ? cached_tempo_ : cached_swing_);
@@ -2864,9 +2867,9 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
     send_b_button_color = state.grid_mode == GridMode::TEMPO ? Rgb{0, 50, 127} : Rgb{0, 20, 50};
     stop_clip_button_color = state.grid_mode == GridMode::SWING ? Rgb{127, 55, 0} : Rgb{50, 22, 0};
   } else if (number_view) {
-    // Without shift, only the button of the view being shown stays lit.
-    send_b_button_color = state.grid_mode == GridMode::TEMPO ? Rgb{0, 50, 127} : Rgb{0, 0, 0};
-    stop_clip_button_color = state.grid_mode == GridMode::SWING ? Rgb{127, 55, 0} : Rgb{0, 0, 0};
+    // The view being shown is bright, the other dim: a press switches to it.
+    send_b_button_color = state.grid_mode == GridMode::TEMPO ? Rgb{0, 50, 127} : Rgb{0, 8, 20};
+    stop_clip_button_color = state.grid_mode == GridMode::SWING ? Rgb{127, 55, 0} : Rgb{20, 9, 0};
   }
   colors.push_back({19, record_arm_button_color.r, record_arm_button_color.g, record_arm_button_color.b});
   colors.push_back({29, solo_button_color.r, solo_button_color.g, solo_button_color.b});
