@@ -1140,10 +1140,12 @@ would otherwise resume showing.
     (a multiplier on the position's extent) spread evenly and centred across
     the members (`OscillatorStack.h`; rendered by `OscillatorVoice` through
     `OscillatorArray`, a struct-of-arrays vector-extension kernel). Each member
-    keeps its own direction, members sharing one (no `spread`) are summed first,
-    every direction is encoded in one register-accumulating pass
-    (`AmbisonicStackEncoder`), and the floor reflection and Aux sends run once on the
-    summed signal at the centre. One voice is just the stack of one. Other
+    has its own direction, but members closer than the ambisonic order can
+    resolve share a bucket (width 25/16/12 degrees at order 1/2/3, at most 8
+    buckets, one when there's no spread): their signals are summed, and each
+    bucket is encoded with the mean of its members' gain vectors, all buckets
+    in one register-accumulating pass (`AmbisonicStackEncoder`). The floor
+    reflection and Aux sends run once on the summed signal at the centre. One voice is just the stack of one. Other
     voice types don't stack.
   - `src/ambisonic/` — spatial encode/decode math and the `Mixer`
     hierarchy (see the `AmbisonicEncoding.h` bullet below).

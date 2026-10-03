@@ -192,18 +192,93 @@ TEST(oscillator_stack_without_spread_encodes_once_and_matches_separate_voices) {
   CHECK(err < energy * 1e-6);
 }
 
-TEST(oscillator_stack_with_spread_keeps_distinct_directions) {
-  ChannelConfiguration config(44100, 1);
+// Members are bucketed by what the ambisonic order can resolve: a wide
+// spread gets several buckets (at most 8), a narrow or absent one gets one.
+TEST(oscillator_stack_buckets_follow_the_spread_and_the_order) {
+  auto buckets = [](int order, int voices, float spread, float extent, float distance) {
+    ChannelConfiguration config(44100, order);
+    OscillatorStack stack;
+    stack.voices = voices;
+    stack.spread = spread;
+    SphericalPosition centre;
+    centre.distance = distance;
+    centre.extent = extent;
+    OscillatorVoice voice(config, centre, 1.0f, WaveformType::SINE, 1.0f, 0.5f, SendLevels{}, NoteCoordinate(0, 0, 0), stack);
+    return voice.directionCount();
+  };
+
+  // +-45 degrees: 90 degrees over 25-degree buckets at order 1 is 4, over
+  // 12-degree ones at order 3 is capped at 8.
+  CHECK(buckets(1, 5, 1.0f, 2.0f, 2.0f) == 4);
+  CHECK(buckets(1, 32, 1.0f, 1.0f, 1.0f) == 4);
+  CHECK(buckets(3, 32, 1.0f, 1.0f, 1.0f) == 8);
+  CHECK(buckets(2, 32, 1.0f, 1.0f, 1.0f) == 6);
+  // Never more buckets than members.
+  CHECK(buckets(3, 3, 1.0f, 1.0f, 1.0f) == 3);
+  // No spread, no extent, a tiny spread, a mono bus or no distance: one.
+  CHECK(buckets(3, 32, 0.0f, 1.0f, 1.0f) == 1);
+  CHECK(buckets(3, 32, 1.0f, 0.0f, 1.0f) == 1);
+  CHECK(buckets(3, 32, 0.01f, 1.0f, 1.0f) == 1);
+  CHECK(buckets(0, 32, 1.0f, 1.0f, 1.0f) == 1);
+  CHECK(buckets(3, 32, 1.0f, 1.0f, 0.0f) == 1);
+}
+
+// Bucketing is an approximation: all 32 members through 8 buckets must stay
+// close to the 32 members encoded one by one, and the omnidirectional W
+// channel (the same gain for every direction) must be unaffected.
+TEST(oscillator_stack_buckets_stay_close_to_the_exact_encode) {
+  ChannelConfiguration config(44100, 3);
+  config.setFloorReflectionEnabled(false);
+  SendLevels sends;
+  NoteCoordinate coord(3, 24, 0);
+
   OscillatorStack stack;
-  stack.voices = 5;
+  stack.voices = 32;
+  stack.detune_cents = 20.0f;
   stack.spread = 1.0f;
 
   SphericalPosition centre;
-  centre.distance = 2.0f;
-  centre.extent = 2.0f;
+  centre.distance = 1.0f;
+  centre.extent = 1.0f; // +-45 degrees
 
-  OscillatorVoice voice(config, centre, 1.0f, WaveformType::SINE, 1.0f, 0.5f, SendLevels{}, NoteCoordinate(0, 0, 0), stack);
-  CHECK(voice.directionCount() == 5);
+  OscillatorVoice bucketed(config, centre, 1.0f, WaveformType::SAW, 0.2f, 0.5f, sends, coord, stack);
+  CHECK(bucketed.directionCount() == 8);
+  bucketed.playNote(196.0f, 0.7f, 55);
+
+  const float half_width = atan2f(stack.spread * centre.extent, centre.distance) * 180.0f / static_cast<float>(kPi);
+  vector<unique_ptr<OscillatorVoice>> exact;
+  for (int k = 0; k < 32; k++) {
+    float place = 2.0f * static_cast<float>(k) / 31.0f - 1.0f;
+    SphericalPosition position = centre;
+    position.azimuth += place * half_width;
+    position.elevation += place * half_width / kExtentShapeRatio;
+    float ratio = powf(2.0f, place * stack.detune_cents / 2400.0f);
+    auto voice = make_unique<OscillatorVoice>(config, position, ratio, WaveformType::SAW, 0.2f, 0.5f, sends, coord.withInstance(k));
+    voice->playNote(196.0f, 0.7f, 55);
+    exact.push_back(move(voice));
+  }
+
+  double err = 0.0, energy = 0.0, w_err = 0.0, w_energy = 0.0;
+  for (int block = 0; block < 16; block++) {
+    const int frames = 512;
+    auto a = bucketed.render(frames);
+    AudioBuffer expected(config.numberOfChannels(), frames);
+    expected.zero();
+    for (auto & v : exact) expected.mixNamed(v->render(frames));
+
+    for (int c = 0; c < a.regularChannelCount(); c++) {
+      for (int k = 0; k < frames; k++) {
+	double want = expected.getChannelData(c)[k];
+	double d = static_cast<double>(a.getChannelData(c)[k]) - want;
+	err += d * d;
+	energy += want * want;
+	if (c == 0) { w_err += d * d; w_energy += want * want; }
+      }
+    }
+  }
+  CHECK(energy > 1.0);
+  CHECK(w_err < w_energy * 1e-9);   // W is exact
+  CHECK(err < energy * 0.01);       // better than -20 dB overall (about -23.6 dB measured)
 }
 
 // The default stack is one member, rendered exactly like a plain voice.
