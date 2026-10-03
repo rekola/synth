@@ -72,3 +72,26 @@ TEST(rhythm_pattern_library_size_is_within_the_requested_range) {
   auto count = getRhythmPatternLibrary().size();
   CHECK(count >= 10 && count <= 50);
 }
+
+// Swing, Boogie and Jazz Waltz are the swung entries; every other rhythm is
+// straight (the 12/8 ones already use real triplet rows). A swung entry
+// is written on the straight grid, so it must be a whole number of pairs.
+TEST(only_the_swung_rhythms_carry_swing_and_they_fit_whole_pairs) {
+  set<string> swung;
+  for (auto & pattern : getRhythmPatternLibrary()) {
+    CHECK(pattern.swing >= swing::kStraight && pattern.swing <= swing::kMax);
+    if (pattern.swing > swing::kStraight) {
+      swung.insert(pattern.name);
+      CHECK(pattern.length % swing::kPairRows == 0);
+    }
+  }
+  CHECK((swung == set<string>{ "Swing", "Boogie", "Jazz Waltz" }));
+}
+
+TEST(the_swing_rhythms_ride_sits_on_the_straight_eighth_grid) {
+  auto * pattern = findRhythmPattern("Swing");
+  CHECK(pattern != nullptr);
+  set<int> ride_rows;
+  for (auto & hit : pattern->hits) if (hit.note == 51) ride_rows.insert(hit.row);
+  CHECK((ride_rows == set<int>{ 0, 4, 6, 8, 12, 14 })); // beats 1-4 plus the "and" of 2 and 4
+}

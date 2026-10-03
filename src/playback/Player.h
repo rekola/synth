@@ -73,6 +73,11 @@ class Player : public EventHandler {
     return preview_voices_.size() + (preview_note_voice_ ? 1 : 0);
   }
 
+  // Test-only: how many notes this player has started in total, previews
+  // included - tells when a preview hit actually fired, which a voice count
+  // can't (voices also expire).
+  int getStartedNoteCountForTest() const { return live_note_counter_; }
+
   void play(AudioAPI & audio);
   std::unique_ptr<PlaybackEvent> createPlaybackEvent(const std::string & buffer_name, const Song & song, const SongState & state);
 

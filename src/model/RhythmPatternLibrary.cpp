@@ -66,7 +66,7 @@ getRhythmPatternLibrary() {
       addLane(hits, 12, "X...........", KICK);
       addLane(hits, 12, "x.x.x.x.x.x.", RIDE);
       patterns.push_back({ "Jazz Waltz", "Rhythms",
-        "A swung, ride-cymbal-driven take on the 3/4 waltz.", 12, move(hits) });
+        "A swung, ride-cymbal-driven take on the 3/4 waltz.", 12, move(hits), 67 });
     }
     {
       vector<RhythmPatternHit> hits;
@@ -156,9 +156,9 @@ getRhythmPatternLibrary() {
       vector<RhythmPatternHit> hits;
       addLane(hits, 16, "x.......x.......", KICK);
       addLane(hits, 16, "....x.......x...", PHH);
-      addLane(hits, 16, "X..x.X..x.X..x..", RIDE);
+      addLane(hits, 16, "X...x.x.x...x.x.", RIDE);
       patterns.push_back({ "Swing", "Rhythms",
-        "The classic jazz ride-cymbal \"spang-a-lang\" pattern.", 16, move(hits) });
+        "The classic jazz ride-cymbal \"spang-a-lang\" pattern.", 16, move(hits), 67 });
     }
     {
       vector<RhythmPatternHit> hits;
@@ -189,7 +189,7 @@ getRhythmPatternLibrary() {
       addLane(hits, 16, "....X.......X...", SNARE);
       addLane(hits, 16, "x.x.x.x.x.x.x.x.", RIDE);
       patterns.push_back({ "Boogie", "Rhythms",
-        "A walking eighth-note boogie-woogie feel.", 16, move(hits) });
+        "A walking eighth-note boogie-woogie feel.", 16, move(hits), 67 });
     }
     {
       vector<RhythmPatternHit> hits;

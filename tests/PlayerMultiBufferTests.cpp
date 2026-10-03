@@ -721,3 +721,46 @@ TEST(monitored_input_reaches_a_monitoring_sample_track_until_it_stops) {
   track_state->renderVoices(400);
   CHECK(!track_state->isActive());
 }
+
+// A swung rhythm previews with its own swing: "Swing"'s ride "and of 2" on
+// row 6 is the only hit between rows 6 and 7, and it starts in the first
+// quarter of row 6 straight but, at the rhythm's 67%, two thirds of a row in.
+TEST(preview_rhythm_applies_the_rhythms_own_swing) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+
+  Player player(config, &controller);
+  auto interval = config.getSampleInterval(controller.getSong().getTempo());
+  CHECK(controller.getSong().getSwing() == 50); // the song's own swing plays no part
+
+  PlaybackControlEvent preview_rhythm(PlaybackControlEvent::PREVIEW_RHYTHM, "Swing");
+  player.handlePlaybackControlEvent(preview_rhythm);
+
+  for (int row = 0; row < 6; row++) player.renderPreview(interval);
+  auto before = player.getStartedNoteCountForTest();
+  int first_quarter_with_a_hit = -1;
+  for (int quarter = 0; quarter < 4; quarter++) {
+    auto count = player.getStartedNoteCountForTest();
+    player.renderPreview(interval / 4);
+    if (first_quarter_with_a_hit < 0 && player.getStartedNoteCountForTest() > count) first_quarter_with_a_hit = quarter;
+  }
+  CHECK(player.getStartedNoteCountForTest() == before + 1); // only the ride
+  CHECK(first_quarter_with_a_hit == 2); // 0.67 of a row falls in the third quarter
+}
+
+TEST(preview_rhythm_without_swing_hits_on_the_row) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+
+  Player player(config, &controller);
+  auto interval = config.getSampleInterval(controller.getSong().getTempo());
+
+  PlaybackControlEvent preview_rhythm(PlaybackControlEvent::PREVIEW_RHYTHM, "Foxtrot"); // straight: hi-hat on row 8
+  player.handlePlaybackControlEvent(preview_rhythm);
+  for (int row = 0; row < 8; row++) player.renderPreview(interval);
+  auto count = player.getStartedNoteCountForTest();
+  player.renderPreview(interval / 4);
+  CHECK(player.getStartedNoteCountForTest() > count); // on the row itself, in its first quarter
+}

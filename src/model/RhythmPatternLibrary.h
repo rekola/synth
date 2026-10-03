@@ -1,6 +1,8 @@
 #ifndef _RHYTHMPATTERNLIBRARY_H_
 #define _RHYTHMPATTERNLIBRARY_H_
 
+#include "Swing.h"
+
 #include <string>
 #include <vector>
 
@@ -45,6 +47,11 @@ struct RhythmPatternTemplate {
   std::string description;
   int length; // rows/steps
   std::vector<RhythmPatternHit> hits;
+  // The swing (swing.h) this rhythm is meant to be played with, applied when
+  // it is previewed and adopted by the song when it is added. A swung entry
+  // is written on the straight grid (its eighths on even rows) and its
+  // length must be a whole number of swing pairs.
+  int swing = swing::kStraight;
 };
 
 // Every built-in template, grouped and named after real, widely-taught

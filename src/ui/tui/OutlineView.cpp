@@ -9,6 +9,7 @@
 #include "../../instruments/GmInstrumentDescriptions.h"
 #include "../../instruments/Instrument.h"
 #include "../../playback/InputEvent.h"
+#include "../../playback/LogEvent.h"
 #include "../../playback/PlaybackControlEvent.h"
 #include "../../util/constants.h"
 #include "../../util/Utf8.h"
@@ -244,7 +245,10 @@ OutlineView::infoMarkdown(const outline_row_s & row) const {
   }
   case OutlineRowKind::LIBRARY_RHYTHM:
     title = row.label;
-    if (auto * pattern = findRhythmPattern(row.ref_name)) description = pattern->description;
+    if (auto * pattern = findRhythmPattern(row.ref_name)) {
+      description = pattern->description;
+      if (pattern->swing > swing::kStraight) description += " Swing " + std::to_string(pattern->swing) + "%.";
+    }
     break;
   case OutlineRowKind::TRACK:
   case OutlineRowKind::SECTION:
@@ -600,6 +604,14 @@ OutlineView::addSelectedLibraryRhythmToSong() {
     column++;
   }
   song.addClip(std::move(clip));
+
+  // A swung rhythm brings its swing along (overwriting the song's); a
+  // straight one leaves the song's swing alone.
+  if (pattern->swing > swing::kStraight && song.getSwing() != pattern->swing) {
+    song.setSwing(pattern->swing);
+    song.incVersion();
+    getController().getUIEventQueue().push(std::make_unique<LogEvent>("Swing set to " + std::to_string(pattern->swing) + "%"));
+  }
 }
 
 void

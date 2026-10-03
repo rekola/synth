@@ -680,7 +680,9 @@ Player::renderPreview(int frames) {
     auto loop_frames = interval * preview_rhythm_pattern_->length;
     if (loop_frames > 0 && preview_rhythm_instrument_) {
       for (auto & hit : preview_rhythm_pattern_->hits) {
-        auto hit_frame = hit.row * interval;
+        // The rhythm's own swing, not the song's: a preview sounds the same
+        // in any song.
+        auto hit_frame = static_cast<int>((static_cast<float>(hit.row) + swing::offsetRows(hit.row, preview_rhythm_pattern_->swing)) * static_cast<float>(interval)) % loop_frames;
         // How far ahead hit_frame is from the current loop position,
         // wrapping around the loop boundary - fires the moment that
         // distance is less than this block's own frame count,

@@ -16,7 +16,8 @@ Library's drum patterns are not grooves in this sense; see Rhythm.
 A pre-written drum pattern in the Library, such as Waltz, Funk or Bossa
 Nova. It is content (which drum hits fall on which rows), where swing is
 feel (when those rows sound), so the same rhythm can be played with or
-without swing. Named Rhythm, not Groove, to keep clear of the DAW sense of
+without swing. A few (Swing, Boogie, Jazz Waltz) carry a swing of their own,
+heard when previewed and adopted by the song on Add to Song. Named Rhythm, not Groove, to keep clear of the DAW sense of
 groove above.
 
 **Row**
