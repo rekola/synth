@@ -251,11 +251,15 @@ performer has to reach for the keyboard. This adds a twin of Duplicate.
   removed, and call it from both `ClipGrid` and the Launchpad, so the two
   can't drift apart. The focus clearing needs the `Controller`, so that part
   stays at the call sites or the function takes a callback.
-- **To check while implementing:** deleting a clip that is playing on its
-  track. `SongState` indexes `song.getClips(track_id)` by the playing clip's
-  index, and a hole is an empty `Clip`, so it should go silent at the next
-  change like a stop, but nothing yet proves it. Cover it with a test, and
-  if it misbehaves, stop the track first, as the Stop Clip pad does.
+- **Timing.** With the transport stopped, a delete is instant. While it is
+  playing, deleting a clip that is playing or queued on its track is
+  quantized like every other Session change: it queues a stop for the next
+  bar (`SessionPlayer`), and the clip is removed when that stop takes effect
+  (resolved in `SessionPlayer::tick()`, which already sees bar rows), so the
+  clip is never pulled out from under the playhead. A clip that isn't
+  playing or queued, and a stop button, are removed instantly even while the
+  transport runs. `SongState` indexes `song.getClips(track_id)` by the
+  playing clip's index, which is why removal waits; cover it with a test.
 - **Undo** doesn't exist for the terminal's delete either; no confirmation
   step, which matches `delete-clip`. A mistaken delete is recoverable only
   by not saving.
