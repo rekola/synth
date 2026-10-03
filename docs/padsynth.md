@@ -113,7 +113,7 @@ and its example parameter files.
 | `saw-piano` | A power-ramp oscillator shape against 4 harmonics (1/2/4/16). Sustains at full level rather than decaying (not percussive like `keyboard`). |
 | `saw-piano-wide` | A wider-bandwidth sibling of `saw-piano`, the same oscillator shape against harmonics 1/2/4. |
 | `soft-pad` | A much steeper power-ramp oscillator shape against just harmonic 1, reshaped by a spectrum-adjustment stage - genuinely a single reshaped partial. Used at `pad.new-age`. |
-| `strings` | A power-ramp oscillator shape against 2 harmonics. A simple base tone on its own - a plain ensemble tone (`pad.bowed`/`string.synth.slow`), the same reasoning `pad.choir`'s unison uses. Also the generic "plain pad" tone (`pad.warm`, `pad.sweep`) and the base of the Mellotron (`keyboard.tape.mellotron` - a Mellotron "strings" tape *is* a recording of a bowed string ensemble, the same real-world instrument family, so its tape-machine wow/flutter/hiss/attack-swoop, `<tapeDegradation preset="mellotron">`, is what tells it apart from a live strings pad, not a different spectrum). |
+| `strings` | A power-ramp oscillator shape against 2 harmonics. A simple base tone on its own - ensemble motion comes from layering detuned copies (`pad.bowed`/`string.synth.slow`). Also the generic "plain pad" tone (`pad.warm`, `pad.sweep`) and the base of the Mellotron (`keyboard.tape.mellotron` - a Mellotron "strings" tape *is* a recording of a bowed string ensemble, the same real-world instrument family, so its tape-machine wow/flutter/hiss/attack-swoop, `<tapeDegradation preset="mellotron">`, is what tells it apart from a live strings pad, not a different spectrum). |
 | `dual-strings` | The same power-ramp oscillator shape as `strings`, against just harmonic 1 and a wider bandwidth. Used at `pad.poly`. |
 | `church-organ` | A clipped-triangle oscillator shape against 8 harmonics, shaped by an exponential-lowpass filter - a drawbar-organ-style spectrum. Used as a fallback at `organ.pipe`. |
 | `bells` | 3 harmonics placed directly, then reshaped nonlinearly by a logistic-sigmoid waveshaper, with partials landing at 1,2,4,5,7,9,11,13,... rather than a plain harmonic series. The preset's default is tuning-matched on; used with `tuningMatched="false"` in some songs for a deliberately dissonant bell character (`pad.metallic`). |
@@ -160,9 +160,16 @@ carry that motion over.
 A single `<padsynth>` table also can't produce genuine ensemble motion on
 its own, no matter how narrow or wide its bands are: real beating needs
 several truly independent voices that each drift to a slightly different
-pitch, not one voice with wider partials. PadSynth voices don't stack
-(only `<oscillator>` does, via `voices`/`detune`/`spread`), so a plain
-`<padsynth>` reads thinner and more static than a real ensemble.
+pitch, not one voice with wider partials. Layer detuned copies in a
+`<group>` instead - `pad.choir`/`pad.poly`/`pad.bowed`/`string.synth.slow`/
+`brass.synth` (`InstrumentLibrary.cpp`) are three-copy ensembles, and
+`songs/oscillator_demo.xml`'s choir is `<envelope><group><padsynth
+detune="-8"/><padsynth/><padsynth detune="8"/></group></envelope>`. Every
+copy reads the same shared wavetable at its own pitch, and a detuned copy
+starts at its own phase, so the copies don't start phase-locked. A plain
+`<padsynth>` used directly (as most of `songs/oscillator_demo.xml`'s
+comparison tracks deliberately are, to isolate the preset itself) reads
+noticeably thinner and more static.
 
 ## Performance
 

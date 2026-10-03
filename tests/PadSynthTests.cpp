@@ -5,6 +5,8 @@
 #include "../src/audio/OfflineRenderer.h"
 #include "../src/ambisonic/ChannelConfiguration.h"
 #include "../src/instruments/PadSynth.h"
+#include "../src/instruments/InstrumentLibrary.h"
+#include "../src/instruments/InstrumentProvider.h"
 #include "../src/state/MemoryParameterSource.h"
 #include "../src/ambisonic/SphericalPosition.h"
 
@@ -195,4 +197,75 @@ TEST(padsynth_detune_in_cents_shifts_pitch_and_round_trips) {
   MemoryParameterSource plain_stored;
   plain.storeParameters(plain_stored);
   CHECK(!plain_stored.has("detune")); // the default isn't written
+}
+
+namespace {
+
+// A group of padsynth copies playing one note, summed.
+AudioBuffer renderEnsemble(const vector<float> & cents, int frames) {
+  vector<unique_ptr<PadSynth>> pads;
+  vector<unique_ptr<VoiceState>> voices;
+  ChannelConfiguration config(44100, 1);
+  SphericalPosition position;
+  position.distance = 1.0f;
+  AudioBuffer sum(config.numberOfChannels(), frames);
+  sum.zero();
+  for (float c : cents) {
+    auto pad = make_unique<PadSynth>();
+    MemoryParameterSource params;
+    params.set("preset", string("strings"));
+    params.set("detune", c);
+    pad->loadParameters(params);
+    voices.push_back(pad->playNote(config, position, Tuning::TET31, 1.0f, 1.0f, 160, SendLevels{}, NoteCoordinate(1, 4, 0)));
+    pads.push_back(move(pad));
+  }
+  for (auto & v : voices) sum.mixNamed(v->render(frames));
+  return sum;
+}
+
+double rmsOf(const AudioBuffer & b) {
+  double e = 0.0;
+  int n = b.numberOfFrames();
+  for (int i = 0; i < n; i++) e += static_cast<double>(b.getChannelData(0)[i]) * static_cast<double>(b.getChannelData(0)[i]);
+  return sqrt(e / n);
+}
+
+} // namespace
+
+// Detuned copies of one note must not start phase-locked: three coherent
+// copies would sum to three times one copy's level, independent ones to
+// about the square root of three.
+TEST(padsynth_detuned_ensemble_copies_start_at_different_phases) {
+  const int frames = 1024; // well inside one beat period, so the copies stay near their start phases
+  double single = rmsOf(renderEnsemble({ 0.0f }, frames));
+  double three = rmsOf(renderEnsemble({ -14.0f, 0.0f, 14.0f }, frames));
+  CHECK(single > 1e-4);
+  CHECK(three < 2.5 * single); // locked would be ~3x
+  CHECK(three > 0.6 * single);
+}
+
+TEST(library_ensemble_pads_are_three_detuned_padsynth_copies_and_render) {
+  InstrumentProvider provider;
+  registerLibraryInstruments(provider);
+  for (const char * path : { "pad.poly", "pad.choir", "pad.bowed", "string.synth.slow", "brass.synth" }) {
+    auto instrument = provider.resolvePath(path);
+    CHECK(instrument != nullptr);
+    if (!instrument) continue;
+
+    ChannelConfiguration config(44100, 1);
+    SphericalPosition position;
+    position.distance = 1.0f;
+    auto voice = instrument->playNote(config, position, Tuning::TET31, 1.0f, 1.0f, 160, SendLevels{}, NoteCoordinate(0, 0, 0));
+    CHECK(voice.get() != nullptr);
+    // The envelope's group holds one voice per copy.
+    CHECK(voice->getAllocatedVoiceCount() >= 4);
+    auto out = voice->render(2048);
+    bool any = false;
+    for (int k = 0; k < 2048; k++) {
+      float v = out.getChannelData(0)[k];
+      CHECK(std::isfinite(v));
+      any = any || v != 0.0f;
+    }
+    CHECK(any);
+  }
 }

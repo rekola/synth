@@ -17,7 +17,11 @@ PadSynth::playNote(const ChannelConfiguration & config, const SphericalPosition 
 
   detune *= powf(2.0f, detune_cents_ / 1200.0f);
 
-  auto voice = std::make_unique<PadSynthVoice>(config, position, detune, wavetable_, level_, sends, note_coord);
+  // A detuned copy starts at its own phase (keyed by its detune), so
+  // copies of one note layered in a group don't start phase-locked.
+  NoteCoordinate coord = detune_cents_ != 0.0f ? note_coord.withInstance(static_cast<int>(lroundf(detune_cents_ * 16.0f))) : note_coord;
+
+  auto voice = std::make_unique<PadSynthVoice>(config, position, detune, wavetable_, level_, sends, coord);
   voice->playNote(getFrequencyFor(tuning, note_value), velocity, note_value);
   return voice;
 }
