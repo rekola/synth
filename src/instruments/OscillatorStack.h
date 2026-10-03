@@ -2,12 +2,13 @@
 #define _OSCILLATORSTACK_H_
 
 // How an oscillator's single voice is stacked: member k of `voices` plays at
-// ratio^k times the note's frequency and falloff^k times its level. detune
-// (cents) and spread (a multiplier on the position's extent) are spread
-// evenly and centred across the members, so ratio 1 makes a detuned unison
-// choir and ratio 2 a stack of octaves. The default is one plain member.
+// ratio^k times the note's frequency and falloff^k times its level, and its
+// detune (cents) is spread evenly and centred across the members, so ratio 1
+// makes a detuned unison choir and ratio 2 a stack of octaves. `spread` is a
+// multiplier on the position's extent: the radius of the cloud of directions
+// the members are dealt into. The default is one plain member.
 struct OscillatorStack {
-  static constexpr int kMaxVoices = 64;
+  static constexpr int kMaxVoices = 256;
 
   int voices = 1;
   float ratio = 1.0f;

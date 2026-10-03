@@ -75,8 +75,8 @@ TEST(oscillator_array_sine_polynomial_is_accurate) {
 }
 
 // A stacked voice must sound like the same members played as separate
-// single-member voices (floor reflection off, so no per-member/summed
-// difference).
+// single-member voices, each at its bucket's direction (floor reflection off,
+// so no per-member/summed difference).
 TEST(oscillator_stack_matches_separate_voices) {
   ChannelConfiguration config(44100, 1);
   config.setFloorReflectionEnabled(false);
@@ -97,17 +97,14 @@ TEST(oscillator_stack_matches_separate_voices) {
   const float frequency = 330.0f, velocity = 0.8f, note_detune = 1.01f;
   OscillatorVoice stacked(config, centre, note_detune, WaveformType::SAW, 0.7f, 0.5f, sends, coord, stack);
   CHECK(stacked.memberCount() == 4);
+  CHECK(stacked.bucketCount() > 1); // the members really are spread out
   stacked.playNote(frequency, velocity, 60);
 
-  const float half_width = atan2f(stack.spread * centre.extent, centre.distance) * 180.0f / static_cast<float>(kPi);
   vector<unique_ptr<OscillatorVoice>> separate;
   for (int k = 0; k < 4; k++) {
     float place = 2.0f * static_cast<float>(k) / 3.0f - 1.0f;
-    SphericalPosition position = centre;
-    position.azimuth += place * half_width;
-    position.elevation += place * half_width / kExtentShapeRatio;
     float ratio = note_detune * powf(stack.ratio, static_cast<float>(k)) * powf(2.0f, place * stack.detune_cents / 2400.0f);
-    auto voice = make_unique<OscillatorVoice>(config, position, ratio, WaveformType::SAW, 0.7f * powf(stack.falloff, static_cast<float>(k)), 0.5f, sends, coord.withInstance(k));
+    auto voice = make_unique<OscillatorVoice>(config, stacked.bucketDirection(stacked.bucketOf(static_cast<size_t>(k))), ratio, WaveformType::SAW, 0.7f * powf(stack.falloff, static_cast<float>(k)), 0.5f, sends, coord.withInstance(k));
     voice->playNote(frequency, velocity, 60);
     separate.push_back(move(voice));
   }
@@ -154,7 +151,7 @@ TEST(oscillator_stack_without_spread_encodes_once_and_matches_separate_voices) {
 
   OscillatorVoice stacked(config, centre, 1.0f, WaveformType::TRIANGLE, 0.5f, 0.5f, sends, coord, stack);
   CHECK(stacked.memberCount() == 8);
-  CHECK(stacked.directionCount() == 1);
+  CHECK(stacked.bucketCount() == 1);
   stacked.playNote(262.0f, 0.7f, 60);
 
   // Floor reflection is on: the separate voices each reflect their own
@@ -192,9 +189,9 @@ TEST(oscillator_stack_without_spread_encodes_once_and_matches_separate_voices) {
   CHECK(err < energy * 1e-6);
 }
 
-// Members are bucketed by what the ambisonic order can resolve: a wide
-// spread gets several buckets (at most 8), a narrow or absent one gets one.
-TEST(oscillator_stack_buckets_follow_the_spread_and_the_order) {
+// A stack gets as many buckets as resolvable cells fit in its cloud (at most
+// one per member): a wide spread gets many, a narrow or absent one gets one.
+TEST(oscillator_stack_bucket_count_follows_the_cloud_area_and_the_order) {
   auto buckets = [](int order, int voices, float spread, float extent, float distance) {
     ChannelConfiguration config(44100, order);
     OscillatorStack stack;
@@ -204,17 +201,17 @@ TEST(oscillator_stack_buckets_follow_the_spread_and_the_order) {
     centre.distance = distance;
     centre.extent = extent;
     OscillatorVoice voice(config, centre, 1.0f, WaveformType::SINE, 1.0f, 0.5f, SendLevels{}, NoteCoordinate(0, 0, 0), stack);
-    return voice.directionCount();
+    return voice.bucketCount();
   };
 
-  // +-45 degrees: 90 degrees over 25-degree buckets at order 1 is 4, over
-  // 12-degree ones at order 3 is capped at 8.
-  CHECK(buckets(1, 5, 1.0f, 2.0f, 2.0f) == 4);
+  // A +-45 degree cloud: about 4 cells of 25 degrees at order 1, 11 of 16
+  // at order 2, 19 of 12 at order 3.
   CHECK(buckets(1, 32, 1.0f, 1.0f, 1.0f) == 4);
-  CHECK(buckets(3, 32, 1.0f, 1.0f, 1.0f) == 8);
-  CHECK(buckets(2, 32, 1.0f, 1.0f, 1.0f) == 6);
+  CHECK(buckets(2, 32, 1.0f, 1.0f, 1.0f) == 11);
+  CHECK(buckets(3, 32, 1.0f, 1.0f, 1.0f) == 19);
   // Never more buckets than members.
   CHECK(buckets(3, 3, 1.0f, 1.0f, 1.0f) == 3);
+  CHECK(buckets(3, 256, 180.0f, 1.0f, 1.0f) <= 256);
   // No spread, no extent, a tiny spread, a mono bus or no distance: one.
   CHECK(buckets(3, 32, 0.0f, 1.0f, 1.0f) == 1);
   CHECK(buckets(3, 32, 1.0f, 0.0f, 1.0f) == 1);
@@ -223,62 +220,121 @@ TEST(oscillator_stack_buckets_follow_the_spread_and_the_order) {
   CHECK(buckets(3, 32, 1.0f, 1.0f, 0.0f) == 1);
 }
 
-// Bucketing is an approximation: all 32 members through 8 buckets must stay
-// close to the 32 members encoded one by one, and the omnidirectional W
-// channel (the same gain for every direction) must be unaffected.
-TEST(oscillator_stack_buckets_stay_close_to_the_exact_encode) {
-  ChannelConfiguration config(44100, 3);
-  config.setFloorReflectionEnabled(false);
-  SendLevels sends;
-  NoteCoordinate coord(3, 24, 0);
+// Ring counts: ceil((sqrt(1 + 4B/3) - 1) / 2) rings, populations
+// proportional to radius by cumulative rounding, always summing to B.
+TEST(oscillator_stack_ring_counts_are_concentric_and_sum_to_the_bucket_count) {
+  auto rings = [](int b) { return OscillatorVoice::ringCounts(b); };
+  CHECK(rings(1).empty());
+  CHECK((rings(2) == vector<int>{ 2 }));
+  CHECK((rings(3) == vector<int>{ 3 }));
+  CHECK((rings(6) == vector<int>{ 6 }));
+  CHECK((rings(7) == vector<int>{ 2, 5 }));
+  CHECK((rings(8) == vector<int>{ 3, 5 }));
+  CHECK((rings(19) == vector<int>{ 3, 7, 9 }));
 
+  for (int b = 2; b <= 256; b++) {
+    auto counts = rings(b);
+    int sum = 0;
+    for (int n : counts) { CHECK(n >= 1); sum += n; }
+    CHECK(sum == b);
+    // Outer rings never hold fewer points than inner ones.
+    for (size_t j = 1; j < counts.size(); j++) CHECK(counts[j] >= counts[j - 1]);
+  }
+}
+
+// The layout: a single bucket at the centre, two left and right, three a
+// triangle apex up, everything inside the ellipse and nothing coincident.
+TEST(oscillator_stack_cloud_points_form_concentric_rings) {
+  SphericalPosition centre;
+  centre.azimuth = 10.0f;
+  centre.elevation = 5.0f;
+  const float r = 30.0f, r_el = r / kExtentShapeRatio;
+  auto point = [&](int b, int count) { return OscillatorVoice::cloudPoint(centre, r, b, count); };
+
+  CHECK_NEAR(point(0, 1).azimuth, 10.0f, 1e-4f);
+  CHECK_NEAR(point(0, 1).elevation, 5.0f, 1e-4f);
+
+  // Two: left and right at the same elevation.
+  CHECK_NEAR(point(0, 2).azimuth, 10.0f - r, 1e-3f);
+  CHECK_NEAR(point(1, 2).azimuth, 10.0f + r, 1e-3f);
+  CHECK_NEAR(point(0, 2).elevation, 5.0f, 1e-3f);
+  CHECK_NEAR(point(1, 2).elevation, 5.0f, 1e-3f);
+
+  // Three: apex up, the other two level and symmetric below it.
+  CHECK_NEAR(point(0, 3).azimuth, 10.0f, 1e-3f);
+  CHECK_NEAR(point(0, 3).elevation, 5.0f + r_el, 1e-3f);
+  CHECK(point(1, 3).elevation < 5.0f);
+  CHECK_NEAR(point(1, 3).elevation, point(2, 3).elevation, 1e-3f);
+  CHECK_NEAR(point(1, 3).azimuth - 10.0f, 10.0f - point(2, 3).azimuth, 1e-3f);
+
+  for (int count = 2; count <= 40; count++) {
+    for (int b = 0; b < count; b++) {
+      auto p = point(b, count);
+      float x = (p.azimuth - 10.0f) / r, y = (p.elevation - 5.0f) / r_el;
+      CHECK(x * x + y * y <= 1.0001f); // inside the ellipse
+      for (int c = b + 1; c < count; c++) {
+	auto q = point(c, count);
+	CHECK(fabsf(p.azimuth - q.azimuth) + fabsf(p.elevation - q.elevation) > 0.01f);
+      }
+    }
+  }
+  // Seven: two rings, so points at two distinct radii.
+  float inner = hypotf((point(0, 7).azimuth - 10.0f) / r, (point(0, 7).elevation - 5.0f) / r_el);
+  float outer = hypotf((point(6, 7).azimuth - 10.0f) / r, (point(6, 7).elevation - 5.0f) / r_el);
+  CHECK_NEAR(inner, 0.5f, 1e-3f);
+  CHECK_NEAR(outer, 1.0f, 1e-3f);
+}
+
+// Members are dealt round-robin: buckets stay evenly filled, and members
+// neighbouring in pitch land in different buckets.
+TEST(oscillator_stack_members_are_dealt_round_robin_into_buckets) {
+  ChannelConfiguration config(44100, 3);
+  OscillatorStack stack;
+  stack.voices = 50;
+  stack.spread = 1.0f;
+  SphericalPosition centre;
+  centre.distance = 1.0f;
+  centre.extent = 1.0f;
+  OscillatorVoice voice(config, centre, 1.0f, WaveformType::SINE, 1.0f, 0.5f, SendLevels{}, NoteCoordinate(0, 0, 0), stack);
+
+  const size_t buckets = voice.bucketCount();
+  CHECK(buckets > 1);
+  size_t total = 0, smallest = 1000, largest = 0;
+  for (size_t b = 0; b < buckets; b++) {
+    total += voice.bucketSize(b);
+    smallest = min(smallest, voice.bucketSize(b));
+    largest = max(largest, voice.bucketSize(b));
+  }
+  CHECK(total == 50);
+  CHECK(largest - smallest <= 1);
+  for (size_t k = 0; k + 1 < 50; k++) CHECK(voice.bucketOf(k) != voice.bucketOf(k + 1));
+}
+
+// A large stack with spread renders finite, audible output.
+TEST(oscillator_stack_with_a_wide_spread_renders) {
+  ChannelConfiguration config(44100, 3);
   OscillatorStack stack;
   stack.voices = 32;
   stack.detune_cents = 20.0f;
   stack.spread = 1.0f;
-
   SphericalPosition centre;
   centre.distance = 1.0f;
-  centre.extent = 1.0f; // +-45 degrees
+  centre.extent = 1.0f;
+  OscillatorVoice voice(config, centre, 1.0f, WaveformType::SAW, 0.2f, 0.5f, SendLevels{}, NoteCoordinate(3, 24, 0), stack);
+  voice.playNote(196.0f, 0.7f, 55);
 
-  OscillatorVoice bucketed(config, centre, 1.0f, WaveformType::SAW, 0.2f, 0.5f, sends, coord, stack);
-  CHECK(bucketed.directionCount() == 8);
-  bucketed.playNote(196.0f, 0.7f, 55);
-
-  const float half_width = atan2f(stack.spread * centre.extent, centre.distance) * 180.0f / static_cast<float>(kPi);
-  vector<unique_ptr<OscillatorVoice>> exact;
-  for (int k = 0; k < 32; k++) {
-    float place = 2.0f * static_cast<float>(k) / 31.0f - 1.0f;
-    SphericalPosition position = centre;
-    position.azimuth += place * half_width;
-    position.elevation += place * half_width / kExtentShapeRatio;
-    float ratio = powf(2.0f, place * stack.detune_cents / 2400.0f);
-    auto voice = make_unique<OscillatorVoice>(config, position, ratio, WaveformType::SAW, 0.2f, 0.5f, sends, coord.withInstance(k));
-    voice->playNote(196.0f, 0.7f, 55);
-    exact.push_back(move(voice));
-  }
-
-  double err = 0.0, energy = 0.0, w_err = 0.0, w_energy = 0.0;
-  for (int block = 0; block < 16; block++) {
-    const int frames = 512;
-    auto a = bucketed.render(frames);
-    AudioBuffer expected(config.numberOfChannels(), frames);
-    expected.zero();
-    for (auto & v : exact) expected.mixNamed(v->render(frames));
-
-    for (int c = 0; c < a.regularChannelCount(); c++) {
-      for (int k = 0; k < frames; k++) {
-	double want = expected.getChannelData(c)[k];
-	double d = static_cast<double>(a.getChannelData(c)[k]) - want;
-	err += d * d;
-	energy += want * want;
-	if (c == 0) { w_err += d * d; w_energy += want * want; }
+  double energy = 0.0;
+  for (int block = 0; block < 8; block++) {
+    auto out = voice.render(512);
+    for (int c = 0; c < out.regularChannelCount(); c++) {
+      for (int k = 0; k < 512; k++) {
+	float v = out.getChannelData(c)[k];
+	CHECK(std::isfinite(v));
+	energy += static_cast<double>(v) * static_cast<double>(v);
       }
     }
   }
   CHECK(energy > 1.0);
-  CHECK(w_err < w_energy * 1e-9);   // W is exact
-  CHECK(err < energy * 0.01);       // better than -20 dB overall (about -23.6 dB measured)
 }
 
 // The default stack is one member, rendered exactly like a plain voice.

@@ -1134,19 +1134,21 @@ would otherwise resume showing.
   - `src/instruments/` — synthesis and instrument resolution:
     `OscillatorVoice`/`GenericInstrument`/`SoundFont`, `Tuner`/`Tuning`
     (microtonal pitch math), `LFO`, `Arpeggiator`.
-  `Oscillator` can stack itself into one voice: `voices` members, member k at
-    `ratio`^k times the note's frequency and `falloff`^k times its level
-    (ratio 1 = unison choir, 2 = octaves), with `detune` (cents) and `spread`
-    (a multiplier on the position's extent) spread evenly and centred across
-    the members (`OscillatorStack.h`; rendered by `OscillatorVoice` through
-    `OscillatorArray`, a struct-of-arrays vector-extension kernel). Each member
-    has its own direction, but members closer than the ambisonic order can
-    resolve share a bucket (width 25/16/12 degrees at order 1/2/3, at most 8
-    buckets, one when there's no spread): their signals are summed, and each
-    bucket is encoded with the mean of its members' gain vectors, all buckets
-    in one register-accumulating pass (`AmbisonicStackEncoder`). The floor
-    reflection and Aux sends run once on the summed signal at the centre. One voice is just the stack of one. Other
-    voice types don't stack.
+  `Oscillator` can stack itself into one voice: `voices` members (up to 256),
+    member k at `ratio`^k times the note's frequency and `falloff`^k times its
+    level (ratio 1 = unison choir, 2 = octaves), with `detune` (cents) spread
+    evenly and centred across the members (`OscillatorStack.h`; rendered by
+    `OscillatorVoice` through `OscillatorArray`, a struct-of-arrays
+    vector-extension kernel). `spread` (a multiplier on the position's extent)
+    is the radius of a cloud of buckets: as many as resolvable cells (25/16/12
+    degrees at order 1/2/3) fit in the cloud's elliptical area, at most one per
+    member, one when there's no spread. The buckets are laid out as concentric
+    rings (`OscillatorVoice::ringCounts()`/`cloudPoint()`: J rings, populations
+    proportional to radius) and members are dealt into them round-robin. A
+    bucket's members are summed and encoded once, all buckets in one
+    register-accumulating pass (`AmbisonicStackEncoder`). The floor reflection
+    and Aux sends run once on the summed signal at the centre. One voice is just
+    the stack of one. Other voice types don't stack.
   - `src/ambisonic/` — spatial encode/decode math and the `Mixer`
     hierarchy (see the `AmbisonicEncoding.h` bullet below).
   - `src/audio/` — `AlsaAudio` (device output), `AudioBuffer`,
