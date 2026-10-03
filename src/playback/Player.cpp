@@ -138,6 +138,10 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     mixer_changed_ = true;
     return;
 
+  case PlaybackControlEvent::SET_METRONOME:
+    metronome_on_ = ev.getParameter1() != 0;
+    return;
+
   case PlaybackControlEvent::PREVIEW_NOTE:
     {
       // buffer_name is repurposed to carry the instrument's own literal/
@@ -454,10 +458,6 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
       if (track_state) track_state->applyRealChannelPressure(ev.getParameter2() / 127.0f);
     }
     break;
-
-  case PlaybackControlEvent::SET_METRONOME:
-    metronome_on_ = ev.getParameter1() != 0;
-    return;
 
   case PlaybackControlEvent::SET_RECORDING_MUTE:
     state.setRecordingMuted(ev.getParameter1() != 0);
