@@ -16,7 +16,7 @@ class StyleProvider;
 // What a row's own default action(s) - NCKEY_ENTER/NCKEY_DEL, and what
 // renderButtonBar() shows for it - target. SECTION covers every plain
 // heading row (Song, Library, Tracks, a group name, ...), which has none.
-enum class OutlineRowKind { SECTION, TRACK, POOL_INSTRUMENT, LIBRARY_INSTRUMENT, LIBRARY_GROOVE };
+enum class OutlineRowKind { SECTION, TRACK, POOL_INSTRUMENT, LIBRARY_INSTRUMENT, LIBRARY_RHYTHM };
 
 struct outline_row_s {
   int level = 0;
@@ -29,14 +29,14 @@ struct outline_row_s {
   int ref_id = -1;
   // LIBRARY_INSTRUMENT: the literal/taxonomy name InstrumentProvider::
   // tryGetByLiteralName()/resolvePath() can resolve back to a real
-  // Instrument. LIBRARY_GROOVE: a GroovePatternLibrary.h entry's own name
-  // (findGroovePattern()). Empty for every other kind.
+  // Instrument. LIBRARY_RHYTHM: a RhythmPatternLibrary.h entry's own name
+  // (findRhythmPattern()). Empty for every other kind.
   std::string ref_name;
 };
 
 // What clicking a Details panel line does, if anything - see
 // OutlineView::buildDetailsLines()/handleClick().
-// TOGGLE_TARGET_PICKER opens/closes a Library > Grooves row's own
+// TOGGLE_TARGET_PICKER opens/closes a Library > Rhythms row's own
 // target-track picker - a real floating ncselector plane (see
 // OutlineView::openTargetPicker()), not another Details panel line, so
 // picking one of its candidates never reaches here at all.
@@ -48,7 +48,7 @@ struct DetailsLine {
 };
 
 // A read-only, indented tree of the active song - Song/Instruments/
-// per-instrument rows/Tracks/per-track rows, then Library/Grooves/
+// per-instrument rows/Tracks/per-track rows, then Library/Rhythms/
 // Instruments - the same "collapsible headings" shape Emacs's own
 // outline-mode shows for a text buffer, applied to the song structure
 // instead. Shown as a panel on the left of ClipGrid in Session view
@@ -69,12 +69,12 @@ struct DetailsLine {
 // Library row, PREVIEW_POOL_NOTE for a pool row - the latter resolves the
 // exact pool slot, generator overrides/custom Oscillator parameters
 // included, rather than re-resolving a name), 'p' loops a Library >
-// Grooves row's own pattern (PREVIEW_GROOVE/PREVIEW_STOP), 'a' stops
+// Rhythms row's own pattern (PREVIEW_RHYTHM/PREVIEW_STOP), 'a' stops
 // whichever of these is currently sounding - none of this routed through
 // any Track/buffer for a Library row, since nothing being previewed is
 // part of the song yet - and NCKEY_ENTER commits a Library row for real:
 // an instrument joins the active song's own instrument pool
-// (Song::addInstrument()), a groove becomes a real Clip on whichever
+// (Song::addInstrument()), a rhythm becomes a real Clip on whichever
 // PercussionTrack its own target picker currently names (see
 // openTargetPicker()'s own comment - 't' or a click opens it as a real
 // floating plane over this one, a candidate picked by clicking it or
@@ -161,9 +161,9 @@ protected:
   void runDetailsAction(DetailsAction action);
   // NCKEY_ENTER on a Library > Instruments row - see this class's own
   // header comment. A no-op on any other row (delegates to
-  // addSelectedLibraryGrooveToSong() for a Grooves row instead).
+  // addSelectedLibraryRhythmToSong() for a Rhythms row instead).
   void addSelectedLibraryInstrumentToPool();
-  // NCKEY_ENTER on a Library > Grooves row - see this class's own header
+  // NCKEY_ENTER on a Library > Rhythms row - see this class's own header
   // comment. Targets resolveTargetTrackId()'s own current choice - an
   // existing PercussionTrack (root tracks only, matching this view's own
   // shallow Tracks listing) picked via the row's own inline target
@@ -171,12 +171,12 @@ protected:
   // kNewTrackTargetId (the default with no existing PercussionTrack, or
   // an explicit "New track" pick) - and adds a new Clip there seeded from
   // the template's own hits. A no-op on any other row.
-  void addSelectedLibraryGrooveToSong();
+  void addSelectedLibraryRhythmToSong();
   // Every root PercussionTrack currently in data_ (TRACK rows only, not
   // the underlying Song - data_'s own labels are already the exact
   // "T<N> name" text the tree itself shows, so the picker's candidate
   // list reads identically) - resolveTargetTrackId()/openTargetPicker()'s
-  // own shared source for "what can a groove clip target".
+  // own shared source for "what can a rhythm clip target".
   std::vector<const outline_row_s *> compatibleTargetTrackRows() const;
   // The target-track picker's own current choice, re-resolved every call
   // rather than trusted at face value: selected_target_track_id_ might
@@ -193,7 +193,7 @@ protected:
   // TOGGLE_TARGET_PICKER on an already-closed picker - creates the real
   // floating plane (UIPlane::showPicker()), anchored directly under the
   // "[t] Target: ..." Details panel line (always that row's own fixed
-  // screen position for a Library > Grooves row - see buildDetailsLines()),
+  // screen position for a Library > Rhythms row - see buildDetailsLines()),
   // and populates it from compatibleTargetTrackRows() plus "New track".
   // Sized down (never past this widget's own bottom edge) rather than
   // trusting there's always room for every candidate at once.
@@ -268,8 +268,8 @@ protected:
   // polyphony) and keyed by nothing but the key id, since there's no
   // note-column/track identity to remember alongside it here.
   int held_preview_key_ = -1;
-  // The Library > Grooves target-track picker's own choice (see
-  // openTargetPicker()) - a single global preference, not per-groove:
+  // The Library > Rhythms target-track picker's own choice (see
+  // openTargetPicker()) - a single global preference, not per-rhythm:
   // "which track should Add to Song use" is one ongoing choice, not
   // something worth remembering separately per template. -1 means "never
   // explicitly chosen yet" (resolveTargetTrackId() then defaults to the

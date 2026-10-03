@@ -118,6 +118,11 @@ UI::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
     }
     return;
   }
+  // The Tempo/Swing views show a number; their pads do nothing.
+  if (launchpad_manager_ && (launchpad_manager_->gridMode(ev.getDeviceIndex()) == LaunchpadManager::GridMode::TEMPO ||
+                             launchpad_manager_->gridMode(ev.getDeviceIndex()) == LaunchpadManager::GridMode::SWING)) {
+    return;
+  }
   // GridMode::SESSION: unlike DRAW above, this one does need Controller -
   // an "assign" press writes into the Song directly, and either sub-mode
   // (audition/assign - see handleSessionPadEvent()'s own comment) needs
@@ -200,7 +205,14 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
   // deferred to here, its release, rather than commandForButton()'s own
   // ordinary press-driven call site further down.
   if (ev.getCCNumber() == 91) {
-    if (launchpad_manager_->handleShiftButton(device_id, ev.getKind() == LaunchpadButtonEvent::PRESS)) dispatch_named_command(91);
+    if (launchpad_manager_->handleShiftButton(device_id, ev.getKind() == LaunchpadButtonEvent::PRESS, getController())) dispatch_named_command(91);
+    return;
+  }
+
+  // CC92 ("move-row-down") is the Tempo/Swing views' down arrow, whose
+  // hold auto-repeats until released.
+  if (ev.getCCNumber() == 92 && ev.getKind() != LaunchpadButtonEvent::PRESS) {
+    launchpad_manager_->handleArrowRelease(device_id, 92);
     return;
   }
 

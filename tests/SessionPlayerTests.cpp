@@ -367,3 +367,71 @@ TEST(session_player_armed_track_slot_without_a_stop_button_records_nothing) {
   f.playRows(4);
   CHECK(!f.controller.isSessionRecording(track));
 }
+
+// Deleting a slot is instant with the transport stopped.
+TEST(session_player_delete_is_instant_while_the_transport_is_stopped) {
+  SessionFixture f;
+  auto track = f.addTrack(2);
+  CHECK(!f.controller.getPlaybackInfo().isPlaying());
+
+  f.player().deleteClip(track, 0);
+  CHECK(f.song().getClips(track)[0].isEmpty());
+  CHECK(!f.song().getClips(track)[1].isEmpty());
+
+  // An already-empty slot loses its stop button next, still at once.
+  CHECK(f.song().getClips(track)[0].hasStopButton());
+  f.player().deleteClip(track, 0);
+  CHECK(!f.song().getClips(track)[0].hasStopButton());
+}
+
+// A clip sounding on a running transport isn't pulled out from under the
+// playhead: its track stops at the next bar and the clip goes with it.
+TEST(session_player_delete_of_a_playing_clip_waits_for_the_bar) {
+  SessionFixture f;
+  auto track = f.addTrack(2);
+  f.player().triggerClip(track, 0);
+  f.playRows(1); // row 0, a bar start: clip 0 is playing
+  CHECK(f.plays(track, 60));
+
+  f.player().deleteClip(track, 0);
+  CHECK(!f.song().getClips(track)[0].isEmpty()); // still there, and still playing
+  f.playRows(2);
+  CHECK(!f.song().getClips(track)[0].isEmpty());
+  CHECK(f.plays(track, 62));
+
+  f.playRows(2); // across the bar: the stop takes effect
+  CHECK(f.song().getClips(track)[0].isEmpty());
+  CHECK(!f.player().isLaunched(track));
+  CHECK(!f.song().getClips(track)[1].isEmpty()); // only the one clip
+}
+
+// A clip that isn't sounding goes at once even while the transport runs.
+TEST(session_player_delete_of_a_silent_clip_is_instant_while_playing) {
+  SessionFixture f;
+  auto track = f.addTrack(2);
+  f.player().triggerClip(track, 0);
+  f.playRows(1);
+  CHECK(f.controller.getPlaybackInfo().isPlaying());
+
+  f.player().deleteClip(track, 1);
+  CHECK(f.song().getClips(track)[1].isEmpty());
+  CHECK(f.plays(track, 60) || f.player().isLaunched(track)); // clip 0 untouched
+  CHECK(!f.song().getClips(track)[0].isEmpty());
+}
+
+// Pausing the transport while a delete waits for its bar makes it instant:
+// nothing is sounding any more.
+TEST(session_player_delete_waiting_for_a_bar_completes_when_the_transport_stops) {
+  SessionFixture f;
+  auto track = f.addTrack(1);
+  f.player().triggerClip(track, 0);
+  f.playRows(1);
+  f.player().deleteClip(track, 0);
+  CHECK(!f.song().getClips(track)[0].isEmpty());
+
+  f.controller.togglePlaying();
+  f.applyEvents();
+  f.sendSnapshot();
+  f.player().tick();
+  CHECK(f.song().getClips(track)[0].isEmpty());
+}

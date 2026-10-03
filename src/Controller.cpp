@@ -240,6 +240,10 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
     setMetronomeOn(!metronome_on_);
     getUIEventQueue().push(make_unique<LogEvent>(metronome_on_ ? "Metronome on" : "Metronome off"));
   });
+  commands_.define("tempo-increase", [this]() { setTempo(getSong().getTempo() + 1); });
+  commands_.define("tempo-decrease", [this]() { setTempo(getSong().getTempo() - 1); });
+  commands_.define("swing-increase", [this]() { setSwing(getSong().getSwing() + 1); });
+  commands_.define("swing-decrease", [this]() { setSwing(getSong().getSwing() - 1); });
   commands_.define("toggle-record-quantize", [this]() {
     auto & song = getSong();
     song.setRecordQuantize(!song.getRecordQuantize());
@@ -1355,6 +1359,38 @@ Controller::extendRecordingSampleClipIfNeeded() {
     // call, keyed off whatever its length currently is.
     placeClipInstance(*song, track_id, recording_start_row_, clip_index);
     song->incVersion();
+  }
+}
+
+void
+Controller::setSwing(int percent) {
+  auto & song = getSong();
+  song.setSwing(percent);
+  song.incVersion();
+  getUIEventQueue().push(make_unique<LogEvent>("Swing " + to_string(song.getSwing()) + "%"));
+}
+
+void
+Controller::setTempo(int bpm) {
+  auto & song = getSong();
+  song.setTempo(static_cast<short>(std::clamp(bpm, 20, 300)));
+  song.incVersion();
+  getUIEventQueue().push(make_unique<LogEvent>("Tempo " + to_string(song.getTempo())));
+}
+
+void
+Controller::deleteClipSlot(int track_id, int clip_index) {
+  auto & song = getSong();
+  auto & clips = song.getClips(track_id);
+  // Clears any live preview/edit focus on the clip being deleted, so
+  // getFocusedClip() isn't left pointing at an id nothing resolves to.
+  if (clip_index >= 0 && clip_index < static_cast<int>(clips.size()) &&
+      getFocusedClipTrackId() == track_id && getFocusedClip() == clips[static_cast<size_t>(clip_index)].getId()) {
+    clearFocusedClip();
+  }
+  string name;
+  if (deleteClipOrStopButton(song, track_id, clip_index, &name) == SlotDelete::CLIP) {
+    getUIEventQueue().push(make_unique<LogEvent>("Deleted clip: " + (name.empty() ? string("(unnamed)") : name)));
   }
 }
 

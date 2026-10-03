@@ -281,7 +281,46 @@ SessionPlayer::stopSampleTrackRecording(int track_id) {
 }
 
 void
+SessionPlayer::deleteClip(int track_id, int clip_index) {
+  auto & clips = controller_.getSong().getClips(track_id);
+  bool populated = clip_index >= 0 && clip_index < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(clip_index)].isEmpty();
+  if (populated && controller_.getPlaybackInfo().isPlaying()) {
+    auto heads = playheads();
+    auto it = heads.find(track_id);
+    if (it != heads.end() && (it->second.clip_index == clip_index || it->second.queued_clip == clip_index)) {
+      pending_deletes_.emplace_back(track_id, clips[static_cast<size_t>(clip_index)].getId());
+      stopTrack(track_id);
+      return;
+    }
+  }
+  controller_.deleteClipSlot(track_id, clip_index);
+}
+
+void
+SessionPlayer::resolvePendingDeletes() {
+  if (pending_deletes_.empty()) return;
+  auto playing = controller_.getPlaybackInfo().isPlaying();
+  auto heads = playheads();
+  auto & song = controller_.getSong();
+  for (auto it = pending_deletes_.begin(); it != pending_deletes_.end(); ) {
+    auto & clips = song.getClips(it->first);
+    int index = -1;
+    for (size_t i = 0; i < clips.size(); i++) {
+      if (clips[i].getId() == it->second) { index = static_cast<int>(i); break; }
+    }
+    if (index < 0) { it = pending_deletes_.erase(it); continue; } // gone some other way
+    auto head = heads.find(it->first);
+    bool sounding = playing && head != heads.end() && (head->second.clip_index == index || head->second.queued_clip == index);
+    if (sounding) { ++it; continue; }
+    controller_.deleteClipSlot(it->first, index);
+    it = pending_deletes_.erase(it);
+  }
+}
+
+void
 SessionPlayer::tick() {
+  resolvePendingDeletes();
+
   // A take finished some other way than a queued stop (disarming, say)
   // loops back from the next bar, like a press on its own pad.
   joinCompletedTakes();

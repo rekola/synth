@@ -118,39 +118,10 @@ ClipGrid::ClipGrid(UIPlane & parent) : UIElement(parent) {
   // the keymap_.bind() calls below for which keys reach it and why.
   commands_.define("delete-clip", [this]() {
     if (rowKindFor(cursor_row_) != RowKind::CLIP) return;
-    auto & song = getController().getSong();
-    auto track_ids = song.getPlayableTrackIds();
+    auto track_ids = getController().getSong().getPlayableTrackIds();
     if (cursor_track_index_ < 0 || cursor_track_index_ >= static_cast<int>(track_ids.size())) return;
-    auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
-    auto & clips = song.getClips(track_id);
-    auto clip_row = physicalFor(cursor_row_); // a CLIP row's own physical offset doubles as its clip-list index
-    // Content-aware, not just in-bounds: an empty filler (Song::
-    // ensureClipAt()'s own "hole", or a genuinely out-of-bounds row) reads
-    // as "no clip here" either way - erasing a filler would shift every
-    // later clip's own index down, silently misaligning every other
-    // track's own scene rows against it.
-    if (clip_row < 0) return;
-    if (static_cast<size_t>(clip_row) >= clips.size() || clips[static_cast<size_t>(clip_row)].isEmpty()) {
-      // No clip here: its stop button goes next.
-      if (static_cast<size_t>(clip_row) < clips.size() && !clips[static_cast<size_t>(clip_row)].hasStopButton()) return;
-      song.ensureClipAt(track_id, clip_row).setStopButton(false);
-      song.incVersion();
-      return;
-    }
-    auto clip_id = clips[static_cast<size_t>(clip_row)].getId();
-    auto name = clips[static_cast<size_t>(clip_row)].getName();
-    // Clears any live preview/edit focus on the clip being deleted -
-    // otherwise Controller::getFocusedClip() would keep pointing at an id
-    // nothing resolves to any more (harmless - every lookup already
-    // tolerates a stale/dangling clip id - but there's no reason to leave
-    // it dangling when the clip's own removal is the very moment that
-    // makes it stale).
-    if (getController().getFocusedClipTrackId() == track_id && getController().getFocusedClip() == clip_id) {
-      getController().clearFocusedClip();
-    }
-    deleteClip(song, track_id, clip_row);
-    auto text = "Deleted clip: " + (name.empty() ? string("(unnamed)") : name);
-    getController().getUIEventQueue().push(std::make_unique<LogEvent>(std::move(text)));
+    // A CLIP row's own physical offset doubles as its clip-list index.
+    getController().getSessionPlayer().deleteClip(track_ids[static_cast<size_t>(cursor_track_index_)], physicalFor(cursor_row_));
   });
   // Copies the clip under the cursor into the next empty slot below it -
   // a no-op on an empty slot.
