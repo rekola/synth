@@ -240,6 +240,8 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
     setMetronomeOn(!metronome_on_);
     getUIEventQueue().push(make_unique<LogEvent>(metronome_on_ ? "Metronome on" : "Metronome off"));
   });
+  commands_.define("tempo-increase", [this]() { setTempo(getSong().getTempo() + 1); });
+  commands_.define("tempo-decrease", [this]() { setTempo(getSong().getTempo() - 1); });
   commands_.define("swing-increase", [this]() { setSwing(getSong().getSwing() + 1); });
   commands_.define("swing-decrease", [this]() { setSwing(getSong().getSwing() - 1); });
   // One Record Arm for every track type, reachable from a Launchpad
@@ -1360,6 +1362,14 @@ Controller::setSwing(int percent) {
   song.setSwing(percent);
   song.incVersion();
   getUIEventQueue().push(make_unique<LogEvent>("Swing " + to_string(song.getSwing()) + "%"));
+}
+
+void
+Controller::setTempo(int bpm) {
+  auto & song = getSong();
+  song.setTempo(static_cast<short>(std::clamp(bpm, 20, 300)));
+  song.incVersion();
+  getUIEventQueue().push(make_unique<LogEvent>("Tempo " + to_string(song.getTempo())));
 }
 
 void

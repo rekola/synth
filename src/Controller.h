@@ -309,6 +309,9 @@ class Controller {
   // the audio thread and the info line pick it up. Every swing edit - the
   // swing commands, Add to Song of a swung rhythm, the Launchpad - goes here.
   void setSwing(int percent);
+  // The active song's tempo in bpm, clamped to 20-300, taking effect within
+  // a block while playing. Same single-path rule as setSwing().
+  void setTempo(int bpm);
 
   // Session view's own per-track Record Arm - a separate concept from
   // isNoteCaptureArmed() above, not a restriction layered on top of it.

@@ -89,6 +89,19 @@ class SongState : public TrackState {
     }
   }
 
+  // A tempo edit while playing: everything derived from the tempo is
+  // refreshed - the row length, the tempo the arpeggiators and sample
+  // tracks read, and the bus effects' tempo-synced times. The row already
+  // in flight just ends sooner or later (samplesUntilNextRow()); a sample
+  // clip already sounding keeps the stretch it was triggered with.
+  void applyTempo(int bpm) {
+    if (bpm <= 0 || bpm == tempo_) return;
+    tempo_ = bpm;
+    render_context_.setBpm(static_cast<float>(tempo_));
+    auto row_duration = getChannelConfiguration().getRowDuration(tempo_);
+    for (int slot = 0; slot < 2; slot++) send_bus_.getSlotEffect(slot).setRowDuration(row_duration);
+  }
+
   // Runtime slot reconfiguration, unlike initialize()'s "load-time-only"
   // per-slot construction above: swaps this slot's live BusEffect for a
   // fresh, default-parameter instance of `kind`, at this SongState's own
@@ -212,6 +225,7 @@ class SongState : public TrackState {
       song_structure_ = SongStructure(song);
       song_structure_version_ = song.getMajorVersion();
       swing_ = song.getSwing();
+      applyTempo(song.getTempo());
     }
 
     // Snapshotting the raw Track* pointers under Song::getTracksMutex()
@@ -727,7 +741,9 @@ class SongState : public TrackState {
     for (int i = 0; i < n; i++) {
       sample_pos_++;
       
-      if (sample_pos_ == sinterval) {
+      // >=, not ==: a tempo change can shorten the row below what has
+      // already elapsed in it.
+      if (sample_pos_ >= sinterval) {
 	movePosition(1);
       }
     }
@@ -735,7 +751,7 @@ class SongState : public TrackState {
 
   int samplesUntilNextRow() const {
     auto sinterval = getChannelConfiguration().getSampleInterval(tempo_);
-    return sample_pos_ == 0 ? sinterval : sinterval - sample_pos_;
+    return sample_pos_ == 0 ? sinterval : std::max(1, sinterval - sample_pos_);
   }
   
   void movePosition(int n_rows) {
