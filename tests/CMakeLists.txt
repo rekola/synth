@@ -88,6 +88,7 @@ add_executable(synth_tests
 	LevelMeterTests.cpp
 	LaunchpadPanTests.cpp
 	RhythmPatternLibraryTests.cpp
+	SwingTests.cpp
 	ValueRampTests.cpp
 	SinusoidBankTests.cpp
 	AdditiveTests.cpp

@@ -55,6 +55,7 @@ class SongState : public TrackState {
 
   void initialize(const Song & song) {
     tempo_ = song.getTempo();
+    swing_ = song.getSwing();
     master_sends_ = song.getMasterTrack().getSends();
     render_context_.setBpm(tempo_);
     song_structure_ = SongStructure(song);
@@ -210,6 +211,7 @@ class SongState : public TrackState {
       std::lock_guard<std::mutex> guard(song.getTracksMutex());
       song_structure_ = SongStructure(song);
       song_structure_version_ = song.getMajorVersion();
+      swing_ = song.getSwing();
     }
 
     // Snapshotting the raw Track* pointers under Song::getTracksMutex()
@@ -380,6 +382,10 @@ class SongState : public TrackState {
 	    // row it was placed at.
 	    auto session_it = session_tracks_.find(track_id);
 	    bool taken_over = session_it != session_tracks_.end() && session_it->second.isTakenOver();
+	    // Swing is keyed on the beat grid the row sits on: the transport row,
+	    // or the session clock for a launched clip (launches land on bars, so
+	    // the two agree) - never the clip's own row.
+	    int swing_row = taken_over ? session_clock_ : row_idx;
 	    ActiveInstance active{Arrangement::kStopInstance};
 	    int rows_since_start = 0;
 	    if (taken_over) {
@@ -535,7 +541,7 @@ class SongState : public TrackState {
 	      if (notes[j].isDefined()) {
 		auto & note = notes[j];
 		float velocity = note.isOff() ? 0.0f : note.getVelocityAsFloat();
-		auto delay_samples = int(note.getDelayAsFloat() * getChannelConfiguration().getSampleInterval(tempo_));
+		auto delay_samples = int((note.getDelayAsFloat() + swing::offsetRows(swing_row, swing_)) * getChannelConfiguration().getSampleInterval(tempo_));
 		int note_value = (note.isAftertouch() || note.isOff()) ? -1 : note.getValue();
 		render_context_.addPendingEvent(track_id, i + delay_samples, int(j), tuning, velocity, note_value, NoteCoordinate(song_structure_.getOrdinalFor(track_id), row_idx, int(j)));
 		if (note.isOff()) last_notes_[track_id].erase(int(j));
@@ -896,6 +902,7 @@ class SongState : public TrackState {
 
 private:
   int tempo_ = 0;
+  int swing_ = swing::kStraight;
   bool is_playing_ = false;
   bool recording_muted_ = false;
   int sample_pos_ = 0, absolute_pos_ = 0;

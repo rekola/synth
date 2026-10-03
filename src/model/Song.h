@@ -8,6 +8,7 @@
 #include "Arrangement.h"
 #include "Clip.h"
 #include "Scale.h"
+#include "Swing.h"
 #include "Version.h"
 #include "../bus/BusEffectRegistry.h"
 #include "../util/constants.h"
@@ -95,6 +96,13 @@ class Song : public SongObject {
 
   short getTempo() const { return bpm_; }
   void setTempo(short bpm) { bpm_ = bpm; }
+
+  // How late the second eighth of every pair plays (swing.h), in percent of
+  // the pair: 50 straight, about 67 triplet swing. Applied at playback to
+  // everything scheduled, never baked into note data. Callers editing it
+  // live also call incVersion(), which is how the audio thread notices.
+  int getSwing() const { return swing_; }
+  void setSwing(int percent) { swing_ = swing::clamp(percent); }
 
   // The shared quantization grid (<song rowsPerBar="N">) both the
   // Launchpad Session view (SessionPlayer::advanceToStep())
@@ -432,6 +440,7 @@ private:
   Scale scale_ = Scale::NONE;
   int bpm_ = 90;
   int rows_per_bar_ = 16;
+  int swing_ = swing::kStraight;
   float ear_height_ = constants::DEFAULT_EAR_HEIGHT;
   bool floor_reflection_enabled_ = constants::DEFAULT_FLOOR_REFLECTION_ENABLED;
   float floor_reflection_strength_ = constants::DEFAULT_FLOOR_REFLECTION_STRENGTH;
