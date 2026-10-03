@@ -19,7 +19,9 @@ Out of scope: per-clip grooves, a no-swing track flag, groove templates
   timing (and often accents/velocity) deviates from a rigid grid. Swing is
   the simplest groove. DAWs go further: Ableton's *Groove Pool* holds
   groove templates, per-position timing and velocity maps that you apply to
-  clips. Here, "groove" means timing feel only, and for now that is just
+  clips, while Renoise's *Groove* panel has four per-line amounts that
+  repeat every four lines and apply song-wide at playback, the model this
+  plan's song-level swing follows. Here, "groove" means timing feel only, and for now that is just
   swing. Per-clip grooves and richer templates are out of scope.
 - **Rhythm** (what this codebase currently calls a "Groove" in the Library):
   a pre-written drum pattern such as Waltz, Funk or Bossa Nova. It is

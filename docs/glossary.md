@@ -7,8 +7,11 @@ code does today.
 **Groove**
 The general word for rhythmic feel: how a pattern's timing (and often
 accents) deviates from a rigid grid. Swing is the simplest groove. Other
-DAWs go further: Ableton's *Groove Pool* holds templates of per-position
-timing and velocity that you apply to clips. Here, "groove" means timing
+DAWs go further. Ableton's *Groove Pool* holds templates of per-position
+timing and velocity that you apply to clips. Renoise's *Groove* panel is
+closer to this project: four per-line amounts that repeat every four lines
+and apply song-wide at playback, without changing the pattern data. Here,
+"groove" means timing
 feel only, and for now that is just swing. *(planned: today the Library
 also calls its drum patterns "Grooves"; see Rhythm.)*
 
