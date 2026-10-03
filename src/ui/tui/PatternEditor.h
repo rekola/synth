@@ -5,6 +5,7 @@
 #include "../GridPosition.h"
 #include "../../model/PatternBlockOps.h"
 #include "../ClipboardEntry.h"
+#include "../../playback/MidiNoteInput.h"
 #include "../SelectionBounds.h"
 #include "../PatternSource.h"
 #include "../ScenePatternSource.h"
@@ -232,12 +233,12 @@ protected:
   // change happened to repaint this row.
   bool current_focused_ = true;
 
-  std::unordered_map<int, int> active_midi_notes;
+  MidiNoteInput midi_input_;
 
   // Which pattern column/row/track a currently-held computer-keyboard note
   // key landed on (keyed by InputEvent::getId(), the physical key - a key
   // can't be pressed twice without an intervening release, so this is a
-  // safe key, the same reasoning active_midi_notes above already relies
+  // safe key, the same reasoning midi_input_ above already relies
   // on for MIDI note numbers). Populated on a fresh note-on press, erased
   // and used to target the right STOP_NOTE on that same key's eventual
   // Kitty-protocol release - see offerInput()'s raw note-entry code.
@@ -433,7 +434,7 @@ protected:
     GridPosition current_cursor, new_cursor, current_scroll;
     int edit_step_size = 1, new_edit_step_size = 1;
     int current_song_version = 0;
-    std::unordered_map<int, int> active_midi_notes;
+    MidiNoteInput midi_input;
     std::unordered_map<int, ActiveKeyboardNote> active_keyboard_notes;
     bool auto_started_playback = false;
     std::set<std::pair<int, int>> auto_record_cleared_rows;

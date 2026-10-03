@@ -870,6 +870,8 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
         state.duplicate_held = true;
         state.duplicate_copied = false;
         state.duplicate_source_column = state.duplicate_source_clip = -1;
+      } else if (cc_number == 79) {
+        controller.sendCommand("toggle-metronome");
       } else if (cc_number == 29 || cc_number == 20) {
         if (state.grid_mode == GridMode::DRAW) {
           state.draw_color_index.fill(0);
@@ -1681,10 +1683,8 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     if (state.capture_enabled && auto_started_playback_) controller.ensureRowCleared(auto_record_cleared_rows_, row, track_id);
 
     // Free-slot search (mirrors Arrangement::pushNote), deliberately not
-    // "map size" the way active_midi_notes assigns columns - that has a
-    // latent collision bug on non-LIFO release order, which is the common
-    // case for a chordally-played grid controller (see the plan's design
-    // decision 3). Computed unconditionally (even with Capture off,
+    // "map size": a column count collides on non-LIFO release order,
+    // which is the common case for a chordally-played grid controller. Computed unconditionally (even with Capture off,
     // nothing gets written to it) - simpler than a second code path, and
     // it's still needed to key the live-audition voice below. A column is
     // "taken" if the pattern already has a real note there *or* some
@@ -2703,6 +2703,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
     constexpr Rgb kOff{0, 0, 0};
     record_arm_button_color = mute_button_color = stop_clip_button_color = send_b_button_color = send_a_button_color = pan_button_color = kOff;
     solo_button_color = Rgb{90, 0, 127};
+    pan_button_color = cached_metronome_on_ ? Rgb{127, 100, 0} : Rgb{40, 30, 0};
     volume_button_color = state.duplicate_held ? Rgb{127, 127, 127} : Rgb{0, 100, 127};
   }
   colors.push_back({19, record_arm_button_color.r, record_arm_button_color.g, record_arm_button_color.b});
@@ -2742,6 +2743,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   // Mirrored once per frame, same as the note-capture-armed edge
   // detection below - see cached_global_octave_'s own comment.
   cached_global_octave_ = controller.getGlobalOctave();
+  cached_metronome_on_ = controller.isMetronomeOn();
   // Cached for handleSessionPadEvent() - see session_'s own comment.
   session_ = session;
 

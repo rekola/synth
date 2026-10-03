@@ -14,6 +14,7 @@
 #include "../../model/PercussionTrack.h"
 #include "../../model/Group.h"
 #include "../../playback/MidiEvent.h"
+#include "../../playback/MidiNoteInput.h"
 #include "../../playback/PlaybackControlEvent.h"
 #include "../../playback/LogEvent.h"
 #include "../KeyChord.h"
@@ -1213,80 +1214,20 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
 
 void
 PatternEditor::handleMidiEvent(MidiEvent & ev) {
-  auto & event_queue = getController().getPlaybackEventQueue();
-
-  auto & song = getController().getSong();
-  auto & info = getController().getPlaybackInfo();
-
-  auto track_ids = song.getRootTrackIds();
-
+  auto track_ids = getController().getSong().getRootTrackIds();
   int track_id = track_ids[static_cast<size_t>(new_cursor.track)];
-  // Writes into whatever's actually active at the cursor's row - see
-  // offerInput()'s own raw-key note entry for the same resolution.
-  auto edit_target = source_->edit(track_id, source_->cursor());
 
-  // Channel-wide, not tied to any specific note - unlike every other case
-  // below, ev.getNote() is unused (always 0, see AlsaAudio.cpp), so this
-  // must be handled before the active_midi_notes lookup that follows, or
-  // it would be misread as "note 0" and corrupt that per-note bookkeeping.
-  // No pattern write either: there's no single note whose velocity this
-  // could sensibly become.
-  if (ev.getType() == MidiEvent::CHANNEL_PRESSURE) {
-    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CHANNEL_PRESSURE, getController().getActiveBufferName(), track_id, ev.getVelocity()));
-    return;
-  }
-
-  bool is_off = ev.getType() == MidiEvent::NOTE_OFF || (ev.getType() == MidiEvent::NOTE_ON && ev.getVelocity() == 0);
-
-  int note_value = 0;
-  if (song.getTuning() == Tuning::TET12) note_value = ev.getNote();
-  else {
-    float best_diff = 1000000.0f, f = getFrequencyFor(Tuning::TET12, ev.getNote());
-    for (int i = 0; i < 255; i++) {
-      float diff = fabsf(f - getFrequencyFor(song.getTuning(), i));
-      if (diff < best_diff) {
-	note_value = i;
-	best_diff = diff;
-      }
-    }
-  }
-
+  MidiNoteInput::Options options;
+  options.write = true;
+  options.pressure_follows_transport = source_->cursorFollowsTransport();
   // A cursor that neither follows the transport nor a playing clip's
   // playhead isn't on the transport's row, so its sub-row position says
   // nothing about where a note belongs.
-  auto current_delay = source_->cursorFollowsTransport() || source_->cursorLocked() ? info.getCurrentDelay() : 0;
-  
-  int note_column;
-  auto it = active_midi_notes.find(ev.getNote());
-  if (it != active_midi_notes.end()) {
-    note_column = it->second;
-  } else {
-    active_midi_notes[ev.getNote()] = note_column = active_midi_notes.size();
-    cerr << "new note: " << note_column << endl;
-  }
-  
-  if (is_off) {
-    active_midi_notes.erase(ev.getNote());
-    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, getController().getActiveBufferName(), track_id, note_column));
-
-    edit_target.pattern->setNote(edit_target.effective_row, note_column, Note(0, 0, current_delay));
-  } else if (ev.getType() == MidiEvent::NOTE_ON) {
-    if (getController().isMonitoring(track_id)) {
-      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, getController().getActiveBufferName(), track_id, note_column, note_value, ev.getVelocity()));
-    }
-
-    Note note(note_value, ev.getVelocity(), current_delay);
-    edit_target.pattern->setNote(edit_target.effective_row, note_column, note);
+  options.delay = source_->cursorFollowsTransport() || source_->cursorLocked() ? getController().getPlaybackInfo().getCurrentDelay() : 0;
+  // Writes into whatever's actually active at the cursor's row - see
+  // offerInput()'s own raw-key note entry for the same resolution.
+  if (midi_input_.handle(ev, getController(), track_id, options, [this](int id) { return source_->edit(id, source_->cursor()); })) {
     row_edited = true;
-    song.incMinorVersion();
-  } else if (ev.getType() == MidiEvent::NOTE_PRESSURE) {
-    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, getController().getActiveBufferName(), track_id, note_column, note_value, ev.getVelocity()));
-
-    // Pressure lands at the transport's row, which is only the cursor's in
-    // arrangement mode.
-    if (source_->cursorFollowsTransport()) getController().applyNotePressure(info.getAbsolutePosition(), track_id, note_column, ev.getVelocity(), current_delay);
-    row_edited = true;
-    song.incMinorVersion();
   }
 }
 
@@ -1330,7 +1271,7 @@ PatternEditor::saveEditingState(const string & name) {
   state.edit_step_size = edit_step_size;
   state.new_edit_step_size = new_edit_step_size;
   state.current_song_version = current_song_version;
-  state.active_midi_notes = active_midi_notes;
+  state.midi_input = midi_input_;
   state.active_keyboard_notes = active_keyboard_notes_;
   state.auto_started_playback = auto_started_playback_;
   state.auto_record_cleared_rows = auto_record_cleared_rows_;
@@ -1358,7 +1299,7 @@ PatternEditor::loadEditingState(const string & name) {
   edit_step_size = state.edit_step_size;
   new_edit_step_size = state.new_edit_step_size;
   current_song_version = state.current_song_version;
-  active_midi_notes = state.active_midi_notes;
+  midi_input_ = state.midi_input;
   active_keyboard_notes_ = state.active_keyboard_notes;
   auto_started_playback_ = state.auto_started_playback;
   auto_record_cleared_rows_ = state.auto_record_cleared_rows;

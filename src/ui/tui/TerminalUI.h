@@ -60,12 +60,7 @@ class TerminalUI : public UI {
 
   void handlePlaybackEvent(PlaybackEvent & ev) override;
   void handleLogEvent(LogEvent & ev) override;
-  void handleRecordEvent(RecordEvent & ev) override;
-  void handleRecordingLatencyEvent(RecordingLatencyEvent & ev) override;
-  void handleThresholdRecordingTriggeredEvent(ThresholdRecordingTriggeredEvent & ev) override;
   void handleMidiEvent(MidiEvent & ev) override;
-  void handleLaunchpadPadEvent(LaunchpadPadEvent & ev) override;
-  void handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) override;
   // handleLaunchpadChannelPressureEvent() is UI's own now - a pure
   // LaunchpadManager passthrough, with no widget dependency to override
   // here.
@@ -73,6 +68,8 @@ class TerminalUI : public UI {
 
 protected:
   void startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) override;
+  int launchpadEditStepSize() const override;
+  bool executeLaunchpadCommand(std::string_view name) override { return executeCommand(name); }
   void wireLaunchpad(LaunchpadManager & launchpad_manager) override;
   void viewChanged() override;
   bool readInput();

@@ -2,6 +2,9 @@
 #include "launchpad/LaunchpadIO.h"
 #include "launchpad/LaunchpadManager.h"
 #include "ui/tui/TerminalUI.h"
+#include "ui/headless/HeadlessUI.h"
+#include "util/Daemon.h"
+#include "util/ShutdownSignal.h"
 #include "Controller.h"
 #include "util/StderrLogger.h"
 #include "audio/OfflineRenderer.h"
@@ -64,6 +67,11 @@ int main(int argc, char *argv[]) {
   string capture_device = "default"; // --capture-device: override which ALSA input AlsaAudio's capture opens, for a machine where "default" doesn't resolve to the mic actually wanted
   vector<string> input;
   string render_path;
+  bool headless = false; // --headless: no terminal UI, status lines on stderr
+  bool daemon = false; // --daemon: --headless, detached from the terminal
+  bool autoplay = false; // --autoplay: start the transport once running
+  string log_file; // --log-file: where a daemon's stderr goes
+  string pid_file; // --pid-file: where a daemon writes its pid
 
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "--samplerate") == 0) {
@@ -94,6 +102,19 @@ int main(int argc, char *argv[]) {
 	exit(1);
       }
       i++;
+    } else if (strcmp(argv[i], "--headless") == 0) {
+      headless = true;
+    } else if (strcmp(argv[i], "--daemon") == 0) {
+      headless = daemon = true;
+    } else if (strcmp(argv[i], "--autoplay") == 0) {
+      autoplay = true;
+    } else if (strcmp(argv[i], "--log-file") == 0 || strcmp(argv[i], "--pid-file") == 0) {
+      bool is_log = strcmp(argv[i], "--log-file") == 0;
+      if (i + 1 >= argc) {
+	fmt::print(stderr, "{} requires a file name\n", argv[i]);
+	exit(1);
+      }
+      (is_log ? log_file : pid_file) = argv[++i];
     } else if (strcmp(argv[i], "--stereo") == 0) {
       force_cardioid = true;
     } else if (strcmp(argv[i], "--legacy-binaural") == 0) {
@@ -149,6 +170,21 @@ int main(int argc, char *argv[]) {
     if (!controller->openSong(input.front())) exit(1);
     return renderSongToWav(*controller, channel_config, render_path) ? 0 : 1;
   }
+
+  if ((!log_file.empty() || !pid_file.empty()) && !daemon) {
+    fmt::print(stderr, "--log-file and --pid-file require --daemon\n");
+    exit(1);
+  }
+
+  if (autoplay && !headless) {
+    fmt::print(stderr, "--autoplay requires --headless\n");
+    exit(1);
+  }
+
+  // Detach before any thread or audio handle exists - fork() only carries
+  // the calling thread over. Returns in the daemon process only; the
+  // original exits once startup finishes or fails (see daemonStarted()).
+  if (daemon) daemonize(log_file, pid_file);
 
   StderrLogger logger;
 
@@ -211,6 +247,16 @@ int main(int argc, char *argv[]) {
   }
 #endif
    
+  if (headless) {
+    HeadlessUI ui;
+    ui.setAutoplay(autoplay);
+    ui.initialize(controller);
+    installShutdownSignalHandlers();
+    if (daemon) daemonStarted();
+    ui.start(audio, launchpad_io, launchpad_manager);
+    return 0;
+  }
+
   // notcurses_options nopts{};
   // nopts.flags = NCOPTION_INHIBIT_SETLOCALE;
   auto nc = make_shared<ncpp::NotCurses>();
@@ -234,6 +280,12 @@ int main(int argc, char *argv[]) {
     }
   }
   
+  // After notcurses is up, so these replace the handlers it installed:
+  // a SIGTERM/SIGHUP then ends the main loop and unwinds normally (the
+  // terminal gets restored, Launchpad LEDs get cleared) instead of
+  // notcurses's handler killing the process.
+  installShutdownSignalHandlers();
+
   TerminalUI ui(nc);
   ui.setInitialView(initial_view);
   ui.initialize(controller);

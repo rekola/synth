@@ -9,12 +9,13 @@ A microtonal multiparadigm music production system, which combines live sequence
 
 # Features
 
-- Microtonal (31-EDO)
-- Ambisonic Bus
 - Launchpad support and Live arrangement
 - Sample and note based clips
+- Microtonal (12/19/31/53-EDO)
 - Emacs-style buffers and keybindings
 - SoundFont2
+- Headless mode (for art installations or escape rooms)
+- Ambisonic Bus
 
 # Principles:
 
@@ -80,18 +81,26 @@ for the full picture, or run `synth --licenses` to print it.
 
 # Roadmap / missing functionality:
 
+The major things that are missing are the following:
+
 * A proper name
+* GUI
 * Undo/redo
+* Lighting control (DMX/ArtNet)
+* Tempo control
+* Just tuning
+
+## Minor Missing Features
+
 * DirAC heatmap marker overlay for every active spatial object, not just track positions — track azimuth/elevation markers, plus Granular Cloud grains and other shared-bus-effect taps (FDNReverb, MultiTapDelay)
 * DC Filter and Soft Clipping
 * 5.1 or 7.2 modes in addition to binaural headphone mode
 * Legato voicing mode
 * Custom drum kits without SoundFont: map individual percussion keys to arbitrary instruments instead of one whole SF2 kit preset.
 * Time signatures
-* Binary storage for recordings and cover art
+* Binary storage for samples and cover art
 * Instrument editor
 * Track effect editor
-* Nested Effect track automation captured into clips (today a clip only captures its own track's notes)
 * Allocation-free and realtime-priority renderer
 * New recordings are initially drafts and can then be either merged or promoted to a clip
 * Aftertouch filtering and aggregating

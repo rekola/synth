@@ -4,6 +4,7 @@
 #include "AudioAPI.h"
 
 #include <alsa/asoundlib.h>
+#include <chrono>
 
 class AlsaAudio : public AudioAPI {
  public:
@@ -38,6 +39,9 @@ private:
   snd_seq_t * seq_handle = 0;
   size_t output_frames = 0, input_frames = 0;
   bool recording_started = false;
+  // Last playback write error and when it was logged (play()'s own rate limit).
+  int last_play_error_ = 0;
+  std::chrono::steady_clock::time_point last_play_error_log_;
   // The name capture actually opened with, if it did - getCaptureDeviceName()'s
   // own backing store. Set once, in initialize(), regardless of success -
   // only meaningful (and only ever read) when capture_handle is non-null.

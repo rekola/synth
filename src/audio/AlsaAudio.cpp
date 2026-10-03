@@ -1,5 +1,7 @@
 #include "AlsaAudio.h"
 
+#include <chrono>
+
 #include "../util/Logger.h"
 #include "AudioBuffer.h"
 
@@ -288,7 +290,19 @@ AlsaAudio::play(const AudioBuffer & data, Logger & logger) {
     }
   }
   if (r < 0) {
-    logger.log(string("ERROR. Can't write to PCM device. ") + snd_strerror(r));
+    // A device that has gone away fails every block: log it once per
+    // distinct error (and again every few seconds), not once per block,
+    // and pace the caller so its poll loop doesn't spin on the dead fd.
+    auto now = chrono::steady_clock::now();
+    if (r != last_play_error_ || now - last_play_error_log_ > chrono::seconds(5)) {
+      logger.log(string("ERROR. Can't write to PCM device. ") + snd_strerror(r));
+      last_play_error_ = r;
+      last_play_error_log_ = now;
+    }
+    usleep(static_cast<useconds_t>(1000000.0 * static_cast<double>(data.size()) / getFrequency()));
+  } else if (last_play_error_ != 0) {
+    logger.log("PCM device is writable again.");
+    last_play_error_ = 0;
   }
 }
 

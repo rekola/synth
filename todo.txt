@@ -5,14 +5,7 @@ Add format filter: https://github.com/PaulBatchelor/GROWL
 Add univox univibe: https://www.musicdsp.org/en/latest/Effects/277-univox-univibe-emulator.html
 				
 try adding another note to the first down arpeggio in bass_test3.xml
-
-!!! in default mode LFOs and filters should use the played note
-!!! add slow global LFO to bass_test2 bass
  
-Add LFO to lowpass filter
- - If we add LFO or Envelope as a child of lowpass, it can determine that they are not instruments and use them for stuff
-   (probably not)
-
 could we add color to instruments like in Perlin? Higher resolution stuff.
  
 songtest14.xml => use side chain compressor on pad track
@@ -21,13 +14,10 @@ https://github.com/sfzinstruments
 https://github.com/tongxunlu/Steinway-D-274
 https://github.com/open-soundfonts/
 
-Jos soitinta vaihdetaan => tila tuhotaan, kukaan ei luo sitä uusiksi
-
 Create melodic drum from bass3 (in drumtest1, 0.1 * current lowpass cut)
 Add limits to BiquadFilter (what?)
 Rename cut to fc in ResonantFilter
  
-- could we remove level from oscillator? (probably not, but maybe rename?)
 - Envelope could take the velocity?
 
 Convert volume meter to decibels. Maybe.
@@ -204,9 +194,7 @@ B	15:8 = 1+7:8	B q. minor	B-D♭-E
    - Do intervals have to be binary? Could we put in just a drop of minor third?
    - or have them pulse
    - or change the quality seamlessly   
-  
-remove automatic scaling from volume meter
-
+ 
  - 5/3 = 5:4 * 4:3
  - C F A
    D G B   ??
@@ -217,8 +205,6 @@ remove automatic scaling from volume meter
    B ? ?   ??
 
 - Record egg shell cracking
-
-Use tab key to temporarily add note column for editing
       
 - SoundFont
   - add exceptions
