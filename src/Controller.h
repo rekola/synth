@@ -305,6 +305,11 @@ class Controller {
   bool isMetronomeOn() const { return metronome_on_; }
   void setMetronomeOn(bool on);
 
+  // The active song's swing (swing.h), clamped; bumps the song version so
+  // the audio thread and the info line pick it up. Every swing edit - the
+  // swing commands, Add to Song of a swung rhythm, the Launchpad - goes here.
+  void setSwing(int percent);
+
   // Session view's own per-track Record Arm - a separate concept from
   // isNoteCaptureArmed() above, not a restriction layered on top of it.
   // isNoteCaptureArmed()/armNoteCapture()/disarmNoteCapture() still govern

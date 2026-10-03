@@ -65,3 +65,27 @@ TEST(swing_round_trips_through_the_song_file_and_defaults_to_straight) {
 
   fs::remove_all(dir);
 }
+
+#include "../src/Controller.h"
+
+TEST(swing_commands_step_the_song_swing_within_its_range_and_bump_the_version) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto & song = controller.getSong();
+  CHECK(song.getSwing() == 50);
+
+  auto version = song.getMajorVersion();
+  CHECK(controller.sendCommand("swing-increase"));
+  CHECK(song.getSwing() == 51);
+  CHECK(song.getMajorVersion() != version); // the audio thread keys on this
+
+  CHECK(controller.sendCommand("swing-decrease"));
+  CHECK(controller.sendCommand("swing-decrease"));
+  CHECK(song.getSwing() == 50); // never below straight
+
+  controller.setSwing(74);
+  CHECK(controller.sendCommand("swing-increase"));
+  CHECK(controller.sendCommand("swing-increase"));
+  CHECK(song.getSwing() == 75); // nor above the maximum
+}

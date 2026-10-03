@@ -9,7 +9,6 @@
 #include "../../instruments/GmInstrumentDescriptions.h"
 #include "../../instruments/Instrument.h"
 #include "../../playback/InputEvent.h"
-#include "../../playback/LogEvent.h"
 #include "../../playback/PlaybackControlEvent.h"
 #include "../../util/constants.h"
 #include "../../util/Utf8.h"
@@ -608,9 +607,7 @@ OutlineView::addSelectedLibraryRhythmToSong() {
   // A swung rhythm brings its swing along (overwriting the song's); a
   // straight one leaves the song's swing alone.
   if (pattern->swing > swing::kStraight && song.getSwing() != pattern->swing) {
-    song.setSwing(pattern->swing);
-    song.incVersion();
-    getController().getUIEventQueue().push(std::make_unique<LogEvent>("Swing set to " + std::to_string(pattern->swing) + "%"));
+    getController().setSwing(pattern->swing);
   }
 }
 

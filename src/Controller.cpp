@@ -240,6 +240,8 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
     setMetronomeOn(!metronome_on_);
     getUIEventQueue().push(make_unique<LogEvent>(metronome_on_ ? "Metronome on" : "Metronome off"));
   });
+  commands_.define("swing-increase", [this]() { setSwing(getSong().getSwing() + 1); });
+  commands_.define("swing-decrease", [this]() { setSwing(getSong().getSwing() - 1); });
   // One Record Arm for every track type, reachable from a Launchpad
   // (CC19), a keybinding, or M-x alike.
   //
@@ -1350,6 +1352,14 @@ Controller::extendRecordingSampleClipIfNeeded() {
     placeClipInstance(*song, track_id, recording_start_row_, clip_index);
     song->incVersion();
   }
+}
+
+void
+Controller::setSwing(int percent) {
+  auto & song = getSong();
+  song.setSwing(percent);
+  song.incVersion();
+  getUIEventQueue().push(make_unique<LogEvent>("Swing " + to_string(song.getSwing()) + "%"));
 }
 
 void

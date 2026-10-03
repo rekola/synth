@@ -76,7 +76,8 @@ class InfoLine : public UIElement {
       auto key = song.getKey() >= 0 ? Note::keyToString(song.getTuning(), song.getKey()) : "?";
       auto tempo = song.getTempo();
 
-      putstr(0, right_col, fmt::format("{} {} {}", tuning_text, key, tempo));
+      auto swing_text = song.getSwing() > swing::kStraight ? fmt::format(" swing {}%", song.getSwing()) : std::string();
+      putstr(0, right_col, fmt::format("{} {} {}{}", tuning_text, key, tempo, swing_text));
 
       current_version_ = new_version;
       current_position_ = new_position;
