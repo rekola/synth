@@ -870,6 +870,8 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
         state.duplicate_held = true;
         state.duplicate_copied = false;
         state.duplicate_source_column = state.duplicate_source_clip = -1;
+      } else if (cc_number == 39 || cc_number == 30) {
+        state.delete_held = true;
       } else if (cc_number == 79) {
         controller.sendCommand("toggle-metronome");
       } else if (cc_number == 29 || cc_number == 20) {
@@ -1109,6 +1111,9 @@ LaunchpadManager::handleMixerFunctionRelease(int device_id, int cc_number, Contr
   auto & state = deviceState(device_id);
   if (cc_number == 89 && state.duplicate_held) {
     endDuplicate(device_id, controller);
+    return;
+  }  if ((cc_number == 39 || cc_number == 30) && state.delete_held) {
+    state.delete_held = false;
     return;
   }
   if (!state.mixer_hold_pending) return; // stray/duplicate release, or this press never armed one (a repress that closed something)
@@ -1923,6 +1928,16 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
   // slot is picked as the source, an empty slot in the same track column
   // is where the copy lands. The source stays picked until Volume is
   // released, so one hold can fill several slots.
+  // Delete held (shift + Mute): every press is swallowed; a populated slot
+  // loses its clip, an empty one its stop button. Instant unless the clip
+  // is sounding on a running transport (SessionPlayer::deleteClip()).
+  if (state.delete_held) {
+    if (ev.getKind() != LaunchpadPadEvent::PRESS) return;
+    auto column = ev.getX();
+    if (column < 0 || column >= static_cast<int>(session_.track_ids.size())) return;
+    controller.getSessionPlayer().deleteClip(session_.track_ids[static_cast<size_t>(column)], 7 - ev.getY());
+    return;
+  }
   if (state.duplicate_held) {
     if (ev.getKind() != LaunchpadPadEvent::PRESS) return;
     auto column = ev.getX();
@@ -2699,12 +2714,13 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // While shift is held (or a duplicate is in progress) the right-side
   // buttons show their alternate functions instead: Duplicate on Volume
   // (bright white while active), Draw on Solo, the rest dark.
-  if (state.row_up_shift_held || state.duplicate_held) {
+  if (state.row_up_shift_held || state.duplicate_held || state.delete_held) {
     constexpr Rgb kOff{0, 0, 0};
     record_arm_button_color = mute_button_color = stop_clip_button_color = send_b_button_color = send_a_button_color = pan_button_color = kOff;
     solo_button_color = Rgb{90, 0, 127};
     pan_button_color = cached_metronome_on_ ? Rgb{127, 100, 0} : Rgb{40, 30, 0};
     volume_button_color = state.duplicate_held ? Rgb{127, 127, 127} : Rgb{0, 100, 127};
+    mute_button_color = state.delete_held ? Rgb{127, 0, 0} : Rgb{60, 0, 0};
   }
   colors.push_back({19, record_arm_button_color.r, record_arm_button_color.g, record_arm_button_color.b});
   colors.push_back({29, solo_button_color.r, solo_button_color.g, solo_button_color.b});

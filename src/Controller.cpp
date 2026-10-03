@@ -1373,6 +1373,22 @@ Controller::setTempo(int bpm) {
 }
 
 void
+Controller::deleteClipSlot(int track_id, int clip_index) {
+  auto & song = getSong();
+  auto & clips = song.getClips(track_id);
+  // Clears any live preview/edit focus on the clip being deleted, so
+  // getFocusedClip() isn't left pointing at an id nothing resolves to.
+  if (clip_index >= 0 && clip_index < static_cast<int>(clips.size()) &&
+      getFocusedClipTrackId() == track_id && getFocusedClip() == clips[static_cast<size_t>(clip_index)].getId()) {
+    clearFocusedClip();
+  }
+  string name;
+  if (deleteClipOrStopButton(song, track_id, clip_index, &name) == SlotDelete::CLIP) {
+    getUIEventQueue().push(make_unique<LogEvent>("Deleted clip: " + (name.empty() ? string("(unnamed)") : name)));
+  }
+}
+
+void
 Controller::setMetronomeOn(bool on) {
   metronome_on_ = on;
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_METRONOME, "", on ? 1 : 0));

@@ -150,6 +150,25 @@ deleteClip(Song & song, int track_id, int clip_index) {
   song.incVersion();
 }
 
+SlotDelete
+deleteClipOrStopButton(Song & song, int track_id, int clip_index, string * deleted_clip_name) {
+  if (clip_index < 0) return SlotDelete::NOTHING;
+  auto & clips = song.getClips(track_id);
+  auto index = static_cast<size_t>(clip_index);
+  // Content-aware, not just in-bounds: an empty filler (a "hole") reads as
+  // "no clip here", the same as a slot off the end of the list.
+  if (index >= clips.size() || clips[index].isEmpty()) {
+    // No clip here: its stop button goes next.
+    if (index < clips.size() && !clips[index].hasStopButton()) return SlotDelete::NOTHING;
+    song.ensureClipAt(track_id, clip_index).setStopButton(false);
+    song.incVersion();
+    return SlotDelete::STOP_BUTTON;
+  }
+  if (deleted_clip_name) *deleted_clip_name = clips[index].getName();
+  deleteClip(song, track_id, clip_index);
+  return SlotDelete::CLIP;
+}
+
 int
 duplicateClip(Song & song, int track_id, int from_index, int to_index) {
   auto & clips = song.getClips(track_id);

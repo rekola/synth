@@ -313,6 +313,12 @@ class Controller {
   // a block while playing. Same single-path rule as setSwing().
   void setTempo(int bpm);
 
+  // Deletes what a Session slot holds, one layer per call (its clip, then
+  // its stop button), clearing the live edit focus if that clip had it.
+  // Instant: SessionPlayer::deleteClip() is what waits for the bar while a
+  // clip is sounding. Shared by the clip grid and the Launchpad.
+  void deleteClipSlot(int track_id, int clip_index);
+
   // Session view's own per-track Record Arm - a separate concept from
   // isNoteCaptureArmed() above, not a restriction layered on top of it.
   // isNoteCaptureArmed()/armNoteCapture()/disarmNoteCapture() still govern

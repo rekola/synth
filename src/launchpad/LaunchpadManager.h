@@ -340,8 +340,8 @@ class LaunchpadManager {
 
   // Shift (CC91 held) turns the right-side buttons into their labelled
   // alternate functions (handleRawButton()): Volume (CC89) is Duplicate,
-  // Solo (CC29, Pro MK3 CC20) is Draw, and any other right-side button
-  // does nothing while shift is held. Duplicate lasts as long as Volume
+  // Mute (CC39, Pro MK3 CC30) is Delete, Solo (CC29, Pro MK3 CC20) is Draw,
+  // and any other right-side button does nothing while shift is held. Duplicate lasts as long as Volume
   // stays held: a Session pad with a clip picks that clip as the source and
   // a press on an empty slot of the same track column copies it there
   // (handleSessionPadEvent()); releasing Volume with a source picked but no
@@ -929,6 +929,9 @@ class LaunchpadManager {
     bool duplicate_held = false;
     bool duplicate_copied = false;
     int duplicate_source_column = -1, duplicate_source_clip = -1;
+    // Delete (shift + Mute): held while Mute is - a Session pad press
+    // deletes what its slot holds (SessionPlayer::deleteClip()).
+    bool delete_held = false;
 
     // LED diff cache: refreshLeds() only calls sendLeds() when the newly
     // computed colors differ from what was last actually sent, so
