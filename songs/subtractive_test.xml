@@ -14,11 +14,7 @@
     </resonantFilter>
 
     <distortion name="bass1" param="0.9" drive="1.5" type="hardclip">
-      <envelope attack="0.02" hold="0.519" decay="1.35" sustain="0.0" release="0.015" >
-	<oscillator type="sine" level="2.0">
-	  <oscillator type="sine" harmonic="2" subharmonic="3"/>
-	</oscillator>
-      </envelope>
+      <instrument from="piano.electric.fm" />
     </distortion>
 
     <distortion name="bass2" param="1.0" type="softclip" drive="15.0">
@@ -42,18 +38,6 @@
 
     <instrument from="string.bowed.cello" />
     
-    <instrument from="string.bowed.cello">
-      <oscillator type="sine" harmonic="2" subharmonic="3"/>
-    </instrument>
-
-    <oscillator name="oscilator/cello" type="sine">
-      <instrument from="string.bowed.cello" harmonic="2" subharmonic="3"/>
-    </oscillator>
-
-    <instrument from="string.bowed.cello">
-      <instrument from="guitar.acoustic.nylon" harmonic="2" subharmonic="3" />
-    </instrument>
-
     <group name="group test">
       <instrument from="guitar.acoustic.nylon" />
       <instrument from="piano.acoustic.grand" />

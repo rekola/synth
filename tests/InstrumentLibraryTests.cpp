@@ -5,11 +5,13 @@
 #include "../src/instruments/InstrumentLibrary.h"
 #include "../src/effects/EnvelopeFilter.h"
 #include "../src/effects/TapeDegradation.h"
+#include "../src/instruments/GmInstrumentTable.h"
 #include "../src/model/Song.h"
 #include "../src/audio/OfflineRenderer.h"
 #include "../src/ambisonic/ChannelConfiguration.h"
 
 #include <cmath>
+#include <cctype>
 #include <string>
 
 #ifndef TESTS_FIXTURES_DIR
@@ -112,21 +114,6 @@ TEST(additive_piano_does_not_override_an_existing_soundfont_piano) {
   CHECK(dynamic_cast<EnvelopeFilter *>(resolved.get()) == nullptr); // still the real SF2 piano
 }
 
-TEST(additive_piano_always_available_at_its_own_path_for_comparison) {
-  std::string path = std::string(TESTS_SCRATCH_DIR) + "/instrument_library_piano2.sf2";
-  sf2fixture::writeMinimalSf2(path, { {"Grand Piano", 0, {}, {}} });
-
-  InstrumentProvider provider;
-  provider.loadSoundFont(path);
-  registerLibraryInstruments(provider);
-
-  // piano.acoustic.grand keeps the real SF2 piano (previous test), but
-  // piano.additive is always the additive one, forceable for comparison.
-  auto resolved = provider.resolvePath("piano.additive");
-  CHECK(resolved != nullptr);
-  CHECK(dynamic_cast<EnvelopeFilter *>(resolved.get()) != nullptr);
-}
-
 TEST(additive_piano_render_is_non_silent_and_finite) {
   InstrumentProvider provider;
   registerLibraryInstruments(provider);
@@ -158,4 +145,71 @@ TEST(mellotron_render_is_non_silent_and_finite) {
   CHECK(result.numberOfFrames() > 0);
   CHECK(!hasNonFiniteSample(result));
   CHECK(rms(result, 0) > 1e-5f);
+}
+
+// Paths ----------------------------------------------------------------
+
+namespace {
+
+bool isKebabPath(const string & path) {
+  if (path.empty() || path.front() == '.' || path.back() == '.') return false;
+  for (size_t i = 0; i < path.size(); i++) {
+    char c = path[i];
+    bool ok = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' || c == '-';
+    if (!ok) return false;
+    if ((c == '-' || c == '.') && i + 1 < path.size() && (path[i + 1] == '-' || path[i + 1] == '.')) return false;
+  }
+  return true;
+}
+
+}
+
+TEST(every_gm_and_library_path_is_kebab_case) {
+  for (auto & entry : kGmBank0Table) CHECK(isKebabPath(entry.path));
+  for (auto & entry : kGmBank128Table) CHECK(isKebabPath(entry.path));
+  for (auto & entry : kGmPathDefaults) {
+    CHECK(isKebabPath(entry.request));
+    CHECK(isKebabPath(entry.target));
+  }
+
+  InstrumentProvider provider;
+  registerLibraryInstruments(provider);
+  for (auto & entry : provider.getTaxonomyPaths()) CHECK(isKebabPath(entry.first));
+}
+
+// Electric Piano 2 / Sweep --------------------------------------------
+
+TEST(electric_fm_piano_render_is_non_silent_and_finite) {
+  InstrumentProvider provider;
+  registerLibraryInstruments(provider);
+  OfflineRenderResult result;
+  CHECK(renderLibraryFixture("preset_electric_fm.xml", provider, result));
+  CHECK(rms(result, 0) > 1e-4f);
+  CHECK(!hasNonFiniteSample(result));
+}
+
+TEST(pad_sweep_gets_brighter_over_the_note) {
+  InstrumentProvider provider;
+  registerLibraryInstruments(provider);
+  OfflineRenderResult result;
+  CHECK(renderLibraryFixture("preset_pad_sweep.xml", provider, result));
+  CHECK(!hasNonFiniteSample(result));
+
+  auto brightness = [&](float start_s, float end_s) {
+    size_t stride = static_cast<size_t>(result.channels);
+    size_t a = static_cast<size_t>(start_s * static_cast<float>(result.sampleRate));
+    size_t b = std::min(static_cast<size_t>(end_s * static_cast<float>(result.sampleRate)), result.numberOfFrames());
+    double level = 0.0, step = 0.0;
+    for (size_t i = a + 1; i < b; i++) {
+      level += std::fabs(result.interleaved[i * stride]);
+      step += std::fabs(result.interleaved[i * stride] - result.interleaved[(i - 1) * stride]);
+    }
+    return level > 0.0 ? step / level : 0.0;
+  };
+  // Dark at the start, then opens over the attack and stays open.
+  double start = brightness(0.0f, 0.1f);
+  double open = brightness(2.0f, 2.5f);
+  CHECK(open > start * 1.5);
+  CHECK(brightness(4.0f, 4.5f) > start * 1.5);
+  CHECK(brightness(4.0f, 4.5f) > open * 0.8);
 }

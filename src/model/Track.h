@@ -23,7 +23,7 @@ class Track : public StatefulSongObject {
 
   // The voice-chain counterpart to createState() above - reached only by
   // playNote()'s own default body below, never by createStateTree(). Every
-  // leaf instrument (Oscillator/Noise/LFO/SoundFontInstrument/
+  // leaf instrument (Oscillator/Noise/SoundFontInstrument/
   // NoteMultiplier/GenericInstrument) overrides
   // playNote() itself directly and never reaches this; only Group and the
   // Effect family are genuinely usable both as a persistent track (via
@@ -55,7 +55,7 @@ class Track : public StatefulSongObject {
   // real leaf instrument only needs to override this when it actually has
   // a nonzero default (SoundFontInstrument; GenericInstrument forwards to
   // whatever it resolves to). A true leaf with no children (Oscillator,
-  // Noise, LFO) falls through to 0 - a point source, unless the artist
+  // Noise) falls through to 0 - a point source, unless the artist
   // sets an explicit extent on the track.
   virtual float getDefaultExtent() const {
     return getChildren().empty() ? 0.0f : getChildren()[0]->getDefaultExtent();

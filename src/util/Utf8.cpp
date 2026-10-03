@@ -53,6 +53,32 @@ truncateToWidth(const std::string & text, int max_columns) {
 }
 
 std::string
+dropLeadingColumns(const std::string & text, int columns) {
+  if (columns <= 0) return text;
+
+  const uint8_t * start = asBytes(text);
+  const uint8_t * end = start + text.size();
+  const char * encoding = locale_charset();
+
+  int accumulated = 0;
+  const uint8_t * cluster_start = start;
+  while (cluster_start < end && accumulated < columns) {
+    const uint8_t * cluster_end = u8_grapheme_next(cluster_start, end);
+    if (!cluster_end || cluster_end <= cluster_start) cluster_end = cluster_start + 1;  // defensive: never spin on malformed input
+
+    int w = u8_width(cluster_start, static_cast<size_t>(cluster_end - cluster_start), encoding);
+    if (w < 0) w = 0;
+
+    accumulated += w;
+    cluster_start = cluster_end;
+  }
+
+  std::string result(static_cast<size_t>(accumulated > columns ? accumulated - columns : 0), ' ');
+  result.append(text, static_cast<size_t>(cluster_start - start), std::string::npos);
+  return result;
+}
+
+std::string
 padToWidth(const std::string & text, int width) {
   int current = displayWidth(text);
   if (current >= width) return text;

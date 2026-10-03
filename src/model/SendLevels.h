@@ -27,16 +27,6 @@
 // to the regular channels by main independently (it adds to those
 // channels *after* encodePosition() already ran, so it would otherwise
 // escape it).
-//
-// A default-constructed SendLevels{} (main=1.0, a=b=0.0) is also the
-// correct value to pass down to a modulator's own recursive playNote() call
-// (see Oscillator.cpp, GenericInstrument.h, SoundFont.cpp) - a modulator's
-// own rendered AudioBuffer is never itself spatially mixed into the audible
-// output (only its raw phase content is read back out), so it must always
-// render at its own full, un-attenuated level regardless of what the
-// carrier voice's own sends are set to - inheriting the carrier's actual
-// send_main there would incorrectly alter FM modulation depth whenever a
-// user turns Send Main down for that track.
 struct SendLevels {
   float main = 1.0f;
   float a = 0.0f;

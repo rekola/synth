@@ -9,8 +9,10 @@ class Track;
 
 // Registers synth's own hand-built library instruments on top of whatever
 // loadSoundFont() already registered: the GM synth-pad overrides
-// (programs 89-96, each <envelope>+<padsynth>), the additive-piano piano
-// fallback/comparison instrument, and the tape+padsynth mellotron. Called
+// (programs 89-96, each <envelope>+<padsynth>), the electric-piano FM
+// override, the additive-piano fallback for piano.acoustic.grand, and the
+// tape+padsynth mellotron. Every entry needs a reason to exist: it is a
+// General MIDI program, or it is a real physical instrument. Called
 // once at startup, after every loadSoundFont() call (Controller.cpp) - the
 // GM pad overrides rely on this ordering (registerPath()'s last-write-wins
 // rule) to take priority over the SF2 pads they replace, and the additive

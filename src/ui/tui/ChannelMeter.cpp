@@ -34,8 +34,12 @@ ChannelMeter::setLevels(const std::vector<float> & rms, const std::string & labe
         return level_meter::BarColumn{level_meter::barSteps(channel.fraction, bar_rows), level_meter::barSteps(channel.peak_fraction, bar_rows)};
       };
       auto bar = level_meter::verticalBar(level_meter::Glyphs::BRAILLE, bar_rows, column(left), column(right));
-      setFgColor(left.clipping || right.clipping ? styles.meter_clip_color : styles.meter_active_color);
-      for (int i = 0; i < bar_rows; i++) putstr(i, c, bar[static_cast<size_t>(i)]);
+      bool clipping = left.clipping || right.clipping;
+      for (int i = 0; i < bar_rows; i++) {
+        // Shaded by the height of this cell; i = 0 is the top one.
+        setFgColor(clipping ? styles.meter_clip_color : styles.meterColor((static_cast<float>(bar_rows - i) - 0.5f) / static_cast<float>(bar_rows)));
+        putstr(i, c, bar[static_cast<size_t>(i)]);
+      }
     }
   }
   if (!label.empty()) {

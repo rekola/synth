@@ -27,6 +27,16 @@ TEST(utf8_truncate_ascii_matches_plain_byte_truncation) {
   CHECK(Utf8::truncateToWidth("", 5) == "");
 }
 
+TEST(utf8_drop_leading_columns) {
+  CHECK(Utf8::dropLeadingColumns("hello world", 6) == "world");
+  CHECK(Utf8::dropLeadingColumns("hello", 0) == "hello");
+  CHECK(Utf8::dropLeadingColumns("hello", 100) == "");
+  CHECK(Utf8::dropLeadingColumns("\u00e9t\u00e9", 1) == "t\u00e9"); // a 2-byte character counts as one column
+  // A double-width character cut in half leaves a space in its place.
+  CHECK(Utf8::dropLeadingColumns("\u4e2dx", 1) == " x");
+  CHECK(Utf8::dropLeadingColumns("\u4e2dx", 2) == "x");
+}
+
 TEST(utf8_pad_ascii_matches_plain_byte_padding) {
   CHECK(Utf8::padToWidth("hi", 5) == "hi   ");
   CHECK(Utf8::padToWidth("hello", 5) == "hello");

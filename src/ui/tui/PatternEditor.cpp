@@ -719,6 +719,13 @@ PatternEditor::setSessionPlayheads(std::unordered_map<int, ScenePatternSource::P
   if (!changed) return;
   session_playheads_ = playheads;
   scene_source_->setPlayheads(std::move(playheads));
+  // The cursor track's position wrapping with its loop moves the view with
+  // it, so the line carries on down the screen instead of jumping.
+  if (auto jump = scene_source_->takeCursorJump(); jump != 0 && !view_detached_) {
+    auto top = source_->advance({ view_block_, current_scroll_.row }, jump);
+    view_block_ = top.block;
+    current_scroll_.row = top.row;
+  }
   if (isSessionMode()) force_full_redraw_ = true;
 }
 
@@ -1118,6 +1125,10 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   // inputs, so a single comparison against last frame's bounds stands in
   // for what used to be a hand-rolled diff of each of those pieces
   // separately (see SelectionBounds::operator==).
+  // A pass fading in or out keeps redrawing, once more after it ends.
+  bool fading = isSessionMode() && scene_source_->isFading();
+  if (fading || fading_drawn_) force_full_redraw_ = true;
+  fading_drawn_ = fading;
   if (score_pattern != current_score_pattern ||
       song.getMajorVersion() != current_song_version ||
       score_total_columns != current_score_total_columns ||
@@ -1339,9 +1350,109 @@ PatternEditor::handleBufferChanged() {
 }
 
 bool
+PatternEditor::handleMouse(const InputEvent & input) {
+  if (input.getKind() == InputEvent::Kind::RELEASE) {
+    mouse_down_ = false;
+    return true;
+  }
+  auto & song = getController().getSong();
+  auto track_ids = song.getRootTrackIds();
+  auto [ pos_y, pos_x ] = getPosition();
+  auto [ rows, cols ] = getDim();
+  auto y = input.getY() - pos_y, x = input.getX() - pos_x;
+  if (y < 0 || y >= rows || x < 0 || x >= cols) return false;
+  if (track_ids.empty()) return true;
+
+  // A held button repeating its press as the mouse moves is a drag.
+  bool fresh_press = !mouse_down_;
+  mouse_down_ = true;
+
+  // The heading has no spans of its own: it picks a track by the columns
+  // the first row shows.
+  auto heading_height = song.getMasterTrack().getDepth() + 1;
+  bool in_heading = y < heading_height;
+  auto row_index = static_cast<size_t>(in_heading ? 0 : y - heading_height);
+  if (row_index >= row_spans_.size()) return true;
+  auto & spans = row_spans_[row_index];
+
+  // What the pointer is over: the last column starting at or left of it.
+  const ColumnSpan * hit = nullptr;
+  for (auto & span : spans.columns) {
+    if (span.x <= x) hit = &span;
+  }
+  bool on_locator = !in_heading && spans.locator_x >= 0 && x >= spans.locator_x;
+  if (!hit && !on_locator && in_heading) return true;
+
+  GridPosition target = new_cursor;
+  if (on_locator) {
+    target.scope = SelectionScope::LOCATOR;
+  } else if (hit) {
+    target.scope = SelectionScope::NOTE_COLUMN;
+    target.track = hit->track;
+    target.col = in_heading ? 0 : hit->col;
+    target.subcol = 0;
+    auto all_track_info = getTrackInformation(song, current_scroll_.row);
+    auto it = all_track_info.find(track_ids[static_cast<size_t>(hit->track)]);
+    if (it != all_track_info.end() && !in_heading && !it->second.collapsed_) {
+      // A hex-digit column's cell under the pointer is what a nibble edit touches.
+      auto width = 0;
+      switch (it->second.getColumnType(hit->col)) {
+      case ColumnType::EFFECT: width = 4; break;
+      case ColumnType::VELOCITY: case ColumnType::DELAY: width = 2; break;
+      default: break;
+      }
+      if (width > 0) target.subcol = std::clamp(x - hit->content_x, 0, width - 1);
+    } else if (it != all_track_info.end() && it->second.collapsed_) {
+      target.col = 0;
+    }
+  }
+  // Left of every column (the row-number gutter): only the row is picked.
+
+  bool moved_track = target.track != new_cursor.track;
+  if (fresh_press) setSelectionActive(false);
+  auto previous = new_cursor;
+  new_cursor = target;
+  if (moved_track) syncCursorTrack(song); // the new track's own position is where the cursor row goes
+
+  // The row under the pointer, as a move from the cursor's own line.
+  // Playback owns it where the cursor is the transport's position.
+  if (!in_heading) {
+    auto & info = getController().getPlaybackInfo();
+    bool transport_owns_row = info.isPlaying() && source_->cursorFollowsTransport();
+    if (transport_owns_row) {
+      // nothing to move
+    } else if (source_->cursorLocked()) {
+      if (fresh_press) reportLockedCursor();
+    } else {
+      auto line = source_->rowsBetween({ view_block_, current_scroll_.row }, source_->cursor());
+      auto delta = (y - heading_height) - line;
+      if (delta != 0) source_->moveCursor(delta);
+    }
+  }
+
+  auto point = source_->cursor();
+  GridPosition here = new_cursor;
+  if (fresh_press) {
+    mouse_anchor_ = { point.block, point.row, here.track, here.col, here.scope };
+  } else if (!selection_active_ && (here != previous || point.row != mouse_last_row_)) {
+    // The first movement of a drag: the press cell becomes the mark.
+    selection_start_pattern_ = mouse_anchor_.block;
+    selection_start_row_ = mouse_anchor_.row;
+    selection_start_track_ = mouse_anchor_.track;
+    selection_start_col_ = mouse_anchor_.col;
+    selection_start_scope_ = mouse_anchor_.scope;
+    setSelectionActive(true);
+  }
+  mouse_last_row_ = point.row;
+  return true;
+}
+
+bool
 PatternEditor::offerInput(const InputEvent & input) {
   // While the locator or track-name editor is open it owns every key.
   if (inline_editor_.offerInput(input)) return true;
+
+  if (input.getId() == NCKEY_BUTTON1) return handleMouse(input);
 
   // Cursor parked on the locator slot (Right arrow past the last
   // track's last column - see GridPosition::scope's own comment) but not
@@ -2385,6 +2496,10 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
   }
 }
 
+// How far a row fades toward black when it's outside its block (a clip, in
+// Session view) or repeats a pattern shorter than the block.
+static constexpr float kFadedRowDim = 0.5f;
+
 void
 PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & all_track_info, int display_row, bool highlight, const SelectionBounds & sel_bounds, bool focused) {
   auto [rows, cols] = getDim();
@@ -2400,6 +2515,12 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   bool is_neighboring_pattern = point.block != pattern_idx || pattern_row < 0;
   auto grid = source_->readGrid(address);
 
+  // Where this row's columns land, for mouse clicks (handleMouse()).
+  auto row_index = static_cast<size_t>(std::max(display_row, 0));
+  if (row_spans_.size() <= row_index) row_spans_.resize(row_index + 1);
+  auto & spans = row_spans_[row_index];
+  spans = RowSpans();
+
   display_row += heading_height;
 
   string padding(static_cast<size_t>(cols), ' ');
@@ -2413,21 +2534,25 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // A row's ambient base colors (bar/beat accent, else plain), dimmed
   // outside its block. The playhead's own row highlight is deliberately
   // not part of this - see tintForPlayhead() below.
-  auto baseColors = [&](int row, bool neighboring, Color & base_fg, Color & base_bg) {
+  // `dim`: how much of kFadedRowDim applies. A dimmed row loses its bar/beat
+  // accent in proportion.
+  auto baseColors = [&](int row, float dim, Color & base_fg, Color & base_bg) {
+    base_fg = styles.window_fg_color;
+    base_bg = styles.window_bg_color;
+    Color accent_fg = base_fg, accent_bg = base_bg;
     if (row >= 0 && row_rows_per_bar > 0 && row % row_rows_per_bar == 0) {
-      base_fg = styles.window_bar_accent_fg_color;
-      base_bg = styles.window_bar_accent_bg_color;
+      accent_fg = styles.window_bar_accent_fg_color;
+      accent_bg = styles.window_bar_accent_bg_color;
     } else if (row >= 0 && row % 4 == 0) {
-      base_fg = styles.window_accent_fg_color;
-      base_bg = styles.window_accent_bg_color;
-    } else {
-      base_fg = styles.window_fg_color;
-      base_bg = styles.window_bg_color;
+      accent_fg = styles.window_beat_accent_fg_color;
+      accent_bg = styles.window_beat_accent_bg_color;
     }
-    if (neighboring) {
+    base_fg = accent_fg.blend(dim, base_fg);
+    base_bg = accent_bg.blend(dim, base_bg);
+    if (dim > 0.0f) {
       Color black;
-      base_bg = base_bg.blend(0.75f, black);
-      base_fg = base_fg.blend(0.75f, black);
+      base_bg = base_bg.blend(kFadedRowDim * dim, black);
+      base_fg = base_fg.blend(kFadedRowDim * dim, black);
     }
   };
   // The editor row's own - the row numbers', and each track's where every
@@ -2435,12 +2560,12 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // is accented by its own row instead, and the dividers between columns,
   // belonging to neither, stay plain.
   Color row_base_fg, row_base_bg;
-  baseColors(pattern_row, is_neighboring_pattern, row_base_fg, row_base_bg);
+  baseColors(pattern_row, is_neighboring_pattern ? 1.0f : 0.0f, row_base_fg, row_base_bg);
   bool per_track_rows = !track_ids.empty() && source_->trackBlock(track_ids.front()).has_value();
   Color divider_base_bg = row_base_bg;
   if (per_track_rows) {
     Color unused;
-    baseColors(-1, false, unused, divider_base_bg);
+    baseColors(-1, 0.0f, unused, divider_base_bg);
   }
 
   // The playhead's own row highlight - a translucent overlay on
@@ -2457,8 +2582,11 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // where each track has a line of its own (session mode) - only that
   // track's own position row (track_marked, set per track below).
   std::optional<bool> track_marked;
+  // How dimmed the column being drawn is (0 to 1); a dimmed area carries no
+  // row highlight.
+  float track_dim = 0.0f;
   auto tintForPlayhead = [&](Color base) -> Color {
-    return track_marked.value_or(highlight) ? styles.cursorRowTint(base) : base;
+    return track_dim <= 0.0f && track_marked.value_or(highlight) ? styles.cursorRowTint(base) : base;
   };
   // The divider between two tracks belongs to neither, so it takes only
   // the row's own tint, never one track's playhead - none in session
@@ -2642,13 +2770,14 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     Color track_base_fg = row_base_fg, track_base_bg = row_base_bg;
     // Whether this column's own row is outside its current block - the
     // editor row's where every track shares one position, else its own.
-    bool track_neighboring = is_neighboring_pattern;
+    track_dim = is_neighboring_pattern ? 1.0f : 0.0f;
     if (per_track_rows && i >= 0) {
       auto track_id = track_ids[static_cast<size_t>(i)];
       auto own = source_->trackAddress(track_id, address);
       auto own_row = own.block < 0 ? -1 : own.row;
-      track_neighboring = own_row < 0 || own.block != source_->trackBlock(track_id);
-      baseColors(own_row, track_neighboring, track_base_fg, track_base_bg);
+      bool outside = own_row < 0 || own.block != source_->trackBlock(track_id);
+      track_dim = outside ? 1.0f : source_->loopPassDim(track_id, address);
+      baseColors(own_row, track_dim, track_base_fg, track_base_bg);
     }
     Color fg = track_base_fg, bg = track_base_bg, cell_fg, cell_bg;
 
@@ -2755,8 +2884,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       bool is_repeat_row = pattern_length > 0 && read_target.unwrapped_row >= pattern_length && !highlight;
       if (is_repeat_row) {
 	Color black;
-	bg = bg.blend(0.6f, black);
-	fg = fg.blend(0.6f, black);
+	bg = bg.blend(kFadedRowDim, black);
+	fg = fg.blend(kFadedRowDim, black);
       }
       // Background only, per this class's own "the notes are from an
       // instance" cue - VisibleTrackInfo::getColor() is the same identity
@@ -2776,8 +2905,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       // dimmed row reads consistently across every column type.
       auto dim_fixed_color = [&](Color c) -> Color {
 	Color black;
-	if (track_neighboring) c = c.blend(0.75f, black);
-	if (is_repeat_row) c = c.blend(0.6f, black);
+	if (track_dim > 0.0f) c = c.blend(kFadedRowDim * track_dim, black);
+	if (is_repeat_row) c = c.blend(kFadedRowDim, black);
 	return c;
       };
       auto & notes = read_target.pattern->getNotes(read_target.effective_row);
@@ -2796,6 +2925,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       // render()'s own comment); every other track always starts at its
       // own column 0.
       auto first_col = i == current_scroll_.track ? current_scroll_.col : 0;
+      auto track_start_x = current_pos;
       if (first_col == 0 && !track_info.collapsed_ && track_info.row_number_width_ > 0) {
         // The track's own row number, blank where it has no row (before
         // its first clip).
@@ -2812,6 +2942,9 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	if (k != first_col) {
 	  putstr(display_row, current_pos++, " ");
 	}
+	// The first column also claims the row number (and, for the last, the
+	// identifier cell and divider after it fall to it as well).
+	spans.columns.push_back({ k == first_col ? track_start_x : current_pos, current_pos, i, k });
 	// Only drives the active-character underline for numeric columns
 	// further down now (which numbers columns are highlighted right at
 	// the cursor's own row, unlike column_selected below) - a single-row,
@@ -3242,6 +3375,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   }
 
   if (current_pos < cols && source_->hasLocators()) {
+    spans.locator_x = current_pos;
     static const std::string no_locator;
     auto locator_row = source_->locatorRow({ pattern_idx, pattern_row });
     auto & locator = locator_row ? getController().getSong().getLocator(*locator_row) : no_locator;

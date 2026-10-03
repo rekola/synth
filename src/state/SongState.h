@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cmath>
 #include <memory>
+#include <map>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -131,10 +132,12 @@ class SongState : public TrackState {
 	  if (!allow_pattern_break) continue;
 	  pending_break_ = true;
 	  pending_break_locator_ = command.getBreakLocatorNumber();
+	} else if (command.isRetrigger()) {
+	  scheduleRetrigger(track_id, frame_offset, command.getRetriggerIntervalTicks(), command.getRetriggerVolumeCode());
 	} else if (command.isAzimuthSlide()) {
 	  scheduleAzimuthSlide(track_id, frame_offset, command.getAzimuthSlidePerTick());
-	} else if (command.isVolumeSet() || command.isSendASet() || command.isSendBSet() || command.isAzimuthSet()) {
-	  // 0Lxx/0Fxx/0Mxx/0Pxx - an absolute set, applied the instant
+	} else if (command.isVolumeSet() || command.isAzimuthSet()) {
+	  // 0Lxx/0Pxx - an absolute set, applied the instant
 	  // this row starts (unlike the slide commands above, there's
 	  // no per-tick ramp to schedule - see Command::
 	  // getSendSetLinear()/getAzimuthSetDegrees()'s own comments on
@@ -147,8 +150,6 @@ class SongState : public TrackState {
 	  auto * leaf_state = dynamic_cast<LeafTrackState *>(getChildByInternalId(track_id));
 	  if (leaf_state) {
 	    if (command.isVolumeSet()) leaf_state->setSendMain(command.getSendSetLinear());
-	    else if (command.isSendASet()) leaf_state->setSendA(command.getSendSetLinear());
-	    else if (command.isSendBSet()) leaf_state->setSendB(command.getSendSetLinear());
 	    else leaf_state->setAzimuth(command.getAzimuthSetDegrees());
 	  }
 	} else if (command.isVolumeGlide() || command.isSendAGlide() || command.isSendBGlide()) {
@@ -450,6 +451,7 @@ class SongState : public TrackState {
 	      if (previous_clip_index >= 0 && previous_clip_index != active.clip_index) {
 		if (is_sample_track) render_context_.addPendingSampleStop(track_id, i, false);
 		else render_context_.addPendingStopAll(track_id, i);
+		last_notes_.erase(track_id);
 	      }
 	      last_active_clip_index_by_track_[track_id] = active.clip_index;
 	    }
@@ -536,6 +538,8 @@ class SongState : public TrackState {
 		auto delay_samples = int(note.getDelayAsFloat() * getChannelConfiguration().getSampleInterval(tempo_));
 		int note_value = (note.isAftertouch() || note.isOff()) ? -1 : note.getValue();
 		render_context_.addPendingEvent(track_id, i + delay_samples, int(j), tuning, velocity, note_value, NoteCoordinate(song_structure_.getOrdinalFor(track_id), row_idx, int(j)));
+		if (note.isOff()) last_notes_[track_id].erase(int(j));
+		else if (note_value >= 0 && velocity > 0.0f) last_notes_[track_id][int(j)] = LastNote { int(j), tuning, velocity, note_value, row_idx };
 	      }
 	    }
 
@@ -782,6 +786,28 @@ class SongState : public TrackState {
     else setPosition(row);
   }
 
+  // 0Rxy (Command::isRetrigger()) - re-fires every note still playing on
+  // the track every `interval_ticks` ticks across the row starting at
+  // block-relative sample offset `row_start`, velocity per `volume_code`.
+  // Same-id events retrigger the voice in place.
+  void scheduleRetrigger(int track_id, int row_start, int interval_ticks, int volume_code) {
+    auto it = last_notes_.find(track_id);
+    if (it == last_notes_.end() || interval_ticks <= 0) return;
+    int row_samples = getChannelConfiguration().getSampleInterval(tempo_);
+    int tick_interval = std::max(1, row_samples / constants::TICKS_PER_ROW);
+    for (auto & [ column, last ] : it->second) {
+      float velocity = last.velocity;
+      for (int tick = interval_ticks; tick < constants::TICKS_PER_ROW; tick += interval_ticks) {
+        int offset = tick * tick_interval;
+        if (offset >= row_samples) break;
+        velocity = Command::retriggerVelocityStep(last.velocity, velocity, volume_code);
+        if (velocity <= 0.0f) break;
+        render_context_.addPendingEvent(track_id, row_start + offset, static_cast<short>(column), last.tuning, velocity, last.note_value,
+                                        NoteCoordinate(song_structure_.getOrdinalFor(track_id), last.row, last.column));
+      }
+    }
+  }
+
   // YLxx/YRxx (Command::isAzimuthSlide()) - spreads constants::TICKS_PER_ROW
   // evenly-spaced nudges of `delta_per_tick` degrees across the row
   // currently starting at block-relative sample offset `row_start` (the
@@ -875,6 +901,9 @@ private:
   int sample_pos_ = 0, absolute_pos_ = 0;
   int position_edit_seq_ = 0;
   int position_edit_seq_at_stop_ = -1; // see notePlaybackStopped()/resyncPlayheadAfterStop()
+  // The notes still playing per track (last note-on per column), what 0Rxy retriggers.
+  struct LastNote { int column; Tuning tuning; float velocity; int note_value; int row; };
+  std::unordered_map<int, std::map<int, LastNote>> last_notes_; // track -> note column
   bool pending_break_ = false; // ZBxx seen on the row currently completing
   int pending_break_locator_ = 0;
   RenderContext render_context_;
@@ -968,6 +997,7 @@ private:
     }
     last_active_clip_index_by_track_.erase(track_id);
     last_background_by_track_.erase(track_id);
+    last_notes_.erase(track_id);
   }
 
   int song_structure_version_ = -1; // never equals a real song.getMajorVersion() until initialize()/renderBlock() runs

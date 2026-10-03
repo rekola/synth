@@ -15,10 +15,13 @@ add_executable(synth_tests
 	# folding into synth_engine.
 	../src/ui/tui/SubcellGlyphs.cpp
 	SubcellGlyphsTests.cpp
+	MarkdownTests.cpp
+	MetronomeTests.cpp
 	AudioBufferTests.cpp
 	ChannelConfigurationTests.cpp
 	TunerTests.cpp
 	RenderTests.cpp
+	FMTests.cpp
 	ControllerTests.cpp
 	PatternBlockOpsTests.cpp
 	PatternSourceTests.cpp

@@ -1,6 +1,7 @@
 #ifndef _TERMINALUI_H_
 #define _TERMINALUI_H_
 
+#include "InfoDialog.h"
 #include "../UI.h"
 #include "../StyleProvider.h"
 #include "../../playback/InputEvent.h"
@@ -16,7 +17,7 @@ namespace ncpp {
 };
 
 class UIMenu;
-class Chart;
+class SpectrumMeter;
 class HeatmapChart;
 class ChannelMeter;
 class InfoLine;
@@ -41,6 +42,7 @@ class TerminalUI : public UI {
   bool offerInput(const InputEvent & input) override;
 
   void setStatus(std::string s) override;
+  void showInfoDialog(const std::string & title, const std::string & markdown) override;
 
   // Checks the active element's registry before UI's own (mirrors Emacs
   // consulting the local keymap before the global one) - this is how
@@ -108,7 +110,7 @@ private:
   std::shared_ptr<ncpp::NotCurses> nc;
 
   std::shared_ptr<UIMenu> menu_;
-  std::shared_ptr<Chart> chart_;
+  std::shared_ptr<SpectrumMeter> chart_;
   std::shared_ptr<ChannelMeter> volume_meter_;
   std::shared_ptr<HeatmapChart> heatmap_;
   std::shared_ptr<StatusLine> status_line_;
@@ -131,9 +133,17 @@ private:
   // time; only which ones are on screen changes.
   std::shared_ptr<ClipGrid> clip_grid_;
   std::shared_ptr<OutlineView> outline_view_;
+  // The modal dialog showInfoDialog() opens (About, ...); it takes all
+  // input until closed. Its source is kept to re-center it on resize.
+  InfoDialog info_dialog_;
+  std::string info_dialog_title_, info_dialog_markdown_;
+  void layoutInfoDialog();
+  void closeInfoDialog() { info_dialog_.close(); info_dialog_title_.clear(); force_next_render_ = true; }
   // Arrangement view's scope row (toggle-scopes); Session view never
   // shows it - see layout().
   bool scopes_visible_ = true;
+  // Whether the spectrum/heatmap are on screen, as of the last layout().
+  bool scopes_on_screen_ = true;
   // What syncSessionView() last left both widgets showing.
   int synced_track_id_ = -1, laid_out_clip_grid_height_ = -1;
   // Set by a handler that changes what's on screen (the view changing,

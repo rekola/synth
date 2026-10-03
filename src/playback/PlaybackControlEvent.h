@@ -75,12 +75,14 @@ class PlaybackControlEvent : public Event {
   // SET_TRACK_MONITORING: parameter1 = a SampleTrack's id, parameter2 = 1
   // while its live audio input should be heard (Controller::
   // isMonitoring()), 0 once it shouldn't.
+  // SET_METRONOME: parameter1 = 1 to click on every beat while the
+  // transport plays, 0 to stop. buffer_name is unused.
   enum Type { PLAY = 1, STOP, TERMINATE, MOVE_POSITION, CLEAR_VOICES, PLAY_NOTE, STOP_NOTE, STOP_ALL_NOTES, NOTE_PRESSURE, MIXER_CHANGED,
               SET_TRACK_MUTED, SET_TRACK_SOLO, SET_TRACK_SEND_A, SET_TRACK_SEND_B, SET_TRACK_SEND_MAIN, SET_TRACK_AZIMUTH,
               CHANNEL_PRESSURE, SET_RECORDING_MUTE, SET_POSITION, BUFFER_KILLED, BUFFER_RENAMED, SET_BUS_EFFECT,
               QUEUE_SESSION_CHANGE, SILENCE_SESSION, PREVIEW_NOTE, PREVIEW_POOL_NOTE, PREVIEW_GROOVE, PREVIEW_STOP,
               GLIDE_TRACK_SEND_A, GLIDE_TRACK_SEND_B, GLIDE_TRACK_SEND_MAIN, GLIDE_TRACK_AZIMUTH,
-              SET_TRACK_MONITORING, SHIFT_SESSION_POSITION };
+              SET_TRACK_MONITORING, SHIFT_SESSION_POSITION, SET_METRONOME };
 
   // buffer_name says which open buffer this event targets - required for
   // every type except the genuinely buffer-agnostic ones (TERMINATE,

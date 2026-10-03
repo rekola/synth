@@ -138,6 +138,10 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     mixer_changed_ = true;
     return;
 
+  case PlaybackControlEvent::SET_METRONOME:
+    metronome_on_ = ev.getParameter1() != 0;
+    return;
+
   case PlaybackControlEvent::PREVIEW_NOTE:
     {
       // buffer_name is repurposed to carry the instrument's own literal/
@@ -627,6 +631,37 @@ Player::feedMonitoredInput(SongState * active_state, const std::string & active_
   }
 }
 
+void
+Player::scheduleMetronome(const SongState & state, const Song & song, int frames) {
+  if (!metronome_on_ || !state.isPlaying()) return;
+  int interval = channel_config_.getSampleInterval(state.getTempo());
+  if (interval <= 0) return;
+  int rows_per_bar = std::max(1, song.getRowsPerBar());
+  // A row starts at frame 0 when the position sits on a row boundary,
+  // otherwise once the current row has played out.
+  int row = state.getAbsolutePosition();
+  int sample_pos = state.getSamplePos();
+  int frame = 0;
+  if (sample_pos > 0) {
+    frame = interval - sample_pos;
+    row++;
+  }
+  for (; frame < frames; frame += interval, row++) {
+    if (row % 4 == 0) metronome_click_.addClick(frame, row % rows_per_bar == 0);
+  }
+}
+
+AudioBuffer
+Player::renderMetronome(int frames) {
+  bool active = metronome_click_.isActive();
+  AudioBuffer data(active ? channel_config_.numberOfChannels() : 0, false, false, frames);
+  if (!active) return data;
+  data.zero();
+  // Folds into W only, like any other mono source.
+  metronome_click_.render(data.getChannelData(0), frames);
+  return data;
+}
+
 AudioBuffer
 Player::renderPreview(int frames) {
   vector<AudioBuffer> rendered;
@@ -882,6 +917,7 @@ Player::play(AudioAPI & audio) {
 	    if (active_it != live_states_.end()) {
 	      auto active_song = controller_->getSongByName(active_buffer_name);
 	      if (active_song) { // defensive only - see pushSnapshots()'s own comment
+	        scheduleMetronome(*active_it->second, *active_song, audio.getFrameCount());
 		active_it->second->renderBlock(audio.getFrameCount(), *active_song, *mixer, false);
 		active_raw_bus = mixer->getRawBus();
 		active_aux_a = active_it->second->getAuxASum();
@@ -903,6 +939,7 @@ Player::play(AudioAPI & audio) {
 	    // nothing previewing (see renderPreview()'s own comment), so this
 	    // is safe to call unconditionally.
 	    mixer->accumulate(renderPreview(audio.getFrameCount()));
+	    mixer->accumulate(renderMetronome(audio.getFrameCount()));
 
 	    auto master = mixer->encode();
 	    audio.play(master, logger);

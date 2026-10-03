@@ -182,7 +182,7 @@ kill-row (Emacs's own C-k, kill-line, repurposed the same way), not an
 M-x trigger.
 `docs/commands.md` lists the pattern effect commands (slides, vibrato, …),
 split into **Implemented** (`ZBxx` pattern break; `0Pxx` azimuth set;
-`0Lxx`/`0Fxx`/`0Mxx` Volume/Send A/Send B set; the real-time
+`0Lxx` Volume set; the real-time
 `Y`-namespace commands `YLxx`/`YRxx` (azimuth slide left/right) and
 `YMxy`/`YAxy`/`YBxy`/`YZxy` (Volume/Send A/Send B/azimuth, each with an
 explicit glide duration) - see `SongState.h`'s command-handling loop) and
@@ -344,22 +344,17 @@ all of them. `PatternBlockOps::{copy,clear,transpose,paste}PatternBlockNotes`
 are the single-track, note-range-scoped siblings of the whole-track
 functions used for this.
 
-The FFT spectrum/volume-meter charts (`Chart`/`TerminalChart`/
-`TerminalPixelChart`, `Chart.h`/`TerminalUI.cpp`) render via real pixel
-graphics (sixel/Kitty graphics/iTerm2, whichever the terminal negotiates)
-when `notcurses_check_pixel_support()` reports support, falling back to
-`ncplot`'s braille dots otherwise — chosen once at startup via a small
-factory in `TerminalUI::initialize()`. `TerminalChart`'s underlying `ncplot`
-widget takes ownership of (and destroys) whatever `ncplane` it's given, so
-on resize it's given a fresh disposable child plane rather than reusing the
-chart's own; giving it the chart's own plane instead would destroy the
-chart's screen real estate the next time the plot gets torn down (confirmed
-via a standalone reproduction — resizing a plane after destroying its
-`ncdplot` segfaults). Both a stale-geometry-on-resize bug and the pixel
-renderer's chunked-frame verification were confirmed with a pty+notcurses
-test harness (drive real notcurses through a pty, answer its capability
-queries, feed keystrokes as raw bytes or Kitty CSI-u sequences) rather than
-by inspection alone.
+The FFT spectrum (`SpectrumMeter`, `ui/tui/SpectrumMeter.h`) draws its
+log-frequency bars through `LevelMeter.h`'s braille sub-cell renderer, the
+same one the volume meters use. When `notcurses_check_pixel_support()`
+reports support (sixel/Kitty graphics/iTerm2, whichever the terminal
+negotiates), `TerminalUI.cpp`'s `TerminalPixelSpectrumMeter` overrides
+`barCount()`/`drawBars()` to blit one bar per pixel column onto the
+meter's own plane instead; the choice is made once at startup in
+`TerminalUI::initialize()`. Both the spectrum and the DirAC heatmap show in
+Arrangement view's scope row and in Session view's left column, stacked
+under the full-height outline panel, each below a title bar (only while the
+outline is shown and the terminal is tall enough); off-screen scopes are not updated.
 
 Instruments are resolved from a General MIDI SoundFont, discovered
 automatically (`findDefaultSoundFont()` in `Controller.cpp`): a project-local
@@ -472,10 +467,13 @@ would otherwise resume showing.
   - that's shift + CC98 instead (see its own bullet below), reachable
   from any `GridMode`. **Shift** (CC91 held) turns all eight right-side
   buttons into labelled alternate functions, in every `GridMode`
-  (`handleRawButton()`'s shift branch): Volume (CC89) is Duplicate, Solo
-  (CC29, Pro MK3 CC20) is Draw, and the other six do nothing rather than
-  launch or switch anything; their LEDs show only those two while shift
-  is held (Duplicate cyan, Draw purple, the rest dark). 95 ("Session") doubles as the
+  (`handleRawButton()`'s shift branch): Volume (CC89) is Duplicate, Pan (CC79) is the
+  metronome ("toggle-metronome", a click per beat while the transport plays,
+  accented on the bar - `Player::scheduleMetronome()`; its LED is amber, bright
+  while on), Solo
+  (CC29, Pro MK3 CC20) is Draw, and the other five do nothing rather than
+  launch or switch anything; their LEDs show only those three while shift
+  is held (Duplicate cyan, Draw purple, metronome amber, the rest dark). 95 ("Session") doubles as the
   mixer-submode toggle: a repeat press while already at the plain Session
   grid with nothing from the radio group active flips
   `session_mixer_mode`; any press otherwise just lands on (or stays on)
@@ -926,7 +924,8 @@ would otherwise resume showing.
   `ArrangementGrid`) plus `PatternEditor`. Session view: `ClipGrid`
   (`src/ui/tui/ClipGrid.h` - per-track clip slots, Sends, Direction), with
   `OutlineView` as a narrow panel on its left (shown by default,
-  "toggle-outline"; the tree, a button bar under it, details in a `?`
+  "toggle-outline"; the tree, with a button bar overlaid on its bottom rows
+  while the cursor's row has any, details in a `?`
   popup that Escape closes at once - a widget can take a bare Escape via
   `UIElement::wantsBareEscape()` without it losing its Alt-prefix role),
   above `PatternEditor` (`TerminalUI::layout()`) - no scope row
@@ -976,7 +975,9 @@ would otherwise resume showing.
   edits the three values. Every column has a vertical level meter
   beside its Sends/Direction rows (`LevelMeter.h`: one dB mapping, braille
   by default with sextants as an opt-in glyph set, `Ballistics` smoothing
-  a block's RMS in the power domain so a low note doesn't ripple, and a
+  a block's RMS in the power domain so a low note doesn't ripple, bars
+  shaded by height from green through orange to the clip red
+  (`StyleProvider::meterColor()`), and a
   `PeakHold` marker floating above the bar in its right dot column). The
   pattern editor's one-cell track meters and the scope row's
   `ChannelMeter` (two channels per cell, `getChannelLoudness()`, a
@@ -1010,7 +1011,12 @@ would otherwise resume showing.
   line follows its playhead down the screen by the same margin rule,
   every other line staying where it is, and each line is held within the
   margin of an edge, its column scrolling under it there
-  (`keepTrackLinesVisible()`). Focusing a track moves the cursor row onto
+  (`keepTrackLinesVisible()`). A looping playing clip is periodic: its line carries on
+  forward through the loop point, the passes either side of the one it is in
+  (the clip's previous and next repeats, `ScenePatternSource::isOtherLoopPass()`)
+  dimmed - fading over a few hundred ms as the playhead crosses into a pass,
+  and carrying no bar/beat accent or row tint; rows from before the launch
+  are blank - the view moving with it (`takeCursorJump()`). Focusing a track moves the cursor row onto
   its line, every other line staying put; a track that stops stays where
   its playhead left it.
   Each column shows its own row numbers before its notes
@@ -1023,6 +1029,19 @@ would otherwise resume showing.
   scrolls the widget under the mouse without moving focus, and scrolls its
   view, never its cursor (so never the transport); Shift scrolls tracks
   sideways, and the next cursor move brings the view back.
+  The left button picks cells: in `ClipGrid` a click moves the cursor
+  and presses the slot like Enter does (a clip launches, the master's
+  scene/stop-all slots fire; Sends rows only select), in `ArrangementGrid`
+  it moves the cursor to the bar and track (Enter still commits), and in
+  `PatternEditor` it moves the cursor to the cell (a click in a heading
+  picks the track, one past the last track the locator slot) and clears the
+  mark. Dragging in `PatternEditor` sets the mark at the press cell and
+  extends the region to the pointer (`PatternEditor::handleMouse()`, which
+  resolves x against the column spans `renderRow()` records, and moves rows
+  the way Up/Down do, so a playing track's locked row stays put). A drag
+  and a fresh press look alike to the widgets (the held button repeats its
+  press), so each tells them apart by the release in between; `TerminalUI`
+  keeps focus on the widget the press started in until then.
 - **Defaults**: a fresh session opens in Session view on the clip grid
   (`UI::setInitialView()`, the `--view` option) rather than straight into
   note entry, and `GridMode` defaults to `SESSION` on every
@@ -1155,6 +1174,16 @@ would otherwise resume showing.
     notcurses-specific input handling (`NotcursesInputEventSource`,
     `EscapeCoalescer`) and text-cell rendering helpers (`SubcellGlyphs.h`)
     that wouldn't apply to a pixel-based UI.
+
+    Info dialogs (the outline panel's details popup, the About dialog) have
+    their content written as Markdown, parsed by `ui/Markdown.h` - a tiny
+    subset (`#` headings, paragraphs, `*italic*`, `**bold**`, `\` escapes)
+    and nothing else - so any backend can show the same text. `UI::
+    showInfoDialog(title, markdown)` is the backend hook the shared `about`
+    command calls (text in `ui/AboutText.h`); `tui/InfoDialog` is the
+    terminal rendering (`markdown::layout()` word-wraps to cells; a GUI
+    would lay out the parsed `Document` itself). The terminal one is modal
+    and closes on Escape/Enter/q/C-g or a click.
 
     Commands (`CommandRegistry`-named, dispatched by both a keybinding and
     M-x) default to living in `UI::initializeCommands()` (`ui/UI.cpp`),
@@ -1425,3 +1454,10 @@ would otherwise resume showing.
   silently goes stale if the binding ever changes; name the command
   instead and let the actual binding site be the only place the key
   appears).
+- Never link to the chat/session that produced a change (no `Claude-Session:`
+  trailer, no claude.ai/code URL) in commit messages, PR descriptions, or
+  comments; the URL isn't useful to other readers and can't be fully removed
+  from GitHub afterwards.
+- Pull requests: when pushing more commits to a branch that has an open PR,
+  update the PR description in the same step if the push changes what it
+  says - a push updates the diff but never the description.

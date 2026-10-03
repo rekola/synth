@@ -46,6 +46,10 @@ class UI : public UIElement {
 
   virtual void setStatus(std::string s) = 0;
 
+  // Shows a modal dialog with Markdown content (see Markdown.h) - what a
+  // command like "about" calls, so each backend only renders the text.
+  virtual void showInfoDialog(const std::string & title, const std::string & markdown) = 0;
+
   // Launchpad hardware input isn't tied to any one visual frontend, so its
   // event handling lives here rather than in a concrete backend - this one
   // is a pure passthrough to LaunchpadManager, with no widget dependency of

@@ -32,7 +32,7 @@ public:
   // do, so they're not threaded through playNote()'s own signature at all.
   // Default: nullptr, meaning "this backend doesn't support generator
   // overrides" - correct for every backend except SoundFontInstrument
-  // today (Oscillator/Noise/LFO all have nothing that reads an SF2
+  // today (Oscillator/Noise all have nothing that reads an SF2
   // generator id in the first place). A nullptr return tells the
   // caller to keep using the shared instance unchanged, silently ignoring
   // the override - the same "backend ignores what it doesn't handle"
@@ -44,21 +44,14 @@ public:
   void loadParameters(const ParameterSource & input) {
     Track::loadParameters(input);
 
-    harmonic_ = input.get<int>("harmonic", 1);
-    subharmonic_ = input.get<int>("subharmonic", 1);
     description_ = input.get<std::string>("description");
   }
 
   void storeParameters(ParameterSource & output) const {
     Track::storeParameters(output);
 
-    if (harmonic_ != 1) output.set("harmonic", harmonic_);
-    if (subharmonic_ != 1) output.set("subharmonic", subharmonic_);
     if (!description_.empty()) output.set("description", description_);
   }
-
-  int getHarmonic() const { return harmonic_; }
-  int getSubharmonic() const { return subharmonic_; }
 
   // A user-authored description for this pool slot, shown in the Details
   // panel the same way a Library instrument's own curated one is
@@ -75,7 +68,6 @@ public:
   void setDescription(std::string description) { description_ = std::move(description); }
 
 private:
-  int harmonic_ = 1, subharmonic_ = 1;
   std::string description_;
 };
 

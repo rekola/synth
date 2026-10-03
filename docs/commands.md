@@ -28,7 +28,7 @@ scheme. It works the same way `Z` already does for global commands: as
 the first character, it replaces the device-index digit entirely,
 opening a whole separate letter space where the *second* character is
 free to mean anything - including reusing a letter already spoken for
-elsewhere (`L`/`F`/`M` below, for instance), since the first character
+elsewhere (`L`/`M` below, for instance), since the first character
 already tells the two apart unambiguously - rather than hunting for a
 single scarce free letter inside the crowded device-index namespace
 every time a new idea needs one.
@@ -54,9 +54,8 @@ no business jumping the song.
 |---|---|---|
 | `ZBxx` | Pattern break - when this row ends, jump to locator `xx` (1-based, in row order) instead of playing on; `ZB00` jumps to the next locator after this row, wrapping to the first. With no such locator it does nothing. | Renoise (`ZBxx`), adapted: its `xx` is a row of the next pattern |
 | `-Lxx` | Set Volume (Send Main) - an absolute level: `xx` (0-255) maps linearly in dB from -80dB up to 0dB/unity at 255, applied the instant this row starts and reaching every already-sounding voice too. | Renoise (`Lxx`, "Track Level") |
-| `-Fxx` | Set Send A - same encoding/behavior as `-Lxx`, for the track's own Send A level. Deprecated in favor of `YAxy`. | Own |
-| `-Mxx` | Set Send B - same encoding/behavior as `-Lxx`, for the track's own Send B level. Deprecated in favor of `YBxy`. | Own |
 | `-Pxx` | Set azimuth to an absolute position - `xx` maps linearly from -90 degrees at `00` through +90 at `FF`. | Renoise (adapted) - matches Renoise's own `Pxx` "Track Pan" exactly, `xx` meaning included (`00`/`80`/`FF` = left/center/right), but that's a real, inherited limitation: it only reaches half this engine's own 360-degree azimuth range (the front hemisphere), since Renoise's own panning has no "behind" to reach in the first place. |
+| `-Rxy` | Retrigger - re-fire every note still playing on the track every `y` ticks (12 ticks/row; `y=0`, or an interval reaching the next row, adds nothing) with volume factor `x` applied to each retrigger: `0`/`8` no change; `1`-`5` lower the original volume by 3/6/12/25/50%; `6`/`7` cumulatively lower by 33/50%; `9`-`D` raise it by 3/6/12/25/50%; `E`/`F` cumulatively raise by 50/100%. | Renoise (`Rxy`) |
 | `YMxy` | Set Volume (Send Main) with an explicit glide, timed the same way a live Launchpad fader glide already is - wall-clock seconds, unaffected by tempo (a fader press's own velocity-driven speed has nothing to do with it). `M` for **M**ain. `x` (0-15) is the target (same linear-in-dB mapping as `-Lxx`, nibble instead of byte resolution); `y` (0-15) is the glide's own duration, exponential in seconds: `duration_seconds = kMinFaderRampSeconds * (kMaxFaderRampSeconds / kMinFaderRampSeconds) ^ (y / 15.0)` - `y=0` the fastest (0.03s), `y=15` the slowest (8s), so both a near-instant move and a slow fade keep useful resolution. Recorded automatically by a Launchpad Volume/Send Main fader press (`LaunchpadManager::recordFaderAutomationIfArmed()`) - into the take's clip during a Session View take, else into the arrangement's background; hand-typing works the same way. | Classic tracker (IT) - Impulse Tracker's own `Mxx` sets channel volume directly, the same concept. |
 | `YAxy` | Send A's own equivalent of `YMxy` - same encoding, targeting Send A instead of Volume. `A` for Send **A**. | Own |
 | `YBxy` | Send B's own equivalent of `YMxy` - same encoding, targeting Send B instead of Volume. `B` for Send **B**. | Own |

@@ -3,6 +3,7 @@
 
 #include "../util/digit.h"
 
+#include <algorithm>
 #include <cmath>
 #include <string>
 #include <string_view>
@@ -141,9 +142,36 @@ class Command {
     return values_[1] == 'L' ? -magnitude : magnitude;
   }
 
+  // 0Rxy - retrigger the track's most recently played note every `y` ticks
+  // (constants::TICKS_PER_ROW per row) for the rest of this row, changing
+  // its velocity by `x` at each retrigger. `y` = 0 retriggers nothing.
+  bool isRetrigger() const { return values_[0] == '0' && values_[1] == 'R'; }
+  int getRetriggerVolumeCode() const { auto d = digit(values_[2], 16); return d < 0 ? 0 : d; }
+  int getRetriggerIntervalTicks() const { auto d = digit(values_[3], 16); return d < 0 ? 0 : d; }
+
+  // Velocity (0..1) of the next retrigger: `base` is the note's original
+  // velocity, `current` the previous retrigger's. Codes 1-5/9-D lower/raise
+  // the base by a fixed 3/6/12/25/50% (of full scale, the same every
+  // retrigger); 6/7/E/F compound on `current` (x2/3, x1/2, x3/2, x2); 0
+  // and 8 leave it unchanged.
+  static float retriggerVelocityStep(float base, float current, int code) {
+    static const float kOffsets[] = { 0.03125f, 0.0625f, 0.125f, 0.25f, 0.5f };
+    float v = current;
+    switch (code & 15) {
+    case 1: case 2: case 3: case 4: case 5: v = base - kOffsets[(code & 15) - 1]; break;
+    case 6: v = current * (2.0f / 3.0f); break;
+    case 7: v = current * 0.5f; break;
+    case 9: case 10: case 11: case 12: case 13: v = base + kOffsets[(code & 15) - 9]; break;
+    case 14: v = current * 1.5f; break;
+    case 15: v = current * 2.0f; break;
+    default: break;
+    }
+    return std::min(std::max(v, 0.0f), 1.0f);
+  }
+
   // 0Pxx - set azimuth to an absolute position, unlike YLxx/YRxx's own
-  // relative nudge (the same Slide-vs-Set distinction as 0Lxx/0Fxx/0Mxx
-  // have against them). A real, deliberate limitation: `xx` only reaches
+  // relative nudge (the same Slide-vs-Set distinction as 0Lxx has
+  // against them). A real, deliberate limitation: `xx` only reaches
   // half this engine's own full 360-degree azimuth range (-90 at 00
   // through +90 at FF, i.e. the front hemisphere only - a left-right
   // stereo-pan metaphor has no "behind" to reach in the first place) -
@@ -162,20 +190,18 @@ class Command {
     return -90.0f + (magnitude / 255.0f) * 180.0f;
   }
 
-  // 0Lxx/0Fxx/0Mxx - set Volume (Send Main)/Send A/Send B to an absolute
+  // 0Lxx - set Volume (Send Main) to an absolute
   // level, unlike the slide commands above's own per-row relative nudge:
   // this is what a live-recorded fader move needs (the fader was *at*
   // this value at this moment, not "moved by some delta since whenever
   // the last one landed"), and what hand-typing an exact level directly
   // is naturally shaped like too. Column 0 is this engine's own
   // leaf-track chain-position digit (see updateData()'s own comment) -
-  // always '0'. See docs/commands.md's own Source column for where "L"/
-  // "F"/"M" came from.
+  // always '0'. See docs/commands.md's own Source column for where "L"
+  // came from.
   bool isVolumeSet() const { return values_[0] == '0' && values_[1] == 'L'; }
-  bool isSendASet() const { return values_[0] == '0' && values_[1] == 'F'; }
-  bool isSendBSet() const { return values_[0] == '0' && values_[1] == 'M'; }
 
-  // Shared decode for all three above - xx (0-255, permissive 2-hex-digit
+  // xx (0-255, permissive 2-hex-digit
   // parsing, same as getBreakLocatorNumber()/getAzimuthSlidePerTick())
   // maps linearly in dB from -80dB (perceptually silent - not a true
   // hard-off floor like a fader's own bottom position, but close enough
@@ -194,24 +220,22 @@ class Command {
     return powf(10.0f, db * 0.05f);
   }
 
-  // The inverse of getSendSetLinear() - builds a real 0Lxx/0Fxx/0Mxx
+  // The inverse of getSendSetLinear() - builds a real 0Lxx
   // Command encoding `linear` (clamped into the representable -80..0dB
   // range first, same floor getSendSetLinear() itself decodes down to).
   // What live-recording a Launchpad fader move needs: capturing the
   // exact live value LeafTrackState::setSendMain()/etc. was just called
-  // with, in the same units and curve a hand-typed 0Lxx/0Fxx/0Mxx
+  // with, in the same units and curve a hand-typed 0Lxx
   // already round-trips through, not a second, independently-tuned
   // encoding.
   static Command volumeSet(float linear) { return makeSendSet('L', linear); }
-  static Command sendASet(float linear) { return makeSendSet('F', linear); }
-  static Command sendBSet(float linear) { return makeSendSet('M', linear); }
 
   // YMxy/YAxy/YBxy - Volume (Send Main)/Send A/Send B's own equivalent of
-  // 0Lxx/0Fxx/0Mxx above, but carrying a glide duration alongside the
+  // 0Lxx above, but carrying a glide duration alongside the
   // target rather than an instant set: what a live-recorded Launchpad
   // fader move actually needs to reproduce the glide it performed, not
   // just where it ended up. `x` (values_[2]) is the target - the same
-  // linear-in-dB curve as 0Lxx/0Fxx/0Mxx, just nibble (0-15) instead of
+  // linear-in-dB curve as 0Lxx, just nibble (0-15) instead of
   // byte resolution; `y` (values_[3]) is the glide's own duration, real
   // (wall-clock) seconds, unaffected by tempo - a fader press's own
   // velocity-driven speed has nothing to do with it. Column 0 is 'Y' (see
@@ -287,8 +311,8 @@ class Command {
   const char * data() const { return &(values_[0]); }
 
  private:
-  // volumeSet()/sendASet()/sendBSet()'s own shared builder - `letter` is
-  // 'L'/'F'/'M', `linear` is clamped into [0dB-floor..unity] before
+  // volumeSet()'s own builder - `letter` is
+  // 'L', `linear` is clamped into [0dB-floor..unity] before
   // encoding (a value already out of that range, e.g. slightly above
   // unity from a plugin's own headroom, would otherwise silently wrap
   // into an unrelated magnitude via the plain float-to-int truncation

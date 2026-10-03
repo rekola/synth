@@ -28,25 +28,15 @@ namespace {
   }
 }
 
-// 0Lxx/0Fxx/0Mxx - see docs/commands.md and Command.h's own comments. An
+// 0Lxx - see docs/commands.md and Command.h's own comments. An
 // absolute set, not a slide (unlike YLxx/YRxx) - what a live-recorded
 // fader move needs to capture.
 TEST(send_set_command_parses_mnemonic) {
   Command volume("0L00");
   CHECK(volume.isVolumeSet());
-  CHECK(!volume.isSendASet());
-  CHECK(!volume.isSendBSet());
-
-  Command send_a("0F00");
-  CHECK(send_a.isSendASet());
-  CHECK(!send_a.isVolumeSet());
-
-  Command send_b("0M00");
-  CHECK(send_b.isSendBSet());
-  CHECK(!send_b.isVolumeSet());
 
   Command unrelated("YR10");
-  CHECK(!unrelated.isVolumeSet() && !unrelated.isSendASet() && !unrelated.isSendBSet());
+  CHECK(!unrelated.isVolumeSet());
 }
 
 TEST(send_set_command_decodes_the_full_dB_range) {
@@ -54,7 +44,7 @@ TEST(send_set_command_decodes_the_full_dB_range) {
   CHECK_NEAR(Command("0LFF").getSendSetLinear(), 1.0f, 1e-4f); // xx=255 -> 0dB/unity
 }
 
-// Command::volumeSet()/sendASet()/sendBSet() - getSendSetLinear()'s own
+// Command::volumeSet() - getSendSetLinear()'s own
 // inverse, what LaunchpadManager::recordFaderAutomationIfArmed() uses to
 // turn a live fader value back into a real command to write. A round
 // trip through the 256-step hex quantization can't be bit-exact, but
@@ -64,13 +54,8 @@ TEST(send_set_factories_build_a_real_command_that_round_trips) {
   CHECK(volume.isVolumeSet());
   CHECK_NEAR(volume.getSendSetLinear(), 0.5f, 0.01f);
 
-  auto send_a = Command::sendASet(0.1f);
-  CHECK(send_a.isSendASet());
-  CHECK_NEAR(send_a.getSendSetLinear(), 0.1f, 0.01f);
-
-  auto send_b = Command::sendBSet(1.0f);
-  CHECK(send_b.isSendBSet());
-  CHECK_NEAR(send_b.getSendSetLinear(), 1.0f, 0.01f);
+  auto quiet = Command::volumeSet(0.1f);
+  CHECK_NEAR(quiet.getSendSetLinear(), 0.1f, 0.01f);
 }
 
 // Values outside the representable -80..0dB range clamp rather than
@@ -83,16 +68,14 @@ TEST(send_set_factories_clamp_out_of_range_values) {
   CHECK(to_string(Command::volumeSet(2.0f)) == "0LFF"); // above unity - clamps, doesn't wrap
 }
 
-// Full pipeline: a 0Lxx/0Fxx/0Mxx command at a background row actually
-// sets the track's own live send level before its note-on is even
-// triggered in that same row/block - the same live-knob mechanism
-// Controller::setTrackSendA()/etc. already use (LeafTrackState::
-// setSendA()/etc.), not a separate one, proven audibly via SongState's own
+// Full pipeline: a YAxy command at a background row actually
+// starts the track's Send A glide (LeafTrackState::glideSendA()) in that
+// same row/block, proven audibly via SongState's own
 // AuxA sum (the same one the UI's volume meter reads -
 // track_state_set_send_a_reaches_an_already_active_voice in
 // SendLiveUpdateTests.cpp uses the identical check) rather than reading
 // LeafTrackState's own protected send fields directly.
-TEST(send_set_command_sets_send_a_over_the_row) {
+TEST(send_glide_command_sets_send_a_over_the_row) {
   Song song;
   song.addInstrument(make_unique<Oscillator>(WaveformType::SINE)); // instrument_id 0
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
@@ -100,7 +83,7 @@ TEST(send_set_command_sets_send_a_over_the_row) {
 
   auto & arrangement = song.getArrangement();
   arrangement.setNote(0, track_id, 0, Note(60, 100));
-  arrangement.setCommand(0, track_id, Command("0F80")); // roughly -14.5dB - Send A defaults to 0/silent otherwise
+  arrangement.setCommand(0, track_id, Command("YAB0")); // about -21dB, fastest glide - Send A defaults to 0/silent otherwise
 
   ChannelConfiguration config(44100, 1);
   auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
@@ -116,10 +99,10 @@ TEST(send_set_command_sets_send_a_over_the_row) {
 
 // Same masking-fix guarantee AzimuthSlideTests.cpp's own
 // azimuth_slide_command_fires_even_while_a_clip_supplies_the_row_notes
-// establishes, for a Set command instead of a Slide one - the track's
+// establishes, for a Send glide command instead of a Slide one - the track's
 // own background command still applies while a real Clip instance is
 // what's actually supplying that row's notes.
-TEST(send_set_command_fires_even_while_a_clip_supplies_the_row_notes) {
+TEST(send_glide_command_fires_even_while_a_clip_supplies_the_row_notes) {
   Song song;
   song.addInstrument(make_unique<Oscillator>(WaveformType::SINE)); // instrument_id 0
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
@@ -132,7 +115,7 @@ TEST(send_set_command_fires_even_while_a_clip_supplies_the_row_notes) {
   auto & arrangement = song.getArrangement();
   placeClipInstance(song, track_id, 0, 0);
   CHECK(arrangement.getInstance(track_id, 0) == clip_id);
-  arrangement.setCommand(0, track_id, Command("0M40")); // Send B - Send B defaults to 0/silent otherwise
+  arrangement.setCommand(0, track_id, Command("YBB0")); // Send B - Send B defaults to 0/silent otherwise
 
   ChannelConfiguration config(44100, 1);
   auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
@@ -148,7 +131,7 @@ TEST(send_set_command_fires_even_while_a_clip_supplies_the_row_notes) {
 
 // YMxy/YAxy/YBxy - SongState.h's own playback-time interpretation of the
 // Y-namespace's recorded fader-glide commands (Command::isVolumeGlide()/
-// isSendAGlide()/isSendBGlide()): unlike 0Lxx/0Fxx/0Mxx's instant set,
+// isSendAGlide()/isSendBGlide()): unlike 0Lxx's instant set,
 // this starts a real multi-block LeafTrackState::glideSendA() ramp, the
 // same server-side mechanism a live Launchpad press now uses
 // (Controller::glideTrackSendA()). Proven by choosing a glide duration

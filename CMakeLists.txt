@@ -60,6 +60,7 @@ add_library(synth_engine STATIC
 	src/instruments/Oscillator.cpp
 	src/instruments/PadSynth.cpp
 	src/instruments/Noise.cpp
+	src/instruments/FM.cpp
 	src/instruments/Additive.cpp
 	src/instruments/SinusoidBank.cpp
 	src/instruments/OscillatorShapingChain.cpp
@@ -109,7 +110,6 @@ add_library(synth_engine STATIC
 	src/instruments/NoteMultiplier.cpp
 	src/instruments/Arpeggiator.cpp
 	src/state/ArpeggiatorState.cpp
-	src/instruments/LFO.cpp
 	src/audio/OfflineRenderer.cpp
 	src/audio/SampleFileLoader.cpp
 	src/audio/TimeStretcher.cpp
@@ -119,6 +119,7 @@ add_library(synth_engine STATIC
 	src/ui/tui/PatternScroll.cpp
 	src/ui/ArrangementPatternSource.cpp
 	src/ui/ScenePatternSource.cpp
+	src/ui/Markdown.cpp
 	src/launchpad/LaunchpadLayout.cpp
 	src/launchpad/LaunchpadProtocol.cpp
 	src/instruments/DrumRankTable.cpp
@@ -249,11 +250,13 @@ add_executable(synth src/main.cpp
 	src/ui/tui/EscapeCoalescer.cpp
 	src/ui/tui/NotcursesInputEventSource.cpp
 	src/ui/tui/OutlineView.cpp
+	src/ui/tui/InfoDialog.cpp
 	src/ui/tui/PatternEditor.cpp
 	src/ui/tui/ArrangementGrid.cpp
 	src/ui/tui/InlineEditor.cpp
 	src/ui/tui/ClipGrid.cpp
 	src/ui/tui/ChannelMeter.cpp
+	src/ui/tui/SpectrumMeter.cpp
 	src/ui/tui/SubcellGlyphs.cpp
 )
 target_include_directories(synth PRIVATE ${CMAKE_CURRENT_BINARY_DIR})

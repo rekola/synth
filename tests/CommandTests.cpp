@@ -133,7 +133,7 @@ TEST(command_set_data_rejects_malformed_input_and_leaves_command_unchanged) {
 
 // YMxy/YAxy/YBxy - the Y-namespace's own recorded fader-glide commands
 // (docs/commands.md's own "Recorded fader-glide commands" section) -
-// carry a target *and* a real-seconds duration, unlike 0Lxx/0Fxx/0Mxx's
+// carry a target *and* a real-seconds duration, unlike 0Lxx's
 // plain instant set.
 TEST(glide_command_parses_mnemonic) {
   Command volume("YM00");
@@ -167,7 +167,7 @@ TEST(glide_command_decodes_the_full_range_at_nibble_resolution) {
 // LaunchpadManager::recordFaderAutomationIfArmed() actually builds from a
 // live press's own resolveSendFaderTarget() output (target_db,
 // duration_seconds - both already in this command's own native units, no
-// linear-gain round trip needed unlike 0Lxx/0Fxx/0Mxx's own volumeSet()).
+// linear-gain round trip needed unlike 0Lxx's own volumeSet()).
 // A round trip through the 16-step nibble quantization can't be
 // bit-exact, but should land close.
 TEST(glide_command_factories_build_a_real_command_that_round_trips) {
@@ -245,4 +245,24 @@ TEST(azimuth_glide_factory_wraps_and_round_trips) {
   // clamping to the +180 ceiling.
   auto wrapped = Command::azimuthGlide(190.0f, 0.03f);
   CHECK_NEAR(wrapped.getAzimuthGlideTargetDegrees(), -170.0f, 11.25f);
+}
+
+TEST(command_retrigger_decodes_volume_and_interval) {
+  Command c("-R34");
+  CHECK(c.isRetrigger());
+  CHECK(c.getRetriggerVolumeCode() == 3);
+  CHECK(c.getRetriggerIntervalTicks() == 4);
+  CHECK(!Command("-L34").isRetrigger());
+}
+
+TEST(command_retrigger_velocity_steps) {
+  CHECK_NEAR(Command::retriggerVelocityStep(0.5f, 0.5f, 0), 0.5f, 1e-6f);
+  CHECK_NEAR(Command::retriggerVelocityStep(0.5f, 0.5f, 8), 0.5f, 1e-6f);
+  // 1-5/9-D are fixed offsets from the original, not compounding.
+  CHECK_NEAR(Command::retriggerVelocityStep(0.75f, 0.5f, 4), 0.5f, 1e-6f);
+  CHECK_NEAR(Command::retriggerVelocityStep(0.5f, 0.25f, 12), 0.75f, 1e-6f);
+  // 6/7/E/F compound.
+  CHECK_NEAR(Command::retriggerVelocityStep(0.5f, 0.5f, 7), 0.25f, 1e-6f);
+  CHECK_NEAR(Command::retriggerVelocityStep(0.5f, 0.25f, 15), 0.5f, 1e-6f);
+  CHECK_NEAR(Command::retriggerVelocityStep(1.0f, 1.0f, 15), 1.0f, 1e-6f);
 }

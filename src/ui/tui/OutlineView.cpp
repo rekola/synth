@@ -12,6 +12,7 @@
 #include "../../playback/PlaybackControlEvent.h"
 #include "../../util/constants.h"
 #include "../../util/Utf8.h"
+#include "../Markdown.h"
 #include "../StyleProvider.h"
 
 #include <algorithm>
@@ -21,48 +22,6 @@
 using namespace std;
 
 namespace {
-
-// A plain greedy word-wrap, breaking only at spaces (never mid-word) -
-// good enough for the details panel's own short, plain-English groove
-// descriptions (GroovePatternTemplate::description), not a general
-// typesetting routine. Uses Utf8::displayWidth() per candidate line, not
-// a raw byte-length count, for the same reason every other width
-// comparison in this codebase does (a multi-byte UTF-8 character - e.g.
-// "güira" in one of the groove descriptions - is one display column, not
-// several bytes' worth of them).
-vector<string> wrapText(const string & text, int width) {
-  vector<string> lines;
-  if (width <= 0) return lines;
-
-  string current;
-  size_t pos = 0;
-  while (pos <= text.size()) {
-    auto space = text.find(' ', pos);
-    auto word = text.substr(pos, space == string::npos ? string::npos : space - pos);
-    auto candidate = current.empty() ? word : current + " " + word;
-    if (Utf8::displayWidth(candidate) <= width) {
-      current = move(candidate);
-    } else {
-      if (!current.empty()) lines.push_back(current);
-      current = move(word);
-    }
-    if (space == string::npos) break;
-    pos = space + 1;
-  }
-  if (!current.empty()) lines.push_back(current);
-  return lines;
-}
-
-// Repeats a single-glyph UTF-8 string `count` display columns wide (the
-// glyph is assumed to itself be exactly one display column, true of every
-// glyph this is actually called with) - plain string(count, char)
-// doesn't work here since the glyph is multiple bytes.
-string repeatUtf8(const string & glyph, int count) {
-  string result;
-  result.reserve(glyph.size() * static_cast<size_t>(std::max(0, count)));
-  for (int i = 0; i < count; i++) result += glyph;
-  return result;
-}
 
 // The description shown for a Song > Instruments (pool) row - a custom
 // authored one (Instrument::getDescription()) if present, else, for a
@@ -175,7 +134,24 @@ OutlineView::render(const StyleProvider & styles, bool refresh, bool focused) {
     data_.push_back(std::move(row));
   }
 
-  if (song.getMajorVersion() != current_song_version_ || new_scroll_pos_ != current_scroll_pos_ || focused != current_focused_) {
+  // A click released over another widget never reaches this one.
+  if (!focused && click_pending_) {
+    click_pending_ = false;
+    pressed_ = ClickTarget();
+    details_dirty_ = true;
+  }
+
+  // Focusing the panel puts the cursor on the first row in view - unless
+  // a click did, which picks its own row.
+  if (focused && new_cursor_row_ < 0 && !click_pending_ && !data_.empty()) {
+    new_cursor_row_ = std::min(new_scroll_pos_, static_cast<int>(data_.size()) - 1);
+  }
+
+  // The rows may have narrowed since the last scroll.
+  new_column_scroll_ = std::min(new_column_scroll_, maxColumnScroll());
+
+  if (song.getMajorVersion() != current_song_version_ || new_scroll_pos_ != current_scroll_pos_ ||
+      new_column_scroll_ != current_column_scroll_ || focused != current_focused_) {
     render_all = true;
   }
 
@@ -185,6 +161,7 @@ OutlineView::render(const StyleProvider & styles, bool refresh, bool focused) {
   bool need_refresh = false;
   if (render_all) {
     current_scroll_pos_ = new_scroll_pos_;
+    current_column_scroll_ = new_column_scroll_;
 
     renderHeading(styles);
     for (int i = 0; i < tree_rows; i++) {
@@ -194,18 +171,16 @@ OutlineView::render(const StyleProvider & styles, bool refresh, bool focused) {
     renderInfoPopup(styles);
     need_refresh = true;
   } else if (cursor_changed || details_dirty_) {
-    if (cursor_changed) {
-      renderRow(styles, current_cursor_row_ - current_scroll_pos_, false, focused);
-      renderRow(styles, new_cursor_row_ - current_scroll_pos_, true, focused);
+    // The button bar overlays the tree and depends on which row the cursor
+    // is now on (a different kind may show completely different actions, or
+    // none), so the whole tree is repainted underneath it: rows the old bar
+    // covered come back. Also redrawn (with the cursor itself untouched)
+    // whenever details_dirty_ says this row's own details changed without
+    // moving the cursor at all - the target-track picker committing a new
+    // choice, or the popup opening/closing.
+    for (int i = 0; i < tree_rows; i++) {
+      renderRow(styles, i, i == new_cursor_row_ - current_scroll_pos_, focused);
     }
-    // The button bar and popup depend on which row the cursor is now on (a
-    // different kind may show completely different actions, or none) -
-    // always redrawn whole on a cursor move rather than tracking a
-    // finer-grained diff, unlike renderRow()'s own incremental
-    // old-row/new-row pair above. Also redrawn (with the cursor itself
-    // untouched) whenever details_dirty_ says this row's own details
-    // changed without moving the cursor at all - the target-track picker
-    // committing a new choice, or the popup opening/closing.
     renderButtonBar(styles);
     renderInfoPopup(styles);
     need_refresh = true;
@@ -221,9 +196,22 @@ OutlineView::render(const StyleProvider & styles, bool refresh, bool focused) {
 
 int
 OutlineView::treeRows() const {
-  // Minus the heading row above, and the separator row plus the button
-  // bar below.
-  return std::max(0, getDim().first - kTreeTop - 1 - kButtonBarRows);
+  // Everything under the heading; the button bar is drawn over its bottom rows.
+  return std::max(0, getDim().first - kTreeTop);
+}
+
+int
+OutlineView::cursorRows() const {
+  // The cursor is kept above the tallest the button bar can be.
+  return std::max(1, treeRows() - kButtonBarRows);
+}
+
+int
+OutlineView::buttonBarRows() const {
+  if (new_cursor_row_ < 0 || new_cursor_row_ >= static_cast<int>(data_.size())) return 0;
+  int rows = 0;
+  for (auto & button : placeButtons(data_[static_cast<size_t>(new_cursor_row_)])) rows = std::max(rows, button.row + 1);
+  return rows;
 }
 
 void
@@ -236,25 +224,44 @@ OutlineView::renderHeading(const StyleProvider & styles) {
   putstr(0, 1, "Outline");
 }
 
-vector<DetailsLine>
-OutlineView::infoLines(const outline_row_s & row) const {
-  vector<DetailsLine> lines;
-  for (auto & line : buildDetailsLines(row, kInfoPopupWidth - 4)) {
-    if (line.action != DetailsAction::NONE) continue;
-    if (line.text.empty() && lines.empty()) continue; // no leading blank line
-    lines.push_back(line);
+// The details popup's text for `row`, as Markdown: a heading, an optional
+// hint and the description. Empty when the row has none.
+string
+OutlineView::infoMarkdown(const outline_row_s & row) const {
+  string title, hint, description;
+  switch (row.kind) {
+  case OutlineRowKind::POOL_INSTRUMENT:
+    title = row.label;
+    hint = "Play note keys to preview";
+    description = poolInstrumentDescription(getController().getSong().getInstrumentPool().getByIndex(row.ref_id));
+    break;
+  case OutlineRowKind::LIBRARY_INSTRUMENT: {
+    auto name = libraryInstrumentName(row.ref_name);
+    title = name.empty() ? row.label : name;
+    hint = "Play note keys to preview";
+    if (auto * found = findGmInstrumentDescription(row.ref_name)) description = found;
+    break;
   }
-  return lines;
+  case OutlineRowKind::LIBRARY_GROOVE:
+    title = row.label;
+    if (auto * pattern = findGroovePattern(row.ref_name)) description = pattern->description;
+    break;
+  case OutlineRowKind::TRACK:
+  case OutlineRowKind::SECTION:
+    return "";
+  }
+  string text = "# " + markdown::escape(title) + "\n";
+  if (!hint.empty()) text += "\n*" + markdown::escape(hint) + "*\n";
+  if (!description.empty()) text += "\n" + markdown::escape(description) + "\n";
+  return text;
 }
 
 vector<OutlineView::ButtonPlacement>
 OutlineView::placeButtons(const outline_row_s & row) const {
   auto cols = getDim().second;
   vector<pair<DetailsAction, string>> buttons;
-  for (auto & line : buildDetailsLines(row, cols)) {
-    if (line.action != DetailsAction::NONE) buttons.push_back({ line.action, line.text });
-  }
-  if (!infoLines(row).empty()) buttons.push_back({ DetailsAction::TOGGLE_INFO, "[?] Info" });
+  for (auto & line : buildDetailsLines(row)) buttons.push_back({ line.action, line.text });
+  if (!infoMarkdown(row).empty()) buttons.push_back({ DetailsAction::TOGGLE_INFO, "[?] Info" });
 
   vector<ButtonPlacement> placed;
   int bar_row = 0, x = 0;
@@ -276,14 +283,12 @@ OutlineView::renderButtonBar(const StyleProvider & styles) {
   auto cols = getDim().second;
   auto top = buttonBarTop();
 
-  // The separator row between the tree and the bar.
-  setFgColor(styles.window_border_color);
-  setBgColor(styles.window_bg_color);
-  putstr(top - 1, 0, repeatUtf8("─", cols));
-
+  // Overlays the tree's bottom rows, only as many as the buttons need, on a
+  // panel color so it reads as separate from the tree.
   string blank(static_cast<size_t>(cols), ' ');
   setFgColor(styles.window_fg_color);
-  for (int row = 0; row < kButtonBarRows; row++) putstr(top + row, 0, blank);
+  setBgColor(styles.window_accent_bg_color);
+  for (int row = 0; row < buttonBarRows(); row++) putstr(top + row, 0, blank);
 
   if (new_cursor_row_ < 0 || new_cursor_row_ >= static_cast<int>(data_.size())) return;
   for (auto & button : placeButtons(data_[static_cast<size_t>(new_cursor_row_)])) {
@@ -294,60 +299,42 @@ OutlineView::renderButtonBar(const StyleProvider & styles) {
     auto bracket_end = button.text.find(']');
     auto key_part = bracket_end != string::npos ? button.text.substr(0, bracket_end + 1) : string();
     auto rest_part = button.text.substr(key_part.size());
+    if (pressed_.action == button.action) {
+      setFgColor(styles.button_fg_color);
+      setBgColor(styles.button_pressed_bg_color);
+      putstr(top + button.row, button.x, button.text);
+      continue;
+    }
     setFgColor(styles.button_fg_color);
     setBgColor(styles.button_bg_color);
     putstr(top + button.row, button.x, key_part);
     setFgColor(styles.window_fg_color);
-    setBgColor(styles.window_bg_color);
+    setBgColor(styles.window_accent_bg_color);
     putstr(top + button.row, button.x + Utf8::displayWidth(key_part), rest_part);
   }
 }
 
 void
 OutlineView::closeInfoPopup() {
-  info_popup_open_ = false;
-  info_popup_.reset();
+  info_open_ = false;
+  info_popup_.close();
 }
 
 void
 OutlineView::renderInfoPopup(const StyleProvider & styles) {
-  vector<DetailsLine> lines;
-  if (info_popup_open_ && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size())) {
-    lines = infoLines(data_[static_cast<size_t>(new_cursor_row_)]);
+  string text;
+  if (info_open_ && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size())) {
+    text = infoMarkdown(data_[static_cast<size_t>(new_cursor_row_)]);
   }
-  if (lines.empty()) {
-    info_popup_.reset();
+  if (text.empty()) {
+    info_popup_.close();
     return;
   }
 
-  // A plane of its own beside the panel, over whatever's to its right.
-  // createChild() places a plane in screen coordinates, so it's moved
-  // there explicitly.
-  if (!info_popup_) info_popup_ = getPlane().createChild();
-  auto [pos_y, pos_x] = getPosition();
-  auto rows = static_cast<int>(lines.size()) + 2;
-  auto width = kInfoPopupWidth;
-  info_popup_->resize(rows, width);
-  info_popup_->move(pos_y + kTreeTop, pos_x + getDim().second);
-  info_popup_->moveToTop();
-
-  auto bg = styles.window_accent_bg_color, fg = styles.window_fg_color, border = styles.window_border_color;
-  info_popup_->setBgColor(bg.getRed(), bg.getGreen(), bg.getBlue());
-  info_popup_->setFgColor(border.getRed(), border.getGreen(), border.getBlue());
-  info_popup_->putstr(0, 0, "┌─ Details " + repeatUtf8("─", width - 12) + "┐");
-  for (int row = 1; row < rows - 1; row++) {
-    info_popup_->putstr(row, 0, "│" + string(static_cast<size_t>(width - 2), ' ') + "│");
-  }
-  info_popup_->putstr(rows - 1, 0, "└" + repeatUtf8("─", width - 2) + "┘");
-  info_popup_->setFgColor(fg.getRed(), fg.getGreen(), fg.getBlue());
-  for (size_t i = 0; i < lines.size(); i++) {
-    // One style at a time: each setter replaces the plane's whole style set.
-    if (lines[i].style == DetailsStyle::TITLE) info_popup_->setBold(true);
-    else if (lines[i].style == DetailsStyle::HINT) info_popup_->setItalic(true);
-    else info_popup_->setBold(false);
-    info_popup_->putstr(static_cast<int>(i) + 1, 2, Utf8::truncateToWidth(lines[i].text, width - 4));
-  }
-  info_popup_->setBold(false);
+  // A modal box centered on the screen (createChild() places a plane in
+  // screen coordinates).
+  info_popup_.show(getPlane(), "Details", text, std::min(kInfoPopupWidth, screen_cols_), screen_rows_);
+  info_popup_.center(screen_rows_, screen_cols_);
 }
 
 // The instrument's own name (a SoundFont's preset name, without the
@@ -365,40 +352,21 @@ OutlineView::libraryInstrumentName(const string & ref_name) const {
 }
 
 vector<DetailsLine>
-OutlineView::buildDetailsLines(const outline_row_s & row, int details_width) const {
+OutlineView::buildDetailsLines(const outline_row_s & row) const {
   vector<DetailsLine> lines;
   switch (row.kind) {
   case OutlineRowKind::TRACK:
     lines.push_back({ "[Del] Delete", DetailsAction::DELETE });
     break;
-  case OutlineRowKind::POOL_INSTRUMENT: {
+  case OutlineRowKind::POOL_INSTRUMENT:
     lines.push_back({ "[Del] Delete", DetailsAction::DELETE });
     lines.push_back({ "[a] Stop", DetailsAction::STOP });
-    lines.push_back({ "", DetailsAction::NONE });
-    lines.push_back({ row.label, DetailsAction::NONE, DetailsStyle::TITLE });
-    lines.push_back({ "Play note keys to preview", DetailsAction::NONE, DetailsStyle::HINT });
-    auto description = poolInstrumentDescription(getController().getSong().getInstrumentPool().getByIndex(row.ref_id));
-    if (!description.empty()) {
-      lines.push_back({ "", DetailsAction::NONE });
-      for (auto & wrapped : wrapText(description, details_width)) lines.push_back({ wrapped, DetailsAction::NONE });
-    }
     break;
-  }
   case OutlineRowKind::LIBRARY_INSTRUMENT:
     lines.push_back({ "[Enter] Add to Song", DetailsAction::ADD_TO_SONG });
     lines.push_back({ "[a] Stop", DetailsAction::STOP });
-    lines.push_back({ "", DetailsAction::NONE });
-    {
-      auto name = libraryInstrumentName(row.ref_name);
-      lines.push_back({ name.empty() ? row.label : name, DetailsAction::NONE, DetailsStyle::TITLE });
-    }
-    lines.push_back({ "Play note keys to preview", DetailsAction::NONE, DetailsStyle::HINT });
-    if (auto * description = findGmInstrumentDescription(row.ref_name)) {
-      lines.push_back({ "", DetailsAction::NONE });
-      for (auto & wrapped : wrapText(description, details_width)) lines.push_back({ wrapped, DetailsAction::NONE });
-    }
     break;
-  case OutlineRowKind::LIBRARY_GROOVE: {
+  case OutlineRowKind::LIBRARY_GROOVE:
     lines.push_back({ "[Enter] Add to Song", DetailsAction::ADD_TO_SONG });
     // Shows Add to Song's own current destination - 't' or a click opens
     // a real floating picker plane over this one to change it
@@ -407,12 +375,7 @@ OutlineView::buildDetailsLines(const outline_row_s & row, int details_width) con
     lines.push_back({ "[t] Target: " + targetTrackLabel(resolveTargetTrackId()), DetailsAction::TOGGLE_TARGET_PICKER });
     lines.push_back({ "[p] Preview", DetailsAction::PREVIEW });
     lines.push_back({ "[a] Stop", DetailsAction::STOP });
-    lines.push_back({ row.label, DetailsAction::NONE, DetailsStyle::TITLE });
-    if (auto * pattern = findGroovePattern(row.ref_name)) {
-      for (auto & wrapped : wrapText(pattern->description, details_width)) lines.push_back({ wrapped, DetailsAction::NONE });
-    }
     break;
-  }
   case OutlineRowKind::SECTION:
     break;
   }
@@ -425,7 +388,11 @@ OutlineView::renderRow(const StyleProvider & styles, int display_row, bool curso
   auto tree_width = getDim().second;
 
   if (display_row >= 0 && display_row < tree_rows) {
-    if (cursor && focused) {
+    auto data_row = static_cast<size_t>(display_row + current_scroll_pos_);
+    if (pressed_.data_row >= 0 && static_cast<size_t>(pressed_.data_row) == data_row) {
+      setFgColor(styles.highlight_fg_color);
+      setBgColor(styles.row_pressed_bg_color);
+    } else if (cursor && focused) {
       setFgColor(styles.highlight_fg_color);
       setBgColor(styles.highlight_bg_color);
     } else if (cursor) {
@@ -439,18 +406,23 @@ OutlineView::renderRow(const StyleProvider & styles, int display_row, bool curso
     string padding(static_cast<size_t>(std::max(0, tree_width)), ' ');
     putstr(kTreeTop + display_row, 0, padding);
 
-    auto data_row = static_cast<size_t>(display_row + current_scroll_pos_);
     if (data_row < data_.size()) {
       auto & data = data_[data_row];
 
-      putstr(kTreeTop + display_row, data.level * 3, data.label);
+      auto x = data.level * kIndentPerLevel - current_column_scroll_;
+      auto label = data.label;
+      if (x < 0) {
+        label = Utf8::dropLeadingColumns(label, -x);
+        x = 0;
+      }
+      putstr(kTreeTop + display_row, x, Utf8::truncateToWidth(label, tree_width - x));
     }
   }
 }
 
 void
 OutlineView::moveCursorBy(int delta) {
-  auto tree_rows = treeRows();
+  auto tree_rows = cursorRows();
 
   new_cursor_row_ = std::clamp(new_cursor_row_ + delta, 0, std::max(0, static_cast<int>(data_.size()) - 1));
   if (new_cursor_row_ < new_scroll_pos_) new_scroll_pos_ = new_cursor_row_;
@@ -465,6 +437,18 @@ OutlineView::scrollBy(int delta) {
   // visible at the bottom.
   auto max_scroll = std::max(0, static_cast<int>(data_.size()) - treeRows());
   new_scroll_pos_ = std::clamp(new_scroll_pos_ + delta, 0, max_scroll);
+}
+
+void
+OutlineView::scrollColumnsBy(int delta) {
+  new_column_scroll_ = std::clamp(new_column_scroll_ + delta, 0, maxColumnScroll());
+}
+
+int
+OutlineView::maxColumnScroll() const {
+  int widest = 0;
+  for (auto & row : data_) widest = std::max(widest, row.level * kIndentPerLevel + Utf8::displayWidth(row.label));
+  return std::max(0, widest - getDim().second);
 }
 
 void
@@ -523,8 +507,8 @@ OutlineView::openTargetPicker() {
   // bar, so it never covers the button that opened it, capped so it never
   // reaches above the tree's first row.
   auto wanted_rows = item_count + 2;
-  auto picker_rows = std::clamp(wanted_rows, 1, std::max(1, buttonBarTop() - 1 - kTreeTop));
-  auto anchor_y = buttonBarTop() - 1 - picker_rows;
+  auto picker_rows = std::clamp(wanted_rows, 1, std::max(1, buttonBarTop() - kTreeTop));
+  auto anchor_y = buttonBarTop() - picker_rows;
 
   getPlane().showPicker(anchor_y, 0, picker_rows, cols, item_count);
   for (auto * candidate : candidates) getPlane().addItem(candidate->label, "");
@@ -641,8 +625,6 @@ OutlineView::deleteSelectedRow() {
 void
 OutlineView::runDetailsAction(DetailsAction action) {
   switch (action) {
-  case DetailsAction::NONE:
-    break;
   case DetailsAction::DELETE:
     deleteSelectedRow();
     break;
@@ -673,7 +655,7 @@ OutlineView::runDetailsAction(DetailsAction action) {
     if (getPlane().pickerActive()) closeTargetPicker(); else openTargetPicker();
     break;
   case DetailsAction::TOGGLE_INFO:
-    info_popup_open_ = !info_popup_open_;
+    info_open_ = !info_open_;
     details_dirty_ = true;
     break;
   }
@@ -681,38 +663,56 @@ OutlineView::runDetailsAction(DetailsAction action) {
 
 bool
 OutlineView::handleClick(const InputEvent & input) {
-  // Resolved on release only, matching SpinBox's own click convention -
-  // PRESS is consumed (returns true, so it never falls through to
-  // anything else) but otherwise a no-op.
-  if (input.getKind() != InputEvent::Kind::RELEASE) return true;
+  // Resolved on release only, matching SpinBox's own click convention.
+  // A press - and each drag while held, which arrives as another press -
+  // shows what is under the mouse as pressed, and holds off placing a
+  // cursor on focus, which the release does instead.
+  auto target = hitTest(input.getY(), input.getX());
+  if (input.getKind() != InputEvent::Kind::RELEASE) {
+    click_pending_ = true;
+    pressed_ = target;
+    details_dirty_ = true;
+    return true;
+  }
+  auto pressed = pressed_;
+  click_pending_ = false;
+  pressed_ = ClickTarget();
+  details_dirty_ = true;
 
+  if (target.action) {
+    // Only what was shown pressed - a terminal that doesn't report drags
+    // never moved it here.
+    if (target == pressed) runDetailsAction(*target.action);
+  } else if (target.data_row >= 0) {
+    // The clicked row is already on screen by definition, so this never
+    // needs to touch new_scroll_pos_ the way moveCursorBy() does.
+    new_cursor_row_ = target.data_row;
+  }
+  return true;
+}
+
+OutlineView::ClickTarget
+OutlineView::hitTest(int screen_y, int screen_x) const {
+  ClickTarget target;
   auto [pos_y, pos_x] = getPosition();
   auto [rows, cols] = getDim();
-  auto y = input.getY() - pos_y, x = input.getX() - pos_x;
-  if (y < 0 || y >= rows || x < 0 || x >= cols) return true; // shouldn't happen - only reached while this is the click's own target
-  if (y < kTreeTop) return true; // the heading row - nothing clickable there
+  auto y = screen_y - pos_y, x = screen_x - pos_x;
+  if (y < kTreeTop || y >= rows || x < 0 || x >= cols) return target; // outside, or the heading row
 
-  auto content_row = y - kTreeTop; // 0-based row within the tree
   auto bar_row = y - buttonBarTop();
-
-  if (content_row < treeRows()) {
-    // A tree click - move the cursor straight to whichever row is
-    // showing there. The clicked row is already on screen by definition,
-    // so this never needs to touch new_scroll_pos_ the way moveCursorBy()
-    // does.
-    auto data_row = content_row + current_scroll_pos_;
-    if (data_row >= 0 && data_row < static_cast<int>(data_.size())) new_cursor_row_ = data_row;
-  } else if (bar_row >= 0 && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size())) {
-    // A button-bar click - hit-test against the exact same placements
-    // renderButtonBar() just drew, and run that button's action.
+  if (bar_row < 0) {
+    auto data_row = y - kTreeTop + current_scroll_pos_;
+    if (data_row < static_cast<int>(data_.size())) target.data_row = data_row;
+  } else if (new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size())) {
+    // The exact same placements renderButtonBar() just drew.
     for (auto & button : placeButtons(data_[static_cast<size_t>(new_cursor_row_)])) {
       if (button.row == bar_row && x >= button.x && x < button.x + Utf8::displayWidth(button.text)) {
-        runDetailsAction(button.action);
+        target.action = button.action;
         break;
       }
     }
   }
-  return true;
+  return target;
 }
 
 bool
@@ -720,7 +720,7 @@ OutlineView::offerInput(const InputEvent & input) {
   // The Info popup is modal: it closes on its own keys or a click, and
   // swallows everything else. A key's release still gets through, to stop
   // a preview note held when it opened.
-  if (info_popup_open_) {
+  if (info_open_) {
     bool is_click = input.getId() == NCKEY_BUTTON1;
     bool closes = is_click ? input.getKind() == InputEvent::Kind::RELEASE
       : input.getKind() != InputEvent::Kind::RELEASE && (input.getId() == '?' || input.getId() == NCKEY_ESC || (input.hasCtrl() && input.getId() == 'g'));
@@ -795,7 +795,7 @@ OutlineView::offerInput(const InputEvent & input) {
     // preview.
     runDetailsAction(DetailsAction::TOGGLE_INFO);
     return true;
-  } else if (((input.hasCtrl() && input.getId() == 'g') || input.getId() == NCKEY_ESC) && info_popup_open_) {
+  } else if (((input.hasCtrl() && input.getId() == 'g') || input.getId() == NCKEY_ESC) && info_open_) {
     runDetailsAction(DetailsAction::TOGGLE_INFO);
     return true;
   } else if (input.getId() == NCKEY_UP) {
@@ -804,17 +804,24 @@ OutlineView::offerInput(const InputEvent & input) {
   } else if (input.getId() == NCKEY_DOWN) {
     moveCursorBy(1);
     return true;
-  } else if (input.getId() == NCKEY_BUTTON4) { // scroll wheel up - see scrollBy()'s own comment for why this isn't moveCursorBy()
-    scrollBy(-1);
+  } else if (input.getId() == NCKEY_LEFT) {
+    scrollColumnsBy(-kColumnScrollStep);
     return true;
-  } else if (input.getId() == NCKEY_BUTTON5) { // scroll wheel down
-    scrollBy(1);
+  } else if (input.getId() == NCKEY_RIGHT) {
+    scrollColumnsBy(kColumnScrollStep);
+    return true;
+  } else if (input.getId() == NCKEY_BUTTON4 || input.getId() == NCKEY_BUTTON5) {
+    // The wheel scrolls the view, not the cursor (see scrollBy()); Shift
+    // scrolls sideways.
+    int direction = input.getId() == NCKEY_BUTTON4 ? -1 : 1;
+    if (input.hasShift()) scrollColumnsBy(direction * kColumnScrollStep);
+    else scrollBy(direction);
     return true;
   } else if (input.getId() == NCKEY_PGUP) {
-    moveCursorBy(-treeRows());
+    moveCursorBy(-cursorRows());
     return true;
   } else if (input.getId() == NCKEY_PGDOWN) {
-    moveCursorBy(treeRows());
+    moveCursorBy(cursorRows());
     return true;
   } else if (input.getId() == NCKEY_ENTER) {
     runDetailsAction(DetailsAction::ADD_TO_SONG);

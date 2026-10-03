@@ -1,10 +1,12 @@
 #ifndef _OUTLINEVIEW_H_
 #define _OUTLINEVIEW_H_
 
+#include "InfoDialog.h"
 #include "../UIElement.h"
 #include "../../model/TrackType.h"
 
 #include <memory>
+#include <optional>
 #include <vector>
 #include <string>
 #include <utility>
@@ -33,23 +35,16 @@ struct outline_row_s {
 };
 
 // What clicking a Details panel line does, if anything - see
-// OutlineView::buildDetailsLines()/handleClick(). NONE covers a line
-// with nothing to click (an informational hint like "[note keys]
-// Preview", a blank spacer, a wrapped description line).
+// OutlineView::buildDetailsLines()/handleClick().
 // TOGGLE_TARGET_PICKER opens/closes a Library > Grooves row's own
 // target-track picker - a real floating ncselector plane (see
 // OutlineView::openTargetPicker()), not another Details panel line, so
 // picking one of its candidates never reaches here at all.
-enum class DetailsAction { NONE, DELETE, ADD_TO_SONG, PREVIEW, STOP, TOGGLE_TARGET_PICKER, TOGGLE_INFO };
-
-// How the Info popup draws a line: TITLE is bold (the row's name), HINT
-// italic (an instruction).
-enum class DetailsStyle { PLAIN, TITLE, HINT };
+enum class DetailsAction { DELETE, ADD_TO_SONG, PREVIEW, STOP, TOGGLE_TARGET_PICKER, TOGGLE_INFO };
 
 struct DetailsLine {
   std::string text;
-  DetailsAction action = DetailsAction::NONE;
-  DetailsStyle style = DetailsStyle::PLAIN;
+  DetailsAction action;
 };
 
 // A read-only, indented tree of the active song - Song/Instruments/
@@ -60,8 +55,8 @@ struct DetailsLine {
 // (UI::View; "toggle-outline"/"outline-view", see TerminalUI::layout()).
 //
 // A narrow panel: an "Outline" heading, the scrollable tree across the
-// whole width, and under it a fixed-height bar of the cursor's row's
-// action buttons - Delete plus note-key preview for a Track/pool
+// whole width, and over its bottom rows (only while the cursor's row has
+// any) a bar of that row's action buttons - Delete plus note-key preview for a Track/pool
 // Instruments row (Song::removeTrack()/removeInstrument()), Add to Song
 // plus preview for a Library row, nothing for a plain section heading.
 // The rest of the row's details (its description, hints) open in a popup
@@ -97,10 +92,12 @@ class OutlineView : public UIElement {
   // Closes the details popup - for when this panel stops being shown
   // (the popup is a separate plane that would otherwise stay up).
   void closeInfoPopup();
+  // The screen the details popup is centered on.
+  void setScreenSize(int rows, int cols) { screen_rows_ = rows; screen_cols_ = cols; }
   // Escape closes the details popup.
-  bool wantsBareEscape() const override { return info_popup_open_; }
+  bool wantsBareEscape() const override { return info_open_; }
   // The Info popup takes all input while it is open.
-  bool isModal() const { return info_popup_open_; }
+  bool isModal() const { return info_open_; }
 
 protected:
   void renderRow(const StyleProvider & styles, int row, bool cursor, bool focused);
@@ -128,21 +125,35 @@ protected:
   // Clamped so the view can never scroll past the point where the last
   // row is already fully visible.
   void scrollBy(int delta);
+  // Scrolls the tree sideways by `delta` columns, so a label wider than
+  // the panel can be read; clamped to the widest label.
+  void scrollColumnsBy(int delta);
+  // How far the tree can scroll sideways: the widest row's overhang.
+  int maxColumnScroll() const;
   // The Details panel's own content for `row`, line by line - the single
   // source both renderButtonBar()/the details popup (drawing) and handleClick() (hit-
   // testing a click against whichever line it lands on) build from, so
   // the two can never show/dispatch different things for the same row.
-  // `details_width` is only needed to word-wrap a groove's own
-  // description to the panel's current width.
-  std::vector<DetailsLine> buildDetailsLines(const outline_row_s & row, int details_width) const;
+  // Only the clickable button lines - the descriptive text is Markdown,
+  // see infoMarkdown().
+  std::vector<DetailsLine> buildDetailsLines(const outline_row_s & row) const;
   std::string libraryInstrumentName(const std::string & ref_name) const;
   // NCKEY_BUTTON1 - hit-tests the click against whichever of the tree/
   // Details panel it landed in (see this class's own header comment) and
   // either moves the cursor straight to the clicked row (tree side) or
   // runs whatever DetailsAction that Details line carries, if any (panel
-  // side). Resolved on RELEASE only, matching SpinBox's own click
-  // convention - PRESS is consumed (returns true) but otherwise a no-op.
+  // side). Resolved on RELEASE, matching SpinBox's own click
+  // convention - a press, or a drag while held, only shows what is
+  // pressed; the release acts on it.
   bool handleClick(const InputEvent & input);
+  // What a click at the screen position lands on: a tree row (data_
+  // index) or a button, or neither.
+  struct ClickTarget {
+    int data_row = -1;
+    std::optional<DetailsAction> action;
+    bool operator==(const ClickTarget & o) const { return data_row == o.data_row && action == o.action; }
+  };
+  ClickTarget hitTest(int screen_y, int screen_x) const;
   // The actual effect behind a DetailsAction - shared by handleClick()
   // above and every keyboard path that already triggers the same thing
   // (NCKEY_ENTER/NCKEY_DEL/'p'/'a'/'t' in offerInput()), so a click and its
@@ -220,22 +231,35 @@ protected:
   // the bar's last row are dropped. A row with details text gets an extra
   // "[?] Info" button.
   std::vector<ButtonPlacement> placeButtons(const outline_row_s & row) const;
-  // The details popup's text for `row`: its non-button lines.
-  std::vector<DetailsLine> infoLines(const outline_row_s & row) const;
+  // The details popup's Markdown for `row` - empty if it has none.
+  std::string infoMarkdown(const outline_row_s & row) const;
 
   static constexpr int kButtonBarRows = 3;
   static constexpr int kInfoPopupWidth = 40;
+  static constexpr int kColumnScrollStep = 4;
+  static constexpr int kIndentPerLevel = 3;
   // How many rows the scrollable tree gets, between the heading above and
   // the button bar below. Never negative.
   int treeRows() const;
+  // How many tree rows the cursor is kept within, leaving room for the
+  // bar overlaid on the bottom.
+  int cursorRows() const;
   static constexpr int kTreeTop = 1; // the tree's first row, right below the heading
-  int buttonBarTop() const { return kTreeTop + treeRows() + 1; } // below the tree and its separator row
+  // The rows the current row's buttons occupy (0 when it has none), and
+  // the first of them: the bar sits over the tree's last rows.
+  int buttonBarRows() const;
+  int buttonBarTop() const { return getDim().first - buttonBarRows(); }
 
   std::vector<struct outline_row_s> data_;
   int current_song_version_ = 0;
   bool current_focused_ = false;
   int new_scroll_pos_ = 0, current_scroll_pos_ = 0;
-  int new_cursor_row_ = 0, current_cursor_row_ = 0;
+  int new_column_scroll_ = 0, current_column_scroll_ = 0;
+  // -1 until the panel is first focused or clicked: no row is
+  // highlighted and no buttons show before that.
+  int new_cursor_row_ = -1, current_cursor_row_ = -1;
+  bool click_pending_ = false; // a click pressed here, not yet released
+  ClickTarget pressed_; // what that click is holding down
   // The physical key id currently sounding a Library-instrument preview
   // note (see PlaybackControlEvent::PREVIEW_NOTE/PREVIEW_STOP's own
   // comment), or -1 when nothing is held - mirrors PatternEditor's own
@@ -262,8 +286,9 @@ protected:
   // (applyTargetPickerSelection()). Checked/cleared in render() the same
   // as cursor_changed.
   bool details_dirty_ = false;
-  std::unique_ptr<UIPlane> info_popup_;
-  bool info_popup_open_ = false;
+  InfoDialog info_popup_;
+  int screen_rows_ = 24, screen_cols_ = 80;
+  bool info_open_ = false;
 };
 
 #endif
