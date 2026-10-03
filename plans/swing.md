@@ -139,12 +139,15 @@ keeps only the positive half (see Questions).
 How it maps onto this project's buttons:
 
 - **Entering.** Shift is CC91 (held). The Pro MK3's Device and Stop Clip
-  buttons have no exact twin on the X/Mini, so use two of the six right-side
-  shift-alternate buttons that do nothing today (the right column is
-  otherwise Duplicate on Volume and Draw on Solo): **shift + Stop Clip
-  (CC49) = Swing**, as on the Pro MK3, and **shift + Pan (CC79) = Tempo**
-  (stand-in for Device; confirm in Questions). Their LEDs show orange
-  (Swing) and blue (Tempo) while shift is held, like Duplicate and Draw do.
+  buttons have no twin on the X/Mini, so two of the shift-alternate buttons
+  that do nothing today are used. Main now uses three of the eight (Duplicate
+  on Volume, the metronome on Pan, Draw on Solo), leaving Send A, Send B,
+  Stop Clip, Mute and Record Arm free. The timing controls are kept together
+  in one run of the right column: Pan is the metronome, **shift + Send A
+  (CC69) = Tempo** and **shift + Send B (CC59) = Swing**. Their LEDs show blue
+  (Tempo) and orange (Swing) while shift is held, like the others do. The
+  metronome's LED is amber, so the Swing orange must be picked to read as
+  clearly different from it.
 - **A view, not a hold.** Like DRAW, the two views are new `GridMode`
   members (`TEMPO`, `SWING`), per-device, reachable from any other
   `GridMode`, and part of the same exclusive group as Session/Note/Custom:
@@ -188,9 +191,9 @@ How it maps onto this project's buttons:
 - Update CLAUDE.md's Extra-button layout and GridMode bullets (the shift
   list, the new modes, the arrows) and `tools/e2e/README.md`.
 - e2e: `tools/e2e/verify_launchpad_tempo_swing.py`, modelled on
-  `verify_launchpad_shift_highlight.py`: shift + CC79 enters Tempo (entry LED
+  `verify_launchpad_shift_highlight.py`: shift + CC69 enters Tempo (entry LED
   blue, arrows lit white), CC92 then CC91 step the bpm down and up and the
-  InfoLine readout follows, a held arrow repeats, shift + CC49 switches to
+  InfoLine readout follows, a held arrow repeats, shift + CC59 switches to
   Swing, CC95 leaves. Pad LEDs are checked against `renderNumber()`.
 
 ### 6a. Live tempo (prerequisite for the Tempo view)
@@ -242,9 +245,9 @@ the Tempo view needs a real live-tempo path.
 
 Decided: Add to Song overwrites the song's swing; swing is eighth-note only.
 
-1. The Pro MK3's Device button has no twin on the X/Mini. Is shift + Pan
-   (CC79) acceptable for Tempo, or would you rather one of the other free
-   buttons (Send A, Send B, Mute, Record Arm)?
+1. Shift + Pan is now the metronome (merged to main). The plan puts Tempo
+   on shift + Send A and Swing on shift + Send B, next to it. Is that
+   grouping right, or should Swing stay on Stop Clip as on the Pro MK3?
 2. Negative swing (off-beats early, as Novation's view allows) cannot be done
    by the row scheduler as it is: a note can be delayed within its row but
    not fired before the row is reached, so it would need one row of
