@@ -4,7 +4,7 @@
 #include "../../model/Song.h"
 #include "../../model/SongStructure.h"
 #include "../../model/PercussionTrack.h"
-#include "../../model/GroovePatternLibrary.h"
+#include "../../model/RhythmPatternLibrary.h"
 #include "../../instruments/GenericInstrument.h"
 #include "../../instruments/GmInstrumentDescriptions.h"
 #include "../../instruments/Instrument.h"
@@ -87,24 +87,24 @@ OutlineView::render(const StyleProvider & styles, bool refresh, bool focused) {
     data_.push_back(std::move(row));
   }
   data_.push_back( { 0, TrackType::UNKNOWN, OutlineRowKind::SECTION, "Library" });
-  // One level-1 heading per GroovePatternTemplate::group actually present
-  // (today just "Grooves") - a direct child of Library, not nested under
+  // One level-1 heading per RhythmPatternTemplate::group actually present
+  // (today just "Rhythms") - a direct child of Library, not nested under
   // any further "Clips" grouping (there's nothing else under that name to
   // group it with) - derived from the library itself rather than
   // hardcoded, so a future group (e.g. a bass-line companion) shows up
   // here without touching this loop. Relies on same-group entries being
-  // stored contiguously in getGroovePatternLibrary()'s own table (they
+  // stored contiguously in getRhythmPatternLibrary()'s own table (they
   // are, by construction) rather than sorting/grouping them itself.
   {
     string current_group;
-    for (auto & pattern : getGroovePatternLibrary()) {
+    for (auto & pattern : getRhythmPatternLibrary()) {
       if (pattern.group != current_group) {
         current_group = pattern.group;
         data_.push_back( { 1, TrackType::UNKNOWN, OutlineRowKind::SECTION, current_group } );
       }
       outline_row_s row;
       row.level = 2;
-      row.kind = OutlineRowKind::LIBRARY_GROOVE;
+      row.kind = OutlineRowKind::LIBRARY_RHYTHM;
       row.label = pattern.name;
       row.ref_name = pattern.name;
       data_.push_back(std::move(row));
@@ -242,9 +242,9 @@ OutlineView::infoMarkdown(const outline_row_s & row) const {
     if (auto * found = findGmInstrumentDescription(row.ref_name)) description = found;
     break;
   }
-  case OutlineRowKind::LIBRARY_GROOVE:
+  case OutlineRowKind::LIBRARY_RHYTHM:
     title = row.label;
-    if (auto * pattern = findGroovePattern(row.ref_name)) description = pattern->description;
+    if (auto * pattern = findRhythmPattern(row.ref_name)) description = pattern->description;
     break;
   case OutlineRowKind::TRACK:
   case OutlineRowKind::SECTION:
@@ -366,7 +366,7 @@ OutlineView::buildDetailsLines(const outline_row_s & row) const {
     lines.push_back({ "[Enter] Add to Song", DetailsAction::ADD_TO_SONG });
     lines.push_back({ "[a] Stop", DetailsAction::STOP });
     break;
-  case OutlineRowKind::LIBRARY_GROOVE:
+  case OutlineRowKind::LIBRARY_RHYTHM:
     lines.push_back({ "[Enter] Add to Song", DetailsAction::ADD_TO_SONG });
     // Shows Add to Song's own current destination - 't' or a click opens
     // a real floating picker plane over this one to change it
@@ -552,11 +552,11 @@ OutlineView::applyTargetPickerSelection(const string & selection) {
 }
 
 void
-OutlineView::addSelectedLibraryGrooveToSong() {
+OutlineView::addSelectedLibraryRhythmToSong() {
   if (new_cursor_row_ < 0 || new_cursor_row_ >= static_cast<int>(data_.size())) return;
   auto & row = data_[static_cast<size_t>(new_cursor_row_)];
-  if (row.kind != OutlineRowKind::LIBRARY_GROOVE) return;
-  auto * pattern = findGroovePattern(row.ref_name);
+  if (row.kind != OutlineRowKind::LIBRARY_RHYTHM) return;
+  auto * pattern = findRhythmPattern(row.ref_name);
   if (!pattern) return;
 
   auto & song = getController().getSong();
@@ -633,18 +633,18 @@ OutlineView::runDetailsAction(DetailsAction action) {
     // kind of Library row the cursor is on - both no-op harmlessly
     // otherwise (see each one's own guard).
     addSelectedLibraryInstrumentToPool();
-    addSelectedLibraryGrooveToSong();
+    addSelectedLibraryRhythmToSong();
     break;
   case DetailsAction::PREVIEW:
-    // Only a Library > Grooves row actually has a PREVIEW action to run
+    // Only a Library > Rhythms row actually has a PREVIEW action to run
     // (see buildDetailsLines()) - a Library > Instruments row's own
     // preview is driven by note keys instead, not this action, so
     // there's nothing to guard against here beyond the row still
-    // actually being a groove.
+    // actually being a rhythm.
     if (new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size()) &&
-        data_[static_cast<size_t>(new_cursor_row_)].kind == OutlineRowKind::LIBRARY_GROOVE) {
+        data_[static_cast<size_t>(new_cursor_row_)].kind == OutlineRowKind::LIBRARY_RHYTHM) {
       auto & name = data_[static_cast<size_t>(new_cursor_row_)].ref_name;
-      getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PREVIEW_GROOVE, name));
+      getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PREVIEW_RHYTHM, name));
     }
     break;
   case DetailsAction::STOP:
@@ -830,20 +830,20 @@ OutlineView::offerInput(const InputEvent & input) {
     runDetailsAction(DetailsAction::DELETE);
     return true;
   } else if (input.getId() == 'p' && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size()) &&
-             data_[static_cast<size_t>(new_cursor_row_)].kind == OutlineRowKind::LIBRARY_GROOVE) {
-    // Loops the groove under the cursor (PlaybackControlEvent::
-    // PREVIEW_GROOVE) - 'p' rather than a note key, since a whole rhythm
+             data_[static_cast<size_t>(new_cursor_row_)].kind == OutlineRowKind::LIBRARY_RHYTHM) {
+    // Loops the rhythm under the cursor (PlaybackControlEvent::
+    // PREVIEW_RHYTHM) - 'p' rather than a note key, since a whole rhythm
     // pattern has no single pitch to bind to a keyboard note the way a
     // Library > Instruments row's audition does. Retriggering (pressing
     // 'p' again, even on the same row) restarts it cleanly from row 0 -
-    // see Player.h's own preview_groove_pattern_ comment. 'a' (above)
+    // see Player.h's own preview_rhythm_pattern_ comment. 'a' (above)
     // stops it, the same universal stop every other preview already uses.
     if (input.getKind() == InputEvent::Kind::REPEAT) return true;
     runDetailsAction(DetailsAction::PREVIEW);
     return true;
   } else if (input.getId() == 't' && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size()) &&
-             data_[static_cast<size_t>(new_cursor_row_)].kind == OutlineRowKind::LIBRARY_GROOVE) {
-    // Opens the groove's own target-track picker (openTargetPicker()) - a
+             data_[static_cast<size_t>(new_cursor_row_)].kind == OutlineRowKind::LIBRARY_RHYTHM) {
+    // Opens the rhythm's own target-track picker (openTargetPicker()) - a
     // real floating plane, closed by picking a candidate, Enter, or
     // Ctrl-g (see this method's own pickerActive() handling up top).
     if (input.getKind() == InputEvent::Kind::REPEAT) return true;

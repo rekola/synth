@@ -173,21 +173,21 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     }
     return;
 
-  case PlaybackControlEvent::PREVIEW_GROOVE:
+  case PlaybackControlEvent::PREVIEW_RHYTHM:
     // Retriggering (even the same name again) always restarts cleanly
-    // from row 0. Whatever was still ringing from a previous groove
+    // from row 0. Whatever was still ringing from a previous rhythm
     // preview gets fastRelease()'d (same reasoning/fix as
     // preview_note_voice_'s own retrigger handling above - a hard cut
     // truncates mid-waveform, an audible click) and left right where it
     // is in preview_voices_ to finish its own tail - reclaimed the usual
     // way, by renderPreview()'s own isActive() check, once it actually
-    // does. findGroovePattern() misses silently (null) for an
+    // does. findRhythmPattern() misses silently (null) for an
     // unrecognized name, same as PREVIEW_NOTE's own unresolved-instrument
     // case - nothing left to schedule, not a crash.
-    preview_groove_pattern_ = findGroovePattern(ev.getBufferName());
-    preview_groove_frame_ = 0;
+    preview_rhythm_pattern_ = findRhythmPattern(ev.getBufferName());
+    preview_rhythm_frame_ = 0;
     for (auto & voice : preview_voices_) voice->fastRelease();
-    if (preview_groove_pattern_) {
+    if (preview_rhythm_pattern_) {
       // The same "kit" a real PercussionTrack's own default kit resolves
       // to (InstrumentPool::prepare()'s own GenericInstrument) - a
       // throwaway instance reuses that exact literal/path/generic-default
@@ -197,9 +197,9 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
       auto kit = make_unique<GenericInstrument>();
       kit->setFrom("kit");
       kit->prepare(controller_->getInstrumentProvider());
-      preview_groove_instrument_ = std::move(kit);
+      preview_rhythm_instrument_ = std::move(kit);
     } else {
-      preview_groove_instrument_.reset();
+      preview_rhythm_instrument_.reset();
     }
     return;
 
@@ -207,7 +207,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     // Universal stop - releases whichever kind of preview (or both) is
     // currently active, the same key (OutlineView's own 'a') for either.
     if (preview_note_voice_) preview_note_voice_->stopNote();
-    preview_groove_pattern_ = nullptr;
+    preview_rhythm_pattern_ = nullptr;
     for (auto & voice : preview_voices_) voice->stopNote();
     return;
 
@@ -671,31 +671,31 @@ Player::renderPreview(int frames) {
     if (!preview_note_voice_->isActive()) preview_note_voice_.reset(); // release tail (if any) has fully finished
   }
 
-  if (preview_groove_pattern_) {
-    // Re-derived every block, not cached at PREVIEW_GROOVE time - so a
-    // live tempo change while a groove is previewing is reflected
+  if (preview_rhythm_pattern_) {
+    // Re-derived every block, not cached at PREVIEW_RHYTHM time - so a
+    // live tempo change while a rhythm is previewing is reflected
     // immediately, the same as any other tempo-driven playback.
     auto song = controller_->getCurrentSong();
     auto interval = song ? channel_config_.getSampleInterval(song->getTempo()) : 0;
-    auto loop_frames = interval * preview_groove_pattern_->length;
-    if (loop_frames > 0 && preview_groove_instrument_) {
-      for (auto & hit : preview_groove_pattern_->hits) {
+    auto loop_frames = interval * preview_rhythm_pattern_->length;
+    if (loop_frames > 0 && preview_rhythm_instrument_) {
+      for (auto & hit : preview_rhythm_pattern_->hits) {
         auto hit_frame = hit.row * interval;
         // How far ahead hit_frame is from the current loop position,
         // wrapping around the loop boundary - fires the moment that
         // distance is less than this block's own frame count,
         // correctly handling a hit whose scheduled frame is behind
-        // preview_groove_frame_ in absolute terms but still ahead of
+        // preview_rhythm_frame_ in absolute terms but still ahead of
         // it once the loop wraps.
-        auto ahead = (hit_frame - preview_groove_frame_ + loop_frames) % loop_frames;
+        auto ahead = (hit_frame - preview_rhythm_frame_ + loop_frames) % loop_frames;
         if (ahead < frames) {
           Note note(hit.note, hit.velocity);
-          preview_voices_.push_back(preview_groove_instrument_->playNote(channel_config_, SphericalPosition{}, Tuning::PERCUSSION, 1.0f,
+          preview_voices_.push_back(preview_rhythm_instrument_->playNote(channel_config_, SphericalPosition{}, Tuning::PERCUSSION, 1.0f,
                                                                                  note.getVelocityAsFloat(), note.getValue(), SendLevels{},
                                                                                  NoteCoordinate(-1, live_note_counter_++, 0)));
         }
       }
-      preview_groove_frame_ = (preview_groove_frame_ + frames) % loop_frames;
+      preview_rhythm_frame_ = (preview_rhythm_frame_ + frames) % loop_frames;
     }
   }
 

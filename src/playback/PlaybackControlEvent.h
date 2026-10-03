@@ -29,8 +29,8 @@ class PlaybackControlEvent : public Event {
   // parameter1 rows (SongState::shiftSession()) - parameter2 = the
   // sequence number.
   //
-  // PREVIEW_NOTE/PREVIEW_POOL_NOTE/PREVIEW_GROOVE/PREVIEW_STOP:
-  // OutlineView's own instrument/groove audition path, before anything is
+  // PREVIEW_NOTE/PREVIEW_POOL_NOTE/PREVIEW_RHYTHM/PREVIEW_STOP:
+  // OutlineView's own instrument/rhythm audition path, before anything is
   // ever committed to a song (see Song::addInstrument()/OutlineView.cpp's
   // own NCKEY_ENTER handling for that separate, actually-persisted
   // action). Buffer-agnostic like TERMINATE/MIXER_CHANGED below (there is
@@ -47,10 +47,10 @@ class PlaybackControlEvent : public Event {
   // rather than re-resolving a name means a slot's own generator
   // overrides or custom Oscillator parameters are heard exactly as
   // authored, not the provider's generic entry for that name; for
-  // PREVIEW_GROOVE, a GroovePatternLibrary.h entry's own name
-  // (findGroovePattern()). PREVIEW_NOTE/PREVIEW_POOL_NOTE/PREVIEW_GROOVE
+  // PREVIEW_RHYTHM, a RhythmPatternLibrary.h entry's own name
+  // (findRhythmPattern()). PREVIEW_NOTE/PREVIEW_POOL_NOTE/PREVIEW_RHYTHM
   // each replace whatever that same kind of preview was already doing
-  // outright (Player.h's own preview_note_voice_/preview_groove_pattern_ -
+  // outright (Player.h's own preview_note_voice_/preview_rhythm_pattern_ -
   // PREVIEW_NOTE and PREVIEW_POOL_NOTE share the one preview_note_voice_
   // slot, so starting either one retriggers the other); PREVIEW_STOP
   // releases all of them at once (a no-op for whichever weren't doing
@@ -80,17 +80,17 @@ class PlaybackControlEvent : public Event {
   enum Type { PLAY = 1, STOP, TERMINATE, MOVE_POSITION, CLEAR_VOICES, PLAY_NOTE, STOP_NOTE, STOP_ALL_NOTES, NOTE_PRESSURE, MIXER_CHANGED,
               SET_TRACK_MUTED, SET_TRACK_SOLO, SET_TRACK_SEND_A, SET_TRACK_SEND_B, SET_TRACK_SEND_MAIN, SET_TRACK_AZIMUTH,
               CHANNEL_PRESSURE, SET_RECORDING_MUTE, SET_POSITION, BUFFER_KILLED, BUFFER_RENAMED, SET_BUS_EFFECT,
-              QUEUE_SESSION_CHANGE, SILENCE_SESSION, PREVIEW_NOTE, PREVIEW_POOL_NOTE, PREVIEW_GROOVE, PREVIEW_STOP,
+              QUEUE_SESSION_CHANGE, SILENCE_SESSION, PREVIEW_NOTE, PREVIEW_POOL_NOTE, PREVIEW_RHYTHM, PREVIEW_STOP,
               GLIDE_TRACK_SEND_A, GLIDE_TRACK_SEND_B, GLIDE_TRACK_SEND_MAIN, GLIDE_TRACK_AZIMUTH,
               SET_TRACK_MONITORING, SHIFT_SESSION_POSITION, SET_METRONOME };
 
   // buffer_name says which open buffer this event targets - required for
   // every type except the genuinely buffer-agnostic ones (TERMINATE,
   // MIXER_CHANGED: process-/device-wide, never song-specific; PREVIEW_NOTE/
-  // PREVIEW_GROOVE: repurpose the field for a name instead, see Type's own
+  // PREVIEW_RHYTHM: repurpose the field for a name instead, see Type's own
   // comment; PREVIEW_POOL_NOTE: repurposes parameter1 for a pool index
   // instead, buffer_name left empty), which simply leave it at its
-  // default empty string (PREVIEW_NOTE/PREVIEW_GROOVE always set it, just
+  // default empty string (PREVIEW_NOTE/PREVIEW_RHYTHM always set it, just
   // not to a real buffer name).
   PlaybackControlEvent(Type _type, std::string _buffer_name = "", int _parameter1 = 0, int _parameter2 = 0, int _parameter3 = 0, int _parameter4 = 0)
     : type(_type), buffer_name(std::move(_buffer_name)), parameter1(_parameter1), parameter2(_parameter2), parameter3(_parameter3), parameter4(_parameter4) { }

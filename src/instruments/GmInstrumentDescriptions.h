@@ -6,7 +6,7 @@
 // One user-facing, one-sentence description per General MIDI taxonomy
 // path (see GmInstrumentTable.h) - what OutlineView.cpp's Details panel
 // shows for a Library > Instruments row, the same role
-// GroovePatternTemplate::description plays for a groove.
+// RhythmPatternTemplate::description plays for a rhythm.
 //
 // Kept separate from GmInstrumentTable.h/docs/instrument-paths.md on
 // purpose: that pair is the canonical, resolution-critical program-
@@ -166,7 +166,7 @@ static constexpr GmInstrumentDescription kGmInstrumentDescriptions[] = {
 
 // Plain linear scan - the table above is small (~140 entries) and only
 // ever consulted once per Details-panel redraw, the same tradeoff
-// GroovePatternLibrary.cpp's own findGroovePattern() makes. nullptr, not
+// RhythmPatternLibrary.cpp's own findRhythmPattern() makes. nullptr, not
 // "", for "no description authored for this path" - matches
 // InstrumentProvider::tryGetByLiteralName()'s own nullptr-on-miss
 // convention.

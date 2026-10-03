@@ -472,26 +472,26 @@ TEST(preview_note_retrigger_does_not_dip_a_slow_attack_instrument) {
   CHECK(peak_after > peak_before * 0.3f);
 }
 
-// Same fix, the groove-preview side: retriggering PREVIEW_GROOVE used to
+// Same fix, the rhythm-preview side: retriggering PREVIEW_RHYTHM used to
 // clear() preview_voices_ outright, destroying every currently-sounding
 // hit mid-waveform. Fixed to fastRelease() them in place instead (Player.h's
-// own preview_groove_pattern_ comment) - the count right after retriggering
+// own preview_rhythm_pattern_ comment) - the count right after retriggering
 // proves nothing was dropped, only released.
-TEST(preview_groove_retrigger_releases_still_sounding_hits_instead_of_cutting_them) {
+TEST(preview_rhythm_retrigger_releases_still_sounding_hits_instead_of_cutting_them) {
   ChannelConfiguration config(44100, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
 
   Player player(config, &controller);
 
-  PlaybackControlEvent first(PlaybackControlEvent::PREVIEW_GROOVE, "Waltz");
+  PlaybackControlEvent first(PlaybackControlEvent::PREVIEW_RHYTHM, "Waltz");
   player.handlePlaybackControlEvent(first);
   auto interval = config.getSampleInterval(controller.getSong().getTempo());
   player.renderPreview(interval); // row 0's kick fires and is now sounding
   CHECK(player.getPreviewVoiceCountForTest() > 0);
   auto sounding_before_retrigger = player.getPreviewVoiceCountForTest();
 
-  PlaybackControlEvent second(PlaybackControlEvent::PREVIEW_GROOVE, "Waltz");
+  PlaybackControlEvent second(PlaybackControlEvent::PREVIEW_RHYTHM, "Waltz");
   player.handlePlaybackControlEvent(second);
   // Still there, fastRelease()'d in place - retriggering never drops
   // preview_voices_' own existing entries.
@@ -570,13 +570,13 @@ TEST(preview_pool_note_with_an_out_of_range_index_previews_silence) {
   CHECK(data.numberOfChannels() == 0);
 }
 
-// OutlineView's own Library > Clips groove-preview path (PlaybackControlEvent::
-// PREVIEW_GROOVE/PREVIEW_STOP) - unlike PREVIEW_NOTE above, this is a real
+// OutlineView's own Library > Clips rhythm-preview path (PlaybackControlEvent::
+// PREVIEW_RHYTHM/PREVIEW_STOP) - unlike PREVIEW_NOTE above, this is a real
 // scheduler advancing block by block, spawning a fresh voice for every hit
 // as it comes due, looping - not a single ad hoc note. "Waltz" (kick on
-// row 0, rim on rows 4 and 8, 12-row/3-4 loop - see GroovePatternLibrary.cpp)
+// row 0, rim on rows 4 and 8, 12-row/3-4 loop - see RhythmPatternLibrary.cpp)
 // is used here as a known, fixed reference pattern.
-TEST(preview_groove_schedules_its_hits_and_stop_silences_it) {
+TEST(preview_rhythm_schedules_its_hits_and_stop_silences_it) {
   ChannelConfiguration config(44100, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
@@ -584,8 +584,8 @@ TEST(preview_groove_schedules_its_hits_and_stop_silences_it) {
   Player player(config, &controller);
   auto interval = config.getSampleInterval(controller.getSong().getTempo());
 
-  PlaybackControlEvent preview_groove(PlaybackControlEvent::PREVIEW_GROOVE, "Waltz");
-  player.handlePlaybackControlEvent(preview_groove);
+  PlaybackControlEvent preview_rhythm(PlaybackControlEvent::PREVIEW_RHYTHM, "Waltz");
+  player.handlePlaybackControlEvent(preview_rhythm);
 
   // Row 0's kick is scheduled at frame 0 - the very first block already
   // carries real, audible output.
@@ -634,17 +634,17 @@ TEST(preview_groove_schedules_its_hits_and_stop_silences_it) {
   CHECK(ever_reported_silent);
 }
 
-// A name that resolves to nothing (findGroovePattern() misses) previews
+// A name that resolves to nothing (findRhythmPattern() misses) previews
 // silence rather than crashing or substituting some other pattern.
-TEST(preview_groove_with_an_unresolvable_name_previews_silence) {
+TEST(preview_rhythm_with_an_unresolvable_name_previews_silence) {
   ChannelConfiguration config(44100, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
 
   Player player(config, &controller);
 
-  PlaybackControlEvent preview_groove(PlaybackControlEvent::PREVIEW_GROOVE, "nothing registered under this name");
-  player.handlePlaybackControlEvent(preview_groove);
+  PlaybackControlEvent preview_rhythm(PlaybackControlEvent::PREVIEW_RHYTHM, "nothing registered under this name");
+  player.handlePlaybackControlEvent(preview_rhythm);
 
   auto data = player.renderPreview(256);
   CHECK(data.numberOfChannels() == 0);

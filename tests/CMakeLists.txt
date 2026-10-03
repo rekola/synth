@@ -87,7 +87,7 @@ add_executable(synth_tests
 	MonoFifoTests.cpp
 	LevelMeterTests.cpp
 	LaunchpadPanTests.cpp
-	GroovePatternLibraryTests.cpp
+	RhythmPatternLibraryTests.cpp
 	ValueRampTests.cpp
 	SinusoidBankTests.cpp
 	AdditiveTests.cpp

@@ -8,7 +8,7 @@
 #include "../dsp/RecordingRingBuffer.h"
 #include "../dsp/MonoFifo.h"
 #include "../dsp/Metronome.h"
-#include "../model/GroovePatternLibrary.h"
+#include "../model/RhythmPatternLibrary.h"
 
 #include <memory>
 #include <string>
@@ -63,7 +63,7 @@ class Player : public EventHandler {
   // Test-only, same caveat as the others above - every voice
   // renderPreview() is currently carrying (preview_note_voice_, if any,
   // plus every entry in preview_voices_). What proves a retrigger
-  // (PREVIEW_NOTE/PREVIEW_GROOVE) actually lets the previous occupant
+  // (PREVIEW_NOTE/PREVIEW_RHYTHM) actually lets the previous occupant
   // finish its own release tail instead of destroying it outright - see
   // preview_note_voice_'s own comment - without needing to tell an
   // audible click apart from a legitimately fast/percussive attack by
@@ -78,7 +78,7 @@ class Player : public EventHandler {
 
   // OutlineView's own audition path - both a single Library-instrument
   // note (PlaybackControlEvent::PREVIEW_NOTE/PREVIEW_STOP) and a whole
-  // looping Library groove pattern (PREVIEW_GROOVE/PREVIEW_STOP) render
+  // looping Library rhythm pattern (PREVIEW_RHYTHM/PREVIEW_STOP) render
   // through here, combined into one buffer and mixed into the shared
   // Mixer every block by play()'s own poll loop, right alongside every
   // live buffer's own SongState (see that call site). Public, not private,
@@ -278,41 +278,41 @@ private:
   // differs from the new one (retriggerVoices()'s own stopNote() branch).
   std::unique_ptr<VoiceState> preview_note_voice_;
 
-  // OutlineView's own groove-pattern (Library > Grooves) preview path - a
-  // pointer into GroovePatternLibrary.h's own function-local static table
-  // (valid for the life of the process, see getGroovePatternLibrary()'s
+  // OutlineView's own rhythm-pattern (Library > Rhythms) preview path - a
+  // pointer into RhythmPatternLibrary.h's own function-local static table
+  // (valid for the life of the process, see getRhythmPatternLibrary()'s
   // own doc comment), null while nothing is previewing. Unlike
-  // preview_note_voice_ above, a groove genuinely needs real, concurrent
+  // preview_note_voice_ above, a rhythm genuinely needs real, concurrent
   // polyphony (a kick and a hi-hat landing on the same step are two
   // simultaneous voices, not one replacing the other) and a real
   // scheduler advancing it block by block (renderPreview()'s own body) -
-  // there is no per-buffer SongState to lean on here, since the groove
+  // there is no per-buffer SongState to lean on here, since the rhythm
   // isn't attached to any song/track at all until "Add to Song" actually
-  // creates one. Retriggering (a fresh PREVIEW_GROOVE while one is
+  // creates one. Retriggering (a fresh PREVIEW_RHYTHM while one is
   // already sounding) gives every currently-sounding hit the same
   // fastRelease() treatment preview_note_voice_'s own retrigger does,
   // rather than clearing preview_voices_ outright - same reasoning, same
   // fix for the same click.
-  const GroovePatternTemplate * preview_groove_pattern_ = nullptr;
-  // Resolved once, when PREVIEW_GROOVE starts (handlePlaybackControlEvent()),
+  const RhythmPatternTemplate * preview_rhythm_pattern_ = nullptr;
+  // Resolved once, when PREVIEW_RHYTHM starts (handlePlaybackControlEvent()),
   // not re-resolved every block - the same "kit" a real PercussionTrack's
   // own default kit resolves to (InstrumentPool::prepare()'s own
   // GenericInstrument, literal/path lookup falling back to the provider's
   // generic default instrument), reused here via a throwaway
   // GenericInstrument rather than duplicating that fallback chain inline.
-  // Null exactly when preview_groove_pattern_ is (both set together).
-  std::shared_ptr<Instrument> preview_groove_instrument_;
-  // Current position within preview_groove_pattern_'s own loop, in
+  // Null exactly when preview_rhythm_pattern_ is (both set together).
+  std::shared_ptr<Instrument> preview_rhythm_instrument_;
+  // Current position within preview_rhythm_pattern_'s own loop, in
   // frames at the active song's tempo (renderPreview() re-derives the
   // loop's total frame length from this every block, via
   // ChannelConfiguration::getSampleInterval() - cheap, and correctly
   // reacts to a live tempo change mid-preview rather than latching a
   // stale one). Always kept within [0, loop length) - meaningless while
-  // preview_groove_pattern_ is null.
-  int preview_groove_frame_ = 0;
+  // preview_rhythm_pattern_ is null.
+  int preview_rhythm_frame_ = 0;
   // Every voice past its own "the one addressable slot" role: every
-  // currently-sounding (or releasing) hit from preview_groove_pattern_ -
-  // see its own comment on why a groove needs real polyphony, unlike
+  // currently-sounding (or releasing) hit from preview_rhythm_pattern_ -
+  // see its own comment on why a rhythm needs real polyphony, unlike
   // preview_note_voice_ - plus, once retriggered/stopped, a former
   // preview_note_voice_ occupant finishing its own release tail. Nothing
   // here needs individual addressing any more, just to keep rendering
