@@ -1748,24 +1748,6 @@ TerminalUI::readInput() {
   return true;
 }
 
-namespace {
-
-// Song::getCurrentTrackId()'s own id, converted to whichever index-space
-// `track_ids` uses - every LaunchpadManager call below still takes a
-// plain index (a real per-list position, needed for arithmetic like
-// "move one track over" - LaunchpadLayout::advanceTrackIndex() - and for
-// auto-growing a brand-new song up to a target count, neither of which a
-// bare id supports), just no longer sourced from any one widget's own
-// cursor. Falls back to 0 (not -1) when the id isn't found here (unset,
-// or a track this particular list doesn't include) - the same "just pick
-// the first one" fallback PatternEditor's own cursor already starts at.
-int indexOfTrack(const vector<int> & track_ids, int track_id) {
-  auto it = find(track_ids.begin(), track_ids.end(), track_id);
-  return it == track_ids.end() ? 0 : static_cast<int>(it - track_ids.begin());
-}
-
-} // namespace
-
 void
 TerminalUI::commitOverviewCell(int track_id, int row) {
   // The whole commit refuses while playing - matches PatternEditor's own
@@ -2732,93 +2714,6 @@ TerminalUI::handleVisualizationResultEvent(VisualizationResultEvent & ev) {
 }
 
 void
-TerminalUI::handleRecordEvent(RecordEvent & ev) {
-  if (getController().isRecording()) {
-    setStatus(format("recorded {} frames", ev.getData().size()));
-    getController().addToSample(ev.getData());
-    // Lazily, exactly once per take, but only for a take that was never
-    // armed (Controller::isRecordingArmed()) - an armed take's own clip
-    // is created by handleRecordingLatencyEvent() below instead, once its
-    // own round-trip measurement arrives, so it can be placed/trimmed
-    // correctly from the start rather than created here uncompensated
-    // and only adjusted afterward.
-    if (!getController().hasRecordingClip() && !getController().isRecordingArmed()) {
-      getController().beginSampleCapture(getController().getRecordingTrackId());
-    }
-  }
-}
-
-void
-TerminalUI::handleRecordingLatencyEvent(RecordingLatencyEvent & ev) {
-  // Both guards defensive - Player.cpp only ever pushes this once per
-  // take (the false -> true edge of Controller::isRecording()), and
-  // hasRecordingClip() being already true would mean a second, spurious
-  // measurement somehow arrived for the same take - but this is where
-  // the clip actually gets created, trimmed, and placed, all as one step,
-  // so it stays defensive rather than assuming either can't happen.
-  if (getController().isRecording() && !getController().hasRecordingClip()) {
-    getController().beginSampleCapture(getController().getRecordingTrackId(), ev.getLatencyFrames());
-  }
-}
-
-void
-TerminalUI::handleThresholdRecordingTriggeredEvent(ThresholdRecordingTriggeredEvent & ev) {
-  // Defensive, same reasoning as handleRecordingLatencyEvent() above -
-  // Player.cpp only ever pushes this once per arm cycle (its own
-  // threshold_triggered_this_arm_cycle_ latch).
-  if (getController().hasRecordingClip()) return;
-
-  // This is where a threshold-triggered take actually begins, as if it
-  // had been recording this whole time - startRecording() first (a fresh
-  // current_sample), then (for an ordinary, non-Session-View take - see
-  // below) a bar-quantized start row is derived and any gap it opens up
-  // is filled with real silence, then the ring buffer's own already-
-  // captured lead-in is appended, then the (possibly quantized) start
-  // position is armed for beginSampleCapture() to place at.
-  getController().startRecording();
-
-  // Never for a Session View take (isSessionRecording(track_id)) - that
-  // populates a clip slot directly with no arrangement position at all,
-  // so there's nothing here to quantize or snapshot; beginSampleCapture()
-  // already treats recording_start_row_'s own untouched -1 default as
-  // "stays unplaced."
-  bool is_session_recording_take = getController().isSessionRecording(ev.getTrackId());
-  auto start_row = ev.getRow();
-  if (!is_session_recording_take) {
-    // Bar-quantized the same way ensureNoteRecordingClip() already
-    // quantizes a brand-new live-recorded clip's own origin - rounded
-    // back (previousBarRow()), never forward, so the take's own true
-    // first frame is never placed later than it was actually captured.
-    // Unlike a note's own row (just recomputed relative to the clip's
-    // new, earlier origin, preserving its real timing automatically), a
-    // SampleTrack clip's raw audio has no such per-frame repositioning -
-    // so the gap between the quantized bar and the true (backdated)
-    // onset is filled with that many frames of real silence up front
-    // instead, keeping the captured content's own timing exactly where
-    // it was actually performed rather than shifting the whole take
-    // earlier to the bar.
-    auto & song = getController().getSong();
-    auto rows_per_bar = std::max(1, song.getRowsPerBar());
-    auto quantized_row = previousBarRow(ev.getRow(), rows_per_bar);
-    auto gap_rows = ev.getRow() - quantized_row;
-    if (gap_rows > 0) {
-      auto gap_frames = gap_rows * getController().getChannelConfiguration().getSampleInterval(song.getTempo());
-      if (gap_frames > 0) {
-        AudioBuffer silence(1, gap_frames);
-        silence.zero();
-        getController().addToSample(silence);
-      }
-    }
-    start_row = quantized_row;
-  }
-
-  getController().addToSample(ev.getPreroll());
-  if (!is_session_recording_take) getController().armRecordingStart(start_row);
-  getController().beginSampleCapture(ev.getTrackId());
-  getController().clearThresholdArmed();
-}
-
-void
 TerminalUI::handleLogEvent(LogEvent & ev) {
   setStatus(ev.getText());
 }
@@ -2828,143 +2723,9 @@ TerminalUI::handleMidiEvent(MidiEvent & ev) {
   pattern_editor_->handleMidiEvent(ev);
 }
 
-void
-TerminalUI::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
-  // Track-picker overlay (opened by CC49 "Stop Clip"/CC39 "Mute"/CC29
-  // "Solo" - see LaunchpadManager::handleRawButton()'s own comment) -
-  // Session-view-only, so this only ever intercepts the picker row itself
-  // while it's open; every other row (Session view's own content) falls
-  // through to the normal SESSION handling below unchanged, staying fully
-  // interactive underneath the overlay.
-  if (launchpad_manager_ && launchpad_manager_->isTrackPickerRow(ev.getDeviceIndex(), ev.getY())) {
-    launchpad_manager_->handleTrackPickerPadEvent(ev, getController());
-    return;
-  }
-  // DRAW mode (a plain coloring toy - see LaunchpadManager::
-  // pressDrawPad/releaseDrawPad) touches no Song/Track/Pattern data at
-  // all, unlike every other pad-event use (note entry, Send A/B/Pan) -
-  // handled entirely here, before PatternEditor (which owns actual
-  // pattern editing) ever sees the event.
-  if (launchpad_manager_ && launchpad_manager_->gridMode(ev.getDeviceIndex()) == LaunchpadManager::GridMode::DRAW) {
-    if (ev.getKind() == LaunchpadPadEvent::PRESS) {
-      launchpad_manager_->pressDrawPad(ev.getDeviceIndex(), ev.getX(), ev.getY(), ev.getVelocity());
-    } else if (ev.getKind() == LaunchpadPadEvent::AFTERTOUCH) {
-      launchpad_manager_->updateDrawIntensity(ev.getDeviceIndex(), ev.getX(), ev.getY(), ev.getVelocity());
-    } else if (ev.getKind() == LaunchpadPadEvent::RELEASE) {
-      launchpad_manager_->releaseDrawPad(ev.getDeviceIndex(), ev.getX(), ev.getY());
-    }
-    return;
-  }
-  // GridMode::SESSION: unlike DRAW above, this one does need Controller -
-  // an "assign" press writes into the Song directly, and either sub-mode
-  // (audition/assign - see handleSessionPadEvent()'s own comment) needs
-  // the playback event queue.
-  if (launchpad_manager_ && launchpad_manager_->gridMode(ev.getDeviceIndex()) == LaunchpadManager::GridMode::SESSION) {
-    launchpad_manager_->handleSessionPadEvent(ev, getController());
-    return;
-  }
-  if (!launchpad_manager_) return;
-  // handlePadEvent() itself indexes song.getPlayableTrackIds() with this
-  // - see indexOfTrack()'s own comment for why a real index, not the bare
-  // id, is still what it needs.
-  auto track_ids = getController().getSong().getPlayableTrackIds();
-  launchpad_manager_->handlePadEvent(ev, getController(),
-    indexOfTrack(track_ids, getController().getSong().getCurrentTrackId()), pattern_editor_->getEditStepSize());
-}
-
-void
-TerminalUI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
-  if (!launchpad_manager_) return;
-
-  auto device_id = ev.getDeviceIndex();
-
-  // Resolves and dispatches whatever command a raw CC number names
-  // (LaunchpadProtocol::commandForButton()) - factored out since CC91's
-  // own deferred shift-tap below (handleShiftButton()'s own comment)
-  // needs to reach this exact same path from a release event instead of
-  // the ordinary press-driven call site further down.
-  auto dispatch_named_command = [&](int cc_number) {
-    auto name = LaunchpadProtocol::commandForButton(cc_number);
-    if (!name) return;
-
-    // Emacs prefix-argument style: resolve which track_id this specific
-    // physical device currently targets and stash it as a one-shot
-    // transient on Controller before dispatching - "toggle-mute" (and any
-    // future command that cares) reads-and-clears it, falling back to the
-    // shared cursor's own track otherwise (see PatternEditor's constructor,
-    // Controller::consumePendingCommandTrack). Harmless to set
-    // unconditionally, even for commands that never consume it (octave-up,
-    // next-track, ...) - it's a one-shot value, overwritten or cleared by
-    // the very next dispatch either way, so it can never leak into a later,
-    // unrelated command.
-    auto track_ids = getController().getSong().getPlayableTrackIds();
-    getController().setPendingCommandTrack(launchpad_manager_->resolveTrackId(device_id, track_ids, indexOfTrack(track_ids, getController().getSong().getCurrentTrackId())));
-
-    // Pure per-device commands (octave/track-follow - no Song/Track access,
-    // no keyboard/M-x equivalent) go through LaunchpadManager's own entry
-    // point first; everything else (Song/Track-mutating commands like
-    // "toggle-mute", or anything else registered anywhere) falls through to
-    // the exact same executeCommand() a keybinding or M-x invocation uses.
-    // Deliberately bypassing active_element_/Controller::sendCommand's focus
-    // routing either way, to match how pad input already reaches
-    // PatternEditor unconditionally (see handleLaunchpadPadEvent above) -
-    // these would otherwise silently no-op whenever some other window
-    // happens to have focus.
-    bool handled = launchpad_manager_->handleCommand(*name, device_id, indexOfTrack(track_ids, getController().getSong().getCurrentTrackId()), static_cast<int>(track_ids.size()), getController());
-    if (!handled) handled = executeCommand(*name);
-
-    getController().setPendingCommandTrack(-1);
-  };
-
-  // CC98 (Session Record) needs press and release, not just press - its
-  // own tap-vs-long-hold gesture (LaunchpadManager::handleRecordButton()):
-  // a quick tap overdubs the playing clip (or stops the takes in flight),
-  // a long hold is Capture MIDI. Routed here before the press-only filter
-  // below, which every other raw-CC button (and every other release)
-  // still goes through unchanged.
-  if (ev.getCCNumber() == 98) {
-    launchpad_manager_->handleRecordButton(device_id, getController(), ev.getKind() == LaunchpadButtonEvent::PRESS);
-    return;
-  }
-
-  // CC91 ("move-row-up") doubles as a held shift modifier for opening a
-  // Session-view clip's own step grid directly instead of triggering it
-  // (LaunchpadManager::handleShiftButton(), DeviceState::
-  // row_up_shift_held's own comment) - needs press and release too, same
-  // reasoning as CC98 above: nothing about a shift-combo can be decided
-  // from a press alone. handleShiftButton() itself decides whether
-  // "move-row-up" should still fire (a plain tap, nothing combined) -
-  // deferred to here, its release, rather than commandForButton()'s own
-  // ordinary press-driven call site further down.
-  if (ev.getCCNumber() == 91) {
-    if (launchpad_manager_->handleShiftButton(device_id, ev.getKind() == LaunchpadButtonEvent::PRESS)) dispatch_named_command(91);
-    return;
-  }
-
-  // The mixer radio group's own ten CC numbers (Record Arm/Volume/Pan/
-  // Send A/Send B/Stop Clip/Mute/Solo, Pro MK3's Mute/Solo twins -
-  // LaunchpadManager::isMixerFunctionButton()) need release too, for their
-  // own momentary hold-to-preview gesture
-  // (LaunchpadManager::handleMixerFunctionRelease()) - same reasoning as
-  // CC98 above, just a release-only rather than a press-and-release
-  // handler, since the press half is still handleRawButton()'s own
-  // press-only entry point below, unchanged.
-  if (LaunchpadManager::isMixerFunctionButton(ev.getCCNumber())) {
-    if (ev.getKind() != LaunchpadButtonEvent::PRESS) {
-      launchpad_manager_->handleMixerFunctionRelease(device_id, ev.getCCNumber(), getController());
-      return;
-    }
-  } else if (ev.getKind() != LaunchpadButtonEvent::PRESS) {
-    return;
-  }
-
-  // Send A/B: a direct hardware-state toggle (this device's own transient
-  // grid-display mode), never a command - intercepted here, by raw CC
-  // number, before any command-name resolution happens at all. See
-  // LaunchpadManager::handleRawButton's own comment.
-  if (launchpad_manager_->handleRawButton(ev.getCCNumber(), device_id, getController())) return;
-
-  dispatch_named_command(ev.getCCNumber());
+int
+TerminalUI::launchpadEditStepSize() const {
+  return pattern_editor_->getEditStepSize();
 }
 
 void
@@ -3100,7 +2861,7 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
 
   string waiting_stderr;
   
-  while ( !close_ui_ ) {
+  while ( !shouldClose() ) {
     bool render = false;
 
     updateEscapeIndicator();

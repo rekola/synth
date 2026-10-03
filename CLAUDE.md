@@ -55,6 +55,13 @@ works via the cardioid stereo decoder fallback.
 ./build/synth --render out.wav songs/demo3.xml   # headless render to WAV
 ```
 
+`--headless` runs without the terminal UI (`HeadlessUI`, `src/ui/headless/`):
+it plays the song, keeps a Launchpad working, and prints timestamped status
+lines to stderr, plays MIDI input live and records samples; `--autoplay` starts the transport, `--daemon` (with optional
+`--log-file`/`--pid-file`) detaches it. SIGINT/SIGTERM/SIGHUP end any UI
+mode's main loop cleanly (`util/ShutdownSignal.h`, `UI::shouldClose()`).
+See `docs/headless.md`; `tools/e2e/verify_headless.py` covers it.
+
 `--render` needs no terminal or audio device: it renders the song offline
 (plus the effect/release tail until silence, capped at 10 s) and exits — use
 it to verify audio changes and to regression-test songs.
@@ -1195,6 +1202,9 @@ would otherwise resume showing.
     copy-paste is expected to follow ordinary GUI conventions (Ctrl-C/-X/
     -V-style, not Emacs mark-and-kill), so these aren't a "not yet shared"
     gap to close later; they belong in `TerminalUI` for good.
+  - `src/ui/headless/` — `HeadlessUI`, the backend with no screen: just the
+    main loop, Launchpad wiring and stderr status output. Launchpad pad/button
+    handling itself lives in `UI` and is shared with `TerminalUI`.
   - `src/launchpad/` — Launchpad hardware I/O and layout - see the
     Launchpad section above.
   - `src/util/` — small, dependency-free helpers (`constants.h`,

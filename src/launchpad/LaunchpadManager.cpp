@@ -1683,10 +1683,8 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     if (state.capture_enabled && auto_started_playback_) controller.ensureRowCleared(auto_record_cleared_rows_, row, track_id);
 
     // Free-slot search (mirrors Arrangement::pushNote), deliberately not
-    // "map size" the way active_midi_notes assigns columns - that has a
-    // latent collision bug on non-LIFO release order, which is the common
-    // case for a chordally-played grid controller (see the plan's design
-    // decision 3). Computed unconditionally (even with Capture off,
+    // "map size": a column count collides on non-LIFO release order,
+    // which is the common case for a chordally-played grid controller. Computed unconditionally (even with Capture off,
     // nothing gets written to it) - simpler than a second code path, and
     // it's still needed to key the live-audition voice below. A column is
     // "taken" if the pattern already has a real note there *or* some
