@@ -47,7 +47,7 @@ public:
 
       Member member;
       member.level = level * powf(stack.falloff, static_cast<float>(k));
-      member.ratio = static_cast<double>(detune * powf(stack.ratio, static_cast<float>(k)) * powf(2.0f, place * stack.detune_cents / 2400.0f));
+      member.ratio = detune * powf(stack.ratio, static_cast<float>(k)) * powf(2.0f, place * stack.detune_cents / 2400.0f);
       // The same derivation as InstrumentVoice's own start phase, so a
       // lone member starts where this voice always has; stacked members
       // are decorrelated by their index.
@@ -189,7 +189,7 @@ public:
 private:
   struct Member {
     double phase = 0.0;  // cycles
-    double ratio = 1.0;  // frequency ratio to the note
+    float ratio = 1.0f;  // frequency ratio to the note
     float level = 1.0f;
   };
 
