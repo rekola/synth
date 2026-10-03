@@ -1138,7 +1138,7 @@ would otherwise resume showing.
     member k at `ratio`^k times the note's frequency and `falloff`^k times its
     level (ratio 1 = unison choir, 2 = octaves), with `detune` (cents) spread
     evenly and centred across the members (`OscillatorStack.h`; rendered by
-    `OscillatorVoice` through `OscillatorArray`, a struct-of-arrays
+    `OscillatorVoice`, whose waveforms come from `OscillatorKernel`, a
     vector-extension kernel). `spread` (a multiplier on the position's extent)
     is the radius of a cloud of buckets: as many as resolvable cells (25/16/12
     degrees at order 1/2/3) fit in the cloud's elliptical area, at most one per

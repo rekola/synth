@@ -2,7 +2,7 @@
 #define _OSCILLATORVOICE_H_
 
 #include "InstrumentVoice.h"
-#include "OscillatorArray.h"
+#include "OscillatorKernel.h"
 #include "OscillatorStack.h"
 #include "WaveformType.h"
 #include "../ambisonic/AmbisonicStackEncoder.h"
@@ -25,8 +25,9 @@ public:
   // `detune` is the frequency ratio applied to every member (the played
   // note's own detune and harmonic).
   OscillatorVoice(const ChannelConfiguration & config, const SphericalPosition & position, float detune, WaveformType type, float level, float pulse_width, const SendLevels & sends = {}, const NoteCoordinate & note_coord = {}, const OscillatorStack & stack = {})
-    : InstrumentVoice(config, position, 1.0f, sends, note_coord) {
+    : InstrumentVoice(config, position, 1.0f, sends, note_coord), type_(type), pulse_width_(pulse_width) {
     const int n = std::clamp(stack.voices, 1, OscillatorStack::kMaxVoices);
+    members_ = n;
 
     // atan2 rather than atan handles distance <= 0 (an untouched/diffuse
     // position, where the azimuth is ignored anyway) without dividing by 0.
@@ -44,21 +45,18 @@ public:
       // Where the member sits across the detune range: -1 .. +1, or 0 for one.
       const float place = n > 1 ? 2.0f * static_cast<float>(k) / static_cast<float>(n - 1) - 1.0f : 0.0f;
 
-      OscillatorArray::Copy copy;
-      copy.type = type;
-      copy.level = level * powf(stack.falloff, static_cast<float>(k));
-      copy.pulse_width = pulse_width;
-      copy.ratio = static_cast<double>(detune * powf(stack.ratio, static_cast<float>(k)) * powf(2.0f, place * stack.detune_cents / 2400.0f));
+      Member member;
+      member.level = level * powf(stack.falloff, static_cast<float>(k));
+      member.ratio = static_cast<double>(detune * powf(stack.ratio, static_cast<float>(k)) * powf(2.0f, place * stack.detune_cents / 2400.0f));
       // The same derivation as InstrumentVoice's own start phase, so a
       // lone member starts where this voice always has; stacked members
       // are decorrelated by their index.
       NoteCoordinate coord = n > 1 ? note_coord.withInstance(k) : note_coord;
-      copy.phase = static_cast<double>(HashField(kNotePhaseSalt).unit(coord.toHashCoord(), paramId("note_phase")));
-      array_.add(copy);
+      member.phase = static_cast<double>(HashField(kNotePhaseSalt).unit(coord.toHashCoord(), paramId("note_phase")));
 
       // Dealt round-robin, so the buckets stay evenly filled and members
       // neighbouring in pitch land in different places.
-      buckets_[static_cast<size_t>(k % count)].members.push_back(static_cast<size_t>(k));
+      buckets_[static_cast<size_t>(k % count)].members.push_back(member);
     }
   }
 
@@ -117,7 +115,7 @@ public:
     return p;
   }
 
-  size_t memberCount() const { return array_.size(); }
+  size_t memberCount() const { return static_cast<size_t>(members_); }
   size_t bucketCount() const { return buckets_.size(); }
   size_t bucketSize(size_t b) const { return buckets_[b].members.size(); }
   const SphericalPosition & bucketDirection(size_t b) const { return buckets_[b].direction; }
@@ -125,7 +123,11 @@ public:
 
   void playNote(float frequency, float velocity, int note_value) override {
     // The note's velocity is baked in once, at the first play.
-    if (getFrequency() == 0.0f) array_.scaleLevels(velocity);
+    if (getFrequency() == 0.0f) {
+      for (auto & bucket : buckets_) {
+	for (auto & member : bucket.members) member.level *= velocity;
+      }
+    }
     InstrumentVoice::playNote(frequency, velocity, note_value);
   }
 
@@ -139,14 +141,7 @@ public:
 
   AudioBuffer render(int frames) override {
     const double rate = static_cast<double>(getFrequency()) / getChannelConfiguration().getAudioOutSampleRate();
-    const size_t padded = OscillatorArray::paddedFrames(frames);
-    if (scratch_.size() < padded) scratch_.resize(padded);
-
-    if (array_.size() == 1) {
-      array_.renderCopy(0, rate, frames, scratch_.data());
-      array_.advance(rate, frames);
-      return encodePosition(scratch_.data(), frames);
-    }
+    const size_t padded = oscillator_kernel::paddedFrames(frames);
 
     const bool has_main = getSends().main > 0.0f;
     const float main_gain = getSends().main * getDistanceGain();
@@ -157,9 +152,13 @@ public:
     const size_t rows = buckets_.size();
     bucket_sums_.assign(rows * padded, 0.0f);
     for (size_t b = 0; b < rows; b++) {
-      for (size_t i : buckets_[b].members) array_.mixCopy(i, rate, frames, bucket_sums_.data() + b * padded);
+      float * row = bucket_sums_.data() + b * padded;
+      for (auto & member : buckets_[b].members) {
+	oscillator_kernel::mix(type_, pulse_width_, member.phase, member.ratio * rate, member.level, frames, row);
+	member.phase += member.ratio * rate * frames;
+	member.phase -= std::floor(member.phase);
+      }
     }
-    array_.advance(rate, frames);
 
     if (has_main) {
       targets_.resize(rows);
@@ -188,17 +187,25 @@ public:
   }
 
 private:
+  struct Member {
+    double phase = 0.0;  // cycles
+    double ratio = 1.0;  // frequency ratio to the note
+    float level = 1.0f;
+  };
+
   struct Bucket {
     SphericalPosition direction;
     AmbisonicGains gains{};
-    std::vector<size_t> members;
+    std::vector<Member> members;
   };
 
-  OscillatorArray array_;
+  WaveformType type_;
+  float pulse_width_;
+  int members_ = 1;
   std::vector<Bucket> buckets_;
   AmbisonicStackEncoder encoder_;
   std::vector<AmbisonicGains> targets_;
-  std::vector<float> scratch_, bucket_sums_, sum_;
+  std::vector<float> bucket_sums_, sum_;
 };
 
 #endif

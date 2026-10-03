@@ -1,7 +1,7 @@
 #include "TestFramework.h"
 
 #include "../src/instruments/Oscillator.h"
-#include "../src/instruments/OscillatorArray.h"
+#include "../src/instruments/OscillatorKernel.h"
 #include "../src/instruments/OscillatorVoice.h"
 #include "../src/state/MemoryParameterSource.h"
 #include "../src/ambisonic/ChannelConfiguration.h"
@@ -30,46 +30,46 @@ double reference(WaveformType type, double phase, double pulse_width) {
 
 } // namespace
 
-TEST(oscillator_array_matches_the_scalar_waveforms) {
-  const double rate = 440.0 / 44100.0;
+TEST(oscillator_kernel_matches_the_scalar_waveforms) {
+  const double rate = 440.0 / 44100.0 * 1.5;
   const int frames = 1003; // not a multiple of the vector width
   const WaveformType types[] = { WaveformType::SINE, WaveformType::SAW, WaveformType::TRIANGLE, WaveformType::SQUARE };
 
   for (auto type : types) {
-    OscillatorArray array;
-    OscillatorArray::Copy copy;
-    copy.type = type;
-    copy.level = 0.5f;
-    copy.pulse_width = 0.3f;
-    copy.ratio = 1.5;
-    copy.phase = 0.37;
-    array.add(copy);
-
-    vector<float> out(OscillatorArray::paddedFrames(frames));
+    vector<float> out(oscillator_kernel::paddedFrames(frames));
     int mismatches = 0;
     double max_err = 0.0;
+    double phase = 0.37;
     // Several blocks, so the phase carry between them is exercised too.
     for (int block = 0; block < 20; block++) {
-      array.renderCopy(0, rate, frames, out.data());
+      fill(out.begin(), out.end(), 0.0f);
+      oscillator_kernel::mix(type, 0.3f, phase, rate, 0.5f, frames, out.data());
       for (int k = 0; k < frames; k++) {
-	double phase = 0.37 + 1.5 * rate * (block * frames + k);
-	double expected = 0.5 * reference(type, phase, 0.3);
+	double expected = 0.5 * reference(type, phase + rate * k, 0.3);
 	double err = fabs(out[static_cast<size_t>(k)] - expected);
 	// A discontinuity can land one sample either side of the exact edge.
 	if (err > 1e-4) mismatches++; else max_err = max(max_err, err);
       }
-      array.advance(rate, frames);
+      phase += rate * frames;
+      phase -= floor(phase);
     }
     CHECK(mismatches < 20 * frames / 1000);
     CHECK(max_err < 1e-4);
+
+    // mix() adds to what is already there.
+    vector<float> twice(oscillator_kernel::paddedFrames(frames), 1.0f);
+    oscillator_kernel::mix(type, 0.3f, 0.2, rate, 0.5f, frames, twice.data());
+    vector<float> once(oscillator_kernel::paddedFrames(frames), 0.0f);
+    oscillator_kernel::mix(type, 0.3f, 0.2, rate, 0.5f, frames, once.data());
+    for (int k = 0; k < frames; k++) CHECK_NEAR(twice[static_cast<size_t>(k)], once[static_cast<size_t>(k)] + 1.0f, 1e-6f);
   }
 }
 
-TEST(oscillator_array_sine_polynomial_is_accurate) {
+TEST(oscillator_kernel_sine_polynomial_is_accurate) {
   double max_err = 0.0;
   for (int i = -1000; i <= 2000; i++) {
     float turns = static_cast<float>(i) / 1000.0f;
-    max_err = max(max_err, fabs(static_cast<double>(OscillatorArray::sineTurns(turns)) - sin(2.0 * kPi * static_cast<double>(turns))));
+    max_err = max(max_err, fabs(static_cast<double>(oscillator_kernel::sineTurns(turns)) - sin(2.0 * kPi * static_cast<double>(turns))));
   }
   CHECK(max_err < 2e-6);
 }

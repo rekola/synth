@@ -1,4 +1,6 @@
-#include "OscillatorArray.h"
+#include "OscillatorKernel.h"
+
+#include <cmath>
 
 #include <cstring>
 
@@ -38,8 +40,10 @@ inline v8f sineOfFraction(v8f f) {
 
 }
 
+namespace oscillator_kernel {
+
 float
-OscillatorArray::sineTurns(float turns) {
+sineTurns(float turns) {
   float f = turns - std::floor(turns);
   float u = f > 0.5f ? f - 1.0f : f;
   u = u > 0.25f ? 0.5f - u : u;
@@ -57,24 +61,23 @@ OscillatorArray::sineTurns(float turns) {
   return x * p;
 }
 
-template <bool Add>
 void
-OscillatorArray::renderImpl(size_t index, double base_rate, int frames, float * out) const {
-  const Copy & c = copies_[index];
-  const double rate = c.ratio * base_rate;
+mix(WaveformType type, float pulse_width, double phase, double rate, float level, int frames, float * out) {
   const v8f lanes = v8f{ 0, 1, 2, 3, 4, 5, 6, 7 } * splat(static_cast<float>(rate));
-  const v8f level = splat(c.level);
-  const v8f pulse = splat(c.pulse_width);
+  const v8f level_v = splat(level);
+  const v8f pulse = splat(pulse_width);
   const v8f half = splat(0.5f), one = splat(1.0f);
 
   const size_t groups = paddedFrames(frames) / kLanes;
   for (size_t g = 0; g < groups; g++) {
-    double start = c.phase + rate * static_cast<double>(g * kLanes);
+    // Each group of eight starts from a double-derived phase, so float
+    // rounding never accumulates across the block.
+    double start = phase + rate * static_cast<double>(g * kLanes);
     start -= std::floor(start);
     v8f f = fract(splat(static_cast<float>(start)) + lanes);
 
     v8f a;
-    switch (c.type) {
+    switch (type) {
     case WaveformType::SINE: a = sineOfFraction(f); break;
     case WaveformType::SAW: a = (f < half) ? f * splat(2.0f) : f * splat(2.0f) - splat(2.0f); break;
     case WaveformType::TRIANGLE: a = (f < half) ? one - f * splat(4.0f) : f * splat(4.0f) - splat(3.0f); break;
@@ -82,22 +85,11 @@ OscillatorArray::renderImpl(size_t index, double base_rate, int frames, float * 
     default: a = splat(0.0f); break;
     }
 
-    a *= level;
-    if (Add) {
-      v8f existing;
-      std::memcpy(&existing, out + g * kLanes, sizeof(existing));
-      a += existing;
-    }
+    v8f existing;
+    std::memcpy(&existing, out + g * kLanes, sizeof(existing));
+    a = a * level_v + existing;
     std::memcpy(out + g * kLanes, &a, sizeof(a));
   }
 }
 
-void
-OscillatorArray::renderCopy(size_t index, double base_rate, int frames, float * out) const {
-  renderImpl<false>(index, base_rate, frames, out);
-}
-
-void
-OscillatorArray::mixCopy(size_t index, double base_rate, int frames, float * out) const {
-  renderImpl<true>(index, base_rate, frames, out);
 }
