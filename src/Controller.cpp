@@ -236,6 +236,10 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
     song.incVersion();
     getUIEventQueue().push(make_unique<LogEvent>("Clip merged to background"));
   });
+  commands_.define("toggle-metronome", [this]() {
+    setMetronomeOn(!metronome_on_);
+    getUIEventQueue().push(make_unique<LogEvent>(metronome_on_ ? "Metronome on" : "Metronome off"));
+  });
   // One Record Arm for every track type, reachable from a Launchpad
   // (CC19), a keybinding, or M-x alike.
   //
@@ -1346,6 +1350,12 @@ Controller::extendRecordingSampleClipIfNeeded() {
     placeClipInstance(*song, track_id, recording_start_row_, clip_index);
     song->incVersion();
   }
+}
+
+void
+Controller::setMetronomeOn(bool on) {
+  metronome_on_ = on;
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_METRONOME, "", on ? 1 : 0));
 }
 
 void

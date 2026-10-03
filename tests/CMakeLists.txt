@@ -16,6 +16,7 @@ add_executable(synth_tests
 	../src/ui/tui/SubcellGlyphs.cpp
 	SubcellGlyphsTests.cpp
 	MarkdownTests.cpp
+	MetronomeTests.cpp
 	AudioBufferTests.cpp
 	ChannelConfigurationTests.cpp
 	TunerTests.cpp

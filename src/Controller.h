@@ -300,6 +300,10 @@ class Controller {
   void armNoteCapture() { note_capture_armed_ = true; }
   void disarmNoteCapture() { note_capture_armed_ = false; }
   bool isNoteCaptureArmed() const { return note_capture_armed_; }
+  // Metronome ("toggle-metronome"): a click on every beat while the
+  // transport plays, mixed in by the Player and never saved with the song.
+  bool isMetronomeOn() const { return metronome_on_; }
+  void setMetronomeOn(bool on);
 
   // Session view's own per-track Record Arm - a separate concept from
   // isNoteCaptureArmed() above, not a restriction layered on top of it.
@@ -1194,6 +1198,7 @@ class Controller {
   bool threshold_armed_ = false;
   // armNoteCapture()/isNoteCaptureArmed()'s own flag - see their shared
   // doc comment.
+  bool metronome_on_ = false;
   bool note_capture_armed_ = false;
   // armTrack()/disarmTrack()/isTrackArmed()'s own backing set - see their
   // shared doc comment.

@@ -7,6 +7,7 @@
 #include "../ambisonic/MixerType.h"
 #include "../dsp/RecordingRingBuffer.h"
 #include "../dsp/MonoFifo.h"
+#include "../dsp/Metronome.h"
 #include "../model/GroovePatternLibrary.h"
 
 #include <memory>
@@ -25,7 +26,8 @@ class Player : public EventHandler {
  public:
   Player(ChannelConfiguration channel_config, Controller * controller)
     : channel_config_(channel_config), controller_(controller),
-      threshold_ring_buffer_(static_cast<int>(kThresholdRingBufferSeconds * channel_config.getAudioOutSampleRate())) { }
+      threshold_ring_buffer_(static_cast<int>(kThresholdRingBufferSeconds * channel_config.getAudioOutSampleRate())),
+      metronome_click_(channel_config.getAudioOutSampleRate()) { }
 
   void handlePlaybackControlEvent(PlaybackControlEvent & ev) override;
 
@@ -214,6 +216,13 @@ private:
   // The previous iteration's "the active buffer monitors something" -
   // part of play()'s capture-enable edge, like was_recording_.
   bool was_monitoring_ = false;
+  // SET_METRONOME: clicks on the active buffer's beats while it plays.
+  bool metronome_on_ = false;
+  dsp::Metronome metronome_click_;
+  // Queues a click for each beat row the playing `state` starts within the
+  // next `frames` frames.
+  void scheduleMetronome(const SongState & state, const Song & song, int frames);
+  AudioBuffer renderMetronome(int frames);
 
   // Live input's round-trip latency (PlaybackInfo::setRoundTripLatency()),
   // remeasured a few times a second while capture runs - often enough to

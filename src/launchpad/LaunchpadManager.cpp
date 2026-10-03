@@ -870,6 +870,8 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
         state.duplicate_held = true;
         state.duplicate_copied = false;
         state.duplicate_source_column = state.duplicate_source_clip = -1;
+      } else if (cc_number == 79) {
+        controller.sendCommand("toggle-metronome");
       } else if (cc_number == 29 || cc_number == 20) {
         if (state.grid_mode == GridMode::DRAW) {
           state.draw_color_index.fill(0);
@@ -2703,6 +2705,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
     constexpr Rgb kOff{0, 0, 0};
     record_arm_button_color = mute_button_color = stop_clip_button_color = send_b_button_color = send_a_button_color = pan_button_color = kOff;
     solo_button_color = Rgb{90, 0, 127};
+    pan_button_color = cached_metronome_on_ ? Rgb{127, 100, 0} : Rgb{40, 30, 0};
     volume_button_color = state.duplicate_held ? Rgb{127, 127, 127} : Rgb{0, 100, 127};
   }
   colors.push_back({19, record_arm_button_color.r, record_arm_button_color.g, record_arm_button_color.b});
@@ -2742,6 +2745,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   // Mirrored once per frame, same as the note-capture-armed edge
   // detection below - see cached_global_octave_'s own comment.
   cached_global_octave_ = controller.getGlobalOctave();
+  cached_metronome_on_ = controller.isMetronomeOn();
   // Cached for handleSessionPadEvent() - see session_'s own comment.
   session_ = session;
 
