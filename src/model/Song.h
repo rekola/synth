@@ -443,7 +443,7 @@ private:
   Tuning tuning_ = Tuning::TET31;
   short key_note_number_ = 0;
   Scale scale_ = Scale::NONE;
-  int bpm_ = 90;
+  int bpm_ = 140;
   int rows_per_bar_ = 16;
   int swing_ = swing::kStraight;
   bool record_quantize_ = false;
