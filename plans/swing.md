@@ -142,10 +142,10 @@ How it maps onto this project's buttons:
   buttons have no twin on the X/Mini, so two of the shift-alternate buttons
   that do nothing today are used. Main now uses three of the eight (Duplicate
   on Volume, the metronome on Pan, Draw on Solo), leaving Send A, Send B,
-  Stop Clip, Mute and Record Arm free. The timing controls are kept together
-  in one run of the right column: Pan is the metronome, **shift + Send A
-  (CC69) = Tempo** and **shift + Send B (CC59) = Swing**. Their LEDs show blue
-  (Tempo) and orange (Swing) while shift is held, like the others do. The
+  Stop Clip, Mute and Record Arm free. **Shift + Stop Clip (CC49) = Swing**,
+  as on the Pro MK3, and **shift + Send B (CC59) = Tempo**, the button next
+  to it. Their LEDs show blue (Tempo) and orange (Swing) while shift is held,
+  like the others do. The
   metronome's LED is amber, so the Swing orange must be picked to read as
   clearly different from it.
 - **A view, not a hold.** Like DRAW, the two views are new `GridMode`
@@ -191,9 +191,9 @@ How it maps onto this project's buttons:
 - Update CLAUDE.md's Extra-button layout and GridMode bullets (the shift
   list, the new modes, the arrows) and `tools/e2e/README.md`.
 - e2e: `tools/e2e/verify_launchpad_tempo_swing.py`, modelled on
-  `verify_launchpad_shift_highlight.py`: shift + CC69 enters Tempo (entry LED
+  `verify_launchpad_shift_highlight.py`: shift + CC59 enters Tempo (entry LED
   blue, arrows lit white), CC92 then CC91 step the bpm down and up and the
-  InfoLine readout follows, a held arrow repeats, shift + CC59 switches to
+  InfoLine readout follows, a held arrow repeats, shift + CC49 switches to
   Swing, CC95 leaves. Pad LEDs are checked against `renderNumber()`.
 
 ### 6a. Live tempo (prerequisite for the Tempo view)
@@ -245,13 +245,12 @@ the Tempo view needs a real live-tempo path.
 
 Decided: Add to Song overwrites the song's swing; swing is eighth-note only.
 
-1. Shift + Pan is now the metronome (merged to main). The plan puts Tempo
-   on shift + Send A and Swing on shift + Send B, next to it. Is that
-   grouping right, or should Swing stay on Stop Clip as on the Pro MK3?
-2. Negative swing (off-beats early, as Novation's view allows) cannot be done
-   by the row scheduler as it is: a note can be delayed within its row but
-   not fired before the row is reached, so it would need one row of
-   lookahead. The plan keeps swing at 50..75 and clamps there. Is that
-   acceptable for the MVP?
+Also decided: swing is on shift + Stop Clip and Tempo on shift + Send B
+(shift + Pan is the metronome); negative swing is left for later (it needs
+one row of lookahead in the scheduler, since a note can be delayed within its
+row but not fired before it, so swing stays clamped at 50..75).
+
+No open questions.
+
 Also decided: the tens digit is always the white one, with no padding
 (50 -> white 5; 120 -> white 2; 9 -> nothing white).
