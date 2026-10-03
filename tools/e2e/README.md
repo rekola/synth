@@ -383,6 +383,13 @@ you're changing.
   identical bright-white treatment the moment it's pressed, still held
   (`DeviceState::row_up_shift_pending_pad`). Verified through raw LED
   bytes.
+- **`fake_launchpad_tempo_swing.c` / `verify_launchpad_tempo_swing.py`**
+  (reuses `launchpad_session_test.xml`) - the Tempo (shift + Send B) and
+  Swing (shift + Stop Clip) views: the value is drawn as a number on the
+  pads (`LaunchpadLayout::renderNumber()`, tens digit white, the others in
+  the view's colour), CC91 / CC92 are the up / down arrows, a repeat of
+  the gesture or CC95 leaves. Verified through raw LED bytes. Written
+  without access to an ALSA sequencer, so not yet run.
 - **`fake_launchpad_aftertouch_clip.c` / `verify_launchpad_aftertouch_clip.py`** -
   the "Clip-based note recording" path (`Controller::
   ensureNoteRecordingClip()`), not step entry: switches into NOTES grid

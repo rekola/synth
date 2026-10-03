@@ -420,3 +420,65 @@ TEST(advance_track_index_seeds_from_the_fallback_when_unassigned) {
   CHECK(advanceTrackIndex(/*fallback=*/2, 1, 5) == 3);
   CHECK(advanceTrackIndex(/*fallback=*/2, -1, 5) == 1);
 }
+
+namespace {
+  using LaunchpadLayout::NumberPixel;
+  using LaunchpadLayout::renderNumber;
+
+  int count(const LaunchpadLayout::NumberGrid & grid, NumberPixel pixel, int first_column = 0, int last_column = 7) {
+    int n = 0;
+    for (auto & row : grid) for (int x = first_column; x <= last_column; x++) if (row[static_cast<size_t>(x)] == pixel) n++;
+    return n;
+  }
+
+  // The white digit as 5 strings of its three columns (2-4).
+  std::string middleDigit(const LaunchpadLayout::NumberGrid & grid) {
+    std::string s;
+    for (int row = 1; row <= 5; row++) {
+      for (int x = 2; x <= 4; x++) s += grid[static_cast<size_t>(row)][static_cast<size_t>(x)] == NumberPixel::MIDDLE ? '#' : '.';
+      s += '/';
+    }
+    return s;
+  }
+}
+
+TEST(number_display_draws_the_tens_digit_in_white_and_the_others_beside_it) {
+  auto grid = renderNumber(120);
+  CHECK(middleDigit(grid) == "###/..#/###/#../###/"); // the 2
+  CHECK(count(grid, NumberPixel::MIDDLE, 0, 1) == 0); // white only in its own columns 2-4
+  CHECK(count(grid, NumberPixel::MIDDLE, 5, 7) == 0);
+  CHECK(count(grid, NumberPixel::SIDE, 6, 7) > 0); // the 0, clipped by the right edge
+  CHECK(count(grid, NumberPixel::SIDE, 0, 0) > 0); // the 1, clipped by the left edge
+  CHECK(count(grid, NumberPixel::SIDE, 2, 4) == 0);
+}
+
+TEST(number_display_of_two_digits_has_a_white_tens_digit) {
+  auto grid = renderNumber(50);
+  CHECK(middleDigit(grid) == "###/#../###/..#/###/"); // the 5
+  CHECK(count(grid, NumberPixel::SIDE, 6, 7) > 0); // the 0
+  CHECK(count(grid, NumberPixel::SIDE, 0, 1) == 0); // no hundreds digit
+}
+
+TEST(number_display_of_one_digit_has_nothing_white) {
+  auto grid = renderNumber(9);
+  CHECK(count(grid, NumberPixel::MIDDLE) == 0);
+  CHECK(count(grid, NumberPixel::SIDE, 6, 7) > 0); // the 9 sits in the units slot
+  CHECK(count(grid, NumberPixel::SIDE, 0, 5) == 0);
+}
+
+TEST(number_display_keeps_the_digits_in_fixed_slots_and_clamps) {
+  // The tens digit never moves as the value changes.
+  CHECK(middleDigit(renderNumber(65)) != middleDigit(renderNumber(75))); // different digits differ...
+  CHECK(middleDigit(renderNumber(65)) == middleDigit(renderNumber(60)));          // ...and the same digit keeps its slot
+  CHECK(middleDigit(renderNumber(65)) == middleDigit(renderNumber(165)));
+  // Out of range values are clamped, not wrapped.
+  CHECK(middleDigit(renderNumber(5000)) == middleDigit(renderNumber(999)));
+  CHECK(count(renderNumber(-5), NumberPixel::MIDDLE) == 0);
+  // Only the first and last rows of the grid are ever dark.
+  auto grid = renderNumber(88);
+  for (int x = 0; x < 8; x++) {
+    CHECK(grid[0][static_cast<size_t>(x)] == NumberPixel::OFF);
+    CHECK(grid[6][static_cast<size_t>(x)] == NumberPixel::OFF);
+    CHECK(grid[7][static_cast<size_t>(x)] == NumberPixel::OFF);
+  }
+}

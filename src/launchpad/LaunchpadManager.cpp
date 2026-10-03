@@ -870,6 +870,10 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
         state.duplicate_held = true;
         state.duplicate_copied = false;
         state.duplicate_source_column = state.duplicate_source_clip = -1;
+      } else if (cc_number == 59) {
+        toggleNumberView(state, GridMode::TEMPO);
+      } else if (cc_number == 49) {
+        toggleNumberView(state, GridMode::SWING);
       } else if (cc_number == 39 || cc_number == 30) {
         state.delete_held = true;
       } else if (cc_number == 79) {
@@ -1042,7 +1046,7 @@ LaunchpadManager::endDuplicate(int device_id, Controller & controller) {
 }
 
 bool
-LaunchpadManager::handleShiftButton(int device_id, bool is_press) {
+LaunchpadManager::handleShiftButton(int device_id, bool is_press, Controller & controller) {
   auto & state = deviceState(device_id);
   if (is_press) {
     // A fresh hold - nothing combined with it yet. handleSessionPadEvent()
@@ -1050,12 +1054,86 @@ LaunchpadManager::handleShiftButton(int device_id, bool is_press) {
     // this held state to open a clip instead of triggering it.
     state.row_up_shift_held = true;
     state.row_up_shift_combined = false;
+    if (inNumberView(state)) {
+      state.arrow_held_cc = 91;
+      state.arrow_repeating = false;
+      state.arrow_press_time = chrono::steady_clock::now();
+    }
     return false; // never fires "move-row-up" on press - see this method's own comment
   }
   state.row_up_shift_held = false;
   auto fire = !state.row_up_shift_combined;
+  // In a Tempo/Swing view CC91 is the up arrow: a tap that combined with
+  // nothing steps once (a hold already stepped by repeating), and "move-row-up"
+  // itself never fires.
+  if (inNumberView(state)) {
+    bool was_repeating = state.arrow_repeating && state.arrow_held_cc == 91;
+    if (fire && !was_repeating) stepNumberView(state, +1, controller);
+    if (state.arrow_held_cc == 91) {
+      state.arrow_held_cc = 0;
+      state.arrow_repeating = false;
+    }
+    fire = false;
+  }
   state.row_up_shift_combined = false;
   return fire;
+}
+
+bool
+LaunchpadManager::inNumberView(const DeviceState & state) {
+  return state.grid_mode == GridMode::TEMPO || state.grid_mode == GridMode::SWING;
+}
+
+void
+LaunchpadManager::toggleNumberView(DeviceState & state, GridMode view) {
+  state.track_picker_active = false;
+  if (state.grid_mode == view) {
+    state.grid_mode = state.number_view_return_mode; // the gesture again leaves the view
+    return;
+  }
+  if (!inNumberView(state)) state.number_view_return_mode = state.grid_mode;
+  state.grid_mode = view;
+  state.delete_held = false;
+  state.arrow_held_cc = 0;
+  state.arrow_repeating = false;
+}
+
+void
+LaunchpadManager::stepNumberView(const DeviceState & state, int delta, Controller & controller) {
+  auto & song = controller.getSong();
+  if (state.grid_mode == GridMode::TEMPO) controller.setTempo(song.getTempo() + delta);
+  else if (state.grid_mode == GridMode::SWING) controller.setSwing(song.getSwing() + delta);
+}
+
+void
+LaunchpadManager::handleArrowRelease(int device_id, int cc_number) {
+  auto & state = deviceState(device_id);
+  if (state.arrow_held_cc == cc_number) {
+    state.arrow_held_cc = 0;
+    state.arrow_repeating = false;
+  }
+}
+
+void
+LaunchpadManager::tickNumberView(Controller & controller) {
+  constexpr auto kArrowRepeatDelay = chrono::milliseconds(400);
+  constexpr auto kArrowRepeatInterval = chrono::milliseconds(100);
+  auto now = chrono::steady_clock::now();
+  for (auto & [ device_id, state ] : devices_) {
+    if (state.arrow_held_cc == 0 || !inNumberView(state)) continue;
+    // CC91 is also shift: once something combined with it, it was never an
+    // arrow press.
+    if (state.arrow_held_cc == 91 && state.row_up_shift_combined) continue;
+    if (!state.arrow_repeating) {
+      if (now - state.arrow_press_time < kArrowRepeatDelay) continue;
+      state.arrow_repeating = true;
+      state.arrow_last_step = now;
+    } else if (now - state.arrow_last_step < kArrowRepeatInterval) {
+      continue;
+    }
+    state.arrow_last_step = now;
+    stepNumberView(state, state.arrow_held_cc == 91 ? +1 : -1, controller);
+  }
 }
 
 bool
@@ -1218,6 +1296,18 @@ LaunchpadManager::releaseDrawPad(int device_id, int x, int y) {
 
 bool
 LaunchpadManager::handleCommand(string_view name, int device_id, int fallback_track_index, int num_tracks, Controller & controller) {
+  // In a Tempo/Swing view CC92 is the down arrow (a hold repeats, see
+  // tickNumberView()), and the rest of the arrow row does nothing.
+  if (auto & view_state = deviceState(device_id); inNumberView(view_state)) {
+    if (name == "move-row-down") {
+      view_state.arrow_held_cc = 92;
+      view_state.arrow_repeating = false;
+      view_state.arrow_press_time = chrono::steady_clock::now();
+      stepNumberView(view_state, -1, controller);
+      return true;
+    }
+    if (name == "move-row-up" || name == "next-track" || name == "prev-track" || name == "octave-up" || name == "octave-down") return true;
+  }
   if (name == "octave-up") {
     octaveUp(device_id);
     return true;
@@ -2286,6 +2376,19 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
         colors.push_back({LaunchpadProtocol::padToNoteNumber(x, y), c.r, c.g, c.b});
       }
     }
+  } else if (inNumberView(state)) {
+    // Tempo/Swing view: the value as a number (LaunchpadLayout::renderNumber()),
+    // its tens digit white and the others in the view's colour.
+    constexpr Rgb kTempoColor{0, 50, 127}, kSwingColor{127, 55, 0}, kWhite{127, 127, 127};
+    auto side = state.grid_mode == GridMode::TEMPO ? kTempoColor : kSwingColor;
+    auto number = LaunchpadLayout::renderNumber(state.grid_mode == GridMode::TEMPO ? cached_tempo_ : cached_swing_);
+    for (int y = 0; y < 8; y++) {
+      for (int x = 0; x < 8; x++) {
+        auto pixel = number[static_cast<size_t>(7 - y)][static_cast<size_t>(x)]; // renderNumber() is top-first
+        Rgb c = pixel == LaunchpadLayout::NumberPixel::MIDDLE ? kWhite : pixel == LaunchpadLayout::NumberPixel::SIDE ? side : Rgb{0, 0, 0};
+        colors.push_back({LaunchpadProtocol::padToNoteNumber(x, y), c.r, c.g, c.b});
+      }
+    }
   } else if (state.grid_mode != GridMode::NOTES && state.grid_mode != GridMode::CUSTOM) {
     // Send/Pan mode: the whole grid means something else entirely - each
     // column is one of the first 8 root tracks. Send A/B/Main fill
@@ -2614,6 +2717,13 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   bool paging_useful = state.drum_edit_max_step_offset > 0;
   bool page_arrows_lit = state.show_step_grid ? paging_useful : arrows_active;
   uint8_t page_arrow_white = page_arrows_lit ? 60 : 0;
+  // Tempo/Swing views: CC91/92 are the value's up/down arrows, the rest of
+  // the arrow row does nothing.
+  bool number_view = inNumberView(state);
+  if (number_view) {
+    arrow_white = 60;
+    page_arrow_white = 0;
+  }
   // 91 ("move-row-up") doubles as a shift modifier with a real,
   // Launchpad-visible meaning specifically from Session view
   // (LaunchpadManager::handleShiftButton()), on top of the octave-shift
@@ -2625,7 +2735,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // with (DeviceState::row_up_shift_pending_pad) gets the identical
   // bright-white treatment below, so the two lit pads visually pair up
   // while the press is held.
-  uint8_t row_up_level = state.row_up_shift_held ? 127 : 30;
+  uint8_t row_up_level = state.row_up_shift_held ? 127 : number_view ? 60 : 30;
   colors.push_back({91, row_up_level, row_up_level, row_up_level});
   colors.push_back({92, arrow_white, arrow_white, arrow_white}); // move-row-down, dim white (static)
   colors.push_back({93, page_arrow_white, page_arrow_white, page_arrow_white}); // prev-track, dim white (static)
@@ -2721,6 +2831,14 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
     pan_button_color = cached_metronome_on_ ? Rgb{127, 100, 0} : Rgb{40, 30, 0};
     volume_button_color = state.duplicate_held ? Rgb{127, 127, 127} : Rgb{0, 100, 127};
     mute_button_color = state.delete_held ? Rgb{127, 0, 0} : Rgb{60, 0, 0};
+    // Send B opens the Tempo view (blue), Stop Clip the Swing view (orange);
+    // bright for the one showing.
+    send_b_button_color = state.grid_mode == GridMode::TEMPO ? Rgb{0, 50, 127} : Rgb{0, 20, 50};
+    stop_clip_button_color = state.grid_mode == GridMode::SWING ? Rgb{127, 55, 0} : Rgb{50, 22, 0};
+  } else if (number_view) {
+    // Without shift, only the button of the view being shown stays lit.
+    send_b_button_color = state.grid_mode == GridMode::TEMPO ? Rgb{0, 50, 127} : Rgb{0, 0, 0};
+    stop_clip_button_color = state.grid_mode == GridMode::SWING ? Rgb{127, 55, 0} : Rgb{0, 0, 0};
   }
   colors.push_back({19, record_arm_button_color.r, record_arm_button_color.g, record_arm_button_color.b});
   colors.push_back({29, solo_button_color.r, solo_button_color.g, solo_button_color.b});
@@ -2760,6 +2878,9 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   // detection below - see cached_global_octave_'s own comment.
   cached_global_octave_ = controller.getGlobalOctave();
   cached_metronome_on_ = controller.isMetronomeOn();
+  cached_tempo_ = song.getTempo();
+  cached_swing_ = song.getSwing();
+  tickNumberView(controller);
   // Cached for handleSessionPadEvent() - see session_'s own comment.
   session_ = session;
 

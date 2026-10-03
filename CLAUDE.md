@@ -394,7 +394,8 @@ Mode once entered), just going dark, a clearer and more predictable
 would otherwise resume showing.
 
 - **`GridMode`** (`LaunchpadManager::GridMode`) - one of `NOTES`/
-  `SEND_MAIN`/`PAN`/`SEND_A`/`SEND_B`/`DRAW`/`SESSION`/`CUSTOM`, mutually
+  `SEND_MAIN`/`PAN`/`SEND_A`/`SEND_B`/`DRAW`/`SESSION`/`CUSTOM`/`TEMPO`/
+  `SWING`, mutually
   exclusive, purely per-device (`toggleGridMode()`), never tied to
   terminal UI focus - one connected Launchpad can sit in Session view
   while another stays on ordinary note entry. Defaults to `SESSION`.
@@ -470,10 +471,13 @@ would otherwise resume showing.
   (`handleRawButton()`'s shift branch): Volume (CC89) is Duplicate, Pan (CC79) is the
   metronome ("toggle-metronome", a click per beat while the transport plays,
   accented on the bar - `Player::scheduleMetronome()`; its LED is amber, bright
-  while on), Solo
-  (CC29, Pro MK3 CC20) is Draw, and the other five do nothing rather than
-  launch or switch anything; their LEDs show only those three while shift
-  is held (Duplicate cyan, Draw purple, metronome amber, the rest dark). 95 ("Session") doubles as the
+  while on), Send B (CC59) opens the Tempo view and Stop Clip (CC49) the
+  Swing view (their own bullet below), Mute (CC39, Pro MK3 CC30) is Delete
+  (its own bullet below), Solo (CC29, Pro MK3 CC20) is Draw, and the other
+  two (Record Arm, Send A) do nothing rather than launch or switch
+  anything; their LEDs show only those functions while shift is held
+  (Duplicate cyan, Draw purple, metronome amber, Tempo blue, Swing orange,
+  Delete red, the rest dark). 95 ("Session") doubles as the
   mixer-submode toggle: a repeat press while already at the plain Session
   grid with nothing from the radio group active flips
   `session_mixer_mode`; any press otherwise just lands on (or stays on)
@@ -515,6 +519,37 @@ would otherwise resume showing.
   hold can fill several slots. Releasing Volume with a source picked but
   no destination copies to the next empty slot. The terminal's
   `duplicate-clip` (clip grid) does the same.
+- **Delete** (shift + Mute) - held for as long as Mute stays down, like
+  Duplicate: a Session pad press deletes what its slot holds, one layer
+  per press (`Controller::deleteClipSlot()`, `deleteClipOrStopButton()` in
+  `ArrangementOps.h`) - a populated slot loses its clip (leaving an empty
+  hole in place, so scene rows stay aligned), an empty one its stop button.
+  Instant with the transport stopped or when the clip isn't sounding; a
+  clip that is playing (or queued) on its track while the transport runs
+  is never pulled out from under the playhead - `SessionPlayer::
+  deleteClip()` stops the track at the next bar and `tick()` removes the
+  clip once that has taken effect. The terminal's `delete-clip` goes
+  through it too. No undo or confirmation.
+- **Tempo and Swing views** (`GridMode::TEMPO`/`SWING`; shift + Send B /
+  shift + Stop Clip; Novation's Launchpad Pro MK3 views) - the value is
+  drawn as a number on the pads (`LaunchpadLayout::renderNumber()`): the
+  tens digit in white, centered, and the hundreds and units digits beside
+  it in the view's colour (blue Tempo, orange Swing), clipped by the grid
+  edge; no padding, so a one-digit value has nothing white. CC91 / CC92
+  become the up / down arrows: a tap steps once, a hold repeats after
+  400 ms every 100 ms (`tickNumberView()`, once per frame). CC91 is also
+  shift, so its step waits for the release and is skipped if anything
+  combined with it, including the gesture that switches views. Repeating
+  the entry gesture leaves the view (back to `number_view_return_mode`),
+  as does CC95/96/97; pads, CC93/94 and the rest of the right column do
+  nothing there. Edits go through `Controller::setTempo()` (20-300 bpm,
+  live: `SongState::applyTempo()` follows the song version) and
+  `setSwing()` (50-75%, `Song::getSwing()`, `<song swing="">`: the second
+  note of every eighth-note pair plays late, applied at playback to
+  everything scheduled, `swing.h`); both are also the `tempo-increase`/
+  `-decrease` and `swing-increase`/`-decrease` commands. Library rhythms
+  carry a swing of their own (previewed with it; adopted by the song on
+  Add to Song).
 - **The drum machine** (`PercussionTrack`, up to `kMaxLanes` = 8 lanes,
   `getLaneNotes()`) - the same track type as ordinary percussion note
   entry, not a separate one: with no lanes it's a plain percussion track
@@ -1090,6 +1125,8 @@ would otherwise resume showing.
   opening a step-sequenced `PercussionTrack` clip's own step grid from
   Session view, and a lone CC95 press closing it again - verified the
   same terminal-text way (the "*" focus marker).
+  `verify_launchpad_tempo_swing.py` covers the Tempo and Swing views
+  (open, arrows, switch, leave) through the pads' LEDs.
   `verify_launchpad_shift_highlight.py` covers the same
   gesture's own LED feedback while held (both CC91 and the target pad
   lighting bright white before release). `verify_launchpad_paging_lockstep.py`

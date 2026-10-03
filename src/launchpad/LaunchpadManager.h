@@ -130,7 +130,7 @@ class LaunchpadManager {
   // is the percussion lane picker (a step-sequenced-or-not PercussionTrack
   // - see handlePadEvent()'s own CUSTOM branch); a pitched InstrumentTrack
   // assigned instead currently shows nothing there.
-  enum class GridMode { NOTES, SEND_MAIN, PAN, SEND_A, SEND_B, DRAW, SESSION, CUSTOM };
+  enum class GridMode { NOTES, SEND_MAIN, PAN, SEND_A, SEND_B, DRAW, SESSION, CUSTOM, TEMPO, SWING };
   GridMode gridMode(int device_id) const;
 
   // See SessionPadHighlight.h.
@@ -336,7 +336,7 @@ class LaunchpadManager {
   // on press itself, since move-row-up never fires until release either
   // way, avoiding ever having to undo it), false otherwise (every press,
   // and a release that did combine with a pad).
-  bool handleShiftButton(int device_id, bool is_press);
+  bool handleShiftButton(int device_id, bool is_press, Controller & controller);
 
   // Shift (CC91 held) turns the right-side buttons into their labelled
   // alternate functions (handleRawButton()): Volume (CC89) is Duplicate,
@@ -347,6 +347,16 @@ class LaunchpadManager {
   // (handleSessionPadEvent()); releasing Volume with a source picked but no
   // destination copies to the next empty slot.
   void endDuplicate(int device_id, Controller & controller);
+
+  // The Tempo (shift + Send B) and Swing (shift + Stop Clip) views show the
+  // value as a number on the grid (LaunchpadLayout::renderNumber()), and CC91
+  // / CC92 become its up / down arrows. A tap steps once and a hold repeats
+  // (tickNumberView(), once per frame). CC91 is also the shift modifier, so
+  // its step waits for the release and is skipped if anything combined with
+  // it, including the gesture that switches views. Pad presses and the other
+  // arrow-row buttons do nothing in a view.
+  void tickNumberView(Controller & controller);
+  void handleArrowRelease(int device_id, int cc_number);
 
   // True for the mixer radio group's own nine CC numbers (Volume/Pan/
   // Send A/Send B/Stop Clip/Mute/Solo, plus Pro MK3's left-column Mute/
@@ -929,6 +939,16 @@ class LaunchpadManager {
     bool duplicate_held = false;
     bool duplicate_copied = false;
     int duplicate_source_column = -1, duplicate_source_clip = -1;
+    // Tempo/Swing views (shift + Send B / Stop Clip): the mode to go back
+    // to when the view is left by repeating its gesture.
+    GridMode number_view_return_mode = GridMode::SESSION;
+    // The arrow (CC91 up / CC92 down) held in a number view, 0 for none,
+    // and its auto-repeat: after kArrowRepeatDelay held it steps again
+    // every kArrowRepeatInterval (tickNumberView()). `arrow_repeating` stops
+    // CC91's release from adding one more step.
+    int arrow_held_cc = 0;
+    bool arrow_repeating = false;
+    std::chrono::steady_clock::time_point arrow_press_time, arrow_last_step;
     // Delete (shift + Mute): held while Mute is - a Session pad press
     // deletes what its slot holds (SessionPlayer::deleteClip()).
     bool delete_held = false;
@@ -1238,6 +1258,11 @@ class LaunchpadManager {
   // mechanisms.
   bool inSessionMixerFamily(const DeviceState & state) const;
 
+  // Tempo/Swing views - see handleArrowRelease()'s comment.
+  static bool inNumberView(const DeviceState & state);
+  void stepNumberView(const DeviceState & state, int delta, Controller & controller);
+  void toggleNumberView(DeviceState & state, GridMode view);
+
   // Session view's own scene-launch action (DeviceState::
   // session_mixer_mode's own comment, off by default) - launches `row`'s
   // own clip (the same row -> clip_index mapping Session view's own
@@ -1281,6 +1306,8 @@ class LaunchpadManager {
   int cached_global_octave_ = 4;
   // Mirrored once per frame from Controller::isMetronomeOn(), for the LED.
   bool cached_metronome_on_ = false;
+  // Mirrored once per frame from the Song, for the Tempo/Swing views.
+  int cached_tempo_ = 0, cached_swing_ = 50;
 
   // refresh()'s own SessionWindow parameter, mirrored here (same
   // once-per-frame pattern) so handleSessionPadEvent() -
