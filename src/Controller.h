@@ -419,6 +419,13 @@ class Controller {
     return result;
   }
 
+  // The session clock step a take's row 0 sits at, or -1 until its first
+  // note has fixed it (and for a take that isn't in flight).
+  int getSessionRecordingOrigin(int track_id) const {
+    auto it = session_recording_takes_.find(track_id);
+    return it != session_recording_takes_.end() ? it->second.origin_step : -1;
+  }
+
   // Overrides where ensureSessionRecordingClip()'s own first call for
   // `track_id` would otherwise derive that take's row 0 from
   // (previousBarRow() of that call's own absolute step). Doubles as the
