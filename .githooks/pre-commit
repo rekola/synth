@@ -1,10 +1,31 @@
 #!/bin/sh
-# Lint staged C++ sources with clang-tidy (.clang-tidy).
+# Check formatting (.clang-format) and lint (.clang-tidy) of staged C++.
 # Enable with: git config core.hooksPath .githooks
 set -e
 cd "$(git rev-parse --show-toplevel)"
 
-files=$(git diff --cached --name-only --diff-filter=ACM -- 'src/*.cpp' 'tests/*.cpp')
+cxx_re='^(src|tests)/.*\.(cpp|h)$'
+staged=$(git diff --cached --name-only --diff-filter=ACM | grep -E "$cxx_re" || true)
+[ -n "$staged" ] || exit 0
+
+# Formatting applies to the changed lines only; the existing code isn't
+# uniformly formatted, so whole files are left alone.
+if command -v git-clang-format >/dev/null; then
+  # shellcheck disable=SC2086
+  diff=$(git clang-format --staged --diff -- $staged || true)
+  case "$diff" in
+    "" | *"no modified files to format"* | *"did not modify any files"*) ;;
+    *)
+      echo "$diff" >&2
+      echo "pre-commit: formatting needed; run 'git clang-format', re-stage, and commit again" >&2
+      exit 1
+      ;;
+  esac
+else
+  echo "pre-commit: git-clang-format not found, skipping format check" >&2
+fi
+
+files=$(echo "$staged" | grep -E '\.cpp$' || true)
 [ -n "$files" ] || exit 0
 
 if ! command -v clang-tidy >/dev/null; then
