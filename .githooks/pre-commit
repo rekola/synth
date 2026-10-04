@@ -1,0 +1,48 @@
+#!/bin/sh
+# Auto-format (.clang-format) and lint (.clang-tidy) staged C++.
+# Enable with: git config core.hooksPath .githooks
+set -e
+cd "$(git rev-parse --show-toplevel)"
+
+cxx_re='^(src|tests)/.*\.(cpp|h)$'
+staged=$(git diff --cached --name-only --diff-filter=ACM | grep -E "$cxx_re" || true)
+[ -n "$staged" ] || exit 0
+
+# Format the changed lines in place (the existing code isn't uniformly
+# formatted, so whole files are left alone) and re-stage the result.
+if command -v git-clang-format >/dev/null; then
+  partial=$(git diff --name-only -- $staged || true)
+  if [ -n "$partial" ]; then
+    echo "pre-commit: unstaged changes in the files below; stage or stash them so formatting can be applied:" >&2
+    echo "$partial" >&2
+    exit 1
+  fi
+  # shellcheck disable=SC2086
+  git clang-format -- $staged >/dev/null || true
+  # shellcheck disable=SC2086
+  git add -- $staged
+else
+  echo "pre-commit: git-clang-format not found, skipping formatting" >&2
+fi
+
+files=$(echo "$staged" | grep -E '\.cpp$' || true)
+[ -n "$files" ] || exit 0
+
+if ! command -v clang-tidy >/dev/null; then
+  echo "pre-commit: clang-tidy not found, skipping lint" >&2
+  exit 0
+fi
+if [ ! -f build/compile_commands.json ]; then
+  echo "pre-commit: build/compile_commands.json missing; run: cmake -B build" >&2
+  exit 1
+fi
+
+# Only findings from our checks fail the commit; clang-tidy also exits
+# non-zero on diagnostics from parsing gcc-targeted code.
+# shellcheck disable=SC2086
+out=$(clang-tidy -p build --quiet $files 2>/dev/null || true)
+if echo "$out" | grep -Eq '(warning|error): .*\[bugprone-'; then
+  echo "$out" | grep -E '(warning|error): .*\[bugprone-' | sort -u >&2
+  echo "pre-commit: clang-tidy findings above (commit with --no-verify to bypass)" >&2
+  exit 1
+fi

@@ -1,0 +1,10 @@
+BasedOnStyle: Google
+ColumnLimit: 0
+DerivePointerAlignment: false
+PointerAlignment: Middle
+AlwaysBreakAfterReturnType: None
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortLoopsOnASingleLine: true
+SpacesBeforeTrailingComments: 1
+SpaceBeforeCpp11BracedList: false
+SortIncludes: Never
