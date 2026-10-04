@@ -5,6 +5,8 @@
 #include "../state/EnvelopeState.h"
 #include "../util/constants.h"
 
+#include <algorithm>
+
 using namespace std;
 
 namespace {
@@ -100,14 +102,14 @@ public:
   // envelope_state_ entirely and killing the wrapped oscillator/sample
   // instantly (InstrumentVoice::killNote() zeroes freq_ with no ramp) - an
   // abrupt amplitude jump, audible as a click on every same-identity
-  // retrigger. Forcing release_ to 0 makes EnvelopeState::
-  // nextSegment(SUSTAIN) fall back to TSF_FASTRELEASETIME (10ms), same
-  // mechanism SoundFontVoice::fastRelease() already uses - still "let
-  // children play", just a compressed fade instead of the authored
-  // release time, never an instant cut.
+  // retrigger. Still "let children play", just under a short fade instead
+  // of the authored release time, never an instant cut.
   void fastRelease() {
-    envelope_state_.parameters.release_ = 0.0f;
-    envelope_state_.nextSegment(EnvelopeState::SUSTAIN);
+    // A same-note retrigger's successor ramps up over this envelope's attack,
+    // so fade out over about as long (within limits): a shorter, steeper
+    // fade chops the sound and leaves a dip before the new attack arrives.
+    constexpr float kMinFade = TSF_FASTRELEASETIME, kMaxFade = 0.05f;
+    envelope_state_.fadeOut(std::clamp(envelope_state_.parameters.attack_, kMinFade, kMaxFade));
   }
 
   void kill() { envelope_state_.nextSegment(EnvelopeState::DONE); }

@@ -29,6 +29,7 @@
 #include "State.h"
 #include "../instruments/Envelope.h"
 
+#include <algorithm>
 #include <cmath>
 
 static inline float tsf_timecents2Secsf(float timecents) { return powf(2.0f, timecents / 1200.0); }
@@ -148,6 +149,17 @@ class EnvelopeState : public State {
       level = slope = 0.0f;
       samplesUntilNextSegment = 0x7FFFFFF;
     }
+  }
+
+  // Linear fade from the current level to silence over `seconds`, from any
+  // segment: unlike the exponential release, it drops no faster at the start
+  // than it ends, so it can overlap a successor's attack as a crossfade.
+  void fadeOut(float seconds) {
+    if (segment == DONE) return;
+    segment = RELEASE;
+    samplesUntilNextSegment = std::max(1, static_cast<int>(seconds * static_cast<float>(getOutSampleRate())));
+    slope = -level / static_cast<float>(samplesUntilNextSegment);
+    segmentIsExponential = false;
   }
 
   void process(int numSamples) {
