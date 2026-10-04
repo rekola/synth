@@ -1991,7 +1991,9 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     auto & primary = (*held_ptr)[0];
     auto delta = ev.getVelocity() - primary.last_aftertouch_value;
     if (delta < 0) delta = -delta;
-    bool write_pressure = delta >= aftertouch_threshold && deviceState(device_id).capture_enabled;
+    bool take_held = false;
+    for (auto & held : *held_ptr) take_held = take_held || controller.isSessionRecording(held.track_id);
+    bool write_pressure = delta >= aftertouch_threshold && (deviceState(device_id).capture_enabled || take_held);
     if (write_pressure) {
       for (auto & held : *held_ptr) held.last_aftertouch_value = ev.getVelocity();
     }
@@ -2003,6 +2005,25 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
       event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, controller.getActiveBufferName(), held.track_id, held.note_column, note_value, ev.getVelocity()));
       if (!write_pressure) continue;
 
+      // A Session View take writes into its own clip at the session clock's
+      // row, like its release does - never on the row the note itself is
+      // on, which would overwrite the note.
+      if (controller.isSessionRecording(held.track_id)) {
+        auto take_row = quantized_row(held.track_id);
+        auto & clips = song.getClips(held.track_id);
+        auto clip_index = controller.getSessionRecordingClipIndex(held.track_id);
+        if (take_row < 0 || take_row == held.row || clip_index < 0 || clip_index >= static_cast<int>(clips.size())) continue;
+        auto & clip = clips[static_cast<size_t>(clip_index)];
+        auto & pattern = clip.getLeafPattern();
+        auto clip_row = take_row % std::max(1, clip.getLength());
+        auto note = pattern.getNote(clip_row, held.note_column);
+        if (!note.isDefined()) note.setDelay(static_cast<short>(take_step.delay));
+        note.setVelocity(static_cast<short>(ev.getVelocity()));
+        pattern.setNote(clip_row, held.note_column, note);
+        continue;
+      }
+      if (!deviceState(device_id).capture_enabled) continue;
+
       // While playing (the norm whenever Capture is on - see the PRESS
       // branch's auto-play push), modulate the currently-sounding row
       // (transport has moved on, matching handleMidiEvent); while stopped
@@ -2010,6 +2031,9 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
       // processed by the Player thread yet), modulate the row the note
       // actually landed on.
       auto target_row = info.isPlaying() ? info.getAbsolutePosition() : held.row;
+      // Still on the note's own row: a row can't hold the note and its
+      // aftertouch, and writing it would only change the note's velocity.
+      if (info.isPlaying() && target_row == held.row) continue;
       // Clear before reading, not just before writing - otherwise the
       // isDefined() check below could pick up stale pre-existing data from
       // before this row was cleared for the live take.
