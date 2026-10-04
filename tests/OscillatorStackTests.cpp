@@ -576,3 +576,56 @@ TEST(oscillator_drift_breaks_the_static_beat_cycle) {
   CHECK(still > 0.8);
   CHECK(drifting < still - 0.3);
 }
+
+// Every note gets its own turn and jitter of the ring layout, the same note
+// always the same one, and the points stay inside the cloud and apart.
+TEST(oscillator_stack_scatters_the_cloud_per_note) {
+  SphericalPosition centre;
+  centre.azimuth = 10.0f;
+  centre.elevation = 5.0f;
+  const float radius = 40.0f;
+
+  for (int count : { 3, 7, 12, 19, 40 }) {
+    const vector<int> rings = OscillatorVoice::ringCounts(count);
+    int64_t coord_a = 111, coord_b = 222;
+    int same = 0, different = 0;
+    float closest = 1e9f;
+    for (int b = 0; b < count; b++) {
+      auto a1 = OscillatorVoice::cloudPoint(centre, radius, b, rings, &coord_a);
+      auto a2 = OscillatorVoice::cloudPoint(centre, radius, b, rings, &coord_a);
+      auto other = OscillatorVoice::cloudPoint(centre, radius, b, rings, &coord_b);
+      if (a1.azimuth == a2.azimuth && a1.elevation == a2.elevation) same++;
+      if (fabsf(a1.azimuth - other.azimuth) > 1e-3f || fabsf(a1.elevation - other.elevation) > 1e-3f) different++;
+
+      // Inside the ellipse (azimuth radius r, elevation radius r / 3).
+      const float x = (a1.azimuth - centre.azimuth) / radius, y = (a1.elevation - centre.elevation) * kExtentShapeRatio / radius;
+      CHECK(x * x + y * y <= 1.0001f);
+
+      for (int c = 0; c < b; c++) {
+        auto q = OscillatorVoice::cloudPoint(centre, radius, c, rings, &coord_a);
+        closest = min(closest, hypotf(a1.azimuth - q.azimuth, (a1.elevation - q.elevation) * kExtentShapeRatio));
+      }
+    }
+    CHECK(same == count);
+    CHECK(different >= count - 1); // the centre of a single bucket aside, every point moves
+    if (count > 1) CHECK(closest > 0.5f);
+  }
+
+  // Through the voice: one note keeps its layout, another note gets another.
+  ChannelConfiguration config(44100, 3);
+  OscillatorStack stack;
+  stack.voices = 32;
+  stack.spread = 1.0f;
+  SphericalPosition position;
+  position.distance = 1.0f;
+  position.extent = 1.0f;
+  auto make = [&](int row) { return OscillatorVoice(config, position, 1.0f, WaveformType::SINE, 1.0f, 0.5f, SendLevels{}, NoteCoordinate(1, row, 0), stack); };
+  auto first = make(4), again = make(4), next = make(5);
+  CHECK(first.bucketCount() == next.bucketCount());
+  bool moved = false;
+  for (size_t b = 0; b < first.bucketCount(); b++) {
+    CHECK(first.bucketDirection(b).azimuth == again.bucketDirection(b).azimuth);
+    if (fabsf(first.bucketDirection(b).azimuth - next.bucketDirection(b).azimuth) > 1e-3f) moved = true;
+  }
+  CHECK(moved);
+}

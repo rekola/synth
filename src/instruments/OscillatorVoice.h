@@ -8,16 +8,22 @@
 #include "WaveformType.h"
 #include "../ambisonic/AmbisonicStackEncoder.h"
 #include "../ambisonic/SphericalPosition.h"
+#include "../dsp/HashField.h"
 #include "../model/NoteCoordinate.h"
 
 #include <algorithm>
 #include <cmath>
 #include <vector>
 
+namespace {
+constexpr uint64_t kCloudScatterSalt = 0x7C1E9A4D2B6F3085ull;
+}
+
 // An oscillator voice: an array of buckets, each one direction with members
 // dealt into it round-robin. A bucket's members are summed and encoded once,
 // and every bucket is encoded in one pass. The buckets are laid out as
-// concentric rings around the track's position (see cloudPoint()), so a
+// concentric rings around the track's position (see cloudPoint()), turned and
+// jittered per note so no two notes share one geometry, so a
 // spread widens the image; with no spread there is one bucket at the
 // position. The floor reflection and the Aux sends run once on the summed dry
 // signal at the centre. One member is just the stack's special case.
@@ -35,9 +41,10 @@ public:
     const int count = bucketCountFor(config.getAmbisonicOrder(), radius_deg, n, position.distance > 0.0f);
     buckets_.resize(static_cast<size_t>(count));
     const std::vector<int> rings = ringCounts(count);
+    const int64_t scatter_coord = note_coord.toHashCoord();
     for (int b = 0; b < count; b++) {
       Bucket & bucket = buckets_[static_cast<size_t>(b)];
-      bucket.direction = cloudPoint(position, radius_deg, b, rings);
+      bucket.direction = cloudPoint(position, radius_deg, b, rings, &scatter_coord);
       bucket.gains = computeAmbisonicGains(bucket.direction);
     }
 
@@ -102,8 +109,11 @@ public:
   // azimuth radius `radius_deg` and elevation radius `radius_deg /
   // kExtentShapeRatio`. Points run clockwise from the top (from the left for
   // a ring of two), and every second ring is staggered by half a step so
-  // its points fall between its neighbour's.
-  static SphericalPosition cloudPoint(const SphericalPosition & center, float radius_deg, int b, const std::vector<int> & counts) {
+  // its points fall between its neighbour's. With `scatter_coord` each ring is
+  // also turned by a hashed angle and each point moved by up to a quarter of
+  // its spacing, kept inside the ellipse: the same note always gets the same
+  // layout, different notes get different ones.
+  static SphericalPosition cloudPoint(const SphericalPosition & center, float radius_deg, int b, const std::vector<int> & counts, const int64_t * scatter_coord = nullptr) {
     SphericalPosition p = center;
     if (counts.empty()) return p;
 
@@ -113,10 +123,28 @@ public:
 
     const float step_deg = 360.0f / static_cast<float>(counts[ring]);
     const float start_deg = (counts[ring] == 2 ? 180.0f : 90.0f) + (ring % 2 == 1 ? step_deg / 2.0f : 0.0f);
-    const float angle = (start_deg - step_deg * static_cast<float>(index)) * static_cast<float>(M_PI) / 180.0f;
     const float radius = radius_deg * static_cast<float>(ring + 1) / static_cast<float>(counts.size());
-    p.azimuth += radius * cosf(angle);
-    p.elevation += radius * sinf(angle) / kExtentShapeRatio;
+
+    float turn_deg = 0.0f, jitter_x = 0.0f, jitter_y = 0.0f;
+    if (scatter_coord) {
+      const HashField hash(kCloudScatterSalt);
+      const uint32_t id = static_cast<uint32_t>(b);
+      turn_deg = hash.unit(*scatter_coord, paramId("cloud_turn") + static_cast<uint32_t>(ring)) * step_deg;
+      const float arc = counts[ring] > 1 ? 2.0f * static_cast<float>(M_PI) * radius / static_cast<float>(counts[ring]) : radius_deg;
+      const float amplitude = 0.25f * std::min(arc, radius_deg / static_cast<float>(counts.size()));
+      jitter_x = hash.bipolar(*scatter_coord, paramId("cloud_jitter_x") + id, amplitude);
+      jitter_y = hash.bipolar(*scatter_coord, paramId("cloud_jitter_y") + id, amplitude);
+    }
+
+    const float angle = (start_deg + turn_deg - step_deg * static_cast<float>(index)) * static_cast<float>(M_PI) / 180.0f;
+    float x = radius * cosf(angle) + jitter_x, y = radius * sinf(angle) + jitter_y;
+    const float length = hypotf(x, y);
+    if (length > radius_deg) {
+      x *= radius_deg / length;
+      y *= radius_deg / length;
+    }
+    p.azimuth += x;
+    p.elevation += y / kExtentShapeRatio;
     return p;
   }
 

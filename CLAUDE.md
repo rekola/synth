@@ -1145,7 +1145,8 @@ would otherwise resume showing.
     spread is 2D) and at most one per member, one when the cloud is under a
     cell wide or there's no spread. The buckets are laid out as concentric
     rings (`OscillatorVoice::ringCounts()`/`cloudPoint()`: J rings, populations
-    proportional to radius) and members are dealt into them round-robin. A
+    proportional to radius), each ring turned and each point jittered per note
+    (hashed from the note coordinate), and members are dealt into them round-robin. A
     bucket's members are summed and encoded once, all buckets in one
     register-accumulating pass (`AmbisonicStackEncoder`). The floor reflection
     and Aux sends run once on the summed signal at the centre. One voice is just
