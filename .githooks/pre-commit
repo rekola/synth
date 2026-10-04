@@ -1,5 +1,5 @@
 #!/bin/sh
-# Check formatting (.clang-format) and lint (.clang-tidy) of staged C++.
+# Auto-format (.clang-format) and lint (.clang-tidy) staged C++.
 # Enable with: git config core.hooksPath .githooks
 set -e
 cd "$(git rev-parse --show-toplevel)"
@@ -8,21 +8,21 @@ cxx_re='^(src|tests)/.*\.(cpp|h)$'
 staged=$(git diff --cached --name-only --diff-filter=ACM | grep -E "$cxx_re" || true)
 [ -n "$staged" ] || exit 0
 
-# Formatting applies to the changed lines only; the existing code isn't
-# uniformly formatted, so whole files are left alone.
+# Format the changed lines in place (the existing code isn't uniformly
+# formatted, so whole files are left alone) and re-stage the result.
 if command -v git-clang-format >/dev/null; then
+  partial=$(git diff --name-only -- $staged || true)
+  if [ -n "$partial" ]; then
+    echo "pre-commit: unstaged changes in the files below; stage or stash them so formatting can be applied:" >&2
+    echo "$partial" >&2
+    exit 1
+  fi
   # shellcheck disable=SC2086
-  diff=$(git clang-format --staged --diff -- $staged || true)
-  case "$diff" in
-    "" | *"no modified files to format"* | *"did not modify any files"*) ;;
-    *)
-      echo "$diff" >&2
-      echo "pre-commit: formatting needed; run 'git clang-format', re-stage, and commit again" >&2
-      exit 1
-      ;;
-  esac
+  git clang-format -- $staged >/dev/null || true
+  # shellcheck disable=SC2086
+  git add -- $staged
 else
-  echo "pre-commit: git-clang-format not found, skipping format check" >&2
+  echo "pre-commit: git-clang-format not found, skipping formatting" >&2
 fi
 
 files=$(echo "$staged" | grep -E '\.cpp$' || true)
