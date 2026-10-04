@@ -49,7 +49,6 @@ class LaunchpadManager {
   struct ActiveNote {
     int note_column;
     int row, track_id;
-    int last_aftertouch_value = -1;
   };
 
   // One pad can hold several of these at once now - multi-track record

@@ -1964,22 +1964,10 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     auto held_ptr = findActiveNotes(device_id, ev.getX(), ev.getY());
     if (!held_ptr || held_ptr->empty()) return; // no held note(s) to modulate
 
-    // Rate-limit the persisted pattern write: Pattern::setNote already
-    // overwrites in place (so "one aftertouch object per column per row" is
-    // free), this threshold purely avoids redundant work/redraw churn for
-    // a dense pressure stream, not a correctness requirement. One shared
-    // decision for every held target below (multi-track record fan-out -
-    // the PRESS branch's own comment) - the physical pressure gesture is
-    // the same one input regardless of how many tracks it's feeding, so
-    // there's nothing to rate-limit independently per track.
-    const int aftertouch_threshold = 4;
-    auto & primary = (*held_ptr)[0];
-    auto delta = ev.getVelocity() - primary.last_aftertouch_value;
-    if (delta < 0) delta = -delta;
-    bool write_pressure = delta >= aftertouch_threshold && deviceState(device_id).capture_enabled;
-    if (write_pressure) {
-      for (auto & held : *held_ptr) held.last_aftertouch_value = ev.getVelocity();
-    }
+    // Every reading is written (no throttle): a device stops sending once
+    // pressure saturates, so skipping one could lose the final value.
+    // Pattern::setNote overwrites in place, so a row keeps its latest.
+    bool write_pressure = deviceState(device_id).capture_enabled;
 
     for (auto & held : *held_ptr) {
       // Live modulation always happens, regardless of Capture/write-
