@@ -85,7 +85,7 @@ inline void runPlanes4(float * const * planes, int frames, Step && step) {
 // The slot -> plane table every bank shares, padded to whole lane groups.
 class PlaneTable {
  public:
-  PlaneTable(int slots, int lanes) : lanes_(lanes), planes_(static_cast<size_t>((slots + lanes - 1) / lanes * lanes), nullptr), active_(planes_.size() / static_cast<size_t>(lanes), false) { }
+  PlaneTable(int slots, int lanes) : lanes_(lanes), planes_(static_cast<size_t>((slots + lanes - 1) / lanes * lanes), nullptr), active_(planes_.size() / static_cast<size_t>(lanes), 0) { }
 
   // Set before each apply(); nullptr marks a slot with no signal.
   float *& plane(int slot) { return planes_[static_cast<size_t>(slot)]; }
@@ -95,21 +95,21 @@ class PlaneTable {
   // True when the group has a signal, or has had one (so its state may be
   // non-zero). A group that never has stays untouched.
   bool wake(int group) {
-    if (!active_[static_cast<size_t>(group)]) {
+    if (active_[static_cast<size_t>(group)] == 0) {
       for (int l = 0; l < lanes_; l++) {
         if (planes_[static_cast<size_t>(group * lanes_ + l)]) {
-          active_[static_cast<size_t>(group)] = true;
+          active_[static_cast<size_t>(group)] = 1;
           break;
         }
       }
     }
-    return active_[static_cast<size_t>(group)];
+    return active_[static_cast<size_t>(group)] != 0;
   }
   float * const * group(int g) const { return &planes_[static_cast<size_t>(g * lanes_)]; }
 
   int lanes_;
   std::vector<float *> planes_;
-  std::vector<bool> active_;
+  std::vector<unsigned char> active_; // not vector<bool>: plain bytes, no proxy references
 };
 
 // Direct-form-II-transposed biquad in double, one shared coefficient set.
