@@ -73,7 +73,7 @@ float additivePartialRatio(int n, float inharmonicity_b, int edo_steps, int part
 // Symmetric, HashField-jittered detune spread across unison_voices copies,
 // in cents - the same "several detuned copies spread by a dimensionless
 // amount, jittered rather than perfectly even" shape of an
-// oscillator stack's spread, simplified since this bank only ever
+// oscillator array's spread, simplified since this bank only ever
 // needs a flat detune amount (no chord intervals). voice_index 0 with
 // unison_voices == 1 always returns exactly 0 - a single "unison" voice is
 // just the plain, undetuned case.

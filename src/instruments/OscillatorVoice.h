@@ -3,7 +3,7 @@
 
 #include "InstrumentVoice.h"
 #include "OscillatorKernel.h"
-#include "OscillatorStack.h"
+#include "OscillatorArray.h"
 #include "PitchDrift.h"
 #include "WaveformType.h"
 #include "../ambisonic/AmbisonicStackEncoder.h"
@@ -26,17 +26,17 @@ constexpr uint64_t kCloudScatterSalt = 0x7C1E9A4D2B6F3085ull;
 // jittered per note so no two notes share one geometry, so a
 // spread widens the image; with no spread there is one bucket at the
 // position. The floor reflection and the Aux sends run once on the summed dry
-// signal at the centre. One member is just the stack's special case.
+// signal at the centre. One member is just the array's special case.
 class OscillatorVoice : public InstrumentVoice {
 public:
   // `detune` is the frequency ratio applied to every member (the played
   // note's own detune and harmonic).
-  OscillatorVoice(const ChannelConfiguration & config, const SphericalPosition & position, float detune, WaveformType type, float level, float pulse_width, const SendLevels & sends = {}, const NoteCoordinate & note_coord = {}, const OscillatorStack & stack = {})
+  OscillatorVoice(const ChannelConfiguration & config, const SphericalPosition & position, float detune, WaveformType type, float level, float pulse_width, const SendLevels & sends = {}, const NoteCoordinate & note_coord = {}, const OscillatorArray & array = {})
     : InstrumentVoice(config, position, 1.0f, sends, note_coord), type_(type), pulse_width_(pulse_width) {
-    const int n = std::clamp(stack.voices, 1, OscillatorStack::kMaxVoices);
+    const int n = std::clamp(array.voices, 1, OscillatorArray::kMaxVoices);
     // atan2 rather than atan handles distance <= 0 (an untouched/diffuse
     // position, where the azimuth is ignored anyway) without dividing by 0.
-    const float radius_deg = n > 1 ? atan2f(stack.spread * position.extent, position.distance) * 180.0f / static_cast<float>(M_PI) : 0.0f;
+    const float radius_deg = n > 1 ? atan2f(array.spread * position.extent, position.distance) * 180.0f / static_cast<float>(M_PI) : 0.0f;
 
     const int count = bucketCountFor(config.getAmbisonicOrder(), radius_deg, n, position.distance > 0.0f);
     buckets_.resize(static_cast<size_t>(count));
@@ -53,16 +53,16 @@ public:
       const float place = n > 1 ? 2.0f * static_cast<float>(k) / static_cast<float>(n - 1) - 1.0f : 0.0f;
 
       Member member;
-      member.level = level * powf(stack.falloff, static_cast<float>(k));
-      member.ratio = detune * powf(stack.ratio, static_cast<float>(k)) * powf(2.0f, place * stack.detune_cents / 2400.0f);
+      member.level = level * powf(array.falloff, static_cast<float>(k));
+      member.ratio = detune * powf(array.ratio, static_cast<float>(k)) * powf(2.0f, place * array.detune_cents / 2400.0f);
       // The same derivation as InstrumentVoice's own start phase, so a
-      // lone member starts where this voice always has; stacked members
+      // lone member starts where this voice always has; array members
       // are decorrelated by their index.
       NoteCoordinate coord = n > 1 ? note_coord.withInstance(k) : note_coord;
       member.phase = static_cast<double>(HashField(kNotePhaseSalt).unit(coord.toHashCoord(), paramId("note_phase")));
-      if (n > 1 && stack.detune_cents > 0.0f && stack.drift_period > 0.0f) {
-        const double period = std::max(stack.drift_period, kMinDriftPeriod) * static_cast<double>(config.getAudioOutSampleRate());
-        member.drift = PitchDrift(coord.toHashCoord(), 0.5f * stack.detune_cents, period);
+      if (n > 1 && array.detune_cents > 0.0f && array.drift_period > 0.0f) {
+        const double period = std::max(array.drift_period, kMinDriftPeriod) * static_cast<double>(config.getAudioOutSampleRate());
+        member.drift = PitchDrift(coord.toHashCoord(), 0.5f * array.detune_cents, period);
       }
 
       // Dealt round-robin, so the buckets stay evenly filled and members
@@ -71,7 +71,7 @@ public:
     }
   }
 
-  // How many buckets a stack of `members` needs: as many resolvable cells
+  // How many buckets an array of `members` needs: as many resolvable cells
   // (diameter `width` - the bus can't tell closer directions apart) as fit in
   // the cloud's area, an ellipse of azimuth radius `radius_deg` and elevation
   // radius `radius_deg / kExtentShapeRatio`; at least three (a triangle, so a
@@ -210,7 +210,7 @@ public:
       encoder_.encodeBlock(data, bucket_sums_.data(), padded, targets_, frames);
     }
 
-    // The stack's whole dry signal, for the floor reflection and the sends
+    // The array's whole dry signal, for the floor reflection and the sends
     // (the one row when there's a single bucket), summed only if one needs it.
     const float * dry = bucket_sums_.data();
     const bool reflect = has_main && floorReflectionActive();
@@ -234,7 +234,7 @@ private:
     double phase = 0.0;  // cycles
     float ratio = 1.0f;  // frequency ratio to the note
     float level = 1.0f;
-    PitchDrift drift; // inactive unless the stack drifts
+    PitchDrift drift; // inactive unless the array drifts
   };
 
   struct Bucket {

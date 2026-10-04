@@ -180,7 +180,7 @@ to run forever).
   shares its track's own position exactly, so a held chord's
   independently-drifting tape strips don't also read as physically
   separate points in space the way a real Mellotron's side-by-side tape
-  heads would. `<oscillator>`'s own stack spread (`OscillatorVoice.h`,
+  heads would. `<oscillator>`'s own array spread (`OscillatorVoice.h`,
   `atan2f(spread * position.extent, position.distance)` for an angular
   half-width) is the closest existing precedent, but doesn't transfer
   directly - it spreads a known, fixed voice count within one

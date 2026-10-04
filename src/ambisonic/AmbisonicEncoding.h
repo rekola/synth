@@ -28,7 +28,7 @@ constexpr int ambisonicChannelCount(int order) { return (order + 1) * (order + 1
 constexpr int kAmbisonicChannelCount = ambisonicChannelCount(kAmbisonicOrder); // 16 at order 3
 
 // The horizontal:vertical ratio every source-attached spread (percussion
-// key offsets, the oscillator stack's spread, ...) divides its vertical
+// key offsets, the oscillator array's spread, ...) divides its vertical
 // component by, so a horizontal offset of `extent` metres corresponds to
 // a vertical offset of only `extent / kExtentShapeRatio` metres - human
 // hearing resolves azimuth well and elevation poorly under generic HRTFs,

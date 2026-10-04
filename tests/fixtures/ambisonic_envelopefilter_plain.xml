@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- A single positioned NoiseVoice wrapped directly in an EnvelopeFilter (no
-     oscillator stack), for ambisonic rendering: confirms TrackState::render(int
+     oscillator array), for ambisonic rendering: confirms TrackState::render(int
      frames)'s mismatch-encode logic correctly handles a transparent effect
      sitting directly above a single reduced (MONO) leaf voice - the
      voice's position must still come through in the master decode.

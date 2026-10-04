@@ -2,7 +2,7 @@
 #define _OSCILLATOR_H_
 
 #include "Instrument.h"
-#include "OscillatorStack.h"
+#include "OscillatorArray.h"
 #include "WaveformType.h"
 #include "../ambisonic/SphericalPosition.h"
 #include "../model/SendLevels.h"
@@ -20,8 +20,8 @@ class Oscillator : public Instrument {
  private:
   WaveformType type_;
   float level_ = 1.0f, pulse_width_ = 0.5f;
-  // Stacked members of the one voice - see OscillatorStack.
-  OscillatorStack stack_;
+  // Array members of the one voice - see OscillatorArray.
+  OscillatorArray array_;
   // Frequency ratio harmonic/subharmonic relative to the played note.
   int harmonic_ = 1, subharmonic_ = 1;
 };

@@ -1707,7 +1707,7 @@ constexpr uint64_t kPercussionJitterSalt = 0x2545f491d2b79f5Bull;
 // extent, horizontal/vertical) into a real azimuth/elevation delta and
 // adds it to `position` - the one shared algebra behind both the
 // percussion table and the pitched arc below (also used, independently,
-// by the floor reflection and the oscillator stack's spread):
+// by the floor reflection and the oscillator array's spread):
 // x = u*extent, y = v*extent/kExtentShapeRatio, delta = atan2(x or y,
 // distance). A zero-extent instrument (a point source - nothing to
 // offset within) or no position ever set at all (distance <= 0, same

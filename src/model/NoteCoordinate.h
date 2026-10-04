@@ -6,7 +6,7 @@
 // Identifies one note event - or, via withInstance(), one sub-voice
 // generated from it - for HashField purposes (dsp/HashField.h; see
 // InstrumentVoice.h's own start-phase computation, the
-// oscillator stack's members, effects/TapeDegradation.cpp's per-instance seed,
+// oscillator array's members, effects/TapeDegradation.cpp's per-instance seed,
 // SoundFont.cpp's percussion-position jitter). A value type, not a
 // stream: two NoteCoordinates built from the same inputs are
 // interchangeable, in any order, from any thread - the whole point of
@@ -40,7 +40,7 @@ class NoteCoordinate {
     : track_id_(track_id), absolute_row_(absolute_row), column_(column) { }
 
   // Derives a child coordinate for a sub-voice generated from this note -
-  // an oscillator stack's member index, an arpeggiator's step count, a future nested
+  // an oscillator array's member index, an arpeggiator's step count, a future nested
   // generator's own local index. Combines (doesn't overwrite)
   // instance_id_, so two nesting levels can't collide on the same child
   // identity even though neither knows about the other - a cheap

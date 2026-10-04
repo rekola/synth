@@ -97,7 +97,7 @@ class Track : public StatefulSongObject {
   virtual const char * getElementName() const = 0;
 
   // note_coord: per-note coordinate for reproducible HashField jitter
-  // (the oscillator stack's detune/spread, TapeDegradation's per-instance
+  // (the oscillator array's detune/spread, TapeDegradation's per-instance
   // seed, ...). Both defaults live only here - every override that
   // recurses into children must forward whatever it received.
   virtual std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}) const {

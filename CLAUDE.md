@@ -1134,10 +1134,10 @@ would otherwise resume showing.
   - `src/instruments/` — synthesis and instrument resolution:
     `OscillatorVoice`/`GenericInstrument`/`SoundFont`, `Tuner`/`Tuning`
     (microtonal pitch math), `LFO`, `Arpeggiator`.
-  `Oscillator` can stack itself into one voice: `voices` members (up to 256),
+  `Oscillator` can be an array of members in one voice: `voices` members (up to 256),
     member k at `ratio`^k times the note's frequency and `falloff`^k times its
     level (ratio 1 = unison choir, 2 = octaves), with `detune` (cents) spread
-    evenly and centred across the members (`OscillatorStack.h`; rendered by
+    evenly and centred across the members (`OscillatorArray.h`; rendered by
     `OscillatorVoice`, whose waveforms come from `OscillatorKernel`, a
     vector-extension kernel). `spread` (a multiplier on the position's extent)
     is the radius of a cloud of buckets: as many as resolvable cells (25/16/12
@@ -1150,13 +1150,13 @@ would otherwise resume showing.
     bucket's members are summed and encoded once, all buckets in one
     register-accumulating pass (`AmbisonicStackEncoder`). The floor reflection
     and Aux sends run once on the summed signal at the centre. One voice is just
-    the stack of one. A detuned stack (`detune` > 0, more than one member)
+    the array of one. A detuned array (`detune` > 0, more than one member)
     gives each member its own slow aperiodic pitch wander, up to half the
     detune over `driftPeriod` seconds (default 2, 0 = off; `PitchDrift.h`:
     hashed value noise between control points, a pure function of the voice's
     age in samples, so it never depends on the block size; the kernel adds its
-    exact phase integral per group of eight), keeping the stack from settling
-    into a repeating beat pattern; no detune, no drift. Other voice types don't stack.
+    exact phase integral per group of eight), keeping the array from settling
+    into a repeating beat pattern; no detune, no drift. Other voice types aren't arrays.
   - `src/ambisonic/` — spatial encode/decode math and the `Mixer`
     hierarchy (see the `AmbisonicEncoding.h` bullet below).
   - `src/audio/` — `AlsaAudio` (device output), `AudioBuffer`,

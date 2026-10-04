@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- EnvelopeFilter wrapping a spread oscillator stack, for ambisonic
+<!-- EnvelopeFilter wrapping a spread oscillator array, for ambisonic
      rendering - the exact scenario that drove this feature's final
      design: an ADSR-enveloped spread pad. EnvelopeFilter must stay
      transparent (no getChildChannelConfiguration override) so
-     the oscillator stack still sees genuine AMBISONIC format and its sub-voices'
+     the oscillator array still sees genuine AMBISONIC format and its sub-voices'
      spread survives being wrapped by the envelope above it. Four unison
      voices with real detune (a realistic pad-style spread), saw wave
      (sweetened by the multiplier's own detuning/spread, unlike the plain
