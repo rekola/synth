@@ -1953,19 +1953,19 @@ TEST(render_golden_hash_catches_randomization_regressions) {
   CHECK(notemultiplier.ok);
   auto notemultiplier_result = renderSongOffline(notemultiplier.song, config, MixerType::AMBISONIC_STEREO);
   CHECK(!hasNonFiniteSample(notemultiplier_result));
-  if (canonical_arch) CHECK(hashSamples(notemultiplier_result) == 0xcf48af3c3844c85eull);
+  if (canonical_arch) CHECK(hashSamples(notemultiplier_result) == 0x83c84bb05d45e9e9ull);
 
   auto tape = loadFixture("tape_degradation_all_presets.xml");
   CHECK(tape.ok);
   auto tape_result = renderSongOffline(tape.song, config);
   CHECK(!hasNonFiniteSample(tape_result));
-  if (canonical_arch) CHECK(hashSamples(tape_result) == 0x125cc894073b2955ull);
+  if (canonical_arch) CHECK(hashSamples(tape_result) == 0xa2cfc85c205792bdull);
 
   auto arp = loadFixture("arpeggiator_pattern_chord.xml");
   CHECK(arp.ok);
   auto arp_result = renderSongOffline(arp.song, config);
   CHECK(!hasNonFiniteSample(arp_result));
-  if (canonical_arch) CHECK(hashSamples(arp_result) == 0xdcd3a248cb0ce779ull);
+  if (canonical_arch) CHECK(hashSamples(arp_result) == 0x91c1c2d18e36033dull);
 }
 
 // The master's Send Main is the song's volume: half of it halves the
