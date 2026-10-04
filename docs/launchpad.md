@@ -72,6 +72,10 @@ and orange in mixer submode.
 Record Arm (19), Volume (89), Pan (79), Send A (69), Send B (59), Stop Clip
 (49), Mute (39) and Solo (29) share one dispatch.
 
+In Note mode, Record Arm (19) instead starts and stops capturing what is
+played into the arrangement; its LED is bright red while capturing, dim red
+otherwise.
+
 | Button | Mixer submode off (default) | Mixer submode on |
 | --- | --- | --- |
 | each of the eight | launches the scene at its row | the mixer radio group below |

@@ -898,6 +898,21 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
       }
       return true;
     }
+    // Note entry: Record Arm starts and stops capturing what's played. A
+    // sample take or threshold arm is ended through the shared command,
+    // which doesn't depend on terminal focus; note capture is toggled
+    // directly, since the command would arm the clip grid's track instead
+    // while that has focus.
+    if (cc_number == 19 && state.grid_mode == GridMode::NOTES && !state.show_step_grid) {
+      if (controller.isRecording() || controller.isThresholdArmed()) {
+        controller.sendCommand("toggle-record-arm");
+      } else if (controller.isNoteCaptureArmed()) {
+        controller.disarmNoteCapture();
+      } else {
+        controller.armNoteCapture();
+      }
+      return true;
+    }
     if (!inSessionMixerFamily(state)) return true;
     if (!state.session_mixer_mode) {
       triggerSceneRow(controller, (cc_number - 19) / 10);
@@ -2841,7 +2856,10 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   bool picker_mute = state.track_picker_active && state.track_picker_purpose == DeviceState::TrackPickerPurpose::MUTE;
   bool picker_solo = state.track_picker_active && state.track_picker_purpose == DeviceState::TrackPickerPurpose::SOLO;
   bool picker_stop_clip = state.track_picker_active && state.track_picker_purpose == DeviceState::TrackPickerPurpose::STOP_CLIP;
-  Rgb record_arm_button_color = !in_mixer_family ? Rgb{0, 0, 0} : !mixer_mode ? LAUNCHPAD_SCENE_LAUNCH_BUTTON_COLOR : picker_record_arm ? LAUNCHPAD_TRACK_PICKER_RECORD_ARM_BRIGHT : LAUNCHPAD_TRACK_PICKER_RECORD_ARM_DIM;
+  Rgb record_arm_button_color = state.grid_mode == GridMode::NOTES && !state.show_step_grid ? (state.record_arm_led_on ? Rgb{127, 0, 0} : Rgb{40, 0, 0}) : !in_mixer_family ? Rgb{0, 0, 0}
+                                                                                                                                                       : !mixer_mode        ? LAUNCHPAD_SCENE_LAUNCH_BUTTON_COLOR
+                                                                                                                                                       : picker_record_arm  ? LAUNCHPAD_TRACK_PICKER_RECORD_ARM_BRIGHT
+                                                                                                                                                                            : LAUNCHPAD_TRACK_PICKER_RECORD_ARM_DIM;
   Rgb stop_clip_button_color = !in_mixer_family ? Rgb{0, 0, 0} : !mixer_mode ? LAUNCHPAD_SCENE_LAUNCH_BUTTON_COLOR : picker_stop_clip ? LAUNCHPAD_TRACK_PICKER_STOP_CLIP_BRIGHT : LAUNCHPAD_TRACK_PICKER_STOP_CLIP_DIM;
   Rgb solo_button_color = !in_mixer_family ? Rgb{0, 0, 0} : !mixer_mode ? LAUNCHPAD_SCENE_LAUNCH_BUTTON_COLOR : picker_solo ? LAUNCHPAD_TRACK_PICKER_SOLO_BRIGHT : LAUNCHPAD_TRACK_PICKER_SOLO_DIM;
   Rgb mute_button_color = !in_mixer_family ? Rgb{0, 0, 0} : !mixer_mode ? LAUNCHPAD_SCENE_LAUNCH_BUTTON_COLOR : picker_mute ? LAUNCHPAD_TRACK_PICKER_MUTE_BRIGHT : LAUNCHPAD_TRACK_PICKER_MUTE_DIM;
