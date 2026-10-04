@@ -96,15 +96,26 @@ public:
       has_aux_a = has_aux_a || s.hasChannel(Channel::AuxA);
       has_aux_b = has_aux_b || s.hasChannel(Channel::AuxB);
     }
-    AudioBuffer data(has_main ? getChannelConfiguration().numberOfChannels() : 0, has_aux_a, has_aux_b, frames, isSolo());
-    data.zero();
+    const int regular = has_main ? getChannelConfiguration().numberOfChannels() : 0;
+    // A voice buffer that already has the accumulator's shape becomes the
+    // accumulator, saving an allocation, a zeroing and a mix.
+    size_t first = 0;
+    AudioBuffer data;
+    if (!rendered.empty() && rendered[0].hasShape(regular, has_aux_a, has_aux_b) && rendered[0].numberOfFrames() == frames) {
+      data = std::move(rendered[0]);
+      data.setSolo(isSolo());
+      first = 1;
+    } else {
+      data = AudioBuffer(regular, has_aux_a, has_aux_b, frames, isSolo());
+      data.zero();
+    }
 
     // Every voice now spatially encodes itself directly, using its own
     // position, to its own real (never reduced) ChannelConfiguration - see
     // InstrumentVoice::encodePosition() - so a voice's rendered output
     // always already matches this accumulator's shape exactly; no
     // per-voice dispatch is needed, just a plain mix.
-    for (auto & s : rendered) data.mixNamed(s);
+    for (size_t i = first; i < rendered.size(); i++) data.mixNamed(rendered[i]);
 
     // meter_value_ (-1.0f, "no data") is left at TrackInfo's own default
     // here - InstrumentTrackState::render()/SampleTrackState::render() both

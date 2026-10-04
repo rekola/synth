@@ -617,3 +617,23 @@ TEST(ambisonic_decode_concentrates_on_matching_speaker) {
     CHECK(rE_mag < 0.95);
   }
 }
+
+TEST(voice_encoder_overwrite_ignores_what_the_buffer_held) {
+  constexpr int kFrames = 13; // a vector group and a scalar tail
+  AmbisonicGains target{};
+  for (size_t c = 0; c < target.size(); c++) target[c] = 0.05f * static_cast<float>(c + 1);
+  std::vector<float> mono(kFrames);
+  for (int i = 0; i < kFrames; i++) mono[static_cast<size_t>(i)] = 0.1f * static_cast<float>(i) - 0.4f;
+
+  ChannelConfiguration config(44100, 3);
+  AudioBuffer added(config, kFrames), overwritten(config, kFrames);
+  added.zero();
+  for (int c = 0; c < overwritten.numberOfChannels(); c++)
+    for (int i = 0; i < kFrames; i++) overwritten.getChannelData(c)[i] = 99.0f; // stale data
+
+  AmbisonicVoiceEncoder a, b;
+  a.encodeBlock(added, mono.data(), kFrames, target);
+  b.encodeBlock(overwritten, mono.data(), kFrames, target, true);
+  for (int c = 0; c < added.numberOfChannels(); c++)
+    for (int i = 0; i < kFrames; i++) CHECK_NEAR(added.getChannelData(c)[i], overwritten.getChannelData(c)[i], 1e-6f);
+}
