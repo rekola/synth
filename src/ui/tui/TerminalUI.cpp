@@ -2442,7 +2442,8 @@ TerminalUI::offerInput(const InputEvent & input) {
     outline_view_->offerInput(input);
     return true;
   }
-  if (!reader_active && !octave_control_->isEditing() && dispatchCommand(input)) return true;
+  if (octave_control_->isEditing() && octave_control_->offerInput(input)) return true;
+  if (!reader_active && dispatchCommand(input)) return true;
 
   if (input.getId() == NCKEY_RESIZE) {
     // notcurses_refresh() is what makes notcurses acknowledge the terminal's
@@ -2475,6 +2476,11 @@ TerminalUI::offerInput(const InputEvent & input) {
 	break;
       }
     }
+    return true;
+  } else if (input.getId() == NCKEY_BUTTON1 && (octave_control_->arrowPressPending() ||
+                                                (input.getKind() != InputEvent::Kind::RELEASE && octave_control_->hitsArrow(input.getY(), input.getX())))) {
+    // The octave arrows act on click without taking focus from the active element.
+    octave_control_->offerInput(input);
     return true;
   } else if (input.getId() == NCKEY_BUTTON1 && (input.getKind() == InputEvent::Kind::RELEASE || clip_grid_->isMouseDown() || pattern_editor_->isMouseDown())) {
     // A release, or a press repeating as a drag moves, belongs to the
