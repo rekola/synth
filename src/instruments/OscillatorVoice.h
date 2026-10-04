@@ -62,14 +62,15 @@ public:
   // How many buckets a stack of `members` needs: as many resolvable cells
   // (diameter `width` - the bus can't tell closer directions apart) as fit in
   // the cloud's area, an ellipse of azimuth radius `radius_deg` and elevation
-  // radius `radius_deg / kExtentShapeRatio`; never more than the members, and
-  // one when direction is meaningless (a mono bus, a source with no
+  // radius `radius_deg / kExtentShapeRatio`; at least three (a triangle, so a
+  // spread is two-dimensional), but never more than the members, and one
+  // when direction is meaningless (a mono bus, a source with no
   // distance, or no spread).
   static int bucketCountFor(int ambisonic_order, float radius_deg, int members, bool directional) {
     if (members <= 1 || ambisonic_order <= 0 || !directional || radius_deg <= 0.0f) return 1;
     const float width_deg = ambisonic_order >= 3 ? 12.0f : ambisonic_order == 2 ? 16.0f : 25.0f;
     const float cells = radius_deg * radius_deg / kExtentShapeRatio / ((width_deg / 2.0f) * (width_deg / 2.0f));
-    return std::clamp(static_cast<int>(std::lround(cells)), 1, members);
+    return std::clamp(static_cast<int>(std::lround(cells)), std::min(3, members), members);
   }
 
   // `buckets` points as concentric rings: ring j of J sits at radius j/J of
