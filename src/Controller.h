@@ -1014,8 +1014,13 @@ class Controller {
   // uses (the two aren't unified - see the one-row partial redraw's own
   // reasoning elsewhere), and to resolve which row/rate-limiting rules
   // apply before calling this - only the actual read-modify-write of the
-  // note itself is shared.
+  // note itself is shared. A row records the average of the readings it
+  // received (a device stops sending once pressure saturates, so a row's
+  // readings are all there is to go on); the average restarts when the
+  // row changes or the note's pressure is ended.
   void applyNotePressure(int row, int track_id, int note_column, short velocity, int delay);
+  // Forgets the running row average for a note column (its note ended).
+  void endNotePressure(int track_id, int note_column) { pressure_averages_.erase({ track_id, note_column }); }
 
   // Emacs prefix-argument style: transient, one-shot context a caller (the
   // Launchpad command-dispatch path, UI::handleLaunchpadButtonEvent) sets
@@ -1074,6 +1079,13 @@ class Controller {
   void prewarmInstrumentForPreview(const Track * instrument, int note_value) const;
 
  private:
+  struct PressureAverage {
+    int row = -1;
+    int sum = 0;
+    int count = 0;
+  };
+  // Keyed by (track id, note column).
+  std::map<std::pair<int, int>, PressureAverage> pressure_averages_;
   // receivePlaybackSnapshot()'s own model-sync half - see
   // glideTrackSendA()/B()/Main()/glideTrackAzimuth()'s own comment for why
   // this direction (engine's real value -> model) exists at all now,

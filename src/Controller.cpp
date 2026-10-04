@@ -1436,6 +1436,7 @@ Controller::stopAutoRecordSession(bool & auto_started_playback, std::set<std::pa
 
 void
 Controller::writeReleaseOff(std::set<std::pair<int, int>> & cleared_rows, bool auto_started_playback, int row, int track_id, int note_column, int delay) {
+  endNotePressure(track_id, note_column);
   if (auto_started_playback) ensureRowCleared(cleared_rows, row, track_id);
   auto song = getCurrentSong();
   auto target = resolveEditTarget(*song, track_id, row, getFocusedClip());
@@ -1457,7 +1458,11 @@ Controller::applyNotePressure(int row, int track_id, int note_column, short velo
   auto target = resolveEditTarget(*song, track_id, row, getFocusedClip());
   auto note = target.pattern->getNote(target.effective_row, note_column);
   if (!note.isDefined()) note.setDelay(delay);
-  note.setVelocity(velocity);
+  auto & avg = pressure_averages_[{ track_id, note_column }];
+  if (avg.row != row) avg = PressureAverage { row, 0, 0 };
+  avg.sum += velocity;
+  avg.count++;
+  note.setVelocity(static_cast<short>((avg.sum + avg.count / 2) / avg.count));
   target.pattern->setNote(target.effective_row, note_column, note);
 }
 

@@ -69,6 +69,7 @@ MidiNoteInput::handle(const MidiEvent & ev, Controller & controller, int track_i
     // Released on the track it was played on, even if the selection moved.
     auto held = held_it->second;
     held_.erase(held_it);
+    controller.endNotePressure(held.track_id, held.column);
     queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, buffer, held.track_id, held.column));
     if (!options.write) return false;
     auto target = resolve(held.track_id);
