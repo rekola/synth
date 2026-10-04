@@ -3,7 +3,6 @@
 #include "../dsp/Vec8.h"
 
 #include <cmath>
-#include <cstring>
 
 namespace {
 
@@ -11,34 +10,10 @@ using dsp::kLanes;
 using dsp::splat;
 using dsp::v8f;
 
-typedef int v8i __attribute__((vector_size(32)));
-
-constexpr float kTwoPi = 6.28318530717958647692f;
-
-// Fractional part of a non-negative phase.
-inline v8f fract(v8f p) {
-  return p - __builtin_convertvector(__builtin_convertvector(p, v8i), v8f);
-}
-
-// sin(2*pi*f) for f in [0, 1): fold to [-1/4, 1/4] turns, then a Taylor
-// series through x^13 (error ~1e-9 over the folded range).
-inline v8f sineOfFraction(v8f f) {
-  const v8f half = splat(0.5f), quarter = splat(0.25f);
-  v8f u = (f > half) ? f - splat(1.0f) : f;
-  u = (u > quarter) ? half - u : u;
-  u = (u < -quarter) ? -half - u : u;
-
-  v8f x = u * splat(kTwoPi);
-  v8f x2 = x * x;
-  v8f p = splat(1.0f / 6227020800.0f);
-  p = p * x2 - splat(1.0f / 39916800.0f);
-  p = p * x2 + splat(1.0f / 362880.0f);
-  p = p * x2 - splat(1.0f / 5040.0f);
-  p = p * x2 + splat(1.0f / 120.0f);
-  p = p * x2 - splat(1.0f / 6.0f);
-  p = p * x2 + splat(1.0f);
-  return x * p;
-}
+using dsp::fract;
+using dsp::loadu;
+using dsp::sineOfFraction;
+using dsp::storeu;
 
 }
 
@@ -77,10 +52,7 @@ mix(WaveformType type, float pulse_width, double phase, double rate, float level
     default: a = splat(0.0f); break;
     }
 
-    v8f existing;
-    std::memcpy(&existing, out + g * kLanes, sizeof(existing));
-    a = a * level_v + existing;
-    std::memcpy(out + g * kLanes, &a, sizeof(a));
+    storeu(out + g * kLanes, a * level_v + loadu(out + g * kLanes));
   }
 }
 

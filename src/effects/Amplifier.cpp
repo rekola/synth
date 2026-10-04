@@ -26,11 +26,11 @@ public:
   bool applyEffect(AudioBuffer & input) const {
     bool has_content = input.numberOfChannels() > 0;
     if (has_content) {
-      auto data = input.getChannelData(0);
       auto g = TrackState::decibelsToGain(gain_);
 
-      for (int i = 0; i < input.numberOfFrames() * input.numberOfChannels(); i++) {
-	data[i] *= g;
+      for (int c = 0; c < input.numberOfChannels(); c++) {
+	auto data = input.getChannelData(c);
+	for (int i = 0; i < input.numberOfFrames(); i++) data[i] *= g;
       }
     }
     return has_content;

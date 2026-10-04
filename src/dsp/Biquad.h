@@ -75,6 +75,11 @@ public:
     setup();
   }
   
+  struct Coefficients {
+    T a0, a1, a2, b1, b2;
+  };
+  Coefficients coefficients() const { return { a0_, a1_, a2_, b1_, b2_ }; }
+
   bool active_ = false;
   
 private:

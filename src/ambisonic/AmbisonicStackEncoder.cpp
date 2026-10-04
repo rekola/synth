@@ -3,12 +3,13 @@
 #include "../dsp/Vec8.h"
 
 #include <algorithm>
-#include <cstring>
 
 namespace {
 
 using dsp::kLanes;
+using dsp::loadu;
 using dsp::splat;
+using dsp::storeu;
 using dsp::v8f;
 
 // N is the channel count rounded up to what a fixed-size accumulator set
@@ -17,7 +18,7 @@ using dsp::v8f;
 template <int N>
 void encodeChannels(float * const * channels, int n, const float * dry, size_t stride, size_t signals, const float * g0, const float * dg, int frames) {
   const int full = frames & ~(kLanes - 1);
-  const v8f lane = v8f{ 0, 1, 2, 3, 4, 5, 6, 7 };
+  const v8f lane = dsp::iota();
 
   for (int i = 0; i < full; i += kLanes) {
     v8f acc[static_cast<size_t>(N)];
@@ -25,18 +26,14 @@ void encodeChannels(float * const * channels, int n, const float * dry, size_t s
     const v8f index = splat(static_cast<float>(i)) + lane;
 
     for (size_t s = 0; s < signals; s++) {
-      v8f x;
-      std::memcpy(&x, dry + s * stride + static_cast<size_t>(i), sizeof(x));
+      const v8f x = loadu(dry + s * stride + static_cast<size_t>(i));
       const float * a = g0 + s * N;
       const float * b = dg + s * N;
       for (int c = 0; c < N; c++) acc[c] += (splat(a[c]) + splat(b[c]) * index) * x;
     }
 
     for (int c = 0; c < n; c++) {
-      v8f o;
-      std::memcpy(&o, channels[c] + i, sizeof(o));
-      o += acc[c];
-      std::memcpy(channels[c] + i, &o, sizeof(o));
+      storeu(channels[c] + i, loadu(channels[c] + i) + acc[c]);
     }
   }
 

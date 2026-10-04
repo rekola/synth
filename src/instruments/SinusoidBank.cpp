@@ -1,6 +1,7 @@
 #include "SinusoidBank.h"
 #include "SpectralBandProfile.h"
 #include "../dsp/HashField.h"
+#include "../dsp/Vec8.h"
 #include "../dsp/SpectralEnvelopeRemap.h"
 
 #include <cmath>
@@ -161,6 +162,11 @@ SinusoidBank::buildPartials(const Params & params, const NoteCoordinate & note_c
       addPartial(freq_hz, amplitude, phase, alpha, params.sample_rate);
     }
   }
+
+  // Every array runs to a whole number of lane groups; the slots past
+  // active_count_ stay all-zero, so they add nothing and never change.
+  size_t padded = (static_cast<size_t>(active_count_) + dsp::kLanes - 1) / dsp::kLanes * dsp::kLanes;
+  for (auto * v : { &coeff_, &y1_, &y2_, &amp_, &decay_mult_, &min_amp_ }) v->resize(padded, 0.0f);
 }
 
 void
@@ -179,18 +185,42 @@ SinusoidBank::addPartial(float freq_hz, float amplitude, float phase, float alph
 
 void
 SinusoidBank::render(float * out, int frames) {
-  for (int k = 0; k < frames; k++) {
-    float sum = 0.0f;
-    for (int p = 0; p < active_count_; p++) {
-      sum += y1_[static_cast<size_t>(p)] * amp_[static_cast<size_t>(p)];
+  using dsp::kLanes;
+  using dsp::v8f;
 
-      float next = coeff_[static_cast<size_t>(p)] * y1_[static_cast<size_t>(p)] - y2_[static_cast<size_t>(p)];
-      y2_[static_cast<size_t>(p)] = y1_[static_cast<size_t>(p)];
-      y1_[static_cast<size_t>(p)] = next;
+  // Partials are processed eight at a time with their state held in
+  // registers across a chunk of frames; each chunk's per-frame vector sums
+  // are folded into one value per frame at the end.
+  constexpr int kChunk = 64;
+  const size_t groups = (static_cast<size_t>(active_count_) + kLanes - 1) / kLanes;
 
-      amp_[static_cast<size_t>(p)] *= decay_mult_[static_cast<size_t>(p)];
+  for (int base = 0; base < frames; base += kChunk) {
+    const int n = frames - base < kChunk ? frames - base : kChunk;
+    v8f sums[kChunk];
+    for (int k = 0; k < n; k++) sums[k] = dsp::splat(0.0f);
+
+    for (size_t g = 0; g < groups; g++) {
+      const size_t at = g * kLanes;
+      const v8f coeff = dsp::loadu(&coeff_[at]);
+      const v8f decay = dsp::loadu(&decay_mult_[at]);
+      v8f y1 = dsp::loadu(&y1_[at]);
+      v8f y2 = dsp::loadu(&y2_[at]);
+      v8f amp = dsp::loadu(&amp_[at]);
+
+      for (int k = 0; k < n; k++) {
+        sums[k] += y1 * amp;
+        const v8f next = coeff * y1 - y2;
+        y2 = y1;
+        y1 = next;
+        amp *= decay;
+      }
+
+      dsp::storeu(&y1_[at], y1);
+      dsp::storeu(&y2_[at], y2);
+      dsp::storeu(&amp_[at], amp);
     }
-    out[k] += sum;
+
+    for (int k = 0; k < n; k++) out[base + k] += dsp::hsum(sums[k]);
   }
 
   cullDecayedPartials();
@@ -198,6 +228,7 @@ SinusoidBank::render(float * out, int frames) {
 
 void
 SinusoidBank::cullDecayedPartials() {
+  const int before = active_count_;
   int p = 0;
   while (p < active_count_) {
     if (amp_[static_cast<size_t>(p)] < min_amp_[static_cast<size_t>(p)]) {
@@ -214,6 +245,10 @@ SinusoidBank::cullDecayedPartials() {
     } else {
       p++;
     }
+  }
+
+  for (int i = active_count_; i < before; i++) {
+    for (auto * v : { &coeff_, &y1_, &y2_, &amp_, &decay_mult_, &min_amp_ }) (*v)[static_cast<size_t>(i)] = 0.0f;
   }
 }
 

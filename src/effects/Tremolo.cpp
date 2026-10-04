@@ -2,6 +2,9 @@
 
 #include "EffectTrackState.h"
 #include "EffectVoiceState.h"
+#include "../dsp/Vec8.h"
+
+#include <vector>
 
 using namespace std;
 
@@ -27,12 +30,24 @@ public:
       auto numSamples = input.size();
       auto step = 2 * M_PI * frequency_ / sample_rate_;
 
+      // One modulation curve for the block, applied to every channel. Each
+      // group of eight starts from a double-precision phase (in turns), so
+      // float rounding doesn't accumulate over a block.
+      const size_t padded = (static_cast<size_t>(numSamples) + dsp::kLanes - 1) / dsp::kLanes * dsp::kLanes;
+      if (curve_.size() < padded) curve_.resize(padded);
+      const double turns_per_sample = step / (2 * M_PI);
+      const dsp::v8f lanes = dsp::iota() * dsp::splat(static_cast<float>(turns_per_sample));
+      const dsp::v8f depth = dsp::splat(aftertouch_value * amplitude_);
+      for (size_t i = 0; i < padded; i += dsp::kLanes) {
+        double start = phi_ / (2 * M_PI) + turns_per_sample * static_cast<double>(i);
+        start -= std::floor(start);
+        dsp::v8f f = dsp::fract(dsp::splat(static_cast<float>(start)) + lanes);
+        dsp::storeu(&curve_[i], dsp::splat(1.0f) + depth * dsp::sineOfFraction(f));
+      }
+
       for (int j = 0; j < numChannels; j++) {
-	auto buffer = input.getChannelData(j);
-	auto phi = phi_;
-	for (int i = 0; i < numSamples; i++, phi += step) {
-	  buffer[i] *= 1 + aftertouch_value * amplitude_ * sin(phi);
-	}
+        auto buffer = input.getChannelData(j);
+        for (int i = 0; i < numSamples; i++) buffer[i] *= curve_[static_cast<size_t>(i)];
       }
 
       phi_ += numSamples * step;
@@ -44,6 +59,7 @@ private:
   int sample_rate_;
 
   double phi_ = 0;
+  std::vector<float> curve_;
 };
 
 class TremoloTrackState : public EffectTrackState {

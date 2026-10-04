@@ -30,7 +30,13 @@ endif()
 # -DSYNTH_MARCH=x86-64-v2 for a fixed, portable baseline instead - CI does
 # this; local dev builds keep the performance-maximizing default.
 set(SYNTH_MARCH "native" CACHE STRING "Value passed to -march (e.g. native, x86-64-v2, armv8-a) - a fixed value gives reproducible output across machines at the cost of not using that specific machine's full instruction set; 'native' (default) is the reverse trade-off, right for local dev builds.")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=${SYNTH_MARCH} -Wall -Wsuggest-override -Werror=return-local-addr -Werror=multichar -Werror=enum-compare -Werror=return-type -Werror=conversion-null -Werror=parentheses -Werror=switch -Werror=address -Werror=trigraphs -Werror=pointer-arith -Werror=cast-qual -Werror=non-virtual-dtor -ffast-math -fno-math-errno -Werror=write-strings -Werror=return-local-addr -Wuninitialized -Wno-suggest-override -Werror=sign-conversion -Werror=sign-compare -Werror=sign-promo -Werror=duplicated-cond -Werror=duplicated-branches -Werror=logical-op -Werror=redundant-decls -Werror=cast-align -Wformat=2 -Werror=format -Werror=shadow -Werror=missing-declarations")
+option(SYNTH_FAST_MATH "Compile with -ffast-math (reassociation, finite-math-only, flush-to-zero at startup). Off keeps only -fno-math-errno." ON)
+if(SYNTH_FAST_MATH)
+  set(SYNTH_FP_FLAGS "-ffast-math -fno-math-errno")
+else()
+  set(SYNTH_FP_FLAGS "-fno-math-errno")
+endif()
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=${SYNTH_MARCH} -Wall -Wsuggest-override -Werror=return-local-addr -Werror=multichar -Werror=enum-compare -Werror=return-type -Werror=conversion-null -Werror=parentheses -Werror=switch -Werror=address -Werror=trigraphs -Werror=pointer-arith -Werror=cast-qual -Werror=non-virtual-dtor ${SYNTH_FP_FLAGS} -Werror=write-strings -Werror=return-local-addr -Wuninitialized -Wno-suggest-override -Werror=sign-conversion -Werror=sign-compare -Werror=sign-promo -Werror=duplicated-cond -Werror=duplicated-branches -Werror=logical-op -Werror=redundant-decls -Werror=cast-align -Wformat=2 -Werror=format -Werror=shadow -Werror=missing-declarations")
 # -Wnull-dereference deliberately not enabled: at -O2 with heavy inlining it
 # produces false positives inside ordinary std::vector/std::unordered_map
 # iteration (GCC misattributes an optimizer-derived diagnostic through the
