@@ -249,7 +249,7 @@ TEST(oscillator_stack_cloud_points_form_concentric_rings) {
   centre.azimuth = 10.0f;
   centre.elevation = 5.0f;
   const float r = 30.0f, r_el = r / kExtentShapeRatio;
-  auto point = [&](int b, int count) { return OscillatorVoice::cloudPoint(centre, r, b, count); };
+  auto point = [&](int b, int count) { return OscillatorVoice::cloudPoint(centre, r, b, OscillatorVoice::ringCounts(count)); };
 
   CHECK_NEAR(point(0, 1).azimuth, 10.0f, 1e-4f);
   CHECK_NEAR(point(0, 1).elevation, 5.0f, 1e-4f);

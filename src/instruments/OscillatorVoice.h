@@ -33,9 +33,10 @@ public:
 
     const int count = bucketCountFor(config.getAmbisonicOrder(), radius_deg, n, position.distance > 0.0f);
     buckets_.resize(static_cast<size_t>(count));
+    const std::vector<int> rings = ringCounts(count);
     for (int b = 0; b < count; b++) {
       Bucket & bucket = buckets_[static_cast<size_t>(b)];
-      bucket.direction = cloudPoint(position, radius_deg, b, count);
+      bucket.direction = cloudPoint(position, radius_deg, b, rings);
       bucket.gains = computeAmbisonicGains(bucket.direction);
     }
 
@@ -90,14 +91,13 @@ public:
     return counts;
   }
 
-  // Bucket b of `count` on those rings, around `center`, on an ellipse of
+  // Bucket b on the given rings (ringCounts() of the bucket count), around `center`, on an ellipse of
   // azimuth radius `radius_deg` and elevation radius `radius_deg /
   // kExtentShapeRatio`. Points run clockwise from the top (from the left for
   // a ring of two), and every second ring is staggered by half a step so
   // its points fall between its neighbour's.
-  static SphericalPosition cloudPoint(const SphericalPosition & center, float radius_deg, int b, int count) {
+  static SphericalPosition cloudPoint(const SphericalPosition & center, float radius_deg, int b, const std::vector<int> & counts) {
     SphericalPosition p = center;
-    const std::vector<int> counts = ringCounts(count);
     if (counts.empty()) return p;
 
     int index = b;
