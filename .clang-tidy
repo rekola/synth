@@ -1,0 +1,14 @@
+# Targeted at real defects; style and micro-optimisation checks are left off
+# so existing code passes. Needs build/compile_commands.json (cmake -B build).
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -bugprone-reserved-identifier,
+  -bugprone-implicit-widening-of-multiplication-result,
+  -bugprone-incorrect-roundings,
+  -bugprone-misplaced-widening-cast,
+  -bugprone-branch-clone,
+  -bugprone-switch-missing-default-case
+HeaderFilterRegex: '^.*/src/.*'

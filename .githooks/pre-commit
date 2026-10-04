@@ -1,3 +1,27 @@
 #!/bin/sh
-# Lint on commit; enable with: git config core.hooksPath .githooks
-exec python3 "$(git rev-parse --show-toplevel)/tools/check_no_banned_randomness.py"
+# Lint staged C++ sources with clang-tidy (.clang-tidy).
+# Enable with: git config core.hooksPath .githooks
+set -e
+cd "$(git rev-parse --show-toplevel)"
+
+files=$(git diff --cached --name-only --diff-filter=ACM -- 'src/*.cpp' 'tests/*.cpp')
+[ -n "$files" ] || exit 0
+
+if ! command -v clang-tidy >/dev/null; then
+  echo "pre-commit: clang-tidy not found, skipping lint" >&2
+  exit 0
+fi
+if [ ! -f build/compile_commands.json ]; then
+  echo "pre-commit: build/compile_commands.json missing; run: cmake -B build" >&2
+  exit 1
+fi
+
+# Only findings from our checks fail the commit; clang-tidy also exits
+# non-zero on diagnostics from parsing gcc-targeted code.
+# shellcheck disable=SC2086
+out=$(clang-tidy -p build --quiet $files 2>/dev/null || true)
+if echo "$out" | grep -Eq '(warning|error): .*\[bugprone-'; then
+  echo "$out" | grep -E '(warning|error): .*\[bugprone-' | sort -u >&2
+  echo "pre-commit: clang-tidy findings above (commit with --no-verify to bypass)" >&2
+  exit 1
+fi

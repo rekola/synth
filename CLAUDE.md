@@ -92,10 +92,11 @@ from `tests/fixtures/` through the same `renderSongOffline()` used by
 `--render` and asserts properties of the output (pan symmetry, channel
 isolation, no NaN/Inf) — this is how stereo/pan regressions get caught.
 
-A pre-commit hook (`.githooks/pre-commit`) runs the repo's lint,
-`tools/check_no_banned_randomness.py` (also a ctest), and aborts the commit
-on a violation. Enable it once per clone with
-`git config core.hooksPath .githooks`.
+A pre-commit hook (`.githooks/pre-commit`) runs clang-tidy, configured by
+`.clang-tidy` (the `bugprone-*` checks minus the noisy ones), on the staged
+`.cpp` files under `src/` and `tests/` and aborts the commit on a finding.
+It reads `build/compile_commands.json`, which any `cmake -B build` writes.
+Enable it once per clone with `git config core.hooksPath .githooks`.
 
 Build with `-DSYNTH_ENABLE_SANITIZERS=ON` to enable ASan+UBSan for the whole
 project; useful for chasing memory bugs (e.g. `AudioBuffer`'s copy-assignment
