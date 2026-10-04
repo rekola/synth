@@ -1,0 +1,34 @@
+#ifndef _OSCILLATORKERNEL_H_
+#define _OSCILLATORKERNEL_H_
+
+#include "PitchDrift.h"
+#include "WaveformType.h"
+#include "../dsp/Vec8.h"
+
+#include <cstddef>
+
+// The naive oscillator waveforms (sine/saw/triangle/square), computed eight
+// samples at a time through compiler vector types (compiled to SSE/AVX/NEON
+// as the target allows).
+namespace oscillator_kernel {
+
+// Samples of space `mix()` needs for `frames`.
+inline size_t paddedFrames(int frames) {
+  size_t n = static_cast<size_t>(frames);
+  return (n + dsp::kLanes - 1) / dsp::kLanes * dsp::kLanes;
+}
+
+// Adds `level` times the next `frames` samples of the waveform into out
+// (which must hold paddedFrames(frames) floats), starting at `phase` cycles
+// and advancing `rate` cycles per sample. Each group of eight samples starts
+// from a double-precision phase, so float rounding doesn't accumulate over a
+// block. `pulse_width` is for SQUARE only. With `drift` (the member's pitch
+// wander) and `points` (the shared clock's point for each group of eight, one
+// per group plus one more past the end) each group is shifted by the wander's
+// exact phase integral and plays at its instantaneous rate, so the result
+// doesn't depend on how the block was cut.
+void mix(WaveformType type, float pulse_width, double phase, double rate, float level, int frames, float * out, PitchDriftMember * drift = nullptr, const PitchDriftPoint * points = nullptr);
+
+}
+
+#endif

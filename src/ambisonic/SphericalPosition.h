@@ -12,7 +12,7 @@
 // a point plus a size, not just a point. 0 means a point source. Rendered
 // angular half-width is always atan(extent / distance), derived at the
 // point something actually needs an angle (percussion-key offsets,
-// NoteMultiplier's unison scatter, ...) rather than stored as an angle
+// the oscillator array's spread, ...) rather than stored as an angle
 // itself.
 struct SphericalPosition {
   float azimuth = 0, elevation = 0, distance = 0;

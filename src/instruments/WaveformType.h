@@ -1,6 +1,8 @@
 #ifndef _WAVEFORMTYPE_H_
 #define _WAVEFORMTYPE_H_
 
+#include <string>
+
 enum class WaveformType {
   SINE = 1,
   SAW,

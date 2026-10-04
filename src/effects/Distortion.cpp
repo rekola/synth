@@ -203,7 +203,7 @@ Distortion::createVoiceState(const ChannelConfiguration & channel_config) const 
 
 std::unique_ptr<VoiceState>
 Distortion::playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune,
-                      float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord, bool needs_decorrelation) const {
+                      float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const {
   // Mirrors Track::playNote()'s own default body (Track.h) exactly, except
   // the group node it builds is a real DistortionVoiceState (carrying the
   // note's real position) rather than the generic createVoiceState()-built
@@ -211,7 +211,7 @@ Distortion::playNote(const ChannelConfiguration & config, const SphericalPositio
   auto group = make_unique<DistortionVoiceState>(config, position, type_, param_, drymix_, drive_);
   auto child_config = getChildChannelConfiguration(config);
   for (auto & child : getChildren()) {
-    auto voice = child->playNote(child_config, position, tuning, detune, velocity, note_value, sends, note_coord, needs_decorrelation);
+    auto voice = child->playNote(child_config, position, tuning, detune, velocity, note_value, sends, note_coord);
     if (voice.get()) group->addChild(child->getInternalId(), std::move(voice));
   }
   return group;

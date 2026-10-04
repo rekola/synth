@@ -97,6 +97,7 @@ add_library(synth_engine STATIC
 	src/bus/SendBusProcessor.cpp
 	src/bus/Haze.cpp
 	src/ambisonic/AmbisonicDiffuseEncoder.cpp
+	src/ambisonic/AmbisonicStackEncoder.cpp
 	src/effects/Amplifier.cpp
 	src/effects/EnvelopeFilter.cpp
 	src/effects/Compressor.cpp
@@ -107,7 +108,7 @@ add_library(synth_engine STATIC
 	src/playback/MidiNoteInput.cpp
 	src/playback/VisualizationThread.cpp
 	src/dsp/DiracAnalyzer.cpp
-	src/instruments/NoteMultiplier.cpp
+	src/instruments/OscillatorKernel.cpp
 	src/instruments/Arpeggiator.cpp
 	src/state/ArpeggiatorState.cpp
 	src/audio/OfflineRenderer.cpp

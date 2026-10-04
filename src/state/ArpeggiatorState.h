@@ -15,8 +15,8 @@
 // bookkeeping any other InstrumentTrackState-backed track gets, they're
 // just triggered on the stepper's own schedule instead of directly at
 // note-on. Unlike every other note-generating Track
-// (NoteMultiplier.cpp is the closest sibling among *voice* generators),
-// which spawns all its children once, synchronously, at note-on, this is
+// (an Oscillator array is the closest sibling among *voice* generators),
+// which spawns all its members once, synchronously, at note-on, this is
 // genuinely stateful across many render() calls: it tracks the whole held
 // chord and decides, block by block, what to trigger next.
 //

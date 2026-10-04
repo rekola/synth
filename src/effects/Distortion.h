@@ -45,7 +45,7 @@ class Distortion : public MonoEffect {
   // can be captured - createVoiceState() alone never sees it. Mirrors
   // TapeDegradation::playNote() exactly - see its own doc comment.
   std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune,
-                                        float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}, bool needs_decorrelation = false) const override;
+                                        float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}) const override;
 
  private:
   DistortionType type_ { DistortionType::HARD_CLIP };

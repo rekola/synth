@@ -84,24 +84,28 @@
     <envelope name="PadSynth Strings (matched)" attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
       <padsynth preset="strings"/>
     </envelope>
-    <!-- 12: choir-pad4, wrapped in <multiply unisons="3"> for genuine
-         ensemble-of-singers detuning/beating, which a single static table
-         can't produce on its own. -->
-    <multiply name="PadSynth Choir Pad4" unisons="3" detune="16" spread="0.5">
-      <envelope attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
+    <!-- 12: choir-pad4 as a three-voice ensemble - one copy 8 cents flat,
+         one in tune, one 8 cents sharp - for genuine ensemble-of-singers
+         beating, which a single static table can't produce on its own. -->
+    <envelope name="PadSynth Choir Pad4" attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
+      <group>
+        <padsynth preset="choir-pad4" detune="-8"/>
         <padsynth preset="choir-pad4"/>
-      </envelope>
-    </multiply>
+        <padsynth preset="choir-pad4" detune="8"/>
+      </group>
+    </envelope>
     <!-- 13: reserved - was a second, "ooh" vowel variant (choir-pad4-ooh);
          pulled since it didn't actually read as a distinct vowel, to be
          redone properly later. Silent for now (empty pattern below), kept
          as a valid instrument (a plain copy of instrument 12's own
          choir-pad4) rather than left referencing the removed preset. -->
-    <multiply name="PadSynth Choir Pad4 (reserved)" unisons="3" detune="16" spread="0.5">
-      <envelope attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
+    <envelope name="PadSynth Choir Pad4 (reserved)" attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
+      <group>
+        <padsynth preset="choir-pad4" detune="-8"/>
         <padsynth preset="choir-pad4"/>
-      </envelope>
-    </multiply>
+        <padsynth preset="choir-pad4" detune="8"/>
+      </group>
+    </envelope>
 
     <!-- 14-19: a further set of PadSynth character presets, each placed
          next to a plain envelope so its own spectral shape is easy to
@@ -122,14 +126,14 @@
       <padsynth preset="bells" tuningMatched="false"/>
     </envelope>
 
-    <!-- 16: "Dual Strings" - the strings tone wrapped in
-         <multiply octaves="1">, layering a real octave-doubled voice on
-         top rather than just widening the band. -->
-    <multiply name="PadSynth Dual Strings" octaves="1" detune="6">
-      <envelope attack="0.4" hold="0" decay="0.3" sustain="0.9" release="0.7">
+    <!-- 16: "Dual Strings" - the strings tone doubled an octave up
+         (detune="1200" cents) at half level. -->
+    <envelope name="PadSynth Dual Strings" attack="0.4" hold="0" decay="0.3" sustain="0.9" release="0.7">
+      <group>
         <padsynth preset="strings"/>
-      </envelope>
-    </multiply>
+        <padsynth preset="strings" detune="1200" level="0.5"/>
+      </group>
+    </envelope>
 
     <!-- 17: "Saw Piano" - a sustained "piano pad" character (holds at a
          substantial level rather than decaying to silence), unlike
@@ -160,7 +164,7 @@
 
     <!-- 20: Synth Brass - referenced straight from the library
          (InstrumentLibrary.cpp's own brass.synth registration), not
-         rebuilt here, since it's a plain preset+envelope+multiply
+         rebuilt here, since it's a plain preset+envelope
          combination with nothing song-specific to demonstrate on top -
          unlike the additive piano/choir above, there's no divergent-copy
          risk to keep in sync by hand. -->

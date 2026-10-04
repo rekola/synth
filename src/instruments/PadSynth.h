@@ -22,7 +22,7 @@ class PadSynth : public Instrument {
   const char * getElementName() const override { return "padsynth"; }
   void loadParameters(const ParameterSource & input) override;
   void storeParameters(ParameterSource & output) const override;
-  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}, bool needs_decorrelation = false) const override;
+  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}) const override;
 
   // Forces the wavetable covering `note_value`'s own pitch region to
   // (re)build now, off any real-time audio thread, instead of leaving it
@@ -58,6 +58,8 @@ class PadSynth : public Instrument {
 
   std::string preset_ = "strings";
   bool tuning_matched_ = true;
+  // Detune in cents - 1200 doubles the pitch, an octave doubling.
+  float detune_cents_ = 0.0f;
   float level_ = 1.0f;
   uint64_t seed_ = 1;
 

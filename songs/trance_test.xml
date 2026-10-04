@@ -11,9 +11,7 @@
       <envelope attack="0.01" hold="0" decay="1.17" sustain="0" release="0.231">	
 	<resonantFilter cutmin="1100" cutmax="11000" res="0.1" attack="0.01" hold="0" decay="1.17" sustain="0" release="0.231">
 	  <oscillator type="square" />
-	  <multiply unisons="8" detune="10">
-	    <oscillator type="triangle" harmonic="2" />
-	  </multiply>
+	  <oscillator type="triangle" harmonic="2" voices="8" detune="10"/>
 	</resonantFilter>
       </envelope>
     </amplifier>

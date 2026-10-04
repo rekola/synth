@@ -1291,7 +1291,7 @@ TEST(render_ambisonic_directions_produce_distinguishable_output) {
 
 TEST(render_ambisonic_envelopefilter_over_plain_voice_keeps_position) {
   // A transparent effect (EnvelopeFilter) directly wrapping one positioned
-  // leaf voice (no NoteMultiplier): confirms the voice's own
+  // leaf voice (no stack): confirms the voice's own
   // InstrumentVoice::encodePosition() correctly spatially encodes itself
   // to the real (ambisonic) accumulator shape without crashing or losing
   // its position, and that EnvelopeFilter's channel-agnostic gain multiply
@@ -1829,14 +1829,14 @@ TEST(render_send_main_zero_silences_main_channels_but_not_sends) {
   CHECK_NEAR(main_peak, 0.0f, 1e-6f);
 }
 
-TEST(render_ambisonic_envelopefilter_over_notemultiplier_spread_survives) {
-  // EnvelopeFilter wrapping a spread NoteMultiplier chord - the scenario
+TEST(render_ambisonic_envelopefilter_over_oscillator_array_spread_survives) {
+  // EnvelopeFilter wrapping a spread oscillator array - the scenario
   // that drove this feature's final design (see the plan's Context/Key
   // architectural decision sections): confirms the spread is NOT collapsed
   // by the transparent EnvelopeFilter sitting above it. Compare against
-  // the same fixture idea but with unisons=1 (no spread) to show the
+  // the same fixture idea but with one voice (no spread) to show the
   // spread is actually contributing width, not just generically present.
-  auto spread = loadFixture("ambisonic_envelopefilter_notemultiplier.xml");
+  auto spread = loadFixture("ambisonic_envelopefilter_array.xml");
   CHECK(spread.ok);
 
   ChannelConfiguration config(44100, 1);
@@ -1915,9 +1915,9 @@ TEST(render_pattern_shorter_than_song_repeats) {
 }
 
 // Golden-render regression test - hashes raw output samples for fixtures
-// that exercise every HashField-derived randomization site (NoteMultiplier's
+// that exercise every HashField-derived randomization site (the oscillator array's
 // unison/detune jitter and pattern note start-phase -
-// ambisonic_envelopefilter_notemultiplier.xml; TapeDegradation's
+// ambisonic_envelopefilter_array.xml; TapeDegradation's
 // per-instance seed plus the per-sample hiss/dropout/click stream that
 // seed drives - tape_degradation_all_presets.xml; ArpeggiatorState's
 // per-step start-phase - arpeggiator_pattern_chord.xml). Not a claim that
@@ -1949,7 +1949,7 @@ TEST(render_golden_hash_catches_randomization_regressions) {
 
   ChannelConfiguration config(44100, 1);
 
-  auto notemultiplier = loadFixture("ambisonic_envelopefilter_notemultiplier.xml");
+  auto notemultiplier = loadFixture("ambisonic_envelopefilter_array.xml");
   CHECK(notemultiplier.ok);
   auto notemultiplier_result = renderSongOffline(notemultiplier.song, config, MixerType::AMBISONIC_STEREO);
   CHECK(!hasNonFiniteSample(notemultiplier_result));

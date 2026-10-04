@@ -5,31 +5,23 @@
 
     <envelope attack="1" release="2" name="padtest2">
       <resonantFilter cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
-	<multiply unisons="16" detune="10">
-	  <oscillator type="saw" level="0.25" />
-	</multiply>
+	<oscillator type="saw" level="0.25" voices="16" detune="10"/>
       </resonantFilter>
     </envelope>
 
     <envelope attack="1" release="2" name="simple">
       <resonantFilter cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
-	<multiply unisons="32" detune="10" spread="7">
-	  <oscillator type="saw" level="0.25" />
-	</multiply>
+	<oscillator type="saw" level="0.25" voices="32" detune="10" spread="7"/>
       </resonantFilter>
     </envelope>
 
     <envelope attack="0.5" release="2" name="simple a">
       <resonantFilter cutmin="550" cutmax="20000" res="0.9">
-	<multiply unisons="32" detune="10" spread="7">
-	  <oscillator type="saw" level="0.25" />
-	</multiply>
+	<oscillator type="saw" level="0.25" voices="32" detune="10" spread="7"/>
       </resonantFilter>
     </envelope>
 
-    <multiply unisons="32" detune="10" spread="7" name="Piano group">
-      <instrument from="piano.acoustic.grand" />
-    </multiply>
+    <instrument from="piano.acoustic.grand" name="Piano group" />
 
     <instrument from="piano.acoustic.grand" />
   </instruments>

@@ -95,7 +95,8 @@ add_executable(synth_tests
 	AdditiveTests.cpp
 	PadSynthTests.cpp
 	InstrumentLibraryTests.cpp
-	NoteMultiplierTests.cpp
+	OscillatorArrayTests.cpp
+	AmbisonicStackEncoderTests.cpp
 )
 
 target_link_libraries(synth_tests synth_engine)

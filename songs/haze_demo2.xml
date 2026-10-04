@@ -11,9 +11,7 @@
     
     <envelope attack="0.5" release="2" name="Pads">
       <resonantFilter cut="2200" res="0.5">
-	<multiply unisons="4" detune="5" spread="1">
-	  <oscillator type="square" level="0.25"/>
-	</multiply>
+	<oscillator type="square" level="0.25" voices="4" detune="5" spread="1"/>
       </resonantFilter>
     </envelope>
 

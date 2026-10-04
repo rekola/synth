@@ -10,8 +10,7 @@ namespace {
 // kDirectionScatterSeed precedent (see their own doc comments): all the
 // per-note variation lives in the coordinate, this salt just keeps the
 // "start phase" axis decorrelated from every other HashField-derived
-// value a note might draw (NoteMultiplier's own detune jitter,
-// TapeDegradation's seed, ...).
+// value a note might draw (TapeDegradation's seed, ...).
 constexpr uint64_t kNotePhaseSalt = 0xA1D4B4C9E3129F5Bull;
 }
 

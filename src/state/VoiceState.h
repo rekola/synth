@@ -13,7 +13,7 @@
 // the persistent, per-block-rendered track tree) - see
 // plans/trackstate-voicestate-split.md for the full rationale. Built fresh
 // by Track::playNote() for every note-on (Oscillator/Noise/
-// SoundFontInstrument/NoteMultiplier/GenericInstrument each construct
+// SoundFontInstrument/GenericInstrument each construct
 // their own leaf/group VoiceState directly; Group and the
 // Effect family - the only Track subclasses genuinely usable both as a
 // persistent track and inside an instrument definition - reach this via

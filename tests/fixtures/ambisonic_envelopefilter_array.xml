@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- EnvelopeFilter wrapping a spread NoteMultiplier chord, for ambisonic
+<!-- EnvelopeFilter wrapping a spread oscillator array, for ambisonic
      rendering - the exact scenario that drove this feature's final
      design: an ADSR-enveloped spread pad. EnvelopeFilter must stay
      transparent (no getChildChannelConfiguration override) so
-     NoteMultiplier still sees genuine AMBISONIC format and its sub-voices'
+     the oscillator array still sees genuine AMBISONIC format and its sub-voices'
      spread survives being wrapped by the envelope above it. Four unison
      voices with real detune (a realistic pad-style spread), saw wave
      (sweetened by the multiplier's own detuning/spread, unlike the plain
@@ -11,9 +11,7 @@
 <song temperament="12edo" tempo="120" rowsPerBar="1" volume="1.0">
   <instruments>
     <envelope attack="0.01" hold="0.2" decay="0.1" sustain="0.0" release="0.02">
-      <multiply unisons="4" spread="0.5774" detune="20">
-        <oscillator type="saw"/>
-      </multiply>
+      <oscillator type="saw" voices="4" detune="20" spread="0.5774"/>
     </envelope>
   </instruments>
   <tracks>

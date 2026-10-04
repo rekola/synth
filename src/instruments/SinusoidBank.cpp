@@ -14,9 +14,8 @@ namespace {
 // own starting-phase axis decorrelated from every other HashField-derived
 // value the same note might draw.
 constexpr uint64_t kAdditivePhaseSalt = 0x5F1E8C2A6D93B047ull;
-// A second, independent axis for the unison detune jitter (see
-// NoteMultiplier.cpp's kDetuneSalt for the identical "one salt per
-// HashField-drawn feature" convention) - deliberately not reused from the
+// A second, independent axis for the unison detune jitter (the
+// "one salt per HashField-drawn feature" convention) - deliberately not reused from the
 // phase salt above, so a change to one axis's coordinate scheme can never
 // accidentally correlate with the other.
 constexpr uint64_t kAdditiveUnisonDetuneSalt = 0x3B79A1D06E4C852Full;
@@ -73,8 +72,8 @@ float additivePartialRatio(int n, float inharmonicity_b, int edo_steps, int part
 
 // Symmetric, HashField-jittered detune spread across unison_voices copies,
 // in cents - the same "several detuned copies spread by a dimensionless
-// amount, jittered rather than perfectly even" shape NoteMultiplier.cpp
-// uses for its own unison spread, simplified since this bank only ever
+// amount, jittered rather than perfectly even" shape of an
+// oscillator array's spread, simplified since this bank only ever
 // needs a flat detune amount (no chord intervals). voice_index 0 with
 // unison_voices == 1 always returns exactly 0 - a single "unison" voice is
 // just the plain, undetuned case.

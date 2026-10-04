@@ -1190,6 +1190,29 @@ would otherwise resume showing.
   - `src/instruments/` — synthesis and instrument resolution:
     `OscillatorVoice`/`GenericInstrument`/`SoundFont`, `Tuner`/`Tuning`
     (microtonal pitch math), `LFO`, `Arpeggiator`.
+  `Oscillator` can be an array of members in one voice: `voices` members (up to 256),
+    member k at `ratio`^k times the note's frequency and `falloff`^k times its
+    level (ratio 1 = unison choir, 2 = octaves), with `detune` (cents) spread
+    evenly and centred across the members (`OscillatorArray.h`; rendered by
+    `OscillatorVoice`, whose waveforms come from `OscillatorKernel`, a
+    vector-extension kernel). `spread` (a multiplier on the position's extent)
+    is the radius of a cloud of buckets: as many as resolvable cells (25/16/12
+    degrees at order 1/2/3) fit in the cloud's elliptical area, at least three (so a
+    spread is 2D) and at most one per member, one when the cloud is under a
+    cell wide or there's no spread. The buckets are laid out as concentric
+    rings (`OscillatorVoice::ringCounts()`/`cloudPoint()`: J rings, populations
+    proportional to radius), each ring turned and each point jittered per note
+    (hashed from the note coordinate), and members are dealt into them round-robin. A
+    bucket's members are summed and encoded once, all buckets in one
+    register-accumulating pass (`AmbisonicStackEncoder`). The floor reflection
+    and Aux sends run once on the summed signal at the centre. One voice is just
+    the array of one. A detuned array (`detune` > 0, more than one member)
+    gives each member its own slow aperiodic pitch wander, up to half the
+    detune over `driftPeriod` seconds (default 2, 0 = off; `PitchDrift.h`:
+    hashed value noise between control points, a pure function of the voice's
+    age in samples, so it never depends on the block size; the kernel adds its
+    exact phase integral per group of eight), keeping the array from settling
+    into a repeating beat pattern; no detune, no drift. Other voice types aren't arrays.
   - `src/ambisonic/` — spatial encode/decode math and the `Mixer`
     hierarchy (see the `AmbisonicEncoding.h` bullet below).
   - `src/audio/` — `AlsaAudio` (device output), `AudioBuffer`,
