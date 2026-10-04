@@ -1142,7 +1142,8 @@ would otherwise resume showing.
     vector-extension kernel). `spread` (a multiplier on the position's extent)
     is the radius of a cloud of buckets: as many as resolvable cells (25/16/12
     degrees at order 1/2/3) fit in the cloud's elliptical area, at least three (so a
-    spread is 2D) and at most one per member, one when there's no spread. The buckets are laid out as concentric
+    spread is 2D) and at most one per member, one when the cloud is under a
+    cell wide or there's no spread. The buckets are laid out as concentric
     rings (`OscillatorVoice::ringCounts()`/`cloudPoint()`: J rings, populations
     proportional to radius) and members are dealt into them round-robin. A
     bucket's members are summed and encoded once, all buckets in one

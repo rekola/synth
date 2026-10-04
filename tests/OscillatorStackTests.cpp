@@ -191,7 +191,7 @@ TEST(oscillator_stack_without_spread_encodes_once_and_matches_separate_voices) {
 
 // A stack gets as many buckets as resolvable cells fit in its cloud (at most
 // one per member, at least three): a wide spread gets many, a narrow one
-// three, an absent one a single bucket.
+// three, a cloud under one cell or no spread a single bucket.
 TEST(oscillator_stack_bucket_count_follows_the_cloud_area_and_the_order) {
   auto buckets = [](int order, int voices, float spread, float extent, float distance) {
     ChannelConfiguration config(44100, order);
@@ -216,8 +216,11 @@ TEST(oscillator_stack_bucket_count_follows_the_cloud_area_and_the_order) {
   // No spread, no extent, a mono bus or no distance: one.
   CHECK(buckets(3, 32, 0.0f, 1.0f, 1.0f) == 1);
   CHECK(buckets(3, 32, 1.0f, 0.0f, 1.0f) == 1);
-  // Any spread is at least a triangle, so it is two-dimensional.
-  CHECK(buckets(3, 32, 0.01f, 1.0f, 1.0f) == 3);
+  // A cloud smaller than one cell is one bucket; any wider is at least a
+  // triangle, so it is two-dimensional.
+  CHECK(buckets(3, 32, 0.01f, 1.0f, 1.0f) == 1);
+  CHECK(buckets(3, 32, 0.1f, 1.0f, 1.0f) == 1);
+  CHECK(buckets(3, 32, 0.2f, 1.0f, 1.0f) == 3);
   CHECK(buckets(1, 32, 0.5f, 1.0f, 1.0f) == 3);
   CHECK(buckets(3, 2, 1.0f, 1.0f, 1.0f) == 2);
   CHECK(buckets(0, 32, 1.0f, 1.0f, 1.0f) == 1);
