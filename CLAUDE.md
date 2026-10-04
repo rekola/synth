@@ -1149,7 +1149,12 @@ would otherwise resume showing.
     bucket's members are summed and encoded once, all buckets in one
     register-accumulating pass (`AmbisonicStackEncoder`). The floor reflection
     and Aux sends run once on the summed signal at the centre. One voice is just
-    the stack of one. Other voice types don't stack.
+    the stack of one. `drift` (cents, peak) and `driftPeriod` (seconds, default
+    2) give each member its own slow aperiodic pitch wander (`PitchDrift.h`:
+    hashed value noise between control points, a pure function of the voice's
+    age in samples, so it never depends on the block size; the kernel adds its
+    exact phase integral per group of eight), keeping the stack from settling
+    into a repeating beat pattern. Off by default. Other voice types don't stack.
   - `src/ambisonic/` — spatial encode/decode math and the `Mixer`
     hierarchy (see the `AmbisonicEncoding.h` bullet below).
   - `src/audio/` — `AlsaAudio` (device output), `AudioBuffer`,

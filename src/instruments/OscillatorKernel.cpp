@@ -45,8 +45,11 @@ inline v8f sineOfFraction(v8f f) {
 namespace oscillator_kernel {
 
 void
-mix(WaveformType type, float pulse_width, double phase, double rate, float level, int frames, float * out) {
-  const v8f lanes = v8f{ 0, 1, 2, 3, 4, 5, 6, 7 } * splat(static_cast<float>(rate));
+mix(WaveformType type, float pulse_width, double phase, double rate, float level, int frames, float * out, PitchDrift * drift, uint64_t age) {
+  const v8f index = v8f{ 0, 1, 2, 3, 4, 5, 6, 7 };
+  v8f lanes = index * splat(static_cast<float>(rate));
+  const bool drifting = drift && drift->active();
+  const double drift_origin = drifting ? drift->integral(age) : 0.0;
   const v8f level_v = splat(level);
   const v8f pulse = splat(pulse_width);
   const v8f half = splat(0.5f), one = splat(1.0f);
@@ -56,6 +59,13 @@ mix(WaveformType type, float pulse_width, double phase, double rate, float level
     // Each group of eight starts from a double-derived phase, so float
     // rounding never accumulates across the block.
     double start = phase + rate * static_cast<double>(g * kLanes);
+    if (drifting) {
+      const uint64_t t = age + g * kLanes;
+      double deviation, integral;
+      drift->sample(t, deviation, integral);
+      start += rate * (integral - drift_origin);
+      lanes = index * splat(static_cast<float>(rate * (1.0 + deviation)));
+    }
     start -= std::floor(start);
     v8f f = fract(splat(static_cast<float>(start)) + lanes);
 

@@ -3,6 +3,7 @@
 #include "../src/instruments/Oscillator.h"
 #include "../src/instruments/OscillatorKernel.h"
 #include "../src/instruments/OscillatorVoice.h"
+#include "../src/instruments/PitchDrift.h"
 #include "../src/state/MemoryParameterSource.h"
 #include "../src/ambisonic/ChannelConfiguration.h"
 #include "../src/ambisonic/SphericalPosition.h"
@@ -392,4 +393,186 @@ TEST(oscillator_voices_attribute_builds_one_stacked_voice) {
   osc.storeParameters(stored);
   CHECK(stored.get<int>("voices", 1) == 8);
   CHECK_NEAR(stored.get<float>("detune", 0.0f), 10.0f, 1e-6f);
+}
+
+// ---- Pitch drift ----
+
+namespace {
+
+constexpr double kCentsToRatio = 0.69314718055994531 / 1200.0;
+
+// The W channel of a drifting (or not) stack, rendered in blocks of the given
+// sizes (repeated), `total` samples in all.
+vector<float> renderW(float drift_cents, float drift_period, int voices, float detune_cents, vector<int> block_sizes, int total, float frequency = 440.0f) {
+  ChannelConfiguration config(44100, 1);
+  config.setFloorReflectionEnabled(false);
+  OscillatorStack stack;
+  stack.voices = voices;
+  stack.detune_cents = detune_cents;
+  stack.drift_cents = drift_cents;
+  stack.drift_period = drift_period;
+  SphericalPosition position;
+  position.distance = 1.0f;
+  OscillatorVoice voice(config, position, 1.0f, WaveformType::SINE, 0.5f, 0.5f, SendLevels{}, NoteCoordinate(3, 5, 0), stack);
+  voice.playNote(frequency, 1.0f, 60);
+
+  vector<float> out;
+  size_t which = 0;
+  while (static_cast<int>(out.size()) < total) {
+    const int frames = min(block_sizes[which++ % block_sizes.size()], total - static_cast<int>(out.size()));
+    auto buffer = voice.render(frames);
+    out.insert(out.end(), buffer.getChannelData(0), buffer.getChannelData(0) + frames);
+  }
+  return out;
+}
+
+}
+
+TEST(pitch_drift_starts_on_pitch_and_stays_within_its_depth) {
+  const double period = 8820.0;
+  PitchDrift drift(12345, 10.0f, period);
+  const double limit = 10.0 * kCentsToRatio;
+  CHECK(drift.deviation(0) == 0.0);
+  CHECK(drift.integral(0) == 0.0);
+
+  double max_dev = 0.0, sum = 0.0, sum_sq = 0.0;
+  const int n = 4000;
+  for (int i = 0; i < n; i++) {
+    double d = drift.deviation(static_cast<uint64_t>(i) * 2205 + 1);
+    max_dev = max(max_dev, fabs(d));
+    sum += d;
+    sum_sq += d * d;
+  }
+  CHECK(max_dev <= limit * 1.0001);
+  CHECK(max_dev > limit * 0.8); // and really uses the range
+  const double mean = sum / n;
+  const double stddev = sqrt(sum_sq / n - mean * mean);
+  CHECK(stddev > 0.25 * limit);
+  CHECK(stddev < 0.65 * limit);
+  CHECK(fabs(mean) < 0.1 * limit);
+}
+
+TEST(pitch_drift_integral_is_the_running_sum_of_the_deviation) {
+  PitchDrift drift(7, 20.0f, 4410.0);
+  double sum = 0.0;
+  double worst = 0.0;
+  for (uint64_t t = 0; t < 40000; t++) {
+    // Trapezoid rule: the sum over [0, t) corrected at its ends, against integral(t).
+    if (t % 997 == 0) worst = max(worst, fabs(drift.integral(t) - (sum + 0.5 * (drift.deviation(t) - drift.deviation(0)))));
+    sum += drift.deviation(t);
+  }
+  CHECK(worst < 1e-3);
+}
+
+TEST(pitch_drift_depends_only_on_time_seed_and_period) {
+  PitchDrift forward(99, 15.0f, 5000.0), jumpy(99, 15.0f, 5000.0), other(100, 15.0f, 5000.0);
+  vector<double> a;
+  for (uint64_t t = 0; t < 60000; t += 777) a.push_back(forward.deviation(t));
+
+  // Any query order gives the same values (the segment cache is only a cache).
+  size_t k = a.size();
+  for (uint64_t t = 60000; t > 0; t -= 777 > t ? t : 777) {
+    k--;
+    uint64_t at = (t - 1) / 777 * 777;
+    CHECK(jumpy.deviation(at) == a[at / 777]);
+  }
+
+  // A different seed gives a different wander, uncorrelated with the first.
+  double ab = 0.0, aa = 0.0, bb = 0.0;
+  for (uint64_t t = 0; t < 400000; t += 311) {
+    double x = forward.deviation(t), y = other.deviation(t);
+    ab += x * y;
+    aa += x * x;
+    bb += y * y;
+  }
+  CHECK(fabs(ab / sqrt(aa * bb)) < 0.2);
+}
+
+TEST(pitch_drift_off_by_default_and_round_trips_through_parameters) {
+  Oscillator plain(WaveformType::SINE);
+  MemoryParameterSource none;
+  plain.loadParameters(none);
+  MemoryParameterSource stored_none;
+  plain.storeParameters(stored_none);
+  CHECK(stored_none.get<float>("drift", -1.0f) == -1.0f);
+
+  Oscillator osc(WaveformType::SINE);
+  MemoryParameterSource params;
+  params.set("voices", 4);
+  params.set("drift", 6.0f);
+  params.set("driftPeriod", 0.5f);
+  osc.loadParameters(params);
+  MemoryParameterSource stored;
+  osc.storeParameters(stored);
+  CHECK_NEAR(stored.get<float>("drift", 0.0f), 6.0f, 1e-6f);
+  CHECK_NEAR(stored.get<float>("driftPeriod", 0.0f), 0.5f, 1e-6f);
+}
+
+// The trajectory is a function of the voice's age alone: cutting the same
+// notes into different blocks (even randomly) gives the same signal.
+TEST(oscillator_drift_does_not_depend_on_the_block_size) {
+  const int total = 44100;
+  auto base = renderW(25.0f, 0.2f, 3, 8.0f, { 256 }, total);
+  auto odd = renderW(25.0f, 0.2f, 3, 8.0f, { 37, 101, 8, 513, 1 }, total);
+  auto big = renderW(25.0f, 0.2f, 3, 8.0f, { 4096 }, total);
+  auto still = renderW(0.0f, 0.2f, 3, 8.0f, { 256 }, total);
+
+  double worst_odd = 0.0, worst_big = 0.0, moved = 0.0;
+  for (size_t i = 0; i < base.size(); i++) {
+    worst_odd = max(worst_odd, static_cast<double>(fabsf(base[i] - odd[i])));
+    worst_big = max(worst_big, static_cast<double>(fabsf(base[i] - big[i])));
+    moved = max(moved, static_cast<double>(fabsf(base[i] - still[i])));
+  }
+  CHECK(worst_odd < 1e-3);
+  CHECK(worst_big < 1e-3);
+  CHECK(moved > 0.1); // the drift really changed the signal
+}
+
+TEST(oscillator_drift_is_deterministic_and_has_no_clicks) {
+  auto a = renderW(10.0f, 0.5f, 4, 6.0f, { 256 }, 22050);
+  auto b = renderW(10.0f, 0.5f, 4, 6.0f, { 256 }, 22050);
+  CHECK(a == b);
+
+  // A sustained sine stack never steps: sample-to-sample change stays small.
+  float worst = 0.0f;
+  for (size_t i = 1; i < a.size(); i++) worst = max(worst, fabsf(a[i] - a[i - 1]));
+  CHECK(worst < 0.1f);
+}
+
+// Two detuned members beat at a fixed rate, a cycle the ear learns; drift
+// must break that cycle.
+TEST(oscillator_drift_breaks_the_static_beat_cycle) {
+  const int total = 44100 * 12;
+  const int window = 882; // 20 ms
+  auto envelope = [&](const vector<float> & signal) {
+    vector<double> env;
+    for (size_t at = 0; at + window <= signal.size(); at += window) {
+      double e = 0.0;
+      for (int k = 0; k < window; k++) e += static_cast<double>(signal[at + static_cast<size_t>(k)]) * static_cast<double>(signal[at + static_cast<size_t>(k)]);
+      env.push_back(sqrt(e / window));
+    }
+    return env;
+  };
+  // Peak of the normalised envelope autocorrelation near the beat period.
+  auto beat_correlation = [](const vector<double> & env, int lo, int hi) {
+    double mean = 0.0;
+    for (double v : env) mean += v;
+    mean /= static_cast<double>(env.size());
+    double best = -1.0, var = 0.0;
+    for (double v : env) var += (v - mean) * (v - mean);
+    for (int lag = lo; lag <= hi; lag++) {
+      double c = 0.0;
+      for (size_t i = 0; i + static_cast<size_t>(lag) < env.size(); i++) c += (env[i] - mean) * (env[i + static_cast<size_t>(lag)] - mean);
+      best = max(best, c / var);
+    }
+    return best;
+  };
+
+  // 440 Hz members 6 cents apart beat at about 1.5 Hz, a period of ~33 windows.
+  auto fixed = envelope(renderW(0.0f, 2.0f, 2, 6.0f, { 256 }, total));
+  auto wander = envelope(renderW(15.0f, 0.5f, 2, 6.0f, { 256 }, total));
+  const double still = beat_correlation(fixed, 30, 36);
+  const double drifting = beat_correlation(wander, 30, 36);
+  CHECK(still > 0.8);
+  CHECK(drifting < still - 0.3);
 }

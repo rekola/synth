@@ -4,6 +4,7 @@
 #include "InstrumentVoice.h"
 #include "OscillatorKernel.h"
 #include "OscillatorStack.h"
+#include "PitchDrift.h"
 #include "WaveformType.h"
 #include "../ambisonic/AmbisonicStackEncoder.h"
 #include "../ambisonic/SphericalPosition.h"
@@ -52,6 +53,10 @@ public:
       // are decorrelated by their index.
       NoteCoordinate coord = n > 1 ? note_coord.withInstance(k) : note_coord;
       member.phase = static_cast<double>(HashField(kNotePhaseSalt).unit(coord.toHashCoord(), paramId("note_phase")));
+      if (stack.drift_cents > 0.0f) {
+        const double period = std::max(stack.drift_period, kMinDriftPeriod) * static_cast<double>(config.getAudioOutSampleRate());
+        member.drift = PitchDrift(coord.toHashCoord(), stack.drift_cents, period);
+      }
 
       // Dealt round-robin, so the buckets stay evenly filled and members
       // neighbouring in pitch land in different places.
@@ -158,11 +163,15 @@ public:
     for (size_t b = 0; b < rows; b++) {
       float * row = bucket_sums_.data() + b * padded;
       for (auto & member : buckets_[b].members) {
-	oscillator_kernel::mix(type_, pulse_width_, member.phase, member.ratio * rate, member.level, frames, row);
-	member.phase += member.ratio * rate * frames;
+	const double step = member.ratio * rate;
+	oscillator_kernel::mix(type_, pulse_width_, member.phase, step, member.level, frames, row, &member.drift, age_);
+	member.phase += step * frames;
+	if (member.drift.active()) member.phase += step * (member.drift.integral(age_ + static_cast<uint64_t>(frames)) - member.drift.integral(age_));
 	member.phase -= std::floor(member.phase);
       }
     }
+
+    age_ += static_cast<uint64_t>(frames);
 
     if (has_main) {
       targets_.resize(rows);
@@ -197,6 +206,7 @@ private:
     double phase = 0.0;  // cycles
     float ratio = 1.0f;  // frequency ratio to the note
     float level = 1.0f;
+    PitchDrift drift; // inactive unless the stack drifts
   };
 
   struct Bucket {
@@ -207,7 +217,10 @@ private:
 
   WaveformType type_;
   float pulse_width_;
+  static constexpr float kMinDriftPeriod = 0.05f; // seconds
+
   std::vector<Bucket> buckets_;
+  uint64_t age_ = 0; // samples rendered since note-on, the drift's clock
   AmbisonicStackEncoder encoder_;
   std::vector<AmbisonicGains> targets_;
   std::vector<float> bucket_sums_, sum_;

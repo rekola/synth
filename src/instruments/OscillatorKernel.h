@@ -1,6 +1,7 @@
 #ifndef _OSCILLATORKERNEL_H_
 #define _OSCILLATORKERNEL_H_
 
+#include "PitchDrift.h"
 #include "WaveformType.h"
 #include "../dsp/Vec8.h"
 
@@ -21,8 +22,11 @@ inline size_t paddedFrames(int frames) {
 // (which must hold paddedFrames(frames) floats), starting at `phase` cycles
 // and advancing `rate` cycles per sample. Each group of eight samples starts
 // from a double-precision phase, so float rounding doesn't accumulate over a
-// block. `pulse_width` is for SQUARE only.
-void mix(WaveformType type, float pulse_width, double phase, double rate, float level, int frames, float * out);
+// block. `pulse_width` is for SQUARE only. With `drift` (the member's pitch
+// wander, evaluated at `age` samples since note-on and onward) each group of
+// eight is shifted by the wander's exact phase integral and plays at its
+// instantaneous rate, so the result doesn't depend on how the block was cut.
+void mix(WaveformType type, float pulse_width, double phase, double rate, float level, int frames, float * out, PitchDrift * drift = nullptr, uint64_t age = 0);
 
 }
 
