@@ -4,6 +4,7 @@
 #include "EffectVoiceState.h"
 
 #include "../dsp/Biquad.h"
+#include "../dsp/ChannelBank.h"
 #include "../state/EnvelopeState.h"
 
 #include "../util/constants.h"
@@ -28,22 +29,10 @@ namespace {
 class BiquadFilterDsp {
 public:
   BiquadFilterDsp(const ChannelConfiguration & channel_config, FilterType type, float fc, float Q, float peakGainDB, const Envelope & envelope)
-    : envelope_state_(channel_config.getAudioOutSampleRate(), envelope, 0, 0, true)
-  {
-    for (int c = 0; c < channel_config.numberOfChannels(); c++) {
-      filters_.emplace_back(type, fc, Q, peakGainDB);
-    }
-    // Own persistent filter state for AuxA/AuxB, kept separate from
-    // filters_ (Main-only, indexed 0..regularChannelCount()-1) rather than
-    // just widening filters_ by 2 slots and indexing by raw channel
-    // position - Main's regular-channel count can itself be 0 some blocks
-    // (Send Main = 0 - see AudioBuffer.h), which would shift what a given
-    // raw index *means* block to block and corrupt a filter's continuous
-    // IIR history with another channel's. AuxA/AuxB's own slot here always
-    // means the same thing regardless of Main's presence that block.
-    aux_filters_[0] = Biquad<double>(type, fc, Q, peakGainDB);
-    aux_filters_[1] = Biquad<double>(type, fc, Q, peakGainDB);
-  }
+    : envelope_state_(channel_config.getAudioOutSampleRate(), envelope, 0, 0, true),
+      main_slots_(channel_config.numberOfChannels()),
+      bank_(main_slots_ + 2, coefficientsFor(type, fc, Q, peakGainDB))
+  { }
 
   // Filters every channel - Main and AuxA/AuxB alike: the reverb/delay bus
   // should hear the same tonal shaping the dry signal does, the same
@@ -56,42 +45,32 @@ public:
 
     auto numSamples = input_data.size();
     int mainChannels = input_data.regularChannelCount();
+    if (mainChannels > main_slots_) mainChannels = main_slots_;
+
+    // Same filter, applied identically & independently per channel -
+    // including ambisonic ones (see AmbisonicEncoding.h): for a static
+    // source position this is exactly equivalent to filtering the
+    // pre-encode mono signal once, so direction is preserved exactly.
+    // All channels advance together, one per vector lane. Main sits in
+    // slots 0..main_slots_-1 and AuxA/AuxB in their own two slots after it,
+    // rather than by raw buffer position - Main's regular-channel count can
+    // itself be 0 some blocks (Send Main = 0 - see AudioBuffer.h), which
+    // would shift what a given raw index *means* block to block and corrupt
+    // a filter's continuous IIR history with another channel's. A slot with
+    // no signal this block is fed silence, so its history keeps decaying
+    // rather than freezing (and a slot that never had signal stays zero).
+    (void) aftertouch_value; // reserved: no current filter parameter reads aftertouch here (see ResonantFilter/Tremolo for the pattern)
+    float * main_planes[dsp::kMaxBankChannels] = {};
+    for (int c = 0; c < mainChannels; c++) main_planes[c] = input_data.getChannelData(c);
+    float * aux_planes[2] = { input_data.getChannel(Channel::AuxA), input_data.getChannel(Channel::AuxB) };
 
     size_t offset = 0;
     while (numSamples) {
       int blockSamples = numSamples > constants::RENDER_EFFECTSAMPLEBLOCK ? constants::RENDER_EFFECTSAMPLEBLOCK : numSamples;
 
-      // Same filter, applied identically & independently per channel -
-      // including ambisonic ones (see AmbisonicEncoding.h): for a static
-      // source position this is exactly equivalent to filtering the
-      // pre-encode mono signal once, so direction is preserved exactly.
-      // Whichever of Main/AuxA/AuxB happens to be absent this specific
-      // block still gets its own filter's state advanced through silence
-      // (Biquad::apply(blockSamples), no buffer) rather than skipped
-      // outright - see that overload's own doc comment for why - but only
-      // once that channel has actually had real data at least once
-      // (main_ever_present_/aux_ever_present_): a channel that's never
-      // existed yet has nothing to keep continuous, so there's no point
-      // silence-feeding a filter that's still sitting at its untouched
-      // initial state.
-      (void) aftertouch_value; // reserved: no current filter parameter reads aftertouch here (see ResonantFilter/Tremolo for the pattern)
-      if (mainChannels > 0) main_ever_present_ = true;
-      for (size_t c = 0; c < filters_.size(); c++) {
-	if (static_cast<int>(c) < mainChannels) {
-	  filters_[c].apply(static_cast<size_t>(blockSamples), input_data.getChannelData(static_cast<int>(c)) + offset);
-	} else if (main_ever_present_) {
-	  filters_[c].apply(static_cast<size_t>(blockSamples));
-	}
-      }
-      for (int a = 0; a < 2; a++) {
-	auto * buf = input_data.getChannel(a == 0 ? Channel::AuxA : Channel::AuxB);
-	if (buf) {
-	  aux_ever_present_[static_cast<size_t>(a)] = true;
-	  aux_filters_[static_cast<size_t>(a)].apply(static_cast<size_t>(blockSamples), buf + offset);
-	} else if (aux_ever_present_[static_cast<size_t>(a)]) {
-	  aux_filters_[static_cast<size_t>(a)].apply(static_cast<size_t>(blockSamples));
-	}
-      }
+      for (int c = 0; c < main_slots_; c++) bank_.plane(c) = main_planes[c] ? main_planes[c] + offset : nullptr;
+      for (int a = 0; a < 2; a++) bank_.plane(main_slots_ + a) = aux_planes[a] ? aux_planes[a] + offset : nullptr;
+      bank_.apply(blockSamples);
 
       offset += static_cast<size_t>(blockSamples);
       numSamples -= blockSamples;
@@ -101,11 +80,14 @@ public:
   }
 
 private:
-  std::vector<Biquad<double>> filters_;
-  std::array<Biquad<double>, 2> aux_filters_ { Biquad<double>(FilterType::lowpass), Biquad<double>(FilterType::lowpass) };
-  bool main_ever_present_ = false;
-  std::array<bool, 2> aux_ever_present_ { false, false };
+  static dsp::BiquadBank::Coefficients coefficientsFor(FilterType type, float fc, float Q, float peakGainDB) {
+    auto c = Biquad<double>(type, fc, Q, peakGainDB).coefficients();
+    return { c.a0, c.a1, c.a2, c.b1, c.b2 };
+  }
+
   EnvelopeState envelope_state_;
+  int main_slots_;
+  dsp::BiquadBank bank_;
 };
 
 class BiquadFilterTrackState : public EffectTrackState {

@@ -354,3 +354,63 @@ TEST(sample_data_mix_named_handles_other_with_zero_regular_channels) {
   CHECK_NEAR(acc.getChannelData(1)[0], 0.6f, 1e-6f);
   CHECK_NEAR(acc.getChannel(Channel::AuxA)[0], 0.5f, 1e-6f); // 0.1 + 0.4
 }
+
+TEST(audio_buffer_channels_are_vector_aligned_and_padded) {
+  for (int frames : { 1, 7, 8, 9, 100 }) {
+    AudioBuffer data(3, frames);
+    CHECK(data.paddedFrames() >= frames);
+    CHECK(data.paddedFrames() % 8 == 0);
+    for (int c = 0; c < 3; c++) CHECK(reinterpret_cast<uintptr_t>(data.getChannelData(c)) % 32 == 0);
+  }
+}
+
+TEST(audio_buffer_channels_stay_independent_at_unaligned_lengths) {
+  AudioBuffer data(3, 13);
+  data.zero();
+  for (int c = 0; c < 3; c++)
+    for (int i = 0; i < 13; i++) data.getChannelData(c)[i] = static_cast<float>(c * 100 + i);
+
+  AudioBuffer copy(data);
+  data.resize(20);
+  for (int c = 0; c < 3; c++)
+    for (int i = 0; i < 13; i++) {
+      CHECK(copy.getChannelData(c)[i] == static_cast<float>(c * 100 + i));
+      CHECK(data.getChannelData(c)[i] == static_cast<float>(c * 100 + i));
+    }
+}
+
+TEST(audio_buffer_is_clipping_checks_every_channel_and_the_tail) {
+  AudioBuffer data(2, 13);
+  data.zero();
+  CHECK(!data.isClipping());
+  data.getChannelData(1)[12] = 1.0f; // exactly full scale: not clipping
+  CHECK(!data.isClipping());
+  data.getChannelData(1)[12] = -1.5f; // in the scalar tail of the last channel
+  CHECK(data.isClipping());
+  data.getChannelData(1)[12] = 0.0f;
+  data.getChannelData(0)[3] = 2.0f; // inside a vector group
+  CHECK(data.isClipping());
+}
+
+TEST(audio_buffer_mix_of_unequal_lengths_adds_per_channel) {
+  AudioBuffer acc(2, 20), other(2, 11);
+  acc.zero();
+  other.zero();
+  for (int c = 0; c < 2; c++)
+    for (int i = 0; i < 11; i++) other.getChannelData(c)[i] = static_cast<float>(c + 1);
+  acc.mix(other);
+  for (int c = 0; c < 2; c++) {
+    for (int i = 0; i < 11; i++) CHECK(acc.getChannelData(c)[i] == static_cast<float>(c + 1));
+    for (int i = 11; i < 20; i++) CHECK(acc.getChannelData(c)[i] == 0.0f);
+  }
+}
+
+TEST(audio_buffer_loudness_matches_a_plain_rms) {
+  AudioBuffer data(1, 19);
+  double sum = 0.0;
+  for (int i = 0; i < 19; i++) {
+    data.getChannelData(0)[i] = 0.1f * static_cast<float>(i) - 0.9f;
+    sum += static_cast<double>(data.getChannelData(0)[i]) * static_cast<double>(data.getChannelData(0)[i]);
+  }
+  CHECK_NEAR(data.calculateLoudness()[0], static_cast<float>(std::sqrt(sum / 19.0)), 1e-5f);
+}

@@ -4,6 +4,7 @@
 #include "ChannelConfiguration.h"
 #include "SphericalPosition.h"
 #include "../audio/AudioBuffer.h"
+#include "../dsp/Vec8.h"
 
 #include <algorithm>
 #include <array>
@@ -256,16 +257,13 @@ class AmbisonicVoiceEncoder {
     int regular = out.regularChannelCount();
     int n = std::min(regular, static_cast<int>(target.size()));
 
-    float * channels[kAmbisonicChannelCount] = {};
-    for (int c = 0; c < n; c++) channels[c] = out.getChannelData(c);
-
-    for (int i = 0; i < frames; i++) {
-      float t = frames > 1 ? static_cast<float>(i) / static_cast<float>(frames - 1) : 1.0f;
-      float s = mono[i];
-      for (int c = 0; c < n; c++) {
-        float g = prev_[static_cast<size_t>(c)] + (target[static_cast<size_t>(c)] - prev_[static_cast<size_t>(c)]) * t;
-        channels[c][i] += g * s;
-      }
+    // Prev at the first sample, target at the last (a one-sample block just
+    // takes the target).
+    const float step = frames > 1 ? 1.0f / static_cast<float>(frames - 1) : 0.0f;
+    for (int c = 0; c < n; c++) {
+      const float from = frames > 1 ? prev_[static_cast<size_t>(c)] : target[static_cast<size_t>(c)];
+      const float slope = (target[static_cast<size_t>(c)] - prev_[static_cast<size_t>(c)]) * step;
+      dsp::rampMix(out.getChannelData(c), mono, from, slope, frames);
     }
 
     prev_ = target;
