@@ -62,6 +62,37 @@ inline void addScaled(float * dst, const float * src, float gain, int n) {
   for (; i < n; i++) dst[i] += gain * src[i];
 }
 
+// Largest absolute value in p[0, n).
+inline float maxAbs(const float * p, int n) {
+  v8f m = splat(0.0f);
+  int i = 0;
+  for (; i + kLanes <= n; i += kLanes) {
+    const v8f v = loadu(p + i);
+    const v8f a = (v < splat(0.0f)) ? -v : v;
+    m = (a > m) ? a : m;
+  }
+  float result = hmaxAbs(m);
+  for (; i < n; i++) {
+    const float a = p[i] < 0.0f ? -p[i] : p[i];
+    result = a > result ? a : result;
+  }
+  return result;
+}
+
+// Sum of the squares of p[0, n), in a fixed order (eight running sums, then
+// the tail), so the result doesn't depend on how the compiler vectorises.
+inline float sumSquares(const float * p, int n) {
+  v8f acc = splat(0.0f);
+  int i = 0;
+  for (; i + kLanes <= n; i += kLanes) {
+    const v8f v = loadu(p + i);
+    acc += v * v;
+  }
+  float result = hsum(acc);
+  for (; i < n; i++) result += p[i] * p[i];
+  return result;
+}
+
 // Fractional part of a non-negative phase.
 inline v8f fract(v8f p) {
   return p - __builtin_convertvector(__builtin_convertvector(p, v8i), v8f);

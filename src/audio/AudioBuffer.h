@@ -2,6 +2,7 @@
 #define _AUDIOBUFFER_H_
 
 #include "../ambisonic/ChannelConfiguration.h"
+#include "../dsp/Vec8.h"
 
 #include <cstring>
 #include <cmath>
@@ -48,10 +49,10 @@ enum class Channel : int8_t { Main, AuxA, AuxB };
 class AudioBuffer final {
  public:
   AudioBuffer() noexcept
-    : channels_(0), frames_(0), data_(0) { }
+    : channels_(0), frames_(0), stride_(0), data_(0) { }
   explicit AudioBuffer(short channels, int frames, bool is_solo = false) noexcept
-    : channels_(channels), frames_(frames), is_solo_(is_solo) {
-    data_ = (float *)aligned_alloc(16, getAlignedSize(channels_ * frames_));
+    : channels_(channels), frames_(frames), stride_(strideFor(frames)), is_solo_(is_solo) {
+    data_ = allocate(channels_, stride_);
   }
   // Regular (ambisonic) channels only, no aux - config.numberOfChannels()
   // is already the raw channel count (0 = W, 1 = Y, ... in ACN order), so
@@ -60,8 +61,9 @@ class AudioBuffer final {
   explicit AudioBuffer(ChannelConfiguration config, int frames, bool is_solo = false) noexcept
     : channels_(config.numberOfChannels()),
     frames_(frames),
+    stride_(strideFor(frames)),
     is_solo_(is_solo) {
-    data_ = (float *)aligned_alloc(16, getAlignedSize(channels_ * frames_));
+    data_ = allocate(channels_, stride_);
   }
   // `regular_channels` ambisonic channels (raw indices 0..regular_channels-1,
   // in ACN order - 0 is a valid value, meaning Main is absent entirely, see
@@ -72,17 +74,16 @@ class AudioBuffer final {
   // regular channels, AuxA before AuxB (see indexOf()).
   explicit AudioBuffer(int regular_channels, bool aux_a, bool aux_b, int frames, bool is_solo = false) noexcept
     : channels_(static_cast<short>(regular_channels + (aux_a ? 1 : 0) + (aux_b ? 1 : 0))),
-    frames_(frames), is_solo_(is_solo), has_aux_a_(aux_a), has_aux_b_(aux_b) {
-    data_ = (float *)aligned_alloc(16, getAlignedSize(channels_ * frames_));
+    frames_(frames), stride_(strideFor(frames)), is_solo_(is_solo), has_aux_a_(aux_a), has_aux_b_(aux_b) {
+    data_ = allocate(channels_, stride_);
   }
   AudioBuffer(const AudioBuffer & other) noexcept
-    : channels_(other.channels_), frames_(other.frames_), is_solo_(other.is_solo_), bpm_(other.bpm_), has_aux_a_(other.has_aux_a_), has_aux_b_(other.has_aux_b_) {
-    auto s = getAlignedSize(channels_ * frames_);
-    data_ = (float *)aligned_alloc(16, s);
-    memcpy(data_, other.data_, s);
+    : channels_(other.channels_), frames_(other.frames_), stride_(other.stride_), is_solo_(other.is_solo_), bpm_(other.bpm_), has_aux_a_(other.has_aux_a_), has_aux_b_(other.has_aux_b_) {
+    data_ = allocate(channels_, stride_);
+    if (data_ && other.data_) memcpy(data_, other.data_, allocationBytes(channels_, stride_));
   }
   AudioBuffer(AudioBuffer && other) noexcept
-    : channels_(other.channels_), frames_(other.frames_), data_(std::exchange(other.data_, nullptr)), is_solo_(other.is_solo_), bpm_(other.bpm_), has_aux_a_(other.has_aux_a_), has_aux_b_(other.has_aux_b_) {
+    : channels_(other.channels_), frames_(other.frames_), stride_(other.stride_), data_(std::exchange(other.data_, nullptr)), is_solo_(other.is_solo_), bpm_(other.bpm_), has_aux_a_(other.has_aux_a_), has_aux_b_(other.has_aux_b_) {
   }
   ~AudioBuffer() {
     free(data_);
@@ -91,14 +92,14 @@ class AudioBuffer final {
     if (&other != this) {
       channels_ = other.channels_;
       frames_ = other.frames_;
+      stride_ = other.stride_;
       is_solo_ = other.is_solo_;
       bpm_ = other.bpm_;
       has_aux_a_ = other.has_aux_a_;
       has_aux_b_ = other.has_aux_b_;
 
-      auto s = getAlignedSize(channels_ * frames_);
-      auto new_data = (float *)aligned_alloc(16, s);
-      memcpy(new_data, other.data_, s);
+      auto new_data = allocate(channels_, stride_);
+      if (new_data && other.data_) memcpy(new_data, other.data_, allocationBytes(channels_, stride_));
 
       free(data_);
       data_ = new_data;
@@ -111,6 +112,7 @@ class AudioBuffer final {
 
       channels_ = other.channels_;
       frames_ = other.frames_;
+      stride_ = other.stride_;
       is_solo_ = other.is_solo_;
       bpm_ = other.bpm_;
       has_aux_a_ = other.has_aux_a_;
@@ -121,8 +123,15 @@ class AudioBuffer final {
     return *this;
   }
 
-  float * getChannelData(int channel) { return data_ + channel * numberOfFrames(); }
-  const float * getChannelData(int channel) const { return data_ + channel * numberOfFrames(); }
+  // Every channel starts on a 32-byte boundary and runs to a whole number
+  // of eight-float lane groups (strideFor()), so a vector kernel can
+  // process up to paddedFrames() samples without a scalar tail. The samples
+  // past numberOfFrames() are scratch: their contents are unspecified (zero
+  // after zero()), nothing may rely on them, and they are not mixed,
+  // metered or copied as audio.
+  float * getChannelData(int channel) { return data_ + static_cast<size_t>(channel) * static_cast<size_t>(stride_); }
+  const float * getChannelData(int channel) const { return data_ + static_cast<size_t>(channel) * static_cast<size_t>(stride_); }
+  int paddedFrames() const { return stride_; }
 
   // Main's presence is derived (see the Channel enum's own doc comment
   // above), not stored - always consistent with regularChannelCount(),
@@ -147,13 +156,14 @@ class AudioBuffer final {
   int regularChannelCount() const { return channels_ - auxCount(); }
 
   void zero() {
-    memset(data_, 0, getAlignedSize(channels_ * frames_));
+    if (data_) memset(data_, 0, allocationBytes(channels_, stride_));
   }
 
   void clear() {
     free(data_);
     data_ = 0;
     frames_ = 0;
+    stride_ = 0;
   }
 
   short numberOfChannels() const { return channels_; }
@@ -162,14 +172,16 @@ class AudioBuffer final {
   bool empty() const { return channels_ == 0 || frames_ == 0; }
 
   void resize(int new_size) {
-    auto new_data = (float *)aligned_alloc(16, getAlignedSize(channels_ * new_size));
+    const int new_stride = strideFor(new_size);
+    auto new_data = allocate(channels_, new_stride);
     auto frames_to_copy = frames_ < new_size ? frames_ : new_size;
     for (int j = 0; j < channels_; j++) {
-      memcpy(new_data + j * new_size, data_ + j * frames_, static_cast<size_t>(frames_to_copy) * sizeof(float));
+      memcpy(new_data + static_cast<size_t>(j) * static_cast<size_t>(new_stride), getChannelData(j), static_cast<size_t>(frames_to_copy) * sizeof(float));
     }
     free(data_);
     data_ = new_data;
     frames_ = new_size;
+    stride_ = new_stride;
   }
 
   void append(const AudioBuffer & other) {
@@ -239,14 +251,17 @@ class AudioBuffer final {
     int n = numberOfFrames() < other.numberOfFrames() ? numberOfFrames() : other.numberOfFrames();
 
     if (channels_ == other.channels_) {
-      for (int i = 0; i < channels_ * n; i++) {
-	data_[i] += other.data_[i];
+      for (int c = 0; c < channels_; c++) {
+	auto dst = getChannelData(c);
+	auto src = other.getChannelData(c);
+	for (int i = 0; i < n; i++) dst[i] += src[i];
       }
     } else if (other.channels_ == 1) {
       auto left = getChannelData(0), right = getChannelData(1);
+      auto src = other.getChannelData(0);
 
       for (int i = 0; i < n; i++) {
-	auto v = other.data_[i];
+	auto v = src[i];
 	left[i] += v;
 	right[i] += v;
       }
@@ -315,12 +330,7 @@ class AudioBuffer final {
   std::vector<float> calculateLoudness() const {
     std::vector<float> v;
     for (int i = 0; i < channels_; i++) {
-      float sum_squares = 0;
-      auto channel_data = getChannelData(i);
-      for (int j = 0; j < frames_; j++) {
-	auto s = channel_data[j];
-	sum_squares += s * s;
-      }
+      const float sum_squares = dsp::sumSquares(getChannelData(i), frames_);
       v.push_back(frames_ > 0 ? sqrtf(sum_squares / static_cast<float>(frames_)) : 0.0f);
     }
     return v;
@@ -334,18 +344,18 @@ class AudioBuffer final {
   float calculateMainRMS() const {
     auto w = getChannel(Channel::Main);
     if (!w || frames_ == 0) return 0.0f;
-    float sum_squares = 0;
-    for (int i = 0; i < frames_; i++) sum_squares += w[i] * w[i];
+    const float sum_squares = dsp::sumSquares(w, frames_);
     return sqrtf(sum_squares / static_cast<float>(frames_));
   }
 
   // See calculateLoudness() above - same reasoning, always scans.
   bool isClipping() const {
-    for (int i = 0; i < channels_ * frames_; i++) {
-      auto v = data_[i];
-      if (v < -1.0f || v > +1.0f) return true;
+    float peak = 0.0f;
+    for (int c = 0; c < channels_; c++) {
+      const float p = dsp::maxAbs(getChannelData(c), frames_);
+      peak = p > peak ? p : peak;
     }
-    return false;
+    return peak > 1.0f;
   }
 
   bool isSolo() const { return is_solo_; }
@@ -355,7 +365,19 @@ class AudioBuffer final {
   float getBpm() const { return bpm_; }
 
 private:
-  static inline size_t getAlignedSize(int frames) { return (static_cast<size_t>(frames) * sizeof(float) + 15ull) & ~15ull; }
+  static constexpr size_t kAlignment = 32; // one v8f
+
+  // Samples per channel, rounded up to whole lane groups: with the base
+  // 32-byte aligned, every channel is.
+  static int strideFor(int frames) { return frames <= 0 ? 0 : (frames + dsp::kLanes - 1) / dsp::kLanes * dsp::kLanes; }
+
+  static size_t allocationBytes(int channels, int stride) {
+    return (static_cast<size_t>(channels) * static_cast<size_t>(stride) * sizeof(float) + kAlignment - 1) & ~(kAlignment - 1);
+  }
+
+  static float * allocate(int channels, int stride) {
+    return static_cast<float *>(aligned_alloc(kAlignment, allocationBytes(channels, stride)));
+  }
 
   // Channel::Main is always channel 0 when present. AuxA/AuxB always land
   // immediately after the regular (Main) channels, AuxA before AuxB - so
@@ -370,6 +392,7 @@ private:
 
   short channels_;
   int frames_;
+  int stride_; // samples between the starts of consecutive channels
   float * data_;
   bool is_solo_ = false;
   float bpm_ = 0.0f;
