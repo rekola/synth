@@ -10,45 +10,85 @@ namespace {
 constexpr uint64_t kPitchDriftSalt = 0x5D3B7A91C4E2F608ull;
 }
 
-// A slow, aperiodic pitch wander for one oscillator member: smooth value
-// noise over control points `period` samples apart, each a hashed value in
-// +-`depth` cents (the first is 0, so a note starts on pitch), blended with a
-// smoothstep. A pure function of the sample age `t` - never of how the
-// timeline is cut into blocks - so the trajectory is the same for any block
-// size. The deviation is a frequency ratio fraction (cents scaled by ln2/1200,
-// linear, which for a few cents differs from 2^(c/1200) by far less than the
-// wander itself); integral() is its running sum in samples, which is what a
-// phase accumulator needs. A cache of the current segment makes the forward
-// sweep O(1); it is only an optimisation, any t can be evaluated.
-class PitchDrift {
- public:
-  PitchDrift() = default;
+// A slow, aperiodic pitch wander for the members of an oscillator array:
+// smooth value noise over control points `period` samples apart, each a hashed
+// value in +-`depth` cents (the first is 0, so a note starts on pitch),
+// blended with a smoothstep. A pure function of the sample age `t` - never of
+// how the timeline is cut into blocks - so the trajectory is the same for any
+// block size. The deviation is a frequency ratio fraction (cents scaled by
+// ln2/1200, linear, which for a few cents differs from 2^(c/1200) by far less
+// than the wander itself); the integral is its running sum in samples, which
+// is what a phase accumulator needs.
+//
+// The work splits in two. Where `t` falls in the noise (segment, position,
+// smoothstep and integral weights) is the same for every member, so a shared
+// PitchDriftClock works it out once per time; each PitchDriftMember then only
+// holds its own control points and blends them with those weights.
 
-  PitchDrift(int64_t coord, float depth_cents, double period_samples)
-    : coord_(coord), depth_(depth_cents * kCentsToRatio), period_(period_samples), inverse_period_(1.0 / period_samples) {
+// Where a time falls in the noise, the same for every member.
+struct PitchDriftPoint {
+  uint64_t segment = 0;
+  double fraction = 0.0; // position within the segment, 0..1
+  double smooth = 0.0;   // smoothstep of the fraction
+  double area = 0.0;     // integral of that smoothstep from 0 to the fraction
+  double period = 1.0;   // segment length in samples
+};
+
+class PitchDriftClock {
+ public:
+  PitchDriftClock() = default;
+  explicit PitchDriftClock(double period_samples) : period_(period_samples), inverse_period_(1.0 / period_samples) { }
+
+  bool active() const { return period_ > 0.0; }
+
+  PitchDriftPoint at(uint64_t t) const {
+    const double x = static_cast<double>(t) * inverse_period_;
+    PitchDriftPoint p;
+    p.segment = static_cast<uint64_t>(x);
+    p.fraction = x - static_cast<double>(p.segment);
+    const double f = p.fraction;
+    p.smooth = f * f * (3.0 - 2.0 * f);
+    p.area = f * f * f - 0.5 * f * f * f * f;
+    p.period = period_;
+    return p;
+  }
+
+ private:
+  double period_ = 0.0, inverse_period_ = 0.0;
+};
+
+// One member's wander: its own control points, blended with a shared point.
+// The current segment is cached so a forward sweep is O(1); any point can be
+// evaluated, a backward one just replays from the start.
+class PitchDriftMember {
+ public:
+  PitchDriftMember() = default;
+
+  PitchDriftMember(int64_t coord, float depth_cents)
+    : coord_(coord), depth_(depth_cents * kCentsToRatio) {
     reset();
   }
 
-  bool active() const { return depth_ > 0.0f && period_ > 0.0; }
+  bool active() const { return depth_ > 0.0f; }
 
-  // The frequency ratio is 1 + deviation(t).
-  double deviation(uint64_t t) {
-    seek(t);
-    return value(frac(t));
+  // The frequency ratio is 1 + deviation, and integral is the deviation's sum
+  // over [0, t] in samples.
+  void sample(const PitchDriftPoint & p, double & deviation, double & integral) {
+    seek(p);
+    deviation = a_ + (b_ - a_) * p.smooth;
+    integral = before_ + p.period * (a_ * p.fraction + (b_ - a_) * p.area);
   }
 
-  // Integral of deviation() over [0, t], in samples.
-  double integral(uint64_t t) {
-    seek(t);
-    return integralAt(frac(t));
+  double deviation(const PitchDriftPoint & p) {
+    double d, i;
+    sample(p, d, i);
+    return d;
   }
 
-  // Both at once, for the per-group hot path.
-  void sample(uint64_t t, double & deviation_out, double & integral_out) {
-    seek(t);
-    const double f = frac(t);
-    deviation_out = value(f);
-    integral_out = integralAt(f);
+  double integral(const PitchDriftPoint & p) {
+    double d, i;
+    sample(p, d, i);
+    return i;
   }
 
  private:
@@ -61,37 +101,44 @@ class PitchDrift {
   }
 
   void reset() {
-    index_ = 0;
+    segment_ = 0;
     before_ = 0.0;
     a_ = 0.0;
     b_ = control(1);
   }
 
-  double frac(uint64_t t) const { return static_cast<double>(t) * inverse_period_ - static_cast<double>(index_); }
-
-  double integralAt(double f) const {
-    return before_ + period_ * (a_ * f + (b_ - a_) * (f * f * f - 0.5 * f * f * f * f));
-  }
-
-  void seek(uint64_t t) {
-    const uint64_t target = static_cast<uint64_t>(static_cast<double>(t) * inverse_period_);
-    if (target < index_) reset();
-    while (index_ < target) {
-      before_ += period_ * (a_ + b_) * 0.5;
+  void seek(const PitchDriftPoint & p) {
+    if (p.segment == segment_) return;
+    if (p.segment < segment_) reset();
+    while (segment_ < p.segment) {
+      before_ += p.period * (a_ + b_) * 0.5;
       a_ = b_;
-      b_ = control(++index_ + 1);
+      b_ = control(++segment_ + 1);
     }
   }
 
-  double value(double f) const { return a_ + (b_ - a_) * (f * f * (3.0 - 2.0 * f)); }
-
   int64_t coord_ = 0;
   float depth_ = 0.0f;
-  double period_ = 1.0, inverse_period_ = 1.0;
 
-  uint64_t index_ = 0;
+  uint64_t segment_ = 0;
   double before_ = 0.0; // integral up to the start of the cached segment
   double a_ = 0.0, b_ = 0.0;
+};
+
+// A clock and one member together, for evaluating a single wander by time.
+class PitchDrift {
+ public:
+  PitchDrift() = default;
+  PitchDrift(int64_t coord, float depth_cents, double period_samples)
+    : clock_(period_samples), member_(coord, depth_cents) { }
+
+  bool active() const { return member_.active() && clock_.active(); }
+  double deviation(uint64_t t) { return member_.deviation(clock_.at(t)); }
+  double integral(uint64_t t) { return member_.integral(clock_.at(t)); }
+
+ private:
+  PitchDriftClock clock_;
+  PitchDriftMember member_;
 };
 
 #endif

@@ -62,7 +62,8 @@ public:
       member.phase = static_cast<double>(HashField(kNotePhaseSalt).unit(coord.toHashCoord(), paramId("note_phase")));
       if (n > 1 && array.detune_cents > 0.0f && array.drift_period > 0.0f) {
         const double period = std::max(array.drift_period, kMinDriftPeriod) * static_cast<double>(config.getAudioOutSampleRate());
-        member.drift = PitchDrift(coord.toHashCoord(), 0.5f * array.detune_cents, period);
+        member.drift = PitchDriftMember(coord.toHashCoord(), 0.5f * array.detune_cents);
+        drift_clock_ = PitchDriftClock(period);
       }
 
       // Dealt round-robin, so the buckets stay evenly filled and members
@@ -184,6 +185,16 @@ public:
     const float main_gain = getSends().main * getDistanceGain();
     AudioBuffer data = makeSendBuffer(frames);
 
+    // The drift's place in the noise at each group of eight and at the end of
+    // the block, worked out once for all members.
+    const size_t groups = padded / static_cast<size_t>(dsp::kLanes);
+    const bool drifting = drift_clock_.active();
+    if (drifting) {
+      drift_points_.resize(groups + 1);
+      for (size_t g = 0; g < groups; g++) drift_points_[g] = drift_clock_.at(age_ + g * static_cast<size_t>(dsp::kLanes));
+      drift_points_[groups] = drift_clock_.at(age_ + static_cast<uint64_t>(frames));
+    }
+
     // Each bucket's members are summed into its own row, then every row is
     // encoded in one pass.
     const size_t rows = buckets_.size();
@@ -192,9 +203,9 @@ public:
       float * row = bucket_sums_.data() + b * padded;
       for (auto & member : buckets_[b].members) {
 	const double step = member.ratio * rate;
-	oscillator_kernel::mix(type_, pulse_width_, member.phase, step, member.level, frames, row, &member.drift, age_);
+	oscillator_kernel::mix(type_, pulse_width_, member.phase, step, member.level, frames, row, &member.drift, drifting ? drift_points_.data() : nullptr);
 	member.phase += step * frames;
-	if (member.drift.active()) member.phase += step * (member.drift.integral(age_ + static_cast<uint64_t>(frames)) - member.drift.integral(age_));
+	if (drifting && member.drift.active()) member.phase += step * (member.drift.integral(drift_points_[groups]) - member.drift.integral(drift_points_[0]));
 	member.phase -= std::floor(member.phase);
       }
     }
@@ -234,7 +245,7 @@ private:
     double phase = 0.0;  // cycles
     float ratio = 1.0f;  // frequency ratio to the note
     float level = 1.0f;
-    PitchDrift drift; // inactive unless the array drifts
+    PitchDriftMember drift; // inactive unless the array drifts
   };
 
   struct Bucket {
@@ -249,6 +260,8 @@ private:
 
   std::vector<Bucket> buckets_;
   uint64_t age_ = 0; // samples rendered since note-on, the drift's clock
+  PitchDriftClock drift_clock_; // shared by every member's drift
+  std::vector<PitchDriftPoint> drift_points_; // the clock at each group of eight, plus the block's end
   AmbisonicStackEncoder encoder_;
   std::vector<AmbisonicGains> targets_;
   std::vector<float> bucket_sums_, sum_;

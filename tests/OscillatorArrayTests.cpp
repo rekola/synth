@@ -473,7 +473,7 @@ TEST(pitch_drift_depends_only_on_time_seed_and_period) {
   for (uint64_t t = 60000; t > 0; t -= 777 > t ? t : 777) {
     k--;
     uint64_t at = (t - 1) / 777 * 777;
-    CHECK(jumpy.deviation(at) == a[at / 777]);
+    CHECK(fabs(jumpy.deviation(at) - a[at / 777]) < 1e-12);
   }
 
   // A different seed gives a different wander, uncorrelated with the first.
@@ -633,4 +633,22 @@ TEST(oscillator_drift_needs_a_detuned_array) {
   CHECK(renderW(2.0f, 3, 0.0f, { 256 }, 22050) == renderW(0.0f, 3, 0.0f, { 256 }, 22050));
   CHECK(renderW(2.0f, 1, 8.0f, { 256 }, 22050) == renderW(0.0f, 1, 8.0f, { 256 }, 22050));
   CHECK(renderW(2.0f, 3, 8.0f, { 256 }, 22050) != renderW(0.0f, 3, 8.0f, { 256 }, 22050));
+}
+
+// Members blending the shared clock's points give the same wander as each one
+// evaluated alone.
+TEST(pitch_drift_members_share_one_clock) {
+  const double period = 3000.0;
+  PitchDriftClock clock(period);
+  PitchDriftMember first(11, 10.0f), second(22, 10.0f);
+  PitchDrift alone_first(11, 10.0f, period), alone_second(22, 10.0f, period);
+
+  double worst = 0.0;
+  for (uint64_t t = 0; t < 40000; t += 37) {
+    const PitchDriftPoint p = clock.at(t);
+    worst = max(worst, fabs(first.deviation(p) - alone_first.deviation(t)));
+    worst = max(worst, fabs(second.integral(p) - alone_second.integral(t)));
+  }
+  CHECK(worst < 1e-12);
+  CHECK(fabs(first.deviation(clock.at(20000)) - second.deviation(clock.at(20000))) > 1e-6); // independent
 }
