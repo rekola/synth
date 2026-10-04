@@ -1,0 +1,3 @@
+#!/bin/sh
+# Lint on commit; enable with: git config core.hooksPath .githooks
+exec python3 "$(git rev-parse --show-toplevel)/tools/check_no_banned_randomness.py"

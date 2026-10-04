@@ -92,6 +92,11 @@ from `tests/fixtures/` through the same `renderSongOffline()` used by
 `--render` and asserts properties of the output (pan symmetry, channel
 isolation, no NaN/Inf) — this is how stereo/pan regressions get caught.
 
+A pre-commit hook (`.githooks/pre-commit`) runs the repo's lint,
+`tools/check_no_banned_randomness.py` (also a ctest), and aborts the commit
+on a violation. Enable it once per clone with
+`git config core.hooksPath .githooks`.
+
 Build with `-DSYNTH_ENABLE_SANITIZERS=ON` to enable ASan+UBSan for the whole
 project; useful for chasing memory bugs (e.g. `AudioBuffer`'s copy-assignment
 leak was confirmed this way).
