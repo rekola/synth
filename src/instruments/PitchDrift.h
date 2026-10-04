@@ -125,20 +125,4 @@ class PitchDriftMember {
   double a_ = 0.0, b_ = 0.0;
 };
 
-// A clock and one member together, for evaluating a single wander by time.
-class PitchDrift {
- public:
-  PitchDrift() = default;
-  PitchDrift(int64_t coord, float depth_cents, double period_samples)
-    : clock_(period_samples), member_(coord, depth_cents) { }
-
-  bool active() const { return member_.active() && clock_.active(); }
-  double deviation(uint64_t t) { return member_.deviation(clock_.at(t)); }
-  double integral(uint64_t t) { return member_.integral(clock_.at(t)); }
-
- private:
-  PitchDriftClock clock_;
-  PitchDriftMember member_;
-};
-
 #endif

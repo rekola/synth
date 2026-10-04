@@ -429,15 +429,17 @@ vector<float> renderW(float drift_period, int voices, float detune_cents, vector
 
 TEST(pitch_drift_starts_on_pitch_and_stays_within_its_depth) {
   const double period = 8820.0;
-  PitchDrift drift(12345, 10.0f, period);
+  PitchDriftClock clock(period);
+  PitchDriftMember member(12345, 10.0f);
+  auto deviation = [&](uint64_t t) { return member.deviation(clock.at(t)); };
   const double limit = 10.0 * kCentsToRatio;
-  CHECK(drift.deviation(0) == 0.0);
-  CHECK(drift.integral(0) == 0.0);
+  CHECK(deviation(0) == 0.0);
+  CHECK(member.integral(clock.at(0)) == 0.0);
 
   double max_dev = 0.0, sum = 0.0, sum_sq = 0.0;
   const int n = 4000;
   for (int i = 0; i < n; i++) {
-    double d = drift.deviation(static_cast<uint64_t>(i) * 2205 + 1);
+    double d = deviation(static_cast<uint64_t>(i) * 2205 + 1);
     max_dev = max(max_dev, fabs(d));
     sum += d;
     sum_sq += d * d;
@@ -452,34 +454,39 @@ TEST(pitch_drift_starts_on_pitch_and_stays_within_its_depth) {
 }
 
 TEST(pitch_drift_integral_is_the_running_sum_of_the_deviation) {
-  PitchDrift drift(7, 20.0f, 4410.0);
+  PitchDriftClock clock(4410.0);
+  PitchDriftMember member(7, 20.0f);
+  auto deviation = [&](uint64_t t) { return member.deviation(clock.at(t)); };
+  auto integral = [&](uint64_t t) { return member.integral(clock.at(t)); };
   double sum = 0.0;
   double worst = 0.0;
   for (uint64_t t = 0; t < 40000; t++) {
     // Trapezoid rule: the sum over [0, t) corrected at its ends, against integral(t).
-    if (t % 997 == 0) worst = max(worst, fabs(drift.integral(t) - (sum + 0.5 * (drift.deviation(t) - drift.deviation(0)))));
-    sum += drift.deviation(t);
+    if (t % 997 == 0) worst = max(worst, fabs(integral(t) - (sum + 0.5 * (deviation(t) - deviation(0)))));
+    sum += deviation(t);
   }
   CHECK(worst < 1e-3);
 }
 
 TEST(pitch_drift_depends_only_on_time_seed_and_period) {
-  PitchDrift forward(99, 15.0f, 5000.0), jumpy(99, 15.0f, 5000.0), other(100, 15.0f, 5000.0);
+  PitchDriftClock clock(5000.0);
+  PitchDriftMember forward(99, 15.0f), jumpy(99, 15.0f), other(100, 15.0f);
   vector<double> a;
-  for (uint64_t t = 0; t < 60000; t += 777) a.push_back(forward.deviation(t));
+  for (uint64_t t = 0; t < 60000; t += 777) a.push_back(forward.deviation(clock.at(t)));
 
   // Any query order gives the same values (the segment cache is only a cache).
   size_t k = a.size();
   for (uint64_t t = 60000; t > 0; t -= 777 > t ? t : 777) {
     k--;
     uint64_t at = (t - 1) / 777 * 777;
-    CHECK(fabs(jumpy.deviation(at) - a[at / 777]) < 1e-12);
+    CHECK(fabs(jumpy.deviation(clock.at(at)) - a[at / 777]) < 1e-12);
   }
 
   // A different seed gives a different wander, uncorrelated with the first.
   double ab = 0.0, aa = 0.0, bb = 0.0;
   for (uint64_t t = 0; t < 400000; t += 311) {
-    double x = forward.deviation(t), y = other.deviation(t);
+    const PitchDriftPoint point = clock.at(t);
+    double x = forward.deviation(point), y = other.deviation(point);
     ab += x * y;
     aa += x * x;
     bb += y * y;
@@ -635,19 +642,18 @@ TEST(oscillator_drift_needs_a_detuned_array) {
   CHECK(renderW(2.0f, 3, 8.0f, { 256 }, 22050) != renderW(0.0f, 3, 8.0f, { 256 }, 22050));
 }
 
-// Members blending the shared clock's points give the same wander as each one
-// evaluated alone.
+// Members blending one clock's points are independent of each other, and each
+// matches a twin evaluated on a clock of its own.
 TEST(pitch_drift_members_share_one_clock) {
   const double period = 3000.0;
-  PitchDriftClock clock(period);
-  PitchDriftMember first(11, 10.0f), second(22, 10.0f);
-  PitchDrift alone_first(11, 10.0f, period), alone_second(22, 10.0f, period);
+  PitchDriftClock clock(period), twin_clock(period);
+  PitchDriftMember first(11, 10.0f), second(22, 10.0f), twin_first(11, 10.0f), twin_second(22, 10.0f);
 
   double worst = 0.0;
   for (uint64_t t = 0; t < 40000; t += 37) {
     const PitchDriftPoint p = clock.at(t);
-    worst = max(worst, fabs(first.deviation(p) - alone_first.deviation(t)));
-    worst = max(worst, fabs(second.integral(p) - alone_second.integral(t)));
+    worst = max(worst, fabs(first.deviation(p) - twin_first.deviation(twin_clock.at(t))));
+    worst = max(worst, fabs(second.integral(p) - twin_second.integral(twin_clock.at(t))));
   }
   CHECK(worst < 1e-12);
   CHECK(fabs(first.deviation(clock.at(20000)) - second.deviation(clock.at(20000))) > 1e-6); // independent
