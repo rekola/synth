@@ -401,15 +401,14 @@ namespace {
 
 constexpr double kCentsToRatio = 0.69314718055994531 / 1200.0;
 
-// The W channel of a drifting (or not) stack, rendered in blocks of the given
+// The W channel of a drifting (period 0: still) stack, rendered in blocks of the given
 // sizes (repeated), `total` samples in all.
-vector<float> renderW(float drift_cents, float drift_period, int voices, float detune_cents, vector<int> block_sizes, int total, float frequency = 440.0f) {
+vector<float> renderW(float drift_period, int voices, float detune_cents, vector<int> block_sizes, int total, float frequency = 440.0f) {
   ChannelConfiguration config(44100, 1);
   config.setFloorReflectionEnabled(false);
   OscillatorStack stack;
   stack.voices = voices;
   stack.detune_cents = detune_cents;
-  stack.drift_cents = drift_cents;
   stack.drift_period = drift_period;
   SphericalPosition position;
   position.distance = 1.0f;
@@ -494,17 +493,16 @@ TEST(pitch_drift_off_by_default_and_round_trips_through_parameters) {
   plain.loadParameters(none);
   MemoryParameterSource stored_none;
   plain.storeParameters(stored_none);
-  CHECK(stored_none.get<float>("drift", -1.0f) == -1.0f);
+  CHECK(stored_none.get<float>("driftPeriod", -1.0f) == -1.0f);
 
   Oscillator osc(WaveformType::SINE);
   MemoryParameterSource params;
   params.set("voices", 4);
-  params.set("drift", 6.0f);
+  params.set("detune", 8.0f);
   params.set("driftPeriod", 0.5f);
   osc.loadParameters(params);
   MemoryParameterSource stored;
   osc.storeParameters(stored);
-  CHECK_NEAR(stored.get<float>("drift", 0.0f), 6.0f, 1e-6f);
   CHECK_NEAR(stored.get<float>("driftPeriod", 0.0f), 0.5f, 1e-6f);
 }
 
@@ -512,10 +510,10 @@ TEST(pitch_drift_off_by_default_and_round_trips_through_parameters) {
 // notes into different blocks (even randomly) gives the same signal.
 TEST(oscillator_drift_does_not_depend_on_the_block_size) {
   const int total = 44100;
-  auto base = renderW(25.0f, 0.2f, 3, 8.0f, { 256 }, total);
-  auto odd = renderW(25.0f, 0.2f, 3, 8.0f, { 37, 101, 8, 513, 1 }, total);
-  auto big = renderW(25.0f, 0.2f, 3, 8.0f, { 4096 }, total);
-  auto still = renderW(0.0f, 0.2f, 3, 8.0f, { 256 }, total);
+  auto base = renderW(0.2f, 3, 8.0f, { 256 }, total);
+  auto odd = renderW(0.2f, 3, 8.0f, { 37, 101, 8, 513, 1 }, total);
+  auto big = renderW(0.2f, 3, 8.0f, { 4096 }, total);
+  auto still = renderW(0.0f, 3, 8.0f, { 256 }, total);
 
   double worst_odd = 0.0, worst_big = 0.0, moved = 0.0;
   for (size_t i = 0; i < base.size(); i++) {
@@ -529,8 +527,8 @@ TEST(oscillator_drift_does_not_depend_on_the_block_size) {
 }
 
 TEST(oscillator_drift_is_deterministic_and_has_no_clicks) {
-  auto a = renderW(10.0f, 0.5f, 4, 6.0f, { 256 }, 22050);
-  auto b = renderW(10.0f, 0.5f, 4, 6.0f, { 256 }, 22050);
+  auto a = renderW(0.5f, 4, 6.0f, { 256 }, 22050);
+  auto b = renderW(0.5f, 4, 6.0f, { 256 }, 22050);
   CHECK(a == b);
 
   // A sustained sine stack never steps: sample-to-sample change stays small.
@@ -569,8 +567,8 @@ TEST(oscillator_drift_breaks_the_static_beat_cycle) {
   };
 
   // 440 Hz members 6 cents apart beat at about 1.5 Hz, a period of ~33 windows.
-  auto fixed = envelope(renderW(0.0f, 2.0f, 2, 6.0f, { 256 }, total));
-  auto wander = envelope(renderW(15.0f, 0.5f, 2, 6.0f, { 256 }, total));
+  auto fixed = envelope(renderW(0.0f, 2, 6.0f, { 256 }, total));
+  auto wander = envelope(renderW(0.5f, 2, 6.0f, { 256 }, total));
   const double still = beat_correlation(fixed, 30, 36);
   const double drifting = beat_correlation(wander, 30, 36);
   CHECK(still > 0.8);
@@ -628,4 +626,11 @@ TEST(oscillator_stack_scatters_the_cloud_per_note) {
     if (fabsf(first.bucketDirection(b).azimuth - next.bucketDirection(b).azimuth) > 1e-3f) moved = true;
   }
   CHECK(moved);
+}
+
+// Drift is made of the detune: no detune, or a single member, means no drift.
+TEST(oscillator_drift_needs_a_detuned_stack) {
+  CHECK(renderW(2.0f, 3, 0.0f, { 256 }, 22050) == renderW(0.0f, 3, 0.0f, { 256 }, 22050));
+  CHECK(renderW(2.0f, 1, 8.0f, { 256 }, 22050) == renderW(0.0f, 1, 8.0f, { 256 }, 22050));
+  CHECK(renderW(2.0f, 3, 8.0f, { 256 }, 22050) != renderW(0.0f, 3, 8.0f, { 256 }, 22050));
 }

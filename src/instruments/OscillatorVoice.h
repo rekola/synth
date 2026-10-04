@@ -60,9 +60,9 @@ public:
       // are decorrelated by their index.
       NoteCoordinate coord = n > 1 ? note_coord.withInstance(k) : note_coord;
       member.phase = static_cast<double>(HashField(kNotePhaseSalt).unit(coord.toHashCoord(), paramId("note_phase")));
-      if (stack.drift_cents > 0.0f) {
+      if (n > 1 && stack.detune_cents > 0.0f && stack.drift_period > 0.0f) {
         const double period = std::max(stack.drift_period, kMinDriftPeriod) * static_cast<double>(config.getAudioOutSampleRate());
-        member.drift = PitchDrift(coord.toHashCoord(), stack.drift_cents, period);
+        member.drift = PitchDrift(coord.toHashCoord(), 0.5f * stack.detune_cents, period);
       }
 
       // Dealt round-robin, so the buckets stay evenly filled and members

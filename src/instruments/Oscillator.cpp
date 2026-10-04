@@ -40,7 +40,6 @@ Oscillator::loadParameters(const ParameterSource & input) {
   stack_.falloff = input.get<float>("falloff", 1.0f);
   stack_.detune_cents = input.get<float>("detune", 0.0f);
   stack_.spread = input.get<float>("spread", 0.0f);
-  stack_.drift_cents = input.get<float>("drift", 0.0f);
   stack_.drift_period = input.get<float>("driftPeriod", 2.0f);
 }
 
@@ -59,9 +58,6 @@ Oscillator::storeParameters(ParameterSource & output) const {
     if (stack_.falloff != 1.0f) output.set("falloff", stack_.falloff);
     if (stack_.detune_cents != 0.0f) output.set("detune", stack_.detune_cents);
     if (stack_.spread != 0.0f) output.set("spread", stack_.spread);
-    if (stack_.drift_cents != 0.0f) {
-      output.set("drift", stack_.drift_cents);
-      if (stack_.drift_period != 2.0f) output.set("driftPeriod", stack_.drift_period);
-    }
+    if (stack_.drift_period != 2.0f) output.set("driftPeriod", stack_.drift_period);
   }
 }
