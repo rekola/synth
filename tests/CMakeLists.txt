@@ -18,6 +18,7 @@ add_executable(synth_tests
 	MarkdownTests.cpp
 	MetronomeTests.cpp
 	AudioBufferTests.cpp
+	ChannelBankTests.cpp
 	ChannelConfigurationTests.cpp
 	TunerTests.cpp
 	RenderTests.cpp

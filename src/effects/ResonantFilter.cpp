@@ -3,6 +3,7 @@
 #include "EffectTrackState.h"
 #include "EffectVoiceState.h"
 
+#include "../dsp/ChannelBank.h"
 #include "../dsp/MoogVCF.h"
 #include "../state/EnvelopeState.h"
 #include "../util/constants.h"
@@ -32,7 +33,8 @@ public:
       res_(filter.get_res()),
       sample_rate_(static_cast<float>(channel_config.getAudioOutSampleRate())),
       envelope_state_(channel_config.getAudioOutSampleRate(), envelope, 0, 0, true),
-      filters_(static_cast<size_t>(channel_config.numberOfChannels()))
+      main_slots_(channel_config.numberOfChannels()),
+      bank_(main_slots_ + 2)
   { }
 
   // Filters every channel - Main and AuxA/AuxB alike: the reverb/delay bus
@@ -50,6 +52,23 @@ public:
     int mainChannels = input_data.regularChannelCount();
 
     bool has_content = input_data.numberOfChannels() > 0;
+    if (mainChannels > main_slots_) mainChannels = main_slots_;
+
+    // Same filter, applied identically & independently per channel -
+    // including ambisonic ones (see AmbisonicEncoding.h): for a static
+    // source position this is exactly equivalent to filtering the
+    // pre-encode mono signal once, so direction is preserved exactly. All
+    // channels advance together, one per vector lane; Main sits in slots
+    // 0..main_slots_-1 and AuxA/AuxB in their own two slots after it, and a
+    // slot with no signal this block is fed silence so its history keeps
+    // decaying - see BiquadFilter.cpp's own comment on this.
+    float * main_planes[dsp::kMaxBankChannels] = {};
+    float * aux_planes[2] = { nullptr, nullptr };
+    if (has_content) {
+      for (int c = 0; c < mainChannels; c++) main_planes[c] = input_data.getChannelData(c);
+      aux_planes[0] = input_data.getChannel(Channel::AuxA);
+      aux_planes[1] = input_data.getChannel(Channel::AuxB);
+    }
 
     size_t offset = 0;
     while (numSamples) {
@@ -57,33 +76,9 @@ public:
       float current_cut = (cut_min_ + envelope_state_.getLevel() * aftertouch_value * (cut_max_ - cut_min_)) / (sample_rate_ * 0.5f);
 
       if (has_content) {
-	// Same filter, applied identically & independently per channel -
-	// including ambisonic ones (see AmbisonicEncoding.h): for a static
-	// source position this is exactly equivalent to filtering the
-	// pre-encode mono signal once, so direction is preserved exactly.
-	// Whichever of Main/AuxA/AuxB happens to be absent this specific
-	// block still gets its own filter's state advanced through silence
-	// (MoogVCF::apply(blockSamples, fc, res), no buffer) rather than
-	// skipped outright - but only once that channel has actually had
-	// real data at least once (main_ever_present_/aux_ever_present_),
-	// same reasoning as BiquadFilter.cpp.
-	if (mainChannels > 0) main_ever_present_ = true;
-	for (int c = 0; c < static_cast<int>(filters_.size()); c++) {
-	  if (c < mainChannels) {
-	    filters_[static_cast<size_t>(c)].apply(blockSamples, input_data.getChannelData(c) + offset, current_cut, res_);
-	  } else if (main_ever_present_) {
-	    filters_[static_cast<size_t>(c)].apply(blockSamples, current_cut, res_);
-	  }
-	}
-	for (int a = 0; a < 2; a++) {
-	  auto * buf = input_data.getChannel(a == 0 ? Channel::AuxA : Channel::AuxB);
-	  if (buf) {
-	    aux_ever_present_[static_cast<size_t>(a)] = true;
-	    aux_filters_[static_cast<size_t>(a)].apply(blockSamples, buf + offset, current_cut, res_);
-	  } else if (aux_ever_present_[static_cast<size_t>(a)]) {
-	    aux_filters_[static_cast<size_t>(a)].apply(blockSamples, current_cut, res_);
-	  }
-	}
+	for (int c = 0; c < main_slots_; c++) bank_.plane(c) = main_planes[c] ? main_planes[c] + offset : nullptr;
+	for (int a = 0; a < 2; a++) bank_.plane(main_slots_ + a) = aux_planes[a] ? aux_planes[a] + offset : nullptr;
+	bank_.apply(static_cast<int>(blockSamples), current_cut, res_);
       }
 
       offset += blockSamples;
@@ -100,10 +95,8 @@ private:
 
   EnvelopeState envelope_state_;
 
-  std::vector<MoogVCF<float>> filters_;
-  std::array<MoogVCF<float>, 2> aux_filters_;
-  bool main_ever_present_ = false;
-  std::array<bool, 2> aux_ever_present_ { false, false };
+  int main_slots_;
+  dsp::MoogBank bank_;
 };
 
 class ResonantFilterTrackState : public EffectTrackState {

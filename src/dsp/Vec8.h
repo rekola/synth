@@ -14,6 +14,8 @@ constexpr int kLanes = 8;
 
 typedef float v8f __attribute__((vector_size(32)));
 typedef int v8i __attribute__((vector_size(32)));
+typedef double v4d __attribute__((vector_size(32)));
+typedef float v4f __attribute__((vector_size(16)));
 
 inline v8f splat(float x) { return v8f{ x, x, x, x, x, x, x, x }; }
 
@@ -60,6 +62,48 @@ inline void addScaled(float * dst, const float * src, float gain, int n) {
   int i = 0;
   for (; i + kLanes <= n; i += kLanes) storeu(dst + i, loadu(dst + i) + g * loadu(src + i));
   for (; i < n; i++) dst[i] += gain * src[i];
+}
+
+// In-place transpose of an 8x8 block held as eight rows.
+inline void transpose8x8(v8f r[8]) {
+  const v8f t0 = __builtin_shufflevector(r[0], r[1], 0, 8, 1, 9, 4, 12, 5, 13);
+  const v8f t1 = __builtin_shufflevector(r[0], r[1], 2, 10, 3, 11, 6, 14, 7, 15);
+  const v8f t2 = __builtin_shufflevector(r[2], r[3], 0, 8, 1, 9, 4, 12, 5, 13);
+  const v8f t3 = __builtin_shufflevector(r[2], r[3], 2, 10, 3, 11, 6, 14, 7, 15);
+  const v8f t4 = __builtin_shufflevector(r[4], r[5], 0, 8, 1, 9, 4, 12, 5, 13);
+  const v8f t5 = __builtin_shufflevector(r[4], r[5], 2, 10, 3, 11, 6, 14, 7, 15);
+  const v8f t6 = __builtin_shufflevector(r[6], r[7], 0, 8, 1, 9, 4, 12, 5, 13);
+  const v8f t7 = __builtin_shufflevector(r[6], r[7], 2, 10, 3, 11, 6, 14, 7, 15);
+
+  const v8f u0 = __builtin_shufflevector(t0, t2, 0, 1, 8, 9, 4, 5, 12, 13);
+  const v8f u1 = __builtin_shufflevector(t0, t2, 2, 3, 10, 11, 6, 7, 14, 15);
+  const v8f u2 = __builtin_shufflevector(t1, t3, 0, 1, 8, 9, 4, 5, 12, 13);
+  const v8f u3 = __builtin_shufflevector(t1, t3, 2, 3, 10, 11, 6, 7, 14, 15);
+  const v8f v0 = __builtin_shufflevector(t4, t6, 0, 1, 8, 9, 4, 5, 12, 13);
+  const v8f v1 = __builtin_shufflevector(t4, t6, 2, 3, 10, 11, 6, 7, 14, 15);
+  const v8f v2 = __builtin_shufflevector(t5, t7, 0, 1, 8, 9, 4, 5, 12, 13);
+  const v8f v3 = __builtin_shufflevector(t5, t7, 2, 3, 10, 11, 6, 7, 14, 15);
+
+  r[0] = __builtin_shufflevector(u0, v0, 0, 1, 2, 3, 8, 9, 10, 11);
+  r[4] = __builtin_shufflevector(u0, v0, 4, 5, 6, 7, 12, 13, 14, 15);
+  r[1] = __builtin_shufflevector(u1, v1, 0, 1, 2, 3, 8, 9, 10, 11);
+  r[5] = __builtin_shufflevector(u1, v1, 4, 5, 6, 7, 12, 13, 14, 15);
+  r[2] = __builtin_shufflevector(u2, v2, 0, 1, 2, 3, 8, 9, 10, 11);
+  r[6] = __builtin_shufflevector(u2, v2, 4, 5, 6, 7, 12, 13, 14, 15);
+  r[3] = __builtin_shufflevector(u3, v3, 0, 1, 2, 3, 8, 9, 10, 11);
+  r[7] = __builtin_shufflevector(u3, v3, 4, 5, 6, 7, 12, 13, 14, 15);
+}
+
+// In-place transpose of a 4x4 block of doubles held as four rows.
+inline void transpose4x4(v4d r[4]) {
+  const v4d a0 = __builtin_shufflevector(r[0], r[1], 0, 4, 2, 6);
+  const v4d a1 = __builtin_shufflevector(r[0], r[1], 1, 5, 3, 7);
+  const v4d a2 = __builtin_shufflevector(r[2], r[3], 0, 4, 2, 6);
+  const v4d a3 = __builtin_shufflevector(r[2], r[3], 1, 5, 3, 7);
+  r[0] = __builtin_shufflevector(a0, a2, 0, 1, 4, 5);
+  r[1] = __builtin_shufflevector(a1, a3, 0, 1, 4, 5);
+  r[2] = __builtin_shufflevector(a0, a2, 2, 3, 6, 7);
+  r[3] = __builtin_shufflevector(a1, a3, 2, 3, 6, 7);
 }
 
 // Largest absolute value in p[0, n).
