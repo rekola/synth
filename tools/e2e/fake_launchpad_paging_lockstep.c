@@ -90,6 +90,8 @@ int main(int argc, char ** argv) {
     send_note(seq, port, 0x90, 11, 100);
     usleep(100000);
     send_note(seq, port, 0x80, 11, 0);
+    send_cc(seq, port, 96, 127); // shift + Note opens the selected clip
+    send_cc(seq, port, 96, 0);
     usleep(200000);
     send_cc(seq, port, 91, 0);
   } else {

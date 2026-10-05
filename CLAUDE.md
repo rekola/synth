@@ -480,19 +480,23 @@ would otherwise resume showing.
   starts/stops note capture instead (red LED, bright while capturing; ends a
   sample take through the same command). **Shift** (CC91 held) turns all eight right-side
   buttons into labelled alternate functions, in every `GridMode`
-  (`handleRawButton()`'s shift branch): Volume (CC89) is Duplicate, Pan (CC79) is the
-  metronome ("toggle-metronome", a click per beat while the transport plays,
-  accented on the bar - `Player::scheduleMetronome()`; its LED is amber, bright
-  while on), Send A (CC69) is Quantise (`endQuantize()`: held with a pad press,
+  (`handleRawButton()`'s shift branch), following the Launchpad Pro MK3's own
+  shift layer where it has one: Record Arm (CC19) is Undo and Mute (CC39, Pro
+  MK3 CC30) Redo (both reserved - they only say "not implemented yet"), Solo
+  (CC29, Pro MK3 CC20) is the metronome click ("toggle-metronome", a click per
+  beat while the transport plays, accented on the bar -
+  `Player::scheduleMetronome()`; its LED is amber, bright while on), Volume
+  (CC89) is Duplicate, Pan (CC79) is Delete (its own bullet below), Send A
+  (CC69) is Quantise (`endQuantize()`: held with a pad press,
   `quantizeClip()` snaps that clip's notes to the nearest row; a tap with no
   pad toggles `Song::getRecordQuantize()`, "toggle-record-quantize", resolved
   on release; its LED is red/green for off/on), Send B (CC59) opens the Tempo
-  view and Stop Clip (CC49) the Swing view (their own bullet below), Mute
-  (CC39, Pro MK3 CC30) is Delete (its own bullet below), Solo (CC29, Pro MK3
-  CC20) is Draw, and the other one (Record Arm) does nothing rather than
-  launch or switch anything; their LEDs show only those functions while
-  shift is held (Duplicate cyan, Draw purple, metronome amber, Quantise
-  red/green, Tempo blue, Swing orange, Delete red, the rest dark).
+  view and Stop Clip (CC49) the Swing view (their own bullet below); every
+  button is taken. Draw is shift + CC97 instead. Their LEDs show only those
+  functions while shift is held (Duplicate cyan, Draw purple, metronome amber,
+  Quantise red/green, Tempo blue, Swing orange, Delete magenta - red is
+  Quantise's own off state - Undo/Redo dim white). Shift + pad selects a clip
+  without launching it (below).
   User-facing descriptions of every button live in `docs/launchpad.md`.
   95 ("Session") doubles as the
   mixer-submode toggle: a repeat press while already at the plain Session
@@ -526,20 +530,24 @@ would otherwise resume showing.
   a Session pad press write the clip into the arrangement). Its LED is
   bright red while anything records (`record_arm_led_on`), dim red
   otherwise.
-- **DRAW mode** (shift + Solo) - a plain per-pad coloring toy,
-  independent of Song/Track state. Shift + Solo enters it from any
+- **DRAW mode** (shift + Custom) - a plain per-pad coloring toy,
+  independent of Song/Track state. Shift + Custom enters it from any
   `GridMode` (same exclusive-group rule as Session/Note/Custom - only
   one of 95/96/97 leaves it), or blanks the canvas if DRAW is already
   showing.
 - **Duplicate** (shift + Volume) - held for as long as Volume stays down:
-  in Session view a populated pad picks that clip as the source (lit
-  white) and a press on an empty slot of the same track column copies it
-  there (`duplicateClip()`, `ArrangementOps.h` - an independent copy
-  under a fresh id, never overwriting); the source stays picked, so one
-  hold can fill several slots. Releasing Volume with a source picked but
-  no destination copies to the next empty slot. The terminal's
-  `duplicate-clip` (clip grid) does the same.
-- **Delete** (shift + Mute) - held for as long as Mute stays down, like
+  a Session pad press on a populated slot copies that clip into the slot
+  below it, overwriting what is there (`duplicateClip()`,
+  `ArrangementOps.h` - an independent copy under a fresh id; an overwritten
+  clip's arrangement placements go with it). One hold can copy several
+  clips. The terminal's `duplicate-clip` (clip grid) does the same.
+- **Select a clip** (shift + pad, `Controller::selectClipSlot()`) - moves the
+  shared track cursor and the clip grid's cursor onto that slot, empty ones
+  included, without launching or opening anything, so it is where the next
+  recording or paste lands. Shift + Note (CC96) then opens (or closes) the
+  selected clip for step editing, as the drum machine bullet below describes
+  (`LaunchpadManager::selected_track_id_`).
+- **Delete** (shift + Pan) - held for as long as Pan stays down, like
   Duplicate: a Session pad press deletes what its slot holds, one layer
   per press (`Controller::deleteClipSlot()`, `deleteClipOrStopButton()` in
   `ArrangementOps.h`) - a populated slot loses its clip (leaving an empty

@@ -869,32 +869,27 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
     }
     // Shift (CC91 held) makes these the labelled alternate functions
     // instead, in every grid mode: Volume duplicates a clip for as long as
-    // it stays held, Solo enters DRAW (or blanks its canvas if already
-    // there); the rest do nothing rather than launch or switch anything.
+    // it stays held, Pan deletes likewise, Solo toggles the metronome click;
+    // Record Arm (undo) and Mute (redo) are reserved and only say so.
     if (state.row_up_shift_held) {
       state.row_up_shift_combined = true;
       if (cc_number == 89) {
         state.duplicate_held = true;
-        state.duplicate_copied = false;
-        state.duplicate_source_column = state.duplicate_source_clip = -1;
       } else if (cc_number == 59) {
         toggleNumberView(state, GridMode::TEMPO);
       } else if (cc_number == 49) {
         toggleNumberView(state, GridMode::SWING);
-      } else if (cc_number == 39 || cc_number == 30) {
-        state.delete_held = true;
       } else if (cc_number == 79) {
-        controller.sendCommand("toggle-metronome");
+        state.delete_held = true;
       } else if (cc_number == 69) {
         state.quantize_held = true;
         state.quantize_used = false;
       } else if (cc_number == 29 || cc_number == 20) {
-        if (state.grid_mode == GridMode::DRAW) {
-          state.draw_color_index.fill(0);
-        } else {
-          state.grid_mode = GridMode::DRAW;
-          state.track_picker_active = false;
-        }
+        controller.sendCommand("toggle-metronome");
+      } else if (cc_number == 19) {
+        controller.getUIEventQueue().push(std::make_unique<LogEvent>("Undo: not implemented yet"));
+      } else if (cc_number == 39 || cc_number == 30) {
+        controller.getUIEventQueue().push(std::make_unique<LogEvent>("Redo: not implemented yet"));
       }
       return true;
     }
@@ -937,8 +932,7 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
   }
   // 95 ("Session"), 96 ("Note") and 97 ("Custom" - see GridMode::CUSTOM's
   // own comment) are three of a four-member exclusive group with DRAW
-  // (reached through shift + Solo instead - see handleRawButton()'s own
-  // shift branch above): each press
+  // (reached through shift + 97 instead): each press
   // *selects* that mode unconditionally, even if it's already the current
   // one - the only way to ever leave a mode is to select a *different*
   // one of the four. Purely per-device state, like every other toggle
@@ -975,12 +969,34 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
   }
   if (cc_number == 96) {
     auto & state = deviceState(device_id);
+    // Shift + Note opens (or closes) the selected clip for step editing.
+    if (state.row_up_shift_held) {
+      state.row_up_shift_combined = true;
+      auto & ui_events = controller.getUIEventQueue();
+      if (selected_track_id_ < 0) {
+        ui_events.push(std::make_unique<LogEvent>("Step edit: select a clip first (shift + pad)"));
+      } else if (!controller.toggleDrumClipFocus(selected_track_id_, selected_clip_index_)) {
+        ui_events.push(std::make_unique<LogEvent>("Step edit: that track has no step grid"));
+      }
+      return true;
+    }
     state.grid_mode = GridMode::NOTES;
     state.track_picker_active = false; // Session-view-only - see DeviceState::track_picker_active's own comment
     return true;
   }
   if (cc_number == 97) {
     auto & state = deviceState(device_id);
+    // Shift + Custom is Draw (or blanks its canvas if already there).
+    if (state.row_up_shift_held) {
+      state.row_up_shift_combined = true;
+      if (state.grid_mode == GridMode::DRAW) {
+        state.draw_color_index.fill(0);
+      } else {
+        state.grid_mode = GridMode::DRAW;
+        state.track_picker_active = false;
+      }
+      return true;
+    }
     state.grid_mode = GridMode::CUSTOM;
     state.track_picker_active = false; // Session-view-only - see DeviceState::track_picker_active's own comment
     return true;
@@ -1060,19 +1076,6 @@ LaunchpadManager::handleRecordButton(int device_id, Controller & controller, boo
     ui_events.push(std::make_unique<LogEvent>("Session Record: no playing clip to overdub"));
   }
   return true;
-}
-
-void
-LaunchpadManager::endDuplicate(int device_id, Controller & controller) {
-  auto & state = deviceState(device_id);
-  if (!state.duplicate_held) return;
-  state.duplicate_held = false;
-  if (state.duplicate_source_column >= 0 && !state.duplicate_copied &&
-      state.duplicate_source_column < static_cast<int>(session_.track_ids.size())) {
-    duplicateClip(controller.getSong(), session_.track_ids[static_cast<size_t>(state.duplicate_source_column)], state.duplicate_source_clip);
-  }
-  state.duplicate_copied = false;
-  state.duplicate_source_column = state.duplicate_source_clip = -1;
 }
 
 void
@@ -1248,10 +1251,10 @@ void
 LaunchpadManager::handleMixerFunctionRelease(int device_id, int cc_number, Controller & controller) {
   auto & state = deviceState(device_id);
   if (cc_number == 89 && state.duplicate_held) {
-    endDuplicate(device_id, controller);
+    state.duplicate_held = false;
     return;
   }
-  if ((cc_number == 39 || cc_number == 30) && state.delete_held) {
+  if (cc_number == 79 && state.delete_held) {
     state.delete_held = false;
     return;
   }
@@ -2106,11 +2109,7 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
   // Session grid (CC95), since the step grid's own pads mean lane/step,
   // not (track, clip index), and have nothing to shift-combine with at
   // all.
-  // Duplicate held (shift + Volume): every press is swallowed; a populated
-  // slot is picked as the source, an empty slot in the same track column
-  // is where the copy lands. The source stays picked until Volume is
-  // released, so one hold can fill several slots.
-  // Delete held (shift + Mute): every press is swallowed; a populated slot
+  // Delete held (shift + Pan): every press is swallowed; a populated slot
   // loses its clip, an empty one its stop button. Instant unless the clip
   // is sounding on a running transport (SessionPlayer::deleteClip()).
   if (state.delete_held) {
@@ -2135,22 +2134,14 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
     }
     return;
   }
+  // Duplicate held (shift + Volume): a press on a populated slot copies that
+  // clip into the slot below it, overwriting; every press is swallowed.
   if (state.duplicate_held) {
     if (ev.getKind() != LaunchpadPadEvent::PRESS) return;
     auto column = ev.getX();
     if (column < 0 || column >= static_cast<int>(session_.track_ids.size())) return;
-    auto track_id = session_.track_ids[static_cast<size_t>(column)];
-    auto clip_index = 7 - ev.getY();
-    auto & song = controller.getSong();
-    auto & clips = song.getClips(track_id);
-    bool populated = clip_index < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(clip_index)].isEmpty();
-    if (populated) {
-      state.duplicate_source_column = column;
-      state.duplicate_source_clip = clip_index;
-      state.duplicate_copied = false;
-    } else if (column == state.duplicate_source_column) {
-      if (duplicateClip(song, track_id, state.duplicate_source_clip, clip_index) >= 0) state.duplicate_copied = true;
-    }
+    auto slot = duplicateClip(controller.getSong(), session_.track_ids[static_cast<size_t>(column)], 7 - ev.getY());
+    if (slot < 0) controller.getUIEventQueue().push(std::make_unique<LogEvent>("Duplicate: nothing to copy there"));
     return;
   }
   if (ev.getKind() == LaunchpadPadEvent::PRESS && state.row_up_shift_held) {
@@ -2177,7 +2168,11 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
     // see its own comment - so its return value is a pure "did this
     // address a PercussionTrack clip at all" check, nothing further to do
     // here either way.
-    controller.toggleDrumClipFocus(track_id, 7 - ev.getY());
+    // Selecting works on any slot, empty ones included; shift + Note opens
+    // the selected clip for step editing.
+    selected_track_id_ = track_id;
+    selected_clip_index_ = 7 - ev.getY();
+    controller.selectClipSlot(selected_track_id_, selected_clip_index_);
     return;
   }
 
@@ -2414,8 +2409,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
         // what releasing will do. Per-device, unlike session_highlight/
         // session_colors below (computed once, identical for every
         // connected device) - only this device's own held press shows it.
-        if ((state.row_up_shift_pending_pad && x == state.row_up_shift_pending_x && y == state.row_up_shift_pending_y) ||
-            (state.duplicate_source_column == x && state.duplicate_source_clip >= 0 && 7 - state.duplicate_source_clip == y)) {
+        if (state.row_up_shift_pending_pad && x == state.row_up_shift_pending_x && y == state.row_up_shift_pending_y) {
           pad.r = pad.g = pad.b = 127;
           colors.push_back(pad);
           continue;
@@ -2848,7 +2842,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   colors.push_back({93, page_arrow_white, page_arrow_white, page_arrow_white}); // prev-track, dim white (static)
   colors.push_back({94, page_arrow_white, page_arrow_white, page_arrow_white}); // next-track, dim white (static)
   // Session (CC95)/Note (CC96)/Custom (CC97) are this device's own
-  // GridMode selectors (DRAW, reached by shift + Solo, is the fourth) -
+  // GridMode selectors (DRAW, reached by shift + Custom, is the fourth) -
   // each lit when active, same
   // active-state convention Mute/Solo already use, not the static/
   // no-state convention the Send/Pan mode buttons use (those repaint the
@@ -2878,7 +2872,11 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // LED ever lights.
   uint8_t note_level = state.show_step_grid ? 0 : state.grid_mode == GridMode::NOTES ? uint8_t(90) : uint8_t(20);
   colors.push_back({96, note_level, note_level, note_level});
-  colors.push_back({97, state.grid_mode == GridMode::CUSTOM ? uint8_t(90) : uint8_t(20), 0, state.grid_mode == GridMode::CUSTOM ? uint8_t(127) : uint8_t(20)});
+  if (state.row_up_shift_held) {
+    colors.push_back({97, 90, 0, 127}); // Draw, purple, while shift is held
+  } else {
+    colors.push_back({97, state.grid_mode == GridMode::CUSTOM ? uint8_t(90) : uint8_t(20), 0, state.grid_mode == GridMode::CUSTOM ? uint8_t(127) : uint8_t(20)});
+  }
   // CC98 (Session Record): bright red while anything is recording
   // (record_arm_led_on), dim red otherwise - dark while the step grid is
   // showing, where a tap would only ever say there is nothing to overdub.
@@ -2933,17 +2931,17 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   Rgb volume_button_color = !in_mixer_family ? Rgb{0, 0, 0} : !mixer_mode ? LAUNCHPAD_SCENE_LAUNCH_BUTTON_COLOR : state.grid_mode == GridMode::SEND_MAIN ? LAUNCHPAD_MIXER_VOLUME_BRIGHT : LAUNCHPAD_MIXER_VOLUME_DIM;
 
   // While shift is held (or a duplicate is in progress) the right-side
-  // buttons show their alternate functions instead: Duplicate on Volume
-  // (bright white while active), Draw on Solo, the rest dark.
+  // buttons show their alternate functions instead (see handleRawButton()).
   if (state.row_up_shift_held || state.duplicate_held || state.delete_held || state.quantize_held) {
-    constexpr Rgb kOff{0, 0, 0};
-    record_arm_button_color = mute_button_color = stop_clip_button_color = send_b_button_color = send_a_button_color = pan_button_color = kOff;
-    solo_button_color = Rgb{90, 0, 127};
-    pan_button_color = cached_metronome_on_ ? Rgb{127, 100, 0} : Rgb{40, 30, 0};
+    // Record Arm (undo) and Mute (redo) are reserved: lit dim so they read as
+    // taken, but they do nothing yet.
+    record_arm_button_color = Rgb{40, 40, 40};
+    mute_button_color = Rgb{40, 40, 40};
+    solo_button_color = cached_metronome_on_ ? Rgb{127, 100, 0} : Rgb{40, 30, 0};
+    pan_button_color = state.delete_held ? Rgb{127, 0, 60} : Rgb{60, 0, 30}; // magenta: red is Quantise's record-quantise-off
     // Record Quantise: green while on, red while off, white while held.
     send_a_button_color = state.quantize_held ? Rgb{127, 127, 127} : cached_record_quantize_ ? Rgb{0, 127, 0} : Rgb{127, 0, 0};
     volume_button_color = state.duplicate_held ? Rgb{127, 127, 127} : Rgb{0, 100, 127};
-    mute_button_color = state.delete_held ? Rgb{127, 0, 0} : Rgb{60, 0, 0};
     // Send B opens the Tempo view (blue), Stop Clip the Swing view (orange);
     // bright for the one showing.
     send_b_button_color = state.grid_mode == GridMode::TEMPO ? Rgb{0, 50, 127} : Rgb{0, 20, 50};

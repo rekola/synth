@@ -2788,6 +2788,16 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
   // the clip already open - Controller::clearFocusedClip()) hands every
   // connected device back to Session view instead, rather than leaving it
   // stuck showing a step grid with nothing left focused to edit there.
+  getController().setClipSelectListener([this](int track_id, int clip_index) {
+    auto & song = getController().getSong();
+    auto root_ids = song.getRootTrackIds();
+    auto root = std::find(root_ids.begin(), root_ids.end(), track_id);
+    if (root != root_ids.end()) pattern_editor_->setCursorTrack(static_cast<int>(root - root_ids.begin()));
+    auto playable = song.getPlayableTrackIds();
+    auto column = std::find(playable.begin(), playable.end(), track_id);
+    if (column != playable.end()) clip_grid_->setCursorTrackIndex(static_cast<int>(column - playable.begin()));
+    clip_grid_->setCursorClipIndex(clip_index);
+  });
   getController().setDrumEditRequestListener([this](int track_id, bool opened) {
     if (opened) {
       auto & song = getController().getSong();

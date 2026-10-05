@@ -109,14 +109,12 @@ void deleteClip(Song & song, int track_id, int clip_index);
 enum class SlotDelete { NOTHING, CLIP, STOP_BUTTON };
 SlotDelete deleteClipOrStopButton(Song & song, int track_id, int clip_index, std::string * deleted_clip_name = nullptr);
 
-// Copies the clip at `from_index` into slot `to_index` of the same track
+// Copies the clip at `from_index` into the slot below it on the same track
 // (an independent copy under a fresh id, its content and name as they are
-// now), returning the slot it landed in, or -1 when there's nothing to
-// copy or the destination is already populated - nothing is ever
-// overwritten. A negative `to_index` picks the first empty slot after
-// `from_index`, growing the list if every slot up to its end is taken.
-// Placed instances of the source keep pointing at the source.
-int duplicateClip(Song & song, int track_id, int from_index, int to_index = -1);
+// now), overwriting whatever is there, and returns that slot, or -1 when
+// there's nothing to copy. Placed instances of the source keep pointing at
+// the source; those of an overwritten clip are removed.
+int duplicateClip(Song & song, int track_id, int from_index);
 
 // Snaps every note of the clip at `clip_index` to its closest row (a row is
 // a sixteenth), using the sub-row delay a raw live take records, and clears
