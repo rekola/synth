@@ -162,30 +162,61 @@ TEST(duplicate_clip_into_a_chosen_slot_pads_any_gap_and_never_overwrites) {
   CHECK(duplicateClip(song, track_id, 9, 2) == -1); // out of range
 }
 
-TEST(mutate_clip_moves_notes_in_place_keeping_offs_paired_and_velocity) {
+// Every note-on keeps its own off after it, in its own column, however
+// many presses in a row; velocity and delay of a pitched note never change.
+TEST(mutate_clip_keeps_pitched_notes_paired_with_their_offs) {
   Song song;
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
   Clip a(track_id);
+  a.setLength(32);
   auto & pattern = a.getLeafPattern();
   for (int i = 0; i < 8; i++) {
-    pattern.setNote(i * 2, 0, Note(60 + i, 100, 3));
-    pattern.setNote(i * 2 + 1, 0, Note(60 + i, 0)); // its off
+    pattern.setNote(i * 4, 0, Note(60 + i, 100, 3));
+    pattern.setNote(i * 4 + 2, 0, Note(60 + i, 0)); // its off
   }
   song.addClip(move(a));
 
-  auto moved = mutateClip(song, track_id, 0, 1);
-  CHECK(moved >= 1);
-  auto & after = song.getClips(track_id)[0].getLeafPattern();
-  int differing = 0;
-  for (int i = 0; i < 8; i++) {
-    auto on = after.getNote(i * 2, 0);
-    auto off = after.getNote(i * 2 + 1, 0);
-    CHECK(on.getVelocity() == 100 && on.getDelay() == 3);
-    CHECK(off.isOff() && off.getValue() == on.getValue());
-    if (on.getValue() != 60 + i) differing++;
+  for (uint32_t seed = 1; seed <= 200; seed++) {
+    CHECK(mutateClip(song, track_id, 0, seed) >= 1);
+    auto & after = song.getClips(track_id)[0].getLeafPattern();
+    int ons = 0, offs = 0;
+    for (auto & [ row, notes ] : after.getNotesByRow()) {
+      CHECK(notes.size() == 1 || notes.empty());
+      for (auto & n : notes) {
+	if (n.isOff()) offs++;
+	else if (n.getValue() >= 0) { ons++; CHECK(n.getVelocity() == 100 && n.getDelay() == 3); }
+      }
+    }
+    CHECK(ons >= 1 && ons == offs);
   }
-  CHECK(differing == moved);
+}
+
+TEST(mutate_clip_on_percussion_ratchets_moves_and_drops) {
+  Song song;
+  auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(make_unique<PercussionTrack>()));
+  track.addLane(36);
+  track.addLane(38);
+  auto track_id = track.getInternalId();
+  Clip a(track_id);
+  a.setLength(16);
+  for (int i = 0; i < 16; i += 2) a.getLeafPattern().setNote(i, 0, Note(36, 100));
+  song.addClip(move(a));
+
+  bool ratcheted = false, thinned = false;
+  for (uint32_t seed = 1; seed <= 50; seed++) {
+    CHECK(mutateClip(song, track_id, 0, seed) >= 1);
+    int ons = 0;
+    for (auto & [ row, notes ] : song.getClips(track_id)[0].getLeafPattern().getNotesByRow()) {
+      for (auto & n : notes) {
+	if (n.getVelocity() > 0) ons++;
+	if (n.getDelay() > 0) ratcheted = true;
+      }
+    }
+    CHECK(ons >= 1);
+    if (ons < 8) thinned = true;
+  }
+  CHECK(ratcheted && thinned);
 }
 
 TEST(mutate_clip_refuses_empty_slots_and_one_lane_percussion) {

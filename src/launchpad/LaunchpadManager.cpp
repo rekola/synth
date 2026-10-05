@@ -862,7 +862,8 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
     auto & state = deviceState(device_id);
     // Shift (CC91 held) makes these the labelled alternate functions
     // instead, in every grid mode: Volume duplicates a clip for as long as
-    // it stays held, Solo enters DRAW (or blanks its canvas if already
+    // it stays held, Pan mutates the clips of the pads pressed meanwhile,
+    // Solo enters DRAW (or blanks its canvas if already
     // there); the rest do nothing rather than launch or switch anything.
     if (state.row_up_shift_held) {
       state.row_up_shift_combined = true;
@@ -870,6 +871,8 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
         state.duplicate_held = true;
         state.duplicate_copied = false;
         state.duplicate_source_column = state.duplicate_source_clip = -1;
+      } else if (cc_number == 79) {
+        state.mutate_held = true;
       } else if (cc_number == 29 || cc_number == 20) {
         if (state.grid_mode == GridMode::DRAW) {
           state.draw_color_index.fill(0);
@@ -1107,6 +1110,10 @@ LaunchpadManager::handleMixerFunctionRelease(int device_id, int cc_number, Contr
   auto & state = deviceState(device_id);
   if (cc_number == 89 && state.duplicate_held) {
     endDuplicate(device_id, controller);
+    return;
+  }
+  if (cc_number == 79 && state.mutate_held) {
+    state.mutate_held = false;
     return;
   }
   if (!state.mixer_hold_pending) return; // stray/duplicate release, or this press never armed one (a repress that closed something)
@@ -1941,6 +1948,16 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
     }
     return;
   }
+  // Mutate held (shift + Pan): a press on a populated slot varies that clip
+  // in place; everything else is swallowed.
+  if (state.mutate_held) {
+    if (ev.getKind() != LaunchpadPadEvent::PRESS) return;
+    auto column = ev.getX();
+    if (column < 0 || column >= static_cast<int>(session_.track_ids.size())) return;
+    if (mutate_seed_ == 0) mutate_seed_ = static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count());
+    mutateClip(controller.getSong(), session_.track_ids[static_cast<size_t>(column)], 7 - ev.getY(), ++mutate_seed_);
+    return;
+  }
   if (ev.getKind() == LaunchpadPadEvent::PRESS && state.row_up_shift_held) {
     // Marked combined immediately, not deferred to the release below -
     // CC91's own release (handleShiftButton()) can land before this
@@ -2698,10 +2715,12 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
 
   // While shift is held (or a duplicate is in progress) the right-side
   // buttons show their alternate functions instead: Duplicate on Volume
-  // (bright white while active), Draw on Solo, the rest dark.
-  if (state.row_up_shift_held || state.duplicate_held) {
+  // (bright white while active), Mutate on Pan (the same), Draw on Solo,
+  // the rest dark.
+  if (state.row_up_shift_held || state.duplicate_held || state.mutate_held) {
     constexpr Rgb kOff{0, 0, 0};
-    record_arm_button_color = mute_button_color = stop_clip_button_color = send_b_button_color = send_a_button_color = pan_button_color = kOff;
+    record_arm_button_color = mute_button_color = stop_clip_button_color = send_b_button_color = send_a_button_color = kOff;
+    pan_button_color = state.mutate_held ? Rgb{127, 127, 127} : Rgb{127, 64, 0};
     solo_button_color = Rgb{90, 0, 127};
     volume_button_color = state.duplicate_held ? Rgb{127, 127, 127} : Rgb{0, 100, 127};
   }

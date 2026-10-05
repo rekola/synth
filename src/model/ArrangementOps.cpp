@@ -13,7 +13,7 @@
 #include "../ambisonic/ChannelConfiguration.h"
 
 #include <algorithm>
-#include <unordered_map>
+#include <map>
 
 using namespace std;
 
@@ -204,7 +204,8 @@ int
 mutateClip(Song & song, int track_id, int clip_index, uint32_t seed) {
   auto & clips = song.getClips(track_id);
   if (clip_index < 0 || clip_index >= static_cast<int>(clips.size())) return 0;
-  auto & pattern = clips[static_cast<size_t>(clip_index)].getLeafPattern();
+  auto & clip = clips[static_cast<size_t>(clip_index)];
+  auto & pattern = clip.getLeafPattern();
   if (pattern.isEmpty()) return 0; // a sample clip's content isn't notes
 
   auto * percussion = dynamic_cast<const PercussionTrack *>(song.getMasterTrack().getChildByInternalId(track_id));
@@ -220,55 +221,144 @@ mutateClip(Song & song, int track_id, int clip_index, uint32_t seed) {
     for (auto degree : song.getScaleDegreesWindow(0, 64)) in_scale[static_cast<size_t>(((degree % edo) + edo) % edo)] = true;
   }
 
+  // Working copy of the notes, written back once at the end.
+  map<int, vector<Note>> grid;
+  for (auto & [ row, notes ] : pattern.getNotesByRow()) grid[row] = notes;
+  auto row_limit = clip.getLength() > 0 ? clip.getLength() : pattern.getContentEnd();
   auto is_note_on = [](const Note & n) { return n.getValue() >= 0 && n.getVelocity() > 0; };
-  vector<int> rows;
-  int note_ons = 0;
-  for (auto & [ row, notes ] : pattern.getNotesByRow()) {
-    rows.push_back(row);
-    for (auto & n : notes) note_ons += is_note_on(n) ? 1 : 0;
-  }
-  if (note_ons == 0) return 0;
-  sort(rows.begin(), rows.end());
-
-  auto forced = mutatePick(seed, 0, "forced", note_ons);
-  vector<unordered_map<int, int>> renamed; // per column: a mutated note-on's old value -> new, until its off
-  int seen = 0, changed = 0;
-  for (auto row : rows) {
-    auto notes = pattern.getNotes(row);
-    for (size_t col = 0; col < notes.size(); col++) {
-      if (renamed.size() <= col) renamed.resize(col + 1);
-      auto & n = notes[col];
-      if (n.isOff()) {
-        auto it = renamed[col].find(n.getValue());
-        if (it != renamed[col].end()) {
-          n = Note(it->second, n.getVelocity(), n.getDelay());
-          renamed[col].erase(it);
-        }
-      } else if (is_note_on(n)) {
-        auto index = seen++;
-        renamed[col].erase(n.getValue());
-        auto cell = (row << 8) | static_cast<int>(col);
-        if (!(index == forced || mutatePick(seed, cell, "moves", 4) == 0)) continue;
-        int value = -1;
-        if (percussion) {
-          vector<int> others;
-          for (auto lane : lanes) if (lane != n.getValue()) others.push_back(lane);
-          if (!others.empty()) value = others[static_cast<size_t>(mutatePick(seed, cell, "lane", static_cast<int>(others.size())))];
-        } else {
-          auto steps = 1 + mutatePick(seed, cell, "steps", 2);
-          auto direction = mutatePick(seed, cell, "direction", 2) ? 1 : -1;
-          value = stepInScale(n.getValue(), steps, direction, in_scale);
-          if (value < 0) value = stepInScale(n.getValue(), steps, -direction, in_scale);
-        }
-        if (value < 0 || value == n.getValue()) continue;
-        renamed[col][n.getValue()] = value;
-        n = Note(value, n.getVelocity(), n.getDelay());
-        changed++;
-      }
+  auto cell = [&](int row, size_t col) -> const Note * {
+    auto it = grid.find(row);
+    return it != grid.end() && col < it->second.size() ? &it->second[col] : nullptr;
+  };
+  auto is_free = [&](int row, size_t col) {
+    auto * n = cell(row, col);
+    return row >= 0 && row < row_limit && (!n || !n->isDefined());
+  };
+  auto put = [&](int row, size_t col, const Note & note) {
+    auto & columns = grid[row];
+    if (columns.size() <= col) columns.resize(col + 1);
+    columns[col] = note;
+  };
+  auto remove = [&](int row, size_t col) {
+    auto it = grid.find(row);
+    if (it == grid.end() || col >= it->second.size()) return;
+    it->second[col] = Note();
+    while (!it->second.empty() && !it->second.back().isDefined()) it->second.pop_back();
+    if (it->second.empty()) grid.erase(it);
+  };
+  // The row of the off that ends the note-on at (row, col), or -1 when it has none.
+  auto off_row_for = [&](int row, size_t col) {
+    auto value = cell(row, col)->getValue();
+    for (auto it = grid.upper_bound(row); it != grid.end(); ++it) {
+      if (col >= it->second.size()) continue;
+      auto & n = it->second[col];
+      if (n.getValue() != value) continue;
+      return n.isOff() ? it->first : -1;
     }
-    pattern.setNotes(row, notes);
+    return -1;
+  };
+
+  struct Position { int row; size_t col; };
+  vector<Position> note_ons;
+  for (auto & [ row, notes ] : grid) {
+    for (size_t col = 0; col < notes.size(); col++) if (is_note_on(notes[col])) note_ons.push_back({ row, col });
   }
-  if (changed > 0) song.incVersion();
+  if (note_ons.empty()) return 0;
+
+  auto remaining = static_cast<int>(note_ons.size());
+  auto forced = mutatePick(seed, 0, "forced", remaining);
+  constexpr int kOps = 4;
+  enum Op { PITCH, MOVE, DROP, RATCHET };
+  int changed = 0;
+  for (size_t i = 0; i < note_ons.size(); i++) {
+    auto [ row, col ] = note_ons[i];
+    auto key = (row << 8) | static_cast<int>(col);
+    auto is_forced = static_cast<int>(i) == forced;
+    if (!is_forced && mutatePick(seed, key, "picked", 4) != 0) continue;
+    auto note = *cell(row, col);
+    auto off_row = off_row_for(row, col);
+    auto off_note = off_row >= 0 ? *cell(off_row, col) : Note();
+
+    // Tries one op; false when it had nothing to do here (a blocked move, a lone note to drop).
+    auto apply = [&](int op) {
+      switch (op) {
+      case PITCH: {
+	int value = -1;
+	if (percussion) {
+	  vector<int> others;
+	  for (auto lane : lanes) if (lane != note.getValue()) others.push_back(lane);
+	  if (!others.empty()) value = others[static_cast<size_t>(mutatePick(seed, key, "lane", static_cast<int>(others.size())))];
+	} else {
+	  auto steps = 1 + mutatePick(seed, key, "steps", 2);
+	  auto direction = mutatePick(seed, key, "direction", 2) ? 1 : -1;
+	  value = stepInScale(note.getValue(), steps, direction, in_scale);
+	  if (value < 0) value = stepInScale(note.getValue(), steps, -direction, in_scale);
+	}
+	if (value < 0 || value == note.getValue()) return false;
+	put(row, col, Note(value, note.getVelocity(), note.getDelay()));
+	if (off_row >= 0) put(off_row, col, Note(value, 0, off_note.getDelay()));
+	return true;
+      }
+      case MOVE: {
+	auto shift = mutatePick(seed, key, "direction", 2) ? 1 : -1;
+	remove(row, col);
+	if (off_row >= 0) remove(off_row, col);
+	// The note keeps its length; the target cells are checked with it lifted out.
+	if (!is_free(row + shift, col) || (off_row >= 0 && !is_free(off_row + shift, col))) {
+	  put(row, col, note);
+	  if (off_row >= 0) put(off_row, col, off_note);
+	  return false;
+	}
+	put(row + shift, col, note);
+	if (off_row >= 0) put(off_row + shift, col, off_note);
+	return true;
+      }
+      case DROP:
+	if (remaining <= 1) return false; // never empty the clip
+	remove(row, col);
+	if (off_row >= 0) remove(off_row, col);
+	remaining--;
+	return true;
+      default: {
+	// Extra hits of the same sound inside the row, in free note columns, softer.
+	constexpr size_t kMaxColumns = 4;
+	auto hits = 2 + mutatePick(seed, key, "hits", 3); // 2..4 hits in all
+	int added = 0;
+	for (int h = 1; h < hits; h++) {
+	  auto delay = note.getDelay() + h * 256 / hits;
+	  if (delay > 255) break;
+	  size_t free_col = 0;
+	  while (free_col < kMaxColumns && !is_free(row, free_col)) free_col++;
+	  if (free_col >= kMaxColumns) break;
+	  put(row, free_col, Note(note.getValue(), static_cast<short>(max(1, note.getVelocity() * 3 / 4)), static_cast<short>(delay)));
+	  added++;
+	}
+	return added > 0;
+      }
+      }
+    };
+
+    // Weighted first choice: a pitched track mostly changes pitch, a
+    // percussion track mostly repeats, moves or thins its hits. The note
+    // the call guarantees to touch falls through to the other ops when its
+    // first choice has nothing to do.
+    auto roll = mutatePick(seed, key, "op", 8);
+    int first;
+    if (percussion) first = roll < 1 ? PITCH : roll < 3 ? MOVE : roll < 5 ? DROP : RATCHET;
+    else first = roll < 5 ? PITCH : roll < 7 ? MOVE : DROP;
+    for (int attempt = 0; attempt < (is_forced && changed == 0 ? kOps : 1); attempt++) {
+      auto op = (first + attempt) % kOps;
+      if (!percussion && op == RATCHET) continue;
+      if (apply(op)) { changed++; break; }
+    }
+  }
+
+  if (changed == 0) return 0;
+  vector<int> stale;
+  for (auto & [ row, notes ] : pattern.getNotesByRow()) if (!grid.count(row)) stale.push_back(row);
+  for (auto row : stale) pattern.clearNotes(row);
+  for (auto & [ row, notes ] : grid) pattern.setNotes(row, notes);
+  song.incVersion();
   return changed;
 }
 

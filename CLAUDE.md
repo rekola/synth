@@ -461,9 +461,9 @@ would otherwise resume showing.
   from any `GridMode`. **Shift** (CC91 held) turns all eight right-side
   buttons into labelled alternate functions, in every `GridMode`
   (`handleRawButton()`'s shift branch): Volume (CC89) is Duplicate, Solo
-  (CC29, Pro MK3 CC20) is Draw, and the other six do nothing rather than
-  launch or switch anything; their LEDs show only those two while shift
-  is held (Duplicate cyan, Draw purple, the rest dark). 95 ("Session") doubles as the
+  (CC29, Pro MK3 CC20) is Draw, Pan (CC79) is Mutate, and the other five do nothing rather than
+  launch or switch anything; their LEDs show only those three while shift
+  is held (Duplicate cyan, Mutate amber, Draw purple, the rest dark). 95 ("Session") doubles as the
   mixer-submode toggle: a repeat press while already at the plain Session
   grid with nothing from the radio group active flips
   `session_mixer_mode`; any press otherwise just lands on (or stays on)
@@ -505,6 +505,10 @@ would otherwise resume showing.
   hold can fill several slots. Releasing Volume with a source picked but
   no destination copies to the next empty slot. The terminal's
   `duplicate-clip` (clip grid) does the same.
+- **Mutate** (shift + Pan) - held for as long as Pan stays down: each
+  Session-view pad pressed meanwhile mutates that pad's clip in place
+  (`mutateClip()`, see Clips below), as often as it is pressed. Pan lights
+  bright white while held.
 - **The drum machine** (`PercussionTrack`, up to `kMaxLanes` = 8 lanes,
   `getLaneNotes()`) - the same track type as ordinary percussion note
   entry, not a separate one: with no lanes it's a plain percussion track
@@ -750,9 +754,12 @@ would otherwise resume showing.
   pattern-editor selection into a new clip), not hand-edited-XML-only.
   `mutate-clip` (clip grid, Clip menu) varies a clip in place - every
   placement of it too - via `mutateClip()` (`ArrangementOps.h`): about a
-  quarter of the note-ons (at least one) step by one or two members of the
-  song's scale, or a percussion note moves to another lane, its off marker
-  following; each press is a fresh step, from a hashed seed.
+  quarter of the note-ons (at least one) each get a pitch step along the
+  song's scale (a percussion hit goes to another lane), a move one row
+  either way, a drop (never the last note), or - percussion only - a
+  ratchet (softer repeats of the hit in free note columns, using the
+  note delay); an off marker follows its note. Each press is a fresh step,
+  from a hashed seed.
 - **Session view** (`GridMode::SESSION`, reached/left only via CC95/96/97/98,
   decoupled from terminal UI focus): rows are a track's own clip list
   (`Song::getClips(track_id)`), columns are the one shared cursor track

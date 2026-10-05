@@ -340,13 +340,17 @@ class LaunchpadManager {
 
   // Shift (CC91 held) turns the right-side buttons into their labelled
   // alternate functions (handleRawButton()): Volume (CC89) is Duplicate,
-  // Solo (CC29, Pro MK3 CC20) is Draw, and any other right-side button
+  // Pan (CC79) is Mutate, Solo (CC29, Pro MK3 CC20) is Draw, and any other right-side button
   // does nothing while shift is held. Duplicate lasts as long as Volume
   // stays held: a Session pad with a clip picks that clip as the source and
   // a press on an empty slot of the same track column copies it there
   // (handleSessionPadEvent()); releasing Volume with a source picked but no
   // destination copies to the next empty slot.
   void endDuplicate(int device_id, Controller & controller);
+
+  // Mutate (shift + Pan) works the same way: while Pan stays held, each
+  // Session pad press mutates that pad's clip in place. Fresh seed per press.
+  uint32_t mutate_seed_ = 0;
 
   // True for the mixer radio group's own nine CC numbers (Volume/Pan/
   // Send A/Send B/Stop Clip/Mute/Solo, plus Pro MK3's left-column Mute/
@@ -929,6 +933,9 @@ class LaunchpadManager {
     bool duplicate_held = false;
     bool duplicate_copied = false;
     int duplicate_source_column = -1, duplicate_source_clip = -1;
+    // Mutate (shift + Pan): held while Pan is; a Session pad press mutates
+    // that pad's clip in place (mutateClip()), as often as it is pressed.
+    bool mutate_held = false;
 
     // LED diff cache: refreshLeds() only calls sendLeds() when the newly
     // computed colors differ from what was last actually sent, so
