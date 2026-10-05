@@ -1,6 +1,6 @@
 # Launchpad
 
-A connected Novation Launchpad (Mini MK3 / X / Pro MK3) is optional; the
+A connected Novation Launchpad (Mini MK3 / X) is optional; the
 terminal UI does everything without one. Each connected device has its own
 grid mode, so one can sit in Session view while another does note entry.
 
@@ -70,9 +70,10 @@ and orange in mixer submode.
 ## Right-side buttons
 
 The right column differs per model. Pads, the top row and the shift
-functions below are the same on all models.
+functions below are the same on both. The Pro MK3 has no layout of its own and
+is untested.
 
-### Launchpad X and Pro MK3
+### Launchpad X
 
 Record Arm (19), Volume (89), Pan (79), Send A (69), Send B (59), Stop Clip
 (49), Mute (39) and Solo (29) share one dispatch.
