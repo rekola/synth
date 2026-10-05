@@ -419,6 +419,13 @@ class Controller {
     return result;
   }
 
+  // The session clock step a take's row 0 sits at, or -1 until its first
+  // note has fixed it (and for a take that isn't in flight).
+  int getSessionRecordingOrigin(int track_id) const {
+    auto it = session_recording_takes_.find(track_id);
+    return it != session_recording_takes_.end() ? it->second.origin_step : -1;
+  }
+
   // Overrides where ensureSessionRecordingClip()'s own first call for
   // `track_id` would otherwise derive that take's row 0 from
   // (previousBarRow() of that call's own absolute step). Doubles as the
@@ -1024,10 +1031,10 @@ class Controller {
   // row, so live sound and playback share one value model. A device stops
   // sending once pressure saturates, so a held reading counts for as long
   // as it lasts; rows that got no reading at all are filled with the
-  // value held through them. With `write` set, the result goes into the
-  // pattern; prepare_row (optional) is called with each row about to be
-  // written.
-  short notePressure(int row, int track_id, int note_column, short velocity, int delay, bool write, const std::function<void(int)> & prepare_row = {});
+  // value held through them. `write_row` (optional) is called to record a
+  // row's value (row, pressure, delay); empty means play only.
+  using PressureWriter = std::function<void(int row, short pressure, int delay)>;
+  short notePressure(int row, int track_id, int note_column, short velocity, int delay, const PressureWriter & write_row = {});
   // Forgets a note column's pressure state - its note ended or restarted.
   void endNotePressure(int track_id, int note_column) { pressure_states_.erase({ track_id, note_column }); }
 

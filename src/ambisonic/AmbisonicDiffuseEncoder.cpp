@@ -1,5 +1,7 @@
 #include "AmbisonicDiffuseEncoder.h"
 
+#include "../dsp/Vec8.h"
+
 #include <algorithm>
 #include <cmath>
 
@@ -36,19 +38,41 @@ vector<int> delayLengthTable(int sampleRate) {
 
 }
 
-float
-AmbisonicDiffuseEncoder::Chain::processSample(float x) {
-  float diffused = x;
-  for (auto & ap : stages) {
-    int bufLen = static_cast<int>(ap.buffer.size());
-    float delayed = ap.buffer[static_cast<size_t>(ap.pos)];
-    float v = diffused - kAllpassGain * delayed;
-    ap.buffer[static_cast<size_t>(ap.pos)] = v;
-    diffused = delayed + kAllpassGain * v;
-    ap.pos++;
-    if (ap.pos >= bufLen) ap.pos = 0;
+void
+AmbisonicDiffuseEncoder::AllpassStage::process(const float * x, float * y, int frames) {
+  const dsp::v8f gain = dsp::splat(kAllpassGain);
+  float * buf = buffer.data();
+
+  while (frames > 0) {
+    const int run = min(frames, length - pos);
+    float * slot = buf + pos;
+
+    int i = 0;
+    for (; i + dsp::kLanes <= run; i += dsp::kLanes) {
+      const dsp::v8f delayed = dsp::loadu(slot + i);
+      const dsp::v8f v = dsp::loadu(x + i) - gain * delayed;
+      dsp::storeu(slot + i, v);
+      dsp::storeu(y + i, delayed + gain * v);
+    }
+    for (; i < run; i++) {
+      const float delayed = slot[i];
+      const float v = x[i] - kAllpassGain * delayed;
+      slot[i] = v;
+      y[i] = delayed + kAllpassGain * v;
+    }
+
+    pos += run;
+    if (pos >= length) pos = 0;
+    x += run;
+    y += run;
+    frames -= run;
   }
-  return diffused;
+}
+
+void
+AmbisonicDiffuseEncoder::Chain::process(const float * in, float * out, int frames) {
+  stages[0].process(in, out, frames);
+  for (size_t s = 1; s < stages.size(); s++) stages[s].process(out, out, frames);
 }
 
 AmbisonicDiffuseEncoder::AmbisonicDiffuseEncoder(int sampleRate, uint32_t instanceSalt) {
@@ -100,9 +124,7 @@ AmbisonicDiffuseEncoder::encode(AudioBuffer & out, const float * mono, int frame
     float weight = sqrtf(2.0f * static_cast<float>(degree) + 1.0f) * taper * gain;
 
     auto & chain = chains_[static_cast<size_t>(c)];
-    for (int i = 0; i < frames; i++) scratch_[static_cast<size_t>(i)] = chain.processSample(mono[i]);
-
-    auto dst = out.getChannelData(c);
-    for (int i = 0; i < frames; i++) dst[i] += weight * scratch_[static_cast<size_t>(i)];
+    chain.process(mono, scratch_.data(), frames);
+    dsp::addScaled(out.getChannelData(c), scratch_.data(), weight, frames);
   }
 }

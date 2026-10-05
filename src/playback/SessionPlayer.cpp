@@ -404,6 +404,17 @@ SessionPlayer::playheads() const {
     if (session_track.queued != SessionTrackInfo::kNothingQueued) playhead.queued_clip = max(-1, session_track.queued);
     if (playhead.clip_index >= 0 || playhead.queued_clip) result[track_id] = playhead;
   }
+  // A fresh take launches nothing, so its record head stands in for a
+  // playhead: row 0 until the first note fixes where the take starts.
+  for (auto track_id : controller_.getSessionRecordingTrackIds()) {
+    auto clip_index = controller_.getSessionRecordingClipIndex(track_id);
+    auto & head = result[track_id];
+    if (head.row >= 0 && head.clip_index == clip_index) continue; // an overdub: the clip's own playhead
+    auto origin = controller_.getSessionRecordingOrigin(track_id);
+    head = Playhead();
+    head.clip_index = clip_index;
+    head.row = origin >= 0 ? max(0, info.getSessionClock() - origin) : 0;
+  }
   // A track following the arrangement plays whatever clip is placed at the
   // transport's row.
   if (info.isPlaying()) {

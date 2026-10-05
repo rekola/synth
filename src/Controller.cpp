@@ -1457,13 +1457,14 @@ Controller::applyNotePressure(int row, int track_id, int note_column, short velo
   auto song = getCurrentSong();
   auto target = resolveEditTarget(*song, track_id, row, getFocusedClip());
   auto note = target.pattern->getNote(target.effective_row, note_column);
+  if (note.isDefined() && !note.isAftertouch()) return; // never overwrite a real note
   if (!note.isDefined()) note.setDelay(delay);
   note.setVelocity(velocity);
   target.pattern->setNote(target.effective_row, note_column, note);
 }
 
 short
-Controller::notePressure(int row, int track_id, int note_column, short velocity, int delay, bool write, const std::function<void(int)> & prepare_row) {
+Controller::notePressure(int row, int track_id, int note_column, short velocity, int delay, const PressureWriter & write_row) {
   constexpr int row_units = 256;
   constexpr int max_filled_rows = 256;
   auto clamp_pressure = [](int v) { return static_cast<short>(std::clamp(v, 1, 127)); };
@@ -1475,11 +1476,8 @@ Controller::notePressure(int row, int track_id, int note_column, short velocity,
     // to average with.
     st = PressureState { row, delay, delay, velocity, 0 };
   } else {
-    if (write) {
-      for (int skipped = st.row + 1; skipped < row; skipped++) {
-	if (prepare_row) prepare_row(skipped);
-	applyNotePressure(skipped, track_id, note_column, clamp_pressure(st.last_value), 0);
-      }
+    if (write_row) {
+      for (int skipped = st.row + 1; skipped < row; skipped++) write_row(skipped, clamp_pressure(st.last_value), 0);
     }
     if (row > st.row) st = PressureState { row, 0, 0, st.last_value, 0 };
     delay = std::max(delay, st.last_time);
@@ -1490,10 +1488,7 @@ Controller::notePressure(int row, int track_id, int note_column, short velocity,
 
   int span = row_units - st.start;
   auto pressure = clamp_pressure((st.integral + velocity * (row_units - delay) + span / 2) / span);
-  if (write) {
-    if (prepare_row) prepare_row(row);
-    applyNotePressure(row, track_id, note_column, pressure, delay);
-  }
+  if (write_row) write_row(row, pressure, delay);
   return pressure;
 }
 

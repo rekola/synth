@@ -898,6 +898,21 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
       }
       return true;
     }
+    // Note entry: Record Arm starts and stops capturing what's played. A
+    // sample take or threshold arm is ended through the shared command,
+    // which doesn't depend on terminal focus; note capture is toggled
+    // directly, since the command would arm the clip grid's track instead
+    // while that has focus.
+    if (cc_number == 19 && state.grid_mode == GridMode::NOTES && !state.show_step_grid) {
+      if (controller.isRecording() || controller.isThresholdArmed()) {
+        controller.sendCommand("toggle-record-arm");
+      } else if (controller.isNoteCaptureArmed()) {
+        controller.disarmNoteCapture();
+      } else {
+        controller.armNoteCapture();
+      }
+      return true;
+    }
     if (!inSessionMixerFamily(state)) return true;
     if (!state.session_mixer_mode) {
       triggerSceneRow(controller, (cc_number - 19) / 10);
@@ -1965,25 +1980,57 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     auto held_ptr = findActiveNotes(device_id, ev.getX(), ev.getY());
     if (!held_ptr || held_ptr->empty()) return; // no held note(s) to modulate
 
-    bool write_pressure = deviceState(device_id).capture_enabled;
+    bool take_held = false;
+    for (auto & held : *held_ptr) take_held = take_held || controller.isSessionRecording(held.track_id);
+    bool write_pressure = deviceState(device_id).capture_enabled || take_held;
 
     for (auto & held : *held_ptr) {
-      // While playing (the norm whenever Capture is on - see the PRESS
-      // branch's auto-play push), modulate the currently-sounding row
-      // (transport has moved on, matching handleMidiEvent); while stopped
-      // (only reachable with Capture on if the auto-play push hasn't been
-      // processed by the Player thread yet), modulate the row the note
-      // actually landed on.
-      auto target_row = info.isPlaying() ? info.getAbsolutePosition() : held.row;
-      // Clear before reading, not just before writing - otherwise the
-      // isDefined() check could pick up stale pre-existing data from
-      // before the row was cleared for the live take.
-      auto prepare_row = [&](int row) {
-	if (auto_started_playback_) controller.ensureRowCleared(auto_record_cleared_rows_, row, held.track_id);
-      };
+      int row = 0;
+      int delay = current_delay;
+      Controller::PressureWriter write_row;
+      if (controller.isSessionRecording(held.track_id)) {
+        // A Session View take writes into its own clip at the session clock's
+        // row, like its release does - never on the row the note itself is
+        // on, which would overwrite the note.
+        row = quantized_row(held.track_id);
+        delay = take_step.delay;
+        auto & clips = song.getClips(held.track_id);
+        auto clip_index = controller.getSessionRecordingClipIndex(held.track_id);
+        if (write_pressure && row >= 0 && row != held.row && clip_index >= 0 && clip_index < static_cast<int>(clips.size())) {
+          auto & clip = clips[static_cast<size_t>(clip_index)];
+          write_row = [&clip, &held](int r, short p, int d) {
+            auto & pattern = clip.getLeafPattern();
+            auto clip_row = r % std::max(1, clip.getLength());
+            auto note = pattern.getNote(clip_row, held.note_column);
+            if (note.isDefined() && !note.isAftertouch()) return;
+            if (!note.isDefined()) note.setDelay(static_cast<short>(d));
+            note.setVelocity(p);
+            pattern.setNote(clip_row, held.note_column, note);
+          };
+        }
+      } else {
+        // While playing (the norm whenever Capture is on - see the PRESS
+        // branch's auto-play push), modulate the currently-sounding row
+        // (transport has moved on, matching handleMidiEvent); while stopped
+        // (only reachable with Capture on if the auto-play push hasn't been
+        // processed by the Player thread yet), modulate the row the note
+        // actually landed on.
+        row = info.isPlaying() ? info.getAbsolutePosition() : held.row;
+        // Not on the note's own row: a row can't hold the note and its
+        // aftertouch, and writing it would only change the note's velocity.
+        if (write_pressure && !(info.isPlaying() && row == held.row)) {
+          write_row = [&](int r, short p, int d) {
+            // Clear before reading, not just before writing - otherwise the
+            // isDefined() check could pick up stale pre-existing data from
+            // before the row was cleared for the live take.
+            if (auto_started_playback_) controller.ensureRowCleared(auto_record_cleared_rows_, r, held.track_id);
+            controller.applyNotePressure(r, held.track_id, held.note_column, p, d);
+          };
+        }
+      }
       // Live modulation always happens, whether or not Capture records it,
       // and plays the same row average that gets recorded.
-      auto pressure = controller.notePressure(target_row, held.track_id, held.note_column, static_cast<short>(ev.getVelocity()), current_delay, write_pressure, prepare_row);
+      auto pressure = controller.notePressure(row, held.track_id, held.note_column, static_cast<short>(ev.getVelocity()), delay, write_row);
       event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, controller.getActiveBufferName(), held.track_id, held.note_column, note_value, pressure));
     }
     if (write_pressure) song.incVersion();
@@ -2826,7 +2873,10 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   bool picker_mute = state.track_picker_active && state.track_picker_purpose == DeviceState::TrackPickerPurpose::MUTE;
   bool picker_solo = state.track_picker_active && state.track_picker_purpose == DeviceState::TrackPickerPurpose::SOLO;
   bool picker_stop_clip = state.track_picker_active && state.track_picker_purpose == DeviceState::TrackPickerPurpose::STOP_CLIP;
-  Rgb record_arm_button_color = !in_mixer_family ? Rgb{0, 0, 0} : !mixer_mode ? LAUNCHPAD_SCENE_LAUNCH_BUTTON_COLOR : picker_record_arm ? LAUNCHPAD_TRACK_PICKER_RECORD_ARM_BRIGHT : LAUNCHPAD_TRACK_PICKER_RECORD_ARM_DIM;
+  Rgb record_arm_button_color = state.grid_mode == GridMode::NOTES && !state.show_step_grid ? (state.record_arm_led_on ? Rgb{127, 0, 0} : Rgb{40, 0, 0}) : !in_mixer_family ? Rgb{0, 0, 0}
+                                                                                                                                                       : !mixer_mode        ? LAUNCHPAD_SCENE_LAUNCH_BUTTON_COLOR
+                                                                                                                                                       : picker_record_arm  ? LAUNCHPAD_TRACK_PICKER_RECORD_ARM_BRIGHT
+                                                                                                                                                                            : LAUNCHPAD_TRACK_PICKER_RECORD_ARM_DIM;
   Rgb stop_clip_button_color = !in_mixer_family ? Rgb{0, 0, 0} : !mixer_mode ? LAUNCHPAD_SCENE_LAUNCH_BUTTON_COLOR : picker_stop_clip ? LAUNCHPAD_TRACK_PICKER_STOP_CLIP_BRIGHT : LAUNCHPAD_TRACK_PICKER_STOP_CLIP_DIM;
   Rgb solo_button_color = !in_mixer_family ? Rgb{0, 0, 0} : !mixer_mode ? LAUNCHPAD_SCENE_LAUNCH_BUTTON_COLOR : picker_solo ? LAUNCHPAD_TRACK_PICKER_SOLO_BRIGHT : LAUNCHPAD_TRACK_PICKER_SOLO_DIM;
   Rgb mute_button_color = !in_mixer_family ? Rgb{0, 0, 0} : !mixer_mode ? LAUNCHPAD_SCENE_LAUNCH_BUTTON_COLOR : picker_mute ? LAUNCHPAD_TRACK_PICKER_MUTE_BRIGHT : LAUNCHPAD_TRACK_PICKER_MUTE_DIM;

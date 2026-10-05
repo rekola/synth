@@ -476,7 +476,9 @@ would otherwise resume showing.
   reachable via keybinding/M-x) do, and Record Arm no longer reaches
   `Controller::isNoteCaptureArmed()`'s own per-current-track toggle at all
   - that's shift + CC98 instead (see its own bullet below), reachable
-  from any `GridMode`. **Shift** (CC91 held) turns all eight right-side
+  from any `GridMode`. In `GridMode::NOTES` (step grid not showing) CC19 itself
+  starts/stops note capture instead (red LED, bright while capturing; ends a
+  sample take through the same command). **Shift** (CC91 held) turns all eight right-side
   buttons into labelled alternate functions, in every `GridMode`
   (`handleRawButton()`'s shift branch): Volume (CC89) is Duplicate, Pan (CC79) is the
   metronome ("toggle-metronome", a click per beat while the transport plays,
