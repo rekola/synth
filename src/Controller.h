@@ -232,6 +232,14 @@ class Controller {
   // exist either). Wired in UI::start().
   void setDrumEditRequestListener(std::function<void(int track_id, bool opened)> fn) { drum_edit_requested_ = std::move(fn); }
 
+  // Selecting a clip slot (a Launchpad's shift + pad) without launching it:
+  // the UI moves the shared track cursor and its clip cursor there, empty
+  // slots included, so the slot is where the next recording or paste lands.
+  void setClipSelectListener(std::function<void(int track_id, int clip_index)> fn) { clip_select_requested_ = std::move(fn); }
+  void selectClipSlot(int track_id, int clip_index) {
+    if (clip_select_requested_) clip_select_requested_(track_id, clip_index);
+  }
+
   std::shared_ptr<AudioBuffer> startRecording() {
     current_sample = std::make_shared<AudioBuffer>(1, 0);
     return current_sample;
@@ -1314,6 +1322,7 @@ class Controller {
   std::function<std::set<std::string>(std::string_view)> command_completer_;
   std::function<void()> buffer_change_listener_;
   std::function<void(int track_id, bool opened)> drum_edit_requested_;
+  std::function<void(int track_id, int clip_index)> clip_select_requested_;
   int pending_command_track_ = -1;
   // Live mirror of the active buffer's own focused_clip_ids_/
   // focused_clip_track_ids_ slots - see getFocusedClip()'s own comment.

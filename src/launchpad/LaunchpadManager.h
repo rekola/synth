@@ -298,7 +298,7 @@ class LaunchpadManager {
   // group with DRAW: each of these three presses *selects* that mode
   // unconditionally, even if it's already the current one - the only way
   // to ever leave a mode is to select a *different* one of the four.
-  // DRAW is the one member not reached by a plain press: shift + Solo
+  // DRAW is the one member not reached by a plain press: shift + Custom
   // enters it, or blanks its canvas when it is already showing, and the
   // only way to leave it is selecting one of 95/96/97. 95 also doubles as the mixer-submode toggle - a repeat press
   // while grid_mode is already SESSION flips session_mixer_mode instead
@@ -344,14 +344,13 @@ class LaunchpadManager {
   bool handleShiftButton(int device_id, bool is_press, Controller & controller);
 
   // Shift (CC91 held) turns the right-side buttons into their labelled
-  // alternate functions (handleRawButton()): Volume (CC89) is Duplicate,
-  // Mute (CC39, Pro MK3 CC30) is Delete, Solo (CC29, Pro MK3 CC20) is Draw,
-  // and any other right-side button does nothing while shift is held. Duplicate lasts as long as Volume
-  // stays held: a Session pad with a clip picks that clip as the source and
-  // a press on an empty slot of the same track column copies it there
-  // (handleSessionPadEvent()); releasing Volume with a source picked but no
-  // destination copies to the next empty slot.
-  void endDuplicate(int device_id, Controller & controller);
+  // alternate functions (handleRawButton()): Record Arm (CC19) is Undo and
+  // Mute (CC39, Pro MK3 CC30) Redo (both reserved, not implemented yet), Solo
+  // (CC29, Pro MK3 CC20) the metronome click, Volume (CC89) Duplicate, Pan
+  // (CC79) Delete, Send A Quantise, Send B Tempo and Stop Clip Swing. Shift +
+  // CC97 is Draw. Duplicate lasts as long as Volume stays held: a press on a
+  // populated Session pad copies that clip into the slot below it,
+  // overwriting (handleSessionPadEvent()).
 
   // The Tempo (shift + Send B) and Swing (shift + Stop Clip) views show the
   // value as a number on the grid (LaunchpadLayout::renderNumber()), and CC91
@@ -941,17 +940,12 @@ class LaunchpadManager {
     // whichever pad this was, not whatever's currently held.
     bool row_up_shift_pending_pad = false;
     int row_up_shift_pending_x = -1, row_up_shift_pending_y = -1;
-    // Duplicate (shift + Volume, endDuplicate()): held while Volume is, and
-    // the picked source clip (Session column index, clip index), -1 while
-    // none. `duplicate_copied` is whether a destination has been given for
-    // that source.
+    // Duplicate (shift + Volume): held while Volume is.
     bool duplicate_held = false;
-    bool duplicate_copied = false;
     // Quantise (shift + Send A, endQuantize()): held while Send A is, and
     // whether a pad was pressed during the hold.
     bool quantize_held = false;
     bool quantize_used = false;
-    int duplicate_source_column = -1, duplicate_source_clip = -1;
     // Tempo/Swing views (shift + Send B / Stop Clip): the mode to go back
     // to when the view is left by repeating its gesture.
     GridMode number_view_return_mode = GridMode::SESSION;
@@ -962,7 +956,7 @@ class LaunchpadManager {
     int arrow_held_cc = 0;
     bool arrow_repeating = false;
     std::chrono::steady_clock::time_point arrow_press_time, arrow_last_step;
-    // Delete (shift + Mute): held while Mute is - a Session pad press
+    // Delete (shift + Pan): held while Pan is - a Session pad press
     // deletes what its slot holds (SessionPlayer::deleteClip()).
     bool delete_held = false;
 

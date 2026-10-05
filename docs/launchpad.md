@@ -59,7 +59,7 @@ gesture).
 | 95 | Session: the clip grid |
 | 96 | Note: isomorphic note entry (a step grid while a clip is open for editing) |
 | 97 | Custom: the percussion lane picker |
-| shift + Solo | Draw: a per-pad coloring toy, independent of the song |
+| shift + 97 | Draw: a per-pad coloring toy, independent of the song |
 | shift + Send B | Tempo: the song's tempo as a number on the pads |
 | shift + Stop Clip | Swing: the song's swing as a number on the pads |
 
@@ -135,29 +135,38 @@ release so a combination never has to be undone.
 
 | Button | Action |
 | --- | --- |
+| Record Arm (19) | **Undo** (reserved, not implemented yet) |
+| Mute (39, Pro MK3 30) | **Redo** (reserved, not implemented yet) |
+| Solo (29, Pro MK3 20) | **Metronome** click |
 | Volume (89) | **Duplicate** |
-| Pan (79) | **Metronome** |
+| Pan (79) | **Delete** |
 | Send A (69) | **Quantise** |
 | Send B (59) | **Tempo** view |
 | Stop Clip (49) | **Swing** view |
-| Mute (39, Pro MK3 30) | **Delete** |
-| Solo (29) | **Draw** |
+| 97 | **Draw** mode |
+| a clip pad | **Select** the clip without launching it |
 
-Record Arm (19) does nothing under shift. Apart from Swing, which follows the
-Pro MK3's own view, the assignment is simply the next free button. It carries
-no meaning.
+Following the Pro MK3's own shift layer, Undo, Redo and the click sit where
+Novation puts them; the rest are ours. Undo and Redo only report that they are
+not implemented. LEDs: Undo and Redo dim white, Delete magenta (red is
+Quantise's off state).
+
+#### Select a clip
+
+Hold shift and press a clip pad to select it without launching it, empty slots
+included. The track and clip become the cursor, so the next recording or paste
+lands there. On a percussion or pitched track the clip also opens for step
+editing, as under the drum machine.
 
 #### Duplicate
 
-Hold shift and Volume, then press a populated clip pad to pick it as the
-source (white). Press an empty slot in the same track column to copy it there.
-The copy is independent and never overwrites. One hold can fill several slots.
-Releasing Volume with a source picked and no destination copies to the next
-empty slot.
+Hold shift and Volume, then press a populated clip pad to copy that clip into
+the slot below it, overwriting whatever is there (an overwritten clip's
+arrangement placements are removed). One hold can copy several clips.
 
 #### Metronome
 
-Press shift + Pan to toggle a click on every beat while the transport plays,
+Press shift + Solo to toggle a click on every beat while the transport plays,
 accented on the first beat of the bar. The same action is the
 `toggle-metronome` command. It is not saved with the song. The LED is amber,
 bright while on.
@@ -187,7 +196,7 @@ Here shift + Send A stands in for that button.
 
 #### Delete
 
-Hold shift and Mute, then press a clip pad to delete what its slot holds, one
+Hold shift and Pan, then press a clip pad to delete what its slot holds, one
 layer per press: a populated slot loses its clip (leaving an empty slot in
 place, so the scene rows of every other track stay aligned), and an empty slot
 loses its stop button. Session view only. The terminal's `delete-clip` does the
