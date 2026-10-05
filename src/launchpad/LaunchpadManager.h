@@ -308,6 +308,12 @@ class LaunchpadManager {
   // case (triggerSceneRow() needs the playback event queue, same as an
   // ordinary Session pad press) and for toggleTrackPicker()'s RECORD_ARM
   // case.
+  //
+  // Per-model right column (LaunchpadProtocol::ModelInfo::
+  // stop_solo_mute_cycle_button): the Mini MK3 has seven scene-launch
+  // buttons (89..29, always launching their scene) and CC19 below them,
+  // which cycles the bottom pad row Clips -> Stop -> Solo -> Mute -> Clips
+  // through the track-picker overlay. It has no mixer submode.
   bool handleRawButton(int cc_number, int device_id, Controller & controller);
 
   // CC98 ("Session Record") on its own, separate entry point: it needs
@@ -1279,6 +1285,14 @@ class LaunchpadManager {
   // audition/assign split (Record Arm) a single pad press in Session
   // view already does.
   void triggerSceneRow(Controller & controller, int row);
+
+  // True when this device's right column is the Mini MK3 layout (seven scene
+  // buttons plus the Stop/Solo/Mute cycle button).
+  bool hasStopSoloMuteCycle(int device_id) const;
+
+  // Advances the Mini MK3's Stop/Solo/Mute cycle: Clips -> Stop -> Solo ->
+  // Mute -> Clips.
+  void cycleStopSoloMute(int device_id);
 
   // Record Arm (CC19) is one shared, song-wide flag - Controller::
   // isNoteCaptureArmed() for every track type but SampleTrack (its own
