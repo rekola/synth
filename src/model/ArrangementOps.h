@@ -1,6 +1,7 @@
 #ifndef _ARRANGEMENTOPS_H_
 #define _ARRANGEMENTOPS_H_
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -111,6 +112,17 @@ void deleteClip(Song & song, int track_id, int clip_index);
 // `from_index`, growing the list if every slot up to its end is taken.
 // Placed instances of the source keep pointing at the source.
 int duplicateClip(Song & song, int track_id, int from_index, int to_index = -1);
+
+// Randomly varies the clip at `clip_index` in place, so every placement of
+// it changes too; each call is a fresh step away from the current content,
+// not a return to anything earlier. The same content and `seed` always give
+// the same result, so a caller passes a different seed per request. Roughly a quarter of the note-ons move
+// (at least one always does): on a pitched track by one or two steps of the
+// song's scale, on a percussion track to another of its lanes. A note's own
+// off marker follows it, and velocity, delay and commands stay as they are.
+// Returns the number of notes moved; 0 (nothing changed) for a missing or
+// empty slot, a sample clip, or a percussion track with fewer than two lanes.
+int mutateClip(Song & song, int track_id, int clip_index, uint32_t seed);
 
 // The result of resolveInstanceAt() below. `start_row` is the resolved
 // instance event's own row - only meaningful when `clip_index` is a real

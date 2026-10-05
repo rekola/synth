@@ -163,6 +163,19 @@ ClipGrid::ClipGrid(UIPlane & parent) : UIElement(parent) {
     if (slot < 0) return;
     getController().getUIEventQueue().push(std::make_unique<LogEvent>("Duplicated clip into row " + std::to_string(slot + 1)));
   });
+  // Varies the clip under the cursor in place (every placement of it
+  // changes too); each press is another random step from where it is now.
+  commands_.define("mutate-clip", [this]() {
+    if (rowKindFor(cursor_row_) != RowKind::CLIP) return;
+    auto & song = getController().getSong();
+    auto track_ids = song.getPlayableTrackIds();
+    if (cursor_track_index_ < 0 || cursor_track_index_ >= static_cast<int>(track_ids.size())) return;
+    // A fresh seed per press, so repeated presses keep drifting.
+    static auto seed = static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count());
+    auto moved = mutateClip(song, track_ids[static_cast<size_t>(cursor_track_index_)], physicalFor(cursor_row_), ++seed);
+    if (moved <= 0) return;
+    getController().getUIEventQueue().push(std::make_unique<LogEvent>("Mutated clip: " + std::to_string(moved) + (moved == 1 ? " note moved" : " notes moved")));
+  });
   // Adds or removes the stop button of the empty slot under the cursor -
   // a no-op on a slot with a clip, same as delete-clip on an empty one.
   commands_.define("toggle-stop-button", [this]() {

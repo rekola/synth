@@ -162,6 +162,41 @@ TEST(duplicate_clip_into_a_chosen_slot_pads_any_gap_and_never_overwrites) {
   CHECK(duplicateClip(song, track_id, 9, 2) == -1); // out of range
 }
 
+TEST(mutate_clip_moves_notes_in_place_keeping_offs_paired_and_velocity) {
+  Song song;
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto track_id = track.getInternalId();
+  Clip a(track_id);
+  auto & pattern = a.getLeafPattern();
+  for (int i = 0; i < 8; i++) {
+    pattern.setNote(i * 2, 0, Note(60 + i, 100, 3));
+    pattern.setNote(i * 2 + 1, 0, Note(60 + i, 0)); // its off
+  }
+  song.addClip(move(a));
+
+  auto moved = mutateClip(song, track_id, 0, 1);
+  CHECK(moved >= 1);
+  auto & after = song.getClips(track_id)[0].getLeafPattern();
+  int differing = 0;
+  for (int i = 0; i < 8; i++) {
+    auto on = after.getNote(i * 2, 0);
+    auto off = after.getNote(i * 2 + 1, 0);
+    CHECK(on.getVelocity() == 100 && on.getDelay() == 3);
+    CHECK(off.isOff() && off.getValue() == on.getValue());
+    if (on.getValue() != 60 + i) differing++;
+  }
+  CHECK(differing == moved);
+}
+
+TEST(mutate_clip_refuses_empty_slots_and_one_lane_percussion) {
+  Song song;
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto track_id = track.getInternalId();
+  song.ensureClipAt(track_id, 1);
+  CHECK(mutateClip(song, track_id, 1, 1) == 0); // empty filler
+  CHECK(mutateClip(song, track_id, 9, 1) == 0); // out of range
+}
+
 TEST(resolve_instance_at_finds_nothing_before_any_event) {
   Song song;
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));

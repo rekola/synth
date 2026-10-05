@@ -4,12 +4,16 @@
 #include "Arrangement.h"
 #include "Clip.h"
 #include "Pattern.h"
+#include "PercussionTrack.h"
 #include "SampleTrack.h"
+#include "../dsp/HashField.h"
+#include "../instruments/Tuning.h"
 #include "SampleContent.h"
 #include "../audio/AudioBuffer.h"
 #include "../ambisonic/ChannelConfiguration.h"
 
 #include <algorithm>
+#include <unordered_map>
 
 using namespace std;
 
@@ -166,6 +170,106 @@ duplicateClip(Song & song, int track_id, int from_index, int to_index) {
   song.getClips(track_id)[static_cast<size_t>(to_index)] = std::move(copy);
   song.incVersion();
   return to_index;
+}
+
+namespace {
+
+// `value` moved `steps` scale members in `direction` (+1/-1); -1 when that
+// would leave the note range.
+int
+stepInScale(int value, int steps, int direction, const vector<bool> & in_scale) {
+  auto edo = static_cast<int>(in_scale.size());
+  for (int s = 0; s < steps; s++) {
+    for (int guard = 0; guard <= edo; guard++) {
+      value += direction;
+      if (value < 0) return -1;
+      if (in_scale[static_cast<size_t>(value % edo)]) break;
+    }
+  }
+  return value;
+}
+
+constexpr HashField kMutateField(0x6d75746174650001ull);
+
+// Uniform in [0, n) for one note (or the whole call, with a zero cell).
+int
+mutatePick(uint32_t seed, int cell, const char * axis, int n) {
+  auto coord = (static_cast<int64_t>(seed) << 24) | cell;
+  return min(n - 1, static_cast<int>(kMutateField.unit(coord, paramId(axis)) * static_cast<float>(n)));
+}
+
+}
+
+int
+mutateClip(Song & song, int track_id, int clip_index, uint32_t seed) {
+  auto & clips = song.getClips(track_id);
+  if (clip_index < 0 || clip_index >= static_cast<int>(clips.size())) return 0;
+  auto & pattern = clips[static_cast<size_t>(clip_index)].getLeafPattern();
+  if (pattern.isEmpty()) return 0; // a sample clip's content isn't notes
+
+  auto * percussion = dynamic_cast<const PercussionTrack *>(song.getMasterTrack().getChildByInternalId(track_id));
+  vector<int> lanes;
+  vector<bool> in_scale;
+  if (percussion) {
+    lanes = percussion->getLaneNotes();
+    if (lanes.size() < 2) return 0;
+  } else {
+    auto edo = edoStepsFor(song.getTuning());
+    if (edo <= 0) return 0;
+    in_scale.assign(static_cast<size_t>(edo), false);
+    for (auto degree : song.getScaleDegreesWindow(0, 64)) in_scale[static_cast<size_t>(((degree % edo) + edo) % edo)] = true;
+  }
+
+  auto is_note_on = [](const Note & n) { return n.getValue() >= 0 && n.getVelocity() > 0; };
+  vector<int> rows;
+  int note_ons = 0;
+  for (auto & [ row, notes ] : pattern.getNotesByRow()) {
+    rows.push_back(row);
+    for (auto & n : notes) note_ons += is_note_on(n) ? 1 : 0;
+  }
+  if (note_ons == 0) return 0;
+  sort(rows.begin(), rows.end());
+
+  auto forced = mutatePick(seed, 0, "forced", note_ons);
+  vector<unordered_map<int, int>> renamed; // per column: a mutated note-on's old value -> new, until its off
+  int seen = 0, changed = 0;
+  for (auto row : rows) {
+    auto notes = pattern.getNotes(row);
+    for (size_t col = 0; col < notes.size(); col++) {
+      if (renamed.size() <= col) renamed.resize(col + 1);
+      auto & n = notes[col];
+      if (n.isOff()) {
+        auto it = renamed[col].find(n.getValue());
+        if (it != renamed[col].end()) {
+          n = Note(it->second, n.getVelocity(), n.getDelay());
+          renamed[col].erase(it);
+        }
+      } else if (is_note_on(n)) {
+        auto index = seen++;
+        renamed[col].erase(n.getValue());
+        auto cell = (row << 8) | static_cast<int>(col);
+        if (!(index == forced || mutatePick(seed, cell, "moves", 4) == 0)) continue;
+        int value = -1;
+        if (percussion) {
+          vector<int> others;
+          for (auto lane : lanes) if (lane != n.getValue()) others.push_back(lane);
+          if (!others.empty()) value = others[static_cast<size_t>(mutatePick(seed, cell, "lane", static_cast<int>(others.size())))];
+        } else {
+          auto steps = 1 + mutatePick(seed, cell, "steps", 2);
+          auto direction = mutatePick(seed, cell, "direction", 2) ? 1 : -1;
+          value = stepInScale(n.getValue(), steps, direction, in_scale);
+          if (value < 0) value = stepInScale(n.getValue(), steps, -direction, in_scale);
+        }
+        if (value < 0 || value == n.getValue()) continue;
+        renamed[col][n.getValue()] = value;
+        n = Note(value, n.getVelocity(), n.getDelay());
+        changed++;
+      }
+    }
+    pattern.setNotes(row, notes);
+  }
+  if (changed > 0) song.incVersion();
+  return changed;
 }
 
 ActiveInstance
