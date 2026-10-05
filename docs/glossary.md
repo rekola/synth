@@ -25,6 +25,11 @@ This engine's grid step: one sixteenth note, so 4 rows per beat and
 `rowsPerBar` rows per bar (default 16). Notes sit on rows; a note's delay
 column shifts it by a fraction of a row.
 
+**Scene**
+A row of the clip grid: the clips at one position across every track's clip
+list, launched together. It has no object of its own beyond an optional
+name, tempo and time signature stored by position. See scenes.md.
+
 **Swing**
 A timing feel that delays the second note of each eighth-note pair (4 rows),
 giving a long-short, lilting feel. Stored as a percentage of the pair taken
