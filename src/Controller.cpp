@@ -1458,13 +1458,13 @@ Controller::applyNotePressure(int row, int track_id, int note_column, short velo
   auto target = resolveEditTarget(*song, track_id, row, getFocusedClip());
   auto note = target.pattern->getNote(target.effective_row, note_column);
   if (note.isDefined() && !note.isAftertouch()) return; // never overwrite a real note
-  if (!note.isDefined()) note.setDelay(delay);
+  note.setDelay(delay);
   note.setVelocity(velocity);
   target.pattern->setNote(target.effective_row, note_column, note);
 }
 
 short
-Controller::notePressure(int row, int track_id, int note_column, short velocity, int delay, const PressureWriter & write_row) {
+Controller::notePressure(int row, int track_id, int note_column, short velocity, int delay, const PressureWriter & write_row, const PressureRowSource & current_row) {
   constexpr int row_units = 256;
   constexpr int max_filled_rows = 256;
   auto clamp_pressure = [](int v) { return static_cast<short>(std::clamp(v, 1, 127)); };
@@ -1474,22 +1474,49 @@ Controller::notePressure(int row, int track_id, int note_column, short velocity,
   if (st.row < 0 || row < st.row || row - st.row > max_filled_rows) {
     // First reading of this note (or the transport jumped): nothing earlier
     // to average with.
-    st = PressureState { row, delay, delay, velocity, 0 };
+    st = PressureState { row, delay, delay, velocity, 0, {}, {} };
   } else {
     if (write_row) {
-      for (int skipped = st.row + 1; skipped < row; skipped++) write_row(skipped, clamp_pressure(st.last_value), 0);
+      for (int skipped = st.row + 1; skipped < row; skipped++) write_row(skipped, clamp_pressure(st.last_value));
     }
-    if (row > st.row) st = PressureState { row, 0, 0, st.last_value, 0 };
+    if (row > st.row) {
+      st.row = row;
+      st.start = 0;
+      st.last_time = 0;
+      st.integral = 0;
+    }
     delay = std::max(delay, st.last_time);
     st.integral += st.last_value * (delay - st.last_time);
     st.last_time = delay;
     st.last_value = velocity;
   }
+  st.write_row = write_row;
+  st.current_row = current_row;
 
   int span = row_units - st.start;
   auto pressure = clamp_pressure((st.integral + velocity * (row_units - delay) + span / 2) / span);
-  if (write_row) write_row(row, pressure, delay);
+  if (write_row) write_row(row, pressure);
   return pressure;
+}
+
+void
+Controller::tickNotePressure() {
+  constexpr int max_filled_rows = 256;
+  bool wrote = false;
+  for (auto & entry : pressure_states_) {
+    auto & st = entry.second;
+    if (st.row < 0 || !st.write_row || !st.current_row) continue;
+    int row = st.current_row();
+    if (row <= st.row || row - st.row > max_filled_rows) continue;
+    auto held = static_cast<short>(std::clamp(st.last_value, 1, 127));
+    for (int entered = st.row + 1; entered <= row; entered++) st.write_row(entered, held);
+    st.row = row;
+    st.start = 0;
+    st.last_time = 0;
+    st.integral = 0;
+    wrote = true;
+  }
+  if (wrote) getCurrentSong()->incVersion();
 }
 
 void

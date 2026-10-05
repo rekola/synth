@@ -101,9 +101,13 @@ MidiNoteInput::handle(const MidiEvent & ev, Controller & controller, int track_i
   auto row = controller.getPlaybackInfo().getAbsolutePosition();
   Controller::PressureWriter write_row;
   if (options.pressure_follows_transport) {
-    write_row = [&](int r, short p, int d) { controller.applyNotePressure(r, held_track_id, column, p, d); };
+    write_row = [&controller, held_track_id, column](int r, short p) { controller.applyNotePressure(r, held_track_id, column, p, 0); };
   }
-  auto pressure = controller.notePressure(row, held_track_id, column, static_cast<short>(ev.getVelocity()), current_delay, write_row);
+  auto transport_row = [&controller]() {
+    auto & info = controller.getPlaybackInfo();
+    return info.isPlaying() ? info.getAbsolutePosition() : -1;
+  };
+  auto pressure = controller.notePressure(row, held_track_id, column, static_cast<short>(ev.getVelocity()), current_delay, write_row, transport_row);
   queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, buffer, held_track_id, column, note_value, pressure));
   if (!options.pressure_follows_transport) return false;
   song.incMinorVersion();

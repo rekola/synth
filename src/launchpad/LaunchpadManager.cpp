@@ -1987,25 +1987,36 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     for (auto & held : *held_ptr) {
       int row = 0;
       int delay = current_delay;
+      int held_track = held.track_id;
+      int column = held.note_column;
+      int note_row = held.row;
       Controller::PressureWriter write_row;
-      if (controller.isSessionRecording(held.track_id)) {
+      Controller::PressureRowSource current_row;
+      if (controller.isSessionRecording(held_track)) {
         // A Session View take writes into its own clip at the session clock's
         // row, like its release does - never on the row the note itself is
         // on, which would overwrite the note.
-        row = quantized_row(held.track_id);
+        row = quantized_row(held_track);
         delay = take_step.delay;
-        auto & clips = song.getClips(held.track_id);
-        auto clip_index = controller.getSessionRecordingClipIndex(held.track_id);
-        if (write_pressure && row >= 0 && row != held.row && clip_index >= 0 && clip_index < static_cast<int>(clips.size())) {
-          auto & clip = clips[static_cast<size_t>(clip_index)];
-          write_row = [&clip, &held](int r, short p, int d) {
+        if (write_pressure) {
+          write_row = [&controller, held_track, column, note_row](int r, short p) {
+            auto & clips = controller.getSong().getClips(held_track);
+            auto clip_index = controller.getSessionRecordingClipIndex(held_track);
+            if (r < 0 || r == note_row || clip_index < 0 || clip_index >= static_cast<int>(clips.size())) return;
+            auto & clip = clips[static_cast<size_t>(clip_index)];
             auto & pattern = clip.getLeafPattern();
             auto clip_row = r % std::max(1, clip.getLength());
-            auto note = pattern.getNote(clip_row, held.note_column);
+            auto note = pattern.getNote(clip_row, column);
             if (note.isDefined() && !note.isAftertouch()) return;
-            if (!note.isDefined()) note.setDelay(static_cast<short>(d));
+            note.setDelay(0);
             note.setVelocity(p);
-            pattern.setNote(clip_row, held.note_column, note);
+            pattern.setNote(clip_row, column, note);
+          };
+          current_row = [&controller, held_track]() {
+            if (!controller.isSessionRecording(held_track)) return -1;
+            auto & player = controller.getSessionPlayer();
+            auto step = controller.getSong().getRecordQuantize() ? player.quantizedStep() : player.rawStep();
+            return controller.ensureSessionRecordingClip(held_track, step.step, step.bar_start);
           };
         }
       } else {
@@ -2016,22 +2027,27 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
         // processed by the Player thread yet), modulate the row the note
         // actually landed on.
         row = info.isPlaying() ? info.getAbsolutePosition() : held.row;
-        // Not on the note's own row: a row can't hold the note and its
-        // aftertouch, and writing it would only change the note's velocity.
-        if (write_pressure && !(info.isPlaying() && row == held.row)) {
-          write_row = [&](int r, short p, int d) {
+        if (write_pressure) {
+          // Not on the note's own row: a row can't hold the note and its
+          // aftertouch, and clearing it would erase the note.
+          write_row = [this, &controller, held_track, column, note_row](int r, short p) {
+            if (r == note_row) return;
             // Clear before reading, not just before writing - otherwise the
             // isDefined() check could pick up stale pre-existing data from
             // before the row was cleared for the live take.
-            if (auto_started_playback_) controller.ensureRowCleared(auto_record_cleared_rows_, r, held.track_id);
-            controller.applyNotePressure(r, held.track_id, held.note_column, p, d);
+            if (auto_started_playback_) controller.ensureRowCleared(auto_record_cleared_rows_, r, held_track);
+            controller.applyNotePressure(r, held_track, column, p, 0);
+          };
+          current_row = [&controller]() {
+            auto & playback = controller.getPlaybackInfo();
+            return playback.isPlaying() ? playback.getAbsolutePosition() : -1;
           };
         }
       }
       // Live modulation always happens, whether or not Capture records it,
       // and plays the same row average that gets recorded.
-      auto pressure = controller.notePressure(row, held.track_id, held.note_column, static_cast<short>(ev.getVelocity()), delay, write_row);
-      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, controller.getActiveBufferName(), held.track_id, held.note_column, note_value, pressure));
+      auto pressure = controller.notePressure(row, held_track, column, static_cast<short>(ev.getVelocity()), delay, write_row, current_row);
+      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, controller.getActiveBufferName(), held_track, column, note_value, pressure));
     }
     if (write_pressure) song.incVersion();
   }

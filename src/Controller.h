@@ -1031,10 +1031,19 @@ class Controller {
   // row, so live sound and playback share one value model. A device stops
   // sending once pressure saturates, so a held reading counts for as long
   // as it lasts; rows that got no reading at all are filled with the
-  // value held through them. `write_row` (optional) is called to record a
-  // row's value (row, pressure, delay); empty means play only.
-  using PressureWriter = std::function<void(int row, short pressure, int delay)>;
-  short notePressure(int row, int track_id, int note_column, short velocity, int delay, const PressureWriter & write_row = {});
+  // value held through them. `write_row` (optional) records a row's value
+  // (every recorded row gets delay 0, the value being the row's as a whole);
+  // empty means play only. While the note is held, tickNotePressure() keeps
+  // writing the held value into each new row as the transport enters it,
+  // so steady pressure is recorded as it happens; `current_row` gives that
+  // row, or -1 when there is none. Both are kept until the note ends, so
+  // they must not capture anything shorter-lived than the Controller.
+  using PressureWriter = std::function<void(int row, short pressure)>;
+  using PressureRowSource = std::function<int()>;
+  short notePressure(int row, int track_id, int note_column, short velocity, int delay, const PressureWriter & write_row = {}, const PressureRowSource & current_row = {});
+  // Once per UI frame: records the held pressure of every held note into
+  // the rows the transport has entered since its last reading.
+  void tickNotePressure();
   // Forgets a note column's pressure state - its note ended or restarted.
   void endNotePressure(int track_id, int note_column) { pressure_states_.erase({ track_id, note_column }); }
 
@@ -1103,6 +1112,8 @@ class Controller {
     int last_time = 0;   // time of the latest reading in the row
     int last_value = 0;  // the latest reading, held until the next one
     int integral = 0;    // value * time over [start, last_time)
+    PressureWriter write_row;
+    PressureRowSource current_row;
   };
   std::map<std::pair<int, int>, PressureState> pressure_states_;
 
