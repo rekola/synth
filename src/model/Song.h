@@ -8,6 +8,7 @@
 #include "Arrangement.h"
 #include "Clip.h"
 #include "Scale.h"
+#include "SceneName.h"
 #include "Swing.h"
 #include "Version.h"
 #include "../bus/BusEffectRegistry.h"
@@ -97,19 +98,21 @@ class Song : public SongObject {
   short getTempo() const { return bpm_; }
   void setTempo(short bpm) { bpm_ = bpm; }
 
-  // A scene's own tempo (the scene being a clip-list index, shared by every
-  // track), or 0 when it keeps whatever tempo is running. Launching the
-  // scene sets the song tempo (SessionPlayer::launchScene()); arrangement
-  // playback never reads it.
-  int getSceneTempo(int scene) const {
-    auto it = scene_tempos_.find(scene);
-    return it != scene_tempos_.end() ? it->second : 0;
+  // A scene is a row of every track's clip list, named by its position
+  // there. Its name may carry a tempo ("Waltz 90 BPM", see SceneName.h),
+  // which launching the scene sets as the song tempo
+  // (SessionPlayer::launchScene()); arrangement playback never reads it.
+  const std::string & getSceneName(int scene) const {
+    static const std::string none;
+    return scene >= 0 && static_cast<size_t>(scene) < scene_names_.size() ? scene_names_[static_cast<size_t>(scene)] : none;
   }
-  void setSceneTempo(int scene, int bpm) {
-    if (bpm <= 0) scene_tempos_.erase(scene);
-    else scene_tempos_[scene] = bpm;
+  void setSceneName(int scene, std::string name) {
+    if (scene < 0) return;
+    if (static_cast<size_t>(scene) >= scene_names_.size()) scene_names_.resize(static_cast<size_t>(scene) + 1);
+    scene_names_[static_cast<size_t>(scene)] = std::move(name);
   }
-  const std::map<int, int> & getSceneTempos() const { return scene_tempos_; }
+  // The tempo the scene's name asks for, or 0 for none.
+  int getSceneTempo(int scene) const { return scenename::parseTempo(getSceneName(scene)); }
 
   // How late the second eighth of every pair plays (swing.h), in percent of
   // the pair: 50 straight, about 67 triplet swing. Applied at playback to
@@ -453,7 +456,7 @@ private:
   Tuning tuning_ = Tuning::TET31;
   short key_note_number_ = 0;
   Scale scale_ = Scale::NONE;
-  std::map<int, int> scene_tempos_;
+  std::vector<std::string> scene_names_; // by scene position; shorter than the scene count when the rest are unnamed
   int bpm_ = 140;
   int rows_per_bar_ = 16;
   int swing_ = swing::kStraight;

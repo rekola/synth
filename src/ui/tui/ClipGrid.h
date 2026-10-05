@@ -205,6 +205,8 @@ class ClipGrid : public UIElement {
   // Between a press and its release - see handleMouse().
   bool mouse_down_ = false;
   void startClipRename(const Song & song, const std::vector<int> & track_ids);
+  // F2 on the master column's scene slot edits the scene's name.
+  void startSceneRename();
   // F2 on any row but a populated clip slot renames the track itself
   // instead (see offerInput()'s own F2 handling) - the header row has no
   // cursor-addressable slot of its own to trigger this from directly.

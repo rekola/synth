@@ -1962,22 +1962,6 @@ TerminalUI::initializeWidgets() {
     auto & song = getController().getSong();
     getController().getSessionPlayer().launchScene(pattern_editor_->getSessionScene(song.getCurrentTrackId()), song.getPlayableTrackIds());
   });
-  // The cursor scene's own tempo, applied when the scene launches. The first
-  // press starts from the song's current tempo.
-  auto step_scene_tempo = [this](int delta) {
-    if (!pattern_editor_->isSessionMode()) return;
-    auto & song = getController().getSong();
-    auto scene = pattern_editor_->getSessionScene(song.getCurrentTrackId());
-    auto current = song.getSceneTempo(scene);
-    getController().setSceneTempo(scene, (current > 0 ? current : song.getTempo()) + delta);
-  };
-  commands_.define("scene-tempo-increase", [step_scene_tempo]() { step_scene_tempo(1); });
-  commands_.define("scene-tempo-decrease", [step_scene_tempo]() { step_scene_tempo(-1); });
-  commands_.define("clear-scene-tempo", [this]() {
-    if (!pattern_editor_->isSessionMode()) return;
-    auto & song = getController().getSong();
-    getController().setSceneTempo(pattern_editor_->getSessionScene(song.getCurrentTrackId()), 0);
-  });
   commands_.define("stop-all-clips", [this]() {
     getController().getSessionPlayer().stopAllTracks();
   });

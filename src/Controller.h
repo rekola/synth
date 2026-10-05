@@ -312,8 +312,6 @@ class Controller {
   // The active song's tempo in bpm, clamped to 20-300, taking effect within
   // a block while playing. Same single-path rule as setSwing().
   void setTempo(int bpm);
-  // A scene's own tempo (Song::getSceneTempo()); 0 or less clears it.
-  void setSceneTempo(int scene, int bpm);
 
   // Deletes what a Session slot holds, one layer per call (its clip, then
   // its stop button), clearing the live edit focus if that clip had it.

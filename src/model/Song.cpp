@@ -605,11 +605,11 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
       }
     }
 
-    scene_tempos_.clear();
+    scene_names_.clear();
     if (auto scenes = song->FirstChildElement("scenes")) {
       for (auto it = scenes->FirstChildElement("scene"); it; it = it->NextSiblingElement("scene")) {
-        int index = it->IntAttribute("index", -1);
-        if (index >= 0) setSceneTempo(index, it->IntAttribute("tempo", 0));
+        auto name = it->Attribute("name");
+        scene_names_.push_back(name ? name : "");
       }
     }
 
@@ -888,13 +888,15 @@ Song::save(const std::string & filename) const {
     }
   }
 
-  if (!scene_tempos_.empty()) {
+  // One <scene> per scene position, in order; trailing unnamed ones aren't written.
+  auto named_scenes = scene_names_.size();
+  while (named_scenes > 0 && scene_names_[named_scenes - 1].empty()) named_scenes--;
+  if (named_scenes > 0) {
     auto scenes = doc.NewElement("scenes");
     root->InsertEndChild(scenes);
-    for (auto & [ index, bpm ] : scene_tempos_) {
+    for (size_t i = 0; i < named_scenes; i++) {
       auto scene = doc.NewElement("scene");
-      scene->SetAttribute("index", index);
-      scene->SetAttribute("tempo", bpm);
+      if (!scene_names_[i].empty()) scene->SetAttribute("name", scene_names_[i].c_str());
       scenes->InsertEndChild(scene);
     }
   }

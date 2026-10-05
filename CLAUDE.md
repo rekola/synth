@@ -1098,7 +1098,7 @@ would otherwise resume showing.
   and a fresh press look alike to the widgets (the held button repeats its
   press), so each tells them apart by the release in between; `TerminalUI`
   keeps focus on the widget the press started in until then.
-- **Scene tempo** (`Song::getSceneTempo()`, `<scenes><scene index tempo/>`) - a scene (a clip-list index shared by every track) can carry its own tempo, 0 = keep the running one. `SessionPlayer::launchScene()` applies it: at once from a stopped transport, else on the next bar row `tick()` sees. It sets the song tempo for good, as a `setTempo()` edit would; a single clip launch and arrangement playback never read it. Set from the clip grid with `scene-tempo-increase`/`-decrease` (first press starts from the song tempo) and `clear-scene-tempo`. A per-scene time signature is not done: it would mean changing `rowsPerBar` live.
+- **Scenes** (`Song::getSceneName()`, `<scenes><scene name=""/>...</scenes>`, by position like a track's clip list, no index stored) - a scene is a clip-list row shared by every track, with an optional name, shown after the launch glyph in the clip grid's Master column and edited with F2 there. A "90 BPM" in the name (`SceneName.h`) is the scene's tempo: `SessionPlayer::launchScene()` applies it, at once from a stopped transport, else on the next bar row `tick()` sees. It sets the song tempo for good, as a `setTempo()` edit would; a single clip launch and arrangement playback never read it. A per-scene time signature is not done: it would mean changing `rowsPerBar` live.
 - **Defaults**: a fresh session opens in Session view on the clip grid
   (`UI::setInitialView()`, the `--view` option) rather than straight into
   note entry, and `GridMode` defaults to `SESSION` on every

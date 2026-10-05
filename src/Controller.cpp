@@ -1379,15 +1379,6 @@ Controller::setTempo(int bpm) {
 }
 
 void
-Controller::setSceneTempo(int scene, int bpm) {
-  auto & song = getSong();
-  song.setSceneTempo(scene, bpm > 0 ? std::clamp(bpm, 20, 300) : 0);
-  song.incVersion();
-  auto text = song.getSceneTempo(scene) > 0 ? to_string(song.getSceneTempo(scene)) : "none";
-  getUIEventQueue().push(make_unique<LogEvent>("Scene " + to_string(scene + 1) + " tempo " + text));
-}
-
-void
 Controller::deleteClipSlot(int track_id, int clip_index) {
   auto & song = getSong();
   auto & clips = song.getClips(track_id);

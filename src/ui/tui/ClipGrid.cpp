@@ -247,6 +247,28 @@ ClipGrid::startClipRename(const Song & song, const std::vector<int> & track_ids)
 }
 
 void
+ClipGrid::startSceneRename() {
+  if (inline_editor_.isOpen()) return;
+  auto scene = physicalFor(cursor_row_);
+  auto row = scene - scroll_row_ + 1; // +1 for the header row
+  auto column = cursor_track_index_ - scroll_col_;
+  if (row < 1 || row >= getDim().first || column < 0) return;
+
+  // The editable span follows the " ▸ " launch glyph; a "90 BPM" in the
+  // name sets the tempo launching the scene applies.
+  InlineEditor::Field field;
+  field.row = row;
+  field.col = column * (kColWidth + 1) + 3;
+  field.width = kColWidth - 3;
+  field.initial_text = getController().getSong().getSceneName(scene);
+  inline_editor_.open(field, [this, scene](std::string text) {
+    auto & target_song = getController().getSong();
+    target_song.setSceneName(scene, std::move(text));
+    target_song.incVersion();
+  });
+}
+
+void
 ClipGrid::startTrackRename(const Song & song, const std::vector<int> & track_ids) {
   if (inline_editor_.isOpen()) return;
   if (cursor_track_index_ < 0 || cursor_track_index_ >= static_cast<int>(track_ids.size())) return;
@@ -399,7 +421,12 @@ ClipGrid::offerInput(const InputEvent & input) {
   else if (input.getId() == NCKEY_PGDOWN) cursor_row_ += getDim().first;
   else if (input.getId() == NCKEY_F02) {
     // Renames the clip under the cursor, or the track when there's no
-    // clip there (the cursor never sits on the header row itself).
+    // clip there (the cursor never sits on the header row itself); on the
+    // master column's scene slot, the scene.
+    if (cursor_track_index_ == num_tracks && rowKindFor(cursor_row_) == RowKind::CLIP) {
+      startSceneRename();
+      return true;
+    }
     auto clip_index = getCursorClipIndex();
     bool on_clip = false;
     if (clip_index >= 0 && cursor_track_index_ >= 0 && cursor_track_index_ < num_tracks) {
@@ -850,9 +877,9 @@ ClipGrid::renderMasterColumn(const StyleProvider & styles, int x, int rows, bool
     }
 
     if (physical_row < clip_rows) {
-      // A scene slot: launches clip row k on every track. Scenes have no
-      // names - just the launch glyph, dim when no track has a clip there
-      // (launching it just stops everything).
+      // A scene slot: launches clip row k on every track, showing the
+      // scene's name after the launch glyph; dim when no track has a clip
+      // there (launching it just stops everything).
       bool has_any_clip = false;
       for (auto track_id : track_ids) {
         auto & clips = song.getClips(track_id);
@@ -861,7 +888,7 @@ ClipGrid::renderMasterColumn(const StyleProvider & styles, int x, int rows, bool
       if (!has_any_clip && !is_cursor_cell) fg = styles.window_fg_color.blend(0.5f, Color(0, 0, 0));
       setFgColor(fg);
       setBgColor(bg);
-      putstr(y, x, Utf8::padToWidth(" ▸", kColWidth));
+      putstr(y, x, Utf8::padToWidth(" ▸ " + song.getSceneName(physical_row), kColWidth));
       auto state = scene_state(physical_row);
       if (state == SessionPadHighlight::PLAYING || state == SessionPadHighlight::QUEUED || state == SessionPadHighlight::PAUSED) {
         setFgColor(state == SessionPadHighlight::PAUSED ? styles.clip_paused_color : styles.clip_playing_color);
