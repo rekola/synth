@@ -1103,8 +1103,8 @@ Controller::ensureNoteRecordingClip(std::unordered_map<int, std::string> & clip_
   // comment on why): a live take's first note has to land inside whatever
   // clip gets created for it, and the clip can't start later than that
   // note's own row.
-  auto rows_per_bar = std::max(1, song->getRowsPerBar());
-  row = previousBarRow(row, rows_per_bar);
+  row = previousBarRow(*song->getArrangementBars(), row);
+  auto rows_per_bar = song->getArrangementBars()->barRows(row);
   auto active = resolveInstanceAt(*song, track_id, row);
   if (active.clip_index >= 0) return; // a real clip is already active here - write into it, same as ordinary editing
 
@@ -1142,7 +1142,7 @@ Controller::extendRecordingClipsIfNeeded(std::unordered_map<int, std::string> & 
   auto song = getCurrentSong();
   if (!song) return;
   auto & arrangement = song->getArrangement();
-  auto rows_per_bar = std::max(1, song->getRowsPerBar());
+  auto rows_per_bar = song->getArrangementBars()->barRows(info.getAbsolutePosition());
 
   for (auto & [ track_id, clip_id ] : clip_ids) {
     // Only while this track actually has a note held right now - see this
@@ -1279,7 +1279,7 @@ Controller::extendSessionRecordingClipIfNeeded(int track_id, int absolute_step) 
   auto & clip = clips[static_cast<size_t>(take.clip_index)];
 
   auto row = absolute_step - take.origin_step;
-  auto rows_per_bar = song->getBarRows();
+  auto rows_per_bar = song->barRowsAt(absolute_step);
   auto window_last_row = std::max(1, clip.getLength()) - 1;
   while (window_last_row - row < rows_per_bar) {
     clip.setLength(std::max(1, clip.getLength()) + rows_per_bar);
@@ -1308,7 +1308,7 @@ Controller::trimSessionRecordingClip(int track_id) {
 
   int last_row = -1;
   for (auto & [ row, notes ] : clip.getLeafPattern().getNotesByRow()) last_row = std::max(last_row, static_cast<int>(row));
-  auto rows_per_bar = song->getBarRows();
+  auto rows_per_bar = song->barRowsAt(song->barStartAtOrBefore(take.origin_step));
   // Nothing actually landed (the take was armed and disarmed with no note
   // ever written) - one bar, matching every other freshly-created clip's
   // own minimum length rather than a zero-length one.
@@ -1344,7 +1344,7 @@ Controller::extendRecordingSampleClipIfNeeded() {
   // Same growth-loop shape as extendRecordingClipsIfNeeded() above - grows
   // a full bar at a time until at least one bar of headroom remains ahead
   // of the current row.
-  auto rows_per_bar = std::max(1, song->getRowsPerBar());
+  auto rows_per_bar = song->getArrangementBars()->barRows(recording_start_row_);
   bool grew = false;
   auto window_last_row = recording_start_row_ + std::max(1, clip.getLength()) - 1;
   while (window_last_row - info.getAbsolutePosition() < rows_per_bar) {
@@ -1605,7 +1605,7 @@ Controller::beginSampleCapture(int track_id, int latency_frames) {
   // would shrink an already-longer clip out from under its own earlier
   // layers; finishSampleCapture() only ever grows it from here, never
   // shrinks it.
-  if (!is_overdub) clip.setLength(song->getBarRows());
+  if (!is_overdub) clip.setLength(song->getRunningTimeSignature().rowsPerBar());
 
   recording_clip_id_ = clip.getId();
   recording_latency_frames_ = latency_frames;

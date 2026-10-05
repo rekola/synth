@@ -878,7 +878,15 @@ PatternEditor::copyToClip() {
   // here.
   auto b = getEffectiveSelectionBounds(song, track_ids);
   auto grid = source_->readGrid(selectionAnchor());
-  auto clip = extractClip(*grid, track_id, b.row_lo, b.row_hi, song.getRowsPerBar());
+  // Whole bars of the signature the rows are counted in: the arrangement's
+  // markers, or the scene's own.
+  BarGrid scene_bars;
+  if (isSessionMode()) {
+    auto signature = song.getSceneTimeSignature(selectionAnchor().block);
+    scene_bars = BarGrid({ { 0, signature.isSet() ? signature : song.getRunningTimeSignature() } });
+  }
+  auto arrangement_bars = song.getArrangementBars();
+  auto clip = extractClip(*grid, track_id, b.row_lo, b.row_hi, isSessionMode() ? scene_bars : *arrangement_bars);
   song.addClip(std::move(clip));
   setSelectionActive(false);
   getController().getUIEventQueue().push(make_unique<LogEvent>("Copied to clip"));
@@ -2528,9 +2536,9 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   setBgColor(styles.window_bg_color);
   putstr(display_row, 0, padding);
 
-  // Bar boundary (a stronger accent than the plain beat one below); a
-  // block may count its own bars and beats (a scene's time signature).
-  auto song_rows_per_bar = song.getRowsPerBar();
+  // Bar boundary (a stronger accent than the plain beat one below); each
+  // block counts its own bars and beats (the arrangement's time signature
+  // markers, a scene's own signature).
 
   // A row's ambient base colors (bar/beat accent, else plain), dimmed
   // outside its block. The playhead's own row highlight is deliberately
@@ -2538,16 +2546,13 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // `dim`: how much of kFadedRowDim applies. A dimmed row loses its bar/beat
   // accent in proportion.
   auto baseColors = [&](int row, float dim, Color & base_fg, Color & base_bg, int block = -1) {
-    auto block_bar_rows = block >= 0 ? source_->barRows(block) : 0;
-    auto row_rows_per_bar = block_bar_rows > 0 ? block_bar_rows : song_rows_per_bar;
-    auto beat_rows = block >= 0 ? std::max(1, source_->beatRows(block)) : 4;
     base_fg = styles.window_fg_color;
     base_bg = styles.window_bg_color;
     Color accent_fg = base_fg, accent_bg = base_bg;
-    if (row >= 0 && row_rows_per_bar > 0 && row % row_rows_per_bar == 0) {
+    if (block >= 0 && source_->startsBar(block, row)) {
       accent_fg = styles.window_bar_accent_fg_color;
       accent_bg = styles.window_bar_accent_bg_color;
-    } else if (row >= 0 && row % beat_rows == 0) {
+    } else if (block >= 0 && source_->startsBeat(block, row)) {
       accent_fg = styles.window_beat_accent_fg_color;
       accent_bg = styles.window_beat_accent_bg_color;
     }

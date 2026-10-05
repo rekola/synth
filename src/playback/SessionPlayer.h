@@ -65,6 +65,8 @@ class SessionPlayer {
   // Back to arrangement: the track (or every taken-over track) follows
   // the arrangement again from the next bar, at the transport's position.
   void returnToArrangement(int track_id);
+  // Also hands the bars back to the arrangement's (a launched scene's time
+  // signature no longer applies).
   void returnAllToArrangement();
 
   // Where an arrangement assign (a launch with Record Arm on) writes when
@@ -166,7 +168,8 @@ class SessionPlayer {
   // A launched scene's tempo and time signature, applied on the next bar
   // row tick() sees.
   int pending_tempo_ = 0;
-  Song::TimeSignature pending_time_signature_;
+  TimeSignature pending_time_signature_;
+  bool pending_clear_transport_bars_ = false; // Back to Arrangement, on the next bar
   int assign_row_ = 0;
   std::function<void()> assign_playback_starter_;
 };

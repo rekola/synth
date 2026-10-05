@@ -94,7 +94,7 @@ SceneGrid::obtain(int track_id, int row, int & pattern_row) {
     clip.setLooping(true);
   }
   if (!clip.isLooping() && row >= clip.getLength()) {
-    auto rows_per_bar = write_->getRowsPerBar() > 0 ? write_->getRowsPerBar() : 1;
+    auto rows_per_bar = write_->getSceneBarRows(scene_);
     clip.setLength((row / rows_per_bar + 1) * rows_per_bar);
   }
   pattern_row = clipRow(clip, row);

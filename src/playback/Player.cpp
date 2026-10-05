@@ -647,7 +647,7 @@ Player::scheduleMetronome(const SongState & state, const Song & song, int frames
   }
   for (; frame < frames; frame += interval, row++) {
     auto in_bar = song.rowInBar(row);
-    if (in_bar % song.getBeatRows() == 0) metronome_click_.addClick(frame, in_bar == 0);
+    if (in_bar % song.beatRowsAt(row) == 0) metronome_click_.addClick(frame, in_bar == 0);
   }
 }
 

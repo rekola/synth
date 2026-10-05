@@ -1,16 +1,16 @@
 #ifndef _SCENENAME_H_
 #define _SCENENAME_H_
 
+#include "TimeSignature.h"
+
 #include <cctype>
 #include <string>
 
 namespace scenename {
 
-// A row is a sixteenth note, so a time signature needs whole rows per beat:
-// the denominator is 1, 2, 4, 8 or 16.
 inline bool
 validDenominator(int denominator) {
-  return denominator == 1 || denominator == 2 || denominator == 4 || denominator == 8 || denominator == 16;
+  return TimeSignature::validDenominator(denominator);
 }
 
 struct Parsed {

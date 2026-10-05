@@ -257,10 +257,15 @@ ClipGrid::startSceneRename() {
   // The editable span follows the " ▸ " launch glyph. Typing "90 BPM" or
   // "3/4" sets the scene's tempo or time signature (shown at the right of
   // the slot), "0 BPM" or "0/4" clears it; a name without one leaves it alone.
+  // The field is wider than the slot, since "Waltz 3/4 90 BPM" doesn't fit
+  // in it and the reader keeps only what fits.
+  constexpr int kSceneFieldWidth = 32;
+  auto cols = getDim().second;
+  auto width = min(kSceneFieldWidth, cols);
   InlineEditor::Field field;
   field.row = row;
-  field.col = column * (kColWidth + 1) + 3;
-  field.width = kColWidth - 3;
+  field.col = clamp(column * (kColWidth + 1) + 3, 0, max(0, cols - width));
+  field.width = width;
   field.initial_text = getController().getSong().getSceneName(scene);
   inline_editor_.open(field, [this, scene](std::string text) {
     auto & target_song = getController().getSong();
@@ -894,7 +899,7 @@ ClipGrid::renderMasterColumn(const StyleProvider & styles, int x, int rows, bool
       auto tempo_text = tempo > 0 ? " ♩" + std::to_string(tempo) : std::string();
       if (signature.isSet()) tempo_text += " " + std::to_string(signature.numerator) + "/" + std::to_string(signature.denominator);
       auto name_width = kColWidth - 3 - Utf8::displayWidth(tempo_text);
-      putstr(y, x, Utf8::padToWidth(" ▸ " + Utf8::padToWidth(song.getSceneName(physical_row), name_width) + tempo_text, kColWidth));
+      putstr(y, x, Utf8::padToWidth(" ▸ " + Utf8::padToWidth(Utf8::truncateToWidth(song.getSceneName(physical_row), name_width), name_width) + tempo_text, kColWidth));
       auto state = scene_state(physical_row);
       if (state == SessionPadHighlight::PLAYING || state == SessionPadHighlight::QUEUED || state == SessionPadHighlight::PAUSED) {
         setFgColor(state == SessionPadHighlight::PAUSED ? styles.clip_paused_color : styles.clip_playing_color);

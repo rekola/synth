@@ -40,7 +40,7 @@ struct SessionSong {
   int seq = 0;
 
   explicit SessionSong(bool looping = true) {
-    song.setRowsPerBar(4);
+    song.setTimeSignatureMarker(0, TimeSignature::fromRowsPerBar(4));
     song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
     a = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
     b = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
@@ -208,4 +208,30 @@ TEST(session_retrigger_ignores_notes_of_the_previous_clip) {
   s.play(4); // clip 2's bar, retriggering every row
   CHECK(s.plays(s.a, 120));
   CHECK(!s.plays(s.a, 111));
+}
+
+TEST(session_launch_waits_for_the_arrangements_marker_bars) {
+  SessionSong s;
+  s.song.setTimeSignatureMarker(8, { 2, 4 }); // bars of 4 rows until row 8, then 8
+  s.play(10); // rows 0-9
+  s.queue(s.a, 0);
+  s.play(2); // rows 10-11: row 12 would be a bar of the old 4-row grid
+  CHECK(s.plays(s.a, 51));
+  CHECK(!s.plays(s.a, 100));
+  s.play(4); // rows 12-15
+  CHECK(!s.plays(s.a, 100));
+  s.play(1); // row 16: the next bar of the 8-row grid
+  CHECK(s.plays(s.a, 100));
+}
+
+TEST(session_launch_waits_for_the_transports_own_bars) {
+  SessionSong s;
+  s.song.setTransportBars({ 2, 4 }, 4); // 8-row bars counted from row 4: bars at 4 and 12
+  s.play(5); // rows 0-4
+  s.queue(s.a, 0);
+  s.play(4); // rows 5-8: row 8 is a bar start of the arrangement's grid, not of the transport's
+  CHECK(s.plays(s.a, 48));
+  CHECK(!s.plays(s.a, 100));
+  s.play(4); // rows 9-12: row 12 is the transport's bar
+  CHECK(s.plays(s.a, 100));
 }

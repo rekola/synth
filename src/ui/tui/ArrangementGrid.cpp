@@ -23,14 +23,14 @@ ArrangementGrid::getVisibleTrackIds(const Song & song) const {
 
 int
 ArrangementGrid::barCount(const Song & song, int playing_bar) const {
-  auto rows_per_bar = max(1, song.getRowsPerBar());
-  auto bars = (song.getArrangementLength() + rows_per_bar - 1) / rows_per_bar;
+  // The arrangement's length is a bar start, so its index counts the bars before it.
+  auto bars = song.getArrangementBars()->barIndex(song.getArrangementLength());
   return max({ bars + 1, cursor_bar_ + 1, playing_bar + 1 });
 }
 
 int
 ArrangementGrid::getCursorRow(const Song & song) const {
-  return cursor_bar_ * max(1, song.getRowsPerBar());
+  return song.getArrangementBars()->barStartRow(cursor_bar_);
 }
 
 void
@@ -92,7 +92,7 @@ ArrangementGrid::offerInput(const InputEvent & input) {
     constexpr int kColWidth = 2; // see render()
     auto track = scroll_col_ + x / kColWidth;
     if (track >= num_tracks || x >= max(0, cols - 2) / kColWidth * kColWidth) return true; // the locator column, or past the last track
-    auto playing_bar = getController().getPlaybackInfo().getAbsolutePosition() / max(1, song.getRowsPerBar());
+    auto playing_bar = song.getArrangementBars()->barIndex(getController().getPlaybackInfo().getAbsolutePosition());
     auto bar = scroll_row_ + y;
     if (bar >= barCount(song, playing_bar)) return true; // below the last bar
     cursor_track_index_ = track;
@@ -118,12 +118,14 @@ ArrangementGrid::offerInput(const InputEvent & input) {
   auto & song = getController().getSong();
   auto track_ids = getVisibleTrackIds(song);
   auto num_tracks = static_cast<int>(track_ids.size());
-  auto rows_per_bar = max(1, song.getRowsPerBar());
+  auto bars = song.getArrangementBars();
+  auto bar_row = [&](int bar) { return bars->barStartRow(bar); };
+  auto bar_length = [&](int bar) { return bars->nextBarStart(bars->barStartRow(bar)) - bars->barStartRow(bar); };
 
   // The cursor moves over the arrangement's bars and one empty one past
   // them (barCount()).
   auto move_cursor = [&](int delta) {
-    auto playing_bar = getController().getPlaybackInfo().getAbsolutePosition() / rows_per_bar;
+    auto playing_bar = bars->barIndex(getController().getPlaybackInfo().getAbsolutePosition());
     cursor_bar_ = clamp(cursor_bar_ + delta, 0, barCount(song, playing_bar) - 1);
   };
 
@@ -132,7 +134,7 @@ ArrangementGrid::offerInput(const InputEvent & input) {
     // the playhead/track selection there - "look at/jump to this
     // position" and "put real content here" stay two separate actions.
     if (commit_callback_ && cursor_track_index_ < num_tracks) {
-      commit_callback_(track_ids[static_cast<size_t>(cursor_track_index_)], cursor_bar_ * rows_per_bar);
+      commit_callback_(track_ids[static_cast<size_t>(cursor_track_index_)], bar_row(cursor_bar_));
     }
     return true;
   }
@@ -150,8 +152,8 @@ ArrangementGrid::offerInput(const InputEvent & input) {
     if (cursor_track_index_ < num_tracks) {
       auto & arrangement = song.getArrangement();
       auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
-      auto bar_start_row = cursor_bar_ * rows_per_bar;
-      auto active = resolveInstanceForBar(song, track_id, bar_start_row, rows_per_bar);
+      auto bar_start_row = bar_row(cursor_bar_);
+      auto active = resolveInstanceForBar(song, track_id, bar_start_row, bar_length(cursor_bar_));
       if (active.clip_index >= 0 && active.start_row >= bar_start_row) {
         // On the instance's own leading (head) bar - removes the
         // placement event outright (Arrangement::clearInstance()) rather than
@@ -191,7 +193,7 @@ ArrangementGrid::offerInput(const InputEvent & input) {
     // delete-clip convention Session view's own clip list already uses.
     if (cursor_track_index_ < num_tracks) {
       auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
-      auto active = resolveInstanceForBar(song, track_id, cursor_bar_ * rows_per_bar, rows_per_bar);
+      auto active = resolveInstanceForBar(song, track_id, bar_row(cursor_bar_), bar_length(cursor_bar_));
       if (active.clip_index >= 0) {
         auto & clips = song.getClips(track_id);
         auto clip_id = clips[static_cast<size_t>(active.clip_index)].getId();
@@ -282,7 +284,8 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   auto & song = getController().getSong();
   auto track_ids = getVisibleTrackIds(song);
   auto num_tracks = static_cast<int>(track_ids.size());
-  auto rows_per_bar = max(1, song.getRowsPerBar());
+  auto bars = song.getArrangementBars();
+  auto & signature_markers = song.getTimeSignatureMarkers();
 
   auto [ rows, cols ] = getDim();
   if (rows < 1 || cols < 1) return false;
@@ -314,7 +317,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   // on isPlaying() either.
   auto & playback_info = getController().getPlaybackInfo();
   auto playing_row = playback_info.getAbsolutePosition();
-  auto playing_bar = playing_row / rows_per_bar;
+  auto playing_bar = bars->barIndex(playing_row);
   auto bar_count = barCount(song, playing_bar);
   // A moved cursor reattaches a view the mouse wheel detached - this
   // grid's own, or (while stopped) the edit position it follows unfocused.
@@ -384,7 +387,8 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   vector<int> prev_start_row(static_cast<size_t>(visible_cols), -1);
   if (scroll_row_ > 0) {
     for (auto vc = 0; vc < visible_cols && scroll_col_ + vc < num_tracks; vc++) {
-      auto above = resolveInstanceForBar(song, track_ids[static_cast<size_t>(scroll_col_ + vc)], (scroll_row_ - 1) * rows_per_bar, rows_per_bar);
+      auto above_row = bars->barStartRow(scroll_row_ - 1);
+      auto above = resolveInstanceForBar(song, track_ids[static_cast<size_t>(scroll_col_ + vc)], above_row, bars->nextBarStart(above_row) - above_row);
       prev_clip_index[static_cast<size_t>(vc)] = above.clip_index;
       prev_start_row[static_cast<size_t>(vc)] = above.start_row;
     }
@@ -397,7 +401,8 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
     // explicitly below rather than left to whatever an earlier frame drew
     // in this same screen cell.
     auto in_range = bar < bar_count;
-    auto raw_row = bar * rows_per_bar;
+    auto raw_row = bars->barStartRow(bar);
+    auto rows_per_bar = bars->nextBarStart(raw_row) - raw_row; // this bar's own length
     auto is_playing_row = in_range && bar == playing_bar;
 
 
@@ -536,11 +541,14 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
 
     // A locator anywhere in this bar - which row isn't shown. The playing
     // bar brightens the mark itself rather than tinting its background.
+    // A time signature marker in it shows as "/" ("»" with a locator too).
     auto locator = locators.lower_bound(raw_row);
     bool has_locator = in_range && locator != locators.end() && locator->first < raw_row + rows_per_bar;
+    auto marker = signature_markers.lower_bound(raw_row);
+    bool has_marker = in_range && marker != signature_markers.end() && marker->first < raw_row + rows_per_bar;
     setFgColor(is_playing_row ? styles.cursor_tint_color : styles.locator_mark_color);
     setBgColor(styles.window_bg_color);
-    putstr(vr, visible_cols * kColWidth + kLocatorWidth, has_locator ? "›" : " ");
+    putstr(vr, visible_cols * kColWidth + kLocatorWidth, has_locator ? (has_marker ? "»" : "›") : (has_marker ? "/" : " "));
   }
 
   return true;

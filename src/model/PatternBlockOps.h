@@ -1,6 +1,7 @@
 #ifndef _PATTERNBLOCKOPS_H_
 #define _PATTERNBLOCKOPS_H_
 
+#include "BarGrid.h"
 #include "../model/Note.h"
 #include "../model/Command.h"
 
@@ -92,7 +93,7 @@ void pastePatternBlockCommand(PatternGrid & grid, const std::vector<Command> & b
 // Pattern's - see Clip.h) is rounded up to the next whole bar past
 // row_hi the same implicit way (back-padded) - a bar-aligned length is
 // what lets a later placement land cleanly on the grid.
-Clip extractClip(const PatternGrid & grid, int track_id, int row_lo, int row_hi, int rows_per_bar);
+Clip extractClip(const PatternGrid & grid, int track_id, int row_lo, int row_hi, const BarGrid & bars);
 
 // Row-only siblings of the copy/clear/paste families above, for
 // PatternEditor's SelectionScope::LOCATOR - the song's locators

@@ -605,6 +605,16 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
       }
     }
 
+    if (auto signatures = song->FirstChildElement("timeSignatures")) {
+      time_signatures_.clear();
+      for (auto it = signatures->FirstChildElement("timeSignature"); it; it = it->NextSiblingElement("timeSignature")) {
+        auto value = it->Attribute("value");
+        auto signature = value ? TimeSignature::parse(value) : std::nullopt;
+        if (signature && signature->isSet()) time_signatures_[it->IntAttribute("row", 0)] = *signature;
+      }
+      publishArrangementBars();
+    }
+
     scenes_.clear();
     if (auto scenes = song->FirstChildElement("scenes")) {
       for (auto it = scenes->FirstChildElement("scene"); it; it = it->NextSiblingElement("scene")) {
@@ -894,6 +904,17 @@ Song::save(const std::string & filename) const {
     }
   }
 
+  if (!time_signatures_.empty()) {
+    auto signatures = doc.NewElement("timeSignatures");
+    root->InsertEndChild(signatures);
+    for (auto & [ row, signature ] : time_signatures_) {
+      auto marker = doc.NewElement("timeSignature");
+      marker->SetAttribute("row", row);
+      marker->SetAttribute("value", signature.toString().c_str());
+      signatures->InsertEndChild(marker);
+    }
+  }
+
   // One <scene> per scene position, in order; trailing empty ones aren't written.
   auto named_scenes = scenes_.size();
   while (named_scenes > 0 && scenes_[named_scenes - 1].name.empty() && scenes_[named_scenes - 1].tempo == 0 && scenes_[named_scenes - 1].time_numerator == 0) named_scenes--;
@@ -989,8 +1010,14 @@ Song::loadParameters(const ParameterSource & input) {
   setScale(scaleFromString(input.get<std::string>("scale")));
 
   setTempo(input.get<int>("tempo", 90));
-  setRowsPerBar(input.get<int>("rowsPerBar", 16));
-  resetTransportBars();
+  // A song that only gave a bar length (rowsPerBar) has that signature from row 0.
+  time_signatures_.clear();
+  auto legacy_rows_per_bar = input.get<int>("rowsPerBar", 16);
+  if (legacy_rows_per_bar != 16) time_signatures_[0] = TimeSignature::fromRowsPerBar(legacy_rows_per_bar);
+  publishArrangementBars();
+  auto transport_signature = TimeSignature::parse(input.get<std::string>("transportTimeSignature"));
+  if (transport_signature && transport_signature->isSet()) setTransportBars(*transport_signature, input.get<int>("transportBarOrigin", 0));
+  else clearTransportBars();
   setSwing(input.get<int>("swing", swing::kStraight));
   setRecordQuantize(input.get<bool>("recordQuantize", false));
 
@@ -1039,14 +1066,73 @@ Song::getArrangementLength() const {
   }
   for (auto & [ track_id, background ] : arrangement_.getSampleBackgroundsByTrack()) end = std::max(end, background.getRowCount(bpm_));
   if (!locators_.empty()) end = std::max(end, locators_.rbegin()->first + 1);
-  return (end + rows_per_bar_ - 1) / rows_per_bar_ * rows_per_bar_;
+  return getArrangementBars()->roundUpToBar(end);
+}
+
+void
+Song::setTimeSignatureMarker(int row, TimeSignature signature) {
+  if (row < 0) return;
+  if (signature.isSet() && TimeSignature::validDenominator(signature.denominator)) time_signatures_[row] = signature;
+  else time_signatures_.erase(row);
+  publishArrangementBars();
+}
+
+TimeSignature
+Song::getArrangementTimeSignature(int row) const {
+  auto it = time_signatures_.upper_bound(row);
+  if (it == time_signatures_.begin()) return { 4, 4 };
+  return std::prev(it)->second;
+}
+
+int
+Song::barStartAtOrBefore(int row) const {
+  auto transport = getTransportBars();
+  if (transport->isActive() && row >= transport->origin) {
+    auto bar_rows = transport->signature.rowsPerBar();
+    return transport->origin + (row - transport->origin) / bar_rows * bar_rows;
+  }
+  return getArrangementBars()->barStart(row);
+}
+
+int
+Song::barRowsAt(int row) const {
+  auto transport = getTransportBars();
+  if (transport->isActive() && row >= transport->origin) return transport->signature.rowsPerBar();
+  return getArrangementBars()->barRows(row);
+}
+
+int
+Song::beatRowsAt(int row) const {
+  auto transport = getTransportBars();
+  if (transport->isActive() && row >= transport->origin) return transport->signature.rowsPerBeat();
+  return getArrangementBars()->beatRows(row);
+}
+
+int
+Song::nextBarStart(int row) const {
+  auto transport = getTransportBars();
+  if (transport->isActive() && row >= transport->origin) return barStartAtOrBefore(row) + transport->signature.rowsPerBar();
+  return getArrangementBars()->nextBarStart(row);
 }
 
 std::string
 Song::formatPosition(int absolute_row) const {
   auto row = std::max(absolute_row, 0);
-  auto in_bar = row % rows_per_bar_;
-  return std::to_string(row / rows_per_bar_ + 1) + "." + std::to_string(in_bar / 4 + 1) + "." + std::to_string(in_bar % 4 + 1);
+  auto bars = getArrangementBars();
+  auto transport = getTransportBars();
+  int bar = 0, in_bar = 0, beat_rows = 4;
+  if (transport->isActive() && row >= transport->origin) {
+    // Numbering carries on from the bar the transport's own bars began in.
+    auto bar_rows = transport->signature.rowsPerBar();
+    bar = bars->barIndex(transport->origin) + (row - transport->origin) / bar_rows;
+    in_bar = (row - transport->origin) % bar_rows;
+    beat_rows = transport->signature.rowsPerBeat();
+  } else {
+    bar = bars->barIndex(row);
+    in_bar = bars->rowInBar(row);
+    beat_rows = bars->beatRows(row);
+  }
+  return std::to_string(bar + 1) + "." + std::to_string(in_bar / beat_rows + 1) + "." + std::to_string(in_bar % beat_rows + 1);
 }
 
 void
@@ -1057,7 +1143,11 @@ Song::storeParameters(ParameterSource & output) const {
   if (getScale() != Scale::NONE) output.set("scale", to_string(getScale()));
   output.set("temperament", to_string(getTuning()));
   output.set("tempo", getTempo());
-  output.set("rowsPerBar", getRowsPerBar(), 16);
+  auto transport = getTransportBars();
+  if (transport->isActive()) {
+    output.set("transportTimeSignature", transport->signature.toString());
+    output.set("transportBarOrigin", transport->origin);
+  }
   output.set("swing", getSwing(), swing::kStraight);
   if (getRecordQuantize()) output.set("recordQuantize", true);
 

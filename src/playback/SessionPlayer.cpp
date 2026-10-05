@@ -131,7 +131,7 @@ SessionPlayer::triggerClip(int track_id, int clip_index) {
   auto & playback_info = controller_.getPlaybackInfo();
   if (!playback_info.isPlaying() && assign_playback_starter_) assign_playback_starter_();
   auto raw_row = playback_info.isPlaying() ? playback_info.getAbsolutePosition() : assign_row_;
-  placeClipInstance(song, track_id, quantizedBarRow(raw_row, song.getRowsPerBar()), clip_index);
+  placeClipInstance(song, track_id, quantizedBarRow(*song.getArrangementBars(), raw_row), clip_index);
   song.incVersion();
 }
 
@@ -202,6 +202,7 @@ SessionPlayer::launchScene(int clip_index, const vector<int> & track_ids) {
   // else on the next bar.
   pending_tempo_ = 0;
   pending_time_signature_ = {};
+  pending_clear_transport_bars_ = false;
   auto & song = controller_.getSong();
   auto bpm = song.getSceneTempo(clip_index);
   auto signature = song.getSceneTimeSignature(clip_index);
@@ -213,7 +214,7 @@ SessionPlayer::launchScene(int clip_index, const vector<int> & track_ids) {
     }
     if (signature.isSet()) {
       if (playing) pending_time_signature_ = signature;
-      else song.setTransportBars(signature.rowsPerBar(), signature.rowsPerBeat(), controller_.getPlaybackInfo().getAbsolutePosition());
+      else song.setTransportBars(signature, controller_.getPlaybackInfo().getAbsolutePosition());
     }
   }
   for (auto track_id : track_ids) triggerClip(track_id, clip_index);
@@ -262,6 +263,11 @@ SessionPlayer::returnToArrangement(int track_id) {
 
 void
 SessionPlayer::returnAllToArrangement() {
+  // The arrangement's bars come back with it: at once from a stopped
+  // transport, else on the next bar.
+  pending_time_signature_ = {};
+  if (controller_.getPlaybackInfo().isPlaying()) pending_clear_transport_bars_ = true;
+  else controller_.getSong().clearTransportBars();
   vector<int> track_ids;
   for (auto & [ track_id, unused ] : controller_.getPlaybackInfo().getSessionTracks()) track_ids.push_back(track_id);
   for (auto track_id : track_ids) returnToArrangement(track_id);
@@ -282,7 +288,7 @@ SessionPlayer::placeRecordingStop(int track_id) {
   auto & playback_info = controller_.getPlaybackInfo();
   if (!playback_info.isPlaying()) return;
   auto & song = controller_.getSong();
-  auto row = quantizedBarRow(playback_info.getAbsolutePosition(), song.getRowsPerBar());
+  auto row = quantizedBarRow(*song.getArrangementBars(), playback_info.getAbsolutePosition());
   placeStopInstance(song, track_id, row);
   song.incVersion();
 }
@@ -369,8 +375,12 @@ SessionPlayer::advanceToRow(int step, int row) {
       pending_tempo_ = 0;
     }
     if (pending_time_signature_.isSet()) {
-      song.setTransportBars(pending_time_signature_.rowsPerBar(), pending_time_signature_.rowsPerBeat(), row);
+      song.setTransportBars(pending_time_signature_, row);
       pending_time_signature_ = {};
+    }
+    if (pending_clear_transport_bars_) {
+      song.clearTransportBars();
+      pending_clear_transport_bars_ = false;
     }
     auto queued = move(queued_recording_);
     queued_recording_.clear();

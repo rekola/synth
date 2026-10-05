@@ -8,7 +8,9 @@
 #include "Arrangement.h"
 #include "Clip.h"
 #include "Scale.h"
+#include "BarGrid.h"
 #include "SceneName.h"
+#include "TimeSignature.h"
 #include "Swing.h"
 #include "Version.h"
 #include "../bus/BusEffectRegistry.h"
@@ -101,8 +103,7 @@ class Song : public SongObject {
   // A scene is a row of every track's clip list, identified by its
   // position there, with an optional name, tempo and time signature.
   // Launching it sets the tempo as the song tempo and the time signature
-  // as the transport's bars (SessionPlayer::launchScene()); arrangement
-  // playback never reads either.
+  // as the transport's bars (SessionPlayer::launchScene()).
   const std::string & getSceneName(int scene) const {
     static const std::string none;
     return scene >= 0 && static_cast<size_t>(scene) < scenes_.size() ? scenes_[static_cast<size_t>(scene)].name : none;
@@ -111,38 +112,30 @@ class Song : public SongObject {
   int getSceneTempo(int scene) const {
     return scene >= 0 && static_cast<size_t>(scene) < scenes_.size() ? scenes_[static_cast<size_t>(scene)].tempo : 0;
   }
-  // Numerator 0 for none. A row is a sixteenth, so rowsPerBar is
-  // numerator * 16 / denominator and a beat 16 / denominator rows.
-  struct TimeSignature {
-    int numerator = 0;
-    int denominator = 0;
-    bool isSet() const { return numerator > 0; }
-    int rowsPerBar() const { return numerator * 16 / denominator; }
-    int rowsPerBeat() const { return 16 / denominator; }
-  };
+  // Numerator 0 for none.
   TimeSignature getSceneTimeSignature(int scene) const {
     if (scene < 0 || static_cast<size_t>(scene) >= scenes_.size()) return {};
     auto & info = scenes_[static_cast<size_t>(scene)];
     return { info.time_numerator, info.time_denominator };
   }
   // The bar and beat length the scene is shown and edited in: its own time
-  // signature, else the bars the transport is counting (which a scene
+  // signature, else the one the transport is counting in (which a scene
   // without one plays in).
   int getSceneBarRows(int scene) const {
     auto signature = getSceneTimeSignature(scene);
-    return signature.isSet() ? signature.rowsPerBar() : getBarRows();
+    return (signature.isSet() ? signature : getRunningTimeSignature()).rowsPerBar();
   }
   int getSceneBeatRows(int scene) const {
     auto signature = getSceneTimeSignature(scene);
-    return signature.isSet() ? signature.rowsPerBeat() : getBeatRows();
+    return (signature.isSet() ? signature : getRunningTimeSignature()).rowsPerBeat();
   }
   void setSceneName(int scene, std::string name) { sceneAt(scene).name = std::move(name); }
   void setSceneTempo(int scene, int bpm) { sceneAt(scene).tempo = std::max(bpm, 0); }
-  void setSceneTimeSignature(int scene, int numerator, int denominator) {
+  void setSceneTimeSignature(int scene, TimeSignature signature) {
     auto & info = sceneAt(scene);
-    bool valid = numerator > 0 && scenename::validDenominator(denominator);
-    info.time_numerator = valid ? numerator : 0;
-    info.time_denominator = valid ? denominator : 0;
+    bool valid = signature.isSet() && TimeSignature::validDenominator(signature.denominator);
+    info.time_numerator = valid ? signature.numerator : 0;
+    info.time_denominator = valid ? signature.denominator : 0;
   }
   // Sets a scene from typed text: a "90 BPM" and a "3/4" in it become the
   // tempo and time signature (the rest the name); with none, they stay as
@@ -151,7 +144,7 @@ class Song : public SongObject {
     auto parsed = scenename::extract(text);
     setSceneName(scene, parsed.name);
     if (parsed.has_tempo) setSceneTempo(scene, parsed.tempo);
-    if (parsed.has_time_signature) setSceneTimeSignature(scene, parsed.numerator, parsed.denominator);
+    if (parsed.has_time_signature) setSceneTimeSignature(scene, { parsed.numerator, parsed.denominator });
   }
 
   // How late the second eighth of every pair plays (swing.h), in percent of
@@ -161,48 +154,65 @@ class Song : public SongObject {
   int getSwing() const { return swing_; }
   void setSwing(int percent) { swing_ = swing::clamp(percent); }
 
-  // The shared quantization grid (<song rowsPerBar="N">) both the
-  // Launchpad Session view (SessionPlayer::advanceToStep())
-  // and PatternEditor's own bar-boundary highlight measure against -
-  // (how many rows make one bar). Default 16 matches this
-  // codebase's own fixed "a row is a 16th note" convention
-  // (ChannelConfiguration::getRowDuration()), so the default is an
-  // ordinary 4/4 bar without inventing a second tempo-adjacent constant.
-  int getRowsPerBar() const { return rows_per_bar_; }
-  void setRowsPerBar(int rows) { rows_per_bar_ = rows > 0 ? rows : 1; }
+  // ---- Bars and time signatures. A row is a sixteenth note.
+  //
+  // The arrangement's own bars: 4/4 from row 0 until a marker
+  // (<timeSignatures>) sets another from its row on. Everything laid out on
+  // the arrangement timeline - its grid, bar accents, where a clip is
+  // placed - counts in these. A marker at row 0 sets the first signature.
+  // Callers editing markers also call incVersion().
+  const std::map<int, TimeSignature> & getTimeSignatureMarkers() const { return time_signatures_; }
+  void setTimeSignatureMarker(int row, TimeSignature signature);
+  void clearTimeSignatureMarker(int row) { setTimeSignatureMarker(row, {}); }
+  std::shared_ptr<const BarGrid> getArrangementBars() const { return std::atomic_load(&arrangement_bars_); }
+  // The signature the arrangement is in at `row`.
+  TimeSignature getArrangementTimeSignature(int row) const;
 
-  // The bars the transport counts in right now: the song's own (rowsPerBar,
-  // a beat of 4 rows, from row 0) until a scene launched with a time
-  // signature starts new ones from its launch bar. Playback and Session
-  // launch quantization use these; the arrangement's bar grid stays the
-  // song's. Not saved - a loaded song counts the song's bars again. The
-  // audio thread reads them live, so the origin is set before the length.
-  int getBarRows() const { return bar_rows_ > 0 ? bar_rows_ : std::max(1, rows_per_bar_); }
-  int getBeatRows() const { return beat_rows_ > 0 ? beat_rows_ : 4; }
-  int getBarOrigin() const { return bar_origin_; }
-  void setTransportBars(int bar_rows, int beat_rows, int origin_row) {
-    bar_origin_ = origin_row;
-    beat_rows_ = beat_rows;
-    bar_rows_ = bar_rows;
+  // The transport's own bars: the arrangement's, until a launched scene
+  // with a time signature sets the signature running from its launch bar
+  // (`origin_row`); back to the arrangement clears it. What playback and
+  // Session launching count in (the bar a queued launch waits for, the
+  // metronome, take lengths). Saved with the song. The audio thread reads
+  // these live, so they're published as one snapshot.
+  struct TransportBars {
+    TimeSignature signature; // unset: the arrangement's
+    int origin = 0;
+    bool isActive() const { return signature.isSet(); }
+  };
+  std::shared_ptr<const TransportBars> getTransportBars() const { return std::atomic_load(&transport_bars_); }
+  void setTransportBars(TimeSignature signature, int origin_row) {
+    std::atomic_store(&transport_bars_, std::make_shared<const TransportBars>(TransportBars{ signature, origin_row }));
   }
-  void resetTransportBars() { setTransportBars(0, 0, 0); }
-  // How many rows into its transport bar `row` is (a row before the origin
-  // counts back in the same bars).
-  int rowInBar(int row) const {
-    auto position = (row - bar_origin_) % getBarRows();
-    return position < 0 ? position + getBarRows() : position;
+  void clearTransportBars() { setTransportBars({}, 0); }
+  // The signature in force wherever the transport is not tied to a row: the
+  // running one, else the arrangement's first.
+  TimeSignature getRunningTimeSignature() const {
+    auto transport = getTransportBars();
+    return transport->isActive() ? transport->signature : getArrangementTimeSignature(0);
   }
+
+  // The signature the transport is counting in at `row`.
+  TimeSignature getTimeSignatureAt(int row) const {
+    auto transport = getTransportBars();
+    return transport->isActive() && row >= transport->origin ? transport->signature : getArrangementTimeSignature(row);
+  }
+  // Where `row` falls in the bars the transport counts in.
+  int barStartAtOrBefore(int row) const;
+  int rowInBar(int row) const { return row - barStartAtOrBefore(row); }
   bool isBarStart(int row) const { return rowInBar(row) == 0; }
-  int barStartAtOrBefore(int row) const { return row - rowInBar(row); }
+  int barRowsAt(int row) const;
+  int beatRowsAt(int row) const;
+  // The first bar start after `row`.
+  int nextBarStart(int row) const;
+
   // Whether a live Session take snaps each press and release to the nearest
   // row as it's recorded. Off (the default) records the raw sub-row timing
   // in the note's delay instead; quantizeClip() can clean it up afterward.
   bool getRecordQuantize() const { return record_quantize_; }
   void setRecordQuantize(bool enabled) { record_quantize_ = enabled; }
   // `absolute_row` as a musical position, "bar.beat.sixteenth", each
-  // 1-based - what the transport shows, and anything else that names a
-  // position. A row is a sixteenth (ChannelConfiguration::
-  // getRowDuration()), so a beat is 4 rows and a bar getRowsPerBar().
+  // 1-based, in the bars the transport counts in - what the transport
+  // shows, and anything else that names a position.
   std::string formatPosition(int absolute_row) const;
 
   // Locators: named moments of the whole song ("chorus starts here", a
@@ -529,10 +539,10 @@ private:
   }
   std::vector<SceneInfo> scenes_; // by scene position; shorter than the scene count when the rest have neither
   int bpm_ = 140;
-  int rows_per_bar_ = 16;
-  int bar_rows_ = 0; // 0: the song's
-  int beat_rows_ = 0;
-  int bar_origin_ = 0;
+  std::map<int, TimeSignature> time_signatures_; // the arrangement's markers, by row
+  std::shared_ptr<const BarGrid> arrangement_bars_ = std::make_shared<const BarGrid>();
+  std::shared_ptr<const TransportBars> transport_bars_ = std::make_shared<const TransportBars>();
+  void publishArrangementBars() { std::atomic_store(&arrangement_bars_, std::make_shared<const BarGrid>(time_signatures_)); }
   int swing_ = swing::kStraight;
   bool record_quantize_ = false;
   float ear_height_ = constants::DEFAULT_EAR_HEIGHT;
