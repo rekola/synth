@@ -254,8 +254,9 @@ ClipGrid::startSceneRename() {
   auto column = cursor_track_index_ - scroll_col_;
   if (row < 1 || row >= getDim().first || column < 0) return;
 
-  // The editable span follows the " ▸ " launch glyph; a "90 BPM" in the
-  // name sets the tempo launching the scene applies.
+  // The editable span follows the " ▸ " launch glyph. Typing "90 BPM" sets
+  // the scene's tempo (shown at the right of the slot), "0 BPM" clears it;
+  // a name without one leaves it alone.
   InlineEditor::Field field;
   field.row = row;
   field.col = column * (kColWidth + 1) + 3;
@@ -263,7 +264,7 @@ ClipGrid::startSceneRename() {
   field.initial_text = getController().getSong().getSceneName(scene);
   inline_editor_.open(field, [this, scene](std::string text) {
     auto & target_song = getController().getSong();
-    target_song.setSceneName(scene, std::move(text));
+    target_song.setSceneFromText(scene, text);
     target_song.incVersion();
   });
 }
@@ -888,7 +889,10 @@ ClipGrid::renderMasterColumn(const StyleProvider & styles, int x, int rows, bool
       if (!has_any_clip && !is_cursor_cell) fg = styles.window_fg_color.blend(0.5f, Color(0, 0, 0));
       setFgColor(fg);
       setBgColor(bg);
-      putstr(y, x, Utf8::padToWidth(" ▸ " + song.getSceneName(physical_row), kColWidth));
+      auto tempo = song.getSceneTempo(physical_row);
+      auto tempo_text = tempo > 0 ? " ♩" + std::to_string(tempo) : std::string();
+      auto name_width = kColWidth - 3 - Utf8::displayWidth(tempo_text);
+      putstr(y, x, Utf8::padToWidth(" ▸ " + Utf8::padToWidth(song.getSceneName(physical_row), name_width) + tempo_text, kColWidth));
       auto state = scene_state(physical_row);
       if (state == SessionPadHighlight::PLAYING || state == SessionPadHighlight::QUEUED || state == SessionPadHighlight::PAUSED) {
         setFgColor(state == SessionPadHighlight::PAUSED ? styles.clip_paused_color : styles.clip_playing_color);

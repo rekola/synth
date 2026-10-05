@@ -90,33 +90,51 @@ TEST(swing_commands_step_the_song_swing_within_its_range_and_bump_the_version) {
   CHECK(song.getSwing() == 75); // nor above the maximum
 }
 
-TEST(scene_tempo_comes_from_the_scene_name) {
-  CHECK(scenename::parseTempo("Waltz 90 BPM") == 90);
-  CHECK(scenename::parseTempo("90bpm waltz") == 90);
-  CHECK(scenename::parseTempo("Verse") == 0);
-  CHECK(scenename::parseTempo("BPM") == 0);
-  CHECK(scenename::parseTempo("5 bpm") == 0); // out of range
-  CHECK(scenename::parseTempo("Intro 2 / 140 Bpm") == 140);
+TEST(scene_text_splits_into_name_and_tempo) {
+  auto waltz = scenename::extract("Waltz 90 BPM");
+  CHECK(waltz.has_tempo && waltz.tempo == 90 && waltz.name == "Waltz");
+  auto tight = scenename::extract("90bpm waltz");
+  CHECK(tight.tempo == 90 && tight.name == "waltz");
+  auto middle = scenename::extract("Intro 140 Bpm slow");
+  CHECK(middle.tempo == 140 && middle.name == "Intro slow");
+  CHECK(!scenename::extract("Verse").has_tempo);
+  CHECK(!scenename::extract("BPM").has_tempo);
+  CHECK(!scenename::extract("5 bpm").has_tempo); // out of range, stays in the name
+  auto clear = scenename::extract("Waltz 0 BPM");
+  CHECK(clear.has_tempo && clear.tempo == 0 && clear.name == "Waltz");
+  CHECK(scenename::extract("Waltz - bpm").has_tempo);
 }
 
-TEST(scene_names_round_trip_by_position) {
+TEST(renaming_a_scene_keeps_its_tempo_until_cleared) {
+  Song song;
+  song.setSceneFromText(2, "Waltz 90 BPM");
+  CHECK(song.getSceneName(2) == "Waltz" && song.getSceneTempo(2) == 90);
+  song.setSceneFromText(2, "xyz");
+  CHECK(song.getSceneName(2) == "xyz" && song.getSceneTempo(2) == 90);
+  song.setSceneFromText(2, "xyz 0 BPM");
+  CHECK(song.getSceneTempo(2) == 0);
+  CHECK(song.getSceneTempo(-1) == 0);
+}
+
+TEST(scenes_round_trip_by_position) {
   namespace fs = std::filesystem;
   InstrumentProvider provider;
-  auto dir = fs::temp_directory_path() / "synth_scene_name_roundtrip";
+  auto dir = fs::temp_directory_path() / "synth_scene_roundtrip";
   fs::create_directories(dir);
   auto path = (dir / "scenes.xml").string();
 
   Song original;
-  CHECK(original.getSceneTempo(0) == 0);
-  original.setSceneName(1, "Waltz 90 BPM");
-  original.setSceneName(3, "Tail");
-  original.setSceneName(3, "");
+  original.setSceneFromText(1, "Waltz 90 BPM");
+  original.setSceneFromText(2, "Tempo only 120 BPM");
+  original.setSceneName(2, "");
+  original.setSceneFromText(4, "Tail");
+  original.setSceneFromText(4, "");
   original.save(path);
 
   Song loaded;
   CHECK(loaded.open(path, provider));
-  CHECK(loaded.getSceneName(0).empty());
-  CHECK(loaded.getSceneName(1) == "Waltz 90 BPM");
-  CHECK(loaded.getSceneTempo(1) == 90);
-  CHECK(loaded.getSceneTempo(3) == 0);
+  CHECK(loaded.getSceneName(0).empty() && loaded.getSceneTempo(0) == 0);
+  CHECK(loaded.getSceneName(1) == "Waltz" && loaded.getSceneTempo(1) == 90);
+  CHECK(loaded.getSceneName(2).empty() && loaded.getSceneTempo(2) == 120);
+  CHECK(loaded.getSceneName(4).empty());
 }

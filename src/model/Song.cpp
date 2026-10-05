@@ -605,11 +605,11 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
       }
     }
 
-    scene_names_.clear();
+    scenes_.clear();
     if (auto scenes = song->FirstChildElement("scenes")) {
       for (auto it = scenes->FirstChildElement("scene"); it; it = it->NextSiblingElement("scene")) {
         auto name = it->Attribute("name");
-        scene_names_.push_back(name ? name : "");
+        scenes_.push_back(SceneInfo{name ? name : "", std::max(it->IntAttribute("tempo", 0), 0)});
       }
     }
 
@@ -888,15 +888,16 @@ Song::save(const std::string & filename) const {
     }
   }
 
-  // One <scene> per scene position, in order; trailing unnamed ones aren't written.
-  auto named_scenes = scene_names_.size();
-  while (named_scenes > 0 && scene_names_[named_scenes - 1].empty()) named_scenes--;
+  // One <scene> per scene position, in order; trailing empty ones aren't written.
+  auto named_scenes = scenes_.size();
+  while (named_scenes > 0 && scenes_[named_scenes - 1].name.empty() && scenes_[named_scenes - 1].tempo == 0) named_scenes--;
   if (named_scenes > 0) {
     auto scenes = doc.NewElement("scenes");
     root->InsertEndChild(scenes);
     for (size_t i = 0; i < named_scenes; i++) {
       auto scene = doc.NewElement("scene");
-      if (!scene_names_[i].empty()) scene->SetAttribute("name", scene_names_[i].c_str());
+      if (!scenes_[i].name.empty()) scene->SetAttribute("name", scenes_[i].name.c_str());
+      if (scenes_[i].tempo > 0) scene->SetAttribute("tempo", scenes_[i].tempo);
       scenes->InsertEndChild(scene);
     }
   }

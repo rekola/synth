@@ -98,21 +98,27 @@ class Song : public SongObject {
   short getTempo() const { return bpm_; }
   void setTempo(short bpm) { bpm_ = bpm; }
 
-  // A scene is a row of every track's clip list, named by its position
-  // there. Its name may carry a tempo ("Waltz 90 BPM", see SceneName.h),
-  // which launching the scene sets as the song tempo
-  // (SessionPlayer::launchScene()); arrangement playback never reads it.
+  // A scene is a row of every track's clip list, identified by its
+  // position there, with an optional name and tempo. Launching it sets the
+  // tempo as the song tempo (SessionPlayer::launchScene()); arrangement
+  // playback never reads it.
   const std::string & getSceneName(int scene) const {
     static const std::string none;
-    return scene >= 0 && static_cast<size_t>(scene) < scene_names_.size() ? scene_names_[static_cast<size_t>(scene)] : none;
+    return scene >= 0 && static_cast<size_t>(scene) < scenes_.size() ? scenes_[static_cast<size_t>(scene)].name : none;
   }
-  void setSceneName(int scene, std::string name) {
-    if (scene < 0) return;
-    if (static_cast<size_t>(scene) >= scene_names_.size()) scene_names_.resize(static_cast<size_t>(scene) + 1);
-    scene_names_[static_cast<size_t>(scene)] = std::move(name);
+  // 0 for none.
+  int getSceneTempo(int scene) const {
+    return scene >= 0 && static_cast<size_t>(scene) < scenes_.size() ? scenes_[static_cast<size_t>(scene)].tempo : 0;
   }
-  // The tempo the scene's name asks for, or 0 for none.
-  int getSceneTempo(int scene) const { return scenename::parseTempo(getSceneName(scene)); }
+  void setSceneName(int scene, std::string name) { sceneAt(scene).name = std::move(name); }
+  void setSceneTempo(int scene, int bpm) { sceneAt(scene).tempo = std::max(bpm, 0); }
+  // Sets a scene from typed text: a "90 BPM" in it becomes the tempo (the
+  // rest the name); with none, the tempo stays as it was.
+  void setSceneFromText(int scene, const std::string & text) {
+    auto parsed = scenename::extract(text);
+    setSceneName(scene, parsed.name);
+    if (parsed.has_tempo) setSceneTempo(scene, parsed.tempo);
+  }
 
   // How late the second eighth of every pair plays (swing.h), in percent of
   // the pair: 50 straight, about 67 triplet swing. Applied at playback to
@@ -456,7 +462,14 @@ private:
   Tuning tuning_ = Tuning::TET31;
   short key_note_number_ = 0;
   Scale scale_ = Scale::NONE;
-  std::vector<std::string> scene_names_; // by scene position; shorter than the scene count when the rest are unnamed
+  struct SceneInfo { std::string name; int tempo = 0; };
+  SceneInfo & sceneAt(int scene) {
+    static SceneInfo discarded;
+    if (scene < 0) return discarded = SceneInfo{};
+    if (static_cast<size_t>(scene) >= scenes_.size()) scenes_.resize(static_cast<size_t>(scene) + 1);
+    return scenes_[static_cast<size_t>(scene)];
+  }
+  std::vector<SceneInfo> scenes_; // by scene position; shorter than the scene count when the rest have neither
   int bpm_ = 140;
   int rows_per_bar_ = 16;
   int swing_ = swing::kStraight;
