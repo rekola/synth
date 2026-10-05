@@ -16,7 +16,7 @@ namespace level_meter {
 // A linear RMS level's position on a meter: 0 at kFloorDb or below
 // (silence, and TrackInfo's -1 "no reading yet" too), 1 at full scale.
 // dB-mapped so quiet material still shows.
-constexpr float kFloorDb = -40.0f;
+constexpr float kFloorDb = -60.0f;
 inline float fraction(float linear) {
   if (linear <= 0.0f) return 0.0f;
   return std::clamp((20.0f * std::log10(linear) - kFloorDb) / -kFloorDb, 0.0f, 1.0f);
