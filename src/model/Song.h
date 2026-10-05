@@ -99,9 +99,10 @@ class Song : public SongObject {
   void setTempo(short bpm) { bpm_ = bpm; }
 
   // A scene is a row of every track's clip list, identified by its
-  // position there, with an optional name and tempo. Launching it sets the
-  // tempo as the song tempo (SessionPlayer::launchScene()); arrangement
-  // playback never reads it.
+  // position there, with an optional name, tempo and time signature.
+  // Launching it sets the tempo as the song tempo and the time signature
+  // as the transport's bars (SessionPlayer::launchScene()); arrangement
+  // playback never reads either.
   const std::string & getSceneName(int scene) const {
     static const std::string none;
     return scene >= 0 && static_cast<size_t>(scene) < scenes_.size() ? scenes_[static_cast<size_t>(scene)].name : none;
@@ -110,14 +111,46 @@ class Song : public SongObject {
   int getSceneTempo(int scene) const {
     return scene >= 0 && static_cast<size_t>(scene) < scenes_.size() ? scenes_[static_cast<size_t>(scene)].tempo : 0;
   }
+  // Numerator 0 for none. A row is a sixteenth, so rowsPerBar is
+  // numerator * 16 / denominator and a beat 16 / denominator rows.
+  struct TimeSignature {
+    int numerator = 0;
+    int denominator = 0;
+    bool isSet() const { return numerator > 0; }
+    int rowsPerBar() const { return numerator * 16 / denominator; }
+    int rowsPerBeat() const { return 16 / denominator; }
+  };
+  TimeSignature getSceneTimeSignature(int scene) const {
+    if (scene < 0 || static_cast<size_t>(scene) >= scenes_.size()) return {};
+    auto & info = scenes_[static_cast<size_t>(scene)];
+    return { info.time_numerator, info.time_denominator };
+  }
+  // The bar and beat length the scene is shown and edited in: its own time
+  // signature, else the song's.
+  int getSceneBarRows(int scene) const {
+    auto signature = getSceneTimeSignature(scene);
+    return signature.isSet() ? signature.rowsPerBar() : std::max(1, rows_per_bar_);
+  }
+  int getSceneBeatRows(int scene) const {
+    auto signature = getSceneTimeSignature(scene);
+    return signature.isSet() ? signature.rowsPerBeat() : 4;
+  }
   void setSceneName(int scene, std::string name) { sceneAt(scene).name = std::move(name); }
   void setSceneTempo(int scene, int bpm) { sceneAt(scene).tempo = std::max(bpm, 0); }
-  // Sets a scene from typed text: a "90 BPM" in it becomes the tempo (the
-  // rest the name); with none, the tempo stays as it was.
+  void setSceneTimeSignature(int scene, int numerator, int denominator) {
+    auto & info = sceneAt(scene);
+    bool valid = numerator > 0 && scenename::validDenominator(denominator);
+    info.time_numerator = valid ? numerator : 0;
+    info.time_denominator = valid ? denominator : 0;
+  }
+  // Sets a scene from typed text: a "90 BPM" and a "3/4" in it become the
+  // tempo and time signature (the rest the name); with none, they stay as
+  // they were.
   void setSceneFromText(int scene, const std::string & text) {
     auto parsed = scenename::extract(text);
     setSceneName(scene, parsed.name);
     if (parsed.has_tempo) setSceneTempo(scene, parsed.tempo);
+    if (parsed.has_time_signature) setSceneTimeSignature(scene, parsed.numerator, parsed.denominator);
   }
 
   // How late the second eighth of every pair plays (swing.h), in percent of
@@ -136,6 +169,30 @@ class Song : public SongObject {
   // ordinary 4/4 bar without inventing a second tempo-adjacent constant.
   int getRowsPerBar() const { return rows_per_bar_; }
   void setRowsPerBar(int rows) { rows_per_bar_ = rows > 0 ? rows : 1; }
+
+  // The bars the transport counts in right now: the song's own (rowsPerBar,
+  // a beat of 4 rows, from row 0) until a scene launched with a time
+  // signature starts new ones from its launch bar. Playback and Session
+  // launch quantization use these; the arrangement's bar grid stays the
+  // song's. Not saved - a loaded song counts the song's bars again. The
+  // audio thread reads them live, so the origin is set before the length.
+  int getBarRows() const { return bar_rows_ > 0 ? bar_rows_ : std::max(1, rows_per_bar_); }
+  int getBeatRows() const { return beat_rows_ > 0 ? beat_rows_ : 4; }
+  int getBarOrigin() const { return bar_origin_; }
+  void setTransportBars(int bar_rows, int beat_rows, int origin_row) {
+    bar_origin_ = origin_row;
+    beat_rows_ = beat_rows;
+    bar_rows_ = bar_rows;
+  }
+  void resetTransportBars() { setTransportBars(0, 0, 0); }
+  // How many rows into its transport bar `row` is (a row before the origin
+  // counts back in the same bars).
+  int rowInBar(int row) const {
+    auto position = (row - bar_origin_) % getBarRows();
+    return position < 0 ? position + getBarRows() : position;
+  }
+  bool isBarStart(int row) const { return rowInBar(row) == 0; }
+  int barStartAtOrBefore(int row) const { return row - rowInBar(row); }
   // Whether a live Session take snaps each press and release to the nearest
   // row as it's recorded. Off (the default) records the raw sub-row timing
   // in the note's delay instead; quantizeClip() can clean it up afterward.
@@ -462,7 +519,7 @@ private:
   Tuning tuning_ = Tuning::TET31;
   short key_note_number_ = 0;
   Scale scale_ = Scale::NONE;
-  struct SceneInfo { std::string name; int tempo = 0; };
+  struct SceneInfo { std::string name; int tempo = 0; int time_numerator = 0; int time_denominator = 0; };
   SceneInfo & sceneAt(int scene) {
     static SceneInfo discarded;
     if (scene < 0) return discarded = SceneInfo{};
@@ -472,6 +529,9 @@ private:
   std::vector<SceneInfo> scenes_; // by scene position; shorter than the scene count when the rest have neither
   int bpm_ = 140;
   int rows_per_bar_ = 16;
+  int bar_rows_ = 0; // 0: the song's
+  int beat_rows_ = 0;
+  int bar_origin_ = 0;
   int swing_ = swing::kStraight;
   bool record_quantize_ = false;
   float ear_height_ = constants::DEFAULT_EAR_HEIGHT;

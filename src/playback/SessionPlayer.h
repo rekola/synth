@@ -2,6 +2,7 @@
 #define _SESSIONPLAYER_H_
 
 #include "../launchpad/SessionPadHighlight.h"
+#include "../model/Song.h"
 
 #include <functional>
 #include <optional>
@@ -162,8 +163,10 @@ class SessionPlayer {
   struct QueuedRecording { enum Kind { STOP, FRESH_TAKE, OVERDUB } kind; int clip_index = 0; };
   std::unordered_map<int, QueuedRecording> queued_recording_;
 
-  // A launched scene's tempo, applied on the next bar row tick() sees.
+  // A launched scene's tempo and time signature, applied on the next bar
+  // row tick() sees.
   int pending_tempo_ = 0;
+  Song::TimeSignature pending_time_signature_;
   int assign_row_ = 0;
   std::function<void()> assign_playback_starter_;
 };

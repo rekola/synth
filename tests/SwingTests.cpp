@@ -138,3 +138,57 @@ TEST(scenes_round_trip_by_position) {
   CHECK(loaded.getSceneName(2).empty() && loaded.getSceneTempo(2) == 120);
   CHECK(loaded.getSceneName(4).empty());
 }
+
+TEST(scene_text_carries_a_time_signature) {
+  auto waltz = scenename::extract("Waltz 3/4 90 BPM");
+  CHECK(waltz.has_time_signature && waltz.numerator == 3 && waltz.denominator == 4);
+  CHECK(waltz.has_tempo && waltz.tempo == 90 && waltz.name == "Waltz");
+  auto spaced = scenename::extract("Jig 6 / 8");
+  CHECK(spaced.numerator == 6 && spaced.denominator == 8 && spaced.name == "Jig");
+  CHECK(!scenename::extract("Take 2/3").has_time_signature); // 3 isn't a note value a row divides
+  CHECK(!scenename::extract("Mix 100/4").has_time_signature);
+  auto clear = scenename::extract("Waltz 0/4");
+  CHECK(clear.has_time_signature && clear.numerator == 0 && clear.name == "Waltz");
+}
+
+TEST(scene_time_signature_sets_its_bar_and_beat_rows) {
+  Song song;
+  CHECK(song.getSceneBarRows(0) == 16 && song.getSceneBeatRows(0) == 4); // the song's own
+  song.setSceneFromText(1, "Waltz 3/4");
+  CHECK(song.getSceneBarRows(1) == 12 && song.getSceneBeatRows(1) == 4);
+  song.setSceneFromText(2, "7/8");
+  CHECK(song.getSceneBarRows(2) == 14 && song.getSceneBeatRows(2) == 2);
+  song.setSceneFromText(1, "waltz");
+  CHECK(song.getSceneBarRows(1) == 12); // renaming keeps it
+  song.setSceneFromText(1, "0/4");
+  CHECK(song.getSceneBarRows(1) == 16);
+}
+
+TEST(transport_bars_count_from_their_origin) {
+  Song song;
+  CHECK(song.isBarStart(0) && song.isBarStart(16) && !song.isBarStart(12));
+  song.setTransportBars(12, 4, 32); // a waltz starting on the bar at row 32
+  CHECK(song.isBarStart(32) && song.isBarStart(44) && !song.isBarStart(48));
+  CHECK(song.rowInBar(47) == 3 && song.barStartAtOrBefore(47) == 44);
+  CHECK(song.isBarStart(20)); // before the origin, the same bars carry back
+  song.resetTransportBars();
+  CHECK(song.isBarStart(48) && song.getBeatRows() == 4);
+}
+
+TEST(scene_time_signature_round_trips) {
+  namespace fs = std::filesystem;
+  InstrumentProvider provider;
+  auto dir = fs::temp_directory_path() / "synth_scene_timesig_roundtrip";
+  fs::create_directories(dir);
+  auto path = (dir / "scenes.xml").string();
+  Song original;
+  original.setSceneFromText(1, "Waltz 3/4 90 BPM");
+  original.setSceneFromText(2, "5/8");
+  original.save(path);
+  Song loaded;
+  CHECK(loaded.open(path, provider));
+  CHECK(loaded.getSceneTimeSignature(1).numerator == 3 && loaded.getSceneTimeSignature(1).denominator == 4);
+  CHECK(loaded.getSceneTempo(1) == 90 && loaded.getSceneName(1) == "Waltz");
+  CHECK(loaded.getSceneTimeSignature(2).rowsPerBar() == 10);
+  CHECK(!loaded.getSceneTimeSignature(0).isSet());
+}

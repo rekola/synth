@@ -800,8 +800,8 @@ class SongState : public TrackState {
   // row at most). The session clock doesn't follow, so a launched clip
   // keeps its own place.
   void jumpToNextBar(const Song & song, int row_in_bar) {
-    int rows_per_bar = std::max(1, song.getRowsPerBar());
-    setPosition((absolute_pos_ / rows_per_bar + 1) * rows_per_bar + std::min(row_in_bar, rows_per_bar - 1));
+    int rows_per_bar = song.getBarRows();
+    setPosition(song.barStartAtOrBefore(absolute_pos_) + rows_per_bar + std::min(row_in_bar, rows_per_bar - 1));
   }
 
   // 0Rxy (Command::isRetrigger()) - re-fires every note still playing on
@@ -971,8 +971,7 @@ private:
   // played through, and on the first row of a bar applies whatever is
   // queued.
   void advanceSessionTracks(const Song & song, int frame) {
-    int rows_per_bar = std::max(1, song.getRowsPerBar());
-    bool bar_start = absolute_pos_ % rows_per_bar == 0;
+    bool bar_start = song.isBarStart(absolute_pos_);
     for (auto it = session_tracks_.begin(); it != session_tracks_.end(); ) {
       auto track_id = it->first;
       auto & session_track = it->second;

@@ -609,7 +609,13 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
     if (auto scenes = song->FirstChildElement("scenes")) {
       for (auto it = scenes->FirstChildElement("scene"); it; it = it->NextSiblingElement("scene")) {
         auto name = it->Attribute("name");
-        scenes_.push_back(SceneInfo{name ? name : "", std::max(it->IntAttribute("tempo", 0), 0)});
+        SceneInfo info{name ? name : "", std::max(it->IntAttribute("tempo", 0), 0)};
+        int numerator = 0, denominator = 0;
+        if (auto text = it->Attribute("timeSignature"); text && sscanf(text, "%d/%d", &numerator, &denominator) == 2 && numerator > 0 && numerator <= 32 && scenename::validDenominator(denominator)) {
+          info.time_numerator = numerator;
+          info.time_denominator = denominator;
+        }
+        scenes_.push_back(std::move(info));
       }
     }
 
@@ -890,7 +896,7 @@ Song::save(const std::string & filename) const {
 
   // One <scene> per scene position, in order; trailing empty ones aren't written.
   auto named_scenes = scenes_.size();
-  while (named_scenes > 0 && scenes_[named_scenes - 1].name.empty() && scenes_[named_scenes - 1].tempo == 0) named_scenes--;
+  while (named_scenes > 0 && scenes_[named_scenes - 1].name.empty() && scenes_[named_scenes - 1].tempo == 0 && scenes_[named_scenes - 1].time_numerator == 0) named_scenes--;
   if (named_scenes > 0) {
     auto scenes = doc.NewElement("scenes");
     root->InsertEndChild(scenes);
@@ -898,6 +904,7 @@ Song::save(const std::string & filename) const {
       auto scene = doc.NewElement("scene");
       if (!scenes_[i].name.empty()) scene->SetAttribute("name", scenes_[i].name.c_str());
       if (scenes_[i].tempo > 0) scene->SetAttribute("tempo", scenes_[i].tempo);
+      if (scenes_[i].time_numerator > 0) scene->SetAttribute("timeSignature", (std::to_string(scenes_[i].time_numerator) + "/" + std::to_string(scenes_[i].time_denominator)).c_str());
       scenes->InsertEndChild(scene);
     }
   }
@@ -983,6 +990,7 @@ Song::loadParameters(const ParameterSource & input) {
 
   setTempo(input.get<int>("tempo", 90));
   setRowsPerBar(input.get<int>("rowsPerBar", 16));
+  resetTransportBars();
   setSwing(input.get<int>("swing", swing::kStraight));
   setRecordQuantize(input.get<bool>("recordQuantize", false));
 

@@ -636,7 +636,6 @@ Player::scheduleMetronome(const SongState & state, const Song & song, int frames
   if (!metronome_on_ || !state.isPlaying()) return;
   int interval = channel_config_.getSampleInterval(state.getTempo());
   if (interval <= 0) return;
-  int rows_per_bar = std::max(1, song.getRowsPerBar());
   // A row starts at frame 0 when the position sits on a row boundary,
   // otherwise once the current row has played out.
   int row = state.getAbsolutePosition();
@@ -647,7 +646,8 @@ Player::scheduleMetronome(const SongState & state, const Song & song, int frames
     row++;
   }
   for (; frame < frames; frame += interval, row++) {
-    if (row % 4 == 0) metronome_click_.addClick(frame, row % rows_per_bar == 0);
+    auto in_bar = song.rowInBar(row);
+    if (in_bar % song.getBeatRows() == 0) metronome_click_.addClick(frame, in_bar == 0);
   }
 }
 

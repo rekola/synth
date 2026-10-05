@@ -463,10 +463,11 @@ Controller::toggleDrumClipFocus(int track_id, int clip_index) {
     // 8-step window at a time (or several windows at once, split across
     // multiple connected devices).
     auto next_ordinal = clips.size() + 1;
+    auto scene = static_cast<int>(clips.size());
     auto & clip = song->addClip(Clip(track_id));
     clip.setName(fmt::format("Clip {}", next_ordinal));
     clip.setLooping(true);
-    clip.setLength(std::max(1, song->getRowsPerBar()));
+    clip.setLength(song->getSceneBarRows(scene)); // a bar of the scene's own time signature
     setFocusedClip(track_id, clip.getId());
   }
   if (drum_edit_requested_) drum_edit_requested_(track_id, true);
@@ -1251,7 +1252,7 @@ Controller::ensureSessionRecordingClip(int track_id, int absolute_step, int bar_
     // second beat rather than its first, and the clip's own loop point
     // still has to be the bar boundary either way.
     if (take.origin_step < 0) {
-      take.origin_step = bar_start_step >= 0 ? bar_start_step : previousBarRow(absolute_step, std::max(1, song->getRowsPerBar()));
+      take.origin_step = bar_start_step >= 0 ? bar_start_step : song->barStartAtOrBefore(absolute_step);
     }
   }
   extendSessionRecordingClipIfNeeded(track_id, absolute_step); // no-op for an overdub take - see its own comment
@@ -1278,7 +1279,7 @@ Controller::extendSessionRecordingClipIfNeeded(int track_id, int absolute_step) 
   auto & clip = clips[static_cast<size_t>(take.clip_index)];
 
   auto row = absolute_step - take.origin_step;
-  auto rows_per_bar = std::max(1, song->getRowsPerBar());
+  auto rows_per_bar = song->getBarRows();
   auto window_last_row = std::max(1, clip.getLength()) - 1;
   while (window_last_row - row < rows_per_bar) {
     clip.setLength(std::max(1, clip.getLength()) + rows_per_bar);
@@ -1307,7 +1308,7 @@ Controller::trimSessionRecordingClip(int track_id) {
 
   int last_row = -1;
   for (auto & [ row, notes ] : clip.getLeafPattern().getNotesByRow()) last_row = std::max(last_row, static_cast<int>(row));
-  auto rows_per_bar = std::max(1, song->getRowsPerBar());
+  auto rows_per_bar = song->getBarRows();
   // Nothing actually landed (the take was armed and disarmed with no note
   // ever written) - one bar, matching every other freshly-created clip's
   // own minimum length rather than a zero-length one.
@@ -1604,7 +1605,7 @@ Controller::beginSampleCapture(int track_id, int latency_frames) {
   // would shrink an already-longer clip out from under its own earlier
   // layers; finishSampleCapture() only ever grows it from here, never
   // shrinks it.
-  if (!is_overdub) clip.setLength(std::max(1, song->getRowsPerBar()));
+  if (!is_overdub) clip.setLength(song->getBarRows());
 
   recording_clip_id_ = clip.getId();
   recording_latency_frames_ = latency_frames;

@@ -197,13 +197,24 @@ SessionPlayer::toggleOverdub(int fallback_track_id) {
 
 void
 SessionPlayer::launchScene(int clip_index, const vector<int> & track_ids) {
-  // The scene's tempo takes effect with its clips: at once from a stopped
-  // transport, else on the next bar.
+  // The scene's tempo and time signature take effect with its clips: at
+  // once from a stopped transport (its bars counted from where it stands),
+  // else on the next bar.
   pending_tempo_ = 0;
-  auto bpm = controller_.getSong().getSceneTempo(clip_index);
-  if (bpm > 0 && !track_ids.empty()) {
-    if (controller_.getPlaybackInfo().isPlaying()) pending_tempo_ = bpm;
-    else controller_.setTempo(bpm);
+  pending_time_signature_ = {};
+  auto & song = controller_.getSong();
+  auto bpm = song.getSceneTempo(clip_index);
+  auto signature = song.getSceneTimeSignature(clip_index);
+  if (!track_ids.empty()) {
+    bool playing = controller_.getPlaybackInfo().isPlaying();
+    if (bpm > 0) {
+      if (playing) pending_tempo_ = bpm;
+      else controller_.setTempo(bpm);
+    }
+    if (signature.isSet()) {
+      if (playing) pending_time_signature_ = signature;
+      else song.setTransportBars(signature.rowsPerBar(), signature.rowsPerBeat(), controller_.getPlaybackInfo().getAbsolutePosition());
+    }
   }
   for (auto track_id : track_ids) triggerClip(track_id, clip_index);
   // A scene starts the transport even when every slot in it is empty.
@@ -351,11 +362,15 @@ SessionPlayer::tick() {
 
 void
 SessionPlayer::advanceToRow(int step, int row) {
-  auto rows_per_bar = max(1, controller_.getSong().getRowsPerBar());
-  if (row % rows_per_bar == 0) {
+  auto & song = controller_.getSong();
+  if (song.isBarStart(row)) {
     if (pending_tempo_ > 0) {
       controller_.setTempo(pending_tempo_);
       pending_tempo_ = 0;
+    }
+    if (pending_time_signature_.isSet()) {
+      song.setTransportBars(pending_time_signature_.rowsPerBar(), pending_time_signature_.rowsPerBeat(), row);
+      pending_time_signature_ = {};
     }
     auto queued = move(queued_recording_);
     queued_recording_.clear();
@@ -385,8 +400,7 @@ SessionPlayer::quantizedStep() const {
     step++;
     row++;
   }
-  auto rows_per_bar = max(1, controller_.getSong().getRowsPerBar());
-  return { step, step - row % rows_per_bar };
+  return { step, step - controller_.getSong().rowInBar(row) };
 }
 
 SessionPlayer::Step
@@ -394,8 +408,7 @@ SessionPlayer::rawStep() const {
   auto & info = controller_.getPlaybackInfo();
   auto step = info.getSessionClock();
   auto row = info.getAbsolutePosition();
-  auto rows_per_bar = max(1, controller_.getSong().getRowsPerBar());
-  return { step, step - row % rows_per_bar, min(255, info.getCurrentDelay()) };
+  return { step, step - controller_.getSong().rowInBar(row), min(255, info.getCurrentDelay()) };
 }
 
 unordered_map<int, SessionPlayer::Playhead>

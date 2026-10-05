@@ -254,9 +254,9 @@ ClipGrid::startSceneRename() {
   auto column = cursor_track_index_ - scroll_col_;
   if (row < 1 || row >= getDim().first || column < 0) return;
 
-  // The editable span follows the " ▸ " launch glyph. Typing "90 BPM" sets
-  // the scene's tempo (shown at the right of the slot), "0 BPM" clears it;
-  // a name without one leaves it alone.
+  // The editable span follows the " ▸ " launch glyph. Typing "90 BPM" or
+  // "3/4" sets the scene's tempo or time signature (shown at the right of
+  // the slot), "0 BPM" or "0/4" clears it; a name without one leaves it alone.
   InlineEditor::Field field;
   field.row = row;
   field.col = column * (kColWidth + 1) + 3;
@@ -890,7 +890,9 @@ ClipGrid::renderMasterColumn(const StyleProvider & styles, int x, int rows, bool
       setFgColor(fg);
       setBgColor(bg);
       auto tempo = song.getSceneTempo(physical_row);
+      auto signature = song.getSceneTimeSignature(physical_row);
       auto tempo_text = tempo > 0 ? " ♩" + std::to_string(tempo) : std::string();
+      if (signature.isSet()) tempo_text += " " + std::to_string(signature.numerator) + "/" + std::to_string(signature.denominator);
       auto name_width = kColWidth - 3 - Utf8::displayWidth(tempo_text);
       putstr(y, x, Utf8::padToWidth(" ▸ " + Utf8::padToWidth(song.getSceneName(physical_row), name_width) + tempo_text, kColWidth));
       auto state = scene_state(physical_row);

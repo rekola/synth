@@ -2528,22 +2528,26 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   setBgColor(styles.window_bg_color);
   putstr(display_row, 0, padding);
 
-  // Bar boundary (a stronger accent than the plain beat one below).
-  auto row_rows_per_bar = song.getRowsPerBar();
+  // Bar boundary (a stronger accent than the plain beat one below); a
+  // block may count its own bars and beats (a scene's time signature).
+  auto song_rows_per_bar = song.getRowsPerBar();
 
   // A row's ambient base colors (bar/beat accent, else plain), dimmed
   // outside its block. The playhead's own row highlight is deliberately
   // not part of this - see tintForPlayhead() below.
   // `dim`: how much of kFadedRowDim applies. A dimmed row loses its bar/beat
   // accent in proportion.
-  auto baseColors = [&](int row, float dim, Color & base_fg, Color & base_bg) {
+  auto baseColors = [&](int row, float dim, Color & base_fg, Color & base_bg, int block = -1) {
+    auto block_bar_rows = block >= 0 ? source_->barRows(block) : 0;
+    auto row_rows_per_bar = block_bar_rows > 0 ? block_bar_rows : song_rows_per_bar;
+    auto beat_rows = block >= 0 ? std::max(1, source_->beatRows(block)) : 4;
     base_fg = styles.window_fg_color;
     base_bg = styles.window_bg_color;
     Color accent_fg = base_fg, accent_bg = base_bg;
     if (row >= 0 && row_rows_per_bar > 0 && row % row_rows_per_bar == 0) {
       accent_fg = styles.window_bar_accent_fg_color;
       accent_bg = styles.window_bar_accent_bg_color;
-    } else if (row >= 0 && row % 4 == 0) {
+    } else if (row >= 0 && row % beat_rows == 0) {
       accent_fg = styles.window_beat_accent_fg_color;
       accent_bg = styles.window_beat_accent_bg_color;
     }
@@ -2560,7 +2564,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // is accented by its own row instead, and the dividers between columns,
   // belonging to neither, stay plain.
   Color row_base_fg, row_base_bg;
-  baseColors(pattern_row, is_neighboring_pattern ? 1.0f : 0.0f, row_base_fg, row_base_bg);
+  baseColors(pattern_row, is_neighboring_pattern ? 1.0f : 0.0f, row_base_fg, row_base_bg, pattern_idx);
   bool per_track_rows = !track_ids.empty() && source_->trackBlock(track_ids.front()).has_value();
   Color divider_base_bg = row_base_bg;
   if (per_track_rows) {
@@ -2777,7 +2781,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       auto own_row = own.block < 0 ? -1 : own.row;
       bool outside = own_row < 0 || own.block != source_->trackBlock(track_id);
       track_dim = outside ? 1.0f : source_->loopPassDim(track_id, address);
-      baseColors(own_row, track_dim, track_base_fg, track_base_bg);
+      baseColors(own_row, track_dim, track_base_fg, track_base_bg, own.block);
     }
     Color fg = track_base_fg, bg = track_base_bg, cell_fg, cell_bg;
 
