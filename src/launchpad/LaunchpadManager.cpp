@@ -1908,6 +1908,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // itself already redirected to one) or entirely ordinary, never a mix.
     bool any_session_recording = false;
     for (auto & held : held_notes) {
+      controller.endNotePressure(held.track_id, held.note_column);
       // Always silence the live-audition voice.
       event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, controller.getActiveBufferName(), held.track_id, held.note_column));
 
@@ -1979,66 +1980,58 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     auto held_ptr = findActiveNotes(device_id, ev.getX(), ev.getY());
     if (!held_ptr || held_ptr->empty()) return; // no held note(s) to modulate
 
-    // Rate-limit the persisted pattern write: Pattern::setNote already
-    // overwrites in place (so "one aftertouch object per column per row" is
-    // free), this threshold purely avoids redundant work/redraw churn for
-    // a dense pressure stream, not a correctness requirement. One shared
-    // decision for every held target below (multi-track record fan-out -
-    // the PRESS branch's own comment) - the physical pressure gesture is
-    // the same one input regardless of how many tracks it's feeding, so
-    // there's nothing to rate-limit independently per track.
-    const int aftertouch_threshold = 4;
-    auto & primary = (*held_ptr)[0];
-    auto delta = ev.getVelocity() - primary.last_aftertouch_value;
-    if (delta < 0) delta = -delta;
     bool take_held = false;
     for (auto & held : *held_ptr) take_held = take_held || controller.isSessionRecording(held.track_id);
-    bool write_pressure = delta >= aftertouch_threshold && (deviceState(device_id).capture_enabled || take_held);
-    if (write_pressure) {
-      for (auto & held : *held_ptr) held.last_aftertouch_value = ev.getVelocity();
-    }
+    bool write_pressure = deviceState(device_id).capture_enabled || take_held;
 
     for (auto & held : *held_ptr) {
-      // Live modulation always happens, regardless of Capture/write-
-      // throttle below - mirrors handleMidiEvent's NOTE_PRESSURE handling
-      // exactly.
-      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, controller.getActiveBufferName(), held.track_id, held.note_column, note_value, ev.getVelocity()));
-      if (!write_pressure) continue;
-
-      // A Session View take writes into its own clip at the session clock's
-      // row, like its release does - never on the row the note itself is
-      // on, which would overwrite the note.
+      int row = 0;
+      int delay = current_delay;
+      Controller::PressureWriter write_row;
       if (controller.isSessionRecording(held.track_id)) {
-        auto take_row = quantized_row(held.track_id);
+        // A Session View take writes into its own clip at the session clock's
+        // row, like its release does - never on the row the note itself is
+        // on, which would overwrite the note.
+        row = quantized_row(held.track_id);
+        delay = take_step.delay;
         auto & clips = song.getClips(held.track_id);
         auto clip_index = controller.getSessionRecordingClipIndex(held.track_id);
-        if (take_row < 0 || take_row == held.row || clip_index < 0 || clip_index >= static_cast<int>(clips.size())) continue;
-        auto & clip = clips[static_cast<size_t>(clip_index)];
-        auto & pattern = clip.getLeafPattern();
-        auto clip_row = take_row % std::max(1, clip.getLength());
-        auto note = pattern.getNote(clip_row, held.note_column);
-        if (!note.isDefined()) note.setDelay(static_cast<short>(take_step.delay));
-        note.setVelocity(static_cast<short>(ev.getVelocity()));
-        pattern.setNote(clip_row, held.note_column, note);
-        continue;
+        if (write_pressure && row >= 0 && row != held.row && clip_index >= 0 && clip_index < static_cast<int>(clips.size())) {
+          auto & clip = clips[static_cast<size_t>(clip_index)];
+          write_row = [&clip, &held](int r, short p, int d) {
+            auto & pattern = clip.getLeafPattern();
+            auto clip_row = r % std::max(1, clip.getLength());
+            auto note = pattern.getNote(clip_row, held.note_column);
+            if (note.isDefined() && !note.isAftertouch()) return;
+            if (!note.isDefined()) note.setDelay(static_cast<short>(d));
+            note.setVelocity(p);
+            pattern.setNote(clip_row, held.note_column, note);
+          };
+        }
+      } else {
+        // While playing (the norm whenever Capture is on - see the PRESS
+        // branch's auto-play push), modulate the currently-sounding row
+        // (transport has moved on, matching handleMidiEvent); while stopped
+        // (only reachable with Capture on if the auto-play push hasn't been
+        // processed by the Player thread yet), modulate the row the note
+        // actually landed on.
+        row = info.isPlaying() ? info.getAbsolutePosition() : held.row;
+        // Not on the note's own row: a row can't hold the note and its
+        // aftertouch, and writing it would only change the note's velocity.
+        if (write_pressure && !(info.isPlaying() && row == held.row)) {
+          write_row = [&](int r, short p, int d) {
+            // Clear before reading, not just before writing - otherwise the
+            // isDefined() check could pick up stale pre-existing data from
+            // before the row was cleared for the live take.
+            if (auto_started_playback_) controller.ensureRowCleared(auto_record_cleared_rows_, r, held.track_id);
+            controller.applyNotePressure(r, held.track_id, held.note_column, p, d);
+          };
+        }
       }
-      if (!deviceState(device_id).capture_enabled) continue;
-
-      // While playing (the norm whenever Capture is on - see the PRESS
-      // branch's auto-play push), modulate the currently-sounding row
-      // (transport has moved on, matching handleMidiEvent); while stopped
-      // (only reachable with Capture on if the auto-play push hasn't been
-      // processed by the Player thread yet), modulate the row the note
-      // actually landed on.
-      auto target_row = info.isPlaying() ? info.getAbsolutePosition() : held.row;
-      // Still on the note's own row: a row can't hold the note and its
-      // aftertouch, and writing it would only change the note's velocity.
-      if (info.isPlaying() && target_row == held.row) continue;
-      // Clear before reading, not just before writing - otherwise the
-      // isDefined() check below could pick up stale pre-existing data from
-      // before this row was cleared for the live take.
-      if (auto_started_playback_) controller.ensureRowCleared(auto_record_cleared_rows_, target_row, held.track_id);
-      controller.applyNotePressure(target_row, held.track_id, held.note_column, static_cast<short>(ev.getVelocity()), current_delay);
+      // Live modulation always happens, whether or not Capture records it,
+      // and plays the same row average that gets recorded.
+      auto pressure = controller.notePressure(row, held.track_id, held.note_column, static_cast<short>(ev.getVelocity()), delay, write_row);
+      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, controller.getActiveBufferName(), held.track_id, held.note_column, note_value, pressure));
     }
     if (write_pressure) song.incVersion();
   }
