@@ -120,9 +120,10 @@ int duplicateClip(Song & song, int track_id, int from_index, int to_index = -1);
 // Roughly a quarter of the note-ons are touched (at least one always is),
 // each by one of: a pitch step along the song's scale (a percussion hit
 // goes to another lane instead), a move one row earlier or later, a drop
-// (never the last note), or - percussion only - a ratchet, softer repeats
-// of the hit inside its row. A note's off marker moves, changes or goes
-// with it; velocity, delay and commands are otherwise left alone.
+// (never the last note), or - percussion only - a ratchet: a retrigger
+// command on the hit's row (two to four hits in all), which follows the
+// hits if they move and goes if they are dropped. A note's off marker
+// moves, changes or goes with it; velocity and delay are left alone.
 // Returns the number of notes touched; 0 (nothing changed) for a missing or
 // empty slot, a sample clip, or a percussion track with fewer than two lanes.
 int mutateClip(Song & song, int track_id, int clip_index, uint32_t seed);

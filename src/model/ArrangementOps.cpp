@@ -6,14 +6,17 @@
 #include "Pattern.h"
 #include "PercussionTrack.h"
 #include "SampleTrack.h"
+#include "Command.h"
 #include "../dsp/HashField.h"
 #include "../instruments/Tuning.h"
+#include "../util/constants.h"
 #include "SampleContent.h"
 #include "../audio/AudioBuffer.h"
 #include "../ambisonic/ChannelConfiguration.h"
 
 #include <algorithm>
 #include <map>
+#include <string>
 
 using namespace std;
 
@@ -258,6 +261,21 @@ mutateClip(Song & song, int track_id, int clip_index, uint32_t seed) {
     return -1;
   };
 
+  // A retrigger on `row` belongs to the hits there: once the row has no
+  // note-on left, it follows them to `to_row`, or goes (-1).
+  auto carry_retriggers = [&](int row, int to_row) {
+    if (!percussion) return;
+    if (auto it = grid.find(row); it != grid.end()) {
+      for (auto & n : it->second) if (is_note_on(n)) return;
+    }
+    auto commands = pattern.getCommandsAt(row); // a copy: the pattern changes below
+    for (size_t c = 0; c < commands.size(); c++) {
+      if (!commands[c].isRetrigger()) continue;
+      pattern.deleteCommand(row, static_cast<int>(c));
+      if (to_row >= 0) pattern.pushCommand(to_row, commands[c]);
+    }
+  };
+
   struct Position { int row; size_t col; };
   vector<Position> note_ons;
   for (auto & [ row, notes ] : grid) {
@@ -311,6 +329,7 @@ mutateClip(Song & song, int track_id, int clip_index, uint32_t seed) {
 	}
 	put(row + shift, col, note);
 	if (off_row >= 0) put(off_row + shift, col, off_note);
+	carry_retriggers(row, row + shift);
 	return true;
       }
       case DROP:
@@ -318,22 +337,22 @@ mutateClip(Song & song, int track_id, int clip_index, uint32_t seed) {
 	remove(row, col);
 	if (off_row >= 0) remove(off_row, col);
 	remaining--;
+	carry_retriggers(row, -1);
 	return true;
       default: {
-	// Extra hits of the same sound inside the row, in free note columns, softer.
-	constexpr size_t kMaxColumns = 4;
-	auto hits = 2 + mutatePick(seed, key, "hits", 3); // 2..4 hits in all
-	int added = 0;
-	for (int h = 1; h < hits; h++) {
-	  auto delay = note.getDelay() + h * 256 / hits;
-	  if (delay > 255) break;
-	  size_t free_col = 0;
-	  while (free_col < kMaxColumns && !is_free(row, free_col)) free_col++;
-	  if (free_col >= kMaxColumns) break;
-	  put(row, free_col, Note(note.getValue(), static_cast<short>(max(1, note.getVelocity() * 3 / 4)), static_cast<short>(delay)));
-	  added++;
+	// A retrigger command on the row: 2-4 hits in all, the interval
+	// dividing the row evenly, volume unchanged.
+	auto ticks = constants::TICKS_PER_ROW / (2 + mutatePick(seed, key, "hits", 3));
+	auto command = Command(string("0R0") + "0123456789ABCDEF"[ticks]);
+	auto & commands = pattern.getCommandsAt(row);
+	for (size_t c = 0; c < commands.size(); c++) {
+	  if (!commands[c].isRetrigger()) continue;
+	  if (commands[c].getRetriggerIntervalTicks() == ticks) return false;
+	  pattern.setCommand(row, static_cast<int>(c), command);
+	  return true;
 	}
-	return added > 0;
+	pattern.pushCommand(row, command);
+	return true;
       }
       }
     };

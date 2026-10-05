@@ -210,11 +210,20 @@ TEST(mutate_clip_on_percussion_ratchets_moves_and_drops) {
     for (auto & [ row, notes ] : song.getClips(track_id)[0].getLeafPattern().getNotesByRow()) {
       for (auto & n : notes) {
 	if (n.getVelocity() > 0) ons++;
-	if (n.getDelay() > 0) ratcheted = true;
+      }
+      for (auto & c : song.getClips(track_id)[0].getLeafPattern().getCommandsAt(row)) {
+	if (c.isRetrigger()) { ratcheted = true; CHECK(c.getRetriggerIntervalTicks() >= 3 && c.getRetriggerIntervalTicks() <= 6); }
       }
     }
     CHECK(ons >= 1);
     if (ons < 8) thinned = true;
+    // A retrigger never outlives the hits it was for.
+    auto & after = song.getClips(track_id)[0].getLeafPattern();
+    for (auto & [ row, commands ] : after.getCommandsByRow()) {
+      bool has_hit = false;
+      for (auto & n : after.getNotes(row)) has_hit = has_hit || n.getVelocity() > 0;
+      CHECK(has_hit);
+    }
   }
   CHECK(ratcheted && thinned);
 }

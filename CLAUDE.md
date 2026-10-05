@@ -757,9 +757,10 @@ would otherwise resume showing.
   quarter of the note-ons (at least one) each get a pitch step along the
   song's scale (a percussion hit goes to another lane), a move one row
   either way, a drop (never the last note), or - percussion only - a
-  ratchet (softer repeats of the hit in free note columns, using the
-  note delay); an off marker follows its note. Each press is a fresh step,
-  from a hashed seed.
+  ratchet (a retrigger command, `-Rxy` in `docs/commands.md` - 2-4 hits
+  to the row, `y` = 12 / hits ticks, volume unchanged - which moves with
+  the row's hits and goes if they are dropped); an off marker follows its
+  note. Each press is a fresh step, from a hashed seed.
 - **Session view** (`GridMode::SESSION`, reached/left only via CC95/96/97/98,
   decoupled from terminal UI focus): rows are a track's own clip list
   (`Song::getClips(track_id)`), columns are the one shared cursor track
