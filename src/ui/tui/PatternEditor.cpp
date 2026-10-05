@@ -878,15 +878,14 @@ PatternEditor::copyToClip() {
   // here.
   auto b = getEffectiveSelectionBounds(song, track_ids);
   auto grid = source_->readGrid(selectionAnchor());
-  // Whole bars of the signature the rows are counted in: the arrangement's
-  // markers, or the scene's own.
-  BarGrid scene_bars;
+  // Whole bars of the signature the rows are counted in: the song's, or
+  // the scene's own.
+  BarGrid bars = song.getArrangementBars();
   if (isSessionMode()) {
     auto signature = song.getSceneTimeSignature(selectionAnchor().block);
-    scene_bars = BarGrid({ { 0, signature.isSet() ? signature : song.getRunningTimeSignature() } });
+    bars = { signature.isSet() ? signature : song.getRunningTimeSignature(), 0 };
   }
-  auto arrangement_bars = song.getArrangementBars();
-  auto clip = extractClip(*grid, track_id, b.row_lo, b.row_hi, isSessionMode() ? scene_bars : *arrangement_bars);
+  auto clip = extractClip(*grid, track_id, b.row_lo, b.row_hi, bars);
   song.addClip(std::move(clip));
   setSelectionActive(false);
   getController().getUIEventQueue().push(make_unique<LogEvent>("Copied to clip"));

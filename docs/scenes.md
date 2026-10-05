@@ -1,7 +1,7 @@
 # Scenes: name, tempo and time signature
 
 This describes what a scene carries, how it is typed in, and exactly what
-happens when one launches. Bars, markers and the running signature are in
+happens when one launches. Bars, the song's time signature and the running signature are in
 time_signatures.md.
 
 ## 1. What a scene is
@@ -60,17 +60,16 @@ queued for the next bar as always. Then:
   using the tempo commands: it is stored in the song and saved with it.
 - **Time signature.** If the scene has one, it becomes the transport's
   **running signature** (time_signatures.md, section 3), saved with the song.
-- **Timing.** With the transport playing, both take effect on the bar the
-  clips launch on, with the lag described in time_signatures.md section 5.
-  With the transport stopped they apply immediately, and the running
-  signature's bars are counted from where the transport stands.
+- **Timing.** Both are applied by the audio thread on the bar the clips
+  launch on (at the first row played, from a stopped transport), in the same
+  row as the clips (time_signatures.md section 5).
 - A scene with no tempo or no signature leaves the running one **unchanged**.
 - Launching a scene replaces any tempo or signature still waiting from an
   earlier launch.
 - Launching a single clip never touches the tempo or signature.
 
 Using Back to Arrangement for every track also hands the bars back to the
-arrangement's markers; the tempo stays, as the arrangement has no tempo
+song's own; the tempo stays, as the arrangement has no tempo
 changes of its own.
 
 ## 4. The rhythm library
@@ -101,22 +100,24 @@ from recollection, not verified.
    back is Back to Arrangement for every track, which in Live re-enables the
    arrangement's own automation.
 2. **Both are saved.** The tempo is the song tempo. The running signature is
-   saved with its origin row, and the arrangement's own bars are separate (its
-   markers), so a scene's signature never re-bars the arrangement.
+   saved with its origin row, and the song's own time signature is separate,
+   so a scene's signature never re-bars the arrangement.
 3. **A scene without a signature plays in, and is drawn in, the running
    bars.** Live scenes without a value leave the global one alone.
 4. **A scene is its position.** Clip rows are never inserted or removed, so a
    record cannot drift from its row. An insert-scene or delete-scene command
    would have to move the records with the clips.
-5. **The arrangement has time signature markers but no tempo changes.** Live
-   has tempo automation too; here the arrangement plays at the song tempo.
+5. **The song has one time signature and one tempo.** Live also has tempo
+   automation and time signature changes along the arrangement; here the
+   arrangement plays at the song tempo and counts bars in the song's
+   signature.
+6. **The audio thread applies them.** As in Live, the tempo and signature
+   change belongs to the launch itself, not to whatever the UI noticed.
 
 ## 6. Limitations
 
 - Per-scene swing (swing is song-wide; Live's groove is per clip).
 - Anything per scene beyond name, tempo and signature.
-- Tempo changes inside the arrangement.
+- Tempo or time signature changes inside the arrangement.
 - Scene tempo and signature on the Launchpad; they are set from the
   terminal.
-- Tempo and the running signature are applied by the UI side, up to a frame
-  after the bar line (time_signatures.md section 5).

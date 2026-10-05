@@ -71,6 +71,13 @@ SessionPlayer::shiftLaunchedClips(int delta_rows) {
 }
 
 void
+SessionPlayer::queueSceneChange(int tempo, TimeSignature signature, bool clear_running) {
+  auto flags = (clear_running ? 1 : 0) | (controller_.getPlaybackInfo().isPlaying() ? 0 : 2);
+  controller_.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(
+    PlaybackControlEvent::QUEUE_SCENE_CHANGE, controller_.getActiveBufferName(), tempo, signature.numerator * 100 + signature.denominator, flags, ++scene_seq_));
+}
+
+void
 SessionPlayer::startTransport() {
   if (!controller_.getPlaybackInfo().isPlaying()) controller_.togglePlaying();
 }
@@ -131,7 +138,7 @@ SessionPlayer::triggerClip(int track_id, int clip_index) {
   auto & playback_info = controller_.getPlaybackInfo();
   if (!playback_info.isPlaying() && assign_playback_starter_) assign_playback_starter_();
   auto raw_row = playback_info.isPlaying() ? playback_info.getAbsolutePosition() : assign_row_;
-  placeClipInstance(song, track_id, quantizedBarRow(*song.getArrangementBars(), raw_row), clip_index);
+  placeClipInstance(song, track_id, quantizedBarRow(song.getArrangementBars(), raw_row), clip_index);
   song.incVersion();
 }
 
@@ -197,25 +204,13 @@ SessionPlayer::toggleOverdub(int fallback_track_id) {
 
 void
 SessionPlayer::launchScene(int clip_index, const vector<int> & track_ids) {
-  // The scene's tempo and time signature take effect with its clips: at
-  // once from a stopped transport (its bars counted from where it stands),
-  // else on the next bar.
-  pending_tempo_ = 0;
-  pending_time_signature_ = {};
-  pending_clear_transport_bars_ = false;
+  // The scene's tempo and time signature go to the audio thread, which
+  // applies them with its clips: on the bar they launch on, or at the first
+  // row played from a stopped transport. Sent even when the scene has
+  // neither, so one still waiting from an earlier launch is dropped.
   auto & song = controller_.getSong();
-  auto bpm = song.getSceneTempo(clip_index);
-  auto signature = song.getSceneTimeSignature(clip_index);
   if (!track_ids.empty()) {
-    bool playing = controller_.getPlaybackInfo().isPlaying();
-    if (bpm > 0) {
-      if (playing) pending_tempo_ = bpm;
-      else controller_.setTempo(bpm);
-    }
-    if (signature.isSet()) {
-      if (playing) pending_time_signature_ = signature;
-      else song.setTransportBars(signature, controller_.getPlaybackInfo().getAbsolutePosition());
-    }
+    queueSceneChange(song.getSceneTempo(clip_index), song.getSceneTimeSignature(clip_index), false);
   }
   for (auto track_id : track_ids) triggerClip(track_id, clip_index);
   // A scene starts the transport even when every slot in it is empty.
@@ -263,11 +258,8 @@ SessionPlayer::returnToArrangement(int track_id) {
 
 void
 SessionPlayer::returnAllToArrangement() {
-  // The arrangement's bars come back with it: at once from a stopped
-  // transport, else on the next bar.
-  pending_time_signature_ = {};
-  if (controller_.getPlaybackInfo().isPlaying()) pending_clear_transport_bars_ = true;
-  else controller_.getSong().clearTransportBars();
+  // The song's own bars come back with it.
+  queueSceneChange(0, {}, true);
   vector<int> track_ids;
   for (auto & [ track_id, unused ] : controller_.getPlaybackInfo().getSessionTracks()) track_ids.push_back(track_id);
   for (auto track_id : track_ids) returnToArrangement(track_id);
@@ -288,7 +280,7 @@ SessionPlayer::placeRecordingStop(int track_id) {
   auto & playback_info = controller_.getPlaybackInfo();
   if (!playback_info.isPlaying()) return;
   auto & song = controller_.getSong();
-  auto row = quantizedBarRow(*song.getArrangementBars(), playback_info.getAbsolutePosition());
+  auto row = quantizedBarRow(song.getArrangementBars(), playback_info.getAbsolutePosition());
   placeStopInstance(song, track_id, row);
   song.incVersion();
 }
@@ -370,18 +362,6 @@ void
 SessionPlayer::advanceToRow(int step, int row) {
   auto & song = controller_.getSong();
   if (song.isBarStart(row)) {
-    if (pending_tempo_ > 0) {
-      controller_.setTempo(pending_tempo_);
-      pending_tempo_ = 0;
-    }
-    if (pending_time_signature_.isSet()) {
-      song.setTransportBars(pending_time_signature_, row);
-      pending_time_signature_ = {};
-    }
-    if (pending_clear_transport_bars_) {
-      song.clearTransportBars();
-      pending_clear_transport_bars_ = false;
-    }
     auto queued = move(queued_recording_);
     queued_recording_.clear();
     for (auto & [ track_id, queued_value ] : queued) {

@@ -25,6 +25,12 @@ class PlaybackControlEvent : public Event {
   // number. SILENCE_SESSION: stops every launched clip now
   // (SongState::silenceSession()) - parameter1 = the sequence number.
   //
+  // QUEUE_SCENE_CHANGE: a launched scene's tempo and time signature
+  // (SongState::queueSceneChange()) - parameter1 = tempo (0: none),
+  // parameter2 = numerator * 100 + denominator (0: none), parameter3 =
+  // flags (1: hand the bars back to the song's, 2: apply at the first row
+  // played rather than on a bar), parameter4 = the sequence number.
+  //
   // SHIFT_SESSION_POSITION: moves every launched clip's playhead by
   // parameter1 rows (SongState::shiftSession()) - parameter2 = the
   // sequence number.
@@ -82,7 +88,7 @@ class PlaybackControlEvent : public Event {
               CHANNEL_PRESSURE, SET_RECORDING_MUTE, SET_POSITION, BUFFER_KILLED, BUFFER_RENAMED, SET_BUS_EFFECT,
               QUEUE_SESSION_CHANGE, SILENCE_SESSION, PREVIEW_NOTE, PREVIEW_POOL_NOTE, PREVIEW_RHYTHM, PREVIEW_STOP,
               GLIDE_TRACK_SEND_A, GLIDE_TRACK_SEND_B, GLIDE_TRACK_SEND_MAIN, GLIDE_TRACK_AZIMUTH,
-              SET_TRACK_MONITORING, SHIFT_SESSION_POSITION, SET_METRONOME };
+              SET_TRACK_MONITORING, SHIFT_SESSION_POSITION, SET_METRONOME, QUEUE_SCENE_CHANGE };
 
   // buffer_name says which open buffer this event targets - required for
   // every type except the genuinely buffer-agnostic ones (TERMINATE,

@@ -156,54 +156,37 @@ class Song : public SongObject {
 
   // ---- Bars and time signatures. A row is a sixteenth note.
   //
-  // The arrangement's own bars: 4/4 from row 0 until a marker
-  // (<timeSignatures>) sets another from its row on. Everything laid out on
-  // the arrangement timeline - its grid, bar accents, where a clip is
-  // placed - counts in these. A marker at row 0 sets the first signature.
-  // Callers editing markers also call incVersion().
-  const std::map<int, TimeSignature> & getTimeSignatureMarkers() const { return time_signatures_; }
-  void setTimeSignatureMarker(int row, TimeSignature signature);
-  void clearTimeSignatureMarker(int row) { setTimeSignatureMarker(row, {}); }
-  std::shared_ptr<const BarGrid> getArrangementBars() const { return std::atomic_load(&arrangement_bars_); }
-  // The signature the arrangement is in at `row`.
-  TimeSignature getArrangementTimeSignature(int row) const;
+  // The song's own time signature (<song timeSignature="3/4">, 4/4 unless
+  // set): the arrangement counts its bars in it from row 0 - its grid, bar
+  // accents, where a clip is placed. Callers editing it also call
+  // incVersion().
+  TimeSignature getTimeSignature() const { return time_signature_; }
+  void setTimeSignature(TimeSignature signature) {
+    if (signature.isSet() && TimeSignature::validDenominator(signature.denominator)) time_signature_ = signature;
+  }
+  BarGrid getArrangementBars() const { return { time_signature_, 0 }; }
 
-  // The transport's own bars: the arrangement's, until a launched scene
-  // with a time signature sets the signature running from its launch bar
-  // (`origin_row`); back to the arrangement clears it. What playback and
-  // Session launching count in (the bar a queued launch waits for, the
-  // metronome, take lengths). Saved with the song. The audio thread reads
-  // these live, so they're published as one snapshot.
-  struct TransportBars {
-    TimeSignature signature; // unset: the arrangement's
-    int origin = 0;
-    bool isActive() const { return signature.isSet(); }
-  };
-  std::shared_ptr<const TransportBars> getTransportBars() const { return std::atomic_load(&transport_bars_); }
-  void setTransportBars(TimeSignature signature, int origin_row) {
-    std::atomic_store(&transport_bars_, std::make_shared<const TransportBars>(TransportBars{ signature, origin_row }));
-  }
-  void clearTransportBars() { setTransportBars({}, 0); }
-  // The signature in force wherever the transport is not tied to a row: the
-  // running one, else the arrangement's first.
-  TimeSignature getRunningTimeSignature() const {
-    auto transport = getTransportBars();
-    return transport->isActive() ? transport->signature : getArrangementTimeSignature(0);
-  }
+  // The signature a launched scene set, counted from the bar it launched
+  // on (saved as transportTimeSignature/transportBarOrigin). The audio
+  // thread owns it (SongState::queueSceneChange()) and the UI thread's copy
+  // here is mirrored from its snapshots (Controller::
+  // receivePlaybackSnapshot()), so it can trail by a frame. What playback
+  // and Session launching count in (the bar a queued launch waits for, the
+  // metronome, take lengths) while it is active.
+  const RunningBars & getRunningBars() const { return running_bars_; }
+  void setRunningBars(RunningBars running) { running_bars_ = running; }
+  void clearRunningBars() { running_bars_ = {}; }
+  // The signature a scene without one plays in.
+  TimeSignature getRunningTimeSignature() const { return running_bars_.isActive() ? running_bars_.signature : time_signature_; }
 
-  // The signature the transport is counting in at `row`.
-  TimeSignature getTimeSignatureAt(int row) const {
-    auto transport = getTransportBars();
-    return transport->isActive() && row >= transport->origin ? transport->signature : getArrangementTimeSignature(row);
-  }
-  // Where `row` falls in the bars the transport counts in.
-  int barStartAtOrBefore(int row) const;
-  int rowInBar(int row) const { return row - barStartAtOrBefore(row); }
+  // The bars in force at `row`, as the UI thread knows them.
+  BarGrid getBarsAt(int row) const { return barsAt(time_signature_, running_bars_, row); }
+  int barStartAtOrBefore(int row) const { return getBarsAt(row).barStart(row); }
+  int rowInBar(int row) const { return getBarsAt(row).rowInBar(row); }
   bool isBarStart(int row) const { return rowInBar(row) == 0; }
-  int barRowsAt(int row) const;
-  int beatRowsAt(int row) const;
-  // The first bar start after `row`.
-  int nextBarStart(int row) const;
+  int barRowsAt(int row) const { return getBarsAt(row).barRows(); }
+  int beatRowsAt(int row) const { return getBarsAt(row).beatRows(); }
+  int nextBarStart(int row) const { return getBarsAt(row).nextBarStart(row); }
 
   // Whether a live Session take snaps each press and release to the nearest
   // row as it's recorded. Off (the default) records the raw sub-row timing
@@ -539,10 +522,8 @@ private:
   }
   std::vector<SceneInfo> scenes_; // by scene position; shorter than the scene count when the rest have neither
   int bpm_ = 140;
-  std::map<int, TimeSignature> time_signatures_; // the arrangement's markers, by row
-  std::shared_ptr<const BarGrid> arrangement_bars_ = std::make_shared<const BarGrid>();
-  std::shared_ptr<const TransportBars> transport_bars_ = std::make_shared<const TransportBars>();
-  void publishArrangementBars() { std::atomic_store(&arrangement_bars_, std::make_shared<const BarGrid>(time_signatures_)); }
+  TimeSignature time_signature_{ 4, 4 };
+  RunningBars running_bars_;
   int swing_ = swing::kStraight;
   bool record_quantize_ = false;
   float ear_height_ = constants::DEFAULT_EAR_HEIGHT;

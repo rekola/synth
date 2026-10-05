@@ -119,12 +119,12 @@ ArrangementPatternSource::sampleBackground(int track_id, int) const {
 
 bool
 ArrangementPatternSource::startsBar(int, int row) const {
-  return row >= 0 && song().getArrangementBars()->rowInBar(row) == 0;
+  return row >= 0 && song().getArrangementBars().rowInBar(row) == 0;
 }
 
 bool
 ArrangementPatternSource::startsBeat(int, int row) const {
   if (row < 0) return false;
   auto bars = song().getArrangementBars();
-  return bars->rowInBar(row) % bars->beatRows(row) == 0;
+  return bars.rowInBar(row) % bars.beatRows() == 0;
 }

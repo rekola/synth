@@ -561,6 +561,9 @@ class Controller {
   // advanced enough rows to catch back up (confirmed: this is what made
   // the playhead/info line stop updating after starting playback).
   void receivePlaybackSnapshot(const std::string & buffer_name, const PlaybackInfo & info);
+  // The tempo and running time signature the audio thread reports after a
+  // scene launch, copied into that buffer's song once per change.
+  void mirrorSceneChange(const std::string & buffer_name, const PlaybackInfo & info);
 
   ChannelConfiguration getChannelConfiguration() const { return channel_config; }
 
@@ -1135,6 +1138,8 @@ class Controller {
   // below). How a song is shown (Arrangement or Session view) is UI
   // state, not a buffer of its own.
   std::map<std::string, std::shared_ptr<Song>> songs_;
+  // The last scene change mirrored into each buffer's song (PlaybackInfo::getSceneSeq()).
+  std::map<std::string, int> mirrored_scene_seq_;
   // hasUnsavedChanges()'s baseline, one per songs_ entry rather than one
   // shared scalar - each buffer's own unsaved-changes state is independent
   // of whichever buffer happens to be active, so switching the active one

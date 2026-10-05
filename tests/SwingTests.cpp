@@ -164,14 +164,14 @@ TEST(scene_time_signature_sets_its_bar_and_beat_rows) {
   CHECK(song.getSceneBarRows(1) == 16);
 }
 
-TEST(transport_bars_count_from_their_origin) {
+TEST(running_bars_count_from_their_origin) {
   Song song;
   CHECK(song.isBarStart(0) && song.isBarStart(16) && !song.isBarStart(12));
-  song.setTransportBars({ 3, 4 }, 32); // a waltz starting on the bar at row 32
+  song.setRunningBars({ { 3, 4 }, 32 }); // a waltz starting on the bar at row 32
   CHECK(song.isBarStart(32) && song.isBarStart(44) && !song.isBarStart(48));
   CHECK(song.rowInBar(47) == 3 && song.barStartAtOrBefore(47) == 44);
-  CHECK(song.isBarStart(16) && !song.isBarStart(20)); // before the origin, the arrangement's bars
-  song.clearTransportBars();
+  CHECK(song.isBarStart(16) && !song.isBarStart(20)); // before the origin, the song's bars
+  song.clearRunningBars();
   CHECK(song.isBarStart(48) && song.beatRowsAt(48) == 4);
 }
 
@@ -195,7 +195,7 @@ TEST(scene_time_signature_round_trips) {
 
 TEST(a_scene_without_a_signature_is_shown_in_the_running_bars) {
   Song song;
-  song.setTransportBars({ 3, 4 }, 0);
+  song.setRunningBars({ { 3, 4 }, 0 });
   CHECK(song.getSceneBarRows(5) == 12 && song.getSceneBeatRows(5) == 4);
   song.setSceneFromText(5, "6/8");
   CHECK(song.getSceneBarRows(5) == 12 && song.getSceneBeatRows(5) == 2);

@@ -309,7 +309,7 @@ UI::handleThresholdRecordingTriggeredEvent(ThresholdRecordingTriggeredEvent & ev
     // it was actually performed rather than shifting the whole take
     // earlier to the bar.
     auto & song = getController().getSong();
-    auto quantized_row = previousBarRow(*song.getArrangementBars(), ev.getRow());
+    auto quantized_row = previousBarRow(song.getArrangementBars(), ev.getRow());
     auto gap_rows = ev.getRow() - quantized_row;
     if (gap_rows > 0) {
       auto gap_frames = gap_rows * getController().getChannelConfiguration().getSampleInterval(song.getTempo());

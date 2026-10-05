@@ -756,6 +756,7 @@ Controller::setEditPosition(int absolute_row) {
 
 void
 Controller::receivePlaybackSnapshot(const string & buffer_name, const PlaybackInfo & info) {
+  mirrorSceneChange(buffer_name, info);
   if (buffer_name != active_buffer_name_) {
     // Not the buffer currently being looked at/edited - e.g. a buffer
     // still playing in the background while a different one is active
@@ -793,6 +794,25 @@ Controller::receivePlaybackSnapshot(const string & buffer_name, const PlaybackIn
   // LED refresh included - it still just reads the model, unchanged) ever
   // shows a value the engine hasn't actually reached yet.
   syncLiveGlideStateIntoModel(buffer_name, info);
+}
+
+// A launched scene's tempo and running time signature are applied by the
+// audio thread (SongState::queueSceneChange()); the song's copies, which
+// the UI shows and saves, follow once a snapshot reports the change - and
+// only then, so a tempo edited since isn't overwritten by an older snapshot.
+void
+Controller::mirrorSceneChange(const string & buffer_name, const PlaybackInfo & info) {
+  auto & mirrored = mirrored_scene_seq_[buffer_name];
+  if (info.getSceneSeq() <= mirrored) return;
+  mirrored = info.getSceneSeq();
+  auto song = getSongByName(buffer_name);
+  if (!song) return;
+  song->setRunningBars(info.getRunningBars());
+  if (info.getTempo() > 0 && info.getTempo() != song->getTempo()) {
+    song->setTempo(static_cast<short>(info.getTempo()));
+    song->incVersion();
+    if (buffer_name == active_buffer_name_) getUIEventQueue().push(make_unique<LogEvent>("Tempo " + to_string(song->getTempo())));
+  }
 }
 
 // A plain dynamic_cast, not a TrackType enumeration - "is this track
@@ -1103,8 +1123,8 @@ Controller::ensureNoteRecordingClip(std::unordered_map<int, std::string> & clip_
   // comment on why): a live take's first note has to land inside whatever
   // clip gets created for it, and the clip can't start later than that
   // note's own row.
-  row = previousBarRow(*song->getArrangementBars(), row);
-  auto rows_per_bar = song->getArrangementBars()->barRows(row);
+  row = previousBarRow(song->getArrangementBars(), row);
+  auto rows_per_bar = song->getArrangementBars().barRows();
   auto active = resolveInstanceAt(*song, track_id, row);
   if (active.clip_index >= 0) return; // a real clip is already active here - write into it, same as ordinary editing
 
@@ -1142,7 +1162,7 @@ Controller::extendRecordingClipsIfNeeded(std::unordered_map<int, std::string> & 
   auto song = getCurrentSong();
   if (!song) return;
   auto & arrangement = song->getArrangement();
-  auto rows_per_bar = song->getArrangementBars()->barRows(info.getAbsolutePosition());
+  auto rows_per_bar = song->getArrangementBars().barRows();
 
   for (auto & [ track_id, clip_id ] : clip_ids) {
     // Only while this track actually has a note held right now - see this
@@ -1344,7 +1364,7 @@ Controller::extendRecordingSampleClipIfNeeded() {
   // Same growth-loop shape as extendRecordingClipsIfNeeded() above - grows
   // a full bar at a time until at least one bar of headroom remains ahead
   // of the current row.
-  auto rows_per_bar = song->getArrangementBars()->barRows(recording_start_row_);
+  auto rows_per_bar = song->getArrangementBars().barRows();
   bool grew = false;
   auto window_last_row = recording_start_row_ + std::max(1, clip.getLength()) - 1;
   while (window_last_row - info.getAbsolutePosition() < rows_per_bar) {

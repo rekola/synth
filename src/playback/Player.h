@@ -226,7 +226,7 @@ private:
   dsp::Metronome metronome_click_;
   // Queues a click for each beat row the playing `state` starts within the
   // next `frames` frames.
-  void scheduleMetronome(const SongState & state, const Song & song, int frames);
+  void scheduleMetronome(const SongState & state, int frames);
   AudioBuffer renderMetronome(int frames);
 
   // Live input's round-trip latency (PlaybackInfo::setRoundTripLatency()),

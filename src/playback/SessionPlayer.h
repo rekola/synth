@@ -165,11 +165,11 @@ class SessionPlayer {
   struct QueuedRecording { enum Kind { STOP, FRESH_TAKE, OVERDUB } kind; int clip_index = 0; };
   std::unordered_map<int, QueuedRecording> queued_recording_;
 
-  // A launched scene's tempo and time signature, applied on the next bar
-  // row tick() sees.
-  int pending_tempo_ = 0;
-  TimeSignature pending_time_signature_;
-  bool pending_clear_transport_bars_ = false; // Back to Arrangement, on the next bar
+  // Sends a launched scene's tempo and time signature (or `clear_running`)
+  // to the audio thread, which applies them on the bar - see
+  // SongState::queueSceneChange().
+  void queueSceneChange(int tempo, TimeSignature signature, bool clear_running);
+  int scene_seq_ = 0;
   int assign_row_ = 0;
   std::function<void()> assign_playback_starter_;
 };

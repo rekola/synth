@@ -771,7 +771,7 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
 	{ nullptr, nullptr, nullptr },
 	{ "Set Song Key...", "", "set-song-key" },
 	{ "Set Tuning System...", "", "set-song-tuning" },
-	{ "Set Time Signature Here...", "", "set-time-signature" },
+	{ "Set Time Signature...", "", "set-time-signature" },
 	{ nullptr, nullptr, nullptr },
 	{ "Set Bus Effect A...", "", "set-bus-effect-a" },
 	{ "Set Bus Effect B...", "", "set-bus-effect-b" },
@@ -1927,27 +1927,18 @@ TerminalUI::initializeWidgets() {
   commands_.define("set-bus-effect-a", [setBusEffect]() { setBusEffect(0, "A"); });
   commands_.define("set-bus-effect-b", [setBusEffect]() { setBusEffect(1, "B"); });
 
-  // A time signature marker on the arrangement, from the bar the arrangement
-  // grid's cursor is on (while it has focus) or else the bar the transport
-  // is in; "0/4" removes the one already there. Prefilled with the
-  // signature in force, so Enter alone changes nothing.
+  // The song's time signature, which the arrangement counts its bars in.
+  // Prefilled with the current one, so Enter alone changes nothing.
   commands_.define("set-time-signature", [this]() {
-    auto & song = getController().getSong();
-    auto bars = song.getArrangementBars();
-    auto row = active_element_.lock() == arrangement_grid_ ? arrangement_grid_->getCursorRow(song)
-                                                           : bars->barStart(getController().getPlaybackInfo().getAbsolutePosition());
-    auto prompt = fmt::format("Time signature from bar {} (n/d, 0/4 removes): ", bars->barIndex(row) + 1);
-    status_line_->showPrompt(prompt, [this, row](const std::string & typed) {
+    status_line_->showPrompt("Time signature (n/d): ", [this](const std::string & typed) {
       if (typed.empty()) return;
       auto signature = TimeSignature::parse(typed);
-      if (!signature) { setStatus("Not a time signature: " + typed); return; }
-      auto & target = getController().getSong();
-      if (signature->isSet()) target.setTimeSignatureMarker(row, *signature);
-      else target.clearTimeSignatureMarker(row);
-      target.incVersion();
-      setStatus(signature->isSet() ? "Time signature " + signature->toString() + " from bar " + std::to_string(target.getArrangementBars()->barIndex(row) + 1)
-                                   : "Time signature marker removed");
-    }, song.getArrangementTimeSignature(row).toString());
+      if (!signature || !signature->isSet()) { setStatus("Not a time signature: " + typed); return; }
+      auto & song = getController().getSong();
+      song.setTimeSignature(*signature);
+      song.incVersion();
+      setStatus("Time signature " + signature->toString());
+    }, getController().getSong().getTimeSignature().toString());
   });
 
   // C-x C-x (exchange-point-and-mark) is a PatternEditor-owned command (the
