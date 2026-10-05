@@ -126,16 +126,12 @@ class Song : public SongObject {
 
   // Locators: named moments of the whole song ("chorus starts here", a
   // chord's name) rather than of any one track's content, keyed by
-  // absolute row - shown in the pattern editor's locator column, and
-  // what ZBxx jumps to (<locators><locator row="N">name</locator>).
+  // absolute row - shown in the pattern editor's locator column
+  // (<locators><locator row="N">name</locator>).
   const std::string & getLocator(int row) const;
   // An empty name removes the locator.
   void setLocator(int row, std::string name);
   const std::map<int, std::string> & getLocators() const { return locators_; }
-  // The row of locator `number` (1-based, in row order), or -1.
-  int getLocatorRow(int number) const;
-  // The first locator after `row`, wrapping to the first; -1 with none.
-  int getNextLocatorRow(int row) const;
 
   // Floor-reflection parameters (see InstrumentVoice.h) - fixed for the
   // whole song, not live-editable (no live control path exists for any

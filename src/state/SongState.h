@@ -136,22 +136,19 @@ class SongState : public TrackState {
   // `breaks_only` applies nothing but a pattern break - for a track
   // Session view has taken over, whose arrangement automation doesn't
   // apply while the song's flow still does.
-  void applyRowCommands(const Pattern & pattern, int pattern_row, int track_id, int frame_offset, bool allow_pattern_break, bool breaks_only = false) {
+  void applyRowCommands(const Pattern & pattern, int pattern_row, int track_id, int frame_offset, bool breaks_only = false) {
     for (auto & command : pattern.getCommandsAt(pattern_row)) {
 	if (!command.isDefined()) continue;
 	if (breaks_only && !command.isPatternBreak()) continue;
-	if (command.isPatternBreak()) {
-	  // Song-level, so only the arrangement's own background gets one - a clip
-	  // carrying one is placed wherever, with no business jumping the song.
-	  if (!allow_pattern_break) continue;
-	  pending_break_ = true;
-	  pending_break_locator_ = command.getBreakLocatorNumber();
-	} else if (command.isRetrigger()) {
-	  scheduleRetrigger(track_id, frame_offset, command.getRetriggerIntervalTicks(), command.getRetriggerVolumeCode());
-	} else if (command.isAzimuthSlide()) {
-	  scheduleAzimuthSlide(track_id, frame_offset, command.getAzimuthSlidePerTick());
-	} else if (command.isVolumeSet() || command.isAzimuthSet()) {
-	  // 0Lxx/0Pxx - an absolute set, applied the instant
+        if (command.isPatternBreak()) {
+          pending_break_ = true;
+          pending_break_row_ = command.getBreakRow();
+        } else if (command.isRetrigger()) {
+          scheduleRetrigger(track_id, frame_offset, command.getRetriggerIntervalTicks(), command.getRetriggerVolumeCode());
+        } else if (command.isAzimuthSlide()) {
+          scheduleAzimuthSlide(track_id, frame_offset, command.getAzimuthSlidePerTick());
+        } else if (command.isVolumeSet() || command.isAzimuthSet()) {
+          // 0Lxx/0Pxx - an absolute set, applied the instant
 	  // this row starts (unlike the slide commands above, there's
 	  // no per-tick ramp to schedule - see Command::
 	  // getSendSetLinear()/getAzimuthSetDegrees()'s own comments on
@@ -166,8 +163,8 @@ class SongState : public TrackState {
 	    if (command.isVolumeSet()) leaf_state->setSendMain(command.getSendSetLinear());
 	    else leaf_state->setAzimuth(command.getAzimuthSetDegrees());
 	  }
-	} else if (command.isVolumeGlide() || command.isSendAGlide() || command.isSendBGlide()) {
-	  // YMxy/YAxy/YBxy - reproduces a recorded Launchpad fader press's
+        } else if (command.isVolumeGlide() || command.isSendAGlide() || command.isSendBGlide()) {
+          // YMxy/YAxy/YBxy - reproduces a recorded Launchpad fader press's
 	  // own real (wall-clock) glide, not just its final value - the
 	  // same LeafTrackState::glideSendMain()/A()/B() ramp a live press
 	  // starts server-side now (Controller::glideTrackSendA()/etc.),
@@ -183,8 +180,8 @@ class SongState : public TrackState {
 	    else if (command.isSendAGlide()) leaf_state->glideSendA(command.getGlideTargetDb(), glide_frames);
 	    else leaf_state->glideSendB(command.getGlideTargetDb(), glide_frames);
 	  }
-	} else if (command.isAzimuthGlide()) {
-	  // YZxy - azimuth's own equivalent of the three above, started
+        } else if (command.isAzimuthGlide()) {
+          // YZxy - azimuth's own equivalent of the three above, started
 	  // through LeafTrackState::glideAzimuth() (which picks its own
 	  // travel direction - see that method's own comment) rather
 	  // than glideSendMain()/A()/B().
@@ -193,7 +190,7 @@ class SongState : public TrackState {
 	    int glide_frames = static_cast<int>(std::lround(command.getGlideDurationSeconds() * getChannelConfiguration().getAudioOutSampleRate()));
 	    leaf_state->glideAzimuth(command.getAzimuthGlideTargetDegrees(), glide_frames);
 	  }
-	}
+        }
       }
   }
 
@@ -571,10 +568,10 @@ class SongState : public TrackState {
 	    auto background_it = arrangement.getPatternsByTrack().find(track_id);
 	    if (background_it != arrangement.getPatternsByTrack().end()) {
 	      auto background_row = background_it->second.getEffectiveRow(row_idx, 0);
-	      applyRowCommands(background_it->second, background_row, track_id, i, true, taken_over);
-	    }
-	    if (from_clip) applyRowCommands(*active_pattern, effective_row, track_id, i, false);
-	  }
+              applyRowCommands(background_it->second, background_row, track_id, i, taken_over);
+            }
+            if (from_clip) applyRowCommands(*active_pattern, effective_row, track_id, i);
+          }
 	}
 	
 	auto remaining = samplesUntilNextRow();
@@ -584,8 +581,8 @@ class SongState : public TrackState {
 	  session_clock_++;
 	  if (pending_break_) {
 	    pending_break_ = false;
-	    jumpToLocator(song, pending_break_locator_);
-	  } else {
+            jumpToNextBar(song, pending_break_row_);
+          } else {
 	    movePosition(1);
 	  }
 	} else {
@@ -799,13 +796,12 @@ class SongState : public TrackState {
   }
 
   // ZBxx (Command::isPatternBreak()): in place of movePosition(1) when the
-  // row completes, go to locator `number` (1-based), or with 0 the next
-  // one after this row, wrapping to the first. With no such locator the
-  // break does nothing.
-  void jumpToLocator(const Song & song, int number) {
-    auto row = number == 0 ? song.getNextLocatorRow(absolute_pos_) : song.getLocatorRow(number);
-    if (row < 0) movePosition(1);
-    else setPosition(row);
+  // row completes, go to row `row_in_bar` of the next bar (the bar's last
+  // row at most). The session clock doesn't follow, so a launched clip
+  // keeps its own place.
+  void jumpToNextBar(const Song & song, int row_in_bar) {
+    int rows_per_bar = std::max(1, song.getRowsPerBar());
+    setPosition((absolute_pos_ / rows_per_bar + 1) * rows_per_bar + std::min(row_in_bar, rows_per_bar - 1));
   }
 
   // 0Rxy (Command::isRetrigger()) - re-fires every note still playing on
@@ -928,7 +924,7 @@ private:
   struct LastNote { int column; Tuning tuning; float velocity; int note_value; int row; };
   std::unordered_map<int, std::map<int, LastNote>> last_notes_; // track -> note column
   bool pending_break_ = false; // ZBxx seen on the row currently completing
-  int pending_break_locator_ = 0;
+  int pending_break_row_ = 0;
   RenderContext render_context_;
   SendBusProcessor send_bus_;
   AudioBuffer aux_a_sum_, aux_b_sum_;

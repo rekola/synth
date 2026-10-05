@@ -291,9 +291,9 @@ permissive (any letter, not just hex `a-f`) since `docs/commands.md`'s
 two-character mnemonics (`0U`/`0D`/`0G`/`1V`/`1I`/`1O`/`1T`/`ZB`) use
 letters outside the hex range in their first two characters — only the
 velocity/delay nibble-entry path was tightened to strict `0-9a-f`; a
-mnemonic's own trailing hex-digit argument (e.g. `ZBxx`'s locator number)
+mnemonic's own trailing hex-digit argument (e.g. `YLxx`'s slide amount)
 stays permissive too, parsing a non-hex character as digit 0 rather than
-rejecting it (`Command::getBreakLocatorNumber()`).
+rejecting it (`Command::getAzimuthSlidePerTick()`).
 
 `C-SPC` doesn't register on every terminal: its legacy encoding is a
 literal NUL byte, which notcurses's input decoder silently drops instead of
@@ -1193,7 +1193,7 @@ would otherwise resume showing.
     an independent copy unlike a `Clip`'s own shared content — and a
     `SampleTrack`'s own merged background audio bed), the song's
     locators (`Song::getLocators()`, named markers keyed by absolute row,
-    shown in Arrangement view's locator column; `ZBxx` jumps to one)
+    shown in Arrangement view's locator column)
     and their value types (`Note`, `Command`, `SendLevels`, …).
   - `src/state/` — the parallel, cheaply-resettable playback-state
     objects (`*State.h`) mirroring the model objects above.

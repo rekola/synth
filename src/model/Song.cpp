@@ -993,19 +993,6 @@ Song::setLocator(int row, std::string name) {
 }
 
 int
-Song::getLocatorRow(int number) const {
-  if (number < 1 || number > static_cast<int>(locators_.size())) return -1;
-  return std::next(locators_.begin(), number - 1)->first;
-}
-
-int
-Song::getNextLocatorRow(int row) const {
-  if (locators_.empty()) return -1;
-  auto it = locators_.upper_bound(row);
-  return it != locators_.end() ? it->first : locators_.begin()->first;
-}
-
-int
 Song::getArrangementLength() const {
   int end = 0;
   for (auto & [ track_id, pattern ] : arrangement_.getPatternsByTrack()) end = std::max(end, pattern.getContentEnd());
