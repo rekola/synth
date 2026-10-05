@@ -1,8 +1,7 @@
 # Scenes: name, tempo and time signature
 
 This describes what a scene carries, how it is typed in, and exactly what
-happens when one launches. Section 8 lists the decisions still open.
-
+happens when one launches. 
 ## 1. What a scene is
 
 A scene is a row of the clip grid: clip number *k* of every track's clip
@@ -166,10 +165,18 @@ From recollection, not verified here:
 - Launching a scene sets the global tempo and time signature; launching a
   single clip does not.
 - Live's arrangement has its own tempo automation and time-signature
-  markers. Those are not built here (section 8).
+  markers. Those are not built here (section 7).
 - A scene without a tempo leaves the running one, as here.
 
-## 7. Not done
+## 7. Limitations
+
+- **The rhythm library does not set a time signature.** Add to Song puts a
+  rhythm into a new clip at the end of the chosen track's clip list, with
+  the clip as long as the rhythm (Waltz 12 rows, 6/8 12, 7/8 14, 5/4 20,
+  Slow Rock 24, March 8). The clip loops at its own length, so the pattern
+  itself plays correctly, but the scene it lands in gets no time signature
+  and the bars the transport counts are unchanged. A swung rhythm does set
+  the song's swing.
 
 - Per-scene swing (swing is song-wide; Live's groove is per clip, so it is
   left alone for now).
@@ -178,34 +185,3 @@ From recollection, not verified here:
 - Scene tempo and signature on the Launchpad; they are set from the
   terminal.
 - Compound or irregular beat grouping (6/8 as two dotted beats, 7/8 as 2+2+3).
-
-## 8. Open questions
-
-1. **Should a scene's tempo and signature revert when its scene stops?**
-   Built: no, they stay until changed. The alternative is to restore the
-   previous tempo and bars when no track is playing a scene any more (all
-   stopped, or all returned to the arrangement). That needs a "tempo before
-   the first scene" to be remembered, and a rule for two scenes with
-   different tempos playing on different tracks.
-2. **Should the tempo be saved?** Built: yes, as the song tempo, because
-   launching a scene is an ordinary tempo edit. An alternative is to keep a
-   scene-set tempo runtime-only like the signature, so the saved song tempo
-   is only ever one you set deliberately.
-3. **Should the arrangement get its own time signature?** Tempo and
-   signature changes in the arrangement itself (markers on the timeline)
-   would let a section be written in 3/4 and played back that way without a
-   scene. That is a larger change to bar numbering across the arrangement
-   grid.
-4. **Scenes without a signature:** the Session view draws them with the
-   song's bars even while a waltz is running, because the pattern editor shows
-   the scene's own signature, not the running one. Showing the running one
-   would make the accents match what the metronome plays.
-5. **Timing precision.** The change applies on the bar row the UI thread
-   notices, so it can land up to a frame after the audio thread passed the
-   bar. For tempo that is inaudible; for the signature it means one frame
-   of bars counted the old way. Moving it to the audio thread (as queued
-   clip launches are) would make it sample-exact.
-6. **A scene is its position.** Because rows are never inserted or removed,
-   a record cannot drift away from its row. If a future "insert scene" or
-   "delete scene" command is added, it has to move the records with the
-   clips.
