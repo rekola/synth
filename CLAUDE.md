@@ -748,6 +748,11 @@ would otherwise resume showing.
   each later overdub). Authored
   in-app via `PatternEditor::copyToClip()` (extracts the current
   pattern-editor selection into a new clip), not hand-edited-XML-only.
+  `mutate-clip` (clip grid, Clip menu) varies a clip in place - every
+  placement of it too - via `mutateClip()` (`ArrangementOps.h`): about a
+  quarter of the note-ons (at least one) step by one or two members of the
+  song's scale, or a percussion note moves to another lane, its off marker
+  following; each press is a fresh step, from a hashed seed.
 - **Session view** (`GridMode::SESSION`, reached/left only via CC95/96/97/98,
   decoupled from terminal UI focus): rows are a track's own clip list
   (`Song::getClips(track_id)`), columns are the one shared cursor track
