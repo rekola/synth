@@ -22,6 +22,11 @@ Launchpad LEDs cleared) with exit status 0.
 | `--daemon` | `--headless`, detached from the terminal. |
 | `--log-file F` | With `--daemon`: where stderr goes (appended; default `/dev/null`). |
 | `--pid-file F` | With `--daemon`: write the daemon's pid here. |
+| `--playback-device N` / `--capture-device N` / `--midi-input N` | Use this audio output / audio input / MIDI source for this run instead of the saved choice. |
+| `--list-devices` | Print what can be chosen, with the option for each, and exit. |
+
+Headless mode has no pickers; it uses the saved choice (made from the terminal
+UI) unless one of the options above overrides it. See `docs/devices.md`.
 
 `--daemon` forks before any thread or audio handle exists. The launching
 process waits until the daemon is up and then exits 0; if startup fails (for

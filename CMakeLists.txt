@@ -122,6 +122,7 @@ add_library(synth_engine STATIC
 	src/instruments/OscillatorKernel.cpp
 	src/instruments/Arpeggiator.cpp
 	src/state/ArpeggiatorState.cpp
+	src/audio/DeviceSettings.cpp
 	src/audio/OfflineRenderer.cpp
 	src/audio/SampleFileLoader.cpp
 	src/audio/TimeStretcher.cpp
@@ -254,6 +255,7 @@ configure_file(
 add_executable(synth src/main.cpp
 	src/ui/UI.cpp
 	src/audio/AlsaAudio.cpp
+	src/audio/AudioDevices.cpp
 	src/launchpad/LaunchpadIO.cpp
 	src/launchpad/LaunchpadManager.cpp
 	src/ui/headless/HeadlessUI.cpp
@@ -274,6 +276,29 @@ add_executable(synth src/main.cpp
 target_include_directories(synth PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 target_link_libraries(synth synth_engine asound notcurses++ notcurses notcurses-core)
+
+# Optional PipeWire: lets the device pickers and --list-devices list the
+# audio server's own inputs and outputs (AudioDevices.cpp). Selection itself
+# goes through ALSA's pipewire plugin, so nothing else changes; without
+# libpipewire the lists fall back to ALSA's own PCM names, which on a
+# PipeWire system show little more than "default".
+find_package(PkgConfig QUIET)
+if(PkgConfig_FOUND)
+  pkg_check_modules(PIPEWIRE IMPORTED_TARGET libpipewire-0.3)
+endif()
+if(PIPEWIRE_FOUND)
+  set(SYNTH_ENABLE_PIPEWIRE_DEFAULT ON)
+else()
+  set(SYNTH_ENABLE_PIPEWIRE_DEFAULT OFF)
+endif()
+option(SYNTH_ENABLE_PIPEWIRE "Build with libpipewire for listing PipeWire devices" ${SYNTH_ENABLE_PIPEWIRE_DEFAULT})
+if(SYNTH_ENABLE_PIPEWIRE)
+  if(NOT PIPEWIRE_FOUND)
+    message(FATAL_ERROR "SYNTH_ENABLE_PIPEWIRE requested but libpipewire was not found (install libpipewire-0.3-dev)")
+  endif()
+  target_compile_definitions(synth PRIVATE SYNTH_HAVE_PIPEWIRE)
+  target_link_libraries(synth PkgConfig::PIPEWIRE)
+endif()
 
 install(TARGETS synth RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES songs/welcome.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/synth/songs)

@@ -142,6 +142,26 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     metronome_on_ = ev.getParameter1() != 0;
     return;
 
+  case PlaybackControlEvent::SET_CAPTURE_DEVICE:
+  case PlaybackControlEvent::SET_PLAYBACK_DEVICE: {
+    if (!audio_) return;
+    EventLogger logger(&controller_->getUIEventQueue());
+    bool capture = ev.getType() == PlaybackControlEvent::SET_CAPTURE_DEVICE;
+    // Controller refuses this up front, but a take can begin between that
+    // check and this event; the stream in use must not be swapped.
+    if (capture && (was_recording_ || was_threshold_armed_ || was_monitoring_)) {
+      logger.log("Can't change the capture device while recording or monitoring");
+      return;
+    }
+    auto & name = ev.getBufferName();
+    bool ok = capture ? audio_->setCaptureDevice(name, logger) : audio_->setPlaybackDevice(name, logger);
+    if (ok) {
+      logger.log(string(capture ? "Capture" : "Playback") + " device: " + (name.empty() ? "system default" : name));
+      devices_changed_ = true;
+    }
+  }
+    return;
+
   case PlaybackControlEvent::PREVIEW_NOTE:
     {
       // buffer_name is repurposed to carry the instrument's own literal/
@@ -725,23 +745,31 @@ Player::play(AudioAPI & audio) {
 
   auto & event_queue = controller_->getPlaybackEventQueue();
 
-  size_t num_playback_desc = audio.getPlaybackDescriptors().size();
-  size_t num_capture_desc = audio.getCaptureDescriptors().size();
+  audio_ = &audio;
 
-  size_t num_descriptors = 1 + num_playback_desc + num_capture_desc;
+  size_t num_playback_desc = 0, num_capture_desc = 0, num_descriptors = 0;
+  std::unique_ptr<pollfd[]> descriptors;
 
-  auto descriptors = std::make_unique<pollfd[]>(num_descriptors);
+  // Built from whatever the device currently exposes - again after a device
+  // switch, which replaces the descriptors (and can add or remove capture's).
+  auto buildDescriptors = [&]() {
+    num_playback_desc = audio.getPlaybackDescriptors().size();
+    num_capture_desc = audio.getCaptureDescriptors().size();
+    num_descriptors = 1 + num_playback_desc + num_capture_desc;
+    descriptors = std::make_unique<pollfd[]>(num_descriptors);
 
-  descriptors[0].fd = event_queue.getPollFd();
-  descriptors[0].events = POLLIN;
+    descriptors[0].fd = event_queue.getPollFd();
+    descriptors[0].events = POLLIN;
 
-  for (size_t i = 0; i < num_playback_desc; i++) {
-    descriptors[1 + i] = audio.getPlaybackDescriptors()[i];
-  }
+    for (size_t i = 0; i < num_playback_desc; i++) {
+      descriptors[1 + i] = audio.getPlaybackDescriptors()[i];
+    }
 
-  for (size_t i = 0; i < num_capture_desc; i++) {
-    descriptors[1 + num_playback_desc + i] = audio.getCaptureDescriptors()[i];
-  }
+    for (size_t i = 0; i < num_capture_desc; i++) {
+      descriptors[1 + num_playback_desc + i] = audio.getCaptureDescriptors()[i];
+    }
+  };
+  buildDescriptors();
 
   // Capture's own negotiated .events (POLLIN) - stashed so it can be
   // restored below. The capture descriptors otherwise stay in the poll set
@@ -757,11 +785,15 @@ Player::play(AudioAPI & audio) {
   // it below) sits with a frozen hw pointer, so its avail-derived "ready"
   // condition would otherwise stay permanently true and poll() would
   // never actually block on it.
-  auto capture_events = std::make_unique<short[]>(num_capture_desc);
-  for (size_t i = 0; i < num_capture_desc; i++) {
-    capture_events[i] = descriptors[1 + num_playback_desc + i].events;
-    descriptors[1 + num_playback_desc + i].events = 0;
-  }
+  std::unique_ptr<short[]> capture_events;
+  auto stashCaptureEvents = [&]() {
+    capture_events = std::make_unique<short[]>(num_capture_desc);
+    for (size_t i = 0; i < num_capture_desc; i++) {
+      capture_events[i] = descriptors[1 + num_playback_desc + i].events;
+      descriptors[1 + num_playback_desc + i].events = 0;
+    }
+  };
+  stashCaptureEvents();
 
   auto mixer = createMixer(controller_->getChannelConfiguration(), controller_->getMixerType(), controller_->getUseLegacyBinaural());
   // No eager SongState construction here (unlike the single-global-state_
@@ -869,8 +901,15 @@ Player::play(AudioAPI & audio) {
 	      mixer_changed_ = false;
 	    }
 	    pushSnapshots();
-	  } else if (i - 1 < num_playback_desc) {
-	    // Every live buffer's own SongState renders and accumulates into
+            if (devices_changed_) {
+              // The array this loop is walking no longer matches the device.
+              devices_changed_ = false;
+              buildDescriptors();
+              stashCaptureEvents();
+              break;
+            }
+          } else if (i - 1 < num_playback_desc) {
+            // Every live buffer's own SongState renders and accumulates into
 	    // the same shared `mixer` this block - a single mixer->reset()
 	    // here, not one per renderBlock() call (reset_mixer=false below),
 	    // since a later buffer's own reset would otherwise wipe out an
@@ -979,8 +1018,8 @@ Player::play(AudioAPI & audio) {
 	    // mixer's or SongState's own persistent state.
 	    controller_->getVisualizationQueue().push(make_unique<AudioBlockEvent>(
 	      move(master), move(active_raw_bus), move(active_aux_a), move(active_aux_b)));
-	  } else if (i - 1 - num_playback_desc < num_capture_desc) {
-	    // .events was cleared to 0 above whenever not recording, threshold-
+          } else if (i - 1 - num_playback_desc < num_capture_desc) {
+            // .events was cleared to 0 above whenever not recording, threshold-
 	    // armed or monitoring, so revents can't legitimately be set here in
 	    // that case - checking again anyway keeps this branch correct on
 	    // its own, without relying on that as the only guard.
@@ -1033,8 +1072,8 @@ Player::play(AudioAPI & audio) {
 		  controller_->getRecordingTrackId(), std::move(preroll), row));
 	      }
 	    }
-	  }
-	}
+          }
+        }
       }
     }
   }

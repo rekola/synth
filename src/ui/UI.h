@@ -110,6 +110,15 @@ protected:
 
   Logger & getLogger() { return logger_; }
 
+  // Device selection shared by every backend; each runs the choice through
+  // the Controller (which persists it) and tells the user what happened on
+  // the status line. `name`/`spec` are DeviceSettings values; `label` is
+  // what the user picked it by.
+  void selectCaptureDevice(const std::string & name, const std::string & label);
+  void selectPlaybackDevice(const std::string & name, const std::string & label);
+  // MIDI is read on the UI thread, so this connects it directly.
+  void selectMidiInput(const std::string & spec, const std::string & label);
+
   // True once a backend's main loop should end: close_ui_ was set, or a
   // shutdown signal (SIGINT/SIGTERM/SIGHUP) arrived.
   bool shouldClose() const;
@@ -122,7 +131,12 @@ protected:
   // device command resolution, handleLaunchpadChannelPressureEvent() above).
   LaunchpadManager * launchpad_manager_ = nullptr;
 
-private:
+  // Set once in start(). Only MIDI touches it from the UI thread
+  // (selectMidiInput()); every other audio change goes through the audio
+  // thread's own event queue.
+  AudioAPI * audio_ = nullptr;
+
+ private:
   void initializeCommands();
 
   StatusLogger logger_;

@@ -871,6 +871,38 @@ Controller::cycleTrackMonitor(int track_id) {
   getUIEventQueue().push(make_unique<LogEvent>(m == Monitor::IN ? "Monitor: In" : m == Monitor::OFF ? "Monitor: Off" : "Monitor: Auto"));
 }
 
+std::string
+Controller::saveDeviceSettings() {
+  if (device_settings_path_.empty()) return "";
+  if (::saveDeviceSettings(device_settings_path_, device_settings_)) return "";
+  return "couldn't save the selection to " + device_settings_path_;
+}
+
+Controller::DeviceChange
+Controller::setCaptureDevice(const std::string & name) {
+  if (isRecording() || isThresholdArmed() || !monitored_track_ids_.empty()) {
+    return {false, "Can't change the capture device while recording or monitoring"};
+  }
+  auto value = isDefaultDevice(name) ? std::string() : name;
+  device_settings_.capture = value;
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_CAPTURE_DEVICE, value));
+  return {true, saveDeviceSettings()};
+}
+
+Controller::DeviceChange
+Controller::setPlaybackDevice(const std::string & name) {
+  auto value = isDefaultDevice(name) ? std::string() : name;
+  device_settings_.playback = value;
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_PLAYBACK_DEVICE, value));
+  return {true, saveDeviceSettings()};
+}
+
+Controller::DeviceChange
+Controller::setMidiInput(const std::string & spec) {
+  device_settings_.midi_input = spec;
+  return {true, saveDeviceSettings()};
+}
+
 bool
 Controller::isMonitoring(int track_id) const {
   auto song = getCurrentSong();

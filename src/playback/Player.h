@@ -178,6 +178,11 @@ private:
   Controller * controller_;
   bool terminate_ = false;
   bool mixer_changed_ = false;
+  // Set by play() for the duration of the loop, so handlePlaybackControlEvent()
+  // can reach the device (SET_CAPTURE_DEVICE/SET_PLAYBACK_DEVICE).
+  AudioAPI * audio_ = nullptr;
+  // A device switch replaced poll descriptors; play() rebuilds its poll set.
+  bool devices_changed_ = false;
   // play()'s own poll loop - the previous iteration's Controller::
   // isRecording(), compared against the current one to detect recording
   // actually engaging (see play()'s own comment on why this is where the

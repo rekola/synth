@@ -3,6 +3,7 @@
 #define _CONTROLLER_H_
 
 #include "audio/AudioBuffer.h"
+#include "audio/DeviceSettings.h"
 #include "model/Version.h"
 #include "instruments/InstrumentProvider.h"
 #include "playback/EventQueue.h"
@@ -582,6 +583,32 @@ class Controller {
   bool getUseLegacyBinaural() const { return use_legacy_binaural_; }
   void setUseLegacyBinaural(bool use_legacy) { use_legacy_binaural_ = use_legacy; }
 
+  // Audio/MIDI endpoint choices (see DeviceSettings.h), kept in a per-user
+  // file so they survive a restart. main.cpp hands over what it read from
+  // that file; a command-line override for one run never reaches this copy,
+  // so the file only changes when a device is actually selected.
+  struct DeviceChange {
+    // False when nothing was changed (refused, or the device wasn't there).
+    bool applied = false;
+    // For the status line; may be set even when applied (a save that failed).
+    std::string message;
+  };
+  const DeviceSettings & getDeviceSettings() const { return device_settings_; }
+  void setDeviceSettings(DeviceSettings settings, std::string path) {
+    device_settings_ = std::move(settings);
+    device_settings_path_ = std::move(path);
+  }
+  // Both ask the audio thread to switch (PlaybackControlEvent::
+  // SET_CAPTURE_DEVICE/SET_PLAYBACK_DEVICE, which logs and keeps the old
+  // device if it can't). "" or "default" is the system default. Capture
+  // can't change while recording, threshold-armed or monitoring - the open
+  // stream is in use.
+  DeviceChange setCaptureDevice(const std::string & name);
+  DeviceChange setPlaybackDevice(const std::string & name);
+  // Only records the choice: MIDI is read on the UI thread, which makes the
+  // connection itself (UI::selectMidiInput()).
+  DeviceChange setMidiInput(const std::string & spec);
+
   bool togglePlaying();
 
   // Whatever Record Arm currently has active (recording, threshold-armed,
@@ -1128,6 +1155,10 @@ class Controller {
   ChannelConfiguration channel_config;
   MixerType mixer_type_ = MixerType::AMBISONIC_STEREO;
   bool use_legacy_binaural_ = false;
+  DeviceSettings device_settings_;
+  std::string device_settings_path_;
+  // Saves device_settings_; the message is empty on success.
+  std::string saveDeviceSettings();
 
   // Every open song, keyed by song id (a real file path, or a
   // freshBufferName()-generated name for a never-yet-saved one) - one

@@ -43,6 +43,11 @@ degraded resample-based fallback would also shift pitch, a correctness
 defect this codebase won't ship. FFT support (the live spectrum analyzer,
 MagLS binaural precomputation) is via vendored PocketFFT
 (`third_party/pocketfft/`) — no separate FFT library package needed.
+`libpipewire-0.3-dev` is optional too (`SYNTH_ENABLE_PIPEWIRE`,
+auto-detected): it only backs `src/audio/AudioDevices.cpp`'s listing of the
+audio server's own inputs and outputs for the device pickers (below);
+selecting one doesn't need it, and without it the lists fall back to ALSA's
+own PCM names.
 `libmysofa-dev` is optional (binaural ambisonic decoding,
 `SYNTH_ENABLE_BINAURAL`, auto-detected) — without it, `--ambisonic` still
 works via the cardioid stereo decoder fallback.
@@ -61,6 +66,35 @@ lines to stderr, plays MIDI input live and records samples; `--autoplay` starts 
 `--log-file`/`--pid-file`) detaches it. SIGINT/SIGTERM/SIGHUP end any UI
 mode's main loop cleanly (`util/ShutdownSignal.h`, `UI::shouldClose()`).
 See `docs/headless.md`; `tools/e2e/verify_headless.py` covers it.
+
+**Audio and MIDI devices** (`docs/devices.md`): the output, the input and one
+MIDI source are chosen at runtime (M-x `select-playback-device`/
+`select-capture-device`/`select-midi-input`, the Devices menu) and saved in
+`~/.config/synth/devices.conf` (`audio/DeviceSettings.h`, machine-wide, never
+part of a song). `--playback-device`/`--capture-device`/`--midi-input`
+override one run without touching the file; `--list-devices` prints the
+choices. An audio name is `""`/`default`, `pw:<node.name>` (a PipeWire node -
+stable across sessions, unlike its numeric id) or a raw ALSA PCM name.
+A `pw:` device is opened through ALSA's own pipewire plugin with the node
+named in a private one-PCM config (`openPcm()`, `AlsaAudio.cpp`), so period
+sizes, polling, delay queries and xrun recovery stay the one ALSA path for
+every device. `Controller::setCaptureDevice()`/`setPlaybackDevice()` save the
+choice and push `SET_CAPTURE_DEVICE`/`SET_PLAYBACK_DEVICE`: the audio thread
+owns the PCM handles, so `Player` makes the switch and rebuilds its poll set
+(`devices_changed_`). A switch that can't happen - the node is gone, the
+rate or block size can't match the running song, capture is in use - logs why
+and keeps the current device. MIDI is read on the UI thread, so
+`UI::selectMidiInput()` connects it there instead, never through an event; a
+chosen source that is unplugged is reconnected when its port reappears
+(`AlsaAudio::recordMIDI()`). A saved device that is missing at startup falls
+back to the default, with the choice kept. A node name that doesn't exist is
+rejected up front (`playbackDeviceExists()`/`captureDeviceExists()`) because
+the server silently substitutes the default input for an unknown one.
+Capturing a sink's monitor isn't supported for the same reason (naming a sink
+also falls back to the default input). A missing ALSA sequencer no longer
+stops audio from starting - MIDI is just off.
+`tools/e2e/verify_device_selection.py` drives the pickers against a real
+PipeWire (and skips without one).
 
 `--render` needs no terminal or audio device: it renders the song offline
 (plus the effect/release tail until silence, capped at 10 s) and exits — use
@@ -1227,8 +1261,11 @@ would otherwise resume showing.
     into a repeating beat pattern; no detune, no drift. Other voice types aren't arrays.
   - `src/ambisonic/` — spatial encode/decode math and the `Mixer`
     hierarchy (see the `AmbisonicEncoding.h` bullet below).
-  - `src/audio/` — `AlsaAudio` (device output), `AudioBuffer`,
-    `OfflineRenderer`.
+  - `src/audio/` — `AlsaAudio` (device output and input, runtime device
+    switching), `DeviceSettings` (the saved device choices - in
+    `synth_engine`, so `Controller` and the tests use it), `AudioDevices`
+    (listing what can be chosen; executable-only, like `AlsaAudio`),
+    `AudioBuffer`, `OfflineRenderer`.
   - `src/ui/` — toolkit-agnostic UI plumbing with no notcurses
     dependency: `UI`/`UIElement`/`UIPlane`/`UIMenu` (abstract app/widget/
     render-surface interfaces a future non-terminal UI could implement

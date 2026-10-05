@@ -58,8 +58,33 @@ UI::shouldClose() const {
   return close_ui_ || shutdownRequested();
 }
 
+void UI::selectCaptureDevice(const std::string & name, const std::string & label) {
+  auto change = getController().setCaptureDevice(name);
+  if (!change.applied)
+    setStatus(change.message);
+  else
+    setStatus("Switching capture device to " + label + (change.message.empty() ? "" : " (" + change.message + ")"));
+}
+
+void UI::selectPlaybackDevice(const std::string & name, const std::string & label) {
+  auto change = getController().setPlaybackDevice(name);
+  if (!change.applied)
+    setStatus(change.message);
+  else
+    setStatus("Switching playback device to " + label + (change.message.empty() ? "" : " (" + change.message + ")"));
+}
+
+void UI::selectMidiInput(const std::string & spec, const std::string & label) {
+  if (!audio_) return;
+  audio_->setMidiInput(spec, getLogger());
+  auto change = getController().setMidiInput(spec);
+  if (!change.message.empty()) setStatus("MIDI input " + label + " (" + change.message + ")");
+}
+
 void
 UI::start(AudioAPI & audio, LaunchpadIO & launchpad_io, LaunchpadManager & launchpad_manager) {
+  audio_ = &audio;
+
   // AlsaAudio::initialize() already logged this to stderr, before this UI
   // (and its StatusLogger) even existed - a failed/missing capture device
   // would otherwise be silently invisible for the rest of the session,
