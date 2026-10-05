@@ -605,6 +605,14 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
       }
     }
 
+    scene_tempos_.clear();
+    if (auto scenes = song->FirstChildElement("scenes")) {
+      for (auto it = scenes->FirstChildElement("scene"); it; it = it->NextSiblingElement("scene")) {
+        int index = it->IntAttribute("index", -1);
+        if (index >= 0) setSceneTempo(index, it->IntAttribute("tempo", 0));
+      }
+    }
+
     // Song's own flat, per-track clip list (Song.h's own getClips()
     // comment), read before <arrangement>, whose instances refer to it.
     // One <trackClips> per track that has any clips at all, grouping that
@@ -877,6 +885,17 @@ Song::save(const std::string & filename) const {
       locator->SetAttribute("row", row);
       locator->SetText(name.c_str());
       locators->InsertEndChild(locator);
+    }
+  }
+
+  if (!scene_tempos_.empty()) {
+    auto scenes = doc.NewElement("scenes");
+    root->InsertEndChild(scenes);
+    for (auto & [ index, bpm ] : scene_tempos_) {
+      auto scene = doc.NewElement("scene");
+      scene->SetAttribute("index", index);
+      scene->SetAttribute("tempo", bpm);
+      scenes->InsertEndChild(scene);
     }
   }
 

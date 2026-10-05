@@ -97,6 +97,20 @@ class Song : public SongObject {
   short getTempo() const { return bpm_; }
   void setTempo(short bpm) { bpm_ = bpm; }
 
+  // A scene's own tempo (the scene being a clip-list index, shared by every
+  // track), or 0 when it keeps whatever tempo is running. Launching the
+  // scene sets the song tempo (SessionPlayer::launchScene()); arrangement
+  // playback never reads it.
+  int getSceneTempo(int scene) const {
+    auto it = scene_tempos_.find(scene);
+    return it != scene_tempos_.end() ? it->second : 0;
+  }
+  void setSceneTempo(int scene, int bpm) {
+    if (bpm <= 0) scene_tempos_.erase(scene);
+    else scene_tempos_[scene] = bpm;
+  }
+  const std::map<int, int> & getSceneTempos() const { return scene_tempos_; }
+
   // How late the second eighth of every pair plays (swing.h), in percent of
   // the pair: 50 straight, about 67 triplet swing. Applied at playback to
   // everything scheduled, never baked into note data. Callers editing it
@@ -439,6 +453,7 @@ private:
   Tuning tuning_ = Tuning::TET31;
   short key_note_number_ = 0;
   Scale scale_ = Scale::NONE;
+  std::map<int, int> scene_tempos_;
   int bpm_ = 140;
   int rows_per_bar_ = 16;
   int swing_ = swing::kStraight;

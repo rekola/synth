@@ -89,3 +89,24 @@ TEST(swing_commands_step_the_song_swing_within_its_range_and_bump_the_version) {
   CHECK(controller.sendCommand("swing-increase"));
   CHECK(song.getSwing() == 75); // nor above the maximum
 }
+
+TEST(scene_tempo_round_trips_and_zero_clears_it) {
+  namespace fs = std::filesystem;
+  InstrumentProvider provider;
+  auto dir = fs::temp_directory_path() / "synth_scene_tempo_roundtrip";
+  fs::create_directories(dir);
+  auto path = (dir / "scenes.xml").string();
+
+  Song original;
+  CHECK(original.getSceneTempo(0) == 0);
+  original.setSceneTempo(1, 90);
+  original.setSceneTempo(3, 140);
+  original.setSceneTempo(3, 0);
+  original.save(path);
+
+  Song loaded;
+  CHECK(loaded.open(path, provider));
+  CHECK(loaded.getSceneTempo(0) == 0);
+  CHECK(loaded.getSceneTempo(1) == 90);
+  CHECK(loaded.getSceneTempo(3) == 0);
+}

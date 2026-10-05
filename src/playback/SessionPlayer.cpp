@@ -197,6 +197,14 @@ SessionPlayer::toggleOverdub(int fallback_track_id) {
 
 void
 SessionPlayer::launchScene(int clip_index, const vector<int> & track_ids) {
+  // The scene's tempo takes effect with its clips: at once from a stopped
+  // transport, else on the next bar.
+  pending_tempo_ = 0;
+  auto bpm = controller_.getSong().getSceneTempo(clip_index);
+  if (bpm > 0 && !track_ids.empty()) {
+    if (controller_.getPlaybackInfo().isPlaying()) pending_tempo_ = bpm;
+    else controller_.setTempo(bpm);
+  }
   for (auto track_id : track_ids) triggerClip(track_id, clip_index);
   // A scene starts the transport even when every slot in it is empty.
   if (!track_ids.empty() && !controller_.isNoteCaptureArmed()) startTransport();
@@ -345,6 +353,10 @@ void
 SessionPlayer::advanceToRow(int step, int row) {
   auto rows_per_bar = max(1, controller_.getSong().getRowsPerBar());
   if (row % rows_per_bar == 0) {
+    if (pending_tempo_ > 0) {
+      controller_.setTempo(pending_tempo_);
+      pending_tempo_ = 0;
+    }
     auto queued = move(queued_recording_);
     queued_recording_.clear();
     for (auto & [ track_id, queued_value ] : queued) {

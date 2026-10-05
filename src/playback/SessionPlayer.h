@@ -49,7 +49,8 @@ class SessionPlayer {
   // playing. Returns false when there was nothing to overdub or stop.
   bool toggleOverdub(int fallback_track_id);
   // Queues `track_ids`' clip at `clip_index`, launching together at the
-  // next bar.
+  // next bar, along with the scene's own tempo if it has one
+  // (Song::getSceneTempo()).
   void launchScene(int clip_index, const std::vector<int> & track_ids);
   // Stop Clip for one track: silences it from the next bar, taking it over
   // from the arrangement if it wasn't already; a queued stop of its take
@@ -161,6 +162,8 @@ class SessionPlayer {
   struct QueuedRecording { enum Kind { STOP, FRESH_TAKE, OVERDUB } kind; int clip_index = 0; };
   std::unordered_map<int, QueuedRecording> queued_recording_;
 
+  // A launched scene's tempo, applied on the next bar row tick() sees.
+  int pending_tempo_ = 0;
   int assign_row_ = 0;
   std::function<void()> assign_playback_starter_;
 };
