@@ -914,6 +914,11 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
       return true;
     }
     if (!inSessionMixerFamily(state)) return true;
+    if (hasStopSoloMuteCycle(device_id)) {
+      if (cc_number == 19) cycleStopSoloMute(device_id);
+      else triggerSceneRow(controller, (cc_number - 19) / 10);
+      return true;
+    }
     if (!state.session_mixer_mode) {
       triggerSceneRow(controller, (cc_number - 19) / 10);
       return true;
@@ -963,7 +968,7 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
     // one, and none of them are left showing the step grid or any button
     // still highlighted for it. A no-op when nothing's focused.
     controller.closeDrumClipFocus();
-    if (at_plain_session_grid) state.session_mixer_mode = !state.session_mixer_mode;
+    if (at_plain_session_grid && !hasStopSoloMuteCycle(device_id)) state.session_mixer_mode = !state.session_mixer_mode;
     state.grid_mode = GridMode::SESSION;
     state.track_picker_active = false;
     return true;
@@ -1186,6 +1191,31 @@ LaunchpadManager::toggleTrackPicker(int device_id, DeviceState::TrackPickerPurpo
   state.grid_mode = GridMode::SESSION; // leaving a fader mode for the picker always lands on the plain grid underneath
   state.track_picker_active = !already_active;
   state.track_picker_purpose = purpose; // harmless to set even when closing - only read while track_picker_active
+}
+
+bool
+LaunchpadManager::hasStopSoloMuteCycle(int device_id) const {
+  if (!launchpad_io_) return false;
+  auto model = launchpad_io_->modelForSession(device_id);
+  return model && LaunchpadProtocol::getModelInfo(*model).stop_solo_mute_cycle_button;
+}
+
+void
+LaunchpadManager::cycleStopSoloMute(int device_id) {
+  using Purpose = DeviceState::TrackPickerPurpose;
+  auto & state = deviceState(device_id);
+  state.grid_mode = GridMode::SESSION;
+  state.mixer_hold_pending = false; // a tap-only cycle, nothing to revert on release
+  if (!state.track_picker_active) {
+    state.track_picker_active = true;
+    state.track_picker_purpose = Purpose::STOP_CLIP;
+  } else if (state.track_picker_purpose == Purpose::STOP_CLIP) {
+    state.track_picker_purpose = Purpose::SOLO;
+  } else if (state.track_picker_purpose == Purpose::SOLO) {
+    state.track_picker_purpose = Purpose::MUTE;
+  } else {
+    state.track_picker_active = false;
+  }
 }
 
 void
@@ -2884,7 +2914,8 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // once, matching the radio group's own "only one active" rule
   // (inSessionMixerFamily()).
   bool in_mixer_family = inSessionMixerFamily(state);
-  bool mixer_mode = state.session_mixer_mode;
+  bool mini_layout = hasStopSoloMuteCycle(device_id);
+  bool mixer_mode = state.session_mixer_mode && !mini_layout;
   bool picker_record_arm = state.track_picker_active && state.track_picker_purpose == DeviceState::TrackPickerPurpose::RECORD_ARM;
   bool picker_mute = state.track_picker_active && state.track_picker_purpose == DeviceState::TrackPickerPurpose::MUTE;
   bool picker_solo = state.track_picker_active && state.track_picker_purpose == DeviceState::TrackPickerPurpose::SOLO;
@@ -2921,6 +2952,15 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
     // The view being shown is bright, the other dim: a press switches to it.
     send_b_button_color = state.grid_mode == GridMode::TEMPO ? Rgb{0, 50, 127} : Rgb{0, 8, 20};
     stop_clip_button_color = state.grid_mode == GridMode::SWING ? Rgb{127, 55, 0} : Rgb{20, 9, 0};
+  }
+  if (mini_layout && in_mixer_family && !(state.row_up_shift_held || state.duplicate_held || state.delete_held || state.quantize_held || number_view) &&
+      !(state.grid_mode == GridMode::NOTES && !state.show_step_grid)) {
+    // Bottom button shows the cycle position: white while the bottom row
+    // shows clips, then the picker's own hue per purpose.
+    record_arm_button_color = !state.track_picker_active                                               ? Rgb{127, 127, 127}
+                              : state.track_picker_purpose == DeviceState::TrackPickerPurpose::STOP_CLIP ? LAUNCHPAD_TRACK_PICKER_STOP_CLIP_BRIGHT
+                              : state.track_picker_purpose == DeviceState::TrackPickerPurpose::SOLO      ? LAUNCHPAD_TRACK_PICKER_SOLO_BRIGHT
+                                                                                                         : LAUNCHPAD_TRACK_PICKER_MUTE_BRIGHT;
   }
   colors.push_back({19, record_arm_button_color.r, record_arm_button_color.g, record_arm_button_color.b});
   colors.push_back({29, solo_button_color.r, solo_button_color.g, solo_button_color.b});

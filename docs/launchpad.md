@@ -69,6 +69,12 @@ and orange in mixer submode.
 
 ## Right-side buttons
 
+The right column differs per model. Pads, the top row and the shift
+functions below are the same on both. The Pro MK3 has no layout of its own and
+is untested.
+
+### Launchpad X
+
 Record Arm (19), Volume (89), Pan (79), Send A (69), Send B (59), Stop Clip
 (49), Mute (39) and Solo (29) share one dispatch.
 
@@ -91,6 +97,34 @@ The track picker lights the bottom grid row, one pad per track, in the color
 of the action: red for Stop Clip and Record Arm, yellow for Mute, blue for
 Solo. Picking a track toggles that action for it and leaves the picker open;
 the same button again closes it.
+
+### Launchpad Mini MK3
+
+The Mini's buttons are labelled differently: seven scene launch buttons, and
+the lowest one is Stop/Solo/Mute. The Mini has no mixer mode at all (no
+Volume/Pan/Send faders, and a second press of 95 does nothing special), but it
+keeps the shift actions below.
+
+| Button | Function |
+| --- | --- |
+| 89, 79, 69, 59, 49, 39, 29 (top to bottom) | launch the scene at that row (rows 1-7 from the top) |
+| 19 (Stop/Solo/Mute) | cycles the bottom pad row between clips, Stop, Solo and Mute |
+
+The bottom pad row starts out showing clips like the rest of the grid. Each
+press of the Stop/Solo/Mute button moves to the next function, and the press
+after Mute returns to clips:
+
+| Press | LED | Bottom row |
+| --- | --- | --- |
+| default / fourth | white | clips |
+| first | red | Stop: bright pad = a clip is playing on that track; pressing it stops the track |
+| second | blue | Solo: bright pad = the track is soloed; pressing it toggles solo |
+| third | yellow | Mute: bright pad = the track is audible; dim = muted; pressing it toggles mute |
+
+In Note mode the Stop/Solo/Mute button still starts and stops capture, as
+Record Arm does on the other models. While shift is held the right column
+shows the shift functions below by position (Volume, Pan, ... are the Mini's
+scene buttons 89, 79, ...).
 
 ### Shift
 
