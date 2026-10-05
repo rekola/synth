@@ -59,14 +59,14 @@ getRhythmPatternLibrary() {
       addLane(hits, 12, "X...........", KICK);
       addLane(hits, 12, "....x...x...", RIM);
       patterns.push_back({ "Waltz", "Rhythms",
-        "A 3/4 ballroom waltz - kick on beat 1, rim on beats 2 and 3.", 12, move(hits) });
+        "A 3/4 ballroom waltz - kick on beat 1, rim on beats 2 and 3.", 12, move(hits), swing::kStraight, 3, 4 });
     }
     {
       vector<RhythmPatternHit> hits;
       addLane(hits, 12, "X...........", KICK);
       addLane(hits, 12, "x.x.x.x.x.x.", RIDE);
       patterns.push_back({ "Jazz Waltz", "Rhythms",
-        "A swung, ride-cymbal-driven take on the 3/4 waltz.", 12, move(hits), 67 });
+        "A swung, ride-cymbal-driven take on the 3/4 waltz.", 12, move(hits), 67, 3, 4 });
     }
     {
       vector<RhythmPatternHit> hits;
@@ -74,7 +74,7 @@ getRhythmPatternLibrary() {
       addLane(hits, 12, "......x.....", SNARE);
       addLane(hits, 12, "x.x.x.x.x.x.", CHH);
       patterns.push_back({ "Six-Eight", "Rhythms",
-        "A 6/8 compound-time rhythm - two groups of three, kick marking each one.", 12, move(hits) });
+        "A 6/8 compound-time rhythm - two groups of three, kick marking each one.", 12, move(hits), swing::kStraight, 6, 8 });
     }
     {
       vector<RhythmPatternHit> hits;
@@ -82,7 +82,7 @@ getRhythmPatternLibrary() {
       addLane(hits, 20, "........x.......x...", SNARE);
       addLane(hits, 20, "x...x...x...x...x...", CHH);
       patterns.push_back({ "Five-Four", "Rhythms",
-        "A 5/4 rhythm felt as 3+2 - kick on beats 1 and 4, snare on 3 and 5.", 20, move(hits) });
+        "A 5/4 rhythm felt as 3+2 - kick on beats 1 and 4, snare on 3 and 5.", 20, move(hits), swing::kStraight, 5, 4 });
     }
     {
       vector<RhythmPatternHit> hits;
@@ -90,7 +90,7 @@ getRhythmPatternLibrary() {
       addLane(hits, 14, "......x.....x.", RIM);
       addLane(hits, 14, "x.x.x.x.x.x.x.", CHH);
       patterns.push_back({ "Seven-Eight", "Rhythms",
-        "A 7/8 rhythm grouped 2+2+3, the most common way this meter is played.", 14, move(hits) });
+        "A 7/8 rhythm grouped 2+2+3, the most common way this meter is played.", 14, move(hits), swing::kStraight, 7, 8 });
     }
     {
       vector<RhythmPatternHit> hits;
@@ -98,7 +98,7 @@ getRhythmPatternLibrary() {
       addLane(hits, 24, "......x...........x.....", SNARE);
       addLane(hits, 24, "x.x.x.x.x.x.x.x.x.x.x.x.", RIDE);
       patterns.push_back({ "Slow Rock", "Rhythms",
-        "A 12/8 ballad feel - kick on 1 and 3, snare on 2 and 4, ride on every eighth note.", 24, move(hits) });
+        "A 12/8 ballad feel - kick on 1 and 3, snare on 2 and 4, ride on every eighth note.", 24, move(hits), swing::kStraight, 12, 8 });
     }
     {
       vector<RhythmPatternHit> hits;
@@ -106,7 +106,7 @@ getRhythmPatternLibrary() {
       addLane(hits, 24, "......x...........x.....", SNARE);
       addLane(hits, 24, "x...x.x...x.x...x.x...x.", RIDE);
       patterns.push_back({ "Shuffle Blues", "Rhythms",
-        "A swung 12/8 blues shuffle, four-on-the-floor kick under a long-short ride.", 24, move(hits) });
+        "A swung 12/8 blues shuffle, four-on-the-floor kick under a long-short ride.", 24, move(hits), swing::kStraight, 12, 8 });
     }
     {
       vector<RhythmPatternHit> hits;
@@ -114,14 +114,14 @@ getRhythmPatternLibrary() {
       addLane(hits, 8, "....X...", SNARE);
       addLane(hits, 8, "......x.", RIM);
       patterns.push_back({ "March", "Rhythms",
-        "A simple 2/4 marching-band beat - boom, chick.", 8, move(hits) });
+        "A simple 2/4 marching-band beat - boom, chick.", 8, move(hits), swing::kStraight, 2, 4 });
     }
     {
       vector<RhythmPatternHit> hits;
       addLane(hits, 8, "X.......", KICK);
       addLane(hits, 8, "..x.X...", RIM);
       patterns.push_back({ "Polka", "Rhythms",
-        "A bouncy 2/4 oom-pah-pah.", 8, move(hits) });
+        "A bouncy 2/4 oom-pah-pah.", 8, move(hits), swing::kStraight, 2, 4 });
     }
 
     // --- Plain 4/4, 16 rows - the bulk of a keyboard's own rhythm list.
@@ -257,7 +257,7 @@ getRhythmPatternLibrary() {
       addLane(hits, 8, "......X.", RIM);
       addLane(hits, 8, "xxxxxxxx", SHAKER);
       patterns.push_back({ "Merengue", "Rhythms",
-        "A fast 2/4 Dominican merengue - steady güira under a tambora accent.", 8, move(hits) });
+        "A fast 2/4 Dominican merengue - steady güira under a tambora accent.", 8, move(hits), swing::kStraight, 2, 4 });
     }
     {
       vector<RhythmPatternHit> hits;

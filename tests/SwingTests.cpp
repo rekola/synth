@@ -192,3 +192,13 @@ TEST(scene_time_signature_round_trips) {
   CHECK(loaded.getSceneTimeSignature(2).rowsPerBar() == 10);
   CHECK(!loaded.getSceneTimeSignature(0).isSet());
 }
+
+TEST(a_scene_without_a_signature_is_shown_in_the_running_bars) {
+  Song song;
+  song.setTransportBars(12, 4, 0);
+  CHECK(song.getSceneBarRows(5) == 12 && song.getSceneBeatRows(5) == 4);
+  song.setSceneFromText(5, "6/8");
+  CHECK(song.getSceneBarRows(5) == 12 && song.getSceneBeatRows(5) == 2);
+  song.setSceneFromText(5, "4/4");
+  CHECK(song.getSceneBarRows(5) == 16);
+}

@@ -126,14 +126,15 @@ class Song : public SongObject {
     return { info.time_numerator, info.time_denominator };
   }
   // The bar and beat length the scene is shown and edited in: its own time
-  // signature, else the song's.
+  // signature, else the bars the transport is counting (which a scene
+  // without one plays in).
   int getSceneBarRows(int scene) const {
     auto signature = getSceneTimeSignature(scene);
-    return signature.isSet() ? signature.rowsPerBar() : std::max(1, rows_per_bar_);
+    return signature.isSet() ? signature.rowsPerBar() : getBarRows();
   }
   int getSceneBeatRows(int scene) const {
     auto signature = getSceneTimeSignature(scene);
-    return signature.isSet() ? signature.rowsPerBeat() : 4;
+    return signature.isSet() ? signature.rowsPerBeat() : getBeatRows();
   }
   void setSceneName(int scene, std::string name) { sceneAt(scene).name = std::move(name); }
   void setSceneTempo(int scene, int bpm) { sceneAt(scene).tempo = std::max(bpm, 0); }

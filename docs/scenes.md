@@ -114,10 +114,11 @@ this row in the bars the transport is counting".
 
 ### Read from the scene's own signature
 
-- The bar and beat accents the pattern editor draws in **Session view**:
-  each scene shows its own, whatever is running.
-- The length of a clip created by editing an empty slot: one bar of that
-  scene's signature (the song's if the scene has none).
+A scene's own signature, or the transport's running bars when it has none
+(that is what it will play in):
+
+- The bar and beat accents the pattern editor draws in **Session view**.
+- The length of a clip created by editing an empty slot: one bar.
 
 ### Read from the song's `rowsPerBar` (unchanged)
 
@@ -165,23 +166,65 @@ From recollection, not verified here:
 - Launching a scene sets the global tempo and time signature; launching a
   single clip does not.
 - Live's arrangement has its own tempo automation and time-signature
-  markers. Those are not built here (section 7).
+  markers. Those are not built here (section 8).
 - A scene without a tempo leaves the running one, as here.
 
-## 7. Limitations
+## 7. The rhythm library
 
-- **The rhythm library does not set a time signature.** Add to Song puts a
-  rhythm into a new clip at the end of the chosen track's clip list, with
-  the clip as long as the rhythm (Waltz 12 rows, 6/8 12, 7/8 14, 5/4 20,
-  Slow Rock 24, March 8). The clip loops at its own length, so the pattern
-  itself plays correctly, but the scene it lands in gets no time signature
-  and the bars the transport counts are unchanged. A swung rhythm does set
-  the song's swing.
+Each rhythm in the Library carries its time signature (Waltz and Jazz Waltz
+3/4, Six-Eight 6/8, Five-Four 5/4, Seven-Eight 7/8, Slow Rock and Shuffle
+Blues 12/8, March, Polka and Merengue 2/4, the rest 4/4), and its length is a
+whole number of bars of it.
 
-- Per-scene swing (swing is song-wide; Live's groove is per clip, so it is
-  left alone for now).
+Add to Song puts the rhythm into a new clip at the end of the chosen track's
+clip list, so it lands in the next free scene row. If that scene has no time
+signature of its own, it gets the rhythm's. A scene that already has one
+keeps it, so a signature you typed, or one the scene's other clips rely on,
+is never overwritten. Nothing is set for the tempo, which a rhythm does not
+carry. A swung rhythm sets the song's swing, as before.
+
+Launching that scene then switches the transport to the rhythm's bars, so a
+waltz scene followed by a rock scene goes 3/4, then 4/4, with no typing.
+
+## 8. Design decisions
+
+Where Ableton Live has a behaviour, this follows it. Live's behaviour here is
+from recollection, not verified.
+
+1. **Scene values stay after the scene stops.** Live's tempo and time
+   signature are global controls; a scene launch sets them and nothing puts
+   them back when the scene or its clips stop. The same here, including after
+   sending every track back to the arrangement.
+2. **The tempo is saved, the transport's bars are not.** Live saves the
+   global tempo with the Set, and a scene-set tempo is saved here as the song
+   tempo. Live also saves the time signature; here the transport's bars are
+   runtime-only, because the arrangement's bar grid reads the song's
+   `rowsPerBar` and there are no arrangement time-signature markers yet.
+   Saving a scene-set signature would re-bar the arrangement. This is the one
+   deliberate difference.
+3. **A scene without a signature plays in, and is drawn in, the running
+   bars.** Live scenes without a value leave the global one alone, and the
+   grid follows the global one.
+4. **A scene is its position.** Clip rows are never inserted or removed, so
+   a record cannot drift from its row. An insert-scene or delete-scene
+   command would have to move the records with the clips.
+5. **Arrangement tempo and signature changes are not built.** Live puts them
+   on the arrangement timeline (tempo automation, signature markers). Until
+   that exists the arrangement plays at whatever tempo is running and counts
+   bars in the song's `rowsPerBar`.
+6. **Timing.** The tempo and signature apply on the first bar row the UI
+   notices after the clips launch, so up to one UI frame (about 16 ms) after
+   the audio thread passed the bar line. For the signature that is a frame of
+   bars counted the old way. Live applies them with the launch itself;
+   moving this onto the audio thread, as queued clip launches are, would do
+   the same here.
+
+## 9. Limitations
+
+- Per-scene swing (swing is song-wide; Live's groove is per clip).
 - Anything per scene beyond name, tempo and signature.
 - Tempo or time-signature changes inside the arrangement.
 - Scene tempo and signature on the Launchpad; they are set from the
   terminal.
-- Compound or irregular beat grouping (6/8 as two dotted beats, 7/8 as 2+2+3).
+- Beat grouping: 6/8 clicks on every eighth rather than as two beats of
+  three, and 5/4 and 7/8 have plain beats rather than 3+2 or 2+2+3.
