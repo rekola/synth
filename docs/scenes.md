@@ -18,8 +18,10 @@ stored **by position** (scene 0, 1, 2, ...), like a track's clip list:
 
 Saved as `<scenes><scene name="Waltz" tempo="90" timeSignature="3/4"/>...</scenes>`,
 one `<scene>` per position in order, no index attribute. Trailing scenes with
-nothing set are not written. Inserting or deleting a clip row would shift the
-records, exactly as it shifts the clips.
+nothing set are not written. Clip rows are never inserted or removed:
+deleting a clip leaves an empty slot, so scene positions stay aligned with
+their records. A scene keeps its name, tempo and signature even when every
+slot in it is empty.
 
 ## 2. Typing it in
 
@@ -203,6 +205,7 @@ From recollection, not verified here:
    bar. For tempo that is inaudible; for the signature it means one frame
    of bars counted the old way. Moving it to the audio thread (as queued
    clip launches are) would make it sample-exact.
-6. **Clip rows inserted or deleted** shift scene records along with the
-   clips, since both are by position. Check this matches what you expect
-   when a row is removed.
+6. **A scene is its position.** Because rows are never inserted or removed,
+   a record cannot drift away from its row. If a future "insert scene" or
+   "delete scene" command is added, it has to move the records with the
+   clips.
