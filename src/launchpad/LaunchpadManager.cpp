@@ -1966,7 +1966,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
 
     // Every reading is written (no throttle): a device stops sending once
     // pressure saturates, so skipping one could lose the final value.
-    // Controller::applyNotePressure() averages them per row.
+    // Pattern::setNote overwrites in place, so a row keeps its latest.
     bool write_pressure = deviceState(device_id).capture_enabled;
 
     for (auto & held : *held_ptr) {
