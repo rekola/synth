@@ -1436,6 +1436,7 @@ Controller::stopAutoRecordSession(bool & auto_started_playback, std::set<std::pa
 
 void
 Controller::writeReleaseOff(std::set<std::pair<int, int>> & cleared_rows, bool auto_started_playback, int row, int track_id, int note_column, int delay) {
+  endNotePressure(track_id, note_column);
   if (auto_started_playback) ensureRowCleared(cleared_rows, row, track_id);
   auto song = getCurrentSong();
   auto target = resolveEditTarget(*song, track_id, row, getFocusedClip());
@@ -1456,9 +1457,39 @@ Controller::applyNotePressure(int row, int track_id, int note_column, short velo
   auto song = getCurrentSong();
   auto target = resolveEditTarget(*song, track_id, row, getFocusedClip());
   auto note = target.pattern->getNote(target.effective_row, note_column);
+  if (note.isDefined() && !note.isAftertouch()) return; // never overwrite a real note
   if (!note.isDefined()) note.setDelay(delay);
   note.setVelocity(velocity);
   target.pattern->setNote(target.effective_row, note_column, note);
+}
+
+short
+Controller::notePressure(int row, int track_id, int note_column, short velocity, int delay, const PressureWriter & write_row) {
+  constexpr int row_units = 256;
+  constexpr int max_filled_rows = 256;
+  auto clamp_pressure = [](int v) { return static_cast<short>(std::clamp(v, 1, 127)); };
+  auto & st = pressure_states_[{ track_id, note_column }];
+  delay = std::clamp(delay, 0, row_units - 1);
+
+  if (st.row < 0 || row < st.row || row - st.row > max_filled_rows) {
+    // First reading of this note (or the transport jumped): nothing earlier
+    // to average with.
+    st = PressureState { row, delay, delay, velocity, 0 };
+  } else {
+    if (write_row) {
+      for (int skipped = st.row + 1; skipped < row; skipped++) write_row(skipped, clamp_pressure(st.last_value), 0);
+    }
+    if (row > st.row) st = PressureState { row, 0, 0, st.last_value, 0 };
+    delay = std::max(delay, st.last_time);
+    st.integral += st.last_value * (delay - st.last_time);
+    st.last_time = delay;
+    st.last_value = velocity;
+  }
+
+  int span = row_units - st.start;
+  auto pressure = clamp_pressure((st.integral + velocity * (row_units - delay) + span / 2) / span);
+  if (write_row) write_row(row, pressure, delay);
+  return pressure;
 }
 
 void
