@@ -145,6 +145,8 @@ release so a combination never has to be undone.
 | Stop Clip (49) | **Swing** view |
 | 97 | **Draw** mode |
 | a clip pad | **Select** the clip without launching it |
+| 96 (Note) | **Step edit**: open or close the selected clip's step grid |
+| 96 (Note) | **Step edit**: open or close the selected clip's step grid |
 
 Following the Pro MK3's own shift layer, Undo, Redo and the click sit where
 Novation puts them; the rest are ours. Undo and Redo only report that they are
@@ -155,8 +157,8 @@ Quantise's off state).
 
 Hold shift and press a clip pad to select it without launching it, empty slots
 included. The track and clip become the cursor, so the next recording or paste
-lands there. On a percussion or pitched track the clip also opens for step
-editing, as under the drum machine.
+lands there. Nothing opens by itself: shift + Note (96) then opens the
+selected clip for step editing, as under the drum machine, and closes it again.
 
 #### Duplicate
 

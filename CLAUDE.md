@@ -543,9 +543,10 @@ would otherwise resume showing.
   clips. The terminal's `duplicate-clip` (clip grid) does the same.
 - **Select a clip** (shift + pad, `Controller::selectClipSlot()`) - moves the
   shared track cursor and the clip grid's cursor onto that slot, empty ones
-  included, without launching anything, so it is where the next recording
-  or paste lands. On a percussion or pitched track it also opens/closes the
-  clip for step editing, as the drum machine bullet below describes.
+  included, without launching or opening anything, so it is where the next
+  recording or paste lands. Shift + Note (CC96) then opens (or closes) the
+  selected clip for step editing, as the drum machine bullet below describes
+  (`LaunchpadManager::selected_track_id_`).
 - **Delete** (shift + Pan) - held for as long as Pan stays down, like
   Duplicate: a Session pad press deletes what its slot holds, one layer
   per press (`Controller::deleteClipSlot()`, `deleteClipOrStopButton()` in

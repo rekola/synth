@@ -967,6 +967,10 @@ class LaunchpadManager {
     std::vector<LaunchpadProtocol::PadColor> last_sent_colors;
   };
 
+  // The clip last selected with shift + pad (track id, clip index), -1 for
+  // none; shift + Note opens it for step editing.
+  int selected_track_id_ = -1, selected_clip_index_ = -1;
+
   DeviceState & deviceState(int device_id);
   const DeviceState * findDeviceState(int device_id) const;
   void refreshLeds(int device_id, DeviceState & state);

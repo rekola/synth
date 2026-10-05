@@ -969,6 +969,17 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
   }
   if (cc_number == 96) {
     auto & state = deviceState(device_id);
+    // Shift + Note opens (or closes) the selected clip for step editing.
+    if (state.row_up_shift_held) {
+      state.row_up_shift_combined = true;
+      auto & ui_events = controller.getUIEventQueue();
+      if (selected_track_id_ < 0) {
+        ui_events.push(std::make_unique<LogEvent>("Step edit: select a clip first (shift + pad)"));
+      } else if (!controller.toggleDrumClipFocus(selected_track_id_, selected_clip_index_)) {
+        ui_events.push(std::make_unique<LogEvent>("Step edit: that track has no step grid"));
+      }
+      return true;
+    }
     state.grid_mode = GridMode::NOTES;
     state.track_picker_active = false; // Session-view-only - see DeviceState::track_picker_active's own comment
     return true;
@@ -2157,10 +2168,11 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
     // see its own comment - so its return value is a pure "did this
     // address a PercussionTrack clip at all" check, nothing further to do
     // here either way.
-    // Selecting comes first and works on any slot, empty ones included; a
-    // percussion or pitched track's clip is also opened for step editing.
-    controller.selectClipSlot(track_id, 7 - ev.getY());
-    controller.toggleDrumClipFocus(track_id, 7 - ev.getY());
+    // Selecting works on any slot, empty ones included; shift + Note opens
+    // the selected clip for step editing.
+    selected_track_id_ = track_id;
+    selected_clip_index_ = 7 - ev.getY();
+    controller.selectClipSlot(selected_track_id_, selected_clip_index_);
     return;
   }
 
