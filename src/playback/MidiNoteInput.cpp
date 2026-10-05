@@ -69,6 +69,7 @@ MidiNoteInput::handle(const MidiEvent & ev, Controller & controller, int track_i
     // Released on the track it was played on, even if the selection moved.
     auto held = held_it->second;
     held_.erase(held_it);
+    controller.endNotePressure(held.track_id, held.column);
     queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, buffer, held.track_id, held.column));
     if (!options.write) return false;
     auto target = resolve(held.track_id);
@@ -82,6 +83,7 @@ MidiNoteInput::handle(const MidiEvent & ev, Controller & controller, int track_i
     // A repeated note-on for a held note retriggers its own voice slot.
     int column = held_it != held_.end() ? held_it->second.column : freeColumn(track_id);
     held_[ev.getNote()] = { column, track_id };
+    controller.endNotePressure(track_id, column);
     if (controller.isMonitoring(track_id)) {
       queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, buffer, track_id, column, note_value, ev.getVelocity()));
     }
@@ -95,9 +97,11 @@ MidiNoteInput::handle(const MidiEvent & ev, Controller & controller, int track_i
   // NOTE_PRESSURE
   if (held_it == held_.end()) return false;
   int column = held_it->second.column;
-  queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, buffer, track_id, column, note_value, ev.getVelocity()));
+  int held_track_id = held_it->second.track_id;
+  auto row = controller.getPlaybackInfo().getAbsolutePosition();
+  auto pressure = controller.notePressure(row, held_track_id, column, static_cast<short>(ev.getVelocity()), current_delay, options.pressure_follows_transport);
+  queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, buffer, held_track_id, column, note_value, pressure));
   if (!options.pressure_follows_transport) return false;
-  controller.applyNotePressure(controller.getPlaybackInfo().getAbsolutePosition(), track_id, column, ev.getVelocity(), current_delay);
   song.incMinorVersion();
   return true;
 }

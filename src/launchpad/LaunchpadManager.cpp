@@ -1893,6 +1893,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // itself already redirected to one) or entirely ordinary, never a mix.
     bool any_session_recording = false;
     for (auto & held : held_notes) {
+      controller.endNotePressure(held.track_id, held.note_column);
       // Always silence the live-audition voice.
       event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, controller.getActiveBufferName(), held.track_id, held.note_column));
 
@@ -1964,18 +1965,9 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     auto held_ptr = findActiveNotes(device_id, ev.getX(), ev.getY());
     if (!held_ptr || held_ptr->empty()) return; // no held note(s) to modulate
 
-    // Every reading is written (no throttle): a device stops sending once
-    // pressure saturates, so skipping one could lose the final value.
-    // Pattern::setNote overwrites in place, so a row keeps its latest.
     bool write_pressure = deviceState(device_id).capture_enabled;
 
     for (auto & held : *held_ptr) {
-      // Live modulation always happens, regardless of Capture/write-
-      // throttle below - mirrors handleMidiEvent's NOTE_PRESSURE handling
-      // exactly.
-      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, controller.getActiveBufferName(), held.track_id, held.note_column, note_value, ev.getVelocity()));
-      if (!write_pressure) continue;
-
       // While playing (the norm whenever Capture is on - see the PRESS
       // branch's auto-play push), modulate the currently-sounding row
       // (transport has moved on, matching handleMidiEvent); while stopped
@@ -1984,10 +1976,15 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
       // actually landed on.
       auto target_row = info.isPlaying() ? info.getAbsolutePosition() : held.row;
       // Clear before reading, not just before writing - otherwise the
-      // isDefined() check below could pick up stale pre-existing data from
-      // before this row was cleared for the live take.
-      if (auto_started_playback_) controller.ensureRowCleared(auto_record_cleared_rows_, target_row, held.track_id);
-      controller.applyNotePressure(target_row, held.track_id, held.note_column, static_cast<short>(ev.getVelocity()), current_delay);
+      // isDefined() check could pick up stale pre-existing data from
+      // before the row was cleared for the live take.
+      auto prepare_row = [&](int row) {
+	if (auto_started_playback_) controller.ensureRowCleared(auto_record_cleared_rows_, row, held.track_id);
+      };
+      // Live modulation always happens, whether or not Capture records it,
+      // and plays the same row average that gets recorded.
+      auto pressure = controller.notePressure(target_row, held.track_id, held.note_column, static_cast<short>(ev.getVelocity()), current_delay, write_pressure, prepare_row);
+      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, controller.getActiveBufferName(), held.track_id, held.note_column, note_value, pressure));
     }
     if (write_pressure) song.incVersion();
   }

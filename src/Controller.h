@@ -1017,6 +1017,20 @@ class Controller {
   // note itself is shared.
   void applyNotePressure(int row, int track_id, int note_column, short velocity, int delay);
 
+  // Takes one raw pressure reading of a held note, at `row` and `delay`
+  // (the position inside the row), and returns the pressure to play and
+  // record: the time-weighted average over the row, assuming the reading
+  // holds to the row's end. Playback holds a stored value for the whole
+  // row, so live sound and playback share one value model. A device stops
+  // sending once pressure saturates, so a held reading counts for as long
+  // as it lasts; rows that got no reading at all are filled with the
+  // value held through them. With `write` set, the result goes into the
+  // pattern; prepare_row (optional) is called with each row about to be
+  // written.
+  short notePressure(int row, int track_id, int note_column, short velocity, int delay, bool write, const std::function<void(int)> & prepare_row = {});
+  // Forgets a note column's pressure state - its note ended or restarted.
+  void endNotePressure(int track_id, int note_column) { pressure_states_.erase({ track_id, note_column }); }
+
   // Emacs prefix-argument style: transient, one-shot context a caller (the
   // Launchpad command-dispatch path, UI::handleLaunchpadButtonEvent) sets
   // right before invoking a named command by string (executeCommand()),
@@ -1074,6 +1088,17 @@ class Controller {
   void prewarmInstrumentForPreview(const Track * instrument, int note_value) const;
 
  private:
+  // Running state of one held note's pressure, per (track id, note column).
+  // Times are in 1/256 of a row, matching a note's delay.
+  struct PressureState {
+    int row = -1;
+    int start = 0;       // where the row's averaging window begins
+    int last_time = 0;   // time of the latest reading in the row
+    int last_value = 0;  // the latest reading, held until the next one
+    int integral = 0;    // value * time over [start, last_time)
+  };
+  std::map<std::pair<int, int>, PressureState> pressure_states_;
+
   // receivePlaybackSnapshot()'s own model-sync half - see
   // glideTrackSendA()/B()/Main()/glideTrackAzimuth()'s own comment for why
   // this direction (engine's real value -> model) exists at all now,
