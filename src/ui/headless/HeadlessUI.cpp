@@ -168,6 +168,7 @@ HeadlessUI::tick() {
   auto & controller = getController();
   auto & song = controller.getSong();
   controller.syncMonitoring();
+  controller.tickNotePressure();
   controller.getSessionPlayer().tick();
 
   if (launchpad_manager_) {

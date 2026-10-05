@@ -2281,6 +2281,7 @@ TerminalUI::renderComponents(bool refresh) {
   bool clip_grid_focused = getView() == View::SESSION && active == clip_grid_;
   getController().setClipGridFocused(clip_grid_focused);
   getController().syncMonitoring();
+  getController().tickNotePressure();
   if (clip_grid_focused) {
     auto track_ids = song.getPlayableTrackIds();
     auto track_index = clip_grid_->getCursorTrackIndex();
