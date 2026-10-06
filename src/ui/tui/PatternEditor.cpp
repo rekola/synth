@@ -2591,10 +2591,12 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // track's own position row (track_marked, set per track below).
   std::optional<bool> track_marked;
   // How dimmed the column being drawn is (0 to 1); a dimmed area carries no
-  // row highlight.
+  // row highlight, except a track's own position row, which is always in the
+  // pass being played - its dimming is only the fade into that pass.
   float track_dim = 0.0f;
   auto tintForPlayhead = [&](Color base) -> Color {
-    return track_dim <= 0.0f && track_marked.value_or(highlight) ? styles.cursorRowTint(base) : base;
+    if (track_marked.has_value()) return *track_marked ? styles.cursorRowTint(base) : base;
+    return track_dim <= 0.0f && highlight ? styles.cursorRowTint(base) : base;
   };
   // The divider between two tracks belongs to neither, so it takes only
   // the row's own tint, never one track's playhead - none in session

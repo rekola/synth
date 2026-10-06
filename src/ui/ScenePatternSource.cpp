@@ -398,19 +398,13 @@ ScenePatternSource::editGrid(RowAddress anchor, bool) {
   return std::make_unique<PositionedSceneGrid>(*this, song(), anchor.block);
 }
 
-void
-ScenePatternSource::collectTrackInfo(RowAddress first, int rows, std::unordered_map<int, VisibleTrackInfo> & track_info) const {
+void ScenePatternSource::collectTrackInfo(RowAddress, int, std::unordered_map<int, VisibleTrackInfo> & track_info) const {
+  // Every clip of the track, not just the visible rows: a playing track's
+  // window scrolls, and a width derived from it would change as it does.
   const Song & s = song();
-  auto count = blockCount();
   for (auto track_id : s.getRootTrackIds()) {
-    auto address = trackAddress(track_id, normalize(first.block, first.row));
-    // Rows before the first scene show nothing; scanning from its start
-    // instead only ever widens a column a little more than needed.
-    if (address.block < 0) address = { 0, 0 };
-    for (int covered = 0; covered < rows && address.block < count; address = { address.block + 1, 0 }) {
-      auto clip = SceneGrid(s, address.block, 0).clipFor(track_id);
-      if (clip && !clip->hasSample()) clip->getLeafPattern().updateSubtrackInfo(track_info[track_id]);
-      covered += blockLength(address.block) - address.row;
+    for (auto & clip : s.getClips(track_id)) {
+      if (!clip.hasSample()) clip.getLeafPattern().updateSubtrackInfo(track_info[track_id]);
     }
   }
 }
