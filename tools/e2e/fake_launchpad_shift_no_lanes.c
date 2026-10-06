@@ -71,6 +71,8 @@ int main() {
   fprintf(stderr, "sending press+release on pad (1,0) [note 12] while shift held - track 1's clip index 7, lane-less\n");
   send_note(seq, port, 0x90, 12, 100);
   send_note(seq, port, 0x80, 12, 0);
+  send_cc(seq, port, 96, 127); // shift + Note opens the selected clip
+  send_cc(seq, port, 96, 0);
   drain(seq, 300, "pad released");
 
   fprintf(stderr, "sending CC91 release - move-row-up must NOT fire, it was combined with a pad\n");

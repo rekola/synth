@@ -55,6 +55,9 @@ class SongState : public TrackState {
 
   void initialize(const Song & song) {
     tempo_ = song.getTempo();
+    synced_song_tempo_ = tempo_;
+    song_signature_ = song.getTimeSignature();
+    running_bars_ = song.getRunningBars();
     swing_ = song.getSwing();
     master_sends_ = song.getMasterTrack().getSends();
     render_context_.setBpm(tempo_);
@@ -222,7 +225,14 @@ class SongState : public TrackState {
       song_structure_ = SongStructure(song);
       song_structure_version_ = song.getMajorVersion();
       swing_ = song.getSwing();
-      applyTempo(song.getTempo());
+      song_signature_ = song.getTimeSignature();
+      // Only a tempo the song itself changed is applied: a scene launch has
+      // set this one ahead of the song's copy (queueSceneChange()), and an
+      // unrelated edit mustn't put it back.
+      if (song.getTempo() != synced_song_tempo_) {
+        synced_song_tempo_ = song.getTempo();
+        applyTempo(synced_song_tempo_);
+      }
     }
 
     // Snapshotting the raw Track* pointers under Song::getTracksMutex()
@@ -800,8 +810,8 @@ class SongState : public TrackState {
   // row at most). The session clock doesn't follow, so a launched clip
   // keeps its own place.
   void jumpToNextBar(const Song & song, int row_in_bar) {
-    int rows_per_bar = std::max(1, song.getRowsPerBar());
-    setPosition((absolute_pos_ / rows_per_bar + 1) * rows_per_bar + std::min(row_in_bar, rows_per_bar - 1));
+    auto next_bar = barsAt(absolute_pos_).nextBarStart(absolute_pos_);
+    setPosition(next_bar + std::min(row_in_bar, barsAt(next_bar).barRows() - 1));
   }
 
   // 0Rxy (Command::isRetrigger()) - re-fires every note still playing on
@@ -888,6 +898,23 @@ class SongState : public TrackState {
     ::queueSessionChange(session_tracks_, track_id, target);
     session_seq_ = std::max(session_seq_, seq);
   }
+  // Session view: a launched scene's tempo (0: none) and time signature
+  // (unset: none), or `clear_running` to hand the bars back to the song's,
+  // taking effect with the clips - on the next bar, or at the first row
+  // played when `immediate` (a stopped transport). The tempo is this
+  // thread's own from then on and the signature's bars count from that row;
+  // the UI mirrors both from the snapshot (getSceneSeq()). A new call
+  // replaces one still waiting.
+  void queueSceneChange(int tempo, TimeSignature signature, bool clear_running, bool immediate, int seq) {
+    pending_scene_ = {tempo > 0 || signature.isSet() || clear_running, tempo, signature, clear_running, immediate, seq};
+    if (!pending_scene_.active) scene_seq_ = std::max(scene_seq_, seq);
+  }
+  int getSceneSeq() const { return scene_seq_; }
+  const RunningBars & getRunningBars() const { return running_bars_; }
+  void setRunningBars(RunningBars running) { running_bars_ = running; }
+  // The bars in force at `row` on this thread.
+  BarGrid barsAt(int row) const { return ::barsAt(song_signature_, running_bars_, row); }
+
   // Stops every launched clip now, releasing its voices, and forgets
   // everything queued - on a transport stop too (seq -1 for that).
   void silenceSession(int seq) {
@@ -962,6 +989,30 @@ private:
   // queueSessionChange()), and the clock they play on: rows played,
   // advancing with the transport but never jumping with it, so a seek or
   // a pattern break doesn't move a launched clip.
+  struct PendingScene {
+    bool active = false;
+    int tempo = 0;
+    TimeSignature signature;
+    bool clear_running = false;
+    bool immediate = false;
+    int seq = 0;
+  };
+  PendingScene pending_scene_;
+  int scene_seq_ = 0;
+  TimeSignature song_signature_{4, 4};
+  RunningBars running_bars_;
+  int synced_song_tempo_ = 0; // the song tempo last applied from the song itself
+
+  void applyPendingScene() {
+    if (pending_scene_.tempo > 0) applyTempo(pending_scene_.tempo);
+    if (pending_scene_.signature.isSet())
+      running_bars_ = {pending_scene_.signature, absolute_pos_};
+    else if (pending_scene_.clear_running)
+      running_bars_ = {};
+    scene_seq_ = std::max(scene_seq_, pending_scene_.seq);
+    pending_scene_ = {};
+  }
+
   SessionTracks session_tracks_;
   int session_clock_ = 0;
   int session_start_clock_ = 0;
@@ -971,8 +1022,10 @@ private:
   // played through, and on the first row of a bar applies whatever is
   // queued.
   void advanceSessionTracks(const Song & song, int frame) {
-    int rows_per_bar = std::max(1, song.getRowsPerBar());
-    bool bar_start = absolute_pos_ % rows_per_bar == 0;
+    // A launched scene's tempo and signature take effect on the bar (or
+    // the first row played, from a stopped transport) the clips launch on.
+    if (pending_scene_.active && (pending_scene_.immediate || barsAt(absolute_pos_).rowInBar(absolute_pos_) == 0)) applyPendingScene();
+    bool bar_start = barsAt(absolute_pos_).rowInBar(absolute_pos_) == 0;
     for (auto it = session_tracks_.begin(); it != session_tracks_.end(); ) {
       auto track_id = it->first;
       auto & session_track = it->second;

@@ -8,6 +8,9 @@
 #include "Arrangement.h"
 #include "Clip.h"
 #include "Scale.h"
+#include "BarGrid.h"
+#include "SceneName.h"
+#include "TimeSignature.h"
 #include "Swing.h"
 #include "Version.h"
 #include "../bus/BusEffectRegistry.h"
@@ -97,6 +100,53 @@ class Song : public SongObject {
   short getTempo() const { return bpm_; }
   void setTempo(short bpm) { bpm_ = bpm; }
 
+  // A scene is a row of every track's clip list, identified by its
+  // position there, with an optional name, tempo and time signature.
+  // Launching it sets the tempo as the song tempo and the time signature
+  // as the transport's bars (SessionPlayer::launchScene()).
+  const std::string & getSceneName(int scene) const {
+    static const std::string none;
+    return scene >= 0 && static_cast<size_t>(scene) < scenes_.size() ? scenes_[static_cast<size_t>(scene)].name : none;
+  }
+  // 0 for none.
+  int getSceneTempo(int scene) const {
+    return scene >= 0 && static_cast<size_t>(scene) < scenes_.size() ? scenes_[static_cast<size_t>(scene)].tempo : 0;
+  }
+  // Numerator 0 for none.
+  TimeSignature getSceneTimeSignature(int scene) const {
+    if (scene < 0 || static_cast<size_t>(scene) >= scenes_.size()) return {};
+    auto & info = scenes_[static_cast<size_t>(scene)];
+    return {info.time_numerator, info.time_denominator};
+  }
+  // The bar and beat length the scene is shown and edited in: its own time
+  // signature, else the one the transport is counting in (which a scene
+  // without one plays in).
+  int getSceneBarRows(int scene) const {
+    auto signature = getSceneTimeSignature(scene);
+    return (signature.isSet() ? signature : getRunningTimeSignature()).rowsPerBar();
+  }
+  int getSceneBeatRows(int scene) const {
+    auto signature = getSceneTimeSignature(scene);
+    return (signature.isSet() ? signature : getRunningTimeSignature()).rowsPerBeat();
+  }
+  void setSceneName(int scene, std::string name) { sceneAt(scene).name = std::move(name); }
+  void setSceneTempo(int scene, int bpm) { sceneAt(scene).tempo = std::max(bpm, 0); }
+  void setSceneTimeSignature(int scene, TimeSignature signature) {
+    auto & info = sceneAt(scene);
+    bool valid = signature.isSet() && TimeSignature::validDenominator(signature.denominator);
+    info.time_numerator = valid ? signature.numerator : 0;
+    info.time_denominator = valid ? signature.denominator : 0;
+  }
+  // Sets a scene from typed text: a "90 BPM" and a "3/4" in it become the
+  // tempo and time signature (the rest the name); with none, they stay as
+  // they were.
+  void setSceneFromText(int scene, const std::string & text) {
+    auto parsed = scenename::extract(text);
+    setSceneName(scene, parsed.name);
+    if (parsed.has_tempo) setSceneTempo(scene, parsed.tempo);
+    if (parsed.has_time_signature) setSceneTimeSignature(scene, {parsed.numerator, parsed.denominator});
+  }
+
   // How late the second eighth of every pair plays (swing.h), in percent of
   // the pair: 50 straight, about 67 triplet swing. Applied at playback to
   // everything scheduled, never baked into note data. Callers editing it
@@ -104,24 +154,48 @@ class Song : public SongObject {
   int getSwing() const { return swing_; }
   void setSwing(int percent) { swing_ = swing::clamp(percent); }
 
-  // The shared quantization grid (<song rowsPerBar="N">) both the
-  // Launchpad Session view (SessionPlayer::advanceToStep())
-  // and PatternEditor's own bar-boundary highlight measure against -
-  // (how many rows make one bar). Default 16 matches this
-  // codebase's own fixed "a row is a 16th note" convention
-  // (ChannelConfiguration::getRowDuration()), so the default is an
-  // ordinary 4/4 bar without inventing a second tempo-adjacent constant.
-  int getRowsPerBar() const { return rows_per_bar_; }
-  void setRowsPerBar(int rows) { rows_per_bar_ = rows > 0 ? rows : 1; }
+  // ---- Bars and time signatures. A row is a sixteenth note.
+  //
+  // The song's own time signature (<song timeSignature="3/4">, 4/4 unless
+  // set): the arrangement counts its bars in it from row 0 - its grid, bar
+  // accents, where a clip is placed. Callers editing it also call
+  // incVersion().
+  TimeSignature getTimeSignature() const { return time_signature_; }
+  void setTimeSignature(TimeSignature signature) {
+    if (signature.isSet() && TimeSignature::validDenominator(signature.denominator)) time_signature_ = signature;
+  }
+  BarGrid getArrangementBars() const { return {time_signature_, 0}; }
+
+  // The signature a launched scene set, counted from the bar it launched
+  // on (saved as transportTimeSignature/transportBarOrigin). The audio
+  // thread owns it (SongState::queueSceneChange()) and the UI thread's copy
+  // here is mirrored from its snapshots (Controller::
+  // receivePlaybackSnapshot()), so it can trail by a frame. What playback
+  // and Session launching count in (the bar a queued launch waits for, the
+  // metronome, take lengths) while it is active.
+  const RunningBars & getRunningBars() const { return running_bars_; }
+  void setRunningBars(RunningBars running) { running_bars_ = running; }
+  void clearRunningBars() { running_bars_ = {}; }
+  // The signature a scene without one plays in.
+  TimeSignature getRunningTimeSignature() const { return running_bars_.isActive() ? running_bars_.signature : time_signature_; }
+
+  // The bars in force at `row`, as the UI thread knows them.
+  BarGrid getBarsAt(int row) const { return barsAt(time_signature_, running_bars_, row); }
+  int barStartAtOrBefore(int row) const { return getBarsAt(row).barStart(row); }
+  int rowInBar(int row) const { return getBarsAt(row).rowInBar(row); }
+  bool isBarStart(int row) const { return rowInBar(row) == 0; }
+  int barRowsAt(int row) const { return getBarsAt(row).barRows(); }
+  int beatRowsAt(int row) const { return getBarsAt(row).beatRows(); }
+  int nextBarStart(int row) const { return getBarsAt(row).nextBarStart(row); }
+
   // Whether a live Session take snaps each press and release to the nearest
   // row as it's recorded. Off (the default) records the raw sub-row timing
   // in the note's delay instead; quantizeClip() can clean it up afterward.
   bool getRecordQuantize() const { return record_quantize_; }
   void setRecordQuantize(bool enabled) { record_quantize_ = enabled; }
   // `absolute_row` as a musical position, "bar.beat.sixteenth", each
-  // 1-based - what the transport shows, and anything else that names a
-  // position. A row is a sixteenth (ChannelConfiguration::
-  // getRowDuration()), so a beat is 4 rows and a bar getRowsPerBar().
+  // 1-based, in the bars the transport counts in - what the transport
+  // shows, and anything else that names a position.
   std::string formatPosition(int absolute_row) const;
 
   // Locators: named moments of the whole song ("chorus starts here", a
@@ -439,8 +513,22 @@ private:
   Tuning tuning_ = Tuning::TET31;
   short key_note_number_ = 0;
   Scale scale_ = Scale::NONE;
+  struct SceneInfo {
+    std::string name;
+    int tempo = 0;
+    int time_numerator = 0;
+    int time_denominator = 0;
+  };
+  SceneInfo & sceneAt(int scene) {
+    static SceneInfo discarded;
+    if (scene < 0) return discarded = SceneInfo{};
+    if (static_cast<size_t>(scene) >= scenes_.size()) scenes_.resize(static_cast<size_t>(scene) + 1);
+    return scenes_[static_cast<size_t>(scene)];
+  }
+  std::vector<SceneInfo> scenes_; // by scene position; shorter than the scene count when the rest have neither
   int bpm_ = 140;
-  int rows_per_bar_ = 16;
+  TimeSignature time_signature_{4, 4};
+  RunningBars running_bars_;
   int swing_ = swing::kStraight;
   bool record_quantize_ = false;
   float ear_height_ = constants::DEFAULT_EAR_HEIGHT;

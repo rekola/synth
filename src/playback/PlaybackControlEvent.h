@@ -25,6 +25,12 @@ class PlaybackControlEvent : public Event {
   // number. SILENCE_SESSION: stops every launched clip now
   // (SongState::silenceSession()) - parameter1 = the sequence number.
   //
+  // QUEUE_SCENE_CHANGE: a launched scene's tempo and time signature
+  // (SongState::queueSceneChange()) - parameter1 = tempo (0: none),
+  // parameter2 = numerator * 100 + denominator (0: none), parameter3 =
+  // flags (1: hand the bars back to the song's, 2: apply at the first row
+  // played rather than on a bar), parameter4 = the sequence number.
+  //
   // SHIFT_SESSION_POSITION: moves every launched clip's playhead by
   // parameter1 rows (SongState::shiftSession()) - parameter2 = the
   // sequence number.
@@ -116,6 +122,7 @@ class PlaybackControlEvent : public Event {
               SET_TRACK_MONITORING,
               SHIFT_SESSION_POSITION,
               SET_METRONOME,
+              QUEUE_SCENE_CHANGE,
               SET_CAPTURE_DEVICE,
               SET_PLAYBACK_DEVICE };
 

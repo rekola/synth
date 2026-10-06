@@ -256,7 +256,7 @@ TEST(render_sample_track_clip_instance_plays_its_own_audio) {
 // queues an explicit RenderContext::addPendingSampleStop() at the exact
 // frame its last row ends, applied by SampleTrackState::render()'s own
 // chunked loop as a short natural release, independent of whether any
-// transition is ever detected at all. Fixture: rowsPerBar 4, tempo 120
+// transition is ever detected at all. Fixture: time signature 1/4, tempo 120
 // (row duration 0.125s), a one-shot 4-row (0.5s) clip referencing a 2s
 // sidecar tone triggered at row 0, and a stop at row 4 - the real audio is
 // 4x longer than the clip.
@@ -282,8 +282,8 @@ TEST(render_sample_track_clip_stops_at_its_own_end_even_when_its_own_audio_outla
 // by SongState.h's own per-row scheduling re-triggering a fresh voice
 // each lap (mirroring LaunchpadManager::fireOrTriggerClipStep(), which
 // already worked this way for Session-view triggering) - SampleClipVoice
-// itself has no looping concept of its own any more. Fixture: rowsPerBar
-// 4, tempo 120 (row duration 0.125s), a looping 4-row (0.5s) clip
+// itself has no looping concept of its own any more. Fixture: time
+// signature 1/4, tempo 120 (row duration 0.125s), a looping 4-row (0.5s) clip
 // referencing a 0.2s sidecar tone, played for 2 bars (8 rows, 1.0s) - two
 // full laps fit, each with 0.3s of real silence at its own end.
 TEST(render_sample_track_loop_shorter_than_the_clip_goes_silent_then_restarts_each_lap) {
@@ -331,12 +331,12 @@ TEST(render_sample_track_clip_stretches_to_match_a_disagreeing_song_tempo) {
 // the row it just freed: the bed must stay audible right through it - a
 // stop only ever silences a real clip, never the baked bed underneath it
 // (SongState.h's own comment on why this differs from a note track's own
-// background Pattern, which a stop still silences). rowsPerBar 4, tempo
+// background Pattern, which a stop still silences). time signature 1/4, tempo
 // 120 (interval 1000 frames @ 8kHz), 8 rows (2 bars).
 TEST(render_sample_track_background_bed_plays_through_the_merges_own_leftover_stop) {
   Song song;
   song.setTempo(120);
-  song.setRowsPerBar(4);
+  song.setTimeSignature(TimeSignature{1, 4});
   auto & track = song.addTrack(std::make_unique<SampleTrack>());
   auto track_id = track.getInternalId();
 
@@ -385,7 +385,7 @@ TEST(render_sample_track_background_bed_plays_through_the_merges_own_leftover_st
 TEST(render_sample_track_background_bed_mixes_with_a_real_clip_on_top) {
   Song song;
   song.setTempo(120);
-  song.setRowsPerBar(4);
+  song.setTimeSignature(TimeSignature{1, 4});
   auto & track = song.addTrack(std::make_unique<SampleTrack>());
   auto track_id = track.getInternalId();
 
@@ -451,14 +451,14 @@ TEST(render_sample_track_background_bed_mixes_with_a_real_clip_on_top) {
 // setPosition() directly (ResyncPlayheadTests.cpp's own precedent for
 // exercising a stop/resume cycle), not through renderSongOffline() - the
 // pipeline always starts at absolute row 0 and never stops, so it can't
-// reach this case. Fixture buffer: rowsPerBar 4, tempo 120 (row duration
+// reach this case. Fixture buffer: time signature 1/4, tempo 120 (row duration
 // 0.125s, interval 1000 frames @ 8kHz) - silent for its own first 5 rows,
 // then a constant tone for the rest, in an 8-row one-shot clip triggered
 // at row 0.
 TEST(render_sample_track_resumes_a_stopped_instance_from_the_row_the_playhead_landed_on) {
   Song song;
   song.setTempo(120);
-  song.setRowsPerBar(4);
+  song.setTimeSignature(TimeSignature{1, 4});
   auto & track = song.addTrack(std::make_unique<SampleTrack>());
   auto track_id = track.getInternalId();
 
@@ -523,7 +523,7 @@ TEST(render_sample_track_resumes_a_stopped_instance_from_the_row_the_playhead_la
 TEST(render_sample_track_pausing_releases_the_sounding_voice_instead_of_leaving_it_ringing) {
   Song song;
   song.setTempo(120);
-  song.setRowsPerBar(4);
+  song.setTimeSignature(TimeSignature{1, 4});
   auto & track = song.addTrack(std::make_unique<SampleTrack>());
   auto track_id = track.getInternalId();
 
@@ -584,7 +584,7 @@ TEST(render_sample_track_pausing_releases_the_sounding_voice_instead_of_leaving_
 TEST(render_sample_track_resuming_mid_row_across_several_small_blocks_still_plays) {
   Song song;
   song.setTempo(120);
-  song.setRowsPerBar(4);
+  song.setTimeSignature(TimeSignature{1, 4});
   auto & track = song.addTrack(std::make_unique<SampleTrack>());
   auto track_id = track.getInternalId();
 
@@ -667,7 +667,7 @@ TEST(render_stop_instance_silences_a_looping_instance_going_forward) {
   CHECK(result.numberOfFrames() > 0);
   CHECK(!hasNonFiniteSample(result));
 
-  // Fixture: rowsPerBar=4, tempo=120 (row_duration=0.125s), a looping
+  // Fixture: time signature 1/4, tempo=120 (row_duration=0.125s), a looping
   // 4-row clip starts at row 0, an explicit stop lands at row 8 (1.0s in).
   CHECK(windowedRms(result, 0, 0.1f, 0.9f) > 1e-3f); // looping and audible before the stop
   CHECK(windowedRms(result, 0, 2.0f, 3.9f) < 1e-4f); // silenced well past the stop, not just decayed - a locator keeps the song running to row 32 (4.0s), so this alone rules out "it just ran out of song"
@@ -2035,7 +2035,7 @@ TEST(render_prefers_a_clips_command_over_the_backgrounds_on_the_same_row) {
 TEST(render_a_clips_stop_releases_its_voices_on_the_rows_own_sample) {
   Song song;
   song.setTempo(120);
-  song.setRowsPerBar(4);
+  song.setTimeSignature(TimeSignature{1, 4});
   song.addInstrument(std::make_unique<Oscillator>(WaveformType::SINE));
   auto track_id = song.addTrack(std::make_unique<InstrumentTrack>(0)).getInternalId();
   Clip clip(track_id);

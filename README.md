@@ -54,6 +54,7 @@ The major things that are missing are the following:
 * Lighting control (DMX/ArtNet)
 * Tempo control
 * Just tuning
+* Continuous MIDI recording with retroactive capture
 
 ## Minor Missing Features
 
@@ -62,14 +63,11 @@ The major things that are missing are the following:
 * 5.1 or 7.2 modes in addition to binaural headphone mode
 * Legato voicing mode
 * Custom drum kits without SoundFont: map individual percussion keys to arbitrary instruments instead of one whole SF2 kit preset.
-* Time signatures
 * Binary storage for samples and cover art
 * Instrument editor
 * Track effect editor
 * Allocation-free and realtime-priority renderer
 * New recordings are initially drafts and can then be either merged or promoted to a clip
-* Aftertouch filtering and aggregating
-* Continuous MIDI recording with retroactive capture
 * Ambient textures (waves, campfire, thunder, rain etc.)
 * Launch modes and Follow actions
 * Emacs features:

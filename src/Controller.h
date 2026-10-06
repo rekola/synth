@@ -233,6 +233,14 @@ class Controller {
   // exist either). Wired in UI::start().
   void setDrumEditRequestListener(std::function<void(int track_id, bool opened)> fn) { drum_edit_requested_ = std::move(fn); }
 
+  // Selecting a clip slot (a Launchpad's shift + pad) without launching it:
+  // the UI moves the shared track cursor and its clip cursor there, empty
+  // slots included, so the slot is where the next recording or paste lands.
+  void setClipSelectListener(std::function<void(int track_id, int clip_index)> fn) { clip_select_requested_ = std::move(fn); }
+  void selectClipSlot(int track_id, int clip_index) {
+    if (clip_select_requested_) clip_select_requested_(track_id, clip_index);
+  }
+
   std::shared_ptr<AudioBuffer> startRecording() {
     current_sample = std::make_shared<AudioBuffer>(1, 0);
     return current_sample;
@@ -562,6 +570,9 @@ class Controller {
   // advanced enough rows to catch back up (confirmed: this is what made
   // the playhead/info line stop updating after starting playback).
   void receivePlaybackSnapshot(const std::string & buffer_name, const PlaybackInfo & info);
+  // The tempo and running time signature the audio thread reports after a
+  // scene launch, copied into that buffer's song once per change.
+  void mirrorSceneChange(const std::string & buffer_name, const PlaybackInfo & info);
 
   ChannelConfiguration getChannelConfiguration() const { return channel_config; }
 
@@ -1166,6 +1177,8 @@ class Controller {
   // below). How a song is shown (Arrangement or Session view) is UI
   // state, not a buffer of its own.
   std::map<std::string, std::shared_ptr<Song>> songs_;
+  // The last scene change mirrored into each buffer's song (PlaybackInfo::getSceneSeq()).
+  std::map<std::string, int> mirrored_scene_seq_;
   // hasUnsavedChanges()'s baseline, one per songs_ entry rather than one
   // shared scalar - each buffer's own unsaved-changes state is independent
   // of whichever buffer happens to be active, so switching the active one
@@ -1345,6 +1358,7 @@ class Controller {
   std::function<std::set<std::string>(std::string_view)> command_completer_;
   std::function<void()> buffer_change_listener_;
   std::function<void(int track_id, bool opened)> drum_edit_requested_;
+  std::function<void(int track_id, int clip_index)> clip_select_requested_;
   int pending_command_track_ = -1;
   // Live mirror of the active buffer's own focused_clip_ids_/
   // focused_clip_track_ids_ slots - see getFocusedClip()'s own comment.

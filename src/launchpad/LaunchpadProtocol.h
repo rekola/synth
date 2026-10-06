@@ -26,6 +26,11 @@ namespace LaunchpadProtocol {
     bool poly_aftertouch;
     int grid_width = 8, grid_height = 8; // the core pad grid; all 3 models today
     int max_led_colourspecs;  // per LED-lighting SysEx message
+    // The right column is seven scene-launch buttons plus a bottom button
+    // (CC19) that cycles the bottom pad row through Stop/Solo/Mute track
+    // controls; there is no mixer submode. False: eight buttons sharing the
+    // scene-launch/mixer-submode dispatch.
+    bool stop_solo_mute_cycle_button = false;
   };
 
   ModelInfo getModelInfo(Model model);

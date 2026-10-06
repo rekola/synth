@@ -76,7 +76,15 @@ ScenePatternSource::blockLength(int block) const {
     if (auto clip = grid.clipFor(track_id)) length = std::max(length, clip->getLength());
   }
   if (length > 0) return length;
-  return s.getRowsPerBar() > 0 ? s.getRowsPerBar() : 1;
+  return s.getSceneBarRows(block);
+}
+
+bool ScenePatternSource::startsBar(int block, int row) const {
+  return row >= 0 && row % song().getSceneBarRows(block) == 0;
+}
+
+bool ScenePatternSource::startsBeat(int block, int row) const {
+  return row >= 0 && row % song().getSceneBeatRows(block) == 0;
 }
 
 RowAddress

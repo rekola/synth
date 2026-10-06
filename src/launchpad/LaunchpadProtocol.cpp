@@ -8,7 +8,7 @@ ModelInfo
 getModelInfo(Model model) {
   switch (model) {
   case Model::MINI_MK3:
-    return ModelInfo{0x0D, false, false, 8, 8, 81};
+    return ModelInfo{0x0D, false, false, 8, 8, 81, true};
   case Model::X:
     return ModelInfo{0x0C, true, true, 8, 8, 81};
   case Model::PRO_MK3:

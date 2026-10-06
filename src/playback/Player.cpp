@@ -399,6 +399,10 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     state.queueSessionChange(ev.getParameter1(), ev.getParameter2(), ev.getParameter3());
     break;
 
+  case PlaybackControlEvent::QUEUE_SCENE_CHANGE:
+    state.queueSceneChange(ev.getParameter1(), {ev.getParameter2() / 100, ev.getParameter2() % 100}, (ev.getParameter3() & 1) != 0, (ev.getParameter3() & 2) != 0, ev.getParameter4());
+    break;
+
   case PlaybackControlEvent::SHIFT_SESSION_POSITION:
     state.shiftSession(ev.getParameter1(), ev.getParameter2());
     break;
@@ -651,12 +655,10 @@ Player::feedMonitoredInput(SongState * active_state, const std::string & active_
   }
 }
 
-void
-Player::scheduleMetronome(const SongState & state, const Song & song, int frames) {
+void Player::scheduleMetronome(const SongState & state, int frames) {
   if (!metronome_on_ || !state.isPlaying()) return;
   int interval = channel_config_.getSampleInterval(state.getTempo());
   if (interval <= 0) return;
-  int rows_per_bar = std::max(1, song.getRowsPerBar());
   // A row starts at frame 0 when the position sits on a row boundary,
   // otherwise once the current row has played out.
   int row = state.getAbsolutePosition();
@@ -667,7 +669,9 @@ Player::scheduleMetronome(const SongState & state, const Song & song, int frames
     row++;
   }
   for (; frame < frames; frame += interval, row++) {
-    if (row % 4 == 0) metronome_click_.addClick(frame, row % rows_per_bar == 0);
+    auto bars = state.barsAt(row);
+    auto in_bar = bars.rowInBar(row);
+    if (in_bar % bars.beatRows() == 0) metronome_click_.addClick(frame, in_bar == 0);
   }
 }
 
@@ -958,9 +962,9 @@ Player::play(AudioAPI & audio) {
 	    if (active_it != live_states_.end()) {
 	      auto active_song = controller_->getSongByName(active_buffer_name);
 	      if (active_song) { // defensive only - see pushSnapshots()'s own comment
-	        scheduleMetronome(*active_it->second, *active_song, audio.getFrameCount());
-		active_it->second->renderBlock(audio.getFrameCount(), *active_song, *mixer, false);
-		active_raw_bus = mixer->getRawBus();
+                scheduleMetronome(*active_it->second, audio.getFrameCount());
+                active_it->second->renderBlock(audio.getFrameCount(), *active_song, *mixer, false);
+                active_raw_bus = mixer->getRawBus();
 		active_aux_a = active_it->second->getAuxASum();
 		active_aux_b = active_it->second->getAuxBSum();
 	      }
@@ -1092,6 +1096,9 @@ Player::createPlaybackEvent(const string & buffer_name, const Song & song, const
   info.setSessionClock(state.getSessionClock());
   info.setSessionStartClock(state.getSessionStartClock());
   info.setSessionSeq(state.getSessionSeq());
+  info.setTempo(state.getTempo());
+  info.setRunningBars(state.getRunningBars());
+  info.setSceneSeq(state.getSceneSeq());
   info.setVoiceCount(state.getVoiceCount());
   info.setRoundTripLatency(latency_frames_, latency_nominal_);
   info.setAllocatedVoiceCount(state.getAllocatedVoiceCount());

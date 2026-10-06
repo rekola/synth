@@ -1,6 +1,7 @@
 #include "TestFramework.h"
 
 #include "../src/model/RhythmPatternLibrary.h"
+#include "../src/model/SceneName.h"
 
 #include <set>
 
@@ -94,4 +95,16 @@ TEST(the_swing_rhythms_ride_sits_on_the_straight_eighth_grid) {
   set<int> ride_rows;
   for (auto & hit : pattern->hits) if (hit.note == 51) ride_rows.insert(hit.row);
   CHECK((ride_rows == set<int>{ 0, 4, 6, 8, 12, 14 })); // beats 1-4 plus the "and" of 2 and 4
+}
+
+TEST(every_rhythm_has_a_time_signature_its_length_is_whole_bars_of) {
+  for (auto & pattern : getRhythmPatternLibrary()) {
+    CHECK(scenename::validDenominator(pattern.time_denominator));
+    CHECK(pattern.time_numerator > 0);
+    auto bar_rows = pattern.time_numerator * 16 / pattern.time_denominator;
+    CHECK(bar_rows > 0 && pattern.length % bar_rows == 0);
+  }
+  CHECK(findRhythmPattern("Waltz")->time_numerator == 3 && findRhythmPattern("Waltz")->time_denominator == 4);
+  CHECK(findRhythmPattern("Seven-Eight")->time_numerator == 7 && findRhythmPattern("Seven-Eight")->time_denominator == 8);
+  CHECK(findRhythmPattern("Funk")->time_numerator == 4);
 }

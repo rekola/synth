@@ -1,6 +1,7 @@
 #ifndef _ARRANGEMENTOPS_H_
 #define _ARRANGEMENTOPS_H_
 
+#include "BarGrid.h"
 #include <string>
 #include <vector>
 
@@ -17,6 +18,8 @@ class ChannelConfiguration;
 // actually reached yet, disagreeing with what they actually heard at the
 // moment they pressed the pad.
 int quantizedBarRow(int raw_row, int rows_per_bar);
+// The same against a bar grid whose bars may change length.
+int quantizedBarRow(const BarGrid & bars, int raw_row);
 
 // The opposite direction, for a brand new clip's own placement
 // (Controller::ensureNoteRecordingClip()) rather than triggering one that
@@ -28,6 +31,7 @@ int quantizedBarRow(int raw_row, int rows_per_bar);
 // performer's actual first note, same as any other pattern's content
 // starting partway through it.
 int previousBarRow(int raw_row, int rows_per_bar);
+int previousBarRow(const BarGrid & bars, int raw_row);
 
 // Places a real-clip instance event (clip_index - the clip's own ordinal
 // position in track_id's own clip list, Song::getClips(track_id) - what
@@ -109,14 +113,12 @@ void deleteClip(Song & song, int track_id, int clip_index);
 enum class SlotDelete { NOTHING, CLIP, STOP_BUTTON };
 SlotDelete deleteClipOrStopButton(Song & song, int track_id, int clip_index, std::string * deleted_clip_name = nullptr);
 
-// Copies the clip at `from_index` into slot `to_index` of the same track
+// Copies the clip at `from_index` into the slot below it on the same track
 // (an independent copy under a fresh id, its content and name as they are
-// now), returning the slot it landed in, or -1 when there's nothing to
-// copy or the destination is already populated - nothing is ever
-// overwritten. A negative `to_index` picks the first empty slot after
-// `from_index`, growing the list if every slot up to its end is taken.
-// Placed instances of the source keep pointing at the source.
-int duplicateClip(Song & song, int track_id, int from_index, int to_index = -1);
+// now), overwriting whatever is there, and returns that slot, or -1 when
+// there's nothing to copy. Placed instances of the source keep pointing at
+// the source; those of an overwritten clip are removed.
+int duplicateClip(Song & song, int track_id, int from_index);
 
 // Snaps every note of the clip at `clip_index` to its closest row (a row is
 // a sixteenth), using the sub-row delay a raw live take records, and clears

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="140" rowsPerBar="12">
+<song temperament="31edo" tempo="140" timeSignature="3/4">
     <bus>
         <reverb/>
         <haze preset="slap"/>

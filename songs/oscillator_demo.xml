@@ -14,7 +14,7 @@
   and scrub/listen against the <locators> below, or open it in the UI and
   use the arrangement overview's locator column (each marks ›).
 -->
-<song temperament="31edo" tempo="90" rowsPerBar="4" volume="1.0">
+<song temperament="31edo" tempo="90" timeSignature="1/4" volume="1.0">
   <instruments>
     <!-- 0: PadSynth "keyboard" - a sparse, few-harmonic piano-like tone
          with a percussive envelope (near-instant attack, decaying all the

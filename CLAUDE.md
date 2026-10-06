@@ -514,19 +514,23 @@ would otherwise resume showing.
   starts/stops note capture instead (red LED, bright while capturing; ends a
   sample take through the same command). **Shift** (CC91 held) turns all eight right-side
   buttons into labelled alternate functions, in every `GridMode`
-  (`handleRawButton()`'s shift branch): Volume (CC89) is Duplicate, Pan (CC79) is the
-  metronome ("toggle-metronome", a click per beat while the transport plays,
-  accented on the bar - `Player::scheduleMetronome()`; its LED is amber, bright
-  while on), Send A (CC69) is Quantise (`endQuantize()`: held with a pad press,
+  (`handleRawButton()`'s shift branch), following the Launchpad Pro MK3's own
+  shift layer where it has one: Record Arm (CC19) is Undo and Mute (CC39, Pro
+  MK3 CC30) Redo (both reserved - they only say "not implemented yet"), Solo
+  (CC29, Pro MK3 CC20) is the metronome click ("toggle-metronome", a click per
+  beat while the transport plays, accented on the bar -
+  `Player::scheduleMetronome()`; its LED is amber, bright while on), Volume
+  (CC89) is Duplicate, Pan (CC79) is Delete (its own bullet below), Send A
+  (CC69) is Quantise (`endQuantize()`: held with a pad press,
   `quantizeClip()` snaps that clip's notes to the nearest row; a tap with no
   pad toggles `Song::getRecordQuantize()`, "toggle-record-quantize", resolved
   on release; its LED is red/green for off/on), Send B (CC59) opens the Tempo
-  view and Stop Clip (CC49) the Swing view (their own bullet below), Mute
-  (CC39, Pro MK3 CC30) is Delete (its own bullet below), Solo (CC29, Pro MK3
-  CC20) is Draw, and the other one (Record Arm) does nothing rather than
-  launch or switch anything; their LEDs show only those functions while
-  shift is held (Duplicate cyan, Draw purple, metronome amber, Quantise
-  red/green, Tempo blue, Swing orange, Delete red, the rest dark).
+  view and Stop Clip (CC49) the Swing view (their own bullet below); every
+  button is taken. Draw is shift + CC97 instead. Their LEDs show only those
+  functions while shift is held (Duplicate cyan, Draw purple, metronome amber,
+  Quantise red/green, Tempo blue, Swing orange, Delete magenta - red is
+  Quantise's own off state - Undo/Redo dim white). Shift + pad selects a clip
+  without launching it (below).
   User-facing descriptions of every button live in `docs/launchpad.md`.
   95 ("Session") doubles as the
   mixer-submode toggle: a repeat press while already at the plain Session
@@ -560,20 +564,24 @@ would otherwise resume showing.
   a Session pad press write the clip into the arrangement). Its LED is
   bright red while anything records (`record_arm_led_on`), dim red
   otherwise.
-- **DRAW mode** (shift + Solo) - a plain per-pad coloring toy,
-  independent of Song/Track state. Shift + Solo enters it from any
+- **DRAW mode** (shift + Custom) - a plain per-pad coloring toy,
+  independent of Song/Track state. Shift + Custom enters it from any
   `GridMode` (same exclusive-group rule as Session/Note/Custom - only
   one of 95/96/97 leaves it), or blanks the canvas if DRAW is already
   showing.
 - **Duplicate** (shift + Volume) - held for as long as Volume stays down:
-  in Session view a populated pad picks that clip as the source (lit
-  white) and a press on an empty slot of the same track column copies it
-  there (`duplicateClip()`, `ArrangementOps.h` - an independent copy
-  under a fresh id, never overwriting); the source stays picked, so one
-  hold can fill several slots. Releasing Volume with a source picked but
-  no destination copies to the next empty slot. The terminal's
-  `duplicate-clip` (clip grid) does the same.
-- **Delete** (shift + Mute) - held for as long as Mute stays down, like
+  a Session pad press on a populated slot copies that clip into the slot
+  below it, overwriting what is there (`duplicateClip()`,
+  `ArrangementOps.h` - an independent copy under a fresh id; an overwritten
+  clip's arrangement placements go with it). One hold can copy several
+  clips. The terminal's `duplicate-clip` (clip grid) does the same.
+- **Select a clip** (shift + pad, `Controller::selectClipSlot()`) - moves the
+  shared track cursor and the clip grid's cursor onto that slot, empty ones
+  included, without launching or opening anything, so it is where the next
+  recording or paste lands. Shift + Note (CC96) then opens (or closes) the
+  selected clip for step editing, as the drum machine bullet below describes
+  (`LaunchpadManager::selected_track_id_`).
+- **Delete** (shift + Pan) - held for as long as Pan stays down, like
   Duplicate: a Session pad press deletes what its slot holds, one layer
   per press (`Controller::deleteClipSlot()`, `deleteClipOrStopButton()` in
   `ArrangementOps.h`) - a populated slot loses its clip (leaving an empty
@@ -863,7 +871,7 @@ would otherwise resume showing.
   audio thread owns this (`SongState::queueSessionChange()`, per-track
   `SessionTrackInfo`, `src/state/SessionTrackInfo.h`): each change is
   queued and applied on the first row of the transport's next bar
-  (`absolute_pos_ % rows_per_bar == 0`) - even the first launch into
+  (`Song::isBarStart(absolute_pos_)`) - even the first launch into
   silence waits for it, the live-sequencer convention; rewind to start
   from the top. Launched clips advance on a session clock - rows played,
   which a seek or pattern break doesn't move - and a taken-over track
@@ -1132,6 +1140,8 @@ would otherwise resume showing.
   and a fresh press look alike to the widgets (the held button repeats its
   press), so each tells them apart by the release in between; `TerminalUI`
   keeps focus on the widget the press started in until then.
+- **Scenes** (`Song::getSceneName()`/`getSceneTempo()`/`getSceneTimeSignature()`, `<scenes><scene name="" tempo="" timeSignature="3/4"/>...</scenes>`, by position like a track's clip list, no index stored) - a scene is a clip-list row shared by every track, with an optional name, tempo and time signature, shown in the clip grid's Master column and edited with F2 there; typed text goes through `scenename::extract()` (`SceneName.h`) ("Waltz 3/4 90 BPM" splits into name, signature and tempo, "0 BPM"/"0/4" clear them, text without one keeps the existing value). `SessionPlayer::launchScene()` sends them to the audio thread as one `QUEUE_SCENE_CHANGE` event, which `SongState::queueSceneChange()` applies on the bar the clips launch on (the first row played from a stopped transport): the tempo becomes the song tempo, the signature the running signature. Each rhythm-library template carries its signature (`RhythmPatternTemplate::time_numerator`/`time_denominator`), which Add to Song gives the scene the new clip lands in when that scene has none. Details and design decisions: `docs/scenes.md`.
+- **Bars and time signatures** (`TimeSignature.h`, `BarGrid.h`, `Song`'s bar API; `docs/time_signatures.md`) - a row is a sixteenth, a signature n/d is n*16/d rows per bar and 16/d per beat (denominator 1/2/4/8/16). The song has one signature (`Song::getTimeSignature()`, `<song timeSignature="3/4">`, 4/4 unless set, `set-time-signature`) that the arrangement counts its bars in (`Song::getArrangementBars()`, a `BarGrid`: a signature counted from an origin row). A launched scene's signature is the *running signature* (`RunningBars`: signature plus origin row, the launch bar, saved as `transportTimeSignature`/`transportBarOrigin`) that overrides the song's from the origin until another scene or Back to Arrangement for every track (`SessionPlayer::returnAllToArrangement()`). The audio thread owns the running signature and the tempo a scene sets (`SongState`'s `pending_scene_`/`running_bars_`/`barsAt()`, applied in `advanceSessionTracks()` on the bar, sample-exact with the clip launches; its bar test, pattern break and `Player::scheduleMetronome()` read `barsAt()`); the UI's `Song` copies are mirrored from the snapshot by `Controller::mirrorSceneChange()` (once per `PlaybackInfo::getSceneSeq()`, so an older snapshot never overwrites a tempo edited since; `SongState` applies the song's own tempo only when the song's value changed). UI-thread consumers (Session take quantization and length, the position display, the info line) read `Song::getBarsAt()`; the arrangement grid, arrangement recording and clip placement read `getArrangementBars()`. A bar number is never `row / rows_per_bar` (`Song::getRowsPerBar()` is gone): use `BarGrid`. Session view accents come from the scene's own signature (`PatternSource::startsBar()`/`startsBeat()`).
 - **Defaults**: a fresh session opens in Session view on the clip grid
   (`UI::setInitialView()`, the `--view` option) rather than straight into
   note entry, and `GridMode` defaults to `SESSION` on every

@@ -126,7 +126,7 @@ TEST(delete_clip_out_of_range_index_is_a_noop) {
   CHECK(song.getClips(track_id).size() == 1); // untouched
 }
 
-TEST(duplicate_clip_copies_into_the_next_empty_slot_under_a_fresh_id) {
+TEST(duplicate_clip_copies_into_the_slot_below_under_a_fresh_id) {
   Song song;
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -134,34 +134,45 @@ TEST(duplicate_clip_copies_into_the_next_empty_slot_under_a_fresh_id) {
   a.getLeafPattern().setNote(0, 0, Note(60, 100));
   a.setName("riff");
   auto a_id = song.addClip(move(a)).getId(); // index 0
-  Clip b(track_id);
-  b.getLeafPattern().setNote(0, 0, Note(64, 100));
-  song.addClip(move(b)); // index 1 - populated, so the copy skips it
 
-  CHECK(duplicateClip(song, track_id, 0) == 2);
+  CHECK(duplicateClip(song, track_id, 0) == 1);
   auto & clips = song.getClips(track_id);
-  CHECK(clips.size() == 3);
-  CHECK(clips[2].getName() == "riff");
-  CHECK(clips[2].getLeafPattern().getNote(0, 0).getValue() == 60);
-  CHECK(!clips[2].getId().empty() && clips[2].getId() != a_id);
-  clips[2].getLeafPattern().setNote(0, 0, Note(72, 100)); // independent of the source
+  CHECK(clips.size() == 2);
+  CHECK(clips[1].getName() == "riff");
+  CHECK(clips[1].getLeafPattern().getNote(0, 0).getValue() == 60);
+  CHECK(!clips[1].getId().empty() && clips[1].getId() != a_id);
+  clips[1].getLeafPattern().setNote(0, 0, Note(72, 100)); // independent of the source
   CHECK(clips[0].getLeafPattern().getNote(0, 0).getValue() == 60);
 }
 
-TEST(duplicate_clip_into_a_chosen_slot_pads_any_gap_and_never_overwrites) {
+TEST(duplicate_clip_overwrites_the_slot_below_and_its_placements) {
   Song song;
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
   Clip a(track_id);
   a.getLeafPattern().setNote(0, 0, Note(60, 100));
   song.addClip(move(a));
+  Clip b(track_id);
+  b.getLeafPattern().setNote(0, 0, Note(64, 100));
+  auto b_id = song.addClip(move(b)).getId(); // index 1 - populated
+  song.getArrangement().setInstance(track_id, 8, b_id);
 
-  CHECK(duplicateClip(song, track_id, 0, 3) == 3);
-  CHECK(song.getClips(track_id).size() == 4);
-  CHECK(song.getClips(track_id)[1].isEmpty() && song.getClips(track_id)[2].isEmpty()); // holes stay holes
-  CHECK(duplicateClip(song, track_id, 0, 3) == -1); // occupied - refused
-  CHECK(duplicateClip(song, track_id, 1, 2) == -1); // nothing to copy
-  CHECK(duplicateClip(song, track_id, 9, 2) == -1); // out of range
+  CHECK(duplicateClip(song, track_id, 0) == 1);
+  auto & clips = song.getClips(track_id);
+  CHECK(clips[1].getLeafPattern().getNote(0, 0).getValue() == 60);
+  CHECK(clips[1].getId() != b_id);
+  CHECK(song.getArrangement().getInstancesForTrack(track_id).empty()); // b's placement went with it
+}
+
+TEST(duplicate_clip_refuses_nothing_to_copy) {
+  Song song;
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto track_id = track.getInternalId();
+  Clip a(track_id);
+  a.getLeafPattern().setNote(0, 0, Note(60, 100));
+  song.addClip(move(a));
+  CHECK(duplicateClip(song, track_id, 1) == -1); // off the end
+  CHECK(duplicateClip(song, track_id, -1) == -1);
 }
 
 TEST(resolve_instance_at_finds_nothing_before_any_event) {
@@ -371,7 +382,7 @@ TEST(resolve_edit_and_read_target_apply_a_focused_clip_override_regardless_of_ro
   Clip other(track_id);
   other.setLength(8);
   other.setLooping(true);
-  auto other_id = song.addClip(move(other)).getId(); // index 1
+  song.addClip(move(other)); // index 1
 
   placeClipInstance(song, track_id, 0, 1); // "other" is active at every row
 
@@ -453,7 +464,7 @@ TEST(resolve_instance_at_a_stop_after_a_looping_trigger_silences_every_later_row
   loop.setLooping(true);
   song.addClip(move(loop)); // index 0
 
-  song.setRowsPerBar(16);
+  song.setTimeSignature(TimeSignature{4, 4});
 
   placeClipInstance(song, track_id, 0, 0);
   // Still looping well past its own native length, before any stop -
@@ -615,7 +626,7 @@ TEST(merge_clip_to_background_looping_clip_wraps_up_to_the_arrangements_end) {
   Song song;
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
-  song.setRowsPerBar(4);
+  song.setTimeSignature(TimeSignature{1, 4});
 
   Clip loop(track_id);
   loop.setLength(3);
@@ -651,7 +662,7 @@ TEST(merge_clip_to_background_is_a_noop_with_nothing_placed) {
 // placement is removed the same as a note-based clip's own merge.
 TEST(merge_clip_to_background_mixes_a_sample_clip_into_the_background_bed) {
   Song song;
-  song.setRowsPerBar(4);
+  song.setTimeSignature(TimeSignature{1, 4});
   auto & track = song.addTrack(make_unique<SampleTrack>());
   auto track_id = track.getInternalId();
 
