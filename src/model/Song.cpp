@@ -989,11 +989,9 @@ Song::loadParameters(const ParameterSource & input) {
   setScale(scaleFromString(input.get<std::string>("scale")));
 
   setTempo(input.get<int>("tempo", 90));
-  // A song that only gave a bar length (rowsPerBar) has that signature.
   time_signature_ = { 4, 4 };
   auto signature = TimeSignature::parse(input.get<std::string>("timeSignature"));
   if (signature && signature->isSet()) time_signature_ = *signature;
-  else if (auto rows = input.get<int>("rowsPerBar", 16); rows != 16) time_signature_ = TimeSignature::fromRowsPerBar(rows);
   auto running = TimeSignature::parse(input.get<std::string>("transportTimeSignature"));
   if (running && running->isSet()) running_bars_ = { *running, input.get<int>("transportBarOrigin", 0) };
   else clearRunningBars();

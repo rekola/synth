@@ -46,16 +46,6 @@ struct TimeSignature {
     if (!validDenominator(result.denominator) || result.numerator > kMaxNumerator) return std::nullopt;
     return result;
   }
-
-  // The signature a bar of `rows` rows reads as, for songs that only gave a
-  // bar length: whole beats of 4 rows are quarter notes, anything else
-  // counts sixteenths.
-  static TimeSignature fromRowsPerBar(int rows) {
-    if (rows <= 0) return {4, 4};
-    if (rows % 4 == 0 && rows / 4 <= kMaxNumerator) return {rows / 4, 4};
-    if (rows <= kMaxNumerator) return {rows, 16};
-    return {4, 4};
-  }
 };
 
 #endif

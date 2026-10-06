@@ -38,7 +38,7 @@ struct SessionFixture {
   SessionFixture() {
     controller.switchToBuffer(controller.freshBufferName());
     auto & song = controller.getSong();
-    song.setTimeSignature(TimeSignature::fromRowsPerBar(4));
+    song.setTimeSignature(TimeSignature{ 1, 4 });
     song.addInstrument(std::make_unique<Oscillator>(WaveformType::SINE));
     mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
     state = std::make_unique<SongState>(config);

@@ -5,7 +5,7 @@
      off); rows 4-7 are never written at all, and must still play the
      identical on/off content as rows 0-3 (Pattern::getEffectiveRow()'s
      own modulo), not silence. -->
-<song temperament="12edo" tempo="240" rowsPerBar="1" volume="1.0">
+<song temperament="12edo" tempo="240" timeSignature="1/16" volume="1.0">
   <instruments>
     <oscillator type="sine"/>
   </instruments>

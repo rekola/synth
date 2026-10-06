@@ -40,7 +40,7 @@ struct SessionSong {
   int seq = 0;
 
   explicit SessionSong(bool looping = true) {
-    song.setTimeSignature(TimeSignature::fromRowsPerBar(4));
+    song.setTimeSignature(TimeSignature{ 1, 4 });
     song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
     a = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
     b = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();

@@ -484,7 +484,7 @@ TEST(armed_sample_capture_places_at_the_snapshotted_row_and_trims_the_measured_l
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
   controller.getSong().setTempo(120);
-  controller.getSong().setTimeSignature(TimeSignature::fromRowsPerBar(4));
+  controller.getSong().setTimeSignature(TimeSignature{ 1, 4 });
 
   auto & track = controller.getSong().addTrack(std::make_unique<SampleTrack>());
   auto track_id = track.getInternalId();
@@ -662,7 +662,7 @@ TEST(extend_recording_sample_clip_if_needed_grows_the_clip_and_clears_a_stale_st
   ChannelConfiguration config(8000, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
-  controller.getSong().setTimeSignature(TimeSignature::fromRowsPerBar(4));
+  controller.getSong().setTimeSignature(TimeSignature{ 1, 4 });
 
   auto & track = controller.getSong().addTrack(std::make_unique<SampleTrack>());
   auto track_id = track.getInternalId();
@@ -1046,7 +1046,7 @@ TEST(toggle_record_arm_on_an_empty_drum_machine_slot_creates_a_clip) {
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
   auto & song = controller.getSong();
-  song.setTimeSignature(TimeSignature::fromRowsPerBar(16));
+  song.setTimeSignature(TimeSignature{ 4, 4 });
 
   auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(std::make_unique<PercussionTrack>()));
   track.addLane(36); // step-sequenced, so Record Arm repurposes instead of arming
@@ -1252,7 +1252,7 @@ TEST(ensure_session_recording_clip_creates_and_grows_at_the_exact_pressed_index)
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
   auto & song = controller.getSong();
-  song.setTimeSignature(TimeSignature::fromRowsPerBar(4));
+  song.setTimeSignature(TimeSignature{ 1, 4 });
 
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -1294,7 +1294,7 @@ TEST(ensure_session_recording_clip_overwrites_an_occupied_slot_in_place) {
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
   auto & song = controller.getSong();
-  song.setTimeSignature(TimeSignature::fromRowsPerBar(4));
+  song.setTimeSignature(TimeSignature{ 1, 4 });
 
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -1325,7 +1325,7 @@ TEST(ensure_session_recording_clip_establishes_its_origin_from_the_containing_ba
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
   auto & song = controller.getSong();
-  song.setTimeSignature(TimeSignature::fromRowsPerBar(16)); // 4 beats * 4 rows/beat
+  song.setTimeSignature(TimeSignature{ 4, 4 }); // 4 beats * 4 rows/beat
 
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -1360,7 +1360,7 @@ TEST(ensure_session_recording_clip_respects_a_primed_origin) {
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
   auto & song = controller.getSong();
-  song.setTimeSignature(TimeSignature::fromRowsPerBar(16));
+  song.setTimeSignature(TimeSignature{ 4, 4 });
 
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -1392,7 +1392,7 @@ TEST(trim_session_recording_clip_cuts_growth_back_to_the_last_written_bar) {
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
   auto & song = controller.getSong();
-  song.setTimeSignature(TimeSignature::fromRowsPerBar(4));
+  song.setTimeSignature(TimeSignature{ 1, 4 });
 
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -1425,7 +1425,7 @@ TEST(trim_session_recording_clip_with_no_notes_leaves_one_bar) {
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
   auto & song = controller.getSong();
-  song.setTimeSignature(TimeSignature::fromRowsPerBar(4));
+  song.setTimeSignature(TimeSignature{ 1, 4 });
 
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -1452,7 +1452,7 @@ TEST(trim_session_recording_clip_loops_and_is_reported_exactly_once) {
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
   auto & song = controller.getSong();
-  song.setTimeSignature(TimeSignature::fromRowsPerBar(4));
+  song.setTimeSignature(TimeSignature{ 1, 4 });
 
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -1520,7 +1520,7 @@ TEST(disarm_track_stops_an_in_flight_take_immediately) {
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
   auto & song = controller.getSong();
-  song.setTimeSignature(TimeSignature::fromRowsPerBar(4));
+  song.setTimeSignature(TimeSignature{ 1, 4 });
 
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -1549,7 +1549,7 @@ TEST(overdub_row_wraps_instead_of_growing_past_the_clip_length) {
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
   auto & song = controller.getSong();
-  song.setTimeSignature(TimeSignature::fromRowsPerBar(4));
+  song.setTimeSignature(TimeSignature{ 1, 4 });
 
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -1579,7 +1579,7 @@ TEST(trim_session_recording_clip_is_a_no_op_for_an_overdub) {
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
   auto & song = controller.getSong();
-  song.setTimeSignature(TimeSignature::fromRowsPerBar(4));
+  song.setTimeSignature(TimeSignature{ 1, 4 });
 
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -1610,7 +1610,7 @@ TEST(several_tracks_can_record_concurrently) {
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
   auto & song = controller.getSong();
-  song.setTimeSignature(TimeSignature::fromRowsPerBar(4));
+  song.setTimeSignature(TimeSignature{ 1, 4 });
 
   auto & track_a = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto & track_b = song.addTrack(std::make_unique<InstrumentTrack>(0));
@@ -1729,7 +1729,7 @@ TEST(ensure_note_recording_clip_places_the_clip_at_the_start_of_its_own_bar) {
   ChannelConfiguration config(44100, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
-  controller.getSong().setTimeSignature(TimeSignature::fromRowsPerBar(16));
+  controller.getSong().setTimeSignature(TimeSignature{ 4, 4 });
 
   auto & track = controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -1808,7 +1808,7 @@ TEST(extend_recording_clips_if_needed_grows_the_clip_as_the_take_continues) {
   ChannelConfiguration config(44100, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
-  controller.getSong().setTimeSignature(TimeSignature::fromRowsPerBar(4));
+  controller.getSong().setTimeSignature(TimeSignature{ 1, 4 });
 
   auto & track = controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -1850,7 +1850,7 @@ TEST(extend_recording_clips_if_needed_is_a_no_op_while_stopped_or_with_no_clips)
   controller.ensureNoteRecordingClip(clip_ids, track_id, 0);
 
   controller.extendRecordingClipsIfNeeded(clip_ids, { track_id }); // still stopped - PlaybackInfo defaults to not playing
-  CHECK(controller.getSong().getClips(track_id)[0].getLength() == 16); // unchanged from its own creation-time length (a full bar, default rowsPerBar)
+  CHECK(controller.getSong().getClips(track_id)[0].getLength() == 16); // unchanged from its own creation-time length (a full bar of the default time signature)
 
   std::unordered_map<int, std::string> empty_clip_ids;
   PlaybackInfo info;
@@ -1872,7 +1872,7 @@ TEST(extend_recording_clips_if_needed_does_not_grow_a_track_with_no_note_current
   ChannelConfiguration config(44100, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
-  controller.getSong().setTimeSignature(TimeSignature::fromRowsPerBar(4));
+  controller.getSong().setTimeSignature(TimeSignature{ 1, 4 });
 
   auto & track = controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -1902,7 +1902,7 @@ TEST(extend_recording_clips_if_needed_keeps_growing_even_when_this_session_never
   ChannelConfiguration config(44100, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
-  controller.getSong().setTimeSignature(TimeSignature::fromRowsPerBar(4));
+  controller.getSong().setTimeSignature(TimeSignature{ 1, 4 });
 
   auto & track = controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -1932,7 +1932,7 @@ TEST(extend_recording_clips_if_needed_overwrites_a_stop_it_grows_across) {
   ChannelConfiguration config(44100, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
-  controller.getSong().setTimeSignature(TimeSignature::fromRowsPerBar(4));
+  controller.getSong().setTimeSignature(TimeSignature{ 1, 4 });
 
   auto & track = controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -1963,7 +1963,7 @@ TEST(extend_recording_clips_if_needed_overwrites_a_different_clip_it_grows_acros
   ChannelConfiguration config(44100, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
-  controller.getSong().setTimeSignature(TimeSignature::fromRowsPerBar(4));
+  controller.getSong().setTimeSignature(TimeSignature{ 1, 4 });
 
   auto & track = controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -2029,7 +2029,7 @@ TEST(apply_note_pressure_writes_aftertouch_into_a_recording_clip) {
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
   auto & song = controller.getSong();
-  song.setTimeSignature(TimeSignature::fromRowsPerBar(16));
+  song.setTimeSignature(TimeSignature{ 4, 4 });
 
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();

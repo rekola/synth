@@ -35,9 +35,7 @@ attribute of `<song>`:
 <song tempo="90" timeSignature="3/4" ...>
 ```
 
-Nothing is written for 4/4. A song file that only gives a bar length
-(`rowsPerBar="12"`, the older way) loads as the signature of that many rows
-(12 is 3/4) and is written back as `timeSignature`.
+Nothing is written for 4/4.
 
 `set-time-signature` (also in the Song menu as *Set Time Signature...*) asks
 for it; the prompt is filled with the current one, so Enter alone changes

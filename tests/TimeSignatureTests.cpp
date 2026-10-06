@@ -18,9 +18,6 @@ TEST(time_signature_parses_and_gives_its_rows) {
   CHECK(!TimeSignature::parse("33/4"));
   auto none = TimeSignature::parse("0/4");
   CHECK(none && !none->isSet());
-  CHECK(TimeSignature::fromRowsPerBar(16) == (TimeSignature{ 4, 4 }));
-  CHECK(TimeSignature::fromRowsPerBar(12) == (TimeSignature{ 3, 4 }));
-  CHECK(TimeSignature::fromRowsPerBar(10).rowsPerBar() == 10);
 }
 
 TEST(bar_grid_counts_bars_from_its_origin) {
@@ -69,7 +66,7 @@ TEST(position_counts_bars_in_the_bars_in_force) {
   CHECK(song.formatPosition(36) == "4.1.1");
 }
 
-TEST(the_time_signature_and_running_bars_round_trip_and_old_bar_lengths_load) {
+TEST(the_time_signature_and_running_bars_round_trip) {
   namespace fs = std::filesystem;
   InstrumentProvider provider;
   auto dir = fs::temp_directory_path() / "synth_timesig_roundtrip";
@@ -93,12 +90,4 @@ TEST(the_time_signature_and_running_bars_round_trip_and_old_bar_lengths_load) {
   Song reloaded;
   CHECK(reloaded.open(path, provider));
   CHECK(!reloaded.getRunningBars().isActive() && reloaded.getTimeSignature() == (TimeSignature{ 4, 4 }));
-
-  // A song written with only a bar length keeps it as its signature.
-  std::ofstream out(path);
-  out << "<song tempo=\"100\" rowsPerBar=\"12\"><tracks/></song>";
-  out.close();
-  Song legacy;
-  CHECK(legacy.open(path, provider));
-  CHECK(legacy.getTimeSignature() == (TimeSignature{ 3, 4 }));
 }
