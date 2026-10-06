@@ -10,6 +10,7 @@
 #include "../dsp/Metronome.h"
 #include "../model/RhythmPatternLibrary.h"
 
+#include <deque>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -152,6 +153,10 @@ private:
   // freshly-built SongState's).
   struct PendingPosition { int row; int edit_seq; };
   std::unordered_map<std::string, PendingPosition> pending_positions_;
+  // Events between a BATCH_BEGIN and its BATCH_END, handled together at the end.
+  bool batch_open_ = false;
+  std::deque<std::unique_ptr<Event>> batch_events_;
+  void handleQueuedEvent(std::unique_ptr<Event> event);
 
   // Get-or-creates buffer `name`'s own live SongState against `song`,
   // constructing and initializing a fresh one the first time any event

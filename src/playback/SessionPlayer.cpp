@@ -209,12 +209,17 @@ SessionPlayer::launchScene(int clip_index, const vector<int> & track_ids) {
   // row played from a stopped transport. Sent even when the scene has
   // neither, so one still waiting from an earlier launch is dropped.
   auto & song = controller_.getSong();
+  // One batch, so the audio thread never takes part of the scene on one bar
+  // and the rest on the next.
+  auto & events = controller_.getPlaybackEventQueue();
+  events.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::BATCH_BEGIN, controller_.getActiveBufferName()));
   if (!track_ids.empty()) {
     queueSceneChange(song.getSceneTempo(clip_index), song.getSceneTimeSignature(clip_index), false);
   }
   for (auto track_id : track_ids) triggerClip(track_id, clip_index);
   // A scene starts the transport even when every slot in it is empty.
   if (!track_ids.empty() && !controller_.isNoteCaptureArmed()) startTransport();
+  events.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::BATCH_END, controller_.getActiveBufferName()));
 }
 
 void

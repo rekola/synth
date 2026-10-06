@@ -31,6 +31,10 @@ class PlaybackControlEvent : public Event {
   // flags (1: hand the bars back to the song's, 2: apply at the first row
   // played rather than on a bar), parameter4 = the sequence number.
   //
+  // BATCH_BEGIN/BATCH_END: Player holds every event between them and
+  // handles them together once BATCH_END arrives, so one gesture that
+  // sends several events (a scene launch) is never split across a bar.
+  //
   // SHIFT_SESSION_POSITION: moves every launched clip's playhead by
   // parameter1 rows (SongState::shiftSession()) - parameter2 = the
   // sequence number.
@@ -83,12 +87,44 @@ class PlaybackControlEvent : public Event {
   // isMonitoring()), 0 once it shouldn't.
   // SET_METRONOME: parameter1 = 1 to click on every beat while the
   // transport plays, 0 to stop. buffer_name is unused.
-  enum Type { PLAY = 1, STOP, TERMINATE, MOVE_POSITION, CLEAR_VOICES, PLAY_NOTE, STOP_NOTE, STOP_ALL_NOTES, NOTE_PRESSURE, MIXER_CHANGED,
-              SET_TRACK_MUTED, SET_TRACK_SOLO, SET_TRACK_SEND_A, SET_TRACK_SEND_B, SET_TRACK_SEND_MAIN, SET_TRACK_AZIMUTH,
-              CHANNEL_PRESSURE, SET_RECORDING_MUTE, SET_POSITION, BUFFER_KILLED, BUFFER_RENAMED, SET_BUS_EFFECT,
-              QUEUE_SESSION_CHANGE, SILENCE_SESSION, PREVIEW_NOTE, PREVIEW_POOL_NOTE, PREVIEW_RHYTHM, PREVIEW_STOP,
-              GLIDE_TRACK_SEND_A, GLIDE_TRACK_SEND_B, GLIDE_TRACK_SEND_MAIN, GLIDE_TRACK_AZIMUTH,
-              SET_TRACK_MONITORING, SHIFT_SESSION_POSITION, SET_METRONOME, QUEUE_SCENE_CHANGE };
+  enum Type { PLAY = 1,
+              STOP,
+              TERMINATE,
+              MOVE_POSITION,
+              CLEAR_VOICES,
+              PLAY_NOTE,
+              STOP_NOTE,
+              STOP_ALL_NOTES,
+              NOTE_PRESSURE,
+              MIXER_CHANGED,
+              SET_TRACK_MUTED,
+              SET_TRACK_SOLO,
+              SET_TRACK_SEND_A,
+              SET_TRACK_SEND_B,
+              SET_TRACK_SEND_MAIN,
+              SET_TRACK_AZIMUTH,
+              CHANNEL_PRESSURE,
+              SET_RECORDING_MUTE,
+              SET_POSITION,
+              BUFFER_KILLED,
+              BUFFER_RENAMED,
+              SET_BUS_EFFECT,
+              QUEUE_SESSION_CHANGE,
+              SILENCE_SESSION,
+              PREVIEW_NOTE,
+              PREVIEW_POOL_NOTE,
+              PREVIEW_RHYTHM,
+              PREVIEW_STOP,
+              GLIDE_TRACK_SEND_A,
+              GLIDE_TRACK_SEND_B,
+              GLIDE_TRACK_SEND_MAIN,
+              GLIDE_TRACK_AZIMUTH,
+              SET_TRACK_MONITORING,
+              SHIFT_SESSION_POSITION,
+              SET_METRONOME,
+              QUEUE_SCENE_CHANGE,
+              BATCH_BEGIN,
+              BATCH_END };
 
   // buffer_name says which open buffer this event targets - required for
   // every type except the genuinely buffer-agnostic ones (TERMINATE,

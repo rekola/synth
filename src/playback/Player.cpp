@@ -387,6 +387,10 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     state.shiftSession(ev.getParameter1(), ev.getParameter2());
     break;
 
+  case PlaybackControlEvent::BATCH_BEGIN:
+  case PlaybackControlEvent::BATCH_END:
+    break; // handled by handleQueuedEvent()
+
   case PlaybackControlEvent::SILENCE_SESSION:
     state.silenceSession(ev.getParameter1());
     break;
@@ -724,6 +728,22 @@ Player::renderPreview(int frames) {
   return data;
 }
 
+void Player::handleQueuedEvent(std::unique_ptr<Event> event) {
+  auto * control = dynamic_cast<PlaybackControlEvent *>(event.get());
+  auto type = control ? control->getType() : PlaybackControlEvent::Type();
+  if (type == PlaybackControlEvent::BATCH_BEGIN) {
+    batch_open_ = true;
+  } else if (type == PlaybackControlEvent::BATCH_END) {
+    batch_open_ = false;
+    for (auto & held : batch_events_) handleEvent(*held);
+    batch_events_.clear();
+  } else if (batch_open_) {
+    batch_events_.push_back(std::move(event));
+  } else {
+    handleEvent(*event);
+  }
+}
+
 void
 Player::play(AudioAPI & audio) {
   EventLogger logger(&(controller_->getUIEventQueue()));
@@ -863,13 +883,9 @@ Player::play(AudioAPI & audio) {
 	auto & d = descriptors[i];
 	if (d.revents) {
 	  if (i == 0) {
-	    auto event = event_queue.pop();
-	    handleEvent(*event);
-	    while ( event_queue.hasEvents() ) {
-	      auto next_event = event_queue.pop();
-	      handleEvent(*next_event);
-	    }
-	    if (mixer_changed_) {
+            handleQueuedEvent(event_queue.pop());
+            while (event_queue.hasEvents()) handleQueuedEvent(event_queue.pop());
+            if (mixer_changed_) {
 	      mixer = createMixer(controller_->getChannelConfiguration(), controller_->getMixerType(), controller_->getUseLegacyBinaural());
 	      mixer_changed_ = false;
 	    }
