@@ -265,6 +265,7 @@ add_executable(synth src/main.cpp
 	src/ui/tui/NotcursesInputEventSource.cpp
 	src/ui/tui/OutlineView.cpp
 	src/ui/tui/InfoDialog.cpp
+	src/ui/tui/ChoiceDialog.cpp
 	src/ui/tui/PatternEditor.cpp
 	src/ui/tui/ArrangementGrid.cpp
 	src/ui/tui/InlineEditor.cpp

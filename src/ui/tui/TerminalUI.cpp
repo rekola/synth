@@ -16,7 +16,6 @@
 #include "SpinBox.h"
 #include "../../dsp/DiracAnalyzer.h"
 #include "../../audio/AudioAPI.h"
-#include "../../audio/AudioDevices.h"
 #include "../../launchpad/LaunchpadIO.h"
 #include "../../launchpad/LaunchpadPadEvent.h"
 #include "../../launchpad/LaunchpadButtonEvent.h"
@@ -1717,11 +1716,14 @@ TerminalUI::readInput() {
       // Alt chord's prefix or part of a keypad sequence - it's just never
       // delivered a second time (kp_escape_delivered_).
       auto active = outline_view_ && outline_view_->isModal() ? outline_view_ : active_element_.lock();
-      if (info_dialog_.isOpen()) {
-	closeInfoDialog();
+      if (choice_dialog_.isOpen()) {
+        closeChoiceDialog();
+        kp_escape_delivered_ = true;
+      } else if (info_dialog_.isOpen()) {
+        closeInfoDialog();
 	kp_escape_delivered_ = true;
       } else if (active && active->wantsBareEscape()) {
-	InputEvent escape(NCKEY_ESC, ni.y, ni.x, false, false, false, false, kind);
+        InputEvent escape(NCKEY_ESC, ni.y, ni.x, false, false, false, false, kind);
 	active->offerInput(escape);
 	kp_escape_delivered_ = true;
       }
@@ -1890,62 +1892,6 @@ TerminalUI::initializeWidgets() {
       doKill();
     }
   });
-  // The three device pickers share one minibuffer flow: Tab completes
-  // against the labels (case-insensitively), Enter takes an exact label or a
-  // unique prefix of one, an empty answer leaves things as they are. The
-  // list is read fresh each time, so a device plugged in a moment ago shows.
-  using DeviceChoices = std::vector<std::pair<std::string, std::string>>; // label, value
-  auto pickDevice = [this](const std::string & what, DeviceChoices choices, const std::string & current,
-                           std::function<void(const std::string &, const std::string &)> apply) {
-    std::string current_label = current;
-    for (auto & [label, value] : choices)
-      if (value == current) current_label = label;
-    auto lower = [](std::string text) {
-      for (auto & c : text) c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
-      return text;
-    };
-    status_line_->showPromptWithCompletion(what + " (current: " + current_label + "): ", [this, choices, apply, lower](const std::string & typed) {
-	if (typed.empty()) return;
-	auto wanted = lower(typed);
-	const std::pair<std::string, std::string> * match = nullptr;
-	int candidates = 0;
-	for (auto & choice : choices) {
-	  auto label = lower(choice.first);
-	  if (label == wanted) { match = &choice; candidates = 1; break; }
-	  if (label.compare(0, wanted.size(), wanted) == 0) { match = &choice; candidates++; }
-	}
-	if (candidates != 1) {
-	  setStatus((candidates > 1 ? "More than one device starts with: " : "No such device: ") + typed);
-	  return;
-	}
-	apply(match->second, match->first); }, [choices, lower](const std::string & prefix) {
-	std::set<std::string> result;
-	auto wanted = lower(prefix);
-	for (auto & choice : choices) {
-	  if (lower(choice.first).compare(0, wanted.size(), wanted) == 0) result.insert(choice.first);
-	}
-	return result; });
-  };
-  commands_.define("select-capture-device", [this, pickDevice]() {
-    DeviceChoices choices;
-    for (auto & device : listCaptureDevices()) choices.push_back({device.label, device.name});
-    pickDevice("Audio input", choices, getController().getDeviceSettings().capture,
-               [this](const std::string & name, const std::string & label) { selectCaptureDevice(name, label); });
-  });
-  commands_.define("select-playback-device", [this, pickDevice]() {
-    DeviceChoices choices;
-    for (auto & device : listPlaybackDevices()) choices.push_back({device.label, device.name});
-    pickDevice("Audio output", choices, getController().getDeviceSettings().playback,
-               [this](const std::string & name, const std::string & label) { selectPlaybackDevice(name, label); });
-  });
-  commands_.define("select-midi-input", [this, pickDevice]() {
-    DeviceChoices choices;
-    choices.push_back({"None", ""});
-    for (auto & source : listMidiSources()) choices.push_back({source.label, source.spec});
-    pickDevice("MIDI input", choices, getController().getDeviceSettings().midi_input,
-               [this](const std::string & spec, const std::string & label) { selectMidiInput(spec, label); });
-  });
-
   // toggle-playing/octave-up/octave-down/save-song are UI's own now (plain
   // Controller calls, no widget dependency) - octave_control_'s own [-]/[+]
   // buttons call the exact same Controller methods octave-up/-down do.
@@ -2507,6 +2453,12 @@ TerminalUI::offerInput(const InputEvent & input) {
   // keystroke meant for it.
   bool reader_active = status_line_->isReaderActive() || pattern_editor_->isReaderActive() ||
     clip_grid_->isReaderActive();
+  // The choice dialog is modal too, and owns its keys until it is chosen
+  // from or cancelled.
+  if (choice_dialog_.isOpen() && input.getId() != NCKEY_RESIZE && !(input.hasCtrl() && input.getId() == 'l')) {
+    handleChoiceDialogInput(input);
+    return true;
+  }
   // The info dialog is modal: it closes on its own keys or a click and
   // swallows everything else but a resize or redraw.
   if (info_dialog_.isOpen() && input.getId() != NCKEY_RESIZE && !(input.hasCtrl() && input.getId() == 'l')) {
@@ -2532,6 +2484,7 @@ TerminalUI::offerInput(const InputEvent & input) {
     getPlane().refresh();
     layout();
     layoutInfoDialog();
+    layoutChoiceDialog();
     // Deferred, not a direct renderComponents(true) call - see
     // force_next_render_'s own comment on TerminalUI.h: this runs from
     // inside input handling, before startUI()'s own main loop reaches its
@@ -2663,6 +2616,41 @@ TerminalUI::showInfoDialog(const std::string & title, const std::string & markdo
   info_dialog_markdown_ = markdown;
   layoutInfoDialog();
   force_next_render_ = true;
+}
+
+void TerminalUI::showChoiceDialog(const std::string & title, std::vector<Choice> choices, int current,
+                                  std::function<void(int)> on_choose) {
+  if (choices.empty()) {
+    setStatus(title + ": nothing to choose from");
+    return;
+  }
+  std::vector<std::string> labels;
+  for (auto & choice : choices) labels.push_back(choice.label);
+  choice_callback_ = std::move(on_choose);
+  choice_dialog_.open(title, std::move(labels), current);
+  layoutChoiceDialog();
+  force_next_render_ = true;
+}
+
+void TerminalUI::layoutChoiceDialog() {
+  if (!choice_dialog_.isOpen()) return;
+  auto [screen_rows, screen_cols] = getDim();
+  choice_dialog_.show(getPlane(), screen_rows, screen_cols);
+}
+
+void TerminalUI::handleChoiceDialogInput(const InputEvent & input) {
+  auto result = choice_dialog_.offerInput(input);
+  if (result == ChoiceDialog::Result::NONE) {
+    layoutChoiceDialog(); // redraw with the moved selection
+    force_next_render_ = true;
+    return;
+  }
+  auto index = choice_dialog_.selected();
+  // Closed before the callback runs: it may report on the status line, and
+  // nothing should be left modal while it does.
+  auto callback = std::move(choice_callback_);
+  closeChoiceDialog();
+  if (result == ChoiceDialog::Result::CHOSEN && callback) callback(index);
 }
 
 // Centers the dialog on the screen.

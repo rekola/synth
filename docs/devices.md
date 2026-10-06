@@ -14,10 +14,12 @@ Open the **Devices** menu, or run these with M-x:
 | `select-capture-device` | the audio input |
 | `select-midi-input` | the MIDI source notes are played from |
 
-Each asks in the minibuffer and shows the current choice. Tab completes the
-name (case is ignored), Enter takes an exact name or a unique start of one,
-and an empty answer changes nothing. The list is read each time, so a device
-plugged in a moment ago is there.
+Each opens a dialog listing what is available, with the device in use marked
+(●) and selected to start with. Up/Down (or C-n/C-p), PageUp/PageDown, Home and
+End move; Enter, or a click on an entry, chooses it; Escape, C-g or a click
+outside cancels; the mouse wheel scrolls a long list. The list is read each
+time the dialog opens, so a device plugged in a moment ago is there. Choosing
+the device already in use changes nothing.
 
 "System default" follows whatever the system currently treats as the default.
 "None" for MIDI connects nothing; a source connected from outside the program

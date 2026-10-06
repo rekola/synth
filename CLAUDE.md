@@ -69,7 +69,10 @@ See `docs/headless.md`; `tools/e2e/verify_headless.py` covers it.
 
 **Audio and MIDI devices** (`docs/devices.md`): the output, the input and one
 MIDI source are chosen at runtime (M-x `select-playback-device`/
-`select-capture-device`/`select-midi-input`, the Devices menu) and saved in
+`select-capture-device`/`select-midi-input`, the Devices menu - each opens a
+modal list, `UI::showChoiceDialog()`, rendered by `tui/ChoiceDialog` over the
+toolkit-agnostic `ui/ChoiceList.h`; the commands live in `UI`, so a GUI
+backend only supplies the dialog) and saved in
 `~/.config/synth/devices.conf` (`audio/DeviceSettings.h`, machine-wide, never
 part of a song). `--playback-device`/`--capture-device`/`--midi-input`
 override one run without touching the file; `--list-devices` prints the

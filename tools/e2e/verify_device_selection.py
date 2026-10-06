@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Drive the audio device pickers through a pty against a real PipeWire
-daemon: select-playback-device / select-capture-device switch the live
-streams and save the choice, and a fresh `synth` starts on what was saved.
+"""Drive the audio device dialogs through a pty against a real PipeWire
+daemon: select-playback-device / select-capture-device open a list, choosing
+an entry switches the live stream and saves the choice, cancelling changes
+nothing, and a fresh `synth` starts on what was saved.
 
 Needs a running PipeWire (with a session manager) and `pw-cli`/`pw-link`;
 prints SKIP otherwise. Creates its own null sinks/source - held by one
@@ -57,6 +58,70 @@ def mx(scr, command):
     scr.pump(0.6)
 
 
+DOWN, UP = b"\x1b[B", b"\x1b[A"
+
+
+def dialog_bounds(scr):
+    """(top, bottom) screen rows of the open choice dialog, or None."""
+    lines = scr.screen.display
+    top = next((i for i, l in enumerate(lines) if "\u250c\u2500 " in l and ("Audio" in l or "MIDI input" in l)), None)
+    if top is None:
+        return None
+    bottom = next((i for i in range(top + 1, len(lines)) if "\u2514\u2500" in lines[i]), None)
+    return None if bottom is None else (top, bottom)
+
+
+def dialog_open(scr):
+    return dialog_bounds(scr) is not None
+
+
+def dialog_row(scr, label):
+    top, bottom = dialog_bounds(scr)
+    for y in range(top + 1, bottom):
+        if label in scr.screen.display[y]:
+            return y
+    return None
+
+
+def selected_row(scr):
+    """The dialog row drawn with the cursor colours: the one whose background
+    differs from the dialog's own (read off its border). Compared rather than
+    matched against an exact colour, since the emulated terminal quantises
+    colours to its palette."""
+    top, bottom = dialog_bounds(scr)
+    left = scr.screen.display[top].index("\u250c")
+    base = scr.screen.buffer[top][left + 3].bg
+    for y in range(top + 1, bottom):
+        if scr.screen.buffer[y][left + 4].bg != base:
+            return y
+    return None
+
+
+def pick(scr, label):
+    """Moves the dialog's selection onto `label` with the arrow keys and
+    chooses it with Enter."""
+    target, current = dialog_row(scr, label), selected_row(scr)
+    if target is None or current is None:
+        return False
+    scr.send((DOWN if target > current else UP) * abs(target - current))
+    scr.pump(0.4)
+    scr.send(b"\r")
+    return True
+
+
+def click(scr, label):
+    """Left-clicks the dialog entry showing `label`: SGR mouse press and
+    release at its first character (1-based terminal coordinates)."""
+    y = dialog_row(scr, label)
+    if y is None:
+        return False
+    x = scr.screen.display[y].index(label)
+    scr.send(f"\x1b[<0;{x + 1};{y + 1}M".encode())
+    scr.pump(0.2)
+    scr.send(f"\x1b[<0;{x + 1};{y + 1}m".encode())
+    return True
+
+
 def start(config_dir):
     os.environ["XDG_CONFIG_HOME"] = config_dir
     pid, fd = vk.spawn(SONG, view="session")
@@ -110,24 +175,38 @@ def main():
         pid, scr = start(config_dir)
 
         mx(scr, "select-playback-device")
-        check("the output picker shows the current device", "Audio output (current: System default)" in scr.dump(), scr)
-        scr.send(b"E2E Sink B\r")
+        check("the output dialog opens with a title", dialog_open(scr) and "Audio output" in scr.dump(), scr)
+        default_row = dialog_row(scr, "System default")
+        check("the device in use is marked", default_row is not None and "\u25cf" in scr.screen.display[default_row], scr)
+        check("the in-use device starts selected", default_row is not None and default_row == selected_row(scr), scr)
+        check("the dialog lists the new output", dialog_row(scr, "E2E Sink B") is not None, scr)
+        check("the sources are not offered as outputs", dialog_row(scr, "E2E Source A") is None, scr)
+
+        scr.send(vk.ctrl('g'))
+        check("C-g cancels the dialog", wait_until(scr, lambda: not dialog_open(scr)), scr)
+        check("cancelling changes nothing", not os.path.exists(conf) and synth_playback_target() != "e2e_sink_b")
+
+        mx(scr, "select-playback-device")
+        check("choosing an output works", pick(scr, "E2E Sink B"), scr)
         check("choosing an output reports it", wait_until(scr, lambda: "Playback device: pw:e2e_sink_b" in scr.dump()), scr)
+        check("the dialog closes after choosing", not dialog_open(scr), scr)
         check("the playback stream moved to that node",
               wait_until(scr, lambda: synth_playback_target() == "e2e_sink_b"))
         check("the choice is saved", os.path.exists(conf) and "playback = pw:e2e_sink_b" in open(conf).read())
 
+        mx(scr, "select-playback-device")
+        chosen = dialog_row(scr, "E2E Sink B")
+        check("the new output is now the marked one", chosen is not None and "\u25cf" in scr.screen.display[chosen], scr)
+        scr.send(b"\r")  # Enter on the device already in use
+        check("choosing the device in use closes quietly", wait_until(scr, lambda: not dialog_open(scr)), scr)
+        check("and leaves the stream where it was", synth_playback_target() == "e2e_sink_b")
+
         mx(scr, "select-capture-device")
-        check("the input picker lists the new source", "Audio input (current: System default)" in scr.dump(), scr)
-        scr.send(b"E2E Source A\r")
+        check("the input dialog lists the new source", dialog_open(scr) and dialog_row(scr, "E2E Source A") is not None, scr)
+        check("clicking an entry chooses it", click(scr, "E2E Source A"), scr)
         check("choosing an input reports it", wait_until(scr, lambda: "Capture device: pw:e2e_source_a" in scr.dump()), scr)
         check("both choices are saved", "capture = pw:e2e_source_a" in open(conf).read()
               and "playback = pw:e2e_sink_b" in open(conf).read())
-
-        mx(scr, "select-playback-device")
-        scr.send(b"No Such Device\r")
-        check("an unknown name is refused", wait_until(scr, lambda: "No such device" in scr.dump()), scr)
-        check("a refused name leaves the stream where it was", synth_playback_target() == "e2e_sink_b")
 
         stop(pid, scr)
         pid = None
@@ -136,6 +215,16 @@ def main():
         check("a new run starts on the saved output",
               wait_until(scr, lambda: synth_playback_target() == "e2e_sink_b"), scr)
         check("a new run starts on the saved input", "Capture device: pw:e2e_source_a" in scr.dump(), scr)
+
+        mx(scr, "select-playback-device")
+        check("the dialog opens again", dialog_open(scr), scr)
+        # notcurses holds a lone Escape byte until the next one arrives (so it
+        # can tell it from the start of a sequence); a second Escape releases
+        # it. Nothing is sent after this - the second one stays buffered.
+        scr.send(b"\x1b")
+        scr.pump(0.5)
+        scr.send(b"\x1b")
+        check("Escape cancels it", wait_until(scr, lambda: not dialog_open(scr)), scr)
     finally:
         if pid:
             os.kill(pid, 9)

@@ -4,6 +4,7 @@
 #include "UIElement.h"
 #include "../util/Logger.h"
 
+#include <functional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -49,6 +50,19 @@ class UI : public UIElement {
   // Shows a modal dialog with Markdown content (see Markdown.h) - what a
   // command like "about" calls, so each backend only renders the text.
   virtual void showInfoDialog(const std::string & title, const std::string & markdown) = 0;
+
+  // One entry of a choice dialog: what the person sees, and what the command
+  // acts on.
+  struct Choice {
+    std::string label;
+    std::string value;
+  };
+  // Shows a modal list to pick one entry from. `current` is the entry in
+  // use, marked and where the selection starts (-1 for none). Calls
+  // `on_choose` with the chosen index once, or never if the dialog is
+  // cancelled. A backend with no such dialog says so on the status line.
+  virtual void showChoiceDialog(const std::string & title, std::vector<Choice> choices, int current,
+                                std::function<void(int)> on_choose) = 0;
 
   // Launchpad hardware input isn't tied to any one visual frontend, so its
   // event handling lives here rather than in a concrete backend - this one
