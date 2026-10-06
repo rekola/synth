@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="100" floorReflectionStrength="1" groundAbsorption="0" rowsPerBar="16">
+<song temperament="31edo" tempo="100" floorReflectionStrength="1" groundAbsorption="0" timeSignature="4/4">
     <bus>
         <reverb/>
         <granular wet="0.40000001" preset="cloud"/>

@@ -771,6 +771,7 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
 	{ nullptr, nullptr, nullptr },
 	{ "Set Song Key...", "", "set-song-key" },
 	{ "Set Tuning System...", "", "set-song-tuning" },
+	{ "Set Time Signature...", "", "set-time-signature" },
 	{ nullptr, nullptr, nullptr },
 	{ "Set Bus Effect A...", "", "set-bus-effect-a" },
 	{ "Set Bus Effect B...", "", "set-bus-effect-b" },
@@ -1925,6 +1926,20 @@ TerminalUI::initializeWidgets() {
   };
   commands_.define("set-bus-effect-a", [setBusEffect]() { setBusEffect(0, "A"); });
   commands_.define("set-bus-effect-b", [setBusEffect]() { setBusEffect(1, "B"); });
+
+  // The song's time signature, which the arrangement counts its bars in.
+  // Prefilled with the current one, so Enter alone changes nothing.
+  commands_.define("set-time-signature", [this]() {
+    status_line_->showPrompt("Time signature (n/d): ", [this](const std::string & typed) {
+      if (typed.empty()) return;
+      auto signature = TimeSignature::parse(typed);
+      if (!signature || !signature->isSet()) { setStatus("Not a time signature: " + typed); return; }
+      auto & song = getController().getSong();
+      song.setTimeSignature(*signature);
+      song.incVersion();
+      setStatus("Time signature " + signature->toString());
+    }, getController().getSong().getTimeSignature().toString());
+  });
 
   // C-x C-x (exchange-point-and-mark) is a PatternEditor-owned command (the
   // mark/point state it swaps lives there, alongside set-mark/kill-region -

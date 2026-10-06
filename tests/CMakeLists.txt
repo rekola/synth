@@ -90,6 +90,7 @@ add_executable(synth_tests
 	LaunchpadPanTests.cpp
 	RhythmPatternLibraryTests.cpp
 	SwingTests.cpp
+	TimeSignatureTests.cpp
 	TempoTests.cpp
 	ValueRampTests.cpp
 	SinusoidBankTests.cpp

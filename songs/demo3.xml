@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="110" rowsPerBar="4">
+<song temperament="31edo" tempo="110" timeSignature="1/4">
   <instruments>
     <instrument from="string.bowed.ensemble.pizzicato" />
     <instrument from="bass.electric.pick" />

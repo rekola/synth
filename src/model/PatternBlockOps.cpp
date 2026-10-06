@@ -211,11 +211,9 @@ pastePatternBlockCommand(PatternGrid & grid, const vector<Command> & block, int 
 }
 
 Clip
-extractClip(const PatternGrid & grid, int track_id, int row_lo, int row_hi, int rows_per_bar) {
-  if (rows_per_bar <= 0) rows_per_bar = 1;
-  auto bar_start = (row_lo / rows_per_bar) * rows_per_bar;
-  auto span = row_hi - bar_start + 1;
-  auto length = ((span + rows_per_bar - 1) / rows_per_bar) * rows_per_bar;
+extractClip(const PatternGrid & grid, int track_id, int row_lo, int row_hi, const BarGrid & bars) {
+  auto bar_start = bars.barStart(row_lo);
+  auto length = std::max(1, bars.roundUpToBar(row_hi + 1) - bar_start);
 
   Clip clip(track_id);
   clip.setLength(length);

@@ -6,7 +6,7 @@
      render_arpeggiator_steps_through_a_pattern_authored_chord). gate ==
      noteDuration (legato) so steps run back-to-back with no gap to work
      around. -->
-<song temperament="12edo" tempo="240" rowsPerBar="1" volume="1.0">
+<song temperament="12edo" tempo="240" timeSignature="1/16" volume="1.0">
   <instruments>
     <oscillator type="sine"/>
   </instruments>

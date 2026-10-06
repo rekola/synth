@@ -23,6 +23,16 @@ quantizedBarRow(int raw_row, int rows_per_bar) {
 }
 
 int
+quantizedBarRow(const BarGrid & bars, int raw_row) {
+  return bars.roundUpToBar(raw_row);
+}
+
+int
+previousBarRow(const BarGrid & bars, int raw_row) {
+  return bars.barStart(raw_row);
+}
+
+int
 previousBarRow(int raw_row, int rows_per_bar) {
   rows_per_bar = max(1, rows_per_bar);
   return (raw_row / rows_per_bar) * rows_per_bar;

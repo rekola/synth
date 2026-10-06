@@ -463,10 +463,11 @@ Controller::toggleDrumClipFocus(int track_id, int clip_index) {
     // 8-step window at a time (or several windows at once, split across
     // multiple connected devices).
     auto next_ordinal = clips.size() + 1;
+    auto scene = static_cast<int>(clips.size());
     auto & clip = song->addClip(Clip(track_id));
     clip.setName(fmt::format("Clip {}", next_ordinal));
     clip.setLooping(true);
-    clip.setLength(std::max(1, song->getRowsPerBar()));
+    clip.setLength(song->getSceneBarRows(scene)); // a bar of the scene's own time signature
     setFocusedClip(track_id, clip.getId());
   }
   if (drum_edit_requested_) drum_edit_requested_(track_id, true);
@@ -755,6 +756,7 @@ Controller::setEditPosition(int absolute_row) {
 
 void
 Controller::receivePlaybackSnapshot(const string & buffer_name, const PlaybackInfo & info) {
+  mirrorSceneChange(buffer_name, info);
   if (buffer_name != active_buffer_name_) {
     // Not the buffer currently being looked at/edited - e.g. a buffer
     // still playing in the background while a different one is active
@@ -792,6 +794,25 @@ Controller::receivePlaybackSnapshot(const string & buffer_name, const PlaybackIn
   // LED refresh included - it still just reads the model, unchanged) ever
   // shows a value the engine hasn't actually reached yet.
   syncLiveGlideStateIntoModel(buffer_name, info);
+}
+
+// A launched scene's tempo and running time signature are applied by the
+// audio thread (SongState::queueSceneChange()); the song's copies, which
+// the UI shows and saves, follow once a snapshot reports the change - and
+// only then, so a tempo edited since isn't overwritten by an older snapshot.
+void
+Controller::mirrorSceneChange(const string & buffer_name, const PlaybackInfo & info) {
+  auto & mirrored = mirrored_scene_seq_[buffer_name];
+  if (info.getSceneSeq() <= mirrored) return;
+  mirrored = info.getSceneSeq();
+  auto song = getSongByName(buffer_name);
+  if (!song) return;
+  song->setRunningBars(info.getRunningBars());
+  if (info.getTempo() > 0 && info.getTempo() != song->getTempo()) {
+    song->setTempo(static_cast<short>(info.getTempo()));
+    song->incVersion();
+    if (buffer_name == active_buffer_name_) getUIEventQueue().push(make_unique<LogEvent>("Tempo " + to_string(song->getTempo())));
+  }
 }
 
 // A plain dynamic_cast, not a TrackType enumeration - "is this track
@@ -1102,8 +1123,8 @@ Controller::ensureNoteRecordingClip(std::unordered_map<int, std::string> & clip_
   // comment on why): a live take's first note has to land inside whatever
   // clip gets created for it, and the clip can't start later than that
   // note's own row.
-  auto rows_per_bar = std::max(1, song->getRowsPerBar());
-  row = previousBarRow(row, rows_per_bar);
+  row = previousBarRow(song->getArrangementBars(), row);
+  auto rows_per_bar = song->getArrangementBars().barRows();
   auto active = resolveInstanceAt(*song, track_id, row);
   if (active.clip_index >= 0) return; // a real clip is already active here - write into it, same as ordinary editing
 
@@ -1141,7 +1162,7 @@ Controller::extendRecordingClipsIfNeeded(std::unordered_map<int, std::string> & 
   auto song = getCurrentSong();
   if (!song) return;
   auto & arrangement = song->getArrangement();
-  auto rows_per_bar = std::max(1, song->getRowsPerBar());
+  auto rows_per_bar = song->getArrangementBars().barRows();
 
   for (auto & [ track_id, clip_id ] : clip_ids) {
     // Only while this track actually has a note held right now - see this
@@ -1251,7 +1272,7 @@ Controller::ensureSessionRecordingClip(int track_id, int absolute_step, int bar_
     // second beat rather than its first, and the clip's own loop point
     // still has to be the bar boundary either way.
     if (take.origin_step < 0) {
-      take.origin_step = bar_start_step >= 0 ? bar_start_step : previousBarRow(absolute_step, std::max(1, song->getRowsPerBar()));
+      take.origin_step = bar_start_step >= 0 ? bar_start_step : song->barStartAtOrBefore(absolute_step);
     }
   }
   extendSessionRecordingClipIfNeeded(track_id, absolute_step); // no-op for an overdub take - see its own comment
@@ -1278,7 +1299,7 @@ Controller::extendSessionRecordingClipIfNeeded(int track_id, int absolute_step) 
   auto & clip = clips[static_cast<size_t>(take.clip_index)];
 
   auto row = absolute_step - take.origin_step;
-  auto rows_per_bar = std::max(1, song->getRowsPerBar());
+  auto rows_per_bar = song->barRowsAt(absolute_step);
   auto window_last_row = std::max(1, clip.getLength()) - 1;
   while (window_last_row - row < rows_per_bar) {
     clip.setLength(std::max(1, clip.getLength()) + rows_per_bar);
@@ -1307,7 +1328,7 @@ Controller::trimSessionRecordingClip(int track_id) {
 
   int last_row = -1;
   for (auto & [ row, notes ] : clip.getLeafPattern().getNotesByRow()) last_row = std::max(last_row, static_cast<int>(row));
-  auto rows_per_bar = std::max(1, song->getRowsPerBar());
+  auto rows_per_bar = song->barRowsAt(song->barStartAtOrBefore(take.origin_step));
   // Nothing actually landed (the take was armed and disarmed with no note
   // ever written) - one bar, matching every other freshly-created clip's
   // own minimum length rather than a zero-length one.
@@ -1343,7 +1364,7 @@ Controller::extendRecordingSampleClipIfNeeded() {
   // Same growth-loop shape as extendRecordingClipsIfNeeded() above - grows
   // a full bar at a time until at least one bar of headroom remains ahead
   // of the current row.
-  auto rows_per_bar = std::max(1, song->getRowsPerBar());
+  auto rows_per_bar = song->getArrangementBars().barRows();
   bool grew = false;
   auto window_last_row = recording_start_row_ + std::max(1, clip.getLength()) - 1;
   while (window_last_row - info.getAbsolutePosition() < rows_per_bar) {
@@ -1604,7 +1625,7 @@ Controller::beginSampleCapture(int track_id, int latency_frames) {
   // would shrink an already-longer clip out from under its own earlier
   // layers; finishSampleCapture() only ever grows it from here, never
   // shrinks it.
-  if (!is_overdub) clip.setLength(std::max(1, song->getRowsPerBar()));
+  if (!is_overdub) clip.setLength(song->getRunningTimeSignature().rowsPerBar());
 
   recording_clip_id_ = clip.getId();
   recording_latency_frames_ = latency_frames;
