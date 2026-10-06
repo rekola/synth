@@ -91,32 +91,26 @@ waltz scene followed by a rock scene goes 3/4, then 4/4, with no typing.
 
 ## 5. Design decisions
 
-Where Ableton Live has a behaviour, this follows it. Live's behaviour here is
-from recollection, not verified.
-
-1. **Scene values outlast the scene.** Live's tempo and time signature are
-   global controls: a scene launch sets them and nothing puts them back when
-   the scene's clips stop. The same here. The one thing that hands the bars
-   back is Back to Arrangement for every track, which in Live re-enables the
-   arrangement's own automation.
+1. **Scene values outlast the scene.** A scene launch sets the tempo and the
+   running time signature, and nothing puts them back when the scene's clips
+   stop. The one thing that hands the bars back is Back to Arrangement for
+   every track.
 2. **Both are saved.** The tempo is the song tempo. The running signature is
    saved with its origin row, and the song's own time signature is separate,
    so a scene's signature never re-bars the arrangement.
 3. **A scene without a signature plays in, and is drawn in, the running
-   bars.** Live scenes without a value leave the global one alone.
+   bars.** A scene without a value leaves the running one alone.
 4. **A scene is its position.** Clip rows are never inserted or removed, so a
    record cannot drift from its row. An insert-scene or delete-scene command
    would have to move the records with the clips.
-5. **The song has one time signature and one tempo.** Live also has tempo
-   automation and time signature changes along the arrangement; here the
-   arrangement plays at the song tempo and counts bars in the song's
-   signature.
-6. **The audio thread applies them.** As in Live, the tempo and signature
-   change belongs to the launch itself, not to whatever the UI noticed.
+5. **The song has one time signature and one tempo.** The arrangement plays
+   at the song tempo and counts bars in the song's signature.
+6. **The audio thread applies them.** The tempo and signature change belongs
+   to the launch itself, not to whatever the UI noticed.
 
 ## 6. Limitations
 
-- Per-scene swing (swing is song-wide; Live's groove is per clip).
+- Per-scene swing (swing is song-wide).
 - Anything per scene beyond name, tempo and signature.
 - Tempo or time signature changes inside the arrangement.
 - Scene tempo and signature on the Launchpad; they are set from the
