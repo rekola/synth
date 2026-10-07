@@ -7,7 +7,7 @@
 #include "InstrumentTrackState.h"
 #include "SampleTrackState.h"
 #include "RenderContext.h"
-#include "SessionTrackInfo.h"
+#include "LiveTrackInfo.h"
 #include "../model/NoteCoordinate.h"
 #include "../ambisonic/Mixer.h"
 #include "../bus/SendBusProcessor.h"
@@ -293,7 +293,7 @@ class SongState : public TrackState {
     // own comment has the full reasoning).
     if (isPlaying() && !was_playing_) {
       pending_resume_retrigger_ = true;
-      session_start_clock_ = session_clock_;
+      live_start_clock_ = live_clock_;
     }
     // The mirror case: the very first call after the transport *stops*
     // (isPlaying() flips true -> false). A SampleTrack voice has no
@@ -344,7 +344,7 @@ class SongState : public TrackState {
 	// NOTE_PRESSURE path the live performance itself is heard
 	// through - so recording mute is inaudible for anything the
 	// player is actually doing, only for the song's own old content.
-	if (getSamplePos() == 0) advanceSessionTracks(song, i);
+	if (getSamplePos() == 0) advanceLiveTracks(song, i);
 	if (getSamplePos() == 0 && !recording_muted_) {
 	  // pending_resume_retrigger_ only actually describes the very first
 	  // row scheduled after a (re)start - once one row here has
@@ -378,8 +378,8 @@ class SongState : public TrackState {
 	  }
 	  // Tracks Live View has taken over play their launched clip
 	  // (or nothing) instead of whatever the arrangement has here.
-	  for (auto & [ track_id, session_track ] : session_tracks_) {
-	    if (session_track.isTakenOver()) scheduled_track_ids.insert(track_id);
+	  for (auto & [ track_id, live_track ] : live_tracks_) {
+	    if (live_track.isTakenOver()) scheduled_track_ids.insert(track_id);
 	  }
 
 	  for (auto track_id : scheduled_track_ids) {
@@ -399,20 +399,20 @@ class SongState : public TrackState {
 	    int effective_row = row_idx;
 
 	    // A taken-over track's launched clip counts its rows from its
-	    // launch on the session clock; an arrangement instance from the
+	    // launch on the live clock; an arrangement instance from the
 	    // row it was placed at.
-	    auto session_it = session_tracks_.find(track_id);
-	    bool taken_over = session_it != session_tracks_.end() && session_it->second.isTakenOver();
+	    auto live_it = live_tracks_.find(track_id);
+	    bool taken_over = live_it != live_tracks_.end() && live_it->second.isTakenOver();
 	    // Swing is keyed on the beat grid the row sits on: the transport row,
-	    // or the session clock for a launched clip (launches land on bars, so
+	    // or the live clock for a launched clip (launches land on bars, so
 	    // the two agree) - never the clip's own row.
-	    int swing_row = taken_over ? session_clock_ : row_idx;
+	    int swing_row = taken_over ? live_clock_ : row_idx;
 	    ActiveInstance active{Arrangement::kStopInstance};
 	    int rows_since_start = 0;
 	    if (taken_over) {
-	      if (session_it->second.clip_index >= 0) {
-		active.clip_index = session_it->second.clip_index;
-		rows_since_start = session_clock_ - session_it->second.launch_clock;
+	      if (live_it->second.clip_index >= 0) {
+		active.clip_index = live_it->second.clip_index;
+		rows_since_start = live_clock_ - live_it->second.launch_clock;
 	      }
 	    } else {
 	      active = resolveInstanceAt(song, track_id, row_idx);
@@ -588,7 +588,7 @@ class SongState : public TrackState {
 	if (remaining <= 0) break; // a degenerate tempo - no rows to advance through
 	if (i + remaining <= frames) {
 	  i += remaining;
-	  session_clock_++;
+	  live_clock_++;
 	  if (pending_break_) {
 	    pending_break_ = false;
             jumpToNextBar(song, pending_break_row_);
@@ -807,7 +807,7 @@ class SongState : public TrackState {
 
   // ZBxx (Command::isPatternBreak()): in place of movePosition(1) when the
   // row completes, go to row `row_in_bar` of the next bar (the bar's last
-  // row at most). The session clock doesn't follow, so a launched clip
+  // row at most). The live clock doesn't follow, so a launched clip
   // keeps its own place.
   void jumpToNextBar(const Song & song, int row_in_bar) {
     auto next_bar = barsAt(absolute_pos_).nextBarStart(absolute_pos_);
@@ -890,13 +890,13 @@ class SongState : public TrackState {
   const SongStructure & getSongStructure() const { return song_structure_; }
 
   // Live View: queues `target` for `track_id` - a clip index to launch,
-  // SessionTrackInfo::kSilent to stop, kArrangement to follow the
+  // LiveTrackInfo::kSilent to stop, kArrangement to follow the
   // arrangement again, or kNothingQueued to cancel - taking effect at the
   // start of the transport's next bar. `seq` is reported back in
-  // getSessionSeq().
-  void queueSessionChange(int track_id, int target, int seq) {
-    ::queueSessionChange(session_tracks_, track_id, target);
-    session_seq_ = std::max(session_seq_, seq);
+  // getLiveSeq().
+  void queueLaunch(int track_id, int target, int seq) {
+    ::queueLaunch(live_tracks_, track_id, target);
+    live_seq_ = std::max(live_seq_, seq);
   }
   // Live View: a launched scene's tempo (0: none) and time signature
   // (unset: none), or `clear_running` to hand the bars back to the song's,
@@ -917,27 +917,27 @@ class SongState : public TrackState {
 
   // Stops every launched clip now, releasing its voices, and forgets
   // everything queued - on a transport stop too (seq -1 for that).
-  void silenceSession(int seq) {
-    for (auto & [ track_id, session_track ] : session_tracks_) {
-      if (session_track.clip_index >= 0) releaseSessionTrack(track_id, 0);
+  void silenceLive(int seq) {
+    for (auto & [ track_id, live_track ] : live_tracks_) {
+      if (live_track.clip_index >= 0) releaseLiveTrack(track_id, 0);
     }
-    silenceSessionTracks(session_tracks_);
-    session_seq_ = std::max(session_seq_, seq);
+    silenceLiveTracks(live_tracks_);
+    live_seq_ = std::max(live_seq_, seq);
   }
   // Moves every launched clip's playhead by `delta` rows (a paused
   // transport's cursor move); same sequence number rule as above.
-  void shiftSession(int delta, int seq) {
-    shiftSessionTracks(session_tracks_, session_clock_, delta);
+  void shiftLive(int delta, int seq) {
+    shiftLiveTracks(live_tracks_, live_clock_, delta);
     // Resume at the start of the new row, not partway through the one
     // the pause landed in.
     sample_pos_ = 0;
-    session_seq_ = std::max(session_seq_, seq);
+    live_seq_ = std::max(live_seq_, seq);
   }
-  const SessionTracks & getSessionTracks() const { return session_tracks_; }
-  int getSessionClock() const { return session_clock_; }
-  // The session clock when the transport last started.
-  int getSessionStartClock() const { return session_start_clock_; }
-  int getSessionSeq() const { return session_seq_; }
+  const LiveTracks & getLiveTracks() const { return live_tracks_; }
+  int getLiveClock() const { return live_clock_; }
+  // The live clock when the transport last started.
+  int getLiveStartClock() const { return live_start_clock_; }
+  int getLiveSeq() const { return live_seq_; }
 
 private:
   int tempo_ = 0;
@@ -986,7 +986,7 @@ private:
   }
 
   // Live View's launched clips and stops, per track (see
-  // queueSessionChange()), and the clock they play on: rows played,
+  // queueLaunch()), and the clock they play on: rows played,
   // advancing with the transport but never jumping with it, so a seek or
   // a pattern break doesn't move a launched clip.
   struct PendingScene {
@@ -1013,45 +1013,45 @@ private:
     pending_scene_ = {};
   }
 
-  SessionTracks session_tracks_;
-  int session_clock_ = 0;
-  int session_start_clock_ = 0;
-  int session_seq_ = 0;
+  LiveTracks live_tracks_;
+  int live_clock_ = 0;
+  int live_start_clock_ = 0;
+  int live_seq_ = 0;
 
   // At the start of every row played: ends a launched one-shot that has
   // played through, and on the first row of a bar applies whatever is
   // queued.
-  void advanceSessionTracks(const Song & song, int frame) {
+  void advanceLiveTracks(const Song & song, int frame) {
     // A launched scene's tempo and signature take effect on the bar (or
     // the first row played, from a stopped transport) the clips launch on.
     if (pending_scene_.active && (pending_scene_.immediate || barsAt(absolute_pos_).rowInBar(absolute_pos_) == 0)) applyPendingScene();
     bool bar_start = barsAt(absolute_pos_).rowInBar(absolute_pos_) == 0;
-    for (auto it = session_tracks_.begin(); it != session_tracks_.end(); ) {
+    for (auto it = live_tracks_.begin(); it != live_tracks_.end(); ) {
       auto track_id = it->first;
-      auto & session_track = it->second;
+      auto & live_track = it->second;
       auto & clips = song.getClips(track_id);
-      if (session_track.clip_index >= 0) {
-	bool gone = session_track.clip_index >= static_cast<int>(clips.size());
+      if (live_track.clip_index >= 0) {
+	bool gone = live_track.clip_index >= static_cast<int>(clips.size());
 	bool finished = false;
 	if (!gone) {
-	  auto & clip = clips[static_cast<size_t>(session_track.clip_index)];
-	  finished = !clip.isLooping() && session_clock_ - session_track.launch_clock >= std::max(1, clip.getLength());
+	  auto & clip = clips[static_cast<size_t>(live_track.clip_index)];
+	  finished = !clip.isLooping() && live_clock_ - live_track.launch_clock >= std::max(1, clip.getLength());
 	}
 	if (gone || finished) {
-	  releaseSessionTrack(track_id, frame);
-	  session_track.clip_index = SessionTrackInfo::kSilent;
+	  releaseLiveTrack(track_id, frame);
+	  live_track.clip_index = LiveTrackInfo::kSilent;
 	}
       }
-      if (bar_start && session_track.queued != SessionTrackInfo::kNothingQueued) {
-	auto target = session_track.queued;
+      if (bar_start && live_track.queued != LiveTrackInfo::kNothingQueued) {
+	auto target = live_track.queued;
 	// An empty slot has nothing to launch.
-	if (target >= 0 && (target >= static_cast<int>(clips.size()) || clips[static_cast<size_t>(target)].isEmpty())) target = SessionTrackInfo::kSilent;
-	releaseSessionTrack(track_id, frame);
-	session_track.clip_index = target;
-	session_track.launch_clock = session_clock_;
-	session_track.queued = SessionTrackInfo::kNothingQueued;
+	if (target >= 0 && (target >= static_cast<int>(clips.size()) || clips[static_cast<size_t>(target)].isEmpty())) target = LiveTrackInfo::kSilent;
+	releaseLiveTrack(track_id, frame);
+	live_track.clip_index = target;
+	live_track.launch_clock = live_clock_;
+	live_track.queued = LiveTrackInfo::kNothingQueued;
       }
-      if (session_track.isIdle()) it = session_tracks_.erase(it);
+      if (live_track.isIdle()) it = live_tracks_.erase(it);
       else ++it;
     }
   }
@@ -1059,7 +1059,7 @@ private:
   // Whatever `track_id` was sounding gives way - a launch, stop or return
   // to the arrangement taking effect - through its natural release, and
   // the next row starts it afresh rather than as a continuation.
-  void releaseSessionTrack(int track_id, int frame) {
+  void releaseLiveTrack(int track_id, int frame) {
     auto * track_state = getChildByInternalId(track_id);
     if (dynamic_cast<SampleTrackState *>(track_state)) {
       render_context_.addPendingSampleStop(track_id, frame, false);

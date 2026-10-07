@@ -1978,15 +1978,15 @@ TerminalUI::initializeWidgets() {
   commands_.define("launch-clip", [this]() {
     if (!pattern_editor_->isLiveMode()) return;
     auto track_id = getController().getSong().getCurrentTrackId();
-    getController().getSessionPlayer().triggerClip(track_id, pattern_editor_->getLiveScene(track_id));
+    getController().getClipPlayer().triggerClip(track_id, pattern_editor_->getLiveScene(track_id));
   });
   commands_.define("launch-scene", [this]() {
     if (!pattern_editor_->isLiveMode()) return;
     auto & song = getController().getSong();
-    getController().getSessionPlayer().launchScene(pattern_editor_->getLiveScene(song.getCurrentTrackId()), song.getPlayableTrackIds());
+    getController().getClipPlayer().launchScene(pattern_editor_->getLiveScene(song.getCurrentTrackId()), song.getPlayableTrackIds());
   });
   commands_.define("stop-all-clips", [this]() {
-    getController().getSessionPlayer().stopAllTracks();
+    getController().getClipPlayer().stopAllTracks();
   });
   // Arrangement view's scope row (cover art, ArrangementGrid, charts), and
   // Live View's spectrum/heatmap under the outline panel.
@@ -2316,16 +2316,16 @@ TerminalUI::renderComponents(bool refresh) {
   // Every frame, whichever view shows: a track whose clip stops stays
   // where playback left it.
   std::unordered_map<int, ScenePatternSource::Playhead> playheads;
-  for (auto & [ track_id, playhead ] : getController().getSessionPlayer().playheads()) {
+  for (auto & [ track_id, playhead ] : getController().getClipPlayer().playheads()) {
     if (playhead.clip_index >= 0) playheads[track_id] = { playhead.clip_index, playhead.row, playhead.elapsed, playhead.looping };
   }
-  pattern_editor_->setSessionPlayheads(std::move(playheads));
+  pattern_editor_->setLivePlayheads(std::move(playheads));
 
   // Only what the current view shows (see layout()) - a hidden widget
   // drawing would paint over whichever visible one shares its rect.
   if (getView() == View::LIVE) {
     clip_grid_->setClipStateSource([this](int track_id, int clip_index) {
-      return getController().getSessionPlayer().clipHighlight(track_id, clip_index);
+      return getController().getClipPlayer().clipHighlight(track_id, clip_index);
     });
     clip_grid_->setTrackClipSource([this](int track_id) { return pattern_editor_->getLiveScene(track_id); });
     render |= clip_grid_->render(styles_, refresh, active == clip_grid_);
@@ -2337,9 +2337,9 @@ TerminalUI::renderComponents(bool refresh) {
   render |= info_line_->render(styles_, refresh);
   render |= octave_control_->render(styles_, refresh);
 
-  auto & session_player = getController().getSessionPlayer();
-  session_player.setAssignRow(arrangement_grid_->getCursorRow(song));
-  session_player.tick();
+  auto & clip_player = getController().getClipPlayer();
+  clip_player.setAssignRow(arrangement_grid_->getCursorRow(song));
+  clip_player.tick();
 
   if (launchpad_manager_) {
     auto track_ids = song.getPlayableTrackIds();
@@ -2825,19 +2825,19 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
     pattern_editor_->setCursorTrack(new_track_index);
     clip_grid_->setCursorTrackIndex(new_track_index);
   });
-  // ClipGrid's own Enter key - acts exactly like a Launchpad Session
-  // view pad press on the same cell (SessionPlayer::triggerClip(), same as
+  // ClipGrid's own Enter key - acts exactly like a Launchpad Live
+  // view pad press on the same cell (ClipPlayer::triggerClip(), same as
   // handleLivePadEvent() itself resolves to).
   clip_grid_->setTriggerCallback([this](int track_id, int clip_index) {
-    getController().getSessionPlayer().triggerClip(track_id, clip_index);
+    getController().getClipPlayer().triggerClip(track_id, clip_index);
   });
   clip_grid_->setSceneCallback([this](int clip_index) {
-    getController().getSessionPlayer().launchScene(clip_index, getController().getSong().getPlayableTrackIds());
+    getController().getClipPlayer().launchScene(clip_index, getController().getSong().getPlayableTrackIds());
   });
-  clip_grid_->setStopAllCallback([this]() { getController().getSessionPlayer().stopAllTracks(); });
+  clip_grid_->setStopAllCallback([this]() { getController().getClipPlayer().stopAllTracks(); });
   // A launch that writes into the arrangement starts the transport the
   // way a Launchpad recording does, so disarming stops it again.
-  getController().getSessionPlayer().setAssignPlaybackStarter([this]() { launchpad_manager_->startAssignPlayback(getController()); });
+  getController().getClipPlayer().setAssignPlaybackStarter([this]() { launchpad_manager_->startAssignPlayback(getController()); });
   // Record Arm's own drum-machine-track repurposing ("toggle-record-arm",
   // Controller.cpp) - opening a clip (Controller::setFocusedClip()) moves
   // the shared track cursor to it (so PatternEditor's/the Launchpad's own
@@ -2878,7 +2878,7 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
       // Live-View-triggered clip was still sounding, rather than
       // layering the drum edit preview under either one.
       if (getController().getPlaybackInfo().isPlaying()) getController().togglePlaying();
-      getController().getSessionPlayer().silenceAll();
+      getController().getClipPlayer().silenceAll();
     } else {
       launchpad_manager_->forceLiveModeOnAllDevices();
     }

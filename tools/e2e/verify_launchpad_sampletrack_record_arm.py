@@ -1,7 +1,7 @@
-"""Regression test for SessionPlayer::triggerClip()'s own
+"""Regression test for ClipPlayer::triggerClip()'s own
 SampleTrack branch: a Live-View pad press on a SampleTrack armed via
 the track-picker overlay (CC19) now actually arms real audio capture
-(Controller::armSessionTrackRecording()/armThresholdRecording()) instead
+(Controller::armLiveTrackRecording()/armThresholdRecording()) instead
 of silently falling through to plain audition/assign the way it used to
 (the `is_sample_track` carve-out this test closes), and a second press on
 that same pad cancels the still-idle arm again.

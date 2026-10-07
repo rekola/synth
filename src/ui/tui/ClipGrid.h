@@ -84,8 +84,8 @@ class ClipGrid : public UIElement {
   void setCursorClipIndex(int clip_index) { cursor_row_ = 1 + std::max(clip_index, 0); }
 
   // Called on Enter over a clip row (populated or not) with the row's own
-  // (track_id, clip_index) - Enter acts exactly like a Launchpad Session
-  // view pad press landing on that same cell (SessionPlayer::
+  // (track_id, clip_index) - Enter acts exactly like a Launchpad Live
+  // view pad press landing on that same cell (ClipPlayer::
   // triggerClip()), never a separate "focus for editing" gesture
   // of its own, the same callback-not-reaching-into-UI pattern
   // ArrangementGrid's own commit_callback_ already uses (this class has

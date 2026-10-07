@@ -314,14 +314,14 @@ UI::handleThresholdRecordingTriggeredEvent(ThresholdRecordingTriggeredEvent & ev
   // position is armed for beginSampleCapture() to place at.
   getController().startRecording();
 
-  // Never for a Live View take (isSessionRecording(track_id)) - that
+  // Never for a Live View take (isLiveRecording(track_id)) - that
   // populates a clip slot directly with no arrangement position at all,
   // so there's nothing here to quantize or snapshot; beginSampleCapture()
   // already treats recording_start_row_'s own untouched -1 default as
   // "stays unplaced."
-  bool is_session_recording_take = getController().isSessionRecording(ev.getTrackId());
+  bool is_live_recording_take = getController().isLiveRecording(ev.getTrackId());
   auto start_row = ev.getRow();
-  if (!is_session_recording_take) {
+  if (!is_live_recording_take) {
     // Bar-quantized the same way ensureNoteRecordingClip() already
     // quantizes a brand-new live-recorded clip's own origin - rounded
     // back (previousBarRow()), never forward, so the take's own true
@@ -349,7 +349,7 @@ UI::handleThresholdRecordingTriggeredEvent(ThresholdRecordingTriggeredEvent & ev
   }
 
   getController().addToSample(ev.getPreroll());
-  if (!is_session_recording_take) getController().armRecordingStart(start_row);
+  if (!is_live_recording_take) getController().armRecordingStart(start_row);
   getController().beginSampleCapture(ev.getTrackId());
   getController().clearThresholdArmed();
 }
@@ -434,9 +434,9 @@ UI::initializeCommands() {
   });
   // Tracks Live View took over follow the arrangement again from the
   // next bar - every one, or just the current track.
-  commands_.define("back-to-arrangement", [this]() { getController().getSessionPlayer().returnAllToArrangement(); });
+  commands_.define("back-to-arrangement", [this]() { getController().getClipPlayer().returnAllToArrangement(); });
   commands_.define("track-back-to-arrangement", [this]() {
-    getController().getSessionPlayer().returnToArrangement(getController().getSong().getCurrentTrackId());
+    getController().getClipPlayer().returnToArrangement(getController().getSong().getCurrentTrackId());
   });
   // Global, not any one widget's own - both computer-keyboard note entry
   // and every connected Launchpad's own octave read

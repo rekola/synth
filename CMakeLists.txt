@@ -115,7 +115,7 @@ add_library(synth_engine STATIC
 	src/effects/TapeDegradation.cpp
 	src/dsp/TapeTransport.cpp
 	src/playback/Player.cpp
-	src/playback/SessionPlayer.cpp
+	src/playback/ClipPlayer.cpp
 	src/playback/MidiNoteInput.cpp
 	src/playback/VisualizationThread.cpp
 	src/dsp/DiracAnalyzer.cpp

@@ -1,5 +1,5 @@
-#ifndef _SESSIONPLAYER_H_
-#define _SESSIONPLAYER_H_
+#ifndef _CLIPPLAYER_H_
+#define _CLIPPLAYER_H_
 
 #include "../launchpad/ClipHighlight.h"
 #include "../model/Song.h"
@@ -12,20 +12,20 @@
 #include <vector>
 
 class Controller;
-struct SessionTrackInfo;
+struct LiveTrackInfo;
 
 // Live View: launching clips, stopping tracks and returning them to
 // the arrangement, all inside the one transport. A launch takes its track
 // over from the arrangement at the transport's next bar; the audio thread
-// (SongState::queueSessionChange()) owns that and plays the launched
+// (SongState::queueLaunch()) owns that and plays the launched
 // clips, and each playback snapshot reports it back. This keeps the
 // UI-side bookkeeping - the Live View takes - and predicts a queued
 // change until a snapshot has caught up with it. Owned by Controller, so
 // every launch - a Launchpad pad, the clip grid, a command - goes through
 // the same place, with or without a device connected.
-class SessionPlayer {
+class ClipPlayer {
  public:
-  explicit SessionPlayer(Controller & controller) : controller_(controller) { }
+  explicit ClipPlayer(Controller & controller) : controller_(controller) { }
 
   // A Live View pad press on (track_id, clip_index). With Record Arm
   // off, a populated slot queues the clip to launch at the next bar,
@@ -81,18 +81,18 @@ class SessionPlayer {
   // first row of a bar and growing the takes in flight.
   void tick();
 
-  // The session clock's step nearest to now - a live press just after a
+  // The live clock's step nearest to now - a live press just after a
   // row boundary is more likely an early attempt at the next one - and the
   // step the bar it falls in began at.
   // `delay` is the sub-row offset (0-255 of a row, a Note's own delay
   // unit) a raw step carries; a quantized one has none.
   struct Step { int step; int bar_start; int delay = 0; };
   Step quantizedStep() const;
-  // The session clock's step the press falls in, rounded down, with how far
+  // The live clock's step the press falls in, rounded down, with how far
   // into that row it landed - what an unquantized live take records.
   Step rawStep() const;
 
-  // Whether a launched clip is playing on `track_id`, and whether Session
+  // Whether a launched clip is playing on `track_id`, and whether Live
   // view has taken the track over from the arrangement at all (a stopped
   // track stays taken over, silent).
   bool isLaunched(int track_id) const;
@@ -120,14 +120,14 @@ class SessionPlayer {
   ClipHighlight clipHighlight(int track_id, int clip_index) const;
 
  private:
-  const SessionTrackInfo * sessionTrack(int track_id) const;
+  const LiveTrackInfo * liveTrack(int track_id) const;
   // Sends a queued change to the audio thread and predicts it locally.
   void queueChange(int track_id, int target);
   void startTransport();
   // Queues the stop of `track_id`'s note take for the next bar - where a
   // fresh take also starts looping, launched on the same bar.
   void queueTakeStop(int track_id);
-  // One transport row, `step` on the session clock and `row` in the
+  // One transport row, `step` on the live clock and `row` in the
   // arrangement.
   void advanceToRow(int step, int row);
   // Queues every take that just finished to loop back from the next bar,
@@ -156,7 +156,7 @@ class SessionPlayer {
 
   // The last sequence number sent with a queued change.
   int seq_ = 0;
-  // The session clock step tick() last walked to, or -1 while stopped.
+  // The live clock step tick() last walked to, or -1 while stopped.
   int last_step_ = -1;
 
   // A pending take. STOP ends just the in-flight take, leaving the track

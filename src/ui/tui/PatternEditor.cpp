@@ -730,15 +730,15 @@ PatternEditor::scrollViewTracks(int delta_tracks) {
 }
 
 void
-PatternEditor::setSessionPlayheads(std::unordered_map<int, ScenePatternSource::Playhead> playheads) {
+PatternEditor::setLivePlayheads(std::unordered_map<int, ScenePatternSource::Playhead> playheads) {
   // Only redraw when a playhead actually moved.
-  bool changed = playheads.size() != session_playheads_.size();
+  bool changed = playheads.size() != live_playheads_.size();
   for (auto & [ track_id, playhead ] : playheads) {
-    auto it = session_playheads_.find(track_id);
-    if (it == session_playheads_.end() || it->second.scene != playhead.scene || it->second.row != playhead.row) changed = true;
+    auto it = live_playheads_.find(track_id);
+    if (it == live_playheads_.end() || it->second.scene != playhead.scene || it->second.row != playhead.row) changed = true;
   }
   if (!changed) return;
-  session_playheads_ = playheads;
+  live_playheads_ = playheads;
   scene_source_->setPlayheads(std::move(playheads));
   // The cursor track's position wrapping with its loop moves the view with
   // it, so the line carries on down the screen instead of jumping.

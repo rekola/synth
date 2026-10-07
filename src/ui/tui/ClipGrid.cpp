@@ -142,7 +142,7 @@ ClipGrid::ClipGrid(UIPlane & parent) : UIElement(parent) {
     auto slot = cursor_slot();
     if (!slot) return;
     copy_clip();
-    getController().getSessionPlayer().deleteClip(slot->first, slot->second);
+    getController().getClipPlayer().deleteClip(slot->first, slot->second);
   });
   // Pastes the clipboard's clip into the slot under the cursor as an
   // independent copy, overwriting what is there. Copying a clip and
@@ -348,7 +348,7 @@ void
 ClipGrid::activateCell(const Song & song, const std::vector<int> & track_ids, bool edit_sends) {
   auto num_tracks = static_cast<int>(track_ids.size());
   // A clip row acts exactly like a Launchpad Live View pad press
-  // landing on that same cell (SessionPlayer::triggerClip(), via
+  // landing on that same cell (ClipPlayer::triggerClip(), via
   // trigger_callback_ - see setTriggerCallback()'s own comment) - an empty
   // row stops/cancels whatever the track is doing, the same as pressing an
   // unassigned pad would, so it's called unconditionally on any CLIP row
@@ -670,7 +670,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     auto monitor = leaf ? leaf->getMonitor() : LeafTrack::Monitor::AUTO;
     // The leading two cells mark a track playing Live View rather than
     // the arrangement; otherwise they're left to the header's own blank.
-    if (getController().getSessionPlayer().isTakenOver(track_id)) {
+    if (getController().getClipPlayer().isTakenOver(track_id)) {
       setFgColor(styles.clip_override_color);
       putstr(0, x + name_width, "◆");
     }

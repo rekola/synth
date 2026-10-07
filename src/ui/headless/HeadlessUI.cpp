@@ -9,7 +9,7 @@
 #include "../../playback/PlaybackControlEvent.h"
 #include "../../instruments/Tuning.h"
 #include "../../playback/PlaybackEvent.h"
-#include "../../playback/SessionPlayer.h"
+#include "../../playback/ClipPlayer.h"
 #include "../../Controller.h"
 #include "../../model/ArrangementOps.h"
 #include "../../model/Song.h"
@@ -57,7 +57,7 @@ class HeadlessPlane : public UIPlane {
   void refresh() override { }
 };
 
-// Roughly a frame at 50 Hz - how often the session player and Launchpad
+// Roughly a frame at 50 Hz - how often the clip player and Launchpad
 // LEDs get serviced when no event wakes the loop sooner.
 constexpr int kTickIntervalMs = 20;
 
@@ -153,14 +153,14 @@ HeadlessUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
       song.setCurrentTrackId(track_ids[static_cast<size_t>(new_track_index)]);
     }
   });
-  getController().getSessionPlayer().setAssignPlaybackStarter([this]() { launchpad_manager_->startAssignPlayback(getController()); });
+  getController().getClipPlayer().setAssignPlaybackStarter([this]() { launchpad_manager_->startAssignPlayback(getController()); });
   getController().setDrumEditRequestListener([this](int track_id, bool opened) {
     if (opened) {
       getController().getSong().setCurrentTrackId(track_id);
       launchpad_manager_->forceNotesModeOnAllDevices();
       launchpad_manager_->resetStepGridView();
       if (getController().getPlaybackInfo().isPlaying()) getController().togglePlaying();
-      getController().getSessionPlayer().silenceAll();
+      getController().getClipPlayer().silenceAll();
     } else {
       launchpad_manager_->forceLiveModeOnAllDevices();
     }
@@ -173,7 +173,7 @@ HeadlessUI::tick() {
   auto & song = controller.getSong();
   controller.syncMonitoring();
   controller.tickNotePressure();
-  controller.getSessionPlayer().tick();
+  controller.getClipPlayer().tick();
 
   if (launchpad_manager_) {
     auto track_ids = song.getPlayableTrackIds();

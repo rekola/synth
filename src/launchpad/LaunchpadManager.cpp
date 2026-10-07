@@ -652,11 +652,11 @@ LaunchpadManager::recordFaderAutomationIfArmed(Controller & controller, FaderSta
   auto & song = controller.getSong();
   Pattern * pattern = nullptr;
   int row = 0;
-  if (controller.isSessionRecording(track_id)) {
+  if (controller.isLiveRecording(track_id)) {
     // Into the take's clip, at the row a note pressed now lands on.
-    auto step = controller.getSessionPlayer().quantizedStep();
-    auto take_row = controller.ensureSessionRecordingClip(track_id, step.step, step.bar_start);
-    auto clip_index = controller.getSessionRecordingClipIndex(track_id);
+    auto step = controller.getClipPlayer().quantizedStep();
+    auto take_row = controller.ensureLiveRecordingClip(track_id, step.step, step.bar_start);
+    auto clip_index = controller.getLiveRecordingClipIndex(track_id);
     auto & clips = song.getClips(track_id);
     if (take_row < 0 || clip_index < 0 || clip_index >= static_cast<int>(clips.size())) return;
     auto & clip = clips[static_cast<size_t>(clip_index)];
@@ -1075,7 +1075,7 @@ LaunchpadManager::handleRecordButton(int device_id, Controller & controller, boo
   auto track_ids = controller.getSong().getPlayableTrackIds();
   auto followed = cursor_track_index_ >= 0 && cursor_track_index_ < static_cast<int>(track_ids.size()) ?
     track_ids[static_cast<size_t>(cursor_track_index_)] : -1;
-  if (!controller.getSessionPlayer().toggleOverdub(followed)) {
+  if (!controller.getClipPlayer().toggleOverdub(followed)) {
     ui_events.push(std::make_unique<LogEvent>("Session Record: no playing clip to overdub"));
   }
   return true;
@@ -1285,7 +1285,7 @@ LaunchpadManager::handleTrackPickerPadEvent(const LaunchpadPadEvent & ev, Contro
 
   switch (state.track_picker_purpose) {
   case DeviceState::TrackPickerPurpose::STOP_CLIP:
-    controller.getSessionPlayer().stopTrack(track_id);
+    controller.getClipPlayer().stopTrack(track_id);
     break;
   case DeviceState::TrackPickerPurpose::MUTE:
     controller.toggleTrackMuted(track_id);
@@ -1297,7 +1297,7 @@ LaunchpadManager::handleTrackPickerPadEvent(const LaunchpadPadEvent & ev, Contro
     // Pure per-track bookkeeping regardless of track type (Controller::
     // toggleTrackArmed()'s own comment) - a SampleTrack's own audio
     // capture isn't on the new quantized-start-via-pad-press path yet
-    // (SessionPlayer::triggerClip()'s own SampleTrack carve-out), but arming it
+    // (ClipPlayer::triggerClip()'s own SampleTrack carve-out), but arming it
     // here is still exactly this same harmless toggle; only what a later
     // pad press on it actually does differs.
     controller.toggleTrackArmed(track_id);
@@ -1399,7 +1399,7 @@ LaunchpadManager::handleCommand(string_view name, int device_id, int fallback_tr
     }
     // Only meaningful in GridMode::LIVE otherwise - moves the overview's
     // own bar cursor via live_move_bar_callback_ (see that member's own
-    // comment for why this doesn't scroll a local row window: Session
+    // comment for why this doesn't scroll a local row window: Live
     // view's rows are a track's own clips). Outside LIVE,
     // "move-row-up"/"move-row-down" isn't this class's command at all
     // (PatternEditor's own row navigation owns it, reached via
@@ -1626,7 +1626,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
   // sounds and records exactly as it would without a clip open. The step
   // view only ever edits a clip, never the track's own background Pattern,
   // which has no pagination and spans the whole song.
-  if (!controller.isAnySessionRecording() && controller.getFocusedClipTrackId() == track_id) {
+  if (!controller.isAnyLiveRecording() && controller.getFocusedClipTrackId() == track_id) {
     auto assigned_track = song.getMasterTrack().getChildByInternalId(track_id);
     if (assigned_track && (assigned_track->getType() == TrackType::PERCUSSION_CONTROL || assigned_track->getType() == TrackType::INSTRUMENT_CONTROL)) {
       if (ev.getY() >= LaunchpadLayout::kPlayRows) {
@@ -1646,13 +1646,13 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
   // ordinary chromatic note entry below - the take's own track and
   // instrument decide what plays, not whichever track the shared cursor
   // (or a pinned drum-clip focus) happens to be on. The lowest track_id
-  // among Controller::getSessionRecordingTrackIds(), since that set has
+  // among Controller::getLiveRecordingTrackIds(), since that set has
   // no other stable order - refresh()'s own identical override
   // (pinned_track_id) is this method's LED-rendering counterpart, so the
   // grid's own coloring always agrees with what a press here actually
   // does. Once resolved this way, note_value/tuning/percussion-ness below
   // all naturally follow from this one track, same as the ordinary case.
-  auto recording_track_ids = controller.getSessionRecordingTrackIds();
+  auto recording_track_ids = controller.getLiveRecordingTrackIds();
   int recording_reference_track_id = -1;
   for (auto candidate : recording_track_ids) {
     if (recording_reference_track_id < 0 || candidate < recording_reference_track_id) recording_reference_track_id = candidate;
@@ -1693,40 +1693,40 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
   auto current_delay = info.getCurrentDelay();
   auto & event_queue = controller.getPlaybackEventQueue();
 
-  // Where a live press lands on the Session clock: raw by default, the row
+  // Where a live press lands on the Live clock: raw by default, the row
   // it's in plus how far into it (the note's delay), or - with Record
   // Quantise on (Song::getRecordQuantize()) - the nearest row, no delay.
   // One shared decision for every target track below (the primary and
   // every fan-out one alike), not recomputed per track.
-  auto & session_player = controller.getSessionPlayer();
-  auto take_step = song.getRecordQuantize() ? session_player.quantizedStep() : session_player.rawStep();
+  auto & clip_player = controller.getClipPlayer();
+  auto take_step = song.getRecordQuantize() ? clip_player.quantizedStep() : clip_player.rawStep();
   auto quantized_row = [&](int take_track_id) {
-    return controller.ensureSessionRecordingClip(take_track_id, take_step.step, take_step.bar_start);
+    return controller.ensureLiveRecordingClip(take_track_id, take_step.step, take_step.bar_start);
   };
 
   if (ev.getKind() == LaunchpadPadEvent::PRESS) {
     // A Live View take targeting this exact track writes into that
-    // take's own clip directly, indexed by the session clock (this device's
+    // take's own clip directly, indexed by the live clock (this device's
     // NOTE grid is the only way a Live View take ever receives notes at
     // all), never the arrangement position.
-    // ensureSessionRecordingClip() itself owns turning an absolute clock
+    // ensureLiveRecordingClip() itself owns turning an absolute clock
     // step into a row relative to this take's own row 0 (established from
     // whichever step happens to be this take's *first* one - see its own
     // comment), so row 0 always means "the start of the bar this take
     // began in", not the instant of this specific press.
-    bool session_recording_here = controller.isSessionRecording(track_id);
+    bool live_recording_here = controller.isLiveRecording(track_id);
     auto row = info.getAbsolutePosition();
-    if (session_recording_here) {
+    if (live_recording_here) {
       row = quantized_row(track_id);
     }
     auto & state = deviceState(device_id);
 
     Pattern * session_pattern = nullptr;
     int session_row = 0;
-    if (session_recording_here) {
+    if (live_recording_here) {
       if (row < 0) return; // nothing actually armed for this track (shouldn't normally happen)
       auto & clips = song.getClips(track_id);
-      auto clip_index = controller.getSessionRecordingClipIndex(track_id);
+      auto clip_index = controller.getLiveRecordingClipIndex(track_id);
       if (clip_index >= 0 && clip_index < static_cast<int>(clips.size())) {
         auto & clip = clips[static_cast<size_t>(clip_index)];
         session_pattern = &clip.getLeafPattern();
@@ -1742,7 +1742,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // by any remap).
     auto edit_target = session_pattern ? EditTarget{ session_pattern, session_row }
       : resolveEditTarget(song, track_id, row, controller.getFocusedClip());
-    if (session_recording_here && !session_pattern) return; // nothing valid to write into (shouldn't normally happen)
+    if (live_recording_here && !session_pattern) return; // nothing valid to write into (shouldn't normally happen)
 
     // The transport itself is already running by the time any press can
     // reach here - Record Arm starts it immediately on arming
@@ -1757,7 +1757,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // placed a brand new instance here, so it would otherwise still point
     // at the (now superseded) background - the free-slot search and this
     // press's own write below both need the fresh one.
-    if (!session_recording_here && state.capture_enabled && info.isPlaying()) {
+    if (!live_recording_here && state.capture_enabled && info.isPlaying()) {
       controller.ensureNoteRecordingClip(auto_record_clip_ids_, track_id, row);
       edit_target = resolveEditTarget(song, track_id, row, controller.getFocusedClip());
     }
@@ -1797,16 +1797,16 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
 
     recordActiveNote(device_id, ev.getX(), ev.getY(), {note_column, row, track_id});
 
-    // session_recording_here is its own permission to write - an active
+    // live_recording_here is its own permission to write - an active
     // take is armed independently of the ordinary (non-Live-View)
     // capture_enabled flag, and must not depend on it (Controller::
     // isTrackArmed()'s own doc comment: "toggle-record-arm" no longer
     // touches capture_enabled at all for a Live View take).
-    if (session_recording_here || state.capture_enabled) {
+    if (live_recording_here || state.capture_enabled) {
       // A Live View take uses take_step's own delay (0 once quantized),
       // not current_delay, which reads the global transport's own delay
       // tracking - meaningless while it never advances during one.
-      Note note(note_value, velocity, session_recording_here ? static_cast<short>(take_step.delay) : current_delay);
+      Note note(note_value, velocity, live_recording_here ? static_cast<short>(take_step.delay) : current_delay);
       edit_target.pattern->setNote(edit_target.effective_row, note_column, note);
       song.incVersion();
     }
@@ -1825,7 +1825,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
       auto fan_out_row = quantized_row(fan_out_track_id);
       if (fan_out_row < 0) continue;
       auto & fan_out_clips = song.getClips(fan_out_track_id);
-      auto fan_out_clip_index = controller.getSessionRecordingClipIndex(fan_out_track_id);
+      auto fan_out_clip_index = controller.getLiveRecordingClipIndex(fan_out_track_id);
       if (fan_out_clip_index < 0 || fan_out_clip_index >= static_cast<int>(fan_out_clips.size())) continue;
       auto & fan_out_clip = fan_out_clips[static_cast<size_t>(fan_out_clip_index)];
       auto fan_out_session_row = fan_out_row % std::max(1, fan_out_clip.getLength());
@@ -1870,25 +1870,25 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // applies to any of them - PRESS's own track_id override means a
     // press is either entirely session-recording (the primary track_id
     // itself already redirected to one) or entirely ordinary, never a mix.
-    bool any_session_recording = false;
+    bool any_live_recording = false;
     for (auto & held : held_notes) {
       controller.endNotePressure(held.track_id, held.note_column);
       // Always silence the live-audition voice.
       event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, controller.getActiveBufferName(), held.track_id, held.note_column));
 
       // A Live View take writes its own release off into the take's
-      // clip, keyed off the same session clock step (rounded the same way
+      // clip, keyed off the same live clock step (rounded the same way
       // the PRESS branch above rounds it) rather than the arrangement
       // row.
-      bool session_recording_here = controller.isSessionRecording(held.track_id);
-      if (session_recording_here) {
-        any_session_recording = true;
-        // session_recording_here is its own permission to write,
+      bool live_recording_here = controller.isLiveRecording(held.track_id);
+      if (live_recording_here) {
+        any_live_recording = true;
+        // live_recording_here is its own permission to write,
         // independent of capture_enabled - see the PRESS branch's own
         // identical reasoning.
         auto release_row = quantized_row(held.track_id);
         auto & clips = song.getClips(held.track_id);
-        auto clip_index = controller.getSessionRecordingClipIndex(held.track_id);
+        auto clip_index = controller.getLiveRecordingClipIndex(held.track_id);
         // Same "not the row the note itself is on" rule as the ordinary
         // performance-recording branch below - a single Pattern row can't
         // hold both a note and its own off.
@@ -1922,7 +1922,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // norm whenever Capture is on) and never for a Live View take (a
     // live take has no transport position of its own to advance) - a
     // stopped, pure-audition release must not touch the cursor either.
-    if (!any_session_recording && state.capture_enabled && !info.isPlaying() && !hasAnyActiveNotes(device_id)) {
+    if (!any_live_recording && state.capture_enabled && !info.isPlaying() && !hasAnyActiveNotes(device_id)) {
       controller.moveEditPosition(edit_step_size);
     }
 
@@ -1945,7 +1945,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     if (!held_ptr || held_ptr->empty()) return; // no held note(s) to modulate
 
     bool take_held = false;
-    for (auto & held : *held_ptr) take_held = take_held || controller.isSessionRecording(held.track_id);
+    for (auto & held : *held_ptr) take_held = take_held || controller.isLiveRecording(held.track_id);
     bool write_pressure = deviceState(device_id).capture_enabled || take_held;
 
     for (auto & held : *held_ptr) {
@@ -1956,8 +1956,8 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
       int note_row = held.row;
       Controller::PressureWriter write_row;
       Controller::PressureRowSource current_row;
-      if (controller.isSessionRecording(held_track)) {
-        // A Live View take writes into its own clip at the session clock's
+      if (controller.isLiveRecording(held_track)) {
+        // A Live View take writes into its own clip at the live clock's
         // row, like its release does - never on the row the note itself is
         // on, which would overwrite the note.
         row = quantized_row(held_track);
@@ -1965,7 +1965,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
         if (write_pressure) {
           write_row = [&controller, held_track, column, note_row](int r, short p) {
             auto & clips = controller.getSong().getClips(held_track);
-            auto clip_index = controller.getSessionRecordingClipIndex(held_track);
+            auto clip_index = controller.getLiveRecordingClipIndex(held_track);
             if (r < 0 || r == note_row || clip_index < 0 || clip_index >= static_cast<int>(clips.size())) return;
             auto & clip = clips[static_cast<size_t>(clip_index)];
             auto & pattern = clip.getLeafPattern();
@@ -1977,10 +1977,10 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
             pattern.setNote(clip_row, column, note);
           };
           current_row = [&controller, held_track]() {
-            if (!controller.isSessionRecording(held_track)) return -1;
-            auto & player = controller.getSessionPlayer();
+            if (!controller.isLiveRecording(held_track)) return -1;
+            auto & player = controller.getClipPlayer();
             auto step = controller.getSong().getRecordQuantize() ? player.quantizedStep() : player.rawStep();
-            return controller.ensureSessionRecordingClip(held_track, step.step, step.bar_start);
+            return controller.ensureLiveRecordingClip(held_track, step.step, step.bar_start);
           };
         }
       } else {
@@ -2042,12 +2042,12 @@ LaunchpadManager::handleLivePadEvent(const LaunchpadPadEvent & ev, Controller & 
   // all.
   // Delete held (shift + Pan): every press is swallowed; a populated slot
   // loses its clip, an empty one its stop button. Instant unless the clip
-  // is sounding on a running transport (SessionPlayer::deleteClip()).
+  // is sounding on a running transport (ClipPlayer::deleteClip()).
   if (state.delete_held) {
     if (ev.getKind() != LaunchpadPadEvent::PRESS) return;
     auto column = ev.getX();
     if (column < 0 || column >= static_cast<int>(live_.track_ids.size())) return;
-    controller.getSessionPlayer().deleteClip(live_.track_ids[static_cast<size_t>(column)], 7 - ev.getY());
+    controller.getClipPlayer().deleteClip(live_.track_ids[static_cast<size_t>(column)], 7 - ev.getY());
     return;
   }
   // Quantise held (shift + Send A): a press on a populated slot quantizes
@@ -2114,14 +2114,14 @@ LaunchpadManager::handleLivePadEvent(const LaunchpadPadEvent & ev, Controller & 
   if (track_index < 0 || track_index >= static_cast<int>(live_.track_ids.size())) return;
   auto track_id = live_.track_ids[static_cast<size_t>(track_index)];
 
-  controller.getSessionPlayer().triggerClip(track_id, 7 - ev.getY());
+  controller.getClipPlayer().triggerClip(track_id, 7 - ev.getY());
 }
 
 void
 LaunchpadManager::triggerSceneRow(Controller & controller, int row) {
   // Same y-flip Live View's own columns use (handleLivePadEvent()) -
   // row 0 (bottom) is clip index 7, row 7 (top) is clip index 0.
-  controller.getSessionPlayer().launchScene(7 - row, live_.track_ids);
+  controller.getClipPlayer().launchScene(7 - row, live_.track_ids);
 }
 
 void
@@ -2580,7 +2580,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // (LAUNCHPAD_TRACK_PICKER_*_BRIGHT/DIM above - see
   // LAUNCHPAD_TRACK_PICKER_ROW's own comment for what bright vs. dim means
   // per purpose) - every other row is left exactly as Live View's own
-  // rendering above already computed it, since the overlay is Session-
+  // rendering above already computed it, since the overlay is Live-
   // view-only now (GridMode's own comment) and Live View stays fully
   // interactive underneath (UI::handleLaunchpadPadEvent only ever routes
   // the picker row itself here - see isTrackPickerRow()). Colors already
@@ -2650,7 +2650,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // step no already-connected device is showing yet
   // (drum_edit_max_step_offset > 0), the same threshold handleCommand()'s
   // own no-op guard uses. Outside the step grid they keep their ordinary
-  // out-of-Session meaning (moving the shared cursor track) unchanged.
+  // out-of-Live meaning (moving the shared cursor track) unchanged.
   // White, not a distinct hue - all four of 91-94 read as one family of
   // step-grid navigation once a clip's open (row window vs. step window),
   // so they share 92's own color rather than each getting its own.
@@ -2668,7 +2668,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // Launchpad-visible meaning specifically from Live View
   // (LaunchpadManager::handleShiftButton()), on top of the octave-shift
   // meaning above once the step grid is showing - so it stays dim-lit in
-  // every GridMode (never dark in Session the way 92 still is - one of
+  // every GridMode (never dark in Live the way 92 still is - one of
   // 91's own two meanings is always live there), and lights full bright
   // while actually held, the same "held == bright" convention every other
   // momentary control here already uses; the pad it's currently combined
@@ -2862,10 +2862,10 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     // it also mutes the song's own pattern-driven scheduling, so the live
     // take is heard through its own separate stream rather than doubled
     // against old content. Never while any Live View take is running
-    // (isAnySessionRecording()) - a Live View take populates a clip
+    // (isAnyLiveRecording()) - a Live View take populates a clip
     // slot directly with no arrangement involved at all, so there's
     // nothing for the transport to be running for.
-    if (!controller.isAnySessionRecording() && !playback_info.isPlaying()) {
+    if (!controller.isAnyLiveRecording() && !playback_info.isPlaying()) {
       controller.startAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, last_cleared_row_, auto_record_clip_ids_);
     }
   } else if (!note_capture_armed && was_note_capture_armed_ && auto_started_playback_) {
@@ -2919,7 +2919,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   // The step grid's preview clock - computed once here, shared by every
   // connected device below, not per-device. Active exactly while the
   // transport is stopped and Record Arm is off (or a Live View take is
-  // recording, which keeps SessionPlayer's clock running too) - while
+  // recording, which keeps ClipPlayer's clock running too) - while
   // playing, the pattern-driven path in SongState::renderBlock() already
   // plays the same track, and running both at once would double-trigger;
   // while armed, the player is presumably about to record something
@@ -2927,7 +2927,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   // audition_step is this frame's step for the per-device playhead
   // display below, or -1 when the clock isn't running at all.
   int audition_step = -1;
-  bool audition_active = !playback_info.isPlaying() && (!note_capture_armed || controller.isAnySessionRecording());
+  bool audition_active = !playback_info.isPlaying() && (!note_capture_armed || controller.isAnyLiveRecording());
   if (audition_active) {
     auto now = chrono::steady_clock::now();
     if (!preview_clock_.isRunning()) {
@@ -3017,7 +3017,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   // a DeviceState-nested computation: refreshLeds() only ever reads
   // DeviceState, never Song/PlaybackInfo directly (see its own branches).
   // Computed unconditionally (not gated on anything overview-focus-
-  // related) since which devices, if any, are actually showing Session
+  // related) since which devices, if any, are actually showing Live
   // view is now purely each one's own CC95/96 selection - see
   // handleRawButton()'s own comment. x = column, indexed into
   // live.track_ids - the overview's own filtered column list, not
@@ -3044,7 +3044,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   array<bool, 8> track_picker_muted {};
   array<bool, 8> track_picker_armed {};
   {
-    auto & session_player = controller.getSessionPlayer();
+    auto & clip_player = controller.getClipPlayer();
     for (int x = 0; x < 8; x++) {
       if (x >= static_cast<int>(live.track_ids.size())) continue;
       auto live_track_id = live.track_ids[static_cast<size_t>(x)];
@@ -3059,8 +3059,8 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
       // launched one on a taken-over track, else whatever the arrangement
       // has at the transport's position.
       bool any_playing = false;
-      if (session_player.isTakenOver(live_track_id)) {
-        any_playing = session_player.isLaunched(live_track_id);
+      if (clip_player.isTakenOver(live_track_id)) {
+        any_playing = clip_player.isLaunched(live_track_id);
       } else if (playback_info.isPlaying()) {
         any_playing = resolveInstanceAt(song, live_track_id, playback_info.getAbsolutePosition()).clip_index >= 0;
       }
@@ -3074,7 +3074,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
       }
       for (int y = 0; y < 8; y++) {
         auto clip_index = 7 - y;
-        auto highlight = controller.getSessionPlayer().clipHighlight(live_track_id, clip_index);
+        auto highlight = controller.getClipPlayer().clipHighlight(live_track_id, clip_index);
         clip_highlight[static_cast<size_t>(y * 8 + x)] = highlight;
         // An armed track's red states need no identity color underneath
         // (refreshLeds() never reads it for them); an empty, unarmed slot
@@ -3142,7 +3142,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     // track regardless of what's pinned, so the grid has to agree.
     int recording_reference_track_id = -1;
     if (state.grid_mode == GridMode::NOTES || state.grid_mode == GridMode::CUSTOM) {
-      for (auto candidate : controller.getSessionRecordingTrackIds()) {
+      for (auto candidate : controller.getLiveRecordingTrackIds()) {
         if (recording_reference_track_id < 0 || candidate < recording_reference_track_id) recording_reference_track_id = candidate;
       }
     }
@@ -3205,7 +3205,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
 
     state.connected = true;
     state.capture_enabled = note_capture_armed; // mirrors the one song-wide flag - see its own comment
-    state.record_arm_led_on = note_capture_armed || controller.isThresholdArmed() || controller.isRecording() || controller.isAnySessionRecording();
+    state.record_arm_led_on = note_capture_armed || controller.isThresholdArmed() || controller.isRecording() || controller.isAnyLiveRecording();
     state.tuning = tuning;
     state.key = key_val;
     state.active_note_loudness = move(active_note_loudness);
@@ -3228,7 +3228,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     state.track_colors = track_colors;
     state.grid_track_count = min(8, num_tracks);
     state.assigned_track_is_percussion = is_percussion;
-    state.show_step_grid = is_step_grid_track && !controller.isAnySessionRecording() && drum_clip_editing;
+    state.show_step_grid = is_step_grid_track && !controller.isAnyLiveRecording() && drum_clip_editing;
     state.drum_edit_max_step_offset = drum_max_step_offset;
     state.step_view_bits = step_view_bits;
     state.step_view_length = step_view_length;

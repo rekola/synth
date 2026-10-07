@@ -387,19 +387,19 @@ TEST(scene_source_paused_cursor_moves_every_launched_playhead) {
 
   auto info = f.controller.getPlaybackInfo();
   info.setIsPlaying(false);
-  info.setSessionClock(10);
-  SessionTracks tracks;
+  info.setLiveClock(10);
+  LiveTracks tracks;
   tracks[other].clip_index = 1;
   tracks[other].launch_clock = 7; // row 3
-  info.setSessionTracks(tracks);
+  info.setLiveTracks(tracks);
   f.controller.setPlaybackInfo(info);
 
   CHECK(!source.cursorLocked());
   source.moveCursor(2);
-  CHECK(f.controller.getPlaybackInfo().getSessionTrack(other)->launch_clock == 5); // row 5
+  CHECK(f.controller.getPlaybackInfo().getLiveTrack(other)->launch_clock == 5); // row 5
   source.setPlayheads({ { other, { 1, 5 } } }); // the next frame's
   source.moveCursor(-100); // clamped at the clip's first row
-  CHECK(f.controller.getPlaybackInfo().getSessionTrack(other)->launch_clock == 10);
+  CHECK(f.controller.getPlaybackInfo().getLiveTrack(other)->launch_clock == 10);
 }
 
 TEST(scene_source_playing_track_keeps_its_line_as_the_cursor_moves) {

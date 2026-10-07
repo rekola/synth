@@ -65,7 +65,7 @@ class Clip : public SongObject {
   // touched, so checking pattern_ alone would misreport every populated
   // sample clip as empty). Distinguishes a genuinely unused scene slot
   // (Song::ensureClipAt()'s own filler, or a hand-authored `<clip/>` in
-  // the song XML) from a real, if currently silent, take - e.g. Session
+  // the song XML) from a real, if currently silent, take - e.g. Live
   // View's own per-pad display (LaunchpadManager.cpp) and ClipGrid's
   // own row rendering both need to tell them apart.
   bool isEmpty() const { return pattern_.isEmpty() && !hasSample(); }
@@ -75,14 +75,14 @@ class Clip : public SongObject {
   // arrangement's row context, so it needs a real length of its own. 0
   // means "not given a length of its own" (see Pattern.h's own
   // comment on that same convention); callers already clamp it to at
-  // least 1 before using it (SessionPlayer::advanceToStep()).
+  // least 1 before using it (ClipPlayer::advanceToStep()).
   int getLength() const { return length_; }
   void setLength(int length) { length_ = length; }
 
   // Live View's own clip-launch loop toggle - true (the default)
   // repeats indefinitely once triggered, matching Pattern::
   // getEffectiveRow()'s own unconditional modulo and every other
-  // playback path's behavior. false makes it a one-shot: SessionPlayer::
+  // playback path's behavior. false makes it a one-shot: ClipPlayer::
   // advanceToStep() releases the track's voices and stops
   // triggering it, rather than wrapping back to row 0, once it's played
   // through its own length once. A placed one-shot in the arrangement

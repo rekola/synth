@@ -102,7 +102,7 @@ signature next to the clip launches; the audio thread holds it until the bar
 line (or the first row played, from a stopped transport) and then, in the same
 row, starts the clips, changes the tempo and starts counting bars in the new
 signature. A press from the terminal and from a Launchpad take exactly the
-same path (`SessionPlayer::launchScene()`), and the delay between a press and
+same path (`ClipPlayer::launchScene()`), and the delay between a press and
 the UI noticing it makes no difference as long as the press is before the bar.
 
 The UI's own copies - the song tempo it shows and saves, the running

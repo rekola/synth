@@ -176,9 +176,9 @@ class LaunchpadManager {
   // track's own available clips (Song::getClips()), columns are tracks,
   // same layout ArrangementGrid's own terminal grid uses. Which of two
   // things a press does is gated by Record Arm (DeviceState::
-  // capture_enabled), not a Session-specific toggle of its own (see
+  // capture_enabled), not a Live-specific toggle of its own (see
   // handleLivePadEvent()'s own comment): armed, it places an instance
-  // of that clip into the pressed column's track (SessionPlayer::
+  // of that clip into the pressed column's track (ClipPlayer::
   // triggerClip()); disarmed, it instead launches the clip live for that
   // track, quantized to the shared bar grid, touching nothing in the song.
   // `track_ids` is the overview's own filtered column list (color-
@@ -314,7 +314,7 @@ class LaunchpadManager {
 
   // CC98 ("Session Record") on its own, separate entry point: it needs
   // both press and release to tell a quick tap from a long hold. A tap is
-  // Session Record (SessionPlayer::toggleOverdub()): overdub the playing
+  // Session Record (ClipPlayer::toggleOverdub()): overdub the playing
   // clip, or stop the takes in flight. A long hold is Capture MIDI
   // (retroactive capture; not built yet - it only says so). With shift
   // (CC91) held, it is the arrangement's own Record Arm instead: the
@@ -389,7 +389,7 @@ class LaunchpadManager {
   // track-picker overlay rather than whatever grid_mode would otherwise
   // handle it - true only for the picker row itself, and only while the
   // overlay is actually open (DeviceState::track_picker_active's own
-  // comment); every other row falls through to normal handling (Session
+  // comment); every other row falls through to normal handling (Live
   // view, the overlay's only ever host - see GridMode's own comment)
   // unchanged, so it stays fully interactive underneath. UI::
   // handleLaunchpadPadEvent() checks this ahead of even DRAW mode - though
@@ -465,7 +465,7 @@ class LaunchpadManager {
   // (DeviceState::capture_enabled) - the same "just play" vs. "store into
   // the pattern" choice it already makes for ordinary note entry, one
   // level up: off launches/queues the clip for live playback
-  // (SessionPlayer::triggerClip()) without touching the song at all; on
+  // (ClipPlayer::triggerClip()) without touching the song at all; on
   // instead places an instance of it into the pressed column's track and
   // stays in Live View rather than switching focus away -
   // a player assigning several patterns in a row needs to keep pressing
@@ -476,7 +476,7 @@ class LaunchpadManager {
   void handleLivePadEvent(const LaunchpadPadEvent & ev, Controller & controller);
 
   // Starts the transport for a Live View launch that writes into the
-  // arrangement (SessionPlayer::setAssignPlaybackStarter()), recorded as
+  // arrangement (ClipPlayer::setAssignPlaybackStarter()), recorded as
   // auto-started so disarming Record Arm stops it again.
   void startAssignPlayback(Controller & controller);
 
@@ -894,7 +894,7 @@ class LaunchpadManager {
     bool arrow_repeating = false;
     std::chrono::steady_clock::time_point arrow_press_time, arrow_last_step;
     // Delete (shift + Pan): held while Pan is - a Live pad press
-    // deletes what its slot holds (SessionPlayer::deleteClip()).
+    // deletes what its slot holds (ClipPlayer::deleteClip()).
     bool delete_held = false;
 
     // LED diff cache: refreshLeds() only calls sendLeds() when the newly
@@ -968,7 +968,7 @@ class LaunchpadManager {
 
   // The step grid's free-running preview clock, playing the clip open
   // for editing while the transport is stopped - wall-clock-timed from
-  // refresh(), independent of the transport and of SessionPlayer's own
+  // refresh(), independent of the transport and of ClipPlayer's own
   // clock. StepClock (LaunchpadTiming.h) is the pure step-advance logic;
   // preview_clock_last_refresh_ turns "now" into a dt to feed it.
   StepClock preview_clock_;
@@ -1114,7 +1114,7 @@ class LaunchpadManager {
   void flushPendingPanPresses(Controller & controller);
 
   // Live-recording's own write path: while a Live View take records on
-  // `track_id` (Controller::isSessionRecording()), writes `command` into
+  // `track_id` (Controller::isLiveRecording()), writes `command` into
   // that take's clip at its current row - the same row a note
   // pressed now would land on - since a track Live View has taken
   // over ignores its arrangement automation. Otherwise, while Record Arm
@@ -1192,8 +1192,8 @@ class LaunchpadManager {
   // own clip (the same row -> clip_index mapping Live View's own
   // columns use, 7 - row) across every currently selectable track at
   // once, the classic Launchpad right-column convention. Goes through
-  // SessionPlayer::launchScene(), so it takes the exact same
-  // audition/assign split (Record Arm) a single pad press in Session
+  // ClipPlayer::launchScene(), so it takes the exact same
+  // audition/assign split (Record Arm) a single pad press in Live
   // view already does.
   void triggerSceneRow(Controller & controller, int row);
 
@@ -1254,7 +1254,7 @@ class LaunchpadManager {
   // ArrangementGrid::moveCursorBar()) rather than scrolling a pad-grid row
   // window - Live View's rows are a track's own clips, so there's no
   // local row scroll for those buttons to drive; the bar cursor is where
-  // an "assign" press made while stopped lands (SessionPlayer::
+  // an "assign" press made while stopped lands (ClipPlayer::
   // setAssignRow()), so moving it is the meaningful thing left for
   // up/down to do here. +1/-1 is the caller's own delta convention (see
   // handleCommand()).

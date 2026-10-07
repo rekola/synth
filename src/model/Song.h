@@ -79,7 +79,7 @@ class Song : public SongObject {
   // A scene is a row of every track's clip list, identified by its
   // position there, with an optional name, tempo and time signature.
   // Launching it sets the tempo as the song tempo and the time signature
-  // as the transport's bars (SessionPlayer::launchScene()).
+  // as the transport's bars (ClipPlayer::launchScene()).
   const std::string & getSceneName(int scene) const {
     static const std::string none;
     return scene >= 0 && static_cast<size_t>(scene) < scenes_.size() ? scenes_[static_cast<size_t>(scene)].name : none;
@@ -356,7 +356,7 @@ class Song : public SongObject {
   // itself already follows. Whichever clip already sits at `index`
   // (freshly padded or not) is returned as-is, content untouched -
   // resetting it for a fresh take is the caller's own job
-  // (Controller::ensureSessionRecordingClip()).
+  // (Controller::ensureLiveRecordingClip()).
   Clip & ensureClipAt(int track_id, int index) {
     auto & clips = clips_by_track_[track_id];
     while (static_cast<int>(clips.size()) <= index) clips.push_back(Clip(track_id));

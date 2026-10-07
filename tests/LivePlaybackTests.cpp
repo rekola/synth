@@ -6,7 +6,7 @@
 #include "../src/instruments/Oscillator.h"
 #include "../src/instruments/WaveformType.h"
 #include "../src/state/SongState.h"
-#include "../src/state/SessionTrackInfo.h"
+#include "../src/state/LiveTrackInfo.h"
 #include "../src/state/TrackInfo.h"
 #include "../src/state/ActiveVoiceInfo.h"
 #include "../src/ambisonic/MixerFactory.h"
@@ -22,7 +22,7 @@
 using namespace std;
 
 // Live View launches inside the transport (SongState::
-// queueSessionChange()): a launched clip takes its track over from the
+// queueLaunch()): a launched clip takes its track over from the
 // arrangement at the next bar, while every other track keeps following
 // the arrangement.
 
@@ -31,7 +31,7 @@ namespace {
 // Two tracks over 16 rows (4 bars of 4 rows). Each track's
 // background plays a note on every row whose value names the row -
 // `a` 40+row, `b` 70+row - and `a` has one 4-row clip playing 100+row.
-struct SessionSong {
+struct LiveSong {
   Song song;
   int a = -1, b = -1;
   ChannelConfiguration config{44100, 1};
@@ -39,7 +39,7 @@ struct SessionSong {
   unique_ptr<SongState> state;
   int seq = 0;
 
-  explicit SessionSong(bool looping = true) {
+  explicit LiveSong(bool looping = true) {
     song.setTimeSignature(TimeSignature{1, 4});
     song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
     a = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
@@ -61,7 +61,7 @@ struct SessionSong {
     state->setIsPlaying(true);
   }
 
-  void queue(int track_id, int target) { state->queueSessionChange(track_id, target, ++seq); }
+  void queue(int track_id, int target) { state->queueLaunch(track_id, target, ++seq); }
 
   // Plays `rows` rows, one block each.
   void play(int rows) {
@@ -82,7 +82,7 @@ struct SessionSong {
 }
 
 TEST(session_launch_takes_one_track_over_while_another_follows_the_arrangement) {
-  SessionSong s;
+  LiveSong s;
   s.queue(s.a, 0);
   s.play(1); // row 0 is a bar start, so the launch takes effect at once
   CHECK(s.plays(s.a, 100));
@@ -93,11 +93,11 @@ TEST(session_launch_takes_one_track_over_while_another_follows_the_arrangement) 
   CHECK(!s.plays(s.a, 45));
   CHECK(s.plays(s.b, 75));
   CHECK(s.state->getAbsolutePosition() == 6); // the arrangement's position is unaffected
-  CHECK(s.state->getSessionTracks().at(s.a).clip_index == 0);
+  CHECK(s.state->getLiveTracks().at(s.a).clip_index == 0);
 }
 
 TEST(session_launch_waits_for_the_next_bar) {
-  SessionSong s;
+  LiveSong s;
   s.play(1);
   s.queue(s.a, 0);
   s.play(3); // rows 1-3
@@ -109,40 +109,40 @@ TEST(session_launch_waits_for_the_next_bar) {
 }
 
 TEST(session_back_to_arrangement_takes_effect_at_the_next_bar) {
-  SessionSong s;
+  LiveSong s;
   s.queue(s.a, 0);
   s.play(6); // rows 0-5
-  s.queue(s.a, SessionTrackInfo::kArrangement);
+  s.queue(s.a, LiveTrackInfo::kArrangement);
   s.play(2); // rows 6-7, still the clip
   CHECK(s.plays(s.a, 103));
   CHECK(!s.plays(s.a, 47));
   s.play(1); // row 8, the bar: the arrangement's own row 8
   CHECK(s.plays(s.a, 48));
-  CHECK(s.state->getSessionTracks().count(s.a) == 0);
+  CHECK(s.state->getLiveTracks().count(s.a) == 0);
 }
 
 TEST(session_stopped_track_stays_silent_while_the_arrangement_plays) {
-  SessionSong s;
-  s.queue(s.a, SessionTrackInfo::kSilent);
+  LiveSong s;
+  s.queue(s.a, LiveTrackInfo::kSilent);
   s.play(6);
   for (int row = 0; row < 6; row++) CHECK(!s.plays(s.a, 40 + row));
   CHECK(s.plays(s.b, 75));
-  CHECK(s.state->getSessionTracks().at(s.a).clip_index == SessionTrackInfo::kSilent);
+  CHECK(s.state->getLiveTracks().at(s.a).clip_index == LiveTrackInfo::kSilent);
 }
 
 TEST(session_launched_one_shot_goes_silent_after_its_length) {
-  SessionSong s(false);
+  LiveSong s(false);
   s.queue(s.a, 0);
   s.play(4);
   CHECK(s.plays(s.a, 103));
   s.play(3);
   CHECK(!s.plays(s.a, 100)); // no second lap
   for (int row = 4; row < 7; row++) CHECK(!s.plays(s.a, 40 + row));
-  CHECK(s.state->getSessionTracks().at(s.a).clip_index == SessionTrackInfo::kSilent);
+  CHECK(s.state->getLiveTracks().at(s.a).clip_index == LiveTrackInfo::kSilent);
 }
 
 TEST(session_launched_clip_keeps_its_place_across_a_seek) {
-  SessionSong s;
+  LiveSong s;
   s.queue(s.a, 0);
   s.play(2); // clip rows 0-1
   s.state->setPosition(9); // a mid-bar seek in the arrangement
@@ -152,12 +152,12 @@ TEST(session_launched_clip_keeps_its_place_across_a_seek) {
 }
 
 TEST(session_transport_stop_silences_launched_clips) {
-  SessionSong s;
+  LiveSong s;
   s.queue(s.a, 0);
   s.play(2);
   s.state->setIsPlaying(false);
-  s.state->silenceSession(-1);
-  CHECK(s.state->getSessionTracks().at(s.a).clip_index == SessionTrackInfo::kSilent);
+  s.state->silenceLive(-1);
+  CHECK(s.state->getLiveTracks().at(s.a).clip_index == LiveTrackInfo::kSilent);
   s.state->setIsPlaying(true);
   s.play(3); // rows 2-4
   CHECK(s.plays(s.b, 74));
@@ -166,7 +166,7 @@ TEST(session_transport_stop_silences_launched_clips) {
 }
 
 TEST(session_launched_clips_own_volume_command_plays) {
-  SessionSong s;
+  LiveSong s;
   s.song.getClips(s.a)[0].getLeafPattern().setCommand(1, Command("0L80"));
   s.queue(s.a, 0);
   s.play(2);
@@ -177,7 +177,7 @@ TEST(session_launched_clips_own_volume_command_plays) {
 }
 
 TEST(session_taken_over_track_ignores_its_arrangement_automation) {
-  SessionSong s;
+  LiveSong s;
   s.song.getArrangement().setCommand(1, s.a, Command("0L10"));
   s.queue(s.a, 0);
   s.play(2);
@@ -189,7 +189,7 @@ TEST(session_taken_over_track_ignores_its_arrangement_automation) {
 // -Rxy re-fires the notes still playing on its track - never a note a
 // clip launched before it left behind, which the launch released.
 TEST(session_retrigger_ignores_notes_of_the_previous_clip) {
-  SessionSong s;
+  LiveSong s;
   Clip chord(s.a);
   chord.setLength(4);
   chord.getLeafPattern().setNote(0, 0, Note(110, 100));
@@ -211,7 +211,7 @@ TEST(session_retrigger_ignores_notes_of_the_previous_clip) {
 }
 
 TEST(session_launch_waits_for_the_songs_own_bars) {
-  SessionSong s;
+  LiveSong s;
   s.song.setTimeSignature({2, 4}); // bars of 8 rows
   s.song.incVersion();
   s.play(1);
@@ -224,7 +224,7 @@ TEST(session_launch_waits_for_the_songs_own_bars) {
 }
 
 TEST(session_launch_waits_for_the_running_bars) {
-  SessionSong s;
+  LiveSong s;
   s.state->setRunningBars({{2, 4}, 4}); // 8-row bars counted from row 4: bars at 4 and 12
   s.play(5);                            // rows 0-4
   s.queue(s.a, 0);
@@ -236,7 +236,7 @@ TEST(session_launch_waits_for_the_running_bars) {
 }
 
 TEST(a_scene_change_applies_its_tempo_and_signature_on_the_bar) {
-  SessionSong s;
+  LiveSong s;
   auto before = s.state->getTempo();
   s.play(1);
   s.state->queueSceneChange(before + 30, {3, 4}, false, false, 1);
@@ -252,7 +252,7 @@ TEST(a_scene_change_applies_its_tempo_and_signature_on_the_bar) {
 }
 
 TEST(a_scene_change_from_a_stopped_transport_applies_at_the_first_row) {
-  SessionSong s;
+  LiveSong s;
   s.state->setIsPlaying(false);
   s.state->queueSceneChange(130, {5, 4}, false, true, 1);
   s.state->setIsPlaying(true);
@@ -262,7 +262,7 @@ TEST(a_scene_change_from_a_stopped_transport_applies_at_the_first_row) {
 }
 
 TEST(a_scene_change_without_a_signature_keeps_the_running_one_and_a_clear_hands_it_back) {
-  SessionSong s;
+  LiveSong s;
   s.state->setRunningBars({{3, 4}, 0});
   s.state->queueSceneChange(s.state->getTempo(), {}, false, false, 1); // a scene with a tempo only
   s.play(1);
@@ -274,7 +274,7 @@ TEST(a_scene_change_without_a_signature_keeps_the_running_one_and_a_clear_hands_
 }
 
 TEST(a_newer_scene_change_replaces_one_still_waiting) {
-  SessionSong s;
+  LiveSong s;
   s.play(1);
   s.state->queueSceneChange(150, {3, 4}, false, false, 1);
   s.state->queueSceneChange(0, {}, false, false, 2); // a scene with nothing set
@@ -284,7 +284,7 @@ TEST(a_newer_scene_change_replaces_one_still_waiting) {
 }
 
 TEST(an_unrelated_song_edit_does_not_undo_a_scene_tempo) {
-  SessionSong s;
+  LiveSong s;
   s.state->queueSceneChange(150, {}, false, true, 1);
   s.play(1);
   CHECK(s.state->getTempo() == 150);

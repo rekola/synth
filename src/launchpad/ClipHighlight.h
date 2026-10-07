@@ -15,7 +15,7 @@
 // reached instead of - never alongside - the plain three the moment
 // Controller::isTrackArmed() is true for that track's column, since
 // every pad press there is now record-oriented
-// (SessionPlayer::triggerClip()'s own armed branch), not plain
+// (ClipPlayer::triggerClip()'s own armed branch), not plain
 // audition/launch: a pad is always exactly one of these eight states,
 // never two at once, so one enum/one array covers it, not a pair of
 // independently-tracked overlays that would otherwise have to agree on

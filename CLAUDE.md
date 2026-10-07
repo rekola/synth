@@ -556,7 +556,7 @@ would otherwise resume showing.
   hue, bright only for whichever one is currently active.
 - **Session Record** (CC98, `handleRecordButton()`) - needs press and
   release, since the tap and the long hold mean unrelated things. A tap
-  is `SessionPlayer::toggleOverdub()`: from the next bar, each armed
+  is `ClipPlayer::toggleOverdub()`: from the next bar, each armed
   track's playing clip (the followed track's if none is armed) is
   overdubbed in place - the clip keeps looping and the take's rows line
   up with its loop - and while any take is in flight a tap instead stops
@@ -564,7 +564,7 @@ would otherwise resume showing.
   status message). A pad press never overdubs by accident: on an armed
   track a populated slot only launches, an empty one starts a fresh
   take. A take records raw timing - each note's sub-row offset goes in
-  its delay (`SessionPlayer::rawStep()`) - unless `Song::getRecordQuantize()`
+  its delay (`ClipPlayer::rawStep()`) - unless `Song::getRecordQuantize()`
   is on, which snaps presses/releases to the nearest row
   (`quantizedStep()`). A long hold is Capture MIDI, a stub that only says so. With shift
   held, CC98 is the arrangement's own Record Arm instead
@@ -596,7 +596,7 @@ would otherwise resume showing.
   hole in place, so scene rows stay aligned), an empty one its stop button.
   Instant with the transport stopped or when the clip isn't sounding; a
   clip that is playing (or queued) on its track while the transport runs
-  is never pulled out from under the playhead - `SessionPlayer::
+  is never pulled out from under the playhead - `ClipPlayer::
   deleteClip()` stops the track at the next bar and `tick()` removes the
   clip once that has taken effect. The terminal's clip-grid `kill-region` goes
   through it too, after copying the clip to the clip grid's clipboard (the pad gesture never does). No undo or confirmation.
@@ -668,7 +668,7 @@ would otherwise resume showing.
   undone), which also reaches a pitched track. Both halves light white while
   held. Opening forces every connected device into `NOTES` mode
   (`forceNotesModeOnAllDevices()`) and resets its page, octave and the
-  preview clock (`preview_clock_`, separate from `SessionPlayer`'s), so every
+  preview clock (`preview_clock_`, separate from `ClipPlayer`'s), so every
   open starts from the same window and playhead. A lone CC95 press, or the
   same shift+pad on the same pad from the plain Live grid, closes it
   (`Controller::closeDrumClipFocus()`) and returns every device to Live
@@ -716,7 +716,7 @@ would otherwise resume showing.
   already have one" convention `addClip()` itself follows). Every "is
   this slot populated" check reads content, not just bounds
   (`!clip.isEmpty()`), for exactly this reason - Live View's own
-  per-pad LED/row display, `SessionPlayer::triggerClip()`'s
+  per-pad LED/row display, `ClipPlayer::triggerClip()`'s
   fresh-take-vs-overdub decision, and `ClipGrid`'s own delete/rename/
   loop-toggle commands (a filler reads as "nothing here" the same as a
   genuinely out-of-bounds row - erasing one would shift every later
@@ -747,12 +747,12 @@ would otherwise resume showing.
   arrangement (it plays the clip, looping or one-shot, while the other
   tracks follow the arrangement), a stop takes it over too (silent), and
   "back-to-arrangement"/"track-back-to-arrangement" hand it back. The
-  audio thread owns this (`SongState::queueSessionChange()`, per-track
-  `SessionTrackInfo`, `src/state/SessionTrackInfo.h`): each change is
+  audio thread owns this (`SongState::queueLaunch()`, per-track
+  `LiveTrackInfo`, `src/state/LiveTrackInfo.h`): each change is
   queued and applied on the first row of the transport's next bar
   (`Song::isBarStart(absolute_pos_)`) - even the first launch into
   silence waits for it, the live-sequencer convention; rewind to start
-  from the top. Launched clips advance on a session clock - rows played,
+  from the top. Launched clips advance on a live clock - rows played,
   which a seek or pattern break doesn't move - and a taken-over track
   ignores its arrangement content and automation (pattern breaks
   aside), playing its clip's own notes and commands. Launching while the
@@ -764,14 +764,14 @@ would otherwise resume showing.
   voices do what the arrangement's already do (a sample track's stop,
   an instrument's are left as they are), and a note take survives while
   a sample take ends. Stopping clips stays its own action (the stop pads,
-  the master column's stop row, back-to-arrangement). `SessionPlayer`
-  (`src/playback/SessionPlayer.h`, Controller-owned, `Controller::
-  getSessionPlayer()`) is the one place the Launchpad, the clip grid and
+  the master column's stop row, back-to-arrangement). `ClipPlayer`
+  (`src/playback/ClipPlayer.h`, Controller-owned, `Controller::
+  getClipPlayer()`) is the one place the Launchpad, the clip grid and
   the launch commands go through: it sends each change as a
-  `QUEUE_SESSION_CHANGE` event with a sequence number and predicts it in
+  `QUEUE_LAUNCH` event with a sequence number and predicts it in
   `PlaybackInfo` until a snapshot has caught up (the same stale-snapshot
   rule as the edit position), and keeps the Live View takes, resolving
-  them on bar rows it sees in the snapshots (`SessionPlayer::tick()`,
+  them on bar rows it sees in the snapshots (`ClipPlayer::tick()`,
   once per UI frame). A finished take loops back on the bar its stop
   resolved on. Explicitly never the
   triggered clip's own loop length (that only decides where *it* loops,
@@ -817,13 +817,13 @@ would otherwise resume showing.
   out to other simultaneously-armed tracks the way note recording above
   is, since there's only one real input stream to route through it - a
   press on an armed `SampleTrack`'s own row arms (or retargets) real
-  capture right away (`SessionPlayer::triggerClip()`'s own
-  SampleTrack branch: `Controller::armSessionTrackRecording()`/
+  capture right away (`ClipPlayer::triggerClip()`'s own
+  SampleTrack branch: `Controller::armLiveTrackRecording()`/
   `armThresholdRecording()`, mirroring "toggle-record-arm"'s own
   Live-View-focused SampleTrack branch from the terminal), and
   pressing that same pad again cancels a still-idle arm
   (`LaunchpadManager::stopSampleTrackRecording()`) - never
-  `Controller::trimSessionRecordingClip()`, the note-Pattern-specific
+  `Controller::trimLiveRecordingClip()`, the note-Pattern-specific
   finalize note-based Live recording uses, which would misread a
   SampleTrack take's own empty Pattern as "nothing was ever recorded" and
   reset its real audio length back to one bar.
@@ -933,7 +933,7 @@ would otherwise resume showing.
   effects, unaffected by a transport stop. Only the active buffer hears
   the input.
   Each clip slot shows its transport/recording state the way its
-  Launchpad pad does (`SessionPlayer::clipHighlight()`, the one
+  Launchpad pad does (`ClipPlayer::clipHighlight()`, the one
   source for both, `ClipHighlight`): a colored glyph in its icon's
   place - green for playing (▸) or queued (▹), dim green (▸) while the
   transport is paused, red for recording (●) or
@@ -1019,8 +1019,8 @@ would otherwise resume showing.
   and a fresh press look alike to the widgets (the held button repeats its
   press), so each tells them apart by the release in between; `TerminalUI`
   keeps focus on the widget the press started in until then.
-- **Scenes** (`Song::getSceneName()`/`getSceneTempo()`/`getSceneTimeSignature()`, `<scenes><scene name="" tempo="" timeSignature="3/4"/>...</scenes>`, by position like a track's clip list, no index stored) - a scene is a clip-list row shared by every track, with an optional name, tempo and time signature, shown in the clip grid's Master column and edited with F2 there; typed text goes through `scenename::extract()` (`SceneName.h`) ("Waltz 3/4 90 BPM" splits into name, signature and tempo, "0 BPM"/"0/4" clear them, text without one keeps the existing value). `SessionPlayer::launchScene()` sends them to the audio thread as one `QUEUE_SCENE_CHANGE` event, which `SongState::queueSceneChange()` applies on the bar the clips launch on (the first row played from a stopped transport): the tempo becomes the song tempo, the signature the running signature. Each rhythm-library template carries its signature (`RhythmPatternTemplate::time_numerator`/`time_denominator`), which Add to Song gives the scene the new clip lands in when that scene has none. Details and design decisions: `docs/scenes.md`.
-- **Bars and time signatures** (`TimeSignature.h`, `BarGrid.h`, `Song`'s bar API; `docs/time_signatures.md`) - a row is a sixteenth, a signature n/d is n*16/d rows per bar and 16/d per beat (denominator 1/2/4/8/16). The song has one signature (`Song::getTimeSignature()`, `<song timeSignature="3/4">`, 4/4 unless set, `set-time-signature`) that the arrangement counts its bars in (`Song::getArrangementBars()`, a `BarGrid`: a signature counted from an origin row). A launched scene's signature is the *running signature* (`RunningBars`: signature plus origin row, the launch bar, saved as `transportTimeSignature`/`transportBarOrigin`) that overrides the song's from the origin until another scene or Back to Arrangement for every track (`SessionPlayer::returnAllToArrangement()`). The audio thread owns the running signature and the tempo a scene sets (`SongState`'s `pending_scene_`/`running_bars_`/`barsAt()`, applied in `advanceSessionTracks()` on the bar, sample-exact with the clip launches; its bar test, pattern break and `Player::scheduleMetronome()` read `barsAt()`); the UI's `Song` copies are mirrored from the snapshot by `Controller::mirrorSceneChange()` (once per `PlaybackInfo::getSceneSeq()`, so an older snapshot never overwrites a tempo edited since; `SongState` applies the song's own tempo only when the song's value changed). UI-thread consumers (Live take quantization and length, the position display, the info line) read `Song::getBarsAt()`; the arrangement grid, arrangement recording and clip placement read `getArrangementBars()`. A bar number is never `row / rows_per_bar` (`Song::getRowsPerBar()` is gone): use `BarGrid`. Live View accents come from the scene's own signature (`PatternSource::startsBar()`/`startsBeat()`).
+- **Scenes** (`Song::getSceneName()`/`getSceneTempo()`/`getSceneTimeSignature()`, `<scenes><scene name="" tempo="" timeSignature="3/4"/>...</scenes>`, by position like a track's clip list, no index stored) - a scene is a clip-list row shared by every track, with an optional name, tempo and time signature, shown in the clip grid's Master column and edited with F2 there; typed text goes through `scenename::extract()` (`SceneName.h`) ("Waltz 3/4 90 BPM" splits into name, signature and tempo, "0 BPM"/"0/4" clear them, text without one keeps the existing value). `ClipPlayer::launchScene()` sends them to the audio thread as one `QUEUE_SCENE_CHANGE` event, which `SongState::queueSceneChange()` applies on the bar the clips launch on (the first row played from a stopped transport): the tempo becomes the song tempo, the signature the running signature. Each rhythm-library template carries its signature (`RhythmPatternTemplate::time_numerator`/`time_denominator`), which Add to Song gives the scene the new clip lands in when that scene has none. Details and design decisions: `docs/scenes.md`.
+- **Bars and time signatures** (`TimeSignature.h`, `BarGrid.h`, `Song`'s bar API; `docs/time_signatures.md`) - a row is a sixteenth, a signature n/d is n*16/d rows per bar and 16/d per beat (denominator 1/2/4/8/16). The song has one signature (`Song::getTimeSignature()`, `<song timeSignature="3/4">`, 4/4 unless set, `set-time-signature`) that the arrangement counts its bars in (`Song::getArrangementBars()`, a `BarGrid`: a signature counted from an origin row). A launched scene's signature is the *running signature* (`RunningBars`: signature plus origin row, the launch bar, saved as `transportTimeSignature`/`transportBarOrigin`) that overrides the song's from the origin until another scene or Back to Arrangement for every track (`ClipPlayer::returnAllToArrangement()`). The audio thread owns the running signature and the tempo a scene sets (`SongState`'s `pending_scene_`/`running_bars_`/`barsAt()`, applied in `advanceLiveTracks()` on the bar, sample-exact with the clip launches; its bar test, pattern break and `Player::scheduleMetronome()` read `barsAt()`); the UI's `Song` copies are mirrored from the snapshot by `Controller::mirrorSceneChange()` (once per `PlaybackInfo::getSceneSeq()`, so an older snapshot never overwrites a tempo edited since; `SongState` applies the song's own tempo only when the song's value changed). UI-thread consumers (Live take quantization and length, the position display, the info line) read `Song::getBarsAt()`; the arrangement grid, arrangement recording and clip placement read `getArrangementBars()`. A bar number is never `row / rows_per_bar` (`Song::getRowsPerBar()` is gone): use `BarGrid`. Live View accents come from the scene's own signature (`PatternSource::startsBar()`/`startsBeat()`).
 - **Defaults**: a fresh session opens in Live View on the clip grid
   (`UI::setInitialView()`, the `--view` option) rather than straight into
   note entry, and `GridMode` defaults to `LIVE` on every
@@ -1118,7 +1118,7 @@ would otherwise resume showing.
   - `src/state/` — the parallel, cheaply-resettable playback-state
     objects (`*State.h`) mirroring the model objects above.
   - `src/playback/` — `Player` (sequencer), the event vocabulary it
-    consumes/produces, and `SessionPlayer` (Live View clip launching).
+    consumes/produces, and `ClipPlayer` (Live View clip launching).
   - `src/instruments/` — synthesis and instrument resolution:
     `OscillatorVoice`/`GenericInstrument`/`SoundFont`, `Tuner`/`Tuning`
     (microtonal pitch math), `LFO`, `Arpeggiator`.

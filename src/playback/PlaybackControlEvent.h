@@ -18,12 +18,12 @@ class PlaybackControlEvent : public Event {
   // separate "the active buffer changed" notification is needed at all.
   // BUFFER_KILLED/BUFFER_RENAMED replace the bookkeeping SONG_CHANGED used
   // to fold in for those two specific cases.
-  // QUEUE_SESSION_CHANGE: Live View launch/stop/return-to-arrangement
-  // for one track at the next bar (SongState::queueSessionChange()) -
+  // QUEUE_LAUNCH: Live View launch/stop/return-to-arrangement
+  // for one track at the next bar (SongState::queueLaunch()) -
   // parameter1 = track_id, parameter2 = the target (a clip index or a
-  // SessionTrackInfo constant), parameter3 = SessionPlayer's sequence
-  // number. SILENCE_SESSION: stops every launched clip now
-  // (SongState::silenceSession()) - parameter1 = the sequence number.
+  // LiveTrackInfo constant), parameter3 = ClipPlayer's sequence
+  // number. SILENCE_LIVE: stops every launched clip now
+  // (SongState::silenceLive()) - parameter1 = the sequence number.
   //
   // QUEUE_SCENE_CHANGE: a launched scene's tempo and time signature
   // (SongState::queueSceneChange()) - parameter1 = tempo (0: none),
@@ -35,8 +35,8 @@ class PlaybackControlEvent : public Event {
   // handles them together once BATCH_END arrives, so one gesture that
   // sends several events (a scene launch) is never split across a bar.
   //
-  // SHIFT_SESSION_POSITION: moves every launched clip's playhead by
-  // parameter1 rows (SongState::shiftSession()) - parameter2 = the
+  // SHIFT_LIVE_POSITION: moves every launched clip's playhead by
+  // parameter1 rows (SongState::shiftLive()) - parameter2 = the
   // sequence number.
   //
   // PREVIEW_NOTE/PREVIEW_POOL_NOTE/PREVIEW_RHYTHM/PREVIEW_STOP:
@@ -113,8 +113,8 @@ class PlaybackControlEvent : public Event {
               BUFFER_KILLED,
               BUFFER_RENAMED,
               SET_BUS_EFFECT,
-              QUEUE_SESSION_CHANGE,
-              SILENCE_SESSION,
+              QUEUE_LAUNCH,
+              SILENCE_LIVE,
               PREVIEW_NOTE,
               PREVIEW_POOL_NOTE,
               PREVIEW_RHYTHM,
@@ -124,7 +124,7 @@ class PlaybackControlEvent : public Event {
               GLIDE_TRACK_SEND_MAIN,
               GLIDE_TRACK_AZIMUTH,
               SET_TRACK_MONITORING,
-              SHIFT_SESSION_POSITION,
+              SHIFT_LIVE_POSITION,
               SET_METRONOME,
               QUEUE_SCENE_CHANGE,
               BATCH_BEGIN,

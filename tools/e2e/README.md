@@ -346,10 +346,10 @@ you're changing.
 - **`launchpad_sampletrack_record_arm_test.xml` / `fake_launchpad_
   sampletrack_record_arm.c` / `verify_launchpad_sampletrack_record_arm.py`** -
   the SampleTrack twin of `fake_launchpad_record_arm_holes.c` above -
-  covers `SessionPlayer::triggerClip()`'s own SampleTrack branch
+  covers `ClipPlayer::triggerClip()`'s own SampleTrack branch
   (a Live-grid press on a SampleTrack armed via the track-picker
   overlay now actually arms real audio capture -
-  `Controller::armSessionTrackRecording()`/`armThresholdRecording()` -
+  `Controller::armLiveTrackRecording()`/`armThresholdRecording()` -
   instead of falling through to plain audition/assign) and the "press the
   same pad again cancels it" gesture. Verified through the terminal
   `ClipGrid` widget's own text (the "●" record indicator, same
@@ -357,7 +357,7 @@ you're changing.
   Two independent spawns (`argv[1] ==
   "cancel"` toggles a second scripted press) rather than one script with
   two mid-run dumps: `Controller::disarmTrack()`'s own
-  `trimSessionRecordingClip()` call clears the record indicator
+  `trimLiveRecordingClip()` call clears the record indicator
   unconditionally, which would mask a broken cancel gesture if the test
   ever finished by disarming through the picker before reading anything.
 - **`launchpad_shift_stepgrid_test.xml` / `fake_launchpad_

@@ -84,7 +84,7 @@ class PatternEditor : public UIElement {
   int getLiveScene(int track_id) const { return scene_source_->trackBlock(track_id).value_or(0); }
   // Where each track's launched clip is playing, for Live mode's
   // per-track playhead rows.
-  void setSessionPlayheads(std::unordered_map<int, ScenePatternSource::Playhead> playheads);
+  void setLivePlayheads(std::unordered_map<int, ScenePatternSource::Playhead> playheads);
 
 
   // Called whenever the UI thread learns of a new playhead position (see
@@ -394,7 +394,7 @@ protected:
   // Set when what's shown changed in a way render()'s own dirty checks
   // don't see (the source switching, per-track playheads moving).
   bool force_full_redraw_ = false;
-  std::unordered_map<int, ScenePatternSource::Playhead> session_playheads_;
+  std::unordered_map<int, ScenePatternSource::Playhead> live_playheads_;
   bool fading_drawn_ = false;
 
   // The block at the top of the view - current_scroll_.row counts from
