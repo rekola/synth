@@ -31,8 +31,8 @@ Everything can be done using keyboard without mouse
 
 # Launchpad support
 
-A connected Novation Launchpad (Mini MK3 / X) becomes an isomorphic
-note-entry grid and a Session-view clip launcher. See
+A connected Novation Launchpad (Mini MK3 / X) becomes a drum rack or in-key
+scale keyboard, a step sequencer and a Session-view clip launcher. See
 [docs/launchpad.md](docs/launchpad.md) for the layout, colors and every button.
 
 # Third-party code

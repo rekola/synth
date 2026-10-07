@@ -499,7 +499,10 @@ TEST(drum_rack_is_a_4x4_block_of_distinct_gm_sounds_in_the_bottom_left) {
     }
   }
   CHECK(seen.size() == 16);
-  CHECK(drumPadNoteForPad(0, 0) == 36); // kick in the corner
+  // Notes 36-51 in order, left to right then bottom to top.
+  for (int y = 0; y < 4; y++) {
+    for (int x = 0; x < 4; x++) CHECK(drumPadNoteForPad(x, y) == 36 + x + 4 * y);
+  }
   CHECK(drumPadNoteForPad(-1, 0) == -1);
 }
 

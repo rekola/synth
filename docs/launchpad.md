@@ -9,16 +9,12 @@ grid mode, so one can sit in Session view while another does note entry.
 A connected Novation Launchpad (Mini MK3 / X) becomes a playing surface in
 Note mode (96):
 
-- **Percussion track**: the bottom-left 4x4 block of pads is a fixed
-  General MIDI drum rack - kick, snare and hats on the bottom row, then side
-  stick, clap, pedal hat and crash, the lower toms, and the upper toms, ride
-  and cowbell. The rest of the grid is dark.
-
-  A 4x4 block of 16 pads is the standard drum surface: Akai's MPC samplers
-  (from 1988) made it so, and Ableton's Drum Rack shows 16 of its 128 notes
-  at a time in the same shape. Only that shape is borrowed. Which sound sits
-  on which pad is synth's own grouping of General MIDI sounds, not a copy of
-  an MPC or Ableton layout.
+- **Percussion track**: the bottom-left 4x4 block of pads is a General MIDI
+  drum rack: notes 36-51 in order, left to right and then bottom to top, so
+  the bottom row is kick, side stick, snare and clap, the second row starts
+  at 40 (electric snare) and the top row ends at 51 (ride cymbal). The rest of
+  the grid is dark. This is the usual default window of a sampler or drum rack
+  (see [lineage.md](lineage.md)).
 - **Pitched track**: an in-key scale keyboard. Pad (0,0) is the tonic at the
   device's octave, each column is the next scale degree and each row up is a
   fourth (three degrees) higher, so a seven-note scale lines up the same way
