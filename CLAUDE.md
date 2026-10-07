@@ -1414,9 +1414,7 @@ would otherwise resume showing.
   `known_bugs.md` tracks open, not-yet-fixed bugs; `glossary.md` defines
   the project's own terms (row, swing, groove, ...) - check it before
   using one of those words in new code or UI text, and add to it when
-  introducing a term; each document's own overview says
-  which conventions (trackers, DAWs, controllers, Emacs, standards) it
-  follows and where it differs
+  introducing a term
 - `tools/` — helper scripts (e.g. `minimal_edo.pl`).
 - `third_party/` holds vendored third-party code, one subdirectory per
   library, each with its own upstream `LICENSE`/provenance note -

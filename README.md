@@ -9,8 +9,7 @@ A microtonal multiparadigm music production system, which combines live sequence
 
 # Background
 
-The Application draws on several traditions, and each document in `docs/`
-says where its own feature comes from and where it differs.
+The Application draws on several traditions.
 
 - **Tracker.** Music is written as rows in a grid, one column per voice. The
   first known tracker is Ultimate Soundtracker (Obarski, 1987): four channels,
