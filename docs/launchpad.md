@@ -28,16 +28,17 @@ gesture).
 
 | Button | Mode |
 | --- | --- |
-| 95 (labelled Session on the device) | Live: the clip grid |
+| 95 | Session: opens Live View's clip grid on the pads |
 | 96 | Note: the drum rack or scale keyboard (plus the step rows while a clip is open for editing) |
 | 97 | Custom: nothing yet |
 | shift + 97 | Draw: a per-pad coloring toy, independent of the song |
 | shift + Send B | Tempo: the song's tempo as a number on the pads |
 | shift + Stop Clip | Swing: the song's swing as a number on the pads |
 
-A second press of 95 while on the plain Live grid toggles **mixer submode**
-(see below). Its LED is dim green away from Live, bright green in Live,
-and orange in mixer submode.
+The button is labelled Session on the device; here it selects the Live mode,
+the pad view of Live View. A second press of 95 while on the plain clip grid
+toggles **mixer submode** (see below). Its LED is dim green away from the
+clip grid, bright green on it, and orange in mixer submode.
 
 ## Right-side buttons
 
@@ -224,7 +225,7 @@ Pad lighting: green pulses while playing and flashes while queued. On an armed
 track the column is red instead: dim for an empty slot, flashing when queued
 to record, pulsing while recording.
 
-### Live Record (98)
+### Session Record (98)
 
 A tap overdubs the playing clip of each armed track (the followed track's if
 none is armed) from the next bar. While any take is running, a tap stops them

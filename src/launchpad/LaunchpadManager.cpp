@@ -27,7 +27,7 @@ using namespace std;
 
 namespace {
   // How long CC98 (handleRecordButton()) must be held before release means
-  // Capture MIDI instead of a quick tap's own Live Record. Long enough
+  // Capture MIDI instead of a quick tap's own Session Record. Long enough
   // that a normal deliberate tap never accidentally reads as a hold.
   constexpr auto kCaptureHoldThreshold = std::chrono::milliseconds(600);
 
@@ -252,7 +252,7 @@ namespace {
   constexpr Rgb LAUNCHPAD_MIXER_VOLUME_DIM    { 0, 40, 0 };
 
   // Live's mixer-submode radio group (see DeviceState::
-  // live_mixer_mode's own comment), all seven buttons, while that
+  // mixer_mode's own comment), all seven buttons, while that
   // submode is off - a plain scene-launch trigger has no state of its own
   // worth showing, so all seven go uniformly dim white rather than any of
   // their mixer-mode hues (which would otherwise misleadingly suggest a
@@ -270,7 +270,7 @@ namespace {
   constexpr float LAUNCHPAD_FADER_MICRO_MIN_SCALE = 0.35f;
 
   // Live View's own triggered/queued pad overlay (DeviceState::
-  // live_highlight) - a real hardware flash/pulse animation, driven by
+  // clip_highlight) - a real hardware flash/pulse animation, driven by
   // the device's own internal clock rather than anything this file redraws
   // frame by frame, so it needs palette indices, not the arbitrary RGB
   // every other Live pad color in this file uses. Values taken directly
@@ -278,19 +278,19 @@ namespace {
   // (between dim and bright green)", not an approximation - the palette is
   // a fixed 128-entry table, so there is no way to ask for "this track's
   // own hue, just flashing" instead.
-  constexpr uint8_t LAUNCHPAD_LIVE_GREEN_PALETTE_BRIGHT = 21;
-  constexpr uint8_t LAUNCHPAD_LIVE_GREEN_PALETTE_DIM = 23;
+  constexpr uint8_t LAUNCHPAD_CLIP_GREEN_PALETTE_BRIGHT = 21;
+  constexpr uint8_t LAUNCHPAD_CLIP_GREEN_PALETTE_DIM = 23;
   // A launched clip while the transport is paused: the same green, static.
-  constexpr Rgb LAUNCHPAD_LIVE_PAUSED = { 0, 127, 0 };
+  constexpr Rgb LAUNCHPAD_CLIP_PAUSED = { 0, 127, 0 };
 
-  // An armed track's own red equivalent of the two above (LivePadHighlight::
+  // An armed track's own red equivalent of the two above (ClipHighlight::
   // RECORD_QUEUED/RECORDING/RECORD_STOPPING) - unlike the green pair, not
   // taken from a Novation worked example (none published one for red);
   // best-effort standard-palette picks, not yet confirmed against real
   // hardware - expect these to shift after testing, same as
   // percussionFamilyColor()'s own hues.
-  constexpr uint8_t LAUNCHPAD_LIVE_RED_PALETTE_BRIGHT = 5;
-  constexpr uint8_t LAUNCHPAD_LIVE_RED_PALETTE_DIM = 7;
+  constexpr uint8_t LAUNCHPAD_CLIP_RED_PALETTE_BRIGHT = 5;
+  constexpr uint8_t LAUNCHPAD_CLIP_RED_PALETTE_DIM = 7;
 
   Rgb padColor(Rgb base, const unordered_map<int, float> & active_note_loudness, int note_value) {
     if (base.r == 0 && base.g == 0 && base.b == 0) return base; // stays off (e.g. unused/reserved pads)
@@ -757,14 +757,14 @@ void
 LaunchpadManager::toggleGridMode(int device_id, GridMode mode) {
   auto & state = deviceState(device_id);
   // Live mixer-submode radio group member (see GridMode's own comment)
-  // - a no-op unless already somewhere in that family (inLiveMixerFamily()),
+  // - a no-op unless already somewhere in that family (inMixerFamily()),
   // so pressing a fader button from NOTES/CUSTOM/DRAW does nothing, but
   // pressing one while another family member (a different fader, or the
   // track-picker overlay) is already active switches straight to it.
   // Closing (a repeat press of the one already active) always lands back
   // on LIVE, not NOTES, since that's the only place these are ever
   // entered from any more.
-  if (!inLiveMixerFamily(state)) return;
+  if (!inMixerFamily(state)) return;
   bool already_active = state.grid_mode == mode;
   armMixerHoldPreview(state, already_active);
   state.track_picker_active = false; // switching to (or off of) a fader always leaves the picker
@@ -772,7 +772,7 @@ LaunchpadManager::toggleGridMode(int device_id, GridMode mode) {
 }
 
 bool
-LaunchpadManager::inLiveMixerFamily(const DeviceState & state) const {
+LaunchpadManager::inMixerFamily(const DeviceState & state) const {
   return state.grid_mode == GridMode::LIVE || state.grid_mode == GridMode::SEND_MAIN ||
     state.grid_mode == GridMode::PAN || state.grid_mode == GridMode::SEND_A ||
     state.grid_mode == GridMode::SEND_B || state.track_picker_active;
@@ -822,7 +822,7 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
   // order at 89/79/69). 89/Volume is repurposed as the Send Main fader
   // mode - the same bargraph shape as Send A/Send B, just controlling how
   // much of each track's own voices reach the main mix (LeafTrack::
-  // getSendMain()) rather than the shared send bus. 98 (Live Record)
+  // getSendMain()) rather than the shared send bus. 98 (Session Record)
   // is handled separately, in handleRecordButton() - unlike these four,
   // it needs to see both press and release to distinguish a quick tap from
   // a long hold, so UI::handleLaunchpadButtonEvent routes it there directly
@@ -847,11 +847,11 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
   // fader GridMode (toggleGridMode()), Stop Clip/Mute/Solo/Record Arm
   // open/retarget the track-picker overlay (toggleTrackPicker()) - all
   // already handle their own "only one of the eight active" logic via
-  // inLiveMixerFamily(), so this dispatch only needs to pick which of
+  // inMixerFamily(), so this dispatch only needs to pick which of
   // the two mechanisms a given CC number means. "toggle-record-arm"'s own
   // per-current-track arm/disarm (Controller.cpp) isn't part of this group
   // at all: on a Launchpad it's shift + CC98 (handleRecordButton()).
-  // A no-op outside the Live family entirely (inLiveMixerFamily()) -
+  // A no-op outside the Live family entirely (inMixerFamily()) -
   // none of these eight have any meaning to a grid that isn't showing
   // Live content or one of its own fader/picker overlays, the same
   // guard toggleGridMode()/toggleTrackPicker() already apply to the
@@ -909,7 +909,7 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
       }
       return true;
     }
-    if (!inLiveMixerFamily(state)) return true;
+    if (!inMixerFamily(state)) return true;
     if (hasStopSoloMuteCycle(device_id)) {
       if (cc_number == 19)
         cycleStopSoloMute(device_id);
@@ -917,7 +917,7 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
         triggerSceneRow(controller, (cc_number - 19) / 10);
       return true;
     }
-    if (!state.live_mixer_mode) {
+    if (!state.mixer_mode) {
       triggerSceneRow(controller, (cc_number - 19) / 10);
       return true;
     }
@@ -942,7 +942,7 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
   // here, not tied to whether the overview widget has terminal UI focus at
   // all: one connected Launchpad can sit in Live View while another
   // stays on ordinary note entry. 95 also doubles as the mixer-submode
-  // toggle (DeviceState::live_mixer_mode) - a repeat press while
+  // toggle (DeviceState::mixer_mode) - a repeat press while
   // already at the plain Live grid with nothing from the mixer radio
   // group active flips it; either way this unconditionally lands on (or
   // stays on) that plain grid, closing any active fader/picker first if
@@ -954,7 +954,7 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
     // grid_mode to LIVE on every device (via forceLiveModeOnAllDevices())
     // as a side effect - reading it after would misread "just closed the
     // sequencer" as "already at the plain grid", spuriously flipping
-    // live_mixer_mode on a press that was actually meant to leave the
+    // mixer_mode on a press that was actually meant to leave the
     // sequencer, not toggle the mixer submode.
     bool at_plain_live_grid = state.grid_mode == GridMode::LIVE && !state.track_picker_active;
     // Live's own button also means "leave the sequencer entirely" when
@@ -965,7 +965,7 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
     // one, and none of them are left showing the step grid or any button
     // still highlighted for it. A no-op when nothing's focused.
     controller.closeDrumClipFocus();
-    if (at_plain_live_grid && !hasStopSoloMuteCycle(device_id)) state.live_mixer_mode = !state.live_mixer_mode;
+    if (at_plain_live_grid && !hasStopSoloMuteCycle(device_id)) state.mixer_mode = !state.mixer_mode;
     state.grid_mode = GridMode::LIVE;
     state.track_picker_active = false;
     return true;
@@ -1076,7 +1076,7 @@ LaunchpadManager::handleRecordButton(int device_id, Controller & controller, boo
   auto followed = cursor_track_index_ >= 0 && cursor_track_index_ < static_cast<int>(track_ids.size()) ?
     track_ids[static_cast<size_t>(cursor_track_index_)] : -1;
   if (!controller.getSessionPlayer().toggleOverdub(followed)) {
-    ui_events.push(std::make_unique<LogEvent>("Live Record: no playing clip to overdub"));
+    ui_events.push(std::make_unique<LogEvent>("Session Record: no playing clip to overdub"));
   }
   return true;
 }
@@ -1188,10 +1188,10 @@ LaunchpadManager::toggleTrackPicker(int device_id, DeviceState::TrackPickerPurpo
   auto & state = deviceState(device_id);
   // Live mixer-submode radio group member (see GridMode's own comment)
   // - a no-op unless already somewhere in that family
-  // (inLiveMixerFamily()), so opening from NOTES/CUSTOM/DRAW does
+  // (inMixerFamily()), so opening from NOTES/CUSTOM/DRAW does
   // nothing, but switching from a fader mode straight into the picker (or
   // between two picker purposes) always works.
-  if (!inLiveMixerFamily(state)) return;
+  if (!inMixerFamily(state)) return;
   bool already_active = state.track_picker_active && state.track_picker_purpose == purpose;
   armMixerHoldPreview(state, already_active);
   state.grid_mode = GridMode::LIVE; // leaving a fader mode for the picker always lands on the plain grid underneath
@@ -2092,7 +2092,7 @@ LaunchpadManager::handleLivePadEvent(const LaunchpadPadEvent & ev, Controller & 
     auto track_index = ev.getX();
     if (track_index < 0 || track_index >= static_cast<int>(live_.track_ids.size())) return;
     auto track_id = live_.track_ids[static_cast<size_t>(track_index)];
-    // Same y-flip as refresh()'s own live_colors computation - y=0 is
+    // Same y-flip as refresh()'s own clip_colors computation - y=0 is
     // the bottom-left pad, so y=7 is that track's first clip.
     // toggleDrumClipFocus() itself is what shows the step grid empty
     // rather than declining outright for a lane-less PercussionTrack -
@@ -2279,11 +2279,11 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
 
   if (state.grid_mode == GridMode::LIVE) {
     // Fully resolved already (identity hue, off where a track has no clip
-    // in that row) - see refresh()'s own live_colors computation and
-    // DeviceState::live_colors's own comment. Checked first, ahead of
+    // in that row) - see refresh()'s own clip_colors computation and
+    // DeviceState::clip_colors's own comment. Checked first, ahead of
     // every other branch below: LIVE is a hard override forced on by
     // refresh() itself, not a per-device toggle a user could combine with
-    // Send/Pan/Draw/drum-machine display. live_highlight (parallel,
+    // Send/Pan/Draw/drum-machine display. clip_highlight (parallel,
     // same indexing) overrides a triggered/queued pad's own static color
     // with a real hardware flash/pulse instead - see its own constants'
     // comment for why that has to be a fixed palette index rather than
@@ -2299,55 +2299,55 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
         // handleLivePadEvent()) overrides whatever it would otherwise
         // show - bright white, the same color CC91's own LED shows while
         // held, so the two lit pads visually pair up and confirm exactly
-        // what releasing will do. Per-device, unlike live_highlight/
-        // live_colors below (computed once, identical for every
+        // what releasing will do. Per-device, unlike clip_highlight/
+        // clip_colors below (computed once, identical for every
         // connected device) - only this device's own held press shows it.
         if (state.row_up_shift_pending_pad && x == state.row_up_shift_pending_x && y == state.row_up_shift_pending_y) {
           pad.r = pad.g = pad.b = 127;
           colors.push_back(pad);
           continue;
         }
-        switch (state.live_highlight[i]) {
-        case LivePadHighlight::PLAYING:
+        switch (state.clip_highlight[i]) {
+        case ClipHighlight::PLAYING:
           pad.type = LaunchpadProtocol::LightingType::PULSE;
-          pad.palette = LAUNCHPAD_LIVE_GREEN_PALETTE_BRIGHT;
+          pad.palette = LAUNCHPAD_CLIP_GREEN_PALETTE_BRIGHT;
           break;
-        case LivePadHighlight::QUEUED:
+        case ClipHighlight::QUEUED:
           pad.type = LaunchpadProtocol::LightingType::FLASH;
-          pad.flash_to = LAUNCHPAD_LIVE_GREEN_PALETTE_BRIGHT;
-          pad.flash_from = LAUNCHPAD_LIVE_GREEN_PALETTE_DIM;
+          pad.flash_to = LAUNCHPAD_CLIP_GREEN_PALETTE_BRIGHT;
+          pad.flash_from = LAUNCHPAD_CLIP_GREEN_PALETTE_DIM;
           break;
-        case LivePadHighlight::PAUSED:
-          pad.r = LAUNCHPAD_LIVE_PAUSED.r;
-          pad.g = LAUNCHPAD_LIVE_PAUSED.g;
-          pad.b = LAUNCHPAD_LIVE_PAUSED.b;
+        case ClipHighlight::PAUSED:
+          pad.r = LAUNCHPAD_CLIP_PAUSED.r;
+          pad.g = LAUNCHPAD_CLIP_PAUSED.g;
+          pad.b = LAUNCHPAD_CLIP_PAUSED.b;
           break;
         // An armed track's own red overlay - RECORDING/RECORD_QUEUED are
         // the exact same pulse/flash treatment as PLAYING/QUEUED above,
         // just red instead of green; RECORD_STOPPING reuses RECORD_
-        // QUEUED's own flash rather than a fifth color (LivePadHighlight's
+        // QUEUED's own flash rather than a fifth color (ClipHighlight's
         // own comment).
-        case LivePadHighlight::RECORDING:
+        case ClipHighlight::RECORDING:
           pad.type = LaunchpadProtocol::LightingType::PULSE;
-          pad.palette = LAUNCHPAD_LIVE_RED_PALETTE_BRIGHT;
+          pad.palette = LAUNCHPAD_CLIP_RED_PALETTE_BRIGHT;
           break;
-        case LivePadHighlight::RECORD_QUEUED:
-        case LivePadHighlight::RECORD_STOPPING:
+        case ClipHighlight::RECORD_QUEUED:
+        case ClipHighlight::RECORD_STOPPING:
           pad.type = LaunchpadProtocol::LightingType::FLASH;
-          pad.flash_to = LAUNCHPAD_LIVE_RED_PALETTE_BRIGHT;
-          pad.flash_from = LAUNCHPAD_LIVE_RED_PALETTE_DIM;
+          pad.flash_to = LAUNCHPAD_CLIP_RED_PALETTE_BRIGHT;
+          pad.flash_from = LAUNCHPAD_CLIP_RED_PALETTE_DIM;
           break;
         // A static dim red, same as an idle clip's own identity color
         // below is static - an empty slot has no identity hue of its own
         // to show, so this is the one state here with no unarmed
         // equivalent at all rather than a red version of one.
-        case LivePadHighlight::ARMED_EMPTY:
+        case ClipHighlight::ARMED_EMPTY:
           pad.r = LAUNCHPAD_TRACK_PICKER_RECORD_ARM_DIM.r;
           pad.g = LAUNCHPAD_TRACK_PICKER_RECORD_ARM_DIM.g;
           pad.b = LAUNCHPAD_TRACK_PICKER_RECORD_ARM_DIM.b;
           break;
-        case LivePadHighlight::NONE: {
-          auto & c = state.live_colors[i];
+        case ClipHighlight::NONE: {
+          auto & c = state.clip_colors[i];
           pad.r = static_cast<uint8_t>(c.getRed() / 2);
           pad.g = static_cast<uint8_t>(c.getGreen() / 2);
           pad.b = static_cast<uint8_t>(c.getBlue() / 2);
@@ -2695,14 +2695,14 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // anything to customize (see GridMode::CUSTOM's own comment) - same as
   // Session/Note not caring what track type they land on either. Session
   // itself also carries its own mixer-submode indicator (DeviceState::
-  // live_mixer_mode) - green while active and in scene-launch (the
+  // mixer_mode) - green while active and in scene-launch (the
   // default) submode, orange while active and in mixer submode instead,
   // dim green while not active at all - "active" meaning anywhere in the
-  // family (inLiveMixerFamily()), not just the plain grid, so a fader/
+  // family (inMixerFamily()), not just the plain grid, so a fader/
   // picker still reads as "Session" underneath.
   {
-    Rgb live_color = !inLiveMixerFamily(state) ? Rgb{0, 20, 0} : state.live_mixer_mode ? Rgb{127, 64, 0} : Rgb{0, 127, 0};
-    colors.push_back({95, live_color.r, live_color.g, live_color.b});
+    Rgb clip_color = !inMixerFamily(state) ? Rgb{0, 20, 0} : state.mixer_mode ? Rgb{127, 64, 0} : Rgb{0, 127, 0};
+    colors.push_back({95, clip_color.r, clip_color.g, clip_color.b});
   }
   // Note (CC96) goes fully dark while the step grid is showing rather than
   // its usual lit-when-active color: pressing it while already forced into
@@ -2716,7 +2716,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   } else {
     colors.push_back({97, state.grid_mode == GridMode::CUSTOM ? uint8_t(90) : uint8_t(20), 0, state.grid_mode == GridMode::CUSTOM ? uint8_t(127) : uint8_t(20)});
   }
-  // CC98 (Live Record): bright red while anything is recording
+  // CC98 (Session Record): bright red while anything is recording
   // (record_arm_led_on), dim red otherwise - dark while the step grid is
   // showing, where a tap would only ever say there is nothing to overdub.
   // Recording stays lit even there: it's real, track-global state a
@@ -2732,7 +2732,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   colors.push_back({99, 0, 0, 0});
   // Record Arm/Volume/Pan/SendA/SendB/Stop Clip/Mute/Solo (19/89/79/69/
   // 59/49/39/29, and Pro MK3 left-column twins 30/20) are Live's own
-  // mixer-submode radio group (DeviceState::live_mixer_mode/GridMode's
+  // mixer-submode radio group (DeviceState::mixer_mode/GridMode's
   // own comment): outside the Live family entirely (NOTES/CUSTOM/
   // DRAW), none of them mean anything (handleRawButton()'s own comment on
   // this same group), so all eight go fully off rather than showing a
@@ -2749,10 +2749,10 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // fader modes below) at full brightness for whichever one of the eight
   // is currently active, dim otherwise - never more than one bright at
   // once, matching the radio group's own "only one active" rule
-  // (inLiveMixerFamily()).
-  bool in_mixer_family = inLiveMixerFamily(state);
+  // (inMixerFamily()).
+  bool in_mixer_family = inMixerFamily(state);
   bool mini_layout = hasStopSoloMuteCycle(device_id);
-  bool mixer_mode = state.live_mixer_mode && !mini_layout;
+  bool mixer_mode = state.mixer_mode && !mini_layout;
   bool picker_record_arm = state.track_picker_active && state.track_picker_purpose == DeviceState::TrackPickerPurpose::RECORD_ARM;
   bool picker_mute = state.track_picker_active && state.track_picker_purpose == DeviceState::TrackPickerPurpose::MUTE;
   bool picker_solo = state.track_picker_active && state.track_picker_purpose == DeviceState::TrackPickerPurpose::SOLO;
@@ -2968,7 +2968,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   array<int, 8> track_send_main_row{}, track_send_a_row{}, track_send_b_row{};
   track_send_main_row.fill(-1); track_send_a_row.fill(-1); track_send_b_row.fill(-1);
   // DeviceState::track_colors' own comment - same identity hue/lightness
-  // Live View's live_colors below computes, just once per track
+  // Live View's clip_colors below computes, just once per track
   // rather than once per clip pad.
   array<Color, 8> track_colors{};
   SongStructure structure(song);
@@ -3030,14 +3030,14 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   // first clip and y=0 (bottom) its last visible one; no row
   // scroll yet either, so a track with more than 8 clips only
   // shows the first 8 for now.
-  array<Color, 64> live_colors;
-  // Parallel to live_colors above - see DeviceState::live_highlight's
+  array<Color, 64> clip_colors;
+  // Parallel to clip_colors above - see DeviceState::clip_highlight's
   // own comment.
-  array<LivePadHighlight, 64> live_highlight {};
+  array<ClipHighlight, 64> clip_highlight {};
   // The track-picker overlay's own per-track state (see
   // DeviceState::track_picker_active's own comment and
   // LAUNCHPAD_TRACK_PICKER_ROW's own comment in this file for what each
-  // one drives) - computed alongside live_colors below since both walk
+  // one drives) - computed alongside clip_colors below since both walk
   // the same per-track live.track_ids loop.
   array<bool, 8> track_picker_playing {};
   array<bool, 8> track_picker_soloed {};
@@ -3075,14 +3075,14 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
       for (int y = 0; y < 8; y++) {
         auto clip_index = 7 - y;
         auto highlight = controller.getSessionPlayer().clipHighlight(live_track_id, clip_index);
-        live_highlight[static_cast<size_t>(y * 8 + x)] = highlight;
+        clip_highlight[static_cast<size_t>(y * 8 + x)] = highlight;
         // An armed track's red states need no identity color underneath
         // (refreshLeds() never reads it for them); an empty, unarmed slot
         // stays dark.
         bool has_clip = clip_index < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(clip_index)].isEmpty();
-        bool recording_state = highlight == LivePadHighlight::ARMED_EMPTY || highlight == LivePadHighlight::RECORD_QUEUED ||
-          highlight == LivePadHighlight::RECORDING || highlight == LivePadHighlight::RECORD_STOPPING;
-        if (has_clip && !recording_state) live_colors[static_cast<size_t>(y * 8 + x)] = identity;
+        bool recording_state = highlight == ClipHighlight::ARMED_EMPTY || highlight == ClipHighlight::RECORD_QUEUED ||
+          highlight == ClipHighlight::RECORDING || highlight == ClipHighlight::RECORD_STOPPING;
+        if (has_clip && !recording_state) clip_colors[static_cast<size_t>(y * 8 + x)] = identity;
       }
     }
   }
@@ -3209,8 +3209,8 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     state.tuning = tuning;
     state.key = key_val;
     state.active_note_loudness = move(active_note_loudness);
-    state.live_colors = live_colors;
-    state.live_highlight = live_highlight;
+    state.clip_colors = clip_colors;
+    state.clip_highlight = clip_highlight;
     state.track_picker_playing = track_picker_playing;
     state.track_picker_soloed = track_picker_soloed;
     state.track_picker_muted = track_picker_muted;

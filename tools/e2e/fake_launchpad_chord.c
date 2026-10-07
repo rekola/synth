@@ -45,7 +45,7 @@ int main() {
   // Live View clip slot instead of entering a note; CC96 selects
   // NOTES mode. A press also only actually writes into the pattern
   // (rather than just auditioning) with Record Arm on, reached here via
-  // shift+CC98 (a plain CC98 tap is Live Record).
+  // shift+CC98 (a plain CC98 tap is Session Record).
   fprintf(stderr, "sending CC96 press (Note mode)\n");
   send_cc(seq, port, 96, 127);
   sleep(1);

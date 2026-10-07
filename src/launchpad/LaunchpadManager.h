@@ -4,7 +4,7 @@
 #include "../instruments/Tuning.h"
 #include "../model/Color.h"
 #include "LaunchpadProtocol.h"
-#include "LivePadHighlight.h"
+#include "ClipHighlight.h"
 #include "LaunchpadTiming.h"
 
 #include <array>
@@ -98,8 +98,8 @@ class LaunchpadManager {
   // overlay's own four purposes (Stop Clip/Mute/Solo/Record Arm, CC49/39/
   // 29/19 - see DeviceState::track_picker_active's own comment), are
   // Live View's own "mixer submode" radio group (DeviceState::
-  // live_mixer_mode, toggleGridMode()/toggleTrackPicker()/
-  // inLiveMixerFamily()) - only reachable while already showing
+  // mixer_mode, toggleGridMode()/toggleTrackPicker()/
+  // inMixerFamily()) - only reachable while already showing
   // GridMode::LIVE (a no-op from NOTES/CUSTOM/DRAW), only one of the
   // eight ever active at a time (pressing a different one always switches
   // straight to it, even crossing between the fader-as-GridMode and
@@ -113,7 +113,7 @@ class LaunchpadManager {
   // underneath the picker row whenever both happened to be showing
   // together; restricting both to Live View removes the only
   // situation where that could happen. Mixer submode itself defaults off
-  // - see live_mixer_mode's own comment for what the same eight
+  // - see mixer_mode's own comment for what the same eight
   // buttons do instead while it's off, and how it's toggled. LIVE/
   // NOTES/CUSTOM/DRAW (CC95/96/97/98) are a separate, four-member group
   // that behaves differently - a true radio group, never toggled off by
@@ -130,8 +130,8 @@ class LaunchpadManager {
   enum class GridMode { NOTES, SEND_MAIN, PAN, SEND_A, SEND_B, DRAW, LIVE, CUSTOM, TEMPO, SWING };
   GridMode gridMode(int device_id) const;
 
-  // See LivePadHighlight.h.
-  using LivePadHighlight = ::LivePadHighlight;
+  // See ClipHighlight.h.
+  using ClipHighlight = ::ClipHighlight;
   void toggleGridMode(int device_id, GridMode mode);
   // A one-way force, unlike toggleGridMode() above - every currently
   // connected device switches to NOTES regardless of whatever mode it was
@@ -272,7 +272,7 @@ class LaunchpadManager {
   // hardware-state toggle.
   //
   // 89/79/69/59/49/39/29 (and Pro MK3 twins 30/20) share one dispatch:
-  // Live's own "mixer submode" (DeviceState::live_mixer_mode, off
+  // Live's own "mixer submode" (DeviceState::mixer_mode, off
   // by default) decides what all seven mean together. Off (the default -
   // the classic Launchpad right-column convention), each one launches a
   // whole scene instead (triggerSceneRow(), row = (cc_number - 19) / 10,
@@ -297,7 +297,7 @@ class LaunchpadManager {
   // DRAW is the one member not reached by a plain press: shift + Custom
   // enters it, or blanks its canvas when it is already showing, and the
   // only way to leave it is selecting one of 95/96/97. 95 also doubles as the mixer-submode toggle - a repeat press
-  // while grid_mode is already LIVE flips live_mixer_mode instead
+  // while grid_mode is already LIVE flips mixer_mode instead
   // of being a no-op, while still (unconditionally, either way) landing
   // on the plain Live grid. Takes Controller (unlike every other
   // toggle here) for the eight mixer-submode buttons' own scene-launch
@@ -312,9 +312,9 @@ class LaunchpadManager {
   // through the track-picker overlay. It has no mixer submode.
   bool handleRawButton(int cc_number, int device_id, Controller & controller);
 
-  // CC98 ("Live Record") on its own, separate entry point: it needs
+  // CC98 ("Session Record") on its own, separate entry point: it needs
   // both press and release to tell a quick tap from a long hold. A tap is
-  // Live Record (SessionPlayer::toggleOverdub()): overdub the playing
+  // Session Record (SessionPlayer::toggleOverdub()): overdub the playing
   // clip, or stop the takes in flight. A long hold is Capture MIDI
   // (retroactive capture; not built yet - it only says so). With shift
   // (CC91) held, it is the arrangement's own Record Arm instead: the
@@ -455,7 +455,7 @@ class LaunchpadManager {
   // separate entry point (pressDrawPad()) rather than living inside
   // handlePadEvent() above: UI::handleLaunchpadPadEvent() already checks
   // gridMode() before ever calling handlePadEvent(). x = column, indexing
-  // into live_.track_ids exactly like refresh()'s own live_colors
+  // into live_.track_ids exactly like refresh()'s own clip_colors
   // computation (see its comment for the y-flip); y = which of that
   // track's own clips (Song::getClips()) was pressed.
   // Only a PRESS does anything (matching every other grid-mode's own
@@ -604,12 +604,12 @@ class LaunchpadManager {
     // and Pro MK3 20/30) each launch a whole scene (triggerSceneRow())
     // instead of their fader/picker meaning, the classic Launchpad
     // right-column convention; true means those seven act as one shared,
-    // mutually-exclusive radio group instead (inLiveMixerFamily()).
+    // mutually-exclusive radio group instead (inMixerFamily()).
     // Toggled by pressing CC95 ("Session") again while already showing
     // GridMode::LIVE - pressing it from anywhere else just returns to
     // the plain grid, leaving whichever submode was already selected
     // untouched. Record Arm (CC19) is deliberately unaffected either way.
-    bool live_mixer_mode = false;
+    bool mixer_mode = false;
 
     // Step view: not a GridMode value of its own - within grid_mode==NOTES
     // it replaces the top half of the playing surface (show_step_grid).
@@ -720,7 +720,7 @@ class LaunchpadManager {
     TrackPickerPurpose mixer_hold_previous_track_picker_purpose = TrackPickerPurpose::STOP_CLIP;
 
     // Same "computed once in refresh(), copied into every device
-    // identically" shape as live_colors below - one flag per selectable
+    // identically" shape as clip_colors below - one flag per selectable
     // track (column index matches live_.track_ids, the same list
     // Live View's own columns already address), read by refreshLeds()
     // to pick each picker-row pad's bright/dim purpose color while
@@ -794,7 +794,7 @@ class LaunchpadManager {
     int grid_track_count = 0;
 
     // Each of the first 8 root tracks' own identity-hue color (same
-    // computation/lightness as GridMode::LIVE's own live_colors
+    // computation/lightness as GridMode::LIVE's own clip_colors
     // below, just one entry per track rather than per clip pad) - Pan's
     // own row indicator uses this instead of a single fixed hue, the same
     // "which track is this" cue Live View's columns already give.
@@ -808,19 +808,19 @@ class LaunchpadManager {
     // track_send_main/etc. above. Plain black (Color's own default)
     // wherever LIVE isn't active at all, so this never needs a separate
     // "is this valid" flag. The triggered/queued transport-state overlay is
-    // live_highlight below, not folded into this color - real hardware
+    // clip_highlight below, not folded into this color - real hardware
     // shows that as a fixed-hue flash/pulse animation, not a lighter/darker
     // shade of the clip's own identity color.
-    std::array<Color, 64> live_colors;
-    // GridMode::LIVE: parallel to live_colors above (same x+y*8
+    std::array<Color, 64> clip_colors;
+    // GridMode::LIVE: parallel to clip_colors above (same x+y*8
     // indexing) - whether each pad is idle, queued to launch/stop at the
     // next shared bar boundary, or actually playing right now (the plain
     // three), or - within an armed track's own column instead, see
-    // LivePadHighlight's own comment - empty-and-armed, queued to
+    // ClipHighlight's own comment - empty-and-armed, queued to
     // record, actually recording, or about to stop recording (the other
-    // four). NONE wherever LIVE isn't active, same as live_colors'
+    // four). NONE wherever LIVE isn't active, same as clip_colors'
     // own default.
-    std::array<LivePadHighlight, 64> live_highlight {};
+    std::array<ClipHighlight, 64> clip_highlight {};
 
     // DRAW mode: each of the 64 pads' own index into the color palette
     // (see releaseDrawPad/refreshLeds), independent of Song/Track state
@@ -845,7 +845,7 @@ class LaunchpadManager {
     // measures against this to decide short click (cycle the hue) vs. long
     // press (leave the hue alone, brightness-only).
     std::array<std::chrono::steady_clock::time_point, 64> draw_pad_press_time {};
-    // CC98 (Live Record) press/release tracking - see
+    // CC98 (Session Record) press/release tracking - see
     // handleRecordButton() for why a tap and a long hold need to be told
     // apart: nothing fires on press, only release decides between them.
     bool record_button_pressed = false;
@@ -1151,7 +1151,7 @@ class LaunchpadManager {
   // Opens the track-picker overlay for `purpose`, shared by every button
   // that can open it (CC49/39/29, and their Pro MK3 left-column twins
   // 30/20, plus CC19 for RECORD_ARM - see handleRawButton()'s own
-  // comment). A no-op unless inLiveMixerFamily() already holds. A
+  // comment). A no-op unless inMixerFamily() already holds. A
   // repeat press of the button
   // already driving the overlay's current purpose closes it instead
   // (matching toggleGridMode()'s own convention); pressing a *different*
@@ -1180,7 +1180,7 @@ class LaunchpadManager {
   // can switch straight to it without a separate cancel step first, even
   // crossing between the fader-as-GridMode and picker-as-overlay
   // mechanisms.
-  bool inLiveMixerFamily(const DeviceState & state) const;
+  bool inMixerFamily(const DeviceState & state) const;
 
   // Tempo/Swing views - see handleArrowRelease()'s comment.
   static bool inNumberView(const DeviceState & state);
@@ -1188,7 +1188,7 @@ class LaunchpadManager {
   void toggleNumberView(DeviceState & state, GridMode view);
 
   // Live View's own scene-launch action (DeviceState::
-  // live_mixer_mode's own comment, off by default) - launches `row`'s
+  // mixer_mode's own comment, off by default) - launches `row`'s
   // own clip (the same row -> clip_index mapping Live View's own
   // columns use, 7 - row) across every currently selectable track at
   // once, the classic Launchpad right-column convention. Goes through

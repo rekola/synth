@@ -71,7 +71,7 @@ state1 = last_led_state(fake_output, "0c")
 print("Track 0's own pad (0,0) [LED 0b] final state:", state0)
 print("Track 1's own pad (1,0) [LED 0c] final state:", state1)
 
-check("Track 0's own clip pulses green (LivePadHighlight::PLAYING) after the scene launch",
+check("Track 0's own clip pulses green (ClipHighlight::PLAYING) after the scene launch",
       state0 is not None and state0.startswith("02 0b 15"), state0)
 check("Track 1's own clip ALSO pulses green - joined the same scene launch, not left queued",
       state1 is not None and state1.startswith("02 0c 15"), state1)

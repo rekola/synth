@@ -1,7 +1,7 @@
 #ifndef _SESSIONPLAYER_H_
 #define _SESSIONPLAYER_H_
 
-#include "../launchpad/LivePadHighlight.h"
+#include "../launchpad/ClipHighlight.h"
 #include "../model/Song.h"
 
 #include <functional>
@@ -43,7 +43,7 @@ class SessionPlayer {
   // playhead: its track is stopped at the next bar and the clip removed
   // once that stop has taken effect (tick()).
   void deleteClip(int track_id, int clip_index);
-  // Live Record: overdubs the clip playing on each armed track (the
+  // Session Record: overdubs the clip playing on each armed track (the
   // fallback track if none is armed) from the next bar, in place - the
   // clip keeps looping, the take lines up with it. While any take is in
   // flight, stops those takes at the next bar instead, leaving the clips
@@ -117,7 +117,7 @@ class SessionPlayer {
   // A clip slot's transport/recording state - what its Launchpad pad and
   // the terminal's clip grid both show. A slot with no clip on an unarmed
   // track is NONE.
-  LivePadHighlight clipHighlight(int track_id, int clip_index) const;
+  ClipHighlight clipHighlight(int track_id, int clip_index) const;
 
  private:
   const SessionTrackInfo * sessionTrack(int track_id) const;

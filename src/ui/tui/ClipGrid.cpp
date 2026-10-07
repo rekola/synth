@@ -34,18 +34,18 @@ asLeafTrack(const Song & song, int track_id) {
 // states flash on and off - the terminal's stand-in for the Launchpad's own
 // hardware-animated pulse/flash.
 float
-statePulse(LivePadHighlight state) {
+statePulse(ClipHighlight state) {
   using Clock = std::chrono::steady_clock;
   auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now().time_since_epoch()).count();
   switch (state) {
-  case LivePadHighlight::PLAYING:
-  case LivePadHighlight::RECORDING: {
+  case ClipHighlight::PLAYING:
+  case ClipHighlight::RECORDING: {
     float phase = static_cast<float>(ms % 1000) / 1000.0f;
     return 0.5f - 0.5f * std::cos(phase * 6.2831853f);
   }
-  case LivePadHighlight::QUEUED:
-  case LivePadHighlight::RECORD_QUEUED:
-  case LivePadHighlight::RECORD_STOPPING:
+  case ClipHighlight::QUEUED:
+  case ClipHighlight::RECORD_QUEUED:
+  case ClipHighlight::RECORD_STOPPING:
     return (ms / 250) % 2 == 0 ? 1.0f : 0.0f;
   default: return 0.0f;
   }
@@ -537,25 +537,25 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   bool editor_redraw = inline_editor_.consumeRedrawRequest();
   auto clip_rows = clipRowCount();
   auto clipState = [&](int track_index, int clip_row) {
-    if (!clip_state_source_ || track_index >= num_tracks || clip_row >= clip_rows) return LivePadHighlight::NONE;
+    if (!clip_state_source_ || track_index >= num_tracks || clip_row >= clip_rows) return ClipHighlight::NONE;
     return clip_state_source_(track_ids[static_cast<size_t>(track_index)], clip_row);
   };
   // A scene's state, for its master slot: queued while any track in it is
   // about to launch or record, playing while any plays or records.
   auto sceneState = [&](int clip_row) {
-    auto state = LivePadHighlight::NONE;
+    auto state = ClipHighlight::NONE;
     for (int t = 0; t < num_tracks; t++) {
       auto s = clipState(t, clip_row);
-      if (s == LivePadHighlight::QUEUED || s == LivePadHighlight::RECORD_QUEUED) return LivePadHighlight::QUEUED;
-      if (s == LivePadHighlight::PLAYING || s == LivePadHighlight::RECORDING) state = LivePadHighlight::PLAYING;
-      if (s == LivePadHighlight::PAUSED && state == LivePadHighlight::NONE) state = LivePadHighlight::PAUSED;
+      if (s == ClipHighlight::QUEUED || s == ClipHighlight::RECORD_QUEUED) return ClipHighlight::QUEUED;
+      if (s == ClipHighlight::PLAYING || s == ClipHighlight::RECORDING) state = ClipHighlight::PLAYING;
+      if (s == ClipHighlight::PAUSED && state == ClipHighlight::NONE) state = ClipHighlight::PAUSED;
     }
     return state;
   };
   auto master_id = song.getMasterTrack().getInternalId();
   // The track (or, past the last track, the master) a column index shows.
   auto columnTrackId = [&](int column) { return column < num_tracks ? track_ids[static_cast<size_t>(column)] : master_id; };
-  std::vector<LivePadHighlight> clip_states;
+  std::vector<ClipHighlight> clip_states;
   for (auto vc = 0; vc < drawn_cols && scroll_col_ + vc <= num_tracks; vc++) {
     auto column = scroll_col_ + vc;
     for (auto vr = 0; vr < visible_rows; vr++) {
@@ -671,7 +671,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     // The leading two cells mark a track playing Live View rather than
     // the arrangement; otherwise they're left to the header's own blank.
     if (getController().getSessionPlayer().isTakenOver(track_id)) {
-      setFgColor(styles.live_override_color);
+      setFgColor(styles.clip_override_color);
       putstr(0, x + name_width, "◆");
     }
     setFgColor(monitor == LeafTrack::Monitor::IN ? styles.monitor_color :
@@ -775,7 +775,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
           row_fg = styles.window_fg_color.blend(0.5f, Color(0, 0, 0));
         }
         // The slot's transport/recording state, as its Launchpad pad shows
-        // it (LivePadHighlight): a colored glyph in the icon's place -
+        // it (ClipHighlight): a colored glyph in the icon's place -
         // green for a clip playing or queued to launch (dim while the
         // transport is paused), red for an armed
         // track's slots (dim while merely armed or stopping, bright while
@@ -785,24 +785,24 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
         const char * glyph = nullptr;
         Color glyph_fg = row_fg;
         switch (state) {
-        case LivePadHighlight::NONE: break;
-        case LivePadHighlight::PLAYING: glyph = "▸"; glyph_fg = styles.clip_playing_color; break;
-        case LivePadHighlight::PAUSED: glyph = "▸"; glyph_fg = styles.clip_paused_color; break;
-        case LivePadHighlight::QUEUED: glyph = "▹"; glyph_fg = styles.clip_playing_color; break;
-        case LivePadHighlight::ARMED_EMPTY: glyph = "○"; glyph_fg = styles.clip_armed_color; break;
-        case LivePadHighlight::RECORD_QUEUED: glyph = "○"; glyph_fg = styles.clip_recording_color; break;
-        case LivePadHighlight::RECORDING: glyph = "●"; glyph_fg = styles.clip_recording_color; break;
-        case LivePadHighlight::RECORD_STOPPING: glyph = "●"; glyph_fg = styles.clip_armed_color; break;
+        case ClipHighlight::NONE: break;
+        case ClipHighlight::PLAYING: glyph = "▸"; glyph_fg = styles.clip_playing_color; break;
+        case ClipHighlight::PAUSED: glyph = "▸"; glyph_fg = styles.clip_paused_color; break;
+        case ClipHighlight::QUEUED: glyph = "▹"; glyph_fg = styles.clip_playing_color; break;
+        case ClipHighlight::ARMED_EMPTY: glyph = "○"; glyph_fg = styles.clip_armed_color; break;
+        case ClipHighlight::RECORD_QUEUED: glyph = "○"; glyph_fg = styles.clip_recording_color; break;
+        case ClipHighlight::RECORDING: glyph = "●"; glyph_fg = styles.clip_recording_color; break;
+        case ClipHighlight::RECORD_STOPPING: glyph = "●"; glyph_fg = styles.clip_armed_color; break;
         }
         // The slot takes the state color, pulsing or flashing between its
         // dark and bright shade like the Launchpad pad (before the cursor/
         // tint below, so those still apply on top).
-        if (has_real_clip && state != LivePadHighlight::NONE) {
-          bool red = state == LivePadHighlight::RECORDING || state == LivePadHighlight::RECORD_QUEUED
-            || state == LivePadHighlight::RECORD_STOPPING;
+        if (has_real_clip && state != ClipHighlight::NONE) {
+          bool red = state == ClipHighlight::RECORDING || state == ClipHighlight::RECORD_QUEUED
+            || state == ClipHighlight::RECORD_STOPPING;
           Color bright = red ? styles.clip_recording_color : styles.clip_playing_color;
           Color dark = bright.blend(0.6f, Color(0, 0, 0));
-          row_bg = state == LivePadHighlight::PAUSED ? styles.clip_paused_color
+          row_bg = state == ClipHighlight::PAUSED ? styles.clip_paused_color
             : dark.blend(statePulse(state), bright);
         }
         if (is_cursor_cell && !has_real_clip) {
@@ -889,7 +889,7 @@ ClipGrid::renderMeter(const StyleProvider & styles, int x, int rows, int track_i
 
 void
 ClipGrid::renderMasterColumn(const StyleProvider & styles, int x, int rows, bool focused, int num_tracks,
-                             const std::function<LivePadHighlight(int clip_row)> & scene_state) {
+                             const std::function<ClipHighlight(int clip_row)> & scene_state) {
   const Song & song = getController().getSong();
   auto & master = song.getMasterTrack();
   auto clip_rows = clipRowCount();
@@ -932,9 +932,9 @@ ClipGrid::renderMasterColumn(const StyleProvider & styles, int x, int rows, bool
       auto name_width = kColWidth - 3 - Utf8::displayWidth(tempo_text);
       putstr(y, x, Utf8::padToWidth(" ▸ " + Utf8::padToWidth(Utf8::truncateToWidth(song.getSceneName(physical_row), name_width), name_width) + tempo_text, kColWidth));
       auto state = scene_state(physical_row);
-      if (state == LivePadHighlight::PLAYING || state == LivePadHighlight::QUEUED || state == LivePadHighlight::PAUSED) {
-        setFgColor(state == LivePadHighlight::PAUSED ? styles.clip_paused_color : styles.clip_playing_color);
-        putstr(y, x + 1, state == LivePadHighlight::QUEUED ? "▹" : "▸");
+      if (state == ClipHighlight::PLAYING || state == ClipHighlight::QUEUED || state == ClipHighlight::PAUSED) {
+        setFgColor(state == ClipHighlight::PAUSED ? styles.clip_paused_color : styles.clip_playing_color);
+        putstr(y, x + 1, state == ClipHighlight::QUEUED ? "▹" : "▸");
       }
       continue;
     }

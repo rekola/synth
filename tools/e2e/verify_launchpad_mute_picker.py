@@ -105,8 +105,8 @@ cc39_in_mixer = last_led_color(after_mixer, "27")
 cc39_open = last_led_color(after_open, "27")
 cc39_after_pick = last_led_color(after_pick, "27")
 cc39_after_close = last_led_color(after_close, "27")
-live_before_mixer = last_led_color(before_mixer, "5f")
-live_in_mixer = last_led_color(after_mixer, "5f")
+before_mixer = last_led_color(before_mixer, "5f")
+in_mixer = last_led_color(after_mixer, "5f")
 
 print("pad (0,0) LED before entering mixer submode:", color_before_mixer)
 print("pad (0,0) LED once the overlay opened:      ", color_after_open)
@@ -115,13 +115,13 @@ print("pad (0,0) LED once the overlay closed:      ", color_after_close)
 print("pad (0,7) LED before mixer/once overlay open:", row7_before_mixer, row7_after_open)
 print("CC39 LED before-mixer/in-mixer/open/after-pick/closed:",
       cc39_before_mixer, cc39_in_mixer, cc39_open, cc39_after_pick, cc39_after_close)
-print("CC95 (Session) LED before/in mixer submode:  ", live_before_mixer, live_in_mixer)
+print("CC95 (Session) LED before/in mixer submode:  ", before_mixer, in_mixer)
 
 check("CC39 (Mute) LED is a plain dim scene-launch white before entering mixer submode",
       cc39_before_mixer == ('1e', '1e', '1e'), cc39_before_mixer)
 check("CC95 (Session) LED turns orange once mixer submode is entered",
-      live_before_mixer == ('00', '7f', '00') and live_in_mixer == ('7f', '40', '00'),
-      (live_before_mixer, live_in_mixer))
+      before_mixer == ('00', '7f', '00') and in_mixer == ('7f', '40', '00'),
+      (before_mixer, in_mixer))
 check("CC39 (Mute) LED becomes dim yellow (its own idle hue) once in mixer submode, before opening",
       cc39_in_mixer == ('14', '14', '00'), cc39_in_mixer)
 check("CC39 (Mute) LED lit up bright yellow once the overlay opened",

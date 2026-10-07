@@ -93,9 +93,9 @@ class StyleProvider {
   Color solo_color = "#ffdc5a";
   Color monitor_color = "#5ad2ff";
   // The mark on a track Live View has taken over from the arrangement.
-  Color live_override_color = "#ff9a3c";
+  Color clip_override_color = "#ff9a3c";
 
-  // A clip slot's state glyph in the clip grid (LivePadHighlight):
+  // A clip slot's state glyph in the clip grid (ClipHighlight):
   // playing or queued; launched while the transport is paused; recording
   // or queued to record; an armed track's empty slot, or a take queued to
   // stop.

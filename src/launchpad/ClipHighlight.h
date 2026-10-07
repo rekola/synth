@@ -1,9 +1,9 @@
-#ifndef _LIVEPADHIGHLIGHT_H_
-#define _LIVEPADHIGHLIGHT_H_
+#ifndef _CLIPHIGHLIGHT_H_
+#define _CLIPHIGHLIGHT_H_
 
 // A clip slot's transport/recording state (LaunchpadManager::
 // clipHighlight()) - on a Launchpad, Live View's per-pad overlay
-// (DeviceState::live_highlight) on top of a clip's own identity-hue
+// (DeviceState::clip_highlight) on top of a clip's own identity-hue
 // static color, matching the live-sequencer convention of a fixed green
 // flash/pulse for "about to launch"/"currently playing" regardless of
 // that hue, rather than a lighter/darker shade of it; the terminal's clip
@@ -27,6 +27,6 @@
 // shown as a flash (the same lighting type RECORD_QUEUED uses) rather
 // than a new color, to keep the palette small, but tracked as its own
 // state since it overrides RECORDING rather than combining with it.
-enum class LivePadHighlight { NONE, QUEUED, PLAYING, PAUSED, ARMED_EMPTY, RECORD_QUEUED, RECORDING, RECORD_STOPPING };
+enum class ClipHighlight { NONE, QUEUED, PLAYING, PAUSED, ARMED_EMPTY, RECORD_QUEUED, RECORDING, RECORD_STOPPING };
 
 #endif

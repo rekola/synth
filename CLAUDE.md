@@ -457,11 +457,11 @@ would otherwise resume showing.
   grid. `SEND_MAIN`/`PAN`/`SEND_A`/`SEND_B`, plus the
   track-picker overlay's three purposes (Stop Clip/Mute/Solo - see its
   own bullet below), together form Live's own **mixer submode radio
-  group** (`DeviceState::live_mixer_mode`, off by default) - see the
+  group** (`DeviceState::mixer_mode`, off by default) - see the
   Extra-button layout bullet below for what the same seven buttons do
   while that submode is off, and how it's toggled; while it's on, only
   one of the seven is ever active at once (`toggleGridMode()`/
-  `toggleTrackPicker()`/`inLiveMixerFamily()` - pressing a different
+  `toggleTrackPicker()`/`inMixerFamily()` - pressing a different
   one always switches straight to it, even crossing between the fader-
   as-`GridMode` and picker-as-overlay mechanisms; pressing the one
   already active closes back to the plain Live grid). A press that
@@ -484,13 +484,13 @@ would otherwise resume showing.
   together.
 - **Extra-button layout** (raw CC, intercepted directly in
   `LaunchpadManager::handleRawButton()`/`UI::handleLaunchpadButtonEvent()`
-  before any command-name resolution): 95/96/97 (Live/Note/Custom; the device itself labels 95 "Session") plus DRAW are
+  before any command-name resolution): 95/96/97 (Live/Note/Custom; the device labels 95 "Session" and 98 "Session Record", names kept in user-facing text, while the code stays neutral) plus DRAW are
   a true four-member exclusive group, not independent toggles - each of
   95/96/97's presses selects that mode unconditionally, even pressing the
   one already active, so the only way to leave a mode is selecting a
   *different* one of the four; DRAW is the one member not reached by a
   plain press (see its own bullet below), and the only way out of it is
-  selecting one of 95/96/97. 98 is Live Record (its own bullet
+  selecting one of 95/96/97. 98 is Session Record (its own bullet
   below). 91/92/93/94 are move-row-up/down/pad-prev-track/pad-next-track
   (named commands, via `LaunchpadProtocol::commandForButton()`). 91 doubles
   as a held shift modifier for opening a Live-View clip's own step
@@ -543,7 +543,7 @@ would otherwise resume showing.
   95 ("Session") doubles as the
   mixer-submode toggle: a repeat press while already at the plain Live
   grid with nothing from the radio group active flips
-  `live_mixer_mode`; any press otherwise just lands on (or stays on)
+  `mixer_mode`; any press otherwise just lands on (or stays on)
   that plain grid, closing an active fader/picker first if there was one.
   Live's own LED (95) reflects this three ways: dim green when not
   showing anything from the Live family at all, bright green while
@@ -554,7 +554,7 @@ would otherwise resume showing.
   any mixer-mode hue, which would otherwise misleadingly suggest a fader/
   picker is one press away; once mixer submode is on, each shows its own
   hue, bright only for whichever one is currently active.
-- **Live Record** (CC98, `handleRecordButton()`) - needs press and
+- **Session Record** (CC98, `handleRecordButton()`) - needs press and
   release, since the tap and the long hold mean unrelated things. A tap
   is `SessionPlayer::toggleOverdub()`: from the next bar, each armed
   track's playing clip (the followed track's if none is armed) is
@@ -673,7 +673,7 @@ would otherwise resume showing.
   same shift+pad on the same pad from the plain Live grid, closes it
   (`Controller::closeDrumClipFocus()`) and returns every device to Live
   View. Merely navigating the cursor onto a track, or recording into it,
-  never shows the step view. In it, CC96 and the idle Live Record go
+  never shows the step view. In it, CC96 and the idle Session Record go
   fully dark (nothing left for them to do); CC91/92 are dark on a
   percussion track and CC93/94 go dark once the clip fits the devices
   connected.
@@ -789,11 +789,11 @@ would otherwise resume showing.
   ringing or hard-cut. Stopping
   a track this way (as opposed to a plain press retriggering/reassigning
   it) goes through the track-picker overlay - see its own bullet below.
-  A pad's own identity-hue static color (`DeviceState::live_colors`)
-  gets a transport-state overlay (`live_highlight`, `LaunchpadManager::
-  LivePadHighlight`) matching the convention -
+  A pad's own identity-hue static color (`DeviceState::clip_colors`)
+  gets a transport-state overlay (`clip_highlight`, `LaunchpadManager::
+  ClipHighlight`) matching the convention -
   playing pulses and queued flashes a fixed green
-  (`LAUNCHPAD_LIVE_GREEN_PALETTE_BRIGHT`/`_DIM`) regardless of that
+  (`LAUNCHPAD_CLIP_GREEN_PALETTE_BRIGHT`/`_DIM`) regardless of that
   pad's own hue, via the LED-lighting SysEx's own hardware-driven
   flash/pulse lighting types (`LaunchpadProtocol::LightingType::FLASH`/
   `PULSE`) rather than a software brightness blend - the device animates
@@ -803,7 +803,7 @@ would otherwise resume showing.
   palette, not arbitrary RGB, which is why they're a fixed green rather
   than each pad's own hue. An armed track (`Controller::isTrackArmed()`), or one
   recording or about to, switches its whole column from this green overlay to a red one instead
-  (still `LivePadHighlight`, four further states -
+  (still `ClipHighlight`, four further states -
   `ARMED_EMPTY`/`RECORD_QUEUED`/`RECORDING`/`RECORD_STOPPING` - reached
   instead of, never alongside, the plain three, since a pad is always
   exactly one or the other): an empty slot shows static dim red, a
@@ -934,7 +934,7 @@ would otherwise resume showing.
   the input.
   Each clip slot shows its transport/recording state the way its
   Launchpad pad does (`SessionPlayer::clipHighlight()`, the one
-  source for both, `LivePadHighlight`): a colored glyph in its icon's
+  source for both, `ClipHighlight`): a colored glyph in its icon's
   place - green for playing (▸) or queued (▹), dim green (▸) while the
   transport is paused, red for recording (●) or
   queued to record (○), dim red for an armed track's empty slot (○) or a

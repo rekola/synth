@@ -210,7 +210,7 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
     getController().setPendingCommandTrack(-1);
   };
 
-  // CC98 (Live Record) needs press and release, not just press - its
+  // CC98 (Session Record) needs press and release, not just press - its
   // own tap-vs-long-hold gesture (LaunchpadManager::handleRecordButton()):
   // a quick tap overdubs the playing clip (or stops the takes in flight),
   // a long hold is Capture MIDI. Routed here before the press-only filter

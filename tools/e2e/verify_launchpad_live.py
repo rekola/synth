@@ -94,7 +94,7 @@ check("synth sent a Programmer-Mode-enter SysEx to the simulated device",
 
 # LED colors sent in the very first refresh (before any button/pad input at
 # all) - proves DeviceState::grid_mode now defaults to LIVE rather than
-# NOTES: CC95 (led index 0x5f = 95) bright green (live_mixer_mode
+# NOTES: CC95 (led index 0x5f = 95) bright green (mixer_mode
 # defaults off - orange means mixer submode instead, see GridMode's own
 # comment), CC97 (0x61 = 97, Custom) dim - see LaunchpadManager::
 # refreshLeds()'s own Live/Custom LED comment.
