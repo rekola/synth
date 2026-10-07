@@ -41,12 +41,13 @@ says where its own feature comes from and where it differs.
   and a tuning can spell the same pitch in several ways. In 12-EDO, E♯ is F. In
   31-EDO, E♯ and F are different pitches, but D𝄪 and F𝄫 are the same one. Note numbers for each tuning
   are in `docs/`, for example [31edo_note_numbers.txt](docs/31edo_note_numbers.txt).
-- **Scales.** A song has a key and an optional scale: major, minor, otonal or
-  utonal. The names are Partch's (1949), but the intervals and the function
-  differ: here they are ordinary seven-note scales, with intervals derived by
-  the methods in Kyle Gann's *The Arithmetic of Listening* (2019). Each scale is written once
-  as note names, so the same scale is correct in every tuning. Without a scale, the Launchpad keyboard
-  plays major. The scale drives the in-key layout described in
+- **Scales.** A song has a key and an optional scale: major (the Ionian
+  mode), minor (the Aeolian mode), otonal or utonal. Each is written once as
+  note names, so it is correct in every tuning. Otonal and utonal are Partch's
+  terms (1949), but the scales here are ordinary seven-note scales, with
+  intervals derived by the methods in Kyle Gann's *The Arithmetic of
+  Listening* (2019). Without a scale, the Launchpad keyboard plays major. The
+  scale drives the in-key layout described in
   [docs/drums-and-sequencer.md](docs/drums-and-sequencer.md).
 
 # Features
