@@ -164,7 +164,7 @@ class Song : public SongObject {
   int beatRowsAt(int row) const { return getBarsAt(row).beatRows(); }
   int nextBarStart(int row) const { return getBarsAt(row).nextBarStart(row); }
 
-  // Whether a live Live take snaps each press and release to the nearest
+  // Whether a live clip take snaps each press and release to the nearest
   // row as it's recorded. Off (the default) records the raw sub-row timing
   // in the note's delay instead; quantizeClip() can clean it up afterward.
   bool getRecordQuantize() const { return record_quantize_; }
@@ -356,7 +356,7 @@ class Song : public SongObject {
   // itself already follows. Whichever clip already sits at `index`
   // (freshly padded or not) is returned as-is, content untouched -
   // resetting it for a fresh take is the caller's own job
-  // (Controller::ensureLiveRecordingClip()).
+  // (Controller::ensureClipRecordingClip()).
   Clip & ensureClipAt(int track_id, int index) {
     auto & clips = clips_by_track_[track_id];
     while (static_cast<int>(clips.size()) <= index) clips.push_back(Clip(track_id));

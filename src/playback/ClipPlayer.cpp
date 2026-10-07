@@ -98,12 +98,12 @@ ClipPlayer::triggerClip(int track_id, int clip_index) {
 
   if (controller_.isTrackArmed(track_id)) {
     // Pressing the slot being recorded into stops just that take.
-    if (controller_.isLiveRecording(track_id) && controller_.getLiveRecordingClipIndex(track_id) == clip_index) {
+    if (controller_.isClipRecording(track_id) && controller_.getClipRecordingClipIndex(track_id) == clip_index) {
       queueTakeStop(track_id);
       return;
     }
     // Nothing else launches over a take in flight.
-    if (controller_.isLiveRecording(track_id)) return;
+    if (controller_.isClipRecording(track_id)) return;
     if (!has_clip) {
       // A fresh take silences whatever the track was playing.
       queued_recording_[track_id] = QueuedRecording{QueuedRecording::FRESH_TAKE, clip_index};
@@ -153,13 +153,13 @@ ClipPlayer::triggerSampleCapture(int track_id, int clip_index) {
   }
   if (controller_.isThresholdArmed() && controller_.getRecordingTrackId() == track_id) {
     // Nothing captured yet: the same slot cancels, another retargets.
-    if (controller_.getLiveRecordingClipIndex(track_id) == clip_index) stopSampleTrackRecording(track_id);
-    else controller_.armLiveTrackRecording(track_id, clip_index);
+    if (controller_.getClipRecordingClipIndex(track_id) == clip_index) stopSampleTrackRecording(track_id);
+    else controller_.armClipTrackRecording(track_id, clip_index);
     return true;
   }
   // Another track owns the capture pipeline.
   if (controller_.isRecording() || controller_.isThresholdArmed()) return true;
-  controller_.armLiveTrackRecording(track_id, clip_index);
+  controller_.armClipTrackRecording(track_id, clip_index);
   controller_.armThresholdRecording(track_id);
   return true;
 }
@@ -169,7 +169,7 @@ ClipPlayer::queueTakeStop(int track_id) {
   queued_recording_[track_id] = QueuedRecording{QueuedRecording::STOP};
   // An overdub's clip is already playing; a fresh take's starts looping on
   // the bar the take stops on.
-  auto clip_index = controller_.getLiveRecordingClipIndex(track_id);
+  auto clip_index = controller_.getClipRecordingClipIndex(track_id);
   if (clip_index >= 0 && !(isLaunched(track_id) && liveTrack(track_id)->clip_index == clip_index)) {
     queueChange(track_id, clip_index);
   }
@@ -179,7 +179,7 @@ bool
 ClipPlayer::toggleOverdub(int fallback_track_id) {
   // Takes in flight stop, the clips they were recorded into keep playing.
   bool stopping = false;
-  for (auto track_id : controller_.getLiveRecordingTrackIds()) {
+  for (auto track_id : controller_.getClipRecordingTrackIds()) {
     auto * track = controller_.getSong().getMasterTrack().getChildByInternalId(track_id);
     if (track && track->getType() == TrackType::SAMPLE) stopSampleTrackRecording(track_id);
     else queueTakeStop(track_id);
@@ -223,7 +223,7 @@ ClipPlayer::launchScene(int clip_index, const vector<int> & track_ids) {
 
 void
 ClipPlayer::stopTrack(int track_id) {
-  if (controller_.isTrackArmed(track_id) && controller_.isLiveRecording(track_id)) {
+  if (controller_.isTrackArmed(track_id) && controller_.isClipRecording(track_id)) {
     auto * track = controller_.getSong().getMasterTrack().getChildByInternalId(track_id);
     if (track && track->getType() == TrackType::SAMPLE) stopSampleTrackRecording(track_id);
     else queueTakeStop(track_id);
@@ -272,7 +272,7 @@ ClipPlayer::returnAllToArrangement() {
 void
 ClipPlayer::joinCompletedTakes(int launched_track_id) {
   auto & song = controller_.getSong();
-  while (auto completed = controller_.takeCompletedLiveRecording()) {
+  while (auto completed = controller_.takeCompletedClipRecording()) {
     if (completed->track_id == launched_track_id) continue;
     if (!hasClipAt(song.getClips(completed->track_id), completed->clip_index)) continue;
     queueChange(completed->track_id, completed->clip_index);
@@ -298,7 +298,7 @@ ClipPlayer::stopSampleTrackRecording(int track_id) {
   } else if (controller_.isThresholdArmed() && controller_.getRecordingTrackId() == track_id) {
     controller_.disarmThresholdRecording();
   }
-  controller_.clearLiveRecordingTake(track_id);
+  controller_.clearClipRecordingTake(track_id);
 }
 
 void
@@ -370,19 +370,19 @@ ClipPlayer::advanceToRow(int step, int row) {
     queued_recording_.clear();
     for (auto & [ track_id, queued_value ] : queued) {
       if (queued_value.kind == QueuedRecording::STOP) {
-        controller_.trimLiveRecordingClip(track_id);
+        controller_.trimClipRecordingClip(track_id);
         joinCompletedTakes(track_id);
       } else if (queued_value.kind == QueuedRecording::FRESH_TAKE) {
-        controller_.armLiveTrackRecording(track_id, queued_value.clip_index);
+        controller_.armClipTrackRecording(track_id, queued_value.clip_index);
       } else if (isLaunched(track_id) && liveTrack(track_id)->clip_index == queued_value.clip_index) {
         // The clip is still playing: record into it without restarting
         // it, the take's rows lining up with its loop.
-        controller_.armLiveTrackRecording(track_id, queued_value.clip_index);
-        controller_.primeLiveRecordingOrigin(track_id, liveTrack(track_id)->launch_clock);
+        controller_.armClipTrackRecording(track_id, queued_value.clip_index);
+        controller_.primeClipRecordingOrigin(track_id, liveTrack(track_id)->launch_clock);
       }
     }
   }
-  for (auto track_id : controller_.getLiveRecordingTrackIds()) controller_.extendLiveRecordingClipIfNeeded(track_id, step);
+  for (auto track_id : controller_.getClipRecordingTrackIds()) controller_.extendClipRecordingClipIfNeeded(track_id, step);
 }
 
 ClipPlayer::Step
@@ -425,11 +425,11 @@ ClipPlayer::playheads() const {
   }
   // A fresh take launches nothing, so its record head stands in for a
   // playhead: row 0 until the first note fixes where the take starts.
-  for (auto track_id : controller_.getLiveRecordingTrackIds()) {
-    auto clip_index = controller_.getLiveRecordingClipIndex(track_id);
+  for (auto track_id : controller_.getClipRecordingTrackIds()) {
+    auto clip_index = controller_.getClipRecordingClipIndex(track_id);
     auto & head = result[track_id];
     if (head.row >= 0 && head.clip_index == clip_index) continue; // an overdub: the clip's own playhead
-    auto origin = controller_.getLiveRecordingOrigin(track_id);
+    auto origin = controller_.getClipRecordingOrigin(track_id);
     head = Playhead();
     head.clip_index = clip_index;
     head.row = origin >= 0 ? max(0, info.getLiveClock() - origin) : 0;
@@ -463,11 +463,11 @@ ClipPlayer::clipHighlight(int track_id, int clip_index) const {
   // A track armed, recording or about to record shows its recording states
   // instead of the plain ones.
   bool armed = controller_.isTrackArmed(track_id);
-  bool is_recording = controller_.isLiveRecording(track_id);
+  bool is_recording = controller_.isClipRecording(track_id);
   auto queued_recording_it = queued_recording_.find(track_id);
   bool has_queued_recording = queued_recording_it != queued_recording_.end();
   if (armed || is_recording || has_queued_recording) {
-    int recording_clip_index = is_recording ? controller_.getLiveRecordingClipIndex(track_id) : -1;
+    int recording_clip_index = is_recording ? controller_.getClipRecordingClipIndex(track_id) : -1;
     auto queued_recording_kind = has_queued_recording ? queued_recording_it->second.kind : QueuedRecording::STOP;
     int queued_recording_clip_index = has_queued_recording ? queued_recording_it->second.clip_index : -1;
     if (is_recording && recording_clip_index == clip_index) {

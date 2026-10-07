@@ -71,9 +71,10 @@ The classification is purely a function of the EDO and key (see
 
 ## Step grid
 
-A percussion or pitched track's clip can be edited as steps. Hold 91 and press
-a Live pad to open that pad's clip; the pad resolves on release. Every
-device then switches to Note mode with the grid split in two: the bottom four
+A percussion or pitched track's clip can be edited as steps. In Live View, hold 91
+and press a pad to open the corresponding clip; the pad resolves on release.
+The device you used then switches to Note mode (any other device keeps its
+mode) with the grid split in two: the bottom four
 rows stay the playing surface (the drum rack, or the lower four rows of the
 scale keyboard), and the top four rows are 32 steps, left to right and then
 bottom to top.
@@ -83,5 +84,5 @@ the tonic, until you press one; it lights white). Press a step to set or clear
 that sound there; a pitched note lasts one step. One sound is selected at a
 time, so chords (several held notes) are not supported yet. Pressing a playing pad both
 selects it and sounds it, and records it as usual while capture is armed.
-Each connected device shows its own 32-step page of a longer clip; 93 and 94
-scroll the pages together. A lone press of 95 closes it.
+For a clip longer than 32 steps, 93 and 94 scroll the window. A lone press of
+95 closes it.

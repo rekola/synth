@@ -156,7 +156,7 @@ class ClipGrid : public UIElement {
   bool view_detached_ = false;
   bool current_focused_ = false;
   std::string current_focused_clip_id_;
-  // Live recording arms/disarms with no song version bump of its own
+  // clip recording arms/disarms with no song version bump of its own
   // (nothing about the song's own data changes until a take actually
   // produces something) - tracked here so render()'s own dirty-check
   // still notices the record indicator (see its own drawing code) needing

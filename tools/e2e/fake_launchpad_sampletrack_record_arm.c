@@ -3,7 +3,7 @@
 // arm/disarm picker (already covered by fake_launchpad_record_arm_picker.c
 // against a note track), but a real Live-View pad press on an armed
 // SampleTrack actually arming real audio capture
-// (Controller::armLiveTrackRecording()/armThresholdRecording()) instead
+// (Controller::armClipTrackRecording()/armThresholdRecording()) instead
 // of falling through to plain audition/assign (the `is_sample_track`
 // carve-out ClipPlayer::triggerClip() used to have). Never
 // touches NOTE mode or real audio - a SampleTrack's own capture is
@@ -115,7 +115,7 @@ int main(int argc, char ** argv) {
   // Deliberately never reopens the picker to disarm the track - the final
   // state under test is whatever the Live-grid press(es) above left
   // behind, not a disarmed track (Controller::disarmTrack()'s own
-  // trimLiveRecordingClip() call would erase live_recording_takes_
+  // trimClipRecordingClip() call would erase clip_recording_takes_
   // unconditionally either way, masking whether the cancel gesture itself
   // actually worked).
   drain(seq, 3000, "settled");

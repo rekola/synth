@@ -1,4 +1,4 @@
-"""Regression test for a real bug: recording a Live View take into a
+"""Regression test for a real bug: recording a clip take into a
 step-sequenced PercussionTrack showed the step-grid editor in NOTES mode
 instead of letting the performer actually play it live -
 handlePadEvent()'s own step-grid short-circuit ran before (and so was

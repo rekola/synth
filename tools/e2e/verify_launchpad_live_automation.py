@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A fader move during a Live View take records into the take's own
+"""A fader move during a clip take records into the take's own
 clip (LaunchpadManager::recordFaderAutomationIfArmed()): a track Live
 View has taken over ignores its arrangement automation, so a move written
 there would never be heard. fake_launchpad_live_automation.c arms the

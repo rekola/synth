@@ -133,44 +133,17 @@ class LaunchpadManager {
   // See ClipHighlight.h.
   using ClipHighlight = ::ClipHighlight;
   void toggleGridMode(int device_id, GridMode mode);
-  // A one-way force, unlike toggleGridMode() above - every currently
-  // connected device switches to NOTES regardless of whatever mode it was
-  // already in (LIVE included), never toggled back off by a repeat
-  // call. Wired to Controller::setDrumEditRequestListener() (UI::start())
-  // so Record Arm's own drum-machine-clip repurposing actually becomes
-  // visible on real hardware right away, instead of only taking effect
-  // once someone happens to press CC96 on every connected device by hand.
-  void forceNotesModeOnAllDevices();
-  // The same one-way force back to LIVE - Record Arm's own repurposing
-  // toggles off the same way it toggled on (pressing it again on the
-  // clip already open for editing), and closing it should hand every
-  // connected device back to Live View rather than leaving it stuck
-  // showing the step grid with nothing left focused to edit there.
-  void forceLiveModeOnAllDevices();
-  // Gives every currently-connected device a fresh, predictable view into
-  // a freshly-opened clip's own step grid, rather than leaving each at
-  // whatever step/octave/playback-phase it last happened to be at
-  // from unrelated earlier use - independent resets:
-  // - Its own default step offset (DeviceState::drum_edit_step_offset)
-  //   into the clip's own columns, in connection order
-  //   (LaunchpadIO::readySessionIds() - the first-connected device gets
-  //   steps 0-31, the second steps 32-63, and so on) - lets several
-  //   Launchpads split a clip longer than 32 steps between them without
-  //   anyone having to page-flip by hand first.
-  // - Its own selected sound back to the first pad.
-  // - Its own octave_offset back to 0 (the plain global octave, no
-  //   per-device nudge) - without this, opening the same clip twice could
-  //   show a different octave register each time depending on whatever
-  //   unrelated note entry happened to leave this device's own octave at
-  //   in between, reading as arbitrary/unpredictable rather than always
-  //   starting from the same, known place.
-  // - The step-grid preview clock (preview_clock_, not per-device) -
-  //   without this the clip's own auditioned playback (and playhead
-  //   display) picks up from wherever that clock's stale, unrelated phase
-  //   already was rather than the clip's own row 0.
-  // Called from Controller::setDrumEditRequestListener()'s own "opened"
-  // callback (UI::start()), alongside forceNotesModeOnAllDevices() above.
-  void resetStepGridView();
+  // Opens the step view on one device: the one the performer last touched
+  // (the first connected device if none has been, e.g. a clip opened from
+  // the terminal). It switches to NOTES, whatever mode it was in, and starts
+  // from a known place: step offset 0, the first pad as the selected sound,
+  // octave 0, and the preview clock restarted so the clip is heard from its
+  // row 0. Other devices keep their mode. Called from the drum-edit request
+  // listener's "opened" callback.
+  void openStepView();
+  // Hands the device that opened the step view back to Live View, once the
+  // clip is closed.
+  void closeStepView();
 
   // The Launchpad's own Live View - rows are a
   // track's own available clips (Song::getClips()), columns are tracks,
@@ -302,7 +275,7 @@ class LaunchpadManager {
   // on the plain Live grid. Takes Controller (unlike every other
   // toggle here) for the eight mixer-submode buttons' own scene-launch
   // case (triggerSceneRow() needs the playback event queue, same as an
-  // ordinary Live pad press) and for toggleTrackPicker()'s RECORD_ARM
+  // ordinary pad press in Live View) and for toggleTrackPicker()'s RECORD_ARM
   // case.
   //
   // Per-model right column (LaunchpadProtocol::ModelInfo::
@@ -318,7 +291,7 @@ class LaunchpadManager {
   // clip, or stop the takes in flight. A long hold is Capture MIDI
   // (retroactive capture; not built yet - it only says so). With shift
   // (CC91) held, it is the arrangement's own Record Arm instead: the
-  // terminal's "toggle-record-arm", which makes a Live pad press write
+  // terminal's "toggle-record-arm", which makes a pad press in Live View write
   // the clip into the arrangement. Nothing fires until release settles
   // which one it was. Always returns true (handled)
   // for both press and release. Routed here directly from CC98 by
@@ -345,7 +318,7 @@ class LaunchpadManager {
   // (CC29, Pro MK3 CC20) the metronome click, Volume (CC89) Duplicate, Pan
   // (CC79) Delete, Send A Quantise, Send B Tempo and Stop Clip Swing. Shift +
   // CC97 is Draw. Duplicate lasts as long as Volume stays held: a press on a
-  // populated Live pad copies that clip into the slot below it,
+  // populated pad in Live View copies that clip into the slot below it,
   // overwriting (handleLivePadEvent()).
 
   // The Tempo (shift + Send B) and Swing (shift + Stop Clip) views show the
@@ -356,7 +329,7 @@ class LaunchpadManager {
   // other arrow-row buttons do nothing in a view.
   void tickNumberView(Controller & controller);
   void handleArrowRelease(int device_id, int cc_number);
-  // Quantise (shift + Send A): held, a press on a populated Live pad
+  // Quantise (shift + Send A): held, a press on a populated pad in Live View
   // quantizes that clip's notes to the nearest row (quantizeClip()); a tap
   // with no pad pressed toggles Record Quantise instead
   // ("toggle-record-quantize"), decided on release.
@@ -579,7 +552,7 @@ class LaunchpadManager {
     bool capture_enabled = false;
 
     // What CC98's own LED shows - "is anything recording right now": a
-    // Live take in flight, or any of the three mutually-exclusive
+    // clip take in flight, or any of the three mutually-exclusive
     // things "toggle-record-arm" can arm: note capture
     // (capture_enabled above), or a SampleTrack's own threshold-armed/
     // already-recording state (Controller::isThresholdArmed()/
@@ -622,7 +595,7 @@ class LaunchpadManager {
     // steps of selected_step_note. True for a PercussionTrack or a pitched
     // InstrumentTrack with a clip open for editing
     // (Controller::getFocusedClipTrackId()); false whenever any track is
-    // being recorded via a Live View take (a live take needs the plain
+    // being recorded via a clip take (a live take needs the plain
     // playing surface), and whenever no clip is open - the step view only
     // ever edits a clip, never the track's own background Pattern, which
     // has no pagination and spans the whole song.
@@ -630,7 +603,7 @@ class LaunchpadManager {
     // The sound the step rows currently show and edit: the last pad pressed
     // on the playing surface while a clip is open (-1 = none yet, which
     // means the first pad - the kick, or the tonic). Cleared whenever a
-    // clip is opened (resetStepGridView()).
+    // clip is opened (openStepView()).
     int selected_step_note = -1;
     // Which of the 32 steps from drum_edit_step_offset hold the selected
     // sound, bit n = step n.
@@ -640,16 +613,15 @@ class LaunchpadManager {
     // Scale keyboard note per pad (x + 8*y), -1 where there is none; the
     // percussion kit has no use for it.
     std::array<int, 64> keyboard_notes {};
-    // The highest step offset device 0 could still scroll to and have
-    // every connected device's own 32-step window stay within the focused
-    // clip's own length (`max(0, clip_length - num_devices*32)`),
+    // The highest step offset this device could still scroll to and have
+    // its 32-step window stay within the focused clip's own length
+    // (`max(0, clip_length - 32)`),
     // refreshed alongside show_step_grid above (0, its own default,
     // whenever show_step_grid is false - irrelevant then). refreshLeds()
     // checks whether this is > 0 to decide whether pad-prev-track/pad-next-track's
     // own paging gesture (handleCommand()'s own comment) has anything
-    // left to do - at 0, resetStepGridView()'s own device-order default
-    // already shows the whole clip across however many devices are
-    // connected, so paging would be a no-op; those two LEDs go dark in
+    // left to do - at 0, the window already shows the whole clip, so paging
+    // would be a no-op; those two LEDs go dark in
     // exactly that case, matching every other "nothing a performer could
     // see would happen" button here.
     int drum_edit_max_step_offset = 0;
@@ -747,8 +719,7 @@ class LaunchpadManager {
     // clip's own step grid - see LaunchpadManager::handleCommand()'s own
     // comment), kStepGridScrollStep at a time so consecutive windows
     // overlap rather than jumping a whole 8-step page at once, reset to a
-    // device-order default (resetStepGridView(), one 32-step page's worth
-    // apart per device) each time a fresh clip is opened for editing
+    // 0 (openStepView()) each time a fresh clip is opened for editing
     // (Controller::setDrumEditRequestListener()'s own "opened" callback,
     // UI::start()) - out of range for whatever the clip's own current
     // length actually is gets clamped wherever this is read, not here,
@@ -893,7 +864,7 @@ class LaunchpadManager {
     int arrow_held_cc = 0;
     bool arrow_repeating = false;
     std::chrono::steady_clock::time_point arrow_press_time, arrow_last_step;
-    // Delete (shift + Pan): held while Pan is - a Live pad press
+    // Delete (shift + Pan): held while Pan is - a pad press in Live View
     // deletes what its slot holds (ClipPlayer::deleteClip()).
     bool delete_held = false;
 
@@ -1113,8 +1084,8 @@ class LaunchpadManager {
   // Applies a held-back single press whose window has run out.
   void flushPendingPanPresses(Controller & controller);
 
-  // Live-recording's own write path: while a Live View take records on
-  // `track_id` (Controller::isLiveRecording()), writes `command` into
+  // Live-recording's own write path: while a clip take records on
+  // `track_id` (Controller::isClipRecording()), writes `command` into
   // that take's clip at its current row - the same row a note
   // pressed now would land on - since a track Live View has taken
   // over ignores its arrangement automation. Otherwise, while Record Arm
@@ -1248,6 +1219,10 @@ class LaunchpadManager {
   // called asynchronously between refresh() calls, on a real pad press -
   // can resolve which track a press landed on without
   // needing its own copy threaded through.
+  // The device the performer last touched, and the one showing the step
+  // view (-1 for none) - see openStepView().
+  int last_active_device_ = -1;
+  int step_view_device_ = -1;
   LiveWindow live_;
   // "move-row-up"/"move-row-down" (CC91/92) while a device is in
   // GridMode::LIVE move the overview's own bar cursor (via

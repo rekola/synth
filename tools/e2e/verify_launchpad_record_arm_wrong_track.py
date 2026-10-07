@@ -5,7 +5,7 @@ than the assigned/cursor track's id - comparing a fresh candidate
 straight against the already-assigned track_id, rather than against a
 fresh sentinel the way refresh()'s own identical override (the LED/tuning-
 preview path) already did it correctly. Track "1" here (armed/targeted
-for Live recording) is created after, and so has a higher internal id
+for clip recording) is created after, and so has a higher internal id
 than, track "0" (left as the assigned/cursor track this whole script) -
 the common case: a track armed/selected later in a session. Before the
 fix, a NOTE-mode note played here would audibly land on track 0 (LED/

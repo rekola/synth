@@ -60,7 +60,7 @@ struct LiveFixture {
     return track_id;
   }
 
-  void armForLiveRecording(int track_id) {
+  void armForClipRecording(int track_id) {
     controller.setClipGridFocused(true);
     controller.setClipGridCursor(track_id, 0);
     controller.sendCommand("toggle-record-arm");
@@ -286,41 +286,41 @@ TEST(clip_player_queued_launch_survives_a_pause) {
 TEST(clip_player_take_survives_a_pause) {
   LiveFixture f;
   auto track = f.addTrack(0);
-  f.armForLiveRecording(track);
+  f.armForClipRecording(track);
   f.player().triggerClip(track, 0); // a fresh take, starting the transport
   f.playRows(1);
-  CHECK(f.controller.isLiveRecording(track));
+  CHECK(f.controller.isClipRecording(track));
 
   f.controller.togglePlaying();
   f.playRows(2);
-  CHECK(f.controller.isLiveRecording(track));
+  CHECK(f.controller.isClipRecording(track));
   f.controller.togglePlaying();
   f.playRows(1);
-  CHECK(f.controller.isLiveRecording(track));
+  CHECK(f.controller.isClipRecording(track));
 }
 
 TEST(clip_player_take_starts_at_the_bar_and_loops_back_on_the_bar_it_stops) {
   LiveFixture f;
   auto track = f.addTrack(0);
-  f.armForLiveRecording(track);
+  f.armForClipRecording(track);
   CHECK(f.controller.isTrackArmed(track));
 
   f.player().triggerClip(track, 0); // an empty slot: a fresh take, starting the transport
   CHECK(f.player().clipHighlight(track, 0) == ClipHighlight::RECORD_QUEUED);
   f.playRows(1); // row 0, the bar
-  CHECK(f.controller.isLiveRecording(track));
+  CHECK(f.controller.isClipRecording(track));
 
   auto step = f.player().quantizedStep();
-  auto row = f.controller.ensureLiveRecordingClip(track, step.step, step.bar_start);
+  auto row = f.controller.ensureClipRecordingClip(track, step.step, step.bar_start);
   CHECK(row == 1); // the take began on the bar at live clock 0
   f.song().getClips(track)[0].getLeafPattern().setNote(1, 0, Note(64, 100, 0));
   f.player().triggerClip(track, 0); // the slot being recorded: stop the take
   CHECK(f.player().clipHighlight(track, 0) == ClipHighlight::RECORD_STOPPING);
 
   f.playRows(2); // rows 1-2
-  CHECK(f.controller.isLiveRecording(track));
+  CHECK(f.controller.isClipRecording(track));
   f.playRows(1); // row 3, and the UI sees the bar at row 4 begin: the take ends
-  CHECK(!f.controller.isLiveRecording(track));
+  CHECK(!f.controller.isClipRecording(track));
   f.playRows(1); // row 4: the take's clip launches on that same bar
   CHECK(f.player().isLaunched(track));
   f.playRows(1);
@@ -332,12 +332,12 @@ TEST(clip_player_take_starts_at_the_bar_and_loops_back_on_the_bar_it_stops) {
 TEST(clip_player_pad_press_on_an_armed_track_never_overdubs) {
   LiveFixture f;
   auto track = f.addTrack(1);
-  f.armForLiveRecording(track);
+  f.armForClipRecording(track);
 
   f.player().triggerClip(track, 0);
   f.playRows(1);
   CHECK(f.player().isLaunched(track));
-  CHECK(!f.controller.isLiveRecording(track));
+  CHECK(!f.controller.isClipRecording(track));
 }
 
 TEST(clip_player_session_record_overdubs_the_playing_clip_without_restarting_it) {
@@ -349,16 +349,16 @@ TEST(clip_player_session_record_overdubs_the_playing_clip_without_restarting_it)
 
   CHECK(f.player().toggleOverdub(track));
   CHECK(f.player().clipHighlight(track, 0) == ClipHighlight::RECORD_QUEUED);
-  for (int i = 0; i < 8 && !f.controller.isLiveRecording(track); i++) f.playRows(1); // until the next bar
-  CHECK(f.controller.isLiveRecording(track));
-  CHECK(f.controller.getLiveRecordingClipIndex(track) == 0);
+  for (int i = 0; i < 8 && !f.controller.isClipRecording(track); i++) f.playRows(1); // until the next bar
+  CHECK(f.controller.isClipRecording(track));
+  CHECK(f.controller.getClipRecordingClipIndex(track) == 0);
   CHECK(f.player().isLaunched(track));
   CHECK(f.player().playheads().at(track).row == 0); // not restarted mid-loop: this is its own bar boundary
 
   // A second press stops the take at the next bar; the clip keeps playing.
   CHECK(f.player().toggleOverdub(track));
-  for (int i = 0; i < 8 && f.controller.isLiveRecording(track); i++) f.playRows(1);
-  CHECK(!f.controller.isLiveRecording(track));
+  for (int i = 0; i < 8 && f.controller.isClipRecording(track); i++) f.playRows(1);
+  CHECK(!f.controller.isClipRecording(track));
   CHECK(f.player().isLaunched(track));
 }
 
@@ -366,7 +366,7 @@ TEST(clip_player_session_record_with_nothing_playing_does_nothing) {
   LiveFixture f;
   auto track = f.addTrack(1);
   CHECK(!f.player().toggleOverdub(track));
-  CHECK(!f.controller.isLiveRecording(track));
+  CHECK(!f.controller.isClipRecording(track));
 }
 
 // A track the arrangement plays shows the placed clip's playhead too, at
@@ -415,13 +415,13 @@ TEST(clip_player_empty_slot_without_a_stop_button_leaves_the_track_alone) {
 TEST(clip_player_armed_track_slot_without_a_stop_button_records_nothing) {
   LiveFixture f;
   auto track = f.addTrack(0);
-  f.armForLiveRecording(track);
+  f.armForClipRecording(track);
   f.song().ensureClipAt(track, 0).setStopButton(false);
   CHECK(f.player().clipHighlight(track, 0) == ClipHighlight::NONE);
   f.player().triggerClip(track, 0);
   CHECK(!f.controller.getPlaybackInfo().isPlaying());
   f.playRows(4);
-  CHECK(!f.controller.isLiveRecording(track));
+  CHECK(!f.controller.isClipRecording(track));
 }
 
 // Deleting a slot is instant with the transport stopped.

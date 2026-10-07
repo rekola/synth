@@ -1,22 +1,13 @@
-"""Regression test for the step grid's own page-shift gesture moving
-every connected device together, in lockstep, rather than just whichever
-one a pad-prev-track/pad-next-track press happened to land on
-(LaunchpadManager::handleCommand()'s own comment on repurposing those two
-buttons while a clip's step grid is showing). Before this fix, a press
-only ever updated the *pressed* device's own DeviceState::drum_edit_step_offset -
-with two Launchpads connected, that let them drift onto the very same
-page (or any other independent combination), defeating
-resetStepGridView()'s own "device i shows page i" tiling that's meant
-to split a longer-than-32-step clip across however many are connected
-without anyone paging by hand first.
+"""Regression test for opening a clip's step view with two Launchpads
+connected: only the device the performer used switches to the step view
+(LaunchpadManager::openStepView()), starting on page 0, and its
+pad-next-track press scrolls only its own window by the step grid's scroll
+step (4); the other device stays on the Live View grid and never shows the
+step rows.
 
-Two simulated devices (fake_launchpad_paging_lockstep) connect to a
-3-page (96-step) clip; the "opener" opens it (shift-held pad (0,0)) and,
-once every connected device is showing it, presses pad-next-track once - the
-"follower" never presses anything itself. Confirms both devices start on
-two *different* pages (resetStepGridView()'s own device-order split),
-and that after the single press, *both* devices' own windows scrolled by
-the step grid's scroll step (4) - not just the opener's."""
+Two simulated devices (fake_launchpad_step_view_device) connect to a
+3-page (96-step) clip; the "opener" opens it (shift-held pad (0,0)) and
+presses pad-next-track once, the "follower" never presses anything."""
 import sys, os, re, subprocess, time
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -65,14 +56,14 @@ def shown_pages(log_text):
     pages = [shown_page(dump) for dump in led_dumps(log_text)]
     return [page for page in pages if page is not None]
 
-log_a = open(os.path.join(SCRIPT_DIR, "fake_launchpad_paging_lockstep_a.log"), "w")
-log_b = open(os.path.join(SCRIPT_DIR, "fake_launchpad_paging_lockstep_b.log"), "w")
-proc_a = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_paging_lockstep"), "A", "opener"], stderr=log_a, stdout=log_a)
-proc_b = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_paging_lockstep"), "B", "follower"], stderr=log_b, stdout=log_b)
+log_a = open(os.path.join(SCRIPT_DIR, "fake_launchpad_step_view_device_a.log"), "w")
+log_b = open(os.path.join(SCRIPT_DIR, "fake_launchpad_step_view_device_b.log"), "w")
+proc_a = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_step_view_device"), "A", "opener"], stderr=log_a, stdout=log_a)
+proc_b = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_step_view_device"), "B", "follower"], stderr=log_b, stdout=log_b)
 
 time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
-SONG = os.path.join(SCRIPT_DIR, "launchpad_paging_lockstep_test.xml")
+SONG = os.path.join(SCRIPT_DIR, "launchpad_step_view_device_test.xml")
 pid, fd = vk.spawn(SONG)
 scr = vk.Screen(fd)
 if not vk.wait_ready(scr):
@@ -99,9 +90,9 @@ for proc in (proc_a, proc_b):
 log_a.close()
 log_b.close()
 
-with open(os.path.join(SCRIPT_DIR, "fake_launchpad_paging_lockstep_a.log")) as f:
+with open(os.path.join(SCRIPT_DIR, "fake_launchpad_step_view_device_a.log")) as f:
     text_a = f.read()
-with open(os.path.join(SCRIPT_DIR, "fake_launchpad_paging_lockstep_b.log")) as f:
+with open(os.path.join(SCRIPT_DIR, "fake_launchpad_step_view_device_b.log")) as f:
     text_b = f.read()
 print("\n--- opener (A) log ---")
 print(text_a)
@@ -113,23 +104,12 @@ check("B sent a Programmer-Mode-enter SysEx", "0e 01" in text_b.replace(",", " "
 
 pages_a, pages_b = shown_pages(text_a), shown_pages(text_b)
 page_a_before = pages_a[0] if pages_a else None
-page_b_before = pages_b[0] if pages_b else None
-print(f"before paging: A shows step {page_a_before}, B shows step {page_b_before}")
-check("both devices start on a real page (device-order split from resetStepGridView())",
-      page_a_before is not None and page_b_before is not None, (page_a_before, page_b_before))
-check("the two devices start on two *different* pages",
-      page_a_before is not None and page_a_before != page_b_before, (page_a_before, page_b_before))
-
 page_a_after = pages_a[-1] if pages_a else None
-page_b_after = pages_b[-1] if pages_b else None
-print(f"after paging: A shows step {page_a_after}, B shows step {page_b_after}")
-
-if page_a_before is not None and page_a_after is not None:
-    check("A's own window scrolled by one step size after its own pad-next-track press",
-          page_a_after == page_a_before + SCROLL_STEP, (page_a_before, page_a_after))
-if page_b_before is not None and page_b_after is not None:
-    check("B's own window ALSO scrolled by one step size - moved in lockstep with A, not left behind",
-          page_b_after == page_b_before + SCROLL_STEP, (page_b_before, page_b_after))
+print(f"opener: first step window {page_a_before}, last {page_a_after}; follower windows: {pages_b}")
+check("the opener shows the step view on page 0 when the clip opens", page_a_before == 0, pages_a)
+check("the opener's window scrolled by one step size after its own pad-next-track press",
+      page_a_after == SCROLL_STEP, pages_a)
+check("the follower never switches to the step view", not pages_b, pages_b)
 
 n_fail = sum(1 for _, ok in results if not ok)
 print(f"\n{len(results)-n_fail}/{len(results)} checks passed")

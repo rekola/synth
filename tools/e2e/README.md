@@ -173,7 +173,7 @@ you're changing.
   coverage before this script.
 - **`fake_launchpad_live_automation.c` / `verify_launchpad_live_automation.py`** -
   arms the fixture's only track through the Record Arm picker, starts a
-  Live View take in an empty clip slot, and moves the track's Send A
+  clip take in an empty clip slot, and moves the track's Send A
   fader while it records; confirms the move lands as a `YAxy` command in
   the take's own clip (shown in the Live View pattern editor) rather
   than the arrangement, which a taken-over track ignores.
@@ -332,7 +332,7 @@ you're changing.
   compatibility filter) makes the fixture actually prove the fix matters.
 - **`launchpad_record_arm_percussion_test.xml` / `fake_launchpad_record_
   arm_percussion.c` / `verify_launchpad_record_arm_percussion.py`** -
-  regression test for a real bug: recording a Live View take into a
+  regression test for a real bug: recording a clip take into a
   step-sequenced `PercussionTrack` showed the step-grid editor in NOTES
   mode instead of letting the performer actually play it live -
   `handlePadEvent()`'s own step-grid short-circuit ran before (and so was
@@ -349,7 +349,7 @@ you're changing.
   covers `ClipPlayer::triggerClip()`'s own SampleTrack branch
   (a Live-grid press on a SampleTrack armed via the track-picker
   overlay now actually arms real audio capture -
-  `Controller::armLiveTrackRecording()`/`armThresholdRecording()` -
+  `Controller::armClipTrackRecording()`/`armThresholdRecording()` -
   instead of falling through to plain audition/assign) and the "press the
   same pad again cancels it" gesture. Verified through the terminal
   `ClipGrid` widget's own text (the "●" record indicator, same
@@ -357,7 +357,7 @@ you're changing.
   Two independent spawns (`argv[1] ==
   "cancel"` toggles a second scripted press) rather than one script with
   two mid-run dumps: `Controller::disarmTrack()`'s own
-  `trimLiveRecordingClip()` call clears the record indicator
+  `trimClipRecordingClip()` call clears the record indicator
   unconditionally, which would mask a broken cancel gesture if the test
   ever finished by disarming through the picker before reading anything.
 - **`launchpad_shift_stepgrid_test.xml` / `fake_launchpad_
@@ -423,16 +423,14 @@ you're changing.
   synth gracefully (C-x C-c) and confirms the very last LED-lighting
   SysEx the fake device receives blanks every colorspec, after an earlier
   dump confirmed there was real (non-black) content lit to begin with.
-- **`launchpad_paging_lockstep_test.xml` / `fake_launchpad_paging_lockstep.c` /
-  `verify_launchpad_paging_lockstep.py`** - the step grid's own
-  pad-prev-track/pad-next-track page-shift gesture (`LaunchpadManager::
-  handleCommand()`'s own comment) moving every connected device together,
-  not just whichever one was pressed: two simulated devices open a
-  96-step clip, confirm `resetStepGridView()`'s own device-order split
-  put them on two different windows, then one device scrolls forward once
-  and both are confirmed to have scrolled by the same step (4) - not left
-  drifted apart. Reads each device's first and last step-grid frame, not
-  timed phases, since the two simulators' timing drifts apart.
+- **`launchpad_step_view_device_test.xml` / `fake_launchpad_step_view_device.c` /
+  `verify_launchpad_step_view_device.py`** - the step grid's own
+  pad-next-track page-shift gesture (`LaunchpadManager::handleCommand()`'s
+  own comment) with two devices connected: only the device used to open
+  the 96-step clip shows the step view, from step 0, and scrolls forward
+  by the step (4); the other stays on the Live View grid. Reads each
+  device's first and last step-grid frame, not timed phases, since the two
+  simulators' timing drifts apart.
 - **`launchpad_shift_stepgrid_pitched_test.xml` / `fake_launchpad_shift_
   stepgrid_pitched.c` / `verify_launchpad_shift_stepgrid_pitched.py`** -
   the shift+pad "open for editing" gesture on a *pitched* InstrumentTrack's

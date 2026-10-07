@@ -184,33 +184,14 @@ Found 2026-07-11, not yet fixed.
   already fails a load, or skipping just that one `<sample>`/
   `<sampleBackground>` element with a diagnostic.
 
-- **`merge-clip-to-background` (note tracks) silences the content it just
-  merged, immediately, contradicting its own doc comment.** Confirmed
-  directly (a small instrumented test, not kept in the suite): after
-  `mergeClipToBackground()` copies a clip's own notes into the section's
-  background `Pattern` and calls `placeStopInstance()` to free the
-  placement, `resolveInstanceAt()` at that same row returns
-  `Section::kStopInstance`, not `Section::kNoInstance` - and `SongState::
-  renderBlock()`'s own note-scheduling loop only ever reads a track's
-  background `Pattern` on `kNoInstance` (an explicit stop resolves "the
-  same way as no instance at all" only for `resolveEditTarget()`, i.e.
-  what the pattern editor lets you *edit*, per its own doc comment - real
-  *playback* draws a different, undocumented line). So real transport
-  playback goes silent at exactly the row(s) that were just merged,
-  directly contradicting `mergeClipToBackground()`'s own doc comment
-  ("reproducing exactly what was already audible... not combining the
-  two"). Root cause: `placeStopInstance()`'s "OFF" sentinel is used for
-  two different things that don't actually mean the same thing - a
-  deliberate user "silence this track" gesture (Live View/
-  ArrangementGrid), and "this placement is over, nothing further to say
-  about it" (this merge's own cleanup) - and `SongState.h` can't tell
-  them apart, so it treats both as "silence everything, background
-  included." The SampleTrack background bed (this file's own #16) was
-  deliberately built to *not* have this problem - its own background only
-  ever gets masked by a real clip instance, never by a stop - but that fix
-  was scoped to `SampleTrack` only; the note-track version of this bug is
-  untouched. Not fixed - would need `SongState.h`'s note-track background-
-  Pattern branch to read the background on `kStopInstance` too (matching
-  the SampleTrack fix), or a real distinction between "this placement
-  ended, fall through" and "silence this track" at the storage layer if
-  the two are ever meant to behave differently after all.
+- **`merge-clip-to-background` (note tracks) silences the notes it just
+  merged.** The command copies a placed clip's notes into the track's own
+  background pattern and then removes the clip's placement by writing a stop
+  marker there. During playback the background pattern is only read where a
+  track has no placement at all, and a stop marker counts as a placement, so
+  the merged rows play nothing. The pattern editor treats a stop marker like
+  no placement, so the notes look merged and the bug shows only when
+  playing. Not fixed. Either playback reads the background after a stop
+  marker too (as it already does for sample tracks), or the merge writes no
+  stop marker: the marker means both "silence this track here" and "this
+  placement was removed", and only the first should silence it.

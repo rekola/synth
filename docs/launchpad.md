@@ -36,8 +36,8 @@ gesture).
 | shift + Stop Clip | Swing: the song's swing as a number on the pads |
 
 The button is labelled Session on the device; here it selects the Live mode,
-the pad view of Live View. A second press of 95 while on the plain clip grid
-toggles **mixer submode** (see below). Its LED is dim green away from the
+the pad view of Live View. On the Launchpad X and Pro MK3, a second press of 95 while on the plain clip
+grid toggles **mixer submode** (see below); the Mini has no mixer mode. Its LED is dim green away from the
 clip grid, bright green on it, and orange in mixer submode.
 
 ## Right-side buttons
@@ -161,7 +161,7 @@ Here shift + Send A stands in for that button.
   the clip under the cursor in the clip grid.
 - **Record Quantise:** tap shift + Send A with no pad pressed to toggle it
   (`toggle-record-quantize`). The toggle happens on release, because the same
-  hold also quantises clips. With it off, the default, Live recording keeps
+  hold also quantises clips. With it off, the default, clip recording keeps
   the exact timing of every press and release. With it on, each press and
   release snaps to the nearest row as it is recorded. The setting is saved
   with the song.
@@ -231,7 +231,7 @@ A tap overdubs the playing clip of each armed track (the followed track's if
 none is armed) from the next bar. While any take is running, a tap stops them
 at the next bar and leaves the clips playing. A long hold is Capture MIDI,
 which is not implemented. Shift + 98 toggles the arrangement's own Record Arm,
-which makes a Live pad press write the clip into the arrangement. Its LED
+which makes a pad press in Live View write the clip into the arrangement. Its LED
 is bright red while anything records, dim red otherwise.
 
 Notes played on the grid during a take are recorded with their exact timing
@@ -239,6 +239,6 @@ unless Record Quantise is on (see Quantise above).
 
 ## Step grid
 
-Hold 91 and press a Live pad to open that pad's clip for step editing; the
+In Live View, hold 91 and press a pad to open the corresponding clip for step editing; the
 steps and the playing surface are described in
 [drums-and-sequencer.md](drums-and-sequencer.md).

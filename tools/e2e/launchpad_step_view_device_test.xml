@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Purpose-built for verify_launchpad_paging_lockstep.py: a
+<!-- Purpose-built for verify_launchpad_step_view_device.py: a
      PercussionTrack clip 96 rows long with BD hits at rows 5, 40 and 70 - the
      set of lit steps in the 32-step view tells which window a device is
      showing, with no need to read a playhead. -->

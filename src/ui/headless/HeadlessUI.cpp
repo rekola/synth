@@ -157,12 +157,11 @@ HeadlessUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
   getController().setDrumEditRequestListener([this](int track_id, bool opened) {
     if (opened) {
       getController().getSong().setCurrentTrackId(track_id);
-      launchpad_manager_->forceNotesModeOnAllDevices();
-      launchpad_manager_->resetStepGridView();
+      launchpad_manager_->openStepView();
       if (getController().getPlaybackInfo().isPlaying()) getController().togglePlaying();
       getController().getClipPlayer().silenceAll();
     } else {
-      launchpad_manager_->forceLiveModeOnAllDevices();
+      launchpad_manager_->closeStepView();
     }
   });
 }

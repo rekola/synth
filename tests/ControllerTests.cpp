@@ -528,12 +528,12 @@ TEST(armed_sample_capture_places_at_the_snapshotted_row_and_trims_the_measured_l
   }
 }
 
-// The SampleTrack twin of ensure_live_recording_clip_creates_and_
+// The SampleTrack twin of ensure_clip_recording_clip_creates_and_
 // grows_at_the_exact_pressed_index (ControllerTests.cpp above) - a
-// Live View take pressed at clip index 2 on a track with no clips at
+// clip take pressed at clip index 2 on a track with no clips at
 // all yet has to land exactly there, holes and all, not collapse to
 // wherever a fresh append would happen to land.
-TEST(live_recording_sample_capture_lands_at_the_exact_pressed_index_with_holes) {
+TEST(clip_recording_sample_capture_lands_at_the_exact_pressed_index_with_holes) {
   ChannelConfiguration config(8000, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
@@ -548,7 +548,7 @@ TEST(live_recording_sample_capture_lands_at_the_exact_pressed_index_with_holes) 
   // (LaunchpadManager/Controller::toggle-record-arm's own SampleTrack
   // carve-out) - done directly here to test beginSampleCapture() in
   // isolation, the same way the note-based test above does.
-  controller.armLiveTrackRecording(track_id, 2);
+  controller.armClipTrackRecording(track_id, 2);
 
   AudioBuffer block(1, 400);
   auto data = block.getChannelData(0);
@@ -570,7 +570,7 @@ TEST(live_recording_sample_capture_lands_at_the_exact_pressed_index_with_holes) 
   CHECK(clips[2].hasSample());
 }
 
-// A second Live View take recorded into the same, already-populated
+// A second clip take recorded into the same, already-populated
 // slot overdubs it - a new SampleContent layer alongside the first
 // (Clip.h's own sample_layers_ comment), not a replacement, and
 // finishSampleCapture() rebuilds getMixedContent()'s own cache so the
@@ -592,7 +592,7 @@ TEST(a_second_take_into_an_already_recorded_slot_overdubs_rather_than_replaces) 
   // First take - lands at index 0, exactly like any other fresh Live
   // View recording.
   controller.startRecording();
-  controller.armLiveTrackRecording(track_id, 0);
+  controller.armClipTrackRecording(track_id, 0);
   controller.addToSample(block);
   controller.beginSampleCapture(track_id);
   controller.addToSample(block);
@@ -608,7 +608,7 @@ TEST(a_second_take_into_an_already_recorded_slot_overdubs_rather_than_replaces) 
   // own is_overdub detection (reuse_existing && clip.hasSample()) must
   // fire, appending rather than replacing.
   controller.startRecording();
-  controller.armLiveTrackRecording(track_id, 0);
+  controller.armClipTrackRecording(track_id, 0);
   controller.addToSample(block);
   controller.beginSampleCapture(track_id);
   CHECK(clips[0].getSampleLayers().size() == 2); // the overdub layer, appended immediately
@@ -947,8 +947,8 @@ TEST(toggle_record_arm_clip_grid_focused_arms_a_sample_track_without_arrangement
 
   controller.sendCommand("toggle-record-arm");
   CHECK(controller.isThresholdArmed());
-  CHECK(controller.isLiveRecording(track_id));
-  CHECK(controller.getLiveRecordingClipIndex(track_id) == 0);
+  CHECK(controller.isClipRecording(track_id));
+  CHECK(controller.getClipRecordingClipIndex(track_id) == 0);
   CHECK(!controller.getPlaybackInfo().isPlaying()); // never auto-started
 
   controller.setRecordingTrackId(track_id);
@@ -964,7 +964,7 @@ TEST(toggle_record_arm_clip_grid_focused_arms_a_sample_track_without_arrangement
   CHECK(resolveInstanceAt(song, track_id, 0).clip_index == Arrangement::kNoInstance);
 
   controller.sendCommand("toggle-record-arm"); // disarm
-  CHECK(!controller.isLiveRecording(track_id));
+  CHECK(!controller.isClipRecording(track_id));
 }
 
 // Record Arm on a PercussionTrack's own clip in Live View is repurposed
@@ -994,7 +994,7 @@ TEST(toggle_record_arm_on_a_drum_machine_clip_focuses_it_instead_of_arming) {
   controller.setClipGridCursor(track_id, 0); // the occupied slot
   controller.sendCommand("toggle-record-arm");
 
-  CHECK(!controller.isLiveRecording(track_id)); // never armed a take
+  CHECK(!controller.isClipRecording(track_id)); // never armed a take
   CHECK(!controller.isNoteCaptureArmed());
   CHECK(controller.getFocusedClipTrackId() == track_id);
   CHECK(controller.getFocusedClip() == existing_id); // the existing clip, not a new one
@@ -1227,7 +1227,7 @@ TEST(toggle_record_arm_on_a_non_drum_machine_track_arms_normally) {
   controller.sendCommand("toggle-record-arm");
 
   CHECK(controller.isTrackArmed(track_id));
-  CHECK(!controller.isLiveRecording(track_id)); // arming alone starts no take
+  CHECK(!controller.isClipRecording(track_id)); // arming alone starts no take
   // untouched - guards against the step sequencer's own pitched-track
   // support (toggleDrumClipFocus() now accepts an InstrumentTrack too)
   // silently preempting multi-track Record Arm here; the "toggle-record-
@@ -1236,14 +1236,14 @@ TEST(toggle_record_arm_on_a_non_drum_machine_track_arms_normally) {
   CHECK(controller.getFocusedClipTrackId() == -1);
 }
 
-// ensureLiveRecordingClip()/extendLiveRecordingClipIfNeeded() are
-// LaunchpadManager's own note-write path for a Live View take - driven
+// ensureClipRecordingClip()/extendClipRecordingClipIfNeeded() are
+// LaunchpadManager's own note-write path for a clip take - driven
 // directly by a caller-supplied absolute step (the free-running audition
 // clock's own currentStep() in practice), never getPlaybackInfo(), and
 // never placing an instance. absolute_step 0 here lands exactly on a bar
 // boundary (rows_per_bar 4), so it becomes this take's own row 0 outright -
 // previousBarRow()'s own snapping isn't separately exercised by this test.
-TEST(ensure_live_recording_clip_creates_and_grows_at_the_exact_pressed_index) {
+TEST(ensure_clip_recording_clip_creates_and_grows_at_the_exact_pressed_index) {
   ChannelConfiguration config(8000, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
@@ -1257,15 +1257,15 @@ TEST(ensure_live_recording_clip_creates_and_grows_at_the_exact_pressed_index) {
   controller.setClipGridCursor(track_id, 2); // an empty slot past the (currently empty) clip list
   controller.sendCommand("toggle-record-arm");
   CHECK(controller.isTrackArmed(track_id));
-  CHECK(!controller.isLiveRecording(track_id)); // arming alone starts no take
+  CHECK(!controller.isClipRecording(track_id)); // arming alone starts no take
 
   // A pad press on the armed track is what starts the take -
   // LaunchpadManager's own job in practice, done directly here to test
-  // ensureLiveRecordingClip() in isolation.
-  controller.armLiveTrackRecording(track_id, 2);
-  CHECK(controller.isLiveRecording(track_id));
+  // ensureClipRecordingClip() in isolation.
+  controller.armClipTrackRecording(track_id, 2);
+  CHECK(controller.isClipRecording(track_id));
 
-  controller.ensureLiveRecordingClip(track_id, 0);
+  controller.ensureClipRecordingClip(track_id, 0);
   auto & clips = song.getClips(track_id);
   // Lands at exactly the pressed index (2), not the next unused one -
   // holes are allowed, so scene 2 can be recorded into even while scenes
@@ -1273,11 +1273,11 @@ TEST(ensure_live_recording_clip_creates_and_grows_at_the_exact_pressed_index) {
   CHECK(clips.size() == 3);
   CHECK(clips[0].isEmpty()); // backfilled filler
   CHECK(clips[1].isEmpty()); // backfilled filler
-  CHECK(controller.getLiveRecordingClipIndex(track_id) == 2);
+  CHECK(controller.getClipRecordingClipIndex(track_id) == 2);
   CHECK(clips[2].getLength() >= 1);
 
   clips[2].getLeafPattern().setNote(0, 0, Note(60, 100, 0));
-  controller.extendLiveRecordingClipIfNeeded(track_id, 5);
+  controller.extendClipRecordingClipIfNeeded(track_id, 5);
   CHECK(clips[2].getLength() > 4); // grew ahead of row 5, same growth shape as extendRecordingClipsIfNeeded()
 
   CHECK(resolveInstanceAt(song, track_id, 0).clip_index == Arrangement::kNoInstance);
@@ -1285,7 +1285,7 @@ TEST(ensure_live_recording_clip_creates_and_grows_at_the_exact_pressed_index) {
 
 // Arming into a Live View slot that already holds a clip overwrites it
 // in place - same id, content reset.
-TEST(ensure_live_recording_clip_overwrites_an_occupied_slot_in_place) {
+TEST(ensure_clip_recording_clip_overwrites_an_occupied_slot_in_place) {
   ChannelConfiguration config(8000, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
@@ -1303,9 +1303,9 @@ TEST(ensure_live_recording_clip_overwrites_an_occupied_slot_in_place) {
   controller.setClipGridFocused(true);
   controller.setClipGridCursor(track_id, 0); // the occupied slot
   controller.sendCommand("toggle-record-arm");
-  controller.armLiveTrackRecording(track_id, 0);
+  controller.armClipTrackRecording(track_id, 0);
 
-  controller.ensureLiveRecordingClip(track_id, 0);
+  controller.ensureClipRecordingClip(track_id, 0);
   auto & clips = song.getClips(track_id);
   CHECK(clips.size() == 1); // reused, not appended
   CHECK(clips[0].getId() == existing_id); // same clip identity preserved
@@ -1316,7 +1316,7 @@ TEST(ensure_live_recording_clip_overwrites_an_occupied_slot_in_place) {
 // A take's own row 0 is the *bar* the first note arrives in, not the exact
 // step it lands on - a performer may deliberately skip the bar's first
 // beat and start playing on a later one.
-TEST(ensure_live_recording_clip_establishes_its_origin_from_the_containing_bar) {
+TEST(ensure_clip_recording_clip_establishes_its_origin_from_the_containing_bar) {
   ChannelConfiguration config(8000, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
@@ -1329,29 +1329,29 @@ TEST(ensure_live_recording_clip_establishes_its_origin_from_the_containing_bar) 
   controller.setClipGridFocused(true);
   controller.setClipGridCursor(track_id, 0);
   controller.sendCommand("toggle-record-arm");
-  controller.armLiveTrackRecording(track_id, 0);
+  controller.armClipTrackRecording(track_id, 0);
 
   // First note lands on the bar's second beat (step 20 = bar 1's row 4),
   // not its first (step 16) - the origin still snaps back to the bar's own
   // start (16), so this note is recorded at relative row 4, not row 0.
-  auto row = controller.ensureLiveRecordingClip(track_id, 20);
+  auto row = controller.ensureClipRecordingClip(track_id, 20);
   CHECK(row == 4);
 
   // A later call within the same take keeps measuring from that same
   // established origin, not re-snapping to whatever bar the new step is in.
-  row = controller.ensureLiveRecordingClip(track_id, 33);
+  row = controller.ensureClipRecordingClip(track_id, 33);
   CHECK(row == 17);
 }
 
-// primeLiveRecordingOrigin() is the overdub signal: it fixes row 0
-// outright *and* tells ensureLiveRecordingClip() this take is merging
+// primeClipRecordingOrigin() is the overdub signal: it fixes row 0
+// outright *and* tells ensureClipRecordingClip() this take is merging
 // into an already-live clip rather than starting a fresh one, so its
-// content is left completely undisturbed. ensureLiveRecordingClip()'s
+// content is left completely undisturbed. ensureClipRecordingClip()'s
 // own first call must respect the primed origin rather than deriving a
 // different one via previousBarRow(), which in general disagrees with an
 // arbitrary primed step not itself a multiple of rows_per_bar from
 // absolute row 0.
-TEST(ensure_live_recording_clip_respects_a_primed_origin) {
+TEST(ensure_clip_recording_clip_respects_a_primed_origin) {
   ChannelConfiguration config(8000, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
@@ -1367,23 +1367,23 @@ TEST(ensure_live_recording_clip_respects_a_primed_origin) {
   controller.setClipGridFocused(true);
   controller.setClipGridCursor(track_id, 0);
   controller.sendCommand("toggle-record-arm");
-  controller.armLiveTrackRecording(track_id, 0);
+  controller.armClipTrackRecording(track_id, 0);
 
   // 21 isn't a multiple of rows_per_bar (16) - previousBarRow(29, 16) would
   // otherwise snap to 16, not 21.
-  controller.primeLiveRecordingOrigin(track_id, 21);
-  auto row = controller.ensureLiveRecordingClip(track_id, 29);
+  controller.primeClipRecordingOrigin(track_id, 21);
+  auto row = controller.ensureClipRecordingClip(track_id, 29);
   CHECK(row == 8);
   CHECK(existing.getLeafPattern().getNote(0, 0).isDefined()); // overdub - old content untouched
 }
 
-// extendLiveRecordingClipIfNeeded() grows a bar ahead of wherever the
+// extendClipRecordingClipIfNeeded() grows a bar ahead of wherever the
 // take currently is, regardless of how much of that actually ends up
-// holding a note - trimLiveRecordingClip() (toggle-record-arm's own
+// holding a note - trimClipRecordingClip() (toggle-record-arm's own
 // disarm path) is what cuts that growth back down to real content once a
 // take actually ends, quantized up to the last written note's own
 // containing bar rather than left at whatever the growth loop last reached.
-TEST(trim_live_recording_clip_cuts_growth_back_to_the_last_written_bar) {
+TEST(trim_clip_recording_clip_cuts_growth_back_to_the_last_written_bar) {
   ChannelConfiguration config(8000, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
@@ -1396,17 +1396,17 @@ TEST(trim_live_recording_clip_cuts_growth_back_to_the_last_written_bar) {
   controller.setClipGridFocused(true);
   controller.setClipGridCursor(track_id, 0);
   controller.sendCommand("toggle-record-arm");
-  controller.armLiveTrackRecording(track_id, 0);
+  controller.armClipTrackRecording(track_id, 0);
 
-  auto row = controller.ensureLiveRecordingClip(track_id, 0);
+  auto row = controller.ensureClipRecordingClip(track_id, 0);
   auto & clips = song.getClips(track_id);
-  auto & clip = clips[static_cast<size_t>(controller.getLiveRecordingClipIndex(track_id))];
+  auto & clip = clips[static_cast<size_t>(controller.getClipRecordingClipIndex(track_id))];
   clip.getLeafPattern().setNote(row, 0, Note(60, 100, 0));
 
   // The take then idles for several more bars (the performer stopped
   // playing but hasn't disarmed yet) - the clock keeps growing the clip
   // ahead of itself regardless.
-  controller.extendLiveRecordingClipIfNeeded(track_id, 40);
+  controller.extendClipRecordingClipIfNeeded(track_id, 40);
   CHECK(clip.getLength() > 4); // grown well past the one real note
 
   controller.sendCommand("toggle-record-arm"); // disarm
@@ -1416,7 +1416,7 @@ TEST(trim_live_recording_clip_cuts_growth_back_to_the_last_written_bar) {
 // Disarming a take that never actually received a note (armed, then
 // disarmed with nothing played) leaves a fresh one-bar clip rather than a
 // zero-length one.
-TEST(trim_live_recording_clip_with_no_notes_leaves_one_bar) {
+TEST(trim_clip_recording_clip_with_no_notes_leaves_one_bar) {
   ChannelConfiguration config(8000, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
@@ -1429,8 +1429,8 @@ TEST(trim_live_recording_clip_with_no_notes_leaves_one_bar) {
   controller.setClipGridFocused(true);
   controller.setClipGridCursor(track_id, 0);
   controller.sendCommand("toggle-record-arm");
-  controller.armLiveTrackRecording(track_id, 0);
-  controller.ensureLiveRecordingClip(track_id, 0); // clip created, but no note ever written into it
+  controller.armClipTrackRecording(track_id, 0);
+  controller.ensureClipRecordingClip(track_id, 0); // clip created, but no note ever written into it
   controller.sendCommand("toggle-record-arm"); // disarm
 
   auto & clips = song.getClips(track_id);
@@ -1439,11 +1439,11 @@ TEST(trim_live_recording_clip_with_no_notes_leaves_one_bar) {
 }
 
 // A take is meant to be heard right back the instant it finishes -
-// trimLiveRecordingClip() (toggle-record-arm's own disarm path) flips
+// trimClipRecordingClip() (toggle-record-arm's own disarm path) flips
 // the clip to looping and hands its identity to
-// takeCompletedLiveRecording() for LaunchpadManager to pick up, exactly
+// takeCompletedClipRecording() for LaunchpadManager to pick up, exactly
 // once.
-TEST(trim_live_recording_clip_loops_and_is_reported_exactly_once) {
+TEST(trim_clip_recording_clip_loops_and_is_reported_exactly_once) {
   ChannelConfiguration config(8000, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
@@ -1456,23 +1456,23 @@ TEST(trim_live_recording_clip_loops_and_is_reported_exactly_once) {
   controller.setClipGridFocused(true);
   controller.setClipGridCursor(track_id, 0);
   controller.sendCommand("toggle-record-arm");
-  controller.armLiveTrackRecording(track_id, 0);
-  auto row = controller.ensureLiveRecordingClip(track_id, 0);
+  controller.armClipTrackRecording(track_id, 0);
+  auto row = controller.ensureClipRecordingClip(track_id, 0);
   auto & clips = song.getClips(track_id);
-  clips[static_cast<size_t>(controller.getLiveRecordingClipIndex(track_id))].getLeafPattern().setNote(row, 0, Note(60, 100, 0));
-  auto clip_index = controller.getLiveRecordingClipIndex(track_id);
+  clips[static_cast<size_t>(controller.getClipRecordingClipIndex(track_id))].getLeafPattern().setNote(row, 0, Note(60, 100, 0));
+  auto clip_index = controller.getClipRecordingClipIndex(track_id);
   controller.sendCommand("toggle-record-arm"); // disarm
 
   CHECK(clips[static_cast<size_t>(clip_index)].isLooping());
 
-  auto completed = controller.takeCompletedLiveRecording();
+  auto completed = controller.takeCompletedClipRecording();
   CHECK(completed.has_value());
   if (completed) {
     CHECK(completed->track_id == track_id);
     CHECK(completed->clip_index == clip_index);
   }
 
-  CHECK(!controller.takeCompletedLiveRecording().has_value()); // consumed, not re-reported
+  CHECK(!controller.takeCompletedClipRecording().has_value()); // consumed, not re-reported
 }
 
 // armTrack()/disarmTrack()/toggleTrackArmed() are pure per-track bookkeeping,
@@ -1524,17 +1524,17 @@ TEST(disarm_track_stops_an_in_flight_take_immediately) {
   auto track_id = track.getInternalId();
 
   controller.armTrack(track_id);
-  controller.armLiveTrackRecording(track_id, 0);
-  auto row = controller.ensureLiveRecordingClip(track_id, 0);
+  controller.armClipTrackRecording(track_id, 0);
+  auto row = controller.ensureClipRecordingClip(track_id, 0);
   auto & clips = song.getClips(track_id);
-  clips[static_cast<size_t>(controller.getLiveRecordingClipIndex(track_id))].getLeafPattern().setNote(row, 0, Note(60, 100, 0));
-  CHECK(controller.isLiveRecording(track_id));
+  clips[static_cast<size_t>(controller.getClipRecordingClipIndex(track_id))].getLeafPattern().setNote(row, 0, Note(60, 100, 0));
+  CHECK(controller.isClipRecording(track_id));
 
   controller.disarmTrack(track_id);
   CHECK(!controller.isTrackArmed(track_id));
-  CHECK(!controller.isLiveRecording(track_id)); // the take is gone, not just the arm state
+  CHECK(!controller.isClipRecording(track_id)); // the take is gone, not just the arm state
   CHECK(clips[0].isLooping()); // trimmed and handed off, same as an explicit disarm via toggle-record-arm
-  auto completed = controller.takeCompletedLiveRecording();
+  auto completed = controller.takeCompletedClipRecording();
   CHECK(completed.has_value());
   if (completed) CHECK(completed->track_id == track_id);
 }
@@ -1556,23 +1556,23 @@ TEST(overdub_row_wraps_instead_of_growing_past_the_clip_length) {
   existing.getLeafPattern().setNote(0, 0, Note(40, 100, 0));
 
   controller.armTrack(track_id);
-  controller.armLiveTrackRecording(track_id, 0);
-  controller.primeLiveRecordingOrigin(track_id, 0); // the overdub signal
+  controller.armClipTrackRecording(track_id, 0);
+  controller.primeClipRecordingOrigin(track_id, 0); // the overdub signal
 
-  CHECK(controller.ensureLiveRecordingClip(track_id, 0) == 0);
-  CHECK(controller.ensureLiveRecordingClip(track_id, 4) == 0); // one full loop later - wraps back to row 0
-  CHECK(controller.ensureLiveRecordingClip(track_id, 9) == 1); // 9 - 0 = 9, 9 % 4 == 1
+  CHECK(controller.ensureClipRecordingClip(track_id, 0) == 0);
+  CHECK(controller.ensureClipRecordingClip(track_id, 4) == 0); // one full loop later - wraps back to row 0
+  CHECK(controller.ensureClipRecordingClip(track_id, 9) == 1); // 9 - 0 = 9, 9 % 4 == 1
 
   // The clip's own length never grew to accommodate any of this.
   CHECK(existing.getLength() == 4);
-  controller.extendLiveRecordingClipIfNeeded(track_id, 9);
+  controller.extendClipRecordingClipIfNeeded(track_id, 9);
   CHECK(existing.getLength() == 4); // still a no-op - nothing to grow for an overdub
 }
 
-// trimLiveRecordingClip() is a pure no-op for an overdub take - the
+// trimClipRecordingClip() is a pure no-op for an overdub take - the
 // clip was already correct (already playing, already the right length)
 // throughout, so there's nothing to finalize and nothing new to report.
-TEST(trim_live_recording_clip_is_a_no_op_for_an_overdub) {
+TEST(trim_clip_recording_clip_is_a_no_op_for_an_overdub) {
   ChannelConfiguration config(8000, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
@@ -1587,18 +1587,18 @@ TEST(trim_live_recording_clip_is_a_no_op_for_an_overdub) {
   existing.getLeafPattern().setNote(0, 0, Note(40, 100, 0));
 
   controller.armTrack(track_id);
-  controller.armLiveTrackRecording(track_id, 0);
-  controller.primeLiveRecordingOrigin(track_id, 0);
-  controller.ensureLiveRecordingClip(track_id, 0);
-  controller.ensureLiveRecordingClip(track_id, 1); // merges a second note in without disturbing the first
+  controller.armClipTrackRecording(track_id, 0);
+  controller.primeClipRecordingOrigin(track_id, 0);
+  controller.ensureClipRecordingClip(track_id, 0);
+  controller.ensureClipRecordingClip(track_id, 1); // merges a second note in without disturbing the first
   existing.getLeafPattern().setNote(1, 0, Note(50, 100, 0));
 
-  controller.trimLiveRecordingClip(track_id);
+  controller.trimClipRecordingClip(track_id);
   CHECK(existing.getLength() == 4); // untouched
   CHECK(existing.isLooping()); // untouched (was already true)
   CHECK(existing.getLeafPattern().getNote(0, 0).isDefined()); // original content survives
   CHECK(existing.getLeafPattern().getNote(1, 0).isDefined()); // merged content survives
-  CHECK(!controller.takeCompletedLiveRecording().has_value()); // nothing to hand off
+  CHECK(!controller.takeCompletedClipRecording().has_value()); // nothing to hand off
 }
 
 // Several tracks can each have their own in-flight take at once - the
@@ -1617,22 +1617,22 @@ TEST(several_tracks_can_record_concurrently) {
 
   controller.armTrack(track_a_id);
   controller.armTrack(track_b_id);
-  controller.armLiveTrackRecording(track_a_id, 0);
-  controller.armLiveTrackRecording(track_b_id, 0);
-  CHECK(controller.isLiveRecording(track_a_id));
-  CHECK(controller.isLiveRecording(track_b_id));
+  controller.armClipTrackRecording(track_a_id, 0);
+  controller.armClipTrackRecording(track_b_id, 0);
+  CHECK(controller.isClipRecording(track_a_id));
+  CHECK(controller.isClipRecording(track_b_id));
 
-  auto ids = controller.getLiveRecordingTrackIds();
+  auto ids = controller.getClipRecordingTrackIds();
   CHECK(ids.size() == 2);
 
-  controller.ensureLiveRecordingClip(track_a_id, 0);
-  controller.ensureLiveRecordingClip(track_b_id, 0);
-  CHECK(controller.getLiveRecordingClipIndex(track_a_id) == 0);
-  CHECK(controller.getLiveRecordingClipIndex(track_b_id) == 0);
+  controller.ensureClipRecordingClip(track_a_id, 0);
+  controller.ensureClipRecordingClip(track_b_id, 0);
+  CHECK(controller.getClipRecordingClipIndex(track_a_id) == 0);
+  CHECK(controller.getClipRecordingClipIndex(track_b_id) == 0);
 
-  controller.trimLiveRecordingClip(track_a_id);
-  CHECK(!controller.isLiveRecording(track_a_id));
-  CHECK(controller.isLiveRecording(track_b_id)); // untouched by the other track's own finish
+  controller.trimClipRecordingClip(track_a_id);
+  CHECK(!controller.isClipRecording(track_a_id));
+  CHECK(controller.isClipRecording(track_b_id)); // untouched by the other track's own finish
 }
 
 // End-to-end: sendCommand("merge-clip-to-background") resolves its target

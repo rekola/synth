@@ -274,14 +274,14 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
       auto sample_track_id = getRecordingTrackId();
       finishSampleCapture();
       stop_sample_auto_started_playback();
-      clearLiveRecordingTake(sample_track_id); // pure bookkeeping - finishSampleCapture() already finalized the real clip
+      clearClipRecordingTake(sample_track_id); // pure bookkeeping - finishSampleCapture() already finalized the real clip
       return;
     }
     if (isThresholdArmed()) {
       auto sample_track_id = getRecordingTrackId();
       disarmThresholdRecording();
       stop_sample_auto_started_playback();
-      clearLiveRecordingTake(sample_track_id);
+      clearClipRecordingTake(sample_track_id);
       return;
     }
     if (isNoteCaptureArmed()) {
@@ -345,9 +345,9 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
       // yet. Populating the clip slot directly, with no arrangement
       // placement or transport start, mirrors the ordinary
       // transport-tied behavior it otherwise gets.
-      if (clip_grid_focused_) armLiveTrackRecording(track_id, clip_grid_clip_index_);
+      if (clip_grid_focused_) armClipTrackRecording(track_id, clip_grid_clip_index_);
       armThresholdRecording(track_id);
-      // No auto-started transport for a Live View take - Player.cpp
+      // No auto-started transport for a clip take - Player.cpp
       // already starts ALSA capture off isThresholdArmed() alone,
       // independent of isPlaying(), so there's nothing the transport needs
       // to be running for.
@@ -1258,9 +1258,9 @@ Controller::extendRecordingClipsIfNeeded(std::unordered_map<int, std::string> & 
 }
 
 int
-Controller::ensureLiveRecordingClip(int track_id, int absolute_step, int bar_start_step) {
-  auto it = live_recording_takes_.find(track_id);
-  if (it == live_recording_takes_.end() || it->second.clip_index < 0) return -1;
+Controller::ensureClipRecordingClip(int track_id, int absolute_step, int bar_start_step) {
+  auto it = clip_recording_takes_.find(track_id);
+  if (it == clip_recording_takes_.end() || it->second.clip_index < 0) return -1;
   auto & take = it->second;
   auto song = getCurrentSong();
   if (!song) return -1;
@@ -1268,7 +1268,7 @@ Controller::ensureLiveRecordingClip(int track_id, int absolute_step, int bar_sta
 
   if (!take.clip_ready) {
     // An already-primed origin means this is an overdub take (see
-    // primeLiveRecordingOrigin()'s own comment) - the target clip is
+    // primeClipRecordingOrigin()'s own comment) - the target clip is
     // already actively playing, so its own content/length/looping state
     // stay exactly as they are; only a fresh take (an empty slot, or a
     // genuinely idle occupied one) resets/creates the clip.
@@ -1295,7 +1295,7 @@ Controller::ensureLiveRecordingClip(int track_id, int absolute_step, int bar_sta
       }
     }
     take.clip_ready = true;
-    // primeLiveRecordingOrigin() may already have fixed this take's own
+    // primeClipRecordingOrigin() may already have fixed this take's own
     // row 0 (an overdub - see its own comment); otherwise, row 0 is this
     // bar's own start, not the exact step this first note happened to
     // land on - a performer may deliberately start playing on the bar's
@@ -1305,7 +1305,7 @@ Controller::ensureLiveRecordingClip(int track_id, int absolute_step, int bar_sta
       take.origin_step = bar_start_step >= 0 ? bar_start_step : song->barStartAtOrBefore(absolute_step);
     }
   }
-  extendLiveRecordingClipIfNeeded(track_id, absolute_step); // no-op for an overdub take - see its own comment
+  extendClipRecordingClipIfNeeded(track_id, absolute_step); // no-op for an overdub take - see its own comment
   auto row = absolute_step - take.origin_step;
   if (take.is_overdub && take.clip_index < static_cast<int>(clips.size())) {
     // Wrapped, not left to grow - see this method's own doc comment on
@@ -1318,9 +1318,9 @@ Controller::ensureLiveRecordingClip(int track_id, int absolute_step, int bar_sta
 }
 
 void
-Controller::extendLiveRecordingClipIfNeeded(int track_id, int absolute_step) {
-  auto it = live_recording_takes_.find(track_id);
-  if (it == live_recording_takes_.end() || !it->second.clip_ready || it->second.is_overdub) return;
+Controller::extendClipRecordingClipIfNeeded(int track_id, int absolute_step) {
+  auto it = clip_recording_takes_.find(track_id);
+  if (it == clip_recording_takes_.end() || !it->second.clip_ready || it->second.is_overdub) return;
   auto & take = it->second;
   auto song = getCurrentSong();
   if (!song) return;
@@ -1338,11 +1338,11 @@ Controller::extendLiveRecordingClipIfNeeded(int track_id, int absolute_step) {
 }
 
 void
-Controller::trimLiveRecordingClip(int track_id) {
-  auto it = live_recording_takes_.find(track_id);
-  if (it == live_recording_takes_.end()) return;
+Controller::trimClipRecordingClip(int track_id) {
+  auto it = clip_recording_takes_.find(track_id);
+  if (it == clip_recording_takes_.end()) return;
   auto take = it->second; // copied out - the map entry itself is gone below
-  live_recording_takes_.erase(it);
+  clip_recording_takes_.erase(it);
   if (!take.clip_ready) return;
   // An overdub take never touched the clip's own length/looping state at
   // all - it was already correct, and the clip was already playing,
@@ -1365,13 +1365,13 @@ Controller::trimLiveRecordingClip(int track_id) {
   clip.setLength(last_row < 0 ? rows_per_bar : (last_row / rows_per_bar + 1) * rows_per_bar);
 
   // A fresh take is meant to be played straight back, live, the instant it
-  // finishes - looping (rather than ensureLiveRecordingClip()'s own
+  // finishes - looping (rather than ensureClipRecordingClip()'s own
   // recording-time setLooping(false), meaningless once a take is actually
   // over) and pushed here for LaunchpadManager to pick up and join into
   // Live View's live performance immediately (see
-  // takeCompletedLiveRecording()'s own comment).
+  // takeCompletedClipRecording()'s own comment).
   clip.setLooping(true);
-  completed_live_recordings_.push_back({ track_id, take.clip_index });
+  completed_clip_recordings_.push_back({ track_id, take.clip_index });
 }
 
 void
@@ -1581,18 +1581,18 @@ Controller::beginSampleCapture(int track_id, int latency_frames) {
   // instance elsewhere) keeps pointing at it, and every existing layer
   // stays completely untouched (Clip::addSampleLayer()'s own comment) -
   // real audio genuinely sums, the same "always merges rather than
-  // replaces" decision note-based Live recording already settled, not
+  // replaces" decision note-based clip recording already settled, not
   // the destructive "generalize today's clear-and-restart behavior"
   // alternative. Lands at exactly the requested index - holes are allowed
   // (Song::ensureClipAt()), so a target past the list's own current end
   // backfills the gap with empty fillers instead of collapsing to
   // wherever a fresh append happens to land, the same fix
-  // ensureLiveRecordingClip() already has for note-based takes. An
+  // ensureClipRecordingClip() already has for note-based takes. An
   // ordinary (non-Live-View) take has no target index at all - it
   // always appends a brand new clip, same as before.
-  auto take_it = live_recording_takes_.find(track_id);
-  bool is_live_recording_take = take_it != live_recording_takes_.end();
-  bool targets_existing_slot = is_live_recording_take && take_it->second.clip_index >= 0;
+  auto take_it = clip_recording_takes_.find(track_id);
+  bool is_clip_recording_take = take_it != clip_recording_takes_.end();
+  bool targets_existing_slot = is_clip_recording_take && take_it->second.clip_index >= 0;
   Clip & clip = targets_existing_slot ? song->ensureClipAt(track_id, take_it->second.clip_index) : song->addClip(Clip(track_id));
   // A target index that already had real identity (real prior content, or
   // a pre-authored-but-still-empty placeholder - Song::ensureClipAt()'s
@@ -1666,7 +1666,7 @@ Controller::beginSampleCapture(int track_id, int latency_frames) {
   // this take starts, already resolved before this method ever runs. A
   // never-armed take stays unplaced - still a real, visible clip (Live
   // view/ArrangementGrid), just not an arrangement instance anywhere yet -
-  // always true for a Live View take, which never snapshots a start
+  // always true for a clip take, which never snapshots a start
   // position in the first place.
   if (recording_start_row_ >= 0) {
     int clip_index = reuse_existing ? take_it->second.clip_index : static_cast<int>(clips.size()) - 1;

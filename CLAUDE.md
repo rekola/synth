@@ -508,7 +508,7 @@ would otherwise resume showing.
   instead (`LaunchpadManager::triggerSceneRow()`, `row = (cc_number - 19)
   / 10` - the classic Launchpad right-column convention, matching every
   visible track's own clip at that row simultaneously, through the same
-  audition/assign (Record Arm) split an ordinary Live pad press
+  audition/assign (Record Arm) split an ordinary pad press in Live View
   already goes through) - **on** - each is the mixer radio group instead:
   Volume/Pan/SendA/SendB enter that fader `GridMode` (`toggleGridMode()`),
   Stop Clip/Mute/Solo/Record Arm open/retarget the track-picker overlay
@@ -569,7 +569,7 @@ would otherwise resume showing.
   (`quantizedStep()`). A long hold is Capture MIDI, a stub that only says so. With shift
   held, CC98 is the arrangement's own Record Arm instead
   (`"toggle-record-arm"`, `Controller::isNoteCaptureArmed()`, which makes
-  a Live pad press write the clip into the arrangement). Its LED is
+  a pad press in Live View write the clip into the arrangement). Its LED is
   bright red while anything records (`record_arm_led_on`), dim red
   otherwise.
 - **DRAW mode** (shift + Custom) - a plain per-pad coloring toy,
@@ -578,7 +578,7 @@ would otherwise resume showing.
   one of 95/96/97 leaves it), or blanks the canvas if DRAW is already
   showing.
 - **Duplicate** (shift + Volume) - held for as long as Volume stays down:
-  a Live pad press on a populated slot copies that clip into the slot
+  a pad press in Live View on a populated slot copies that clip into the slot
   below it, overwriting what is there (`duplicateClip()`,
   `ArrangementOps.h` - an independent copy under a fresh id; an overwritten
   clip's arrangement placements go with it). One hold can copy several
@@ -590,7 +590,7 @@ would otherwise resume showing.
   selected clip for step editing, as the drum machine bullet below describes
   (`LaunchpadManager::selected_track_id_`).
 - **Delete** (shift + Pan) - held for as long as Pan stays down, like
-  Duplicate: a Live pad press deletes what its slot holds, one layer
+  Duplicate: a pad press in Live View deletes what its slot holds, one layer
   per press (`Controller::deleteClipSlot()`, `deleteClipOrStopButton()` in
   `ArrangementOps.h`) - a populated slot loses its clip (leaving an empty
   hole in place, so scene rows stay aligned), an empty one its stop button.
@@ -655,9 +655,8 @@ would otherwise resume showing.
   supported; one sound is selected at a time.
 
   The window is `kStepWindow` (32) steps from `DeviceState::
-  drum_edit_step_offset`; `resetStepGridView()` gives device i page i, and
-  pad-prev-track/pad-next-track scroll every device together by `kStepGridScrollStep`
-  (4). While the step view shows, move-row-up/-down shift a pitched track's
+  drum_edit_step_offset`, 0 on open, and pad-prev-track/pad-next-track
+  scroll that device's window by `kStepGridScrollStep` (4). While the step view shows, move-row-up/-down shift a pitched track's
   octave instead (a drum rack has nothing to shift). The step view is opened
   two ways, both funneled through `Controller::toggleDrumClipFocus(track_id,
   clip_index)`: "toggle-record-arm" while the `ClipGrid` has focus on a
@@ -666,13 +665,14 @@ would otherwise resume showing.
   `handleLivePadEvent()`, `DeviceState::row_up_shift_pending_pad` - the
   pad half resolves on its own release, so an abandoned press never has to be
   undone), which also reaches a pitched track. Both halves light white while
-  held. Opening forces every connected device into `NOTES` mode
-  (`forceNotesModeOnAllDevices()`) and resets its page, octave and the
-  preview clock (`preview_clock_`, separate from `ClipPlayer`'s), so every
-  open starts from the same window and playhead. A lone CC95 press, or the
+  held. Opening switches one device into `NOTES` mode
+  (`LaunchpadManager::openStepView()`: the device last touched, else the
+  first connected; the others keep their mode) and resets its page, octave
+  and the preview clock (`preview_clock_`, separate from `ClipPlayer`'s), so
+  every open starts from the same window and playhead. A lone CC95 press, or the
   same shift+pad on the same pad from the plain Live grid, closes it
-  (`Controller::closeDrumClipFocus()`) and returns every device to Live
-  View. Merely navigating the cursor onto a track, or recording into it,
+  (`Controller::closeDrumClipFocus()`) and returns that device to Live
+  View (`closeStepView()`). Merely navigating the cursor onto a track, or recording into it,
   never shows the step view. In it, CC96 and the idle Session Record go
   fully dark (nothing left for them to do); CC91/92 are dark on a
   percussion track and CC93/94 go dark once the clip fits the devices
@@ -770,7 +770,7 @@ would otherwise resume showing.
   the launch commands go through: it sends each change as a
   `QUEUE_LAUNCH` event with a sequence number and predicts it in
   `PlaybackInfo` until a snapshot has caught up (the same stale-snapshot
-  rule as the edit position), and keeps the Live View takes, resolving
+  rule as the edit position), and keeps the clip takes, resolving
   them on bar rows it sees in the snapshots (`ClipPlayer::tick()`,
   once per UI frame). A finished take loops back on the bar its stop
   resolved on. Explicitly never the
@@ -818,13 +818,13 @@ would otherwise resume showing.
   is, since there's only one real input stream to route through it - a
   press on an armed `SampleTrack`'s own row arms (or retargets) real
   capture right away (`ClipPlayer::triggerClip()`'s own
-  SampleTrack branch: `Controller::armLiveTrackRecording()`/
+  SampleTrack branch: `Controller::armClipTrackRecording()`/
   `armThresholdRecording()`, mirroring "toggle-record-arm"'s own
   Live-View-focused SampleTrack branch from the terminal), and
   pressing that same pad again cancels a still-idle arm
   (`LaunchpadManager::stopSampleTrackRecording()`) - never
-  `Controller::trimLiveRecordingClip()`, the note-Pattern-specific
-  finalize note-based Live recording uses, which would misread a
+  `Controller::trimClipRecordingClip()`, the note-Pattern-specific
+  finalize note-based clip recording uses, which would misread a
   SampleTrack take's own empty Pattern as "nothing was ever recorded" and
   reset its real audio length back to one bar.
 - **Track-picker overlay** (`LaunchpadManager::toggleTrackPicker()`/
@@ -1020,7 +1020,7 @@ would otherwise resume showing.
   press), so each tells them apart by the release in between; `TerminalUI`
   keeps focus on the widget the press started in until then.
 - **Scenes** (`Song::getSceneName()`/`getSceneTempo()`/`getSceneTimeSignature()`, `<scenes><scene name="" tempo="" timeSignature="3/4"/>...</scenes>`, by position like a track's clip list, no index stored) - a scene is a clip-list row shared by every track, with an optional name, tempo and time signature, shown in the clip grid's Master column and edited with F2 there; typed text goes through `scenename::extract()` (`SceneName.h`) ("Waltz 3/4 90 BPM" splits into name, signature and tempo, "0 BPM"/"0/4" clear them, text without one keeps the existing value). `ClipPlayer::launchScene()` sends them to the audio thread as one `QUEUE_SCENE_CHANGE` event, which `SongState::queueSceneChange()` applies on the bar the clips launch on (the first row played from a stopped transport): the tempo becomes the song tempo, the signature the running signature. Each rhythm-library template carries its signature (`RhythmPatternTemplate::time_numerator`/`time_denominator`), which Add to Song gives the scene the new clip lands in when that scene has none. Details and design decisions: `docs/scenes.md`.
-- **Bars and time signatures** (`TimeSignature.h`, `BarGrid.h`, `Song`'s bar API; `docs/time_signatures.md`) - a row is a sixteenth, a signature n/d is n*16/d rows per bar and 16/d per beat (denominator 1/2/4/8/16). The song has one signature (`Song::getTimeSignature()`, `<song timeSignature="3/4">`, 4/4 unless set, `set-time-signature`) that the arrangement counts its bars in (`Song::getArrangementBars()`, a `BarGrid`: a signature counted from an origin row). A launched scene's signature is the *running signature* (`RunningBars`: signature plus origin row, the launch bar, saved as `transportTimeSignature`/`transportBarOrigin`) that overrides the song's from the origin until another scene or Back to Arrangement for every track (`ClipPlayer::returnAllToArrangement()`). The audio thread owns the running signature and the tempo a scene sets (`SongState`'s `pending_scene_`/`running_bars_`/`barsAt()`, applied in `advanceLiveTracks()` on the bar, sample-exact with the clip launches; its bar test, pattern break and `Player::scheduleMetronome()` read `barsAt()`); the UI's `Song` copies are mirrored from the snapshot by `Controller::mirrorSceneChange()` (once per `PlaybackInfo::getSceneSeq()`, so an older snapshot never overwrites a tempo edited since; `SongState` applies the song's own tempo only when the song's value changed). UI-thread consumers (Live take quantization and length, the position display, the info line) read `Song::getBarsAt()`; the arrangement grid, arrangement recording and clip placement read `getArrangementBars()`. A bar number is never `row / rows_per_bar` (`Song::getRowsPerBar()` is gone): use `BarGrid`. Live View accents come from the scene's own signature (`PatternSource::startsBar()`/`startsBeat()`).
+- **Bars and time signatures** (`TimeSignature.h`, `BarGrid.h`, `Song`'s bar API; `docs/time_signatures.md`) - a row is a sixteenth, a signature n/d is n*16/d rows per bar and 16/d per beat (denominator 1/2/4/8/16). The song has one signature (`Song::getTimeSignature()`, `<song timeSignature="3/4">`, 4/4 unless set, `set-time-signature`) that the arrangement counts its bars in (`Song::getArrangementBars()`, a `BarGrid`: a signature counted from an origin row). A launched scene's signature is the *running signature* (`RunningBars`: signature plus origin row, the launch bar, saved as `transportTimeSignature`/`transportBarOrigin`) that overrides the song's from the origin until another scene or Back to Arrangement for every track (`ClipPlayer::returnAllToArrangement()`). The audio thread owns the running signature and the tempo a scene sets (`SongState`'s `pending_scene_`/`running_bars_`/`barsAt()`, applied in `advanceLiveTracks()` on the bar, sample-exact with the clip launches; its bar test, pattern break and `Player::scheduleMetronome()` read `barsAt()`); the UI's `Song` copies are mirrored from the snapshot by `Controller::mirrorSceneChange()` (once per `PlaybackInfo::getSceneSeq()`, so an older snapshot never overwrites a tempo edited since; `SongState` applies the song's own tempo only when the song's value changed). UI-thread consumers (clip take quantization and length, the position display, the info line) read `Song::getBarsAt()`; the arrangement grid, arrangement recording and clip placement read `getArrangementBars()`. A bar number is never `row / rows_per_bar` (`Song::getRowsPerBar()` is gone): use `BarGrid`. Live View accents come from the scene's own signature (`PatternSource::startsBar()`/`startsBeat()`).
 - **Defaults**: a fresh session opens in Live View on the clip grid
   (`UI::setInitialView()`, the `--view` option) rather than straight into
   note entry, and `GridMode` defaults to `LIVE` on every
@@ -1057,7 +1057,7 @@ would otherwise resume showing.
   (`armMixerHoldPreview()`/`handleMixerFunctionRelease()`) - a quick tap
   stays (sticky), a real hold reverts to whatever was showing before it
   once released. `verify_launchpad_live_automation.py` covers a fader
-  move during a Live View take landing in the take's own clip
+  move during a clip take landing in the take's own clip
   (`recordFaderAutomationIfArmed()`) rather than the arrangement, which a
   taken-over track ignores. `verify_launchpad_sampletrack_record_arm.py` covers the
   SampleTrack twin of `verify_launchpad_record_arm_holes.py` - a
@@ -1073,13 +1073,10 @@ would otherwise resume showing.
   (open, arrows, switch, leave) through the pads' LEDs.
   `verify_launchpad_shift_highlight.py` covers the same
   gesture's own LED feedback while held (both CC91 and the target pad
-  lighting bright white before release). `verify_launchpad_paging_lockstep.py`
-  covers the step grid's own pad-prev-track/pad-next-track page-shift gesture
-  moving every connected device together rather than just whichever one
-  was pressed - two simulated devices open a 3-page clip, confirm
-  `resetStepGridView()`'s own device-order split put them on two
-  different pages, then one pages forward once and both are confirmed to
-  have scrolled together. `verify_launchpad_shift_stepgrid_pitched.py`
+  lighting bright white before release). `verify_launchpad_step_view_device.py`
+  covers the step view with two devices connected - only the device used to
+  open a 3-page clip shows it, from step 0, and pages forward once; the other
+  stays on the Live View grid. `verify_launchpad_shift_stepgrid_pitched.py`
   covers the same gesture opening a *pitched* `InstrumentTrack`'s own
   clip - same "*" focus-marker verification as `verify_launchpad_shift_
   stepgrid.py` above.

@@ -4,7 +4,7 @@ Terms with a specific meaning in this project.
 
 **Clip launcher**
 The grid of clips inside Live View: one column per track, one row per scene,
-each slot launched on the next bar. On a Launchpad it is the pad grid in the
+each slot triggered on the next bar. On a Launchpad it is the pad grid in the
 Live mode (the device's Session button). See launchpad.md and scenes.md.
 
 **Groove**
@@ -18,9 +18,11 @@ and apply song-wide at playback, without changing the pattern data. Here,
 Library's drum patterns are not grooves in this sense; see Rhythm.
 
 **Live sequencer**
-The general term for sequencing by launching clips while the transport runs,
-rather than by writing an arrangement in advance. Live View is this
-project's version of it, and the arrangement can still be recorded from it.
+A tool used to program, trigger and manipulate musical patterns, notes and
+rhythms in real time during a performance. Here that is Live View: clips are
+launched, stopped and recorded into while the transport runs, changes land on
+the next bar, and scenes launch a whole row of clips together. What is played
+can also be placed into the arrangement.
 
 **Live View**
 The view with the clip launcher, the outline panel and the pattern editor

@@ -2841,18 +2841,13 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
   // Record Arm's own drum-machine-track repurposing ("toggle-record-arm",
   // Controller.cpp) - opening a clip (Controller::setFocusedClip()) moves
   // the shared track cursor to it (so PatternEditor's/the Launchpad's own
-  // fallback_track_index-following resolve there next), forces every
-  // connected device's own display to the step grid regardless of
-  // whatever GridMode it happened to be in, and gives each one its own
-  // default page and octave register into the clip
-  // (LaunchpadManager::resetStepGridView() - several Launchpads split a
-  // clip longer than 8 steps between them without anyone paging by hand
-  // first, and every device starts from the same known octave rather than
-  // wherever unrelated earlier use happened to leave it); closing one
-  // (a second press on
-  // the clip already open - Controller::clearFocusedClip()) hands every
-  // connected device back to Live View instead, rather than leaving it
-  // stuck showing a step grid with nothing left focused to edit there.
+  // fallback_track_index-following resolve there next), switches one
+  // Launchpad (the one last used) to the step grid and starts it from a
+  // known page and octave (LaunchpadManager::openStepView()); closing one
+  // (a second press on the clip already open -
+  // Controller::clearFocusedClip()) hands that device back to Live View
+  // instead, rather than leaving it stuck showing a step grid with nothing
+  // left focused to edit there.
   getController().setClipSelectListener([this](int track_id, int clip_index) {
     auto & song = getController().getSong();
     auto root_ids = song.getRootTrackIds();
@@ -2869,8 +2864,7 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
       auto track_ids = song.getRootTrackIds();
       auto it = std::find(track_ids.begin(), track_ids.end(), track_id);
       if (it != track_ids.end()) pattern_editor_->setCursorTrack(static_cast<int>(it - track_ids.begin()));
-      launchpad_manager_->forceNotesModeOnAllDevices();
-      launchpad_manager_->resetStepGridView();
+      launchpad_manager_->openStepView();
       // Meant to be heard in isolation - stops the transport if it
       // happens to be running (the focused-clip audition below only ever
       // engages while stopped anyway - LaunchpadManager::refresh()'s own
@@ -2880,7 +2874,7 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
       if (getController().getPlaybackInfo().isPlaying()) getController().togglePlaying();
       getController().getClipPlayer().silenceAll();
     } else {
-      launchpad_manager_->forceLiveModeOnAllDevices();
+      launchpad_manager_->closeStepView();
     }
   });
 }

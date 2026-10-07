@@ -19,7 +19,7 @@ struct LiveTrackInfo;
 // over from the arrangement at the transport's next bar; the audio thread
 // (SongState::queueLaunch()) owns that and plays the launched
 // clips, and each playback snapshot reports it back. This keeps the
-// UI-side bookkeeping - the Live View takes - and predicts a queued
+// UI-side bookkeeping - the clip takes - and predicts a queued
 // change until a snapshot has caught up with it. Owned by Controller, so
 // every launch - a Launchpad pad, the clip grid, a command - goes through
 // the same place, with or without a device connected.

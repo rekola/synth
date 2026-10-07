@@ -36,24 +36,13 @@ Stop a daemon with `kill $(cat F)`.
 
 If no song is given, `songs/welcome.xml` is used as in the terminal UI.
 
-## What works
+## Limitations
 
-- Playback, Live View clip launching and everything else the engine does.
-- Launchpad input and LEDs (the same pad/button handling as the terminal UI).
-- MIDI input (`MidiNoteInput`, shared with the terminal UI): notes (with
-  release, note and channel pressure) play live on the current track, in the
-  song's tuning, one voice slot per held note; respects the track's Monitor
-  setting. While note capture is armed and the transport plays, notes are
-  also recorded at the playhead into a clip, the same rule as a Launchpad
-  take.
-- Sample recording from the audio input (armed, threshold-triggered and
-  Live View takes), shared with the terminal UI.
-
-Not available: anything that needs the terminal UI (editing, M-x, the
-keyboard), and other peripherals. The "cursor" headless mode uses is the
+Anything that needs the terminal UI is not available: editing, M-x and the
+keyboard, and other peripherals. The "cursor" headless mode uses is the
 song's current track plus the transport position, both held outside the UI.
 
 ## Testing
 
-`tools/e2e/verify_headless.py` runs the checks above against `build/synth`
+`tools/e2e/verify_headless.py` runs headless mode against `build/synth`
 using ALSA's `null` PCM, so it needs no sound card.
