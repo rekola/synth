@@ -39,8 +39,9 @@ differs.
   E♯ and F differ, where in 12-EDO they are the same note. Note numbers for each tuning
   are in `docs/`, for example [31edo_note_numbers.txt](docs/31edo_note_numbers.txt).
 - **Scales.** A song has a key and an optional scale: major, minor, otonal or
-  utonal (Partch, 1949). Each scale is written once as note names, so the same
-  scale is correct in every tuning. Without a scale, the Launchpad keyboard
+  utonal. The names are Partch's (1949), but the intervals and the function
+  differ: here they are ordinary seven-note scales. Each scale is written once
+  as note names, so the same scale is correct in every tuning. Without a scale, the Launchpad keyboard
   plays major. The scale drives the in-key layout described in
   [docs/drums-and-sequencer.md](docs/drums-and-sequencer.md).
 
