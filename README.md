@@ -7,26 +7,29 @@
 
 A microtonal multiparadigm music production system, which combines live sequencer with a traditional tracker.
 
-# What synth is
+# Background
 
-synth is not a copy of any one product. It draws on several traditions, and
-each document in `docs/` says where its own feature comes from and where it
-differs.
+The Application draws on several traditions, and each document in `docs/`
+says where its own feature comes from and where it differs.
 
 - **Tracker.** Music is written as rows in a grid, one column per voice. The
   first known tracker is Ultimate Soundtracker (Obarski, 1987): four channels,
   each row a note, a sample and an effect. Scream Tracker, FastTracker 2 and
   Impulse Tracker added a volume column and lettered effect commands, and
-  Renoise (2002) several note columns per track and a delay column. synth's
-  pattern editor follows the later trackers; see
+  Renoise (2002) several note columns per track and a delay column. The
+  Application's pattern editor follows the later trackers; see
   [docs/commands.md](docs/commands.md).
-- **Live sequencer.** Session view, with clips launched on the bar and scenes,
-  follows Ableton Live; see [docs/launchpad.md](docs/launchpad.md) and
-  [docs/scenes.md](docs/scenes.md).
-- **Pad controllers and samplers.** The Launchpad's buttons partly follow Novation's own layouts,
-  and the drum pads and step sequencer the Akai MPC (1988) and Ableton Push;
-  see [docs/drums-and-sequencer.md](docs/drums-and-sequencer.md).
-- **Emacs.** Selection, kill and yank, and the M-x prompt; see
+- **Live sequencer.** Session view is a grid of clips, one column per track,
+  launched on the bar and grouped into scenes; see
+  [docs/launchpad.md](docs/launchpad.md) and [docs/scenes.md](docs/scenes.md).
+- **Pad controllers and samplers.** The Launchpad's buttons partly follow
+  Novation's own layouts, and the drum pads and step sequencer the Akai MPC
+  (1988) and Ableton Push; see
+  [docs/drums-and-sequencer.md](docs/drums-and-sequencer.md).
+- **Emacs.** In the terminal interface each song is a buffer, as in Emacs:
+  several can be open and switched between, with selection, kill and yank, and
+  the M-x prompt. That is only the terminal interface; other interfaces are
+  planned and will follow their own conventions. See
   [docs/terminal.md](docs/terminal.md).
 
 # Scales and Tunings
@@ -34,9 +37,9 @@ differs.
 - **Tunings.** A song is tuned to 12, 19, 31 or 53 equal divisions of the
   octave (EDO); a new song starts in 31-EDO, which Adriaan Fokker revived (organ
   built 1950 for Teylers Museum, Haarlem). Drum tracks have no tuning: a
-  note is a General MIDI drum. Notes are spelled with sharps, flats and double
-  flats, and in the finer tunings they are distinct pitches: in 31-EDO
-  E♯ and F differ, where in 12-EDO they are the same note. Note numbers for each tuning
+  note is a General MIDI drum. Notes are spelled with sharps, flats, double sharps and double flats,
+  and a tuning can spell the same pitch in several ways. In 12-EDO, E♯ is F. In
+  31-EDO, E♯ and F are different pitches, but D𝄪 and F𝄫 are the same one. Note numbers for each tuning
   are in `docs/`, for example [31edo_note_numbers.txt](docs/31edo_note_numbers.txt).
 - **Scales.** A song has a key and an optional scale: major, minor, otonal or
   utonal. The names are Partch's (1949), but the intervals and the function
