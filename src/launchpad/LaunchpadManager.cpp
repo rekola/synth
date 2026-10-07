@@ -788,8 +788,9 @@ LaunchpadManager::openStepView() {
   preview_clock_last_refresh_ = chrono::steady_clock::now();
   if (!launchpad_io_) return;
   auto ready_ids = launchpad_io_->readySessionIds();
-  if (ready_ids.empty()) return;
-  step_view_device_ = std::find(ready_ids.begin(), ready_ids.end(), last_active_device_) != ready_ids.end() ? last_active_device_ : ready_ids[0];
+  // Only a press on a device opens it, so that device is the one last used.
+  if (std::find(ready_ids.begin(), ready_ids.end(), last_active_device_) == ready_ids.end()) return;
+  step_view_device_ = last_active_device_;
   for (auto device_id : ready_ids) {
     auto & state = deviceState(device_id);
     state.drum_edit_step_offset = 0;

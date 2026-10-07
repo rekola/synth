@@ -2841,8 +2841,8 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
   // Opening a clip for step editing on a Launchpad
   // (Controller::toggleDrumClipFocus()) - focusing it (Controller::setFocusedClip()) moves
   // the shared track cursor to it (so PatternEditor's/the Launchpad's own
-  // fallback_track_index-following resolve there next), switches one
-  // Launchpad (the one last used) to the step grid and starts it from a
+  // fallback_track_index-following resolve there next), switches the
+  // Launchpad that opened it to the step grid and starts it from a
   // known page and octave (LaunchpadManager::openStepView()); closing one
   // (a second press on the clip already open -
   // Controller::clearFocusedClip()) hands that device back to Live View

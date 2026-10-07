@@ -133,9 +133,8 @@ class LaunchpadManager {
   // See ClipHighlight.h.
   using ClipHighlight = ::ClipHighlight;
   void toggleGridMode(int device_id, GridMode mode);
-  // Opens the step view on one device: the one the performer last touched
-  // (the first connected device if none has been, e.g. a clip opened from
-  // the terminal). It switches to NOTES, whatever mode it was in, and starts
+  // Opens the step view on the device the performer last touched: opening
+  // a clip is a Launchpad gesture, so that is the device that opened it. It switches to NOTES, whatever mode it was in, and starts
   // from a known place: step offset 0, the first pad as the selected sound,
   // octave 0, and the preview clock restarted so the clip is heard from its
   // row 0. Other devices keep their mode. Called from the drum-edit request

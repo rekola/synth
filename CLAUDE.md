@@ -666,8 +666,8 @@ would otherwise resume showing.
   pad half resolves on its own release, so an abandoned press never has to be
   undone); it reaches percussion and pitched tracks. Both halves light white
   while held. Opening switches one device into `NOTES` mode
-  (`LaunchpadManager::openStepView()`: the device last touched, else the
-  first connected; the others keep their mode) and resets its page, octave
+  (`LaunchpadManager::openStepView()`: the device that opened it; the
+  others keep their mode) and resets its page, octave
   and the preview clock (`preview_clock_`, separate from `ClipPlayer`'s), so
   every open starts from the same window and playhead. A lone CC95 press, or the
   same shift+pad on the same pad from the plain Live grid, closes it
