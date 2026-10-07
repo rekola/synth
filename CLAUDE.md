@@ -1463,8 +1463,9 @@ would otherwise resume showing.
   directly instead of citing: a `plans/*.md` file (they get deleted once
   done, leaving a dangling reference), `todo.txt` (being phased out, same
   reason), a specific third-party software product (describe the
-  convention/behavior generically instead - Emacs is the one exception,
-  cited by name throughout this codebase's own keybinding comments), or a
+  convention/behavior generically instead; open-source software, such as
+  Emacs, cited by name throughout this codebase's own keybinding comments,
+  and obsolete software may be named, and so may hardware), or a
   specific keybinding when the binding itself is declared elsewhere
   (`keymap_.bind()`/`commands_.define()` - a second source of truth that
   silently goes stale if the binding ever changes; name the command
