@@ -205,8 +205,8 @@ colour. 120 shows a blue 1, a white 2 and a blue 0, 50 a white 5 and an orange
   a press switches to.
 - **Tempo** is 20 to 300 bpm and takes effect immediately, also while playing
   (commands `tempo-increase` and `tempo-decrease`).
-- **Swing** is 50 to 75 per cent (commands `swing-increase` and
-  `swing-decrease`). 50 is straight; about 67 is triplet swing. The second
+- **Swing** is 50 to 75 per cent, the range of the Akai MPC's swing
+  (commands `swing-increase` and `swing-decrease`). 50 is straight; about 67 is triplet swing. The second
   note of every eighth-note pair plays late, applied at playback to everything,
   never changing the notes themselves. Library rhythms carry a swing of their
   own: it is heard when previewing one, and Add to Song sets the song's swing
