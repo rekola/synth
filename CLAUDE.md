@@ -583,7 +583,7 @@ would otherwise resume showing.
   below it, overwriting what is there (`duplicateClip()`,
   `ArrangementOps.h` - an independent copy under a fresh id; an overwritten
   clip's arrangement placements go with it). One hold can copy several
-  clips. The terminal has no such command: a clip is duplicated by copying it in the clip grid and yanking it onto another slot (`docs/workflows.md`).
+  clips. The terminal has no such command: a clip is duplicated by copying it in the clip grid and yanking it onto another slot (`docs/terminal.md`).
 - **Select a clip** (shift + pad, `Controller::selectClipSlot()`) - moves the
   shared track cursor and the clip grid's cursor onto that slot, empty ones
   included, without launching or opening anything, so it is where the next
@@ -1585,8 +1585,7 @@ would otherwise resume showing.
 - A command only a pad controller dispatches (nothing else registers it) is
   named with a `pad-` prefix (`pad-next-track`), not `launchpad-`: other
   devices can use it too. A pad gesture whose terminal equivalent is
-  copy/kill/yank gets no command of its own (`docs/workflows.md` has the
-  operation table).
+  copy/kill/yank gets no command of its own (`docs/terminal.md`).
 - Comments: keep them short (a one-liner covers most cases). Don't point
   at something outside the code to explain the code - state the reasoning
   directly instead of citing: a `plans/*.md` file (they get deleted once
