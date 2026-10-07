@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""A fader move during a Session View take records into the take's own
-clip (LaunchpadManager::recordFaderAutomationIfArmed()): a track Session
-view has taken over ignores its arrangement automation, so a move written
-there would never be heard. fake_launchpad_session_automation.c arms the
+"""A fader move during a clip take records into the take's own
+clip (LaunchpadManager::recordFaderAutomationIfArmed()): a track Live
+View has taken over ignores its arrangement automation, so a move written
+there would never be heard. fake_launchpad_live_automation.c arms the
 fixture's only track through the track picker, starts a take in an empty
 clip slot, and moves the track's Send A fader while it records; the
-Session view pattern editor, showing that clip, must then show a YAxy
+Live View pattern editor, showing that clip, must then show a YAxy
 command in the track's effect column."""
 import os
 import re
@@ -27,12 +27,12 @@ def check(name, ok, extra=None):
         print(extra)
 
 
-log_path = os.path.join(SCRIPT_DIR, "fake_launchpad_session_automation.log")
+log_path = os.path.join(SCRIPT_DIR, "fake_launchpad_live_automation.log")
 fake_log = open(log_path, "w")
-fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_session_automation")], stderr=fake_log, stdout=fake_log)
+fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_live_automation")], stderr=fake_log, stdout=fake_log)
 time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
-pid, fd = vk.spawn(os.path.join(SCRIPT_DIR, "launchpad_session_test.xml"), view="session")
+pid, fd = vk.spawn(os.path.join(SCRIPT_DIR, "launchpad_live_test.xml"), view="live")
 scr = vk.Screen(fd)
 if not vk.wait_ready(scr):
     print("synth not ready")

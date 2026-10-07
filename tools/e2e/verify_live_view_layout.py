@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drive Session view's layout through a pty: no scope row, the clip
+"""Drive Live View's layout through a pty: no scope row, the clip
 grid's cursor its own - never moving the pattern editor's track, nor
 following it - and never on its header row, each track's column marking the
 clip that track is at, and the outline panel's button bar
@@ -53,7 +53,7 @@ def main():
         os.kill(pid, 9)
         sys.exit(2)
 
-    scr.send(b"\t")  # Session view; the clip grid has focus
+    scr.send(b"\t")  # Live View; the clip grid has focus
     scr.pump(0.8)
     lines = scr.dump().splitlines()
     check("no scope row: the outline and clip grid start right under the menu",

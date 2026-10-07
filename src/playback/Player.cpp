@@ -395,24 +395,24 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     }
     break;
 
-  case PlaybackControlEvent::QUEUE_SESSION_CHANGE:
-    state.queueSessionChange(ev.getParameter1(), ev.getParameter2(), ev.getParameter3());
+  case PlaybackControlEvent::QUEUE_LAUNCH:
+    state.queueLaunch(ev.getParameter1(), ev.getParameter2(), ev.getParameter3());
     break;
 
   case PlaybackControlEvent::QUEUE_SCENE_CHANGE:
     state.queueSceneChange(ev.getParameter1(), {ev.getParameter2() / 100, ev.getParameter2() % 100}, (ev.getParameter3() & 1) != 0, (ev.getParameter3() & 2) != 0, ev.getParameter4());
     break;
 
-  case PlaybackControlEvent::SHIFT_SESSION_POSITION:
-    state.shiftSession(ev.getParameter1(), ev.getParameter2());
+  case PlaybackControlEvent::SHIFT_LIVE_POSITION:
+    state.shiftLive(ev.getParameter1(), ev.getParameter2());
     break;
 
   case PlaybackControlEvent::BATCH_BEGIN:
   case PlaybackControlEvent::BATCH_END:
     break; // handled by handleQueuedEvent()
 
-  case PlaybackControlEvent::SILENCE_SESSION:
-    state.silenceSession(ev.getParameter1());
+  case PlaybackControlEvent::SILENCE_LIVE:
+    state.silenceLive(ev.getParameter1());
     break;
 
   case PlaybackControlEvent::PLAY:
@@ -429,7 +429,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
       if (old_it != live_states_.end()) {
 	old_it->second->setIsPlaying(false);
 	old_it->second->notePlaybackStopped();
-	old_it->second->silenceSession(-1);
+	old_it->second->silenceLive(-1);
       }
     }
     playing_buffer_name_ = ev.getBufferName();
@@ -470,9 +470,9 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
   case PlaybackControlEvent::STOP_ALL_NOTES:
     {
       // stopAllVoices()'s own whole-track natural release, for a caller
-      // (Launchpad Session view's "stop this track") with no single
+      // (Launchpad Live View's "stop this track") with no single
       // column to target the way STOP_NOTE above has - dynamic_cast to the
-      // shared LeafTrackState base, not InstrumentTrackState, since Session
+      // shared LeafTrackState base, not InstrumentTrackState, since Live
       // view's "stop this track" reaches a SampleTrack's own clip the same
       // uniform way it reaches every other track type.
       auto track_state = dynamic_cast<LeafTrackState*>(state.getChildByInternalId(ev.getParameter1()));
@@ -1108,10 +1108,10 @@ Player::createPlaybackEvent(const string & buffer_name, const Song & song, const
   info.setSamplePos(state.getSamplePos());
   info.setAbsolutePos(state.getAbsolutePosition());
   info.setPositionEditSeq(state.getPositionEditSeq());
-  info.setSessionTracks(state.getSessionTracks());
-  info.setSessionClock(state.getSessionClock());
-  info.setSessionStartClock(state.getSessionStartClock());
-  info.setSessionSeq(state.getSessionSeq());
+  info.setLiveTracks(state.getLiveTracks());
+  info.setLiveClock(state.getLiveClock());
+  info.setLiveStartClock(state.getLiveStartClock());
+  info.setLiveSeq(state.getLiveSeq());
   info.setTempo(state.getTempo());
   info.setRunningBars(state.getRunningBars());
   info.setSceneSeq(state.getSceneSeq());

@@ -79,7 +79,7 @@ int main() {
   fake_wait_ready(seq, "while connecting");
   drain(seq, 500, "while connecting"); // the first LED frames
 
-  // Session is the default grid mode - Note mode (CC96) shows the note
+  // Live is the default grid mode - Note mode (CC96) shows the note
   // grid, here the percussion layout. Record Arm (a quick CC98 tap) makes a
   // press write into the pattern, and starts playback.
   fprintf(stderr, "sending CC96 press (Note mode)\n");

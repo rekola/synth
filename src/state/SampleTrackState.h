@@ -34,7 +34,7 @@ class SampleContent;
 // Declared in its own header rather than kept local to SampleTrack.cpp's
 // anonymous namespace (unlike those two siblings): triggerClip() is
 // called from SongState.h (transport-driven playback) and Player.cpp
-// (Session-view live triggering), both outside SampleTrack.cpp, so it
+// (Live-View live triggering), both outside SampleTrack.cpp, so it
 // needs a name those call sites can dynamic_cast to.
 class SampleTrackState : public LeafTrackState {
 public:
@@ -123,7 +123,7 @@ public:
     return data;
   }
 
-  // A real Clip's own entry point (Player.cpp's own Session-view live
+  // A real Clip's own entry point (Player.cpp's own Live-View live
   // triggering, and SongState.h's own transport-driven clip scheduling,
   // via triggerVoice() below) - a no-op if `clip` carries no sample
   // content at all. Always the clip voice (kClipVoiceId) - Player.cpp has
@@ -137,7 +137,7 @@ public:
   // fresh, when the row grid says it's time - SongState.h's own per-row
   // scheduling (via RenderContext) for transport-driven playback,
   // LaunchpadManager::fireOrTriggerClipStep() (already worked this way)
-  // for Session-view triggering. triggerVoice()'s own stopVoices(voice_id)
+  // for Live-View triggering. triggerVoice()'s own stopVoices(voice_id)
   // already fades out whatever's still sounding from the previous lap if
   // it ran long, and a shorter one simply finishes and stays silent on
   // its own until the next trigger arrives - both halves of "the clip's

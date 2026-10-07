@@ -65,7 +65,7 @@ int main(int argc, char *argv[]) {
   bool force_cardioid = false; // --stereo: skip binaural HRTF decode even if available
   bool force_legacy_binaural = false; // --legacy-binaural: use the old virtual-speaker-rig decoder instead of MagLS
   bool show_licenses = false; // --licenses: print third-party license text and exit
-  UI::View initial_view = UI::View::SESSION; // --view session|arrangement: which view the UI starts in
+  UI::View initial_view = UI::View::LIVE; // --view live|arrangement: which view the UI starts in
   // The saved audio/MIDI device choices; --capture-device/--playback-device/
   // --midi-input override them for this run only (`devices`), never the file
   // (`saved_devices`, what the Controller persists from).
@@ -103,10 +103,10 @@ int main(int argc, char *argv[]) {
 	exit(1);
       }
     } else if (strcmp(argv[i], "--view") == 0) {
-      if (i + 1 < argc && strcmp(argv[i + 1], "session") == 0) initial_view = UI::View::SESSION;
+      if (i + 1 < argc && strcmp(argv[i + 1], "live") == 0) initial_view = UI::View::LIVE;
       else if (i + 1 < argc && strcmp(argv[i + 1], "arrangement") == 0) initial_view = UI::View::ARRANGEMENT;
       else {
-	fmt::print(stderr, "--view requires 'session' or 'arrangement'\n");
+	fmt::print(stderr, "--view requires 'live' or 'arrangement'\n");
 	exit(1);
       }
       i++;

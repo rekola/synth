@@ -252,7 +252,7 @@ ScenePatternSource::moveCursor(int delta_rows) {
     auto & clips = song().getClips(cursor_track_id_);
     if (playhead.scene < 0 || playhead.scene >= static_cast<int>(clips.size())) return;
     auto length = std::max(1, clips[static_cast<size_t>(playhead.scene)].getLength());
-    controller_.getSessionPlayer().shiftLaunchedClips(std::clamp(playhead.row + delta_rows, 0, length - 1) - playhead.row);
+    controller_.getClipPlayer().shiftLaunchedClips(std::clamp(playhead.row + delta_rows, 0, length - 1) - playhead.row);
     return;
   }
   auto old_cursor = cursor();

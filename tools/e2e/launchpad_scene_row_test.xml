@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Purpose-built for verify_launchpad_scene_row.py: two tracks, each with
-     a real clip at Session-view index 7 (column 0 and column 1 - pad
+     a real clip at Live-View index 7 (column 0 and column 1 - pad
      (0,0)/(1,0), y=0 being the *bottom* row of the 8-row grid, so the
      right-column scene-row convention (row = (cc_number - 19) / 10, CC19
      itself row 0) addresses index 7 - LaunchpadManager::triggerSceneRow()'s

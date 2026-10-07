@@ -1,8 +1,8 @@
 """Regression test for CC91 ("move-row-up") as a held shift modifier:
-LaunchpadManager::handleShiftButton()/handleSessionPadEvent()'s own combo
-- holding CC91 and pressing a Session-view pad opens that pad's own clip
+LaunchpadManager::handleShiftButton()/handleLivePadEvent()'s own combo
+- holding CC91 and pressing a Live-View pad opens that pad's own clip
 for direct step-grid editing (Controller::toggleDrumClipFocus()) instead
-of triggering/assigning it - and that CC95 ("Session") alone then closes
+of triggering/assigning it - and that CC95 ("Live") alone then closes
 it again outright (Controller::closeDrumClipFocus(), LaunchpadManager::
 handleRawButton()'s own CC95 case), without needing another shift+pad
 combo. Verified through the terminal ClipGrid widget's own text (the
@@ -49,14 +49,14 @@ vk.go(fake)
 scr.wait_for_log(os.path.join(SCRIPT_DIR, "fake_launchpad_shift_stepgrid.log"), "waiting for go", 20)
 scr.pump(0.5)
 
-# M-x session-view: switches to Session view (ClipGrid focused) for the
+# M-x live-view: switches to Live View (ClipGrid focused) for the
 # active song - same mechanism verify_launchpad_record_arm_holes.py
 # already uses.
 scr.send(b"\x1b")
 scr.pump(0.3)
 scr.send(b"x")
 scr.pump(0.3)
-scr.send(b"session-view\r")
+scr.send(b"live-view\r")
 scr.pump(1.0)
 
 phase1_text = scr.dump()

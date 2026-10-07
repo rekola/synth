@@ -471,7 +471,7 @@ TEST(trigger_clip_plays_the_rebuilt_mixed_composite_once_a_clip_has_multiple_lay
 // shared base InstrumentTrackState derives from - Player.cpp's
 // SET_TRACK_MUTED/SOLO/SEND_A/SEND_B/SEND_MAIN/AZIMUTH and STOP_ALL_NOTES
 // handlers all dynamic_cast to LeafTrackState so those live controls (and
-// Launchpad Session view's "stop this track") keep reaching a SampleTrack
+// Launchpad Live View's "stop this track") keep reaching a SampleTrack
 // exactly like they reach every other leaf track type. Exercised here
 // through a real LeafTrackState& reference, the same shape those
 // dynamic_casts resolve to, rather than SampleTrackState's own name.

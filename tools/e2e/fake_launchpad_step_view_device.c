@@ -1,25 +1,12 @@
-// Two-device regression test for the step grid's own page-shift gesture
-// (pad-prev-track/pad-next-track while showing a step-sequenced clip longer than
-// 8 steps - LaunchpadManager::handleCommand()'s own comment): every
-// connected device is supposed to shift together, in lockstep, not just
-// whichever one the press landed on - see
-// verify_launchpad_paging_lockstep.py's own docstring for the regression
-// this catches. argv[1] is a suffix appended to the ALSA client name (so
-// two instances can run simultaneously and be told apart - same
-// convention as fake_launchpad_device.c); argv[2] is this instance's own
-// role: "opener" opens the clip (CC91-held shift + a press+release on pad
-// (0,0)) and, once every connected device is showing it, pages forward
-// once (CC94); "follower" only connects and logs - it never presses
-// anything itself, relying entirely on the opener's own presses reaching
-// every connected device (forceNotesModeOnAllDevices()/the lockstep page
-// shift itself). Both print a plain-text MARKER line at matching
-// wall-clock offsets from their own start (not tied to any SysEx) so the
-// Python driver can split each device's own log into "before the open
-// finished"/"before the page shift finished" without needing to
-// correlate two separate processes' real time precisely - the drain
-// windows around each marker are generous enough that the actual
-// state-changing press, wherever it happens to land in that window,
-// is always fully settled and logged before the next marker prints.
+// Two-device regression test for opening a clip's step view: only the
+// device the performer used switches to it, and only that device pages -
+// see verify_launchpad_step_view_device.py's own docstring. argv[1] is a
+// suffix appended to the ALSA client name (so two instances can run
+// simultaneously and be told apart); argv[2] is this instance's role:
+// "opener" opens the clip (CC91-held shift + a press+release on pad (0,0))
+// and pages forward once (CC94); "follower" only connects and logs. Both
+// print a plain-text MARKER line at matching offsets from their own start
+// so the driver can split each log into before/after phases.
 #include <alsa/asoundlib.h>
 #include "fake_ready.h"
 #include <stdio.h>

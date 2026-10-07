@@ -1,7 +1,7 @@
 // Simulated Launchpad X that presses the "pad-next-track" (CC94) extra button,
 // used to verify LaunchpadIO's SND_SEQ_EVENT_CONTROLLER decoding and the
 // resulting command dispatch end-to-end. Switches to NOTES mode (CC96)
-// first - GridMode defaults to SESSION, where "pad-next-track"/"pad-prev-track"
+// first - GridMode defaults to LIVE, where "pad-next-track"/"pad-prev-track"
 // are reserved (an unconditional no-op) and the arrow button LEDs go dark,
 // since neither one does anything a performer looking at the Launchpad
 // could ever see there (LaunchpadManager.cpp's own comment on both).
@@ -52,7 +52,7 @@ int main() {
   fake_wait_ready(seq, "at startup");
   drain(seq, 500, "at startup"); // the first LED frames
 
-  fprintf(stderr, "sending CC96 press+release (Note mode) - GridMode defaults to Session\n");
+  fprintf(stderr, "sending CC96 press+release (Note mode) - GridMode defaults to Live\n");
   send_cc(seq, port, 96, 127);
   send_cc(seq, port, 96, 0);
   drain(seq, 1000, "after CC96");

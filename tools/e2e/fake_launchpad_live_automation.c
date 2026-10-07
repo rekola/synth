@@ -1,4 +1,4 @@
-// Simulated Launchpad X recording fader automation into a Session View
+// Simulated Launchpad X recording fader automation into a Live View
 // take: arms the fixture's only track through the track-picker overlay's
 // Record Arm purpose (mixer submode, CC19, pad (0,0), CC19 again), leaves
 // mixer submode (CC95), presses an empty clip slot of that track (pad
@@ -68,7 +68,7 @@ int main() {
     SND_SEQ_PORT_CAP_READ | SND_SEQ_PORT_CAP_WRITE | SND_SEQ_PORT_CAP_SUBS_READ | SND_SEQ_PORT_CAP_SUBS_WRITE,
     SND_SEQ_PORT_TYPE_APPLICATION);
   if (port < 0) return 1;
-  fprintf(stderr, "fake Launchpad X (session automation) ready as client %d port %d\n", snd_seq_client_id(seq), port);
+  fprintf(stderr, "fake Launchpad X (live automation) ready as client %d port %d\n", snd_seq_client_id(seq), port);
 
   fake_wait_ready(seq, "at startup");
   drain(seq, 500, "at startup");

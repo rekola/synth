@@ -79,7 +79,7 @@ class Song : public SongObject {
   // A scene is a row of every track's clip list, identified by its
   // position there, with an optional name, tempo and time signature.
   // Launching it sets the tempo as the song tempo and the time signature
-  // as the transport's bars (SessionPlayer::launchScene()).
+  // as the transport's bars (ClipPlayer::launchScene()).
   const std::string & getSceneName(int scene) const {
     static const std::string none;
     return scene >= 0 && static_cast<size_t>(scene) < scenes_.size() ? scenes_[static_cast<size_t>(scene)].name : none;
@@ -147,7 +147,7 @@ class Song : public SongObject {
   // thread owns it (SongState::queueSceneChange()) and the UI thread's copy
   // here is mirrored from its snapshots (Controller::
   // receivePlaybackSnapshot()), so it can trail by a frame. What playback
-  // and Session launching count in (the bar a queued launch waits for, the
+  // and Live launching count in (the bar a queued launch waits for, the
   // metronome, take lengths) while it is active.
   const RunningBars & getRunningBars() const { return running_bars_; }
   void setRunningBars(RunningBars running) { running_bars_ = running; }
@@ -164,7 +164,7 @@ class Song : public SongObject {
   int beatRowsAt(int row) const { return getBarsAt(row).beatRows(); }
   int nextBarStart(int row) const { return getBarsAt(row).nextBarStart(row); }
 
-  // Whether a live Session take snaps each press and release to the nearest
+  // Whether a live clip take snaps each press and release to the nearest
   // row as it's recorded. Off (the default) records the raw sub-row timing
   // in the note's delay instead; quantizeClip() can clean it up afterward.
   bool getRecordQuantize() const { return record_quantize_; }
@@ -283,7 +283,7 @@ class Song : public SongObject {
 
   // The song's own flat, per-track clip list - each track's own reusable
   // Clips, available to trigger live or place in the arrangement from the
-  // Launchpad's session/launch view, unconnected to any one position
+  // Launchpad's Live View, unconnected to any one position
   // (and, once actually placed as an instance, the shared
   // content behind that placement - editing it through any instance
   // updates every other one immediately). Every caller here still
@@ -293,7 +293,7 @@ class Song : public SongObject {
   // comment on why); Song::addClip() is what actually assigns one.
   // Grouped by track already (rather than one flat list filtered per
   // lookup) since "this track's own clips, in order" is the only way
-  // anything ever needs to read this back (Session view's own rows).
+  // anything ever needs to read this back (Live View's own rows).
   const std::vector<Clip> & getClips(int track_id) const {
     auto it = clips_by_track_.find(track_id);
     return it != clips_by_track_.end() ? it->second : empty_clips_;
@@ -356,7 +356,7 @@ class Song : public SongObject {
   // itself already follows. Whichever clip already sits at `index`
   // (freshly padded or not) is returned as-is, content untouched -
   // resetting it for a fresh take is the caller's own job
-  // (Controller::ensureSessionRecordingClip()).
+  // (Controller::ensureClipRecordingClip()).
   Clip & ensureClipAt(int track_id, int index) {
     auto & clips = clips_by_track_[track_id];
     while (static_cast<int>(clips.size()) <= index) clips.push_back(Clip(track_id));

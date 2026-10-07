@@ -743,7 +743,7 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                          {"Remove Note Column", "C-S-Left", "remove-note-column"},
                      }},
       // Clip playback and clip content. Launching is quantized to the bar,
-      // like a Launchpad Session-view pad.
+      // like a Launchpad Live-View pad.
       {"Clip", 'c', {
                         {"Launch Clip", "", "launch-clip"},
                         {"Launch Scene", "", "launch-scene"},
@@ -778,8 +778,8 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
       // How the active song is shown (UI::View) - not a buffer of its own.
       {"View", 'v', {
                         {"Arrangement View", "", "arrangement-view"},
-                        {"Session View", "", "session-view"},
-                        {"Toggle Arrangement/Session", "TAB", "toggle-view"},
+                        {"Live View", "", "live-view"},
+                        {"Toggle Arrangement/Live", "TAB", "toggle-view"},
                         {nullptr, nullptr, nullptr},
                         {"Outline", "", "outline-view"},
                         {"Toggle Outline", "", "toggle-outline"},
@@ -1574,9 +1574,9 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
 
   initializeWidgets();
 
-  // Session view by default (the --view option); setView() lays out and
+  // Live View by default (the --view option); setView() lays out and
   // moves focus to the view's own widget itself.
-  if (initial_view_ == View::SESSION) setView(View::SESSION);
+  if (initial_view_ == View::LIVE) setView(View::LIVE);
   else layout();
 
   // Every other widget above was created after menu_, so without this the
@@ -1812,7 +1812,7 @@ TerminalUI::initializeWidgets() {
 
   // An overview first, not pattern editing - the arrangement grid when
   // starting in Arrangement view; initialize() moves it to the clip grid
-  // when starting in Session view.
+  // when starting in Live View.
   active_element_ = arrangement_grid_;
 
   commands_.define("save-buffers-kill-terminal", [this]() {
@@ -1971,35 +1971,35 @@ TerminalUI::initializeWidgets() {
     if (it != elements.end()) ++it;
     active_element_ = it == elements.end() ? elements.front() : *it;
   });
-  // Session view: launch the pattern editor's current clip (the current
+  // Live View: launch the pattern editor's current clip (the current
   // track's clip in its scene), or every track's clip in that scene -
-  // quantized to the bar, exactly like a Launchpad Session-view pad or
+  // quantized to the bar, exactly like a Launchpad Live-View pad or
   // scene button.
   commands_.define("launch-clip", [this]() {
-    if (!pattern_editor_->isSessionMode()) return;
+    if (!pattern_editor_->isLiveMode()) return;
     auto track_id = getController().getSong().getCurrentTrackId();
-    getController().getSessionPlayer().triggerClip(track_id, pattern_editor_->getSessionScene(track_id));
+    getController().getClipPlayer().triggerClip(track_id, pattern_editor_->getLiveScene(track_id));
   });
   commands_.define("launch-scene", [this]() {
-    if (!pattern_editor_->isSessionMode()) return;
+    if (!pattern_editor_->isLiveMode()) return;
     auto & song = getController().getSong();
-    getController().getSessionPlayer().launchScene(pattern_editor_->getSessionScene(song.getCurrentTrackId()), song.getPlayableTrackIds());
+    getController().getClipPlayer().launchScene(pattern_editor_->getLiveScene(song.getCurrentTrackId()), song.getPlayableTrackIds());
   });
   commands_.define("stop-all-clips", [this]() {
-    getController().getSessionPlayer().stopAllTracks();
+    getController().getClipPlayer().stopAllTracks();
   });
   // Arrangement view's scope row (cover art, ArrangementGrid, charts), and
-  // Session view's spectrum/heatmap under the outline panel.
+  // Live View's spectrum/heatmap under the outline panel.
   commands_.define("toggle-scopes", [this]() {
     scopes_visible_ = !scopes_visible_;
     viewChanged();
   });
-  // Session view with the outline panel shown and focused - defined here,
+  // Live View with the outline panel shown and focused - defined here,
   // not with the other view commands in UI.cpp, since it focuses a
   // concrete widget.
   commands_.define("outline-view", [this]() {
     setOutlineVisible(true);
-    setView(View::SESSION);
+    setView(View::LIVE);
     active_element_ = outline_view_;
   });
 
@@ -2132,7 +2132,7 @@ TerminalUI::layout() {
   constexpr int kHeatmapWidth = 31; // 20 * 1.5, rounded up to the nearest odd width
   constexpr int kScopeHeight = 5;
   // Arrangement view shows the scope row unless toggle-scopes hid it
-  // (Session view's own scopes sit in its left column, below). A hidden
+  // (Live View's own scopes sit in its left column, below). A hidden
   // row's widgets move below the screen rather than shrinking away (see
   // the workspace comment below) - resize() tears down a chart's plot
   // plane, so the next one is built there too, off screen.
@@ -2140,15 +2140,15 @@ TerminalUI::layout() {
   int scope_row = show_scopes ? 1 : rows + 1;
 
   constexpr int kOutlineWidth = 30;
-  // Session view: the outline panel runs the full workspace height, with
+  // Live View: the outline panel runs the full workspace height, with
   // the spectrum and heatmap stacked under it (and a divider row above
   // each). Dropped when the terminal is too short to leave the outline a
   // usable height.
-  int session_outline_cols = isOutlineVisible() ? std::min(kOutlineWidth, cols / 2) : 0;
-  int session_scope_rows = 2 * kScopeHeight + 2;
-  bool session_scopes = getView() == View::SESSION && scopes_visible_ && session_outline_cols > 0
-    && std::max(2, rows - 3) - session_scope_rows >= 6;
-  scopes_on_screen_ = show_scopes || session_scopes;
+  int live_outline_cols = isOutlineVisible() ? std::min(kOutlineWidth, cols / 2) : 0;
+  int live_scope_rows = 2 * kScopeHeight + 2;
+  bool live_scopes = getView() == View::LIVE && scopes_visible_ && live_outline_cols > 0
+    && std::max(2, rows - 3) - live_scope_rows >= 6;
+  scopes_on_screen_ = show_scopes || live_scopes;
 
   // cover_art_ claims the scope row's own leftmost columns first (the
   // literal top-left corner) - square-looking, sized off the row height
@@ -2179,7 +2179,7 @@ TerminalUI::layout() {
   int chart_x = matrix_divider_x + 1;
   int chart_width = std::max(1, cols - chart_x - 9 - kHeatmapWidth - 2); // -2 for the single-column dividers on either side of the heatmap
   int divider1_x = chart_x + chart_width, divider2_x = divider1_x + 1 + kHeatmapWidth;
-  // Session view places these in its own left column below.
+  // Live View places these in its own left column below.
   if (getView() == View::ARRANGEMENT) {
     chart_->resize(kScopeHeight, chart_width).move(scope_row, chart_x);
     heatmap_->resize(kScopeHeight, kHeatmapWidth).move(scope_row, divider1_x + 1);
@@ -2205,14 +2205,14 @@ TerminalUI::layout() {
   // moveToTop() raises the visible ones above it.
   int workspace_row = show_scopes ? 1 + kScopeHeight : 1;
   int workspace_rows = std::max(2, rows - 2 - workspace_row);
-  if (getView() == View::SESSION) {
-    // Session view: the left column (outline panel, with the scopes under
+  if (getView() == View::LIVE) {
+    // Live View: the left column (outline panel, with the scopes under
     // it) takes the full workspace height; beside it the clip grid takes at
     // most half the workspace, the pattern editor the rest.
     laid_out_clip_grid_height_ = clip_grid_->preferredHeight();
     int strip_rows = std::min(laid_out_clip_grid_height_, workspace_rows / 2);
-    int outline_cols = session_outline_cols;
-    int outline_rows = session_scopes ? workspace_rows - session_scope_rows : workspace_rows;
+    int outline_cols = live_outline_cols;
+    int outline_rows = live_scopes ? workspace_rows - live_scope_rows : workspace_rows;
     int right_cols = cols - outline_cols;
     clip_grid_->resize(strip_rows, right_cols).move(workspace_row, outline_cols);
     outline_view_->resize(outline_rows, outline_cols > 0 ? outline_cols - 1 : cols).move(workspace_row, 0);
@@ -2226,7 +2226,7 @@ TerminalUI::layout() {
         putstr(workspace_row + row, outline_cols - 1, "│");
       }
     }
-    if (session_scopes) {
+    if (live_scopes) {
       int scope_x_width = outline_cols - 1;
       int chart_row = workspace_row + outline_rows + 1;
       int heatmap_row = chart_row + kScopeHeight + 1;
@@ -2278,7 +2278,7 @@ TerminalUI::renderComponents(bool refresh) {
   // (the one call site whose own return value actually reaches startUI()'s
   // nc->render() gate), not at whichever earlier, input-handling call site
   // actually requested it.
-  if (getView() == View::SESSION && syncSessionView()) force_next_render_ = true;
+  if (getView() == View::LIVE && syncLiveView()) force_next_render_ = true;
   refresh = refresh || force_next_render_;
   force_next_render_ = false;
   bool render = false;
@@ -2300,8 +2300,8 @@ TerminalUI::renderComponents(bool refresh) {
   // keypress. Pushed here, once every frame, rather than only on an
   // explicit focus change: simplest way to guarantee "always current"
   // without a second, easy-to-miss update path for every place focus or
-  // Session View's own cursor can change.
-  bool clip_grid_focused = getView() == View::SESSION && active == clip_grid_;
+  // Live View's own cursor can change.
+  bool clip_grid_focused = getView() == View::LIVE && active == clip_grid_;
   getController().setClipGridFocused(clip_grid_focused);
   getController().syncMonitoring();
   getController().tickNotePressure();
@@ -2316,18 +2316,18 @@ TerminalUI::renderComponents(bool refresh) {
   // Every frame, whichever view shows: a track whose clip stops stays
   // where playback left it.
   std::unordered_map<int, ScenePatternSource::Playhead> playheads;
-  for (auto & [ track_id, playhead ] : getController().getSessionPlayer().playheads()) {
+  for (auto & [ track_id, playhead ] : getController().getClipPlayer().playheads()) {
     if (playhead.clip_index >= 0) playheads[track_id] = { playhead.clip_index, playhead.row, playhead.elapsed, playhead.looping };
   }
-  pattern_editor_->setSessionPlayheads(std::move(playheads));
+  pattern_editor_->setLivePlayheads(std::move(playheads));
 
   // Only what the current view shows (see layout()) - a hidden widget
   // drawing would paint over whichever visible one shares its rect.
-  if (getView() == View::SESSION) {
+  if (getView() == View::LIVE) {
     clip_grid_->setClipStateSource([this](int track_id, int clip_index) {
-      return getController().getSessionPlayer().clipHighlight(track_id, clip_index);
+      return getController().getClipPlayer().clipHighlight(track_id, clip_index);
     });
-    clip_grid_->setTrackClipSource([this](int track_id) { return pattern_editor_->getSessionScene(track_id); });
+    clip_grid_->setTrackClipSource([this](int track_id) { return pattern_editor_->getLiveScene(track_id); });
     render |= clip_grid_->render(styles_, refresh, active == clip_grid_);
     if (isOutlineVisible()) render |= outline_view_->render(styles_, refresh, active == outline_view_);
   }
@@ -2337,28 +2337,28 @@ TerminalUI::renderComponents(bool refresh) {
   render |= info_line_->render(styles_, refresh);
   render |= octave_control_->render(styles_, refresh);
 
-  auto & session_player = getController().getSessionPlayer();
-  session_player.setAssignRow(arrangement_grid_->getCursorRow(song));
-  session_player.tick();
+  auto & clip_player = getController().getClipPlayer();
+  clip_player.setAssignRow(arrangement_grid_->getCursorRow(song));
+  clip_player.tick();
 
   if (launchpad_manager_) {
     auto track_ids = song.getPlayableTrackIds();
     // Populated every call regardless of which UI element actually has
-    // focus - a Launchpad's own Session view (CC95/96, per-device) is
+    // focus - a Launchpad's own Live View (CC95/96, per-device) is
     // independent of that now, so this always needs to be ready with
     // wherever a press would actually land (see LaunchpadManager::
-    // SessionWindow's own comment).
-    LaunchpadManager::SessionWindow session;
-    session.track_ids = arrangement_grid_->getVisibleTrackIds(song);
+    // LiveWindow's own comment).
+    LaunchpadManager::LiveWindow live;
+    live.track_ids = arrangement_grid_->getVisibleTrackIds(song);
     launchpad_manager_->refresh(song, track_ids, getController().getPlaybackInfo(),
-      track_ids.empty() ? -1 : indexOfTrack(track_ids, song.getCurrentTrackId()), getController(), session);
+      track_ids.empty() ? -1 : indexOfTrack(track_ids, song.getCurrentTrackId()), getController(), live);
   }
 
   return render;
 }
 
 bool
-TerminalUI::syncSessionView() {
+TerminalUI::syncLiveView() {
   auto & song = getController().getSong();
 
   // The track: the shared current track, in each widget's own index space.
@@ -2404,7 +2404,7 @@ TerminalUI::viewChanged() {
   if (std::find(elements.begin(), elements.end(), active) == elements.end()) {
     // Focus was on a widget this view no longer shows - land on the view's
     // own main widget.
-    if (getView() == View::SESSION) {
+    if (getView() == View::LIVE) {
       auto playable = getController().getSong().getPlayableTrackIds();
       clip_grid_->setCursorTrackIndex(indexOfTrack(playable, getController().getSong().getCurrentTrackId()));
       active_element_ = clip_grid_;
@@ -2415,13 +2415,13 @@ TerminalUI::viewChanged() {
   // An inline editor left open on a widget that's no longer shown would
   // keep swallowing keys.
   if (getView() == View::ARRANGEMENT) clip_grid_->cancelReaderEdit();
-  if (getView() != View::SESSION || !isOutlineVisible()) outline_view_->closeInfoPopup();
-  // Session view edits clips one scene at a time; Arrangement view edits
+  if (getView() != View::LIVE || !isOutlineVisible()) outline_view_->closeInfoPopup();
+  // Live View edits clips one scene at a time; Arrangement view edits
   // the arrangement and placed clips.
   pattern_editor_->cancelReaderEdit();
-  pattern_editor_->setSessionMode(getView() == View::SESSION);
-  // Entering Session view, the clip grid and the pattern editor start on
-  // the same track (syncSessionView() keeps them together from here).
+  pattern_editor_->setLiveMode(getView() == View::LIVE);
+  // Entering Live View, the clip grid and the pattern editor start on
+  // the same track (syncLiveView() keeps them together from here).
   synced_track_id_ = -1;
   layout();
   // Not a direct renderComponents(true) call here - see
@@ -2805,16 +2805,16 @@ void
 TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
   // launchpad_manager_ itself is already set by UI::start() before this
   // hook runs.
-  // "move-row-up"/"move-row-down" while in GridMode::SESSION move
+  // "move-row-up"/"move-row-down" while in GridMode::LIVE move
   // ArrangementGrid's own bar cursor instead of scrolling a pad-grid row
-  // window - see LaunchpadManager::session_move_bar_callback_'s own
+  // window - see LaunchpadManager::live_move_bar_callback_'s own
   // comment for why.
-  launchpad_manager.setSessionMoveBarCallback([this](int delta) { arrangement_grid_->moveCursorBar(delta); });
-  // "pad-next-track"/"pad-prev-track" outside GridMode::SESSION move the one
+  launchpad_manager.setLiveMoveBarCallback([this](int delta) { arrangement_grid_->moveCursorBar(delta); });
+  // "pad-next-track"/"pad-prev-track" outside GridMode::LIVE move the one
   // shared cursor every connected Launchpad follows - see
   // LaunchpadManager::track_move_callback_'s own comment for why. Also
   // moves ClipGrid's own cursor, kept in step the same way it already
-  // seeds from PatternEditor's cursor when Session view first opens
+  // seeds from PatternEditor's cursor when Live View first opens
   // (setCursorTrackIndex()'s own comment) - a track change made on the
   // Launchpad has to be reflected there too, not just in PatternEditor,
   // regardless of which one currently has terminal focus. session_ids
@@ -2825,34 +2825,29 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
     pattern_editor_->setCursorTrack(new_track_index);
     clip_grid_->setCursorTrackIndex(new_track_index);
   });
-  // ClipGrid's own Enter key - acts exactly like a Launchpad Session
-  // view pad press on the same cell (SessionPlayer::triggerClip(), same as
-  // handleSessionPadEvent() itself resolves to).
+  // ClipGrid's own Enter key - acts exactly like a Launchpad Live
+  // view pad press on the same cell (ClipPlayer::triggerClip(), same as
+  // handleLivePadEvent() itself resolves to).
   clip_grid_->setTriggerCallback([this](int track_id, int clip_index) {
-    getController().getSessionPlayer().triggerClip(track_id, clip_index);
+    getController().getClipPlayer().triggerClip(track_id, clip_index);
   });
   clip_grid_->setSceneCallback([this](int clip_index) {
-    getController().getSessionPlayer().launchScene(clip_index, getController().getSong().getPlayableTrackIds());
+    getController().getClipPlayer().launchScene(clip_index, getController().getSong().getPlayableTrackIds());
   });
-  clip_grid_->setStopAllCallback([this]() { getController().getSessionPlayer().stopAllTracks(); });
+  clip_grid_->setStopAllCallback([this]() { getController().getClipPlayer().stopAllTracks(); });
   // A launch that writes into the arrangement starts the transport the
   // way a Launchpad recording does, so disarming stops it again.
-  getController().getSessionPlayer().setAssignPlaybackStarter([this]() { launchpad_manager_->startAssignPlayback(getController()); });
-  // Record Arm's own drum-machine-track repurposing ("toggle-record-arm",
-  // Controller.cpp) - opening a clip (Controller::setFocusedClip()) moves
+  getController().getClipPlayer().setAssignPlaybackStarter([this]() { launchpad_manager_->startAssignPlayback(getController()); });
+  // Opening a clip for step editing on a Launchpad
+  // (Controller::toggleDrumClipFocus()) - focusing it (Controller::setFocusedClip()) moves
   // the shared track cursor to it (so PatternEditor's/the Launchpad's own
-  // fallback_track_index-following resolve there next), forces every
-  // connected device's own display to the step grid regardless of
-  // whatever GridMode it happened to be in, and gives each one its own
-  // default page and octave register into the clip
-  // (LaunchpadManager::resetStepGridView() - several Launchpads split a
-  // clip longer than 8 steps between them without anyone paging by hand
-  // first, and every device starts from the same known octave rather than
-  // wherever unrelated earlier use happened to leave it); closing one
-  // (a second press on
-  // the clip already open - Controller::clearFocusedClip()) hands every
-  // connected device back to Session view instead, rather than leaving it
-  // stuck showing a step grid with nothing left focused to edit there.
+  // fallback_track_index-following resolve there next), switches the
+  // Launchpad that opened it to the step grid and starts it from a
+  // known page and octave (LaunchpadManager::openStepView()); closing one
+  // (a second press on the clip already open -
+  // Controller::clearFocusedClip()) hands that device back to Live View
+  // instead, rather than leaving it stuck showing a step grid with nothing
+  // left focused to edit there.
   getController().setClipSelectListener([this](int track_id, int clip_index) {
     auto & song = getController().getSong();
     auto root_ids = song.getRootTrackIds();
@@ -2869,18 +2864,17 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
       auto track_ids = song.getRootTrackIds();
       auto it = std::find(track_ids.begin(), track_ids.end(), track_id);
       if (it != track_ids.end()) pattern_editor_->setCursorTrack(static_cast<int>(it - track_ids.begin()));
-      launchpad_manager_->forceNotesModeOnAllDevices();
-      launchpad_manager_->resetStepGridView();
+      launchpad_manager_->openStepView();
       // Meant to be heard in isolation - stops the transport if it
       // happens to be running (the focused-clip audition below only ever
       // engages while stopped anyway - LaunchpadManager::refresh()'s own
       // audition_active) and releases whatever any other track's own
-      // Session-View-triggered clip was still sounding, rather than
+      // Live-View-triggered clip was still sounding, rather than
       // layering the drum edit preview under either one.
       if (getController().getPlaybackInfo().isPlaying()) getController().togglePlaying();
-      getController().getSessionPlayer().silenceAll();
+      getController().getClipPlayer().silenceAll();
     } else {
-      launchpad_manager_->forceSessionModeOnAllDevices();
+      launchpad_manager_->closeStepView();
     }
   });
 }

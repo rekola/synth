@@ -66,7 +66,7 @@ def main():
     check("wheeling over another widget leaves focus where it was", transport_row(scr) == "1.1.2", scr)
     check("a cursor move brings the view back to the cursor", "01" in pattern_rows(scr)[:4], scr)
 
-    # Session view: the outline panel and the session-mode pattern editor.
+    # Live View: the outline panel and the live-mode pattern editor.
     scr.send(b"\t")
     scr.pump(0.8)
     tree_before = scr.dump().splitlines()[3]
@@ -79,7 +79,7 @@ def main():
     # A note typed into the pattern editor creates a clip in its scene.
     scr.send(b"q")
     scr.pump(0.4)
-    check("scrolling the session pattern editor doesn't change its scene",
+    check("scrolling the Live View pattern editor doesn't change its scene",
           "Clip" in scr.dump().splitlines()[2], scr)
 
     os.kill(pid, 9)

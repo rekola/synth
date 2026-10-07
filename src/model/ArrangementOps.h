@@ -13,7 +13,7 @@ class ChannelConfiguration;
 
 // Rounds `raw_row` up to the start of its own next bar (unchanged if
 // already exactly on one) - every real-time placement that must not claim
-// something had already started sounding before it actually did (Session-
+// something had already started sounding before it actually did (Live-
 // view's own clip-trigger/stop placement, LaunchpadManager.cpp) goes
 // through this. Forward, not back: snapping backward would place an event
 // as if it had taken effect from the start of a bar the performer hadn't

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Purpose-built for verify_launchpad_record_arm_holes.py: exactly one
      track, with no clips at all yet - so a fresh per-track-armed take
-     started at Session-view clip index 2 (the fake device's own scripted
+     started at Live-View clip index 2 (the fake device's own scripted
      press, see its own comment) has to backfill indices 0/1 with empty
      fillers (Song::ensureClipAt()) rather than landing on the next unused
      slot (index 0) the way this codebase's own older behavior used to. -->
