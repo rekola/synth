@@ -1,8 +1,10 @@
 {
   "attribution": {
-    "commit": "",
-    "pr": ""
+    "commit": false,
+    "pr": false,
+    "sessionUrl": false
   },
+  "includeGitInstructions": false,
   "hooks": {
     "PreToolUse": [
       {
