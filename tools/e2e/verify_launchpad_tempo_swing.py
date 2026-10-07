@@ -4,7 +4,7 @@ CC92 are the up / down arrows and CC95 leaves. The value is drawn as a number
 on the pads (LaunchpadLayout::renderNumber()): the tens digit in white, the
 others in the view's colour.
 
-Verified through raw LED bytes. The song is launchpad_session_test.xml:
+Verified through raw LED bytes. The song is launchpad_live_test.xml:
 tempo 120 and the default swing, 50.
 
 Pad (x, y) is LED index 0x0b + 10 * y + x. The glyph rows start at pad row y
@@ -42,7 +42,7 @@ fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_tempo_swing")]
 
 time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
-SONG = os.path.join(SCRIPT_DIR, "launchpad_session_test.xml")
+SONG = os.path.join(SCRIPT_DIR, "launchpad_live_test.xml")
 pid, fd = vk.spawn(SONG)
 scr = vk.Screen(fd)
 if not vk.wait_ready(scr):

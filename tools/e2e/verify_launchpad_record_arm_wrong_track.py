@@ -5,7 +5,7 @@ than the assigned/cursor track's id - comparing a fresh candidate
 straight against the already-assigned track_id, rather than against a
 fresh sentinel the way refresh()'s own identical override (the LED/tuning-
 preview path) already did it correctly. Track "1" here (armed/targeted
-for Session recording) is created after, and so has a higher internal id
+for clip recording) is created after, and so has a higher internal id
 than, track "0" (left as the assigned/cursor track this whole script) -
 the common case: a track armed/selected later in a session. Before the
 fix, a NOTE-mode note played here would audibly land on track 0 (LED/
@@ -46,13 +46,13 @@ if not vk.wait_ready(scr):
 scr.wait_for_exit(fake, 16)
 scr.pump(0.5)
 
-# M-x session-view - same mechanism verify_launchpad_record_arm_holes.py
+# M-x live-view - same mechanism verify_launchpad_record_arm_holes.py
 # already uses.
 scr.send(b"\x1b")
 scr.pump(0.3)
 scr.send(b"x")
 scr.pump(0.3)
-scr.send(b"session-view\r")
+scr.send(b"live-view\r")
 scr.pump(1.0)
 vk.hide_outline(scr)
 

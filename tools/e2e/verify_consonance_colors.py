@@ -15,7 +15,7 @@ shifted the depth-3 hues and rounded the tonic/fourth by one step; the
 bytes are now pinned to that retuned scheme's output.
 
 Reads the LEDs fake_launchpad logs once it has switched into Note mode
-(Session is the default grid mode)."""
+(Live is the default grid mode)."""
 import sys, os, subprocess, time
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))

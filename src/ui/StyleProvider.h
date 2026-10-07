@@ -22,7 +22,7 @@ class StyleProvider {
   Color cursor_tint_color = "#d0ecff";
   // The translucent tint over a marked row: the pattern editor's cursor
   // row and playheads (in Arrangement view the transport's row, in
-  // Session view each track's own), the clip grid's scene row and the
+  // Live View each track's own), the clip grid's scene row and the
   // arrangement grid's playing row.
   Color cursor_row_tint_color = "#90b8cc";
   static constexpr float kRowTintAlpha = 0.35f;
@@ -92,10 +92,10 @@ class StyleProvider {
   Color mute_color = "#ff5a5a";
   Color solo_color = "#ffdc5a";
   Color monitor_color = "#5ad2ff";
-  // The mark on a track Session view has taken over from the arrangement.
-  Color session_override_color = "#ff9a3c";
+  // The mark on a track Live View has taken over from the arrangement.
+  Color clip_override_color = "#ff9a3c";
 
-  // A clip slot's state glyph in the clip grid (SessionPadHighlight):
+  // A clip slot's state glyph in the clip grid (ClipHighlight):
   // playing or queued; launched while the transport is paused; recording
   // or queued to record; an armed track's empty slot, or a take queued to
   // stop.
@@ -110,7 +110,7 @@ class StyleProvider {
   // The arrangement grid's mark for a bar with a locator.
   Color locator_mark_color = "#c8c8c8";
 
-  // The Session view's panel headers (OutlineView's heading, ClipGrid's
+  // The Live View's panel headers (OutlineView's heading, ClipGrid's
   // track header row, and the divider between them) - brighter than
   // window_accent_bg_color, so they read as a stronger accent than the
   // content beneath them.

@@ -3,7 +3,7 @@
 
 #include "TrackInfo.h"
 #include "ActiveVoiceInfo.h"
-#include "SessionTrackInfo.h"
+#include "LiveTrackInfo.h"
 #include "../model/BarGrid.h"
 
 #include <vector>
@@ -68,22 +68,22 @@ class PlaybackInfo {
   }
   void setActiveVoices(std::unordered_map<int, std::vector<ActiveVoiceInfo> > voices) { active_voices_ = std::move(voices); }
 
-  // Session view's launched clips (SongState::getSessionTracks()) - the
+  // Live View's launched clips (SongState::getLiveTracks()) - the
   // tracks taken over from the arrangement and what's queued for them.
-  const SessionTracks & getSessionTracks() const { return session_tracks_; }
-  void setSessionTracks(SessionTracks tracks) { session_tracks_ = std::move(tracks); }
-  const SessionTrackInfo * getSessionTrack(int track_id) const {
-    auto it = session_tracks_.find(track_id);
-    return it != session_tracks_.end() ? &it->second : nullptr;
+  const LiveTracks & getLiveTracks() const { return live_tracks_; }
+  void setLiveTracks(LiveTracks tracks) { live_tracks_ = std::move(tracks); }
+  const LiveTrackInfo * getLiveTrack(int track_id) const {
+    auto it = live_tracks_.find(track_id);
+    return it != live_tracks_.end() ? &it->second : nullptr;
   }
-  // The session clock at the current row - rows played, unaffected by
+  // The live clock at the current row - rows played, unaffected by
   // seeks and pattern breaks - that launched clips advance on.
-  int getSessionClock() const { return session_clock_; }
-  void setSessionClock(int clock) { session_clock_ = clock; }
-  // The session clock when the transport last started - where a UI that
+  int getLiveClock() const { return live_clock_; }
+  void setLiveClock(int clock) { live_clock_ = clock; }
+  // The live clock when the transport last started - where a UI that
   // first sees the transport playing a few rows in picks up from.
-  int getSessionStartClock() const { return session_start_clock_; }
-  void setSessionStartClock(int clock) { session_start_clock_ = clock; }
+  int getLiveStartClock() const { return live_start_clock_; }
+  void setLiveStartClock(int clock) { live_start_clock_ = clock; }
   // The tempo and the running time signature the audio thread is playing
   // with (SongState::queueSceneChange() sets them), and how many scene
   // changes it had applied when this snapshot was taken - what the UI
@@ -94,10 +94,10 @@ class PlaybackInfo {
   void setRunningBars(RunningBars running) { running_bars_ = running; }
   int getSceneSeq() const { return scene_seq_; }
   void setSceneSeq(int seq) { scene_seq_ = seq; }
-  // The last Session view change the audio thread had applied when this
-  // snapshot was taken - see SessionPlayer's own prediction of it.
-  int getSessionSeq() const { return session_seq_; }
-  void setSessionSeq(int seq) { session_seq_ = seq; }
+  // The last Live View change the audio thread had applied when this
+  // snapshot was taken - see ClipPlayer's own prediction of it.
+  int getLiveSeq() const { return live_seq_; }
+  void setLiveSeq(int seq) { live_seq_ = seq; }
 
 private:
   // SongState::is_playing_ (the real, audio-thread-owned state this
@@ -118,10 +118,10 @@ private:
   int voice_count_ = 0, allocated_voice_count_ = 0;
   int round_trip_latency_frames_ = -1;
   bool latency_is_nominal_ = false;
-  SessionTracks session_tracks_;
-  int session_clock_ = 0;
-  int session_start_clock_ = 0;
-  int session_seq_ = 0;
+  LiveTracks live_tracks_;
+  int live_clock_ = 0;
+  int live_start_clock_ = 0;
+  int live_seq_ = 0;
   int tempo_ = 0;
   RunningBars running_bars_;
   int scene_seq_ = 0;

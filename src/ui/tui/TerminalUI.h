@@ -92,13 +92,13 @@ protected:
 
   void layout();
   bool renderComponents(bool refresh = false);
-  // Session view: keeps the clip grid and the pattern editor on the same
+  // Live View: keeps the clip grid and the pattern editor on the same
   // scene and track, whichever of them moved, and re-lays out when the
   // clip grid's height changes with the scene count. Returns whether the
   // layout changed.
-  bool syncSessionView();
+  bool syncLiveView();
   // Shared by arrangement_grid_'s own Enter commit and a Launchpad "assign"
-  // pad press in GridMode::SESSION (see wireLaunchpad()/initializeWidgets()
+  // pad press in GridMode::LIVE (see wireLaunchpad()/initializeWidgets()
   // for how each is wired to this) - one implementation of "commit this
   // (track, row) cell", not two competing ones. See
   // ArrangementGrid.h's own comment on why ArrangementGrid itself never
@@ -130,7 +130,7 @@ private:
   // Always visible in the scope row's leftmost columns (see layout()),
   // sharing that row's real estate with chart_/heatmap_/volume_meter_.
   std::shared_ptr<ArrangementGrid> arrangement_grid_;
-  // Shown only in Session view (UI::View), above pattern_editor_, with
+  // Shown only in Live View (UI::View), above pattern_editor_, with
   // outline_view_ as an optional panel on its left (see layout()/
   // renderComponents()) - both stay real, constructed objects the whole
   // time; only which ones are on screen changes.
@@ -154,12 +154,12 @@ private:
     force_next_render_ = true;
   }
   void closeInfoDialog() { info_dialog_.close(); info_dialog_title_.clear(); force_next_render_ = true; }
-  // Arrangement view's scope row (toggle-scopes); Session view never
+  // Arrangement view's scope row (toggle-scopes); Live View never
   // shows it - see layout().
   bool scopes_visible_ = true;
   // Whether the spectrum/heatmap are on screen, as of the last layout().
   bool scopes_on_screen_ = true;
-  // What syncSessionView() last left both widgets showing.
+  // What syncLiveView() last left both widgets showing.
   int synced_track_id_ = -1, laid_out_clip_grid_height_ = -1;
   // Set by a handler that changes what's on screen (the view changing,
   // NCKEY_RESIZE) from *inside* input handling - before this

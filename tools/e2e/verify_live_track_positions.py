@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drive Session view's per-track positions through a pty: each track is
+"""Drive Live View's per-track positions through a pty: each track is
 in its own clip (scene row) - the clip grid's cursor moves none, moving
 the cursor takes every stopped track along, and launching a clip moves
 its track there - and each pattern editor column's header names its own
@@ -96,7 +96,7 @@ def grid_cursor_rows(scr, track_index):
 
 
 def main():
-    pid, fd = vk.spawn(view="session")
+    pid, fd = vk.spawn(view="live")
     scr = vk.Screen(fd)
     if not vk.wait_ready(scr):
         print("UI never became ready within timeout")

@@ -81,11 +81,11 @@ class UI : public UIElement {
 
   // Which layout the active song is shown in - UI state, independent of
   // which buffer is active. Arrangement: the arrangement overview plus the
-  // pattern editor. Session: the clip grid (with the optional outline
+  // pattern editor. Live: the clip grid (with the optional outline
   // panel beside it) plus the pattern editor.
-  enum class View { ARRANGEMENT, SESSION };
+  enum class View { ARRANGEMENT, LIVE };
   View getView() const { return view_; }
-  // The view the UI starts in (the --view option) - Session unless set
+  // The view the UI starts in (the --view option) - Live unless set
   // before the backend's initialize().
   void setInitialView(View view) { initial_view_ = view; }
   bool isOutlineVisible() const { return outline_visible_; }
@@ -156,7 +156,7 @@ protected:
   StatusLogger logger_;
   View view_ = View::ARRANGEMENT;
 protected:
-  View initial_view_ = View::SESSION;
+  View initial_view_ = View::LIVE;
 private:
   bool outline_visible_ = true;
 };

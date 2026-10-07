@@ -2,6 +2,11 @@
 
 Terms with a specific meaning in this project.
 
+**Clip launcher**
+The grid of clips inside Live View: one column per track, one row per scene,
+each slot triggered on the next bar. On a Launchpad it is the pad grid in the
+Live mode (the device's Session button). See launchpad.md and scenes.md.
+
 **Groove**
 The general word for rhythmic feel: how a pattern's timing (and often
 accents) deviates from a rigid grid. Swing is the simplest groove. Other
@@ -11,6 +16,18 @@ closer to this project: four per-line amounts that repeat every four lines
 and apply song-wide at playback, without changing the pattern data. Here,
 "groove" means timing feel only, and for now that is just swing. The
 Library's drum patterns are not grooves in this sense; see Rhythm.
+
+**Live sequencer**
+A tool used to program, trigger and manipulate musical patterns, notes and
+rhythms in real time during a performance. Here that is Live View: clips are
+launched, stopped and recorded into while the transport runs, changes land on
+the next bar, and scenes launch a whole row of clips together. What is played
+can also be placed into the arrangement.
+
+**Live View**
+The view with the clip launcher, the outline panel and the pattern editor
+showing each track's own clip; Tab switches to and from the arrangement
+view. The Launchpad's Live mode shows the same clip grid on the pads.
 
 **Rhythm**
 A pre-written drum pattern in the Library, such as Waltz, Funk or Bossa
@@ -35,7 +52,8 @@ A timing feel that delays the second note of each eighth-note pair (4 rows),
 giving a long-short, lilting feel. Stored as a percentage of the pair taken
 by its first note: 50% is no swing (the second note falls exactly halfway
 through the pair), about 67% is triplet swing (jazz, shuffle, boogie), and
-75% is very heavy. Only the second note of a pair moves; on-beat notes
+75% is very heavy. The 50-75% range and what the percentage means follow the
+Akai MPC's swing. Only the second note of a pair moves; on-beat notes
 never do. A song-level setting (`Song::getSwing()`, `<song swing="">`)
 applied at playback time to everything scheduled against it, not baked into
 note data.

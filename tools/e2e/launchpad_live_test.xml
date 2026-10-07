@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Purpose-built for verify_launchpad_session.py: exactly one track (so
+<!-- Purpose-built for verify_launchpad_live.py: exactly one track (so
      x=0's column is unambiguous) and 8 clips (indices 0-7), with only the
-     last one (7) populated - fake_launchpad_session.c's fixed press on pad
+     last one (7) populated - fake_launchpad_live.c's fixed press on pad
      (0,0) maps to clip index 7 (y=0 is the *bottom* row of the 8-row grid,
      so the one-past-the-visible-window formula lands on the last clip here
-     - see LaunchpadManager::handleSessionPadEvent's own y-flip comment),
+     - see LaunchpadManager::handleLivePadEvent's own y-flip comment),
      which needs to actually exist rather than landing on an undefined
      slot a shorter clip list would leave there instead.
      The one scene starts with a distinct placeholder note (C-4) so an
      assign (Record Arm on, then the pad press) landing on this track/row
      is unambiguous: E-4 afterward. Clip index 7's own explicit length="8"
      matters when auditioning it live (verify_launchpad_stopclip.py) - a
-     default (0, meaning "1" once clamped - see SessionPlayer::advanceToStep()'s own
+     default (0, meaning "1" once clamped - see ClipPlayer::advanceToStep()'s own
      current_length<=0 fallback) would re-trigger the same note on every
      single audition-clock step instead of looping normally, piling up
      voices and stalling the audio thread (confirmed - an XRUN followed by

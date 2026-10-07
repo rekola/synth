@@ -154,6 +154,29 @@ namespace LaunchpadLayout {
 
   enum class PercussionFamily { CORE, HI_HAT, TOMS, CYMBALS, KIT_ACCESSORIES, LATIN_DRUMS, LATIN_METAL, SHAKERS, WOODS, CUICA_WHISTLE, ELECTRONIC, UNUSED };
 
+  // The 4x4 drum rack in the bottom-left corner (x, y in 0..3, row 0 at the
+  // bottom): General MIDI notes 36-51 in order, left to right then bottom to
+  // top, so the bottom row is kick, side stick, snare, clap. -1 for every pad
+  // outside the block.
+  int drumPadNoteForPad(int x, int y);
+
+  // The family of a GM percussion note, for LED coloring (UNUSED if it has
+  // none).
+  PercussionFamily percussionFamilyForNote(int note);
+
+  // The scale keyboard: pad (x, y) is scale degree x + kScaleRowStride * y
+  // above the tonic, so each row up is a fourth (three degrees of a
+  // seven-note scale).
+  constexpr int kScaleRowStride = 3;
+  int scaleDegreeIndexForPad(int x, int y);
+
+  // The split view while a clip is open: rows 0-3 stay the playing surface,
+  // rows 4-7 are 32 steps, left to right then bottom to top.
+  constexpr int kPlayRows = 4;
+  constexpr int kStepsPerView = 32;
+  // The step a pad in the step rows stands for, or -1 outside them.
+  int stepForPad(int x, int y);
+
   // Classifies a percussion pad for LED-coloring purposes - a separate
   // concern from percussionNoteForPad's placement (hi-hats get their own
   // color regardless of which row they physically sit in).

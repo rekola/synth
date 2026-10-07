@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Drive PatternEditor's session mode (Session view) through a pty:
+"""Drive PatternEditor's Live mode (Live View) through a pty:
 locators exist only in Arrangement view, typing a note into an empty
 slot creates a clip there (and not in the arrangement), launching that
 clip from the clip grid starts the transport and moves a playhead in its
-own track's column only, and Space is the transport in Session view too:
+own track's column only, and Space is the transport in Live View too:
 it only pauses, and playing again resumes the launched clip.
 """
 import os
@@ -66,16 +66,16 @@ def watch(scr, top, col, samples=8):
     return seen
 
 
-def session_top(scr):
-    """Screen row index of Session view's first pattern row - two below the
+def live_top(scr):
+    """Screen row index of Live View's first pattern row - two below the
     "▌◂ T0" track title row (each column shows its own row numbers, so
     there's no shared "00 │" gutter to find)."""
     lines = scr.dump().splitlines()
     return next((i for i, line in enumerate(lines) if "▌◂ T0" in line), -1) + 2
 
 
-def session_columns(scr, top):
-    """Screen columns in Session view's pattern editor: T0's effect column
+def live_columns(scr, top):
+    """Screen columns in Live View's pattern editor: T0's effect column
     (a cell of its own that isn't the cursor's note cell), T1's note
     column, and the "│" divider between them."""
     line = scr.dump().splitlines()[top]
@@ -102,10 +102,10 @@ def main():
     scr.pump(0.5)
     check("locator shows in Arrangement view", "hello note" in scr.dump(), scr)
 
-    # Session view: clip grid on top, pattern editor below, no locators.
+    # Live View: clip grid on top, pattern editor below, no locators.
     scr.send(b"\t")
     scr.pump(0.8)
-    check("Session view hides locators", "hello note" not in scr.dump(), scr)
+    check("Live View hides locators", "hello note" not in scr.dump(), scr)
 
     # The pattern editor keeps focus across the view switch.
     scr.send(vk.ctrl('a'))  # back to the first track
@@ -129,8 +129,8 @@ def main():
     other_window(scr)  # -> clip grid
     scr.send(b"\r")
     scr.pump(0.2)
-    top = session_top(scr)
-    columns = session_columns(scr, top)
+    top = live_top(scr)
+    columns = live_columns(scr, top)
     # A cell of T0's own, its effect column - not its note cell, which is
     # the cursor's (on T0's playhead while it plays) and shows the cursor.
     T0_COL = columns["t0"]
@@ -151,14 +151,14 @@ def main():
     scr.wait(3.0)  # past the next bar
     check("launching the playing clip again restarts it rather than stopping it", len(watch(scr, top, T0_COL)) > 1, scr)
 
-    # Space is the transport in Session view too: the launch started it,
+    # Space is the transport in Live View too: the launch started it,
     # and it only pauses - playing again resumes the launched clip.
     other_window(scr)  # clip grid -> pattern editor
     check("launching started the transport", vk.is_playing(scr), scr)
     check("the clip grid marks the launched track as taken over", "◆" in scr.dump(), scr)
     scr.send(b" ")
     scr.pump(0.6)
-    check("Space in Session view stops the transport", not vk.is_playing(scr), scr)
+    check("Space in Live View stops the transport", not vk.is_playing(scr), scr)
     scr.send(b" ")
     scr.pump(0.6)
     check("and starts it again", vk.is_playing(scr), scr)

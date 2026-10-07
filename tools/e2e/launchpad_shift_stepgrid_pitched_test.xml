@@ -7,9 +7,9 @@
      way a PercussionTrack's does, its rows drawn from Song::
      getScaleDegrees() (LaunchpadManager::resolveStepGridLaneNotes()'s
      own comment) rather than a manually-picked lane list. One populated
-     clip at Session-view index 7 (pool indices 0-6 are empty fillers -
+     clip at Live-View index 7 (pool indices 0-6 are empty fillers -
      pad (0,0) maps to clip index 7, y=0 being the bottom row - see
-     LaunchpadManager::handleSessionPadEvent's own y-flip comment). -->
+     LaunchpadManager::handleLivePadEvent's own y-flip comment). -->
 <song temperament="12edo" key="C4" scale="major" tempo="120" patternRows="16">
   <instruments>
     <envelope attack="0.001" hold="0.05" decay="0.05" sustain="0.0" release="0.05">

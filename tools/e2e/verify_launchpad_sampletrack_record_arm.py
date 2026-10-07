@@ -1,13 +1,13 @@
-"""Regression test for SessionPlayer::triggerClip()'s own
-SampleTrack branch: a Session-view pad press on a SampleTrack armed via
+"""Regression test for ClipPlayer::triggerClip()'s own
+SampleTrack branch: a Live-View pad press on a SampleTrack armed via
 the track-picker overlay (CC19) now actually arms real audio capture
-(Controller::armSessionTrackRecording()/armThresholdRecording()) instead
+(Controller::armClipTrackRecording()/armThresholdRecording()) instead
 of silently falling through to plain audition/assign the way it used to
 (the `is_sample_track` carve-out this test closes), and a second press on
 that same pad cancels the still-idle arm again.
 
 Verified through the terminal ClipGrid widget's own text (M-x
-session-view), not LED bytes - the same approach
+live-view), not LED bytes - the same approach
 verify_launchpad_record_arm_holes.py uses.
 
 Two independent spawns, since the interesting state (an armed-but-not-yet-
@@ -54,14 +54,14 @@ def run(cancel):
     scr.wait_for_exit(fake, 16)
     scr.pump(0.5)
 
-    # M-x session-view: switches to Session view (ClipGrid focused) for
+    # M-x live-view: switches to Live View (ClipGrid focused) for
     # the active song - same mechanism verify_launchpad_record_arm_holes.py
     # already uses.
     scr.send(b"\x1b")
     scr.pump(0.3)
     scr.send(b"x")
     scr.pump(0.3)
-    scr.send(b"session-view\r")
+    scr.send(b"live-view\r")
     scr.pump(1.0)
     vk.hide_outline(scr)
 
@@ -93,7 +93,7 @@ arm_only_text = run(cancel=False)
 cancel_text = run(cancel=True)
 
 if arm_only_text is not None:
-    check("a single Session-grid press on the armed track shows the '●' record indicator",
+    check("a single Live-grid press on the armed track shows the '●' record indicator",
           "●" in arm_only_text, arm_only_text)
 
 if cancel_text is not None:

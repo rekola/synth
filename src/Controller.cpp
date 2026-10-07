@@ -265,27 +265,27 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
       record_arm_auto_started_playback_ = false;
     };
     if (isRecording()) {
-      // A SampleTrack take, Session View target or not - see the
+      // A SampleTrack take, Live View target or not - see the
       // "arm something new" section below for why this is still a single-
-      // target flow, unlike per-track Session View note capture.
+      // target flow, unlike per-track Live View note capture.
       // getRecordingTrackId() has to be captured before finishSampleCapture()
       // runs, not after - nothing guarantees it's still meaningful once
       // that's done.
       auto sample_track_id = getRecordingTrackId();
       finishSampleCapture();
       stop_sample_auto_started_playback();
-      clearSessionRecordingTake(sample_track_id); // pure bookkeeping - finishSampleCapture() already finalized the real clip
+      clearClipRecordingTake(sample_track_id); // pure bookkeeping - finishSampleCapture() already finalized the real clip
       return;
     }
     if (isThresholdArmed()) {
       auto sample_track_id = getRecordingTrackId();
       disarmThresholdRecording();
       stop_sample_auto_started_playback();
-      clearSessionRecordingTake(sample_track_id);
+      clearClipRecordingTake(sample_track_id);
       return;
     }
     if (isNoteCaptureArmed()) {
-      // Ordinary (non-Session-View) note capture only - Session View's own
+      // Ordinary (non-Live-View) note capture only - Live View's own
       // per-track recording no longer touches this flag at all (see
       // armed_track_ids_' own doc comment). LaunchpadManager's own
       // refresh() reacts to this falling edge for its own bookkeeping
@@ -294,36 +294,8 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
       return;
     }
 
-    // Session View focused on a PercussionTrack's own clip has no ordinary
-    // "recording" role at all - its own steps are always entered directly
-    // on a connected Launchpad's own step grid, never captured live the
-    // way a note/sample take is - so Record Arm is repurposed here into
-    // "open this clip for editing there" instead, bypassing the
-    // arm-something-new logic below entirely. Takes priority over it (but
-    // not over the three disarm branches above - whatever's already
-    // armed/recording still wins, same "a press always means stop that
-    // first" rule this command's own doc comment states) since there's
-    // nothing else a drum-machine clip's own Record Arm press could
-    // sensibly mean. Reaches every PercussionTrack this way, lane-less
-    // ones included (toggleDrumClipFocus()'s own comment) - deliberately
-    // *not* extended to a pitched InstrumentTrack even though
-    // toggleDrumClipFocus() itself now accepts one too (the Launchpad's
-    // own CC91-held-as-shift gesture reaches it that way directly): Record
-    // Arm on a pitched track already has a real, heavily-used meaning of
-    // its own (multi-track Session View recording, right below) that
-    // opening the step grid would silently preempt every time, not just
-    // when a performer actually wants to step-sequence it. A
-    // PercussionTrack has no such competing meaning to protect - its own
-    // Record Arm press was always exactly this repurposing, pitched
-    // tracks are the only ones that need this guard.
-    auto clip_grid_track = getCurrentSong() ? getCurrentSong()->getMasterTrack().getChildByInternalId(clip_grid_track_id_) : nullptr;
-    if (clip_grid_focused_ && clip_grid_track_id_ >= 0 && clip_grid_clip_index_ >= 0 &&
-        clip_grid_track && clip_grid_track->getType() == TrackType::PERCUSSION_CONTROL) {
-      if (toggleDrumClipFocus(clip_grid_track_id_, clip_grid_clip_index_)) return;
-    }
-
     // Nothing armed - arm whatever the currently selected track actually
-    // needs. Session View focused means "the track/clip slot its own
+    // needs. Live View focused means "the track/clip slot its own
     // cursor is on" (setClipGridCursor(), kept current by
     // UI::renderComponents() every frame) instead of the ordinary shared
     // track cursor.
@@ -340,32 +312,32 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
     if (!track) return;
 
     if (track->getType() == TrackType::SAMPLE) {
-      // SampleTrack recording (Session View target or not) stays the
+      // SampleTrack recording (Live View target or not) stays the
       // single-target flow it already is - see armed_track_ids_' own doc
       // comment for why this isn't unified with per-track note capture
       // yet. Populating the clip slot directly, with no arrangement
       // placement or transport start, mirrors the ordinary
       // transport-tied behavior it otherwise gets.
-      if (clip_grid_focused_) armSessionTrackRecording(track_id, clip_grid_clip_index_);
+      if (clip_grid_focused_) armClipTrackRecording(track_id, clip_grid_clip_index_);
       armThresholdRecording(track_id);
-      // No auto-started transport for a Session View take - Player.cpp
+      // No auto-started transport for a clip take - Player.cpp
       // already starts ALSA capture off isThresholdArmed() alone,
       // independent of isPlaying(), so there's nothing the transport needs
       // to be running for.
       if (!clip_grid_focused_ && !getPlaybackInfo().isPlaying()) startAutoRecordPlayback(record_arm_auto_started_playback_);
     } else if (clip_grid_focused_) {
-      // Per-track Session View note capture: arming alone starts nothing
+      // Per-track Live View note capture: arming alone starts nothing
       // (toggleTrackArmed() is pure readiness, and already stops/finalizes
       // any in-flight take on the way to disarming - see its own doc
       // comment) - the actual take only begins later, quantized, the
       // moment a real pad press lands
-      // (SessionPlayer::triggerClip()).
+      // (ClipPlayer::triggerClip()).
       toggleTrackArmed(track_id);
     } else {
       // The transport itself starts via LaunchpadManager's own refresh()
       // rising-edge detection (startAutoRecordSession()'s own
       // by-reference bookkeeping is LaunchpadManager-private) for the
-      // ordinary (non-Session-View) case - nothing else to do here.
+      // ordinary (non-Live-View) case - nothing else to do here.
       armNoteCapture();
     }
   });
@@ -779,11 +751,11 @@ Controller::receivePlaybackSnapshot(const string & buffer_name, const PlaybackIn
     merged.setAbsolutePos(playback_info.getAbsolutePosition());
     merged.setPositionEditSeq(playback_info.getPositionEditSeq());
   }
-  if (info.getSessionSeq() < playback_info.getSessionSeq()) {
-    // The same for Session view: SessionPlayer's prediction of a launch
+  if (info.getLiveSeq() < playback_info.getLiveSeq()) {
+    // The same for Live View: ClipPlayer's prediction of a launch
     // or stop the audio thread hasn't applied yet stands.
-    merged.setSessionTracks(playback_info.getSessionTracks());
-    merged.setSessionSeq(playback_info.getSessionSeq());
+    merged.setLiveTracks(playback_info.getLiveTracks());
+    merged.setLiveSeq(playback_info.getLiveSeq());
   }
   setPlaybackInfo(merged);
   // Position fields aside (the only thing the merge above ever touches),
@@ -1163,7 +1135,7 @@ Controller::ensureNoteRecordingClip(std::unordered_map<int, std::string> & clip_
   clip.setName(fmt::format("Take {}", song->getClips(track_id).size() + 1));
   // Non-looping by default - a live take is one specific performance, not
   // a pattern meant to repeat automatically the moment it ends; looping it
-  // is the performer's own later call to make (Session view), not this
+  // is the performer's own later call to make (Live View), not this
   // clip's own starting assumption.
   clip.setLooping(false);
   // A full bar's worth of length right away, not left at 0 (Clip.h's
@@ -1259,9 +1231,9 @@ Controller::extendRecordingClipsIfNeeded(std::unordered_map<int, std::string> & 
 }
 
 int
-Controller::ensureSessionRecordingClip(int track_id, int absolute_step, int bar_start_step) {
-  auto it = session_recording_takes_.find(track_id);
-  if (it == session_recording_takes_.end() || it->second.clip_index < 0) return -1;
+Controller::ensureClipRecordingClip(int track_id, int absolute_step, int bar_start_step) {
+  auto it = clip_recording_takes_.find(track_id);
+  if (it == clip_recording_takes_.end() || it->second.clip_index < 0) return -1;
   auto & take = it->second;
   auto song = getCurrentSong();
   if (!song) return -1;
@@ -1269,7 +1241,7 @@ Controller::ensureSessionRecordingClip(int track_id, int absolute_step, int bar_
 
   if (!take.clip_ready) {
     // An already-primed origin means this is an overdub take (see
-    // primeSessionRecordingOrigin()'s own comment) - the target clip is
+    // primeClipRecordingOrigin()'s own comment) - the target clip is
     // already actively playing, so its own content/length/looping state
     // stay exactly as they are; only a fresh take (an empty slot, or a
     // genuinely idle occupied one) resets/creates the clip.
@@ -1296,7 +1268,7 @@ Controller::ensureSessionRecordingClip(int track_id, int absolute_step, int bar_
       }
     }
     take.clip_ready = true;
-    // primeSessionRecordingOrigin() may already have fixed this take's own
+    // primeClipRecordingOrigin() may already have fixed this take's own
     // row 0 (an overdub - see its own comment); otherwise, row 0 is this
     // bar's own start, not the exact step this first note happened to
     // land on - a performer may deliberately start playing on the bar's
@@ -1306,7 +1278,7 @@ Controller::ensureSessionRecordingClip(int track_id, int absolute_step, int bar_
       take.origin_step = bar_start_step >= 0 ? bar_start_step : song->barStartAtOrBefore(absolute_step);
     }
   }
-  extendSessionRecordingClipIfNeeded(track_id, absolute_step); // no-op for an overdub take - see its own comment
+  extendClipRecordingClipIfNeeded(track_id, absolute_step); // no-op for an overdub take - see its own comment
   auto row = absolute_step - take.origin_step;
   if (take.is_overdub && take.clip_index < static_cast<int>(clips.size())) {
     // Wrapped, not left to grow - see this method's own doc comment on
@@ -1319,9 +1291,9 @@ Controller::ensureSessionRecordingClip(int track_id, int absolute_step, int bar_
 }
 
 void
-Controller::extendSessionRecordingClipIfNeeded(int track_id, int absolute_step) {
-  auto it = session_recording_takes_.find(track_id);
-  if (it == session_recording_takes_.end() || !it->second.clip_ready || it->second.is_overdub) return;
+Controller::extendClipRecordingClipIfNeeded(int track_id, int absolute_step) {
+  auto it = clip_recording_takes_.find(track_id);
+  if (it == clip_recording_takes_.end() || !it->second.clip_ready || it->second.is_overdub) return;
   auto & take = it->second;
   auto song = getCurrentSong();
   if (!song) return;
@@ -1339,16 +1311,16 @@ Controller::extendSessionRecordingClipIfNeeded(int track_id, int absolute_step) 
 }
 
 void
-Controller::trimSessionRecordingClip(int track_id) {
-  auto it = session_recording_takes_.find(track_id);
-  if (it == session_recording_takes_.end()) return;
+Controller::trimClipRecordingClip(int track_id) {
+  auto it = clip_recording_takes_.find(track_id);
+  if (it == clip_recording_takes_.end()) return;
   auto take = it->second; // copied out - the map entry itself is gone below
-  session_recording_takes_.erase(it);
+  clip_recording_takes_.erase(it);
   if (!take.clip_ready) return;
   // An overdub take never touched the clip's own length/looping state at
   // all - it was already correct, and the clip was already playing,
   // uninterrupted, throughout - so there's nothing to trim, and nothing
-  // new for LaunchpadManager to join into Session View's live performance
+  // new for LaunchpadManager to join into Live View's live performance
   // (it was already live the whole time).
   if (take.is_overdub) return;
   auto song = getCurrentSong();
@@ -1366,13 +1338,13 @@ Controller::trimSessionRecordingClip(int track_id) {
   clip.setLength(last_row < 0 ? rows_per_bar : (last_row / rows_per_bar + 1) * rows_per_bar);
 
   // A fresh take is meant to be played straight back, live, the instant it
-  // finishes - looping (rather than ensureSessionRecordingClip()'s own
+  // finishes - looping (rather than ensureClipRecordingClip()'s own
   // recording-time setLooping(false), meaningless once a take is actually
   // over) and pushed here for LaunchpadManager to pick up and join into
-  // Session View's live performance immediately (see
-  // takeCompletedSessionRecording()'s own comment).
+  // Live View's live performance immediately (see
+  // takeCompletedClipRecording()'s own comment).
   clip.setLooping(true);
-  completed_session_recordings_.push_back({ track_id, take.clip_index });
+  completed_clip_recordings_.push_back({ track_id, take.clip_index });
 }
 
 void
@@ -1577,23 +1549,23 @@ Controller::beginSampleCapture(int track_id, int latency_frames) {
   if (!song || !current_sample || current_sample->numberOfFrames() == 0) return;
 
   auto & clips = song->getClips(track_id);
-  // Session View recording into an already-populated slot overdubs it -
+  // Live View recording into an already-populated slot overdubs it -
   // same id/name, so anything already referencing it (an arrangement
   // instance elsewhere) keeps pointing at it, and every existing layer
   // stays completely untouched (Clip::addSampleLayer()'s own comment) -
   // real audio genuinely sums, the same "always merges rather than
-  // replaces" decision note-based Session recording already settled, not
+  // replaces" decision note-based clip recording already settled, not
   // the destructive "generalize today's clear-and-restart behavior"
   // alternative. Lands at exactly the requested index - holes are allowed
   // (Song::ensureClipAt()), so a target past the list's own current end
   // backfills the gap with empty fillers instead of collapsing to
   // wherever a fresh append happens to land, the same fix
-  // ensureSessionRecordingClip() already has for note-based takes. An
-  // ordinary (non-Session-View) take has no target index at all - it
+  // ensureClipRecordingClip() already has for note-based takes. An
+  // ordinary (non-Live-View) take has no target index at all - it
   // always appends a brand new clip, same as before.
-  auto take_it = session_recording_takes_.find(track_id);
-  bool is_session_recording_take = take_it != session_recording_takes_.end();
-  bool targets_existing_slot = is_session_recording_take && take_it->second.clip_index >= 0;
+  auto take_it = clip_recording_takes_.find(track_id);
+  bool is_clip_recording_take = take_it != clip_recording_takes_.end();
+  bool targets_existing_slot = is_clip_recording_take && take_it->second.clip_index >= 0;
   Clip & clip = targets_existing_slot ? song->ensureClipAt(track_id, take_it->second.clip_index) : song->addClip(Clip(track_id));
   // A target index that already had real identity (real prior content, or
   // a pre-authored-but-still-empty placeholder - Song::ensureClipAt()'s
@@ -1613,7 +1585,7 @@ Controller::beginSampleCapture(int track_id, int latency_frames) {
   // Non-looping by default - same reasoning as ensureNoteRecordingClip()'s
   // own identical call: a live take is one specific performance, not a
   // pattern meant to repeat automatically the moment it ends; looping it
-  // is the performer's own later call to make (Session view), not this
+  // is the performer's own later call to make (Live View), not this
   // clip's own starting assumption. Left alone for an overdub - the clip
   // was already looping/playing for this to even be an overdub in the
   // first place.
@@ -1665,9 +1637,9 @@ Controller::beginSampleCapture(int track_id, int latency_frames) {
   // take was ever armed - correct by construction, nothing to compute
   // here: wherever the transport genuinely was at record-start is where
   // this take starts, already resolved before this method ever runs. A
-  // never-armed take stays unplaced - still a real, visible clip (Session
+  // never-armed take stays unplaced - still a real, visible clip (Live
   // view/ArrangementGrid), just not an arrangement instance anywhere yet -
-  // always true for a Session View take, which never snapshots a start
+  // always true for a clip take, which never snapshots a start
   // position in the first place.
   if (recording_start_row_ >= 0) {
     int clip_index = reuse_existing ? take_it->second.clip_index : static_cast<int>(clips.size()) - 1;

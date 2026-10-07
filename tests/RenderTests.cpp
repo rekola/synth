@@ -198,7 +198,7 @@ TEST(render_center_note_produces_symmetric_stereo_output) {
 }
 
 // The arrangement layer's own instance events actually drive real
-// (transport) playback, not just PatternEditor's Ctrl-K/Session view's
+// (transport) playback, not just PatternEditor's Ctrl-K/Live View's
 // live triggering - SongState::renderBlock()'s note scheduler.
 
 // An active instance masks whatever the background has underneath it,
@@ -281,7 +281,7 @@ TEST(render_sample_track_clip_stops_at_its_own_end_even_when_its_own_audio_outla
 // the lap before the *clip* restarts (not the sample). Realized entirely
 // by SongState.h's own per-row scheduling re-triggering a fresh voice
 // each lap (mirroring LaunchpadManager::fireOrTriggerClipStep(), which
-// already worked this way for Session-view triggering) - SampleClipVoice
+// already worked this way for Live-View triggering) - SampleClipVoice
 // itself has no looping concept of its own any more. Fixture: time
 // signature 1/4, tempo 120 (row duration 0.125s), a looping 4-row (0.5s) clip
 // referencing a 0.2s sidecar tone, played for 2 bars (8 rows, 1.0s) - two
@@ -655,7 +655,7 @@ TEST(render_sample_track_resuming_mid_row_across_several_small_blocks_still_play
 // stops returning that clip, rather than only stopping new note-ONs and
 // leaving an already-sustaining voice (sustain=1.0 here, so it never ends
 // on its own) ringing indefinitely. This is what LaunchpadManager::
-// placeRecordingStop() (Session-view "stop this track" - an empty-row
+// placeRecordingStop() (Live-View "stop this track" - an empty-row
 // press or CC49) relies on to actually be heard, not just recorded.
 TEST(render_stop_instance_silences_a_looping_instance_going_forward) {
   auto loaded = loadFixture("arrangement_stop_silences_a_looping_instance.xml");

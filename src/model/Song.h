@@ -36,7 +36,7 @@ class Song : public SongObject {
 
   // What tuning a Note::getValue() on `track` actually means: a GM
   // percussion key for a PercussionTrack (resolves to raw GM note
-  // identity, not a pitch, whether or not it has any lanes - see
+  // identity, not a pitch - see
   // PercussionTrack.h), this song's own tuning otherwise. The single
   // shared definition of this check - Song.cpp's <pattern>
   // reader/writer and PatternEditor's own clipboard both need it
@@ -53,49 +53,25 @@ class Song : public SongObject {
   Scale getScale() const { return scale_; }
   void setScale(Scale scale) { scale_ = scale; }
 
-  // The pitched step sequencer's own lanes (LaunchpadManager.cpp) -
   // `count` ascending offsets from the tonic, starting at scale-degree
   // index `start_index` (0 = the tonic itself; negative or arbitrarily
   // large both work, descending/ascending into neighboring octaves as
-  // needed - the step grid's own row-scroll windows into this
-  // unboundedly long ascending run 8 rows at a time, `start_index`
-  // moving by a few rows per press rather than jumping a whole octave,
-  // LaunchpadManager.cpp's own comment). Register-agnostic - a caller
-  // with an actual register to place these at (the Launchpad's own
-  // per-device octave setting) adds that itself, the same way
-  // resolveNote() already turns a bare tonic pitch class into a real note
-  // value. Not wrapped into a single octave's own [0, edoStepsFor(
-  // getTuning())) pitch-class range: values keep climbing past the octave
-  // boundary rather than wrapping back below the tonic, so the returned
-  // list is always strictly ascending. getScale()'s own degrees (Scale.h's
-  // scaleDegreeNames(), in Note::stringToKey()'s note-name syntax) are
-  // each resolved via Note::stringToKey(getTuning(), name) - c_value,
-  // the interval from C under whatever tuning is actually active - then
-  // added to this song's own tonic pitch class (getKey(), the same
-  // extraction resolveNote() already does), so the same degree list is
-  // correct under every tuning without hardcoding a separate interval set
-  // per one. Every scale here has exactly 7 degrees - one short of the
-  // step grid's own 8 rows - so the degree list is treated as repeating
-  // one octave higher every full cycle through it (index 7 = index 0 one
-  // octave up, and so on both above and below index 0); this assumes
-  // each named scale spans exactly one octave before repeating, true of
-  // every scale here today, though a future scale spanning more than one
-  // octave (or one with more than 7 degrees) would need this widened.
-  // Scale::NONE (no scale chosen) falls back to the plain chromatic scale
-  // - every step ascending from the tonic - rather than an empty lane
-  // list. Empty only for Tuning::PERCUSSION (no interval structure to
-  // have degrees of at all - callers should never reach this for a
-  // PercussionTrack anyway, which has its own, unrelated
-  // PercussionTrack::getLaneNotes()).
-  std::vector<int> getScaleDegreesWindow(int start_index, int count) const;
-
-  // The step grid's own *default* 8-row window on first opening a clip
-  // (LaunchpadManager::resetStepGridView()) - the first 8 ascending
-  // offsets from the tonic, i.e. getScaleDegreesWindow(0, 8). See that
-  // method's own comment for the general, arbitrarily-windowed form the
-  // step grid's own row-scroll actually uses once a performer has
-  // scrolled away from this default.
-  std::vector<int> getScaleDegrees() const { return getScaleDegreesWindow(0, 8); }
+  // needed). Register-agnostic - a caller with an actual register to place
+  // these at (the Launchpad's own per-device octave setting) adds that
+  // itself. Values keep climbing past the octave boundary rather than
+  // wrapping back below the tonic, so the list is always strictly
+  // ascending. getScale()'s own degrees (Scale.h's scaleDegreeNames(), in
+  // Note::stringToKey()'s note-name syntax) are each resolved against the
+  // active tuning and added to the song's tonic pitch class (getKey()), so
+  // the same degree list is correct under every tuning. The degree list is
+  // treated as repeating one octave higher every full cycle through it;
+  // this assumes each named scale spans exactly one octave, true of every
+  // scale here today. Scale::NONE falls back to the plain chromatic scale
+  // - every step ascending from the tonic. Empty only for
+  // Tuning::PERCUSSION (no interval structure to have degrees of).
+  // With `major_if_none`, Scale::NONE reads as the major scale instead of
+  // chromatic - what an in-key keyboard needs to stay playable.
+  std::vector<int> getScaleDegreesWindow(int start_index, int count, bool major_if_none = false) const;
 
   short getTempo() const { return bpm_; }
   void setTempo(short bpm) { bpm_ = bpm; }
@@ -103,7 +79,7 @@ class Song : public SongObject {
   // A scene is a row of every track's clip list, identified by its
   // position there, with an optional name, tempo and time signature.
   // Launching it sets the tempo as the song tempo and the time signature
-  // as the transport's bars (SessionPlayer::launchScene()).
+  // as the transport's bars (ClipPlayer::launchScene()).
   const std::string & getSceneName(int scene) const {
     static const std::string none;
     return scene >= 0 && static_cast<size_t>(scene) < scenes_.size() ? scenes_[static_cast<size_t>(scene)].name : none;
@@ -171,7 +147,7 @@ class Song : public SongObject {
   // thread owns it (SongState::queueSceneChange()) and the UI thread's copy
   // here is mirrored from its snapshots (Controller::
   // receivePlaybackSnapshot()), so it can trail by a frame. What playback
-  // and Session launching count in (the bar a queued launch waits for, the
+  // and Live launching count in (the bar a queued launch waits for, the
   // metronome, take lengths) while it is active.
   const RunningBars & getRunningBars() const { return running_bars_; }
   void setRunningBars(RunningBars running) { running_bars_ = running; }
@@ -188,7 +164,7 @@ class Song : public SongObject {
   int beatRowsAt(int row) const { return getBarsAt(row).beatRows(); }
   int nextBarStart(int row) const { return getBarsAt(row).nextBarStart(row); }
 
-  // Whether a live Session take snaps each press and release to the nearest
+  // Whether a live clip take snaps each press and release to the nearest
   // row as it's recorded. Off (the default) records the raw sub-row timing
   // in the note's delay instead; quantizeClip() can clean it up afterward.
   bool getRecordQuantize() const { return record_quantize_; }
@@ -307,7 +283,7 @@ class Song : public SongObject {
 
   // The song's own flat, per-track clip list - each track's own reusable
   // Clips, available to trigger live or place in the arrangement from the
-  // Launchpad's session/launch view, unconnected to any one position
+  // Launchpad's Live View, unconnected to any one position
   // (and, once actually placed as an instance, the shared
   // content behind that placement - editing it through any instance
   // updates every other one immediately). Every caller here still
@@ -317,7 +293,7 @@ class Song : public SongObject {
   // comment on why); Song::addClip() is what actually assigns one.
   // Grouped by track already (rather than one flat list filtered per
   // lookup) since "this track's own clips, in order" is the only way
-  // anything ever needs to read this back (Session view's own rows).
+  // anything ever needs to read this back (Live View's own rows).
   const std::vector<Clip> & getClips(int track_id) const {
     auto it = clips_by_track_.find(track_id);
     return it != clips_by_track_.end() ? it->second : empty_clips_;
@@ -380,7 +356,7 @@ class Song : public SongObject {
   // itself already follows. Whichever clip already sits at `index`
   // (freshly padded or not) is returned as-is, content untouched -
   // resetting it for a fresh take is the caller's own job
-  // (Controller::ensureSessionRecordingClip()).
+  // (Controller::ensureClipRecordingClip()).
   Clip & ensureClipAt(int track_id, int index) {
     auto & clips = clips_by_track_[track_id];
     while (static_cast<int>(clips.size()) <= index) clips.push_back(Clip(track_id));

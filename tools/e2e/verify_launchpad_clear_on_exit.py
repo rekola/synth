@@ -2,11 +2,11 @@
 last act: quitting synth (Emacs's own save-buffers-kill-terminal binding,
 C-x C-c) should send one final LED-lighting SysEx that blanks every pad
 and extra-button LED, so a connected Launchpad doesn't sit there still
-showing whatever Session view/step grid/etc. happened to be lit the
+showing whatever Live View/step grid/etc. happened to be lit the
 moment the app quit - rather than just closing the ALSA connection and
 leaving the device's last-sent colors standing.
 
-Spawns against a fixture with real Session content (two tracks, each
+Spawns against a fixture with real Live content (two tracks, each
 with a populated clip - launchpad_scene_row_test.xml, reused from the
 scene-row test since it already has exactly this shape), confirms the
 startup LED dump actually lights something (proving there's real content

@@ -43,7 +43,7 @@ def set_winsize(fd, rows, cols, xpix, ypix):
 def spawn(song=SONG, view="arrangement"):
     """Starts synth on `song` in a pty. `view` is the --view it starts in:
     Arrangement by default, the view most scripts were written against,
-    though the app itself starts in Session view."""
+    though the app itself starts in Live View."""
     pid, master_fd = pty.fork()
     if pid == 0:
         os.environ["TERM"] = "xterm-256color"
@@ -282,7 +282,7 @@ def other_window(scr):
 
 
 def hide_outline(scr):
-    """M-x toggle-outline: hides Session view's outline panel (shown by
+    """M-x toggle-outline: hides Live View's outline panel (shown by
     default, on the clip grid's left), so the clip grid starts at the
     screen's left edge - for scripts that read its rows from the start of
     each line."""

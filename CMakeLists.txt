@@ -115,7 +115,7 @@ add_library(synth_engine STATIC
 	src/effects/TapeDegradation.cpp
 	src/dsp/TapeTransport.cpp
 	src/playback/Player.cpp
-	src/playback/SessionPlayer.cpp
+	src/playback/ClipPlayer.cpp
 	src/playback/MidiNoteInput.cpp
 	src/playback/VisualizationThread.cpp
 	src/dsp/DiracAnalyzer.cpp
@@ -135,7 +135,6 @@ add_library(synth_engine STATIC
 	src/ui/Markdown.cpp
 	src/launchpad/LaunchpadLayout.cpp
 	src/launchpad/LaunchpadProtocol.cpp
-	src/instruments/DrumRankTable.cpp
 	src/model/SampleTrack.cpp
 	src/model/SampleContent.cpp
 	src/model/WaveformPeaks.cpp

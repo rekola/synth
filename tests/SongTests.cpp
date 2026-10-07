@@ -527,7 +527,6 @@ TEST(get_tuning_for_track_is_percussion_for_drum_machine) {
   // PercussionTrack here, unlike the lane-less one just above.
   Song song(Tuning::EDO19);
   auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(make_unique<PercussionTrack>()));
-  track.addLane(36);
   CHECK(song.getTuningForTrack(track) == Tuning::PERCUSSION);
 }
 

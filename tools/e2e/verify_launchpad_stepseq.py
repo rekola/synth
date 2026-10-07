@@ -5,14 +5,11 @@ which has no pagination and spans the whole scene, far more than this
 fixed grid could ever show meaningfully (a real user report: merely
 navigating the shared cursor onto a step-sequenced PercussionTrack used
 to show/allow editing the background pattern directly, unconditionally,
-even with Record Arm off). Opening a clip is a terminal-driven action
-("toggle-record-arm"/Ctrl-X r while the ClipGrid widget has focus,
-Controller.cpp's own drum-machine-track repurposing) - it forces every
-connected Launchpad into NOTES mode showing that clip's own step grid
-automatically, regardless of whatever GridMode it was in
+even with Record Arm off). Opening a clip is a Launchpad gesture (shift + pad in Live View) - it
+switches that Launchpad into NOTES mode showing the clip's own step grid
 (TerminalUI.cpp's own drum-edit-request listener,
-LaunchpadManager::forceNotesModeOnAllDevices()). This script does that,
-then confirms a pad press there toggles that lane/step immediately,
+LaunchpadManager::openStepView()). The simulated device does that, then
+this script confirms a pad press there toggles that lane/step immediately,
 reflected in the LED colors sent back to the device - not silently
 falling through to ordinary ambient NOTES-mode chord entry.
 """
@@ -47,25 +44,8 @@ if not vk.wait_ready(scr):
     os.kill(pid, 9)
     sys.exit(1)
 
-# Open the test song's only clip (track 0, clip row 0 - ClipGrid's own
-# default cursor position on a fresh widget) for step-grid editing: M-x
-# session-view (gain ClipGrid focus - EscapeSequenceCoalescer folds a
-# bare ESC then 'x' into one Alt-x event, the same mechanism
-# verify_launchpad_record_arm_holes.py already uses), then Ctrl-X r
-# (toggle-record-arm) - Controller.cpp's own drum-machine-track
-# repurposing, which forces every connected Launchpad into NOTES mode
-# automatically. The simulator waits for this (go()) before its own CC96
-# press - redundant once this has already forced NOTES mode, but harmless.
-scr.pump(1.0)
-scr.send(b"\x1b")
-scr.pump(0.3)
-scr.send(b"x")
-scr.pump(0.3)
-scr.send(b"session-view\r")
-scr.pump(1.0)
-scr.send(ctrl('x'))
-scr.pump(0.3)
-scr.send(b"r")
+# The simulated Launchpad opens the test song's only clip (track 0, clip
+# row 0) itself, once told to go.
 scr.pump(2.0)
 
 vk.go(fake)
@@ -87,7 +67,7 @@ with open(os.path.join(SCRIPT_DIR, "fake_launchpad_stepseq.log")) as f:
 print("\n--- fake_launchpad log ---")
 print(fake_output)
 
-# Pad (0,0) = led_index 11 (0x0b). Before the press, lane 0 (note 36) is
+# Pad (0,4) = led_index 51 (0x33), step 0 of the selected sound (the kick, note 36). Before the press, it is
 # all-rest - kStepUnlitColor {12,12,12} = hex 0c 0c 0c
 # (LaunchpadManager.cpp). After the press, it must show kStepLitColor
 # {0,110,20} = hex 00 6e 14 - not the pitched/percussion note-grid colors,
@@ -95,10 +75,10 @@ print(fake_output)
 def leds(label):
     return "\n".join(line for line in fake_output.splitlines() if f"received sysex {label} " in line)
 
-check("Before the press, pad (0,0) shows the step grid's unlit color (0b 0c 0c 0c)",
-      "03 0b 0c 0c 0c" in leds("before press"), leds("before press")[:400])
-check("After the press, pad (0,0) shows the step grid's lit color (0b 00 6e 14) - the step actually toggled",
-      "03 0b 00 6e 14" in leds("after press"), leds("after press")[:400])
+check("Before the press, pad (0,4) shows the step grid's unlit color (33 0c 0c 0c)",
+      "03 33 0c 0c 0c" in leds("before press"), leds("before press")[:400])
+check("After the press, pad (0,4) shows the step grid's lit color (33 00 6e 14) - the step actually toggled",
+      "03 33 00 6e 14" in leds("after press"), leds("after press")[:400])
 
 n_fail = sum(1 for _, ok in results if not ok)
 print(f"\n{len(results)-n_fail}/{len(results)} checks passed")

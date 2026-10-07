@@ -328,7 +328,6 @@ TEST(resolve_instance_at_survives_a_reorder_of_the_clip_list) {
 TEST(resolve_edit_and_read_target_route_drum_machine_steps_through_a_clip) {
   Song song;
   auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(make_unique<PercussionTrack>()));
-  track.addLane(36);
   auto track_id = track.getInternalId();
 
   Clip clip(track_id);
@@ -346,7 +345,7 @@ TEST(resolve_edit_and_read_target_route_drum_machine_steps_through_a_clip) {
   // Read it back the same way triggerAuditionStep()/the LED builder now do.
   auto read_target = resolveReadTarget(song, track_id, 2);
   CHECK(read_target.is_instance);
-  CHECK(track.getHitNotesAtRow(*read_target.pattern, read_target.effective_row) == (vector<int>{ 36 }));
+  CHECK(read_target.pattern->getNote(read_target.effective_row, 0).getValue() == 36);
 
   // It landed in the clip's own leaf Pattern, not the track's background.
   CHECK(song.getClips(track_id)[0].getLeafPattern().getNote(2, 0).getValue() == 36);
@@ -471,7 +470,7 @@ TEST(resolve_edit_target_focus_does_not_leak_across_tracks) {
 // exact contract SongState::renderBlock()'s own note scheduler relies on
 // (resolveInstanceAt() returning Arrangement::kStopInstance, never falling back
 // to re-reading the clip once its own stop has been reached) and what
-// LaunchpadManager::placeRecordingStop() (Session-view recording's own
+// LaunchpadManager::placeRecordingStop() (Live-View recording's own
 // "stop this track" primitive - an empty-row press or CC49 held) writes.
 TEST(resolve_instance_at_a_stop_after_a_looping_trigger_silences_every_later_row) {
   Song song;

@@ -54,8 +54,8 @@ int main() {
 
   fake_wait_ready(seq, "at startup");
 
-  // GridMode defaults to SESSION on every connected device - a plain
-  // note-on there launches a Session View clip slot instead of entering a
+  // GridMode defaults to LIVE on every connected device - a plain
+  // note-on there launches a Live View clip slot instead of entering a
   // note (LaunchpadManager routes by grid mode before any note-entry code
   // ever runs). CC96 selects NOTES mode, the same as pressing the
   // Launchpad's own dedicated Note button.

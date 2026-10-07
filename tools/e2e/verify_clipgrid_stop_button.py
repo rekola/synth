@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import harness as vk
 
 DEL = b"\x1b[3~"
-SONG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "launchpad_session_test.xml")
+SONG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "launchpad_live_test.xml")
 results = []
 
 
@@ -27,7 +27,7 @@ def first_slot(scr):
 
 
 def main():
-    pid, fd = vk.spawn(SONG, view="session")
+    pid, fd = vk.spawn(SONG, view="live")
     scr = vk.Screen(fd)
     if not vk.wait_ready(scr):
         print("UI never became ready within timeout")

@@ -1,10 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Purpose-built for verify_launchpad_shift_stepgrid.py: a step-sequenced
-     PercussionTrack (two lanes, so it's actually step-sequenced -
-     PercussionTrack::isStepSequenced()) with one populated clip at
-     Live-View index 7 (pool indices 0-6 are empty fillers - pad (0,0)
-     maps to clip index 7, y=0 being the *bottom* row of the 8-row grid -
-     see LaunchpadManager::handleLivePadEvent's own y-flip comment). -->
+<!-- Purpose-built for verify_launchpad_step_view_device.py: a
+     PercussionTrack clip 96 rows long with BD hits at rows 5, 40 and 70 - the
+     set of lit steps in the 32-step view tells which window a device is
+     showing, with no need to read a playhead. -->
 <song temperament="12edo" tempo="120" patternRows="16">
   <instruments>
     <envelope attack="0.001" hold="0.05" decay="0.05" sustain="0.0" release="0.05">
@@ -24,9 +22,11 @@
       <clip name="p4" />
       <clip name="p5" />
       <clip name="p6" />
-      <clip name="Beat 1" loop="1" length="16">
+      <clip name="Beat 1" loop="1" length="96">
         <pattern>
-          <note row="0" velocity="80" value="BD" />
+          <note row="5" velocity="80" value="BD" />
+          <note row="40" velocity="80" value="BD" />
+          <note row="70" velocity="80" value="BD" />
         </pattern>
       </clip>
     </trackClips>

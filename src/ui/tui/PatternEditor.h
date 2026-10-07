@@ -76,15 +76,15 @@ class PatternEditor : public UIElement {
   int getEditStepSize() const { return edit_step_size; }
 
   // Arrangement mode (the default) edits the arrangement and placed clips, with
-  // the transport as the cursor row; session mode edits clips directly,
+  // the transport as the cursor row; Live mode edits clips directly,
   // one scene at a time (ScenePatternSource).
-  void setSessionMode(bool session);
-  bool isSessionMode() const { return source_ == scene_source_.get(); }
-  // The scene (clip) `track_id`'s own session-mode position is in.
-  int getSessionScene(int track_id) const { return scene_source_->trackBlock(track_id).value_or(0); }
-  // Where each track's launched clip is playing, for session mode's
+  void setLiveMode(bool live);
+  bool isLiveMode() const { return source_ == scene_source_.get(); }
+  // The scene (clip) `track_id`'s own live-mode position is in.
+  int getLiveScene(int track_id) const { return scene_source_->trackBlock(track_id).value_or(0); }
+  // Where each track's launched clip is playing, for Live mode's
   // per-track playhead rows.
-  void setSessionPlayheads(std::unordered_map<int, ScenePatternSource::Playhead> playheads);
+  void setLivePlayheads(std::unordered_map<int, ScenePatternSource::Playhead> playheads);
 
 
   // Called whenever the UI thread learns of a new playhead position (see
@@ -367,7 +367,7 @@ protected:
   int mouse_last_row_ = 0;
 
   // Where rows, cells and edits come from - see PatternSource.h. Points at
-  // one of the two sources below, per setSessionMode().
+  // one of the two sources below, per setLiveMode().
   PatternSource * source_ = nullptr;
   std::unique_ptr<PatternSource> arrangement_source_;
   std::unique_ptr<ScenePatternSource> scene_source_;
@@ -379,8 +379,8 @@ protected:
   // each track shows its own row numbers (VisibleTrackInfo::
   // row_number_width_, kTrackRowNumberWidth wide).
   // The row-number gutter: " 1f │" in Arrangement view, as many hex
-  // digits as its rows need (row_digits_); a margin in Session view.
-  int gutterWidth() const { return isSessionMode() ? 1 : row_digits_ + 3; }
+  // digits as its rows need (row_digits_); a margin in Live View.
+  int gutterWidth() const { return isLiveMode() ? 1 : row_digits_ + 3; }
   // Hex digits the arrangement's row numbers take - at least 2, enough
   // for its content and the cursor. Updated once per render().
   int row_digits_ = 2;
@@ -394,7 +394,7 @@ protected:
   // Set when what's shown changed in a way render()'s own dirty checks
   // don't see (the source switching, per-track playheads moving).
   bool force_full_redraw_ = false;
-  std::unordered_map<int, ScenePatternSource::Playhead> session_playheads_;
+  std::unordered_map<int, ScenePatternSource::Playhead> live_playheads_;
   bool fading_drawn_ = false;
 
   // The block at the top of the view - current_scroll_.row counts from

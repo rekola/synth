@@ -13,9 +13,8 @@ using namespace std;
 TEST(song_structure_numbers_root_tracks_in_encounter_order) {
   Song song;
   auto & a = song.addTrack(make_unique<InstrumentTrack>(0));
-  auto & b = song.addTrack(make_unique<PercussionTrack>()); // no lanes
-  auto & c = dynamic_cast<PercussionTrack &>(song.addTrack(make_unique<PercussionTrack>()));
-  c.addLane(36); // step-sequenced - a different layout branch than b's
+  auto & b = song.addTrack(make_unique<PercussionTrack>());
+  auto & c = song.addTrack(make_unique<PercussionTrack>());
 
   SongStructure structure(song);
   CHECK(structure.getOrdinalFor(a) == 0);
@@ -120,35 +119,11 @@ TEST(song_structure_sample_placeholder_width_gives_evenly_spaced_reference_lines
   CHECK(gap_before > 0); // a real gap, not the lines flush against each other/the edges
 }
 
-TEST(song_structure_gives_a_drum_machine_track_one_note_only_column_per_lane_plus_effect) {
-  // A step-sequenced PercussionTrack's step content is an ordinary
-  // arrangement Pattern (like InstrumentTrack/a lane-less PercussionTrack),
-  // not a track-global sequence - it must get real columns, not the single
-  // placeholder column SampleTrack still gets. But unlike a regular
-  // InstrumentTrack/lane-less PercussionTrack, its columns are the
-  // step-sequencer's own compact shape: one NOTE-only cell per lane (no
-  // velocity/delay), plus the shared per-row effect/command column.
-  Song song;
-  auto & raw_drum = song.addTrack(make_unique<PercussionTrack>());
-  auto & drum = dynamic_cast<PercussionTrack &>(raw_drum);
-  for (int note : { 36, 38, 42 }) drum.addLane(note);
-  SongStructure structure(song);
-
-  auto & drum_info = structure.getBaselineInfo(drum.getInternalId());
-  CHECK(drum_info.has_note_column_);
-  CHECK(drum_info.num_velocity_columns_ == 0);
-  CHECK(!drum_info.has_delay_column_);
-  CHECK(drum_info.has_effect_column_);
-  CHECK(drum_info.num_subtracks_ == 3); // one column per lane
-  CHECK(drum_info.getColumnCount() == 4); // 3 lane columns + effect
-}
-
 TEST(song_structure_gives_every_instrument_track_type_a_color_ordinal) {
   Song song;
   auto & instrument = song.addTrack(make_unique<InstrumentTrack>(0));
-  auto & percussion = song.addTrack(make_unique<PercussionTrack>()); // no lanes
-  auto & drum = dynamic_cast<PercussionTrack &>(song.addTrack(make_unique<PercussionTrack>()));
-  drum.addLane(36); // step-sequenced - a different layout branch than percussion's
+  auto & percussion = song.addTrack(make_unique<PercussionTrack>());
+  auto & drum = song.addTrack(make_unique<PercussionTrack>());
   auto & sample = song.addTrack(make_unique<SampleTrack>());
   SongStructure structure(song);
 

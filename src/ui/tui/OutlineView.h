@@ -51,7 +51,7 @@ struct DetailsLine {
 // per-instrument rows/Tracks/per-track rows, then Library/Rhythms/
 // Instruments - the same "collapsible headings" shape Emacs's own
 // outline-mode shows for a text buffer, applied to the song structure
-// instead. Shown as a panel on the left of ClipGrid in Session view
+// instead. Shown as a panel on the left of ClipGrid in Live View
 // (UI::View; "toggle-outline"/"outline-view", see TerminalUI::layout()).
 //
 // A narrow panel: an "Outline" heading, the scrollable tree across the

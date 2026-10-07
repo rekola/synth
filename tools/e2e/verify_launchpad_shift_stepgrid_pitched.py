@@ -49,7 +49,7 @@ scr.send(b"\x1b")
 scr.pump(0.3)
 scr.send(b"x")
 scr.pump(0.3)
-scr.send(b"session-view\r")
+scr.send(b"live-view\r")
 scr.pump(1.0)
 
 phase1_text = scr.dump()
