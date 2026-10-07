@@ -13,6 +13,12 @@ Note mode (96):
   General MIDI drum rack - kick, snare and hats on the bottom row, then side
   stick, clap, pedal hat and crash, the lower toms, and the upper toms, ride
   and cowbell. The rest of the grid is dark.
+
+  A 4x4 block of 16 pads is the standard drum surface: Akai's MPC samplers
+  (from 1988) made it so, and Ableton's Drum Rack shows 16 of its 128 notes
+  at a time in the same shape. Only that shape is borrowed. Which sound sits
+  on which pad is synth's own grouping of General MIDI sounds, not a copy of
+  an MPC or Ableton layout.
 - **Pitched track**: an in-key scale keyboard. Pad (0,0) is the tonic at the
   device's octave, each column is the next scale degree and each row up is a
   fourth (three degrees) higher, so a seven-note scale lines up the same way

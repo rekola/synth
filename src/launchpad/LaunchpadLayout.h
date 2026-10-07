@@ -157,7 +157,8 @@ namespace LaunchpadLayout {
   // The 4x4 drum rack in the bottom-left corner (x, y in 0..3, row 0 at the
   // bottom): kick, snare and hats on the bottom row, then side stick, clap,
   // pedal hat and crash, the four lower toms, and the upper toms, ride and
-  // cowbell. -1 for every pad outside the block.
+  // cowbell. -1 for every pad outside the block. The 4x4 shape is the
+  // sampler-pad convention; the sound-to-pad arrangement is our own grouping.
   int drumPadNoteForPad(int x, int y);
 
   // The family of a GM percussion note, for LED coloring (UNUSED if it has

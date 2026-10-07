@@ -624,8 +624,9 @@ would otherwise resume showing.
 - **Note mode and the step view** - `GridMode::NOTES` is the playing
   surface, and what it shows follows the assigned track. A
   `PercussionTrack` gets a fixed 4x4 General MIDI drum rack in the
-  bottom-left corner (`LaunchpadLayout::drumPadNoteForPad()`), the rest of
-  the grid dark; there is no per-track drum list (lanes were removed - the
+  bottom-left corner (`LaunchpadLayout::drumPadNoteForPad()`; the 4x4
+  shape is the MPC/Drum Rack convention, the sound-to-pad arrangement is this
+  codebase's own), the rest of the grid dark; there is no per-track drum list (lanes were removed - the
   rack is the one kit, and a `<lane>` element in an old song is ignored on
   load). A pitched track gets an in-key scale keyboard
   (`LaunchpadManager::resolveKeyboardNotes()`): pad (0,0) is the tonic at
