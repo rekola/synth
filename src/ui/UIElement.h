@@ -73,6 +73,10 @@ class UIElement : public EventHandler {
     if (plane_) plane_->moveToTop();
     return *this;
   }
+  UIElement & setVisible(bool visible) {
+    if (plane_) plane_->setVisible(visible);
+    return *this;
+  }
   UIElement & resize(int rows, int cols) {
     if (plane_) plane_->resize(rows, cols);
     onResize();

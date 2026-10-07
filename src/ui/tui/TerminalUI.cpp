@@ -192,6 +192,16 @@ public:
   void moveToTop() override {
     if (plane->to_ncplane()) plane->move_top();
   }
+  // A hidden plane is moved, with its children, into a pile of its own,
+  // which notcurses never renders; showing it rebinds it to the standard
+  // plane's pile.
+  void setVisible(bool visible) override {
+    auto * n = plane->to_ncplane();
+    if (!n || visible == visible_) return;
+    visible_ = visible;
+    auto * parent = visible ? notcurses_stdplane(ncplane_notcurses(n)) : n;
+    ncplane_reparent_family(n, parent);
+  }
   void setFgColor(int r, int g, int b) override { plane->set_fg_rgb8(r, g, b); }
   void setBgColor(int r, int g, int b) override { plane->set_bg_rgb8(r, g, b); }
   void setUnderline(bool b) override {
@@ -671,6 +681,7 @@ private:
   ncplane * indicator_plane = nullptr;
   unique_ptr<Selector> selector;
   bool owner;
+  bool visible_ = true;
   bool sextant_support_;
 };
 
@@ -2136,7 +2147,10 @@ TerminalUI::layout() {
   // the workspace comment below) - resize() tears down a chart's plot
   // plane, so the next one is built there too, off screen.
   bool show_scopes = getView() == View::ARRANGEMENT && scopes_visible_;
-  int scope_row = show_scopes ? 1 : rows + 1;
+  int scope_row = 1;
+  cover_art_->setVisible(show_scopes);
+  arrangement_grid_->setVisible(show_scopes);
+  volume_meter_->setVisible(show_scopes);
 
   constexpr int kOutlineWidth = 30;
   // Live View: the outline panel runs the full workspace height, with
@@ -2180,6 +2194,8 @@ TerminalUI::layout() {
   int divider1_x = chart_x + chart_width, divider2_x = divider1_x + 1 + kHeatmapWidth;
   // Live View places these in its own left column below.
   if (getView() == View::ARRANGEMENT) {
+    chart_->setVisible(show_scopes);
+    heatmap_->setVisible(show_scopes);
     chart_->resize(kScopeHeight, chart_width).move(scope_row, chart_x);
     heatmap_->resize(kScopeHeight, kHeatmapWidth).move(scope_row, divider1_x + 1);
   }
@@ -2225,6 +2241,8 @@ TerminalUI::layout() {
         putstr(workspace_row + row, outline_cols - 1, "│");
       }
     }
+    chart_->setVisible(live_scopes);
+    heatmap_->setVisible(live_scopes);
     if (live_scopes) {
       int scope_x_width = outline_cols - 1;
       int chart_row = workspace_row + outline_rows + 1;
@@ -2244,9 +2262,9 @@ TerminalUI::layout() {
       chart_->resize(kScopeHeight, scope_x_width).move(chart_row, 0);
       heatmap_->resize(kScopeHeight, scope_x_width).move(heatmap_row, 0);
     } else {
-      // Parked off screen, like a hidden scope row's widgets.
-      chart_->resize(kScopeHeight, std::max(1, cols / 2)).move(rows + 1, 0);
-      heatmap_->resize(kScopeHeight, kHeatmapWidth).move(rows + 1, 0);
+      // Hidden above; the size is only kept sensible for when they return.
+      chart_->resize(kScopeHeight, std::max(1, cols / 2));
+      heatmap_->resize(kScopeHeight, kHeatmapWidth);
     }
     pattern_editor_->resize(workspace_rows - strip_rows, right_cols).move(workspace_row + strip_rows, outline_cols);
     if (outline_cols > 0) outline_view_->moveToTop();

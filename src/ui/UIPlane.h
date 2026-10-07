@@ -35,6 +35,11 @@ class UIPlane {
   // leaving its last real content and z-position untouched - confirmed
   // via a pty+notcurses reproduction).
   virtual void moveToTop() { }
+  // Takes this plane (and its children) out of what gets drawn, or puts it
+  // back (above its former siblings). Its contents and state are kept, so
+  // a hidden plane can sit anywhere without ever showing, whatever the
+  // screen size becomes. Default no-op.
+  virtual void setVisible(bool) {}
   // Whether this plane's own terminal reports Unicode 13 sextant glyph
   // support (Symbols for Legacy Computing, U+1FB00+) - default false, the
   // universally-safe answer for any UIPlane implementation with no real
