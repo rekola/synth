@@ -23,7 +23,7 @@ differs.
 - **Live sequencer.** Session view, with clips launched on the bar and scenes,
   follows Ableton Live; see [docs/launchpad.md](docs/launchpad.md) and
   [docs/scenes.md](docs/scenes.md).
-- **Pad controllers and samplers.** The Launchpad's buttons follow Novation,
+- **Pad controllers and samplers.** The Launchpad's buttons partly follow Novation's own layouts,
   and the drum pads and step sequencer the Akai MPC (1988) and Ableton Push;
   see [docs/drums-and-sequencer.md](docs/drums-and-sequencer.md).
 - **Emacs.** Selection, kill and yank, and the M-x prompt; see

@@ -8,10 +8,10 @@ grid mode, so one can sit in Session view while another does note entry.
 
 - **Buttons.** The right-hand column carries the Launchpad X's own labels
   (Record Arm, Volume, Pan, Send A, Send B, Stop Clip, Mute, Solo) and
-  launches a scene while mixer submode is off. The shift layer follows
-  Novation's Launchpad Pro MK3: Undo, Redo, the click, Duplicate, Delete,
-  Quantise, and the Tempo and Swing views shown as a number on the pads. The
-  difference: Undo and Redo only report that they are not implemented.
+  launches a scene while mixer submode is off. In the shift layer, Undo, Redo
+  and the click sit where Novation's Launchpad Pro MK3 puts them, and the Tempo
+  and Swing views follow that device's views; the other shift functions are
+  ours. Undo and Redo only report that they are not implemented.
 - **Session view.** It follows Ableton Live's: a clip grid with one column per
   track, scenes launched across, a stop button per slot, Session Record, Capture
   MIDI (not implemented here) and Back to Arrangement. Live launches clips on a
