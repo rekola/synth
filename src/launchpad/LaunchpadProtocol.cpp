@@ -167,8 +167,10 @@ commandForButton(int cc_number) {
   // from a button any other way).
   case 91: return string("move-row-up");   // top row 1
   case 92: return string("move-row-down"); // top row 2
-  case 93: return string("prev-track");   // top row 3
-  case 94: return string("next-track");   // top row 4
+  case 93:
+    return string("pad-prev-track"); // top row 3
+  case 94:
+    return string("pad-next-track"); // top row 4
   // 98 (top row 8, printed with a record-circle icon) used to be
   // toggle-playing here; it's now the Capture MIDI record-arm toggle,
   // intercepted directly in LaunchpadManager::handleRawButton() before

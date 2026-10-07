@@ -5,10 +5,12 @@
 #include "InlineEditor.h"
 #include "LevelMeter.h"
 #include "../../launchpad/SessionPadHighlight.h"
+#include "../../model/Clip.h"
 
 #include <algorithm>
 #include <chrono>
 #include <functional>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -72,7 +74,7 @@ class ClipGrid : public UIElement {
   // among Song::getPlayableTrackIds() the cursor is currently on, and its
   // own clip-list index (Song::getClips(track_id)) when the cursor is on
   // a real clip row at all (-1 otherwise - the header, or the Sends/
-  // Direction rows, name no clip slot). Mirrors delete-clip's own
+  // Direction rows, name no clip slot). Mirrors kill-region's own
   // identical "a CLIP row's own physical offset doubles as its clip-list
   // index" resolution (see rowKindFor()/physicalFor()'s own comment).
   int getCursorTrackIndex() const { return cursor_track_index_; }
@@ -160,6 +162,11 @@ class ClipGrid : public UIElement {
   // still notices the record indicator (see its own drawing code) needing
   // to appear or disappear.
   std::function<SessionPadHighlight(int track_id, int clip_index)> clip_state_source_;
+  // The last clip killed or copied, and the kind of track it came from -
+  // a yank only lands on a track of the same kind (note values mean
+  // different things under different tunings, audio only fits audio).
+  std::optional<Clip> clip_clipboard_;
+  int clip_clipboard_track_type_ = -1;
   std::function<int(int track_id)> track_clip_source_;
   // Each track's clip (track_clip_source_) at the last redraw - a change
   // redraws.

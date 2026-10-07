@@ -110,29 +110,58 @@ ClipGrid::ClipGrid(UIPlane & parent) : UIElement(parent) {
   keymap_.bind(KeyChord::pack('\\', false, false, false, false), "toggle-mute");
   keymap_.bind(KeyChord::pack('\\', true, false, false, false), "toggle-solo");
 
-  // Deletes what the slot under the cursor has, one layer per press: its
-  // clip, and once it's empty its stop button; a no-op on a slot with
-  // neither, or off the clip rows, same "always does something or
-  // nothing, never falls through" precedent 'l' (loop toggle) already
-  // follows. A real, unprompted deletion (no confirmation dialog) - see
-  // the keymap_.bind() calls below for which keys reach it and why.
-  commands_.define("delete-clip", [this]() {
-    if (rowKindFor(cursor_row_) != RowKind::CLIP) return;
+  // The slot under the cursor, when it's a clip row on a real track.
+  auto cursor_slot = [this]() -> std::optional<std::pair<int, int>> {
+    if (rowKindFor(cursor_row_) != RowKind::CLIP) return std::nullopt;
     auto track_ids = getController().getSong().getPlayableTrackIds();
-    if (cursor_track_index_ < 0 || cursor_track_index_ >= static_cast<int>(track_ids.size())) return;
+    if (cursor_track_index_ < 0 || cursor_track_index_ >= static_cast<int>(track_ids.size())) return std::nullopt;
     // A CLIP row's own physical offset doubles as its clip-list index.
-    getController().getSessionPlayer().deleteClip(track_ids[static_cast<size_t>(cursor_track_index_)], physicalFor(cursor_row_));
-  });
-  // Copies the clip under the cursor into the next empty slot below it -
-  // a no-op on an empty slot.
-  commands_.define("duplicate-clip", [this]() {
-    if (rowKindFor(cursor_row_) != RowKind::CLIP) return;
+    return std::make_pair(track_ids[static_cast<size_t>(cursor_track_index_)], physicalFor(cursor_row_));
+  };
+  auto copy_clip = [this, cursor_slot]() {
+    auto slot = cursor_slot();
+    if (!slot) return false;
     auto & song = getController().getSong();
-    auto track_ids = song.getPlayableTrackIds();
-    if (cursor_track_index_ < 0 || cursor_track_index_ >= static_cast<int>(track_ids.size())) return;
-    auto slot = duplicateClip(song, track_ids[static_cast<size_t>(cursor_track_index_)], physicalFor(cursor_row_));
-    if (slot < 0) return;
-    getController().getUIEventQueue().push(std::make_unique<LogEvent>("Duplicated clip into row " + std::to_string(slot + 1)));
+    auto & clips = song.getClips(slot->first);
+    if (slot->second < 0 || slot->second >= static_cast<int>(clips.size()) || clips[static_cast<size_t>(slot->second)].isEmpty()) return false;
+    clip_clipboard_ = clips[static_cast<size_t>(slot->second)];
+    auto track = song.getMasterTrack().getChildByInternalId(slot->first);
+    clip_clipboard_track_type_ = track ? static_cast<int>(track->getType()) : -1;
+    return true;
+  };
+  // Copies the clip under the cursor into the clipboard.
+  commands_.define("kill-ring-save", [this, copy_clip]() {
+    getController().getUIEventQueue().push(std::make_unique<LogEvent>(copy_clip() ? "Copied clip" : "No clip to copy"));
+  });
+  // Cuts the clip under the cursor into the clipboard and removes it from
+  // its slot; on an empty slot it removes the slot's stop button instead,
+  // which isn't clip content and never reaches the clipboard. Del,
+  // Backspace and Ctrl-K are bound too - the same keys this app treats as
+  // "remove what's at the cursor" elsewhere.
+  commands_.define("kill-region", [this, cursor_slot, copy_clip]() {
+    auto slot = cursor_slot();
+    if (!slot) return;
+    copy_clip();
+    getController().getSessionPlayer().deleteClip(slot->first, slot->second);
+  });
+  // Pastes the clipboard's clip into the slot under the cursor as an
+  // independent copy, overwriting what is there. Copying a clip and
+  // yanking it onto the slot below is how a clip is duplicated.
+  commands_.define("yank", [this, cursor_slot]() {
+    auto slot = cursor_slot();
+    if (!slot) return;
+    auto & log = getController().getUIEventQueue();
+    if (!clip_clipboard_) {
+      log.push(std::make_unique<LogEvent>("Nothing to yank"));
+      return;
+    }
+    auto & song = getController().getSong();
+    auto track = song.getMasterTrack().getChildByInternalId(slot->first);
+    if (!track || static_cast<int>(track->getType()) != clip_clipboard_track_type_) {
+      log.push(std::make_unique<LogEvent>("Yank: that clip came from a different kind of track"));
+      return;
+    }
+    placeClipCopy(song, slot->first, slot->second, *clip_clipboard_);
   });
   // Snaps the notes of the clip under the cursor to the nearest row.
   commands_.define("quantize-clip", [this]() {
@@ -144,7 +173,7 @@ ClipGrid::ClipGrid(UIPlane & parent) : UIElement(parent) {
     getController().getUIEventQueue().push(std::make_unique<LogEvent>(done ? "Quantised clip" : "Quantise: nothing to quantise there"));
   });
   // Adds or removes the stop button of the empty slot under the cursor -
-  // a no-op on a slot with a clip, same as delete-clip on an empty one.
+  // a no-op on a slot with a clip, same as kill-region on an empty one.
   commands_.define("toggle-stop-button", [this]() {
     if (rowKindFor(cursor_row_) != RowKind::CLIP) return;
     auto & song = getController().getSong();
@@ -163,9 +192,12 @@ ClipGrid::ClipGrid(UIPlane & parent) : UIElement(parent) {
   // (Backspace/Del clearing note content, Ctrl-K placing a stop instance,
   // both in PatternEditor; ArrangementGrid's own Backspace doing the
   // same) - rather than a dedicated modifier chord of its own.
-  keymap_.bind(KeyChord::pack(NCKEY_DEL, false, false, false, false), "delete-clip");
-  keymap_.bind(KeyChord::pack(NCKEY_BACKSPACE, false, false, false, false), "delete-clip");
-  keymap_.bind(KeyChord::pack('k', true, false, false, false), "delete-clip"); // Ctrl-K
+  keymap_.bind(KeyChord::pack(NCKEY_DEL, false, false, false, false), "kill-region");
+  keymap_.bind(KeyChord::pack(NCKEY_BACKSPACE, false, false, false, false), "kill-region");
+  keymap_.bind(KeyChord::pack('k', true, false, false, false), "kill-region");
+  keymap_.bind(KeyChord::pack('w', true, false, false, false), "kill-region");
+  keymap_.bind(KeyChord::pack('w', false, true, false, false), "kill-ring-save");
+  keymap_.bind(KeyChord::pack('y', true, false, false, false), "yank");
   assertCommandBindingsValid();
 }
 
@@ -221,7 +253,7 @@ ClipGrid::startClipRename(const Song & song, const std::vector<int> & track_ids)
   auto & clips = song.getClips(track_id);
   auto clip_row = physicalFor(cursor_row_); // a CLIP row's own physical offset doubles as its clip-list index
   // Same content-aware "an empty filler reads as no clip here" reasoning
-  // as delete-clip above - nothing to give a name to yet.
+  // as kill-region above - nothing to give a name to yet.
   if (clip_row < 0 || static_cast<size_t>(clip_row) >= clips.size() || clips[static_cast<size_t>(clip_row)].isEmpty()) return; // no clip here to rename
 
   auto physical_row = clip_row - scroll_row_ + 1; // +1 for the header row

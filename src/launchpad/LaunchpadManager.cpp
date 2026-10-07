@@ -50,7 +50,7 @@ namespace {
   constexpr auto kMixerHoldPreviewThreshold = std::chrono::milliseconds(600);
 
   // The step grid's own scroll step, both axes - move-row-up/down and
-  // prev-track/next-track each advance this many rows/steps per press,
+  // pad-prev-track/pad-next-track each advance this many rows/steps per press,
   // rather than jumping a whole 8-wide window at once, so consecutive
   // windows overlap and a performer can actually follow where a press
   // landed relative to before (half the fixed 8-row/8-column grid).
@@ -1374,7 +1374,7 @@ LaunchpadManager::handleCommand(string_view name, int device_id, int fallback_tr
       stepNumberView(view_state, -1, controller);
       return true;
     }
-    if (name == "move-row-up" || name == "next-track" || name == "prev-track" || name == "octave-up" || name == "octave-down") return true;
+    if (name == "move-row-up" || name == "pad-next-track" || name == "pad-prev-track" || name == "octave-up" || name == "octave-down") return true;
   }
   if (name == "octave-up") {
     octaveUp(device_id);
@@ -1387,7 +1387,7 @@ LaunchpadManager::handleCommand(string_view name, int device_id, int fallback_tr
   if (name == "move-row-up" || name == "move-row-down") {
     // Also reserved - repurposed, not just declined - while this device is
     // actually showing a Session-View-focused clip's own step grid,
-    // percussion or pitched alike (same gate "next-track"/"prev-track"
+    // percussion or pitched alike (same gate "pad-next-track"/"pad-prev-track"
     // below already uses): on a *pitched* track, scrolls every connected
     // device's own row window (DeviceState::drum_edit_row_offset) by
     // kStepGridScrollStep rows instead of its ordinary octave-shift
@@ -1407,11 +1407,11 @@ LaunchpadManager::handleCommand(string_view name, int device_id, int fallback_tr
     // small, fixed, manually-curated list (never more than 8) with
     // nothing to scroll to - but still swallowed here (returns true)
     // rather than falling through to the Session-only bar-move
-    // meaning below, the same as "next-track"/"prev-track" already
+    // meaning below, the same as "pad-next-track"/"pad-prev-track" already
     // swallow their own no-op paging case rather than declining. Every
     // connected device, not just the one pressed - resetStepGridView()
     // already starts every device at the identical row offset (0), so
-    // unlike prev/next-track's own device-order step split, there's no
+    // unlike pad-prev-track/pad-next-track's own device-order step split, there's no
     // per-device offset to preserve here, just every device moving
     // together.
     if (gridMode(device_id) == GridMode::NOTES && controller.getFocusedClipTrackId() >= 0) {
@@ -1435,7 +1435,7 @@ LaunchpadManager::handleCommand(string_view name, int device_id, int fallback_tr
     if (session_move_bar_callback_) session_move_bar_callback_(name == "move-row-down" ? 1 : -1);
     return true;
   }
-  if (name == "next-track" || name == "prev-track") {
+  if (name == "pad-next-track" || name == "pad-prev-track") {
     // Reserved while in Session view (per-device - see handleRawButton()'s
     // own CC95/96 comment): the cursor keys no longer switch this device
     // back to note-entry view, and no longer enter/exit Session view
@@ -1481,7 +1481,7 @@ LaunchpadManager::handleCommand(string_view name, int device_id, int fallback_tr
       // consecutive windows overlap and a performer can actually follow
       // where a press landed relative to before.
       auto current_base = deviceState(ready_ids[0]).drum_edit_step_offset;
-      auto delta = (name == "next-track" ? 1 : -1) * kStepGridScrollStep;
+      auto delta = (name == "pad-next-track" ? 1 : -1) * kStepGridScrollStep;
       auto new_base = std::clamp(current_base + delta, 0, max_base);
       for (int i = 0; i < num_devices; i++) deviceState(ready_ids[static_cast<size_t>(i)]).drum_edit_step_offset = new_base + i * 8;
       return true;
@@ -1492,7 +1492,7 @@ LaunchpadManager::handleCommand(string_view name, int device_id, int fallback_tr
     // track_move_callback_'s own comment for why every connected
     // Launchpad, not just this one, follows the result.
     if (track_move_callback_) {
-      track_move_callback_(LaunchpadLayout::advanceTrackIndex(fallback_track_index, name == "next-track" ? 1 : -1, num_tracks));
+      track_move_callback_(LaunchpadLayout::advanceTrackIndex(fallback_track_index, name == "pad-next-track" ? 1 : -1, num_tracks));
     }
     return true;
   }
@@ -2231,7 +2231,7 @@ LaunchpadManager::handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & co
     // (DeviceState::show_step_grid's own comment). A focused clip can be
     // longer than the grid's fixed 8 columns, so this device's own
     // current step offset (DeviceState::drum_edit_step_offset, scrolled
-    // via the prev-track/next-track buttons - see handleCommand()'s own
+    // via the pad-prev-track/pad-next-track buttons - see handleCommand()'s own
     // comment) picks which 8-step window of it x actually lands in.
     auto length = focusedDrumClipLength(song, track_id, controller.getFocusedClip());
     auto max_offset = std::max(0, length - 8);
@@ -2779,7 +2779,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // nothing to light.
   //
   // 92/93/94 go dark in GridMode::SESSION - handleCommand()'s own
-  // comments on "next-track"/"prev-track" (reserved there, an
+  // comments on "pad-next-track"/"pad-prev-track" (reserved there, an
   // unconditional no-op returning true) and "move-row-down" (moves the
   // *terminal* overview's own bar cursor, which Session view's own
   // clip-pool/track-column grid never reflects - nothing on this device
@@ -2804,7 +2804,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // true no-op the way paging below can).
   bool row_scroll_useful = !state.show_step_grid || !state.assigned_track_is_percussion;
   uint8_t arrow_white = (arrows_active && row_scroll_useful) ? 30 : 0;
-  // 93/94 ("prev-track"/"next-track") are their own case while the step
+  // 93/94 ("pad-prev-track"/"pad-next-track") are their own case while the step
   // grid is showing: handleCommand()'s own comment repurposes them into
   // scrolling through a clip longer than 8 steps, every connected device
   // shifting together - genuinely useful only when there's still some
@@ -2839,8 +2839,8 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   uint8_t row_up_level = state.row_up_shift_held ? 127 : number_view ? 60 : 30;
   colors.push_back({91, row_up_level, row_up_level, row_up_level});
   colors.push_back({92, arrow_white, arrow_white, arrow_white}); // move-row-down, dim white (static)
-  colors.push_back({93, page_arrow_white, page_arrow_white, page_arrow_white}); // prev-track, dim white (static)
-  colors.push_back({94, page_arrow_white, page_arrow_white, page_arrow_white}); // next-track, dim white (static)
+  colors.push_back({93, page_arrow_white, page_arrow_white, page_arrow_white}); // pad-prev-track, dim white (static)
+  colors.push_back({94, page_arrow_white, page_arrow_white, page_arrow_white}); // pad-next-track, dim white (static)
   // Session (CC95)/Note (CC96)/Custom (CC97) are this device's own
   // GridMode selectors (DRAW, reached by shift + Custom, is the fourth) -
   // each lit when active, same

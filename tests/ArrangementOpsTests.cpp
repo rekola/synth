@@ -175,6 +175,25 @@ TEST(duplicate_clip_refuses_nothing_to_copy) {
   CHECK(duplicateClip(song, track_id, -1) == -1);
 }
 
+TEST(place_clip_copy_retargets_a_clip_onto_another_track) {
+  Song song;
+  auto first = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
+  auto second = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
+  Clip a(first);
+  a.getLeafPattern().setNote(0, 0, Note(60, 100));
+  auto a_id = song.addClip(move(a)).getId();
+
+  Clip copy = song.getClips(first)[0];
+  CHECK(placeClipCopy(song, second, 2, copy) == 2); // pads the slots before it
+  auto & clips = song.getClips(second);
+  CHECK(clips.size() == 3);
+  CHECK(clips[2].getLeafTrackId() == second);
+  CHECK(clips[2].getLeafPattern().getNote(0, 0).getValue() == 60);
+  CHECK(clips[2].getId() != a_id);
+  CHECK(song.getClips(first).size() == 1);                   // the source stays put
+  CHECK(placeClipCopy(song, second, 0, Clip(second)) == -1); // an empty clip is nothing
+}
+
 TEST(resolve_instance_at_finds_nothing_before_any_event) {
   Song song;
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));

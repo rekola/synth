@@ -208,7 +208,7 @@ class LaunchpadManager {
   // scrolling a pad-grid row window.
   void setSessionMoveBarCallback(std::function<void(int delta)> cb) { session_move_bar_callback_ = std::move(cb); }
 
-  // Called with the new track index when "next-track"/"prev-track" is
+  // Called with the new track index when "pad-next-track"/"pad-prev-track" is
   // pressed outside GridMode::SESSION (see track_move_callback_'s own
   // comment) - moves the one shared cursor every connected Launchpad
   // (and PatternEditor itself) follows, rather than giving the pressing
@@ -691,7 +691,7 @@ class LaunchpadManager {
     // clip's own length (`max(0, clip_length - num_devices*8)`),
     // refreshed alongside show_step_grid above (0, its own default,
     // whenever show_step_grid is false - irrelevant then). refreshLeds()
-    // checks whether this is > 0 to decide whether prev-track/next-track's
+    // checks whether this is > 0 to decide whether pad-prev-track/pad-next-track's
     // own paging gesture (handleCommand()'s own comment) has anything
     // left to do - at 0, resetStepGridView()'s own device-order default
     // already shows the whole clip across however many devices are
@@ -788,7 +788,7 @@ class LaunchpadManager {
     // step offset, not a page index, so it can land anywhere, not just on
     // an 8-step boundary (a clip's own length can span more rows than the
     // grid's fixed 8 columns, so this device shows one 8-wide window of
-    // it at a time). Adjusted via the prev-track/next-track buttons
+    // it at a time). Adjusted via the pad-prev-track/pad-next-track buttons
     // (repurposed while this device is actually showing a focused drum
     // clip's own step grid - see LaunchpadManager::handleCommand()'s own
     // comment), kStepGridScrollStep at a time so consecutive windows
@@ -806,7 +806,7 @@ class LaunchpadManager {
     // PercussionTrack, whose lanes are a small, fixed, manually-curated
     // list (never more than 8) with nothing to scroll to at all. Adjusted
     // via the move-row-up/move-row-down buttons (repurposed the same way
-    // prev-track/next-track above is, kStepGridScrollStep rows at a time),
+    // pad-prev-track/pad-next-track above is, kStepGridScrollStep rows at a time),
     // reset to 0 (the tonic) each time a fresh clip is opened
     // (resetStepGridView()). Deliberately independent of this device's
     // own octave_offset/octave() below - unlike that field, this is not a
@@ -1347,7 +1347,7 @@ class LaunchpadManager {
   // handleCommand()).
   std::function<void(int delta)> session_move_bar_callback_;
 
-  // "next-track"/"prev-track" outside GridMode::SESSION move the one
+  // "pad-next-track"/"pad-prev-track" outside GridMode::SESSION move the one
   // shared cursor (via this callback, wired to PatternEditor::
   // setCursorTrack()) rather than giving the pressing device its own
   // independent track assignment - deliberate, not an oversight: an

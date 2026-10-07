@@ -180,18 +180,23 @@ deleteClipOrStopButton(Song & song, int track_id, int clip_index, string * delet
   return SlotDelete::CLIP;
 }
 
+int placeClipCopy(Song & song, int track_id, int clip_index, Clip clip) {
+  if (clip_index < 0 || clip.isEmpty()) return -1;
+  clip.setLeafTrackId(track_id);
+  clip.setId(song.generateUniqueClipId());
+  // A clip already there goes, with its arrangement placements.
+  auto & clips = song.getClips(track_id);
+  if (clip_index < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(clip_index)].isEmpty()) deleteClip(song, track_id, clip_index);
+  song.ensureClipAt(track_id, clip_index); // may reallocate the list
+  song.getClips(track_id)[static_cast<size_t>(clip_index)] = std::move(clip);
+  song.incVersion();
+  return clip_index;
+}
+
 int duplicateClip(Song & song, int track_id, int from_index) {
   auto & clips = song.getClips(track_id);
-  if (from_index < 0 || from_index >= static_cast<int>(clips.size()) || clips[static_cast<size_t>(from_index)].isEmpty()) return -1;
-  auto to_index = from_index + 1;
-  Clip copy = clips[static_cast<size_t>(from_index)];
-  copy.setId(song.generateUniqueClipId());
-  // A clip already below goes, with its arrangement placements.
-  if (to_index < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(to_index)].isEmpty()) deleteClip(song, track_id, to_index);
-  song.ensureClipAt(track_id, to_index); // may reallocate the list
-  song.getClips(track_id)[static_cast<size_t>(to_index)] = std::move(copy);
-  song.incVersion();
-  return to_index;
+  if (from_index < 0 || from_index >= static_cast<int>(clips.size())) return -1;
+  return placeClipCopy(song, track_id, from_index + 1, clips[static_cast<size_t>(from_index)]);
 }
 
 bool

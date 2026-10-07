@@ -164,8 +164,8 @@ TEST(decode_incoming_bytes_skips_embedded_sysex_and_ignores_non_grid_notes) {
 TEST(command_for_button_returns_the_assigned_command_names) {
   CHECK(commandForButton(91) == string("move-row-up"));
   CHECK(commandForButton(92) == string("move-row-down"));
-  CHECK(commandForButton(93) == string("prev-track"));
-  CHECK(commandForButton(94) == string("next-track"));
+  CHECK(commandForButton(93) == string("pad-prev-track"));
+  CHECK(commandForButton(94) == string("pad-next-track"));
 }
 
 TEST(command_for_button_returns_nullopt_for_reserved_and_out_of_range_ccs) {
