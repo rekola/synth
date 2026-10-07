@@ -73,8 +73,10 @@ TEST(note_number_to_pad_round_trips_and_rejects_out_of_range_notes) {
     for (int x = 0; x < 8; x++) {
       auto pad = noteNumberToPad(padToNoteNumber(x, y));
       CHECK(pad.has_value());
-      CHECK(pad->first == x);
-      CHECK(pad->second == y);
+      if (pad) {
+        CHECK(pad->first == x);
+        CHECK(pad->second == y);
+      }
     }
   }
   CHECK(!noteNumberToPad(19).has_value()); // CC-mapped button, not a grid note
@@ -162,8 +164,8 @@ TEST(decode_incoming_bytes_skips_embedded_sysex_and_ignores_non_grid_notes) {
 TEST(command_for_button_returns_the_assigned_command_names) {
   CHECK(commandForButton(91) == string("move-row-up"));
   CHECK(commandForButton(92) == string("move-row-down"));
-  CHECK(commandForButton(93) == string("prev-track"));
-  CHECK(commandForButton(94) == string("next-track"));
+  CHECK(commandForButton(93) == string("pad-prev-track"));
+  CHECK(commandForButton(94) == string("pad-next-track"));
 }
 
 TEST(command_for_button_returns_nullopt_for_reserved_and_out_of_range_ccs) {
@@ -214,4 +216,10 @@ TEST(is_pro_mk3_only_led_index_identifies_the_25_exclusive_buttons) {
   }
   for (int cc = 91; cc <= 99; cc++) CHECK(!isProMk3OnlyLedIndex(cc));
   for (int cc = 19; cc <= 89; cc += 10) CHECK(!isProMk3OnlyLedIndex(cc));
+}
+
+TEST(only_mini_mk3_has_the_stop_solo_mute_cycle_button) {
+  CHECK(getModelInfo(Model::MINI_MK3).stop_solo_mute_cycle_button);
+  CHECK(!getModelInfo(Model::X).stop_solo_mute_cycle_button);
+  CHECK(!getModelInfo(Model::PRO_MK3).stop_solo_mute_cycle_button);
 }

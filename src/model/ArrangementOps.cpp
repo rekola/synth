@@ -22,6 +22,14 @@ quantizedBarRow(int raw_row, int rows_per_bar) {
   return ((raw_row + rows_per_bar - 1) / rows_per_bar) * rows_per_bar;
 }
 
+int quantizedBarRow(const BarGrid & bars, int raw_row) {
+  return bars.roundUpToBar(raw_row);
+}
+
+int previousBarRow(const BarGrid & bars, int raw_row) {
+  return bars.barStart(raw_row);
+}
+
 int
 previousBarRow(int raw_row, int rows_per_bar) {
   rows_per_bar = max(1, rows_per_bar);
@@ -172,22 +180,23 @@ deleteClipOrStopButton(Song & song, int track_id, int clip_index, string * delet
   return SlotDelete::CLIP;
 }
 
-int
-duplicateClip(Song & song, int track_id, int from_index, int to_index) {
+int placeClipCopy(Song & song, int track_id, int clip_index, Clip clip) {
+  if (clip_index < 0 || clip.isEmpty()) return -1;
+  clip.setLeafTrackId(track_id);
+  clip.setId(song.generateUniqueClipId());
+  // A clip already there goes, with its arrangement placements.
   auto & clips = song.getClips(track_id);
-  if (from_index < 0 || from_index >= static_cast<int>(clips.size()) || clips[static_cast<size_t>(from_index)].isEmpty()) return -1;
-  if (to_index < 0) {
-    to_index = from_index + 1;
-    while (to_index < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(to_index)].isEmpty()) to_index++;
-  } else if (to_index < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(to_index)].isEmpty()) {
-    return -1;
-  }
-  Clip copy = clips[static_cast<size_t>(from_index)];
-  copy.setId(song.generateUniqueClipId());
-  song.ensureClipAt(track_id, to_index); // may reallocate the list
-  song.getClips(track_id)[static_cast<size_t>(to_index)] = std::move(copy);
+  if (clip_index < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(clip_index)].isEmpty()) deleteClip(song, track_id, clip_index);
+  song.ensureClipAt(track_id, clip_index); // may reallocate the list
+  song.getClips(track_id)[static_cast<size_t>(clip_index)] = std::move(clip);
   song.incVersion();
-  return to_index;
+  return clip_index;
+}
+
+int duplicateClip(Song & song, int track_id, int from_index) {
+  auto & clips = song.getClips(track_id);
+  if (from_index < 0 || from_index >= static_cast<int>(clips.size())) return -1;
+  return placeClipCopy(song, track_id, from_index + 1, clips[static_cast<size_t>(from_index)]);
 }
 
 bool

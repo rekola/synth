@@ -24,6 +24,9 @@ add_executable(synth_tests
 	RenderTests.cpp
 	FMTests.cpp
 	ControllerTests.cpp
+	DeviceSettingsTests.cpp
+	ChoiceListTests.cpp
+	DeviceLabelsTests.cpp
 	PatternBlockOpsTests.cpp
 	PatternSourceTests.cpp
 	ArrangementOpsTests.cpp
@@ -89,6 +92,7 @@ add_executable(synth_tests
 	LaunchpadPanTests.cpp
 	RhythmPatternLibraryTests.cpp
 	SwingTests.cpp
+	TimeSignatureTests.cpp
 	TempoTests.cpp
 	ValueRampTests.cpp
 	SinusoidBankTests.cpp

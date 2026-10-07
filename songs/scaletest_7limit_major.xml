@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song rowsPerBar="1" key="C" temperament="31edo" tempo="200" volume="0.75">
+<song timeSignature="1/16" key="C" temperament="31edo" tempo="200" volume="0.75">
   <instruments>
     <instrument from="piano.acoustic.grand" />
   </instruments>

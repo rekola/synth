@@ -3,6 +3,7 @@
 #define _CONTROLLER_H_
 
 #include "audio/AudioBuffer.h"
+#include "audio/DeviceSettings.h"
 #include "model/Version.h"
 #include "instruments/InstrumentProvider.h"
 #include "playback/EventQueue.h"
@@ -231,6 +232,14 @@ class Controller {
   // already uses (Controller has no idea PatternEditor/LaunchpadManager
   // exist either). Wired in UI::start().
   void setDrumEditRequestListener(std::function<void(int track_id, bool opened)> fn) { drum_edit_requested_ = std::move(fn); }
+
+  // Selecting a clip slot (a Launchpad's shift + pad) without launching it:
+  // the UI moves the shared track cursor and its clip cursor there, empty
+  // slots included, so the slot is where the next recording or paste lands.
+  void setClipSelectListener(std::function<void(int track_id, int clip_index)> fn) { clip_select_requested_ = std::move(fn); }
+  void selectClipSlot(int track_id, int clip_index) {
+    if (clip_select_requested_) clip_select_requested_(track_id, clip_index);
+  }
 
   std::shared_ptr<AudioBuffer> startRecording() {
     current_sample = std::make_shared<AudioBuffer>(1, 0);
@@ -561,6 +570,9 @@ class Controller {
   // advanced enough rows to catch back up (confirmed: this is what made
   // the playhead/info line stop updating after starting playback).
   void receivePlaybackSnapshot(const std::string & buffer_name, const PlaybackInfo & info);
+  // The tempo and running time signature the audio thread reports after a
+  // scene launch, copied into that buffer's song once per change.
+  void mirrorSceneChange(const std::string & buffer_name, const PlaybackInfo & info);
 
   ChannelConfiguration getChannelConfiguration() const { return channel_config; }
 
@@ -581,6 +593,32 @@ class Controller {
   // actually AMBISONIC_BINAURAL (see MixerFactory.cpp).
   bool getUseLegacyBinaural() const { return use_legacy_binaural_; }
   void setUseLegacyBinaural(bool use_legacy) { use_legacy_binaural_ = use_legacy; }
+
+  // Audio/MIDI endpoint choices (see DeviceSettings.h), kept in a per-user
+  // file so they survive a restart. main.cpp hands over what it read from
+  // that file; a command-line override for one run never reaches this copy,
+  // so the file only changes when a device is actually selected.
+  struct DeviceChange {
+    // False when nothing was changed (refused, or the device wasn't there).
+    bool applied = false;
+    // For the status line; may be set even when applied (a save that failed).
+    std::string message;
+  };
+  const DeviceSettings & getDeviceSettings() const { return device_settings_; }
+  void setDeviceSettings(DeviceSettings settings, std::string path) {
+    device_settings_ = std::move(settings);
+    device_settings_path_ = std::move(path);
+  }
+  // Both ask the audio thread to switch (PlaybackControlEvent::
+  // SET_CAPTURE_DEVICE/SET_PLAYBACK_DEVICE, which logs and keeps the old
+  // device if it can't). "" or "default" is the system default. Capture
+  // can't change while recording, threshold-armed or monitoring - the open
+  // stream is in use.
+  DeviceChange setCaptureDevice(const std::string & name);
+  DeviceChange setPlaybackDevice(const std::string & name);
+  // Only records the choice: MIDI is read on the UI thread, which makes the
+  // connection itself (UI::selectMidiInput()).
+  DeviceChange setMidiInput(const std::string & spec);
 
   bool togglePlaying();
 
@@ -1014,6 +1052,29 @@ class Controller {
   // note itself is shared.
   void applyNotePressure(int row, int track_id, int note_column, short velocity, int delay);
 
+  // Takes one raw pressure reading of a held note, at `row` and `delay`
+  // (the position inside the row), and returns the pressure to play and
+  // record: the time-weighted average over the row, assuming the reading
+  // holds to the row's end. Playback holds a stored value for the whole
+  // row, so live sound and playback share one value model. A device stops
+  // sending once pressure saturates, so a held reading counts for as long
+  // as it lasts; rows that got no reading at all are filled with the
+  // value held through them. `write_row` (optional) records a row's value
+  // (every recorded row gets delay 0, the value being the row's as a whole);
+  // empty means play only. While the note is held, tickNotePressure() keeps
+  // writing the held value into each new row as the transport enters it,
+  // so steady pressure is recorded as it happens; `current_row` gives that
+  // row, or -1 when there is none. Both are kept until the note ends, so
+  // they must not capture anything shorter-lived than the Controller.
+  using PressureWriter = std::function<void(int row, short pressure)>;
+  using PressureRowSource = std::function<int()>;
+  short notePressure(int row, int track_id, int note_column, short velocity, int delay, const PressureWriter & write_row = {}, const PressureRowSource & current_row = {});
+  // Once per UI frame: records the held pressure of every held note into
+  // the rows the transport has entered since its last reading.
+  void tickNotePressure();
+  // Forgets a note column's pressure state - its note ended or restarted.
+  void endNotePressure(int track_id, int note_column) { pressure_states_.erase({ track_id, note_column }); }
+
   // Emacs prefix-argument style: transient, one-shot context a caller (the
   // Launchpad command-dispatch path, UI::handleLaunchpadButtonEvent) sets
   // right before invoking a named command by string (executeCommand()),
@@ -1071,6 +1132,19 @@ class Controller {
   void prewarmInstrumentForPreview(const Track * instrument, int note_value) const;
 
  private:
+  // Running state of one held note's pressure, per (track id, note column).
+  // Times are in 1/256 of a row, matching a note's delay.
+  struct PressureState {
+    int row = -1;
+    int start = 0;       // where the row's averaging window begins
+    int last_time = 0;   // time of the latest reading in the row
+    int last_value = 0;  // the latest reading, held until the next one
+    int integral = 0;    // value * time over [start, last_time)
+    PressureWriter write_row;
+    PressureRowSource current_row;
+  };
+  std::map<std::pair<int, int>, PressureState> pressure_states_;
+
   // receivePlaybackSnapshot()'s own model-sync half - see
   // glideTrackSendA()/B()/Main()/glideTrackAzimuth()'s own comment for why
   // this direction (engine's real value -> model) exists at all now,
@@ -1082,6 +1156,10 @@ class Controller {
   ChannelConfiguration channel_config;
   MixerType mixer_type_ = MixerType::AMBISONIC_STEREO;
   bool use_legacy_binaural_ = false;
+  DeviceSettings device_settings_;
+  std::string device_settings_path_;
+  // Saves device_settings_; the message is empty on success.
+  std::string saveDeviceSettings();
 
   // Every open song, keyed by song id (a real file path, or a
   // freshBufferName()-generated name for a never-yet-saved one) - one
@@ -1089,6 +1167,8 @@ class Controller {
   // below). How a song is shown (Arrangement or Session view) is UI
   // state, not a buffer of its own.
   std::map<std::string, std::shared_ptr<Song>> songs_;
+  // The last scene change mirrored into each buffer's song (PlaybackInfo::getSceneSeq()).
+  std::map<std::string, int> mirrored_scene_seq_;
   // hasUnsavedChanges()'s baseline, one per songs_ entry rather than one
   // shared scalar - each buffer's own unsaved-changes state is independent
   // of whichever buffer happens to be active, so switching the active one
@@ -1268,6 +1348,7 @@ class Controller {
   std::function<std::set<std::string>(std::string_view)> command_completer_;
   std::function<void()> buffer_change_listener_;
   std::function<void(int track_id, bool opened)> drum_edit_requested_;
+  std::function<void(int track_id, int clip_index)> clip_select_requested_;
   int pending_command_track_ = -1;
   // Live mirror of the active buffer's own focused_clip_ids_/
   // focused_clip_track_ids_ slots - see getFocusedClip()'s own comment.

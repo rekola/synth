@@ -25,6 +25,7 @@
 #include "../../util/Utf8.h"
 
 #include <string>
+#include <random>
 #include <algorithm>
 #include <cmath>
 #include <fmt/core.h>
@@ -437,6 +438,26 @@ PatternEditor::PatternEditor(UIPlane & parent)
     // SelectionScope::COMMAND: nothing to transpose - Command.h has no
     // numeric/transposable semantics. LOCATOR/EVERYTHING: same - no
     // transposable content once the locator is involved at all.
+    song.incVersion();
+  });
+
+  // Randomizes velocity and delay of the effective region's notes, so
+  // like transpose it never clears the mark. Every press draws fresh
+  // values, so there's nothing to keep reproducible.
+  commands_.define("humanize-region", [this]() {
+    auto & song = getController().getSong();
+    auto grid = source_->editGrid(selectionAnchor(), false);
+    auto track_ids = song.getRootTrackIds();
+    static NoiseGenerator rng{std::random_device{}()};
+
+    auto b = getEffectiveSelectionBounds(song, track_ids);
+    if (b.scope == SelectionScope::TRACK) {
+      humanizePatternBlock(*grid, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi, HumanizeAmount(), rng);
+    } else if (b.scope == SelectionScope::NOTE_COLUMN) {
+      auto track_id = track_ids[static_cast<size_t>(b.track_lo)];
+      humanizePatternBlockNotes(*grid, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi, HumanizeAmount(), rng);
+    }
+    // COMMAND/LOCATOR/EVERYTHING: no notes to humanize, same as transpose.
     song.incVersion();
   });
 
@@ -878,7 +899,14 @@ PatternEditor::copyToClip() {
   // here.
   auto b = getEffectiveSelectionBounds(song, track_ids);
   auto grid = source_->readGrid(selectionAnchor());
-  auto clip = extractClip(*grid, track_id, b.row_lo, b.row_hi, song.getRowsPerBar());
+  // Whole bars of the signature the rows are counted in: the song's, or
+  // the scene's own.
+  BarGrid bars = song.getArrangementBars();
+  if (isSessionMode()) {
+    auto signature = song.getSceneTimeSignature(selectionAnchor().block);
+    bars = {signature.isSet() ? signature : song.getRunningTimeSignature(), 0};
+  }
+  auto clip = extractClip(*grid, track_id, b.row_lo, b.row_hi, bars);
   song.addClip(std::move(clip));
   setSelectionActive(false);
   getController().getUIEventQueue().push(make_unique<LogEvent>("Copied to clip"));
@@ -2512,22 +2540,23 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   setBgColor(styles.window_bg_color);
   putstr(display_row, 0, padding);
 
-  // Bar boundary (a stronger accent than the plain beat one below).
-  auto row_rows_per_bar = song.getRowsPerBar();
+  // Bar boundary (a stronger accent than the plain beat one below); each
+  // block counts its own bars and beats (the arrangement's time signature
+  // markers, a scene's own signature).
 
   // A row's ambient base colors (bar/beat accent, else plain), dimmed
   // outside its block. The playhead's own row highlight is deliberately
   // not part of this - see tintForPlayhead() below.
   // `dim`: how much of kFadedRowDim applies. A dimmed row loses its bar/beat
   // accent in proportion.
-  auto baseColors = [&](int row, float dim, Color & base_fg, Color & base_bg) {
+  auto baseColors = [&](int row, float dim, Color & base_fg, Color & base_bg, int block = -1) {
     base_fg = styles.window_fg_color;
     base_bg = styles.window_bg_color;
     Color accent_fg = base_fg, accent_bg = base_bg;
-    if (row >= 0 && row_rows_per_bar > 0 && row % row_rows_per_bar == 0) {
+    if (block >= 0 && source_->startsBar(block, row)) {
       accent_fg = styles.window_bar_accent_fg_color;
       accent_bg = styles.window_bar_accent_bg_color;
-    } else if (row >= 0 && row % 4 == 0) {
+    } else if (block >= 0 && source_->startsBeat(block, row)) {
       accent_fg = styles.window_beat_accent_fg_color;
       accent_bg = styles.window_beat_accent_bg_color;
     }
@@ -2544,7 +2573,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // is accented by its own row instead, and the dividers between columns,
   // belonging to neither, stay plain.
   Color row_base_fg, row_base_bg;
-  baseColors(pattern_row, is_neighboring_pattern ? 1.0f : 0.0f, row_base_fg, row_base_bg);
+  baseColors(pattern_row, is_neighboring_pattern ? 1.0f : 0.0f, row_base_fg, row_base_bg, pattern_idx);
   bool per_track_rows = !track_ids.empty() && source_->trackBlock(track_ids.front()).has_value();
   Color divider_base_bg = row_base_bg;
   if (per_track_rows) {
@@ -2567,10 +2596,12 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // track's own position row (track_marked, set per track below).
   std::optional<bool> track_marked;
   // How dimmed the column being drawn is (0 to 1); a dimmed area carries no
-  // row highlight.
+  // row highlight, except a track's own position row, which is always in the
+  // pass being played - its dimming is only the fade into that pass.
   float track_dim = 0.0f;
   auto tintForPlayhead = [&](Color base) -> Color {
-    return track_dim <= 0.0f && track_marked.value_or(highlight) ? styles.cursorRowTint(base) : base;
+    if (track_marked.has_value()) return *track_marked ? styles.cursorRowTint(base) : base;
+    return track_dim <= 0.0f && highlight ? styles.cursorRowTint(base) : base;
   };
   // The divider between two tracks belongs to neither, so it takes only
   // the row's own tint, never one track's playhead - none in session
@@ -2761,7 +2792,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       auto own_row = own.block < 0 ? -1 : own.row;
       bool outside = own_row < 0 || own.block != source_->trackBlock(track_id);
       track_dim = outside ? 1.0f : source_->loopPassDim(track_id, address);
-      baseColors(own_row, track_dim, track_base_fg, track_base_bg);
+      baseColors(own_row, track_dim, track_base_fg, track_base_bg, own.block);
     }
     Color fg = track_base_fg, bg = track_base_bg, cell_fg, cell_bg;
 

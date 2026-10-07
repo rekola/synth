@@ -41,7 +41,10 @@ class SpinBox : public UIElement {
   // Exact column width this widget needs at its current label/min/max -
   // callers size their resize() call from this instead of guessing a
   // round number, so layout and hit-testing can never drift apart.
-  int preferredWidth() const { auto c = layoutColumns(); return c.plus_start + buttonWidth(); }
+  int preferredWidth() const {
+    auto c = layoutColumns();
+    return c.plus_start + buttonWidth() + 1;
+  } // +1: blank column right of the right arrow
 
   bool render(const StyleProvider & styles, bool refresh = false) {
     auto value = get_value_();
@@ -70,7 +73,7 @@ class SpinBox : public UIElement {
     // than showing the ambient bar color between the label and the chip.
     setFgColor(styles.window_accent_fg_color);
     setBgColor(styles.window_bg_color);
-    auto chip_width = c.plus_start + buttonWidth() - c.label_width;
+    auto chip_width = c.plus_start + buttonWidth() + 1 - c.label_width; // +1: trailing padding column
     putstr(0, c.label_width, std::string(static_cast<size_t>(std::max(0, chip_width)), ' '));
     putstr(0, c.minus_start, kMinusGlyph);
     putstr(0, c.plus_start, kPlusGlyph);
@@ -100,7 +103,11 @@ class SpinBox : public UIElement {
 
   bool offerInput(const InputEvent & input) override {
     if (input.getId() == NCKEY_BUTTON1) {
-      if (input.getKind() != InputEvent::Kind::RELEASE) return true; // resolved on release, matching TerminalMenu's own click convention
+      if (input.getKind() != InputEvent::Kind::RELEASE) {
+        arrow_press_ = hitsArrow(input.getY(), input.getX());
+        return true;
+      }
+      arrow_press_ = false; // resolved on release, matching TerminalMenu's own click convention
       auto [pos_y, pos_x] = getPosition();
       auto [rows, cols] = getDim();
       auto y = input.getY() - pos_y, x = input.getX() - pos_x;
@@ -133,24 +140,36 @@ class SpinBox : public UIElement {
     if (input.getKind() == InputEvent::Kind::RELEASE) return true; // consume key-up while editing - nothing to do
 
     if (input.getId() == NCKEY_ENTER) {
-      if (!edit_buffer_.empty()) {
-	int parsed = 0;
-	for (char ch : edit_buffer_) parsed = parsed * 10 + (ch - '0');
-	set_value_(std::clamp(parsed, min_value_, max_value_));
-      }
-      cancelEditing();
+      commitEdit();
     } else if (input.getId() == NCKEY_ESC) {
       cancelEditing();
     } else if (input.getId() == NCKEY_BACKSPACE) {
       if (!edit_buffer_.empty()) edit_buffer_.pop_back();
+    } else if (auto d = digit(input.getId(), 10);
+               d >= 0 && !input.hasCtrl() && !input.hasAlt() && !input.hasMeta()) {
+      edit_buffer_ += static_cast<char>('0' + d);
+      if (parsedBuffer() * 10 > max_value_ || static_cast<int>(edit_buffer_.size()) >= fieldWidth()) commitEdit(); // no further digit could apply
     } else {
-      auto d = digit(input.getId(), 10);
-      if (d >= 0 && static_cast<int>(edit_buffer_.size()) < fieldWidth()) edit_buffer_ += static_cast<char>('0' + d);
+      cancelEditing(); // any other key ends the edit and is left for the app to handle
+      return false;
     }
     return true;
   }
 
   bool isEditing() const { return editing_; }
+
+  // Whether a screen cell is on either arrow button; clicks there are
+  // handled without taking focus.
+  bool hitsArrow(int screen_y, int screen_x) const {
+    auto [pos_y, pos_x] = getPosition();
+    auto c = layoutColumns();
+    auto y = screen_y - pos_y, x = screen_x - pos_x;
+    auto w = buttonWidth();
+    return y == 0 && ((x >= c.minus_start && x < c.minus_start + w) || (x >= c.plus_start && x < c.plus_start + w));
+  }
+
+  // True between a press on an arrow and its release.
+  bool arrowPressPending() const { return arrow_press_; }
 
   // Discards any half-typed value without committing it - called both by
   // this widget's own offerInput() (a click on +/-/elsewhere while
@@ -202,6 +221,17 @@ class SpinBox : public UIElement {
     return std::to_string(get_value_());
   }
 
+  int parsedBuffer() const {
+    int parsed = 0;
+    for (char ch : edit_buffer_) parsed = parsed * 10 + (ch - '0');
+    return parsed;
+  }
+
+  void commitEdit() {
+    if (!edit_buffer_.empty()) set_value_(std::clamp(parsedBuffer(), min_value_, max_value_));
+    cancelEditing();
+  }
+
   void step(int delta) { set_value_(std::clamp(get_value_() + delta, min_value_, max_value_)); }
 
   std::string label_;
@@ -211,6 +241,7 @@ class SpinBox : public UIElement {
   Color bg_color_, fg_color_;
 
   bool editing_ = false;
+  bool arrow_press_ = false;
   std::string edit_buffer_;
 
   // Dirty-check cache, same convention InfoLine::current_*_ already uses.

@@ -49,7 +49,6 @@ class LaunchpadManager {
   struct ActiveNote {
     int note_column;
     int row, track_id;
-    int last_aftertouch_value = -1;
   };
 
   // One pad can hold several of these at once now - multi-track record
@@ -205,7 +204,7 @@ class LaunchpadManager {
   // scrolling a pad-grid row window.
   void setSessionMoveBarCallback(std::function<void(int delta)> cb) { session_move_bar_callback_ = std::move(cb); }
 
-  // Called with the new track index when "next-track"/"prev-track" is
+  // Called with the new track index when "pad-next-track"/"pad-prev-track" is
   // pressed outside GridMode::SESSION (see track_move_callback_'s own
   // comment) - moves the one shared cursor every connected Launchpad
   // (and PatternEditor itself) follows, rather than giving the pressing
@@ -295,7 +294,7 @@ class LaunchpadManager {
   // group with DRAW: each of these three presses *selects* that mode
   // unconditionally, even if it's already the current one - the only way
   // to ever leave a mode is to select a *different* one of the four.
-  // DRAW is the one member not reached by a plain press: shift + Solo
+  // DRAW is the one member not reached by a plain press: shift + Custom
   // enters it, or blanks its canvas when it is already showing, and the
   // only way to leave it is selecting one of 95/96/97. 95 also doubles as the mixer-submode toggle - a repeat press
   // while grid_mode is already SESSION flips session_mixer_mode instead
@@ -305,6 +304,12 @@ class LaunchpadManager {
   // case (triggerSceneRow() needs the playback event queue, same as an
   // ordinary Session pad press) and for toggleTrackPicker()'s RECORD_ARM
   // case.
+  //
+  // Per-model right column (LaunchpadProtocol::ModelInfo::
+  // stop_solo_mute_cycle_button): the Mini MK3 has seven scene-launch
+  // buttons (89..29, always launching their scene) and CC19 below them,
+  // which cycles the bottom pad row Clips -> Stop -> Solo -> Mute -> Clips
+  // through the track-picker overlay. It has no mixer submode.
   bool handleRawButton(int cc_number, int device_id, Controller & controller);
 
   // CC98 ("Session Record") on its own, separate entry point: it needs
@@ -335,14 +340,13 @@ class LaunchpadManager {
   bool handleShiftButton(int device_id, bool is_press, Controller & controller);
 
   // Shift (CC91 held) turns the right-side buttons into their labelled
-  // alternate functions (handleRawButton()): Volume (CC89) is Duplicate,
-  // Mute (CC39, Pro MK3 CC30) is Delete, Solo (CC29, Pro MK3 CC20) is Draw,
-  // and any other right-side button does nothing while shift is held. Duplicate lasts as long as Volume
-  // stays held: a Session pad with a clip picks that clip as the source and
-  // a press on an empty slot of the same track column copies it there
-  // (handleSessionPadEvent()); releasing Volume with a source picked but no
-  // destination copies to the next empty slot.
-  void endDuplicate(int device_id, Controller & controller);
+  // alternate functions (handleRawButton()): Record Arm (CC19) is Undo and
+  // Mute (CC39, Pro MK3 CC30) Redo (both reserved, not implemented yet), Solo
+  // (CC29, Pro MK3 CC20) the metronome click, Volume (CC89) Duplicate, Pan
+  // (CC79) Delete, Send A Quantise, Send B Tempo and Stop Clip Swing. Shift +
+  // CC97 is Draw. Duplicate lasts as long as Volume stays held: a press on a
+  // populated Session pad copies that clip into the slot below it,
+  // overwriting (handleSessionPadEvent()).
 
   // The Tempo (shift + Send B) and Swing (shift + Stop Clip) views show the
   // value as a number on the grid (LaunchpadLayout::renderNumber()), and CC91
@@ -548,7 +552,7 @@ class LaunchpadManager {
 
     // Inputs refreshLeds() needs to compute this device's colors.
     bool connected = false;
-    Tuning tuning = Tuning::TET12;
+    Tuning tuning = Tuning::EDO12;
     int key = -1;
     // note_value -> loudness (0..1) for the assigned track's currently
     // sounding notes, used to brighten pads above LAUNCHPAD_IDLE_BRIGHTNESS.
@@ -641,7 +645,7 @@ class LaunchpadManager {
     // clip's own length (`max(0, clip_length - num_devices*32)`),
     // refreshed alongside show_step_grid above (0, its own default,
     // whenever show_step_grid is false - irrelevant then). refreshLeds()
-    // checks whether this is > 0 to decide whether prev-track/next-track's
+    // checks whether this is > 0 to decide whether pad-prev-track/pad-next-track's
     // own paging gesture (handleCommand()'s own comment) has anything
     // left to do - at 0, resetStepGridView()'s own device-order default
     // already shows the whole clip across however many devices are
@@ -738,7 +742,7 @@ class LaunchpadManager {
     // step offset, not a page index, so it can land anywhere, not just on
     // an 8-step boundary (a clip's own length can span more rows than the
     // grid's fixed 8 columns, so this device shows one 8-wide window of
-    // it at a time). Adjusted via the prev-track/next-track buttons
+    // it at a time). Adjusted via the pad-prev-track/pad-next-track buttons
     // (repurposed while this device is actually showing a focused drum
     // clip's own step grid - see LaunchpadManager::handleCommand()'s own
     // comment), kStepGridScrollStep at a time so consecutive windows
@@ -873,17 +877,12 @@ class LaunchpadManager {
     // whichever pad this was, not whatever's currently held.
     bool row_up_shift_pending_pad = false;
     int row_up_shift_pending_x = -1, row_up_shift_pending_y = -1;
-    // Duplicate (shift + Volume, endDuplicate()): held while Volume is, and
-    // the picked source clip (Session column index, clip index), -1 while
-    // none. `duplicate_copied` is whether a destination has been given for
-    // that source.
+    // Duplicate (shift + Volume): held while Volume is.
     bool duplicate_held = false;
-    bool duplicate_copied = false;
     // Quantise (shift + Send A, endQuantize()): held while Send A is, and
     // whether a pad was pressed during the hold.
     bool quantize_held = false;
     bool quantize_used = false;
-    int duplicate_source_column = -1, duplicate_source_clip = -1;
     // Tempo/Swing views (shift + Send B / Stop Clip): the mode to go back
     // to when the view is left by repeating its gesture.
     GridMode number_view_return_mode = GridMode::SESSION;
@@ -894,7 +893,7 @@ class LaunchpadManager {
     int arrow_held_cc = 0;
     bool arrow_repeating = false;
     std::chrono::steady_clock::time_point arrow_press_time, arrow_last_step;
-    // Delete (shift + Mute): held while Mute is - a Session pad press
+    // Delete (shift + Pan): held while Pan is - a Session pad press
     // deletes what its slot holds (SessionPlayer::deleteClip()).
     bool delete_held = false;
 
@@ -904,6 +903,10 @@ class LaunchpadManager {
     // decaying) don't retrigger a send once the colors settle back to idle.
     std::vector<LaunchpadProtocol::PadColor> last_sent_colors;
   };
+
+  // The clip last selected with shift + pad (track id, clip index), -1 for
+  // none; shift + Note opens it for step editing.
+  int selected_track_id_ = -1, selected_clip_index_ = -1;
 
   DeviceState & deviceState(int device_id);
   const DeviceState * findDeviceState(int device_id) const;
@@ -1194,6 +1197,14 @@ class LaunchpadManager {
   // view already does.
   void triggerSceneRow(Controller & controller, int row);
 
+  // True when this device's right column is the Mini MK3 layout (seven scene
+  // buttons plus the Stop/Solo/Mute cycle button).
+  bool hasStopSoloMuteCycle(int device_id) const;
+
+  // Advances the Mini MK3's Stop/Solo/Mute cycle: Clips -> Stop -> Solo ->
+  // Mute -> Clips.
+  void cycleStopSoloMute(int device_id);
+
   // Record Arm (CC19) is one shared, song-wide flag - Controller::
   // isNoteCaptureArmed() for every track type but SampleTrack (its own
   // isThresholdArmed()/isRecording() cover that one), flipped by the
@@ -1249,7 +1260,7 @@ class LaunchpadManager {
   // handleCommand()).
   std::function<void(int delta)> session_move_bar_callback_;
 
-  // "next-track"/"prev-track" outside GridMode::SESSION move the one
+  // "pad-next-track"/"pad-prev-track" outside GridMode::SESSION move the one
   // shared cursor (via this callback, wired to PatternEditor::
   // setCursorTrack()) rather than giving the pressing device its own
   // independent track assignment - deliberate, not an oversight: an

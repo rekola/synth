@@ -109,7 +109,7 @@ you're changing.
   kills the clip's notes, never the background's; a yank lands in whatever
   the cursor is on and stops where that content ends.
 - **`verify_clipgrid_stop_button.py`** - the clip grid's stop buttons:
-  delete-clip on an empty slot removes its stop button (its ⏹ goes), a
+  kill-region on an empty slot removes its stop button (its ⏹ goes), a
   second press has nothing left to delete, and toggle-stop-button brings
   it back.
 - **`verify_inline_editors.py`** - every widget's inline text editor
@@ -425,7 +425,7 @@ you're changing.
   dump confirmed there was real (non-black) content lit to begin with.
 - **`launchpad_paging_lockstep_test.xml` / `fake_launchpad_paging_lockstep.c` /
   `verify_launchpad_paging_lockstep.py`** - the step grid's own
-  prev-track/next-track page-shift gesture (`LaunchpadManager::
+  pad-prev-track/pad-next-track page-shift gesture (`LaunchpadManager::
   handleCommand()`'s own comment) moving every connected device together,
   not just whichever one was pressed: two simulated devices open a
   96-step clip, confirm `resetStepGridView()`'s own device-order split

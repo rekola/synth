@@ -1869,10 +1869,10 @@ public:
       // don't use detune for sample selection - percussion's note_value is
       // already the literal GM MIDI key directly (no scale/EDO structure -
       // edoStepsFor(PERCUSSION) == 0), so deriving it by round-tripping
-      // through a frequency computed via the same TET12-shaped formula is
+      // through a frequency computed via the same EDO12-shaped formula is
       // unnecessary precision loss; every other tuning's note_value is a
       // scale-step index, not a MIDI key, and still needs the real Hz
-      // round-trip to find the nearest 12-TET-mapped SF2 sample key.
+      // round-trip to find the nearest 12-EDO-mapped SF2 sample key.
       int midiKey = (tuning == Tuning::PERCUSSION) ? note_value : int(round(log2(frequency / 440) * 12 + 69));
       auto midiVelocity = (short)(velocity * 127);
       if (midiVelocity > 127) midiVelocity = 127;

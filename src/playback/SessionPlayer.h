@@ -2,6 +2,7 @@
 #define _SESSIONPLAYER_H_
 
 #include "../launchpad/SessionPadHighlight.h"
+#include "../model/Song.h"
 
 #include <functional>
 #include <optional>
@@ -49,7 +50,8 @@ class SessionPlayer {
   // playing. Returns false when there was nothing to overdub or stop.
   bool toggleOverdub(int fallback_track_id);
   // Queues `track_ids`' clip at `clip_index`, launching together at the
-  // next bar.
+  // next bar, along with the scene's own tempo if it has one
+  // (Song::getSceneTempo()).
   void launchScene(int clip_index, const std::vector<int> & track_ids);
   // Stop Clip for one track: silences it from the next bar, taking it over
   // from the arrangement if it wasn't already; a queued stop of its take
@@ -63,6 +65,8 @@ class SessionPlayer {
   // Back to arrangement: the track (or every taken-over track) follows
   // the arrangement again from the next bar, at the transport's position.
   void returnToArrangement(int track_id);
+  // Also hands the bars back to the arrangement's (a launched scene's time
+  // signature no longer applies).
   void returnAllToArrangement();
 
   // Where an arrangement assign (a launch with Record Arm on) writes when
@@ -161,6 +165,11 @@ class SessionPlayer {
   struct QueuedRecording { enum Kind { STOP, FRESH_TAKE, OVERDUB } kind; int clip_index = 0; };
   std::unordered_map<int, QueuedRecording> queued_recording_;
 
+  // Sends a launched scene's tempo and time signature (or `clear_running`)
+  // to the audio thread, which applies them on the bar - see
+  // SongState::queueSceneChange().
+  void queueSceneChange(int tempo, TimeSignature signature, bool clear_running);
+  int scene_seq_ = 0;
   int assign_row_ = 0;
   std::function<void()> assign_playback_starter_;
 };

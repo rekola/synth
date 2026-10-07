@@ -3,6 +3,7 @@
 
 #include "../audio/AudioAPI.h"
 #include "../audio/AudioBuffer.h"
+#include "../audio/AudioDevices.h"
 #include "../launchpad/LaunchpadIO.h"
 #include "../launchpad/LaunchpadManager.h"
 #include "../launchpad/LaunchpadChannelPressureEvent.h"
@@ -58,8 +59,33 @@ UI::shouldClose() const {
   return close_ui_ || shutdownRequested();
 }
 
+void UI::selectCaptureDevice(const std::string & name, const std::string & label) {
+  auto change = getController().setCaptureDevice(name);
+  if (!change.applied)
+    setStatus(change.message);
+  else
+    setStatus("Switching capture device to " + label + (change.message.empty() ? "" : " (" + change.message + ")"));
+}
+
+void UI::selectPlaybackDevice(const std::string & name, const std::string & label) {
+  auto change = getController().setPlaybackDevice(name);
+  if (!change.applied)
+    setStatus(change.message);
+  else
+    setStatus("Switching playback device to " + label + (change.message.empty() ? "" : " (" + change.message + ")"));
+}
+
+void UI::selectMidiInput(const std::string & spec, const std::string & label) {
+  if (!audio_) return;
+  audio_->setMidiInput(spec, getLogger());
+  auto change = getController().setMidiInput(spec);
+  if (!change.message.empty()) setStatus("MIDI input " + label + " (" + change.message + ")");
+}
+
 void
 UI::start(AudioAPI & audio, LaunchpadIO & launchpad_io, LaunchpadManager & launchpad_manager) {
+  audio_ = &audio;
+
   // AlsaAudio::initialize() already logged this to stderr, before this UI
   // (and its StatusLogger) even existed - a failed/missing capture device
   // would otherwise be silently invisible for the rest of the session,
@@ -162,7 +188,7 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
     // shared cursor's own track otherwise (see PatternEditor's constructor,
     // Controller::consumePendingCommandTrack). Harmless to set
     // unconditionally, even for commands that never consume it (octave-up,
-    // next-track, ...) - it's a one-shot value, overwritten or cleared by
+    // pad-next-track, ...) - it's a one-shot value, overwritten or cleared by
     // the very next dispatch either way, so it can never leak into a later,
     // unrelated command.
     auto track_ids = getController().getSong().getPlayableTrackIds();
@@ -309,8 +335,7 @@ UI::handleThresholdRecordingTriggeredEvent(ThresholdRecordingTriggeredEvent & ev
     // it was actually performed rather than shifting the whole take
     // earlier to the bar.
     auto & song = getController().getSong();
-    auto rows_per_bar = std::max(1, song.getRowsPerBar());
-    auto quantized_row = previousBarRow(ev.getRow(), rows_per_bar);
+    auto quantized_row = previousBarRow(song.getArrangementBars(), ev.getRow());
     auto gap_rows = ev.getRow() - quantized_row;
     if (gap_rows > 0) {
       auto gap_frames = gap_rows * getController().getChannelConfiguration().getSampleInterval(song.getTempo());
@@ -340,6 +365,50 @@ UI::initializeCommands() {
   // concrete widget, stays defined in that backend instead (e.g.
   // TerminalUI::initializeWidgets()).
   commands_.define("about", [this]() { showInfoDialog(kAboutTitle, kAboutMarkdown); });
+
+  // The device pickers list what is available right now (read fresh each
+  // time, so a device plugged in a moment ago shows) with the one in use
+  // marked. Choosing that one again changes nothing.
+  auto chooseDevice = [this](const std::string & title, std::vector<Choice> choices, const std::string & current,
+                             std::function<void(const Choice &)> apply) {
+    int current_index = -1;
+    for (size_t i = 0; i < choices.size(); i++) {
+      if (choices[i].value == current || (isDefaultDevice(choices[i].value) && isDefaultDevice(current))) {
+        current_index = static_cast<int>(i);
+        break;
+      }
+    }
+    auto list = choices;
+    showChoiceDialog(title, std::move(choices), current_index, [list, current_index, apply](int index) {
+      if (index == current_index || index < 0 || index >= static_cast<int>(list.size())) return;
+      apply(list[static_cast<size_t>(index)]);
+    });
+  };
+  // Names where the list comes from. The card list is much shorter than the
+  // audio server's own, so a missing device may just mean this build can't
+  // see the server.
+  auto deviceDialogTitle = [](const std::string & what) {
+    return what + (pipeWireAvailable() ? " (PipeWire)" : " (ALSA sound cards)");
+  };
+  commands_.define("select-capture-device", [this, chooseDevice, deviceDialogTitle]() {
+    std::vector<Choice> choices;
+    for (auto & device : listCaptureDevices()) choices.push_back({device.label, device.name});
+    chooseDevice(deviceDialogTitle("Audio input"), std::move(choices), getController().getDeviceSettings().capture,
+                 [this](const Choice & choice) { selectCaptureDevice(choice.value, choice.label); });
+  });
+  commands_.define("select-playback-device", [this, chooseDevice, deviceDialogTitle]() {
+    std::vector<Choice> choices;
+    for (auto & device : listPlaybackDevices()) choices.push_back({device.label, device.name});
+    chooseDevice(deviceDialogTitle("Audio output"), std::move(choices), getController().getDeviceSettings().playback,
+                 [this](const Choice & choice) { selectPlaybackDevice(choice.value, choice.label); });
+  });
+  commands_.define("select-midi-input", [this, chooseDevice]() {
+    std::vector<Choice> choices;
+    choices.push_back({"None", ""});
+    for (auto & source : listMidiSources()) choices.push_back({source.label, source.spec});
+    chooseDevice("MIDI input", std::move(choices), getController().getDeviceSettings().midi_input,
+                 [this](const Choice & choice) { selectMidiInput(choice.value, choice.label); });
+  });
   commands_.define("next-buffer", [this]() {
     getController().cycleBuffer(true);
   });
@@ -387,7 +456,7 @@ UI::initializeCommands() {
 
   // Clip menu entries not built yet - say so rather than failing as an
   // unknown command.
-  for (auto name : { "duplicate-clip", "double-clip-length", "halve-clip-length", "toggle-clip-loop", "rename-clip" }) {
+  for (auto name : {"double-clip-length", "halve-clip-length", "toggle-clip-loop", "rename-clip"}) {
     commands_.define(name, [this, name]() { setStatus(std::string(name) + ": not implemented yet"); });
   }
 

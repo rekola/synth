@@ -55,6 +55,9 @@ class SongState : public TrackState {
 
   void initialize(const Song & song) {
     tempo_ = song.getTempo();
+    synced_song_tempo_ = tempo_;
+    song_signature_ = song.getTimeSignature();
+    running_bars_ = song.getRunningBars();
     swing_ = song.getSwing();
     master_sends_ = song.getMasterTrack().getSends();
     render_context_.setBpm(tempo_);
@@ -136,22 +139,19 @@ class SongState : public TrackState {
   // `breaks_only` applies nothing but a pattern break - for a track
   // Session view has taken over, whose arrangement automation doesn't
   // apply while the song's flow still does.
-  void applyRowCommands(const Pattern & pattern, int pattern_row, int track_id, int frame_offset, bool allow_pattern_break, bool breaks_only = false) {
+  void applyRowCommands(const Pattern & pattern, int pattern_row, int track_id, int frame_offset, bool breaks_only = false) {
     for (auto & command : pattern.getCommandsAt(pattern_row)) {
 	if (!command.isDefined()) continue;
 	if (breaks_only && !command.isPatternBreak()) continue;
-	if (command.isPatternBreak()) {
-	  // Song-level, so only the arrangement's own background gets one - a clip
-	  // carrying one is placed wherever, with no business jumping the song.
-	  if (!allow_pattern_break) continue;
-	  pending_break_ = true;
-	  pending_break_locator_ = command.getBreakLocatorNumber();
-	} else if (command.isRetrigger()) {
-	  scheduleRetrigger(track_id, frame_offset, command.getRetriggerIntervalTicks(), command.getRetriggerVolumeCode());
-	} else if (command.isAzimuthSlide()) {
-	  scheduleAzimuthSlide(track_id, frame_offset, command.getAzimuthSlidePerTick());
-	} else if (command.isVolumeSet() || command.isAzimuthSet()) {
-	  // 0Lxx/0Pxx - an absolute set, applied the instant
+        if (command.isPatternBreak()) {
+          pending_break_ = true;
+          pending_break_row_ = command.getBreakRow();
+        } else if (command.isRetrigger()) {
+          scheduleRetrigger(track_id, frame_offset, command.getRetriggerIntervalTicks(), command.getRetriggerVolumeCode());
+        } else if (command.isAzimuthSlide()) {
+          scheduleAzimuthSlide(track_id, frame_offset, command.getAzimuthSlidePerTick());
+        } else if (command.isVolumeSet() || command.isAzimuthSet()) {
+          // 0Lxx/0Pxx - an absolute set, applied the instant
 	  // this row starts (unlike the slide commands above, there's
 	  // no per-tick ramp to schedule - see Command::
 	  // getSendSetLinear()/getAzimuthSetDegrees()'s own comments on
@@ -166,8 +166,8 @@ class SongState : public TrackState {
 	    if (command.isVolumeSet()) leaf_state->setSendMain(command.getSendSetLinear());
 	    else leaf_state->setAzimuth(command.getAzimuthSetDegrees());
 	  }
-	} else if (command.isVolumeGlide() || command.isSendAGlide() || command.isSendBGlide()) {
-	  // YMxy/YAxy/YBxy - reproduces a recorded Launchpad fader press's
+        } else if (command.isVolumeGlide() || command.isSendAGlide() || command.isSendBGlide()) {
+          // YMxy/YAxy/YBxy - reproduces a recorded Launchpad fader press's
 	  // own real (wall-clock) glide, not just its final value - the
 	  // same LeafTrackState::glideSendMain()/A()/B() ramp a live press
 	  // starts server-side now (Controller::glideTrackSendA()/etc.),
@@ -183,8 +183,8 @@ class SongState : public TrackState {
 	    else if (command.isSendAGlide()) leaf_state->glideSendA(command.getGlideTargetDb(), glide_frames);
 	    else leaf_state->glideSendB(command.getGlideTargetDb(), glide_frames);
 	  }
-	} else if (command.isAzimuthGlide()) {
-	  // YZxy - azimuth's own equivalent of the three above, started
+        } else if (command.isAzimuthGlide()) {
+          // YZxy - azimuth's own equivalent of the three above, started
 	  // through LeafTrackState::glideAzimuth() (which picks its own
 	  // travel direction - see that method's own comment) rather
 	  // than glideSendMain()/A()/B().
@@ -193,7 +193,7 @@ class SongState : public TrackState {
 	    int glide_frames = static_cast<int>(std::lround(command.getGlideDurationSeconds() * getChannelConfiguration().getAudioOutSampleRate()));
 	    leaf_state->glideAzimuth(command.getAzimuthGlideTargetDegrees(), glide_frames);
 	  }
-	}
+        }
       }
   }
 
@@ -225,7 +225,14 @@ class SongState : public TrackState {
       song_structure_ = SongStructure(song);
       song_structure_version_ = song.getMajorVersion();
       swing_ = song.getSwing();
-      applyTempo(song.getTempo());
+      song_signature_ = song.getTimeSignature();
+      // Only a tempo the song itself changed is applied: a scene launch has
+      // set this one ahead of the song's copy (queueSceneChange()), and an
+      // unrelated edit mustn't put it back.
+      if (song.getTempo() != synced_song_tempo_) {
+        synced_song_tempo_ = song.getTempo();
+        applyTempo(synced_song_tempo_);
+      }
     }
 
     // Snapshotting the raw Track* pointers under Song::getTracksMutex()
@@ -571,10 +578,10 @@ class SongState : public TrackState {
 	    auto background_it = arrangement.getPatternsByTrack().find(track_id);
 	    if (background_it != arrangement.getPatternsByTrack().end()) {
 	      auto background_row = background_it->second.getEffectiveRow(row_idx, 0);
-	      applyRowCommands(background_it->second, background_row, track_id, i, true, taken_over);
-	    }
-	    if (from_clip) applyRowCommands(*active_pattern, effective_row, track_id, i, false);
-	  }
+              applyRowCommands(background_it->second, background_row, track_id, i, taken_over);
+            }
+            if (from_clip) applyRowCommands(*active_pattern, effective_row, track_id, i);
+          }
 	}
 	
 	auto remaining = samplesUntilNextRow();
@@ -584,8 +591,8 @@ class SongState : public TrackState {
 	  session_clock_++;
 	  if (pending_break_) {
 	    pending_break_ = false;
-	    jumpToLocator(song, pending_break_locator_);
-	  } else {
+            jumpToNextBar(song, pending_break_row_);
+          } else {
 	    movePosition(1);
 	  }
 	} else {
@@ -799,13 +806,12 @@ class SongState : public TrackState {
   }
 
   // ZBxx (Command::isPatternBreak()): in place of movePosition(1) when the
-  // row completes, go to locator `number` (1-based), or with 0 the next
-  // one after this row, wrapping to the first. With no such locator the
-  // break does nothing.
-  void jumpToLocator(const Song & song, int number) {
-    auto row = number == 0 ? song.getNextLocatorRow(absolute_pos_) : song.getLocatorRow(number);
-    if (row < 0) movePosition(1);
-    else setPosition(row);
+  // row completes, go to row `row_in_bar` of the next bar (the bar's last
+  // row at most). The session clock doesn't follow, so a launched clip
+  // keeps its own place.
+  void jumpToNextBar(const Song & song, int row_in_bar) {
+    auto next_bar = barsAt(absolute_pos_).nextBarStart(absolute_pos_);
+    setPosition(next_bar + std::min(row_in_bar, barsAt(next_bar).barRows() - 1));
   }
 
   // 0Rxy (Command::isRetrigger()) - re-fires every note still playing on
@@ -892,6 +898,23 @@ class SongState : public TrackState {
     ::queueSessionChange(session_tracks_, track_id, target);
     session_seq_ = std::max(session_seq_, seq);
   }
+  // Session view: a launched scene's tempo (0: none) and time signature
+  // (unset: none), or `clear_running` to hand the bars back to the song's,
+  // taking effect with the clips - on the next bar, or at the first row
+  // played when `immediate` (a stopped transport). The tempo is this
+  // thread's own from then on and the signature's bars count from that row;
+  // the UI mirrors both from the snapshot (getSceneSeq()). A new call
+  // replaces one still waiting.
+  void queueSceneChange(int tempo, TimeSignature signature, bool clear_running, bool immediate, int seq) {
+    pending_scene_ = {tempo > 0 || signature.isSet() || clear_running, tempo, signature, clear_running, immediate, seq};
+    if (!pending_scene_.active) scene_seq_ = std::max(scene_seq_, seq);
+  }
+  int getSceneSeq() const { return scene_seq_; }
+  const RunningBars & getRunningBars() const { return running_bars_; }
+  void setRunningBars(RunningBars running) { running_bars_ = running; }
+  // The bars in force at `row` on this thread.
+  BarGrid barsAt(int row) const { return ::barsAt(song_signature_, running_bars_, row); }
+
   // Stops every launched clip now, releasing its voices, and forgets
   // everything queued - on a transport stop too (seq -1 for that).
   void silenceSession(int seq) {
@@ -928,7 +951,7 @@ private:
   struct LastNote { int column; Tuning tuning; float velocity; int note_value; int row; };
   std::unordered_map<int, std::map<int, LastNote>> last_notes_; // track -> note column
   bool pending_break_ = false; // ZBxx seen on the row currently completing
-  int pending_break_locator_ = 0;
+  int pending_break_row_ = 0;
   RenderContext render_context_;
   SendBusProcessor send_bus_;
   AudioBuffer aux_a_sum_, aux_b_sum_;
@@ -966,6 +989,30 @@ private:
   // queueSessionChange()), and the clock they play on: rows played,
   // advancing with the transport but never jumping with it, so a seek or
   // a pattern break doesn't move a launched clip.
+  struct PendingScene {
+    bool active = false;
+    int tempo = 0;
+    TimeSignature signature;
+    bool clear_running = false;
+    bool immediate = false;
+    int seq = 0;
+  };
+  PendingScene pending_scene_;
+  int scene_seq_ = 0;
+  TimeSignature song_signature_{4, 4};
+  RunningBars running_bars_;
+  int synced_song_tempo_ = 0; // the song tempo last applied from the song itself
+
+  void applyPendingScene() {
+    if (pending_scene_.tempo > 0) applyTempo(pending_scene_.tempo);
+    if (pending_scene_.signature.isSet())
+      running_bars_ = {pending_scene_.signature, absolute_pos_};
+    else if (pending_scene_.clear_running)
+      running_bars_ = {};
+    scene_seq_ = std::max(scene_seq_, pending_scene_.seq);
+    pending_scene_ = {};
+  }
+
   SessionTracks session_tracks_;
   int session_clock_ = 0;
   int session_start_clock_ = 0;
@@ -975,8 +1022,10 @@ private:
   // played through, and on the first row of a bar applies whatever is
   // queued.
   void advanceSessionTracks(const Song & song, int frame) {
-    int rows_per_bar = std::max(1, song.getRowsPerBar());
-    bool bar_start = absolute_pos_ % rows_per_bar == 0;
+    // A launched scene's tempo and signature take effect on the bar (or
+    // the first row played, from a stopped transport) the clips launch on.
+    if (pending_scene_.active && (pending_scene_.immediate || barsAt(absolute_pos_).rowInBar(absolute_pos_) == 0)) applyPendingScene();
+    bool bar_start = barsAt(absolute_pos_).rowInBar(absolute_pos_) == 0;
     for (auto it = session_tracks_.begin(); it != session_tracks_.end(); ) {
       auto track_id = it->first;
       auto & session_track = it->second;

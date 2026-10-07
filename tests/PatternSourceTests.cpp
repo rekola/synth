@@ -29,7 +29,7 @@ struct Fixture {
     controller.switchToBuffer(controller.freshBufferName());
     auto & song = controller.getSong();
     track_id = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
-    rows = song.getRowsPerBar();
+    rows = song.getArrangementBars().barRows();
   }
   Song & song() { return controller.getSong(); }
 };

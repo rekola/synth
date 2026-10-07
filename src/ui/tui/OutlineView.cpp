@@ -602,7 +602,14 @@ OutlineView::addSelectedLibraryRhythmToSong() {
     leaf_pattern.setNote(hit.row, column, Note(hit.note, hit.velocity));
     column++;
   }
+  // The clip lands in the scene at the end of the track's clip list; a
+  // scene with a time signature of its own keeps it.
+  auto scene = static_cast<int>(song.getClips(percussion_track->getInternalId()).size());
   song.addClip(std::move(clip));
+  if (!song.getSceneTimeSignature(scene).isSet()) {
+    song.setSceneTimeSignature(scene, {pattern->time_numerator, pattern->time_denominator});
+    song.incVersion();
+  }
 
   // A swung rhythm brings its swing along (overwriting the song's); a
   // straight one leaves the song's swing alone.

@@ -68,15 +68,23 @@ class VoiceState : public TreeNode<VoiceState> {
       has_aux_a = has_aux_a || s.hasChannel(Channel::AuxA);
       has_aux_b = has_aux_b || s.hasChannel(Channel::AuxB);
     }
-    AudioBuffer data(has_main ? accumulator_config.numberOfChannels() : 0, has_aux_a, has_aux_b, frames);
-    data.zero();
+    const int regular = has_main ? accumulator_config.numberOfChannels() : 0;
+    size_t first = 0;
+    AudioBuffer data;
+    if (!rendered.empty() && rendered[0].hasShape(regular, has_aux_a, has_aux_b) && rendered[0].numberOfFrames() == frames) {
+      data = std::move(rendered[0]);
+      first = 1;
+    } else {
+      data = AudioBuffer(regular, has_aux_a, has_aux_b, frames);
+      data.zero();
+    }
 
     // Every child now spatially encodes itself directly, using its own
     // position, to its own real (never reduced) ChannelConfiguration - see
     // InstrumentVoice::encodePosition() - so a child's rendered output
     // always already matches this accumulator's shape exactly; no
     // per-child dispatch is needed, just a plain mix.
-    for (auto & s : rendered) data.mixNamed(s);
+    for (size_t i = first; i < rendered.size(); i++) data.mixNamed(rendered[i]);
 
     return data;
   }

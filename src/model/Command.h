@@ -103,20 +103,16 @@ class Command {
 
   // ZBxx ("Z" being the group every native/global command not tied to a
   // specific per-note effect lives under) - pattern break: once this row
-  // ends, jump to locator `xx` (getBreakLocatorNumber() below) instead of
+  // ends, jump to row `xx` (getBreakRow() below) of the next bar instead of
   // playing on. See docs/commands.md.
   bool isPatternBreak() const { return values_[0] == 'Z' && values_[1] == 'B'; }
 
-  // ZBxx's 1-based locator number, 0 for the next locator (values_[2..3],
-  // 2 hex digits, 0-255) - a
-  // non-hex character parses as digit 0 rather than being rejected
-  // (digit() returns -1 for those). Live typed entry can no longer
-  // actually produce one (updateData() validates columns 2/3 to
-  // [A-Fa-f0-9-] up front), but a Command loaded via the string_view
-  // constructor - straight from a hand-edited/malformed XML file -
-  // bypasses updateData() entirely, so this stays permissive rather than
-  // asserting on data this class didn't itself validate.
-  int getBreakLocatorNumber() const {
+  // ZBxx's row within the next bar (values_[2..3], 2 hex digits, 0-255) -
+  // a non-hex character parses as digit 0 rather than being rejected
+  // (digit() returns -1 for those): typed entry validates columns 2/3 up
+  // front, but a Command loaded via the string_view constructor from a
+  // hand-edited XML file bypasses that.
+  int getBreakRow() const {
     auto hi = digit(values_[2], 16), lo = digit(values_[3], 16);
     return (hi < 0 ? 0 : hi) * 16 + (lo < 0 ? 0 : lo);
   }
@@ -133,9 +129,12 @@ class Command {
     return values_[0] == 'Y' && (values_[1] == 'L' || values_[1] == 'R');
   }
 
-  // Signed degrees-per-tick for isAzimuthSlide() (values_[2..3], same
-  // permissive 2-hex-digit parsing as getBreakLocatorNumber() above) -
-  // negative for left (YLxx), positive for right (YRxx).
+  // Signed degrees-per-tick for isAzimuthSlide() (values_[2..3], 2 hex
+  // digits, 0-255) - negative for left (YLxx), positive for right (YRxx).
+  // A non-hex character parses as digit 0 rather than being rejected
+  // (digit() returns -1 for those): typed entry validates columns 2/3 up
+  // front, but a Command loaded via the string_view constructor from a
+  // hand-edited XML file bypasses that.
   float getAzimuthSlidePerTick() const {
     auto hi = digit(values_[2], 16), lo = digit(values_[3], 16);
     float magnitude = static_cast<float>((hi < 0 ? 0 : hi) * 16 + (lo < 0 ? 0 : lo));
@@ -202,7 +201,7 @@ class Command {
   bool isVolumeSet() const { return values_[0] == '0' && values_[1] == 'L'; }
 
   // xx (0-255, permissive 2-hex-digit
-  // parsing, same as getBreakLocatorNumber()/getAzimuthSlidePerTick())
+  // parsing, same as getAzimuthSlidePerTick())
   // maps linearly in dB from -80dB (perceptually silent - not a true
   // hard-off floor like a fader's own bottom position, but close enough
   // that the distinction is inaudible) up to 0dB/unity at 255 - a finer,

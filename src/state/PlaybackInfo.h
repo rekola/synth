@@ -4,6 +4,7 @@
 #include "TrackInfo.h"
 #include "ActiveVoiceInfo.h"
 #include "SessionTrackInfo.h"
+#include "../model/BarGrid.h"
 
 #include <vector>
 #include <unordered_map>
@@ -83,6 +84,16 @@ class PlaybackInfo {
   // first sees the transport playing a few rows in picks up from.
   int getSessionStartClock() const { return session_start_clock_; }
   void setSessionStartClock(int clock) { session_start_clock_ = clock; }
+  // The tempo and the running time signature the audio thread is playing
+  // with (SongState::queueSceneChange() sets them), and how many scene
+  // changes it had applied when this snapshot was taken - what the UI
+  // mirrors into the song.
+  int getTempo() const { return tempo_; }
+  void setTempo(int tempo) { tempo_ = tempo; }
+  const RunningBars & getRunningBars() const { return running_bars_; }
+  void setRunningBars(RunningBars running) { running_bars_ = running; }
+  int getSceneSeq() const { return scene_seq_; }
+  void setSceneSeq(int seq) { scene_seq_ = seq; }
   // The last Session view change the audio thread had applied when this
   // snapshot was taken - see SessionPlayer's own prediction of it.
   int getSessionSeq() const { return session_seq_; }
@@ -111,6 +122,9 @@ private:
   int session_clock_ = 0;
   int session_start_clock_ = 0;
   int session_seq_ = 0;
+  int tempo_ = 0;
+  RunningBars running_bars_;
+  int scene_seq_ = 0;
 
   std::unordered_map<int, TrackInfo> effect_info_;
   std::unordered_map<int, std::vector<ActiveVoiceInfo> > active_voices_;

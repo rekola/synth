@@ -70,6 +70,13 @@ class AmbisonicDiffuseEncoder {
     std::vector<float> buffer;
     int pos = 0;
     int length = 0;
+
+    // Runs `frames` samples from x into y (they may be the same array). The
+    // feedback delay is at least a few hundred samples, so within a run of
+    // consecutive buffer slots nothing depends on anything else in the run
+    // and eight samples go at once; a run ends where the circular buffer
+    // wraps.
+    void process(const float * x, float * y, int frames);
   };
 
   static constexpr int kStagesPerChannel = 4;
@@ -77,7 +84,10 @@ class AmbisonicDiffuseEncoder {
 
   struct Chain {
     std::array<AllpassStage, kStagesPerChannel> stages;
-    float processSample(float x);
+    // All four stages over the block, in series (stage-major: each stage
+    // is causal and independent of the others' state, so this is the same
+    // result as running every stage per sample).
+    void process(const float * in, float * out, int frames);
   };
 
   std::array<Chain, kAmbisonicChannelCount> chains_;

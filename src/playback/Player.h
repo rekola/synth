@@ -10,6 +10,7 @@
 #include "../dsp/Metronome.h"
 #include "../model/RhythmPatternLibrary.h"
 
+#include <deque>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -152,6 +153,10 @@ private:
   // freshly-built SongState's).
   struct PendingPosition { int row; int edit_seq; };
   std::unordered_map<std::string, PendingPosition> pending_positions_;
+  // Events between a BATCH_BEGIN and its BATCH_END, handled together at the end.
+  bool batch_open_ = false;
+  std::deque<std::unique_ptr<Event>> batch_events_;
+  void handleQueuedEvent(std::unique_ptr<Event> event);
 
   // Get-or-creates buffer `name`'s own live SongState against `song`,
   // constructing and initializing a fresh one the first time any event
@@ -178,6 +183,11 @@ private:
   Controller * controller_;
   bool terminate_ = false;
   bool mixer_changed_ = false;
+  // Set by play() for the duration of the loop, so handlePlaybackControlEvent()
+  // can reach the device (SET_CAPTURE_DEVICE/SET_PLAYBACK_DEVICE).
+  AudioAPI * audio_ = nullptr;
+  // A device switch replaced poll descriptors; play() rebuilds its poll set.
+  bool devices_changed_ = false;
   // play()'s own poll loop - the previous iteration's Controller::
   // isRecording(), compared against the current one to detect recording
   // actually engaging (see play()'s own comment on why this is where the
@@ -226,7 +236,7 @@ private:
   dsp::Metronome metronome_click_;
   // Queues a click for each beat row the playing `state` starts within the
   // next `frames` frames.
-  void scheduleMetronome(const SongState & state, const Song & song, int frames);
+  void scheduleMetronome(const SongState & state, int frames);
   AudioBuffer renderMetronome(int frames);
 
   // Live input's round-trip latency (PlaybackInfo::setRoundTripLatency()),

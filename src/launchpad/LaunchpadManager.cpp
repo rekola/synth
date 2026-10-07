@@ -50,7 +50,7 @@ namespace {
   constexpr auto kMixerHoldPreviewThreshold = std::chrono::milliseconds(600);
 
   // The step grid's own scroll step, both axes - move-row-up/down and
-  // prev-track/next-track each advance this many rows/steps per press,
+  // pad-prev-track/pad-next-track each advance this many rows/steps per press,
   // rather than jumping a whole 8-wide window at once, so consecutive
   // windows overlap and a performer can actually follow where a press
   // landed relative to before (half the fixed 8-row/8-column grid).
@@ -870,32 +870,27 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
     }
     // Shift (CC91 held) makes these the labelled alternate functions
     // instead, in every grid mode: Volume duplicates a clip for as long as
-    // it stays held, Solo enters DRAW (or blanks its canvas if already
-    // there); the rest do nothing rather than launch or switch anything.
+    // it stays held, Pan deletes likewise, Solo toggles the metronome click;
+    // Record Arm (undo) and Mute (redo) are reserved and only say so.
     if (state.row_up_shift_held) {
       state.row_up_shift_combined = true;
       if (cc_number == 89) {
         state.duplicate_held = true;
-        state.duplicate_copied = false;
-        state.duplicate_source_column = state.duplicate_source_clip = -1;
       } else if (cc_number == 59) {
         toggleNumberView(state, GridMode::TEMPO);
       } else if (cc_number == 49) {
         toggleNumberView(state, GridMode::SWING);
-      } else if (cc_number == 39 || cc_number == 30) {
-        state.delete_held = true;
       } else if (cc_number == 79) {
-        controller.sendCommand("toggle-metronome");
+        state.delete_held = true;
       } else if (cc_number == 69) {
         state.quantize_held = true;
         state.quantize_used = false;
       } else if (cc_number == 29 || cc_number == 20) {
-        if (state.grid_mode == GridMode::DRAW) {
-          state.draw_color_index.fill(0);
-        } else {
-          state.grid_mode = GridMode::DRAW;
-          state.track_picker_active = false;
-        }
+        controller.sendCommand("toggle-metronome");
+      } else if (cc_number == 19) {
+        controller.getUIEventQueue().push(std::make_unique<LogEvent>("Undo: not implemented yet"));
+      } else if (cc_number == 39 || cc_number == 30) {
+        controller.getUIEventQueue().push(std::make_unique<LogEvent>("Redo: not implemented yet"));
       }
       return true;
     }
@@ -915,6 +910,13 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
       return true;
     }
     if (!inSessionMixerFamily(state)) return true;
+    if (hasStopSoloMuteCycle(device_id)) {
+      if (cc_number == 19)
+        cycleStopSoloMute(device_id);
+      else
+        triggerSceneRow(controller, (cc_number - 19) / 10);
+      return true;
+    }
     if (!state.session_mixer_mode) {
       triggerSceneRow(controller, (cc_number - 19) / 10);
       return true;
@@ -933,8 +935,7 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
   }
   // 95 ("Session"), 96 ("Note") and 97 ("Custom" - see GridMode::CUSTOM's
   // own comment) are three of a four-member exclusive group with DRAW
-  // (reached through shift + Solo instead - see handleRawButton()'s own
-  // shift branch above): each press
+  // (reached through shift + 97 instead): each press
   // *selects* that mode unconditionally, even if it's already the current
   // one - the only way to ever leave a mode is to select a *different*
   // one of the four. Purely per-device state, like every other toggle
@@ -964,19 +965,41 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
     // one, and none of them are left showing the step grid or any button
     // still highlighted for it. A no-op when nothing's focused.
     controller.closeDrumClipFocus();
-    if (at_plain_session_grid) state.session_mixer_mode = !state.session_mixer_mode;
+    if (at_plain_session_grid && !hasStopSoloMuteCycle(device_id)) state.session_mixer_mode = !state.session_mixer_mode;
     state.grid_mode = GridMode::SESSION;
     state.track_picker_active = false;
     return true;
   }
   if (cc_number == 96) {
     auto & state = deviceState(device_id);
+    // Shift + Note opens (or closes) the selected clip for step editing.
+    if (state.row_up_shift_held) {
+      state.row_up_shift_combined = true;
+      auto & ui_events = controller.getUIEventQueue();
+      if (selected_track_id_ < 0) {
+        ui_events.push(std::make_unique<LogEvent>("Step edit: select a clip first (shift + pad)"));
+      } else if (!controller.toggleDrumClipFocus(selected_track_id_, selected_clip_index_)) {
+        ui_events.push(std::make_unique<LogEvent>("Step edit: that track has no step grid"));
+      }
+      return true;
+    }
     state.grid_mode = GridMode::NOTES;
     state.track_picker_active = false; // Session-view-only - see DeviceState::track_picker_active's own comment
     return true;
   }
   if (cc_number == 97) {
     auto & state = deviceState(device_id);
+    // Shift + Custom is Draw (or blanks its canvas if already there).
+    if (state.row_up_shift_held) {
+      state.row_up_shift_combined = true;
+      if (state.grid_mode == GridMode::DRAW) {
+        state.draw_color_index.fill(0);
+      } else {
+        state.grid_mode = GridMode::DRAW;
+        state.track_picker_active = false;
+      }
+      return true;
+    }
     state.grid_mode = GridMode::CUSTOM;
     state.track_picker_active = false; // Session-view-only - see DeviceState::track_picker_active's own comment
     return true;
@@ -1056,19 +1079,6 @@ LaunchpadManager::handleRecordButton(int device_id, Controller & controller, boo
     ui_events.push(std::make_unique<LogEvent>("Session Record: no playing clip to overdub"));
   }
   return true;
-}
-
-void
-LaunchpadManager::endDuplicate(int device_id, Controller & controller) {
-  auto & state = deviceState(device_id);
-  if (!state.duplicate_held) return;
-  state.duplicate_held = false;
-  if (state.duplicate_source_column >= 0 && !state.duplicate_copied &&
-      state.duplicate_source_column < static_cast<int>(session_.track_ids.size())) {
-    duplicateClip(controller.getSong(), session_.track_ids[static_cast<size_t>(state.duplicate_source_column)], state.duplicate_source_clip);
-  }
-  state.duplicate_copied = false;
-  state.duplicate_source_column = state.duplicate_source_clip = -1;
 }
 
 void
@@ -1189,6 +1199,29 @@ LaunchpadManager::toggleTrackPicker(int device_id, DeviceState::TrackPickerPurpo
   state.track_picker_purpose = purpose; // harmless to set even when closing - only read while track_picker_active
 }
 
+bool LaunchpadManager::hasStopSoloMuteCycle(int device_id) const {
+  if (!launchpad_io_) return false;
+  auto model = launchpad_io_->modelForSession(device_id);
+  return model && LaunchpadProtocol::getModelInfo(*model).stop_solo_mute_cycle_button;
+}
+
+void LaunchpadManager::cycleStopSoloMute(int device_id) {
+  using Purpose = DeviceState::TrackPickerPurpose;
+  auto & state = deviceState(device_id);
+  state.grid_mode = GridMode::SESSION;
+  state.mixer_hold_pending = false; // a tap-only cycle, nothing to revert on release
+  if (!state.track_picker_active) {
+    state.track_picker_active = true;
+    state.track_picker_purpose = Purpose::STOP_CLIP;
+  } else if (state.track_picker_purpose == Purpose::STOP_CLIP) {
+    state.track_picker_purpose = Purpose::SOLO;
+  } else if (state.track_picker_purpose == Purpose::SOLO) {
+    state.track_picker_purpose = Purpose::MUTE;
+  } else {
+    state.track_picker_active = false;
+  }
+}
+
 void
 LaunchpadManager::armMixerHoldPreview(DeviceState & state, bool already_active) {
   if (already_active) {
@@ -1219,10 +1252,10 @@ void
 LaunchpadManager::handleMixerFunctionRelease(int device_id, int cc_number, Controller & controller) {
   auto & state = deviceState(device_id);
   if (cc_number == 89 && state.duplicate_held) {
-    endDuplicate(device_id, controller);
+    state.duplicate_held = false;
     return;
   }
-  if ((cc_number == 39 || cc_number == 30) && state.delete_held) {
+  if (cc_number == 79 && state.delete_held) {
     state.delete_held = false;
     return;
   }
@@ -1342,7 +1375,7 @@ LaunchpadManager::handleCommand(string_view name, int device_id, int fallback_tr
       stepNumberView(view_state, -1, controller);
       return true;
     }
-    if (name == "move-row-up" || name == "next-track" || name == "prev-track" || name == "octave-up" || name == "octave-down") return true;
+    if (name == "move-row-up" || name == "pad-next-track" || name == "pad-prev-track" || name == "octave-up" || name == "octave-down") return true;
   }
   if (name == "octave-up") {
     octaveUp(device_id);
@@ -1376,7 +1409,7 @@ LaunchpadManager::handleCommand(string_view name, int device_id, int fallback_tr
     if (session_move_bar_callback_) session_move_bar_callback_(name == "move-row-down" ? 1 : -1);
     return true;
   }
-  if (name == "next-track" || name == "prev-track") {
+  if (name == "pad-next-track" || name == "pad-prev-track") {
     // Reserved while in Session view (per-device - see handleRawButton()'s
     // own CC95/96 comment): the cursor keys no longer switch this device
     // back to note-entry view, and no longer enter/exit Session view
@@ -1422,7 +1455,7 @@ LaunchpadManager::handleCommand(string_view name, int device_id, int fallback_tr
       // consecutive windows overlap and a performer can actually follow
       // where a press landed relative to before.
       auto current_base = deviceState(ready_ids[0]).drum_edit_step_offset;
-      auto delta = (name == "next-track" ? 1 : -1) * kStepGridScrollStep;
+      auto delta = (name == "pad-next-track" ? 1 : -1) * kStepGridScrollStep;
       auto new_base = std::clamp(current_base + delta, 0, max_base);
       for (int i = 0; i < num_devices; i++) deviceState(ready_ids[static_cast<size_t>(i)]).drum_edit_step_offset = new_base + i * kStepWindow;
       return true;
@@ -1433,7 +1466,7 @@ LaunchpadManager::handleCommand(string_view name, int device_id, int fallback_tr
     // track_move_callback_'s own comment for why every connected
     // Launchpad, not just this one, follows the result.
     if (track_move_callback_) {
-      track_move_callback_(LaunchpadLayout::advanceTrackIndex(fallback_track_index, name == "next-track" ? 1 : -1, num_tracks));
+      track_move_callback_(LaunchpadLayout::advanceTrackIndex(fallback_track_index, name == "pad-next-track" ? 1 : -1, num_tracks));
     }
     return true;
   }
@@ -1839,6 +1872,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // itself already redirected to one) or entirely ordinary, never a mix.
     bool any_session_recording = false;
     for (auto & held : held_notes) {
+      controller.endNotePressure(held.track_id, held.note_column);
       // Always silence the live-audition voice.
       event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, controller.getActiveBufferName(), held.track_id, held.note_column));
 
@@ -1910,66 +1944,74 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     auto held_ptr = findActiveNotes(device_id, ev.getX(), ev.getY());
     if (!held_ptr || held_ptr->empty()) return; // no held note(s) to modulate
 
-    // Rate-limit the persisted pattern write: Pattern::setNote already
-    // overwrites in place (so "one aftertouch object per column per row" is
-    // free), this threshold purely avoids redundant work/redraw churn for
-    // a dense pressure stream, not a correctness requirement. One shared
-    // decision for every held target below (multi-track record fan-out -
-    // the PRESS branch's own comment) - the physical pressure gesture is
-    // the same one input regardless of how many tracks it's feeding, so
-    // there's nothing to rate-limit independently per track.
-    const int aftertouch_threshold = 4;
-    auto & primary = (*held_ptr)[0];
-    auto delta = ev.getVelocity() - primary.last_aftertouch_value;
-    if (delta < 0) delta = -delta;
     bool take_held = false;
     for (auto & held : *held_ptr) take_held = take_held || controller.isSessionRecording(held.track_id);
-    bool write_pressure = delta >= aftertouch_threshold && (deviceState(device_id).capture_enabled || take_held);
-    if (write_pressure) {
-      for (auto & held : *held_ptr) held.last_aftertouch_value = ev.getVelocity();
-    }
+    bool write_pressure = deviceState(device_id).capture_enabled || take_held;
 
     for (auto & held : *held_ptr) {
-      // Live modulation always happens, regardless of Capture/write-
-      // throttle below - mirrors handleMidiEvent's NOTE_PRESSURE handling
-      // exactly.
-      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, controller.getActiveBufferName(), held.track_id, held.note_column, note_value, ev.getVelocity()));
-      if (!write_pressure) continue;
-
-      // A Session View take writes into its own clip at the session clock's
-      // row, like its release does - never on the row the note itself is
-      // on, which would overwrite the note.
-      if (controller.isSessionRecording(held.track_id)) {
-        auto take_row = quantized_row(held.track_id);
-        auto & clips = song.getClips(held.track_id);
-        auto clip_index = controller.getSessionRecordingClipIndex(held.track_id);
-        if (take_row < 0 || take_row == held.row || clip_index < 0 || clip_index >= static_cast<int>(clips.size())) continue;
-        auto & clip = clips[static_cast<size_t>(clip_index)];
-        auto & pattern = clip.getLeafPattern();
-        auto clip_row = take_row % std::max(1, clip.getLength());
-        auto note = pattern.getNote(clip_row, held.note_column);
-        if (!note.isDefined()) note.setDelay(static_cast<short>(take_step.delay));
-        note.setVelocity(static_cast<short>(ev.getVelocity()));
-        pattern.setNote(clip_row, held.note_column, note);
-        continue;
+      int row = 0;
+      int delay = current_delay;
+      int held_track = held.track_id;
+      int column = held.note_column;
+      int note_row = held.row;
+      Controller::PressureWriter write_row;
+      Controller::PressureRowSource current_row;
+      if (controller.isSessionRecording(held_track)) {
+        // A Session View take writes into its own clip at the session clock's
+        // row, like its release does - never on the row the note itself is
+        // on, which would overwrite the note.
+        row = quantized_row(held_track);
+        delay = take_step.delay;
+        if (write_pressure) {
+          write_row = [&controller, held_track, column, note_row](int r, short p) {
+            auto & clips = controller.getSong().getClips(held_track);
+            auto clip_index = controller.getSessionRecordingClipIndex(held_track);
+            if (r < 0 || r == note_row || clip_index < 0 || clip_index >= static_cast<int>(clips.size())) return;
+            auto & clip = clips[static_cast<size_t>(clip_index)];
+            auto & pattern = clip.getLeafPattern();
+            auto clip_row = r % std::max(1, clip.getLength());
+            auto note = pattern.getNote(clip_row, column);
+            if (note.isDefined() && !note.isAftertouch()) return;
+            note.setDelay(0);
+            note.setVelocity(p);
+            pattern.setNote(clip_row, column, note);
+          };
+          current_row = [&controller, held_track]() {
+            if (!controller.isSessionRecording(held_track)) return -1;
+            auto & player = controller.getSessionPlayer();
+            auto step = controller.getSong().getRecordQuantize() ? player.quantizedStep() : player.rawStep();
+            return controller.ensureSessionRecordingClip(held_track, step.step, step.bar_start);
+          };
+        }
+      } else {
+        // While playing (the norm whenever Capture is on - see the PRESS
+        // branch's auto-play push), modulate the currently-sounding row
+        // (transport has moved on, matching handleMidiEvent); while stopped
+        // (only reachable with Capture on if the auto-play push hasn't been
+        // processed by the Player thread yet), modulate the row the note
+        // actually landed on.
+        row = info.isPlaying() ? info.getAbsolutePosition() : held.row;
+        if (write_pressure) {
+          // Not on the note's own row: a row can't hold the note and its
+          // aftertouch, and clearing it would erase the note.
+          write_row = [this, &controller, held_track, column, note_row](int r, short p) {
+            if (r == note_row) return;
+            // Clear before reading, not just before writing - otherwise the
+            // isDefined() check could pick up stale pre-existing data from
+            // before the row was cleared for the live take.
+            if (auto_started_playback_) controller.ensureRowCleared(auto_record_cleared_rows_, r, held_track);
+            controller.applyNotePressure(r, held_track, column, p, 0);
+          };
+          current_row = [&controller]() {
+            auto & playback = controller.getPlaybackInfo();
+            return playback.isPlaying() ? playback.getAbsolutePosition() : -1;
+          };
+        }
       }
-      if (!deviceState(device_id).capture_enabled) continue;
-
-      // While playing (the norm whenever Capture is on - see the PRESS
-      // branch's auto-play push), modulate the currently-sounding row
-      // (transport has moved on, matching handleMidiEvent); while stopped
-      // (only reachable with Capture on if the auto-play push hasn't been
-      // processed by the Player thread yet), modulate the row the note
-      // actually landed on.
-      auto target_row = info.isPlaying() ? info.getAbsolutePosition() : held.row;
-      // Still on the note's own row: a row can't hold the note and its
-      // aftertouch, and writing it would only change the note's velocity.
-      if (info.isPlaying() && target_row == held.row) continue;
-      // Clear before reading, not just before writing - otherwise the
-      // isDefined() check below could pick up stale pre-existing data from
-      // before this row was cleared for the live take.
-      if (auto_started_playback_) controller.ensureRowCleared(auto_record_cleared_rows_, target_row, held.track_id);
-      controller.applyNotePressure(target_row, held.track_id, held.note_column, static_cast<short>(ev.getVelocity()), current_delay);
+      // Live modulation always happens, whether or not Capture records it,
+      // and plays the same row average that gets recorded.
+      auto pressure = controller.notePressure(row, held_track, column, static_cast<short>(ev.getVelocity()), delay, write_row, current_row);
+      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, controller.getActiveBufferName(), held_track, column, note_value, pressure));
     }
     if (write_pressure) song.incVersion();
   }
@@ -1998,11 +2040,7 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
   // Session grid (CC95), since the step grid's own pads mean lane/step,
   // not (track, clip index), and have nothing to shift-combine with at
   // all.
-  // Duplicate held (shift + Volume): every press is swallowed; a populated
-  // slot is picked as the source, an empty slot in the same track column
-  // is where the copy lands. The source stays picked until Volume is
-  // released, so one hold can fill several slots.
-  // Delete held (shift + Mute): every press is swallowed; a populated slot
+  // Delete held (shift + Pan): every press is swallowed; a populated slot
   // loses its clip, an empty one its stop button. Instant unless the clip
   // is sounding on a running transport (SessionPlayer::deleteClip()).
   if (state.delete_held) {
@@ -2027,22 +2065,14 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
     }
     return;
   }
+  // Duplicate held (shift + Volume): a press on a populated slot copies that
+  // clip into the slot below it, overwriting; every press is swallowed.
   if (state.duplicate_held) {
     if (ev.getKind() != LaunchpadPadEvent::PRESS) return;
     auto column = ev.getX();
     if (column < 0 || column >= static_cast<int>(session_.track_ids.size())) return;
-    auto track_id = session_.track_ids[static_cast<size_t>(column)];
-    auto clip_index = 7 - ev.getY();
-    auto & song = controller.getSong();
-    auto & clips = song.getClips(track_id);
-    bool populated = clip_index < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(clip_index)].isEmpty();
-    if (populated) {
-      state.duplicate_source_column = column;
-      state.duplicate_source_clip = clip_index;
-      state.duplicate_copied = false;
-    } else if (column == state.duplicate_source_column) {
-      if (duplicateClip(song, track_id, state.duplicate_source_clip, clip_index) >= 0) state.duplicate_copied = true;
-    }
+    auto slot = duplicateClip(controller.getSong(), session_.track_ids[static_cast<size_t>(column)], 7 - ev.getY());
+    if (slot < 0) controller.getUIEventQueue().push(std::make_unique<LogEvent>("Duplicate: nothing to copy there"));
     return;
   }
   if (ev.getKind() == LaunchpadPadEvent::PRESS && state.row_up_shift_held) {
@@ -2069,7 +2099,11 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
     // see its own comment - so its return value is a pure "did this
     // address a PercussionTrack clip at all" check, nothing further to do
     // here either way.
-    controller.toggleDrumClipFocus(track_id, 7 - ev.getY());
+    // Selecting works on any slot, empty ones included; shift + Note opens
+    // the selected clip for step editing.
+    selected_track_id_ = track_id;
+    selected_clip_index_ = 7 - ev.getY();
+    controller.selectClipSlot(selected_track_id_, selected_clip_index_);
     return;
   }
 
@@ -2115,7 +2149,7 @@ LaunchpadManager::handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & co
   if (ev.getKind() == LaunchpadPadEvent::PRESS) {
     auto & song = controller.getSong();
     // A clip can be longer than the 32 steps shown: this device's step
-    // offset (scrolled with the prev-track/next-track buttons) picks the
+    // offset (scrolled with the pad-prev-track/pad-next-track buttons) picks the
     // window, and a step past the clip's end does nothing.
     auto length = focusedDrumClipLength(song, track_id, controller.getFocusedClip());
     auto max_offset = std::max(0, length - kStepWindow);
@@ -2268,8 +2302,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
         // what releasing will do. Per-device, unlike session_highlight/
         // session_colors below (computed once, identical for every
         // connected device) - only this device's own held press shows it.
-        if ((state.row_up_shift_pending_pad && x == state.row_up_shift_pending_x && y == state.row_up_shift_pending_y) ||
-            (state.duplicate_source_column == x && state.duplicate_source_clip >= 0 && 7 - state.duplicate_source_clip == y)) {
+        if (state.row_up_shift_pending_pad && x == state.row_up_shift_pending_x && y == state.row_up_shift_pending_y) {
           pad.r = pad.g = pad.b = 127;
           colors.push_back(pad);
           continue;
@@ -2585,7 +2618,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // nothing to light.
   //
   // 92/93/94 go dark in GridMode::SESSION - handleCommand()'s own
-  // comments on "next-track"/"prev-track" (reserved there, an
+  // comments on "pad-next-track"/"pad-prev-track" (reserved there, an
   // unconditional no-op returning true) and "move-row-down" (moves the
   // *terminal* overview's own bar cursor, which Session view's own
   // clip-pool/track-column grid never reflects - nothing on this device
@@ -2610,7 +2643,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // true no-op the way paging below can).
   bool row_scroll_useful = !state.show_step_grid || !state.assigned_track_is_percussion;
   uint8_t arrow_white = (arrows_active && row_scroll_useful) ? 30 : 0;
-  // 93/94 ("prev-track"/"next-track") are their own case while the step
+  // 93/94 ("pad-prev-track"/"pad-next-track") are their own case while the step
   // grid is showing: handleCommand()'s own comment repurposes them into
   // scrolling through a clip longer than 8 steps, every connected device
   // shifting together - genuinely useful only when there's still some
@@ -2645,10 +2678,10 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   uint8_t row_up_level = state.row_up_shift_held ? 127 : number_view ? 60 : 30;
   colors.push_back({91, row_up_level, row_up_level, row_up_level});
   colors.push_back({92, arrow_white, arrow_white, arrow_white}); // move-row-down, dim white (static)
-  colors.push_back({93, page_arrow_white, page_arrow_white, page_arrow_white}); // prev-track, dim white (static)
-  colors.push_back({94, page_arrow_white, page_arrow_white, page_arrow_white}); // next-track, dim white (static)
+  colors.push_back({93, page_arrow_white, page_arrow_white, page_arrow_white}); // pad-prev-track, dim white (static)
+  colors.push_back({94, page_arrow_white, page_arrow_white, page_arrow_white}); // pad-next-track, dim white (static)
   // Session (CC95)/Note (CC96)/Custom (CC97) are this device's own
-  // GridMode selectors (DRAW, reached by shift + Solo, is the fourth) -
+  // GridMode selectors (DRAW, reached by shift + Custom, is the fourth) -
   // each lit when active, same
   // active-state convention Mute/Solo already use, not the static/
   // no-state convention the Send/Pan mode buttons use (those repaint the
@@ -2678,7 +2711,11 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // LED ever lights.
   uint8_t note_level = state.show_step_grid ? 0 : state.grid_mode == GridMode::NOTES ? uint8_t(90) : uint8_t(20);
   colors.push_back({96, note_level, note_level, note_level});
-  colors.push_back({97, state.grid_mode == GridMode::CUSTOM ? uint8_t(90) : uint8_t(20), 0, state.grid_mode == GridMode::CUSTOM ? uint8_t(127) : uint8_t(20)});
+  if (state.row_up_shift_held) {
+    colors.push_back({97, 90, 0, 127}); // Draw, purple, while shift is held
+  } else {
+    colors.push_back({97, state.grid_mode == GridMode::CUSTOM ? uint8_t(90) : uint8_t(20), 0, state.grid_mode == GridMode::CUSTOM ? uint8_t(127) : uint8_t(20)});
+  }
   // CC98 (Session Record): bright red while anything is recording
   // (record_arm_led_on), dim red otherwise - dark while the step grid is
   // showing, where a tap would only ever say there is nothing to overdub.
@@ -2714,7 +2751,8 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // once, matching the radio group's own "only one active" rule
   // (inSessionMixerFamily()).
   bool in_mixer_family = inSessionMixerFamily(state);
-  bool mixer_mode = state.session_mixer_mode;
+  bool mini_layout = hasStopSoloMuteCycle(device_id);
+  bool mixer_mode = state.session_mixer_mode && !mini_layout;
   bool picker_record_arm = state.track_picker_active && state.track_picker_purpose == DeviceState::TrackPickerPurpose::RECORD_ARM;
   bool picker_mute = state.track_picker_active && state.track_picker_purpose == DeviceState::TrackPickerPurpose::MUTE;
   bool picker_solo = state.track_picker_active && state.track_picker_purpose == DeviceState::TrackPickerPurpose::SOLO;
@@ -2732,17 +2770,17 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   Rgb volume_button_color = !in_mixer_family ? Rgb{0, 0, 0} : !mixer_mode ? LAUNCHPAD_SCENE_LAUNCH_BUTTON_COLOR : state.grid_mode == GridMode::SEND_MAIN ? LAUNCHPAD_MIXER_VOLUME_BRIGHT : LAUNCHPAD_MIXER_VOLUME_DIM;
 
   // While shift is held (or a duplicate is in progress) the right-side
-  // buttons show their alternate functions instead: Duplicate on Volume
-  // (bright white while active), Draw on Solo, the rest dark.
+  // buttons show their alternate functions instead (see handleRawButton()).
   if (state.row_up_shift_held || state.duplicate_held || state.delete_held || state.quantize_held) {
-    constexpr Rgb kOff{0, 0, 0};
-    record_arm_button_color = mute_button_color = stop_clip_button_color = send_b_button_color = send_a_button_color = pan_button_color = kOff;
-    solo_button_color = Rgb{90, 0, 127};
-    pan_button_color = cached_metronome_on_ ? Rgb{127, 100, 0} : Rgb{40, 30, 0};
+    // Record Arm (undo) and Mute (redo) are reserved: lit dim so they read as
+    // taken, but they do nothing yet.
+    record_arm_button_color = Rgb{40, 40, 40};
+    mute_button_color = Rgb{40, 40, 40};
+    solo_button_color = cached_metronome_on_ ? Rgb{127, 100, 0} : Rgb{40, 30, 0};
+    pan_button_color = state.delete_held ? Rgb{127, 0, 60} : Rgb{60, 0, 30}; // magenta: red is Quantise's record-quantise-off
     // Record Quantise: green while on, red while off, white while held.
     send_a_button_color = state.quantize_held ? Rgb{127, 127, 127} : cached_record_quantize_ ? Rgb{0, 127, 0} : Rgb{127, 0, 0};
     volume_button_color = state.duplicate_held ? Rgb{127, 127, 127} : Rgb{0, 100, 127};
-    mute_button_color = state.delete_held ? Rgb{127, 0, 0} : Rgb{60, 0, 0};
     // Send B opens the Tempo view (blue), Stop Clip the Swing view (orange);
     // bright for the one showing.
     send_b_button_color = state.grid_mode == GridMode::TEMPO ? Rgb{0, 50, 127} : Rgb{0, 20, 50};
@@ -2751,6 +2789,15 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
     // The view being shown is bright, the other dim: a press switches to it.
     send_b_button_color = state.grid_mode == GridMode::TEMPO ? Rgb{0, 50, 127} : Rgb{0, 8, 20};
     stop_clip_button_color = state.grid_mode == GridMode::SWING ? Rgb{127, 55, 0} : Rgb{20, 9, 0};
+  }
+  if (mini_layout && in_mixer_family && !(state.row_up_shift_held || state.duplicate_held || state.delete_held || state.quantize_held || number_view) &&
+      !(state.grid_mode == GridMode::NOTES && !state.show_step_grid)) {
+    // Bottom button shows the cycle position: white while the bottom row
+    // shows clips, then the picker's own hue per purpose.
+    record_arm_button_color = !state.track_picker_active                                                 ? Rgb{127, 127, 127}
+                              : state.track_picker_purpose == DeviceState::TrackPickerPurpose::STOP_CLIP ? LAUNCHPAD_TRACK_PICKER_STOP_CLIP_BRIGHT
+                              : state.track_picker_purpose == DeviceState::TrackPickerPurpose::SOLO      ? LAUNCHPAD_TRACK_PICKER_SOLO_BRIGHT
+                                                                                                         : LAUNCHPAD_TRACK_PICKER_MUTE_BRIGHT;
   }
   colors.push_back({19, record_arm_button_color.r, record_arm_button_color.g, record_arm_button_color.b});
   colors.push_back({29, solo_button_color.r, solo_button_color.g, solo_button_color.b});
@@ -3062,7 +3109,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     // is handled below by simply skipping the per-track lookups.
     auto track_index = fallback_track_index;
 
-    Tuning tuning = Tuning::TET12;
+    Tuning tuning = Tuning::EDO12;
     int key_val = -1;
     unordered_map<int, float> active_note_loudness;
     bool is_percussion = false;

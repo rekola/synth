@@ -52,6 +52,7 @@ class Clip : public SongObject {
   explicit Clip(int leaf_track_id) : leaf_track_id_(leaf_track_id) { }
 
   int getLeafTrackId() const { return leaf_track_id_; }
+  void setLeafTrackId(int id) { leaf_track_id_ = id; }
 
   // The leaf track's own Pattern - always present, even on a freshly
   // constructed Clip (a default-constructed Pattern is already a valid,

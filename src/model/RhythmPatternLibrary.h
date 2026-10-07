@@ -52,6 +52,11 @@ struct RhythmPatternTemplate {
   // is written on the straight grid (its eighths on even rows) and its
   // length must be a whole number of swing pairs.
   int swing = swing::kStraight;
+  // The time signature the rows make up (a row is a sixteenth, so length is
+  // a whole number of bars of it); given to the scene the rhythm is added
+  // into when that scene has none.
+  int time_numerator = 4;
+  int time_denominator = 4;
 };
 
 // Every built-in template, grouped and named after real, widely-taught

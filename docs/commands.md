@@ -44,15 +44,14 @@ Playback reads a row's commands from two places, in this order
 in the arrangement, then a placed clip's own pattern at the row the clip is
 supplying. So automation recorded into the background keeps playing
 under any clip, and a clip's own command wins where both set the same
-thing on the same row. `ZBxx` (pattern break) is song-level, so only the
-background's is honoured - a clip carrying one is placed wherever, with
-no business jumping the song.
+thing on the same row. `ZBxx` (pattern break) works from either, and
+does the same wherever the clip is played from.
 
 ## Implemented
 
 | Command | Description | Source |
 |---|---|---|
-| `ZBxx` | Pattern break - when this row ends, jump to locator `xx` (1-based, in row order) instead of playing on; `ZB00` jumps to the next locator after this row, wrapping to the first. With no such locator it does nothing. | Renoise (`ZBxx`), adapted: its `xx` is a row of the next pattern |
+| `ZBxx` | Pattern break - when this row ends, jump to row `xx` (hex, from 0) of the next bar instead of playing on; past the bar's end it lands on the bar's last row. `ZB00` starts the next bar from its first row. Ends a scene early: on a clip's last row it keeps the clip bar-aligned, and a queued Session change fires on that bar. A launched clip keeps its own place (the session clock doesn't follow the jump), so a clip shorter than a whole number of bars still loops in step with the others. On a bar's last row `ZB00` changes nothing. | Renoise (`ZBxx`), adapted: a bar stands in for its pattern |
 | `-Lxx` | Set Volume (Send Main) - an absolute level: `xx` (0-255) maps linearly in dB from -80dB up to 0dB/unity at 255, applied the instant this row starts and reaching every already-sounding voice too. | Renoise (`Lxx`, "Track Level") |
 | `-Pxx` | Set azimuth to an absolute position - `xx` maps linearly from -90 degrees at `00` through +90 at `FF`. | Renoise (adapted) - matches Renoise's own `Pxx` "Track Pan" exactly, `xx` meaning included (`00`/`80`/`FF` = left/center/right), but that's a real, inherited limitation: it only reaches half this engine's own 360-degree azimuth range (the front hemisphere), since Renoise's own panning has no "behind" to reach in the first place. |
 | `-Rxy` | Retrigger - re-fire every note still playing on the track every `y` ticks (12 ticks/row; `y=0`, or an interval reaching the next row, adds nothing) with volume factor `x` applied to each retrigger: `0`/`8` no change; `1`-`5` lower the original volume by 3/6/12/25/50%; `6`/`7` cumulatively lower by 33/50%; `9`-`D` raise it by 3/6/12/25/50%; `E`/`F` cumulatively raise by 50/100%. | Renoise (`Rxy`) |

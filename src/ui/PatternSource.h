@@ -60,6 +60,9 @@ class PatternSource {
   virtual RowAddress normalize(int block, int row) const = 0;
   virtual int blockCount() const = 0;
   virtual int blockLength(int block) const = 0;
+  // Whether `row` of `block` starts a bar / a beat, for the row accents.
+  virtual bool startsBar(int, int row) const { return row % 16 == 0; }
+  virtual bool startsBeat(int, int row) const { return row % 4 == 0; }
 
   // Rows from `from` to `to`, negative when `to` comes first.
   int rowsBetween(RowAddress from, RowAddress to) const {

@@ -152,6 +152,11 @@ class AudioBuffer final {
     return hasChannel(ch) ? getChannelData(indexOf(ch)) : nullptr;
   }
 
+  // Same regular channel count and the same aux channels present.
+  bool hasShape(int regular_channels, bool aux_a, bool aux_b) const {
+    return regularChannelCount() == regular_channels && has_aux_a_ == aux_a && has_aux_b_ == aux_b;
+  }
+
   int auxCount() const { return (hasChannel(Channel::AuxA) ? 1 : 0) + (hasChannel(Channel::AuxB) ? 1 : 0); }
   int regularChannelCount() const { return channels_ - auxCount(); }
 

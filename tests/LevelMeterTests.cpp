@@ -2,11 +2,12 @@
 
 #include "../src/ui/tui/LevelMeter.h"
 
-TEST(level_meter_fraction_maps_minus_40_to_0_db_onto_0_to_1) {
+TEST(level_meter_fraction_maps_minus_60_to_0_db_onto_0_to_1) {
   CHECK(level_meter::fraction(-1.0f) == 0.0f); // TrackInfo's "no reading yet"
   CHECK(level_meter::fraction(0.0f) == 0.0f);
-  CHECK(level_meter::fraction(0.01f) == 0.0f); // -40dB
-  CHECK_NEAR(level_meter::fraction(0.1f), 0.5f, 1e-5f); // -20dB
+  CHECK(level_meter::fraction(0.001f) == 0.0f);                 // -60dB
+  CHECK_NEAR(level_meter::fraction(0.01f), 1.0f / 3.0f, 1e-5f); // -40dB
+  CHECK_NEAR(level_meter::fraction(0.1f), 2.0f / 3.0f, 1e-5f);  // -20dB
   CHECK_NEAR(level_meter::fraction(1.0f), 1.0f, 1e-5f);
   CHECK(level_meter::fraction(2.0f) == 1.0f); // clipped to full scale
 }

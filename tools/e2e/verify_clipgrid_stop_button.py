@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drive the clip grid's stop buttons through a pty: delete-clip (Del) on
+"""Drive the clip grid's stop buttons through a pty: kill-region (Del) on
 an empty slot removes its stop button - the slot's ⏹ goes - and a second
 press has nothing left to delete; toggle-stop-button brings it back."""
 import os
@@ -38,7 +38,7 @@ def main():
 
     scr.send(DEL)
     scr.pump(0.5)
-    check("delete-clip on an empty slot removes its stop button", "⏹" not in first_slot(scr), scr)
+    check("kill-region on an empty slot removes its stop button", "⏹" not in first_slot(scr), scr)
     scr.send(DEL)
     scr.pump(0.5)
     check("a second press has nothing left to delete", "⏹" not in first_slot(scr), scr)

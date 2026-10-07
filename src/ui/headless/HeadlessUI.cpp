@@ -90,6 +90,10 @@ HeadlessUI::showInfoDialog(const std::string & title, const std::string & markdo
   setStatus(title + "\n" + markdown);
 }
 
+void HeadlessUI::showChoiceDialog(const std::string & title, std::vector<Choice>, int, std::function<void(int)>) {
+  setStatus(title + ": choosing needs the terminal UI (see --list-devices)");
+}
+
 void
 HeadlessUI::handleLogEvent(LogEvent & ev) {
   setStatus(ev.getText());
@@ -168,6 +172,7 @@ HeadlessUI::tick() {
   auto & controller = getController();
   auto & song = controller.getSong();
   controller.syncMonitoring();
+  controller.tickNotePressure();
   controller.getSessionPlayer().tick();
 
   if (launchpad_manager_) {

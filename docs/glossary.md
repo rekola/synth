@@ -21,9 +21,14 @@ heard when previewed and adopted by the song on Add to Song. Named Rhythm, not G
 groove above.
 
 **Row**
-This engine's grid step: one sixteenth note, so 4 rows per beat and
-`rowsPerBar` rows per bar (default 16). Notes sit on rows; a note's delay
+This engine's grid step: one sixteenth note, so a 4/4 bar is 16 rows and a
+beat 4 (other time signatures: see time_signatures.md). Notes sit on rows; a note's delay
 column shifts it by a fraction of a row.
+
+**Scene**
+A row of the clip grid: the clips at one position across every track's clip
+list, launched together. It has no object of its own beyond an optional
+name, tempo and time signature stored by position. See scenes.md.
 
 **Swing**
 A timing feel that delays the second note of each eighth-note pair (4 rows),

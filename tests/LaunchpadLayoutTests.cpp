@@ -11,10 +11,10 @@ using namespace std;
 using namespace LaunchpadLayout;
 
 TEST(edo_steps_matches_each_pitched_tuning_and_is_zero_for_unpitched_ones) {
-  CHECK(edoSteps(Tuning::TET12) == 12);
-  CHECK(edoSteps(Tuning::TET19) == 19);
-  CHECK(edoSteps(Tuning::TET31) == 31);
-  CHECK(edoSteps(Tuning::TET53) == 53);
+  CHECK(edoSteps(Tuning::EDO12) == 12);
+  CHECK(edoSteps(Tuning::EDO19) == 19);
+  CHECK(edoSteps(Tuning::EDO31) == 31);
+  CHECK(edoSteps(Tuning::EDO53) == 53);
   CHECK(edoSteps(Tuning::PERCUSSION) == 0);
 }
 

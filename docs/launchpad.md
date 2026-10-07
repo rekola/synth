@@ -18,7 +18,7 @@ Note mode (96):
   fourth (three degrees) higher, so a seven-note scale lines up the same way
   from row to row. The scale is the song's (`Song::getScale()`); with none
   chosen it plays as major. 91/92 shift the octave while a clip is open.
-  Microtonal scales (`microtonal-a`/`-b`) give the same layout in 31/53-EDO.
+  Microtonal scales (`otonal`/`utonal`) give the same layout in 31/53-EDO.
 
 ### Colors
 
@@ -69,7 +69,7 @@ gesture).
 | 95 | Session: the clip grid |
 | 96 | Note: the drum rack or scale keyboard (plus the step rows while a clip is open for editing) |
 | 97 | Custom: nothing yet |
-| shift + Solo | Draw: a per-pad coloring toy, independent of the song |
+| shift + 97 | Draw: a per-pad coloring toy, independent of the song |
 | shift + Send B | Tempo: the song's tempo as a number on the pads |
 | shift + Stop Clip | Swing: the song's swing as a number on the pads |
 
@@ -78,6 +78,12 @@ A second press of 95 while on the plain Session grid toggles **mixer submode**
 and orange in mixer submode.
 
 ## Right-side buttons
+
+The right column differs per model. Pads, the top row and the shift
+functions below are the same on both. The Pro MK3 has no layout of its own and
+is untested.
+
+### Launchpad X
 
 Record Arm (19), Volume (89), Pan (79), Send A (69), Send B (59), Stop Clip
 (49), Mute (39) and Solo (29) share one dispatch.
@@ -102,6 +108,34 @@ of the action: red for Stop Clip and Record Arm, yellow for Mute, blue for
 Solo. Picking a track toggles that action for it and leaves the picker open;
 the same button again closes it.
 
+### Launchpad Mini MK3
+
+The Mini's buttons are labelled differently: seven scene launch buttons, and
+the lowest one is Stop/Solo/Mute. The Mini has no mixer mode at all (no
+Volume/Pan/Send faders, and a second press of 95 does nothing special), but it
+keeps the shift actions below.
+
+| Button | Function |
+| --- | --- |
+| 89, 79, 69, 59, 49, 39, 29 (top to bottom) | launch the scene at that row (rows 1-7 from the top) |
+| 19 (Stop/Solo/Mute) | cycles the bottom pad row between clips, Stop, Solo and Mute |
+
+The bottom pad row starts out showing clips like the rest of the grid. Each
+press of the Stop/Solo/Mute button moves to the next function, and the press
+after Mute returns to clips:
+
+| Press | LED | Bottom row |
+| --- | --- | --- |
+| default / fourth | white | clips |
+| first | red | Stop: bright pad = a clip is playing on that track; pressing it stops the track |
+| second | blue | Solo: bright pad = the track is soloed; pressing it toggles solo |
+| third | yellow | Mute: bright pad = the track is audible; dim = muted; pressing it toggles mute |
+
+In Note mode the Stop/Solo/Mute button still starts and stops capture, as
+Record Arm does on the other models. While shift is held the right column
+shows the shift functions below by position (Volume, Pan, ... are the Mini's
+scene buttons 89, 79, ...).
+
 ### Shift
 
 Holding the up arrow (91) turns the eight right-side buttons into the
@@ -111,29 +145,40 @@ release so a combination never has to be undone.
 
 | Button | Action |
 | --- | --- |
+| Record Arm (19) | **Undo** (reserved, not implemented yet) |
+| Mute (39, Pro MK3 30) | **Redo** (reserved, not implemented yet) |
+| Solo (29, Pro MK3 20) | **Metronome** click |
 | Volume (89) | **Duplicate** |
-| Pan (79) | **Metronome** |
+| Pan (79) | **Delete** |
 | Send A (69) | **Quantise** |
 | Send B (59) | **Tempo** view |
 | Stop Clip (49) | **Swing** view |
-| Mute (39, Pro MK3 30) | **Delete** |
-| Solo (29) | **Draw** |
+| 97 | **Draw** mode |
+| a clip pad | **Select** the clip without launching it |
+| 96 (Note) | **Step edit**: open or close the selected clip's step grid |
+| 96 (Note) | **Step edit**: open or close the selected clip's step grid |
 
-Record Arm (19) does nothing under shift. Apart from Swing, which follows the
-Pro MK3's own view, the assignment is simply the next free button. It carries
-no meaning.
+Following the Pro MK3's own shift layer, Undo, Redo and the click sit where
+Novation puts them; the rest are ours. Undo and Redo only report that they are
+not implemented. LEDs: Undo and Redo dim white, Delete magenta (red is
+Quantise's off state).
+
+#### Select a clip
+
+Hold shift and press a clip pad to select it without launching it, empty slots
+included. The track and clip become the cursor, so the next recording or paste
+lands there. Nothing opens by itself: shift + Note (96) then opens the
+selected clip for step editing, as under the drum machine, and closes it again.
 
 #### Duplicate
 
-Hold shift and Volume, then press a populated clip pad to pick it as the
-source (white). Press an empty slot in the same track column to copy it there.
-The copy is independent and never overwrites. One hold can fill several slots.
-Releasing Volume with a source picked and no destination copies to the next
-empty slot.
+Hold shift and Volume, then press a populated clip pad to copy that clip into
+the slot below it, overwriting whatever is there (an overwritten clip's
+arrangement placements are removed). One hold can copy several clips.
 
 #### Metronome
 
-Press shift + Pan to toggle a click on every beat while the transport plays,
+Press shift + Solo to toggle a click on every beat while the transport plays,
 accented on the first beat of the bar. The same action is the
 `toggle-metronome` command. It is not saved with the song. The LED is amber,
 bright while on.
@@ -163,11 +208,11 @@ Here shift + Send A stands in for that button.
 
 #### Delete
 
-Hold shift and Mute, then press a clip pad to delete what its slot holds, one
+Hold shift and Pan, then press a clip pad to delete what its slot holds, one
 layer per press: a populated slot loses its clip (leaving an empty slot in
 place, so the scene rows of every other track stay aligned), and an empty slot
-loses its stop button. Session view only. The terminal's `delete-clip` does the
-same.
+loses its stop button. Session view only. The terminal's `kill-region` in the clip grid
+does the same, but also puts the clip on the clipboard (see `terminal.md`).
 
 With the transport stopped, or when the clip is not sounding, the delete is
 instant. A clip that is playing, or queued, on its track while the transport

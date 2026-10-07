@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstring>
 #include <cassert>
 #include <vector>
 
@@ -248,7 +249,10 @@ inline int acnDegree(int channelIndex) {
 // presence ordering), so plain positional indexing here is correct.
 class AmbisonicVoiceEncoder {
  public:
-  void encodeBlock(AudioBuffer & out, const float * mono, int frames, const AmbisonicGains & target) {
+  // With `overwrite`, the regular channels are written rather than added to,
+  // so `out` need not be zeroed first: every regular channel is set (any
+  // beyond the encoder's gains to silence).
+  void encodeBlock(AudioBuffer & out, const float * mono, int frames, const AmbisonicGains & target, bool overwrite = false) {
     if (!seeded_) {
       prev_ = target;
       seeded_ = true;
@@ -263,7 +267,11 @@ class AmbisonicVoiceEncoder {
     for (int c = 0; c < n; c++) {
       const float from = frames > 1 ? prev_[static_cast<size_t>(c)] : target[static_cast<size_t>(c)];
       const float slope = (target[static_cast<size_t>(c)] - prev_[static_cast<size_t>(c)]) * step;
-      dsp::rampMix(out.getChannelData(c), mono, from, slope, frames);
+      if (overwrite) dsp::rampSet(out.getChannelData(c), mono, from, slope, frames);
+      else dsp::rampMix(out.getChannelData(c), mono, from, slope, frames);
+    }
+    if (overwrite) {
+      for (int c = n; c < regular; c++) std::memset(out.getChannelData(c), 0, static_cast<size_t>(frames) * sizeof(float));
     }
 
     prev_ = target;

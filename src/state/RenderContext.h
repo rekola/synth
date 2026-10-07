@@ -110,9 +110,9 @@ class RenderContext {
   // sample, like a note-off, not wherever its render block starts. The
   // tuning argument is never read for a stop-all event (isStopAll() short-
   // circuits straight to stopAllVoices() before anything looks at it) -
-  // any valid value works; TET31 is just this engine's own default.
+  // any valid value works; EDO31 is just this engine's own default.
   void addPendingStopAll(int track_id, int frame) {
-    pending_events_[track_id][frame].push_back(TrackEvent(TrackEvent::kStopAll, Tuning::TET31, 0.0f));
+    pending_events_[track_id][frame].push_back(TrackEvent(TrackEvent::kStopAll, Tuning::EDO31, 0.0f));
   }
 
   std::map<int, std::vector<TrackEvent> > & getPendingEvents(int track_id) {

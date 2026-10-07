@@ -1,8 +1,8 @@
 """Extra-button regression test: switches to NOTES mode (CC96 - GridMode
-defaults to SESSION, where "next-track"/"prev-track" are reserved as an
+defaults to SESSION, where "pad-next-track"/"pad-prev-track" are reserved as an
 unconditional no-op and the arrow buttons go dark, since neither one does
 anything a performer looking at the Launchpad could ever see there), then
-sends a CC94 (next-track) press/release and verifies both that the
+sends a CC94 (pad-next-track) press/release and verifies both that the
 command actually fired (cursor moved from track 0 into track 1) and that
 the corresponding button LEDs (dark in Session, dim white in Note mode)
 were sent as part of the same combined LED SysEx as the pads."""
@@ -50,7 +50,7 @@ scr.pump(1.0)
 
 y = find_pattern_row(scr.screen)
 line_before = scr.screen.display[y]
-print("row before CC94 (next-track) press:", repr(line_before))
+print("row before CC94 (pad-next-track) press:", repr(line_before))
 bar1 = line_before.index("│")
 bar2 = line_before.index("│", bar1 + 1)
 print("track 0/1 boundary at bar columns:", bar1, bar2)
@@ -67,14 +67,14 @@ while time.time() < deadline and fake.poll() is None:
 
 # Confirm the on-screen highlighted/cursor column moved from track 0's span
 # into track 1's (i.e. past the second bar) - the observable effect of the
-# "next-track" command actually firing.
+# "pad-next-track" command actually firing.
 def highlighted_cols(screen, y, bg="bcd4e0"):
     return [x for x in range(screen.columns) if screen.buffer[y][x].bg == bg]
 
 y_final = find_pattern_row(scr.screen)
 cols_final = highlighted_cols(scr.screen, y_final)
 print("highlighted columns after CC94 press:", cols_final, "(track 1 starts after column", bar2, ")")
-check("CC94 (next-track) moved the cursor from track 0 into track 1",
+check("CC94 (pad-next-track) moved the cursor from track 0 into track 1",
       cols_final and min(cols_final) > bar2, f"cols={cols_final}, bar2={bar2}")
 
 try:
@@ -96,14 +96,14 @@ print(fake_output)
 check("synth sent a Programmer-Mode-enter SysEx to the simulated device",
       "0e 01" in fake_output.replace(",", " "), fake_output)
 
-# Button LED colors: CC93=0x5d, CC94=0x5e (prev/next-track) are dark in
+# Button LED colors: CC93=0x5d, CC94=0x5e (prev/pad-next-track) are dark in
 # Session view (nothing a performer could see happens there) and dim white
 # (60,60,60 -> 3c 3c 3c) once in Note mode; sent as part of the same
 # combined LED SysEx as the pads.
 def leds(label):
     return "\n".join(line for line in fake_output.splitlines() if f"received sysex {label} " in line)
 
-for cc, name in ((0x5d, "CC93 (prev-track)"), (0x5e, "CC94 (next-track)")):
+for cc, name in ((0x5d, "CC93 (pad-prev-track)"), (0x5e, "CC94 (pad-next-track)")):
     check(f"Button LED for {name} is dark in Session view",
           f"03 {cc:02x} 00 00 00" in leds("at startup"), leds("at startup")[:400])
     check(f"Button LED for {name} is dim white in Note mode",

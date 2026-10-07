@@ -25,6 +25,16 @@ class PlaybackControlEvent : public Event {
   // number. SILENCE_SESSION: stops every launched clip now
   // (SongState::silenceSession()) - parameter1 = the sequence number.
   //
+  // QUEUE_SCENE_CHANGE: a launched scene's tempo and time signature
+  // (SongState::queueSceneChange()) - parameter1 = tempo (0: none),
+  // parameter2 = numerator * 100 + denominator (0: none), parameter3 =
+  // flags (1: hand the bars back to the song's, 2: apply at the first row
+  // played rather than on a bar), parameter4 = the sequence number.
+  //
+  // BATCH_BEGIN/BATCH_END: Player holds every event between them and
+  // handles them together once BATCH_END arrives, so one gesture that
+  // sends several events (a scene launch) is never split across a bar.
+  //
   // SHIFT_SESSION_POSITION: moves every launched clip's playhead by
   // parameter1 rows (SongState::shiftSession()) - parameter2 = the
   // sequence number.
@@ -77,12 +87,50 @@ class PlaybackControlEvent : public Event {
   // isMonitoring()), 0 once it shouldn't.
   // SET_METRONOME: parameter1 = 1 to click on every beat while the
   // transport plays, 0 to stop. buffer_name is unused.
-  enum Type { PLAY = 1, STOP, TERMINATE, MOVE_POSITION, CLEAR_VOICES, PLAY_NOTE, STOP_NOTE, STOP_ALL_NOTES, NOTE_PRESSURE, MIXER_CHANGED,
-              SET_TRACK_MUTED, SET_TRACK_SOLO, SET_TRACK_SEND_A, SET_TRACK_SEND_B, SET_TRACK_SEND_MAIN, SET_TRACK_AZIMUTH,
-              CHANNEL_PRESSURE, SET_RECORDING_MUTE, SET_POSITION, BUFFER_KILLED, BUFFER_RENAMED, SET_BUS_EFFECT,
-              QUEUE_SESSION_CHANGE, SILENCE_SESSION, PREVIEW_NOTE, PREVIEW_POOL_NOTE, PREVIEW_RHYTHM, PREVIEW_STOP,
-              GLIDE_TRACK_SEND_A, GLIDE_TRACK_SEND_B, GLIDE_TRACK_SEND_MAIN, GLIDE_TRACK_AZIMUTH,
-              SET_TRACK_MONITORING, SHIFT_SESSION_POSITION, SET_METRONOME };
+  // SET_CAPTURE_DEVICE/SET_PLAYBACK_DEVICE: switch the audio input/output
+  // (AudioAPI::setCaptureDevice()/setPlaybackDevice()). buffer_name is
+  // repurposed for the device name (a DeviceSettings audio name, "" for the
+  // system default); there is no owning buffer.
+  enum Type { PLAY = 1,
+              STOP,
+              TERMINATE,
+              MOVE_POSITION,
+              CLEAR_VOICES,
+              PLAY_NOTE,
+              STOP_NOTE,
+              STOP_ALL_NOTES,
+              NOTE_PRESSURE,
+              MIXER_CHANGED,
+              SET_TRACK_MUTED,
+              SET_TRACK_SOLO,
+              SET_TRACK_SEND_A,
+              SET_TRACK_SEND_B,
+              SET_TRACK_SEND_MAIN,
+              SET_TRACK_AZIMUTH,
+              CHANNEL_PRESSURE,
+              SET_RECORDING_MUTE,
+              SET_POSITION,
+              BUFFER_KILLED,
+              BUFFER_RENAMED,
+              SET_BUS_EFFECT,
+              QUEUE_SESSION_CHANGE,
+              SILENCE_SESSION,
+              PREVIEW_NOTE,
+              PREVIEW_POOL_NOTE,
+              PREVIEW_RHYTHM,
+              PREVIEW_STOP,
+              GLIDE_TRACK_SEND_A,
+              GLIDE_TRACK_SEND_B,
+              GLIDE_TRACK_SEND_MAIN,
+              GLIDE_TRACK_AZIMUTH,
+              SET_TRACK_MONITORING,
+              SHIFT_SESSION_POSITION,
+              SET_METRONOME,
+              QUEUE_SCENE_CHANGE,
+              BATCH_BEGIN,
+              BATCH_END,
+              SET_CAPTURE_DEVICE,
+              SET_PLAYBACK_DEVICE };
 
   // buffer_name says which open buffer this event targets - required for
   // every type except the genuinely buffer-agnostic ones (TERMINATE,

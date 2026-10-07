@@ -5,6 +5,10 @@
 #include "../model/Clip.h"
 #include "PatternGrid.h"
 
+#include <algorithm>
+#include <cmath>
+#include <limits>
+
 using namespace std;
 
 namespace {
@@ -22,6 +26,14 @@ const Command & commandAt(const PatternGrid & grid, int track_id, int row) {
   int pattern_row;
   auto pattern = grid.findCommands(track_id, row, pattern_row);
   return pattern ? pattern->getCommand(pattern_row) : kNoCommand;
+}
+
+void humanizeNote(Note & note, const HumanizeAmount & amount, NoiseGenerator & rng) {
+  if (!note.isDefined() || note.isOff() || note.isAftertouch()) return;
+  auto velocity = note.getVelocity() + static_cast<int>(lround(rng.next() * static_cast<float>(amount.velocity)));
+  auto delay = note.getDelay() + static_cast<int>(lround((rng.next() + 1.0f) * 0.5f * static_cast<float>(amount.delay)));
+  note.setVelocity(static_cast<short>(clamp(velocity, 1, 127)));
+  note.setDelay(static_cast<short>(clamp(delay, 0, 255)));
 }
 
 }
@@ -74,6 +86,18 @@ transposePatternBlock(PatternGrid & grid, int row_lo, int row_hi,
       if (notes.empty()) continue; // don't materialize a real entry in the sparse notes_ map
       for (auto & note : notes) note.transpose(up ? 1 : -1);
       pattern->setNotes(pattern_row, notes);
+    }
+  }
+}
+
+void
+humanizePatternBlock(PatternGrid & grid, int row_lo, int row_hi,
+		     const vector<int> & track_ids, int track_lo, int track_hi,
+		     const HumanizeAmount & amount, NoiseGenerator & rng) {
+  for (int row = row_lo; row <= row_hi; row++) {
+    for (int t = track_lo; t <= track_hi; t++) {
+      humanizePatternBlockNotes(grid, row, row, track_ids[static_cast<size_t>(t)], 0,
+				numeric_limits<int>::max(), amount, rng);
     }
   }
 }
@@ -166,6 +190,26 @@ transposePatternBlockNotes(PatternGrid & grid, int row_lo, int row_hi,
 }
 
 void
+humanizePatternBlockNotes(PatternGrid & grid, int row_lo, int row_hi,
+			  int track_id, int note_lo, int note_hi,
+			  const HumanizeAmount & amount, NoiseGenerator & rng) {
+  for (int row = row_lo; row <= row_hi; row++) {
+    int pattern_row;
+    auto pattern = grid.find(track_id, row, pattern_row);
+    if (!pattern) continue;
+    auto notes = pattern->getNotes(pattern_row);
+    if (notes.empty()) continue;
+    auto hi = min(note_hi, static_cast<int>(notes.size()) - 1);
+    for (int i = note_lo; i <= hi; i++) humanizeNote(notes[static_cast<size_t>(i)], amount, rng);
+    // Same GCC false positive as transposePatternBlockNotes().
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfree-nonheap-object"
+    pattern->setNotes(pattern_row, notes);
+#pragma GCC diagnostic pop
+  }
+}
+
+void
 pastePatternBlockNotes(PatternGrid & grid, const PatternBlock & block, int num_rows,
 		       int target_row, int track_id, int target_note_offset) {
   for (size_t row_offset = 0; row_offset < block.size(); row_offset++) {
@@ -210,12 +254,9 @@ pastePatternBlockCommand(PatternGrid & grid, const vector<Command> & block, int 
   }
 }
 
-Clip
-extractClip(const PatternGrid & grid, int track_id, int row_lo, int row_hi, int rows_per_bar) {
-  if (rows_per_bar <= 0) rows_per_bar = 1;
-  auto bar_start = (row_lo / rows_per_bar) * rows_per_bar;
-  auto span = row_hi - bar_start + 1;
-  auto length = ((span + rows_per_bar - 1) / rows_per_bar) * rows_per_bar;
+Clip extractClip(const PatternGrid & grid, int track_id, int row_lo, int row_hi, const BarGrid & bars) {
+  auto bar_start = bars.barStart(row_lo);
+  auto length = std::max(1, bars.roundUpToBar(row_hi + 1) - bar_start);
 
   Clip clip(track_id);
   clip.setLength(length);

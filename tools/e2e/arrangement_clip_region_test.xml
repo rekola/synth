@@ -2,7 +2,7 @@
 <!-- Purpose-built for verify_arrangement_clip_region.py: one track whose
      16-row section has a C-4 on every background row, and a 4-row one-shot
      clip of E-4s placed at row 4 (shown on rows 4-7). -->
-<song temperament="12edo" tempo="120" rowsPerBar="4">
+<song temperament="12edo" tempo="120" timeSignature="1/4">
   <instruments>
     <instrument from="string.bowed.ensemble.pizzicato" />
   </instruments>

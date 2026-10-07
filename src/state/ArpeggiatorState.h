@@ -160,7 +160,7 @@ class ArpeggiatorState : public InstrumentTrackState {
 
   const Arpeggiator & arp_;
   const Track * instrument_ = nullptr; // last note-on's resolved instrument - see noteOn()
-  Tuning tuning_ = Tuning::TET12; // last note-on's own tuning - see noteOn()/rebuildStepPool()
+  Tuning tuning_ = Tuning::EDO12; // last note-on's own tuning - see noteOn()/rebuildStepPool()
   NoteCoordinate note_coord_; // last note-on's own coordinate - see noteOn()/triggerNextStep()
 
   std::vector<HeldNote> held_notes_;

@@ -172,11 +172,11 @@ static bool parsePatternContent(XMLElement & pattern_element, Pattern & pattern,
   return true;
 }
 
-static Tuning parse_tuning(string_view tuning_text, Tuning default_tuning = Tuning::TET31) {
-  if (tuning_text == "12edo") return Tuning::TET12;
-  else if (tuning_text == "31edo") return Tuning::TET31;
-  else if (tuning_text == "19edo") return Tuning::TET19;
-  else if (tuning_text == "53edo") return Tuning::TET53;
+static Tuning parse_tuning(string_view tuning_text, Tuning default_tuning = Tuning::EDO31) {
+  if (tuning_text == "12edo") return Tuning::EDO12;
+  else if (tuning_text == "31edo") return Tuning::EDO31;
+  else if (tuning_text == "19edo") return Tuning::EDO19;
+  else if (tuning_text == "53edo") return Tuning::EDO53;
   assert(0);
   return default_tuning;
 }
@@ -570,6 +570,20 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
       }
     }
 
+    scenes_.clear();
+    if (auto scenes = song->FirstChildElement("scenes")) {
+      for (auto it = scenes->FirstChildElement("scene"); it; it = it->NextSiblingElement("scene")) {
+        auto name = it->Attribute("name");
+        SceneInfo info{name ? name : "", std::max(it->IntAttribute("tempo", 0), 0)};
+        int numerator = 0, denominator = 0;
+        if (auto text = it->Attribute("timeSignature"); text && sscanf(text, "%d/%d", &numerator, &denominator) == 2 && numerator > 0 && numerator <= 32 && scenename::validDenominator(denominator)) {
+          info.time_numerator = numerator;
+          info.time_denominator = denominator;
+        }
+        scenes_.push_back(std::move(info));
+      }
+    }
+
     // Song's own flat, per-track clip list (Song.h's own getClips()
     // comment), read before <arrangement>, whose instances refer to it.
     // One <trackClips> per track that has any clips at all, grouping that
@@ -845,6 +859,21 @@ Song::save(const std::string & filename) const {
     }
   }
 
+  // One <scene> per scene position, in order; trailing empty ones aren't written.
+  auto named_scenes = scenes_.size();
+  while (named_scenes > 0 && scenes_[named_scenes - 1].name.empty() && scenes_[named_scenes - 1].tempo == 0 && scenes_[named_scenes - 1].time_numerator == 0) named_scenes--;
+  if (named_scenes > 0) {
+    auto scenes = doc.NewElement("scenes");
+    root->InsertEndChild(scenes);
+    for (size_t i = 0; i < named_scenes; i++) {
+      auto scene = doc.NewElement("scene");
+      if (!scenes_[i].name.empty()) scene->SetAttribute("name", scenes_[i].name.c_str());
+      if (scenes_[i].tempo > 0) scene->SetAttribute("tempo", scenes_[i].tempo);
+      if (scenes_[i].time_numerator > 0) scene->SetAttribute("timeSignature", (std::to_string(scenes_[i].time_numerator) + "/" + std::to_string(scenes_[i].time_denominator)).c_str());
+      scenes->InsertEndChild(scene);
+    }
+  }
+
   // <arrangement> - the one timeline. Each track's own content is grouped
   // under one element per kind ("track" once, not on every child).
   auto arrangement_element = doc.NewElement("arrangement");
@@ -916,7 +945,7 @@ void
 Song::loadParameters(const ParameterSource & input) {
   SongObject::loadParameters(input);
 
-  auto song_tuning = parse_tuning(input.get<std::string>("temperament"), Tuning::TET31);
+  auto song_tuning = parse_tuning(input.get<std::string>("temperament"), Tuning::EDO31);
   setTuning(song_tuning);
 
   auto key_text = input.get<std::string>("key");
@@ -925,7 +954,14 @@ Song::loadParameters(const ParameterSource & input) {
   setScale(scaleFromString(input.get<std::string>("scale")));
 
   setTempo(input.get<int>("tempo", 90));
-  setRowsPerBar(input.get<int>("rowsPerBar", 16));
+  time_signature_ = {4, 4};
+  auto signature = TimeSignature::parse(input.get<std::string>("timeSignature"));
+  if (signature && signature->isSet()) time_signature_ = *signature;
+  auto running = TimeSignature::parse(input.get<std::string>("transportTimeSignature"));
+  if (running && running->isSet())
+    running_bars_ = {*running, input.get<int>("transportBarOrigin", 0)};
+  else
+    clearRunningBars();
   setSwing(input.get<int>("swing", swing::kStraight));
   setRecordQuantize(input.get<bool>("recordQuantize", false));
 
@@ -958,19 +994,6 @@ Song::setLocator(int row, std::string name) {
 }
 
 int
-Song::getLocatorRow(int number) const {
-  if (number < 1 || number > static_cast<int>(locators_.size())) return -1;
-  return std::next(locators_.begin(), number - 1)->first;
-}
-
-int
-Song::getNextLocatorRow(int row) const {
-  if (locators_.empty()) return -1;
-  auto it = locators_.upper_bound(row);
-  return it != locators_.end() ? it->first : locators_.begin()->first;
-}
-
-int
 Song::getArrangementLength() const {
   int end = 0;
   for (auto & [ track_id, pattern ] : arrangement_.getPatternsByTrack()) end = std::max(end, pattern.getContentEnd());
@@ -987,14 +1010,18 @@ Song::getArrangementLength() const {
   }
   for (auto & [ track_id, background ] : arrangement_.getSampleBackgroundsByTrack()) end = std::max(end, background.getRowCount(bpm_));
   if (!locators_.empty()) end = std::max(end, locators_.rbegin()->first + 1);
-  return (end + rows_per_bar_ - 1) / rows_per_bar_ * rows_per_bar_;
+  return getArrangementBars().roundUpToBar(end);
 }
 
 std::string
 Song::formatPosition(int absolute_row) const {
   auto row = std::max(absolute_row, 0);
-  auto in_bar = row % rows_per_bar_;
-  return std::to_string(row / rows_per_bar_ + 1) + "." + std::to_string(in_bar / 4 + 1) + "." + std::to_string(in_bar % 4 + 1);
+  auto bars = getBarsAt(row);
+  // Numbering carries on from the bar the running bars began in.
+  auto bar = bars.barIndex(row);
+  if (running_bars_.isActive() && row >= running_bars_.origin) bar += getArrangementBars().barIndex(running_bars_.origin);
+  auto in_bar = bars.rowInBar(row);
+  return std::to_string(bar + 1) + "." + std::to_string(in_bar / bars.beatRows() + 1) + "." + std::to_string(in_bar % bars.beatRows() + 1);
 }
 
 void
@@ -1005,7 +1032,11 @@ Song::storeParameters(ParameterSource & output) const {
   if (getScale() != Scale::NONE) output.set("scale", to_string(getScale()));
   output.set("temperament", to_string(getTuning()));
   output.set("tempo", getTempo());
-  output.set("rowsPerBar", getRowsPerBar(), 16);
+  if (time_signature_ != TimeSignature{4, 4}) output.set("timeSignature", time_signature_.toString());
+  if (running_bars_.isActive()) {
+    output.set("transportTimeSignature", running_bars_.signature.toString());
+    output.set("transportBarOrigin", running_bars_.origin);
+  }
   output.set("swing", getSwing(), swing::kStraight);
   if (getRecordQuantize()) output.set("recordQuantize", true);
 

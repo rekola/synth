@@ -1,5 +1,5 @@
 // Two-device regression test for the step grid's own page-shift gesture
-// (prev-track/next-track while showing a step-sequenced clip longer than
+// (pad-prev-track/pad-next-track while showing a step-sequenced clip longer than
 // 8 steps - LaunchpadManager::handleCommand()'s own comment): every
 // connected device is supposed to shift together, in lockstep, not just
 // whichever one the press landed on - see
@@ -90,6 +90,8 @@ int main(int argc, char ** argv) {
     send_note(seq, port, 0x90, 11, 100);
     usleep(100000);
     send_note(seq, port, 0x80, 11, 0);
+    send_cc(seq, port, 96, 127); // shift + Note opens the selected clip
+    send_cc(seq, port, 96, 0);
     usleep(200000);
     send_cc(seq, port, 91, 0);
   } else {

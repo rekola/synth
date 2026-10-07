@@ -198,7 +198,7 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
   // covers 31-EDO (a fresh song's own default tuning) at a middle
   // register - a song in a different tuning, or a note far from that
   // register, still builds lazily on first use, same as before.
-  prewarmLibraryInstruments(instrument_provider, channel_config, Tuning::TET31);
+  prewarmLibraryInstruments(instrument_provider, channel_config, Tuning::EDO31);
 
   // MixerFactory falls back to AMBISONIC_STEREO at actual mixer-
   // construction time if no SOFA file resolves (or libmysofa isn't
@@ -462,10 +462,11 @@ Controller::toggleDrumClipFocus(int track_id, int clip_index) {
     // 8-step window at a time (or several windows at once, split across
     // multiple connected devices).
     auto next_ordinal = clips.size() + 1;
+    auto scene = static_cast<int>(clips.size());
     auto & clip = song->addClip(Clip(track_id));
     clip.setName(fmt::format("Clip {}", next_ordinal));
     clip.setLooping(true);
-    clip.setLength(std::max(1, song->getRowsPerBar()));
+    clip.setLength(song->getSceneBarRows(scene)); // a bar of the scene's own time signature
     setFocusedClip(track_id, clip.getId());
   }
   if (drum_edit_requested_) drum_edit_requested_(track_id, true);
@@ -754,6 +755,7 @@ Controller::setEditPosition(int absolute_row) {
 
 void
 Controller::receivePlaybackSnapshot(const string & buffer_name, const PlaybackInfo & info) {
+  mirrorSceneChange(buffer_name, info);
   if (buffer_name != active_buffer_name_) {
     // Not the buffer currently being looked at/edited - e.g. a buffer
     // still playing in the background while a different one is active
@@ -791,6 +793,24 @@ Controller::receivePlaybackSnapshot(const string & buffer_name, const PlaybackIn
   // LED refresh included - it still just reads the model, unchanged) ever
   // shows a value the engine hasn't actually reached yet.
   syncLiveGlideStateIntoModel(buffer_name, info);
+}
+
+// A launched scene's tempo and running time signature are applied by the
+// audio thread (SongState::queueSceneChange()); the song's copies, which
+// the UI shows and saves, follow once a snapshot reports the change - and
+// only then, so a tempo edited since isn't overwritten by an older snapshot.
+void Controller::mirrorSceneChange(const string & buffer_name, const PlaybackInfo & info) {
+  auto & mirrored = mirrored_scene_seq_[buffer_name];
+  if (info.getSceneSeq() <= mirrored) return;
+  mirrored = info.getSceneSeq();
+  auto song = getSongByName(buffer_name);
+  if (!song) return;
+  song->setRunningBars(info.getRunningBars());
+  if (info.getTempo() > 0 && info.getTempo() != song->getTempo()) {
+    song->setTempo(static_cast<short>(info.getTempo()));
+    song->incVersion();
+    if (buffer_name == active_buffer_name_) getUIEventQueue().push(make_unique<LogEvent>("Tempo " + to_string(song->getTempo())));
+  }
 }
 
 // A plain dynamic_cast, not a TrackType enumeration - "is this track
@@ -868,6 +888,38 @@ Controller::cycleTrackMonitor(int track_id) {
   leaf_track->setMonitor(m);
   song->incVersion();
   getUIEventQueue().push(make_unique<LogEvent>(m == Monitor::IN ? "Monitor: In" : m == Monitor::OFF ? "Monitor: Off" : "Monitor: Auto"));
+}
+
+std::string
+Controller::saveDeviceSettings() {
+  if (device_settings_path_.empty()) return "";
+  if (::saveDeviceSettings(device_settings_path_, device_settings_)) return "";
+  return "couldn't save the selection to " + device_settings_path_;
+}
+
+Controller::DeviceChange
+Controller::setCaptureDevice(const std::string & name) {
+  if (isRecording() || isThresholdArmed() || !monitored_track_ids_.empty()) {
+    return {false, "Can't change the capture device while recording or monitoring"};
+  }
+  auto value = isDefaultDevice(name) ? std::string() : name;
+  device_settings_.capture = value;
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_CAPTURE_DEVICE, value));
+  return {true, saveDeviceSettings()};
+}
+
+Controller::DeviceChange
+Controller::setPlaybackDevice(const std::string & name) {
+  auto value = isDefaultDevice(name) ? std::string() : name;
+  device_settings_.playback = value;
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_PLAYBACK_DEVICE, value));
+  return {true, saveDeviceSettings()};
+}
+
+Controller::DeviceChange
+Controller::setMidiInput(const std::string & spec) {
+  device_settings_.midi_input = spec;
+  return {true, saveDeviceSettings()};
 }
 
 bool
@@ -1101,8 +1153,8 @@ Controller::ensureNoteRecordingClip(std::unordered_map<int, std::string> & clip_
   // comment on why): a live take's first note has to land inside whatever
   // clip gets created for it, and the clip can't start later than that
   // note's own row.
-  auto rows_per_bar = std::max(1, song->getRowsPerBar());
-  row = previousBarRow(row, rows_per_bar);
+  row = previousBarRow(song->getArrangementBars(), row);
+  auto rows_per_bar = song->getArrangementBars().barRows();
   auto active = resolveInstanceAt(*song, track_id, row);
   if (active.clip_index >= 0) return; // a real clip is already active here - write into it, same as ordinary editing
 
@@ -1140,7 +1192,7 @@ Controller::extendRecordingClipsIfNeeded(std::unordered_map<int, std::string> & 
   auto song = getCurrentSong();
   if (!song) return;
   auto & arrangement = song->getArrangement();
-  auto rows_per_bar = std::max(1, song->getRowsPerBar());
+  auto rows_per_bar = song->getArrangementBars().barRows();
 
   for (auto & [ track_id, clip_id ] : clip_ids) {
     // Only while this track actually has a note held right now - see this
@@ -1250,7 +1302,7 @@ Controller::ensureSessionRecordingClip(int track_id, int absolute_step, int bar_
     // second beat rather than its first, and the clip's own loop point
     // still has to be the bar boundary either way.
     if (take.origin_step < 0) {
-      take.origin_step = bar_start_step >= 0 ? bar_start_step : previousBarRow(absolute_step, std::max(1, song->getRowsPerBar()));
+      take.origin_step = bar_start_step >= 0 ? bar_start_step : song->barStartAtOrBefore(absolute_step);
     }
   }
   extendSessionRecordingClipIfNeeded(track_id, absolute_step); // no-op for an overdub take - see its own comment
@@ -1277,7 +1329,7 @@ Controller::extendSessionRecordingClipIfNeeded(int track_id, int absolute_step) 
   auto & clip = clips[static_cast<size_t>(take.clip_index)];
 
   auto row = absolute_step - take.origin_step;
-  auto rows_per_bar = std::max(1, song->getRowsPerBar());
+  auto rows_per_bar = song->barRowsAt(absolute_step);
   auto window_last_row = std::max(1, clip.getLength()) - 1;
   while (window_last_row - row < rows_per_bar) {
     clip.setLength(std::max(1, clip.getLength()) + rows_per_bar);
@@ -1306,7 +1358,7 @@ Controller::trimSessionRecordingClip(int track_id) {
 
   int last_row = -1;
   for (auto & [ row, notes ] : clip.getLeafPattern().getNotesByRow()) last_row = std::max(last_row, static_cast<int>(row));
-  auto rows_per_bar = std::max(1, song->getRowsPerBar());
+  auto rows_per_bar = song->barRowsAt(song->barStartAtOrBefore(take.origin_step));
   // Nothing actually landed (the take was armed and disarmed with no note
   // ever written) - one bar, matching every other freshly-created clip's
   // own minimum length rather than a zero-length one.
@@ -1342,7 +1394,7 @@ Controller::extendRecordingSampleClipIfNeeded() {
   // Same growth-loop shape as extendRecordingClipsIfNeeded() above - grows
   // a full bar at a time until at least one bar of headroom remains ahead
   // of the current row.
-  auto rows_per_bar = std::max(1, song->getRowsPerBar());
+  auto rows_per_bar = song->getArrangementBars().barRows();
   bool grew = false;
   auto window_last_row = recording_start_row_ + std::max(1, clip.getLength()) - 1;
   while (window_last_row - info.getAbsolutePosition() < rows_per_bar) {
@@ -1435,6 +1487,7 @@ Controller::stopAutoRecordSession(bool & auto_started_playback, std::set<std::pa
 
 void
 Controller::writeReleaseOff(std::set<std::pair<int, int>> & cleared_rows, bool auto_started_playback, int row, int track_id, int note_column, int delay) {
+  endNotePressure(track_id, note_column);
   if (auto_started_playback) ensureRowCleared(cleared_rows, row, track_id);
   auto song = getCurrentSong();
   auto target = resolveEditTarget(*song, track_id, row, getFocusedClip());
@@ -1455,9 +1508,66 @@ Controller::applyNotePressure(int row, int track_id, int note_column, short velo
   auto song = getCurrentSong();
   auto target = resolveEditTarget(*song, track_id, row, getFocusedClip());
   auto note = target.pattern->getNote(target.effective_row, note_column);
-  if (!note.isDefined()) note.setDelay(delay);
+  if (note.isDefined() && !note.isAftertouch()) return; // never overwrite a real note
+  note.setDelay(delay);
   note.setVelocity(velocity);
   target.pattern->setNote(target.effective_row, note_column, note);
+}
+
+short
+Controller::notePressure(int row, int track_id, int note_column, short velocity, int delay, const PressureWriter & write_row, const PressureRowSource & current_row) {
+  constexpr int row_units = 256;
+  constexpr int max_filled_rows = 256;
+  auto clamp_pressure = [](int v) { return static_cast<short>(std::clamp(v, 1, 127)); };
+  auto & st = pressure_states_[{ track_id, note_column }];
+  delay = std::clamp(delay, 0, row_units - 1);
+
+  if (st.row < 0 || row < st.row || row - st.row > max_filled_rows) {
+    // First reading of this note (or the transport jumped): nothing earlier
+    // to average with.
+    st = PressureState { row, delay, delay, velocity, 0, {}, {} };
+  } else {
+    if (write_row) {
+      for (int skipped = st.row + 1; skipped < row; skipped++) write_row(skipped, clamp_pressure(st.last_value));
+    }
+    if (row > st.row) {
+      st.row = row;
+      st.start = 0;
+      st.last_time = 0;
+      st.integral = 0;
+    }
+    delay = std::max(delay, st.last_time);
+    st.integral += st.last_value * (delay - st.last_time);
+    st.last_time = delay;
+    st.last_value = velocity;
+  }
+  st.write_row = write_row;
+  st.current_row = current_row;
+
+  int span = row_units - st.start;
+  auto pressure = clamp_pressure((st.integral + velocity * (row_units - delay) + span / 2) / span);
+  if (write_row) write_row(row, pressure);
+  return pressure;
+}
+
+void
+Controller::tickNotePressure() {
+  constexpr int max_filled_rows = 256;
+  bool wrote = false;
+  for (auto & entry : pressure_states_) {
+    auto & st = entry.second;
+    if (st.row < 0 || !st.write_row || !st.current_row) continue;
+    int row = st.current_row();
+    if (row <= st.row || row - st.row > max_filled_rows) continue;
+    auto held = static_cast<short>(std::clamp(st.last_value, 1, 127));
+    for (int entered = st.row + 1; entered <= row; entered++) st.write_row(entered, held);
+    st.row = row;
+    st.start = 0;
+    st.last_time = 0;
+    st.integral = 0;
+    wrote = true;
+  }
+  if (wrote) getCurrentSong()->incVersion();
 }
 
 void
@@ -1545,7 +1655,7 @@ Controller::beginSampleCapture(int track_id, int latency_frames) {
   // would shrink an already-longer clip out from under its own earlier
   // layers; finishSampleCapture() only ever grows it from here, never
   // shrinks it.
-  if (!is_overdub) clip.setLength(std::max(1, song->getRowsPerBar()));
+  if (!is_overdub) clip.setLength(song->getRunningTimeSignature().rowsPerBar());
 
   recording_clip_id_ = clip.getId();
   recording_latency_frames_ = latency_frames;
@@ -1650,6 +1760,6 @@ void
 Controller::prewarmInstrumentForPreview(const Track * instrument, int note_value) const {
   if (!instrument) return;
   auto song = getCurrentSong();
-  Tuning tuning = song ? song->getTuning() : Tuning::TET31;
+  Tuning tuning = song ? song->getTuning() : Tuning::EDO31;
   prewarmInstrumentTree(*instrument, channel_config, tuning, note_value);
 }

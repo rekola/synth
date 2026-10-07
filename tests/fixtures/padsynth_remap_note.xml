@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="12edo" tempo="900" rowsPerBar="1" volume="1.0">
+<song temperament="12edo" tempo="900" timeSignature="1/16" volume="1.0">
   <instruments>
     <envelope attack="0.01" hold="0" decay="1" sustain="0.6" release="0.5">
       <padsynth preset="strings" envelopeAnchor="233.2" envelopeTracking="0.634" envelopePostprocess="residue" envelopePostprocessN="2" envelopePostprocessR="1" envelopePostprocessAmount="0.646"/>

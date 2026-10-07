@@ -1,6 +1,6 @@
 # synth — microtonal tracker / synthesizer
 
-Tracker-style music production system with microtonal notes (12/19/31/53-TET).
+Tracker-style music production system with microtonal notes (12/19/31/53-EDO).
 Terminal UI (notcurses), ALSA audio output, songs stored as XML.
 Formerly developed as the `syna/` subdirectory of the private `personal` repo;
 full history was preserved when it was extracted into this repository.
@@ -43,6 +43,14 @@ degraded resample-based fallback would also shift pitch, a correctness
 defect this codebase won't ship. FFT support (the live spectrum analyzer,
 MagLS binaural precomputation) is via vendored PocketFFT
 (`third_party/pocketfft/`) — no separate FFT library package needed.
+`libpipewire-0.3-dev` is optional too (`SYNTH_ENABLE_PIPEWIRE`,
+auto-detected, and cmake says so when it isn't used): it only backs
+`src/audio/AudioDevices.cpp`'s listing of the audio server's own inputs and
+outputs for the device pickers (below); selecting one doesn't need it, and
+without it the lists fall back to the machine's sound cards (one entry per
+card input/output via the ALSA control API - not `snd_device_name_hint()`'s
+dozens of virtual PCMs per card); the dialog title always names which list
+it is, "(PipeWire)" or "(ALSA sound cards)".
 `libmysofa-dev` is optional (binaural ambisonic decoding,
 `SYNTH_ENABLE_BINAURAL`, auto-detected) — without it, `--ambisonic` still
 works via the cardioid stereo decoder fallback.
@@ -61,6 +69,41 @@ lines to stderr, plays MIDI input live and records samples; `--autoplay` starts 
 `--log-file`/`--pid-file`) detaches it. SIGINT/SIGTERM/SIGHUP end any UI
 mode's main loop cleanly (`util/ShutdownSignal.h`, `UI::shouldClose()`).
 See `docs/headless.md`; `tools/e2e/verify_headless.py` covers it.
+
+**Audio and MIDI devices** (`docs/devices.md`): the output, the input and one
+MIDI source are chosen at runtime (M-x `select-playback-device`/
+`select-capture-device`/`select-midi-input`, the Devices menu - each opens a
+modal list, `UI::showChoiceDialog()`, rendered by `tui/ChoiceDialog` over the
+toolkit-agnostic `ui/ChoiceList.h`; the commands live in `UI`, so a GUI
+backend only supplies the dialog) and saved in
+`~/.config/synth/devices.conf` (`audio/DeviceSettings.h`, machine-wide, never
+part of a song). `--playback-device`/`--capture-device`/`--midi-input`
+override one run without touching the file; `--list-devices` prints the
+choices. An audio name is `""`/`default`, `pw:<node.name>` (a PipeWire node -
+stable across sessions, unlike its numeric id) or a raw ALSA PCM name.
+A `pw:` device is opened through ALSA's own pipewire plugin with the node
+named in a private one-PCM config (`openPcm()`, `AlsaAudio.cpp`), so period
+sizes, polling, delay queries and xrun recovery stay the one ALSA path for
+every device. `Controller::setCaptureDevice()`/`setPlaybackDevice()` save the
+choice and push `SET_CAPTURE_DEVICE`/`SET_PLAYBACK_DEVICE`: the audio thread
+owns the PCM handles, so `Player` makes the switch and rebuilds its poll set
+(`devices_changed_`). A switch that can't happen - the node is gone, the
+rate or block size can't match the running song, capture is in use - logs why
+and keeps the current device. MIDI is read on the UI thread, so
+`UI::selectMidiInput()` connects it there instead, never through an event; a
+chosen source that is unplugged is reconnected when its port reappears
+(`AlsaAudio::recordMIDI()`). A saved device that is missing at startup falls
+back to the default, with the choice kept. A node name that doesn't exist is
+rejected up front (`playbackDeviceExists()`/`captureDeviceExists()`) because
+the server silently substitutes the default input for an unknown one.
+Capturing a sink's monitor isn't supported for the same reason (naming a sink
+also falls back to the default input). A missing ALSA sequencer no longer
+stops audio from starting - MIDI is just off.
+Identical labels are told apart by where the device is plugged in
+(`DeviceLabels.h`: a node's `device.bus-path`, looked up on its device object,
+cut down to the USB port; the node name if none), numbered as a last resort.
+`tools/e2e/verify_device_selection.py` drives the pickers against a real
+PipeWire (and skips without one).
 
 `--render` needs no terminal or audio device: it renders the song offline
 (plus the effect/release tail until silence, capped at 10 s) and exits — use
@@ -291,9 +334,9 @@ permissive (any letter, not just hex `a-f`) since `docs/commands.md`'s
 two-character mnemonics (`0U`/`0D`/`0G`/`1V`/`1I`/`1O`/`1T`/`ZB`) use
 letters outside the hex range in their first two characters — only the
 velocity/delay nibble-entry path was tightened to strict `0-9a-f`; a
-mnemonic's own trailing hex-digit argument (e.g. `ZBxx`'s locator number)
+mnemonic's own trailing hex-digit argument (e.g. `YLxx`'s slide amount)
 stays permissive too, parsing a non-hex character as digit 0 rather than
-rejecting it (`Command::getBreakLocatorNumber()`).
+rejecting it (`Command::getAzimuthSlidePerTick()`).
 
 `C-SPC` doesn't register on every terminal: its legacy encoding is a
 literal NUL byte, which notcurses's input decoder silently drops instead of
@@ -448,7 +491,7 @@ would otherwise resume showing.
   *different* one of the four; DRAW is the one member not reached by a
   plain press (see its own bullet below), and the only way out of it is
   selecting one of 95/96/97. 98 is Session Record (its own bullet
-  below). 91/92/93/94 are move-row-up/down/prev-track/next-track
+  below). 91/92/93/94 are move-row-up/down/pad-prev-track/pad-next-track
   (named commands, via `LaunchpadProtocol::commandForButton()`). 91 doubles
   as a held shift modifier for opening a Session-view clip's own step
   grid directly (see the drum machine bullet below) - its own ordinary
@@ -479,19 +522,23 @@ would otherwise resume showing.
   starts/stops note capture instead (red LED, bright while capturing; ends a
   sample take through the same command). **Shift** (CC91 held) turns all eight right-side
   buttons into labelled alternate functions, in every `GridMode`
-  (`handleRawButton()`'s shift branch): Volume (CC89) is Duplicate, Pan (CC79) is the
-  metronome ("toggle-metronome", a click per beat while the transport plays,
-  accented on the bar - `Player::scheduleMetronome()`; its LED is amber, bright
-  while on), Send A (CC69) is Quantise (`endQuantize()`: held with a pad press,
+  (`handleRawButton()`'s shift branch), following the Launchpad Pro MK3's own
+  shift layer where it has one: Record Arm (CC19) is Undo and Mute (CC39, Pro
+  MK3 CC30) Redo (both reserved - they only say "not implemented yet"), Solo
+  (CC29, Pro MK3 CC20) is the metronome click ("toggle-metronome", a click per
+  beat while the transport plays, accented on the bar -
+  `Player::scheduleMetronome()`; its LED is amber, bright while on), Volume
+  (CC89) is Duplicate, Pan (CC79) is Delete (its own bullet below), Send A
+  (CC69) is Quantise (`endQuantize()`: held with a pad press,
   `quantizeClip()` snaps that clip's notes to the nearest row; a tap with no
   pad toggles `Song::getRecordQuantize()`, "toggle-record-quantize", resolved
   on release; its LED is red/green for off/on), Send B (CC59) opens the Tempo
-  view and Stop Clip (CC49) the Swing view (their own bullet below), Mute
-  (CC39, Pro MK3 CC30) is Delete (its own bullet below), Solo (CC29, Pro MK3
-  CC20) is Draw, and the other one (Record Arm) does nothing rather than
-  launch or switch anything; their LEDs show only those functions while
-  shift is held (Duplicate cyan, Draw purple, metronome amber, Quantise
-  red/green, Tempo blue, Swing orange, Delete red, the rest dark).
+  view and Stop Clip (CC49) the Swing view (their own bullet below); every
+  button is taken. Draw is shift + CC97 instead. Their LEDs show only those
+  functions while shift is held (Duplicate cyan, Draw purple, metronome amber,
+  Quantise red/green, Tempo blue, Swing orange, Delete magenta - red is
+  Quantise's own off state - Undo/Redo dim white). Shift + pad selects a clip
+  without launching it (below).
   User-facing descriptions of every button live in `docs/launchpad.md`.
   95 ("Session") doubles as the
   mixer-submode toggle: a repeat press while already at the plain Session
@@ -525,20 +572,24 @@ would otherwise resume showing.
   a Session pad press write the clip into the arrangement). Its LED is
   bright red while anything records (`record_arm_led_on`), dim red
   otherwise.
-- **DRAW mode** (shift + Solo) - a plain per-pad coloring toy,
-  independent of Song/Track state. Shift + Solo enters it from any
+- **DRAW mode** (shift + Custom) - a plain per-pad coloring toy,
+  independent of Song/Track state. Shift + Custom enters it from any
   `GridMode` (same exclusive-group rule as Session/Note/Custom - only
   one of 95/96/97 leaves it), or blanks the canvas if DRAW is already
   showing.
 - **Duplicate** (shift + Volume) - held for as long as Volume stays down:
-  in Session view a populated pad picks that clip as the source (lit
-  white) and a press on an empty slot of the same track column copies it
-  there (`duplicateClip()`, `ArrangementOps.h` - an independent copy
-  under a fresh id, never overwriting); the source stays picked, so one
-  hold can fill several slots. Releasing Volume with a source picked but
-  no destination copies to the next empty slot. The terminal's
-  `duplicate-clip` (clip grid) does the same.
-- **Delete** (shift + Mute) - held for as long as Mute stays down, like
+  a Session pad press on a populated slot copies that clip into the slot
+  below it, overwriting what is there (`duplicateClip()`,
+  `ArrangementOps.h` - an independent copy under a fresh id; an overwritten
+  clip's arrangement placements go with it). One hold can copy several
+  clips. The terminal has no such command: a clip is duplicated by copying it in the clip grid and yanking it onto another slot (`docs/terminal.md`).
+- **Select a clip** (shift + pad, `Controller::selectClipSlot()`) - moves the
+  shared track cursor and the clip grid's cursor onto that slot, empty ones
+  included, without launching or opening anything, so it is where the next
+  recording or paste lands. Shift + Note (CC96) then opens (or closes) the
+  selected clip for step editing, as the drum machine bullet below describes
+  (`LaunchpadManager::selected_track_id_`).
+- **Delete** (shift + Pan) - held for as long as Pan stays down, like
   Duplicate: a Session pad press deletes what its slot holds, one layer
   per press (`Controller::deleteClipSlot()`, `deleteClipOrStopButton()` in
   `ArrangementOps.h`) - a populated slot loses its clip (leaving an empty
@@ -547,8 +598,8 @@ would otherwise resume showing.
   clip that is playing (or queued) on its track while the transport runs
   is never pulled out from under the playhead - `SessionPlayer::
   deleteClip()` stops the track at the next bar and `tick()` removes the
-  clip once that has taken effect. The terminal's `delete-clip` goes
-  through it too. No undo or confirmation.
+  clip once that has taken effect. The terminal's clip-grid `kill-region` goes
+  through it too, after copying the clip to the clip grid's clipboard (the pad gesture never does). No undo or confirmation.
 - **Tempo and Swing views** (`GridMode::TEMPO`/`SWING`; shift + Send B /
   shift + Stop Clip; Novation's Launchpad Pro MK3 views) - the value is
   drawn as a number on the pads (`LaunchpadLayout::renderNumber()`): the
@@ -604,7 +655,7 @@ would otherwise resume showing.
 
   The window is `kStepWindow` (32) steps from `DeviceState::
   drum_edit_step_offset`; `resetStepGridView()` gives device i page i, and
-  prev-track/next-track scroll every device together by `kStepGridScrollStep`
+  pad-prev-track/pad-next-track scroll every device together by `kStepGridScrollStep`
   (4). While the step view shows, move-row-up/-down shift a pitched track's
   octave instead (a drum rack has nothing to shift). The step view is opened
   two ways, both funneled through `Controller::toggleDrumClipFocus(track_id,
@@ -698,7 +749,7 @@ would otherwise resume showing.
   audio thread owns this (`SongState::queueSessionChange()`, per-track
   `SessionTrackInfo`, `src/state/SessionTrackInfo.h`): each change is
   queued and applied on the first row of the transport's next bar
-  (`absolute_pos_ % rows_per_bar == 0`) - even the first launch into
+  (`Song::isBarStart(absolute_pos_)`) - even the first launch into
   silence waits for it, the live-sequencer convention; rewind to start
   from the top. Launched clips advance on a session clock - rows played,
   which a seek or pattern break doesn't move - and a taken-over track
@@ -726,7 +777,7 @@ would otherwise resume showing.
   not when a pending change is allowed to interrupt it) and never
   immediate - an empty pad queues a stop (unless its stop button was
   removed - `Clip::hasStopButton()`: "toggle-stop-button" in the clip
-  grid, or "delete-clip" on an empty slot, which then shows no ⏹: launching that slot, alone or in its
+  grid, or `kill-region` on an empty slot in the clip grid, which then shows no ⏹: launching that slot, alone or in its
   scene, leaves the track alone, armed or not),
   while repressing the active pad relaunches its clip from row 0 at the
   next boundary (a launch never toggles - the live-sequencer convention;
@@ -967,6 +1018,8 @@ would otherwise resume showing.
   and a fresh press look alike to the widgets (the held button repeats its
   press), so each tells them apart by the release in between; `TerminalUI`
   keeps focus on the widget the press started in until then.
+- **Scenes** (`Song::getSceneName()`/`getSceneTempo()`/`getSceneTimeSignature()`, `<scenes><scene name="" tempo="" timeSignature="3/4"/>...</scenes>`, by position like a track's clip list, no index stored) - a scene is a clip-list row shared by every track, with an optional name, tempo and time signature, shown in the clip grid's Master column and edited with F2 there; typed text goes through `scenename::extract()` (`SceneName.h`) ("Waltz 3/4 90 BPM" splits into name, signature and tempo, "0 BPM"/"0/4" clear them, text without one keeps the existing value). `SessionPlayer::launchScene()` sends them to the audio thread as one `QUEUE_SCENE_CHANGE` event, which `SongState::queueSceneChange()` applies on the bar the clips launch on (the first row played from a stopped transport): the tempo becomes the song tempo, the signature the running signature. Each rhythm-library template carries its signature (`RhythmPatternTemplate::time_numerator`/`time_denominator`), which Add to Song gives the scene the new clip lands in when that scene has none. Details and design decisions: `docs/scenes.md`.
+- **Bars and time signatures** (`TimeSignature.h`, `BarGrid.h`, `Song`'s bar API; `docs/time_signatures.md`) - a row is a sixteenth, a signature n/d is n*16/d rows per bar and 16/d per beat (denominator 1/2/4/8/16). The song has one signature (`Song::getTimeSignature()`, `<song timeSignature="3/4">`, 4/4 unless set, `set-time-signature`) that the arrangement counts its bars in (`Song::getArrangementBars()`, a `BarGrid`: a signature counted from an origin row). A launched scene's signature is the *running signature* (`RunningBars`: signature plus origin row, the launch bar, saved as `transportTimeSignature`/`transportBarOrigin`) that overrides the song's from the origin until another scene or Back to Arrangement for every track (`SessionPlayer::returnAllToArrangement()`). The audio thread owns the running signature and the tempo a scene sets (`SongState`'s `pending_scene_`/`running_bars_`/`barsAt()`, applied in `advanceSessionTracks()` on the bar, sample-exact with the clip launches; its bar test, pattern break and `Player::scheduleMetronome()` read `barsAt()`); the UI's `Song` copies are mirrored from the snapshot by `Controller::mirrorSceneChange()` (once per `PlaybackInfo::getSceneSeq()`, so an older snapshot never overwrites a tempo edited since; `SongState` applies the song's own tempo only when the song's value changed). UI-thread consumers (Session take quantization and length, the position display, the info line) read `Song::getBarsAt()`; the arrangement grid, arrangement recording and clip placement read `getArrangementBars()`. A bar number is never `row / rows_per_bar` (`Song::getRowsPerBar()` is gone): use `BarGrid`. Session view accents come from the scene's own signature (`PatternSource::startsBar()`/`startsBeat()`).
 - **Defaults**: a fresh session opens in Session view on the clip grid
   (`UI::setInitialView()`, the `--view` option) rather than straight into
   note entry, and `GridMode` defaults to `SESSION` on every
@@ -1020,7 +1073,7 @@ would otherwise resume showing.
   `verify_launchpad_shift_highlight.py` covers the same
   gesture's own LED feedback while held (both CC91 and the target pad
   lighting bright white before release). `verify_launchpad_paging_lockstep.py`
-  covers the step grid's own prev-track/next-track page-shift gesture
+  covers the step grid's own pad-prev-track/pad-next-track page-shift gesture
   moving every connected device together rather than just whichever one
   was pressed - two simulated devices open a 3-page clip, confirm
   `resetStepGridView()`'s own device-order split put them on two
@@ -1059,7 +1112,7 @@ would otherwise resume showing.
     an independent copy unlike a `Clip`'s own shared content — and a
     `SampleTrack`'s own merged background audio bed), the song's
     locators (`Song::getLocators()`, named markers keyed by absolute row,
-    shown in Arrangement view's locator column; `ZBxx` jumps to one)
+    shown in Arrangement view's locator column)
     and their value types (`Note`, `Command`, `SendLevels`, …).
   - `src/state/` — the parallel, cheaply-resettable playback-state
     objects (`*State.h`) mirroring the model objects above.
@@ -1093,8 +1146,11 @@ would otherwise resume showing.
     into a repeating beat pattern; no detune, no drift. Other voice types aren't arrays.
   - `src/ambisonic/` — spatial encode/decode math and the `Mixer`
     hierarchy (see the `AmbisonicEncoding.h` bullet below).
-  - `src/audio/` — `AlsaAudio` (device output), `AudioBuffer`,
-    `OfflineRenderer`.
+  - `src/audio/` — `AlsaAudio` (device output and input, runtime device
+    switching), `DeviceSettings` (the saved device choices - in
+    `synth_engine`, so `Controller` and the tests use it), `AudioDevices`
+    (listing what can be chosen; executable-only, like `AlsaAudio`),
+    `AudioBuffer`, `OfflineRenderer`.
   - `src/ui/` — toolkit-agnostic UI plumbing with no notcurses
     dependency: `UI`/`UIElement`/`UIPlane`/`UIMenu` (abstract app/widget/
     render-surface interfaces a future non-terminal UI could implement
@@ -1392,6 +1448,10 @@ would otherwise resume showing.
   separated from song model objects so playback state can be reset cheaply.
 - The build enables many `-Werror=` flags plus `-Wsign-conversion`; new code
   must compile warning-clean.
+- A command only a pad controller dispatches (nothing else registers it) is
+  named with a `pad-` prefix (`pad-next-track`), not `launchpad-`: other
+  devices can use it too. A pad gesture whose terminal equivalent is
+  copy/kill/yank gets no command of its own (`docs/terminal.md`).
 - Comments: keep them short (a one-liner covers most cases). Don't point
   at something outside the code to explain the code - state the reasoning
   directly instead of citing: a `plans/*.md` file (they get deleted once
