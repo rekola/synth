@@ -160,7 +160,7 @@ int risingCrossings(float detune_cents) {
   ChannelConfiguration config(44100, 1);
   SphericalPosition position;
   position.distance = 1.0f;
-  auto voice = pad.playNote(config, position, Tuning::TET31, 1.0f, 1.0f, 160, SendLevels{}, NoteCoordinate(0, 0, 0)); // ~294 Hz
+  auto voice = pad.playNote(config, position, Tuning::EDO31, 1.0f, 1.0f, 160, SendLevels{}, NoteCoordinate(0, 0, 0)); // ~294 Hz
 
   int crossings = 0;
   float prev = 0.0f;
@@ -216,7 +216,7 @@ AudioBuffer renderEnsemble(const vector<float> & cents, int frames) {
     params.set("preset", string("strings"));
     params.set("detune", c);
     pad->loadParameters(params);
-    voices.push_back(pad->playNote(config, position, Tuning::TET31, 1.0f, 1.0f, 160, SendLevels{}, NoteCoordinate(1, 4, 0)));
+    voices.push_back(pad->playNote(config, position, Tuning::EDO31, 1.0f, 1.0f, 160, SendLevels{}, NoteCoordinate(1, 4, 0)));
     pads.push_back(move(pad));
   }
   for (auto & v : voices) sum.mixNamed(v->render(frames));
@@ -255,7 +255,7 @@ TEST(library_ensemble_pads_are_three_detuned_padsynth_copies_and_render) {
     ChannelConfiguration config(44100, 1);
     SphericalPosition position;
     position.distance = 1.0f;
-    auto voice = instrument->playNote(config, position, Tuning::TET31, 1.0f, 1.0f, 160, SendLevels{}, NoteCoordinate(0, 0, 0));
+    auto voice = instrument->playNote(config, position, Tuning::EDO31, 1.0f, 1.0f, 160, SendLevels{}, NoteCoordinate(0, 0, 0));
     CHECK(voice.get() != nullptr);
     // The envelope's group holds one voice per copy.
     CHECK(voice->getAllocatedVoiceCount() >= 4);

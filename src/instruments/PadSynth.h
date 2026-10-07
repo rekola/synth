@@ -54,7 +54,7 @@ class PadSynth : public Instrument {
   // playNote() and the next) - neither happens mid-song in practice but
   // both are checked rather than assumed.
   mutable std::shared_ptr<PadSynthTable> wavetable_;
-  mutable Tuning wavetable_tuning_ = Tuning::TET31;
+  mutable Tuning wavetable_tuning_ = Tuning::EDO31;
 
   std::string preset_ = "strings";
   bool tuning_matched_ = true;

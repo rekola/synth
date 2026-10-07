@@ -16,7 +16,7 @@ class Note {
  public:  
   Note() : value(-1), velocity(0), delay(0) { }
   explicit Note(int _value, short _velocity = 0x28, short _delay = 0) : value(_value), velocity(_velocity), delay(_delay) { }
-  explicit Note(std::string_view input_value, short _velocity = 0x28, short _delay = 0, Tuning tuning = Tuning::TET12)
+  explicit Note(std::string_view input_value, short _velocity = 0x28, short _delay = 0, Tuning tuning = Tuning::EDO12)
     : value(stringToKey(tuning, std::move(input_value))),
       velocity(_velocity),
       delay(_delay) { }
@@ -71,8 +71,8 @@ class Note {
 	auto key_name = keyToString(tuning, getValue());
 	if (tuning != Tuning::PERCUSSION) {
 	  if (key_name.size() == 1) key_name += '-';
-	  int period = tuning == Tuning::TET53 ? 53 : tuning == Tuning::TET31 ? 31
-	    : tuning == Tuning::TET19 ? 19 : 12;
+	  int period = tuning == Tuning::EDO53 ? 53 : tuning == Tuning::EDO31 ? 31
+	    : tuning == Tuning::EDO19 ? 19 : 12;
 	  int octave = (getValue() / period) - 1;
 	  // A C-spelled name at the top of the index range (C♭) belongs to
 	  // the next octave number, though its value is still below it.
@@ -166,11 +166,11 @@ class Note {
     if (tuning == Tuning::PERCUSSION) {
       if (value >= 27 && value <= 82) return percussion_names[value - 27];
       return "#" + std::to_string(value);
-    } else if (tuning == Tuning::TET53) {
+    } else if (tuning == Tuning::EDO53) {
       return note_names_53edo[value % 53];
-    } else if (tuning == Tuning::TET31) {
+    } else if (tuning == Tuning::EDO31) {
       return note_names_31edo[value % 31];
-    } else if (tuning == Tuning::TET19) {
+    } else if (tuning == Tuning::EDO19) {
       return note_names_19edo[value % 19];
     } else {
       return note_names_12edo[value % 12];
@@ -252,7 +252,7 @@ class Note {
 
       assert(letter >= 'A' && letter <= 'G');
       
-      if (tuning == Tuning::TET12) {
+      if (tuning == Tuning::EDO12) {
 	auto value = (octave + 1) * 12;
       
 	// C C# D D# E F F# G G# A A# B
@@ -273,12 +273,12 @@ class Note {
 	}
 
 	return value;
-      } else if (tuning == Tuning::TET19) {
+      } else if (tuning == Tuning::EDO19) {
 	auto value = (octave + 1) * 19;
 
 	// C C♯ D♭ D D♯ E♭ E E♯/F♭ F F♯ G♭ G G♯ A♭ A A♯ B♭ B B♯/C♭ -
 	// docs/19edo_note_numbers.txt is this table's own source of truth.
-	// W-W-H-W-W-W-H with W=3 steps, H=2 - unlike TET12/31/53's uniform
+	// W-W-H-W-W-W-H with W=3 steps, H=2 - unlike EDO12/31/53's uniform
 	// "+N per natural-letter run" shape, 19edo's own H falls in the
 	// middle of the {C,D,E}/{F,G,A} groups (E-F, not just B-C), so each
 	// letter's own base offset is spelled out directly instead.
@@ -302,7 +302,7 @@ class Note {
 	}
 
 	return value;
-      } else if (tuning == Tuning::TET31) {
+      } else if (tuning == Tuning::EDO31) {
 	auto value = (octave + 1) * 31;
       
 	// C D𝄫 C♯ D♭ C𝄪 D E𝄫 D♯

@@ -573,7 +573,7 @@ class LaunchpadManager {
 
     // Inputs refreshLeds() needs to compute this device's colors.
     bool connected = false;
-    Tuning tuning = Tuning::TET12;
+    Tuning tuning = Tuning::EDO12;
     int key = -1;
     // note_value -> loudness (0..1) for the assigned track's currently
     // sounding notes, used to brighten pads above LAUNCHPAD_IDLE_BRIGHTNESS.

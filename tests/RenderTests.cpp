@@ -838,7 +838,7 @@ TEST(render_sf2_multi_region_live_note_off_actually_shortens_the_tail) {
   auto instrument_with_off = track_state_with_off.getInstrumentSource(with_off.song.getInstrumentPool());
   CHECK(instrument_with_off != nullptr);
   RecordingMixer mixer_with_off(static_cast<short>(config.numberOfChannels()), config.getAudioOutSampleRate());
-  track_state_with_off.noteOn(0, *instrument_with_off, Tuning::TET12, 0.8f, 60, NoteOrigin::LIVE);
+  track_state_with_off.noteOn(0, *instrument_with_off, Tuning::EDO12, 0.8f, 60, NoteOrigin::LIVE);
   state_with_off.renderBlock(256, with_off.song, mixer_with_off);
   CHECK(state_with_off.getVoiceCount() > 1); // genuinely multi-region
   track_state_with_off.noteOff(0);
@@ -853,7 +853,7 @@ TEST(render_sf2_multi_region_live_note_off_actually_shortens_the_tail) {
   auto instrument_without_off = track_state_without_off.getInstrumentSource(without_off.song.getInstrumentPool());
   CHECK(instrument_without_off != nullptr);
   RecordingMixer mixer_without_off(static_cast<short>(config.numberOfChannels()), config.getAudioOutSampleRate());
-  track_state_without_off.noteOn(0, *instrument_without_off, Tuning::TET12, 0.8f, 60, NoteOrigin::LIVE);
+  track_state_without_off.noteOn(0, *instrument_without_off, Tuning::EDO12, 0.8f, 60, NoteOrigin::LIVE);
   state_without_off.renderBlock(256, without_off.song, mixer_without_off);
   // noteOff() deliberately never called here.
   auto blocks_without_off = blocksUntilSilent(state_without_off, without_off.song, mixer_without_off, kMaxBlocks);

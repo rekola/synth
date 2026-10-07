@@ -10,7 +10,7 @@ using namespace std;
 // chromatic scale, one degree per step ascending from the tonic, capped
 // at 8 (the step grid's own row count).
 TEST(scale_none_falls_back_to_chromatic) {
-  Song song(Tuning::TET12, -1); // no key set either - tonic defaults to C (pitch class 0)
+  Song song(Tuning::EDO12, -1); // no key set either - tonic defaults to C (pitch class 0)
   CHECK(song.getScale() == Scale::NONE);
   auto degrees = song.getScaleDegrees();
   CHECK(degrees.size() == 8);
@@ -23,7 +23,7 @@ TEST(scale_none_falls_back_to_chromatic) {
 // step grid's full 8 rows even though the scale itself only has 7
 // distinct degrees.
 TEST(scale_major_12edo_no_key) {
-  Song song(Tuning::TET12, -1);
+  Song song(Tuning::EDO12, -1);
   song.setScale(Scale::MAJOR);
   auto degrees = song.getScaleDegrees();
   vector<int> expected = {0, 2, 4, 5, 7, 9, 11, 12};
@@ -34,7 +34,7 @@ TEST(scale_major_12edo_no_key) {
 // Minor in 12-EDO, no key set: C D E♭ F G A♭ B♭ natural minor, plus the
 // same octave-up tonic repeat as the 8th row.
 TEST(scale_minor_12edo_no_key) {
-  Song song(Tuning::TET12, -1);
+  Song song(Tuning::EDO12, -1);
   song.setScale(Scale::MINOR);
   auto degrees = song.getScaleDegrees();
   vector<int> expected = {0, 2, 3, 5, 7, 8, 10, 12};
@@ -48,7 +48,7 @@ TEST(scale_minor_12edo_no_key) {
 // degree, C#, genuinely falls a semitone above the octave point relative
 // to D), and the 8th row repeats the tonic (D) one octave up.
 TEST(scale_major_12edo_transposed_to_key) {
-  Song song(Tuning::TET12, static_cast<short>(Note::stringToKey(Tuning::TET12, "D4")));
+  Song song(Tuning::EDO12, static_cast<short>(Note::stringToKey(Tuning::EDO12, "D4")));
   song.setScale(Scale::MAJOR);
   auto degrees = song.getScaleDegrees();
   // D major: D E F# G A B C# D
@@ -64,7 +64,7 @@ TEST(scale_major_12edo_transposed_to_key) {
 // (steps relative to its C-4 origin); the 8th row is the tonic 31 steps up
 // (one 31-EDO octave).
 TEST(scale_otonal_31edo) {
-  Song song(Tuning::TET31, -1);
+  Song song(Tuning::EDO31, -1);
   song.setScale(Scale::OTONAL);
   auto degrees = song.getScaleDegrees();
   vector<int> expected = {0, 7, 10, 13, 18, 23, 25, 31};
@@ -73,7 +73,7 @@ TEST(scale_otonal_31edo) {
 }
 
 TEST(scale_utonal_31edo) {
-  Song song(Tuning::TET31, -1);
+  Song song(Tuning::EDO31, -1);
   song.setScale(Scale::UTONAL);
   auto degrees = song.getScaleDegrees();
   vector<int> expected = {0, 6, 8, 13, 18, 21, 24, 31};
@@ -87,7 +87,7 @@ TEST(scale_utonal_31edo) {
 // C major should read F G A B C D E, continuing straight past the octave
 // boundary at C (index 7) without resetting back to a lower value.
 TEST(scale_degrees_window_positive_start) {
-  Song song(Tuning::TET12, -1);
+  Song song(Tuning::EDO12, -1);
   song.setScale(Scale::MAJOR);
   auto degrees = song.getScaleDegreesWindow(3, 7);
   vector<int> expected = {5, 7, 9, 11, 12, 14, 16}; // F G A B C D E
@@ -100,7 +100,7 @@ TEST(scale_degrees_window_positive_start) {
 // the octave below rather than clamping at 0 or wrapping around to the
 // top of the scale.
 TEST(scale_degrees_window_negative_start) {
-  Song song(Tuning::TET12, -1);
+  Song song(Tuning::EDO12, -1);
   song.setScale(Scale::MAJOR);
   auto degrees = song.getScaleDegreesWindow(-3, 3);
   vector<int> expected = {-5, -3, -1}; // G A B, one octave below C4 (index -3/-2/-1 = the scale's own last 3 degrees an octave down)
@@ -112,7 +112,7 @@ TEST(scale_degrees_window_negative_start) {
 // already do.
 TEST(scale_xml_round_trip) {
   MemoryParameterSource output;
-  Song song(Tuning::TET12, -1);
+  Song song(Tuning::EDO12, -1);
   song.setScale(Scale::MINOR);
   song.storeParameters(output);
   CHECK(output.get<string>("scale") == "minor");
@@ -128,7 +128,7 @@ TEST(scale_xml_round_trip) {
 // at all loads back as Scale::NONE, not some other default.
 TEST(scale_none_omitted_from_xml) {
   MemoryParameterSource output;
-  Song song(Tuning::TET12, -1);
+  Song song(Tuning::EDO12, -1);
   song.storeParameters(output);
   CHECK(output.get<string>("scale").empty());
 }

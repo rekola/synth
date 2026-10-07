@@ -1524,8 +1524,8 @@ LaunchpadManager::resolveNote(const Song & song, int device_id, int track_id, in
   // Deliberately not "(octave - 4) * edo_steps" (which anchors pad (0,0) at
   // the raw tonic, an inaudibly low register for most instruments): the
   // computer-keyboard tables (InputEvent.h) each bake in their own
-  // several-octaves-up baseline for their lowest key (TET12's 'z' is
-  // base+48, i.e. exactly 4 octaves; TET31/TET53 use 5 octaves) -
+  // several-octaves-up baseline for their lowest key (EDO12's 'z' is
+  // base+48, i.e. exactly 4 octaves; EDO31/EDO53 use 5 octaves) -
   // multiplying by the octave directly, instead of recentering around 4,
   // reproduces that same baseline; +1 further octave on top of that since
   // the "octave*N" register alone was still too low to be comfortably
@@ -3270,7 +3270,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     // is handled below by simply skipping the per-track lookups.
     auto track_index = fallback_track_index;
 
-    Tuning tuning = Tuning::TET12;
+    Tuning tuning = Tuning::EDO12;
     int key_val = -1;
     unordered_map<int, float> active_note_loudness;
     bool is_percussion = false;

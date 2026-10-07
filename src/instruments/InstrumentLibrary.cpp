@@ -335,10 +335,10 @@ namespace {
 // authored pitch.
 int centerNoteFor(Tuning tuning) {
   switch (tuning) {
-  case Tuning::TET12: return 69;
-  case Tuning::TET19: return 109;
-  case Tuning::TET31: return 178;
-  case Tuning::TET53: return 304;
+  case Tuning::EDO12: return 69;
+  case Tuning::EDO19: return 109;
+  case Tuning::EDO31: return 178;
+  case Tuning::EDO53: return 304;
   case Tuning::PERCUSSION: return 69;
   }
   return 178;

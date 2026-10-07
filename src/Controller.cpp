@@ -198,7 +198,7 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
   // covers 31-EDO (a fresh song's own default tuning) at a middle
   // register - a song in a different tuning, or a note far from that
   // register, still builds lazily on first use, same as before.
-  prewarmLibraryInstruments(instrument_provider, channel_config, Tuning::TET31);
+  prewarmLibraryInstruments(instrument_provider, channel_config, Tuning::EDO31);
 
   // MixerFactory falls back to AMBISONIC_STEREO at actual mixer-
   // construction time if no SOFA file resolves (or libmysofa isn't
@@ -1761,6 +1761,6 @@ void
 Controller::prewarmInstrumentForPreview(const Track * instrument, int note_value) const {
   if (!instrument) return;
   auto song = getCurrentSong();
-  Tuning tuning = song ? song->getTuning() : Tuning::TET31;
+  Tuning tuning = song ? song->getTuning() : Tuning::EDO31;
   prewarmInstrumentTree(*instrument, channel_config, tuning, note_value);
 }
