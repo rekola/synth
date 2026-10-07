@@ -263,11 +263,25 @@ ClipGrid::startClipRename(const Song & song, const std::vector<int> & track_ids)
   if (x < 0) return; // column itself scrolled off - same defensive case
   auto col_x = x * (kColWidth + 1);
 
+  // The editable span is the name only: the leading marker, "▸ " and clip
+  // number are structural, and the trailing loop/edited icons stay too,
+  // matching render()'s layout. As with a track name, the span gets a barely
+  // darkened track color behind white text.
+  auto & clip = clips[static_cast<size_t>(clip_row)];
+  bool is_edited_clip = track_clip_source_ && track_clip_source_(track_id) == clip_row;
+  auto trailing = std::max(2, 2 * ((is_edited_clip ? 1 : 0) + (clip.isLooping() ? 1 : 0)));
+  auto prefix_width = 3 + static_cast<int>(std::to_string(clip_row + 1).size()) + 1; // marker + "▸ " + "N "
+  auto name_area_end = kColWidth - trailing;
+  auto edit_width = std::max(name_area_end - prefix_width, 1);
+
+  SongStructure structure(song);
   InlineEditor::Field field;
   field.row = physical_row;
-  field.col = col_x;
-  field.width = kColWidth;
-  field.initial_text = clips[static_cast<size_t>(clip_row)].getName();
+  field.col = col_x + std::min(prefix_width, kColWidth - 1);
+  field.width = edit_width;
+  field.initial_text = clip.getName();
+  field.text_color = getPlane().getStyles().clip_text_color;
+  field.backdrop = structure.getBaselineInfo(track_id).getColor().blend(0.05f, Color(0, 0, 0));
   inline_editor_.open(field, [this, track_id, clip_row](std::string text) {
     auto & target_song = getController().getSong();
     auto & target_clips = target_song.getClips(track_id);
@@ -475,15 +489,13 @@ ClipGrid::offerInput(const InputEvent & input) {
     return true;
   } else if (input.getId() == 'l' && !input.hasCtrl() && !input.hasAlt()) {
     // Loop toggle - only meaningful on a clip row that actually has a
-    // clip; a no-op (but still consumed) anywhere else, same "always
-    // does something or nothing, never falls through" precedent
-    // ArrangementGrid's own Enter handling already has.
+    // clip; a no-op (but still consumed) anywhere else.
     if (rowKindFor(cursor_row_) == RowKind::CLIP && cursor_track_index_ >= 0 && cursor_track_index_ < num_tracks) {
       auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
       auto & clips = song.getClips(track_id);
       auto clip_row = physicalFor(cursor_row_); // a CLIP row's own physical offset doubles as its clip-list index
       if (clip_row >= 0 && static_cast<size_t>(clip_row) < clips.size() && !clips[static_cast<size_t>(clip_row)].isEmpty()) {
-        auto & mutable_song = getController().getSong(); // non-const - this branch genuinely writes, unlike the rest of this method (see `song`'s own comment above)
+        auto & mutable_song = getController().getSong(); // non-const - this branch genuinely writes
         auto & clip = mutable_song.getClips(track_id)[static_cast<size_t>(clip_row)];
         clip.setLooping(!clip.isLooping());
         mutable_song.incVersion();

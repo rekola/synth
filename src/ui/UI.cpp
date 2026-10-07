@@ -456,7 +456,7 @@ UI::initializeCommands() {
 
   // Clip menu entries not built yet - say so rather than failing as an
   // unknown command.
-  for (auto name : {"double-clip-length", "halve-clip-length", "toggle-clip-loop", "rename-clip"}) {
+  for (auto name : {"double-clip-length", "halve-clip-length", "rename-clip"}) {
     commands_.define(name, [this, name]() { setStatus(std::string(name) + ": not implemented yet"); });
   }
 

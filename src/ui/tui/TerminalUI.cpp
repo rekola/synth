@@ -764,7 +764,6 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                         {"Quantize Clip", "", "quantize-clip"},
                         {"Double Clip Length", "", "double-clip-length"},
                         {"Halve Clip Length", "", "halve-clip-length"},
-                        {"Toggle Clip Loop", "", "toggle-clip-loop"},
                         {"Toggle Stop Button", "", "toggle-stop-button"},
                         {"Rename Clip...", "", "rename-clip"},
                     }},
