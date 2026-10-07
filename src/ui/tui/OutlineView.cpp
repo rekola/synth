@@ -607,7 +607,7 @@ OutlineView::addSelectedLibraryRhythmToSong() {
   auto scene = static_cast<int>(song.getClips(percussion_track->getInternalId()).size());
   song.addClip(std::move(clip));
   if (!song.getSceneTimeSignature(scene).isSet()) {
-    song.setSceneTimeSignature(scene, { pattern->time_numerator, pattern->time_denominator });
+    song.setSceneTimeSignature(scene, {pattern->time_numerator, pattern->time_denominator});
     song.incVersion();
   }
 

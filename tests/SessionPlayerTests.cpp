@@ -38,7 +38,7 @@ struct SessionFixture {
   SessionFixture() {
     controller.switchToBuffer(controller.freshBufferName());
     auto & song = controller.getSong();
-    song.setTimeSignature(TimeSignature{ 1, 4 });
+    song.setTimeSignature(TimeSignature{1, 4});
     song.addInstrument(std::make_unique<Oscillator>(WaveformType::SINE));
     mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
     state = std::make_unique<SongState>(config);
@@ -79,7 +79,7 @@ struct SessionFixture {
       case PlaybackControlEvent::QUEUE_SESSION_CHANGE: state->queueSessionChange(control->getParameter1(), control->getParameter2(), control->getParameter3()); break;
       case PlaybackControlEvent::SILENCE_SESSION: state->silenceSession(control->getParameter1()); break;
       case PlaybackControlEvent::QUEUE_SCENE_CHANGE:
-        state->queueSceneChange(control->getParameter1(), { control->getParameter2() / 100, control->getParameter2() % 100 },
+        state->queueSceneChange(control->getParameter1(), {control->getParameter2() / 100, control->getParameter2() % 100},
                                 (control->getParameter3() & 1) != 0, (control->getParameter3() & 2) != 0, control->getParameter4());
         break;
       default: break;
@@ -203,14 +203,14 @@ TEST(session_player_scene_launch_sets_tempo_and_signature_on_the_bar_and_the_son
   f.controller.togglePlaying();
   f.playRows(1);
 
-  f.player().launchScene(1, { track });
+  f.player().launchScene(1, {track});
   f.playRows(3); // rows 1-3, before the bar
   CHECK(f.state->getTempo() == before && f.song().getTempo() == before);
   CHECK(!f.song().getRunningBars().isActive());
   f.playRows(1); // row 4, the bar
   CHECK(f.state->getTempo() == 150 && f.state->getRunningBars().origin == 4);
   CHECK(f.song().getTempo() == 150); // the song follows the audio thread
-  CHECK(f.song().getRunningBars().signature == (TimeSignature{ 3, 4 }) && f.song().getRunningBars().origin == 4);
+  CHECK(f.song().getRunningBars().signature == (TimeSignature{3, 4}) && f.song().getRunningBars().origin == 4);
   CHECK(f.song().barRowsAt(10) == 12);
   CHECK(f.state->getSessionTracks().at(track).clip_index == 1); // launched on that same bar
 
@@ -224,10 +224,10 @@ TEST(session_player_scene_launch_from_a_stopped_transport_applies_at_once) {
   SessionFixture f;
   auto track = f.addTrack(1);
   f.song().setSceneFromText(0, "5/4 133 BPM");
-  f.player().launchScene(0, { track });
+  f.player().launchScene(0, {track});
   f.playRows(1);
   CHECK(f.state->getTempo() == 133 && f.song().getTempo() == 133);
-  CHECK(f.song().getRunningBars().signature == (TimeSignature{ 5, 4 }));
+  CHECK(f.song().getRunningBars().signature == (TimeSignature{5, 4}));
   CHECK(f.plays(track, 60)); // the first row is a bar start of the new bars
 }
 
@@ -236,7 +236,7 @@ TEST(session_player_back_to_arrangement_hands_the_bars_back_to_the_song) {
   auto track = f.addTrack(1);
   f.song().setSceneFromText(0, "3/4");
   f.controller.togglePlaying();
-  f.player().launchScene(0, { track });
+  f.player().launchScene(0, {track});
   f.playRows(1);
   CHECK(f.song().getRunningBars().isActive());
   f.player().returnAllToArrangement();

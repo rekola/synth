@@ -910,8 +910,10 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
     }
     if (!inSessionMixerFamily(state)) return true;
     if (hasStopSoloMuteCycle(device_id)) {
-      if (cc_number == 19) cycleStopSoloMute(device_id);
-      else triggerSceneRow(controller, (cc_number - 19) / 10);
+      if (cc_number == 19)
+        cycleStopSoloMute(device_id);
+      else
+        triggerSceneRow(controller, (cc_number - 19) / 10);
       return true;
     }
     if (!state.session_mixer_mode) {
@@ -1196,15 +1198,13 @@ LaunchpadManager::toggleTrackPicker(int device_id, DeviceState::TrackPickerPurpo
   state.track_picker_purpose = purpose; // harmless to set even when closing - only read while track_picker_active
 }
 
-bool
-LaunchpadManager::hasStopSoloMuteCycle(int device_id) const {
+bool LaunchpadManager::hasStopSoloMuteCycle(int device_id) const {
   if (!launchpad_io_) return false;
   auto model = launchpad_io_->modelForSession(device_id);
   return model && LaunchpadProtocol::getModelInfo(*model).stop_solo_mute_cycle_button;
 }
 
-void
-LaunchpadManager::cycleStopSoloMute(int device_id) {
+void LaunchpadManager::cycleStopSoloMute(int device_id) {
   using Purpose = DeviceState::TrackPickerPurpose;
   auto & state = deviceState(device_id);
   state.grid_mode = GridMode::SESSION;
@@ -2955,7 +2955,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
       !(state.grid_mode == GridMode::NOTES && !state.show_step_grid)) {
     // Bottom button shows the cycle position: white while the bottom row
     // shows clips, then the picker's own hue per purpose.
-    record_arm_button_color = !state.track_picker_active                                               ? Rgb{127, 127, 127}
+    record_arm_button_color = !state.track_picker_active                                                 ? Rgb{127, 127, 127}
                               : state.track_picker_purpose == DeviceState::TrackPickerPurpose::STOP_CLIP ? LAUNCHPAD_TRACK_PICKER_STOP_CLIP_BRIGHT
                               : state.track_picker_purpose == DeviceState::TrackPickerPurpose::SOLO      ? LAUNCHPAD_TRACK_PICKER_SOLO_BRIGHT
                                                                                                          : LAUNCHPAD_TRACK_PICKER_MUTE_BRIGHT;

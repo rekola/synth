@@ -14,7 +14,7 @@ validDenominator(int denominator) {
 }
 
 struct Parsed {
-  std::string name; // the text with the tempo and time signature removed
+  std::string name;       // the text with the tempo and time signature removed
   bool has_tempo = false; // a tempo was typed (0 meaning "none")
   int tempo = 0;
   bool has_time_signature = false; // one was typed (numerator 0 meaning "none")

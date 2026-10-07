@@ -40,7 +40,7 @@ struct SessionSong {
   int seq = 0;
 
   explicit SessionSong(bool looping = true) {
-    song.setTimeSignature(TimeSignature{ 1, 4 });
+    song.setTimeSignature(TimeSignature{1, 4});
     song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
     a = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
     b = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
@@ -212,7 +212,7 @@ TEST(session_retrigger_ignores_notes_of_the_previous_clip) {
 
 TEST(session_launch_waits_for_the_songs_own_bars) {
   SessionSong s;
-  s.song.setTimeSignature({ 2, 4 }); // bars of 8 rows
+  s.song.setTimeSignature({2, 4}); // bars of 8 rows
   s.song.incVersion();
   s.play(1);
   s.queue(s.a, 0);
@@ -225,8 +225,8 @@ TEST(session_launch_waits_for_the_songs_own_bars) {
 
 TEST(session_launch_waits_for_the_running_bars) {
   SessionSong s;
-  s.state->setRunningBars({ { 2, 4 }, 4 }); // 8-row bars counted from row 4: bars at 4 and 12
-  s.play(5); // rows 0-4
+  s.state->setRunningBars({{2, 4}, 4}); // 8-row bars counted from row 4: bars at 4 and 12
+  s.play(5);                            // rows 0-4
   s.queue(s.a, 0);
   s.play(4); // rows 5-8: row 8 is a bar start of the song's grid, not of the running one
   CHECK(s.plays(s.a, 48));
@@ -239,13 +239,13 @@ TEST(a_scene_change_applies_its_tempo_and_signature_on_the_bar) {
   SessionSong s;
   auto before = s.state->getTempo();
   s.play(1);
-  s.state->queueSceneChange(before + 30, { 3, 4 }, false, false, 1);
+  s.state->queueSceneChange(before + 30, {3, 4}, false, false, 1);
   s.play(3); // rows 1-3
   CHECK(s.state->getTempo() == before);
   CHECK(!s.state->getRunningBars().isActive() && s.state->getSceneSeq() == 0);
   s.play(1); // row 4, the bar
   CHECK(s.state->getTempo() == before + 30);
-  CHECK(s.state->getRunningBars().signature == (TimeSignature{ 3, 4 }) && s.state->getRunningBars().origin == 4);
+  CHECK(s.state->getRunningBars().signature == (TimeSignature{3, 4}) && s.state->getRunningBars().origin == 4);
   CHECK(s.state->getSceneSeq() == 1);
   // The new bars count from there: 12 rows on.
   CHECK(s.state->barsAt(15).rowInBar(15) == 11 && s.state->barsAt(16).rowInBar(16) == 0);
@@ -254,19 +254,19 @@ TEST(a_scene_change_applies_its_tempo_and_signature_on_the_bar) {
 TEST(a_scene_change_from_a_stopped_transport_applies_at_the_first_row) {
   SessionSong s;
   s.state->setIsPlaying(false);
-  s.state->queueSceneChange(130, { 5, 4 }, false, true, 1);
+  s.state->queueSceneChange(130, {5, 4}, false, true, 1);
   s.state->setIsPlaying(true);
   s.play(1);
   CHECK(s.state->getTempo() == 130);
-  CHECK(s.state->getRunningBars().signature == (TimeSignature{ 5, 4 }) && s.state->getRunningBars().origin == 0);
+  CHECK(s.state->getRunningBars().signature == (TimeSignature{5, 4}) && s.state->getRunningBars().origin == 0);
 }
 
 TEST(a_scene_change_without_a_signature_keeps_the_running_one_and_a_clear_hands_it_back) {
   SessionSong s;
-  s.state->setRunningBars({ { 3, 4 }, 0 });
+  s.state->setRunningBars({{3, 4}, 0});
   s.state->queueSceneChange(s.state->getTempo(), {}, false, false, 1); // a scene with a tempo only
   s.play(1);
-  CHECK(s.state->getRunningBars().signature == (TimeSignature{ 3, 4 }));
+  CHECK(s.state->getRunningBars().signature == (TimeSignature{3, 4}));
   s.play(11); // to row 12, a bar of the running signature
   s.state->queueSceneChange(0, {}, true, false, 2);
   s.play(1); // row 12
@@ -276,7 +276,7 @@ TEST(a_scene_change_without_a_signature_keeps_the_running_one_and_a_clear_hands_
 TEST(a_newer_scene_change_replaces_one_still_waiting) {
   SessionSong s;
   s.play(1);
-  s.state->queueSceneChange(150, { 3, 4 }, false, false, 1);
+  s.state->queueSceneChange(150, {3, 4}, false, false, 1);
   s.state->queueSceneChange(0, {}, false, false, 2); // a scene with nothing set
   s.play(4);
   CHECK(s.state->getTempo() != 150 && !s.state->getRunningBars().isActive());

@@ -87,6 +87,10 @@ class PlaybackControlEvent : public Event {
   // isMonitoring()), 0 once it shouldn't.
   // SET_METRONOME: parameter1 = 1 to click on every beat while the
   // transport plays, 0 to stop. buffer_name is unused.
+  // SET_CAPTURE_DEVICE/SET_PLAYBACK_DEVICE: switch the audio input/output
+  // (AudioAPI::setCaptureDevice()/setPlaybackDevice()). buffer_name is
+  // repurposed for the device name (a DeviceSettings audio name, "" for the
+  // system default); there is no owning buffer.
   enum Type { PLAY = 1,
               STOP,
               TERMINATE,
@@ -124,7 +128,9 @@ class PlaybackControlEvent : public Event {
               SET_METRONOME,
               QUEUE_SCENE_CHANGE,
               BATCH_BEGIN,
-              BATCH_END };
+              BATCH_END,
+              SET_CAPTURE_DEVICE,
+              SET_PLAYBACK_DEVICE };
 
   // buffer_name says which open buffer this event targets - required for
   // every type except the genuinely buffer-agnostic ones (TERMINATE,

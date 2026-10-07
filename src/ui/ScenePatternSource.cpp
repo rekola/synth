@@ -79,13 +79,11 @@ ScenePatternSource::blockLength(int block) const {
   return s.getSceneBarRows(block);
 }
 
-bool
-ScenePatternSource::startsBar(int block, int row) const {
+bool ScenePatternSource::startsBar(int block, int row) const {
   return row >= 0 && row % song().getSceneBarRows(block) == 0;
 }
 
-bool
-ScenePatternSource::startsBeat(int block, int row) const {
+bool ScenePatternSource::startsBeat(int block, int row) const {
   return row >= 0 && row % song().getSceneBeatRows(block) == 0;
 }
 

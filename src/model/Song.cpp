@@ -989,12 +989,14 @@ Song::loadParameters(const ParameterSource & input) {
   setScale(scaleFromString(input.get<std::string>("scale")));
 
   setTempo(input.get<int>("tempo", 90));
-  time_signature_ = { 4, 4 };
+  time_signature_ = {4, 4};
   auto signature = TimeSignature::parse(input.get<std::string>("timeSignature"));
   if (signature && signature->isSet()) time_signature_ = *signature;
   auto running = TimeSignature::parse(input.get<std::string>("transportTimeSignature"));
-  if (running && running->isSet()) running_bars_ = { *running, input.get<int>("transportBarOrigin", 0) };
-  else clearRunningBars();
+  if (running && running->isSet())
+    running_bars_ = {*running, input.get<int>("transportBarOrigin", 0)};
+  else
+    clearRunningBars();
   setSwing(input.get<int>("swing", swing::kStraight));
   setRecordQuantize(input.get<bool>("recordQuantize", false));
 
@@ -1065,7 +1067,7 @@ Song::storeParameters(ParameterSource & output) const {
   if (getScale() != Scale::NONE) output.set("scale", to_string(getScale()));
   output.set("temperament", to_string(getTuning()));
   output.set("tempo", getTempo());
-  if (time_signature_ != TimeSignature{ 4, 4 }) output.set("timeSignature", time_signature_.toString());
+  if (time_signature_ != TimeSignature{4, 4}) output.set("timeSignature", time_signature_.toString());
   if (running_bars_.isActive()) {
     output.set("transportTimeSignature", running_bars_.signature.toString());
     output.set("transportBarOrigin", running_bars_.origin);

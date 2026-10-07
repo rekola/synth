@@ -117,13 +117,11 @@ ArrangementPatternSource::sampleBackground(int track_id, int) const {
   return song().getArrangement().getSampleBackgroundContent(track_id);
 }
 
-bool
-ArrangementPatternSource::startsBar(int, int row) const {
+bool ArrangementPatternSource::startsBar(int, int row) const {
   return row >= 0 && song().getArrangementBars().rowInBar(row) == 0;
 }
 
-bool
-ArrangementPatternSource::startsBeat(int, int row) const {
+bool ArrangementPatternSource::startsBeat(int, int row) const {
   if (row < 0) return false;
   auto bars = song().getArrangementBars();
   return bars.rowInBar(row) % bars.beatRows() == 0;

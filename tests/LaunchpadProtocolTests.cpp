@@ -73,8 +73,10 @@ TEST(note_number_to_pad_round_trips_and_rejects_out_of_range_notes) {
     for (int x = 0; x < 8; x++) {
       auto pad = noteNumberToPad(padToNoteNumber(x, y));
       CHECK(pad.has_value());
-      CHECK(pad->first == x);
-      CHECK(pad->second == y);
+      if (pad) {
+        CHECK(pad->first == x);
+        CHECK(pad->second == y);
+      }
     }
   }
   CHECK(!noteNumberToPad(19).has_value()); // CC-mapped button, not a grid note

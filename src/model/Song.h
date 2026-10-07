@@ -116,7 +116,7 @@ class Song : public SongObject {
   TimeSignature getSceneTimeSignature(int scene) const {
     if (scene < 0 || static_cast<size_t>(scene) >= scenes_.size()) return {};
     auto & info = scenes_[static_cast<size_t>(scene)];
-    return { info.time_numerator, info.time_denominator };
+    return {info.time_numerator, info.time_denominator};
   }
   // The bar and beat length the scene is shown and edited in: its own time
   // signature, else the one the transport is counting in (which a scene
@@ -144,7 +144,7 @@ class Song : public SongObject {
     auto parsed = scenename::extract(text);
     setSceneName(scene, parsed.name);
     if (parsed.has_tempo) setSceneTempo(scene, parsed.tempo);
-    if (parsed.has_time_signature) setSceneTimeSignature(scene, { parsed.numerator, parsed.denominator });
+    if (parsed.has_time_signature) setSceneTimeSignature(scene, {parsed.numerator, parsed.denominator});
   }
 
   // How late the second eighth of every pair plays (swing.h), in percent of
@@ -164,7 +164,7 @@ class Song : public SongObject {
   void setTimeSignature(TimeSignature signature) {
     if (signature.isSet() && TimeSignature::validDenominator(signature.denominator)) time_signature_ = signature;
   }
-  BarGrid getArrangementBars() const { return { time_signature_, 0 }; }
+  BarGrid getArrangementBars() const { return {time_signature_, 0}; }
 
   // The signature a launched scene set, counted from the bar it launched
   // on (saved as transportTimeSignature/transportBarOrigin). The audio
@@ -513,7 +513,12 @@ private:
   Tuning tuning_ = Tuning::TET31;
   short key_note_number_ = 0;
   Scale scale_ = Scale::NONE;
-  struct SceneInfo { std::string name; int tempo = 0; int time_numerator = 0; int time_denominator = 0; };
+  struct SceneInfo {
+    std::string name;
+    int tempo = 0;
+    int time_numerator = 0;
+    int time_denominator = 0;
+  };
   SceneInfo & sceneAt(int scene) {
     static SceneInfo discarded;
     if (scene < 0) return discarded = SceneInfo{};
@@ -522,7 +527,7 @@ private:
   }
   std::vector<SceneInfo> scenes_; // by scene position; shorter than the scene count when the rest have neither
   int bpm_ = 140;
-  TimeSignature time_signature_{ 4, 4 };
+  TimeSignature time_signature_{4, 4};
   RunningBars running_bars_;
   int swing_ = swing::kStraight;
   bool record_quantize_ = false;

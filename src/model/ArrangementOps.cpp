@@ -22,13 +22,11 @@ quantizedBarRow(int raw_row, int rows_per_bar) {
   return ((raw_row + rows_per_bar - 1) / rows_per_bar) * rows_per_bar;
 }
 
-int
-quantizedBarRow(const BarGrid & bars, int raw_row) {
+int quantizedBarRow(const BarGrid & bars, int raw_row) {
   return bars.roundUpToBar(raw_row);
 }
 
-int
-previousBarRow(const BarGrid & bars, int raw_row) {
+int previousBarRow(const BarGrid & bars, int raw_row) {
   return bars.barStart(raw_row);
 }
 
@@ -182,8 +180,7 @@ deleteClipOrStopButton(Song & song, int track_id, int clip_index, string * delet
   return SlotDelete::CLIP;
 }
 
-int
-duplicateClip(Song & song, int track_id, int from_index) {
+int duplicateClip(Song & song, int track_id, int from_index) {
   auto & clips = song.getClips(track_id);
   if (from_index < 0 || from_index >= static_cast<int>(clips.size()) || clips[static_cast<size_t>(from_index)].isEmpty()) return -1;
   auto to_index = from_index + 1;

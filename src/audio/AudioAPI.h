@@ -47,6 +47,22 @@ class AudioAPI {
   // hasCaptureDevice() is false.
   virtual std::string getCaptureDeviceName() const = 0;
 
+  // Runtime device switching. Both are called on the audio thread (Player
+  // handles them as PlaybackControlEvents) because it owns the PCM handles.
+  // A device that can't be opened, or can't run at the rate and block size
+  // already in use, leaves the current one untouched and returns false after
+  // logging why - a failed switch never silences the player. `name` is a
+  // DeviceSettings audio name.
+  virtual bool setCaptureDevice(const std::string & name, Logger & logger) = 0;
+  virtual bool setPlaybackDevice(const std::string & name, Logger & logger) = 0;
+  // Connects the named ALSA sequencer source (DeviceSettings::midi_input) to
+  // this program's input port, replacing whatever was connected this way
+  // before; "" just disconnects. A source that isn't present yet is
+  // connected when it appears.
+  virtual void setMidiInput(const std::string & spec, Logger & logger) = 0;
+  // Like getCaptureDeviceName(): what playback actually opened.
+  virtual std::string getPlaybackDeviceName() const = 0;
+
   int getFrequency() const { return frequency; }
   short numberOfChannels() const { return channels; }
 

@@ -11,7 +11,7 @@
 using namespace std;
 
 // Bars of 4 rows (1/4), small enough to hand-check.
-static BarGrid oneBeatBars() { return BarGrid{ TimeSignature{ 1, 4 }, 0 }; }
+static BarGrid oneBeatBars() { return BarGrid{TimeSignature{1, 4}, 0}; }
 
 TEST(pattern_block_copy_captures_notes_and_commands) {
   Arrangement p;

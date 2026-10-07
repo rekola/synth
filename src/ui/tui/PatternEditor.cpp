@@ -883,7 +883,7 @@ PatternEditor::copyToClip() {
   BarGrid bars = song.getArrangementBars();
   if (isSessionMode()) {
     auto signature = song.getSceneTimeSignature(selectionAnchor().block);
-    bars = { signature.isSet() ? signature : song.getRunningTimeSignature(), 0 };
+    bars = {signature.isSet() ? signature : song.getRunningTimeSignature(), 0};
   }
   auto clip = extractClip(*grid, track_id, b.row_lo, b.row_hi, bars);
   song.addClip(std::move(clip));
