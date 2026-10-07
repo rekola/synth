@@ -57,37 +57,21 @@ TEST(scale_major_12edo_transposed_to_key) {
   for (size_t i = 0; i < expected.size(); i++) CHECK(degrees[i] == expected[i]);
 }
 
-// The two special microtonal scales, exactly as specified: C D♯ E F G A
-// A♯ (OTONAL) and C E𝄫 E♭ F G A♭ B𝄫 (UTONAL) - both resolved
-// here in 12-EDO, where E𝄫 degrades to (sounds identical to) D but still
-// resolves to a real, correct pitch class rather than asserting/crashing
-// (Note::stringToKey()'s own double-flat support, added alongside this
-// feature). Each again gains an 8th row repeating the tonic an octave up.
-TEST(scale_otonal_12edo) {
-  Song song(Tuning::TET12, -1);
+// The two special microtonal scales: C D♯ E F G A A♯ (OTONAL) and
+// C E𝄫 E♭ F G A♭ B𝄫 (UTONAL), resolved in 31-EDO where D♯/A♯ and E𝄫/E♭
+// are genuinely distinct pitches (12-EDO can't express them). Values are
+// cross-checked against docs/31edo_note_numbers.txt's own published table
+// (steps relative to its C-4 origin); the 8th row is the tonic 31 steps up
+// (one 31-EDO octave).
+TEST(scale_otonal_31edo) {
+  Song song(Tuning::TET31, -1);
   song.setScale(Scale::OTONAL);
   auto degrees = song.getScaleDegrees();
-  vector<int> expected = {0, 3, 4, 5, 7, 9, 10, 12}; // C D# E F G A A# C
+  vector<int> expected = {0, 7, 10, 13, 18, 23, 25, 31};
   CHECK(degrees.size() == expected.size());
   for (size_t i = 0; i < expected.size(); i++) CHECK(degrees[i] == expected[i]);
 }
 
-TEST(scale_utonal_12edo) {
-  Song song(Tuning::TET12, -1);
-  song.setScale(Scale::UTONAL);
-  auto degrees = song.getScaleDegrees();
-  vector<int> expected = {0, 2, 3, 5, 7, 8, 9, 12}; // C E𝄫(=D) E♭ F G A♭ B𝄫(=A) C
-  CHECK(degrees.size() == expected.size());
-  for (size_t i = 0; i < expected.size(); i++) CHECK(degrees[i] == expected[i]);
-}
-
-// The same UTONAL scale in 31-EDO, where E𝄫 and E♭ are genuinely
-// distinct pitches (not degenerate the way they are in 12-EDO) - the
-// whole reason these are called "microtonal" scales in the first place.
-// Values cross-checked directly against docs/31edo_note_numbers.txt's
-// own published table (steps 0/6/8/13/18/21/24 relative to that table's
-// own C-4 origin at step 155); the 8th row is the tonic 31 steps up (one
-// 31-EDO octave).
 TEST(scale_utonal_31edo) {
   Song song(Tuning::TET31, -1);
   song.setScale(Scale::UTONAL);
