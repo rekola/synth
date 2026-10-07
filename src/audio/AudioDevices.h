@@ -12,6 +12,9 @@ struct AudioDeviceInfo {
   std::string name;
   // Human-readable, unique within one listing.
   std::string label;
+  // What tells this device from another of the same make (where it is
+  // plugged in); used to make `label` unique, empty if unknown.
+  std::string detail;
 };
 
 struct MidiSourceInfo {
@@ -27,7 +30,10 @@ struct MidiSourceInfo {
 // PipeWire system shows little more than "default" and the raw cards.
 bool pipeWireAvailable();
 
-// Entry 0 is always the system default.
+// Entry 0 is always the system default. Without PipeWire this lists the
+// machine's sound cards, one entry per input/output - not ALSA's long tail of
+// virtual and converting PCMs, which are still usable by name with
+// --capture-device/--playback-device.
 std::vector<AudioDeviceInfo> listCaptureDevices();
 std::vector<AudioDeviceInfo> listPlaybackDevices();
 
@@ -42,7 +48,8 @@ std::vector<MidiSourceInfo> listMidiSources();
 bool captureDeviceExists(const std::string & name);
 bool playbackDeviceExists(const std::string & name);
 
-// Makes each label unique by numbering repeats ("Mic", "Mic (2)").
+// Makes each label unique: identical ones are told apart by their detail
+// ("Mic [usb-0:2:1.0]"), numbered if that is not enough.
 void uniquifyLabels(std::vector<AudioDeviceInfo> & devices);
 
 #endif

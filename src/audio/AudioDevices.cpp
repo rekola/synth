@@ -1,5 +1,6 @@
 #include "AudioDevices.h"
 
+#include "DeviceLabels.h"
 #include "DeviceSettings.h"
 #include "../launchpad/LaunchpadProtocol.h"
 
@@ -21,6 +22,12 @@ namespace {
 struct Node {
   string name;
   string label;
+  string detail;
+  // Where it is plugged in, from the node itself or its device object
+  // (resolved after the snapshot, since a device can be announced after its
+  // nodes), and the device object it belongs to (-1 if none).
+  string bus_path;
+  int device_id = -1;
   bool is_source = false;
   bool is_sink = false;
 };
@@ -36,11 +43,18 @@ struct Snapshot {
   spa_hook registry_listener{};
   int pending = 0;
   vector<Node> nodes;
+  // Bus path of each device object that has one, by registry id.
+  map<uint32_t, string> device_bus_paths;
 };
 
-void onGlobal(void * data, uint32_t, uint32_t, const char * type, uint32_t, const spa_dict * props) {
-  if (!props || strcmp(type, PW_TYPE_INTERFACE_Node) != 0) return;
+void onGlobal(void * data, uint32_t id, uint32_t, const char * type, uint32_t, const spa_dict * props) {
+  if (!props) return;
   auto * s = static_cast<Snapshot *>(data);
+  if (strcmp(type, PW_TYPE_INTERFACE_Device) == 0) {
+    if (auto * bus_path = spa_dict_lookup(props, PW_KEY_DEVICE_BUS_PATH)) s->device_bus_paths[id] = bus_path;
+    return;
+  }
+  if (strcmp(type, PW_TYPE_INTERFACE_Node) != 0) return;
   auto * media_class = spa_dict_lookup(props, PW_KEY_MEDIA_CLASS);
   auto * name = spa_dict_lookup(props, PW_KEY_NODE_NAME);
   if (!media_class || !name) return;
@@ -53,6 +67,8 @@ void onGlobal(void * data, uint32_t, uint32_t, const char * type, uint32_t, cons
   auto * description = spa_dict_lookup(props, PW_KEY_NODE_DESCRIPTION);
   auto * nick = spa_dict_lookup(props, PW_KEY_NODE_NICK);
   node.label = description ? description : (nick ? nick : name);
+  if (auto * bus_path = spa_dict_lookup(props, PW_KEY_DEVICE_BUS_PATH)) node.bus_path = bus_path;
+  if (auto * device_id = spa_dict_lookup(props, PW_KEY_DEVICE_ID)) node.device_id = atoi(device_id);
   s->nodes.push_back(std::move(node));
 }
 
@@ -111,6 +127,13 @@ bool takeSnapshot(vector<Node> & nodes) {
     pw_main_loop_run(s.loop);
     pw_loop_destroy_source(loop, timer);
 
+    for (auto & node : s.nodes) {
+      if (node.bus_path.empty() && node.device_id >= 0) {
+        auto device = s.device_bus_paths.find(static_cast<uint32_t>(node.device_id));
+        if (device != s.device_bus_paths.end()) node.bus_path = device->second;
+      }
+      node.detail = deviceDetail(node.name, node.bus_path);
+    }
     nodes = std::move(s.nodes);
     ok = true;
     spa_hook_remove(&s.registry_listener);
@@ -129,28 +152,54 @@ bool takeSnapshot(vector<Node> &) { return false; }
 
 #endif
 
-// ALSA's own PCM list: all there is without PipeWire, and little more than
-// "default" with it. `want_input` picks capture-capable entries.
+// What there is without PipeWire: the machine's sound cards, one entry per
+// card device that has the wanted direction. ALSA's own name hints would add
+// dozens of virtual and converting PCMs per card (surround layouts, dmix,
+// the audio server's own plugin, ...) that a person picking a device never
+// means. The plugged name converts rate and format, which the raw hardware
+// name doesn't, and is addressed by card id, which unlike the card number
+// survives a reboot with devices plugged in a different order.
 vector<AudioDeviceInfo> alsaDevices(bool want_input) {
   vector<AudioDeviceInfo> result;
-  void ** hints = nullptr;
-  if (snd_device_name_hint(-1, "pcm", &hints) < 0) return result;
-  for (void ** h = hints; *h; h++) {
-    char * name = snd_device_name_get_hint(*h, "NAME");
-    char * description = snd_device_name_get_hint(*h, "DESC");
-    char * ioid = snd_device_name_get_hint(*h, "IOID");
-    bool usable = !ioid || string(ioid) == (want_input ? "Input" : "Output");
-    if (name && usable && string(name) != "default" && string(name) != "null") {
-      string label = description ? description : name;
-      auto newline = label.find('\n');
-      if (newline != string::npos) label = label.substr(0, newline);
-      result.push_back({name, label});
+  auto stream = want_input ? SND_PCM_STREAM_CAPTURE : SND_PCM_STREAM_PLAYBACK;
+  for (int card = -1; snd_card_next(&card) >= 0 && card >= 0;) {
+    snd_ctl_t * ctl = nullptr;
+    if (snd_ctl_open(&ctl, ("hw:" + to_string(card)).c_str(), 0) < 0) continue;
+    snd_ctl_card_info_t * card_info;
+    snd_ctl_card_info_alloca(&card_info);
+    if (snd_ctl_card_info(ctl, card_info) >= 0) {
+      string card_name = snd_ctl_card_info_get_name(card_info);
+      string id = snd_ctl_card_info_get_id(card_info);
+      // The long name ends in where the card sits ("... at usb-0000:00:14.0-2,
+      // full speed"): the part that tells two identical cards apart.
+      string detail = id;
+      string longname = snd_ctl_card_info_get_longname(card_info);
+      auto at = longname.rfind(" at ");
+      if (at != string::npos) {
+        auto end = longname.find(',', at);
+        detail = longname.substr(at + 4, end == string::npos ? string::npos : end - (at + 4));
+      }
+
+      vector<pair<int, string>> found;
+      for (int device = -1; snd_ctl_pcm_next_device(ctl, &device) >= 0 && device >= 0;) {
+        snd_pcm_info_t * pcm_info;
+        snd_pcm_info_alloca(&pcm_info);
+        snd_pcm_info_set_device(pcm_info, static_cast<unsigned>(device));
+        snd_pcm_info_set_subdevice(pcm_info, 0);
+        snd_pcm_info_set_stream(pcm_info, stream);
+        if (snd_ctl_pcm_info(ctl, pcm_info) < 0) continue; // no such direction here
+        found.push_back({device, snd_pcm_info_get_name(pcm_info)});
+      }
+      for (auto & [device, device_name] : found) {
+        // The device's own name only when it adds something (a card with one
+        // device is just the card).
+        string label = card_name;
+        if (found.size() > 1 && !device_name.empty() && device_name != card_name) label += " - " + device_name;
+        result.push_back({"plughw:CARD=" + id + ",DEV=" + to_string(device), label, detail});
+      }
     }
-    free(name);
-    free(description);
-    free(ioid);
+    snd_ctl_close(ctl);
   }
-  snd_device_name_free_hint(hints);
   return result;
 }
 
@@ -161,7 +210,7 @@ vector<AudioDeviceInfo> listDevices(bool want_input) {
   if (takeSnapshot(nodes)) {
     for (auto & node : nodes) {
       if (want_input ? node.is_source : node.is_sink) {
-        devices.push_back({string(kPipeWirePrefix) + node.name, node.label});
+        devices.push_back({string(kPipeWirePrefix) + node.name, node.label, node.detail});
       }
     }
   } else {
@@ -207,11 +256,13 @@ bool playbackDeviceExists(const string & name) {
 }
 
 void uniquifyLabels(vector<AudioDeviceInfo> & devices) {
-  map<string, int> seen;
+  vector<string> labels, details;
   for (auto & device : devices) {
-    int n = ++seen[device.label];
-    if (n > 1) device.label += " (" + to_string(n) + ")";
+    labels.push_back(device.label);
+    details.push_back(device.detail);
   }
+  disambiguateLabels(labels, details);
+  for (size_t i = 0; i < devices.size(); i++) devices[i].label = labels[i];
 }
 
 vector<MidiSourceInfo>

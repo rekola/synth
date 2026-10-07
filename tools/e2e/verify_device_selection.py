@@ -154,16 +154,21 @@ def main():
         print("SKIP: needs a running PipeWire and pw-cli/pw-link")
         return
 
+    # Two sources that share a description, like two identical USB dongles. A
+    # real card's location comes from its device object, which a null sink
+    # doesn't have, so they are told apart by their node names here.
     nodes = [
-        ("e2e_sink_a", "E2E Sink A", "Audio/Sink"),
-        ("e2e_sink_b", "E2E Sink B", "Audio/Sink"),
-        ("e2e_source_a", "E2E Source A", "Audio/Source/Virtual"),
+        ("e2e_sink_a", "E2E Sink A", "Audio/Sink", ""),
+        ("e2e_sink_b", "E2E Sink B", "Audio/Sink", ""),
+        ("e2e_source_a", "E2E Source A", "Audio/Source/Virtual", ""),
+        ("e2e_twin_a", "E2E Twin", "Audio/Source/Virtual", ""),
+        ("e2e_twin_b", "E2E Twin", "Audio/Source/Virtual", ""),
     ]
     keeper = subprocess.Popen(["pw-cli"], stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, text=True)
-    for name, desc, cls in nodes:
+    for name, desc, cls, extra in nodes:
         keeper.stdin.write(
             "create-node adapter { factory.name=support.null-audio-sink "
-            f"node.name={name} node.description=\"{desc}\" media.class={cls} "
+            f"node.name={name} node.description=\"{desc}\" media.class={cls} {extra} "
             "audio.position=[FL FR] }\n")
     keeper.stdin.flush()
     time.sleep(1.0)
@@ -203,6 +208,9 @@ def main():
 
         mx(scr, "select-capture-device")
         check("the input dialog lists the new source", dialog_open(scr) and dialog_row(scr, "E2E Source A") is not None, scr)
+        check("identical devices are told apart",
+              dialog_row(scr, "E2E Twin [e2e_twin_a]") is not None and dialog_row(scr, "E2E Twin [e2e_twin_b]") is not None, scr)
+        check("a device with a unique name is left plain", dialog_row(scr, "E2E Source A [") is None, scr)
         check("clicking an entry chooses it", click(scr, "E2E Source A"), scr)
         check("choosing an input reports it", wait_until(scr, lambda: "Capture device: pw:e2e_source_a" in scr.dump()), scr)
         check("both choices are saved", "capture = pw:e2e_source_a" in open(conf).read()

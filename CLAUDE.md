@@ -44,10 +44,12 @@ defect this codebase won't ship. FFT support (the live spectrum analyzer,
 MagLS binaural precomputation) is via vendored PocketFFT
 (`third_party/pocketfft/`) — no separate FFT library package needed.
 `libpipewire-0.3-dev` is optional too (`SYNTH_ENABLE_PIPEWIRE`,
-auto-detected): it only backs `src/audio/AudioDevices.cpp`'s listing of the
-audio server's own inputs and outputs for the device pickers (below);
-selecting one doesn't need it, and without it the lists fall back to ALSA's
-own PCM names.
+auto-detected, and cmake says so when it isn't used): it only backs
+`src/audio/AudioDevices.cpp`'s listing of the audio server's own inputs and
+outputs for the device pickers (below); selecting one doesn't need it, and
+without it the lists fall back to the machine's sound cards (one entry per
+card input/output via the ALSA control API - not `snd_device_name_hint()`'s
+dozens of virtual PCMs per card), with the dialog title saying so.
 `libmysofa-dev` is optional (binaural ambisonic decoding,
 `SYNTH_ENABLE_BINAURAL`, auto-detected) — without it, `--ambisonic` still
 works via the cardioid stereo decoder fallback.
@@ -96,6 +98,9 @@ the server silently substitutes the default input for an unknown one.
 Capturing a sink's monitor isn't supported for the same reason (naming a sink
 also falls back to the default input). A missing ALSA sequencer no longer
 stops audio from starting - MIDI is just off.
+Identical labels are told apart by where the device is plugged in
+(`DeviceLabels.h`: a node's `device.bus-path`, looked up on its device object,
+cut down to the USB port; the node name if none), numbered as a last resort.
 `tools/e2e/verify_device_selection.py` drives the pickers against a real
 PipeWire (and skips without one).
 

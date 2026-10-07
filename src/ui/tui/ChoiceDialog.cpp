@@ -11,7 +11,9 @@ using namespace std;
 
 namespace {
 
-constexpr int kMaxWidth = 72;
+// Wide enough for a long device name plus where it is plugged in, which is
+// what tells two of the same make apart.
+constexpr int kMaxWidth = 110;
 constexpr const char * kHint = "Enter: choose  Esc: cancel";
 
 string repeatUtf8(const string & glyph, int count) {
@@ -43,7 +45,7 @@ void ChoiceDialog::show(UIPlane & parent, int screen_rows, int screen_cols) {
   int widest = Utf8::displayWidth(kHint) + 6;
   widest = std::max(widest, Utf8::displayWidth(title_) + 6);
   for (auto & label : labels_) widest = std::max(widest, Utf8::displayWidth(label) + 6);
-  width_ = std::min({widest, kMaxWidth, std::max(10, screen_cols)});
+  width_ = std::min({widest, kMaxWidth, std::max(10, screen_cols - 2)});
   // Two rows for the border, and leave a little of the screen around it.
   rows_ = std::min(static_cast<int>(labels_.size()) + 2, std::max(3, screen_rows - 2));
 
@@ -89,7 +91,9 @@ void ChoiceDialog::show(UIPlane & parent, int screen_rows, int screen_cols) {
     // A marker for the one in use, then the label, padded so the cursor
     // covers the whole row.
     string text = string(" ") + (index == current_ ? "●" : " ") + " " + labels_[static_cast<size_t>(index)];
-    plane_->putstr(i + 1, 1, Utf8::padToWidth(Utf8::truncateToWidth(text, inner), inner));
+    // A label that doesn't fit ends in an ellipsis, so it is clear it goes on.
+    if (Utf8::displayWidth(text) > inner) text = Utf8::truncateToWidth(text, inner - 1) + "\u2026";
+    plane_->putstr(i + 1, 1, Utf8::padToWidth(text, inner));
   }
 
   x_ = (screen_cols - width_) / 2;

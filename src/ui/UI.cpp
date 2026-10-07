@@ -384,16 +384,22 @@ UI::initializeCommands() {
       apply(list[static_cast<size_t>(index)]);
     });
   };
-  commands_.define("select-capture-device", [this, chooseDevice]() {
+  // Says where the list comes from when it isn't the audio server's own: the
+  // card list is much shorter than the real one, and the person should know
+  // that a missing device may just mean the build can't see the server.
+  auto deviceDialogTitle = [](const std::string & what) {
+    return pipeWireAvailable() ? what : what + " (sound cards - PipeWire not available)";
+  };
+  commands_.define("select-capture-device", [this, chooseDevice, deviceDialogTitle]() {
     std::vector<Choice> choices;
     for (auto & device : listCaptureDevices()) choices.push_back({device.label, device.name});
-    chooseDevice("Audio input", std::move(choices), getController().getDeviceSettings().capture,
+    chooseDevice(deviceDialogTitle("Audio input"), std::move(choices), getController().getDeviceSettings().capture,
                  [this](const Choice & choice) { selectCaptureDevice(choice.value, choice.label); });
   });
-  commands_.define("select-playback-device", [this, chooseDevice]() {
+  commands_.define("select-playback-device", [this, chooseDevice, deviceDialogTitle]() {
     std::vector<Choice> choices;
     for (auto & device : listPlaybackDevices()) choices.push_back({device.label, device.name});
-    chooseDevice("Audio output", std::move(choices), getController().getDeviceSettings().playback,
+    chooseDevice(deviceDialogTitle("Audio output"), std::move(choices), getController().getDeviceSettings().playback,
                  [this](const Choice & choice) { selectPlaybackDevice(choice.value, choice.label); });
   });
   commands_.define("select-midi-input", [this, chooseDevice]() {

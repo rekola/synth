@@ -73,12 +73,30 @@ source that is missing is connected as soon as it appears.
 - MIDI is `<client name>:<port name>` of an ALSA sequencer port. Launchpads
   are left out of the list, since they have their own connection.
 
+## What the lists show
+
+With PipeWire the list is the audio server's own: the same devices a desktop
+sound settings panel or a call app offers, named the way the server names
+them. Two devices that would read the same (two identical USB interfaces, say)
+are told apart by where they are plugged in: "USB Audio CODEC [usb-0:2:1.0]"
+is the device on USB port 2 of its controller. Unplugging one and reopening the
+dialog shows which is which. Where the server doesn't say, the device's own
+name is used instead, and entries that still read the same are numbered.
+
+If the dialog's title says "sound cards - PipeWire not available", the list is
+ALSA's instead: one entry per card input or output, with no virtual or
+converting devices, and no way to see devices that only exist in the audio
+server (a Bluetooth headset, a virtual sink). That means this build was made
+without libpipewire, or the server could not be reached. `--list-devices` says
+the same on its first line, and so does the line printed while configuring
+the build. Install `libpipewire-0.3-dev` and re-run `cmake -B build` to get the
+audio server's own list. Any other ALSA name can still be given with
+`--capture-device`/`--playback-device`.
+
 ## PipeWire
 
 Listing the inputs and outputs needs the optional `libpipewire-0.3-dev` when
 building (detected automatically; `-DSYNTH_ENABLE_PIPEWIRE=OFF` skips it).
-Without it the lists fall back to ALSA's own, which on a PipeWire system hold
-little more than the default.
 
 Selection itself doesn't need the library. The PCM is opened through ALSA's
 `pipewire` plugin (`pipewire-alsa`) with the node named in a private config,
