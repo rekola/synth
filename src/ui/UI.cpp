@@ -384,11 +384,11 @@ UI::initializeCommands() {
       apply(list[static_cast<size_t>(index)]);
     });
   };
-  // Says where the list comes from when it isn't the audio server's own: the
-  // card list is much shorter than the real one, and the person should know
-  // that a missing device may just mean the build can't see the server.
+  // Names where the list comes from. The card list is much shorter than the
+  // audio server's own, so a missing device may just mean this build can't
+  // see the server.
   auto deviceDialogTitle = [](const std::string & what) {
-    return pipeWireAvailable() ? what : what + " (sound cards - PipeWire not available)";
+    return what + (pipeWireAvailable() ? " (PipeWire)" : " (ALSA sound cards)");
   };
   commands_.define("select-capture-device", [this, chooseDevice, deviceDialogTitle]() {
     std::vector<Choice> choices;

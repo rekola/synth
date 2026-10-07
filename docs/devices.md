@@ -83,8 +83,8 @@ is the device on USB port 2 of its controller. Unplugging one and reopening the
 dialog shows which is which. Where the server doesn't say, the device's own
 name is used instead, and entries that still read the same are numbered.
 
-If the dialog's title says "sound cards - PipeWire not available", the list is
-ALSA's instead: one entry per card input or output, with no virtual or
+The dialog's title says which list it is: "Audio input (PipeWire)" is the
+audio server's own. "Audio input (ALSA sound cards)" is ALSA's instead: one entry per card input or output, with no virtual or
 converting devices, and no way to see devices that only exist in the audio
 server (a Bluetooth headset, a virtual sink). That means this build was made
 without libpipewire, or the server could not be reached. `--list-devices` says

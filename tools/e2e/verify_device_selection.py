@@ -180,7 +180,7 @@ def main():
         pid, scr = start(config_dir)
 
         mx(scr, "select-playback-device")
-        check("the output dialog opens with a title", dialog_open(scr) and "Audio output" in scr.dump(), scr)
+        check("the output dialog opens with a title naming the source", dialog_open(scr) and "Audio output (PipeWire)" in scr.dump(), scr)
         default_row = dialog_row(scr, "System default")
         check("the device in use is marked", default_row is not None and "\u25cf" in scr.screen.display[default_row], scr)
         check("the in-use device starts selected", default_row is not None and default_row == selected_row(scr), scr)
