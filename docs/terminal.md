@@ -45,7 +45,7 @@ They act on the clip under the cursor.
 notes: each sounding note's velocity moves by up to ±12 and its delay later by
 up to 32/255 of a row. Offs and aftertouch are left alone, percussion is
 included, and the mark stays, so repeated runs keep adding variation. Every
-run draws new values; undo is the only way back. Terminal only.
+run draws new values, and there is no undo. Terminal only.
 
 ## Other clip commands
 
