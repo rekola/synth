@@ -188,7 +188,7 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
     // shared cursor's own track otherwise (see PatternEditor's constructor,
     // Controller::consumePendingCommandTrack). Harmless to set
     // unconditionally, even for commands that never consume it (octave-up,
-    // next-track, ...) - it's a one-shot value, overwritten or cleared by
+    // pad-next-track, ...) - it's a one-shot value, overwritten or cleared by
     // the very next dispatch either way, so it can never leak into a later,
     // unrelated command.
     auto track_ids = getController().getSong().getPlayableTrackIds();
@@ -456,7 +456,7 @@ UI::initializeCommands() {
 
   // Clip menu entries not built yet - say so rather than failing as an
   // unknown command.
-  for (auto name : { "duplicate-clip", "double-clip-length", "halve-clip-length", "toggle-clip-loop", "rename-clip" }) {
+  for (auto name : {"double-clip-length", "halve-clip-length", "toggle-clip-loop", "rename-clip"}) {
     commands_.define(name, [this, name]() { setStatus(std::string(name) + ": not implemented yet"); });
   }
 

@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+class Clip;
+
 class Song;
 class Pattern;
 class ChannelConfiguration;
@@ -119,6 +121,11 @@ SlotDelete deleteClipOrStopButton(Song & song, int track_id, int clip_index, std
 // there's nothing to copy. Placed instances of the source keep pointing at
 // the source; those of an overwritten clip are removed.
 int duplicateClip(Song & song, int track_id, int from_index);
+
+// Places an independent copy of `clip` (a fresh id, retargeted to
+// `track_id`) at `clip_index`, overwriting whatever is there, and returns
+// that slot, or -1 when the clip is empty or the index negative.
+int placeClipCopy(Song & song, int track_id, int clip_index, Clip clip);
 
 // Snaps every note of the clip at `clip_index` to its closest row (a row is
 // a sixteenth), using the sub-row delay a raw live take records, and clears

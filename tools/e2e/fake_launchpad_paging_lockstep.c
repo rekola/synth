@@ -1,5 +1,5 @@
 // Two-device regression test for the step grid's own page-shift gesture
-// (prev-track/next-track while showing a step-sequenced clip longer than
+// (pad-prev-track/pad-next-track while showing a step-sequenced clip longer than
 // 8 steps - LaunchpadManager::handleCommand()'s own comment): every
 // connected device is supposed to shift together, in lockstep, not just
 // whichever one the press landed on - see

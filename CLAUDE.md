@@ -492,7 +492,7 @@ would otherwise resume showing.
   *different* one of the four; DRAW is the one member not reached by a
   plain press (see its own bullet below), and the only way out of it is
   selecting one of 95/96/97. 98 is Session Record (its own bullet
-  below). 91/92/93/94 are move-row-up/down/prev-track/next-track
+  below). 91/92/93/94 are move-row-up/down/pad-prev-track/pad-next-track
   (named commands, via `LaunchpadProtocol::commandForButton()`). 91 doubles
   as a held shift modifier for opening a Session-view clip's own step
   grid directly (see the drum machine bullet below) - its own ordinary
@@ -583,7 +583,7 @@ would otherwise resume showing.
   below it, overwriting what is there (`duplicateClip()`,
   `ArrangementOps.h` - an independent copy under a fresh id; an overwritten
   clip's arrangement placements go with it). One hold can copy several
-  clips. The terminal's `duplicate-clip` (clip grid) does the same.
+  clips. The terminal has no such command: a clip is duplicated by copying it in the clip grid and yanking it onto another slot (`docs/workflows.md`).
 - **Select a clip** (shift + pad, `Controller::selectClipSlot()`) - moves the
   shared track cursor and the clip grid's cursor onto that slot, empty ones
   included, without launching or opening anything, so it is where the next
@@ -599,8 +599,8 @@ would otherwise resume showing.
   clip that is playing (or queued) on its track while the transport runs
   is never pulled out from under the playhead - `SessionPlayer::
   deleteClip()` stops the track at the next bar and `tick()` removes the
-  clip once that has taken effect. The terminal's `delete-clip` goes
-  through it too. No undo or confirmation.
+  clip once that has taken effect. The terminal's clip-grid `kill-region` goes
+  through it too, after copying the clip to the clip grid's clipboard (the pad gesture never does). No undo or confirmation.
 - **Tempo and Swing views** (`GridMode::TEMPO`/`SWING`; shift + Send B /
   shift + Stop Clip; Novation's Launchpad Pro MK3 views) - the value is
   drawn as a number on the pads (`LaunchpadLayout::renderNumber()`): the
@@ -722,7 +722,7 @@ would otherwise resume showing.
   can't show at once, both scrolling `kStepGridScrollStep` (4) rows/steps
   per press rather than jumping a whole 8-wide window at once, so
   consecutive windows overlap and a performer can actually follow where a
-  press landed relative to before: prev-track/next-track (CC93/94) scroll
+  press landed relative to before: pad-prev-track/pad-next-track (CC93/94) scroll
   every connected device's own `DeviceState::drum_edit_step_offset`
   together, in lockstep (never just the one device the press landed on,
   which would otherwise drift devices onto overlapping or duplicate
@@ -908,7 +908,7 @@ would otherwise resume showing.
   not when a pending change is allowed to interrupt it) and never
   immediate - an empty pad queues a stop (unless its stop button was
   removed - `Clip::hasStopButton()`: "toggle-stop-button" in the clip
-  grid, or "delete-clip" on an empty slot, which then shows no ⏹: launching that slot, alone or in its
+  grid, or `kill-region` on an empty slot in the clip grid, which then shows no ⏹: launching that slot, alone or in its
   scene, leaves the track alone, armed or not),
   while repressing the active pad relaunches its clip from row 0 at the
   next boundary (a launch never toggles - the live-sequencer convention;
@@ -1204,7 +1204,7 @@ would otherwise resume showing.
   `verify_launchpad_shift_highlight.py` covers the same
   gesture's own LED feedback while held (both CC91 and the target pad
   lighting bright white before release). `verify_launchpad_paging_lockstep.py`
-  covers the step grid's own prev-track/next-track page-shift gesture
+  covers the step grid's own pad-prev-track/pad-next-track page-shift gesture
   moving every connected device together rather than just whichever one
   was pressed - two simulated devices open a 4-page clip, confirm
   `resetStepGridView()`'s own device-order split put them on two
@@ -1582,6 +1582,11 @@ would otherwise resume showing.
   separated from song model objects so playback state can be reset cheaply.
 - The build enables many `-Werror=` flags plus `-Wsign-conversion`; new code
   must compile warning-clean.
+- A command only a pad controller dispatches (nothing else registers it) is
+  named with a `pad-` prefix (`pad-next-track`), not `launchpad-`: other
+  devices can use it too. A pad gesture whose terminal equivalent is
+  copy/kill/yank gets no command of its own (`docs/workflows.md` has the
+  operation table).
 - Comments: keep them short (a one-liner covers most cases). Don't point
   at something outside the code to explain the code - state the reasoning
   directly instead of citing: a `plans/*.md` file (they get deleted once

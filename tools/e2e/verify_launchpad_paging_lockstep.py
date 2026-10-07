@@ -1,6 +1,6 @@
 """Regression test for the step grid's own page-shift gesture moving
 every connected device together, in lockstep, rather than just whichever
-one a prev-track/next-track press happened to land on
+one a pad-prev-track/pad-next-track press happened to land on
 (LaunchpadManager::handleCommand()'s own comment on repurposing those two
 buttons while a clip's step grid is showing). Before this fix, a press
 only ever updated the *pressed* device's own DeviceState::drum_edit_step_offset -
@@ -12,7 +12,7 @@ without anyone paging by hand first.
 
 Two simulated devices (fake_launchpad_paging_lockstep) connect to a
 4-page (32-step) clip; the "opener" opens it (shift-held pad (0,0)) and,
-once every connected device is showing it, presses next-track once - the
+once every connected device is showing it, presses pad-next-track once - the
 "follower" never presses anything itself. Confirms both devices start on
 two *different* pages (resetStepGridView()'s own device-order split),
 and that after the single press, *both* devices' own windows scrolled by
@@ -124,7 +124,7 @@ page_b_after = pages_b[-1] if pages_b else None
 print(f"after paging: A shows step {page_a_after}, B shows step {page_b_after}")
 
 if page_a_before is not None and page_a_after is not None:
-    check("A's own window scrolled by one step size after its own next-track press",
+    check("A's own window scrolled by one step size after its own pad-next-track press",
           page_a_after == page_a_before + SCROLL_STEP, (page_a_before, page_a_after))
 if page_b_before is not None and page_b_after is not None:
     check("B's own window ALSO scrolled by one step size - moved in lockstep with A, not left behind",

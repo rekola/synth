@@ -757,7 +757,9 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                         {"New Clip from Selection", "", "copy-to-clip"},
                         {"Merge Clip to Background", "C-x m", "merge-clip-to-background"},
                         {nullptr, nullptr, nullptr},
-                        {"Duplicate Clip", "", "duplicate-clip"},
+                        {"Copy Clip", "M-w", "kill-ring-save"},
+                        {"Kill Clip", "C-w", "kill-region"},
+                        {"Yank Clip", "C-y", "yank"},
                         {"Quantize Clip", "", "quantize-clip"},
                         {"Double Clip Length", "", "double-clip-length"},
                         {"Halve Clip Length", "", "halve-clip-length"},
@@ -2811,7 +2813,7 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
   // window - see LaunchpadManager::session_move_bar_callback_'s own
   // comment for why.
   launchpad_manager.setSessionMoveBarCallback([this](int delta) { arrangement_grid_->moveCursorBar(delta); });
-  // "next-track"/"prev-track" outside GridMode::SESSION move the one
+  // "pad-next-track"/"pad-prev-track" outside GridMode::SESSION move the one
   // shared cursor every connected Launchpad follows - see
   // LaunchpadManager::track_move_callback_'s own comment for why. Also
   // moves ClipGrid's own cursor, kept in step the same way it already
