@@ -6,9 +6,19 @@ grid mode, so one can sit in Session view while another does note entry.
 
 ## Note entry layout
 
-A connected Novation Launchpad (Mini MK3 / X) becomes an
-isomorphic note-entry grid, its layout generalizing the 12edo Wicki-Hayden
-keyboard to any EDO via a best-fifth generator (`src/launchpad/LaunchpadLayout.h`).
+A connected Novation Launchpad (Mini MK3 / X) becomes a playing surface in
+Note mode (96):
+
+- **Percussion track**: the bottom-left 4x4 block of pads is a fixed
+  General MIDI drum rack - kick, snare and hats on the bottom row, then side
+  stick, clap, pedal hat and crash, the lower toms, and the upper toms, ride
+  and cowbell. The rest of the grid is dark.
+- **Pitched track**: an in-key scale keyboard. Pad (0,0) is the tonic at the
+  device's octave, each column is the next scale degree and each row up is a
+  fourth (three degrees) higher, so a seven-note scale lines up the same way
+  from row to row. The scale is the song's (`Song::getScale()`); with none
+  chosen it plays as major. 91/92 shift the octave while a clip is open.
+  Microtonal scales (`microtonal-a`/`-b`) give the same layout in 31/53-EDO.
 
 ### Colors
 
@@ -57,8 +67,8 @@ gesture).
 | Button | Mode |
 | --- | --- |
 | 95 | Session: the clip grid |
-| 96 | Note: isomorphic note entry (a step grid while a clip is open for editing) |
-| 97 | Custom: the percussion lane picker |
+| 96 | Note: the drum rack or scale keyboard (plus the step rows while a clip is open for editing) |
+| 97 | Custom: nothing yet |
 | shift + Solo | Draw: a per-pad coloring toy, independent of the song |
 | shift + Send B | Tempo: the song's tempo as a number on the pads |
 | shift + Stop Clip | Swing: the song's swing as a number on the pads |
@@ -222,10 +232,16 @@ unless Record Quantise is on (see Quantise above).
 
 ## Step grid and drum machine
 
-A percussion track with lanes, or a pitched track's clip, can be edited as a
-step grid: rows are lanes or scale degrees, columns are steps. Hold 91 and press
+A percussion or pitched track's clip can be edited as steps. Hold 91 and press
 a Session pad to open that pad's clip; the pad resolves on release. Every
-device then switches to the step grid, each showing its own page. In the step
-grid, 93 and 94 scroll the steps, and on a pitched track 91 and 92 scroll the
-rows. A lone press of 95 closes it. 97 opens the lane picker for a percussion
-track, which is how a lane-less track gains its first lane.
+device then switches to Note mode with the grid split in two: the bottom four
+rows stay the playing surface (the drum rack, or the lower four rows of the
+scale keyboard), and the top four rows are 32 steps, left to right and then
+bottom to top.
+
+The steps show one sound at a time - the pad you pressed last (the kick, or
+the tonic, until you press one; it lights white). Press a step to set or clear
+that sound there; a pitched note lasts one step. Pressing a playing pad both
+selects it and sounds it, and records it as usual while capture is armed.
+Each connected device shows its own 32-step page of a longer clip; 93 and 94
+scroll the pages together. A lone press of 95 closes it.

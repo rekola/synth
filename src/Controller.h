@@ -661,22 +661,12 @@ class Controller {
   // logic behind both "toggle-record-arm"'s own Session-View-focused
   // drum-machine repurposing and the Launchpad's own CC91-held-as-shift
   // gesture (LaunchpadManager::handleSessionPadEvent()'s own comment).
-  // The name predates the pitched case (LaunchpadManager::
-  // resolveStepGridLaneNotes()'s own comment) - kept rather than renamed,
-  // since every caller already reaches it through that same shared,
-  // still-accurately-named gesture rather than the function's own name
-  // directly. `clip_index` past the track's own current clip list lazily
-  // creates a fresh, empty, looping clip there instead (the same "new
-  // take" convenience ensureNoteRecordingClip() already gives a live
-  // take), ready to have steps entered directly. Lane count doesn't gate
-  // a PercussionTrack at all - a lane-less one opens the same way, its
-  // own step grid just showing empty (no lane has anything to light)
-  // until CC97's own lane picker gives it its first one; a pitched
-  // InstrumentTrack has no lane concept to gate on either, its own step
-  // grid always showing something (Song::getScaleDegrees()'s own
-  // chromatic fallback). Either way the grid itself is still the right
-  // place to be regardless of what it currently shows; a performer
-  // reaching for "open editing" shouldn't land somewhere else first.
+  // The name predates the pitched case - kept rather than renamed,
+  // since every caller already reaches it through the shared gesture
+  // rather than the function's own name. `clip_index` past the track's own
+  // current clip list lazily creates a fresh, empty, looping clip there
+  // instead (the same "new take" convenience ensureNoteRecordingClip()
+  // already gives a live take), ready to have steps entered directly.
   // Returns false (a pure no-op, nothing opened or closed) when
   // `track_id`/`clip_index` don't address a clip on one of these two
   // track types at all - a caller can fall back to its own ordinary

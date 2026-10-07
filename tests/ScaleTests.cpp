@@ -12,7 +12,7 @@ using namespace std;
 TEST(scale_none_falls_back_to_chromatic) {
   Song song(Tuning::TET12, -1); // no key set either - tonic defaults to C (pitch class 0)
   CHECK(song.getScale() == Scale::NONE);
-  auto degrees = song.getScaleDegrees();
+  auto degrees = song.getScaleDegreesWindow(0, 8);
   CHECK(degrees.size() == 8);
   for (int i = 0; i < 8; i++) CHECK(degrees[static_cast<size_t>(i)] == i);
 }
@@ -25,7 +25,7 @@ TEST(scale_none_falls_back_to_chromatic) {
 TEST(scale_major_12edo_no_key) {
   Song song(Tuning::TET12, -1);
   song.setScale(Scale::MAJOR);
-  auto degrees = song.getScaleDegrees();
+  auto degrees = song.getScaleDegreesWindow(0, 8);
   vector<int> expected = {0, 2, 4, 5, 7, 9, 11, 12};
   CHECK(degrees.size() == expected.size());
   for (size_t i = 0; i < expected.size(); i++) CHECK(degrees[i] == expected[i]);
@@ -36,7 +36,7 @@ TEST(scale_major_12edo_no_key) {
 TEST(scale_minor_12edo_no_key) {
   Song song(Tuning::TET12, -1);
   song.setScale(Scale::MINOR);
-  auto degrees = song.getScaleDegrees();
+  auto degrees = song.getScaleDegreesWindow(0, 8);
   vector<int> expected = {0, 2, 3, 5, 7, 8, 10, 12};
   CHECK(degrees.size() == expected.size());
   for (size_t i = 0; i < expected.size(); i++) CHECK(degrees[i] == expected[i]);
@@ -50,7 +50,7 @@ TEST(scale_minor_12edo_no_key) {
 TEST(scale_major_12edo_transposed_to_key) {
   Song song(Tuning::TET12, static_cast<short>(Note::stringToKey(Tuning::TET12, "D4")));
   song.setScale(Scale::MAJOR);
-  auto degrees = song.getScaleDegrees();
+  auto degrees = song.getScaleDegreesWindow(0, 8);
   // D major: D E F# G A B C# D
   vector<int> expected = {2, 4, 6, 7, 9, 11, 13, 14};
   CHECK(degrees.size() == expected.size());
@@ -66,7 +66,7 @@ TEST(scale_major_12edo_transposed_to_key) {
 TEST(scale_microtonal_a_12edo) {
   Song song(Tuning::TET12, -1);
   song.setScale(Scale::MICROTONAL_A);
-  auto degrees = song.getScaleDegrees();
+  auto degrees = song.getScaleDegreesWindow(0, 8);
   vector<int> expected = {0, 3, 4, 5, 7, 9, 10, 12}; // C D# E F G A A# C
   CHECK(degrees.size() == expected.size());
   for (size_t i = 0; i < expected.size(); i++) CHECK(degrees[i] == expected[i]);
@@ -75,7 +75,7 @@ TEST(scale_microtonal_a_12edo) {
 TEST(scale_microtonal_b_12edo) {
   Song song(Tuning::TET12, -1);
   song.setScale(Scale::MICROTONAL_B);
-  auto degrees = song.getScaleDegrees();
+  auto degrees = song.getScaleDegreesWindow(0, 8);
   vector<int> expected = {0, 2, 3, 5, 7, 8, 9, 12}; // C E𝄫(=D) E♭ F G A♭ B𝄫(=A) C
   CHECK(degrees.size() == expected.size());
   for (size_t i = 0; i < expected.size(); i++) CHECK(degrees[i] == expected[i]);
@@ -91,7 +91,7 @@ TEST(scale_microtonal_b_12edo) {
 TEST(scale_microtonal_b_31edo) {
   Song song(Tuning::TET31, -1);
   song.setScale(Scale::MICROTONAL_B);
-  auto degrees = song.getScaleDegrees();
+  auto degrees = song.getScaleDegreesWindow(0, 8);
   vector<int> expected = {0, 6, 8, 13, 18, 21, 24, 31};
   CHECK(degrees.size() == expected.size());
   for (size_t i = 0; i < expected.size(); i++) CHECK(degrees[i] == expected[i]);
@@ -147,4 +147,18 @@ TEST(scale_none_omitted_from_xml) {
   Song song(Tuning::TET12, -1);
   song.storeParameters(output);
   CHECK(output.get<string>("scale").empty());
+}
+
+// The Launchpad's in-key keyboard asks for major when no scale is chosen,
+// and a fourth up a row (three degrees) lands on F above C.
+TEST(scale_none_reads_as_major_for_the_keyboard) {
+  Song song(Tuning::TET12, -1);
+  auto degrees = song.getScaleDegreesWindow(0, 29, true);
+  CHECK(degrees.size() == 29);
+  CHECK(degrees[1] == 2);  // D
+  CHECK(degrees[3] == 5);  // F: one row up from C
+  CHECK(degrees[7] == 12); // the octave
+  CHECK(degrees[28] == 12 * 4); // four octaves up, still the tonic
+  song.setScale(Scale::MINOR);
+  CHECK(song.getScaleDegreesWindow(0, 3, true)[2] == 3); // a named scale is untouched
 }

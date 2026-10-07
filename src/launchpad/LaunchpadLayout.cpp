@@ -309,9 +309,37 @@ percussionNoteForPad(int x, int y) {
   return PERCUSSION_TABLE[y][x];
 }
 
+static const int DRUM_PAD_TABLE[4][4] = {
+  { 36, 38, 42, 46 },
+  { 37, 39, 44, 49 },
+  { 41, 43, 45, 47 },
+  { 48, 50, 51, 56 },
+};
+
+int
+drumPadNoteForPad(int x, int y) {
+  if (x < 0 || x > 3 || y < 0 || y > 3) return -1;
+  return DRUM_PAD_TABLE[y][x];
+}
+
+int
+scaleDegreeIndexForPad(int x, int y) {
+  return x + kScaleRowStride * y;
+}
+
+int
+stepForPad(int x, int y) {
+  if (x < 0 || x > 7 || y < kPlayRows || y > 7) return -1;
+  return x + 8 * (y - kPlayRows);
+}
+
 PercussionFamily
 percussionFamilyForPad(int x, int y) {
-  auto note = percussionNoteForPad(x, y);
+  return percussionFamilyForNote(percussionNoteForPad(x, y));
+}
+
+PercussionFamily
+percussionFamilyForNote(int note) {
   if (note < 0) return PercussionFamily::UNUSED;
 
   switch (note) {

@@ -7,11 +7,11 @@ only ever updated the *pressed* device's own DeviceState::drum_edit_step_offset 
 with two Launchpads connected, that let them drift onto the very same
 page (or any other independent combination), defeating
 resetStepGridView()'s own "device i shows page i" tiling that's meant
-to split a longer-than-8-step clip across however many are connected
+to split a longer-than-32-step clip across however many are connected
 without anyone paging by hand first.
 
 Two simulated devices (fake_launchpad_paging_lockstep) connect to a
-4-page (32-step) clip; the "opener" opens it (shift-held pad (0,0)) and,
+3-page (96-step) clip; the "opener" opens it (shift-held pad (0,0)) and,
 once every connected device is showing it, presses next-track once - the
 "follower" never presses anything itself. Confirms both devices start on
 two *different* pages (resetStepGridView()'s own device-order split),
@@ -37,26 +37,27 @@ def led_dumps(text):
     return re.findall(r"received sysex[^:]*:\s*(f0 00 20 29 02 0c 03(?: [0-9a-f]{2})+ f7)", text)
 
 SCROLL_STEP = 4  # kStepGridScrollStep
+WINDOW = 32      # steps a device shows (the top four pad rows)
 
-# The fixture's hits (rows 0/9/18/27) put exactly one hit in any 8-step
-# window starting at a multiple of SCROLL_STEP, each in a different
-# column - so the lit column tells the window's own start step.
-OFFSET_BY_COLUMN = {}
-for offset in range(0, 32 - 8 + 1, SCROLL_STEP):
-    hits = [row - offset for row in (0, 9, 18, 27) if offset <= row < offset + 8]
-    assert len(hits) == 1 and hits[0] not in OFFSET_BY_COLUMN
-    OFFSET_BY_COLUMN[hits[0]] = offset
+# The fixture's BD hits sit at rows 5, 40 and 70; the set of lit steps in a
+# 32-step window tells where that window starts, with no playhead to read.
+HITS = (5, 40, 70)
+OFFSET_BY_LIT = {}
+for offset in (0, SCROLL_STEP, WINDOW, WINDOW + SCROLL_STEP):
+    lit = frozenset(row - offset for row in HITS if offset <= row < offset + WINDOW)
+    assert lit and lit not in OFFSET_BY_LIT
+    OFFSET_BY_LIT[lit] = offset
 
 def shown_page(dump_hex):
-    """The step offset a device's step grid shows, or None."""
-    # BD (lane 0) sits at y=0 - led indices 0x0b..0x12 (x=0..7, since
-    # padToNoteNumber(x, 0) = 11 + x).
-    for x in range(8):
-        led = 11 + x
+    """The step offset a device's step view shows, or None. Step s is pad
+    (s % 8, 4 + s // 8) - led index 11 + x + 10*y."""
+    lit = set()
+    for step in range(WINDOW):
+        led = 11 + step % 8 + 10 * (4 + step // 8)
         m = re.search(rf"03 {led:02x} ([0-9a-f]{{2}} [0-9a-f]{{2}} [0-9a-f]{{2}})", dump_hex)
         if m and m.group(1) == LIT:
-            return OFFSET_BY_COLUMN.get(x)
-    return None
+            lit.add(step)
+    return OFFSET_BY_LIT.get(frozenset(lit))
 
 def shown_pages(log_text):
     """Every step window a device's LED frames showed, in order - the first

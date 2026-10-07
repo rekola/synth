@@ -5,14 +5,10 @@
 #include <string_view>
 #include <vector>
 
-// A song-wide scale, driving the pitched step sequencer's own lanes
-// (Song::getScaleDegrees()) - not a per-track setting the way a
-// PercussionTrack's own lane list is, since a pitched InstrumentTrack has
-// a whole tuning space rather than a small, discrete kit of nameable
-// sounds to pick lanes from (see plans/launchpad-novation-unification.md's
-// own "Step sequencer follow-ups" for the reasoning). NONE is the
-// explicit "no scale chosen" state, not a fifth real scale - Song::
-// getScaleDegrees() falls back to the plain chromatic scale for it.
+// A song-wide scale, driving the Launchpad's in-key keyboard
+// (Song::getScaleDegreesWindow()). NONE is the explicit "no scale chosen"
+// state, not a fifth real scale - getScaleDegreesWindow() falls back to the
+// plain chromatic scale for it (or major, for the keyboard).
 enum class Scale {
   NONE = 0,
   MAJOR,
@@ -42,10 +38,10 @@ static inline Scale scaleFromString(const std::string & text) {
 
 // Each scale's own degrees, relative to C, in Note::stringToKey()'s own
 // note-name syntax - resolved against the song's actual tuning/key there
-// (Song::getScaleDegrees()), not decoded into semitone numbers here, so
+// (Song::getScaleDegreesWindow()), not decoded into semitone numbers here, so
 // the exact same degree list is correct under every supported tuning
 // (12/19/31/53-EDO) rather than needing one hardcoded interval set per
-// tuning. Empty for Scale::NONE - Song::getScaleDegrees() reads that as
+// tuning. Empty for Scale::NONE - Song::getScaleDegreesWindow() reads that as
 // "use the plain chromatic scale instead" rather than calling this at
 // all. MICROTONAL_A/_B are two fixed scales requested directly (not
 // derived from any existing theory naming) - MICROTONAL_B's own E𝄫/A♭

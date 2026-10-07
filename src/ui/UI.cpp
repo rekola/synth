@@ -405,8 +405,6 @@ UI::initializeCommands() {
   // Creating a SampleTrack and starting a take into one are separate
   // actions ("toggle-record-arm" is the latter).
   commands_.define("add-sample-track", [add_track]() { add_track(std::make_unique<SampleTrack>()); });
-  // Starts with no lanes - an ordinary percussion track; apply-preset-*
-  // is how it picks a kit.
   commands_.define("add-percussion-track", [add_track]() { add_track(std::make_unique<PercussionTrack>()); });
   // A plain container track with no audio of its own.
   commands_.define("add-group-track", [add_track]() { add_track(std::make_unique<Group>()); });
@@ -428,22 +426,6 @@ UI::initializeCommands() {
     ids = song.getRootTrackIds();
     if (!ids.empty()) song.setCurrentTrackId(ids[static_cast<size_t>(std::min<ptrdiff_t>(position, static_cast<ptrdiff_t>(ids.size()) - 1))]);
   });
-
-  // Replaces the current track's whole lane list with a named preset
-  // (PercussionTrack::applyPreset()'s own comment on why it replaces
-  // rather than adds) - a no-op on anything but a PercussionTrack.
-  auto apply_preset = [this](PercussionTrack::Preset preset) {
-    auto & song = getController().getSong();
-    auto track = song.getMasterTrack().getChildByInternalId(song.getCurrentTrackId());
-    if (!track || track->getType() != TrackType::PERCUSSION_CONTROL) return;
-    static_cast<PercussionTrack &>(*track).applyPreset(preset, song);
-    song.incVersion();
-  };
-  commands_.define("apply-preset-rock", [apply_preset]() { apply_preset(PercussionTrack::Preset::ROCK); });
-  commands_.define("apply-preset-latin", [apply_preset]() { apply_preset(PercussionTrack::Preset::LATIN); });
-  commands_.define("apply-preset-electronic", [apply_preset]() { apply_preset(PercussionTrack::Preset::ELECTRONIC); });
-  // The explicit way back to a plain, lane-less track.
-  commands_.define("apply-preset-none", [apply_preset]() { apply_preset(PercussionTrack::Preset::NONE); });
 }
 
 void

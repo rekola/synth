@@ -215,18 +215,4 @@ struct ReadTarget {
 };
 ReadTarget resolveReadTarget(const Song & song, int track_id, int row, const std::string & focused_clip_id = "");
 
-// Which of `lane_values` are hit (a defined, sound-producing Note whose
-// own getValue() matches) at `pattern`'s own `effective_row` - the step
-// sequencer's shared by-value scan, generalized from PercussionTrack::
-// getHitNotesAtRow() (which still exists, unchanged, for its own existing
-// callers) so a pitched InstrumentTrack's own step grid (its lanes drawn
-// from Song::getScaleDegrees() rather than a per-track lane list) can use
-// the identical convention: a note left over from a lane no longer part
-// of the current set (a removed drum lane, or a scale/key change moving
-// which pitches are in scope) stays silently inert rather than firing or
-// erroring, the same way PercussionTrack.h's own header comment already
-// describes for its own lane list. Order matches `lane_values`' own
-// order, not row/column order.
-std::vector<int> getHitLaneValues(const Pattern & pattern, int effective_row, const std::vector<int> & lane_values);
-
 #endif

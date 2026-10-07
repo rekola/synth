@@ -6,9 +6,6 @@
   <tracks>
     <track id="bass" instrument="0" azimuth="0" distance="1"/>
     <percussionTrack id="drums" azimuth="0" distance="1">
-      <lane note="BD"/>
-      <lane note="SD"/>
-      <lane note="CH"/>
     </percussionTrack>
   </tracks>
   <clips>

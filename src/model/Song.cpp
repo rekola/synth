@@ -214,31 +214,6 @@ static unique_ptr<Track> createTrack(string_view name) {
   }
 }
 
-// A <percussionTrack>'s own <lane> children describe its kit - which
-// drums it can play, not what triggers when (that's an ordinary
-// Pattern now, like any other track - PercussionTrack.h's own comment). No
-// <lane> children at all is a plain, lane-less percussion track, not a
-// special case to fill in - see PercussionTrack.h's own header comment on
-// why zero lanes is an ordinary, meaningful state now. `note` is the same
-// GM-percussion mnemonic (Note::keyToString()/stringToKey(),
-// Tuning::PERCUSSION) a <note> element's own value already uses, not a raw
-// integer.
-static void loadPercussionLanes(PercussionTrack & track, XMLElement & element) {
-  for (auto it = element.FirstChildElement("lane"); it; it = it->NextSiblingElement("lane")) {
-    auto note_text = it->Attribute("note");
-    if (!note_text) continue;
-    track.addLane(Note::stringToKey(Tuning::PERCUSSION, note_text));
-  }
-}
-
-static void storePercussionLanes(const PercussionTrack & track, XMLDocument & doc, XMLElement * track_element) {
-  for (auto note : track.getLaneNotes()) {
-    auto lane_element = doc.NewElement("lane");
-    lane_element->SetAttribute("note", Note::keyToString(Tuning::PERCUSSION, note).c_str());
-    track_element->InsertEndChild(lane_element);
-  }
-}
-
 // <generator name="..." value="..."/> children of an <instrument> element -
 // song-authored SF2 generator overrides. Parsed *before* prepare() runs -
 // prepare() is what actually applies these
@@ -294,13 +269,8 @@ static std::unique_ptr<Track> parseChildTrack(XMLElement & element, const Instru
     instrument->prepare(provider);
   }
 
-  auto percussion_track = dynamic_cast<PercussionTrack *>(track.get());
-  if (percussion_track) {
-    loadPercussionLanes(*percussion_track, element);
-  }
-
   for (auto it = element.FirstChildElement(); it ; it = it->NextSiblingElement() ) {
-    if (string_view(it->Name()) == "lane") continue; // data, not a nested track - handled above
+    if (string_view(it->Name()) == "lane") continue; // legacy per-track drum list, no longer used
     if (string_view(it->Name()) == "generator") continue; // data, not a nested track - handled above
     auto child = parseChildTrack(*it, provider);
     if (!child) return std::unique_ptr<Track>(nullptr);
@@ -379,11 +349,6 @@ static void storeChildTrack(const Track & track, XMLDocument & doc, XMLElement *
 
   for (auto & child : track.getChildren()) {
     storeChildTrack(*child, doc, track_element);
-  }
-
-  auto percussion_track = dynamic_cast<const PercussionTrack *>(&track);
-  if (percussion_track) {
-    storePercussionLanes(*percussion_track, doc, track_element);
   }
 
   auto generic_instrument = dynamic_cast<const GenericInstrument *>(&track);
@@ -1066,7 +1031,7 @@ Song::getPlayableTrackIds() const {
 }
 
 vector<int>
-Song::getScaleDegreesWindow(int start_index, int count) const {
+Song::getScaleDegreesWindow(int start_index, int count, bool major_if_none) const {
   auto edo_steps = edoStepsFor(tuning_);
   if (edo_steps <= 0 || count <= 0) return {}; // no interval structure (Tuning::PERCUSSION) to have degrees of at all
 
@@ -1076,7 +1041,7 @@ Song::getScaleDegreesWindow(int start_index, int count) const {
   // text omits one) - only its pitch class matters here.
   auto tonic = key_note_number_ >= 0 ? ((key_note_number_ % edo_steps) + edo_steps) % edo_steps : 0;
 
-  auto degree_names = scaleDegreeNames(scale_);
+  auto degree_names = scaleDegreeNames(scale_ == Scale::NONE && major_if_none ? Scale::MAJOR : scale_);
   vector<int> offsets_from_tonic;
   if (degree_names.empty()) {
     // No scale chosen (or Scale::NONE resolved nothing) - the plain
