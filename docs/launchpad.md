@@ -11,8 +11,7 @@ grid mode, so one can sit in Session view while another does note entry.
   launches a scene while mixer submode is off. The shift layer follows
   Novation's Launchpad Pro MK3: Undo, Redo, the click, Duplicate, Delete,
   Quantise, and the Tempo and Swing views shown as a number on the pads. The
-  differences: Undo and Redo only report that they are not implemented, and
-  Draw is ours.
+  difference: Undo and Redo only report that they are not implemented.
 - **Session view.** It follows Ableton Live's: a clip grid with one column per
   track, scenes launched across, a stop button per slot, Session Record, Capture
   MIDI (not implemented here) and Back to Arrangement. Live launches clips on a
