@@ -310,7 +310,7 @@ percussionNoteForPad(int x, int y) {
 }
 
 // General MIDI notes 36-51 in order, left to right then bottom to top: the
-// usual default window of a sampler or drum rack (docs/lineage.md).
+// usual default window of a sampler or drum rack (docs/drums-and-sequencer.md).
 static const int DRUM_PAD_TABLE[4][4] = {
   { 36, 37, 38, 39 },
   { 40, 41, 42, 43 },

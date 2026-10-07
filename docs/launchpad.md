@@ -4,60 +4,28 @@ A connected Novation Launchpad (Mini MK3 / X) is optional; the
 terminal UI does everything without one. Each connected device has its own
 grid mode, so one can sit in Session view while another does note entry.
 
-## Note entry layout
+## Where it comes from
 
-A connected Novation Launchpad (Mini MK3 / X) becomes a playing surface in
-Note mode (96):
+- **Buttons.** The right-hand column carries the Launchpad X's own labels
+  (Record Arm, Volume, Pan, Send A, Send B, Stop Clip, Mute, Solo) and
+  launches a scene while mixer submode is off. The shift layer follows
+  Novation's Launchpad Pro MK3: Undo, Redo, the click, Duplicate, Delete,
+  Quantise, and the Tempo and Swing views shown as a number on the pads. The
+  differences: Undo and Redo only report that they are not implemented, and
+  Draw is ours.
+- **Session view.** It follows Ableton Live's: a clip grid with one column per
+  track, scenes launched across, a stop button per slot, Session Record, Capture
+  MIDI (not implemented here) and Back to Arrangement. Live launches clips on a
+  global quantisation whose default is one bar; here it is always one bar.
+- **Playing and step editing.** The drum rack, scale keyboard and step view
+  follow the MPC and Ableton Push; see
+  [drums-and-sequencer.md](drums-and-sequencer.md).
 
-- **Percussion track**: the bottom-left 4x4 block of pads is a General MIDI
-  drum rack: notes 36-51 in order, left to right and then bottom to top, so
-  the bottom row is kick, side stick, snare and clap, the second row starts
-  at 40 (electric snare) and the top row ends at 51 (ride cymbal). The rest of
-  the grid is dark. This is the usual default window of a sampler or drum rack
-  (see [lineage.md](lineage.md)).
-- **Pitched track**: an in-key scale keyboard. Pad (0,0) is the tonic at the
-  device's octave, each column is the next scale degree and each row up is a
-  fourth (three degrees) higher, so a seven-note scale lines up the same way
-  from row to row. The scale is the song's (`Song::getScale()`); with none
-  chosen it plays as major. 91/92 shift the octave while a clip is open.
-  Microtonal scales (`otonal`/`utonal`) give the same layout in 31/53-EDO.
+## Note mode
 
-### Colors
-
-LED coloring originally followed the notational convention of Adriaan
-Fokker's 31-EDO organ (built 1950 for Teylers Museum, Haarlem) and the
-later Archiphone: each pad was colored by its *distance from the song's
-diatonic scale* (tonic / diatonic degree / sharp / flat / diesis /
-accidental), generalizing the idea that 31-EDO's chromatic notes split
-into two musically distinct kinds (a full chromatic step vs. a
-quarter-tone-ish shading) that a simple black/white keyboard can't
-distinguish.
-
-That scheme was replaced with a different organizing principle: coloring
-by *consonance* rather than by scale-degree distance. Standard microtonal
-note names (sharps, flats, double-flats, ...) are built from a fixed,
-12-tone-shaped chain of fifths, which stops matching musical intuition
-well once an EDO is fine enough that the interesting structure is no
-longer "how many fifths from the tonic" but "how consonant is this
-interval, period." The new scheme instead recursively factors the octave
-the way classical interval theory does - `2/1 = 4/3 * 3/2` (the octave's
-simplest factor pair is the fourth and fifth), then `3/2 = 6/5 * 5/4` (the
-fifth's own simplest factor pair is the minor and major third), and so on
-- reusing that same factoring operation, approximated proportionally, at
-every deeper level. This reaches every pitch class (no leftover
-"everything else" bucket) within 4-6 levels for all four supported EDOs.
-
-Color encodes the resulting tree two ways: hue drifts away from a shared
-starting point by a shrinking amount at each level (so a pitch stays
-hue-close to its harmonic neighborhood, however deep the recursion goes),
-and saturation fades with depth (so more distant/complex notes read as
-more muted) - both channels survive the idle-brightness remap that only
-lightness gets overridden by; tonic keeps a fixed, deliberately dissimilar
-hue (yellow) so it always pops out.
-
-The classification is purely a function of the EDO and key (see
-`LaunchpadLayout::computeConsonanceLevels`), so it applies unchanged to
-12/19/31/53-EDO.
+Note mode (96) is the playing surface: a 4x4 drum rack on a percussion track,
+an in-key scale keyboard on a pitched one, and, with a clip open, 32 steps
+above it. It is described in [drums-and-sequencer.md](drums-and-sequencer.md).
 
 ## Grid modes
 
@@ -157,7 +125,6 @@ release so a combination never has to be undone.
 | Stop Clip (49) | **Swing** view |
 | 97 | **Draw** mode |
 | a clip pad | **Select** the clip without launching it |
-| 96 (Note) | **Step edit**: open or close the selected clip's step grid |
 | 96 (Note) | **Step edit**: open or close the selected clip's step grid |
 
 Following the Pro MK3's own shift layer, Undo, Redo and the click sit where
@@ -277,18 +244,8 @@ is bright red while anything records, dim red otherwise.
 Notes played on the grid during a take are recorded with their exact timing
 unless Record Quantise is on (see Quantise above).
 
-## Step grid and drum machine
+## Step grid
 
-A percussion or pitched track's clip can be edited as steps. Hold 91 and press
-a Session pad to open that pad's clip; the pad resolves on release. Every
-device then switches to Note mode with the grid split in two: the bottom four
-rows stay the playing surface (the drum rack, or the lower four rows of the
-scale keyboard), and the top four rows are 32 steps, left to right and then
-bottom to top.
-
-The steps show one sound at a time - the pad you pressed last (the kick, or
-the tonic, until you press one; it lights white). Press a step to set or clear
-that sound there; a pitched note lasts one step. Pressing a playing pad both
-selects it and sounds it, and records it as usual while capture is armed.
-Each connected device shows its own 32-step page of a longer clip; 93 and 94
-scroll the pages together. A lone press of 95 closes it.
+Hold 91 and press a Session pad to open that pad's clip for step editing; the
+steps and the playing surface are described in
+[drums-and-sequencer.md](drums-and-sequencer.md).

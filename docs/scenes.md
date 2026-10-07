@@ -4,6 +4,11 @@ This describes what a scene carries, how it is typed in, and exactly what
 happens when one launches. Bars, the song's time signature and the running signature are in
 time_signatures.md.
 
+Scenes follow Ableton Live's: a row of the clip grid launched together, which
+since Live 11 can also carry a name, a tempo and a time signature. Here the
+record is stored by position and applied on the bar the clips launch on, as
+described below.
+
 ## 1. What a scene is
 
 A scene is a row of the clip grid: clip number *k* of every track's clip

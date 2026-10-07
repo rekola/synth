@@ -35,7 +35,8 @@ A timing feel that delays the second note of each eighth-note pair (4 rows),
 giving a long-short, lilting feel. Stored as a percentage of the pair taken
 by its first note: 50% is no swing (the second note falls exactly halfway
 through the pair), about 67% is triplet swing (jazz, shuffle, boogie), and
-75% is very heavy. Only the second note of a pair moves; on-beat notes
+75% is very heavy. The 50-75% range and what the percentage means follow the
+Akai MPC's swing. Only the second note of a pair moves; on-beat notes
 never do. A song-level setting (`Song::getSwing()`, `<song swing="">`)
 applied at playback time to everything scheduled against it, not baked into
 note data.

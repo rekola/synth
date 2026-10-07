@@ -626,7 +626,7 @@ would otherwise resume showing.
   `PercussionTrack` gets a fixed 4x4 General MIDI drum rack in the
   bottom-left corner (`LaunchpadLayout::drumPadNoteForPad()`: notes 36-51 in
   order, left to right then bottom to top, the usual sampler/drum-rack
-  default window - `docs/lineage.md`), the rest of the grid dark; there is no per-track drum list (lanes were removed - the
+  default window - `docs/drums-and-sequencer.md`), the rest of the grid dark; there is no per-track drum list (lanes were removed - the
   rack is the one kit, and a `<lane>` element in an old song is ignored on
   load). A pitched track gets an in-key scale keyboard
   (`LaunchpadManager::resolveKeyboardNotes()`): pad (0,0) is the tonic at
@@ -1414,10 +1414,9 @@ would otherwise resume showing.
   `known_bugs.md` tracks open, not-yet-fixed bugs; `glossary.md` defines
   the project's own terms (row, swing, groove, ...) - check it before
   using one of those words in new code or UI text, and add to it when
-  introducing a term; `lineage.md` records which conventions (trackers,
-  DAWs, controllers, Emacs, standards) each feature follows and which
-  choices are our own - check it before inventing a layout or behavior, and
-  add a row when making one
+  introducing a term; each document's own overview says
+  which conventions (trackers, DAWs, controllers, Emacs, standards) it
+  follows and where it differs
 - `tools/` — helper scripts (e.g. `minimal_edo.pl`).
 - `third_party/` holds vendored third-party code, one subdirectory per
   library, each with its own upstream `LICENSE`/provenance note -
@@ -1457,10 +1456,11 @@ would otherwise resume showing.
   devices can use it too. A pad gesture whose terminal equivalent is
   copy/kill/yank gets no command of its own (`docs/terminal.md`).
 - Where a convention exists in the lineage this project draws on, follow it
-  exactly or record the difference in `docs/lineage.md`; make our own choice
-  only when there is no standard, and say so there. Add a layout or number
-  only when it is known exactly - leave it out rather than add a subtly wrong
-  version.
+  exactly, and describe the lineage and any difference in the overview of the
+  document for that feature (`docs/drums-and-sequencer.md`,
+  `docs/launchpad.md`, `docs/scenes.md`, ...); make our own choice only when
+  there is no standard, and say so there. Add a layout or number only when it
+  is known exactly - leave it out rather than add a subtly wrong version.
 - Comments: keep them short (a one-liner covers most cases). Don't point
   at something outside the code to explain the code - state the reasoning
   directly instead of citing: a `plans/*.md` file (they get deleted once
