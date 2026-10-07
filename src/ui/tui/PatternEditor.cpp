@@ -1576,6 +1576,9 @@ PatternEditor::offerInput(const InputEvent & input) {
       auto it = all_track_info.find(track_ids[static_cast<size_t>(new_cursor.track)]);
       new_cursor.col = it != all_track_info.end() ? it->second.getColumnCount() - 1: 0;
       return true;
+    } else if (input.getId() == 'd') {
+      // duplicate track
+      return true;
     } else if (input.getId() == '+') {
       edit_step_size++;
       return true;
