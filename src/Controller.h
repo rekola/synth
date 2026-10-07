@@ -219,12 +219,10 @@ class Controller {
   // site that's easy to add a new path without remembering.
   void setBufferChangeListener(std::function<void()> fn) { buffer_change_listener_ = std::move(fn); }
 
-  // "toggle-record-arm"'s own drum-machine-track repurposing (Live View
-  // focused, the targeted clip's track is a step-sequenced PercussionTrack)
-  // calls this
-  // right after focusing the clip (setFocusedClip()) - `opened` true - or
-  // right after clearing it again (a second press on the clip already
-  // open for editing toggles it back off - clearFocusedClip()) - `opened`
+  // Opening a clip for step editing on a Launchpad (toggleDrumClipFocus())
+  // calls this right after focusing the clip (setFocusedClip()) - `opened`
+  // true - or right after clearing it again (a second press on the clip
+  // already open for editing toggles it back off - clearFocusedClip()) - `opened`
   // false. Lets UI move the shared track cursor and every connected
   // Launchpad's own display to actually show that clip's own step grid
   // (or hand it back to Live View once editing ends), the same
@@ -696,8 +694,7 @@ class Controller {
   }
   // Opens (or, if already open, closes) a PercussionTrack's or pitched
   // InstrumentTrack's own clip for direct step-grid editing - the shared
-  // logic behind both "toggle-record-arm"'s own Live-View-focused
-  // drum-machine repurposing and the Launchpad's own CC91-held-as-shift
+  // logic behind the Launchpad's own CC91-held-as-shift
   // gesture (LaunchpadManager::handleLivePadEvent()'s own comment).
   // The name predates the pitched case - kept rather than renamed,
   // since every caller already reaches it through the shared gesture

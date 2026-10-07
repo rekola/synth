@@ -40,9 +40,7 @@ the pad view of Live View. The button's LED is dim green away from the clip
 grid, bright green on it, and orange in mixer submode.
 
 On the Launchpad X, a second press of 95 while on the plain clip grid toggles
-**mixer submode** (see below). The Mini has no mixer mode. The Pro MK3 has room
-for both the scene and the mixer buttons at once, so it should not need the
-submode; its layout is not done yet.
+**mixer submode** (see below). The Mini has no mixer mode.
 
 ## Right-side buttons
 

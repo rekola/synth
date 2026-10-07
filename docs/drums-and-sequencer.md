@@ -84,8 +84,5 @@ the tonic, until you press one; it lights white). Press a step to set or clear
 that sound there; a pitched note lasts one step. One sound is selected at a
 time, so chords (several held notes) are not supported yet. Pressing a playing pad both
 selects it and sounds it, and records it as usual while capture is armed.
-From the terminal, put the clip grid cursor on a drum clip and use
-`toggle-record-arm` (C-x r); the first connected Launchpad then shows the step
-view. Pitched clips can only be opened from a Launchpad for now.
 For a clip longer than 32 steps, 93 and 94 scroll the window. A lone press of
 95 closes it.

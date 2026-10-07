@@ -1598,11 +1598,11 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
   }
   int track_id = track_ids[static_cast<size_t>(track_index)];
   // A drum clip open for editing (Controller::getFocusedClipTrackId(),
-  // Record Arm's own repurposing) pins every connected NOTES-grid device
+  // opened with shift + pad) pins every connected NOTES-grid device
   // to it, regardless of wherever the shared cursor itself has since
   // wandered off to elsewhere in the terminal (Live View's own column,
-  // PatternEditor, ...) - editing stays open until Record Arm explicitly
-  // closes it, never merely by looking at a different track meanwhile.
+  // PatternEditor, ...) - editing stays open until CC95 or the same
+  // gesture closes it, never merely by looking at a different track meanwhile.
   if (controller.getFocusedClipTrackId() >= 0) track_id = controller.getFocusedClipTrackId();
 
   // CUSTOM has nothing built for it yet.

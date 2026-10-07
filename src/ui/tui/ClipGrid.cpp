@@ -738,9 +738,8 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
           auto name = std::to_string(clip_row + 1);
           if (!clip.getName().empty()) name += " " + clip.getName();
           // Leading marker: whether this clip is the one currently
-          // focused for editing (Controller::getFocusedClip(), set by
-          // Record Arm's own drum-machine-clip repurposing - Controller.cpp's
-          // "toggle-record-arm"), a blank space otherwise so the play glyph/
+          // focused for editing (Controller::getFocusedClip(), set when
+          // a Launchpad opens it for step editing), a blank space otherwise so the play glyph/
           // name still line up. Plain ASCII, not a Unicode glyph -
           // "ambiguous width" characters silently render as two columns
           // on plenty of terminal fonts, breaking this fixed-width

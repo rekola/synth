@@ -658,14 +658,14 @@ would otherwise resume showing.
   drum_edit_step_offset`, 0 on open, and pad-prev-track/pad-next-track
   scroll that device's window by `kStepGridScrollStep` (4). While the step view shows, move-row-up/-down shift a pitched track's
   octave instead (a drum rack has nothing to shift). The step view is opened
-  two ways, both funneled through `Controller::toggleDrumClipFocus(track_id,
-  clip_index)`: "toggle-record-arm" while the `ClipGrid` has focus on a
-  `PercussionTrack` clip, and the Launchpad's CC91-held-as-shift + Live
-  pad gesture (`LaunchpadManager::handleShiftButton()`/
+  only from a Launchpad (the terminal edits clips its own way), by its
+  CC91-held-as-shift + pad gesture in Live View, funneled through
+  `Controller::toggleDrumClipFocus(track_id, clip_index)`
+  (`LaunchpadManager::handleShiftButton()`/
   `handleLivePadEvent()`, `DeviceState::row_up_shift_pending_pad` - the
   pad half resolves on its own release, so an abandoned press never has to be
-  undone), which also reaches a pitched track. Both halves light white while
-  held. Opening switches one device into `NOTES` mode
+  undone); it reaches percussion and pitched tracks. Both halves light white
+  while held. Opening switches one device into `NOTES` mode
   (`LaunchpadManager::openStepView()`: the device last touched, else the
   first connected; the others keep their mode) and resets its page, octave
   and the preview clock (`preview_clock_`, separate from `ClipPlayer`'s), so

@@ -2838,8 +2838,8 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
   // A launch that writes into the arrangement starts the transport the
   // way a Launchpad recording does, so disarming stops it again.
   getController().getClipPlayer().setAssignPlaybackStarter([this]() { launchpad_manager_->startAssignPlayback(getController()); });
-  // Record Arm's own drum-machine-track repurposing ("toggle-record-arm",
-  // Controller.cpp) - opening a clip (Controller::setFocusedClip()) moves
+  // Opening a clip for step editing on a Launchpad
+  // (Controller::toggleDrumClipFocus()) - focusing it (Controller::setFocusedClip()) moves
   // the shared track cursor to it (so PatternEditor's/the Launchpad's own
   // fallback_track_index-following resolve there next), switches one
   // Launchpad (the one last used) to the step grid and starts it from a

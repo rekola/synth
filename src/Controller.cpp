@@ -294,33 +294,6 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
       return;
     }
 
-    // Live View focused on a PercussionTrack's own clip has no ordinary
-    // "recording" role at all - its own steps are always entered directly
-    // on a connected Launchpad's own step grid, never captured live the
-    // way a note/sample take is - so Record Arm is repurposed here into
-    // "open this clip for editing there" instead, bypassing the
-    // arm-something-new logic below entirely. Takes priority over it (but
-    // not over the three disarm branches above - whatever's already
-    // armed/recording still wins, same "a press always means stop that
-    // first" rule this command's own doc comment states) since there's
-    // nothing else a drum-machine clip's own Record Arm press could
-    // sensibly mean. Reaches every PercussionTrack this way - deliberately
-    // *not* extended to a pitched InstrumentTrack even though
-    // toggleDrumClipFocus() itself now accepts one too (the Launchpad's
-    // own CC91-held-as-shift gesture reaches it that way directly): Record
-    // Arm on a pitched track already has a real, heavily-used meaning of
-    // its own (multi-track Live View recording, right below) that
-    // opening the step grid would silently preempt every time, not just
-    // when a performer actually wants to step-sequence it. A
-    // PercussionTrack has no such competing meaning to protect - its own
-    // Record Arm press was always exactly this repurposing, pitched
-    // tracks are the only ones that need this guard.
-    auto clip_grid_track = getCurrentSong() ? getCurrentSong()->getMasterTrack().getChildByInternalId(clip_grid_track_id_) : nullptr;
-    if (clip_grid_focused_ && clip_grid_track_id_ >= 0 && clip_grid_clip_index_ >= 0 &&
-        clip_grid_track && clip_grid_track->getType() == TrackType::PERCUSSION_CONTROL) {
-      if (toggleDrumClipFocus(clip_grid_track_id_, clip_grid_clip_index_)) return;
-    }
-
     // Nothing armed - arm whatever the currently selected track actually
     // needs. Live View focused means "the track/clip slot its own
     // cursor is on" (setClipGridCursor(), kept current by

@@ -450,8 +450,7 @@ you're changing.
 - **`drum_machine_stepgrid_test.xml` / `fake_launchpad_stepseq.c` /
   `verify_launchpad_stepseq.py`** - loads
   a song whose only track is a `PercussionTrack`, opens its
-  clip from the terminal (M-x live-view, then "toggle-record-arm" in
-  the clip grid), confirms the Launchpad shows the step grid (the
+  clip from the simulated Launchpad (shift + pad), confirms the Launchpad shows the step grid (the
   step-lit/unlit colors in the top four rows, not the ordinary note-grid
   ones), then presses pad (0,4) - step 0 of the kick - and checks for its
   color changing to lit.

@@ -967,116 +967,6 @@ TEST(toggle_record_arm_clip_grid_focused_arms_a_sample_track_without_arrangement
   CHECK(!controller.isClipRecording(track_id));
 }
 
-// Record Arm on a PercussionTrack's own clip in Live View is repurposed
-// into "open this clip for editing on a Launchpad's step grid" (via
-// setFocusedClip()/setDrumEditRequestListener()) instead of ever arming a
-// take - a drum clip's own steps are never captured live. Reaches a
-// lane-less PercussionTrack's own clip exactly the same way
-// (toggle_record_arm_on_a_lane_less_percussion_clip_focuses_it_too below) -
-// its step grid just shows empty until a lane exists.
-TEST(toggle_record_arm_on_a_drum_machine_clip_focuses_it_instead_of_arming) {
-  ChannelConfiguration config(8000, 1);
-  Controller controller(config);
-  controller.switchToBuffer(controller.freshBufferName());
-  auto & song = controller.getSong();
-
-  auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(std::make_unique<PercussionTrack>()));
-  auto track_id = track.getInternalId();
-  auto & existing = song.addClip(Clip(track_id));
-  existing.setName("Beat 1");
-  auto existing_id = existing.getId();
-
-  int requested_track_id = -1;
-  bool requested_opened = false;
-  controller.setDrumEditRequestListener([&](int id, bool opened) { requested_track_id = id; requested_opened = opened; });
-
-  controller.setClipGridFocused(true);
-  controller.setClipGridCursor(track_id, 0); // the occupied slot
-  controller.sendCommand("toggle-record-arm");
-
-  CHECK(!controller.isClipRecording(track_id)); // never armed a take
-  CHECK(!controller.isNoteCaptureArmed());
-  CHECK(controller.getFocusedClipTrackId() == track_id);
-  CHECK(controller.getFocusedClip() == existing_id); // the existing clip, not a new one
-  CHECK(requested_track_id == track_id);
-  CHECK(requested_opened);
-  CHECK(song.getClips(track_id).size() == 1); // nothing created
-
-  // Pressing Record Arm again on the same already-focused clip closes it
-  // instead of doing nothing - the only way back to the track's own
-  // background pattern (or to a different clip) via this same gesture.
-  controller.sendCommand("toggle-record-arm");
-  CHECK(controller.getFocusedClipTrackId() == -1);
-  CHECK(controller.getFocusedClip().empty());
-  CHECK(requested_track_id == track_id);
-  CHECK(!requested_opened);
-}
-
-// A lane-less PercussionTrack is still a PercussionTrack -
-// toggleDrumClipFocus() doesn't gate on lane count at all (its own doc
-// comment), so Record Arm opens its own clip for step editing exactly the
-// same way a step-sequenced one does; LaunchpadManager::refreshLeds() is
-// what actually shows that empty (DeviceState::show_step_grid's own
-// comment) - nothing here to distinguish at the Controller level.
-TEST(toggle_record_arm_on_a_lane_less_percussion_clip_focuses_it_too) {
-  ChannelConfiguration config(8000, 1);
-  Controller controller(config);
-  controller.switchToBuffer(controller.freshBufferName());
-  auto & song = controller.getSong();
-
-  auto & track = song.addTrack(std::make_unique<PercussionTrack>()); // no lanes
-  auto track_id = track.getInternalId();
-  auto & existing = song.addClip(Clip(track_id)); // an occupied slot, not an empty one
-  auto existing_id = existing.getId();
-
-  controller.setClipGridFocused(true);
-  controller.setClipGridCursor(track_id, 0);
-  controller.sendCommand("toggle-record-arm");
-
-  CHECK(!controller.isTrackArmed(track_id)); // never armed a take
-  CHECK(controller.getFocusedClipTrackId() == track_id);
-  CHECK(controller.getFocusedClip() == existing_id);
-}
-
-// An empty slot lazily creates a fresh, looping clip rather than doing
-// nothing or requiring a separate "new clip" gesture first.
-TEST(toggle_record_arm_on_an_empty_drum_machine_slot_creates_a_clip) {
-  ChannelConfiguration config(8000, 1);
-  Controller controller(config);
-  controller.switchToBuffer(controller.freshBufferName());
-  auto & song = controller.getSong();
-  song.setTimeSignature(TimeSignature{4, 4});
-
-  auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(std::make_unique<PercussionTrack>()));
-  auto track_id = track.getInternalId();
-
-  controller.setClipGridFocused(true);
-  controller.setClipGridCursor(track_id, 0); // empty - no clips exist yet
-  controller.sendCommand("toggle-record-arm");
-
-  auto & clips = song.getClips(track_id);
-  CHECK(clips.size() == 1);
-  CHECK(clips[0].isLooping());
-  // The song's own bar length, same as any other fresh clip - not clamped
-  // to the connected Launchpad's own fixed 8-column grid, which pages
-  // through a longer clip instead (LaunchpadManager's own
-  // DeviceState::drum_edit_page).
-  CHECK(clips[0].getLength() == 16);
-  CHECK(controller.getFocusedClipTrackId() == track_id);
-  CHECK(controller.getFocusedClip() == clips[0].getId());
-
-  // Regression: a freshly-created, never-written-to clip's own read-only
-  // auditioning (LaunchpadManager::triggerAuditionStep(), driven by
-  // getFocusedClip() the instant it's set) used to crash - Clip::getLeafPattern()'s
-  // const overload throws std::out_of_range on a Clip whose
-  // patterns_by_track_ has never had an entry created for this track,
-  // which a clip built only via addClip()+setters (no note ever written)
-  // never gets.
-  auto read_target = resolveReadTarget(song, track_id, 0, controller.getFocusedClip());
-  CHECK(read_target.is_focused_override);
-  CHECK(read_target.pattern != nullptr);
-}
-
 // Controller::toggleDrumClipFocus() called directly with a (track_id,
 // clip_index) pair - the Launchpad's own CC91-held-as-shift gesture
 // (LaunchpadManager::handleLivePadEvent()) reaches it this way, never
@@ -1209,8 +1099,7 @@ TEST(close_drum_clip_focus_is_a_no_op_when_nothing_is_focused) {
   CHECK(!listener_called);
 }
 
-// Any other track type keeps Record Arm's ordinary behavior even while
-// Live View focused - the repurposing is drum-machine-only. Arming
+// Record Arm in the clip grid arms the track, whatever its type. Arming
 // itself starts nothing - it only marks the track ready; a take begins
 // once a pad on it is actually pressed (LaunchpadManager's own job).
 TEST(toggle_record_arm_on_a_non_drum_machine_track_arms_normally) {
