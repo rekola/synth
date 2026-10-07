@@ -43,8 +43,8 @@ says where its own feature comes from and where it differs.
   are in `docs/`, for example [31edo_note_numbers.txt](docs/31edo_note_numbers.txt).
 - **Scales.** A song has a key and an optional scale: major (the Ionian
   mode), minor (the Aeolian mode), otonal or utonal. Each is written once as
-  note names, so it is correct in every tuning. Otonal and utonal are Partch's
-  terms (1949), but the scales here are ordinary seven-note scales, with
+  note names, so it is correct in every tuning. Otonal and utonal borrow
+  Partch's terms (1949), but they are ordinary seven-note scales, their
   intervals derived by the methods in Kyle Gann's *The Arithmetic of
   Listening* (2019). Without a scale, the Launchpad keyboard plays major. The
   scale drives the in-key layout described in
