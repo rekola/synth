@@ -25,6 +25,7 @@
 #include "../../util/Utf8.h"
 
 #include <string>
+#include <random>
 #include <algorithm>
 #include <cmath>
 #include <fmt/core.h>
@@ -437,6 +438,26 @@ PatternEditor::PatternEditor(UIPlane & parent)
     // SelectionScope::COMMAND: nothing to transpose - Command.h has no
     // numeric/transposable semantics. LOCATOR/EVERYTHING: same - no
     // transposable content once the locator is involved at all.
+    song.incVersion();
+  });
+
+  // Randomizes velocity and delay of the effective region's notes, so
+  // like transpose it never clears the mark. Every press draws fresh
+  // values, so there's nothing to keep reproducible.
+  commands_.define("humanize-region", [this]() {
+    auto & song = getController().getSong();
+    auto grid = source_->editGrid(selectionAnchor(), false);
+    auto track_ids = song.getRootTrackIds();
+    static NoiseGenerator rng{std::random_device{}()};
+
+    auto b = getEffectiveSelectionBounds(song, track_ids);
+    if (b.scope == SelectionScope::TRACK) {
+      humanizePatternBlock(*grid, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi, HumanizeAmount(), rng);
+    } else if (b.scope == SelectionScope::NOTE_COLUMN) {
+      auto track_id = track_ids[static_cast<size_t>(b.track_lo)];
+      humanizePatternBlockNotes(*grid, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi, HumanizeAmount(), rng);
+    }
+    // COMMAND/LOCATOR/EVERYTHING: no notes to humanize, same as transpose.
     song.incVersion();
   });
 

@@ -39,6 +39,14 @@ They act on the clip under the cursor.
 - A clip that is playing is not pulled out from under the playhead: its track
   stops at the next bar and the clip is removed then.
 
+## Humanize
+
+`humanize-region` (M-x or the Edit menu, no key binding) loosens the region's
+notes: each sounding note's velocity moves by up to ±12 and its delay later by
+up to 32/255 of a row. Offs and aftertouch are left alone, percussion is
+included, and the mark stays, so repeated runs keep adding variation. Every
+run draws new values, and there is no undo. Terminal only.
+
 ## Other clip commands
 
 Available from M-x and the Clip menu: `launch-clip`, `launch-scene`,

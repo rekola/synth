@@ -2,6 +2,7 @@
 #define _PATTERNBLOCKOPS_H_
 
 #include "BarGrid.h"
+#include "../dsp/NoiseGenerator.h"
 #include "../model/Note.h"
 #include "../model/Command.h"
 
@@ -51,6 +52,22 @@ void transposePatternBlock(PatternGrid & grid, int row_lo, int row_hi,
 			   const std::vector<int> & track_ids, int track_lo, int track_hi, bool up,
 			   const std::function<bool(int track_id)> & is_percussion);
 
+// How far humanize moves a note: its velocity by up to +-`velocity` (kept
+// within 1..127, so a note never turns into an off) and its delay later by
+// up to `delay` (0..255 of a row; a delay can't be negative, so the shift
+// only ever pushes a note late).
+struct HumanizeAmount {
+  int velocity = 12;
+  int delay = 32;
+};
+
+// Randomizes velocity and delay of every sounding note in the same range.
+// Offs and aftertouch are left alone. Percussion included: only the
+// feel changes, not which drum plays.
+void humanizePatternBlock(PatternGrid & grid, int row_lo, int row_hi,
+			  const std::vector<int> & track_ids, int track_lo, int track_hi,
+			  const HumanizeAmount & amount, NoiseGenerator & rng);
+
 // Single-track, note-column-scoped siblings of the above: operate on just
 // notes [note_lo, note_hi] of one track, leaving other note columns and the
 // track's effect Command untouched (PatternEditor's SelectionScope::
@@ -66,6 +83,9 @@ void clearPatternBlockNotes(PatternGrid & grid, int row_lo, int row_hi,
 // already-known track_id, not a range.
 void transposePatternBlockNotes(PatternGrid & grid, int row_lo, int row_hi,
 				int track_id, int note_lo, int note_hi, bool up, bool is_percussion);
+void humanizePatternBlockNotes(PatternGrid & grid, int row_lo, int row_hi,
+			       int track_id, int note_lo, int note_hi,
+			       const HumanizeAmount & amount, NoiseGenerator & rng);
 // Merges `block` into `grid` starting at (target_row, track_id, target_note_offset),
 // leaving note columns outside that range untouched (unlike pastePatternBlock,
 // which replaces a cell's whole note vector).
