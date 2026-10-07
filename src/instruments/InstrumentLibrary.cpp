@@ -75,6 +75,14 @@ unique_ptr<Track> makeEnsemblePad(const string & padsynth_preset, int copies, fl
   return env;
 }
 
+// Registers `instrument` at `path` under a display name; library instruments
+// have none of their own, so the UI would otherwise show the path's last
+// segment.
+void registerNamed(InstrumentProvider & provider, const string & path, const string & name, unique_ptr<Track> instrument) {
+  instrument->setName(name);
+  provider.registerPath(path, move(instrument));
+}
+
 // Registers `path` only when nothing (no SoundFont, no earlier library
 // registration) has already claimed that exact taxonomy leaf - the
 // "fallback when the SoundFont has no piano" half of the additive piano's
@@ -84,11 +92,11 @@ unique_ptr<Track> makeEnsemblePad(const string & padsynth_preset, int copies, fl
 // even with no exact SF2 registration at this leaf, and that's a real,
 // intentional fallback of its own - this function only cares whether this
 // exact leaf is unclaimed.
-void registerFallbackPath(InstrumentProvider & provider, const string & path, shared_ptr<Track> instrument) {
+void registerFallbackPath(InstrumentProvider & provider, const string & path, const string & name, shared_ptr<Track> instrument) {
   if (provider.getTaxonomyPaths().count(path)) return;
+  instrument->setName(name);
   provider.registerPath(path, move(instrument));
 }
-
 }
 
 void registerLibraryInstruments(InstrumentProvider & provider) {
@@ -101,12 +109,12 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // GM's own description for New Age is "a soft, airy new-age pad" -
   // "soft-pad" (a single pure partial, no upper harmonics) is a direct
   // semantic match. Warm uses "strings" (a simple, mellow base tone).
-  provider.registerPath("pad.new-age", makeEnvelopePad("soft-pad", 0.8f, 0.0f, 0.3f, 0.9f, 1.2f));
-  provider.registerPath("pad.warm", makeEnvelopePad("strings", 0.6f, 0.0f, 0.4f, 0.85f, 1.0f));
+  registerNamed(provider, "pad.new-age", "New Age Pad", makeEnvelopePad("soft-pad", 0.8f, 0.0f, 0.3f, 0.9f, 1.2f));
+  registerNamed(provider, "pad.warm", "Warm Pad", makeEnvelopePad("strings", 0.6f, 0.0f, 0.4f, 0.85f, 1.0f));
   // Poly: "dual-strings" is the brighter/wider of the two strings-family
   // presets, closest to a vintage poly synth; a 3-copy ensemble gives the
   // chorus motion its GM description calls for.
-  provider.registerPath("pad.poly", makeEnsemblePad("dual-strings", 3, 10.0f, 0.2f, 0.0f, 0.3f, 0.8f, 0.6f));
+  registerNamed(provider, "pad.poly", "Polysynth Pad", makeEnsemblePad("dual-strings", 3, 10.0f, 0.2f, 0.0f, 0.3f, 0.8f, 0.6f));
   // Choir: "pad.choir" is GM program 91's own literal taxonomy path
   // (GmInstrumentTable.h) - it has to exist under exactly that name for
   // the ordinary GM override behavior every other pad.* entry here relies
@@ -120,14 +128,14 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // pulled again (didn't actually read as a distinct vowel) - not
   // registered until a real one exists. A 3-copy ensemble gives the choir
   // its ensemble-of-singers motion.
-  provider.registerPath("pad.choir", makeEnsemblePad("choir-pad4", 3, 16.0f, 0.5f, 0.0f, 0.3f, 0.9f, 0.8f));
+  registerNamed(provider, "pad.choir", "Choir Pad", makeEnsemblePad("choir-pad4", 3, 16.0f, 0.5f, 0.0f, 0.3f, 0.9f, 0.8f));
   // Bowed: the "strings" preset's own simple base tone, as a 3-copy ensemble.
-  provider.registerPath("pad.bowed", makeEnsemblePad("strings", 3, 14.0f, 0.4f, 0.0f, 0.3f, 0.9f, 0.7f));
+  registerNamed(provider, "pad.bowed", "Bowed Pad", makeEnsemblePad("strings", 3, 14.0f, 0.4f, 0.0f, 0.3f, 0.9f, 0.7f));
   // Metallic: "bells", with tuningMatched=false - inharmonic (non-scale-
   // step) overtones, which is what actually reads as "metallic"/bell-like
   // dissonance (a real bell's overtones are famously non-integer) rather
   // than a clean, consonant partial series.
-  provider.registerPath("pad.metallic", makeEnvelopePad("bells", 0.3f, 0.0f, 0.5f, 0.7f, 1.0f, /*tuningMatched*/ false));
+  registerNamed(provider, "pad.metallic", "Metallic Pad", makeEnvelopePad("bells", 0.3f, 0.0f, 0.5f, 0.7f, 1.0f, /*tuningMatched*/ false));
   // Halo: "long-spacechoir2" is specifically a *phased* choir pad, so its
   // own envelope-remap character plus the wrapping <phaser> below together
   // give it its own shimmering motion. A slow rate (0.15Hz - one full
@@ -144,7 +152,7 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
     phaser_params.set("mix", 0.5f);
     phaser->loadParameters(phaser_params);
     phaser->addChild(makeEnvelopePad("long-spacechoir2", 1.0f, 0.0f, 0.4f, 0.9f, 1.5f));
-    provider.registerPath("pad.halo", move(phaser));
+    registerNamed(provider, "pad.halo", "Halo Pad", move(phaser));
   }
 
   // Sweep (pad.sweep) is a slow filter sweep: a <resonantFilter>'s own
@@ -162,7 +170,7 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
     filter_params.set("release", 1.2f);
     filter->loadParameters(filter_params);
     filter->addChild(makeEnvelopePad("strings", 0.3f, 0.0f, 0.4f, 0.85f, 1.2f));
-    provider.registerPath("pad.sweep", move(filter));
+    registerNamed(provider, "pad.sweep", "Sweep Pad", move(filter));
   }
 
   // A few PadSynth overrides outside the pad.* family - checked against
@@ -184,7 +192,7 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // rather than a sustained chorused pad - fast attack/release, no unison
   // layered on (a lead stays one focused voice; that's what tells it apart
   // from a choir pad using the identical spectral shape).
-  provider.registerPath("lead.voice", makeEnvelopePad("choir-pad4", 0.03f, 0.0f, 0.15f, 0.9f, 0.2f));
+  registerNamed(provider, "lead.voice", "Voice Lead", makeEnvelopePad("choir-pad4", 0.03f, 0.0f, 0.15f, 0.9f, 0.2f));
 
   // Church Organ (organ.pipe) - unlike lead.voice above (GM's own "Lead"
   // family is a synth-lead category by definition, so overriding it
@@ -211,7 +219,7 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // the key/wind valve stays open, never decaying on its own the way a
   // struck/plucked/bowed instrument does), near-instant attack and a
   // quick release (no swell, no ring-on).
-  registerFallbackPath(provider, "organ.pipe", makeEnvelopePad("church-organ", 0.015f, 0.0f, 0.05f, 1.0f, 0.08f));
+  registerFallbackPath(provider, "organ.pipe", "Pipe Organ", makeEnvelopePad("church-organ", 0.015f, 0.0f, 0.05f, 1.0f, 0.08f));
 
   // Synth Strings 2 (string.synth.slow) - NOT String Ensemble 2
   // (string.bowed.ensemble.slow, under the string.bowed.* branch with
@@ -225,7 +233,7 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // "slow" naming already established for the acoustic side. "strings"
   // (real ported data, PadSynthPresets.h's own kStrings) replaces the
   // earlier invented "bowed-ensemble", dropped per explicit request.
-  provider.registerPath("string.synth.slow", makeEnsemblePad("strings", 3, 14.0f, 0.5f, 0.0f, 0.4f, 0.85f, 0.9f));
+  registerNamed(provider, "string.synth.slow", "Slow Synth Strings", makeEnsemblePad("strings", 3, 14.0f, 0.5f, 0.0f, 0.4f, 0.85f, 0.9f));
 
   // Synth Brass 1/2 (brass.synth/brass.synth.soft) - the same GM
   // "deliberately synthetic" distinction as lead.voice above, not the
@@ -241,8 +249,8 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // brass.synth.soft uses "saw-piano" instead - the same oscillator shape,
   // narrower/cleaner, a single voice - GM's own "softer, mellower"
   // description, closer to a sustained pad than a punchy stab.
-  provider.registerPath("brass.synth", makeEnsemblePad("saw-piano-wide", 3, 12.0f, 0.04f, 0.0f, 0.1f, 0.85f, 0.25f));
-  provider.registerPath("brass.synth.soft", makeEnvelopePad("saw-piano", 0.25f, 0.0f, 0.3f, 0.9f, 0.6f));
+  registerNamed(provider, "brass.synth", "Synth Brass", makeEnsemblePad("saw-piano-wide", 3, 12.0f, 0.04f, 0.0f, 0.1f, 0.85f, 0.25f));
+  registerNamed(provider, "brass.synth.soft", "Soft Synth Brass", makeEnvelopePad("saw-piano", 0.25f, 0.0f, 0.3f, 0.9f, 0.6f));
 
   // Additive piano - <envelope>+<additive preset="struck-string">, with a
   // few explicit overrides on top of the base preset rather than retuning
@@ -297,13 +305,13 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
     auto envelope = makeEnvelope(0.003f, 0.0f, 2.0f, 0.0f, 0.25f);
     envelope->addChild(fm_layer(1.0f, 2.5f, 0.6f, 0.8f));
     envelope->addChild(fm_layer(14.0f, 1.2f, 0.06f, 0.2f));
-    provider.registerPath("piano.electric.fm", move(envelope));
+    registerNamed(provider, "piano.electric.fm", "FM Electric Piano", move(envelope));
   }
 
   // Only takes over piano.acoustic.grand itself when nothing already
   // claimed that exact leaf - the "fallback when the SoundFont has no
   // piano" role; a real SF2 grand piano always wins when one is loaded.
-  registerFallbackPath(provider, "piano.acoustic.grand", additive_piano_envelope());
+  registerFallbackPath(provider, "piano.acoustic.grand", "Additive Grand Piano", additive_piano_envelope());
 
   // Mellotron - tapeDegradation(preset="mellotron") wrapping
   // envelope+padsynth(preset="strings") - a Mellotron "strings" tape is a
@@ -322,7 +330,7 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
     tape_params.set("preset", string("mellotron"));
     tape->loadParameters(tape_params);
     tape->addChild(makeEnvelopePad("strings", 0.05f, 0.0f, 0.3f, 0.95f, 0.4f));
-    provider.registerPath("keyboard.tape.mellotron", move(tape));
+    registerNamed(provider, "keyboard.tape.mellotron", "Mellotron", move(tape));
   }
 }
 
