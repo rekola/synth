@@ -1453,12 +1453,11 @@ would otherwise resume showing.
   named with a `pad-` prefix (`pad-next-track`), not `launchpad-`: other
   devices can use it too. A pad gesture whose terminal equivalent is
   copy/kill/yank gets no command of its own (`docs/terminal.md`).
-- Where a convention exists in the lineage this project draws on, follow it
-  exactly, and describe the lineage and any difference in the overview of the
-  document for that feature (`docs/drums-and-sequencer.md`,
-  `docs/launchpad.md`, `docs/scenes.md`, ...); make our own choice only when
-  there is no standard, and say so there. Add a layout or number only when it
-  is known exactly - leave it out rather than add a subtly wrong version.
+- Where a well-known convention exists in the lineage this project draws on,
+  prefer it to inventing something new, and where a document records the
+  lineage (`docs/drums-and-sequencer.md`, the README), keep it accurate. Add a
+  layout or number only when it is known exactly - leave it out rather than
+  add a subtly wrong version.
 - Comments: keep them short (a one-liner covers most cases). Don't point
   at something outside the code to explain the code - state the reasoning
   directly instead of citing: a `plans/*.md` file (they get deleted once
