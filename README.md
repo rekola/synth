@@ -7,6 +7,28 @@
 
 A microtonal multiparadigm music production system, which combines live sequencer with a traditional tracker.
 
+# What synth is
+
+synth is not a copy of any one product. It draws on several traditions, and
+each document in `docs/` says where its own feature comes from and where it
+differs.
+
+- **Tracker.** Music is written as rows in a grid, one column per voice. The
+  first known tracker is Ultimate Soundtracker (Obarski, 1987): four channels,
+  each row a note, a sample and an effect. Scream Tracker, FastTracker 2 and
+  Impulse Tracker added a volume column and lettered effect commands, and
+  Renoise (2002) several note columns per track and a delay column. synth's
+  pattern editor follows the later trackers; see
+  [docs/commands.md](docs/commands.md).
+- **Live sequencer.** Session view, with clips launched on the bar and scenes,
+  follows Ableton Live; see [docs/launchpad.md](docs/launchpad.md) and
+  [docs/scenes.md](docs/scenes.md).
+- **Pad controllers and samplers.** The Launchpad's buttons follow Novation,
+  and the drum pads and step sequencer the Akai MPC (1988) and Ableton Push;
+  see [docs/drums-and-sequencer.md](docs/drums-and-sequencer.md).
+- **Emacs.** Selection, kill and yank, and the M-x prompt; see
+  [docs/terminal.md](docs/terminal.md).
+
 # Features
 
 - Launchpad support and Live arrangement
@@ -28,35 +50,6 @@ A microtonal multiparadigm music production system, which combines live sequence
 ## Keyboard driven
 
 Everything can be done using keyboard without mouse
-
-# Lineage
-
-synth is not a copy of any one product. It draws on several traditions, and
-each document in `docs/` says where its own feature comes from and where it
-differs.
-
-- **Trackers.** The pattern editor belongs to the tracker tradition: music
-  written as rows in a grid, one column per voice, read from top to bottom at
-  a steady tempo. The first known tracker is Ultimate Soundtracker, written
-  by Karsten Obarski for the Commodore Amiga and released in 1987. Its
-  patterns had four channels, each row holding a note, a sample number and an
-  effect command, and ProTracker and its relatives kept that layout. Later
-  trackers added to it: Scream Tracker, FastTracker 2 and Impulse Tracker a
-  volume column and effect commands named by letters with hexadecimal
-  parameters, and Renoise (from 2002) several note columns per track and a
-  dedicated per-note delay column (earlier trackers delayed a note with an
-  effect command). synth's pattern editor has note, velocity, delay and effect
-  columns, with several note columns per track, so it follows the later
-  trackers. Where each effect command comes from is in
-  [docs/commands.md](docs/commands.md).
-- **Live sequencers.** Session view, with clips launched on the bar and
-  scenes, follows Ableton Live; see [docs/launchpad.md](docs/launchpad.md) and
-  [docs/scenes.md](docs/scenes.md).
-- **Pad controllers and samplers.** The Launchpad's buttons follow Novation's
-  own layouts, and the drum pads and step sequencer follow the Akai MPC and
-  Ableton Push; see [docs/drums-and-sequencer.md](docs/drums-and-sequencer.md).
-- **Emacs.** Selection, kill and yank, and the M-x command prompt; see
-  [docs/terminal.md](docs/terminal.md).
 
 # Launchpad support
 
