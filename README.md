@@ -40,11 +40,13 @@ differs.
   are in `docs/`, for example [31edo_note_numbers.txt](docs/31edo_note_numbers.txt).
 - **Scales.** A song has a key and an optional scale: major, minor, otonal or
   utonal. The names are Partch's (1949), but the intervals and the function
-  differ: here they are ordinary seven-note scales, designed while reading
-  *The Arithmetic of Listening*; the details of how are not recorded. Each scale is written once
+  differ: here they are ordinary seven-note scales, with intervals derived by
+  the methods in Kyle Gann's *The Arithmetic of Listening* (2019). Each scale is written once
   as note names, so the same scale is correct in every tuning. Without a scale, the Launchpad keyboard
   plays major. The scale drives the in-key layout described in
   [docs/drums-and-sequencer.md](docs/drums-and-sequencer.md).
+- **Further reading.** Kyle Gann, *The Arithmetic of Listening* (2019), on
+  deriving tunings and intervals.
 
 # Features
 
