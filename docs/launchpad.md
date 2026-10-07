@@ -12,13 +12,6 @@ grid mode, so one can sit in Session view while another does note entry.
   and the click sit where Novation's Launchpad Pro MK3 puts them, and the Tempo
   and Swing views follow that device's views; the other shift functions are
   ours. Undo and Redo only report that they are not implemented.
-- **Session view.** It follows Ableton Live's: a clip grid with one column per
-  track, scenes launched across, a stop button per slot, Session Record, Capture
-  MIDI (not implemented here) and Back to Arrangement. Live launches clips on a
-  global quantisation whose default is one bar; here it is always one bar.
-- **Playing and step editing.** The drum rack, scale keyboard and step view
-  follow the MPC and Ableton Push; see
-  [drums-and-sequencer.md](drums-and-sequencer.md).
 
 ## Note mode
 

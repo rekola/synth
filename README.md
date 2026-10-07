@@ -23,8 +23,8 @@ says where its own feature comes from and where it differs.
   launched on the bar and grouped into scenes; see
   [docs/launchpad.md](docs/launchpad.md) and [docs/scenes.md](docs/scenes.md).
 - **Pad controllers and samplers.** The Launchpad's buttons partly follow
-  Novation's own layouts, and the drum pads and step sequencer the Akai MPC
-  (1988) and Ableton Push; see
+  Novation's own layouts, and the 4x4 grid of drum pads was first used in the
+  Akai MPC (1988); see
   [docs/drums-and-sequencer.md](docs/drums-and-sequencer.md).
 - **Emacs.** In the terminal interface each song is a buffer, as in Emacs:
   several can be open and switched between, with selection, kill and yank, and

@@ -6,25 +6,12 @@ steps. Session view, the buttons and the other modes are in
 
 ## Where it comes from
 
-Nothing here is invented from scratch; each part follows a convention and says
-where it differs.
-
-- **Drum pads.** A 4x4 block of 16 pads is the standard drum surface. Akai's
-  MPC samplers (from 1988) made it so, and the drum rack in Ableton Live shows
-  16 of its 128 notes at a time in the same shape. Following that, the rack
-  here is the bottom-left 4x4 of the grid, holding General MIDI notes 36-51 in
-  order, left to right and then bottom to top, the usual default window of a
-  drum rack. Only that one bank is offered: other banks, and the order they
-  would come in, are left out until a layout is known exactly.
-- **Scale keyboard.** Ableton Push's in-key layout is the model: a scale
-  degree per column and a fourth per row. Here the scale is the song's, in any
-  of the supported equal divisions of the octave, and plays as major when none
-  is set.
-- **Step editing.** Push splits its grid between a playing surface and a
-  sequencer. Here the split is four rows and four rows, with 32 steps. Push
-  chooses the sound by holding its pad; here the last pad pressed stays
-  selected, so one hand is enough. A pitched note lasts one step. Chords
-  (several held notes) are not supported yet.
+- **Drum pads.** A 4x4 block of 16 pads is the standard drum surface, first
+  used in the Akai MPC (1988). The rack here is the bottom-left 4x4 of the
+  grid, holding General MIDI notes 36-51 in order, left to right and then
+  bottom to top, the usual default window of a drum rack. Only that one bank
+  is offered: other banks, and the order they would come in, are left out
+  until a layout is known exactly.
 - **Pad colours.** Pitched pads are coloured by consonance, which is our own
   choice (see Pad colors below); the 31-EDO organ built for Adriaan Fokker and
   the Archiphone coloured pads by distance from the diatonic scale instead.
@@ -93,7 +80,8 @@ bottom to top.
 
 The steps show one sound at a time - the pad you pressed last (the kick, or
 the tonic, until you press one; it lights white). Press a step to set or clear
-that sound there; a pitched note lasts one step. Pressing a playing pad both
+that sound there; a pitched note lasts one step. One sound is selected at a
+time, so chords (several held notes) are not supported yet. Pressing a playing pad both
 selects it and sounds it, and records it as usual while capture is armed.
 Each connected device shows its own 32-step page of a longer clip; 93 and 94
 scroll the pages together. A lone press of 95 closes it.
