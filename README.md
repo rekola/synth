@@ -43,9 +43,9 @@ The Application draws on several traditions.
 - **Scales.** A song has a key and an optional scale: major (the Ionian
   mode), minor (the Aeolian mode), otonal or utonal. Each is written once as
   note names, so it is correct in every tuning. Otonal and utonal borrow
-  Partch's terms (1949), but they are ordinary seven-note scales, their
-  intervals derived by the methods in Kyle Gann's *The Arithmetic of
-  Listening* (2019). Without a scale, the Launchpad keyboard plays major. The
+  Partch's terms (1949), but they are seven-note scales whose intervals
+  were derived by the methods in Kyle Gann's *The Arithmetic of Listening*
+  (2019). Without a scale, the Launchpad keyboard plays major. The
   scale drives the in-key layout described in
   [docs/drums-and-sequencer.md](docs/drums-and-sequencer.md).
 
