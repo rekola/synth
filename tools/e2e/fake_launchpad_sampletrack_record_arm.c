@@ -1,7 +1,7 @@
 // Simulated Launchpad X exercising the per-track Record Arm mechanism's
 // actual *recording* gesture for a SampleTrack specifically - not just the
 // arm/disarm picker (already covered by fake_launchpad_record_arm_picker.c
-// against a note track), but a real Session-view pad press on an armed
+// against a note track), but a real Live-View pad press on an armed
 // SampleTrack actually arming real audio capture
 // (Controller::armSessionTrackRecording()/armThresholdRecording()) instead
 // of falling through to plain audition/assign (the `is_sample_track`
@@ -12,7 +12,7 @@
 // reasoning fake_launchpad_record_arm_picker.c already documents for why
 // it never triggers real playback either.
 //
-// argv[1] == "cancel" sends a *second* Session-grid press on the same pad
+// argv[1] == "cancel" sends a *second* Live-grid press on the same pad
 // after the first (verify_launchpad_sampletrack_record_arm.py's own
 // two-spawn design: one spawn with a single press proves arming shows the
 // record indicator, a second spawn with this flag proves a second press on
@@ -80,7 +80,7 @@ int main(int argc, char ** argv) {
   fake_wait_ready(seq, "at startup");
   drain(seq, 500, "at startup"); // the first LED frames
 
-  fprintf(stderr, "sending CC95 press+release (enters Session's own mixer submode)\n");
+  fprintf(stderr, "sending CC95 press+release (enters Live's own mixer submode)\n");
   send_cc(seq, port, 95, 127);
   send_cc(seq, port, 95, 0);
   drain(seq, 500, "mixer submode entered");
@@ -95,12 +95,12 @@ int main(int argc, char ** argv) {
   send_note(seq, port, 0x80, 11, 0);
   drain(seq, 500, "track armed");
 
-  fprintf(stderr, "sending CC19 press+release - closes the overlay, back to the plain Session grid\n");
+  fprintf(stderr, "sending CC19 press+release - closes the overlay, back to the plain Live grid\n");
   send_cc(seq, port, 19, 127);
   send_cc(seq, port, 19, 0);
-  drain(seq, 500, "back on session grid, track armed but idle");
+  drain(seq, 500, "back on Live grid, track armed but idle");
 
-  fprintf(stderr, "sending press on pad (0,0) [note 11] - Session grid, clip index 7 (7-0) - arms real audio capture\n");
+  fprintf(stderr, "sending press on pad (0,0) [note 11] - Live grid, clip index 7 (7-0) - arms real audio capture\n");
   send_note(seq, port, 0x90, 11, 100);
   send_note(seq, port, 0x80, 11, 0);
   drain(seq, 500, "sample capture armed, waiting on the loudness threshold");
@@ -113,7 +113,7 @@ int main(int argc, char ** argv) {
   }
 
   // Deliberately never reopens the picker to disarm the track - the final
-  // state under test is whatever the Session-grid press(es) above left
+  // state under test is whatever the Live-grid press(es) above left
   // behind, not a disarmed track (Controller::disarmTrack()'s own
   // trimSessionRecordingClip() call would erase session_recording_takes_
   // unconditionally either way, masking whether the cancel gesture itself

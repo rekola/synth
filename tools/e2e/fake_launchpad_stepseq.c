@@ -3,11 +3,11 @@
 // LaunchpadProtocol::modelFromDeviceName. Prints any SysEx it
 // receives (to confirm Programmer-Mode entry and the step-grid's own LED
 // refreshes), switches to NOTES mode (CC96 - GridMode defaults to
-// SESSION), then presses and releases pad (0,4) - note 51, i.e. step 0
+// LIVE), then presses and releases pad (0,4) - note 51, i.e. step 0
 // of the selected sound (the kick) in the step rows - once. The step grid only ever shows/edits a clip actually
 // open for editing on this track (never the section's own background
 // Pattern) - verify_launchpad_stepseq.py's own driving script opens one
-// via the terminal (M-x session-view, Ctrl-X r) before this fires.
+// via the terminal (M-x live-view, Ctrl-X r) before this fires.
 #include <alsa/asoundlib.h>
 #include "fake_ready.h"
 #include <stdio.h>
@@ -75,7 +75,7 @@ int main() {
 
   fake_wait_ready(seq, "while connecting");
   drain(seq, 500, "while connecting"); // the first LED frames
-  fprintf(stderr, "sending CC96 press+release (Note mode) - GridMode defaults to Session\n");
+  fprintf(stderr, "sending CC96 press+release (Note mode) - GridMode defaults to Live\n");
   send_cc(seq, port, 96, 127);
   send_cc(seq, port, 96, 0);
   drain(seq, 1000, "before press");

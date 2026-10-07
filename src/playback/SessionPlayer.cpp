@@ -454,7 +454,7 @@ SessionPlayer::playheads() const {
   return result;
 }
 
-SessionPadHighlight
+LivePadHighlight
 SessionPlayer::clipHighlight(int track_id, int clip_index) const {
   auto & song = controller_.getSong();
   auto & playback_info = controller_.getPlaybackInfo();
@@ -472,14 +472,14 @@ SessionPlayer::clipHighlight(int track_id, int clip_index) const {
     int queued_recording_clip_index = has_queued_recording ? queued_recording_it->second.clip_index : -1;
     if (is_recording && recording_clip_index == clip_index) {
       return (has_queued_recording && queued_recording_kind == QueuedRecording::STOP) ?
-        SessionPadHighlight::RECORD_STOPPING : SessionPadHighlight::RECORDING;
+        LivePadHighlight::RECORD_STOPPING : LivePadHighlight::RECORDING;
     }
     if (has_queued_recording && queued_recording_kind != QueuedRecording::STOP && queued_recording_clip_index == clip_index) {
-      return SessionPadHighlight::RECORD_QUEUED;
+      return LivePadHighlight::RECORD_QUEUED;
     }
-    if (armed && !has_clip && hasStopButtonAt(song.getClips(track_id), clip_index)) return SessionPadHighlight::ARMED_EMPTY;
+    if (armed && !has_clip && hasStopButtonAt(song.getClips(track_id), clip_index)) return LivePadHighlight::ARMED_EMPTY;
   }
-  if (!has_clip) return SessionPadHighlight::NONE;
+  if (!has_clip) return LivePadHighlight::NONE;
 
   // A taken-over track plays its launched clip; any other plays whatever
   // the arrangement has at the transport's position.
@@ -491,7 +491,7 @@ SessionPlayer::clipHighlight(int track_id, int clip_index) const {
     playing = resolveInstanceAt(song, track_id, playback_info.getAbsolutePosition()).clip_index == clip_index;
   }
   // A launched clip stays launched while the transport is paused.
-  if (playing) return playback_info.isPlaying() ? SessionPadHighlight::PLAYING : SessionPadHighlight::PAUSED;
-  if (session_track && session_track->queued == clip_index) return SessionPadHighlight::QUEUED;
-  return SessionPadHighlight::NONE;
+  if (playing) return playback_info.isPlaying() ? LivePadHighlight::PLAYING : LivePadHighlight::PAUSED;
+  if (session_track && session_track->queued == clip_index) return LivePadHighlight::QUEUED;
+  return LivePadHighlight::NONE;
 }

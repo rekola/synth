@@ -41,11 +41,11 @@ int main() {
 
   fake_wait_ready(seq, "at startup");
 
-  // GridMode defaults to SESSION - a plain note-on there launches a
-  // Session View clip slot instead of entering a note; CC96 selects
+  // GridMode defaults to LIVE - a plain note-on there launches a
+  // Live View clip slot instead of entering a note; CC96 selects
   // NOTES mode. A press also only actually writes into the pattern
   // (rather than just auditioning) with Record Arm on, reached here via
-  // shift+CC98 (a plain CC98 tap is Session Record).
+  // shift+CC98 (a plain CC98 tap is Live Record).
   fprintf(stderr, "sending CC96 press (Note mode)\n");
   send_cc(seq, port, 96, 127);
   sleep(1);

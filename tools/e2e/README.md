@@ -49,7 +49,7 @@ package (`pip install pyte`).
   fixed wait either.
 - `harness.spawn()` starts synth with `--view arrangement` - the view
   most scripts were written against - though the app itself starts in
-  Session view; pass `view="session"` to start there.
+  Live View; pass `view="live"` to start there.
 
 ## Running a script
 
@@ -70,28 +70,28 @@ you're changing.
   pixel geometry, Kitty keyboard protocol, etc.) so it doesn't hang
   waiting for a reply a plain pty never sends. Not Launchpad-specific -
   reusable for testing any keybinding/UI behavior. `hide_outline()` hides
-  Session view's outline panel, for scripts that read the clip grid's
+  Live View's outline panel, for scripts that read the clip grid's
   rows from the start of each line.
 - **`verify_keybindings.py`** - general Emacs-keybinding smoke test
   (Ctrl-B/W/Y/G/Space/C-x o/C-x b/C-x C-c), independent of Launchpad.
-- **`verify_session_pattern_editor.py`** - PatternEditor's session mode
-  (Session view): locators only in Arrangement view, typing into an
+- **`verify_live_pattern_editor.py`** - PatternEditor's Live mode
+  (Live View): locators only in Arrangement view, typing into an
   empty slot creates a clip (not arrangement content), a launched clip's
   playhead shows in its own track's column only (never on the divider
-  after it), and Space is the transport in Session view too. Independent
+  after it), and Space is the transport in Live View too. Independent
   of Launchpad hardware.
-- **`verify_session_track_positions.py`** - Session view's per-track
+- **`verify_live_track_positions.py`** - Live View's per-track
   positions: moved in the pattern editor or by launching a clip, never by
   the clip grid's cursor; each column's own header clip number, row
   numbers and row accents; a playing track's position can't be moved (Up
   says so) while a stopped one's can; and moving one track never moves
   another.
-- **`verify_session_view_layout.py`** - Session view's layout: no scope
+- **`verify_live_view_layout.py`** - Live View's layout: no scope
   row, the clip grid's cursor its own (never moving the pattern
   editor's track, nor following it) and never on its header row, each track's column
   marking its own clip, and the outline panel's button bar and `?`
   details popup.
-- **`verify_session_playing_columns.py`** - with the focused track
+- **`verify_live_playing_columns.py`** - with the focused track
   playing, the columns to its right don't change at all (text or
   colors), and the rows the playing track doesn't have (before its first
   clip) draw blank.
@@ -164,18 +164,18 @@ you're changing.
     crash - covers `LaunchpadManager::refresh`'s erase-while-iterating
     device-pruning loop.
 - **`fake_launchpad_sendmode.c` / `verify_launchpad_sendmode.py`** - presses
-  CC95 a second time to enter Session's own mixer submode (required before
+  CC95 a second time to enter Live's own mixer submode (required before
   CC69 means anything at all - see `CLAUDE.md`'s own `GridMode` bullet),
   toggles into Send A grid mode (CC69), and presses a grid pad; confirms
   the LED bargraph both starts at the track's existing Send A level and
   reflects the new one after the press - the non-NOTES branch of
   `PatternEditor::handleLaunchpadPadEvent` (Send A/B/Main/Pan) had no
   coverage before this script.
-- **`fake_launchpad_session_automation.c` / `verify_launchpad_session_automation.py`** -
+- **`fake_launchpad_live_automation.c` / `verify_launchpad_live_automation.py`** -
   arms the fixture's only track through the Record Arm picker, starts a
-  Session View take in an empty clip slot, and moves the track's Send A
+  Live View take in an empty clip slot, and moves the track's Send A
   fader while it records; confirms the move lands as a `YAxy` command in
-  the take's own clip (shown in the Session view pattern editor) rather
+  the take's own clip (shown in the Live View pattern editor) rather
   than the arrangement, which a taken-over track ignores.
 - **`fake_launchpad_sendmode_autocreate.c` / `verify_launchpad_sendmode_autocreate.py`** -
   loads `songs/songtest1.xml` (2 tracks), enters mixer submode, toggles
@@ -199,25 +199,25 @@ you're changing.
   brightens once the note actually starts sounding via normal pattern
   playback (not just a live pad press) - covers the active-voice LED
   brightness overlay end to end.
-- **`launchpad_session_test.xml` / `fake_launchpad_session.c` /
-  `verify_launchpad_session.py`** - `GridMode::SESSION`, the redesigned
-  session/launch view (rows are a track's own pooled patterns, columns are
+- **`launchpad_live_test.xml` / `fake_launchpad_live.c` /
+  `verify_launchpad_live.py`** - `GridMode::LIVE`, the redesigned
+  Live View (rows are a track's own pooled patterns, columns are
   tracks; CC95/96/97 are the only way in/out, fully decoupled from
-  terminal UI focus). `DeviceState::grid_mode` now defaults to SESSION, so
+  terminal UI focus). `DeviceState::grid_mode` now defaults to LIVE, so
   nothing needs pressing to *enter* it - confirmed from the CC95/CC97 LED
   colors already present in the very first LED refresh, before any input
   at all. Arms Record Arm via a quick CC98 tap (the legacy global
   "toggle-record-arm" command - CC19 itself no longer reaches it while
-  looking at Session view, see `verify_launchpad_record_arm_picker.py`
+  looking at Live View, see `verify_launchpad_record_arm_picker.py`
   below for that gesture instead), then presses pad (0,0) (x=0 the fixture's
   only track, y=0 -> pool index 7 - see the fixture's own comment) and
-  confirms `LaunchpadManager::handleSessionPadEvent`'s assign branch
+  confirms `LaunchpadManager::handleLivePadEvent`'s assign branch
   actually copied that pool entry's own pattern (E-4) into the current
   section, replacing its placeholder note (C-4) - rather than silently
   falling through to ordinary NOTES-mode note entry.
 - **`fake_launchpad_notecustom.c` / `verify_launchpad_notecustom.py`** -
   two small LED/mode-switch regressions: Note (CC96) previously had no
-  active-state LED at all (fixed, now lights up the same way Session/
+  active-state LED at all (fixed, now lights up the same way Live/
   Custom do once NOTES is actually selected), and Custom/DRAW (CC97)
   previously only switched `GridMode` on release rather than on press
   (fixed - `LaunchpadManager::handleDrawToggleButton()`). The script
@@ -234,15 +234,15 @@ you're changing.
   blanking the canvas if already there), while a quick tap instead fires
   "toggle-record-arm" (`LaunchpadManager::handleDrawToggleButton()`) -
   this script only exercises the long-hold half, since the tap half is
-  the exact gesture `verify_launchpad_session.py` already drives.
-- **`launchpad_session_test.xml` (pool index 7's own `length="8"`) /
+  the exact gesture `verify_launchpad_live.py` already drives.
+- **`launchpad_live_test.xml` (pool index 7's own `length="8"`) /
   `fake_launchpad_stopclip.c` / `verify_launchpad_stopclip.py`** - Stop
   Clip (CC49) opening the track-picker overlay: a plain press-only toggle,
-  Session-view-only (a no-op from any other `GridMode`), that lights the
-  grid's bottom row with one pad per selectable track on top of Session
-  view's own rendering - left completely untouched otherwise, no dimming,
-  every other row still reaching Session view's own pad handling normally
-  (Session view's own column-per-track layout has no visible "current"
+  Live-View-only (a no-op from any other `GridMode`), that lights the
+  grid's bottom row with one pad per selectable track on top of Live
+  View's own rendering - left completely untouched otherwise, no dimming,
+  every other row still reaching Live View's own pad handling normally
+  (Live View's own column-per-track layout has no visible "current"
   track for a plain press to target, so picking a column in the picker
   row is what actually stops that track - `LaunchpadManager::
   handleRawButton()`/`handleTrackPickerPadEvent()`). Triggers pool index 7
@@ -253,7 +253,7 @@ you're changing.
   indicator stays lit (the overlay no longer auto-closes on a pick), then
   a second CC49 press closes it, reverting both. Also confirms a playing
   clip's picker pad shows the picker's static red, not its playing pulse.
-- **`launchpad_sampletrack_session_test.xml` (+ sidecar `.wav`) /
+- **`launchpad_sampletrack_live_test.xml` (+ sidecar `.wav`) /
   `verify_launchpad_sampletrack_stopclip.py`** - the SampleTrack twin of
   the script above: structurally the same fixture (one track, pool index
   7 populated - a real sample clip this time, `length="8"` for the same
@@ -263,14 +263,14 @@ you're changing.
   the way `SampleTrackTests.cpp`'s own `triggerClip()` calls are.
 - **`fake_launchpad_mute_picker.c` / `verify_launchpad_mute_picker.py`** -
   the track-picker overlay's Mute purpose (CC39): presses CC95 a second
-  time to enter Session's own mixer submode first (required before CC39
+  time to enter Live's own mixer submode first (required before CC39
   means anything at all rather than launching a scene - see `CLAUDE.md`'s
-  own `GridMode` bullet; also confirms Session's own LED turns orange),
+  own `GridMode` bullet; also confirms Live's own LED turns orange),
   opens it, confirms both CC39's own LED and the picker row's pad (0,0)
   (the fixture's only track, unmuted by default) show bright yellow,
   confirms a *different* row (pad
-  (0,7)) is untouched - not dimmed - proving the overlay leaves Session
-  view's own rendering alone outside the picker row, picks column 0 to
+  (0,7)) is untouched - not dimmed - proving the overlay leaves Live
+  View's own rendering alone outside the picker row, picks column 0 to
   mute it, confirms the picker row dims to dark yellow (bright/dim is
   polarity-inverted from Stop Clip/Solo - see `CLAUDE.md`'s own
   Track-picker overlay bullet) while CC39's own LED stays lit (no
@@ -281,7 +281,7 @@ you're changing.
   members of the real Launchpad X's own right-column "Track control" group
   (`CLAUDE.md`'s own `GridMode`/Extra-button-layout bullets), so CC95 a
   second time is needed first, same as Mute/Solo/Stop Clip, to enter
-  Session's own mixer submode before CC19 opens the overlay rather than
+  Live's own mixer submode before CC19 opens the overlay rather than
   launching scene row 0. Confirms both CC19's own LED and the picker row's
   pad (0,0) (the fixture's only track, unarmed by default) show dim red
   before opening and once opened (an idle/just-opened track reads the same,
@@ -298,13 +298,13 @@ you're changing.
   holes.c` / `verify_launchpad_record_arm_holes.py`** - the per-track
   Record Arm mechanism's actual *recording* gesture, not just the
   arm/disarm picker above: arms the fixture's only track (which starts
-  with no clips at all), presses Session-view clip index 2 (not 0),
+  with no clips at all), presses Live-View clip index 2 (not 0),
   switches to NOTE mode, plays one note, then disarms - exercising "holes
   are allowed" directly (`Song::ensureClipAt()`), since a correct
   implementation has to backfill indices 0/1 with empty fillers rather
   than collapsing the take to whichever slot happens to be first unused.
   Verifies the result through the terminal `ClipGrid` widget itself
-  (M-x `session-view`, driven the same way a real Alt-x would arrive -
+  (M-x `live-view`, driven the same way a real Alt-x would arrive -
   `EscapeSequenceCoalescer` folds a bare ESC followed later by 'x' into
   one event): confirms 7 of the 8 displayed rows still show the plain
   empty-slot icon, exactly one shows a real, named clip (not "(unnamed)"
@@ -332,7 +332,7 @@ you're changing.
   compatibility filter) makes the fixture actually prove the fix matters.
 - **`launchpad_record_arm_percussion_test.xml` / `fake_launchpad_record_
   arm_percussion.c` / `verify_launchpad_record_arm_percussion.py`** -
-  regression test for a real bug: recording a Session View take into a
+  regression test for a real bug: recording a Live View take into a
   step-sequenced `PercussionTrack` showed the step-grid editor in NOTES
   mode instead of letting the performer actually play it live -
   `handlePadEvent()`'s own step-grid short-circuit ran before (and so was
@@ -347,7 +347,7 @@ you're changing.
   sampletrack_record_arm.c` / `verify_launchpad_sampletrack_record_arm.py`** -
   the SampleTrack twin of `fake_launchpad_record_arm_holes.c` above -
   covers `SessionPlayer::triggerClip()`'s own SampleTrack branch
-  (a Session-grid press on a SampleTrack armed via the track-picker
+  (a Live-grid press on a SampleTrack armed via the track-picker
   overlay now actually arms real audio capture -
   `Controller::armSessionTrackRecording()`/`armThresholdRecording()` -
   instead of falling through to plain audition/assign) and the "press the
@@ -363,10 +363,10 @@ you're changing.
 - **`launchpad_shift_stepgrid_test.xml` / `fake_launchpad_
   shift_stepgrid.c` / `verify_launchpad_shift_stepgrid.py`** - CC91
   ("move-row-up") held as a shift modifier: holds it, presses a
-  Session-grid pad on release (opens that pad's own step-sequenced
+  Live-grid pad on release (opens that pad's own step-sequenced
   `PercussionTrack` clip for direct editing instead of triggering it -
   `Controller::toggleDrumClipFocus()`, `LaunchpadManager::
-  handleShiftButton()`/`handleSessionPadEvent()`), then a lone CC95 press
+  handleShiftButton()`/`handleLivePadEvent()`), then a lone CC95 press
   closes it again outright (`Controller::closeDrumClipFocus()`), without
   needing another shift+pad combo. Verified through the terminal
   `ClipGrid` widget's own text (the "*" focus marker `ClipGrid.cpp`
@@ -378,13 +378,13 @@ you're changing.
   (reuses `launchpad_shift_stepgrid_test.xml`) - the shift+pad combo's
   own LED feedback *while held*, before release ever commits anything:
   CC91 lights full bright white the instant it's held (dim white
-  beforehand, in every `GridMode` now rather than dark in Session - it
+  beforehand, in every `GridMode` now rather than dark in Live - it
   has a real meaning there), and the pad it's combined with gets the
   identical bright-white treatment the moment it's pressed, still held
   (`DeviceState::row_up_shift_pending_pad`). Verified through raw LED
   bytes.
 - **`fake_launchpad_tempo_swing.c` / `verify_launchpad_tempo_swing.py`**
-  (reuses `launchpad_session_test.xml`) - the Tempo (shift + Send B) and
+  (reuses `launchpad_live_test.xml`) - the Tempo (shift + Send B) and
   Swing (shift + Stop Clip) views: the value is drawn as a number on the
   pads (`LaunchpadLayout::renderNumber()`, tens digit white, the others in
   the view's colour), CC91 / CC92 are the up / down arrows, a repeat of
@@ -393,8 +393,8 @@ you're changing.
 - **`fake_launchpad_aftertouch_clip.c` / `verify_launchpad_aftertouch_clip.py`** -
   the "Clip-based note recording" path (`Controller::
   ensureNoteRecordingClip()`), not step entry: switches into NOTES grid
-  mode (CC96 - `GridMode` defaults to SESSION, where a plain note-on would
-  launch a Session View clip slot instead), arms Record Arm (CC19), holds
+  mode (CC96 - `GridMode` defaults to LIVE, where a plain note-on would
+  launch a Live View clip slot instead), arms Record Arm (CC19), holds
   a note across several rows of real playback, and sends two aftertouch
   messages partway through the hold - confirms both become visible as a
   real (non-`--`) value in the pattern editor's own velocity column on the
@@ -405,7 +405,7 @@ you're changing.
 - **`fake_launchpad_mixer_hold.c` / `verify_launchpad_mixer_hold.py`** -
   the mixer radio group's own momentary hold-to-preview gesture
   (`LaunchpadManager::armMixerHoldPreview()`/`handleMixerFunctionRelease()`):
-  enters Session's own mixer submode, quick-taps Send A (CC69) so it
+  enters Live's own mixer submode, quick-taps Send A (CC69) so it
   becomes the sticky selection, long-holds Mute (CC39, past the 600ms
   threshold) and releases - confirms Send A's own LED is bright again
   afterward (reverted, not left on Mute), then quick-taps Mute again as a
@@ -414,11 +414,11 @@ you're changing.
 - **`launchpad_scene_row_test.xml` / `fake_launchpad_scene_row.c` /
   `verify_launchpad_scene_row.py`** - `LaunchpadManager::triggerSceneRow()`'s
   right-column scene launch (CC19, mixer submode off): a two-track fixture
-  with a real clip at Session index 7 on each track, pressed with a single
+  with a real clip at Live index 7 on each track, pressed with a single
   CC19 press+release, expects both tracks' own pads to launch together
   rather than only the first.
 - **`fake_launchpad_clear_on_exit.c` / `verify_launchpad_clear_on_exit.py`**
-  (reuses `launchpad_scene_row_test.xml` for its own real Session content) -
+  (reuses `launchpad_scene_row_test.xml` for its own real Live content) -
   `LaunchpadIO::clearAllLeds()`, the destructor's own last act: quits
   synth gracefully (C-x C-c) and confirms the very last LED-lighting
   SysEx the fake device receives blanks every colorspec, after an earlier
@@ -452,7 +452,7 @@ you're changing.
 - **`drum_machine_stepgrid_test.xml` / `fake_launchpad_stepseq.c` /
   `verify_launchpad_stepseq.py`** - loads
   a song whose only track is a `PercussionTrack`, opens its
-  clip from the terminal (M-x session-view, then "toggle-record-arm" in
+  clip from the terminal (M-x live-view, then "toggle-record-arm" in
   the clip grid), confirms the Launchpad shows the step grid (the
   step-lit/unlit colors in the top four rows, not the ordinary note-grid
   ones), then presses pad (0,4) - step 0 of the kick - and checks for its

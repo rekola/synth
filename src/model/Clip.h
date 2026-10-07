@@ -79,7 +79,7 @@ class Clip : public SongObject {
   int getLength() const { return length_; }
   void setLength(int length) { length_ = length; }
 
-  // Session view's own clip-launch loop toggle - true (the default)
+  // Live View's own clip-launch loop toggle - true (the default)
   // repeats indefinitely once triggered, matching Pattern::
   // getEffectiveRow()'s own unconditional modulo and every other
   // playback path's behavior. false makes it a one-shot: SessionPlayer::

@@ -18,7 +18,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import harness as vk
 
-SONG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "launchpad_session_test.xml")
+SONG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "launchpad_live_test.xml")
 results = []
 
 
@@ -124,7 +124,7 @@ def click(scr, label):
 
 def start(config_dir):
     os.environ["XDG_CONFIG_HOME"] = config_dir
-    pid, fd = vk.spawn(SONG, view="session")
+    pid, fd = vk.spawn(SONG, view="live")
     scr = vk.Screen(fd)
     if not vk.wait_ready(scr):
         print("UI never became ready within timeout")

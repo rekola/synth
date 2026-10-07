@@ -20,7 +20,7 @@ class Song;
 // (that track's own identity color, the same one PatternEditor's own
 // heading row uses) two cells wide - a full identifier cell showing a
 // single hex digit (its ordinal position in that track's own clip list,
-// the exact index Launchpad Session view's rows already address) flanked
+// the exact index Launchpad Live View's rows already address) flanked
 // by half-width padding cells shared with whichever neighboring
 // track/edge sits on the other side (see render()'s own half-block
 // drawing) - resolved the same way real playback does
@@ -60,7 +60,7 @@ class ArrangementGrid : public UIElement {
   // otherwise, since it'd stay lit even while input is going somewhere
   // else entirely (PatternEditor, most of the time). `selected_track_id`
   // is the *shared* track selection (PatternEditor::getCursorTrackIndex(),
-  // resolved to a real id by UI - the same one Launchpad Session view
+  // resolved to a real id by UI - the same one Launchpad Live View
   // already follows) - its own column brightens whichever clip instances
   // sit in it (never the plain background, which has no "selected" state
   // of its own to show) regardless of focus, since it's not this widget's
@@ -79,17 +79,17 @@ class ArrangementGrid : public UIElement {
   // Song::getRootTrackIds() filtered down to color-eligible tracks only
   // (VisibleTrackInfo::color_ordinal_ >= 0 - every LeafTrack: Instrument/
   // Sample/Percussion/DrumMachine, never an Effect). Public (not just
-  // render()'s own internal use) so a Launchpad in GridMode::SESSION can
+  // render()'s own internal use) so a Launchpad in GridMode::LIVE can
   // show exactly the same columns this widget does, rather than a
   // separately-derived list that could disagree with it.
   std::vector<int> getVisibleTrackIds(const Song & song) const;
 
-  // The first row of the cursor's bar - where a Launchpad Session view
+  // The first row of the cursor's bar - where a Launchpad Live View
   // "assign" press made while stopped places the picked clip.
   int getCursorRow(const Song & song) const;
 
-  // Moves the cursor by `delta` bars - Launchpad's own Session view wires
-  // its up/down buttons to this (via UI), since Session view has no row
+  // Moves the cursor by `delta` bars - Launchpad's own Live View wires
+  // its up/down buttons to this (via UI), since Live View has no row
   // scroll of its own for them to drive.
   void moveCursorBar(int delta);
 

@@ -1,17 +1,17 @@
-"""GridMode::SESSION regression test - the redesigned Launchpad session/
+"""GridMode::LIVE regression test - the redesigned Launchpad Live/
 launch view (rows are a track's own pooled patterns, columns are tracks;
 CC95/96/97/98 are now the only way in/out, fully decoupled from terminal UI
 focus - see LaunchpadManager.h's own GridMode doc comment). Unlike the
 retired verify_launchpad_overview.py this replaces, nothing needs to be
-clicked/toggled to reach Session view: DeviceState::grid_mode now defaults
-to SESSION, so a freshly connected device is already there. This confirms
+clicked/toggled to reach Live View: DeviceState::grid_mode now defaults
+to LIVE, so a freshly connected device is already there. This confirms
 that default via the CC95/CC97 LED colors sent in the very first LED
 refresh, arms Record Arm via a quick CC98 tap (the legacy global
 "toggle-record-arm" command - CC19 itself no longer reaches it while
-looking at Session view, see verify_launchpad_record_arm_picker.py for
+looking at Live View, see verify_launchpad_record_arm_picker.py for
 that gesture instead), then lets the simulated Launchpad X press pad
 (0,0) and checks that the resulting assign
-(LaunchpadManager::handleSessionPadEvent) actually placed a real clip
+(LaunchpadManager::handleLivePadEvent) actually placed a real clip
 instance (ArrangementOps.h's placeClipInstance()) in the arrangement grid -
 not PatternEditor's own row display, which never resolves an instance's
 own content (only its section's background pattern, untouched by an assign),
@@ -37,14 +37,14 @@ def arrangement_grid_area(screen):
     # claims first.
     return "\n".join(line[:40] for line in screen.display[1:6])
 
-fake_log = open(os.path.join(SCRIPT_DIR, "fake_launchpad_session.log"), "w")
-fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_session")], stderr=fake_log, stdout=fake_log)
+fake_log = open(os.path.join(SCRIPT_DIR, "fake_launchpad_live.log"), "w")
+fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_live")], stderr=fake_log, stdout=fake_log)
 
 # Same startup ordering as verify_launchpad_e2e.py - the fake device must
 # already exist as an ALSA client before synth's startup-time scan runs.
 time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
-SONG = os.path.join(SCRIPT_DIR, "launchpad_session_test.xml")
+SONG = os.path.join(SCRIPT_DIR, "launchpad_live_test.xml")
 pid, fd = vk.spawn(SONG)
 scr = vk.Screen(fd)
 if not vk.wait_ready(scr):
@@ -59,7 +59,7 @@ print(grid_before)
 check("No clip instance placed yet (no '7' - clip index 7's own digit - anywhere in the grid)",
       "7" not in grid_before, grid_before)
 
-# fake_launchpad_session presses CC98 (Record Arm) once synth has
+# fake_launchpad_live presses CC98 (Record Arm) once synth has
 # connected, then pad (0,0) ~2s after that - poll until the clip shows or
 # the simulator ends.
 deadline = time.time() + 15.0
@@ -72,7 +72,7 @@ grid_after = arrangement_grid_area(scr.screen)
 
 print("arrangement grid after simulated Record-Arm + pad (0,0) press:")
 print(grid_after)
-check("Pad press in Session view (Record Arm on) placed clip index 7's own instance (digit '7') in the arrangement grid",
+check("Pad press in Live View (Record Arm on) placed clip index 7's own instance (digit '7') in the arrangement grid",
       "7" in grid_after, grid_after)
 
 try:
@@ -84,20 +84,20 @@ fake.terminate()
 fake.wait(timeout=5)
 fake_log.close()
 
-with open(os.path.join(SCRIPT_DIR, "fake_launchpad_session.log")) as f:
+with open(os.path.join(SCRIPT_DIR, "fake_launchpad_live.log")) as f:
     fake_output = f.read()
-print("\n--- fake_launchpad_session log ---")
+print("\n--- fake_launchpad_live log ---")
 print(fake_output)
 
 check("synth sent a Programmer-Mode-enter SysEx to the simulated device",
       "0e 01" in fake_output.replace(",", " "), fake_output)
 
 # LED colors sent in the very first refresh (before any button/pad input at
-# all) - proves DeviceState::grid_mode now defaults to SESSION rather than
-# NOTES: CC95 (led index 0x5f = 95) bright green (session_mixer_mode
+# all) - proves DeviceState::grid_mode now defaults to LIVE rather than
+# NOTES: CC95 (led index 0x5f = 95) bright green (live_mixer_mode
 # defaults off - orange means mixer submode instead, see GridMode's own
 # comment), CC97 (0x61 = 97, Custom) dim - see LaunchpadManager::
-# refreshLeds()'s own Session/Custom LED comment.
+# refreshLeds()'s own Live/Custom LED comment.
 check("CC95 (Session) LED is lit by default, with no button pressed yet",
       "03 5f 00 7f 00" in fake_output, fake_output)
 check("CC97 (Custom) LED is dim by default (not showing Custom mode active)",

@@ -68,7 +68,7 @@ class PlaybackInfo {
   }
   void setActiveVoices(std::unordered_map<int, std::vector<ActiveVoiceInfo> > voices) { active_voices_ = std::move(voices); }
 
-  // Session view's launched clips (SongState::getSessionTracks()) - the
+  // Live View's launched clips (SongState::getSessionTracks()) - the
   // tracks taken over from the arrangement and what's queued for them.
   const SessionTracks & getSessionTracks() const { return session_tracks_; }
   void setSessionTracks(SessionTracks tracks) { session_tracks_ = std::move(tracks); }
@@ -94,7 +94,7 @@ class PlaybackInfo {
   void setRunningBars(RunningBars running) { running_bars_ = running; }
   int getSceneSeq() const { return scene_seq_; }
   void setSceneSeq(int seq) { scene_seq_ = seq; }
-  // The last Session view change the audio thread had applied when this
+  // The last Live View change the audio thread had applied when this
   // snapshot was taken - see SessionPlayer's own prediction of it.
   int getSessionSeq() const { return session_seq_; }
   void setSessionSeq(int seq) { session_seq_ = seq; }

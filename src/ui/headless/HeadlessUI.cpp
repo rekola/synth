@@ -144,7 +144,7 @@ HeadlessUI::handlePlaybackEvent(PlaybackEvent & ev) {
 void
 HeadlessUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
   // No overview bar cursor to move here.
-  launchpad_manager.setSessionMoveBarCallback([](int) { });
+  launchpad_manager.setLiveMoveBarCallback([](int) { });
   // The shared track cursor is just Song's current track.
   launchpad_manager.setTrackMoveCallback([this](int new_track_index) {
     auto & song = getController().getSong();
@@ -162,7 +162,7 @@ HeadlessUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
       if (getController().getPlaybackInfo().isPlaying()) getController().togglePlaying();
       getController().getSessionPlayer().silenceAll();
     } else {
-      launchpad_manager_->forceSessionModeOnAllDevices();
+      launchpad_manager_->forceLiveModeOnAllDevices();
     }
   });
 }
@@ -177,10 +177,10 @@ HeadlessUI::tick() {
 
   if (launchpad_manager_) {
     auto track_ids = song.getPlayableTrackIds();
-    LaunchpadManager::SessionWindow session;
-    session.track_ids = track_ids;
+    LaunchpadManager::LiveWindow live;
+    live.track_ids = track_ids;
     launchpad_manager_->refresh(song, track_ids, controller.getPlaybackInfo(),
-      track_ids.empty() ? -1 : indexOfTrack(track_ids, song.getCurrentTrackId()), controller, session);
+      track_ids.empty() ? -1 : indexOfTrack(track_ids, song.getCurrentTrackId()), controller, live);
   }
 }
 

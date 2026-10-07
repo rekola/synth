@@ -21,7 +21,7 @@
 
 using namespace std;
 
-// Session view launches inside the transport (SongState::
+// Live View launches inside the transport (SongState::
 // queueSessionChange()): a launched clip takes its track over from the
 // arrangement at the next bar, while every other track keeps following
 // the arrangement.

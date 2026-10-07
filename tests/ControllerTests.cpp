@@ -340,7 +340,7 @@ TEST(controller_command_completions_merges_literal_and_fallback_names) {
 }
 
 // A clip focus is a single, exclusive "what am I currently looking at to
-// edit" pointer, not Session-view style multi-track launching - setting a
+// edit" pointer, not Live-View style multi-track launching - setting a
 // new one must silence whatever the *previous* focus was actively
 // previewing (a plain STOP_ALL_NOTES, LaunchpadManager::
 // triggerAuditionStep()'s own target), even when that was on a different
@@ -530,7 +530,7 @@ TEST(armed_sample_capture_places_at_the_snapshotted_row_and_trims_the_measured_l
 
 // The SampleTrack twin of ensure_session_recording_clip_creates_and_
 // grows_at_the_exact_pressed_index (ControllerTests.cpp above) - a
-// Session View take pressed at clip index 2 on a track with no clips at
+// Live View take pressed at clip index 2 on a track with no clips at
 // all yet has to land exactly there, holes and all, not collapse to
 // wherever a fresh append would happen to land.
 TEST(session_recording_sample_capture_lands_at_the_exact_pressed_index_with_holes) {
@@ -570,7 +570,7 @@ TEST(session_recording_sample_capture_lands_at_the_exact_pressed_index_with_hole
   CHECK(clips[2].hasSample());
 }
 
-// A second Session View take recorded into the same, already-populated
+// A second Live View take recorded into the same, already-populated
 // slot overdubs it - a new SampleContent layer alongside the first
 // (Clip.h's own sample_layers_ comment), not a replacement, and
 // finishSampleCapture() rebuilds getMixedContent()'s own cache so the
@@ -926,7 +926,7 @@ TEST(toggle_playing_disarms_note_capture_when_transport_stops) {
   CHECK(!controller.isNoteCaptureArmed());
 }
 
-// Session View recording: arming with isClipGridFocused() true targets
+// Live View recording: arming with isClipGridFocused() true targets
 // whatever slot setClipGridCursor() names, never the shared track
 // cursor, and never auto-starts the transport (Player.cpp already starts
 // ALSA capture off isThresholdArmed() alone) - so the resulting take stays
@@ -940,7 +940,7 @@ TEST(toggle_record_arm_clip_grid_focused_arms_a_sample_track_without_arrangement
   auto & track = song.addTrack(std::make_unique<SampleTrack>());
   auto track_id = track.getInternalId();
   auto & other_track = song.addTrack(std::make_unique<SampleTrack>());
-  song.setCurrentTrackId(other_track.getInternalId()); // deliberately not the Session View target
+  song.setCurrentTrackId(other_track.getInternalId()); // deliberately not the Live View target
 
   controller.setClipGridFocused(true);
   controller.setClipGridCursor(track_id, 0);
@@ -967,7 +967,7 @@ TEST(toggle_record_arm_clip_grid_focused_arms_a_sample_track_without_arrangement
   CHECK(!controller.isSessionRecording(track_id));
 }
 
-// Record Arm on a PercussionTrack's own clip in Session View is repurposed
+// Record Arm on a PercussionTrack's own clip in Live View is repurposed
 // into "open this clip for editing on a Launchpad's step grid" (via
 // setFocusedClip()/setDrumEditRequestListener()) instead of ever arming a
 // take - a drum clip's own steps are never captured live. Reaches a
@@ -1079,7 +1079,7 @@ TEST(toggle_record_arm_on_an_empty_drum_machine_slot_creates_a_clip) {
 
 // Controller::toggleDrumClipFocus() called directly with a (track_id,
 // clip_index) pair - the Launchpad's own CC91-held-as-shift gesture
-// (LaunchpadManager::handleSessionPadEvent()) reaches it this way, never
+// (LaunchpadManager::handleLivePadEvent()) reaches it this way, never
 // through clip_grid_focused_/setClipGridCursor() the way
 // "toggle-record-arm" above does - same underlying open/close behavior,
 // exercised through the other entry point.
@@ -1116,7 +1116,7 @@ TEST(toggle_drum_clip_focus_direct_call_opens_and_closes_a_clip) {
 // A no-op (false, nothing focused, no listener call) for anything that
 // isn't a PercussionTrack's or a pitched InstrumentTrack's own clip at
 // all (SampleTrack here - neither) - lets a caller like
-// LaunchpadManager::handleSessionPadEvent() fall back to its own ordinary
+// LaunchpadManager::handleLivePadEvent() fall back to its own ordinary
 // meaning for the gesture instead of silently swallowing the press.
 // Neither a PercussionTrack nor an InstrumentTrack is ever declined this
 // way (toggle_record_arm_on_a_lane_less_percussion_clip_focuses_it_too
@@ -1210,7 +1210,7 @@ TEST(close_drum_clip_focus_is_a_no_op_when_nothing_is_focused) {
 }
 
 // Any other track type keeps Record Arm's ordinary behavior even while
-// Session View focused - the repurposing is drum-machine-only. Arming
+// Live View focused - the repurposing is drum-machine-only. Arming
 // itself starts nothing - it only marks the track ready; a take begins
 // once a pad on it is actually pressed (LaunchpadManager's own job).
 TEST(toggle_record_arm_on_a_non_drum_machine_track_arms_normally) {
@@ -1237,7 +1237,7 @@ TEST(toggle_record_arm_on_a_non_drum_machine_track_arms_normally) {
 }
 
 // ensureSessionRecordingClip()/extendSessionRecordingClipIfNeeded() are
-// LaunchpadManager's own note-write path for a Session View take - driven
+// LaunchpadManager's own note-write path for a Live View take - driven
 // directly by a caller-supplied absolute step (the free-running audition
 // clock's own currentStep() in practice), never getPlaybackInfo(), and
 // never placing an instance. absolute_step 0 here lands exactly on a bar
@@ -1283,7 +1283,7 @@ TEST(ensure_session_recording_clip_creates_and_grows_at_the_exact_pressed_index)
   CHECK(resolveInstanceAt(song, track_id, 0).clip_index == Arrangement::kNoInstance);
 }
 
-// Arming into a Session View slot that already holds a clip overwrites it
+// Arming into a Live View slot that already holds a clip overwrites it
 // in place - same id, content reset.
 TEST(ensure_session_recording_clip_overwrites_an_occupied_slot_in_place) {
   ChannelConfiguration config(8000, 1);
@@ -1476,7 +1476,7 @@ TEST(trim_session_recording_clip_loops_and_is_reported_exactly_once) {
 }
 
 // armTrack()/disarmTrack()/toggleTrackArmed() are pure per-track bookkeeping,
-// with no dependency on Session View focus or any particular track type -
+// with no dependency on Live View focus or any particular track type -
 // the hardware-agnostic foundation a future per-track physical arm button
 // would call directly.
 TEST(track_armed_state_is_independent_per_track) {

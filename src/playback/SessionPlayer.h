@@ -1,7 +1,7 @@
 #ifndef _SESSIONPLAYER_H_
 #define _SESSIONPLAYER_H_
 
-#include "../launchpad/SessionPadHighlight.h"
+#include "../launchpad/LivePadHighlight.h"
 #include "../model/Song.h"
 
 #include <functional>
@@ -14,12 +14,12 @@
 class Controller;
 struct SessionTrackInfo;
 
-// Session view: launching clips, stopping tracks and returning them to
+// Live View: launching clips, stopping tracks and returning them to
 // the arrangement, all inside the one transport. A launch takes its track
 // over from the arrangement at the transport's next bar; the audio thread
 // (SongState::queueSessionChange()) owns that and plays the launched
 // clips, and each playback snapshot reports it back. This keeps the
-// UI-side bookkeeping - the Session view takes - and predicts a queued
+// UI-side bookkeeping - the Live View takes - and predicts a queued
 // change until a snapshot has caught up with it. Owned by Controller, so
 // every launch - a Launchpad pad, the clip grid, a command - goes through
 // the same place, with or without a device connected.
@@ -27,7 +27,7 @@ class SessionPlayer {
  public:
   explicit SessionPlayer(Controller & controller) : controller_(controller) { }
 
-  // A Session view pad press on (track_id, clip_index). With Record Arm
+  // A Live View pad press on (track_id, clip_index). With Record Arm
   // off, a populated slot queues the clip to launch at the next bar,
   // starting the transport if it's stopped; on an armed track an empty
   // slot queues a fresh take, and pressing the slot being recorded into
@@ -43,7 +43,7 @@ class SessionPlayer {
   // playhead: its track is stopped at the next bar and the clip removed
   // once that stop has taken effect (tick()).
   void deleteClip(int track_id, int clip_index);
-  // Session Record: overdubs the clip playing on each armed track (the
+  // Live Record: overdubs the clip playing on each armed track (the
   // fallback track if none is armed) from the next bar, in place - the
   // clip keeps looping, the take lines up with it. While any take is in
   // flight, stops those takes at the next bar instead, leaving the clips
@@ -117,7 +117,7 @@ class SessionPlayer {
   // A clip slot's transport/recording state - what its Launchpad pad and
   // the terminal's clip grid both show. A slot with no clip on an unarmed
   // track is NONE.
-  SessionPadHighlight clipHighlight(int track_id, int clip_index) const;
+  LivePadHighlight clipHighlight(int track_id, int clip_index) const;
 
  private:
   const SessionTrackInfo * sessionTrack(int track_id) const;

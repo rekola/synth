@@ -103,12 +103,12 @@ int main(int argc, char ** argv) {
     snd_seq_free_event(ev);
   }
 
-  // GridMode defaults to SESSION on every connected device - a plain
-  // note-on there launches a Session View clip slot instead of entering a
+  // GridMode defaults to LIVE on every connected device - a plain
+  // note-on there launches a Live View clip slot instead of entering a
   // note; CC96 selects NOTES mode instead. A press also only actually
   // writes into the pattern (rather than just auditioning) with Record
   // Arm on - "just play" vs. "store into the pattern" - reached here via
-  // shift+CC98 (a plain CC98 tap is Session Record).
+  // shift+CC98 (a plain CC98 tap is Live Record).
   fprintf(stderr, "sending CC96 press (Note mode)\n");
   send_cc(seq, port, 96, 127);
   drain(seq, 1000, "after Note mode");

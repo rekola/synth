@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drive Session view's pattern editor through a pty with the focused track
+"""Drive Live View's pattern editor through a pty with the focused track
 playing: the columns to its right - stopped tracks - must show the same
 rows while the highlighted row moves down with the playhead over them,
 including while the playing track shows rows it doesn't have (before its
@@ -32,7 +32,7 @@ def other_window(scr):
 
 
 def main():
-    pid, fd = vk.spawn(view="session")
+    pid, fd = vk.spawn(view="live")
     scr = vk.Screen(fd)
     if not vk.wait_ready(scr):
         print("UI never became ready within timeout")

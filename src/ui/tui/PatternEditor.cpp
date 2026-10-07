@@ -623,7 +623,7 @@ PatternEditor::getTrackInformation(const Song & song, int scroll_row) const {
   source_->collectTrackInfo({ view_block_, scroll_row }, rows - heading_height, track_info);
   apply_baseline_track_info(SongStructure(song), track_info);
   // Where each track is at its own row, each shows its own row numbers.
-  if (isSessionMode()) {
+  if (isLiveMode()) {
     for (auto & [ track_id, info ] : track_info) info.row_number_width_ = kTrackRowNumberWidth;
   }
 
@@ -689,8 +689,8 @@ PatternEditor::syncCursorTrack(const Song & song) {
 }
 
 void
-PatternEditor::setSessionMode(bool session) {
-  PatternSource * source = session ? static_cast<PatternSource *>(scene_source_.get()) : arrangement_source_.get();
+PatternEditor::setLiveMode(bool live) {
+  PatternSource * source = live ? static_cast<PatternSource *>(scene_source_.get()) : arrangement_source_.get();
   if (source == source_) return;
   source_ = source;
   synced_cursor_track_id_ = -1;
@@ -747,7 +747,7 @@ PatternEditor::setSessionPlayheads(std::unordered_map<int, ScenePatternSource::P
     view_block_ = top.block;
     current_scroll_.row = top.row;
   }
-  if (isSessionMode()) force_full_redraw_ = true;
+  if (isLiveMode()) force_full_redraw_ = true;
 }
 
 void
@@ -902,7 +902,7 @@ PatternEditor::copyToClip() {
   // Whole bars of the signature the rows are counted in: the song's, or
   // the scene's own.
   BarGrid bars = song.getArrangementBars();
-  if (isSessionMode()) {
+  if (isLiveMode()) {
     auto signature = song.getSceneTimeSignature(selectionAnchor().block);
     bars = {signature.isSet() ? signature : song.getRunningTimeSignature(), 0};
   }
@@ -1065,7 +1065,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
     // The highlighted row moves freely - with the cursor, or the playhead
     // it follows - until it comes within kScrollMargin rows of an edge, and
     // only then does the whole view scroll - across block boundaries.
-    // Session view can start before the first block, on rows that don't
+    // Live View can start before the first block, on rows that don't
     // exist (negative), blank for the cursor track; Arrangement view has
     // nothing before its first row.
     auto visible = std::max(rows - heading_height, 1);
@@ -1077,8 +1077,8 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
     } else if (line > visible - 1 - margin) {
       top = source_->advance(point, -(visible - 1 - margin));
     }
-    if (!isSessionMode() && top.row < 0) top = { 0, 0 };
-    if (isSessionMode()) {
+    if (!isLiveMode() && top.row < 0) top = { 0, 0 };
+    if (isLiveMode()) {
       // The view following a playhead doesn't carry the stopped tracks along.
       if (scene_source_->cursorLocked()) scene_source_->holdStoppedTracks(source_->rowsBetween({ view_block_, current_scroll_.row }, top));
       if (scene_source_->keepTrackLinesVisible(top, visible, margin)) force_full_redraw_ = true;
@@ -1154,7 +1154,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   // for what used to be a hand-rolled diff of each of those pieces
   // separately (see SelectionBounds::operator==).
   // A pass fading in or out keeps redrawing, once more after it ends.
-  bool fading = isSessionMode() && scene_source_->isFading();
+  bool fading = isLiveMode() && scene_source_->isFading();
   if (fading || fading_drawn_) force_full_redraw_ = true;
   fading_drawn_ = fading;
   if (score_pattern != current_score_pattern ||
@@ -1166,9 +1166,9 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
       editor_redraw ||
       force_full_redraw_ ||
       // The single-row repaints below assume the view starts in the
-      // cursor's own block, which Session view's - or one scrolled back
+      // cursor's own block, which Live View's - or one scrolled back
       // into the block before - doesn't.
-      ((isSessionMode() || view_block_ != score_pattern) && (cursor_changed || row_edited || score_playing_row != current_score_playing_row)) ||
+      ((isLiveMode() || view_block_ != score_pattern) && (cursor_changed || row_edited || score_playing_row != current_score_playing_row)) ||
       // A short Pattern repeats (Pattern::getEffectiveRow()), so an edit
       // can be visible at other screen rows too, not just the cursor's -
       // the single-row repaint below can't know which, so fall back to a
@@ -2509,7 +2509,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 }
 
 // How far a row fades toward black when it's outside its block (a clip, in
-// Session view) or repeats a pattern shorter than the block.
+// Live View) or repeats a pattern shorter than the block.
 static constexpr float kFadedRowDim = 0.5f;
 
 void
@@ -2592,7 +2592,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // (cur_fg/cur_bg, computed per column further down) - callers check
   // for that themselves and skip this entirely when it applies.
   // The cursor row (in arrangement mode also the transport's row), or -
-  // where each track has a line of its own (session mode) - only that
+  // where each track has a line of its own (Live mode) - only that
   // track's own position row (track_marked, set per track below).
   std::optional<bool> track_marked;
   // How dimmed the column being drawn is (0 to 1); a dimmed area carries no
@@ -2607,7 +2607,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // the row's own tint, never one track's playhead - none in session
   // mode, where tracks mark their own rows.
   auto tintForRow = [&](Color base) -> Color {
-    return highlight && !isSessionMode() ? styles.cursorRowTint(base) : base;
+    return highlight && !isLiveMode() ? styles.cursorRowTint(base) : base;
   };
 
   // A clip instance's own identifier digit (below) - superscript, not a
@@ -2775,7 +2775,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   auto current_pos = 0;
   for (int i = -1; i < static_cast<int>(track_ids.size()); i++) {
     track_marked.reset();
-    if (isSessionMode()) {
+    if (isLiveMode()) {
       auto own_row = i >= 0 ? source_->positionRow(track_ids[static_cast<size_t>(i)], pattern_idx) : std::nullopt;
       track_marked = own_row && *own_row == pattern_row;
     }
@@ -2821,7 +2821,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       bg = region_bg;
     }
 
-    if (i == -1 && isSessionMode()) {
+    if (i == -1 && isLiveMode()) {
       // Each track shows its own row numbers here - only a margin.
       setBgColor(styles.window_bg_color);
       putstr(display_row, current_pos, string(static_cast<size_t>(gutterWidth()), ' '));

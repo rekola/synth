@@ -1,7 +1,7 @@
 # Drums and sequencer
 
 How a connected Novation Launchpad plays drums and scales and edits a clip as
-steps. Session view, the buttons and the other modes are in
+steps. Live View, the buttons and the other modes are in
 [launchpad.md](launchpad.md).
 
 ## Where it comes from
@@ -72,7 +72,7 @@ The classification is purely a function of the EDO and key (see
 ## Step grid
 
 A percussion or pitched track's clip can be edited as steps. Hold 91 and press
-a Session pad to open that pad's clip; the pad resolves on release. Every
+a Live pad to open that pad's clip; the pad resolves on release. Every
 device then switches to Note mode with the grid split in two: the bottom four
 rows stay the playing surface (the drum rack, or the lower four rows of the
 scale keyboard), and the top four rows are 32 steps, left to right and then

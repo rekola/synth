@@ -5,18 +5,18 @@ already muted, dark means it is (a muted channel reads as dark, not lit).
 Never triggers playback, unlike verify_launchpad_stopclip.py - Mute
 needs no clip playing at all.
 
-CC39 is one of Session's own mixer-submode radio group (Volume/Pan/Send
+CC39 is one of Live's own mixer-submode radio group (Volume/Pan/Send
 A/Send B/Stop Clip/Mute/Solo) - while that submode is off (the connect-
 time default), all seven are plain scene-launch triggers and show a
 uniform dim white instead of any mixer hue (LaunchpadManager.cpp's own
 LAUNCHPAD_SCENE_LAUNCH_BUTTON_COLOR comment), so this script presses CC95
-a second time first to enter mixer submode (Session's own LED turning
+a second time first to enter mixer submode (Live's own LED turning
 orange) before CC39 does anything mute-related at all.
 
 Once in mixer submode, presses CC39 to open the overlay, confirms both
 CC39's own LED and the picker row's pad (0,0) (the fixture's only track,
 unmuted by default) show bright yellow, while pad (0,7) - row 7, same
-column, outside the picker row - stays exactly as Session view's own idle
+column, outside the picker row - stays exactly as Live View's own idle
 rendering already had it (the overlay no longer dims anything outside the
 picker row itself - see LaunchpadManager.cpp's own
 LAUNCHPAD_TRACK_PICKER_ROW comment). Picks column 0 to mute it, confirms
@@ -56,7 +56,7 @@ fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_mute_picker")]
 
 time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
-SONG = os.path.join(SCRIPT_DIR, "launchpad_session_test.xml")
+SONG = os.path.join(SCRIPT_DIR, "launchpad_live_test.xml")
 pid, fd = vk.spawn(SONG)
 scr = vk.Screen(fd)
 if not vk.wait_ready(scr):
@@ -105,8 +105,8 @@ cc39_in_mixer = last_led_color(after_mixer, "27")
 cc39_open = last_led_color(after_open, "27")
 cc39_after_pick = last_led_color(after_pick, "27")
 cc39_after_close = last_led_color(after_close, "27")
-session_before_mixer = last_led_color(before_mixer, "5f")
-session_in_mixer = last_led_color(after_mixer, "5f")
+live_before_mixer = last_led_color(before_mixer, "5f")
+live_in_mixer = last_led_color(after_mixer, "5f")
 
 print("pad (0,0) LED before entering mixer submode:", color_before_mixer)
 print("pad (0,0) LED once the overlay opened:      ", color_after_open)
@@ -115,13 +115,13 @@ print("pad (0,0) LED once the overlay closed:      ", color_after_close)
 print("pad (0,7) LED before mixer/once overlay open:", row7_before_mixer, row7_after_open)
 print("CC39 LED before-mixer/in-mixer/open/after-pick/closed:",
       cc39_before_mixer, cc39_in_mixer, cc39_open, cc39_after_pick, cc39_after_close)
-print("CC95 (Session) LED before/in mixer submode:  ", session_before_mixer, session_in_mixer)
+print("CC95 (Session) LED before/in mixer submode:  ", live_before_mixer, live_in_mixer)
 
 check("CC39 (Mute) LED is a plain dim scene-launch white before entering mixer submode",
       cc39_before_mixer == ('1e', '1e', '1e'), cc39_before_mixer)
 check("CC95 (Session) LED turns orange once mixer submode is entered",
-      session_before_mixer == ('00', '7f', '00') and session_in_mixer == ('7f', '40', '00'),
-      (session_before_mixer, session_in_mixer))
+      live_before_mixer == ('00', '7f', '00') and live_in_mixer == ('7f', '40', '00'),
+      (live_before_mixer, live_in_mixer))
 check("CC39 (Mute) LED becomes dim yellow (its own idle hue) once in mixer submode, before opening",
       cc39_in_mixer == ('14', '14', '00'), cc39_in_mixer)
 check("CC39 (Mute) LED lit up bright yellow once the overlay opened",
@@ -137,7 +137,7 @@ check("CC39 (Mute) LED stayed lit after picking a track (overlay still open)",
       cc39_after_pick == ('7f', '7f', '00'), cc39_after_pick)
 check("CC39 (Mute) LED reverted to its dim mixer-submode hue once a second press closed the overlay",
       cc39_after_close == ('14', '14', '00'), cc39_after_close)
-check("Pad (0,0)'s own LED reverted to plain Session view once the overlay closed",
+check("Pad (0,0)'s own LED reverted to plain Live View once the overlay closed",
       color_after_close is not None and color_after_close == color_before_mixer,
       (color_before_mixer, color_after_close))
 

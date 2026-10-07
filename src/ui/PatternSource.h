@@ -13,7 +13,7 @@ class PatternGrid;
 class SampleContent;
 
 // A position in a pattern editor's row space: `row` rows into `block` (a
-// scene in Session view; the arrangement is one block).
+// scene in Live View; the arrangement is one block).
 struct RowAddress {
   int block = 0;
   int row = 0;

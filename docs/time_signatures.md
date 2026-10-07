@@ -52,9 +52,9 @@ sounds.
 ## 3. The running signature
 
 The transport has its own idea of the bar, used for everything that happens
-"on the next bar": queued Session launches, stops and returns to the
+"on the next bar": queued launches, stops and returns to the
 arrangement, the ZBxx pattern break (which jumps to a row of the next bar),
-the metronome, and the quantization and length of Session takes.
+the metronome, and the quantization and length of Live takes.
 
 By default that is the song's. Launching a scene that has a time signature
 sets the **running signature**: the transport counts bars of that signature
@@ -84,14 +84,14 @@ shown and edited in the running signature, which is also what it plays in.
 
 | The song's bars | The running bars (else the song's) |
 |---|---|
-| Arrangement grid and its bar numbers | Applying queued Session changes on the bar |
+| Arrangement grid and its bar numbers | Applying queued launches and stops on the bar |
 | Arrangement-view row accents | Pattern break (ZBxx) |
 | Placing clips and stops into the arrangement | Metronome click and accent |
-| Recording into the arrangement | Session take quantization and length |
+| Recording into the arrangement | Live take quantization and length |
 | Rounding for copy-to-clip in Arrangement view | Transport position display |
 | Arrangement length | Info line signature |
 
-Session view's pattern editor accents come from the scene itself: its own
+Live View's pattern editor accents come from the scene itself: its own
 signature, else the running one.
 
 ## 5. Timing

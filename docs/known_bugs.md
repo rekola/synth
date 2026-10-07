@@ -201,7 +201,7 @@ Found 2026-07-11, not yet fixed.
   ("reproducing exactly what was already audible... not combining the
   two"). Root cause: `placeStopInstance()`'s "OFF" sentinel is used for
   two different things that don't actually mean the same thing - a
-  deliberate user "silence this track" gesture (Session view/
+  deliberate user "silence this track" gesture (Live View/
   ArrangementGrid), and "this placement is over, nothing further to say
   about it" (this merge's own cleanup) - and `SongState.h` can't tell
   them apart, so it treats both as "silence everything, background

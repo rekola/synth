@@ -4,7 +4,7 @@ handleMixerFunctionRelease()): a quick tap on a different member switches
 to it and stays there, but a genuine hold (>= 600ms) reverts back to
 whatever was showing right before that press once released.
 
-Enters Session's own mixer submode, quick-taps Send A (CC69, led index
+Enters Live's own mixer submode, quick-taps Send A (CC69, led index
 0x45) so it becomes the sticky selection, long-holds Mute (CC39, led index
 0x27) past the threshold and releases - expecting Send A's own LED to be
 bright again afterward (reverted), not Mute's - then quick-taps Mute again
@@ -42,7 +42,7 @@ fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_mixer_hold")],
 
 time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
-SONG = os.path.join(SCRIPT_DIR, "launchpad_session_test.xml")
+SONG = os.path.join(SCRIPT_DIR, "launchpad_live_test.xml")
 pid, fd = vk.spawn(SONG)
 scr = vk.Screen(fd)
 if not vk.wait_ready(scr):

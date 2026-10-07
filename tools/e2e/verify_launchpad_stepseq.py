@@ -49,7 +49,7 @@ if not vk.wait_ready(scr):
 
 # Open the test song's only clip (track 0, clip row 0 - ClipGrid's own
 # default cursor position on a fresh widget) for step-grid editing: M-x
-# session-view (gain ClipGrid focus - EscapeSequenceCoalescer folds a
+# live-view (gain ClipGrid focus - EscapeSequenceCoalescer folds a
 # bare ESC then 'x' into one Alt-x event, the same mechanism
 # verify_launchpad_record_arm_holes.py already uses), then Ctrl-X r
 # (toggle-record-arm) - Controller.cpp's own drum-machine-track
@@ -61,7 +61,7 @@ scr.send(b"\x1b")
 scr.pump(0.3)
 scr.send(b"x")
 scr.pump(0.3)
-scr.send(b"session-view\r")
+scr.send(b"live-view\r")
 scr.pump(1.0)
 scr.send(ctrl('x'))
 scr.pump(0.3)

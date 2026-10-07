@@ -223,7 +223,7 @@ public:
   // maintained checks that could drift apart.
   int color_ordinal_ = -1;
   // Cells before column 0 for the track's own row number - where tracks
-  // are each at their own row (Session view); 0 elsewhere, and never while
+  // are each at their own row (Live View); 0 elsewhere, and never while
   // collapsed.
   int row_number_width_ = 0;
 };

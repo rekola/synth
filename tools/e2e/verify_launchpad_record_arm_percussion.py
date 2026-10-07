@@ -1,4 +1,4 @@
-"""Regression test for a real bug: recording a Session View take into a
+"""Regression test for a real bug: recording a Live View take into a
 step-sequenced PercussionTrack showed the step-grid editor in NOTES mode
 instead of letting the performer actually play it live -
 handlePadEvent()'s own step-grid short-circuit ran before (and so was
@@ -41,13 +41,13 @@ if not vk.wait_ready(scr):
 scr.wait_for_exit(fake, 16)
 scr.pump(0.5)
 
-# M-x session-view - same mechanism verify_launchpad_record_arm_holes.py
+# M-x live-view - same mechanism verify_launchpad_record_arm_holes.py
 # already uses.
 scr.send(b"\x1b")
 scr.pump(0.3)
 scr.send(b"x")
 scr.pump(0.3)
-scr.send(b"session-view\r")
+scr.send(b"live-view\r")
 scr.pump(1.0)
 vk.hide_outline(scr)
 

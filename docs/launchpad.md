@@ -2,7 +2,7 @@
 
 A connected Novation Launchpad (Mini MK3 / X) is optional; the
 terminal UI does everything without one. Each connected device has its own
-grid mode, so one can sit in Session view while another does note entry.
+grid mode, so one can sit in Live View while another does note entry.
 
 ## Where it comes from
 
@@ -28,15 +28,15 @@ gesture).
 
 | Button | Mode |
 | --- | --- |
-| 95 | Session: the clip grid |
+| 95 (labelled Session on the device) | Live: the clip grid |
 | 96 | Note: the drum rack or scale keyboard (plus the step rows while a clip is open for editing) |
 | 97 | Custom: nothing yet |
 | shift + 97 | Draw: a per-pad coloring toy, independent of the song |
 | shift + Send B | Tempo: the song's tempo as a number on the pads |
 | shift + Stop Clip | Swing: the song's swing as a number on the pads |
 
-A second press of 95 while on the plain Session grid toggles **mixer submode**
-(see below). Its LED is dim green away from Session, bright green in Session,
+A second press of 95 while on the plain Live grid toggles **mixer submode**
+(see below). Its LED is dim green away from Live, bright green in Live,
 and orange in mixer submode.
 
 ## Right-side buttons
@@ -160,7 +160,7 @@ Here shift + Send A stands in for that button.
   the clip under the cursor in the clip grid.
 - **Record Quantise:** tap shift + Send A with no pad pressed to toggle it
   (`toggle-record-quantize`). The toggle happens on release, because the same
-  hold also quantises clips. With it off, the default, Session recording keeps
+  hold also quantises clips. With it off, the default, Live recording keeps
   the exact timing of every press and release. With it on, each press and
   release snaps to the nearest row as it is recorded. The setting is saved
   with the song.
@@ -172,7 +172,7 @@ Here shift + Send A stands in for that button.
 Hold shift and Pan, then press a clip pad to delete what its slot holds, one
 layer per press: a populated slot loses its clip (leaving an empty slot in
 place, so the scene rows of every other track stay aligned), and an empty slot
-loses its stop button. Session view only. The terminal's `kill-region` in the clip grid
+loses its stop button. Live View only. The terminal's `kill-region` in the clip grid
 does the same, but also puts the clip on the clipboard (see `terminal.md`).
 
 With the transport stopped, or when the clip is not sounding, the delete is
@@ -211,7 +211,7 @@ colour. 120 shows a blue 1, a white 2 and a blue 0, 50 a white 5 and an orange
   own: it is heard when previewing one, and Add to Song sets the song's swing
   to it.
 
-## Session view
+## Live View
 
 Rows are a track's clip list, columns are the tracks. Every connected device
 follows one shared cursor track. Launching is quantized to the next bar and
@@ -224,13 +224,13 @@ Pad lighting: green pulses while playing and flashes while queued. On an armed
 track the column is red instead: dim for an empty slot, flashing when queued
 to record, pulsing while recording.
 
-### Session Record (98)
+### Live Record (98)
 
 A tap overdubs the playing clip of each armed track (the followed track's if
 none is armed) from the next bar. While any take is running, a tap stops them
 at the next bar and leaves the clips playing. A long hold is Capture MIDI,
 which is not implemented. Shift + 98 toggles the arrangement's own Record Arm,
-which makes a Session pad press write the clip into the arrangement. Its LED
+which makes a Live pad press write the clip into the arrangement. Its LED
 is bright red while anything records, dim red otherwise.
 
 Notes played on the grid during a take are recorded with their exact timing
@@ -238,6 +238,6 @@ unless Record Quantise is on (see Quantise above).
 
 ## Step grid
 
-Hold 91 and press a Session pad to open that pad's clip for step editing; the
+Hold 91 and press a Live pad to open that pad's clip for step editing; the
 steps and the playing surface are described in
 [drums-and-sequencer.md](drums-and-sequencer.md).

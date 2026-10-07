@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <unordered_map>
 
-// What Session view has done to one track: whether a launched clip (or a
+// What Live View has done to one track: whether a launched clip (or a
 // stop) has taken it over from the arrangement, and what's queued for the
 // next bar. Kept by SongState on the audio thread and mirrored to the UI
 // in each playback snapshot.

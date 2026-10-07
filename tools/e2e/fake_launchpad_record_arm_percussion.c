@@ -1,4 +1,4 @@
-// Regression test for a real bug: recording a Session View take into a
+// Regression test for a real bug: recording a Live View take into a
 // step-sequenced PercussionTrack showed the step-grid editor instead of
 // letting the performer actually play it live - handlePadEvent()'s own
 // step-grid short-circuit ran before (and so was never superseded by)
@@ -67,7 +67,7 @@ int main() {
   fake_wait_ready(seq, "at startup");
   drain(seq, 500, "at startup"); // the first LED frames
 
-  fprintf(stderr, "sending CC95 press+release (enters Session's own mixer submode)\n");
+  fprintf(stderr, "sending CC95 press+release (enters Live's own mixer submode)\n");
   send_cc(seq, port, 95, 127);
   send_cc(seq, port, 95, 0);
   drain(seq, 500, "mixer submode entered");
@@ -87,7 +87,7 @@ int main() {
   send_cc(seq, port, 19, 0);
   drain(seq, 500, "overlay closed");
 
-  fprintf(stderr, "sending press on pad (0,7) [note 81] - Session grid, clip index 0\n");
+  fprintf(stderr, "sending press on pad (0,7) [note 81] - Live grid, clip index 0\n");
   send_note(seq, port, 0x90, 81, 100);
   send_note(seq, port, 0x80, 81, 0);
   drain(seq, 3500, "take started at the next bar");
@@ -102,10 +102,10 @@ int main() {
   send_note(seq, port, 0x80, 11, 0);
   drain(seq, 500, "note recorded (or not, if the bug is still present)");
 
-  fprintf(stderr, "sending CC95 press+release (back to the plain Session grid, mixer submode still on)\n");
+  fprintf(stderr, "sending CC95 press+release (back to the plain Live grid, mixer submode still on)\n");
   send_cc(seq, port, 95, 127);
   send_cc(seq, port, 95, 0);
-  drain(seq, 500, "back on session grid");
+  drain(seq, 500, "back on Live grid");
 
   fprintf(stderr, "sending CC19 press+release - reopens the track-picker overlay\n");
   send_cc(seq, port, 19, 127);

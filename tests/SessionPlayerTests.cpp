@@ -131,10 +131,10 @@ TEST(session_player_launch_while_stopped_starts_the_transport_on_the_bar) {
 
   f.player().triggerClip(track, 0);
   CHECK(f.controller.getPlaybackInfo().isPlaying());
-  CHECK(f.player().clipHighlight(track, 0) == SessionPadHighlight::QUEUED); // predicted before the audio thread has it
+  CHECK(f.player().clipHighlight(track, 0) == LivePadHighlight::QUEUED); // predicted before the audio thread has it
   f.playRows(1); // row 0 is a bar start
   CHECK(f.player().isLaunched(track));
-  CHECK(f.player().clipHighlight(track, 0) == SessionPadHighlight::PLAYING);
+  CHECK(f.player().clipHighlight(track, 0) == LivePadHighlight::PLAYING);
   CHECK(f.plays(track, 60));
 }
 
@@ -147,7 +147,7 @@ TEST(session_player_launch_waits_for_the_next_bar) {
   f.player().triggerClip(track, 0);
   f.playRows(3); // rows 1-3
   CHECK(!f.player().isLaunched(track));
-  CHECK(f.player().clipHighlight(track, 0) == SessionPadHighlight::QUEUED);
+  CHECK(f.player().clipHighlight(track, 0) == LivePadHighlight::QUEUED);
   f.playRows(1); // row 4, the bar
   CHECK(f.player().isLaunched(track));
   CHECK(f.plays(track, 60));
@@ -161,10 +161,10 @@ TEST(session_player_prediction_survives_a_stale_snapshot) {
 
   f.player().triggerClip(track, 0);
   f.sendSnapshot(); // taken before the audio thread saw the launch
-  CHECK(f.player().clipHighlight(track, 0) == SessionPadHighlight::QUEUED);
+  CHECK(f.player().clipHighlight(track, 0) == LivePadHighlight::QUEUED);
   f.applyEvents();
   f.sendSnapshot();
-  CHECK(f.player().clipHighlight(track, 0) == SessionPadHighlight::QUEUED);
+  CHECK(f.player().clipHighlight(track, 0) == LivePadHighlight::QUEUED);
 }
 
 TEST(session_player_empty_slot_takes_the_track_over_until_it_returns) {
@@ -257,11 +257,11 @@ TEST(session_player_pause_keeps_a_launched_clip_and_resumes_it_where_it_was) {
   f.controller.togglePlaying();
   f.playRows(2);
   CHECK(f.player().isLaunched(track));
-  CHECK(f.player().clipHighlight(track, 0) == SessionPadHighlight::PAUSED);
+  CHECK(f.player().clipHighlight(track, 0) == LivePadHighlight::PAUSED);
 
   f.controller.togglePlaying();
   f.playRows(1);
-  CHECK(f.player().clipHighlight(track, 0) == SessionPadHighlight::PLAYING);
+  CHECK(f.player().clipHighlight(track, 0) == LivePadHighlight::PLAYING);
   CHECK(f.player().playheads().at(track).row == (row + 1) % 4);
 }
 
@@ -274,13 +274,13 @@ TEST(session_player_queued_launch_survives_a_pause) {
 
   f.controller.togglePlaying();
   f.playRows(2);
-  CHECK(f.player().clipHighlight(track, 1) == SessionPadHighlight::QUEUED);
+  CHECK(f.player().clipHighlight(track, 1) == LivePadHighlight::QUEUED);
 
   f.controller.togglePlaying();
   f.playRows(2); // rows 2-3: still waiting for the bar
-  CHECK(f.player().clipHighlight(track, 1) == SessionPadHighlight::QUEUED);
+  CHECK(f.player().clipHighlight(track, 1) == LivePadHighlight::QUEUED);
   f.playRows(1); // row 4, the next bar
-  CHECK(f.player().clipHighlight(track, 1) == SessionPadHighlight::PLAYING);
+  CHECK(f.player().clipHighlight(track, 1) == LivePadHighlight::PLAYING);
 }
 
 TEST(session_player_take_survives_a_pause) {
@@ -306,7 +306,7 @@ TEST(session_player_take_starts_at_the_bar_and_loops_back_on_the_bar_it_stops) {
   CHECK(f.controller.isTrackArmed(track));
 
   f.player().triggerClip(track, 0); // an empty slot: a fresh take, starting the transport
-  CHECK(f.player().clipHighlight(track, 0) == SessionPadHighlight::RECORD_QUEUED);
+  CHECK(f.player().clipHighlight(track, 0) == LivePadHighlight::RECORD_QUEUED);
   f.playRows(1); // row 0, the bar
   CHECK(f.controller.isSessionRecording(track));
 
@@ -315,7 +315,7 @@ TEST(session_player_take_starts_at_the_bar_and_loops_back_on_the_bar_it_stops) {
   CHECK(row == 1); // the take began on the bar at session clock 0
   f.song().getClips(track)[0].getLeafPattern().setNote(1, 0, Note(64, 100, 0));
   f.player().triggerClip(track, 0); // the slot being recorded: stop the take
-  CHECK(f.player().clipHighlight(track, 0) == SessionPadHighlight::RECORD_STOPPING);
+  CHECK(f.player().clipHighlight(track, 0) == LivePadHighlight::RECORD_STOPPING);
 
   f.playRows(2); // rows 1-2
   CHECK(f.controller.isSessionRecording(track));
@@ -348,7 +348,7 @@ TEST(session_player_session_record_overdubs_the_playing_clip_without_restarting_
   CHECK(f.player().isLaunched(track));
 
   CHECK(f.player().toggleOverdub(track));
-  CHECK(f.player().clipHighlight(track, 0) == SessionPadHighlight::RECORD_QUEUED);
+  CHECK(f.player().clipHighlight(track, 0) == LivePadHighlight::RECORD_QUEUED);
   for (int i = 0; i < 8 && !f.controller.isSessionRecording(track); i++) f.playRows(1); // until the next bar
   CHECK(f.controller.isSessionRecording(track));
   CHECK(f.controller.getSessionRecordingClipIndex(track) == 0);
@@ -417,7 +417,7 @@ TEST(session_player_armed_track_slot_without_a_stop_button_records_nothing) {
   auto track = f.addTrack(0);
   f.armForSessionRecording(track);
   f.song().ensureClipAt(track, 0).setStopButton(false);
-  CHECK(f.player().clipHighlight(track, 0) == SessionPadHighlight::NONE);
+  CHECK(f.player().clipHighlight(track, 0) == LivePadHighlight::NONE);
   f.player().triggerClip(track, 0);
   CHECK(!f.controller.getPlaybackInfo().isPlaying());
   f.playRows(4);

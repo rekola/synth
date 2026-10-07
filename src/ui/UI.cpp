@@ -121,9 +121,9 @@ void
 UI::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
   // Track-picker overlay (opened by CC49 "Stop Clip"/CC39 "Mute"/CC29
   // "Solo" - see LaunchpadManager::handleRawButton()'s own comment) -
-  // Session-view-only, so this only ever intercepts the picker row itself
-  // while it's open; every other row (Session view's own content) falls
-  // through to the normal SESSION handling below unchanged, staying fully
+  // Live-View-only, so this only ever intercepts the picker row itself
+  // while it's open; every other row (Live View's own content) falls
+  // through to the normal LIVE handling below unchanged, staying fully
   // interactive underneath the overlay.
   if (launchpad_manager_ && launchpad_manager_->isTrackPickerRow(ev.getDeviceIndex(), ev.getY())) {
     launchpad_manager_->handleTrackPickerPadEvent(ev, getController());
@@ -149,12 +149,12 @@ UI::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
                              launchpad_manager_->gridMode(ev.getDeviceIndex()) == LaunchpadManager::GridMode::SWING)) {
     return;
   }
-  // GridMode::SESSION: unlike DRAW above, this one does need Controller -
+  // GridMode::LIVE: unlike DRAW above, this one does need Controller -
   // an "assign" press writes into the Song directly, and either sub-mode
-  // (audition/assign - see handleSessionPadEvent()'s own comment) needs
+  // (audition/assign - see handleLivePadEvent()'s own comment) needs
   // the playback event queue.
-  if (launchpad_manager_ && launchpad_manager_->gridMode(ev.getDeviceIndex()) == LaunchpadManager::GridMode::SESSION) {
-    launchpad_manager_->handleSessionPadEvent(ev, getController());
+  if (launchpad_manager_ && launchpad_manager_->gridMode(ev.getDeviceIndex()) == LaunchpadManager::GridMode::LIVE) {
+    launchpad_manager_->handleLivePadEvent(ev, getController());
     return;
   }
   if (!launchpad_manager_) return;
@@ -210,7 +210,7 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
     getController().setPendingCommandTrack(-1);
   };
 
-  // CC98 (Session Record) needs press and release, not just press - its
+  // CC98 (Live Record) needs press and release, not just press - its
   // own tap-vs-long-hold gesture (LaunchpadManager::handleRecordButton()):
   // a quick tap overdubs the playing clip (or stops the takes in flight),
   // a long hold is Capture MIDI. Routed here before the press-only filter
@@ -222,7 +222,7 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
   }
 
   // CC91 ("move-row-up") doubles as a held shift modifier for opening a
-  // Session-view clip's own step grid directly instead of triggering it
+  // Live-View clip's own step grid directly instead of triggering it
   // (LaunchpadManager::handleShiftButton(), DeviceState::
   // row_up_shift_held's own comment) - needs press and release too, same
   // reasoning as CC98 above: nothing about a shift-combo can be decided
@@ -307,14 +307,14 @@ UI::handleThresholdRecordingTriggeredEvent(ThresholdRecordingTriggeredEvent & ev
 
   // This is where a threshold-triggered take actually begins, as if it
   // had been recording this whole time - startRecording() first (a fresh
-  // current_sample), then (for an ordinary, non-Session-View take - see
+  // current_sample), then (for an ordinary, non-Live-View take - see
   // below) a bar-quantized start row is derived and any gap it opens up
   // is filled with real silence, then the ring buffer's own already-
   // captured lead-in is appended, then the (possibly quantized) start
   // position is armed for beginSampleCapture() to place at.
   getController().startRecording();
 
-  // Never for a Session View take (isSessionRecording(track_id)) - that
+  // Never for a Live View take (isSessionRecording(track_id)) - that
   // populates a clip slot directly with no arrangement position at all,
   // so there's nothing here to quantize or snapshot; beginSampleCapture()
   // already treats recording_start_row_'s own untouched -1 default as
@@ -417,22 +417,22 @@ UI::initializeCommands() {
   });
   // How the active song is shown - see UI::View. The live-sequencer
   // convention of one key flipping between the two is toggle-view; the
-  // outline panel only exists in Session view, so showing it switches
+  // outline panel only exists in Live View, so showing it switches
   // there.
   commands_.define("arrangement-view", [this]() { setView(View::ARRANGEMENT); });
-  commands_.define("session-view", [this]() { setView(View::SESSION); });
+  commands_.define("live-view", [this]() { setView(View::LIVE); });
   commands_.define("cycle-monitor", [this]() { getController().cycleTrackMonitor(getController().getSong().getCurrentTrackId()); });
-  commands_.define("toggle-view", [this]() { setView(view_ == View::SESSION ? View::ARRANGEMENT : View::SESSION); });
+  commands_.define("toggle-view", [this]() { setView(view_ == View::LIVE ? View::ARRANGEMENT : View::LIVE); });
   commands_.define("toggle-outline", [this]() {
-    bool show = !(outline_visible_ && view_ == View::SESSION);
+    bool show = !(outline_visible_ && view_ == View::LIVE);
     setOutlineVisible(show);
-    if (show) setView(View::SESSION);
+    if (show) setView(View::LIVE);
   });
   commands_.define("toggle-playing", [this]() {
     bool playing = getController().togglePlaying();
     setStatus(playing ? "Playing" : "Stopped");
   });
-  // Tracks Session view took over follow the arrangement again from the
+  // Tracks Live View took over follow the arrangement again from the
   // next bar - every one, or just the current track.
   commands_.define("back-to-arrangement", [this]() { getController().getSessionPlayer().returnAllToArrangement(); });
   commands_.define("track-back-to-arrangement", [this]() {

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Purpose-built for verify_launchpad_record_arm_percussion.py: a single
      step-sequenced PercussionTrack (two lanes, so isStepSequenced() is
-     true) - arming it for Session recording must fall through to
+     true) - arming it for Live recording must fall through to
      ordinary free-drumming pad entry (resolveNote()'s own percussion
      branch, which maps pads to GM drum sounds regardless of lane count),
      never the step grid the same track would otherwise show

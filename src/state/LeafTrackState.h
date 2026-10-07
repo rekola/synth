@@ -149,7 +149,7 @@ public:
   // inaudibly reclaiming a voice under a fresh attack, not for a musical
   // stop), just generalized to every column at once rather than one at a
   // time - used when a track's pattern/clip is pulled out from under it
-  // (Launchpad Session view's "stop this track") and there's no single
+  // (Launchpad Live View's "stop this track") and there's no single
   // column to target, unlike an ordinary per-column stop.
   virtual void stopAllVoices() {
     for (auto & [ column, voices ] : voices_) {

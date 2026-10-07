@@ -190,7 +190,7 @@ ArrangementGrid::offerInput(const InputEvent & input) {
     // the cursor - unlike Backspace above, which only ends this one
     // placement going forward and leaves the clip itself in the track's
     // own clip list, reusable elsewhere. Matches the same Del/Ctrl-K ->
-    // delete-clip convention Session view's own clip list already uses.
+    // delete-clip convention Live View's own clip list already uses.
     if (cursor_track_index_ < num_tracks) {
       auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
       auto active = resolveInstanceForBar(song, track_id, bar_row(cursor_bar_), bar_length(cursor_bar_));
@@ -499,7 +499,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
       // has no "selected" state of its own to show - no tint at all
       // there) so the selected column stays visible regardless of which
       // widget has focus, matching the one shared track cursor Launchpad
-      // Session view already follows - not gated on `focused` for that
+      // Live View already follows - not gated on `focused` for that
       // same reason, and not the full highlight below (that stays
       // reserved for this widget's own exact cursor cell).
       if (cur_clip_index >= 0 && track_index < num_tracks && track_ids[static_cast<size_t>(track_index)] == selected_track_id) {

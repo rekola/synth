@@ -65,8 +65,8 @@ int main() {
     snd_seq_free_event(ev);
   }
 
-  // GridMode defaults to SESSION - a plain note-on there launches a
-  // Session View clip slot instead of entering a note; CC96 selects
+  // GridMode defaults to LIVE - a plain note-on there launches a
+  // Live View clip slot instead of entering a note; CC96 selects
   // NOTES mode. A press also only actually writes into the pattern
   // (rather than just auditioning) with Record Arm on, reached here via
   // a quick CC98 tap (CC19 itself is a full member of the scene-launch/

@@ -219,7 +219,7 @@ class Controller {
   // site that's easy to add a new path without remembering.
   void setBufferChangeListener(std::function<void()> fn) { buffer_change_listener_ = std::move(fn); }
 
-  // "toggle-record-arm"'s own drum-machine-track repurposing (Session View
+  // "toggle-record-arm"'s own drum-machine-track repurposing (Live View
   // focused, the targeted clip's track is a step-sequenced PercussionTrack)
   // calls this
   // right after focusing the clip (setFocusedClip()) - `opened` true - or
@@ -227,7 +227,7 @@ class Controller {
   // open for editing toggles it back off - clearFocusedClip()) - `opened`
   // false. Lets UI move the shared track cursor and every connected
   // Launchpad's own display to actually show that clip's own step grid
-  // (or hand it back to Session view once editing ends), the same
+  // (or hand it back to Live View once editing ends), the same
   // callback-not-reaching-into-UI pattern setBufferChangeListener() above
   // already uses (Controller has no idea PatternEditor/LaunchpadManager
   // exist either). Wired in UI::start().
@@ -303,7 +303,7 @@ class Controller {
   // threshold_armed_ already has: Record Arm is a single "what's
   // currently being captured" concept, not a per-song one. Consulted by
   // LaunchpadManager (Launchpad-grid note capture) and SessionPlayer
-  // (Session-view assign-recording) - their arm/disarm side effects
+  // (Live-View assign-recording) - their arm/disarm side effects
   // (starting/stopping the transport, clearing launched clips) react to
   // this flag's own rising/falling edge once per frame, not here.
   void armNoteCapture() { note_capture_armed_ = true; }
@@ -322,21 +322,21 @@ class Controller {
   // a block while playing. Same single-path rule as setSwing().
   void setTempo(int bpm);
 
-  // Deletes what a Session slot holds, one layer per call (its clip, then
+  // Deletes what a Live slot holds, one layer per call (its clip, then
   // its stop button), clearing the live edit focus if that clip had it.
   // Instant: SessionPlayer::deleteClip() is what waits for the bar while a
   // clip is sounding. Shared by the clip grid and the Launchpad.
   void deleteClipSlot(int track_id, int clip_index);
 
-  // Session view's own per-track Record Arm - a separate concept from
+  // Live View's own per-track Record Arm - a separate concept from
   // isNoteCaptureArmed() above, not a restriction layered on top of it.
   // isNoteCaptureArmed()/armNoteCapture()/disarmNoteCapture() still govern
-  // ordinary (non-Session-View) note capture exactly as before, untouched;
-  // Session view has no master switch of its own at all - a track either
+  // ordinary (non-Live-View) note capture exactly as before, untouched;
+  // Live View has no master switch of its own at all - a track either
   // is or isn't armed, full stop, and "is anything armed anywhere" is
   // simply !armed_track_ids_.empty() (see hasAnyTrackArmed() below), not a
   // separate flag that could disagree with the set. Toggled per-track by
-  // both the Session-View-focused branch of "toggle-record-arm" (the
+  // both the Live-View-focused branch of "toggle-record-arm" (the
   // currently-selected track) and, eventually, the Launchpad track-picker's
   // own RECORD_ARM purpose (any track, not just the selected one) - see
   // plans/launchpad-novation-unification.md for the full design, including
@@ -374,11 +374,11 @@ class Controller {
   // instead of the ordinary transport-tied/arrangement-placing behavior.
   void setClipGridFocused(bool focused) { clip_grid_focused_ = focused; }
   bool isClipGridFocused() const { return clip_grid_focused_; }
-  // Session View's own current cursor (track id + Song::getClips(track_id)
+  // Live View's own current cursor (track id + Song::getClips(track_id)
   // index) - meaningless unless isClipGridFocused() is also true.
   void setClipGridCursor(int track_id, int clip_index) { clip_grid_track_id_ = track_id; clip_grid_clip_index_ = clip_index; }
 
-  // Starts (or retargets) `track_id`'s own Session View take, at clip slot
+  // Starts (or retargets) `track_id`'s own Live View take, at clip slot
   // `clip_index` - several tracks can each have their own in-flight take
   // at once, unlike the SampleTrack-recording family above (still a
   // single "what's currently being captured" concept - see
@@ -387,7 +387,7 @@ class Controller {
   // "not derived yet" state a fresh take always begins in -
   // ensureSessionRecordingClip() below is what actually resolves them,
   // lazily, the first time this take really needs a row number. Called
-  // both by "toggle-record-arm"'s own Session-View-focused branch (the
+  // both by "toggle-record-arm"'s own Live-View-focused branch (the
   // currently-selected track) and by LaunchpadManager's own queued-
   // recording resolution (any armed track, once its own press's boundary
   // arrives).
@@ -410,7 +410,7 @@ class Controller {
     return it != session_recording_takes_.end() ? it->second.clip_index : -1;
   }
 
-  // Which track/clip a note-based Session View take just finished into -
+  // Which track/clip a note-based Live View take just finished into -
   // pushed once, the moment trimSessionRecordingClip() runs for that
   // track (toggle-record-arm's own disarm branch, or a track being
   // individually disarmed while others keep recording), since that
@@ -507,7 +507,7 @@ class Controller {
   EventQueue & getUIEventQueue() { return ui_event_queue; }
   EventQueue & getPlaybackEventQueue() { return playback_event_queue; }
 
-  // Session view clip launching and its clock - see SessionPlayer.h.
+  // Live View clip launching and its clock - see SessionPlayer.h.
   SessionPlayer & getSessionPlayer() { return session_player_; }
   const SessionPlayer & getSessionPlayer() const { return session_player_; }
 
@@ -674,9 +674,9 @@ class Controller {
   // track at a time. Per-buffer (like getRecordingTrackId() above);
   // never serialized - purely live editing-session state.
   //
-  // This is deliberately not the same thing as Session-view style clip
+  // This is deliberately not the same thing as Live-View style clip
   // *launching* (real multi-track simultaneous performance playback,
-  // LaunchpadManager::handleSessionPadEvent()/SessionPlayer::advanceToStep()) - a
+  // LaunchpadManager::handleLivePadEvent()/SessionPlayer::advanceToStep()) - a
   // focus is a single, exclusive "what am I currently looking at to
   // edit" pointer, so setting a new one always silences whatever the
   // *previous* focus was actively previewing first (stopFocusedClipPreview()),
@@ -696,9 +696,9 @@ class Controller {
   }
   // Opens (or, if already open, closes) a PercussionTrack's or pitched
   // InstrumentTrack's own clip for direct step-grid editing - the shared
-  // logic behind both "toggle-record-arm"'s own Session-View-focused
+  // logic behind both "toggle-record-arm"'s own Live-View-focused
   // drum-machine repurposing and the Launchpad's own CC91-held-as-shift
-  // gesture (LaunchpadManager::handleSessionPadEvent()'s own comment).
+  // gesture (LaunchpadManager::handleLivePadEvent()'s own comment).
   // The name predates the pitched case - kept rather than renamed,
   // since every caller already reaches it through the shared gesture
   // rather than the function's own name. `clip_index` past the track's own
@@ -721,7 +721,7 @@ class Controller {
   // any - a pure no-op when nothing is (getFocusedClipTrackId() < 0).
   // The Launchpad's own CC95 ("Session") press uses this: pressing it
   // while a clip is open for editing leaves the sequencer entirely, the
-  // same "closes it and returns every connected device to Session view"
+  // same "closes it and returns every connected device to Live View"
   // effect a second press of whatever opened it already has
   // (toggleDrumClipFocus()'s own close branch), just reachable without
   // already knowing which clip that was.
@@ -854,7 +854,7 @@ class Controller {
   // Generalizes beginSampleCapture()'s own lazy-creation precedent to
   // PatternEditor's/LaunchpadManager's realtime held-note recording: a
   // live take should write into a real, individually-manageable Clip
-  // instance, the same as Session-view's own pooled clips, not directly
+  // instance, the same as Live-View's own pooled clips, not directly
   // into the track's own background Pattern with no identity of its own.
   // Called right before a live take's own note write, at (track_id, row) -
   // a no-op if a real clip is already active there (resolveInstanceAt()),
@@ -893,7 +893,7 @@ class Controller {
   void extendRecordingClipsIfNeeded(std::unordered_map<int, std::string> & clip_ids, const std::vector<int> & held_track_ids);
 
   // ensureNoteRecordingClip()/extendRecordingClipsIfNeeded()'s own twin for
-  // Session View recording (isSessionRecording()) - writes directly into
+  // Live View recording (isSessionRecording()) - writes directly into
   // `track_id`'s own take, at getSessionRecordingClipIndex(track_id)
   // (creating it on the first call, same "overwrite in place" rule
   // beginSampleCapture() already applies for the SampleTrack case if that
@@ -938,7 +938,7 @@ class Controller {
   // ensureSessionRecordingClip()'s own comment) - an already-looping
   // clip's own length is fixed, nothing to grow.
   void extendSessionRecordingClipIfNeeded(int track_id, int absolute_step);
-  // Finalizes `track_id`'s own note-recording Session View take, called
+  // Finalizes `track_id`'s own note-recording Live View take, called
   // once when it actually ends (toggle-record-arm's own disarm branch, or
   // a single track being individually disarmed while others keep
   // recording). extendSessionRecordingClipIfNeeded() above only ever
@@ -995,8 +995,8 @@ class Controller {
   // right before that session's first write.
   void startAutoRecordSession(bool & auto_started_playback, std::set<std::pair<int, int>> & cleared_rows, int & last_cleared_row, std::unordered_map<int, std::string> & clip_ids);
 
-  // Starts the transport for Session-view clip-trigger recording
-  // (LaunchpadManager::handleSessionPadEvent()'s assign path) - unlike
+  // Starts the transport for Live-View clip-trigger recording
+  // (LaunchpadManager::handleLivePadEvent()'s assign path) - unlike
   // startAutoRecordSession() above, does *not* mute the song's own
   // pattern-driven scheduling (SET_RECORDING_MUTE). A held note has a
   // separate live PLAY_NOTE/STOP_NOTE/NOTE_PRESSURE stream to be heard
@@ -1164,7 +1164,7 @@ class Controller {
   // Every open song, keyed by song id (a real file path, or a
   // freshBufferName()-generated name for a never-yet-saved one) - one
   // buffer per song, not just the active one (see active_buffer_name_
-  // below). How a song is shown (Arrangement or Session view) is UI
+  // below). How a song is shown (Arrangement or Live View) is UI
   // state, not a buffer of its own.
   std::map<std::string, std::shared_ptr<Song>> songs_;
   // The last scene change mirrored into each buffer's song (PlaybackInfo::getSceneSeq()).

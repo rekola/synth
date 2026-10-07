@@ -137,7 +137,7 @@ class SongState : public TrackState {
   // concurrently-recordable command (Pattern::setCommand(row,
   // command_column, Command)'s own comment).
   // `breaks_only` applies nothing but a pattern break - for a track
-  // Session view has taken over, whose arrangement automation doesn't
+  // Live View has taken over, whose arrangement automation doesn't
   // apply while the song's flow still does.
   void applyRowCommands(const Pattern & pattern, int pattern_row, int track_id, int frame_offset, bool breaks_only = false) {
     for (auto & command : pattern.getCommandsAt(pattern_row)) {
@@ -376,7 +376,7 @@ class SongState : public TrackState {
 	  for (auto & [ track_id, background ] : arrangement.getSampleBackgroundsByTrack()) {
 	    if (background.getBuffer()) scheduled_track_ids.insert(track_id);
 	  }
-	  // Tracks Session view has taken over play their launched clip
+	  // Tracks Live View has taken over play their launched clip
 	  // (or nothing) instead of whatever the arrangement has here.
 	  for (auto & [ track_id, session_track ] : session_tracks_) {
 	    if (session_track.isTakenOver()) scheduled_track_ids.insert(track_id);
@@ -493,7 +493,7 @@ class SongState : public TrackState {
 	      // again on every later row that starts a new lap, for a
 	      // looping clip - the same "a fresh voice each lap, not one
 	      // voice looping internally" shape LaunchpadManager::
-	      // fireOrTriggerClipStep() already uses for Session-view
+	      // fireOrTriggerClipStep() already uses for Live-View
 	      // triggering (its own step % length == 0), mirrored here via
 	      // the row grid instead of that clock's own step count. See
 	      // SampleTrackState::triggerClip()'s own comment for why this is
@@ -526,7 +526,7 @@ class SongState : public TrackState {
 		  // getMixedContent(), not getSampleContent() - an overdubbed
 		  // clip triggered from the arrangement timeline has to sound
 		  // every layer, the same composite SampleTrackState::
-		  // triggerClip()'s own Session-view path already plays (see
+		  // triggerClip()'s own Live-View path already plays (see
 		  // its own comment for why this is never computed here).
 		  render_context_.addPendingSampleStart(track_id, i, &clip.getMixedContent(), start_offset_frames, false);
 		}
@@ -889,7 +889,7 @@ class SongState : public TrackState {
   // live and pattern-driven NoteCoordinates always agree on its ordinal.
   const SongStructure & getSongStructure() const { return song_structure_; }
 
-  // Session view: queues `target` for `track_id` - a clip index to launch,
+  // Live View: queues `target` for `track_id` - a clip index to launch,
   // SessionTrackInfo::kSilent to stop, kArrangement to follow the
   // arrangement again, or kNothingQueued to cancel - taking effect at the
   // start of the transport's next bar. `seq` is reported back in
@@ -898,7 +898,7 @@ class SongState : public TrackState {
     ::queueSessionChange(session_tracks_, track_id, target);
     session_seq_ = std::max(session_seq_, seq);
   }
-  // Session view: a launched scene's tempo (0: none) and time signature
+  // Live View: a launched scene's tempo (0: none) and time signature
   // (unset: none), or `clear_running` to hand the bars back to the song's,
   // taking effect with the clips - on the next bar, or at the first row
   // played when `immediate` (a stopped transport). The tempo is this
@@ -985,7 +985,7 @@ private:
     master_clipping_ = clipping;
   }
 
-  // Session view's launched clips and stops, per track (see
+  // Live View's launched clips and stops, per track (see
   // queueSessionChange()), and the clock they play on: rows played,
   // advancing with the transport but never jumping with it, so a seek or
   // a pattern break doesn't move a launched clip.

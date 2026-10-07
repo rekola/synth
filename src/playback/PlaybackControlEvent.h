@@ -18,7 +18,7 @@ class PlaybackControlEvent : public Event {
   // separate "the active buffer changed" notification is needed at all.
   // BUFFER_KILLED/BUFFER_RENAMED replace the bookkeeping SONG_CHANGED used
   // to fold in for those two specific cases.
-  // QUEUE_SESSION_CHANGE: Session view launch/stop/return-to-arrangement
+  // QUEUE_SESSION_CHANGE: Live View launch/stop/return-to-arrangement
   // for one track at the next bar (SongState::queueSessionChange()) -
   // parameter1 = track_id, parameter2 = the target (a clip index or a
   // SessionTrackInfo constant), parameter3 = SessionPlayer's sequence

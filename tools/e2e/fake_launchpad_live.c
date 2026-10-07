@@ -1,12 +1,12 @@
-// Simulated Launchpad X exercising GridMode::SESSION - now the per-device
+// Simulated Launchpad X exercising GridMode::LIVE - now the per-device
 // default (LaunchpadManager::DeviceState::grid_mode), so unlike every other
-// fake_launchpad_*.c here this one presses nothing to *enter* Session view.
+// fake_launchpad_*.c here this one presses nothing to *enter* Live View.
 // Arms Record Arm first - a quick CC98 tap (Controller::isNoteCaptureArmed(),
 // "toggle-record-arm"), not CC19: CC19 no longer reaches that flag while
-// looking at Session view, it opens the per-track RECORD_ARM picker there
+// looking at Live View, it opens the per-track RECORD_ARM picker there
 // instead (see verify_launchpad_record_arm_picker.py for that gesture) -
 // then presses pad (0,0): x=0 (the fixture's only track), y=0 -> pool index
-// 7 (see LaunchpadManager::handleSessionPadEvent's own y-flip comment) - to
+// 7 (see LaunchpadManager::handleLivePadEvent's own y-flip comment) - to
 // confirm the press assigns that pooled pattern into the current section
 // rather than falling through to ordinary NOTES-mode note entry.
 #include <alsa/asoundlib.h>
@@ -44,7 +44,7 @@ int main() {
     SND_SEQ_PORT_CAP_READ | SND_SEQ_PORT_CAP_WRITE | SND_SEQ_PORT_CAP_SUBS_READ | SND_SEQ_PORT_CAP_SUBS_WRITE,
     SND_SEQ_PORT_TYPE_APPLICATION);
   if (port < 0) return 1;
-  fprintf(stderr, "fake Launchpad X (session) ready as client %d port %d\n", snd_seq_client_id(seq), port);
+  fprintf(stderr, "fake Launchpad X (live) ready as client %d port %d\n", snd_seq_client_id(seq), port);
 
   fake_wait_ready(seq, "at startup");
   fake_wait_leds(seq, "at startup");
@@ -71,7 +71,7 @@ int main() {
   send_cc(seq, port, 91, 0);
   sleep(1);
 
-  fprintf(stderr, "sending press on pad (0,0) [note 11] in Session view, velocity 100\n");
+  fprintf(stderr, "sending press on pad (0,0) [note 11] in Live View, velocity 100\n");
   send_note(seq, port, 0x90, 11, 100);
   sleep(1);
   fprintf(stderr, "sending release on pad (0,0)\n");

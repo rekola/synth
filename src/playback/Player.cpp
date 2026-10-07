@@ -470,7 +470,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
   case PlaybackControlEvent::STOP_ALL_NOTES:
     {
       // stopAllVoices()'s own whole-track natural release, for a caller
-      // (Launchpad Session view's "stop this track") with no single
+      // (Launchpad Live View's "stop this track") with no single
       // column to target the way STOP_NOTE above has - dynamic_cast to the
       // shared LeafTrackState base, not InstrumentTrackState, since Session
       // view's "stop this track" reaches a SampleTrack's own clip the same

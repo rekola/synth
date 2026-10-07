@@ -26,7 +26,7 @@ They act on the region: the note under the cursor, or the marked block of rows
 and tracks (C-SPC or C-b sets the mark). To duplicate a track's notes, select
 the track, copy it, move to another track and yank.
 
-### Clip grid (Session view)
+### Clip grid (Live View)
 
 They act on the clip under the cursor.
 

@@ -470,7 +470,7 @@ TEST(resolve_edit_target_focus_does_not_leak_across_tracks) {
 // exact contract SongState::renderBlock()'s own note scheduler relies on
 // (resolveInstanceAt() returning Arrangement::kStopInstance, never falling back
 // to re-reading the clip once its own stop has been reached) and what
-// LaunchpadManager::placeRecordingStop() (Session-view recording's own
+// LaunchpadManager::placeRecordingStop() (Live-View recording's own
 // "stop this track" primitive - an empty-row press or CC49 held) writes.
 TEST(resolve_instance_at_a_stop_after_a_looping_trigger_silences_every_later_row) {
   Song song;
