@@ -29,6 +29,21 @@ differs.
 - **Emacs.** Selection, kill and yank, and the M-x prompt; see
   [docs/terminal.md](docs/terminal.md).
 
+# Scales and Tunings
+
+- **Tunings.** A song is tuned to 12, 19, 31 or 53 equal divisions of the
+  octave (EDO); a new song starts in 31-EDO, which Adriaan Fokker revived (organ
+  built 1950 for Teylers Museum, Haarlem). Drum tracks have no tuning: a
+  note is a General MIDI drum. Notes are spelled with sharps, flats and double
+  flats, and in the finer tunings they are distinct pitches: in 31-EDO
+  E𝄫 and E♭ differ, where in 12-EDO they collapse. Note numbers for each tuning
+  are in `docs/`, for example [31edo_note_numbers.txt](docs/31edo_note_numbers.txt).
+- **Scales.** A song has a key and an optional scale: major, minor, otonal or
+  utonal (Partch, 1949). Each scale is written once as note names, so the same
+  scale is correct in every tuning. Without a scale, the Launchpad keyboard
+  plays major. The scale drives the in-key layout described in
+  [docs/drums-and-sequencer.md](docs/drums-and-sequencer.md).
+
 # Features
 
 - Launchpad support and Live arrangement
