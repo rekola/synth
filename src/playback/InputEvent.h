@@ -158,7 +158,7 @@ class InputEvent : public Event {
 	// 81 Open Triangle
 	// 82 Shaker
       }
-    } else if (tuning == Tuning::TET12) {
+    } else if (tuning == Tuning::EDO12) {
       int base = (octave - 4) * 12;
       switch (id_) {
       case 'z': return base + 48;
@@ -185,7 +185,7 @@ class InputEvent : public Event {
       case '0': return base + 75;
       case 'p': return base + 76;	
       }
-    } else if (tuning == Tuning::TET31) {
+    } else if (tuning == Tuning::EDO31) {
       int base = (octave - 4) * 31;
       switch (id_) {
       case 'z': return base + 155; // C
@@ -213,7 +213,7 @@ class InputEvent : public Event {
       case '.': return base + 193; // D#'
       case '-': return base + 196; // E'
       }
-    } else if (tuning == Tuning::TET53) {
+    } else if (tuning == Tuning::EDO53) {
       int base = (octave - 4) * 53;
       switch (id_) {
       case 'z': return base + 265; // C

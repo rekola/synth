@@ -29,7 +29,7 @@ class Mixer;
 
 class Song : public SongObject {
  public:
-  Song(Tuning tuning = Tuning::TET31, short key = -1);
+  Song(Tuning tuning = Tuning::EDO31, short key = -1);
 
   Tuning getTuning() const { return tuning_; }
   void setTuning(Tuning tuning) { tuning_ = tuning; }
@@ -510,7 +510,7 @@ class Song : public SongObject {
   std::vector<int> getPlayableTrackIds() const;
 
 private:
-  Tuning tuning_ = Tuning::TET31;
+  Tuning tuning_ = Tuning::EDO31;
   short key_note_number_ = 0;
   Scale scale_ = Scale::NONE;
   struct SceneInfo {

@@ -51,7 +51,7 @@ TEST(note_round_trips_for_a_track_with_an_explicit_textual_id) {
   // track-reference round-tripping, not tuning - a fixed tuning keeps the
   // expected raw note value below meaningful regardless of what the
   // default happens to be.
-  Song song(Tuning::TET12);
+  Song song(Tuning::EDO12);
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   track.setId("chords");
   song.getArrangement();
@@ -65,7 +65,7 @@ TEST(note_round_trips_for_a_track_with_an_explicit_textual_id) {
   CHECK(saved.find("track=\"chords\"") != string::npos);
 
   InstrumentProvider provider;
-  Song reloaded(Tuning::TET12);
+  Song reloaded(Tuning::EDO12);
   CHECK(reloaded.open(scratch_path, provider));
 
   auto reloaded_track = reloaded.getMasterTrack().getChildById("chords");
@@ -84,7 +84,7 @@ TEST(note_round_trips_for_a_track_with_no_explicit_id) {
   auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_note_auto_id_scratch.xml").string();
 
   // Tuning pinned explicitly - see the previous test's own comment.
-  Song song(Tuning::TET12);
+  Song song(Tuning::EDO12);
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   CHECK(!track.getId().empty()); // addTrack() must have assigned one
   song.getArrangement();
@@ -92,7 +92,7 @@ TEST(note_round_trips_for_a_track_with_no_explicit_id) {
   song.save(scratch_path);
 
   InstrumentProvider provider;
-  Song reloaded(Tuning::TET12);
+  Song reloaded(Tuning::EDO12);
   CHECK(reloaded.open(scratch_path, provider));
 
   CHECK(reloaded.getMasterTrack().getChildren().size() == 1);
@@ -517,7 +517,7 @@ TEST(recognized_and_unrecognized_generator_overrides_coexist_in_one_document) {
 }
 
 TEST(get_tuning_for_track_is_percussion_for_percussion_control) {
-  Song song(Tuning::TET19);
+  Song song(Tuning::EDO19);
   auto & track = song.addTrack(make_unique<PercussionTrack>());
   CHECK(song.getTuningForTrack(track) == Tuning::PERCUSSION);
 }
@@ -525,16 +525,16 @@ TEST(get_tuning_for_track_is_percussion_for_percussion_control) {
 TEST(get_tuning_for_track_is_percussion_for_drum_machine) {
   // Percussion tuning regardless of lane count - a step-sequenced
   // PercussionTrack here, unlike the lane-less one just above.
-  Song song(Tuning::TET19);
+  Song song(Tuning::EDO19);
   auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(make_unique<PercussionTrack>()));
   track.addLane(36);
   CHECK(song.getTuningForTrack(track) == Tuning::PERCUSSION);
 }
 
 TEST(get_tuning_for_track_is_the_songs_own_tuning_otherwise) {
-  Song song(Tuning::TET31);
+  Song song(Tuning::EDO31);
   auto & track = song.addTrack(make_unique<InstrumentTrack>());
-  CHECK(song.getTuningForTrack(track) == Tuning::TET31);
+  CHECK(song.getTuningForTrack(track) == Tuning::EDO31);
 }
 
 // A fresh Song always has a master track (Song::master_track_ is default-
@@ -778,7 +778,7 @@ TEST(clip_round_trips_its_name_length_notes_and_command_through_save_and_load) {
 
   // Tuning pinned explicitly - see note_round_trips_for_a_track_with_an_
   // explicit_textual_id's own comment.
-  Song song(Tuning::TET12);
+  Song song(Tuning::EDO12);
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   track.setId("drums");
 
@@ -797,7 +797,7 @@ TEST(clip_round_trips_its_name_length_notes_and_command_through_save_and_load) {
   CHECK(saved.find("name=\"fill\"") != string::npos);
 
   InstrumentProvider provider;
-  Song reloaded(Tuning::TET12);
+  Song reloaded(Tuning::EDO12);
   CHECK(reloaded.open(scratch_path, provider));
 
   auto reloaded_track = reloaded.getMasterTrack().getChildById("drums");
@@ -857,7 +857,7 @@ TEST(clips_are_independent_of_the_arrangements_inline_pattern) {
 
   // Tuning pinned explicitly - see note_round_trips_for_a_track_with_an_
   // explicit_textual_id's own comment.
-  Song song(Tuning::TET12);
+  Song song(Tuning::EDO12);
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   track.setId("drums");
   song.getArrangement();
@@ -869,7 +869,7 @@ TEST(clips_are_independent_of_the_arrangements_inline_pattern) {
   song.save(scratch_path);
 
   InstrumentProvider provider;
-  Song reloaded(Tuning::TET12);
+  Song reloaded(Tuning::EDO12);
   CHECK(reloaded.open(scratch_path, provider));
 
   auto reloaded_track = reloaded.getMasterTrack().getChildById("drums");
@@ -896,7 +896,7 @@ TEST(instance_events_round_trip_through_save_and_load) {
   namespace fs = std::filesystem;
   auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_instance_events_scratch.xml").string();
 
-  Song song(Tuning::TET12);
+  Song song(Tuning::EDO12);
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   track.setId("drums");
   Clip clip(track.getInternalId());
@@ -914,7 +914,7 @@ TEST(instance_events_round_trip_through_save_and_load) {
   CHECK(saved.find(">" + clip_id + "<") != string::npos);
 
   InstrumentProvider provider;
-  Song reloaded(Tuning::TET12);
+  Song reloaded(Tuning::EDO12);
   CHECK(reloaded.open(scratch_path, provider));
 
   auto reloaded_track = reloaded.getMasterTrack().getChildById("drums");
@@ -942,7 +942,7 @@ TEST(sample_clip_round_trips_through_save_and_load) {
   auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_sample_clip_scratch.xml").string();
   auto scratch_samples_dir = fs::path(TESTS_SCRATCH_DIR) / "song_sample_clip_scratch.samples";
 
-  Song song(Tuning::TET12);
+  Song song(Tuning::EDO12);
   auto & track = song.addTrack(make_unique<SampleTrack>());
   track.setId("vox");
 
@@ -970,7 +970,7 @@ TEST(sample_clip_round_trips_through_save_and_load) {
   CHECK(fs::exists(scratch_samples_dir / (clip_id + ".wav")));
 
   InstrumentProvider provider;
-  Song reloaded(Tuning::TET12);
+  Song reloaded(Tuning::EDO12);
   CHECK(reloaded.open(scratch_path, provider));
 
   auto reloaded_track = reloaded.getMasterTrack().getChildById("vox");
@@ -1007,7 +1007,7 @@ TEST(multi_layer_sample_clip_round_trips_through_save_and_load) {
   auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_sample_clip_multilayer_scratch.xml").string();
   auto scratch_samples_dir = fs::path(TESTS_SCRATCH_DIR) / "song_sample_clip_multilayer_scratch.samples";
 
-  Song song(Tuning::TET12);
+  Song song(Tuning::EDO12);
   auto & track = song.addTrack(make_unique<SampleTrack>());
   track.setId("vox");
 
@@ -1039,7 +1039,7 @@ TEST(multi_layer_sample_clip_round_trips_through_save_and_load) {
   CHECK(fs::exists(scratch_samples_dir / (clip_id + "_2.wav"))); // layer 1
 
   InstrumentProvider provider;
-  Song reloaded(Tuning::TET12);
+  Song reloaded(Tuning::EDO12);
   CHECK(reloaded.open(scratch_path, provider));
 
   auto reloaded_track = reloaded.getMasterTrack().getChildById("vox");
@@ -1133,7 +1133,7 @@ TEST(sample_clip_trim_points_are_omitted_from_xml_when_left_at_their_default) {
   auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_sample_clip_default_trim_scratch.xml").string();
   auto scratch_samples_dir = fs::path(TESTS_SCRATCH_DIR) / "song_sample_clip_default_trim_scratch.samples";
 
-  Song song(Tuning::TET12);
+  Song song(Tuning::EDO12);
   auto & track = song.addTrack(make_unique<SampleTrack>());
   auto buffer = make_shared<AudioBuffer>(1, 4);
   Clip clip(track.getInternalId());
@@ -1161,7 +1161,7 @@ TEST(deleting_a_sample_clip_only_removes_its_sidecar_file_on_next_save) {
   auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_sample_clip_delete_scratch.xml").string();
   auto scratch_samples_dir = fs::path(TESTS_SCRATCH_DIR) / "song_sample_clip_delete_scratch.samples";
 
-  Song song(Tuning::TET12);
+  Song song(Tuning::EDO12);
   auto & track = song.addTrack(make_unique<SampleTrack>());
   auto buffer = make_shared<AudioBuffer>(1, 4);
   Clip clip(track.getInternalId());
@@ -1280,7 +1280,7 @@ TEST(song_formats_a_row_as_bar_beat_sixteenth) {
 }
 
 TEST(an_empty_name_removes_a_locator) {
-  Song song(Tuning::TET12);
+  Song song(Tuning::EDO12);
   song.setLocator(32, "chorus");
   song.setLocator(0, "intro");
   song.setLocator(16, "verse");
@@ -1293,14 +1293,14 @@ TEST(locators_round_trip_through_save_and_load) {
   namespace fs = std::filesystem;
   auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_locators_scratch.xml").string();
 
-  Song song(Tuning::TET12);
+  Song song(Tuning::EDO12);
   song.getArrangement();
   song.setLocator(0, "intro");
   song.setLocator(37, "Am7 & <b>");
   song.save(scratch_path);
 
   InstrumentProvider provider;
-  Song reloaded(Tuning::TET12);
+  Song reloaded(Tuning::EDO12);
   CHECK(reloaded.open(scratch_path, provider));
   CHECK(reloaded.getLocators().size() == 2);
   CHECK(reloaded.getLocator(0) == "intro");
@@ -1310,7 +1310,7 @@ TEST(locators_round_trip_through_save_and_load) {
 }
 
 TEST(arrangement_length_is_where_its_content_ends_in_whole_bars) {
-  Song song(Tuning::TET12);
+  Song song(Tuning::EDO12);
   song.setTimeSignature(TimeSignature{1, 4});
   CHECK(song.getArrangementLength() == 0);
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
@@ -1340,7 +1340,7 @@ TEST(an_empty_slots_stop_button_round_trips_through_save_and_load) {
   namespace fs = std::filesystem;
   auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_stop_button_scratch.xml").string();
 
-  Song song(Tuning::TET12);
+  Song song(Tuning::EDO12);
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   track.setId("keys");
   song.ensureClipAt(track.getInternalId(), 1).setStopButton(false);
@@ -1350,7 +1350,7 @@ TEST(an_empty_slots_stop_button_round_trips_through_save_and_load) {
   CHECK(saved.find("stop=\"true\"") == string::npos);
 
   InstrumentProvider provider;
-  Song reloaded(Tuning::TET12);
+  Song reloaded(Tuning::EDO12);
   CHECK(reloaded.open(scratch_path, provider));
   auto reloaded_track = reloaded.getMasterTrack().getChildById("keys");
   CHECK(reloaded_track != nullptr);
@@ -1363,7 +1363,7 @@ TEST(an_empty_slots_stop_button_round_trips_through_save_and_load) {
 }
 
 TEST(c_flat_note_name_round_trips_with_its_own_octave_number) {
-  for (auto tuning : {Tuning::TET19, Tuning::TET31}) {
+  for (auto tuning : {Tuning::EDO19, Tuning::EDO31}) {
     auto c_flat = Note("C♭5", 100, 0, tuning);
     auto b_natural = Note("B-4", 100, 0, tuning);
     CHECK(c_flat.getValue() == b_natural.getValue() + 1);
@@ -1373,7 +1373,7 @@ TEST(c_flat_note_name_round_trips_with_its_own_octave_number) {
 }
 
 TEST(note_names_round_trip_for_every_value_in_every_tuning) {
-  for (auto tuning : {Tuning::TET12, Tuning::TET19, Tuning::TET31, Tuning::TET53}) {
+  for (auto tuning : {Tuning::EDO12, Tuning::EDO19, Tuning::EDO31, Tuning::EDO53}) {
     for (int v = 60; v < 400; ++v) {
       Note n(v, 100);
       CHECK(Note(n.toString(tuning), 100, 0, tuning).getValue() == v);

@@ -15,9 +15,9 @@ namespace {
 
 // The song-tuning note nearest in pitch to a 12-EDO MIDI note number.
 int nearestNoteValue(Tuning tuning, int midi_note) {
-  if (tuning == Tuning::TET12) return midi_note;
+  if (tuning == Tuning::EDO12) return midi_note;
   int best = 0;
-  float best_diff = 1e6f, f = getFrequencyFor(Tuning::TET12, midi_note);
+  float best_diff = 1e6f, f = getFrequencyFor(Tuning::EDO12, midi_note);
   for (int i = 0; i < 255; i++) {
     float diff = fabsf(f - getFrequencyFor(tuning, i));
     if (diff < best_diff) {

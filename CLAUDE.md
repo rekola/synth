@@ -1,6 +1,6 @@
 # synth — microtonal tracker / synthesizer
 
-Tracker-style music production system with microtonal notes (12/19/31/53-TET).
+Tracker-style music production system with microtonal notes (12/19/31/53-EDO).
 Terminal UI (notcurses), ALSA audio output, songs stored as XML.
 Formerly developed as the `syna/` subdirectory of the private `personal` repo;
 full history was preserved when it was extracted into this repository.
@@ -684,7 +684,7 @@ would otherwise resume showing.
   octave's own pitch-class range, so the list keeps climbing past the
   octave boundary rather than folding back below the tonic - resolved
   from `Song::getScale()`'s own chosen `Scale` - `MAJOR`/`MINOR`/
-  `MICROTONAL_A`/`MICROTONAL_B`, each a fixed 7-name degree list in
+  `OTONAL`/`UTONAL`, each a fixed 7-name degree list in
   `Note::stringToKey()`'s own note-name syntax so the exact same list is
   correct under every tuning without hardcoding a separate interval set
   per one - transposed to `Song::getKey()`; `Scale::NONE`, the default,
