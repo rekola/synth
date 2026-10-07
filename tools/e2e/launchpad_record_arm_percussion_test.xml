@@ -15,8 +15,6 @@
   </instruments>
   <tracks>
     <percussionTrack id="0" instrument="0">
-      <lane note="BD"/>
-      <lane note="SD"/>
     </percussionTrack>
   </tracks>
   <arrangement>

@@ -304,8 +304,7 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
     // armed/recording still wins, same "a press always means stop that
     // first" rule this command's own doc comment states) since there's
     // nothing else a drum-machine clip's own Record Arm press could
-    // sensibly mean. Reaches every PercussionTrack this way, lane-less
-    // ones included (toggleDrumClipFocus()'s own comment) - deliberately
+    // sensibly mean. Reaches every PercussionTrack this way - deliberately
     // *not* extended to a pitched InstrumentTrack even though
     // toggleDrumClipFocus() itself now accepts one too (the Launchpad's
     // own CC91-held-as-shift gesture reaches it that way directly): Record

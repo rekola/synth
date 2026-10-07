@@ -1,7 +1,11 @@
 # Terminal workflow
 
-The terminal UI follows Emacs: mark and point selection, kill and yank, and
-M-x for any named command. An operation that is a copy or a move is done with
+The terminal UI follows Emacs: mark and point selection, kill and yank, M-x for
+any named command, ESC as the Meta prefix, C-x C-c to quit and C-k to kill a
+row. The one addition is C-b as a second way to set the mark, since C-SPC does
+not reach every terminal. Each open song is a buffer, as in Emacs, and
+`next-buffer` and `previous-buffer` switch between them; this belongs to the
+terminal interface only, and other interfaces will follow their own conventions. An operation that is a copy or a move is done with
 the kill ring rather than with a command of its own, so there is no
 "duplicate" or "delete" command for clips.
 

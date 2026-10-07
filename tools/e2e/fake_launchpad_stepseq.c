@@ -3,8 +3,8 @@
 // LaunchpadProtocol::modelFromDeviceName. Prints any SysEx it
 // receives (to confirm Programmer-Mode entry and the step-grid's own LED
 // refreshes), switches to NOTES mode (CC96 - GridMode defaults to
-// SESSION), then presses and releases pad (0,0) - note 11, i.e. step 0
-// of lane 0 - once. The step grid only ever shows/edits a clip actually
+// SESSION), then presses and releases pad (0,4) - note 51, i.e. step 0
+// of the selected sound (the kick) in the step rows - once. The step grid only ever shows/edits a clip actually
 // open for editing on this track (never the section's own background
 // Pattern) - verify_launchpad_stepseq.py's own driving script opens one
 // via the terminal (M-x session-view, Ctrl-X r) before this fires.
@@ -79,11 +79,11 @@ int main() {
   send_cc(seq, port, 96, 127);
   send_cc(seq, port, 96, 0);
   drain(seq, 1000, "before press");
-  fprintf(stderr, "sending press on pad (0,0) [note 11] - step 0, lane 0\n");
-  send_note(seq, port, 0x90, 11, 100);
+  fprintf(stderr, "sending press on pad (0,4) [note 51] - step 0 of the kick\n");
+  send_note(seq, port, 0x90, 51, 100);
   drain(seq, 3000, "after press");
-  fprintf(stderr, "sending release on pad (0,0)\n");
-  send_note(seq, port, 0x80, 11, 0);
+  fprintf(stderr, "sending release on pad (0,4)\n");
+  send_note(seq, port, 0x80, 51, 0);
   drain(seq, 1000, "after release");
   snd_seq_close(seq);
   return 0;

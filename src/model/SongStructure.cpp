@@ -48,11 +48,7 @@ SongStructure::visit(const Track & track) {
     baseline_info_[id] = std::move(info);
   };
 
-  bool is_step_sequenced_percussion = track.getType() == TrackType::PERCUSSION_CONTROL
-    && dynamic_cast<const PercussionTrack &>(track).isStepSequenced();
-
-  if (track.getType() == TrackType::INSTRUMENT_CONTROL ||
-      (track.getType() == TrackType::PERCUSSION_CONTROL && !is_step_sequenced_percussion)) {
+  if (track.getType() == TrackType::INSTRUMENT_CONTROL || track.getType() == TrackType::PERCUSSION_CONTROL) {
     VisibleTrackInfo info;
     auto & leaf_track = dynamic_cast<const LeafTrack &>(track);
     info.has_note_column_ = leaf_track.showNoteColumn();
@@ -61,26 +57,6 @@ SongStructure::visit(const Track & track) {
     info.has_effect_column_ = leaf_track.showEffectsColumn();
     info.updateNumSubtracks(leaf_track.getMinNoteColumns());
     info.collapsed_ = leaf_track.isCollapsed();
-    assign(std::move(info));
-  } else if (is_step_sequenced_percussion) {
-    // Step-sequencer compact layout: one narrow NOTE-only cell per lane
-    // (PercussionTrack::getLaneNotes() order, same as the Launchpad step
-    // grid), never velocity/delay - a fixed, known set of up to
-    // PercussionTrack::kMaxLanes voices needs a column per lane, not a
-    // full NOTE/VEL/DEL triplet per lane the way an open-ended chord
-    // would (PatternEditor::renderRow()'s own step-sequenced-percussion
-    // branch reads this same shape to render/edit each cell). The per-row
-    // effect/command column still stays - a PercussionTrack's Pattern
-    // carries per-row Command data exactly like any other track's. A
-    // lane-less PercussionTrack takes the ordinary branch above instead.
-    VisibleTrackInfo info;
-    auto & drum_track = dynamic_cast<const PercussionTrack &>(track);
-    info.has_note_column_ = true;
-    info.num_velocity_columns_ = 0;
-    info.has_delay_column_ = false;
-    info.has_effect_column_ = drum_track.showEffectsColumn();
-    info.updateNumSubtracks(static_cast<int>(drum_track.getLaneNotes().size()));
-    info.collapsed_ = drum_track.isCollapsed();
     assign(std::move(info));
   } else if (track.getType() == TrackType::SAMPLE) {
     // Waveform placeholder column only - no command column, unlike every

@@ -981,7 +981,6 @@ TEST(toggle_record_arm_on_a_drum_machine_clip_focuses_it_instead_of_arming) {
   auto & song = controller.getSong();
 
   auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(std::make_unique<PercussionTrack>()));
-  track.addLane(36); // step-sequenced - see this test's own header comment
   auto track_id = track.getInternalId();
   auto & existing = song.addClip(Clip(track_id));
   existing.setName("Beat 1");
@@ -1049,7 +1048,6 @@ TEST(toggle_record_arm_on_an_empty_drum_machine_slot_creates_a_clip) {
   song.setTimeSignature(TimeSignature{4, 4});
 
   auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(std::make_unique<PercussionTrack>()));
-  track.addLane(36); // step-sequenced, so Record Arm repurposes instead of arming
   auto track_id = track.getInternalId();
 
   controller.setClipGridFocused(true);
@@ -1092,7 +1090,6 @@ TEST(toggle_drum_clip_focus_direct_call_opens_and_closes_a_clip) {
   auto & song = controller.getSong();
 
   auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(std::make_unique<PercussionTrack>()));
-  track.addLane(36);
   auto track_id = track.getInternalId();
   auto & existing = song.addClip(Clip(track_id));
   existing.setName("Beat 1");
@@ -1178,7 +1175,6 @@ TEST(close_drum_clip_focus_closes_whatever_is_open) {
   auto & song = controller.getSong();
 
   auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(std::make_unique<PercussionTrack>()));
-  track.addLane(36);
   auto track_id = track.getInternalId();
   auto & clip = song.addClip(Clip(track_id));
   clip.setName("Beat 1");

@@ -47,7 +47,6 @@ add_executable(synth_tests
 	SessionPlayerTests.cpp
 	SessionPlaybackTests.cpp
 	TransportTimingTests.cpp
-	DrumRankTableTests.cpp
 	PercussionTrackTests.cpp
 	SF2ModulatorTests.cpp
 	InstrumentResolverTests.cpp

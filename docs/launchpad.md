@@ -4,48 +4,20 @@ A connected Novation Launchpad (Mini MK3 / X) is optional; the
 terminal UI does everything without one. Each connected device has its own
 grid mode, so one can sit in Session view while another does note entry.
 
-## Note entry layout
+## Where it comes from
 
-A connected Novation Launchpad (Mini MK3 / X) becomes an
-isomorphic note-entry grid, its layout generalizing the 12edo Wicki-Hayden
-keyboard to any EDO via a best-fifth generator (`src/launchpad/LaunchpadLayout.h`).
+- **Buttons.** The right-hand column carries the Launchpad X's own labels
+  (Record Arm, Volume, Pan, Send A, Send B, Stop Clip, Mute, Solo) and
+  launches a scene while mixer submode is off. In the shift layer, Undo, Redo
+  and the click sit where Novation's Launchpad Pro MK3 puts them, and the Tempo
+  and Swing views follow that device's views; the other shift functions are
+  ours. Undo and Redo only report that they are not implemented.
 
-### Colors
+## Note mode
 
-LED coloring originally followed the notational convention of Adriaan
-Fokker's 31-EDO organ (built 1950 for Teylers Museum, Haarlem) and the
-later Archiphone: each pad was colored by its *distance from the song's
-diatonic scale* (tonic / diatonic degree / sharp / flat / diesis /
-accidental), generalizing the idea that 31-EDO's chromatic notes split
-into two musically distinct kinds (a full chromatic step vs. a
-quarter-tone-ish shading) that a simple black/white keyboard can't
-distinguish.
-
-That scheme was replaced with a different organizing principle: coloring
-by *consonance* rather than by scale-degree distance. Standard microtonal
-note names (sharps, flats, double-flats, ...) are built from a fixed,
-12-tone-shaped chain of fifths, which stops matching musical intuition
-well once an EDO is fine enough that the interesting structure is no
-longer "how many fifths from the tonic" but "how consonant is this
-interval, period." The new scheme instead recursively factors the octave
-the way classical interval theory does - `2/1 = 4/3 * 3/2` (the octave's
-simplest factor pair is the fourth and fifth), then `3/2 = 6/5 * 5/4` (the
-fifth's own simplest factor pair is the minor and major third), and so on
-- reusing that same factoring operation, approximated proportionally, at
-every deeper level. This reaches every pitch class (no leftover
-"everything else" bucket) within 4-6 levels for all four supported EDOs.
-
-Color encodes the resulting tree two ways: hue drifts away from a shared
-starting point by a shrinking amount at each level (so a pitch stays
-hue-close to its harmonic neighborhood, however deep the recursion goes),
-and saturation fades with depth (so more distant/complex notes read as
-more muted) - both channels survive the idle-brightness remap that only
-lightness gets overridden by; tonic keeps a fixed, deliberately dissimilar
-hue (yellow) so it always pops out.
-
-The classification is purely a function of the EDO and key (see
-`LaunchpadLayout::computeConsonanceLevels`), so it applies unchanged to
-12/19/31/53-EDO.
+Note mode (96) is the playing surface: a 4x4 drum rack on a percussion track,
+an in-key scale keyboard on a pitched one, and, with a clip open, 32 steps
+above it. It is described in [drums-and-sequencer.md](drums-and-sequencer.md).
 
 ## Grid modes
 
@@ -57,8 +29,8 @@ gesture).
 | Button | Mode |
 | --- | --- |
 | 95 | Session: the clip grid |
-| 96 | Note: isomorphic note entry (a step grid while a clip is open for editing) |
-| 97 | Custom: the percussion lane picker |
+| 96 | Note: the drum rack or scale keyboard (plus the step rows while a clip is open for editing) |
+| 97 | Custom: nothing yet |
 | shift + 97 | Draw: a per-pad coloring toy, independent of the song |
 | shift + Send B | Tempo: the song's tempo as a number on the pads |
 | shift + Stop Clip | Swing: the song's swing as a number on the pads |
@@ -145,7 +117,6 @@ release so a combination never has to be undone.
 | Stop Clip (49) | **Swing** view |
 | 97 | **Draw** mode |
 | a clip pad | **Select** the clip without launching it |
-| 96 (Note) | **Step edit**: open or close the selected clip's step grid |
 | 96 (Note) | **Step edit**: open or close the selected clip's step grid |
 
 Following the Pro MK3's own shift layer, Undo, Redo and the click sit where
@@ -265,12 +236,8 @@ is bright red while anything records, dim red otherwise.
 Notes played on the grid during a take are recorded with their exact timing
 unless Record Quantise is on (see Quantise above).
 
-## Step grid and drum machine
+## Step grid
 
-A percussion track with lanes, or a pitched track's clip, can be edited as a
-step grid: rows are lanes or scale degrees, columns are steps. Hold 91 and press
-a Session pad to open that pad's clip; the pad resolves on release. Every
-device then switches to the step grid, each showing its own page. In the step
-grid, 93 and 94 scroll the steps, and on a pitched track 91 and 92 scroll the
-rows. A lone press of 95 closes it. 97 opens the lane picker for a percussion
-track, which is how a lane-less track gains its first lane.
+Hold 91 and press a Session pad to open that pad's clip for step editing; the
+steps and the playing surface are described in
+[drums-and-sequencer.md](drums-and-sequencer.md).

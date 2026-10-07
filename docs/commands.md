@@ -8,7 +8,8 @@ commands listed as **Implemented** actually do anything during playback;
 everything else is accepted and stored but currently a no-op (see
 `SongState.h`'s own command-handling loop).
 
-The mnemonic's first character is either `Z` (a global command, not
+The effect column follows the tracker tradition described in the README. The
+mnemonic's first character is either `Z` (a global command, not
 scoped to any one track - `ZBxx`/`ZTxx` below), `Y` (this engine's own
 reserved namespace - see below), or a device index: how far up *this*
 track's own ancestor chain the command actually targets (Group/Effect

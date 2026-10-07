@@ -483,3 +483,41 @@ TEST(number_display_keeps_the_digits_in_fixed_slots_and_clamps) {
     CHECK(grid[7][static_cast<size_t>(x)] == NumberPixel::OFF);
   }
 }
+
+TEST(drum_rack_is_a_4x4_block_of_distinct_gm_sounds_in_the_bottom_left) {
+  std::set<int> seen;
+  for (int y = 0; y < 8; y++) {
+    for (int x = 0; x < 8; x++) {
+      auto note = drumPadNoteForPad(x, y);
+      if (x < 4 && y < 4) {
+        CHECK(note >= 27 && note <= 82);
+        CHECK(percussionFamilyForNote(note) != PercussionFamily::UNUSED);
+        CHECK(seen.insert(note).second);
+      } else {
+        CHECK(note == -1);
+      }
+    }
+  }
+  CHECK(seen.size() == 16);
+  // Notes 36-51 in order, left to right then bottom to top.
+  for (int y = 0; y < 4; y++) {
+    for (int x = 0; x < 4; x++) CHECK(drumPadNoteForPad(x, y) == 36 + x + 4 * y);
+  }
+  CHECK(drumPadNoteForPad(-1, 0) == -1);
+}
+
+TEST(scale_keyboard_goes_up_a_degree_per_column_and_a_fourth_per_row) {
+  CHECK(scaleDegreeIndexForPad(0, 0) == 0);
+  CHECK(scaleDegreeIndexForPad(1, 0) == 1);
+  CHECK(scaleDegreeIndexForPad(0, 1) == 3); // a fourth up in a seven-note scale
+  CHECK(scaleDegreeIndexForPad(7, 7) == 28);
+}
+
+TEST(step_rows_cover_the_top_half_left_to_right_then_bottom_to_top) {
+  for (int y = 0; y < kPlayRows; y++) CHECK(stepForPad(3, y) == -1);
+  CHECK(stepForPad(0, kPlayRows) == 0);
+  CHECK(stepForPad(7, kPlayRows) == 7);
+  CHECK(stepForPad(0, kPlayRows + 1) == 8);
+  CHECK(stepForPad(7, 7) == kStepsPerView - 1);
+  CHECK(stepForPad(8, 5) == -1);
+}

@@ -1872,22 +1872,6 @@ PatternEditor::offerInput(const InputEvent & input) {
 	  auto track = song.getMasterTrack().getChildByInternalId(track_id);
 	  auto tuning = track ? song.getTuningForTrack(*track) : song.getTuning();
 	  midi_note = input.toMidiNote(getController().getGlobalOctave(), tuning);
-	  // Step-sequencer compact entry: any note-producing keystroke on a
-	  // step-sequenced PercussionTrack's lane cell triggers that lane's own
-	  // fixed GM note, regardless of which physical key was pressed -
-	  // matches the Launchpad step grid's own per-cell semantics (a press
-	  // means "hit this lane", not "play whatever pitch this key happens
-	  // to map to"). The keystroke still has to resolve to *some* real note
-	  // first (midi_note >= 0) - an unmapped key stays a no-op here too. A
-	  // lane-less PercussionTrack's empty lane list means note_column never
-	  // falls within it, so this is a natural no-op there without a
-	  // separate isStepSequenced() check.
-	  if (midi_note >= 0 && track && track->getType() == TrackType::PERCUSSION_CONTROL) {
-	    auto & lanes = static_cast<PercussionTrack &>(*track).getLaneNotes();
-	    if (note_column >= 0 && note_column < static_cast<int>(lanes.size())) {
-	      midi_note = lanes[static_cast<size_t>(note_column)];
-	    }
-	  }
 	}
 
 	if (is_repeat && midi_note >= 0) return true; // already sounding - nothing to redo
@@ -3238,11 +3222,6 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  cell_fg = cell_is_selected ? cur_fg : tintForPlayhead(fg);
 	  cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
 	  if (!note.isDefined()) cell_fg = cell_fg.blend(0.5f, cell_bg);
-	  // Step-sequencer compact display: a hit lane (a real, sound-
-	  // producing note - matches PercussionTrack::getHitNotesForRow()'s
-	  // own definition) renders exactly like an ordinary NOTE column
-	  // would for that note (an at-rest lane's own "···" included),
-	  // against the row's own background like any other track.
 	  setFgColor(cell_fg);
 	  setBgColor(cell_bg);
 	  auto s = note.toString(tuning);

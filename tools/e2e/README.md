@@ -323,7 +323,7 @@ you're changing.
   clip index 0 via the picker, then plays a NOTE-mode note while track 0
   is still assigned - confirms track 1's own ClipGrid column shows a
   real, populated clip and track 0's shows none. The fixture deliberately
-  makes track 0 a lane-less `PercussionTrack` and track 1 a plain pitched
+  makes track 0 a `PercussionTrack` and track 1 a plain pitched
   track (different percussion-ness) - an earlier draft used two plain
   pitched tracks and passed even with the bug still present, since the
   multi-track record fan-out mechanism ended up writing the note into the
@@ -339,7 +339,7 @@ you're changing.
   never superseded by) the recording-supersedes-assigned-track override,
   so a pad press toggled a step in the *background* pattern instead of
   ever reaching the armed take. Arms and targets the fixture's only track
-  (a two-lane step-sequenced `PercussionTrack`), plays a NOTES-mode pad
+  (a `PercussionTrack`), plays a NOTES-mode pad
   press, then disarms - verifies the actual functional outcome through
   the terminal `ClipGrid` widget (did the note land in the armed clip
   at all), not LED bytes.
@@ -428,22 +428,15 @@ you're changing.
   pad-prev-track/pad-next-track page-shift gesture (`LaunchpadManager::
   handleCommand()`'s own comment) moving every connected device together,
   not just whichever one was pressed: two simulated devices open a
-  32-step clip, confirm `resetStepGridView()`'s own device-order split
+  96-step clip, confirm `resetStepGridView()`'s own device-order split
   put them on two different windows, then one device scrolls forward once
   and both are confirmed to have scrolled by the same step (4) - not left
   drifted apart. Reads each device's first and last step-grid frame, not
   timed phases, since the two simulators' timing drifts apart.
-- **`launchpad_shift_no_lanes_test.xml` / `fake_launchpad_shift_no_lanes.c` /
-  `verify_launchpad_shift_no_lanes.py`** - the shift+pad "open for
-  editing" gesture on a *lane-less* PercussionTrack's own clip
-  (`Controller::toggleDrumClipFocus()` doesn't gate on lane count at all):
-  opens the step grid same as any other clip, just completely empty,
-  rather than declining outright or routing to the lane picker instead.
 - **`launchpad_shift_stepgrid_pitched_test.xml` / `fake_launchpad_shift_
   stepgrid_pitched.c` / `verify_launchpad_shift_stepgrid_pitched.py`** -
   the shift+pad "open for editing" gesture on a *pitched* InstrumentTrack's
-  own clip, its rows drawn from the song's own scale
-  (`Song::getScaleDegrees()`) rather than a manually-picked lane list -
+  own clip, its playing surface drawn from the song's own scale -
   same "*" focus-marker verification as `verify_launchpad_shift_
   stepgrid.py` above (its own sibling script).
 - **`cross_tuning_paste_test.xml` (+ companion `..._song_b.xml`) /
@@ -458,8 +451,9 @@ you're changing.
   own - it has none).
 - **`drum_machine_stepgrid_test.xml` / `fake_launchpad_stepseq.c` /
   `verify_launchpad_stepseq.py`** - loads
-  a song whose only track is a step-sequenced `PercussionTrack`, opens its
+  a song whose only track is a `PercussionTrack`, opens its
   clip from the terminal (M-x session-view, then "toggle-record-arm" in
   the clip grid), confirms the Launchpad shows the step grid (the
-  step-lit/unlit colors, not the ordinary note-grid ones), then presses
-  pad (0,0) and checks for the lane/step's color changing to lit.
+  step-lit/unlit colors in the top four rows, not the ordinary note-grid
+  ones), then presses pad (0,4) - step 0 of the kick - and checks for its
+  color changing to lit.

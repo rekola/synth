@@ -15,14 +15,6 @@
         <track id="0" instrument="0" azimuth="30" distance="1" elevation="50" color="" sendA="-16.9020" sendB="0.0000" noteColumns="7"/>
         <percussionTrack id="perc" azimuth="0" distance="0.89999998" elevation="0" color="" sendA="-20.0000" sendB="-7.3595"/>
         <percussionTrack id="drums" azimuth="0" distance="0.89999998" elevation="0" color="" sendB="-4.8608">
-            <lane note="BD"/>
-            <lane note="SD"/>
-            <lane note="LT"/>
-            <lane note="MT"/>
-            <lane note="HT"/>
-            <lane note="CH"/>
-            <lane note="OH"/>
-            <lane note="CR"/>
         </percussionTrack>
     </tracks>
     <locators>
