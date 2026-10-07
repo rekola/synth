@@ -4,6 +4,7 @@
 
 #include "../util/Logger.h"
 #include "AudioBuffer.h"
+#include "AudioDevices.h"
 
 #include <cstdio>
 #include <fmt/core.h>
@@ -40,6 +41,37 @@ recoverFromPcmError(Logger & logger, snd_pcm_t * handle, int err, const char * w
   return err;
 }
 
+// Opens `name` (a DeviceSettings audio name). A PipeWire node is targeted by
+// opening the pipewire PCM plugin through a private one-PCM config naming it -
+// the plugin's own capture_node/playback_node setting - so everything after
+// the open (period sizes, polling, delay queries, xrun handling) is the same
+// ALSA code path as for any other device. The config is scoped to this call,
+// not installed globally.
+static int
+openPcm(snd_pcm_t ** handle, const string & name, snd_pcm_stream_t stream) {
+  if (!isPipeWireDevice(name)) {
+    return snd_pcm_open(handle, isDefaultDevice(name) ? "default" : name.c_str(), stream, 0);
+  }
+  auto node = pipeWireNodeName(name);
+  // The name goes inside a quoted config string.
+  if (node.find_first_of("\"\\\n") != string::npos) return -EINVAL;
+  string text = string("pcm.synth_pipewire {\n  type pipewire\n  ") +
+                (stream == SND_PCM_STREAM_CAPTURE ? "capture_node" : "playback_node") + " \"" + node + "\"\n}\n";
+
+  snd_config_t * conf = nullptr;
+  int r = snd_config_top(&conf);
+  if (r < 0) return r;
+  snd_input_t * input = nullptr;
+  r = snd_input_buffer_open(&input, text.c_str(), static_cast<ssize_t>(text.size()));
+  if (r >= 0) {
+    r = snd_config_load(conf, input);
+    snd_input_close(input);
+  }
+  if (r >= 0) r = snd_pcm_open_lconf(handle, "synth_pipewire", stream, 0, conf);
+  snd_config_delete(conf);
+  return r;
+}
+
 AlsaAudio::~AlsaAudio() {
   if (pcm_handle) {
     snd_pcm_drain(pcm_handle);
@@ -59,42 +91,53 @@ static size_t initialize_alsa_dev(Logger & logger, snd_pcm_t * handle, int rate,
   snd_pcm_hw_params_any(handle, hw_params);
 
   // Set parameters
-  if ((r = snd_pcm_hw_params_set_access(handle, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED)) < 0) {
+  r = snd_pcm_hw_params_set_access(handle, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED);
+  if (r < 0) {
     logger.log(string("ERROR: Can't set interleaved mode: ") + snd_strerror(r));
     return 0;
   }
 
-  if ((r = snd_pcm_hw_params_set_format(handle, hw_params, SND_PCM_FORMAT_FLOAT_LE)) < 0) {
+  r = snd_pcm_hw_params_set_format(handle, hw_params, SND_PCM_FORMAT_FLOAT_LE);
+
+  if (r < 0) {
     logger.log(string("ERROR: Can't set format: ") + snd_strerror(r));
     return 0;
   }
 
-  if ((r = snd_pcm_hw_params_set_channels(handle, hw_params, static_cast<unsigned int>(channels))) < 0) {
+  r = snd_pcm_hw_params_set_channels(handle, hw_params, static_cast<unsigned int>(channels));
+
+  if (r < 0) {
     logger.log(string("ERROR: Can't set channels number: ") + snd_strerror(r));
     return 0;
   }
 
   auto actual_rate = static_cast<unsigned int>(rate);
-  if ((r = snd_pcm_hw_params_set_rate_near(handle, hw_params, &actual_rate, 0)) < 0) {
+  r = snd_pcm_hw_params_set_rate_near(handle, hw_params, &actual_rate, 0);
+  if (r < 0) {
     logger.log(string("ERROR: Can't set rate: ") + snd_strerror(r));
     return 0;
   }
 
   unsigned int min_periods;
   int dir;
-  
-  if ((r = snd_pcm_hw_params_get_periods_min(hw_params, &min_periods, &dir)) < 0) {
+
+  r = snd_pcm_hw_params_get_periods_min(hw_params, &min_periods, &dir);
+
+  if (r < 0) {
     logger.log(string("ERROR: Can't get min periods: ") + snd_strerror(r));
     return 0;
   }
 
-  if ((r = snd_pcm_hw_params_set_periods(handle, hw_params, min_periods > 2 ? min_periods : 2, 0)) < 0) {
+  r = snd_pcm_hw_params_set_periods(handle, hw_params, min_periods > 2 ? min_periods : 2, 0);
+
+  if (r < 0) {
     logger.log(string("ERROR: Failed to set periods: ") + snd_strerror(r));
     return 0;
   }
 
   snd_pcm_uframes_t min_period_size;
-  if ((r = snd_pcm_hw_params_get_period_size_min(hw_params, &min_period_size, &dir)) < 0) {
+  r = snd_pcm_hw_params_get_period_size_min(hw_params, &min_period_size, &dir);
+  if (r < 0) {
     logger.log(string("ERROR: Failed to get minimum period size: ") + snd_strerror(r));    
     return 0;
   }
@@ -112,13 +155,15 @@ static size_t initialize_alsa_dev(Logger & logger, snd_pcm_t * handle, int rate,
   // the device/driver, so 256 leaves comfortable headroom rather than
   // chasing the lowest number that merely didn't glitch in that test.
   snd_pcm_uframes_t wanted_period = 256;
-  if ((r = snd_pcm_hw_params_set_period_size(handle, hw_params, min_period_size > wanted_period ? min_period_size : wanted_period, 0)) < 0) {
+  r = snd_pcm_hw_params_set_period_size(handle, hw_params, min_period_size > wanted_period ? min_period_size : wanted_period, 0);
+  if (r < 0) {
     logger.log(string("ERROR: Failed to set period size: ") + snd_strerror(r));
     return 0;
   }
 
   // Write parameters
-  if ((r = snd_pcm_hw_params(handle, hw_params)) < 0) {
+  r = snd_pcm_hw_params(handle, hw_params);
+  if (r < 0) {
     logger.log(string("ERROR: Can't set hardware parameters: ") + snd_strerror(r));
     return 0;
   }
@@ -132,7 +177,8 @@ static size_t initialize_alsa_dev(Logger & logger, snd_pcm_t * handle, int rate,
   // was requested.
   if (out_negotiated_rate) {
     unsigned int negotiated_rate = 0;
-    if ((r = snd_pcm_hw_params_get_rate(hw_params, &negotiated_rate, 0)) < 0) {
+    r = snd_pcm_hw_params_get_rate(hw_params, &negotiated_rate, 0);
+    if (r < 0) {
       logger.log(string("WARNING: Can't read back negotiated rate: ") + snd_strerror(r));
     } else {
       *out_negotiated_rate = negotiated_rate;
@@ -153,7 +199,8 @@ static size_t initialize_alsa_dev(Logger & logger, snd_pcm_t * handle, int rate,
   snd_pcm_sw_params_alloca(&sw_params);
   snd_pcm_sw_params_current(handle, sw_params);
   snd_pcm_sw_params_set_avail_min(handle, sw_params, wanted_period);
-  if ((r = snd_pcm_sw_params(handle, sw_params)) < 0) {
+  r = snd_pcm_sw_params(handle, sw_params);
+  if (r < 0) {
     logger.log(string("ERROR: Failed to set software parameters: ") + snd_strerror(r));
     return 0;
   }
@@ -164,58 +211,104 @@ static size_t initialize_alsa_dev(Logger & logger, snd_pcm_t * handle, int rate,
   return frames;
 }
 
-void
-AlsaAudio::initialize(Logger & logger, string capture_device_name) {
+size_t
+AlsaAudio::openCapture(const string & name, Logger & logger, snd_pcm_t *& handle) {
+  handle = nullptr;
+  int r = openPcm(&handle, name, SND_PCM_STREAM_CAPTURE);
+  if (r < 0) {
+    handle = nullptr;
+    logger.log(string("WARNING: Can't open PCM device '") + name + "' for capture: " + snd_strerror(r));
+    return 0;
+  }
+  // Capture always follows the now-finalized playback rate rather than
+  // negotiating (and potentially adopting) a rate of its own - a second
+  // adjustment here could silently pull the whole song's sample rate
+  // away from what output_frames/negotiated_rate already settled.
+  auto frames = initialize_alsa_dev(logger, handle, getFrequency(), 1, nullptr);
+  if (!frames) {
+    logger.log("WARNING: Can't configure capture device '" + name + "'");
+    snd_pcm_close(handle);
+    handle = nullptr;
+  }
+  return frames;
+}
+
+void AlsaAudio::initialize(Logger & logger, const DeviceSettings & devices) {
   int r;
-  capture_device_name_ = std::move(capture_device_name);
 
   // Open the PCM device in playback mode. Without this, there is nothing
-  // useful this class can do, so give up entirely on failure.
-  if ((r = snd_pcm_open(&pcm_handle, "default", SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
-    logger.log(string("ERROR: Can't open PCM device for playback: ") + snd_strerror(r));
-    return;
+  // useful this class can do, so give up entirely on failure. A chosen
+  // device that has gone away falls back to the system default first.
+  auto try_playback = [&](const string & name) {
+    if (!isDefaultDevice(name) && !playbackDeviceExists(name)) {
+      logger.log("WARNING: Playback device '" + name + "' not found");
+      return false;
+    }
+    r = openPcm(&pcm_handle, name, SND_PCM_STREAM_PLAYBACK);
+    if (r < 0) {
+      pcm_handle = nullptr;
+      logger.log(string("ERROR: Can't open PCM device '") + name + "' for playback: " + snd_strerror(r));
+      return false;
+    }
+    unsigned int negotiated_rate = 0;
+    output_frames = initialize_alsa_dev(logger, pcm_handle, getFrequency(), numberOfChannels(), &negotiated_rate);
+    if (!output_frames) {
+      snd_pcm_close(pcm_handle);
+      pcm_handle = nullptr;
+      return false;
+    }
+    // Adopt whatever the device actually negotiated (see
+    // initialize_alsa_dev's comment) so every caller downstream of this
+    // point - main.cpp builds its ChannelConfiguration from this, before
+    // Controller/Player exist - sees the rate audio will really play back
+    // at, not just what was requested.
+    if (negotiated_rate) setFrequency(static_cast<int>(negotiated_rate));
+    playback_device_name_ = isDefaultDevice(name) ? "default" : name;
+    return true;
+  };
+  if (!try_playback(devices.playback)) {
+    if (isDefaultDevice(devices.playback) || !try_playback("default")) return;
+    logger.log("Using the default playback device instead");
   }
-
-  unsigned int negotiated_rate = 0;
-  output_frames = initialize_alsa_dev(logger, pcm_handle, getFrequency(), numberOfChannels(), &negotiated_rate);
-  if (!output_frames) return;
-
-  // Adopt whatever the device actually negotiated (see
-  // initialize_alsa_dev's comment) so every caller downstream of this
-  // point - main.cpp builds its ChannelConfiguration from this, before
-  // Controller/Player exist - sees the rate audio will really play back
-  // at, not just what was requested.
-  if (negotiated_rate) setFrequency(static_cast<int>(negotiated_rate));
 
   // Capture (used for sampling/recording) is optional: a machine without a
   // capture device (or without permission to open one) should still be able
   // to play songs.
-  if ((r = snd_pcm_open(&capture_handle, capture_device_name_.c_str(), SND_PCM_STREAM_CAPTURE, 0)) < 0) {
-    logger.log(string("WARNING: Can't open PCM device '") + capture_device_name_ + "' for capture, recording disabled: " + snd_strerror(r));
-    capture_handle = nullptr;
-  } else {
-    // Capture always follows the now-finalized playback rate rather than
-    // negotiating (and potentially adopting) a rate of its own - a second
-    // adjustment here could silently pull the whole song's sample rate
-    // away from what output_frames/negotiated_rate above already settled.
-    input_frames = initialize_alsa_dev(logger, capture_handle, getFrequency(), 1, nullptr);
-    if (!input_frames) {
-      logger.log("WARNING: Can't configure capture device '" + capture_device_name_ + "', recording disabled");
-      snd_pcm_close(capture_handle);
-      capture_handle = nullptr;
+  auto try_capture = [&](const string & name) {
+    if (!isDefaultDevice(name) && !captureDeviceExists(name)) {
+      logger.log("WARNING: Capture device '" + name + "' not found");
+      return false;
     }
+    input_frames = openCapture(isDefaultDevice(name) ? "default" : name, logger, capture_handle);
+    if (input_frames) capture_device_name_ = isDefaultDevice(name) ? "default" : name;
+    return input_frames != 0;
+  };
+  if (!try_capture(devices.capture) && !isDefaultDevice(devices.capture)) {
+    if (try_capture("default"))
+      logger.log("Using the default capture device instead");
+    else
+      logger.log("WARNING: recording disabled");
+  } else if (!capture_handle) {
+    logger.log("WARNING: recording disabled");
   }
 
+  // MIDI is optional like capture: a machine without the sequencer (no
+  // snd-seq module, say) still plays and records audio.
   if (snd_seq_open(&seq_handle, "default", SND_SEQ_OPEN_DUPLEX, 0) < 0) {
-    logger.log("Error opening ALSA sequencer");
-    return;
-  }
-  snd_seq_set_client_name(seq_handle, "synth");
-  if (snd_seq_create_simple_port(seq_handle, "synth",
-				 SND_SEQ_PORT_CAP_WRITE|SND_SEQ_PORT_CAP_SUBS_WRITE,
-				 SND_SEQ_PORT_TYPE_APPLICATION) < 0) {
-    logger.log("Error creating sequencer port");
-    exit(1);
+    seq_handle = nullptr;
+    logger.log("Error opening ALSA sequencer, MIDI input disabled");
+  } else {
+    snd_seq_set_client_name(seq_handle, "synth");
+    midi_own_port_ = snd_seq_create_simple_port(seq_handle, "synth",
+                                                SND_SEQ_PORT_CAP_WRITE | SND_SEQ_PORT_CAP_SUBS_WRITE,
+                                                SND_SEQ_PORT_TYPE_APPLICATION);
+    if (midi_own_port_ < 0) {
+      logger.log("Error creating sequencer port");
+      exit(1);
+    }
+    // Port and client announcements, so a chosen MIDI source that is plugged
+    // in later (or replugged) gets connected - see recordMIDI().
+    snd_seq_connect_from(seq_handle, midi_own_port_, SND_SEQ_CLIENT_SYSTEM, SND_SEQ_PORT_SYSTEM_ANNOUNCE);
   }
 
   auto status = string("Playback: name = ") + string(snd_pcm_name(pcm_handle)) + string(", state = ") + string(snd_pcm_state_name(snd_pcm_state(pcm_handle)));
@@ -226,7 +319,105 @@ AlsaAudio::initialize(Logger & logger, string capture_device_name) {
 
   setPlaybackDescriptors(getPollDescriptors(pcm_handle));
   if (capture_handle) setCaptureDescriptors(getPollDescriptors(capture_handle));
-  setMidiCaptureDescriptors(getMidiPollDescriptors(seq_handle));
+  if (seq_handle) setMidiCaptureDescriptors(getMidiPollDescriptors(seq_handle));
+
+  if (!devices.midi_input.empty()) setMidiInput(devices.midi_input, logger);
+}
+
+bool AlsaAudio::setPlaybackDevice(const string & requested, Logger & logger) {
+  string name = isDefaultDevice(requested) ? "default" : requested;
+  if (name == playback_device_name_) return true;
+  if (!pcm_handle) {
+    logger.log("ERROR: No playback device is open, can't switch");
+    return false;
+  }
+  if (!playbackDeviceExists(name)) {
+    logger.log("WARNING: Playback device '" + name + "' not found");
+    return false;
+  }
+  snd_pcm_t * handle = nullptr;
+  int r = openPcm(&handle, name, SND_PCM_STREAM_PLAYBACK);
+  if (r < 0) {
+    logger.log(string("WARNING: Can't open PCM device '") + name + "' for playback: " + snd_strerror(r));
+    return false;
+  }
+  unsigned int negotiated_rate = 0;
+  auto frames = initialize_alsa_dev(logger, handle, getFrequency(), numberOfChannels(), &negotiated_rate);
+  // The song, the visualization thread and every tempo-derived figure were
+  // built for this rate and block size; a device that can't match both can't
+  // be switched to while running.
+  if (!frames || frames != output_frames || (negotiated_rate && static_cast<int>(negotiated_rate) != getFrequency())) {
+    if (frames) logger.log("WARNING: Playback device '" + name + "' can't run at the current rate and block size; restart to use it");
+    snd_pcm_close(handle);
+    return false;
+  }
+  auto old = pcm_handle;
+  pcm_handle = handle;
+  playback_device_name_ = name;
+  last_play_error_ = 0;
+  setPlaybackDescriptors(getPollDescriptors(pcm_handle));
+  // Dropped, not drained: draining would stall the audio thread for the
+  // length of the old queue.
+  snd_pcm_drop(old);
+  snd_pcm_close(old);
+  return true;
+}
+
+bool AlsaAudio::setCaptureDevice(const string & requested, Logger & logger) {
+  string name = isDefaultDevice(requested) ? "default" : requested;
+  if (capture_handle && name == capture_device_name_) return true;
+  if (!captureDeviceExists(name)) {
+    logger.log("WARNING: Capture device '" + name + "' not found");
+    return false;
+  }
+  snd_pcm_t * handle = nullptr;
+  auto frames = openCapture(name, logger, handle);
+  if (!frames) return false;
+  if (capture_handle) {
+    if (recording_started) snd_pcm_drop(capture_handle);
+    snd_pcm_close(capture_handle);
+  }
+  capture_handle = handle;
+  input_frames = frames;
+  capture_device_name_ = name;
+  // The new stream is prepared but not started, the state startRecording()
+  // expects.
+  recording_started = false;
+  setCaptureDescriptors(getPollDescriptors(capture_handle));
+  return true;
+}
+
+void AlsaAudio::setMidiInput(const string & spec, Logger & logger) {
+  midi_input_spec_ = spec;
+  connectMidiInput(&logger);
+}
+
+void AlsaAudio::connectMidiInput(Logger * logger) {
+  if (!seq_handle) {
+    if (logger && !midi_input_spec_.empty()) logger->log("MIDI input unavailable: no ALSA sequencer");
+    return;
+  }
+  if (midi_connected_client_ >= 0) {
+    snd_seq_disconnect_from(seq_handle, midi_own_port_, midi_connected_client_, midi_connected_port_);
+    midi_connected_client_ = midi_connected_port_ = -1;
+  }
+  if (midi_input_spec_.empty()) {
+    if (logger) logger->log("MIDI input: none selected");
+    return;
+  }
+  for (auto & source : listMidiSources()) {
+    if (source.spec != midi_input_spec_) continue;
+    int r = snd_seq_connect_from(seq_handle, midi_own_port_, source.client, source.port);
+    if (r < 0) {
+      if (logger) logger->log(string("WARNING: Can't connect MIDI input '") + source.label + "': " + snd_strerror(r));
+    } else {
+      midi_connected_client_ = source.client;
+      midi_connected_port_ = source.port;
+      if (logger) logger->log("MIDI input: " + source.label);
+    }
+    return;
+  }
+  if (logger) logger->log("MIDI input '" + midi_input_spec_ + "' not found, connecting when it appears");
 }
 
 std::vector<pollfd>
@@ -361,7 +552,8 @@ AlsaAudio::startRecording() {
 
   if (!recording_started) {
     int r;
-    if ((r = snd_pcm_start(capture_handle)) < 0) {
+    r = snd_pcm_start(capture_handle);
+    if (r < 0) {
       exit(1);
     }
     recording_started = true;
@@ -422,29 +614,43 @@ AlsaAudio::recordMIDI() {
     snd_seq_event_input(seq_handle, &ev);
 
     switch (ev->type) {
-    case SND_SEQ_EVENT_SYSTEM:
-      break;
-    case SND_SEQ_EVENT_RESULT:
-      break;
-    case SND_SEQ_EVENT_KEYPRESS:
-      r.push_back(MidiEvent(MidiEvent::NOTE_PRESSURE, ev->data.note.note, ev->data.note.velocity));
-      break;
-    case SND_SEQ_EVENT_CHANPRESS:
-      // Channel-wide value, same union member as PITCHBEND/CONTROLLER below
-      // (no specific note involved, unlike KEYPRESS's per-note aftertouch
-      // above) - note field is unused.
-      r.push_back(MidiEvent(MidiEvent::CHANNEL_PRESSURE, 0, ev->data.control.value));
-      break;
-    case SND_SEQ_EVENT_PITCHBEND:
-      break;
-    case SND_SEQ_EVENT_CONTROLLER:
-      break;
-    case SND_SEQ_EVENT_NOTEON:
-      r.push_back(MidiEvent(MidiEvent::NOTE_ON, ev->data.note.note, ev->data.note.velocity));
-      break;        
-    case SND_SEQ_EVENT_NOTEOFF:
-      r.push_back(MidiEvent(MidiEvent::NOTE_OFF, ev->data.note.note, 0));
-      break;
+      case SND_SEQ_EVENT_PORT_START:
+        // A chosen source that wasn't there, or was unplugged, is back.
+        if (midi_connected_client_ < 0 && !midi_input_spec_.empty() && ev->data.addr.client != snd_seq_client_id(seq_handle)) {
+          connectMidiInput(nullptr);
+        }
+        break;
+      case SND_SEQ_EVENT_PORT_EXIT:
+      case SND_SEQ_EVENT_CLIENT_EXIT:
+        // ALSA drops the subscription itself; just remember that it's gone.
+        if (ev->data.addr.client == midi_connected_client_ &&
+            (ev->type == SND_SEQ_EVENT_CLIENT_EXIT || ev->data.addr.port == midi_connected_port_)) {
+          midi_connected_client_ = midi_connected_port_ = -1;
+        }
+        break;
+      case SND_SEQ_EVENT_SYSTEM:
+        break;
+      case SND_SEQ_EVENT_RESULT:
+        break;
+      case SND_SEQ_EVENT_KEYPRESS:
+        r.push_back(MidiEvent(MidiEvent::NOTE_PRESSURE, ev->data.note.note, ev->data.note.velocity));
+        break;
+      case SND_SEQ_EVENT_CHANPRESS:
+        // Channel-wide value, same union member as PITCHBEND/CONTROLLER below
+        // (no specific note involved, unlike KEYPRESS's per-note aftertouch
+        // above) - note field is unused.
+        r.push_back(MidiEvent(MidiEvent::CHANNEL_PRESSURE, 0, ev->data.control.value));
+        break;
+      case SND_SEQ_EVENT_PITCHBEND:
+        break;
+      case SND_SEQ_EVENT_CONTROLLER:
+        break;
+      case SND_SEQ_EVENT_NOTEON:
+        r.push_back(MidiEvent(MidiEvent::NOTE_ON, ev->data.note.note, ev->data.note.velocity));
+        break;
+      case SND_SEQ_EVENT_NOTEOFF:
+        r.push_back(MidiEvent(MidiEvent::NOTE_OFF, ev->data.note.note, 0));
+        break;
     }
 
     snd_seq_free_event(ev);

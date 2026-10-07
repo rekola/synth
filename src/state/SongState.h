@@ -906,7 +906,7 @@ class SongState : public TrackState {
   // the UI mirrors both from the snapshot (getSceneSeq()). A new call
   // replaces one still waiting.
   void queueSceneChange(int tempo, TimeSignature signature, bool clear_running, bool immediate, int seq) {
-    pending_scene_ = { tempo > 0 || signature.isSet() || clear_running, tempo, signature, clear_running, immediate, seq };
+    pending_scene_ = {tempo > 0 || signature.isSet() || clear_running, tempo, signature, clear_running, immediate, seq};
     if (!pending_scene_.active) scene_seq_ = std::max(scene_seq_, seq);
   }
   int getSceneSeq() const { return scene_seq_; }
@@ -999,14 +999,16 @@ private:
   };
   PendingScene pending_scene_;
   int scene_seq_ = 0;
-  TimeSignature song_signature_{ 4, 4 };
+  TimeSignature song_signature_{4, 4};
   RunningBars running_bars_;
   int synced_song_tempo_ = 0; // the song tempo last applied from the song itself
 
   void applyPendingScene() {
     if (pending_scene_.tempo > 0) applyTempo(pending_scene_.tempo);
-    if (pending_scene_.signature.isSet()) running_bars_ = { pending_scene_.signature, absolute_pos_ };
-    else if (pending_scene_.clear_running) running_bars_ = {};
+    if (pending_scene_.signature.isSet())
+      running_bars_ = {pending_scene_.signature, absolute_pos_};
+    else if (pending_scene_.clear_running)
+      running_bars_ = {};
     scene_seq_ = std::max(scene_seq_, pending_scene_.seq);
     pending_scene_ = {};
   }

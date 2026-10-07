@@ -708,84 +708,90 @@ struct MenuSectionSpec {
 // function's) and passes it straight through here.
 static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
   vector<MenuSectionSpec> spec = {
-    { "File", 'f', {
-	{ "Open...", "C-x C-f", "open-song" },
-	{ "Save", "C-x C-s", "save-song" },
-	{ "Save As...", "C-x C-w", "save-song-as" },
-	{ nullptr, nullptr, nullptr },
-	{ "Quit", "C-x C-c", "save-buffers-kill-terminal" },
-      } },
-    { "Edit", 'e', {
-	{ "Set Mark", "C-SPC", "set-mark" },
-	{ "Kill Region", "C-w", "kill-region" },
-	{ "Copy", "M-w", "kill-ring-save" },
-	{ "Yank", "C-y", "yank" },
-	{ "Cancel", "C-g", "keyboard-quit" },
-	{ nullptr, nullptr, nullptr },
-	{ "Transpose Up", "C-S-Up", "transpose-region-up" },
-	{ "Transpose Down", "C-S-Down", "transpose-region-down" },
-      } },
-    { "Track", 't', {
-	{ "Add Instrument Track", "C-t", "add-instrument-track" },
-	{ "Add Percussion Track", "C-S-D", "add-percussion-track" },
-	{ "Add Sample Track", "C-r", "add-sample-track" },
-	{ "Add Group Track", "", "add-group-track" },
-	{ "Rename Track...", "F2", "rename-track" },
-	{ "Delete Track", "", "delete-track" },
-	{ nullptr, nullptr, nullptr },
-	{ "Apply Rock Kit", "", "apply-preset-rock" },
-	{ "Apply Latin Kit", "", "apply-preset-latin" },
-	{ "Apply Electronic Kit", "", "apply-preset-electronic" },
-	{ "Remove Kit", "", "apply-preset-none" },
-	{ nullptr, nullptr, nullptr },
-	{ "Toggle Mute", "\\", "toggle-mute" },
-	{ "Toggle Solo", "C-\\", "toggle-solo" },
-	{ "Cycle Monitor (Auto/In/Off)", "", "cycle-monitor" },
-	{ nullptr, nullptr, nullptr },
-	{ "Add Note Column", "C-S-Right", "add-note-column" },
-	{ "Remove Note Column", "C-S-Left", "remove-note-column" },
-      } },
-    // Clip playback and clip content. Launching is quantized to the bar,
-    // like a Launchpad Session-view pad.
-    { "Clip", 'c', {
-	{ "Launch Clip", "", "launch-clip" },
-	{ "Launch Scene", "", "launch-scene" },
-	{ "Stop All Clips", "", "stop-all-clips" },
-	{ "Back to Arrangement", "", "back-to-arrangement" },
-	{ "Track Back to Arrangement", "", "track-back-to-arrangement" },
-	{ nullptr, nullptr, nullptr },
-	{ "New Clip from Selection", "", "copy-to-clip" },
-	{ "Merge Clip to Background", "C-x m", "merge-clip-to-background" },
-	{ nullptr, nullptr, nullptr },
-	{ "Duplicate Clip", "", "duplicate-clip" },
-	{ "Quantize Clip", "", "quantize-clip" },
-	{ "Double Clip Length", "", "double-clip-length" },
-	{ "Halve Clip Length", "", "halve-clip-length" },
-	{ "Toggle Clip Loop", "", "toggle-clip-loop" },
-	{ "Toggle Stop Button", "", "toggle-stop-button" },
-	{ "Rename Clip...", "", "rename-clip" },
-      } },
-    // Song-wide settings.
-    { "Song", 's', {
-	{ "Toggle Binaural Mixer", "", "toggle-mixer-type" },
-	{ nullptr, nullptr, nullptr },
-	{ "Set Song Key...", "", "set-song-key" },
-	{ "Set Tuning System...", "", "set-song-tuning" },
-	{ "Set Time Signature...", "", "set-time-signature" },
-	{ nullptr, nullptr, nullptr },
-	{ "Set Bus Effect A...", "", "set-bus-effect-a" },
-	{ "Set Bus Effect B...", "", "set-bus-effect-b" },
-      } },
-    // How the active song is shown (UI::View) - not a buffer of its own.
-    { "View", 'v', {
-	{ "Arrangement View", "", "arrangement-view" },
-	{ "Session View", "", "session-view" },
-	{ "Toggle Arrangement/Session", "TAB", "toggle-view" },
-	{ nullptr, nullptr, nullptr },
-	{ "Outline", "", "outline-view" },
-	{ "Toggle Outline", "", "toggle-outline" },
-	{ "Toggle Scopes", "", "toggle-scopes" },
-      } },
+      {"File", 'f', {
+                        {"Open...", "C-x C-f", "open-song"},
+                        {"Save", "C-x C-s", "save-song"},
+                        {"Save As...", "C-x C-w", "save-song-as"},
+                        {nullptr, nullptr, nullptr},
+                        {"Quit", "C-x C-c", "save-buffers-kill-terminal"},
+                    }},
+      {"Edit", 'e', {
+                        {"Set Mark", "C-SPC", "set-mark"},
+                        {"Kill Region", "C-w", "kill-region"},
+                        {"Copy", "M-w", "kill-ring-save"},
+                        {"Yank", "C-y", "yank"},
+                        {"Cancel", "C-g", "keyboard-quit"},
+                        {nullptr, nullptr, nullptr},
+                        {"Transpose Up", "C-S-Up", "transpose-region-up"},
+                        {"Transpose Down", "C-S-Down", "transpose-region-down"},
+                    }},
+      {"Track", 't', {
+                         {"Add Instrument Track", "C-t", "add-instrument-track"},
+                         {"Add Percussion Track", "C-S-D", "add-percussion-track"},
+                         {"Add Sample Track", "C-r", "add-sample-track"},
+                         {"Add Group Track", "", "add-group-track"},
+                         {"Rename Track...", "F2", "rename-track"},
+                         {"Delete Track", "", "delete-track"},
+                         {nullptr, nullptr, nullptr},
+                         {"Apply Rock Kit", "", "apply-preset-rock"},
+                         {"Apply Latin Kit", "", "apply-preset-latin"},
+                         {"Apply Electronic Kit", "", "apply-preset-electronic"},
+                         {"Remove Kit", "", "apply-preset-none"},
+                         {nullptr, nullptr, nullptr},
+                         {"Toggle Mute", "\\", "toggle-mute"},
+                         {"Toggle Solo", "C-\\", "toggle-solo"},
+                         {"Cycle Monitor (Auto/In/Off)", "", "cycle-monitor"},
+                         {nullptr, nullptr, nullptr},
+                         {"Add Note Column", "C-S-Right", "add-note-column"},
+                         {"Remove Note Column", "C-S-Left", "remove-note-column"},
+                     }},
+      // Clip playback and clip content. Launching is quantized to the bar,
+      // like a Launchpad Session-view pad.
+      {"Clip", 'c', {
+                        {"Launch Clip", "", "launch-clip"},
+                        {"Launch Scene", "", "launch-scene"},
+                        {"Stop All Clips", "", "stop-all-clips"},
+                        {"Back to Arrangement", "", "back-to-arrangement"},
+                        {"Track Back to Arrangement", "", "track-back-to-arrangement"},
+                        {nullptr, nullptr, nullptr},
+                        {"New Clip from Selection", "", "copy-to-clip"},
+                        {"Merge Clip to Background", "C-x m", "merge-clip-to-background"},
+                        {nullptr, nullptr, nullptr},
+                        {"Duplicate Clip", "", "duplicate-clip"},
+                        {"Quantize Clip", "", "quantize-clip"},
+                        {"Double Clip Length", "", "double-clip-length"},
+                        {"Halve Clip Length", "", "halve-clip-length"},
+                        {"Toggle Clip Loop", "", "toggle-clip-loop"},
+                        {"Toggle Stop Button", "", "toggle-stop-button"},
+                        {"Rename Clip...", "", "rename-clip"},
+                    }},
+      // Song-wide settings.
+      {"Song", 's', {
+                        {"Toggle Binaural Mixer", "", "toggle-mixer-type"},
+                        {nullptr, nullptr, nullptr},
+                        {"Set Song Key...", "", "set-song-key"},
+                        {"Set Tuning System...", "", "set-song-tuning"},
+                        {"Set Time Signature...", "", "set-time-signature"},
+                        {nullptr, nullptr, nullptr},
+                        {"Set Bus Effect A...", "", "set-bus-effect-a"},
+                        {"Set Bus Effect B...", "", "set-bus-effect-b"},
+                    }},
+      // How the active song is shown (UI::View) - not a buffer of its own.
+      {"View", 'v', {
+                        {"Arrangement View", "", "arrangement-view"},
+                        {"Session View", "", "session-view"},
+                        {"Toggle Arrangement/Session", "TAB", "toggle-view"},
+                        {nullptr, nullptr, nullptr},
+                        {"Outline", "", "outline-view"},
+                        {"Toggle Outline", "", "toggle-outline"},
+                        {"Toggle Scopes", "", "toggle-scopes"},
+                    }},
+      // Machine-wide, not per song - the choice is remembered across runs.
+      {"Devices", 'd', {
+                           {"Select Audio Input...", "", "select-capture-device"},
+                           {"Select Audio Output...", "", "select-playback-device"},
+                           {"Select MIDI Input...", "", "select-midi-input"},
+                       }},
   };
 
   // Emacs-style Buffers menu: every open buffer's name (already display-
@@ -1710,11 +1716,14 @@ TerminalUI::readInput() {
       // Alt chord's prefix or part of a keypad sequence - it's just never
       // delivered a second time (kp_escape_delivered_).
       auto active = outline_view_ && outline_view_->isModal() ? outline_view_ : active_element_.lock();
-      if (info_dialog_.isOpen()) {
-	closeInfoDialog();
+      if (choice_dialog_.isOpen()) {
+        closeChoiceDialog();
+        kp_escape_delivered_ = true;
+      } else if (info_dialog_.isOpen()) {
+        closeInfoDialog();
 	kp_escape_delivered_ = true;
       } else if (active && active->wantsBareEscape()) {
-	InputEvent escape(NCKEY_ESC, ni.y, ni.x, false, false, false, false, kind);
+        InputEvent escape(NCKEY_ESC, ni.y, ni.x, false, false, false, false, kind);
 	active->offerInput(escape);
 	kp_escape_delivered_ = true;
       }
@@ -1937,8 +1946,7 @@ TerminalUI::initializeWidgets() {
       auto & song = getController().getSong();
       song.setTimeSignature(*signature);
       song.incVersion();
-      setStatus("Time signature " + signature->toString());
-    }, getController().getSong().getTimeSignature().toString());
+      setStatus("Time signature " + signature->toString()); }, getController().getSong().getTimeSignature().toString());
   });
 
   // C-x C-x (exchange-point-and-mark) is a PatternEditor-owned command (the
@@ -1961,7 +1969,8 @@ TerminalUI::initializeWidgets() {
   commands_.define("other-window", [this]() {
     auto elements = focusableElements();
     auto it = std::find(elements.begin(), elements.end(), active_element_.lock());
-    active_element_ = (it == elements.end() || ++it == elements.end()) ? elements.front() : *it;
+    if (it != elements.end()) ++it;
+    active_element_ = it == elements.end() ? elements.front() : *it;
   });
   // Session view: launch the pattern editor's current clip (the current
   // track's clip in its scene), or every track's clip in that scene -
@@ -2444,6 +2453,12 @@ TerminalUI::offerInput(const InputEvent & input) {
   // keystroke meant for it.
   bool reader_active = status_line_->isReaderActive() || pattern_editor_->isReaderActive() ||
     clip_grid_->isReaderActive();
+  // The choice dialog is modal too, and owns its keys until it is chosen
+  // from or cancelled.
+  if (choice_dialog_.isOpen() && input.getId() != NCKEY_RESIZE && !(input.hasCtrl() && input.getId() == 'l')) {
+    handleChoiceDialogInput(input);
+    return true;
+  }
   // The info dialog is modal: it closes on its own keys or a click and
   // swallows everything else but a resize or redraw.
   if (info_dialog_.isOpen() && input.getId() != NCKEY_RESIZE && !(input.hasCtrl() && input.getId() == 'l')) {
@@ -2469,6 +2484,7 @@ TerminalUI::offerInput(const InputEvent & input) {
     getPlane().refresh();
     layout();
     layoutInfoDialog();
+    layoutChoiceDialog();
     // Deferred, not a direct renderComponents(true) call - see
     // force_next_render_'s own comment on TerminalUI.h: this runs from
     // inside input handling, before startUI()'s own main loop reaches its
@@ -2600,6 +2616,41 @@ TerminalUI::showInfoDialog(const std::string & title, const std::string & markdo
   info_dialog_markdown_ = markdown;
   layoutInfoDialog();
   force_next_render_ = true;
+}
+
+void TerminalUI::showChoiceDialog(const std::string & title, std::vector<Choice> choices, int current,
+                                  std::function<void(int)> on_choose) {
+  if (choices.empty()) {
+    setStatus(title + ": nothing to choose from");
+    return;
+  }
+  std::vector<std::string> labels;
+  for (auto & choice : choices) labels.push_back(choice.label);
+  choice_callback_ = std::move(on_choose);
+  choice_dialog_.open(title, std::move(labels), current);
+  layoutChoiceDialog();
+  force_next_render_ = true;
+}
+
+void TerminalUI::layoutChoiceDialog() {
+  if (!choice_dialog_.isOpen()) return;
+  auto [screen_rows, screen_cols] = getDim();
+  choice_dialog_.show(getPlane(), screen_rows, screen_cols);
+}
+
+void TerminalUI::handleChoiceDialogInput(const InputEvent & input) {
+  auto result = choice_dialog_.offerInput(input);
+  if (result == ChoiceDialog::Result::NONE) {
+    layoutChoiceDialog(); // redraw with the moved selection
+    force_next_render_ = true;
+    return;
+  }
+  auto index = choice_dialog_.selected();
+  // Closed before the callback runs: it may report on the status line, and
+  // nothing should be left modal while it does.
+  auto callback = std::move(choice_callback_);
+  closeChoiceDialog();
+  if (result == ChoiceDialog::Result::CHOSEN && callback) callback(index);
 }
 
 // Centers the dialog on the screen.

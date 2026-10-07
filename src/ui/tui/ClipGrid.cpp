@@ -246,8 +246,7 @@ ClipGrid::startClipRename(const Song & song, const std::vector<int> & track_ids)
   });
 }
 
-void
-ClipGrid::startSceneRename() {
+void ClipGrid::startSceneRename() {
   if (inline_editor_.isOpen()) return;
   auto scene = physicalFor(cursor_row_);
   auto row = scene - scroll_row_ + 1; // +1 for the header row

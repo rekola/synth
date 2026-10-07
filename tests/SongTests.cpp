@@ -1073,7 +1073,7 @@ TEST(sample_background_round_trips_through_save_and_load) {
   auto scratch_samples_dir = fs::path(TESTS_SCRATCH_DIR) / "song_sample_background_scratch.samples";
 
   Song song;
-  song.setTimeSignature(TimeSignature{ 1, 4 });
+  song.setTimeSignature(TimeSignature{1, 4});
   auto & track = song.addTrack(make_unique<SampleTrack>());
   track.setId("bed");
 
@@ -1268,12 +1268,12 @@ TEST(remove_instrument_with_an_out_of_range_index_is_a_no_op) {
 // row being a sixteenth and a bar getRowsPerBar() rows.
 TEST(song_formats_a_row_as_bar_beat_sixteenth) {
   Song song;
-  song.setTimeSignature(TimeSignature{ 4, 4 }); // 4/4
+  song.setTimeSignature(TimeSignature{4, 4}); // 4/4
   CHECK(song.formatPosition(0) == "1.1.1");
   CHECK(song.formatPosition(5) == "1.2.2");
   CHECK(song.formatPosition(15) == "1.4.4");
   CHECK(song.formatPosition(16) == "2.1.1");
-  song.setTimeSignature(TimeSignature{ 3, 4 }); // 3/4
+  song.setTimeSignature(TimeSignature{3, 4}); // 3/4
   CHECK(song.formatPosition(11) == "1.3.4");
   CHECK(song.formatPosition(12) == "2.1.1");
   CHECK(song.formatPosition(30) == "3.2.3");
@@ -1311,7 +1311,7 @@ TEST(locators_round_trip_through_save_and_load) {
 
 TEST(arrangement_length_is_where_its_content_ends_in_whole_bars) {
   Song song(Tuning::TET12);
-  song.setTimeSignature(TimeSignature{ 1, 4 });
+  song.setTimeSignature(TimeSignature{1, 4});
   CHECK(song.getArrangementLength() == 0);
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();

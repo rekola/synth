@@ -6,7 +6,7 @@
 // The bars of one time signature counted from an origin row: bar 0 starts
 // at `origin`, and rows before it carry the same bars backward.
 struct BarGrid {
-  TimeSignature signature{ 4, 4 };
+  TimeSignature signature{4, 4};
   int origin = 0;
 
   int barRows() const { return signature.rowsPerBar(); }
@@ -38,8 +38,8 @@ struct RunningBars {
 // the song's (counted from row 0).
 inline BarGrid
 barsAt(const TimeSignature & song_signature, const RunningBars & running, int row) {
-  if (running.isActive() && row >= running.origin) return { running.signature, running.origin };
-  return { song_signature, 0 };
+  if (running.isActive() && row >= running.origin) return {running.signature, running.origin};
+  return {song_signature, 0};
 }
 
 #endif

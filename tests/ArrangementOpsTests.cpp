@@ -382,7 +382,7 @@ TEST(resolve_edit_and_read_target_apply_a_focused_clip_override_regardless_of_ro
   Clip other(track_id);
   other.setLength(8);
   other.setLooping(true);
-  auto other_id = song.addClip(move(other)).getId(); // index 1
+  song.addClip(move(other)); // index 1
 
   placeClipInstance(song, track_id, 0, 1); // "other" is active at every row
 
@@ -464,7 +464,7 @@ TEST(resolve_instance_at_a_stop_after_a_looping_trigger_silences_every_later_row
   loop.setLooping(true);
   song.addClip(move(loop)); // index 0
 
-  song.setTimeSignature(TimeSignature{ 4, 4 });
+  song.setTimeSignature(TimeSignature{4, 4});
 
   placeClipInstance(song, track_id, 0, 0);
   // Still looping well past its own native length, before any stop -
@@ -626,7 +626,7 @@ TEST(merge_clip_to_background_looping_clip_wraps_up_to_the_arrangements_end) {
   Song song;
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
-  song.setTimeSignature(TimeSignature{ 1, 4 });
+  song.setTimeSignature(TimeSignature{1, 4});
 
   Clip loop(track_id);
   loop.setLength(3);
@@ -662,7 +662,7 @@ TEST(merge_clip_to_background_is_a_noop_with_nothing_placed) {
 // placement is removed the same as a note-based clip's own merge.
 TEST(merge_clip_to_background_mixes_a_sample_clip_into_the_background_bed) {
   Song song;
-  song.setTimeSignature(TimeSignature{ 1, 4 });
+  song.setTimeSignature(TimeSignature{1, 4});
   auto & track = song.addTrack(make_unique<SampleTrack>());
   auto track_id = track.getInternalId();
 

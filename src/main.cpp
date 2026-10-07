@@ -1,4 +1,6 @@
 #include "audio/AlsaAudio.h"
+#include "audio/AudioDevices.h"
+#include "audio/DeviceSettings.h"
 #include "launchpad/LaunchpadIO.h"
 #include "launchpad/LaunchpadManager.h"
 #include "ui/tui/TerminalUI.h"
@@ -64,7 +66,13 @@ int main(int argc, char *argv[]) {
   bool force_legacy_binaural = false; // --legacy-binaural: use the old virtual-speaker-rig decoder instead of MagLS
   bool show_licenses = false; // --licenses: print third-party license text and exit
   UI::View initial_view = UI::View::SESSION; // --view session|arrangement: which view the UI starts in
-  string capture_device = "default"; // --capture-device: override which ALSA input AlsaAudio's capture opens, for a machine where "default" doesn't resolve to the mic actually wanted
+  // The saved audio/MIDI device choices; --capture-device/--playback-device/
+  // --midi-input override them for this run only (`devices`), never the file
+  // (`saved_devices`, what the Controller persists from).
+  auto devices_path = defaultDeviceSettingsPath();
+  auto saved_devices = loadDeviceSettings(devices_path);
+  auto devices = saved_devices;
+  bool list_devices = false; // --list-devices: print what can be selected and exit
   vector<string> input;
   string render_path;
   bool headless = false; // --headless: no terminal UI, status lines on stderr
@@ -121,13 +129,17 @@ int main(int argc, char *argv[]) {
       force_legacy_binaural = true;
     } else if (strcmp(argv[i], "--licenses") == 0) {
       show_licenses = true;
-    } else if (strcmp(argv[i], "--capture-device") == 0) {
+    } else if (strcmp(argv[i], "--capture-device") == 0 || strcmp(argv[i], "--playback-device") == 0 ||
+               strcmp(argv[i], "--midi-input") == 0) {
       if (i + 1 >= argc) {
-	fmt::print(stderr, "--capture-device requires a device name (e.g. 'default', 'hw:1,0' - see 'arecord -L')\n");
-	exit(1);
+        fmt::print(stderr, "{} requires a name (see --list-devices)\n", argv[i]);
+        exit(1);
       }
-      i++;
-      capture_device = argv[i];
+      string * target = strcmp(argv[i], "--capture-device") == 0 ? &devices.capture : strcmp(argv[i], "--playback-device") == 0 ? &devices.playback
+                                                                                                                                : &devices.midi_input;
+      *target = argv[++i];
+    } else if (strcmp(argv[i], "--list-devices") == 0) {
+      list_devices = true;
     } else if (strcmp(argv[i], "--ambisonic") == 0) {
       int order = kAmbisonicOrder; // bare --ambisonic (no explicit number) means the highest supported order
       if (i + 1 < argc && argv[i + 1][0] != '-') {
@@ -149,6 +161,22 @@ int main(int argc, char *argv[]) {
 
   if (show_licenses) {
     fmt::print("{}\n", kThirdPartyLicensesText);
+    return 0;
+  }
+
+  if (list_devices) {
+    fmt::print("{}\n", pipeWireAvailable() ? "Audio devices (PipeWire):" : "Audio devices (ALSA - PipeWire not available):");
+    auto print = [](const char * heading, const char * flag, const auto & entries) {
+      fmt::print("\n{}:\n", heading);
+      for (auto & entry : entries) {
+        fmt::print("  {}\n      {} \"{}\"\n", entry.label, flag, entry.name.empty() ? "default" : entry.name);
+      }
+    };
+    print("Inputs", "--capture-device", listCaptureDevices());
+    print("Outputs", "--playback-device", listPlaybackDevices());
+    fmt::print("\nMIDI inputs:\n");
+    for (auto & source : listMidiSources()) fmt::print("  {}\n      --midi-input \"{}\"\n", source.label, source.spec);
+    fmt::print("\nSelections made in the program are saved in {}\n", devices_path.empty() ? "(no config directory)" : devices_path);
     return 0;
   }
 
@@ -196,10 +224,11 @@ int main(int argc, char *argv[]) {
   // Controller copies channel_config at construction time, so this has to
   // happen first, not be patched up after the fact.
   AlsaAudio audio(channel_config.getAudioOutSampleRate(), channel_config.getDeviceChannels());
-  audio.initialize(logger, capture_device);
+  audio.initialize(logger, devices);
   channel_config.setAudioOutSampleRate(audio.getFrequency());
 
   auto controller = make_shared<Controller>(channel_config);
+  controller->setDeviceSettings(saved_devices, devices_path);
   if (force_cardioid) controller->setMixerType(MixerType::AMBISONIC_STEREO);
   if (force_legacy_binaural) controller->setUseLegacyBinaural(true);
 

@@ -32,7 +32,7 @@ int positionAfterFirstRow(const Song & song) {
 // instead of the next row.
 TEST(pattern_break_jumps_to_the_next_bar) {
   Song song;
-  song.setTimeSignature(TimeSignature{ 1, 4 });
+  song.setTimeSignature(TimeSignature{1, 4});
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   song.getArrangement().setCommand(0, track.getInternalId(), Command("ZB00"));
 
@@ -41,7 +41,7 @@ TEST(pattern_break_jumps_to_the_next_bar) {
 
 TEST(pattern_break_starts_the_next_bar_at_the_given_row) {
   Song song;
-  song.setTimeSignature(TimeSignature{ 2, 4 });
+  song.setTimeSignature(TimeSignature{2, 4});
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   song.getArrangement().setCommand(0, track.getInternalId(), Command("ZB03"));
 
@@ -51,7 +51,7 @@ TEST(pattern_break_starts_the_next_bar_at_the_given_row) {
 // A row past the end of the bar lands on its last row.
 TEST(pattern_break_row_is_clamped_to_the_bar) {
   Song song;
-  song.setTimeSignature(TimeSignature{ 2, 4 });
+  song.setTimeSignature(TimeSignature{2, 4});
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   song.getArrangement().setCommand(0, track.getInternalId(), Command("ZBFF"));
 
@@ -61,7 +61,7 @@ TEST(pattern_break_row_is_clamped_to_the_bar) {
 // On a bar's last row the next bar is where the transport goes anyway.
 TEST(pattern_break_on_a_bars_last_row_changes_nothing) {
   Song song;
-  song.setTimeSignature(TimeSignature{ 1, 16 });
+  song.setTimeSignature(TimeSignature{1, 16});
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   song.getArrangement().setCommand(0, track.getInternalId(), Command("ZB00"));
 
@@ -73,7 +73,7 @@ TEST(pattern_break_on_a_bars_last_row_changes_nothing) {
 // own column works the same as an instrument track's.
 TEST(pattern_break_on_the_master_tracks_own_column_works_too) {
   Song song;
-  song.setTimeSignature(TimeSignature{ 1, 4 });
+  song.setTimeSignature(TimeSignature{1, 4});
   song.getArrangement().setCommand(0, song.getMasterTrack().getInternalId(), Command("ZB00"));
 
   CHECK(positionAfterFirstRow(song) == 4);
@@ -83,7 +83,7 @@ TEST(pattern_break_on_the_master_tracks_own_column_works_too) {
 // never read.
 TEST(pattern_break_on_a_wrapping_effects_own_column_works_too) {
   Song song;
-  song.setTimeSignature(TimeSignature{ 1, 4 });
+  song.setTimeSignature(TimeSignature{1, 4});
   auto & effect = song.addTrack(make_unique<Amplifier>());
   effect.addChild(make_unique<InstrumentTrack>(0));
   song.getArrangement().setCommand(0, effect.getInternalId(), Command("ZB00"));
@@ -95,7 +95,7 @@ TEST(pattern_break_on_a_wrapping_effects_own_column_works_too) {
 // it is played from.
 TEST(pattern_break_inside_a_placed_clip_jumps_to_the_next_bar) {
   Song song;
-  song.setTimeSignature(TimeSignature{ 1, 4 });
+  song.setTimeSignature(TimeSignature{1, 4});
   song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();

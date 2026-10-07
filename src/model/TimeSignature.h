@@ -38,7 +38,8 @@ struct TimeSignature {
     auto left = trim(text.substr(0, slash)), right = trim(text.substr(slash + 1));
     auto digits = [](const std::string & s) {
       if (s.empty() || s.size() > 2) return false;
-      for (auto c : s) if (!std::isdigit(static_cast<unsigned char>(c))) return false;
+      for (auto c : s)
+        if (!std::isdigit(static_cast<unsigned char>(c))) return false;
       return true;
     };
     if (!digits(left) || !digits(right)) return std::nullopt;

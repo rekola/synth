@@ -336,7 +336,7 @@ TEST(render_sample_track_clip_stretches_to_match_a_disagreeing_song_tempo) {
 TEST(render_sample_track_background_bed_plays_through_the_merges_own_leftover_stop) {
   Song song;
   song.setTempo(120);
-  song.setTimeSignature(TimeSignature{ 1, 4 });
+  song.setTimeSignature(TimeSignature{1, 4});
   auto & track = song.addTrack(std::make_unique<SampleTrack>());
   auto track_id = track.getInternalId();
 
@@ -385,7 +385,7 @@ TEST(render_sample_track_background_bed_plays_through_the_merges_own_leftover_st
 TEST(render_sample_track_background_bed_mixes_with_a_real_clip_on_top) {
   Song song;
   song.setTempo(120);
-  song.setTimeSignature(TimeSignature{ 1, 4 });
+  song.setTimeSignature(TimeSignature{1, 4});
   auto & track = song.addTrack(std::make_unique<SampleTrack>());
   auto track_id = track.getInternalId();
 
@@ -458,7 +458,7 @@ TEST(render_sample_track_background_bed_mixes_with_a_real_clip_on_top) {
 TEST(render_sample_track_resumes_a_stopped_instance_from_the_row_the_playhead_landed_on) {
   Song song;
   song.setTempo(120);
-  song.setTimeSignature(TimeSignature{ 1, 4 });
+  song.setTimeSignature(TimeSignature{1, 4});
   auto & track = song.addTrack(std::make_unique<SampleTrack>());
   auto track_id = track.getInternalId();
 
@@ -523,7 +523,7 @@ TEST(render_sample_track_resumes_a_stopped_instance_from_the_row_the_playhead_la
 TEST(render_sample_track_pausing_releases_the_sounding_voice_instead_of_leaving_it_ringing) {
   Song song;
   song.setTempo(120);
-  song.setTimeSignature(TimeSignature{ 1, 4 });
+  song.setTimeSignature(TimeSignature{1, 4});
   auto & track = song.addTrack(std::make_unique<SampleTrack>());
   auto track_id = track.getInternalId();
 
@@ -584,7 +584,7 @@ TEST(render_sample_track_pausing_releases_the_sounding_voice_instead_of_leaving_
 TEST(render_sample_track_resuming_mid_row_across_several_small_blocks_still_plays) {
   Song song;
   song.setTempo(120);
-  song.setTimeSignature(TimeSignature{ 1, 4 });
+  song.setTimeSignature(TimeSignature{1, 4});
   auto & track = song.addTrack(std::make_unique<SampleTrack>());
   auto track_id = track.getInternalId();
 
@@ -2035,7 +2035,7 @@ TEST(render_prefers_a_clips_command_over_the_backgrounds_on_the_same_row) {
 TEST(render_a_clips_stop_releases_its_voices_on_the_rows_own_sample) {
   Song song;
   song.setTempo(120);
-  song.setTimeSignature(TimeSignature{ 1, 4 });
+  song.setTimeSignature(TimeSignature{1, 4});
   song.addInstrument(std::make_unique<Oscillator>(WaveformType::SINE));
   auto track_id = song.addTrack(std::make_unique<InstrumentTrack>(0)).getInternalId();
   Clip clip(track_id);

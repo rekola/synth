@@ -70,11 +70,10 @@ SessionPlayer::shiftLaunchedClips(int delta_rows) {
   controller_.setPlaybackInfo(info);
 }
 
-void
-SessionPlayer::queueSceneChange(int tempo, TimeSignature signature, bool clear_running) {
+void SessionPlayer::queueSceneChange(int tempo, TimeSignature signature, bool clear_running) {
   auto flags = (clear_running ? 1 : 0) | (controller_.getPlaybackInfo().isPlaying() ? 0 : 2);
   controller_.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(
-    PlaybackControlEvent::QUEUE_SCENE_CHANGE, controller_.getActiveBufferName(), tempo, signature.numerator * 100 + signature.denominator, flags, ++scene_seq_));
+      PlaybackControlEvent::QUEUE_SCENE_CHANGE, controller_.getActiveBufferName(), tempo, signature.numerator * 100 + signature.denominator, flags, ++scene_seq_));
 }
 
 void
@@ -390,7 +389,7 @@ SessionPlayer::quantizedStep() const {
     step++;
     row++;
   }
-  return { step, step - controller_.getSong().rowInBar(row) };
+  return {step, step - controller_.getSong().rowInBar(row)};
 }
 
 SessionPlayer::Step
@@ -398,7 +397,7 @@ SessionPlayer::rawStep() const {
   auto & info = controller_.getPlaybackInfo();
   auto step = info.getSessionClock();
   auto row = info.getAbsolutePosition();
-  return { step, step - controller_.getSong().rowInBar(row), min(255, info.getCurrentDelay()) };
+  return {step, step - controller_.getSong().rowInBar(row), min(255, info.getCurrentDelay())};
 }
 
 unordered_map<int, SessionPlayer::Playhead>
