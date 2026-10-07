@@ -724,6 +724,7 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                         {nullptr, nullptr, nullptr},
                         {"Transpose Up", "C-S-Up", "transpose-region-up"},
                         {"Transpose Down", "C-S-Down", "transpose-region-down"},
+                        {"Humanize", "", "humanize-region"},
                     }},
       {"Track", 't', {
                          {"Add Instrument Track", "C-t", "add-instrument-track"},
