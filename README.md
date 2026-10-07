@@ -45,8 +45,6 @@ differs.
   as note names, so the same scale is correct in every tuning. Without a scale, the Launchpad keyboard
   plays major. The scale drives the in-key layout described in
   [docs/drums-and-sequencer.md](docs/drums-and-sequencer.md).
-- **Further reading.** Kyle Gann, *The Arithmetic of Listening* (2019), on
-  deriving tunings and intervals.
 
 # Features
 
