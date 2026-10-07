@@ -684,7 +684,7 @@ would otherwise resume showing.
   octave's own pitch-class range, so the list keeps climbing past the
   octave boundary rather than folding back below the tonic - resolved
   from `Song::getScale()`'s own chosen `Scale` - `MAJOR`/`MINOR`/
-  `MICROTONAL_A`/`MICROTONAL_B`, each a fixed 7-name degree list in
+  `OTONAL`/`UTONAL`, each a fixed 7-name degree list in
   `Note::stringToKey()`'s own note-name syntax so the exact same list is
   correct under every tuning without hardcoding a separate interval set
   per one - transposed to `Song::getKey()`; `Scale::NONE`, the default,
