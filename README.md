@@ -36,7 +36,7 @@ differs.
   built 1950 for Teylers Museum, Haarlem). Drum tracks have no tuning: a
   note is a General MIDI drum. Notes are spelled with sharps, flats and double
   flats, and in the finer tunings they are distinct pitches: in 31-EDO
-  E𝄫 and E♭ differ, where in 12-EDO they collapse. Note numbers for each tuning
+  E♯ and F differ, where in 12-EDO they are the same note. Note numbers for each tuning
   are in `docs/`, for example [31edo_note_numbers.txt](docs/31edo_note_numbers.txt).
 - **Scales.** A song has a key and an optional scale: major, minor, otonal or
   utonal (Partch, 1949). Each scale is written once as note names, so the same
