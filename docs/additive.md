@@ -138,7 +138,7 @@ of a real instrument.
 | Preset | Character |
 |---|---|
 | `default` | A plain struck string: one string, partials on the tuning, a mild hammer, moderate decay. |
-| `piano` | Three strings a cent apart, 64 partials on the tuning with `stretch` 0.001, struck at 1/8 by a hammer with a fixed 2 kHz corner, outer strings decaying 50% faster and slower, bass ringing longer, a short wide body thump. The library's `piano.acoustic.grand` (used when the SoundFont has no piano). |
+| `piano` | Three strings a cent apart, 64 partials on the tuning with `stretch` 0.001, struck at 1/8 by a hammer with a fixed 2 kHz corner, outer strings decaying 50% faster and slower, bass ringing longer, a short wide body thump. The library's `piano.acoustic.grand`, which replaces the SoundFont's own piano. |
 | `guitar-nylon` | One string plucked at 1/5 with a soft fingertip (1.5 kHz), high partials dying quickly, a small body. |
 | `guitar-steel` | The same with a bright pick (5 kHz), a longer ring, more stretch. |
 | `harp` | Long decays lengthening strongly toward the bass, strings spread 60° across the keyboard. |

@@ -92,7 +92,7 @@ TEST(gm_pad_render_is_non_silent_and_finite) {
 
 // Additive piano ---------------------------------------------------------
 
-TEST(additive_piano_is_fallback_when_soundfont_has_no_piano) {
+TEST(additive_piano_is_registered_when_soundfont_has_no_piano) {
   InstrumentProvider provider; // no loadSoundFont() at all
   registerLibraryInstruments(provider);
 
@@ -101,17 +101,24 @@ TEST(additive_piano_is_fallback_when_soundfont_has_no_piano) {
   CHECK(dynamic_cast<EnvelopeFilter *>(resolved.get()) != nullptr);
 }
 
-TEST(additive_piano_does_not_override_an_existing_soundfont_piano) {
+TEST(additive_piano_overrides_an_existing_soundfont_piano) {
   std::string path = std::string(TESTS_SCRATCH_DIR) + "/instrument_library_piano.sf2";
-  sf2fixture::writeMinimalSf2(path, { {"Grand Piano", 0, {}, {}} }); // program 0 = piano.acoustic.grand
+  sf2fixture::writeMinimalSf2(path, {{"Yamaha Grand", 0, {}, {}}}); // program 0 = piano.acoustic.grand
 
   InstrumentProvider provider;
   provider.loadSoundFont(path);
+  // Before the library registers its own piano, the SF2 preset is what is
+  // there, so the check below is a real override, not a no-op path.
+  auto before = provider.resolvePath("piano.acoustic.grand");
+  CHECK(before != nullptr);
+  CHECK(dynamic_cast<EnvelopeFilter *>(before.get()) == nullptr);
+
   registerLibraryInstruments(provider);
 
   auto resolved = provider.resolvePath("piano.acoustic.grand");
   CHECK(resolved != nullptr);
-  CHECK(dynamic_cast<EnvelopeFilter *>(resolved.get()) == nullptr); // still the real SF2 piano
+  CHECK(dynamic_cast<EnvelopeFilter *>(resolved.get()) != nullptr);
+  CHECK(resolved->getName() == "Additive Grand Piano");
 }
 
 TEST(additive_piano_render_is_non_silent_and_finite) {

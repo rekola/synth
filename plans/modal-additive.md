@@ -550,7 +550,7 @@ within `unisonDetune`-scale of each other, never the tens of Hz of today.
 ## Who uses `<additive>`
 
 - `src/instruments/InstrumentLibrary.cpp:320`: `piano.acoustic.grand`
-  (fallback only when the SoundFont has no piano) and its tests,
+  (registered over the SoundFont's own piano, as the FM electric pianos are; it was a fallback only until a SoundFont piano was reported winning) and its tests,
   `tests/InstrumentLibraryTests.cpp`, `tests/fixtures/library_additive_piano.xml`.
 - `tests/fixtures/additive_note.xml` and `tests/AdditiveTests.cpp`
   (`<additive preset="struck-string"/>` at 12-EDO; renders finite and audible;

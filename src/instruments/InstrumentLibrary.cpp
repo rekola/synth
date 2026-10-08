@@ -86,9 +86,8 @@ void registerNamed(InstrumentProvider & provider, const string & path, const str
 
 // Registers `path` only when nothing (no SoundFont, no earlier library
 // registration) has already claimed that exact taxonomy leaf - the
-// "fallback when the SoundFont has no piano" half of the additive piano's
-// job. Deliberately an exact-key check (getTaxonomyPaths(), not
-// resolvePath()'s walk-up): resolvePath("piano.acoustic.grand") could
+// "fallback when the SoundFont has no such instrument" role. Deliberately an
+// exact-key check (getTaxonomyPaths(), not resolvePath()'s walk-up): resolvePath("piano.acoustic.grand") could
 // still find something via a shorter prefix or a kGmPathDefaults redirect
 // even with no exact SF2 registration at this leaf, and that's a real,
 // intentional fallback of its own - this function only cares whether this
@@ -246,8 +245,7 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // will always be more convincing than this resynthesis, and shouldn't
   // lose to it - registered as a fallback (registerFallbackPath(), the
   // same "only fill the leaf in if a SoundFont didn't already claim it"
-  // role piano.acoustic.grand/the additive piano use), not an
-  // unconditional override. See PadSynthPresets.h's own "organ-pipe"
+  // role), not an unconditional override. See PadSynthPresets.h's own "organ-pipe"
   // comment for why a pipe organ is nonetheless close to PADsynth's ideal
   // case *when nothing better is available*: a single organ pipe's own
   // tone is a steady, near-beat-free standing wave, not several
@@ -365,10 +363,9 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
                                                                                      {2.669f, 0.73f, 1.7f, 1483.0f, 0.13f, 25.0f},
                                                                                  }));
 
-  // Only takes over piano.acoustic.grand itself when nothing already
-  // claimed that exact leaf - the "fallback when the SoundFont has no
-  // piano" role; a real SF2 grand piano always wins when one is loaded.
-  registerFallbackPath(provider, "piano.acoustic.grand", "Additive Grand Piano", additive_piano_envelope());
+  // Replaces the SoundFont's grand piano: a sampled piano can't play the
+  // septimal intervals in tune, and this is the instrument that can.
+  registerNamed(provider, "piano.acoustic.grand", "Additive Grand Piano", additive_piano_envelope());
 
   // Mellotron - tapeDegradation(preset="mellotron") wrapping
   // envelope+padsynth(preset="strings") - a Mellotron "strings" tape is a
