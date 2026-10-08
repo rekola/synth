@@ -490,12 +490,11 @@ within `unisonDetune`-scale of each other, never the tens of Hz of today.
   plain string is no longer what it demonstrates), the obsolete attributes
   dropped.
 - `songs/songtest20.xml` lines 29-30 and 37-38: the user's work in progress;
-  **never edited or committed here**. It is meant to use the `default`
-  preset, and it already does without any edit: `struck-string` no longer
-  exists, so both instruments fall back to `default`, the plain single
-  string. (The "Additive Piano" instrument on line 38 therefore stays a
-  plain string with three unison strings; nothing asks the user to change
-  it to `piano`.) What changes in how it sounds: the partial cluster at
+  edited only at the user's request: both instruments now say
+  `preset="default"` (lines 30 and 38), the plain single string, so the
+  song does not depend on `struck-string`, which the rework removes. (The
+  "Additive Piano" instrument on line 38 is therefore a plain string with
+  three unison strings, not the `piano` preset.) What changes in how it sounds: the partial cluster at
   3-4 × f0 is gone, replaced by a real series on the 31-EDO grid; `tilt` and
   `attackNoiseLevel` are ignored; `unisonVoices="3"` gives three strings
   1 cent apart instead of about 12. Septimal chords in that song stop

@@ -27,7 +27,7 @@
             <padsynth preset="bells"/>
         </envelope>
         <envelope name="Additive Struck-String" attack="0.0049999999" hold="0" decay="1.5" sustain="0.30000001" release="0.5" keynumToHold="0" keynumToDecay="0">
-            <additive preset="struck-string"/>
+            <additive preset="default"/>
         </envelope>
         <tapeDegradation name="Mellotron" azimuth="0" distance="0" elevation="0" preset="mellotron">
             <envelope attack="0.050000001" hold="0" decay="0.30000001" sustain="0.94999999" release="0.40000001" keynumToHold="0" keynumToDecay="0">
@@ -35,7 +35,7 @@
             </envelope>
         </tapeDegradation>
         <envelope name="Additive Piano" attack="0.0049999999" hold="0" decay="8" sustain="0" release="0.30000001" keynumToHold="0" keynumToDecay="0">
-            <additive preset="struck-string" tilt="-6" unisonVoices="3" attackNoiseLevel="0.039999999"/>
+            <additive preset="default" tilt="-6" unisonVoices="3" attackNoiseLevel="0.039999999"/>
         </envelope>
         <instrument name="SoundFont Guitar" from="guitar.acoustic.steel"/>
         <envelope name="PadSynth Strings (matched)" attack="0.050000001" hold="0" decay="0.60000002" sustain="0.69999999" release="1" keynumToHold="0" keynumToDecay="0">
