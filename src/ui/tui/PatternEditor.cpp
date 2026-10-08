@@ -2897,6 +2897,16 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       // dim is about telling looped content apart from a pattern's own
       // real rows, not something the playhead itself should ever show.
       bool is_repeat_row = pattern_length > 0 && read_target.unwrapped_row >= pattern_length && !highlight;
+      if (per_track_rows && pattern_length > 0) {
+        // Each track has its own position: the pass it's in is the bright
+        // one, every other pass of its block a repeat. Outside the block
+        // the whole column is already dimmed.
+        auto own = source_->trackAddress(track_id, address);
+        auto at = source_->trackAddress(track_id, source_->trackCursor(track_id));
+        auto pass = [&](int row) { return row / pattern_length; };
+        is_repeat_row = own.block == at.block && at.row >= 0 &&
+                        pass(read_target.unwrapped_row) != pass(at.row);
+      }
       if (is_repeat_row) {
 	Color black;
 	bg = bg.blend(kFadedRowDim, black);
