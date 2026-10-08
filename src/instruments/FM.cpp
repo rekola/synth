@@ -57,8 +57,16 @@ private:
 
 std::unique_ptr<VoiceState>
 FM::playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const {
-  auto voice = std::make_unique<FMVoice>(config, position, detune, level_, ratio_, index_, index_decay_, sends, note_coord);
-  voice->playNote(getFrequencyFor(tuning, note_value), velocity, note_value);
+  detune *= powf(2.0f, detune_cents_ / 1200.0f);
+  // A detuned copy starts at its own phase (keyed by its detune): layers
+  // started in phase would cancel each other's partials wherever the
+  // index makes them opposite in sign.
+  NoteCoordinate coord = detune_cents_ != 0.0f ? note_coord.withInstance(static_cast<int>(lroundf(detune_cents_ * 16.0f))) : note_coord;
+  float frequency = getFrequencyFor(tuning, note_value);
+  constexpr float kMiddleC = 261.63f;
+  float index = index_tracking_ != 0.0f && frequency > 0.0f ? index_ * powf(kMiddleC / frequency, index_tracking_) : index_;
+  auto voice = std::make_unique<FMVoice>(config, position, detune, level_, ratio_, index, index_decay_, sends, coord);
+  voice->playNote(frequency, velocity, note_value);
   return voice;
 }
 
@@ -70,6 +78,8 @@ FM::loadParameters(const ParameterSource & input) {
   ratio_ = input.get<float>("ratio", 1.0f);
   index_ = input.get<float>("index", 1.0f);
   index_decay_ = input.get<float>("indexDecay", 0.0f);
+  index_tracking_ = input.get<float>("indexTracking", 0.0f);
+  detune_cents_ = input.get<float>("detune", 0.0f);
 }
 
 void
@@ -80,4 +90,6 @@ FM::storeParameters(ParameterSource & output) const {
   output.set("ratio", ratio_);
   output.set("index", index_);
   output.set("indexDecay", index_decay_);
+  output.set("indexTracking", index_tracking_, 0.0f);
+  output.set("detune", detune_cents_, 0.0f);
 }

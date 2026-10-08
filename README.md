@@ -49,6 +49,26 @@ The Application draws on several traditions.
   scale drives the in-key layout described in
   [docs/drums-and-sequencer.md](docs/drums-and-sequencer.md).
 
+## Pianos and Just Intervals
+
+A just interval such as 7:4 sounds smooth when the partials the two notes
+share line up, which needs harmonic partials. A stiff piano string's partial
+*n* is about 866·B·n² cents sharp (Fletcher, 1964; B is 10⁻⁴ to 10⁻³ on a
+real piano), so the higher the shared partials, the faster they beat: with
+B = 4·10⁻⁴, 7:4 is 11 cents off and 12:7 33 cents. A stretched octave can
+only suit one interval. A sampled piano can't be corrected, as repitching a
+recording keeps its partials as inharmonic as they were.
+
+The FM electric piano (`piano.electric.fm`, [docs/fm.md](docs/fm.md)) gets
+its inharmonicity from a modulator at 1+ε times the carrier, which puts
+partial *n* at n + (n−1)·ε: nearly the same offset for every partial, so the
+shared partials of any interval up to an octave beat at most ε times the
+fundamental (a quarter of a hertz at middle C with ε = 0.001). What remains
+is the tuning's own error, such as 31-EDO's 4:3 being 5.2 cents wide. Removing that
+needs partials moved onto the tuning's steps (Sethares, *Tuning, Timbre,
+Spectrum, Scale*), which `<additive>` and `<padsynth>` do (`tuningMatched`)
+but FM can't.
+
 # Features
 
 - Launchpad support and Live arrangement

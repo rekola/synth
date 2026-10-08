@@ -27,6 +27,11 @@ class FM : public Instrument {
   float index_ = 1.0f;
   // Time constant (s) of the index's exponential decay; 0 keeps it constant.
   float index_decay_ = 0.0f;
+  // Exponent k scaling the index by (middle C / note frequency)^k: 0 keeps it
+  // the same on every note, 1 keeps the spectrum's bandwidth fixed in Hz.
+  float index_tracking_ = 0.0f;
+  // Pitch offset in cents, for layering detuned unison copies.
+  float detune_cents_ = 0.0f;
 };
 
 #endif

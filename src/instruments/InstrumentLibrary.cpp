@@ -287,25 +287,37 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
     return env;
   };
 
-  // Electric Piano 2 (piano.electric.fm) - a two-layer FM electric piano: a
-  // sine body whose modulation index decays like a struck tine's brightness,
-  // plus a brief high-ratio layer for the tine's own attack transient.
-  // Velocity scales the index, so harder notes are brighter.
+  // Electric Piano 2 (piano.electric.fm) - FM layers on slightly detuned
+  // carriers: a bright 1:1 pair whose index fades first, a mellower 1:1 pair
+  // whose modulator runs a little sharp, a 2:1 pair for the odd partials and
+  // a short inharmonic strike. Velocity scales every index, so harder notes
+  // are brighter, and the sustained layers' index tracks the pitch so that
+  // low notes are as bright and as loud as high ones. The 1+e ratio is the only inharmonicity that lasts: it puts
+  // partial n at n + (n-1)e, so shared partials of any just interval within
+  // the octave beat at most e times the fundamental, however high they are.
+  // Each layer's envelope decay is its time to -80 dB; the brighter layers
+  // go first, so the tone darkens as it decays.
   {
-    auto fm_layer = [](float ratio, float index, float index_decay, float level) {
+    auto fm_layer = [](float ratio, float index, float index_decay, float index_tracking, float detune_cents, float level, float decay) {
       auto fm = make_unique<FM>();
       MemoryParameterSource params;
       params.set("ratio", ratio);
       params.set("index", index);
       params.set("indexDecay", index_decay);
+      params.set("indexTracking", index_tracking);
+      params.set("detune", detune_cents);
       params.set("level", level);
       fm->loadParameters(params);
-      return fm;
+      auto envelope = makeEnvelope(0.002f, 0.0f, decay, 0.0f, 0.25f);
+      envelope->addChild(move(fm));
+      return envelope;
     };
-    auto envelope = makeEnvelope(0.003f, 0.0f, 2.0f, 0.0f, 0.25f);
-    envelope->addChild(fm_layer(1.0f, 2.5f, 0.6f, 0.8f));
-    envelope->addChild(fm_layer(14.0f, 1.2f, 0.06f, 0.2f));
-    registerNamed(provider, "piano.electric.fm", "FM Electric Piano", move(envelope));
+    auto group = make_unique<Group>();
+    group->addChild(fm_layer(1.0f, 5.0f, 1.5f, 1.0f, 1.0f, 0.3f, 12.0f));
+    group->addChild(fm_layer(1.001f, 2.5f, 4.0f, 1.0f, -2.0f, 0.3f, 20.0f));
+    group->addChild(fm_layer(2.0f, 1.5f, 1.5f, 1.0f, 0.0f, 0.2f, 10.0f));
+    group->addChild(fm_layer(4.73f, 1.5f, 0.03f, 0.0f, 0.0f, 0.08f, 0.15f));
+    registerNamed(provider, "piano.electric.fm", "FM Electric Piano", move(group));
   }
 
   // Only takes over piano.acoustic.grand itself when nothing already

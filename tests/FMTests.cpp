@@ -86,3 +86,25 @@ TEST(fm_index_decay_follows_the_time_constant) {
   for (int i = 0; i < 22050; i++) decay.advance(); // one time constant
   CHECK_NEAR(decay.value(), 2.0f * std::exp(-1.0f), 1e-3f);
 }
+
+TEST(fm_detune_shifts_pitch_by_cents) {
+  OfflineRenderResult plain, octave;
+  CHECK(render("fm_index_zero.xml", plain));
+  CHECK(render("fm_detune_octave.xml", octave));
+  // Zero crossings while the fixtures' envelope holds at full level.
+  auto crossings = [](const OfflineRenderResult & r) {
+    size_t stride = static_cast<size_t>(r.channels), count = 0;
+    for (size_t i = 1000; i < 13000 && i < r.numberOfFrames(); i++) {
+      if ((r.interleaved[(i - 1) * stride] < 0.0f) != (r.interleaved[i * stride] < 0.0f)) count++;
+    }
+    return static_cast<float>(count);
+  };
+  CHECK_NEAR(crossings(octave) / crossings(plain), 2.0f, 0.02f);
+}
+
+TEST(fm_index_tracking_brightens_low_notes) {
+  OfflineRenderResult fixed, tracked;
+  CHECK(render("fm_tracking_0.xml", fixed));
+  CHECK(render("fm_tracking_1.xml", tracked));
+  CHECK(brightness(tracked) > brightness(fixed) * 1.5f);
+}

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="12edo" tempo="120" timeSignature="1/16" volume="1.0">
+  <instruments>
+    <envelope attack="0.01" hold="0.3" decay="0.3" sustain="0.0" release="0.05">
+      <fm ratio="1" index="1" indexTracking="1"/>
+    </envelope>
+  </instruments>
+  <tracks>
+    <track id="0" instrument="0"/>
+  </tracks>
+  <arrangement>
+    <pattern track="0">
+      <note row="0" velocity="80" value="C-2" />
+    </pattern>
+  </arrangement>
+</song>
