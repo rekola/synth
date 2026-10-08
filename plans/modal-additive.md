@@ -82,7 +82,8 @@ tilt, inharmonicity, snapping and decay formula, so the model and the
 engine are one unit that tests cannot separate.
 
 - `SinusoidBank` takes a `std::vector<PartialSpec>` (`frequency_hz`,
-  `amplitude`, `alpha`, `phase`) and builds its arrays from it.
+  `amplitude`, `alpha`, `phase`, `group`) and builds its arrays from it,
+  grouped so that `render()` fills one output row per group.
   `getActivePartialCountForTest()`/`getPartialAmplitudeForTest()` stay.
 - New `src/instruments/AdditiveModel.{h,cpp}` (add to the `synth_engine`
   list in `CMakeLists.txt`): a pure function `buildPartialSpecs(const
@@ -93,11 +94,40 @@ engine are one unit that tests cannot separate.
 - `AdditiveVoice::trigger()` calls the model and constructs the bank. The
   noise generator, its salt and `attackNoiseLevel` are deleted (the thump
   arrives as specs, Stage 3).
-- The bank is mono: all strings, the hammer terms and the thump sum into
-  the voice's one `dry_` buffer, which `encodePosition()` places in the
-  ambisonic bus at the track's position, as today. Per-string or
-  per-register spatial spread is out of scope (nothing in the sources
-  gives numbers for it).
+- Space. A piano is many sources, not one: up to three strings per key
+  across a keyboard about as wide as the instrument, and a soundboard that
+  radiates over its whole area. So the bank is not summed to one mono
+  buffer. `PartialSpec` carries a *group* (one per unison string, one per
+  thump mode); `SinusoidBank::render()` writes one row per group (the 8-lane
+  loop already sums per lane group; groups are padded to lane multiples
+  separately), and `AdditiveVoice` encodes the rows in one pass with
+  `AmbisonicStackEncoder`, each row at its own direction, using the
+  protected `PositionedVoice` helpers that `OscillatorVoice` already uses
+  for its cloud of directions (`position.extent` included). The floor
+  reflection and Aux sends run once on the summed signal, as for the
+  oscillator array. Rows: strings (1-3) plus thump modes (a handful), so
+  the encode cost stays a small multiple of today's single encode.
+  Directions (angles are listening-tuned attributes; the sources give no
+  numbers for them and none are assumed):
+  - *Key position*: the note's azimuth is the track's plus
+    `keyboardSpread` × a position in [-0.5, 0.5] that rises with the key
+    (bass left, treble right as the pianist sits). Default 0 until heard.
+  - *String position*: the strings of one key are centimetres apart, which
+    is a fraction of a degree at listening distance, so `stringSpread` is
+    small by default and is mostly there so each string reaches the ears
+    with its own phase; whether that audibly helps is a listening
+    question, with 0 as the A/B.
+  - *Thump*: the soundboard is an extended radiator, so each thump mode is
+    placed at its own direction across `thumpWidth` degrees (dealt
+    alternately left and right, so the sum is centred but wide), wider than
+    the strings. `AmbisonicDiffuseEncoder` (decorrelating allpass chains,
+    16 per voice) is the alternative; at 32 voices it costs far more than
+    a few extra rows, so it is only considered if the dealt modes sound
+    narrow.
+  Sympathetic resonance (undamped strings ringing along with the note,
+  another "many strings" effect) needs state shared across voices, which
+  per-note banks cannot hold; it is outside this plan and noted as a
+  later, separate piece of work.
 - `SpectralEnvelopeRemap.h` stays for `<padsynth>`; its header comment that
   names `SinusoidBank` as a caller is corrected.
 - `tests/SinusoidBankTests.cpp` is rewritten to build specs directly (its
@@ -111,7 +141,7 @@ strings struck together for one key.
 
 | Attribute | Stage | Meaning |
 |---|---|---|
-| `preset` | all | `default` (a plain struck string: one string, no thump, `stretch` 0, no key tracking) and `struck-string`, now the piano. The name stays so `songs/oscillator_demo.xml` and `songs/songtest20.xml` keep referencing a real preset. An unknown name still falls back to `default`. |
+| `preset` | all | `default` (a plain struck string: one string, no thump, `stretch` 0, no key tracking) and `piano` (the model below, with the library's string count). `struck-string` is removed: one string is not a piano, and the name suggested one. An unknown name falls back to `default`. |
 | `partials` | 1 | Upper bound on partials built (Nyquist and the audibility floor trim further). |
 | `tuningMatched` | 1 | Every built partial sits on the tuning (below). `false` or `Tuning::PERCUSSION`: plain harmonics, and `stretch` still applies. |
 | `stretch` | 1 | ε: partial n sits at `T(n) + (n-1)·ε` times f0. Replaces `inharmonicity`, `partialLimit`. |
@@ -126,6 +156,9 @@ strings struck together for one key.
 | `decayTracking` | 3 | Exponent k: all α scale by `(f0/261.63)^k`, so bass rings longer. |
 | `decaySpread` | 3 | Spread of α across the unison strings (the double decay). |
 | `thump` | 3 | Level of the soundboard thump. 0 is off. |
+| `keyboardSpread` | 1 | Degrees of azimuth across the keyboard, bass left to treble right. 0 puts every key at the track's position. |
+| `stringSpread` | 1 | Degrees between adjacent strings of one key. |
+| `thumpWidth` | 3 | Degrees of arc the thump modes are spread over. |
 | `level` | - | Unchanged. |
 
 Removed: `tilt`, `velocityTilt`, `inharmonicity`, `partialLimit`,
@@ -203,7 +236,13 @@ until Stage 2, so each stage can be heard on its own.
   strings, mean offset 0 (within the jitter), adjacent spacing 0.7-1.3 ×
   `unisonDetune`, 1 string exactly 0.
 - `additive_tuning_matching_off_gives_plain_harmonics_plus_stretch`.
-- Rewritten `sinusoid_bank_*` tests over `PartialSpec`.
+- Rewritten `sinusoid_bank_*` tests over `PartialSpec`, plus
+  `sinusoid_bank_groups_sum_to_the_ungrouped_output` (rows added together
+  equal the single-row render, so grouping changes nothing but routing).
+- `additive_key_position_rises_with_the_key` (azimuth monotonic from bass to
+  treble, centred on the track at key 60, exactly the track's with
+  `keyboardSpread = 0`) and `additive_strings_are_placed_symmetrically`
+  (mean offset 0, one string exactly at the key's position).
 - `additive_library_piano_septimal_chord_renders` (below), finite and
   audible.
 
@@ -305,7 +344,7 @@ the note is 1.
    few dB from its neighbours unless the reference shows it, and the
    specific tolerance is read off the reference.
 3. Peak level at full velocity for the same notes: single notes and the
-   4:5:6:7 tetrad. Today's `struck-string` and the new one are compared, and
+   4:5:6:7 tetrad. Today's `struck-string` and the new `piano` are compared, and
    the piano stays below clipping with the tetrad plus pedal-like overlap.
 
 **Reference.** The repo has no piano recording, and I will not tune from
@@ -322,7 +361,7 @@ ear decides.
 be dull, hard bright and "hammery"; the bass should have a rich, not
 hollow, upper register; no octave should jump out in level.
 
-## Stage 3: two-stage decay and soundboard thump
+## Stage 3: two-stage decay and soundboard thump (wide)
 
 **Decay.** String s of S, partial n at frequency `f_n`:
 `α(s,n) = (decayA + decayB·f_n^decayP) · (f0/261.63)^decayTracking ·
@@ -353,8 +392,9 @@ as extra `PartialSpec`s at note-on, amplitude `thump` times the strongest
 partial, with a decay of tens of milliseconds. Mode frequencies, relative
 levels and decays are read off the attack of the reference (below), averaged
 over keys; with no reference the table is left empty and the thump is off.
-Velocity scaling is automatic (the bank sits behind the voice gain). This
-removes `NoiseGenerator`, the salt and `attackNoiseLevel` from
+Velocity scaling is automatic (the bank sits behind the voice gain). Each
+mode is its own group, placed across `thumpWidth` as described under
+Architecture, so the thump is wider than the strings. This removes `NoiseGenerator`, the salt and `attackNoiseLevel` from
 `AdditiveVoice.h`.
 
 **Files.** `AdditiveModel.{h,cpp}` (decay, thump), `AdditivePresets.h` (the
@@ -376,6 +416,9 @@ guessed), tests, docs.
   C6, all decayed below -60 dB by 150 ms, none within 1 Hz of a snapped
   partial's frequency.
 - `additive_thump_off_by_default_in_plain_preset`.
+- `additive_thump_modes_are_spread_wider_than_the_strings` (the arc the
+  thump modes span is `thumpWidth`, centred, and larger than the strings'
+  span at default settings).
 - Library: `additive_piano_*` tests in `InstrumentLibraryTests.cpp` keep
   passing; add `additive_piano_chord_in_31edo_is_finite_and_audible`.
 
@@ -404,7 +447,12 @@ the bass.
   the chosen velocities, one per second, bare `<additive>` and library
   `piano.acoustic.grand` variants; the 31-EDO chords) into the scratch
   directory, not the repository, except the one chord song below.
-- Rendering at 48 kHz (the default in `main.cpp`), `--stereo`.
+- Rendering at 48 kHz (the default in `main.cpp`), `--stereo`. The
+  analyzer also reports the left/right level difference per note (keys
+  C1..C7 should walk from left to right when `keyboardSpread` > 0) and the
+  inter-channel correlation of the first 80 ms against the following
+  second (the thump should be less correlated, i.e. wider, than the
+  strings).
 
 ## 31-EDO septimal test chord
 
@@ -433,20 +481,24 @@ within `unisonDetune`-scale of each other, never the tens of Hz of today.
   (fallback only when the SoundFont has no piano) and its tests,
   `tests/InstrumentLibraryTests.cpp`, `tests/fixtures/library_additive_piano.xml`.
 - `tests/fixtures/additive_note.xml` and `tests/AdditiveTests.cpp`
-  (`<additive preset="struck-string"/>` at 12-EDO; renders finite and audible).
+  (`<additive preset="struck-string"/>` at 12-EDO; renders finite and audible;
+  the fixture moves to `preset="piano"`).
 - `songs/oscillator_demo.xml` lines 55-57 (`preset="struck-string"`) and 75-76
   (`preset="struck-string" unisonVoices="3" attackNoiseLevel="0.04" tilt="-6"`);
-  its rows 64-95 and 168 are the listening material. Its comments
-  describing the "additive piano" get updated with the rest.
+  its rows 64-95 and 168 are the listening material. Edited here: both
+  become `preset="piano"` (the first with its comment reworded, since a
+  plain string is no longer what it demonstrates), the obsolete attributes
+  dropped.
 - `songs/songtest20.xml` lines 29-30 and 37-38: the user's work in progress;
-  **never edited or committed here**. Both instruments keep loading
-  because `struck-string` stays. They will sound different: the cluster of
-  partials at 3-4 × f0 is replaced by a real series on the 31-EDO grid;
-  `tilt` and `attackNoiseLevel` on instrument 2 are ignored (the
-  spectrum comes from the hammer, the attack from the thump);
-  `unisonVoices="3"` still gives three strings, now 1 cent apart instead of
-  about 12; the 8-second envelope decay is unchanged. Chords in that song
-  with septimal intervals should stop beating.
+  **never edited or committed here**. Both instruments still load, but
+  `struck-string` no longer exists, so each falls back to the plain
+  `default` string: not a piano. To hear the new piano the user changes
+  `preset="struck-string"` to `preset="piano"` on the "Additive Piano"
+  instrument (line 38); I will say so rather than do it. Either way the
+  partial cluster at 3-4 × f0 is gone, replaced by a real series on the
+  31-EDO grid; `tilt` and `attackNoiseLevel` are ignored;
+  `unisonVoices="3"` gives three strings 1 cent apart instead of about 12.
+  Septimal chords in that song stop beating.
 - `docs/additive.md`: full rewrite (model, attributes, tuning rule,
   measured costs, presets); no "used to"/"no longer" wording. Plus the
   `README.md` section "Pianos and Just Intervals": add the acoustic piano
