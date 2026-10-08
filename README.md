@@ -25,6 +25,11 @@ The Application draws on several traditions.
   Novation's own layouts, and the 4x4 grid of drum pads was first used in the
   Akai MPC (1988); see
   [docs/drums-and-sequencer.md](docs/drums-and-sequencer.md).
+- **FM synthesis.** The FM instruments use John Chowning's frequency
+  modulation (1973). A few of them are approximations of individual factory
+  voices of the Yamaha DX7 (1983), the synthesizer that made FM widespread,
+  standing in for a handful of General MIDI programs. See
+  [docs/fm.md](docs/fm.md).
 - **Emacs.** In the terminal interface each song is a buffer, as in Emacs:
   several can be open and switched between, with selection, kill and yank, and
   the M-x prompt. That is only the terminal interface; other interfaces are
