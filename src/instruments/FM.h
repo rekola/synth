@@ -30,6 +30,12 @@ class FM : public Instrument {
   // Exponent k scaling the index by (middle C / note frequency)^k: 0 keeps it
   // the same on every note, 1 keeps the spectrum's bandwidth fixed in Hz.
   float index_tracking_ = 0.0f;
+  // The same for the index decay's time constant: 1 makes it twice as long
+  // an octave down.
+  float index_decay_tracking_ = 0.0f;
+  // Phase deviation (radians) the modulator applies to itself; around pi
+  // turns its sine into a near-sawtooth.
+  float feedback_ = 0.0f;
   // Pitch offset in cents, for layering detuned unison copies.
   float detune_cents_ = 0.0f;
 };

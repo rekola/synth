@@ -33,7 +33,7 @@ runtime, including leaves that appear nowhere here.
 ## What belongs in the library
 
 The built-in library (`InstrumentLibrary.cpp`) holds only instruments with a reason to
-exist: either the path is a General MIDI program (`pad.*`, `piano.electric.fm`, and the
+exist: either the path is a General MIDI program (`pad.*`, the FM instruments after DX7 voices such as `piano.electric.*`, and the
 `piano.acoustic.grand` fallback used when no SoundFont supplies a piano), or it is a real
 physical instrument (`keyboard.tape.mellotron`). Comparison variants, experiments and
 "alternative" versions of an existing instrument do not get a path of their own; author

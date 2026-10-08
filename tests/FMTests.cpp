@@ -108,3 +108,11 @@ TEST(fm_index_tracking_brightens_low_notes) {
   CHECK(render("fm_tracking_1.xml", tracked));
   CHECK(brightness(tracked) > brightness(fixed) * 1.5f);
 }
+
+TEST(fm_feedback_brightens_the_modulator) {
+  OfflineRenderResult plain, fed_back;
+  CHECK(render("fm_tracking_0.xml", plain));
+  CHECK(render("fm_feedback.xml", fed_back));
+  for (auto v : fed_back.interleaved) CHECK(std::isfinite(v));
+  CHECK(brightness(fed_back) > brightness(plain) * 1.2f);
+}

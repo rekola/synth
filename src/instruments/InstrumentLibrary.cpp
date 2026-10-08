@@ -15,6 +15,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 using namespace std;
 
@@ -97,6 +98,45 @@ void registerFallbackPath(InstrumentProvider & provider, const string & path, co
   instrument->setName(name);
   provider.registerPath(path, move(instrument));
 }
+
+// One layer of an instrument after a DX7 voice: an <fm> pair in its own
+// <envelope>. Every index tracks the pitch, so low notes are as bright and
+// as loud as high ones, and the decays grow by about 1.4 an octave down, so
+// bass notes ring longer. `decay` is the time to -80 dB at middle C. A DX7
+// carrier off the note's pitch becomes a detune in cents, with the
+// modulator's ratio taken relative to that carrier.
+struct FMLayer {
+  float ratio, index, index_decay, detune_cents, level, decay, feedback = 0.0f;
+  float attack = 0.002f, sustain = 0.0f, release = 0.25f;
+};
+
+unique_ptr<Track> makeFMLayers(const vector<FMLayer> & layers) {
+  auto group = make_unique<Group>();
+  for (const auto & layer : layers) {
+    auto fm = make_unique<FM>();
+    MemoryParameterSource params;
+    params.set("ratio", layer.ratio);
+    params.set("index", layer.index);
+    params.set("indexDecay", layer.index_decay);
+    params.set("indexTracking", 1.0f);
+    params.set("indexDecayTracking", 0.5f);
+    params.set("feedback", layer.feedback);
+    params.set("detune", layer.detune_cents);
+    params.set("level", layer.level);
+    fm->loadParameters(params);
+    auto envelope = make_unique<EnvelopeFilter>();
+    MemoryParameterSource envelope_params;
+    envelope_params.set("attack", layer.attack);
+    envelope_params.set("decay", layer.decay);
+    envelope_params.set("sustain", layer.sustain);
+    envelope_params.set("release", layer.release);
+    envelope_params.set("keynumToDecay", 50.0f);
+    envelope->loadParameters(envelope_params);
+    envelope->addChild(move(fm));
+    group->addChild(move(envelope));
+  }
+  return group;
+}
 }
 
 void registerLibraryInstruments(InstrumentProvider & provider) {
@@ -131,11 +171,14 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   registerNamed(provider, "pad.choir", "Choir Pad", makeEnsemblePad("choir-pad4", 3, 16.0f, 0.5f, 0.0f, 0.3f, 0.9f, 0.8f));
   // Bowed: the "strings" preset's own simple base tone, as a 3-copy ensemble.
   registerNamed(provider, "pad.bowed", "Bowed Pad", makeEnsemblePad("strings", 3, 14.0f, 0.4f, 0.0f, 0.3f, 0.9f, 0.7f));
-  // Metallic: "bells", with tuningMatched=false - inharmonic (non-scale-
-  // step) overtones, which is what actually reads as "metallic"/bell-like
-  // dissonance (a real bell's overtones are famously non-integer) rather
-  // than a clean, consonant partial series.
-  registerNamed(provider, "pad.metallic", "Metallic Pad", makeEnvelopePad("bells", 0.3f, 0.0f, 0.5f, 0.7f, 1.0f, /*tuningMatched*/ false));
+  // Metallic, after the DX7's factory T.BL-EXPA: two 3.5:1 tubular-bell
+  // strikes over a 1:1 pad with feedback that swells in and holds (see the
+  // FM electric pianos below for the layering).
+  registerNamed(provider, "pad.metallic", "Metallic Pad", makeFMLayers({
+                                                              {3.5f, 1.45f, 0.7f, 1.0f, 0.25f, 20.0f},
+                                                              {3.5f, 0.8f, 4.0f, -2.0f, 0.25f, 4.0f},
+                                                              {1.002f, 1.5f, 0.0f, -1.0f, 0.3f, 0.0f, 0.4f, 1.5f, 1.0f, 2.5f},
+                                                          }));
   // Halo: "long-spacechoir2" is specifically a *phased* choir pad, so its
   // own envelope-remap character plus the wrapping <phaser> below together
   // give it its own shimmering motion. A slow rate (0.15Hz - one full
@@ -287,38 +330,59 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
     return env;
   };
 
-  // Electric Piano 2 (piano.electric.fm) - FM layers on slightly detuned
-  // carriers: a bright 1:1 pair whose index fades first, a mellower 1:1 pair
-  // whose modulator runs a little sharp, a 2:1 pair for the odd partials and
-  // a short inharmonic strike. Velocity scales every index, so harder notes
-  // are brighter, and the sustained layers' index tracks the pitch so that
-  // low notes are as bright and as loud as high ones. The 1+e ratio is the only inharmonicity that lasts: it puts
-  // partial n at n + (n-1)e, so shared partials of any just interval within
-  // the octave beat at most e times the fundamental, however high they are.
-  // Each layer's envelope decay is its time to -80 dB; the brighter layers
-  // go first, so the tone darkens as it decays.
-  {
-    auto fm_layer = [](float ratio, float index, float index_decay, float index_tracking, float detune_cents, float level, float decay) {
-      auto fm = make_unique<FM>();
-      MemoryParameterSource params;
-      params.set("ratio", ratio);
-      params.set("index", index);
-      params.set("indexDecay", index_decay);
-      params.set("indexTracking", index_tracking);
-      params.set("detune", detune_cents);
-      params.set("level", level);
-      fm->loadParameters(params);
-      auto envelope = makeEnvelope(0.002f, 0.0f, decay, 0.0f, 0.25f);
-      envelope->addChild(move(fm));
-      return envelope;
-    };
-    auto group = make_unique<Group>();
-    group->addChild(fm_layer(1.0f, 5.0f, 1.5f, 1.0f, 1.0f, 0.3f, 12.0f));
-    group->addChild(fm_layer(1.001f, 2.5f, 4.0f, 1.0f, -2.0f, 0.3f, 20.0f));
-    group->addChild(fm_layer(2.0f, 1.5f, 1.5f, 1.0f, 0.0f, 0.2f, 10.0f));
-    group->addChild(fm_layer(4.73f, 1.5f, 0.03f, 0.0f, 0.0f, 0.08f, 0.15f));
-    registerNamed(provider, "piano.electric.fm", "FM Electric Piano", move(group));
-  }
+  // FM electric pianos after the DX7's factory voices, in place of whatever
+  // the SoundFont has at these paths: its sampled pianos can't play
+  // septimal intervals in tune. Each DX7 carrier and its modulators become
+  // parallel two-operator layers on carriers a cent or two apart. Every
+  // 1:1 layer's modulator runs a little sharp: a 1+e ratio puts partial n
+  // at n + (n-1)e, so shared partials of any just interval within the
+  // octave beat at most e times the fundamental, however high they are.
+  //
+  // Electric Piano 1 (piano.electric.tine), after E.PIANO 3: 2:1 and soft
+  // 1:1 pairs for a mellow body, a 3:1 pair with feedback whose index fades
+  // within a fraction of a second for the attack, and a barely audible 14:1
+  // tine.
+  registerNamed(provider, "piano.electric.tine", "Tine Electric Piano", makeFMLayers({
+                                                                            {1.001f, 1.6f, 4.0f, -2.0f, 0.3f, 20.0f},
+                                                                            {2.0f, 1.6f, 4.0f, 1.0f, 0.25f, 10.0f},
+                                                                            {3.0f, 2.0f, 0.3f, 0.0f, 0.2f, 12.0f, 0.4f},
+                                                                            {14.0f, 0.12f, 0.1f, 0.5f, 0.2f, 20.0f},
+                                                                        }));
+  // Electric Piano 2 (piano.electric.fm), after E.PIANO 2: a long 1:1 body
+  // whose modulator feeds back on itself, a brighter 1:1 pair that fades
+  // faster, a clangy 0.51:1 strike gone within a tenth of a second and a
+  // glassy 11:1 tine.
+  registerNamed(provider, "piano.electric.fm", "FM Electric Piano", makeFMLayers({
+                                                                        {1.002f, 1.6f, 2.2f, -1.0f, 0.25f, 20.0f, 0.8f},
+                                                                        {1.0f, 4.0f, 0.0f, 1.0f, 0.21f, 3.3f},
+                                                                        {0.51f, 5.0f, 0.03f, 0.5f, 0.1f, 0.4f},
+                                                                        {11.0f, 0.25f, 0.25f, 1.5f, 0.085f, 1.5f},
+                                                                    }));
+  // Electric Grand Piano (piano.electric.grand), after E.GRAND 2: two 1:1
+  // pairs, a 3:1 pair with feedback and a 5:1 pair, all fading together so
+  // the bright attack settles into a plain tone.
+  registerNamed(provider, "piano.electric.grand", "Electric Grand Piano", makeFMLayers({
+                                                                              {1.001f, 1.5f, 0.9f, 0.0f, 0.25f, 8.0f},
+                                                                              {1.002f, 2.0f, 0.9f, 1.0f, 0.25f, 8.0f},
+                                                                              {3.0f, 1.2f, 0.9f, -1.0f, 0.15f, 8.0f, 0.25f},
+                                                                              {5.0f, 0.6f, 0.9f, 0.5f, 0.08f, 8.0f},
+                                                                          }));
+  // FX 3 (crystal), after SHIMMER: a held tone whose modulator runs a
+  // little flat, a held 15.7:1 sparkle, and a decaying carrier a fifth up
+  // with feedback. The voice's lowest carriers play the written note.
+  registerNamed(provider, "texture.crystal", "Crystal", makeFMLayers({
+                                                            {0.995f, 0.5f, 0.0f, 0.0f, 0.3f, 3.0f, 0.0f, 0.01f, 0.2f, 0.8f},
+                                                            {15.71f, 0.3f, 0.0f, 0.5f, 0.25f, 3.0f, 0.0f, 0.01f, 0.2f, 0.8f},
+                                                            {1.0f, 0.56f, 0.0f, 698.4f, 0.25f, 20.0f, 0.14f, 0.01f, 0.0f, 0.8f},
+                                                        }));
+  // Tinkle Bell, after BELLS: a plain sine at the written note and two
+  // carriers 2.36 times higher, modulated at 2.67:1, for a bell's
+  // inharmonic partials. The voice's lowest carrier plays the written note.
+  registerNamed(provider, "percussion.pitched.metal.tinkle-bell", "Tinkle Bell", makeFMLayers({
+                                                                                     {1.0f, 0.0f, 0.0f, 0.0f, 0.26f, 16.0f},
+                                                                                     {2.669f, 1.33f, 1.7f, 1486.3f, 0.22f, 16.0f, 0.3f},
+                                                                                     {2.669f, 0.73f, 1.7f, 1483.0f, 0.13f, 25.0f},
+                                                                                 }));
 
   // Only takes over piano.acoustic.grand itself when nothing already
   // claimed that exact leaf - the "fallback when the SoundFont has no
