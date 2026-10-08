@@ -141,7 +141,7 @@ strings struck together for one key.
 
 | Attribute | Stage | Meaning |
 |---|---|---|
-| `preset` | all | `default` (a plain struck string: one string, no thump, `stretch` 0, no key tracking) and `piano` (the model below, with the library's string count). `struck-string` is removed: one string is not a piano, and the name suggested one. An unknown name falls back to `default`. |
+| `preset` | all | `default` (a plain struck string: one string, no thump, `stretch` 0, no key tracking) and `piano` (the model below, with the library's string count). Stage 4 adds the test presets `guitar`, `harp`, `harpsichord` and `bar`. `struck-string` is removed: one string is not a piano, and the name suggested one. An unknown name falls back to `default`. |
 | `partials` | 1 | Upper bound on partials built (Nyquist and the audibility floor trim further). |
 | `tuningMatched` | 1 | Every built partial sits on the tuning (below). `false` or `Tuning::PERCUSSION`: plain harmonics, and `stretch` still applies. |
 | `stretch` | 1 | ε: partial n sits at `T(n) + (n-1)·ε` times f0. Replaces `inharmonicity`, `partialLimit`. |
@@ -587,39 +587,78 @@ user's ear and records which in `docs/additive.md`.
 
 ## Other instruments
 
-`piano` is the first preset because it is the one the brief needs; the
-model is a struck or plucked string with a body, and other presets are
-parameter sets over the same machinery. No further preset ships in this
-plan: each needs numbers I can source or measure, and the rule here is to
-leave a value out rather than guess it.
+The model is a struck or plucked string with a body, and `piano` is one
+parameter set over it. Stage 4 (below) adds four more presets, chosen
+because each exercises a different code path, not because their sound is
+tuned: they are for testing the model and for comparing against the piano.
+None is registered as a library instrument path.
 
-What carries over unchanged: tuning-matched partials, strike or pluck
-position (the comb), several strings per note, per-string decay with key
-tracking, fixed-frequency body resonators (the thump table is exactly a
-body-mode table, so a guitar or harp body is a different table), and
-placement of strings and body in space.
+What carries over from the piano unchanged: tuning-matched partials,
+strike or pluck position (the comb), several strings per note, per-string
+decay with key tracking, fixed-frequency body resonators (the thump table
+is a body-mode table, so a guitar body is a different table), and placement
+of strings and body in space.
 
-- *Harpsichord, clavichord, guitar, harp, dulcimer, santur*: fit as presets
-  with a different excitation. A plectrum or finger releases the string
-  from a displaced shape, so mode n starts roughly as `sin(nπβ)/n²` and the
-  hammer lowpass is replaced by that spectrum. The model function therefore
-  takes the excitation as a small enum (`hammer` now; `pluck` added with the
-  first plucked preset), and the hammer attributes keep a `hammer` prefix
-  rather than a generic name, since they would not apply to a pluck.
-- *Marimba, vibraphone, glockenspiel, bells*: the model holds, but their
-  partials are bar or bell modes, not a harmonic series, so the string
-  partial rule does not apply. They need an explicit mode-ratio list per
-  preset (an attribute such as `modes="1 3.9 9.2"`, with each mode's own
-  decay), and tuning-matching applies only to the fundamental. That is a
-  small addition to the model, not to the engine.
-- *Electric pianos*: already covered by `<fm>`, and tines are bars.
-- *Not covered*: anything with continuous excitation (bowed strings,
-  winds, voices). A resonator bank with no driver can only ring down.
-  `<padsynth>` and `<oscillator>` are the tools there.
+Not covered: anything with continuous excitation (bowed strings, winds,
+voices). A resonator bank with no driver can only ring down; `<padsynth>`
+and `<oscillator>` are the tools there. Electric pianos stay with `<fm>`.
 
-The reference measurement (a real instrument rendered or recorded, then
-analyzed with the same tool) is what supplies each new preset's numbers, so
-a preset is added when there is a reference for it.
+## Stage 4: test presets (guitar, harp, harpsichord, bar)
+
+Done after the piano is heard and settled, since it adds two things to the
+model:
+
+- **`excitation`** (`hammer` | `pluck`). A pluck releases the string from a
+  displaced shape, so mode n starts roughly as `sin(nπβ)/n²` with β the
+  pluck position, and there is no hammer lowpass or velocity-dependent
+  corner. The `hammer*` attributes keep their prefix because they do not
+  apply to a pluck; `strike` is the pluck position for both.
+- **`modes`**, an explicit list of mode frequency ratios (and optionally a
+  decay multiplier each) replacing the string's harmonic series. Tuning
+  matching applies to the fundamental only, then each ratio multiplies it.
+
+| Preset | Excitation | Strings | What it exercises |
+|---|---|---|---|
+| `guitar` | pluck | 1 | The pluck spectrum and comb at a pluck position that is not the piano's (swept by ear, e.g. 0.1 / 0.2 / 0.3, none assumed); a body table of fixed-frequency resonators that is not the piano's thump table; no keyboard spread (one instrument, six strings, one position). |
+| `harp` | pluck | 1 | Long decays with strong key tracking over a wide range; `keyboardSpread` and `stringSpread` at larger values than the piano, since a harp's strings really are spread across its width; a small body table. |
+| `harpsichord` | pluck | 2 | Two unison strings with a pluck; velocity changes loudness (upstream, linear) but not brightness, which `hammerVelocity`'s absence for a pluck gives for free; a fast decay with no aftersound (`decaySpread` 0). |
+| `bar` | hammer | 1 | `modes` with the ideal free-free bar ratios 1 : 2.756 : 5.404 : 8.933 (derived from the roots of `cos(x)·cosh(x) = 1`, 4.730, 7.853, 10.996, 14.137, squared and divided by the first). This is an ideal bar, not a marimba, whose bars are cut to put the second mode near 4:1; that comparison is the first check of the mode list. |
+
+Numbers: the bar ratios above are derived and sourceable. Every other
+value in these presets (pluck position, body-mode frequencies and decays,
+spreads, decay constants, string counts) is a test value chosen by listening
+or read from a reference measurement, and `AdditivePresets.h` marks each
+one that is not sourced with a comment saying so. Nothing in the docs
+presents them as realistic.
+
+**Files.** `AdditiveModel.{h,cpp}` (excitation, modes), `Additive.{h,cpp}`
+(`excitation`, `modes` parameters; `modes` stored as a space-separated
+list), `AdditivePresets.h`, tests, `docs/additive.md`, and a listening song
+`songs/additive_presets_demo.xml` (31-EDO, one track per preset: a scale, a
+dyad and the 4:5:6:7 tetrad each, so every preset is checked in tune with
+the same chord set as the piano).
+
+**Tests.**
+- `additive_pluck_spectrum_follows_one_over_n_squared_with_comb`: with
+  `strike` = 1/5, mode 5 is nulled and, away from nulls, amplitude times
+  `n²` is constant.
+- `additive_pluck_has_no_velocity_brightening` (the partial amplitude ratios
+  are identical at velocity 0.25 and 1.0).
+- `additive_modes_follow_the_list_and_only_the_fundamental_is_snapped`: the
+  bar preset's mode k sits at the snapped fundamental times the list ratio,
+  in 12- and 31-EDO.
+- `additive_bar_ratios_match_the_free_free_roots` (2.756, 5.404, 8.933 to
+  three decimals from the roots).
+- `additive_every_preset_renders_finite_and_audible` for all presets.
+- Preset-specific structure: harpsichord builds 2 groups, others 1 plus
+  their body modes.
+
+**Measure and listen.** Same analyzer and chord set as the piano; the
+septimal chord check passes for every pitched preset (the bar's upper modes
+are not on the tuning, by design, so its check is the fundamental only). By
+ear: do guitar and harp read as plucked rather than struck, is the bar
+metallic in the way an ideal bar should be, and does the harpsichord's
+velocity-independent brightness sound right.
 
 ## Order of work and risks
 
@@ -628,7 +667,8 @@ a preset is added when there is a reference for it.
 2. Stage 2 after the user's go-ahead; the piano preset leaves its tilt
    behind here.
 3. Stage 3 likewise.
-4. Docs rewrite and README/glossary last, once the attribute set has
+4. Stage 4 (test presets) after the piano is accepted.
+5. Docs rewrite and README/glossary last, once the attribute set has
    settled.
 
 Risks. The bounded stretch is only ~2 cents, so the piano may sound too
