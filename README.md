@@ -7,6 +7,18 @@
 
 A microtonal multiparadigm music production system, which combines live sequencer with a traditional tracker.
 
+## Features
+
+- Launchpad support and Live arrangement
+- Sample and note based clips
+- Microtonal (12/19/31/53-EDO)
+- Emacs-style buffers and keybindings
+- SoundFont2
+- Headless mode (for art installations or escape rooms)
+- Ambisonic Bus
+- Works out of the box (Basic instruments are included / No low-latency requirements)
+- Mouse not needed
+
 # Background
 
 The Application draws on several traditions.
@@ -75,24 +87,6 @@ middle C). What remains is the tuning's own error, such as 31-EDO's 4:3 being
 5.2 cents wide; removing that needs partials moved onto the tuning's steps
 (Sethares, *Tuning, Timbre, Spectrum, Scale*), which FM can't do.
 
-# Features
-
-- Launchpad support and Live arrangement
-- Sample and note based clips
-- Microtonal (12/19/31/53-EDO)
-- Emacs-style buffers and keybindings
-- SoundFont2
-- Headless mode (for art installations or escape rooms)
-- Ambisonic Bus
-
-# Principles:
-
-## User can start creating music instantly:
-
-- No low latency requirements
-- Basic instruments are immediately available
-    1. If there is no SoundFont, basic instruments (such as piano) are provided by the built in FM synthesis
-      
 ## Keyboard driven
 
 Everything can be done using keyboard without mouse
