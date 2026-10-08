@@ -585,6 +585,42 @@ register-dependent string counts and strike point, and any body EQ. Each
 stage sets them from the reference measurement or, with none, from the
 user's ear and records which in `docs/additive.md`.
 
+## Other instruments
+
+`piano` is the first preset because it is the one the brief needs; the
+model is a struck or plucked string with a body, and other presets are
+parameter sets over the same machinery. No further preset ships in this
+plan: each needs numbers I can source or measure, and the rule here is to
+leave a value out rather than guess it.
+
+What carries over unchanged: tuning-matched partials, strike or pluck
+position (the comb), several strings per note, per-string decay with key
+tracking, fixed-frequency body resonators (the thump table is exactly a
+body-mode table, so a guitar or harp body is a different table), and
+placement of strings and body in space.
+
+- *Harpsichord, clavichord, guitar, harp, dulcimer, santur*: fit as presets
+  with a different excitation. A plectrum or finger releases the string
+  from a displaced shape, so mode n starts roughly as `sin(nπβ)/n²` and the
+  hammer lowpass is replaced by that spectrum. The model function therefore
+  takes the excitation as a small enum (`hammer` now; `pluck` added with the
+  first plucked preset), and the hammer attributes keep a `hammer` prefix
+  rather than a generic name, since they would not apply to a pluck.
+- *Marimba, vibraphone, glockenspiel, bells*: the model holds, but their
+  partials are bar or bell modes, not a harmonic series, so the string
+  partial rule does not apply. They need an explicit mode-ratio list per
+  preset (an attribute such as `modes="1 3.9 9.2"`, with each mode's own
+  decay), and tuning-matching applies only to the fundamental. That is a
+  small addition to the model, not to the engine.
+- *Electric pianos*: already covered by `<fm>`, and tines are bars.
+- *Not covered*: anything with continuous excitation (bowed strings,
+  winds, voices). A resonator bank with no driver can only ring down.
+  `<padsynth>` and `<oscillator>` are the tools there.
+
+The reference measurement (a real instrument rendered or recorded, then
+analyzed with the same tool) is what supplies each new preset's numbers, so
+a preset is added when there is a reference for it.
+
 ## Order of work and risks
 
 1. Stage 1, then stop for listening. Commit nothing (the user tests by
