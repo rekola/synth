@@ -363,9 +363,11 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
                                                                                      {2.669f, 0.73f, 1.7f, 1483.0f, 0.13f, 25.0f},
                                                                                  }));
 
-  // Replaces the SoundFont's grand piano: a sampled piano can't play the
-  // septimal intervals in tune, and this is the instrument that can.
-  registerNamed(provider, "piano.acoustic.grand", "Additive Grand Piano", additive_piano_envelope());
+  // Only takes over piano.acoustic.grand itself when nothing already
+  // claimed that exact leaf - the "fallback when the SoundFont has no
+  // piano" role; a SoundFont's own grand piano always wins when one is
+  // loaded. A song asks for this one directly with <additive preset="piano">.
+  registerFallbackPath(provider, "piano.acoustic.grand", "Additive Grand Piano", additive_piano_envelope());
 
   // Mellotron - tapeDegradation(preset="mellotron") wrapping
   // envelope+padsynth(preset="strings") - a Mellotron "strings" tape is a

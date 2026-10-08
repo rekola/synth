@@ -138,7 +138,7 @@ of a real instrument.
 | Preset | Character |
 |---|---|
 | `default` | A plain struck string: one string, partials on the tuning, a mild hammer, moderate decay. |
-| `piano` | Three strings a cent apart, 64 partials on the tuning with `stretch` 0.001, struck at 1/8 by a hammer with a fixed 2 kHz corner, outer strings decaying 50% faster and slower, bass ringing longer, a short wide body thump. The library's `piano.acoustic.grand`, which replaces the SoundFont's own piano. |
+| `piano` | Three strings a cent apart, 64 partials on the tuning with `stretch` 0.001, struck at 1/8 by a hammer with a fixed 2 kHz corner, outer strings decaying 50% faster and slower, bass ringing longer, a short wide body thump. The library's `piano.acoustic.grand` when the SoundFont has no piano; a SoundFont's own piano wins. |
 | `guitar-nylon` | One string plucked at 1/5 with a soft fingertip (1.5 kHz), high partials dying quickly, a small body. |
 | `guitar-steel` | The same with a bright pick (5 kHz), a longer ring, more stretch. |
 | `harp` | Long decays lengthening strongly toward the bass, strings spread 60° across the keyboard. |
@@ -148,6 +148,49 @@ of a real instrument.
 `songs/additive_presets_demo.xml` plays each preset through a 31-EDO scale, a
 7:4 dyad and the 4:5:6:7 tetrad; `songs/additive_septimal_chords.xml` plays the
 septimal dyads and tetrads on the piano.
+
+## Tuning the presets
+
+The preset values are starting values, not measurements, and the first listen
+found them wrong: every preset sounds much alike, `piano` sounds like one
+string, and its thump cannot be heard. Measured on the model's own output
+(`piano`, velocity 0.8):
+
+- **The thump carries almost no energy.** Its three body modes sit 10.5 dB below
+  the strongest string partial and die in 14-20 ms, so their share of the
+  note's energy is 0.003% at C2, 0.04% (-34 dB) at C4 and 0.5% (-23 dB) at C6.
+- **The three strings behave as one.** A cent between strings beats at 0.15 Hz
+  on C4's fundamental (a beat every 6.6 s, longer than the note's first decay)
+  and 1.2 Hz on its 8th partial. The bounded stretch moves partial 10 by 1.6
+  cents, so the partials are effectively harmonic: no stiff-string shimmer.
+- **Presets differ only in a few numbers.** They share one model, and what makes
+  a real instrument's body and attack distinctive (many body resonances, the
+  attack's own spectrum) is three weak modes here.
+
+What to change, with the current `piano` value. The "try" column is an
+experiment to listen to, not a claim about a real piano.
+
+| Parameter | Now | What it does | Try |
+|---|---|---|---|
+| `thump` | 0.3 | Body level against the strongest partial. | 1 to 3; the body should be heard as a low knock at the onset. |
+| body table (`AdditivePresets.h` only) | 70/120/200 Hz, α 60/50/70 | Frequency, level and decay of each body mode; not an attribute yet. | Longer decays (α 10 to 25), more modes, levels near 1. |
+| `thumpWidth` | 60 | Arc the body modes are spread over. | 90 to 120 if the thump sounds narrow. |
+| `unisonDetune` | 1 | Cents between adjacent strings. | 2 to 6 to hear beating within the first second. |
+| `decaySpread` | 0.5 | Outer strings decay (1 ± spread) times the middle's. | 0.5 to 0.9 for a stronger double decay. |
+| `stretch` | 0.001 | Bounded inharmonicity, at most 1200·log2(1+ε) cents. | 0.003 to 0.01. The limit is septimal accuracy: shared partials differ by up to ε times the lower fundamental. |
+| `hammerCutoff` | 2000 | Hammer lowpass corner in Hz at middle C, velocity 0.5. | 1500 to 6000 for darker or brighter. |
+| `hammerVelocity` | 0.5 | Corner exponent against velocity (felt exponent 3). | 0.3 to 1 for how much harder hits brighten. |
+| `hammerTracking` | 0 | Corner exponent against the key; 0 is fixed in Hz. | 0.2 to 0.5 if the bass is too bright or the treble too dull. |
+| `strike` | 0.125 | Strike point; nulls modes 8, 16, 24. | 0.1 to 0.18 for a different comb. |
+| `decayA` / `decayB` / `decayP` | 0.05 / 1e-4 / 1.5 | Decay rate a + b·f^p. | Raise B for faster-dying highs; lower A for a longer fundamental. |
+| `decayTracking` | 0.5 | Decay rate exponent against the key; bass rings longer. | 0.3 to 0.8. |
+| `partials` | 64 | Modes per string; the bass is cut at 64 × f0. | 64 to 128 if the lowest octave sounds hollow. |
+| `keyboardSpread` / `stringSpread` | 0 / 0 | Stereo placement of keys and strings. | 40 / 1 are the demo song's values. |
+| envelope in `piano.acoustic.grand` | 5 ms attack, 8 s decay, sustain 0, 0.3 s release | Wraps the bank. | A shorter attack for a harder onset. |
+
+For the other presets the same table applies, with `pluckCutoff` in place of the
+hammer terms. Their body tables are the main reason they sound alike, so tune
+those first.
 
 ## Not yet implemented
 

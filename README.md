@@ -86,8 +86,8 @@ middle C). What remains is the tuning's own error, such as 31-EDO's 4:3 being
 5.2 cents wide; removing that needs partials moved onto the tuning's steps
 (Sethares, *Tuning, Timbre, Spectrum, Scale*), which FM can't do.
 
-The acoustic piano (`piano.acoustic.grand`, replacing the SoundFont's own
-piano; [docs/additive.md](docs/additive.md)) does that: every partial of every
+The acoustic piano (`<additive preset="piano"/>`, also `piano.acoustic.grand`
+when the SoundFont has no piano; [docs/additive.md](docs/additive.md)) does that: every partial of every
 note sits on the song's tuning, with a stretch bounded at the same ε, so shared
 partials of the tuning's own intervals, septimal ones included, meet exactly.
 
