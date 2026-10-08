@@ -16,8 +16,8 @@ A microtonal multiparadigm music production system, which combines live sequence
 - Ambisonic Bus
 - Emacs-style buffers and keybindings
 - Works out of the box (Basic instruments are included and no low-latency requirements)
-- Launchpad support
 - Keyboard driven
+- Launchpad support
 
 # Background
 
@@ -109,7 +109,6 @@ The major things that are missing are the following:
 * GUI
 * Undo/redo
 * Lighting control (DMX/ArtNet)
-* Tempo control
 * Just tuning
 * Continuous MIDI recording with retroactive capture
 
