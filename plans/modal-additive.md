@@ -141,7 +141,7 @@ strings struck together for one key.
 
 | Attribute | Stage | Meaning |
 |---|---|---|
-| `preset` | all | `default` (a plain struck string: one string, no thump, `stretch` 0, no key tracking) and `piano` (the model below, with the library's string count). Stage 4 adds the test presets `guitar`, `harp`, `harpsichord` and `bar`. `struck-string` is removed: one string is not a piano, and the name suggested one. An unknown name falls back to `default`. |
+| `preset` | all | `default` (a plain struck string: one string, no thump, `stretch` 0, no key tracking) and `piano` (the model below, with the library's string count). Stage 4 adds the test presets `guitar-nylon`, `guitar-steel`, `harp`, `harpsichord` and `bar`. `struck-string` is removed: one string is not a piano, and the name suggested one. An unknown name falls back to `default`. |
 | `partials` | 1 | Upper bound on partials built (Nyquist and the audibility floor trim further). |
 | `tuningMatched` | 1 | Every built partial sits on the tuning (below). `false` or `Tuning::PERCUSSION`: plain harmonics, and `stretch` still applies. |
 | `stretch` | 1 | ε: partial n sits at `T(n) + (n-1)·ε` times f0. Replaces `inharmonicity`, `partialLimit`. |
@@ -611,7 +611,9 @@ model:
 - **`excitation`** (`hammer` | `pluck`). A pluck releases the string from a
   displaced shape, so mode n starts roughly as `sin(nπβ)/n²` with β the
   pluck position, and there is no hammer lowpass or velocity-dependent
-  corner. The `hammer*` attributes keep their prefix because they do not
+  corner; a pluck has its own optional fixed lowpass, `pluckCutoff` (Hz: a
+  finger is softer than a pick, the main difference between the nylon and
+  steel guitar presets). The `hammer*` attributes keep their prefix because they do not
   apply to a pluck; `strike` is the pluck position for both.
 - **`modes`**, an explicit list of mode frequency ratios (and optionally a
   decay multiplier each) replacing the string's harmonic series. Tuning
@@ -619,7 +621,8 @@ model:
 
 | Preset | Excitation | Strings | What it exercises |
 |---|---|---|---|
-| `guitar` | pluck | 1 | The pluck spectrum and comb at a pluck position that is not the piano's (swept by ear, e.g. 0.1 / 0.2 / 0.3, none assumed); a body table of fixed-frequency resonators that is not the piano's thump table; no keyboard spread (one instrument, six strings, one position). |
+| `guitar-nylon` | pluck | 1 | The pluck spectrum and comb at a pluck position that is not the piano's (swept by ear, e.g. 0.1 / 0.2 / 0.3, none assumed); a soft, fingertip pluck (low `pluckCutoff`); high partials dying quickly; a body table of fixed-frequency resonators that is not the piano's thump table; no keyboard spread (one instrument, six strings, one position). |
+| `guitar-steel` | pluck | 1 | The same machinery with the differences that make it steel: a brighter pluck (high `pluckCutoff`, a pick or nail), slower decay of the high partials and a longer ring, and a slightly larger `stretch` (steel strings are stiffer, though the bounded form keeps it to a few cents). Its body table differs from the nylon one. This pair checks that a handful of attributes is enough to tell two members of one family apart. |
 | `harp` | pluck | 1 | Long decays with strong key tracking over a wide range; `keyboardSpread` and `stringSpread` at larger values than the piano, since a harp's strings really are spread across its width; a small body table. |
 | `harpsichord` | pluck | 2 | Two unison strings with a pluck; velocity changes loudness (upstream, linear) but not brightness, which `hammerVelocity`'s absence for a pluck gives for free; a fast decay with no aftersound (`decaySpread` 0). |
 | `bar` | hammer | 1 | `modes` with the ideal free-free bar ratios 1 : 2.756 : 5.404 : 8.933 (derived from the roots of `cos(x)·cosh(x) = 1`, 4.730, 7.853, 10.996, 14.137, squared and divided by the first). This is an ideal bar, not a marimba, whose bars are cut to put the second mode near 4:1; that comparison is the first check of the mode list. |
