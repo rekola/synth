@@ -9,6 +9,7 @@
 #include "../model/NoteCoordinate.h"
 
 #include <string>
+#include <vector>
 
 // A per-voice sinusoid-bank ("additive synthesis") instrument leaf: a set
 // of decaying partials per string, with the spectrum, tuning and decay
@@ -22,7 +23,7 @@
 // amplitude as for any other instrument leaf.
 class Additive : public Instrument {
  public:
-  explicit Additive() { }
+  Additive();
 
   const char * getElementName() const override { return "additive"; }
   void loadParameters(const ParameterSource & input) override;
@@ -31,27 +32,32 @@ class Additive : public Instrument {
 
  private:
   std::string preset_ = "default";
-  int partials_ = getAdditivePreset("default").partials;
-  // Tilt in dB/octave of partial number, plus velocityTilt times
-  // (velocity - 0.5): a harder hit is brighter.
-  float tilt_ = getAdditivePreset("default").tilt;
-  float velocityTilt_ = getAdditivePreset("default").velocityTilt;
-  // Strings per note, and the spacing between adjacent ones in cents.
-  int unisonVoices_ = getAdditivePreset("default").unisonVoices;
-  float unisonDetune_ = getAdditivePreset("default").unisonDetune;
-  // Partial n sits at its grid position plus (n-1)*stretch times the
-  // fundamental - see AdditiveModel.h.
-  float stretch_ = getAdditivePreset("default").stretch;
-  // alpha_n = decayA_ + decayB_ * f_n^decayP_, nepers/second.
-  float decayA_ = getAdditivePreset("default").decayA;
-  float decayB_ = getAdditivePreset("default").decayB;
-  float decayP_ = getAdditivePreset("default").decayP;
-  bool tuningMatched_ = getAdditivePreset("default").tuningMatched;
-  float attackNoiseLevel_ = getAdditivePreset("default").attackNoiseLevel;
+  int partials_ = 0;
+  float stretch_ = 0.0f;
+  bool tuningMatched_ = true;
+  // Strings per note and the spacing between adjacent ones in cents.
+  int unisonVoices_ = 1;
+  float unisonDetune_ = 1.0f;
+  // A list of mode frequency ratios replacing the harmonic series, e.g. for
+  // a bar; empty for a string.
+  std::string modes_;
+  // "hammer" or "pluck", the strike or pluck point as a fraction of the
+  // string, and the lowpass corners that give the excitation its brightness.
+  std::string excitation_ = "hammer";
+  float strike_ = 0.125f;
+  float hammerCutoff_ = 0.0f, hammerTracking_ = 0.0f, hammerVelocity_ = 0.0f;
+  float pluckCutoff_ = 0.0f;
+  float partialFloor_ = -60.0f;
+  // alpha_n = (decayA_ + decayB_ * f_n^decayP_) * (f0 / middle C)^decayTracking_,
+  // nepers/second, with the outer strings (1 +- decaySpread_) times that.
+  float decayA_ = 0.0f, decayB_ = 0.0f, decayP_ = 1.0f;
+  float decayTracking_ = 0.0f, decaySpread_ = 0.0f;
+  // The body table's level, and the degrees of arc its modes are spread over.
+  float thump_ = 0.0f, thumpWidth_ = 0.0f;
+  std::vector<BodyMode> body_;
   // Degrees of azimuth across the keyboard (bass left, treble right), and
   // between adjacent strings of one key.
-  float keyboardSpread_ = getAdditivePreset("default").keyboardSpread;
-  float stringSpread_ = getAdditivePreset("default").stringSpread;
+  float keyboardSpread_ = 0.0f, stringSpread_ = 0.0f;
   float level_ = 1.0f;
 };
 

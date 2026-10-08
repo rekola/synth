@@ -2,6 +2,10 @@
 
 Terms with a specific meaning in this project.
 
+**Aftersound**
+The slow tail after a piano note's fast first decay, from the strings'
+out-of-phase motion draining the bridge more slowly.
+
 **Clip launcher**
 The grid of clips inside Live View: one column per track, one row per scene,
 each slot triggered on the next bar. On a Launchpad it is the pad grid in the
@@ -47,6 +51,10 @@ A row of the clip grid: the clips at one position across every track's clip
 list, launched together. It has no object of its own beyond an optional
 name, tempo and time signature stored by position. See scenes.md.
 
+**Strike point**
+Where a hammer or pluck meets the string, as a fraction of its length. Modes
+with a node there are not excited: at 1/8, the 8th, 16th and 24th partials.
+
 **Swing**
 A timing feel that delays the second note of each eighth-note pair (4 rows),
 giving a long-short, lilting feel. Stored as a percentage of the pair taken
@@ -57,3 +65,8 @@ Akai MPC's swing. Only the second note of a pair moves; on-beat notes
 never do. A song-level setting (`Song::getSwing()`, `<song swing="">`)
 applied at playback time to everything scheduled against it, not baked into
 note data.
+
+**Unison**
+The strings struck together for one piano key, tuned a cent or so apart.
+Their slow beating, and their slightly different decay rates, give a piano
+note its shimmer and its double decay. See additive.md.

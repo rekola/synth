@@ -21,46 +21,73 @@ cannot judge "sounds like a piano", only measure the things below.
 
 ## Progress
 
-**Stage 1 is implemented and waiting for listening.** Stages 2-4 and the
-README/glossary are not started.
+**All four stages are implemented and wait for listening.** Only
+`README.md`'s paragraph, `docs/additive.md`, `docs/glossary.md` and the songs
+below describe them; the sections after this one are the plan as written, with
+the differences listed here.
 
-Done in Stage 1: `SinusoidBank` takes `PartialSpec`s and writes one row per
-group; `AdditiveModel.{h,cpp}` builds the partials (grid + bounded stretch,
-centred unison strings); `AdditiveVoice` places each string in space
-(`keyboardSpread`, `stringSpread`); presets are `default` and `piano`
-(`struck-string`, `inharmonicity`, `partialLimit` and the `envelope*` remap
-attributes are gone; the remap went in Stage 1 rather than Stage 2 because
-the model replaced the code that called it); `tools/analyze_render.py`;
-`songs/additive_septimal_chords.xml`; `docs/additive.md` rewritten for the
-current state; `songs/oscillator_demo.xml` and `songs/songtest20.xml` moved
-to the new presets. `tilt` and `attackNoiseLevel` stay until Stages 2 and 3.
+What exists: `SinusoidBank` over `PartialSpec`s with one output row per group;
+`AdditiveModel.{h,cpp}` (grid-tuned partials with bounded stretch, centred
+unison strings, hammer and pluck excitation, strike comb, hammer corner in Hz
+with key and velocity exponents, partial floor, mode lists, per-string decay
+with key tracking and spread, a body table); `AdditiveVoice` placing each
+string and body mode in space; presets `default`, `piano`, `guitar-nylon`,
+`guitar-steel`, `harp`, `harpsichord`, `bar`; `tools/analyze_render.py`;
+`songs/additive_septimal_chords.xml`, `songs/additive_presets_demo.xml`;
+`songs/oscillator_demo.xml` and `songs/songtest20.xml` on the new presets.
+`tilt`, `velocityTilt`, `attackNoiseLevel`, `inharmonicity`, `partialLimit`
+and the `envelope*` remap attributes are gone.
 
-Measured (Release, 48 kHz, 1024-frame blocks, the voice chain with the
-ambisonic encode; `SYNTH_TIMING=1 SYNTH_TIMING_PRESET=... synth_tests`):
+Measured (Release, 48 kHz, 1024-frame blocks, the voice chain with the ambisonic
+encode; `SYNTH_TIMING=1 SYNTH_TIMING_PRESET=... synth_tests`):
 
-| | Before (`struck-string`, 2 strings × 28) | After (`piano`, 3 strings × 28) |
+| | Before (`struck-string`, 2 strings × 28) | After (`piano`, 3 strings, up to 171 resonators) |
 |---|---|---|
-| One voice, note-on | 7.9 µs | 7.3 µs |
-| One voice, first block | 22.4 µs | 42.8 µs |
-| 32 voices, first block, total | 835 µs | 1480 µs |
-| 32 voices, block 24, total | 613 µs | 1151 µs |
+| One voice, note-on | 7.9 µs | 21.5 µs |
+| One voice, first block | 22.4 µs | 77.7 µs |
+| 32 voices, first block, total | 835 µs | 1857 µs |
+| 32 voices, block 24, total | 613 µs | 1135 µs |
 
-That is about 0.5 µs a resonator both times; 32 piano voices are 7% of the
-21.3 ms block budget. (The 6 µs and 2 ms figures in the old docs were not
-reproducible and are gone.)
+About 0.45 µs a resonator both times; 32 piano voices are 9% of the 21.3 ms
+block budget. (The 6 µs and 2 ms figures in the old docs were not reproducible
+and are gone.)
 
-Chord check (31-EDO, C4 + A♯4, 7:4; partial decay and tilt switched off in a
-scratch variant so the 7th partial is still audible after 0.5 s, 3 s
-window): the root's 7th partial is 1840.50 Hz at `stretch` 0 and 1842.00 Hz
-at 0.001 (model: 1842.07), and the upper note's 4th partial is within 0.2 Hz
-of it, so one string gives a single line. With three strings the lines sit at
-1840.85, 1842.00 and 1843.15 Hz: ±1 cent, the strings' own shimmer. Before,
-the two partials were 795 Hz and 1372 Hz (Finding A).
+Chord check (31-EDO, C4 + A♯4, 7:4, stage 1, decay and tilt switched off in a
+scratch variant so the 7th partial is still audible after 0.5 s): the root's
+7th partial is 1840.50 Hz at `stretch` 0 and 1842.00 Hz at 0.001 (model:
+1842.07), and the upper note's 4th partial is within 0.2 Hz of it, so one
+string gives a single line; with three strings the lines sit at 1840.85,
+1842.00 and 1843.15 Hz, ±1 cent. Before, the two partials were 795 Hz and
+1372 Hz apart (Finding A).
 
-Differences from the text below: a grid position can sit half a step under n,
-so the stretch bound is `1200·log2(1+ε(n-1)/T(n))` (about 3% over
-`1200·log2(1+ε)` in 12-EDO), corrected in the Stage 1 model text; the tests
-assert the corrected bound.
+Piano levels, C1…C7 at velocity 127: peaks −11.2, −8.7, −11.3, −13.6, −13.2,
+−14.1, −15.6 dBFS (within 5 dB). A-weighted level of the first 150 ms:
+−22.4, −21.5, −24.5, −25.0, −27.2, −30.9, −34.0 dB, falling toward the treble
+mostly because the starting treble decay (`decayTracking` 0.5, `decayB` 1e-4)
+is fast. That, not the starting level, is the thing to listen to; no level
+tracking attribute was added since the starting peaks are even. The
+tetrad on the piano peaks at −4 dBFS in the first stage and −10 dBFS now; the
+fundamental-heavy presets (harp, bar) clipped at a note power of 1 and sit at
+−6 dBFS at 0.5, which is `kNoteRms`.
+
+Differences from the text below:
+- The stretch bound is `1200·log2(1+ε(n-1)/T(n))` (up to 3% over
+  `1200·log2(1+ε)` in 12-EDO); the tests assert it.
+- The `envelope*` remap went in Stage 1, when the model replaced its caller.
+- Every note has the same total power, `kNoteRms` = 0.5 root-sum-square before
+  the string split, instead of an unnormalised tilt.
+- The preset values (hammer corner 2 kHz, felt exponent 3, decay constants,
+  the body tables, guitar/harp/harpsichord numbers) are starting values for
+  listening. No reference piano was available, so none of the "left unset
+  until measured" values was measured; they are marked as starting values in
+  `AdditivePresets.h` and `docs/additive.md`. The piano preset caps at 64
+  partials, which at the lowest key stops at 2 kHz (the hammer corner).
+- Pruning with `partialFloor` rarely engages on the piano (nothing falls 60 dB
+  below the strongest under a 2 kHz corner within 64 partials); Nyquist and
+  the partial cap bound the count.
+- The body modes are in the preset, not an XML attribute.
+- Stage 4 did not add per-mode decay multipliers (`modes`' optional second
+  list); the frequency-dependent decay covers it.
 
 ## What the code does today (checked)
 

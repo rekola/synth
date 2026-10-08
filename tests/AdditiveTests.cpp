@@ -191,6 +191,8 @@ TEST(additive_partial_specs_group_by_string_and_skip_nyquist) {
   AdditiveModelParams params;
   params.partials = 28;
   params.unison_voices = 3;
+  params.strike = 0.37f; // no mode of the first 28 has a node here
+  params.partial_floor_db = -200.0f;
   NoteContext note{kMiddleC, 0.8f, 44100.0f, 31, NoteCoordinate(0, 4, 0)};
   auto specs = buildPartialSpecs(params, note);
   CHECK(specs.size() == 3 * 28);
@@ -233,7 +235,7 @@ TEST(additive_keyboard_spread_places_bass_and_treble_on_opposite_sides) {
     MemoryParameterSource params;
     params.set("preset", std::string("piano"));
     params.set("keyboardSpread", spread);
-    params.set("attackNoiseLevel", 0.0f);
+    params.set("thump", 0.0f);
     additive.loadParameters(params);
     ChannelConfiguration config(44100, 1);
     SphericalPosition position;
@@ -254,6 +256,367 @@ TEST(additive_keyboard_spread_places_bass_and_treble_on_opposite_sides) {
   float low = side(60.0f, 36), high = side(60.0f, 96);
   CHECK(low * high < 0.0f);
   CHECK(std::fabs(low) > 0.05f && std::fabs(high) > 0.05f);
+}
+
+namespace {
+// Spec amplitudes of the first string by partial number (frequency ordered
+// ascending equals partial order here), for a note with the given params.
+std::vector<PartialSpec> firstString(const std::vector<PartialSpec> & specs) {
+  std::vector<PartialSpec> out;
+  for (const auto & p : specs)
+    if (p.group == 0) out.push_back(p);
+  return out;
+}
+
+float totalPower(const std::vector<PartialSpec> & specs, int strings) {
+  float power = 0.0f;
+  for (const auto & p : specs)
+    if (p.group == 0) power += p.amplitude * p.amplitude * static_cast<float>(strings * strings);
+  return power;
+}
+
+NoteContext noteAt(float f0, float velocity = 0.5f, int edo = 12) {
+  return NoteContext{f0, velocity, 96000.0f, edo, NoteCoordinate(0, 1, 0)};
+}
+} // namespace
+
+// Stage 2: the hammer ------------------------------------------------------
+
+TEST(additive_strike_comb_nulls_partial_8_at_one_eighth) {
+  AdditiveModelParams params;
+  params.partials = 24;
+  params.strike = 0.125f;
+  params.hammer_cutoff_hz = 1e6f;
+  params.partial_floor_db = -120.0f; // a node at a float strike point is ~1e-8, not 0
+  auto specs = firstString(buildPartialSpecs(params, noteAt(200.0f)));
+  CHECK(specs.size() == 21); // modes 8, 16 and 24 have a node at the strike
+
+  params.strike = 0.1f;
+  specs = firstString(buildPartialSpecs(params, noteAt(200.0f)));
+  CHECK(specs.size() == 22); // mode 10 has the node now
+}
+
+TEST(additive_harder_velocity_is_brighter) {
+  AdditiveModelParams params;
+  params.partials = 30;
+  params.strike = 0.37f;
+  params.hammer_velocity = hammerVelocityExponent(3.0f);
+  float previous = 0.0f;
+  for (float velocity : {0.25f, 0.5f, 1.0f}) {
+    auto specs = firstString(buildPartialSpecs(params, noteAt(262.0f, velocity)));
+    float high = 0.0f, low = 0.0f;
+    for (const auto & p : specs) (p.frequency_hz > 3000.0f ? high : low) += p.amplitude * p.amplitude;
+    CHECK(high / low > previous);
+    previous = high / low;
+  }
+}
+
+TEST(additive_hammer_exponent_follows_the_contact_time_formula) {
+  CHECK_NEAR(hammerVelocityExponent(2.0f), 1.0f / 3.0f, 1e-6f);
+  CHECK_NEAR(hammerVelocityExponent(3.0f), 0.5f, 1e-6f);
+  AdditiveModelParams params;
+  params.hammer_cutoff_hz = 2000.0f;
+  params.hammer_velocity = 0.5f;
+  CHECK_NEAR(hammerCutoffHz(params, 261.63f, 0.5f), 2000.0f, 1e-3f);
+  CHECK_NEAR(hammerCutoffHz(params, 261.63f, 1.0f), 2000.0f * std::sqrt(2.0f), 1.0f);
+}
+
+TEST(additive_hammer_corner_is_in_hz_unless_it_tracks_the_key) {
+  AdditiveModelParams params;
+  params.partials = 30;
+  params.strike = 0.37f;
+  params.hammer_cutoff_hz = 1500.0f;
+  auto audible = [&](float f0) {
+    auto specs = firstString(buildPartialSpecs(params, noteAt(f0)));
+    float top = 0.0f;
+    for (const auto & p : specs) top = std::max(top, p.amplitude);
+    int count = 0;
+    for (const auto & p : specs)
+      if (p.amplitude > 0.1f * top) count++;
+    return count;
+  };
+  params.hammer_tracking = 0.0f;
+  CHECK(audible(65.0f) > audible(130.0f)); // the bass has more partials under the corner
+  params.hammer_tracking = 1.0f;
+  CHECK(audible(65.0f) == audible(130.0f));
+}
+
+TEST(additive_every_note_has_the_same_total_power_before_pruning) {
+  AdditiveModelParams params;
+  params.partials = 30;
+  params.strike = 0.37f;
+  params.unison_voices = 3;
+  params.partial_floor_db = -300.0f;
+  for (float f0 : {65.0f, 262.0f, 523.0f}) {
+    for (float velocity : {0.25f, 1.0f}) {
+      CHECK_NEAR(totalPower(buildPartialSpecs(params, noteAt(f0, velocity)), 3), 0.25f, 1e-3f);
+    }
+  }
+}
+
+TEST(additive_partial_floor_prunes_and_loses_almost_no_power) {
+  AdditiveModelParams params;
+  params.partials = 80;
+  params.strike = 0.37f;
+  params.hammer_cutoff_hz = 150.0f; // a dull hammer: the top of 80 partials is far below the strongest
+  params.partial_floor_db = -300.0f;
+  auto all = buildPartialSpecs(params, noteAt(65.0f));
+  params.partial_floor_db = -40.0f;
+  auto some = buildPartialSpecs(params, noteAt(65.0f));
+  CHECK(some.size() < all.size());
+  params.partial_floor_db = -60.0f;
+  auto pruned = buildPartialSpecs(params, noteAt(65.0f));
+  CHECK(pruned.size() < all.size());
+  // Power of the partials -60 dB leaves out, compared with the whole.
+  float whole = 0.0f, kept = 0.0f;
+  for (const auto & p : all) whole += p.amplitude * p.amplitude;
+  for (const auto & p : pruned) kept += p.amplitude * p.amplitude;
+  CHECK(kept / whole > 0.99f);
+}
+
+TEST(additive_piano_resonator_count_is_bounded_on_every_key) {
+  const auto & preset = getAdditivePreset("piano");
+  AdditiveModelParams params;
+  params.partials = preset.partials;
+  params.unison_voices = preset.unisonVoices;
+  params.strike = preset.strike;
+  params.hammer_cutoff_hz = preset.hammerCutoff;
+  params.hammer_velocity = preset.hammerVelocity;
+  params.thump = preset.thump;
+  params.body = preset.body;
+  for (float f = 32.7f; f < 2100.0f; f *= 1.0595f) {
+    auto specs = buildPartialSpecs(params, noteAt(f, 1.0f, 31));
+    CHECK(specs.size() <= static_cast<size_t>(preset.unisonVoices * preset.partials) + preset.body.size());
+    CHECK(specs.size() >= 20);
+  }
+}
+
+// Stage 3: decay and thump -------------------------------------------------
+
+TEST(additive_decay_rises_with_frequency_and_falls_with_key) {
+  AdditiveModelParams params;
+  params.partials = 8;
+  params.strike = 0.37f;
+  params.decay_a = 0.05f;
+  params.decay_b = 1e-4f;
+  params.decay_p = 1.5f;
+  params.decay_tracking = 0.5f;
+  params.tuning_matched = false;
+  params.partial_floor_db = -300.0f;
+  auto alphaAt = [&](float f0, int n) {
+    for (const auto & p : buildPartialSpecs(params, noteAt(f0)))
+      if (p.group == 0 && std::fabs(p.frequency_hz - f0 * static_cast<float>(n)) < 1.0f) return p.alpha;
+    return -1.0f;
+  };
+  CHECK(alphaAt(262.0f, 4) > alphaAt(262.0f, 1)); // higher partial, faster
+  CHECK(alphaAt(65.5f, 4) < alphaAt(262.0f, 1));  // same frequency, lower key rings longer
+}
+
+TEST(additive_unison_strings_have_different_decay_rates) {
+  AdditiveModelParams params;
+  params.partials = 1;
+  params.strike = 0.37f;
+  params.unison_voices = 3;
+  params.decay_spread = 0.5f;
+  params.decay_b = 0.0f; // so the strings' cent-sized frequency offsets don't differ the rates
+  params.partial_floor_db = -300.0f;
+  float alpha[3] = {0, 0, 0};
+  for (const auto & p : buildPartialSpecs(params, noteAt(262.0f))) alpha[p.group] = p.alpha;
+  CHECK(alpha[0] < alpha[1] && alpha[1] < alpha[2]);
+  CHECK_NEAR(alpha[0] / alpha[1], 0.5f / 1.0f, 1e-3f);
+  CHECK_NEAR(alpha[2] / alpha[1], 1.5f, 1e-3f);
+
+  params.decay_spread = 0.0f;
+  for (const auto & p : buildPartialSpecs(params, noteAt(262.0f))) alpha[p.group] = p.alpha;
+  CHECK(alpha[0] == alpha[1] && alpha[1] == alpha[2]);
+}
+
+// Three strings with unequal decay sum to a fast first decay and a slow
+// aftersound; one string is a single exponential.
+TEST(additive_two_stage_decay) {
+  AdditiveModelParams params;
+  params.partials = 1;
+  params.strike = 0.37f;
+  params.decay_a = 1.0f;
+  params.decay_b = 0.0f;
+  params.decay_spread = 0.6f;
+  params.partial_floor_db = -300.0f;
+  auto slope = [&](int strings, float t0, float t1) {
+    params.unison_voices = strings;
+    auto specs = buildPartialSpecs(params, noteAt(262.0f));
+    auto level = [&](float t) {
+      float sum = 0.0f;
+      for (const auto & p : specs) sum += p.amplitude * std::exp(-p.alpha * t);
+      return sum;
+    };
+    return (std::log(level(t1)) - std::log(level(t0))) / (t1 - t0);
+  };
+  CHECK(slope(3, 0.0f, 0.5f) < 1.5f * slope(3, 4.0f, 4.5f)); // both negative: early is steeper
+  CHECK_NEAR(slope(1, 0.0f, 0.5f), slope(1, 4.0f, 4.5f), 1e-3f);
+}
+
+TEST(additive_thump_is_fixed_in_hz_short_and_off_without_a_level) {
+  AdditiveModelParams params;
+  params.partials = 12;
+  params.strike = 0.37f;
+  params.unison_voices = 2;
+  params.thump = 0.3f;
+  params.body = {{70.0f, 1.0f, 60.0f}, {120.0f, 0.7f, 50.0f}};
+  auto bodyOf = [&](float f0, int edo) {
+    std::vector<PartialSpec> out;
+    for (const auto & p : buildPartialSpecs(params, noteAt(f0, 0.5f, edo)))
+      if (p.group >= 2) out.push_back(p);
+    return out;
+  };
+  auto low = bodyOf(65.0f, 12), high = bodyOf(1046.0f, 31);
+  CHECK(low.size() == 2 && high.size() == 2);
+  for (size_t i = 0; i < 2; i++) {
+    CHECK(low[i].frequency_hz == high[i].frequency_hz);
+    CHECK(low[i].group == 2 + static_cast<int>(i));
+    CHECK(low[i].amplitude > 0.0f);
+    CHECK(std::exp(-low[i].alpha * 0.15f) < 1e-3f); // gone within 150 ms
+  }
+
+  params.thump = 0.0f;
+  CHECK(bodyOf(65.0f, 12).empty());
+}
+
+TEST(additive_body_modes_are_spread_wider_than_the_strings) {
+  float lo = 1e9f, hi = -1e9f;
+  for (int j = 0; j < 3; j++) {
+    float a = bodyAzimuthOffsetDeg(j, 3, 60.0f);
+    lo = std::min(lo, a);
+    hi = std::max(hi, a);
+  }
+  CHECK_NEAR(lo, -30.0f, 1e-4f);
+  CHECK_NEAR(hi, 30.0f, 1e-4f);
+  CHECK(bodyAzimuthOffsetDeg(0, 1, 60.0f) == 0.0f);
+  // Neighbouring modes are not neighbours in space.
+  CHECK(std::fabs(bodyAzimuthOffsetDeg(0, 4, 60.0f) - bodyAzimuthOffsetDeg(1, 4, 60.0f)) > 20.0f);
+  CHECK(hi - lo > 2.0f * stringAzimuthOffsetDeg(2, 3, getAdditivePreset("piano").thumpWidth > 0.0f ? 1.0f : 0.0f));
+}
+
+// Stage 4: plucks, modes and presets ----------------------------------------
+
+TEST(additive_pluck_spectrum_follows_one_over_n_squared_with_a_comb) {
+  AdditiveModelParams params;
+  params.partials = 12;
+  params.excitation = Excitation::Pluck;
+  params.strike = 0.2f;
+  params.pluck_cutoff_hz = 0.0f;
+  params.tuning_matched = false;
+  params.partial_floor_db = -120.0f;
+  auto specs = firstString(buildPartialSpecs(params, noteAt(100.0f)));
+  CHECK(specs.size() == 10); // modes 5 and 10 have a node at 1/5
+  float reference = 0.0f;
+  for (const auto & p : specs) {
+    int n = static_cast<int>(std::lround(p.frequency_hz / 100.0f));
+    float shape = p.amplitude * static_cast<float>(n * n) / std::fabs(std::sin(static_cast<float>(M_PI) * static_cast<float>(n) * 0.2f));
+    if (reference == 0.0f) reference = shape;
+    CHECK_NEAR(shape / reference, 1.0f, 1e-3f);
+  }
+}
+
+TEST(additive_pluck_does_not_brighten_with_velocity) {
+  AdditiveModelParams params;
+  params.partials = 20;
+  params.excitation = Excitation::Pluck;
+  params.strike = 0.2f;
+  params.pluck_cutoff_hz = 3000.0f;
+  auto quiet = buildPartialSpecs(params, noteAt(200.0f, 0.25f));
+  auto loud = buildPartialSpecs(params, noteAt(200.0f, 1.0f));
+  CHECK(quiet.size() == loud.size());
+  for (size_t i = 0; i < quiet.size(); i++) CHECK(quiet[i].amplitude == loud[i].amplitude);
+}
+
+TEST(additive_modes_replace_the_harmonic_series) {
+  CHECK(parseModeRatios("1 2.756 5.404").size() == 3);
+  CHECK(parseModeRatios("").empty());
+
+  AdditiveModelParams params;
+  params.partials = 4;
+  params.modes = {1.0f, 2.756f, 5.404f, 8.933f};
+  params.partial_floor_db = -300.0f;
+  for (int edo : {12, 31}) {
+    auto specs = buildPartialSpecs(params, noteAt(220.0f, 0.5f, edo));
+    CHECK(specs.size() == 4);
+    for (size_t k = 0; k < 4; k++) CHECK_NEAR(specs[k].frequency_hz, 220.0f * params.modes[k], 1e-3f);
+  }
+  params.partials = 2;
+  CHECK(buildPartialSpecs(params, noteAt(220.0f)).size() == 2);
+}
+
+// The modes of a free-free bar are the roots of cos(x)*cosh(x) = 1.
+TEST(additive_bar_preset_ratios_match_the_free_free_bar_roots) {
+  auto root = [](double guess) {
+    double lo = guess - 0.3, hi = guess + 0.3;
+    auto f = [](double x) { return std::cos(x) * std::cosh(x) - 1.0; };
+    for (int i = 0; i < 100; i++) {
+      double mid = 0.5 * (lo + hi);
+      if (f(lo) * f(mid) <= 0.0)
+        hi = mid;
+      else
+        lo = mid;
+    }
+    return 0.5 * (lo + hi);
+  };
+  double first = root(4.73);
+  auto ratios = parseModeRatios(getAdditivePreset("bar").modes);
+  CHECK(ratios.size() == 4);
+  CHECK_NEAR(ratios[0], 1.0f, 1e-6f);
+  int k = 1;
+  for (double guess : {7.853, 10.996, 14.137}) {
+    double ratio = std::pow(root(guess) / first, 2.0);
+    CHECK_NEAR(static_cast<float>(ratio), ratios[static_cast<size_t>(k)], 1e-3f);
+    k++;
+  }
+}
+
+TEST(additive_every_preset_renders_finite_and_audible) {
+  for (const char * name : {"default", "piano", "guitar-nylon", "guitar-steel", "harp", "harpsichord", "bar"}) {
+    Additive additive;
+    MemoryParameterSource params;
+    params.set("preset", std::string(name));
+    additive.loadParameters(params);
+    ChannelConfiguration config(44100, 1);
+    SphericalPosition position;
+    position.distance = 1.0f;
+    auto voice = additive.playNote(config, position, Tuning::EDO31, 1.0f, 0.8f, 160, SendLevels{}, NoteCoordinate(0, 0, 0));
+    float energy = 0.0f;
+    for (int block = 0; block < 4; block++) {
+      auto data = voice->render(1024);
+      const float * w = data.getChannelData(0);
+      for (int i = 0; i < 1024; i++) {
+        CHECK(std::isfinite(w[i]));
+        energy += w[i] * w[i];
+      }
+    }
+    CHECK(energy > 1e-4f);
+  }
+}
+
+TEST(additive_preset_structure) {
+  auto groups = [](const char * name) {
+    const auto & preset = getAdditivePreset(name);
+    AdditiveModelParams params;
+    params.partials = preset.partials;
+    params.unison_voices = preset.unisonVoices;
+    params.modes = parseModeRatios(preset.modes);
+    params.excitation = preset.pluck ? Excitation::Pluck : Excitation::Hammer;
+    params.strike = preset.strike;
+    params.hammer_cutoff_hz = preset.hammerCutoff;
+    params.pluck_cutoff_hz = preset.pluckCutoff;
+    params.thump = preset.thump;
+    params.body = preset.body;
+    int highest = -1;
+    for (const auto & p : buildPartialSpecs(params, noteAt(220.0f))) highest = std::max(highest, p.group);
+    return highest + 1;
+  };
+  CHECK(groups("harpsichord") == 2);      // two strings, no body
+  CHECK(groups("guitar-nylon") == 1 + 2); // one string, two body modes
+  CHECK(groups("default") == 1);
+  CHECK(groups("piano") == 3 + 3);
+  CHECK(getAdditivePreset("guitar-nylon").pluckCutoff < getAdditivePreset("guitar-steel").pluckCutoff);
 }
 
 // Timing of the <additive> voice chain (bank plus ambisonic encode), printed
