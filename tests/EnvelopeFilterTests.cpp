@@ -1,6 +1,8 @@
 #include "TestFramework.h"
 
 #include "../src/effects/EnvelopeFilter.h"
+#include "../src/instruments/FM.h"
+#include "../src/state/TrackState.h"
 #include "../src/state/MemoryParameterSource.h"
 #include "../src/ambisonic/ChannelConfiguration.h"
 
@@ -101,4 +103,27 @@ TEST(envelope_filter_state_fast_release_finishes_much_sooner_than_the_authored_r
     if (!state->isActive()) became_inactive = true;
   }
   CHECK(became_inactive);
+}
+
+TEST(envelope_filter_keynum_to_decay_follows_the_played_note) {
+  ChannelConfiguration config(44100);
+  EnvelopeFilter filter;
+  MemoryParameterSource params;
+  params.set("attack", 0.0f);
+  params.set("decay", 1.0f);
+  params.set("sustain", 0.0f);
+  params.set("keynumToDecay", 100.0f);
+  filter.loadParameters(params);
+  filter.addChild(std::make_unique<FM>());
+
+  // An octave below middle C should decay at half the rate (in dB) of
+  // middle C, an octave above at twice the rate.
+  auto levelAfter = [&](int note_value) {
+    auto voice = filter.playNote(config, SphericalPosition{}, Tuning::EDO12, 1.0f, 1.0f, note_value, SendLevels{});
+    voice->render(11025);
+    return TrackState::gainToDecibels(voice->getOwnLoudnessFactor());
+  };
+  float low = levelAfter(48), middle = levelAfter(60), high = levelAfter(72);
+  CHECK_NEAR(low / middle, 0.5f, 0.05f);
+  CHECK_NEAR(high / middle, 2.0f, 0.1f);
 }
