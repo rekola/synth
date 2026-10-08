@@ -9,15 +9,15 @@ A microtonal multiparadigm music production system, which combines live sequence
 
 ## Features
 
-- Launchpad support and Live arrangement
-- Sample and note based clips
+- Live sequencer with sample and note based clips
 - Microtonal (12/19/31/53-EDO)
-- Emacs-style buffers and keybindings
 - SoundFont2
 - Headless mode (for art installations or escape rooms)
 - Ambisonic Bus
-- Works out of the box (Basic instruments are included / No low-latency requirements)
-- Mouse not needed
+- Emacs-style buffers and keybindings
+- Works out of the box (Basic instruments are included and no low-latency requirements)
+- Launchpad support
+- Keyboard driven
 
 # Background
 
@@ -34,7 +34,7 @@ The Application draws on several traditions.
   column per track, launched on the bar and grouped into scenes; see
   [docs/launchpad.md](docs/launchpad.md) and [docs/scenes.md](docs/scenes.md).
 - **Pad controllers and samplers.** The Launchpad's buttons partly follow
-  Novation's own layouts, and the 4x4 grid of drum pads was first used in the
+  Novation's layouts, and the 4x4 grid of drum pads was first used in the
   Akai MPC (1988); see
   [docs/drums-and-sequencer.md](docs/drums-and-sequencer.md).
 - **FM synthesis.** The FM instruments use John Chowning's frequency
@@ -62,8 +62,7 @@ The Application draws on several traditions.
   note names, so it is correct in every tuning. Otonal and utonal borrow
   Partch's terms (1949), but they are seven-note scales whose intervals
   were derived by the methods in Kyle Gann's *The Arithmetic of Listening*
-  (2019). Without a scale, the Launchpad keyboard plays major. The
-  scale drives the in-key layout described in
+  (2019). The scale drives the in-key layout described in
   [docs/drums-and-sequencer.md](docs/drums-and-sequencer.md).
 
 ## Pianos and Just Intervals
@@ -86,10 +85,6 @@ partials beat at most ε times the fundamental (ε = 0.001: a quarter of a hertz
 middle C). What remains is the tuning's own error, such as 31-EDO's 4:3 being
 5.2 cents wide; removing that needs partials moved onto the tuning's steps
 (Sethares, *Tuning, Timbre, Spectrum, Scale*), which FM can't do.
-
-## Keyboard driven
-
-Everything can be done using keyboard without mouse
 
 # Launchpad support
 
