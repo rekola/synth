@@ -295,36 +295,17 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   registerNamed(provider, "brass.synth", "Synth Brass", makeEnsemblePad("saw-piano-wide", 3, 12.0f, 0.04f, 0.0f, 0.1f, 0.85f, 0.25f));
   registerNamed(provider, "brass.synth.soft", "Soft Synth Brass", makeEnvelopePad("saw-piano", 0.25f, 0.0f, 0.3f, 0.9f, 0.6f));
 
-  // Additive piano - <envelope>+<additive preset="struck-string">, with a
-  // few explicit overrides on top of the base preset rather than retuning
-  // "struck-string" itself (which stays the generic, guitar-reads-fine
-  // plucked-string starting point usable standalone). Heard by ear as
-  // reading more like a single plucked nylon string than a piano with the
-  // bare preset - three targeted differences a piano actually has against
-  // a guitar's single string per note:
-  //  - unisonVoices=3: a real piano doubles or triples each note's string
-  //    in the mid/treble register (a guitar has exactly one string per
-  //    note) - the base preset's 2 voices likely read as too subtly
-  //    chorused to sound like multiple strings at all.
-  //  - attackNoiseLevel lower (0.04 vs the base preset's 0.08): a felt
-  //    hammer strike is a softer, duller transient than a plucked/
-  //    fingerpicked nylon string's own sharper attack noise.
-  //  - tilt less negative (-6 vs -9 dB/octave): a hammer-struck string
-  //    reads brighter/fuller than a plucked one at the same register.
-  // Sustain 0 (a piano's own sound is entirely percussive/decaying, never
-  // a held plateau) with a long decay stage (8s, well past where the
-  // additive engine's own per-partial decay has already gone inaudible -
-  // see SinusoidBank's -90dB culling) so the envelope itself never audibly
-  // truncates the tail, and a short release (0.3s) so lifting the key ends
-  // the note promptly rather than ringing on indefinitely.
+  // Additive piano - <envelope>+<additive preset="piano">: three strings a
+  // cent apart, every partial on the song's tuning, so septimal chords stay
+  // in tune. Sustain 0 with a long decay stage (8s, past where the bank's own
+  // per-partial decay has gone inaudible - see SinusoidBank's -90dB culling)
+  // so the envelope never audibly truncates the tail, and a short release
+  // (0.3s) so lifting the key ends the note promptly.
   auto additive_piano_envelope = []() {
     auto env = makeEnvelope(0.005f, 0.0f, 8.0f, 0.0f, 0.3f);
     auto additive = make_unique<Additive>();
     MemoryParameterSource additive_params;
-    additive_params.set("preset", string("struck-string"));
-    additive_params.set("unisonVoices", 3);
-    additive_params.set("attackNoiseLevel", 0.04f);
-    additive_params.set("tilt", -6.0f);
+    additive_params.set("preset", string("piano"));
     additive->loadParameters(additive_params);
     env->addChild(move(additive));
     return env;

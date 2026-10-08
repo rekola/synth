@@ -19,6 +19,49 @@ no compatibility shims.
 Nothing is implemented yet. The user listens after each stage; a render
 cannot judge "sounds like a piano", only measure the things below.
 
+## Progress
+
+**Stage 1 is implemented and waiting for listening.** Stages 2-4 and the
+README/glossary are not started.
+
+Done in Stage 1: `SinusoidBank` takes `PartialSpec`s and writes one row per
+group; `AdditiveModel.{h,cpp}` builds the partials (grid + bounded stretch,
+centred unison strings); `AdditiveVoice` places each string in space
+(`keyboardSpread`, `stringSpread`); presets are `default` and `piano`
+(`struck-string`, `inharmonicity`, `partialLimit` and the `envelope*` remap
+attributes are gone; the remap went in Stage 1 rather than Stage 2 because
+the model replaced the code that called it); `tools/analyze_render.py`;
+`songs/additive_septimal_chords.xml`; `docs/additive.md` rewritten for the
+current state; `songs/oscillator_demo.xml` and `songs/songtest20.xml` moved
+to the new presets. `tilt` and `attackNoiseLevel` stay until Stages 2 and 3.
+
+Measured (Release, 48 kHz, 1024-frame blocks, the voice chain with the
+ambisonic encode; `SYNTH_TIMING=1 SYNTH_TIMING_PRESET=... synth_tests`):
+
+| | Before (`struck-string`, 2 strings × 28) | After (`piano`, 3 strings × 28) |
+|---|---|---|
+| One voice, note-on | 7.9 µs | 7.3 µs |
+| One voice, first block | 22.4 µs | 42.8 µs |
+| 32 voices, first block, total | 835 µs | 1480 µs |
+| 32 voices, block 24, total | 613 µs | 1151 µs |
+
+That is about 0.5 µs a resonator both times; 32 piano voices are 7% of the
+21.3 ms block budget. (The 6 µs and 2 ms figures in the old docs were not
+reproducible and are gone.)
+
+Chord check (31-EDO, C4 + A♯4, 7:4; partial decay and tilt switched off in a
+scratch variant so the 7th partial is still audible after 0.5 s, 3 s
+window): the root's 7th partial is 1840.50 Hz at `stretch` 0 and 1842.00 Hz
+at 0.001 (model: 1842.07), and the upper note's 4th partial is within 0.2 Hz
+of it, so one string gives a single line. With three strings the lines sit at
+1840.85, 1842.00 and 1843.15 Hz: ±1 cent, the strings' own shimmer. Before,
+the two partials were 795 Hz and 1372 Hz (Finding A).
+
+Differences from the text below: a grid position can sit half a step under n,
+so the stretch bound is `1200·log2(1+ε(n-1)/T(n))` (about 3% over
+`1200·log2(1+ε)` in 12-EDO), corrected in the Stage 1 model text; the tests
+assert the corrected bound.
+
 ## What the code does today (checked)
 
 | # | Claim | Finding |
@@ -189,8 +232,10 @@ shared partials up to n = 32, so shared partials land on the same step with
 no residual. That is an input to the test, not a proof: the test enumerates
 and fails loudly on a pair where it does not hold.
 
-What stretch survives: a bounded one. Partial n is at most
-`1200·log2(1+ε)` cents sharp of its grid position: 1.7 cents at ε = 0.001
+What stretch survives: a bounded one. Partial n is
+`1200·log2(1+ε(n-1)/T(n))` cents sharp of its grid position, at most about
+`1200·log2(1+ε)` (a grid position can sit half a step below n, which
+lengthens it by up to 3% in 12-EDO): 1.7 cents at ε = 0.001
 (the FM pianos' value, README), 3.5 at 0.002, 5.2 at 0.003. Fletcher's
 `n·sqrt(1+B·n²)` is not used: at B = 4·10⁻⁴ it puts partial 12 about 50
 cents sharp (the README's 33 cents is that against the other note's

@@ -44,9 +44,8 @@ inline int oddPart(int m) {
 // applied to a single partial already placed at g_h (harmonic-ratio units,
 // from PadSynthPartialProfile.h's partialPosition()) - independent of the
 // partial's own index/count, unlike tuningMatchedPartialRatio()'s
-// partial_limit cutoff above (that function is unchanged, still used by
-// SinusoidBank.cpp's own additive-oscillator inharmonicity model, a
-// separate, pre-existing feature this one doesn't touch).
+// partial_limit cutoff above (that function is what AdditiveModel.cpp calls,
+// matching every partial of an additive note).
 //
 // m is the nearest integer harmonic number to g_h. Partial h is "tuned" -
 // placed exactly at m's own tuned position, discarding any fractional

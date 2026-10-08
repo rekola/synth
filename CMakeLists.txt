@@ -73,6 +73,7 @@ add_library(synth_engine STATIC
 	src/instruments/Noise.cpp
 	src/instruments/FM.cpp
 	src/instruments/Additive.cpp
+	src/instruments/AdditiveModel.cpp
 	src/instruments/SinusoidBank.cpp
 	src/instruments/OscillatorShapingChain.cpp
 	src/instruments/PadSynthPartialProfile.cpp

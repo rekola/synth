@@ -125,6 +125,17 @@ TEST(additive_piano_render_is_non_silent_and_finite) {
   CHECK(rms(result, 0) > 1e-5f);
 }
 
+TEST(additive_piano_chord_in_31edo_is_finite_and_audible) {
+  InstrumentProvider provider;
+  registerLibraryInstruments(provider);
+
+  OfflineRenderResult result;
+  CHECK(renderLibraryFixture("library_additive_chord.xml", provider, result));
+  CHECK(result.numberOfFrames() > 0);
+  CHECK(!hasNonFiniteSample(result));
+  CHECK(rms(result, 0) > 1e-5f);
+}
+
 // Mellotron ----------------------------------------------------------------
 
 TEST(mellotron_is_registered_as_tape_wrapping_envelope_padsynth) {

@@ -2,6 +2,7 @@
 #define _ADDITIVE_H_
 
 #include "Instrument.h"
+#include "AdditiveModel.h"
 #include "AdditivePresets.h"
 #include "../ambisonic/SphericalPosition.h"
 #include "../model/SendLevels.h"
@@ -9,21 +10,16 @@
 
 #include <string>
 
-// A per-voice sinusoid-bank ("additive synthesis") instrument leaf - each
-// partial has its own frequency, amplitude, and independent exponential
-// decay rate that rises with frequency (a standard struck-string/plucked-
-// string spectral-decay model: higher partials die out faster than the
-// fundamental). The actual DSP lives in SinusoidBank.h (the technical
-// building block) and AdditiveVoice.h (the InstrumentVoice-integrated
-// wrapper, also owning the short attack-transient noise burst); this class
-// is only XML parameter parsing/storage plus playNote() construction,
-// mirroring Oscillator.h's own shape.
+// A per-voice sinusoid-bank ("additive synthesis") instrument leaf: a set
+// of decaying partials per string, with the spectrum, tuning and decay
+// computed by AdditiveModel.h and run by SinusoidBank.h. AdditiveVoice.h is
+// the InstrumentVoice-integrated wrapper (one output row per string, each
+// placed in space). This class is XML parameter parsing/storage plus
+// playNote() construction.
 //
-// This element's own per-partial decay is a *timbral* effect (partials
-// thinning out as the note ages, changing the note's brightness over its
-// life) - it is not a substitute for a parent <envelope>'s ADSR, which
-// still governs the note's overall amplitude the same as it does for any
-// other instrument leaf.
+// The per-partial decay is a *timbral* effect (partials thinning out as the
+// note ages); a parent <envelope>'s ADSR still governs the note's overall
+// amplitude as for any other instrument leaf.
 class Additive : public Instrument {
  public:
   explicit Additive() { }
@@ -36,45 +32,27 @@ class Additive : public Instrument {
  private:
   std::string preset_ = "default";
   int partials_ = getAdditivePreset("default").partials;
+  // Tilt in dB/octave of partial number, plus velocityTilt times
+  // (velocity - 0.5): a harder hit is brighter.
   float tilt_ = getAdditivePreset("default").tilt;
-  // How much velocity brightens the tone: actual tilt used =
-  // tilt_ + velocityTilt_ * (velocity - 0.5) - see AdditiveVoice.h's own
-  // kReferenceVelocity comment for why 0.5 (velocity is already normalized
-  // to [0,1] by the time it reaches playNote(), see Note::
-  // getVelocityAsFloat()). A harder hit (velocity above the 0.5 midpoint)
-  // makes tilt_ less negative (brighter); a softer one makes it more
-  // negative (darker).
   float velocityTilt_ = getAdditivePreset("default").velocityTilt;
+  // Strings per note, and the spacing between adjacent ones in cents.
   int unisonVoices_ = getAdditivePreset("default").unisonVoices;
   float unisonDetune_ = getAdditivePreset("default").unisonDetune;
-  // Stretched-partial coefficient B - 0 means plain harmonic/tuning-matched
-  // partials (no stretch). Only affects partials above partialLimit_ when
-  // tuningMatched_ is on (a continuous cents-space shift from there) - see
-  // SinusoidBank.cpp's additivePartialRatio() for the exact formula and why.
-  float inharmonicity_ = getAdditivePreset("default").inharmonicity;
-  // alpha_n = decayA_ + decayB_ * f_n^decayP_, nepers/second - see
-  // SinusoidBank.h's own doc comment for the exact per-sample envelope
-  // this drives (amplitude(t) = amplitude(0) * exp(-alpha_n * t)).
+  // Partial n sits at its grid position plus (n-1)*stretch times the
+  // fundamental - see AdditiveModel.h.
+  float stretch_ = getAdditivePreset("default").stretch;
+  // alpha_n = decayA_ + decayB_ * f_n^decayP_, nepers/second.
   float decayA_ = getAdditivePreset("default").decayA;
   float decayB_ = getAdditivePreset("default").decayB;
   float decayP_ = getAdditivePreset("default").decayP;
   bool tuningMatched_ = getAdditivePreset("default").tuningMatched;
-  int partialLimit_ = getAdditivePreset("default").partialLimit;
   float attackNoiseLevel_ = getAdditivePreset("default").attackNoiseLevel;
+  // Degrees of azimuth across the keyboard (bass left, treble right), and
+  // between adjacent strings of one key.
+  float keyboardSpread_ = getAdditivePreset("default").keyboardSpread;
+  float stringSpread_ = getAdditivePreset("default").stringSpread;
   float level_ = 1.0f;
-
-  // Anchored spectral-envelope remap (dsp/SpectralEnvelopeRemap.h) - see
-  // PadSynth.h's own identical attributes for the shared naming/contract;
-  // evaluated once, at note-on, against this note's own real frequency
-  // (unlike PadSynth's per-table-region evaluation) - see AdditiveVoice.h's
-  // own trigger() for where. 0 for either means off (every pre-existing
-  // additive preset's own behavior, unchanged).
-  float envelopeAnchor_ = 0.0f;
-  float envelopeTracking_ = 0.0f;
-  std::string envelopePostprocess_ = "";
-  int envelopePostprocessN_ = 0;
-  int envelopePostprocessR_ = 0;
-  float envelopePostprocessAmount_ = 0.0f;
 };
 
 #endif
