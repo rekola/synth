@@ -93,6 +93,11 @@ engine are one unit that tests cannot separate.
 - `AdditiveVoice::trigger()` calls the model and constructs the bank. The
   noise generator, its salt and `attackNoiseLevel` are deleted (the thump
   arrives as specs, Stage 3).
+- The bank is mono: all strings, the hammer terms and the thump sum into
+  the voice's one `dry_` buffer, which `encodePosition()` places in the
+  ambisonic bus at the track's position, as today. Per-string or
+  per-register spatial spread is out of scope (nothing in the sources
+  gives numbers for it).
 - `SpectralEnvelopeRemap.h` stays for `<padsynth>`; its header comment that
   names `SinusoidBank` as a caller is corrected.
 - `tests/SinusoidBankTests.cpp` is rewritten to build specs directly (its
