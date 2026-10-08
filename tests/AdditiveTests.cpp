@@ -481,6 +481,26 @@ TEST(additive_thump_is_fixed_in_hz_short_and_off_without_a_level) {
   CHECK(bodyOf(65.0f, 12).empty());
 }
 
+// The body knocks harder on a low key than on a high one when it tracks the key,
+// and the same on both when it doesn't.
+TEST(additive_thump_tracks_the_key) {
+  AdditiveModelParams params;
+  params.partials = 8;
+  params.strike = 0.37f;
+  params.thump = 0.5f;
+  params.body = {{100.0f, 1.0f, 30.0f}};
+  auto level = [&](float f0) {
+    for (const auto & p : buildPartialSpecs(params, noteAt(f0)))
+      if (p.group >= 1) return p.amplitude;
+    return 0.0f;
+  };
+  params.thump_tracking = 0.0f;
+  CHECK_NEAR(level(65.0f), level(1046.0f), 1e-6f);
+  params.thump_tracking = 0.7f;
+  CHECK(level(65.0f) > 2.0f * level(1046.0f));
+  CHECK_NEAR(level(261.63f), 0.5f * 0.5f, 1e-4f); // thump times the note's level at middle C
+}
+
 TEST(additive_body_modes_are_spread_wider_than_the_strings) {
   float lo = 1e9f, hi = -1e9f;
   for (int j = 0; j < 3; j++) {
@@ -612,10 +632,14 @@ TEST(additive_preset_structure) {
     for (const auto & p : buildPartialSpecs(params, noteAt(220.0f))) highest = std::max(highest, p.group);
     return highest + 1;
   };
-  CHECK(groups("harpsichord") == 2);      // two strings, no body
-  CHECK(groups("guitar-nylon") == 1 + 2); // one string, two body modes
+  // One group per string, then one per body mode when the preset has a thump.
+  for (const char * name : {"default", "piano", "guitar-nylon", "guitar-steel", "harp", "harpsichord", "bar"}) {
+    const auto & preset = getAdditivePreset(name);
+    int expected = preset.unisonVoices + (preset.thump > 0.0f ? static_cast<int>(preset.body.size()) : 0);
+    CHECK(groups(name) == expected);
+  }
+  CHECK(getAdditivePreset("harpsichord").unisonVoices == 2);
   CHECK(groups("default") == 1);
-  CHECK(groups("piano") == 3 + 3);
   CHECK(getAdditivePreset("guitar-nylon").pluckCutoff < getAdditivePreset("guitar-steel").pluckCutoff);
 }
 

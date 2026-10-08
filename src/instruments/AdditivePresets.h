@@ -36,6 +36,7 @@ struct AdditivePresetParams {
   float decayTracking;
   float decaySpread;
   float thump;
+  float thumpTracking;
   float thumpWidth;
   float keyboardSpread;
   float stringSpread;
@@ -71,6 +72,7 @@ inline const AdditivePresetParams & getAdditivePreset(const std::string & name) 
       /* decayTracking  */ 0.0f,
       /* decaySpread    */ 0.0f,
       /* thump          */ 0.0f,
+      /* thumpTracking  */ 0.0f,
       /* thumpWidth     */ 0.0f,
       /* keyboardSpread */ 0.0f,
       /* stringSpread   */ 0.0f,
@@ -84,16 +86,16 @@ inline const AdditivePresetParams & getAdditivePreset(const std::string & name) 
   // soundboard thump spread wide. The decay and thump numbers are starting
   // values for listening.
   static const AdditivePresetParams kPiano{
-      /* partials       */ 64,
-      /* stretch        */ 0.001f,
+      /* partials       */ 80,
+      /* stretch        */ 0.003f,
       /* tuningMatched  */ true,
       /* unisonVoices   */ 3,
-      /* unisonDetune   */ 1.0f,
+      /* unisonDetune   */ 2.5f,
       /* modes          */ "",
       /* pluck          */ false,
       /* strike         */ 0.125f,
-      /* hammerCutoff   */ 2000.0f,
-      /* hammerTracking */ 0.0f,
+      /* hammerCutoff   */ 3000.0f,
+      /* hammerTracking */ 0.3f,
       /* hammerVelocity */ hammerVelocityExponent(additive_presets::kFeltExponent),
       /* pluckCutoff    */ 0.0f,
       /* partialFloor   */ -60.0f,
@@ -101,12 +103,13 @@ inline const AdditivePresetParams & getAdditivePreset(const std::string & name) 
       /* decayB         */ 0.0001f,
       /* decayP         */ 1.5f,
       /* decayTracking  */ 0.5f,
-      /* decaySpread    */ 0.5f,
-      /* thump          */ 0.3f,
-      /* thumpWidth     */ 60.0f,
+      /* decaySpread    */ 0.7f,
+      /* thump          */ 0.2f,
+      /* thumpTracking  */ 0.7f,
+      /* thumpWidth     */ 90.0f,
       /* keyboardSpread */ 0.0f,
       /* stringSpread   */ 0.0f,
-      /* body           */ {{70.0f, 1.0f, 60.0f}, {120.0f, 0.7f, 50.0f}, {200.0f, 0.5f, 70.0f}},
+      /* body           */ {{55.0f, 0.8f, 35.0f}, {90.0f, 1.0f, 30.0f}, {140.0f, 0.8f, 28.0f}, {230.0f, 0.6f, 35.0f}, {350.0f, 0.4f, 45.0f}},
   };
 
   // A nylon-string guitar: one string, a soft fingertip pluck, high partials
@@ -126,16 +129,17 @@ inline const AdditivePresetParams & getAdditivePreset(const std::string & name) 
       /* hammerVelocity */ 0.0f,
       /* pluckCutoff    */ 1500.0f,
       /* partialFloor   */ -60.0f,
-      /* decayA         */ 0.4f,
-      /* decayB         */ 0.0003f,
+      /* decayA         */ 0.9f,
+      /* decayB         */ 0.0006f,
       /* decayP         */ 1.5f,
       /* decayTracking  */ 0.3f,
       /* decaySpread    */ 0.0f,
-      /* thump          */ 0.25f,
-      /* thumpWidth     */ 20.0f,
+      /* thump          */ 0.45f,
+      /* thumpTracking  */ 0.6f,
+      /* thumpWidth     */ 30.0f,
       /* keyboardSpread */ 0.0f,
       /* stringSpread   */ 0.0f,
-      /* body           */ {{100.0f, 1.0f, 40.0f}, {200.0f, 0.6f, 50.0f}},
+      /* body           */ {{100.0f, 1.0f, 12.0f}, {200.0f, 0.7f, 20.0f}, {400.0f, 0.4f, 30.0f}},
   };
 
   // A steel-string guitar: the same machinery with a bright pick, a longer
@@ -154,16 +158,17 @@ inline const AdditivePresetParams & getAdditivePreset(const std::string & name) 
       /* hammerVelocity */ 0.0f,
       /* pluckCutoff    */ 5000.0f,
       /* partialFloor   */ -60.0f,
-      /* decayA         */ 0.25f,
-      /* decayB         */ 0.0001f,
+      /* decayA         */ 0.5f,
+      /* decayB         */ 0.00025f,
       /* decayP         */ 1.5f,
       /* decayTracking  */ 0.3f,
       /* decaySpread    */ 0.0f,
-      /* thump          */ 0.25f,
-      /* thumpWidth     */ 20.0f,
+      /* thump          */ 0.45f,
+      /* thumpTracking  */ 0.6f,
+      /* thumpWidth     */ 30.0f,
       /* keyboardSpread */ 0.0f,
       /* stringSpread   */ 0.0f,
-      /* body           */ {{110.0f, 1.0f, 35.0f}, {220.0f, 0.6f, 45.0f}},
+      /* body           */ {{110.0f, 1.0f, 10.0f}, {220.0f, 0.7f, 16.0f}, {440.0f, 0.4f, 25.0f}},
   };
 
   // A harp: long decays that lengthen strongly toward the bass, strings
@@ -182,16 +187,17 @@ inline const AdditivePresetParams & getAdditivePreset(const std::string & name) 
       /* hammerVelocity */ 0.0f,
       /* pluckCutoff    */ 3000.0f,
       /* partialFloor   */ -60.0f,
-      /* decayA         */ 0.15f,
-      /* decayB         */ 0.00005f,
+      /* decayA         */ 0.3f,
+      /* decayB         */ 0.00015f,
       /* decayP         */ 1.5f,
       /* decayTracking  */ 0.6f,
       /* decaySpread    */ 0.0f,
-      /* thump          */ 0.15f,
-      /* thumpWidth     */ 40.0f,
+      /* thump          */ 0.6f,
+      /* thumpTracking  */ 0.7f,
+      /* thumpWidth     */ 60.0f,
       /* keyboardSpread */ 60.0f,
       /* stringSpread   */ 1.0f,
-      /* body           */ {{90.0f, 1.0f, 30.0f}, {160.0f, 0.5f, 40.0f}},
+      /* body           */ {{80.0f, 1.0f, 25.0f}, {150.0f, 0.7f, 30.0f}, {300.0f, 0.4f, 40.0f}},
   };
 
   // A harpsichord: two plucked strings, a bright fixed pluck that does not
@@ -210,16 +216,17 @@ inline const AdditivePresetParams & getAdditivePreset(const std::string & name) 
       /* hammerVelocity */ 0.0f,
       /* pluckCutoff    */ 6000.0f,
       /* partialFloor   */ -60.0f,
-      /* decayA         */ 0.8f,
-      /* decayB         */ 0.0002f,
+      /* decayA         */ 1.6f,
+      /* decayB         */ 0.0004f,
       /* decayP         */ 1.5f,
       /* decayTracking  */ 0.3f,
       /* decaySpread    */ 0.0f,
-      /* thump          */ 0.0f,
-      /* thumpWidth     */ 0.0f,
+      /* thump          */ 0.35f,
+      /* thumpTracking  */ 0.5f,
+      /* thumpWidth     */ 40.0f,
       /* keyboardSpread */ 0.0f,
       /* stringSpread   */ 0.0f,
-      /* body           */ {},
+      /* body           */ {{150.0f, 1.0f, 18.0f}, {300.0f, 0.7f, 25.0f}, {600.0f, 0.4f, 35.0f}},
   };
 
   // An ideal free-free bar: modes at the roots of cos(x)*cosh(x) = 1,
@@ -245,6 +252,7 @@ inline const AdditivePresetParams & getAdditivePreset(const std::string & name) 
       /* decayTracking  */ 0.3f,
       /* decaySpread    */ 0.0f,
       /* thump          */ 0.0f,
+      /* thumpTracking  */ 0.0f,
       /* thumpWidth     */ 0.0f,
       /* keyboardSpread */ 0.0f,
       /* stringSpread   */ 0.0f,

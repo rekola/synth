@@ -37,6 +37,7 @@ Additive::playNote(const ChannelConfiguration & config, const SphericalPosition 
   model.decay_tracking = decayTracking_;
   model.decay_spread = decaySpread_;
   model.thump = thump_;
+  model.thump_tracking = thumpTracking_;
   model.body = body_;
   voice->trigger(model, edoStepsFor(tuning), note_coord);
 
@@ -70,6 +71,7 @@ Additive::loadParameters(const ParameterSource & input) {
   decayTracking_ = input.get<float>("decayTracking", preset.decayTracking);
   decaySpread_ = input.get<float>("decaySpread", preset.decaySpread);
   thump_ = input.get<float>("thump", preset.thump);
+  thumpTracking_ = input.get<float>("thumpTracking", preset.thumpTracking);
   thumpWidth_ = input.get<float>("thumpWidth", preset.thumpWidth);
   body_ = preset.body;
   keyboardSpread_ = input.get<float>("keyboardSpread", preset.keyboardSpread);
@@ -104,6 +106,7 @@ Additive::storeParameters(ParameterSource & output) const {
   output.set("decayTracking", decayTracking_, preset.decayTracking);
   output.set("decaySpread", decaySpread_, preset.decaySpread);
   output.set("thump", thump_, preset.thump);
+  output.set("thumpTracking", thumpTracking_, preset.thumpTracking);
   output.set("thumpWidth", thumpWidth_, preset.thumpWidth);
   output.set("keyboardSpread", keyboardSpread_, preset.keyboardSpread);
   output.set("stringSpread", stringSpread_, preset.stringSpread);

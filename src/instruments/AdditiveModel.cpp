@@ -131,7 +131,6 @@ buildPartialSpecs(const AdditiveModelParams & params, const NoteContext & note) 
 
   vector<PartialSpec> specs;
   specs.reserve(static_cast<size_t>(strings * partials) + (params.thump > 0.0f ? params.body.size() : 0));
-  float strongest = 0.0f;
   const float track = note.frequency > 0.0f ? powf(note.frequency / kMiddleC, params.decay_tracking) : 1.0f;
   for (int s = 0; s < strings; s++) {
     float string_f0 = note.frequency * powf(2.0f, unisonOffsetCents(s, strings, params.unison_detune_cents, note.coord) / 1200.0f);
@@ -151,16 +150,16 @@ buildPartialSpecs(const AdditiveModelParams & params, const NoteContext & note) 
       // Distinct for every (string, partial) pair.
       float phase = phase_field.range(note.coord.withInstance(s * 4096 + n).toHashCoord(), paramId("additive_phase"), 0.0f, 2.0f * kPi);
       specs.push_back({freq, amplitude, alpha, phase, s});
-      strongest = max(strongest, amplitude);
     }
   }
 
   if (params.thump > 0.0f) {
+    const float body_level = params.thump * static_cast<float>(kNoteRms) * (note.frequency > 0.0f ? powf(kMiddleC / note.frequency, params.thump_tracking) : 1.0f);
     for (size_t j = 0; j < params.body.size(); j++) {
       const BodyMode & mode = params.body[j];
       if (mode.frequency_hz >= nyquist) continue;
       float phase = phase_field.range(note.coord.withInstance(static_cast<int>(65536 + j)).toHashCoord(), paramId("additive_body_phase"), 0.0f, 2.0f * kPi);
-      specs.push_back({mode.frequency_hz, params.thump * mode.amplitude * strongest, mode.alpha, phase, strings + static_cast<int>(j)});
+      specs.push_back({mode.frequency_hz, body_level * mode.amplitude, mode.alpha, phase, strings + static_cast<int>(j)});
     }
   }
   return specs;

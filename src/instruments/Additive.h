@@ -52,8 +52,8 @@ class Additive : public Instrument {
   // nepers/second, with the outer strings (1 +- decaySpread_) times that.
   float decayA_ = 0.0f, decayB_ = 0.0f, decayP_ = 1.0f;
   float decayTracking_ = 0.0f, decaySpread_ = 0.0f;
-  // The body table's level, and the degrees of arc its modes are spread over.
-  float thump_ = 0.0f, thumpWidth_ = 0.0f;
+  // The body table's level and its exponent against the key, and the degrees of arc its modes are spread over.
+  float thump_ = 0.0f, thumpTracking_ = 0.0f, thumpWidth_ = 0.0f;
   std::vector<BodyMode> body_;
   // Degrees of azimuth across the keyboard (bass left, treble right), and
   // between adjacent strings of one key.

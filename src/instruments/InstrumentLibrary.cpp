@@ -300,7 +300,7 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // so the envelope never audibly truncates the tail, and a short release
   // (0.3s) so lifting the key ends the note promptly.
   auto additive_piano_envelope = []() {
-    auto env = makeEnvelope(0.005f, 0.0f, 8.0f, 0.0f, 0.3f);
+    auto env = makeEnvelope(0.002f, 0.0f, 8.0f, 0.0f, 0.3f);
     auto additive = make_unique<Additive>();
     MemoryParameterSource additive_params;
     additive_params.set("preset", string("piano"));

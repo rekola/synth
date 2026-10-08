@@ -22,7 +22,7 @@ enum class Excitation { Hammer,
 // soundboard: the same for every key, so it is not tuned to the note.
 struct BodyMode {
   float frequency_hz;
-  float amplitude; // relative to the note's strongest partial
+  float amplitude; // times thump and the note's level
   float alpha;     // decay, nepers/second
 };
 
@@ -49,7 +49,8 @@ struct AdditiveModelParams {
   float decay_tracking = 0.0f;                            // alpha scales by (f0 / middle C)^tracking
   float decay_spread = 0.0f;                              // alpha of the outer strings is (1 +- spread) times the middle's
 
-  float thump = 0.0f; // body level relative to the strongest partial, 0 = off
+  float thump = 0.0f;          // body level relative to the note's level, 0 = off
+  float thump_tracking = 0.0f; // body level scales by (middle C / f0)^tracking: bass knocks harder
   std::vector<BodyMode> body;
 };
 
