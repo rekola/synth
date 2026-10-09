@@ -50,7 +50,6 @@ class VisualizationThread : public EventHandler {
     for (; size + frame_count <= sample_rate / 10; size += frame_count) { }
     spectrum_.setSize(size, sample_rate);
     dirac_ = std::make_unique<DiracAnalyzer>(sample_rate);
-    silent_limit_ = sample_rate / std::max(frame_count, 1) + 1;
   }
 
   void handleAudioBlockEvent(AudioBlockEvent & ev) override;
@@ -67,9 +66,9 @@ class VisualizationThread : public EventHandler {
   std::unique_ptr<DiracAnalyzer> dirac_; // constructed by configure() - needs sample_rate, unknown at this object's own construction time
   int dirac_last_pushed_frame_ = 0;      // SS1's every-3rd-analysis-frame render-throttle - see handleAudioBlockEvent()
   bool terminate_ = false;
-  // Blocks of silence seen in a row, and how many (about a second) leave
-  // every analyzer showing zeros, after which the analysis is skipped.
-  int silent_blocks_ = 0, silent_limit_ = 0;
+  // Whether the last grid sent was the all-zero one an analyzer at rest
+  // leaves (the FFT's equivalent is SpectrumAnalyzer::atRest()).
+  bool dirac_zero_sent_ = false;
 
   // A scratch decoder, used only to turn AudioBlockEvent::getRawBus()
   // (the active buffer's own raw ambisonic bus - see that class's own

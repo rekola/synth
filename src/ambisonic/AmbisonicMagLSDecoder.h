@@ -37,7 +37,7 @@ class AmbisonicMagLSDecoder : public Mixer {
   void accumulate(const AudioBuffer & input) override;
   AudioBuffer encode() override;
 
-  const AudioBuffer & getRawBus() const override { return buffer_; }
+  const AudioBuffer & getRawBus() const override { return rawBusOf(buffer_); }
 
   // Read-only access to the solved per-channel filter pairs, for the
   // Phase 1 validation suite (ITD/magnitude/symmetry/diffuse-gain checks)

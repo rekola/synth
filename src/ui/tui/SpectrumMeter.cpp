@@ -66,6 +66,12 @@ SpectrumMeter::splineSample(const std::vector<float> & knots, size_t count) {
   return out;
 }
 
+void SpectrumMeter::clear() {
+  auto [rows, cols] = getDim();
+  if (rows <= 0 || cols <= 0) return;
+  drawBars(std::vector<float>(barCount(cols), 0.0f));
+}
+
 void
 SpectrumMeter::drawBars(const std::vector<float> & levels) {
   auto [ rows, cols ] = getDim();

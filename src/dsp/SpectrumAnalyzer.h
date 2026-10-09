@@ -28,6 +28,8 @@ class SpectrumAnalyzer {
     signal_.assign(static_cast<size_t>(size_), 0.0f);
     current_pos_ = 0;
     newdata_size_ = 0;
+    zero_run_ = size_;
+    reported_silent_ = false;
     window_.assign(static_cast<size_t>(size_), 1.0f);
     window_sum_ = 0.0f;
     for (int i = 0; i < size_; i++) {
@@ -44,21 +46,29 @@ class SpectrumAnalyzer {
 
   bool addData(const AudioBuffer & data) {
     if (size_ <= 0) return false;
-    if (current_pos_ == size_) {
-      for (int i = data.size(); i < size_; i++) {
-        signal_[static_cast<size_t>(i - data.size())] = signal_[static_cast<size_t>(i)];
-      }
-      current_pos_ -= data.size();
-    }
+    makeRoom(data.size());
     auto left_buffer = data.getChannelData(0), right_buffer = data.getChannelData(1);
     for (int i = 0; i < data.size() && current_pos_ < size_; i++) {
-      signal_[static_cast<size_t>(current_pos_++)] = 0.5f * (left_buffer[i] + right_buffer[i]);
+      float v = 0.5f * (left_buffer[i] + right_buffer[i]);
+      zero_run_ = v == 0.0f ? std::min(zero_run_ + 1, size_) : 0;
+      signal_[static_cast<size_t>(current_pos_++)] = v;
     }
-
-    newdata_size_ += data.size();
-
-    return current_pos_ == size_ && 2 * newdata_size_ > size_;
+    return advance(data.size());
   }
+
+  // addData() for `frames` samples of exact silence, without a buffer.
+  bool addSilence(int frames) {
+    if (size_ <= 0) return false;
+    makeRoom(frames);
+    for (int i = 0; i < frames && current_pos_ < size_; i++) signal_[static_cast<size_t>(current_pos_++)] = 0.0f;
+    zero_run_ = std::min(zero_run_ + frames, size_);
+    return advance(frames);
+  }
+
+  // True once the last window handed to calculateFFT() was entirely silent
+  // and nothing but silence has been added since: the spectrum already
+  // shown is the floor, and more silence would not change it.
+  bool atRest() const { return reported_silent_; }
 
   void reset() { newdata_size_ = 0; }
 
@@ -66,6 +76,7 @@ class SpectrumAnalyzer {
   // the -100 dB floor.
   std::vector<float> calculateFFT() {
     if (!fft_) return {};
+    reported_silent_ = zero_run_ >= size_;
     windowed_.resize(signal_.size());
     for (size_t i = 0; i < signal_.size(); i++) windowed_[i] = signal_[i] * window_[i];
     auto & spectrum = fft_->forward(windowed_);
@@ -84,10 +95,28 @@ class SpectrumAnalyzer {
   }
 
  private:
+  // Slides the window along if it is full, to take `n` more samples.
+  void makeRoom(int n) {
+    if (current_pos_ == size_) {
+      for (int i = n; i < size_; i++) {
+        signal_[static_cast<size_t>(i - n)] = signal_[static_cast<size_t>(i)];
+      }
+      current_pos_ -= n;
+    }
+  }
+
+  bool advance(int n) {
+    newdata_size_ += n;
+    if (zero_run_ < size_) reported_silent_ = false;
+    return current_pos_ == size_ && 2 * newdata_size_ > size_;
+  }
+
   int size_ = 0;
   int sample_rate_ = 0;
   int current_pos_ = 0;
   int newdata_size_ = 0;
+  int zero_run_ = 0;             // exact-zero samples at the end of the signal
+  bool reported_silent_ = false; // see atRest()
   float window_sum_ = 0.0f;
 
   std::vector<float> signal_, windowed_, window_;

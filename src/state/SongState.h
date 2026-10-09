@@ -648,10 +648,22 @@ class SongState : public TrackState {
     // shutdown push once its queue filled up - a real, reproducible
     // freeze-on-quit for any song with no instruments loaded (confirmed via
     // direct instrumentation, not guessed at).
-    if (aux_a_sum_.numberOfFrames() != frames) aux_a_sum_ = AudioBuffer(1, frames);
-    if (aux_b_sum_.numberOfFrames() != frames) aux_b_sum_ = AudioBuffer(1, frames);
-    aux_a_sum_.zero();
-    aux_b_sum_.zero();
+    if (aux_a_sum_.numberOfFrames() != frames) {
+      aux_a_sum_ = AudioBuffer(1, frames);
+      aux_a_sum_.zero();
+      aux_a_used_ = false;
+    }
+    if (aux_b_sum_.numberOfFrames() != frames) {
+      aux_b_sum_ = AudioBuffer(1, frames);
+      aux_b_sum_.zero();
+      aux_b_used_ = false;
+    }
+    if (empty_aux_.numberOfFrames() != frames) empty_aux_ = AudioBuffer(0, false, false, frames);
+    // The sums feed the send bus, which needs real zeros; they are only
+    // written when a track sends, so only then is there anything to clear.
+    if (aux_a_used_) aux_a_sum_.zero();
+    if (aux_b_used_) aux_b_sum_.zero();
+    aux_a_used_ = aux_b_used_ = false;
 
     // Every top-level track was already registered as *its own* TreeNode
     // child of this SongState above (track_snapshot's own comment) - the
@@ -676,10 +688,12 @@ class SongState : public TrackState {
     if (auto * a = data.getChannel(Channel::AuxA)) {
       auto dst = aux_a_sum_.getChannelData(0);
       for (int i = 0; i < frames; i++) dst[i] += a[i];
+      aux_a_used_ = true;
     }
     if (auto * b = data.getChannel(Channel::AuxB)) {
       auto dst = aux_b_sum_.getChannelData(0);
       for (int i = 0; i < frames; i++) dst[i] += b[i];
+      aux_b_used_ = true;
     }
 
     // The send bus's own output is always ambisonic-shaped (see
@@ -697,7 +711,7 @@ class SongState : public TrackState {
       // reverb tail/chorus modulation stay continuous across blocks (see
       // SendBusProcessor.h).
       send_bus_.process(aux_a_sum_, aux_b_sum_, frames, master_sends_.a, master_sends_.b);
-      mixer.accumulate(send_bus_.getBusAmbisonic());
+      if (send_bus_.isAudible()) mixer.accumulate(send_bus_.getBusAmbisonic());
     }
 
     measureMasterOutput(data, frames);
@@ -898,9 +912,10 @@ class SongState : public TrackState {
 
   // Raw, pre-send-bus-processing per-block sums (mono) - used by the UI's
   // raw-channel volume meter to show AuxA/AuxB levels before they're
-  // folded into the shared reverb/chorus wet signal.
-  const AudioBuffer & getAuxASum() const { return aux_a_sum_; }
-  const AudioBuffer & getAuxBSum() const { return aux_b_sum_; }
+  // folded into the shared reverb/chorus wet signal. Structurally empty (no
+  // channels, still frame-sized) when no track sent anything this block.
+  const AudioBuffer & getAuxASum() const { return aux_a_used_ ? aux_a_sum_ : empty_aux_; }
+  const AudioBuffer & getAuxBSum() const { return aux_b_used_ ? aux_b_sum_ : empty_aux_; }
 
   // Rebuilt whenever song.getMajorVersion() has moved on since the last build
   // (see renderBlock()) - adding/removing/reordering a track while this
@@ -974,7 +989,9 @@ private:
   int pending_break_row_ = 0;
   RenderContext render_context_;
   SendBusProcessor send_bus_;
-  AudioBuffer aux_a_sum_, aux_b_sum_;
+  AudioBuffer aux_a_sum_, aux_b_sum_; // always mono, zeros unless *_used_
+  bool aux_a_used_ = false, aux_b_used_ = false;
+  AudioBuffer empty_aux_;
   SongStructure song_structure_;
   SendLevels master_sends_;
   float master_meter_value_ = -1.0f;

@@ -18,6 +18,10 @@ constexpr float kBandEdgesHz[DiracAnalyzer::kNumBands + 1] = {
 float onePoleAlpha(float tau, float dt) {
   return 1.0f - expf(-dt / tau);
 }
+
+// A smoothed value this small is zero for display purposes: a one-pole
+// decay never gets there by itself (see processFrame()).
+constexpr float kSettleFloor = 1e-6f;
 }
 
 DiracAnalyzer::DiracAnalyzer(int sample_rate) : sample_rate_(sample_rate) {
@@ -125,6 +129,10 @@ DiracAnalyzer::processFrame() {
     st.pow_y += ie_alpha_ * (raw_pow_y - st.pow_y);
     st.pow_z += ie_alpha_ * (raw_pow_z - st.pow_z);
     st.pow_x += ie_alpha_ * (raw_pow_x - st.pow_x);
+    // The same pinned-at-denormal stall as the grid cells below.
+    for (float * v : {&st.ix, &st.iy, &st.iz, &st.pow_w, &st.pow_y, &st.pow_z, &st.pow_x}) {
+      if (fabsf(*v) < kSettleFloor) *v = 0.0f;
+    }
 
     // SS5: E = 1/2*(|W|^2+|X|^2+|Y|^2+|Z|^2); the 1/2 is load-bearing for
     // this engine's unity-gain-W SN3D convention (see the design plan) -
@@ -216,8 +224,15 @@ DiracAnalyzer::processFrame() {
     // own "idle" background color needed a matching epsilon downstream
     // instead of relying on this ever reaching exact 0) and to avoid
     // denormal-float slowdowns on architectures without FTZ/DAZ.
-    if (smoothed > 0.0f && smoothed < 1e-6f) smoothed = 0.0f;
+    if (smoothed > 0.0f && smoothed < kSettleFloor) smoothed = 0.0f;
   }
+
+  at_rest_ = true;
+  for (int b = 0; b < kNumBands && at_rest_; b++) {
+    const auto & st = bands_state_[static_cast<size_t>(b)];
+    at_rest_ = st.ix == 0.0f && st.iy == 0.0f && st.iz == 0.0f && st.pow_w == 0.0f && st.pow_y == 0.0f && st.pow_z == 0.0f && st.pow_x == 0.0f && diffuse_energy_[static_cast<size_t>(b)] == 0.0f;
+  }
+  for (int cell = 0; cell < kGridSize && at_rest_; cell++) at_rest_ = grid_[static_cast<size_t>(cell)] == 0.0f;
 
   analysis_frame_count_++;
 }
