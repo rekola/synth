@@ -325,11 +325,6 @@ drumPadNoteForPad(int x, int y) {
 }
 
 int
-scaleDegreeIndexForPad(int x, int y) {
-  return x + kScaleRowStride * y;
-}
-
-int
 stepForPad(int x, int y) {
   if (x < 0 || x > 7 || y < kPlayRows || y > 7) return -1;
   return x + 8 * (y - kPlayRows);

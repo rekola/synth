@@ -62,8 +62,8 @@ The Application draws on several traditions.
   note names, so it is correct in every tuning. Otonal and utonal borrow
   Partch's terms (1949), but they are seven-note scales whose intervals
   were derived by the methods in Kyle Gann's *The Arithmetic of Listening*
-  (2019). The scale drives the in-key layout described in
-  [docs/drums-and-sequencer.md](docs/drums-and-sequencer.md).
+  (2019). The scale is used by the sequencer, not by the Launchpad's
+  keyboard.
 
 ## Pianos and Just Intervals
 
@@ -107,8 +107,8 @@ Known to work are kitty, xterm and GNOME Terminal. The full table is in
 
 # Launchpad support
 
-A connected Novation Launchpad (Mini MK3 / X) becomes a drum rack or in-key
-scale keyboard, a step sequencer and a clip launcher. See
+A connected Novation Launchpad (Mini MK3 / X) becomes a drum rack or isomorphic
+keyboard, a step sequencer and a clip launcher. See
 [docs/launchpad.md](docs/launchpad.md) for the layout, colors and every button.
 
 # Third-party code

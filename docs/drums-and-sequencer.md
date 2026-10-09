@@ -25,12 +25,11 @@ Note mode (96) shows a playing surface that follows the track:
   the bottom row is kick, side stick, snare and clap, the second row starts
   at 40 (electric snare) and the top row ends at 51 (ride cymbal). The rest of
   the grid is dark.
-- **Pitched track**: an in-key scale keyboard. Pad (0,0) is the tonic at the
-  device's octave, each column is the next scale degree and each row up is a
-  fourth (three degrees) higher, so a seven-note scale lines up the same way
-  from row to row. The scale is the song's (`Song::getScale()`); with none
-  chosen it plays as major. 91/92 shift the octave while a clip is open.
-  Microtonal scales (`otonal`/`utonal`) give the same layout in 31/53-EDO.
+- **Pitched track**: an isomorphic keyboard, the same in every song: pad
+  positions map to pitches by fixed intervals of the song's tuning, with the
+  song's key at the anchor pad at the device's octave, and the pads are
+  colored by their distance from the tonic. The song's scale is not used here;
+  it is for the sequencer. 91/92 shift the octave while a clip is open.
 
 ## Pad colors
 
@@ -76,7 +75,7 @@ and press a pad to open the corresponding clip; the pad resolves on release.
 The device you used then switches to Note mode (any other device keeps its
 mode) with the grid split in two: the bottom four
 rows stay the playing surface (the drum rack, or the lower four rows of the
-scale keyboard), and the top four rows are 32 steps, left to right and then
+isomorphic keyboard), and the top four rows are 32 steps, left to right and then
 bottom to top.
 
 The steps show one sound at a time - the pad you pressed last (the kick, or

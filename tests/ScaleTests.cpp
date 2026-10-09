@@ -133,9 +133,9 @@ TEST(scale_none_omitted_from_xml) {
   CHECK(output.get<string>("scale").empty());
 }
 
-// The Launchpad's in-key keyboard asks for major when no scale is chosen,
-// and a fourth up a row (three degrees) lands on F above C.
-TEST(scale_none_reads_as_major_for_the_keyboard) {
+// With no scale chosen, `major_if_none` reads it as major; three degrees up
+// from C is F.
+TEST(scale_none_reads_as_major_when_asked) {
   Song song(Tuning::EDO12, -1);
   auto degrees = song.getScaleDegreesWindow(0, 29, true);
   CHECK(degrees.size() == 29);

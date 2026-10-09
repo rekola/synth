@@ -164,12 +164,6 @@ namespace LaunchpadLayout {
   // none).
   PercussionFamily percussionFamilyForNote(int note);
 
-  // The scale keyboard: pad (x, y) is scale degree x + kScaleRowStride * y
-  // above the tonic, so each row up is a fourth (three degrees of a
-  // seven-note scale).
-  constexpr int kScaleRowStride = 3;
-  int scaleDegreeIndexForPad(int x, int y);
-
   // The split view while a clip is open: rows 0-3 stay the playing surface,
   // rows 4-7 are 32 steps, left to right then bottom to top.
   constexpr int kPlayRows = 4;

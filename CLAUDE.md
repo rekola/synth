@@ -628,14 +628,11 @@ would otherwise resume showing.
   order, left to right then bottom to top, the usual sampler/drum-rack
   default window - `docs/drums-and-sequencer.md`), the rest of the grid dark; there is no per-track drum list (lanes were removed - the
   rack is the one kit, and a `<lane>` element in an old song is ignored on
-  load). A pitched track gets an in-key scale keyboard
-  (`LaunchpadManager::resolveKeyboardNotes()`): pad (0,0) is the tonic at
-  this device's octave, each column one degree of the song's scale up
-  (`Song::getScaleDegreesWindow()`, `Scale::NONE` playing as major here),
-  each row `kScaleRowStride` (3) degrees - a fourth - higher. The old
-  isomorphic grid is no longer reachable from the Launchpad
-  (`LaunchpadLayout::noteForPad()` and the consonance classification remain;
-  the latter still colors the keyboard by pitch class from the tonic).
+  load). A pitched track gets the isomorphic keyboard
+  (`LaunchpadManager::resolveKeyboardNotes()`, `LaunchpadLayout::noteForPad()`):
+  the song's key at the anchor pad at this device's octave, pads colored by
+  consonance class from the tonic. The song's scale is not used here, only by
+  the sequencer.
 
   While a clip is open for editing on a percussion or pitched track
   (`Controller::getFocusedClipTrackId()`, nothing recording a Live View

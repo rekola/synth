@@ -1482,18 +1482,19 @@ LaunchpadManager::resolveKeyboardNotes(const Song & song, int device_id) const {
   auto edo_steps = LaunchpadLayout::edoSteps(song.getTuning());
   if (edo_steps <= 0) return notes; // every non-percussion Tuning is currently pitched
 
-  // Scale degrees are offsets above the tonic's pitch class, so the octave
-  // register is added here. Deliberately not "(octave - 4) * edo_steps":
-  // the computer-keyboard tables (InputEvent.h) bake in a several-octaves-up
-  // baseline for their lowest key, and one further octave on top of that
-  // keeps the Launchpad's lowest pad comfortably audible.
-  auto register_base = (octave(device_id) + 1) * edo_steps;
-  auto max_index = LaunchpadLayout::scaleDegreeIndexForPad(7, 7);
-  auto degrees = song.getScaleDegreesWindow(0, max_index + 1, true);
-  if (degrees.size() != static_cast<size_t>(max_index + 1)) return notes;
+  auto basis = LaunchpadLayout::computeBasis(edo_steps);
+  auto key = song.getKey();
+  // song.getKey() is a full note number with its own baked-in octave, so
+  // only its pitch class is used; the octave register below picks the octave.
+  auto tonic = key >= 0 ? ((key % edo_steps) + edo_steps) % edo_steps : 0;
+  // Deliberately not "(octave - 4) * edo_steps": the computer-keyboard
+  // tables (InputEvent.h) bake in a several-octaves-up baseline for their
+  // lowest key, and one further octave on top of that keeps the Launchpad's
+  // lowest pad comfortably audible.
+  auto base_note = tonic + (octave(device_id) + 1) * edo_steps;
   for (int y = 0; y < 8; y++) {
     for (int x = 0; x < 8; x++) {
-      notes[static_cast<size_t>(x + 8 * y)] = degrees[static_cast<size_t>(LaunchpadLayout::scaleDegreeIndexForPad(x, y))] + register_base;
+      notes[static_cast<size_t>(x + 8 * y)] = LaunchpadLayout::noteForPad(basis, x - GRID_ORIGIN_X, y - GRID_ORIGIN_Y, base_note);
     }
   }
   return notes;
@@ -2506,7 +2507,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
     }
   } else {
     // NOTES: the playing surface - the 4x4 GM kit on a percussion track, the
-    // scale keyboard on a pitched one - and, while a clip is open for
+    // isomorphic keyboard on a pitched one - and, while a clip is open for
     // editing (show_step_grid), the top four rows as its 32 steps. The
     // pad pressed last is the selected sound: white, and the one the step
     // rows show. Lit steps are green; unlit-but-real steps a faint dark
