@@ -98,6 +98,10 @@ stops polling it.
    bit-identical. Tracks and the instrument pool join it with their slice in
    step 3: the audio thread builds voices from those objects directly, and
    they become shareable immutable objects only once built from nodes.
+   Measured: a full copy of the arrangement and clips takes ~30 us on the
+   largest song here (252 note rows, 27 clips), so there is no case yet for
+   per-pattern incremental publishing; sample audio and the tempo-stretch
+   cache are shared between copies, not copied.
 3. Move storage into the document in slices, each deleting the old class and
    replacing it with a view: song scalars/locators/scenes, patterns+notes,
    clips+arrangement, tracks/sends/pool/bus. After each: build, `ctest`,
