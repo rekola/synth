@@ -70,19 +70,37 @@ See `launchpad.md` for the gestures.
 ## Terminal setup
 
 Pixel graphics (Kitty graphics or Sixels) and the Kitty keyboard protocol are
-optional; the UI falls back to braille cells and ordinary key encodings.
+optional; the UI falls back to braille cells and ordinary key encodings. Without
+the keyboard protocol a terminal never reports a key going up, so held notes and
+musical chords can't be played from the keyboard there.
 
 ### xterm
 
-xterm has Sixel support, but it is off unless enabled in `~/.Xresources`:
+xterm's defaults are poor for this UI: 16 colors, no Sixels, a small image
+limit, a tiny bitmap font. Put this in `~/.Xresources`:
 
 ```
+XTerm*termName: xterm-256color
 XTerm*decTerminalID: vt340
 XTerm*numColorRegisters: 256
+XTerm*maxGraphicSize: 2048x2048
+XTerm*renderFont: true
+XTerm*faceName: monospace
+XTerm*faceSize: 12
 ```
 
-`decTerminalID: vt340` makes xterm identify as a Sixel-capable terminal, and
-`numColorRegisters` sets the palette size for images. Reload the file with
-`xrdb -merge ~/.Xresources` and start a new xterm; running ones keep their old
-settings. xterm does not implement the Kitty keyboard protocol, so use C-b
-rather than C-SPC to set the mark.
+- `termName` sets `TERM`; xterm's default `xterm` has only 8/16 colors, which
+  is why the UI looked 16-color everywhere but the Sixel images.
+- `decTerminalID: vt340` makes xterm identify as Sixel-capable, and
+  `numColorRegisters` sets the image palette size.
+- `maxGraphicSize` raises the Sixel image size limit (default 1000x1000).
+- `renderFont` with `faceName` selects an antialiased Xft font through
+  fontconfig. `monospace` is fontconfig's alias for the system's default
+  monospace font, so it is the same on every machine; name a font such as
+  `DejaVu Sans Mono` to pick one. `faceSize` is in points.
+
+Reload with `xrdb -merge ~/.Xresources` and start a new xterm; running ones
+keep their old settings. If `TERM` is still `xterm` inside it, check with
+`echo $TERM`; a shell profile that exports `TERM` overrides the resource.
+xterm does not implement the Kitty keyboard protocol, so use C-b rather than
+C-SPC to set the mark.

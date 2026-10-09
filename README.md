@@ -95,10 +95,11 @@ partials of the tuning's own intervals, septimal ones included, meet exactly.
 
 The terminal UI works in any terminal notcurses supports, but a modern one is
 better. Terminals with the Kitty keyboard protocol (kitty, foot, WezTerm,
-Ghostty) can send chords such as C-SPC; elsewhere use the alternatives
-(C-b sets the mark). Terminals with Kitty graphics or Sixels get pixel graphics:
+Ghostty) report key releases, which keyboard note entry needs to know how long
+a note is held, so they can play musical chords (several notes at once); other
+terminals can't. Terminals with Kitty graphics or Sixels get pixel graphics:
 the spectrum analyzer and the DirAC heatmap in the scopes are drawn as real
-pixels instead of braille cells. Without pixel support they fall back to
+pixels instead of braille cells, and without pixel support they fall back to
 braille. See [docs/terminal.md](docs/terminal.md) for terminal-specific setup.
 
 # Launchpad support
