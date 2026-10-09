@@ -83,7 +83,9 @@ public:
 		// spawning a voice inline here, so an arpeggiator-rooted
 		// track's pattern-authored notes drive its stepper too, not
 		// just live-triggered ones.
+		note_override_ = ev.getNoteOverride();
 		noteOn(ev.getId(), *instrument, ev.getTuning(), ev.getVelocity(), ev.getNoteValue(), NoteOrigin::PATTERN, ev.getNoteCoordinate());
+		note_override_ = {};
 	      }
 	    }
 	    it = pending_events.erase(it);
@@ -164,6 +166,8 @@ public:
     // anything without one) once, here, before the position ever reaches
     // playNote()/SoundFontInstrument.
     auto resolved_position = getPosition();
+    if (note_override_.has_azimuth) resolved_position.azimuth = note_override_.azimuth;
+    if (note_override_.has_extent) resolved_position.extent = note_override_.extent;
     if (resolved_position.extent < 0.0f) resolved_position.extent = instrument.getDefaultExtent();
 
     auto voice = instrument.playNote(getChannelConfiguration(), resolved_position, tuning, 1.0f, velocity, note_value, getSends(), note_coord);
@@ -357,6 +361,8 @@ protected:
 private:
   int instrument_id_;
   std::unordered_map<int, float> column_pressure_;
+  // The note being started by render() right now, for noteOn() to read.
+  NoteOverride note_override_;
 };
 
 #endif

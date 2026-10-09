@@ -189,6 +189,19 @@ class Command {
     return -90.0f + (magnitude / 255.0f) * 180.0f;
   }
 
+  // 0Wxx - set the ambisonic extent (the source's physical half-width) to an
+  // absolute size: `xx` (0-255) maps linearly from 0 m (a point source) at
+  // 00 up to kMaxExtentMeters at FF. A track's command sets it for the notes
+  // that start after it; a note's own fx (Note::getFx()) sets it for that
+  // note alone.
+  static constexpr float kMaxExtentMeters = 8.0f;
+  bool isExtentSet() const { return values_[0] == '0' && values_[1] == 'W'; }
+  float getExtentSetMeters() const {
+    auto hi = digit(values_[2], 16), lo = digit(values_[3], 16);
+    auto magnitude = static_cast<float>((hi < 0 ? 0 : hi) * 16 + (lo < 0 ? 0 : lo));
+    return magnitude / 255.0f * kMaxExtentMeters;
+  }
+
   // 0Lxx - set Volume (Send Main) to an absolute
   // level, unlike the slide commands above's own per-row relative nudge:
   // this is what a live-recorded fader move needs (the fader was *at*

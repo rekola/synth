@@ -4,7 +4,7 @@ A pattern row's effect column holds a 4-character command: a 2-character
 mnemonic followed by a 2-digit hex argument (or two separate hex nibbles,
 where noted) - e.g. `ZB00`. Character validation in the editor is
 permissive (any letter, not just the mnemonics below), but only the
-commands listed as **Implemented** actually do anything during playback;
+commands in the per-note and "Other implemented" tables below actually do anything during playback;
 everything else is accepted and stored but currently a no-op (see
 `SongState.h`'s own command-handling loop).
 
@@ -48,14 +48,29 @@ under any clip, and a clip's own command wins where both set the same
 thing on the same row. `ZBxx` (pattern break) works from either, and
 does the same wherever the clip is played from.
 
-## Implemented
+## Per-note commands
+
+These work in a note column's own fx column as well as in the effect column.
+The fx column sits after the delay column, is always shown, and holds three
+characters: the command without its device-index digit, which is always an
+implicit `-`/`0` there (so a note's `R24` is the row command `-R24`). It is
+stored on the note (`fx` attribute, `---` when unset) and edited like the
+effect column; Delete/Backspace clear all three characters. Typed in the effect
+column a command acts on the whole track, in a note's fx column on that note
+alone. Any other command typed in the fx column is stored but does nothing.
+
+| Command | Description | Source |
+|---|---|---|
+| `-Pxx` | Set azimuth to an absolute position (as a note's fx: that note's azimuth alone) - `xx` maps linearly from -90 degrees at `00` through +90 at `FF`. | Renoise (adapted) - matches Renoise's own `Pxx` "Track Pan" exactly, `xx` meaning included (`00`/`80`/`FF` = left/center/right), but that's a real, inherited limitation: it only reaches half this engine's own 360-degree azimuth range (the front hemisphere), since Renoise's own panning has no "behind" to reach in the first place. |
+| `-Rxy` | Retrigger - re-fire every note still playing on the track (as a note's fx: only that note) every `y` ticks (12 ticks/row; `y=0`, or an interval reaching the next row, adds nothing) with volume factor `x` applied to each retrigger: `0`/`8` no change; `1`-`5` lower the original volume by 3/6/12/25/50%; `6`/`7` cumulatively lower by 33/50%; `9`-`D` raise it by 3/6/12/25/50%; `E`/`F` cumulatively raise by 50/100%. | Renoise (`Rxy`) |
+| `-Wxx` | Set ambisonic extent - the source's physical half-width in meters (`SphericalPosition::extent`, 0 = a point source). `xx` maps linearly from 0 m at `00` up to 8 m (`Command::kMaxExtentMeters`) at `FF`. As a row command it sets the track's extent for the notes that start after it (voices already sounding keep theirs); as a note's fx, that note's extent alone. | Renoise (adapted) |
+
+## Other implemented commands
 
 | Command | Description | Source |
 |---|---|---|
 | `ZBxx` | Pattern break - when this row ends, jump to row `xx` (hex, from 0) of the next bar instead of playing on; past the bar's end it lands on the bar's last row. `ZB00` starts the next bar from its first row. Ends a scene early: on a clip's last row it keeps the clip bar-aligned, and a queued launch or stop fires on that bar. A launched clip keeps its own place (the live clock doesn't follow the jump), so a clip shorter than a whole number of bars still loops in step with the others. On a bar's last row `ZB00` changes nothing. | Renoise (`ZBxx`), adapted: a bar stands in for its pattern |
 | `-Lxx` | Set Volume (Send Main) - an absolute level: `xx` (0-255) maps linearly in dB from -80dB up to 0dB/unity at 255, applied the instant this row starts and reaching every already-sounding voice too. | Renoise (`Lxx`, "Track Level") |
-| `-Pxx` | Set azimuth to an absolute position - `xx` maps linearly from -90 degrees at `00` through +90 at `FF`. | Renoise (adapted) - matches Renoise's own `Pxx` "Track Pan" exactly, `xx` meaning included (`00`/`80`/`FF` = left/center/right), but that's a real, inherited limitation: it only reaches half this engine's own 360-degree azimuth range (the front hemisphere), since Renoise's own panning has no "behind" to reach in the first place. |
-| `-Rxy` | Retrigger - re-fire every note still playing on the track every `y` ticks (12 ticks/row; `y=0`, or an interval reaching the next row, adds nothing) with volume factor `x` applied to each retrigger: `0`/`8` no change; `1`-`5` lower the original volume by 3/6/12/25/50%; `6`/`7` cumulatively lower by 33/50%; `9`-`D` raise it by 3/6/12/25/50%; `E`/`F` cumulatively raise by 50/100%. | Renoise (`Rxy`) |
 | `YMxy` | Set Volume (Send Main) with an explicit glide, timed the same way a live Launchpad fader glide already is - wall-clock seconds, unaffected by tempo (a fader press's own velocity-driven speed has nothing to do with it). `M` for **M**ain. `x` (0-15) is the target (same linear-in-dB mapping as `-Lxx`, nibble instead of byte resolution); `y` (0-15) is the glide's own duration, exponential in seconds: `duration_seconds = kMinFaderRampSeconds * (kMaxFaderRampSeconds / kMinFaderRampSeconds) ^ (y / 15.0)` - `y=0` the fastest (0.03s), `y=15` the slowest (8s), so both a near-instant move and a slow fade keep useful resolution. Recorded automatically by a Launchpad Volume/Send Main fader press (`LaunchpadManager::recordFaderAutomationIfArmed()`) - into the take's clip during a clip take, else into the arrangement's background; hand-typing works the same way. | Classic tracker (IT) - Impulse Tracker's own `Mxx` sets channel volume directly, the same concept. |
 | `YAxy` | Send A's own equivalent of `YMxy` - same encoding, targeting Send A instead of Volume. `A` for Send **A**. | Own |
 | `YBxy` | Send B's own equivalent of `YMxy` - same encoding, targeting Send B instead of Volume. `B` for Send **B**. | Own |
@@ -74,13 +89,4 @@ does the same wherever the clip is played from.
 | `-Ixx` | Fade in | Renoise (`Ixx`) |
 | `-Oxx` | Fade out | Renoise (`Oxx`) |
 | `-Txy` | Tremolo (depth `x`, speed `y`) | Renoise (`Txy`) |
-| `-Wxx` | Set ambisonic extent - the track's own physical half-width in meters (`SphericalPosition::extent`/`LeafTrack::setExtent()`, 0 = a point source) - `xx` maps linearly in steps of 1/256, `00` = 0m up through `FF` at some chosen max (not settled yet). | Renoise (adapted) |
 | `ZTxx` | Set tempo to `xx` BPM - global like `ZBxx`, not a device-index command, since tempo isn't a per-track parameter. | Renoise (`ZTxx`) |
-
-## Note fx column
-
-Each note column has a local fx column after its delay column (three
-characters, magenta, always shown). It is a mnemonic letter and a two-digit hex
-argument - a command without its chain digit - stored on the note (`fx`
-attribute, `---` when unset) and edited like the effect column (Delete/Backspace
-clear all three). Playback does not act on it yet.

@@ -201,6 +201,19 @@ TEST(render_note_fx_retrigger_restarts_the_note_within_its_row) {
   CHECK(windowedRms(b, 0, 0.0f, 0.12f) > 1e-4f);
 }
 
+// A note's own Pxx fx places that note alone: 00 hard left, FF hard right.
+TEST(render_note_fx_azimuth_places_the_note) {
+  ChannelConfiguration config(44100, 1);
+  auto left_song = loadFixture("note_fx_azimuth_00.xml");
+  auto right_song = loadFixture("note_fx_azimuth_FF.xml");
+  CHECK(left_song.ok);
+  CHECK(right_song.ok);
+  auto to_left = renderSongOffline(left_song.song, config);
+  auto to_right = renderSongOffline(right_song.song, config);
+  CHECK(rms(to_left, 0) > 4.0f * rms(to_left, 1));
+  CHECK(rms(to_right, 1) > 4.0f * rms(to_right, 0));
+}
+
 TEST(render_center_note_produces_symmetric_stereo_output) {
   auto loaded = loadFixture("center_note.xml");
   CHECK(loaded.ok);

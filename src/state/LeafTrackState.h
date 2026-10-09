@@ -277,6 +277,8 @@ public:
     adjustAzimuth(a - position_.azimuth);
   }
   float getAzimuth() const { return position_.azimuth; }
+  // Applies to notes that start afterwards, not to voices already sounding.
+  void setExtent(float meters) { position_.extent = meters; }
 
   // Pan's own counterpart of glideSendMain()/A()/B() above - a Launchpad
   // Pan press reaches every already-sounding voice the same instant a

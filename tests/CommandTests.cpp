@@ -266,3 +266,12 @@ TEST(command_retrigger_velocity_steps) {
   CHECK_NEAR(Command::retriggerVelocityStep(0.5f, 0.25f, 15), 0.5f, 1e-6f);
   CHECK_NEAR(Command::retriggerVelocityStep(1.0f, 1.0f, 15), 1.0f, 1e-6f);
 }
+
+TEST(extent_set_command_maps_xx_linearly_up_to_the_maximum) {
+  Command c("0W00");
+  CHECK(c.isExtentSet());
+  CHECK_NEAR(c.getExtentSetMeters(), 0.0f, 1e-6f);
+  CHECK_NEAR(Command("0WFF").getExtentSetMeters(), Command::kMaxExtentMeters, 1e-5f);
+  CHECK_NEAR(Command("0W80").getExtentSetMeters(), Command::kMaxExtentMeters * 128.0f / 255.0f, 1e-5f);
+  CHECK(!Command("0P80").isExtentSet());
+}
