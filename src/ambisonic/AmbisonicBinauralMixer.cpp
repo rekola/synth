@@ -185,7 +185,7 @@ AmbisonicBinauralMixer::~AmbisonicBinauralMixer() {
 
 void
 AmbisonicBinauralMixer::reset() {
-  buffer_.zero();
+  resetAccumulator(buffer_);
 }
 
 void
@@ -199,12 +199,11 @@ AmbisonicBinauralMixer::accumulate(const AudioBuffer & input) {
   // Mixer.h); buffer_ never marks them present (raw-count constructor) so
   // they're silently ignored here.
   buffer_.mixNamed(input);
+  noteAccumulated(input);
 }
 
 AudioBuffer
 AmbisonicBinauralMixer::encode() {
-  // Below -180 dB nothing is audible, and convolving it costs as much as a loud signal.
-  constexpr float kInaudible = 1e-9f;
   int frames = buffer_.numberOfFrames();
   size_t tail_len = left_tail_.size();
   size_t acc_size = static_cast<size_t>(frames) + tail_len;
@@ -237,7 +236,11 @@ AmbisonicBinauralMixer::encode() {
   float * channels[kAmbisonicChannelCount] = {};
   for (int c = 0; c < regular; c++) channels[c] = buffer_.getChannelData(c);
 
+  // Nothing accumulated: only the filter tail is left to drain. The block
+  // is still written out (zeros once the tail is gone) - the device needs
+  // a continuous stream.
   for (auto & speaker : speakers_) {
+    if (!accumulated()) break;
     auto & g = speaker.decode_gains;
     for (int i = 0; i < frames; i++) {
       float s = 0.0f;
@@ -248,7 +251,6 @@ AmbisonicBinauralMixer::encode() {
     auto ir_len = speaker.left_ir.size();
     for (int i = 0; i < frames; i++) {
       float v = speaker_signal_[static_cast<size_t>(i)];
-      if (std::fabs(v) < kInaudible) continue; // the send bus's denormal guard never reaches exact zero
       size_t left_base = static_cast<size_t>(i + speaker.left_delay);
       size_t right_base = static_cast<size_t>(i + speaker.right_delay);
       for (size_t k = 0; k < ir_len; k++) {

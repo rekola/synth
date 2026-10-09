@@ -4,6 +4,7 @@
 #include "../UIElement.h"
 #include "LevelMeter.h"
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <string>
@@ -23,6 +24,21 @@ public:
   // A fresh reading, one linear RMS per channel (missing ones are
   // silent), and the legend for it. Redraws.
   void setLevels(const std::vector<float> & rms, const std::string & label);
+
+  // True when every bar and peak marker has fallen to nothing, so a further
+  // silent reading would change nothing; until then setLevels() has to keep
+  // being called for the bars to keep falling.
+  bool atRest() const {
+    return std::all_of(channels_.begin(), channels_.end(), [](const Channel & c) {
+      return c.fraction == 0.0f && c.peak_fraction == 0.0f && !c.clipping;
+    });
+  }
+
+  // Forgets every level and peak. Redraws, with the legend `label`.
+  void clear(const std::string & label) {
+    channels_ = {};
+    setLevels({}, label);
+  }
 
 private:
   struct Channel {

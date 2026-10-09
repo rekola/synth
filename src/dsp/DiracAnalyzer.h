@@ -71,6 +71,11 @@ class DiracAnalyzer {
   // desired output rate.
   int getAnalysisFrameCount() const { return analysis_frame_count_; }
 
+  // True once every smoothed value has decayed to exactly zero, as it does
+  // after enough silent input: further silent blocks would change nothing
+  // and need not be fed. (Not true before the first analysis frame.)
+  bool atRest() const { return at_rest_; }
+
   const BandResult & getBandResult(int band) const { return bands_[static_cast<size_t>(band)]; }
 
   // The smoothed, splatted directional-energy grid (SS6) - kAzimuthBins
@@ -104,6 +109,7 @@ class DiracAnalyzer {
   std::array<float, kNumBands> diffuse_energy_ {};
   std::array<float, kGridSize> grid_ {};
   int analysis_frame_count_ = 0;
+  bool at_rest_ = false;
 };
 
 #endif

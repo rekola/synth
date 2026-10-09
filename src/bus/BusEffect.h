@@ -7,6 +7,17 @@
 
 #include <vector>
 
+// Denormal guard shared by the bus effects' feedback paths: decaying
+// feedback filters are a classic denormal CPU trap, and a tiny
+// alternating-sign value keeps every line's state just above the denormal
+// range without being audible - unlike FTZ/DAZ, this doesn't change
+// floating-point behavior for any other DSP sharing the audio thread
+// (this codebase doesn't set FTZ/DAZ anywhere). It keeps a faint signal
+// flowing through an idle effect forever, which is why SendBusProcessor
+// judges audibility against kBusAudibleFloor, far above it, rather than
+// against exact zero.
+inline constexpr float kDenormalGuard = 1e-20f;
+
 // Common base for the shared send bus's effects (SendBusProcessor owns two
 // of these, one per slot, both fed by a cross-track SendA/SendB mono sum
 // and persisting for the whole playback session - unlike a regular

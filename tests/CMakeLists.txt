@@ -81,6 +81,7 @@ add_executable(synth_tests
 	HalfbandFilterTests.cpp
 	AmbisonicDiffuseEncoderTests.cpp
 	SendBusProcessorTests.cpp
+	StructuralSilenceTests.cpp
 	BusEffectLiveUpdateTests.cpp
 	HazeTests.cpp
 	ArpeggiatorStateTests.cpp

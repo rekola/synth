@@ -164,6 +164,10 @@ private:
   bool scopes_visible_ = true;
   // Whether the spectrum/heatmap are on screen, as of the last layout().
   bool scopes_on_screen_ = true;
+  // Set when the scopes come back on screen: what they hold is from before
+  // they were hidden, and a silent analysis sends nothing more to replace
+  // it, so the next result starts them empty.
+  bool scopes_stale_ = false;
   // What syncLiveView() last left both widgets showing.
   int synced_track_id_ = -1, laid_out_clip_grid_height_ = -1;
   // Set by a handler that changes what's on screen (the view changing,

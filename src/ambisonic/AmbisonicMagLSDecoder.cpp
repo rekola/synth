@@ -353,7 +353,7 @@ AmbisonicMagLSDecoder::~AmbisonicMagLSDecoder() { }
 
 void
 AmbisonicMagLSDecoder::reset() {
-  buffer_.zero();
+  resetAccumulator(buffer_);
 }
 
 void
@@ -363,12 +363,11 @@ AmbisonicMagLSDecoder::accumulate(const AudioBuffer & input) {
     buffer_.zero();
   }
   buffer_.mixNamed(input);
+  noteAccumulated(input);
 }
 
 AudioBuffer
 AmbisonicMagLSDecoder::encode() {
-  // Below -180 dB nothing is audible, and convolving it costs as much as a loud signal.
-  constexpr float kInaudible = 1e-9f;
   int frames = buffer_.numberOfFrames();
   size_t tail_len = left_tail_.size();
   size_t acc_size = static_cast<size_t>(frames) + tail_len;
@@ -382,7 +381,10 @@ AmbisonicMagLSDecoder::encode() {
   fill(left_acc_.begin() + static_cast<long>(tail_len), left_acc_.end(), 0.0f);
   fill(right_acc_.begin() + static_cast<long>(tail_len), right_acc_.end(), 0.0f);
 
-  int regular = min(static_cast<int>(buffer_.numberOfChannels()), ambisonic_channels_);
+  // Nothing accumulated: only the filter tail is left to drain. The block
+  // is still written out (zeros once the tail is gone) - the device needs
+  // a continuous stream.
+  int regular = accumulated() ? min(static_cast<int>(buffer_.numberOfChannels()), ambisonic_channels_) : 0;
   // Each ambisonic channel convolves directly against its own precomputed
   // filter pair - no intermediate per-speaker mono signal at all, unlike
   // AmbisonicBinauralMixer's decode-then-convolve loop.
@@ -392,7 +394,6 @@ AmbisonicMagLSDecoder::encode() {
     auto & right_ir = channel_filters_[static_cast<size_t>(c)].right;
     for (int i = 0; i < frames; i++) {
       float v = channel_data[i];
-      if (std::fabs(v) < kInaudible) continue; // the send bus's denormal guard never reaches exact zero
       for (size_t t = 0; t < left_ir.size(); t++) left_acc_[static_cast<size_t>(i) + t] += v * left_ir[t];
       for (size_t t = 0; t < right_ir.size(); t++) right_acc_[static_cast<size_t>(i) + t] += v * right_ir[t];
     }

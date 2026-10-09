@@ -2188,7 +2188,9 @@ TerminalUI::layout() {
   int live_scope_rows = 2 * kScopeHeight + 2;
   bool live_scopes = getView() == View::LIVE && scopes_visible_ && live_outline_cols > 0
     && std::max(2, rows - 3) - live_scope_rows >= 6;
+  const bool scopes_were_on_screen = scopes_on_screen_;
   scopes_on_screen_ = show_scopes || live_scopes;
+  if (scopes_on_screen_ && !scopes_were_on_screen) scopes_stale_ = true;
 
   // cover_art_ claims the scope row's own leftmost columns first (the
   // literal top-left corner) - square-looking, sized off the row height
@@ -2793,10 +2795,24 @@ TerminalUI::handleVisualizationResultEvent(VisualizationResultEvent & ev) {
   bool changed = superseded; // a superseded event is redrawn by the one behind it
   // Scopes that are off screen aren't updated at all.
   if (!superseded && scopes_on_screen_) {
+    if (scopes_stale_) {
+      scopes_stale_ = false;
+      chart_->clear();
+      heatmap_->setGrid(std::vector<float>(DiracAnalyzer::kGridSize, 0.0f), std::vector<float>(DiracAnalyzer::kGridSize, 0.0f));
+      heatmap_->commit();
+      volume_meter_->clear(ev.getMeterLabel());
+      last_fft_.clear();
+      last_brightness_.clear();
+      last_saturation_.clear();
+      last_loudness_.clear();
+      dirac_running_max_ = 0.0f;
+      changed = true;
+    }
     // Raw, pre-mixdown per-channel levels (ambisonic bus, then always
     // AuxA/AuxB last - see VisualizationThread.cpp) rather than the final
     // decoded L/R output.
-    if (getView() == View::ARRANGEMENT && ev.getChannelLoudness() != last_loudness_) {
+    // A reading equal to the last still has to go in while the bars fall.
+    if (getView() == View::ARRANGEMENT && (ev.getChannelLoudness() != last_loudness_ || !volume_meter_->atRest())) {
       last_loudness_ = ev.getChannelLoudness();
       volume_meter_->setLevels(ev.getChannelLoudness(), ev.getMeterLabel());
       changed = true;

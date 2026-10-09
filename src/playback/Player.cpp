@@ -956,23 +956,22 @@ Player::play(AudioAPI & audio) {
 	      mixer->accumulate(AudioBuffer(0, false, false, audio.getFrameCount()));
 	    }
 
-	    // The active buffer renders *first*, straight into the same
-	    // shared `mixer` every other live buffer accumulates into for the
-	    // real, true combined signal below - but its own raw ambisonic
-	    // contribution is snapshotted right after, while it's still the
-	    // only thing accumulated into `mixer` so far, purely for
-	    // AudioBlockEvent's own "one buffer, every scope" contract (see
-	    // its own comment) - this never touches how the real signal
-	    // itself is computed. Silent (but still correctly frame-sized -
-	    // see AudioBuffer's ChannelConfiguration constructor) when the
-	    // active buffer has no live SongState at all yet.
-	    auto active_buffer_name = controller_->getActiveBufferNameThreadSafe();
-	    AudioBuffer active_raw_bus(controller_->getChannelConfiguration(), audio.getFrameCount());
-	    active_raw_bus.zero();
-	    AudioBuffer active_aux_a(1, audio.getFrameCount()), active_aux_b(1, audio.getFrameCount());
-	    active_aux_a.zero();
-	    active_aux_b.zero();
-	    auto active_it = live_states_.find(active_buffer_name);
+            // The active buffer renders *first*, straight into the same
+            // shared `mixer` every other live buffer accumulates into for the
+            // real, true combined signal below - but its own raw ambisonic
+            // contribution is snapshotted right after, while it's still the
+            // only thing accumulated into `mixer` so far, purely for
+            // AudioBlockEvent's own "one buffer, every scope" contract (see
+            // its own comment) - this never touches how the real signal
+            // itself is computed. Structurally empty (but still correctly
+            // frame-sized) when the active buffer has no live SongState at
+            // all yet.
+            auto active_buffer_name = controller_->getActiveBufferNameThreadSafe();
+            // Structurally empty (no channels, still frame-sized) until the
+            // active buffer's mixer accumulated something - see Mixer::getRawBus().
+            AudioBuffer active_raw_bus(0, false, false, audio.getFrameCount());
+            AudioBuffer active_aux_a(0, false, false, audio.getFrameCount()), active_aux_b(0, false, false, audio.getFrameCount());
+            auto active_it = live_states_.find(active_buffer_name);
 	    feedMonitoredInput(active_it == live_states_.end() ? nullptr : active_it->second.get(), active_buffer_name, audio.getFrameCount());
 	    if (active_it != live_states_.end()) {
 	      auto active_song = controller_->getSongByName(active_buffer_name);

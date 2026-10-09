@@ -17,7 +17,10 @@ public:
   // Redraws, unless the curve is where it was drawn; returns whether it did.
   bool setSpectrum(const std::vector<float> & db, float bin_hz);
 
-protected:
+  // Shows no bars at all. Redraws.
+  void clear();
+
+ protected:
   // How many bars the display shows across `cols` cells; braille packs two
   // per cell, a pixel renderer can use one per pixel column.
   virtual size_t barCount(int cols) { return static_cast<size_t>(2 * cols); }
