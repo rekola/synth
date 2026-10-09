@@ -76,10 +76,12 @@ class LaunchpadIO {
     // erase). LaunchpadPadEvent/LaunchpadButtonEvent's device_index is this
     // id, so per-device state keyed on it survives hotplug churn.
     int session_id;
+    // Connected to the device's DAW port rather than its MIDI one.
+    bool is_daw_port = false;
   };
 
   void scanForDevices(Logger & logger);
-  void connectToDevice(Logger & logger, int client, int port, LaunchpadProtocol::Model model);
+  void connectToDevice(Logger & logger, int client, int port, LaunchpadProtocol::Model model, bool is_daw_port);
   void sendSysEx(const std::vector<uint8_t> & bytes, int dest_client, int dest_port);
 
   // Blanks every LED on every currently-ready device - the destructor's
