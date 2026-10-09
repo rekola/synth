@@ -74,6 +74,7 @@ class PatternEditor : public UIElement {
   // above, and this header only forward-declares Song.
   void setCursorTrack(int track_index);
   int getEditStepSize() const { return edit_step_size; }
+  static constexpr int kMaxEditStep = 64;
 
   // Arrangement mode (the default) edits the arrangement and placed clips, with
   // the transport as the cursor row; Live mode edits clips directly,
@@ -221,7 +222,7 @@ protected:
   std::unordered_map<int, MeterSmoothing> meter_smoothing_;
   bool meters_showing_ = false;
 
-  int edit_step_size = 1, new_edit_step_size = 1;
+  int edit_step_size = 1;
   bool row_edited = false;
   int current_song_version = 0;
 
@@ -395,6 +396,7 @@ protected:
   static constexpr int kScrollMargin = 3;
   // Says so on the status line when the cursor can't move - it follows a
   // playing track's playhead. True then.
+  void changeEditStep(int delta);
   bool reportLockedCursor();
   // Set when what's shown changed in a way render()'s own dirty checks
   // don't see (the source switching, per-track playheads moving).
@@ -437,7 +439,7 @@ protected:
   // the live-scalar-plus-parallel-map shape Controller needs.
   struct EditingState {
     GridPosition current_cursor, new_cursor, current_scroll;
-    int edit_step_size = 1, new_edit_step_size = 1;
+    int edit_step_size = 1;
     int current_song_version = 0;
     MidiNoteInput midi_input;
     std::unordered_map<int, ActiveKeyboardNote> active_keyboard_notes;
