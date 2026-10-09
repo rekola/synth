@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="12edo" tempo="120" timeSignature="1/16" volume="1.0">
   <instruments>
-    <envelope attack="0.001" hold="0.5" decay="0.01" sustain="1.0" release="0.01">
+    <envelope id="i1" attack="0.001" hold="0.5" decay="0.01" sustain="1.0" release="0.01">
       <oscillator type="saw"/>
     </envelope>
   </instruments>
   <tracks>
     <distortion type="bitcrush" param="1">
-      <track id="0" instrument="0"/>
+      <track id="0" instrument="i1"/>
     </distortion>
   </tracks>
   <arrangement>

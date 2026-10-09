@@ -5,14 +5,14 @@
         <haze preset="air"/>
     </bus>
     <instruments>
-        <resonantFilter name="Chords" cut="2200" res="2" aftertouch="0" attack="0" hold="0" decay="0" sustain="1" release="0" keynumToHold="0" keynumToDecay="0">
+        <resonantFilter id="i1" name="Chords" cut="2200" res="2" aftertouch="0" attack="0" hold="0" decay="0" sustain="1" release="0" keynumToHold="0" keynumToDecay="0">
             <instrument from="guitar.acoustic.steel" harmonic="1" subharmonic="1"/>
         </resonantFilter>
-        <instrument from="piano.acoustic.grand" harmonic="1" subharmonic="1"/>
-        <instrument from="kit.standard" harmonic="1" subharmonic="1"/>
+        <instrument id="i2" from="piano.acoustic.grand" harmonic="1" subharmonic="1"/>
+        <instrument id="i3" from="kit.standard" harmonic="1" subharmonic="1"/>
     </instruments>
     <tracks>
-        <track id="0" instrument="0" azimuth="30" distance="1" elevation="50" color="" sendA="-16.9020" sendB="0.0000" noteColumns="7"/>
+        <track id="0" instrument="i1" azimuth="30" distance="1" elevation="50" color="" sendA="-16.9020" sendB="0.0000" noteColumns="7"/>
         <percussionTrack id="perc" azimuth="0" distance="0.89999998" elevation="0" color="" sendA="-20.0000" sendB="-7.3595"/>
         <percussionTrack id="drums" azimuth="0" distance="0.89999998" elevation="0" color="" sendB="-4.8608">
         </percussionTrack>

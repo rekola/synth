@@ -9,10 +9,10 @@
 -->
 <song temperament="31edo" tempo="60" timeSignature="1/4" volume="1.0">
   <instruments>
-    <instrument name="Additive Piano" from="piano.acoustic.grand"/>
+    <instrument id="i1" name="Additive Piano" from="piano.acoustic.grand"/>
   </instruments>
   <tracks>
-    <track id="0" name="Piano" instrument="0"/>
+    <track id="0" name="Piano" instrument="i1"/>
   </tracks>
   <locators>
     <locator row="0">7:6 subminor third</locator>

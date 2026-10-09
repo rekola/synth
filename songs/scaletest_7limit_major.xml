@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song timeSignature="1/16" key="C" temperament="31edo" tempo="200" volume="0.75">
   <instruments>
-    <instrument from="piano.acoustic.grand" />
+    <instrument id="i1" from="piano.acoustic.grand" />
   </instruments>
   
   <tracks>
-    <track id="0" instrument="0" azimuth="30" distance="0" elevation="50"/>
+    <track id="0" instrument="i1" azimuth="30" distance="0" elevation="50"/>
   </tracks>
   
   <locators>

@@ -5,23 +5,23 @@
         <haze preset="slap"/>
     </bus>
     <instruments>
-        <instrument from="string.plucked.harp"/>
-        <envelope name="Pads" attack="0.050000001" hold="0" decay="0" sustain="1" release="2" keynumToHold="0" keynumToDecay="0">
+        <instrument id="i1" from="string.plucked.harp"/>
+        <envelope id="i2" name="Pads" attack="0.050000001" hold="0" decay="0" sustain="1" release="2" keynumToHold="0" keynumToDecay="0">
             <resonantFilter cut="2200" res="0.5" aftertouch="0" attack="0" hold="0" decay="0" sustain="1" release="0" keynumToHold="0" keynumToDecay="0">
                 <oscillator type="square" level="0.25" width="0.5" voices="4" detune="5" spread="1"/>
             </resonantFilter>
         </envelope>
-        <instrument from="bass.electric.pick"/>
+        <instrument id="i3" from="bass.electric.pick"/>
     </instruments>
     <tracks>
-        <track id="harp2" instrument="0" azimuth="-30" distance="1" elevation="0" color="" sendA="-20.0000" sendB="-13.9794"/>
-        <track id="pads" instrument="1" azimuth="-15" distance="10" elevation="0" extent="10" color="" sendA="-20.0000" sendB="-7.9588"/>
-        <track id="pads2" instrument="1" azimuth="40" distance="10" elevation="0" extent="10" color="" sendA="-20.0000" sendB="-7.9588"/>
-        <arpeggiatorTrack id="arp" instrument="0" azimuth="30" distance="1" elevation="0" color="" sendA="-20.0000" sendB="-13.9794" mode="up" noteDuration="2" octaves="1" gate="1"/>
-        <track id="harsh" instrument="1" azimuth="60" distance="1" elevation="0" extent="10" color="" sendA="-20.0000" sendB="-20.0000"/>
+        <track id="harp2" instrument="i1" azimuth="-30" distance="1" elevation="0" color="" sendA="-20.0000" sendB="-13.9794"/>
+        <track id="pads" instrument="i2" azimuth="-15" distance="10" elevation="0" extent="10" color="" sendA="-20.0000" sendB="-7.9588"/>
+        <track id="pads2" instrument="i2" azimuth="40" distance="10" elevation="0" extent="10" color="" sendA="-20.0000" sendB="-7.9588"/>
+        <arpeggiatorTrack id="arp" instrument="i1" azimuth="30" distance="1" elevation="0" color="" sendA="-20.0000" sendB="-13.9794" mode="up" noteDuration="2" octaves="1" gate="1"/>
+        <track id="harsh" instrument="i2" azimuth="60" distance="1" elevation="0" extent="10" color="" sendA="-20.0000" sendB="-20.0000"/>
         <percussionTrack id="perc" azimuth="0" distance="0.89999998" elevation="0" color="" sendA="-20.0000" sendB="-1.9382" sendMain="-1.9382"/>
         <percussionTrack id="perc2" azimuth="0" distance="0.89999998" elevation="0" color="" sendA="-20.0000" sendB="-13.9794" sendMain="-12.0412"/>
-        <track id="bass" instrument="2" azimuth="60" distance="2" elevation="10" color="" sendA="-20.0000" sendB="-4.4370"/>
+        <track id="bass" instrument="i3" azimuth="60" distance="2" elevation="10" color="" sendA="-20.0000" sendB="-4.4370"/>
     </tracks>
     <arrangement>
         <pattern track="arp">

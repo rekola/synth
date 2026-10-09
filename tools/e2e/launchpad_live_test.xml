@@ -18,26 +18,24 @@
      the simulated terminal going unresponsive). -->
 <song temperament="12edo" tempo="120" patternRows="16">
   <instruments>
-    <instrument from="string.bowed.ensemble.pizzicato" />
+    <instrument id="i1" from="string.bowed.ensemble.pizzicato" />
   </instruments>
   <tracks>
-    <track id="0" instrument="0" />
+    <track id="0" instrument="i1" />
   </tracks>
   <clips>
-    <trackClips track="0">
-      <clip name="p0" />
-      <clip name="p1" />
-      <clip name="p2" />
-      <clip name="p3" />
-      <clip name="p4" />
-      <clip name="p5" />
-      <clip name="p6" />
-      <clip name="target" length="8">
-        <pattern>
-          <note row="0" velocity="80" value="E-4" />
-        </pattern>
-      </clip>
-    </trackClips>
+    <clip track="0" name="p0" />
+    <clip track="0" name="p1" />
+    <clip track="0" name="p2" />
+    <clip track="0" name="p3" />
+    <clip track="0" name="p4" />
+    <clip track="0" name="p5" />
+    <clip track="0" name="p6" />
+    <clip track="0" name="target" length="8">
+      <pattern>
+        <note row="0" velocity="80" value="E-4" />
+      </pattern>
+    </clip>
   </clips>
   <arrangement>
     <pattern track="0">

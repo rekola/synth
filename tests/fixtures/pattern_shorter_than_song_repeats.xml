@@ -7,10 +7,10 @@
      own modulo), not silence. -->
 <song temperament="12edo" tempo="240" timeSignature="1/16" volume="1.0">
   <instruments>
-    <oscillator type="sine"/>
+    <oscillator id="i1" type="sine"/>
   </instruments>
   <tracks>
-    <track id="0" instrument="0" />
+    <track id="0" instrument="i1" />
   </tracks>
   <arrangement>
     <pattern track="0">

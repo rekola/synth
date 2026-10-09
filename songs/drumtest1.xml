@@ -1,30 +1,30 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="100" volume="1.0">
   <instruments>
-    <envelope attack="0.01" hold="0" decay="1.17" sustain="0" release="0.231" name="Bell">
+    <envelope id="i1" attack="0.01" hold="0" decay="1.17" sustain="0" release="0.231" name="Bell">
       <oscillator type="sine"/>
     </envelope>
 
-    <envelope name="bass3" attack="0.0011" hold="0" decay="4.00" sustain="0" release="0.231">	
+    <envelope id="i2" name="bass3" attack="0.0011" hold="0" decay="4.00" sustain="0" release="0.231">	
       <resonantFilter cutmin="1100" cutmax="11000" res="0.1" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">
 	<oscillator type="square" />
 	<oscillator type="triangle" harmonic="2" voices="8" detune="10"/>
       </resonantFilter>
     </envelope>
 
-    <resonantFilter cut="20000" res="4" name="piano1" volume="5">
+    <resonantFilter id="i3" cut="20000" res="4" name="piano1" volume="5">
       <instrument from="piano.acoustic.grand" />
     </resonantFilter>
     
-    <resonantFilter cut="20000" res="4" name="piano2">
+    <resonantFilter id="i4" cut="20000" res="4" name="piano2">
       <instrument from="piano.acoustic.grand" />
     </resonantFilter>
   </instruments>
   
   <tracks>
-    <track id="bell" instrument="0" distance="1" azimuth="-30" />
-    <track id="bass" instrument="1" distance="1" azimuth="30" />
-    <track id="piano" instrument="3" distance="1" azimuth="60" />
+    <track id="bell" instrument="i1" distance="1" azimuth="-30" />
+    <track id="bass" instrument="i2" distance="1" azimuth="30" />
+    <track id="piano" instrument="i4" distance="1" azimuth="60" />
     <percussionTrack id="perc" distance="1" azimuth="90" />
   </tracks>
   

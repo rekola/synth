@@ -5,20 +5,20 @@
     <haze preset="crunch" sendB="-3.0980"/>
   </bus>
   <instruments>
-    <envelope attack="0.001" hold="0" decay="0.12" sustain="0" release="0.02" name="Kick">
+    <envelope id="i1" attack="0.001" hold="0" decay="0.12" sustain="0" release="0.02" name="Kick">
       <oscillator type="sine"/>
     </envelope>
-    <envelope attack="0.001" hold="0" decay="0.09" sustain="0" release="0.02" name="Snare">
+    <envelope id="i2" attack="0.001" hold="0" decay="0.09" sustain="0" release="0.02" name="Snare">
       <oscillator type="square"/>
     </envelope>
-    <envelope attack="0.001" hold="0" decay="0.03" sustain="0" release="0.01" name="Hat">
+    <envelope id="i3" attack="0.001" hold="0" decay="0.03" sustain="0" release="0.01" name="Hat">
       <oscillator type="triangle" harmonic="3"/>
     </envelope>
   </instruments>
   <tracks>
-    <track id="kick" instrument="0" sendB="-3.0980"/>
-    <track id="snare" instrument="1" sendB="-3.0980"/>
-    <track id="hat" instrument="2" sendB="-6.0206"/>
+    <track id="kick" instrument="i1" sendB="-3.0980"/>
+    <track id="snare" instrument="i2" sendB="-3.0980"/>
+    <track id="hat" instrument="i3" sendB="-6.0206"/>
   </tracks>
   <arrangement>
     <pattern track="kick">

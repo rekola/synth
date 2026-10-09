@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="12edo" tempo="120" timeSignature="1/16" volume="1.0">
   <instruments>
-    <oscillator type="sine">
+    <oscillator id="i1" type="sine">
       <oscillator type="sine" harmonic="2"/>
     </oscillator>
   </instruments>
   <tracks>
-    <track id="0" instrument="0"/>
+    <track id="0" instrument="i1"/>
   </tracks>
   <arrangement>
     <pattern track="0">

@@ -1,28 +1,28 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="900" timeSignature="1/16" volume="1.0">
   <instruments>
-    <envelope attack="0.02" hold="0" decay="1" sustain="0.7" release="0.3">
+    <envelope id="i1" attack="0.02" hold="0" decay="1" sustain="0.7" release="0.3">
       <padsynth preset="choir-pad4"/>
     </envelope>
-    <envelope attack="0.02" hold="0" decay="1" sustain="0.7" release="0.3">
+    <envelope id="i2" attack="0.02" hold="0" decay="1" sustain="0.7" release="0.3">
       <padsynth preset="long-spacechoir2"/>
     </envelope>
-    <envelope attack="0.02" hold="0" decay="1" sustain="0.7" release="0.3">
+    <envelope id="i3" attack="0.02" hold="0" decay="1" sustain="0.7" release="0.3">
       <padsynth preset="bells-3"/>
     </envelope>
-    <envelope attack="0.02" hold="0" decay="1" sustain="0.7" release="0.3">
+    <envelope id="i4" attack="0.02" hold="0" decay="1" sustain="0.7" release="0.3">
       <padsynth preset="dual-strings"/>
     </envelope>
-    <envelope attack="0.02" hold="0" decay="1" sustain="0.7" release="0.3">
+    <envelope id="i5" attack="0.02" hold="0" decay="1" sustain="0.7" release="0.3">
       <padsynth preset="synth-piano-3-b"/>
     </envelope>
   </instruments>
   <tracks>
-    <track id="0" instrument="0"/>
-    <track id="1" instrument="1"/>
-    <track id="2" instrument="2"/>
-    <track id="3" instrument="3"/>
-    <track id="4" instrument="4"/>
+    <track id="0" instrument="i1"/>
+    <track id="1" instrument="i2"/>
+    <track id="2" instrument="i3"/>
+    <track id="3" instrument="i4"/>
+    <track id="4" instrument="i5"/>
   </tracks>
   <arrangement>
     <pattern track="0">

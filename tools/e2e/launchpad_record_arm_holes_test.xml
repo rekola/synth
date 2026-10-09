@@ -7,10 +7,10 @@
      slot (index 0) the way this codebase's own older behavior used to. -->
 <song temperament="12edo" tempo="120" patternRows="16">
   <instruments>
-    <instrument from="string.bowed.ensemble.pizzicato" />
+    <instrument id="i1" from="string.bowed.ensemble.pizzicato" />
   </instruments>
   <tracks>
-    <track id="0" instrument="0" />
+    <track id="0" instrument="i1" />
   </tracks>
   <arrangement>
   </arrangement>

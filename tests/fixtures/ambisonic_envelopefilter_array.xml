@@ -10,12 +10,12 @@
      single-voice fixtures where a harsher wave would just sound harsh). -->
 <song temperament="12edo" tempo="120" timeSignature="1/16" volume="1.0">
   <instruments>
-    <envelope attack="0.01" hold="0.2" decay="0.1" sustain="0.0" release="0.02">
+    <envelope id="i1" attack="0.01" hold="0.2" decay="0.1" sustain="0.0" release="0.02">
       <oscillator type="saw" voices="4" detune="20" spread="0.5774"/>
     </envelope>
   </instruments>
   <tracks>
-    <track id="0" instrument="0" azimuth="0" elevation="0" distance="1" extent="1"/>
+    <track id="0" instrument="i1" azimuth="0" elevation="0" distance="1" extent="1"/>
   </tracks>
   <arrangement>
     <pattern track="0">

@@ -279,7 +279,7 @@ TEST(instrument_id_from_and_name_round_trip_independently) {
   auto * reloaded_labeled = dynamic_cast<GenericInstrument *>(reloaded.getInstrumentPool().getInstruments()[1].get());
   CHECK(reloaded_labeled != nullptr);
   if (reloaded_labeled) {
-    CHECK(reloaded_labeled->getId().empty());
+    CHECK(!reloaded_labeled->getId().empty()); // every pool entry gets an id, which tracks refer to it by
     CHECK(reloaded_labeled->getFrom() == "piano.electric.tine");
     CHECK(reloaded_labeled->getName() == "Solo instrument");
   }
@@ -915,10 +915,10 @@ TEST(instance_events_round_trip_through_save_and_load) {
   song.save(scratch_path);
 
   auto saved = readFile(scratch_path);
-  CHECK(saved.find("<instances") != string::npos);
-  CHECK(saved.find("track=\"drums\"") != string::npos);
-  CHECK(saved.find(">OFF<") != string::npos);
-  CHECK(saved.find(">" + clip_id + "<") != string::npos);
+  CHECK(saved.find("<instances") == string::npos);
+  CHECK(saved.find("<instance track=\"drums\" row=\"0\" clip=\"" + clip_id + "\"/>") != string::npos);
+  CHECK(saved.find("<instance track=\"drums\" row=\"16\"/>") != string::npos); // a stop has no clip
+  CHECK(saved.find("OFF") == string::npos);
 
   InstrumentProvider provider;
   Song reloaded(Tuning::EDO12);
@@ -1196,7 +1196,7 @@ TEST(deleting_a_sample_clip_only_removes_its_sidecar_file_on_next_save) {
   fs::remove_all(scratch_samples_dir);
 }
 
-// The write side omits <instances> for a track with no instance events -
+// The write side omits <instance> for a track with no instance events -
 // same "default/empty state stores nothing" rule storeBusConfig()/the
 // clip pool already follow.
 TEST(save_omits_instances_when_the_arrangement_has_none) {
@@ -1208,7 +1208,7 @@ TEST(save_omits_instances_when_the_arrangement_has_none) {
   song.save(scratch_path);
 
   auto saved = readFile(scratch_path);
-  CHECK(saved.find("<instances") == string::npos);
+  CHECK(saved.find("<instance") == string::npos);
 
   fs::remove(scratch_path);
 }
@@ -1397,4 +1397,66 @@ TEST(note_names_round_trip_for_every_value_in_every_tuning) {
       CHECK(Note(n.toString(tuning), 100, 0, tuning).getValue() == v);
     }
   }
+}
+
+// A song file from before clips and placements were flat elements and tracks
+// named their instrument by pool index still loads: <trackClips>, <instances>
+// with the clip id (or OFF) as text, and a numeric instrument="0".
+TEST(an_older_files_clip_wrappers_placements_and_instrument_index_still_load) {
+  namespace fs = std::filesystem;
+  auto path = (fs::path(TESTS_SCRATCH_DIR) / "song_older_format_scratch.xml").string();
+  {
+    ofstream out(path);
+    out << "<?xml version=\"1.0\"?><song temperament=\"12edo\">"
+           "<instruments><oscillator type=\"sine\"/><oscillator type=\"saw\"/></instruments>"
+           "<tracks><track id=\"t\" instrument=\"1\"/></tracks>"
+           "<clips><trackClips track=\"t\"><clip id=\"c1\"><pattern><note row=\"0\" value=\"C-4\"/></pattern></clip></trackClips></clips>"
+           "<arrangement><instances track=\"t\"><instance row=\"0\">c1</instance><instance row=\"8\">OFF</instance></instances></arrangement>"
+           "</song>";
+  }
+  InstrumentProvider provider;
+  Song song;
+  CHECK(song.open(path, provider));
+  auto track = song.getMasterTrack().getChildById("t");
+  CHECK(track != nullptr);
+  CHECK(dynamic_cast<const InstrumentTrack &>(*track).getInstrumentId() == 1);
+  CHECK(song.getClips(track->getInternalId()).size() == 1);
+  CHECK(song.getArrangement().getInstance(track->getInternalId(), 0) == "c1");
+  CHECK(song.getArrangement().getInstance(track->getInternalId(), 8) == "OFF");
+  fs::remove(path);
+}
+
+// A track names its instrument by the instrument's id, so listing the pool in
+// a different order in the file doesn't repoint it.
+TEST(a_track_finds_its_instrument_by_id_wherever_the_pool_lists_it) {
+  namespace fs = std::filesystem;
+  auto path = (fs::path(TESTS_SCRATCH_DIR) / "song_instrument_by_id_scratch.xml").string();
+  {
+    ofstream out(path);
+    out << "<?xml version=\"1.0\"?><song temperament=\"12edo\">"
+           "<instruments><oscillator id=\"lead\" type=\"saw\"/><oscillator id=\"pad\" type=\"sine\"/></instruments>"
+           "<tracks><track id=\"t\" instrument=\"pad\"/></tracks></song>";
+  }
+  InstrumentProvider provider;
+  Song song;
+  CHECK(song.open(path, provider));
+  auto & track = dynamic_cast<const InstrumentTrack &>(*song.getMasterTrack().getChildById("t"));
+  CHECK(track.getInstrumentId() == 1); // "pad" is the second entry
+  CHECK(song.getInstrumentPool().getInstrument(track.getInstrumentId()).getId() == "pad");
+
+  // Saved, the track still says "pad" - not a position.
+  song.save(path);
+  auto saved = readFile(path);
+  CHECK(saved.find("instrument=\"pad\"") != string::npos);
+  CHECK(saved.find("<instrument>") == string::npos);
+
+  // Removing the first entry shifts the pool; the saved reference follows it.
+  song.removeInstrument(0);
+  song.save(path);
+  Song reloaded;
+  CHECK(reloaded.open(path, provider));
+  auto & reloaded_track = dynamic_cast<const InstrumentTrack &>(*reloaded.getMasterTrack().getChildById("t"));
+  CHECK(reloaded_track.getInstrumentId() == 0);
+  CHECK(reloaded.getInstrumentPool().getInstrument(0).getId() == "pad");
+  fs::remove(path);
 }

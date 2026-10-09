@@ -9,36 +9,36 @@
 -->
 <song temperament="31edo" tempo="90" timeSignature="1/4" volume="1.0">
   <instruments>
-    <envelope name="Piano" attack="0.002" hold="0" decay="6.0" sustain="0.0" release="0.3">
+    <envelope id="i1" name="Piano" attack="0.002" hold="0" decay="6.0" sustain="0.0" release="0.3">
       <additive preset="piano" keyboardSpread="40" stringSpread="1"/>
     </envelope>
-    <envelope name="Plain string" attack="0.002" hold="0" decay="6.0" sustain="0.0" release="0.3">
+    <envelope id="i2" name="Plain string" attack="0.002" hold="0" decay="6.0" sustain="0.0" release="0.3">
       <additive preset="default"/>
     </envelope>
-    <envelope name="Nylon guitar" attack="0.002" hold="0" decay="6.0" sustain="0.0" release="0.3">
+    <envelope id="i3" name="Nylon guitar" attack="0.002" hold="0" decay="6.0" sustain="0.0" release="0.3">
       <additive preset="guitar-nylon"/>
     </envelope>
-    <envelope name="Steel guitar" attack="0.002" hold="0" decay="6.0" sustain="0.0" release="0.3">
+    <envelope id="i4" name="Steel guitar" attack="0.002" hold="0" decay="6.0" sustain="0.0" release="0.3">
       <additive preset="guitar-steel"/>
     </envelope>
-    <envelope name="Harp" attack="0.002" hold="0" decay="6.0" sustain="0.0" release="0.3">
+    <envelope id="i5" name="Harp" attack="0.002" hold="0" decay="6.0" sustain="0.0" release="0.3">
       <additive preset="harp"/>
     </envelope>
-    <envelope name="Harpsichord" attack="0.002" hold="0" decay="6.0" sustain="0.0" release="0.3">
+    <envelope id="i6" name="Harpsichord" attack="0.002" hold="0" decay="6.0" sustain="0.0" release="0.3">
       <additive preset="harpsichord"/>
     </envelope>
-    <envelope name="Ideal bar" attack="0.002" hold="0" decay="6.0" sustain="0.0" release="0.3">
+    <envelope id="i7" name="Ideal bar" attack="0.002" hold="0" decay="6.0" sustain="0.0" release="0.3">
       <additive preset="bar"/>
     </envelope>
   </instruments>
   <tracks>
-    <track id="0" name="Piano" instrument="0"/>
-    <track id="1" name="Plain string" instrument="1"/>
-    <track id="2" name="Nylon guitar" instrument="2"/>
-    <track id="3" name="Steel guitar" instrument="3"/>
-    <track id="4" name="Harp" instrument="4"/>
-    <track id="5" name="Harpsichord" instrument="5"/>
-    <track id="6" name="Ideal bar" instrument="6"/>
+    <track id="0" name="Piano" instrument="i1"/>
+    <track id="1" name="Plain string" instrument="i2"/>
+    <track id="2" name="Nylon guitar" instrument="i3"/>
+    <track id="3" name="Steel guitar" instrument="i4"/>
+    <track id="4" name="Harp" instrument="i5"/>
+    <track id="5" name="Harpsichord" instrument="i6"/>
+    <track id="6" name="Ideal bar" instrument="i7"/>
   </tracks>
   <locators>
     <locator row="0">Piano</locator>
