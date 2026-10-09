@@ -5,10 +5,10 @@
 #include <string_view>
 #include <vector>
 
-// A song-wide scale, driving the Launchpad's in-key keyboard
-// (Song::getScaleDegreesWindow()). NONE is the explicit "no scale chosen"
+// A song-wide scale, for the sequencer (Song::getScaleDegreesWindow()); the
+// Launchpad's keyboard ignores it. NONE is the explicit "no scale chosen"
 // state, not a fifth real scale - getScaleDegreesWindow() falls back to the
-// plain chromatic scale for it (or major, for the keyboard).
+// plain chromatic scale for it.
 enum class Scale {
   NONE = 0,
   MAJOR,

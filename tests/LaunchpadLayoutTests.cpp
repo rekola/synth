@@ -506,13 +506,6 @@ TEST(drum_rack_is_a_4x4_block_of_distinct_gm_sounds_in_the_bottom_left) {
   CHECK(drumPadNoteForPad(-1, 0) == -1);
 }
 
-TEST(scale_keyboard_goes_up_a_degree_per_column_and_a_fourth_per_row) {
-  CHECK(scaleDegreeIndexForPad(0, 0) == 0);
-  CHECK(scaleDegreeIndexForPad(1, 0) == 1);
-  CHECK(scaleDegreeIndexForPad(0, 1) == 3); // a fourth up in a seven-note scale
-  CHECK(scaleDegreeIndexForPad(7, 7) == 28);
-}
-
 TEST(step_rows_cover_the_top_half_left_to_right_then_bottom_to_top) {
   for (int y = 0; y < kPlayRows; y++) CHECK(stepForPad(3, y) == -1);
   CHECK(stepForPad(0, kPlayRows) == 0);

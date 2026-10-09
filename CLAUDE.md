@@ -628,14 +628,11 @@ would otherwise resume showing.
   order, left to right then bottom to top, the usual sampler/drum-rack
   default window - `docs/drums-and-sequencer.md`), the rest of the grid dark; there is no per-track drum list (lanes were removed - the
   rack is the one kit, and a `<lane>` element in an old song is ignored on
-  load). A pitched track gets an in-key scale keyboard
-  (`LaunchpadManager::resolveKeyboardNotes()`): pad (0,0) is the tonic at
-  this device's octave, each column one degree of the song's scale up
-  (`Song::getScaleDegreesWindow()`, `Scale::NONE` playing as major here),
-  each row `kScaleRowStride` (3) degrees - a fourth - higher. The old
-  isomorphic grid is no longer reachable from the Launchpad
-  (`LaunchpadLayout::noteForPad()` and the consonance classification remain;
-  the latter still colors the keyboard by pitch class from the tonic).
+  load). A pitched track gets the isomorphic keyboard
+  (`LaunchpadManager::resolveKeyboardNotes()`, `LaunchpadLayout::noteForPad()`):
+  the song's key at the anchor pad at this device's octave, pads colored by
+  consonance class from the tonic. The song's scale does not change the
+  playing keyboard; it picks the degrees the step view steps through.
 
   While a clip is open for editing on a percussion or pitched track
   (`Controller::getFocusedClipTrackId()`, nothing recording a Live View
@@ -656,8 +653,9 @@ would otherwise resume showing.
 
   The window is `kStepWindow` (32) steps from `DeviceState::
   drum_edit_step_offset`, 0 on open, and pad-prev-track/pad-next-track
-  scroll that device's window by `kStepGridScrollStep` (4). While the step view shows, move-row-up/-down shift a pitched track's
-  octave instead (a drum rack has nothing to shift). The step view is opened
+  scroll that device's window by `kStepGridScrollStep` (4). While the step view shows, move-row-up/-down move a pitched track's
+  selected sound one scale degree up/down instead
+  (`LaunchpadManager::neighbourScaleNote()`; a drum rack has nothing to step). The step view is opened
   only from a Launchpad (the terminal edits clips its own way), by its
   CC91-held-as-shift + pad gesture in Live View, funneled through
   `Controller::toggleDrumClipFocus(track_id, clip_index)`

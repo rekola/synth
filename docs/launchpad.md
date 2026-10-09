@@ -16,7 +16,7 @@ grid mode, so one can sit in Live View while another does note entry.
 ## Note mode
 
 Note mode (96) is the playing surface: a 4x4 drum rack on a percussion track,
-an in-key scale keyboard on a pitched one, and, with a clip open, 32 steps
+an isomorphic keyboard on a pitched one, and, with a clip open, 32 steps
 above it. It is described in [drums-and-sequencer.md](drums-and-sequencer.md).
 
 ## Grid modes
@@ -29,7 +29,7 @@ gesture).
 | Button | Mode |
 | --- | --- |
 | 95 | Session: opens Live View's clip grid on the pads |
-| 96 | Note: the drum rack or scale keyboard (plus the step rows while a clip is open for editing) |
+| 96 | Note: the drum rack or isomorphic keyboard (plus the step rows while a clip is open for editing) |
 | 97 | Custom: nothing yet |
 | shift + 97 | Draw: a per-pad coloring toy, independent of the song |
 | shift + Send B | Tempo: the song's tempo as a number on the pads |

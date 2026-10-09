@@ -77,7 +77,7 @@ class Song : public SongObject {
   // - every step ascending from the tonic. Empty only for
   // Tuning::PERCUSSION (no interval structure to have degrees of).
   // With `major_if_none`, Scale::NONE reads as the major scale instead of
-  // chromatic - what an in-key keyboard needs to stay playable.
+  // chromatic.
   std::vector<int> getScaleDegreesWindow(int start_index, int count, bool major_if_none = false) const;
 
   short getTempo() const { return static_cast<short>(read(songschema::kTempo)); }

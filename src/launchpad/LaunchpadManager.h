@@ -406,7 +406,11 @@ class LaunchpadManager {
   // as "ignore this press".
   int resolveNote(const Song & song, int device_id, int track_id, int x, int y) const;
 
-  // The 64 pad notes of the scale keyboard for this device's octave,
+  // The note one scale degree above (direction > 0) or below `note` in the
+  // song's scale at this device's octave, or `note` itself at either end.
+  int neighbourScaleNote(const Song & song, int device_id, int note, int direction) const;
+
+  // The 64 pad notes of the isomorphic keyboard for this device's octave,
   // indexed x + 8*y; all -1 when the tuning has no interval structure.
   std::array<int, 64> resolveKeyboardNotes(const Song & song, int device_id) const;
 
@@ -610,7 +614,7 @@ class LaunchpadManager {
     uint32_t step_view_bits = 0;
     // How many of those 32 steps lie inside the clip (the rest draw dark).
     int step_view_length = 0;
-    // Scale keyboard note per pad (x + 8*y), -1 where there is none; the
+    // Keyboard note per pad (x + 8*y), -1 where there is none; the
     // percussion kit has no use for it.
     std::array<int, 64> keyboard_notes {};
     // The highest step offset this device could still scroll to and have

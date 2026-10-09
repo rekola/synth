@@ -1388,14 +1388,19 @@ LaunchpadManager::handleCommand(string_view name, int device_id, int fallback_tr
     return true;
   }
   if (name == "move-row-up" || name == "move-row-down") {
-    // While a clip's step view shows, these shift the playing surface's own
-    // octave on a pitched track (a drum kit has nothing to shift) instead of
-    // their Live-only/terminal-only meaning.
+    // While a clip's step view shows, these move the sound the step rows edit
+    // to the next scale degree up or down on a pitched track (a drum kit has
+    // nothing to step through) instead of their Live-only/terminal-only
+    // meaning. The song's scale decides the degrees; with none chosen every
+    // step of the tuning is one.
     if (gridMode(device_id) == GridMode::NOTES && controller.getFocusedClipTrackId() >= 0) {
-      auto track = controller.getSong().getMasterTrack().getChildByInternalId(controller.getFocusedClipTrackId());
+      auto track_id = controller.getFocusedClipTrackId();
+      auto & song = controller.getSong();
+      auto track = song.getMasterTrack().getChildByInternalId(track_id);
       if (track && track->getType() == TrackType::INSTRUMENT_CONTROL) {
-        if (name == "move-row-up") octaveUp(device_id);
-        else octaveDown(device_id);
+        auto current = stepEditNote(song, device_id, track_id);
+        auto next = neighbourScaleNote(song, device_id, current, name == "move-row-up" ? 1 : -1);
+        if (next >= 0) deviceState(device_id).selected_step_note = next;
       }
       return true;
     }
@@ -1475,6 +1480,25 @@ LaunchpadManager::resolveNote(const Song & song, int device_id, int track_id, in
   return resolveKeyboardNotes(song, device_id)[static_cast<size_t>(x + 8 * y)];
 }
 
+int
+LaunchpadManager::neighbourScaleNote(const Song & song, int device_id, int note, int direction) const {
+  auto edo_steps = LaunchpadLayout::edoSteps(song.getTuning());
+  if (edo_steps <= 0 || note < 0) return note;
+  // Scale degrees are offsets above the register base (see resolveKeyboardNotes()),
+  // ascending, so the neighbour is a scan of a window wide enough to hold the
+  // whole pad range with room either side.
+  auto register_base = (octave(device_id) + 1) * edo_steps;
+  auto relative = note - register_base;
+  auto degrees = song.getScaleDegreesWindow(-4 * edo_steps, 10 * edo_steps);
+  int result = -1;
+  if (direction > 0) {
+    for (auto d : degrees) if (d > relative) { result = d; break; }
+  } else {
+    for (auto it = degrees.rbegin(); it != degrees.rend(); ++it) if (*it < relative) { result = *it; break; }
+  }
+  return result < 0 || result + register_base < 0 ? note : result + register_base;
+}
+
 array<int, 64>
 LaunchpadManager::resolveKeyboardNotes(const Song & song, int device_id) const {
   array<int, 64> notes;
@@ -1482,18 +1506,19 @@ LaunchpadManager::resolveKeyboardNotes(const Song & song, int device_id) const {
   auto edo_steps = LaunchpadLayout::edoSteps(song.getTuning());
   if (edo_steps <= 0) return notes; // every non-percussion Tuning is currently pitched
 
-  // Scale degrees are offsets above the tonic's pitch class, so the octave
-  // register is added here. Deliberately not "(octave - 4) * edo_steps":
-  // the computer-keyboard tables (InputEvent.h) bake in a several-octaves-up
-  // baseline for their lowest key, and one further octave on top of that
-  // keeps the Launchpad's lowest pad comfortably audible.
-  auto register_base = (octave(device_id) + 1) * edo_steps;
-  auto max_index = LaunchpadLayout::scaleDegreeIndexForPad(7, 7);
-  auto degrees = song.getScaleDegreesWindow(0, max_index + 1, true);
-  if (degrees.size() != static_cast<size_t>(max_index + 1)) return notes;
+  auto basis = LaunchpadLayout::computeBasis(edo_steps);
+  auto key = song.getKey();
+  // song.getKey() is a full note number with its own baked-in octave, so
+  // only its pitch class is used; the octave register below picks the octave.
+  auto tonic = key >= 0 ? ((key % edo_steps) + edo_steps) % edo_steps : 0;
+  // Deliberately not "(octave - 4) * edo_steps": the computer-keyboard
+  // tables (InputEvent.h) bake in a several-octaves-up baseline for their
+  // lowest key, and one further octave on top of that keeps the Launchpad's
+  // lowest pad comfortably audible.
+  auto base_note = tonic + (octave(device_id) + 1) * edo_steps;
   for (int y = 0; y < 8; y++) {
     for (int x = 0; x < 8; x++) {
-      notes[static_cast<size_t>(x + 8 * y)] = degrees[static_cast<size_t>(LaunchpadLayout::scaleDegreeIndexForPad(x, y))] + register_base;
+      notes[static_cast<size_t>(x + 8 * y)] = LaunchpadLayout::noteForPad(basis, x - GRID_ORIGIN_X, y - GRID_ORIGIN_Y, base_note);
     }
   }
   return notes;
@@ -2507,7 +2532,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
     }
   } else {
     // NOTES: the playing surface - the 4x4 GM kit on a percussion track, the
-    // scale keyboard on a pitched one - and, while a clip is open for
+    // isomorphic keyboard on a pitched one - and, while a clip is open for
     // editing (show_step_grid), the top four rows as its 32 steps. The
     // pad pressed last is the selected sound: white, and the one the step
     // rows show. Lit steps are green; unlit-but-real steps a faint dark
