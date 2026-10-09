@@ -250,16 +250,32 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
     if (place.clip_index >= 0) focusUndoneClip(place.track_id, place.clip_index, std::max(place.row, 0));
     else if (place.row >= 0 && !getPlaybackInfo().isPlaying()) setEditPosition(place.row);
   };
-  commands_.define("undo", [this, follow]() {
+  // A clip that is sounding is left alone: undoing into it moves its playhead
+  // and its content under the player's feet.
+  auto sounding = [this](const Song::EditPlace & place) {
+    if (place.clip_index < 0) return false;
+    auto state = getClipPlayer().clipHighlight(place.track_id, place.clip_index);
+    return state == ClipHighlight::PLAYING || state == ClipHighlight::QUEUED || state == ClipHighlight::RECORDING ||
+           state == ClipHighlight::RECORD_QUEUED || state == ClipHighlight::RECORD_STOPPING;
+  };
+  commands_.define("undo", [this, follow, sounding]() {
     auto & song = getSong();
     bool take = song.document().inGroup();
+    if (sounding(song.nextUndoPlace())) {
+      getUIEventQueue().push(make_unique<LogEvent>("Undo: that clip is playing - stop it first"));
+      return;
+    }
     bool done = song.undo();
     if (done) { follow(song); resendTrackStateToAudio(); }
     getUIEventQueue().push(make_unique<LogEvent>(done ? "Undo" : take ? "Undo: not while recording" : "Nothing to undo"));
   });
-  commands_.define("undo-redo", [this, follow]() {
+  commands_.define("undo-redo", [this, follow, sounding]() {
     auto & song = getSong();
     bool take = song.document().inGroup();
+    if (sounding(song.nextRedoPlace())) {
+      getUIEventQueue().push(make_unique<LogEvent>("Redo: that clip is playing - stop it first"));
+      return;
+    }
     bool done = song.redo();
     if (done) { follow(song); resendTrackStateToAudio(); }
     getUIEventQueue().push(make_unique<LogEvent>(done ? "Redo" : take ? "Redo: not while recording" : "Nothing to redo"));

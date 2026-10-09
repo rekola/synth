@@ -26,6 +26,11 @@ class UndoHistory {
   // false if there was nothing to do. The caller wraps the call in a
   // transaction (Song::Edit) and calls finish() once it has closed, which
   // is when the inverse becomes a journal entry the chain can point at.
+  // The ops an undo or redo would apply, without applying them (empty if there
+  // is nothing to do).
+  std::vector<Op> peekUndo(const Document & document) const;
+  std::vector<Op> peekRedo(const Document & document) const;
+
   bool undo(Document & document);
   bool redo(Document & document);
   void finish(const Document & document);

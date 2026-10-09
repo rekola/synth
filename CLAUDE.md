@@ -1488,7 +1488,10 @@ would otherwise resume showing.
   placement, the row; for a clip, `clip_index` and the row in it) it changed,
   and the commands move the current track there, the transport row while
   stopped, and for a clip the clip grid and (in Live View) the pattern editor
-  (`Controller::setUndoFocusListener()`). Held note keys keep a group open
+  (`Controller::setUndoFocusListener()`). An undo or redo whose change
+  is in a clip that is playing, queued or recording is refused
+  (`Song::nextUndoPlace()`/`nextRedoPlace()` say where it would land before it
+  does). Held note keys keep a group open
   too (`Controller::setNoteHeld()`, from `PatternEditor`), so a chord is one
   step.
 - The song's own state lives in a DOM (`src/doc/`, plan in

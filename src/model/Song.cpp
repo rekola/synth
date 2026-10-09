@@ -1582,7 +1582,7 @@ Song::redo() {
 }
 
 Song::EditPlace
-Song::lastUndoPlace() const {
+Song::placeOf(const std::vector<doc::Op> & ops) const {
   using namespace scoreschema;
   auto & d = *doc_;
   // A clip's scene is its position among its track's clips.
@@ -1594,7 +1594,7 @@ Song::lastUndoPlace() const {
     auto it = std::find(siblings->begin(), siblings->end(), clip.id);
     return it == siblings->end() ? -1 : static_cast<int>(it - siblings->begin());
   };
-  for (auto & op : history_.lastOps()) {
+  for (auto & op : ops) {
     // An inserted or removed node may be detached, so its parent is the op's.
     bool child_op = op.kind == doc::Op::Kind::INSERT || op.kind == doc::Op::Kind::REMOVE;
     auto node = d.get(child_op ? op.child : op.node);

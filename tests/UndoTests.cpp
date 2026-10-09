@@ -364,3 +364,22 @@ TEST(undoing_a_send_tells_the_audio_thread_the_restored_value) {
   }
   CHECK(last_send_a == 0); // the song's own value again, not the -6 dB one
 }
+
+TEST(undo_peeks_at_where_it_would_change_the_song_before_it_does) {
+  Song song;
+  auto track_id = song.addTrack(std::make_unique<InstrumentTrack>(0)).getInternalId();
+  Clip clip(track_id);
+  clip.setLength(8);
+  clip.getLeafPattern().setNote(0, 0, Note(60, 100));
+  song.addClip(std::move(clip));
+  song.getClips(track_id)[0].getLeafPattern().setNote(4, 0, Note(64, 100));
+
+  auto place = song.nextUndoPlace();
+  CHECK(place.track_id == track_id);
+  CHECK(place.clip_index == 0);
+  CHECK(place.row == 4);
+  CHECK(song.getClips(track_id)[0].getLeafPattern().getNotesByRow().size() == 2); // nothing happened yet
+  CHECK(song.nextRedoPlace().track_id == -1);
+  CHECK(song.undo());
+  CHECK(song.nextRedoPlace().clip_index == 0);
+}

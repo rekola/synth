@@ -321,7 +321,11 @@ class Song : public SongObject {
   // `clip_index` is the scene a clip edit was in (its row then being the row
   // in the clip), -1 for anything outside a clip.
   struct EditPlace { int track_id = -1; int row = -1; int clip_index = -1; };
-  EditPlace lastUndoPlace() const;
+  EditPlace lastUndoPlace() const { return placeOf(history_.lastOps()); }
+  // Where the next undo or redo would change the song, before it does.
+  EditPlace nextUndoPlace() const { return placeOf(history_.peekUndo(*doc_)); }
+  EditPlace nextRedoPlace() const { return placeOf(history_.peekRedo(*doc_)); }
+  EditPlace placeOf(const std::vector<doc::Op> & ops) const;
   bool redo();
 
   // ---- What the audio thread reads (PlaybackContent.h).

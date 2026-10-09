@@ -65,7 +65,9 @@ that reports key releases). Held keys behave alike in both views: the cursor
 stays on the row and steps once when the last key lifts; nothing starts the
 transport. A live recording take is one step: its notes appear as they land, and
 `undo` takes the whole take back once it has ended. Undo and redo do nothing
-while a take is still recording.
+while a take is still recording, and they leave a clip that is playing (or
+queued, or being recorded) alone: an undo that would change its notes says so
+and waits until the clip is stopped.
 
 ## Humanize
 
