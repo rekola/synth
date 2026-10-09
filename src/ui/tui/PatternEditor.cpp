@@ -467,6 +467,17 @@ PatternEditor::PatternEditor(UIPlane & parent)
   // buttons can trigger the exact same code, not a re-implementation of
   // it - see LaunchpadProtocol's CC91/92 mapping and LaunchpadManager::
   // handleCommand.
+  // Rows the cursor advances after a note is entered (0 stays put).
+  commands_.define("edit-step-increase", [this]() { changeEditStep(1); });
+  commands_.define("edit-step-decrease", [this]() { changeEditStep(-1); });
+  // set-edit-step-1 .. set-edit-step-9, set-edit-step-0 (0 stays put).
+  for (int n = 0; n <= 9; n++) {
+    auto name = "set-edit-step-" + std::to_string(n);
+    commands_.define(name, [this, n]() { setEditStep(n); });
+    int digit = '0' + n;
+    keymap_.bind(KeyChord::pack(digit, true, false, false, false), name);
+  }
+
   commands_.define("move-row-up", [this]() {
     auto & info = getController().getPlaybackInfo();
     if (info.isPlaying() && source_->cursorFollowsTransport()) return;
@@ -555,8 +566,9 @@ PatternEditor::PatternEditor(UIPlane & parent)
   // handleCommand handles them directly, synchronously, with the
   // device_id it's already given - see UI::handleLaunchpadButtonEvent.
 
+  keymap_.bind(KeyChord::pack('+', true, false, false, false), "edit-step-increase");
+  keymap_.bind(KeyChord::pack('-', true, false, false, false), "edit-step-decrease");
   keymap_.bind(KeyChord::pack(' ', true, false, false, false), "set-mark");  // Ctrl-Space
-  keymap_.bind(KeyChord::pack('b', true, false, false, false), "set-mark");  // Ctrl-B (works on any terminal)
   keymap_.bind(KeyChord::pack('w', true, false, false, false), "kill-region");
   keymap_.bind(KeyChord::pack('w', false, true, false, false), "kill-ring-save");  // Alt-W
   keymap_.bind(KeyChord::pack('y', true, false, false, false), "yank");
@@ -659,6 +671,17 @@ PatternEditor::setCursorTrack(int track_index) {
   auto & song = getController().getSong();
   auto track_ids = song.getRootTrackIds();
   if (track_index >= 0 && track_index < static_cast<int>(track_ids.size())) song.setCurrentTrackId(track_ids[static_cast<size_t>(track_index)]);
+}
+
+void
+PatternEditor::changeEditStep(int delta) {
+  setEditStep(edit_step_size + delta);
+}
+
+void
+PatternEditor::setEditStep(int step) {
+  edit_step_size = std::clamp(step, 0, kMaxEditStep);
+  getController().getUIEventQueue().push(make_unique<LogEvent>("Edit step: " + std::to_string(edit_step_size)));
 }
 
 bool
@@ -1216,8 +1239,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
 
   int new_tempo = song.getTempo();
   
-  if (render_all || edit_step_size != new_edit_step_size || new_tempo != current_tempo || cursor_changed) {    
-    edit_step_size = new_edit_step_size;
+  if (render_all || new_tempo != current_tempo || cursor_changed) {    
     current_tempo = new_tempo;
     
     need_redraw = true;
@@ -1296,7 +1318,6 @@ PatternEditor::saveEditingState(const string & name) {
   state.new_cursor = new_cursor;
   state.current_scroll = current_scroll_;
   state.edit_step_size = edit_step_size;
-  state.new_edit_step_size = new_edit_step_size;
   state.current_song_version = current_song_version;
   state.midi_input = midi_input_;
   state.active_keyboard_notes = active_keyboard_notes_;
@@ -1324,7 +1345,6 @@ PatternEditor::loadEditingState(const string & name) {
   current_scroll_ = state.current_scroll;
   view_detached_ = false;
   edit_step_size = state.edit_step_size;
-  new_edit_step_size = state.new_edit_step_size;
   current_song_version = state.current_song_version;
   midi_input_ = state.midi_input;
   active_keyboard_notes_ = state.active_keyboard_notes;
@@ -1602,12 +1622,6 @@ PatternEditor::offerInput(const InputEvent & input) {
       return true;
     } else if (input.getId() == 'd') {
       // duplicate track
-      return true;
-    } else if (input.getId() == '+') {
-      edit_step_size++;
-      return true;
-    } else if (input.getId() == '-') {
-      if (edit_step_size > 0) edit_step_size--;
       return true;
     } else if (input.getId() == NCKEY_KP_DIVIDE || input.getId() == NCKEY_KP_MULTIPLY) {
       // Instrument selection - moved here from Ctrl+Left/Right (now "move

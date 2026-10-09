@@ -2,8 +2,7 @@
 
 The terminal UI follows Emacs: mark and point selection, kill and yank, M-x for
 any named command, ESC as the Meta prefix, C-x C-c to quit and C-k to kill a
-row. The one addition is C-b as a second way to set the mark, since C-SPC does
-not reach every terminal. Each open song is a buffer, as in Emacs, and
+row. Each open song is a buffer, as in Emacs, and
 `next-buffer` and `previous-buffer` switch between them; this belongs to the
 terminal interface only, and other interfaces will follow their own conventions. An operation that is a copy or a move is done with
 the kill ring rather than with a command of its own, so there is no
@@ -23,7 +22,7 @@ Which thing they act on depends on the focused widget.
 ### Pattern editor
 
 They act on the region: the note under the cursor, or the marked block of rows
-and tracks (C-SPC or C-b sets the mark). To duplicate a track's notes, select
+and tracks (C-SPC sets the mark). To duplicate a track's notes, select
 the track, copy it, move to another track and yank.
 
 ### Clip grid (Live View)
@@ -125,5 +124,3 @@ palette there.
 Reload with `xrdb -merge ~/.Xresources` and start a new xterm; running ones
 keep their old settings. If `TERM` is still `xterm` inside it, check with
 `echo $TERM`; a shell profile that exports `TERM` overrides the resource.
-xterm does not implement the Kitty keyboard protocol, so use C-b rather than
-C-SPC to set the mark.
