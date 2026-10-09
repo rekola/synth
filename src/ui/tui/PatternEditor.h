@@ -4,6 +4,7 @@
 #include "../UIElement.h"
 #include "../GridPosition.h"
 #include "../../model/Song.h"
+#include "../../state/PlaybackInfo.h"
 #include <optional>
 #include "../../model/PatternBlockOps.h"
 #include "../ClipboardEntry.h"
@@ -217,6 +218,7 @@ public:
   void focusCell(const Song::EditPlace & place) { focus_cell_ = place; }
 private:
   bool offerInputKey(const InputEvent & input);
+  static bool anyMeterLive(const PlaybackInfo & info, const std::vector<int> & track_ids);
 
   int current_score_playing_row = 0;
   int current_score_pattern = 0;  

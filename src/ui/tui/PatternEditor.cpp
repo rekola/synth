@@ -1253,7 +1253,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   } else if (cursor_changed || row_edited) {
     renderRow(styles, heading_height, track_ids, track_info, score_playing_row - current_scroll_.row, true, sel_bounds, focused);
     need_redraw = true;
-  } else if (info.getVoiceCount() > 0 || current_voice_count_ > 0 || meters_showing_) {
+  } else if (info.getVoiceCount() != current_voice_count_ || meters_showing_ || anyMeterLive(info, track_ids)) {
     // The per-track VU meter lives in the heading row and needs to keep
     // animating every block a voice is actually sounding - including a
     // manually-auditioned note or its note-off release tail, with the
@@ -1288,6 +1288,16 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   inline_editor_.paintBackdrop();
 
   return need_redraw;
+}
+
+// Whether any track's meter reads above silence: voices that are held but
+// silent have nothing to animate.
+bool
+PatternEditor::anyMeterLive(const PlaybackInfo & info, const std::vector<int> & track_ids) {
+  for (auto track_id : track_ids) {
+    if (info.getTrackInfo(track_id).getMeterValue() > 1e-6f) return true;
+  }
+  return false;
 }
 
 void

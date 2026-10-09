@@ -14,8 +14,8 @@ public:
   ~SpectrumMeter() override = default;
 
   // A fresh spectrum, dBFS per linear frequency bin `bin_hz` apart from DC.
-  // Redraws.
-  void setSpectrum(const std::vector<float> & db, float bin_hz);
+  // Redraws, unless the curve is where it was drawn; returns whether it did.
+  bool setSpectrum(const std::vector<float> & db, float bin_hz);
 
 protected:
   // How many bars the display shows across `cols` cells; braille packs two
@@ -33,6 +33,11 @@ private:
   // kMinHz up to Nyquist.
   static constexpr float kRangeDb = 80.0f;
   static constexpr float kMinHz = 40.0f;
+
+  // What was last drawn: the spline's knots (to 1/512), and the size.
+  std::vector<int> last_knots_;
+  int last_rows_ = 0, last_cols_ = 0;
+  size_t last_bars_ = 0;
 
 };
 
