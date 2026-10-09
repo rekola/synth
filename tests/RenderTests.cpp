@@ -1449,6 +1449,8 @@ TEST(render_send_a_reaches_ambisonic_bus_beyond_w_y_at_both_orders) {
     for (int block = 0; block < 60; block++) {
       state.renderBlock(256, loaded.song, mixer);
       CHECK(!mixer.accumulated.empty());
+      // The bus is only mixed in (after the track) once it is audible.
+      if (mixer.accumulated.size() < 2) continue;
       auto & bus = mixer.accumulated.back();
       CHECK(bus.numberOfChannels() == config.numberOfChannels());
       for (int c = 2; c < bus.numberOfChannels(); c++) {
@@ -1617,6 +1619,8 @@ TEST(render_send_b_reaches_ambisonic_bus_beyond_w_y_at_both_orders) {
     for (int block = 0; block < 60; block++) {
       state.renderBlock(256, loaded.song, mixer);
       CHECK(!mixer.accumulated.empty());
+      // The bus is only mixed in (after the track) once it is audible.
+      if (mixer.accumulated.size() < 2) continue;
       auto & bus = mixer.accumulated.back();
       CHECK(bus.numberOfChannels() == config.numberOfChannels());
       for (int c = 2; c < bus.numberOfChannels(); c++) {

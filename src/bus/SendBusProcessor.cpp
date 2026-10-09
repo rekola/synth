@@ -1,10 +1,13 @@
 #include "SendBusProcessor.h"
 #include "BusEffectRegistry.h"
 
+#include <algorithm>
+
 using namespace std;
 
 SendBusProcessor::SendBusProcessor(const ChannelConfiguration & config)
-  : ambisonic_channels_(config.numberOfChannels()) {
+    : ambisonic_channels_(config.numberOfChannels()),
+      hold_frames_(static_cast<int>(kBusAudibleHoldSeconds * static_cast<float>(config.getAudioOutSampleRate()))) {
   // Safe, silent defaults until SongState::initialize() installs the
   // song's real slot configuration - see slots_'s own doc comment.
   slots_[kSlotA] = make_unique<NullBusEffect>(config.getAudioOutSampleRate());
@@ -83,4 +86,10 @@ SendBusProcessor::process(const AudioBuffer & aux_a_mono, const AudioBuffer & au
       for (int i = 0; i < frames; i++) dst[i] += src[i] * slot_return;
     }
   }
+
+  float peak = 0.0f;
+  for (int c = 0; c < ambisonic_channels_; c++) {
+    peak = std::max(peak, dsp::maxAbs(bus_ambisonic_.getChannelData(c), frames));
+  }
+  hold_remaining_ = peak >= kBusAudibleFloor ? hold_frames_ : std::max(0, hold_remaining_ - frames);
 }

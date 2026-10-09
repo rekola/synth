@@ -44,6 +44,18 @@
 // directions are fixed, computed once" fast path any more (see
 // FDNReverb::getTapDirection(), which now owns what this class used to
 // hardcode for whichever effect happened to be in slot A).
+// Peak level (per sample, any ambisonic channel) below which the bus's
+// output counts as silent: -180 dB, far under anything a 24-bit output or
+// a float one resolves next to real program material, and a factor 1e11
+// above kDenormalGuard (BusEffect.h), the only thing left flowing through
+// an idle effect. Judged per block, so a tail that merely dips between
+// swells is not mistaken for silence.
+inline constexpr float kBusAudibleFloor = 1e-9f;
+
+// How long the output keeps counting as audible after its peak last
+// reached kBusAudibleFloor, so a decaying tail is never cut mid-fade.
+inline constexpr float kBusAudibleHoldSeconds = 0.1f;
+
 class SendBusProcessor {
  public:
   explicit SendBusProcessor(const ChannelConfiguration & config);
@@ -76,6 +88,12 @@ class SendBusProcessor {
 
   const AudioBuffer & getBusAmbisonic() const { return bus_ambisonic_; }
 
+  // Whether the last process() produced anything worth mixing in: its peak
+  // reached kBusAudibleFloor within the last kBusAudibleHoldSeconds. When
+  // false the caller leaves getBusAmbisonic() out of the mix; the effects
+  // have run regardless, so their state stays continuous.
+  bool isAudible() const { return hold_remaining_ > 0; }
+
  private:
   // Both default-constructed to NullBusEffect (BusEffectRegistry.h) in
   // this class's own constructor, so process() is always safe to call
@@ -97,6 +115,9 @@ class SendBusProcessor {
   // config is AMBISONIC, so that case never actually reaches this class's
   // process() method in practice. Fixed for this instance's lifetime.
   int ambisonic_channels_;
+
+  int hold_frames_;        // kBusAudibleHoldSeconds in frames
+  int hold_remaining_ = 0; // frames of audibility left, see isAudible()
 
   AudioBuffer bus_ambisonic_;    // always ambisonic_channels_ channels
   AudioBuffer direct_scratch_;   // one slot's encodeDirect() output, when its return isn't unity

@@ -29,7 +29,7 @@ class AmbisonicBinauralMixer : public Mixer {
   void accumulate(const AudioBuffer & input) override;
   AudioBuffer encode() override;
 
-  const AudioBuffer & getRawBus() const override { return buffer_; }
+  const AudioBuffer & getRawBus() const override { return rawBusOf(buffer_); }
 
  private:
   struct SpeakerFilter {

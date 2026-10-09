@@ -1314,6 +1314,25 @@ would otherwise resume showing.
   `Mixer`'s `encode()` deliberately never reads them — unprocessed aux
   content there would just sound bad without real bus DSP consuming it
   first.
+- **Silence is structural.** When nothing sounds, buffers on the way to the
+  scopes carry no channels instead of zeros, so no stage tests samples for
+  silence. A `Mixer` notes whether `accumulate()` added any regular channel
+  this block (`accumulated()`, cleared by `reset()`, which then has nothing
+  to zero); until it has, `getRawBus()` returns a frame-sized buffer with no
+  regular and no aux channels, so `hasChannel(Channel::Main)` is the test.
+  The decoders' `encode()` with nothing accumulated only drains the filter
+  tail (`left_tail_`/`right_tail_`, exactly as before) and still writes a
+  full stereo block of zeros: the device needs a continuous stream.
+  `SongState::getAuxASum()`/`getAuxBSum()` are likewise empty unless a track
+  sent, and `AudioBlockEvent` is built from those, sent every block either
+  way. `VisualizationThread` answers an empty raw bus with zero loudness and,
+  until the spectrum (`SpectrumAnalyzer::atRest()`) and DirAC
+  (`DiracAnalyzer::atRest()`) hold zeros and have said so, with real zero
+  blocks fed to them; after that a result carries only the meter reading and
+  nothing is decoded or analyzed. The UI redraws nothing for an unchanged
+  result, and restarts the scopes empty when they come back on screen
+  (`TerminalUI::scopes_stale_`), since nothing more arrives to replace
+  what they held.
 - That DSP lives in `src/bus/` (the shared send bus's own subsystem, depending
   on `src/dsp/` — reusable, dependency-free DSP building blocks, never the
   reverse) — `SongState`'s `SendBusProcessor` (`bus/SendBusProcessor.h`/
@@ -1328,7 +1347,12 @@ would otherwise resume showing.
   slot's internal tail/feedback/modulation state stays continuous across
   blocks — the same reasoning as `AmbisonicBinauralMixer`'s overlap-add
   tail), then accumulates the result directly into the mixer with a
-  single `mixer.accumulate()` call — no decode step happens in
+  single `mixer.accumulate()` call — but only while the bus is audible
+  (`SendBusProcessor::isAudible()`: its block peak reached
+  `kBusAudibleFloor` within the last `kBusAudibleHoldSeconds`; the floor
+  sits far above the effects' `kDenormalGuard`, which keeps a faint signal
+  flowing through an idle effect forever, and the hold keeps a decaying tail
+  from being cut) — no decode step happens in
   `SongState` itself, since the top-level mixer is always ambisonic-shaped
   too. `SendBusProcessor`'s own output (`getBusAmbisonic()`) is *always*
   ambisonic-shaped (`config.numberOfChannels()` — 4 at order 1, 9 at

@@ -6,11 +6,6 @@
 using namespace std;
 
 namespace {
-// Same alternating-sign denormal guard FDNReverb uses in its feedback path
-// (bus/FDNReverb.cpp) - keeps a decaying feedback tail's state just above
-// the denormal range without being audible.
-constexpr float kDenormalGuard = 1e-20f;
-
 // Keeps the feedback loop stable regardless of what a song file's
 // delayFeedback value asks for - see setParameters().
 constexpr float kMaxFeedbackGain = 0.95f;
@@ -59,7 +54,7 @@ PresetValues presetValues(MultiTapDelayPreset preset) {
   // the same shape and reasoning.
   return { kDefaultBaseRows, kDefaultFeedback, kDefaultDamping, kDefaultPatternSpeed, kDefaultWet, kDefaultPattern };
 }
-}
+} // namespace
 
 // kDefaultWet is passed to BusEffect's constructor (not applied via a
 // post-construction setWetLevel() call) so it also becomes the value
