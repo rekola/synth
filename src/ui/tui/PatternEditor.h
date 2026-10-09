@@ -3,6 +3,8 @@
 
 #include "../UIElement.h"
 #include "../GridPosition.h"
+#include "../../model/Song.h"
+#include <optional>
 #include "../../model/PatternBlockOps.h"
 #include "../ClipboardEntry.h"
 #include "../../playback/MidiNoteInput.h"
@@ -203,10 +205,17 @@ protected:
     int track_id = -1, note_column = 0, value = 0;
     ColumnType type = ColumnType::VELOCITY;
     RowAddress at;
+    GridPosition next; // where Enter moves to
     bool matches(int track, int column, ColumnType t, RowAddress a) const;
   };
   PendingNibbles pending_;
+  // Asked for by an undo; applied in render(), where the track's columns are known.
+  std::optional<Song::EditPlace> focus_cell_;
+public:
+  // Writes a half-typed velocity or delay to the song.
   void commitPendingValue();
+  void focusCell(const Song::EditPlace & place) { focus_cell_ = place; }
+private:
   bool offerInputKey(const InputEvent & input);
 
   int current_score_playing_row = 0;

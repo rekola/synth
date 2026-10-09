@@ -333,7 +333,9 @@ class Song : public SongObject {
   // fields (-1) when nothing it touched has a place.
   // `clip_index` is the scene a clip edit was in (its row then being the row
   // in the clip), -1 for anything outside a clip.
-  struct EditPlace { int track_id = -1; int row = -1; int clip_index = -1; };
+  // `field` and `column` say which cell of the row changed (the note column).
+  enum class Field { NONE, NOTE, VELOCITY, DELAY, COMMAND };
+  struct EditPlace { int track_id = -1; int row = -1; int clip_index = -1; Field field = Field::NONE; int column = 0; };
   EditPlace lastUndoPlace() const { return placeOf(history_.lastOps()); }
   // Where the next undo or redo would change the song, before it does.
   EditPlace nextUndoPlace() const { return placeOf(history_.peekUndo(*doc_)); }

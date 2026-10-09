@@ -2521,6 +2521,8 @@ TerminalUI::offerInput(const InputEvent & input) {
     return true;
   }
   if (octave_control_->isEditing() && octave_control_->offerInput(input)) return true;
+  // A command (undo, save, ...) must see a half-typed velocity or delay.
+  if (input.getKind() != InputEvent::Kind::RELEASE && (input.hasCtrl() || input.hasAlt())) pattern_editor_->commitPendingValue();
   if (!reader_active && dispatchCommand(input)) return true;
 
   if (input.getId() == NCKEY_RESIZE) {
@@ -2906,6 +2908,7 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
     if (column != playable.end()) clip_grid_->setCursorTrackIndex(static_cast<int>(column - playable.begin()));
     clip_grid_->setCursorClipIndex(clip_index);
   });
+  getController().setUndoCellListener([this](const Song::EditPlace & place) { pattern_editor_->focusCell(place); });
   getController().setUndoFocusListener([this](int track_id, int clip_index, int row) {
     auto & song = getController().getSong();
     auto root_ids = song.getRootTrackIds();

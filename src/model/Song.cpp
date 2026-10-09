@@ -1611,8 +1611,12 @@ Song::placeOf(const std::vector<doc::Op> & ops) const {
         auto row = doc::get(d, node->id, type == "note" ? kNoteRow : kCommandRow);
         auto pattern = d.get(parent_id);
         auto owner = pattern ? d.get(pattern->parent) : nullptr;
-        if (owner && owner->type == "clip") return { doc::get(d, owner->id, kClipTrack), row, sceneOf(*owner, nullptr) };
-        if (pattern) return { doc::get(d, pattern->id, kPatternTrack), row, -1 };
+        bool note = type == "note";
+        auto field = !note ? Field::COMMAND : op.kind == doc::Op::Kind::SET && op.key == kNoteVelocity.key ? Field::VELOCITY
+                   : op.kind == doc::Op::Kind::SET && op.key == kNoteDelay.key ? Field::DELAY : Field::NOTE;
+        auto column = doc::get(d, node->id, note ? kNoteColumn : kCommandColumn);
+        if (owner && owner->type == "clip") return { doc::get(d, owner->id, kClipTrack), row, sceneOf(*owner, nullptr), field, column };
+        if (pattern) return { doc::get(d, pattern->id, kPatternTrack), row, -1, field, column };
       } else if (type == "pattern") {
         auto owner = d.get(parent_id);
         if (owner && owner->type == "clip") return { doc::get(d, owner->id, kClipTrack), 0, sceneOf(*owner, nullptr) };
