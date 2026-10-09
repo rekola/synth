@@ -63,6 +63,22 @@ LaunchpadIO::initialize(Logger & logger) {
   scanForDevices(logger);
 }
 
+namespace {
+
+// Confirmed against real hardware: a Launchpad X's port names survive intact
+// ("...LPX DAW In" / "...LPX MIDI In"), but snd-usb-audio truncates USB-MIDI
+// jack names to 31 characters, so a Mini MK3's become "...LPMiniMK3 DA" and
+// "...LPMiniMK3 MI". A plain find("DAW") misses the truncated form, so
+// recognize it too. Pad presses arrive on the non-DAW port only (LED SysEx is
+// accepted on either, which hides the mistake).
+bool
+looksLikeDawPort(const string & name) {
+  return name.find("DAW") != string::npos ||
+    (name.size() >= 2 && name.compare(name.size() - 2, 2, "DA") == 0);
+}
+
+} // namespace
+
 void
 LaunchpadIO::scanForDevices(Logger & logger) {
   snd_seq_client_info_t * client_info;
@@ -101,24 +117,8 @@ LaunchpadIO::scanForDevices(Logger & logger) {
       if (!model) model = LaunchpadProtocol::modelFromDeviceName(client_name);
       if (!model) continue;
 
-      // A device may expose more than one ALSA port on the same client
-      // (e.g. a separate DAW interface); prefer whichever port isn't the
-      // DAW one. Confirmed against real hardware: on a Launchpad X the
-      // port names are short enough to survive intact ("...LPX DAW In" /
-      // "...LPX MIDI In"), but the kernel's snd-usb-audio driver truncates
-      // USB-MIDI jack names to 31 characters, and a Launchpad Mini MK3's
-      // longer names get cut mid-word right there - "...LPMiniMK3 DAW..."
-      // becomes "...LPMiniMK3 DA" and "...LPMiniMK3 MIDI..." becomes
-      // "...LPMiniMK3 MI" (verified via `aconnect -l`). A plain find("DAW")
-      // never matches that truncated form, so the DAW port went
-      // undetected and was silently kept as "best" instead of the real
-      // input port - pad presses never arrived even though LED SysEx
-      // (apparently accepted on either port) looked fine. Recognize the
-      // truncated form too, alongside the untruncated one.
-      auto looksLikeDawPort = [](const string & name) {
-        return name.find("DAW") != string::npos ||
-          (name.size() >= 2 && name.compare(name.size() - 2, 2, "DA") == 0);
-      };
+      // A device may expose a separate DAW port; prefer the other one (pad
+      // presses only arrive there). See looksLikeDawPort().
       bool is_daw_port = looksLikeDawPort(port_name) || looksLikeDawPort(client_name);
       int port = snd_seq_port_info_get_port(port_info);
 
@@ -128,7 +128,7 @@ LaunchpadIO::scanForDevices(Logger & logger) {
     }
 
     if (best) {
-      connectToDevice(logger, client, best->port, best->model);
+      connectToDevice(logger, client, best->port, best->model, best->is_daw_port);
     }
   }
 }
@@ -143,14 +143,14 @@ void
 LaunchpadIO::handlePortStart(int client, int port) {
   if (!logger_ || client == snd_seq_client_id(seq_handle)) return;
 
-  // Don't create a second session for a client we're already connected to
-  // - e.g. its DAW-interface port announcing after we already grabbed its
-  // plain MIDI port. Unlike the startup scan (which sees every port of a
-  // client before choosing the best one), hotplug processes one port at a
-  // time, so whichever port of a given client announces first is the one
-  // used - a simpler, accepted limitation for this incremental step.
+  // Don't create a second session for a client we're already connected to.
+  // Unlike the startup scan, hotplug sees one port at a time, so the DAW port
+  // may announce first; the real input port then replaces it (below).
+  bool replace_daw_session = false;
   for (auto & session : sessions) {
-    if (session.client == client) return;
+    if (session.client != client) continue;
+    if (!session.is_daw_port) return;
+    replace_daw_session = true;
   }
 
   snd_seq_client_info_t * client_info;
@@ -172,7 +172,19 @@ LaunchpadIO::handlePortStart(int client, int port) {
   if (!model) model = LaunchpadProtocol::modelFromDeviceName(client_name);
   if (!model) return;
 
-  connectToDevice(*logger_, client, port, *model);
+  bool is_daw_port = looksLikeDawPort(port_name) || looksLikeDawPort(client_name);
+  if (replace_daw_session) {
+    if (is_daw_port) return;
+    for (auto it = sessions.begin(); it != sessions.end(); ++it) {
+      if (it->client != client) continue;
+      snd_seq_disconnect_from(seq_handle, our_port, it->client, it->port);
+      snd_seq_disconnect_to(seq_handle, our_port, it->client, it->port);
+      sessions.erase(it);
+      break;
+    }
+  }
+
+  connectToDevice(*logger_, client, port, *model, is_daw_port);
 }
 
 void
@@ -184,14 +196,14 @@ LaunchpadIO::handlePortExit(int client, int port) {
 }
 
 void
-LaunchpadIO::connectToDevice(Logger & logger, int client, int port, LaunchpadProtocol::Model model) {
+LaunchpadIO::connectToDevice(Logger & logger, int client, int port, LaunchpadProtocol::Model model, bool is_daw_port) {
   if (snd_seq_connect_from(seq_handle, our_port, client, port) < 0 ||
       snd_seq_connect_to(seq_handle, our_port, client, port) < 0) {
     logger.log("Launchpad: failed to connect to detected device");
     return;
   }
 
-  sessions.push_back({model, client, port, SessionState::DETECTED, next_session_id_++});
+  sessions.push_back({model, client, port, SessionState::DETECTED, next_session_id_++, is_daw_port});
 
   sendSysEx(LaunchpadProtocol::buildProgrammerModeEnter(model), client, port);
   // No blocking wait for any reply - see the plan's design decision on the
