@@ -1968,7 +1968,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	      // The transport moves the row itself once a session auto-started by
 	      // this chord is playing; otherwise the step waits for the last
 	      // key to be released.
-	      if (!auto_started_playback_) pending_step_ += n * edit_step_size;
+	      if (!auto_started_playback_) pending_step_ = n * edit_step_size; // one step per chord, not per key
 	    } else if (n) {
 	      source_->moveCursor(n * edit_step_size);
 	    }
