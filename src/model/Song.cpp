@@ -1580,3 +1580,38 @@ Song::redo() {
   history_.finish(*doc_);
   return done;
 }
+
+Song::EditPlace
+Song::lastUndoPlace() const {
+  using namespace scoreschema;
+  auto & d = *doc_;
+  for (auto & op : history_.lastOps()) {
+    // An inserted or removed node may be detached, so its parent is the op's.
+    bool child_op = op.kind == doc::Op::Kind::INSERT || op.kind == doc::Op::Kind::REMOVE;
+    auto node = d.get(child_op ? op.child : op.node);
+    auto parent_id = child_op ? op.node : node ? node->parent : doc::kNoNode;
+    for (int depth = 0; node && depth < 8; depth++) {
+      const std::string & type = node->type;
+      if (type == "note" || type == "command") {
+        auto row = doc::get(d, node->id, type == "note" ? kNoteRow : kCommandRow);
+        auto pattern = d.get(parent_id);
+        auto owner = pattern ? d.get(pattern->parent) : nullptr;
+        if (owner && owner->type == "clip") return { doc::get(d, owner->id, kClipTrack), -1 };
+        if (pattern) return { doc::get(d, pattern->id, kPatternTrack), row };
+      } else if (type == "pattern") {
+        auto owner = d.get(parent_id);
+        if (owner && owner->type == "clip") return { doc::get(d, owner->id, kClipTrack), -1 };
+        return { doc::get(d, node->id, kPatternTrack), -1 };
+      } else if (type == "instance") {
+        return { doc::get(d, node->id, kInstanceTrack), doc::get(d, node->id, kInstanceRow) };
+      } else if (type == "clip") {
+        return { doc::get(d, node->id, kClipTrack), -1 };
+      } else if (auto iid = node->find(tracknodes::kIidKey)) {
+        if (auto id = std::get_if<int64_t>(iid)) return { static_cast<int>(*id), -1 };
+      }
+      node = d.get(parent_id);
+      parent_id = node ? node->parent : doc::kNoNode;
+    }
+  }
+  return {};
+}

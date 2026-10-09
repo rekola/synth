@@ -54,7 +54,10 @@ scrolling is not an edit and does not end the run. Both are in the Edit menu
 and M-x, and are the Launchpad's shift + Record Arm and shift + Mute.
 
 Only the song is undone: tempo, notes, clips and placements, tracks,
-instruments and bus effects. The cursor, the view and the clipboard are not.
+instruments and bus effects. The view and the clipboard are not. The current
+track moves to the track the change was on, and with the transport stopped
+the transport row moves to the row of an arrangement note or placement
+(never while the song plays); a change to a clip's notes moves the track only.
 Changes that follow the playing song (a scene launch setting the tempo) are
 never undone. A live recording take is one step: its notes appear as they land, and
 `undo` takes the whole take back once it has ended. Undo and redo do nothing

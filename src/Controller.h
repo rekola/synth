@@ -1313,7 +1313,8 @@ class Controller {
   // is in flight, `undo_group_song_`'s document holds an undo group open
   // (Document::beginGroup), so the notes still land one by one but undo as a
   // whole - and undo itself waits until the take ends. updateUndoGroup()
-  // opens or closes it from those two facts.
+  // opens or closes it from those two facts, or from note capture being armed
+  // while the transport rolls.
   void updateUndoGroup();
   std::shared_ptr<Song> undo_group_song_;
   int auto_record_sessions_ = 0;

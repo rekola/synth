@@ -315,6 +315,11 @@ class Song : public SongObject {
   bool canUndo() const { return !doc_->inGroup() && history_.canUndo(*doc_); }
   bool canRedo() const { return !doc_->inGroup() && history_.canRedo(*doc_); }
   bool undo();
+  // Where the last undo or redo changed the song: the track, and for an
+  // arrangement note or placement its row, so the cursor can follow. Empty
+  // fields (-1) when nothing it touched has a place.
+  struct EditPlace { int track_id = -1; int row = -1; };
+  EditPlace lastUndoPlace() const;
   bool redo();
 
   // ---- What the audio thread reads (PlaybackContent.h).

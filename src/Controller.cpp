@@ -242,15 +242,26 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
   // Undo and redo (Song::undo()/redo()): the same two commands from a
   // keybinding, M-x and the Launchpad's shift layer. Both say so when there
   // is nothing to do, and why while a live take is open.
-  commands_.define("undo", [this]() {
+  // The cursor's track follows the change; so does the transport row for an
+  // arrangement note or placement, but never while the song plays.
+  auto follow = [this](Song & song) {
+    auto place = song.lastUndoPlace();
+    if (place.track_id >= 0) song.setCurrentTrackId(place.track_id);
+    if (place.row >= 0 && !getPlaybackInfo().isPlaying()) setEditPosition(place.row);
+  };
+  commands_.define("undo", [this, follow]() {
     auto & song = getSong();
     bool take = song.document().inGroup();
-    getUIEventQueue().push(make_unique<LogEvent>(song.undo() ? "Undo" : take ? "Undo: not while recording" : "Nothing to undo"));
+    bool done = song.undo();
+    if (done) follow(song);
+    getUIEventQueue().push(make_unique<LogEvent>(done ? "Undo" : take ? "Undo: not while recording" : "Nothing to undo"));
   });
-  commands_.define("undo-redo", [this]() {
+  commands_.define("undo-redo", [this, follow]() {
     auto & song = getSong();
     bool take = song.document().inGroup();
-    getUIEventQueue().push(make_unique<LogEvent>(song.redo() ? "Redo" : take ? "Redo: not while recording" : "Nothing to redo"));
+    bool done = song.redo();
+    if (done) follow(song);
+    getUIEventQueue().push(make_unique<LogEvent>(done ? "Redo" : take ? "Redo: not while recording" : "Nothing to redo"));
   });
   commands_.define("toggle-metronome", [this]() {
     setMetronomeOn(!metronome_on_);
@@ -1370,7 +1381,7 @@ Controller::extendClipRecordingClipIfNeeded(int track_id, int absolute_step) {
 
 void
 Controller::updateUndoGroup() {
-  bool want = isAnyClipRecording() || auto_record_sessions_ > 0;
+  bool want = isAnyClipRecording() || auto_record_sessions_ > 0 || (isNoteCaptureArmed() && getPlaybackInfo().isPlaying());
   if (want == (undo_group_song_ != nullptr)) return;
   if (want) {
     auto song = getCurrentSong();

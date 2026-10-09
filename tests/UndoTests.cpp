@@ -205,3 +205,32 @@ TEST(an_untracked_write_inside_a_take_is_not_undone_with_it) {
   CHECK(song.getSwing() == 55); // the mirror write stays
   CHECK(song.getArrangement().findPattern(7).getNotesByRow().empty());
 }
+
+TEST(undo_reports_the_track_and_row_it_changed) {
+  Song song;
+  song.getArrangement().setNote(12, 7, 0, Note(60, 100));
+  CHECK(song.undo());
+  auto place = song.lastUndoPlace();
+  CHECK(place.track_id == 7);
+  CHECK(place.row == 12);
+  CHECK(song.redo());
+  CHECK(song.lastUndoPlace().row == 12);
+
+  auto id = song.addTrack(std::make_unique<InstrumentTrack>(0)).getInternalId();
+  song.editTrack(id, [](Track & track) { track.setSendA(0.5f); });
+  CHECK(song.undo());
+  CHECK(song.lastUndoPlace().track_id == id);
+  CHECK(song.lastUndoPlace().row == -1);
+}
+
+TEST(the_undo_command_moves_the_current_track_and_the_stopped_transport_to_the_change) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  CHECK(controller.openSong(std::string(TESTS_FIXTURES_DIR) + "/center_note.xml"));
+  auto & song = controller.getSong();
+  auto track_id = song.getRootTrackIds().at(0);
+  song.getArrangement().setNote(9, track_id, 1, Note(60, 100));
+  song.setCurrentTrackId(-1);
+  controller.sendCommand("undo");
+  CHECK(song.getCurrentTrackId() == track_id);
+}

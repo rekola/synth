@@ -1493,8 +1493,11 @@ would otherwise resume showing.
   (`Document::beginGroup`) is open, which is how a live take is one step:
   `Controller::updateUndoGroup()` holds a group open while any clip take
   (`isAnyClipRecording()`) or auto-record session is in flight, so its notes
-  land one by one but undo as a whole, once it has ended. Recording armed
-  without a take or session in flight still journals note by note.
+  land one by one but undo as a whole, once it has ended. Note capture
+  armed while the transport rolls counts as a take too. After an undo or redo
+  `Song::lastUndoPlace()` names the track (and, for an arrangement note or
+  placement, the row) it changed, and the commands move the current track
+  there, and the transport row while stopped.
 - The song's own state lives in a DOM (`src/doc/`, plan in
   `plans/undo-document-model.md`): nodes with stable ids, four journaled
   primitives, one append-only journal per song (`Song::document()`, capped at

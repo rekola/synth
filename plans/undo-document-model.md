@@ -169,10 +169,10 @@ patterns, so they are covered by the note primitives. Verify with a test.
   `C-x u` (the existing prefix keymap), `C-_` and `C-/`, with `C-M-_` for
   redo; Launchpad shift+Record Arm/Mute call the commands. `redo` as a cursor
   policy command is still for the second policy.
-- **Selection of undo scope**: undo is per buffer (song). Moving the cursor to
-  the first changed node on undo is not done: it needs each kind of node
-  (arrangement note, clip note, instance, track) mapped to a place in both
-  views, and must not move the playhead while playing.
+- **Selection of undo scope**: undo is per buffer (song). The current track
+  follows the change, and the transport row too for an arrangement note or
+  placement while stopped (`Song::lastUndoPlace()`); a clip's notes move only
+  the track, since Live View has no shared row.
 - Live recording take = one undo step (done): `Controller::updateUndoGroup()`
   holds a group open for clip takes and auto-record sessions; untracked
   entries committed inside it stay apart, so undoing the take leaves them. Sample audio
