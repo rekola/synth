@@ -674,6 +674,13 @@ PatternEditor::setCursorTrack(int track_index) {
 }
 
 void
+PatternEditor::focusLiveRow(int track_id, int scene, int row) {
+  if (!isLiveMode()) return;
+  scene_source_->setCursorTrack(track_id);
+  scene_source_->setTrackPosition(track_id, { scene, row });
+}
+
+void
 PatternEditor::changeEditStep(int delta) {
   setEditStep(edit_step_size + delta);
 }
@@ -1037,6 +1044,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   auto & info = getController().getPlaybackInfo();
   auto & song = getController().getSong();
   syncCursorTrack(song);
+  getController().setNoteHeld(!active_keyboard_notes_.empty()); // heals a hold whose release never arrived
   auto point = source_->cursor();
   {
     auto last_row = std::max(song.getArrangementLength(), point.row + 1) - 1;
@@ -1589,6 +1597,7 @@ PatternEditor::offerInput(const InputEvent & input) {
     if (auto_started_playback_ && active_keyboard_notes_.empty()) {
       getController().stopAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, info, auto_record_clip_ids_);
     }
+    if (active_keyboard_notes_.empty()) getController().setNoteHeld(false);
     return true;
   }
 
@@ -1937,6 +1946,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	    // the session-starting key - the very first row gets cleared
 	    // ahead of this note landing on it, not after.
 	    bool was_first_held_note = has_hold_info && active_keyboard_notes_.empty();
+	    if (was_first_held_note) getController().setNoteHeld(true); // before the first write: a chord is one undo step
 	    if (was_first_held_note && source_->cursorFollowsTransport() && !info.isPlaying()) {
 	      getController().startAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, last_cleared_row_, auto_record_clip_ids_);
 	    }

@@ -81,6 +81,9 @@ class PatternEditor : public UIElement {
   // one scene at a time (ScenePatternSource).
   void setLiveMode(bool live);
   bool isLiveMode() const { return source_ == scene_source_.get(); }
+  // Live mode: puts `track_id`'s position on `row` of scene `scene` (not while
+  // that track plays). A no-op in Arrangement mode.
+  void focusLiveRow(int track_id, int scene, int row);
   // The scene (clip) `track_id`'s own live-mode position is in.
   int getLiveScene(int track_id) const { return scene_source_->trackBlock(track_id).value_or(0); }
   // Where each track's launched clip is playing, for Live mode's

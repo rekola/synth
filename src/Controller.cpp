@@ -247,7 +247,8 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
   auto follow = [this](Song & song) {
     auto place = song.lastUndoPlace();
     if (place.track_id >= 0) song.setCurrentTrackId(place.track_id);
-    if (place.row >= 0 && !getPlaybackInfo().isPlaying()) setEditPosition(place.row);
+    if (place.clip_index >= 0) focusUndoneClip(place.track_id, place.clip_index, std::max(place.row, 0));
+    else if (place.row >= 0 && !getPlaybackInfo().isPlaying()) setEditPosition(place.row);
   };
   commands_.define("undo", [this, follow]() {
     auto & song = getSong();
@@ -1381,7 +1382,7 @@ Controller::extendClipRecordingClipIfNeeded(int track_id, int absolute_step) {
 
 void
 Controller::updateUndoGroup() {
-  bool want = isAnyClipRecording() || auto_record_sessions_ > 0 || (isNoteCaptureArmed() && getPlaybackInfo().isPlaying());
+  bool want = isAnyClipRecording() || auto_record_sessions_ > 0 || note_held_ || (isNoteCaptureArmed() && getPlaybackInfo().isPlaying());
   if (want == (undo_group_song_ != nullptr)) return;
   if (want) {
     auto song = getCurrentSong();

@@ -318,7 +318,9 @@ class Song : public SongObject {
   // Where the last undo or redo changed the song: the track, and for an
   // arrangement note or placement its row, so the cursor can follow. Empty
   // fields (-1) when nothing it touched has a place.
-  struct EditPlace { int track_id = -1; int row = -1; };
+  // `clip_index` is the scene a clip edit was in (its row then being the row
+  // in the clip), -1 for anything outside a clip.
+  struct EditPlace { int track_id = -1; int row = -1; int clip_index = -1; };
   EditPlace lastUndoPlace() const;
   bool redo();
 

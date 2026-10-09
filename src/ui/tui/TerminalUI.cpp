@@ -2884,6 +2884,17 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
     if (column != playable.end()) clip_grid_->setCursorTrackIndex(static_cast<int>(column - playable.begin()));
     clip_grid_->setCursorClipIndex(clip_index);
   });
+  getController().setUndoFocusListener([this](int track_id, int clip_index, int row) {
+    auto & song = getController().getSong();
+    auto root_ids = song.getRootTrackIds();
+    auto root = std::find(root_ids.begin(), root_ids.end(), track_id);
+    if (root != root_ids.end()) pattern_editor_->setCursorTrack(static_cast<int>(root - root_ids.begin()));
+    auto playable = song.getPlayableTrackIds();
+    auto column = std::find(playable.begin(), playable.end(), track_id);
+    if (column != playable.end()) clip_grid_->setCursorTrackIndex(static_cast<int>(column - playable.begin()));
+    clip_grid_->setCursorClipIndex(clip_index);
+    pattern_editor_->focusLiveRow(track_id, clip_index, row);
+  });
   getController().setDrumEditRequestListener([this](int track_id, bool opened) {
     if (opened) {
       auto & song = getController().getSong();

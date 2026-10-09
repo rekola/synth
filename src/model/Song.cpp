@@ -1585,6 +1585,15 @@ Song::EditPlace
 Song::lastUndoPlace() const {
   using namespace scoreschema;
   auto & d = *doc_;
+  // A clip's scene is its position among its track's clips.
+  auto sceneOf = [&d](const doc::Node & clip, const doc::Op * op) {
+    if (op) return static_cast<int>(op->index);
+    auto parent = d.get(clip.parent);
+    auto siblings = parent ? parent->children(clip.parent_slot) : nullptr;
+    if (!siblings) return -1;
+    auto it = std::find(siblings->begin(), siblings->end(), clip.id);
+    return it == siblings->end() ? -1 : static_cast<int>(it - siblings->begin());
+  };
   for (auto & op : history_.lastOps()) {
     // An inserted or removed node may be detached, so its parent is the op's.
     bool child_op = op.kind == doc::Op::Kind::INSERT || op.kind == doc::Op::Kind::REMOVE;
@@ -1596,18 +1605,18 @@ Song::lastUndoPlace() const {
         auto row = doc::get(d, node->id, type == "note" ? kNoteRow : kCommandRow);
         auto pattern = d.get(parent_id);
         auto owner = pattern ? d.get(pattern->parent) : nullptr;
-        if (owner && owner->type == "clip") return { doc::get(d, owner->id, kClipTrack), -1 };
-        if (pattern) return { doc::get(d, pattern->id, kPatternTrack), row };
+        if (owner && owner->type == "clip") return { doc::get(d, owner->id, kClipTrack), row, sceneOf(*owner, nullptr) };
+        if (pattern) return { doc::get(d, pattern->id, kPatternTrack), row, -1 };
       } else if (type == "pattern") {
         auto owner = d.get(parent_id);
-        if (owner && owner->type == "clip") return { doc::get(d, owner->id, kClipTrack), -1 };
-        return { doc::get(d, node->id, kPatternTrack), -1 };
+        if (owner && owner->type == "clip") return { doc::get(d, owner->id, kClipTrack), 0, sceneOf(*owner, nullptr) };
+        return { doc::get(d, node->id, kPatternTrack), -1, -1 };
       } else if (type == "instance") {
-        return { doc::get(d, node->id, kInstanceTrack), doc::get(d, node->id, kInstanceRow) };
+        return { doc::get(d, node->id, kInstanceTrack), doc::get(d, node->id, kInstanceRow), -1 };
       } else if (type == "clip") {
-        return { doc::get(d, node->id, kClipTrack), -1 };
+        return { doc::get(d, node->id, kClipTrack), 0, sceneOf(*node, child_op && depth == 0 ? &op : nullptr) };
       } else if (auto iid = node->find(tracknodes::kIidKey)) {
-        if (auto id = std::get_if<int64_t>(iid)) return { static_cast<int>(*id), -1 };
+        if (auto id = std::get_if<int64_t>(iid)) return { static_cast<int>(*id), -1, -1 };
       }
       node = d.get(parent_id);
       parent_id = node ? node->parent : doc::kNoNode;

@@ -9,6 +9,9 @@
 #include "../src/model/InstrumentTrack.h"
 #include "../src/model/LeafTrack.h"
 #include "../src/model/Song.h"
+#include "../src/state/PlaybackInfo.h"
+#include <set>
+#include <unordered_map>
 #include "../src/ambisonic/ChannelConfiguration.h"
 
 TEST(undo_walks_back_through_edits_and_redo_walks_forward_again) {
@@ -258,5 +261,84 @@ TEST(undoing_an_edit_to_one_clip_leaves_another_clip_on_the_same_track_untouched
   CHECK(notesIn(0) == 1); // the playing clip is as it was
   CHECK(notesIn(1) == 1);
   CHECK(song.lastUndoPlace().track_id == track_id);
-  CHECK(song.lastUndoPlace().row == -1); // a clip edit moves no row
+  CHECK(song.lastUndoPlace().clip_index == 1); // the second scene
+  CHECK(song.lastUndoPlace().row == 3);        // the row in the clip
+}
+
+TEST(undoing_a_clip_edit_asks_the_ui_to_show_that_clip_and_row) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  CHECK(controller.openSong(std::string(TESTS_FIXTURES_DIR) + "/center_note.xml"));
+  auto & song = controller.getSong();
+  auto track_id = song.getRootTrackIds().at(0);
+  for (int i = 0; i < 3; i++) {
+    Clip clip(track_id);
+    clip.setLength(8);
+    clip.getLeafPattern().setNote(0, 0, Note(60, 100));
+    song.addClip(std::move(clip));
+  }
+  song.getClips(track_id)[2].getLeafPattern().setNote(5, 0, Note(67, 100));
+
+  int seen_track = -1, seen_clip = -1, seen_row = -1;
+  controller.setUndoFocusListener([&](int track, int clip, int row) { seen_track = track; seen_clip = clip; seen_row = row; });
+  controller.sendCommand("undo");
+  CHECK(seen_track == track_id);
+  CHECK(seen_clip == 2);
+  CHECK(seen_row == 5);
+
+  controller.sendCommand("undo-redo");
+  CHECK(seen_clip == 2);
+  CHECK(seen_row == 5);
+}
+
+TEST(a_chord_entered_during_an_auto_record_session_is_one_undo_step) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  CHECK(controller.openSong(std::string(TESTS_FIXTURES_DIR) + "/center_note.xml"));
+  auto & song = controller.getSong();
+  auto track_id = song.getRootTrackIds().at(0);
+  auto journal = song.document().journal().size();
+
+  bool auto_started = false;
+  std::set<std::pair<int, int>> cleared;
+  int last_cleared = -1;
+  std::unordered_map<int, std::string> clip_ids;
+  controller.startAutoRecordSession(auto_started, cleared, last_cleared, clip_ids);
+  // Three keys of a chord, then their releases a few rows on.
+  for (int column = 0; column < 3; column++) {
+    controller.ensureRowCleared(cleared, 20, track_id);
+    song.getArrangement().setNote(20, track_id, column, Note(60 + column * 4, 100));
+  }
+  for (int column = 0; column < 3; column++) controller.writeReleaseOff(cleared, auto_started, 22, track_id, column, 0);
+  PlaybackInfo info;
+  controller.stopAutoRecordSession(auto_started, cleared, info, clip_ids);
+
+  CHECK(song.document().journal().size() == journal + 1);
+  auto rows = [&]() {
+    auto pattern = song.getArrangement().findPattern(track_id);
+    return pattern ? static_cast<int>(pattern->getNotesByRow().size()) : 0;
+  };
+  auto with_chord = rows();
+  CHECK(song.undo());
+  CHECK(rows() < with_chord);
+  CHECK(!song.getArrangement().findPattern(track_id)->getNotesByRow().count(20));
+  CHECK(!song.getArrangement().findPattern(track_id)->getNotesByRow().count(22));
+}
+
+TEST(a_chord_of_held_keys_is_one_undo_step_even_with_the_transport_stopped) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  CHECK(controller.openSong(std::string(TESTS_FIXTURES_DIR) + "/center_note.xml"));
+  auto & song = controller.getSong();
+  auto track_id = song.getRootTrackIds().at(0);
+  auto journal = song.document().journal().size();
+
+  controller.setNoteHeld(true);
+  for (int column = 0; column < 3; column++) song.getArrangement().setNote(30, track_id, column, Note(60 + column * 4, 100));
+  CHECK(!song.canUndo()); // not mid-chord
+  controller.setNoteHeld(false);
+
+  CHECK(song.document().journal().size() == journal + 1);
+  CHECK(song.undo());
+  CHECK(song.getArrangement().findPattern(track_id)->getNotesByRow().count(30) == 0);
 }

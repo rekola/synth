@@ -1485,8 +1485,12 @@ would otherwise resume showing.
   land one by one but undo as a whole, once it has ended. Note capture
   armed while the transport rolls counts as a take too. After an undo or redo
   `Song::lastUndoPlace()` names the track (and, for an arrangement note or
-  placement, the row) it changed, and the commands move the current track
-  there, and the transport row while stopped.
+  placement, the row; for a clip, `clip_index` and the row in it) it changed,
+  and the commands move the current track there, the transport row while
+  stopped, and for a clip the clip grid and (in Live View) the pattern editor
+  (`Controller::setUndoFocusListener()`). Held note keys keep a group open
+  too (`Controller::setNoteHeld()`, from `PatternEditor`), so a chord is one
+  step.
 - The song's own state lives in a DOM (`src/doc/`, plan in
   `plans/undo-document-model.md`): nodes with stable ids, four journaled
   primitives, one append-only journal per song (`Song::document()`, capped at

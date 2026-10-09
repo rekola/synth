@@ -235,6 +235,19 @@ class Controller {
   // the UI moves the shared track cursor and its clip cursor there, empty
   // slots included, so the slot is where the next recording or paste lands.
   void setClipSelectListener(std::function<void(int track_id, int clip_index)> fn) { clip_select_requested_ = std::move(fn); }
+  // A note key (or pad) is down: the notes of one chord land in one undo step,
+  // so a group stays open from the first key down to the last one up.
+  void setNoteHeld(bool held) {
+    if (note_held_ == held) return;
+    note_held_ = held;
+    updateUndoGroup();
+  }
+  // After an undo or redo changed a clip: the UI shows that clip's row (the
+  // clip grid's cursor and, in Live View, the pattern editor's position).
+  void setUndoFocusListener(std::function<void(int track_id, int clip_index, int row)> fn) { undo_focus_requested_ = std::move(fn); }
+  void focusUndoneClip(int track_id, int clip_index, int row) {
+    if (undo_focus_requested_) undo_focus_requested_(track_id, clip_index, row);
+  }
   void selectClipSlot(int track_id, int clip_index) {
     if (clip_select_requested_) clip_select_requested_(track_id, clip_index);
   }
@@ -1316,6 +1329,7 @@ class Controller {
   // opens or closes it from those two facts, or from note capture being armed
   // while the transport rolls.
   void updateUndoGroup();
+  bool note_held_ = false;
   std::shared_ptr<Song> undo_group_song_;
   int auto_record_sessions_ = 0;
   // setClipGridFocused()/setClipGridCursor()'s own backing fields -
@@ -1366,6 +1380,7 @@ class Controller {
   std::function<void()> buffer_change_listener_;
   std::function<void(int track_id, bool opened)> drum_edit_requested_;
   std::function<void(int track_id, int clip_index)> clip_select_requested_;
+  std::function<void(int track_id, int clip_index, int row)> undo_focus_requested_;
   int pending_command_track_ = -1;
   // Live mirror of the active buffer's own focused_clip_ids_/
   // focused_clip_track_ids_ slots - see getFocusedClip()'s own comment.
