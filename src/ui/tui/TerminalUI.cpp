@@ -2993,13 +2993,26 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
   renderComponents(true);
 
   string waiting_stderr;
-  
+  // Playback and visualization events arrive with every audio block (about
+  // 190 a second); drawing for each of them would use far more of the
+  // terminal than the eye can follow, so a frame is drawn at most every
+  // kMinFrameInterval and the changes in between are folded into it.
+  constexpr auto kMinFrameInterval = std::chrono::milliseconds(25);
+  auto last_frame = std::chrono::steady_clock::now() - kMinFrameInterval;
+  bool frame_pending = false;
+
   while ( !shouldClose() ) {
     bool render = false;
 
     updateEscapeIndicator();
 
     int poll_timeout_ms = escapeIndicatorPollTimeoutMs();
+    // A redraw deferred by the frame limiter below wakes the loop when it is due.
+    if (frame_pending) {
+      auto wait = std::chrono::duration_cast<std::chrono::milliseconds>(kMinFrameInterval - (std::chrono::steady_clock::now() - last_frame)).count() + 1;
+      wait = std::max<long>(wait, 1);
+      poll_timeout_ms = poll_timeout_ms < 0 ? static_cast<int>(wait) : std::min(poll_timeout_ms, static_cast<int>(wait));
+    }
 
     // setStatus("polling");
     int poll_result = poll(descriptors.get(), num_descriptors, poll_timeout_ms);
@@ -3064,7 +3077,18 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
 	  }
 	}
       }
-      
+    }
+
+    if (poll_result > 0 || frame_pending) {
+      render |= frame_pending;
+      auto now = std::chrono::steady_clock::now();
+      if (now - last_frame < kMinFrameInterval) {
+	frame_pending = true;
+	continue;
+      }
+      frame_pending = false;
+      last_frame = now;
+
       render |= renderComponents();
 
       if (render) {
