@@ -1510,8 +1510,11 @@ would otherwise resume showing.
 - Tracks, instruments and bus effects are nodes whose type is the element
   name they have in a song file and whose string properties are exactly the
   attributes their `loadParameters()`/`storeParameters()` use
-  (`model/TrackNodes.h`), so those classes know nothing of the document and
-  an attribute nothing recognizes survives untouched; a node's children are
+  (`model/TrackNodes.h`), so those classes know nothing of the document
+  (the loader still builds objects from the XML and derives the nodes from
+  them, so an attribute no class knows is dropped on load, as before;
+  `Song::editTrack()` does leave alone any property a node holds that the
+  class does not store); a node's children are
   its sub-tracks, and a `GenericInstrument`'s `<generator>` elements are
   "generator" child nodes. What the rest of the program sees are immutable
   `Track` objects (`Song::getMasterTrack()`, `getInstrumentPool()`,
