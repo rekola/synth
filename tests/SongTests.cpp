@@ -539,8 +539,8 @@ TEST(get_tuning_for_track_is_the_songs_own_tuning_otherwise) {
   CHECK(song.getTuningForTrack(track) == Tuning::EDO31);
 }
 
-// A fresh Song always has a master track (Song::master_track_ is default-
-// constructed, never null) - not something that needs to be added, and not
+// A fresh Song always has a master track (the master node is made by Song's
+// constructor, so getMasterTrack() is never null) - not something that needs to be added, and not
 // one of its own children, so it never shows up among getRootTrackIds()'s
 // real, artist-authored tracks by way of getMasterTrack().getChildren().
 TEST(a_fresh_song_has_a_master_track) {
@@ -577,9 +577,8 @@ TEST(master_tracks_collapsed_state_round_trips_via_the_tracks_element) {
   fs::remove(scratch_path);
 }
 
-// removeTrack()'s own comment: removeChildByInternalId() only ever erases
-// from a children_ vector, and the master is never anyone's child, so this
-// can structurally never remove it - no separate guard needed.
+// removeTrack()'s own comment: the master is never anyone's child, so this
+// can structurally never remove it.
 TEST(remove_track_on_the_masters_own_id_is_a_no_op) {
   Song song;
   auto master_id = song.getMasterTrack().getInternalId();

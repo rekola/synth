@@ -151,5 +151,11 @@ TrackCompiler::compile(const doc::Document & document, const Roots & roots, cons
     if (node) effect->loadParameters(NodeParameterSource(document, roots.bus[slot]));
     compiled->bus[slot] = { descriptor->kind, std::move(effect) };
   }
+
+  // Nodes that are gone for good (history trimmed) have nothing to reuse.
+  for (auto it = entries_.begin(); it != entries_.end();) {
+    if (document.get(it->first)) ++it;
+    else it = entries_.erase(it);
+  }
   return compiled;
 }

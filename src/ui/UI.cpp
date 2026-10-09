@@ -463,7 +463,7 @@ UI::initializeCommands() {
   // Track commands act on Song::getCurrentTrackId(), the one current track
   // every widget keeps in sync, so they work the same from any widget and
   // from the menu. A new track lands right after the current one, under
-  // whatever its real parent is (Track::insertChildAfter()) - or at the
+  // whatever its real parent is (Song::addTrack()'s after_track_id) - or at the
   // very end when there's no current track. addTrack() bumps the version
   // itself.
   auto add_track = [this](std::unique_ptr<Track> track) {
