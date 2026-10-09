@@ -1153,6 +1153,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   // instead of a field-by-field list that has to be remembered and kept
   // in sync by hand whenever GridPosition itself gains a new field.
   bool cursor_changed = new_cursor != current_cursor;
+  if (!focused) commitPendingValue();
 
   current_cursor = new_cursor;
 
@@ -1502,8 +1503,45 @@ PatternEditor::handleMouse(const InputEvent & input) {
   return true;
 }
 
+// A velocity or delay is one integer: its hex digits are held here, not in
+// the song, until the cursor leaves the cell, so playback never hears a
+// half-typed value.
+bool
+PatternEditor::PendingNibbles::matches(int track, int column, ColumnType t, RowAddress a) const {
+  return valid && track_id == track && note_column == column && type == t && at == a;
+}
+
+void
+PatternEditor::commitPendingValue() {
+  if (!pending_.valid) return;
+  auto p = pending_;
+  pending_ = PendingNibbles();
+  auto & song = getController().getSong();
+  auto edit_target = source_->edit(p.track_id, p.at);
+  if (!edit_target.pattern) return;
+  auto notes = edit_target.pattern->getNotes(edit_target.effective_row);
+  Note note;
+  if (p.note_column < static_cast<int>(notes.size())) note = notes[static_cast<size_t>(p.note_column)];
+  if (p.type == ColumnType::VELOCITY) note.setVelocity(p.value);
+  else note.setDelay(p.value);
+  Song::Edit edit(song, "edit velocity or delay", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, true);
+  edit_target.pattern->setNote(edit_target.effective_row, p.note_column, note);
+  row_edited = true;
+}
+
 bool
 PatternEditor::offerInput(const InputEvent & input) {
+  // Only consecutive hex digits extend a pending value; any other key
+  // (a move, a click, undo, ...) commits it first.
+  if (pending_.valid && input.getKind() != InputEvent::Kind::RELEASE) {
+    bool digit = !input.hasCtrl() && !input.hasAlt() && input.getId() >= '0' && input.getId() <= 'f' && (isxdigit(static_cast<int>(input.getId())) != 0);
+    if (!digit) commitPendingValue();
+  }
+  return offerInputKey(input);
+}
+
+bool
+PatternEditor::offerInputKey(const InputEvent & input) {
   // Anything but typing ends the run of typed characters that undoes as one
   // step (Song::breakTypingRun()).
   if (input.getKind() != InputEvent::Kind::RELEASE) {
@@ -1854,18 +1892,24 @@ PatternEditor::offerInput(const InputEvent & input) {
 	}
       } else if (column_type == ColumnType::VELOCITY || column_type == ColumnType::DELAY) {
 	if (input_hex_value != -1) {
-	  auto notes = edit_target.pattern->getNotes(edit_target.effective_row);
 	  auto note_column = track_info.getNoteNumber(new_cursor.col);
-	  Note note;
-	  if (note_column < static_cast<int>(notes.size())) note = notes[static_cast<size_t>(note_column)];
-	  int current_value = column_type == ColumnType::VELOCITY ? note.getVelocity() : note.getDelay();
-	  if (new_cursor.subcol == 0) current_value = (input_hex_value << 4) | (current_value & 0x0f);
-	  else current_value = (current_value & 0xf0) | input_hex_value;
-	  if (column_type == ColumnType::VELOCITY) note.setVelocity(current_value);
-	  else note.setDelay(current_value);
-	  Song::Edit edit(song, "edit velocity or delay", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, true);
-	  edit_target.pattern->setNote(edit_target.effective_row, note_column, note);
-	  row_edited = true;
+	  if (!pending_.matches(track_id, note_column, column_type, point)) {
+	    commitPendingValue();
+	    auto notes = edit_target.pattern->getNotes(edit_target.effective_row);
+	    Note note;
+	    if (note_column < static_cast<int>(notes.size())) note = notes[static_cast<size_t>(note_column)];
+	    pending_ = PendingNibbles();
+	    pending_.valid = true;
+	    pending_.track_id = track_id;
+	    pending_.note_column = note_column;
+	    pending_.type = column_type;
+	    pending_.at = point;
+	    pending_.value = column_type == ColumnType::VELOCITY ? note.getVelocity() : note.getDelay();
+	  }
+	  if (new_cursor.subcol == 0) pending_.value = (input_hex_value << 4) | (pending_.value & 0x0f);
+	  else pending_.value = (pending_.value & 0xf0) | input_hex_value;
+	  // The second digit completes the value; the cursor leaves the cell.
+	  if (new_cursor.subcol != 0) commitPendingValue();
 	  if (new_cursor.subcol == 0) {
 	    new_cursor.subcol++;
 	  } else if (new_cursor.col + 1 < track_info.getColumnCount()) {
@@ -3284,7 +3328,11 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  auto l = track_info.getNoteNumber(k);
 	  auto note = l < static_cast<int>(notes.size()) ? notes[static_cast<size_t>(l)] : Note();
 	  string s;
-	  if (note.isDefined()) {
+	  auto own_address = source_->trackAddress(track_id, address);
+	  if (pending_.valid && pending_.track_id == track_id && pending_.note_column == l && pending_.type == column_type &&
+	      source_->trackAddress(track_id, pending_.at) == own_address) {
+	    s = format("{:02x}", pending_.value);
+	  } else if (note.isDefined()) {
 	    if (column_type == ColumnType::VELOCITY && note.isOff()) {
 	      s = "  ";
 	    } else {

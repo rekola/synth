@@ -896,7 +896,7 @@ Controller::toggleTrackMuted(int track_id) {
   auto song = getCurrentSong();
   auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
   if (!leaf_track) return false;
-  Song::Edit edit(*song, "toggle mute");
+  Song::Edit edit(*song, "toggle mute", Song::Edit::Kind::STRUCTURE, Song::Edit::Origin::SYNC);
   bool muted = !leaf_track->isMuted();
   song->editTrack(track_id, [&](Track & track) { leafOf(track).setMuted(muted); });
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_MUTED, getActiveBufferName(), track_id, muted ? 1 : 0));
@@ -908,7 +908,7 @@ Controller::toggleTrackSolo(int track_id) {
   auto song = getCurrentSong();
   auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
   if (!leaf_track) return false;
-  Song::Edit edit(*song, "toggle solo");
+  Song::Edit edit(*song, "toggle solo", Song::Edit::Kind::STRUCTURE, Song::Edit::Origin::SYNC);
   bool solo = !leaf_track->isSolo();
   song->editTrack(track_id, [&](Track & track) { leafOf(track).setSolo(solo); });
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SOLO, getActiveBufferName(), track_id, solo ? 1 : 0));

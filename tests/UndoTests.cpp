@@ -444,3 +444,20 @@ TEST(a_run_of_typing_is_capped) {
   }
   CHECK(song.document().journal().size() == entries + 2);
 }
+
+TEST(mute_and_solo_are_not_undone_and_do_not_break_the_run_of_undos) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  CHECK(controller.openSong(std::string(TESTS_FIXTURES_DIR) + "/center_note.xml"));
+  auto & song = controller.getSong();
+  auto track_id = song.getPlayableTrackIds().at(0);
+  controller.setTrackSendA(track_id, -6.0f);
+  controller.toggleTrackSolo(track_id);
+  controller.toggleTrackMuted(track_id);
+  controller.sendCommand("undo"); // takes the send back, not the mute or solo
+  auto leaf = dynamic_cast<const LeafTrack *>(song.getMasterTrack().getChildByInternalId(track_id));
+  CHECK(leaf != nullptr);
+  CHECK(leaf->isSolo());
+  CHECK(leaf->isMuted());
+  CHECK(leaf->getSends().a == 0.0f);
+}
