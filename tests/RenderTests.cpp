@@ -2,6 +2,7 @@
 
 #include "../src/model/Song.h"
 #include "../src/model/SampleTrack.h"
+#include "../src/effects/Equalizer.h"
 #include "../src/model/Clip.h"
 #include "../src/model/InstrumentTrack.h"
 #include "../src/instruments/Oscillator.h"
@@ -2139,4 +2140,25 @@ TEST(render_equalizer_flat_is_transparent_and_high_shelf_cut_attenuates) {
   auto flat_rms = rms(flat_result, 0), cut_rms = rms(cut_result, 0);
   CHECK(flat_rms > 1e-3f);
   CHECK(cut_rms < flat_rms * 0.7f);
+}
+
+// The reported response matches what the bands are set to.
+TEST(equalizer_response_follows_band_settings) {
+  Equalizer eq;
+  CHECK_NEAR(eq.responseDb(1000.0f, 44100.0f), 0.0f, 1e-3f); // flat by default
+
+  auto band = eq.getBand(4); // peak at 2500 Hz
+  band.gain_db = 12.0f;
+  eq.setBand(4, band);
+  CHECK_NEAR(eq.responseDb(2500.0f, 44100.0f), 12.0f, 0.1f);
+  CHECK(std::fabs(eq.responseDb(100.0f, 44100.0f)) < 0.5f);
+
+  band.gain_db = 0.0f;
+  eq.setBand(4, band);
+  auto hp = eq.getBand(0);
+  hp.on = true;
+  hp.freq = 1000.0f;
+  eq.setBand(0, hp);
+  CHECK(eq.responseDb(50.0f, 44100.0f) < -20.0f);
+  CHECK_NEAR(eq.responseDb(1000.0f, 44100.0f), -3.0f, 0.5f);
 }

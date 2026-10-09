@@ -6,7 +6,7 @@
     </envelope>
   </instruments>
   <tracks>
-    <equalizer highGain="-24" highFreq="1000" lowMidGain="0">
+    <equalizer b7Gain="-24" b7Freq="1000">
       <track id="0" instrument="i1"/>
     </equalizer>
   </tracks>

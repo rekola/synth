@@ -12,9 +12,7 @@
 - More bands: 8, as a list rather than fixed attribute names. Band i has
   `type` (peak/lowshelf/highshelf/highpass/lowpass/notch), `freq`, `gain`
   (dB), `q`. Default bands: HP off, low shelf, 4 peaks, high shelf, LP off.
-  Stored as `<band .../>` children (the node tree already supports child nodes;
-  see `<generator>` under GenericInstrument) so the count is not baked into
-  attribute names.
+  Stored as indexed attributes (`b1Type`, `b1Freq`, `b1Gain`, `b1Q`, `b1On` ...), which fit the existing track-node properties without new node kinds.
 - A band at neutral (peak/shelf 0 dB, filters disabled) costs nothing.
 - Optional later: combined frequency response (`Equalizer::responseDb(freq)`),
   used by the UI curve; computed from the same biquad coefficients.
