@@ -6,6 +6,7 @@
 #include "MasterTrack.h"
 #include "InstrumentPool.h"
 #include "CompiledTracks.h"
+#include "TrackCompiler.h"
 #include "Arrangement.h"
 #include "Clip.h"
 #include "ArrangementView.h"
@@ -284,10 +285,12 @@ class Song : public SongObject {
 	song_.doc_->collectGarbage();
       }
       if (!song_.edit_wrote_) return;
+      song_.recompileTracksIfChanged();
+      // Published before the version moves, so a reader that sees the new
+      // version finds the new content.
+      if (song_.content_published_mode_) song_.publishContent();
       if (song_.edit_kind_ == Kind::STRUCTURE) song_.version_.incMajor();
       else song_.version_.incMinor();
-      song_.recompileTracksIfChanged();
-      if (song_.content_published_mode_) song_.publishContent();
     }
     Edit(const Edit &) = delete;
     Edit & operator=(const Edit &) = delete;
@@ -320,8 +323,8 @@ class Song : public SongObject {
   bool isContentPublished() const { return content_published_mode_; }
   // The document the song's state lives in (the undo layer's and tests' way
   // in; application code goes through the accessors).
-  doc::Document & document() { return *doc_; }
-  const doc::Document & document() const { return *doc_; }
+  doc::Document & document() { bindImplicitScope(); return *doc_; }
+  const doc::Document & document() const { bindImplicitScope(); return *doc_; }
   // The song-level values playback reads, as of now.
   SongScalars scalars() const;
   // Copies the arrangement and clips into a new PlaybackContent and
@@ -561,9 +564,12 @@ private:
   // What the score's views are built from; also (re)binds the implicit
   // edit to this Song, so a moved Song keeps working.
   ScoreContext context() const {
+    bindImplicitScope();
+    return { doc_.get(), samples_.get() };
+  }
+  void bindImplicitScope() const {
     implicit_edit_->song = const_cast<Song *>(this);
     doc_->setImplicitScope(implicit_edit_.get());
-    return { doc_.get(), samples_.get() };
   }
   // The arrangement and clips as plain values, for the published copy.
   std::unique_ptr<PlaybackContent> compileContent() const;
@@ -587,7 +593,8 @@ private:
   doc::NodeId busNode(int slot) const;
   std::shared_ptr<TrackCompiler> compiler_;
   std::shared_ptr<const CompiledTracks> tracks_;
-  uint64_t tracks_stamp_ = 0;
+  TrackCompiler::Stamp tracks_stamp_;
+  uint64_t tracks_generation_ = 0;
   void recompileTracksIfChanged();
   doc::NodeId trackNode(int track_id) const;  // kNoNode if there is no such track
   doc::NodeId insertTrackNode(const std::shared_ptr<Track> & track, doc::NodeId parent, const std::string & slot, size_t index);

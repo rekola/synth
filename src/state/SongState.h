@@ -65,6 +65,7 @@ class SongState : public TrackState {
     master_sends_ = tracks.master->getSends();
     render_context_.setBpm(tempo_);
     song_structure_ = SongStructure(*tracks.master);
+    structure_tracks_generation_ = tracks.generation;
     song_structure_version_ = song.getMajorVersion();
 
     // Floor-reflection parameters (ChannelConfiguration.h) - pushed into
@@ -229,7 +230,8 @@ class SongState : public TrackState {
     auto content_reader = song.readContent();
     const PlaybackContent & content = *content_reader;
 
-    if (song_structure_version_ != song.getMajorVersion()) {
+    if (song_structure_version_ != song.getMajorVersion() || structure_tracks_generation_ != content.tracks->generation) {
+      structure_tracks_generation_ = content.tracks->generation;
       song_structure_ = SongStructure(*content.tracks->master);
       song_structure_version_ = song.getMajorVersion();
       swing_ = content.scalars.swing;
@@ -1072,6 +1074,7 @@ private:
   }
 
   int song_structure_version_ = -1; // never equals a real song.getMajorVersion() until initialize()/renderBlock() runs
+  uint64_t structure_tracks_generation_ = 0; // the compiled tracks song_structure_ was built from
   // track_id -> the clip index (or Arrangement::kNoInstance/kStopInstance)
   // resolveInstanceAt() returned for that track the last time this row's
   // own scheduling ran - renderBlock()'s own note-scheduling loop compares

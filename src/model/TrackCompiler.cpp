@@ -44,11 +44,13 @@ TrackCompiler::commitAdopted(const doc::Document & document) {
   adopted_.clear();
 }
 
-uint64_t
+TrackCompiler::Stamp
 TrackCompiler::stamp(const doc::Document & document, const Roots & roots) {
-  auto newest = std::max(document.subtreeRevision(roots.master), document.subtreeRevision(roots.pool));
-  for (auto bus : roots.bus) newest = std::max(newest, document.subtreeRevision(bus));
-  return newest;
+  Stamp result;
+  result.roots = roots;
+  result.newest = std::max(document.subtreeRevision(roots.master), document.subtreeRevision(roots.pool));
+  for (auto bus : roots.bus) result.newest = std::max(result.newest, document.subtreeRevision(bus));
+  return result;
 }
 
 std::shared_ptr<Track>

@@ -31,9 +31,17 @@ class TrackCompiler {
   doc::NodeId adopt(doc::Document & document, std::shared_ptr<Track> track);
   void commitAdopted(const doc::Document & document);
 
-  // The newest revision under any of the roots; unchanged since the last
-  // compile() means nothing needs compiling.
-  static uint64_t stamp(const doc::Document & document, const Roots & roots);
+  // Which nodes are the roots and the newest revision under any of them;
+  // unchanged since the last compile() means nothing needs compiling.
+  struct Stamp {
+    Roots roots;
+    uint64_t newest = 0;
+    bool operator==(const Stamp & o) const {
+      return roots.master == o.roots.master && roots.pool == o.roots.pool && roots.bus[0] == o.roots.bus[0] && roots.bus[1] == o.roots.bus[1] && newest == o.newest;
+    }
+    bool operator!=(const Stamp & o) const { return !(*this == o); }
+  };
+  static Stamp stamp(const doc::Document & document, const Roots & roots);
 
   // `provider` prepares instruments that have to be built from their nodes
   // (those not adopted as objects) and the pool's default kit; null leaves

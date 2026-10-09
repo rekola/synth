@@ -12,6 +12,9 @@
 // An edit makes a new one that shares every object whose nodes did not
 // change, so a pointer to an untouched track stays good across edits.
 struct CompiledTracks {
+  // Counts compiles, so a reader can tell a newer result from the one it
+  // last looked at without comparing addresses.
+  uint64_t generation = 0;
   std::shared_ptr<const Track> master;
   std::shared_ptr<const InstrumentPool> pool;
   struct BusSlot {

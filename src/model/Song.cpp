@@ -510,7 +510,9 @@ Song::compileTracks(const InstrumentProvider * provider) {
   roots.pool = poolNode();
   roots.bus[0] = busNode(0);
   roots.bus[1] = busNode(1);
-  tracks_ = compiler_->compile(*doc_, roots, provider);
+  auto compiled = std::const_pointer_cast<CompiledTracks>(compiler_->compile(*doc_, roots, provider));
+  compiled->generation = ++tracks_generation_;
+  tracks_ = std::move(compiled);
   tracks_stamp_ = TrackCompiler::stamp(*doc_, roots);
 }
 
