@@ -75,6 +75,16 @@ NodeId Document::createWithId(NodeId id, const std::string & type) {
   return id;
 }
 
+void Document::appendToDetached(NodeId parent_id, const std::string & slot, NodeId child_id) {
+  auto parent = mutableGet(parent_id);
+  auto child = mutableGet(child_id);
+  assert(parent && child && !attached(parent_id) && child->parent == kNoNode);
+  auto & s = slotFor(*parent, slot);
+  s.children.push_back(child_id);
+  child->parent = parent_id;
+  child->parent_slot = slot;
+}
+
 Slot & Document::slotFor(Node & node, const std::string & name) {
   for (auto & s : node.slots)
     if (s.name == name) return s;

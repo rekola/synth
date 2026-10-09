@@ -86,6 +86,11 @@ class Document {
   // insertChild that attaches it is.
   NodeId create(const std::string & type, std::vector<std::pair<std::string, Value> > properties);
 
+  // Builds a detached subtree: appends `child` to a node that is itself not
+  // attached yet. Not recorded - it is part of making the node, and the
+  // insertChild that attaches the whole subtree is what history sees.
+  void appendToDetached(NodeId parent, const std::string & slot, NodeId child);
+
   // Id allocation is part of the persisted state (see nextId()/setNextId()).
   NodeId nextId() const { return next_id_; }
   void setNextId(NodeId id) { if (id > next_id_) next_id_ = id; }
@@ -137,6 +142,11 @@ class Document {
   int addListener(Listener fn);
   void removeListener(int handle);
 
+  // Visits every node in the table, attached or not.
+  template <typename Fn>
+  void forEachNode(Fn && fn) const {
+    for (auto & entry : nodes_) fn(*entry.second);
+  }
   // Deep copy (nodes only; not the journal or listeners).
   std::unique_ptr<Document> clone() const;
   // Canonical text of the attached tree; for tests and the verifier.

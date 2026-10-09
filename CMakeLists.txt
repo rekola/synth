@@ -87,6 +87,9 @@ add_library(synth_engine STATIC
 	src/model/Song.cpp
 	src/model/PlaybackContent.cpp
 	src/model/PatternView.cpp
+	src/model/SampleStore.cpp
+	src/model/ClipView.cpp
+	src/model/ArrangementView.cpp
 	src/model/Clip.cpp
 	src/model/SongObject.cpp
 	src/model/LeafTrack.cpp
