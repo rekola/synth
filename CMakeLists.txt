@@ -104,6 +104,7 @@ add_library(synth_engine STATIC
 	third_party/tinyxml2/tinyxml2.cpp
 	src/effects/ResonantFilter.cpp
 	src/effects/BiquadFilter.cpp
+	src/effects/Equalizer.cpp
 	src/effects/Distortion.cpp
 	src/effects/Tremolo.cpp
 	src/effects/Chorus.cpp

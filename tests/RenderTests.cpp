@@ -2121,3 +2121,22 @@ TEST(every_fixture_renders_identically_with_its_tracks_rebuilt_from_their_nodes)
   }
   CHECK(compared > 50);
 }
+
+// A flat <equalizer> (every band at 0 dB) leaves the signal alone; a strong
+// high-shelf cut lowers the level of a bright saw.
+TEST(render_equalizer_flat_is_transparent_and_high_shelf_cut_attenuates) {
+  auto flat = loadFixture("equalizer_flat.xml");
+  auto cut = loadFixture("equalizer_high_cut.xml");
+  CHECK(flat.ok);
+  CHECK(cut.ok);
+
+  ChannelConfiguration config(44100, 1);
+  auto flat_result = renderSongOffline(flat.song, config);
+  auto cut_result = renderSongOffline(cut.song, config);
+
+  CHECK(!hasNonFiniteSample(flat_result));
+  CHECK(!hasNonFiniteSample(cut_result));
+  auto flat_rms = rms(flat_result, 0), cut_rms = rms(cut_result, 0);
+  CHECK(flat_rms > 1e-3f);
+  CHECK(cut_rms < flat_rms * 0.7f);
+}

@@ -14,6 +14,7 @@
 #include "../instruments/PadSynth.h"
 #include "../effects/Amplifier.h"
 #include "../effects/BiquadFilter.h"
+#include "../effects/Equalizer.h"
 #include "../effects/Chorus.h"
 #include "../effects/Compressor.h"
 #include "../effects/Distortion.h"
@@ -41,6 +42,7 @@ std::unique_ptr<Track> makeTrack(std::string_view name) {
   if (name == "distortion") return std::make_unique<Distortion>();
   if (name == "resonantFilter") return std::make_unique<ResonantFilter>();
   if (name == "biquadFilter") return std::make_unique<BiquadFilter>();
+  if (name == "equalizer") return std::make_unique<Equalizer>();
   if (name == "chorus") return std::make_unique<Chorus>();
   if (name == "phaser") return std::make_unique<Phaser>();
   if (name == "tremolo") return std::make_unique<Tremolo>();
