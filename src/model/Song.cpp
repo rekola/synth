@@ -139,6 +139,7 @@ static bool parsePatternContent(XMLElement & pattern_element, Pattern & pattern,
     auto column_text = it->Attribute("column");
     auto velocity_text = it->Attribute("velocity");
     auto delay_text = it->Attribute("delay");
+    auto fx_text = it->Attribute("fx");
 
     auto value_text = it->GetText();
     if (!value_text) value_text = it->Attribute("value");
@@ -151,7 +152,9 @@ static bool parsePatternContent(XMLElement & pattern_element, Pattern & pattern,
 
       auto notes = Note::createFromString(value_text, velocity, delay, tuning);
       for (int i = 0; i < static_cast<int>(notes.size()); i++) {
-	pattern.setNote(row, start_column + i, notes[static_cast<size_t>(i)]);
+	auto note = notes[static_cast<size_t>(i)];
+	if (fx_text) note.setFx(fx_text);
+	pattern.setNote(row, start_column + i, note);
       }
     }
   }
@@ -308,6 +311,7 @@ static void storePatternContent(XMLDocument & doc, XMLElement * pattern_element,
       if (col > 0) note_element->SetAttribute("column", col);
       if (note.getVelocity() != constants::DEFAULT_VELOCITY) note_element->SetAttribute("velocity", note.getVelocity());
       if (note.getDelay() > 0) note_element->SetAttribute("delay", note.getDelay());
+      if (note.hasFx()) note_element->SetAttribute("fx", std::string(note.getFx()).c_str());
       note_element->SetText(note_text.c_str());
       pattern_element->InsertEndChild(note_element);
     }

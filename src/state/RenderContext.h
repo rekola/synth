@@ -25,13 +25,20 @@
 // producer should never need to know why or when it's being started or
 // stopped - that scheduling problem belongs entirely up here.
 
+// A position a single note takes in place of its track's: an azimuth and/or
+// an ambisonic extent, set by the note's own fx (Pxx / Wxx).
+struct NoteOverride {
+  bool has_azimuth = false, has_extent = false;
+  float azimuth = 0, extent = 0;
+};
+
 // A pattern note's own on/off, resolved (tuning/velocity/note_value)
 // by the caller before queuing - see NoteCoordinate.h for why this stays
 // separate from the coordinate itself.
 class TrackEvent {
  public:
-  TrackEvent(short _id, Tuning _tuning, float _velocity, int _note_value = -1, const NoteCoordinate & _note_coord = {})
-    : id(_id), tuning(_tuning), velocity(_velocity), note_value(_note_value), note_coord(_note_coord) { }
+  TrackEvent(short _id, Tuning _tuning, float _velocity, int _note_value = -1, const NoteCoordinate & _note_coord = {}, const NoteOverride & _note_override = {})
+    : id(_id), tuning(_tuning), velocity(_velocity), note_value(_note_value), note_coord(_note_coord), note_override(_note_override) { }
 
   // A clip ending or giving way: every voice of the track released (no
   // column's id is negative).
@@ -50,6 +57,7 @@ class TrackEvent {
   float getVelocity() const { return velocity; }
   int getNoteValue() const { return note_value; }
   const NoteCoordinate & getNoteCoordinate() const { return note_coord; }
+  const NoteOverride & getNoteOverride() const { return note_override; }
 
  private:
   short id;
@@ -57,6 +65,7 @@ class TrackEvent {
   float velocity;
   int note_value;
   NoteCoordinate note_coord;
+  NoteOverride note_override;
 };
 
 // A SampleTrack content start or stop, due at a specific within-block
@@ -106,8 +115,8 @@ class RenderContext {
  public:
   RenderContext(ChannelConfiguration config) : channel_config_(config) { }
 
-  void addPendingEvent(int track_id, int frame, short id, Tuning tuning, float velocity, int note_value = -1, const NoteCoordinate & note_coord = {}) {
-    pending_events_[track_id][frame].push_back(TrackEvent(id, tuning, velocity, note_value, note_coord));
+  void addPendingEvent(int track_id, int frame, short id, Tuning tuning, float velocity, int note_value = -1, const NoteCoordinate & note_coord = {}, const NoteOverride & note_override = {}) {
+    pending_events_[track_id][frame].push_back(TrackEvent(id, tuning, velocity, note_value, note_coord, note_override));
   }
   
   // Every voice of `track_id` released at `frame` - the transition's own

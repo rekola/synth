@@ -58,7 +58,8 @@ SongStructure::visit(const Track & track) {
     info.has_note_column_ = leaf_track.showNoteColumn();
     info.num_velocity_columns_ = leaf_track.showVelocityColumn() ? 1 : 0;
     info.has_delay_column_ = leaf_track.showDelayColumn();
-    info.has_effect_column_ = leaf_track.showEffectsColumn();
+    info.has_local_fx_column_ = leaf_track.showLocalFxColumn();
+    info.has_track_fx_column_ = leaf_track.showTrackFxColumn();
     info.updateNumSubtracks(leaf_track.getMinNoteColumns());
     info.collapsed_ = leaf_track.isCollapsed();
     assign(std::move(info));
@@ -66,8 +67,8 @@ SongStructure::visit(const Track & track) {
     // Waveform placeholder column only - no command column, unlike every
     // other leaf track type: a SampleTrack's own clip content is raw
     // audio, not a Pattern, so there's no per-row Command data for one to
-    // ever hold (has_effect_column_ stays at its own default, false -
-    // deliberately not LeafTrack::showEffectsColumn(), since that toggle
+    // ever hold (has_track_fx_column_ stays at its own default, false -
+    // deliberately not LeafTrack::showTrackFxColumn(), since that toggle
     // is for a track that merely doesn't happen to use its command
     // column, not one that structurally can't have one at all). The
     // placeholder itself is much wider than an ordinary NOTE column
@@ -101,7 +102,7 @@ SongStructure::visit(const Track & track) {
     for (auto & child : track.getChildren()) visit(*child);
     VisibleTrackInfo info;
     info.has_note_column_ = false;
-    info.has_effect_column_ = true;
+    info.has_track_fx_column_ = true;
     // A real per-track user toggle (see Track::isCollapsed()) - effect
     // tracks just default to collapsed there, since there's rarely any
     // per-track command content worth showing at full width until the
@@ -126,7 +127,7 @@ SongStructure::visit(const Track & track) {
     for (auto & child : track.getChildren()) visit(*child);
     VisibleTrackInfo info;
     info.has_note_column_ = false;
-    info.has_effect_column_ = true;
+    info.has_track_fx_column_ = true;
     info.collapsed_ = track.isCollapsed();
     info.collapsed_content_width_ = 0;
     assign(std::move(info));

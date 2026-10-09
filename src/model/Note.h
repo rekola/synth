@@ -31,6 +31,40 @@ class Note {
   short getVelocity() const { return velocity; }
   float getVelocityAsFloat() const { return velocity / 127.0f; }
   short getDelay() const { return delay; }
+
+  // The note's local effect: three characters, a mnemonic letter and a
+  // two-digit hex argument (`Command` without its leading chain digit),
+  // "---" when unset. Stored and edited like velocity/delay; playback does
+  // not act on it yet.
+  std::string_view getFx() const { return std::string_view(fx, 3); }
+  bool hasFx() const { return fx[0] != '-' || fx[1] != '-' || fx[2] != '-'; }
+  // Whether `codepoint` may be typed at position `i` (0 = the mnemonic, 1-2
+  // the hex argument); a letter is stored uppercase. Returns the character to
+  // store, or 0 if it is not allowed.
+  static char fxCharFor(int i, int32_t codepoint) {
+    if (i < 0 || i >= 3) return 0;
+    if (codepoint >= 'a' && codepoint <= 'z') codepoint -= 'a' - 'A';
+    if (codepoint == '-' || (codepoint >= '0' && codepoint <= '9')) return static_cast<char>(codepoint);
+    if (codepoint >= 'A' && codepoint <= (i == 0 ? 'Z' : 'F')) return static_cast<char>(codepoint);
+    return 0;
+  }
+  // false (and unchanged) unless `text` is exactly three allowed characters.
+  bool setFx(std::string_view text) {
+    if (text.size() != 3) return false;
+    char parsed[3];
+    for (int i = 0; i < 3; i++) {
+      parsed[i] = fxCharFor(i, static_cast<unsigned char>(text[static_cast<size_t>(i)]));
+      if (!parsed[i]) return false;
+    }
+    std::copy(parsed, parsed + 3, fx);
+    return true;
+  }
+  bool setFxChar(int i, int32_t codepoint) {
+    auto c = fxCharFor(i, codepoint);
+    if (!c) return false;
+    fx[i] = c;
+    return true;
+  }
   float getDelayAsFloat() const { return delay / 255.0f; }
   bool isDefined() const { return value >= 0 || velocity > 0; }
   bool isOff() const { return value >= 0 && velocity == 0; }
@@ -43,6 +77,7 @@ class Note {
     value = -1;
     velocity = 0;
     delay = 0;
+    std::fill(fx, fx + 3, '-');
   }
 
   // `delta` may be any size (positive up, negative down) - not just ±1 -
@@ -383,6 +418,7 @@ class Note {
   int value; // sample position, note value or -1 for undefined note
   short velocity;
   short delay;
+  char fx[3] = { '-', '-', '-' };
 };
 
 // The Note-taking overload of getFrequencyFor() (Tuning.h) lives here

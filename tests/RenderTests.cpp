@@ -182,6 +182,38 @@ class RecordingMixer : public Mixer {
 
 } // namespace
 
+// A note's own Rxy fx retriggers just that note, like a 0Rxy command does.
+TEST(render_note_fx_retrigger_restarts_the_note_within_its_row) {
+  auto plain = loadFixture("center_note.xml");
+  auto retriggered = loadFixture("note_fx_retrigger.xml");
+  CHECK(plain.ok);
+  CHECK(retriggered.ok);
+
+  ChannelConfiguration config(44100, 1);
+  auto a = renderSongOffline(plain.song, config);
+  auto b = renderSongOffline(retriggered.song, config);
+  CHECK(!hasNonFiniteSample(b));
+
+  // Row 0 lasts 125 ms at 120 bpm; the retriggers land inside it.
+  float difference = std::fabs(windowedRms(a, 0, 0.04f, 0.12f) - windowedRms(b, 0, 0.04f, 0.12f));
+  CHECK(difference > 1e-4f);
+  // Past the row the two agree on loudness again only if nothing else changed.
+  CHECK(windowedRms(b, 0, 0.0f, 0.12f) > 1e-4f);
+}
+
+// A note's own Pxx fx places that note alone: 00 hard left, FF hard right.
+TEST(render_note_fx_azimuth_places_the_note) {
+  ChannelConfiguration config(44100, 1);
+  auto left_song = loadFixture("note_fx_azimuth_00.xml");
+  auto right_song = loadFixture("note_fx_azimuth_FF.xml");
+  CHECK(left_song.ok);
+  CHECK(right_song.ok);
+  auto to_left = renderSongOffline(left_song.song, config);
+  auto to_right = renderSongOffline(right_song.song, config);
+  CHECK(rms(to_left, 0) > 4.0f * rms(to_left, 1));
+  CHECK(rms(to_right, 1) > 4.0f * rms(to_right, 0));
+}
+
 TEST(render_center_note_produces_symmetric_stereo_output) {
   auto loaded = loadFixture("center_note.xml");
   CHECK(loaded.ok);

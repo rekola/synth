@@ -36,6 +36,7 @@ uint64_t digestPattern(const Pattern & pattern) {
       r = combine(r, static_cast<uint64_t>(n.getValue() + 1000));
       r = combine(r, static_cast<uint64_t>(n.getVelocity()));
       r = combine(r, static_cast<uint64_t>(n.getDelay()));
+      for (char c : n.getFx()) r = combine(r, static_cast<uint64_t>(c));
     }
     rows += r;
   }

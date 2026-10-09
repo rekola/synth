@@ -154,6 +154,8 @@ class SongState : public TrackState {
           scheduleRetrigger(track_id, frame_offset, command.getRetriggerIntervalTicks(), command.getRetriggerVolumeCode());
         } else if (command.isAzimuthSlide()) {
           scheduleAzimuthSlide(track_id, frame_offset, command.getAzimuthSlidePerTick());
+        } else if (command.isExtentSet()) {
+          if (auto * leaf_state = dynamic_cast<LeafTrackState *>(getChildByInternalId(track_id))) leaf_state->setExtent(command.getExtentSetMeters());
         } else if (command.isVolumeSet() || command.isAzimuthSet()) {
           // 0Lxx/0Pxx - an absolute set, applied the instant
 	  // this row starts (unlike the slide commands above, there's
@@ -565,9 +567,20 @@ class SongState : public TrackState {
 		float velocity = note.isOff() ? 0.0f : note.getVelocityAsFloat();
 		auto delay_samples = int((note.getDelayAsFloat() + swing::offsetRows(swing_row, swing_)) * getChannelConfiguration().getSampleInterval(tempo_));
 		int note_value = (note.isAftertouch() || note.isOff()) ? -1 : note.getValue();
-		render_context_.addPendingEvent(track_id, i + delay_samples, int(j), tuning, velocity, note_value, NoteCoordinate(song_structure_.getOrdinalFor(track_id), row_idx, int(j)));
+		// The note's own fx is a command with an implicit leading 0.
+		Command fx;
+		NoteOverride note_override;
+		if (note.hasFx() && fx.setData(std::string("0") + std::string(note.getFx()))) {
+		  if (fx.isAzimuthSet()) { note_override.has_azimuth = true; note_override.azimuth = fx.getAzimuthSetDegrees(); }
+		  else if (fx.isExtentSet()) { note_override.has_extent = true; note_override.extent = fx.getExtentSetMeters(); }
+		}
+		render_context_.addPendingEvent(track_id, i + delay_samples, int(j), tuning, velocity, note_value, NoteCoordinate(song_structure_.getOrdinalFor(track_id), row_idx, int(j)), note_override);
 		if (note.isOff()) last_notes_[track_id].erase(int(j));
-		else if (note_value >= 0 && velocity > 0.0f) last_notes_[track_id][int(j)] = LastNote { int(j), tuning, velocity, note_value, row_idx };
+		else if (note_value >= 0 && velocity > 0.0f) {
+		  LastNote last { int(j), tuning, velocity, note_value, row_idx, note_override };
+		  last_notes_[track_id][int(j)] = last;
+		  if (fx.isRetrigger()) scheduleNoteRetrigger(track_id, i + delay_samples, last, fx.getRetriggerIntervalTicks(), fx.getRetriggerVolumeCode());
+		}
 	      }
 	    }
 
@@ -815,25 +828,32 @@ class SongState : public TrackState {
     setPosition(next_bar + std::min(row_in_bar, barsAt(next_bar).barRows() - 1));
   }
 
+  struct LastNote { int column; Tuning tuning; float velocity; int note_value; int row; NoteOverride note_override; };
+
   // 0Rxy (Command::isRetrigger()) - re-fires every note still playing on
   // the track every `interval_ticks` ticks across the row starting at
   // block-relative sample offset `row_start`, velocity per `volume_code`.
   // Same-id events retrigger the voice in place.
   void scheduleRetrigger(int track_id, int row_start, int interval_ticks, int volume_code) {
     auto it = last_notes_.find(track_id);
-    if (it == last_notes_.end() || interval_ticks <= 0) return;
+    if (it == last_notes_.end()) return;
+    for (auto & [ column, last ] : it->second) scheduleNoteRetrigger(track_id, row_start, last, interval_ticks, volume_code);
+  }
+
+  // The same for one note, starting `row_start` samples into the block - what
+  // a note's own Rxy fx does.
+  void scheduleNoteRetrigger(int track_id, int row_start, const LastNote & last, int interval_ticks, int volume_code) {
+    if (interval_ticks <= 0) return;
     int row_samples = getChannelConfiguration().getSampleInterval(tempo_);
     int tick_interval = std::max(1, row_samples / constants::TICKS_PER_ROW);
-    for (auto & [ column, last ] : it->second) {
-      float velocity = last.velocity;
-      for (int tick = interval_ticks; tick < constants::TICKS_PER_ROW; tick += interval_ticks) {
-        int offset = tick * tick_interval;
-        if (offset >= row_samples) break;
-        velocity = Command::retriggerVelocityStep(last.velocity, velocity, volume_code);
-        if (velocity <= 0.0f) break;
-        render_context_.addPendingEvent(track_id, row_start + offset, static_cast<short>(column), last.tuning, velocity, last.note_value,
-                                        NoteCoordinate(song_structure_.getOrdinalFor(track_id), last.row, last.column));
-      }
+    float velocity = last.velocity;
+    for (int tick = interval_ticks; tick < constants::TICKS_PER_ROW; tick += interval_ticks) {
+      int offset = tick * tick_interval;
+      if (offset >= row_samples) break;
+      velocity = Command::retriggerVelocityStep(last.velocity, velocity, volume_code);
+      if (velocity <= 0.0f) break;
+      render_context_.addPendingEvent(track_id, row_start + offset, static_cast<short>(last.column), last.tuning, velocity, last.note_value,
+                                      NoteCoordinate(song_structure_.getOrdinalFor(track_id), last.row, last.column), last.note_override);
     }
   }
 
@@ -949,7 +969,6 @@ private:
   int position_edit_seq_ = 0;
   int position_edit_seq_at_stop_ = -1; // see notePlaybackStopped()/resyncPlayheadAfterStop()
   // The notes still playing per track (last note-on per column), what 0Rxy retriggers.
-  struct LastNote { int column; Tuning tuning; float velocity; int note_value; int row; };
   std::unordered_map<int, std::map<int, LastNote>> last_notes_; // track -> note column
   bool pending_break_ = false; // ZBxx seen on the row currently completing
   int pending_break_row_ = 0;
