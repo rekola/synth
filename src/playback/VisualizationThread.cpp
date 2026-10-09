@@ -5,6 +5,7 @@
 #include "../ambisonic/Mixer.h"
 #include "../ambisonic/MixerFactory.h"
 
+#include <algorithm>
 #include <array>
 #include <poll.h>
 #include <memory>
@@ -74,6 +75,11 @@ VisualizationThread::handleAudioBlockEvent(AudioBlockEvent & ev) {
   auto aux_b = ev.getAuxB().calculateLoudness();
   channel_loudness.insert(channel_loudness.end(), aux_a.begin(), aux_a.end());
   channel_loudness.insert(channel_loudness.end(), aux_b.begin(), aux_b.end());
+  // Silent input for long enough that every scope shows zeros: nothing to
+  // analyze, decode or send until sound returns.
+  bool silent = std::all_of(channel_loudness.begin(), channel_loudness.end(), [](float v) { return v < 1e-9f; });
+  silent_blocks_ = silent ? silent_blocks_ + 1 : 0;
+  if (silent_blocks_ > silent_limit_) return;
   result->setChannelLoudness(std::move(channel_loudness));
 
   // The FFT reads a fresh solo decode of the *active* buffer's own
