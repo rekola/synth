@@ -1562,6 +1562,10 @@ PatternEditor::offerInput(const InputEvent & input) {
     // started the transport itself - stopAutoRecordSession() itself
     // handles only actually stopping if it's still genuinely playing
     // (the user may have manually stopped it in the meantime).
+    if (active_keyboard_notes_.empty() && pending_step_ != 0) {
+      source_->moveCursor(pending_step_);
+      pending_step_ = 0;
+    }
     if (auto_started_playback_ && active_keyboard_notes_.empty()) {
       getController().stopAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, info, auto_record_clip_ids_);
     }
@@ -1876,6 +1880,12 @@ PatternEditor::offerInput(const InputEvent & input) {
 
 	if (is_repeat && midi_note >= 0) return true; // already sounding - nothing to redo
 
+	// Whether this key's usual one-row step is left to someone else: an
+	// auto-started session lets the playing transport advance the rows, and a
+	// held key defers the step to the last release, so the rest of a chord
+	// lands on the same row.
+	bool hold_tracked_note = false;
+
 	if (is_delete || midi_note >= 0 || is_off) {
 	  Song::Edit edit(song, "enter note", Song::Edit::Kind::CONTENT);
 	  if (is_delete) {
@@ -1941,6 +1951,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, getController().getActiveBufferName(), track_id, note_column, note.getValue(), note.getVelocity()));
 	    }
 	    if (has_hold_info) active_keyboard_notes_[input.getId()] = { note_column, info.getAbsolutePosition(), track_id };
+	    hold_tracked_note = has_hold_info;
 	  }
 
 	  row_edited = true;
@@ -1953,7 +1964,12 @@ PatternEditor::offerInput(const InputEvent & input) {
 	    // leaves the cursor where it was.
 	    if (input.getId() == NCKEY_BACKSPACE) n = -1;
 	    else if (input.getId() != NCKEY_DEL) n = 1;
-	    if (n) {
+	    if (n && hold_tracked_note) {
+	      // The transport moves the row itself once a session auto-started by
+	      // this chord is playing; otherwise the step waits for the last
+	      // key to be released.
+	      if (!auto_started_playback_) pending_step_ += n * edit_step_size;
+	    } else if (n) {
 	      source_->moveCursor(n * edit_step_size);
 	    }
 	  }

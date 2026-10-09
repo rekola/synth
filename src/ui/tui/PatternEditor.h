@@ -269,6 +269,11 @@ protected:
   // session is never stopped just because a held note key was released.
   bool auto_started_playback_ = false;
 
+  // Rows the cursor still owes the notes entered while keys were held: a
+  // chord's keys all land on one row, and the cursor steps once the last
+  // one is released.
+  int pending_step_ = 0;
+
   // Whole-row-replace bookkeeping for a realtime-recording session -
   // mirrors LaunchpadManager's own auto_record_cleared_rows_/
   // last_cleared_row_ exactly (see its comment
