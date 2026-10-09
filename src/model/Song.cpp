@@ -1,5 +1,8 @@
 #include "Song.h"
 
+#include <cstdlib>
+#include <set>
+
 #include "../state/SongState.h"
 
 #include "InstrumentTrack.h"
@@ -380,9 +383,106 @@ void
 Song::removeInstrument(int index) {
   auto & instruments = instrument_pool_.getInstruments();
   if (index < 0 || index >= static_cast<int>(instruments.size())) return;
+  Edit edit(*this, "remove instrument");
   instrument_pool_.removeInstrument(index);
   reindexInstrumentIds(*master_track_, index);
-  incVersion();
+}
+
+SongScalars
+Song::scalars() const {
+  SongScalars out;
+  out.tempo = getTempo();
+  out.swing = getSwing();
+  out.time_signature = getTimeSignature();
+  out.running_bars = getRunningBars();
+  out.tuning = getTuning();
+  out.ear_height = getEarHeight();
+  out.floor_reflection_enabled = getFloorReflectionEnabled();
+  out.floor_reflection_strength = getFloorReflectionStrength();
+  out.ground_absorption = getGroundAbsorption();
+  return out;
+}
+
+void
+Song::publishContent() const {
+  content_publisher_->publish(compileContent());
+}
+
+std::unique_ptr<PlaybackContent>
+Song::compileContent() const {
+  auto content = std::make_unique<PlaybackContent>();
+  content->scalars = scalars();
+  content->arrangement = getArrangement().toArrangement();
+  for (auto track_id : clipTrackIds()) {
+    auto & compiled = content->clips_by_track[track_id];
+    for (auto clip : getClips(track_id)) compiled.push_back(clip.toClip());
+  }
+  return content;
+}
+
+std::vector<int>
+Song::clipTrackIds() const {
+  std::vector<int> ids;
+  const std::string prefix = "clips:";
+  for (auto & slot : doc_->get(doc_->root())->slots) {
+    if (slot.name.compare(0, prefix.size(), prefix) == 0) ids.push_back(std::atoi(slot.name.c_str() + prefix.size()));
+  }
+  return ids;
+}
+
+int
+Song::getUsedSceneCount() const {
+  size_t used = 0;
+  for (auto track_id : clipTrackIds()) {
+    auto clips = getClips(track_id);
+    for (size_t i = clips.size(); i > used; i--) {
+      if (!clips[i - 1].isEmpty()) {
+        used = i;
+        break;
+      }
+    }
+  }
+  return static_cast<int>(used);
+}
+
+ClipView
+Song::addClip(Clip clip) {
+  Edit edit(*this, "add clip");
+  if (clip.getId().empty()) clip.setId(generateUniqueClipId());
+  auto node = ClipView::create(context(), clip.getLeafTrackId());
+  ClipView view(context(), node);
+  view.assign(clip); // off to the side, so not history
+  doc_->insertChild(doc_->root(), ClipList::slotName(clip.getLeafTrackId()), getClips(clip.getLeafTrackId()).size(), node);
+  return view;
+}
+
+ClipView
+Song::ensureClipAt(int track_id, int index) {
+  Edit edit(*this, "ensure clip slot");
+  auto clips = getClips(track_id);
+  while (static_cast<int>(clips.size()) <= index) {
+    doc_->insertChild(doc_->root(), ClipList::slotName(track_id), clips.size(), ClipView::create(context(), track_id));
+  }
+  return clips[static_cast<size_t>(index)];
+}
+
+std::string
+Song::generateUniqueClipId() const {
+  std::set<std::string> taken;
+  for (auto track_id : clipTrackIds()) {
+    for (auto clip : getClips(track_id)) taken.insert(clip.getId());
+  }
+  for (int n = 1; ; n++) {
+    auto candidate = "clip" + std::to_string(n);
+    if (!taken.count(candidate)) return candidate;
+  }
+}
+
+bool
+Song::publishedContentIsCurrent() const {
+  auto content = ContentPublisher::Reader(*content_publisher_);
+  auto fresh = compileContent();
+  return contentDigest(content->scalars, content->arrangement, content->clips_by_track) == contentDigest(fresh->scalars, fresh->arrangement, fresh->clips_by_track);
 }
 
 // Sample rate used to construct Song's own bus-slot BusEffect instances
@@ -462,10 +562,22 @@ static void storeBusConfig(const Song & song, XMLDocument & doc, XMLElement * ro
   if (!b_none) storeBusSlotChild(song, 1, doc, bus);
 }
 
-Song::Song(Tuning tuning, short key)
-  : tuning_(tuning), key_note_number_(key) {
+static_assert(static_cast<int>(Tuning::EDO31) == 3, "songschema::kTuning's default is Tuning::EDO31");
+static_assert(static_cast<int>(Scale::NONE) == 0, "songschema::kScale's default is Scale::NONE");
+
+Song::Song(Tuning tuning, short key) {
+  // Every transaction is replayed against a copy to check that its undo
+  // record restores the tree; slow, for tests and debugging.
+  static const bool verify = std::getenv("SYNTH_VERIFY_DOCUMENT") != nullptr;
+  doc_->setVerify(verify);
+  // The construction arguments are the starting state, not an edit.
+  doc::set(*doc_, doc_->root(), songschema::kTuning, static_cast<int>(tuning));
+  doc::set(*doc_, doc_->root(), songschema::kKey, static_cast<int>(key));
   resetBusToDefaults();
   loadMasterTrackParameters(MemoryParameterSource());
+  arrangement_node_ = ArrangementView::create(*doc_);
+  doc_->insertChild(doc_->root(), scoreschema::kArrangementSlot, 0, arrangement_node_);
+  doc_->clearJournal();
 }
 
 void
@@ -570,17 +682,17 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
       }
     }
 
-    scenes_.clear();
+    clearScenes();
     if (auto scenes = song->FirstChildElement("scenes")) {
-      for (auto it = scenes->FirstChildElement("scene"); it; it = it->NextSiblingElement("scene")) {
+      int scene_index = 0;
+      for (auto it = scenes->FirstChildElement("scene"); it; it = it->NextSiblingElement("scene"), scene_index++) {
         auto name = it->Attribute("name");
-        SceneInfo info{name ? name : "", std::max(it->IntAttribute("tempo", 0), 0)};
+        setSceneName(scene_index, name ? name : "");
+        setSceneTempo(scene_index, std::max(it->IntAttribute("tempo", 0), 0));
         int numerator = 0, denominator = 0;
         if (auto text = it->Attribute("timeSignature"); text && sscanf(text, "%d/%d", &numerator, &denominator) == 2 && numerator > 0 && numerator <= 32 && scenename::validDenominator(denominator)) {
-          info.time_numerator = numerator;
-          info.time_denominator = denominator;
+          setSceneTimeSignature(scene_index, {numerator, denominator});
         }
-        scenes_.push_back(std::move(info));
       }
     }
 
@@ -647,17 +759,18 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
     // <arrangement>: the one timeline - each track's inline <pattern>,
     // its placed clips (<instances>) and a SampleTrack's background bed.
     if (auto arrangement = song->FirstChildElement("arrangement")) {
-      auto & timeline = getArrangement();
+      auto timeline = getArrangement();
       for (auto it = arrangement->FirstChildElement("pattern"); it ; it = it->NextSiblingElement("pattern")) {
 	auto track_text = it->Attribute("track");
 	auto track = track_text ? resolveTrackReference(*this, track_text) : nullptr;
 	if (!track) continue;
 
-	auto & pattern = timeline.getPatternsByTrack()[track->getInternalId()];
+	Pattern pattern;
 	if (!parsePatternContent(*it, pattern, getTuningForTrack(*track), filename)) {
 	  setlocale(LC_ALL, oldLocale.c_str());
 	  return false;
 	}
+	timeline.setPatternForTrack(track->getInternalId(), pattern);
       }
 
       for (auto it = arrangement->FirstChildElement("instances"); it ; it = it->NextSiblingElement("instances")) {
@@ -692,15 +805,18 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	  setlocale(LC_ALL, oldLocale.c_str());
 	  return false;
 	}
-	auto & content = timeline.getOrCreateSampleBackgroundContent(track->getInternalId());
+	SampleContent content;
 	content.setBuffer(loaded.buffer);
 	content.setNativeSampleRate(loaded.rate);
+	timeline.setSampleBackground(track->getInternalId(), content);
       }
     }
   }
 
   // Set the old locale before exiting
   setlocale(LC_ALL, oldLocale.c_str());
+  doc_->clearJournal(); // opening a file is not an edit
+  if (content_published_mode_) publishContent();
   return true;
 }
 
@@ -744,13 +860,14 @@ Song::save(const std::string & filename) const {
   // rather than some other, unordered collection. One <trackClips> per
   // track, grouping that track's own <clip> children rather than
   // repeating a track reference on every single one.
-  bool has_clips = std::any_of(clips_by_track_.begin(), clips_by_track_.end(),
+  auto compiled = compileContent();
+  bool has_clips = std::any_of(compiled->clips_by_track.begin(), compiled->clips_by_track.end(),
     [](auto & entry) { return !entry.second.empty(); });
   if (has_clips) {
     auto clips_element = doc.NewElement("clips");
     root->InsertEndChild(clips_element);
     for (auto track_id : getRootTrackIds()) {
-      auto & clips = getClips(track_id);
+      auto & clips = compiled->getClips(track_id);
       if (clips.empty()) continue;
 
       auto track = getMasterTrack().getChildByInternalId(track_id);
@@ -818,7 +935,7 @@ Song::save(const std::string & filename) const {
   // recorded/loaded) isn't an error, just nothing to sweep.
   {
     unordered_set<string> live_ids;
-    for (auto & [ track_id, clips ] : clips_by_track_) {
+    for (auto & [ track_id, clips ] : compiled->clips_by_track) {
       for (auto & clip : clips) {
 	// One stem per real layer, not just clip.getId() alone - a
 	// multi-layer clip's later takes live under their own suffixed
@@ -832,7 +949,7 @@ Song::save(const std::string & filename) const {
 	}
       }
     }
-    for (auto & [ track_id, background ] : getArrangement().getSampleBackgroundsByTrack()) {
+    for (auto & [ track_id, background ] : compiled->arrangement.getSampleBackgroundsByTrack()) {
       if (background.getBuffer()) live_ids.insert(sampleBackgroundStem(track_id));
     }
 
@@ -848,10 +965,11 @@ Song::save(const std::string & filename) const {
     }
   }
 
-  if (!locators_.empty()) {
+  auto locator_map = getLocators();
+  if (!locator_map.empty()) {
     auto locators = doc.NewElement("locators");
     root->InsertEndChild(locators);
-    for (auto & [ row, name ] : locators_) {
+    for (auto & [ row, name ] : locator_map) {
       auto locator = doc.NewElement("locator");
       locator->SetAttribute("row", row);
       locator->SetText(name.c_str());
@@ -860,16 +978,16 @@ Song::save(const std::string & filename) const {
   }
 
   // One <scene> per scene position, in order; trailing empty ones aren't written.
-  auto named_scenes = scenes_.size();
-  while (named_scenes > 0 && scenes_[named_scenes - 1].name.empty() && scenes_[named_scenes - 1].tempo == 0 && scenes_[named_scenes - 1].time_numerator == 0) named_scenes--;
+  auto named_scenes = sceneCount();
+  while (named_scenes > 0 && getSceneName(named_scenes - 1).empty() && getSceneTempo(named_scenes - 1) == 0 && !getSceneTimeSignature(named_scenes - 1).isSet()) named_scenes--;
   if (named_scenes > 0) {
     auto scenes = doc.NewElement("scenes");
     root->InsertEndChild(scenes);
-    for (size_t i = 0; i < named_scenes; i++) {
+    for (int i = 0; i < named_scenes; i++) {
       auto scene = doc.NewElement("scene");
-      if (!scenes_[i].name.empty()) scene->SetAttribute("name", scenes_[i].name.c_str());
-      if (scenes_[i].tempo > 0) scene->SetAttribute("tempo", scenes_[i].tempo);
-      if (scenes_[i].time_numerator > 0) scene->SetAttribute("timeSignature", (std::to_string(scenes_[i].time_numerator) + "/" + std::to_string(scenes_[i].time_denominator)).c_str());
+      if (!getSceneName(i).empty()) scene->SetAttribute("name", getSceneName(i).c_str());
+      if (getSceneTempo(i) > 0) scene->SetAttribute("tempo", getSceneTempo(i));
+      if (getSceneTimeSignature(i).isSet()) scene->SetAttribute("timeSignature", getSceneTimeSignature(i).toString().c_str());
       scenes->InsertEndChild(scene);
     }
   }
@@ -878,7 +996,7 @@ Song::save(const std::string & filename) const {
   // under one element per kind ("track" once, not on every child).
   auto arrangement_element = doc.NewElement("arrangement");
   root->InsertEndChild(arrangement_element);
-  auto & timeline = getArrangement();
+  auto & timeline = compiled->arrangement;
 
   for (auto & [ track_id, pattern ] : timeline.getPatternsByTrack()) {
     auto track = getMasterTrack().getChildByInternalId(track_id);
@@ -954,12 +1072,12 @@ Song::loadParameters(const ParameterSource & input) {
   setScale(scaleFromString(input.get<std::string>("scale")));
 
   setTempo(input.get<int>("tempo", 90));
-  time_signature_ = {4, 4};
+  setTimeSignature({4, 4});
   auto signature = TimeSignature::parse(input.get<std::string>("timeSignature"));
-  if (signature && signature->isSet()) time_signature_ = *signature;
+  if (signature && signature->isSet()) setTimeSignature(*signature);
   auto running = TimeSignature::parse(input.get<std::string>("transportTimeSignature"));
   if (running && running->isSet())
-    running_bars_ = {*running, input.get<int>("transportBarOrigin", 0)};
+    setRunningBars({*running, input.get<int>("transportBarOrigin", 0)});
   else
     clearRunningBars();
   setSwing(input.get<int>("swing", swing::kStraight));
@@ -983,33 +1101,161 @@ Song::loadParameters(const ParameterSource & input) {
 const std::string &
 Song::getLocator(int row) const {
   static const std::string none;
-  auto it = locators_.find(row);
-  return it != locators_.end() ? it->second : none;
+  auto index = locatorIndex(row);
+  auto * children = doc_->get(doc_->root())->children(songschema::kLocatorsSlot);
+  if (!children || index >= children->size()) return none;
+  auto node = (*children)[index];
+  return doc::get(*doc_, node, songschema::kLocatorRow) == row ? doc::getRef(*doc_, node, songschema::kLocatorText) : none;
 }
 
 void
 Song::setLocator(int row, std::string name) {
-  if (name.empty()) locators_.erase(row);
-  else locators_[row] = std::move(name);
+  Edit edit(*this, "set locator");
+  auto index = locatorIndex(row);
+  auto * children = doc_->get(doc_->root())->children(songschema::kLocatorsSlot);
+  doc::NodeId existing = doc::kNoNode;
+  if (children && index < children->size() && doc::get(*doc_, (*children)[index], songschema::kLocatorRow) == row) existing = (*children)[index];
+  if (name.empty()) {
+    if (existing != doc::kNoNode) doc_->removeChild(doc_->root(), songschema::kLocatorsSlot, index);
+    else edit.discard();
+  } else if (existing != doc::kNoNode) {
+    doc::set(*doc_, existing, songschema::kLocatorText, name);
+  } else {
+    auto node = doc_->create("locator", { { songschema::kLocatorRow.key, doc::toValue(row) }, { songschema::kLocatorText.key, doc::toValue(name) } });
+    doc_->insertChild(doc_->root(), songschema::kLocatorsSlot, index, node);
+  }
+}
+
+std::map<int, std::string>
+Song::getLocators() const {
+  std::map<int, std::string> out;
+  if (auto * children = doc_->get(doc_->root())->children(songschema::kLocatorsSlot)) {
+    for (auto node : *children) out[doc::get(*doc_, node, songschema::kLocatorRow)] = doc::get(*doc_, node, songschema::kLocatorText);
+  }
+  return out;
+}
+
+size_t
+Song::locatorIndex(int row) const {
+  auto * children = doc_->get(doc_->root())->children(songschema::kLocatorsSlot);
+  if (!children) return 0;
+  size_t lo = 0, hi = children->size();
+  while (lo < hi) {
+    auto mid = (lo + hi) / 2;
+    if (doc::get(*doc_, (*children)[mid], songschema::kLocatorRow) < row) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+int
+Song::sceneCount() const {
+  auto * children = doc_->get(doc_->root())->children(songschema::kScenesSlot);
+  return children ? static_cast<int>(children->size()) : 0;
+}
+
+void
+Song::clearScenes() {
+  Edit edit(*this, "clear scenes");
+  while (sceneCount() > 0) doc_->removeChild(doc_->root(), songschema::kScenesSlot, static_cast<size_t>(sceneCount() - 1));
+}
+
+doc::NodeId
+Song::sceneNode(int scene) const {
+  auto * children = doc_->get(doc_->root())->children(songschema::kScenesSlot);
+  return scene >= 0 && children && static_cast<size_t>(scene) < children->size() ? (*children)[static_cast<size_t>(scene)] : doc::kNoNode;
+}
+
+doc::NodeId
+Song::ensureSceneNode(int scene) {
+  if (scene < 0) return doc::kNoNode;
+  while (sceneCount() <= scene) {
+    auto node = doc_->create("scene");
+    doc_->insertChild(doc_->root(), songschema::kScenesSlot, static_cast<size_t>(sceneCount()), node);
+  }
+  return sceneNode(scene);
+}
+
+const std::string &
+Song::getSceneName(int scene) const {
+  return doc::getRef(*doc_, sceneNode(scene), songschema::kSceneName);
+}
+
+int
+Song::getSceneTempo(int scene) const {
+  return doc::get(*doc_, sceneNode(scene), songschema::kSceneTempo);
+}
+
+TimeSignature
+Song::getSceneTimeSignature(int scene) const {
+  auto node = sceneNode(scene);
+  return { doc::get(*doc_, node, songschema::kSceneTimeNumerator), doc::get(*doc_, node, songschema::kSceneTimeDenominator) };
+}
+
+void
+Song::setSceneName(int scene, std::string name) {
+  if (scene < 0) return;
+  Edit edit(*this, "set scene name");
+  doc::set(*doc_, ensureSceneNode(scene), songschema::kSceneName, std::move(name));
+}
+
+void
+Song::setSceneTempo(int scene, int bpm) {
+  if (scene < 0) return;
+  Edit edit(*this, "set scene tempo");
+  doc::set(*doc_, ensureSceneNode(scene), songschema::kSceneTempo, std::max(bpm, 0));
+}
+
+void
+Song::setSceneTimeSignature(int scene, TimeSignature signature) {
+  if (scene < 0) return;
+  Edit edit(*this, "set scene time signature");
+  bool valid = signature.isSet() && TimeSignature::validDenominator(signature.denominator);
+  auto node = ensureSceneNode(scene);
+  doc::set(*doc_, node, songschema::kSceneTimeNumerator, valid ? signature.numerator : 0);
+  doc::set(*doc_, node, songschema::kSceneTimeDenominator, valid ? signature.denominator : 0);
+}
+
+void
+Song::setTimeSignature(TimeSignature signature) {
+  if (!signature.isSet() || !TimeSignature::validDenominator(signature.denominator)) return;
+  Edit edit(*this, "set time signature");
+  doc::set(*doc_, doc_->root(), songschema::kTimeNumerator, signature.numerator);
+  doc::set(*doc_, doc_->root(), songschema::kTimeDenominator, signature.denominator);
+}
+
+RunningBars
+Song::getRunningBars() const {
+  return { { read(songschema::kTransportNumerator), read(songschema::kTransportDenominator) }, read(songschema::kTransportOrigin) };
+}
+
+void
+Song::setRunningBars(RunningBars running) {
+  // The audio thread owns the running signature; this is its mirror.
+  Edit edit(*this, "mirror running bars", Edit::Kind::STRUCTURE, Edit::Origin::SYNC);
+  doc::set(*doc_, doc_->root(), songschema::kTransportNumerator, running.signature.numerator);
+  doc::set(*doc_, doc_->root(), songschema::kTransportDenominator, running.signature.denominator);
+  doc::set(*doc_, doc_->root(), songschema::kTransportOrigin, running.origin);
 }
 
 int
 Song::getArrangementLength() const {
   int end = 0;
-  for (auto & [ track_id, pattern ] : arrangement_.getPatternsByTrack()) end = std::max(end, pattern.getContentEnd());
-  for (auto & [ track_id, instances ] : arrangement_.getInstancesByTrack()) {
-    auto & clips = getClips(track_id);
+  auto arrangement = getArrangement();
+  for (auto & [ track_id, pattern ] : arrangement.getPatternsByTrack()) end = std::max(end, pattern.getContentEnd());
+  for (auto & [ track_id, instances ] : arrangement.getInstancesByTrack()) {
+    auto clips = getClips(track_id);
     for (auto & [ row, clip_id ] : instances) {
       int length = 0; // a stop ends content, nothing plays on its row
       if (clip_id != "OFF") length = 1;
-      for (auto & clip : clips) {
+      for (auto clip : clips) {
         if (clip.getId() == clip_id) { length = std::max(clip.getLength(), 1); break; }
       }
       end = std::max(end, static_cast<int>(row) + length);
     }
   }
-  for (auto & [ track_id, background ] : arrangement_.getSampleBackgroundsByTrack()) end = std::max(end, background.getRowCount(bpm_));
-  if (!locators_.empty()) end = std::max(end, locators_.rbegin()->first + 1);
+  for (auto & [ track_id, background ] : arrangement.getSampleBackgroundsByTrack()) end = std::max(end, background.getRowCount(getTempo()));
+  if (auto last = getLocators(); !last.empty()) end = std::max(end, last.rbegin()->first + 1);
   return getArrangementBars().roundUpToBar(end);
 }
 
@@ -1019,7 +1265,8 @@ Song::formatPosition(int absolute_row) const {
   auto bars = getBarsAt(row);
   // Numbering carries on from the bar the running bars began in.
   auto bar = bars.barIndex(row);
-  if (running_bars_.isActive() && row >= running_bars_.origin) bar += getArrangementBars().barIndex(running_bars_.origin);
+  auto running = getRunningBars();
+  if (running.isActive() && row >= running.origin) bar += getArrangementBars().barIndex(running.origin);
   auto in_bar = bars.rowInBar(row);
   return std::to_string(bar + 1) + "." + std::to_string(in_bar / bars.beatRows() + 1) + "." + std::to_string(in_bar % bars.beatRows() + 1);
 }
@@ -1032,10 +1279,10 @@ Song::storeParameters(ParameterSource & output) const {
   if (getScale() != Scale::NONE) output.set("scale", to_string(getScale()));
   output.set("temperament", to_string(getTuning()));
   output.set("tempo", getTempo());
-  if (time_signature_ != TimeSignature{4, 4}) output.set("timeSignature", time_signature_.toString());
-  if (running_bars_.isActive()) {
-    output.set("transportTimeSignature", running_bars_.signature.toString());
-    output.set("transportBarOrigin", running_bars_.origin);
+  if (getTimeSignature() != TimeSignature{4, 4}) output.set("timeSignature", getTimeSignature().toString());
+  if (getRunningBars().isActive()) {
+    output.set("transportTimeSignature", getRunningBars().signature.toString());
+    output.set("transportBarOrigin", getRunningBars().origin);
   }
   output.set("swing", getSwing(), swing::kStraight);
   if (getRecordQuantize()) output.set("recordQuantize", true);
@@ -1063,16 +1310,19 @@ Song::getPlayableTrackIds() const {
 
 vector<int>
 Song::getScaleDegreesWindow(int start_index, int count, bool major_if_none) const {
-  auto edo_steps = edoStepsFor(tuning_);
+  auto tuning = getTuning();
+  auto key_note_number = getKey();
+  auto scale = getScale();
+  auto edo_steps = edoStepsFor(tuning);
   if (edo_steps <= 0 || count <= 0) return {}; // no interval structure (Tuning::PERCUSSION) to have degrees of at all
 
   // Same tonic-pitch-class extraction as LaunchpadManager::resolveNote()'s
   // own comment: getKey() is a full note value with its own baked-in
   // octave (Note::stringToKey()'s own octave-4 default whenever the key
   // text omits one) - only its pitch class matters here.
-  auto tonic = key_note_number_ >= 0 ? ((key_note_number_ % edo_steps) + edo_steps) % edo_steps : 0;
+  auto tonic = key_note_number >= 0 ? ((key_note_number % edo_steps) + edo_steps) % edo_steps : 0;
 
-  auto degree_names = scaleDegreeNames(scale_ == Scale::NONE && major_if_none ? Scale::MAJOR : scale_);
+  auto degree_names = scaleDegreeNames(scale == Scale::NONE && major_if_none ? Scale::MAJOR : scale);
   vector<int> offsets_from_tonic;
   if (degree_names.empty()) {
     // No scale chosen (or Scale::NONE resolved nothing) - the plain
@@ -1087,8 +1337,8 @@ Song::getScaleDegreesWindow(int start_index, int count, bool major_if_none) cons
     // comment for why this is what keeps the same degree_names list
     // correct under every tuning rather than needing one hardcoded
     // interval set per one.
-    auto c_value = Note::stringToKey(tuning_, "C");
-    for (auto & name : degree_names) offsets_from_tonic.push_back(Note::stringToKey(tuning_, name) - c_value);
+    auto c_value = Note::stringToKey(tuning, "C");
+    for (auto & name : degree_names) offsets_from_tonic.push_back(Note::stringToKey(tuning, name) - c_value);
   }
   auto n = static_cast<int>(offsets_from_tonic.size());
   if (n <= 0) return {};

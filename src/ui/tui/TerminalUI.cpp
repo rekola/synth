@@ -1953,8 +1953,8 @@ TerminalUI::initializeWidgets() {
       auto signature = TimeSignature::parse(typed);
       if (!signature || !signature->isSet()) { setStatus("Not a time signature: " + typed); return; }
       auto & song = getController().getSong();
+      Song::Edit edit(song, "set time signature");
       song.setTimeSignature(*signature);
-      song.incVersion();
       setStatus("Time signature " + signature->toString()); }, getController().getSong().getTimeSignature().toString());
   });
 

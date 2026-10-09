@@ -44,7 +44,7 @@ struct LiveSong {
     song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
     a = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
     b = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
-    auto & arrangement = song.getArrangement();
+    auto arrangement = song.getArrangement();
     for (int row = 0; row < 16; row++) {
       arrangement.setNote(row, a, 0, Note(40 + row, 100));
       arrangement.setNote(row, b, 0, Note(70 + row, 100));
@@ -212,8 +212,10 @@ TEST(session_retrigger_ignores_notes_of_the_previous_clip) {
 
 TEST(session_launch_waits_for_the_songs_own_bars) {
   LiveSong s;
-  s.song.setTimeSignature({2, 4}); // bars of 8 rows
-  s.song.incVersion();
+  {
+    Song::Edit edit(s.song, "set time signature");
+    s.song.setTimeSignature({2, 4}); // bars of 8 rows
+  }
   s.play(1);
   s.queue(s.a, 0);
   s.play(3); // rows 1-3
@@ -288,12 +290,16 @@ TEST(an_unrelated_song_edit_does_not_undo_a_scene_tempo) {
   s.state->queueSceneChange(150, {}, false, true, 1);
   s.play(1);
   CHECK(s.state->getTempo() == 150);
-  s.song.setSwing(60); // any edit that bumps the version
-  s.song.incVersion();
+  {
+    Song::Edit edit(s.song, "set swing"); // any edit that bumps the version
+    s.song.setSwing(60);
+  }
   s.play(1);
   CHECK(s.state->getTempo() == 150);
-  s.song.setTempo(100); // the song's own tempo edit still applies
-  s.song.incVersion();
+  {
+    Song::Edit edit(s.song, "set tempo"); // the song's own tempo edit still applies
+    s.song.setTempo(100);
+  }
   s.play(1);
   CHECK(s.state->getTempo() == 100);
 }

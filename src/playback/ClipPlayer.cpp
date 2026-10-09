@@ -13,13 +13,13 @@
 using namespace std;
 
 namespace {
-  bool hasClipAt(const vector<Clip> & clips, int clip_index) {
+  bool hasClipAt(const ClipList & clips, int clip_index) {
     return clip_index >= 0 && clip_index < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(clip_index)].isEmpty();
   }
 
   // Whether an empty slot stops its track when launched - a slot past the
   // end of the list has its default stop button.
-  bool hasStopButtonAt(const vector<Clip> & clips, int clip_index) {
+  bool hasStopButtonAt(const ClipList & clips, int clip_index) {
     return clip_index < 0 || clip_index >= static_cast<int>(clips.size()) || clips[static_cast<size_t>(clip_index)].hasStopButton();
   }
 
@@ -137,8 +137,8 @@ ClipPlayer::triggerClip(int track_id, int clip_index) {
   auto & playback_info = controller_.getPlaybackInfo();
   if (!playback_info.isPlaying() && assign_playback_starter_) assign_playback_starter_();
   auto raw_row = playback_info.isPlaying() ? playback_info.getAbsolutePosition() : assign_row_;
+  Song::Edit edit(song, "assign clip to arrangement");
   placeClipInstance(song, track_id, quantizedBarRow(song.getArrangementBars(), raw_row), clip_index);
-  song.incVersion();
 }
 
 bool
@@ -285,8 +285,8 @@ ClipPlayer::placeRecordingStop(int track_id) {
   if (!playback_info.isPlaying()) return;
   auto & song = controller_.getSong();
   auto row = quantizedBarRow(song.getArrangementBars(), playback_info.getAbsolutePosition());
+  Song::Edit edit(song, "place stop in arrangement");
   placeStopInstance(song, track_id, row);
-  song.incVersion();
 }
 
 void
@@ -303,7 +303,7 @@ ClipPlayer::stopSampleTrackRecording(int track_id) {
 
 void
 ClipPlayer::deleteClip(int track_id, int clip_index) {
-  auto & clips = controller_.getSong().getClips(track_id);
+  auto clips = controller_.getSong().getClips(track_id);
   bool populated = clip_index >= 0 && clip_index < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(clip_index)].isEmpty();
   if (populated && controller_.getPlaybackInfo().isPlaying()) {
     auto heads = playheads();
@@ -324,7 +324,7 @@ ClipPlayer::resolvePendingDeletes() {
   auto heads = playheads();
   auto & song = controller_.getSong();
   for (auto it = pending_deletes_.begin(); it != pending_deletes_.end(); ) {
-    auto & clips = song.getClips(it->first);
+    auto clips = song.getClips(it->first);
     int index = -1;
     for (size_t i = 0; i < clips.size(); i++) {
       if (clips[i].getId() == it->second) { index = static_cast<int>(i); break; }
@@ -412,9 +412,9 @@ ClipPlayer::playheads() const {
   unordered_map<int, Playhead> result;
   for (auto & [ track_id, live_track ] : info.getLiveTracks()) {
     Playhead playhead;
-    auto & clips = song.getClips(track_id);
+    auto clips = song.getClips(track_id);
     if (live_track.clip_index >= 0 && live_track.clip_index < static_cast<int>(clips.size())) {
-      auto & clip = clips[static_cast<size_t>(live_track.clip_index)];
+      auto clip = clips[static_cast<size_t>(live_track.clip_index)];
       playhead.clip_index = live_track.clip_index;
       playhead.row = clipPlayheadRow(info.getLiveClock(), live_track.launch_clock, clip.getLength(), clip.isLooping());
       playhead.looping = clip.isLooping();
@@ -443,7 +443,7 @@ ClipPlayer::playheads() const {
       if (live_track && live_track->isTakenOver()) continue;
       auto active = resolveInstanceAt(song, track_id, position);
       if (active.clip_index < 0) continue;
-      auto & clip = song.getClips(track_id)[static_cast<size_t>(active.clip_index)];
+      auto clip = song.getClips(track_id)[static_cast<size_t>(active.clip_index)];
       auto & playhead = result[track_id];
       playhead.clip_index = active.clip_index;
       playhead.row = clipPlayheadRow(position, active.start_row, clip.getLength(), clip.isLooping());

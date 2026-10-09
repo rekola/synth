@@ -507,7 +507,7 @@ namespace {
   // 8-step pages a focused clip actually spans, since a clip's own length
   // can be longer than the grid's fixed 8 columns.
   int focusedDrumClipLength(const Song & song, int track_id, const string & focused_clip_id) {
-    for (auto & clip : song.getClips(track_id)) {
+    for (auto clip : song.getClips(track_id)) {
       if (clip.getId() == focused_clip_id) return std::max(1, clip.getLength());
     }
     return -1;
@@ -650,17 +650,17 @@ LaunchpadManager::flushPendingPanPresses(Controller & controller) {
 void
 LaunchpadManager::recordFaderAutomationIfArmed(Controller & controller, FaderState & fader, int track_id, Command command) {
   auto & song = controller.getSong();
-  Pattern * pattern = nullptr;
+  PatternView pattern;
   int row = 0;
   if (controller.isClipRecording(track_id)) {
     // Into the take's clip, at the row a note pressed now lands on.
     auto step = controller.getClipPlayer().quantizedStep();
     auto take_row = controller.ensureClipRecordingClip(track_id, step.step, step.bar_start);
     auto clip_index = controller.getClipRecordingClipIndex(track_id);
-    auto & clips = song.getClips(track_id);
+    auto clips = song.getClips(track_id);
     if (take_row < 0 || clip_index < 0 || clip_index >= static_cast<int>(clips.size())) return;
-    auto & clip = clips[static_cast<size_t>(clip_index)];
-    pattern = &clip.getLeafPattern();
+    auto clip = clips[static_cast<size_t>(clip_index)];
+    pattern = clip.getLeafPattern();
     row = take_row % std::max(1, clip.getLength());
   } else {
     // The same "you're recording a take right now" condition arrangement
@@ -668,17 +668,17 @@ LaunchpadManager::recordFaderAutomationIfArmed(Controller & controller, FaderSta
     // armed-while-stopped.
     auto & playback_info = controller.getPlaybackInfo();
     if (!controller.isNoteCaptureArmed() || !playback_info.isPlaying()) return;
-    pattern = &song.getArrangement().getPatternsByTrack()[track_id];
+    pattern = song.getArrangement().patternFor(track_id);
     row = playback_info.getAbsolutePosition();
   }
-  if (fader.automation_pattern == pattern && fader.automation_row == row && fader.automation_column >= 0) {
+  Song::Edit edit(song, "record fader automation", Song::Edit::Kind::CONTENT);
+  if (fader.automation_pattern == pattern.node() && fader.automation_row == row && fader.automation_column >= 0) {
     pattern->setCommand(row, fader.automation_column, command);
   } else {
     fader.automation_column = pattern->pushCommand(row, command);
-    fader.automation_pattern = pattern;
+    fader.automation_pattern = pattern.node();
     fader.automation_row = row;
   }
-  song.incMinorVersion();
 }
 
 LaunchpadManager::DeviceState &
@@ -1712,15 +1712,15 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     }
     auto & state = deviceState(device_id);
 
-    Pattern * session_pattern = nullptr;
+    PatternView session_pattern;
     int session_row = 0;
     if (clip_recording_here) {
       if (row < 0) return; // nothing actually armed for this track (shouldn't normally happen)
-      auto & clips = song.getClips(track_id);
+      auto clips = song.getClips(track_id);
       auto clip_index = controller.getClipRecordingClipIndex(track_id);
       if (clip_index >= 0 && clip_index < static_cast<int>(clips.size())) {
-        auto & clip = clips[static_cast<size_t>(clip_index)];
-        session_pattern = &clip.getLeafPattern();
+        auto clip = clips[static_cast<size_t>(clip_index)];
+        session_pattern = clip.getLeafPattern();
         session_row = row % std::max(1, clip.getLength());
       }
     }
@@ -1776,7 +1776,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // column to every simultaneously-held note, each PLAY_NOTE silently
     // stealing the previous one's voice (Player.cpp's
     // stopVoices(column)) and killing polyphony entirely.
-    auto & notes = edit_target.pattern->getNotes(edit_target.effective_row);
+    auto notes = edit_target.pattern->getNotes(edit_target.effective_row);
     int note_column = 0;
     while ((note_column < static_cast<int>(notes.size()) && notes[static_cast<size_t>(note_column)].isDefined()) ||
 	   isColumnLiveHeld(track_id, note_column)) {
@@ -1798,8 +1798,8 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
       // not current_delay, which reads the global transport's own delay
       // tracking - meaningless while it never advances during one.
       Note note(note_value, velocity, clip_recording_here ? static_cast<short>(take_step.delay) : current_delay);
+      Song::Edit edit(song, "record note");
       edit_target.pattern->setNote(edit_target.effective_row, note_column, note);
-      song.incVersion();
     }
 
     if (controller.isMonitoring(track_id)) {
@@ -1815,20 +1815,20 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     for (auto fan_out_track_id : fan_out_track_ids) {
       auto fan_out_row = quantized_row(fan_out_track_id);
       if (fan_out_row < 0) continue;
-      auto & fan_out_clips = song.getClips(fan_out_track_id);
+      auto fan_out_clips = song.getClips(fan_out_track_id);
       auto fan_out_clip_index = controller.getClipRecordingClipIndex(fan_out_track_id);
       if (fan_out_clip_index < 0 || fan_out_clip_index >= static_cast<int>(fan_out_clips.size())) continue;
-      auto & fan_out_clip = fan_out_clips[static_cast<size_t>(fan_out_clip_index)];
+      auto fan_out_clip = fan_out_clips[static_cast<size_t>(fan_out_clip_index)];
       auto fan_out_session_row = fan_out_row % std::max(1, fan_out_clip.getLength());
-      auto & fan_out_pattern = fan_out_clip.getLeafPattern();
-      auto & fan_out_notes = fan_out_pattern.getNotes(fan_out_session_row);
+      auto fan_out_pattern = fan_out_clip.getLeafPattern();
+      auto fan_out_notes = fan_out_pattern.getNotes(fan_out_session_row);
       int fan_out_column = 0;
       while ((fan_out_column < static_cast<int>(fan_out_notes.size()) && fan_out_notes[static_cast<size_t>(fan_out_column)].isDefined()) ||
              isColumnLiveHeld(fan_out_track_id, fan_out_column)) {
         fan_out_column++;
       }
+      Song::Edit edit(song, "record note");
       fan_out_pattern.setNote(fan_out_session_row, fan_out_column, Note(note_value, velocity, static_cast<short>(take_step.delay)));
-      song.incVersion();
       if (controller.isMonitoring(fan_out_track_id)) {
         event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), fan_out_track_id, fan_out_column, note_value, velocity));
       }
@@ -1878,16 +1878,16 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
         // independent of capture_enabled - see the PRESS branch's own
         // identical reasoning.
         auto release_row = quantized_row(held.track_id);
-        auto & clips = song.getClips(held.track_id);
+        auto clips = song.getClips(held.track_id);
         auto clip_index = controller.getClipRecordingClipIndex(held.track_id);
         // Same "not the row the note itself is on" rule as the ordinary
         // performance-recording branch below - a single Pattern row can't
         // hold both a note and its own off.
         if (release_row >= 0 && release_row != held.row &&
             clip_index >= 0 && clip_index < static_cast<int>(clips.size())) {
-          auto & clip = clips[static_cast<size_t>(clip_index)];
+          auto clip = clips[static_cast<size_t>(clip_index)];
+          Song::Edit edit(song, "record note release");
           clip.getLeafPattern().setNote(release_row % std::max(1, clip.getLength()), held.note_column, Note(0, 0, static_cast<short>(take_step.delay)));
-          song.incVersion();
         }
       } else if (state.capture_enabled && info.isPlaying()) {
         // Live performance recording: write an explicit OFF at the row the
@@ -1955,11 +1955,11 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
         delay = take_step.delay;
         if (write_pressure) {
           write_row = [&controller, held_track, column, note_row](int r, short p) {
-            auto & clips = controller.getSong().getClips(held_track);
+            auto clips = controller.getSong().getClips(held_track);
             auto clip_index = controller.getClipRecordingClipIndex(held_track);
             if (r < 0 || r == note_row || clip_index < 0 || clip_index >= static_cast<int>(clips.size())) return;
-            auto & clip = clips[static_cast<size_t>(clip_index)];
-            auto & pattern = clip.getLeafPattern();
+            auto clip = clips[static_cast<size_t>(clip_index)];
+            auto pattern = clip.getLeafPattern();
             auto clip_row = r % std::max(1, clip.getLength());
             auto note = pattern.getNote(clip_row, column);
             if (note.isDefined() && !note.isAftertouch()) return;
@@ -2001,10 +2001,11 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
       }
       // Live modulation always happens, whether or not Capture records it,
       // and plays the same row average that gets recorded.
+      Song::Edit edit(song, "note pressure");
+      if (!write_pressure) edit.discard();
       auto pressure = controller.notePressure(row, held_track, column, static_cast<short>(ev.getVelocity()), delay, write_row, current_row);
       event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, controller.getActiveBufferName(), held_track, column, note_value, pressure));
     }
-    if (write_pressure) song.incVersion();
   }
 }
 
@@ -2150,7 +2151,7 @@ LaunchpadManager::handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & co
     if (length < 0 || row >= length) return;
 
     auto edit_target = resolveEditTarget(song, track_id, row, controller.getFocusedClip());
-    auto & row_notes = edit_target.pattern->getNotes(edit_target.effective_row);
+    auto row_notes = edit_target.pattern->getNotes(edit_target.effective_row);
     // Identified by value, not by column, so a step typed in the pattern
     // editor or pasted from elsewhere toggles just the same.
     int existing_column = -1;
@@ -2165,10 +2166,11 @@ LaunchpadManager::handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & co
     EditTarget off_target { nullptr, 0 };
     if (pitched && row + 1 < length) off_target = resolveEditTarget(song, track_id, row + 1, controller.getFocusedClip());
 
+    Song::Edit edit(song, "toggle step");
     if (was_hit) {
       edit_target.pattern->deleteNote(edit_target.effective_row, existing_column);
       if (off_target.pattern) {
-        auto & next = off_target.pattern->getNotes(off_target.effective_row);
+        auto next = off_target.pattern->getNotes(off_target.effective_row);
         if (existing_column < static_cast<int>(next.size()) && next[static_cast<size_t>(existing_column)].isOff() && next[static_cast<size_t>(existing_column)].getValue() == note) {
           off_target.pattern->deleteNote(off_target.effective_row, existing_column);
         }
@@ -2176,13 +2178,12 @@ LaunchpadManager::handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & co
     } else {
       auto column = edit_target.pattern->pushNote(edit_target.effective_row, Note(note, static_cast<short>(constants::DEFAULT_VELOCITY)));
       if (off_target.pattern) {
-        auto & next = off_target.pattern->getNotes(off_target.effective_row);
+        auto next = off_target.pattern->getNotes(off_target.effective_row);
         if (column >= static_cast<int>(next.size()) || !next[static_cast<size_t>(column)].isDefined()) {
           off_target.pattern->setNote(off_target.effective_row, column, Note(note, 0));
         }
       }
     }
-    song.incVersion();
 
     // Only a step just set is auditioned - one being removed has nothing
     // left to want to hear. Fixed velocity: no per-step velocity here.
@@ -2224,7 +2225,7 @@ LaunchpadManager::triggerAuditionStep(const Song & song, int track_id, Controlle
   // explicit note-off today, but nothing stops one being placed by hand
   // (muting a cymbal, say), and this plays it exactly like any other
   // track's own note-off if it's there.
-  auto & notes = read_target.pattern->getNotes(read_target.effective_row);
+  auto notes = read_target.pattern->getNotes(read_target.effective_row);
   for (size_t j = 0; j < notes.size(); j++) {
     auto & note = notes[j];
     if (!note.isDefined()) continue;
@@ -3045,7 +3046,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
       // same value does as terminal glyph text, so the two surfaces are
       // tuned independently here rather than sharing one constant.
       auto identity = Color::fromHSL(structure.getBaselineInfo(live_track_id).getHue(), 0.8f, 0.3f);
-      auto & clips = song.getClips(live_track_id);
+      auto clips = song.getClips(live_track_id);
       // STOP_CLIP's own picker-row state: a clip is playing right now - a
       // launched one on a taken-over track, else whatever the arrangement
       // has at the transport's position.

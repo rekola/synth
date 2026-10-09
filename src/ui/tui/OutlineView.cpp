@@ -563,6 +563,7 @@ OutlineView::addSelectedLibraryRhythmToSong() {
   if (!pattern) return;
 
   auto & song = getController().getSong();
+  Song::Edit edit(song, "add rhythm to song");
 
   // The target track picker's own current choice (see this class's own
   // header comment) - an existing root PercussionTrack, or a freshly
@@ -608,7 +609,6 @@ OutlineView::addSelectedLibraryRhythmToSong() {
   song.addClip(std::move(clip));
   if (!song.getSceneTimeSignature(scene).isSet()) {
     song.setSceneTimeSignature(scene, {pattern->time_numerator, pattern->time_denominator});
-    song.incVersion();
   }
 
   // A swung rhythm brings its swing along (overwriting the song's); a

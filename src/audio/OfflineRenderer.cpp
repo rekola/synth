@@ -25,6 +25,11 @@ renderSongOffline(const Song & song, const ChannelConfiguration & channel_config
   int tail_frames = 0;
   int last_position = 0;
 
+  // One copy of the arrangement and clips for the whole render, not one per
+  // block - nothing edits the song meanwhile.
+  bool was_published = song.isContentPublished();
+  if (!was_published) song.pinContent();
+
   while (true) {
     // The song ends past its last row, or where a jump back (a pattern
     // break to an earlier locator) would loop it - one pass renders.
@@ -57,5 +62,6 @@ renderSongOffline(const Song & song, const ChannelConfiguration & channel_config
     }
   }
 
+  if (!was_published) song.unpinContent();
   return result;
 }

@@ -68,6 +68,7 @@ endif()
 # dependency on the terminal UI (notcurses) or audio device (ALSA), so it can
 # be linked into the test suite and any future offline tooling.
 add_library(synth_engine STATIC
+	src/doc/Document.cpp
 	src/instruments/Oscillator.cpp
 	src/instruments/PadSynth.cpp
 	src/instruments/Noise.cpp
@@ -84,6 +85,11 @@ add_library(synth_engine STATIC
 	src/instruments/SoundFont.cpp
 	src/instruments/SF2Modulator.cpp
 	src/model/Song.cpp
+	src/model/PlaybackContent.cpp
+	src/model/PatternView.cpp
+	src/model/SampleStore.cpp
+	src/model/ClipView.cpp
+	src/model/ArrangementView.cpp
 	src/model/Clip.cpp
 	src/model/SongObject.cpp
 	src/model/LeafTrack.cpp

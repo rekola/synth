@@ -13,19 +13,16 @@ using namespace std;
 
 namespace {
 
-const vector<Note> kNoNotes;
-const Command kNoCommand;
-
-const vector<Note> & notesAt(const PatternGrid & grid, int track_id, int row) {
+vector<Note> notesAt(const PatternGrid & grid, int track_id, int row) {
   int pattern_row;
   auto pattern = grid.find(track_id, row, pattern_row);
-  return pattern ? pattern->getNotes(pattern_row) : kNoNotes;
+  return pattern ? pattern->getNotes(pattern_row) : vector<Note>();
 }
 
-const Command & commandAt(const PatternGrid & grid, int track_id, int row) {
+Command commandAt(const PatternGrid & grid, int track_id, int row) {
   int pattern_row;
   auto pattern = grid.findCommands(track_id, row, pattern_row);
-  return pattern ? pattern->getCommand(pattern_row) : kNoCommand;
+  return pattern ? pattern->getCommand(pattern_row) : Command();
 }
 
 void humanizeNote(Note & note, const HumanizeAmount & amount, NoiseGenerator & rng) {
@@ -131,7 +128,7 @@ copyPatternBlockNotes(const PatternGrid & grid, int row_lo, int row_hi,
   auto width = note_hi - note_lo + 1;
 
   for (int row = row_lo; row <= row_hi; row++) {
-    auto & full_notes = notesAt(grid, track_id, row);
+    auto full_notes = notesAt(grid, track_id, row);
     PatternBlockCell cell;
     cell.note_offset = note_lo;
     // Always the full requested width, not just however many notes this
@@ -262,9 +259,9 @@ Clip extractClip(const PatternGrid & grid, int track_id, int row_lo, int row_hi,
   clip.setLength(length);
   auto & pattern = clip.getLeafPattern();
   for (int row = row_lo; row <= row_hi; row++) {
-    auto & notes = notesAt(grid, track_id, row);
+    auto notes = notesAt(grid, track_id, row);
     if (!notes.empty()) pattern.setNotes(row - bar_start, notes);
-    auto & command = commandAt(grid, track_id, row);
+    auto command = commandAt(grid, track_id, row);
     if (command.isDefined()) pattern.setCommand(row - bar_start, command);
   }
   return clip;

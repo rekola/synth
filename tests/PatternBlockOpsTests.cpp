@@ -14,7 +14,8 @@ using namespace std;
 static BarGrid oneBeatBars() { return BarGrid{TimeSignature{1, 4}, 0}; }
 
 TEST(pattern_block_copy_captures_notes_and_commands) {
-  Arrangement p;
+  Song p_song;
+  auto p = p_song.getArrangement();
   ArrangementBackgroundGrid p_grid(p);
   vector<int> track_ids = {10, 20, 30};
 
@@ -40,7 +41,8 @@ TEST(pattern_block_copy_captures_notes_and_commands) {
 }
 
 TEST(pattern_block_clear_empties_the_range) {
-  Arrangement p;
+  Song p_song;
+  auto p = p_song.getArrangement();
   ArrangementBackgroundGrid p_grid(p);
   vector<int> track_ids = {10, 20};
 
@@ -65,7 +67,8 @@ TEST(pattern_block_transpose_skips_percussion_tracks_within_a_mixed_range) {
   // not a pitch - transposing it would silently swap to a different,
   // unrelated drum, so it must be left untouched even when it sits inside
   // an otherwise-transposed multi-track range.
-  Arrangement p;
+  Song p_song;
+  auto p = p_song.getArrangement();
   ArrangementBackgroundGrid p_grid(p);
   vector<int> track_ids = {10, 20, 30};
 
@@ -82,7 +85,8 @@ TEST(pattern_block_transpose_skips_percussion_tracks_within_a_mixed_range) {
 }
 
 TEST(pattern_block_paste_writes_at_an_offset) {
-  Arrangement p;
+  Song p_song;
+  auto p = p_song.getArrangement();
   ArrangementBackgroundGrid p_grid(p);
   vector<int> track_ids = {10, 20, 30};
 
@@ -101,7 +105,8 @@ TEST(pattern_block_paste_writes_at_an_offset) {
 }
 
 TEST(pattern_block_paste_clips_at_row_and_track_boundaries) {
-  Arrangement p; // only rows 0..3 exist
+  Song p_song;
+  auto p = p_song.getArrangement(); // only rows 0..3 exist
   ArrangementBackgroundGrid p_grid(p);
   vector<int> track_ids = {10, 20};
 
@@ -126,7 +131,8 @@ TEST(pattern_block_paste_clips_at_row_and_track_boundaries) {
 }
 
 TEST(pattern_block_cut_then_paste_back_round_trips) {
-  Arrangement p;
+  Song p_song;
+  auto p = p_song.getArrangement();
   ArrangementBackgroundGrid p_grid(p);
   vector<int> track_ids = {10, 20, 30};
 
@@ -150,7 +156,8 @@ TEST(pattern_block_cut_then_paste_back_round_trips) {
 }
 
 TEST(pattern_block_chord_round_trips_with_every_voice_intact) {
-  Arrangement p;
+  Song p_song;
+  auto p = p_song.getArrangement();
   ArrangementBackgroundGrid p_grid(p);
   vector<int> track_ids = {10};
 
@@ -165,7 +172,7 @@ TEST(pattern_block_chord_round_trips_with_every_voice_intact) {
 
   pastePatternBlock(p_grid, block, 16, 8, track_ids, 0);
 
-  auto & notes = p.getNotes(8, track_ids[0]);
+  auto notes = p.getNotes(8, track_ids[0]);
   CHECK(notes.size() == 3);
   CHECK(notes[0].getValue() == 60);
   CHECK(notes[1].getValue() == 63);
@@ -176,7 +183,8 @@ TEST(pattern_block_chord_round_trips_with_every_voice_intact) {
 // narrowed to a subset of one track's simultaneous note columns.
 
 TEST(pattern_block_notes_copy_captures_only_the_requested_column_range) {
-  Arrangement p;
+  Song p_song;
+  auto p = p_song.getArrangement();
   ArrangementBackgroundGrid p_grid(p);
   int track_id = 10;
 
@@ -198,7 +206,8 @@ TEST(pattern_block_notes_copy_captures_only_the_requested_column_range) {
 }
 
 TEST(pattern_block_notes_clear_only_touches_the_requested_column_range) {
-  Arrangement p;
+  Song p_song;
+  auto p = p_song.getArrangement();
   ArrangementBackgroundGrid p_grid(p);
   int track_id = 10;
 
@@ -209,7 +218,7 @@ TEST(pattern_block_notes_clear_only_touches_the_requested_column_range) {
 
   clearPatternBlockNotes(p_grid, 2, 2, track_id, 1, 1);
 
-  auto & notes = p.getNotes(2, track_id);
+  auto notes = p.getNotes(2, track_id);
   CHECK(notes.size() == 3); // deleteNote only clears trailing entries, not middle ones
   CHECK(notes[0].getValue() == 60); // untouched
   CHECK(!notes[1].isDefined()); // cleared
@@ -218,7 +227,8 @@ TEST(pattern_block_notes_clear_only_touches_the_requested_column_range) {
 }
 
 TEST(pattern_block_notes_transpose_only_touches_the_requested_column_range) {
-  Arrangement p;
+  Song p_song;
+  auto p = p_song.getArrangement();
   ArrangementBackgroundGrid p_grid(p);
   int track_id = 10;
 
@@ -228,14 +238,15 @@ TEST(pattern_block_notes_transpose_only_touches_the_requested_column_range) {
 
   transposePatternBlockNotes(p_grid, 2, 2, track_id, 1, 2, true, /*is_percussion=*/false);
 
-  auto & notes = p.getNotes(2, track_id);
+  auto notes = p.getNotes(2, track_id);
   CHECK(notes[0].getValue() == 60); // untouched
   CHECK(notes[1].getValue() == 64); // transposed up
   CHECK(notes[2].getValue() == 68); // transposed up
 }
 
 TEST(pattern_block_notes_transpose_is_a_no_op_for_a_percussion_track) {
-  Arrangement p;
+  Song p_song;
+  auto p = p_song.getArrangement();
   ArrangementBackgroundGrid p_grid(p);
   int track_id = 10;
 
@@ -244,7 +255,7 @@ TEST(pattern_block_notes_transpose_is_a_no_op_for_a_percussion_track) {
 
   transposePatternBlockNotes(p_grid, 2, 2, track_id, 0, 1, /*up=*/true, /*is_percussion=*/true);
 
-  auto & notes = p.getNotes(2, track_id);
+  auto notes = p.getNotes(2, track_id);
   CHECK(notes[0].getValue() == 60); // untouched - would be 61 if transposed
   CHECK(notes[1].getValue() == 63); // untouched - would be 64 if transposed
 }
@@ -254,7 +265,8 @@ TEST(pattern_block_notes_transpose_is_a_no_op_for_a_percussion_track) {
 // a whole-track operation instead (see PatternEditor::getEffectiveSelectionBounds()),
 // so this family has no include-the-command variant any more.
 TEST(pattern_block_notes_copy_and_clear_never_touch_the_command) {
-  Arrangement p;
+  Song p_song;
+  auto p = p_song.getArrangement();
   ArrangementBackgroundGrid p_grid(p);
   int track_id = 10;
 
@@ -270,7 +282,8 @@ TEST(pattern_block_notes_copy_and_clear_never_touch_the_command) {
 }
 
 TEST(pattern_block_notes_paste_never_touches_the_command) {
-  Arrangement p;
+  Song p_song;
+  auto p = p_song.getArrangement();
   ArrangementBackgroundGrid p_grid(p);
   int track_id = 10;
 
@@ -287,7 +300,8 @@ TEST(pattern_block_notes_paste_never_touches_the_command) {
 // resolves a selection confined to just the effect column to this scope) -
 // independent of any note data on the same row.
 TEST(pattern_block_command_copy_and_clear_round_trip_independent_of_notes) {
-  Arrangement p;
+  Song p_song;
+  auto p = p_song.getArrangement();
   ArrangementBackgroundGrid p_grid(p);
   int track_id = 10;
 
@@ -304,7 +318,8 @@ TEST(pattern_block_command_copy_and_clear_round_trip_independent_of_notes) {
 }
 
 TEST(pattern_block_command_paste_never_touches_note_data) {
-  Arrangement p;
+  Song p_song;
+  auto p = p_song.getArrangement();
   ArrangementBackgroundGrid p_grid(p);
   int track_id = 10;
 
@@ -322,7 +337,8 @@ TEST(pattern_block_command_paste_never_touches_note_data) {
 }
 
 TEST(pattern_block_notes_paste_merges_into_target_range_without_clobbering_others) {
-  Arrangement p;
+  Song p_song;
+  auto p = p_song.getArrangement();
   ArrangementBackgroundGrid p_grid(p);
   int track_id = 10;
 
@@ -335,7 +351,7 @@ TEST(pattern_block_notes_paste_merges_into_target_range_without_clobbering_other
   // paste that pair into a different row, at a different note-column offset (0)
   pastePatternBlockNotes(p_grid, block, 16, 9, track_id, 0);
 
-  auto & notes = p.getNotes(9, track_id);
+  auto notes = p.getNotes(9, track_id);
   CHECK(notes.size() == 2);
   CHECK(notes[0].getValue() == 63);
   CHECK(notes[1].getValue() == 67);
@@ -346,7 +362,7 @@ TEST(pattern_block_notes_paste_merges_into_target_range_without_clobbering_other
   p.setNote(10, track_id, 2, Note(72, 100));
   pastePatternBlockNotes(p_grid, block, 16, 10, track_id, 1); // target voices 1,2
 
-  auto & merged = p.getNotes(10, track_id);
+  auto merged = p.getNotes(10, track_id);
   CHECK(merged.size() == 3);
   CHECK(merged[0].getValue() == 48); // untouched, outside the pasted range
   CHECK(merged[1].getValue() == 63); // overwritten by the paste
@@ -354,7 +370,8 @@ TEST(pattern_block_notes_paste_merges_into_target_range_without_clobbering_other
 }
 
 TEST(pattern_block_notes_paste_of_an_empty_source_leaves_no_row_entry) {
-  Arrangement p;
+  Song p_song;
+  auto p = p_song.getArrangement();
   ArrangementBackgroundGrid p_grid(p);
   int track_id = 10;
 
@@ -370,7 +387,8 @@ TEST(pattern_block_notes_paste_of_an_empty_source_leaves_no_row_entry) {
 }
 
 TEST(pattern_block_notes_paste_overwrites_gaps_left_by_a_sparser_source_row) {
-  Arrangement p;
+  Song p_song;
+  auto p = p_song.getArrangement();
   ArrangementBackgroundGrid p_grid(p);
   int track_id = 10;
 
@@ -393,7 +411,7 @@ TEST(pattern_block_notes_paste_overwrites_gaps_left_by_a_sparser_source_row) {
 
   pastePatternBlockNotes(p_grid, block, 16, 9, track_id, 0);
 
-  auto & notes = p.getNotes(9, track_id);
+  auto notes = p.getNotes(9, track_id);
   CHECK(notes.size() >= 1);
   CHECK(notes[0].getValue() == 60); // overwritten by the paste
   CHECK((notes.size() < 2 || !notes[1].isDefined())); // gap overwrote the stale note
@@ -404,7 +422,8 @@ TEST(pattern_block_notes_paste_overwrites_gaps_left_by_a_sparser_source_row) {
 // own getEffectiveRow()) - copy/clear/paste all resolve through it too,
 // not just plain note entry.
 TEST(pattern_block_copy_reads_a_repeated_row_through_the_tracks_own_length) {
-  Arrangement p;
+  Song p_song;
+  auto p = p_song.getArrangement();
   ArrangementBackgroundGrid p_grid(p);
   vector<int> track_ids = {10};
   p.setNote(4, track_ids[0], 0, Note(60, 100)); // the pattern's own real row
@@ -418,10 +437,11 @@ TEST(pattern_block_copy_reads_a_repeated_row_through_the_tracks_own_length) {
 }
 
 TEST(pattern_block_paste_writes_a_repeated_row_back_through_the_tracks_own_length) {
-  Arrangement dest;
+  Song dest_song;
+  auto dest = dest_song.getArrangement();
   ArrangementBackgroundGrid dest_grid(dest);
   vector<int> dest_ids = {10};
-  dest.getPatternsByTrack()[dest_ids[0]].setLength(16);
+  dest.patternFor(dest_ids[0]).setLength(16);
 
   PatternBlock block(1);
   block[0].push_back({{Note(60, 100)}, Command(), 0});
@@ -434,7 +454,8 @@ TEST(pattern_block_paste_writes_a_repeated_row_back_through_the_tracks_own_lengt
 }
 
 TEST(extract_clip_bar_aligned_selection_needs_no_padding) {
-  Arrangement p;
+  Song p_song;
+  auto p = p_song.getArrangement();
   ArrangementBackgroundGrid p_grid(p);
   int track_id = 10;
   p.setNote(4, track_id, 0, Note(60, 100));
@@ -451,7 +472,8 @@ TEST(extract_clip_bar_aligned_selection_needs_no_padding) {
 }
 
 TEST(extract_clip_front_pads_a_non_bar_aligned_selection) {
-  Arrangement p;
+  Song p_song;
+  auto p = p_song.getArrangement();
   ArrangementBackgroundGrid p_grid(p);
   int track_id = 10;
   // Row 6 is 2 rows into the bar starting at row 4 (rows_per_bar 4).
@@ -469,7 +491,8 @@ TEST(extract_clip_front_pads_a_non_bar_aligned_selection) {
 }
 
 TEST(extract_clip_length_rounds_up_to_the_next_whole_bar) {
-  Arrangement p;
+  Song p_song;
+  auto p = p_song.getArrangement();
   ArrangementBackgroundGrid p_grid(p);
   int track_id = 10;
   // Selection spans rows 4-10 (7 rows past bar_start 4) - rounds up to 8.
@@ -478,7 +501,8 @@ TEST(extract_clip_length_rounds_up_to_the_next_whole_bar) {
 }
 
 TEST(extract_clip_reads_a_repeated_row_through_the_tracks_own_length) {
-  Arrangement p;
+  Song p_song;
+  auto p = p_song.getArrangement();
   ArrangementBackgroundGrid p_grid(p);
   int track_id = 10;
   p.setNote(4, track_id, 0, Note(60, 100)); // the track's own real row
@@ -504,7 +528,8 @@ TEST(locator_block_ops_address_rows_from_the_blocks_first_row) {
 }
 
 TEST(humanize_varies_velocity_and_delay_within_bounds_and_spares_offs) {
-  Arrangement p;
+  Song p_song;
+  auto p = p_song.getArrangement();
   ArrangementBackgroundGrid p_grid(p);
   int track_id = 10;
   for (int row = 0; row < 32; row++) p.setNote(row, track_id, 0, Note(60, 100));
@@ -517,7 +542,7 @@ TEST(humanize_varies_velocity_and_delay_within_bounds_and_spares_offs) {
 
   bool velocity_varied = false, delay_varied = false;
   for (int row = 0; row < 32; row++) {
-    auto & n = p.getNotes(row, track_id)[0];
+    auto n = p.getNotes(row, track_id)[0];
     CHECK(n.getValue() == 60);
     CHECK(n.getVelocity() >= 100 - amount.velocity && n.getVelocity() <= 100 + amount.velocity);
     CHECK(n.getDelay() >= 0 && n.getDelay() <= amount.delay);
@@ -531,7 +556,8 @@ TEST(humanize_varies_velocity_and_delay_within_bounds_and_spares_offs) {
 }
 
 TEST(humanize_notes_only_touches_the_requested_column_range) {
-  Arrangement p;
+  Song p_song;
+  auto p = p_song.getArrangement();
   ArrangementBackgroundGrid p_grid(p);
   int track_id = 10;
   p.setNote(2, track_id, 0, Note(60, 100));
@@ -541,7 +567,7 @@ TEST(humanize_notes_only_touches_the_requested_column_range) {
   HumanizeAmount amount{20, 0};
   for (int i = 0; i < 20; i++) humanizePatternBlockNotes(p_grid, 2, 2, track_id, 1, 1, amount, rng);
 
-  auto & notes = p.getNotes(2, track_id);
+  auto notes = p.getNotes(2, track_id);
   CHECK(notes[0].getVelocity() == 100); // untouched
   CHECK(notes[1].getVelocity() != 100);
 }

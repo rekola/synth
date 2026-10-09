@@ -54,11 +54,13 @@ class SongState : public TrackState {
   bool isMasterClipping() const { return master_clipping_; }
 
   void initialize(const Song & song) {
-    tempo_ = song.getTempo();
+    auto content_reader = song.readContent();
+    auto & scalars = content_reader->scalars;
+    tempo_ = scalars.tempo;
     synced_song_tempo_ = tempo_;
-    song_signature_ = song.getTimeSignature();
-    running_bars_ = song.getRunningBars();
-    swing_ = song.getSwing();
+    song_signature_ = scalars.time_signature;
+    running_bars_ = scalars.running_bars;
+    swing_ = scalars.swing;
     master_sends_ = song.getMasterTrack().getSends();
     render_context_.setBpm(tempo_);
     song_structure_ = SongStructure(song);
@@ -70,10 +72,10 @@ class SongState : public TrackState {
     // finalize a fresh one, since every playNote() call already threads
     // a ChannelConfiguration all the way down to voice construction.
     auto & mutable_config = getMutableChannelConfiguration();
-    mutable_config.setEarHeight(song.getEarHeight());
-    mutable_config.setFloorReflectionEnabled(song.getFloorReflectionEnabled());
-    mutable_config.setFloorReflectionStrength(song.getFloorReflectionStrength());
-    mutable_config.setGroundAbsorption(song.getGroundAbsorption());
+    mutable_config.setEarHeight(scalars.ear_height);
+    mutable_config.setFloorReflectionEnabled(scalars.floor_reflection_enabled);
+    mutable_config.setFloorReflectionStrength(scalars.floor_reflection_strength);
+    mutable_config.setGroundAbsorption(scalars.ground_absorption);
 
     int real_sample_rate = getChannelConfiguration().getAudioOutSampleRate();
     float row_duration = getChannelConfiguration().getRowDuration(tempo_);
@@ -220,17 +222,23 @@ class SongState : public TrackState {
     // and a resume, is ordinary usage, not an edge case. Keyed on
     // getMajorVersion() specifically, not getMinorVersion() - a note/command
     // edit alone must not trigger this.
+    // The arrangement, clips and song-level values as of the last finished
+    // edit, held for this whole block (Song::readContent()). Nothing here may
+    // keep a pointer into it past the block.
+    auto content_reader = song.readContent();
+    const PlaybackContent & content = *content_reader;
+
     if (song_structure_version_ != song.getMajorVersion()) {
       std::lock_guard<std::mutex> guard(song.getTracksMutex());
       song_structure_ = SongStructure(song);
       song_structure_version_ = song.getMajorVersion();
-      swing_ = song.getSwing();
-      song_signature_ = song.getTimeSignature();
+      swing_ = content.scalars.swing;
+      song_signature_ = content.scalars.time_signature;
       // Only a tempo the song itself changed is applied: a scene launch has
       // set this one ahead of the song's copy (queueSceneChange()), and an
       // unrelated edit mustn't put it back.
-      if (song.getTempo() != synced_song_tempo_) {
-        synced_song_tempo_ = song.getTempo();
+      if (content.scalars.tempo != synced_song_tempo_) {
+        synced_song_tempo_ = content.scalars.tempo;
         applyTempo(synced_song_tempo_);
       }
     }
@@ -344,7 +352,7 @@ class SongState : public TrackState {
 	// NOTE_PRESSURE path the live performance itself is heard
 	// through - so recording mute is inaudible for anything the
 	// player is actually doing, only for the song's own old content.
-	if (getSamplePos() == 0) advanceLiveTracks(song, i);
+	if (getSamplePos() == 0) advanceLiveTracks(content, i);
 	if (getSamplePos() == 0 && !recording_muted_) {
 	  // pending_resume_retrigger_ only actually describes the very first
 	  // row scheduled after a (re)start - once one row here has
@@ -358,7 +366,7 @@ class SongState : public TrackState {
 	  bool row_just_resumed_playback = pending_resume_retrigger_;
 	  pending_resume_retrigger_ = false;
 
-	  auto & arrangement = song.getArrangement();
+	  auto & arrangement = content.arrangement;
 	  int row_idx = absolute_pos_;
 	  // Anything but the row after the last one scheduled - a seek, a
 	  // pattern break or a restart - lands mid-content.
@@ -415,7 +423,7 @@ class SongState : public TrackState {
 		rows_since_start = live_clock_ - live_it->second.launch_clock;
 	      }
 	    } else {
-	      active = resolveInstanceAt(song, track_id, row_idx);
+	      active = resolveInstanceAt(content, track_id, row_idx);
 	      rows_since_start = row_idx - active.start_row;
 	    }
 
@@ -439,19 +447,20 @@ class SongState : public TrackState {
 	    // or the track is taken over.
 	    if (is_sample_track) {
 	      auto * background = taken_over ? nullptr : arrangement.getSampleBackgroundContent(track_id);
+	      uint64_t background_identity = background ? background->identity() : 0;
 	      auto last_it = last_background_by_track_.find(track_id);
-	      auto * previous_background = last_it == last_background_by_track_.end() ? nullptr : last_it->second;
+	      uint64_t previous_background = last_it == last_background_by_track_.end() ? 0 : last_it->second;
 
-	      if (previous_background && previous_background != background) {
+	      if (previous_background && previous_background != background_identity) {
 		render_context_.addPendingSampleStop(track_id, i, true);
 	      }
 	      // Retriggered at this row's offset into the bed whenever playback
 	      // lands here other than by advancing one row.
-	      if (background && (background != previous_background || position_jumped || row_just_resumed_playback)) {
+	      if (background && (background_identity != previous_background || position_jumped || row_just_resumed_playback)) {
 		auto start_offset_frames = row_idx * getChannelConfiguration().getSampleInterval(tempo_);
-		render_context_.addPendingSampleStart(track_id, i, background, start_offset_frames, true);
+		render_context_.addPendingSampleStart(track_id, i, *background, start_offset_frames, true);
 	      }
-	      last_background_by_track_[track_id] = background;
+	      last_background_by_track_[track_id] = background_identity;
 	    }
 
 	    // The clip/arrangement layer - a real clip instance that was
@@ -484,7 +493,7 @@ class SongState : public TrackState {
 	    }
 
 	    if (active.clip_index >= 0) {
-	      auto & clip = song.getClips(track_id)[static_cast<size_t>(active.clip_index)];
+	      auto & clip = content.getClips(track_id)[static_cast<size_t>(active.clip_index)];
 
 	      // A SampleTrack's own clip is raw audio, not a Pattern to read
 	      // notes from - queued as a RenderContext start exactly on the
@@ -528,7 +537,7 @@ class SongState : public TrackState {
 		  // every layer, the same composite SampleTrackState::
 		  // triggerClip()'s own Live-View path already plays (see
 		  // its own comment for why this is never computed here).
-		  render_context_.addPendingSampleStart(track_id, i, &clip.getMixedContent(), start_offset_frames, false);
+		  render_context_.addPendingSampleStart(track_id, i, clip.getMixedContent(), start_offset_frames, false);
 		}
 
 		// A one-shot clip's own real audio can outlast its length -
@@ -556,7 +565,7 @@ class SongState : public TrackState {
 
 	    auto & notes = active_pattern->getNotes(effective_row);
 	    auto track = song.getMasterTrack().getChildByInternalId(track_id);
-	    auto tuning = track ? song.getTuningForTrack(*track) : song.getTuning();
+	    auto tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : content.scalars.tuning;
 
 	    for (size_t j = 0; j < notes.size(); j++) {
 	      if (notes[j].isDefined()) {
@@ -591,7 +600,7 @@ class SongState : public TrackState {
 	  live_clock_++;
 	  if (pending_break_) {
 	    pending_break_ = false;
-            jumpToNextBar(song, pending_break_row_);
+            jumpToNextBar(pending_break_row_);
           } else {
 	    movePosition(1);
 	  }
@@ -809,7 +818,7 @@ class SongState : public TrackState {
   // row completes, go to row `row_in_bar` of the next bar (the bar's last
   // row at most). The live clock doesn't follow, so a launched clip
   // keeps its own place.
-  void jumpToNextBar(const Song & song, int row_in_bar) {
+  void jumpToNextBar(int row_in_bar) {
     auto next_bar = barsAt(absolute_pos_).nextBarStart(absolute_pos_);
     setPosition(next_bar + std::min(row_in_bar, barsAt(next_bar).barRows() - 1));
   }
@@ -1021,7 +1030,7 @@ private:
   // At the start of every row played: ends a launched one-shot that has
   // played through, and on the first row of a bar applies whatever is
   // queued.
-  void advanceLiveTracks(const Song & song, int frame) {
+  void advanceLiveTracks(const PlaybackContent & content, int frame) {
     // A launched scene's tempo and signature take effect on the bar (or
     // the first row played, from a stopped transport) the clips launch on.
     if (pending_scene_.active && (pending_scene_.immediate || barsAt(absolute_pos_).rowInBar(absolute_pos_) == 0)) applyPendingScene();
@@ -1029,7 +1038,7 @@ private:
     for (auto it = live_tracks_.begin(); it != live_tracks_.end(); ) {
       auto track_id = it->first;
       auto & live_track = it->second;
-      auto & clips = song.getClips(track_id);
+      auto & clips = content.getClips(track_id);
       if (live_track.clip_index >= 0) {
 	bool gone = live_track.clip_index >= static_cast<int>(clips.size());
 	bool finished = false;
@@ -1087,7 +1096,7 @@ private:
   // last_active_clip_index_by_track_ above, compared by identity to
   // detect a replaced bed (or none at all) and retrigger/release
   // accordingly.
-  std::unordered_map<int, const SampleContent *> last_background_by_track_;
+  std::unordered_map<int, uint64_t> last_background_by_track_;
   // The row scheduled last, to tell advancing one row from a jump.
   int last_scheduled_row_ = -2;
   // renderBlock()'s own resume/pause-release detection - the previous

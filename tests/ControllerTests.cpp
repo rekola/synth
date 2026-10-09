@@ -460,7 +460,7 @@ TEST(begin_and_finish_sample_capture_creates_and_finalizes_a_real_clip) {
 
   CHECK(!controller.hasRecordingClip());
   CHECK(!controller.isRecording());
-  auto & clips = controller.getSong().getClips(track_id);
+  auto clips = controller.getSong().getClips(track_id);
   CHECK(clips.size() == 1);
   if (!clips.empty()) {
     auto & content = clips[0].getSampleContent();
@@ -502,7 +502,7 @@ TEST(armed_sample_capture_places_at_the_snapshotted_row_and_trims_the_measured_l
   controller.beginSampleCapture(track_id, 100); // 100 frames of measured round-trip latency
   CHECK(controller.hasRecordingClip());
 
-  auto & clips = controller.getSong().getClips(track_id);
+  auto clips = controller.getSong().getClips(track_id);
   CHECK(clips.size() == 1);
   if (!clips.empty()) {
     auto & content = clips[0].getSampleContent();
@@ -519,7 +519,7 @@ TEST(armed_sample_capture_places_at_the_snapshotted_row_and_trims_the_measured_l
   controller.finishSampleCapture();
   CHECK(!controller.isRecordingArmed()); // reset back to unarmed for the next take
 
-  auto & clips2 = controller.getSong().getClips(track_id);
+  auto clips2 = controller.getSong().getClips(track_id);
   if (!clips2.empty()) {
     // 800 captured frames, 100 of them the lead-in - post-trim length
     // covers 700, not the full 800.
@@ -557,7 +557,7 @@ TEST(clip_recording_sample_capture_lands_at_the_exact_pressed_index_with_holes) 
   controller.beginSampleCapture(track_id);
   CHECK(controller.hasRecordingClip());
 
-  auto & clips = controller.getSong().getClips(track_id);
+  auto clips = controller.getSong().getClips(track_id);
   CHECK(clips.size() == 3);
   CHECK(clips[0].isEmpty()); // backfilled filler
   CHECK(clips[1].isEmpty()); // backfilled filler
@@ -598,7 +598,7 @@ TEST(a_second_take_into_an_already_recorded_slot_overdubs_rather_than_replaces) 
   controller.addToSample(block);
   controller.finishSampleCapture();
 
-  auto & clips = controller.getSong().getClips(track_id);
+  auto clips = controller.getSong().getClips(track_id);
   CHECK(clips.size() == 1);
   CHECK(clips[0].hasSample());
   CHECK(clips[0].getSampleLayers().size() == 1);
@@ -644,7 +644,7 @@ TEST(sample_capture_creates_a_non_looping_clip_by_default) {
   controller.addToSample(block);
 
   controller.beginSampleCapture(track_id);
-  auto & clips = controller.getSong().getClips(track_id);
+  auto clips = controller.getSong().getClips(track_id);
   CHECK(clips.size() == 1);
   if (!clips.empty()) CHECK(!clips[0].isLooping());
 }
@@ -681,7 +681,7 @@ TEST(extend_recording_sample_clip_if_needed_grows_the_clip_and_clears_a_stale_st
   controller.addToSample(block);
   controller.beginSampleCapture(track_id);
 
-  auto & clips = controller.getSong().getClips(track_id);
+  auto clips = controller.getSong().getClips(track_id);
   CHECK(clips.size() == 1);
   CHECK(clips[0].getLength() == 4); // one bar's worth, right away - not 0
 
@@ -732,7 +732,7 @@ TEST(unarmed_sample_capture_stays_unplaced) {
   CHECK(active.clip_index == Arrangement::kNoInstance); // never placed anywhere
 
   controller.finishSampleCapture();
-  auto & clips = controller.getSong().getClips(track_id);
+  auto clips = controller.getSong().getClips(track_id);
   if (!clips.empty()) CHECK(clips[0].getLength() == config.framesToRows(400, controller.getSong().getTempo())); // no latency to trim off
 }
 
@@ -959,7 +959,7 @@ TEST(toggle_record_arm_clip_grid_focused_arms_a_sample_track_without_arrangement
   CHECK(controller.hasRecordingClip());
   controller.finishSampleCapture();
 
-  auto & clips = song.getClips(track_id);
+  auto clips = song.getClips(track_id);
   CHECK(clips.size() == 1);
   CHECK(resolveInstanceAt(song, track_id, 0).clip_index == Arrangement::kNoInstance);
 
@@ -981,7 +981,7 @@ TEST(toggle_drum_clip_focus_direct_call_opens_and_closes_a_clip) {
 
   auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(std::make_unique<PercussionTrack>()));
   auto track_id = track.getInternalId();
-  auto & existing = song.addClip(Clip(track_id));
+  auto existing = song.addClip(Clip(track_id));
   existing.setName("Beat 1");
   auto existing_id = existing.getId();
 
@@ -1046,7 +1046,7 @@ TEST(toggle_drum_clip_focus_direct_call_opens_a_pitched_track_too) {
 
   auto & note_track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto note_track_id = note_track.getInternalId();
-  auto & existing = song.addClip(Clip(note_track_id));
+  auto existing = song.addClip(Clip(note_track_id));
   auto existing_id = existing.getId();
 
   CHECK(controller.toggleDrumClipFocus(note_track_id, 0));
@@ -1066,7 +1066,7 @@ TEST(close_drum_clip_focus_closes_whatever_is_open) {
 
   auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(std::make_unique<PercussionTrack>()));
   auto track_id = track.getInternalId();
-  auto & clip = song.addClip(Clip(track_id));
+  auto clip = song.addClip(Clip(track_id));
   clip.setName("Beat 1");
 
   int requested_track_id = -1;
@@ -1155,7 +1155,7 @@ TEST(ensure_clip_recording_clip_creates_and_grows_at_the_exact_pressed_index) {
   CHECK(controller.isClipRecording(track_id));
 
   controller.ensureClipRecordingClip(track_id, 0);
-  auto & clips = song.getClips(track_id);
+  auto clips = song.getClips(track_id);
   // Lands at exactly the pressed index (2), not the next unused one -
   // holes are allowed, so scene 2 can be recorded into even while scenes
   // 0/1 stay genuinely empty on this track.
@@ -1183,7 +1183,7 @@ TEST(ensure_clip_recording_clip_overwrites_an_occupied_slot_in_place) {
 
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
-  auto & existing = song.addClip(Clip(track_id));
+  auto existing = song.addClip(Clip(track_id));
   existing.setName("Old take");
   existing.setLength(8);
   existing.getLeafPattern().setNote(0, 0, Note(40, 100, 0));
@@ -1195,7 +1195,7 @@ TEST(ensure_clip_recording_clip_overwrites_an_occupied_slot_in_place) {
   controller.armClipTrackRecording(track_id, 0);
 
   controller.ensureClipRecordingClip(track_id, 0);
-  auto & clips = song.getClips(track_id);
+  auto clips = song.getClips(track_id);
   CHECK(clips.size() == 1); // reused, not appended
   CHECK(clips[0].getId() == existing_id); // same clip identity preserved
   CHECK(clips[0].getName() == "Old take"); // name untouched by the reset
@@ -1249,7 +1249,7 @@ TEST(ensure_clip_recording_clip_respects_a_primed_origin) {
 
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
-  auto & existing = song.addClip(Clip(track_id));
+  auto existing = song.addClip(Clip(track_id));
   existing.setLength(32); // long enough that row 8 below never wraps
   existing.getLeafPattern().setNote(0, 0, Note(40, 100, 0));
 
@@ -1288,8 +1288,8 @@ TEST(trim_clip_recording_clip_cuts_growth_back_to_the_last_written_bar) {
   controller.armClipTrackRecording(track_id, 0);
 
   auto row = controller.ensureClipRecordingClip(track_id, 0);
-  auto & clips = song.getClips(track_id);
-  auto & clip = clips[static_cast<size_t>(controller.getClipRecordingClipIndex(track_id))];
+  auto clips = song.getClips(track_id);
+  auto clip = clips[static_cast<size_t>(controller.getClipRecordingClipIndex(track_id))];
   clip.getLeafPattern().setNote(row, 0, Note(60, 100, 0));
 
   // The take then idles for several more bars (the performer stopped
@@ -1322,7 +1322,7 @@ TEST(trim_clip_recording_clip_with_no_notes_leaves_one_bar) {
   controller.ensureClipRecordingClip(track_id, 0); // clip created, but no note ever written into it
   controller.sendCommand("toggle-record-arm"); // disarm
 
-  auto & clips = song.getClips(track_id);
+  auto clips = song.getClips(track_id);
   CHECK(clips.size() == 1);
   CHECK(clips[0].getLength() == 4);
 }
@@ -1347,7 +1347,7 @@ TEST(trim_clip_recording_clip_loops_and_is_reported_exactly_once) {
   controller.sendCommand("toggle-record-arm");
   controller.armClipTrackRecording(track_id, 0);
   auto row = controller.ensureClipRecordingClip(track_id, 0);
-  auto & clips = song.getClips(track_id);
+  auto clips = song.getClips(track_id);
   clips[static_cast<size_t>(controller.getClipRecordingClipIndex(track_id))].getLeafPattern().setNote(row, 0, Note(60, 100, 0));
   auto clip_index = controller.getClipRecordingClipIndex(track_id);
   controller.sendCommand("toggle-record-arm"); // disarm
@@ -1415,7 +1415,7 @@ TEST(disarm_track_stops_an_in_flight_take_immediately) {
   controller.armTrack(track_id);
   controller.armClipTrackRecording(track_id, 0);
   auto row = controller.ensureClipRecordingClip(track_id, 0);
-  auto & clips = song.getClips(track_id);
+  auto clips = song.getClips(track_id);
   clips[static_cast<size_t>(controller.getClipRecordingClipIndex(track_id))].getLeafPattern().setNote(row, 0, Note(60, 100, 0));
   CHECK(controller.isClipRecording(track_id));
 
@@ -1440,7 +1440,7 @@ TEST(overdub_row_wraps_instead_of_growing_past_the_clip_length) {
 
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
-  auto & existing = song.addClip(Clip(track_id));
+  auto existing = song.addClip(Clip(track_id));
   existing.setLength(4); // one bar - short enough to wrap well within this test
   existing.getLeafPattern().setNote(0, 0, Note(40, 100, 0));
 
@@ -1470,7 +1470,7 @@ TEST(trim_clip_recording_clip_is_a_no_op_for_an_overdub) {
 
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
-  auto & existing = song.addClip(Clip(track_id));
+  auto existing = song.addClip(Clip(track_id));
   existing.setLength(4);
   existing.setLooping(true);
   existing.getLeafPattern().setNote(0, 0, Note(40, 100, 0));
@@ -1544,7 +1544,7 @@ TEST(merge_clip_to_background_command_resolves_from_current_track_and_playhead) 
   shot.getLeafPattern().setNote(0, 0, Note(60, 100));
   song.addClip(std::move(shot)); // index 0
 
-  auto & arrangement = song.getArrangement();
+  auto arrangement = song.getArrangement();
   placeClipInstance(song, track_id, 5, 0); // covers rows 5-8
 
   song.setCurrentTrackId(track_id);
@@ -1598,7 +1598,7 @@ TEST(ensure_note_recording_clip_creates_and_places_a_real_clip_on_first_write) {
   std::unordered_map<int, std::string> clip_ids;
   controller.ensureNoteRecordingClip(clip_ids, track_id, 0);
 
-  auto & clips = controller.getSong().getClips(track_id);
+  auto clips = controller.getSong().getClips(track_id);
   CHECK(clips.size() == 1);
   CHECK(!clips.empty() && !clips[0].isLooping()); // non-looping by default - one specific take, not a pattern meant to auto-repeat
   CHECK(clip_ids.count(track_id) == 1);
@@ -1896,12 +1896,12 @@ TEST(apply_note_pressure_writes_an_aftertouch_note) {
   auto track_id = track.getInternalId();
   song.setCurrentTrackId(track_id);
 
-  auto & arrangement = song.getArrangement();
+  auto arrangement = song.getArrangement();
   arrangement.setNote(0, track_id, 0, Note(60, 100));
 
   controller.applyNotePressure(2, track_id, 0, 90, 0);
 
-  auto & note = arrangement.getNote(2, track_id, 0);
+  auto note = arrangement.getNote(2, track_id, 0);
   CHECK(note.isAftertouch());
   CHECK(note.getVelocity() == 90);
 }
@@ -1932,7 +1932,7 @@ TEST(apply_note_pressure_writes_aftertouch_into_a_recording_clip) {
   controller.applyNotePressure(4, track_id, 0, 90, 0);
 
   auto read_target = resolveReadTarget(song, track_id, 4, controller.getFocusedClip());
-  auto & note = read_target.pattern->getNote(read_target.effective_row, 0);
+  auto note = read_target.pattern->getNote(read_target.effective_row, 0);
   CHECK(read_target.is_instance); // landed in the recording clip, not the background
   CHECK(note.isAftertouch());
   CHECK(note.getVelocity() == 90);

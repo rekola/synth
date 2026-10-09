@@ -19,18 +19,14 @@ class PositionedSceneGrid : public PatternGrid {
   PositionedSceneGrid(const ScenePatternSource & source, const Song & song, int anchor_block)
     : source_(source), read_(song), write_(nullptr), anchor_block_(anchor_block) { }
 
-  const Pattern * find(int track_id, int row, int & pattern_row) const override {
+  PatternView find(int track_id, int row, int & pattern_row) const override {
     pattern_row = row;
     auto address = trackRow(track_id, row);
     if (!address) return nullptr;
     const SceneGrid grid(read_, address->block, source_.blockLength(address->block));
     return grid.find(track_id, address->row, pattern_row);
   }
-  Pattern * find(int track_id, int row, int & pattern_row) override {
-    auto found = static_cast<const PositionedSceneGrid &>(*this).find(track_id, row, pattern_row);
-    return write_ ? const_cast<Pattern *>(found) : nullptr;
-  }
-  Pattern * obtain(int track_id, int row, int & pattern_row) override {
+  PatternView obtain(int track_id, int row, int & pattern_row) override {
     pattern_row = row;
     auto address = trackRow(track_id, row);
     if (!write_ || !address) return nullptr;
@@ -107,7 +103,7 @@ ScenePatternSource::isPlaying(int track_id) const {
 
 int
 ScenePatternSource::loopLength(int track_id, int scene) const {
-  auto & clips = song().getClips(track_id);
+  auto clips = song().getClips(track_id);
   if (scene < 0 || scene >= static_cast<int>(clips.size())) return 1;
   return std::max(1, clips[static_cast<size_t>(scene)].getLength());
 }
@@ -249,7 +245,7 @@ ScenePatternSource::moveCursor(int delta_rows) {
     // Paused with a launched clip under the cursor: its playhead is the
     // cursor, within the clip, and every other launched clip moves along.
     auto & playhead = playheads_.at(cursor_track_id_);
-    auto & clips = song().getClips(cursor_track_id_);
+    auto clips = song().getClips(cursor_track_id_);
     if (playhead.scene < 0 || playhead.scene >= static_cast<int>(clips.size())) return;
     auto length = std::max(1, clips[static_cast<size_t>(playhead.scene)].getLength());
     controller_.getClipPlayer().shiftLaunchedClips(std::clamp(playhead.row + delta_rows, 0, length - 1) - playhead.row);
@@ -352,21 +348,20 @@ ScenePatternSource::loopPassDim(int track_id, RowAddress address) const {
 
 ReadTarget
 ScenePatternSource::read(int track_id, RowAddress address) const {
-  static const Pattern empty_pattern;
   const Song & s = song();
   address = trackAddress(track_id, address);
   // Rows before the first scene show nothing.
-  if (address.row < 0) return { &empty_pattern, 0, address.row, false, -1 };
+  if (address.row < 0) return { PatternView::empty(), 0, address.row, false, -1 };
   SceneGrid grid(s, address.block, 0);
   auto clip = grid.clipFor(track_id);
-  if (!clip) return { &empty_pattern, 0, address.row, false, -1 };
+  if (!clip) return { PatternView::empty(), 0, address.row, false, -1 };
   auto length = clip->getLength() > 0 ? clip->getLength() : 1;
   // A sample clip has no Pattern, but the waveform drawing still needs to
   // know which clip this is.
-  if (clip->hasSample()) return { &empty_pattern, 0, address.row, true, address.block, false, length };
-  auto clip_row = SceneGrid::clipRow(*clip, address.row);
-  if (clip_row < 0) return { &empty_pattern, 0, address.row, false, -1 };
-  return { &clip->getLeafPattern(), clip_row, address.row, true, address.block, false, length };
+  if (clip->hasSample()) return { PatternView::empty(), 0, address.row, true, address.block, false, length };
+  auto clip_row = SceneGrid::clipRow(clip, address.row);
+  if (clip_row < 0) return { PatternView::empty(), 0, address.row, false, -1 };
+  return { clip->getLeafPattern(), clip_row, address.row, true, address.block, false, length };
 }
 
 EditTarget
@@ -380,9 +375,7 @@ ScenePatternSource::edit(int track_id, RowAddress address) {
   // A slot holding sample audio has no Pattern to write notes into (and no
   // note columns to type them in), and there's no slot before the first
   // scene - writes land nowhere.
-  static Pattern discarded;
-  discarded = Pattern();
-  return { &discarded, 0 };
+  return { PatternView::discarded(), 0 };
 }
 
 std::unique_ptr<const PatternGrid>
@@ -401,7 +394,7 @@ void ScenePatternSource::collectTrackInfo(RowAddress, int, std::unordered_map<in
   // window scrolls, and a width derived from it would change as it does.
   const Song & s = song();
   for (auto track_id : s.getRootTrackIds()) {
-    for (auto & clip : s.getClips(track_id)) {
+    for (auto clip : s.getClips(track_id)) {
       if (!clip.hasSample()) clip.getLeafPattern().updateSubtrackInfo(track_info[track_id]);
     }
   }

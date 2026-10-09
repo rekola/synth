@@ -84,7 +84,7 @@ TEST(azimuth_slide_moves_the_track_over_the_row) {
   song.addInstrument(make_unique<Oscillator>(WaveformType::SINE)); // instrument_id 0
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
 
-  auto & scene0 = song.getArrangement();
+  auto scene0 = song.getArrangement();
   scene0.setNote(0, track.getInternalId(), 0, Note(60, 100));
   scene0.setCommand(0, track.getInternalId(), Command("YR05")); // +5 deg/tick, right
 
@@ -119,7 +119,7 @@ TEST(azimuth_slide_command_fires_even_while_a_clip_supplies_the_row_notes) {
   clip.getLeafPattern().setNote(0, 0, Note(60, 100)); // the clip's own note - no command of its own
   auto clip_id = song.addClip(move(clip)).getId(); // index 0
 
-  auto & arrangement = song.getArrangement();
+  auto arrangement = song.getArrangement();
   placeClipInstance(song, track_id, 0, 0);
   CHECK(arrangement.getInstance(track_id, 0) == clip_id);
   arrangement.setCommand(0, track_id, Command("YR05")); // +5 deg/tick, right - on the background, not on the clip
@@ -169,7 +169,7 @@ TEST(track_state_set_azimuth_reaches_an_already_active_voice) {
   // and ignores azimuth entirely, returning a fixed W-only gain set.
   track.setDistance(1.0f);
 
-  auto & scene0 = song.getArrangement();
+  auto scene0 = song.getArrangement();
   scene0.setNote(0, track.getInternalId(), 0, Note(60, 100));
 
   ChannelConfiguration config(44100, 1);
@@ -228,7 +228,7 @@ TEST(azimuth_set_command_sets_azimuth_over_the_row) {
   auto & track = static_cast<InstrumentTrack &>(song.addTrack(make_unique<InstrumentTrack>(0)));
   track.setDistance(1.0f); // computeAmbisonicGains() ignores azimuth entirely at distance <= 0
 
-  auto & arrangement = song.getArrangement();
+  auto arrangement = song.getArrangement();
   arrangement.setNote(0, track.getInternalId(), 0, Note(60, 100));
   arrangement.setCommand(0, track.getInternalId(), Command("0PFF")); // hard right
 
