@@ -174,9 +174,8 @@ patterns, so they are covered by the note primitives. Verify with a test.
   (arrangement note, clip note, instance, track) mapped to a place in both
   views, and must not move the playhead while playing.
 - Live recording take = one undo step (done): `Controller::updateUndoGroup()`
-  holds a group open for clip takes and auto-record sessions. An untracked
-  entry committed inside a take is folded into it, so undoing the take would
-  also undo it; `Document::endGroup()` should keep those apart. Sample audio
+  holds a group open for clip takes and auto-record sessions; untracked
+  entries committed inside it stay apart, so undoing the take leaves them. Sample audio
   is referenced by `shared_ptr` buffer, not copied into the journal.
 - Journal trimming bound (memory) is the one place history is ever dropped.
 

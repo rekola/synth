@@ -187,3 +187,21 @@ TEST(a_clip_take_is_one_undo_step_and_undo_waits_until_it_ends) {
   CHECK(song.undo());
   CHECK(noteRows() == with_take - 4);
 }
+
+TEST(an_untracked_write_inside_a_take_is_not_undone_with_it) {
+  Song song;
+  song.document().beginGroup("take");
+  song.getArrangement().setNote(0, 7, 0, Note(60, 100));
+  {
+    Song::Edit sync(song, "glide", Song::Edit::Kind::STRUCTURE, Song::Edit::Origin::SYNC);
+    song.setSwing(55);
+  }
+  song.getArrangement().setNote(1, 7, 0, Note(62, 100));
+  song.document().endGroup();
+  auto & journal = song.document().journal();
+  CHECK(journal.back().tracked);
+  CHECK(journal[journal.size() - 2].sequence < journal.back().sequence);
+  CHECK(song.undo());
+  CHECK(song.getSwing() == 55); // the mirror write stays
+  CHECK(song.getArrangement().findPattern(7).getNotesByRow().empty());
+}

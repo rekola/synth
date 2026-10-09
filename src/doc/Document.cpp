@@ -269,15 +269,24 @@ void Document::endGroup() {
   assert(in_group_);
   in_group_ = false;
   if (journal_.size() <= group_start_ + 1) {
-    if (journal_.size() == group_start_ + 1) journal_.back().label = group_label_;
+    if (journal_.size() == group_start_ + 1 && journal_.back().tracked) journal_.back().label = group_label_;
     return;
   }
+  // Untracked entries (the audio thread's mirror writes) stay entries of
+  // their own, before the merged one, so undoing the group never undoes them.
   JournalEntry merged;
   merged.label = group_label_;
-  for (auto i = group_start_; i < journal_.size(); i++)
-    merged.ops.insert(merged.ops.end(), journal_[i].ops.begin(), journal_[i].ops.end());
-  merged.sequence = journal_.back().sequence;
+  std::vector<JournalEntry> untracked;
+  for (auto i = group_start_; i < journal_.size(); i++) {
+    if (journal_[i].tracked)
+      merged.ops.insert(merged.ops.end(), journal_[i].ops.begin(), journal_[i].ops.end());
+    else
+      untracked.push_back(std::move(journal_[i]));
+  }
   journal_.erase(journal_.begin() + static_cast<std::ptrdiff_t>(group_start_), journal_.end());
+  for (auto & entry : untracked) journal_.push_back(std::move(entry));
+  if (merged.ops.empty()) return;
+  merged.sequence = ++sequence_;
   journal_.push_back(std::move(merged));
 }
 
