@@ -836,6 +836,9 @@ Controller::syncLiveGlideStateIntoModel(const string & buffer_name, const Playba
         });
       }
     }
+    // The sends edit above replaced the track's object.
+    leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
+    if (!leaf_track) continue;
     if (track_info.hasLiveAzimuth() && leaf_track->getAzimuth() != track_info.getLiveAzimuth()) {
       Song::Edit edit(*song, "glide azimuth", Song::Edit::Kind::STRUCTURE, Song::Edit::Origin::SYNC);
       song->editTrack(track_id, [&](Track & track) { leafOf(track).setAzimuth(track_info.getLiveAzimuth()); });
