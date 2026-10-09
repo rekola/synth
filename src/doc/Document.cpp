@@ -7,6 +7,15 @@
 
 namespace doc {
 
+// Runs the owner's implicit scope around a primitive called with no
+// transaction open.
+struct Document::ScopeGuard {
+  Document & d;
+  bool active;
+  explicit ScopeGuard(Document & doc) : d(doc), active(doc.depth_ == 0 && doc.implicit_scope_) { if (active) d.implicit_scope_->begin(); }
+  ~ScopeGuard() { if (active) d.implicit_scope_->end(); }
+};
+
 const Value * Node::find(const std::string & key) const {
   for (auto & [ k, v ] : properties)
     if (k == key) return &v;
@@ -78,6 +87,7 @@ void Document::record(Op op) {
 }
 
 void Document::setProperty(NodeId id, const std::string & key, Value value) {
+  ScopeGuard scope(*this);
   Transaction t(*this);
   auto node = mutableGet(id);
   assert(node);
@@ -101,6 +111,7 @@ void Document::setProperty(NodeId id, const std::string & key, Value value) {
 }
 
 void Document::insertChild(NodeId parent_id, const std::string & slot, size_t index, NodeId child_id) {
+  ScopeGuard scope(*this);
   Transaction t(*this);
   auto parent = mutableGet(parent_id);
   auto child = mutableGet(child_id);
@@ -120,6 +131,7 @@ void Document::insertChild(NodeId parent_id, const std::string & slot, size_t in
 }
 
 NodeId Document::removeChild(NodeId parent_id, const std::string & slot, size_t index) {
+  ScopeGuard scope(*this);
   Transaction t(*this);
   auto parent = mutableGet(parent_id);
   assert(parent);
@@ -142,6 +154,7 @@ NodeId Document::removeChild(NodeId parent_id, const std::string & slot, size_t 
 
 void Document::moveChild(NodeId parent_id, const std::string & slot, size_t from, size_t to) {
   if (from == to) return;
+  ScopeGuard scope(*this);
   Transaction t(*this);
   auto parent = mutableGet(parent_id);
   assert(parent);
@@ -271,6 +284,7 @@ void Document::applyRaw(const Op & op) {
 }
 
 void Document::apply(const std::vector<Op> & ops) {
+  ScopeGuard scope(*this);
   Transaction t(*this);
   for (auto & op : ops) applyRaw(op);
 }

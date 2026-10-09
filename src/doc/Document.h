@@ -98,6 +98,16 @@ class Document {
   NodeId removeChild(NodeId parent, const std::string & slot, size_t index);  // detaches
   void moveChild(NodeId parent, const std::string & slot, size_t from, size_t to);
 
+  // Called around a primitive that runs with no transaction open, so its
+  // owner can make that write a complete action of its own (open a scope
+  // before, close it after) instead of leaving it half-published.
+  struct ImplicitScope {
+    virtual ~ImplicitScope() { }
+    virtual void begin() = 0;
+    virtual void end() = 0;
+  };
+  void setImplicitScope(ImplicitScope * scope) { implicit_scope_ = scope; }
+
   // Transactions nest; only the outermost commit appends to the journal.
   void begin(const std::string & label = std::string(), bool tracked = true);
   void commit();
@@ -145,6 +155,7 @@ class Document {
 
  private:
   friend class Transaction;
+  struct ScopeGuard;
   Node * mutableGet(NodeId id);
   Slot & slotFor(Node & node, const std::string & name);
   void record(Op op);
@@ -164,6 +175,7 @@ class Document {
   std::vector<std::pair<int, Listener>> listeners_;
   int next_listener_ = 1;
   bool verify_ = false;
+  ImplicitScope * implicit_scope_ = nullptr;
   bool in_group_ = false;
   size_t group_start_ = 0;
   std::string group_label_;

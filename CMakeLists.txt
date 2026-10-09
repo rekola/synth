@@ -86,6 +86,7 @@ add_library(synth_engine STATIC
 	src/instruments/SF2Modulator.cpp
 	src/model/Song.cpp
 	src/model/PlaybackContent.cpp
+	src/model/PatternView.cpp
 	src/model/Clip.cpp
 	src/model/SongObject.cpp
 	src/model/LeafTrack.cpp
