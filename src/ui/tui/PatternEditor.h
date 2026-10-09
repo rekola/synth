@@ -5,6 +5,7 @@
 #include "../GridPosition.h"
 #include "../../model/Song.h"
 #include "../../state/PlaybackInfo.h"
+#include <chrono>
 #include <optional>
 #include "../../model/PatternBlockOps.h"
 #include "../ClipboardEntry.h"
@@ -396,6 +397,11 @@ private:
   bool mouse_down_ = false;
   MouseAnchor mouse_anchor_;
   int mouse_last_row_ = 0;
+  // The pointer chose the cursor row, so the view holds still until a key
+  // moves it; a drag past an edge scrolls at this pace.
+  bool pointer_scroll_ = false;
+  static constexpr std::chrono::milliseconds kDragScrollInterval{ 120 };
+  std::chrono::steady_clock::time_point drag_scroll_time_;
 
   // Where rows, cells and edits come from - see PatternSource.h. Points at
   // one of the two sources below, per setLiveMode().
