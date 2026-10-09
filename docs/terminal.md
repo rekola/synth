@@ -47,7 +47,8 @@ They act on the clip under the cursor.
 In Live View, with the transport paused inside the clip the pattern editor's
 cursor is in (a launched clip, or one the arrangement is playing), the cursor
 is that clip's playhead: Up and Down move it, and so move the arrangement's
-position, and playing resumes from there.
+position, and playing resumes from there. At the very start (position 0, nothing
+has played) no clip has a playhead yet, so the cursor moves alone.
 
 ## Undo
 

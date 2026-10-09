@@ -276,6 +276,7 @@ ScenePatternSource::moveArrangementPlayhead(int delta_rows) {
   auto scene = position(cursor_track_id_).block;
   if (info.isPlaying() || controller_.getClipPlayer().isTakenOver(cursor_track_id_)) return false;
   auto position = info.getAbsolutePosition();
+  if (position <= 0) return false; // nothing has played: no clip has a playhead yet
   auto active = resolveInstanceAt(song(), cursor_track_id_, position);
   auto clips = song().getClips(cursor_track_id_);
   if (active.clip_index < 0 || active.clip_index != scene || active.clip_index >= static_cast<int>(clips.size())) return false;
