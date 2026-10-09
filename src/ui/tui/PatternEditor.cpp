@@ -1504,6 +1504,14 @@ PatternEditor::handleMouse(const InputEvent & input) {
 
 bool
 PatternEditor::offerInput(const InputEvent & input) {
+  // Anything but typing ends the run of typed characters that undoes as one
+  // step (Song::breakTypingRun()).
+  if (input.getKind() != InputEvent::Kind::RELEASE) {
+    auto id = input.getId();
+    bool typing_key = !input.hasCtrl() && !input.hasAlt() && ((id >= 32 && id < 127) || id == NCKEY_DEL || id == NCKEY_BACKSPACE);
+    if (!typing_key) getController().getSong().breakTypingRun();
+  }
+
   // While the locator or track-name editor is open it owns every key.
   if (inline_editor_.offerInput(input)) return true;
 
@@ -1805,7 +1813,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	// it were a typed character, instead of being ignored (subcol 2/3)
 	// or actually deleting.
 	if (input.getId() == NCKEY_DEL || input.getId() == NCKEY_BACKSPACE) {
-	  Song::Edit edit(song, "clear command", Song::Edit::Kind::CONTENT);
+	  Song::Edit edit(song, "clear command", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, true);
 	  set_command(Command());
 	  row_edited = true;
 	  // Same row-level Backspace-steps-back/Delete-stays-put distinction
@@ -1831,7 +1839,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	auto existing = command_grid->findCommands(track_id, point.row, command_row);
 	auto command = existing ? existing->getCommand(command_row) : Command();
 	if (command.updateData(new_cursor.subcol, input.getId())) {
-	  Song::Edit edit(song, "edit command", Song::Edit::Kind::CONTENT);
+	  Song::Edit edit(song, "edit command", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, true);
 	  set_command(command);
 	  row_edited = true;
 
@@ -1855,7 +1863,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	  else current_value = (current_value & 0xf0) | input_hex_value;
 	  if (column_type == ColumnType::VELOCITY) note.setVelocity(current_value);
 	  else note.setDelay(current_value);
-	  Song::Edit edit(song, "edit velocity or delay", Song::Edit::Kind::CONTENT);
+	  Song::Edit edit(song, "edit velocity or delay", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, true);
 	  edit_target.pattern->setNote(edit_target.effective_row, note_column, note);
 	  row_edited = true;
 	  if (new_cursor.subcol == 0) {

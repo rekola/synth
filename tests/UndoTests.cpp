@@ -403,3 +403,44 @@ TEST(a_send_edit_undoes_although_the_audio_thread_mirrors_values_around_it) {
   controller.sendCommand("undo");
   CHECK(sendA() == before);
 }
+
+TEST(typed_edits_amalgamate_into_one_undo_step_until_something_else_happens) {
+  Song song;
+  auto edit = [&](int value) {
+    Song::Edit e(song, "type", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, true);
+    song.setTempo(value);
+  };
+  song.setTempo(100);
+  auto entries = song.document().journal().size();
+  edit(101); edit(102); edit(103);
+  CHECK(song.document().journal().size() == entries + 1); // one step for the run
+  CHECK(song.undo());
+  CHECK(song.getTempo() == 100);
+  CHECK(song.redo());
+  CHECK(song.getTempo() == 103);
+
+  // Another kind of edit ends the run, and so does breakTypingRun().
+  edit(104);
+  song.setSwing(60);
+  edit(105);
+  CHECK(song.undo()); CHECK(song.getTempo() == 104); // 105 alone
+  edit(106); edit(107);
+  song.breakTypingRun();
+  edit(108);
+  auto before = song.document().journal().size();
+  edit(109);
+  CHECK(song.document().journal().size() == before); // 108 and 109 share a step
+  CHECK(song.undo());
+  CHECK(song.getTempo() == 107);
+}
+
+TEST(a_run_of_typing_is_capped) {
+  Song song;
+  song.setTempo(100);
+  auto entries = song.document().journal().size();
+  for (int i = 0; i < Song::kTypingRunLimit + 1; i++) {
+    Song::Edit e(song, "type", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, true);
+    song.setTempo(101 + i);
+  }
+  CHECK(song.document().journal().size() == entries + 2);
+}

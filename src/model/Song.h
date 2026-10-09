@@ -26,6 +26,7 @@
 #include "../util/constants.h"
 
 #include <algorithm>
+#include <chrono>
 #include <functional>
 #include <map>
 #include <memory>
@@ -265,12 +266,16 @@ class Song : public SongObject {
     // model): journaled, but never undone on its own.
     enum class Origin { USER, SYNC };
 
-    Edit(Song & song, const char * label, Kind kind = Kind::STRUCTURE, Origin origin = Origin::USER) : song_(song) {
+    // `typing`: one of a run of keystrokes that undo as a whole (see
+    // Song::joinTypingRun()).
+    Edit(Song & song, const char * label, Kind kind = Kind::STRUCTURE, Origin origin = Origin::USER, bool typing = false) : song_(song) {
       if (song_.edit_depth_++ == 0) {
 	song_.edit_label_ = label;
 	song_.edit_kind_ = kind;
 	song_.edit_wrote_ = false;
-	song_.doc_->begin(label, origin == Origin::USER);
+	if (typing) song_.joinTypingRun();
+	else song_.typing_count_ = 0;
+	song_.doc_->begin(label, origin == Origin::USER, typing);
       } else if (kind == Kind::STRUCTURE) {
 	song_.edit_kind_ = Kind::STRUCTURE;
       }
@@ -308,6 +313,14 @@ class Song : public SongObject {
     bool discarded_ = false;
   };
   bool inEdit() const { return edit_depth_ > 0; }
+
+  // Typing edits (digits of a velocity, delay or command) amalgamate into the
+  // previous one as Emacs does with typed characters: a run is one undo step
+  // until anything else is edited, `breakTypingRun()` is called (a cursor
+  // move), it pauses for kTypingIdle, or it reaches kTypingRunLimit edits.
+  static constexpr int kTypingRunLimit = 20;
+  static constexpr std::chrono::milliseconds kTypingIdle{2000};
+  void breakTypingRun() { typing_count_ = 0; doc_->breakAmalgamation(); }
 
   // Undo and redo (doc/UndoHistory.h). Both return false when there is
   // nothing to do, and always while a live take is open (the take is one
@@ -581,6 +594,19 @@ private:
     void end() override { edit.reset(); }
   };
   doc::UndoHistory history_;
+  void joinTypingRun() {
+    auto now = std::chrono::steady_clock::now();
+    bool join = typing_count_ > 0 && typing_count_ < kTypingRunLimit && now - typing_time_ < kTypingIdle;
+    typing_time_ = now;
+    if (join) {
+      typing_count_++;
+    } else {
+      typing_count_ = 1;
+      doc_->breakAmalgamation();
+    }
+  }
+  int typing_count_ = 0;
+  std::chrono::steady_clock::time_point typing_time_;
   mutable std::unique_ptr<ImplicitEdit> implicit_edit_ = std::make_unique<ImplicitEdit>();
   // What the score's views are built from; also (re)binds the implicit
   // edit to this Song, so a moved Song keeps working.

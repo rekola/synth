@@ -1490,7 +1490,12 @@ would otherwise resume showing.
   placement, the row; for a clip, `clip_index` and the row in it) it changed,
   and the commands move the current track there, the transport row while
   stopped, and for a clip the clip grid and (in Live View) the pattern editor
-  (`Controller::setUndoFocusListener()`). An undo or redo whose change
+  (`Controller::setUndoFocusListener()`). Typing edits amalgamate: `Song::Edit`'s `typing` flag
+  appends a transaction's ops to the previous entry
+  (`Document::begin(..., amalgamate)`) while the run is unbroken
+  (`Song::breakTypingRun()` from `PatternEditor` on any non-typing key, an
+  idle gap, `kTypingRunLimit`), so velocity/delay digits and command
+  characters undo together; note entry does not use it yet. An undo or redo whose change
   is in a clip that is playing, queued or recording is refused
   (`Song::nextUndoPlace()`/`nextRedoPlace()` say where it would land before it
   does). Held note keys keep a group open

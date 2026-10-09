@@ -1558,6 +1558,7 @@ Song::getScaleDegreesWindow(int start_index, int count, bool major_if_none) cons
 bool
 Song::undo() {
   if (edit_depth_ > 0 || doc_->inGroup()) return false;
+  breakTypingRun();
   bool done;
   {
     Edit edit(*this, "undo");
@@ -1571,6 +1572,7 @@ Song::undo() {
 bool
 Song::redo() {
   if (edit_depth_ > 0 || doc_->inGroup()) return false;
+  breakTypingRun();
   bool done;
   {
     Edit edit(*this, "redo");

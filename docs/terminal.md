@@ -60,7 +60,13 @@ the transport row moves to the row of an arrangement note or placement
 clip grid's cursor goes to its scene and, in Live View, the pattern editor to
 the changed row (unless that track is playing).
 Changes that follow the playing song (a scene launch setting the tempo) are
-never undone. The keys of a chord are one step, however long they are held (on a terminal
+never undone. Typed digits are amalgamated as Emacs does with typed characters: the hex
+digits of a velocity or delay and the characters of a command, run on from one
+cell to the next, undo as one step. The run ends when you move the cursor or
+press any other command, edit something else, pause for two seconds, or reach
+20 edits.
+
+The keys of a chord are one step, however long they are held (on a terminal
 that reports key releases). Held keys behave alike in both views: the cursor
 stays on the row and steps once when the last key lifts; nothing starts the
 transport. A live recording take is one step: its notes appear as they land, and

@@ -150,7 +150,6 @@ ArrangementGrid::offerInput(const InputEvent & input) {
   else if (input.getId() == NCKEY_PGDOWN) move_cursor(getDim().first);
   else if (input.getId() == NCKEY_BACKSPACE) {
     if (cursor_track_index_ < num_tracks) {
-      auto arrangement = song.getArrangement();
       auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
       auto bar_start_row = bar_row(cursor_bar_);
       auto active = resolveInstanceForBar(song, track_id, bar_start_row, bar_length(cursor_bar_));
