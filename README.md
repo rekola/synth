@@ -103,8 +103,8 @@ pixels instead of braille cells, and without pixel support they fall back to
 braille. See [docs/terminal.md](docs/terminal.md) for terminal-specific setup.
 
 Known to work are kitty, xterm and GNOME Terminal; the rest are untested here.
-The Graphics and Mouse columns are from testing another program (nanoclj) in
-these terminals.
+The Graphics and Mouse columns come from testing another program (nanoclj) in
+these terminals; xterm's lack of true color applies to synth as well.
 
 | Terminal | Status | Graphics | Mouse | Notes |
 | - | - | - | - | - |

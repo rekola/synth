@@ -99,6 +99,9 @@ XTerm*faceSize: 12
   monospace font, so it is the same on every machine; name a font such as
   `DejaVu Sans Mono` to pick one. `faceSize` is in points.
 
+Even so, xterm has no true color, so the UI is limited to the 256-color
+palette there.
+
 Reload with `xrdb -merge ~/.Xresources` and start a new xterm; running ones
 keep their old settings. If `TERM` is still `xterm` inside it, check with
 `echo $TERM`; a shell profile that exports `TERM` overrides the resource.
