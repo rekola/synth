@@ -884,13 +884,9 @@ public:
 
   void raiseToTop() override { menu->get_plane()->move_top(); }
 
-  // The plane grows from the one bar row to cover the dropdown while a
-  // section is unrolled.
-  bool isOpen() const override {
-    unsigned rows = 0, cols = 0;
-    menu->get_plane()->get_dim(&rows, &cols);
-    return rows > 1;
-  }
+  // A section is unrolled (the plane's own size says nothing: it always
+  // covers the screen).
+  bool isOpen() const override { return menu->get_selected() != nullptr; }
 
 private:
   void activate(const char * item_desc) {
