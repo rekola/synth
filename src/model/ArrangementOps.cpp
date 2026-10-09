@@ -138,6 +138,7 @@ void
 deleteClip(Song & song, int track_id, int clip_index) {
   auto & clips = song.getClips(track_id);
   if (clip_index < 0 || clip_index >= static_cast<int>(clips.size())) return;
+  Song::Edit edit(song, "delete clip");
   auto clip_id = clips[static_cast<size_t>(clip_index)].getId();
 
   // Every placement - the same clip can be (and, live-linked editing
@@ -158,7 +159,6 @@ deleteClip(Song & song, int track_id, int clip_index) {
   // a plain vector erase would) would silently misalign them all against
   // it, even when the deletion happened on a completely different track.
   clips[static_cast<size_t>(clip_index)] = Clip(track_id);
-  song.incVersion();
 }
 
 SlotDelete
@@ -171,8 +171,8 @@ deleteClipOrStopButton(Song & song, int track_id, int clip_index, string * delet
   if (index >= clips.size() || clips[index].isEmpty()) {
     // No clip here: its stop button goes next.
     if (index < clips.size() && !clips[index].hasStopButton()) return SlotDelete::NOTHING;
+    Song::Edit edit(song, "remove stop button");
     song.ensureClipAt(track_id, clip_index).setStopButton(false);
-    song.incVersion();
     return SlotDelete::STOP_BUTTON;
   }
   if (deleted_clip_name) *deleted_clip_name = clips[index].getName();
@@ -183,13 +183,13 @@ deleteClipOrStopButton(Song & song, int track_id, int clip_index, string * delet
 int placeClipCopy(Song & song, int track_id, int clip_index, Clip clip) {
   if (clip_index < 0 || clip.isEmpty()) return -1;
   clip.setLeafTrackId(track_id);
+  Song::Edit edit(song, "place clip copy");
   clip.setId(song.generateUniqueClipId());
   // A clip already there goes, with its arrangement placements.
   auto & clips = song.getClips(track_id);
   if (clip_index < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(clip_index)].isEmpty()) deleteClip(song, track_id, clip_index);
   song.ensureClipAt(track_id, clip_index); // may reallocate the list
   song.getClips(track_id)[static_cast<size_t>(clip_index)] = std::move(clip);
-  song.incVersion();
   return clip_index;
 }
 
@@ -207,6 +207,7 @@ quantizeClip(Song & song, int track_id, int clip_index) {
   auto & pattern = clip.getLeafPattern();
   if (clip.isEmpty() || clip.hasSample() || pattern.getNotesByRow().empty()) return false;
 
+  Song::Edit edit(song, "quantize clip");
   struct Entry { int new_row, row, column; Note note; };
   std::vector<Entry> entries;
   auto length = std::max(1, clip.getLength());
@@ -248,7 +249,6 @@ quantizeClip(Song & song, int track_id, int clip_index) {
   for (auto & [ row, columns ] : pattern.getNotesByRow()) old_rows.push_back(row);
   for (auto row : old_rows) pattern.clearNotes(row);
   for (auto & [ row, columns ] : placed) pattern.setNotes(row, columns);
-  song.incVersion();
   return true;
 }
 

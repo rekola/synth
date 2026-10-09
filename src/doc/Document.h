@@ -95,6 +95,16 @@ class Document {
   void commit();
   bool inTransaction() const { return depth_ > 0; }
 
+  // An undo group folds every transaction committed while it is open into one
+  // journal entry, for an action that lasts a while but is one undo step - a
+  // live recording take. Each transaction inside still commits at once:
+  // listeners fire and the edit is visible (and audible) right away. Only
+  // the history is merged, when the group ends. Anything else committed
+  // meanwhile joins the group.
+  void beginGroup(const std::string & label);
+  void endGroup();
+  bool inGroup() const { return in_group_; }
+
   const std::vector<JournalEntry> & journal() const { return journal_; }
   // The ops that undo `entry`, in the order to run them. Applying them via the
   // primitives (inside a new transaction) is how a policy layer undoes.
@@ -142,6 +152,9 @@ class Document {
   std::vector<std::pair<int, Listener>> listeners_;
   int next_listener_ = 1;
   bool verify_ = false;
+  bool in_group_ = false;
+  size_t group_start_ = 0;
+  std::string group_label_;
 };
 
 // RAII wrapper: commits on scope exit.

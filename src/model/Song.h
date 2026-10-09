@@ -250,6 +250,50 @@ class Song : public SongObject {
   void incMinorVersion() { version_.incMinor(); }
   int getMinorVersion() const { return version_.getMinor(); }
 
+  // One user action's worth of mutations. Opens before the first write and
+  // bumps the version once, when the outermost scope closes (so the audio
+  // thread and the widgets see the finished edit, never half of it). Scopes
+  // nest freely: the inner ones only widen the outer one's kind. This is the
+  // only way to bump the version, so a write path without a scope is easy
+  // to spot.
+  //
+  // CONTENT is a note/command/velocity/delay edit (the minor counter);
+  // STRUCTURE is anything else (the major counter), and wins when scopes of
+  // both kinds nest.
+  class Edit {
+   public:
+    enum class Kind { CONTENT, STRUCTURE };
+
+    Edit(Song & song, const char * label, Kind kind = Kind::STRUCTURE) : song_(song), outermost_(song.edit_depth_ == 0) {
+      if (song_.edit_depth_++ == 0) {
+	song_.edit_label_ = label;
+	song_.edit_kind_ = kind;
+	song_.edit_discarded_ = false;
+      } else if (kind == Kind::STRUCTURE) {
+	song_.edit_kind_ = Kind::STRUCTURE;
+      }
+    }
+    ~Edit() {
+      if (--song_.edit_depth_ > 0 || song_.edit_discarded_) return;
+      if (song_.edit_kind_ == Kind::STRUCTURE) song_.version_.incMajor();
+      else song_.version_.incMinor();
+    }
+    Edit(const Edit &) = delete;
+    Edit & operator=(const Edit &) = delete;
+
+    // Nothing was written after all (a no-op press): leave the version alone.
+    // Only the outermost scope can say so; an inner one may not know what
+    // its callers wrote.
+    void discard() { if (outermost_) song_.edit_discarded_ = true; }
+    // The write turned out to be structural.
+    void escalate() { song_.edit_kind_ = Kind::STRUCTURE; }
+
+   private:
+    Song & song_;
+    bool outermost_;
+  };
+  bool inEdit() const { return edit_depth_ > 0; }
+
   // Both counters together, for a consumer that needs to know "did
   // anything at all change" (Controller::hasUnsavedChanges()).
   Version getVersion() const { return version_; }
@@ -327,6 +371,7 @@ class Song : public SongObject {
   // caller is the one place that needs to know how many Patterns went
   // into it, not this method.
   Clip & addClip(Clip clip) {
+    Edit edit(*this, "add clip");
     auto & clips = clips_by_track_[clip.getLeafTrackId()];
     // Same "assign one if it doesn't already have one" convention
     // addTrack() uses (see generateUniqueTrackId()) - a clip loaded from
@@ -335,7 +380,6 @@ class Song : public SongObject {
     // loaded from a song saved before clip ids existed at all) doesn't.
     if (clip.getId().empty()) clip.setId(generateUniqueClipId());
     clips.push_back(std::move(clip));
-    incVersion();
     return clips.back();
   }
 
@@ -358,9 +402,9 @@ class Song : public SongObject {
   // resetting it for a fresh take is the caller's own job
   // (Controller::ensureClipRecordingClip()).
   Clip & ensureClipAt(int track_id, int index) {
+    Edit edit(*this, "ensure clip slot");
     auto & clips = clips_by_track_[track_id];
     while (static_cast<int>(clips.size()) <= index) clips.push_back(Clip(track_id));
-    incVersion();
     return clips[static_cast<size_t>(index)];
   }
 
@@ -383,8 +427,8 @@ class Song : public SongObject {
   }
 
   void addInstrument(std::unique_ptr<Track> i) {
+    Edit edit(*this, "add instrument");
     instrument_pool_.addInstrument(std::move(i));
-    incVersion();
   }
 
   // Erases pool slot `index` (InstrumentPool::removeInstrument()) and
@@ -427,13 +471,13 @@ class Song : public SongObject {
   // caller with no cursor to speak of wants (LaunchpadManager's auto-
   // grow-to-pressed-column loops, this Song's own initial construction).
   Track & addTrack(std::unique_ptr<Track> track, int after_track_id = -1) {
+    Edit edit(*this, "add track");
     if (track->getId().empty()) track->setId(generateUniqueTrackId());
     std::lock_guard<std::mutex> guard(*tracks_mutex_);
     auto * ref = track.get();
     if (after_track_id < 0 || !master_track_->insertChildAfter(after_track_id, track)) {
       master_track_->addChild(std::move(track));
     }
-    incVersion();
     return *ref;
   }
 
@@ -452,11 +496,10 @@ class Song : public SongObject {
   // before ever getting here, the way PatternEditor's "delete-track"
   // command does.
   bool removeTrack(int id) {
+    Edit edit(*this, "remove track");
     std::lock_guard<std::mutex> guard(*tracks_mutex_);
-    if (master_track_->removeChildByInternalId(id)) {
-      incVersion();
-      return true;
-    }
+    if (master_track_->removeChildByInternalId(id)) return true;
+    edit.discard();
     return false;
   }
 
@@ -517,6 +560,10 @@ private:
   BusEffectKind bus_slot_b_kind_ = BusEffectKind::Delay;
 
   Version version_;
+  int edit_depth_ = 0;
+  const char * edit_label_ = "";
+  Edit::Kind edit_kind_ = Edit::Kind::STRUCTURE;
+  bool edit_discarded_ = false;
   int current_track_id_ = -1;
 
   InstrumentPool instrument_pool_;

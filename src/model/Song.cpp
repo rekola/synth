@@ -380,9 +380,9 @@ void
 Song::removeInstrument(int index) {
   auto & instruments = instrument_pool_.getInstruments();
   if (index < 0 || index >= static_cast<int>(instruments.size())) return;
+  Edit edit(*this, "remove instrument");
   instrument_pool_.removeInstrument(index);
   reindexInstrumentIds(*master_track_, index);
-  incVersion();
 }
 
 // Sample rate used to construct Song's own bus-slot BusEffect instances

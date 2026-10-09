@@ -149,3 +149,33 @@ TEST(document_garbage_collection_keeps_nodes_the_journal_refers_to) {
   d.collectGarbage();
   CHECK(d.get(a) == nullptr);
 }
+
+TEST(document_group_is_one_undo_step_but_every_edit_is_visible_at_once) {
+  Document d;
+  d.setVerify(true);
+  auto base = d.journal().size();
+  int notifications = 0;
+  d.addListener([&](const ChangeSet &) { notifications++; });
+
+  d.beginGroup("take");
+  addNote(d, d.root(), 0, 1);
+  CHECK(notifications > 0);  // visible before the group ends
+  CHECK(d.get(d.root())->children("notes")->size() == 1);
+  addNote(d, d.root(), 1, 2);
+  addNote(d, d.root(), 2, 3);
+  CHECK(d.journal().size() > base + 1);  // not merged yet
+  d.endGroup();
+
+  CHECK(d.journal().size() == base + 1);
+  CHECK(d.journal().back().label == "take");
+  d.apply(Document::inverse(d.journal().back()));
+  CHECK(d.get(d.root())->children("notes")->empty());
+}
+
+TEST(document_empty_group_leaves_no_entry) {
+  Document d;
+  auto base = d.journal().size();
+  d.beginGroup("take");
+  d.endGroup();
+  CHECK(d.journal().size() == base);
+}

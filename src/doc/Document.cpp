@@ -202,6 +202,29 @@ void Document::commit() {
   for (auto & [ handle, fn ] : listeners) fn(changes);
 }
 
+void Document::beginGroup(const std::string & label) {
+  assert(!in_group_ && depth_ == 0);
+  in_group_ = true;
+  group_start_ = journal_.size();
+  group_label_ = label;
+}
+
+void Document::endGroup() {
+  assert(in_group_);
+  in_group_ = false;
+  if (journal_.size() <= group_start_ + 1) {
+    if (journal_.size() == group_start_ + 1) journal_.back().label = group_label_;
+    return;
+  }
+  JournalEntry merged;
+  merged.label = group_label_;
+  for (auto i = group_start_; i < journal_.size(); i++)
+    merged.ops.insert(merged.ops.end(), journal_[i].ops.begin(), journal_[i].ops.end());
+  merged.sequence = journal_.back().sequence;
+  journal_.erase(journal_.begin() + static_cast<std::ptrdiff_t>(group_start_), journal_.end());
+  journal_.push_back(std::move(merged));
+}
+
 std::vector<Op> Document::inverse(const JournalEntry & entry) {
   std::vector<Op> out;
   out.reserve(entry.ops.size());

@@ -83,25 +83,40 @@ stops polling it.
 
 ## Migration order (tree builds and plays at every step)
 
-0. `src/doc/`: `Node`, `NodeId`, `Value`, `Schema`, `Document`, `Transaction`,
-   `Journal`, node-tree XML reader/writer, debug diff verifier. New code, own
-   tests; nothing consumes it yet.
-1. `PlaybackSnapshot`: an immutable, compiled form of what `SongState` reads
-   today, built from the *existing* typed `Song`; `SongState` stops touching
-   `Song`/`Arrangement`/`Clip`/pool directly. Fixes the audio-thread race.
-   `render` tests must stay bit-identical. From here on a migration step only
-   changes the compiler's input.
-2. Funnel every direct mutation through `Controller` transactions (still on
-   the typed model). This is the audit work, done once; the no-chokepoint
-   problem disappears before storage changes.
+0. `src/doc/`: `Node`, `NodeId`, `Value`, `Document`, `Transaction`, undo
+   groups, journal, debug diff verifier. New code with its own tests. (done)
+1. **Funnel every mutation through `Song::Edit` scopes** (still the typed
+   model). `Edit` is the only thing that can bump the version, so the counters
+   become private and the compiler lists every site that bypasses it. A scope's
+   label and nesting are exactly what `doc::Transaction` needs later. This
+   comes before the snapshot: a snapshot published on version bumps would go
+   silently stale at any site that forgets to bump, while today the audio
+   thread reads the live model and hears such edits anyway.
+2. `PlaybackSnapshot`: an immutable compiled form of what `SongState` reads
+   (arrangement, clips, scalars, bus), published when an outermost `Edit`
+   closes; `SongState` stops touching `Song` for those. Render tests must stay
+   bit-identical. Tracks and the instrument pool join it with their slice in
+   step 3: the audio thread builds voices from those objects directly, and
+   they become shareable immutable objects only once built from nodes.
 3. Move storage into the document in slices, each deleting the old class and
-   replacing it with a view: song scalars/locators/scenes → patterns+notes →
-   clips+arrangement → tracks/sends/pool/bus. After each slice: build,
-   `ctest`, round-trip, render parity.
+   replacing it with a view: song scalars/locators/scenes, patterns+notes,
+   clips+arrangement, tracks/sends/pool/bus. After each: build, `ctest`,
+   round-trip, render parity. `Song::Edit` becomes a thin wrapper that opens a
+   `doc::Transaction`.
 4. XML: node-tree writer/reader replace `Song::open`/`save`; fixtures and
-   `songs/` converted by script; unknown attributes round-trip.
+   `songs/` converted by script (re-merge `main` first); unknown attributes
+   round-trip.
 5. Debug-build verifier on in tests: every transaction is diffed against its
    recorded undo record.
+
+## Live takes: visible at once, one undo step
+
+Publishing and undo grouping are separate. Every commit publishes at once
+(listeners fire, the snapshot is rebuilt, the notes are drawn and sound on the
+next pass). A take opens a `Document::beginGroup`; the entries committed while
+it is open are folded into one journal entry at `endGroup`. So a take is one
+undo step, with notes appearing as they land. Anything else committed during
+the take joins the group.
 
 ## Event parity
 
@@ -137,5 +152,5 @@ patterns, so they are covered by the note primitives. Verify with a test.
 1. Journal size cap (default: trim oldest beyond 10 000 transactions).
 2. Snapshot granularity: per-pattern shared immutable data so one note edit
    recompiles one pattern, not the song. Measure before going finer.
-3. Does a take recorded over a playing loop commit per-row (many undo steps)
-   or once at take end (default: once).
+3. (Resolved by the user) A take shows its notes as they land and is one undo
+   step - see "Live takes" above.
