@@ -66,3 +66,64 @@ A pad gesture whose terminal equivalent is copy, kill or yank gets no command
 of its own: the device calls the underlying function directly. That is why the
 Launchpad's delete never touches the clipboard.
 See `launchpad.md` for the gestures.
+
+## Supported terminals
+
+Known to work are kitty, xterm and GNOME Terminal; the rest are untested here.
+The Graphics and Mouse columns come from testing another program (nanoclj) in
+these terminals; xterm's lack of true color applies to synth as well.
+
+| Terminal | Status | Graphics | Mouse | Notes |
+| - | - | - | - | - |
+| foot | Untested | OK | OK | Wayland only |
+| kitty | Works | OK | ? | True color images, but window resizing has bugs (as of 0.26.5) |
+| wezterm | Untested | OK | OK | Buggy (as of 20230712) |
+| mlterm | Untested | OK | ? | |
+| Konsole | Untested | OK | ? | True color images, but on HiDPI system images are upscaled |
+| contour | Untested | Inline image layout doesn't work | ? | |
+| xterm | Works | No true color | OK | Sixel support must be enabled in `.Xresources` (see [xterm](#xterm) below), and images have maximum size 1000x1000 |
+| Black Box | Untested | Inline image layout doesn't work | ? | On HiDPI system the images are upscaled, and the terminal and the flatpak system use too much CPU time when idling. |
+| Alacritty | Untested | None | ? | |
+| GNOME Terminal | Works | None | ? | Sixel support is not enabled by default |
+| mintty | Untested | ? | ? | Not tested yet. |
+
+## Terminal setup
+
+Pixel graphics (Kitty graphics or Sixels) and the Kitty keyboard protocol are
+optional; the UI falls back to braille cells and ordinary key encodings. Without
+the keyboard protocol a terminal never reports a key going up, so held notes and
+musical chords can't be played from the keyboard there.
+
+### xterm
+
+xterm's defaults are poor for this UI: 16 colors, no Sixels, a small image
+limit, a tiny bitmap font. Put this in `~/.Xresources`:
+
+```
+XTerm*termName: xterm-256color
+XTerm*decTerminalID: vt340
+XTerm*numColorRegisters: 256
+XTerm*maxGraphicSize: 2048x2048
+XTerm*renderFont: true
+XTerm*faceName: monospace
+XTerm*faceSize: 12
+```
+
+- `termName` sets `TERM`; xterm's default `xterm` has only 8/16 colors, which
+  is why the UI looked 16-color everywhere but the Sixel images.
+- `decTerminalID: vt340` makes xterm identify as Sixel-capable, and
+  `numColorRegisters` sets the image palette size.
+- `maxGraphicSize` raises the Sixel image size limit (default 1000x1000).
+- `renderFont` with `faceName` selects an antialiased Xft font through
+  fontconfig. `monospace` is fontconfig's alias for the system's default
+  monospace font, so it is the same on every machine; name a font such as
+  `DejaVu Sans Mono` to pick one. `faceSize` is in points.
+
+Even so, xterm has no true color, so the UI is limited to the 256-color
+palette there.
+
+Reload with `xrdb -merge ~/.Xresources` and start a new xterm; running ones
+keep their old settings. If `TERM` is still `xterm` inside it, check with
+`echo $TERM`; a shell profile that exports `TERM` overrides the resource.
+xterm does not implement the Kitty keyboard protocol, so use C-b rather than
+C-SPC to set the mark.

@@ -91,6 +91,20 @@ when the SoundFont has no piano; [docs/additive.md](docs/additive.md)) does that
 note sits on the song's tuning, with a stretch bounded at the same ε, so shared
 partials of the tuning's own intervals, septimal ones included, meet exactly.
 
+# Terminal support
+
+The terminal UI works in any terminal notcurses supports, but a modern one is
+better. Terminals with the Kitty keyboard protocol (kitty, foot, WezTerm,
+Ghostty) report key releases, which keyboard note entry needs to know how long
+a note is held, so they can play musical chords (several notes at once); other
+terminals can't. Terminals with Kitty graphics or Sixels get pixel graphics:
+the spectrum analyzer and the DirAC heatmap in the scopes are drawn as real
+pixels instead of braille cells, and without pixel support they fall back to
+braille. See [docs/terminal.md](docs/terminal.md) for terminal-specific setup.
+
+Known to work are kitty, xterm and GNOME Terminal. The full table is in
+[docs/terminal.md](docs/terminal.md#supported-terminals).
+
 # Launchpad support
 
 A connected Novation Launchpad (Mini MK3 / X) becomes a drum rack or in-key
