@@ -239,6 +239,19 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
     }
     getUIEventQueue().push(make_unique<LogEvent>("Clip merged to background"));
   });
+  // Undo and redo (Song::undo()/redo()): the same two commands from a
+  // keybinding, M-x and the Launchpad's shift layer. Both say so when there
+  // is nothing to do, and why while a live take is open.
+  commands_.define("undo", [this]() {
+    auto & song = getSong();
+    bool take = song.document().inGroup();
+    getUIEventQueue().push(make_unique<LogEvent>(song.undo() ? "Undo" : take ? "Undo: not while recording" : "Nothing to undo"));
+  });
+  commands_.define("undo-redo", [this]() {
+    auto & song = getSong();
+    bool take = song.document().inGroup();
+    getUIEventQueue().push(make_unique<LogEvent>(song.redo() ? "Redo" : take ? "Redo: not while recording" : "Nothing to redo"));
+  });
   commands_.define("toggle-metronome", [this]() {
     setMetronomeOn(!metronome_on_);
     getUIEventQueue().push(make_unique<LogEvent>(metronome_on_ ? "Metronome on" : "Metronome off"));

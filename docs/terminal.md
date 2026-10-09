@@ -43,13 +43,28 @@ They act on the clip under the cursor.
 - A clip that is playing is not pulled out from under the playhead: its track
   stops at the next bar and the clip is removed then.
 
+## Undo
+
+`undo` (C-x u, C-_ or C-/) takes back the last edit to the song; repeating it
+walks further back. `undo-redo` (C-M-_) puts back what the last undo took away,
+and works only while the newest thing done is a run of undos. Any other edit
+ends that run, and the next `undo` then undoes that edit (Emacs's own rule,
+where an undo is itself an edit that can be undone). Moving the cursor or
+scrolling is not an edit and does not end the run. Both are in the Edit menu
+and M-x, and are the Launchpad's shift + Record Arm and shift + Mute.
+
+Only the song is undone: tempo, notes, clips and placements, tracks,
+instruments and bus effects. The cursor, the view and the clipboard are not.
+Changes that follow the playing song (a scene launch setting the tempo) are
+never undone. Undo and redo do nothing while a live take is open.
+
 ## Humanize
 
 `humanize-region` (M-x or the Edit menu, no key binding) loosens the region's
 notes: each sounding note's velocity moves by up to ±12 and its delay later by
 up to 32/255 of a row. Offs and aftertouch are left alone, percussion is
 included, and the mark stays, so repeated runs keep adding variation. Every
-run draws new values, and there is no undo. Terminal only.
+run draws new values; `undo` takes a run back. Terminal only.
 
 ## Other clip commands
 

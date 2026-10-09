@@ -1,7 +1,15 @@
 #include "TestFramework.h"
 
+#ifndef TESTS_FIXTURES_DIR
+#define TESTS_FIXTURES_DIR "."
+#endif
+
+#include "../src/Controller.h"
+#include "../src/model/ArrangementOps.h"
 #include "../src/model/InstrumentTrack.h"
+#include "../src/model/LeafTrack.h"
 #include "../src/model/Song.h"
+#include "../src/ambisonic/ChannelConfiguration.h"
 
 TEST(undo_walks_back_through_edits_and_redo_walks_forward_again) {
   Song song;
@@ -89,4 +97,67 @@ TEST(undo_restores_a_tracks_settings_and_the_published_content_follows) {
   CHECK(song.getMasterTrack().getChildById("t") == nullptr);
   CHECK(song.redo());
   CHECK(song.getMasterTrack().getChildById("t") != nullptr);
+}
+
+TEST(an_undo_is_published_to_the_audio_thread_like_the_edit_was) {
+  Song song;
+  song.setContentPublished(true);
+  song.getArrangement().setNote(0, 7, 0, Note(60, 100));
+  auto noteRows = [&song]() {
+    auto & patterns = song.readContent()->arrangement.getPatternsByTrack();
+    auto it = patterns.find(7);
+    return it == patterns.end() ? 0 : static_cast<int>(it->second.getNotesByRow().size());
+  };
+  CHECK(noteRows() == 1);
+  auto version = song.getMajorVersion();
+  CHECK(song.undo());
+  CHECK(song.publishedContentIsCurrent());
+  CHECK(noteRows() == 0);
+  CHECK(song.getMajorVersion() > version); // the widgets see it too
+  CHECK(song.redo());
+  CHECK(song.publishedContentIsCurrent());
+  CHECK(noteRows() == 1);
+}
+
+TEST(an_undone_track_edit_is_in_the_compiled_tracks_the_audio_thread_reads) {
+  Song song;
+  song.setContentPublished(true);
+  auto id = song.addTrack(std::make_unique<InstrumentTrack>(0)).getInternalId();
+  song.editTrack(id, [](Track & track) { track.setSendA(0.5f); });
+  CHECK(dynamic_cast<const LeafTrack &>(*song.readContent()->tracks->master->getChildByInternalId(id)).getSends().a > 0.4f);
+  CHECK(song.undo());
+  CHECK(dynamic_cast<const LeafTrack &>(*song.readContent()->tracks->master->getChildByInternalId(id)).getSends().a < 0.01f);
+  CHECK(song.redo());
+  CHECK(dynamic_cast<const LeafTrack &>(*song.readContent()->tracks->master->getChildByInternalId(id)).getSends().a > 0.4f);
+}
+
+TEST(the_undo_commands_run_through_the_controller_and_say_when_there_is_nothing_to_do) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  CHECK(controller.openSong(std::string(TESTS_FIXTURES_DIR) + "/center_note.xml"));
+  CHECK(!controller.getSong().canUndo());
+  controller.sendCommand("undo"); // nothing yet: a status message, no change
+  auto tempo = controller.getSong().getTempo();
+  controller.getSong().setTempo(tempo + 10);
+  controller.sendCommand("undo");
+  CHECK(controller.getSong().getTempo() == tempo);
+  CHECK(controller.getSong().canRedo());
+  controller.sendCommand("undo-redo");
+  CHECK(controller.getSong().getTempo() == tempo + 10);
+}
+
+TEST(a_deleted_clip_and_its_arrangement_placement_come_back_with_undo) {
+  Song song;
+  auto track_id = song.addTrack(std::make_unique<InstrumentTrack>(0)).getInternalId();
+  Clip clip(track_id);
+  clip.setLength(8);
+  clip.getLeafPattern().setNote(0, 0, Note(60, 100));
+  auto clip_id = song.addClip(std::move(clip)).getId();
+  song.getArrangement().setInstance(track_id, 0, clip_id);
+  CHECK(deleteClipOrStopButton(song, track_id, 0) == SlotDelete::CLIP);
+  CHECK(song.getClips(track_id)[0].isEmpty());
+  CHECK(song.undo());
+  CHECK(!song.getClips(track_id)[0].isEmpty());
+  CHECK(song.getClips(track_id)[0].getId() == clip_id);
+  CHECK(song.getArrangement().getInstance(track_id, 0) == clip_id);
 }
