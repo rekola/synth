@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Listening song for the additive piano in 31-EDO: the septimal dyads and the
+  otonal and utonal tetrads, each held four seconds, then a rest. Shared
+  partials of these intervals sit on the same tuning step, so the chords should
+  sound steady, with only the strings' own slow shimmer.
+
+  Render with: ./build/synth --stereo --render out.wav songs/additive_septimal_chords.xml
+-->
+<song temperament="31edo" tempo="60" timeSignature="1/4" volume="1.0">
+  <instruments>
+    <instrument name="Additive Piano" from="piano.acoustic.grand"/>
+  </instruments>
+  <tracks>
+    <track id="0" name="Piano" instrument="0"/>
+  </tracks>
+  <locators>
+    <locator row="0">7:6 subminor third</locator>
+    <locator row="20">8:7 septimal whole tone</locator>
+    <locator row="40">7:4 harmonic seventh</locator>
+    <locator row="60">12:7 septimal major sixth</locator>
+    <locator row="80">4:5:6:7 otonal tetrad</locator>
+    <locator row="100">utonal tetrad, 1/7:1/6:1/5:1/4</locator>
+  </locators>
+  <arrangement>
+    <pattern track="0">
+      <note row="0">C-4 D♯4</note>
+      <note row="16">off off</note>
+      <note row="20">C-4 E𝄫4</note>
+      <note row="36">off off</note>
+      <note row="40">C-4 A♯4</note>
+      <note row="56">off off</note>
+      <note row="60">C-4 B𝄫4</note>
+      <note row="76">off off</note>
+      <note row="80">C-4 E-4 G-4 A♯4</note>
+      <note row="96">off off off off</note>
+      <note row="100">C-4 D♯4 F♯4 A♯4</note>
+      <note row="116">off off off off</note>
+    </pattern>
+  </arrangement>
+</song>

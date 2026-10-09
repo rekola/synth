@@ -1468,6 +1468,13 @@ would otherwise resume showing.
   silently goes stale if the binding ever changes; name the command
   instead and let the actual binding site be the only place the key
   appears).
+- Cloud sessions: commit and push finished work to the session's branch
+  without being asked, including plans and changes the user wants to test
+  by ear - the cloud has no other way to show files, so an uncommitted
+  file can't be reviewed. A "don't commit" in a prompt means no pull
+  request and no merge; it never means leave work uncommitted in the
+  cloud. On a desktop session the user's own "don't commit" stands as
+  written.
 - Never link to the chat/session that produced a change (no `Claude-Session:`
   trailer, no claude.ai/code URL) in commit messages, PR descriptions, or
   comments; the URL isn't useful to other readers and can't be fully removed

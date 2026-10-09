@@ -86,9 +86,8 @@ void registerNamed(InstrumentProvider & provider, const string & path, const str
 
 // Registers `path` only when nothing (no SoundFont, no earlier library
 // registration) has already claimed that exact taxonomy leaf - the
-// "fallback when the SoundFont has no piano" half of the additive piano's
-// job. Deliberately an exact-key check (getTaxonomyPaths(), not
-// resolvePath()'s walk-up): resolvePath("piano.acoustic.grand") could
+// "fallback when the SoundFont has no such instrument" role. Deliberately an
+// exact-key check (getTaxonomyPaths(), not resolvePath()'s walk-up): resolvePath("piano.acoustic.grand") could
 // still find something via a shorter prefix or a kGmPathDefaults redirect
 // even with no exact SF2 registration at this leaf, and that's a real,
 // intentional fallback of its own - this function only cares whether this
@@ -246,8 +245,7 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // will always be more convincing than this resynthesis, and shouldn't
   // lose to it - registered as a fallback (registerFallbackPath(), the
   // same "only fill the leaf in if a SoundFont didn't already claim it"
-  // role piano.acoustic.grand/the additive piano use), not an
-  // unconditional override. See PadSynthPresets.h's own "organ-pipe"
+  // role), not an unconditional override. See PadSynthPresets.h's own "organ-pipe"
   // comment for why a pipe organ is nonetheless close to PADsynth's ideal
   // case *when nothing better is available*: a single organ pipe's own
   // tone is a steady, near-beat-free standing wave, not several
@@ -295,36 +293,17 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   registerNamed(provider, "brass.synth", "Synth Brass", makeEnsemblePad("saw-piano-wide", 3, 12.0f, 0.04f, 0.0f, 0.1f, 0.85f, 0.25f));
   registerNamed(provider, "brass.synth.soft", "Soft Synth Brass", makeEnvelopePad("saw-piano", 0.25f, 0.0f, 0.3f, 0.9f, 0.6f));
 
-  // Additive piano - <envelope>+<additive preset="struck-string">, with a
-  // few explicit overrides on top of the base preset rather than retuning
-  // "struck-string" itself (which stays the generic, guitar-reads-fine
-  // plucked-string starting point usable standalone). Heard by ear as
-  // reading more like a single plucked nylon string than a piano with the
-  // bare preset - three targeted differences a piano actually has against
-  // a guitar's single string per note:
-  //  - unisonVoices=3: a real piano doubles or triples each note's string
-  //    in the mid/treble register (a guitar has exactly one string per
-  //    note) - the base preset's 2 voices likely read as too subtly
-  //    chorused to sound like multiple strings at all.
-  //  - attackNoiseLevel lower (0.04 vs the base preset's 0.08): a felt
-  //    hammer strike is a softer, duller transient than a plucked/
-  //    fingerpicked nylon string's own sharper attack noise.
-  //  - tilt less negative (-6 vs -9 dB/octave): a hammer-struck string
-  //    reads brighter/fuller than a plucked one at the same register.
-  // Sustain 0 (a piano's own sound is entirely percussive/decaying, never
-  // a held plateau) with a long decay stage (8s, well past where the
-  // additive engine's own per-partial decay has already gone inaudible -
-  // see SinusoidBank's -90dB culling) so the envelope itself never audibly
-  // truncates the tail, and a short release (0.3s) so lifting the key ends
-  // the note promptly rather than ringing on indefinitely.
+  // Additive piano - <envelope>+<additive preset="piano">: three strings a
+  // cent apart, every partial on the song's tuning, so septimal chords stay
+  // in tune. Sustain 0 with a long decay stage (8s, past where the bank's own
+  // per-partial decay has gone inaudible - see SinusoidBank's -90dB culling)
+  // so the envelope never audibly truncates the tail, and a short release
+  // (0.3s) so lifting the key ends the note promptly.
   auto additive_piano_envelope = []() {
-    auto env = makeEnvelope(0.005f, 0.0f, 8.0f, 0.0f, 0.3f);
+    auto env = makeEnvelope(0.002f, 0.0f, 8.0f, 0.0f, 0.3f);
     auto additive = make_unique<Additive>();
     MemoryParameterSource additive_params;
-    additive_params.set("preset", string("struck-string"));
-    additive_params.set("unisonVoices", 3);
-    additive_params.set("attackNoiseLevel", 0.04f);
-    additive_params.set("tilt", -6.0f);
+    additive_params.set("preset", string("piano"));
     additive->loadParameters(additive_params);
     env->addChild(move(additive));
     return env;
@@ -386,7 +365,8 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
 
   // Only takes over piano.acoustic.grand itself when nothing already
   // claimed that exact leaf - the "fallback when the SoundFont has no
-  // piano" role; a real SF2 grand piano always wins when one is loaded.
+  // piano" role; a SoundFont's own grand piano always wins when one is
+  // loaded. A song asks for this one directly with <additive preset="piano">.
   registerFallbackPath(provider, "piano.acoustic.grand", "Additive Grand Piano", additive_piano_envelope());
 
   // Mellotron - tapeDegradation(preset="mellotron") wrapping

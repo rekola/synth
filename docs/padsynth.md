@@ -34,11 +34,11 @@ and its example parameter files.
 
 ## Tuning-matched partials
 
-Every oscillator that generates harmonic content (`<padsynth>`,
-`<additive>`) shares one rule: a partial can be snapped to the nearest
-step of the song's tuning instead of sitting at its plain harmonic
-ratio, so it doesn't beat against the tuning's notes. A partial is
-tuning-matched when the nearest integer harmonic's odd part (that
+Oscillators that generate harmonic content snap partials to the nearest
+step of the song's tuning instead of leaving them at their plain harmonic
+ratio, so they don't beat against the tuning's notes (`<additive>` snaps
+every partial, see [additive.md](additive.md)). `<padsynth>` tunes a
+partial when the nearest integer harmonic's odd part (that
 harmonic number with every factor of 2 removed) is `<= 7` - so every
 octave-doubling of a small odd number gets matched (1-8, 10, 12, 14, 16,
 20, 24, 28, 32, ...), not just a fixed initial run of low partials. `N`

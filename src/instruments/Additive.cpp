@@ -2,32 +2,46 @@
 
 #include "AdditiveVoice.h"
 #include "Tuning.h"
-#include "../dsp/SpectralEnvelopeRemap.h"
+#include "../state/MemoryParameterSource.h"
 
 using namespace std;
 
-std::unique_ptr<VoiceState>
+// A fresh instrument is the default preset, as if loaded with no attributes.
+Additive::Additive() {
+  MemoryParameterSource none;
+  loadParameters(none);
+}
+
+unique_ptr<VoiceState>
 Additive::playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const {
-  auto voice = std::make_unique<AdditiveVoice>(config, position, detune, level_, attackNoiseLevel_, sends, note_coord);
+  auto voice = make_unique<AdditiveVoice>(config, position, detune, level_, keyboardSpread_, stringSpread_, thumpWidth_, sends, note_coord);
   voice->playNote(getFrequencyFor(tuning, note_value), velocity, note_value);
 
-  int edo_steps = edoStepsFor(tuning);
-  SpectralPostprocessKind postprocess_kind = envelopePostprocess_ == "residue" ? SpectralPostprocessKind::ResidueClassWeighting
-    : envelopePostprocess_ == "stretch" ? SpectralPostprocessKind::StretchMix
-    : SpectralPostprocessKind::None;
-  voice->trigger(partials_, tilt_, velocityTilt_, inharmonicity_,
-                 edo_steps, tuningMatched_, partialLimit_,
-                 decayA_, decayB_, decayP_,
-                 unisonVoices_, unisonDetune_,
-                 envelopeAnchor_, envelopeTracking_,
-                 postprocess_kind, envelopePostprocessN_, envelopePostprocessR_, envelopePostprocessAmount_,
-                 note_coord);
+  AdditiveModelParams model;
+  model.partials = partials_;
+  model.stretch = stretch_;
+  model.tuning_matched = tuningMatched_;
+  model.unison_voices = unisonVoices_;
+  model.unison_detune_cents = unisonDetune_;
+  model.modes = parseModeRatios(modes_);
+  model.excitation = excitation_ == "pluck" ? Excitation::Pluck : Excitation::Hammer;
+  model.strike = strike_;
+  model.hammer_cutoff_hz = hammerCutoff_;
+  model.hammer_tracking = hammerTracking_;
+  model.hammer_velocity = hammerVelocity_;
+  model.pluck_cutoff_hz = pluckCutoff_;
+  model.partial_floor_db = partialFloor_;
+  model.decay_a = decayA_;
+  model.decay_b = decayB_;
+  model.decay_p = decayP_;
+  model.decay_tracking = decayTracking_;
+  model.decay_spread = decaySpread_;
+  model.thump = thump_;
+  model.thump_tracking = thumpTracking_;
+  model.body = body_;
+  voice->trigger(model, edoStepsFor(tuning), note_coord);
 
-  // No children loop, unlike Oscillator - <additive> has no established
-  // modulator-input concept of its own (nothing here reads a child's
-  // output the way OscillatorVoice reads a phase-modulator's); a future
-  // modulation target would need its own design, not a copy of
-  // Oscillator's.
+  // No children: <additive> has no modulator input of its own.
   return voice;
 }
 
@@ -39,26 +53,31 @@ Additive::loadParameters(const ParameterSource & input) {
   const auto & preset = getAdditivePreset(preset_);
 
   partials_ = input.get<int>("partials", preset.partials);
-  tilt_ = input.get<float>("tilt", preset.tilt);
-  velocityTilt_ = input.get<float>("velocityTilt", preset.velocityTilt);
+  stretch_ = input.get<float>("stretch", preset.stretch);
+  tuningMatched_ = input.get<bool>("tuningMatched", preset.tuningMatched);
   unisonVoices_ = input.get<int>("unisonVoices", preset.unisonVoices);
   unisonDetune_ = input.get<float>("unisonDetune", preset.unisonDetune);
-  inharmonicity_ = input.get<float>("inharmonicity", preset.inharmonicity);
+  modes_ = input.get<std::string>("modes", std::string(preset.modes));
+  excitation_ = input.get<std::string>("excitation", std::string(preset.pluck ? "pluck" : "hammer"));
+  strike_ = input.get<float>("strike", preset.strike);
+  hammerCutoff_ = input.get<float>("hammerCutoff", preset.hammerCutoff);
+  hammerTracking_ = input.get<float>("hammerTracking", preset.hammerTracking);
+  hammerVelocity_ = input.get<float>("hammerVelocity", preset.hammerVelocity);
+  pluckCutoff_ = input.get<float>("pluckCutoff", preset.pluckCutoff);
+  partialFloor_ = input.get<float>("partialFloor", preset.partialFloor);
   decayA_ = input.get<float>("decayA", preset.decayA);
   decayB_ = input.get<float>("decayB", preset.decayB);
   decayP_ = input.get<float>("decayP", preset.decayP);
-  tuningMatched_ = input.get<bool>("tuningMatched", preset.tuningMatched);
-  partialLimit_ = input.get<int>("partialLimit", preset.partialLimit);
-  attackNoiseLevel_ = input.get<float>("attackNoiseLevel", preset.attackNoiseLevel);
+  decayTracking_ = input.get<float>("decayTracking", preset.decayTracking);
+  decaySpread_ = input.get<float>("decaySpread", preset.decaySpread);
+  thump_ = input.get<float>("thump", preset.thump);
+  thumpTracking_ = input.get<float>("thumpTracking", preset.thumpTracking);
+  thumpWidth_ = input.get<float>("thumpWidth", preset.thumpWidth);
+  body_ = preset.body;
+  keyboardSpread_ = input.get<float>("keyboardSpread", preset.keyboardSpread);
+  stringSpread_ = input.get<float>("stringSpread", preset.stringSpread);
 
   level_ = input.get<float>("level", 1.0f);
-
-  envelopeAnchor_ = input.get<float>("envelopeAnchor", 0.0f);
-  envelopeTracking_ = input.get<float>("envelopeTracking", 0.0f);
-  envelopePostprocess_ = input.get<std::string>("envelopePostprocess", std::string());
-  envelopePostprocessN_ = input.get<int>("envelopePostprocessN", 0);
-  envelopePostprocessR_ = input.get<int>("envelopePostprocessR", 0);
-  envelopePostprocessAmount_ = input.get<float>("envelopePostprocessAmount", 0.0f);
 }
 
 void
@@ -69,24 +88,28 @@ Additive::storeParameters(ParameterSource & output) const {
   const auto & preset = getAdditivePreset(preset_);
 
   output.set("partials", partials_, preset.partials);
-  output.set("tilt", tilt_, preset.tilt);
-  output.set("velocityTilt", velocityTilt_, preset.velocityTilt);
+  output.set("stretch", stretch_, preset.stretch);
+  output.set("tuningMatched", tuningMatched_, preset.tuningMatched);
   output.set("unisonVoices", unisonVoices_, preset.unisonVoices);
   output.set("unisonDetune", unisonDetune_, preset.unisonDetune);
-  output.set("inharmonicity", inharmonicity_, preset.inharmonicity);
+  output.set("modes", modes_, std::string(preset.modes));
+  output.set("excitation", excitation_, std::string(preset.pluck ? "pluck" : "hammer"));
+  output.set("strike", strike_, preset.strike);
+  output.set("hammerCutoff", hammerCutoff_, preset.hammerCutoff);
+  output.set("hammerTracking", hammerTracking_, preset.hammerTracking);
+  output.set("hammerVelocity", hammerVelocity_, preset.hammerVelocity);
+  output.set("pluckCutoff", pluckCutoff_, preset.pluckCutoff);
+  output.set("partialFloor", partialFloor_, preset.partialFloor);
   output.set("decayA", decayA_, preset.decayA);
   output.set("decayB", decayB_, preset.decayB);
   output.set("decayP", decayP_, preset.decayP);
-  output.set("tuningMatched", tuningMatched_, preset.tuningMatched);
-  output.set("partialLimit", partialLimit_, preset.partialLimit);
-  output.set("attackNoiseLevel", attackNoiseLevel_, preset.attackNoiseLevel);
+  output.set("decayTracking", decayTracking_, preset.decayTracking);
+  output.set("decaySpread", decaySpread_, preset.decaySpread);
+  output.set("thump", thump_, preset.thump);
+  output.set("thumpTracking", thumpTracking_, preset.thumpTracking);
+  output.set("thumpWidth", thumpWidth_, preset.thumpWidth);
+  output.set("keyboardSpread", keyboardSpread_, preset.keyboardSpread);
+  output.set("stringSpread", stringSpread_, preset.stringSpread);
 
   output.set("level", level_, 1.0f);
-
-  output.set("envelopeAnchor", envelopeAnchor_, 0.0f);
-  output.set("envelopeTracking", envelopeTracking_, 0.0f);
-  output.set("envelopePostprocess", envelopePostprocess_, std::string());
-  output.set("envelopePostprocessN", envelopePostprocessN_, 0);
-  output.set("envelopePostprocessR", envelopePostprocessR_, 0);
-  output.set("envelopePostprocessAmount", envelopePostprocessAmount_, 0.0f);
 }

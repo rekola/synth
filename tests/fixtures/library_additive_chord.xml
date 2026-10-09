@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="31edo" tempo="120" timeSignature="1/4" volume="1.0">
+  <instruments>
+    <instrument from="piano.acoustic.grand"/>
+  </instruments>
+  <tracks>
+    <track id="0" instrument="0"/>
+  </tracks>
+  <arrangement>
+    <pattern track="0">
+      <note row="0" velocity="100">C-4 E-4 G-4 A♯4</note>
+    </pattern>
+  </arrangement>
+</song>

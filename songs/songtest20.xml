@@ -10,7 +10,7 @@
             <padsynth preset="keyboard"/>
         </envelope>
         <envelope name="Additive Struck-String" attack="0.0049999999" hold="0" decay="1.5" sustain="0.30000001" release="0.5" keynumToHold="0" keynumToDecay="0">
-            <additive/>
+            <additive preset="default"/>
         </envelope>
         <envelope name="PadSynth Bells (matched)" attack="0.02" hold="0" decay="0.80000001" sustain="0.5" release="1.2" keynumToHold="0" keynumToDecay="0">
             <padsynth preset="bells"/>
