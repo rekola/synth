@@ -146,3 +146,15 @@ TEST(scale_none_reads_as_major_when_asked) {
   song.setScale(Scale::MINOR);
   CHECK(song.getScaleDegreesWindow(0, 3, true)[2] == 3); // a named scale is untouched
 }
+
+// The Launchpad steps the sound its step rows edit through a window that
+// reaches below the tonic: it must stay strictly ascending across index 0.
+TEST(scale_degrees_window_is_ascending_across_the_tonic) {
+  Song song(Tuning::EDO31, -1);
+  song.setScale(Scale::MAJOR);
+  auto degrees = song.getScaleDegreesWindow(-14, 28);
+  CHECK(degrees.size() == 28);
+  for (size_t i = 1; i < degrees.size(); i++) CHECK(degrees[i] > degrees[i - 1]);
+  CHECK(degrees[14] == 0); // index 0 is the tonic
+  CHECK(degrees[7] == -31); // a full octave below
+}

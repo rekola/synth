@@ -631,8 +631,8 @@ would otherwise resume showing.
   load). A pitched track gets the isomorphic keyboard
   (`LaunchpadManager::resolveKeyboardNotes()`, `LaunchpadLayout::noteForPad()`):
   the song's key at the anchor pad at this device's octave, pads colored by
-  consonance class from the tonic. The song's scale is not used here, only by
-  the sequencer.
+  consonance class from the tonic. The song's scale does not change the
+  playing keyboard; it picks the degrees the step view steps through.
 
   While a clip is open for editing on a percussion or pitched track
   (`Controller::getFocusedClipTrackId()`, nothing recording a Live View
@@ -653,8 +653,9 @@ would otherwise resume showing.
 
   The window is `kStepWindow` (32) steps from `DeviceState::
   drum_edit_step_offset`, 0 on open, and pad-prev-track/pad-next-track
-  scroll that device's window by `kStepGridScrollStep` (4). While the step view shows, move-row-up/-down shift a pitched track's
-  octave instead (a drum rack has nothing to shift). The step view is opened
+  scroll that device's window by `kStepGridScrollStep` (4). While the step view shows, move-row-up/-down move a pitched track's
+  selected sound one scale degree up/down instead
+  (`LaunchpadManager::neighbourScaleNote()`; a drum rack has nothing to step). The step view is opened
   only from a Launchpad (the terminal edits clips its own way), by its
   CC91-held-as-shift + pad gesture in Live View, funneled through
   `Controller::toggleDrumClipFocus(track_id, clip_index)`

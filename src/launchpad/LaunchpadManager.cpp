@@ -1388,14 +1388,19 @@ LaunchpadManager::handleCommand(string_view name, int device_id, int fallback_tr
     return true;
   }
   if (name == "move-row-up" || name == "move-row-down") {
-    // While a clip's step view shows, these shift the playing surface's own
-    // octave on a pitched track (a drum kit has nothing to shift) instead of
-    // their Live-only/terminal-only meaning.
+    // While a clip's step view shows, these move the sound the step rows edit
+    // to the next scale degree up or down on a pitched track (a drum kit has
+    // nothing to step through) instead of their Live-only/terminal-only
+    // meaning. The song's scale decides the degrees; with none chosen every
+    // step of the tuning is one.
     if (gridMode(device_id) == GridMode::NOTES && controller.getFocusedClipTrackId() >= 0) {
-      auto track = controller.getSong().getMasterTrack().getChildByInternalId(controller.getFocusedClipTrackId());
+      auto track_id = controller.getFocusedClipTrackId();
+      auto & song = controller.getSong();
+      auto track = song.getMasterTrack().getChildByInternalId(track_id);
       if (track && track->getType() == TrackType::INSTRUMENT_CONTROL) {
-        if (name == "move-row-up") octaveUp(device_id);
-        else octaveDown(device_id);
+        auto current = stepEditNote(song, device_id, track_id);
+        auto next = neighbourScaleNote(song, device_id, current, name == "move-row-up" ? 1 : -1);
+        if (next >= 0) deviceState(device_id).selected_step_note = next;
       }
       return true;
     }
@@ -1473,6 +1478,25 @@ LaunchpadManager::resolveNote(const Song & song, int device_id, int track_id, in
   }
   if (x < 0 || x > 7 || y < 0 || y > 7) return -1;
   return resolveKeyboardNotes(song, device_id)[static_cast<size_t>(x + 8 * y)];
+}
+
+int
+LaunchpadManager::neighbourScaleNote(const Song & song, int device_id, int note, int direction) const {
+  auto edo_steps = LaunchpadLayout::edoSteps(song.getTuning());
+  if (edo_steps <= 0 || note < 0) return note;
+  // Scale degrees are offsets above the register base (see resolveKeyboardNotes()),
+  // ascending, so the neighbour is a scan of a window wide enough to hold the
+  // whole pad range with room either side.
+  auto register_base = (octave(device_id) + 1) * edo_steps;
+  auto relative = note - register_base;
+  auto degrees = song.getScaleDegreesWindow(-4 * edo_steps, 10 * edo_steps);
+  int result = -1;
+  if (direction > 0) {
+    for (auto d : degrees) if (d > relative) { result = d; break; }
+  } else {
+    for (auto it = degrees.rbegin(); it != degrees.rend(); ++it) if (*it < relative) { result = *it; break; }
+  }
+  return result < 0 || result + register_base < 0 ? note : result + register_base;
 }
 
 array<int, 64>

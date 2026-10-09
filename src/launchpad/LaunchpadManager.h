@@ -406,6 +406,10 @@ class LaunchpadManager {
   // as "ignore this press".
   int resolveNote(const Song & song, int device_id, int track_id, int x, int y) const;
 
+  // The note one scale degree above (direction > 0) or below `note` in the
+  // song's scale at this device's octave, or `note` itself at either end.
+  int neighbourScaleNote(const Song & song, int device_id, int note, int direction) const;
+
   // The 64 pad notes of the isomorphic keyboard for this device's octave,
   // indexed x + 8*y; all -1 when the tuning has no interval structure.
   std::array<int, 64> resolveKeyboardNotes(const Song & song, int device_id) const;

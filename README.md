@@ -62,8 +62,8 @@ The Application draws on several traditions.
   note names, so it is correct in every tuning. Otonal and utonal borrow
   Partch's terms (1949), but they are seven-note scales whose intervals
   were derived by the methods in Kyle Gann's *The Arithmetic of Listening*
-  (2019). The scale is used by the sequencer, not by the Launchpad's
-  keyboard.
+  (2019). The scale picks the sound the Launchpad's step rows edit; it does not change the
+  playing keyboard.
 
 ## Pianos and Just Intervals
 
