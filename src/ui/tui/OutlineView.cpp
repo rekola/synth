@@ -571,7 +571,7 @@ OutlineView::addSelectedLibraryRhythmToSong() {
   // "add-percussion-track", PatternEditor.cpp, itself creates) if it
   // resolves to kNewTrackTargetId.
   auto target_id = resolveTargetTrackId();
-  Track * percussion_track = nullptr;
+  const Track * percussion_track = nullptr;
   if (target_id != kNewTrackTargetId) {
     for (auto & track : song.getMasterTrack().getChildren()) {
       if (track->getInternalId() == target_id) {

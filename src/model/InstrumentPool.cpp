@@ -9,12 +9,31 @@
 // InstrumentPool.h's own class comment.
 InstrumentPool::InstrumentPool() = default;
 InstrumentPool::~InstrumentPool() = default;
-InstrumentPool::InstrumentPool(InstrumentPool &&) noexcept = default;
-InstrumentPool & InstrumentPool::operator=(InstrumentPool &&) noexcept = default;
+InstrumentPool::InstrumentPool(const InstrumentPool &) = default;
+InstrumentPool & InstrumentPool::operator=(const InstrumentPool &) = default;
+
+const Track *
+InstrumentPool::findByInternalId(int id) const {
+  for (auto & instrument : instruments_) {
+    if (instrument->getInternalId() == id) return instrument.get();
+  }
+  if (default_kit_ && default_kit_->getInternalId() == id) return getDefaultKitInstrument();
+  return nullptr;
+}
+
+void
+InstrumentPool::setDefaultKit(std::shared_ptr<GenericInstrument> kit) {
+  default_kit_ = std::move(kit);
+}
+
+std::string
+InstrumentPool::getDefaultKitFrom() const {
+  return default_kit_ ? default_kit_->getFrom() : std::string();
+}
 
 void
 InstrumentPool::loadParameters(const ParameterSource & input) {
-  default_kit_ = std::make_unique<GenericInstrument>();
+  default_kit_ = std::make_shared<GenericInstrument>();
   default_kit_->setFrom(input.get<std::string>("from"));
 }
 
@@ -25,7 +44,7 @@ InstrumentPool::storeParameters(ParameterSource & output) const {
 
 void
 InstrumentPool::prepare(const InstrumentProvider & provider) {
-  if (!default_kit_) default_kit_ = std::make_unique<GenericInstrument>();
+  if (!default_kit_) default_kit_ = std::make_shared<GenericInstrument>();
   if (default_kit_->getFrom().empty()) default_kit_->setFrom("kit");
   if (default_kit_->getFrom() != "none") default_kit_->prepare(provider);
 }

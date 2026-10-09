@@ -587,7 +587,7 @@ LaunchpadManager::resolveAzimuthFaderTarget(FaderState & fader, float current_va
 void
 LaunchpadManager::applyPanTarget(Controller & controller, int track_id, float target_degrees, int velocity) {
   auto track = controller.getSong().getMasterTrack().getChildByInternalId(track_id);
-  auto leaf_track = track ? dynamic_cast<LeafTrack *>(track) : nullptr;
+  auto leaf_track = track ? dynamic_cast<const LeafTrack *>(track) : nullptr;
   if (!leaf_track) return;
   auto & fader = fader_state_azimuth_[track_id];
   float duration_seconds = 0.0f;
@@ -872,7 +872,7 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
     // Shift (CC91 held) makes these the labelled alternate functions
     // instead, in every grid mode: Volume duplicates a clip for as long as
     // it stays held, Pan deletes likewise, Solo toggles the metronome click;
-    // Record Arm (undo) and Mute (redo) are reserved and only say so.
+    // Record Arm is undo and Mute redo.
     if (state.row_up_shift_held) {
       state.row_up_shift_combined = true;
       if (cc_number == 89) {
@@ -889,9 +889,9 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
       } else if (cc_number == 29 || cc_number == 20) {
         controller.sendCommand("toggle-metronome");
       } else if (cc_number == 19) {
-        controller.getUIEventQueue().push(std::make_unique<LogEvent>("Undo: not implemented yet"));
+        controller.sendCommand("undo");
       } else if (cc_number == 39 || cc_number == 30) {
-        controller.getUIEventQueue().push(std::make_unique<LogEvent>("Redo: not implemented yet"));
+        controller.sendCommand("undo-redo");
       }
       return true;
     }
@@ -1580,7 +1580,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
       // fields, not track_send_a/etc. (session-wide, computed once per
       // frame in refresh(), and this can run between two of those frames).
       auto track = song.getMasterTrack().getChildByInternalId(track_id);
-      auto leaf_track = track ? dynamic_cast<LeafTrack *>(track) : nullptr;
+      auto leaf_track = track ? dynamic_cast<const LeafTrack *>(track) : nullptr;
       if (!leaf_track) return;
       if (grid_mode == GridMode::SEND_A) {
         auto & fader = fader_state_send_a_[track_id];
@@ -2789,10 +2789,10 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // While shift is held (or a duplicate is in progress) the right-side
   // buttons show their alternate functions instead (see handleRawButton()).
   if (state.row_up_shift_held || state.duplicate_held || state.delete_held || state.quantize_held) {
-    // Record Arm (undo) and Mute (redo) are reserved: lit dim so they read as
-    // taken, but they do nothing yet.
-    record_arm_button_color = Rgb{40, 40, 40};
-    mute_button_color = Rgb{40, 40, 40};
+    // Undo is lit while there is something to undo, Redo only while an
+    // undo can be taken back.
+    record_arm_button_color = cached_can_undo_ ? Rgb{127, 127, 127} : Rgb{40, 40, 40};
+    mute_button_color = cached_can_redo_ ? Rgb{127, 127, 127} : Rgb{40, 40, 40};
     solo_button_color = cached_metronome_on_ ? Rgb{127, 100, 0} : Rgb{40, 30, 0};
     pan_button_color = state.delete_held ? Rgb{127, 0, 60} : Rgb{60, 0, 30}; // magenta: red is Quantise's record-quantise-off
     // Record Quantise: green while on, red while off, white while held.
@@ -2858,6 +2858,8 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   cached_swing_ = song.getSwing();
   tickNumberView(controller);
   cached_record_quantize_ = song.getRecordQuantize();
+  cached_can_undo_ = song.canUndo();
+  cached_can_redo_ = song.canRedo();
   // Cached for handleLivePadEvent() - see live_'s own comment.
   live_ = live;
 

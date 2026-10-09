@@ -5,6 +5,8 @@
 #include "Track.h"
 #include "MasterTrack.h"
 #include "InstrumentPool.h"
+#include "CompiledTracks.h"
+#include "TrackCompiler.h"
 #include "Arrangement.h"
 #include "Clip.h"
 #include "ArrangementView.h"
@@ -13,6 +15,7 @@
 #include "SampleStore.h"
 #include "SongSchema.h"
 #include "../doc/Document.h"
+#include "../doc/UndoHistory.h"
 #include "Scale.h"
 #include "BarGrid.h"
 #include "SceneName.h"
@@ -23,6 +26,7 @@
 #include "../util/constants.h"
 
 #include <algorithm>
+#include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -33,6 +37,7 @@
 
 class InstrumentProvider;
 class Mixer;
+class TrackCompiler;
 
 class Song : public SongObject {
  public:
@@ -214,18 +219,14 @@ class Song : public SongObject {
   // any <bus> element) - the compiled-in default bus, per the
   // project-file plan's "no <bus> element at all -> compiled defaults"
   // rule.
-  BusEffect & getBusSlot(int slot) { return slot == 0 ? *bus_slot_a_ : *bus_slot_b_; }
-  const BusEffect & getBusSlot(int slot) const { return slot == 0 ? *bus_slot_a_ : *bus_slot_b_; }
-  BusEffectKind getBusSlotKind(int slot) const { return slot == 0 ? bus_slot_a_kind_ : bus_slot_b_kind_; }
+  const BusEffect & getBusSlot(int slot) const { return *tracks_->bus[slot == 0 ? 0 : 1].effect; }
+  BusEffectKind getBusSlotKind(int slot) const { return tracks_->bus[slot == 0 ? 0 : 1].kind; }
 
-  // Replaces a slot's occupant entirely - constructs a fresh, default-
-  // valued instance of `kind` via the registry (at this Song's own
-  // placeholder sample rate). Used by the <bus> loading path in Song.cpp,
-  // and by Controller::setBusEffectKind() (the "Set Bus Effect A/B..."
-  // menu items, UI.cpp) - this only ever updates this model-side instance,
-  // never an already-initialize()'d SongState's own live one (see
-  // SongState::setBusEffectKind() for that half).
-  void setBusSlotKind(int slot, BusEffectKind kind);
+  // Replaces a slot's occupant with a default-valued `kind`, or with
+  // `parameters` (a loaded effect of that kind) when given. Only the
+  // model's half: an already-running SongState's own live effect is changed
+  // by SongState::setBusEffectKind().
+  void setBusSlotKind(int slot, BusEffectKind kind, const BusEffect * parameters = nullptr);
 
   void resetBusToDefaults() {
     setBusSlotKind(0, BusEffectKind::Reverb);
@@ -285,9 +286,12 @@ class Song : public SongObject {
 	song_.doc_->collectGarbage();
       }
       if (!song_.edit_wrote_) return;
+      song_.recompileTracksIfChanged();
+      // Published before the version moves, so a reader that sees the new
+      // version finds the new content.
+      if (song_.content_published_mode_) song_.publishContent();
       if (song_.edit_kind_ == Kind::STRUCTURE) song_.version_.incMajor();
       else song_.version_.incMinor();
-      if (song_.content_published_mode_) song_.publishContent();
     }
     Edit(const Edit &) = delete;
     Edit & operator=(const Edit &) = delete;
@@ -305,6 +309,19 @@ class Song : public SongObject {
   };
   bool inEdit() const { return edit_depth_ > 0; }
 
+  // Undo and redo (doc/UndoHistory.h). Both return false when there is
+  // nothing to do, and always while a live take is open (the take is one
+  // undo step, taken when it ends).
+  bool canUndo() const { return !doc_->inGroup() && history_.canUndo(*doc_); }
+  bool canRedo() const { return !doc_->inGroup() && history_.canRedo(*doc_); }
+  bool undo();
+  // Where the last undo or redo changed the song: the track, and for an
+  // arrangement note or placement its row, so the cursor can follow. Empty
+  // fields (-1) when nothing it touched has a place.
+  struct EditPlace { int track_id = -1; int row = -1; };
+  EditPlace lastUndoPlace() const;
+  bool redo();
+
   // ---- What the audio thread reads (PlaybackContent.h).
   //
   // Published mode (a song a Controller owns, rendered by the real-time
@@ -320,8 +337,8 @@ class Song : public SongObject {
   bool isContentPublished() const { return content_published_mode_; }
   // The document the song's state lives in (the undo layer's and tests' way
   // in; application code goes through the accessors).
-  doc::Document & document() { return *doc_; }
-  const doc::Document & document() const { return *doc_; }
+  doc::Document & document() { bindImplicitScope(); return *doc_; }
+  const doc::Document & document() const { bindImplicitScope(); return *doc_; }
   // The song-level values playback reads, as of now.
   SongScalars scalars() const;
   // Copies the arrangement and clips into a new PlaybackContent and
@@ -433,10 +450,7 @@ class Song : public SongObject {
   // already uses.
   std::string generateUniqueClipId() const;
 
-  void addInstrument(std::unique_ptr<Track> i) {
-    Edit edit(*this, "add instrument");
-    instrument_pool_.addInstrument(std::move(i));
-  }
+  void addInstrument(std::unique_ptr<Track> i);
 
   // Erases pool slot `index` (InstrumentPool::removeInstrument()) and
   // reindexes every InstrumentTrack::instrument_id_ in the tree that
@@ -456,59 +470,55 @@ class Song : public SongObject {
   // resolved default drum kit (InstrumentPool::getDefaultKitInstrument())
   // for the consumers that render an actual note and need both - see
   // InstrumentPool.h's own class comment.
-  const InstrumentPool & getInstrumentPool() const { return instrument_pool_; }
+  const InstrumentPool & getInstrumentPool() const { return *tracks_->pool; }
 
   bool open(const std::string & filename, const InstrumentProvider & provider);
   void save(const std::string & filename) const;
 
   // The tree parent of every top-level track - see this class's own
-  // header comment. Never null.
-  Track & getMasterTrack() { return *master_track_; }
-  const Track & getMasterTrack() const { return *master_track_; }
-
-  // See tracks_mutex_'s own comment - SongState::renderBlock() locks this to
-  // take a quick snapshot of the current tracks before rendering them.
-  std::mutex & getTracksMutex() const { return *tracks_mutex_; }
+  // header comment. Never null. The objects are the compiled form of the
+  // document's track nodes: read-only, shared with the audio thread, and
+  // replaced by new ones when a track is edited, so look one up again after
+  // an edit rather than keeping it (edits go through editTrack() and the
+  // other mutators below).
+  const Track & getMasterTrack() const { return *tracks_->master; }
+  // This thread's current compiled tracks, for something that has to keep
+  // them alive.
+  std::shared_ptr<const CompiledTracks> compiledTracks() const { return tracks_; }
 
   // after_track_id: if >= 0 and it names a track actually in the tree,
   // the new track lands as its immediate sibling (wherever that track's
-  // own real parent is - Track::insertChildAfter()), next to whatever the
-  // artist currently has selected rather than always at the very end.
-  // -1 (the default) keeps plain "append under the master" - what a
-  // caller with no cursor to speak of wants (LaunchpadManager's auto-
-  // grow-to-pressed-column loops, this Song's own initial construction).
-  Track & addTrack(std::unique_ptr<Track> track, int after_track_id = -1) {
-    Edit edit(*this, "add track");
-    if (track->getId().empty()) track->setId(generateUniqueTrackId());
-    std::lock_guard<std::mutex> guard(*tracks_mutex_);
-    auto * ref = track.get();
-    if (after_track_id < 0 || !master_track_->insertChildAfter(after_track_id, track)) {
-      master_track_->addChild(std::move(track));
-    }
-    return *ref;
-  }
+  // own real parent is), next to whatever the artist currently has
+  // selected rather than always at the very end. -1 (the default) keeps
+  // plain "append under the master" - what a caller with no cursor to
+  // speak of wants (LaunchpadManager's auto-grow-to-pressed-column loops,
+  // this Song's own initial construction). Returns the compiled track
+  // (the object that was passed in, now shared and read-only).
+  const Track & addTrack(std::unique_ptr<Track> track, int after_track_id = -1);
 
   // Removes the track (root, or nested inside a <group>) whose internal id
   // is `id`. Returns false, doing nothing, if `id` doesn't resolve to any
   // track any more - callers should treat "already gone" the same as
-  // "successfully gone", not as an error. Delegates to master_track_'s own
-  // removeChildByInternalId(), which only ever erases from a children_
-  // vector - the master itself is never anyone's child, so `id` naming the
-  // master can structurally never remove it; no separate guard needed.
-  // Does *not* guard against
-  // removing the last remaining root track - PatternEditor::render() and
-  // several sibling call sites index getRootTrackIds()[cursor.track] with
-  // no bounds check at all (docs/known_bugs.md's zero-root-tracks entry),
-  // so a caller that can reach zero root tracks this way must refuse
-  // before ever getting here, the way PatternEditor's "delete-track"
-  // command does.
-  bool removeTrack(int id) {
-    Edit edit(*this, "remove track");
-    std::lock_guard<std::mutex> guard(*tracks_mutex_);
-    if (master_track_->removeChildByInternalId(id)) return true;
-    edit.discard();
-    return false;
-  }
+  // "successfully gone", not as an error. The master itself is never
+  // anyone's child, so `id` naming it can structurally never remove it.
+  // Does *not* guard against removing the last remaining root track -
+  // PatternEditor::render() and several sibling call sites index
+  // getRootTrackIds()[cursor.track] with no bounds check at all
+  // (docs/known_bugs.md's zero-root-tracks entry), so a caller that can
+  // reach zero root tracks this way must refuse before ever getting here,
+  // the way PatternEditor's "delete-track" command does.
+  bool removeTrack(int id);
+
+  // Changes a track's own settings (mute, sends, position, name, ...): `edit`
+  // is run on a scratch copy of the track and whatever it changed is written
+  // to the track's node. Sub-tracks are not touched. False if `track_id`
+  // names no track.
+  bool editTrack(int track_id, const std::function<void(Track &)> & edit);
+
+  // Compiles the document's track nodes into new objects now, preparing
+  // instruments that need it with `provider`. An edit does this by itself
+  // when it closes; Song::open() calls it with the provider at hand.
+  void compileTracks(const InstrumentProvider * provider = nullptr);
 
   void loadParameters(const ParameterSource & input) override;
   void storeParameters(ParameterSource & output) const override;
@@ -564,20 +574,20 @@ private:
     void begin() override { edit.emplace(*song, "edit"); }
     void end() override { edit.reset(); }
   };
+  doc::UndoHistory history_;
   mutable std::unique_ptr<ImplicitEdit> implicit_edit_ = std::make_unique<ImplicitEdit>();
   // What the score's views are built from; also (re)binds the implicit
   // edit to this Song, so a moved Song keeps working.
   ScoreContext context() const {
+    bindImplicitScope();
+    return { doc_.get(), samples_.get() };
+  }
+  void bindImplicitScope() const {
     implicit_edit_->song = const_cast<Song *>(this);
     doc_->setImplicitScope(implicit_edit_.get());
-    return { doc_.get(), samples_.get() };
   }
   // The arrangement and clips as plain values, for the published copy.
   std::unique_ptr<PlaybackContent> compileContent() const;
-
-  std::unique_ptr<BusEffect> bus_slot_a_, bus_slot_b_;
-  BusEffectKind bus_slot_a_kind_ = BusEffectKind::Reverb;
-  BusEffectKind bus_slot_b_kind_ = BusEffectKind::Delay;
 
   Version version_;
   mutable bool content_published_mode_ = false;
@@ -588,13 +598,21 @@ private:
   bool edit_wrote_ = false;
   int current_track_id_ = -1;
 
-  InstrumentPool instrument_pool_;
-  // The tree parent of every top-level track - see getMasterTrack()'s own
-  // comment. Never null; a track can no longer *not* have a parent, which
-  // is what makes "exactly one master, can't be removed" true by
-  // construction rather than by a guard check (see removeTrack()'s own
-  // comment).
-  std::unique_ptr<Track> master_track_ = std::make_unique<MasterTrack>();
+  // The tracks, instrument pool and bus live in the document as nodes
+  // (tracknodes::, TrackNodes.h); tracks_ is what they compile to, replaced
+  // whenever a node under these roots has changed.
+  // Where they sit under the root, read from the document each time (undo
+  // can put a different node in a slot).
+  doc::NodeId masterNode() const;
+  doc::NodeId poolNode() const;
+  doc::NodeId busNode(int slot) const;
+  std::shared_ptr<TrackCompiler> compiler_;
+  std::shared_ptr<const CompiledTracks> tracks_;
+  TrackCompiler::Stamp tracks_stamp_;
+  uint64_t tracks_generation_ = 0;
+  void recompileTracksIfChanged();
+  doc::NodeId trackNode(int track_id) const;  // kNoNode if there is no such track
+  doc::NodeId insertTrackNode(const std::shared_ptr<Track> & track, doc::NodeId parent, const std::string & slot, size_t index);
 
   // A track's own textual id (SongObject::getId()) is the only thing a
   // <note>/<command> element can reference it by that survives a
@@ -603,54 +621,16 @@ private:
   // so a note left referencing one is unresolvable the moment the file is
   // reopened (see Song.cpp's trackReferenceText()/resolveTrackReference()).
   // addTrack() above (the single place every track, new or loaded, enters
-  // master_track_'s own children) gives an id-less track this instead of
+  // the tree) gives an id-less track this instead of
   // leaving it to fall back to that same ugly, unstably-large raw internal
   // id in the pattern editor's own track heading. Tried in increasing
   // order starting from 1 rather than deriving straight from the track's
   // own internal id, so these actually read as a small, per-song sequence
   // instead of inheriting whatever arbitrary process-wide count
   // SongObject's shared id counter happens to be at. Never collides with
-  // master_track_'s own reserved "master" id (constructor, above).
-  std::string generateUniqueTrackId() const {
-    for (int n = 1; ; n++) {
-      auto candidate = "track" + std::to_string(n);
-      if (!master_track_->getChildById(candidate)) return candidate;
-    }
-  }
-
-  // The master's own parameters (currently just "collapsed") come from
-  // the <tracks> element itself - see MasterTrack.h's own comment on why
-  // it's never a discrete element of its own. loadParameters() resets the
-  // id along with everything else (SongObject::loadParameters()), so this
-  // re-asserts the reserved one every time - called both from the
-  // constructor (an empty source, for a track never loaded from a file at
-  // all) and from open() (the real <tracks> element).
-  void loadMasterTrackParameters(const ParameterSource & input) {
-    master_track_->loadParameters(input);
-    master_track_->setId("master");
-  }
-
-  // Guards master_track_'s own children (addTrack()/removeTrack() above
-  // are its only mutators) - SongState::renderBlock() runs on the audio
-  // thread and reads them concurrently with the UI thread calling
-  // addTrack() (PatternEditor/LaunchpadManager's various "add track"
-  // commands can fire at any time, including while playing), and a
-  // push_back can reallocate the vector's backing storage - a render()
-  // call mid-iteration when that happens would hold a dangling iterator
-  // into freed memory. Every other read of master_track_'s children is
-  // UI-thread-only, hence never concurrent with addTrack() (also always
-  // UI-thread) and needs no lock of its own - see SongState::renderBlock()'s
-  // own comment for the one call site that does. mutable so a const
-  // Song& (SongState::renderBlock()'s own parameter type) can still lock it.
-  // Heap-allocated (rather than a plain std::mutex member) solely so Song
-  // itself stays move-constructible - std::mutex has neither a copy nor a
-  // move constructor, which would otherwise implicitly delete Song's own
-  // (tests/RenderTests.cpp's loadFixture() and similar move a freshly-
-  // loaded Song out of a local variable); production code never moves a
-  // Song (Controller always holds one behind a shared_ptr), so a moved-
-  // from Song's now-null pointer is never dereferenced in practice.
-  mutable std::unique_ptr<std::mutex> tracks_mutex_ = std::make_unique<std::mutex>();
-
+  // the master track's own reserved "master" id.
+  std::string generateUniqueTrackId() const;
+  std::string generateUniqueInstrumentId() const;
 };
 
 // The sidecar .wav path one layer of a SampleTrack clip's own audio reads

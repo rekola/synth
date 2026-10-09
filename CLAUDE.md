@@ -513,7 +513,7 @@ would otherwise resume showing.
   buttons into labelled alternate functions, in every `GridMode`
   (`handleRawButton()`'s shift branch), following the Launchpad Pro MK3's own
   shift layer where it has one: Record Arm (CC19) is Undo and Mute (CC39, Pro
-  MK3 CC30) Redo (both reserved - they only say "not implemented yet"), Solo
+  MK3 CC30) Redo ("undo"/"undo-redo", see Undo below), Solo
   (CC29, Pro MK3 CC20) is the metronome click ("toggle-metronome", a click per
   beat while the transport plays, accented on the bar -
   `Player::scheduleMetronome()`; its LED is amber, bright while on), Volume
@@ -526,7 +526,8 @@ would otherwise resume showing.
   button is taken. Draw is shift + CC97 instead. Their LEDs show only those
   functions while shift is held (Duplicate cyan, Draw purple, metronome amber,
   Quantise red/green, Tempo blue, Swing orange, Delete magenta - red is
-  Quantise's own off state - Undo/Redo dim white). Shift + pad selects a clip
+  Quantise's own off state - Undo white while there is something to undo, Redo
+  white only while an undo can be taken back, dim otherwise). Shift + pad selects a clip
   without launching it (below).
   User-facing descriptions of every button live in `docs/launchpad.md`.
   95 ("Session") doubles as the
@@ -616,8 +617,7 @@ would otherwise resume showing.
   bottom-left corner (`LaunchpadLayout::drumPadNoteForPad()`: notes 36-51 in
   order, left to right then bottom to top, the usual sampler/drum-rack
   default window - `docs/drums-and-sequencer.md`), the rest of the grid dark; there is no per-track drum list (lanes were removed - the
-  rack is the one kit, and a `<lane>` element in an old song is ignored on
-  load). A pitched track gets the isomorphic keyboard
+  rack is the one kit). A pitched track gets the isomorphic keyboard
   (`LaunchpadManager::resolveKeyboardNotes()`, `LaunchpadLayout::noteForPad()`):
   the song's key at the anchor pad at this device's octave, pads colored by
   consonance class from the tonic. The song's scale does not change the
@@ -709,9 +709,9 @@ would otherwise resume showing.
   genuinely out-of-bounds row - erasing one would shift every later
   clip's own index down, silently misaligning every other track's own
   scene rows against it). Persisted in a top-level `<clips>` element,
-  sibling to `<tracks>`/`<arrangement>` (`<trackClips track="..."><clip
-  id="..." name="..." loop="..." length="..."><pattern>...</pattern>
-  </clip></trackClips>`, one `<trackClips>` per track; an empty filler
+  sibling to `<tracks>`/`<arrangement>` (`<clip track="..." id="..."
+  name="..." loop="..." length="..."><pattern>...</pattern></clip>`, one
+  `<clip>` per clip, a track's own in order; an empty filler
   round-trips as a `<clip>` with no `<pattern>` child at all, carrying
   `stop="false"` when the slot's stop button was removed - see below). A
   `SampleTrack` clip's `<clip>` holds one `<sample file="...">` child per
@@ -1006,6 +1006,12 @@ would otherwise resume showing.
   and a fresh press look alike to the widgets (the held button repeats its
   press), so each tells them apart by the release in between; `TerminalUI`
   keeps focus on the widget the press started in until then.
+- **Song file references.** A track names its pool instrument by the
+  instrument's `id` (`instrument="i1"`; every pool entry gets one), and the arrangement places a
+  clip with `<instance track="..." row="..." clip="..."/>`, a stop being an
+  instance with no `clip`. There is no reader for earlier forms: the project
+  has no files to keep, so a format change converts the repo's songs instead. The runtime still holds a pool
+  index; the id is what the file says.
 - **Scenes** (`Song::getSceneName()`/`getSceneTempo()`/`getSceneTimeSignature()`, `<scenes><scene name="" tempo="" timeSignature="3/4"/>...</scenes>`, by position like a track's clip list, no index stored) - a scene is a clip-list row shared by every track, with an optional name, tempo and time signature, shown in the clip grid's Master column and edited with F2 there; typed text goes through `scenename::extract()` (`SceneName.h`) ("Waltz 3/4 90 BPM" splits into name, signature and tempo, "0 BPM"/"0/4" clear them, text without one keeps the existing value). `ClipPlayer::launchScene()` sends them to the audio thread as one `QUEUE_SCENE_CHANGE` event, which `SongState::queueSceneChange()` applies on the bar the clips launch on (the first row played from a stopped transport): the tempo becomes the song tempo, the signature the running signature. Each rhythm-library template carries its signature (`RhythmPatternTemplate::time_numerator`/`time_denominator`), which Add to Song gives the scene the new clip lands in when that scene has none. Details and design decisions: `docs/scenes.md`.
 - **Bars and time signatures** (`TimeSignature.h`, `BarGrid.h`, `Song`'s bar API; `docs/time_signatures.md`) - a row is a sixteenth, a signature n/d is n*16/d rows per bar and 16/d per beat (denominator 1/2/4/8/16). The song has one signature (`Song::getTimeSignature()`, `<song timeSignature="3/4">`, 4/4 unless set, `set-time-signature`) that the arrangement counts its bars in (`Song::getArrangementBars()`, a `BarGrid`: a signature counted from an origin row). A launched scene's signature is the *running signature* (`RunningBars`: signature plus origin row, the launch bar, saved as `transportTimeSignature`/`transportBarOrigin`) that overrides the song's from the origin until another scene or Back to Arrangement for every track (`ClipPlayer::returnAllToArrangement()`). The audio thread owns the running signature and the tempo a scene sets (`SongState`'s `pending_scene_`/`running_bars_`/`barsAt()`, applied in `advanceLiveTracks()` on the bar, sample-exact with the clip launches; its bar test, pattern break and `Player::scheduleMetronome()` read `barsAt()`); the UI's `Song` copies are mirrored from the snapshot by `Controller::mirrorSceneChange()` (once per `PlaybackInfo::getSceneSeq()`, so an older snapshot never overwrites a tempo edited since; `SongState` applies the song's own tempo only when the song's value changed). UI-thread consumers (clip take quantization and length, the position display, the info line) read `Song::getBarsAt()`; the arrangement grid, arrangement recording and clip placement read `getArrangementBars()`. A bar number is never `row / rows_per_bar` (`Song::getRowsPerBar()` is gone): use `BarGrid`. Live View accents come from the scene's own signature (`PatternSource::startsBar()`/`startsBeat()`).
 - **Defaults**: a fresh session opens in Live View on the clip grid
@@ -1466,14 +1472,30 @@ would otherwise resume showing.
   outside any scope is a bug that leaves the audio thread on stale content;
   run with `SYNTH_VERIFY_CONTENT=1` to have the UI say so (once per buffer)
   when the published content no longer matches the model.
-- The song's own state is moving into a document (`src/doc/`, plan in
+- Undo (`doc/UndoHistory.h`, `Song::undo()`/`redo()`, the `undo` and
+  `undo-redo` commands from `Controller`; bindings and the Launchpad's shift +
+  Record Arm / Mute in `docs/terminal.md`/`docs/launchpad.md`): the Emacs
+  policy over the journal. An undo appends the inverse of an earlier entry, so
+  nothing is dropped and undoing an undo is a redo; the run of undos is broken
+  only by a tracked edit (cursor moves are not edits), and `Origin::SYNC`
+  entries are passed over and never undone. It does nothing while an undo group
+  (`Document::beginGroup`) is open, which is how a live take is one step:
+  `Controller::updateUndoGroup()` holds a group open while any clip take
+  (`isAnyClipRecording()`) or auto-record session is in flight, so its notes
+  land one by one but undo as a whole, once it has ended. Note capture
+  armed while the transport rolls counts as a take too. After an undo or redo
+  `Song::lastUndoPlace()` names the track (and, for an arrangement note or
+  placement, the row) it changed, and the commands move the current track
+  there, and the transport row while stopped.
+- The song's own state lives in a DOM (`src/doc/`, plan in
   `plans/undo-document-model.md`): nodes with stable ids, four journaled
   primitives, one append-only journal per song (`Song::document()`, capped at
-  `Song::kJournalLimit` edits). So far the song-level scalars (tempo, swing,
-  signatures, tuning, key, scale, the room), scenes and locators, and the
+  `Song::kJournalLimit` edits). The song-level scalars (tempo, swing,
+  signatures, tuning, key, scale, the room), scenes and locators, the
   whole score - patterns and notes, clips (with their sample layers) and the
-  arrangement's placements and beds - live there, declared once in
-  `model/SongSchema.h`/`ScoreSchema.h`. `Song`'s accessors stay the API. The
+  arrangement's placements and beds - and the tracks, the instrument pool and
+  the send bus all live there; the scalars and the score are declared once
+  in `model/SongSchema.h`/`ScoreSchema.h`. `Song`'s accessors stay the API. The
   score is edited through short-lived handles, `PatternView`, `ClipView`/
   `ClipList` and `ArrangementView` (`Song::getArrangement()`/`getClips()`),
   which read like the pointers they replaced (`->`, `if (x)`, `nullptr`) but
@@ -1495,8 +1517,34 @@ would otherwise resume showing.
   Opening a file or constructing a song leaves no history.
   `SYNTH_VERIFY_DOCUMENT=1` replays every transaction against a copy to check
   its undo record.
-- The audio thread never reads the live arrangement or clips: it reads
-  `PlaybackContent` (`model/PlaybackContent.h`), an immutable copy of both
+- Tracks, instruments and bus effects are nodes whose type is the element
+  name they have in a song file and whose string properties are exactly the
+  attributes their `loadParameters()`/`storeParameters()` use
+  (`model/TrackNodes.h`), so those classes know nothing of the document
+  (the loader still builds objects from the XML and derives the nodes from
+  them, so an attribute no class knows is dropped on load, as before;
+  `Song::editTrack()` does leave alone any property a node holds that the
+  class does not store); a node's children are
+  its sub-tracks, and a `GenericInstrument`'s `<generator>` elements are
+  "generator" child nodes. What the rest of the program sees are immutable
+  `Track` objects (`Song::getMasterTrack()`, `getInstrumentPool()`,
+  `getBusSlot()`), compiled from the nodes by `TrackCompiler`
+  (`model/CompiledTracks.h`) when an `Edit` closes. Each node's compiled
+  object is kept with the newest revision under it (`Document::
+  subtreeRevision()`), so an edit rebuilds only the nodes that changed and
+  their ancestors, and every other track keeps its object (and a track
+  handed to `Song::addTrack()`/`addInstrument()` as an object stays that
+  object, prepared instrument and all). A reference to a `Track` is
+  therefore good until that track is edited: look it up again by internal id
+  afterwards (internal ids are kept in the node, so they survive a rebuild).
+  Change a track with `Song::editTrack(id, fn)` - `fn` runs on a scratch copy
+  and what it changed in the stored attributes is written to the node - and
+  add, remove and reorder with `addTrack()`/`removeTrack()`/`addInstrument()`/
+  `removeInstrument()`/`setBusSlotKind()`; never build a track's sub-tracks
+  after adding it.
+- The audio thread never reads the live arrangement, clips or tracks: it reads
+  `PlaybackContent` (`model/PlaybackContent.h`), an immutable copy of the
+  arrangement and clips, with the compiled tracks (`CompiledTracks`) attached
   that `Song::publishContent()` builds (~30 us for the largest song here) and
   `ContentPublisher` hands over without locks or reference counts, freeing
   displaced copies on the UI thread only (`SongState::renderBlock()` holds
@@ -1504,8 +1552,9 @@ would otherwise resume showing.
   it - compare `SampleContent::identity()`, not addresses, across blocks).
   A song a `Controller` owns is in published mode; a song built and rendered
   on one thread (the offline renderer, tests) copies on every read instead,
-  so a write needs no `Edit` there. Tracks and the instrument pool are not in
-  the copy yet - they are still read live under `Song::getTracksMutex()`.
+  so a write needs no `Edit` there. State that outlives a block must not point
+  into the tracks (`ArpeggiatorState` keeps an internal id and its settings
+  by value, and finds its instrument in the pool it is rendered with).
 - Cloud sessions: commit and push finished work to the session's branch
   without being asked, including plans and changes the user wants to test
   by ear - the cloud has no other way to show files, so an uncommitted

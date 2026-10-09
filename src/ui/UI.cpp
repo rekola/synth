@@ -453,6 +453,8 @@ UI::initializeCommands() {
   // works regardless of which UI widget currently has focus.
   commands_.define("merge-clip-to-background", [this]() { getController().sendCommand("merge-clip-to-background"); });
   commands_.define("toggle-record-arm", [this]() { getController().sendCommand("toggle-record-arm"); });
+  commands_.define("undo", [this]() { getController().sendCommand("undo"); });
+  commands_.define("undo-redo", [this]() { getController().sendCommand("undo-redo"); });
 
   // Clip menu entries not built yet - say so rather than failing as an
   // unknown command.
@@ -463,7 +465,7 @@ UI::initializeCommands() {
   // Track commands act on Song::getCurrentTrackId(), the one current track
   // every widget keeps in sync, so they work the same from any widget and
   // from the menu. A new track lands right after the current one, under
-  // whatever its real parent is (Track::insertChildAfter()) - or at the
+  // whatever its real parent is (Song::addTrack()'s after_track_id) - or at the
   // very end when there's no current track. addTrack() bumps the version
   // itself.
   auto add_track = [this](std::unique_ptr<Track> track) {

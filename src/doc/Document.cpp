@@ -58,6 +58,15 @@ bool Document::attached(NodeId id) const {
   return false;
 }
 
+uint64_t Document::subtreeRevision(NodeId id) const {
+  auto n = get(id);
+  if (!n) return 0;
+  uint64_t newest = n->revision;
+  for (auto & slot : n->slots)
+    for (auto child : slot.children) newest = std::max(newest, subtreeRevision(child));
+  return newest;
+}
+
 NodeId Document::create(const std::string & type) {
   return createWithId(next_id_, type);
 }
@@ -86,6 +95,7 @@ void Document::appendToDetached(NodeId parent_id, const std::string & slot, Node
   assert(parent && child && !attached(parent_id) && child->parent == kNoNode);
   auto & s = slotFor(*parent, slot);
   s.children.push_back(child_id);
+  touch(*parent);
   child->parent = parent_id;
   child->parent_slot = slot;
 }
@@ -116,6 +126,7 @@ void Document::setProperty(NodeId id, const std::string & key, Value value) {
   op.key = key;
   op.before = before;
   op.after = value;
+  touch(*node);
   if (std::holds_alternative<std::monostate>(value)) {
     if (it != node->properties.end()) node->properties.erase(it);
   } else if (it != node->properties.end()) {
@@ -136,6 +147,7 @@ void Document::insertChild(NodeId parent_id, const std::string & slot, size_t in
   auto & s = slotFor(*parent, slot);
   assert(index <= s.children.size());
   s.children.insert(s.children.begin() + static_cast<std::ptrdiff_t>(index), child_id);
+  touch(*parent);
   child->parent = parent_id;
   child->parent_slot = slot;
   Op op;
@@ -157,6 +169,7 @@ NodeId Document::removeChild(NodeId parent_id, const std::string & slot, size_t 
   assert(index < s.children.size());
   auto child_id = s.children[index];
   s.children.erase(s.children.begin() + static_cast<std::ptrdiff_t>(index));
+  touch(*parent);
   auto child = mutableGet(child_id);
   child->parent = kNoNode;
   child->parent_slot.clear();
@@ -182,6 +195,7 @@ void Document::moveChild(NodeId parent_id, const std::string & slot, size_t from
   auto id = s.children[from];
   s.children.erase(s.children.begin() + static_cast<std::ptrdiff_t>(from));
   s.children.insert(s.children.begin() + static_cast<std::ptrdiff_t>(to), id);
+  touch(*parent);
   Op op;
   op.kind = Op::Kind::MOVE;
   op.node = parent_id;
@@ -255,15 +269,24 @@ void Document::endGroup() {
   assert(in_group_);
   in_group_ = false;
   if (journal_.size() <= group_start_ + 1) {
-    if (journal_.size() == group_start_ + 1) journal_.back().label = group_label_;
+    if (journal_.size() == group_start_ + 1 && journal_.back().tracked) journal_.back().label = group_label_;
     return;
   }
+  // Untracked entries (the audio thread's mirror writes) stay entries of
+  // their own, before the merged one, so undoing the group never undoes them.
   JournalEntry merged;
   merged.label = group_label_;
-  for (auto i = group_start_; i < journal_.size(); i++)
-    merged.ops.insert(merged.ops.end(), journal_[i].ops.begin(), journal_[i].ops.end());
-  merged.sequence = journal_.back().sequence;
+  std::vector<JournalEntry> untracked;
+  for (auto i = group_start_; i < journal_.size(); i++) {
+    if (journal_[i].tracked)
+      merged.ops.insert(merged.ops.end(), journal_[i].ops.begin(), journal_[i].ops.end());
+    else
+      untracked.push_back(std::move(journal_[i]));
+  }
   journal_.erase(journal_.begin() + static_cast<std::ptrdiff_t>(group_start_), journal_.end());
+  for (auto & entry : untracked) journal_.push_back(std::move(entry));
+  if (merged.ops.empty()) return;
+  merged.sequence = ++sequence_;
   journal_.push_back(std::move(merged));
 }
 
@@ -324,6 +347,7 @@ std::unique_ptr<Document> Document::clone() const {
   for (auto & [ id, node ] : nodes_) copy->nodes_[id] = std::make_unique<Node>(*node);
   copy->root_ = root_;
   copy->next_id_ = next_id_;
+  copy->revision_counter_ = revision_counter_;
   return copy;
 }
 

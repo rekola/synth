@@ -5,31 +5,29 @@
      showing, with no need to read a playhead. -->
 <song temperament="12edo" tempo="120" patternRows="16">
   <instruments>
-    <envelope attack="0.001" hold="0.05" decay="0.05" sustain="0.0" release="0.05">
+    <envelope id="i1" attack="0.001" hold="0.05" decay="0.05" sustain="0.0" release="0.05">
       <oscillator type="saw"/>
     </envelope>
   </instruments>
   <tracks>
-    <percussionTrack id="0" instrument="0">
+    <percussionTrack id="0" instrument="i1">
     </percussionTrack>
   </tracks>
   <clips>
-    <trackClips track="0">
-      <clip name="p0" />
-      <clip name="p1" />
-      <clip name="p2" />
-      <clip name="p3" />
-      <clip name="p4" />
-      <clip name="p5" />
-      <clip name="p6" />
-      <clip name="Beat 1" loop="1" length="96">
-        <pattern>
-          <note row="5" velocity="80" value="BD" />
-          <note row="40" velocity="80" value="BD" />
-          <note row="70" velocity="80" value="BD" />
-        </pattern>
-      </clip>
-    </trackClips>
+    <clip track="0" name="p0" />
+    <clip track="0" name="p1" />
+    <clip track="0" name="p2" />
+    <clip track="0" name="p3" />
+    <clip track="0" name="p4" />
+    <clip track="0" name="p5" />
+    <clip track="0" name="p6" />
+    <clip track="0" name="Beat 1" loop="1" length="96">
+      <pattern>
+        <note row="5" velocity="80" value="BD" />
+        <note row="40" velocity="80" value="BD" />
+        <note row="70" velocity="80" value="BD" />
+      </pattern>
+    </clip>
   </clips>
   <arrangement>
   </arrangement>

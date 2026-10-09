@@ -1974,7 +1974,7 @@ TEST(render_master_send_main_scales_the_mix) {
   auto unity = loadFixture("center_note.xml");
   auto quieter = loadFixture("center_note.xml");
   CHECK(unity.ok && quieter.ok);
-  quieter.song.getMasterTrack().setSendMain(0.5f);
+  quieter.song.editTrack(quieter.song.getMasterTrack().getInternalId(), [](Track & master) { master.setSendMain(0.5f); });
 
   ChannelConfiguration config(44100, 1);
   auto a = renderSongOffline(unity.song, config);
@@ -1989,7 +1989,7 @@ TEST(master_send_main_round_trips_through_the_song_file) {
   namespace fs = std::filesystem;
   auto loaded = loadFixture("center_note.xml");
   CHECK(loaded.ok);
-  loaded.song.getMasterTrack().setSendMain(0.5f);
+  loaded.song.editTrack(loaded.song.getMasterTrack().getInternalId(), [](Track & master) { master.setSendMain(0.5f); });
   auto path = fs::temp_directory_path() / "synth_master_send_main_test.xml";
   loaded.song.save(path.string());
 
@@ -2083,4 +2083,41 @@ TEST(render_straight_swing_is_identical_to_no_swing_setting) {
   auto a = renderSongOffline(plain.song, config);
   auto b = renderSongOffline(explicit_straight.song, config);
   CHECK(a.interleaved == b.interleaved);
+}
+
+namespace {
+
+void collectTrackIds(const Track & track, std::vector<int> & ids) {
+  ids.push_back(track.getInternalId());
+  for (auto & child : track.getChildren()) collectTrackIds(*child, ids);
+}
+
+} // namespace
+
+// The tracks a song is loaded with are the objects the loader made; an edit
+// rebuilds the ones it touches from their document nodes. Every fixture,
+// with every track rebuilt that way, must render exactly as it did.
+TEST(every_fixture_renders_identically_with_its_tracks_rebuilt_from_their_nodes) {
+  namespace fs = std::filesystem;
+  ChannelConfiguration config(44100, 1);
+  int compared = 0;
+  for (auto & entry : fs::directory_iterator(TESTS_FIXTURES_DIR)) {
+    if (entry.path().extension() != ".xml") continue;
+    auto name = entry.path().filename().string();
+    auto loaded = loadFixture(name.c_str());
+    if (!loaded.ok) continue;
+    auto before = renderSongOffline(loaded.song, config);
+
+    std::vector<int> ids;
+    collectTrackIds(loaded.song.getMasterTrack(), ids);
+    for (auto id : ids) {
+      loaded.song.editTrack(id, [](Track & track) { track.setCollapsed(!track.isCollapsed()); });
+      loaded.song.editTrack(id, [](Track & track) { track.setCollapsed(!track.isCollapsed()); });
+    }
+    auto after = renderSongOffline(loaded.song, config);
+    if (before.interleaved != after.interleaved) fprintf(stderr, "differs: %s\n", name.c_str());
+    CHECK(before.interleaved == after.interleaved);
+    compared++;
+  }
+  CHECK(compared > 50);
 }

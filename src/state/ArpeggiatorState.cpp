@@ -10,6 +10,7 @@ ArpeggiatorState::noteOn(int column, const Track & instrument, Tuning tuning, fl
   bool was_empty = held_notes_.empty();
 
   instrument_ = &instrument;
+  instrument_internal_id_ = instrument.getInternalId();
   tuning_ = tuning;
   note_coord_ = note_coord;
 
@@ -236,7 +237,8 @@ ArpeggiatorState::advanceIndex(int pool_size) {
 void
 ArpeggiatorState::triggerNextStep() {
   int n = (int)step_pool_.size();
-  if (n == 0 || !instrument_) { samples_until_next_step_ = stepLengthSamples(); return; }
+  const Track * instrument = pool_ ? pool_->findByInternalId(instrument_internal_id_) : instrument_;
+  if (n == 0 || !instrument) { samples_until_next_step_ = stepLengthSamples(); return; }
 
   if (step_index_ < 0) {
     // "Down" starts from the top of the pool (the note it wraps back to),
@@ -256,7 +258,7 @@ ArpeggiatorState::triggerNextStep() {
   // LeafTrack::getExtent()), resolved to the instrument's own family
   // default here too.
   auto resolved_position = getPosition();
-  if (resolved_position.extent < 0.0f) resolved_position.extent = instrument_->getDefaultExtent();
+  if (resolved_position.extent < 0.0f) resolved_position.extent = instrument->getDefaultExtent();
 
   // next_voice_id_ doubles as this step's own instance discriminator
   // (note_coord_.withInstance()) - it's already exactly "a fresh id per
@@ -267,7 +269,7 @@ ArpeggiatorState::triggerNextStep() {
   // hence its InstrumentVoice-derived start phase - is built from can
   // actually use it.
   int voice_id = next_voice_id_++;
-  auto voice = instrument_->playNote(getChannelConfiguration(), resolved_position, tuning_, 1.0f, step.velocity, step.note_value, getSends(), note_coord_.withInstance(voice_id));
+  auto voice = instrument->playNote(getChannelConfiguration(), resolved_position, tuning_, 1.0f, step.velocity, step.note_value, getSends(), note_coord_.withInstance(voice_id));
   addVoice(voice_id, move(voice));
   pending_gates_.push_back({ voice_id, gateLengthSamples() });
 
@@ -324,7 +326,10 @@ ArpeggiatorState::render(int frames, const InstrumentPool & instruments, RenderC
   // NoteOrigin), so it's never silently dropped, and pending-events
   // bookkeeping is never leaked.
   bpm_ = context.getBpm();
-  return InstrumentTrackState::render(frames, instruments, context);
+  pool_ = &instruments;
+  auto data = InstrumentTrackState::render(frames, instruments, context);
+  pool_ = nullptr;
+  return data;
 }
 
 AudioBuffer

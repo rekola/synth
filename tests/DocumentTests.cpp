@@ -179,3 +179,27 @@ TEST(document_empty_group_leaves_no_entry) {
   d.endGroup();
   CHECK(d.journal().size() == base);
 }
+
+TEST(subtree_revision_moves_when_anything_under_a_node_changes) {
+  doc::Document d;
+  auto parent = d.create("p");
+  d.insertChild(d.root(), "kids", 0, parent);
+  auto child = d.create("c");
+  d.insertChild(parent, "kids", 0, child);
+  auto before = d.subtreeRevision(parent);
+  d.setProperty(child, "x", doc::Value(int64_t(1)));
+  auto after_set = d.subtreeRevision(parent);
+  CHECK(after_set > before);
+  CHECK(d.subtreeRevision(d.root()) == after_set);
+  auto sibling = d.create("c");
+  d.insertChild(parent, "kids", 1, sibling);
+  auto after_insert = d.subtreeRevision(parent);
+  CHECK(after_insert > after_set);
+  d.moveChild(parent, "kids", 0, 1);
+  CHECK(d.subtreeRevision(parent) > after_insert);
+  auto stable = d.subtreeRevision(parent);
+  auto other = d.create("o");
+  d.insertChild(d.root(), "kids", 1, other);
+  CHECK(d.subtreeRevision(parent) == stable); // a change elsewhere leaves it alone
+  CHECK(d.subtreeRevision(doc::kNoNode) == 0);
+}

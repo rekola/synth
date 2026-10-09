@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="110" timeSignature="1/4">
   <instruments>
-    <instrument from="string.bowed.ensemble.pizzicato" />
-    <instrument from="bass.electric.pick" />
+    <instrument id="i1" from="string.bowed.ensemble.pizzicato" />
+    <instrument id="i2" from="bass.electric.pick" />
   </instruments>
   <tracks>
-    <track id="0" instrument="0" sendA="-10.4576" distance="5" azimuth="-60" />
-    <track id="1" instrument="0" sendA="-10.4576" distance="5" azimuth="-30" />
-    <track id="2" instrument="0" sendA="-10.4576" distance="5" azimuth="30" />
-    <track id="3" instrument="1" sendA="-10.4576" sendB="-6.0206" distance="10" elevation="10" azimuth="30" />
+    <track id="0" instrument="i1" sendA="-10.4576" distance="5" azimuth="-60" />
+    <track id="1" instrument="i1" sendA="-10.4576" distance="5" azimuth="-30" />
+    <track id="2" instrument="i1" sendA="-10.4576" distance="5" azimuth="30" />
+    <track id="3" instrument="i2" sendA="-10.4576" sendB="-6.0206" distance="10" elevation="10" azimuth="30" />
     <percussionTrack id="4" sendA="-10.4576" sendB="-20.0000" distance="5" elevation="-10" azimuth="60" />
     <track id="5" />
     <track id="6" />

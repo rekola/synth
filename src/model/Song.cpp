@@ -5,6 +5,9 @@
 
 #include "../state/SongState.h"
 
+#include "TrackCompiler.h"
+#include "TrackNodes.h"
+
 #include "InstrumentTrack.h"
 #include "PercussionTrack.h"
 #include "SampleTrack.h"
@@ -92,7 +95,7 @@ static string trackReferenceText(const Song & song, int track_id) {
 // decimal string (a track with no textual id of its own) - tried in that
 // order, so a numeric-looking textual id (however unlikely) still wins
 // over misreading it as an internal id. nullptr if neither resolves.
-static Track * resolveTrackReference(Song & song, const char * text) {
+static const Track * resolveTrackReference(const Song & song, const char * text) {
   auto track = song.getMasterTrack().getChildById(text);
   if (track) return track;
   return song.getMasterTrack().getChildByInternalId(atoi(text));
@@ -184,39 +187,6 @@ static Tuning parse_tuning(string_view tuning_text, Tuning default_tuning = Tuni
   return default_tuning;
 }
 
-static unique_ptr<Track> createTrack(string_view name) {  
-  if (name == "track") return make_unique<InstrumentTrack>();
-  if (name == "percussionTrack") return make_unique<PercussionTrack>();
-  if (name == "sampleTrack") return make_unique<SampleTrack>();
-  if (name == "arpeggiatorTrack") return make_unique<Arpeggiator>();
-  else if (name == "group") return make_unique<Group>();
-
-  // effects
-  else if (name == "distortion") return make_unique<Distortion>();
-  else if (name == "resonantFilter") return make_unique<ResonantFilter>();
-  else if (name == "biquadFilter") return make_unique<BiquadFilter>();
-  else if (name == "chorus") return make_unique<Chorus>();
-  else if (name == "phaser") return make_unique<Phaser>();
-  else if (name == "tremolo") return make_unique<Tremolo>();
-  else if (name == "envelope") return make_unique<EnvelopeFilter>();
-  else if (name == "amplifier") return make_unique<Amplifier>();
-  else if (name == "compressor") return make_unique<Compressor>();
-  else if (name == "tapeDegradation") return make_unique<TapeDegradation>();
-  
-  // instruments
-  else if (name == "instrument") return make_unique<GenericInstrument>();
-  else if (name == "oscillator") return make_unique<Oscillator>(WaveformType::SAW);
-  else if (name == "padsynth") return make_unique<PadSynth>();
-  else if (name == "noise") return make_unique<Noise>();
-  else if (name == "fm") return make_unique<FM>();
-  else if (name == "additive") return make_unique<Additive>();
-
-  else {
-    assert(0);
-    return unique_ptr<Track>(nullptr);
-  }
-}
-
 // <generator name="..." value="..."/> children of an <instrument> element -
 // song-authored SF2 generator overrides. Parsed *before* prepare() runs -
 // prepare() is what actually applies these
@@ -256,11 +226,29 @@ static void storeGeneratorOverrides(const GenericInstrument & instrument, XMLDoc
   }
 }
 
-static std::unique_ptr<Track> parseChildTrack(XMLElement & element, const InstrumentProvider & provider) {
-  auto track = createTrack(element.Name());
+// The pool index a track's `instrument` attribute names: the id of a pool
+// entry. -1 if it names none.
+static int poolIndexForReference(const InstrumentPool & pool, const char * text) {
+  auto & instruments = pool.getInstruments();
+  for (size_t i = 0; i < instruments.size(); i++) {
+    if (!instruments[i]->getId().empty() && instruments[i]->getId() == text) return static_cast<int>(i);
+  }
+  return -1;
+}
+
+static std::unique_ptr<Track> parseChildTrack(XMLElement & element, const InstrumentProvider & provider, const InstrumentPool & pool) {
+  // "master" is the tree parent, never an element a song names
+  if (string_view(element.Name()) == "master") return std::unique_ptr<Track>(nullptr);
+  auto track = tracknodes::makeTrack(element.Name());
   if (!track) return std::unique_ptr<Track>(nullptr);
 
   track->loadParameters(XMLParameterSource(&element));
+  if (auto * instrument_track = dynamic_cast<InstrumentTrack *>(track.get())) {
+    if (auto text = element.Attribute("instrument")) {
+      auto index = poolIndexForReference(pool, text);
+      if (index >= 0) instrument_track->setInstrumentId(index);
+    }
+  }
 
   auto generic_instrument = dynamic_cast<GenericInstrument *>(track.get());
   if (generic_instrument) {
@@ -273,9 +261,8 @@ static std::unique_ptr<Track> parseChildTrack(XMLElement & element, const Instru
   }
 
   for (auto it = element.FirstChildElement(); it ; it = it->NextSiblingElement() ) {
-    if (string_view(it->Name()) == "lane") continue; // legacy per-track drum list, no longer used
     if (string_view(it->Name()) == "generator") continue; // data, not a nested track - handled above
-    auto child = parseChildTrack(*it, provider);
+    auto child = parseChildTrack(*it, provider, pool);
     if (!child) return std::unique_ptr<Track>(nullptr);
     track->addChild(std::move(child));
   }
@@ -344,14 +331,23 @@ static void storePatternContent(XMLDocument & doc, XMLElement * pattern_element,
   }
 }
 
-static void storeChildTrack(const Track & track, XMLDocument & doc, XMLElement * target_element) {
+static void storeChildTrack(const Track & track, XMLDocument & doc, XMLElement * target_element, const InstrumentPool & pool) {
   auto name = track.getElementName();
   auto track_element = doc.NewElement(name);
   XMLParameterSource parameters(track_element);
   track.storeParameters(parameters);
+  // A track names its instrument by the instrument's id, so reordering the
+  // pool in the file doesn't repoint it.
+  if (auto * instrument_track = dynamic_cast<const InstrumentTrack *>(&track)) {
+    auto index = instrument_track->getInstrumentId();
+    auto & instruments = pool.getInstruments();
+    if (index >= 0 && index < static_cast<int>(instruments.size()) && !instruments[static_cast<size_t>(index)]->getId().empty()) {
+      track_element->SetAttribute("instrument", instruments[static_cast<size_t>(index)]->getId().c_str());
+    }
+  }
 
   for (auto & child : track.getChildren()) {
-    storeChildTrack(*child, doc, track_element);
+    storeChildTrack(*child, doc, track_element, pool);
   }
 
   auto generic_instrument = dynamic_cast<const GenericInstrument *>(&track);
@@ -362,30 +358,213 @@ static void storeChildTrack(const Track & track, XMLDocument & doc, XMLElement *
   target_element->InsertEndChild(track_element);
 }
 
-// Walks the whole track tree fixing up every InstrumentTrack::
-// instrument_id_ against a pool slot having just shifted - see Song.h's
-// own doc comment on removeInstrument() for what "fixing up" means for a
-// track pointing past vs. exactly at the removed slot. Recurses into
-// every child regardless of type (Group/Effect wrappers included) - a
-// pool index has no notion of "root track only" the way removeTrack()'s
-// own id-based lookup does.
-static void reindexInstrumentIds(Track & track, int removed_index) {
-  auto * instrument_track = dynamic_cast<InstrumentTrack *>(&track);
-  if (instrument_track) {
+// Every InstrumentTrack in the tree (Group/Effect wrappers included - a pool
+// index has no notion of "root track only"), with its new pool index after
+// slot `removed_index` has just gone: pointing past it shifts down, pointing
+// at it is unassigned. Only the tracks that change are listed.
+static void collectInstrumentIdChanges(const Track & track, int removed_index, std::vector<std::pair<int, int> > & changes) {
+  if (auto * instrument_track = dynamic_cast<const InstrumentTrack *>(&track)) {
     auto id = instrument_track->getInstrumentId();
-    if (id == removed_index) instrument_track->setInstrumentId(-1);
-    else if (id > removed_index) instrument_track->setInstrumentId(id - 1);
+    if (id == removed_index) changes.emplace_back(track.getInternalId(), -1);
+    else if (id > removed_index) changes.emplace_back(track.getInternalId(), id - 1);
   }
-  for (auto & child : track.getChildren()) reindexInstrumentIds(*child, removed_index);
+  for (auto & child : track.getChildren()) collectInstrumentIdChanges(*child, removed_index, changes);
 }
 
 void
 Song::removeInstrument(int index) {
-  auto & instruments = instrument_pool_.getInstruments();
+  auto & instruments = getInstrumentPool().getInstruments();
   if (index < 0 || index >= static_cast<int>(instruments.size())) return;
   Edit edit(*this, "remove instrument");
-  instrument_pool_.removeInstrument(index);
-  reindexInstrumentIds(*master_track_, index);
+  std::vector<std::pair<int, int> > changes;
+  collectInstrumentIdChanges(getMasterTrack(), index, changes);
+  doc_->removeChild(poolNode(), tracknodes::kChildrenSlot, static_cast<size_t>(index));
+  for (auto [ track_id, new_id ] : changes) {
+    editTrack(track_id, [&](Track & track) { static_cast<InstrumentTrack &>(track).setInstrumentId(new_id); });
+  }
+}
+
+void
+Song::addInstrument(std::unique_ptr<Track> instrument) {
+  Edit edit(*this, "add instrument");
+  if (instrument->getId().empty()) instrument->setId(generateUniqueInstrumentId());
+  std::shared_ptr<Track> shared = std::move(instrument);
+  auto node = compiler_->adopt(*doc_, shared);
+  auto pool = poolNode();
+  auto slot = doc_->get(pool)->children(tracknodes::kChildrenSlot);
+  doc_->insertChild(pool, tracknodes::kChildrenSlot, slot ? slot->size() : 0, node);
+  compiler_->commitAdopted(*doc_);
+}
+
+doc::NodeId
+Song::masterNode() const {
+  auto slot = doc_->get(doc_->root())->children("master");
+  return slot && !slot->empty() ? slot->front() : doc::kNoNode;
+}
+
+doc::NodeId
+Song::poolNode() const {
+  auto slot = doc_->get(doc_->root())->children("instruments");
+  return slot && !slot->empty() ? slot->front() : doc::kNoNode;
+}
+
+doc::NodeId
+Song::busNode(int slot) const {
+  auto nodes = doc_->get(doc_->root())->children("bus");
+  return nodes && nodes->size() > static_cast<size_t>(slot) ? (*nodes)[static_cast<size_t>(slot)] : doc::kNoNode;
+}
+
+// The node of the track whose internal id is `track_id` (the master's
+// included), searching its subtree.
+static doc::NodeId findTrackNode(const doc::Document & document, doc::NodeId node, int track_id) {
+  auto n = document.get(node);
+  if (!n) return doc::kNoNode;
+  if (auto iid = n->find(tracknodes::kIidKey)) {
+    if (auto value = std::get_if<int64_t>(iid); value && *value == track_id) return node;
+  }
+  if (auto children = n->children(tracknodes::kChildrenSlot)) {
+    for (auto child : *children) {
+      if (auto found = findTrackNode(document, child, track_id); found != doc::kNoNode) return found;
+    }
+  }
+  return doc::kNoNode;
+}
+
+doc::NodeId
+Song::trackNode(int track_id) const {
+  return findTrackNode(*doc_, masterNode(), track_id);
+}
+
+static void collectTrackIds(const doc::Document & document, doc::NodeId node, std::set<std::string> & ids) {
+  auto n = document.get(node);
+  if (!n) return;
+  if (auto id = n->find("id")) {
+    if (auto text = std::get_if<std::string>(id)) ids.insert(*text);
+  }
+  if (auto children = n->children(tracknodes::kChildrenSlot)) {
+    for (auto child : *children) collectTrackIds(document, child, ids);
+  }
+}
+
+std::string
+Song::generateUniqueTrackId() const {
+  std::set<std::string> taken;
+  collectTrackIds(*doc_, masterNode(), taken);
+  for (int n = 1; ; n++) {
+    auto candidate = "track" + std::to_string(n);
+    if (!taken.count(candidate)) return candidate;
+  }
+}
+
+std::string
+Song::generateUniqueInstrumentId() const {
+  std::set<std::string> taken;
+  if (auto children = doc_->get(poolNode())->children(tracknodes::kChildrenSlot)) {
+    for (auto child : *children) {
+      if (auto id = doc_->get(child)->find("id")) {
+        if (auto text = std::get_if<std::string>(id)) taken.insert(*text);
+      }
+    }
+  }
+  for (int n = 1; ; n++) {
+    auto candidate = "i" + std::to_string(n);
+    if (!taken.count(candidate)) return candidate;
+  }
+}
+
+const Track &
+Song::addTrack(std::unique_ptr<Track> track, int after_track_id) {
+  Edit edit(*this, "add track");
+  if (track->getId().empty()) track->setId(generateUniqueTrackId());
+  std::shared_ptr<Track> shared = std::move(track);
+
+  auto parent = masterNode();
+  std::string slot = tracknodes::kChildrenSlot;
+  size_t index = doc_->get(parent)->children(slot) ? doc_->get(parent)->children(slot)->size() : 0;
+  if (after_track_id >= 0) {
+    if (auto after = trackNode(after_track_id); after != doc::kNoNode && after != parent) {
+      auto after_node = doc_->get(after);
+      parent = after_node->parent;
+      slot = after_node->parent_slot;
+      auto siblings = doc_->get(parent)->children(slot);
+      index = static_cast<size_t>(std::find(siblings->begin(), siblings->end(), after) - siblings->begin()) + 1;
+    }
+  }
+  auto node = compiler_->adopt(*doc_, shared);
+  doc_->insertChild(parent, slot, index, node);
+  compiler_->commitAdopted(*doc_);
+  return *shared;
+}
+
+bool
+Song::removeTrack(int id) {
+  Edit edit(*this, "remove track");
+  auto node = trackNode(id);
+  if (node == doc::kNoNode || node == masterNode()) {
+    edit.discard();
+    return false;
+  }
+  auto n = doc_->get(node);
+  auto parent = n->parent;
+  auto slot = n->parent_slot;
+  auto siblings = doc_->get(parent)->children(slot);
+  auto index = static_cast<size_t>(std::find(siblings->begin(), siblings->end(), node) - siblings->begin());
+  doc_->removeChild(parent, slot, index);
+  return true;
+}
+
+bool
+Song::editTrack(int track_id, const std::function<void(Track &)> & edit) {
+  auto node = trackNode(track_id);
+  if (node == doc::kNoNode) return false;
+  auto n = doc_->get(node);
+
+  // A scratch copy built from the node, changed by `edit`; what differs in
+  // the attributes it stores is what gets written back. Attributes nothing
+  // here recognizes are never in either bag, so they stay as they were.
+  auto scratch = tracknodes::makeTrack(n->type);
+  if (!scratch) return false;
+  scratch->loadParameters(tracknodes::NodeParameterSource(*doc_, node));
+  if (node == masterNode()) scratch->setId("master");
+  tracknodes::ParamBag before;
+  scratch->storeParameters(before);
+  edit(*scratch);
+  tracknodes::ParamBag after;
+  scratch->storeParameters(after);
+  if (before.values() == after.values()) return true;
+
+  Edit scope(*this, "edit track");
+  for (auto & [ key, value ] : after.values()) {
+    auto old = before.values().find(key);
+    if (old == before.values().end() || old->second != value) doc_->setProperty(node, key, doc::Value(value));
+  }
+  for (auto & [ key, value ] : before.values()) {
+    if (!after.values().count(key)) doc_->setProperty(node, key, doc::Value());
+  }
+  return true;
+}
+
+void
+Song::compileTracks(const InstrumentProvider * provider) {
+  TrackCompiler::Roots roots;
+  roots.master = masterNode();
+  roots.pool = poolNode();
+  roots.bus[0] = busNode(0);
+  roots.bus[1] = busNode(1);
+  auto compiled = std::const_pointer_cast<CompiledTracks>(compiler_->compile(*doc_, roots, provider));
+  compiled->generation = ++tracks_generation_;
+  tracks_ = std::move(compiled);
+  tracks_stamp_ = TrackCompiler::stamp(*doc_, roots);
+}
+
+void
+Song::recompileTracksIfChanged() {
+  TrackCompiler::Roots roots;
+  roots.master = masterNode();
+  roots.pool = poolNode();
+  roots.bus[0] = busNode(0);
+  roots.bus[1] = busNode(1);
+  if (TrackCompiler::stamp(*doc_, roots) != tracks_stamp_) compileTracks(nullptr);
 }
 
 SongScalars
@@ -412,6 +591,7 @@ std::unique_ptr<PlaybackContent>
 Song::compileContent() const {
   auto content = std::make_unique<PlaybackContent>();
   content->scalars = scalars();
+  content->tracks = tracks_;
   content->arrangement = getArrangement().toArrangement();
   for (auto track_id : clipTrackIds()) {
     auto & compiled = content->clips_by_track[track_id];
@@ -507,8 +687,9 @@ static void parseBusSlot(Song & song, int slot, XMLElement & element) {
     // (see Controller.cpp) once one exists for Song::open() itself.
     descriptor = &findBusEffectDescriptor(slot == 0 ? BusEffectKind::Reverb : BusEffectKind::Delay);
   }
-  song.setBusSlotKind(slot, descriptor->kind);
-  song.getBusSlot(slot).loadParameters(XMLParameterSource(&element));
+  std::unique_ptr<BusEffect> effect = descriptor->factory(kPlaceholderBusSampleRate);
+  effect->loadParameters(XMLParameterSource(&element));
+  song.setBusSlotKind(slot, descriptor->kind, effect.get());
 }
 
 // True when `slot` is still exactly the compiled-in default for its
@@ -573,19 +754,35 @@ Song::Song(Tuning tuning, short key) {
   // The construction arguments are the starting state, not an edit.
   doc::set(*doc_, doc_->root(), songschema::kTuning, static_cast<int>(tuning));
   doc::set(*doc_, doc_->root(), songschema::kKey, static_cast<int>(key));
-  resetBusToDefaults();
-  loadMasterTrackParameters(MemoryParameterSource());
+  compiler_ = std::make_shared<TrackCompiler>();
+  auto master = std::make_shared<MasterTrack>();
+  master->loadParameters(MemoryParameterSource()); // the type's own defaults (collapsed)
+  master->setId("master");
+  auto master_node = compiler_->adopt(*doc_, master);
+  doc_->insertChild(doc_->root(), "master", 0, master_node);
+  doc_->insertChild(doc_->root(), "instruments", 0, doc_->create("instruments"));
+  doc_->insertChild(doc_->root(), "bus", 0, doc_->create(findBusEffectDescriptor(BusEffectKind::Reverb).xmlName));
+  doc_->insertChild(doc_->root(), "bus", 1, doc_->create(findBusEffectDescriptor(BusEffectKind::Delay).xmlName));
+  compiler_->commitAdopted(*doc_);
+  compileTracks();
   arrangement_node_ = ArrangementView::create(*doc_);
   doc_->insertChild(doc_->root(), scoreschema::kArrangementSlot, 0, arrangement_node_);
   doc_->clearJournal();
+  history_ = doc::UndoHistory();
 }
 
 void
-Song::setBusSlotKind(int slot, BusEffectKind kind) {
-  auto & descriptor = findBusEffectDescriptor(kind);
-  auto effect = descriptor.factory(kPlaceholderBusSampleRate);
-  if (slot == 0) { bus_slot_a_ = std::move(effect); bus_slot_a_kind_ = kind; }
-  else { bus_slot_b_ = std::move(effect); bus_slot_b_kind_ = kind; }
+Song::setBusSlotKind(int slot, BusEffectKind kind, const BusEffect * parameters) {
+  slot = slot == 0 ? 0 : 1;
+  Edit edit(*this, "set bus effect");
+  auto node = doc_->create(findBusEffectDescriptor(kind).xmlName);
+  if (parameters) {
+    tracknodes::ParamBag bag;
+    parameters->storeParameters(bag);
+    for (auto & [ key, value ] : bag.values()) doc_->setProperty(node, key, doc::Value(value));
+  }
+  doc_->removeChild(doc_->root(), "bus", static_cast<size_t>(slot));
+  doc_->insertChild(doc_->root(), "bus", static_cast<size_t>(slot), node);
 }
 
 bool
@@ -634,14 +831,16 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 
     auto instruments = song->FirstChildElement("instruments");
     if (instruments) {
-      instrument_pool_.loadParameters(XMLParameterSource(instruments));
+      {
+	auto from = XMLParameterSource(instruments).get<std::string>("from");
+	Edit pool_edit(*this, "set default kit");
+	doc_->setProperty(poolNode(), "from", from.empty() ? doc::Value() : doc::Value(from));
+      }
       for (auto it = instruments->FirstChildElement(); it; it = it->NextSiblingElement() ) {
-	auto instrument = parseChildTrack(*it, provider);
+	auto instrument = parseChildTrack(*it, provider, getInstrumentPool());
 	// Unrecognized (or, recursively, containing an unrecognized child)
-	// is fatal to the whole load, not silently dropped - createTrack()'s
-	// own assert(0) on an unknown element name is compiled out entirely
-	// in a release build, so this is the only place that actually
-	// catches it there.
+	// is fatal to the whole load, not silently dropped - makeTrack()
+	// returns null for an unknown element name, which is caught here.
 	if (!instrument) {
 	  fmt::print(stderr, "Unrecognized or malformed <{}> in {}\n", it->Name(), filename);
 	  setlocale(LC_ALL, oldLocale.c_str());
@@ -650,18 +849,15 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	addInstrument(move(instrument));
       }
     }
-    // Resolves the pool's own default drum kit (see InstrumentPool::
-    // prepare()'s own comment) - unconditional, not nested inside the
-    // `if (instruments)` above, so a song with no <instruments> element at
-    // all still gets one (defaults to "kit" - the same handling
-    // loadParameters() never having run leaves default_kit_ in).
-    instrument_pool_.prepare(provider);
 
     auto tracks = song->FirstChildElement("tracks");
     if (tracks) {
-      loadMasterTrackParameters(XMLParameterSource(tracks));
+      editTrack(getMasterTrack().getInternalId(), [&](Track & master) {
+	master.loadParameters(XMLParameterSource(tracks));
+	master.setId("master");
+      });
       for (auto it = tracks->FirstChildElement(); it ; it = it->NextSiblingElement() ) {
-	auto track = parseChildTrack(*it, provider);
+	auto track = parseChildTrack(*it, provider, getInstrumentPool());
 	// Same "fatal, not silently dropped" rule as the <instruments> loop
 	// above - a song missing a whole track because its element name
 	// wasn't recognized must fail to load, not open looking complete.
@@ -698,66 +894,67 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 
     // Song's own flat, per-track clip list (Song.h's own getClips()
     // comment), read before <arrangement>, whose instances refer to it.
-    // One <trackClips> per track that has any clips at all, grouping that
-    // track's own <clip> children in order rather than repeating a track
-    // reference on every single <clip>. Each <clip> holds its own
-    // name/loop/length (Clip::loadParameters()) plus a nested <pattern>
+    // One <clip track="..."> per clip, a track's own clips in order. Each
+    // <clip> holds its own name/loop/length (Clip::loadParameters()) plus a
+    // nested <pattern>
     // for its leaf track's own note/command content - the same shape the
     // arrangement's own inline <pattern> uses (parsePatternContent()
     // above), just with no name/loop/length of its own.
     auto clips_element = song->FirstChildElement("clips");
     if (clips_element) {
-      for (auto track_it = clips_element->FirstChildElement("trackClips"); track_it; track_it = track_it->NextSiblingElement("trackClips")) {
-	auto track_text = track_it->Attribute("track");
-	auto track = track_text ? resolveTrackReference(*this, track_text) : nullptr;
-	if (!track) continue;
-
-	for (auto it = track_it->FirstChildElement("clip"); it ; it = it->NextSiblingElement("clip")) {
-	  Clip clip(track->getInternalId());
-	  auto sample_element = it->FirstChildElement("sample");
-	  if (sample_element) {
-	    // One or more layers (Clip.h's own sample_layers_ comment) - each a
-	    // sibling <sample> in take order, layer 0 first; an older
-	    // single-<sample> file is just the size-1 case of the same loop.
-	    for (; sample_element; sample_element = sample_element->NextSiblingElement("sample")) {
-	      // A named, exact file reference - missing/unreadable is fatal to
-	      // the whole load, the same way a malformed <pattern> already is
-	      // below, not silently skipped the way an unresolved instrument
-	      // name falls back to a generic default elsewhere: the artist
-	      // named one specific file, not something to resolve loosely.
-	      auto file_attr = sample_element->Attribute("file");
-	      if (!file_attr) {
-		fmt::print(stderr, "Malformed <sample> (missing file attribute) in {}\n", filename);
-		setlocale(LC_ALL, oldLocale.c_str());
-		return false;
-	      }
-	      auto sample_path = filesystem::path(filename).parent_path() / file_attr;
-	      auto loaded = loadMonoSample(sample_path.string());
-	      if (!loaded.buffer) {
-		fmt::print(stderr, "Could not load sample \"{}\" referenced by clip in {}\n", sample_path.string(), filename);
-		setlocale(LC_ALL, oldLocale.c_str());
-		return false;
-	      }
-	      auto & content = clip.getSampleLayers().empty() ? clip.getSampleContent() : clip.addSampleLayer();
-	      content.setBuffer(loaded.buffer);
-	      content.setNativeSampleRate(loaded.rate);
-	      content.loadParameters(XMLParameterSource(sample_element));
-	    }
-	  } else {
-	    auto pattern_element = it->FirstChildElement("pattern");
-	    if (pattern_element && !parsePatternContent(*pattern_element, clip.getLeafPattern(), getTuningForTrack(*track), filename)) {
+      auto load_clip = [&](XMLElement * it, const Track * track) -> bool {
+	Clip clip(track->getInternalId());
+	auto sample_element = it->FirstChildElement("sample");
+	if (sample_element) {
+	  // One or more layers (Clip.h's own sample_layers_ comment) - each a
+	  // sibling <sample> in take order, layer 0 first.
+	  for (; sample_element; sample_element = sample_element->NextSiblingElement("sample")) {
+	    // A named, exact file reference - missing/unreadable is fatal to
+	    // the whole load, the same way a malformed <pattern> already is
+	    // below, not silently skipped the way an unresolved instrument
+	    // name falls back to a generic default elsewhere: the artist
+	    // named one specific file, not something to resolve loosely.
+	    auto file_attr = sample_element->Attribute("file");
+	    if (!file_attr) {
+	      fmt::print(stderr, "Malformed <sample> (missing file attribute) in {}\n", filename);
 	      setlocale(LC_ALL, oldLocale.c_str());
 	      return false;
 	    }
+	    auto sample_path = filesystem::path(filename).parent_path() / file_attr;
+	    auto loaded = loadMonoSample(sample_path.string());
+	    if (!loaded.buffer) {
+	      fmt::print(stderr, "Could not load sample \"{}\" referenced by clip in {}\n", sample_path.string(), filename);
+	      setlocale(LC_ALL, oldLocale.c_str());
+	      return false;
+	    }
+	    auto & content = clip.getSampleLayers().empty() ? clip.getSampleContent() : clip.addSampleLayer();
+	    content.setBuffer(loaded.buffer);
+	    content.setNativeSampleRate(loaded.rate);
+	    content.loadParameters(XMLParameterSource(sample_element));
 	  }
-	  clip.loadParameters(XMLParameterSource(it));
-	  addClip(std::move(clip));
+	} else {
+	  auto pattern_element = it->FirstChildElement("pattern");
+	  if (pattern_element && !parsePatternContent(*pattern_element, clip.getLeafPattern(), getTuningForTrack(*track), filename)) {
+	    setlocale(LC_ALL, oldLocale.c_str());
+	    return false;
+	  }
+	}
+	clip.loadParameters(XMLParameterSource(it));
+	addClip(std::move(clip));
+	return true;
+      };
+      for (auto it = clips_element->FirstChildElement(); it; it = it->NextSiblingElement()) {
+	if (string_view(it->Name()) == "clip") {
+	  auto track_text = it->Attribute("track");
+	  auto track = track_text ? resolveTrackReference(*this, track_text) : nullptr;
+	  if (!track) continue;
+	  if (!load_clip(it, track)) return false;
 	}
       }
     }
 
     // <arrangement>: the one timeline - each track's inline <pattern>,
-    // its placed clips (<instances>) and a SampleTrack's background bed.
+    // its placed clips (<instance>) and a SampleTrack's background bed.
     if (auto arrangement = song->FirstChildElement("arrangement")) {
       auto timeline = getArrangement();
       for (auto it = arrangement->FirstChildElement("pattern"); it ; it = it->NextSiblingElement("pattern")) {
@@ -773,15 +970,15 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	timeline.setPatternForTrack(track->getInternalId(), pattern);
       }
 
-      for (auto it = arrangement->FirstChildElement("instances"); it ; it = it->NextSiblingElement("instances")) {
-	auto track_text = it->Attribute("track");
-	auto track = track_text ? resolveTrackReference(*this, track_text) : nullptr;
-	if (!track) continue;
-
-	for (auto it2 = it->FirstChildElement("instance"); it2 ; it2 = it2->NextSiblingElement("instance")) {
-	  auto row_text = it2->Attribute("row");
-	  auto value_text = it2->GetText();
-	  if (row_text && value_text) timeline.setInstance(track->getInternalId(), atoi(row_text), value_text);
+      // One <instance track row clip> per placement; no clip is a stop.
+      for (auto it = arrangement->FirstChildElement(); it ; it = it->NextSiblingElement()) {
+	if (string_view(it->Name()) == "instance") {
+	  auto track_text = it->Attribute("track");
+	  auto track = track_text ? resolveTrackReference(*this, track_text) : nullptr;
+	  auto row_text = it->Attribute("row");
+	  if (!track || !row_text) continue;
+	  auto clip_text = it->Attribute("clip");
+	  timeline.setInstance(track->getInternalId(), atoi(row_text), clip_text ? clip_text : "OFF");
 	}
       }
 
@@ -815,7 +1012,9 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 
   // Set the old locale before exiting
   setlocale(LC_ALL, oldLocale.c_str());
-  doc_->clearJournal(); // opening a file is not an edit
+  compileTracks(&provider); // prepares the default kit; instruments were prepared as they were parsed
+  doc_->clearJournal();
+  history_ = doc::UndoHistory(); // opening a file is not an edit
   if (content_published_mode_) publishContent();
   return true;
 }
@@ -841,7 +1040,7 @@ Song::save(const std::string & filename) const {
 
   auto instruments = doc.NewElement("instruments");
   XMLParameterSource instruments_parameters(instruments);
-  instrument_pool_.storeParameters(instruments_parameters);
+  getInstrumentPool().storeParameters(instruments_parameters);
   root->InsertEndChild(instruments);
 
   auto tracks = doc.NewElement("tracks");
@@ -857,9 +1056,7 @@ Song::save(const std::string & filename) const {
   // one of them would just be diff noise. Walked via getRootTrackIds()
   // (tree order), not clips_by_track_ directly, for the same
   // deterministic-output reason storeChildTrack() walks the tree itself
-  // rather than some other, unordered collection. One <trackClips> per
-  // track, grouping that track's own <clip> children rather than
-  // repeating a track reference on every single one.
+  // rather than some other, unordered collection.
   auto compiled = compileContent();
   bool has_clips = std::any_of(compiled->clips_by_track.begin(), compiled->clips_by_track.end(),
     [](auto & entry) { return !entry.second.empty(); });
@@ -876,12 +1073,9 @@ Song::save(const std::string & filename) const {
       auto track_tuning = getTuningForTrack(*track);
       auto track_ref = trackReferenceText(*this, track_id);
 
-      auto track_clips_element = doc.NewElement("trackClips");
-      track_clips_element->SetAttribute("track", track_ref.c_str());
-      clips_element->InsertEndChild(track_clips_element);
-
       for (auto & clip : clips) {
 	auto clip_element = doc.NewElement("clip");
+	clip_element->SetAttribute("track", track_ref.c_str());
 	XMLParameterSource clip_parameters(clip_element);
 	clip.storeParameters(clip_parameters);
 
@@ -917,7 +1111,7 @@ Song::save(const std::string & filename) const {
 	  storePatternContent(doc, pattern_element, pattern, track_tuning);
 	  clip_element->InsertEndChild(pattern_element);
 	}
-	track_clips_element->InsertEndChild(clip_element);
+	clips_element->InsertEndChild(clip_element);
       }
     }
   }
@@ -1009,23 +1203,21 @@ Song::save(const std::string & filename) const {
     arrangement_element->InsertEndChild(pattern_element);
   }
 
-  // A placed clip is its id as the <instance>'s text, "OFF" an explicit
-  // stop - like <note>/<command>, not an attribute.
+  // One <instance track row clip> per placement; a stop has no clip.
   for (auto & [ track_id, track_instances ] : timeline.getInstancesByTrack()) {
     if (track_instances.empty()) continue;
     auto track = getMasterTrack().getChildByInternalId(track_id);
     assert(track);
     if (!track) continue;
 
-    auto instances_element = doc.NewElement("instances");
-    instances_element->SetAttribute("track", trackReferenceText(*this, track_id).c_str());
+    auto track_ref = trackReferenceText(*this, track_id);
     for (auto & [ row, clip_id ] : track_instances) {
       auto instance_element = doc.NewElement("instance");
+      instance_element->SetAttribute("track", track_ref.c_str());
       instance_element->SetAttribute("row", static_cast<int>(row));
-      instance_element->SetText(clip_id.c_str());
-      instances_element->InsertEndChild(instance_element);
+      if (clip_id != "OFF") instance_element->SetAttribute("clip", clip_id.c_str());
+      arrangement_element->InsertEndChild(instance_element);
     }
-    arrangement_element->InsertEndChild(instances_element);
   }
 
   for (auto & [ track_id, background ] : timeline.getSampleBackgroundsByTrack()) {
@@ -1047,11 +1239,11 @@ Song::save(const std::string & filename) const {
   }
 
   for (auto & track : getMasterTrack().getChildren()) {
-    storeChildTrack(*track, doc, tracks);
+    storeChildTrack(*track, doc, tracks, getInstrumentPool());
   }
 
-  for (auto & instrument : instrument_pool_.getInstruments()) {
-    storeChildTrack(*instrument, doc, instruments);
+  for (auto & instrument : getInstrumentPool().getInstruments()) {
+    storeChildTrack(*instrument, doc, instruments, getInstrumentPool());
   }
   
   doc.SaveFile(filename.c_str());
@@ -1361,4 +1553,65 @@ Song::getScaleDegreesWindow(int start_index, int count, bool major_if_none) cons
     degrees.push_back(tonic + offsets_from_tonic[static_cast<size_t>(within)] + wraps * edo_steps);
   }
   return degrees;
+}
+
+bool
+Song::undo() {
+  if (edit_depth_ > 0 || doc_->inGroup()) return false;
+  bool done;
+  {
+    Edit edit(*this, "undo");
+    done = history_.undo(*doc_);
+    if (!done) edit.discard();
+  }
+  history_.finish(*doc_);
+  return done;
+}
+
+bool
+Song::redo() {
+  if (edit_depth_ > 0 || doc_->inGroup()) return false;
+  bool done;
+  {
+    Edit edit(*this, "redo");
+    done = history_.redo(*doc_);
+    if (!done) edit.discard();
+  }
+  history_.finish(*doc_);
+  return done;
+}
+
+Song::EditPlace
+Song::lastUndoPlace() const {
+  using namespace scoreschema;
+  auto & d = *doc_;
+  for (auto & op : history_.lastOps()) {
+    // An inserted or removed node may be detached, so its parent is the op's.
+    bool child_op = op.kind == doc::Op::Kind::INSERT || op.kind == doc::Op::Kind::REMOVE;
+    auto node = d.get(child_op ? op.child : op.node);
+    auto parent_id = child_op ? op.node : node ? node->parent : doc::kNoNode;
+    for (int depth = 0; node && depth < 8; depth++) {
+      const std::string & type = node->type;
+      if (type == "note" || type == "command") {
+        auto row = doc::get(d, node->id, type == "note" ? kNoteRow : kCommandRow);
+        auto pattern = d.get(parent_id);
+        auto owner = pattern ? d.get(pattern->parent) : nullptr;
+        if (owner && owner->type == "clip") return { doc::get(d, owner->id, kClipTrack), -1 };
+        if (pattern) return { doc::get(d, pattern->id, kPatternTrack), row };
+      } else if (type == "pattern") {
+        auto owner = d.get(parent_id);
+        if (owner && owner->type == "clip") return { doc::get(d, owner->id, kClipTrack), -1 };
+        return { doc::get(d, node->id, kPatternTrack), -1 };
+      } else if (type == "instance") {
+        return { doc::get(d, node->id, kInstanceTrack), doc::get(d, node->id, kInstanceRow) };
+      } else if (type == "clip") {
+        return { doc::get(d, node->id, kClipTrack), -1 };
+      } else if (auto iid = node->find(tracknodes::kIidKey)) {
+        if (auto id = std::get_if<int64_t>(iid)) return { static_cast<int>(*id), -1 };
+      }
+      node = d.get(parent_id);
+      parent_id = node ? node->parent : doc::kNoNode;
+    }
+  }
+  return {};
 }

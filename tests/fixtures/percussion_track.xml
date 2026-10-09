@@ -2,10 +2,6 @@
 <song temperament="12edo" tempo="120" timeSignature="1/16" volume="1.0">
   <tracks>
     <percussionTrack id="0">
-      <lane note="CR"/>
-      <lane note="BD"/>
-      <lane note="CH"/>
-      <lane note="SD"/>
     </percussionTrack>
   </tracks>
   <arrangement>

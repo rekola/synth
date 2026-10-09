@@ -162,12 +162,13 @@ namespace {
 TEST(track_state_set_azimuth_reaches_an_already_active_voice) {
   Song song;
   song.addInstrument(make_unique<Oscillator>(WaveformType::SINE)); // instrument_id 0
-  auto & track = static_cast<InstrumentTrack &>(song.addTrack(make_unique<InstrumentTrack>(0)));
+  auto track_to_add = make_unique<InstrumentTrack>(0);
   // Azimuth defaults to 0 (dead centre) - the live knob below is what
   // actually moves it. A real (non-zero) distance is required too -
   // computeAmbisonicGains() treats distance <= 0 as "no position ever set"
   // and ignores azimuth entirely, returning a fixed W-only gain set.
-  track.setDistance(1.0f);
+  track_to_add->setDistance(1.0f);
+  auto & track = song.addTrack(std::move(track_to_add));
 
   auto scene0 = song.getArrangement();
   scene0.setNote(0, track.getInternalId(), 0, Note(60, 100));
@@ -225,8 +226,9 @@ TEST(azimuth_set_command_parses_and_decodes) {
 TEST(azimuth_set_command_sets_azimuth_over_the_row) {
   Song song;
   song.addInstrument(make_unique<Oscillator>(WaveformType::SINE)); // instrument_id 0
-  auto & track = static_cast<InstrumentTrack &>(song.addTrack(make_unique<InstrumentTrack>(0)));
-  track.setDistance(1.0f); // computeAmbisonicGains() ignores azimuth entirely at distance <= 0
+  auto track_to_add = make_unique<InstrumentTrack>(0);
+  track_to_add->setDistance(1.0f); // computeAmbisonicGains() ignores azimuth entirely at distance <= 0
+  auto & track = song.addTrack(std::move(track_to_add));
 
   auto arrangement = song.getArrangement();
   arrangement.setNote(0, track.getInternalId(), 0, Note(60, 100));

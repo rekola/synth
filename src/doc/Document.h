@@ -36,6 +36,10 @@ struct Node {
   std::string parent_slot;
   std::vector<std::pair<std::string, Value>> properties;
   std::vector<Slot> slots;
+  // Bumped whenever this node's properties or child lists change (undo and
+  // redo included), from one counter for the whole document, so a larger
+  // revision always means a later change.
+  uint64_t revision = 0;
 
   const Value * find(const std::string & key) const;
   const std::vector<NodeId> * children(const std::string & slot) const;
@@ -80,6 +84,10 @@ class Document {
   static Document & inert();
   const Node * get(NodeId id) const;
   bool attached(NodeId id) const;  // reachable from the root
+  // The newest revision anywhere in the subtree under `id` (0 for no such
+  // node): unchanged means nothing under it changed, so anything compiled
+  // from it can be reused.
+  uint64_t subtreeRevision(NodeId id) const;
 
   // Allocates a detached node. Not an undoable edit by itself: a detached
   // node is invisible until an insertChild. Changes to a node (or a parent)
@@ -172,6 +180,7 @@ class Document {
   friend class Transaction;
   struct ScopeGuard;
   Node * mutableGet(NodeId id);
+  void touch(Node & node) { node.revision = ++revision_counter_; }
   Slot & slotFor(Node & node, const std::string & name);
   void record(Op op);
   void dumpNode(NodeId id, int depth, std::string & out) const;
@@ -180,6 +189,7 @@ class Document {
   std::unordered_map<NodeId, std::unique_ptr<Node>> nodes_;
   NodeId root_ = kNoNode;
   NodeId next_id_ = 1;
+  uint64_t revision_counter_ = 0;
   int depth_ = 0;
   std::string pending_label_;
   bool pending_tracked_ = true;

@@ -177,7 +177,7 @@ private:
   // pool-slot Track) but otherwise start/retrigger preview_note_voice_
   // identically, including the fastRelease()-into-preview_voices_
   // retrigger handling preview_note_voice_'s own doc comment describes.
-  void startPreviewNote(const Track * instrument, const Song & song, int note_value, int velocity);
+  void startPreviewNote(const Track * instrument, Tuning tuning, int note_value, int velocity);
 
   ChannelConfiguration channel_config_;
   Controller * controller_;

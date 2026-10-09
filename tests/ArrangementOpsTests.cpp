@@ -327,7 +327,7 @@ TEST(resolve_instance_at_survives_a_reorder_of_the_clip_list) {
 // resolveReadTarget() with one.
 TEST(resolve_edit_and_read_target_route_drum_machine_steps_through_a_clip) {
   Song song;
-  auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(make_unique<PercussionTrack>()));
+  auto & track = song.addTrack(make_unique<PercussionTrack>());
   auto track_id = track.getInternalId();
 
   Clip clip(track_id);

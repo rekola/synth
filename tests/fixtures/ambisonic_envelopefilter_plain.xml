@@ -8,12 +8,12 @@
      position/direction fixtures (see ambisonic_directions.xml). -->
 <song temperament="12edo" tempo="120" timeSignature="1/16" volume="1.0">
   <instruments>
-    <envelope attack="0.02" hold="0.9" decay="0.08" sustain="0.0" release="0.02">
+    <envelope id="i1" attack="0.02" hold="0.9" decay="0.08" sustain="0.0" release="0.02">
       <noise color="pink"/>
     </envelope>
   </instruments>
   <tracks>
-    <track id="0" instrument="0" azimuth="90" elevation="0" distance="1"/>
+    <track id="0" instrument="i1" azimuth="90" elevation="0" distance="1"/>
   </tracks>
   <arrangement>
     <pattern track="0">

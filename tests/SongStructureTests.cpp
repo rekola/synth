@@ -33,8 +33,9 @@ TEST(song_structure_gives_no_ordinal_to_an_unrecognized_id) {
 
 TEST(song_structure_recurses_into_a_group_but_gives_the_group_itself_no_ordinal) {
   Song song;
-  auto & group = song.addTrack(make_unique<Group>());
-  auto & inner = group.addChild(make_unique<InstrumentTrack>(0));
+  auto group_to_add = make_unique<Group>();
+  auto & inner = group_to_add->addChild(make_unique<InstrumentTrack>(0));
+  auto & group = song.addTrack(std::move(group_to_add));
 
   SongStructure structure(song);
   CHECK(structure.getOrdinalFor(group) == -1);
@@ -45,8 +46,9 @@ TEST(song_structure_recurses_into_a_group_but_gives_the_group_itself_no_ordinal)
 
 TEST(song_structure_gives_a_wrapping_effect_its_own_ordinal_as_well_as_its_child) {
   Song song;
-  auto & effect = song.addTrack(make_unique<Amplifier>());
-  auto & inner = effect.addChild(make_unique<InstrumentTrack>(0));
+  auto effect_to_add = make_unique<Amplifier>();
+  auto & inner = effect_to_add->addChild(make_unique<InstrumentTrack>(0));
+  auto & effect = song.addTrack(std::move(effect_to_add));
 
   SongStructure structure(song);
   // Child visited (and assigned) before the effect itself - see

@@ -22,18 +22,16 @@
     <sampleTrack id="0"/>
   </tracks>
   <clips>
-    <trackClips track="0">
-      <clip name="p0" />
-      <clip name="p1" />
-      <clip name="p2" />
-      <clip name="p3" />
-      <clip name="p4" />
-      <clip name="p5" />
-      <clip name="p6" />
-      <clip name="target" length="8">
-        <sample file="launchpad_sampletrack_live_test.wav" />
-      </clip>
-    </trackClips>
+    <clip track="0" name="p0" />
+    <clip track="0" name="p1" />
+    <clip track="0" name="p2" />
+    <clip track="0" name="p3" />
+    <clip track="0" name="p4" />
+    <clip track="0" name="p5" />
+    <clip track="0" name="p6" />
+    <clip track="0" name="target" length="8">
+      <sample file="launchpad_sampletrack_live_test.wav" />
+    </clip>
   </clips>
   <arrangement>
   </arrangement>

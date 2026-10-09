@@ -618,7 +618,7 @@ static void apply_baseline_track_info(const SongStructure & structure, std::unor
   }
 }
 
-static void get_track_parents(Track & track, Track * parent, std::unordered_map<int, Track *> & parents) {
+static void get_track_parents(const Track & track, const Track * parent, std::unordered_map<int, const Track *> & parents) {
   parents[track.getInternalId()] = parent;
   for (auto & child : track.getChildren()) {
     get_track_parents(*child, &track, parents);
@@ -898,9 +898,9 @@ PatternEditor::startTrackNameEdit() {
   field.backdrop = track_info.getColor().blend(0.05f, Color(0, 0, 0));
   inline_editor_.open(field, [this, track_id](std::string text) {
     auto & target_song = getController().getSong();
-    if (auto target = target_song.getMasterTrack().getChildByInternalId(track_id)) {
+    if (target_song.getMasterTrack().getChildByInternalId(track_id)) {
       Song::Edit edit(target_song, "rename track");
-      target->setName(std::move(text));
+      target_song.editTrack(track_id, [&](Track & target) { target.setName(std::move(text)); });
     }
   });
 }
@@ -1638,17 +1638,19 @@ PatternEditor::offerInput(const InputEvent & input) {
       // InstrumentPool::getDefaultKitInstrument()).
       auto track = song.getMasterTrack().getChildByInternalId(track_ids[static_cast<size_t>(current_cursor.track)]);
       if (track && track->getType() == TrackType::INSTRUMENT_CONTROL) {
-	auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
+	auto & instrument_track = dynamic_cast<const InstrumentTrack&>(*track);
 	bool changed = false;
 	Song::Edit edit(song, "change instrument");
-	if (input.getId() == NCKEY_KP_DIVIDE && instrument_track.getInstrumentId() > 0) {
-	  instrument_track.setInstrumentId(instrument_track.getInstrumentId() - 1);
+	auto set_instrument = [&](int instrument_id) {
+	  song.editTrack(instrument_track.getInternalId(), [&](Track & edited) { static_cast<InstrumentTrack &>(edited).setInstrumentId(instrument_id); });
 	  changed = true;
+	};
+	if (input.getId() == NCKEY_KP_DIVIDE && instrument_track.getInstrumentId() > 0) {
+	  set_instrument(instrument_track.getInstrumentId() - 1);
 	} else {
 	  auto & instruments = song.getInstrumentPool().getInstruments();
 	  if (input.getId() == NCKEY_KP_MULTIPLY && instrument_track.getInstrumentId() + 1 < static_cast<int>(instruments.size())) {
-	    instrument_track.setInstrumentId(instrument_track.getInstrumentId() + 1);
-	    changed = true;
+	    set_instrument(instrument_track.getInstrumentId() + 1);
 	  }
 	}
 	if (!changed) edit.discard();
@@ -2006,7 +2008,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 
   // Rooted at the master track, not its children - so it's the parent on
   // record for every top-level track too, not just their descendants.
-  unordered_map<int, Track *> track_parents;
+  unordered_map<int, const Track *> track_parents;
   get_track_parents(song.getMasterTrack(), nullptr, track_parents);
 
   auto heading_height = song.getMasterTrack().getDepth() + 1;
@@ -2041,14 +2043,14 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
   // recomputed here - so this heading and any future consumer of the
   // same SongStructure (e.g. a Pattern Matrix) necessarily agree on
   // every track's color without sharing anything beyond that.
-  auto get_track_info = [&](Track * t) -> const VisibleTrackInfo * {
+  auto get_track_info = [&](const Track * t) -> const VisibleTrackInfo * {
     if (!t) return nullptr;
     auto it = all_track_info.find(t->getInternalId());
     return it != all_track_info.end() ? &it->second : nullptr;
   };
 
   for (auto level = 0; level < heading_height - 1; level++) {
-    vector<Track *> tracks;
+    vector<const Track *> tracks;
     vector<int> track_widths;
 
     for (auto i = 0; i < static_cast<int>(track_ids.size()); i++) {
@@ -2152,7 +2154,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
     // ancestor for a level>0 row). Also what Mute/Solo's own OFF color
     // (below) darkens - the track's plain base color, never the
     // brightened-when-selected one.
-    auto track_base_color = [&](Track * t) -> Color {
+    auto track_base_color = [&](const Track * t) -> Color {
       auto vis_info = get_track_info(t);
       if (level == 0 && vis_info && vis_info->color_ordinal_ >= 0) return vis_info->getColor();
       // Fixed, not depth-shaded grey like every other ancestor box below -
@@ -2181,7 +2183,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
     // the plain, non-brightened base. Shared by a segment's own fill and
     // the divider drawn at its trailing edge (draw_divider below), so
     // the two always agree exactly.
-    auto segment_color = [&](Track * t) -> Color {
+    auto segment_color = [&](const Track * t) -> Color {
       if (!t) return styles.window_bg_color;
       auto base = track_base_color(t);
       return (focused && t->getInternalId() == selected_id) ? base.blend(0.22f, styles.cursor_tint_color) : base;
@@ -2193,7 +2195,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
     // activity dot. All of them read lighter automatically once the
     // track is selected, rather than staying a fixed color indifferent
     // to that.
-    auto faint_color = [&](Track * t) { return segment_color(t).blend(0.275f, Color(0, 0, 0)); };
+    auto faint_color = [&](const Track * t) { return segment_color(t).blend(0.275f, Color(0, 0, 0)); };
     // The color a divider's right half should show: whatever heading
     // segment starts right after index `idx` in `tracks`, or - past the
     // last one actually drawn, where the locator column's own
@@ -2226,7 +2228,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	putstr(row, col, "▌");
       }
     };
-    auto draw_divider = [&](int row, int col, Track * left, int idx) {
+    auto draw_divider = [&](int row, int col, const Track * left, int idx) {
       draw_edge(row, col, segment_color(left), next_segment_color(idx));
     };
     // The per-track VU meter next to a leaf's instrument name - a single

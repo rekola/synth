@@ -8,6 +8,10 @@ SongStructure::SongStructure(const Song & song) {
   visit(song.getMasterTrack());
 }
 
+SongStructure::SongStructure(const Track & master) {
+  visit(master);
+}
+
 int
 SongStructure::getOrdinalFor(int internal_id) const {
   auto it = ordinal_by_id_.find(internal_id);

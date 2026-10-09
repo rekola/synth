@@ -1,34 +1,34 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="120" volume="1.0">
   <instruments>
-    <envelope attack="0.5" release="2" name="Pads">
+    <envelope id="i1" attack="0.5" release="2" name="Pads">
       <resonantFilter cut="2200" res="0.5">
 	<oscillator type="square" level="0.25" voices="4" detune="5" spread="90"/>
       </resonantFilter>
     </envelope>
 
-    <envelope name="bass3" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">	
+    <envelope id="i2" name="bass3" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">	
       <resonantFilter cutmin="1100" cutmax="11000" res="0.1" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">
 	<oscillator type="square" />
 	<oscillator type="triangle" harmonic="2" voices="8" detune="10"/>
       </resonantFilter>
     </envelope>
 
-    <envelope name="riser" attack="3" hold="0" sustain="0" decay="0" release="0">
+    <envelope id="i3" name="riser" attack="3" hold="0" sustain="0" decay="0" release="0">
       <resonantFilter cutmin="220" cutmax="20000" res="2" attack="3">
 	<noise />
       </resonantFilter>
     </envelope>
 
-    <instrument from="piano.acoustic.grand" /> 
-    <instrument from="Chateau Grand" />
+    <instrument id="i4" from="piano.acoustic.grand" /> 
+    <instrument id="i5" from="Chateau Grand" />
 
   </instruments>
   <tracks>
-    <track id="0" instrument="0" />
-    <track id="bass" instrument="1" />
-    <track id="riser" instrument="2"/>
-    <track id="chords" instrument="3" volume="1" />
+    <track id="0" instrument="i1" />
+    <track id="bass" instrument="i2" />
+    <track id="riser" instrument="i3"/>
+    <track id="chords" instrument="i4" volume="1" />
   </tracks>
   
   <arrangement>

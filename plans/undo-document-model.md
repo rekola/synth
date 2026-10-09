@@ -1,7 +1,8 @@
-# Undo/redo via a document model
+# Undo/redo via a DOM
 
-Two PRs. PR 1 makes the song a **document** (no user-visible change). PR 2
-adds undo on top of it. Decided with the user: the document covers everything
+Two PRs. PR 1 is the **DOM migration**: the song becomes a DOM (a tree of
+nodes with stable ids and journaled edits; no user-visible change). PR 2 adds
+undo on top of it. Decided with the user: the document covers everything
 except instrument/effect internals; the audio thread moves to a compiled
 snapshot in PR 1; the XML format may change (fixtures and `songs/` are
 converted by a script).
@@ -91,13 +92,15 @@ stops polling it.
    label and nesting are exactly what `doc::Transaction` needs later. This
    comes before the snapshot: a snapshot published on version bumps would go
    silently stale at any site that forgets to bump, while today the audio
-   thread reads the live model and hears such edits anyway.
+   thread reads the live model and hears such edits anyway. (done)
 2. (done for the arrangement and clips) `PlaybackContent`: an immutable compiled form of what `SongState` reads
    (arrangement, clips, scalars, bus), published when an outermost `Edit`
    closes; `SongState` stops touching `Song` for those. Render tests must stay
    bit-identical. Tracks and the instrument pool join it with their slice in
    step 3: the audio thread builds voices from those objects directly, and
    they become shareable immutable objects only once built from nodes.
+   (Tracks, the instrument pool and the bus joined it with their slice: the
+   published content carries a `CompiledTracks`, see step 3.)
    Measured: a full copy of the arrangement and clips takes ~30 us on the
    largest song here (252 note rows, 27 clips), so there is no case yet for
    per-pattern incremental publishing; sample audio and the tempo-stretch
@@ -111,7 +114,15 @@ stops polling it.
    replacing it with a view: song scalars/locators/scenes, patterns+notes,
    clips+arrangement, tracks/sends/pool/bus. After each: build, `ctest`,
    round-trip, render parity. `Song::Edit` becomes a thin wrapper that opens a
-   `doc::Transaction`.
+   `doc::Transaction`. (done, including tracks/sends/pool/bus: nodes carry
+   the attributes the classes already load and store, so the ~35 instrument
+   and effect classes were not touched; `TrackCompiler` builds immutable
+   `Track` objects from them, reusing the ones whose subtree revision is
+   unchanged, and `Song::editTrack()` writes back what a scratch copy
+   changed. The audio thread reads them from `PlaybackContent`, so
+   `Song::getTracksMutex()` is gone. Every song and fixture saves
+   byte-identically, and every fixture renders bit-identically with all its
+   tracks rebuilt from their nodes.)
 4. XML: node-tree writer/reader replace `Song::open`/`save`; fixtures and
    `songs/` converted by script (re-merge `main` first); unknown attributes
    round-trip.
@@ -154,14 +165,18 @@ patterns, so they are covered by the note primitives. Verify with a test.
   transactions; chain flag; undoing an undo is redo) first; a Renoise-style
   cursor policy is a second implementation behind the same interface, chosen by
   a setting for the future GUI (Ctrl-Z/Ctrl-Y).
-- **Keybindings**: `undo`, `redo` (cursor policy only) as named commands;
-  Emacs binding is a two-key prefix (`C-x u`) plus `C-_`/`C-/`; nothing handles
-  prefixes today beyond the `ESC`-then-`x` coalescer, so this needs a small
-  prefix-keymap addition. Launchpad shift+Record Arm/Mute call the commands.
-- **Selection of undo scope**: undo is per buffer (song); cursor is moved to
-  the first changed node on undo.
-- Live recording take = one transaction; sample audio is referenced by
-  `shared_ptr` buffer, not copied into the journal.
+- **Keybindings** (done): `undo` and `undo-redo` as named commands, on
+  `C-x u` (the existing prefix keymap), `C-_` and `C-/`, with `C-M-_` for
+  redo; Launchpad shift+Record Arm/Mute call the commands. `redo` as a cursor
+  policy command is still for the second policy.
+- **Selection of undo scope**: undo is per buffer (song). The current track
+  follows the change, and the transport row too for an arrangement note or
+  placement while stopped (`Song::lastUndoPlace()`); a clip's notes move only
+  the track, since Live View has no shared row.
+- Live recording take = one undo step (done): `Controller::updateUndoGroup()`
+  holds a group open for clip takes and auto-record sessions; untracked
+  entries committed inside it stay apart, so undoing the take leaves them. Sample audio
+  is referenced by `shared_ptr` buffer, not copied into the journal.
 - Journal trimming bound (memory) is the one place history is ever dropped.
 
 ## Open questions (guesses made; correct me)

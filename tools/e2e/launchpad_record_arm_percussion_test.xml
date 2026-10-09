@@ -9,12 +9,12 @@
      pattern by hand when not performing live, not for capturing one. -->
 <song temperament="12edo" tempo="120" patternRows="16">
   <instruments>
-    <envelope attack="0.001" hold="0.05" decay="0.05" sustain="0.0" release="0.05">
+    <envelope id="i1" attack="0.001" hold="0.05" decay="0.05" sustain="0.0" release="0.05">
       <oscillator type="saw"/>
     </envelope>
   </instruments>
   <tracks>
-    <percussionTrack id="0" instrument="0">
+    <percussionTrack id="0" instrument="i1">
     </percussionTrack>
   </tracks>
   <arrangement>

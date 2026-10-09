@@ -22,44 +22,44 @@
          audible across this file's 6-row-held-chord convention. Used
          first for the chord-testing sections since it's the clearest,
          most keys-like tone to judge a chord by. -->
-    <envelope name="PadSynth Keyboard" attack="0.005" hold="0" decay="2.0" sustain="0.0" release="0.3">
+    <envelope id="i1" name="PadSynth Keyboard" attack="0.005" hold="0" decay="2.0" sustain="0.0" release="0.3">
       <padsynth preset="keyboard"/>
     </envelope>
     <!-- 1: PadSynth "strings", tuning-matched OFF - A/B against instrument
          11 (PadSynth strings, tuning-matched ON, moved to the end of this
          file) -->
-    <envelope name="PadSynth Strings (unmatched)" attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
+    <envelope id="i2" name="PadSynth Strings (unmatched)" attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
       <padsynth preset="strings" tuningMatched="false"/>
     </envelope>
     <!-- 2: PadSynth "bells-3", a narrow-band bell-like tone. -->
-    <envelope name="PadSynth Bells 3" attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
+    <envelope id="i3" name="PadSynth Bells 3" attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
       <padsynth preset="bells-3"/>
     </envelope>
     <!-- 3: PadSynth "dual-strings", a wide-band single-partial tone. -->
-    <envelope name="PadSynth Dual Strings (wide)" attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
+    <envelope id="i4" name="PadSynth Dual Strings (wide)" attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
       <padsynth preset="dual-strings"/>
     </envelope>
     <!-- 4: PadSynth "choir-pad4" -->
-    <envelope name="PadSynth Choir Pad4" attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
+    <envelope id="i5" name="PadSynth Choir Pad4" attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
       <padsynth preset="choir-pad4"/>
     </envelope>
     <!-- 5: PadSynth "strings" - a simple, near-octave-doubled bowed
          string tone. -->
-    <envelope name="PadSynth Strings" attack="0.3" hold="0" decay="0.4" sustain="0.85" release="0.8">
+    <envelope id="i6" name="PadSynth Strings" attack="0.3" hold="0" decay="0.4" sustain="0.85" release="0.8">
       <padsynth preset="strings"/>
     </envelope>
     <!-- 6: PadSynth "bells" -->
-    <envelope name="PadSynth Bells (matched)" attack="0.02" hold="0" decay="0.8" sustain="0.5" release="1.2">
+    <envelope id="i7" name="PadSynth Bells (matched)" attack="0.02" hold="0" decay="0.8" sustain="0.5" release="1.2">
       <padsynth preset="bells"/>
     </envelope>
     <!-- 7: Additive "default" - a plain single string -->
-    <envelope name="Additive Default" attack="0.005" hold="0" decay="1.5" sustain="0.3" release="0.5">
+    <envelope id="i8" name="Additive Default" attack="0.005" hold="0" decay="1.5" sustain="0.3" release="0.5">
       <additive preset="default"/>
     </envelope>
     <!-- 8: Mellotron - tape machine wrapping envelope+padsynth(strings): a
          Mellotron "strings" tape is a recording of a bowed string
          ensemble, the same real-world instrument family as "strings". -->
-    <tapeDegradation name="Mellotron" preset="mellotron">
+    <tapeDegradation id="i9" name="Mellotron" preset="mellotron">
       <envelope attack="0.05" hold="0" decay="0.3" sustain="0.95" release="0.4">
         <padsynth preset="strings"/>
       </envelope>
@@ -69,22 +69,22 @@
          preset as src/instruments/InstrumentLibrary.cpp registers it, plus
          audition values for the stereo image (bass left to treble right,
          strings a degree apart). -->
-    <envelope name="Additive Piano" attack="0.005" hold="0" decay="8.0" sustain="0.0" release="0.3">
+    <envelope id="i10" name="Additive Piano" attack="0.005" hold="0" decay="8.0" sustain="0.0" release="0.3">
       <additive preset="piano" keyboardSpread="40" stringSpread="1"/>
     </envelope>
     <!-- 10: A real SoundFont guitar, for the unison comparison at the end -
          the one instrument here not built directly. -->
-    <instrument name="SoundFont Guitar" from="guitar.acoustic.steel"/>
+    <instrument id="i11" name="SoundFont Guitar" from="guitar.acoustic.steel"/>
     <!-- 11: PadSynth "strings", tuning-matched partials (default) - moved
          here (was instrument 0) once instrument 0's own chord-testing slot
          was given to the new "keyboard" preset instead. -->
-    <envelope name="PadSynth Strings (matched)" attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
+    <envelope id="i12" name="PadSynth Strings (matched)" attack="0.05" hold="0" decay="0.6" sustain="0.7" release="1.0">
       <padsynth preset="strings"/>
     </envelope>
     <!-- 12: choir-pad4 as a three-voice ensemble - one copy 8 cents flat,
          one in tune, one 8 cents sharp - for genuine ensemble-of-singers
          beating, which a single static table can't produce on its own. -->
-    <envelope name="PadSynth Choir Pad4" attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
+    <envelope id="i13" name="PadSynth Choir Pad4" attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
       <group>
         <padsynth preset="choir-pad4" detune="-8"/>
         <padsynth preset="choir-pad4"/>
@@ -96,7 +96,7 @@
          redone properly later. Silent for now (empty pattern below), kept
          as a valid instrument (a plain copy of instrument 12's own
          choir-pad4) rather than left referencing the removed preset. -->
-    <envelope name="PadSynth Choir Pad4 (reserved)" attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
+    <envelope id="i14" name="PadSynth Choir Pad4 (reserved)" attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
       <group>
         <padsynth preset="choir-pad4" detune="-8"/>
         <padsynth preset="choir-pad4"/>
@@ -110,7 +110,7 @@
 
     <!-- 14: "Soft Pad" - a single pure partial, no upper harmonics at all -
          "soft" in the most literal spectral sense. -->
-    <envelope name="PadSynth Soft Pad" attack="0.8" hold="0" decay="0.3" sustain="0.9" release="1.5">
+    <envelope id="i15" name="PadSynth Soft Pad" attack="0.8" hold="0" decay="0.3" sustain="0.9" release="1.5">
       <padsynth preset="soft-pad"/>
     </envelope>
 
@@ -119,13 +119,13 @@
          a real bell's own non-integer overtones read as dissonant against
          a fixed pitch the same way. Compare to instrument 6's own plain,
          tuning-matched Bells. -->
-    <envelope name="PadSynth Bells" attack="0.02" hold="0" decay="1.0" sustain="0.3" release="1.5">
+    <envelope id="i16" name="PadSynth Bells" attack="0.02" hold="0" decay="1.0" sustain="0.3" release="1.5">
       <padsynth preset="bells" tuningMatched="false"/>
     </envelope>
 
     <!-- 16: "Dual Strings" - the strings tone doubled an octave up
          (detune="1200" cents) at half level. -->
-    <envelope name="PadSynth Dual Strings" attack="0.4" hold="0" decay="0.3" sustain="0.9" release="0.7">
+    <envelope id="i17" name="PadSynth Dual Strings" attack="0.4" hold="0" decay="0.3" sustain="0.9" release="0.7">
       <group>
         <padsynth preset="strings"/>
         <padsynth preset="strings" detune="1200" level="0.5"/>
@@ -137,7 +137,7 @@
          instrument 0's own percussive "keyboard" tone or instrument 9's
          additive piano (true per-partial decay) - three different takes
          on "piano". -->
-    <envelope name="PadSynth Saw Piano" attack="0.005" hold="0" decay="0.3" sustain="0.85" release="0.4">
+    <envelope id="i18" name="PadSynth Saw Piano" attack="0.005" hold="0" decay="0.3" sustain="0.85" release="0.4">
       <padsynth preset="saw-piano"/>
     </envelope>
 
@@ -145,7 +145,7 @@
          faster and more obvious sweep than pad.halo's own slow-shimmer
          combination - the phaser itself is the point of comparison here.
          See docs/effects.md for <phaser>'s own attributes. -->
-    <phaser name="PadSynth Phased Choir" stages="8" rate="0.35" minFreq="250" maxFreq="3000" feedback="0.5" mix="0.6">
+    <phaser id="i19" name="PadSynth Phased Choir" stages="8" rate="0.35" minFreq="250" maxFreq="3000" feedback="0.5" mix="0.6">
       <envelope attack="0.4" hold="0" decay="0.4" sustain="0.85" release="1.0">
         <padsynth preset="choir-pad4"/>
       </envelope>
@@ -155,7 +155,7 @@
          Referenced directly (not through the taxonomy path, so this plays
          even when a real SoundFont organ is loaded and would otherwise
          win at organ.pipe itself). -->
-    <envelope name="PadSynth Organ Pipe" attack="0.015" hold="0" decay="0.05" sustain="1.0" release="0.08">
+    <envelope id="i20" name="PadSynth Organ Pipe" attack="0.015" hold="0" decay="0.05" sustain="1.0" release="0.08">
       <padsynth preset="church-organ"/>
     </envelope>
 
@@ -165,7 +165,7 @@
          combination with nothing song-specific to demonstrate on top -
          unlike the additive piano/choir above, there's no divergent-copy
          risk to keep in sync by hand. -->
-    <instrument name="PadSynth Synth Brass" from="brass.synth"/>
+    <instrument id="i21" name="PadSynth Synth Brass" from="brass.synth"/>
 
     <!-- 21: "PadSynth Keyboard (unmatched)" - instrument 0's own exact
          "keyboard" preset/envelope, tuningMatched="false" only - the same
@@ -178,34 +178,34 @@
          fully make tuningMatched's own point either - see the new
          locators/patterns below (rows 280-325) for quartal triads that
          actually stress its partial-snapping behavior. -->
-    <envelope name="PadSynth Keyboard (unmatched)" attack="0.005" hold="0" decay="2.0" sustain="0.0" release="0.3">
+    <envelope id="i22" name="PadSynth Keyboard (unmatched)" attack="0.005" hold="0" decay="2.0" sustain="0.0" release="0.3">
       <padsynth preset="keyboard" tuningMatched="false"/>
     </envelope>
   </instruments>
 
   <tracks>
-    <track id="0" name="PadSynth Keyboard" instrument="0"/>
-    <track id="1" name="PadSynth Strings (unmatched)" instrument="1"/>
-    <track id="2" name="PadSynth Bells 3" instrument="2"/>
-    <track id="3" name="PadSynth Dual Strings (wide)" instrument="3"/>
-    <track id="4" name="PadSynth Choir Pad4" instrument="4"/>
-    <track id="5" name="PadSynth Strings" instrument="5"/>
-    <track id="6" name="PadSynth Bells (matched)" instrument="6"/>
-    <track id="7" name="Additive Struck-String" instrument="7"/>
-    <track id="8" name="Mellotron" instrument="8"/>
-    <track id="9" name="Additive Piano" instrument="9"/>
-    <track id="10" name="SoundFont Guitar" instrument="10"/>
-    <track id="11" name="PadSynth Strings (matched)" instrument="11"/>
-    <track id="12" name="PadSynth Choir Pad4 (unison)" instrument="12"/>
-    <track id="13" name="PadSynth Choir Pad4 (reserved)" instrument="13"/>
-    <track id="14" name="PadSynth Soft Pad" instrument="14"/>
-    <track id="15" name="PadSynth Bells" instrument="15"/>
-    <track id="16" name="PadSynth Dual Strings" instrument="16"/>
-    <track id="17" name="PadSynth Saw Piano" instrument="17"/>
-    <track id="18" name="PadSynth Phased Choir" instrument="18"/>
-    <track id="19" name="PadSynth Organ Pipe" instrument="19"/>
-    <track id="20" name="PadSynth Synth Brass" instrument="20"/>
-    <track id="21" name="PadSynth Keyboard (unmatched)" instrument="21"/>
+    <track id="0" name="PadSynth Keyboard" instrument="i1"/>
+    <track id="1" name="PadSynth Strings (unmatched)" instrument="i2"/>
+    <track id="2" name="PadSynth Bells 3" instrument="i3"/>
+    <track id="3" name="PadSynth Dual Strings (wide)" instrument="i4"/>
+    <track id="4" name="PadSynth Choir Pad4" instrument="i5"/>
+    <track id="5" name="PadSynth Strings" instrument="i6"/>
+    <track id="6" name="PadSynth Bells (matched)" instrument="i7"/>
+    <track id="7" name="Additive Struck-String" instrument="i8"/>
+    <track id="8" name="Mellotron" instrument="i9"/>
+    <track id="9" name="Additive Piano" instrument="i10"/>
+    <track id="10" name="SoundFont Guitar" instrument="i11"/>
+    <track id="11" name="PadSynth Strings (matched)" instrument="i12"/>
+    <track id="12" name="PadSynth Choir Pad4 (unison)" instrument="i13"/>
+    <track id="13" name="PadSynth Choir Pad4 (reserved)" instrument="i14"/>
+    <track id="14" name="PadSynth Soft Pad" instrument="i15"/>
+    <track id="15" name="PadSynth Bells" instrument="i16"/>
+    <track id="16" name="PadSynth Dual Strings" instrument="i17"/>
+    <track id="17" name="PadSynth Saw Piano" instrument="i18"/>
+    <track id="18" name="PadSynth Phased Choir" instrument="i19"/>
+    <track id="19" name="PadSynth Organ Pipe" instrument="i20"/>
+    <track id="20" name="PadSynth Synth Brass" instrument="i21"/>
+    <track id="21" name="PadSynth Keyboard (unmatched)" instrument="i22"/>
   </tracks>
 
   <locators>

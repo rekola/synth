@@ -5,30 +5,26 @@
      -->
 <song temperament="12edo" tempo="120" timeSignature="1/16" volume="1.0">
   <instruments>
-    <envelope attack="0.01" hold="0.3" decay="0.3" sustain="0.0" release="0.05">
+    <envelope id="i1" attack="0.01" hold="0.3" decay="0.3" sustain="0.0" release="0.05">
       <oscillator type="saw"/>
     </envelope>
   </instruments>
   <tracks>
-    <track id="0" instrument="0"/>
+    <track id="0" instrument="i1"/>
   </tracks>
   <clips>
-    <trackClips track="0">
-      <clip id="c0" loop="1">
-        <pattern>
-          <note row="0" velocity="80" value="C-4" />
-          <command row="0" data="0LEC" />
-        </pattern>
-      </clip>
-    </trackClips>
+    <clip track="0" id="c0" loop="1">
+      <pattern>
+        <note row="0" velocity="80" value="C-4" />
+        <command row="0" data="0LEC" />
+      </pattern>
+    </clip>
   </clips>
   <arrangement>
     <pattern track="0">
       <command row="0" data="0L00" />
     </pattern>
-    <instances track="0">
-      <instance row="0">c0</instance>
-      <instance row="8">OFF</instance>
-    </instances>
+    <instance track="0" row="0" clip="c0"/>
+    <instance track="0" row="8"/>
   </arrangement>
 </song>

@@ -1,68 +1,60 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="120" volume="1.0">
   <instruments>
-    <instrument from="bass.electric.finger"/>
+    <instrument id="i1" from="bass.electric.finger"/>
   </instruments>
   <tracks>
-    <track id="bass" instrument="0" azimuth="0" distance="1"/>
+    <track id="bass" instrument="i1" azimuth="0" distance="1"/>
     <percussionTrack id="drums" azimuth="0" distance="1">
     </percussionTrack>
   </tracks>
   <clips>
-    <trackClips track="drums">
-      <clip id="verse" name="Verse" length="8">
-        <pattern>
-          <note row="0" velocity="100" value="BD"/>
-          <note row="2" velocity="90" value="CH"/>
-          <note row="4" velocity="100" value="SD"/>
-          <note row="6" velocity="90" value="CH"/>
-        </pattern>
-      </clip>
-      <clip id="fill" name="Fill" length="8">
-        <pattern>
-          <note row="0" velocity="100" value="SD"/>
-          <note row="1" velocity="90" value="SD"/>
-          <note row="2" velocity="100" value="SD"/>
-          <note row="3" velocity="90" value="SD"/>
-          <note row="4" velocity="110" value="BD"/>
-          <note row="5" velocity="90" value="CH"/>
-          <note row="6" velocity="90" value="CH"/>
-          <note row="7" velocity="120" value="CH"/>
-        </pattern>
-      </clip>
-    </trackClips>
-    <trackClips track="bass">
-      <clip id="groove" name="Groove" length="8">
-        <pattern>
-          <note row="0" velocity="100" value="C-2"/>
-          <note row="2" velocity="90" value="C-2"/>
-          <note row="4" velocity="100" value="G-2"/>
-          <note row="6" velocity="90" value="G-2"/>
-        </pattern>
-      </clip>
-      <clip id="walk" name="Walk" length="8">
-        <pattern>
-          <note row="0" velocity="100" value="C-2"/>
-          <note row="2" velocity="95" value="D-2"/>
-          <note row="4" velocity="100" value="E-2"/>
-          <note row="6" velocity="95" value="G-2"/>
-        </pattern>
-      </clip>
-    </trackClips>
+    <clip track="drums" id="verse" name="Verse" length="8">
+      <pattern>
+        <note row="0" velocity="100" value="BD"/>
+        <note row="2" velocity="90" value="CH"/>
+        <note row="4" velocity="100" value="SD"/>
+        <note row="6" velocity="90" value="CH"/>
+      </pattern>
+    </clip>
+    <clip track="drums" id="fill" name="Fill" length="8">
+      <pattern>
+        <note row="0" velocity="100" value="SD"/>
+        <note row="1" velocity="90" value="SD"/>
+        <note row="2" velocity="100" value="SD"/>
+        <note row="3" velocity="90" value="SD"/>
+        <note row="4" velocity="110" value="BD"/>
+        <note row="5" velocity="90" value="CH"/>
+        <note row="6" velocity="90" value="CH"/>
+        <note row="7" velocity="120" value="CH"/>
+      </pattern>
+    </clip>
+    <clip track="bass" id="groove" name="Groove" length="8">
+      <pattern>
+        <note row="0" velocity="100" value="C-2"/>
+        <note row="2" velocity="90" value="C-2"/>
+        <note row="4" velocity="100" value="G-2"/>
+        <note row="6" velocity="90" value="G-2"/>
+      </pattern>
+    </clip>
+    <clip track="bass" id="walk" name="Walk" length="8">
+      <pattern>
+        <note row="0" velocity="100" value="C-2"/>
+        <note row="2" velocity="95" value="D-2"/>
+        <note row="4" velocity="100" value="E-2"/>
+        <note row="6" velocity="95" value="G-2"/>
+      </pattern>
+    </clip>
   </clips>
   <locators>
     <locator row="0">Intro</locator>
     <locator row="64">Fill</locator>
   </locators>
   <arrangement>
-    <instances track="drums">
-      <instance row="0">verse</instance>
-      <instance row="64">fill</instance>
-      <instance row="128">OFF</instance>
-    </instances>
-    <instances track="bass">
-      <instance row="16">groove</instance>
-      <instance row="64">OFF</instance>
-    </instances>
+    <instance track="drums" row="0" clip="verse"/>
+    <instance track="drums" row="64" clip="fill"/>
+    <instance track="drums" row="128"/>
+    <instance track="bass" row="16" clip="groove"/>
+    <instance track="bass" row="64"/>
   </arrangement>
 </song>

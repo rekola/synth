@@ -314,7 +314,7 @@ class LaunchpadManager {
 
   // Shift (CC91 held) turns the right-side buttons into their labelled
   // alternate functions (handleRawButton()): Record Arm (CC19) is Undo and
-  // Mute (CC39, Pro MK3 CC30) Redo (both reserved, not implemented yet), Solo
+  // Mute (CC39, Pro MK3 CC30) Redo ("undo"/"undo-redo"), Solo
   // (CC29, Pro MK3 CC20) the metronome click, Volume (CC89) Duplicate, Pan
   // (CC79) Delete, Send A Quantise, Send B Tempo and Stop Clip Swing. Shift +
   // CC97 is Draw. Duplicate lasts as long as Volume stays held: a press on a
@@ -1217,6 +1217,8 @@ class LaunchpadManager {
   int cached_tempo_ = 0, cached_swing_ = 50;
   // Mirrored once per frame from Song::getRecordQuantize(), for the LED.
   bool cached_record_quantize_ = false;
+  // Mirrored once per frame from Song::canUndo()/canRedo(), for the LEDs.
+  bool cached_can_undo_ = false, cached_can_redo_ = false;
 
   // refresh()'s own LiveWindow parameter, mirrored here (same
   // once-per-frame pattern) so handleLivePadEvent() -

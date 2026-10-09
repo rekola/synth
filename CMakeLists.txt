@@ -69,6 +69,7 @@ endif()
 # be linked into the test suite and any future offline tooling.
 add_library(synth_engine STATIC
 	src/doc/Document.cpp
+	src/doc/UndoHistory.cpp
 	src/instruments/Oscillator.cpp
 	src/instruments/PadSynth.cpp
 	src/instruments/Noise.cpp
@@ -96,6 +97,8 @@ add_library(synth_engine STATIC
 	src/model/InstrumentTrack.cpp
 	src/model/PercussionTrack.cpp
 	src/model/InstrumentPool.cpp
+	src/model/TrackNodes.cpp
+	src/model/TrackCompiler.cpp
 	src/model/SongStructure.cpp
 	src/model/RhythmPatternLibrary.cpp
 	third_party/tinyxml2/tinyxml2.cpp

@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="12edo" tempo="120" timeSignature="1/4" volume="1.0">
   <instruments>
-    <instrument from="piano.acoustic.grand"/>
+    <instrument id="i1" from="piano.acoustic.grand"/>
   </instruments>
   <tracks>
-    <track id="0" instrument="0"/>
+    <track id="0" instrument="i1"/>
   </tracks>
   <arrangement>
     <pattern track="0">

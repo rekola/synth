@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="12edo" tempo="120" timeSignature="1/16" volume="1.0">
   <instruments>
-    <tapeDegradation preset="mellotron">
+    <tapeDegradation id="i1" preset="mellotron">
       <envelope attack="0.01" hold="0.3" decay="0.1" sustain="0.6" release="0.05">
         <oscillator type="saw"/>
       </envelope>
     </tapeDegradation>
   </instruments>
   <tracks>
-    <track id="0" instrument="0" azimuth="0" distance="1"/>
+    <track id="0" instrument="i1" azimuth="0" distance="1"/>
   </tracks>
   <arrangement>
     <pattern track="0">
