@@ -254,14 +254,14 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
     auto & song = getSong();
     bool take = song.document().inGroup();
     bool done = song.undo();
-    if (done) follow(song);
+    if (done) { follow(song); resendTrackStateToAudio(); }
     getUIEventQueue().push(make_unique<LogEvent>(done ? "Undo" : take ? "Undo: not while recording" : "Nothing to undo"));
   });
   commands_.define("undo-redo", [this, follow]() {
     auto & song = getSong();
     bool take = song.document().inGroup();
     bool done = song.redo();
-    if (done) follow(song);
+    if (done) { follow(song); resendTrackStateToAudio(); }
     getUIEventQueue().push(make_unique<LogEvent>(done ? "Redo" : take ? "Redo: not while recording" : "Nothing to redo"));
   });
   commands_.define("toggle-metronome", [this]() {
@@ -1393,6 +1393,32 @@ Controller::updateUndoGroup() {
     if (undo_group_song_->inEdit()) return; // closed by the next call, from the frame loop
     undo_group_song_->document().endGroup();
     undo_group_song_.reset();
+  }
+}
+
+void
+Controller::resendTrackStateToAudio() {
+  auto song = getCurrentSong();
+  if (!song) return;
+  auto & queue = getPlaybackEventQueue();
+  auto buffer = getActiveBufferName();
+  auto fixed = [](float value) { return static_cast<int>(value * 1000.0f + 0.5f); };
+  auto sends = [&](int track_id, const Track & track) {
+    auto levels = track.getSends();
+    queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_MAIN, buffer, track_id, fixed(levels.main)));
+    queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_A, buffer, track_id, fixed(levels.a)));
+    queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_B, buffer, track_id, fixed(levels.b)));
+  };
+  const auto & master = song->getMasterTrack();
+  sends(master.getInternalId(), master);
+  for (auto track_id : song->getPlayableTrackIds()) {
+    auto leaf = asLeafTrack(master.getChildByInternalId(track_id));
+    if (!leaf) continue;
+    sends(track_id, *leaf);
+    queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_MUTED, buffer, track_id, leaf->isMuted() ? 1 : 0));
+    queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SOLO, buffer, track_id, leaf->isSolo() ? 1 : 0));
+    auto azimuth = leaf->getAzimuth();
+    queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_AZIMUTH, buffer, track_id, static_cast<int>(azimuth * 10.0f + (azimuth >= 0.0f ? 0.5f : -0.5f))));
   }
 }
 

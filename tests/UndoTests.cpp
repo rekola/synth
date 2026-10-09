@@ -10,6 +10,7 @@
 #include "../src/model/LeafTrack.h"
 #include "../src/model/Song.h"
 #include "../src/state/PlaybackInfo.h"
+#include "../src/playback/PlaybackControlEvent.h"
 #include <set>
 #include <unordered_map>
 #include "../src/ambisonic/ChannelConfiguration.h"
@@ -341,4 +342,25 @@ TEST(a_chord_of_held_keys_is_one_undo_step_even_with_the_transport_stopped) {
   CHECK(song.document().journal().size() == journal + 1);
   CHECK(song.undo());
   CHECK(song.getArrangement().findPattern(track_id)->getNotesByRow().count(30) == 0);
+}
+
+TEST(undoing_a_send_tells_the_audio_thread_the_restored_value) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  CHECK(controller.openSong(std::string(TESTS_FIXTURES_DIR) + "/center_note.xml"));
+  auto & song = controller.getSong();
+  auto track_id = song.getPlayableTrackIds().at(0);
+  controller.setTrackSendA(track_id, -6.0f);
+  auto & queue = controller.getPlaybackEventQueue();
+  while (queue.hasEvents()) queue.pop();
+
+  controller.sendCommand("undo");
+  CHECK(song.canRedo());
+  int last_send_a = -1;
+  while (queue.hasEvents()) {
+    auto event = queue.pop();
+    auto * control = dynamic_cast<PlaybackControlEvent *>(event.get());
+    if (control && control->getType() == PlaybackControlEvent::SET_TRACK_SEND_A && control->getParameter1() == track_id) last_send_a = control->getParameter2();
+  }
+  CHECK(last_send_a == 0); // the song's own value again, not the -6 dB one
 }

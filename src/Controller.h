@@ -1329,6 +1329,11 @@ class Controller {
   // opens or closes it from those two facts, or from note capture being armed
   // while the transport rolls.
   void updateUndoGroup();
+  // The audio thread keeps its own live copy of each track's sends, mute, solo
+  // and azimuth, set by events and mirrored back into the model; an undo or
+  // redo changes only the model, so it sends them again from the restored
+  // tracks, or the next mirror would put the old values back.
+  void resendTrackStateToAudio();
   bool note_held_ = false;
   std::shared_ptr<Song> undo_group_song_;
   int auto_record_sessions_ = 0;
