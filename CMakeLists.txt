@@ -68,6 +68,7 @@ endif()
 # dependency on the terminal UI (notcurses) or audio device (ALSA), so it can
 # be linked into the test suite and any future offline tooling.
 add_library(synth_engine STATIC
+	src/doc/Document.cpp
 	src/instruments/Oscillator.cpp
 	src/instruments/PadSynth.cpp
 	src/instruments/Noise.cpp
