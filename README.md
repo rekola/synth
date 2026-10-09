@@ -126,7 +126,6 @@ The major things that are missing are the following:
 
 * A proper name
 * GUI
-* Undo/redo
 * Lighting control (DMX/ArtNet)
 * Just tuning
 * Continuous MIDI recording with retroactive capture
