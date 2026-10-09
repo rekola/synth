@@ -7,11 +7,18 @@ transport stopped or running, and does not need the track armed first.
 
 ## What exists
 
-- Live note input has three entry points, none of which records unless a
-  take is on: `MidiNoteInput::handle()` (MIDI, terminal and headless),
-  `LaunchpadManager`'s note-pad handler, and `PatternEditor`'s computer-keyboard
-  note entry. Each already sends `PLAY_NOTE`/`STOP_NOTE` and decides itself
-  whether to write.
+- Live performance input has two entry points, neither of which records unless a
+  take is on: `MidiNoteInput::handle()` (MIDI, terminal and headless) and
+  `LaunchpadManager`'s note-pad handler. Each already sends
+  `PLAY_NOTE`/`STOP_NOTE`/`NOTE_PRESSURE` and decides itself whether to write.
+  The computer keyboard is for editing existing recordings, not performing,
+  so it is not captured.
+- Aftertouch is stored as a per-row cell in the note's column
+  (`Note::isAftertouch()`: value -1, velocity > 0). `Controller::notePressure()`
+  turns raw readings into those cells: each row gets the time-weighted average of
+  the readings in it (a reading holds until the next), rows with no reading
+  get the previous value held through them, recorded rows have delay 0, and
+  `applyNotePressure()` never overwrites a real note.
 - Take timing already has a model: `ClipPlayer::rawStep()` (live-clock row plus
   the sub-row `delay`, 0-255) and `quantizedStep()`, chosen by
   `Song::getRecordQuantize()`. `Controller::ensureClipRecordingClip()` turns an
@@ -28,7 +35,7 @@ transport stopped or running, and does not need the track armed first.
 ### 1. `LiveNoteLog` (new, `src/playback/LiveNoteLog.{h,cpp}`)
 
 UI-thread only, so no locking. A bounded ring per track id of
-`{kind on/off, note value, velocity, position}`.
+`{kind on/off/pressure, MIDI note, note value, velocity or pressure, position}`.
 
 - Note value is stored after tuning mapping (`nearestNoteValue()` result), so
   the log is cleared when the song tuning changes, a song closes, or the track
@@ -41,10 +48,13 @@ UI-thread only, so no locking. A bounded ring per track id of
 - Bounded by count (2048 events per track) and age (10 minutes). Oldest drop first.
 - Notes held across the capture moment are closed at the capture position.
 
-Fed from one new call, `Controller::logLiveNote(track_id, on/off, value,
-velocity)`, placed next to every live `PLAY_NOTE`/`STOP_NOTE` push: MIDI
-(`MidiNoteInput`), Launchpad note pads, keyboard note entry. Step-grid auditions
-and clip playback are not live input and are not logged. It logs regardless of
+Fed from one new call, `Controller::logLiveNote(track_id, kind, value,
+velocity)`, placed next to every live `PLAY_NOTE`/`STOP_NOTE`/`NOTE_PRESSURE`
+push: MIDI (`MidiNoteInput`) and Launchpad note pads (including their
+aftertouch). Keyboard note entry, step-grid auditions and clip playback are not
+live performance and are not logged. A pressure reading is logged only for a
+note that is held; channel-wide pressure has no note column and, as in live
+takes today, is not recorded. It logs regardless of
 whether the note was also written by an active take; capture is cheap and
 independent of arming.
 
@@ -74,7 +84,16 @@ length in rows.
 5. **Note-offs.** A cell cannot hold a note and its own off, so an off that lands
    on its note's row moves to the next row (min one row). An off past the clip end
    clamps to the last row. Offs never overwrite a note-on in that column.
-6. Out of scope for v1: pressure/aftertouch automation, effect commands.
+6. **Aftertouch.** For each held note, its pressure readings become aftertouch
+   cells in that note's column, with `notePressure()`'s rules: the row's value is
+   the time-weighted average over the row (a reading holds to the next, or to the
+   note's release), rows between readings hold the previous value, delay 0, value
+   clamped to 1-127. Cells run from the row after the note-on to the row before
+   its note-off, never onto the note-on or note-off cell. The averaging is
+   extracted from `Controller::notePressure()` into a small shared helper
+   (state in, row values out) so live recording and capture cannot disagree.
+   Quantise does not move readings: they are averaged per row either way.
+   Not covered: effect commands.
 
 ### 3. `Controller::captureMidi(track_id)` (glue)
 
@@ -101,14 +120,17 @@ length in rows.
 
 ## Testing
 
-- `tests/MidiCaptureTests.cpp`: playing-mode bar alignment and length; chord
+- `tests/MidiCaptureTests.cpp`: aftertouch (row average, held rows, delay 0,
+  never onto a note cell, release ends it, a helper test that live
+  `notePressure()` and capture give identical rows for the same readings);
+  playing-mode bar alignment and length; chord
   columns; short note off pushed to next row; off past the end; quantise on/off;
   stopped mode; phrase gap split; mode switch split; ring overflow and age
   expiry; clearing on tuning change.
 - Controller-level test: captured clip lands in the first empty slot, is one
   undo step, and a second capture without new input does nothing.
-- `tools/e2e/verify_launchpad_capture_midi.py`: play pads without arming (stopped,
-  then running), hold CC98 past the threshold, assert a new clip shows in the
+- `tools/e2e/verify_launchpad_capture_midi.py`: play pads (with pad pressure)
+  without arming (stopped, then running), hold CC98 past the threshold, assert a new clip shows in the
   `ClipGrid` text and, while running, queued to launch. Uses `Screen.wait()`.
 - Full `ctest` plus a manual listen with a real MIDI keyboard.
 
@@ -131,8 +153,8 @@ Update CLAUDE.md's Session Record bullet (the stub is gone), `docs/launchpad.md`
 
 ## Open questions (defaults chosen, change if wrong)
 
-1. Log all three live inputs (MIDI, pads, keyboard), or MIDI only like Ableton?
-   Default: all three, since pads and keys are equally live input here.
+1. Log pads as well as MIDI, or MIDI only like Ableton? Default: both, since
+   pads are equally live input here. The computer keyboard is excluded.
 2. Launch the captured clip when the transport runs? Default: yes.
 3. Phrase gap `max(2 bars, 4 s)` and 10 minute retention. Defaults, easy to tune.
 
