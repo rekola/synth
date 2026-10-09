@@ -10,7 +10,7 @@
             <padsynth preset="keyboard"/>
         </envelope>
         <envelope name="Additive Struck-String" attack="0.0049999999" hold="0" decay="1.5" sustain="0.30000001" release="0.5" keynumToHold="0" keynumToDecay="0">
-            <additive preset="struck-string"/>
+            <additive/>
         </envelope>
         <envelope name="PadSynth Bells (matched)" attack="0.02" hold="0" decay="0.80000001" sustain="0.5" release="1.2" keynumToHold="0" keynumToDecay="0">
             <padsynth preset="bells"/>
@@ -26,14 +26,15 @@
         <chorus name="Chorused FM Piano" azimuth="0" distance="0" elevation="0" voices="3" rate="0.5" delay="15" depth="4" mix="0.5">
             <instrument from="piano.electric.fm"/>
         </chorus>
+        <instrument from="piano.acoustic.grand"/>
     </instruments>
     <tracks id="master">
-        <track id="comp" name="Lead" sendMain="-12.000011" sendA="-18" sendB="-12.000012" azimuth="67.5" distance="1" elevation="0" noteColumns="2" instrument="1"/>
+        <track id="comp" name="Lead" sendMain="-12.000012" sendA="-18" sendB="-12.000012" azimuth="67.5" distance="1" elevation="0" noteColumns="2" instrument="1"/>
         <percussionTrack id="perc" name="Drums" sendMain="-18" sendA="-30" sendB="-24" azimuth="-45" distance="1" elevation="0" noteColumns="2"/>
         <track id="track1" name="Arpeggio" sendMain="-18" sendA="-18" sendB="-36" azimuth="45" distance="1" elevation="0" instrument="2"/>
         <track id="track2" name="Bells" sendMain="-6" sendA="-18" sendB="-12.000012" azimuth="45" distance="1" elevation="0" noteColumns="2" instrument="4"/>
         <track id="bass" name="Bass" sendMain="-12.000012" sendA="-18" sendB="-12.000012" azimuth="-22.5" distance="1" elevation="0" noteColumns="2" instrument="0"/>
-        <track id="track3" name="Piano" sendMain="-12.000003" sendA="-18" azimuth="22.5" distance="1" elevation="0" noteColumns="5" instrument="8"/>
+        <track id="track3" name="Piano" sendMain="-12.000006" sendA="-18" azimuth="22.5" distance="1" elevation="0" noteColumns="5" instrument="9"/>
     </tracks>
     <clips>
         <trackClips track="comp">
@@ -410,9 +411,8 @@
                     <note row="0" column="4" velocity="40">C-5</note>
                     <note row="8" velocity="30" delay="6">G-3</note>
                     <note row="8" column="1" velocity="34" delay="16">B𝄫4</note>
-                    <note row="8" column="2" velocity="41" delay="20">G-5</note>
+                    <note row="8" column="2" velocity="40" delay="29">G-4</note>
                     <note row="8" column="3" velocity="30" delay="6">C-4</note>
-                    <note row="8" column="4" velocity="47" delay="29">G-4</note>
                     <note row="16" velocity="45" delay="4">F-4</note>
                     <note row="16" column="1" velocity="39" delay="15">A♭4</note>
                     <note row="16" column="2" velocity="48" delay="3">C-5</note>
@@ -421,10 +421,10 @@
                     <note row="24" column="1" velocity="49" delay="24">G-4</note>
                     <note row="24" column="2" velocity="42" delay="28">C-5</note>
                     <note row="24" column="3" velocity="28" delay="27">E♭3</note>
-                    <note row="32" velocity="48">E𝄫4</note>
-                    <note row="32" column="1" velocity="33" delay="25">F-4</note>
-                    <note row="32" column="2" velocity="36" delay="28">C-5</note>
-                    <note row="32" column="3" velocity="49" delay="31">E𝄫3</note>
+                    <note row="32" velocity="48" delay="24">E𝄫3</note>
+                    <note row="32" column="1" velocity="51" delay="11">E𝄫4</note>
+                    <note row="32" column="2" velocity="46" delay="19">B𝄫4</note>
+                    <note row="32" column="3" velocity="40" delay="17">C-4</note>
                     <note row="40" velocity="32" delay="2">C-4</note>
                     <note row="40" column="1" velocity="52" delay="7">E𝄫4</note>
                     <note row="40" column="2" velocity="40">F-4</note>
