@@ -52,8 +52,9 @@ TEST(note_round_trips_for_a_track_with_an_explicit_textual_id) {
   // expected raw note value below meaningful regardless of what the
   // default happens to be.
   Song song(Tuning::EDO12);
-  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
-  track.setId("chords");
+  auto track_to_add = make_unique<InstrumentTrack>(0);
+  track_to_add->setId("chords");
+  auto & track = song.addTrack(std::move(track_to_add));
   song.getArrangement();
   song.getArrangement().setNote(0, track.getInternalId(), 0, Note(60, 40));
   song.save(scratch_path);
@@ -140,8 +141,9 @@ TEST(command_round_trips_for_a_track_with_an_explicit_textual_id) {
   auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_command_textual_id_scratch.xml").string();
 
   Song song;
-  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
-  track.setId("bass");
+  auto track_to_add = make_unique<InstrumentTrack>(0);
+  track_to_add->setId("bass");
+  auto & track = song.addTrack(std::move(track_to_add));
   song.getArrangement();
   song.getArrangement().setCommand(0, track.getInternalId(), Command("0V40"));
   song.save(scratch_path);
@@ -173,8 +175,9 @@ TEST(command_multi_column_round_trips_through_save_and_load) {
   auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_command_multi_column_scratch.xml").string();
 
   Song song;
-  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
-  track.setId("bass");
+  auto track_to_add = make_unique<InstrumentTrack>(0);
+  track_to_add->setId("bass");
+  auto & track = song.addTrack(std::move(track_to_add));
   song.getArrangement();
   song.getArrangement().setCommand(0, track.getInternalId(), Command("0K05"));
   song.getArrangement().setCommand(0, track.getInternalId(), 1, Command("1V40"));
@@ -526,7 +529,7 @@ TEST(get_tuning_for_track_is_percussion_for_drum_machine) {
   // Percussion tuning regardless of lane count - a step-sequenced
   // PercussionTrack here, unlike the lane-less one just above.
   Song song(Tuning::EDO19);
-  auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(make_unique<PercussionTrack>()));
+  auto & track = song.addTrack(make_unique<PercussionTrack>());
   CHECK(song.getTuningForTrack(track) == Tuning::PERCUSSION);
 }
 
@@ -560,7 +563,7 @@ TEST(master_tracks_collapsed_state_round_trips_via_the_tracks_element) {
   auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_master_collapsed_scratch.xml").string();
 
   Song song;
-  song.getMasterTrack().setCollapsed(false);
+  song.editTrack(song.getMasterTrack().getInternalId(), [](Track & master) { master.setCollapsed(false); });
   song.save(scratch_path);
 
   auto saved = readFile(scratch_path);
@@ -630,12 +633,14 @@ TEST(add_track_after_a_top_level_sibling_inserts_right_after_it) {
 // not promoted to a top-level child of the master.
 TEST(add_track_after_a_track_nested_in_a_group_inserts_inside_that_group) {
   Song song;
-  auto & group = song.addTrack(make_unique<Group>());
-  auto & inner = group.addChild(make_unique<InstrumentTrack>(0));
+  auto group_to_add = make_unique<Group>();
+  auto & inner = group_to_add->addChild(make_unique<InstrumentTrack>(0));
+  song.addTrack(std::move(group_to_add));
 
   auto & sibling = song.addTrack(make_unique<InstrumentTrack>(0), inner.getInternalId());
 
   CHECK(song.getMasterTrack().getChildren().size() == 1); // still just the group
+  auto & group = *song.getMasterTrack().getChildren()[0];
   CHECK(group.getChildren().size() == 2);
   CHECK(group.getChildren()[0].get() == &inner);
   CHECK(group.getChildren()[1].get() == &sibling);
@@ -778,8 +783,9 @@ TEST(clip_round_trips_its_name_length_notes_and_command_through_save_and_load) {
   // Tuning pinned explicitly - see note_round_trips_for_a_track_with_an_
   // explicit_textual_id's own comment.
   Song song(Tuning::EDO12);
-  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
-  track.setId("drums");
+  auto track_to_add = make_unique<InstrumentTrack>(0);
+  track_to_add->setId("drums");
+  auto & track = song.addTrack(std::move(track_to_add));
 
   Clip fill(track.getInternalId());
   fill.getLeafPattern().setNote(0, 0, Note(60, 100));
@@ -825,8 +831,9 @@ TEST(a_clip_with_no_name_round_trips_with_an_empty_one) {
   auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_clip_no_name_scratch.xml").string();
 
   Song song;
-  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
-  track.setId("drums");
+  auto track_to_add = make_unique<InstrumentTrack>(0);
+  track_to_add->setId("drums");
+  auto & track = song.addTrack(std::move(track_to_add));
 
   Clip p(track.getInternalId());
   p.getLeafPattern().setNote(0, 0, Note(60, 100));
@@ -857,8 +864,9 @@ TEST(clips_are_independent_of_the_arrangements_inline_pattern) {
   // Tuning pinned explicitly - see note_round_trips_for_a_track_with_an_
   // explicit_textual_id's own comment.
   Song song(Tuning::EDO12);
-  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
-  track.setId("drums");
+  auto track_to_add = make_unique<InstrumentTrack>(0);
+  track_to_add->setId("drums");
+  auto & track = song.addTrack(std::move(track_to_add));
   song.getArrangement();
   song.getArrangement().setNote(0, track.getInternalId(), 0, Note(48, 100));
 
@@ -896,8 +904,9 @@ TEST(instance_events_round_trip_through_save_and_load) {
   auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_instance_events_scratch.xml").string();
 
   Song song(Tuning::EDO12);
-  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
-  track.setId("drums");
+  auto track_to_add = make_unique<InstrumentTrack>(0);
+  track_to_add->setId("drums");
+  auto & track = song.addTrack(std::move(track_to_add));
   Clip clip(track.getInternalId());
   clip.getLeafPattern(); // the mutable overload creates it - see Clip.h's own comment on why every real clip needs one
   auto clip_id = song.addClip(move(clip)).getId();
@@ -942,8 +951,9 @@ TEST(sample_clip_round_trips_through_save_and_load) {
   auto scratch_samples_dir = fs::path(TESTS_SCRATCH_DIR) / "song_sample_clip_scratch.samples";
 
   Song song(Tuning::EDO12);
-  auto & track = song.addTrack(make_unique<SampleTrack>());
-  track.setId("vox");
+  auto track_to_add = make_unique<SampleTrack>();
+  track_to_add->setId("vox");
+  auto & track = song.addTrack(std::move(track_to_add));
 
   constexpr int kFrames = 8;
   auto buffer = make_shared<AudioBuffer>(1, kFrames);
@@ -1007,8 +1017,9 @@ TEST(multi_layer_sample_clip_round_trips_through_save_and_load) {
   auto scratch_samples_dir = fs::path(TESTS_SCRATCH_DIR) / "song_sample_clip_multilayer_scratch.samples";
 
   Song song(Tuning::EDO12);
-  auto & track = song.addTrack(make_unique<SampleTrack>());
-  track.setId("vox");
+  auto track_to_add = make_unique<SampleTrack>();
+  track_to_add->setId("vox");
+  auto & track = song.addTrack(std::move(track_to_add));
 
   constexpr int kFrames = 8;
   auto buildBuffer = [kFrames](float value) {
@@ -1073,8 +1084,9 @@ TEST(sample_background_round_trips_through_save_and_load) {
 
   Song song;
   song.setTimeSignature(TimeSignature{1, 4});
-  auto & track = song.addTrack(make_unique<SampleTrack>());
-  track.setId("bed");
+  auto track_to_add = make_unique<SampleTrack>();
+  track_to_add->setId("bed");
+  auto & track = song.addTrack(std::move(track_to_add));
 
   constexpr int kSourceFrames = 50;
   auto buffer = make_shared<AudioBuffer>(1, kSourceFrames);
@@ -1215,22 +1227,27 @@ TEST(remove_instrument_reindexes_every_instrument_track_in_the_tree) {
   song.addInstrument(make_unique<Oscillator>(WaveformType::SQUARE)); // index 1 - the one that gets removed
   song.addInstrument(make_unique<Oscillator>(WaveformType::SAW));    // index 2
 
-  auto & below = song.addTrack(make_unique<InstrumentTrack>(0));
-  auto & at = song.addTrack(make_unique<InstrumentTrack>(1));
-  auto & above = song.addTrack(make_unique<InstrumentTrack>(2));
+  auto below_id = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
+  auto at_id = song.addTrack(make_unique<InstrumentTrack>(1)).getInternalId();
+  auto above_id = song.addTrack(make_unique<InstrumentTrack>(2)).getInternalId();
 
   song.removeInstrument(1);
 
+  // Editing replaces a track's object, so look each one up again.
+  auto & below = *song.getMasterTrack().getChildByInternalId(below_id);
+  auto & at = *song.getMasterTrack().getChildByInternalId(at_id);
+  auto & above = *song.getMasterTrack().getChildByInternalId(above_id);
+
   CHECK(song.getInstrumentPool().getInstruments().size() == 2);
   // Untouched - it never pointed past the removed slot.
-  CHECK(dynamic_cast<InstrumentTrack &>(below).getInstrumentId() == 0);
+  CHECK(dynamic_cast<const InstrumentTrack &>(below).getInstrumentId() == 0);
   // Was pointing exactly at the removed slot - invalidated (getByIndex()'s
   // own "nothing authored" sentinel), not left dangling at a now-different
   // instrument.
-  CHECK(dynamic_cast<InstrumentTrack &>(at).getInstrumentId() == -1);
+  CHECK(dynamic_cast<const InstrumentTrack &>(at).getInstrumentId() == -1);
   // Was pointing past the removed slot - decremented by one, so it still
   // resolves to the same real instrument (formerly index 2, now index 1).
-  CHECK(dynamic_cast<InstrumentTrack &>(above).getInstrumentId() == 1);
+  CHECK(dynamic_cast<const InstrumentTrack &>(above).getInstrumentId() == 1);
 }
 
 // A nested track (inside a Group) must be reindexed too - the walk isn't
@@ -1245,10 +1262,12 @@ TEST(remove_instrument_reindexes_a_nested_instrument_track_too) {
   auto & nested = group->addChild(make_unique<InstrumentTrack>(1));
   song.addTrack(move(group));
 
+  auto nested_id = nested.getInternalId();
+
   song.removeInstrument(0);
 
   CHECK(song.getInstrumentPool().getInstruments().size() == 1);
-  CHECK(dynamic_cast<InstrumentTrack &>(nested).getInstrumentId() == 0);
+  CHECK(dynamic_cast<const InstrumentTrack &>(*song.getMasterTrack().getChildByInternalId(nested_id)).getInstrumentId() == 0);
 }
 
 // An out-of-range index is a no-op, not a crash or a silent erase of the
@@ -1340,8 +1359,9 @@ TEST(an_empty_slots_stop_button_round_trips_through_save_and_load) {
   auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_stop_button_scratch.xml").string();
 
   Song song(Tuning::EDO12);
-  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
-  track.setId("keys");
+  auto track_to_add = make_unique<InstrumentTrack>(0);
+  track_to_add->setId("keys");
+  auto & track = song.addTrack(std::move(track_to_add));
   song.ensureClipAt(track.getInternalId(), 1).setStopButton(false);
   song.save(scratch_path);
   auto saved = readFile(scratch_path);

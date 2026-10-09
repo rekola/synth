@@ -40,6 +40,13 @@ std::string readFile(const std::string & path) {
 
 } // namespace
 
+
+// The compiled track as it is now: an edit replaces a track's object, so a
+// reference taken before one is stale.
+static const LeafTrack & leafNow(Controller & controller, int track_id) {
+  return dynamic_cast<const LeafTrack &>(*controller.getSong().getMasterTrack().getChildByInternalId(track_id));
+}
+
 TEST(controller_save_song_writes_to_the_opened_path) {
   // save-song used to always write "tmp.xml" regardless of which song was
   // open; it must write back to the file that was actually opened.
@@ -173,9 +180,8 @@ TEST(receive_playback_snapshot_syncs_a_tracks_live_send_into_the_model) {
   controller.switchToBuffer(controller.freshBufferName());
   auto buffer_name = controller.getActiveBufferName();
 
-  auto & track = dynamic_cast<LeafTrack &>(controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0)));
-  auto track_id = track.getInternalId();
-  CHECK(track.getSends().a == 0.0f); // the track's own untouched default
+  auto track_id = controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0)).getInternalId();
+  CHECK(leafNow(controller, track_id).getSends().a == 0.0f); // the track's own untouched default
 
   std::unordered_map<int, TrackInfo> track_info;
   track_info[track_id] = TrackInfo(true, false, -1.0f, 1.0f, 0.42f, 1.0f); // live_send_a = 0.42f
@@ -184,7 +190,7 @@ TEST(receive_playback_snapshot_syncs_a_tracks_live_send_into_the_model) {
 
   controller.receivePlaybackSnapshot(buffer_name, snapshot);
 
-  CHECK_NEAR(track.getSends().a, 0.42f, 1e-6f);
+  CHECK_NEAR(leafNow(controller, track_id).getSends().a, 0.42f, 1e-6f);
 }
 
 // A track this session's live engine has never actually rendered (no
@@ -198,13 +204,13 @@ TEST(receive_playback_snapshot_leaves_a_track_with_no_live_data_untouched) {
   controller.switchToBuffer(controller.freshBufferName());
   auto buffer_name = controller.getActiveBufferName();
 
-  auto & track = dynamic_cast<LeafTrack &>(controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0)));
-  track.setSendA(0.7f); // a real, hand-set value - not the default
+  auto track_id = controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0)).getInternalId();
+  controller.getSong().editTrack(track_id, [](Track & track) { track.setSendA(0.7f); }); // a real, hand-set value - not the default
 
   PlaybackInfo snapshot; // no TrackInfo entries at all
   controller.receivePlaybackSnapshot(buffer_name, snapshot);
 
-  CHECK_NEAR(track.getSends().a, 0.7f, 1e-6f);
+  CHECK_NEAR(leafNow(controller, track_id).getSends().a, 0.7f, 1e-6f);
 }
 
 // syncLiveGlideStateIntoModel()'s own azimuth half - Pan's live glide
@@ -217,9 +223,8 @@ TEST(receive_playback_snapshot_syncs_a_tracks_live_azimuth_into_the_model) {
   controller.switchToBuffer(controller.freshBufferName());
   auto buffer_name = controller.getActiveBufferName();
 
-  auto & track = dynamic_cast<LeafTrack &>(controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0)));
-  auto track_id = track.getInternalId();
-  CHECK(track.getAzimuth() == 0.0f); // the track's own untouched default
+  auto track_id = controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0)).getInternalId();
+  CHECK(leafNow(controller, track_id).getAzimuth() == 0.0f); // the track's own untouched default
 
   std::unordered_map<int, TrackInfo> track_info;
   track_info[track_id] = TrackInfo(true, false, -1.0f, 1.0f, 1.0f, 1.0f, 42.0f, true); // live_azimuth = 42 degrees
@@ -228,7 +233,7 @@ TEST(receive_playback_snapshot_syncs_a_tracks_live_azimuth_into_the_model) {
 
   controller.receivePlaybackSnapshot(buffer_name, snapshot);
 
-  CHECK_NEAR(track.getAzimuth(), 42.0f, 1e-6f);
+  CHECK_NEAR(leafNow(controller, track_id).getAzimuth(), 42.0f, 1e-6f);
 }
 
 // TrackInfo::hasLiveAzimuth()'s own bool flag (unlike the three Sends'
@@ -241,13 +246,13 @@ TEST(receive_playback_snapshot_leaves_a_tracks_azimuth_untouched_with_no_live_da
   controller.switchToBuffer(controller.freshBufferName());
   auto buffer_name = controller.getActiveBufferName();
 
-  auto & track = dynamic_cast<LeafTrack &>(controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0)));
-  track.setAzimuth(15.0f); // a real, hand-set value - not the default
+  auto track_id = controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0)).getInternalId();
+  controller.getSong().editTrack(track_id, [](Track & track) { static_cast<LeafTrack &>(track).setAzimuth(15.0f); }); // a real, hand-set value - not the default
 
   PlaybackInfo snapshot; // no TrackInfo entries at all
   controller.receivePlaybackSnapshot(buffer_name, snapshot);
 
-  CHECK_NEAR(track.getAzimuth(), 15.0f, 1e-6f);
+  CHECK_NEAR(leafNow(controller, track_id).getAzimuth(), 15.0f, 1e-6f);
 }
 
 TEST(controller_disambiguates_buffers_sharing_a_basename) {
@@ -979,7 +984,7 @@ TEST(toggle_drum_clip_focus_direct_call_opens_and_closes_a_clip) {
   controller.switchToBuffer(controller.freshBufferName());
   auto & song = controller.getSong();
 
-  auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(std::make_unique<PercussionTrack>()));
+  auto & track = song.addTrack(std::make_unique<PercussionTrack>());
   auto track_id = track.getInternalId();
   auto existing = song.addClip(Clip(track_id));
   existing.setName("Beat 1");
@@ -1064,7 +1069,7 @@ TEST(close_drum_clip_focus_closes_whatever_is_open) {
   controller.switchToBuffer(controller.freshBufferName());
   auto & song = controller.getSong();
 
-  auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(std::make_unique<PercussionTrack>()));
+  auto & track = song.addTrack(std::make_unique<PercussionTrack>());
   auto track_id = track.getInternalId();
   auto clip = song.addClip(Clip(track_id));
   clip.setName("Beat 1");
@@ -1983,21 +1988,21 @@ TEST(monitor_in_and_off_override_arming_and_cycle_in_order) {
   auto & song = controller.getSong();
   auto & a = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto & b = song.addTrack(std::make_unique<InstrumentTrack>(0));
-  auto & leaf = dynamic_cast<LeafTrack &>(a);
+  auto a_id = a.getInternalId();
   controller.armTrack(b.getInternalId());
 
-  CHECK(leaf.getMonitor() == LeafTrack::Monitor::AUTO);
-  controller.cycleTrackMonitor(a.getInternalId());
-  CHECK(leaf.getMonitor() == LeafTrack::Monitor::IN);
-  CHECK(controller.isMonitoring(a.getInternalId())); // not armed, heard anyway
+  CHECK(leafNow(controller, a_id).getMonitor() == LeafTrack::Monitor::AUTO);
+  controller.cycleTrackMonitor(a_id);
+  CHECK(leafNow(controller, a_id).getMonitor() == LeafTrack::Monitor::IN);
+  CHECK(controller.isMonitoring(a_id)); // not armed, heard anyway
 
-  controller.cycleTrackMonitor(a.getInternalId());
-  CHECK(leaf.getMonitor() == LeafTrack::Monitor::OFF);
-  controller.armTrack(a.getInternalId());
-  CHECK(!controller.isMonitoring(a.getInternalId())); // armed, never heard
+  controller.cycleTrackMonitor(a_id);
+  CHECK(leafNow(controller, a_id).getMonitor() == LeafTrack::Monitor::OFF);
+  controller.armTrack(a_id);
+  CHECK(!controller.isMonitoring(a_id)); // armed, never heard
 
-  controller.cycleTrackMonitor(a.getInternalId());
-  CHECK(leaf.getMonitor() == LeafTrack::Monitor::AUTO);
+  controller.cycleTrackMonitor(a_id);
+  CHECK(leafNow(controller, a_id).getMonitor() == LeafTrack::Monitor::AUTO);
 }
 
 TEST(monitor_setting_round_trips_through_the_song_file) {
@@ -2020,7 +2025,7 @@ TEST(monitor_setting_round_trips_through_the_song_file) {
   Controller reopened(config);
   CHECK(reopened.openSong(scratch_path.string()));
   auto track_ids = reopened.getSong().getPlayableTrackIds();
-  auto * leaf = dynamic_cast<LeafTrack *>(reopened.getSong().getMasterTrack().getChildByInternalId(track_ids.front()));
+  auto * leaf = dynamic_cast<const LeafTrack *>(reopened.getSong().getMasterTrack().getChildByInternalId(track_ids.front()));
   CHECK(leaf && leaf->getMonitor() == LeafTrack::Monitor::IN);
   fs::remove(scratch_path);
 }

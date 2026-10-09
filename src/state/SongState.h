@@ -61,9 +61,10 @@ class SongState : public TrackState {
     song_signature_ = scalars.time_signature;
     running_bars_ = scalars.running_bars;
     swing_ = scalars.swing;
-    master_sends_ = song.getMasterTrack().getSends();
+    auto & tracks = *content_reader->tracks;
+    master_sends_ = tracks.master->getSends();
     render_context_.setBpm(tempo_);
-    song_structure_ = SongStructure(song);
+    song_structure_ = SongStructure(*tracks.master);
     song_structure_version_ = song.getMajorVersion();
 
     // Floor-reflection parameters (ChannelConfiguration.h) - pushed into
@@ -81,11 +82,11 @@ class SongState : public TrackState {
     float row_duration = getChannelConfiguration().getRowDuration(tempo_);
 
     for (int slot = 0; slot < 2; slot++) {
-      auto & descriptor = findBusEffectDescriptor(song.getBusSlotKind(slot));
+      auto & descriptor = findBusEffectDescriptor(tracks.bus[slot].kind);
       auto effect = descriptor.factory(real_sample_rate);
 
       MemoryParameterSource params;
-      song.getBusSlot(slot).storeParameters(params);
+      tracks.bus[slot].effect->storeParameters(params);
       effect->loadParameters(params);
 
       effect->setRowDuration(row_duration); // no-op except for MultiTapDelay
@@ -229,8 +230,7 @@ class SongState : public TrackState {
     const PlaybackContent & content = *content_reader;
 
     if (song_structure_version_ != song.getMajorVersion()) {
-      std::lock_guard<std::mutex> guard(song.getTracksMutex());
-      song_structure_ = SongStructure(song);
+      song_structure_ = SongStructure(*content.tracks->master);
       song_structure_version_ = song.getMajorVersion();
       swing_ = content.scalars.swing;
       song_signature_ = content.scalars.time_signature;
@@ -243,17 +243,10 @@ class SongState : public TrackState {
       }
     }
 
-    // Snapshotting the raw Track* pointers under Song::getTracksMutex()
-    // rather than holding it for this whole method - see that mutex's own
-    // comment on why one is needed at all - keeps the lock held only as
-    // long as a quick pointer copy takes, not for however long actually
-    // rendering every track takes; a track added by the UI thread after
-    // the snapshot is taken just isn't heard until next block, same as
-    // a track added between two blocks outright. Safe against a track
-    // added *during* the rest of this method reusing/reallocating one of
-    // these pointers out from under it too, since track deletion doesn't
-    // exist yet - every Track this snapshot points to lives at a fixed
-    // address for the rest of the process once addTrack() returns.
+    // The tracks are those of the content read above: a track added after
+    // it was published isn't heard until the next block, and the objects stay
+    // valid for the whole block (the publisher frees displaced content on the
+    // UI thread only, after this reader has moved on).
     //
     // SongState is itself a TrackState, and every top-level track is
     // registered as *its own* TreeNode child (getState() below - cheap
@@ -272,12 +265,9 @@ class SongState : public TrackState {
     // renders, so neither cares when its child was actually created); a
     // track whose state doesn't exist yet at that lookup point would
     // otherwise silently skip the stop entirely.
-    std::vector<Track *> track_snapshot;
-    {
-      std::lock_guard<std::mutex> guard(song.getTracksMutex());
-      track_snapshot.reserve(song.getMasterTrack().getChildren().size());
-      for (auto & track : song.getMasterTrack().getChildren()) track_snapshot.push_back(track.get());
-    }
+    std::vector<const Track *> track_snapshot;
+    track_snapshot.reserve(content.tracks->master->getChildren().size());
+    for (auto & track : content.tracks->master->getChildren()) track_snapshot.push_back(track.get());
     for (auto * track : track_snapshot) track->getState(*this, song_structure_);
 
     // Set (never merely assigned - see below) the moment the transport
@@ -429,7 +419,7 @@ class SongState : public TrackState {
 
 	    bool is_sample_track = false;
 	    {
-	      auto track = song.getMasterTrack().getChildByInternalId(track_id);
+	      auto track = content.tracks->master->getChildByInternalId(track_id);
 	      is_sample_track = track && track->getType() == TrackType::SAMPLE;
 	    }
 
@@ -564,7 +554,7 @@ class SongState : public TrackState {
 	    if (!active_pattern) continue;
 
 	    auto & notes = active_pattern->getNotes(effective_row);
-	    auto track = song.getMasterTrack().getChildByInternalId(track_id);
+	    auto track = content.tracks->master->getChildByInternalId(track_id);
 	    auto tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : content.scalars.tuning;
 
 	    for (size_t j = 0; j < notes.size(); j++) {
@@ -662,7 +652,7 @@ class SongState : public TrackState {
     // enforced *across* top-level tracks - an old per-track loop here
     // once accumulated every one of them into `mixer` unconditionally,
     // bypassing renderChildren()'s solo handling entirely.
-    auto data = renderChildren(frames, song.getInstrumentPool(), render_context_, getChannelConfiguration());
+    auto data = renderChildren(frames, *content.tracks->pool, render_context_, getChannelConfiguration());
     // The master's Send Main scales the dry mix, not the aux sends feeding
     // the send bus - its returns have their own levels (below).
     scaleRegularChannels(data, master_sends_.main);

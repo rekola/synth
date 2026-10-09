@@ -41,8 +41,15 @@ struct SongScalars {
   }
 };
 
+struct CompiledTracks;
+
 struct PlaybackContent {
   SongScalars scalars;
+  // The tracks, instrument pool and bus as of this content. Shared with the
+  // UI thread's copy; the audio thread only reads through it, and the last
+  // reference is dropped on the UI thread (the publisher frees displaced
+  // content there).
+  std::shared_ptr<const CompiledTracks> tracks;
   Arrangement arrangement;
   std::unordered_map<int, std::vector<Clip> > clips_by_track;
   uint64_t generation = 0;

@@ -1974,7 +1974,7 @@ TEST(render_master_send_main_scales_the_mix) {
   auto unity = loadFixture("center_note.xml");
   auto quieter = loadFixture("center_note.xml");
   CHECK(unity.ok && quieter.ok);
-  quieter.song.getMasterTrack().setSendMain(0.5f);
+  quieter.song.editTrack(quieter.song.getMasterTrack().getInternalId(), [](Track & master) { master.setSendMain(0.5f); });
 
   ChannelConfiguration config(44100, 1);
   auto a = renderSongOffline(unity.song, config);
@@ -1989,7 +1989,7 @@ TEST(master_send_main_round_trips_through_the_song_file) {
   namespace fs = std::filesystem;
   auto loaded = loadFixture("center_note.xml");
   CHECK(loaded.ok);
-  loaded.song.getMasterTrack().setSendMain(0.5f);
+  loaded.song.editTrack(loaded.song.getMasterTrack().getInternalId(), [](Track & master) { master.setSendMain(0.5f); });
   auto path = fs::temp_directory_path() / "synth_master_send_main_test.xml";
   loaded.song.save(path.string());
 

@@ -798,9 +798,16 @@ void Controller::mirrorSceneChange(const string & buffer_name, const PlaybackInf
 // enumerating TrackTypes here separately risked drifting out of sync with
 // it (SampleTrack becoming a leaf track in its own right - see
 // SampleTrack.h - is exactly the case that already bit this once).
-static LeafTrack *
-asLeafTrack(Track * track) {
-  return track ? dynamic_cast<LeafTrack *>(track) : nullptr;
+static const LeafTrack *
+asLeafTrack(const Track * track) {
+  return track ? dynamic_cast<const LeafTrack *>(track) : nullptr;
+}
+
+// The scratch copy Song::editTrack() hands out, as a leaf (callers have
+// already checked the track is one).
+static LeafTrack &
+leafOf(Track & track) {
+  return static_cast<LeafTrack &>(track);
 }
 
 void
@@ -822,14 +829,16 @@ Controller::syncLiveGlideStateIntoModel(const string & buffer_name, const Playba
       bool changed = sends.main != track_info.getLiveSendMain() || sends.a != track_info.getLiveSendA() || sends.b != track_info.getLiveSendB();
       if (changed) {
         Song::Edit edit(*song, "glide sends", Song::Edit::Kind::STRUCTURE, Song::Edit::Origin::SYNC);
-        leaf_track->setSendMain(track_info.getLiveSendMain());
-        leaf_track->setSendA(track_info.getLiveSendA());
-        leaf_track->setSendB(track_info.getLiveSendB());
+        song->editTrack(track_id, [&](Track & track) {
+          leafOf(track).setSendMain(track_info.getLiveSendMain());
+          leafOf(track).setSendA(track_info.getLiveSendA());
+          leafOf(track).setSendB(track_info.getLiveSendB());
+        });
       }
     }
     if (track_info.hasLiveAzimuth() && leaf_track->getAzimuth() != track_info.getLiveAzimuth()) {
       Song::Edit edit(*song, "glide azimuth", Song::Edit::Kind::STRUCTURE, Song::Edit::Origin::SYNC);
-      leaf_track->setAzimuth(track_info.getLiveAzimuth());
+      song->editTrack(track_id, [&](Track & track) { leafOf(track).setAzimuth(track_info.getLiveAzimuth()); });
     }
   }
 }
@@ -840,9 +849,10 @@ Controller::toggleTrackMuted(int track_id) {
   auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
   if (!leaf_track) return false;
   Song::Edit edit(*song, "toggle mute");
-  leaf_track->setMuted(!leaf_track->isMuted());
-  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_MUTED, getActiveBufferName(), track_id, leaf_track->isMuted() ? 1 : 0));
-  return leaf_track->isMuted();
+  bool muted = !leaf_track->isMuted();
+  song->editTrack(track_id, [&](Track & track) { leafOf(track).setMuted(muted); });
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_MUTED, getActiveBufferName(), track_id, muted ? 1 : 0));
+  return muted;
 }
 
 bool
@@ -851,9 +861,10 @@ Controller::toggleTrackSolo(int track_id) {
   auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
   if (!leaf_track) return false;
   Song::Edit edit(*song, "toggle solo");
-  leaf_track->setSolo(!leaf_track->isSolo());
-  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SOLO, getActiveBufferName(), track_id, leaf_track->isSolo() ? 1 : 0));
-  return leaf_track->isSolo();
+  bool solo = !leaf_track->isSolo();
+  song->editTrack(track_id, [&](Track & track) { leafOf(track).setSolo(solo); });
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SOLO, getActiveBufferName(), track_id, solo ? 1 : 0));
+  return solo;
 }
 
 void
@@ -865,7 +876,7 @@ Controller::cycleTrackMonitor(int track_id) {
   auto m = leaf_track->getMonitor();
   m = m == Monitor::AUTO ? Monitor::IN : m == Monitor::IN ? Monitor::OFF : Monitor::AUTO;
   Song::Edit edit(*song, "cycle monitor");
-  leaf_track->setMonitor(m);
+  song->editTrack(track_id, [&](Track & track) { leafOf(track).setMonitor(m); });
   getUIEventQueue().push(make_unique<LogEvent>(m == Monitor::IN ? "Monitor: In" : m == Monitor::OFF ? "Monitor: Off" : "Monitor: Auto"));
 }
 
@@ -974,8 +985,9 @@ Controller::toggleTrackCollapsed(int track_id) {
   auto track = song->getMasterTrack().getChildByInternalId(track_id);
   if (!track) return false;
   Song::Edit edit(*song, "toggle collapsed");
-  track->setCollapsed(!track->isCollapsed());
-  return track->isCollapsed();
+  bool collapsed = !track->isCollapsed();
+  song->editTrack(track_id, [&](Track & edited) { edited.setCollapsed(collapsed); });
+  return collapsed;
 }
 
 void
@@ -986,7 +998,7 @@ Controller::setTrackSendA(int track_id, float value) {
   if (!track) return;
   float linear = dbToLinear(value);
   Song::Edit edit(*song, "set send A");
-  track->setSendA(linear);
+  song->editTrack(track_id, [&](Track & edited) { edited.setSendA(linear); });
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_A, getActiveBufferName(), track_id, static_cast<int>(linear * 1000.0f + 0.5f)));
 }
 
@@ -998,7 +1010,7 @@ Controller::setTrackSendB(int track_id, float value) {
   if (!track) return;
   float linear = dbToLinear(value);
   Song::Edit edit(*song, "set send B");
-  track->setSendB(linear);
+  song->editTrack(track_id, [&](Track & edited) { edited.setSendB(linear); });
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_B, getActiveBufferName(), track_id, static_cast<int>(linear * 1000.0f + 0.5f)));
 }
 
@@ -1010,7 +1022,7 @@ Controller::setTrackSendMain(int track_id, float value) {
   if (!track) return;
   float linear = dbToLinear(value);
   Song::Edit edit(*song, "set send main");
-  track->setSendMain(linear);
+  song->editTrack(track_id, [&](Track & edited) { edited.setSendMain(linear); });
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_MAIN, getActiveBufferName(), track_id, static_cast<int>(linear * 1000.0f + 0.5f)));
 }
 
@@ -1076,7 +1088,7 @@ Controller::setTrackAzimuth(int track_id, float value) {
   auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
   if (!leaf_track) return;
   Song::Edit edit(*song, "set azimuth");
-  leaf_track->setAzimuth(value);
+  song->editTrack(track_id, [&](Track & track) { leafOf(track).setAzimuth(value); });
   // Tenths-of-a-degree precision (-1800..1800) - the same "float via a
   // fixed-point int parameter" convention setTrackSendA/B use, just a
   // different scale/unit since this is degrees, not a 0-1 fraction.
@@ -1089,7 +1101,8 @@ Controller::addNoteColumn(int track_id) {
   auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
   if (!leaf_track) return;
   Song::Edit edit(*song, "add note column");
-  leaf_track->setMinNoteColumns(leaf_track->getMinNoteColumns() + 1);
+  auto columns = leaf_track->getMinNoteColumns() + 1;
+  song->editTrack(track_id, [&](Track & track) { leafOf(track).setMinNoteColumns(columns); });
 }
 
 void
@@ -1098,7 +1111,8 @@ Controller::removeNoteColumn(int track_id) {
   auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
   if (!leaf_track) return;
   Song::Edit edit(*song, "remove note column");
-  leaf_track->setMinNoteColumns(leaf_track->getMinNoteColumns() - 1);
+  auto columns = leaf_track->getMinNoteColumns() - 1;
+  song->editTrack(track_id, [&](Track & track) { leafOf(track).setMinNoteColumns(columns); });
 }
 
 void

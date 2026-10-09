@@ -76,14 +76,10 @@ Player::stateFor(const string & name, const Song & song) {
   // (see its own comment) - getState() itself is cheap (plain
   // construction, no real DSP work), so nothing here needs the lock held
   // any longer than the pointer copy takes.
-  std::vector<Track *> track_snapshot;
   {
-    std::lock_guard<std::mutex> guard(song.getTracksMutex());
-    track_snapshot.reserve(song.getMasterTrack().getChildren().size());
-    for (auto & track : song.getMasterTrack().getChildren()) track_snapshot.push_back(track.get());
+    auto content = song.readContent();
+    for (auto & track : content->tracks->master->getChildren()) track->getState(*state, state->getSongStructure());
   }
-  // Return value unused - getState() attaches the built state into *state as a side effect, which is all this loop is for.
-  for (auto * track : track_snapshot) track->getState(*state, state->getSongStructure());
 
   // Row navigation while this buffer was still stateless (see the
   // MOVE_POSITION/SET_POSITION cases in handlePlaybackControlEvent()) left
@@ -107,7 +103,7 @@ Player::stateFor(const string & name, const Song & song) {
 }
 
 void
-Player::startPreviewNote(const Track * instrument, const Song & song, int note_value, int velocity) {
+Player::startPreviewNote(const Track * instrument, Tuning tuning, int note_value, int velocity) {
   Note note(note_value, velocity);
   // Whatever was already occupying this slot gets its own natural
   // stopNote() release and moved into preview_voices_ to finish its own
@@ -122,7 +118,7 @@ Player::startPreviewNote(const Track * instrument, const Song & song, int note_v
     preview_note_voice_->stopNote();
     preview_voices_.push_back(std::move(preview_note_voice_));
   }
-  preview_note_voice_ = instrument->playNote(channel_config_, SphericalPosition{}, song.readContent()->scalars.tuning, 1.0f,
+  preview_note_voice_ = instrument->playNote(channel_config_, SphericalPosition{}, tuning, 1.0f,
                                               note.getVelocityAsFloat(), note.getValue(), SendLevels{},
                                               NoteCoordinate(-1, live_note_counter_++, 0));
 }
@@ -175,7 +171,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
       std::shared_ptr<Track> instrument = provider.tryGetByLiteralName(ev.getBufferName());
       if (!instrument) instrument = provider.resolvePath(ev.getBufferName());
       auto song = controller_->getCurrentSong();
-      if (instrument && song) startPreviewNote(instrument.get(), *song, ev.getParameter1(), ev.getParameter2());
+      if (instrument && song) startPreviewNote(instrument.get(), song->readContent()->scalars.tuning, ev.getParameter1(), ev.getParameter2());
     }
     return;
 
@@ -188,8 +184,10 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
       // the song itself would play them, not the provider's generic entry
       // for whatever name that slot happens to be resolved `from`.
       auto song = controller_->getCurrentSong();
-      auto instrument = song ? song->getInstrumentPool().getByIndex(ev.getParameter1()) : nullptr;
-      if (instrument && song) startPreviewNote(instrument, *song, ev.getParameter2(), ev.getParameter3());
+      if (!song) return;
+      auto content = song->readContent();
+      auto instrument = content->tracks->pool->getByIndex(ev.getParameter1());
+      if (instrument) startPreviewNote(instrument, content->scalars.tuning, ev.getParameter2(), ev.getParameter3());
     }
     return;
 
@@ -347,7 +345,8 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
       auto midi_note = ev.getParameter3();
       auto midi_velocity = ev.getParameter4();
 
-      auto track = song.getMasterTrack().getChildByInternalId(track_id);
+      auto content = song.readContent();
+      auto track = content->tracks->master->getChildByInternalId(track_id);
       if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL ||
 		    track->getType() == TrackType::PERCUSSION_CONTROL
 		    )) {
@@ -361,7 +360,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	  // live-triggered note (Kitty-keyboard entry, Launchpad
 	  // NOTES/step-grid presses) resolves its instrument exactly the
 	  // same way a pattern note would.
-	  auto instrument = track_state->getInstrumentSource(song.getInstrumentPool());
+	  auto instrument = track_state->getInstrumentSource(*content->tracks->pool);
 
 	  if (instrument) {
 	    // InstrumentTrackState::noteOn()/notePressure() (PLAY_NOTE/
@@ -373,7 +372,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	    // chord instead - so this call site never needs to know which
 	    // kind of track it's talking to.
 	    if (ev.getType() == PlaybackControlEvent::PLAY_NOTE) {
-	      auto tuning = track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.readContent()->scalars.tuning;
+	      auto tuning = track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : content->scalars.tuning;
 	      Note note(midi_note, midi_velocity);
 
 	      // A live note has no authored row to build a
@@ -528,7 +527,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
   // own levels (SongState::setMasterSendMain()'s comment).
   case PlaybackControlEvent::SET_TRACK_SEND_A:
     {
-      if (ev.getParameter1() == song.getMasterTrack().getInternalId()) {
+      if (ev.getParameter1() == song.readContent()->tracks->master->getInternalId()) {
         state.setMasterSendA(ev.getParameter2() / 1000.0f);
         break;
       }
@@ -539,7 +538,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 
   case PlaybackControlEvent::SET_TRACK_SEND_B:
     {
-      if (ev.getParameter1() == song.getMasterTrack().getInternalId()) {
+      if (ev.getParameter1() == song.readContent()->tracks->master->getInternalId()) {
         state.setMasterSendB(ev.getParameter2() / 1000.0f);
         break;
       }
@@ -550,7 +549,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 
   case PlaybackControlEvent::SET_TRACK_SEND_MAIN:
     {
-      if (ev.getParameter1() == song.getMasterTrack().getInternalId()) {
+      if (ev.getParameter1() == song.readContent()->tracks->master->getInternalId()) {
         state.setMasterSendMain(ev.getParameter2() / 1000.0f);
         break;
       }
@@ -1121,7 +1120,7 @@ Player::createPlaybackEvent(const string & buffer_name, const Song & song, const
 
   std::unordered_map<int, TrackInfo> effect_info;
   state.getAllTrackInfo(effect_info);
-  effect_info[song.getMasterTrack().getInternalId()] = TrackInfo(state.getMasterMeterValue() > 0.0f, state.isMasterClipping(), state.getMasterMeterValue());
+  effect_info[song.readContent()->tracks->master->getInternalId()] = TrackInfo(state.getMasterMeterValue() > 0.0f, state.isMasterClipping(), state.getMasterMeterValue());
   info.setTrackInfo(move(effect_info));
 
   std::unordered_map<int, std::vector<ActiveVoiceInfo> > active_voices;

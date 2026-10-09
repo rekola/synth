@@ -84,8 +84,9 @@ TEST(pattern_break_on_the_master_tracks_own_column_works_too) {
 TEST(pattern_break_on_a_wrapping_effects_own_column_works_too) {
   Song song;
   song.setTimeSignature(TimeSignature{1, 4});
-  auto & effect = song.addTrack(make_unique<Amplifier>());
-  effect.addChild(make_unique<InstrumentTrack>(0));
+  auto effect_to_add = make_unique<Amplifier>();
+  effect_to_add->addChild(make_unique<InstrumentTrack>(0));
+  auto & effect = song.addTrack(std::move(effect_to_add));
   song.getArrangement().setCommand(0, effect.getInternalId(), Command("ZB00"));
 
   CHECK(positionAfterFirstRow(song) == 4);

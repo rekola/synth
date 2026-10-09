@@ -587,7 +587,7 @@ LaunchpadManager::resolveAzimuthFaderTarget(FaderState & fader, float current_va
 void
 LaunchpadManager::applyPanTarget(Controller & controller, int track_id, float target_degrees, int velocity) {
   auto track = controller.getSong().getMasterTrack().getChildByInternalId(track_id);
-  auto leaf_track = track ? dynamic_cast<LeafTrack *>(track) : nullptr;
+  auto leaf_track = track ? dynamic_cast<const LeafTrack *>(track) : nullptr;
   if (!leaf_track) return;
   auto & fader = fader_state_azimuth_[track_id];
   float duration_seconds = 0.0f;
@@ -1580,7 +1580,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
       // fields, not track_send_a/etc. (session-wide, computed once per
       // frame in refresh(), and this can run between two of those frames).
       auto track = song.getMasterTrack().getChildByInternalId(track_id);
-      auto leaf_track = track ? dynamic_cast<LeafTrack *>(track) : nullptr;
+      auto leaf_track = track ? dynamic_cast<const LeafTrack *>(track) : nullptr;
       if (!leaf_track) return;
       if (grid_mode == GridMode::SEND_A) {
         auto & fader = fader_state_send_a_[track_id];

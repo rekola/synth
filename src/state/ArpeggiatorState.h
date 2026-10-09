@@ -37,7 +37,7 @@
 class ArpeggiatorState : public InstrumentTrackState {
  public:
   ArpeggiatorState(const ChannelConfiguration & channel_config, bool solo, bool muted, int track_id, int instrument_id, const SphericalPosition & position, const SendLevels & sends, const Arpeggiator & arp)
-    : InstrumentTrackState(channel_config, solo, muted, track_id, instrument_id, position, sends), arp_(arp) { }
+    : InstrumentTrackState(channel_config, solo, muted, track_id, instrument_id, position, sends), arp_{ arp.getMode(), arp.getNoteDuration(), arp.getOctaves(), arp.getGate() } { }
 
   // `column` is the same note-column identity InstrumentTrackState::
   // voices_ is keyed by for a plain track (PlaybackControlEvent's column
@@ -158,8 +158,24 @@ class ArpeggiatorState : public InstrumentTrackState {
   int gateLengthSamples() const;
   int chordCollectWindowSamples() const;
 
-  const Arpeggiator & arp_;
-  const Track * instrument_ = nullptr; // last note-on's resolved instrument - see noteOn()
+  // The arpeggiator's settings as they were when this state was made: the
+  // model object may be replaced by a newer one before this state is.
+  struct Settings {
+    Arpeggiator::Mode mode;
+    int note_duration, octaves, gate;
+    Arpeggiator::Mode getMode() const { return mode; }
+    int getNoteDuration() const { return note_duration; }
+    int getOctaves() const { return octaves; }
+    int getGate() const { return gate; }
+  };
+  Settings arp_;
+  // Last note-on's resolved instrument, by id: a render looks it up again in
+  // the pool it is given (instrument_ is only for a test that drives
+  // renderVoices() without a pool), since the pool this note-on saw can be
+  // replaced between blocks.
+  int instrument_internal_id_ = -1;
+  const InstrumentPool * pool_ = nullptr; // set for the duration of render()
+  const Track * instrument_ = nullptr;
   Tuning tuning_ = Tuning::EDO12; // last note-on's own tuning - see noteOn()/rebuildStepPool()
   NoteCoordinate note_coord_; // last note-on's own coordinate - see noteOn()/triggerNextStep()
 

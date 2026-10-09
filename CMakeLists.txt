@@ -96,6 +96,8 @@ add_library(synth_engine STATIC
 	src/model/InstrumentTrack.cpp
 	src/model/PercussionTrack.cpp
 	src/model/InstrumentPool.cpp
+	src/model/TrackNodes.cpp
+	src/model/TrackCompiler.cpp
 	src/model/SongStructure.cpp
 	src/model/RhythmPatternLibrary.cpp
 	third_party/tinyxml2/tinyxml2.cpp

@@ -115,33 +115,9 @@ class Track : public StatefulSongObject {
   const Track & getChild(int i) const { return *(children_[static_cast<size_t>(i)]); }
   Track & getChild(int i) { return *(children_[static_cast<size_t>(i)]); }
   
-  Track & addChild(std::unique_ptr<Track> track) { children_.push_back(std::move(track)); return *(children_.back()); }
+  Track & addChild(std::shared_ptr<Track> track) { children_.push_back(std::move(track)); return *(children_.back()); }
 
-  // Inserts `track` as the immediate next sibling of the child whose
-  // internal id is `after_id`, wherever that child actually lives in this
-  // subtree - not necessarily among this node's own direct children (a
-  // Group, or a per-track Effect wrapping something, nests one level
-  // deeper). `track` by reference, not by value: a failed attempt
-  // (`after_id` not found anywhere in this subtree) leaves it untouched
-  // rather than losing it mid-search, so the caller can fall back to a
-  // plain addChild() - see Song::addTrack()'s own use of this. Returns
-  // whether `after_id` was actually found (and thus whether `track` was
-  // consumed).
-  bool insertChildAfter(int after_id, std::unique_ptr<Track> & track) {
-    for (size_t i = 0; i < children_.size(); i++) {
-      if (children_[i]->getInternalId() == after_id) {
-	children_.insert(children_.begin() + static_cast<long>(i) + 1, std::move(track));
-	return true;
-      }
-    }
-    for (auto & child : children_) {
-      if (child->insertChildAfter(after_id, track)) return true;
-    }
-    return false;
-  }
-
-  std::vector<std::unique_ptr<Track> > & getChildren() { return children_; }
-  const std::vector<std::unique_ptr<Track> > & getChildren() const { return children_; }
+  const std::vector<std::shared_ptr<Track> > & getChildren() const { return children_; }
 
   int getDepth() const {
     int max_depth = 0;
@@ -168,24 +144,6 @@ class Track : public StatefulSongObject {
       if (r) return r;
     }
     return nullptr;
-  }
-
-  // Removes the direct or indirect child track whose internal id is `id` -
-  // same self-then-children search shape as getChildByInternalId() above,
-  // but erasing rather than locating. `id` matching `this` itself is
-  // Song::removeTrack()'s own job (it owns the top-level tracks_ vector
-  // this class has no access to), not handled here.
-  bool removeChildByInternalId(int id) {
-    for (auto it = children_.begin(); it != children_.end(); ++it) {
-      if ((*it)->getInternalId() == id) {
-	children_.erase(it);
-	return true;
-      }
-    }
-    for (auto & child : children_) {
-      if (child->removeChildByInternalId(id)) return true;
-    }
-    return false;
   }
 
   const Track * getChildById(std::string_view id) const {
@@ -259,7 +217,7 @@ class Track : public StatefulSongObject {
   bool collapsed_ = false;
   float defaultSendDb() const { return type_ == TrackType::MASTER ? 0.0f : -100.0f; }
   SendLevels sends_ = type_ == TrackType::MASTER ? SendLevels{ 1.0f, 1.0f, 1.0f } : SendLevels{};
-  std::vector<std::unique_ptr<Track> > children_;
+  std::vector<std::shared_ptr<Track> > children_;
 };
 
 #endif

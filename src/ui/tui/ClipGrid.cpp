@@ -351,9 +351,9 @@ ClipGrid::startTrackRename(const Song & song, const std::vector<int> & track_ids
   field.initial_text = track->getName();
   inline_editor_.open(field, [this, track_id](std::string text) {
     auto & target_song = getController().getSong();
-    if (auto * target = target_song.getMasterTrack().getChildByInternalId(track_id)) {
+    if (target_song.getMasterTrack().getChildByInternalId(track_id)) {
       Song::Edit edit(target_song, "rename track");
-      target->setName(std::move(text));
+      target_song.editTrack(track_id, [&](Track & target) { target.setName(std::move(text)); });
     }
   });
 }
