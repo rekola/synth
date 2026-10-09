@@ -768,6 +768,7 @@ Song::Song(Tuning tuning, short key) {
   arrangement_node_ = ArrangementView::create(*doc_);
   doc_->insertChild(doc_->root(), scoreschema::kArrangementSlot, 0, arrangement_node_);
   doc_->clearJournal();
+  history_ = doc::UndoHistory();
 }
 
 void
@@ -1012,7 +1013,8 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
   // Set the old locale before exiting
   setlocale(LC_ALL, oldLocale.c_str());
   compileTracks(&provider); // prepares the default kit; instruments were prepared as they were parsed
-  doc_->clearJournal(); // opening a file is not an edit
+  doc_->clearJournal();
+  history_ = doc::UndoHistory(); // opening a file is not an edit
   if (content_published_mode_) publishContent();
   return true;
 }
@@ -1551,4 +1553,30 @@ Song::getScaleDegreesWindow(int start_index, int count, bool major_if_none) cons
     degrees.push_back(tonic + offsets_from_tonic[static_cast<size_t>(within)] + wraps * edo_steps);
   }
   return degrees;
+}
+
+bool
+Song::undo() {
+  if (edit_depth_ > 0 || doc_->inGroup()) return false;
+  bool done;
+  {
+    Edit edit(*this, "undo");
+    done = history_.undo(*doc_);
+    if (!done) edit.discard();
+  }
+  history_.finish(*doc_);
+  return done;
+}
+
+bool
+Song::redo() {
+  if (edit_depth_ > 0 || doc_->inGroup()) return false;
+  bool done;
+  {
+    Edit edit(*this, "redo");
+    done = history_.redo(*doc_);
+    if (!done) edit.discard();
+  }
+  history_.finish(*doc_);
+  return done;
 }

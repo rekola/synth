@@ -20,6 +20,7 @@ add_executable(synth_tests
 	SongEditTests.cpp
 	ContentPublishingTests.cpp
 	SongDocumentTests.cpp
+	UndoTests.cpp
 	TrackDocumentTests.cpp
 	PatternViewTests.cpp
 	ClipArrangementViewTests.cpp
