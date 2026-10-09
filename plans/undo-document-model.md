@@ -133,6 +133,14 @@ patterns, so they are covered by the note primitives. Verify with a test.
 
 ## PR 2: undo (sketch)
 
+- **Undo chain** (decided): the chain is broken only by a committed edit to
+  the document, never by cursor movement, scrolling or other view changes -
+  a deliberate departure from strict Emacs, where any command breaks it.
+  Redo is `undo-redo` (Emacs 28's name): valid only while the newest journal
+  entries are an unbroken run of undos, each carrying a link to the entry it
+  undid. Undo/Redo are ignored (with a status message) while a take is open.
+  The Launchpad's Undo/Redo buttons call the same two commands; Redo's LED
+  lights only when a redo is available.
 - **Policy layer** over the journal: Emacs (undo appends inverse
   transactions; chain flag; undoing an undo is redo) first; a Renoise-style
   cursor policy is a second implementation behind the same interface, chosen by
