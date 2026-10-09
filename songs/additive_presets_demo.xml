@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Listening song for the <additive> presets, all in 31-EDO. Each preset plays the
+  same material one after another: a scale, the 7:4 dyad C-A♯ and the otonal
+  tetrad C-E-G-A♯ (4:5:6:7). Values in the guitar, harp, harpsichord and bar
+  presets are starting values for listening, not measurements.
+
+  Render with: ./build/synth --stereo --render out.wav songs/additive_presets_demo.xml
+-->
+<song temperament="31edo" tempo="90" timeSignature="1/4" volume="1.0">
+  <instruments>
+    <envelope name="Piano" attack="0.002" hold="0" decay="6.0" sustain="0.0" release="0.3">
+      <additive preset="piano" keyboardSpread="40" stringSpread="1"/>
+    </envelope>
+    <envelope name="Plain string" attack="0.002" hold="0" decay="6.0" sustain="0.0" release="0.3">
+      <additive preset="default"/>
+    </envelope>
+    <envelope name="Nylon guitar" attack="0.002" hold="0" decay="6.0" sustain="0.0" release="0.3">
+      <additive preset="guitar-nylon"/>
+    </envelope>
+    <envelope name="Steel guitar" attack="0.002" hold="0" decay="6.0" sustain="0.0" release="0.3">
+      <additive preset="guitar-steel"/>
+    </envelope>
+    <envelope name="Harp" attack="0.002" hold="0" decay="6.0" sustain="0.0" release="0.3">
+      <additive preset="harp"/>
+    </envelope>
+    <envelope name="Harpsichord" attack="0.002" hold="0" decay="6.0" sustain="0.0" release="0.3">
+      <additive preset="harpsichord"/>
+    </envelope>
+    <envelope name="Ideal bar" attack="0.002" hold="0" decay="6.0" sustain="0.0" release="0.3">
+      <additive preset="bar"/>
+    </envelope>
+  </instruments>
+  <tracks>
+    <track id="0" name="Piano" instrument="0"/>
+    <track id="1" name="Plain string" instrument="1"/>
+    <track id="2" name="Nylon guitar" instrument="2"/>
+    <track id="3" name="Steel guitar" instrument="3"/>
+    <track id="4" name="Harp" instrument="4"/>
+    <track id="5" name="Harpsichord" instrument="5"/>
+    <track id="6" name="Ideal bar" instrument="6"/>
+  </tracks>
+  <locators>
+    <locator row="0">Piano</locator>
+    <locator row="64">Plain string</locator>
+    <locator row="128">Nylon guitar</locator>
+    <locator row="192">Steel guitar</locator>
+    <locator row="256">Harp</locator>
+    <locator row="320">Harpsichord</locator>
+    <locator row="384">Ideal bar</locator>
+  </locators>
+  <arrangement>
+    <pattern track="0">
+      <note row="0" value="C-4"/>
+      <note row="3" value="D-4"/>
+      <note row="6" value="E-4"/>
+      <note row="9" value="F-4"/>
+      <note row="12" value="G-4"/>
+      <note row="15" value="A-4"/>
+      <note row="18" value="B-4"/>
+      <note row="21" value="C-5"/>
+      <note row="24" value="off"/>
+      <note row="28">C-4 A♯4</note>
+      <note row="38">off off</note>
+      <note row="42">C-4 E-4 G-4 A♯4</note>
+      <note row="56">off off off off</note>
+    </pattern>
+    <pattern track="1">
+      <note row="64" value="C-4"/>
+      <note row="67" value="D-4"/>
+      <note row="70" value="E-4"/>
+      <note row="73" value="F-4"/>
+      <note row="76" value="G-4"/>
+      <note row="79" value="A-4"/>
+      <note row="82" value="B-4"/>
+      <note row="85" value="C-5"/>
+      <note row="88" value="off"/>
+      <note row="92">C-4 A♯4</note>
+      <note row="102">off off</note>
+      <note row="106">C-4 E-4 G-4 A♯4</note>
+      <note row="120">off off off off</note>
+    </pattern>
+    <pattern track="2">
+      <note row="128" value="C-4"/>
+      <note row="131" value="D-4"/>
+      <note row="134" value="E-4"/>
+      <note row="137" value="F-4"/>
+      <note row="140" value="G-4"/>
+      <note row="143" value="A-4"/>
+      <note row="146" value="B-4"/>
+      <note row="149" value="C-5"/>
+      <note row="152" value="off"/>
+      <note row="156">C-4 A♯4</note>
+      <note row="166">off off</note>
+      <note row="170">C-4 E-4 G-4 A♯4</note>
+      <note row="184">off off off off</note>
+    </pattern>
+    <pattern track="3">
+      <note row="192" value="C-4"/>
+      <note row="195" value="D-4"/>
+      <note row="198" value="E-4"/>
+      <note row="201" value="F-4"/>
+      <note row="204" value="G-4"/>
+      <note row="207" value="A-4"/>
+      <note row="210" value="B-4"/>
+      <note row="213" value="C-5"/>
+      <note row="216" value="off"/>
+      <note row="220">C-4 A♯4</note>
+      <note row="230">off off</note>
+      <note row="234">C-4 E-4 G-4 A♯4</note>
+      <note row="248">off off off off</note>
+    </pattern>
+    <pattern track="4">
+      <note row="256" value="C-4"/>
+      <note row="259" value="D-4"/>
+      <note row="262" value="E-4"/>
+      <note row="265" value="F-4"/>
+      <note row="268" value="G-4"/>
+      <note row="271" value="A-4"/>
+      <note row="274" value="B-4"/>
+      <note row="277" value="C-5"/>
+      <note row="280" value="off"/>
+      <note row="284">C-4 A♯4</note>
+      <note row="294">off off</note>
+      <note row="298">C-4 E-4 G-4 A♯4</note>
+      <note row="312">off off off off</note>
+    </pattern>
+    <pattern track="5">
+      <note row="320" value="C-4"/>
+      <note row="323" value="D-4"/>
+      <note row="326" value="E-4"/>
+      <note row="329" value="F-4"/>
+      <note row="332" value="G-4"/>
+      <note row="335" value="A-4"/>
+      <note row="338" value="B-4"/>
+      <note row="341" value="C-5"/>
+      <note row="344" value="off"/>
+      <note row="348">C-4 A♯4</note>
+      <note row="358">off off</note>
+      <note row="362">C-4 E-4 G-4 A♯4</note>
+      <note row="376">off off off off</note>
+    </pattern>
+    <pattern track="6">
+      <note row="384" value="C-4"/>
+      <note row="387" value="D-4"/>
+      <note row="390" value="E-4"/>
+      <note row="393" value="F-4"/>
+      <note row="396" value="G-4"/>
+      <note row="399" value="A-4"/>
+      <note row="402" value="B-4"/>
+      <note row="405" value="C-5"/>
+      <note row="408" value="off"/>
+      <note row="412">C-4 A♯4</note>
+      <note row="422">off off</note>
+      <note row="426">C-4 E-4 G-4 A♯4</note>
+      <note row="440">off off off off</note>
+    </pattern>
+  </arrangement>
+</song>

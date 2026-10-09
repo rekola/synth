@@ -103,7 +103,7 @@ TEST(additive_piano_is_fallback_when_soundfont_has_no_piano) {
 
 TEST(additive_piano_does_not_override_an_existing_soundfont_piano) {
   std::string path = std::string(TESTS_SCRATCH_DIR) + "/instrument_library_piano.sf2";
-  sf2fixture::writeMinimalSf2(path, { {"Grand Piano", 0, {}, {}} }); // program 0 = piano.acoustic.grand
+  sf2fixture::writeMinimalSf2(path, {{"Grand Piano", 0, {}, {}}}); // program 0 = piano.acoustic.grand
 
   InstrumentProvider provider;
   provider.loadSoundFont(path);
@@ -120,6 +120,17 @@ TEST(additive_piano_render_is_non_silent_and_finite) {
 
   OfflineRenderResult result;
   CHECK(renderLibraryFixture("library_additive_piano.xml", provider, result));
+  CHECK(result.numberOfFrames() > 0);
+  CHECK(!hasNonFiniteSample(result));
+  CHECK(rms(result, 0) > 1e-5f);
+}
+
+TEST(additive_piano_chord_in_31edo_is_finite_and_audible) {
+  InstrumentProvider provider;
+  registerLibraryInstruments(provider);
+
+  OfflineRenderResult result;
+  CHECK(renderLibraryFixture("library_additive_chord.xml", provider, result));
   CHECK(result.numberOfFrames() > 0);
   CHECK(!hasNonFiniteSample(result));
   CHECK(rms(result, 0) > 1e-5f);

@@ -2,7 +2,7 @@
 <song temperament="12edo" tempo="120" timeSignature="1/4" volume="1.0">
   <instruments>
     <envelope attack="0.005" hold="0" decay="0.3" sustain="0.4" release="0.3">
-      <additive preset="struck-string"/>
+      <additive preset="piano"/>
     </envelope>
   </instruments>
   <tracks>

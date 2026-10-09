@@ -2,31 +2,28 @@
 #define _ADDITIVE_H_
 
 #include "Instrument.h"
+#include "AdditiveModel.h"
 #include "AdditivePresets.h"
 #include "../ambisonic/SphericalPosition.h"
 #include "../model/SendLevels.h"
 #include "../model/NoteCoordinate.h"
 
 #include <string>
+#include <vector>
 
-// A per-voice sinusoid-bank ("additive synthesis") instrument leaf - each
-// partial has its own frequency, amplitude, and independent exponential
-// decay rate that rises with frequency (a standard struck-string/plucked-
-// string spectral-decay model: higher partials die out faster than the
-// fundamental). The actual DSP lives in SinusoidBank.h (the technical
-// building block) and AdditiveVoice.h (the InstrumentVoice-integrated
-// wrapper, also owning the short attack-transient noise burst); this class
-// is only XML parameter parsing/storage plus playNote() construction,
-// mirroring Oscillator.h's own shape.
+// A per-voice sinusoid-bank ("additive synthesis") instrument leaf: a set
+// of decaying partials per string, with the spectrum, tuning and decay
+// computed by AdditiveModel.h and run by SinusoidBank.h. AdditiveVoice.h is
+// the InstrumentVoice-integrated wrapper (one output row per string, each
+// placed in space). This class is XML parameter parsing/storage plus
+// playNote() construction.
 //
-// This element's own per-partial decay is a *timbral* effect (partials
-// thinning out as the note ages, changing the note's brightness over its
-// life) - it is not a substitute for a parent <envelope>'s ADSR, which
-// still governs the note's overall amplitude the same as it does for any
-// other instrument leaf.
+// The per-partial decay is a *timbral* effect (partials thinning out as the
+// note ages); a parent <envelope>'s ADSR still governs the note's overall
+// amplitude as for any other instrument leaf.
 class Additive : public Instrument {
  public:
-  explicit Additive() { }
+  Additive();
 
   const char * getElementName() const override { return "additive"; }
   void loadParameters(const ParameterSource & input) override;
@@ -35,46 +32,33 @@ class Additive : public Instrument {
 
  private:
   std::string preset_ = "default";
-  int partials_ = getAdditivePreset("default").partials;
-  float tilt_ = getAdditivePreset("default").tilt;
-  // How much velocity brightens the tone: actual tilt used =
-  // tilt_ + velocityTilt_ * (velocity - 0.5) - see AdditiveVoice.h's own
-  // kReferenceVelocity comment for why 0.5 (velocity is already normalized
-  // to [0,1] by the time it reaches playNote(), see Note::
-  // getVelocityAsFloat()). A harder hit (velocity above the 0.5 midpoint)
-  // makes tilt_ less negative (brighter); a softer one makes it more
-  // negative (darker).
-  float velocityTilt_ = getAdditivePreset("default").velocityTilt;
-  int unisonVoices_ = getAdditivePreset("default").unisonVoices;
-  float unisonDetune_ = getAdditivePreset("default").unisonDetune;
-  // Stretched-partial coefficient B - 0 means plain harmonic/tuning-matched
-  // partials (no stretch). Only affects partials above partialLimit_ when
-  // tuningMatched_ is on (a continuous cents-space shift from there) - see
-  // SinusoidBank.cpp's additivePartialRatio() for the exact formula and why.
-  float inharmonicity_ = getAdditivePreset("default").inharmonicity;
-  // alpha_n = decayA_ + decayB_ * f_n^decayP_, nepers/second - see
-  // SinusoidBank.h's own doc comment for the exact per-sample envelope
-  // this drives (amplitude(t) = amplitude(0) * exp(-alpha_n * t)).
-  float decayA_ = getAdditivePreset("default").decayA;
-  float decayB_ = getAdditivePreset("default").decayB;
-  float decayP_ = getAdditivePreset("default").decayP;
-  bool tuningMatched_ = getAdditivePreset("default").tuningMatched;
-  int partialLimit_ = getAdditivePreset("default").partialLimit;
-  float attackNoiseLevel_ = getAdditivePreset("default").attackNoiseLevel;
+  int partials_ = 0;
+  float stretch_ = 0.0f;
+  bool tuningMatched_ = true;
+  // Strings per note and the spacing between adjacent ones in cents.
+  int unisonVoices_ = 1;
+  float unisonDetune_ = 1.0f;
+  // A list of mode frequency ratios replacing the harmonic series, e.g. for
+  // a bar; empty for a string.
+  std::string modes_;
+  // "hammer" or "pluck", the strike or pluck point as a fraction of the
+  // string, and the lowpass corners that give the excitation its brightness.
+  std::string excitation_ = "hammer";
+  float strike_ = 0.125f;
+  float hammerCutoff_ = 0.0f, hammerTracking_ = 0.0f, hammerVelocity_ = 0.0f;
+  float pluckCutoff_ = 0.0f;
+  float partialFloor_ = -60.0f;
+  // alpha_n = (decayA_ + decayB_ * f_n^decayP_) * (f0 / middle C)^decayTracking_,
+  // nepers/second, with the outer strings (1 +- decaySpread_) times that.
+  float decayA_ = 0.0f, decayB_ = 0.0f, decayP_ = 1.0f;
+  float decayTracking_ = 0.0f, decaySpread_ = 0.0f;
+  // The body table's level and its exponent against the key, and the degrees of arc its modes are spread over.
+  float thump_ = 0.0f, thumpTracking_ = 0.0f, thumpWidth_ = 0.0f;
+  std::vector<BodyMode> body_;
+  // Degrees of azimuth across the keyboard (bass left, treble right), and
+  // between adjacent strings of one key.
+  float keyboardSpread_ = 0.0f, stringSpread_ = 0.0f;
   float level_ = 1.0f;
-
-  // Anchored spectral-envelope remap (dsp/SpectralEnvelopeRemap.h) - see
-  // PadSynth.h's own identical attributes for the shared naming/contract;
-  // evaluated once, at note-on, against this note's own real frequency
-  // (unlike PadSynth's per-table-region evaluation) - see AdditiveVoice.h's
-  // own trigger() for where. 0 for either means off (every pre-existing
-  // additive preset's own behavior, unchanged).
-  float envelopeAnchor_ = 0.0f;
-  float envelopeTracking_ = 0.0f;
-  std::string envelopePostprocess_ = "";
-  int envelopePostprocessN_ = 0;
-  int envelopePostprocessR_ = 0;
-  float envelopePostprocessAmount_ = 0.0f;
 };
 
 #endif

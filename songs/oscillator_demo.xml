@@ -52,9 +52,9 @@
     <envelope name="PadSynth Bells (matched)" attack="0.02" hold="0" decay="0.8" sustain="0.5" release="1.2">
       <padsynth preset="bells"/>
     </envelope>
-    <!-- 7: Additive "struck-string" -->
-    <envelope name="Additive Struck-String" attack="0.005" hold="0" decay="1.5" sustain="0.3" release="0.5">
-      <additive preset="struck-string"/>
+    <!-- 7: Additive "default" - a plain single string -->
+    <envelope name="Additive Default" attack="0.005" hold="0" decay="1.5" sustain="0.3" release="0.5">
+      <additive preset="default"/>
     </envelope>
     <!-- 8: Mellotron - tape machine wrapping envelope+padsynth(strings): a
          Mellotron "strings" tape is a recording of a bowed string
@@ -65,15 +65,12 @@
       </envelope>
     </tapeDegradation>
     <!-- 9: Additive piano - sustain 0, long decay so it never truncates the
-         additive engine's own per-partial decay, short release. Overrides
-         on top of struck-string (3-voice unison for a piano's own doubled/
-         tripled strings per note, quieter/duller hammer attack, brighter
-         tilt) matching src/instruments/InstrumentLibrary.cpp's own
-         registerLibraryInstruments() - this song builds instruments
-         directly rather than referencing that registration, so the two
-         copies must be kept in sync by hand. -->
+         additive engine's own per-partial decay, short release. The piano
+         preset as src/instruments/InstrumentLibrary.cpp registers it, plus
+         audition values for the stereo image (bass left to treble right,
+         strings a degree apart). -->
     <envelope name="Additive Piano" attack="0.005" hold="0" decay="8.0" sustain="0.0" release="0.3">
-      <additive preset="struck-string" unisonVoices="3" attackNoiseLevel="0.04" tilt="-6"/>
+      <additive preset="piano" keyboardSpread="40" stringSpread="1"/>
     </envelope>
     <!-- 10: A real SoundFont guitar, for the unison comparison at the end -
          the one instrument here not built directly. -->
@@ -220,10 +217,10 @@
     <locator row="40">PadSynth strings (tuningMatched=OFF) - sustained fifth</locator>
     <locator row="48">PadSynth strings (tuningMatched=OFF) - 31-EDO C-E-G triad</locator>
     <locator row="56">PadSynth strings (tuningMatched=OFF) - C-E-G-A♯ harmonic 7th</locator>
-    <locator row="64">Additive struck-string - single note</locator>
-    <locator row="72">Additive struck-string - sustained fifth</locator>
-    <locator row="80">Additive struck-string - 31-EDO C-E-G triad</locator>
-    <locator row="88">Additive struck-string - C-E-G-A♯ harmonic 7th</locator>
+    <locator row="64">Additive default string - single note</locator>
+    <locator row="72">Additive default string - sustained fifth</locator>
+    <locator row="80">Additive default string - 31-EDO C-E-G triad</locator>
+    <locator row="88">Additive default string - C-E-G-A♯ harmonic 7th</locator>
     <locator row="96">Mellotron (tape+padsynth) - single note</locator>
     <locator row="104">Mellotron (tape+padsynth) - sustained fifth</locator>
     <locator row="112">Mellotron (tape+padsynth) - 31-EDO C-E-G triad</locator>
@@ -288,7 +285,7 @@
       <note row="62">off off off off</note>
     </pattern>
 
-    <!-- Additive struck-string (rows 64-95) -->
+    <!-- Additive default string (rows 64-95) -->
     <pattern track="7">
       <note row="64" value="C-4"/>
       <note row="70" value="off"/>
