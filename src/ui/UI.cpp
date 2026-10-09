@@ -27,6 +27,7 @@
 #include "../playback/ThresholdRecordingTriggeredEvent.h"
 
 #include <algorithm>
+#include <pthread.h>
 #include <fmt/core.h>
 #include <memory>
 #include <thread>
@@ -35,12 +36,17 @@ using namespace std;
 
 namespace {
 
+// Shown by top -H and ps -L (15 characters at most).
+void nameThread(const char * name) { pthread_setname_np(pthread_self(), name); }
+
 void audio_thread_func(Controller * controller, AudioAPI * audio) {
+  nameThread("synth-audio");
   Player player(controller->getChannelConfiguration(), controller);
   player.play(*audio);
 }
 
 void visualization_thread_func(Controller * controller, int sample_rate, int frame_count) {
+  nameThread("synth-visual");
   VisualizationThread visualization_thread(controller);
   visualization_thread.configure(sample_rate, frame_count);
   visualization_thread.run();
@@ -99,6 +105,7 @@ UI::start(AudioAPI & audio, LaunchpadIO & launchpad_io, LaunchpadManager & launc
   launchpad_manager_ = &launchpad_manager;
   wireLaunchpad(launchpad_manager);
 
+  nameThread("synth-ui");
   std::thread audio_thread(audio_thread_func, &(getController()), &audio);
   std::thread visualization_thread(visualization_thread_func, &(getController()), audio.getFrequency(), audio.getFrameCount());
 
