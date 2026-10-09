@@ -103,21 +103,22 @@ pixels instead of braille cells, and without pixel support they fall back to
 braille. See [docs/terminal.md](docs/terminal.md) for terminal-specific setup.
 
 Known to work are kitty, xterm and GNOME Terminal; the rest are untested here.
-The notes on them are from testing another program.
+The Graphics and Mouse columns are from testing another program (nanoclj) in
+these terminals.
 
-| Terminal | Status | Notes |
-| - | - | - |
-| kitty | Works | Kitty keyboard and graphics protocols |
-| xterm | Works | Sixel support must be enabled in `.Xresources` (see [docs/terminal.md](docs/terminal.md)), images have a maximum size of 1000x1000 by default, and no Kitty keyboard protocol |
-| GNOME Terminal | Works | No Kitty keyboard protocol, and Sixel support is not enabled by default, so the scopes are drawn in braille |
-| foot | Untested | Wayland only |
-| wezterm | Untested | Reported buggy (as of 20230712) |
-| mlterm | Untested | |
-| Konsole | Untested | True color images, but on HiDPI systems images are upscaled |
-| contour | Untested | Inline image layout reported not to work |
-| Black Box | Untested | On HiDPI systems images are upscaled, and the terminal and the flatpak system use too much CPU time when idling |
-| Alacritty | Untested | No pixel graphics |
-| mintty | Untested | |
+| Terminal | Status | Graphics | Mouse | Notes |
+| - | - | - | - | - |
+| foot | Untested | OK | OK | Wayland only |
+| kitty | Works | OK | ? | True color images, but window resizing has bugs (as of 0.26.5) |
+| wezterm | Untested | OK | OK | Buggy (as of 20230712) |
+| mlterm | Untested | OK | ? | |
+| Konsole | Untested | OK | ? | True color images, but on HiDPI system images are upscaled |
+| contour | Untested | Inline image layout doesn't work | ? | |
+| xterm | Works | No true color | OK | Sixel support must be enabled in `.Xresources` (see [docs/terminal.md](docs/terminal.md)), and images have maximum size 1000x1000 |
+| Black Box | Untested | Inline image layout doesn't work | ? | On HiDPI system the images are upscaled, and the terminal and the flatpak system use too much CPU time when idling. |
+| Alacritty | Untested | None | ? | |
+| GNOME Terminal | Works | None | ? | Sixel support is not enabled by default |
+| mintty | Untested | ? | ? | Not tested yet. |
 
 # Launchpad support
 
