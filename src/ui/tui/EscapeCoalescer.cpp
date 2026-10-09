@@ -38,7 +38,7 @@ isSequenceIntroducer(const ncinput & ni) {
 // automaton.c - see normalizeLegacyAlt()'s own comment): that merge only
 // ever represents a plain Alt chord with no other modifier riding along,
 // never Alt combined with anything else. Nothing in this codebase binds a
-// genuine Ctrl+Alt or Shift+Alt chord either, while Ctrl-B/-W/-Y/-G and
+// genuine Ctrl+Alt or Shift+Alt chord either, while Ctrl-W/-Y/-G and
 // Shift's own role in raw note entry (starting a new chord column - see
 // PatternEditor.cpp's input.hasShift() branch) are exact-match on Alt
 // being *unset*. With no deadline, a pending Escape can sit open for as

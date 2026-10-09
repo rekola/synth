@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Drive the compiled synth binary through a pty and verify the
-centralized keybinding dispatch: Ctrl-B/Ctrl-W/Ctrl-Y/Ctrl-G in
+centralized keybinding dispatch: Ctrl-Space/Ctrl-W/Ctrl-Y/Ctrl-G in
 PatternEditor, C-x o/C-x b in UI, and C-x C-c/Space in UI. General
 Emacs-keybinding smoke test, independent of the Launchpad-specific scripts
 in this directory (which all import harness.py directly instead).
@@ -39,11 +39,11 @@ def main():
     # first, or none of them would ever reach it.
     vk.other_window(scr)
 
-    # --- set-mark via Ctrl-B ---
-    scr.send(vk.ctrl('b'))
+    # --- set-mark via Ctrl-Space (Kitty keyboard protocol encoding) ---
+    scr.send(b"\x1b[32;5u")
     scr.pump()
     d = scr.dump()
-    check("Ctrl-B (set-mark) shows 'Mark set'", "Mark set" in d, d)
+    check("Ctrl-Space (set-mark) shows 'Mark set'", "Mark set" in d, d)
 
     scr.send(b"\x1b[B")
     scr.pump(0.2)
@@ -118,7 +118,7 @@ def main():
     # near-instant exit) ---
     #
     # Ctrl-W above actually killed content, so this buffer (demo3.xml, the
-    # one Ctrl-B/W/Y/G ran against - not the fresh one from C-x b) is
+    # one Ctrl-Space/W/Y/G ran against - not the fresh one from C-x b) is
     # dirty: save-buffers-kill-terminal prompts for confirmation rather
     # than quitting outright, same as Emacs's own version of this
     # binding - answer it before waiting for the process to actually exit.

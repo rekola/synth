@@ -475,8 +475,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
     auto name = "set-edit-step-" + std::to_string(n);
     commands_.define(name, [this, n]() { setEditStep(n); });
     int digit = '0' + n;
-    keymap_.bind(KeyChord::pack(digit, true, false, false, false), name);  // Ctrl+digit (needs the Kitty keyboard protocol)
-    keymap_.bind(KeyChord::pack(digit, false, true, false, false), name);  // Alt+digit (any terminal)
+    keymap_.bind(KeyChord::pack(digit, true, false, false, false), name);
   }
 
   commands_.define("move-row-up", [this]() {
@@ -570,7 +569,6 @@ PatternEditor::PatternEditor(UIPlane & parent)
   keymap_.bind(KeyChord::pack('+', true, false, false, false), "edit-step-increase");
   keymap_.bind(KeyChord::pack('-', true, false, false, false), "edit-step-decrease");
   keymap_.bind(KeyChord::pack(' ', true, false, false, false), "set-mark");  // Ctrl-Space
-  keymap_.bind(KeyChord::pack('b', true, false, false, false), "set-mark");  // Ctrl-B (works on any terminal)
   keymap_.bind(KeyChord::pack('w', true, false, false, false), "kill-region");
   keymap_.bind(KeyChord::pack('w', false, true, false, false), "kill-ring-save");  // Alt-W
   keymap_.bind(KeyChord::pack('y', true, false, false, false), "yank");

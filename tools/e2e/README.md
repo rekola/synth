@@ -73,7 +73,7 @@ you're changing.
   Live View's outline panel, for scripts that read the clip grid's
   rows from the start of each line.
 - **`verify_keybindings.py`** - general Emacs-keybinding smoke test
-  (Ctrl-B/W/Y/G/Space/C-x o/C-x b/C-x C-c), independent of Launchpad.
+  (Ctrl-Space/W/Y/G/C-x o/C-x b/C-x C-c), independent of Launchpad.
 - **`verify_live_pattern_editor.py`** - PatternEditor's Live mode
   (Live View): locators only in Arrangement view, typing into an
   empty slot creates a clip (not arrangement content), a launched clip's

@@ -249,8 +249,7 @@ synonym for it (`Command::updateData()`); `docs/commands.md`'s own
 from - an existing tracker's own command reference, or this codebase's
 own choice - checked deliberately rather than invented blind.
 
-Pattern editor selection uses Emacs keybindings: **C-SPC** (or **C-b**, see
-below) sets the mark (selection start), **C-w** kills (cuts) the marked
+Pattern editor selection uses Emacs keybindings: **C-SPC** sets the mark (selection start), **C-w** kills (cuts) the marked
 block, **M-w** copies it, **C-y** yanks (pastes) the clipboard at the
 cursor, **C-g** cancels the selection. The selection is a rectangular
 row×track block; within a single track it's further scoped to note
@@ -337,16 +336,6 @@ velocity/delay nibble-entry path was tightened to strict `0-9a-f`; a
 mnemonic's own trailing hex-digit argument (e.g. `YLxx`'s slide amount)
 stays permissive too, parsing a non-hex character as digit 0 rather than
 rejecting it (`Command::getAzimuthSlidePerTick()`).
-
-`C-SPC` doesn't register on every terminal: its legacy encoding is a
-literal NUL byte, which notcurses's input decoder silently drops instead of
-turning into a keystroke (confirmed with the `notcurses-input` diagnostic
-tool) — it only works via the modern Kitty keyboard protocol (kitty, foot,
-wezterm, ghostty, …). GNOME Terminal (Ubuntu's default) doesn't support
-that protocol, so `C-SPC` does nothing there. `C-@` doesn't help either —
-it's byte-for-byte identical to `C-SPC` (both mask down to NUL), not a
-distinct keystroke. Use **C-b** instead — an ordinary control byte that works on any
-terminal.
 
 Keybinding dispatch is centralized, Emacs-style (v1, partial): `KeyChord.h`/
 `Keymap.h`/`CommandRegistry.h` provide a chord→command-name→callable lookup,
