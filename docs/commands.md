@@ -50,7 +50,7 @@ does the same wherever the clip is played from.
 
 ## Per-note commands
 
-These work in a note column's own fx column as well as in the effect column.
+These work in a note column's local fx column as well as in the effect column.
 The fx column sits after the delay column, is always shown, and holds three
 characters: the command without its device-index digit, which is always an
 implicit `-`/`0` there (so a note's `R24` is the row command `-R24`). It is
