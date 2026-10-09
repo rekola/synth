@@ -17,7 +17,7 @@ any note sounding:
 ```xml
 <tracks>
   <chorus rate="0.3" depth="6">
-    <track id="0" instrument="0"/>
+    <track id="0" instrument="i1"/>
   </chorus>
 </tracks>
 ```
