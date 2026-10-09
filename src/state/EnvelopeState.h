@@ -180,6 +180,7 @@ class EnvelopeState : public State {
   // SUSTAIN, and must never be killed while still held regardless of how
   // quiet it currently is.
   bool isReleasing() const { return segment == RELEASE; }
+  bool isSustaining() const { return segment == SUSTAIN; }
   float getLevel() const { return level; }
 
   Envelope parameters;

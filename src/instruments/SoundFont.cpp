@@ -1463,14 +1463,21 @@ SoundFontVoice::render(int numSamples) {
 
     // Silence-kill threshold: a long-tailed release (common for GM pad/
     // string patches) can sit well below audibility for most of its
-    // authored duration, still consuming full render cost every block.
-    // isReleasing() gates this to the release stage only - a held note
-    // can legitimately be this quiet during ATTACK or a deliberately
-    // quiet SUSTAIN and must never be killed early regardless. Jumping
-    // straight to DONE (same transition a naturally-completed release
-    // already makes) reuses the exact path isActive()/
-    // clearFinishedVoices() already rely on - no separate reaping logic.
-    if (ampenv_.isReleasing() && gainToDecibels(dryGainMono) < constants::SILENCE_KILL_FLOOR_DB) {
+    // authored duration, still consuming full render cost every block. Only
+    // the release stage and a SUSTAIN qualify - a held note can legitimately
+    // be this quiet during ATTACK (it is still rising), and a quiet but
+    // audible sustain stays. Jumping straight to DONE (same transition a
+    // naturally-completed release already makes) reuses the exact path
+    // isActive()/clearFinishedVoices() already rely on - no separate
+    // reaping logic.
+    //
+    // A SUSTAIN below the floor is silent for good (a piano that decays to
+    // nothing while its key is held, or a note that never gets a note-off):
+    // nothing but a new note raises it, so it is reaped the same way
+    // instead of staying allocated for as long as the note is "held".
+    // Not when the gain is modulated per block (dynamicGain).
+    bool silent_for_good = ampenv_.isSustaining() && !dynamicGain;
+    if ((ampenv_.isReleasing() || silent_for_good) && gainToDecibels(dryGainMono) < constants::SILENCE_KILL_FLOOR_DB) {
       ampenv_.nextSegment(EnvelopeState::RELEASE);
       // Keep both envelopes consistent, matching killNote()'s existing
       // precedent - isDone()-guarded for the same reason stopNote() guards

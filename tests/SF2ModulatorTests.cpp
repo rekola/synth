@@ -932,28 +932,33 @@ TEST(get_exclusive_classes_reports_the_regions_own_class_or_none) {
 // "freed early by the threshold", never "finished naturally".
 // ---------------------------------------------------------------------
 
-TEST(sf2_voice_stays_active_while_held_even_below_the_silence_floor) {
+TEST(sf2_held_voice_in_an_inaudible_sustain_is_freed_but_an_audible_one_is_kept) {
   std::vector<PresetSpec> presets = {
-    // SustainVolEnv=800 centibels -> decibelsToGain(-80) ~= -80dB, well
-    // below the default -60dB floor.
-    { "QuietSustain", 0, { GenSpec{ 37, 800 }, GenSpec{ 38, 0 } }, {} },
+    // SustainVolEnv=800 centibels -> -80 dB, below the -60 dB floor: nothing
+    // will ever raise it again, so a held (or never released) voice there is
+    // reaped. 300 cB (-30 dB) is quiet but audible and must stay.
+    { "InaudibleSustain", 0, { GenSpec{ 37, 800 }, GenSpec{ 38, 0 } }, {} },
+    { "QuietSustain", 1, { GenSpec{ 37, 300 }, GenSpec{ 38, 0 } }, {} },
   };
   auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "silence_floor_held_fixture.sf2").string();
   writeMinimalSf2(path, presets);
 
   SoundFont sf(path);
   ChannelConfiguration config(44100);
-  auto instrument = sf.createInstrument(0);
 
-  auto voice = instrument->playNote(config, SphericalPosition{}, Tuning::EDO12, 1.0f, 0.8f, 60, SendLevels{});
-  CHECK(voice->isActive());
+  auto inaudible = sf.createInstrument(0)->playNote(config, SphericalPosition{}, Tuning::EDO12, 1.0f, 0.8f, 60, SendLevels{});
+  CHECK(inaudible->isActive());
+  bool freed = false;
+  for (int i = 0; i < 8 && !freed; i++) {
+    inaudible->render(4096);
+    freed = !inaudible->isActive();
+  }
+  CHECK(freed);
 
-  // Held (never stopNote()'d) - must never be killed regardless of how
-  // quiet its sustain level is; the threshold only ever applies in
-  // RELEASE.
+  auto quiet = sf.createInstrument(1)->playNote(config, SphericalPosition{}, Tuning::EDO12, 1.0f, 0.8f, 60, SendLevels{});
   for (int i = 0; i < 8; i++) {
-    voice->render(4096);
-    CHECK(voice->isActive());
+    quiet->render(4096);
+    CHECK(quiet->isActive());
   }
 }
 
@@ -1371,4 +1376,29 @@ TEST(sf2_pitched_arc_covers_newly_added_mallet_family) {
   float ratio_low = yToWRatioAtWPeak(*voice_low, 64);
   float ratio_high = yToWRatioAtWPeak(*voice_high, 64);
   CHECK(ratio_low * ratio_high < 0.0f);
+}
+
+TEST(sf2_held_voice_that_decays_to_silence_is_reaped_without_a_note_off) {
+  // A piano-like patch: loops, decays to a sustain of "fully attenuated"
+  // (SustainVolEnv 1440 cB). Held, or simply never given a note-off, it
+  // reaches an inaudible SUSTAIN that never ends on its own; the voice
+  // would stay allocated, silent, for good.
+  std::vector<PresetSpec> presets = {
+    { "DecayingPiano", 0, { GenSpec{ 54, 1 }, GenSpec{ 36, -4000 }, GenSpec{ 37, 1440 } }, {}, /*region_count=*/3 },
+  };
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "sf2_decay_to_silence_fixture.sf2").string();
+  writeMinimalSf2(path, presets);
+
+  SoundFont sf(path);
+  ChannelConfiguration config(44100);
+  auto instrument = sf.createInstrument(0);
+  auto voice = instrument->playNote(config, SphericalPosition{}, Tuning::EDO12, 1.0f, 0.8f, 60, SendLevels{});
+  CHECK(voice->isActive());
+
+  bool became_inactive = false;
+  for (int i = 0; i < 400 && !became_inactive; i++) { // ~37 s of audio
+    voice->render(4096);
+    if (!voice->isActive()) became_inactive = true;
+  }
+  CHECK(became_inactive);
 }
