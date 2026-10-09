@@ -19,6 +19,10 @@
 // has drawn survive a republish.
 class SampleStore {
  public:
+  // A store for the views that point at nothing; it holds whatever they are
+  // given and nobody reads it.
+  static SampleStore & inert();
+
   int64_t addAsset(std::shared_ptr<AudioBuffer> buffer);
   std::shared_ptr<AudioBuffer> asset(int64_t id) const;
 

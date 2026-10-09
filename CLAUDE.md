@@ -1483,10 +1483,26 @@ would otherwise resume showing.
   `plans/undo-document-model.md`): nodes with stable ids, four journaled
   primitives, one append-only journal per song (`Song::document()`, capped at
   `Song::kJournalLimit` edits). So far the song-level scalars (tempo, swing,
-  signatures, tuning, key, scale, the room), scenes and locators live there,
-  declared once in `model/SongSchema.h` and read and written through `Song`'s
-  accessors, which stay the API. A `Song` setter opens its own `Edit` (joining
-  the caller's), so even a bare setter is journaled and published. An `Edit`
+  signatures, tuning, key, scale, the room), scenes and locators, and the
+  whole score - patterns and notes, clips (with their sample layers) and the
+  arrangement's placements and beds - live there, declared once in
+  `model/SongSchema.h`/`ScoreSchema.h`. `Song`'s accessors stay the API. The
+  score is edited through short-lived handles, `PatternView`, `ClipView`/
+  `ClipList` and `ArrangementView` (`Song::getArrangement()`/`getClips()`),
+  which read like the pointers they replaced (`->`, `if (x)`, `nullptr`) but
+  hold no content, so they cannot go stale or be copied apart from the
+  document; reads return values, never references into storage (so never bind
+  a reference to an element of one, `auto & n = view.getNotes(r)[0]`). An
+  invalid or default handle is inert: reads give defaults, writes go nowhere.
+  `Pattern`, `Clip` and `Arrangement` remain as plain value types - the
+  published copy, the clipboard, and what a loader builds before
+  `Song::addClip()`/`PatternView::assign()` puts it in the document. Sample
+  audio is not in the document: a "sample" node names an asset in
+  `SampleStore`, which also keeps the per-layer `SampleContent` (and the
+  audio thread's time-stretch work with it) and the overdub mix. Never change
+  an asset's audio in place once it is in a clip - history may bring it back. A `Song` setter - and a write through any view - opens its own
+  `Edit` if none is open (joining the caller's otherwise), so even a bare write
+  is journaled and published; a loop of them should sit in one `Edit`. An `Edit`
   with `Origin::SYNC` is a mirror of the audio thread (scene-launch tempo,
   glides, running bars): journaled but untracked, never undone on its own.
   Opening a file or constructing a song leaves no history.

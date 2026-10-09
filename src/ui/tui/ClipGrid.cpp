@@ -122,9 +122,9 @@ ClipGrid::ClipGrid(UIPlane & parent) : UIElement(parent) {
     auto slot = cursor_slot();
     if (!slot) return false;
     auto & song = getController().getSong();
-    auto & clips = song.getClips(slot->first);
+    auto clips = song.getClips(slot->first);
     if (slot->second < 0 || slot->second >= static_cast<int>(clips.size()) || clips[static_cast<size_t>(slot->second)].isEmpty()) return false;
-    clip_clipboard_ = clips[static_cast<size_t>(slot->second)];
+    clip_clipboard_ = clips[static_cast<size_t>(slot->second)].toClip();
     auto track = song.getMasterTrack().getChildByInternalId(slot->first);
     clip_clipboard_track_type_ = track ? static_cast<int>(track->getType()) : -1;
     return true;
@@ -181,10 +181,10 @@ ClipGrid::ClipGrid(UIPlane & parent) : UIElement(parent) {
     if (cursor_track_index_ < 0 || cursor_track_index_ >= static_cast<int>(track_ids.size())) return;
     auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
     auto clip_row = physicalFor(cursor_row_);
-    auto & clips = song.getClips(track_id);
+    auto clips = song.getClips(track_id);
     if (clip_row < 0 || (static_cast<size_t>(clip_row) < clips.size() && !clips[static_cast<size_t>(clip_row)].isEmpty())) return;
     Song::Edit edit(song, "toggle stop button");
-    auto & slot = song.ensureClipAt(track_id, clip_row);
+    auto slot = song.ensureClipAt(track_id, clip_row);
     slot.setStopButton(!slot.hasStopButton());
   });
   // Del, Backspace, and Ctrl-K all reach it - the same three keys this
@@ -250,7 +250,7 @@ ClipGrid::startClipRename(const Song & song, const std::vector<int> & track_ids)
   if (rowKindFor(cursor_row_) != RowKind::CLIP) return; // not on a clip row at all
   if (cursor_track_index_ < 0 || cursor_track_index_ >= static_cast<int>(track_ids.size())) return;
   auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
-  auto & clips = song.getClips(track_id);
+  auto clips = song.getClips(track_id);
   auto clip_row = physicalFor(cursor_row_); // a CLIP row's own physical offset doubles as its clip-list index
   // Same content-aware "an empty filler reads as no clip here" reasoning
   // as kill-region above - nothing to give a name to yet.
@@ -267,7 +267,7 @@ ClipGrid::startClipRename(const Song & song, const std::vector<int> & track_ids)
   // number are structural, and the trailing loop/edited icons stay too,
   // matching render()'s layout. As with a track name, the span gets a barely
   // darkened track color behind white text.
-  auto & clip = clips[static_cast<size_t>(clip_row)];
+  auto clip = clips[static_cast<size_t>(clip_row)];
   bool is_edited_clip = track_clip_source_ && track_clip_source_(track_id) == clip_row;
   auto trailing = std::max(2, 2 * ((is_edited_clip ? 1 : 0) + (clip.isLooping() ? 1 : 0)));
   auto prefix_width = 3 + static_cast<int>(std::to_string(clip_row + 1).size()) + 1; // marker + "▸ " + "N "
@@ -284,7 +284,7 @@ ClipGrid::startClipRename(const Song & song, const std::vector<int> & track_ids)
   field.backdrop = structure.getBaselineInfo(track_id).getColor().blend(0.05f, Color(0, 0, 0));
   inline_editor_.open(field, [this, track_id, clip_row](std::string text) {
     auto & target_song = getController().getSong();
-    auto & target_clips = target_song.getClips(track_id);
+    auto target_clips = target_song.getClips(track_id);
     if (static_cast<size_t>(clip_row) < target_clips.size()) {
       Song::Edit edit(target_song, "rename clip");
       target_clips[static_cast<size_t>(clip_row)].setName(std::move(text));
@@ -481,7 +481,7 @@ ClipGrid::offerInput(const InputEvent & input) {
     auto clip_index = getCursorClipIndex();
     bool on_clip = false;
     if (clip_index >= 0 && cursor_track_index_ >= 0 && cursor_track_index_ < num_tracks) {
-      auto & clips = song.getClips(track_ids[static_cast<size_t>(cursor_track_index_)]);
+      auto clips = song.getClips(track_ids[static_cast<size_t>(cursor_track_index_)]);
       on_clip = clip_index < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(clip_index)].isEmpty();
     }
     if (on_clip) startClipRename(song, track_ids);
@@ -492,11 +492,11 @@ ClipGrid::offerInput(const InputEvent & input) {
     // clip; a no-op (but still consumed) anywhere else.
     if (rowKindFor(cursor_row_) == RowKind::CLIP && cursor_track_index_ >= 0 && cursor_track_index_ < num_tracks) {
       auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
-      auto & clips = song.getClips(track_id);
+      auto clips = song.getClips(track_id);
       auto clip_row = physicalFor(cursor_row_); // a CLIP row's own physical offset doubles as its clip-list index
       if (clip_row >= 0 && static_cast<size_t>(clip_row) < clips.size() && !clips[static_cast<size_t>(clip_row)].isEmpty()) {
         auto & mutable_song = getController().getSong(); // non-const - this branch genuinely writes
-        auto & clip = mutable_song.getClips(track_id)[static_cast<size_t>(clip_row)];
+        auto clip = mutable_song.getClips(track_id)[static_cast<size_t>(clip_row)];
         Song::Edit edit(mutable_song, "toggle clip loop");
         clip.setLooping(!clip.isLooping());
       }
@@ -646,7 +646,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     auto track_id = track_ids[static_cast<size_t>(track_index)];
     auto x = vc * (kColWidth + 1);
     auto * leaf = asLeafTrack(song, track_id);
-    auto & clips = song.getClips(track_id);
+    auto clips = song.getClips(track_id);
 
     // Header (row 0, never part of the scrolled/cursor-addressable row
     // axis below) - the exact same "T<N> name" label PatternEditor's own
@@ -745,7 +745,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
         // genuinely past the list's own end.
         bool has_real_clip = clip_row < clips.size() && !clips[clip_row].isEmpty();
         if (has_real_clip) {
-          auto & clip = clips[clip_row];
+          auto clip = clips[clip_row];
           // The number as the pattern editor counts clips, then the name if it has one.
           auto name = std::to_string(clip_row + 1);
           if (!clip.getName().empty()) name += " " + clip.getName();
@@ -930,7 +930,7 @@ ClipGrid::renderMasterColumn(const StyleProvider & styles, int x, int rows, bool
       // there (launching it just stops everything).
       bool has_any_clip = false;
       for (auto track_id : track_ids) {
-        auto & clips = song.getClips(track_id);
+        auto clips = song.getClips(track_id);
         if (static_cast<size_t>(physical_row) < clips.size() && !clips[static_cast<size_t>(physical_row)].isEmpty()) has_any_clip = true;
       }
       if (!has_any_clip && !is_cursor_cell) fg = styles.window_fg_color.blend(0.5f, Color(0, 0, 0));

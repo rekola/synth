@@ -13,6 +13,22 @@ void addProp(std::vector<std::pair<std::string, doc::Value> > & props, const doc
 
 }  // namespace
 
+PatternView
+PatternView::empty() {
+  static doc::Document document;
+  static const doc::NodeId node = document.create("pattern");
+  return PatternView(&document, node);
+}
+
+PatternView
+PatternView::discarded() {
+  static doc::Document document;
+  static const doc::NodeId node = document.create("pattern");
+  PatternView view(&document, node);
+  view.assign(Pattern());
+  return view;
+}
+
 doc::NodeId
 PatternView::create(doc::Document & document) {
   return document.create("pattern");

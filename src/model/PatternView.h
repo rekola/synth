@@ -23,11 +23,26 @@
 class PatternView {
  public:
   PatternView() = default;
+  PatternView(std::nullptr_t) { }
   PatternView(doc::Document * document, doc::NodeId node) : doc_(document), node_(node) { }
 
-  bool valid() const { return doc_ && doc_->get(node_); }
+  bool valid() const { return doc_->get(node_) != nullptr; }
   doc::NodeId node() const { return node_; }
   explicit operator bool() const { return valid(); }
+
+  // A handle reads like the pointer to a pattern it replaces: `pattern->x()`,
+  // `if (pattern)`, `pattern == nullptr`. An invalid one is the null pointer.
+  PatternView * operator->() { return this; }
+  const PatternView * operator->() const { return this; }
+  bool operator==(std::nullptr_t) const { return !valid(); }
+  bool operator!=(std::nullptr_t) const { return valid(); }
+
+  // A shared pattern that is empty and stays empty: what to read when there
+  // is nothing there. Never write to it.
+  static PatternView empty();
+  // A pattern that is always empty when handed out, for a write that has
+  // nowhere to land: it is accepted and goes nowhere.
+  static PatternView discarded();
 
   // 0 = not given its own length (Pattern::getEffectiveRow()).
   int getLength() const;
@@ -87,7 +102,7 @@ class PatternView {
   Command commandOf(doc::NodeId child) const;
   void shiftRows(const char * slot, int first_row, int last_row, int delta);
 
-  doc::Document * doc_ = nullptr;
+  doc::Document * doc_ = &doc::Document::inert();
   doc::NodeId node_ = doc::kNoNode;
 };
 

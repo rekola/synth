@@ -18,7 +18,7 @@ class SampleLayerView {
   SampleLayerView() = default;
   SampleLayerView(ScoreContext context, doc::NodeId node) : context_(context), node_(node) { }
 
-  bool valid() const { return context_.document && context_.document->get(node_); }
+  bool valid() const { return context_.document->get(node_) != nullptr; }
   doc::NodeId node() const { return node_; }
 
   std::shared_ptr<AudioBuffer> getBuffer() const;
@@ -50,10 +50,17 @@ class SampleLayerView {
 class ClipView {
  public:
   ClipView() = default;
+  ClipView(std::nullptr_t) { }
   ClipView(ScoreContext context, doc::NodeId node) : context_(context), node_(node) { }
 
-  bool valid() const { return context_.document && context_.document->get(node_); }
+  bool valid() const { return context_.document->get(node_) != nullptr; }
   doc::NodeId node() const { return node_; }
+  explicit operator bool() const { return valid(); }
+  // Reads like the pointer to a clip it replaces - see PatternView.
+  ClipView * operator->() { return this; }
+  const ClipView * operator->() const { return this; }
+  bool operator==(std::nullptr_t) const { return !valid(); }
+  bool operator!=(std::nullptr_t) const { return valid(); }
 
   const std::string & getId() const { return doc::getRef(*context_.document, node_, scoreschema::kClipId); }
   void setId(std::string id) { doc::set(*context_.document, node_, scoreschema::kClipId, std::move(id)); }
@@ -74,6 +81,7 @@ class ClipView {
   bool hasSample() const;
   size_t sampleLayerCount() const;
   SampleLayerView sampleLayer(size_t index) const;
+  std::vector<SampleLayerView> getSampleLayers() const;
   // Layer 0, created if the clip has none yet.
   SampleLayerView firstSampleLayer();
   // A new, empty layer after the others (an overdub take).

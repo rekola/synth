@@ -81,13 +81,29 @@ TEST(published_song_shows_the_audio_thread_only_finished_edits) {
   CHECK(song.publishedContentIsCurrent());
 }
 
-TEST(published_song_exposes_a_write_that_skipped_the_edit) {
+TEST(a_bare_score_write_is_an_edit_of_its_own_and_is_published) {
   Song song;
   song.setContentPublished(true);
-  song.getArrangement().setNote(0, 7, 0, Note(60, 100)); // no Song::Edit
-  CHECK(!song.publishedContentIsCurrent());
-  { Song::Edit edit(song, "later edit"); }
+  auto journal = song.document().journal().size();
+  auto version = song.getMajorVersion();
+  song.getArrangement().setNote(0, 7, 0, Note(60, 100)); // no Song::Edit around it
   CHECK(song.publishedContentIsCurrent());
+  CHECK(song.readContent()->arrangement.getPatternsByTrack().count(7) == 1);
+  CHECK(song.document().journal().size() > journal);
+  CHECK(song.getMajorVersion() > version);
+}
+
+TEST(a_write_inside_an_edit_is_one_journal_entry_and_one_publish) {
+  Song song;
+  song.setContentPublished(true);
+  auto journal = song.document().journal().size();
+  auto generation = song.readContent()->generation;
+  {
+    Song::Edit edit(song, "several notes");
+    for (int row = 0; row < 8; row++) song.getArrangement().setNote(row, 3, 0, Note(60 + row, 100));
+  }
+  CHECK(song.document().journal().size() == journal + 1);
+  CHECK(song.readContent()->generation == generation + 1);
 }
 
 TEST(unpublished_song_reads_the_model_as_it_is) {

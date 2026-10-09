@@ -71,7 +71,7 @@ TEST(note_round_trips_for_a_track_with_an_explicit_textual_id) {
   auto reloaded_track = reloaded.getMasterTrack().getChildById("chords");
   CHECK(reloaded_track != nullptr);
   if (reloaded_track) {
-    auto & notes = reloaded.getArrangement().getNotes(0, reloaded_track->getInternalId());
+    auto notes = reloaded.getArrangement().getNotes(0, reloaded_track->getInternalId());
     CHECK(notes.size() == 1);
     if (notes.size() == 1) CHECK(notes[0].getValue() == 60);
   }
@@ -98,7 +98,7 @@ TEST(note_round_trips_for_a_track_with_no_explicit_id) {
   CHECK(reloaded.getMasterTrack().getChildren().size() == 1);
   auto & reloaded_track = *reloaded.getMasterTrack().getChildren()[0];
   CHECK(reloaded_track.getId() == track.getId());
-  auto & notes = reloaded.getArrangement().getNotes(0, reloaded_track.getInternalId());
+  auto notes = reloaded.getArrangement().getNotes(0, reloaded_track.getInternalId());
   CHECK(notes.size() == 1);
   if (notes.size() == 1) CHECK(notes[0].getValue() == 60);
 
@@ -118,7 +118,7 @@ TEST(overwriting_a_note_with_an_undefined_value_leaves_no_stale_row_entry) {
   Song song;
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   song.getArrangement();
-  auto & arrangement = song.getArrangement();
+  auto arrangement = song.getArrangement();
   arrangement.setNote(6, track.getInternalId(), 0, Note(60, 40));
   arrangement.setNote(6, track.getInternalId(), 0, Note());
   CHECK(arrangement.getNotes(6, track.getInternalId()).empty());
@@ -156,7 +156,7 @@ TEST(command_round_trips_for_a_track_with_an_explicit_textual_id) {
   auto reloaded_track = reloaded.getMasterTrack().getChildById("bass");
   CHECK(reloaded_track != nullptr);
   if (reloaded_track) {
-    auto & command = reloaded.getArrangement().getCommand(0, reloaded_track->getInternalId());
+    auto command = reloaded.getArrangement().getCommand(0, reloaded_track->getInternalId());
     CHECK(command.isDefined());
     CHECK(to_string(command) == "0V40");
   }
@@ -195,8 +195,8 @@ TEST(command_multi_column_round_trips_through_save_and_load) {
   auto reloaded_track = reloaded.getMasterTrack().getChildById("bass");
   CHECK(reloaded_track != nullptr);
   if (reloaded_track) {
-    auto & reloaded_command_0 = reloaded.getArrangement().getCommand(0, reloaded_track->getInternalId(), 0);
-    auto & reloaded_command_1 = reloaded.getArrangement().getCommand(0, reloaded_track->getInternalId(), 1);
+    auto reloaded_command_0 = reloaded.getArrangement().getCommand(0, reloaded_track->getInternalId(), 0);
+    auto reloaded_command_1 = reloaded.getArrangement().getCommand(0, reloaded_track->getInternalId(), 1);
     CHECK(to_string(reloaded_command_0) == "0K05");
     CHECK(to_string(reloaded_command_1) == "1V40");
   }
@@ -712,7 +712,7 @@ TEST(master_tracks_own_command_round_trips_by_its_reserved_id) {
   Song reloaded;
   CHECK(reloaded.open(scratch_path, provider));
 
-  auto & command = reloaded.getArrangement().getCommand(0, reloaded.getMasterTrack().getInternalId());
+  auto command = reloaded.getArrangement().getCommand(0, reloaded.getMasterTrack().getInternalId());
   CHECK(command.isDefined());
 
   fs::remove(scratch_path);
@@ -740,14 +740,14 @@ TEST(added_clips_are_grouped_by_track_in_the_order_added) {
   Clip walk(bass.getInternalId());
   song.addClip(std::move(walk)).setName("walk");
 
-  auto & drum_clips = song.getClips(drums.getInternalId());
+  auto drum_clips = song.getClips(drums.getInternalId());
   CHECK(drum_clips.size() == 2);
   if (drum_clips.size() == 2) {
     CHECK(drum_clips[0].getName() == "fill");
     CHECK(drum_clips[1].getName() == "groove");
   }
 
-  auto & bass_clips = song.getClips(bass.getInternalId());
+  auto bass_clips = song.getClips(bass.getInternalId());
   CHECK(bass_clips.size() == 1);
   if (bass_clips.size() == 1) CHECK(bass_clips[0].getName() == "walk");
 }
@@ -802,10 +802,10 @@ TEST(clip_round_trips_its_name_length_notes_and_command_through_save_and_load) {
   auto reloaded_track = reloaded.getMasterTrack().getChildById("drums");
   CHECK(reloaded_track != nullptr);
   if (reloaded_track) {
-    auto & clips = reloaded.getClips(reloaded_track->getInternalId());
+    auto clips = reloaded.getClips(reloaded_track->getInternalId());
     CHECK(clips.size() == 1);
     if (clips.size() == 1) {
-      auto & clip = clips[0];
+      auto clip = clips[0];
       CHECK(clip.getName() == "fill");
       CHECK(clip.getLength() == 8);
       CHECK(clip.getLeafPattern().getNote(0, 0).getValue() == 60);
@@ -840,7 +840,7 @@ TEST(a_clip_with_no_name_round_trips_with_an_empty_one) {
   auto reloaded_track = reloaded.getMasterTrack().getChildById("drums");
   CHECK(reloaded_track != nullptr);
   if (reloaded_track) {
-    auto & clips = reloaded.getClips(reloaded_track->getInternalId());
+    auto clips = reloaded.getClips(reloaded_track->getInternalId());
     CHECK(clips.size() == 1);
     if (clips.size() == 1) CHECK(clips[0].getName().empty());
   }
@@ -875,12 +875,12 @@ TEST(clips_are_independent_of_the_arrangements_inline_pattern) {
   CHECK(reloaded_track != nullptr);
   if (reloaded_track) {
     // The arrangement's own note is untouched by the clip.
-    auto & scene_notes = reloaded.getArrangement().getNotes(0, reloaded_track->getInternalId());
+    auto scene_notes = reloaded.getArrangement().getNotes(0, reloaded_track->getInternalId());
     CHECK(scene_notes.size() == 1);
     if (scene_notes.size() == 1) CHECK(scene_notes[0].getValue() == 48);
 
     // The clip is untouched by the arrangement's own note.
-    auto & clips = reloaded.getClips(reloaded_track->getInternalId());
+    auto clips = reloaded.getClips(reloaded_track->getInternalId());
     CHECK(clips.size() == 1);
     if (clips.size() == 1) CHECK(clips[0].getLeafPattern().getNote(0, 0).getValue() == 60);
   }
@@ -901,7 +901,7 @@ TEST(instance_events_round_trip_through_save_and_load) {
   Clip clip(track.getInternalId());
   clip.getLeafPattern(); // the mutable overload creates it - see Clip.h's own comment on why every real clip needs one
   auto clip_id = song.addClip(move(clip)).getId();
-  auto & arrangement = song.getArrangement();
+  auto arrangement = song.getArrangement();
   arrangement.setInstance(track.getInternalId(), 0, clip_id);
   arrangement.setInstance(track.getInternalId(), 16, "OFF");
   song.save(scratch_path);
@@ -919,7 +919,7 @@ TEST(instance_events_round_trip_through_save_and_load) {
   auto reloaded_track = reloaded.getMasterTrack().getChildById("drums");
   CHECK(reloaded_track != nullptr);
   if (reloaded_track) {
-    auto & reloaded_scene = reloaded.getArrangement();
+    auto reloaded_scene = reloaded.getArrangement();
     CHECK(reloaded_scene.getInstance(reloaded_track->getInternalId(), 0) == clip_id);
     CHECK(reloaded_scene.getInstance(reloaded_track->getInternalId(), 16) == "OFF");
     // The clip's own id survived the round trip too, so the instance
@@ -975,7 +975,7 @@ TEST(sample_clip_round_trips_through_save_and_load) {
   auto reloaded_track = reloaded.getMasterTrack().getChildById("vox");
   CHECK(reloaded_track != nullptr);
   if (reloaded_track) {
-    auto & clips = reloaded.getClips(reloaded_track->getInternalId());
+    auto clips = reloaded.getClips(reloaded_track->getInternalId());
     CHECK(clips.size() == 1);
     if (clips.size() == 1) {
       auto & reloaded_content = clips[0].getSampleContent();
@@ -1044,10 +1044,10 @@ TEST(multi_layer_sample_clip_round_trips_through_save_and_load) {
   auto reloaded_track = reloaded.getMasterTrack().getChildById("vox");
   CHECK(reloaded_track != nullptr);
   if (reloaded_track) {
-    auto & clips = reloaded.getClips(reloaded_track->getInternalId());
+    auto clips = reloaded.getClips(reloaded_track->getInternalId());
     CHECK(clips.size() == 1);
     if (clips.size() == 1) {
-      auto & layers = clips[0].getSampleLayers();
+      auto layers = clips[0].getSampleLayers();
       CHECK(layers.size() == 2);
       if (layers.size() == 2) {
         CHECK(layers[0].getBuffer() != nullptr);
@@ -1088,7 +1088,7 @@ TEST(sample_background_round_trips_through_save_and_load) {
   sample_clip.getSampleContent().setNativeSampleRate(44100); // real clips always have one by the time they're playable
   song.addClip(move(sample_clip)); // index 0
 
-  auto & arrangement = song.getArrangement();
+  auto arrangement = song.getArrangement();
   placeClipInstance(song, track.getInternalId(), 0, 0);
 
   ChannelConfiguration channel_config;
@@ -1108,7 +1108,7 @@ TEST(sample_background_round_trips_through_save_and_load) {
   auto reloaded_track = reloaded.getMasterTrack().getChildById("bed");
   CHECK(reloaded_track != nullptr);
   if (reloaded_track) {
-    auto & reloaded_scene = reloaded.getArrangement();
+    auto reloaded_scene = reloaded.getArrangement();
     auto * reloaded_content = reloaded_scene.getSampleBackgroundContent(reloaded_track->getInternalId());
     CHECK(reloaded_content != nullptr);
     if (reloaded_content) {
@@ -1354,7 +1354,7 @@ TEST(an_empty_slots_stop_button_round_trips_through_save_and_load) {
   auto reloaded_track = reloaded.getMasterTrack().getChildById("keys");
   CHECK(reloaded_track != nullptr);
   if (reloaded_track) {
-    auto & clips = reloaded.getClips(reloaded_track->getInternalId());
+    auto clips = reloaded.getClips(reloaded_track->getInternalId());
     CHECK(clips.size() == 2);
     if (clips.size() == 2) CHECK(clips[0].hasStopButton() && !clips[1].hasStopButton());
   }

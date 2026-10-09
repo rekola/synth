@@ -411,9 +411,9 @@ Controller::toggleDrumClipFocus(int track_id, int clip_index) {
   if (!track || (track->getType() != TrackType::PERCUSSION_CONTROL && track->getType() != TrackType::INSTRUMENT_CONTROL)) return false;
   if (clip_index < 0) return false;
 
-  auto & clips = song->getClips(track_id);
+  auto clips = song->getClips(track_id);
   if (clip_index < static_cast<int>(clips.size())) {
-    auto & existing = clips[static_cast<size_t>(clip_index)];
+    auto existing = clips[static_cast<size_t>(clip_index)];
     if (getFocusedClipTrackId() == track_id && getFocusedClip() == existing.getId()) {
       // Pressing this same gesture again on the clip already open for
       // editing closes it instead of doing nothing - otherwise there'd be
@@ -439,7 +439,7 @@ Controller::toggleDrumClipFocus(int track_id, int clip_index) {
     // multiple connected devices).
     auto next_ordinal = clips.size() + 1;
     auto scene = static_cast<int>(clips.size());
-    auto & clip = song->addClip(Clip(track_id));
+    auto clip = song->addClip(Clip(track_id));
     clip.setName(fmt::format("Clip {}", next_ordinal));
     clip.setLooping(true);
     clip.setLength(song->getSceneBarRows(scene)); // a bar of the scene's own time signature
@@ -1175,7 +1175,7 @@ Controller::ensureNoteRecordingClip(std::unordered_map<int, std::string> & clip_
   // ensureNoteRecordingClip() just created. extendRecordingClipsIfNeeded()
   // takes over growing it further from here as the take continues.
   clip.setLength(rows_per_bar);
-  auto & added = song->addClip(std::move(clip));
+  auto added = song->addClip(std::move(clip));
   auto clip_index = static_cast<int>(song->getClips(track_id).size()) - 1;
   placeClipInstance(*song, track_id, row, clip_index);
   clip_ids[track_id] = added.getId();
@@ -1189,7 +1189,7 @@ Controller::extendRecordingClipsIfNeeded(std::unordered_map<int, std::string> & 
 
   auto song = getCurrentSong();
   if (!song) return;
-  auto & arrangement = song->getArrangement();
+  auto arrangement = song->getArrangement();
   auto rows_per_bar = song->getArrangementBars().barRows();
 
   for (auto & [ track_id, clip_id ] : clip_ids) {
@@ -1207,20 +1207,20 @@ Controller::extendRecordingClipsIfNeeded(std::unordered_map<int, std::string> & 
     // find its own placement regardless of whether something else is
     // currently superseding it, or growth (and the overwrite below) could
     // never get past the very first obstacle in its way.
-    auto & instances = arrangement.getInstancesForTrack(track_id);
+    auto instances = arrangement.getInstancesForTrack(track_id);
     int start_row = -1;
     for (auto & [ row, id ] : instances) {
       if (id == clip_id) { start_row = row; break; }
     }
     if (start_row < 0) continue; // no longer placed at all - defensive, shouldn't happen mid-session
 
-    auto & clips = song->getClips(track_id);
+    auto clips = song->getClips(track_id);
     int clip_index = -1;
     for (size_t i = 0; i < clips.size(); i++) {
       if (clips[i].getId() == clip_id) { clip_index = static_cast<int>(i); break; }
     }
     if (clip_index < 0) continue; // the clip itself is gone - defensive
-    auto & clip = clips[static_cast<size_t>(clip_index)];
+    auto clip = clips[static_cast<size_t>(clip_index)];
 
     // Grows a full bar at a time until at least one bar of headroom
     // remains ahead of the current row - a single bounded loop (never
@@ -1264,7 +1264,7 @@ Controller::ensureClipRecordingClip(int track_id, int absolute_step, int bar_sta
   auto & take = it->second;
   auto song = getCurrentSong();
   if (!song) return -1;
-  auto & clips = song->getClips(track_id);
+  auto clips = song->getClips(track_id);
 
   if (!take.clip_ready) {
     // An already-primed origin means this is an overdub take (see
@@ -1285,8 +1285,8 @@ Controller::ensureClipRecordingClip(int track_id, int absolute_step, int bar_sta
       // clip that already had real content; a still-id-less filler gets a
       // real id/name here instead, the same "assign one if it doesn't
       // already have one" convention addClip() itself uses.
-      auto & existing = song->ensureClipAt(track_id, take.clip_index);
-      existing.getLeafPattern() = Pattern();
+      auto existing = song->ensureClipAt(track_id, take.clip_index);
+      existing.getLeafPattern().assign(Pattern());
       existing.setLength(0);
       existing.setLooping(false);
       if (existing.getId().empty()) {
@@ -1324,9 +1324,9 @@ Controller::extendClipRecordingClipIfNeeded(int track_id, int absolute_step) {
   auto & take = it->second;
   auto song = getCurrentSong();
   if (!song) return;
-  auto & clips = song->getClips(track_id);
+  auto clips = song->getClips(track_id);
   if (take.clip_index < 0 || take.clip_index >= static_cast<int>(clips.size())) return;
-  auto & clip = clips[static_cast<size_t>(take.clip_index)];
+  auto clip = clips[static_cast<size_t>(take.clip_index)];
 
   auto row = absolute_step - take.origin_step;
   auto rows_per_bar = song->barRowsAt(absolute_step);
@@ -1352,9 +1352,9 @@ Controller::trimClipRecordingClip(int track_id) {
   if (take.is_overdub) return;
   auto song = getCurrentSong();
   if (!song) return;
-  auto & clips = song->getClips(track_id);
+  auto clips = song->getClips(track_id);
   if (take.clip_index < 0 || take.clip_index >= static_cast<int>(clips.size())) return;
-  auto & clip = clips[static_cast<size_t>(take.clip_index)];
+  auto clip = clips[static_cast<size_t>(take.clip_index)];
 
   Song::Edit edit(*song, "finish take clip");
   int last_row = -1;
@@ -1384,13 +1384,13 @@ Controller::extendRecordingSampleClipIfNeeded() {
   auto song = getCurrentSong();
   if (!song) return;
   auto track_id = getRecordingTrackId();
-  auto & clips = song->getClips(track_id);
+  auto clips = song->getClips(track_id);
   int clip_index = -1;
   for (size_t i = 0; i < clips.size(); i++) {
     if (clips[i].getId() == recording_clip_id_) { clip_index = static_cast<int>(i); break; }
   }
   if (clip_index < 0) return; // defensive - shouldn't happen mid-session
-  auto & clip = clips[static_cast<size_t>(clip_index)];
+  auto clip = clips[static_cast<size_t>(clip_index)];
 
   // Same growth-loop shape as extendRecordingClipsIfNeeded() above - grows
   // a full bar at a time until at least one bar of headroom remains ahead
@@ -1435,7 +1435,7 @@ Controller::setTempo(int bpm) {
 void
 Controller::deleteClipSlot(int track_id, int clip_index) {
   auto & song = getSong();
-  auto & clips = song.getClips(track_id);
+  auto clips = song.getClips(track_id);
   // Clears any live preview/edit focus on the clip being deleted, so
   // getFocusedClip() isn't left pointing at an id nothing resolves to.
   if (clip_index >= 0 && clip_index < static_cast<int>(clips.size()) &&
@@ -1582,7 +1582,7 @@ Controller::beginSampleCapture(int track_id, int latency_frames) {
   auto song = getCurrentSong();
   if (!song || !current_sample || current_sample->numberOfFrames() == 0) return;
 
-  auto & clips = song->getClips(track_id);
+  auto clips = song->getClips(track_id);
   // Live View recording into an already-populated slot overdubs it -
   // same id/name, so anything already referencing it (an arrangement
   // instance elsewhere) keeps pointing at it, and every existing layer
@@ -1601,7 +1601,7 @@ Controller::beginSampleCapture(int track_id, int latency_frames) {
   auto take_it = clip_recording_takes_.find(track_id);
   bool is_clip_recording_take = take_it != clip_recording_takes_.end();
   bool targets_existing_slot = is_clip_recording_take && take_it->second.clip_index >= 0;
-  Clip & clip = targets_existing_slot ? song->ensureClipAt(track_id, take_it->second.clip_index) : song->addClip(Clip(track_id));
+  ClipView clip = targets_existing_slot ? song->ensureClipAt(track_id, take_it->second.clip_index) : song->addClip(Clip(track_id));
   // A target index that already had real identity (real prior content, or
   // a pre-authored-but-still-empty placeholder - Song::ensureClipAt()'s
   // own doc comment) keeps its own id/name untouched below; a genuinely
@@ -1625,7 +1625,7 @@ Controller::beginSampleCapture(int track_id, int latency_frames) {
   // was already looping/playing for this to even be an overdub in the
   // first place.
   if (!is_overdub) clip.setLooping(false);
-  auto & content = is_overdub ? clip.addSampleLayer() : clip.getSampleContent();
+  auto content = is_overdub ? clip.addSampleLayer() : clip.firstSampleLayer();
   // The *same* shared_ptr startRecording() already handed out, not a
   // copy - every later addToSample() call (mutating *current_sample in
   // place via AudioBuffer::append()) is visible through this clip's own
@@ -1693,9 +1693,9 @@ Controller::finishSampleCapture() {
   auto song = getCurrentSong();
   if (song && hasRecordingClip()) {
     auto track_id = getRecordingTrackId();
-    auto & clips = song->getClips(track_id);
+    auto clips = song->getClips(track_id);
     for (size_t i = 0; i < clips.size(); i++) {
-      auto & clip = clips[i];
+      auto clip = clips[i];
       if (clip.getId() != recording_clip_id_) continue;
 
       // The layer beginSampleCapture() just finished writing into - always
@@ -1705,7 +1705,7 @@ Controller::finishSampleCapture() {
       // armed_track_ids_ comment), never assumed to be layer 0, which for
       // an overdub is some *earlier*, already-finished take instead.
       Song::Edit edit(*song, "finish sample capture");
-      auto & content = clip.getSampleLayers().back();
+      auto content = clip.sampleLayer(clip.sampleLayerCount() - 1);
       auto total_frames = content.getBuffer() ? content.getBuffer()->numberOfFrames() : 0;
       // The lead-in trimmed off the front (recording_latency_frames_,
       // beginSampleCapture()'s own comment on what it is) was never real
@@ -1722,7 +1722,7 @@ Controller::finishSampleCapture() {
       // length was only ever a padded, ahead-of-time overshoot
       // (extendRecordingSampleClipIfNeeded()'s own per-bar growth), so it
       // always resolves to exactly the real measured length here.
-      clip.setLength(clip.getSampleLayers().size() > 1 ? std::max(clip.getLength(), measured_length) : measured_length);
+      clip.setLength(clip.sampleLayerCount() > 1 ? std::max(clip.getLength(), measured_length) : measured_length);
 
       // Rebuilds getMixedContent()'s own cache now that this take's audio
       // is final - a no-op below getMixedContent()'s own >1-layer

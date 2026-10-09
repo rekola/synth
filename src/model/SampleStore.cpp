@@ -7,6 +7,12 @@
 
 using namespace scoreschema;
 
+SampleStore &
+SampleStore::inert() {
+  static SampleStore store;
+  return store;
+}
+
 int64_t
 SampleStore::addAsset(std::shared_ptr<AudioBuffer> buffer) {
   if (!buffer) return 0;

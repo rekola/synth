@@ -16,6 +16,11 @@ struct Document::ScopeGuard {
   ~ScopeGuard() { if (active) d.implicit_scope_->end(); }
 };
 
+Document & Document::inert() {
+  static Document document;
+  return document;
+}
+
 const Value * Node::find(const std::string & key) const {
   for (auto & [ k, v ] : properties)
     if (k == key) return &v;
@@ -101,6 +106,7 @@ void Document::setProperty(NodeId id, const std::string & key, Value value) {
   Transaction t(*this);
   auto node = mutableGet(id);
   assert(node);
+  if (!node) return;
   auto it = std::find_if(node->properties.begin(), node->properties.end(), [&](auto & p) { return p.first == key; });
   Value before = it == node->properties.end() ? Value() : it->second;
   if (before == value) return;
@@ -117,7 +123,7 @@ void Document::setProperty(NodeId id, const std::string & key, Value value) {
   } else {
     node->properties.emplace_back(key, std::move(value));
   }
-  record(std::move(op));
+  if (attached(id)) record(std::move(op));
 }
 
 void Document::insertChild(NodeId parent_id, const std::string & slot, size_t index, NodeId child_id) {
@@ -126,6 +132,7 @@ void Document::insertChild(NodeId parent_id, const std::string & slot, size_t in
   auto parent = mutableGet(parent_id);
   auto child = mutableGet(child_id);
   assert(parent && child && child->parent == kNoNode && child_id != root_);
+  if (!parent || !child) return;
   auto & s = slotFor(*parent, slot);
   assert(index <= s.children.size());
   s.children.insert(s.children.begin() + static_cast<std::ptrdiff_t>(index), child_id);
@@ -137,7 +144,7 @@ void Document::insertChild(NodeId parent_id, const std::string & slot, size_t in
   op.key = slot;
   op.child = child_id;
   op.index = index;
-  record(std::move(op));
+  if (attached(parent_id)) record(std::move(op));
 }
 
 NodeId Document::removeChild(NodeId parent_id, const std::string & slot, size_t index) {
@@ -145,6 +152,7 @@ NodeId Document::removeChild(NodeId parent_id, const std::string & slot, size_t 
   Transaction t(*this);
   auto parent = mutableGet(parent_id);
   assert(parent);
+  if (!parent) return kNoNode;
   auto & s = slotFor(*parent, slot);
   assert(index < s.children.size());
   auto child_id = s.children[index];
@@ -158,7 +166,7 @@ NodeId Document::removeChild(NodeId parent_id, const std::string & slot, size_t 
   op.key = slot;
   op.child = child_id;
   op.index = index;
-  record(std::move(op));
+  if (attached(parent_id)) record(std::move(op));
   return child_id;
 }
 
@@ -168,6 +176,7 @@ void Document::moveChild(NodeId parent_id, const std::string & slot, size_t from
   Transaction t(*this);
   auto parent = mutableGet(parent_id);
   assert(parent);
+  if (!parent) return;
   auto & s = slotFor(*parent, slot);
   assert(from < s.children.size() && to < s.children.size());
   auto id = s.children[from];
@@ -179,7 +188,7 @@ void Document::moveChild(NodeId parent_id, const std::string & slot, size_t from
   op.key = slot;
   op.index = from;
   op.to = to;
-  record(std::move(op));
+  if (attached(parent_id)) record(std::move(op));
 }
 
 void Document::begin(const std::string & label, bool tracked) {

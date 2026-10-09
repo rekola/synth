@@ -22,8 +22,11 @@ class ArrangementView {
   ArrangementView() = default;
   ArrangementView(ScoreContext context, doc::NodeId node) : context_(context), node_(node) { }
 
-  bool valid() const { return context_.document && context_.document->get(node_); }
+  bool valid() const { return context_.document->get(node_) != nullptr; }
   doc::NodeId node() const { return node_; }
+  // Reads like the pointer to an arrangement it replaces - see PatternView.
+  ArrangementView * operator->() { return this; }
+  const ArrangementView * operator->() const { return this; }
 
   // ---- A track's own (background) pattern.
   int getEffectiveRow(int track_id, int row, int context_length) const;

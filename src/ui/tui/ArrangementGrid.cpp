@@ -150,7 +150,7 @@ ArrangementGrid::offerInput(const InputEvent & input) {
   else if (input.getId() == NCKEY_PGDOWN) move_cursor(getDim().first);
   else if (input.getId() == NCKEY_BACKSPACE) {
     if (cursor_track_index_ < num_tracks) {
-      auto & arrangement = song.getArrangement();
+      auto arrangement = song.getArrangement();
       auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
       auto bar_start_row = bar_row(cursor_bar_);
       auto active = resolveInstanceForBar(song, track_id, bar_start_row, bar_length(cursor_bar_));
@@ -195,7 +195,7 @@ ArrangementGrid::offerInput(const InputEvent & input) {
       auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
       auto active = resolveInstanceForBar(song, track_id, bar_row(cursor_bar_), bar_length(cursor_bar_));
       if (active.clip_index >= 0) {
-        auto & clips = song.getClips(track_id);
+        auto clips = song.getClips(track_id);
         auto clip_id = clips[static_cast<size_t>(active.clip_index)].getId();
         auto name = clips[static_cast<size_t>(active.clip_index)].getName();
         // Same "clear a stale focus rather than leave it dangling" reasoning
@@ -247,7 +247,7 @@ namespace {
 // note-on apart from a bar that's non-empty purely from note-offs/
 // aftertouch/Command data (Pattern::hasSoundingNote()'s own distinction,
 // applied per-bar instead of to a whole Pattern).
-bool barHasBackgroundContent(const Arrangement & arrangement, int track_id, int raw_row, int rows_per_bar, bool & has_sounding_note) {
+bool barHasBackgroundContent(const ArrangementView & arrangement, int track_id, int raw_row, int rows_per_bar, bool & has_sounding_note) {
   bool has_any = false;
   has_sounding_note = false;
   for (int row = raw_row; row < raw_row + rows_per_bar; row++) {
@@ -270,8 +270,8 @@ bool barHasBackgroundContent(const Arrangement & arrangement, int track_id, int 
 // answering for every later bar too). The marker glyph is drawn purely
 // because a stop is actually on this line, not because playback is
 // currently stopped here.
-bool barHasOwnStop(const Arrangement & arrangement, int track_id, int raw_row, int rows_per_bar) {
-  auto & instances = arrangement.getInstancesForTrack(track_id);
+bool barHasOwnStop(const ArrangementView & arrangement, int track_id, int raw_row, int rows_per_bar) {
+  auto instances = arrangement.getInstancesForTrack(track_id);
   auto it = instances.lower_bound(static_cast<unsigned short>(raw_row));
   return it != instances.end() && static_cast<int>(it->first) < raw_row + rows_per_bar && it->second == "OFF";
 }
@@ -391,7 +391,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
       prev_start_row[static_cast<size_t>(vc)] = above.start_row;
     }
   }
-  auto & arrangement = song.getArrangement();
+  auto arrangement = song.getArrangement();
 
   for (auto vr = 0; vr < visible_rows; vr++) {
     auto bar = scroll_row_ + vr;

@@ -44,7 +44,7 @@ struct LiveSong {
     song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
     a = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
     b = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
-    auto & arrangement = song.getArrangement();
+    auto arrangement = song.getArrangement();
     for (int row = 0; row < 16; row++) {
       arrangement.setNote(row, a, 0, Note(40 + row, 100));
       arrangement.setNote(row, b, 0, Note(70 + row, 100));

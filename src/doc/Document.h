@@ -75,11 +75,16 @@ class Document {
   Document & operator=(const Document &) = delete;
 
   NodeId root() const { return root_; }
+  // A document nothing is ever attached to, for a default-constructed view to
+  // point at: reads find nothing, writes go nowhere.
+  static Document & inert();
   const Node * get(NodeId id) const;
   bool attached(NodeId id) const;  // reachable from the root
 
   // Allocates a detached node. Not an undoable edit by itself: a detached
-  // node is invisible until an insertChild.
+  // node is invisible until an insertChild. Changes to a node (or a parent)
+  // that is not attached are not recorded either, for the same reason - a
+  // subtree is built off to the side, and attaching it is the one edit.
   NodeId create(const std::string & type);
   // Allocates a detached node that already has its properties - not
   // recorded, since an invisible node's history is nobody's business; the

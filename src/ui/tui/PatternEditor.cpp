@@ -1817,7 +1817,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	}
       } else if (column_type == ColumnType::VELOCITY || column_type == ColumnType::DELAY) {
 	if (input_hex_value != -1) {
-	  auto & notes = edit_target.pattern->getNotes(edit_target.effective_row);
+	  auto notes = edit_target.pattern->getNotes(edit_target.effective_row);
 	  auto note_column = track_info.getNoteNumber(new_cursor.col);
 	  Note note;
 	  if (note_column < static_cast<int>(notes.size())) note = notes[static_cast<size_t>(note_column)];
@@ -2934,7 +2934,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	if (is_repeat_row) c = c.blend(kFadedRowDim, black);
 	return c;
       };
-      auto & notes = read_target.pattern->getNotes(read_target.effective_row);
+      auto notes = read_target.pattern->getNotes(read_target.effective_row);
       // From the block's grid, deliberately not read_target.pattern's own
       // command column - in the arrangement a Command lives at the
       // track's background only (SongState.h's own playback masking-
@@ -3086,9 +3086,9 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  // background content, an explicit stop, and an instance whose clip
 	  // has no sample content yet (nothing to show a shape for) all keep
 	  // the plain 'x'/' ' fill.
-	  auto & clips = song.getClips(track_id);
-	  const Clip * sample_clip = (read_target.is_instance && read_target.clip_index >= 0 &&
-	    read_target.clip_index < static_cast<int>(clips.size())) ? &clips[static_cast<size_t>(read_target.clip_index)] : nullptr;
+	  auto clips = song.getClips(track_id);
+	  ClipView sample_clip = (read_target.is_instance && read_target.clip_index >= 0 &&
+	    read_target.clip_index < static_cast<int>(clips.size())) ? clips[static_cast<size_t>(read_target.clip_index)] : ClipView();
 	  auto * background = source_->sampleBackground(track_id, pattern_idx);
 	  auto background_rows = background ? background->getRowCount(song.getTempo()) : 0;
 	  if (background && pattern_row >= background_rows) background = nullptr; // past the bed's end

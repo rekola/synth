@@ -63,7 +63,7 @@ ArrangementPatternSource::sourceRows(int track_id, RowAddress anchor) const {
 void
 ArrangementPatternSource::collectTrackInfo(RowAddress, int, std::unordered_map<int, VisibleTrackInfo> & track_info) const {
   const Song & s = song();
-  auto & arrangement = s.getArrangement();
+  auto arrangement = s.getArrangement();
   arrangement.getTrackInformation(track_info);
 
   // getTrackInformation() above only scans each track's own background
@@ -73,10 +73,10 @@ ArrangementPatternSource::collectTrackInfo(RowAddress, int, std::unordered_map<i
   // note-recording session's own newly-placed clip (Controller::
   // ensureNoteRecordingClip()) included.
   for (auto & [ instance_track_id, instances ] : arrangement.getInstancesByTrack()) {
-    auto & clips = s.getClips(instance_track_id);
+    auto clips = s.getClips(instance_track_id);
     for (auto & [ instance_row, clip_id ] : instances) {
       if (clip_id == "OFF") continue;
-      for (auto & clip : clips) {
+      for (auto clip : clips) {
         if (clip.getId() != clip_id) continue;
         // A SampleTrack's own clip carries raw audio, not a Pattern.
         if (!clip.hasSample()) clip.getLeafPattern().updateSubtrackInfo(track_info[instance_track_id]);

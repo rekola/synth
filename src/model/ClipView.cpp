@@ -55,6 +55,13 @@ ClipView::sampleLayer(size_t index) const {
   return list && index < list->size() ? SampleLayerView(context_, (*list)[index]) : SampleLayerView();
 }
 
+std::vector<SampleLayerView>
+ClipView::getSampleLayers() const {
+  std::vector<SampleLayerView> layers;
+  for (size_t i = 0; i < sampleLayerCount(); i++) layers.push_back(sampleLayer(i));
+  return layers;
+}
+
 bool
 ClipView::hasSample() const {
   for (size_t i = 0; i < sampleLayerCount(); i++) {

@@ -7,7 +7,10 @@
 #include "InstrumentPool.h"
 #include "Arrangement.h"
 #include "Clip.h"
+#include "ArrangementView.h"
+#include "ClipView.h"
 #include "PlaybackContent.h"
+#include "SampleStore.h"
 #include "SongSchema.h"
 #include "../doc/Document.h"
 #include "Scale.h"
@@ -23,6 +26,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -354,8 +358,8 @@ class Song : public SongObject {
   void setCurrentTrackId(int track_id) { current_track_id_ = track_id; }
 
   // The one timeline every track's arrangement content lives on.
-  const Arrangement & getArrangement() const { return arrangement_; }
-  Arrangement & getArrangement() { return arrangement_; }
+  // A handle on the document's arrangement (see ArrangementView.h).
+  ArrangementView getArrangement() const { return ArrangementView(context(), arrangement_node_); }
 
   // Rows the arrangement can address: row keys are 16-bit.
   static constexpr int kMaxArrangementRows = 65536;
@@ -384,50 +388,24 @@ class Song : public SongObject {
   // Grouped by track already (rather than one flat list filtered per
   // lookup) since "this track's own clips, in order" is the only way
   // anything ever needs to read this back (Live View's own rows).
-  const std::vector<Clip> & getClips(int track_id) const {
-    auto it = clips_by_track_.find(track_id);
-    return it != clips_by_track_.end() ? it->second : empty_clips_;
-  }
+  ClipList getClips(int track_id) const { return ClipList(context(), track_id); }
+
+  // Every track that has a clip list (empty or not), by id.
+  std::vector<int> clipTrackIds() const;
 
   // How many clip rows (scenes) are in use: the longest clip list across
   // tracks, not counting empty slots at its end.
-  int getUsedSceneCount() const {
-    size_t used = 0;
-    for (auto & [ track_id, clips ] : clips_by_track_) {
-      for (size_t i = clips.size(); i > used; i--) {
-        if (!clips[i - 1].isEmpty()) {
-          used = i;
-          break;
-        }
-      }
-    }
-    return static_cast<int>(used);
-  }
-
-  // Mutable counterpart, for editing a clip's own content in place
-  // (ArrangementOps.h's own resolveEditTarget()).
-  std::vector<Clip> & getClips(int track_id) {
-    return clips_by_track_[track_id];
-  }
+  int getUsedSceneCount() const;
 
   // Takes an already-built Clip (its own getLeafTrackId() says which
   // track's list it joins) rather than a bare Pattern - a clip's full/
   // eventual form is one Pattern per relevant track_id, not just the
   // leaf track's own (nested Effect automation, still unbuilt), so the
   // caller is the one place that needs to know how many Patterns went
-  // into it, not this method.
-  Clip & addClip(Clip clip) {
-    Edit edit(*this, "add clip");
-    auto & clips = clips_by_track_[clip.getLeafTrackId()];
-    // Same "assign one if it doesn't already have one" convention
-    // addTrack() uses (see generateUniqueTrackId()) - a clip loaded from
-    // hand-written XML can already have picked its own id, same as a
-    // hand-written <track id="...">; one created here at runtime (or
-    // loaded from a song saved before clip ids existed at all) doesn't.
-    if (clip.getId().empty()) clip.setId(generateUniqueClipId());
-    clips.push_back(std::move(clip));
-    return clips.back();
-  }
+  // into it, not this method. A clip that has no id yet gets one (see
+  // generateUniqueTrackId()) - a clip loaded from hand-written XML can
+  // already have picked its own, one created here at runtime doesn't.
+  ClipView addClip(Clip clip);
 
   // Places (or reuses, if one already exists) a clip at exactly this
   // index within track_id's own clip list - never retargeted to
@@ -447,30 +425,13 @@ class Song : public SongObject {
   // (freshly padded or not) is returned as-is, content untouched -
   // resetting it for a fresh take is the caller's own job
   // (Controller::ensureClipRecordingClip()).
-  Clip & ensureClipAt(int track_id, int index) {
-    Edit edit(*this, "ensure clip slot");
-    auto & clips = clips_by_track_[track_id];
-    while (static_cast<int>(clips.size()) <= index) clips.push_back(Clip(track_id));
-    return clips[static_cast<size_t>(index)];
-  }
+  ClipView ensureClipAt(int track_id, int index);
 
   // Mirrors generateUniqueTrackId() below - unique across every track's
   // own clip list, not just the one a new clip is about to join, same
   // "one id namespace for the whole song" convention a track's own id
   // already uses.
-  std::string generateUniqueClipId() const {
-    for (int n = 1; ; n++) {
-      auto candidate = "clip" + std::to_string(n);
-      bool taken = false;
-      for (auto & [ track_id, clips ] : clips_by_track_) {
-        for (auto & clip : clips) {
-          if (clip.getId() == candidate) { taken = true; break; }
-        }
-        if (taken) break;
-      }
-      if (!taken) return candidate;
-    }
-  }
+  std::string generateUniqueClipId() const;
 
   void addInstrument(std::unique_ptr<Track> i) {
     Edit edit(*this, "add instrument");
@@ -591,6 +552,28 @@ private:
   doc::NodeId ensureSceneNode(int scene);  // kNoNode for a negative scene
   size_t locatorIndex(int row) const;      // first locator at or after `row`
   mutable std::unique_ptr<doc::Document> doc_ = std::make_unique<doc::Document>();
+  // The audio behind the score's "sample" nodes. A pointer so views can keep
+  // theirs when the Song moves.
+  mutable std::unique_ptr<SampleStore> samples_ = std::make_unique<SampleStore>();
+  doc::NodeId arrangement_node_ = doc::kNoNode;
+  // Makes a write that arrives with no Edit open an Edit of its own, so it
+  // is journaled and published like any other.
+  struct ImplicitEdit : doc::Document::ImplicitScope {
+    Song * song = nullptr;
+    std::optional<Edit> edit;
+    void begin() override { edit.emplace(*song, "edit"); }
+    void end() override { edit.reset(); }
+  };
+  mutable std::unique_ptr<ImplicitEdit> implicit_edit_ = std::make_unique<ImplicitEdit>();
+  // What the score's views are built from; also (re)binds the implicit
+  // edit to this Song, so a moved Song keeps working.
+  ScoreContext context() const {
+    implicit_edit_->song = const_cast<Song *>(this);
+    doc_->setImplicitScope(implicit_edit_.get());
+    return { doc_.get(), samples_.get() };
+  }
+  // The arrangement and clips as plain values, for the published copy.
+  std::unique_ptr<PlaybackContent> compileContent() const;
 
   std::unique_ptr<BusEffect> bus_slot_a_, bus_slot_b_;
   BusEffectKind bus_slot_a_kind_ = BusEffectKind::Reverb;
@@ -667,10 +650,7 @@ private:
   // Song (Controller always holds one behind a shared_ptr), so a moved-
   // from Song's now-null pointer is never dereferenced in practice.
   mutable std::unique_ptr<std::mutex> tracks_mutex_ = std::make_unique<std::mutex>();
-  Arrangement arrangement_;
-  std::unordered_map<int, std::vector<Clip> > clips_by_track_;
 
-  static inline std::vector<Clip> empty_clips_;
 };
 
 // The sidecar .wav path one layer of a SampleTrack clip's own audio reads

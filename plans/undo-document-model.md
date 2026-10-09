@@ -104,6 +104,9 @@ stops polling it.
    cache are shared between copies, not copied.
    (Slice 1 done: song scalars, scenes, locators; `SongScalars` joined the
    published copy, so the audio thread no longer reads them from `Song`.)
+   (Slice 2 done: patterns, notes, clips, sample layers, instances,
+   backgrounds. Measured on the largest song: publish ~110 us, a note-on edit
+   including its publish ~120 us, a frame of pattern reads 60-450 us.)
 3. Move storage into the document in slices, each deleting the old class and
    replacing it with a view: song scalars/locators/scenes, patterns+notes,
    clips+arrangement, tracks/sends/pool/bus. After each: build, `ctest`,

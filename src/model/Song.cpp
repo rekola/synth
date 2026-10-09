@@ -1,6 +1,7 @@
 #include "Song.h"
 
 #include <cstdlib>
+#include <set>
 
 #include "../state/SongState.h"
 
@@ -404,17 +405,84 @@ Song::scalars() const {
 
 void
 Song::publishContent() const {
+  content_publisher_->publish(compileContent());
+}
+
+std::unique_ptr<PlaybackContent>
+Song::compileContent() const {
   auto content = std::make_unique<PlaybackContent>();
   content->scalars = scalars();
-  content->arrangement = arrangement_;
-  content->clips_by_track = clips_by_track_;
-  content_publisher_->publish(std::move(content));
+  content->arrangement = getArrangement().toArrangement();
+  for (auto track_id : clipTrackIds()) {
+    auto & compiled = content->clips_by_track[track_id];
+    for (auto clip : getClips(track_id)) compiled.push_back(clip.toClip());
+  }
+  return content;
+}
+
+std::vector<int>
+Song::clipTrackIds() const {
+  std::vector<int> ids;
+  const std::string prefix = "clips:";
+  for (auto & slot : doc_->get(doc_->root())->slots) {
+    if (slot.name.compare(0, prefix.size(), prefix) == 0) ids.push_back(std::atoi(slot.name.c_str() + prefix.size()));
+  }
+  return ids;
+}
+
+int
+Song::getUsedSceneCount() const {
+  size_t used = 0;
+  for (auto track_id : clipTrackIds()) {
+    auto clips = getClips(track_id);
+    for (size_t i = clips.size(); i > used; i--) {
+      if (!clips[i - 1].isEmpty()) {
+        used = i;
+        break;
+      }
+    }
+  }
+  return static_cast<int>(used);
+}
+
+ClipView
+Song::addClip(Clip clip) {
+  Edit edit(*this, "add clip");
+  if (clip.getId().empty()) clip.setId(generateUniqueClipId());
+  auto node = ClipView::create(context(), clip.getLeafTrackId());
+  ClipView view(context(), node);
+  view.assign(clip); // off to the side, so not history
+  doc_->insertChild(doc_->root(), ClipList::slotName(clip.getLeafTrackId()), getClips(clip.getLeafTrackId()).size(), node);
+  return view;
+}
+
+ClipView
+Song::ensureClipAt(int track_id, int index) {
+  Edit edit(*this, "ensure clip slot");
+  auto clips = getClips(track_id);
+  while (static_cast<int>(clips.size()) <= index) {
+    doc_->insertChild(doc_->root(), ClipList::slotName(track_id), clips.size(), ClipView::create(context(), track_id));
+  }
+  return clips[static_cast<size_t>(index)];
+}
+
+std::string
+Song::generateUniqueClipId() const {
+  std::set<std::string> taken;
+  for (auto track_id : clipTrackIds()) {
+    for (auto clip : getClips(track_id)) taken.insert(clip.getId());
+  }
+  for (int n = 1; ; n++) {
+    auto candidate = "clip" + std::to_string(n);
+    if (!taken.count(candidate)) return candidate;
+  }
 }
 
 bool
 Song::publishedContentIsCurrent() const {
   auto content = ContentPublisher::Reader(*content_publisher_);
-  return contentDigest(content->scalars, content->arrangement, content->clips_by_track) == contentDigest(scalars(), arrangement_, clips_by_track_);
+  auto fresh = compileContent();
+  return contentDigest(content->scalars, content->arrangement, content->clips_by_track) == contentDigest(fresh->scalars, fresh->arrangement, fresh->clips_by_track);
 }
 
 // Sample rate used to construct Song's own bus-slot BusEffect instances
@@ -507,6 +575,8 @@ Song::Song(Tuning tuning, short key) {
   doc::set(*doc_, doc_->root(), songschema::kKey, static_cast<int>(key));
   resetBusToDefaults();
   loadMasterTrackParameters(MemoryParameterSource());
+  arrangement_node_ = ArrangementView::create(*doc_);
+  doc_->insertChild(doc_->root(), scoreschema::kArrangementSlot, 0, arrangement_node_);
   doc_->clearJournal();
 }
 
@@ -689,17 +759,18 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
     // <arrangement>: the one timeline - each track's inline <pattern>,
     // its placed clips (<instances>) and a SampleTrack's background bed.
     if (auto arrangement = song->FirstChildElement("arrangement")) {
-      auto & timeline = getArrangement();
+      auto timeline = getArrangement();
       for (auto it = arrangement->FirstChildElement("pattern"); it ; it = it->NextSiblingElement("pattern")) {
 	auto track_text = it->Attribute("track");
 	auto track = track_text ? resolveTrackReference(*this, track_text) : nullptr;
 	if (!track) continue;
 
-	auto & pattern = timeline.getPatternsByTrack()[track->getInternalId()];
+	Pattern pattern;
 	if (!parsePatternContent(*it, pattern, getTuningForTrack(*track), filename)) {
 	  setlocale(LC_ALL, oldLocale.c_str());
 	  return false;
 	}
+	timeline.setPatternForTrack(track->getInternalId(), pattern);
       }
 
       for (auto it = arrangement->FirstChildElement("instances"); it ; it = it->NextSiblingElement("instances")) {
@@ -734,9 +805,10 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	  setlocale(LC_ALL, oldLocale.c_str());
 	  return false;
 	}
-	auto & content = timeline.getOrCreateSampleBackgroundContent(track->getInternalId());
+	SampleContent content;
 	content.setBuffer(loaded.buffer);
 	content.setNativeSampleRate(loaded.rate);
+	timeline.setSampleBackground(track->getInternalId(), content);
       }
     }
   }
@@ -788,13 +860,14 @@ Song::save(const std::string & filename) const {
   // rather than some other, unordered collection. One <trackClips> per
   // track, grouping that track's own <clip> children rather than
   // repeating a track reference on every single one.
-  bool has_clips = std::any_of(clips_by_track_.begin(), clips_by_track_.end(),
+  auto compiled = compileContent();
+  bool has_clips = std::any_of(compiled->clips_by_track.begin(), compiled->clips_by_track.end(),
     [](auto & entry) { return !entry.second.empty(); });
   if (has_clips) {
     auto clips_element = doc.NewElement("clips");
     root->InsertEndChild(clips_element);
     for (auto track_id : getRootTrackIds()) {
-      auto & clips = getClips(track_id);
+      auto & clips = compiled->getClips(track_id);
       if (clips.empty()) continue;
 
       auto track = getMasterTrack().getChildByInternalId(track_id);
@@ -862,7 +935,7 @@ Song::save(const std::string & filename) const {
   // recorded/loaded) isn't an error, just nothing to sweep.
   {
     unordered_set<string> live_ids;
-    for (auto & [ track_id, clips ] : clips_by_track_) {
+    for (auto & [ track_id, clips ] : compiled->clips_by_track) {
       for (auto & clip : clips) {
 	// One stem per real layer, not just clip.getId() alone - a
 	// multi-layer clip's later takes live under their own suffixed
@@ -876,7 +949,7 @@ Song::save(const std::string & filename) const {
 	}
       }
     }
-    for (auto & [ track_id, background ] : getArrangement().getSampleBackgroundsByTrack()) {
+    for (auto & [ track_id, background ] : compiled->arrangement.getSampleBackgroundsByTrack()) {
       if (background.getBuffer()) live_ids.insert(sampleBackgroundStem(track_id));
     }
 
@@ -923,7 +996,7 @@ Song::save(const std::string & filename) const {
   // under one element per kind ("track" once, not on every child).
   auto arrangement_element = doc.NewElement("arrangement");
   root->InsertEndChild(arrangement_element);
-  auto & timeline = getArrangement();
+  auto & timeline = compiled->arrangement;
 
   for (auto & [ track_id, pattern ] : timeline.getPatternsByTrack()) {
     auto track = getMasterTrack().getChildByInternalId(track_id);
@@ -1168,19 +1241,20 @@ Song::setRunningBars(RunningBars running) {
 int
 Song::getArrangementLength() const {
   int end = 0;
-  for (auto & [ track_id, pattern ] : arrangement_.getPatternsByTrack()) end = std::max(end, pattern.getContentEnd());
-  for (auto & [ track_id, instances ] : arrangement_.getInstancesByTrack()) {
-    auto & clips = getClips(track_id);
+  auto arrangement = getArrangement();
+  for (auto & [ track_id, pattern ] : arrangement.getPatternsByTrack()) end = std::max(end, pattern.getContentEnd());
+  for (auto & [ track_id, instances ] : arrangement.getInstancesByTrack()) {
+    auto clips = getClips(track_id);
     for (auto & [ row, clip_id ] : instances) {
       int length = 0; // a stop ends content, nothing plays on its row
       if (clip_id != "OFF") length = 1;
-      for (auto & clip : clips) {
+      for (auto clip : clips) {
         if (clip.getId() == clip_id) { length = std::max(clip.getLength(), 1); break; }
       }
       end = std::max(end, static_cast<int>(row) + length);
     }
   }
-  for (auto & [ track_id, background ] : arrangement_.getSampleBackgroundsByTrack()) end = std::max(end, background.getRowCount(getTempo()));
+  for (auto & [ track_id, background ] : arrangement.getSampleBackgroundsByTrack()) end = std::max(end, background.getRowCount(getTempo()));
   if (auto last = getLocators(); !last.empty()) end = std::max(end, last.rbegin()->first + 1);
   return getArrangementBars().roundUpToBar(end);
 }
