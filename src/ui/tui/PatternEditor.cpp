@@ -193,7 +193,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
       auto new_max_note = max(new_track_info.num_subtracks_ - 1, 0);
       if (new_track_info.getNoteNumber(new_cursor.col) > new_max_note) {
         auto n = (new_track_info.has_note_column_ ? 1 : 0) + new_track_info.num_velocity_columns_ +
-          (new_track_info.has_delay_column_ ? 1 : 0) + (new_track_info.has_fx_column_ ? 1 : 0);
+          (new_track_info.has_delay_column_ ? 1 : 0) + (new_track_info.has_local_fx_column_ ? 1 : 0);
         new_cursor.col = new_max_note * n;
         new_cursor.subcol = 0;
       }
@@ -609,8 +609,8 @@ static void apply_baseline_track_info(const SongStructure & structure, std::unor
     info.has_note_column_ = baseline.has_note_column_;
     info.num_velocity_columns_ = baseline.num_velocity_columns_;
     info.has_delay_column_ = baseline.has_delay_column_;
-    info.has_fx_column_ = baseline.has_fx_column_;
-    info.has_effect_column_ = baseline.has_effect_column_;
+    info.has_local_fx_column_ = baseline.has_local_fx_column_;
+    info.has_track_fx_column_ = baseline.has_track_fx_column_;
     info.sample_placeholder_width_ = baseline.sample_placeholder_width_;
     info.collapsed_ = baseline.collapsed_;
     info.collapsed_content_width_ = baseline.collapsed_content_width_;
@@ -1015,10 +1015,10 @@ PatternEditor::getEffectiveSelectionBounds(const Song & song, const vector<int> 
   auto k_lo = min(start_col, current_cursor.col);
   auto k_hi = max(start_col, current_cursor.col);
 
-  auto effect_k = column_count - 1; // only meaningful when has_effect_column_
-  bool touches_command = track_info.has_effect_column_ && k_hi == effect_k;
+  auto effect_k = column_count - 1; // only meaningful when has_track_fx_column_
+  bool touches_command = track_info.has_track_fx_column_ && k_hi == effect_k;
   // At least one non-effect column falls within [k_lo, k_hi].
-  bool touches_notes = k_lo < (track_info.has_effect_column_ ? effect_k : column_count);
+  bool touches_notes = k_lo < (track_info.has_track_fx_column_ ? effect_k : column_count);
 
   if (touches_command && touches_notes) {
     // Mixing a note column with the effect column - the command applies to
@@ -1453,8 +1453,8 @@ PatternEditor::handleMouse(const InputEvent & input) {
       // A hex-digit column's cell under the pointer is what a nibble edit touches.
       auto width = 0;
       switch (it->second.getColumnType(hit->col)) {
-      case ColumnType::EFFECT: width = 4; break;
-      case ColumnType::FX: width = 3; break;
+      case ColumnType::TRACK_FX: width = 4; break;
+      case ColumnType::LOCAL_FX: width = 3; break;
       case ColumnType::VELOCITY: case ColumnType::DELAY: width = 2; break;
       default: break;
       }
@@ -1789,7 +1789,7 @@ PatternEditor::offerInput(const InputEvent & input) {
       auto edit_target = source_->edit(track_id, point);
       auto column_type = track_info.getColumnType(new_cursor.col);
 
-      if (column_type == ColumnType::EFFECT) {
+      if (column_type == ColumnType::TRACK_FX) {
 	// A Command lives in the block's grid, not necessarily where this
 	// row's notes come from - in the arrangement always the track's
 	// background, never an active Clip's own Pattern (SongState.h's own
@@ -1854,7 +1854,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	  }
 	  return true;
 	}
-      } else if (column_type == ColumnType::FX) {
+      } else if (column_type == ColumnType::LOCAL_FX) {
 	auto notes = edit_target.pattern->getNotes(edit_target.effective_row);
 	auto note_column = track_info.getNoteNumber(new_cursor.col);
 	Note note;
@@ -3054,9 +3054,9 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	// across the *whole* selected row range, not just column_highlighted's
 	// single row.
 	bool column_selected = column_scoped_selection &&
-	  ((sel_bounds.scope == SelectionScope::NOTE_COLUMN && !track_info.isEffectColumn(k) &&
+	  ((sel_bounds.scope == SelectionScope::NOTE_COLUMN && !track_info.isTrackFxColumn(k) &&
 	    track_info.getNoteNumber(k) >= sel_bounds.note_lo && track_info.getNoteNumber(k) <= sel_bounds.note_hi) ||
-	   (sel_bounds.scope == SelectionScope::COMMAND && track_info.isEffectColumn(k)));
+	   (sel_bounds.scope == SelectionScope::COMMAND && track_info.isTrackFxColumn(k)));
 	Color cur_fg = column_selected ? region_fg : fg;
 	Color cur_bg = column_selected ? region_bg : bg;
 	// A real selection (either scope) is a full, deliberate cue - cur_fg/
@@ -3133,7 +3133,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  current_pos += width;
 	} else if (track && track->getType() == TrackType::SAMPLE) {
 	  // A SampleTrack has no command column at all (SongStructure.cpp
-	  // leaves has_effect_column_ at its own default, false - there's no
+	  // leaves has_track_fx_column_ at its own default, false - there's no
 	  // Pattern behind this track for a Command to ever live in) - its
 	  // one and only column is always this waveform placeholder.
 	  cell_fg = cell_is_selected ? cur_fg : tintForPlayhead(fg);
@@ -3279,7 +3279,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  // every other color-eligible leaf track's own last column; drawing
 	  // it a second time here duplicated it.
 	  current_pos += width;
-	} else if (column_type == ColumnType::EFFECT) {
+	} else if (column_type == ColumnType::TRACK_FX) {
 	  // Falls back to cur_fg (the region's own dark foreground) when
 	  // column_selected, same reasoning as velocity/delay's own cur_fg
 	  // fallback below - command_column_color is tuned for contrast
@@ -3298,7 +3298,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	    setUnderline(false);
 	  }
 	  current_pos += 4;
-	} else if (column_type == ColumnType::FX) {
+	} else if (column_type == ColumnType::LOCAL_FX) {
 	  auto l = track_info.getNoteNumber(k);
 	  auto note = l < static_cast<int>(notes.size()) ? notes[static_cast<size_t>(l)] : Note();
 	  string s(note.isDefined() ? note.getFx() : "---");

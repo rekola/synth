@@ -63,7 +63,7 @@ TEST(song_structure_gives_a_childless_effect_its_own_ordinal_too) {
   auto & effect = song.addTrack(make_unique<Amplifier>());
   SongStructure structure(song);
   CHECK(structure.getOrdinalFor(effect) == 0);
-  CHECK(structure.getBaselineInfo(effect.getInternalId()).has_effect_column_);
+  CHECK(structure.getBaselineInfo(effect.getInternalId()).has_track_fx_column_);
   CHECK(!structure.getBaselineInfo(effect.getInternalId()).has_note_column_);
 }
 
@@ -75,7 +75,7 @@ TEST(song_structure_baseline_matches_instrument_track_own_column_settings) {
   CHECK(info.has_note_column_);
   CHECK(info.num_velocity_columns_ == 1);
   CHECK(info.has_delay_column_);
-  CHECK(info.has_effect_column_);
+  CHECK(info.has_track_fx_column_);
 }
 
 TEST(song_structure_baseline_is_a_wide_waveform_column_only_for_sample_tracks) {

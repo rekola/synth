@@ -42,9 +42,11 @@ class LeafTrack : public Track {
 
   bool showNoteColumn() const { return show_note_column_; }
   bool showVelocityColumn() const { return show_velocity_column_; }
-  bool showEffectsColumn() const { return show_effects_column_; }
+  // The track-wide effect command column (one per track).
+  bool showTrackFxColumn() const { return show_track_fx_column_; }
   bool showDelayColumn() const { return show_delay_column_; }
-  bool showFxColumn() const { return show_fx_column_; }
+  // The local fx column of each note column (Note::getFx()).
+  bool showLocalFxColumn() const { return show_local_fx_column_; }
 
   // A floor VisibleTrackInfo::num_subtracks_ (chord/polyphony note-column
   // width, derived elsewhere from actual note data - see Pattern::
@@ -74,8 +76,8 @@ private:
   bool show_note_column_ = true;
   bool show_velocity_column_ = true;
   bool show_delay_column_ = true;
-  bool show_effects_column_ = true;
-  bool show_fx_column_ = true;
+  bool show_track_fx_column_ = true;
+  bool show_local_fx_column_ = true;
 
   int min_note_columns_ = 1;
 };

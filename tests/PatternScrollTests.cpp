@@ -23,7 +23,7 @@ int contentWidth(ColumnType type) {
   case ColumnType::NOTE: return 3;
   case ColumnType::VELOCITY: return 2;
   case ColumnType::DELAY: return 2;
-  case ColumnType::EFFECT: return 4;
+  case ColumnType::TRACK_FX: return 4;
   default: return 0;
   }
 }
@@ -63,13 +63,13 @@ optional<Span> renderedSpanFor(const GridPosition & scroll, int track_index, int
 // column, which belongs to no note number.
 vector<int> highlightedColumnsFor(const VisibleTrackInfo & info, int cursor_col) {
   vector<int> result;
-  if (info.isEffectColumn(cursor_col)) {
+  if (info.isTrackFxColumn(cursor_col)) {
     result.push_back(cursor_col);
     return result;
   }
   auto note = info.getNoteNumber(cursor_col);
   for (int k = 0; k < info.getColumnCount(); k++) {
-    if (!info.isEffectColumn(k) && info.getNoteNumber(k) == note) result.push_back(k);
+    if (!info.isTrackFxColumn(k) && info.getNoteNumber(k) == note) result.push_back(k);
   }
   return result;
 }
@@ -96,7 +96,7 @@ VisibleTrackInfo makeTrackInfo(int num_subtracks, bool note, int velocity_column
   info.has_note_column_ = note;
   info.num_velocity_columns_ = velocity_columns;
   info.has_delay_column_ = delay;
-  info.has_effect_column_ = effect;
+  info.has_track_fx_column_ = effect;
   return info;
 }
 

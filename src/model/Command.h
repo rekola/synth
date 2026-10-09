@@ -49,7 +49,7 @@ class Command {
 
   // Validates and stores a single raw InputEvent::getId() codepoint into
   // values_[i], reporting whether it was accepted so the caller (only
-  // PatternEditor::offerInput()'s ColumnType::EFFECT branch) doesn't need
+  // PatternEditor::offerInput()'s ColumnType::TRACK_FX branch) doesn't need
   // to separately pre-classify input.getId() before attempting this -
   // there's exactly one authoritative definition of "valid", here, not one
   // in the caller and a second one duplicated/drifting inside this class.
