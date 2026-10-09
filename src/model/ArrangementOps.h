@@ -5,7 +5,9 @@
 #include <string>
 #include <vector>
 
+class Arrangement;
 class Clip;
+struct PlaybackContent;
 
 class Song;
 class Pattern;
@@ -158,6 +160,10 @@ struct ActiveInstance {
 // nothing was ever placed on this track at or before `row` at all (or a
 // stored id no longer resolves to any real clip).
 ActiveInstance resolveInstanceAt(const Song & song, int track_id, int row);
+// The same lookup against content already copied for playback (what the audio
+// thread uses), or against any arrangement and clip list.
+ActiveInstance resolveInstanceAt(const PlaybackContent & content, int track_id, int row);
+ActiveInstance resolveInstanceAt(const Arrangement & arrangement, const std::vector<Clip> & clips, int track_id, int row);
 
 // Bar-granularity counterpart to resolveInstanceAt(), for ArrangementGrid's
 // own overview - one cell per bar, sampled at each bar's own first row.

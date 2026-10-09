@@ -7,6 +7,7 @@
 #include "InstrumentPool.h"
 #include "Arrangement.h"
 #include "Clip.h"
+#include "PlaybackContent.h"
 #include "Scale.h"
 #include "BarGrid.h"
 #include "SceneName.h"
@@ -276,6 +277,7 @@ class Song : public SongObject {
       if (--song_.edit_depth_ > 0 || !song_.edit_wrote_) return;
       if (song_.edit_kind_ == Kind::STRUCTURE) song_.version_.incMajor();
       else song_.version_.incMinor();
+      if (song_.content_published_mode_) song_.publishContent();
     }
     Edit(const Edit &) = delete;
     Edit & operator=(const Edit &) = delete;
@@ -292,6 +294,39 @@ class Song : public SongObject {
     bool discarded_ = false;
   };
   bool inEdit() const { return edit_depth_ > 0; }
+
+  // ---- What the audio thread reads (PlaybackContent.h).
+  //
+  // Published mode (a song a Controller owns, rendered by the real-time
+  // player): the content is rebuilt and published when an outermost
+  // Song::Edit closes, so the audio thread only ever sees finished edits.
+  // Otherwise (the default - a song built and rendered on one thread, as
+  // the offline renderer and tests do) readContent() copies the model
+  // fresh on every call, so a write needs no Edit to be heard.
+  void setContentPublished(bool published) {
+    content_published_mode_ = published;
+    if (published) publishContent();
+  }
+  bool isContentPublished() const { return content_published_mode_; }
+  // Copies the arrangement and clips into a new PlaybackContent and
+  // publishes it. UI thread.
+  void publishContent() const;
+  // Audio thread: the latest published content, valid for the Reader's
+  // lifetime.
+  ContentPublisher::Reader readContent() const {
+    if (!content_published_mode_) publishContent();
+    return ContentPublisher::Reader(*content_publisher_);
+  }
+  // Fixes the content as it is now and stops rebuilding it per read; for a
+  // render that runs on one thread and does not edit the song meanwhile.
+  void pinContent() const {
+    publishContent();
+    content_published_mode_ = true;
+  }
+  // True if the published content matches the model - false means a write
+  // reached the model without closing a Song::Edit.
+  void unpinContent() const { content_published_mode_ = false; }
+  bool publishedContentIsCurrent() const;
 
   // Both counters together, for a consumer that needs to know "did
   // anything at all change" (Controller::hasUnsavedChanges()).
@@ -559,6 +594,8 @@ private:
   BusEffectKind bus_slot_b_kind_ = BusEffectKind::Delay;
 
   Version version_;
+  mutable bool content_published_mode_ = false;
+  mutable std::unique_ptr<ContentPublisher> content_publisher_ = std::make_unique<ContentPublisher>();
   int edit_depth_ = 0;
   const char * edit_label_ = "";
   Edit::Kind edit_kind_ = Edit::Kind::STRUCTURE;

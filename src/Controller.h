@@ -758,6 +758,11 @@ class Controller {
   // effect without each having to remember to. Warns about feedback the
   // first time any track starts monitoring.
   void syncMonitoring();
+  // With SYNTH_VERIFY_CONTENT set, compares each open song's published
+  // playback content with its model and says so (once) when they differ -
+  // a write that never closed a Song::Edit. Part of syncMonitoring()'s
+  // per-frame call.
+  void verifyPublishedContent();
 
   // Unlike the pair above, applies to any Track (Track::isCollapsed() is
   // generic, not LeafTrack-only) and pushes no PlaybackControlEvent -
@@ -1294,6 +1299,7 @@ class Controller {
   // syncMonitoring()'s last-sent state.
   std::string monitored_buffer_;
   std::unordered_set<int> monitored_track_ids_;
+  std::set<std::string> stale_content_warned_;
   bool monitor_feedback_warned_ = false;
   // Set by "toggle-record-arm"'s own SampleTrack branch when arming a
   // take also had to start the transport itself, so finishing/disarming

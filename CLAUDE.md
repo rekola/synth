@@ -1468,6 +1468,28 @@ would otherwise resume showing.
   silently goes stale if the binding ever changes; name the command
   instead and let the actual binding site be the only place the key
   appears).
+- Song mutation: every write to the song model happens inside a
+  `Song::Edit` scope (`model/Song.h`), one per user action - a key press, a
+  command, a pad press, a whole live take's single note. The scope is the
+  only thing that bumps the version (`incVersion()` no longer exists), and it
+  publishes the audio thread's copy (below) when the outermost one closes, so
+  an action's writes become visible together. Scopes nest; `discard()` is for
+  a scope that wrote nothing. `CONTENT` edits (note/command/velocity/delay)
+  count in the minor version, everything else in the major one. A write
+  outside any scope is a bug that leaves the audio thread on stale content;
+  run with `SYNTH_VERIFY_CONTENT=1` to have the UI say so (once per buffer)
+  when the published content no longer matches the model.
+- The audio thread never reads the live arrangement or clips: it reads
+  `PlaybackContent` (`model/PlaybackContent.h`), an immutable copy of both
+  that `Song::publishContent()` builds (~30 us for the largest song here) and
+  `ContentPublisher` hands over without locks or reference counts, freeing
+  displaced copies on the UI thread only (`SongState::renderBlock()` holds
+  one `Song::readContent()` for the block and keeps no pointer into it past
+  it - compare `SampleContent::identity()`, not addresses, across blocks).
+  A song a `Controller` owns is in published mode; a song built and rendered
+  on one thread (the offline renderer, tests) copies on every read instead,
+  so a write needs no `Edit` there. Tracks and the instrument pool are not in
+  the copy yet - they are still read live under `Song::getTracksMutex()`.
 - Cloud sessions: commit and push finished work to the session's branch
   without being asked, including plans and changes the user wants to test
   by ear - the cloud has no other way to show files, so an uncommitted

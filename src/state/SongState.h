@@ -235,6 +235,12 @@ class SongState : public TrackState {
       }
     }
 
+    // The arrangement and clips as of the last finished edit, held for this
+    // whole block (Song::readContent()). Nothing here may keep a pointer
+    // into it past the block.
+    auto content_reader = song.readContent();
+    const PlaybackContent & content = *content_reader;
+
     // Snapshotting the raw Track* pointers under Song::getTracksMutex()
     // rather than holding it for this whole method - see that mutex's own
     // comment on why one is needed at all - keeps the lock held only as
@@ -344,7 +350,7 @@ class SongState : public TrackState {
 	// NOTE_PRESSURE path the live performance itself is heard
 	// through - so recording mute is inaudible for anything the
 	// player is actually doing, only for the song's own old content.
-	if (getSamplePos() == 0) advanceLiveTracks(song, i);
+	if (getSamplePos() == 0) advanceLiveTracks(content, i);
 	if (getSamplePos() == 0 && !recording_muted_) {
 	  // pending_resume_retrigger_ only actually describes the very first
 	  // row scheduled after a (re)start - once one row here has
@@ -358,7 +364,7 @@ class SongState : public TrackState {
 	  bool row_just_resumed_playback = pending_resume_retrigger_;
 	  pending_resume_retrigger_ = false;
 
-	  auto & arrangement = song.getArrangement();
+	  auto & arrangement = content.arrangement;
 	  int row_idx = absolute_pos_;
 	  // Anything but the row after the last one scheduled - a seek, a
 	  // pattern break or a restart - lands mid-content.
@@ -415,7 +421,7 @@ class SongState : public TrackState {
 		rows_since_start = live_clock_ - live_it->second.launch_clock;
 	      }
 	    } else {
-	      active = resolveInstanceAt(song, track_id, row_idx);
+	      active = resolveInstanceAt(content, track_id, row_idx);
 	      rows_since_start = row_idx - active.start_row;
 	    }
 
@@ -439,19 +445,20 @@ class SongState : public TrackState {
 	    // or the track is taken over.
 	    if (is_sample_track) {
 	      auto * background = taken_over ? nullptr : arrangement.getSampleBackgroundContent(track_id);
+	      uint64_t background_identity = background ? background->identity() : 0;
 	      auto last_it = last_background_by_track_.find(track_id);
-	      auto * previous_background = last_it == last_background_by_track_.end() ? nullptr : last_it->second;
+	      uint64_t previous_background = last_it == last_background_by_track_.end() ? 0 : last_it->second;
 
-	      if (previous_background && previous_background != background) {
+	      if (previous_background && previous_background != background_identity) {
 		render_context_.addPendingSampleStop(track_id, i, true);
 	      }
 	      // Retriggered at this row's offset into the bed whenever playback
 	      // lands here other than by advancing one row.
-	      if (background && (background != previous_background || position_jumped || row_just_resumed_playback)) {
+	      if (background && (background_identity != previous_background || position_jumped || row_just_resumed_playback)) {
 		auto start_offset_frames = row_idx * getChannelConfiguration().getSampleInterval(tempo_);
-		render_context_.addPendingSampleStart(track_id, i, background, start_offset_frames, true);
+		render_context_.addPendingSampleStart(track_id, i, *background, start_offset_frames, true);
 	      }
-	      last_background_by_track_[track_id] = background;
+	      last_background_by_track_[track_id] = background_identity;
 	    }
 
 	    // The clip/arrangement layer - a real clip instance that was
@@ -484,7 +491,7 @@ class SongState : public TrackState {
 	    }
 
 	    if (active.clip_index >= 0) {
-	      auto & clip = song.getClips(track_id)[static_cast<size_t>(active.clip_index)];
+	      auto & clip = content.getClips(track_id)[static_cast<size_t>(active.clip_index)];
 
 	      // A SampleTrack's own clip is raw audio, not a Pattern to read
 	      // notes from - queued as a RenderContext start exactly on the
@@ -528,7 +535,7 @@ class SongState : public TrackState {
 		  // every layer, the same composite SampleTrackState::
 		  // triggerClip()'s own Live-View path already plays (see
 		  // its own comment for why this is never computed here).
-		  render_context_.addPendingSampleStart(track_id, i, &clip.getMixedContent(), start_offset_frames, false);
+		  render_context_.addPendingSampleStart(track_id, i, clip.getMixedContent(), start_offset_frames, false);
 		}
 
 		// A one-shot clip's own real audio can outlast its length -
@@ -591,7 +598,7 @@ class SongState : public TrackState {
 	  live_clock_++;
 	  if (pending_break_) {
 	    pending_break_ = false;
-            jumpToNextBar(song, pending_break_row_);
+            jumpToNextBar(pending_break_row_);
           } else {
 	    movePosition(1);
 	  }
@@ -809,7 +816,7 @@ class SongState : public TrackState {
   // row completes, go to row `row_in_bar` of the next bar (the bar's last
   // row at most). The live clock doesn't follow, so a launched clip
   // keeps its own place.
-  void jumpToNextBar(const Song & song, int row_in_bar) {
+  void jumpToNextBar(int row_in_bar) {
     auto next_bar = barsAt(absolute_pos_).nextBarStart(absolute_pos_);
     setPosition(next_bar + std::min(row_in_bar, barsAt(next_bar).barRows() - 1));
   }
@@ -1021,7 +1028,7 @@ private:
   // At the start of every row played: ends a launched one-shot that has
   // played through, and on the first row of a bar applies whatever is
   // queued.
-  void advanceLiveTracks(const Song & song, int frame) {
+  void advanceLiveTracks(const PlaybackContent & content, int frame) {
     // A launched scene's tempo and signature take effect on the bar (or
     // the first row played, from a stopped transport) the clips launch on.
     if (pending_scene_.active && (pending_scene_.immediate || barsAt(absolute_pos_).rowInBar(absolute_pos_) == 0)) applyPendingScene();
@@ -1029,7 +1036,7 @@ private:
     for (auto it = live_tracks_.begin(); it != live_tracks_.end(); ) {
       auto track_id = it->first;
       auto & live_track = it->second;
-      auto & clips = song.getClips(track_id);
+      auto & clips = content.getClips(track_id);
       if (live_track.clip_index >= 0) {
 	bool gone = live_track.clip_index >= static_cast<int>(clips.size());
 	bool finished = false;
@@ -1087,7 +1094,7 @@ private:
   // last_active_clip_index_by_track_ above, compared by identity to
   // detect a replaced bed (or none at all) and retrigger/release
   // accordingly.
-  std::unordered_map<int, const SampleContent *> last_background_by_track_;
+  std::unordered_map<int, uint64_t> last_background_by_track_;
   // The row scheduled last, to tell advancing one row from a jump.
   int last_scheduled_row_ = -2;
   // renderBlock()'s own resume/pause-release detection - the previous

@@ -452,6 +452,8 @@ Controller::toggleDrumClipFocus(int track_id, int clip_index) {
 void
 Controller::addBuffer(std::shared_ptr<Song> song, const string & name, Version saved_version) {
   saveActiveBufferState();
+  // The real-time player renders this song: it sees only finished edits.
+  song->setContentPublished(true);
   {
     std::lock_guard<std::mutex> guard(song_mutex_);
     last_saved_versions_[name] = saved_version;
@@ -589,6 +591,7 @@ Controller::switchToBuffer(const string & name) {
       // doc comment on Controller.h).
       auto song = make_shared<Song>();
       song->addTrack(make_unique<InstrumentTrack>(0));
+      song->setContentPublished(true);
       last_saved_versions_[song_id] = song->getVersion();
       songs_[song_id] = std::move(song);
       created = true;
@@ -916,7 +919,26 @@ Controller::isMonitoring(int track_id) const {
 }
 
 void
+Controller::verifyPublishedContent() {
+  static const bool enabled = std::getenv("SYNTH_VERIFY_CONTENT") != nullptr;
+  if (!enabled) return;
+  std::vector<std::pair<std::string, std::shared_ptr<Song> > > open_songs;
+  {
+    std::lock_guard<std::mutex> guard(song_mutex_);
+    for (auto & [ name, song ] : songs_) open_songs.emplace_back(name, song);
+  }
+  for (auto & [ name, song ] : open_songs) {
+    if (song->publishedContentIsCurrent()) {
+      stale_content_warned_.erase(name);
+    } else if (stale_content_warned_.insert(name).second) {
+      getUIEventQueue().push(make_unique<LogEvent>("Playback content is stale in " + name + ": a write skipped Song::Edit"));
+    }
+  }
+}
+
+void
 Controller::syncMonitoring() {
+  verifyPublishedContent();
   auto buffer = getActiveBufferName();
   auto & queue = getPlaybackEventQueue();
   if (buffer != monitored_buffer_) {

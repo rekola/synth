@@ -254,7 +254,17 @@ quantizeClip(Song & song, int track_id, int clip_index) {
 
 ActiveInstance
 resolveInstanceAt(const Song & song, int track_id, int row) {
-  auto & track_instances = song.getArrangement().getInstancesForTrack(track_id);
+  return resolveInstanceAt(song.getArrangement(), song.getClips(track_id), track_id, row);
+}
+
+ActiveInstance
+resolveInstanceAt(const PlaybackContent & content, int track_id, int row) {
+  return resolveInstanceAt(content.arrangement, content.getClips(track_id), track_id, row);
+}
+
+ActiveInstance
+resolveInstanceAt(const Arrangement & arrangement, const std::vector<Clip> & clips, int track_id, int row) {
+  auto & track_instances = arrangement.getInstancesForTrack(track_id);
   if (track_instances.empty()) return { Arrangement::kNoInstance };
 
   auto it = track_instances.upper_bound(static_cast<unsigned short>(row));
@@ -267,7 +277,6 @@ resolveInstanceAt(const Song & song, int track_id, int row) {
   // The stored id's own *current* position in the track's clip list -
   // never assumed to still be wherever it was when the instance was
   // placed (Clip.h's own comment on why).
-  auto & clips = song.getClips(track_id);
   int clip_index = -1;
   for (size_t i = 0; i < clips.size(); i++) {
     if (clips[i].getId() == clip_id) { clip_index = static_cast<int>(i); break; }

@@ -385,6 +385,20 @@ Song::removeInstrument(int index) {
   reindexInstrumentIds(*master_track_, index);
 }
 
+void
+Song::publishContent() const {
+  auto content = std::make_unique<PlaybackContent>();
+  content->arrangement = arrangement_;
+  content->clips_by_track = clips_by_track_;
+  content_publisher_->publish(std::move(content));
+}
+
+bool
+Song::publishedContentIsCurrent() const {
+  auto content = ContentPublisher::Reader(*content_publisher_);
+  return contentDigest(content->arrangement, content->clips_by_track) == contentDigest(arrangement_, clips_by_track_);
+}
+
 // Sample rate used to construct Song's own bus-slot BusEffect instances
 // (Song::bus_slot_a_/bus_slot_b_) - these exist purely to own/(de)serialize
 // their own parameters (see Song.h's own doc comment on getBusSlot()) and
@@ -701,6 +715,7 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 
   // Set the old locale before exiting
   setlocale(LC_ALL, oldLocale.c_str());
+  if (content_published_mode_) publishContent();
   return true;
 }
 

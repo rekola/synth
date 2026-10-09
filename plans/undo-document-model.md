@@ -92,7 +92,7 @@ stops polling it.
    comes before the snapshot: a snapshot published on version bumps would go
    silently stale at any site that forgets to bump, while today the audio
    thread reads the live model and hears such edits anyway.
-2. `PlaybackSnapshot`: an immutable compiled form of what `SongState` reads
+2. (done for the arrangement and clips) `PlaybackContent`: an immutable compiled form of what `SongState` reads
    (arrangement, clips, scalars, bus), published when an outermost `Edit`
    closes; `SongState` stops touching `Song` for those. Render tests must stay
    bit-identical. Tracks and the instrument pool join it with their slice in
