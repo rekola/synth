@@ -2057,6 +2057,13 @@ TerminalUI::initializeWidgets() {
   keymap_.bind(KeyChord::pack('_', true, false, false, false), "undo");
   keymap_.bind(KeyChord::pack('/', true, false, false, false), "undo");
   keymap_.bind(KeyChord::pack('_', true, true, false, false), "undo-redo");
+  // What terminals actually send for them: the single control byte 0x1f
+  // (notcurses reports it as key 31, no modifiers; with Alt in front for the
+  // redo), and in the Kitty protocol Ctrl+Shift+- for C-_.
+  keymap_.bind(KeyChord::pack(31, false, false, false, false), "undo");
+  keymap_.bind(KeyChord::pack(31, false, true, false, false), "undo-redo");
+  keymap_.bind(KeyChord::pack('-', true, false, true, false), "undo");
+  keymap_.bind(KeyChord::pack('-', true, true, true, false), "undo-redo");
   keymap_.bind(KeyChord::pack(' ', false, false, false, false), "toggle-playing");
   keymap_.bind(KeyChord::pack('[', false, false, false, false), "octave-down");
   keymap_.bind(KeyChord::pack(']', false, false, false, false), "octave-up");

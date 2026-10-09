@@ -51,6 +51,8 @@ ends that run, and the next `undo` then undoes that edit (Emacs's own rule,
 where an undo is itself an edit that can be undone). Moving the cursor or
 scrolling is not an edit and does not end the run. Both are in the Edit menu
 and M-x, and are the Launchpad's shift + Record Arm and shift + Mute.
+A terminal sends C-_ and C-/ as the same single control byte (0x1f), and
+Ctrl+Shift+- is how C-_ is typed in the Kitty protocol; all of them are bound.
 
 Only the song is undone: tempo, notes, clips and placements, tracks,
 instruments and bus effects. The view and the clipboard are not. The current
