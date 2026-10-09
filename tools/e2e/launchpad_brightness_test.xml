@@ -5,10 +5,10 @@
      Launchpad pad. -->
 <song temperament="31edo" tempo="120" patternRows="8">
   <instruments>
-    <oscillator type="sine"/>
+    <oscillator id="i1" type="sine"/>
   </instruments>
   <tracks>
-    <track id="0" instrument="0"/>
+    <track id="0" instrument="i1"/>
   </tracks>
   <arrangement>
     <pattern track="0">

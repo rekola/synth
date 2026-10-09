@@ -6,7 +6,7 @@ Every song has one shared, always-on effects bus with two slots, **A** and
 by default):
 
 ```xml
-<track id="0" instrument="0" sendA="0.3" sendB="0.5"/>
+<track id="0" instrument="i1" sendA="0.3" sendB="0.5"/>
 ```
 
 Slot B is processed first each block, then whatever it produces can

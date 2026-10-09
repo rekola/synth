@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song timeSignature="1/16" temperament="31edo" tempo="150" volume="1.0">
   <instruments>
-    <instrument from="piano.acoustic.grand" />
+    <instrument id="i1" from="piano.acoustic.grand" />
     
-    <instrument from="Electric Piano 1" />
-    <instrument from="Electric Piano 2" />
-    <instrument from="piano.electric.grand" />
-    <instrument from="piano.acoustic.grand" />
-    <instrument from="brass.synth" />
+    <instrument id="i2" from="Electric Piano 1" />
+    <instrument id="i3" from="Electric Piano 2" />
+    <instrument id="i4" from="piano.electric.grand" />
+    <instrument id="i5" from="piano.acoustic.grand" />
+    <instrument id="i6" from="brass.synth" />
   </instruments>
   
   <tracks>
-    <track id="0" instrument="0" azimuth="30" distance="0" elevation="50" volume="1.0" preset="subtle"/>
+    <track id="0" instrument="i1" azimuth="30" distance="0" elevation="50" volume="1.0" preset="subtle"/>
   </tracks>
   
   <arrangement>

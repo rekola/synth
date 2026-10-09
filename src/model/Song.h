@@ -615,6 +615,7 @@ private:
   // SongObject's shared id counter happens to be at. Never collides with
   // the master track's own reserved "master" id.
   std::string generateUniqueTrackId() const;
+  std::string generateUniqueInstrumentId() const;
 };
 
 // The sidecar .wav path one layer of a SampleTrack clip's own audio reads

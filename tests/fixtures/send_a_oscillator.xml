@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="12edo" tempo="120" timeSignature="1/16" volume="1.0">
   <instruments>
-    <envelope attack="0.01" hold="0.3" decay="0.3" sustain="0.0" release="0.05">
+    <envelope id="i1" attack="0.01" hold="0.3" decay="0.3" sustain="0.0" release="0.05">
       <oscillator type="saw"/>
     </envelope>
   </instruments>
   <tracks>
-    <track id="0" instrument="0" sendA="-6.0206"/>
+    <track id="0" instrument="i1" sendA="-6.0206"/>
   </tracks>
   <arrangement>
     <pattern track="0">

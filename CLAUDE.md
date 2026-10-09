@@ -627,8 +627,7 @@ would otherwise resume showing.
   bottom-left corner (`LaunchpadLayout::drumPadNoteForPad()`: notes 36-51 in
   order, left to right then bottom to top, the usual sampler/drum-rack
   default window - `docs/drums-and-sequencer.md`), the rest of the grid dark; there is no per-track drum list (lanes were removed - the
-  rack is the one kit, and a `<lane>` element in an old song is ignored on
-  load). A pitched track gets the isomorphic keyboard
+  rack is the one kit). A pitched track gets the isomorphic keyboard
   (`LaunchpadManager::resolveKeyboardNotes()`, `LaunchpadLayout::noteForPad()`):
   the song's key at the anchor pad at this device's octave, pads colored by
   consonance class from the tonic. The song's scale does not change the
@@ -720,9 +719,9 @@ would otherwise resume showing.
   genuinely out-of-bounds row - erasing one would shift every later
   clip's own index down, silently misaligning every other track's own
   scene rows against it). Persisted in a top-level `<clips>` element,
-  sibling to `<tracks>`/`<arrangement>` (`<trackClips track="..."><clip
-  id="..." name="..." loop="..." length="..."><pattern>...</pattern>
-  </clip></trackClips>`, one `<trackClips>` per track; an empty filler
+  sibling to `<tracks>`/`<arrangement>` (`<clip track="..." id="..."
+  name="..." loop="..." length="..."><pattern>...</pattern></clip>`, one
+  `<clip>` per clip, a track's own in order; an empty filler
   round-trips as a `<clip>` with no `<pattern>` child at all, carrying
   `stop="false"` when the slot's stop button was removed - see below). A
   `SampleTrack` clip's `<clip>` holds one `<sample file="...">` child per
@@ -1017,6 +1016,12 @@ would otherwise resume showing.
   and a fresh press look alike to the widgets (the held button repeats its
   press), so each tells them apart by the release in between; `TerminalUI`
   keeps focus on the widget the press started in until then.
+- **Song file references.** A track names its pool instrument by the
+  instrument's `id` (`instrument="i1"`; every pool entry gets one), and the arrangement places a
+  clip with `<instance track="..." row="..." clip="..."/>`, a stop being an
+  instance with no `clip`. There is no reader for earlier forms: the project
+  has no files to keep, so a format change converts the repo's songs instead. The runtime still holds a pool
+  index; the id is what the file says.
 - **Scenes** (`Song::getSceneName()`/`getSceneTempo()`/`getSceneTimeSignature()`, `<scenes><scene name="" tempo="" timeSignature="3/4"/>...</scenes>`, by position like a track's clip list, no index stored) - a scene is a clip-list row shared by every track, with an optional name, tempo and time signature, shown in the clip grid's Master column and edited with F2 there; typed text goes through `scenename::extract()` (`SceneName.h`) ("Waltz 3/4 90 BPM" splits into name, signature and tempo, "0 BPM"/"0/4" clear them, text without one keeps the existing value). `ClipPlayer::launchScene()` sends them to the audio thread as one `QUEUE_SCENE_CHANGE` event, which `SongState::queueSceneChange()` applies on the bar the clips launch on (the first row played from a stopped transport): the tempo becomes the song tempo, the signature the running signature. Each rhythm-library template carries its signature (`RhythmPatternTemplate::time_numerator`/`time_denominator`), which Add to Song gives the scene the new clip lands in when that scene has none. Details and design decisions: `docs/scenes.md`.
 - **Bars and time signatures** (`TimeSignature.h`, `BarGrid.h`, `Song`'s bar API; `docs/time_signatures.md`) - a row is a sixteenth, a signature n/d is n*16/d rows per bar and 16/d per beat (denominator 1/2/4/8/16). The song has one signature (`Song::getTimeSignature()`, `<song timeSignature="3/4">`, 4/4 unless set, `set-time-signature`) that the arrangement counts its bars in (`Song::getArrangementBars()`, a `BarGrid`: a signature counted from an origin row). A launched scene's signature is the *running signature* (`RunningBars`: signature plus origin row, the launch bar, saved as `transportTimeSignature`/`transportBarOrigin`) that overrides the song's from the origin until another scene or Back to Arrangement for every track (`ClipPlayer::returnAllToArrangement()`). The audio thread owns the running signature and the tempo a scene sets (`SongState`'s `pending_scene_`/`running_bars_`/`barsAt()`, applied in `advanceLiveTracks()` on the bar, sample-exact with the clip launches; its bar test, pattern break and `Player::scheduleMetronome()` read `barsAt()`); the UI's `Song` copies are mirrored from the snapshot by `Controller::mirrorSceneChange()` (once per `PlaybackInfo::getSceneSeq()`, so an older snapshot never overwrites a tempo edited since; `SongState` applies the song's own tempo only when the song's value changed). UI-thread consumers (clip take quantization and length, the position display, the info line) read `Song::getBarsAt()`; the arrangement grid, arrangement recording and clip placement read `getArrangementBars()`. A bar number is never `row / rows_per_bar` (`Song::getRowsPerBar()` is gone): use `BarGrid`. Live View accents come from the scene's own signature (`PatternSource::startsBar()`/`startsBeat()`).
 - **Defaults**: a fresh session opens in Live View on the clip grid

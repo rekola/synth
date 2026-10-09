@@ -4,22 +4,20 @@
      clip of E-4s placed at row 4 (shown on rows 4-7). -->
 <song temperament="12edo" tempo="120" timeSignature="1/4">
   <instruments>
-    <instrument from="string.bowed.ensemble.pizzicato" />
+    <instrument id="i1" from="string.bowed.ensemble.pizzicato" />
   </instruments>
   <tracks>
-    <track id="0" instrument="0" />
+    <track id="0" instrument="i1" />
   </tracks>
   <clips>
-    <trackClips track="0">
-      <clip id="c0" name="clip" loop="0" length="4">
-        <pattern>
-          <note row="0" velocity="80" value="E-4" />
-          <note row="1" velocity="80" value="E-4" />
-          <note row="2" velocity="80" value="E-4" />
-          <note row="3" velocity="80" value="E-4" />
-        </pattern>
-      </clip>
-    </trackClips>
+    <clip track="0" id="c0" name="clip" loop="0" length="4">
+      <pattern>
+        <note row="0" velocity="80" value="E-4" />
+        <note row="1" velocity="80" value="E-4" />
+        <note row="2" velocity="80" value="E-4" />
+        <note row="3" velocity="80" value="E-4" />
+      </pattern>
+    </clip>
   </clips>
   <arrangement>
     <pattern track="0">
@@ -40,9 +38,7 @@
       <note row="14" velocity="80" value="C-4" />
       <note row="15" velocity="80" value="C-4" />
     </pattern>
-    <instances track="0">
-      <instance row="4">c0</instance>
-      <instance row="16">OFF</instance>
-    </instances>
+    <instance track="0" row="4" clip="c0"/>
+    <instance track="0" row="16"/>
   </arrangement>
 </song>

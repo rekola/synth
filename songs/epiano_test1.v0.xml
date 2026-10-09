@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="160">
   <instruments>
-    <amplifier gain="-20">
+    <amplifier id="i1" gain="-20">
       <envelope attack="0.05" decay="2.0" sustain="0" release="0.5" name="epiano">
 	<distortion type="softclip" drive="128">
 	  <resonantFilter cut="5000" res="1">
@@ -11,15 +11,15 @@
       </envelope>
     </amplifier>
 
-    <amplifier name="Rhodes" gain="-20">
+    <amplifier id="i2" name="Rhodes" gain="-20">
       <distortion type="softclip" drive="64">
 	<instrument from="piano.electric.tine" />
       </distortion>
     </amplifier>
 
-    <instrument from="Chateau Grand" />
+    <instrument id="i3" from="Chateau Grand" />
 
-    <amplifier gain="20">
+    <amplifier id="i4" gain="20">
       <envelope attack="1" release="2" name="padtest2">
 	<resonantFilter cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
 	  <oscillator type="triangle" level="0.25" voices="16" detune="10"/>
@@ -30,11 +30,11 @@
   
   <tracks>
     <compressor threshold="-24" ratio="20" knee="15" postgain="-3">
-	<track id="melody" instrument="1" />
+	<track id="melody" instrument="i2" />
 	<amplifier gain="+20">
 	  <percussionTrack id="perc" />
 	</amplifier>
-	<track id="piano" instrument="3" />
+	<track id="piano" instrument="i4" />
     </compressor>
   </tracks>
   

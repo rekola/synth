@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="12edo" tempo="120" timeSignature="1/16" volume="1.0">
   <instruments>
-    <envelope attack="0.01" hold="0.3" decay="0.3" sustain="0.0" release="0.05">
+    <envelope id="i1" attack="0.01" hold="0.3" decay="0.3" sustain="0.0" release="0.05">
       <oscillator type="saw"/>
     </envelope>
   </instruments>
   <tracks>
     <tapeDegradation preset="tape" azimuth="0" distance="1">
-      <track id="0" instrument="0"/>
+      <track id="0" instrument="i1"/>
     </tapeDegradation>
   </tracks>
   <arrangement>

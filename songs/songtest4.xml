@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song key="C" temperament="31edo" tempo="100" volume="1.0">
   <instruments>
-    <instrument from="piano.acoustic.grand" />
+    <instrument id="i1" from="piano.acoustic.grand" />
   </instruments>
   
   <tracks>
-    <track id="0" instrument="0" sendA="-9.1186" />
+    <track id="0" instrument="i1" sendA="-9.1186" />
   </tracks>
   
   <locators>
