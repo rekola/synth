@@ -62,6 +62,37 @@ never undone. A live recording take is one step: its notes appear as they land, 
 `undo` takes the whole take back once it has ended. Undo and redo do nothing
 while a take is still recording.
 
+## Equalizer editor
+
+`edit-equalizer` (M-x, or Song > Edit Equalizer...) opens the editor for the
+equalizer that wraps the current track, or the song's first one; Enter on an
+equalizer row in the outline panel opens that one. It is a modal box with the
+combined response drawn as a smooth curve over a log-frequency axis (20 Hz to
+20 kHz, +-24 dB), a numbered marker for each of the eight bands, and a table
+of every band's type, frequency, gain and Q underneath. Edits are heard at
+once, also while the song plays.
+
+| Key | Does |
+|---|---|
+| Left / Right, 1-8, Home / End | select a band |
+| Up / Down (Shift: 3 dB steps) | gain, 0.5 dB steps |
+| Shift + Left / Right | frequency, a twelfth of an octave |
+| `[` / `]` | Q |
+| `t` / `T` | next / previous filter type |
+| Space | band on / off |
+| `r` | reset the band to its default |
+| Enter, `q`, C-g | close |
+
+The mouse selects the band nearest a click in the plot and drags it (frequency
+across, gain up and down; a filter type without gain moves sideways only); the
+wheel changes the selected band's Q (Shift: gain). A click in the table selects
+a band, and clicking the selected band's first row switches it on or off, its
+second row steps the type. One drag is one `undo` step; keys are one each.
+The editor follows the song, so an undo while it is open shows at once.
+
+Effects are still added to a song in its XML (`docs/effects.md`); there is no
+command yet to add one.
+
 ## Humanize
 
 `humanize-region` (M-x or the Edit menu, no key binding) loosens the region's

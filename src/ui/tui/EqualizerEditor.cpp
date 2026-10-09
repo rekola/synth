@@ -121,7 +121,11 @@ void EqualizerEditor::show(UIPlane & parent, int screen_rows, int screen_cols) {
   auto hint = Utf8::truncateToWidth(string(kHint), std::max(0, width_ - 6));
   auto footing = "└─ " + hint + " ";
   plane_->putstr(rows_ - 1, 0, footing + repeatUtf8("─", std::max(0, width_ - 1 - Utf8::displayWidth(footing))) + "┘");
+  string blank(static_cast<size_t>(width_ - 2), ' ');
   for (int r = 1; r < rows_ - 1; r++) {
+    setBg(*plane_, styles.window_accent_bg_color);
+    plane_->putstr(r, 1, blank);
+    setFg(*plane_, styles.window_border_color);
     plane_->putstr(r, 0, "│");
     plane_->putstr(r, width_ - 1, "│");
   }
