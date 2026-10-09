@@ -1100,7 +1100,8 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
     // exist (negative), blank for the cursor track; Arrangement view has
     // nothing before its first row.
     auto visible = std::max(rows - heading_height, 1);
-    auto margin = std::min(kScrollMargin, (visible - 1) / 2);
+    // Pointing at a row never scrolls: the margin applies again at the next key.
+    auto margin = pointer_scroll_ ? 0 : std::min(kScrollMargin, (visible - 1) / 2);
     RowAddress top{ view_block_, current_scroll_.row };
     auto line = source_->rowsBetween(top, point);
     if (line < margin) {
@@ -1436,16 +1437,29 @@ PatternEditor::handleMouse(const InputEvent & input) {
   auto [ pos_y, pos_x ] = getPosition();
   auto [ rows, cols ] = getDim();
   auto y = input.getY() - pos_y, x = input.getX() - pos_x;
+  auto heading_height = song.getMasterTrack().getDepth() + 1;
+  // A drag that reaches past the top or bottom of the rows scrolls the view
+  // along, one row per kDragScrollInterval.
+  bool past_edge = mouse_down_ && x >= 0 && x < cols && (y < heading_height || y >= rows);
+  if (past_edge) {
+    auto now = std::chrono::steady_clock::now();
+    if (now - drag_scroll_time_ < kDragScrollInterval) return true;
+    drag_scroll_time_ = now;
+    auto & info = getController().getPlaybackInfo();
+    bool transport_owns_row = info.isPlaying() && source_->cursorFollowsTransport();
+    if (!transport_owns_row && !source_->cursorLocked()) source_->moveCursor(y < heading_height ? -1 : 1);
+    return true;
+  }
   if (y < 0 || y >= rows || x < 0 || x >= cols) return false;
   if (track_ids.empty()) return true;
 
   // A held button repeating its press as the mouse moves is a drag.
   bool fresh_press = !mouse_down_;
+  pointer_scroll_ = true;
   mouse_down_ = true;
 
   // The heading has no spans of its own: it picks a track by the columns
   // the first row shows.
-  auto heading_height = song.getMasterTrack().getDepth() + 1;
   bool in_heading = y < heading_height;
   auto row_index = static_cast<size_t>(in_heading ? 0 : y - heading_height);
   if (row_index >= row_spans_.size()) return true;
@@ -1581,6 +1595,7 @@ PatternEditor::offerInputKey(const InputEvent & input) {
   if (inline_editor_.offerInput(input)) return true;
 
   if (input.getId() == NCKEY_BUTTON1) return handleMouse(input);
+  if (input.getKind() != InputEvent::Kind::RELEASE) pointer_scroll_ = false;
 
   // Cursor parked on the locator slot (Right arrow past the last
   // track's last column - see GridPosition::scope's own comment) but not
