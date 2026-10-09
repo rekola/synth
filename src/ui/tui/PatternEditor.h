@@ -198,6 +198,17 @@ protected:
   // (startLocatorEdit()).
   GridPosition current_cursor, new_cursor;
 
+  struct PendingNibbles {
+    bool valid = false;
+    int track_id = -1, note_column = 0, value = 0;
+    ColumnType type = ColumnType::VELOCITY;
+    RowAddress at;
+    bool matches(int track, int column, ColumnType t, RowAddress a) const;
+  };
+  PendingNibbles pending_;
+  void commitPendingValue();
+  bool offerInputKey(const InputEvent & input);
+
   int current_score_playing_row = 0;
   int current_score_pattern = 0;  
   int current_score_total_columns = 0;
