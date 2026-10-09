@@ -1937,19 +1937,11 @@ PatternEditor::offerInput(const InputEvent & input) {
 	    // support existed.
 	    bool has_hold_info = input.getKind() != InputEvent::Kind::UNKNOWN;
 
-	    // Realtime auto-play-while-held (mirrors LaunchpadManager's own -
-	    // see its PRESS branch for the identical reasoning): the first
-	    // held note key, while stopped, engages real transport playback
-	    // for the duration of the hold, so rows advance at the song's
-	    // actual tempo instead of everything landing on one static row.
-	    // Engaged *before* this key's own write below, so - when this is
-	    // the session-starting key - the very first row gets cleared
-	    // ahead of this note landing on it, not after.
+	    // Both views treat held keys alike: the row stays put and the cursor
+	    // steps once when the last key lifts (pending_step_). Nothing starts
+	    // the transport; only a transport that already runs moves the row.
 	    bool was_first_held_note = has_hold_info && active_keyboard_notes_.empty();
 	    if (was_first_held_note) getController().setNoteHeld(true); // before the first write: a chord is one undo step
-	    if (was_first_held_note && source_->cursorFollowsTransport() && !info.isPlaying()) {
-	      getController().startAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, last_cleared_row_, auto_record_clip_ids_);
-	    }
 
 	    if (input.hasShift()) {
 	      note_column = edit_target.pattern->pushNote(edit_target.effective_row, note);

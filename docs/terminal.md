@@ -61,7 +61,9 @@ clip grid's cursor goes to its scene and, in Live View, the pattern editor to
 the changed row (unless that track is playing).
 Changes that follow the playing song (a scene launch setting the tempo) are
 never undone. The keys of a chord are one step, however long they are held (on a terminal
-that reports key releases). A live recording take is one step: its notes appear as they land, and
+that reports key releases). Held keys behave alike in both views: the cursor
+stays on the row and steps once when the last key lifts; nothing starts the
+transport. A live recording take is one step: its notes appear as they land, and
 `undo` takes the whole take back once it has ended. Undo and redo do nothing
 while a take is still recording.
 
