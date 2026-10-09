@@ -15,6 +15,7 @@
 #include "SampleStore.h"
 #include "SongSchema.h"
 #include "../doc/Document.h"
+#include "../doc/UndoHistory.h"
 #include "Scale.h"
 #include "BarGrid.h"
 #include "SceneName.h"
@@ -308,6 +309,14 @@ class Song : public SongObject {
   };
   bool inEdit() const { return edit_depth_ > 0; }
 
+  // Undo and redo (doc/UndoHistory.h). Both return false when there is
+  // nothing to do, and always while a live take is open (the take is one
+  // undo step, taken when it ends).
+  bool canUndo() const { return !doc_->inGroup() && history_.canUndo(*doc_); }
+  bool canRedo() const { return !doc_->inGroup() && history_.canRedo(*doc_); }
+  bool undo();
+  bool redo();
+
   // ---- What the audio thread reads (PlaybackContent.h).
   //
   // Published mode (a song a Controller owns, rendered by the real-time
@@ -560,6 +569,7 @@ private:
     void begin() override { edit.emplace(*song, "edit"); }
     void end() override { edit.reset(); }
   };
+  doc::UndoHistory history_;
   mutable std::unique_ptr<ImplicitEdit> implicit_edit_ = std::make_unique<ImplicitEdit>();
   // What the score's views are built from; also (re)binds the implicit
   // edit to this Song, so a moved Song keeps working.
