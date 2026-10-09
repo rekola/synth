@@ -727,6 +727,9 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                         {"Quit", "C-x C-c", "save-buffers-kill-terminal"},
                     }},
       {"Edit", 'e', {
+                        {"Undo", "C-x u", "undo"},
+                        {"Redo", "C-M-_", "undo-redo"},
+                        {nullptr, nullptr, nullptr},
                         {"Set Mark", "C-SPC", "set-mark"},
                         {"Kill Region", "C-w", "kill-region"},
                         {"Copy", "M-w", "kill-ring-save"},
@@ -2040,6 +2043,12 @@ TerminalUI::initializeWidgets() {
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('o', false, false, false, false), "other-window");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('m', false, false, false, false), "merge-clip-to-background");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('r', false, false, false, false), "toggle-record-arm");
+  // Emacs's own undo bindings: C-x u, plus C-_ and C-/ (a terminal sends the
+  // same byte for both). undo-redo (Emacs 28) is on C-M-_.
+  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('u', false, false, false, false), "undo");
+  keymap_.bind(KeyChord::pack('_', true, false, false, false), "undo");
+  keymap_.bind(KeyChord::pack('/', true, false, false, false), "undo");
+  keymap_.bind(KeyChord::pack('_', true, true, false, false), "undo-redo");
   keymap_.bind(KeyChord::pack(' ', false, false, false, false), "toggle-playing");
   keymap_.bind(KeyChord::pack('[', false, false, false, false), "octave-down");
   keymap_.bind(KeyChord::pack(']', false, false, false, false), "octave-up");

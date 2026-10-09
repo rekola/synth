@@ -29,6 +29,8 @@ class UndoHistory {
   bool undo(Document & document);
   bool redo(Document & document);
   void finish(const Document & document);
+  // The ops the last undo or redo applied, in the order they ran.
+  const std::vector<Op> & lastOps() const { return last_ops_; }
 
  private:
   struct Link {
@@ -42,6 +44,7 @@ class UndoHistory {
   bool chainIntact(const Document & document) const;
 
   enum class Pending { NONE, UNDO, REDO };
+  std::vector<Op> last_ops_;
   Pending pending_ = Pending::NONE;
   uint64_t pending_target_ = 0;
   uint64_t before_ = 0;

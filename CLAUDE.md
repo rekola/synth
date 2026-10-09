@@ -524,7 +524,7 @@ would otherwise resume showing.
   buttons into labelled alternate functions, in every `GridMode`
   (`handleRawButton()`'s shift branch), following the Launchpad Pro MK3's own
   shift layer where it has one: Record Arm (CC19) is Undo and Mute (CC39, Pro
-  MK3 CC30) Redo (both reserved - they only say "not implemented yet"), Solo
+  MK3 CC30) Redo ("undo"/"undo-redo", see Undo below), Solo
   (CC29, Pro MK3 CC20) is the metronome click ("toggle-metronome", a click per
   beat while the transport plays, accented on the bar -
   `Player::scheduleMetronome()`; its LED is amber, bright while on), Volume
@@ -537,7 +537,8 @@ would otherwise resume showing.
   button is taken. Draw is shift + CC97 instead. Their LEDs show only those
   functions while shift is held (Duplicate cyan, Draw purple, metronome amber,
   Quantise red/green, Tempo blue, Swing orange, Delete magenta - red is
-  Quantise's own off state - Undo/Redo dim white). Shift + pad selects a clip
+  Quantise's own off state - Undo white while there is something to undo, Redo
+  white only while an undo can be taken back, dim otherwise). Shift + pad selects a clip
   without launching it (below).
   User-facing descriptions of every button live in `docs/launchpad.md`.
   95 ("Session") doubles as the
@@ -1482,6 +1483,21 @@ would otherwise resume showing.
   outside any scope is a bug that leaves the audio thread on stale content;
   run with `SYNTH_VERIFY_CONTENT=1` to have the UI say so (once per buffer)
   when the published content no longer matches the model.
+- Undo (`doc/UndoHistory.h`, `Song::undo()`/`redo()`, the `undo` and
+  `undo-redo` commands from `Controller`; bindings and the Launchpad's shift +
+  Record Arm / Mute in `docs/terminal.md`/`docs/launchpad.md`): the Emacs
+  policy over the journal. An undo appends the inverse of an earlier entry, so
+  nothing is dropped and undoing an undo is a redo; the run of undos is broken
+  only by a tracked edit (cursor moves are not edits), and `Origin::SYNC`
+  entries are passed over and never undone. It does nothing while an undo group
+  (`Document::beginGroup`) is open, which is how a live take is one step:
+  `Controller::updateUndoGroup()` holds a group open while any clip take
+  (`isAnyClipRecording()`) or auto-record session is in flight, so its notes
+  land one by one but undo as a whole, once it has ended. Note capture
+  armed while the transport rolls counts as a take too. After an undo or redo
+  `Song::lastUndoPlace()` names the track (and, for an arrangement note or
+  placement, the row) it changed, and the commands move the current track
+  there, and the transport row while stopped.
 - The song's own state lives in a DOM (`src/doc/`, plan in
   `plans/undo-document-model.md`): nodes with stable ids, four journaled
   primitives, one append-only journal per song (`Song::document()`, capped at

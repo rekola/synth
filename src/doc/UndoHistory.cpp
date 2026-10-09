@@ -57,7 +57,8 @@ bool UndoHistory::undo(Document & document) {
   pending_ = Pending::UNDO;
   pending_target_ = target->sequence;
   before_ = lastSequence(document);
-  document.apply(Document::inverse(*target));
+  last_ops_ = Document::inverse(*target);
+  document.apply(last_ops_);
   return true;
 }
 
@@ -68,7 +69,8 @@ bool UndoHistory::redo(Document & document) {
   pending_ = Pending::REDO;
   pending_target_ = chain_.back().undone_sequence;
   before_ = lastSequence(document);
-  document.apply(Document::inverse(*undo_entry));
+  last_ops_ = Document::inverse(*undo_entry);
+  document.apply(last_ops_);
   return true;
 }
 

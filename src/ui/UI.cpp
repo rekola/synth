@@ -453,6 +453,8 @@ UI::initializeCommands() {
   // works regardless of which UI widget currently has focus.
   commands_.define("merge-clip-to-background", [this]() { getController().sendCommand("merge-clip-to-background"); });
   commands_.define("toggle-record-arm", [this]() { getController().sendCommand("toggle-record-arm"); });
+  commands_.define("undo", [this]() { getController().sendCommand("undo"); });
+  commands_.define("undo-redo", [this]() { getController().sendCommand("undo-redo"); });
 
   // Clip menu entries not built yet - say so rather than failing as an
   // unknown command.

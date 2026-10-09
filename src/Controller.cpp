@@ -239,6 +239,30 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
     }
     getUIEventQueue().push(make_unique<LogEvent>("Clip merged to background"));
   });
+  // Undo and redo (Song::undo()/redo()): the same two commands from a
+  // keybinding, M-x and the Launchpad's shift layer. Both say so when there
+  // is nothing to do, and why while a live take is open.
+  // The cursor's track follows the change; so does the transport row for an
+  // arrangement note or placement, but never while the song plays.
+  auto follow = [this](Song & song) {
+    auto place = song.lastUndoPlace();
+    if (place.track_id >= 0) song.setCurrentTrackId(place.track_id);
+    if (place.row >= 0 && !getPlaybackInfo().isPlaying()) setEditPosition(place.row);
+  };
+  commands_.define("undo", [this, follow]() {
+    auto & song = getSong();
+    bool take = song.document().inGroup();
+    bool done = song.undo();
+    if (done) follow(song);
+    getUIEventQueue().push(make_unique<LogEvent>(done ? "Undo" : take ? "Undo: not while recording" : "Nothing to undo"));
+  });
+  commands_.define("undo-redo", [this, follow]() {
+    auto & song = getSong();
+    bool take = song.document().inGroup();
+    bool done = song.redo();
+    if (done) follow(song);
+    getUIEventQueue().push(make_unique<LogEvent>(done ? "Redo" : take ? "Redo: not while recording" : "Nothing to redo"));
+  });
   commands_.define("toggle-metronome", [this]() {
     setMetronomeOn(!metronome_on_);
     getUIEventQueue().push(make_unique<LogEvent>(metronome_on_ ? "Metronome on" : "Metronome off"));
@@ -953,6 +977,7 @@ Controller::verifyPublishedContent() {
 void
 Controller::syncMonitoring() {
   verifyPublishedContent();
+  updateUndoGroup(); // heals a group a take left open or could not close mid-edit
   auto buffer = getActiveBufferName();
   auto & queue = getPlaybackEventQueue();
   if (buffer != monitored_buffer_) {
@@ -1355,11 +1380,33 @@ Controller::extendClipRecordingClipIfNeeded(int track_id, int absolute_step) {
 }
 
 void
+Controller::updateUndoGroup() {
+  bool want = isAnyClipRecording() || auto_record_sessions_ > 0 || (isNoteCaptureArmed() && getPlaybackInfo().isPlaying());
+  if (want == (undo_group_song_ != nullptr)) return;
+  if (want) {
+    auto song = getCurrentSong();
+    if (!song || song->inEdit() || song->document().inGroup()) return;
+    song->document().beginGroup("record take");
+    undo_group_song_ = song;
+  } else {
+    if (undo_group_song_->inEdit()) return; // closed by the next call, from the frame loop
+    undo_group_song_->document().endGroup();
+    undo_group_song_.reset();
+  }
+}
+
+void
 Controller::trimClipRecordingClip(int track_id) {
   auto it = clip_recording_takes_.find(track_id);
   if (it == clip_recording_takes_.end()) return;
   auto take = it->second; // copied out - the map entry itself is gone below
   clip_recording_takes_.erase(it);
+  trimTakenClip(track_id, take);
+  updateUndoGroup(); // after the trim, which is part of the take
+}
+
+void
+Controller::trimTakenClip(int track_id, const ClipRecordingTake & take) {
   if (!take.clip_ready) return;
   // An overdub take never touched the clip's own length/looping state at
   // all - it was already correct, and the clip was already playing,
@@ -1479,6 +1526,8 @@ Controller::startAutoRecordSession(bool & auto_started_playback, std::set<std::p
   cleared_rows.clear();
   last_cleared_row = -1;
   clip_ids.clear();
+  auto_record_sessions_++;
+  updateUndoGroup();
 }
 
 void
@@ -1503,6 +1552,8 @@ Controller::stopAutoRecordSession(bool & auto_started_playback, std::set<std::pa
   auto_started_playback = false;
   cleared_rows.clear(); // not required for correctness (the next session's own start resets this too) - just don't hold onto a finished session's bookkeeping longer than needed
   clip_ids.clear();
+  if (auto_record_sessions_ > 0) auto_record_sessions_--;
+  updateUndoGroup();
 }
 
 void

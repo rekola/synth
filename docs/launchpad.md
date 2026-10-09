@@ -11,7 +11,7 @@ grid mode, so one can sit in Live View while another does note entry.
   launches a scene while mixer submode is off. In the shift layer, Undo, Redo
   and the click sit where Novation's Launchpad Pro MK3 puts them, and the Tempo
   and Swing views follow that device's views; the other shift functions are
-  ours. Undo and Redo only report that they are not implemented.
+  ours.
 
 ## Note mode
 
@@ -110,8 +110,8 @@ release so a combination never has to be undone.
 
 | Button | Action |
 | --- | --- |
-| Record Arm (19) | **Undo** (reserved, not implemented yet) |
-| Mute (39, Pro MK3 30) | **Redo** (reserved, not implemented yet) |
+| Record Arm (19) | **Undo** (lit while there is something to undo) |
+| Mute (39, Pro MK3 30) | **Redo** (lit only while an undo can be taken back) |
 | Solo (29, Pro MK3 20) | **Metronome** click |
 | Volume (89) | **Duplicate** |
 | Pan (79) | **Delete** |
@@ -123,9 +123,10 @@ release so a combination never has to be undone.
 | 96 (Note) | **Step edit**: open or close the selected clip's step grid |
 
 Following the Pro MK3's own shift layer, Undo, Redo and the click sit where
-Novation puts them; the rest are ours. Undo and Redo only report that they are
-not implemented. LEDs: Undo and Redo dim white, Delete magenta (red is
-Quantise's off state).
+Novation puts them; the rest are ours. Undo and Redo are the `undo` and
+`undo-redo` commands (below). LEDs: Undo white while there is something to
+undo, Redo white only while an undo can be taken back (dim otherwise), Delete
+magenta (red is Quantise's off state).
 
 #### Select a clip
 
@@ -181,8 +182,8 @@ does the same, but also puts the clip on the clipboard (see `terminal.md`).
 With the transport stopped, or when the clip is not sounding, the delete is
 instant. A clip that is playing, or queued, on its track while the transport
 runs is never pulled out from under the playhead: its track is stopped at the
-next bar, and the clip is removed once that has taken effect. There is no undo
-or confirmation. The LED is red, bright while held.
+next bar, and the clip is removed once that has taken effect. There is no
+confirmation, but `undo` brings the clip back. The LED is red, bright while held.
 
 #### Tempo and Swing views
 
