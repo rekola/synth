@@ -3101,8 +3101,8 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     // is handled below by simply skipping the per-track lookups.
     auto track_index = fallback_track_index;
 
-    Tuning tuning = song.getTuning(); // the song's own when no track is resolved
-    int key_val = song.getKey();
+    Tuning tuning = Tuning::EDO12;
+    int key_val = -1;
     unordered_map<int, float> active_note_loudness;
     bool is_percussion = false;
     bool is_step_grid_track = false; // percussion or pitched: has a split step view
