@@ -183,9 +183,9 @@ ClipGrid::ClipGrid(UIPlane & parent) : UIElement(parent) {
     auto clip_row = physicalFor(cursor_row_);
     auto & clips = song.getClips(track_id);
     if (clip_row < 0 || (static_cast<size_t>(clip_row) < clips.size() && !clips[static_cast<size_t>(clip_row)].isEmpty())) return;
+    Song::Edit edit(song, "toggle stop button");
     auto & slot = song.ensureClipAt(track_id, clip_row);
     slot.setStopButton(!slot.hasStopButton());
-    song.incVersion();
   });
   // Del, Backspace, and Ctrl-K all reach it - the same three keys this
   // app already treats as "delete something at the cursor" elsewhere
@@ -286,8 +286,8 @@ ClipGrid::startClipRename(const Song & song, const std::vector<int> & track_ids)
     auto & target_song = getController().getSong();
     auto & target_clips = target_song.getClips(track_id);
     if (static_cast<size_t>(clip_row) < target_clips.size()) {
+      Song::Edit edit(target_song, "rename clip");
       target_clips[static_cast<size_t>(clip_row)].setName(std::move(text));
-      target_song.incVersion();
     }
   });
 }
@@ -314,8 +314,8 @@ void ClipGrid::startSceneRename() {
   field.initial_text = getController().getSong().getSceneName(scene);
   inline_editor_.open(field, [this, scene](std::string text) {
     auto & target_song = getController().getSong();
+    Song::Edit edit(target_song, "edit scene");
     target_song.setSceneFromText(scene, text);
-    target_song.incVersion();
   });
 }
 
@@ -352,8 +352,8 @@ ClipGrid::startTrackRename(const Song & song, const std::vector<int> & track_ids
   inline_editor_.open(field, [this, track_id](std::string text) {
     auto & target_song = getController().getSong();
     if (auto * target = target_song.getMasterTrack().getChildByInternalId(track_id)) {
+      Song::Edit edit(target_song, "rename track");
       target->setName(std::move(text));
-      target_song.incVersion();
     }
   });
 }
@@ -497,8 +497,8 @@ ClipGrid::offerInput(const InputEvent & input) {
       if (clip_row >= 0 && static_cast<size_t>(clip_row) < clips.size() && !clips[static_cast<size_t>(clip_row)].isEmpty()) {
         auto & mutable_song = getController().getSong(); // non-const - this branch genuinely writes
         auto & clip = mutable_song.getClips(track_id)[static_cast<size_t>(clip_row)];
+        Song::Edit edit(mutable_song, "toggle clip loop");
         clip.setLooping(!clip.isLooping());
-        mutable_song.incVersion();
       }
     }
     return true;

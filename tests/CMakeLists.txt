@@ -17,6 +17,7 @@ add_executable(synth_tests
 	SubcellGlyphsTests.cpp
 	MarkdownTests.cpp
 	DocumentTests.cpp
+	SongEditTests.cpp
 	MetronomeTests.cpp
 	AudioBufferTests.cpp
 	ChannelBankTests.cpp

@@ -63,7 +63,7 @@ void placeStopInstance(Song & song, int track_id, int row);
 // placement covers (a looping one up to the track's next event, or the
 // arrangement's end), then removes that one placement (placeStopInstance() above) -
 // not the clip itself, which may still be placed/reused elsewhere and
-// stays in the pool regardless. Never calls Song::incVersion() itself,
+// stays in the pool regardless. Never opens a Song::Edit itself,
 // same as placeClipInstance()/placeStopInstance() above - the caller's
 // job, gated on this function's own return value (true iff something was
 // actually merged) so a no-op call doesn't bump the song version or claim

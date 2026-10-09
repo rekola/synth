@@ -126,7 +126,7 @@ class Song : public SongObject {
   // How late the second eighth of every pair plays (swing.h), in percent of
   // the pair: 50 straight, about 67 triplet swing. Applied at playback to
   // everything scheduled, never baked into note data. Callers editing it
-  // live also call incVersion(), which is how the audio thread notices.
+  // live do it inside a Song::Edit, which is how the audio thread notices.
   int getSwing() const { return swing_; }
   void setSwing(int percent) { swing_ = swing::clamp(percent); }
 
@@ -134,8 +134,8 @@ class Song : public SongObject {
   //
   // The song's own time signature (<song timeSignature="3/4">, 4/4 unless
   // set): the arrangement counts its bars in it from row 0 - its grid, bar
-  // accents, where a clip is placed. Callers editing it also call
-  // incVersion().
+  // accents, where a clip is placed. Callers editing it do it inside a
+  // Song::Edit.
   TimeSignature getTimeSignature() const { return time_signature_; }
   void setTimeSignature(TimeSignature signature) {
     if (signature.isSet() && TimeSignature::validDenominator(signature.denominator)) time_signature_ = signature;
@@ -238,16 +238,14 @@ class Song : public SongObject {
     setBusSlotKind(1, BusEffectKind::Delay);
   }
 
-  void incVersion() { version_.incMajor(); }
   // A consumer that only cares about *structural* change (SongStructure
   // rebuilds, PatternEditor's own full-grid redraw trigger) reads this
   // instead of getVersion(), so it doesn't pay for every keystroke.
   int getMajorVersion() const { return version_.getMajor(); }
 
-  // Note/command/velocity/delay content edits (PatternEditor.cpp's own
-  // row_edited sites) - kept apart from incVersion() so structural-only
-  // consumers aren't disturbed by them.
-  void incMinorVersion() { version_.incMinor(); }
+  // Note/command/velocity/delay content edits (Edit::Kind::CONTENT) are
+  // counted apart from structural ones, so structural-only consumers aren't
+  // disturbed by them.
   int getMinorVersion() const { return version_.getMinor(); }
 
   // One user action's worth of mutations. Opens before the first write and
@@ -264,33 +262,34 @@ class Song : public SongObject {
    public:
     enum class Kind { CONTENT, STRUCTURE };
 
-    Edit(Song & song, const char * label, Kind kind = Kind::STRUCTURE) : song_(song), outermost_(song.edit_depth_ == 0) {
+    Edit(Song & song, const char * label, Kind kind = Kind::STRUCTURE) : song_(song) {
       if (song_.edit_depth_++ == 0) {
 	song_.edit_label_ = label;
 	song_.edit_kind_ = kind;
-	song_.edit_discarded_ = false;
+	song_.edit_wrote_ = false;
       } else if (kind == Kind::STRUCTURE) {
 	song_.edit_kind_ = Kind::STRUCTURE;
       }
     }
     ~Edit() {
-      if (--song_.edit_depth_ > 0 || song_.edit_discarded_) return;
+      if (!discarded_) song_.edit_wrote_ = true;
+      if (--song_.edit_depth_ > 0 || !song_.edit_wrote_) return;
       if (song_.edit_kind_ == Kind::STRUCTURE) song_.version_.incMajor();
       else song_.version_.incMinor();
     }
     Edit(const Edit &) = delete;
     Edit & operator=(const Edit &) = delete;
 
-    // Nothing was written after all (a no-op press): leave the version alone.
-    // Only the outermost scope can say so; an inner one may not know what
-    // its callers wrote.
-    void discard() { if (outermost_) song_.edit_discarded_ = true; }
+    // This scope wrote nothing after all (a no-op press): it adds nothing to
+    // the version bump. The outermost scope still bumps if any scope inside
+    // it wrote.
+    void discard() { discarded_ = true; }
     // The write turned out to be structural.
     void escalate() { song_.edit_kind_ = Kind::STRUCTURE; }
 
    private:
     Song & song_;
-    bool outermost_;
+    bool discarded_ = false;
   };
   bool inEdit() const { return edit_depth_ > 0; }
 
@@ -563,7 +562,7 @@ private:
   int edit_depth_ = 0;
   const char * edit_label_ = "";
   Edit::Kind edit_kind_ = Edit::Kind::STRUCTURE;
-  bool edit_discarded_ = false;
+  bool edit_wrote_ = false;
   int current_track_id_ = -1;
 
   InstrumentPool instrument_pool_;

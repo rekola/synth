@@ -671,6 +671,7 @@ LaunchpadManager::recordFaderAutomationIfArmed(Controller & controller, FaderSta
     pattern = &song.getArrangement().getPatternsByTrack()[track_id];
     row = playback_info.getAbsolutePosition();
   }
+  Song::Edit edit(song, "record fader automation", Song::Edit::Kind::CONTENT);
   if (fader.automation_pattern == pattern && fader.automation_row == row && fader.automation_column >= 0) {
     pattern->setCommand(row, fader.automation_column, command);
   } else {
@@ -678,7 +679,6 @@ LaunchpadManager::recordFaderAutomationIfArmed(Controller & controller, FaderSta
     fader.automation_pattern = pattern;
     fader.automation_row = row;
   }
-  song.incMinorVersion();
 }
 
 LaunchpadManager::DeviceState &
@@ -1798,8 +1798,8 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
       // not current_delay, which reads the global transport's own delay
       // tracking - meaningless while it never advances during one.
       Note note(note_value, velocity, clip_recording_here ? static_cast<short>(take_step.delay) : current_delay);
+      Song::Edit edit(song, "record note");
       edit_target.pattern->setNote(edit_target.effective_row, note_column, note);
-      song.incVersion();
     }
 
     if (controller.isMonitoring(track_id)) {
@@ -1827,8 +1827,8 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
              isColumnLiveHeld(fan_out_track_id, fan_out_column)) {
         fan_out_column++;
       }
+      Song::Edit edit(song, "record note");
       fan_out_pattern.setNote(fan_out_session_row, fan_out_column, Note(note_value, velocity, static_cast<short>(take_step.delay)));
-      song.incVersion();
       if (controller.isMonitoring(fan_out_track_id)) {
         event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), fan_out_track_id, fan_out_column, note_value, velocity));
       }
@@ -1886,8 +1886,8 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
         if (release_row >= 0 && release_row != held.row &&
             clip_index >= 0 && clip_index < static_cast<int>(clips.size())) {
           auto & clip = clips[static_cast<size_t>(clip_index)];
+          Song::Edit edit(song, "record note release");
           clip.getLeafPattern().setNote(release_row % std::max(1, clip.getLength()), held.note_column, Note(0, 0, static_cast<short>(take_step.delay)));
-          song.incVersion();
         }
       } else if (state.capture_enabled && info.isPlaying()) {
         // Live performance recording: write an explicit OFF at the row the
@@ -2001,10 +2001,11 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
       }
       // Live modulation always happens, whether or not Capture records it,
       // and plays the same row average that gets recorded.
+      Song::Edit edit(song, "note pressure");
+      if (!write_pressure) edit.discard();
       auto pressure = controller.notePressure(row, held_track, column, static_cast<short>(ev.getVelocity()), delay, write_row, current_row);
       event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, controller.getActiveBufferName(), held_track, column, note_value, pressure));
     }
-    if (write_pressure) song.incVersion();
   }
 }
 
@@ -2165,6 +2166,7 @@ LaunchpadManager::handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & co
     EditTarget off_target { nullptr, 0 };
     if (pitched && row + 1 < length) off_target = resolveEditTarget(song, track_id, row + 1, controller.getFocusedClip());
 
+    Song::Edit edit(song, "toggle step");
     if (was_hit) {
       edit_target.pattern->deleteNote(edit_target.effective_row, existing_column);
       if (off_target.pattern) {
@@ -2182,7 +2184,6 @@ LaunchpadManager::handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & co
         }
       }
     }
-    song.incVersion();
 
     // Only a step just set is auditioned - one being removed has nothing
     // left to want to hear. Fixed velocity: no per-step velocity here.

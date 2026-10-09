@@ -232,8 +232,11 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
     auto & song = getSong();
     auto track_id = song.getCurrentTrackId();
     if (track_id < 0) return;
-    if (!mergeClipToBackground(song, track_id, playback_info.getAbsolutePosition(), getChannelConfiguration())) return;
-    song.incVersion();
+    Song::Edit edit(song, "merge clip to background");
+    if (!mergeClipToBackground(song, track_id, playback_info.getAbsolutePosition(), getChannelConfiguration())) {
+      edit.discard();
+      return;
+    }
     getUIEventQueue().push(make_unique<LogEvent>("Clip merged to background"));
   });
   commands_.define("toggle-metronome", [this]() {
@@ -246,8 +249,8 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
   commands_.define("swing-decrease", [this]() { setSwing(getSong().getSwing() - 1); });
   commands_.define("toggle-record-quantize", [this]() {
     auto & song = getSong();
+    Song::Edit edit(song, "toggle record quantize");
     song.setRecordQuantize(!song.getRecordQuantize());
-    song.incVersion();
     getUIEventQueue().push(make_unique<LogEvent>(song.getRecordQuantize() ? "Record quantise on" : "Record quantise off"));
   });
   // One Record Arm for every track type, reachable from a Launchpad
@@ -780,8 +783,8 @@ void Controller::mirrorSceneChange(const string & buffer_name, const PlaybackInf
   if (!song) return;
   song->setRunningBars(info.getRunningBars());
   if (info.getTempo() > 0 && info.getTempo() != song->getTempo()) {
+    Song::Edit edit(*song, "scene tempo");
     song->setTempo(static_cast<short>(info.getTempo()));
-    song->incVersion();
     if (buffer_name == active_buffer_name_) getUIEventQueue().push(make_unique<LogEvent>("Tempo " + to_string(song->getTempo())));
   }
 }
@@ -807,7 +810,7 @@ Controller::syncLiveGlideStateIntoModel(const string & buffer_name, const Playba
     if (!leaf_track) continue;
     if (track_info.hasLiveSends()) {
       auto sends = leaf_track->getSends();
-      // Only actually write (and only incVersion() - the "unsaved
+      // Only actually write (and only open a Song::Edit - the "unsaved
       // changes" signal) when something really changed - every snapshot
       // arrives whether or not any track is currently gliding, and
       // re-asserting an already-correct value on every single one would
@@ -815,15 +818,15 @@ Controller::syncLiveGlideStateIntoModel(const string & buffer_name, const Playba
       // happening.
       bool changed = sends.main != track_info.getLiveSendMain() || sends.a != track_info.getLiveSendA() || sends.b != track_info.getLiveSendB();
       if (changed) {
+        Song::Edit edit(*song, "glide sends");
         leaf_track->setSendMain(track_info.getLiveSendMain());
         leaf_track->setSendA(track_info.getLiveSendA());
         leaf_track->setSendB(track_info.getLiveSendB());
-        song->incVersion();
       }
     }
     if (track_info.hasLiveAzimuth() && leaf_track->getAzimuth() != track_info.getLiveAzimuth()) {
+      Song::Edit edit(*song, "glide azimuth");
       leaf_track->setAzimuth(track_info.getLiveAzimuth());
-      song->incVersion();
     }
   }
 }
@@ -833,8 +836,8 @@ Controller::toggleTrackMuted(int track_id) {
   auto song = getCurrentSong();
   auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
   if (!leaf_track) return false;
+  Song::Edit edit(*song, "toggle mute");
   leaf_track->setMuted(!leaf_track->isMuted());
-  song->incVersion();
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_MUTED, getActiveBufferName(), track_id, leaf_track->isMuted() ? 1 : 0));
   return leaf_track->isMuted();
 }
@@ -844,8 +847,8 @@ Controller::toggleTrackSolo(int track_id) {
   auto song = getCurrentSong();
   auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
   if (!leaf_track) return false;
+  Song::Edit edit(*song, "toggle solo");
   leaf_track->setSolo(!leaf_track->isSolo());
-  song->incVersion();
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SOLO, getActiveBufferName(), track_id, leaf_track->isSolo() ? 1 : 0));
   return leaf_track->isSolo();
 }
@@ -858,8 +861,8 @@ Controller::cycleTrackMonitor(int track_id) {
   using Monitor = LeafTrack::Monitor;
   auto m = leaf_track->getMonitor();
   m = m == Monitor::AUTO ? Monitor::IN : m == Monitor::IN ? Monitor::OFF : Monitor::AUTO;
+  Song::Edit edit(*song, "cycle monitor");
   leaf_track->setMonitor(m);
-  song->incVersion();
   getUIEventQueue().push(make_unique<LogEvent>(m == Monitor::IN ? "Monitor: In" : m == Monitor::OFF ? "Monitor: Off" : "Monitor: Auto"));
 }
 
@@ -948,8 +951,8 @@ Controller::toggleTrackCollapsed(int track_id) {
   auto song = getCurrentSong();
   auto track = song->getMasterTrack().getChildByInternalId(track_id);
   if (!track) return false;
+  Song::Edit edit(*song, "toggle collapsed");
   track->setCollapsed(!track->isCollapsed());
-  song->incVersion();
   return track->isCollapsed();
 }
 
@@ -960,8 +963,8 @@ Controller::setTrackSendA(int track_id, float value) {
   auto track = song->getMasterTrack().getChildByInternalId(track_id);
   if (!track) return;
   float linear = dbToLinear(value);
+  Song::Edit edit(*song, "set send A");
   track->setSendA(linear);
-  song->incVersion();
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_A, getActiveBufferName(), track_id, static_cast<int>(linear * 1000.0f + 0.5f)));
 }
 
@@ -972,8 +975,8 @@ Controller::setTrackSendB(int track_id, float value) {
   auto track = song->getMasterTrack().getChildByInternalId(track_id);
   if (!track) return;
   float linear = dbToLinear(value);
+  Song::Edit edit(*song, "set send B");
   track->setSendB(linear);
-  song->incVersion();
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_B, getActiveBufferName(), track_id, static_cast<int>(linear * 1000.0f + 0.5f)));
 }
 
@@ -984,8 +987,8 @@ Controller::setTrackSendMain(int track_id, float value) {
   auto track = song->getMasterTrack().getChildByInternalId(track_id);
   if (!track) return;
   float linear = dbToLinear(value);
+  Song::Edit edit(*song, "set send main");
   track->setSendMain(linear);
-  song->incVersion();
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_MAIN, getActiveBufferName(), track_id, static_cast<int>(linear * 1000.0f + 0.5f)));
 }
 
@@ -1040,8 +1043,8 @@ Controller::glideTrackAzimuth(int track_id, float target_degrees, float duration
 void
 Controller::setBusEffectKind(int slot, BusEffectKind kind) {
   auto song = getCurrentSong();
+  Song::Edit edit(*song, "set bus effect");
   song->setBusSlotKind(slot, kind);
-  song->incVersion();
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_BUS_EFFECT, getActiveBufferName(), slot, static_cast<int>(kind)));
 }
 
@@ -1050,8 +1053,8 @@ Controller::setTrackAzimuth(int track_id, float value) {
   auto song = getCurrentSong();
   auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
   if (!leaf_track) return;
+  Song::Edit edit(*song, "set azimuth");
   leaf_track->setAzimuth(value);
-  song->incVersion();
   // Tenths-of-a-degree precision (-1800..1800) - the same "float via a
   // fixed-point int parameter" convention setTrackSendA/B use, just a
   // different scale/unit since this is degrees, not a 0-1 fraction.
@@ -1063,8 +1066,8 @@ Controller::addNoteColumn(int track_id) {
   auto song = getCurrentSong();
   auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
   if (!leaf_track) return;
+  Song::Edit edit(*song, "add note column");
   leaf_track->setMinNoteColumns(leaf_track->getMinNoteColumns() + 1);
-  song->incVersion();
 }
 
 void
@@ -1072,8 +1075,8 @@ Controller::removeNoteColumn(int track_id) {
   auto song = getCurrentSong();
   auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
   if (!leaf_track) return;
+  Song::Edit edit(*song, "remove note column");
   leaf_track->setMinNoteColumns(leaf_track->getMinNoteColumns() - 1);
-  song->incVersion();
 }
 
 void
@@ -1099,8 +1102,8 @@ Controller::ensureRowCleared(std::set<std::pair<int, int>> & cleared_rows, int r
   // one loop iteration into the same live take.
   auto target = resolveEditTarget(*song, track_id, row, getFocusedClip());
   if (!cleared_rows.insert({target.effective_row, track_id}).second) return; // already cleared this session
+  Song::Edit edit(*song, "clear row for take");
   target.pattern->setNotes(target.effective_row, {});
-  song->incVersion();
 }
 
 void
@@ -1131,6 +1134,7 @@ Controller::ensureNoteRecordingClip(std::unordered_map<int, std::string> & clip_
   auto active = resolveInstanceAt(*song, track_id, row);
   if (active.clip_index >= 0) return; // a real clip is already active here - write into it, same as ordinary editing
 
+  Song::Edit edit(*song, "start take clip");
   Clip clip(track_id);
   clip.setName(fmt::format("Take {}", song->getClips(track_id).size() + 1));
   // Non-looping by default - a live take is one specific performance, not
@@ -1153,7 +1157,6 @@ Controller::ensureNoteRecordingClip(std::unordered_map<int, std::string> & clip_
   auto clip_index = static_cast<int>(song->getClips(track_id).size()) - 1;
   placeClipInstance(*song, track_id, row, clip_index);
   clip_ids[track_id] = added.getId();
-  song->incVersion();
 }
 
 void
@@ -1207,6 +1210,7 @@ Controller::extendRecordingClipsIfNeeded(std::unordered_map<int, std::string> & 
     // "always leaves the window in a valid, sufficiently-ahead state the
     // instant this call returns", which one-shot expiry (resolveInstanceAt())
     // actually depends on.
+    Song::Edit edit(*song, "extend take clip");
     bool grew = false;
     auto window_last_row = start_row + std::max(1, clip.getLength()) - 1;
     while (window_last_row - info.getAbsolutePosition() < rows_per_bar) {
@@ -1225,7 +1229,8 @@ Controller::extendRecordingClipsIfNeeded(std::unordered_map<int, std::string> & 
       // reach on every call, keyed off whatever its length currently is -
       // re-running it here, now that length just grew, is all this needs.
       placeClipInstance(*song, track_id, start_row, clip_index);
-      song->incVersion();
+    } else {
+      edit.discard();
     }
   }
 }
@@ -1329,6 +1334,7 @@ Controller::trimClipRecordingClip(int track_id) {
   if (take.clip_index < 0 || take.clip_index >= static_cast<int>(clips.size())) return;
   auto & clip = clips[static_cast<size_t>(take.clip_index)];
 
+  Song::Edit edit(*song, "finish take clip");
   int last_row = -1;
   for (auto & [ row, notes ] : clip.getLeafPattern().getNotesByRow()) last_row = std::max(last_row, static_cast<int>(row));
   auto rows_per_bar = song->barRowsAt(song->barStartAtOrBefore(take.origin_step));
@@ -1368,6 +1374,7 @@ Controller::extendRecordingSampleClipIfNeeded() {
   // a full bar at a time until at least one bar of headroom remains ahead
   // of the current row.
   auto rows_per_bar = song->getArrangementBars().barRows();
+  Song::Edit edit(*song, "extend sample take clip");
   bool grew = false;
   auto window_last_row = recording_start_row_ + std::max(1, clip.getLength()) - 1;
   while (window_last_row - info.getAbsolutePosition() < rows_per_bar) {
@@ -1382,23 +1389,24 @@ Controller::extendRecordingSampleClipIfNeeded() {
     // clears every instance event within a clip's own reach on every
     // call, keyed off whatever its length currently is.
     placeClipInstance(*song, track_id, recording_start_row_, clip_index);
-    song->incVersion();
+  } else {
+    edit.discard();
   }
 }
 
 void
 Controller::setSwing(int percent) {
   auto & song = getSong();
+  Song::Edit edit(song, "set swing");
   song.setSwing(percent);
-  song.incVersion();
   getUIEventQueue().push(make_unique<LogEvent>("Swing " + to_string(song.getSwing()) + "%"));
 }
 
 void
 Controller::setTempo(int bpm) {
   auto & song = getSong();
+  Song::Edit edit(song, "set tempo");
   song.setTempo(static_cast<short>(std::clamp(bpm, 20, 300)));
-  song.incVersion();
   getUIEventQueue().push(make_unique<LogEvent>("Tempo " + to_string(song.getTempo())));
 }
 
@@ -1464,16 +1472,16 @@ Controller::writeReleaseOff(std::set<std::pair<int, int>> & cleared_rows, bool a
   if (auto_started_playback) ensureRowCleared(cleared_rows, row, track_id);
   auto song = getCurrentSong();
   auto target = resolveEditTarget(*song, track_id, row, getFocusedClip());
+  Song::Edit edit(*song, "release note");
   target.pattern->setNote(target.effective_row, note_column, Note(0, 0, delay));
-  song->incVersion();
 }
 
 void
 Controller::clearNoteCell(int row, int track_id, int note_column) {
   auto song = getCurrentSong();
   auto target = resolveEditTarget(*song, track_id, row, getFocusedClip());
+  Song::Edit edit(*song, "clear note");
   target.pattern->setNote(target.effective_row, note_column, Note());
-  song->incVersion();
 }
 
 void
@@ -1526,6 +1534,10 @@ Controller::notePressure(int row, int track_id, int note_column, short velocity,
 void
 Controller::tickNotePressure() {
   constexpr int max_filled_rows = 256;
+  if (pressure_states_.empty()) return;
+  auto song = getCurrentSong();
+  if (!song) return;
+  Song::Edit edit(*song, "note pressure");
   bool wrote = false;
   for (auto & entry : pressure_states_) {
     auto & st = entry.second;
@@ -1540,7 +1552,7 @@ Controller::tickNotePressure() {
     st.integral = 0;
     wrote = true;
   }
-  if (wrote) getCurrentSong()->incVersion();
+  if (!wrote) edit.discard();
 }
 
 void
@@ -1563,6 +1575,7 @@ Controller::beginSampleCapture(int track_id, int latency_frames) {
   // ensureClipRecordingClip() already has for note-based takes. An
   // ordinary (non-Live-View) take has no target index at all - it
   // always appends a brand new clip, same as before.
+  Song::Edit edit(*song, "begin sample capture");
   auto take_it = clip_recording_takes_.find(track_id);
   bool is_clip_recording_take = take_it != clip_recording_takes_.end();
   bool targets_existing_slot = is_clip_recording_take && take_it->second.clip_index >= 0;
@@ -1645,8 +1658,6 @@ Controller::beginSampleCapture(int track_id, int latency_frames) {
     int clip_index = reuse_existing ? take_it->second.clip_index : static_cast<int>(clips.size()) - 1;
     placeClipInstance(*song, track_id, recording_start_row_, clip_index);
   }
-
-  song->incVersion();
 }
 
 void
@@ -1671,6 +1682,7 @@ Controller::finishSampleCapture() {
       // recording is ever in flight at a time - Controller.h's own
       // armed_track_ids_ comment), never assumed to be layer 0, which for
       // an overdub is some *earlier*, already-finished take instead.
+      Song::Edit edit(*song, "finish sample capture");
       auto & content = clip.getSampleLayers().back();
       auto total_frames = content.getBuffer() ? content.getBuffer()->numberOfFrames() : 0;
       // The lead-in trimmed off the front (recording_latency_frames_,
@@ -1714,7 +1726,6 @@ Controller::finishSampleCapture() {
 
       auto duration_seconds = static_cast<float>(post_trim_frames) / static_cast<float>(channel_config.getAudioOutSampleRate());
       getUIEventQueue().push(make_unique<LogEvent>(fmt::format("recorded {} ({:.1f}s)", clip.getName(), duration_seconds)));
-      song->incVersion();
       break;
     }
   }

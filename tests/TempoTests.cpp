@@ -25,8 +25,10 @@ TEST(a_live_tempo_change_shortens_the_rows_that_follow) {
   state.renderBlock(2000, song, *mixer);
   CHECK(state.getAbsolutePosition() == 2);
 
-  song.setTempo(240);
-  song.incVersion(); // what Controller::setTempo() does; the audio thread keys on it
+  { // what Controller::setTempo() does; the audio thread keys on it
+    Song::Edit edit(song, "set tempo");
+    song.setTempo(240);
+  }
   state.renderBlock(2000, song, *mixer);
   CHECK(state.getTempo() == 240);
   CHECK(state.getAbsolutePosition() == 6); // four more rows, not two
@@ -45,8 +47,10 @@ TEST(raising_the_tempo_mid_row_ends_an_already_overlong_row_immediately) {
 
   state.renderBlock(1900, song, *mixer); // row 1, 900 frames in
   CHECK(state.getAbsolutePosition() == 1);
-  song.setTempo(300); // a row is now 400 frames, shorter than the 900 already played
-  song.incVersion();
+  { // a row is now 400 frames, shorter than the 900 already played
+    Song::Edit edit(song, "set tempo");
+    song.setTempo(300);
+  }
   state.renderBlock(1000, song, *mixer);
   CHECK(state.getAbsolutePosition() > 2); // no stall on the missed boundary
   CHECK(state.getAbsolutePosition() <= 4);

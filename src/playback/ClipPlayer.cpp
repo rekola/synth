@@ -137,8 +137,8 @@ ClipPlayer::triggerClip(int track_id, int clip_index) {
   auto & playback_info = controller_.getPlaybackInfo();
   if (!playback_info.isPlaying() && assign_playback_starter_) assign_playback_starter_();
   auto raw_row = playback_info.isPlaying() ? playback_info.getAbsolutePosition() : assign_row_;
+  Song::Edit edit(song, "assign clip to arrangement");
   placeClipInstance(song, track_id, quantizedBarRow(song.getArrangementBars(), raw_row), clip_index);
-  song.incVersion();
 }
 
 bool
@@ -285,8 +285,8 @@ ClipPlayer::placeRecordingStop(int track_id) {
   if (!playback_info.isPlaying()) return;
   auto & song = controller_.getSong();
   auto row = quantizedBarRow(song.getArrangementBars(), playback_info.getAbsolutePosition());
+  Song::Edit edit(song, "place stop in arrangement");
   placeStopInstance(song, track_id, row);
-  song.incVersion();
 }
 
 void

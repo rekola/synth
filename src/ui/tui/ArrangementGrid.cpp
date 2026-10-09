@@ -166,15 +166,15 @@ ArrangementGrid::offerInput(const InputEvent & input) {
         // there might be nothing to silence at all. The clip itself is
         // untouched, still in the track's own clip list - this only ends
         // this one placement of it, same scope Backspace already had.
+        Song::Edit edit(song, "end clip placement");
         arrangement.clearInstance(track_id, active.start_row);
-        song.incVersion();
       } else if (active.clip_index >= 0) {
         // A later (tail) bar the same instance merely continues through -
         // no single event's own row to remove here, only a stop can
         // truncate/mark it, landing at this bar's own row regardless of
         // wherever the instance being truncated actually started.
+        Song::Edit edit(song, "place stop");
         placeStopInstance(song, track_id, bar_start_row);
-        song.incVersion();
       }
       // Else: this bar was already silent (an earlier stop already
       // applies here, or nothing was ever placed at all) - nothing to
@@ -203,7 +203,7 @@ ArrangementGrid::offerInput(const InputEvent & input) {
         if (getController().getFocusedClipTrackId() == track_id && getController().getFocusedClip() == clip_id) {
           getController().clearFocusedClip();
         }
-        deleteClip(song, track_id, active.clip_index); // already calls song.incVersion() itself
+        deleteClip(song, track_id, active.clip_index);
         auto text = "Deleted clip: " + (name.empty() ? string("(unnamed)") : name);
         getController().getUIEventQueue().push(make_unique<LogEvent>(std::move(text)));
       } else if (active.clip_index == Arrangement::kStopInstance) {
@@ -215,10 +215,9 @@ ArrangementGrid::offerInput(const InputEvent & input) {
         // from before it (an earlier instance, or the background) rather
         // than forcing silence to persist here - the same "delete
         // reverts to whatever's underneath" semantics deleting a clip
-        // already has. deleteClip() has its own unconditional incVersion();
-        // this needs one too, since it isn't going through that.
+        // already has.
+        Song::Edit edit(song, "delete stop");
         song.getArrangement().clearInstance(track_id, active.start_row);
-        song.incVersion();
         getController().getUIEventQueue().push(make_unique<LogEvent>("Deleted stop"));
       }
     }

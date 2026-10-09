@@ -113,9 +113,9 @@ class Controller {
   // on Controller.cpp for the actual algorithm.
   std::string getBufferDisplayName(const std::string & name) const;
 
-  // Song::getVersion() (incVersion() for structural changes,
-  // incMinorVersion() for note/command content edits - see Song.h/
-  // PatternEditor.cpp's own call sites) against a baseline snapshotted
+  // Song::getVersion() (bumped only by a closing Song::Edit scope:
+  // structural changes count in the major number, note/command content
+  // edits in the minor one) against a baseline snapshotted
   // whenever the *active* buffer was last freshly created, opened, saved,
   // or switched to. Not a precise "dirty" bit (a mutation path that
   // forgets to call either would go unnoticed), but reuses an existing,
