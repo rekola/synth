@@ -22,6 +22,11 @@ TrackCompiler::adopt(doc::Document & document, std::shared_ptr<Track> track) {
     doc::Document & document;
     std::vector<std::pair<doc::NodeId, std::shared_ptr<Track> > > & out;
     void run(doc::NodeId node, const std::shared_ptr<Track> & object) {
+      // What the node stores is what the object is from now on: reading it
+      // back here means an object rebuilt later from the node is the same
+      // one (send levels, for one, pass through dB text and back, which is
+      // not exact in floating point).
+      object->loadParameters(NodeParameterSource(document, node));
       out.emplace_back(node, object);
       auto n = document.get(node);
       auto slot = n->children(tracknodes::kChildrenSlot);

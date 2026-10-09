@@ -219,3 +219,22 @@ TEST(a_generic_instruments_generator_overrides_round_trip_through_its_node) {
   song.document().forEachNode([](const doc::Node & node) { CHECK(node.type != "oscillator"); });
   fs::remove(path);
 }
+
+// Sends are stored as dB text and held as linear gains, and that round trip is
+// not exact in floating point: a track handed in as an object has to equal
+// the one rebuilt from its node, or an unrelated edit would change its level.
+TEST(a_track_added_as_an_object_equals_the_one_rebuilt_from_its_node) {
+  Song song;
+  auto track = std::make_unique<InstrumentTrack>(0);
+  track->setSendA(sendDbToLinear(-59.9726f)); // one of the levels that does not survive dB text and back
+  track->setSendB(sendDbToLinear(-12.3456f));
+  auto id = song.addTrack(std::move(track)).getInternalId();
+  auto added = song.getMasterTrack().getChildByInternalId(id)->getSends();
+
+  song.editTrack(id, [](Track & edited) { edited.setCollapsed(true); });
+  song.editTrack(id, [](Track & edited) { edited.setCollapsed(false); });
+  auto rebuilt = song.getMasterTrack().getChildByInternalId(id)->getSends();
+  CHECK(rebuilt.a == added.a);
+  CHECK(rebuilt.b == added.b);
+  CHECK(rebuilt.main == added.main);
+}
