@@ -42,6 +42,13 @@ They act on the clip under the cursor.
 - A clip that is playing is not pulled out from under the playhead: its track
   stops at the next bar and the clip is removed then.
 
+## Moving a paused playhead
+
+In Live View, with the transport paused inside the clip the pattern editor's
+cursor is in (a launched clip, or one the arrangement is playing), the cursor
+is that clip's playhead: Up and Down move it, and so move the arrangement's
+position, and playing resumes from there.
+
 ## Undo
 
 `undo` (C-x u, C-_ or C-/) takes back the last edit to the song; repeating it

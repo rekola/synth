@@ -3,6 +3,8 @@
 #include "../model/Song.h"
 #include "../model/Clip.h"
 #include "../model/PatternGrid.h"
+#include "../model/ArrangementOps.h"
+#include "../launchpad/LaunchpadTiming.h"
 
 #include <algorithm>
 
@@ -251,6 +253,7 @@ ScenePatternSource::moveCursor(int delta_rows) {
     controller_.getClipPlayer().shiftLaunchedClips(std::clamp(playhead.row + delta_rows, 0, length - 1) - playhead.row);
     return;
   }
+  if (moveArrangementPlayhead(delta_rows)) return;
   auto old_cursor = cursor();
   auto address = advance(old_cursor, delta_rows);
   if (address.row < 0) address = { 0, 0 };
@@ -263,6 +266,27 @@ ScenePatternSource::moveCursor(int delta_rows) {
   for (auto & [ track_id, playhead ] : playheads_) {
     if (playhead.row >= 0 && track_id != cursor_track_id_) offsets()[track_id] = offset(track_id) - moved;
   }
+}
+
+// With the transport paused inside the clip the cursor is in, the cursor is
+// that clip's playhead: moving it moves the arrangement's position too.
+bool
+ScenePatternSource::moveArrangementPlayhead(int delta_rows) {
+  auto & info = controller_.getPlaybackInfo();
+  auto scene = position(cursor_track_id_).block;
+  if (info.isPlaying() || controller_.getClipPlayer().isTakenOver(cursor_track_id_)) return false;
+  auto position = info.getAbsolutePosition();
+  auto active = resolveInstanceAt(song(), cursor_track_id_, position);
+  auto clips = song().getClips(cursor_track_id_);
+  if (active.clip_index < 0 || active.clip_index != scene || active.clip_index >= static_cast<int>(clips.size())) return false;
+  auto clip = clips[static_cast<size_t>(active.clip_index)];
+  auto length = std::max(1, clip.getLength());
+  auto row = clipPlayheadRow(position, active.start_row, length, clip.isLooping());
+  if (row < 0) return false;
+  auto target = std::clamp(row + delta_rows, 0, length - 1);
+  controller_.setEditPosition(position + (target - row));
+  positions()[cursor_track_id_] = { scene, target };
+  return true;
 }
 
 void
