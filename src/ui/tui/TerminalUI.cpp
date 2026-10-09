@@ -884,6 +884,14 @@ public:
 
   void raiseToTop() override { menu->get_plane()->move_top(); }
 
+  // The plane grows from the one bar row to cover the dropdown while a
+  // section is unrolled.
+  bool isOpen() const override {
+    unsigned rows = 0, cols = 0;
+    menu->get_plane()->get_dim(&rows, &cols);
+    return rows > 1;
+  }
+
 private:
   void activate(const char * item_desc) {
     if (auto it = item_commands_.find(item_desc); it != item_commands_.end()) activated_command_ = it->second;
@@ -2496,6 +2504,17 @@ TerminalUI::offerInput(const InputEvent & input) {
   // A modal popup takes everything but a resize or redraw.
   if (outline_view_ && outline_view_->isModal() && input.getId() != NCKEY_RESIZE && !(input.hasCtrl() && input.getId() == 'l')) {
     outline_view_->offerInput(input);
+    return true;
+  }
+  // An open menu owns the mouse: its dropdown is drawn over the widgets, and
+  // a click on an item must not also reach the widget underneath it (which
+  // would move its cursor, and so change what the item's command acts on).
+  if (menu_->isOpen() && nckey_mouse_p(static_cast<uint32_t>(input.getId()))) {
+    if (menu_->offerInput(input)) {
+      if (auto cmd = menu_->takeActivatedCommand(); !cmd.empty()) {
+	if (!getController().sendCommand(cmd)) setStatus("Invalid command");
+      }
+    }
     return true;
   }
   if (octave_control_->isEditing() && octave_control_->offerInput(input)) return true;
