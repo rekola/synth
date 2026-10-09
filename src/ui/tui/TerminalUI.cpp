@@ -884,13 +884,9 @@ public:
 
   void raiseToTop() override { menu->get_plane()->move_top(); }
 
-  // The plane grows from the one bar row to cover the dropdown while a
-  // section is unrolled.
-  bool isOpen() const override {
-    unsigned rows = 0, cols = 0;
-    menu->get_plane()->get_dim(&rows, &cols);
-    return rows > 1;
-  }
+  // A section is unrolled (the plane's own size says nothing: it always
+  // covers the screen).
+  bool isOpen() const override { return menu->get_selected() != nullptr; }
 
 private:
   void activate(const char * item_desc) {
@@ -2525,6 +2521,8 @@ TerminalUI::offerInput(const InputEvent & input) {
     return true;
   }
   if (octave_control_->isEditing() && octave_control_->offerInput(input)) return true;
+  // A command (undo, save, ...) must see a half-typed velocity or delay.
+  if (input.getKind() != InputEvent::Kind::RELEASE && (input.hasCtrl() || input.hasAlt())) pattern_editor_->commitPendingValue();
   if (!reader_active && dispatchCommand(input)) return true;
 
   if (input.getId() == NCKEY_RESIZE) {
@@ -2755,7 +2753,11 @@ TerminalUI::handlePlaybackEvent(PlaybackEvent & ev) {
   // clip_ids/held_track_ids of its own.
   getController().extendRecordingSampleClipIfNeeded();
 
-  ev.redraw();
+  // Idle - nothing playing or sounding for a while - the screen has
+  // nothing new to show.
+  auto now = std::chrono::steady_clock::now();
+  if (ev.getInfo().isPlaying() || ev.getInfo().getVoiceCount() > 0) last_activity_ = now;
+  if (now - last_activity_ < std::chrono::milliseconds(1500)) ev.redraw();
 }
 
 void
@@ -2768,15 +2770,22 @@ TerminalUI::handleVisualizationResultEvent(VisualizationResultEvent & ev) {
   // work once per superseded event during a catch-up burst, so the app
   // catches up faster instead of falling further behind.
   bool superseded = getController().getUIEventQueue().hasEvents();
+  bool changed = superseded; // a superseded event is redrawn by the one behind it
   // Scopes that are off screen aren't updated at all.
   if (!superseded && scopes_on_screen_) {
     // Raw, pre-mixdown per-channel levels (ambisonic bus, then always
     // AuxA/AuxB last - see VisualizationThread.cpp) rather than the final
     // decoded L/R output.
-    if (getView() == View::ARRANGEMENT) volume_meter_->setLevels(ev.getChannelLoudness(), ev.getMeterLabel());
+    if (getView() == View::ARRANGEMENT && ev.getChannelLoudness() != last_loudness_) {
+      last_loudness_ = ev.getChannelLoudness();
+      volume_meter_->setLevels(ev.getChannelLoudness(), ev.getMeterLabel());
+      changed = true;
+    }
 
-    if (!ev.getFFT().empty()) {
+    if (!ev.getFFT().empty() && ev.getFFT() != last_fft_) {
+      last_fft_ = ev.getFFT();
       chart_->setSpectrum(ev.getFFT(), ev.getFFTBinHz());
+      changed = true;
     }
 
     if (ev.hasDiracGrid()) {
@@ -2830,12 +2839,17 @@ TerminalUI::handleVisualizationResultEvent(VisualizationResultEvent & ev) {
         if (brightness[i] > 1.0f) brightness[i] = 1.0f;
         saturation[i] = displayed[i] > 1e-12f ? grid[i] / displayed[i] : 0.0f;
       }
-      heatmap_->setGrid(brightness, saturation);
-      heatmap_->commit();
+      if (brightness != last_brightness_ || saturation != last_saturation_) {
+	last_brightness_ = brightness;
+	last_saturation_ = saturation;
+	heatmap_->setGrid(brightness, saturation);
+	heatmap_->commit();
+	changed = true;
+      }
     }
   }
 
-  ev.redraw();
+  if (changed) ev.redraw();
 }
 
 void
@@ -2910,6 +2924,7 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
     if (column != playable.end()) clip_grid_->setCursorTrackIndex(static_cast<int>(column - playable.begin()));
     clip_grid_->setCursorClipIndex(clip_index);
   });
+  getController().setUndoCellListener([this](const Song::EditPlace & place) { pattern_editor_->focusCell(place); });
   getController().setUndoFocusListener([this](int track_id, int clip_index, int row) {
     auto & song = getController().getSong();
     auto root_ids = song.getRootTrackIds();
@@ -3007,6 +3022,7 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
   constexpr auto kMinFrameInterval = std::chrono::milliseconds(25);
   auto last_frame = std::chrono::steady_clock::now() - kMinFrameInterval;
   bool frame_pending = false;
+  bool render_pending = false; // a redraw asked for while the frame was held back
 
   while ( !shouldClose() ) {
     bool render = false;
@@ -3087,7 +3103,7 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
     }
 
     if (poll_result > 0 || frame_pending) {
-      render |= frame_pending;
+      render_pending |= render;
       auto now = std::chrono::steady_clock::now();
       if (now - last_frame < kMinFrameInterval) {
 	frame_pending = true;
@@ -3095,6 +3111,8 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
       }
       frame_pending = false;
       last_frame = now;
+      render = render_pending;
+      render_pending = false;
 
       render |= renderComponents();
 

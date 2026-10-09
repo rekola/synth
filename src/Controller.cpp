@@ -249,6 +249,7 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
     if (place.track_id >= 0) song.setCurrentTrackId(place.track_id);
     if (place.clip_index >= 0) focusUndoneClip(place.track_id, place.clip_index, std::max(place.row, 0));
     else if (place.row >= 0 && !getPlaybackInfo().isPlaying()) setEditPosition(place.row);
+    if (place.field != Song::Field::NONE) focusUndoneCell(place);
   };
   // A clip that is sounding is left alone: undoing into it moves its playhead
   // and its content under the player's feet.

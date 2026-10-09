@@ -367,6 +367,8 @@ AmbisonicMagLSDecoder::accumulate(const AudioBuffer & input) {
 
 AudioBuffer
 AmbisonicMagLSDecoder::encode() {
+  // Below -180 dB nothing is audible, and convolving it costs as much as a loud signal.
+  constexpr float kInaudible = 1e-9f;
   int frames = buffer_.numberOfFrames();
   size_t tail_len = left_tail_.size();
   size_t acc_size = static_cast<size_t>(frames) + tail_len;
@@ -390,7 +392,7 @@ AmbisonicMagLSDecoder::encode() {
     auto & right_ir = channel_filters_[static_cast<size_t>(c)].right;
     for (int i = 0; i < frames; i++) {
       float v = channel_data[i];
-      if (v == 0.0f) continue;
+      if (std::fabs(v) < kInaudible) continue; // the send bus's denormal guard never reaches exact zero
       for (size_t t = 0; t < left_ir.size(); t++) left_acc_[static_cast<size_t>(i) + t] += v * left_ir[t];
       for (size_t t = 0; t < right_ir.size(); t++) right_acc_[static_cast<size_t>(i) + t] += v * right_ir[t];
     }

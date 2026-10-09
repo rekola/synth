@@ -56,9 +56,9 @@ Ctrl+Shift+- is how C-_ is typed in the Kitty protocol; all of them are bound.
 
 Only the song is undone: tempo, notes, clips and placements, tracks,
 instruments and bus effects. The view and the clipboard are not. The current
-track moves to the track the change was on, and with the transport stopped
-the transport row moves to the row of an arrangement note or placement
-(never while the song plays). A change to a clip's notes shows that clip: the
+track moves to the track the change was on, the cursor returns to the velocity,
+delay, command or note cell that changed, and the transport row moves to the row
+of an arrangement note or placement (never while the song plays). A change to a clip's notes shows that clip: the
 clip grid's cursor goes to its scene and, in Live View, the pattern editor to
 the changed row (unless that track is playing).
 Changes that follow the playing song (a scene launch setting the tempo) are
@@ -66,7 +66,9 @@ never undone; so are mute and solo, which are performance state rather than edit
 in Renoise, so it is atomic: its hex digits are held in the cell (shown, but not
 in the song, so playback never hears half a value) and committed together when
 the cursor leaves the cell, the pattern editor loses focus or any other key is
-pressed. A command is text and is written as it is typed. Typed digits are amalgamated as Emacs does with typed characters: the hex
+pressed; Enter commits it and moves to the next column. A delay needs a note (or
+aftertouch) to belong to, so typing one on an empty column is refused; a velocity
+there makes an aftertouch. A command is text and is written as it is typed. Typed digits are amalgamated as Emacs does with typed characters: the hex
 digits of a velocity or delay and the characters of a command, run on from one
 cell to the next, undo as one step. The run ends when you move the cursor or
 press any other command, edit something else, pause for two seconds, or reach

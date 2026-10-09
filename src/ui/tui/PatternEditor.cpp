@@ -1134,6 +1134,25 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
     if (it != track_info.end() && new_cursor.col >= it->second.getColumnCount()) new_cursor.col = new_cursor.subcol = 0;
   }
 
+  if (focus_cell_) {
+    auto place = *focus_cell_;
+    focus_cell_.reset();
+    auto at = std::find(track_ids.begin(), track_ids.end(), place.track_id);
+    auto cell_info = at == track_ids.end() ? track_info.end() : track_info.find(place.track_id);
+    if (cell_info != track_info.end()) {
+      auto want = place.field == Song::Field::VELOCITY ? ColumnType::VELOCITY : place.field == Song::Field::DELAY ? ColumnType::DELAY
+                : place.field == Song::Field::COMMAND ? ColumnType::TRACK_FX : ColumnType::NOTE;
+      for (int k = 0; k < cell_info->second.getColumnCount(); k++) {
+	if (cell_info->second.getColumnType(k) != want) continue;
+	if (want != ColumnType::TRACK_FX && cell_info->second.getNoteNumber(k) != place.column) continue;
+	new_cursor.track = static_cast<int>(at - track_ids.begin());
+	new_cursor.col = k;
+	new_cursor.subcol = 0;
+	break;
+      }
+    }
+  }
+
   auto score_total_columns = 0;
   for (auto wd : track_info) score_total_columns += wd.second.getColumnCount();
 
@@ -1535,6 +1554,12 @@ bool
 PatternEditor::offerInput(const InputEvent & input) {
   // Only consecutive hex digits extend a pending value; any other key
   // (a move, a click, undo, ...) commits it first.
+  if (pending_.valid && input.getKind() != InputEvent::Kind::RELEASE && input.getId() == NCKEY_ENTER) {
+    auto next = pending_.next;
+    commitPendingValue();
+    new_cursor = next;
+    return true;
+  }
   if (pending_.valid && input.getKind() != InputEvent::Kind::RELEASE) {
     bool digit = !input.hasCtrl() && !input.hasAlt() && input.getId() >= '0' && input.getId() <= 'f' && (isxdigit(static_cast<int>(input.getId())) != 0);
     if (!digit) commitPendingValue();
@@ -1930,8 +1955,18 @@ PatternEditor::offerInputKey(const InputEvent & input) {
 	    auto notes = edit_target.pattern->getNotes(edit_target.effective_row);
 	    Note note;
 	    if (note_column < static_cast<int>(notes.size())) note = notes[static_cast<size_t>(note_column)];
+	    // A delay or velocity needs a note (or aftertouch) to belong to: a
+	    // delay alone would be stored but never shown or heard.
+	    if (column_type == ColumnType::DELAY && !note.isDefined()) {
+	      getController().getUIEventQueue().push(make_unique<LogEvent>("No note here - enter a velocity first"));
+	      return true;
+	    }
 	    pending_ = PendingNibbles();
 	    pending_.valid = true;
+	    pending_.next = new_cursor;
+	    pending_.next.subcol = 0;
+	    if (new_cursor.col + 1 < track_info.getColumnCount()) pending_.next.col++;
+	    else if (new_cursor.track + 1 < num_tracks) { pending_.next.track++; pending_.next.col = 0; }
 	    pending_.track_id = track_id;
 	    pending_.note_column = note_column;
 	    pending_.type = column_type;

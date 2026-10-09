@@ -245,6 +245,11 @@ class Controller {
   // After an undo or redo changed a clip: the UI shows that clip's row (the
   // clip grid's cursor and, in Live View, the pattern editor's position).
   void setUndoFocusListener(std::function<void(int track_id, int clip_index, int row)> fn) { undo_focus_requested_ = std::move(fn); }
+  // The cell an undo or redo changed: the pattern editor puts its cursor there.
+  void setUndoCellListener(std::function<void(const Song::EditPlace &)> fn) { undo_cell_requested_ = std::move(fn); }
+  void focusUndoneCell(const Song::EditPlace & place) {
+    if (undo_cell_requested_) undo_cell_requested_(place);
+  }
   void focusUndoneClip(int track_id, int clip_index, int row) {
     if (undo_focus_requested_) undo_focus_requested_(track_id, clip_index, row);
   }
@@ -1386,6 +1391,7 @@ class Controller {
   std::function<void(int track_id, bool opened)> drum_edit_requested_;
   std::function<void(int track_id, int clip_index)> clip_select_requested_;
   std::function<void(int track_id, int clip_index, int row)> undo_focus_requested_;
+  std::function<void(const Song::EditPlace &)> undo_cell_requested_;
   int pending_command_track_ = -1;
   // Live mirror of the active buffer's own focused_clip_ids_/
   // focused_clip_track_ids_ slots - see getFocusedClip()'s own comment.
