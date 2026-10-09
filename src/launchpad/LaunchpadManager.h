@@ -1,6 +1,7 @@
 #ifndef _LAUNCHPADMANAGER_H_
 #define _LAUNCHPADMANAGER_H_
 
+#include "../doc/Document.h"
 #include "../instruments/Tuning.h"
 #include "../model/Color.h"
 #include "LaunchpadProtocol.h"
@@ -1021,7 +1022,7 @@ class LaunchpadManager {
     // later (e.g. after a jump back) could in principle reuse a stale
     // column from an earlier, disconnected recording pass rather than
     // claiming a fresh one - a known, narrow edge case, not solved here.
-    const Pattern * automation_pattern = nullptr;
+    doc::NodeId automation_pattern = doc::kNoNode; // the pattern the last automation landed in
     int automation_row = -1;
     int automation_column = -1;
   };

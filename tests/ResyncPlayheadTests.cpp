@@ -74,7 +74,7 @@ TEST(resync_playhead_after_stop_leaves_a_resumed_arpeggiator_alone_when_the_posi
   auto & arp = song.addTrack(makeGappedArpeggiator());
   int track_id = arp.getInternalId();
 
-  auto & scene0 = song.getArrangement();
+  auto scene0 = song.getArrangement();
   scene0.setNote(0, track_id, 0, Note(60, 100));
   scene0.setNote(0, track_id, 1, Note(64, 100));
   // Every later row is deliberately left empty.
@@ -119,7 +119,7 @@ TEST(resync_playhead_after_stop_resyncs_a_resumed_arpeggiator_when_the_position_
   auto & arp = song.addTrack(makeGappedArpeggiator());
   int track_id = arp.getInternalId();
 
-  auto & scene0 = song.getArrangement();
+  auto scene0 = song.getArrangement();
   scene0.setNote(0, track_id, 0, Note(60, 100));
   scene0.setNote(0, track_id, 1, Note(64, 100));
   // Row 5 is deliberately left empty - see below.

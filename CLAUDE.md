@@ -1465,6 +1465,57 @@ would otherwise resume showing.
   silently goes stale if the binding ever changes; name the command
   instead and let the actual binding site be the only place the key
   appears).
+- Song mutation: every write to the song model happens inside a
+  `Song::Edit` scope (`model/Song.h`), one per user action - a key press, a
+  command, a pad press, a whole live take's single note. The scope is the
+  only thing that bumps the version (`incVersion()` no longer exists), and it
+  publishes the audio thread's copy (below) when the outermost one closes, so
+  an action's writes become visible together. Scopes nest; `discard()` is for
+  a scope that wrote nothing. `CONTENT` edits (note/command/velocity/delay)
+  count in the minor version, everything else in the major one. A write
+  outside any scope is a bug that leaves the audio thread on stale content;
+  run with `SYNTH_VERIFY_CONTENT=1` to have the UI say so (once per buffer)
+  when the published content no longer matches the model.
+- The song's own state is moving into a document (`src/doc/`, plan in
+  `plans/undo-document-model.md`): nodes with stable ids, four journaled
+  primitives, one append-only journal per song (`Song::document()`, capped at
+  `Song::kJournalLimit` edits). So far the song-level scalars (tempo, swing,
+  signatures, tuning, key, scale, the room), scenes and locators, and the
+  whole score - patterns and notes, clips (with their sample layers) and the
+  arrangement's placements and beds - live there, declared once in
+  `model/SongSchema.h`/`ScoreSchema.h`. `Song`'s accessors stay the API. The
+  score is edited through short-lived handles, `PatternView`, `ClipView`/
+  `ClipList` and `ArrangementView` (`Song::getArrangement()`/`getClips()`),
+  which read like the pointers they replaced (`->`, `if (x)`, `nullptr`) but
+  hold no content, so they cannot go stale or be copied apart from the
+  document; reads return values, never references into storage (so never bind
+  a reference to an element of one, `auto & n = view.getNotes(r)[0]`). An
+  invalid or default handle is inert: reads give defaults, writes go nowhere.
+  `Pattern`, `Clip` and `Arrangement` remain as plain value types - the
+  published copy, the clipboard, and what a loader builds before
+  `Song::addClip()`/`PatternView::assign()` puts it in the document. Sample
+  audio is not in the document: a "sample" node names an asset in
+  `SampleStore`, which also keeps the per-layer `SampleContent` (and the
+  audio thread's time-stretch work with it) and the overdub mix. Never change
+  an asset's audio in place once it is in a clip - history may bring it back. A `Song` setter - and a write through any view - opens its own
+  `Edit` if none is open (joining the caller's otherwise), so even a bare write
+  is journaled and published; a loop of them should sit in one `Edit`. An `Edit`
+  with `Origin::SYNC` is a mirror of the audio thread (scene-launch tempo,
+  glides, running bars): journaled but untracked, never undone on its own.
+  Opening a file or constructing a song leaves no history.
+  `SYNTH_VERIFY_DOCUMENT=1` replays every transaction against a copy to check
+  its undo record.
+- The audio thread never reads the live arrangement or clips: it reads
+  `PlaybackContent` (`model/PlaybackContent.h`), an immutable copy of both
+  that `Song::publishContent()` builds (~30 us for the largest song here) and
+  `ContentPublisher` hands over without locks or reference counts, freeing
+  displaced copies on the UI thread only (`SongState::renderBlock()` holds
+  one `Song::readContent()` for the block and keeps no pointer into it past
+  it - compare `SampleContent::identity()`, not addresses, across blocks).
+  A song a `Controller` owns is in published mode; a song built and rendered
+  on one thread (the offline renderer, tests) copies on every read instead,
+  so a write needs no `Edit` there. Tracks and the instrument pool are not in
+  the copy yet - they are still read live under `Song::getTracksMutex()`.
 - Cloud sessions: commit and push finished work to the session's branch
   without being asked, including plans and changes the user wants to test
   by ear - the cloud has no other way to show files, so an uncommitted

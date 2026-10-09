@@ -117,6 +117,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
   // (see getEffectiveSelectionBounds) - there's no "No selection" case.
   commands_.define("kill-region", [this]() {
     auto & song = getController().getSong();
+    Song::Edit edit(song, "kill region");
     auto point = source_->cursor();
     auto track_ids = song.getRootTrackIds();
     auto grid = source_->editGrid(selectionAnchor(), false);
@@ -160,7 +161,6 @@ PatternEditor::PatternEditor(UIPlane & parent)
       clearPatternBlock(*grid, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi);
       if (locator_base) clearPatternBlockLocators(song, *locator_base, b.row_lo, b.row_hi);
     }
-    song.incVersion();
     setSelectionActive(false);
     // move point to the start of the killed region, matching Emacs
     // kill-region, so an immediate yank restores it exactly in place
@@ -288,6 +288,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
       }
 
       // yank writes, so it may create the block's storage.
+      Song::Edit edit(song, "yank");
       auto grid = source_->editGrid(point, true);
       auto locator_base = source_->locatorRow({ point.block, 0 });
       auto context_length = source_->blockLength(point.block);
@@ -313,7 +314,6 @@ PatternEditor::PatternEditor(UIPlane & parent)
         pastePatternBlock(*grid, clipboard_.cells, context_length, point.row, track_ids, 0);
         if (locator_base) pastePatternBlockLocators(song, *locator_base, clipboard_.locators, context_length, point.row);
       }
-      song.incVersion();
       getController().getUIEventQueue().push(make_unique<LogEvent>("Yanked"));
     } else {
       getController().getUIEventQueue().push(make_unique<LogEvent>("Clipboard empty"));
@@ -332,8 +332,8 @@ PatternEditor::PatternEditor(UIPlane & parent)
     auto track_ids = song.getRootTrackIds();
     if (current_cursor.track < 0 || current_cursor.track >= static_cast<int>(track_ids.size())) return;
     auto cursor_track_id = track_ids[static_cast<size_t>(current_cursor.track)];
+    Song::Edit edit(song, "insert row");
     source_->insertRow(cursor_track_id, source_->cursor());
-    song.incVersion();
   });
 
   // Emacs's own C-k ("kill-line"): scoped to the cursor's own current
@@ -358,8 +358,8 @@ PatternEditor::PatternEditor(UIPlane & parent)
     auto point = source_->cursor();
     int row = point.row;
 
+    Song::Edit edit(song, "kill row");
     if (source_->stopInstance(cursor_track_id, point)) {
-      song.incVersion();
       getController().getUIEventQueue().push(make_unique<LogEvent>("Clip stopped"));
       return;
     }
@@ -372,7 +372,6 @@ PatternEditor::PatternEditor(UIPlane & parent)
     clipboard_.track_tunings = tuningsForTrackRange(song, track_ids, current_cursor.track, current_cursor.track);
 
     clearPatternBlock(*grid, row, row, track_ids, current_cursor.track, current_cursor.track);
-    song.incVersion();
     getController().getUIEventQueue().push(make_unique<LogEvent>("Row killed"));
   });
 
@@ -390,6 +389,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
   // the whole pattern, select all of it first.
   commands_.define("transpose-region-up", [this]() {
     auto & song = getController().getSong();
+    Song::Edit edit(song, "transpose region up");
     auto grid = source_->editGrid(selectionAnchor(), false);
     auto track_ids = song.getRootTrackIds();
 
@@ -414,11 +414,11 @@ PatternEditor::PatternEditor(UIPlane & parent)
     // semantics. EVERYTHING: deliberately left alone too, even though its
     // PatternBlock half does have transposable notes - see
     // SelectionScope.h's own comment on why.
-    song.incVersion();
   });
 
   commands_.define("transpose-region-down", [this]() {
     auto & song = getController().getSong();
+    Song::Edit edit(song, "transpose region down");
     auto grid = source_->editGrid(selectionAnchor(), false);
     auto track_ids = song.getRootTrackIds();
 
@@ -438,7 +438,6 @@ PatternEditor::PatternEditor(UIPlane & parent)
     // SelectionScope::COMMAND: nothing to transpose - Command.h has no
     // numeric/transposable semantics. LOCATOR/EVERYTHING: same - no
     // transposable content once the locator is involved at all.
-    song.incVersion();
   });
 
   // Randomizes velocity and delay of the effective region's notes, so
@@ -446,6 +445,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
   // values, so there's nothing to keep reproducible.
   commands_.define("humanize-region", [this]() {
     auto & song = getController().getSong();
+    Song::Edit edit(song, "humanize region");
     auto grid = source_->editGrid(selectionAnchor(), false);
     auto track_ids = song.getRootTrackIds();
     static NoiseGenerator rng{std::random_device{}()};
@@ -458,7 +458,6 @@ PatternEditor::PatternEditor(UIPlane & parent)
       humanizePatternBlockNotes(*grid, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi, HumanizeAmount(), rng);
     }
     // COMMAND/LOCATOR/EVERYTHING: no notes to humanize, same as transpose.
-    song.incVersion();
   });
 
   // Row navigation while stopped (playback owns the row while playing -
@@ -786,8 +785,8 @@ PatternEditor::startLocatorEdit() {
   field.initial_text = song.getLocator(*locator_row);
   inline_editor_.open(field, [this, locator_row](std::string text) {
     auto & target = getController().getSong();
+    Song::Edit edit(target, "set locator");
     target.setLocator(*locator_row, std::move(text));
-    target.incVersion();
   });
 }
 
@@ -877,8 +876,8 @@ PatternEditor::startTrackNameEdit() {
   inline_editor_.open(field, [this, track_id](std::string text) {
     auto & target_song = getController().getSong();
     if (auto target = target_song.getMasterTrack().getChildByInternalId(track_id)) {
+      Song::Edit edit(target_song, "rename track");
       target->setName(std::move(text));
-      target_song.incVersion();
     }
   });
 }
@@ -1623,6 +1622,7 @@ PatternEditor::offerInput(const InputEvent & input) {
       if (track && track->getType() == TrackType::INSTRUMENT_CONTROL) {
 	auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
 	bool changed = false;
+	Song::Edit edit(song, "change instrument");
 	if (input.getId() == NCKEY_KP_DIVIDE && instrument_track.getInstrumentId() > 0) {
 	  instrument_track.setInstrumentId(instrument_track.getInstrumentId() - 1);
 	  changed = true;
@@ -1633,8 +1633,8 @@ PatternEditor::offerInput(const InputEvent & input) {
 	    changed = true;
 	  }
 	}
+	if (!changed) edit.discard();
 	if (changed) {
-	  song.incVersion();
 	  event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CLEAR_VOICES, getController().getActiveBufferName(), instrument_track.getInternalId()));
 	}
       }
@@ -1776,9 +1776,9 @@ PatternEditor::offerInput(const InputEvent & input) {
 	// it were a typed character, instead of being ignored (subcol 2/3)
 	// or actually deleting.
 	if (input.getId() == NCKEY_DEL || input.getId() == NCKEY_BACKSPACE) {
+	  Song::Edit edit(song, "clear command", Song::Edit::Kind::CONTENT);
 	  set_command(Command());
 	  row_edited = true;
-	  song.incMinorVersion();
 	  // Same row-level Backspace-steps-back/Delete-stays-put distinction
 	  // the note column's own is_delete handling makes below.
 	  if (!transport_owns_row && input.getId() == NCKEY_BACKSPACE) {
@@ -1802,9 +1802,9 @@ PatternEditor::offerInput(const InputEvent & input) {
 	auto existing = command_grid->findCommands(track_id, point.row, command_row);
 	auto command = existing ? existing->getCommand(command_row) : Command();
 	if (command.updateData(new_cursor.subcol, input.getId())) {
+	  Song::Edit edit(song, "edit command", Song::Edit::Kind::CONTENT);
 	  set_command(command);
 	  row_edited = true;
-	  song.incMinorVersion();
 
 	  if (new_cursor.subcol + 1 < 4) {
 	    new_cursor.subcol++;
@@ -1817,7 +1817,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	}
       } else if (column_type == ColumnType::VELOCITY || column_type == ColumnType::DELAY) {
 	if (input_hex_value != -1) {
-	  auto & notes = edit_target.pattern->getNotes(edit_target.effective_row);
+	  auto notes = edit_target.pattern->getNotes(edit_target.effective_row);
 	  auto note_column = track_info.getNoteNumber(new_cursor.col);
 	  Note note;
 	  if (note_column < static_cast<int>(notes.size())) note = notes[static_cast<size_t>(note_column)];
@@ -1826,9 +1826,9 @@ PatternEditor::offerInput(const InputEvent & input) {
 	  else current_value = (current_value & 0xf0) | input_hex_value;
 	  if (column_type == ColumnType::VELOCITY) note.setVelocity(current_value);
 	  else note.setDelay(current_value);
+	  Song::Edit edit(song, "edit velocity or delay", Song::Edit::Kind::CONTENT);
 	  edit_target.pattern->setNote(edit_target.effective_row, note_column, note);
 	  row_edited = true;
-	  song.incMinorVersion();
 	  if (new_cursor.subcol == 0) {
 	    new_cursor.subcol++;
 	  } else if (new_cursor.col + 1 < track_info.getColumnCount()) {
@@ -1877,6 +1877,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	if (is_repeat && midi_note >= 0) return true; // already sounding - nothing to redo
 
 	if (is_delete || midi_note >= 0 || is_off) {
+	  Song::Edit edit(song, "enter note", Song::Edit::Kind::CONTENT);
 	  if (is_delete) {
 	    edit_target.pattern->deleteNote(edit_target.effective_row, note_column);
 	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, getController().getActiveBufferName(), track_id, note_column));
@@ -1943,7 +1944,6 @@ PatternEditor::offerInput(const InputEvent & input) {
 	  }
 
 	  row_edited = true;
-	  song.incMinorVersion();
 
 	  if (!transport_owns_row) {
 	    int n = 0;
@@ -2934,7 +2934,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	if (is_repeat_row) c = c.blend(kFadedRowDim, black);
 	return c;
       };
-      auto & notes = read_target.pattern->getNotes(read_target.effective_row);
+      auto notes = read_target.pattern->getNotes(read_target.effective_row);
       // From the block's grid, deliberately not read_target.pattern's own
       // command column - in the arrangement a Command lives at the
       // track's background only (SongState.h's own playback masking-
@@ -3086,9 +3086,9 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  // background content, an explicit stop, and an instance whose clip
 	  // has no sample content yet (nothing to show a shape for) all keep
 	  // the plain 'x'/' ' fill.
-	  auto & clips = song.getClips(track_id);
-	  const Clip * sample_clip = (read_target.is_instance && read_target.clip_index >= 0 &&
-	    read_target.clip_index < static_cast<int>(clips.size())) ? &clips[static_cast<size_t>(read_target.clip_index)] : nullptr;
+	  auto clips = song.getClips(track_id);
+	  ClipView sample_clip = (read_target.is_instance && read_target.clip_index >= 0 &&
+	    read_target.clip_index < static_cast<int>(clips.size())) ? clips[static_cast<size_t>(read_target.clip_index)] : ClipView();
 	  auto * background = source_->sampleBackground(track_id, pattern_idx);
 	  auto background_rows = background ? background->getRowCount(song.getTempo()) : 0;
 	  if (background && pattern_row >= background_rows) background = nullptr; // past the bed's end

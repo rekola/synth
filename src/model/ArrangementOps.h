@@ -1,11 +1,16 @@
 #ifndef _ARRANGEMENTOPS_H_
 #define _ARRANGEMENTOPS_H_
 
+#include "ArrangementView.h"
 #include "BarGrid.h"
+#include "ClipView.h"
+#include "PatternView.h"
 #include <string>
 #include <vector>
 
+class Arrangement;
 class Clip;
+struct PlaybackContent;
 
 class Song;
 class Pattern;
@@ -63,7 +68,7 @@ void placeStopInstance(Song & song, int track_id, int row);
 // placement covers (a looping one up to the track's next event, or the
 // arrangement's end), then removes that one placement (placeStopInstance() above) -
 // not the clip itself, which may still be placed/reused elsewhere and
-// stays in the pool regardless. Never calls Song::incVersion() itself,
+// stays in the pool regardless. Never opens a Song::Edit itself,
 // same as placeClipInstance()/placeStopInstance() above - the caller's
 // job, gated on this function's own return value (true iff something was
 // actually merged) so a no-op call doesn't bump the song version or claim
@@ -158,6 +163,11 @@ struct ActiveInstance {
 // nothing was ever placed on this track at or before `row` at all (or a
 // stored id no longer resolves to any real clip).
 ActiveInstance resolveInstanceAt(const Song & song, int track_id, int row);
+// The same lookup against content already copied for playback (what the audio
+// thread uses), or against any arrangement and clip list.
+ActiveInstance resolveInstanceAt(const PlaybackContent & content, int track_id, int row);
+ActiveInstance resolveInstanceAt(const Arrangement & arrangement, const std::vector<Clip> & clips, int track_id, int row);
+ActiveInstance resolveInstanceAt(const ArrangementView & arrangement, const ClipList & clips, int track_id, int row);
 
 // Bar-granularity counterpart to resolveInstanceAt(), for ArrangementGrid's
 // own overview - one cell per bar, sampled at each bar's own first row.
@@ -200,7 +210,7 @@ ActiveInstance resolveInstanceForBar(const Song & song, int track_id, int bar_st
 // clip on this track (stale/deleted - same resilience precedent
 // resolveInstanceAt() already has for a dangling instance reference).
 struct EditTarget {
-  Pattern * pattern;
+  PatternView pattern;
   int effective_row;
 };
 EditTarget resolveEditTarget(Song & song, int track_id, int row, const std::string & focused_clip_id = "");
@@ -214,7 +224,7 @@ EditTarget resolveEditTarget(Song & song, int track_id, int row, const std::stri
 // "always something to hand back" sentinel convention Arrangement::getNotes()/
 // getCommand() already use for the no-Pattern-at-all case.
 struct ReadTarget {
-  const Pattern * pattern;
+  PatternView pattern;
   int effective_row; // wrapped by pattern's own length - what to actually read
   int unwrapped_row; // row - (background: 0, a clip: the instance's own start_row) - for a caller that wants to tell a pattern's own real rows apart from a shorter one's repeat (row >= pattern->getLength()), which effective_row can't answer on its own once it's already wrapped
   bool is_instance; // true when `pattern` is a real clip's own Pattern, false for the background - for a caller that wants to show the difference (e.g. PatternEditor's own instance-tinted rows)

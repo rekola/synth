@@ -89,8 +89,8 @@ MidiNoteInput::handle(const MidiEvent & ev, Controller & controller, int track_i
     }
     if (!options.write) return false;
     auto target = resolve(track_id);
+    Song::Edit edit(song, "enter note", Song::Edit::Kind::CONTENT);
     target.pattern->setNote(target.effective_row, column, Note(note_value, ev.getVelocity(), current_delay));
-    song.incMinorVersion();
     return true;
   }
 
@@ -107,9 +107,12 @@ MidiNoteInput::handle(const MidiEvent & ev, Controller & controller, int track_i
     auto & info = controller.getPlaybackInfo();
     return info.isPlaying() ? info.getAbsolutePosition() : -1;
   };
+  Song::Edit edit(song, "note pressure", Song::Edit::Kind::CONTENT);
   auto pressure = controller.notePressure(row, held_track_id, column, static_cast<short>(ev.getVelocity()), current_delay, write_row, transport_row);
   queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, buffer, held_track_id, column, note_value, pressure));
-  if (!options.pressure_follows_transport) return false;
-  song.incMinorVersion();
+  if (!options.pressure_follows_transport) {
+    edit.discard();
+    return false;
+  }
   return true;
 }

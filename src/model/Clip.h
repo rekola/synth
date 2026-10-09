@@ -163,6 +163,13 @@ class Clip : public SongObject {
   // rebuilding for right now regardless - rebuildMixedContent() is the
   // caller's own job again once it actually is), rather than leaving a
   // now-incomplete mix silently served as if it were still current.
+  // Installs a mix built elsewhere (the published copy of a live clip, whose
+  // mix SampleStore keeps), as if rebuildMixedContent() had just made it.
+  void setMixedContent(SampleContent mixed) {
+    mixed_content_cache_ = std::move(mixed);
+    mixed_content_valid_ = true;
+  }
+
   SampleContent & addSampleLayer() {
     sample_layers_.emplace_back();
     mixed_content_valid_ = false;

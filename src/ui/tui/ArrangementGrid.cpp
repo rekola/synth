@@ -150,7 +150,7 @@ ArrangementGrid::offerInput(const InputEvent & input) {
   else if (input.getId() == NCKEY_PGDOWN) move_cursor(getDim().first);
   else if (input.getId() == NCKEY_BACKSPACE) {
     if (cursor_track_index_ < num_tracks) {
-      auto & arrangement = song.getArrangement();
+      auto arrangement = song.getArrangement();
       auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
       auto bar_start_row = bar_row(cursor_bar_);
       auto active = resolveInstanceForBar(song, track_id, bar_start_row, bar_length(cursor_bar_));
@@ -166,15 +166,15 @@ ArrangementGrid::offerInput(const InputEvent & input) {
         // there might be nothing to silence at all. The clip itself is
         // untouched, still in the track's own clip list - this only ends
         // this one placement of it, same scope Backspace already had.
+        Song::Edit edit(song, "end clip placement");
         arrangement.clearInstance(track_id, active.start_row);
-        song.incVersion();
       } else if (active.clip_index >= 0) {
         // A later (tail) bar the same instance merely continues through -
         // no single event's own row to remove here, only a stop can
         // truncate/mark it, landing at this bar's own row regardless of
         // wherever the instance being truncated actually started.
+        Song::Edit edit(song, "place stop");
         placeStopInstance(song, track_id, bar_start_row);
-        song.incVersion();
       }
       // Else: this bar was already silent (an earlier stop already
       // applies here, or nothing was ever placed at all) - nothing to
@@ -195,7 +195,7 @@ ArrangementGrid::offerInput(const InputEvent & input) {
       auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
       auto active = resolveInstanceForBar(song, track_id, bar_row(cursor_bar_), bar_length(cursor_bar_));
       if (active.clip_index >= 0) {
-        auto & clips = song.getClips(track_id);
+        auto clips = song.getClips(track_id);
         auto clip_id = clips[static_cast<size_t>(active.clip_index)].getId();
         auto name = clips[static_cast<size_t>(active.clip_index)].getName();
         // Same "clear a stale focus rather than leave it dangling" reasoning
@@ -203,7 +203,7 @@ ArrangementGrid::offerInput(const InputEvent & input) {
         if (getController().getFocusedClipTrackId() == track_id && getController().getFocusedClip() == clip_id) {
           getController().clearFocusedClip();
         }
-        deleteClip(song, track_id, active.clip_index); // already calls song.incVersion() itself
+        deleteClip(song, track_id, active.clip_index);
         auto text = "Deleted clip: " + (name.empty() ? string("(unnamed)") : name);
         getController().getUIEventQueue().push(make_unique<LogEvent>(std::move(text)));
       } else if (active.clip_index == Arrangement::kStopInstance) {
@@ -215,10 +215,9 @@ ArrangementGrid::offerInput(const InputEvent & input) {
         // from before it (an earlier instance, or the background) rather
         // than forcing silence to persist here - the same "delete
         // reverts to whatever's underneath" semantics deleting a clip
-        // already has. deleteClip() has its own unconditional incVersion();
-        // this needs one too, since it isn't going through that.
+        // already has.
+        Song::Edit edit(song, "delete stop");
         song.getArrangement().clearInstance(track_id, active.start_row);
-        song.incVersion();
         getController().getUIEventQueue().push(make_unique<LogEvent>("Deleted stop"));
       }
     }
@@ -248,7 +247,7 @@ namespace {
 // note-on apart from a bar that's non-empty purely from note-offs/
 // aftertouch/Command data (Pattern::hasSoundingNote()'s own distinction,
 // applied per-bar instead of to a whole Pattern).
-bool barHasBackgroundContent(const Arrangement & arrangement, int track_id, int raw_row, int rows_per_bar, bool & has_sounding_note) {
+bool barHasBackgroundContent(const ArrangementView & arrangement, int track_id, int raw_row, int rows_per_bar, bool & has_sounding_note) {
   bool has_any = false;
   has_sounding_note = false;
   for (int row = raw_row; row < raw_row + rows_per_bar; row++) {
@@ -271,8 +270,8 @@ bool barHasBackgroundContent(const Arrangement & arrangement, int track_id, int 
 // answering for every later bar too). The marker glyph is drawn purely
 // because a stop is actually on this line, not because playback is
 // currently stopped here.
-bool barHasOwnStop(const Arrangement & arrangement, int track_id, int raw_row, int rows_per_bar) {
-  auto & instances = arrangement.getInstancesForTrack(track_id);
+bool barHasOwnStop(const ArrangementView & arrangement, int track_id, int raw_row, int rows_per_bar) {
+  auto instances = arrangement.getInstancesForTrack(track_id);
   auto it = instances.lower_bound(static_cast<unsigned short>(raw_row));
   return it != instances.end() && static_cast<int>(it->first) < raw_row + rows_per_bar && it->second == "OFF";
 }
@@ -297,7 +296,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   constexpr int kColWidth = 2;
   auto visible_rows = rows;
   auto visible_cols = max(0, cols - kLocatorWidth - 1) / kColWidth;
-  auto & locators = song.getLocators();
+  auto locators = song.getLocators();
 
   // Exactly one of the two ever drives the scroll position in a given
   // frame, never both (letting both run unconditionally, one after the
@@ -392,7 +391,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
       prev_start_row[static_cast<size_t>(vc)] = above.start_row;
     }
   }
-  auto & arrangement = song.getArrangement();
+  auto arrangement = song.getArrangement();
 
   for (auto vr = 0; vr < visible_rows; vr++) {
     auto bar = scroll_row_ + vr;

@@ -38,12 +38,12 @@ previousBarRow(int raw_row, int rows_per_bar) {
 
 void
 placeClipInstance(Song & song, int track_id, int row, int clip_index) {
-  auto & clips = song.getClips(track_id);
+  auto clips = song.getClips(track_id);
   if (clip_index < 0 || clip_index >= static_cast<int>(clips.size())) return;
-  auto & clip = clips[static_cast<size_t>(clip_index)];
+  auto clip = clips[static_cast<size_t>(clip_index)];
   auto length = clip.getLength() > 0 ? clip.getLength() : 1;
   auto reach_end = row + length - 1;
-  auto & arrangement = song.getArrangement();
+  auto arrangement = song.getArrangement();
 
   // Collected first, then cleared in a separate pass - clearInstance()
   // mutates the same map getInstancesForTrack() returns a reference
@@ -69,14 +69,14 @@ mergeClipToBackground(Song & song, int track_id, int row, const ChannelConfigura
   auto active = resolveInstanceAt(song, track_id, row);
   if (active.clip_index < 0) return false; // nothing real placed here
 
-  auto & arrangement = song.getArrangement();
-  auto & clip = song.getClips(track_id)[static_cast<size_t>(active.clip_index)];
+  auto arrangement = song.getArrangement();
+  auto clip = song.getClips(track_id)[static_cast<size_t>(active.clip_index)];
   auto length = clip.getLength() > 0 ? clip.getLength() : 1;
   // A one-shot covers its own length; a looping clip plays on until the
   // track's next event, or the arrangement's end.
   auto reach_end = active.start_row + length - 1;
   if (clip.isLooping()) {
-    auto & instances = arrangement.getInstancesForTrack(track_id);
+    auto instances = arrangement.getInstancesForTrack(track_id);
     auto next = instances.upper_bound(static_cast<unsigned short>(active.start_row));
     reach_end = next != instances.end() ? static_cast<int>(next->first) - 1 : max(reach_end, song.getArrangementLength() - 1);
   }
@@ -95,7 +95,13 @@ mergeClipToBackground(Song & song, int track_id, int row, const ChannelConfigura
 
     auto sample_interval = channel_config.getSampleInterval(song_tempo);
     auto needed_frames = static_cast<int64_t>(reach_end + 1) * sample_interval;
-    auto & background = arrangement.getOrCreateSampleBackgroundContent(track_id);
+    // Mixed into a private copy of the bed: the audio already stored is
+    // never changed in place, so history can still bring it back.
+    SampleContent background;
+    if (auto * existing = arrangement.getSampleBackgroundContent(track_id)) {
+      background = *existing;
+      background.setBuffer(std::make_shared<AudioBuffer>(*existing->getBuffer()));
+    }
 
     auto src = resolved.samples->getChannelData(0) + resolved.in_frame;
     auto src_frame_count = static_cast<int64_t>(resolved.out_frame - resolved.in_frame);
@@ -113,16 +119,17 @@ mergeClipToBackground(Song & song, int track_id, int row, const ChannelConfigura
       mixIntoSampleContent(background, output_rate, needed_frames, src, frames_to_mix, dest_offset, 1.0f);
       if (!clip.isLooping()) break;
     }
+    arrangement.setSampleBackground(track_id, background);
   } else {
-    auto & leaf = clip.getLeafPattern();
-    auto & background = arrangement.getPatternsByTrack()[track_id];
+    auto leaf = clip.getLeafPattern();
+    auto background = arrangement.patternFor(track_id);
     for (auto r = active.start_row; r <= reach_end; r++) {
       auto src_row = leaf.getEffectiveRow(r - active.start_row, length);
       background.setNotes(r, leaf.getNotes(src_row));
       // Every command column, not just column 0 - a clip's own commands
       // can span more than one the same way its notes can (see
       // Pattern::setCommand(row, command_column, Command)'s own comment).
-      auto & cv = leaf.getCommandsAt(src_row);
+      auto cv = leaf.getCommandsAt(src_row);
       background.clearCommands(r);
       for (size_t col = 0; col < cv.size(); col++) {
 	if (cv[col].isDefined()) background.setCommand(r, static_cast<int>(col), cv[col]);
@@ -136,15 +143,16 @@ mergeClipToBackground(Song & song, int track_id, int row, const ChannelConfigura
 
 void
 deleteClip(Song & song, int track_id, int clip_index) {
-  auto & clips = song.getClips(track_id);
+  auto clips = song.getClips(track_id);
   if (clip_index < 0 || clip_index >= static_cast<int>(clips.size())) return;
+  Song::Edit edit(song, "delete clip");
   auto clip_id = clips[static_cast<size_t>(clip_index)].getId();
 
   // Every placement - the same clip can be (and, live-linked editing
   // being the whole point of a clip, often is) placed several times.
   // Collected first, then cleared in a separate pass - same reasoning
   // placeClipInstance() above already documents.
-  auto & arrangement = song.getArrangement();
+  auto arrangement = song.getArrangement();
   vector<int> rows_to_clear;
   for (auto & [ row, existing_clip_id ] : arrangement.getInstancesForTrack(track_id)) {
     if (existing_clip_id == clip_id) rows_to_clear.push_back(row);
@@ -157,22 +165,21 @@ deleteClip(Song & song, int track_id, int clip_index) {
   // clip list, so shifting everything past the deleted one down (the way
   // a plain vector erase would) would silently misalign them all against
   // it, even when the deletion happened on a completely different track.
-  clips[static_cast<size_t>(clip_index)] = Clip(track_id);
-  song.incVersion();
+  clips[static_cast<size_t>(clip_index)].assign(Clip(track_id));
 }
 
 SlotDelete
 deleteClipOrStopButton(Song & song, int track_id, int clip_index, string * deleted_clip_name) {
   if (clip_index < 0) return SlotDelete::NOTHING;
-  auto & clips = song.getClips(track_id);
+  auto clips = song.getClips(track_id);
   auto index = static_cast<size_t>(clip_index);
   // Content-aware, not just in-bounds: an empty filler (a "hole") reads as
   // "no clip here", the same as a slot off the end of the list.
   if (index >= clips.size() || clips[index].isEmpty()) {
     // No clip here: its stop button goes next.
     if (index < clips.size() && !clips[index].hasStopButton()) return SlotDelete::NOTHING;
+    Song::Edit edit(song, "remove stop button");
     song.ensureClipAt(track_id, clip_index).setStopButton(false);
-    song.incVersion();
     return SlotDelete::STOP_BUTTON;
   }
   if (deleted_clip_name) *deleted_clip_name = clips[index].getName();
@@ -183,30 +190,30 @@ deleteClipOrStopButton(Song & song, int track_id, int clip_index, string * delet
 int placeClipCopy(Song & song, int track_id, int clip_index, Clip clip) {
   if (clip_index < 0 || clip.isEmpty()) return -1;
   clip.setLeafTrackId(track_id);
+  Song::Edit edit(song, "place clip copy");
   clip.setId(song.generateUniqueClipId());
   // A clip already there goes, with its arrangement placements.
-  auto & clips = song.getClips(track_id);
+  auto clips = song.getClips(track_id);
   if (clip_index < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(clip_index)].isEmpty()) deleteClip(song, track_id, clip_index);
-  song.ensureClipAt(track_id, clip_index); // may reallocate the list
-  song.getClips(track_id)[static_cast<size_t>(clip_index)] = std::move(clip);
-  song.incVersion();
+  song.ensureClipAt(track_id, clip_index).assign(clip);
   return clip_index;
 }
 
 int duplicateClip(Song & song, int track_id, int from_index) {
-  auto & clips = song.getClips(track_id);
+  auto clips = song.getClips(track_id);
   if (from_index < 0 || from_index >= static_cast<int>(clips.size())) return -1;
-  return placeClipCopy(song, track_id, from_index + 1, clips[static_cast<size_t>(from_index)]);
+  return placeClipCopy(song, track_id, from_index + 1, clips[static_cast<size_t>(from_index)].toClip());
 }
 
 bool
 quantizeClip(Song & song, int track_id, int clip_index) {
-  auto & clips = song.getClips(track_id);
+  auto clips = song.getClips(track_id);
   if (clip_index < 0 || clip_index >= static_cast<int>(clips.size())) return false;
-  auto & clip = clips[static_cast<size_t>(clip_index)];
-  auto & pattern = clip.getLeafPattern();
+  auto clip = clips[static_cast<size_t>(clip_index)];
+  auto pattern = clip.getLeafPattern();
   if (clip.isEmpty() || clip.hasSample() || pattern.getNotesByRow().empty()) return false;
 
+  Song::Edit edit(song, "quantize clip");
   struct Entry { int new_row, row, column; Note note; };
   std::vector<Entry> entries;
   auto length = std::max(1, clip.getLength());
@@ -248,33 +255,42 @@ quantizeClip(Song & song, int track_id, int clip_index) {
   for (auto & [ row, columns ] : pattern.getNotesByRow()) old_rows.push_back(row);
   for (auto row : old_rows) pattern.clearNotes(row);
   for (auto & [ row, columns ] : placed) pattern.setNotes(row, columns);
-  song.incVersion();
   return true;
 }
 
 ActiveInstance
 resolveInstanceAt(const Song & song, int track_id, int row) {
-  auto & track_instances = song.getArrangement().getInstancesForTrack(track_id);
+  return resolveInstanceAt(song.getArrangement(), song.getClips(track_id), track_id, row);
+}
+
+ActiveInstance
+resolveInstanceAt(const PlaybackContent & content, int track_id, int row) {
+  return resolveInstanceAt(content.arrangement, content.getClips(track_id), track_id, row);
+}
+
+template <typename A, typename C>
+static ActiveInstance
+resolveInstanceCore(const A & arrangement, const C & clips, int track_id, int row) {
+  auto track_instances = arrangement.getInstancesForTrack(track_id);
   if (track_instances.empty()) return { Arrangement::kNoInstance };
 
   auto it = track_instances.upper_bound(static_cast<unsigned short>(row));
   if (it == track_instances.begin()) return { Arrangement::kNoInstance }; // nothing at or before row
   --it;
   auto event_row = static_cast<int>(it->first);
-  auto & clip_id = it->second;
+  auto clip_id = it->second;
   if (clip_id == "OFF") return { Arrangement::kStopInstance, event_row };
 
   // The stored id's own *current* position in the track's clip list -
   // never assumed to still be wherever it was when the instance was
   // placed (Clip.h's own comment on why).
-  auto & clips = song.getClips(track_id);
   int clip_index = -1;
   for (size_t i = 0; i < clips.size(); i++) {
     if (clips[i].getId() == clip_id) { clip_index = static_cast<int>(i); break; }
   }
   if (clip_index < 0) return { Arrangement::kNoInstance }; // the clip this once referenced no longer exists
 
-  auto & clip = clips[static_cast<size_t>(clip_index)];
+  auto clip = clips[static_cast<size_t>(clip_index)];
   if (!clip.isLooping()) {
     auto length = clip.getLength() > 0 ? clip.getLength() : 1;
     if (row - event_row >= length) return { Arrangement::kNoInstance }; // one-shot already finished
@@ -283,8 +299,18 @@ resolveInstanceAt(const Song & song, int track_id, int row) {
 }
 
 ActiveInstance
+resolveInstanceAt(const Arrangement & arrangement, const std::vector<Clip> & clips, int track_id, int row) {
+  return resolveInstanceCore(arrangement, clips, track_id, row);
+}
+
+ActiveInstance
+resolveInstanceAt(const ArrangementView & arrangement, const ClipList & clips, int track_id, int row) {
+  return resolveInstanceCore(arrangement, clips, track_id, row);
+}
+
+ActiveInstance
 resolveInstanceForBar(const Song & song, int track_id, int bar_start_row, int bar_span) {
-  auto & track_instances = song.getArrangement().getInstancesForTrack(track_id);
+  auto track_instances = song.getArrangement().getInstancesForTrack(track_id);
   if (track_instances.empty()) return { Arrangement::kNoInstance };
 
   auto bar_last_row = bar_start_row + max(bar_span, 1) - 1;
@@ -321,7 +347,7 @@ resolveInstanceForBar(const Song & song, int track_id, int bar_start_row, int ba
   // The stored id's own *current* position in the track's clip list -
   // same id-not-position lookup resolveInstanceAt() above already does,
   // for the same reason (Clip.h's own comment on why).
-  auto & clips = song.getClips(track_id);
+  auto clips = song.getClips(track_id);
   int clip_index = -1;
   for (size_t i = 0; i < clips.size(); i++) {
     if (clips[i].getId() == clip_id) { clip_index = static_cast<int>(i); break; }
@@ -336,7 +362,7 @@ resolveInstanceForBar(const Song & song, int track_id, int bar_start_row, int ba
 static int
 resolveFocusedClipIndex(const Song & song, int track_id, const std::string & focused_clip_id) {
   if (focused_clip_id.empty()) return -1;
-  auto & clips = song.getClips(track_id);
+  auto clips = song.getClips(track_id);
   for (size_t i = 0; i < clips.size(); i++) {
     if (clips[i].getId() == focused_clip_id) return static_cast<int>(i);
   }
@@ -347,20 +373,20 @@ EditTarget
 resolveEditTarget(Song & song, int track_id, int row, const std::string & focused_clip_id) {
   auto focused_index = resolveFocusedClipIndex(song, track_id, focused_clip_id);
   if (focused_index >= 0) {
-    auto & clip = song.getClips(track_id)[static_cast<size_t>(focused_index)];
+    auto clip = song.getClips(track_id)[static_cast<size_t>(focused_index)];
     if (!clip.hasSample()) {
-      auto & pattern = clip.getLeafPattern();
+      auto pattern = clip.getLeafPattern();
       auto length = clip.getLength() > 0 ? clip.getLength() : 1;
-      return { &pattern, pattern.getEffectiveRow(row, length) };
+      return { pattern, pattern.getEffectiveRow(row, length) };
     }
   } else {
     auto active = resolveInstanceAt(song, track_id, row);
     if (active.clip_index >= 0) {
-      auto & clip = song.getClips(track_id)[static_cast<size_t>(active.clip_index)];
+      auto clip = song.getClips(track_id)[static_cast<size_t>(active.clip_index)];
       if (!clip.hasSample()) {
-        auto & pattern = clip.getLeafPattern();
+        auto pattern = clip.getLeafPattern();
         auto length = clip.getLength() > 0 ? clip.getLength() : 1;
-        return { &pattern, pattern.getEffectiveRow(row - active.start_row, length) };
+        return { pattern, pattern.getEffectiveRow(row - active.start_row, length) };
       }
     }
   }
@@ -370,34 +396,32 @@ resolveEditTarget(Song & song, int track_id, int row, const std::string & focuse
   // background Pattern, the same as the ordinary "nothing placed here"
   // case just below, rather than handing back the clip's own unused,
   // meaningless Pattern.
-  auto & pattern = song.getArrangement().getPatternsByTrack()[track_id];
-  return { &pattern, pattern.getEffectiveRow(row, 0) };
+  auto pattern = song.getArrangement().patternFor(track_id);
+  return { pattern, pattern.getEffectiveRow(row, 0) };
 }
 
 ReadTarget
 resolveReadTarget(const Song & song, int track_id, int row, const std::string & focused_clip_id) {
-  static const Pattern empty_pattern;
   auto focused_index = resolveFocusedClipIndex(song, track_id, focused_clip_id);
   if (focused_index >= 0) {
-    auto & clip = song.getClips(track_id)[static_cast<size_t>(focused_index)];
+    auto clip = song.getClips(track_id)[static_cast<size_t>(focused_index)];
     // A sample clip's own getLeafPattern() is just an unused, empty
     // Pattern - nothing to read back beyond which clip is focused.
-    if (clip.hasSample()) return { &empty_pattern, 0, row, true, focused_index, true };
-    auto & pattern = clip.getLeafPattern();
+    if (clip.hasSample()) return { PatternView::empty(), 0, row, true, focused_index, true };
+    auto pattern = clip.getLeafPattern();
     auto length = clip.getLength() > 0 ? clip.getLength() : 1;
-    return { &pattern, pattern.getEffectiveRow(row, length), row, true, focused_index, true };
+    return { pattern, pattern.getEffectiveRow(row, length), row, true, focused_index, true };
   }
   auto active = resolveInstanceAt(song, track_id, row);
   if (active.clip_index >= 0) {
-    auto & clip = song.getClips(track_id)[static_cast<size_t>(active.clip_index)];
+    auto clip = song.getClips(track_id)[static_cast<size_t>(active.clip_index)];
     auto unwrapped_row = row - active.start_row;
-    if (clip.hasSample()) return { &empty_pattern, 0, unwrapped_row, true, active.clip_index };
-    auto & pattern = clip.getLeafPattern();
+    if (clip.hasSample()) return { PatternView::empty(), 0, unwrapped_row, true, active.clip_index };
+    auto pattern = clip.getLeafPattern();
     auto length = clip.getLength() > 0 ? clip.getLength() : 1;
-    return { &pattern, pattern.getEffectiveRow(unwrapped_row, length), unwrapped_row, true, active.clip_index };
+    return { pattern, pattern.getEffectiveRow(unwrapped_row, length), unwrapped_row, true, active.clip_index };
   }
-  auto & patterns = song.getArrangement().getPatternsByTrack();
-  auto it = patterns.find(track_id);
-  if (it == patterns.end()) return { &empty_pattern, 0, row, false, -1 };
-  return { &it->second, it->second.getEffectiveRow(row, 0), row, false, -1 };
+  auto found = song.getArrangement().findPattern(track_id);
+  if (!found) return { PatternView::empty(), 0, row, false, -1 };
+  return { found, found.getEffectiveRow(row, 0), row, false, -1 };
 }

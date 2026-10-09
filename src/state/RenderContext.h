@@ -3,15 +3,16 @@
 
 #include "../model/Command.h"
 #include "../model/NoteCoordinate.h"
+#include "../model/SampleContent.h"
 #include "../ambisonic/ChannelConfiguration.h"
 #include "../instruments/Tuning.h"
 
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <unordered_map>
 #include <vector>
 
-class SampleContent;
 
 // Both TrackEvent and SampleTrackEvent below are queued entries on a
 // RenderContext timeline: something a track's own chunked render() must
@@ -93,7 +94,10 @@ class TrackEvent {
 struct SampleTrackEvent {
   enum Kind { START, STOP };
   Kind kind;
-  const SampleContent * content = nullptr;
+  // Its own copy (sharing the audio): the event can outlive the block it was
+  // queued in, and the content it was made from belongs to a snapshot the
+  // UI thread may have retired by then.
+  std::shared_ptr<const SampleContent> content;
   int start_offset_frames = 0;
   bool is_background = false;
 };
@@ -144,8 +148,8 @@ class RenderContext {
   // just against this timeline instead of pending_events_) is what
   // actually calls it, precisely at this frame, the same way a pattern
   // note's own chunked render already does.
-  void addPendingSampleStart(int track_id, int frame, const SampleContent * content, int start_offset_frames = 0, bool is_background = false) {
-    pending_sample_events_[track_id][frame].push_back(SampleTrackEvent{SampleTrackEvent::START, content, start_offset_frames, is_background});
+  void addPendingSampleStart(int track_id, int frame, const SampleContent & content, int start_offset_frames = 0, bool is_background = false) {
+    pending_sample_events_[track_id][frame].push_back(SampleTrackEvent{SampleTrackEvent::START, std::make_shared<const SampleContent>(content), start_offset_frames, is_background});
   }
 
   // The stop side of the same timeline (SampleTrackEvent's own comment
