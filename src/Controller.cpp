@@ -786,7 +786,7 @@ void Controller::mirrorSceneChange(const string & buffer_name, const PlaybackInf
   if (!song) return;
   song->setRunningBars(info.getRunningBars());
   if (info.getTempo() > 0 && info.getTempo() != song->getTempo()) {
-    Song::Edit edit(*song, "scene tempo");
+    Song::Edit edit(*song, "scene tempo", Song::Edit::Kind::STRUCTURE, Song::Edit::Origin::SYNC);
     song->setTempo(static_cast<short>(info.getTempo()));
     if (buffer_name == active_buffer_name_) getUIEventQueue().push(make_unique<LogEvent>("Tempo " + to_string(song->getTempo())));
   }
@@ -821,14 +821,14 @@ Controller::syncLiveGlideStateIntoModel(const string & buffer_name, const Playba
       // happening.
       bool changed = sends.main != track_info.getLiveSendMain() || sends.a != track_info.getLiveSendA() || sends.b != track_info.getLiveSendB();
       if (changed) {
-        Song::Edit edit(*song, "glide sends");
+        Song::Edit edit(*song, "glide sends", Song::Edit::Kind::STRUCTURE, Song::Edit::Origin::SYNC);
         leaf_track->setSendMain(track_info.getLiveSendMain());
         leaf_track->setSendA(track_info.getLiveSendA());
         leaf_track->setSendB(track_info.getLiveSendB());
       }
     }
     if (track_info.hasLiveAzimuth() && leaf_track->getAzimuth() != track_info.getLiveAzimuth()) {
-      Song::Edit edit(*song, "glide azimuth");
+      Song::Edit edit(*song, "glide azimuth", Song::Edit::Kind::STRUCTURE, Song::Edit::Origin::SYNC);
       leaf_track->setAzimuth(track_info.getLiveAzimuth());
     }
   }

@@ -102,6 +102,8 @@ stops polling it.
    largest song here (252 note rows, 27 clips), so there is no case yet for
    per-pattern incremental publishing; sample audio and the tempo-stretch
    cache are shared between copies, not copied.
+   (Slice 1 done: song scalars, scenes, locators; `SongScalars` joined the
+   published copy, so the audio thread no longer reads them from `Song`.)
 3. Move storage into the document in slices, each deleting the old class and
    replacing it with a view: song scalars/locators/scenes, patterns+notes,
    clips+arrangement, tracks/sends/pool/bus. After each: build, `ctest`,

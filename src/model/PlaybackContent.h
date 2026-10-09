@@ -2,7 +2,12 @@
 #define _PLAYBACKCONTENT_H_
 
 #include "Arrangement.h"
+#include "BarGrid.h"
 #include "Clip.h"
+#include "Swing.h"
+#include "TimeSignature.h"
+#include "../instruments/Tuning.h"
+#include "../util/constants.h"
 
 #include <atomic>
 #include <cstdint>
@@ -17,7 +22,27 @@
 // latest published one, so it never sees a half-made edit and never shares
 // a container with a writer. Sample audio is shared with the live model by
 // pointer, not copied.
+// The song-level values playback reads (tempo, bars, tuning and the room).
+struct SongScalars {
+  int tempo = 140;
+  int swing = swing::kStraight;
+  TimeSignature time_signature{4, 4};
+  RunningBars running_bars;
+  Tuning tuning = Tuning::EDO31;
+  float ear_height = constants::DEFAULT_EAR_HEIGHT;
+  bool floor_reflection_enabled = constants::DEFAULT_FLOOR_REFLECTION_ENABLED;
+  float floor_reflection_strength = constants::DEFAULT_FLOOR_REFLECTION_STRENGTH;
+  float ground_absorption = constants::DEFAULT_GROUND_ABSORPTION;
+
+  bool operator==(const SongScalars & o) const {
+    return tempo == o.tempo && swing == o.swing && time_signature == o.time_signature && running_bars.signature == o.running_bars.signature &&
+      running_bars.origin == o.running_bars.origin && tuning == o.tuning && ear_height == o.ear_height && floor_reflection_enabled == o.floor_reflection_enabled &&
+      floor_reflection_strength == o.floor_reflection_strength && ground_absorption == o.ground_absorption;
+  }
+};
+
 struct PlaybackContent {
+  SongScalars scalars;
   Arrangement arrangement;
   std::unordered_map<int, std::vector<Clip> > clips_by_track;
   uint64_t generation = 0;
@@ -32,7 +57,7 @@ struct PlaybackContent {
 // An order-independent hash of everything in a PlaybackContent. Comparing
 // the digest of the live model with the published copy's finds an edit that
 // never closed a Song::Edit.
-uint64_t contentDigest(const Arrangement & arrangement, const std::unordered_map<int, std::vector<Clip> > & clips_by_track);
+uint64_t contentDigest(const SongScalars & scalars, const Arrangement & arrangement, const std::unordered_map<int, std::vector<Clip> > & clips_by_track);
 
 // Hands the audio thread the latest published content without locks or
 // reference counts, and frees displaced content on the UI thread only.

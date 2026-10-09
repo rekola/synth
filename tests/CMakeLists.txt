@@ -19,6 +19,7 @@ add_executable(synth_tests
 	DocumentTests.cpp
 	SongEditTests.cpp
 	ContentPublishingTests.cpp
+	SongDocumentTests.cpp
 	MetronomeTests.cpp
 	AudioBufferTests.cpp
 	ChannelBankTests.cpp

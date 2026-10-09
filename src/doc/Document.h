@@ -55,6 +55,10 @@ struct JournalEntry {
   std::vector<Op> ops;
   std::string label;
   uint64_t sequence = 0;
+  // False for changes that follow the audio thread rather than the user (a
+  // scene launch setting the tempo, a glide landing in the model): they
+  // stay in the journal so it is complete, but an undo policy skips them.
+  bool tracked = true;
 };
 
 // What one committed transaction touched. `structural` is set when any child
@@ -77,6 +81,10 @@ class Document {
   // Allocates a detached node. Not an undoable edit by itself: a detached
   // node is invisible until an insertChild.
   NodeId create(const std::string & type);
+  // Allocates a detached node that already has its properties - not
+  // recorded, since an invisible node's history is nobody's business; the
+  // insertChild that attaches it is.
+  NodeId create(const std::string & type, std::vector<std::pair<std::string, Value> > properties);
 
   // Id allocation is part of the persisted state (see nextId()/setNextId()).
   NodeId nextId() const { return next_id_; }
@@ -91,7 +99,7 @@ class Document {
   void moveChild(NodeId parent, const std::string & slot, size_t from, size_t to);
 
   // Transactions nest; only the outermost commit appends to the journal.
-  void begin(const std::string & label = std::string());
+  void begin(const std::string & label = std::string(), bool tracked = true);
   void commit();
   bool inTransaction() const { return depth_ > 0; }
 
@@ -106,6 +114,9 @@ class Document {
   bool inGroup() const { return in_group_; }
 
   const std::vector<JournalEntry> & journal() const { return journal_; }
+  // Forgets all history, for a document that was just loaded: opening a file
+  // is not an undoable edit.
+  void clearJournal() { journal_.clear(); }
   // The ops that undo `entry`, in the order to run them. Applying them via the
   // primitives (inside a new transaction) is how a policy layer undoes.
   static std::vector<Op> inverse(const JournalEntry & entry);
@@ -145,6 +156,7 @@ class Document {
   NodeId next_id_ = 1;
   int depth_ = 0;
   std::string pending_label_;
+  bool pending_tracked_ = true;
   std::vector<Op> pending_ops_;
   std::string pre_dump_;
   std::vector<JournalEntry> journal_;
@@ -160,7 +172,7 @@ class Document {
 // RAII wrapper: commits on scope exit.
 class Transaction {
  public:
-  Transaction(Document & d, const std::string & label = std::string()) : doc_(d) { doc_.begin(label); }
+  Transaction(Document & d, const std::string & label = std::string(), bool tracked = true) : doc_(d) { doc_.begin(label, tracked); }
   ~Transaction() { doc_.commit(); }
   Transaction(const Transaction &) = delete;
   Transaction & operator=(const Transaction &) = delete;

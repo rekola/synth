@@ -8,6 +8,8 @@
 #include "Arrangement.h"
 #include "Clip.h"
 #include "PlaybackContent.h"
+#include "SongSchema.h"
+#include "../doc/Document.h"
 #include "Scale.h"
 #include "BarGrid.h"
 #include "SceneName.h"
@@ -32,8 +34,8 @@ class Song : public SongObject {
  public:
   Song(Tuning tuning = Tuning::EDO31, short key = -1);
 
-  Tuning getTuning() const { return tuning_; }
-  void setTuning(Tuning tuning) { tuning_ = tuning; }
+  Tuning getTuning() const { return static_cast<Tuning>(read(songschema::kTuning)); }
+  void setTuning(Tuning tuning) { write("set tuning", songschema::kTuning, static_cast<int>(tuning)); }
 
   // What tuning a Note::getValue() on `track` actually means: a GM
   // percussion key for a PercussionTrack (resolves to raw GM note
@@ -45,14 +47,14 @@ class Song : public SongObject {
   // cross-tuning copy/paste, since the same raw integer means a different
   // kind of value under a different tuning).
   Tuning getTuningForTrack(const Track & track) const {
-    return track.getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : tuning_;
+    return track.getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : getTuning();
   }
 
-  short getKey() const { return key_note_number_; }
-  void setKey(int key) { key_note_number_ = key; }
+  short getKey() const { return static_cast<short>(read(songschema::kKey)); }
+  void setKey(int key) { write("set key", songschema::kKey, static_cast<int>(static_cast<short>(key))); }
 
-  Scale getScale() const { return scale_; }
-  void setScale(Scale scale) { scale_ = scale; }
+  Scale getScale() const { return static_cast<Scale>(read(songschema::kScale)); }
+  void setScale(Scale scale) { write("set scale", songschema::kScale, static_cast<int>(scale)); }
 
   // `count` ascending offsets from the tonic, starting at scale-degree
   // index `start_index` (0 = the tonic itself; negative or arbitrarily
@@ -74,27 +76,18 @@ class Song : public SongObject {
   // chromatic - what an in-key keyboard needs to stay playable.
   std::vector<int> getScaleDegreesWindow(int start_index, int count, bool major_if_none = false) const;
 
-  short getTempo() const { return bpm_; }
-  void setTempo(short bpm) { bpm_ = bpm; }
+  short getTempo() const { return static_cast<short>(read(songschema::kTempo)); }
+  void setTempo(short bpm) { write("set tempo", songschema::kTempo, static_cast<int>(bpm)); }
 
   // A scene is a row of every track's clip list, identified by its
   // position there, with an optional name, tempo and time signature.
   // Launching it sets the tempo as the song tempo and the time signature
   // as the transport's bars (ClipPlayer::launchScene()).
-  const std::string & getSceneName(int scene) const {
-    static const std::string none;
-    return scene >= 0 && static_cast<size_t>(scene) < scenes_.size() ? scenes_[static_cast<size_t>(scene)].name : none;
-  }
+  const std::string & getSceneName(int scene) const;
   // 0 for none.
-  int getSceneTempo(int scene) const {
-    return scene >= 0 && static_cast<size_t>(scene) < scenes_.size() ? scenes_[static_cast<size_t>(scene)].tempo : 0;
-  }
+  int getSceneTempo(int scene) const;
   // Numerator 0 for none.
-  TimeSignature getSceneTimeSignature(int scene) const {
-    if (scene < 0 || static_cast<size_t>(scene) >= scenes_.size()) return {};
-    auto & info = scenes_[static_cast<size_t>(scene)];
-    return {info.time_numerator, info.time_denominator};
-  }
+  TimeSignature getSceneTimeSignature(int scene) const;
   // The bar and beat length the scene is shown and edited in: its own time
   // signature, else the one the transport is counting in (which a scene
   // without one plays in).
@@ -106,14 +99,9 @@ class Song : public SongObject {
     auto signature = getSceneTimeSignature(scene);
     return (signature.isSet() ? signature : getRunningTimeSignature()).rowsPerBeat();
   }
-  void setSceneName(int scene, std::string name) { sceneAt(scene).name = std::move(name); }
-  void setSceneTempo(int scene, int bpm) { sceneAt(scene).tempo = std::max(bpm, 0); }
-  void setSceneTimeSignature(int scene, TimeSignature signature) {
-    auto & info = sceneAt(scene);
-    bool valid = signature.isSet() && TimeSignature::validDenominator(signature.denominator);
-    info.time_numerator = valid ? signature.numerator : 0;
-    info.time_denominator = valid ? signature.denominator : 0;
-  }
+  void setSceneName(int scene, std::string name);
+  void setSceneTempo(int scene, int bpm);
+  void setSceneTimeSignature(int scene, TimeSignature signature);
   // Sets a scene from typed text: a "90 BPM" and a "3/4" in it become the
   // tempo and time signature (the rest the name); with none, they stay as
   // they were.
@@ -128,8 +116,8 @@ class Song : public SongObject {
   // the pair: 50 straight, about 67 triplet swing. Applied at playback to
   // everything scheduled, never baked into note data. Callers editing it
   // live do it inside a Song::Edit, which is how the audio thread notices.
-  int getSwing() const { return swing_; }
-  void setSwing(int percent) { swing_ = swing::clamp(percent); }
+  int getSwing() const { return read(songschema::kSwing); }
+  void setSwing(int percent) { write("set swing", songschema::kSwing, swing::clamp(percent)); }
 
   // ---- Bars and time signatures. A row is a sixteenth note.
   //
@@ -137,11 +125,9 @@ class Song : public SongObject {
   // set): the arrangement counts its bars in it from row 0 - its grid, bar
   // accents, where a clip is placed. Callers editing it do it inside a
   // Song::Edit.
-  TimeSignature getTimeSignature() const { return time_signature_; }
-  void setTimeSignature(TimeSignature signature) {
-    if (signature.isSet() && TimeSignature::validDenominator(signature.denominator)) time_signature_ = signature;
-  }
-  BarGrid getArrangementBars() const { return {time_signature_, 0}; }
+  TimeSignature getTimeSignature() const { return { read(songschema::kTimeNumerator), read(songschema::kTimeDenominator) }; }
+  void setTimeSignature(TimeSignature signature);
+  BarGrid getArrangementBars() const { return {getTimeSignature(), 0}; }
 
   // The signature a launched scene set, counted from the bar it launched
   // on (saved as transportTimeSignature/transportBarOrigin). The audio
@@ -150,14 +136,17 @@ class Song : public SongObject {
   // receivePlaybackSnapshot()), so it can trail by a frame. What playback
   // and Live launching count in (the bar a queued launch waits for, the
   // metronome, take lengths) while it is active.
-  const RunningBars & getRunningBars() const { return running_bars_; }
-  void setRunningBars(RunningBars running) { running_bars_ = running; }
-  void clearRunningBars() { running_bars_ = {}; }
+  RunningBars getRunningBars() const;
+  void setRunningBars(RunningBars running);
+  void clearRunningBars() { setRunningBars({}); }
   // The signature a scene without one plays in.
-  TimeSignature getRunningTimeSignature() const { return running_bars_.isActive() ? running_bars_.signature : time_signature_; }
+  TimeSignature getRunningTimeSignature() const {
+    auto running = getRunningBars();
+    return running.isActive() ? running.signature : getTimeSignature();
+  }
 
   // The bars in force at `row`, as the UI thread knows them.
-  BarGrid getBarsAt(int row) const { return barsAt(time_signature_, running_bars_, row); }
+  BarGrid getBarsAt(int row) const { return barsAt(getTimeSignature(), getRunningBars(), row); }
   int barStartAtOrBefore(int row) const { return getBarsAt(row).barStart(row); }
   int rowInBar(int row) const { return getBarsAt(row).rowInBar(row); }
   bool isBarStart(int row) const { return rowInBar(row) == 0; }
@@ -168,8 +157,8 @@ class Song : public SongObject {
   // Whether a live clip take snaps each press and release to the nearest
   // row as it's recorded. Off (the default) records the raw sub-row timing
   // in the note's delay instead; quantizeClip() can clean it up afterward.
-  bool getRecordQuantize() const { return record_quantize_; }
-  void setRecordQuantize(bool enabled) { record_quantize_ = enabled; }
+  bool getRecordQuantize() const { return read(songschema::kRecordQuantize); }
+  void setRecordQuantize(bool enabled) { write("set record quantize", songschema::kRecordQuantize, enabled); }
   // `absolute_row` as a musical position, "bar.beat.sixteenth", each
   // 1-based, in the bars the transport counts in - what the transport
   // shows, and anything else that names a position.
@@ -182,7 +171,7 @@ class Song : public SongObject {
   const std::string & getLocator(int row) const;
   // An empty name removes the locator.
   void setLocator(int row, std::string name);
-  const std::map<int, std::string> & getLocators() const { return locators_; }
+  std::map<int, std::string> getLocators() const;
 
   // Floor-reflection parameters (see InstrumentVoice.h) - fixed for the
   // whole song, not live-editable (no live control path exists for any
@@ -192,17 +181,17 @@ class Song : public SongObject {
   // listener turns the reflection into an increasingly obvious slapback/
   // canyon echo rather than a fusion cue - a legitimate, if unusual,
   // effect, not something to forbid outright).
-  float getEarHeight() const { return ear_height_; }
-  void setEarHeight(float h) { ear_height_ = h < 0.1f ? 0.1f : (h > 50.0f ? 50.0f : h); }
+  float getEarHeight() const { return read(songschema::kEarHeight); }
+  void setEarHeight(float h) { write("set ear height", songschema::kEarHeight, h < 0.1f ? 0.1f : (h > 50.0f ? 50.0f : h)); }
 
-  bool getFloorReflectionEnabled() const { return floor_reflection_enabled_; }
-  void setFloorReflectionEnabled(bool e) { floor_reflection_enabled_ = e; }
+  bool getFloorReflectionEnabled() const { return read(songschema::kFloorReflection); }
+  void setFloorReflectionEnabled(bool e) { write("set floor reflection", songschema::kFloorReflection, e); }
 
-  float getFloorReflectionStrength() const { return floor_reflection_strength_; }
-  void setFloorReflectionStrength(float s) { floor_reflection_strength_ = s; }
+  float getFloorReflectionStrength() const { return read(songschema::kFloorReflectionStrength); }
+  void setFloorReflectionStrength(float s) { write("set floor reflection strength", songschema::kFloorReflectionStrength, s); }
 
-  float getGroundAbsorption() const { return ground_absorption_; }
-  void setGroundAbsorption(float a) { ground_absorption_ = a; }
+  float getGroundAbsorption() const { return read(songschema::kGroundAbsorption); }
+  void setGroundAbsorption(float a) { write("set ground absorption", songschema::kGroundAbsorption, a); }
 
   // The shared 2-slot send bus (bus/SendBusProcessor.h) - slot 0 = A,
   // slot 1 = B, matching SendBusProcessor::kSlotA/kSlotB. Each slot's
@@ -259,22 +248,39 @@ class Song : public SongObject {
   // CONTENT is a note/command/velocity/delay edit (the minor counter);
   // STRUCTURE is anything else (the major counter), and wins when scopes of
   // both kinds nest.
+  // How many edits of history a song keeps.
+  static constexpr size_t kJournalLimit = 10000;
+  static constexpr size_t kJournalSlack = 2000;
+
   class Edit {
    public:
     enum class Kind { CONTENT, STRUCTURE };
+    // USER is something the user did and can undo. SYNC follows the audio
+    // thread (a scene launch setting the tempo, a glide landing in the
+    // model): journaled, but never undone on its own.
+    enum class Origin { USER, SYNC };
 
-    Edit(Song & song, const char * label, Kind kind = Kind::STRUCTURE) : song_(song) {
+    Edit(Song & song, const char * label, Kind kind = Kind::STRUCTURE, Origin origin = Origin::USER) : song_(song) {
       if (song_.edit_depth_++ == 0) {
 	song_.edit_label_ = label;
 	song_.edit_kind_ = kind;
 	song_.edit_wrote_ = false;
+	song_.doc_->begin(label, origin == Origin::USER);
       } else if (kind == Kind::STRUCTURE) {
 	song_.edit_kind_ = Kind::STRUCTURE;
       }
     }
     ~Edit() {
       if (!discarded_) song_.edit_wrote_ = true;
-      if (--song_.edit_depth_ > 0 || !song_.edit_wrote_) return;
+      if (--song_.edit_depth_ > 0) return;
+      song_.doc_->commit();
+      // History is bounded; trimming in batches keeps the cost of freeing
+      // what falls off (Document::collectGarbage()) rare.
+      if (song_.doc_->journal().size() > kJournalLimit + kJournalSlack) {
+	song_.doc_->trimJournal(kJournalLimit);
+	song_.doc_->collectGarbage();
+      }
+      if (!song_.edit_wrote_) return;
       if (song_.edit_kind_ == Kind::STRUCTURE) song_.version_.incMajor();
       else song_.version_.incMinor();
       if (song_.content_published_mode_) song_.publishContent();
@@ -308,6 +314,12 @@ class Song : public SongObject {
     if (published) publishContent();
   }
   bool isContentPublished() const { return content_published_mode_; }
+  // The document the song's state lives in (the undo layer's and tests' way
+  // in; application code goes through the accessors).
+  doc::Document & document() { return *doc_; }
+  const doc::Document & document() const { return *doc_; }
+  // The song-level values playback reads, as of now.
+  SongScalars scalars() const;
   // Copies the arrangement and clips into a new PlaybackContent and
   // publishes it. UI thread.
   void publishContent() const;
@@ -563,31 +575,22 @@ class Song : public SongObject {
   std::vector<int> getPlayableTrackIds() const;
 
 private:
-  Tuning tuning_ = Tuning::EDO31;
-  short key_note_number_ = 0;
-  Scale scale_ = Scale::NONE;
-  struct SceneInfo {
-    std::string name;
-    int tempo = 0;
-    int time_numerator = 0;
-    int time_denominator = 0;
-  };
-  SceneInfo & sceneAt(int scene) {
-    static SceneInfo discarded;
-    if (scene < 0) return discarded = SceneInfo{};
-    if (static_cast<size_t>(scene) >= scenes_.size()) scenes_.resize(static_cast<size_t>(scene) + 1);
-    return scenes_[static_cast<size_t>(scene)];
+  // The song-level state lives in the document, on the root node (scalars)
+  // and its scenes/locators slots; these accessors are the typed view of it.
+  // A write opens its own Edit, which joins the caller's if there is one.
+  template <typename T>
+  T read(const doc::Prop<T> & prop) const { return doc::get(*doc_, doc_->root(), prop); }
+  template <typename T>
+  void write(const char * label, const doc::Prop<T> & prop, T value) {
+    Edit edit(*this, label);
+    doc::set(*doc_, doc_->root(), prop, value);
   }
-  std::vector<SceneInfo> scenes_; // by scene position; shorter than the scene count when the rest have neither
-  int bpm_ = 140;
-  TimeSignature time_signature_{4, 4};
-  RunningBars running_bars_;
-  int swing_ = swing::kStraight;
-  bool record_quantize_ = false;
-  float ear_height_ = constants::DEFAULT_EAR_HEIGHT;
-  bool floor_reflection_enabled_ = constants::DEFAULT_FLOOR_REFLECTION_ENABLED;
-  float floor_reflection_strength_ = constants::DEFAULT_FLOOR_REFLECTION_STRENGTH;
-  float ground_absorption_ = constants::DEFAULT_GROUND_ABSORPTION;
+  int sceneCount() const;
+  void clearScenes();
+  doc::NodeId sceneNode(int scene) const;
+  doc::NodeId ensureSceneNode(int scene);  // kNoNode for a negative scene
+  size_t locatorIndex(int row) const;      // first locator at or after `row`
+  mutable std::unique_ptr<doc::Document> doc_ = std::make_unique<doc::Document>();
 
   std::unique_ptr<BusEffect> bus_slot_a_, bus_slot_b_;
   BusEffectKind bus_slot_a_kind_ = BusEffectKind::Reverb;
@@ -665,7 +668,6 @@ private:
   // from Song's now-null pointer is never dereferenced in practice.
   mutable std::unique_ptr<std::mutex> tracks_mutex_ = std::make_unique<std::mutex>();
   Arrangement arrangement_;
-  std::map<int, std::string> locators_;
   std::unordered_map<int, std::vector<Clip> > clips_by_track_;
 
   static inline std::vector<Clip> empty_clips_;

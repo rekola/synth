@@ -296,7 +296,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   constexpr int kColWidth = 2;
   auto visible_rows = rows;
   auto visible_cols = max(0, cols - kLocatorWidth - 1) / kColWidth;
-  auto & locators = song.getLocators();
+  auto locators = song.getLocators();
 
   // Exactly one of the two ever drives the scroll position in a given
   // frame, never both (letting both run unconditionally, one after the

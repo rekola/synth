@@ -1479,6 +1479,19 @@ would otherwise resume showing.
   outside any scope is a bug that leaves the audio thread on stale content;
   run with `SYNTH_VERIFY_CONTENT=1` to have the UI say so (once per buffer)
   when the published content no longer matches the model.
+- The song's own state is moving into a document (`src/doc/`, plan in
+  `plans/undo-document-model.md`): nodes with stable ids, four journaled
+  primitives, one append-only journal per song (`Song::document()`, capped at
+  `Song::kJournalLimit` edits). So far the song-level scalars (tempo, swing,
+  signatures, tuning, key, scale, the room), scenes and locators live there,
+  declared once in `model/SongSchema.h` and read and written through `Song`'s
+  accessors, which stay the API. A `Song` setter opens its own `Edit` (joining
+  the caller's), so even a bare setter is journaled and published. An `Edit`
+  with `Origin::SYNC` is a mirror of the audio thread (scene-launch tempo,
+  glides, running bars): journaled but untracked, never undone on its own.
+  Opening a file or constructing a song leaves no history.
+  `SYNTH_VERIFY_DOCUMENT=1` replays every transaction against a copy to check
+  its undo record.
 - The audio thread never reads the live arrangement or clips: it reads
   `PlaybackContent` (`model/PlaybackContent.h`), an immutable copy of both
   that `Song::publishContent()` builds (~30 us for the largest song here) and

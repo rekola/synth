@@ -122,7 +122,7 @@ Player::startPreviewNote(const Track * instrument, const Song & song, int note_v
     preview_note_voice_->stopNote();
     preview_voices_.push_back(std::move(preview_note_voice_));
   }
-  preview_note_voice_ = instrument->playNote(channel_config_, SphericalPosition{}, song.getTuning(), 1.0f,
+  preview_note_voice_ = instrument->playNote(channel_config_, SphericalPosition{}, song.readContent()->scalars.tuning, 1.0f,
                                               note.getVelocityAsFloat(), note.getValue(), SendLevels{},
                                               NoteCoordinate(-1, live_note_counter_++, 0));
 }
@@ -373,7 +373,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	    // chord instead - so this call site never needs to know which
 	    // kind of track it's talking to.
 	    if (ev.getType() == PlaybackControlEvent::PLAY_NOTE) {
-	      auto tuning = track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
+	      auto tuning = track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.readContent()->scalars.tuning;
 	      Note note(midi_note, midi_velocity);
 
 	      // A live note has no authored row to build a
@@ -704,7 +704,7 @@ Player::renderPreview(int frames) {
     // live tempo change while a rhythm is previewing is reflected
     // immediately, the same as any other tempo-driven playback.
     auto song = controller_->getCurrentSong();
-    auto interval = song ? channel_config_.getSampleInterval(song->getTempo()) : 0;
+    auto interval = song ? channel_config_.getSampleInterval(song->readContent()->scalars.tempo) : 0;
     auto loop_frames = interval * preview_rhythm_pattern_->length;
     if (loop_frames > 0 && preview_rhythm_instrument_) {
       for (auto & hit : preview_rhythm_pattern_->hits) {

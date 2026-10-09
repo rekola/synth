@@ -48,6 +48,14 @@ NodeId Document::create(const std::string & type) {
   return createWithId(next_id_, type);
 }
 
+NodeId Document::create(const std::string & type, std::vector<std::pair<std::string, Value> > properties) {
+  auto id = create(type);
+  auto node = mutableGet(id);
+  for (auto & p : properties)
+    if (!std::holds_alternative<std::monostate>(p.second)) node->properties.push_back(std::move(p));
+  return id;
+}
+
 NodeId Document::createWithId(NodeId id, const std::string & type) {
   assert(id != kNoNode && !nodes_.count(id));
   auto node = std::make_unique<Node>();
@@ -151,9 +159,10 @@ void Document::moveChild(NodeId parent_id, const std::string & slot, size_t from
   record(std::move(op));
 }
 
-void Document::begin(const std::string & label) {
+void Document::begin(const std::string & label, bool tracked) {
   if (depth_++ == 0) {
     pending_label_ = label;
+    pending_tracked_ = tracked;
     pending_ops_.clear();
     if (verify_) pre_dump_ = dump();
   } else if (pending_label_.empty()) {
@@ -170,6 +179,7 @@ void Document::commit() {
   entry.ops = std::move(pending_ops_);
   entry.label = std::move(pending_label_);
   entry.sequence = ++sequence_;
+  entry.tracked = pending_tracked_;
   pending_ops_.clear();
   pending_label_.clear();
 

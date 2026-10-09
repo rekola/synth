@@ -54,11 +54,13 @@ class SongState : public TrackState {
   bool isMasterClipping() const { return master_clipping_; }
 
   void initialize(const Song & song) {
-    tempo_ = song.getTempo();
+    auto content_reader = song.readContent();
+    auto & scalars = content_reader->scalars;
+    tempo_ = scalars.tempo;
     synced_song_tempo_ = tempo_;
-    song_signature_ = song.getTimeSignature();
-    running_bars_ = song.getRunningBars();
-    swing_ = song.getSwing();
+    song_signature_ = scalars.time_signature;
+    running_bars_ = scalars.running_bars;
+    swing_ = scalars.swing;
     master_sends_ = song.getMasterTrack().getSends();
     render_context_.setBpm(tempo_);
     song_structure_ = SongStructure(song);
@@ -70,10 +72,10 @@ class SongState : public TrackState {
     // finalize a fresh one, since every playNote() call already threads
     // a ChannelConfiguration all the way down to voice construction.
     auto & mutable_config = getMutableChannelConfiguration();
-    mutable_config.setEarHeight(song.getEarHeight());
-    mutable_config.setFloorReflectionEnabled(song.getFloorReflectionEnabled());
-    mutable_config.setFloorReflectionStrength(song.getFloorReflectionStrength());
-    mutable_config.setGroundAbsorption(song.getGroundAbsorption());
+    mutable_config.setEarHeight(scalars.ear_height);
+    mutable_config.setFloorReflectionEnabled(scalars.floor_reflection_enabled);
+    mutable_config.setFloorReflectionStrength(scalars.floor_reflection_strength);
+    mutable_config.setGroundAbsorption(scalars.ground_absorption);
 
     int real_sample_rate = getChannelConfiguration().getAudioOutSampleRate();
     float row_duration = getChannelConfiguration().getRowDuration(tempo_);
@@ -220,26 +222,26 @@ class SongState : public TrackState {
     // and a resume, is ordinary usage, not an edge case. Keyed on
     // getMajorVersion() specifically, not getMinorVersion() - a note/command
     // edit alone must not trigger this.
+    // The arrangement, clips and song-level values as of the last finished
+    // edit, held for this whole block (Song::readContent()). Nothing here may
+    // keep a pointer into it past the block.
+    auto content_reader = song.readContent();
+    const PlaybackContent & content = *content_reader;
+
     if (song_structure_version_ != song.getMajorVersion()) {
       std::lock_guard<std::mutex> guard(song.getTracksMutex());
       song_structure_ = SongStructure(song);
       song_structure_version_ = song.getMajorVersion();
-      swing_ = song.getSwing();
-      song_signature_ = song.getTimeSignature();
+      swing_ = content.scalars.swing;
+      song_signature_ = content.scalars.time_signature;
       // Only a tempo the song itself changed is applied: a scene launch has
       // set this one ahead of the song's copy (queueSceneChange()), and an
       // unrelated edit mustn't put it back.
-      if (song.getTempo() != synced_song_tempo_) {
-        synced_song_tempo_ = song.getTempo();
+      if (content.scalars.tempo != synced_song_tempo_) {
+        synced_song_tempo_ = content.scalars.tempo;
         applyTempo(synced_song_tempo_);
       }
     }
-
-    // The arrangement and clips as of the last finished edit, held for this
-    // whole block (Song::readContent()). Nothing here may keep a pointer
-    // into it past the block.
-    auto content_reader = song.readContent();
-    const PlaybackContent & content = *content_reader;
 
     // Snapshotting the raw Track* pointers under Song::getTracksMutex()
     // rather than holding it for this whole method - see that mutex's own
@@ -563,7 +565,7 @@ class SongState : public TrackState {
 
 	    auto & notes = active_pattern->getNotes(effective_row);
 	    auto track = song.getMasterTrack().getChildByInternalId(track_id);
-	    auto tuning = track ? song.getTuningForTrack(*track) : song.getTuning();
+	    auto tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : content.scalars.tuning;
 
 	    for (size_t j = 0; j < notes.size(); j++) {
 	      if (notes[j].isDefined()) {
