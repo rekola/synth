@@ -1399,33 +1399,6 @@ TEST(note_names_round_trip_for_every_value_in_every_tuning) {
   }
 }
 
-// A song file from before clips and placements were flat elements and tracks
-// named their instrument by pool index still loads: <trackClips>, <instances>
-// with the clip id (or OFF) as text, and a numeric instrument="0".
-TEST(an_older_files_clip_wrappers_placements_and_instrument_index_still_load) {
-  namespace fs = std::filesystem;
-  auto path = (fs::path(TESTS_SCRATCH_DIR) / "song_older_format_scratch.xml").string();
-  {
-    ofstream out(path);
-    out << "<?xml version=\"1.0\"?><song temperament=\"12edo\">"
-           "<instruments><oscillator type=\"sine\"/><oscillator type=\"saw\"/></instruments>"
-           "<tracks><track id=\"t\" instrument=\"1\"/></tracks>"
-           "<clips><trackClips track=\"t\"><clip id=\"c1\"><pattern><note row=\"0\" value=\"C-4\"/></pattern></clip></trackClips></clips>"
-           "<arrangement><instances track=\"t\"><instance row=\"0\">c1</instance><instance row=\"8\">OFF</instance></instances></arrangement>"
-           "</song>";
-  }
-  InstrumentProvider provider;
-  Song song;
-  CHECK(song.open(path, provider));
-  auto track = song.getMasterTrack().getChildById("t");
-  CHECK(track != nullptr);
-  CHECK(dynamic_cast<const InstrumentTrack &>(*track).getInstrumentId() == 1);
-  CHECK(song.getClips(track->getInternalId()).size() == 1);
-  CHECK(song.getArrangement().getInstance(track->getInternalId(), 0) == "c1");
-  CHECK(song.getArrangement().getInstance(track->getInternalId(), 8) == "OFF");
-  fs::remove(path);
-}
-
 // A track names its instrument by the instrument's id, so listing the pool in
 // a different order in the file doesn't repoint it.
 TEST(a_track_finds_its_instrument_by_id_wherever_the_pool_lists_it) {

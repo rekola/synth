@@ -7,10 +7,6 @@
   </instruments>
   <tracks>
     <percussionTrack id="0" instrument="i1">
-      <lane note="BD"/>
-      <lane note="SD"/>
-      <lane note="CH"/>
-      <lane note="CR"/>
     </percussionTrack>
   </tracks>
   <arrangement>

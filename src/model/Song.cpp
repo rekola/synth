@@ -227,15 +227,13 @@ static void storeGeneratorOverrides(const GenericInstrument & instrument, XMLDoc
 }
 
 // The pool index a track's `instrument` attribute names: the id of a pool
-// entry, or (an older file's way) the index itself. -1 if it names neither.
+// entry. -1 if it names none.
 static int poolIndexForReference(const InstrumentPool & pool, const char * text) {
   auto & instruments = pool.getInstruments();
   for (size_t i = 0; i < instruments.size(); i++) {
     if (!instruments[i]->getId().empty() && instruments[i]->getId() == text) return static_cast<int>(i);
   }
-  char * end = nullptr;
-  auto index = strtol(text, &end, 10);
-  return end != text && *end == '\0' && index >= 0 && index < static_cast<long>(instruments.size()) ? static_cast<int>(index) : -1;
+  return -1;
 }
 
 static std::unique_ptr<Track> parseChildTrack(XMLElement & element, const InstrumentProvider & provider, const InstrumentPool & pool) {
@@ -263,7 +261,6 @@ static std::unique_ptr<Track> parseChildTrack(XMLElement & element, const Instru
   }
 
   for (auto it = element.FirstChildElement(); it ; it = it->NextSiblingElement() ) {
-    if (string_view(it->Name()) == "lane") continue; // legacy per-track drum list, no longer used
     if (string_view(it->Name()) == "generator") continue; // data, not a nested track - handled above
     auto child = parseChildTrack(*it, provider, pool);
     if (!child) return std::unique_ptr<Track>(nullptr);
@@ -904,14 +901,12 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
     // above), just with no name/loop/length of its own.
     auto clips_element = song->FirstChildElement("clips");
     if (clips_element) {
-      // An older file wraps each track's clips in <trackClips track> instead.
       auto load_clip = [&](XMLElement * it, const Track * track) -> bool {
 	Clip clip(track->getInternalId());
 	auto sample_element = it->FirstChildElement("sample");
 	if (sample_element) {
 	  // One or more layers (Clip.h's own sample_layers_ comment) - each a
-	  // sibling <sample> in take order, layer 0 first; an older
-	  // single-<sample> file is just the size-1 case of the same loop.
+	  // sibling <sample> in take order, layer 0 first.
 	  for (; sample_element; sample_element = sample_element->NextSiblingElement("sample")) {
 	    // A named, exact file reference - missing/unreadable is fatal to
 	    // the whole load, the same way a malformed <pattern> already is
@@ -948,14 +943,7 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	return true;
       };
       for (auto it = clips_element->FirstChildElement(); it; it = it->NextSiblingElement()) {
-	if (string_view(it->Name()) == "trackClips") {
-	  auto track_text = it->Attribute("track");
-	  auto track = track_text ? resolveTrackReference(*this, track_text) : nullptr;
-	  if (!track) continue;
-	  for (auto clip_element = it->FirstChildElement("clip"); clip_element; clip_element = clip_element->NextSiblingElement("clip")) {
-	    if (!load_clip(clip_element, track)) return false;
-	  }
-	} else if (string_view(it->Name()) == "clip") {
+	if (string_view(it->Name()) == "clip") {
 	  auto track_text = it->Attribute("track");
 	  auto track = track_text ? resolveTrackReference(*this, track_text) : nullptr;
 	  if (!track) continue;
@@ -981,9 +969,7 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	timeline.setPatternForTrack(track->getInternalId(), pattern);
       }
 
-      // One <instance track row clip> per placement; no clip is a stop. (An
-      // older file groups a track's placements under <instances track> and
-      // gives the clip id, or OFF for a stop, as the element's text.)
+      // One <instance track row clip> per placement; no clip is a stop.
       for (auto it = arrangement->FirstChildElement(); it ; it = it->NextSiblingElement()) {
 	if (string_view(it->Name()) == "instance") {
 	  auto track_text = it->Attribute("track");
@@ -992,16 +978,6 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	  if (!track || !row_text) continue;
 	  auto clip_text = it->Attribute("clip");
 	  timeline.setInstance(track->getInternalId(), atoi(row_text), clip_text ? clip_text : "OFF");
-	} else if (string_view(it->Name()) == "instances") {
-	  auto track_text = it->Attribute("track");
-	  auto track = track_text ? resolveTrackReference(*this, track_text) : nullptr;
-	  if (!track) continue;
-
-	  for (auto it2 = it->FirstChildElement("instance"); it2 ; it2 = it2->NextSiblingElement("instance")) {
-	    auto row_text = it2->Attribute("row");
-	    auto value_text = it2->GetText();
-	    if (row_text && value_text) timeline.setInstance(track->getInternalId(), atoi(row_text), value_text);
-	  }
 	}
       }
 
