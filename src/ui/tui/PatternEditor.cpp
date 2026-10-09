@@ -1141,10 +1141,10 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
     auto cell_info = at == track_ids.end() ? track_info.end() : track_info.find(place.track_id);
     if (cell_info != track_info.end()) {
       auto want = place.field == Song::Field::VELOCITY ? ColumnType::VELOCITY : place.field == Song::Field::DELAY ? ColumnType::DELAY
-                : place.field == Song::Field::COMMAND ? ColumnType::EFFECT : ColumnType::NOTE;
+                : place.field == Song::Field::COMMAND ? ColumnType::TRACK_FX : ColumnType::NOTE;
       for (int k = 0; k < cell_info->second.getColumnCount(); k++) {
 	if (cell_info->second.getColumnType(k) != want) continue;
-	if (want != ColumnType::EFFECT && cell_info->second.getNoteNumber(k) != place.column) continue;
+	if (want != ColumnType::TRACK_FX && cell_info->second.getNoteNumber(k) != place.column) continue;
 	new_cursor.track = static_cast<int>(at - track_ids.begin());
 	new_cursor.col = k;
 	new_cursor.subcol = 0;
