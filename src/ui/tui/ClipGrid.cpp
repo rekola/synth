@@ -60,9 +60,6 @@ float sendDb(float linear) { return std::max(sendLinearToDb(linear), -99.0f); }
 // A Sends label/value row's text, kSendsTextWidth wide (the column's last
 // cell is the meter's): the same for a track and the master.
 std::string sendsLabel() { return fmt::format("{:<5}{:>4}{:>4}{:>4}", "Sends", "M", "A", "B"); }
-std::string sendValues(const SendLevels & sends) {
-  return fmt::format("{:>4.0f}{:>4.0f}{:>4.0f}", sendDb(sends.main), sendDb(sends.a), sendDb(sends.b));
-}
 
 // A header's trailing " ◆IMS": taken over by Live View (a double-width
 // glyph), Monitor, Mute, Solo.
@@ -373,13 +370,13 @@ ClipGrid::activateCell(const Song & song, const std::vector<int> & track_ids, bo
     // edits the master's Send Main (the song's volume), the last row
     // stops every track.
     if (kind == RowKind::CLIP && scene_callback_) scene_callback_(physicalFor(cursor_row_));
-    else if (kind == RowKind::SENDS && edit_sends) startSendsEdit(song.getMasterTrack().getInternalId());
+    else if (kind == RowKind::SENDS && edit_sends) startSendEdit(song.getMasterTrack().getInternalId(), cursor_send_);
     else if (kind == RowKind::DIRECTION && stop_all_callback_) stop_all_callback_();
     return;
   }
   if (cursor_track_index_ < 0 || cursor_track_index_ > num_tracks) return;
   if (kind == RowKind::SENDS) {
-    if (edit_sends) startSendsEdit(track_ids[static_cast<size_t>(cursor_track_index_)]);
+    if (edit_sends) startSendEdit(track_ids[static_cast<size_t>(cursor_track_index_)], cursor_send_);
   } else if (kind == RowKind::CLIP && trigger_callback_) {
     trigger_callback_(track_ids[static_cast<size_t>(cursor_track_index_)], physicalFor(cursor_row_));
   }
@@ -418,6 +415,7 @@ ClipGrid::handleMouse(const InputEvent & input) {
 
   cursor_track_index_ = column;
   if (logical_row == 0) return true; // the header, or a label/divider row: only the track is picked
+  cursor_send_ = std::clamp((x % (kColWidth + 1) - 5) / 4, 0, 2); // meaningful on the Sends row only
   cursor_row_ = logical_row;
   view_detached_ = false;
   if (column < num_tracks) getController().getSong().setCurrentTrackId(track_ids[static_cast<size_t>(column)]); // non-const, see offerInput()'s own `song` comment
@@ -466,8 +464,17 @@ ClipGrid::offerInput(const InputEvent & input) {
   // constructor's own toggle-mute/toggle-solo bindings.
   if (input.getId() == NCKEY_UP) cursor_row_--;
   else if (input.getId() == NCKEY_DOWN) cursor_row_++;
-  else if (input.getId() == NCKEY_LEFT) cursor_track_index_--;
-  else if (input.getId() == NCKEY_RIGHT) cursor_track_index_++;
+  else if (input.getId() == NCKEY_LEFT || input.getId() == NCKEY_RIGHT) {
+    int step = input.getId() == NCKEY_LEFT ? -1 : 1;
+    bool on_sends = rowKindFor(cursor_row_) == RowKind::SENDS;
+    // On the Sends row the three values are cells of their own: Left and
+    // Right walk through them, then on into the next column.
+    if (on_sends && cursor_send_ + step >= 0 && cursor_send_ + step <= 2) cursor_send_ += step;
+    else if (cursor_track_index_ + step >= 0 && cursor_track_index_ + step <= num_tracks) {
+      cursor_track_index_ += step;
+      cursor_send_ = step > 0 ? 0 : 2;
+    }
+  }
   else if (input.getId() == NCKEY_PGUP) cursor_row_ -= getDim().first;
   else if (input.getId() == NCKEY_PGDOWN) cursor_row_ += getDim().first;
   else if (input.getId() == NCKEY_F02) {
@@ -707,17 +714,15 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
       // here (two calls, two styles) rather than through the shared
       // text/pad/put path every other row below shares.
       if (physical_row == clip_rows + kSendsValue) {
-        Color row_fg = is_cursor_cell ? styles.highlight_fg_color : styles.window_fg_color;
-        Color row_bg = is_cursor_cell ? styles.highlight_bg_color : styles.window_bg_color;
-        setFgColor(row_fg);
-        setBgColor(row_bg);
+        setFgColor(styles.window_fg_color);
+        setBgColor(styles.window_bg_color);
         putstr(y, x, string(static_cast<size_t>(kColWidth), ' ')); // opaque row background first
         if (leaf) {
           auto sends = leaf->getSends();
           setItalic(true);
           putstr(y, x, " dB  "); // under "Sends" above it
           setItalic(false);
-          putstr(y, x + 5, sendValues(sends));
+          putSendValues(y, x, sends, is_cursor_cell ? cursor_send_ : -1, styles);
         }
         continue;
       }
@@ -954,13 +959,13 @@ ClipGrid::renderMasterColumn(const StyleProvider & styles, int x, int rows, bool
     if (offset == kSendsValue) {
       // The master's own Send Main/A/B: the dry mix and the send bus's two
       // returns - the same row, and parameters, a track has.
-      setFgColor(fg);
-      setBgColor(bg);
+      setFgColor(styles.window_fg_color);
+      setBgColor(styles.window_bg_color);
       putstr(y, x, std::string(static_cast<size_t>(kColWidth), ' '));
       setItalic(true);
       putstr(y, x, " dB  ");
       setItalic(false);
-      putstr(y, x + 5, sendValues(master.getSends()));
+      putSendValues(y, x, master.getSends(), is_cursor_cell ? cursor_send_ : -1, styles);
       continue;
     }
     std::string text;
@@ -989,34 +994,40 @@ ClipGrid::renderMasterColumn(const StyleProvider & styles, int x, int rows, bool
 }
 
 void
-ClipGrid::startSendsEdit(int track_id) {
+ClipGrid::putSendValues(int y, int x, const SendLevels & sends, int highlighted, const StyleProvider & styles) {
+  float values[3] = { sends.main, sends.a, sends.b };
+  for (int i = 0; i < 3; i++) {
+    bool on = i == highlighted;
+    setFgColor(on ? styles.highlight_fg_color : styles.window_fg_color);
+    setBgColor(on ? styles.highlight_bg_color : styles.window_bg_color);
+    putstr(y, x + 5 + i * 4, fmt::format("{:>4.0f}", sendDb(values[i])));
+  }
+}
+
+void
+ClipGrid::startSendEdit(int track_id, int send) {
   if (inline_editor_.isOpen()) return;
   auto row = clipRowCount() + kSendsValue - scroll_row_ + 1; // +1 for the header row
   auto column = cursor_track_index_ - scroll_col_;
   if (row < 1 || row >= getDim().first || column < 0) return;
   auto * track = getController().getSong().getMasterTrack().getChildByInternalId(track_id);
   if (!track) return;
+  send = std::clamp(send, 0, 2);
 
-  // The three values as shown, space-separated; each one typed replaces
-  // its send, in order - M, A, B.
+  // The one value under the cursor (M, A or B).
   InlineEditor::Field field;
   field.row = row;
-  field.col = column * (kColWidth + 1) + 5;
-  field.width = kSendsTextWidth - 5;
-  auto sends = track->getSends();
-  field.initial_text = fmt::format("{:.0f} {:.0f} {:.0f}", sendDb(sends.main), sendDb(sends.a), sendDb(sends.b));
-  inline_editor_.open(field, [this, track_id](std::string text) {
+  field.col = column * (kColWidth + 1) + 5 + send * 4;
+  field.width = 4;
+    // Empty: the typed number is the new value, Enter on nothing leaves it.
+  inline_editor_.open(field, [this, track_id, send](std::string text) {
+    char * end = nullptr;
+    float db = std::strtof(text.c_str(), &end);
+    if (end == text.c_str()) return; // not a number: the send stays as it was
+    db = std::clamp(db, -100.0f, 12.0f);
     auto & controller = getController();
-    const char * p = text.c_str();
-    for (int i = 0; i < 3; i++) {
-      char * end = nullptr;
-      float db = std::strtof(p, &end);
-      if (end == p) break; // no more numbers - the rest stay as they were
-      db = std::clamp(db, -100.0f, 12.0f);
-      if (i == 0) controller.setTrackSendMain(track_id, db);
-      else if (i == 1) controller.setTrackSendA(track_id, db);
-      else controller.setTrackSendB(track_id, db);
-      p = end;
-    }
+    if (send == 0) controller.setTrackSendMain(track_id, db);
+    else if (send == 1) controller.setTrackSendA(track_id, db);
+    else controller.setTrackSendB(track_id, db);
   });
 }

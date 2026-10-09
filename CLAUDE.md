@@ -935,8 +935,10 @@ would otherwise resume showing.
   (`sendMain`/`sendA`/`sendB`, `Controller::setTrackSendMain()`/`A()`/
   `B()`): its Send Main is the song's dry mix level and its Send A/B the
   send bus's two returns, applied in `SongState::renderBlock()`; only
-  leaf tracks have Mute/Solo/Monitor and Direction. Enter on a Sends row
-  edits the three values. Every column has a vertical level meter
+  leaf tracks have Mute/Solo/Monitor and Direction. On the Sends row Left and
+  Right walk through the Main, A and B values (then on into the next column),
+  the cursor covers one value, and Enter edits just that one (a typed dB
+  number; empty leaves it). Every column has a vertical level meter
   beside its Sends/Direction rows (`LevelMeter.h`: one dB mapping, braille
   by default with sextants as an opt-in glyph set, `Ballistics` smoothing
   a block's RMS in the power domain so a low note doesn't ripple, bars

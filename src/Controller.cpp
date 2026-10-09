@@ -867,9 +867,13 @@ Controller::syncLiveGlideStateIntoModel(const string & buffer_name, const Playba
       // re-asserting an already-correct value on every single one would
       // mark the song dirty continuously while nothing is actually
       // happening.
-      bool changed = sends.main != track_info.getLiveSendMain() || sends.a != track_info.getLiveSendA() || sends.b != track_info.getLiveSendB();
+      // The live values arrive as thousandths and the model stores sends as
+      // dB text, so an exact comparison never settles (0.299999 against 0.3)
+      // and the mirror would rewrite the track on every snapshot.
+      auto differs = [](float model, float live) { return std::fabs(model - live) > 0.0006f; };
+      bool changed = differs(sends.main, track_info.getLiveSendMain()) || differs(sends.a, track_info.getLiveSendA()) || differs(sends.b, track_info.getLiveSendB());
       if (changed) {
-        Song::Edit edit(*song, "glide sends", Song::Edit::Kind::STRUCTURE, Song::Edit::Origin::SYNC);
+            Song::Edit edit(*song, "glide sends", Song::Edit::Kind::STRUCTURE, Song::Edit::Origin::SYNC);
         song->editTrack(track_id, [&](Track & track) {
           leafOf(track).setSendMain(track_info.getLiveSendMain());
           leafOf(track).setSendA(track_info.getLiveSendA());
@@ -880,7 +884,7 @@ Controller::syncLiveGlideStateIntoModel(const string & buffer_name, const Playba
     // The sends edit above replaced the track's object.
     leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
     if (!leaf_track) continue;
-    if (track_info.hasLiveAzimuth() && leaf_track->getAzimuth() != track_info.getLiveAzimuth()) {
+    if (track_info.hasLiveAzimuth() && std::fabs(leaf_track->getAzimuth() - track_info.getLiveAzimuth()) > 0.06f) { // the event carries tenths of a degree
       Song::Edit edit(*song, "glide azimuth", Song::Edit::Kind::STRUCTURE, Song::Edit::Origin::SYNC);
       song->editTrack(track_id, [&](Track & track) { leafOf(track).setAzimuth(track_info.getLiveAzimuth()); });
     }

@@ -383,3 +383,23 @@ TEST(undo_peeks_at_where_it_would_change_the_song_before_it_does) {
   CHECK(song.undo());
   CHECK(song.nextRedoPlace().clip_index == 0);
 }
+
+TEST(a_send_edit_undoes_although_the_audio_thread_mirrors_values_around_it) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  CHECK(controller.openSong(std::string(TESTS_FIXTURES_DIR) + "/center_note.xml"));
+  auto & song = controller.getSong();
+  auto track_id = song.getPlayableTrackIds().at(0);
+  auto sendA = [&]() { return dynamic_cast<const LeafTrack &>(*song.getMasterTrack().getChildByInternalId(track_id)).getSends().a; };
+  float before = sendA();
+  controller.setTrackSendA(track_id, -6.0f);
+  float edited = sendA();
+  CHECK(edited != before);
+  // The audio thread's mirror writes the live value back around the edit.
+  for (float value : { before, edited }) {
+    Song::Edit sync(song, "glide sends", Song::Edit::Kind::STRUCTURE, Song::Edit::Origin::SYNC);
+    song.editTrack(track_id, [&](Track & track) { track.setSendA(value); });
+  }
+  controller.sendCommand("undo");
+  CHECK(sendA() == before);
+}
