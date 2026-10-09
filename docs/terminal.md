@@ -56,7 +56,9 @@ and M-x, and are the Launchpad's shift + Record Arm and shift + Mute.
 Only the song is undone: tempo, notes, clips and placements, tracks,
 instruments and bus effects. The cursor, the view and the clipboard are not.
 Changes that follow the playing song (a scene launch setting the tempo) are
-never undone. Undo and redo do nothing while a live take is open.
+never undone. A live recording take is one step: its notes appear as they land, and
+`undo` takes the whole take back once it has ended. Undo and redo do nothing
+while a take is still recording.
 
 ## Humanize
 

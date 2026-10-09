@@ -391,6 +391,7 @@ class Controller {
   // arrives).
   void armClipTrackRecording(int track_id, int clip_index) {
     clip_recording_takes_[track_id] = ClipRecordingTake{ clip_index, false, -1 };
+    updateUndoGroup();
   }
   bool isClipRecording(int track_id) const { return clip_recording_takes_.count(track_id) > 0; }
   bool isAnyClipRecording() const { return !clip_recording_takes_.empty(); }
@@ -966,7 +967,10 @@ class Controller {
   // to one bar. finishSampleCapture()/disarmThresholdRecording() already
   // finalize/cancel the real audio side; this just clears the matching
   // take-in-progress bookkeeping either way.
-  void clearClipRecordingTake(int track_id) { clip_recording_takes_.erase(track_id); }
+  void clearClipRecordingTake(int track_id) {
+    clip_recording_takes_.erase(track_id);
+    updateUndoGroup();
+  }
 
   // beginSampleCapture()'s own counterpart to extendRecordingClipsIfNeeded()
   // above - same reasoning, same growth shape, but scoped to the one
@@ -1305,6 +1309,14 @@ class Controller {
   // take also had to start the transport itself, so finishing/disarming
   // later knows whether to stop it again.
   bool record_arm_auto_started_playback_ = false;
+  // A live take is one undo step: while any clip take or auto-record session
+  // is in flight, `undo_group_song_`'s document holds an undo group open
+  // (Document::beginGroup), so the notes still land one by one but undo as a
+  // whole - and undo itself waits until the take ends. updateUndoGroup()
+  // opens or closes it from those two facts.
+  void updateUndoGroup();
+  std::shared_ptr<Song> undo_group_song_;
+  int auto_record_sessions_ = 0;
   // setClipGridFocused()/setClipGridCursor()'s own backing fields -
   // see their shared doc comment.
   bool clip_grid_focused_ = false;
@@ -1336,6 +1348,7 @@ class Controller {
   // extendClipRecordingClipIfNeeded()/trimClipRecordingClip() can
   // still tell an overdub apart from a fresh take long after arming.
   struct ClipRecordingTake { int clip_index = -1; bool clip_ready = false; int origin_step = -1; bool is_overdub = false; };
+  void trimTakenClip(int track_id, const ClipRecordingTake & take);
   std::unordered_map<int, ClipRecordingTake> clip_recording_takes_;
   // takeCompletedClipRecording()'s own backing queue - see its shared
   // doc comment.

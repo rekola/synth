@@ -1490,8 +1490,11 @@ would otherwise resume showing.
   nothing is dropped and undoing an undo is a redo; the run of undos is broken
   only by a tracked edit (cursor moves are not edits), and `Origin::SYNC`
   entries are passed over and never undone. It does nothing while an undo group
-  (`Document::beginGroup`) is open, which is how a live take will be one step -
-  no take opens a group yet, so a take is still one entry per note.
+  (`Document::beginGroup`) is open, which is how a live take is one step:
+  `Controller::updateUndoGroup()` holds a group open while any clip take
+  (`isAnyClipRecording()`) or auto-record session is in flight, so its notes
+  land one by one but undo as a whole, once it has ended. Recording armed
+  without a take or session in flight still journals note by note.
 - The song's own state lives in a DOM (`src/doc/`, plan in
   `plans/undo-document-model.md`): nodes with stable ids, four journaled
   primitives, one append-only journal per song (`Song::document()`, capped at

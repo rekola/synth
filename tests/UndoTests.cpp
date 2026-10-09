@@ -161,3 +161,29 @@ TEST(a_deleted_clip_and_its_arrangement_placement_come_back_with_undo) {
   CHECK(song.getClips(track_id)[0].getId() == clip_id);
   CHECK(song.getArrangement().getInstance(track_id, 0) == clip_id);
 }
+
+TEST(a_clip_take_is_one_undo_step_and_undo_waits_until_it_ends) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  CHECK(controller.openSong(std::string(TESTS_FIXTURES_DIR) + "/center_note.xml"));
+  auto & song = controller.getSong();
+  auto track_id = song.getRootTrackIds().at(0);
+  auto journal = song.document().journal().size();
+
+  controller.armClipTrackRecording(track_id, 0);
+  CHECK(song.document().inGroup());
+  for (int row = 20; row < 24; row++) song.getArrangement().setNote(row, track_id, 1, Note(60 + row, 100));
+  controller.sendCommand("undo"); // refused mid-take
+  CHECK(song.document().journal().size() == journal + 4); // each note landed on its own
+  controller.clearClipRecordingTake(track_id);
+  CHECK(!song.document().inGroup());
+  CHECK(song.document().journal().size() == journal + 1); // folded into one step
+
+  auto noteRows = [&]() {
+    auto pattern = song.getArrangement().findPattern(track_id);
+    return pattern ? static_cast<int>(pattern->getNotesByRow().size()) : 0;
+  };
+  auto with_take = noteRows();
+  CHECK(song.undo());
+  CHECK(noteRows() == with_take - 4);
+}

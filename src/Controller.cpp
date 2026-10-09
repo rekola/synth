@@ -966,6 +966,7 @@ Controller::verifyPublishedContent() {
 void
 Controller::syncMonitoring() {
   verifyPublishedContent();
+  updateUndoGroup(); // heals a group a take left open or could not close mid-edit
   auto buffer = getActiveBufferName();
   auto & queue = getPlaybackEventQueue();
   if (buffer != monitored_buffer_) {
@@ -1368,11 +1369,33 @@ Controller::extendClipRecordingClipIfNeeded(int track_id, int absolute_step) {
 }
 
 void
+Controller::updateUndoGroup() {
+  bool want = isAnyClipRecording() || auto_record_sessions_ > 0;
+  if (want == (undo_group_song_ != nullptr)) return;
+  if (want) {
+    auto song = getCurrentSong();
+    if (!song || song->inEdit() || song->document().inGroup()) return;
+    song->document().beginGroup("record take");
+    undo_group_song_ = song;
+  } else {
+    if (undo_group_song_->inEdit()) return; // closed by the next call, from the frame loop
+    undo_group_song_->document().endGroup();
+    undo_group_song_.reset();
+  }
+}
+
+void
 Controller::trimClipRecordingClip(int track_id) {
   auto it = clip_recording_takes_.find(track_id);
   if (it == clip_recording_takes_.end()) return;
   auto take = it->second; // copied out - the map entry itself is gone below
   clip_recording_takes_.erase(it);
+  trimTakenClip(track_id, take);
+  updateUndoGroup(); // after the trim, which is part of the take
+}
+
+void
+Controller::trimTakenClip(int track_id, const ClipRecordingTake & take) {
   if (!take.clip_ready) return;
   // An overdub take never touched the clip's own length/looping state at
   // all - it was already correct, and the clip was already playing,
@@ -1492,6 +1515,8 @@ Controller::startAutoRecordSession(bool & auto_started_playback, std::set<std::p
   cleared_rows.clear();
   last_cleared_row = -1;
   clip_ids.clear();
+  auto_record_sessions_++;
+  updateUndoGroup();
 }
 
 void
@@ -1516,6 +1541,8 @@ Controller::stopAutoRecordSession(bool & auto_started_playback, std::set<std::pa
   auto_started_playback = false;
   cleared_rows.clear(); // not required for correctness (the next session's own start resets this too) - just don't hold onto a finished session's bookkeeping longer than needed
   clip_ids.clear();
+  if (auto_record_sessions_ > 0) auto_record_sessions_--;
+  updateUndoGroup();
 }
 
 void

@@ -165,14 +165,19 @@ patterns, so they are covered by the note primitives. Verify with a test.
   transactions; chain flag; undoing an undo is redo) first; a Renoise-style
   cursor policy is a second implementation behind the same interface, chosen by
   a setting for the future GUI (Ctrl-Z/Ctrl-Y).
-- **Keybindings**: `undo`, `redo` (cursor policy only) as named commands;
-  Emacs binding is a two-key prefix (`C-x u`) plus `C-_`/`C-/`; nothing handles
-  prefixes today beyond the `ESC`-then-`x` coalescer, so this needs a small
-  prefix-keymap addition. Launchpad shift+Record Arm/Mute call the commands.
-- **Selection of undo scope**: undo is per buffer (song); cursor is moved to
-  the first changed node on undo.
-- Live recording take = one transaction; sample audio is referenced by
-  `shared_ptr` buffer, not copied into the journal.
+- **Keybindings** (done): `undo` and `undo-redo` as named commands, on
+  `C-x u` (the existing prefix keymap), `C-_` and `C-/`, with `C-M-_` for
+  redo; Launchpad shift+Record Arm/Mute call the commands. `redo` as a cursor
+  policy command is still for the second policy.
+- **Selection of undo scope**: undo is per buffer (song). Moving the cursor to
+  the first changed node on undo is not done: it needs each kind of node
+  (arrangement note, clip note, instance, track) mapped to a place in both
+  views, and must not move the playhead while playing.
+- Live recording take = one undo step (done): `Controller::updateUndoGroup()`
+  holds a group open for clip takes and auto-record sessions. An untracked
+  entry committed inside a take is folded into it, so undoing the take would
+  also undo it; `Document::endGroup()` should keep those apart. Sample audio
+  is referenced by `shared_ptr` buffer, not copied into the journal.
 - Journal trimming bound (memory) is the one place history is ever dropped.
 
 ## Open questions (guesses made; correct me)
