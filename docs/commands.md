@@ -76,3 +76,12 @@ does the same wherever the clip is played from.
 | `-Txy` | Tremolo (depth `x`, speed `y`) | Renoise (`Txy`) |
 | `-Wxx` | Set ambisonic extent - the track's own physical half-width in meters (`SphericalPosition::extent`/`LeafTrack::setExtent()`, 0 = a point source) - `xx` maps linearly in steps of 1/256, `00` = 0m up through `FF` at some chosen max (not settled yet). | Renoise (adapted) |
 | `ZTxx` | Set tempo to `xx` BPM - global like `ZBxx`, not a device-index command, since tempo isn't a per-track parameter. | Renoise (`ZTxx`) |
+
+## Note fx column
+
+Each note column can show a local fx column (three characters, magenta,
+hidden by default; `toggle-fx-column` shows it for the track). It is a
+mnemonic letter and a two-digit hex argument - a command without its chain
+digit - stored on the note (`fx` attribute, `---` when unset) and edited like
+the effect column (Delete/Backspace clear all three). Playback does not act on
+it yet.

@@ -11,6 +11,7 @@ enum class ColumnType {
   NOTE,
   VELOCITY,
   DELAY,
+  FX,
   EFFECT
 };
 
@@ -27,7 +28,7 @@ public:
   // placeholder cell collapsing is meant to shrink it down to.
   int getColumnCount() const {
     if (collapsed_) return 1;
-    return num_subtracks_ * ((has_note_column_ ? 1 : 0) + num_velocity_columns_ + (has_delay_column_ ? 1 : 0)) + (has_effect_column_ ? 1 : 0);
+    return num_subtracks_ * ((has_note_column_ ? 1 : 0) + num_velocity_columns_ + (has_delay_column_ ? 1 : 0) + (has_fx_column_ ? 1 : 0)) + (has_effect_column_ ? 1 : 0);
   }
   // The track's true total on-screen footprint, *including* its own
   // trailing "|" border character and (a color-eligible, non-collapsed
@@ -102,6 +103,7 @@ public:
     case ColumnType::NOTE: return 4 + identifier_cell;
     case ColumnType::VELOCITY: return 3 + identifier_cell;
     case ColumnType::DELAY: return 3 + identifier_cell;
+    case ColumnType::FX: return 4 + identifier_cell;
     case ColumnType::EFFECT: return 5 + identifier_cell;
     default: return 0;
     }
@@ -111,7 +113,7 @@ public:
     if (has_effect_column_ && k == column_count - 1) {
       return ColumnType::EFFECT;
     } else {
-      auto n = (has_note_column_ ? 1 : 0) + num_velocity_columns_ + (has_delay_column_ ? 1 : 0);
+      auto n = (has_note_column_ ? 1 : 0) + num_velocity_columns_ + (has_delay_column_ ? 1 : 0) + (has_fx_column_ ? 1 : 0);
       k = k % n;
 
       if (has_note_column_) {
@@ -126,6 +128,11 @@ public:
 	if (k == 0) return ColumnType::DELAY;
 	else k--;      
       }
+
+      if (has_fx_column_) {
+	if (k == 0) return ColumnType::FX;
+	else k--;
+      }
       
       return ColumnType::UNKNOWN;
     }
@@ -133,10 +140,11 @@ public:
   bool isNoteColumn(int k) const { return getColumnType(k) == ColumnType::NOTE; }
   bool isVelocityColumn(int k) const { return getColumnType(k) == ColumnType::VELOCITY; }
   bool isDelayColumn(int k) const { return getColumnType(k) == ColumnType::DELAY; }
+  bool isFxColumn(int k) const { return getColumnType(k) == ColumnType::FX; }
   bool isEffectColumn(int k) const { return getColumnType(k) == ColumnType::EFFECT; }
   
   int getNoteNumber(int k) const {
-    auto n = (has_note_column_ ? 1 : 0) + num_velocity_columns_ + (has_delay_column_ ? 1 : 0);
+    auto n = (has_note_column_ ? 1 : 0) + num_velocity_columns_ + (has_delay_column_ ? 1 : 0) + (has_fx_column_ ? 1 : 0);
     return k / n;
   }
 
@@ -151,7 +159,7 @@ public:
   // way before trusting getNoteNumber()).
   std::pair<int, int> getNoteColumnRange(int k) const {
     if (isEffectColumn(k)) return { k, k };
-    auto n = (has_note_column_ ? 1 : 0) + num_velocity_columns_ + (has_delay_column_ ? 1 : 0);
+    auto n = (has_note_column_ ? 1 : 0) + num_velocity_columns_ + (has_delay_column_ ? 1 : 0) + (has_fx_column_ ? 1 : 0);
     if (n <= 0) return { k, k };
     auto note = getNoteNumber(k);
     return { note * n, note * n + n - 1 };
@@ -193,6 +201,7 @@ public:
   int num_velocity_columns_ = 0;
   bool has_note_column_ = true;
   bool has_delay_column_ = false;
+  bool has_fx_column_ = false;
   bool has_effect_column_ = false;
   // getColumnWidth()'s own override for a SampleTrack's single column -
   // see that method's own comment. 0 (default) for every other track

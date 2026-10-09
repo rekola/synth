@@ -817,3 +817,32 @@ TEST(removing_a_placement_after_a_looping_clip_leaves_a_stop_so_the_earlier_clip
   CHECK(!removeInstanceLeavingSilence(song, track_id, 64));
   CHECK(resolveInstanceAt(song, track_id, 70).clip_index != 1);
 }
+
+TEST(a_notes_local_fx_is_validated_and_round_trips_through_the_song_file) {
+  Note note(60, 100);
+  CHECK(!note.hasFx());
+  CHECK(note.setFx("r3f"));
+  CHECK(note.getFx() == "R3F"); // letters are stored uppercase
+  CHECK(!note.setFx("R3G")); // the argument is hex
+  CHECK(!note.setFx("R3"));
+  CHECK(note.getFx() == "R3F"); // a rejected value changes nothing
+  CHECK(note.setFxChar(1, '-'));
+  CHECK(note.getFx() == "R-F");
+
+  Song song;
+  auto track_id = song.addTrack(std::make_unique<InstrumentTrack>(0)).getInternalId();
+  Note with_fx(60, 100);
+  with_fx.setFx("D12");
+  song.getArrangement()->setNote(0, track_id, 0, with_fx);
+  CHECK(song.getArrangement()->getNotes(0, track_id)[0].getFx() == "D12");
+
+  auto path = std::string(TESTS_SCRATCH_DIR) + "/note_fx_round_trip.xml";
+  song.save(path);
+  Song reloaded;
+  InstrumentProvider provider;
+  CHECK(reloaded.open(path, provider));
+  auto notes = reloaded.getArrangement()->getNotes(0, reloaded.getRootTrackIds()[0]);
+  CHECK(notes.size() == 1);
+  CHECK(notes[0].getFx() == "D12");
+  std::filesystem::remove(path);
+}

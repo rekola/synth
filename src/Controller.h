@@ -826,6 +826,7 @@ class Controller {
   // never reads it.
   void addNoteColumn(int track_id);
   void removeNoteColumn(int track_id);
+  void toggleFxColumn(int track_id);
 
   // Sets slot 0 (A) or 1 (B) of the shared send bus (Song::setBusSlotKind())
   // to a fresh, default-parameter instance of `kind`, and - same reasoning

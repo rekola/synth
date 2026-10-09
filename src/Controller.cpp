@@ -1165,6 +1165,16 @@ Controller::removeNoteColumn(int track_id) {
 }
 
 void
+Controller::toggleFxColumn(int track_id) {
+  auto song = getCurrentSong();
+  auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
+  if (!leaf_track) return;
+  Song::Edit edit(*song, "toggle note fx column");
+  auto show = !leaf_track->showFxColumn();
+  song->editTrack(track_id, [&](Track & track) { leafOf(track).setShowFxColumn(show); });
+}
+
+void
 Controller::ensureRowCleared(std::set<std::pair<int, int>> & cleared_rows, int row, int track_id) {
   auto song = getCurrentSong();
   // Clears whatever's actually active at (track_id, row) - a placed

@@ -20,6 +20,7 @@ inline const doc::Prop<int> kNoteColumn{"col", 0};
 inline const doc::Prop<int> kNoteValue{"value", -1};
 inline const doc::Prop<int> kNoteVelocity{"velocity", 0};
 inline const doc::Prop<int> kNoteDelay{"delay", 0};
+inline const doc::Prop<std::string> kNoteFx{"fx", "---"};
 
 // type "pattern", as a child of the arrangement: whose background it is.
 inline const doc::Prop<int> kPatternTrack{"track", 0};

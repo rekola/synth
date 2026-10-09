@@ -193,7 +193,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
       auto new_max_note = max(new_track_info.num_subtracks_ - 1, 0);
       if (new_track_info.getNoteNumber(new_cursor.col) > new_max_note) {
         auto n = (new_track_info.has_note_column_ ? 1 : 0) + new_track_info.num_velocity_columns_ +
-          (new_track_info.has_delay_column_ ? 1 : 0);
+          (new_track_info.has_delay_column_ ? 1 : 0) + (new_track_info.has_fx_column_ ? 1 : 0);
         new_cursor.col = new_max_note * n;
         new_cursor.subcol = 0;
       }
@@ -558,6 +558,14 @@ PatternEditor::PatternEditor(UIPlane & parent)
     getController().removeNoteColumn(track_id);
   });
 
+  commands_.define("toggle-fx-column", [this]() {
+    auto & song = getController().getSong();
+    auto track_ids = song.getRootTrackIds();
+    if (track_ids.empty()) return;
+    auto track_id = getController().consumePendingCommandTrack(track_ids[static_cast<size_t>(current_cursor.track)]);
+    getController().toggleFxColumn(track_id);
+  });
+
   // "send-a-mode"/"send-b-mode" are NOT defined here (or anywhere in
   // commands_) - they mutate nothing outside a single Launchpad device's
   // own transient UI state (which grid mode it's showing), never Song/
@@ -609,6 +617,7 @@ static void apply_baseline_track_info(const SongStructure & structure, std::unor
     info.has_note_column_ = baseline.has_note_column_;
     info.num_velocity_columns_ = baseline.num_velocity_columns_;
     info.has_delay_column_ = baseline.has_delay_column_;
+    info.has_fx_column_ = baseline.has_fx_column_;
     info.has_effect_column_ = baseline.has_effect_column_;
     info.sample_placeholder_width_ = baseline.sample_placeholder_width_;
     info.collapsed_ = baseline.collapsed_;
@@ -1453,6 +1462,7 @@ PatternEditor::handleMouse(const InputEvent & input) {
       auto width = 0;
       switch (it->second.getColumnType(hit->col)) {
       case ColumnType::EFFECT: width = 4; break;
+      case ColumnType::FX: width = 3; break;
       case ColumnType::VELOCITY: case ColumnType::DELAY: width = 2; break;
       default: break;
       }
@@ -1845,6 +1855,36 @@ PatternEditor::offerInput(const InputEvent & input) {
 
 	  if (new_cursor.subcol + 1 < 4) {
 	    new_cursor.subcol++;
+	  } else if (new_cursor.track + 1 < num_tracks) {
+	    new_cursor.track++;
+	    new_cursor.col = 0;
+	    new_cursor.subcol = 0;
+	  }
+	  return true;
+	}
+      } else if (column_type == ColumnType::FX) {
+	auto notes = edit_target.pattern->getNotes(edit_target.effective_row);
+	auto note_column = track_info.getNoteNumber(new_cursor.col);
+	Note note;
+	if (note_column < static_cast<int>(notes.size())) note = notes[static_cast<size_t>(note_column)];
+	if (input.getId() == NCKEY_DEL || input.getId() == NCKEY_BACKSPACE) {
+	  // The whole three characters go together, like the effect column's.
+	  note.setFx("---");
+	  Song::Edit edit(song, "clear note fx", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, true);
+	  edit_target.pattern->setNote(edit_target.effective_row, note_column, note);
+	  row_edited = true;
+	  new_cursor.subcol = 0;
+	  return true;
+	}
+	if (note.setFxChar(new_cursor.subcol, input.getId())) {
+	  Song::Edit edit(song, "edit note fx", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, true);
+	  edit_target.pattern->setNote(edit_target.effective_row, note_column, note);
+	  row_edited = true;
+	  if (new_cursor.subcol + 1 < 3) {
+	    new_cursor.subcol++;
+	  } else if (new_cursor.col + 1 < track_info.getColumnCount()) {
+	    new_cursor.col++;
+	    new_cursor.subcol = 0;
 	  } else if (new_cursor.track + 1 < num_tracks) {
 	    new_cursor.track++;
 	    new_cursor.col = 0;
@@ -3266,6 +3306,24 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	    setUnderline(false);
 	  }
 	  current_pos += 4;
+	} else if (column_type == ColumnType::FX) {
+	  auto l = track_info.getNoteNumber(k);
+	  auto note = l < static_cast<int>(notes.size()) ? notes[static_cast<size_t>(l)] : Note();
+	  string s(note.isDefined() ? note.getFx() : "---");
+	  // Magenta, like the other data columns' own fixed hues; the region's
+	  // dark foreground inside the highlight.
+	  cell_fg = column_selected ? cur_fg : tintForPlayhead(dim_fixed_color(Color("#d65cd6")));
+	  cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
+	  if (!note.isDefined() || !note.hasFx()) cell_fg = cell_fg.blend(0.5f, cell_bg);
+	  setFgColor(cell_fg);
+	  setBgColor(cell_bg);
+	  putstr(display_row, current_pos, s);
+	  if (column_highlighted) {
+	    setUnderline(true);
+	    putstr(display_row, current_pos + new_cursor.subcol, s[static_cast<size_t>(new_cursor.subcol)]);
+	    setUnderline(false);
+	  }
+	  current_pos += 3;
 	} else if (column_type == ColumnType::NOTE) {
 	  auto l = track_info.getNoteNumber(k);
 	  auto note = l < static_cast<int>(notes.size()) ? notes[static_cast<size_t>(l)] : Note();

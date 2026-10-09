@@ -58,6 +58,7 @@ SongStructure::visit(const Track & track) {
     info.has_note_column_ = leaf_track.showNoteColumn();
     info.num_velocity_columns_ = leaf_track.showVelocityColumn() ? 1 : 0;
     info.has_delay_column_ = leaf_track.showDelayColumn();
+    info.has_fx_column_ = leaf_track.showFxColumn();
     info.has_effect_column_ = leaf_track.showEffectsColumn();
     info.updateNumSubtracks(leaf_track.getMinNoteColumns());
     info.collapsed_ = leaf_track.isCollapsed();
