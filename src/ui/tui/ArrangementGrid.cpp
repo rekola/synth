@@ -155,19 +155,13 @@ ArrangementGrid::offerInput(const InputEvent & input) {
       auto bar_start_row = bar_row(cursor_bar_);
       auto active = resolveInstanceForBar(song, track_id, bar_start_row, bar_length(cursor_bar_));
       if (active.clip_index >= 0 && active.start_row >= bar_start_row) {
-        // On the instance's own leading (head) bar - removes the
-        // placement event outright (Arrangement::clearInstance()) rather than
-        // replacing it with a stop: there's nothing "after" to silence
-        // here, the instance's own event genuinely lives at this exact
-        // row, so removing it is both sufficient and more correct than
-        // leaving an explicit OFF behind - reverts to whatever's actually
-        // still active from before it (same as deleting a clip or a stop
-        // already does), instead of forcing continued silence where
-        // there might be nothing to silence at all. The clip itself is
-        // untouched, still in the track's own clip list - this only ends
-        // this one placement of it, same scope Backspace already had.
+        // On the instance's own leading (head) bar - removes the placement
+        // event, leaving a stop in its place when an earlier looping clip
+        // would otherwise play on into the space (removeInstanceLeavingSilence()).
+        // The clip itself is untouched, still in the track's own clip list -
+        // this only ends this one placement of it.
         Song::Edit edit(song, "end clip placement");
-        arrangement.clearInstance(track_id, active.start_row);
+        removeInstanceLeavingSilence(song, track_id, active.start_row);
       } else if (active.clip_index >= 0) {
         // A later (tail) bar the same instance merely continues through -
         // no single event's own row to remove here, only a stop can

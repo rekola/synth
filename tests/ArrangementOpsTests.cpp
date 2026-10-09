@@ -788,3 +788,32 @@ TEST(record_quantize_is_off_by_default_and_round_trips_through_the_song_file) {
   CHECK(reloaded.getRecordQuantize());
   std::filesystem::remove(path);
 }
+
+// Ending a placement must not let an earlier looping clip play on into the
+// space it left.
+TEST(removing_a_placement_after_a_looping_clip_leaves_a_stop_so_the_earlier_clip_does_not_fill_the_space) {
+  Song song;
+  auto track_id = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
+  Clip first(track_id);
+  first.setLength(16);
+  first.setLooping(true);
+  first.getLeafPattern().setNote(0, 0, Note(60, 100));
+  auto first_id = song.addClip(move(first)).getId();
+  Clip second(track_id);
+  second.setLength(16);
+  second.getLeafPattern().setNote(0, 0, Note(64, 100));
+  auto second_id = song.addClip(move(second)).getId();
+  song.getArrangement().setInstance(track_id, 0, first_id);
+  song.getArrangement().setInstance(track_id, 32, second_id);
+
+  CHECK(removeInstanceLeavingSilence(song, track_id, 32));
+  CHECK(resolveInstanceAt(song, track_id, 40).clip_index == Arrangement::kStopInstance);
+  CHECK(resolveInstanceAt(song, track_id, 8).clip_index == 0); // the first clip is still there
+
+  // With nothing before it, the event is just removed.
+  song.getArrangement().setInstance(track_id, 64, second_id);
+  song.getArrangement().clearInstance(track_id, 0);
+  song.getArrangement().clearInstance(track_id, 32);
+  CHECK(!removeInstanceLeavingSilence(song, track_id, 64));
+  CHECK(resolveInstanceAt(song, track_id, 70).clip_index != 1);
+}
