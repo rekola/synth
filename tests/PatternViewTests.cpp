@@ -2,7 +2,7 @@
 
 #include "../src/model/PatternView.h"
 
-#include <random>
+#include "TestRandom.h"
 
 namespace {
 
@@ -58,7 +58,7 @@ bool agree(const Pair & p) {
     p.view.hasSoundingNote() == p.reference.hasSoundingNote() && p.view.getLength() == p.reference.getLength();
 }
 
-Note randomNote(std::mt19937 & rng) {
+Note randomNote(TestRng & rng) {
   switch (rng() % 5) {
     case 0: return Note(static_cast<int>(rng() % 40), 0, static_cast<short>(rng() % 4)); // off
     case 1: return Note(-1, static_cast<short>(1 + rng() % 127)); // aftertouch
@@ -66,7 +66,7 @@ Note randomNote(std::mt19937 & rng) {
   }
 }
 
-Command randomCommand(std::mt19937 & rng) {
+Command randomCommand(TestRng & rng) {
   static const char * kCommands[] = { "0U10", "ZB02", "YL04", "0LEC", "1V7F" };
   return Command(kCommands[rng() % 5]);
 }
@@ -74,7 +74,7 @@ Command randomCommand(std::mt19937 & rng) {
 }  // namespace
 
 TEST(pattern_view_matches_the_value_pattern_under_random_edits) {
-  std::mt19937 rng(12345);
+  TestRng rng(12345);
   Pair p;
   for (int step = 0; step < 4000; step++) {
     int row = static_cast<int>(rng() % 14), column = static_cast<int>(rng() % 4);
@@ -111,7 +111,7 @@ TEST(pattern_view_matches_the_value_pattern_under_random_edits) {
 }
 
 TEST(pattern_view_to_pattern_and_assign_round_trip) {
-  std::mt19937 rng(7);
+  TestRng rng(7);
   Pattern source;
   for (int i = 0; i < 60; i++) source.setNote(static_cast<int>(rng() % 20), static_cast<int>(rng() % 3), randomNote(rng));
   for (int i = 0; i < 10; i++) source.setCommand(static_cast<int>(rng() % 20), static_cast<int>(rng() % 2), randomCommand(rng));

@@ -3,7 +3,7 @@
 #include "../src/model/ArrangementView.h"
 #include "../src/model/ClipView.h"
 
-#include <random>
+#include "TestRandom.h"
 
 namespace {
 
@@ -56,7 +56,7 @@ bool sameClip(const Clip & a, const Clip & b) {
 }  // namespace
 
 TEST(clip_view_matches_the_value_clip_under_random_edits) {
-  std::mt19937 rng(99);
+  TestRng rng(99);
   Score score;
   Clip reference(5);
   auto node = ClipView::create(score.context, 5);
@@ -209,7 +209,7 @@ TEST(sample_content_is_stable_until_the_layer_changes) {
 }
 
 TEST(arrangement_view_matches_the_value_arrangement_under_random_edits) {
-  std::mt19937 rng(2024);
+  TestRng rng(2024);
   Score score;
   auto node = ArrangementView::create(score.document);
   score.document.insertChild(score.document.root(), scoreschema::kArrangementSlot, 0, node);
