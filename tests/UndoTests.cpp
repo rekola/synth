@@ -234,3 +234,29 @@ TEST(the_undo_command_moves_the_current_track_and_the_stopped_transport_to_the_c
   controller.sendCommand("undo");
   CHECK(song.getCurrentTrackId() == track_id);
 }
+
+TEST(undoing_an_edit_to_one_clip_leaves_another_clip_on_the_same_track_untouched) {
+  Song song;
+  song.setContentPublished(true);
+  auto track_id = song.addTrack(std::make_unique<InstrumentTrack>(0)).getInternalId();
+  Clip playing(track_id);
+  playing.setLength(8);
+  playing.getLeafPattern().setNote(0, 0, Note(60, 100));
+  song.addClip(std::move(playing));
+  Clip other(track_id);
+  other.setLength(8);
+  other.getLeafPattern().setNote(0, 0, Note(64, 100));
+  song.addClip(std::move(other));
+
+  auto notesIn = [&](int index) {
+    return static_cast<int>(song.readContent()->getClips(track_id)[static_cast<size_t>(index)].getLeafPattern().getNotesByRow().size());
+  };
+  song.getClips(track_id)[1].getLeafPattern().setNote(3, 0, Note(67, 100)); // edit the clip that is not playing
+  CHECK(notesIn(0) == 1);
+  CHECK(notesIn(1) == 2);
+  CHECK(song.undo());
+  CHECK(notesIn(0) == 1); // the playing clip is as it was
+  CHECK(notesIn(1) == 1);
+  CHECK(song.lastUndoPlace().track_id == track_id);
+  CHECK(song.lastUndoPlace().row == -1); // a clip edit moves no row
+}
