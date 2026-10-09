@@ -470,6 +470,14 @@ PatternEditor::PatternEditor(UIPlane & parent)
   // Rows the cursor advances after a note is entered (0 stays put).
   commands_.define("edit-step-increase", [this]() { changeEditStep(1); });
   commands_.define("edit-step-decrease", [this]() { changeEditStep(-1); });
+  // set-edit-step-1 .. set-edit-step-9, set-edit-step-0 (0 stays put).
+  for (int n = 0; n <= 9; n++) {
+    auto name = "set-edit-step-" + std::to_string(n);
+    commands_.define(name, [this, n]() { setEditStep(n); });
+    int digit = '0' + n;
+    keymap_.bind(KeyChord::pack(digit, true, false, false, false), name);  // Ctrl+digit (needs the Kitty keyboard protocol)
+    keymap_.bind(KeyChord::pack(digit, false, true, false, false), name);  // Alt+digit (any terminal)
+  }
 
   commands_.define("move-row-up", [this]() {
     auto & info = getController().getPlaybackInfo();
@@ -669,7 +677,12 @@ PatternEditor::setCursorTrack(int track_index) {
 
 void
 PatternEditor::changeEditStep(int delta) {
-  edit_step_size = std::clamp(edit_step_size + delta, 0, kMaxEditStep);
+  setEditStep(edit_step_size + delta);
+}
+
+void
+PatternEditor::setEditStep(int step) {
+  edit_step_size = std::clamp(step, 0, kMaxEditStep);
   getController().getUIEventQueue().push(make_unique<LogEvent>("Edit step: " + std::to_string(edit_step_size)));
 }
 

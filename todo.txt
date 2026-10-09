@@ -225,7 +225,6 @@ B	15:8 = 1+7:8	B q. minor	B-D♭-E
 
 - Renoise
   - Add Track headroom in desibels (default -6db)
-  - Left Ctrl & 1-0: Set the Edit Step number.
   - Home/End: Go to start/end line of pattern.
   - consider using tab:
     - tab => next note column

@@ -397,6 +397,7 @@ protected:
   // Says so on the status line when the cursor can't move - it follows a
   // playing track's playhead. True then.
   void changeEditStep(int delta);
+  void setEditStep(int step);
   bool reportLockedCursor();
   // Set when what's shown changed in a way render()'s own dirty checks
   // don't see (the source switching, per-track playheads moving).
