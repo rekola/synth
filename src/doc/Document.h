@@ -127,7 +127,13 @@ class Document {
   void setImplicitScope(ImplicitScope * scope) { implicit_scope_ = scope; }
 
   // Transactions nest; only the outermost commit appends to the journal.
-  void begin(const std::string & label = std::string(), bool tracked = true);
+  // `amalgamate`: if the newest journal entry was also an amalgamating
+  // transaction and nothing has been committed or broken since, this one's ops
+  // are appended to that entry instead of starting a new one - the way a run
+  // of typed characters is one undo step. Never inside an undo group.
+  void begin(const std::string & label = std::string(), bool tracked = true, bool amalgamate = false);
+  // The next amalgamating transaction starts a new entry.
+  void breakAmalgamation() { amalgam_sequence_ = 0; }
   void commit();
   bool inTransaction() const { return depth_ > 0; }
 
@@ -193,6 +199,10 @@ class Document {
   int depth_ = 0;
   std::string pending_label_;
   bool pending_tracked_ = true;
+  bool pending_amalgamate_ = false;
+  // The sequence of the entry the last amalgamating transaction wrote or grew;
+  // 0 when the next one must start afresh.
+  uint64_t amalgam_sequence_ = 0;
   std::vector<Op> pending_ops_;
   std::string pre_dump_;
   std::vector<JournalEntry> journal_;

@@ -884,6 +884,14 @@ public:
 
   void raiseToTop() override { menu->get_plane()->move_top(); }
 
+  // The plane grows from the one bar row to cover the dropdown while a
+  // section is unrolled.
+  bool isOpen() const override {
+    unsigned rows = 0, cols = 0;
+    menu->get_plane()->get_dim(&rows, &cols);
+    return rows > 1;
+  }
+
 private:
   void activate(const char * item_desc) {
     if (auto it = item_commands_.find(item_desc); it != item_commands_.end()) activated_command_ = it->second;
@@ -2049,6 +2057,13 @@ TerminalUI::initializeWidgets() {
   keymap_.bind(KeyChord::pack('_', true, false, false, false), "undo");
   keymap_.bind(KeyChord::pack('/', true, false, false, false), "undo");
   keymap_.bind(KeyChord::pack('_', true, true, false, false), "undo-redo");
+  // What terminals actually send for them: the single control byte 0x1f
+  // (notcurses reports it as key 31, no modifiers; with Alt in front for the
+  // redo), and in the Kitty protocol Ctrl+Shift+- for C-_.
+  keymap_.bind(KeyChord::pack(31, false, false, false, false), "undo");
+  keymap_.bind(KeyChord::pack(31, false, true, false, false), "undo-redo");
+  keymap_.bind(KeyChord::pack('-', true, false, true, false), "undo");
+  keymap_.bind(KeyChord::pack('-', true, true, true, false), "undo-redo");
   keymap_.bind(KeyChord::pack(' ', false, false, false, false), "toggle-playing");
   keymap_.bind(KeyChord::pack('[', false, false, false, false), "octave-down");
   keymap_.bind(KeyChord::pack(']', false, false, false, false), "octave-up");
@@ -2498,6 +2513,17 @@ TerminalUI::offerInput(const InputEvent & input) {
     outline_view_->offerInput(input);
     return true;
   }
+  // An open menu owns the mouse: its dropdown is drawn over the widgets, and
+  // a click on an item must not also reach the widget underneath it (which
+  // would move its cursor, and so change what the item's command acts on).
+  if (menu_->isOpen() && nckey_mouse_p(static_cast<uint32_t>(input.getId()))) {
+    if (menu_->offerInput(input)) {
+      if (auto cmd = menu_->takeActivatedCommand(); !cmd.empty()) {
+	if (!getController().sendCommand(cmd)) setStatus("Invalid command");
+      }
+    }
+    return true;
+  }
   if (octave_control_->isEditing() && octave_control_->offerInput(input)) return true;
   if (!reader_active && dispatchCommand(input)) return true;
 
@@ -2884,6 +2910,17 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
     if (column != playable.end()) clip_grid_->setCursorTrackIndex(static_cast<int>(column - playable.begin()));
     clip_grid_->setCursorClipIndex(clip_index);
   });
+  getController().setUndoFocusListener([this](int track_id, int clip_index, int row) {
+    auto & song = getController().getSong();
+    auto root_ids = song.getRootTrackIds();
+    auto root = std::find(root_ids.begin(), root_ids.end(), track_id);
+    if (root != root_ids.end()) pattern_editor_->setCursorTrack(static_cast<int>(root - root_ids.begin()));
+    auto playable = song.getPlayableTrackIds();
+    auto column = std::find(playable.begin(), playable.end(), track_id);
+    if (column != playable.end()) clip_grid_->setCursorTrackIndex(static_cast<int>(column - playable.begin()));
+    clip_grid_->setCursorClipIndex(clip_index);
+    pattern_editor_->focusLiveRow(track_id, clip_index, row);
+  });
   getController().setDrumEditRequestListener([this](int track_id, bool opened) {
     if (opened) {
       auto & song = getController().getSong();
@@ -2963,13 +3000,26 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
   renderComponents(true);
 
   string waiting_stderr;
-  
+  // Playback and visualization events arrive with every audio block (about
+  // 190 a second); drawing for each of them would use far more of the
+  // terminal than the eye can follow, so a frame is drawn at most every
+  // kMinFrameInterval and the changes in between are folded into it.
+  constexpr auto kMinFrameInterval = std::chrono::milliseconds(25);
+  auto last_frame = std::chrono::steady_clock::now() - kMinFrameInterval;
+  bool frame_pending = false;
+
   while ( !shouldClose() ) {
     bool render = false;
 
     updateEscapeIndicator();
 
     int poll_timeout_ms = escapeIndicatorPollTimeoutMs();
+    // A redraw deferred by the frame limiter below wakes the loop when it is due.
+    if (frame_pending) {
+      auto wait = std::chrono::duration_cast<std::chrono::milliseconds>(kMinFrameInterval - (std::chrono::steady_clock::now() - last_frame)).count() + 1;
+      wait = std::max<long>(wait, 1);
+      poll_timeout_ms = poll_timeout_ms < 0 ? static_cast<int>(wait) : std::min(poll_timeout_ms, static_cast<int>(wait));
+    }
 
     // setStatus("polling");
     int poll_result = poll(descriptors.get(), num_descriptors, poll_timeout_ms);
@@ -3034,7 +3084,18 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
 	  }
 	}
       }
-      
+    }
+
+    if (poll_result > 0 || frame_pending) {
+      render |= frame_pending;
+      auto now = std::chrono::steady_clock::now();
+      if (now - last_frame < kMinFrameInterval) {
+	frame_pending = true;
+	continue;
+      }
+      frame_pending = false;
+      last_frame = now;
+
       render |= renderComponents();
 
       if (render) {

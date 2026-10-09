@@ -51,16 +51,31 @@ ends that run, and the next `undo` then undoes that edit (Emacs's own rule,
 where an undo is itself an edit that can be undone). Moving the cursor or
 scrolling is not an edit and does not end the run. Both are in the Edit menu
 and M-x, and are the Launchpad's shift + Record Arm and shift + Mute.
+A terminal sends C-_ and C-/ as the same single control byte (0x1f), and
+Ctrl+Shift+- is how C-_ is typed in the Kitty protocol; all of them are bound.
 
 Only the song is undone: tempo, notes, clips and placements, tracks,
 instruments and bus effects. The view and the clipboard are not. The current
 track moves to the track the change was on, and with the transport stopped
 the transport row moves to the row of an arrangement note or placement
-(never while the song plays); a change to a clip's notes moves the track only.
+(never while the song plays). A change to a clip's notes shows that clip: the
+clip grid's cursor goes to its scene and, in Live View, the pattern editor to
+the changed row (unless that track is playing).
 Changes that follow the playing song (a scene launch setting the tempo) are
-never undone. A live recording take is one step: its notes appear as they land, and
+never undone. Typed digits are amalgamated as Emacs does with typed characters: the hex
+digits of a velocity or delay and the characters of a command, run on from one
+cell to the next, undo as one step. The run ends when you move the cursor or
+press any other command, edit something else, pause for two seconds, or reach
+20 edits.
+
+The keys of a chord are one step, however long they are held (on a terminal
+that reports key releases). Held keys behave alike in both views: the cursor
+stays on the row and steps once when the last key lifts; nothing starts the
+transport. A live recording take is one step: its notes appear as they land, and
 `undo` takes the whole take back once it has ended. Undo and redo do nothing
-while a take is still recording.
+while a take is still recording, and they leave a clip that is playing (or
+queued, or being recorded) alone: an undo that would change its notes says so
+and waits until the clip is stopped.
 
 ## Humanize
 

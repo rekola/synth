@@ -935,8 +935,10 @@ would otherwise resume showing.
   (`sendMain`/`sendA`/`sendB`, `Controller::setTrackSendMain()`/`A()`/
   `B()`): its Send Main is the song's dry mix level and its Send A/B the
   send bus's two returns, applied in `SongState::renderBlock()`; only
-  leaf tracks have Mute/Solo/Monitor and Direction. Enter on a Sends row
-  edits the three values. Every column has a vertical level meter
+  leaf tracks have Mute/Solo/Monitor and Direction. On the Sends row Left and
+  Right walk through the Main, A and B values (then on into the next column),
+  the cursor covers one value, and Enter edits just that one (a typed dB
+  number; empty leaves it). Every column has a vertical level meter
   beside its Sends/Direction rows (`LevelMeter.h`: one dB mapping, braille
   by default with sextants as an opt-in glyph set, `Ballistics` smoothing
   a block's RMS in the power domain so a low note doesn't ripple, bars
@@ -1485,8 +1487,20 @@ would otherwise resume showing.
   land one by one but undo as a whole, once it has ended. Note capture
   armed while the transport rolls counts as a take too. After an undo or redo
   `Song::lastUndoPlace()` names the track (and, for an arrangement note or
-  placement, the row) it changed, and the commands move the current track
-  there, and the transport row while stopped.
+  placement, the row; for a clip, `clip_index` and the row in it) it changed,
+  and the commands move the current track there, the transport row while
+  stopped, and for a clip the clip grid and (in Live View) the pattern editor
+  (`Controller::setUndoFocusListener()`). Typing edits amalgamate: `Song::Edit`'s `typing` flag
+  appends a transaction's ops to the previous entry
+  (`Document::begin(..., amalgamate)`) while the run is unbroken
+  (`Song::breakTypingRun()` from `PatternEditor` on any non-typing key, an
+  idle gap, `kTypingRunLimit`), so velocity/delay digits and command
+  characters undo together; note entry does not use it yet. An undo or redo whose change
+  is in a clip that is playing, queued or recording is refused
+  (`Song::nextUndoPlace()`/`nextRedoPlace()` say where it would land before it
+  does). Held note keys keep a group open
+  too (`Controller::setNoteHeld()`, from `PatternEditor`), so a chord is one
+  step.
 - The song's own state lives in a DOM (`src/doc/`, plan in
   `plans/undo-document-model.md`): nodes with stable ids, four journaled
   primitives, one append-only journal per song (`Song::document()`, capped at

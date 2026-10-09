@@ -9,6 +9,10 @@
 #include "../src/model/InstrumentTrack.h"
 #include "../src/model/LeafTrack.h"
 #include "../src/model/Song.h"
+#include "../src/state/PlaybackInfo.h"
+#include "../src/playback/PlaybackControlEvent.h"
+#include <set>
+#include <unordered_map>
 #include "../src/ambisonic/ChannelConfiguration.h"
 
 TEST(undo_walks_back_through_edits_and_redo_walks_forward_again) {
@@ -258,5 +262,185 @@ TEST(undoing_an_edit_to_one_clip_leaves_another_clip_on_the_same_track_untouched
   CHECK(notesIn(0) == 1); // the playing clip is as it was
   CHECK(notesIn(1) == 1);
   CHECK(song.lastUndoPlace().track_id == track_id);
-  CHECK(song.lastUndoPlace().row == -1); // a clip edit moves no row
+  CHECK(song.lastUndoPlace().clip_index == 1); // the second scene
+  CHECK(song.lastUndoPlace().row == 3);        // the row in the clip
+}
+
+TEST(undoing_a_clip_edit_asks_the_ui_to_show_that_clip_and_row) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  CHECK(controller.openSong(std::string(TESTS_FIXTURES_DIR) + "/center_note.xml"));
+  auto & song = controller.getSong();
+  auto track_id = song.getRootTrackIds().at(0);
+  for (int i = 0; i < 3; i++) {
+    Clip clip(track_id);
+    clip.setLength(8);
+    clip.getLeafPattern().setNote(0, 0, Note(60, 100));
+    song.addClip(std::move(clip));
+  }
+  song.getClips(track_id)[2].getLeafPattern().setNote(5, 0, Note(67, 100));
+
+  int seen_track = -1, seen_clip = -1, seen_row = -1;
+  controller.setUndoFocusListener([&](int track, int clip, int row) { seen_track = track; seen_clip = clip; seen_row = row; });
+  controller.sendCommand("undo");
+  CHECK(seen_track == track_id);
+  CHECK(seen_clip == 2);
+  CHECK(seen_row == 5);
+
+  controller.sendCommand("undo-redo");
+  CHECK(seen_clip == 2);
+  CHECK(seen_row == 5);
+}
+
+TEST(a_chord_entered_during_an_auto_record_session_is_one_undo_step) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  CHECK(controller.openSong(std::string(TESTS_FIXTURES_DIR) + "/center_note.xml"));
+  auto & song = controller.getSong();
+  auto track_id = song.getRootTrackIds().at(0);
+  auto journal = song.document().journal().size();
+
+  bool auto_started = false;
+  std::set<std::pair<int, int>> cleared;
+  int last_cleared = -1;
+  std::unordered_map<int, std::string> clip_ids;
+  controller.startAutoRecordSession(auto_started, cleared, last_cleared, clip_ids);
+  // Three keys of a chord, then their releases a few rows on.
+  for (int column = 0; column < 3; column++) {
+    controller.ensureRowCleared(cleared, 20, track_id);
+    song.getArrangement().setNote(20, track_id, column, Note(60 + column * 4, 100));
+  }
+  for (int column = 0; column < 3; column++) controller.writeReleaseOff(cleared, auto_started, 22, track_id, column, 0);
+  PlaybackInfo info;
+  controller.stopAutoRecordSession(auto_started, cleared, info, clip_ids);
+
+  CHECK(song.document().journal().size() == journal + 1);
+  auto rows = [&]() {
+    auto pattern = song.getArrangement().findPattern(track_id);
+    return pattern ? static_cast<int>(pattern->getNotesByRow().size()) : 0;
+  };
+  auto with_chord = rows();
+  CHECK(song.undo());
+  CHECK(rows() < with_chord);
+  CHECK(!song.getArrangement().findPattern(track_id)->getNotesByRow().count(20));
+  CHECK(!song.getArrangement().findPattern(track_id)->getNotesByRow().count(22));
+}
+
+TEST(a_chord_of_held_keys_is_one_undo_step_even_with_the_transport_stopped) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  CHECK(controller.openSong(std::string(TESTS_FIXTURES_DIR) + "/center_note.xml"));
+  auto & song = controller.getSong();
+  auto track_id = song.getRootTrackIds().at(0);
+  auto journal = song.document().journal().size();
+
+  controller.setNoteHeld(true);
+  for (int column = 0; column < 3; column++) song.getArrangement().setNote(30, track_id, column, Note(60 + column * 4, 100));
+  CHECK(!song.canUndo()); // not mid-chord
+  controller.setNoteHeld(false);
+
+  CHECK(song.document().journal().size() == journal + 1);
+  CHECK(song.undo());
+  CHECK(song.getArrangement().findPattern(track_id)->getNotesByRow().count(30) == 0);
+}
+
+TEST(undoing_a_send_tells_the_audio_thread_the_restored_value) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  CHECK(controller.openSong(std::string(TESTS_FIXTURES_DIR) + "/center_note.xml"));
+  auto & song = controller.getSong();
+  auto track_id = song.getPlayableTrackIds().at(0);
+  controller.setTrackSendA(track_id, -6.0f);
+  auto & queue = controller.getPlaybackEventQueue();
+  while (queue.hasEvents()) queue.pop();
+
+  controller.sendCommand("undo");
+  CHECK(song.canRedo());
+  int last_send_a = -1;
+  while (queue.hasEvents()) {
+    auto event = queue.pop();
+    auto * control = dynamic_cast<PlaybackControlEvent *>(event.get());
+    if (control && control->getType() == PlaybackControlEvent::SET_TRACK_SEND_A && control->getParameter1() == track_id) last_send_a = control->getParameter2();
+  }
+  CHECK(last_send_a == 0); // the song's own value again, not the -6 dB one
+}
+
+TEST(undo_peeks_at_where_it_would_change_the_song_before_it_does) {
+  Song song;
+  auto track_id = song.addTrack(std::make_unique<InstrumentTrack>(0)).getInternalId();
+  Clip clip(track_id);
+  clip.setLength(8);
+  clip.getLeafPattern().setNote(0, 0, Note(60, 100));
+  song.addClip(std::move(clip));
+  song.getClips(track_id)[0].getLeafPattern().setNote(4, 0, Note(64, 100));
+
+  auto place = song.nextUndoPlace();
+  CHECK(place.track_id == track_id);
+  CHECK(place.clip_index == 0);
+  CHECK(place.row == 4);
+  CHECK(song.getClips(track_id)[0].getLeafPattern().getNotesByRow().size() == 2); // nothing happened yet
+  CHECK(song.nextRedoPlace().track_id == -1);
+  CHECK(song.undo());
+  CHECK(song.nextRedoPlace().clip_index == 0);
+}
+
+TEST(a_send_edit_undoes_although_the_audio_thread_mirrors_values_around_it) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  CHECK(controller.openSong(std::string(TESTS_FIXTURES_DIR) + "/center_note.xml"));
+  auto & song = controller.getSong();
+  auto track_id = song.getPlayableTrackIds().at(0);
+  auto sendA = [&]() { return dynamic_cast<const LeafTrack &>(*song.getMasterTrack().getChildByInternalId(track_id)).getSends().a; };
+  float before = sendA();
+  controller.setTrackSendA(track_id, -6.0f);
+  float edited = sendA();
+  CHECK(edited != before);
+  // The audio thread's mirror writes the live value back around the edit.
+  for (float value : { before, edited }) {
+    Song::Edit sync(song, "glide sends", Song::Edit::Kind::STRUCTURE, Song::Edit::Origin::SYNC);
+    song.editTrack(track_id, [&](Track & track) { track.setSendA(value); });
+  }
+  controller.sendCommand("undo");
+  CHECK(sendA() == before);
+}
+
+TEST(typed_edits_amalgamate_into_one_undo_step_until_something_else_happens) {
+  Song song;
+  auto edit = [&](int value) {
+    Song::Edit e(song, "type", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, true);
+    song.setTempo(value);
+  };
+  song.setTempo(100);
+  auto entries = song.document().journal().size();
+  edit(101); edit(102); edit(103);
+  CHECK(song.document().journal().size() == entries + 1); // one step for the run
+  CHECK(song.undo());
+  CHECK(song.getTempo() == 100);
+  CHECK(song.redo());
+  CHECK(song.getTempo() == 103);
+
+  // Another kind of edit ends the run, and so does breakTypingRun().
+  edit(104);
+  song.setSwing(60);
+  edit(105);
+  CHECK(song.undo()); CHECK(song.getTempo() == 104); // 105 alone
+  edit(106); edit(107);
+  song.breakTypingRun();
+  edit(108);
+  auto before = song.document().journal().size();
+  edit(109);
+  CHECK(song.document().journal().size() == before); // 108 and 109 share a step
+  CHECK(song.undo());
+  CHECK(song.getTempo() == 107);
+}
+
+TEST(a_run_of_typing_is_capped) {
+  Song song;
+  song.setTempo(100);
+  auto entries = song.document().journal().size();
+  for (int i = 0; i < Song::kTypingRunLimit + 1; i++) {
+    Song::Edit e(song, "type", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, true);
+    song.setTempo(101 + i);
+  }
+  CHECK(song.document().journal().size() == entries + 2);
 }

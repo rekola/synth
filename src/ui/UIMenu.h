@@ -49,6 +49,9 @@ class UIMenu : public UIElement {
   // see the TerminalMenu::offerInput() implementation.
   virtual std::string takeActivatedCommand() = 0;
 
+  // A section is unrolled and its dropdown showing.
+  virtual bool isOpen() const { return false; }
+
  private:
 };
 

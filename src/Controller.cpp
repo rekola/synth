@@ -247,20 +247,37 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
   auto follow = [this](Song & song) {
     auto place = song.lastUndoPlace();
     if (place.track_id >= 0) song.setCurrentTrackId(place.track_id);
-    if (place.row >= 0 && !getPlaybackInfo().isPlaying()) setEditPosition(place.row);
+    if (place.clip_index >= 0) focusUndoneClip(place.track_id, place.clip_index, std::max(place.row, 0));
+    else if (place.row >= 0 && !getPlaybackInfo().isPlaying()) setEditPosition(place.row);
   };
-  commands_.define("undo", [this, follow]() {
+  // A clip that is sounding is left alone: undoing into it moves its playhead
+  // and its content under the player's feet.
+  auto sounding = [this](const Song::EditPlace & place) {
+    if (place.clip_index < 0) return false;
+    auto state = getClipPlayer().clipHighlight(place.track_id, place.clip_index);
+    return state == ClipHighlight::PLAYING || state == ClipHighlight::QUEUED || state == ClipHighlight::RECORDING ||
+           state == ClipHighlight::RECORD_QUEUED || state == ClipHighlight::RECORD_STOPPING;
+  };
+  commands_.define("undo", [this, follow, sounding]() {
     auto & song = getSong();
     bool take = song.document().inGroup();
+    if (sounding(song.nextUndoPlace())) {
+      getUIEventQueue().push(make_unique<LogEvent>("Undo: that clip is playing - stop it first"));
+      return;
+    }
     bool done = song.undo();
-    if (done) follow(song);
+    if (done) { follow(song); resendTrackStateToAudio(); }
     getUIEventQueue().push(make_unique<LogEvent>(done ? "Undo" : take ? "Undo: not while recording" : "Nothing to undo"));
   });
-  commands_.define("undo-redo", [this, follow]() {
+  commands_.define("undo-redo", [this, follow, sounding]() {
     auto & song = getSong();
     bool take = song.document().inGroup();
+    if (sounding(song.nextRedoPlace())) {
+      getUIEventQueue().push(make_unique<LogEvent>("Redo: that clip is playing - stop it first"));
+      return;
+    }
     bool done = song.redo();
-    if (done) follow(song);
+    if (done) { follow(song); resendTrackStateToAudio(); }
     getUIEventQueue().push(make_unique<LogEvent>(done ? "Redo" : take ? "Redo: not while recording" : "Nothing to redo"));
   });
   commands_.define("toggle-metronome", [this]() {
@@ -850,9 +867,13 @@ Controller::syncLiveGlideStateIntoModel(const string & buffer_name, const Playba
       // re-asserting an already-correct value on every single one would
       // mark the song dirty continuously while nothing is actually
       // happening.
-      bool changed = sends.main != track_info.getLiveSendMain() || sends.a != track_info.getLiveSendA() || sends.b != track_info.getLiveSendB();
+      // The live values arrive as thousandths and the model stores sends as
+      // dB text, so an exact comparison never settles (0.299999 against 0.3)
+      // and the mirror would rewrite the track on every snapshot.
+      auto differs = [](float model, float live) { return std::fabs(model - live) > 0.0006f; };
+      bool changed = differs(sends.main, track_info.getLiveSendMain()) || differs(sends.a, track_info.getLiveSendA()) || differs(sends.b, track_info.getLiveSendB());
       if (changed) {
-        Song::Edit edit(*song, "glide sends", Song::Edit::Kind::STRUCTURE, Song::Edit::Origin::SYNC);
+            Song::Edit edit(*song, "glide sends", Song::Edit::Kind::STRUCTURE, Song::Edit::Origin::SYNC);
         song->editTrack(track_id, [&](Track & track) {
           leafOf(track).setSendMain(track_info.getLiveSendMain());
           leafOf(track).setSendA(track_info.getLiveSendA());
@@ -863,7 +884,7 @@ Controller::syncLiveGlideStateIntoModel(const string & buffer_name, const Playba
     // The sends edit above replaced the track's object.
     leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
     if (!leaf_track) continue;
-    if (track_info.hasLiveAzimuth() && leaf_track->getAzimuth() != track_info.getLiveAzimuth()) {
+    if (track_info.hasLiveAzimuth() && std::fabs(leaf_track->getAzimuth() - track_info.getLiveAzimuth()) > 0.06f) { // the event carries tenths of a degree
       Song::Edit edit(*song, "glide azimuth", Song::Edit::Kind::STRUCTURE, Song::Edit::Origin::SYNC);
       song->editTrack(track_id, [&](Track & track) { leafOf(track).setAzimuth(track_info.getLiveAzimuth()); });
     }
@@ -1381,7 +1402,7 @@ Controller::extendClipRecordingClipIfNeeded(int track_id, int absolute_step) {
 
 void
 Controller::updateUndoGroup() {
-  bool want = isAnyClipRecording() || auto_record_sessions_ > 0 || (isNoteCaptureArmed() && getPlaybackInfo().isPlaying());
+  bool want = isAnyClipRecording() || auto_record_sessions_ > 0 || note_held_ || (isNoteCaptureArmed() && getPlaybackInfo().isPlaying());
   if (want == (undo_group_song_ != nullptr)) return;
   if (want) {
     auto song = getCurrentSong();
@@ -1392,6 +1413,32 @@ Controller::updateUndoGroup() {
     if (undo_group_song_->inEdit()) return; // closed by the next call, from the frame loop
     undo_group_song_->document().endGroup();
     undo_group_song_.reset();
+  }
+}
+
+void
+Controller::resendTrackStateToAudio() {
+  auto song = getCurrentSong();
+  if (!song) return;
+  auto & queue = getPlaybackEventQueue();
+  auto buffer = getActiveBufferName();
+  auto fixed = [](float value) { return static_cast<int>(value * 1000.0f + 0.5f); };
+  auto sends = [&](int track_id, const Track & track) {
+    auto levels = track.getSends();
+    queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_MAIN, buffer, track_id, fixed(levels.main)));
+    queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_A, buffer, track_id, fixed(levels.a)));
+    queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_B, buffer, track_id, fixed(levels.b)));
+  };
+  const auto & master = song->getMasterTrack();
+  sends(master.getInternalId(), master);
+  for (auto track_id : song->getPlayableTrackIds()) {
+    auto leaf = asLeafTrack(master.getChildByInternalId(track_id));
+    if (!leaf) continue;
+    sends(track_id, *leaf);
+    queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_MUTED, buffer, track_id, leaf->isMuted() ? 1 : 0));
+    queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SOLO, buffer, track_id, leaf->isSolo() ? 1 : 0));
+    auto azimuth = leaf->getAzimuth();
+    queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_AZIMUTH, buffer, track_id, static_cast<int>(azimuth * 10.0f + (azimuth >= 0.0f ? 0.5f : -0.5f))));
   }
 }
 

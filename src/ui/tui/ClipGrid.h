@@ -6,6 +6,7 @@
 #include "LevelMeter.h"
 #include "../../launchpad/ClipHighlight.h"
 #include "../../model/Clip.h"
+#include "../../model/SendLevels.h"
 
 #include <algorithm>
 #include <chrono>
@@ -145,6 +146,8 @@ class ClipGrid : public UIElement {
   RowKind rowKindFor(int logical_row) const;
 
   int cursor_track_index_ = 0;
+  // Which of a Sends row's Main/A/B values the cursor is on (0-2).
+  int cursor_send_ = 0;
   int cursor_row_ = 1; // logical row index - see physicalFor()'s own comment; starts on the first clip row, not the header
   int scroll_col_ = 0, scroll_row_ = 0; // scroll_row_ is in *physical* row space, like the on-screen content itself
 
@@ -202,7 +205,8 @@ class ClipGrid : public UIElement {
   void renderMeter(const StyleProvider & styles, int x, int rows, int track_id, bool clipping);
   // Edits the Send Main/A/B of the column under the cursor - a track's,
   // or the master's (the dry mix and the send bus's returns).
-  void startSendsEdit(int track_id);
+  void startSendEdit(int track_id, int send);
+  void putSendValues(int y, int x, const SendLevels & sends, int highlighted, const StyleProvider & styles);
   // What Enter (or a click, which never opens the Sends editor) does on the
   // cell under the cursor.
   void activateCell(const Song & song, const std::vector<int> & track_ids, bool edit_sends);

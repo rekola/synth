@@ -65,6 +65,14 @@ placeStopInstance(Song & song, int track_id, int row) {
 }
 
 bool
+removeInstanceLeavingSilence(Song & song, int track_id, int row) {
+  song.getArrangement().clearInstance(track_id, row);
+  if (resolveInstanceAt(song, track_id, row).clip_index < 0) return false;
+  placeStopInstance(song, track_id, row);
+  return true;
+}
+
+bool
 mergeClipToBackground(Song & song, int track_id, int row, const ChannelConfiguration & channel_config) {
   auto active = resolveInstanceAt(song, track_id, row);
   if (active.clip_index < 0) return false; // nothing real placed here
