@@ -62,7 +62,7 @@ the transport row moves to the row of an arrangement note or placement
 clip grid's cursor goes to its scene and, in Live View, the pattern editor to
 the changed row (unless that track is playing).
 Changes that follow the playing song (a scene launch setting the tempo) are
-never undone. A velocity or delay is one integer, not a string of characters as
+never undone; so are mute and solo, which are performance state rather than edits. A velocity or delay is one integer, not a string of characters as
 in Renoise, so it is atomic: its hex digits are held in the cell (shown, but not
 in the song, so playback never hears half a value) and committed together when
 the cursor leaves the cell, the pattern editor loses focus or any other key is
