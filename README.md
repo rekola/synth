@@ -102,6 +102,23 @@ the spectrum analyzer and the DirAC heatmap in the scopes are drawn as real
 pixels instead of braille cells, and without pixel support they fall back to
 braille. See [docs/terminal.md](docs/terminal.md) for terminal-specific setup.
 
+Known to work are kitty, xterm and GNOME Terminal; the rest are untested here.
+The notes on them are from testing another program.
+
+| Terminal | Status | Notes |
+| - | - | - |
+| kitty | Works | Kitty keyboard and graphics protocols |
+| xterm | Works | Sixel support must be enabled in `.Xresources` (see [docs/terminal.md](docs/terminal.md)), images have a maximum size of 1000x1000 by default, and no Kitty keyboard protocol |
+| GNOME Terminal | Works | No Kitty keyboard protocol, and Sixel support is not enabled by default, so the scopes are drawn in braille |
+| foot | Untested | Wayland only |
+| wezterm | Untested | Reported buggy (as of 20230712) |
+| mlterm | Untested | |
+| Konsole | Untested | True color images, but on HiDPI systems images are upscaled |
+| contour | Untested | Inline image layout reported not to work |
+| Black Box | Untested | On HiDPI systems images are upscaled, and the terminal and the flatpak system use too much CPU time when idling |
+| Alacritty | Untested | No pixel graphics |
+| mintty | Untested | |
+
 # Launchpad support
 
 A connected Novation Launchpad (Mini MK3 / X) becomes a drum rack or in-key
