@@ -13,7 +13,6 @@ LeafTrack::loadParameters(const ParameterSource & input) {
   setElevation(input.get<float>("elevation"));
   setExtent(input.get<float>("extent", -1.0f));
   setMinNoteColumns(input.get<int>("noteColumns", 1));
-  setShowFxColumn(input.get<bool>("fxColumn"));
 }
 
 void
@@ -28,5 +27,4 @@ LeafTrack::storeParameters(ParameterSource & output) const {
   if (isMuted()) output.set("mute", true);
   if (getMonitor() != Monitor::AUTO) output.set("monitor", std::string(getMonitor() == Monitor::IN ? "in" : "off"));
   if (min_note_columns_ != 1) output.set("noteColumns", min_note_columns_);
-  if (show_fx_column_) output.set("fxColumn", true);
 }

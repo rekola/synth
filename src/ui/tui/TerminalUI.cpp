@@ -755,7 +755,6 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                          {nullptr, nullptr, nullptr},
                          {"Add Note Column", "C-S-Right", "add-note-column"},
                          {"Remove Note Column", "C-S-Left", "remove-note-column"},
-                         {"Toggle Note Fx Column", "", "toggle-fx-column"},
                      }},
       // Clip playback and clip content. Launching is quantized to the bar,
       // like a Launchpad Live-View pad.

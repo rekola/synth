@@ -79,9 +79,8 @@ does the same wherever the clip is played from.
 
 ## Note fx column
 
-Each note column can show a local fx column (three characters, magenta,
-hidden by default; `toggle-fx-column` shows it for the track). It is a
-mnemonic letter and a two-digit hex argument - a command without its chain
-digit - stored on the note (`fx` attribute, `---` when unset) and edited like
-the effect column (Delete/Backspace clear all three). Playback does not act on
-it yet.
+Each note column has a local fx column after its delay column (three
+characters, magenta, always shown). It is a mnemonic letter and a two-digit hex
+argument - a command without its chain digit - stored on the note (`fx`
+attribute, `---` when unset) and edited like the effect column (Delete/Backspace
+clear all three). Playback does not act on it yet.

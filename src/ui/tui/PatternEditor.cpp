@@ -558,14 +558,6 @@ PatternEditor::PatternEditor(UIPlane & parent)
     getController().removeNoteColumn(track_id);
   });
 
-  commands_.define("toggle-fx-column", [this]() {
-    auto & song = getController().getSong();
-    auto track_ids = song.getRootTrackIds();
-    if (track_ids.empty()) return;
-    auto track_id = getController().consumePendingCommandTrack(track_ids[static_cast<size_t>(current_cursor.track)]);
-    getController().toggleFxColumn(track_id);
-  });
-
   // "send-a-mode"/"send-b-mode" are NOT defined here (or anywhere in
   // commands_) - they mutate nothing outside a single Launchpad device's
   // own transient UI state (which grid mode it's showing), never Song/

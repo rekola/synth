@@ -182,6 +182,25 @@ class RecordingMixer : public Mixer {
 
 } // namespace
 
+// A note's own Rxy fx retriggers just that note, like a 0Rxy command does.
+TEST(render_note_fx_retrigger_restarts_the_note_within_its_row) {
+  auto plain = loadFixture("center_note.xml");
+  auto retriggered = loadFixture("note_fx_retrigger.xml");
+  CHECK(plain.ok);
+  CHECK(retriggered.ok);
+
+  ChannelConfiguration config(44100, 1);
+  auto a = renderSongOffline(plain.song, config);
+  auto b = renderSongOffline(retriggered.song, config);
+  CHECK(!hasNonFiniteSample(b));
+
+  // Row 0 lasts 125 ms at 120 bpm; the retriggers land inside it.
+  float difference = std::fabs(windowedRms(a, 0, 0.04f, 0.12f) - windowedRms(b, 0, 0.04f, 0.12f));
+  CHECK(difference > 1e-4f);
+  // Past the row the two agree on loudness again only if nothing else changed.
+  CHECK(windowedRms(b, 0, 0.0f, 0.12f) > 1e-4f);
+}
+
 TEST(render_center_note_produces_symmetric_stereo_output) {
   auto loaded = loadFixture("center_note.xml");
   CHECK(loaded.ok);
