@@ -2162,3 +2162,47 @@ TEST(equalizer_response_follows_band_settings) {
   CHECK(eq.responseDb(50.0f, 44100.0f) < -20.0f);
   CHECK_NEAR(eq.responseDb(1000.0f, 44100.0f), -3.0f, 0.5f);
 }
+
+// The equalizer follows edits made while it plays: its state is built once,
+// so the change has to arrive through the published tracks. Two identical
+// songs, one edited after the first row, are compared on the second.
+TEST(render_equalizer_follows_a_band_edit_mid_playback) {
+  ChannelConfiguration config(44100, 1);
+  auto control = loadFixture("equalizer_live.xml");
+  auto edited = loadFixture("equalizer_live.xml");
+  CHECK(control.ok);
+  CHECK(edited.ok);
+
+  auto run = [&](Song & song, bool edit) {
+    SongState state(config);
+    state.initialize(song);
+    state.setIsPlaying(true);
+    RecordingMixer mixer(static_cast<short>(config.numberOfChannels()), config.getAudioOutSampleRate());
+    int row = config.getSampleInterval(song.getTempo());
+    state.renderBlock(row, song, mixer); // row 0: note on
+    if (edit) {
+      int eq_id = song.getMasterTrack().getChild(0).getInternalId();
+      song.editTrack(eq_id, [](Track & track) {
+        auto & eq = dynamic_cast<Equalizer &>(track);
+        auto band = eq.getBand(6);
+        band.freq = 500.0f;
+        band.gain_db = -24.0f;
+        eq.setBand(6, band);
+      });
+    }
+    state.renderBlock(row, song, mixer);
+    // The mixer is reset per block; the track's own output is the first
+    // buffer accumulated (the send bus follows it).
+    CHECK(!mixer.accumulated.empty());
+    if (mixer.accumulated.empty()) return 0.0;
+    auto & buffer = mixer.accumulated[0];
+    double sum = 0.0;
+    auto data = buffer.getChannelData(0);
+    for (int i = 0; i < buffer.numberOfFrames(); i++) sum += static_cast<double>(data[i]) * static_cast<double>(data[i]);
+    return std::sqrt(sum / buffer.numberOfFrames());
+  };
+
+  double flat = run(control.song, false), cut = run(edited.song, true);
+  CHECK(flat > 1e-3);
+  CHECK(cut < flat * 0.7);
+}

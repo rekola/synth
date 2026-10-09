@@ -366,6 +366,13 @@ UI::initializeCommands() {
   // TerminalUI::initializeWidgets()).
   commands_.define("about", [this]() { showInfoDialog(kAboutTitle, kAboutMarkdown); });
 
+  // The equalizer wrapping the current track, else the song's first.
+  commands_.define("edit-equalizer", [this]() {
+    auto id = getController().findEqualizerFor(getController().getSong().getCurrentTrackId());
+    if (id < 0) setStatus("No equalizer in this song");
+    else showEqualizerEditor(id);
+  });
+
   // The device pickers list what is available right now (read fresh each
   // time, so a device plugged in a moment ago shows) with the one in use
   // marked. Choosing that one again changes nothing.

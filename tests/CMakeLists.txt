@@ -34,6 +34,7 @@ add_executable(synth_tests
 	ControllerTests.cpp
 	DeviceSettingsTests.cpp
 	ChoiceListTests.cpp
+	EqualizerEditorModelTests.cpp
 	DeviceLabelsTests.cpp
 	PatternBlockOpsTests.cpp
 	PatternSourceTests.cpp

@@ -102,6 +102,8 @@ struct SampleTrackEvent {
   bool is_background = false;
 };
 
+class Track;
+
 class RenderContext {
  public:
   RenderContext(ChannelConfiguration config) : channel_config_(config) { }
@@ -219,6 +221,12 @@ class RenderContext {
 
   const ChannelConfiguration & getChannelConfiguration() const { return channel_config_; }
 
+  // The compiled track tree of the block being rendered, so a state whose
+  // settings can change while it plays (the equalizer) can read them from
+  // its track. Null outside SongState::renderBlock().
+  void setMasterTrack(const Track * master) { master_track_ = master; }
+  const Track * getMasterTrack() const { return master_track_; }
+
   void setBpm(float bpm) { bpm_ = bpm; }
   float getBpm() const { return bpm_; }
 
@@ -228,6 +236,7 @@ class RenderContext {
   std::unordered_map<int, std::map<int, float> > pending_azimuth_ticks_;
   std::unordered_map<int, std::map<int, std::vector<SampleTrackEvent> > > pending_sample_events_;
   float bpm_ = 0.0f;
+  const Track * master_track_ = nullptr;
 };
 
 #endif

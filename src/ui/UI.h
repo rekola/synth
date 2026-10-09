@@ -63,6 +63,9 @@ class UI : public UIElement {
   // cancelled. A backend with no such dialog says so on the status line.
   virtual void showChoiceDialog(const std::string & title, std::vector<Choice> choices, int current,
                                 std::function<void(int)> on_choose) = 0;
+  // Opens the editor for the equalizer effect with this internal id. A
+  // backend with no such editor says so on the status line.
+  virtual void showEqualizerEditor(int track_id) = 0;
 
   // Launchpad hardware input isn't tied to any one visual frontend, so its
   // event handling lives here rather than in a concrete backend - this one

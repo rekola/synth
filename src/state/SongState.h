@@ -229,6 +229,7 @@ class SongState : public TrackState {
     // keep a pointer into it past the block.
     auto content_reader = song.readContent();
     const PlaybackContent & content = *content_reader;
+    render_context_.setMasterTrack(content.tracks->master.get());
 
     if (song_structure_version_ != song.getMajorVersion() || structure_tracks_generation_ != content.tracks->generation) {
       structure_tracks_generation_ = content.tracks->generation;

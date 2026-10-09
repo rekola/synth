@@ -12,6 +12,7 @@
 #include "ambisonic/ChannelConfiguration.h"
 #include "ambisonic/MixerType.h"
 #include "bus/BusEffectRegistry.h"
+#include "effects/Equalizer.h"
 #include "ui/CommandRegistry.h"
 #include "util/constants.h"
 
@@ -782,6 +783,21 @@ class Controller {
   void setTrackSendMain(int track_id, float value);
   void setTrackAzimuth(int track_id, float value);
 
+  // Equalizer effects (effects/Equalizer.h). The song's equalizer with this
+  // internal id, or null.
+  const Equalizer * findEqualizer(int track_id) const;
+  // Internal ids of every equalizer in the song, in track order.
+  std::vector<int> getEqualizerIds() const;
+  // The equalizer an editor should open for `track_id`: one that wraps it,
+  // else the first in the song; -1 if the song has none.
+  int findEqualizerFor(int track_id) const;
+  // Sets one band (clamped). The audio thread picks the change up on its
+  // next block.
+  void setEqualizerBand(int track_id, int band, const Equalizer::Band & value);
+  // Edits between begin and end undo as one step (a drag).
+  void beginEqualizerGesture();
+  void endEqualizerGesture();
+
   // The server-side-glide counterpart of the three instant setters above -
   // value/duration_seconds in the same dB/wall-clock-seconds units
   // LaunchpadManager::resolveSendFaderTarget()'s own velocity-scaled
@@ -1317,6 +1333,8 @@ class Controller {
   // while the transport rolls.
   void updateUndoGroup();
   std::shared_ptr<Song> undo_group_song_;
+  // The song an equalizer drag holds an undo group open on (beginEqualizerGesture()).
+  std::shared_ptr<Song> equalizer_gesture_song_;
   int auto_record_sessions_ = 0;
   // setClipGridFocused()/setClipGridCursor()'s own backing fields -
   // see their shared doc comment.

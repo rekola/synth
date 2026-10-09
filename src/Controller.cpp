@@ -1123,6 +1123,61 @@ Controller::setTrackAzimuth(int track_id, float value) {
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_AZIMUTH, getActiveBufferName(), track_id, static_cast<int>(value * 10.0f + (value >= 0.0f ? 0.5f : -0.5f))));
 }
 
+const Equalizer *
+Controller::findEqualizer(int track_id) const {
+  return dynamic_cast<const Equalizer *>(getSong().getMasterTrack().getChildByInternalId(track_id));
+}
+
+namespace {
+
+void collectEqualizers(const Track & track, std::vector<int> & ids) {
+  if (dynamic_cast<const Equalizer *>(&track)) ids.push_back(track.getInternalId());
+  for (auto & child : track.getChildren()) collectEqualizers(*child, ids);
+}
+
+}
+
+std::vector<int>
+Controller::getEqualizerIds() const {
+  std::vector<int> ids;
+  collectEqualizers(getSong().getMasterTrack(), ids);
+  return ids;
+}
+
+int
+Controller::findEqualizerFor(int track_id) const {
+  auto ids = getEqualizerIds();
+  for (auto id : ids) {
+    if (id == track_id || findEqualizer(id)->getChildByInternalId(track_id)) return id;
+  }
+  return ids.empty() ? -1 : ids.front();
+}
+
+void
+Controller::setEqualizerBand(int track_id, int band, const Equalizer::Band & value) {
+  if (band < 0 || band >= Equalizer::kBands || !findEqualizer(track_id)) return;
+  auto song = getCurrentSong();
+  Song::Edit edit(*song, "edit equalizer");
+  song->editTrack(track_id, [&](Track & track) {
+    if (auto eq = dynamic_cast<Equalizer *>(&track)) eq->setBand(band, value);
+  });
+}
+
+void
+Controller::beginEqualizerGesture() {
+  auto song = getCurrentSong();
+  if (!song || song->inEdit() || song->document().inGroup()) return;
+  song->document().beginGroup("edit equalizer");
+  equalizer_gesture_song_ = song;
+}
+
+void
+Controller::endEqualizerGesture() {
+  if (!equalizer_gesture_song_) return;
+  if (equalizer_gesture_song_->document().inGroup()) equalizer_gesture_song_->document().endGroup();
+  equalizer_gesture_song_.reset();
+}
+
 void
 Controller::addNoteColumn(int track_id) {
   auto song = getCurrentSong();

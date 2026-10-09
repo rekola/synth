@@ -90,6 +90,10 @@ HeadlessUI::showInfoDialog(const std::string & title, const std::string & markdo
   setStatus(title + "\n" + markdown);
 }
 
+void HeadlessUI::showEqualizerEditor(int) {
+  setStatus("The equalizer editor needs the terminal UI");
+}
+
 void HeadlessUI::showChoiceDialog(const std::string & title, std::vector<Choice>, int, std::function<void(int)>) {
   setStatus(title + ": choosing needs the terminal UI (see --list-devices)");
 }

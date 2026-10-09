@@ -787,6 +787,8 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                         {nullptr, nullptr, nullptr},
                         {"Set Bus Effect A...", "", "set-bus-effect-a"},
                         {"Set Bus Effect B...", "", "set-bus-effect-b"},
+                        {nullptr, nullptr, nullptr},
+                        {"Edit Equalizer...", "", "edit-equalizer"},
                     }},
       // How the active song is shown (UI::View) - not a buffer of its own.
       {"View", 'v', {
@@ -1728,7 +1730,10 @@ TerminalUI::readInput() {
       // Alt chord's prefix or part of a keypad sequence - it's just never
       // delivered a second time (kp_escape_delivered_).
       auto active = outline_view_ && outline_view_->isModal() ? outline_view_ : active_element_.lock();
-      if (choice_dialog_.isOpen()) {
+      if (equalizer_editor_.isOpen()) {
+        closeEqualizerEditor();
+        kp_escape_delivered_ = true;
+      } else if (choice_dialog_.isOpen()) {
         closeChoiceDialog();
         kp_escape_delivered_ = true;
       } else if (info_dialog_.isOpen()) {
@@ -1797,6 +1802,7 @@ TerminalUI::initializeWidgets() {
   arrangement_grid_ = make_shared<ArrangementGrid>(getPlane());
   clip_grid_ = make_shared<ClipGrid>(getPlane());
   outline_view_ = make_shared<OutlineView>(getPlane());
+  outline_view_->setEditEffectHandler([this](int track_id) { showEqualizerEditor(track_id); });
   // Enter commits the cell under this grid's own (local, passive) cursor
   // to shared state - see ArrangementGrid.h's own comment on why this is a
   // callback rather than the grid reaching for PatternEditor/
@@ -2305,6 +2311,10 @@ TerminalUI::renderComponents(bool refresh) {
   // nc->render() gate), not at whichever earlier, input-handling call site
   // actually requested it.
   if (getView() == View::LIVE && syncLiveView()) force_next_render_ = true;
+  if (equalizer_editor_.isOpen() && equalizer_editor_.refresh(getController())) {
+    layoutEqualizerEditor();
+    force_next_render_ = true;
+  }
   refresh = refresh || force_next_render_;
   force_next_render_ = false;
   bool render = false;
@@ -2478,6 +2488,11 @@ TerminalUI::offerInput(const InputEvent & input) {
   // keystroke meant for it.
   bool reader_active = status_line_->isReaderActive() || pattern_editor_->isReaderActive() ||
     clip_grid_->isReaderActive();
+  // The equalizer editor is modal and owns its keys until it is closed.
+  if (equalizer_editor_.isOpen() && input.getId() != NCKEY_RESIZE && !(input.hasCtrl() && input.getId() == 'l')) {
+    handleEqualizerEditorInput(input);
+    return true;
+  }
   // The choice dialog is modal too, and owns its keys until it is chosen
   // from or cancelled.
   if (choice_dialog_.isOpen() && input.getId() != NCKEY_RESIZE && !(input.hasCtrl() && input.getId() == 'l')) {
@@ -2510,6 +2525,7 @@ TerminalUI::offerInput(const InputEvent & input) {
     layout();
     layoutInfoDialog();
     layoutChoiceDialog();
+    layoutEqualizerEditor();
     // Deferred, not a direct renderComponents(true) call - see
     // force_next_render_'s own comment on TerminalUI.h: this runs from
     // inside input handling, before startUI()'s own main loop reaches its
@@ -2655,6 +2671,28 @@ void TerminalUI::showChoiceDialog(const std::string & title, std::vector<Choice>
   choice_dialog_.open(title, std::move(labels), current);
   layoutChoiceDialog();
   force_next_render_ = true;
+}
+
+void TerminalUI::showEqualizerEditor(int track_id) {
+  equalizer_editor_.open(getController(), track_id);
+  if (!equalizer_editor_.isOpen()) {
+    setStatus("No such equalizer");
+    return;
+  }
+  layoutEqualizerEditor();
+  force_next_render_ = true;
+}
+
+void TerminalUI::layoutEqualizerEditor() {
+  if (!equalizer_editor_.isOpen()) return;
+  auto [screen_rows, screen_cols] = getDim();
+  equalizer_editor_.show(getPlane(), screen_rows, screen_cols);
+}
+
+void TerminalUI::handleEqualizerEditorInput(const InputEvent & input) {
+  auto result = equalizer_editor_.offerInput(getController(), input);
+  if (result == EqualizerEditor::Result::REDRAW) layoutEqualizerEditor();
+  if (result != EqualizerEditor::Result::NONE) force_next_render_ = true;
 }
 
 void TerminalUI::layoutChoiceDialog() {

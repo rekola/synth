@@ -27,6 +27,7 @@ class HeadlessUI : public UI {
   void setStatus(std::string s) override;
   // No dialogs here: the content goes to the log.
   void showInfoDialog(const std::string & title, const std::string & markdown) override;
+  void showEqualizerEditor(int) override;
   void showChoiceDialog(const std::string & title, std::vector<Choice> choices, int current,
                         std::function<void(int)> on_choose) override;
 

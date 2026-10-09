@@ -25,6 +25,9 @@ class Equalizer : public Effect {
     bool hasGain() const { return type == FilterType::peak || type == FilterType::lowshelf || type == FilterType::highshelf; }
     // Whether the band changes the signal.
     bool isActive() const { return on && (!hasGain() || gain_db != 0.0f); }
+
+    bool operator==(const Band & o) const { return type == o.type && freq == o.freq && gain_db == o.gain_db && q == o.q && on == o.on; }
+    bool operator!=(const Band & o) const { return !(*this == o); }
   };
 
   Equalizer();

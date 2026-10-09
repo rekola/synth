@@ -359,6 +359,7 @@ OutlineView::buildDetailsLines(const outline_row_s & row) const {
   vector<DetailsLine> lines;
   switch (row.kind) {
   case OutlineRowKind::TRACK:
+    if (getController().findEqualizer(row.ref_id)) lines.push_back({ "[Enter] Edit", DetailsAction::EDIT });
     lines.push_back({ "[Del] Delete", DetailsAction::DELETE });
     break;
   case OutlineRowKind::POOL_INSTRUMENT:
@@ -663,6 +664,12 @@ OutlineView::runDetailsAction(DetailsAction action) {
       getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PREVIEW_RHYTHM, name));
     }
     break;
+  case DetailsAction::EDIT:
+    if (edit_effect_ && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size())) {
+      auto & row = data_[static_cast<size_t>(new_cursor_row_)];
+      if (row.kind == OutlineRowKind::TRACK && getController().findEqualizer(row.ref_id)) edit_effect_(row.ref_id);
+    }
+    break;
   case DetailsAction::STOP:
     held_preview_key_ = -1;
     getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PREVIEW_STOP));
@@ -840,6 +847,7 @@ OutlineView::offerInput(const InputEvent & input) {
     moveCursorBy(cursorRows());
     return true;
   } else if (input.getId() == NCKEY_ENTER) {
+    runDetailsAction(DetailsAction::EDIT);
     runDetailsAction(DetailsAction::ADD_TO_SONG);
     return true;
   } else if (input.getId() == NCKEY_DEL || input.getId() == NCKEY_BACKSPACE) {

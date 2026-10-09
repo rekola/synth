@@ -5,6 +5,7 @@
 #include "../UIElement.h"
 #include "../../model/TrackType.h"
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -40,7 +41,7 @@ struct outline_row_s {
 // target-track picker - a real floating ncselector plane (see
 // OutlineView::openTargetPicker()), not another Details panel line, so
 // picking one of its candidates never reaches here at all.
-enum class DetailsAction { DELETE, ADD_TO_SONG, PREVIEW, STOP, TOGGLE_TARGET_PICKER, TOGGLE_INFO };
+enum class DetailsAction { DELETE, ADD_TO_SONG, PREVIEW, STOP, TOGGLE_TARGET_PICKER, TOGGLE_INFO, EDIT };
 
 struct DetailsLine {
   std::string text;
@@ -89,6 +90,9 @@ class OutlineView : public UIElement {
 
   bool offerInput(const InputEvent & input) override;
   bool render(const StyleProvider & styles, bool refresh, bool focused);
+  // Called with a track's internal id to open its effect editor (Enter on
+  // an equalizer row).
+  void setEditEffectHandler(std::function<void(int)> handler) { edit_effect_ = std::move(handler); }
   // Closes the details popup - for when this panel stops being shown
   // (the popup is a separate plane that would otherwise stay up).
   void closeInfoPopup();
@@ -286,6 +290,7 @@ protected:
   // (applyTargetPickerSelection()). Checked/cleared in render() the same
   // as cursor_changed.
   bool details_dirty_ = false;
+  std::function<void(int)> edit_effect_;
   InfoDialog info_popup_;
   int screen_rows_ = 24, screen_cols_ = 80;
   bool info_open_ = false;

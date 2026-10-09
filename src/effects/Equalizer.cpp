@@ -6,6 +6,7 @@
 #include "../dsp/Biquad.h"
 #include "../dsp/ChannelBank.h"
 #include "../util/constants.h"
+#include "../state/RenderContext.h"
 
 #include <algorithm>
 #include <cmath>
@@ -40,22 +41,31 @@ Biquad<double>::Coefficients coefficientsOf(const Equalizer::Band & band, double
 
 // Shared by the track-tree and per-note states. Slot layout as in
 // BiquadFilter: Main channels first, then AuxA and AuxB in their own slots.
+// One bank per band, so a band's settings can change while it plays.
 class EqualizerDsp {
 public:
   EqualizerDsp(const ChannelConfiguration & channel_config, const Equalizer & eq)
-    : main_slots_(channel_config.numberOfChannels())
+    : main_slots_(channel_config.numberOfChannels()), sample_rate_(channel_config.getAudioOutSampleRate())
   {
-    const double rate = channel_config.getAudioOutSampleRate();
     for (int b = 0; b < Equalizer::kBands; b++) {
-      if (!eq.getBand(b).isActive()) continue;
-      auto c = coefficientsOf(eq.getBand(b), rate);
-      banks_.emplace_back(main_slots_ + 2, dsp::BiquadBank::Coefficients { c.a0, c.a1, c.a2, c.b1, c.b2 });
+      banks_.emplace_back(main_slots_ + 2, dsp::BiquadBank::Coefficients {});
+      bands_[b] = eq.getBand(b);
+      configure(b);
+    }
+  }
+
+  // Follows `eq` if its bands differ from the ones in use.
+  void update(const Equalizer & eq) {
+    for (int b = 0; b < Equalizer::kBands; b++) {
+      if (eq.getBand(b) == bands_[b]) continue;
+      bool was_active = bands_[b].isActive();
+      bands_[b] = eq.getBand(b);
+      configure(b, !was_active);
     }
   }
 
   bool applyEffect(AudioBuffer & input) {
     if (input.numberOfChannels() == 0) return false;
-    if (banks_.empty()) return true;
 
     int main_channels = input.regularChannelCount();
     if (main_channels > main_slots_) main_channels = main_slots_;
@@ -67,7 +77,9 @@ public:
     size_t offset = 0;
     while (numSamples) {
       int block = numSamples > constants::RENDER_EFFECTSAMPLEBLOCK ? constants::RENDER_EFFECTSAMPLEBLOCK : numSamples;
-      for (auto & bank : banks_) {
+      for (int b = 0; b < Equalizer::kBands; b++) {
+        if (!bands_[b].isActive()) continue;
+        auto & bank = banks_[static_cast<size_t>(b)];
         for (int c = 0; c < main_slots_; c++) bank.plane(c) = main_planes[c] ? main_planes[c] + offset : nullptr;
         for (int a = 0; a < 2; a++) bank.plane(main_slots_ + a) = aux_planes[a] ? aux_planes[a] + offset : nullptr;
         bank.apply(block);
@@ -79,14 +91,33 @@ public:
   }
 
 private:
+  void configure(int b, bool fresh = false) {
+    auto & bank = banks_[static_cast<size_t>(b)];
+    if (fresh) bank.clearState();
+    if (!bands_[b].isActive()) return;
+    auto c = coefficientsOf(bands_[b], sample_rate_);
+    bank.setCoefficients({ c.a0, c.a1, c.a2, c.b1, c.b2 });
+  }
+
   int main_slots_;
+  double sample_rate_;
+  Equalizer::Band bands_[Equalizer::kBands];
   vector<dsp::BiquadBank> banks_;
 };
 
 class EqualizerTrackState : public EffectTrackState {
 public:
   EqualizerTrackState(const ChannelConfiguration & config, const Equalizer & eq)
-    : EffectTrackState(config), dsp_(config, eq) { }
+    : EffectTrackState(config), id_(eq.getInternalId()), dsp_(config, eq) { }
+
+  // The settings are edited while the song plays: each block looks up this
+  // effect in the published tracks and follows any change.
+  AudioBuffer render(int frames, const InstrumentPool & instruments, RenderContext & context) override {
+    if (auto master = context.getMasterTrack()) {
+      if (auto eq = dynamic_cast<const Equalizer *>(master->getChildByInternalId(id_))) dsp_.update(*eq);
+    }
+    return EffectTrackState::render(frames, instruments, context);
+  }
 
 protected:
   void applyEffect(AudioBuffer & input) override {
@@ -95,6 +126,7 @@ protected:
   }
 
 private:
+  int id_;
   EqualizerDsp dsp_;
 };
 

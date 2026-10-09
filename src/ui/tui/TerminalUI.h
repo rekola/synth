@@ -2,6 +2,7 @@
 #define _TERMINALUI_H_
 
 #include "ChoiceDialog.h"
+#include "EqualizerEditor.h"
 #include "InfoDialog.h"
 #include "../UI.h"
 #include "../StyleProvider.h"
@@ -44,6 +45,7 @@ class TerminalUI : public UI {
 
   void setStatus(std::string s) override;
   void showInfoDialog(const std::string & title, const std::string & markdown) override;
+  void showEqualizerEditor(int track_id) override;
   void showChoiceDialog(const std::string & title, std::vector<Choice> choices, int current,
                         std::function<void(int)> on_choose) override;
 
@@ -151,6 +153,15 @@ private:
   void closeChoiceDialog() {
     choice_dialog_.close();
     choice_callback_ = nullptr;
+    force_next_render_ = true;
+  }
+  // The modal editor showEqualizerEditor() opens; it takes all input until
+  // closed.
+  EqualizerEditor equalizer_editor_;
+  void layoutEqualizerEditor();
+  void handleEqualizerEditorInput(const InputEvent & input);
+  void closeEqualizerEditor() {
+    equalizer_editor_.close(getController());
     force_next_render_ = true;
   }
   void closeInfoDialog() { info_dialog_.close(); info_dialog_title_.clear(); force_next_render_ = true; }
