@@ -44,11 +44,13 @@ They act on the clip under the cursor.
 
 ## Moving a paused playhead
 
-In Live View, with the transport paused inside the clip the pattern editor's
-cursor is in (a launched clip, or one the arrangement is playing), the cursor
-is that clip's playhead: Up and Down move it, and so move the arrangement's
-position, and playing resumes from there. At the very start (position 0, nothing
-has played) no clip has a playhead yet, so the cursor moves alone.
+Once anything has played, a clip the arrangement has at the transport's row has
+a playhead in Live View, paused or not. With the transport paused, the pattern
+editor's cursor in such a clip is that playhead: Up and Down move it, and so
+move the arrangement's position (reaching the clip's first row does not detach
+it), and playing resumes from there. A launched clip's playhead moves the same
+way, taking the other launched clips along. A song that has never played has no
+clip playing, so there the cursor moves alone.
 
 ## Undo
 

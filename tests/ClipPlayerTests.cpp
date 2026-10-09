@@ -370,7 +370,8 @@ TEST(clip_player_session_record_with_nothing_playing_does_nothing) {
 }
 
 // A track the arrangement plays shows the placed clip's playhead too, at
-// the row the placement has reached - while the transport runs.
+// the row the placement has reached - while the transport runs, and paused
+// once anything has played (a song that never played has none).
 TEST(clip_player_playheads_follow_clips_the_arrangement_plays) {
   LiveFixture f;
   auto track = f.addTrack(2);
@@ -390,7 +391,8 @@ TEST(clip_player_playheads_follow_clips_the_arrangement_plays) {
 
   f.controller.togglePlaying();
   f.playRows(1);
-  CHECK(f.player().playheads().count(track) == 0);
+  CHECK(f.player().playheads().at(track).clip_index == 1); // paused: still there
+  CHECK(f.player().playheads().at(track).row == 1);
 }
 
 // An empty slot without a stop button leaves its track alone - pressed

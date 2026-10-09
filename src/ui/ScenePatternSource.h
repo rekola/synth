@@ -130,7 +130,6 @@ class ScenePatternSource : public PatternSource {
   // Moves every stopped track but the cursor's by `rows`, keeping each
   // one within the scenes.
   void moveStoppedTracks(int rows);
-  bool moveArrangementPlayhead(int delta_rows);
   // Moves every track's line but the cursor track's by `rows`.
   void moveOtherLines(int rows);
   // A track's line, in rows from the cursor row; 0 for the cursor track.
