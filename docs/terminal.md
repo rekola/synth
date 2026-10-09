@@ -66,3 +66,23 @@ A pad gesture whose terminal equivalent is copy, kill or yank gets no command
 of its own: the device calls the underlying function directly. That is why the
 Launchpad's delete never touches the clipboard.
 See `launchpad.md` for the gestures.
+
+## Terminal setup
+
+Pixel graphics (Kitty graphics or Sixels) and the Kitty keyboard protocol are
+optional; the UI falls back to braille cells and ordinary key encodings.
+
+### xterm
+
+xterm has Sixel support, but it is off unless enabled in `~/.Xresources`:
+
+```
+XTerm*decTerminalID: vt340
+XTerm*numColorRegisters: 256
+```
+
+`decTerminalID: vt340` makes xterm identify as a Sixel-capable terminal, and
+`numColorRegisters` sets the palette size for images. Reload the file with
+`xrdb -merge ~/.Xresources` and start a new xterm; running ones keep their old
+settings. xterm does not implement the Kitty keyboard protocol, so use C-b
+rather than C-SPC to set the mark.

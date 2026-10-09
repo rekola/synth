@@ -91,6 +91,16 @@ when the SoundFont has no piano; [docs/additive.md](docs/additive.md)) does that
 note sits on the song's tuning, with a stretch bounded at the same ε, so shared
 partials of the tuning's own intervals, septimal ones included, meet exactly.
 
+# Terminal support
+
+The terminal UI works in any terminal notcurses supports, but a modern one is
+better. Terminals with the Kitty keyboard protocol (kitty, foot, WezTerm,
+Ghostty) can send chords such as C-SPC; elsewhere use the alternatives
+(C-b sets the mark). Terminals with Kitty graphics or Sixels get pixel graphics:
+the spectrum analyzer and the DirAC heatmap in the scopes are drawn as real
+pixels instead of braille cells. Without pixel support they fall back to
+braille. See [docs/terminal.md](docs/terminal.md) for terminal-specific setup.
+
 # Launchpad support
 
 A connected Novation Launchpad (Mini MK3 / X) becomes a drum rack or in-key
