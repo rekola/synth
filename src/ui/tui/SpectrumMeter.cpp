@@ -79,6 +79,7 @@ SpectrumMeter::splineSample(const std::vector<float> & knots, size_t count) {
 
 void SpectrumMeter::clear() {
   auto [rows, cols] = getDim();
+  last_knots_.clear(); // what is drawn is no longer the last curve
   if (rows <= 0 || cols <= 0) return;
   drawBars(std::vector<float>(barCount(cols), 0.0f));
 }
