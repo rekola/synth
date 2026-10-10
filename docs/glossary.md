@@ -34,9 +34,7 @@ key. That works in any EDO, 12 included, and every interval between any two
 notes is then a whole-number ratio. What it cannot promise is that every chord
 comes out as simple as it could. In a major scale, the D that suits a G major
 chord is a little too high for a D minor chord, and one fixed D has to be a
-compromise. The app's tuning today works one bar at a time: the notes
-sounding together in a bar are tuned as pure intervals above the lowest of
-them, and that lowest note is measured from the key.
+compromise.
 
 The 7-note otonal and utonal scales are different. They are named after
 Partch's overtone and undertone series but are not his much longer scales:
