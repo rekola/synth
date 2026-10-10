@@ -141,28 +141,40 @@ sounding or has just sounded:
 - **Drift is real.** A note is tuned against the *tuned* pitch of an earlier
   one, so errors accumulate along a progression: stack a perfect fifth on C ten
   times and each step carries the last one's error. That is intended in the
-  arrangement. The total is clamped at +-255; a chain continues from the
-  clamped pitch.
+  arrangement. What happens at the +-255 limit is below.
 
 ### Two modes, picked by the view
 
-Select-all splits, and a region uses its view's mode. In Arrangement view
-`mark-whole-buffer` selects the arrangement (`SelectionScope::ARRANGEMENT`); in
-Live View every scene (`SelectionScope::SCENES`). They replace `SONG`.
+Select-all splits, and a region uses its view's mode. In Live View
+`mark-whole-buffer` selects every scene (`SelectionScope::SCENES`); in
+Arrangement view the arrangement (`SelectionScope::ARRANGEMENT`). They replace
+`SONG`.
 
-- **Arrangement: linear, drifting.** One timeline of the whole arrangement:
-  each track's background pattern and the clip instances placed on it, expanded
-  to absolute rows with loops repeated as they play. The tuner runs once from
-  the start. Clip instances are tuned too (see below).
-- **Scenes: looping, not drifting.** Clips loop, so context must loop with
-  them. The clips of one scene, on every track, play together and are tuned
-  together as one cycle as long as the longest clip, the shorter ones
-  repeating; the first notes see the end of the cycle as what came before. A
-  progression does not return to its starting pitch, so a compromise is needed:
-  tune the cycle from the key, measure how far the end context sits from where
-  it began, and spread that difference over the pass so the loop closes (a
-  tempered comma, not a jump at the loop point). Intervals then miss just by
-  the spread. Pinned by a test: the second pass starts where the first did.
+**Order of work: the timeline model and scene mode first, arrangement mode
+last,** because it waits on the clip-instance decision below. Until then
+Arrangement view keeps phase 2's behaviour unchanged.
+
+- **Scenes: looping only if a clip loops.** A scene is the clips of one
+  clip-list row, on every track, which play together. A track whose slot is
+  empty and has no stop button carries on with the previous scene's clip
+  (`Clip::hasStopButton()`), so that clip belongs to this scene's context too,
+  found by looking back to the nearest earlier clip on the track.
+  - *Some clip loops:* the scene is a cycle as long as the longest looping clip,
+    the shorter looping ones repeating, and context loops with it: the first
+    notes see the end of the cycle as what came before. One-shot clips play on
+    the first pass only, so they are tuned there, as part of the context, and
+    take no part in closing the loop. A progression does not return to its
+    starting pitch, so a compromise is needed: tune the cycle from the key,
+    measure how far the end context sits from where it began, and spread that
+    difference over the pass so the loop closes (a tempered comma, not a jump at
+    the loop point). Intervals then miss just by the spread. Pinned by a test:
+    the second pass starts where the first did.
+  - *No clip loops:* it plays once, so it is a plain linear timeline from the
+    key, free to drift like the arrangement.
+- **Arrangement: linear, drifting (last).** One timeline of the whole
+  arrangement: each track's background pattern and the clip instances placed on
+  it, expanded to absolute rows with loops repeated as they play. The tuner runs
+  once from the start. Clip instances are tuned too (see below).
 
 ### Clip instances in the arrangement (to decide)
 
@@ -181,6 +193,26 @@ among different surroundings.
 3. **A cents offset per placement.** The clip is tuned once and each placement
    carries an added offset (the drift at that point), a new instance property
    with document, undo and playback changes. A later step if (2) is not enough.
+
+### At the +-255 limit (to decide)
+
+A correction is a signed byte, so a tuned pitch cannot be more than 255 cents
+from its equal-tempered pitch. That is far: it is more than half a step in
+every tuning (2.5 semitones in 12-EDO, 6.6 steps in 31-EDO), so a note there is
+nearer another note than its own. It takes a long unbroken chain to get there:
+each pure fifth stacked on the last drifts +2 cents in 12-EDO (about 130 in a
+row), +5 in 31-EDO (about 50), +7 in 19-EDO (about 35), almost nothing in
+53-EDO; stacked major thirds in 12-EDO drift -14 each (about 19). Silence
+longer than the memory re-anchors to the key and resets all of it.
+
+1. **Clamp** (the first plan): the note takes +-255 instead of its target and
+   the chain continues from that pitch. The progression keeps going but the
+   notes are wrong ones, and the interval to the reference is off by the
+   excess.
+2. **Re-anchor** (recommended): a note whose target would pass the limit is
+   tuned from the key instead, as after a silence. The chain restarts there;
+   the tuning jumps once, back near the written pitch, and nothing is ever
+   stored at the limit.
 
 ### Work and tests
 
@@ -334,5 +366,7 @@ round-trip, a render test (a `ring` chord with extent has energy on both sides,
 - The 20 cent cap and the oscillator-array radius inside a chord are by-ear
   values.
 - Phase 3: the memory length (8 rows is a guess); how a scene's cycle is
-  built when clip lengths do not divide the longest; which of the three
-  clip-instance options (the plan recommends 2).
+  built when clip lengths do not divide the longest; what happens at the
+  +-255 limit (clamp or re-anchor, the plan recommends re-anchor); and which of
+  the three clip-instance options (the plan recommends 2), which gates the
+  arrangement mode, built last.
