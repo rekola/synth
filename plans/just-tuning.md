@@ -3,8 +3,9 @@
 Goal: notes in 12/19/31/53-EDO carry a per-note cent correction toward just
 intonation, computed by the app over a region or the whole song, stored in the
 note's local fx. Chords get spread in the ambisonic space so the tuned
-intervals are heard as separate voices. Three phases, in this order: 1 and 3 are decided, 2 is a sketch. Voice
-placement is last because it is the most involved part.
+intervals are heard as separate voices. Four phases, in this order: 1 is built, 3 and 4 are decided, 2 is a sketch.
+The arpeggiator goes before voice placement, and voice placement is last
+because it is the most involved part.
 
 ## Phase 1 - the `+xx` / `-xx` fx command and key-relative just intonation (built)
 
@@ -84,7 +85,64 @@ note at `+64`, SONG scope bounds.
   drift between chords.
 - Transpose-retune then re-runs the chord tuner over the affected region.
 
-## Phase 3 - voice placement: spatial mode per track, chord extent
+## Phase 3 - remove the arpeggiator
+
+The arpeggiator (an `<arpeggiatorTrack>`, `Arpeggiator`/`ArpeggiatorState`)
+steps a held chord on a free-running clock of its own. It does not work with
+clips correctly, and its timing has needed rounds of fixes of its own. It also
+makes the note path non-uniform: its steps are played by the track state
+itself, bypassing the per-note override (so a tuning correction or a per-note
+azimuth never reaches them), and the chord rings of Phase 4 would have to
+special-case it as well. Arpeggios are written as notes instead, which the
+just-intonation tuner sees like any other.
+
+Order of work:
+
+1. **Spell out the one song that uses it.** `songs/arptest1.xml`, track `arp`
+   (mode up, noteDuration 2 rows, octaves 1, gate 1, 31-EDO, 3/4). Each chord
+   (rows 0, 48, ..., 288, held until the OFF at 324) steps through its notes
+   and the same notes one octave (31 steps) up, ascending, a step every 2 rows
+   from the chord's row, starting again at each chord. Each step is a note
+   followed by an OFF a row later (gate 1); the last chord's final step is
+   row 322. Replace the track with a plain `<track>` that keeps the
+   instrument, position and sends, one note column, 24 steps per 48-row chord
+   and 18 for the last. Check by rendering the song before and after
+   (`--render`): the onsets line up; the sound is near, not bit-equal, since
+   each note's start phase comes from its note coordinate.
+   `songs/backup/arptest1.xml` is a stale copy in an older form and goes too.
+   `songs/songtest20.xml` only names a plain track "Arpeggio".
+2. **Remove the track kind.** Delete `instruments/Arpeggiator.{h,cpp}` and
+   `state/ArpeggiatorState.{h,cpp}`, their lines in both `CMakeLists.txt`
+   files, the `arpeggiatorTrack` factory entry in `TrackNodes.cpp` and the
+   include in `Song.cpp`. A file that still has the element then fails like any
+   unknown track element; check the message is clear.
+3. **Remove what existed only for it,** after grepping that nothing else uses
+   it: `NoteOrigin` and `noteOn()`'s `origin` argument (both callers),
+   `InstrumentTrackState::endPatternRow()`, the virtual hooks on
+   `noteOn()`/`notePressure()` if nothing else overrides them,
+   `TrackState::resyncPlayhead()`, `SongState::resyncPlayheadAfterStop()` with
+   its position-edit bookkeeping, and the restart hook in `Player`. Clean the
+   comments that name it (`Player`, `LeafTrackState`, `TrackState`,
+   `SongState`, `VisibleTrackInfo`, `SongStructure`, `NoteCoordinate`).
+4. **Tests.** Delete `ArpeggiatorStateTests.cpp`, the
+   `arpeggiator_pattern_chord.xml` fixture and
+   `render_arpeggiator_steps_through_a_pattern_authored_chord`; trim what
+   mentions it in `ResyncPlayheadTests.cpp`, `PlayerMultiBufferTests.cpp`,
+   `HashFieldTests.cpp` and `RenderTests.cpp`. Keep a render test that the
+   spelled-out song's arp track plays its steps.
+5. **Docs.** CLAUDE.md, `docs/known_bugs.md` (the playhead-resync paragraph),
+   `docs/commands.md` (the +hh row says arpeggiator notes are not reached),
+   `todo.txt` if its arpeggio line is about this. Delete
+   `plans/arpeggiator-timing-fixes.md`; edit `plans/transport-pause.md` (the
+   "where an arpeggiator resumes" question goes), `plans/outline-library-
+   followups.md` (its arpeggiator rhythm part and bass mode assumed the track
+   kind), `plans/launchpad-custom-mode.md` (the arpeggiator step editor) and
+   `plans/instrument-identity-generator-overrides.md` (mentions).
+
+Not part of this stage: a command that writes an arpeggio into a region as
+notes could replace the feature as an edit, not a track kind. Not decided.
+
+## Phase 4 - voice placement: spatial mode per track, chord extent
 
 Today extent only widens a single voice (an oscillator array's cloud,
 `OscillatorVoice.h`; the SoundFont per-feature offsets). The notes of a chord
