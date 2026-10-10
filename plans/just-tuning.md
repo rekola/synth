@@ -230,17 +230,20 @@ command or UI for it yet. There is no `point` mode: a chord spread of zero is
 just a ring with no extent, and the extent also drives the single voice's own
 cloud, so a separate "no spread" mode would only duplicate it.
 
-- `auto` (default): the instrument decides. Percussion (bank 128 /
-  `Tuning::PERCUSSION`) uses its key table with jitter; the SoundFont arc
-  families (piano, mallets, harp, timpani) use the arc; every other instrument
-  uses the ring. A track with no extent puts every note at its position, as
-  today, so only songs whose pitched tracks already have an extent change.
-- `ring`: each note column gets a fixed slot on a spiral (below). Forces the
-  ring on an instrument whose `auto` is the arc (a piano).
-- `arc`: the note's key along the extent, low to high. SoundFont presets use
-  their mapped key range as now; other instruments use a fixed A0-C8 span.
-
-Percussion is not selectable: it has no chords, so it stays on its table.
+- `auto` (default): only a default, chosen per instrument. Percussion
+  (bank 128 / `Tuning::PERCUSSION`) uses its key table with jitter; the
+  SoundFont arc families (piano, mallets, harp, timpani) use the arc; every
+  other instrument uses the ring. A track with no extent puts every note at its
+  position, as today, so only songs whose pitched tracks already have an extent
+  change.
+- `ring`, `arc`: an explicit choice that works on every instrument, the ones
+  whose `auto` is something else included (a piano on the ring, an organ or a
+  drum kit on the arc). Nothing is specific to the instruments that default to
+  them.
+  - `ring`: each note column gets a fixed slot on a spiral (below).
+  - `arc`: the note's key along the extent, low to high. A SoundFont preset
+    uses its mapped key range as now; any other instrument, and a kit, a fixed
+    A0-C8 span.
 
 ### The ring is a spiral
 
