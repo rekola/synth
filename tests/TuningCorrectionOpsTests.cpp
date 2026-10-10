@@ -1,6 +1,8 @@
 #include "TestFramework.h"
 
+#include "../src/model/ArrangementOps.h"
 #include "../src/model/Clip.h"
+#include "../src/model/ClipView.h"
 #include "../src/model/InstrumentTrack.h"
 #include "../src/model/JustIntonation.h"
 #include "../src/model/PercussionTrack.h"
@@ -123,41 +125,90 @@ TEST(transposing_leaves_an_untuned_note_untuned) {
   CHECK(!arrangement.getNotes(0, 10)[0].hasFx());
 }
 
-TEST(the_whole_song_is_tuned_cleared_and_transposed_with_its_key) {
-  Song song(Tuning::EDO31, kKey);
-  auto track_id = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
-  song.getArrangement().setNote(0, track_id, 0, Note(kKey + 7, 100));
+namespace {
 
-  Clip clip(track_id);
-  clip.setLength(4);
-  clip.getLeafPattern().setNote(0, 0, Note(kKey + 13, 100));
-  clip.getLeafPattern().setNote(2, 0, Note(kKey + 18, 100));
-  auto clip_view = song.addClip(move(clip));
-  Clip second(track_id);
-  second.setLength(4);
-  second.getLeafPattern().setNote(0, 0, Note(kKey + 4, 100));
-  song.addClip(move(second));
+// A background note and two clips on one track; the first clip is placed in
+// the arrangement, the second is not.
+struct ScopedSong {
+  Song song{Tuning::EDO31, kKey};
+  int track_id;
+  ClipView placed, unplaced;
 
-  auto summary = applyJustIntonationToSong(song);
-  CHECK(summary.notes == 4); // the background and both clips, each note once
-  CHECK(song.getArrangement()->getNotes(0, track_id)[0].getFx() == "-04");
-  CHECK(clip_view.getLeafPattern().getNote(0, 0).getFx() == "-05");
-  CHECK(clip_view.getLeafPattern().getNote(2, 0).getFx() == "+05");
+  explicit ScopedSong(bool background = true) {
+    track_id = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
+    if (background) song.getArrangement().setNote(0, track_id, 0, Note(kKey + 7, 100));
+    Clip clip(track_id);
+    clip.setLength(4);
+    clip.getLeafPattern().setNote(0, 0, Note(kKey + 13, 100));
+    clip.getLeafPattern().setNote(2, 0, Note(kKey + 18, 100));
+    placed = song.addClip(move(clip));
+    Clip second(track_id);
+    second.setLength(4);
+    second.getLeafPattern().setNote(0, 0, Note(kKey + 4, 100));
+    unplaced = song.addClip(move(second));
+    placeClipInstance(song, track_id, 16, 0); // clear of the background note
+  }
+  string background() { return string(song.getArrangement()->getNotes(0, track_id)[0].getFx()); }
+};
 
-  // Moving the notes and the key together leaves the corrections as they were.
-  transposeSong(song, true);
-  CHECK(song.getKey() == kKey + 1);
-  CHECK(song.getArrangement()->getNotes(0, track_id)[0].getValue() == kKey + 8);
-  CHECK(song.getArrangement()->getNotes(0, track_id)[0].getFx() == "-04");
-  CHECK(clip_view.getLeafPattern().getNote(2, 0).getValue() == kKey + 19);
-  CHECK(clip_view.getLeafPattern().getNote(2, 0).getFx() == "+05");
-  auto again = applyJustIntonationToSong(song);
-  CHECK(again.replaced == 0);
-  CHECK(clip_view.getLeafPattern().getNote(2, 0).getFx() == "+05");
+} // namespace
 
-  CHECK(clearTuningCorrectionsInSong(song) == 4);
-  CHECK(!song.getArrangement()->getNotes(0, track_id)[0].hasFx());
-  CHECK(!clip_view.getLeafPattern().getNote(0, 0).hasFx());
+TEST(scenes_tune_every_clip_placed_or_not_and_leave_the_background) {
+  ScopedSong s;
+  auto summary = applyJustIntonationToSong(s.song, SongScope::SCENES);
+  CHECK(summary.notes == 3);
+  CHECK(s.placed.getLeafPattern().getNote(0, 0).getFx() == "-05");
+  CHECK(s.placed.getLeafPattern().getNote(2, 0).getFx() == "+05");
+  CHECK(s.unplaced.getLeafPattern().getNote(0, 0).hasTuningCorrection());
+  CHECK(!s.song.getArrangement()->getNotes(0, s.track_id)[0].hasFx());
+}
+
+TEST(the_arrangement_tunes_the_background_and_the_clips_it_places) {
+  ScopedSong s;
+  auto summary = applyJustIntonationToSong(s.song, SongScope::ARRANGEMENT);
+  CHECK(summary.notes == 3);
+  CHECK(s.background() == "-04");
+  CHECK(s.placed.getLeafPattern().getNote(2, 0).getFx() == "+05");
+  CHECK(!s.unplaced.getLeafPattern().getNote(0, 0).hasFx());
+}
+
+TEST(a_clip_placed_twice_is_tuned_once) {
+  ScopedSong s(false);
+  placeClipInstance(s.song, s.track_id, 32, 0);
+  auto summary = applyJustIntonationToSong(s.song, SongScope::ARRANGEMENT);
+  CHECK(summary.notes == 2);
+  CHECK(s.placed.getLeafPattern().getNote(0, 0).getFx() == "-05");
+}
+
+TEST(clearing_takes_the_scope_too) {
+  ScopedSong s;
+  applyJustIntonationToSong(s.song, SongScope::SCENES);
+  applyJustIntonationToSong(s.song, SongScope::ARRANGEMENT);
+  CHECK(clearTuningCorrectionsInSong(s.song, SongScope::ARRANGEMENT) == 3);
+  CHECK(!s.placed.getLeafPattern().getNote(0, 0).hasFx());
+  CHECK(s.unplaced.getLeafPattern().getNote(0, 0).hasTuningCorrection());
+  CHECK(clearTuningCorrectionsInSong(s.song, SongScope::SCENES) == 1);
+}
+
+TEST(the_key_moves_with_a_transpose_only_when_nothing_pitched_is_left_behind) {
+  // Notes outside the scope (here the background) keep their place against the key.
+  ScopedSong partial;
+  applyJustIntonationToSong(partial.song, SongScope::SCENES);
+  transposeSong(partial.song, SongScope::SCENES, true);
+  CHECK(partial.song.getKey() == kKey);
+  CHECK(partial.placed.getLeafPattern().getNote(0, 0).getValue() == kKey + 14);
+  CHECK(partial.placed.getLeafPattern().getNote(0, 0).getTuningCorrectionCents() == just_intonation::correctionCentsFor(31, 14));
+  CHECK(partial.song.getArrangement()->getNotes(0, partial.track_id)[0].getValue() == kKey + 7);
+
+  // With only clips, Live View's select-all covers everything: the key goes along.
+  ScopedSong clips_only(false);
+  applyJustIntonationToSong(clips_only.song, SongScope::SCENES);
+  transposeSong(clips_only.song, SongScope::SCENES, true);
+  CHECK(clips_only.song.getKey() == kKey + 1);
+  CHECK(clips_only.placed.getLeafPattern().getNote(2, 0).getValue() == kKey + 19);
+  CHECK(clips_only.placed.getLeafPattern().getNote(2, 0).getFx() == "+05");
+  CHECK(clips_only.unplaced.getLeafPattern().getNote(0, 0).getValue() == kKey + 5);
+  CHECK(applyJustIntonationToSong(clips_only.song, SongScope::SCENES).replaced == 0);
 }
 
 namespace {
@@ -231,6 +282,6 @@ TEST(a_percussion_track_is_left_alone) {
   auto summary = applyJustIntonationBlock(grid, 0, 3, track_ids, 0, 0, context(), [](int) { return true; });
   CHECK(summary.notes == 0);
   CHECK(!arrangement.getNotes(0, track_id)[0].hasFx());
-  CHECK(applyJustIntonationToSong(song).notes == 0);
+  CHECK(applyJustIntonationToSong(song, SongScope::ARRANGEMENT).notes == 0);
   CHECK(!arrangement.getNotes(0, track_id)[0].hasFx());
 }

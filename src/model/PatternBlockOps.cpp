@@ -150,13 +150,45 @@ bool untuneNote(Note & note) {
   return true;
 }
 
-// Calls fn(track_id, pattern) for every pattern that holds notes: each
-// track's background, then each clip once.
-template <class Fn>
-void forEachSongPattern(Song & song, Fn fn) {
-  for (auto & [ track_id, pattern ] : song.getArrangement()->getPatternsByTrack()) fn(track_id, pattern);
+// Every pattern that holds notes, each once: each track's background, then
+// each clip. A clip is in the arrangement when some instance places it.
+struct SongPattern {
+  int track_id;
+  PatternView pattern;
+  bool in_scenes;      // a clip
+  bool in_arrangement; // a background, or a clip that is placed
+};
+
+vector<SongPattern> songPatterns(Song & song) {
+  vector<SongPattern> all;
+  for (auto & [track_id, pattern] : song.getArrangement()->getPatternsByTrack()) {
+    all.push_back({track_id, pattern, false, true});
+  }
+  auto instances = song.getArrangement()->getInstancesByTrack();
   for (auto track_id : song.clipTrackIds()) {
-    for (auto clip : song.getClips(track_id)) fn(track_id, clip.getLeafPattern());
+    set<string> placed;
+    auto it = instances.find(track_id);
+    if (it != instances.end()) {
+      for (auto & [row, clip_id] : it->second) {
+        if (!clip_id.empty()) placed.insert(clip_id);
+      }
+    }
+    for (auto clip : song.getClips(track_id)) {
+      all.push_back({track_id, clip.getLeafPattern(), true, !clip.getId().empty() && placed.count(clip.getId()) > 0});
+    }
+  }
+  return all;
+}
+
+bool inScope(const SongPattern & entry, SongScope scope) {
+  return scope == SongScope::SCENES ? entry.in_scenes : entry.in_arrangement;
+}
+
+// Calls fn(track_id, pattern) for every pattern the scope covers.
+template <class Fn>
+void forEachSongPattern(Song & song, SongScope scope, Fn fn) {
+  for (auto & entry : songPatterns(song)) {
+    if (inScope(entry, scope)) fn(entry.track_id, entry.pattern);
   }
 }
 
@@ -181,9 +213,9 @@ bool isPercussionTrack(const Song & song, int track_id) {
 
 // Tunes every pitched note of every pattern of the song (percussion tracks
 // excepted); with `only_tuned`, only the ones that already carry a correction.
-TuningSummary tuneSongPatterns(Song & song, const IntonationContext & context, bool only_tuned) {
+TuningSummary tuneSongPatterns(Song & song, SongScope scope, const IntonationContext & context, bool only_tuned) {
   TuningSummary summary;
-  forEachSongPattern(song, [&](int track_id, PatternView pattern) {
+  forEachSongPattern(song, scope, [&](int track_id, PatternView pattern) {
     if (isPercussionTrack(song, track_id)) return;
     auto corrections = chordCorrections(pattern, context);
     set<int> rows;
@@ -431,14 +463,13 @@ clearTuningCorrectionBlockNotes(PatternGrid & grid, int row_lo, int row_hi,
 }
 
 TuningSummary
-applyJustIntonationToSong(Song & song) {
-  return tuneSongPatterns(song, contextOf(song), false);
+applyJustIntonationToSong(Song & song, SongScope scope) {
+  return tuneSongPatterns(song, scope, contextOf(song), false);
 }
 
-int
-clearTuningCorrectionsInSong(Song & song) {
+int clearTuningCorrectionsInSong(Song & song, SongScope scope) {
   int cleared = 0;
-  forEachSongPattern(song, [&](int, PatternView pattern) {
+  forEachSongPattern(song, scope, [&](int, PatternView pattern) {
     forEachNoteRow(pattern, [&](vector<Note> & notes) {
       bool changed = false;
       for (auto & note : notes) {
@@ -450,12 +481,17 @@ clearTuningCorrectionsInSong(Song & song) {
   return cleared;
 }
 
-void
-transposeSong(Song & song, bool up) {
+void transposeSong(Song & song, SongScope scope, bool up) {
   int delta = up ? 1 : -1;
   int key = song.getKey();
-  if (key + delta < 0) return; // the key would leave the note range
-  forEachSongPattern(song, [&](int track_id, PatternView pattern) {
+  // The key goes with the notes only when no pitched note is left behind.
+  bool move_key = true;
+  for (auto & entry : songPatterns(song)) {
+    if (inScope(entry, scope) || isPercussionTrack(song, entry.track_id)) continue;
+    if (!entry.pattern.getNotesByRow().empty()) move_key = false;
+  }
+  if (move_key && key + delta < 0) return; // the key would leave the note range
+  forEachSongPattern(song, scope, [&](int track_id, PatternView pattern) {
     if (isPercussionTrack(song, track_id)) return;
     forEachNoteRow(pattern, [&](vector<Note> & notes) {
       if (notes.empty()) return false;
@@ -463,16 +499,16 @@ transposeSong(Song & song, bool up) {
       return true;
     });
   });
-  // The notes and the key have moved together; a tuned note gets the
-  // correction for its new place in its chord.
-  IntonationContext context{song.getTuning(), key + delta, song.getArrangementBars()};
-  tuneSongPatterns(song, context, true);
-  song.setKey(key + delta);
+  // The notes (and the key, when it moves) have changed place together; a
+  // tuned note gets the correction for its new place in its chord.
+  int new_key = move_key ? key + delta : key;
+  IntonationContext context{song.getTuning(), new_key, song.getArrangementBars()};
+  tuneSongPatterns(song, scope, context, true);
+  if (move_key) song.setKey(new_key);
 }
 
-void
-humanizeSong(Song & song, const HumanizeAmount & amount, NoiseGenerator & rng) {
-  forEachSongPattern(song, [&](int, PatternView pattern) {
+void humanizeSong(Song & song, SongScope scope, const HumanizeAmount & amount, NoiseGenerator & rng) {
+  forEachSongPattern(song, scope, [&](int, PatternView pattern) {
     forEachNoteRow(pattern, [&](vector<Note> & notes) {
       if (notes.empty()) return false;
       for (auto & note : notes) humanizeNote(note, amount, rng);

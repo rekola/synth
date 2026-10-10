@@ -3,8 +3,8 @@
 Goal: notes in 12/19/31/53-EDO carry a per-note cent correction toward just
 intonation, computed by the app over a region or the whole song, stored in the
 note's local fx. Chords get spread in the ambisonic space so the tuned
-intervals are heard as separate voices. Six phases: 1, 2 and 4 are built; 3, 5 and 6 are decided. The order of work is
-3, 5, 6. Phase 3 takes the per-track tuner of phases 1-2 to the whole song and
+intervals are heard as separate voices. Six phases: 1, 2, 3 and 4 are built; 5 and 6 are decided. The order of work is
+5, 6. Phase 3 takes the per-track tuner of phases 1-2 to the whole song and
 splits select-all by view; it is all the otonal and utonal scales need. The
 arpeggiator (4) went before voice placement (5). Dynamic just intonation across
 tracks (6) is last because it is the most involved part and only scales without
@@ -107,7 +107,7 @@ function stays as its fallback and as the anchor.
   onset. The 20 cent cap bounds the bass and the interval separately, so a
   note can end up further from its equal-tempered pitch than 20 cents.
 
-## Phase 3 - song-wide scope: scenes and arrangement (planned)
+## Phase 3 - song-wide scope: scenes and arrangement (built)
 
 The scales the song is written in now, otonal and utonal, need nothing more
 than the tuner of phases 1-2. Every chord in them holds the tonic, so every

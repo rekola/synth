@@ -23,7 +23,9 @@ Which thing they act on depends on the focused widget.
 
 They act on the region: the note under the cursor, or the marked block of rows
 and tracks (C-SPC sets the mark). C-x h (`mark-whole-buffer`) selects the whole song
-instead: every track's background pattern and every clip, in either view. Any
+instead, by view: in Live View every clip of every track, placed or not; in
+Arrangement view every track's background pattern and the clips the
+arrangement places (a clip placed twice is one pattern, acted on once). Any
 cursor movement or C-g ends it. Transpose, humanize and the tuning commands act
 on it; cut, copy and yank say they do not. To duplicate a track's notes, select
 the track, copy it, move to another track and yank.
@@ -125,10 +127,14 @@ is read from the whole pattern, so a region that covers part of a chord still
 tunes it as the whole chord, writing only the notes it covers. A run replaces
 earlier corrections, so it can be repeated after editing; the mark stays.
 
-Select the whole song first (C-x h) to tune it all. `clear-tuning-correction-region`
+Select all first (C-x h) to tune every clip (Live View) or the arrangement
+(Arrangement view); a clip's notes are tuned against the key, so one tuning
+fits every place it is put. `clear-tuning-correction-region`
 removes the corrections again, whatever put them there. Transposing the region
 gives each tuned note the correction for its new pitch, and transposing the
-whole song moves the key with the notes, so the corrections stay as they were.
+whole song moves the key with the notes when no pitched note is left outside
+the selection, so the corrections stay as they were; otherwise the key stays
+and the notes are retuned against it.
 `undo` takes any of these back. Terminal only.
 
 ## Humanize

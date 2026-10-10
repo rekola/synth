@@ -377,7 +377,9 @@ whole track or pattern, select it first — there's no separate "no mark"
 whole-pattern fallback anymore.
 
 **Select all and tuning corrections.** `mark-whole-buffer` selects the whole
-song (`SelectionScope::SONG`, `PatternEditor::whole_song_`): no mark, and
+song by view (`SelectionScope::SCENES` in Live View: every clip, placed or
+not; `ARRANGEMENT` in Arrangement view: every track's background and the
+clips it places; `PatternEditor::whole_song_`): no mark, and
 any cursor movement or `keyboard-quit` ends it, because the single-block
 region model cannot express "every pattern of every track". Transpose,
 humanize and the tuning commands act on it through the `...Song()` functions in
@@ -393,7 +395,8 @@ from the song key (`chordCorrections()` in `PatternBlockOps.cpp`, the context
 read from the whole pattern). `+00` marks a note that needs none, and
 `clear-tuning-correction-region` removes them. A note that carries one is
 "tuned": transposing retunes it for its new pitch and place in its chord, and `transposeSong()` moves
-the key with the notes so corrections stay valid. "Tuning" in this codebase
+the key with the notes when no pitched note is left outside its `SongScope`,
+so corrections stay valid. "Tuning" in this codebase
 stays the song's EDO; the offset is a tuning correction (`docs/glossary.md`).
 
 A track with multiple simultaneous note columns (chords/polyphony —

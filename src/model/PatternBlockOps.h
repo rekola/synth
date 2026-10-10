@@ -134,15 +134,20 @@ int clearTuningCorrectionBlock(PatternGrid & grid, int row_lo, int row_hi,
 int clearTuningCorrectionBlockNotes(PatternGrid & grid, int row_lo, int row_hi,
 				    int track_id, int note_lo, int note_hi);
 
-// The same operations over the whole song: every track's background pattern
-// and every clip's pattern, each once. Callers open the Song::Edit.
-TuningSummary applyJustIntonationToSong(Song & song);
-int clearTuningCorrectionsInSong(Song & song);
-// Moves every pitched note a step and the song's key with them, so the notes
-// keep their place against the key and their corrections stay as they were
-// (retuned ones come out the same).
-void transposeSong(Song & song, bool up);
-void humanizeSong(Song & song, const HumanizeAmount & amount, NoiseGenerator & rng);
+// The same operations over a part of the song. SCENES is every clip's
+// pattern, placed or not; ARRANGEMENT is every track's background pattern and
+// the clips some instance places. A clip is one pattern however often it is
+// placed, so it is acted on once. Callers open the Song::Edit.
+enum class SongScope { SCENES,
+                       ARRANGEMENT };
+TuningSummary applyJustIntonationToSong(Song & song, SongScope scope);
+int clearTuningCorrectionsInSong(Song & song, SongScope scope);
+// Moves every pitched note a step. The key goes with them when no pitched
+// note is left outside the scope (so notes keep their place against it and
+// their corrections stay as they were); otherwise it stays, and tuned notes
+// are retuned for their new place against it.
+void transposeSong(Song & song, SongScope scope, bool up);
+void humanizeSong(Song & song, SongScope scope, const HumanizeAmount & amount, NoiseGenerator & rng);
 
 // Merges `block` into `grid` starting at (target_row, track_id, target_note_offset),
 // leaving note columns outside that range untouched (unlike pastePatternBlock,

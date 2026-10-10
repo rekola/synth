@@ -36,6 +36,9 @@
 using namespace std;
 using namespace fmt;
 
+static SongScope songScopeOf(SelectionScope scope) {
+  return scope == SelectionScope::SCENES ? SongScope::SCENES : SongScope::ARRANGEMENT;
+}
 // Track flattening moved to Song::getRootTrackIds() - shared with the
 // Launchpad command-dispatch path (UI::handleLaunchpadButtonEvent), which
 // needs the exact same addressable-track list/order to resolve a device's
@@ -417,8 +420,8 @@ PatternEditor::PatternEditor(UIPlane & parent)
     // A note that carried a tuning correction gets the one for its new pitch.
     IntonationContext intonation{song.getTuning(), song.getKey(), song.getArrangementBars()};
     auto b = getEffectiveSelectionBounds(song, track_ids);
-    if (b.scope == SelectionScope::SONG) {
-      transposeSong(song, true);
+    if (isWholeSong(b.scope)) {
+      transposeSong(song, songScopeOf(b.scope), true);
     } else if (b.scope == SelectionScope::TRACK) {
       transposePatternBlock(*grid, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi, true, is_percussion, &intonation);
     } else if (b.scope == SelectionScope::NOTE_COLUMN) {
@@ -447,8 +450,8 @@ PatternEditor::PatternEditor(UIPlane & parent)
     // A note that carried a tuning correction gets the one for its new pitch.
     IntonationContext intonation{song.getTuning(), song.getKey(), song.getArrangementBars()};
     auto b = getEffectiveSelectionBounds(song, track_ids);
-    if (b.scope == SelectionScope::SONG) {
-      transposeSong(song, false);
+    if (isWholeSong(b.scope)) {
+      transposeSong(song, songScopeOf(b.scope), false);
     } else if (b.scope == SelectionScope::TRACK) {
       transposePatternBlock(*grid, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi, false, is_percussion, &intonation);
     } else if (b.scope == SelectionScope::NOTE_COLUMN) {
@@ -471,8 +474,8 @@ PatternEditor::PatternEditor(UIPlane & parent)
     static NoiseGenerator rng{std::random_device{}()};
 
     auto b = getEffectiveSelectionBounds(song, track_ids);
-    if (b.scope == SelectionScope::SONG) {
-      humanizeSong(song, HumanizeAmount(), rng);
+    if (isWholeSong(b.scope)) {
+      humanizeSong(song, songScopeOf(b.scope), HumanizeAmount(), rng);
     } else if (b.scope == SelectionScope::TRACK) {
       humanizePatternBlock(*grid, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi, HumanizeAmount(), rng);
     } else if (b.scope == SelectionScope::NOTE_COLUMN) {
@@ -489,7 +492,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
     setSelectionActive(false);
     whole_song_ = true;
     whole_song_anchor_ = wholeSongAnchorNow();
-    getController().getUIEventQueue().push(make_unique<LogEvent>("Whole song selected"));
+    getController().getUIEventQueue().push(make_unique<LogEvent>(isLiveMode() ? "All scenes selected" : "Whole arrangement selected"));
   });
 
   // Gives every pitched note in the region its just-intonation correction
@@ -509,8 +512,8 @@ PatternEditor::PatternEditor(UIPlane & parent)
 
     TuningSummary summary;
     auto b = getEffectiveSelectionBounds(song, track_ids);
-    if (b.scope == SelectionScope::SONG) {
-      summary = applyJustIntonationToSong(song);
+    if (isWholeSong(b.scope)) {
+      summary = applyJustIntonationToSong(song, songScopeOf(b.scope));
     } else if (b.scope == SelectionScope::TRACK) {
       summary = applyJustIntonationBlock(*grid, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi, intonation, is_percussion);
     } else if (b.scope == SelectionScope::NOTE_COLUMN) {
@@ -533,8 +536,8 @@ PatternEditor::PatternEditor(UIPlane & parent)
 
     int cleared = 0;
     auto b = getEffectiveSelectionBounds(song, track_ids);
-    if (b.scope == SelectionScope::SONG) {
-      cleared = clearTuningCorrectionsInSong(song);
+    if (isWholeSong(b.scope)) {
+      cleared = clearTuningCorrectionsInSong(song, songScopeOf(b.scope));
     } else if (b.scope == SelectionScope::TRACK) {
       cleared = clearTuningCorrectionBlock(*grid, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi);
     } else if (b.scope == SelectionScope::NOTE_COLUMN) {
@@ -1057,7 +1060,7 @@ PatternEditor::getEffectiveSelectionBounds(const Song & song, const vector<int> 
     b.row_hi = std::numeric_limits<int>::max();
     b.track_lo = 0;
     b.track_hi = max(static_cast<int>(track_ids.size()) - 1, 0);
-    b.scope = SelectionScope::SONG;
+    b.scope = isLiveMode() ? SelectionScope::SCENES : SelectionScope::ARRANGEMENT;
     return b;
   }
   auto start_row = has_mark ? selection_start_row_ : point.row;
@@ -3096,7 +3099,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     // highlight (below, outside this per-track loop) covers the rest of
     // what EVERYTHING means.
     bool column_scoped_selection = row_track_in_selection &&
-                                   sel_bounds.scope != SelectionScope::TRACK && sel_bounds.scope != SelectionScope::EVERYTHING && sel_bounds.scope != SelectionScope::SONG;
+                                   sel_bounds.scope != SelectionScope::TRACK && sel_bounds.scope != SelectionScope::EVERYTHING && !isWholeSong(sel_bounds.scope);
     // Unfocused, the region still shows, faintly - it's where edits land.
     Color region_fg = focused ? styles.highlight_fg_color : styles.window_fg_color;
     Color region_bg = focused ? styles.highlight_bg_color : styles.highlight_unfocused_bg_color;

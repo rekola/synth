@@ -61,7 +61,7 @@ def main():
     scr.pump(0.3)
     scr.send(b"h")
     scr.pump(0.5)
-    check("C-x h selects the whole song", "Whole song selected" in scr.dump(), scr)
+    check("C-x h selects the whole arrangement", "Whole arrangement selected" in scr.dump(), scr)
 
     mx(scr, "apply-just-intonation-region")
     check("it tuned every note", "Tuned 4 notes" in scr.dump(), scr)
