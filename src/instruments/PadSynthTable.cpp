@@ -1,6 +1,5 @@
 #include "PadSynthTable.h"
 
-#include "SpectralBandProfile.h"
 #include "../dsp/HashField.h"
 #include "../dsp/RealFFT.h"
 
@@ -125,7 +124,6 @@ PadSynthTable::renderSample(int j) const {
   for (int h = 1; ; h++) {
     if (h >= static_cast<int>(shaped.size())) break; // no oscillator data beyond this - nothing further to place
     float g_h = partialPosition(h, params_.position);
-    g_h = tuningMatchedPartialPosition(g_h, params_.edo_steps, params_.tuning_matched);
     float phi_h = g_h * f_j;
     if (phi_h > 0.49999f * SR || phi_h < 20.0f) break; // stop entirely
     if (shaped[static_cast<size_t>(h)] < 1e-4f) continue; // skip

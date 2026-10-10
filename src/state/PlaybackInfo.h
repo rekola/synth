@@ -6,6 +6,8 @@
 #include "LiveTrackInfo.h"
 #include "../model/BarGrid.h"
 
+#include <cstdint>
+#include <cstring>
 #include <vector>
 #include <unordered_map>
 
@@ -72,6 +74,34 @@ class PlaybackInfo {
   // tracks taken over from the arrangement and what's queued for them.
   const LiveTracks & getLiveTracks() const { return live_tracks_; }
   void setLiveTracks(LiveTracks tracks) { live_tracks_ = std::move(tracks); }
+  // A hash of everything a snapshot shows: two snapshots with the same one
+  // would draw the same, so the second need not be sent or redrawn.
+  uint64_t signature() const {
+    auto mix = [](uint64_t h, uint64_t v) { return (h ^ v) * 1099511628211ULL; };
+    auto bits = [](float f) { uint32_t u; std::memcpy(&u, &f, sizeof u); return static_cast<uint64_t>(u); };
+    uint64_t h = 14695981039346656037ULL;
+    for (uint64_t v : { static_cast<uint64_t>(is_playing_), static_cast<uint64_t>(absolute_pos_), static_cast<uint64_t>(sample_pos_),
+                        static_cast<uint64_t>(position_edit_seq_), static_cast<uint64_t>(voice_count_), static_cast<uint64_t>(allocated_voice_count_),
+                        static_cast<uint64_t>(live_clock_), static_cast<uint64_t>(live_start_clock_), static_cast<uint64_t>(live_seq_),
+                        static_cast<uint64_t>(scene_seq_), static_cast<uint64_t>(tempo_), static_cast<uint64_t>(round_trip_latency_frames_),
+                        static_cast<uint64_t>(latency_is_nominal_) }) h = mix(h, v);
+    // Maps are summed entry by entry, so their iteration order does not matter.
+    uint64_t tracks = 0;
+    for (auto & [ id, t ] : effect_info_) {
+      tracks += mix(mix(mix(mix(static_cast<uint64_t>(id), bits(t.getMeterValue())), static_cast<uint64_t>(t.isActive())), static_cast<uint64_t>(t.isClipping())),
+                    static_cast<uint64_t>(t.isRecording()) + (bits(t.getLiveSendMain()) ^ (bits(t.getLiveSendA()) << 1) ^ (bits(t.getLiveSendB()) << 2) ^ (bits(t.getLiveAzimuth()) << 3)));
+    }
+    uint64_t voices = 0;
+    for (auto & [ id, list ] : active_voices_) {
+      uint64_t v = static_cast<uint64_t>(id);
+      for (auto & voice : list) v = mix(mix(v, static_cast<uint64_t>(voice.note_value)), bits(voice.loudness));
+      voices += v;
+    }
+    uint64_t live = 0;
+    for (auto & [ id, t ] : live_tracks_) live += mix(mix(mix(static_cast<uint64_t>(id), static_cast<uint64_t>(t.clip_index)), static_cast<uint64_t>(t.launch_clock)), static_cast<uint64_t>(t.queued));
+    return mix(mix(mix(h, tracks), voices), live);
+  }
+
   const LiveTrackInfo * getLiveTrack(int track_id) const {
     auto it = live_tracks_.find(track_id);
     return it != live_tracks_.end() ? &it->second : nullptr;

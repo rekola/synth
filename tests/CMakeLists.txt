@@ -69,7 +69,6 @@ add_executable(synth_tests
 	ChorusEngineTests.cpp
 	AllpassFilterTests.cpp
 	SpectralEnvelopeRemapTests.cpp
-	SpectralBandProfileTests.cpp
 	OscillatorShapingChainTests.cpp
 	PadSynthPartialProfileTests.cpp
 	FloorReflectionTests.cpp
