@@ -1161,8 +1161,10 @@ would otherwise resume showing.
     into a repeating beat pattern; no detune, no drift. Other voice types aren't arrays.
     Where a note sits around its track's position is the track's `spatial`
     mode (`SpatialMode`, `LeafTrack::getSpatialMode()`, `docs/spatial.md`):
-    `InstrumentTrackState::noteOn()` calls `Track::placeNote()` with the note's
-    column before `playNote()`. The default is the golden-angle spiral by column
+    `InstrumentTrackState::noteOn()` passes the mode to `playNote()`, whose leaf
+    instruments place the note by its `NoteCoordinate` column (`NoteCoordinate` is
+    a required argument: every note has one, a live note's with a stand-in row).
+    The default is the golden-angle spiral by column
     (`instruments/SpatialPlacement.h`), `SoundFontInstrument` adds the drum kit
     table and the key-range arc, and a SoundFont region's own pan is always
     folded in by the voice.

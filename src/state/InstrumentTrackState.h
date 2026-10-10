@@ -137,7 +137,7 @@ public:
   // place). `note_coord` identifies this note event for HashField purposes
   // (NoteCoordinate.h) - threaded through rather than fixed here since the
   // two callers build it differently (see each call site's own comment).
-  void noteOn(int column, const Track & instrument, Tuning tuning, float velocity, int note_value, const NoteCoordinate & note_coord = {}) {
+  void noteOn(int column, const Track & instrument, Tuning tuning, float velocity, int note_value, const NoteCoordinate & note_coord) {
     retriggerVoices(column, note_value);
 
     // position_.extent < 0 means "not authored on this track" (see
@@ -151,8 +151,7 @@ public:
     if (resolved_position.extent < 0.0f) resolved_position.extent = instrument.getDefaultExtent();
 
     float detune = note_override_.has_detune ? std::exp2(note_override_.detune_cents / 1200.0f) : 1.0f;
-    resolved_position = instrument.placeNote(resolved_position, spatial_mode_, column, tuning, note_value, note_coord);
-    auto voice = instrument.playNote(getChannelConfiguration(), resolved_position, tuning, detune, velocity, note_value, getSends(), note_coord);
+    auto voice = instrument.playNote(getChannelConfiguration(), resolved_position, spatial_mode_, tuning, detune, velocity, note_value, getSends(), note_coord);
     chokeExclusiveClasses(*voice);
     addVoice(column, move(voice));
   }

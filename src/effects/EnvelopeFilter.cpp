@@ -176,7 +176,7 @@ EnvelopeFilter::createVoiceState(const ChannelConfiguration & channel_config) co
 }
 
 std::unique_ptr<VoiceState>
-EnvelopeFilter::playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune,
+EnvelopeFilter::playNote(const ChannelConfiguration & config, const SphericalPosition & position, SpatialMode spatial_mode, Tuning tuning, float detune,
                          float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const {
   // The key number comes from the pitch, so it means the same in every
   // tuning: one key per 12-EDO semitone, 69 at 440 Hz.
@@ -185,7 +185,7 @@ EnvelopeFilter::playNote(const ChannelConfiguration & config, const SphericalPos
   auto group = make_unique<EnvelopeFilterVoiceState>(config, envelope_, midi_key);
   auto child_config = getChildChannelConfiguration(config);
   for (auto & child : getChildren()) {
-    auto voice = child->playNote(child_config, position, tuning, detune, velocity, note_value, sends, note_coord);
+    auto voice = child->playNote(child_config, position, spatial_mode, tuning, detune, velocity, note_value, sends, note_coord);
     if (voice.get()) group->addChild(child->getInternalId(), std::move(voice));
   }
   return group;

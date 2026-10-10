@@ -117,7 +117,7 @@ Player::startPreviewNote(const Track * instrument, Tuning tuning, int note_value
     preview_note_voice_->stopNote();
     preview_voices_.push_back(std::move(preview_note_voice_));
   }
-  preview_note_voice_ = instrument->playNote(channel_config_, SphericalPosition{}, tuning, 1.0f,
+  preview_note_voice_ = instrument->playNote(channel_config_, SphericalPosition{}, SpatialMode::AUTO, tuning, 1.0f,
                                               note.getVelocityAsFloat(), note.getValue(), SendLevels{},
                                               NoteCoordinate(-1, live_note_counter_++, 0));
 }
@@ -697,7 +697,7 @@ Player::renderPreview(int frames) {
         auto ahead = (hit_frame - preview_rhythm_frame_ + loop_frames) % loop_frames;
         if (ahead < frames) {
           Note note(hit.note, hit.velocity);
-          preview_voices_.push_back(preview_rhythm_instrument_->playNote(channel_config_, SphericalPosition{}, Tuning::PERCUSSION, 1.0f,
+          preview_voices_.push_back(preview_rhythm_instrument_->playNote(channel_config_, SphericalPosition{}, SpatialMode::AUTO, Tuning::PERCUSSION, 1.0f,
                                                                                  note.getVelocityAsFloat(), note.getValue(), SendLevels{},
                                                                                  NoteCoordinate(-1, live_note_counter_++, 0)));
         }

@@ -1676,7 +1676,7 @@ constexpr PercussionOffset kPercussionOffsets[56] = {
 
 // Bank-0 GM program numbers whose keys are physically separated
 // radiators - a real per-key position to sweep across, not just a
-// bigger point source. SoundFontInstrument::placeNote() gives them the arc
+// bigger point source. SoundFontInstrument::playNote() gives them the arc
 // under AUTO, and getDefaultExtent() a nonzero default extent: piano family
 // (0-7), glockenspiel/vibraphone/marimba/xylophone/tubular bells (9,
 // 11-14 - mallet instruments, each bar its own radiator), orchestral harp
@@ -1830,7 +1830,7 @@ public:
   // arc families their key range, anything else the ring. RING and ARC are
   // explicit and work on any preset; a kit's arc runs over the fixed key
   // span, any other preset's over its own mapped key range.
-  SphericalPosition placeNote(const SphericalPosition & position, SpatialMode mode, int slot, Tuning tuning, int note_value, const NoteCoordinate & note_coord) const override {
+  SphericalPosition place(const SphericalPosition & position, SpatialMode mode, int slot, Tuning tuning, int note_value, const NoteCoordinate & note_coord) const {
     auto * f = sf_.get();
     bool has_preset = preset_ < f->presets_.size();
     bool is_percussion = has_preset && f->presets_[preset_].bank == 128;
@@ -1856,9 +1856,10 @@ public:
     return applyPitchedArcOffset(position, midiKey, lokeyMin, hikeyMax);
   }
 
-  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}) const override {
+  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, SpatialMode spatial_mode, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const override {
     float frequency = getFrequencyFor(tuning, note_value);
     assert(frequency > 0);
+    auto placed = place(position, spatial_mode, note_coord.getColumn(), tuning, note_value, note_coord);
 
     vector<pair<int, unique_ptr<VoiceState> > > voices;
 
@@ -1894,8 +1895,8 @@ public:
         // Each region's own position (folded in via SoundFontVoice::getPosition())
         // gets encoded directly by the voice itself (InstrumentVoice::encodePosition()),
         // with the region's own SF2 pan folded in. `position` is already placed
-        // (placeNote()).
-        auto voice = make_unique<SoundFontVoice>(channel_config, position, detune, sf_, preset_, region_idx, sends, note_coord, generator_overrides_);
+        // (SoundFontInstrument::place()).
+        auto voice = make_unique<SoundFontVoice>(channel_config, placed, detune, sf_, preset_, region_idx, sends, note_coord, generator_overrides_);
         voice->playNote(frequency, velocity, note_value);
 
 	// Keyed by region_idx, not getInternalId() (constant across every

@@ -1,4 +1,5 @@
 #include "Additive.h"
+#include "SpatialPlacement.h"
 
 #include "AdditiveVoice.h"
 #include "Tuning.h"
@@ -13,8 +14,9 @@ Additive::Additive() {
 }
 
 unique_ptr<VoiceState>
-Additive::playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const {
-  auto voice = make_unique<AdditiveVoice>(config, position, detune, level_, keyboardSpread_, stringSpread_, thumpWidth_, sends, note_coord);
+Additive::playNote(const ChannelConfiguration & config, const SphericalPosition & position, SpatialMode spatial_mode, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const {
+  auto placed = spatial::placeGeneric(position, spatial_mode, note_coord.getColumn(), tuning, note_value);
+  auto voice = make_unique<AdditiveVoice>(config, placed, detune, level_, keyboardSpread_, stringSpread_, thumpWidth_, sends, note_coord);
   voice->playNote(getFrequencyFor(tuning, note_value), velocity, note_value);
 
   AdditiveModelParams model;

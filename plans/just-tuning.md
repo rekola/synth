@@ -277,17 +277,17 @@ slots; `spread` is set per instrument by ear.
 
 ### Where it is applied
 
-`Instrument` gets a virtual `placeNote(position, spatial mode, slot, key)` that
-returns the note's position; the track's mode is passed in with each note
-(it is a track property, so it reaches the instrument as an argument, not
-as instrument state). The default implementation does `auto`: the ring.
-`SoundFontInstrument` overrides it for the kit and the arc families, which
-today live in its `playNote()`, and `InstrumentTrackState::noteOn()` calls it on
-the position after the note override. The slot is the `column` that `InstrumentTrackState::noteOn()` already takes (the
-voice id a pattern note's column becomes, which is also how its off finds it
-and how a note in the same column retriggers); live-played notes send one in
-`PLAY_NOTE`'s second parameter. Two bass drum hits in different columns are two
-voices on two slots, on the kit as on any other instrument.
+`playNote()` gets the track's spatial mode as a parameter (after the position),
+and `NoteCoordinate` becomes a required argument instead of defaulting to
+"none": the slot is `note_coord.getColumn()`. A leaf instrument places the note
+itself, with `spatial::placeGeneric()` (the ring and the generic arc);
+`SoundFontInstrument` adds the kit table and the key-range arc; a wrapper passes
+the mode on. `InstrumentTrackState::noteOn()` passes the track's mode.
+The slot is the column of the note's `NoteCoordinate`: a pattern note's
+authored column, and for a live note the column the source picked (keyboard,
+Launchpad and MIDI take the lowest free one; a step-grid audition uses the note
+value). Two bass drum hits in different columns are two voices on two slots, on
+the kit as on any other instrument.
 
 ### SoundFont region pan
 
@@ -469,8 +469,8 @@ pitch, so a section after them starts from there.
   slot are by-ear values, as is the 20 cent cap.
 - Phase 5: native pan on percussion and the arc presets may double the key table
   and the arc; check by ear with FluidR3, which this container lacks.
-- Phase 5: what column the live sources (keyboard, Launchpad, MIDI) send in
-  `PLAY_NOTE`; if it is not a small column index, they take the lowest free slot.
+- Phase 5: a Launchpad step-grid audition sends the note value as its column, so
+  on a ring track it auditions at a different slot than the pattern plays it at.
 - Phase 6: the memory length (6 pitch classes is a guess); how a scene's cycle is
   built when clip lengths do not divide the longest; and which of the three
   clip-instance options (the plan recommends 2), which gates the arrangement
