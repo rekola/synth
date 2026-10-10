@@ -119,15 +119,20 @@ A chord is not a unit any more. The tuner walks the pitched notes of all
 tracks in time order (percussion excepted) and tunes each against what is
 sounding or has just sounded:
 
-- **References.** The notes sounding at the onset, on any track and of any
-  length (a held pad stays a reference for as long as it holds), plus the last
-  `kTuningMemoryNotes` notes tuned before it, on any track. The memory is a
-  count, not a time: a silence cannot cut it, so a rest never makes the tuning
-  jump (a reverb tail may still be ringing through it). It slides rather than
-  cutting time into windows, so a harmony may change on any row, and it is what
-  makes an arpeggio hang together; a chain of stacked fifths is long enough to
-  forget where it started, which is what lets it drift. By-ear constant,
-  starting at 8 notes.
+- **References.** Per pitch class, the latest tuned pitch of a note of that
+  class (octaves count as one: the interval is zero, the simplest there is, so
+  doubled notes get identical corrections). A class is a reference while one of
+  its notes sounds, on any track and of any length (a held pad stays a
+  reference for as long as it holds), and for as long as it is among the last
+  `kTuningMemoryClasses` classes touched. The memory counts classes, not
+  notes and not time: a chord with octave doublings or a repeated-note ostinato
+  cannot push the rest of the harmony out, and a silence cannot cut it, so a rest
+  never makes the tuning jump (a reverb tail may still be ringing through it).
+  It slides rather than cutting time into windows, so a harmony may change on
+  any row, and it is what makes an arpeggio hang together. A class that returns
+  while it is remembered keeps its pitch, so a tonic that comes back stays put;
+  a chain of stacked fifths is long enough to forget where it started, which is
+  what lets it drift. By-ear constant, starting at 6 classes.
 - **The pick.** The reference that gives the simplest interval to the new note
   (the table ratio for the pitch-class interval, smallest Tenney height; ties
   go to the more recent, then the lower). The note's tuned pitch is that
@@ -227,7 +232,10 @@ pitch, so a section after them starts from there.
   points keep their names. Transpose retunes through the same code.
 - `SelectionScope::SONG` becomes `ARRANGEMENT` and `SCENES`; docs and
   CLAUDE.md follow.
-- Tests: a single note a fifth above a note on another track; ten stacked fifths
+- Tests: the chord C-1 C-2 C-3 C-4 E-3 E-4 G-3 G-4 (every octave copy gets the
+  same correction, and the 31-EDO result is phase 2's), then a long run of
+  repeated Cs that must not push the E and G out of the memory; a single note
+  a fifth above a note on another track; ten stacked fifths
   drift by the sum of their corrections and clamp at +-255; a harmony change in
   mid-bar; a region tuned against fixed neighbours' stored corrections;
   a silence changes nothing, the next note continues from the last tuned ones; a looping scene closes; a clip placed twice has
@@ -371,7 +379,7 @@ round-trip, a render test (a `ring` chord with extent has energy on both sides,
   key table / arc; check by ear with FluidR3, which this container lacks.
 - The 20 cent cap and the oscillator-array radius inside a chord are by-ear
   values.
-- Phase 3: the memory length (8 notes is a guess); how a scene's cycle is
+- Phase 3: the memory length (6 pitch classes is a guess); how a scene's cycle is
   built when clip lengths do not divide the longest; and which of the three
   clip-instance options (the plan recommends 2), which gates the arrangement
   mode, built last.
