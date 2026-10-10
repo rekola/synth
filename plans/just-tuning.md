@@ -135,17 +135,17 @@ Order of work:
    `todo.txt` if its arpeggio line is about this. Delete
    `plans/arpeggiator-timing-fixes.md`; edit `plans/transport-pause.md` (the
    "where an arpeggiator resumes" question goes), `plans/outline-library-
-   followups.md` (its arpeggiator rhythm part and bass mode assumed the track
-   kind), `plans/launchpad-custom-mode.md` (the arpeggiator step editor) and
+   followups.md` (its bass generator and arpeggio part now write notes into
+   the clip instead of using the track kind), `plans/launchpad-custom-mode.md` (the arpeggiator step editor) and
    `plans/instrument-identity-generator-overrides.md` (mentions).
 
 There is no arpeggiate command: an arpeggio is a clip with the notes written out,
 looping.
 
 Note on what was built: an `<arpeggiatorTrack>` in a song is refused with
-"Unrecognized or malformed <arpeggiatorTrack>" (a test pins it), and
-`songs/arptest1.xml` renders the same as before (per-row envelope correlation
-1.0000, no pitch differences).
+"Unrecognized or malformed <arpeggiatorTrack>", and `songs/arptest1.xml`
+renders the same as before (per-row envelope correlation 1.0000, no pitch
+differences).
 
 ## Phase 4 - voice placement: spatial mode per track, chord extent
 
