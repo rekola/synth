@@ -398,8 +398,11 @@ TEST(scene_source_paused_cursor_moves_every_launched_playhead) {
   source.moveCursor(2);
   CHECK(f.controller.getPlaybackInfo().getLiveTrack(other)->launch_clock == 5); // row 5
   source.setPlayheads({ { other, { 1, 5 } } }); // the next frame's
-  source.moveCursor(-100); // clamped at the clip's first row
+  source.moveCursor(-5);
   CHECK(f.controller.getPlaybackInfo().getLiveTrack(other)->launch_clock == 10);
+  source.setPlayheads({{other, {1, 0}}});
+  source.moveCursor(-1); // a looping clip wraps backwards to its last row
+  CHECK(f.controller.getPlaybackInfo().getLiveTrack(other)->launch_clock == 10 - (f.rows - 1));
 }
 
 TEST(scene_source_playing_track_keeps_its_line_as_the_cursor_moves) {

@@ -248,9 +248,26 @@ ScenePatternSource::moveCursor(int delta_rows) {
     auto & playhead = playheads_.at(cursor_track_id_);
     auto clips = song().getClips(cursor_track_id_);
     if (playhead.scene < 0 || playhead.scene >= static_cast<int>(clips.size())) return;
-    auto length = std::max(1, clips[static_cast<size_t>(playhead.scene)].getLength());
-    auto moved = std::clamp(playhead.row + delta_rows, 0, length - 1) - playhead.row;
-    if (controller_.getClipPlayer().isTakenOver(cursor_track_id_)) controller_.getClipPlayer().shiftLaunchedClips(moved);
+    auto clip = clips[static_cast<size_t>(playhead.scene)];
+    auto length = std::max(1, clip.getLength());
+    auto & clip_player = controller_.getClipPlayer();
+    if (clip_player.isTakenOver(cursor_track_id_) && clip.isLooping() && playhead.looping && playhead.elapsed >= 0) {
+      // A launched looping clip's playhead runs on through its loop, so the
+      // view moves with it the way it does while playing. Elapsed rows
+      // can't go below 0, so a step back past the start is a whole number
+      // of loops further on, which the view makes up for.
+      auto short_by = std::max(0, -(playhead.elapsed + delta_rows));
+      auto loops = (short_by + length - 1) / length;
+      clip_player.shiftLaunchedClips(delta_rows + loops * length);
+      cursor_jump_ += loops * length;
+      return;
+    }
+    // A looping clip wraps either way; a one-shot stops at its ends.
+    auto target = clip.isLooping() ? ((playhead.row + delta_rows) % length + length) % length
+                                   : std::clamp(playhead.row + delta_rows, 0, length - 1);
+    auto moved = target - playhead.row;
+    if (clip_player.isTakenOver(cursor_track_id_))
+      clip_player.shiftLaunchedClips(moved);
     else if (moved != 0) controller_.setEditPosition(controller_.getPlaybackInfo().getAbsolutePosition() + moved);
     return;
   }
