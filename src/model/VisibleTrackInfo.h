@@ -77,8 +77,8 @@ public:
     // A collapsed track hides every column's own content (see
     // PatternEditor::renderRow) - collapsed_content_width_ blank
     // content cells plus its own trailing "│" border, instead of the
-    // type's normal content width + 1. An instrument/percussion/
-    // arpeggiator track (see SongStructure.cpp) gets 1 blank cell, so
+    // type's normal content width + 1. An instrument/percussion
+    // track (see SongStructure.cpp) gets 1 blank cell, so
     // its "▸"/"◂" heading toggle has an actual cell of its own to sit
     // in rather than the border being the track's *entire* on-screen
     // footprint; an effect track has no such toggle at this level (its
@@ -217,7 +217,7 @@ public:
   // Only meaningful while collapsed_ - how many blank content cells
   // getColumnWidth() gives the track's sole remaining column, besides
   // its trailing "│" border (see that method's own comment). Defaults
-  // to the instrument/percussion/arpeggiator/sample/drum-machine case;
+  // to the instrument/percussion/sample/drum-machine case;
   // SongStructure.cpp sets it to 0 for TrackType::EFFECT, whose
   // collapsed heading toggle lives on its ancestor-row box instead of
   // this level, so its own column needs no cell of its own to hold one.

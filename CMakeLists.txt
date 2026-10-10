@@ -130,8 +130,6 @@ add_library(synth_engine STATIC
 	src/playback/VisualizationThread.cpp
 	src/dsp/DiracAnalyzer.cpp
 	src/instruments/OscillatorKernel.cpp
-	src/instruments/Arpeggiator.cpp
-	src/state/ArpeggiatorState.cpp
 	src/audio/DeviceSettings.cpp
 	src/audio/OfflineRenderer.cpp
 	src/audio/SampleFileLoader.cpp

@@ -3,7 +3,6 @@
 
 #include "LeafTrackState.h"
 #include "RenderContext.h"
-#include "NoteOrigin.h"
 #include "../model/NoteCoordinate.h"
 #include "../instruments/Tuning.h"
 #include "../model/InstrumentPool.h" // getInstrumentSource() below indexes into it directly - needs
@@ -73,35 +72,20 @@ public:
 	      } else if (ev.isOff()) {
 		noteOff(ev.getId());
 	      } else {
-		// ev.getNoteCoordinate(): the note's own stable coordinate,
-		// built once at SongState.h's scheduling loop from its
-		// authored (track, row, column) position - what
-		// InstrumentVoice's own constructor derives this note's start
-		// phase from, decorrelating repeated/unison identical
-		// oscillators so they don't comb-filter when summed. Routed
-		// through the same virtual as the live-audition path
-		// (Player.cpp - see noteOn()'s own comment) rather than
-		// spawning a voice inline here, so an arpeggiator-rooted
-		// track's pattern-authored notes drive its stepper too, not
-		// just live-triggered ones.
-		note_override_ = ev.getNoteOverride();
-		noteOn(ev.getId(), *instrument, ev.getTuning(), ev.getVelocity(), ev.getNoteValue(), NoteOrigin::PATTERN, ev.getNoteCoordinate());
-		note_override_ = {};
+                // ev.getNoteCoordinate(): the note's own stable coordinate,
+                // built once at SongState.h's scheduling loop from its
+                // authored (track, row, column) position - what
+                // InstrumentVoice's own constructor derives this note's start
+                // phase from, decorrelating repeated/unison identical
+                // oscillators so they don't comb-filter when summed. The
+                // live-audition path (Player.cpp) calls the same noteOn().
+                note_override_ = ev.getNoteOverride();
+                noteOn(ev.getId(), *instrument, ev.getTuning(), ev.getVelocity(), ev.getNoteValue(), ev.getNoteCoordinate());
+                note_override_ = {};
 	      }
 	    }
 	    it = pending_events.erase(it);
-
-	    // Once per processed frame, after every note-on/off/aftertouch call
-	    // above for it - not once per column - so a subclass that needs the
-	    // *whole* row's picture (ArpeggiatorState - see its own comment) can
-	    // decide something once rather than react to a single column's own
-	    // event. Fires for a note-off-only row too (no special-casing
-	    // needed - see ArpeggiatorState::endPatternRow()'s own comment on
-	    // why that's already harmless). Never called from the live path
-	    // (Player.cpp's PLAY_NOTE case) - live note-on has no row/frame
-	    // concept to batch against.
-	    endPatternRow();
-	  }
+          }
 	  if (it != pending_events.end() && it->first - i < render_size) render_size = it->first - i;
 	}
 
@@ -151,14 +135,7 @@ public:
   // place). `note_coord` identifies this note event for HashField purposes
   // (NoteCoordinate.h) - threaded through rather than fixed here since the
   // two callers build it differently (see each call site's own comment).
-  // `origin` (NoteOrigin.h) tells the two callers apart for the one
-  // subclass that needs to - a plain track's own retriggerVoices()-based
-  // note-on ignores it. Virtual so a subclass whose note-on means something
-  // other than "spawn a voice directly" (ArpeggiatorState routes it into its
-  // stepper's held chord instead - see its own override) can redefine it,
-  // letting both callers treat every InstrumentTrackState the same way
-  // instead of needing their own subclass-aware dispatch.
-  virtual void noteOn(int column, const Track & instrument, Tuning tuning, float velocity, int note_value, NoteOrigin /*origin*/, const NoteCoordinate & note_coord = {}) {
+  void noteOn(int column, const Track & instrument, Tuning tuning, float velocity, int note_value, const NoteCoordinate & note_coord = {}) {
     retriggerVoices(column, note_value);
 
     // position_.extent < 0 means "not authored on this track" (see
@@ -177,23 +154,9 @@ public:
     addVoice(column, move(voice));
   }
 
-  // Called once per pattern-driven frame that supplied any note-on/off/
-  // aftertouch event to this track (render(frames, instruments, context)'s
-  // pending-events loop above, after that frame's whole batch of noteOn()/
-  // noteOff() calls has already been dispatched) - never from the live
-  // path, which has no row/frame to batch against. No-op here; a plain
-  // track's note-on is already fully decided by retriggerVoices() at the
-  // time of each individual call, with nothing left to decide once a
-  // row's whole picture is in. ArpeggiatorState overrides it - see its own
-  // comment.
-  virtual void endPatternRow() { }
-
   // Live-audition polyphonic aftertouch (Player::handlePlaybackControlEvent()'s
-  // NOTE_PRESSURE case) - the counterpart to noteOn() above. Virtual for
-  // the same reason: ArpeggiatorState's override updates the held note's
-  // velocity for future steps instead of pushing to an already-sounding
-  // voice.
-  virtual void notePressure(int column, float velocity) { applyAftertouch(column, velocity); }
+  // NOTE_PRESSURE case) - the counterpart to noteOn() above.
+  void notePressure(int column, float velocity) { applyAftertouch(column, velocity); }
 
   void applyAftertouch(int column, float aftertouch) {
     auto it = voices_.find(column);
@@ -252,13 +215,8 @@ public:
 
   // Ends live-audition note `column` (Player::handlePlaybackControlEvent()'s
   // STOP_NOTE case, shared by Kitty-keyboard note entry and Launchpad
-  // NOTES/step-grid presses) - virtual so a subclass whose note-off means
-  // something other than "stop this column's own voices_ entry"
-  // (ArpeggiatorState routes it to its held chord instead - see its own
-  // override) can redefine it, letting the caller treat every
-  // InstrumentTrackState the same way instead of needing its own
-  // subclass-aware dispatch.
-  virtual void noteOff(int column) { stopVoices(column); }
+  // NOTES/step-grid presses).
+  void noteOff(int column) { stopVoices(column); }
 
   // LeafTrackState::stopAllVoices()'s own whole-track release, plus this
   // class's own pressure bookkeeping on top (see stopVoices() above for why

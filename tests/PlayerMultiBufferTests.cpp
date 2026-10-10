@@ -77,12 +77,10 @@ TEST(demoted_songstate_keeps_ringing_a_held_voice_while_the_new_playing_state_ad
   CHECK(state_a.getVoiceCount() > 0);
 
   // Buffer B now takes over the "playing" role - mirrors Player.cpp's PLAY
-  // handling exactly: A is demoted (isPlaying(false) + notePlaybackStopped()),
+  // handling exactly: A is demoted (isPlaying(false)),
   // never torn down.
   state_a.setIsPlaying(false);
-  state_a.notePlaybackStopped();
   state_b.setIsPlaying(true);
-  state_b.resyncPlayheadAfterStop();
 
   auto absolute_before = state_a.getAbsolutePosition();
 

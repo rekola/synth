@@ -761,8 +761,7 @@ would otherwise resume showing.
   ignores its arrangement content and automation (pattern breaks
   aside), playing its clip's own notes and commands. Launching while the
   transport is stopped starts it (resuming every other paused clip too).
-  The transport toggle only pauses - an interim choice (where an
-  arpeggiator resumes, and what becomes of sustained voices, are still
+  The transport toggle only pauses - an interim choice (what becomes of sustained voices is still
   open): launched clips keep their clip and row, queued changes
   and taken-over tracks stay, and play resumes them where they were;
   voices do what the arrangement's already do (a sample track's stop,
@@ -1130,7 +1129,7 @@ would otherwise resume showing.
     consumes/produces, and `ClipPlayer` (Live View clip launching).
   - `src/instruments/` — synthesis and instrument resolution:
     `OscillatorVoice`/`GenericInstrument`/`SoundFont`, `Tuner`/`Tuning`
-    (microtonal pitch math), `LFO`, `Arpeggiator`.
+    (microtonal pitch math), `LFO`.
   `Oscillator` can be an array of members in one voice: `voices` members (up to 256),
     member k at `ratio`^k times the note's frequency and `falloff`^k times its
     level (ratio 1 = unison choir, 2 = octaves), with `detune` (cents) spread
@@ -1608,8 +1607,8 @@ would otherwise resume showing.
   A song a `Controller` owns is in published mode; a song built and rendered
   on one thread (the offline renderer, tests) copies on every read instead,
   so a write needs no `Edit` there. State that outlives a block must not point
-  into the tracks (`ArpeggiatorState` keeps an internal id and its settings
-  by value, and finds its instrument in the pool it is rendered with).
+  into the tracks (keep an internal id and any settings by value, and find
+  the instrument in the pool it is rendered with).
 - Cloud sessions: commit and push finished work to the session's branch
   without being asked, including plans and changes the user wants to test
   by ear - the cloud has no other way to show files, so an uncommitted

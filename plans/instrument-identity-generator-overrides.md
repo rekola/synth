@@ -384,7 +384,7 @@ Explicitly not doing it now, per the prompt. Noting for the record since Phase
 0 is the cheapest place for it: renaming `instrument="N"` to something that
 doesn't presuppose "points at an instrument," and switching it from a
 positional index to a text-id reference, both touch every song file's
-`<track>`/`<arpeggiatorTrack>`/`<drumMachineTrack>` elements the same
+`<track>`/`<drumMachineTrack>` elements the same
 mechanical way this phase's element rename does. Flagging again at
 implementation time rather than doing it unasked.
 
@@ -737,7 +737,7 @@ Exactly the two `voiceRegion_->initialFilterFc` use sites identified above
    `const GeneratorOverrides & overrides = {}` (a small wrapper around the two
    maps above, or just pass the maps directly - a named struct reads better at
    call sites). Defaulted, so every existing call site that doesn't care
-   (`InstrumentTrackState.h:198`, `ArpeggiatorState.cpp:257`, every leaf's
+   (`InstrumentTrackState.h:198`, every leaf's
    internal modulator-forwarding call) needs no change at all.
 2. `GenericInstrument::playNote()` (`GenericInstrument.h:14-32`) is the one
    real producer: it forwards `overrides` (its own `generator_overrides_`) to

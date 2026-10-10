@@ -1433,3 +1433,22 @@ TEST(a_track_finds_its_instrument_by_id_wherever_the_pool_lists_it) {
   CHECK(reloaded.getInstrumentPool().getInstrument(0).getId() == "pad");
   fs::remove(path);
 }
+
+// The arpeggiator track kind is gone: a song that still names one is
+// refused, not loaded with the track silently dropped.
+TEST(a_song_with_an_arpeggiator_track_is_refused) {
+  namespace fs = std::filesystem;
+  auto path = (fs::path(TESTS_SCRATCH_DIR) / "song_arpeggiator_track_scratch.xml").string();
+  {
+    ofstream out(path);
+    out << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+           "<song temperament=\"12edo\" tempo=\"120\">\n"
+           "  <instruments><envelope id=\"i1\"><oscillator type=\"saw\"/></envelope></instruments>\n"
+           "  <tracks><arpeggiatorTrack id=\"arp\" instrument=\"i1\" mode=\"up\"/></tracks>\n"
+           "</song>\n";
+  }
+  Song song;
+  InstrumentProvider provider;
+  CHECK(!song.open(path, provider));
+  fs::remove(path);
+}

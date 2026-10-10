@@ -86,8 +86,6 @@ add_executable(synth_tests
 	StructuralSilenceTests.cpp
 	BusEffectLiveUpdateTests.cpp
 	HazeTests.cpp
-	ArpeggiatorStateTests.cpp
-	ResyncPlayheadTests.cpp
 	FractionalDelayLineTests.cpp
 	TapeTransportTests.cpp
 	TapeVoiceLifecycleTests.cpp

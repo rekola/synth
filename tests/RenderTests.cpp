@@ -13,7 +13,6 @@
 #include "../src/ambisonic/ChannelConfiguration.h"
 #include "../src/state/SongState.h"
 #include "../src/state/InstrumentTrackState.h"
-#include "../src/state/NoteOrigin.h"
 #include "../src/ambisonic/Mixer.h"
 #include "../src/ambisonic/MixerFactory.h"
 #include "../src/ambisonic/MixerType.h"
@@ -115,8 +114,7 @@ float windowedRmsDifference(const OfflineRenderResult & result, float start_s, f
 // A plain zero-crossing-rate pitch estimate over [start_s, end_s) - not a
 // real pitch detector, just enough to tell "this window sounds like a
 // higher/lower tone than that one" apart for a pure oscillator tone, the
-// same technique tests/ArpeggiatorStateTests.cpp's own octave-widening
-// test uses directly on an ArpeggiatorState's output.
+// same technique as the octave-widening checks elsewhere.
 float windowedZeroCrossingRate(const OfflineRenderResult & result, int channel, float start_s, float end_s) {
   auto frames = result.numberOfFrames();
   size_t start = std::min<size_t>(static_cast<size_t>(start_s * result.sampleRate), frames);
@@ -805,7 +803,7 @@ TEST(render_percussion_live_note_off_reclaims_the_voice) {
   if (!instrument) return;
 
   RecordingMixer mixer(static_cast<short>(config.numberOfChannels()), config.getAudioOutSampleRate());
-  track_state.noteOn(0, *instrument, Tuning::PERCUSSION, 0.8f, 60, NoteOrigin::LIVE);
+  track_state.noteOn(0, *instrument, Tuning::PERCUSSION, 0.8f, 60);
   state.renderBlock(256, song, mixer);
   CHECK(state.getVoiceCount() > 0);
 
@@ -888,7 +886,7 @@ TEST(render_sf2_multi_region_live_note_off_actually_shortens_the_tail) {
   auto instrument_with_off = track_state_with_off.getInstrumentSource(with_off.song.getInstrumentPool());
   CHECK(instrument_with_off != nullptr);
   RecordingMixer mixer_with_off(static_cast<short>(config.numberOfChannels()), config.getAudioOutSampleRate());
-  track_state_with_off.noteOn(0, *instrument_with_off, Tuning::EDO12, 0.8f, 60, NoteOrigin::LIVE);
+  track_state_with_off.noteOn(0, *instrument_with_off, Tuning::EDO12, 0.8f, 60);
   state_with_off.renderBlock(256, with_off.song, mixer_with_off);
   CHECK(state_with_off.getVoiceCount() > 1); // genuinely multi-region
   track_state_with_off.noteOff(0);
@@ -903,7 +901,7 @@ TEST(render_sf2_multi_region_live_note_off_actually_shortens_the_tail) {
   auto instrument_without_off = track_state_without_off.getInstrumentSource(without_off.song.getInstrumentPool());
   CHECK(instrument_without_off != nullptr);
   RecordingMixer mixer_without_off(static_cast<short>(config.numberOfChannels()), config.getAudioOutSampleRate());
-  track_state_without_off.noteOn(0, *instrument_without_off, Tuning::EDO12, 0.8f, 60, NoteOrigin::LIVE);
+  track_state_without_off.noteOn(0, *instrument_without_off, Tuning::EDO12, 0.8f, 60);
   state_without_off.renderBlock(256, without_off.song, mixer_without_off);
   // noteOff() deliberately never called here.
   auto blocks_without_off = blocksUntilSilent(state_without_off, without_off.song, mixer_without_off, kMaxBlocks);
@@ -1907,47 +1905,6 @@ TEST(render_ambisonic_envelopefilter_over_oscillator_array_spread_survives) {
   CHECK_NEAR(left, right, std::max(left, right) * 0.3f);
 }
 
-TEST(render_arpeggiator_steps_through_a_pattern_authored_chord) {
-  // Phase 2 (plans/arpeggiator.md): InstrumentTrackState's own
-  // pending-events note-on (pattern/song-driven playback, not live
-  // audition) now calls the same virtual noteOn() Player.cpp does, so an
-  // ArpeggiatorState's override picks it up here too - the concrete
-  // end-to-end regression test that a chord authored directly into an
-  // <arpeggiatorTrack>'s pattern row actually arpeggiates during real
-  // (offline-rendered) playback, not just via direct
-  // ArpeggiatorState::noteOn() calls (tests/ArpeggiatorStateTests.cpp).
-  auto loaded = loadFixture("arpeggiator_pattern_chord.xml");
-  CHECK(loaded.ok);
-
-  ChannelConfiguration config(44100, 1);
-  auto result = renderSongOffline(loaded.song, config);
-  CHECK(!hasNonFiniteSample(result));
-
-  // tempo 240, noteDuration=gate=2 rows -> a 0.125s step, legato (no gap):
-  // step 0 (C-4, ~261.6Hz) in [0, 0.125), step 1 (E-4, ~329.6Hz) in
-  // [0.125, 0.25), step 2 (G-4, ~392.0Hz) in [0.25, 0.375) - windows below
-  // sit well inside each interval, clear of both the exact boundary (a
-  // step/gate transition is only resolved lazily, at the start of the next
-  // render(int) call - see ArpeggiatorState.h) and renderSongOffline()'s
-  // own 1024-frame (~23ms) block granularity.
-  CHECK(windowedRms(result, 0, 0.04f, 0.09f) > 1e-4f);
-  CHECK(windowedRms(result, 0, 0.165f, 0.215f) > 1e-4f);
-  CHECK(windowedRms(result, 0, 0.29f, 0.34f) > 1e-4f);
-
-  auto rate0 = windowedZeroCrossingRate(result, 0, 0.04f, 0.09f);
-  auto rate1 = windowedZeroCrossingRate(result, 0, 0.165f, 0.215f);
-  auto rate2 = windowedZeroCrossingRate(result, 0, 0.29f, 0.34f);
-
-  // Ascending steps, not one static tone - the concrete "does the
-  // stepping logic actually step" check for the pattern-driven path.
-  // Loose bounds (this is a zero-crossing estimate, not a real pitch
-  // detector) around the expected ratios (E-4/C-4 ~= 1.26, G-4/C-4 ~= 1.5).
-  CHECK(rate1 > rate0 * 1.1f);
-  CHECK(rate1 < rate0 * 1.45f);
-  CHECK(rate2 > rate0 * 1.3f);
-  CHECK(rate2 < rate0 * 1.7f);
-}
-
 TEST(render_pattern_shorter_than_song_repeats) {
   // A track's own <pattern length="4"> in an 8-row song plays its 4 real
   // rows (note on at row 0, off at row 2), then repeats them verbatim at
@@ -1973,8 +1930,7 @@ TEST(render_pattern_shorter_than_song_repeats) {
 // unison/detune jitter and pattern note start-phase -
 // ambisonic_envelopefilter_array.xml; TapeDegradation's
 // per-instance seed plus the per-sample hiss/dropout/click stream that
-// seed drives - tape_degradation_all_presets.xml; ArpeggiatorState's
-// per-step start-phase - arpeggiator_pattern_chord.xml). Not a claim that
+// seed drives - tape_degradation_all_presets.xml). Not a claim that
 // these specific hash values are "correct" in any musical sense, just
 // that they're what this exact build deterministically produces - this
 // test's job is to catch an *accidental* change: a stray call reordered,
@@ -2014,12 +1970,6 @@ TEST(render_golden_hash_catches_randomization_regressions) {
   auto tape_result = renderSongOffline(tape.song, config);
   CHECK(!hasNonFiniteSample(tape_result));
   if (canonical_arch) CHECK(hashSamples(tape_result) == 0xa2cfc85c205792bdull);
-
-  auto arp = loadFixture("arpeggiator_pattern_chord.xml");
-  CHECK(arp.ok);
-  auto arp_result = renderSongOffline(arp.song, config);
-  CHECK(!hasNonFiniteSample(arp_result));
-  if (canonical_arch) CHECK(hashSamples(arp_result) == 0x91c1c2d18e36033dull);
 }
 
 // The master's Send Main is the song's volume: half of it halves the

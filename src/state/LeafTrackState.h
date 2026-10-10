@@ -61,11 +61,8 @@ public:
   // TrackState::render's 3-arg overload (rather than overloading render()
   // itself) so the two can't be mistaken for one hiding the other. Both
   // InstrumentTrackState::render() and SampleTrackState::render() call this
-  // by unqualified name once per pending-event sub-chunk, and
-  // ArpeggiatorState overrides it (see its own doc comment) to interleave
-  // its stepper's timing with that same chunking, purely via ordinary
-  // virtual dispatch.
-  virtual AudioBuffer renderVoices(int frames) {
+  // by unqualified name once per pending-event sub-chunk.
+  AudioBuffer renderVoices(int frames) {
     // Advance this chunk's own share of any in-flight Send Main/A/B/
     // azimuth glide first - a voice rendered below with renderVoices()
     // already reflects wherever the glide has reached by this chunk, same
@@ -354,22 +351,22 @@ public:
   }
 
 protected:
-  // Read access to this track's own position/sends/id for a subclass that
-  // needs to construct its own voices directly (e.g. ArpeggiatorState
-  // triggering a step, SampleTrackState::triggerClip()) rather than through
-  // the normal pending-events path, which already has position_/sends_ in
-  // scope. Mirrors getChannelConfiguration()'s existing public accessor for
-  // the same otherwise-private-to-this-class piece of construction state.
-  const SphericalPosition & getPosition() const { return position_; }
-  const SendLevels & getSends() const { return sends_; }
-  int getTrackId() const { return track_id_; }
+ // Read access to this track's own position/sends/id for a subclass that
+ // needs to construct its own voices directly (e.g.
+ // SampleTrackState::triggerClip()) rather than through
+ // the normal pending-events path, which already has position_/sends_ in
+ // scope. Mirrors getChannelConfiguration()'s existing public accessor for
+ // the same otherwise-private-to-this-class piece of construction state.
+ const SphericalPosition & getPosition() const { return position_; }
+ const SendLevels & getSends() const { return sends_; }
+ int getTrackId() const { return track_id_; }
 
-  static inline bool is_not_playing(const std::unique_ptr<VoiceState> & voice) { return !voice->isActive(); }
+ static inline bool is_not_playing(const std::unique_ptr<VoiceState> & voice) { return !voice->isActive(); }
 
-  void clearFinishedVoices() {
-    for (auto & [ id, voices ] : voices_) {
-      voices.erase(std::remove_if(voices.begin(), voices.end(), is_not_playing), voices.end());
-    }
+ void clearFinishedVoices() {
+   for (auto & [id, voices] : voices_) {
+     voices.erase(std::remove_if(voices.begin(), voices.end(), is_not_playing), voices.end());
+   }
   }
 
   // Every voice this track currently owns, keyed by column - a single note

@@ -3,7 +3,7 @@
 Goal: notes in 12/19/31/53-EDO carry a per-note cent correction toward just
 intonation, computed by the app over a region or the whole song, stored in the
 note's local fx. Chords get spread in the ambisonic space so the tuned
-intervals are heard as separate voices. Four phases, in this order: 1 is built, 3 and 4 are decided, 2 is a sketch.
+intervals are heard as separate voices. Four phases, in this order: 1 and 3 are built, 4 is decided, 2 is a sketch.
 The arpeggiator goes before voice placement, and voice placement is last
 because it is the most involved part.
 
@@ -85,7 +85,7 @@ note at `+64`, SONG scope bounds.
   drift between chords.
 - Transpose-retune then re-runs the chord tuner over the affected region.
 
-## Phase 3 - remove the arpeggiator
+## Phase 3 - remove the arpeggiator (built)
 
 The arpeggiator (an `<arpeggiatorTrack>`, `Arpeggiator`/`ArpeggiatorState`)
 steps a held chord on a free-running clock of its own. It does not work with
@@ -139,8 +139,13 @@ Order of work:
    kind), `plans/launchpad-custom-mode.md` (the arpeggiator step editor) and
    `plans/instrument-identity-generator-overrides.md` (mentions).
 
-Not part of this stage: a command that writes an arpeggio into a region as
-notes could replace the feature as an edit, not a track kind. Not decided.
+There is no arpeggiate command: an arpeggio is a clip with the notes written out,
+looping.
+
+Note on what was built: an `<arpeggiatorTrack>` in a song is refused with
+"Unrecognized or malformed <arpeggiatorTrack>" (a test pins it), and
+`songs/arptest1.xml` renders the same as before (per-row envelope correlation
+1.0000, no pitch differences).
 
 ## Phase 4 - voice placement: spatial mode per track, chord extent
 
