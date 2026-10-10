@@ -117,6 +117,8 @@ class ScenePatternSource : public PatternSource {
   Song & song() const;
   RowAddress clamp(RowAddress address) const;
   bool isPlaying(int track_id) const;
+  // True while any track has a launched clip (its playhead moves on its own).
+  bool anyPlaying() const;
   // The row of its scene a playhead is at: a looping clip's elapsed rows
   // wrapped by the clip's length.
   int sceneRow(int track_id, const Playhead & playhead) const;

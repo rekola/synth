@@ -1440,6 +1440,9 @@ PatternEditor::handleMouse(const InputEvent & input) {
   auto heading_height = song.getMasterTrack().getDepth() + 1;
   // A drag that reaches past the top or bottom of the rows scrolls the view
   // along, one row per kDragScrollInterval.
+  // With a clip playing, each track's playhead moves on its own, so a region
+  // can't be dragged: a click only picks a track and a column.
+  if (mouse_down_ && isLiveMode() && scene_source_->anyPlaying()) return true;
   bool past_edge = mouse_down_ && x >= 0 && x < cols && (y < heading_height || y >= rows);
   if (past_edge) {
     auto now = std::chrono::steady_clock::now();
