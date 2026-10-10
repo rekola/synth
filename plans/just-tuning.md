@@ -284,8 +284,11 @@ returns the note's position; the track's mode is passed in with each note
 as instrument state). The default implementation does `auto`: the ring.
 `SoundFontInstrument` overrides it for the kit and the arc families, which
 today live in its `playNote()`, and `InstrumentTrackState::noteOn()` calls it on
-the position after the note override. Which note column a note is in must
-reach `noteOn()` (check what `NoteOverride`/the voice trigger already carries).
+the position after the note override. The slot is the `column` that `InstrumentTrackState::noteOn()` already takes (the
+voice id a pattern note's column becomes, which is also how its off finds it
+and how a note in the same column retriggers); live-played notes send one in
+`PLAY_NOTE`'s second parameter. Two bass drum hits in different columns are two
+voices on two slots, on the kit as on any other instrument.
 
 ### SoundFont region pan
 
@@ -467,7 +470,8 @@ pitch, so a section after them starts from there.
   slot are by-ear values, as is the 20 cent cap.
 - Phase 5: native pan on percussion and the arc presets may double the key table
   and the arc; check by ear with FluidR3, which this container lacks.
-- Phase 5: how the note column reaches `noteOn()` is to be found when writing it.
+- Phase 5: what column the live sources (keyboard, Launchpad, MIDI) send in
+  `PLAY_NOTE`; if it is not a small column index, they take the lowest free slot.
 - Phase 6: the memory length (6 pitch classes is a guess); how a scene's cycle is
   built when clip lengths do not divide the longest; and which of the three
   clip-instance options (the plan recommends 2), which gates the arrangement
