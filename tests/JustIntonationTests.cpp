@@ -3,6 +3,8 @@
 #include "../src/model/JustIntonation.h"
 #include "../src/model/Note.h"
 
+#include <vector>
+
 using namespace just_intonation;
 
 TEST(just_intonation_12edo_major_scale_degrees) {
@@ -146,4 +148,18 @@ TEST(a_chord_is_tuned_above_its_bass) {
   // A song with no key (-1) is read as C, here as in the single-note case.
   CHECK(correctionCentsInChord(31, 13, 5, -1) == correctionCentsInChord(31, 13, 5, 0));
   CHECK(correctionCentsInChord(31, 5, 5, -1) == correctionCentsForNote(Tuning::EDO31, 5, -1));
+}
+
+TEST(chords_that_hold_the_tonic_tune_the_same_against_any_of_their_notes) {
+  // Otonal/utonal chords in 31-EDO: tuned above any note of the chord, a note
+  // gets the correction it has against the key, so nothing drifts.
+  const std::vector<std::vector<int> > chords = {{0, 7, 13}, {13, 23, 31}, {0, 10, 18}, {18, 25, 31}};
+  for (const auto & chord : chords) {
+    for (int bass : chord) {
+      for (int value : chord) {
+        if (value < bass) continue;
+        CHECK(correctionCentsInChord(31, value, bass, 0) == correctionCentsFor(31, value));
+      }
+    }
+  }
 }
