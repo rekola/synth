@@ -1474,6 +1474,20 @@ PatternEditor::handleMouse(const InputEvent & input) {
     if (span.x <= x) hit = &span;
   }
   bool on_locator = !in_heading && spans.locator_x >= 0 && x >= spans.locator_x;
+  if (isLiveMode() && !fresh_press) {
+    // A drag in Live View stays in the track it started in: the pointer
+    // picks the nearest of that track's columns instead.
+    hit = nullptr;
+    const ColumnSpan * first = nullptr;
+    for (auto & span : spans.columns) {
+      if (span.track != mouse_anchor_.track) continue;
+      if (!first) first = &span;
+      if (span.x <= x) hit = &span;
+    }
+    if (!hit) hit = first;
+    if (!hit) return true;
+    on_locator = false;
+  }
   if (!hit && !on_locator && in_heading) return true;
 
   GridPosition target = new_cursor;
