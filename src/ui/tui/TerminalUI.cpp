@@ -85,6 +85,13 @@ uint64_t channelsOf(const Color & fg, const Color & bg) {
 }
 using namespace ncpp;
 using namespace std;
+
+namespace {
+// SYNTH_UI_STATS=<file>: see startUI().
+std::map<std::string, int> g_ui_stats;
+bool g_ui_stats_on = false;
+void statCount(const std::string & what) { if (g_ui_stats_on) g_ui_stats[what]++; }
+}
 using namespace fmt;
 
 // The inverse of readInput()'s ni.evtype -> InputEvent::Kind mapping below -
@@ -2367,14 +2374,14 @@ TerminalUI::renderComponents(bool refresh) {
       return getController().getClipPlayer().clipHighlight(track_id, clip_index);
     });
     clip_grid_->setTrackClipSource([this](int track_id) { return pattern_editor_->getLiveScene(track_id); });
-    render |= clip_grid_->render(styles_, refresh, active == clip_grid_);
-    if (isOutlineVisible()) render |= outline_view_->render(styles_, refresh, active == outline_view_);
+    if (clip_grid_->render(styles_, refresh, active == clip_grid_)) { render = true; statCount("render:clip_grid_"); }
+    if (isOutlineVisible()) if (outline_view_->render(styles_, refresh, active == outline_view_)) { render = true; statCount("render:outline_view_"); }
   }
-  render |= pattern_editor_->render(styles_, refresh, active == pattern_editor_);
-  render |= arrangement_grid_->render(styles_, refresh, active == arrangement_grid_, selected_track_id);
-  render |= cover_art_->render(styles_, refresh);
-  render |= info_line_->render(styles_, refresh);
-  render |= octave_control_->render(styles_, refresh);
+  if (pattern_editor_->render(styles_, refresh, active == pattern_editor_)) { render = true; statCount("render:pattern_editor_"); }
+  if (arrangement_grid_->render(styles_, refresh, active == arrangement_grid_, selected_track_id)) { render = true; statCount("render:arrangement_grid_"); }
+  if (cover_art_->render(styles_, refresh)) { render = true; statCount("render:cover_art_"); }
+  if (info_line_->render(styles_, refresh)) { render = true; statCount("render:info_line_"); }
+  if (octave_control_->render(styles_, refresh)) { render = true; statCount("render:octave_control_"); }
 
   auto & clip_player = getController().getClipPlayer();
   clip_player.setAssignRow(arrangement_grid_->getCursorRow(song));
@@ -2755,11 +2762,24 @@ TerminalUI::handlePlaybackEvent(PlaybackEvent & ev) {
   // clip_ids/held_track_ids of its own.
   getController().extendRecordingSampleClipIfNeeded();
 
-  // Idle - nothing playing or sounding for a while - the screen has
-  // nothing new to show.
-  auto now = std::chrono::steady_clock::now();
-  if (ev.getInfo().isPlaying() || ev.getInfo().getVoiceCount() > 0) last_activity_ = now;
-  if (now - last_activity_ < std::chrono::milliseconds(1500)) ev.redraw();
+  // Redraw only for a snapshot that shows something new: a block of idle
+  // audio repeats the last one.
+  auto mix = [](uint64_t h, uint64_t v) { return (h ^ v) * 1099511628211ULL; };
+  auto bits = [](float f) { uint32_t u; std::memcpy(&u, &f, sizeof u); return static_cast<uint64_t>(u); };
+  auto & info = ev.getInfo();
+  uint64_t signature = 14695981039346656037ULL;
+  for (uint64_t v : { static_cast<uint64_t>(info.isPlaying()), static_cast<uint64_t>(info.getAbsolutePosition()), static_cast<uint64_t>(info.getSamplePos()),
+                      static_cast<uint64_t>(info.getVoiceCount()), static_cast<uint64_t>(info.getAllocatedVoiceCount()), static_cast<uint64_t>(info.getLiveClock()),
+                      static_cast<uint64_t>(info.getLiveSeq()), static_cast<uint64_t>(info.getSceneSeq()), static_cast<uint64_t>(info.getTempo()) }) signature = mix(signature, v);
+  for (auto track_id : getController().getSong().getRootTrackIds()) {
+    auto & track = info.getTrackInfo(track_id);
+    signature = mix(signature, bits(track.getMeterValue()) + (track.isActive() ? 1 : 0) + (track.isClipping() ? 2 : 0));
+    for (auto & voice : info.getActiveVoices(track_id)) signature = mix(mix(signature, static_cast<uint64_t>(voice.note_value)), bits(voice.loudness));
+  }
+  if (signature != last_playback_signature_) {
+    last_playback_signature_ = signature;
+    ev.redraw();
+  }
 }
 
 void
@@ -2800,8 +2820,7 @@ TerminalUI::handleVisualizationResultEvent(VisualizationResultEvent & ev) {
 
     if (!ev.getFFT().empty() && ev.getFFT() != last_fft_) {
       last_fft_ = ev.getFFT();
-      chart_->setSpectrum(ev.getFFT(), ev.getFFTBinHz());
-      changed = true;
+      if (chart_->setSpectrum(ev.getFFT(), ev.getFFTBinHz())) changed = true;
     }
 
     if (ev.hasDiracGrid()) {
@@ -2855,9 +2874,12 @@ TerminalUI::handleVisualizationResultEvent(VisualizationResultEvent & ev) {
         if (brightness[i] > 1.0f) brightness[i] = 1.0f;
         saturation[i] = displayed[i] > 1e-12f ? grid[i] / displayed[i] : 0.0f;
       }
-      if (brightness != last_brightness_ || saturation != last_saturation_) {
-	last_brightness_ = brightness;
-	last_saturation_ = saturation;
+      // Compared at 1/512: a smaller step is no change in any pixel's colour.
+      auto quantize = [](const std::vector<float> & v) { std::vector<int> q(v.size()); for (size_t i = 0; i < v.size(); i++) q[i] = static_cast<int>(v[i] * 512.0f + 0.5f); return q; };
+      auto quantized_brightness = quantize(brightness), quantized_saturation = quantize(saturation);
+      if (quantized_brightness != last_brightness_ || quantized_saturation != last_saturation_) {
+	last_brightness_ = std::move(quantized_brightness);
+	last_saturation_ = std::move(quantized_saturation);
 	heatmap_->setGrid(brightness, saturation);
 	heatmap_->commit();
 	changed = true;
@@ -3040,8 +3062,24 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
   bool frame_pending = false;
   bool render_pending = false; // a redraw asked for while the frame was held back
 
+  // SYNTH_UI_STATS=<file>: once a second, what woke the UI thread and what it
+  // drew, to find where idle CPU goes.
+  const char * stats_path = getenv("SYNTH_UI_STATS");
+  g_ui_stats_on = stats_path != nullptr;
+  auto stats_since = std::chrono::steady_clock::now();
+  auto count = [](const std::string & what) { statCount(what); };
+
   while ( !shouldClose() ) {
     bool render = false;
+    if (stats_path && std::chrono::steady_clock::now() - stats_since >= std::chrono::seconds(1)) {
+      if (FILE * f = fopen(stats_path, "a")) {
+	for (auto & [ what, n ] : g_ui_stats) fprintf(f, "%s=%d ", what.c_str(), n);
+	fputs("\n", f);
+	fclose(f);
+      }
+      g_ui_stats.clear();
+      stats_since = std::chrono::steady_clock::now();
+    }
 
     updateEscapeIndicator();
 
@@ -3055,19 +3093,23 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
 
     // setStatus("polling");
     int poll_result = poll(descriptors.get(), num_descriptors, poll_timeout_ms);
+    count(poll_result > 0 ? "wake" : "timeout");
     if (poll_result > 0) {
       for (size_t i = 0; i < num_descriptors; i++) {
 	auto & d = descriptors[i];
 	if (d.revents) {
+	  count("fd" + std::to_string(i));
 	  if (i == 0) {
 	    render |= readInput();
 	  } else if (i == 1) {
 	    auto event = getController().getUIEventQueue().pop();
 	    handleEvent(*event);
+	    if (stats_path) { count(typeid(*event).name()); if (event->needRedraw()) count("redraw:" + std::string(typeid(*event).name())); }
 	    if (event->needRedraw()) render = true;
 	    while ( getController().getUIEventQueue().hasEvents() ) {
 	      auto next_event = getController().getUIEventQueue().pop();
 	      handleEvent(*next_event);
+	      if (stats_path) { count(typeid(*next_event).name()); if (next_event->needRedraw()) count("redraw:" + std::string(typeid(*next_event).name())); }
 	      if (next_event->needRedraw()) render = true;
 	    }
 	  } else if (i == 2) {
@@ -3130,9 +3172,13 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
       render = render_pending;
       render_pending = false;
 
-      render |= renderComponents();
+      bool components = renderComponents();
+      count("frame");
+      if (components) count("frame:components-asked-redraw");
+      render |= components;
 
       if (render) {
+	count("nc_render");
 	// Reasserted every frame, not just once at startup: the scope
 	// charts'/heatmap's own plot_plane_ (TerminalChart::setSample(),
 	// above) is created lazily on first real sample data, and destroyed/

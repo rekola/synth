@@ -242,13 +242,16 @@ void
 ScenePatternSource::moveCursor(int delta_rows) {
   if (cursorLocked()) return;
   if (isPlaying(cursor_track_id_)) {
-    // Paused with a launched clip under the cursor: its playhead is the
-    // cursor, within the clip, and every other launched clip moves along.
+    // Paused with a clip under the cursor: its playhead is the cursor,
+    // within the clip. A launched clip's moves every other launched clip
+    // along; one the arrangement is playing moves the arrangement's position.
     auto & playhead = playheads_.at(cursor_track_id_);
     auto clips = song().getClips(cursor_track_id_);
     if (playhead.scene < 0 || playhead.scene >= static_cast<int>(clips.size())) return;
     auto length = std::max(1, clips[static_cast<size_t>(playhead.scene)].getLength());
-    controller_.getClipPlayer().shiftLaunchedClips(std::clamp(playhead.row + delta_rows, 0, length - 1) - playhead.row);
+    auto moved = std::clamp(playhead.row + delta_rows, 0, length - 1) - playhead.row;
+    if (controller_.getClipPlayer().isTakenOver(cursor_track_id_)) controller_.getClipPlayer().shiftLaunchedClips(moved);
+    else if (moved != 0) controller_.setEditPosition(controller_.getPlaybackInfo().getAbsolutePosition() + moved);
     return;
   }
   auto old_cursor = cursor();

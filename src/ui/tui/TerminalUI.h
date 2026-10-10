@@ -126,8 +126,9 @@ private:
   float dirac_running_max_ = 0.0f;
   // What the scopes last drew, and when anything last moved: a silent,
   // unchanged display needs no redraw (a pixel blit is the costly part).
-  std::vector<float> last_fft_, last_loudness_, last_brightness_, last_saturation_;
-  std::chrono::steady_clock::time_point last_activity_{};
+  std::vector<float> last_fft_, last_loudness_;
+  std::vector<int> last_brightness_, last_saturation_;
+  uint64_t last_playback_signature_ = 0; // of the last playback snapshot that was drawn
 
   std::shared_ptr<InfoLine> info_line_;
   std::shared_ptr<PatternEditor> pattern_editor_;

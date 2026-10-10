@@ -6,13 +6,13 @@
 #include <algorithm>
 #include <cmath>
 
-void
+bool
 SpectrumMeter::setSpectrum(const std::vector<float> & db, float bin_hz) {
   auto [ rows, cols ] = getDim();
-  if (rows <= 0 || cols <= 0 || db.empty()) return;
+  if (rows <= 0 || cols <= 0 || db.empty()) return false;
 
   float nyquist = static_cast<float>(db.size()) * bin_hz;
-  if (bin_hz <= 0.0f || nyquist <= kMinHz) return;
+  if (bin_hz <= 0.0f || nyquist <= kMinHz) return false;
 
   // Log-frequency display bins. A display bin spanning several linear bins
   // shows their mean power; one narrower than a linear bin (the bass) interpolates
@@ -44,7 +44,18 @@ SpectrumMeter::setSpectrum(const std::vector<float> & db, float bin_hz) {
     }
     fractions[b] = std::clamp(1.0f + value / kRangeDb, 0.0f, 1.0f);
   }
-  drawBars(splineSample(fractions, barCount(cols)));
+  // The curve passes through these points: if none has moved (to a fraction
+  // of a pixel), what is drawn would be identical.
+  std::vector<int> quantized(fractions.size());
+  for (size_t b = 0; b < fractions.size(); b++) quantized[b] = static_cast<int>(fractions[b] * 512.0f + 0.5f);
+  auto bars = barCount(cols);
+  if (quantized == last_knots_ && rows == last_rows_ && cols == last_cols_ && bars == last_bars_) return false;
+  last_knots_ = std::move(quantized);
+  last_rows_ = rows;
+  last_cols_ = cols;
+  last_bars_ = bars;
+  drawBars(splineSample(fractions, bars));
+  return true;
 }
 
 // Samples a Catmull-Rom spline through `knots` (evenly spaced) at `count`
@@ -68,6 +79,7 @@ SpectrumMeter::splineSample(const std::vector<float> & knots, size_t count) {
 
 void SpectrumMeter::clear() {
   auto [rows, cols] = getDim();
+  last_knots_.clear(); // what is drawn is no longer the last curve
   if (rows <= 0 || cols <= 0) return;
   drawBars(std::vector<float>(barCount(cols), 0.0f));
 }
