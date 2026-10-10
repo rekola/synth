@@ -1600,6 +1600,11 @@ would otherwise resume showing.
   request and no merge; it never means leave work uncommitted in the
   cloud. On a desktop session the user's own "don't commit" stands as
   written.
+- Branches: once a branch's pull request is merged, it is finished. You may,
+  and must, start the next change on a new branch off the latest default
+  branch (a fresh name, e.g. `claude/<topic>`) - never push more commits onto
+  a merged branch, even when the session names it as the one to develop on.
+  Check whether the PR is merged before committing follow-up work.
 - Never link to the chat/session that produced a change (no `Claude-Session:`
   trailer, no claude.ai/code URL) in commit messages, PR descriptions, or
   comments; the URL isn't useful to other readers and can't be fully removed
