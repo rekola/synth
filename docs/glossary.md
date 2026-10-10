@@ -29,7 +29,7 @@ these ratios, so a song's notes stay on its EDO grid and each one carries a
 small tuning correction, in cents, that nudges it toward the pure ratio; see
 terminal.md.
 
-The simplest way to have it is *static*: every note gets one fixed ratio to the
+The simplest way to have it is to give every note one fixed ratio to the
 key. That works in any EDO, 12 included, and every interval between any two
 notes is then a whole-number ratio. What it cannot promise is that every chord
 comes out as simple as it could. In a major scale, the D that suits a G major
