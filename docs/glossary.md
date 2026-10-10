@@ -25,7 +25,8 @@ Library's drum patterns are not grooves in this sense; see Rhythm.
 Tuning notes to simple whole-number frequency ratios (3/2 for a fifth, 5/4
 for a major third) instead of equal steps. Here the notes stay on the song's
 EDO grid and each carries a small correction in cents toward its just ratio
-from the key; see terminal.md.
+above the bass of its chord, the bass itself measured from the key; see
+terminal.md.
 
 **Live sequencer**
 A tool used to program, trigger and manipulate musical patterns, notes and

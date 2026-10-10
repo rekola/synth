@@ -3,6 +3,7 @@
 #include "../src/model/Clip.h"
 #include "../src/model/InstrumentTrack.h"
 #include "../src/model/JustIntonation.h"
+#include "../src/model/PercussionTrack.h"
 #include "../src/model/PatternBlockOps.h"
 #include "../src/model/PatternGrid.h"
 #include "../src/model/Song.h"
@@ -157,4 +158,79 @@ TEST(the_whole_song_is_tuned_cleared_and_transposed_with_its_key) {
   CHECK(clearTuningCorrectionsInSong(song) == 4);
   CHECK(!song.getArrangement()->getNotes(0, track_id)[0].hasFx());
   CHECK(!clip_view.getLeafPattern().getNote(0, 0).hasFx());
+}
+
+namespace {
+
+// A note value above the key, in 31-EDO.
+int above(int steps) { return kKey + steps; }
+
+} // namespace
+
+TEST(an_arpeggio_is_tuned_as_one_chord) {
+  Song song(Tuning::EDO31, kKey);
+  auto arrangement = song.getArrangement();
+  ArrangementBackgroundGrid grid(arrangement);
+  // D, F, A one after the other in a single column, all in the first bar.
+  arrangement.setNote(0, 10, 0, Note(above(5), 100));
+  arrangement.setNote(2, 10, 0, Note(above(13), 100));
+  arrangement.setNote(4, 10, 0, Note(above(23), 100));
+  // The next bar holds a lone G.
+  arrangement.setNote(16, 10, 0, Note(above(18), 100));
+
+  applyJustIntonationBlockNotes(grid, 0, 31, 10, 0, 0, context(), false);
+
+  CHECK(arrangement.getNotes(0, 10)[0].getTuningCorrectionCents() == just_intonation::correctionCentsFor(31, 5));
+  CHECK(arrangement.getNotes(2, 10)[0].getTuningCorrectionCents() == just_intonation::correctionCentsInChord(31, 13, 5, 0));
+  CHECK(arrangement.getNotes(4, 10)[0].getTuningCorrectionCents() == just_intonation::correctionCentsInChord(31, 23, 5, 0));
+  CHECK(arrangement.getNotes(2, 10)[0].getTuningCorrectionCents() != just_intonation::correctionCentsFor(31, 13));
+  // Another bar is another chord: G stands alone, tuned from the key.
+  CHECK(arrangement.getNotes(16, 10)[0].getTuningCorrectionCents() == just_intonation::correctionCentsFor(31, 18));
+}
+
+TEST(a_held_note_is_part_of_the_next_bars_chord_until_it_is_turned_off) {
+  auto tune = [](bool turn_off) {
+    Song song(Tuning::EDO31, kKey);
+    auto arrangement = song.getArrangement();
+    ArrangementBackgroundGrid grid(arrangement);
+    arrangement.setNote(0, 10, 0, Note(above(5), 100)); // D, held on in column 0 ...
+    if (turn_off) arrangement.setNote(8, 10, 0, Note(0, 0));
+    arrangement.setNote(16, 10, 1, Note(above(13), 100)); // ... when F starts in the next bar
+    applyJustIntonationBlockNotes(grid, 0, 31, 10, 0, 1, context(), false);
+    return arrangement.getNotes(16, 10)[1].getTuningCorrectionCents();
+  };
+  CHECK(tune(false) == just_intonation::correctionCentsInChord(31, 13, 5, 0)); // F above the held D
+  CHECK(tune(true) == just_intonation::correctionCentsFor(31, 13));            // F alone
+}
+
+TEST(a_region_tunes_only_its_own_notes_against_the_whole_chord) {
+  Song song(Tuning::EDO31, kKey);
+  auto arrangement = song.getArrangement();
+  ArrangementBackgroundGrid grid(arrangement);
+  arrangement.setNote(0, 10, 0, Note(above(5), 100));
+  arrangement.setNote(2, 10, 0, Note(above(13), 100));
+  arrangement.setNote(4, 10, 0, Note(above(23), 100));
+
+  auto summary = applyJustIntonationBlockNotes(grid, 2, 2, 10, 0, 0, context(), false);
+
+  CHECK(summary.notes == 1);
+  CHECK(!arrangement.getNotes(0, 10)[0].hasFx());
+  CHECK(!arrangement.getNotes(4, 10)[0].hasFx());
+  // F was tuned above the D that is outside the region.
+  CHECK(arrangement.getNotes(2, 10)[0].getTuningCorrectionCents() == just_intonation::correctionCentsInChord(31, 13, 5, 0));
+}
+
+TEST(a_percussion_track_is_left_alone) {
+  Song song(Tuning::EDO31, kKey);
+  auto track_id = song.addTrack(make_unique<PercussionTrack>()).getInternalId();
+  auto arrangement = song.getArrangement();
+  ArrangementBackgroundGrid grid(arrangement);
+  arrangement.setNote(0, track_id, 0, Note(36, 100));
+  vector<int> track_ids = {track_id};
+
+  auto summary = applyJustIntonationBlock(grid, 0, 3, track_ids, 0, 0, context(), [](int) { return true; });
+  CHECK(summary.notes == 0);
+  CHECK(!arrangement.getNotes(0, track_id)[0].hasFx());
+  CHECK(applyJustIntonationToSong(song).notes == 0);
+  CHECK(!arrangement.getNotes(0, track_id)[0].hasFx());
 }

@@ -117,3 +117,33 @@ TEST(a_note_carries_a_tuning_correction_as_a_signed_hex_fx) {
   CHECK(!note.hasFx());
   CHECK(note.getFx() == "...");
 }
+
+TEST(a_chord_is_tuned_above_its_bass) {
+  // Above a C bass the correction of each note is the same as measured from the key.
+  CHECK(correctionCentsInChord(31, 7, 0, 0) == -4);  // D#: 7/6 above C
+  CHECK(correctionCentsInChord(31, 13, 0, 0) == -5); // F: 4/3
+  CHECK(correctionCentsInChord(31, 4, 0, 0) == 10);  // C double sharp: 11/10
+  CHECK(correctionCentsInChord(31, 8, 0, 0) == 6);   // Eb: 6/5
+  CHECK(correctionCentsInChord(31, 18, 0, 0) == 5);  // G: 3/2
+  // The bass itself, and its octaves, are tuned from the key.
+  CHECK(correctionCentsInChord(31, 5, 5, 0) == correctionCentsFor(31, 5));
+  CHECK(correctionCentsInChord(31, 5 + 31, 5, 0) == correctionCentsFor(31, 5));
+
+  // A ii chord, D F A, is pure against its D: F a 6/5 and A a 3/2 above it,
+  // not F and A each measured from the key.
+  auto pitch = [](int value, int correction) { return value * 1200.0 / 31 + correction; };
+  double d = pitch(5, correctionCentsInChord(31, 5, 5, 0));
+  double f = pitch(13, correctionCentsInChord(31, 13, 5, 0));
+  double a = pitch(23, correctionCentsInChord(31, 23, 5, 0));
+  CHECK_NEAR(f - d, 1200.0 * std::log2(6.0 / 5.0), 1.0);
+  CHECK_NEAR(a - d, 1200.0 * std::log2(3.0 / 2.0), 1.0);
+  CHECK(correctionCentsInChord(31, 13, 5, 0) != correctionCentsFor(31, 13));
+
+  // Octaves of the key do not matter.
+  CHECK(correctionCentsInChord(31, 13 + 31 * 4, 5 + 31 * 3, 31 * 2) == correctionCentsInChord(31, 13, 5, 0));
+  CHECK(correctionCentsInChord(0, 13, 5, 0) == 0);
+
+  // A song with no key (-1) is read as C, here as in the single-note case.
+  CHECK(correctionCentsInChord(31, 13, 5, -1) == correctionCentsInChord(31, 13, 5, 0));
+  CHECK(correctionCentsInChord(31, 5, 5, -1) == correctionCentsForNote(Tuning::EDO31, 5, -1));
+}

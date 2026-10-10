@@ -415,7 +415,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
     };
 
     // A note that carried a tuning correction gets the one for its new pitch.
-    IntonationContext intonation{song.getTuning(), song.getKey()};
+    IntonationContext intonation{song.getTuning(), song.getKey(), song.getArrangementBars()};
     auto b = getEffectiveSelectionBounds(song, track_ids);
     if (b.scope == SelectionScope::SONG) {
       transposeSong(song, true);
@@ -445,7 +445,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
     };
 
     // A note that carried a tuning correction gets the one for its new pitch.
-    IntonationContext intonation{song.getTuning(), song.getKey()};
+    IntonationContext intonation{song.getTuning(), song.getKey(), song.getArrangementBars()};
     auto b = getEffectiveSelectionBounds(song, track_ids);
     if (b.scope == SelectionScope::SONG) {
       transposeSong(song, false);
@@ -505,7 +505,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
       auto * track = song.getMasterTrack().getChildByInternalId(track_id);
       return track && song.getTuningForTrack(*track) == Tuning::PERCUSSION;
     };
-    IntonationContext intonation{song.getTuning(), song.getKey()};
+    IntonationContext intonation{song.getTuning(), song.getKey(), song.getArrangementBars()};
 
     TuningSummary summary;
     auto b = getEffectiveSelectionBounds(song, track_ids);

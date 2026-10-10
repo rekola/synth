@@ -385,11 +385,14 @@ humanize and the tuning commands act on it through the `...Song()` functions in
 tuning correction, `+hh`/`-hh` cents (`Note::setTuningCorrection()`, played as
 `NoteOverride::detune_cents` -> the `detune` ratio of `playNote()`); the empty fx
 character is `.`, shown `·`, since `-` is a sign now. `apply-just-intonation-
-region` writes each pitched note's correction toward a just ratio from the
-song key (`model/JustIntonation.h`: the simplest ratio within half a step and
-20 cents, primes up to 13), `+00` for a note that needs none, and
+region` writes each pitched note's correction toward a just ratio
+(`model/JustIntonation.h`: the simplest ratio within half a step and 20 cents,
+primes up to 13): the notes that start in a bar of a track's pattern, plus the
+ones held into it, are one chord, tuned above its lowest note, which is tuned
+from the song key (`chordCorrections()` in `PatternBlockOps.cpp`, the context
+read from the whole pattern). `+00` marks a note that needs none, and
 `clear-tuning-correction-region` removes them. A note that carries one is
-"tuned": transposing retunes it for its new pitch, and `transposeSong()` moves
+"tuned": transposing retunes it for its new pitch and place in its chord, and `transposeSong()` moves
 the key with the notes so corrections stay valid. "Tuning" in this codebase
 stays the song's EDO; the offset is a tuning correction (`docs/glossary.md`).
 

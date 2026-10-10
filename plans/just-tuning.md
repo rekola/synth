@@ -3,7 +3,7 @@
 Goal: notes in 12/19/31/53-EDO carry a per-note cent correction toward just
 intonation, computed by the app over a region or the whole song, stored in the
 note's local fx. Chords get spread in the ambisonic space so the tuned
-intervals are heard as separate voices. Four phases, in this order: 1 and 3 are built, 4 is decided, 2 is a sketch.
+intervals are heard as separate voices. Four phases, in this order: 1, 2 and 3 are built, 4 is decided.
 The arpeggiator goes before voice placement, and voice placement is last
 because it is the most involved part.
 
@@ -75,15 +75,34 @@ Examples to pin as tests (31-EDO, key C): C D♯ F = 6:7:8, corrections
 parse/round-trip, block ops, a render test measuring the frequency ratio of a
 note at `+64`, SONG scope bounds.
 
-## Phase 2 - chords and arpeggios (sketch)
+## Phase 2 - chords and arpeggios (built)
 
-- Context for a note: the notes sounding with it, held notes, and a short window
-  of recent rows so an arpeggio counts as one chord. Pick the simplest chord
-  (smallest harmonic numbers) whose members are all within the error cap.
-- A correction applies at note-on, so a held note keeps its tuning; new notes
-  tune relative to what still sounds. Anchor on the key or the bass to avoid
-  drift between chords.
-- Transpose-retune then re-runs the chord tuner over the affected region.
+`apply-just-intonation-region` is chord-aware; the per-note key-relative
+function stays as its fallback and as the anchor.
+
+- **Context = the bar.** Per track and per pattern (a track's background or one
+  clip), the notes that start in a bar, plus the notes still held into it (the
+  last event in a column before the bar is a pitched note), are one chord. An
+  arpeggio is one chord because all its steps start in the same bar; a chord
+  held across bars is the context of each. Bars are the song's signature,
+  counted from the pattern's row 0.
+- **Anchor on the bass.** The chord's lowest note is tuned from the key as in
+  Phase 1. Every other note is tuned as its interval above the bass: the
+  bass's key ratio times the simplest ratio for that interval, with the
+  corrections measured against the equal-tempered pitch. The bass keeps the key
+  from drifting between chords, and a chord is pure against its own bass. Both
+  of the plan's 31-EDO chords come out as before (6:7:8, 10:11:12:15); a ii
+  chord's D F A is 10:12:15 above its D rather than F and A measured from C.
+- **Commands.** Apply computes the context from the whole pattern but writes only
+  the notes in the region (and the chosen note columns). Transpose gives the
+  notes that carried a correction a fresh one, in the same way, once the notes
+  have moved. A whole-song transpose also moves the key.
+- **Limits, by design.** The context is one track: a bass track and a pad track
+  agree on the root (both measure it from the key) but not on the upper
+  notes. A chord change inside a bar is read as one chord (the bar is the
+  window; `kChordWindowBars`). A held note keeps the correction it got at its
+  onset. The 20 cent cap bounds the bass and the interval separately, so a
+  note can end up further from its equal-tempered pitch than 20 cents.
 
 ## Phase 3 - remove the arpeggiator (built)
 

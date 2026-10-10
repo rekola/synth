@@ -92,6 +92,22 @@ int correctionCentsFor(int edo, int steps) {
   return static_cast<int>(std::lround(just - steps * 1200.0 / edo));
 }
 
+int correctionCentsInChord(int edo, int value, int bass, int key) {
+  if (edo <= 0) return 0;
+  if (key < 0) key = 0; // no key set: C, as correctionCentsForNote() reads it
+  auto wrap = [edo](int steps) { return ((steps % edo) + edo) % edo; };
+  int bass_steps = wrap(bass - key);
+  int interval = wrap(value - bass);
+  auto root = intervalFor(edo, bass_steps);
+  auto upper = intervalFor(edo, interval);
+  // No ratio for one of them: the note keeps its place against the key.
+  if (!root.found || !upper.found) return correctionCentsFor(edo, value - key);
+  auto cents = [](const Interval & i) { return 1200.0 * std::log2(static_cast<double>(i.num) / i.den); };
+  double just = cents(root) + cents(upper);
+  double equal = (bass_steps + interval) * 1200.0 / edo;
+  return static_cast<int>(std::lround(just - equal));
+}
+
 int correctionCentsForNote(Tuning tuning, int note_value, int key) {
   int edo = edoStepsFor(tuning);
   if (edo <= 0) return 0;

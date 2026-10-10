@@ -100,16 +100,30 @@ and waits until the clip is stopped.
 
 `apply-just-intonation-region` (M-x or the Edit menu, no key binding) gives
 every pitched note in the region a tuning correction: the cents that move it
-from its equal-tempered pitch to a just ratio above the song's key
-(`just_intonation::correctionCentsFor()`). The correction goes in the note's
-fx as `+hh` or `-hh` (commands.md), and `+00` marks a note as tuned that needs
-none. The ratio for each step of the octave is the simplest one that lands
-within half a step (and at most 20 cents) of it, so no limit is chosen: 31-EDO
-reaches 7/6 and 11/10, 12-EDO mostly stays with 5-limit ratios (plus 7/5 and
-15/14). Only primes above 13 are never used. Percussion,
-offs and aftertouch are skipped; any other fx a note had is replaced, and the
-message says how many. A run replaces earlier corrections, so it can be
-repeated after editing; the mark stays.
+from its equal-tempered pitch to a just ratio (`model/JustIntonation.h`). The
+correction goes in the note's fx as `+hh` or `-hh` (commands.md), and `+00`
+marks a note as tuned that needs none.
+
+A note is tuned together with the others of its chord. Per track and per
+pattern (a track's background, or one clip), the notes that start in a bar,
+plus the ones still held into it, are one chord, so an arpeggio is one chord
+because all its steps start in the same bar. The chord's lowest note, the
+bass, is tuned from the song key; every other note is tuned as its interval
+above the bass. The ratio for an interval, or for a step above the key, is the
+simplest one that lands within half a step (and at most 20 cents) of it, so no
+limit is chosen: 31-EDO reaches 7/6 and 11/10, 12-EDO mostly stays with 5-limit
+ratios (plus 7/5 and 15/14). Only primes above 13 are never used. A chord is
+therefore pure against its bass, and the bass keeps the key from drifting
+between chords. A ii chord in C (D F A) is 10:12:15 above its D.
+
+What it does not do: chords are per track (a bass track and a pad track agree
+on the root, both measuring it from the key, but not on the upper notes), a
+chord that changes inside a bar is read as one chord, and a held note keeps the
+correction it got when it started. Percussion, offs and aftertouch are skipped;
+any other fx a note had is replaced, and the message says how many. The context
+is read from the whole pattern, so a region that covers part of a chord still
+tunes it as the whole chord, writing only the notes it covers. A run replaces
+earlier corrections, so it can be repeated after editing; the mark stays.
 
 Select the whole song first (C-x h) to tune it all. `clear-tuning-correction-region`
 removes the corrections again, whatever put them there. Transposing the region

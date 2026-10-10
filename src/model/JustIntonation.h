@@ -34,6 +34,15 @@ Interval intervalFor(int edo, int steps);
 // was found.
 int correctionCentsFor(int edo, int steps);
 
+// The correction for a note that sounds with a chord whose lowest note is
+// `bass` (absolute note values; `value` is at or above it). The bass is
+// tuned from the key as above; every other note is tuned as its interval
+// above the bass, the bass's ratio times the simplest ratio for that
+// interval, so a chord is pure against its own bass while the bass keeps
+// the key from drifting. A note that is the bass's own pitch class gets the
+// bass's correction.
+int correctionCentsInChord(int edo, int value, int bass, int key);
+
 // The correction for a pitched note. `key` is the song key, a full note
 // value of which only the pitch class counts. 0 for a tuning with no
 // intervals (percussion).
