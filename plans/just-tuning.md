@@ -223,61 +223,92 @@ A per-track spatial mode makes that one choice.
 
 ### Modes
 
-A leaf instrument track gets `spatial="auto|point|ring|arc"` (a `LeafTrack`
-property next to azimuth/elevation/distance/extent, a string property in
+A leaf instrument track gets `spatial="auto|ring|arc"` (a `LeafTrack` property
+next to azimuth/elevation/distance/extent, a string property in
 `TrackNodes.h`, written only when not `auto`). Set in the song XML only; no
-command or UI for it yet.
+command or UI for it yet. There is no `point` mode: a chord spread of zero is
+just a ring with no extent, and the extent also drives the single voice's own
+cloud, so a separate "no spread" mode would only duplicate it.
 
-- `auto` (default): what the instrument does today. Percussion (bank 128 /
+- `auto` (default): the instrument decides. Percussion (bank 128 /
   `Tuning::PERCUSSION`) uses its key table with jitter; the SoundFont arc
-  families use the arc; everything else is `point`. No existing song changes
-  its note placement.
-- `point`: every note at the track position.
-- `ring`: each note column gets a fixed slot on the cloud layout of the
-  track's N note columns: N = 1 is the centre, 2 a left/right pair, 3 a
-  triangle, 4-6 one ring, more concentric rings. `OscillatorVoice::
-  ringCounts()` and `cloudPoint()` already build exactly this; move them to a
-  shared header (`ambisonic/CloudLayout.h`) and have both callers use it.
-  Radius is `atan2(extent, distance)`, from `-Wxx` or the instrument's default
-  extent. No scatter (`scatter_coord = nullptr`): per-note hashed turns would
-  rotate the triangle between chord events. The slot is the column index, so
-  an arpeggio keeps every column on its own point. N is the widest row of the
-  pattern or clip being played (check `PlaybackContent` can give it to the
-  audio thread cheaply); live-played notes use their column.
+  families (piano, mallets, harp, timpani) use the arc; every other instrument
+  uses the ring. A track with no extent puts every note at its position, as
+  today, so only songs whose pitched tracks already have an extent change.
+- `ring`: each note column gets a fixed slot on a spiral (below). Forces the
+  ring on an instrument whose `auto` is the arc (a piano).
 - `arc`: the note's key along the extent, low to high. SoundFont presets use
   their mapped key range as now; other instruments use a fixed A0-C8 span.
 
 Percussion is not selectable: it has no chords, so it stays on its table.
-Any pitched instrument can take `ring`, an organ included. A chord on `ring`
-or `arc` is spread; on `point` it is not.
 
-Implementation: ring is applied once in `InstrumentTrackState::noteOn()` to
-`resolved_position` after the note override. The kit and arc placement live in
-`SoundFontInstrument::playNote()`; the mode has to reach them, either as a
-parameter on the eight `playNote` overrides or through a small virtual
-`placeNote()` on `Instrument` - decide when writing it.
+### The ring is a spiral
+
+A ring cannot know how many note columns a chord has, and it must not: when a
+voice is added the voices already sounding would have to move. So a slot's
+place depends only on its own index k, the note column. Slot 0 is the track's
+position, and slot k >= 1 is offset by
+
+- angle `phi_k = k * 137.508 degrees` (the golden angle), measured in the
+  azimuth/elevation plane of the track's position, and
+- radius `rho_k = rho * min(1, sqrt(k / kSpiralFull))`, where `rho` is
+  `atan2(extent, distance)` from `-Wxx` or the instrument's default extent and
+  `kSpiralFull` (6, by ear) is the slot where the spiral reaches the rim; later
+  slots go on round the rim at their golden angles.
+
+Equal area per slot, no two slots ever on the same bearing, a lone note exactly
+where the track is, a chord of three or four an open triangle or quad rather
+than a line, and nothing moves when a column is added. No scatter: the same
+chord lands on the same points every time, so an arpeggio keeps each column on
+its own point. The current concentric-ring layout (`OscillatorVoice::ringCounts()`
+/`cloudPoint()`, which depends on how many buckets there are) stays where it is
+for an oscillator array's own cloud; it is not shared.
+
+A live-played note has no column, so it takes the lowest slot no sounding voice
+of the track holds; a voice keeps its slot for as long as it sounds.
+
+The oscillator array's cloud (`spread`) stays centred on the note's slot and
+scaled by the voice's own `spread`, not by the chord: scaling it by the number
+of columns would make a note sound different as the chord around it changes,
+which is the problem the spiral solves. The cloud may overlap its neighbours'
+slots; `spread` is set per instrument by ear.
+
+### Where it is applied
+
+`Instrument` gets a virtual `placeNote(position, spatial mode, slot, key)` that
+returns the note's position; the track's mode is passed in with each note
+(it is a track property, so it reaches the instrument as an argument, not
+as instrument state). The default implementation does `auto`: the ring.
+`SoundFontInstrument` overrides it for the kit and the arc families, which
+today live in its `playNote()`, and `InstrumentTrackState::noteOn()` calls it on
+the position after the note override. Which note column a note is in must
+reach `noteOn()` (check what `NoteOverride`/the voice trigger already carries).
 
 ### SoundFont region pan
 
-SF2 generator 17 (`pan`, +-0.5 per region) stays an azimuth offset in every
-mode. `adjustPositionForPan()` already does this for pitched presets; drop the
-`skip_native_pan` exemption (marked TEMPORARY) so percussion and the arc
-families get it too. In `ring` mode the pan offsets around each slot, so a
-stereo-split preset (one sample stored as two regions panned hard left and
-right) keeps its width at every chord point.
+SF2 generator 17 (`pan`, +-0.5 per region) is an azimuth offset in every mode
+and for every instrument, percussion and the arc families included: drop the
+`skip_native_pan` exemption (marked TEMPORARY) in `adjustPositionForPan()`.
+In `ring` mode it offsets around each slot, so a stereo-split preset (one
+sample stored as two regions panned hard left and right) keeps its width at
+every chord point.
 
 Watch for doubling: a GM drum kit's per-drum pans and the key table encode the
-same thing, as do the arc and a piano's stereo-mic zones. If kit or arc sounds
-doubled, put the exemption back for those two only. The pan's mirror
-convention was marked "under investigation" and this does not settle it.
+same thing, as do the arc and a piano's stereo-mic zones. That is accepted for
+now; if the kit or arc sounds doubled by ear, put the exemption back for those
+two only. The pan's mirror convention was marked "under investigation" and this
+does not settle it.
 
 ### Docs and tests
 
 `docs/commands.md` (`-Wxx` spreads chords on a `ring` track), a spatial-mode
-section next to the position docs, glossary entries. Layout unit tests (counts,
-N = 3 gives three points 120 degrees apart, no scatter), `spatial` XML
-round-trip, a render test (a `ring` chord with extent has energy on both sides,
-`point` does not), percussion unchanged under `auto`.
+section next to the position docs, glossary entries. Layout unit tests: slot 0
+at the centre, slot positions independent of how many slots there are (the same
+for k = 1 whether the chord has 2 or 6 columns), golden-angle spacing, radius
+reaching the rim at `kSpiralFull`; `spatial` XML round-trip; a render test
+(a `ring` chord with extent has energy on both sides, a track with no extent
+does not); percussion unchanged under `auto`; a stereo-split preset keeps its
+width at a chord slot.
 
 ## Phase 6 - dynamic just intonation: tuning across tracks, with drift and loops (planned, last)
 
@@ -429,12 +460,11 @@ pitch, so a section after them starts from there.
 
 ## Open
 
-- `auto` leaves non-arc instruments as `point` (assumed above); the variant is
-  `ring` whenever the track has a nonzero extent, which changes existing songs.
-- Region pan on percussion and arc presets (re-enabled above) may double the
-  key table / arc; check by ear with FluidR3, which this container lacks.
-- The 20 cent cap and the oscillator-array radius inside a chord are by-ear
-  values.
+- Phase 5: `kSpiralFull` (6) and the oscillator array's `spread` against its
+  slot are by-ear values, as is the 20 cent cap.
+- Phase 5: native pan on percussion and the arc presets may double the key table
+  and the arc; check by ear with FluidR3, which this container lacks.
+- Phase 5: how the note column reaches `noteOn()` is to be found when writing it.
 - Phase 6: the memory length (6 pitch classes is a guess); how a scene's cycle is
   built when clip lengths do not divide the longest; and which of the three
   clip-instance options (the plan recommends 2), which gates the arrangement
