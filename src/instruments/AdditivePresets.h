@@ -21,7 +21,6 @@
 struct AdditivePresetParams {
   int partials;
   float stretch;
-  bool tuningMatched;
   int unisonVoices;
   float unisonDetune;
   const char * modes;
@@ -50,12 +49,11 @@ constexpr float kFeltExponent = 3.0f;
 } // namespace additive_presets
 
 // An unrecognized preset name falls back to `default`, a plain struck
-// string: one string, partials on the tuning, a mild hammer, moderate decay.
+// string: one string, harmonic partials, a mild hammer, moderate decay.
 inline const AdditivePresetParams & getAdditivePreset(const std::string & name) {
   static const AdditivePresetParams kDefault{
       /* partials       */ 16,
       /* stretch        */ 0.0f,
-      /* tuningMatched  */ true,
       /* unisonVoices   */ 1,
       /* unisonDetune   */ 1.0f,
       /* modes          */ "",
@@ -79,7 +77,7 @@ inline const AdditivePresetParams & getAdditivePreset(const std::string & name) 
       /* body           */ {},
   };
 
-  // A piano: three strings a cent apart, every partial on the tuning with a
+  // A piano: three strings a cent apart, harmonic partials with a
   // 0.001 bounded stretch, struck at 1/8 by a hammer whose corner is fixed in
   // Hz (so the bass has many partials), outer strings decaying half again
   // faster and slower than the middle one, bass ringing longer, and a short
@@ -88,7 +86,6 @@ inline const AdditivePresetParams & getAdditivePreset(const std::string & name) 
   static const AdditivePresetParams kPiano{
       /* partials       */ 80,
       /* stretch        */ 0.003f,
-      /* tuningMatched  */ true,
       /* unisonVoices   */ 3,
       /* unisonDetune   */ 2.5f,
       /* modes          */ "",
@@ -118,7 +115,6 @@ inline const AdditivePresetParams & getAdditivePreset(const std::string & name) 
   static const AdditivePresetParams kGuitarNylon{
       /* partials       */ 30,
       /* stretch        */ 0.0005f,
-      /* tuningMatched  */ true,
       /* unisonVoices   */ 1,
       /* unisonDetune   */ 1.0f,
       /* modes          */ "",
@@ -147,7 +143,6 @@ inline const AdditivePresetParams & getAdditivePreset(const std::string & name) 
   static const AdditivePresetParams kGuitarSteel{
       /* partials       */ 40,
       /* stretch        */ 0.002f,
-      /* tuningMatched  */ true,
       /* unisonVoices   */ 1,
       /* unisonDetune   */ 1.0f,
       /* modes          */ "",
@@ -176,7 +171,6 @@ inline const AdditivePresetParams & getAdditivePreset(const std::string & name) 
   static const AdditivePresetParams kHarp{
       /* partials       */ 24,
       /* stretch        */ 0.0005f,
-      /* tuningMatched  */ true,
       /* unisonVoices   */ 1,
       /* unisonDetune   */ 1.0f,
       /* modes          */ "",
@@ -205,7 +199,6 @@ inline const AdditivePresetParams & getAdditivePreset(const std::string & name) 
   static const AdditivePresetParams kHarpsichord{
       /* partials       */ 30,
       /* stretch        */ 0.0005f,
-      /* tuningMatched  */ true,
       /* unisonVoices   */ 2,
       /* unisonDetune   */ 0.5f,
       /* modes          */ "",
@@ -235,7 +228,6 @@ inline const AdditivePresetParams & getAdditivePreset(const std::string & name) 
   static const AdditivePresetParams kBar{
       /* partials       */ 4,
       /* stretch        */ 0.0f,
-      /* tuningMatched  */ true,
       /* unisonVoices   */ 1,
       /* unisonDetune   */ 1.0f,
       /* modes          */ "1 2.756 5.404 8.933",

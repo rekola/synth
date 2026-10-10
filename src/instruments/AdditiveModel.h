@@ -13,7 +13,7 @@
 //
 // A note is `unison_voices` strings, one output row each, plus one row per
 // body mode. A string's partials start at the level its excitation gives
-// them; their frequencies sit on the song's tuning.
+// them; their frequencies sit at the note's frequency times the mode ratio.
 
 enum class Excitation { Hammer,
                         Pluck };
@@ -28,13 +28,12 @@ struct BodyMode {
 
 struct AdditiveModelParams {
   int partials = 16;
-  float stretch = 0.0f; // epsilon: partial n sits (n-1)*epsilon above its grid position
-  bool tuning_matched = true;
+  float stretch = 0.0f; // epsilon: partial n sits (n-1)*epsilon above its harmonic
   int unison_voices = 1;            // strings per note, 1-3
   float unison_detune_cents = 1.0f; // spacing between adjacent strings
   // Mode frequency ratios replacing the harmonic series (bars, bells); empty
   // means a string. Modes sit at the note's frequency times the ratio, off
-  // the tuning grid, with no stretch.
+  // the harmonic series, with no stretch.
   std::vector<float> modes;
 
   Excitation excitation = Excitation::Hammer;
@@ -58,17 +57,14 @@ struct NoteContext {
   float frequency; // fundamental, Hz
   float velocity;  // [0, 1]
   float sample_rate;
-  int edo_steps; // 0 = no tuning structure
   NoteCoordinate coord;
 };
 
-// Frequency ratio of partial n of `partials`. On a tuning, the nearest step
-// of the song's tuning, so partials shared by chord tones of the tuning's own
-// intervals meet exactly; then (n-1)*stretch is added, a bounded form of
-// inharmonicity (at most about 1200*log2(1+stretch) cents above the grid)
+// Frequency ratio of partial n: n plus (n-1)*stretch, a bounded form of
+// inharmonicity (at most about 1200*log2(1+stretch) cents above the harmonic)
 // that keeps shared partials of any interval up to an octave within stretch
 // times the fundamental of each other. Partial 1 is exactly 1.
-float additivePartialRatio(int n, int partials, float stretch, int edo_steps, bool tuning_matched);
+float additivePartialRatio(int n, float stretch);
 
 // Offset in cents of string `string` of `strings`: evenly spaced by
 // `spacing_cents` and centred on 0 (so the note's pitch is exact), plus a

@@ -95,13 +95,11 @@ The FM electric pianos (`piano.electric.*`, [docs/fm.md](docs/fm.md)) put partia
 n + (n−1)·ε, using an FM modulator at 1+ε times the carrier, so shared
 partials beat at most ε times the fundamental (ε = 0.001: a quarter of a hertz at
 middle C). What remains is the tuning's own error, such as 31-EDO's 4:3 being
-5.2 cents wide; removing that needs partials moved onto the tuning's steps
-(Sethares, *Tuning, Timbre, Spectrum, Scale*), which FM can't do.
+5.2 cents wide, which tuning corrections on the notes can remove.
 
 The acoustic piano (`<additive preset="piano"/>`, also `piano.acoustic.grand`
-when the SoundFont has no piano; [docs/additive.md](docs/additive.md)) does that: every partial of every
-note sits on the song's tuning, with a stretch bounded at the same ε, so shared
-partials of the tuning's own intervals, septimal ones included, meet exactly.
+when the SoundFont has no piano; [docs/additive.md](docs/additive.md)) puts partial *n* at
+the same n + (n−1)·ε, using harmonic partials with a bounded stretch.
 
 # Terminal support
 

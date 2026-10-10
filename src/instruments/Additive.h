@@ -34,7 +34,6 @@ class Additive : public Instrument {
   std::string preset_ = "default";
   int partials_ = 0;
   float stretch_ = 0.0f;
-  bool tuningMatched_ = true;
   // Strings per note and the spacing between adjacent ones in cents.
   int unisonVoices_ = 1;
   float unisonDetune_ = 1.0f;

@@ -38,9 +38,6 @@ struct PadSynthParams {
   int samples_per_octave = 2;       // q
   int table_length = 1 << 17;       // L
 
-  int edo_steps = 31;
-  bool tuning_matched = true;
-
   // Anchored spectral-envelope remap + postprocess (dsp/
   // SpectralEnvelopeRemap.h) - step 9 of the chain, shared with
   // SinusoidBank (the <additive> oscillator's own equivalent stage).

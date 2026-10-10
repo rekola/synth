@@ -33,9 +33,9 @@ class AdditiveVoice : public InstrumentVoice {
 
   // Builds the bank; called once, right after playNote(), so getFrequency()
   // and velocity_ already reflect this note-on.
-  void trigger(const AdditiveModelParams & model, int edo_steps, const NoteCoordinate & note_coord) {
+  void trigger(const AdditiveModelParams & model, const NoteCoordinate & note_coord) {
     float sample_rate = static_cast<float>(getChannelConfiguration().getAudioOutSampleRate());
-    NoteContext note{getFrequency(), velocity_, sample_rate, edo_steps, note_coord};
+    NoteContext note{getFrequency(), velocity_, sample_rate, note_coord};
     bank_ = std::make_unique<SinusoidBank>(buildPartialSpecs(model, note), sample_rate);
 
     const int strings = std::clamp(model.unison_voices, 1, 3);
