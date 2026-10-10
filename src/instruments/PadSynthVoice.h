@@ -28,17 +28,9 @@ public:
     // Table-samples advanced per output sample - the ratio of this note's
     // real pitch to the table's own base pitch (tableBaseFrequency()),
     // exactly like a sampler resampling a single-cycle waveform to a new
-    // pitch. This deliberately never reintroduces off-tuning-step
-    // partials: every partial in the table was already snapped to a scale
-    // step in cents-space at generation time (SpectralBandProfile.h's
-    // tuningMatchedPartialPosition()), and resampling multiplies every
-    // partial's absolute frequency by this same single ratio - which
-    // preserves each partial's own cents-distance from the fundamental
-    // exactly, it doesn't recompute or re-snap anything. A partial that
-    // was, say, 3 cents flat of a plain harmonic at generation time is
-    // still exactly 3 cents flat of that same (now-transposed) harmonic
-    // after resampling, whatever pitch the table is played back at within
-    // its own octave region.
+    // pitch. Resampling multiplies every partial's absolute
+    // frequency by this same single ratio, which preserves each partial's
+    // cents-distance from the fundamental exactly.
     double rate = static_cast<double>(getFrequency()) / static_cast<double>(table_base_freq);
 
     // getSourceSamplePosition()/stepForward() are InstrumentVoice's shared

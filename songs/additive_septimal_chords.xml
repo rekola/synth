@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   Listening song for the additive piano in 31-EDO: the septimal dyads and the
-  otonal and utonal tetrads, each held four seconds, then a rest. Shared
-  partials of these intervals sit on the same tuning step, so the chords should
-  sound steady, with only the strings' own slow shimmer.
+  otonal and utonal tetrads, each held four seconds, then a rest. 31-EDO
+  steps approximate these intervals closely, so the chords should sound
+  steady, with only the strings' own slow shimmer.
 
   Render with: ./build/synth --stereo --render out.wav songs/additive_septimal_chords.xml
 -->
