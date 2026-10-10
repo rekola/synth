@@ -40,29 +40,26 @@ note outside the scale (a C double-sharp between C and E-flat, say) is tuned
 the same way, to the simplest ratio close to it, though it is not a member of
 the series.
 
-**Dynamic just intonation**
-Just intonation that follows the music instead of returning to the key. It is
-for music whose chords have no note in common, such as a major scale. Tuning
-each chord on its own against the key would make chords that are pure in
-themselves but do not fit their neighbours: a note shared by two chords, or one
-that moves by a step, would land on slightly different pitches each time. The
-dynamic kind tunes each note against what is sounding, or has only just
-sounded, in any track, so a melody over a bass line is pure against that bass
-line, and an arpeggio hangs together although its notes never sound at once.
-Elsewhere this is usually called *adaptive* just intonation or adaptive tuning;
-this project says dynamic. It is planned, not yet available. See Drift, and
-Just intonation for the static kind.
+**Adaptive just intonation**
+Just intonation that follows the music instead of returning to the key; also
+called adaptive tuning. It is for music whose chords have no note in common,
+such as a major scale. Tuning each chord on its own against the key would make
+chords that are pure in themselves but do not fit their neighbours: a note
+shared by two chords, or one that moves by a step, would land on slightly
+different pitches each time. The adaptive kind tunes each note against what is
+sounding, or has only just sounded, in any track, so a melody over a bass line
+is pure against that bass line, and an arpeggio hangs together although its
+notes never sound at once. It is planned, not yet available. See Just
+intonation for the static kind, which the otonal and utonal scales use.
 
-**Drift**
-The pitch wandering away from the key when tuning is dynamic. A pure interval
-is exact only against its own reference, and the reference may itself have been
-tuned against an earlier note, so errors accumulate along a progression. Four
-pure fifths stacked from C reach an E about 21.5 cents above the pure major
-third over C, and a song that keeps every chord pure can end up noticeably
-higher or lower than where it began. This is not a defect: pure fifths, pure
-thirds and a closed circle of keys cannot all be had at once. It is the price of
-dynamic just intonation, and fine in an arrangement, where the music is free to
-wander. Static just intonation always returns to the key and never drifts.
+The price is *drift*. A pure interval is exact only against its own reference,
+and the reference may itself have been tuned against an earlier note, so errors
+accumulate along a progression. Four pure fifths stacked from C reach an E about
+21.5 cents above the pure major third over C, and a song that keeps every chord
+pure can end up noticeably higher or lower than where it began. This is not a
+defect: pure fifths, pure thirds and a closed circle of keys cannot all be had
+at once. Drift is fine in an arrangement, where the music is free to wander.
+Static just intonation always returns to the key and never drifts.
 
 **Live sequencer**
 A tool used to program, trigger and manipulate musical patterns, notes and

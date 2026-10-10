@@ -5,7 +5,7 @@ intonation, computed by the app over a region or the whole song, stored in the
 note's local fx. Chords get spread in the ambisonic space so the tuned
 intervals are heard as separate voices. Six phases: 1 to 5 are built; 6 is decided and is next. Phase 3 takes the per-track tuner of phases 1-2 to the whole song and
 splits select-all by view; it is all the otonal and utonal scales need. The
-arpeggiator (4) went before voice placement (5). Dynamic just intonation across
+arpeggiator (4) went before voice placement (5). Adaptive just intonation across
 tracks (6) is last because it is the most involved part and only scales without
 a tonic in every chord need it.
 
@@ -112,7 +112,7 @@ The scales the song is written in now, otonal and utonal, need nothing more
 than the tuner of phases 1-2. Every chord in them holds the tonic, so every
 note is tuned against it: no memory, no context across tracks, no loops, and no
 drift. This phase takes that tuner to the whole song and splits select-all by
-view. The dynamic tuner (phase 6) comes last, so everything here can be tried
+view. The adaptive tuner (phase 6) comes last, so everything here can be tried
 first on those scales.
 
 - **Why there is no drift.** Checked against the table in 31-EDO for the chords
@@ -139,7 +139,7 @@ first on those scales.
   too.
 - **The limit.** Each correction is bounded by the 20 cent cap on the bass and
   on the interval, so the +-255 error cannot occur in this phase; it arrives
-  with the dynamic tuner.
+  with the adaptive tuner.
 - **Work.** Replace `SONG` and `whole_song_` with the two scopes (a view picks
   one in `mark-whole-buffer`); `forEachSongPattern` takes the scope; docs
   (`docs/terminal.md`, `docs/commands.md`, CLAUDE.md) follow.
@@ -315,7 +315,7 @@ reaching the rim at `kSpiralFull`; `spatial` XML round-trip; a render test
 does not); percussion unchanged under `auto`; a stereo-split preset keeps its
 width at a chord slot.
 
-## Phase 6 - dynamic just intonation: tuning across tracks, with drift and loops (planned, last)
+## Phase 6 - adaptive just intonation: tuning across tracks, with drift and loops (planned, last)
 
 This is for scales whose chords have no common pitch (a major scale, say). The
 otonal and utonal scales do not need it: every chord there holds the tonic, so
