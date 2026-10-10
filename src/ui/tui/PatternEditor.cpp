@@ -1857,23 +1857,28 @@ PatternEditor::offerInputKey(const InputEvent & input) {
       if (track && track->getType() == TrackType::INSTRUMENT_CONTROL) {
 	auto & instrument_track = dynamic_cast<const InstrumentTrack&>(*track);
 	bool changed = false;
-	Song::Edit edit(song, "change instrument");
-	auto set_instrument = [&](int instrument_id) {
-	  song.editTrack(instrument_track.getInternalId(), [&](Track & edited) { static_cast<InstrumentTrack &>(edited).setInstrumentId(instrument_id); });
-	  changed = true;
-	};
-	if (input.getId() == NCKEY_KP_DIVIDE && instrument_track.getInstrumentId() > 0) {
-	  set_instrument(instrument_track.getInstrumentId() - 1);
-	} else {
-	  auto & instruments = song.getInstrumentPool().getInstruments();
-	  if (input.getId() == NCKEY_KP_MULTIPLY && instrument_track.getInstrumentId() + 1 < static_cast<int>(instruments.size())) {
-	    set_instrument(instrument_track.getInstrumentId() + 1);
-	  }
-	}
-	if (!changed) edit.discard();
-	if (changed) {
-	  event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CLEAR_VOICES, getController().getActiveBufferName(), instrument_track.getInternalId()));
-	}
+        auto track_internal_id = instrument_track.getInternalId();
+        {
+          Song::Edit edit(song, "change instrument");
+          auto set_instrument = [&](int instrument_id) {
+            song.editTrack(track_internal_id, [&](Track & edited) { static_cast<InstrumentTrack &>(edited).setInstrumentId(instrument_id); });
+            changed = true;
+          };
+          if (input.getId() == NCKEY_KP_DIVIDE && instrument_track.getInstrumentId() > 0) {
+            set_instrument(instrument_track.getInstrumentId() - 1);
+          } else {
+            auto & instruments = song.getInstrumentPool().getInstruments();
+            if (input.getId() == NCKEY_KP_MULTIPLY && instrument_track.getInstrumentId() + 1 < static_cast<int>(instruments.size())) {
+              set_instrument(instrument_track.getInstrumentId() + 1);
+            }
+          }
+          if (!changed) edit.discard();
+        }
+        // After the edit has published: the audio thread rebuilds the cleared
+        // track's state from the content it holds, which must be the new one.
+        if (changed) {
+          event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CLEAR_VOICES, getController().getActiveBufferName(), track_internal_id));
+        }
       }
       return true;
     } else if (input.getId() == NCKEY_LEFT || input.getId() == NCKEY_RIGHT) {
