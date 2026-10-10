@@ -161,7 +161,6 @@ Composition
  - auxiliary note
  - anticipatory note
 
-
 C	1:1		C major		C-E-G
 C	1:1		C minor		C-Eb-G
 C	1:1		C q. major	C-D#-F
