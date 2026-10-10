@@ -737,6 +737,7 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                         {"Undo", "C-x u", "undo"},
                         {"Redo", "C-M-_", "undo-redo"},
                         {nullptr, nullptr, nullptr},
+                        {"Select All", "C-x h", "mark-whole-buffer"},
                         {"Set Mark", "C-SPC", "set-mark"},
                         {"Kill Region", "C-w", "kill-region"},
                         {"Copy", "M-w", "kill-ring-save"},
@@ -746,6 +747,9 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                         {"Transpose Up", "C-S-Up", "transpose-region-up"},
                         {"Transpose Down", "C-S-Down", "transpose-region-down"},
                         {"Humanize", "", "humanize-region"},
+                        {nullptr, nullptr, nullptr},
+                        {"Apply Just Intonation", "", "apply-just-intonation-region"},
+                        {"Clear Tuning Corrections", "", "clear-tuning-correction-region"},
                     }},
       {"Track", 't', {
                          {"Add Instrument Track", "C-t", "add-instrument-track"},
@@ -1981,6 +1985,9 @@ TerminalUI::initializeWidgets() {
   // PatternEditor's - unlike the M-x path, which does go through that
   // fallback chain).
   commands_.define("exchange-point-and-mark", [this]() { pattern_editor_->executeCommand("exchange-point-and-mark"); });
+  // Same reasoning: the C-x prefix is only recognized here, but the whole
+  // song is selected in the pattern editor.
+  commands_.define("mark-whole-buffer", [this]() { pattern_editor_->executeCommand("mark-whole-buffer"); });
   // merge-clip-to-background/toggle-record-arm are UI's own now (plain
   // Controller::sendCommand() forwarding, same shape save-song's own
   // C-x-reachable wrapper uses) - both target Song::getCurrentTrackId(),
@@ -2043,6 +2050,7 @@ TerminalUI::initializeWidgets() {
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('f', true, false, false, false), "open-song");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('w', true, false, false, false), "save-song-as");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('x', true, false, false, false), "exchange-point-and-mark");
+  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('h', false, false, false, false), "mark-whole-buffer");
   // The buffer commands' own real Emacs bindings, unlike every C-x C-<letter>
   // above, hold Ctrl for the C-x prefix only, not the second key: kill-buffer
   // is C-x k (plain k), next-buffer/previous-buffer are C-x <right>/C-x

@@ -46,6 +46,27 @@ TEST(just_intonation_53edo_is_nearly_just_already) {
   CHECK(std::abs(correctionCentsFor(53, 17)) <= 2); // 5/4
 }
 
+TEST(just_intonation_never_picks_a_ratio_with_a_large_prime) {
+  auto largest_prime = [](int n) {
+    int largest = 1;
+    for (int p = 2; p * p <= n; p++) {
+      while (n % p == 0) {
+        largest = p;
+        n /= p;
+      }
+    }
+    return n > 1 ? n : largest;
+  };
+  for (int edo : {12, 19, 31, 53}) {
+    for (int step = 0; step < edo; step++) {
+      auto interval = intervalFor(edo, step);
+      CHECK(largest_prime(interval.num) <= kMaxPrime);
+      CHECK(largest_prime(interval.den) <= kMaxPrime);
+    }
+  }
+  CHECK(intervalFor(31, 1).num == 33); // not 31/30
+}
+
 TEST(just_intonation_has_a_ratio_for_every_step_and_none_for_percussion) {
   for (int edo : { 12, 19, 31, 53 }) {
     int found = 0;

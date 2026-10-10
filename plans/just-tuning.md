@@ -6,7 +6,7 @@ note's local fx. Chords get spread in the ambisonic space so the tuned
 intervals are heard as separate voices. Three phases, in this order: 1 and 3 are decided, 2 is a sketch. Voice
 placement is last because it is the most involved part.
 
-## Phase 1 - the `+xx` / `-xx` fx command and key-relative just intonation
+## Phase 1 - the `+xx` / `-xx` fx command and key-relative just intonation (built)
 
 ### Storage and placeholder
 
@@ -33,9 +33,10 @@ For a note, the interval from the song key (`Song::getKey()`, the song's EDO)
 is matched to a ratio. A candidate ratio's error to the note's EDO pitch must
 be within min(half an EDO step, about 20 cents); the 20 cents is a constant to
 tune by ear, not a setting. Among candidates the simplest wins (smallest
-numerator times denominator). No prime limit is chosen anywhere: the limit
-follows from the EDO and the error cap (12-EDO ends up 5-limit plus 7/5;
-31-EDO reaches 7 and 11). The correction is the ratio's cents minus the
+numerator times denominator). No prime limit is chosen by the user: what is
+reachable follows from the EDO and the error cap (12-EDO mostly 5-limit plus
+7/5 and 15/14; 31-EDO reaches 7 and 11). A fixed ceiling of prime 13 keeps out
+ratios like 31/30, which the simplicity rule alone picked at 31-EDO's first step. The correction is the ratio's cents minus the
 EDO pitch's cents, rounded.
 
 The function takes the set of sounding pitch classes and returns a ratio per

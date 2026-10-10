@@ -376,6 +376,23 @@ mark, so repeated presses keep working on the same block. To transpose a
 whole track or pattern, select it first — there's no separate "no mark"
 whole-pattern fallback anymore.
 
+**Select all and tuning corrections.** `mark-whole-buffer` selects the whole
+song (`SelectionScope::SONG`, `PatternEditor::whole_song_`): no mark, and
+any cursor movement or `keyboard-quit` ends it, because the single-block
+region model cannot express "every pattern of every track". Transpose,
+humanize and the tuning commands act on it through the `...Song()` functions in
+`PatternBlockOps.h`; kill, copy and yank refuse. A note's local fx can be a
+tuning correction, `+hh`/`-hh` cents (`Note::setTuningCorrection()`, played as
+`NoteOverride::detune_cents` -> the `detune` ratio of `playNote()`); the empty fx
+character is `.`, shown `·`, since `-` is a sign now. `apply-just-intonation-
+region` writes each pitched note's correction toward a just ratio from the
+song key (`model/JustIntonation.h`: the simplest ratio within half a step and
+20 cents, primes up to 13), `+00` for a note that needs none, and
+`clear-tuning-correction-region` removes them. A note that carries one is
+"tuned": transposing retunes it for its new pitch, and `transposeSong()` moves
+the key with the notes so corrections stay valid. "Tuning" in this codebase
+stays the song's EDO; the offset is a tuning correction (`docs/glossary.md`).
+
 A track with multiple simultaneous note columns (chords/polyphony —
 `VisibleTrackInfo::num_subtracks_`, derived from however many notes
 actually appear in any visible row, not a fixed cap) can have its

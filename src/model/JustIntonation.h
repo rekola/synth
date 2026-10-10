@@ -12,11 +12,14 @@
 // within min(half a step, kMaxErrorCents) of it, so a note never turns into
 // another one. The simplest candidate wins (smallest numerator times
 // denominator, the Tenney height). No prime limit is chosen: what is
-// reachable follows from the EDO and the error cap.
+// reachable follows from the EDO and the error cap. Only a fixed ceiling keeps
+// out ratios that mean nothing harmonically (31/30 for 31-EDO's first step).
 namespace just_intonation {
 
 // The widest a candidate may be from its step; a by-ear constant.
 constexpr double kMaxErrorCents = 20.0;
+// The largest prime a candidate ratio may contain; also a by-ear constant.
+constexpr int kMaxPrime = 13;
 
 struct Interval {
   int num = 1, den = 1;

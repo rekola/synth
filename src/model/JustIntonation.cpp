@@ -14,6 +14,17 @@ namespace {
 // Widest numerator times denominator a candidate may have.
 constexpr int kMaxHeight = 8192;
 
+int largestPrimeFactor(int n) {
+  int largest = 1;
+  for (int p = 2; p * p <= n; p++) {
+    while (n % p == 0) {
+      largest = p;
+      n /= p;
+    }
+  }
+  return n > 1 ? n : largest;
+}
+
 struct Choice {
   Interval interval;
   long height = 0;
@@ -33,6 +44,7 @@ std::vector<Interval> buildTable(int edo) {
   for (int den = 1; den * den < kMaxHeight; den++) {
     for (int num = den + 1; num < 2 * den && static_cast<long>(num) * den <= kMaxHeight; num++) {
       if (std::gcd(num, den) != 1) continue;
+      if (largestPrimeFactor(num) > kMaxPrime || largestPrimeFactor(den) > kMaxPrime) continue;
       double cents = 1200.0 * std::log2(static_cast<double>(num) / den);
       int step = static_cast<int>(std::lround(cents / step_cents));
       if (step <= 0 || step >= edo) continue;

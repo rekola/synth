@@ -22,7 +22,10 @@ Which thing they act on depends on the focused widget.
 ### Pattern editor
 
 They act on the region: the note under the cursor, or the marked block of rows
-and tracks (C-SPC sets the mark). To duplicate a track's notes, select
+and tracks (C-SPC sets the mark). C-x h (`mark-whole-buffer`) selects the whole song
+instead: every track's background pattern and every clip, in either view. Any
+cursor movement or C-g ends it. Transpose, humanize and the tuning commands act
+on it; cut, copy and yank say they do not. To duplicate a track's notes, select
 the track, copy it, move to another track and yank.
 
 ### Clip grid (Live View)
@@ -92,6 +95,27 @@ transport. A live recording take is one step: its notes appear as they land, and
 while a take is still recording, and they leave a clip that is playing (or
 queued, or being recorded) alone: an undo that would change its notes says so
 and waits until the clip is stopped.
+
+## Just intonation
+
+`apply-just-intonation-region` (M-x or the Edit menu, no key binding) gives
+every pitched note in the region a tuning correction: the cents that move it
+from its equal-tempered pitch to a just ratio above the song's key
+(`just_intonation::correctionCentsFor()`). The correction goes in the note's
+fx as `+hh` or `-hh` (commands.md), and `+00` marks a note as tuned that needs
+none. The ratio for each step of the octave is the simplest one that lands
+within half a step (and at most 20 cents) of it, so no limit is chosen: 31-EDO
+reaches 7/6 and 11/10, 12-EDO mostly stays with 5-limit ratios (plus 7/5 and
+15/14). Only primes above 13 are never used. Percussion,
+offs and aftertouch are skipped; any other fx a note had is replaced, and the
+message says how many. A run replaces earlier corrections, so it can be
+repeated after editing; the mark stays.
+
+Select the whole song first (C-x h) to tune it all. `clear-tuning-correction-region`
+removes the corrections again, whatever put them there. Transposing the region
+gives each tuned note the correction for its new pitch, and transposing the
+whole song moves the key with the notes, so the corrections stay as they were.
+`undo` takes any of these back. Terminal only.
 
 ## Humanize
 

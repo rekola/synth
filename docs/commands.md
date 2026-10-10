@@ -53,7 +53,8 @@ does the same wherever the clip is played from.
 These work in a note column's local fx column as well as in the effect column.
 The fx column sits after the delay column, is always shown, and holds three
 characters: the command without its device-index digit, which is always an
-implicit `-`/`0` there (so a note's `R24` is the row command `-R24`). It is
+implicit `-`/`0` there (so a note's `R24` is the row command `-R24`). A
+character that is not set is `.` in the file and `·` on screen. It is
 stored on the note (`fx` attribute, `---` when unset) and edited like the
 effect column; Delete/Backspace clear all three characters. Typed in the effect
 column a command acts on the whole track, in a note's fx column on that note
@@ -64,6 +65,7 @@ alone. Any other command typed in the fx column is stored but does nothing.
 | `-Pxx` | Set azimuth to an absolute position (as a note's fx: that note's azimuth alone) - `xx` maps linearly from -90 degrees at `00` through +90 at `FF`. | Renoise (adapted) - matches Renoise's own `Pxx` "Track Pan" exactly, `xx` meaning included (`00`/`80`/`FF` = left/center/right), but that's a real, inherited limitation: it only reaches half this engine's own 360-degree azimuth range (the front hemisphere), since Renoise's own panning has no "behind" to reach in the first place. |
 | `-Rxy` | Retrigger - re-fire every note still playing on the track (as a note's fx: only that note) every `y` ticks (12 ticks/row; `y=0`, or an interval reaching the next row, adds nothing) with volume factor `x` applied to each retrigger: `0`/`8` no change; `1`-`5` lower the original volume by 3/6/12/25/50%; `6`/`7` cumulatively lower by 33/50%; `9`-`D` raise it by 3/6/12/25/50%; `E`/`F` cumulatively raise by 50/100%. | Renoise (`Rxy`) |
 | `-Wxx` | Set ambisonic extent - the source's physical half-width in meters (`SphericalPosition::extent`, 0 = a point source). `xx` maps linearly from 0 m at `00` up to 8 m (`Command::kMaxExtentMeters`) at `FF`. As a row command it sets the track's extent for the notes that start after it (voices already sounding keep theirs); as a note's fx, that note's extent alone. | Renoise (adapted) |
+| `+hh` / `-hh` | Tuning correction - add (`+`) or take away (`-`) `hh` cents (two hex digits, 1 cent each, up to 255) to that note's pitch. Only a note's fx can carry it: it is a property of one note, and the sign takes the place of the mnemonic. Written by `apply-just-intonation-region` (below), which gives every pitched note the correction that brings it to its just ratio from the song key; `+00` marks a note as tuned that needs none. Transposing a tuned note gives it the correction for its new pitch; `clear-tuning-correction-region` removes them. Does not reach notes an arpeggiator generates. | Tracker finetune (ProTracker `E5x`, Impulse Tracker `S2x`), adapted: a byte in cents instead of a nibble in 1/8 semitone, which is too coarse for microtonal tuning |
 
 ## Other implemented commands
 
