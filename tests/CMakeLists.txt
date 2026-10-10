@@ -36,6 +36,7 @@ add_executable(synth_tests
 	ChoiceListTests.cpp
 	DeviceLabelsTests.cpp
 	PatternBlockOpsTests.cpp
+	JustIntonationTests.cpp
 	PatternSourceTests.cpp
 	ArrangementOpsTests.cpp
 	ArrangementTests.cpp

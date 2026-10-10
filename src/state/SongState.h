@@ -570,9 +570,17 @@ class SongState : public TrackState {
 		// The note's own fx is a command with an implicit leading 0.
 		Command fx;
 		NoteOverride note_override;
-		if (note.hasFx() && fx.setData(std::string("0") + std::string(note.getFx()))) {
-		  if (fx.isAzimuthSet()) { note_override.has_azimuth = true; note_override.azimuth = fx.getAzimuthSetDegrees(); }
-		  else if (fx.isExtentSet()) { note_override.has_extent = true; note_override.extent = fx.getExtentSetMeters(); }
+		if (note.hasTuningCorrection()) {
+		  note_override.has_detune = true;
+		  note_override.detune_cents = static_cast<float>(note.getTuningCorrectionCents());
+		} else if (note.hasFx()) {
+		  // An unset character reads as the command's own "-" placeholder.
+		  std::string text = std::string("0") + std::string(note.getFx());
+		  std::replace(text.begin(), text.end(), Note::kFxEmpty, '-');
+		  if (fx.setData(text)) {
+		    if (fx.isAzimuthSet()) { note_override.has_azimuth = true; note_override.azimuth = fx.getAzimuthSetDegrees(); }
+		    else if (fx.isExtentSet()) { note_override.has_extent = true; note_override.extent = fx.getExtentSetMeters(); }
+		  }
 		}
 		render_context_.addPendingEvent(track_id, i + delay_samples, int(j), tuning, velocity, note_value, NoteCoordinate(song_structure_.getOrdinalFor(track_id), row_idx, int(j)), note_override);
 		if (note.isOff()) last_notes_[track_id].erase(int(j));

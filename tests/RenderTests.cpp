@@ -214,6 +214,24 @@ TEST(render_note_fx_azimuth_places_the_note) {
   CHECK(rms(to_right, 1) > 4.0f * rms(to_right, 0));
 }
 
+// A note's +hh / -hh fx is a pitch correction in cents: 255 cents is 2^(255/1200).
+TEST(render_note_fx_tuning_correction_shifts_the_pitch_in_cents) {
+  ChannelConfiguration config(44100, 1);
+  auto plain = loadFixture("tuning_correction_plain.xml");
+  auto up = loadFixture("tuning_correction_up.xml");
+  auto down = loadFixture("tuning_correction_down.xml");
+  CHECK(plain.ok);
+  CHECK(up.ok);
+  CHECK(down.ok);
+  auto base = windowedZeroCrossingRate(renderSongOffline(plain.song, config), 0, 0.04f, 0.12f);
+  auto raised = windowedZeroCrossingRate(renderSongOffline(up.song, config), 0, 0.04f, 0.12f);
+  auto lowered = windowedZeroCrossingRate(renderSongOffline(down.song, config), 0, 0.04f, 0.12f);
+  CHECK(base > 0.0f);
+  float ratio = std::pow(2.0f, 255.0f / 1200.0f);
+  CHECK_NEAR(raised / base, ratio, 0.02f);
+  CHECK_NEAR(lowered / base, 1.0f / ratio, 0.02f);
+}
+
 TEST(render_center_note_produces_symmetric_stereo_output) {
   auto loaded = loadFixture("center_note.xml");
   CHECK(loaded.ok);

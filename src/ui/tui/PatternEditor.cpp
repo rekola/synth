@@ -3405,7 +3405,11 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	} else if (column_type == ColumnType::LOCAL_FX) {
 	  auto l = track_info.getNoteNumber(k);
 	  auto note = l < static_cast<int>(notes.size()) ? notes[static_cast<size_t>(l)] : Note();
-	  string s(note.isDefined() ? note.getFx() : "---");
+	  string s(note.isDefined() ? note.getFx() : "...");
+	  // Unset characters show as a middle dot; s stays one byte per cell.
+	  auto glyph = [](char c) { return c == Note::kFxEmpty ? string("\u00b7") : string(1, c); };
+	  string shown;
+	  for (char c : s) shown += glyph(c);
 	  // Magenta, like the other data columns' own fixed hues; the region's
 	  // dark foreground inside the highlight.
 	  cell_fg = column_selected ? cur_fg : tintForPlayhead(dim_fixed_color(Color("#d65cd6")));
@@ -3413,10 +3417,10 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  if (!note.isDefined() || !note.hasFx()) cell_fg = cell_fg.blend(0.5f, cell_bg);
 	  setFgColor(cell_fg);
 	  setBgColor(cell_bg);
-	  putstr(display_row, current_pos, s);
+	  putstr(display_row, current_pos, shown);
 	  if (column_highlighted) {
 	    setUnderline(true);
-	    putstr(display_row, current_pos + new_cursor.subcol, s[static_cast<size_t>(new_cursor.subcol)]);
+	    putstr(display_row, current_pos + new_cursor.subcol, glyph(s[static_cast<size_t>(new_cursor.subcol)]));
 	    setUnderline(false);
 	  }
 	  current_pos += 3;

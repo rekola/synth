@@ -137,6 +137,7 @@ add_library(synth_engine STATIC
 	src/audio/SampleFileLoader.cpp
 	src/audio/TimeStretcher.cpp
 	src/model/PatternBlockOps.cpp
+	src/model/JustIntonation.cpp
 	src/model/PatternGrid.cpp
 	src/model/ArrangementOps.cpp
 	src/ui/tui/PatternScroll.cpp

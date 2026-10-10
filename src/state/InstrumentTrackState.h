@@ -10,6 +10,7 @@
                     // the complete type, not just TrackState.h's own forward declaration.
 
 #include <algorithm>
+#include <cmath>
 
 // The LeafTrackState (see its own doc comment) for a pool-resolved, pitched
 // instrument: on top of the plain voices_/mute/solo/sends/azimuth
@@ -170,7 +171,8 @@ public:
     if (note_override_.has_extent) resolved_position.extent = note_override_.extent;
     if (resolved_position.extent < 0.0f) resolved_position.extent = instrument.getDefaultExtent();
 
-    auto voice = instrument.playNote(getChannelConfiguration(), resolved_position, tuning, 1.0f, velocity, note_value, getSends(), note_coord);
+    float detune = note_override_.has_detune ? std::exp2(note_override_.detune_cents / 1200.0f) : 1.0f;
+    auto voice = instrument.playNote(getChannelConfiguration(), resolved_position, tuning, detune, velocity, note_value, getSends(), note_coord);
     chokeExclusiveClasses(*voice);
     addVoice(column, move(voice));
   }
