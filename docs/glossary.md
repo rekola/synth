@@ -32,30 +32,37 @@ terminal.md.
 Just intonation is always relative: a note is pure against some other note,
 which has to be tuned itself first. The lowest note of a group sounding
 together is measured from the song's key, and the others are tuned as pure
-intervals above it. The otonal and utonal scales (built on the harmonic
-series and its mirror) fit this perfectly, because every chord in them
-contains the tonic, so every note can be tuned against the same fixed
-reference. This is the *static* kind, and for those scales it is all there is
-to it; the dynamic kind below is not needed.
+intervals above it. This is the *static* kind. The otonal and utonal scales
+(built on the harmonic series and its mirror) suit it perfectly, because the
+tonic is part of every chord in them, so every note can be tuned against the
+same fixed reference, and for those scales it is all there is to it. A passing
+note outside the scale (a C double-sharp between C and E-flat, say) is tuned
+the same way, to the simplest ratio close to it, though it is not a member of
+the series.
 
-*Dynamic* just intonation is for music whose chords have no note in common,
-such as a major scale. Tuning each chord on its own against the key would make
-a chord that is pure in itself but does not fit its neighbours: a note shared
-by two chords, or a note that moves by a step, would land on slightly
-different pitches each time. The dynamic kind instead tunes each note against
-what is sounding, or has only just sounded, in any track, so a melody over a
-bass line is pure against that bass line, and an arpeggio hangs together
-although its notes never sound at once. It is planned, not yet available.
+**Dynamic just intonation**
+Just intonation that follows the music instead of returning to the key. It is
+for music whose chords have no note in common, such as a major scale. Tuning
+each chord on its own against the key would make chords that are pure in
+themselves but do not fit their neighbours: a note shared by two chords, or one
+that moves by a step, would land on slightly different pitches each time. The
+dynamic kind tunes each note against what is sounding, or has only just
+sounded, in any track, so a melody over a bass line is pure against that bass
+line, and an arpeggio hangs together although its notes never sound at once.
+Elsewhere this is usually called *adaptive* just intonation or adaptive tuning;
+this project says dynamic. It is planned, not yet available. See Drift, and
+Just intonation for the static kind.
 
-*Drift* is the price of that. A pure interval is exact only against its own
-reference, and the reference may itself have been tuned against an earlier
-note. Errors then accumulate along a progression. Four pure fifths stacked
-from C reach an E that is about 21.5 cents above the pure major third over C,
-and a song that keeps every chord pure can end up noticeably higher or lower
-than where it began. This is not a defect of the tuning: pure fifths, pure
-thirds and a closed circle of keys cannot all be had at once. It is why the
-dynamic kind is wanted for the arrangement, where the music is free to wander,
-and why the static kind, which always returns to the key, never drifts.
+**Drift**
+The pitch wandering away from the key when tuning is dynamic. A pure interval
+is exact only against its own reference, and the reference may itself have been
+tuned against an earlier note, so errors accumulate along a progression. Four
+pure fifths stacked from C reach an E about 21.5 cents above the pure major
+third over C, and a song that keeps every chord pure can end up noticeably
+higher or lower than where it began. This is not a defect: pure fifths, pure
+thirds and a closed circle of keys cannot all be had at once. It is the price of
+dynamic just intonation, and fine in an arrangement, where the music is free to
+wander. Static just intonation always returns to the key and never drifts.
 
 **Live sequencer**
 A tool used to program, trigger and manipulate musical patterns, notes and
