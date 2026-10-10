@@ -23,10 +23,45 @@ Library's drum patterns are not grooves in this sense; see Rhythm.
 
 **Just intonation**
 Tuning notes to simple whole-number frequency ratios (3/2 for a fifth, 5/4
-for a major third) instead of equal steps. Here the notes stay on the song's
-EDO grid and each carries a small correction in cents toward its just ratio
-above the bass of its chord, the bass itself measured from the key; see
+for a major third) instead of equal steps. Intervals tuned that way have no
+beating between their partials and sound pure. Every EDO only approximates
+these ratios, so a song's notes stay on its EDO grid and each one carries a
+small tuning correction, in cents, that nudges it toward the pure ratio; see
 terminal.md.
+
+The simplest way to have it is to give every note one fixed ratio to the
+key. That works in any EDO, 12 included, and every interval between any two
+notes is then a whole-number ratio. What it cannot promise is that every chord
+comes out as simple as it could. In a major scale, the D that suits a G major
+chord is a little too high for a D minor chord, and one fixed D has to be a
+compromise.
+
+The 7-note otonal and utonal scales are different. They are named after
+Partch's overtone and undertone series but are not his much longer scales:
+each has seven notes, chosen so that the intervals between them are simple
+ones. They have no D to argue over, so one fixed pitch per note serves.
+
+**Adaptive just intonation**
+Just intonation that follows the music instead of returning to the key; also
+called adaptive tuning. It is for music where no single pitch per note suits
+every chord, such as the major scale above, where the D wants to differ
+between a G major chord and a D minor chord. Tuning each bar on its own against the key makes
+bars that are pure in themselves but do not fit their neighbours: a note shared
+by two chords, or one that moves by a step, lands on slightly different pitches
+each time. The adaptive kind tunes each note against what is sounding, or has
+only just sounded, in any track, so a melody over a bass line is pure against
+that bass line, and an arpeggio hangs together although its notes never sound
+at once. It is planned, not yet available. The 7-note otonal and utonal scales
+do not need it.
+
+The price is *drift*. A pure interval is exact only against its own reference,
+and the reference may itself have been tuned against an earlier note, so errors
+accumulate along a progression. Four pure fifths stacked from C reach an E about
+21.5 cents above the pure major third over C, and a song that keeps every chord
+pure can end up noticeably higher or lower than where it began. This is not a
+defect: pure fifths, pure thirds and a closed circle of keys cannot all be had
+at once. Drift is fine in an arrangement, where the music is free to wander.
+Tuning against the key every bar never drifts.
 
 **Live sequencer**
 A tool used to program, trigger and manipulate musical patterns, notes and

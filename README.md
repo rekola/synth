@@ -69,9 +69,10 @@ The Application draws on several traditions.
   closes on itself, which is why E♯ is F there. See Fokker, "Equal Temperament
   and the Thirty-one-keyed Organ", *The Scientific Monthly* 81 (1955).
 - **Scales.** A song has a key and an optional scale: major (the Ionian
-  mode), minor (the Aeolian mode), otonal or utonal. Each is written once as
-  note names, so it is correct in every tuning. Otonal and utonal borrow
-  Partch's terms (1949), but they are seven-note scales whose intervals
+  mode), minor (the Aeolian mode), 7-note otonal or 7-note utonal. Each is
+  written once as note names, so it is correct in every tuning. The 7-note
+  otonal and utonal scales borrow Partch's terms (1949) but are not his longer
+  scales: they have seven notes each, and their intervals
   were derived by the methods in Kyle Gann's *The Arithmetic of Listening*
   (2019). The scale picks the sound the Launchpad's step rows edit; it does not change the
   playing keyboard.
@@ -81,7 +82,7 @@ The Application draws on several traditions.
 Sampled pianos can't play microtonal chords in tune; use a synthesized piano
 such as `piano.electric.tine` instead.
 
-The otonal and utonal scales contain septimal intervals (7:6, 7:4, 8:7,
+The 7-note otonal and utonal scales contain septimal intervals (7:6, 7:4, 8:7,
 12:7) that traditional scales lack. Two notes sounding together beat unless
 the partials they share line up, and these intervals share high partials:
 7:4 meets at the lower note's 7th partial, 12:7 at its 12th. A piano

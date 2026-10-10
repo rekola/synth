@@ -7,7 +7,7 @@ hand-set spectrum: a tilt in dB/octave of partial number, one decay formula
 for every key, a white-noise burst for the attack. `piano.acoustic.grand`
 (`InstrumentLibrary.cpp`, `registerFallbackPath()`) is that bank with
 `preset="struck-string"` and `unisonVoices="3"`, and it cannot play the
-septimal intervals of the otonal and utonal scales in tune (README, "Pianos
+septimal intervals of the 7-note otonal and utonal scales in tune (README, "Pianos
 and Just Intervals").
 
 The goal is a synthesized acoustic piano: every audible partial on the
