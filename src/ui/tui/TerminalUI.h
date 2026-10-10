@@ -128,6 +128,7 @@ private:
   // unchanged display needs no redraw (a pixel blit is the costly part).
   std::vector<float> last_fft_, last_loudness_;
   std::vector<int> last_brightness_, last_saturation_;
+  std::vector<uint64_t> last_playback_parts_; // SYNTH_UI_STATS only
   uint64_t last_playback_signature_ = 0; // of the last playback snapshot that was drawn
 
   std::shared_ptr<InfoLine> info_line_;
