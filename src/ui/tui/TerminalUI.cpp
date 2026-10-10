@@ -2773,6 +2773,15 @@ TerminalUI::handlePlaybackEvent(PlaybackEvent & ev) {
   // Redraw only for a snapshot that shows something new: a block of idle
   // audio repeats the last one.
   auto signature = ev.getInfo().signature();
+  if (g_ui_stats_on && signature != last_playback_signature_) {
+    // Which part of the snapshot differs, for SYNTH_UI_STATS.
+    auto parts = ev.getInfo().signatureParts();
+    for (size_t i = 0; i < parts.size() && i < last_playback_parts_.size(); i++) {
+      if (parts[i].second != last_playback_parts_[i]) statCount(std::string("changed:") + parts[i].first);
+    }
+    last_playback_parts_.clear();
+    for (auto & part : parts) last_playback_parts_.push_back(part.second);
+  }
   if (signature != last_playback_signature_) {
     last_playback_signature_ = signature;
     ev.redraw();
