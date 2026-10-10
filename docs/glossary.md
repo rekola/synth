@@ -35,8 +35,9 @@ notes is then a whole-number ratio. What it cannot promise is that each
 interval is the *simplest* ratio for its size. In a major scale the D is a 9/8
 above C, so D and F are 32/27 apart, where a minor third is simplest as 6/5,
 and D and A are 40/27 apart, a fifth about 22 cents narrower than 3/2 that
-beats audibly. A D F A chord gets its simplest ratios only if that D is a 10/9
-above C, which is a different D from the one the rest of the scale uses. The app's tuning today works one bar at a time: the notes
+beats audibly. The D minor chord (D, F and A) gets its simplest ratios only if
+that D is a 10/9 above C, which is a different D from the one the rest of the
+scale uses. The app's tuning today works one bar at a time: the notes
 sounding together in a bar are tuned as pure intervals above the lowest of
 them, and that lowest note is measured from the key.
 
