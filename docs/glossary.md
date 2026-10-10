@@ -44,8 +44,8 @@ ones. They have no D to argue over, so one fixed pitch per note serves.
 **Adaptive just intonation**
 Just intonation that follows the music instead of returning to the key; also
 called adaptive tuning. It is for music where no single pitch per note suits
-every chord, such as the major scale above, where D wants to be 9/8 in one
-chord and 10/9 in another. Tuning each bar on its own against the key makes
+every chord, such as the major scale above, where the D wants to differ
+between a G major chord and a D minor chord. Tuning each bar on its own against the key makes
 bars that are pure in themselves but do not fit their neighbours: a note shared
 by two chords, or one that moves by a step, lands on slightly different pitches
 each time. The adaptive kind tunes each note against what is sounding, or has
