@@ -298,7 +298,13 @@ ScenePatternSource::moveStoppedTracks(int rows) {
 
 void
 ScenePatternSource::setTrackPosition(int track_id, RowAddress address) {
-  if (isPlaying(track_id)) return;
+  if (isPlaying(track_id)) {
+    // Paused with a clip under the cursor: the playhead is the position,
+    // so it is moved within its clip.
+    auto & playhead = playheads_.at(track_id);
+    if (track_id == cursor_track_id_ && playhead.scene == address.block) moveCursor(address.row - sceneRow(track_id, playhead));
+    return;
+  }
   positions()[track_id] = clamp(address);
 }
 
