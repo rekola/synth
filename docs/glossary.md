@@ -30,13 +30,13 @@ small tuning correction, in cents, that nudges it toward the pure ratio; see
 terminal.md.
 
 The simplest way to have it is *static*: every note gets one fixed ratio to the
-key, so it is pure against the tonic wherever it appears. That works in any
-EDO, 12 included. What it cannot promise is that two notes that are not the
-tonic are pure against each other. In a major scale the D is a 9/8 above C, so
-D and F are 32/27 apart, not the 6/5 of a pure minor third, and D and A are
-40/27 apart, not a pure fifth. A D F A chord can be made pure only by tuning
-that D lower, a 10/9 above C, which is a different D from the one the rest of
-the scale uses. The app's tuning today works one bar at a time: the notes
+key. That works in any EDO, 12 included, and every interval between any two
+notes is then a whole-number ratio. What it cannot promise is that each
+interval is the *simplest* ratio for its size. In a major scale the D is a 9/8
+above C, so D and F are 32/27 apart, where a minor third is simplest as 6/5,
+and D and A are 40/27 apart, a fifth about 22 cents narrower than 3/2 that
+beats audibly. A D F A chord gets its simplest ratios only if that D is a 10/9
+above C, which is a different D from the one the rest of the scale uses. The app's tuning today works one bar at a time: the notes
 sounding together in a bar are tuned as pure intervals above the lowest of
 them, and that lowest note is measured from the key.
 
