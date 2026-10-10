@@ -117,7 +117,7 @@ view. The dynamic tuner (phase 6) comes last, so everything here can be tried
 first on those scales.
 
 - **Why there is no drift.** Checked against the table in 31-EDO for the chords
-  C D# F, F A C', C E G and G A# C': for any two notes of a chord, one tuned
+  C D# F, F A C', C E G, G A# C', E G C, A C E and A# C D#: for any two notes of a chord, one tuned
   from the key and the other as the simplest interval above it equals the
   other tuned directly from the key, to 0.00 cents. Phase 2's bass-anchored
   result is therefore the key-relative one for them, and each pattern can be
