@@ -29,28 +29,37 @@ these ratios, so a song's notes stay on its EDO grid and each one carries a
 small tuning correction, in cents, that nudges it toward the pure ratio; see
 terminal.md.
 
-Just intonation is always relative: a note is pure against some other note,
-which has to be tuned itself first. The lowest note of a group sounding
-together is measured from the song's key, and the others are tuned as pure
-intervals above it. This is the *static* kind. The otonal and utonal scales
-(built on the harmonic series and its mirror) suit it perfectly, because the
-tonic is part of every chord in them, so every note can be tuned against the
-same fixed reference, and for those scales it is all there is to it. A passing
-note outside the scale (a C double-sharp between C and E-flat, say) is tuned
-the same way, to the simplest ratio close to it, though it is not a member of
-the series.
+The simplest way to have it is *static*: every note gets one fixed ratio to the
+key, so it is pure against the tonic wherever it appears. That works in any
+EDO, 12 included. What it cannot promise is that two notes that are not the
+tonic are pure against each other. In a major scale the D is a 9/8 above C, so
+D and F are 32/27 apart, not the 6/5 of a pure minor third, and D and A are
+40/27 apart, not a pure fifth. A D F A chord can be made pure only by tuning
+that D lower, a 10/9 above C, which is a different D from the one the rest of
+the scale uses. The app's tuning today works one bar at a time: the notes
+sounding together in a bar are tuned as pure intervals above the lowest of
+them, and that lowest note is measured from the key.
+
+The 7-note otonal and utonal scales are different. They are named after
+Partch's overtone and undertone series but are not his much longer scales:
+each has seven notes, chosen so that the intervals between them are simple
+ones. They have no D to argue over, so one fixed pitch per note serves. A passing note
+outside the scale (a C double-sharp between C and E-flat, say) is tuned the same
+way, to the simplest ratio close to it, though it is not one of the scale's
+notes. Adding the tonic to a chord makes no difference to any of this.
 
 **Adaptive just intonation**
 Just intonation that follows the music instead of returning to the key; also
-called adaptive tuning. It is for music whose chords have no note in common,
-such as a major scale. Tuning each chord on its own against the key would make
-chords that are pure in themselves but do not fit their neighbours: a note
-shared by two chords, or one that moves by a step, would land on slightly
-different pitches each time. The adaptive kind tunes each note against what is
-sounding, or has only just sounded, in any track, so a melody over a bass line
-is pure against that bass line, and an arpeggio hangs together although its
-notes never sound at once. It is planned, not yet available. See Just
-intonation for the static kind, which the otonal and utonal scales use.
+called adaptive tuning. It is for music where no single pitch per note suits
+every chord, such as the major scale above, where D wants to be 9/8 in one
+chord and 10/9 in another. Tuning each bar on its own against the key makes
+bars that are pure in themselves but do not fit their neighbours: a note shared
+by two chords, or one that moves by a step, lands on slightly different pitches
+each time. The adaptive kind tunes each note against what is sounding, or has
+only just sounded, in any track, so a melody over a bass line is pure against
+that bass line, and an arpeggio hangs together although its notes never sound
+at once. It is planned, not yet available. The 7-note otonal and utonal scales
+do not need it.
 
 The price is *drift*. A pure interval is exact only against its own reference,
 and the reference may itself have been tuned against an earlier note, so errors
@@ -59,7 +68,7 @@ accumulate along a progression. Four pure fifths stacked from C reach an E about
 pure can end up noticeably higher or lower than where it began. This is not a
 defect: pure fifths, pure thirds and a closed circle of keys cannot all be had
 at once. Drift is fine in an arrangement, where the music is free to wander.
-Static just intonation always returns to the key and never drifts.
+Tuning against the key every bar never drifts.
 
 **Live sequencer**
 A tool used to program, trigger and manipulate musical patterns, notes and

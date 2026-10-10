@@ -43,8 +43,9 @@ static inline Scale scaleFromString(const std::string & text) {
 // (12/19/31/53-EDO) rather than needing one hardcoded interval set per
 // tuning. Empty for Scale::NONE - Song::getScaleDegreesWindow() reads that as
 // "use the plain chromatic scale instead" rather than calling this at
-// all. OTONAL/UTONAL are two fixed scales named after the otonal
-// (overtone) and utonal (undertone) series of just intonation - UTONAL's
+// all. OTONAL/UTONAL are two fixed 7-note scales named after the otonal
+// (overtone) and utonal (undertone) series of just intonation (not the
+// longer scales of Partch, who coined the terms) - UTONAL's
 // own E𝄫/A♭ spelling only actually diverges from an enharmonic respelling once the
 // tuning has finer-than-semitone resolution (31/53-EDO); in 12-EDO it
 // still resolves correctly (Note::stringToKey()'s own double-flat

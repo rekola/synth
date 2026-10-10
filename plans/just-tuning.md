@@ -4,10 +4,10 @@ Goal: notes in 12/19/31/53-EDO carry a per-note cent correction toward just
 intonation, computed by the app over a region or the whole song, stored in the
 note's local fx. Chords get spread in the ambisonic space so the tuned
 intervals are heard as separate voices. Six phases: 1 to 5 are built; 6 is decided and is next. Phase 3 takes the per-track tuner of phases 1-2 to the whole song and
-splits select-all by view; it is all the otonal and utonal scales need. The
+splits select-all by view; it is all the 7-note otonal and utonal scales need. The
 arpeggiator (4) went before voice placement (5). Adaptive just intonation across
 tracks (6) is last because it is the most involved part and only scales without
-a tonic in every chord need it.
+one fixed pitch per note that suits every chord (a major scale, say) need it.
 
 ## Phase 1 - the `+xx` / `-xx` fx command and key-relative just intonation (built)
 
@@ -108,9 +108,10 @@ function stays as its fallback and as the anchor.
 
 ## Phase 3 - song-wide scope: scenes and arrangement (built)
 
-The scales the song is written in now, otonal and utonal, need nothing more
-than the tuner of phases 1-2. Every chord in them holds the tonic, so every
-note is tuned against it: no memory, no context across tracks, no loops, and no
+The scales the song is written in now, the 7-note otonal and utonal, need
+nothing more than the tuner of phases 1-2. Each note of them has one fixed
+ratio to the tonic that is also simple against the other notes in the chords
+checked below (the scale has no note whose pitch depends on the chord), so every note is tuned from the key: no memory, no context across tracks, no loops, and no
 drift. This phase takes that tuner to the whole song and splits select-all by
 view. The adaptive tuner (phase 6) comes last, so everything here can be tried
 first on those scales.
@@ -317,9 +318,10 @@ width at a chord slot.
 
 ## Phase 6 - adaptive just intonation: tuning across tracks, with drift and loops (planned, last)
 
-This is for scales whose chords have no common pitch (a major scale, say). The
-otonal and utonal scales do not need it: every chord there holds the tonic, so
-phases 1-3 already tune it without drift. Phase 2 tunes each track alone, one
+This is for scales where no single pitch per note suits every chord (a major
+scale, say: D is 9/8 in one chord and 10/9 in another). The 7-note otonal and
+utonal scales do not need it: each note has one fixed pitch that serves in every
+chord, so phases 1-3 already tune it without drift. Phase 2 tunes each track alone, one
 chord per bar, and always returns to the key. Neither is acceptable: a track may hold a single note that only gives
 body to another track's (a perfect fifth above it, once), a harmony can change
 on any row, and the right behaviour differs between the two views. Phase 6
