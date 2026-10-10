@@ -3,8 +3,9 @@
 Goal: notes in 12/19/31/53-EDO carry a per-note cent correction toward just
 intonation, computed by the app over a region or the whole song, stored in the
 note's local fx. Chords get spread in the ambisonic space so the tuned
-intervals are heard as separate voices. Four phases, in this order: 1, 2 and 3 are built, 4 is decided.
-The arpeggiator goes before voice placement, and voice placement is last
+intervals are heard as separate voices. Five phases, in this order: 1, 2 and 4 are built, 3 and 5 are decided.
+Tuning across tracks (3) comes after the per-track chord tuner of phase 2,
+the arpeggiator goes before voice placement, and voice placement is last
 because it is the most involved part.
 
 ## Phase 1 - the `+xx` / `-xx` fx command and key-relative just intonation (built)
@@ -75,7 +76,7 @@ Examples to pin as tests (31-EDO, key C): C D♯ F = 6:7:8, corrections
 parse/round-trip, block ops, a render test measuring the frequency ratio of a
 note at `+64`, SONG scope bounds.
 
-## Phase 2 - chords and arpeggios (built)
+## Phase 2 - chords and arpeggios (built; phase 3 replaces its model)
 
 `apply-just-intonation-region` is chord-aware; the per-note key-relative
 function stays as its fallback and as the anchor.
@@ -104,14 +105,105 @@ function stays as its fallback and as the anchor.
   onset. The 20 cent cap bounds the bass and the interval separately, so a
   note can end up further from its equal-tempered pitch than 20 cents.
 
-## Phase 3 - remove the arpeggiator (built)
+## Phase 3 - tuning across tracks, with drift and loops (planned)
+
+Phase 2 tunes each track alone, one chord per bar, and always returns to the
+key. Neither is acceptable: a track may hold a single note that only gives
+body to another track's (a perfect fifth above it, once), a harmony can change
+on any row, and the right behaviour differs between the two views. Phase 3
+replaces it with one model over every track.
+
+### The chord goes away
+
+A chord is not a unit any more. The tuner walks the pitched notes of all
+tracks in time order (percussion excepted) and tunes each against what is
+sounding or has just sounded:
+
+- **References.** The notes sounding at the onset, on any track and of any
+  length (a held pad stays a reference for as long as it holds), plus the
+  notes that ended within the last `kTuningMemoryRows` rows. The memory slides;
+  it does not cut time into windows, so a harmony may change on any row, and it
+  is what makes an arpeggio hang together. By-ear constant, starting at 8 rows.
+- **The pick.** The reference that gives the simplest interval to the new note
+  (the table ratio for the pitch-class interval, smallest Tenney height; ties
+  go to the more recent, then the lower). The note's tuned pitch is that
+  reference's tuned pitch plus the ratio; the correction is the difference to
+  the equal-tempered pitch, clamped to the fx range of +-255 cents.
+- **Nothing to reference** (the start, or silence longer than the memory): the
+  key, as in phase 1. Notes that start together are taken lowest first, each
+  against everything already tuned. Phase 2's bass-anchored chord is the special
+  case of this, and its 31-EDO examples must still come out the same.
+- **Free and fixed.** The notes a command writes are free; every other pitched
+  note is fixed at its stored pitch (equal-tempered plus its stored correction,
+  `+00` when it has none) and is only ever a reference. A region is therefore
+  tuned against the rest of the song as it stands, and the neighbours' stored
+  corrections are respected, which phase 2 did not do.
+- **Drift is real.** A note is tuned against the *tuned* pitch of an earlier
+  one, so errors accumulate along a progression: stack a perfect fifth on C ten
+  times and each step carries the last one's error. That is intended in the
+  arrangement. The total is clamped at +-255; a chain continues from the
+  clamped pitch.
+
+### Two modes, picked by the view
+
+Select-all splits, and a region uses its view's mode. In Arrangement view
+`mark-whole-buffer` selects the arrangement (`SelectionScope::ARRANGEMENT`); in
+Live View every scene (`SelectionScope::SCENES`). They replace `SONG`.
+
+- **Arrangement: linear, drifting.** One timeline of the whole arrangement:
+  each track's background pattern and the clip instances placed on it, expanded
+  to absolute rows with loops repeated as they play. The tuner runs once from
+  the start. Clip instances are tuned too (see below).
+- **Scenes: looping, not drifting.** Clips loop, so context must loop with
+  them. The clips of one scene, on every track, play together and are tuned
+  together as one cycle as long as the longest clip, the shorter ones
+  repeating; the first notes see the end of the cycle as what came before. A
+  progression does not return to its starting pitch, so a compromise is needed:
+  tune the cycle from the key, measure how far the end context sits from where
+  it began, and spread that difference over the pass so the loop closes (a
+  tempered comma, not a jump at the loop point). Intervals then miss just by
+  the spread. Pinned by a test: the second pass starts where the first did.
+
+### Clip instances in the arrangement (to decide)
+
+A clip's notes hold one correction each, but one clip may be placed many times
+among different surroundings.
+
+1. **Collapse:** tune every placement as independent notes, which means
+   un-sharing the clip. `merge-clip-to-background` already does that by hand,
+   and stays available for it; doing it automatically would destroy the clips.
+2. **One tuning per clip that works in every placement** (recommended first).
+   Each clip is tuned as a loop, as in a scene. In the arrangement a placed clip
+   is fixed, a reference for the other tracks, and only background notes are
+   free. Selecting the arrangement tunes the clips (as loops) and then the
+   background around them. No format change; drift builds in the background
+   only.
+3. **A cents offset per placement.** The clip is tuned once and each placement
+   carries an added offset (the drift at that point), a new instance property
+   with document, undo and playback changes. A later step if (2) is not enough.
+
+### Work and tests
+
+- New `model/IntonationTimeline.{h,cpp}`: builds the timeline from patterns and
+  instances (`resolveInstanceAt()`), runs the tuner, closes loops.
+  `chordCorrections()` and `kChordWindowBars` go; the `PatternBlockOps` entry
+  points keep their names. Transpose retunes through the same code.
+- `SelectionScope::SONG` becomes `ARRANGEMENT` and `SCENES`; docs and
+  CLAUDE.md follow.
+- Tests: a single note a fifth above a note on another track; ten stacked fifths
+  drift by the sum of their corrections and clamp at +-255; a harmony change in
+  mid-bar; a region tuned against fixed neighbours' stored corrections;
+  silence re-anchors to the key; a looping scene closes; a clip placed twice has
+  one tuning; percussion is ignored; transposing retunes.
+
+## Phase 4 - remove the arpeggiator (built)
 
 The arpeggiator (an `<arpeggiatorTrack>`, `Arpeggiator`/`ArpeggiatorState`)
 steps a held chord on a free-running clock of its own. It does not work with
 clips correctly, and its timing has needed rounds of fixes of its own. It also
 makes the note path non-uniform: its steps are played by the track state
 itself, bypassing the per-note override (so a tuning correction or a per-note
-azimuth never reaches them), and the chord rings of Phase 4 would have to
+azimuth never reaches them), and the chord rings of Phase 5 would have to
 special-case it as well. Arpeggios are written as notes instead, which the
 just-intonation tuner sees like any other.
 
@@ -166,7 +258,7 @@ Note on what was built: an `<arpeggiatorTrack>` in a song is refused with
 renders the same as before (per-row envelope correlation 1.0000, no pitch
 differences).
 
-## Phase 4 - voice placement: spatial mode per track, chord extent
+## Phase 5 - voice placement: spatial mode per track, chord extent
 
 Today extent only widens a single voice (an oscillator array's cloud,
 `OscillatorVoice.h`; the SoundFont per-feature offsets). The notes of a chord
@@ -241,3 +333,6 @@ round-trip, a render test (a `ring` chord with extent has energy on both sides,
   key table / arc; check by ear with FluidR3, which this container lacks.
 - The 20 cent cap and the oscillator-array radius inside a chord are by-ear
   values.
+- Phase 3: the memory length (8 rows is a guess); how a scene's cycle is
+  built when clip lengths do not divide the longest; which of the three
+  clip-instance options (the plan recommends 2).
