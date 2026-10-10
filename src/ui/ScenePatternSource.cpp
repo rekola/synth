@@ -101,6 +101,14 @@ ScenePatternSource::isPlaying(int track_id) const {
   return it != playheads_.end() && it->second.row >= 0;
 }
 
+bool
+ScenePatternSource::anyPlaying() const {
+  for (auto & [ track_id, playhead ] : playheads_) {
+    if (playhead.row >= 0) return true;
+  }
+  return false;
+}
+
 int
 ScenePatternSource::loopLength(int track_id, int scene) const {
   auto clips = song().getClips(track_id);
