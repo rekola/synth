@@ -23,10 +23,39 @@ Library's drum patterns are not grooves in this sense; see Rhythm.
 
 **Just intonation**
 Tuning notes to simple whole-number frequency ratios (3/2 for a fifth, 5/4
-for a major third) instead of equal steps. Here the notes stay on the song's
-EDO grid and each carries a small correction in cents toward its just ratio
-above the bass of its chord, the bass itself measured from the key; see
+for a major third) instead of equal steps. Intervals tuned that way have no
+beating between their partials and sound pure. Every EDO only approximates
+these ratios, so a song's notes stay on its EDO grid and each one carries a
+small tuning correction, in cents, that nudges it toward the pure ratio; see
 terminal.md.
+
+Just intonation is always relative: a note is pure against some other note,
+which has to be tuned itself first. The lowest note of a group sounding
+together is measured from the song's key, and the others are tuned as pure
+intervals above it. The otonal and utonal scales (built on the harmonic
+series and its mirror) fit this perfectly, because every chord in them
+contains the tonic, so every note can be tuned against the same fixed
+reference. This is the *static* kind, and for those scales it is all there is
+to it; the dynamic kind below is not needed.
+
+*Dynamic* just intonation is for music whose chords have no note in common,
+such as a major scale. Tuning each chord on its own against the key would make
+a chord that is pure in itself but does not fit its neighbours: a note shared
+by two chords, or a note that moves by a step, would land on slightly
+different pitches each time. The dynamic kind instead tunes each note against
+what is sounding, or has only just sounded, in any track, so a melody over a
+bass line is pure against that bass line, and an arpeggio hangs together
+although its notes never sound at once. It is planned, not yet available.
+
+*Drift* is the price of that. A pure interval is exact only against its own
+reference, and the reference may itself have been tuned against an earlier
+note. Errors then accumulate along a progression. Four pure fifths stacked
+from C reach an E that is about 21.5 cents above the pure major third over C,
+and a song that keeps every chord pure can end up noticeably higher or lower
+than where it began. This is not a defect of the tuning: pure fifths, pure
+thirds and a closed circle of keys cannot all be had at once. It is why the
+dynamic kind is wanted for the arrangement, where the music is free to wander,
+and why the static kind, which always returns to the key, never drifts.
 
 **Live sequencer**
 A tool used to program, trigger and manipulate musical patterns, notes and
