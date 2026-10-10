@@ -43,10 +43,7 @@ them, and that lowest note is measured from the key.
 The 7-note otonal and utonal scales are different. They are named after
 Partch's overtone and undertone series but are not his much longer scales:
 each has seven notes, chosen so that the intervals between them are simple
-ones. They have no D to argue over, so one fixed pitch per note serves. A passing note
-outside the scale (a C double-sharp between C and E-flat, say) is tuned the same
-way, to the simplest ratio close to it, though it is not one of the scale's
-notes.
+ones. They have no D to argue over, so one fixed pitch per note serves.
 
 **Adaptive just intonation**
 Just intonation that follows the music instead of returning to the key; also
