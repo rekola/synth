@@ -4,6 +4,7 @@
 #include "../model/Song.h"
 #include "../model/Clip.h"
 #include "PatternGrid.h"
+#include "JustIntonation.h"
 
 #include <algorithm>
 #include <cmath>
@@ -31,6 +32,61 @@ void humanizeNote(Note & note, const HumanizeAmount & amount, NoiseGenerator & r
   auto delay = note.getDelay() + static_cast<int>(lround((rng.next() + 1.0f) * 0.5f * static_cast<float>(amount.delay)));
   note.setVelocity(static_cast<short>(clamp(velocity, 1, 127)));
   note.setDelay(static_cast<short>(clamp(delay, 0, 255)));
+}
+
+
+bool isPitched(const Note & note) {
+  return note.isDefined() && !note.isOff() && !note.isAftertouch();
+}
+
+// Moves a note and, when `retune` is given and it carried a tuning
+// correction, gives it the one that fits its new pitch.
+void transposeNote(Note & note, int delta, const IntonationContext * retune) {
+  bool tuned = retune && note.hasTuningCorrection();
+  note.transpose(delta);
+  if (tuned) note.setTuningCorrection(just_intonation::correctionCentsForNote(retune->tuning, note.getValue(), retune->key));
+}
+
+void tuneNote(Note & note, const IntonationContext & context, TuningSummary & summary) {
+  if (!isPitched(note)) return;
+  if (note.hasFx() && !note.hasTuningCorrection()) summary.replaced++;
+  note.setTuningCorrection(just_intonation::correctionCentsForNote(context.tuning, note.getValue(), context.key));
+  summary.notes++;
+}
+
+bool untuneNote(Note & note) {
+  if (!note.hasTuningCorrection()) return false;
+  note.clearFx();
+  return true;
+}
+
+// Calls fn(track_id, pattern) for every pattern that holds notes: each
+// track's background, then each clip once.
+template <class Fn>
+void forEachSongPattern(Song & song, Fn fn) {
+  for (auto & [ track_id, pattern ] : song.getArrangement()->getPatternsByTrack()) fn(track_id, pattern);
+  for (auto track_id : song.clipTrackIds()) {
+    for (auto clip : song.getClips(track_id)) fn(track_id, clip.getLeafPattern());
+  }
+}
+
+// Calls fn(notes) on each row's notes; fn returns whether it changed them.
+template <class Fn>
+void forEachNoteRow(PatternView pattern, Fn fn) {
+  auto rows = pattern.getNotesByRow();
+  for (auto & [ row, notes ] : rows) {
+    auto copy = notes;
+    if (fn(copy)) pattern.setNotes(row, copy);
+  }
+}
+
+IntonationContext contextOf(const Song & song) {
+  return { song.getTuning(), song.getKey() };
+}
+
+bool isPercussionTrack(const Song & song, int track_id) {
+  auto * track = song.getMasterTrack().getChildByInternalId(track_id);
+  return track && song.getTuningForTrack(*track) == Tuning::PERCUSSION;
 }
 
 }
@@ -71,7 +127,8 @@ clearPatternBlock(PatternGrid & grid, int row_lo, int row_hi,
 void
 transposePatternBlock(PatternGrid & grid, int row_lo, int row_hi,
 		      const vector<int> & track_ids, int track_lo, int track_hi, bool up,
-		      const std::function<bool(int track_id)> & is_percussion) {
+		      const std::function<bool(int track_id)> & is_percussion,
+		      const IntonationContext * retune) {
   for (int row = row_lo; row <= row_hi; row++) {
     for (int t = track_lo; t <= track_hi; t++) {
       auto track_id = track_ids[static_cast<size_t>(t)];
@@ -81,7 +138,7 @@ transposePatternBlock(PatternGrid & grid, int row_lo, int row_hi,
       if (!pattern) continue;
       auto notes = pattern->getNotes(pattern_row);
       if (notes.empty()) continue; // don't materialize a real entry in the sparse notes_ map
-      for (auto & note : notes) note.transpose(up ? 1 : -1);
+      for (auto & note : notes) transposeNote(note, up ? 1 : -1, retune);
       pattern->setNotes(pattern_row, notes);
     }
   }
@@ -165,7 +222,8 @@ clearPatternBlockNotes(PatternGrid & grid, int row_lo, int row_hi,
 
 void
 transposePatternBlockNotes(PatternGrid & grid, int row_lo, int row_hi,
-			   int track_id, int note_lo, int note_hi, bool up, bool is_percussion) {
+			   int track_id, int note_lo, int note_hi, bool up, bool is_percussion,
+			   const IntonationContext * retune) {
   if (is_percussion) return;
   for (int row = row_lo; row <= row_hi; row++) {
     int pattern_row;
@@ -174,7 +232,7 @@ transposePatternBlockNotes(PatternGrid & grid, int row_lo, int row_hi,
     auto notes = pattern->getNotes(pattern_row);
     if (notes.empty()) continue;
     auto hi = min(note_hi, static_cast<int>(notes.size()) - 1);
-    for (int i = note_lo; i <= hi; i++) notes[static_cast<size_t>(i)].transpose(up ? 1 : -1);
+    for (int i = note_lo; i <= hi; i++) transposeNote(notes[static_cast<size_t>(i)], up ? 1 : -1, retune);
     // setNotes()'s vector<Note> move-assign into the unordered_map, fully
     // inlined down from here, trips a known GCC false positive
     // (-Wfree-nonheap-object misattributing the vector's heap buffer as a
@@ -204,6 +262,135 @@ humanizePatternBlockNotes(PatternGrid & grid, int row_lo, int row_hi,
     pattern->setNotes(pattern_row, notes);
 #pragma GCC diagnostic pop
   }
+}
+
+TuningSummary
+applyJustIntonationBlock(PatternGrid & grid, int row_lo, int row_hi,
+			 const vector<int> & track_ids, int track_lo, int track_hi,
+			 const IntonationContext & context,
+			 const std::function<bool(int track_id)> & is_percussion) {
+  TuningSummary summary;
+  for (int t = track_lo; t <= track_hi; t++) {
+    auto track_id = track_ids[static_cast<size_t>(t)];
+    if (is_percussion(track_id)) continue;
+    auto part = applyJustIntonationBlockNotes(grid, row_lo, row_hi, track_id, 0, numeric_limits<int>::max(), context, false);
+    summary.notes += part.notes;
+    summary.replaced += part.replaced;
+  }
+  return summary;
+}
+
+TuningSummary
+applyJustIntonationBlockNotes(PatternGrid & grid, int row_lo, int row_hi,
+			      int track_id, int note_lo, int note_hi,
+			      const IntonationContext & context, bool is_percussion) {
+  TuningSummary summary;
+  if (is_percussion) return summary;
+  for (int row = row_lo; row <= row_hi; row++) {
+    int pattern_row;
+    auto pattern = grid.find(track_id, row, pattern_row);
+    if (!pattern) continue;
+    auto notes = pattern->getNotes(pattern_row);
+    if (notes.empty()) continue;
+    auto hi = min(note_hi, static_cast<int>(notes.size()) - 1);
+    for (int i = note_lo; i <= hi; i++) tuneNote(notes[static_cast<size_t>(i)], context, summary);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfree-nonheap-object"
+    pattern->setNotes(pattern_row, notes);
+#pragma GCC diagnostic pop
+  }
+  return summary;
+}
+
+int
+clearTuningCorrectionBlock(PatternGrid & grid, int row_lo, int row_hi,
+			   const vector<int> & track_ids, int track_lo, int track_hi) {
+  int cleared = 0;
+  for (int t = track_lo; t <= track_hi; t++) {
+    cleared += clearTuningCorrectionBlockNotes(grid, row_lo, row_hi, track_ids[static_cast<size_t>(t)], 0, numeric_limits<int>::max());
+  }
+  return cleared;
+}
+
+int
+clearTuningCorrectionBlockNotes(PatternGrid & grid, int row_lo, int row_hi,
+				int track_id, int note_lo, int note_hi) {
+  int cleared = 0;
+  for (int row = row_lo; row <= row_hi; row++) {
+    int pattern_row;
+    auto pattern = grid.find(track_id, row, pattern_row);
+    if (!pattern) continue;
+    auto notes = pattern->getNotes(pattern_row);
+    if (notes.empty()) continue;
+    auto hi = min(note_hi, static_cast<int>(notes.size()) - 1);
+    int here = 0;
+    for (int i = note_lo; i <= hi; i++) here += untuneNote(notes[static_cast<size_t>(i)]) ? 1 : 0;
+    if (here == 0) continue;
+    cleared += here;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfree-nonheap-object"
+    pattern->setNotes(pattern_row, notes);
+#pragma GCC diagnostic pop
+  }
+  return cleared;
+}
+
+TuningSummary
+applyJustIntonationToSong(Song & song) {
+  TuningSummary summary;
+  auto context = contextOf(song);
+  forEachSongPattern(song, [&](int track_id, PatternView pattern) {
+    if (isPercussionTrack(song, track_id)) return;
+    forEachNoteRow(pattern, [&](vector<Note> & notes) {
+      auto before = summary.notes;
+      for (auto & note : notes) tuneNote(note, context, summary);
+      return summary.notes != before;
+    });
+  });
+  return summary;
+}
+
+int
+clearTuningCorrectionsInSong(Song & song) {
+  int cleared = 0;
+  forEachSongPattern(song, [&](int, PatternView pattern) {
+    forEachNoteRow(pattern, [&](vector<Note> & notes) {
+      bool changed = false;
+      for (auto & note : notes) {
+        if (untuneNote(note)) { changed = true; cleared++; }
+      }
+      return changed;
+    });
+  });
+  return cleared;
+}
+
+void
+transposeSong(Song & song, bool up) {
+  int delta = up ? 1 : -1;
+  int key = song.getKey();
+  if (key + delta < 0) return; // the key would leave the note range
+  IntonationContext context { song.getTuning(), key + delta };
+  forEachSongPattern(song, [&](int track_id, PatternView pattern) {
+    if (isPercussionTrack(song, track_id)) return;
+    forEachNoteRow(pattern, [&](vector<Note> & notes) {
+      if (notes.empty()) return false;
+      for (auto & note : notes) transposeNote(note, delta, &context);
+      return true;
+    });
+  });
+  song.setKey(key + delta);
+}
+
+void
+humanizeSong(Song & song, const HumanizeAmount & amount, NoiseGenerator & rng) {
+  forEachSongPattern(song, [&](int, PatternView pattern) {
+    forEachNoteRow(pattern, [&](vector<Note> & notes) {
+      if (notes.empty()) return false;
+      for (auto & note : notes) humanizeNote(note, amount, rng);
+      return true;
+    });
+  });
 }
 
 void
