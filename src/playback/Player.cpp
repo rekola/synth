@@ -835,7 +835,14 @@ Player::play(AudioAPI & audio) {
     for (auto & [ name, state ] : live_states_) {
       auto song_ptr = controller_->getSongByName(name);
       if (!song_ptr) continue; // shouldn't happen - BUFFER_KILLED already drops the entry synchronously; defensive only
-      controller_->getUIEventQueue().push(createPlaybackEvent(name, *song_ptr, *state));
+      // A snapshot that repeats the last one tells the UI nothing: a paused
+      // song with nothing changing sends none.
+      auto event = createPlaybackEvent(name, *song_ptr, *state);
+      auto signature = event->getInfo().signature();
+      auto & last = last_snapshot_signature_[name];
+      if (last.second && last.first == signature) continue;
+      last = { signature, true };
+      controller_->getUIEventQueue().push(std::move(event));
     }
   };
 
