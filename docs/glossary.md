@@ -46,7 +46,7 @@ each has seven notes, chosen so that the intervals between them are simple
 ones. They have no D to argue over, so one fixed pitch per note serves. A passing note
 outside the scale (a C double-sharp between C and E-flat, say) is tuned the same
 way, to the simplest ratio close to it, though it is not one of the scale's
-notes. Adding the tonic to a chord makes no difference to any of this.
+notes.
 
 **Adaptive just intonation**
 Just intonation that follows the music instead of returning to the key; also

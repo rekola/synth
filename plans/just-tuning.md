@@ -110,8 +110,8 @@ function stays as its fallback and as the anchor.
 
 The scales the song is written in now, the 7-note otonal and utonal, need
 nothing more than the tuner of phases 1-2. Each note of them has one fixed
-ratio to the tonic that is also simple against the other notes in the chords
-checked below (the scale has no note whose pitch depends on the chord), so every note is tuned from the key: no memory, no context across tracks, no loops, and no
+pitch that serves in every chord checked below (the scale has no note whose pitch
+depends on the chord), so every note is tuned from the key: no memory, no context across tracks, no loops, and no
 drift. This phase takes that tuner to the whole song and splits select-all by
 view. The adaptive tuner (phase 6) comes last, so everything here can be tried
 first on those scales.
