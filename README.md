@@ -57,6 +57,17 @@ The Application draws on several traditions.
   and a tuning can spell the same pitch in several ways. In 12-EDO, E♯ is F. In
   31-EDO, E♯ and F are different pitches, but D𝄪 and F𝄫 are the same one. Note numbers for each tuning
   are in `docs/`, for example [31edo_note_numbers.txt](docs/31edo_note_numbers.txt).
+- **Notation.** Every tuning's note names are a chain of fifths: the seven
+  natural notes C D E F G A B are the usual seven consecutive fifths
+  (F C G D A E B), and each further fifth up adds a sharp, each fifth down a
+  flat (F♯ is the fifth above B, B♭ the fifth below F). The tuning only decides how
+  many steps the fifth and the sharp are. In 31-EDO the fifth is 18 steps, so
+  seven fifths less four octaves make a sharp of 2 steps (C♯ = 2, C𝄪 = 4,
+  D♭ = 3, D = 5): the notation of the meantone family, in which four fifths
+  make a major third (E = 10 steps, near 5:4). A flat is the mirror image, so
+  C♯ and D♭ differ by one step. In 12-EDO the sharp is 1 step and the chain
+  closes on itself, which is why E♯ is F there. See Fokker, "Equal Temperament
+  and the Thirty-one-keyed Organ", *The Scientific Monthly* 81 (1955).
 - **Scales.** A song has a key and an optional scale: major (the Ionian
   mode), minor (the Aeolian mode), otonal or utonal. Each is written once as
   note names, so it is correct in every tuning. Otonal and utonal borrow
