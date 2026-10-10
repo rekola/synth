@@ -120,19 +120,24 @@ tracks in time order (percussion excepted) and tunes each against what is
 sounding or has just sounded:
 
 - **References.** The notes sounding at the onset, on any track and of any
-  length (a held pad stays a reference for as long as it holds), plus the
-  notes that ended within the last `kTuningMemoryRows` rows. The memory slides;
-  it does not cut time into windows, so a harmony may change on any row, and it
-  is what makes an arpeggio hang together. By-ear constant, starting at 8 rows.
+  length (a held pad stays a reference for as long as it holds), plus the last
+  `kTuningMemoryNotes` notes tuned before it, on any track. The memory is a
+  count, not a time: a silence cannot cut it, so a rest never makes the tuning
+  jump (a reverb tail may still be ringing through it). It slides rather than
+  cutting time into windows, so a harmony may change on any row, and it is what
+  makes an arpeggio hang together; a chain of stacked fifths is long enough to
+  forget where it started, which is what lets it drift. By-ear constant,
+  starting at 8 notes.
 - **The pick.** The reference that gives the simplest interval to the new note
   (the table ratio for the pitch-class interval, smallest Tenney height; ties
   go to the more recent, then the lower). The note's tuned pitch is that
   reference's tuned pitch plus the ratio; the correction is the difference to
   the equal-tempered pitch, clamped to the fx range of +-255 cents.
-- **Nothing to reference** (the start, or silence longer than the memory): the
-  key, as in phase 1. Notes that start together are taken lowest first, each
-  against everything already tuned. Phase 2's bass-anchored chord is the special
-  case of this, and its 31-EDO examples must still come out the same.
+- **Nothing to reference** (the very start, or a free note with nothing tuned
+  or fixed before it): the key, as in phase 1. Notes that start together are
+  taken lowest first, each against everything already tuned. Phase 2's
+  bass-anchored chord is the special case of this, and its 31-EDO examples must
+  still come out the same.
 - **Free and fixed.** The notes a command writes are free; every other pitched
   note is fixed at its stored pitch (equal-tempered plus its stored correction,
   `+00` when it has none) and is only ever a reference. A region is therefore
@@ -194,25 +199,25 @@ among different surroundings.
    carries an added offset (the drift at that point), a new instance property
    with document, undo and playback changes. A later step if (2) is not enough.
 
-### At the +-255 limit (to decide)
+### At the +-255 limit: an error, and nothing changes
 
 A correction is a signed byte, so a tuned pitch cannot be more than 255 cents
-from its equal-tempered pitch. That is far: it is more than half a step in
-every tuning (2.5 semitones in 12-EDO, 6.6 steps in 31-EDO), so a note there is
-nearer another note than its own. It takes a long unbroken chain to get there:
-each pure fifth stacked on the last drifts +2 cents in 12-EDO (about 130 in a
-row), +5 in 31-EDO (about 50), +7 in 19-EDO (about 35), almost nothing in
-53-EDO; stacked major thirds in 12-EDO drift -14 each (about 19). Silence
-longer than the memory re-anchors to the key and resets all of it.
+from its equal-tempered pitch. That is far: more than half a step in every
+tuning (2.5 semitones in 12-EDO, 6.6 steps in 31-EDO). It takes a long
+unbroken chain to get there: each pure fifth stacked on the last drifts +2
+cents in 12-EDO (about 130 in a row), +5 in 31-EDO (about 50), +7 in 19-EDO
+(about 35), almost nothing in 53-EDO; stacked major thirds in 12-EDO drift -14
+each (about 19).
 
-1. **Clamp** (the first plan): the note takes +-255 instead of its target and
-   the chain continues from that pitch. The progression keeps going but the
-   notes are wrong ones, and the interval to the reference is off by the
-   excess.
-2. **Re-anchor** (recommended): a note whose target would pass the limit is
-   tuned from the key instead, as after a silence. The chain restarts there;
-   the tuning jumps once, back near the written pitch, and nothing is ever
-   stored at the limit.
+Nothing is clamped and nothing is reset. When a note's target would pass the
+limit the command stops with an error that names the track and row and the
+correction it needed, and the song is left exactly as it was. That holds for
+every command that tunes (apply, and the retune after a transpose): the
+tuner works on a copy of the timeline, and notes, corrections and key are
+written only once the whole run has succeeded, so there is nothing to roll
+back. To start again from the key on purpose, tune the song in sections:
+corrections that are cleared count as untuned, fixed at their equal-tempered
+pitch, so a section after them starts from there.
 
 ### Work and tests
 
@@ -225,8 +230,9 @@ longer than the memory re-anchors to the key and resets all of it.
 - Tests: a single note a fifth above a note on another track; ten stacked fifths
   drift by the sum of their corrections and clamp at +-255; a harmony change in
   mid-bar; a region tuned against fixed neighbours' stored corrections;
-  silence re-anchors to the key; a looping scene closes; a clip placed twice has
-  one tuning; percussion is ignored; transposing retunes.
+  a silence changes nothing, the next note continues from the last tuned ones; a looping scene closes; a clip placed twice has
+  one tuning; percussion is ignored; transposing retunes; the limit stops the run with an
+  error and leaves song, corrections and key untouched (also for a transpose).
 
 ## Phase 4 - remove the arpeggiator (built)
 
@@ -365,8 +371,7 @@ round-trip, a render test (a `ring` chord with extent has energy on both sides,
   key table / arc; check by ear with FluidR3, which this container lacks.
 - The 20 cent cap and the oscillator-array radius inside a chord are by-ear
   values.
-- Phase 3: the memory length (8 rows is a guess); how a scene's cycle is
-  built when clip lengths do not divide the longest; what happens at the
-  +-255 limit (clamp or re-anchor, the plan recommends re-anchor); and which of
-  the three clip-instance options (the plan recommends 2), which gates the
-  arrangement mode, built last.
+- Phase 3: the memory length (8 notes is a guess); how a scene's cycle is
+  built when clip lengths do not divide the longest; and which of the three
+  clip-instance options (the plan recommends 2), which gates the arrangement
+  mode, built last.
