@@ -8,7 +8,9 @@ using namespace std;
 std::unique_ptr<TrackState>
 InstrumentTrack::createState(const ChannelConfiguration & config, const SongStructure & structure) const {
   assert(getInstrumentId() >= 0);
-  return std::make_unique<InstrumentTrackState>(config, isSolo(), isMuted(), getInternalId(), getInstrumentId(), getPosition(), getSends());
+  auto state = std::make_unique<InstrumentTrackState>(config, isSolo(), isMuted(), getInternalId(), getInstrumentId(), getPosition(), getSends());
+  state->setSpatialMode(getSpatialMode());
+  return state;
 }
 
 void

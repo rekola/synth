@@ -37,6 +37,8 @@ public:
     return instruments.getByIndex(instrument_id_);
   }
 
+  void setSpatialMode(SpatialMode mode) { spatial_mode_ = mode; }
+
   AudioBuffer render(int frames, const InstrumentPool & instruments, RenderContext & context) override {
     clearFinishedVoices();
 
@@ -149,6 +151,7 @@ public:
     if (resolved_position.extent < 0.0f) resolved_position.extent = instrument.getDefaultExtent();
 
     float detune = note_override_.has_detune ? std::exp2(note_override_.detune_cents / 1200.0f) : 1.0f;
+    resolved_position = instrument.placeNote(resolved_position, spatial_mode_, column, tuning, note_value, note_coord);
     auto voice = instrument.playNote(getChannelConfiguration(), resolved_position, tuning, detune, velocity, note_value, getSends(), note_coord);
     chokeExclusiveClasses(*voice);
     addVoice(column, move(voice));
@@ -320,6 +323,7 @@ protected:
 
 private:
   int instrument_id_;
+  SpatialMode spatial_mode_ = SpatialMode::AUTO;
   std::unordered_map<int, float> column_pressure_;
   // The note being started by render() right now, for noteOn() to read.
   NoteOverride note_override_;

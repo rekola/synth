@@ -8,6 +8,7 @@
 #include "SendLevels.h"
 #include "NoteCoordinate.h"
 #include "../instruments/Tuning.h"
+#include "../instruments/SpatialPlacement.h"
 
 #include <string_view>
 #include <vector>
@@ -45,6 +46,16 @@ class Track : public StatefulSongObject {
   // by both createStateTree() and the default playNote() body below, since
   // an effect can be reached either way.
   virtual ChannelConfiguration getChildChannelConfiguration(const ChannelConfiguration & config) const { return config; }
+
+  // Where this note sits, given the track's (extent-resolved) position, its
+  // spatial mode and the note column `slot` it was played in. An instrument
+  // with a placement of its own overrides this; a wrapper defers to its
+  // first child, as getDefaultExtent() does, and a leaf with none uses the
+  // ring (a spiral by column) for AUTO and RING, the generic key arc for ARC.
+  virtual SphericalPosition placeNote(const SphericalPosition & position, SpatialMode mode, int slot, Tuning tuning, int note_value, const NoteCoordinate & note_coord) const {
+    if (!getChildren().empty()) return getChildren()[0]->placeNote(position, mode, slot, tuning, note_value, note_coord);
+    return spatial::placeGeneric(position, mode, slot, tuning, note_value);
+  }
 
   // The default physical half-width (meters) a track resolves to when its
   // own LeafTrack::extent_ wasn't explicitly authored - see

@@ -58,6 +58,10 @@ A row of the clip grid: the clips at one position across every track's clip
 list, launched together. It has no object of its own beyond an optional
 name, tempo and time signature stored by position. See scenes.md.
 
+**Spatial mode**
+How a track places its notes around its position: `auto` (the instrument
+decides), `ring` (a spiral by note column) or `arc` (by pitch). See spatial.md.
+
 **Strike point**
 Where a hammer or pluck meets the string, as a fraction of its length. Modes
 with a node there are not excited: at 1/8, the 8th, 16th and 24th partials.

@@ -59,6 +59,11 @@ class GenericInstrument : public Instrument {
   // node has no opinion of its own about extent, whatever it resolves to
   // (an SF2 preset, the built-in Oscillator, ...) does. concrete_instrument_
   // can be null before prepare() has run once.
+  SphericalPosition placeNote(const SphericalPosition & position, SpatialMode mode, int slot, Tuning tuning, int note_value, const NoteCoordinate & note_coord) const override {
+    return concrete_instrument_ ? concrete_instrument_->placeNote(position, mode, slot, tuning, note_value, note_coord)
+                                : spatial::placeGeneric(position, mode, slot, tuning, note_value);
+  }
+
   float getDefaultExtent() const override {
     return concrete_instrument_ ? concrete_instrument_->getDefaultExtent() : 0.0f;
   }

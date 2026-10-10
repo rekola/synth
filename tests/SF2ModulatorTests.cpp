@@ -1049,6 +1049,13 @@ float yToWRatioAtWPeak(VoiceState & voice, int frames) {
 // in this same file), so a jitter/elevation comparison via this channel
 // stays valid regardless of that unrelated code path's own behavior.
 float zChannelPeak(VoiceState & voice, int frames) { return channelPeak(voice, 2, frames); }
+
+// The way a track plays a note: placed first (placeNote(), under AUTO and in
+// column 0), then played from that position.
+std::unique_ptr<VoiceState> playPlaced(const Track & instrument, const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & coord = {}) {
+  auto placed = instrument.placeNote(position, SpatialMode::AUTO, 0, tuning, note_value, coord);
+  return instrument.playNote(config, placed, tuning, detune, velocity, note_value, sends, coord);
+}
 }
 
 // These tests all compare *two* renders of the same key/region (extent on
@@ -1077,8 +1084,8 @@ TEST(sf2_percussion_offset_hihat_reads_positive_azimuth_at_player_distance) {
   SphericalPosition position_offset{ 0.0f, 0.0f, 0.5f, 1.2f };
   SphericalPosition position_base{ 0.0f, 0.0f, 0.5f, 0.0f }; // extent 0 - offset mechanism inert
 
-  auto voice_offset = instrument->playNote(config, position_offset, Tuning::EDO12, 1.0f, 0.8f, 42, SendLevels{});
-  auto voice_base = instrument->playNote(config, position_base, Tuning::EDO12, 1.0f, 0.8f, 42, SendLevels{});
+  auto voice_offset = playPlaced(*instrument, config, position_offset, Tuning::EDO12, 1.0f, 0.8f, 42, SendLevels{});
+  auto voice_base = playPlaced(*instrument, config, position_base, Tuning::EDO12, 1.0f, 0.8f, 42, SendLevels{});
   float delta = yChannelPeak(*voice_offset, 64) - yChannelPeak(*voice_base, 64);
   CHECK(delta > 0.01f);
 }
@@ -1099,8 +1106,8 @@ TEST(sf2_percussion_offset_mirrors_at_audience_distance) {
   SphericalPosition position_offset{ 0.0f, 0.0f, 1.5f, 1.2f };
   SphericalPosition position_base{ 0.0f, 0.0f, 1.5f, 0.0f };
 
-  auto voice_offset = instrument->playNote(config, position_offset, Tuning::EDO12, 1.0f, 0.8f, 42, SendLevels{});
-  auto voice_base = instrument->playNote(config, position_base, Tuning::EDO12, 1.0f, 0.8f, 42, SendLevels{});
+  auto voice_offset = playPlaced(*instrument, config, position_offset, Tuning::EDO12, 1.0f, 0.8f, 42, SendLevels{});
+  auto voice_base = playPlaced(*instrument, config, position_base, Tuning::EDO12, 1.0f, 0.8f, 42, SendLevels{});
   float delta = yChannelPeak(*voice_offset, 64) - yChannelPeak(*voice_base, 64);
   CHECK(delta < -0.01f);
 }
@@ -1122,8 +1129,8 @@ TEST(sf2_percussion_offset_zero_extent_collapses_to_point_source) {
   // despite extent being 0. Both keys match the same single region in
   // this fixture, so nothing else differs between them.
   SphericalPosition position{ 0.0f, 0.0f, 0.5f, 0.0f };
-  auto voice_42 = instrument->playNote(config, position, Tuning::EDO12, 1.0f, 0.8f, 42, SendLevels{});
-  auto voice_49 = instrument->playNote(config, position, Tuning::EDO12, 1.0f, 0.8f, 49, SendLevels{});
+  auto voice_42 = playPlaced(*instrument, config, position, Tuning::EDO12, 1.0f, 0.8f, 42, SendLevels{});
+  auto voice_49 = playPlaced(*instrument, config, position, Tuning::EDO12, 1.0f, 0.8f, 49, SendLevels{});
   CHECK_NEAR(yChannelPeak(*voice_42, 64), yChannelPeak(*voice_49, 64), 0.0001f);
 }
 
@@ -1149,8 +1156,8 @@ TEST(sf2_percussion_offset_never_applies_to_a_non_percussion_bank) {
   // below), same as the zero-extent percussion case above - so, like that
   // test, a raw peak comparison is safe here too, not just a ratio.
   SphericalPosition position{ 0.0f, 0.0f, 0.5f, 1.2f };
-  auto voice_42 = instrument->playNote(config, position, Tuning::EDO12, 1.0f, 0.8f, 42, SendLevels{});
-  auto voice_49 = instrument->playNote(config, position, Tuning::EDO12, 1.0f, 0.8f, 49, SendLevels{});
+  auto voice_42 = playPlaced(*instrument, config, position, Tuning::EDO12, 1.0f, 0.8f, 42, SendLevels{});
+  auto voice_49 = playPlaced(*instrument, config, position, Tuning::EDO12, 1.0f, 0.8f, 49, SendLevels{});
   CHECK_NEAR(yChannelPeak(*voice_42, 64), 0.0f, 0.0001f);
   CHECK_NEAR(yChannelPeak(*voice_49, 64), 0.0f, 0.0001f);
 }
@@ -1175,7 +1182,7 @@ TEST(sf2_region_pan_center_produces_no_offset) {
   // Default (unset) pan is exactly center - must contribute nothing, not
   // the old bug's spurious hard-left swing.
   SphericalPosition position{ 0.0f, 0.0f, 0.5f, 1.2f };
-  auto voice = instrument->playNote(config, position, Tuning::EDO12, 1.0f, 0.8f, 60, SendLevels{});
+  auto voice = playPlaced(*instrument, config, position, Tuning::EDO12, 1.0f, 0.8f, 60, SendLevels{});
   CHECK_NEAR(yChannelPeak(*voice, 64), 0.0f, 0.0001f);
 }
 
@@ -1197,8 +1204,8 @@ TEST(sf2_region_pan_hard_left_and_hard_right_are_opposite) {
   // for why this path mirrors the opposite way from the percussion/arc
   // offsets.
   SphericalPosition position{ 0.0f, 0.0f, 0.5f, 1.2f };
-  auto voice_left = instrument_left->playNote(config, position, Tuning::EDO12, 1.0f, 0.8f, 60, SendLevels{});
-  auto voice_right = instrument_right->playNote(config, position, Tuning::EDO12, 1.0f, 0.8f, 60, SendLevels{});
+  auto voice_left = playPlaced(*instrument_left, config, position, Tuning::EDO12, 1.0f, 0.8f, 60, SendLevels{});
+  auto voice_right = playPlaced(*instrument_right, config, position, Tuning::EDO12, 1.0f, 0.8f, 60, SendLevels{});
 
   float peak_left = yChannelPeak(*voice_left, 64);
   float peak_right = yChannelPeak(*voice_right, 64);
@@ -1225,8 +1232,8 @@ TEST(sf2_region_pan_mirrors_between_player_and_audience_distance) {
   // percussion/pitched-arc offsets' own near/far convention.
   SphericalPosition position_player{ 0.0f, 0.0f, 0.5f, 1.2f };
   SphericalPosition position_audience{ 0.0f, 0.0f, 1.5f, 1.2f };
-  auto voice_player = instrument->playNote(config, position_player, Tuning::EDO12, 1.0f, 0.8f, 60, SendLevels{});
-  auto voice_audience = instrument->playNote(config, position_audience, Tuning::EDO12, 1.0f, 0.8f, 60, SendLevels{});
+  auto voice_player = playPlaced(*instrument, config, position_player, Tuning::EDO12, 1.0f, 0.8f, 60, SendLevels{});
+  auto voice_audience = playPlaced(*instrument, config, position_audience, Tuning::EDO12, 1.0f, 0.8f, 60, SendLevels{});
 
   float ratio_player = yToWRatioAtWPeak(*voice_player, 64);
   float ratio_audience = yToWRatioAtWPeak(*voice_audience, 64);
@@ -1254,11 +1261,11 @@ TEST(sf2_percussion_offset_jitter_is_deterministic_and_varies_per_coordinate) {
   // comment above.
   NoteCoordinate coord_row0(0, 0, 0);
   auto instrument_a = sf.createInstrument(0);
-  auto voice_a = instrument_a->playNote(config, position, Tuning::EDO12, 1.0f, 0.8f, 49, SendLevels{}, coord_row0);
+  auto voice_a = playPlaced(*instrument_a, config, position, Tuning::EDO12, 1.0f, 0.8f, 49, SendLevels{}, coord_row0);
   float peak_a = zChannelPeak(*voice_a, 64);
 
   auto instrument_b = sf.createInstrument(0);
-  auto voice_b = instrument_b->playNote(config, position, Tuning::EDO12, 1.0f, 0.8f, 49, SendLevels{}, coord_row0);
+  auto voice_b = playPlaced(*instrument_b, config, position, Tuning::EDO12, 1.0f, 0.8f, 49, SendLevels{}, coord_row0);
   float peak_b = zChannelPeak(*voice_b, 64);
 
   CHECK_NEAR(peak_a, peak_b, 0.0001f);
@@ -1267,7 +1274,7 @@ TEST(sf2_percussion_offset_jitter_is_deterministic_and_varies_per_coordinate) {
   // on the exact same offset - two genuinely distinct hits of the same
   // key aren't pinned to an identical point.
   NoteCoordinate coord_row1(0, 1, 0);
-  auto voice_c = instrument_a->playNote(config, position, Tuning::EDO12, 1.0f, 0.8f, 49, SendLevels{}, coord_row1);
+  auto voice_c = playPlaced(*instrument_a, config, position, Tuning::EDO12, 1.0f, 0.8f, 49, SendLevels{}, coord_row1);
   float peak_c = zChannelPeak(*voice_c, 64);
   CHECK(std::fabs(peak_c - peak_a) > 0.0001f);
 }
@@ -1291,8 +1298,8 @@ TEST(sf2_pitched_arc_opposite_ends_shift_opposite_directions) {
 
   // Player perspective (distance <= 1) - a real extent to arc across.
   SphericalPosition position{ 0.0f, 0.0f, 0.5f, 1.5f };
-  auto voice_low = instrument->playNote(config, position, Tuning::EDO12, 1.0f, 0.8f, 60, SendLevels{});
-  auto voice_high = instrument->playNote(config, position, Tuning::EDO12, 1.0f, 0.8f, 84, SendLevels{});
+  auto voice_low = playPlaced(*instrument, config, position, Tuning::EDO12, 1.0f, 0.8f, 60, SendLevels{});
+  auto voice_high = playPlaced(*instrument, config, position, Tuning::EDO12, 1.0f, 0.8f, 84, SendLevels{});
 
   float ratio_low = yToWRatioAtWPeak(*voice_low, 64);
   float ratio_high = yToWRatioAtWPeak(*voice_high, 64);
@@ -1320,7 +1327,7 @@ TEST(sf2_pitched_arc_midpoint_key_is_centered) {
   // "multiplying by an exact zero gain" reasoning as the zero-extent
   // percussion test above).
   SphericalPosition position{ 0.0f, 0.0f, 0.5f, 1.5f };
-  auto voice_mid = instrument->playNote(config, position, Tuning::EDO12, 1.0f, 0.8f, 72, SendLevels{});
+  auto voice_mid = playPlaced(*instrument, config, position, Tuning::EDO12, 1.0f, 0.8f, 72, SendLevels{});
   CHECK_NEAR(yChannelPeak(*voice_mid, 64), 0.0f, 0.0001f);
 }
 
@@ -1341,8 +1348,8 @@ TEST(sf2_pitched_arc_mirrors_at_audience_distance) {
   // convention as the percussion table.
   SphericalPosition position_player{ 0.0f, 0.0f, 0.5f, 1.5f };
   SphericalPosition position_audience{ 0.0f, 0.0f, 1.5f, 1.5f };
-  auto voice_player = instrument->playNote(config, position_player, Tuning::EDO12, 1.0f, 0.8f, 84, SendLevels{});
-  auto voice_audience = instrument->playNote(config, position_audience, Tuning::EDO12, 1.0f, 0.8f, 84, SendLevels{});
+  auto voice_player = playPlaced(*instrument, config, position_player, Tuning::EDO12, 1.0f, 0.8f, 84, SendLevels{});
+  auto voice_audience = playPlaced(*instrument, config, position_audience, Tuning::EDO12, 1.0f, 0.8f, 84, SendLevels{});
 
   float ratio_player = yToWRatioAtWPeak(*voice_player, 64);
   float ratio_audience = yToWRatioAtWPeak(*voice_audience, 64);
@@ -1370,8 +1377,8 @@ TEST(sf2_pitched_arc_covers_newly_added_mallet_family) {
   CHECK_NEAR(instrument->getDefaultExtent(), 1.2f, 0.0001f);
 
   SphericalPosition position{ 0.0f, 0.0f, 0.5f, 1.2f };
-  auto voice_low = instrument->playNote(config, position, Tuning::EDO12, 1.0f, 0.8f, 60, SendLevels{});
-  auto voice_high = instrument->playNote(config, position, Tuning::EDO12, 1.0f, 0.8f, 84, SendLevels{});
+  auto voice_low = playPlaced(*instrument, config, position, Tuning::EDO12, 1.0f, 0.8f, 60, SendLevels{});
+  auto voice_high = playPlaced(*instrument, config, position, Tuning::EDO12, 1.0f, 0.8f, 84, SendLevels{});
 
   float ratio_low = yToWRatioAtWPeak(*voice_low, 64);
   float ratio_high = yToWRatioAtWPeak(*voice_high, 64);

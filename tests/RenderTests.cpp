@@ -230,6 +230,28 @@ TEST(render_note_fx_tuning_correction_shifts_the_pitch_in_cents) {
   CHECK_NEAR(lowered / base, 1.0f / ratio, 0.02f);
 }
 
+// A chord on a ring track with extent is spread over the stage, so it is not
+// the symmetric sound the same chord on a track with no extent is; a single
+// note on the ring stays at the track's position.
+TEST(render_a_ring_chord_is_spread_and_a_single_note_is_not) {
+  ChannelConfiguration config(44100, 1);
+  auto none = loadFixture("spatial_chord_none.xml");
+  auto ring = loadFixture("spatial_chord_ring.xml");
+  auto single = loadFixture("spatial_chord_single.xml");
+  CHECK(none.ok);
+  CHECK(ring.ok);
+  CHECK(single.ok);
+  auto balance = [&](Loaded & loaded) {
+    auto out = renderSongOffline(loaded.song, config);
+    CHECK(!hasNonFiniteSample(out));
+    float left = rms(out, 0), right = rms(out, 1);
+    return std::fabs(left - right) / std::max(left + right, 1e-9f);
+  };
+  float spread = balance(ring);
+  CHECK(spread > 5.0f * balance(none) + 1e-3f);
+  CHECK(balance(single) < 1e-3f);
+}
+
 TEST(render_center_note_produces_symmetric_stereo_output) {
   auto loaded = loadFixture("center_note.xml");
   CHECK(loaded.ok);
