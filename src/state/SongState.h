@@ -97,7 +97,7 @@ class SongState : public TrackState {
   }
 
   // A tempo edit while playing: everything derived from the tempo is
-  // refreshed - the row length, the tempo the arpeggiators and sample
+  // refreshed - the row length, the tempo sample
   // tracks read, and the bus effects' tempo-synced times. The row already
   // in flight just ends sooner or later (samplesUntilNextRow()); a sample
   // clip already sounding keeps the stretch it was triggered with.
@@ -570,9 +570,17 @@ class SongState : public TrackState {
 		// The note's own fx is a command with an implicit leading 0.
 		Command fx;
 		NoteOverride note_override;
-		if (note.hasFx() && fx.setData(std::string("0") + std::string(note.getFx()))) {
-		  if (fx.isAzimuthSet()) { note_override.has_azimuth = true; note_override.azimuth = fx.getAzimuthSetDegrees(); }
-		  else if (fx.isExtentSet()) { note_override.has_extent = true; note_override.extent = fx.getExtentSetMeters(); }
+		if (note.hasTuningCorrection()) {
+		  note_override.has_detune = true;
+		  note_override.detune_cents = static_cast<float>(note.getTuningCorrectionCents());
+		} else if (note.hasFx()) {
+		  // An unset character reads as the command's own "-" placeholder.
+		  std::string text = std::string("0") + std::string(note.getFx());
+		  std::replace(text.begin(), text.end(), Note::kFxEmpty, '-');
+		  if (fx.setData(text)) {
+		    if (fx.isAzimuthSet()) { note_override.has_azimuth = true; note_override.azimuth = fx.getAzimuthSetDegrees(); }
+		    else if (fx.isExtentSet()) { note_override.has_extent = true; note_override.extent = fx.getExtentSetMeters(); }
+		  }
 		}
 		render_context_.addPendingEvent(track_id, i + delay_samples, int(j), tuning, velocity, note_value, NoteCoordinate(song_structure_.getOrdinalFor(track_id), row_idx, int(j)), note_override);
 		if (note.isOff()) last_notes_[track_id].erase(int(j));
@@ -726,34 +734,6 @@ class SongState : public TrackState {
   
   bool isPlaying() const { return is_playing_; }
   void setIsPlaying(bool b) { is_playing_ = b; }
-
-  // Snapshots getPositionEditSeq() at the moment playback stops
-  // (Player.cpp's PlaybackControlEvent::STOP, right after
-  // setIsPlaying(false)) - resyncPlayheadAfterStop() below compares
-  // against this to tell "resumed from exactly where it paused" apart from
-  // "the playhead moved while stopped" (a seek, or the pattern editor's
-  // own cursor navigation - both drive SET_POSITION/MOVE_POSITION, both
-  // bump position_edit_seq_ the same way real per-row playback advance
-  // already does - see getPositionEditSeq()'s own comment).
-  void notePlaybackStopped() { position_edit_seq_at_stop_ = position_edit_seq_; }
-
-  // Called once per stopped-to-playing transition (Player.cpp's
-  // PlaybackControlEvent::PLAY, right after setIsPlaying(true)) - see
-  // TrackState::resyncPlayhead()'s own comment for why a track's internal
-  // clock needs this at all. Only actually resyncs if the position changed
-  // while stopped: resuming from exactly the same spot the transport was
-  // paused at needs no correction - nothing about the row grid's own
-  // timeline changed, so whatever phase a track's internal clock already
-  // drifted to from having kept rendering through the stopped interval
-  // (confirmed intentional - see SongState::renderBlock()'s own comment)
-  // is fine left alone. Forcing it unconditionally on every resume made
-  // even a plain pause/resume at the same row yank a still-cycling
-  // arpeggiator back to its first step, which is only actually correct
-  // when resuming genuinely means "start this phrase over" - i.e. the
-  // playhead itself moved during the stop.
-  void resyncPlayheadAfterStop() {
-    if (position_edit_seq_ != position_edit_seq_at_stop_) resyncPlayhead();
-  }
 
   // See render()'s own comment on recording_muted_'s use - set/cleared by
   // PlaybackControlEvent::SET_RECORDING_MUTE, pushed by LaunchpadManager/
@@ -982,7 +962,6 @@ private:
   bool recording_muted_ = false;
   int sample_pos_ = 0, absolute_pos_ = 0;
   int position_edit_seq_ = 0;
-  int position_edit_seq_at_stop_ = -1; // see notePlaybackStopped()/resyncPlayheadAfterStop()
   // The notes still playing per track (last note-on per column), what 0Rxy retriggers.
   std::unordered_map<int, std::map<int, LastNote>> last_notes_; // track -> note column
   bool pending_break_ = false; // ZBxx seen on the row currently completing

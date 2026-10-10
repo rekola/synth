@@ -23,6 +23,22 @@
 // gesture that reaches EVERYTHING without also touching the locator, so
 // treating it like TRACK there would silently transpose notes a user
 // positioned no differently than for a no-op LOCATOR-only selection.
-enum class SelectionScope { TRACK, NOTE_COLUMN, COMMAND, LOCATOR, EVERYTHING };
+// SCENES and ARRANGEMENT are the whole song at once (mark-whole-buffer), by the
+// view it is made in: every clip, or the arrangement's backgrounds and the
+// clips it places. The single-block region model cannot express either: it
+// covers only what supplies a track at the anchor row. Only commands that
+// have a whole-song form act on them (apply/clear tuning corrections,
+// transpose, humanize); kill, copy and yank refuse.
+enum class SelectionScope { TRACK,
+                            NOTE_COLUMN,
+                            COMMAND,
+                            LOCATOR,
+                            EVERYTHING,
+                            SCENES,
+                            ARRANGEMENT };
+
+inline bool isWholeSong(SelectionScope scope) {
+  return scope == SelectionScope::SCENES || scope == SelectionScope::ARRANGEMENT;
+}
 
 #endif

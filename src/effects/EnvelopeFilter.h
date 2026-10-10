@@ -13,8 +13,8 @@ class EnvelopeFilter : public Effect {
   const char * getElementName() const override { return "envelope"; }
   // Builds the voice with the note's key number, for keynumToHold/
   // keynumToDecay.
-  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune,
-                                       float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}) const override;
+  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, SpatialMode spatial_mode, Tuning tuning, float detune,
+                                       float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const override;
 
   void loadParameters(const ParameterSource & input) override {
     Effect::loadParameters(input);

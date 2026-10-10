@@ -36,6 +36,9 @@ add_executable(synth_tests
 	ChoiceListTests.cpp
 	DeviceLabelsTests.cpp
 	PatternBlockOpsTests.cpp
+	JustIntonationTests.cpp
+	SpatialPlacementTests.cpp
+	TuningCorrectionOpsTests.cpp
 	PatternSourceTests.cpp
 	ArrangementOpsTests.cpp
 	ArrangementTests.cpp
@@ -84,8 +87,6 @@ add_executable(synth_tests
 	StructuralSilenceTests.cpp
 	BusEffectLiveUpdateTests.cpp
 	HazeTests.cpp
-	ArpeggiatorStateTests.cpp
-	ResyncPlayheadTests.cpp
 	FractionalDelayLineTests.cpp
 	TapeTransportTests.cpp
 	TapeVoiceLifecycleTests.cpp

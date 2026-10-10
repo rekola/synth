@@ -376,6 +376,29 @@ mark, so repeated presses keep working on the same block. To transpose a
 whole track or pattern, select it first — there's no separate "no mark"
 whole-pattern fallback anymore.
 
+**Select all and tuning corrections.** `mark-whole-buffer` selects the whole
+song by view (`SelectionScope::SCENES` in Live View: every clip, placed or
+not; `ARRANGEMENT` in Arrangement view: every track's background and the
+clips it places; `PatternEditor::whole_song_`): no mark, and
+any cursor movement or `keyboard-quit` ends it, because the single-block
+region model cannot express "every pattern of every track". Transpose,
+humanize and the tuning commands act on it through the `...Song()` functions in
+`PatternBlockOps.h`; kill, copy and yank refuse. A note's local fx can be a
+tuning correction, `+hh`/`-hh` cents (`Note::setTuningCorrection()`, played as
+`NoteOverride::detune_cents` -> the `detune` ratio of `playNote()`); the empty fx
+character is `.`, shown `·`, since `-` is a sign now. `apply-just-intonation-
+region` writes each pitched note's correction toward a just ratio
+(`model/JustIntonation.h`: the simplest ratio within half a step and 20 cents,
+primes up to 13): the notes that start in a bar of a track's pattern, plus the
+ones held into it, are one chord, tuned above its lowest note, which is tuned
+from the song key (`chordCorrections()` in `PatternBlockOps.cpp`, the context
+read from the whole pattern). `+00` marks a note that needs none, and
+`clear-tuning-correction-region` removes them. A note that carries one is
+"tuned": transposing retunes it for its new pitch and place in its chord, and `transposeSong()` moves
+the key with the notes when no pitched note is left outside its `SongScope`,
+so corrections stay valid. "Tuning" in this codebase
+stays the song's EDO; the offset is a tuning correction (`docs/glossary.md`).
+
 A track with multiple simultaneous note columns (chords/polyphony —
 `VisibleTrackInfo::num_subtracks_`, derived from however many notes
 actually appear in any visible row, not a fixed cap) can have its
@@ -744,8 +767,7 @@ would otherwise resume showing.
   ignores its arrangement content and automation (pattern breaks
   aside), playing its clip's own notes and commands. Launching while the
   transport is stopped starts it (resuming every other paused clip too).
-  The transport toggle only pauses - an interim choice (where an
-  arpeggiator resumes, and what becomes of sustained voices, are still
+  The transport toggle only pauses - an interim choice (what becomes of sustained voices is still
   open): launched clips keep their clip and row, queued changes
   and taken-over tracks stay, and play resumes them where they were;
   voices do what the arrangement's already do (a sample track's stop,
@@ -1113,7 +1135,7 @@ would otherwise resume showing.
     consumes/produces, and `ClipPlayer` (Live View clip launching).
   - `src/instruments/` — synthesis and instrument resolution:
     `OscillatorVoice`/`GenericInstrument`/`SoundFont`, `Tuner`/`Tuning`
-    (microtonal pitch math), `LFO`, `Arpeggiator`.
+    (microtonal pitch math), `LFO`.
   `Oscillator` can be an array of members in one voice: `voices` members (up to 256),
     member k at `ratio`^k times the note's frequency and `falloff`^k times its
     level (ratio 1 = unison choir, 2 = octaves), with `detune` (cents) spread
@@ -1137,6 +1159,15 @@ would otherwise resume showing.
     age in samples, so it never depends on the block size; the kernel adds its
     exact phase integral per group of eight), keeping the array from settling
     into a repeating beat pattern; no detune, no drift. Other voice types aren't arrays.
+    Where a note sits around its track's position is the track's `spatial`
+    mode (`SpatialMode`, `LeafTrack::getSpatialMode()`, `docs/spatial.md`):
+    `InstrumentTrackState::noteOn()` passes the mode to `playNote()`, whose leaf
+    instruments place the note by its `NoteCoordinate` column (`NoteCoordinate` is
+    a required argument: every note has one, a live note's with a stand-in row).
+    The default is the golden-angle spiral by column
+    (`instruments/SpatialPlacement.h`), `SoundFontInstrument` adds the drum kit
+    table and the key-range arc, and a SoundFont region's own pan is always
+    folded in by the voice.
   - `src/ambisonic/` — spatial encode/decode math and the `Mixer`
     hierarchy (see the `AmbisonicEncoding.h` bullet below).
   - `src/audio/` — `AlsaAudio` (device output and input, runtime device
@@ -1591,8 +1622,8 @@ would otherwise resume showing.
   A song a `Controller` owns is in published mode; a song built and rendered
   on one thread (the offline renderer, tests) copies on every read instead,
   so a write needs no `Edit` there. State that outlives a block must not point
-  into the tracks (`ArpeggiatorState` keeps an internal id and its settings
-  by value, and finds its instrument in the pool it is rendered with).
+  into the tracks (keep an internal id and any settings by value, and find
+  the instrument in the pool it is rendered with).
 - Cloud sessions: commit and push finished work to the session's branch
   without being asked, including plans and changes the user wants to test
   by ear - the cloud has no other way to show files, so an uncommitted

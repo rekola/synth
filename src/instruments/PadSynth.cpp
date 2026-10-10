@@ -1,4 +1,5 @@
 #include "PadSynth.h"
+#include "SpatialPlacement.h"
 
 #include "PadSynthPresets.h"
 #include "PadSynthVoice.h"
@@ -8,12 +9,13 @@
 using namespace std;
 
 std::unique_ptr<VoiceState>
-PadSynth::playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const {
+PadSynth::playNote(const ChannelConfiguration & config, const SphericalPosition & position, SpatialMode spatial_mode, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const {
   // Unlike Oscillator, no child-forwarding loop here: PadSynthVoice's
   // render() has no modulator input point (it reads straight from the
   // wavetable), so forwarding children into it would just construct and
   // track voices whose output is never actually consumed.
   ensureWavetable(config, tuning);
+  auto placed = spatial::placeGeneric(position, spatial_mode, note_coord.getColumn(), tuning, note_value);
 
   detune *= powf(2.0f, detune_cents_ / 1200.0f);
 
@@ -21,7 +23,7 @@ PadSynth::playNote(const ChannelConfiguration & config, const SphericalPosition 
   // copies of one note layered in a group don't start phase-locked.
   NoteCoordinate coord = detune_cents_ != 0.0f ? note_coord.withInstance(static_cast<int>(lroundf(detune_cents_ * 16.0f))) : note_coord;
 
-  auto voice = std::make_unique<PadSynthVoice>(config, position, detune, wavetable_, level_, sends, coord);
+  auto voice = std::make_unique<PadSynthVoice>(config, placed, detune, wavetable_, level_, sends, coord);
   voice->playNote(getFrequencyFor(tuning, note_value), velocity, note_value);
   return voice;
 }

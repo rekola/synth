@@ -28,6 +28,7 @@
 #include <random>
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <fmt/core.h>
 
 #include <iostream>
@@ -35,6 +36,9 @@
 using namespace std;
 using namespace fmt;
 
+static SongScope songScopeOf(SelectionScope scope) {
+  return scope == SelectionScope::SCENES ? SongScope::SCENES : SongScope::ARRANGEMENT;
+}
 // Track flattening moved to Song::getRootTrackIds() - shared with the
 // Launchpad command-dispatch path (UI::handleLaunchpadButtonEvent), which
 // needs the exact same addressable-track list/order to resolve a device's
@@ -116,6 +120,10 @@ PatternEditor::PatternEditor(UIPlane & parent)
   // active: it degenerates to the single note the cursor is currently on
   // (see getEffectiveSelectionBounds) - there's no "No selection" case.
   commands_.define("kill-region", [this]() {
+    if (whole_song_) {
+      getController().getUIEventQueue().push(make_unique<LogEvent>("Not supported for the whole song"));
+      return;
+    }
     auto & song = getController().getSong();
     Song::Edit edit(song, "kill region");
     auto point = source_->cursor();
@@ -208,6 +216,10 @@ PatternEditor::PatternEditor(UIPlane & parent)
   });
 
   commands_.define("kill-ring-save", [this]() {
+    if (whole_song_) {
+      getController().getUIEventQueue().push(make_unique<LogEvent>("Not supported for the whole song"));
+      return;
+    }
     auto & song = getController().getSong();
     auto point = source_->cursor();
     auto track_ids = song.getRootTrackIds();
@@ -376,7 +388,10 @@ PatternEditor::PatternEditor(UIPlane & parent)
   });
 
   commands_.define("keyboard-quit", [this]() {
-    if (selection_active_) {
+    if (whole_song_) {
+      whole_song_ = false;
+      getController().getUIEventQueue().push(make_unique<LogEvent>("Selection cancelled"));
+    } else if (selection_active_) {
       setSelectionActive(false);
       getController().getUIEventQueue().push(make_unique<LogEvent>("Mark deactivated"));
     }
@@ -402,12 +417,16 @@ PatternEditor::PatternEditor(UIPlane & parent)
       return track && song.getTuningForTrack(*track) == Tuning::PERCUSSION;
     };
 
+    // A note that carried a tuning correction gets the one for its new pitch.
+    IntonationContext intonation{song.getTuning(), song.getKey(), song.getArrangementBars()};
     auto b = getEffectiveSelectionBounds(song, track_ids);
-    if (b.scope == SelectionScope::TRACK) {
-      transposePatternBlock(*grid, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi, true, is_percussion);
+    if (isWholeSong(b.scope)) {
+      transposeSong(song, songScopeOf(b.scope), true);
+    } else if (b.scope == SelectionScope::TRACK) {
+      transposePatternBlock(*grid, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi, true, is_percussion, &intonation);
     } else if (b.scope == SelectionScope::NOTE_COLUMN) {
       auto track_id = track_ids[static_cast<size_t>(b.track_lo)];
-      transposePatternBlockNotes(*grid, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi, true, is_percussion(track_id));
+      transposePatternBlockNotes(*grid, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi, true, is_percussion(track_id), &intonation);
     }
     // SelectionScope::COMMAND/LOCATOR: nothing to transpose - Command.h
     // and a locator's name both have no numeric/transposable
@@ -428,12 +447,16 @@ PatternEditor::PatternEditor(UIPlane & parent)
       return track && song.getTuningForTrack(*track) == Tuning::PERCUSSION;
     };
 
+    // A note that carried a tuning correction gets the one for its new pitch.
+    IntonationContext intonation{song.getTuning(), song.getKey(), song.getArrangementBars()};
     auto b = getEffectiveSelectionBounds(song, track_ids);
-    if (b.scope == SelectionScope::TRACK) {
-      transposePatternBlock(*grid, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi, false, is_percussion);
+    if (isWholeSong(b.scope)) {
+      transposeSong(song, songScopeOf(b.scope), false);
+    } else if (b.scope == SelectionScope::TRACK) {
+      transposePatternBlock(*grid, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi, false, is_percussion, &intonation);
     } else if (b.scope == SelectionScope::NOTE_COLUMN) {
       auto track_id = track_ids[static_cast<size_t>(b.track_lo)];
-      transposePatternBlockNotes(*grid, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi, false, is_percussion(track_id));
+      transposePatternBlockNotes(*grid, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi, false, is_percussion(track_id), &intonation);
     }
     // SelectionScope::COMMAND: nothing to transpose - Command.h has no
     // numeric/transposable semantics. LOCATOR/EVERYTHING: same - no
@@ -451,13 +474,76 @@ PatternEditor::PatternEditor(UIPlane & parent)
     static NoiseGenerator rng{std::random_device{}()};
 
     auto b = getEffectiveSelectionBounds(song, track_ids);
-    if (b.scope == SelectionScope::TRACK) {
+    if (isWholeSong(b.scope)) {
+      humanizeSong(song, songScopeOf(b.scope), HumanizeAmount(), rng);
+    } else if (b.scope == SelectionScope::TRACK) {
       humanizePatternBlock(*grid, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi, HumanizeAmount(), rng);
     } else if (b.scope == SelectionScope::NOTE_COLUMN) {
       auto track_id = track_ids[static_cast<size_t>(b.track_lo)];
       humanizePatternBlockNotes(*grid, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi, HumanizeAmount(), rng);
     }
     // COMMAND/LOCATOR/EVERYTHING: no notes to humanize, same as transpose.
+  });
+
+  // The whole song at once: no mark involved, and it ends as soon as the
+  // cursor moves (render()). Emacs's own mark-whole-buffer - a buffer is a
+  // song here.
+  commands_.define("mark-whole-buffer", [this]() {
+    setSelectionActive(false);
+    whole_song_ = true;
+    whole_song_anchor_ = wholeSongAnchorNow();
+    getController().getUIEventQueue().push(make_unique<LogEvent>(isLiveMode() ? "All scenes selected" : "Whole arrangement selected"));
+  });
+
+  // Gives every pitched note in the region its just-intonation correction
+  // (JustIntonation.h), measured from the song's key. Like transpose it
+  // never clears the mark, and it can be run again at any time: each run
+  // replaces the earlier corrections. A note's other fx is replaced.
+  commands_.define("apply-just-intonation-region", [this]() {
+    auto & song = getController().getSong();
+    Song::Edit edit(song, "apply just intonation");
+    auto grid = source_->editGrid(selectionAnchor(), false);
+    auto track_ids = song.getRootTrackIds();
+    auto is_percussion = [&song](int track_id) {
+      auto * track = song.getMasterTrack().getChildByInternalId(track_id);
+      return track && song.getTuningForTrack(*track) == Tuning::PERCUSSION;
+    };
+    IntonationContext intonation{song.getTuning(), song.getKey(), song.getArrangementBars()};
+
+    TuningSummary summary;
+    auto b = getEffectiveSelectionBounds(song, track_ids);
+    if (isWholeSong(b.scope)) {
+      summary = applyJustIntonationToSong(song, songScopeOf(b.scope));
+    } else if (b.scope == SelectionScope::TRACK) {
+      summary = applyJustIntonationBlock(*grid, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi, intonation, is_percussion);
+    } else if (b.scope == SelectionScope::NOTE_COLUMN) {
+      auto track_id = track_ids[static_cast<size_t>(b.track_lo)];
+      summary = applyJustIntonationBlockNotes(*grid, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi, intonation, is_percussion(track_id));
+    }
+    // COMMAND/LOCATOR/EVERYTHING: no notes to tune, same as transpose.
+    auto text = "Tuned " + std::to_string(summary.notes) + (summary.notes == 1 ? " note" : " notes");
+    if (summary.replaced > 0) text += ", replaced the fx of " + std::to_string(summary.replaced);
+    getController().getUIEventQueue().push(make_unique<LogEvent>(text));
+  });
+
+  // Takes the tuning correction off every note in the region, whatever put
+  // it there.
+  commands_.define("clear-tuning-correction-region", [this]() {
+    auto & song = getController().getSong();
+    Song::Edit edit(song, "clear tuning corrections");
+    auto grid = source_->editGrid(selectionAnchor(), false);
+    auto track_ids = song.getRootTrackIds();
+
+    int cleared = 0;
+    auto b = getEffectiveSelectionBounds(song, track_ids);
+    if (isWholeSong(b.scope)) {
+      cleared = clearTuningCorrectionsInSong(song, songScopeOf(b.scope));
+    } else if (b.scope == SelectionScope::TRACK) {
+      cleared = clearTuningCorrectionBlock(*grid, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi);
+    } else if (b.scope == SelectionScope::NOTE_COLUMN) {
+      cleared = clearTuningCorrectionBlockNotes(*grid, b.row_lo, b.row_hi, track_ids[static_cast<size_t>(b.track_lo)], b.note_lo, b.note_hi);
+    }
+    getController().getUIEventQueue().push(make_unique<LogEvent>("Cleared " + std::to_string(cleared) + (cleared == 1 ? " tuning correction" : " tuning corrections")));
   });
 
   // Row navigation while stopped (playback owns the row while playing -
@@ -662,6 +748,15 @@ PatternEditor::tuningsForTrackRange(const Song & song, const vector<int> & track
 void
 PatternEditor::setSelectionActive(bool active) {
   selection_active_ = active;
+  if (active) whole_song_ = false;
+}
+
+PatternEditor::WholeSongAnchor
+PatternEditor::wholeSongAnchorNow() const {
+  // A row that follows the transport moves on its own, so it can't count as
+  // the user leaving the selection.
+  auto point = source_->cursor();
+  return {current_cursor.track, current_cursor.col, source_->cursorFollowsTransport() ? 0 : point.row, current_cursor.scope};
 }
 
 void
@@ -915,6 +1010,10 @@ PatternEditor::startTrackNameEdit() {
 
 void
 PatternEditor::copyToClip() {
+  if (whole_song_) {
+    getController().getUIEventQueue().push(make_unique<LogEvent>("Not supported for the whole song"));
+    return;
+  }
   auto & song = getController().getSong();
   auto track_ids = song.getRootTrackIds();
   if (current_cursor.track < 0 || current_cursor.track >= static_cast<int>(track_ids.size())) return;
@@ -955,6 +1054,15 @@ PatternEditor::getEffectiveSelectionBounds(const Song & song, const vector<int> 
   bool has_mark = selection_active_ && selection_start_pattern_ == point.block;
 
   SelectionBounds b;
+  if (whole_song_) {
+    // Every track and every row; the operations walk the song themselves.
+    b.row_lo = 0;
+    b.row_hi = std::numeric_limits<int>::max();
+    b.track_lo = 0;
+    b.track_hi = max(static_cast<int>(track_ids.size()) - 1, 0);
+    b.scope = isLiveMode() ? SelectionScope::SCENES : SelectionScope::ARRANGEMENT;
+    return b;
+  }
   auto start_row = has_mark ? selection_start_row_ : point.row;
   auto start_track = has_mark ? selection_start_track_ : current_cursor.track;
   b.row_lo = min(start_row, point.row);
@@ -1196,6 +1304,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   // cursor when no mark is set (see getEffectiveSelectionBounds). Computed
   // after current_cursor is updated above, so it reflects where the cursor
   // just moved *to* this frame, not where it was before.
+  if (whole_song_ && !(wholeSongAnchorNow() == whole_song_anchor_)) whole_song_ = false;
   auto sel_bounds = getEffectiveSelectionBounds(song, track_ids);
   bool editor_redraw = inline_editor_.consumeRedrawRequest();
 
@@ -1379,6 +1488,7 @@ PatternEditor::saveEditingState(const string & name) {
 
 void
 PatternEditor::loadEditingState(const string & name) {
+  whole_song_ = false;
   auto & state = buffer_states_[name]; // default-constructs a fresh slot for a never-before-visited buffer
   current_cursor = state.current_cursor;
   new_cursor = state.new_cursor;
@@ -2989,7 +3099,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     // highlight (below, outside this per-track loop) covers the rest of
     // what EVERYTHING means.
     bool column_scoped_selection = row_track_in_selection &&
-      sel_bounds.scope != SelectionScope::TRACK && sel_bounds.scope != SelectionScope::EVERYTHING;
+                                   sel_bounds.scope != SelectionScope::TRACK && sel_bounds.scope != SelectionScope::EVERYTHING && !isWholeSong(sel_bounds.scope);
     // Unfocused, the region still shows, faintly - it's where edits land.
     Color region_fg = focused ? styles.highlight_fg_color : styles.window_fg_color;
     Color region_bg = focused ? styles.highlight_bg_color : styles.highlight_unfocused_bg_color;
@@ -3405,7 +3515,11 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	} else if (column_type == ColumnType::LOCAL_FX) {
 	  auto l = track_info.getNoteNumber(k);
 	  auto note = l < static_cast<int>(notes.size()) ? notes[static_cast<size_t>(l)] : Note();
-	  string s(note.isDefined() ? note.getFx() : "---");
+	  string s(note.isDefined() ? note.getFx() : "...");
+	  // Unset characters show as a middle dot; s stays one byte per cell.
+	  auto glyph = [](char c) { return c == Note::kFxEmpty ? string("\u00b7") : string(1, c); };
+	  string shown;
+	  for (char c : s) shown += glyph(c);
 	  // Magenta, like the other data columns' own fixed hues; the region's
 	  // dark foreground inside the highlight.
 	  cell_fg = column_selected ? cur_fg : tintForPlayhead(dim_fixed_color(Color("#d65cd6")));
@@ -3413,10 +3527,10 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  if (!note.isDefined() || !note.hasFx()) cell_fg = cell_fg.blend(0.5f, cell_bg);
 	  setFgColor(cell_fg);
 	  setBgColor(cell_bg);
-	  putstr(display_row, current_pos, s);
+	  putstr(display_row, current_pos, shown);
 	  if (column_highlighted) {
 	    setUnderline(true);
-	    putstr(display_row, current_pos + new_cursor.subcol, s[static_cast<size_t>(new_cursor.subcol)]);
+	    putstr(display_row, current_pos + new_cursor.subcol, glyph(s[static_cast<size_t>(new_cursor.subcol)]));
 	    setUnderline(false);
 	  }
 	  current_pos += 3;

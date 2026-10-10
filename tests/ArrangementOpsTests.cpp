@@ -826,8 +826,9 @@ TEST(a_notes_local_fx_is_validated_and_round_trips_through_the_song_file) {
   CHECK(!note.setFx("R3G")); // the argument is hex
   CHECK(!note.setFx("R3"));
   CHECK(note.getFx() == "R3F"); // a rejected value changes nothing
-  CHECK(note.setFxChar(1, '-'));
-  CHECK(note.getFx() == "R-F");
+  CHECK(note.setFxChar(1, '.'));
+  CHECK(note.getFx() == "R.F");
+  CHECK(!note.setFxChar(1, '-')); // a sign is only the first character
 
   Song song;
   auto track_id = song.addTrack(std::make_unique<InstrumentTrack>(0)).getInternalId();

@@ -87,14 +87,13 @@ Found 2026-07-11, not yet fixed.
   `isPlaying()` - only the note-scheduling/position-advance section is
   gated behind it - so any already-sounding voice's envelope, LFO, or
   effect tail keeps advancing through however long the transport sits
-  stopped. The arpeggiator's step timer is the one exception: it resyncs
-  to the playhead on restart (`TrackState::resyncPlayhead()`). Whether
+  stopped. Whether
   keeping every track "live" through a stop is even the right behavior at
   all is genuinely undecided, not just unfixed - it's also what a real
   reverb/delay/decaying-note tail continuing to ring out after Stop relies
   on, which is arguably a deliberate, valued feature, not an oversight. Not
   fixed; the two directions are freezing rendering entirely while stopped,
-  or extending the arpeggiator's resync to envelopes generally.
+  or re-syncing envelopes to the playhead on restart.
 
 - **Rendered output isn't bit-exact across genuinely different builds**
   (compiler version, optimization level, or CPU architecture), only across

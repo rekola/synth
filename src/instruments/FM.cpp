@@ -1,4 +1,5 @@
 #include "FM.h"
+#include "SpatialPlacement.h"
 
 #include "FMIndexDecay.h"
 #include "InstrumentVoice.h"
@@ -63,7 +64,8 @@ private:
 }
 
 std::unique_ptr<VoiceState>
-FM::playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const {
+FM::playNote(const ChannelConfiguration & config, const SphericalPosition & position, SpatialMode spatial_mode, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const {
+  auto placed = spatial::placeGeneric(position, spatial_mode, note_coord.getColumn(), tuning, note_value);
   detune *= powf(2.0f, detune_cents_ / 1200.0f);
   // A detuned copy starts at its own phase (keyed by its detune): layers
   // started in phase would cancel each other's partials wherever the
@@ -73,7 +75,7 @@ FM::playNote(const ChannelConfiguration & config, const SphericalPosition & posi
   constexpr float kMiddleC = 261.63f;
   float index = index_tracking_ != 0.0f && frequency > 0.0f ? index_ * powf(kMiddleC / frequency, index_tracking_) : index_;
   float index_decay = index_decay_tracking_ != 0.0f && frequency > 0.0f ? index_decay_ * powf(kMiddleC / frequency, index_decay_tracking_) : index_decay_;
-  auto voice = std::make_unique<FMVoice>(config, position, detune, level_, ratio_, index, index_decay, feedback_, sends, coord);
+  auto voice = std::make_unique<FMVoice>(config, placed, detune, level_, ratio_, index, index_decay, feedback_, sends, coord);
   voice->playNote(frequency, velocity, note_value);
   return voice;
 }

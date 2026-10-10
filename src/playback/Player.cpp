@@ -16,7 +16,6 @@
 #include "../state/LeafTrackState.h"
 #include "../state/InstrumentTrackState.h"
 #include "../state/SampleTrackState.h"
-#include "../state/NoteOrigin.h"
 #include "../model/NoteCoordinate.h"
 #include "../model/Clip.h"
 
@@ -118,7 +117,7 @@ Player::startPreviewNote(const Track * instrument, Tuning tuning, int note_value
     preview_note_voice_->stopNote();
     preview_voices_.push_back(std::move(preview_note_voice_));
   }
-  preview_note_voice_ = instrument->playNote(channel_config_, SphericalPosition{}, tuning, 1.0f,
+  preview_note_voice_ = instrument->playNote(channel_config_, SphericalPosition{}, SpatialMode::AUTO, tuning, 1.0f,
                                               note.getVelocityAsFloat(), note.getValue(), SendLevels{},
                                               NoteCoordinate(-1, live_note_counter_++, 0));
 }
@@ -363,15 +362,10 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	  auto instrument = track_state->getInstrumentSource(*content->tracks->pool);
 
 	  if (instrument) {
-	    // InstrumentTrackState::noteOn()/notePressure() (PLAY_NOTE/
-	    // NOTE_PRESSURE handling, shared by Kitty-keyboard note entry and
-	    // Launchpad NOTES/step-grid presses) are virtual - a plain track
-	    // spawns/updates a voice directly, an ArpeggiatorState
-	    // (Arpeggiator.h's own track kind, reached the same way any other
-	    // InstrumentTrackState is) routes them into its stepper's held
-	    // chord instead - so this call site never needs to know which
-	    // kind of track it's talking to.
-	    if (ev.getType() == PlaybackControlEvent::PLAY_NOTE) {
+            // InstrumentTrackState::noteOn()/notePressure() (PLAY_NOTE/
+            // NOTE_PRESSURE handling, shared by Kitty-keyboard note entry and
+            // Launchpad NOTES/step-grid presses).
+            if (ev.getType() == PlaybackControlEvent::PLAY_NOTE) {
 	      auto tuning = track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : content->scalars.tuning;
 	      Note note(midi_note, midi_velocity);
 
@@ -383,9 +377,9 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	      // real coordinate does (see Player.h's own comment on why this
 	      // counter's monotonic growth is fine here, unlike everywhere
 	      // else this migration cares about reproducibility).
-	      track_state->noteOn(column, *instrument, tuning, note.getVelocityAsFloat(), note.getValue(), NoteOrigin::LIVE,
-				   NoteCoordinate(state.getSongStructure().getOrdinalFor(*track), live_note_counter_++, column));
-	    } else {
+              track_state->noteOn(column, *instrument, tuning, note.getVelocityAsFloat(), note.getValue(),
+                                  NoteCoordinate(state.getSongStructure().getOrdinalFor(*track), live_note_counter_++, column));
+            } else {
 	      track_state->notePressure(column, midi_velocity / 127.0f);
 	    }
 	  }
@@ -426,29 +420,17 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     if (!playing_buffer_name_.empty() && playing_buffer_name_ != ev.getBufferName()) {
       auto old_it = live_states_.find(playing_buffer_name_);
       if (old_it != live_states_.end()) {
-	old_it->second->setIsPlaying(false);
-	old_it->second->notePlaybackStopped();
-	old_it->second->silenceLive(-1);
+        old_it->second->setIsPlaying(false);
+        old_it->second->silenceLive(-1);
       }
     }
     playing_buffer_name_ = ev.getBufferName();
     state.setIsPlaying(true);
-
-    // Re-locks a track's own internal clock (e.g. ArpeggiatorState's step
-    // timer - see TrackState::resyncPlayhead()) to the transport every time
-    // playback actually (re-)starts *and* the position actually moved while
-    // stopped (SongState::resyncPlayheadAfterStop()'s own comment) - not on
-    // every SET_POSITION/MOVE_POSITION edit below, which also fires on
-    // plain cursor navigation while stopped (see that case's own comment)
-    // and would otherwise resync on every such keypress, and not on a
-    // plain pause/resume at the same row either, which needs no correction.
-    state.resyncPlayheadAfterStop();
     break;
 
   case PlaybackControlEvent::STOP:
     if (playing_buffer_name_ == ev.getBufferName()) playing_buffer_name_.clear();
     state.setIsPlaying(false);
-    state.notePlaybackStopped(); // snapshot for resyncPlayheadAfterStop() above, next PLAY
     // Only a pause: launched clips, queued changes and taken-over tracks
     // all stay, and play resumes them where they were.
     break;
@@ -457,14 +439,10 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     state.removeChild(ev.getParameter1());
     break;
 
-  case PlaybackControlEvent::STOP_NOTE:
-    {
-      // noteOff() is virtual for the same reason noteOn()/notePressure()
-      // above are - see that case's own comment.
-      auto track_state = dynamic_cast<InstrumentTrackState*>(state.getChildByInternalId(ev.getParameter1()));
-      if (track_state) track_state->noteOff(ev.getParameter2());
-    }
-    break;
+  case PlaybackControlEvent::STOP_NOTE: {
+    auto track_state = dynamic_cast<InstrumentTrackState *>(state.getChildByInternalId(ev.getParameter1()));
+    if (track_state) track_state->noteOff(ev.getParameter2());
+  } break;
 
   case PlaybackControlEvent::STOP_ALL_NOTES:
     {
@@ -719,7 +697,7 @@ Player::renderPreview(int frames) {
         auto ahead = (hit_frame - preview_rhythm_frame_ + loop_frames) % loop_frames;
         if (ahead < frames) {
           Note note(hit.note, hit.velocity);
-          preview_voices_.push_back(preview_rhythm_instrument_->playNote(channel_config_, SphericalPosition{}, Tuning::PERCUSSION, 1.0f,
+          preview_voices_.push_back(preview_rhythm_instrument_->playNote(channel_config_, SphericalPosition{}, SpatialMode::AUTO, Tuning::PERCUSSION, 1.0f,
                                                                                  note.getVelocityAsFloat(), note.getValue(), SendLevels{},
                                                                                  NoteCoordinate(-1, live_note_counter_++, 0)));
         }

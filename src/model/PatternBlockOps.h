@@ -5,6 +5,7 @@
 #include "../dsp/NoiseGenerator.h"
 #include "../model/Note.h"
 #include "../model/Command.h"
+#include "../instruments/Tuning.h"
 
 #include <functional>
 #include <string>
@@ -42,15 +43,40 @@ void clearPatternBlock(PatternGrid & grid, int row_lo, int row_hi,
 void pastePatternBlock(PatternGrid & grid, const PatternBlock & block, int num_rows,
 		       int target_row, const std::vector<int> & track_ids, int target_track);
 
+// What a just-intonation correction is measured from: the song's EDO and
+// key (Song::getKey(), a full note value of which only the pitch class
+// counts), and the bars that decide which notes form one chord - the notes
+// that start in the same bar (or the same `kChordWindowBars` bars), together
+// with the ones still held into it.
+struct IntonationContext {
+  Tuning tuning = Tuning::EDO12;
+  int key = 0;
+  BarGrid bars;
+};
+
+// How many bars one chord context spans.
+constexpr int kChordWindowBars = 1;
+
+// How many pitched notes an apply touched, and how many of those had another
+// fx that the correction replaced.
+struct TuningSummary {
+  int notes = 0;
+  int replaced = 0;
+};
+
 // Transposes (up if `up`, else down) every note in the same range, except
 // any track `is_percussion` reports true for. A percussion track's
 // Note::getValue() selects which drum sound plays (a MIDI key), not a
 // pitch - transposing it would silently swap to a different, unrelated
 // drum instead of "transposing" anything, so those tracks are skipped
 // entirely within the range rather than shifting their notes.
+// With `retune`, a note that carried a tuning correction gets a fresh one for
+// its new pitch (a corrected note stays corrected, and now fits its new place
+// in its chord and against the key); notes without one are left untuned.
 void transposePatternBlock(PatternGrid & grid, int row_lo, int row_hi,
 			   const std::vector<int> & track_ids, int track_lo, int track_hi, bool up,
-			   const std::function<bool(int track_id)> & is_percussion);
+			   const std::function<bool(int track_id)> & is_percussion,
+			   const IntonationContext * retune = nullptr);
 
 // How far humanize moves a note: its velocity by up to +-`velocity` (kept
 // within 1..127, so a note never turns into an off) and its delay later by
@@ -82,10 +108,47 @@ void clearPatternBlockNotes(PatternGrid & grid, int row_lo, int row_hi,
 // plain bool here (not a predicate) since this operates on exactly one
 // already-known track_id, not a range.
 void transposePatternBlockNotes(PatternGrid & grid, int row_lo, int row_hi,
-				int track_id, int note_lo, int note_hi, bool up, bool is_percussion);
+				int track_id, int note_lo, int note_hi, bool up, bool is_percussion,
+				const IntonationContext * retune = nullptr);
 void humanizePatternBlockNotes(PatternGrid & grid, int row_lo, int row_hi,
 			       int track_id, int note_lo, int note_hi,
 			       const HumanizeAmount & amount, NoiseGenerator & rng);
+// Sets the just-intonation correction (JustIntonation.h) of every pitched
+// note in the range, replacing whatever fx it held; a note that needs no
+// correction gets +00, which marks it as tuned. A note is tuned with the
+// other notes of its bar (context.bars), read from its whole pattern, so a
+// range that covers part of a chord still tunes it as the whole chord. Offs, aftertouch and any
+// track `is_percussion` reports true for (there is no pitch to correct) are
+// skipped.
+TuningSummary applyJustIntonationBlock(PatternGrid & grid, int row_lo, int row_hi,
+				       const std::vector<int> & track_ids, int track_lo, int track_hi,
+				       const IntonationContext & context,
+				       const std::function<bool(int track_id)> & is_percussion);
+TuningSummary applyJustIntonationBlockNotes(PatternGrid & grid, int row_lo, int row_hi,
+					    int track_id, int note_lo, int note_hi,
+					    const IntonationContext & context, bool is_percussion);
+// Removes the tuning correction (whatever produced it) from every note in
+// the range, leaving its other fx alone. Returns how many notes had one.
+int clearTuningCorrectionBlock(PatternGrid & grid, int row_lo, int row_hi,
+			       const std::vector<int> & track_ids, int track_lo, int track_hi);
+int clearTuningCorrectionBlockNotes(PatternGrid & grid, int row_lo, int row_hi,
+				    int track_id, int note_lo, int note_hi);
+
+// The same operations over a part of the song. SCENES is every clip's
+// pattern, placed or not; ARRANGEMENT is every track's background pattern and
+// the clips some instance places. A clip is one pattern however often it is
+// placed, so it is acted on once. Callers open the Song::Edit.
+enum class SongScope { SCENES,
+                       ARRANGEMENT };
+TuningSummary applyJustIntonationToSong(Song & song, SongScope scope);
+int clearTuningCorrectionsInSong(Song & song, SongScope scope);
+// Moves every pitched note a step. The key goes with them when no pitched
+// note is left outside the scope (so notes keep their place against it and
+// their corrections stay as they were); otherwise it stays, and tuned notes
+// are retuned for their new place against it.
+void transposeSong(Song & song, SongScope scope, bool up);
+void humanizeSong(Song & song, SongScope scope, const HumanizeAmount & amount, NoiseGenerator & rng);
+
 // Merges `block` into `grid` starting at (target_row, track_id, target_note_offset),
 // leaving note columns outside that range untouched (unlike pastePatternBlock,
 // which replaces a cell's whole note vector).

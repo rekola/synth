@@ -130,13 +130,12 @@ add_library(synth_engine STATIC
 	src/playback/VisualizationThread.cpp
 	src/dsp/DiracAnalyzer.cpp
 	src/instruments/OscillatorKernel.cpp
-	src/instruments/Arpeggiator.cpp
-	src/state/ArpeggiatorState.cpp
 	src/audio/DeviceSettings.cpp
 	src/audio/OfflineRenderer.cpp
 	src/audio/SampleFileLoader.cpp
 	src/audio/TimeStretcher.cpp
 	src/model/PatternBlockOps.cpp
+	src/model/JustIntonation.cpp
 	src/model/PatternGrid.cpp
 	src/model/ArrangementOps.cpp
 	src/ui/tui/PatternScroll.cpp

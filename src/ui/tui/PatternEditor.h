@@ -336,6 +336,16 @@ private:
   // opposite sides of the grid/locator boundary" apart from "both are
   // on the same side" - see its own comment on SelectionScope::EVERYTHING.
   bool selection_active_ = false;
+  // The whole song is selected (mark-whole-buffer): no mark, and it ends as
+  // soon as the cursor moves off where it was when the command ran.
+  bool whole_song_ = false;
+  struct WholeSongAnchor {
+    int track = 0, col = 0, row = 0;
+    SelectionScope scope = SelectionScope::NOTE_COLUMN;
+    bool operator==(const WholeSongAnchor & o) const { return track == o.track && col == o.col && row == o.row && scope == o.scope; }
+  };
+  WholeSongAnchor whole_song_anchor_;
+  WholeSongAnchor wholeSongAnchorNow() const;
   int selection_start_pattern_ = 0, selection_start_row_ = 0, selection_start_track_ = 0;
   int selection_start_col_ = 0;
   SelectionScope selection_start_scope_ = SelectionScope::NOTE_COLUMN;

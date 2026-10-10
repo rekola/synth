@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <limits>
 #include <string>
 #include <string_view>
@@ -32,19 +33,23 @@ class Note {
   float getVelocityAsFloat() const { return velocity / 127.0f; }
   short getDelay() const { return delay; }
 
-  // The note's local effect: three characters, a mnemonic letter and a
-  // two-digit hex argument (`Command` without its leading chain digit),
-  // "---" when unset. Stored and edited like velocity/delay; playback does
-  // not act on it yet.
+  // The note's local effect: three characters, a mnemonic and a two-digit hex
+  // argument (`Command` without its leading chain digit), "..." when unset.
+  // Stored and edited like velocity/delay. A leading '+' or '-' is not a
+  // mnemonic but the sign of a tuning correction in cents (see below).
   std::string_view getFx() const { return std::string_view(fx, 3); }
-  bool hasFx() const { return fx[0] != '-' || fx[1] != '-' || fx[2] != '-'; }
-  // Whether `codepoint` may be typed at position `i` (0 = the mnemonic, 1-2
-  // the hex argument); a letter is stored uppercase. Returns the character to
-  // store, or 0 if it is not allowed.
+  bool hasFx() const { return fx[0] != kFxEmpty || fx[1] != kFxEmpty || fx[2] != kFxEmpty; }
+  void clearFx() { std::fill(fx, fx + 3, kFxEmpty); }
+  // The placeholder for an unset fx character; shown as a middle dot.
+  static constexpr char kFxEmpty = '.';
+  // Whether `codepoint` may be typed at position `i` (0 = the mnemonic or
+  // sign, 1-2 the hex argument); a letter is stored uppercase. Returns the
+  // character to store, or 0 if it is not allowed.
   static char fxCharFor(int i, int32_t codepoint) {
     if (i < 0 || i >= 3) return 0;
     if (codepoint >= 'a' && codepoint <= 'z') codepoint -= 'a' - 'A';
-    if (codepoint == '-' || (codepoint >= '0' && codepoint <= '9')) return static_cast<char>(codepoint);
+    if (codepoint == kFxEmpty || (codepoint >= '0' && codepoint <= '9')) return static_cast<char>(codepoint);
+    if (i == 0 && (codepoint == '+' || codepoint == '-')) return static_cast<char>(codepoint);
     if (codepoint >= 'A' && codepoint <= (i == 0 ? 'Z' : 'F')) return static_cast<char>(codepoint);
     return 0;
   }
@@ -65,6 +70,28 @@ class Note {
     fx[i] = c;
     return true;
   }
+
+  // A tuning correction is the fx `+hh` or `-hh`: a sign and two hex digits,
+  // whole cents added to the note's pitch. Whether a note carries one is the
+  // mark of it being tuned, so a tuned note with nothing to correct holds +00.
+  static constexpr int kMaxTuningCorrectionCents = 255;
+  bool hasTuningCorrection() const {
+    return (fx[0] == '+' || fx[0] == '-') && hexDigit(fx[1]) >= 0 && hexDigit(fx[2]) >= 0;
+  }
+  // 0 when the note carries none.
+  int getTuningCorrectionCents() const {
+    if (!hasTuningCorrection()) return 0;
+    int magnitude = hexDigit(fx[1]) * 16 + hexDigit(fx[2]);
+    return fx[0] == '-' ? -magnitude : magnitude;
+  }
+  // Replaces the whole fx (clamped to +-kMaxTuningCorrectionCents).
+  void setTuningCorrection(int cents) {
+    int magnitude = std::min(std::abs(cents), kMaxTuningCorrectionCents);
+    static const char kHex[] = "0123456789ABCDEF";
+    fx[0] = cents < 0 ? '-' : '+';
+    fx[1] = kHex[magnitude >> 4];
+    fx[2] = kHex[magnitude & 15];
+  }
   float getDelayAsFloat() const { return delay / 255.0f; }
   bool isDefined() const { return value >= 0 || velocity > 0; }
   bool isOff() const { return value >= 0 && velocity == 0; }
@@ -77,7 +104,7 @@ class Note {
     value = -1;
     velocity = 0;
     delay = 0;
-    std::fill(fx, fx + 3, '-');
+    clearFx();
   }
 
   // `delta` may be any size (positive up, negative down) - not just ±1 -
@@ -418,7 +445,13 @@ class Note {
   int value; // sample position, note value or -1 for undefined note
   short velocity;
   short delay;
-  char fx[3] = { '-', '-', '-' };
+  static int hexDigit(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+  }
+
+  char fx[3] = { kFxEmpty, kFxEmpty, kFxEmpty };
 };
 
 // The Note-taking overload of getFrequencyFor() (Tuning.h) lives here

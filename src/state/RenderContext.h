@@ -25,11 +25,12 @@
 // producer should never need to know why or when it's being started or
 // stopped - that scheduling problem belongs entirely up here.
 
-// A position a single note takes in place of its track's: an azimuth and/or
-// an ambisonic extent, set by the note's own fx (Pxx / Wxx).
+// What a single note takes in place of its track's: an azimuth and/or an
+// ambisonic extent (the note's own fx Pxx / Wxx), and a pitch correction in
+// cents (a +hh / -hh fx).
 struct NoteOverride {
-  bool has_azimuth = false, has_extent = false;
-  float azimuth = 0, extent = 0;
+  bool has_azimuth = false, has_extent = false, has_detune = false;
+  float azimuth = 0, extent = 0, detune_cents = 0;
 };
 
 // A pattern note's own on/off, resolved (tuning/velocity/note_value)

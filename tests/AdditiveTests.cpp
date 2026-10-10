@@ -240,7 +240,7 @@ TEST(additive_keyboard_spread_places_bass_and_treble_on_opposite_sides) {
     ChannelConfiguration config(44100, 1);
     SphericalPosition position;
     position.distance = 1.0f;
-    auto voice = additive.playNote(config, position, Tuning::EDO12, 1.0f, 1.0f, note_value, SendLevels{}, NoteCoordinate(0, 0, 0));
+    auto voice = additive.playNote(config, position, SpatialMode::AUTO, Tuning::EDO12, 1.0f, 1.0f, note_value, SendLevels{}, NoteCoordinate(0, 0, 0));
     auto data = voice->render(1024);
     const float * w = data.getChannelData(0);
     const float * y = data.getChannelData(1);
@@ -601,7 +601,7 @@ TEST(additive_every_preset_renders_finite_and_audible) {
     ChannelConfiguration config(44100, 1);
     SphericalPosition position;
     position.distance = 1.0f;
-    auto voice = additive.playNote(config, position, Tuning::EDO31, 1.0f, 0.8f, 160, SendLevels{}, NoteCoordinate(0, 0, 0));
+    auto voice = additive.playNote(config, position, SpatialMode::AUTO, Tuning::EDO31, 1.0f, 0.8f, 160, SendLevels{}, NoteCoordinate(0, 0, 0));
     float energy = 0.0f;
     for (int block = 0; block < 4; block++) {
       auto data = voice->render(1024);
@@ -668,7 +668,7 @@ TEST(additive_voice_timing) {
   double on_us = 0.0, first_us = 0.0;
   for (int r = 0; r < kRounds; r++) {
     auto t0 = now();
-    auto voice = additive.playNote(config, position, Tuning::EDO12, 1.0f, 1.0f, 60, sends, NoteCoordinate(0, r, 0));
+    auto voice = additive.playNote(config, position, SpatialMode::AUTO, Tuning::EDO12, 1.0f, 1.0f, 60, sends, NoteCoordinate(0, r, 0));
     auto t1 = now();
     voice->render(kFrames);
     auto t2 = now();
@@ -683,7 +683,7 @@ TEST(additive_voice_timing) {
     std::vector<std::unique_ptr<VoiceState>> voices;
     auto t0 = now();
     for (int v = 0; v < kVoices; v++) {
-      voices.push_back(additive.playNote(config, position, Tuning::EDO12, 1.0f, 1.0f, 36 + v * 2, sends, NoteCoordinate(0, r, v)));
+      voices.push_back(additive.playNote(config, position, SpatialMode::AUTO, Tuning::EDO12, 1.0f, 1.0f, 36 + v * 2, sends, NoteCoordinate(0, r, v)));
     }
     auto t1 = now();
     for (auto & voice : voices) voice->render(kFrames);

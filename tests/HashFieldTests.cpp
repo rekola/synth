@@ -82,8 +82,7 @@ TEST(hashfield_bipolar_stays_within_spread_and_can_be_negative) {
   CHECK(saw_positive);
 }
 
-// Sub-voice/step decorrelation (the oscillator array's/ArpeggiatorState's own
-// usage shape) is handled by NoteCoordinate::withInstance(), not by any
+// Sub-voice/step decorrelation (the oscillator array's own usage shape) is handled by NoteCoordinate::withInstance(), not by any
 // HashField method - HashField's own two-argument (coord, param) shape
 // already covers "vary the param axis per discriminator" (e.g.
 // paramId("voice") ^ voice_id) without needing a dedicated

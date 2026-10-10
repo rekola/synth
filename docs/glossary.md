@@ -21,6 +21,13 @@ and apply song-wide at playback, without changing the pattern data. Here,
 "groove" means timing feel only, and for now that is just swing. The
 Library's drum patterns are not grooves in this sense; see Rhythm.
 
+**Just intonation**
+Tuning notes to simple whole-number frequency ratios (3/2 for a fifth, 5/4
+for a major third) instead of equal steps. Here the notes stay on the song's
+EDO grid and each carries a small correction in cents toward its just ratio
+above the bass of its chord, the bass itself measured from the key; see
+terminal.md.
+
 **Live sequencer**
 A tool used to program, trigger and manipulate musical patterns, notes and
 rhythms in real time during a performance. Here that is Live View: clips are
@@ -51,6 +58,10 @@ A row of the clip grid: the clips at one position across every track's clip
 list, launched together. It has no object of its own beyond an optional
 name, tempo and time signature stored by position. See scenes.md.
 
+**Spatial mode**
+How a track places its notes around its position: `auto` (the instrument
+decides), `ring` (a spiral by note column) or `arc` (by pitch). See spatial.md.
+
 **Strike point**
 Where a hammer or pluck meets the string, as a fraction of its length. Modes
 with a node there are not excited: at 1/8, the 8th, 16th and 24th partials.
@@ -65,6 +76,11 @@ Akai MPC's swing. Only the second note of a pair moves; on-beat notes
 never do. A song-level setting (`Song::getSwing()`, `<song swing="">`)
 applied at playback time to everything scheduled against it, not baked into
 note data.
+
+**Tuning correction**
+A note's pitch offset in cents, stored in its fx as `+hh` or `-hh`
+(commands.md). Not the song's tuning, which always means the EDO
+(12/19/31/53 steps per octave).
 
 **Unison**
 The strings struck together for one piano key, tuned a cent or so apart.

@@ -49,8 +49,8 @@ class GenericInstrument : public Instrument {
   const std::unordered_map<SF2Generator, float> & getGeneratorOverrides() const { return generator_overrides_; }
   const std::vector<std::pair<std::string, float>> & getUnknownGeneratorOverrides() const { return unknown_generator_overrides_; }
 
-  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}) const override {
-    return concrete_instrument_->playNote(channel_config, position, tuning, detune, velocity, note_value, sends, note_coord);
+  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, SpatialMode spatial_mode, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const override {
+    return concrete_instrument_->playNote(channel_config, position, spatial_mode, tuning, detune, velocity, note_value, sends, note_coord);
   }
 
   const char * getElementName() const override { return "instrument"; }

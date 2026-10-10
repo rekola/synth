@@ -6,7 +6,6 @@
 #include "PercussionTrack.h"
 #include "SampleTrack.h"
 #include "../instruments/Additive.h"
-#include "../instruments/Arpeggiator.h"
 #include "../instruments/FM.h"
 #include "../instruments/GenericInstrument.h"
 #include "../instruments/Noise.h"
@@ -34,7 +33,6 @@ std::unique_ptr<Track> makeTrack(std::string_view name) {
   if (name == "track") return std::make_unique<InstrumentTrack>();
   if (name == "percussionTrack") return std::make_unique<PercussionTrack>();
   if (name == "sampleTrack") return std::make_unique<SampleTrack>();
-  if (name == "arpeggiatorTrack") return std::make_unique<Arpeggiator>();
   if (name == "group") return std::make_unique<Group>();
 
   // effects

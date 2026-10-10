@@ -41,7 +41,7 @@ SongStructure::visit(const Track & track) {
     // Whether `track` gets a color at all is decided right here, once,
     // for every branch below that calls assign() - a LeafTrack (every
     // addressable leaf track type - InstrumentControl/PercussionControl/
-    // Sample/Arpeggiator - see LeafTrack.h) gets the next
+    // Sample - see LeafTrack.h) gets the next
     // sequential slot; anything else (Effect, Group) stays at
     // VisibleTrackInfo::color_ordinal_'s own default of -1. See that
     // field's own comment for why this must be its own counter, not

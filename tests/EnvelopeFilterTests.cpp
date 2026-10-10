@@ -119,7 +119,7 @@ TEST(envelope_filter_keynum_to_decay_follows_the_played_note) {
   // An octave below middle C should decay at half the rate (in dB) of
   // middle C, an octave above at twice the rate.
   auto levelAfter = [&](int note_value) {
-    auto voice = filter.playNote(config, SphericalPosition{}, Tuning::EDO12, 1.0f, 1.0f, note_value, SendLevels{});
+    auto voice = filter.playNote(config, SphericalPosition{}, SpatialMode::AUTO, Tuning::EDO12, 1.0f, 1.0f, note_value, SendLevels{}, NoteCoordinate{});
     voice->render(11025);
     return TrackState::gainToDecibels(voice->getOwnLoudnessFactor());
   };

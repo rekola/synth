@@ -22,7 +22,12 @@ Which thing they act on depends on the focused widget.
 ### Pattern editor
 
 They act on the region: the note under the cursor, or the marked block of rows
-and tracks (C-SPC sets the mark). To duplicate a track's notes, select
+and tracks (C-SPC sets the mark). C-x h (`mark-whole-buffer`) selects the whole song
+instead, by view: in Live View every clip of every track, placed or not; in
+Arrangement view every track's background pattern and the clips the
+arrangement places (a clip placed twice is one pattern, acted on once). Any
+cursor movement or C-g ends it. Transpose, humanize and the tuning commands act
+on it; cut, copy and yank say they do not. To duplicate a track's notes, select
 the track, copy it, move to another track and yank.
 
 ### Clip grid (Live View)
@@ -92,6 +97,45 @@ transport. A live recording take is one step: its notes appear as they land, and
 while a take is still recording, and they leave a clip that is playing (or
 queued, or being recorded) alone: an undo that would change its notes says so
 and waits until the clip is stopped.
+
+## Just intonation
+
+`apply-just-intonation-region` (M-x or the Edit menu, no key binding) gives
+every pitched note in the region a tuning correction: the cents that move it
+from its equal-tempered pitch to a just ratio (`model/JustIntonation.h`). The
+correction goes in the note's fx as `+hh` or `-hh` (commands.md), and `+00`
+marks a note as tuned that needs none.
+
+A note is tuned together with the others of its chord. Per track and per
+pattern (a track's background, or one clip), the notes that start in a bar,
+plus the ones still held into it, are one chord, so an arpeggio is one chord
+because all its steps start in the same bar. The chord's lowest note, the
+bass, is tuned from the song key; every other note is tuned as its interval
+above the bass. The ratio for an interval, or for a step above the key, is the
+simplest one that lands within half a step (and at most 20 cents) of it, so no
+limit is chosen: 31-EDO reaches 7/6 and 11/10, 12-EDO mostly stays with 5-limit
+ratios (plus 7/5 and 15/14). Only primes above 13 are never used. A chord is
+therefore pure against its bass, and the bass keeps the key from drifting
+between chords. A ii chord in C (D F A) is 10:12:15 above its D.
+
+What it does not do: chords are per track (a bass track and a pad track agree
+on the root, both measuring it from the key, but not on the upper notes), a
+chord that changes inside a bar is read as one chord, and a held note keeps the
+correction it got when it started. Percussion, offs and aftertouch are skipped;
+any other fx a note had is replaced, and the message says how many. The context
+is read from the whole pattern, so a region that covers part of a chord still
+tunes it as the whole chord, writing only the notes it covers. A run replaces
+earlier corrections, so it can be repeated after editing; the mark stays.
+
+Select all first (C-x h) to tune every clip (Live View) or the arrangement
+(Arrangement view); a clip's notes are tuned against the key, so one tuning
+fits every place it is put. `clear-tuning-correction-region`
+removes the corrections again, whatever put them there. Transposing the region
+gives each tuned note the correction for its new pitch, and transposing the
+whole song moves the key with the notes when no pitched note is left outside
+the selection, so the corrections stay as they were; otherwise the key stays
+and the notes are retuned against it.
+`undo` takes any of these back. Terminal only.
 
 ## Humanize
 

@@ -14,7 +14,6 @@
 #include "SampleContent.h"
 #include "Group.h"
 #include "../audio/SampleFileLoader.h"
-#include "../instruments/Arpeggiator.h"
 #include "../instruments/Oscillator.h"
 #include "../instruments/PadSynth.h"
 #include "../instruments/Noise.h"
