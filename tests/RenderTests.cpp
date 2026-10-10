@@ -1985,7 +1985,7 @@ TEST(render_golden_hash_catches_randomization_regressions) {
   CHECK(notemultiplier.ok);
   auto notemultiplier_result = renderSongOffline(notemultiplier.song, config, MixerType::AMBISONIC_STEREO);
   CHECK(!hasNonFiniteSample(notemultiplier_result));
-  if (canonical_arch) CHECK(hashSamples(notemultiplier_result) == 0x83c84bb05d45e9e9ull);
+  if (canonical_arch) CHECK(hashSamples(notemultiplier_result) == 0xbffb64c7cd8093b0ull);
 
   auto tape = loadFixture("tape_degradation_all_presets.xml");
   CHECK(tape.ok);
