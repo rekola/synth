@@ -1,4 +1,4 @@
-# Just tuning, chord extent and whole-song select
+# Just intonation, chord extent and whole-song select
 
 Goal: notes in 12/19/31/53-EDO carry a per-note cent correction toward just
 intonation, computed by the app over a region or the whole song, stored in the
@@ -6,7 +6,7 @@ note's local fx. Chords get spread in the ambisonic space so the tuned
 intervals are heard as separate voices. Three phases, in this order: 1 and 3 are decided, 2 is a sketch. Voice
 placement is last because it is the most involved part.
 
-## Phase 1 - the `+xx` / `-xx` fx command and key-relative just tuning
+## Phase 1 - the `+xx` / `-xx` fx command and key-relative just intonation
 
 ### Storage and placeholder
 
@@ -47,9 +47,13 @@ Examples to pin as tests (31-EDO, key C): C D♯ F = 6:7:8, corrections
 
 ### Commands and selection
 
-- `tune-region`: in `PatternEditor`, like `transpose-region-*` (never clears
-  the mark), block ops `tunePatternBlock` / `tunePatternBlockNotes` in
+- `apply-just-intonation-region`: in `PatternEditor`, like `transpose-region-*` (never clears
+  the mark), block ops `applyJustIntonationBlock` / `applyJustIntonationBlockNotes` in
   `PatternBlockOps`. Covers every pitched note in the region.
+- `clear-tuning-correction-region`: removes the `+`/`-` fx from the region's
+  notes whatever produced them, so it is not named for just intonation. Same
+  scopes as the apply command; `clearTuningCorrectionBlock` /
+  `clearTuningCorrectionBlockNotes`.
 - Transpose retunes the notes that carry a sign fx (so a C moved to G gets the
   key's perfect fifth). A whole-song transpose also moves `Song::getKey()`, so
   recomputed corrections come out identical (test: tune, transpose song, tune
@@ -65,7 +69,7 @@ Examples to pin as tests (31-EDO, key C): C D♯ F = 6:7:8, corrections
 ### Docs and tests
 
 `docs/commands.md` (the `+`/`-` row), `docs/terminal.md` (commands, `C-x h`),
-`docs/glossary.md` (tuning correction), the `Note.h` fx comment. Command
+`docs/glossary.md` (just intonation, tuning correction; "tuning" stays the song's EDO), the `Note.h` fx comment. Command
 parse/round-trip, block ops, a render test measuring the frequency ratio of a
 note at `+64`, SONG scope bounds.
 
