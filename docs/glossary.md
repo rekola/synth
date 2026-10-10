@@ -31,13 +31,10 @@ terminal.md.
 
 The simplest way to have it is *static*: every note gets one fixed ratio to the
 key. That works in any EDO, 12 included, and every interval between any two
-notes is then a whole-number ratio. What it cannot promise is that each
-interval is the *simplest* ratio for its size. In a major scale the D is a 9/8
-above C, so D and F are 32/27 apart, where a minor third is simplest as 6/5,
-and D and A are 40/27 apart, a fifth about 22 cents narrower than 3/2 that
-beats audibly. The D minor chord (D, F and A) gets its simplest ratios only if
-that D is a 10/9 above C, which is a different D from the one the rest of the
-scale uses. The app's tuning today works one bar at a time: the notes
+notes is then a whole-number ratio. What it cannot promise is that every chord
+comes out as simple as it could. In a major scale, the D that suits a G major
+chord is a little too high for a D minor chord, and one fixed D has to be a
+compromise. The app's tuning today works one bar at a time: the notes
 sounding together in a bar are tuned as pure intervals above the lowest of
 them, and that lowest note is measured from the key.
 
