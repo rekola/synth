@@ -6,61 +6,72 @@ note's local fx. Chords get spread in the ambisonic space so the tuned
 intervals are heard as separate voices. Three phases; 0 and 1 are decided,
 2 is a sketch.
 
-## Phase 0 - chord extent, SoundFont pan
-
-### Chord extent (`-Wxx` and instrument default extents)
+## Phase 0 - spatial mode per track, chord extent
 
 Today extent only widens a single voice (an oscillator array's cloud,
 `OscillatorVoice.h`; the SoundFont per-feature offsets). The notes of a chord
-are separate voices at one azimuth, so a chord never separates.
+are separate voices at one azimuth, so a chord never separates. Where a note
+sits is also decided in three unrelated places: the percussion key table, the
+pitched-arc families (piano, mallets, harp, timpani) and the region pan.
+A per-track spatial mode makes that one choice.
 
-- Each note column gets a fixed slot on the cloud layout of the track's N
-  note columns: N = 1 is the centre, 2 is a left/right pair, 3 a triangle,
-  4-6 one ring, more concentric rings. `OscillatorVoice::ringCounts()` and
-  `cloudPoint()` already build exactly this; move them to a shared header
-  (`ambisonic/CloudLayout.h`) and have both callers use it.
-- Radius is `atan2(extent, distance)` as in the oscillator array. No scatter
-  (`scatter_coord = nullptr`): per-note hashed turns would rotate the triangle
-  between chord events. The slot is the column index, so an arpeggio keeps
-  every column on its own point.
-- N is the widest row of the pattern or clip being played (the audio thread
-  reads it from `PlaybackContent`; check it is cheap to get there). Live-played
-  notes use their column.
-- Applied once, in `InstrumentTrackState::noteOn()`, to `resolved_position`
-  after the note override, so it covers every instrument.
-- Not applied to percussion (`Tuning::PERCUSSION` / bank 128): no chords, they
-  keep the key table and jitter.
-- Pitched-arc SoundFont families (piano 0-7, mallets, harp, timpani) already
-  place each key along their arc, which is a chord spread; they keep the arc
-  and skip the rings.
-- An oscillator voice's own array cloud stays centred on its slot with its
-  current radius for now. Overlap with neighbouring slots to be judged by ear.
-- Visible change: instruments with a nonzero default extent (organs, celesta,
-  dulcimer, ...) start spreading chords in existing songs. Zero-extent
-  instruments are unchanged.
-- Docs: `-Wxx` description in `docs/commands.md` says it also spreads chords.
+### Modes
+
+A leaf instrument track gets `spatial="auto|point|ring|arc"` (a `LeafTrack`
+property next to azimuth/elevation/distance/extent, a string property in
+`TrackNodes.h`, written only when not `auto`). `cycle-spatial-mode` steps
+through them, like `cycle-monitor`; the outline's details popup shows it.
+
+- `auto` (default): what the instrument does today. Percussion (bank 128 /
+  `Tuning::PERCUSSION`) uses its key table with jitter; the SoundFont arc
+  families use the arc; everything else is `point`. No existing song changes
+  its note placement.
+- `point`: every note at the track position.
+- `ring`: each note column gets a fixed slot on the cloud layout of the
+  track's N note columns: N = 1 is the centre, 2 a left/right pair, 3 a
+  triangle, 4-6 one ring, more concentric rings. `OscillatorVoice::
+  ringCounts()` and `cloudPoint()` already build exactly this; move them to a
+  shared header (`ambisonic/CloudLayout.h`) and have both callers use it.
+  Radius is `atan2(extent, distance)`, from `-Wxx` or the instrument's default
+  extent. No scatter (`scatter_coord = nullptr`): per-note hashed turns would
+  rotate the triangle between chord events. The slot is the column index, so
+  an arpeggio keeps every column on its own point. N is the widest row of the
+  pattern or clip being played (check `PlaybackContent` can give it to the
+  audio thread cheaply); live-played notes use their column.
+- `arc`: the note's key along the extent, low to high. SoundFont presets use
+  their mapped key range as now; other instruments use a fixed A0-C8 span.
+
+Percussion is not selectable: it has no chords, so it stays on its table.
+Any pitched instrument can take `ring`, an organ included. A chord on `ring`
+or `arc` is spread; on `point` it is not.
+
+Implementation: ring is applied once in `InstrumentTrackState::noteOn()` to
+`resolved_position` after the note override. The kit and arc placement live in
+`SoundFontInstrument::playNote()`; the mode has to reach them, either as a
+parameter on the eight `playNote` overrides or through a small virtual
+`placeNote()` on `Instrument` - decide when writing it.
 
 ### SoundFont region pan
 
-SF2 generator 17 (`pan`, +-0.5 per region) is folded into the azimuth by
-`adjustPositionForPan()` (`SoundFont.cpp`) for every pitched preset. Percussion
-and the arc families already skip it (`skip_native_pan`, marked TEMPORARY).
-Real fonts use it for stereo-split samples (a stereo sample stored as two mono
-regions panned hard left/right) and for mix pans.
+SF2 generator 17 (`pan`, +-0.5 per region) stays an azimuth offset in every
+mode. `adjustPositionForPan()` already does this for pitched presets; drop the
+`skip_native_pan` exemption (marked TEMPORARY) so percussion and the arc
+families get it too. In `ring` mode the pan offsets around each slot, so a
+stereo-split preset (one sample stored as two regions panned hard left and
+right) keeps its width at every chord point.
 
-- Remove it for all pitched presets: the chord rings place the voices.
-- Risk: a stereo-split preset collapses to a point at its slot. No SoundFont
-  is installed in this container, so check by ear with FluidR3.
-- Fallback if that is audible: keep the pan only where one note-on matches
-  regions of opposite sign (a stereo pair), drop the rest.
-- Delete `adjustPositionForPan()` and the `skip_native_pan` parameter once it
-  is unused.
+Watch for doubling: a GM drum kit's per-drum pans and the key table encode the
+same thing, as do the arc and a piano's stereo-mic zones. If kit or arc sounds
+doubled, put the exemption back for those two only. The pan's mirror
+convention was marked "under investigation" and this does not settle it.
 
-### Tests
+### Docs and tests
 
-Layout unit tests (counts, N = 3 gives three points 120 degrees apart, no
-scatter), a render test (a chord with extent has energy on both sides, a
-zero-extent chord does not), percussion unchanged.
+`docs/commands.md` (`-Wxx` spreads chords on a `ring` track), a spatial-mode
+section next to the position docs, glossary entries. Layout unit tests (counts,
+N = 3 gives three points 120 degrees apart, no scatter), `spatial` XML
+round-trip, a render test (a `ring` chord with extent has energy on both sides,
+`point` does not), percussion unchanged under `auto`.
 
 ## Phase 1 - the `+xx` / `-xx` fx command and key-relative just tuning
 
@@ -137,7 +148,9 @@ note at `+64`, SONG scope bounds.
 
 ## Open
 
-- Pitched-arc families keep the arc and skip the rings (assumed above).
-- SoundFont pan: remove outright (assumed above) or keep stereo pairs.
+- `auto` leaves non-arc instruments as `point` (assumed above); the variant is
+  `ring` whenever the track has a nonzero extent, which changes existing songs.
+- Region pan on percussion and arc presets (re-enabled above) may double the
+  key table / arc; check by ear with FluidR3, which this container lacks.
 - The 20 cent cap and the oscillator-array radius inside a chord are by-ear
   values.
