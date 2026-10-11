@@ -34,6 +34,8 @@ def contrast(a, b):
     return (la+0.05)/(lb+0.05)
 
 H = 250  # slightly cool neutrals
+
+# Theme-dependent: surfaces, text, the accent.
 THEMES = {
  'dark': {
   'surface.base':   (0.175, 0.010, H),
@@ -46,11 +48,6 @@ THEMES = {
   'accent':         (0.800, 0.085, 215),
   'accent.dim':     (0.380, 0.045, 215),
   'text.on-accent': (0.180, 0.020, 215),
-  'state.playing':  (0.800, 0.170, 150),
-  'state.playing.dim': (0.500, 0.100, 150),
-  'state.recording':(0.680, 0.210, 25),
-  'state.recording.dim': (0.540, 0.130, 25),
-  'state.queued':   (0.820, 0.150, 95),
  },
  'light': {
   'surface.base':   (0.975, 0.005, H),
@@ -63,26 +60,49 @@ THEMES = {
   'accent':         (0.480, 0.110, 225),
   'accent.dim':     (0.880, 0.040, 225),
   'text.on-accent': (0.985, 0.005, 225),
-  'state.playing':  (0.520, 0.150, 150),
-  'state.playing.dim': (0.620, 0.110, 150),
-  'state.recording':(0.540, 0.210, 25),
-  'state.recording.dim': (0.640, 0.120, 25),
-  'state.queued':   (0.560, 0.130, 75),
  },
 }
 
-# Track identity colours: fixed lightness and chroma, hue by golden angle.
-def track_hue(i): return (i*137.508 + 20) % 360
-TRACK = {'dark': (0.74, 0.095), 'light': (0.55, 0.115)}
+# Shared with the Launchpad, so the same in every theme: the Launchpad is
+# always dark and has no icons, so a clip's colour (its track's) and its
+# state must read the same on the pads and on the screen. One lightness band,
+# L 0.50-0.64, is readable (3:1) on both the darkest and the lightest surface.
+# playing also means queued to play, and recording also queued to record: the
+# pads tell them apart by pulsing and flashing, the terminal by the glyph.
+SHARED = {
+ 'state.playing':        (0.600, 0.190, 145),
+ 'state.playing.dim':    (0.580, 0.060, 145),   # paused
+ 'state.recording':      (0.600, 0.210, 27),
+ 'state.recording.dim':  (0.580, 0.075, 27),    # armed, queued to stop
+ 'text.on-track':        (0.130, 0.015, H),     # text on a track or state colour
+ 'data.heat':            (0.720, 0.140, 65),    # the DirAC heatmap's fixed hue
+}
+# The level meter ramp, quiet to loud (not a Launchpad matter).
+METER = [(0.0, (0.560, 0.130, 150)), (0.5, (0.700, 0.185, 140)), (0.78, (0.780, 0.160, 85)), (0.92, (0.680, 0.200, 45)), (1.0, (0.600, 0.215, 27))]
+
+# Track identity colours: one lightness and chroma, hues spread by the
+# golden ratio over the arcs the Launchpad's own state colours leave free
+# (not near its green or red).
+TRACK_L, TRACK_C = 0.60, 0.12
+ARCS = [(45.0, 105.0), (180.0, 340.0)]
+def track_hue(i):
+    t = (0.5 + i * 0.6180339887) % 1.0
+    pos = t * sum(b - a for a, b in ARCS)
+    for a, b in ARCS:
+        if pos <= b - a: return a + pos
+        pos -= b - a
+    return ARCS[-1][1]
 
 out = {}
+def put(name, d): out.setdefault(name, {}).update(d)
+shared_rgb = {k: oklch_to_srgb(*v) for k, v in SHARED.items()}
+tracks_rgb = [oklch_to_srgb(TRACK_L, TRACK_C, track_hue(i)) for i in range(8)]
+meter_rgb = [(f, oklch_to_srgb(*c)) for f, c in METER]
 for name, th in THEMES.items():
     rgb = {k: oklch_to_srgb(*v) for k, v in th.items()}
-    out[name] = {k: hexof(v) for k, v in rgb.items()}
-    L, C = TRACK[name]
-    out[name]['tracks'] = [hexof(oklch_to_srgb(L, C, track_hue(i))) for i in range(8)]
-    print('==', name)
+    put(name, {k: hexof(v) for k, v in rgb.items()})
     base, panel, raised = rgb['surface.base'], rgb['surface.panel'], rgb['surface.raised']
+    print('==', name)
     checks = [
       ('text.primary / base', rgb['text.primary'], base, 4.5),
       ('text.primary / raised', rgb['text.primary'], raised, 4.5),
@@ -91,16 +111,35 @@ for name, th in THEMES.items():
       ('text.disabled / base (UI glyph)', rgb['text.disabled'], base, 3.0),
       ('accent / base (UI glyph)', rgb['accent'], base, 3.0),
       ('text.on-accent / accent', rgb['text.on-accent'], rgb['accent'], 4.5),
-      ('state.playing / base', rgb['state.playing'], base, 3.0),
-      ('state.recording / base', rgb['state.recording'], base, 3.0),
-      ('state.queued / base', rgb['state.queued'], base, 3.0),
-      ('state.playing.dim / base', rgb['state.playing.dim'], base, 3.0),
-      ('state.recording.dim / base', rgb['state.recording.dim'], base, 3.0),
+      ('text.primary / accent.dim', rgb['text.primary'], rgb['accent.dim'], 4.5),
     ]
-    for i in range(8):
-        checks.append((f'track {i} / base', oklch_to_srgb(L, C, track_hue(i)), base, 3.0))
     for label, fg, bg, need in checks:
         r = contrast(fg, bg)
         print(f'{label:34s} {r:5.2f}  need {need}  {"ok" if r >= need else "FAIL"}')
+    # shared colours against this theme's surfaces
+    for k, v in shared_rgb.items():
+        if k in ('text.on-track', 'data.heat'): continue
+        for sname, srgb in (('base', base), ('panel', panel)):
+            r = contrast(v, srgb)
+            print(f'{k + " / " + sname:34s} {r:5.2f}  need 3.0  {"ok" if r >= 3.0 else "FAIL"}')
+    for i, v in enumerate(tracks_rgb):
+        for sname, srgb in (('base', base), ('panel', panel)):
+            r = contrast(v, srgb)
+            print(f'{"track " + str(i) + " / " + sname:34s} {r:5.2f}  need 3.0  {"ok" if r >= 3.0 else "FAIL"}')
+print('== shared (text on the colour)')
+for k in [k for k in SHARED if k not in ('text.on-track', 'data.heat')] + [f'track {i}' for i in range(8)]:
+    v = shared_rgb[k] if k in shared_rgb else tracks_rgb[int(k.split()[1])]
+    r = contrast(shared_rgb['text.on-track'], v)
+    print(f'{"text.on-track / " + k:34s} {r:5.2f}  need 4.5  {"ok" if r >= 4.5 else "FAIL"}')
+print('== track hues, distance to the state hues (need >= 35 degrees)')
+for i in range(8):
+    h = track_hue(i)
+    d = min(abs((h - sh + 180) % 360 - 180) for sh in (145, 27))
+    print(f'track {i}: hue {h:6.1f}  nearest state hue {d:5.1f}  {"ok" if d >= 35 else "FAIL"}')
+sh = {k: hexof(v) for k, v in shared_rgb.items()}
+sh['tracks'] = [hexof(v) for v in tracks_rgb]
+sh['track_hues'] = [round(track_hue(i), 1) for i in range(8)]
+sh['meter'] = [[f, hexof(c)] for f, c in meter_rgb]
+out['shared'] = sh
 if len(sys.argv) > 1:
     json.dump(out, open(sys.argv[1], 'w'), indent=1)

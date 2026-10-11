@@ -27,13 +27,18 @@ already a `StyleProvider` constant, which is the lever.
 2. **Neutrals plus one accent.** Slightly cool greys for surfaces and text in
    three emphasis levels (primary, secondary, disabled), one accent for focus
    and the cursor (the cursor is already cyan-leaning), and semantic colours
-   reserved for state: playing green, recording red, queued and armed as
-   their dim forms. Nothing else may use those hues.
-3. **Track identity colours from one formula.** Generate them in a
-   perceptual colour space (OKLCH): fixed lightness and chroma, hue spread
-   evenly. They then look equally strong, stay readable under text, and
-   don't clash with the semantic colours. The same formula feeds the
-   Launchpad's pad colours, where the hardware palette allows.
+   reserved for state: playing green and recording red, with their dim forms.
+   Queued is not a colour: a queued clip uses the playing (or recording)
+   colour and differs by pulsing on the pads and by its glyph on screen.
+3. **Track colours and clip states are shared with the Launchpad, so they do
+   not change with the theme.** The Launchpad is always dark and has no icons,
+   so a clip's colour and state must be identical on the pads and the screen:
+   one value per token in every theme, in the lightness band that is readable
+   on both the darkest and the lightest surface. Track colours come from one
+   formula in a perceptual colour space (OKLCH): fixed lightness and chroma,
+   hue spread evenly over the arcs the green and red state colours leave free,
+   so a track never reads as a playing or a recording clip. See
+   `plans/modern-look-tokens.md`.
 4. **Type hierarchy with few levels.** Mono for data (notes, hex values),
    the UI font for labels in the window backend. Two sizes, two weights.
    In the terminal: bold only for headings and the focused item, italic
@@ -68,7 +73,9 @@ widgets use by role:
 - surface.base / .panel / .raised / .overlay
 - text.primary / .secondary / .disabled / .on-accent
 - accent, accent.dim, focus
-- state.playing / .queued / .recording / .armed (+ dim forms)
+- state.playing / .recording (+ dim forms), the same in every theme; queued
+  uses these (pulse on the pads, glyph on screen)
+- track colours (8 from the formula) and text.on-track, the same in every theme
 - meter ramp (already `meterColor()`)
 - grid lines: bar, beat (as tones, not lines, where possible)
 

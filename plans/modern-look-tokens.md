@@ -6,62 +6,79 @@ which holds the OKLCH source, converts to sRGB and checks the contrast rules;
 change the values there and re-run it. These are proposals for step 4: step 3
 keeps today's dark look exactly, and `Theme::dark()` stays as it is until then.
 
+## Per theme
+
+Neutrals are slightly cool (hue 250). Surfaces step in lightness, not in
+lines: base, panel, raised, overlay.
+
 | Token | Dark | Light | Used for |
 |---|---|---|---|
 | `surface.base` | `#0d1115` | `#f4f7fa` | The window and the quietest areas |
 | `surface.panel` | `#161a1e` | `#eaedf1` | Panels: outline, scopes, clip slots, pattern editor |
-| `surface.raised` | `#21262b` | `#dfe3e7` | Headers, bar rows, the selected tone above a panel |
-| `surface.overlay` | `#2d3238` | `#f8fafd` | Floating layers (one step above everything) |
+| `surface.raised` | `#21262b` | `#dfe3e7` | Headings, bar rows |
+| `surface.overlay` | `#2d3238` | `#f8fafd` | Floating layers (the command candidates, dialogs) |
 | `text.primary` | `#e7ecf0` | `#181e24` | Data, headings, the thing being read |
 | `text.secondary` | `#acb2b7` | `#4a5158` | Labels, units, empty cells next to data |
 | `text.disabled` | `#70757a` | `#6f757b` | Placeholders, off flags, unset cells (UI-glyph contrast) |
 | `accent` | `#7acce0` | `#00698c` | Cursor, region, focus, selected item |
 | `accent.dim` | `#234951` | `#bcdeec` | Unfocused cursor, selected row tone |
 | `text.on-accent` | `#071417` | `#f7fbfd` | Text on the accent |
-| `state.playing` | `#5edb81` | `#007f35` | A playing or queued-to-play clip, the meter body |
-| `state.playing.dim` | `#337344` | `#519962` | Paused |
-| `state.recording` | `#ff5251` | `#cd1526` | Recording, queued to record, muted flag |
-| `state.recording.dim` | `#ad4b47` | `#cb6d67` | Armed, queued to stop |
-| `state.queued` | `#e3c23b` | `#a06700` | Queued (glyph shape also differs), the meter warning stop |
 
-Neutrals are slightly cool (hue 250). Surfaces step in lightness, not in
-lines: base, panel, raised, overlay. In the light theme the overlay is the
-lightest tone, in the dark theme the lightest of the dark ones, so a floating
-layer reads as above in both.
+## Shared with the Launchpad: one value in every theme
 
-## Track identity colours
+The Launchpad is always dark, has no icons, and has to show the same colours
+as the screen, so a clip's colour and state cannot differ between a dark and a
+light theme. These tokens therefore have **one value**. One lightness band,
+OKLCH L 0.58-0.60, is at least 3:1 against the darkest and the lightest
+surface, so a single colour works on both.
 
-One formula: fixed lightness and chroma in OKLCH, hue stepped by the golden
-angle (137.508 degrees, offset 20), so any number of tracks stays evenly
-spread. Dark uses L 0.74, C 0.095; light L 0.55, C 0.115 (a darker colour to
-stay readable on a light surface).
-
-| Track | Dark | Light |
+| Token | Value | Meaning |
 |---|---|---|
-| 0 | `#e19292` | `#aa5355` |
-| 1 | `#75bd93` | `#248556` |
-| 2 | `#af9fe1` | `#7762ad` |
-| 3 | `#d0a165` | `#9a6508` |
-| 4 | `#58bbcc` | `#008396` |
-| 5 | `#d892b6` | `#a1537e` |
-| 6 | `#9db672` | `#627d28` |
-| 7 | `#8babe7` | `#4c70b4` |
+| `state.playing` | `#009b28` | A clip playing **or queued to play**. The pads tell the two apart by pulsing (playing) and flashing (queued), the terminal by the glyph (`▸`, `▹`), later by a fade. Hue 145, the Launchpad's green. |
+| `state.playing.dim` | `#648464` | Launched while the transport is paused. Same hue, little chroma. |
+| `state.recording` | `#e23532` | Recording **or queued to record**. Hue 27, the Launchpad's red. |
+| `state.recording.dim` | `#a26962` | An armed track's empty slot, or a take queued to stop. |
+| `text.on-track` | `#04080d` | Text on a track or state colour, in both themes. |
+| `data.heat` | `#e09036` | The DirAC heatmap's fixed hue (not a Launchpad matter, listed with the rest of the colours that have no light variant). |
 
-All eight are within 0.7 of each other in contrast against the base surface (7.9-8.6 dark, 4.2-4.8 light),
-which is what "equally strong" means here. Where a track colour is under text
-(a placed arrangement block, the clip number), the text is the on-accent
-colour of the theme. The Launchpad's pad colours can take the same hues where
-the hardware palette allows.
+There is deliberately no separate "queued" token: a queued clip uses the
+playing colour (or the recording one), as it does on the pads. The hues are
+those of the Launchpad's clip states; the exact RGB of its palette entries
+(`LaunchpadManager.cpp`: green 21 and 23, red 5 and 7) is not in this
+repository, so only the hue is matched here, and a pad's brightness is the
+hardware's own.
 
-Known collision: track hues near 95 degrees (amber) sit close to
-`state.queued`. The queued state is always a glyph (`▹`) plus the colour, never
-the colour alone, and the track colour is a block or a chip, so the two are not
-confused in the mock; check it again with real songs.
+### Track colours
+
+The same eight in both themes, from one formula: OKLCH L 0.60, C 0.12, the hue
+stepped by the golden ratio over the hue arcs the two state colours leave
+free (45-105 and 180-340 degrees), so a track never looks like a playing or a
+recording clip, and the pads can tell the two apart without icons.
+
+| Track | Hue | Colour |
+|---|---|---|
+| 0 | 230.0 | `#008cba` |
+| 1 | 71.0 | `#ac721b` |
+| 2 | 281.9 | `#7576c6` |
+| 3 | 197.9 | `#00959a` |
+| 4 | 333.9 | `#ab639e` |
+| 5 | 249.8 | `#4284c5` |
+| 6 | 90.8 | `#9b7c0b` |
+| 7 | 301.8 | `#8e6ebc` |
+
+Where a track colour is under text (a placed arrangement block, a clip
+number) the text is `text.on-track`. The Launchpad takes the same colours,
+quantized to what the pads can show.
+
+The level meter ramp, quiet to loud, is the same in both themes too (it is a
+green-to-red scale, separate from the clip states):
+`#2d8949`, `#56b93e`, `#e6ad00`, `#f76400`, `#e4312f`.
 
 ## Contrast, measured
 
 Generated by `tools/modern_look/tokens.py`: WCAG contrast ratio of each pair,
-against the stated minimum (4.5 body text, 3.0 UI glyphs and large text).
+against the stated minimum (4.5 body text, 3.0 UI glyphs and blocks). The
+shared colours are checked against both themes' surfaces.
 
 ```
 == dark
@@ -72,19 +89,31 @@ text.secondary / panel              8.16  need 4.5  ok
 text.disabled / base (UI glyph)     4.08  need 3.0  ok
 accent / base (UI glyph)           10.42  need 3.0  ok
 text.on-accent / accent            10.30  need 4.5  ok
-state.playing / base               10.81  need 3.0  ok
-state.recording / base              5.95  need 3.0  ok
-state.queued / base                10.88  need 3.0  ok
-state.playing.dim / base            3.31  need 3.0  ok
-state.recording.dim / base          3.51  need 3.0  ok
-track 0 / base                      7.89  need 3.0  ok
-track 1 / base                      8.56  need 3.0  ok
-track 2 / base                      8.00  need 3.0  ok
-track 3 / base                      8.11  need 3.0  ok
-track 4 / base                      8.50  need 3.0  ok
-track 5 / base                      7.86  need 3.0  ok
-track 6 / base                      8.43  need 3.0  ok
-track 7 / base                      8.19  need 3.0  ok
+text.primary / accent.dim           8.26  need 4.5  ok
+state.playing / base                5.19  need 3.0  ok
+state.playing / panel               4.79  need 3.0  ok
+state.playing.dim / base            4.54  need 3.0  ok
+state.playing.dim / panel           4.20  need 3.0  ok
+state.recording / base              4.33  need 3.0  ok
+state.recording / panel             4.00  need 3.0  ok
+state.recording.dim / base          4.27  need 3.0  ok
+state.recording.dim / panel         3.95  need 3.0  ok
+track 0 / base                      4.94  need 3.0  ok
+track 0 / panel                     4.56  need 3.0  ok
+track 1 / base                      4.69  need 3.0  ok
+track 1 / panel                     4.33  need 3.0  ok
+track 2 / base                      4.66  need 3.0  ok
+track 2 / panel                     4.30  need 3.0  ok
+track 3 / base                      5.21  need 3.0  ok
+track 3 / panel                     4.81  need 3.0  ok
+track 4 / base                      4.52  need 3.0  ok
+track 4 / panel                     4.17  need 3.0  ok
+track 5 / base                      4.82  need 3.0  ok
+track 5 / panel                     4.45  need 3.0  ok
+track 6 / base                      4.79  need 3.0  ok
+track 6 / panel                     4.42  need 3.0  ok
+track 7 / base                      4.58  need 3.0  ok
+track 7 / panel                     4.23  need 3.0  ok
 == light
 text.primary / base                15.71  need 4.5  ok
 text.primary / raised              13.12  need 4.5  ok
@@ -93,21 +122,55 @@ text.secondary / panel              6.89  need 4.5  ok
 text.disabled / base (UI glyph)     4.33  need 3.0  ok
 accent / base (UI glyph)            5.75  need 3.0  ok
 text.on-accent / accent             5.92  need 4.5  ok
-state.playing / base                4.76  need 3.0  ok
-state.recording / base              5.25  need 3.0  ok
-state.queued / base                 4.42  need 3.0  ok
-state.playing.dim / base            3.23  need 3.0  ok
-state.recording.dim / base          3.31  need 3.0  ok
-track 0 / base                      4.79  need 3.0  ok
-track 1 / base                      4.27  need 3.0  ok
-track 2 / base                      4.71  need 3.0  ok
-track 3 / base                      4.62  need 3.0  ok
-track 4 / base                      4.19  need 3.0  ok
-track 5 / base                      4.81  need 3.0  ok
-track 6 / base                      4.37  need 3.0  ok
-track 7 / base                      4.57  need 3.0  ok
+text.primary / accent.dim          11.87  need 4.5  ok
+state.playing / base                3.40  need 3.0  ok
+state.playing / panel               3.11  need 3.0  ok
+state.playing.dim / base            3.88  need 3.0  ok
+state.playing.dim / panel           3.55  need 3.0  ok
+state.recording / base              4.07  need 3.0  ok
+state.recording / panel             3.73  need 3.0  ok
+state.recording.dim / base          4.13  need 3.0  ok
+state.recording.dim / panel         3.78  need 3.0  ok
+track 0 / base                      3.57  need 3.0  ok
+track 0 / panel                     3.27  need 3.0  ok
+track 1 / base                      3.76  need 3.0  ok
+track 1 / panel                     3.44  need 3.0  ok
+track 2 / base                      3.79  need 3.0  ok
+track 2 / panel                     3.47  need 3.0  ok
+track 3 / base                      3.39  need 3.0  ok
+track 3 / panel                     3.10  need 3.0  ok
+track 4 / base                      3.91  need 3.0  ok
+track 4 / panel                     3.58  need 3.0  ok
+track 5 / base                      3.66  need 3.0  ok
+track 5 / panel                     3.35  need 3.0  ok
+track 6 / base                      3.69  need 3.0  ok
+track 6 / panel                     3.37  need 3.0  ok
+track 7 / base                      3.85  need 3.0  ok
+track 7 / panel                     3.53  need 3.0  ok
+== shared (text on the colour)
+text.on-track / state.playing       5.50  need 4.5  ok
+text.on-track / state.playing.dim   4.82  need 4.5  ok
+text.on-track / state.recording     4.60  need 4.5  ok
+text.on-track / state.recording.dim  4.53  need 4.5  ok
+text.on-track / track 0             5.24  need 4.5  ok
+text.on-track / track 1             4.97  need 4.5  ok
+text.on-track / track 2             4.94  need 4.5  ok
+text.on-track / track 3             5.52  need 4.5  ok
+text.on-track / track 4             4.79  need 4.5  ok
+text.on-track / track 5             5.12  need 4.5  ok
+text.on-track / track 6             5.08  need 4.5  ok
+text.on-track / track 7             4.86  need 4.5  ok
+== track hues, distance to the state hues (need >= 35 degrees)
+track 0: hue  230.0  nearest state hue  85.0  ok
+track 1: hue   71.0  nearest state hue  44.0  ok
+track 2: hue  281.9  nearest state hue 105.1  ok
+track 3: hue  197.9  nearest state hue  52.9  ok
+track 4: hue  333.9  nearest state hue  53.1  ok
+track 5: hue  249.8  nearest state hue 104.8  ok
+track 6: hue   90.8  nearest state hue  54.2  ok
+track 7: hue  301.8  nearest state hue  85.2  ok
 ```
 
-Not yet covered: a high-contrast theme (step 5), the meter ramp stops, the
-heatmap and spectrum colours, and the 256-colour fallback, which maps each
-token to the nearest palette entry by perceptual distance (OKLab), not RGB.
+Not yet covered: a high-contrast theme (step 5), the heatmap and spectrum
+colours, and the 256-colour fallback, which maps each token to the nearest
+palette entry by perceptual distance (OKLab), not RGB.
