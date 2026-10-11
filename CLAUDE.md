@@ -1400,9 +1400,12 @@ would otherwise resume showing.
   full stereo block of zeros: the device needs a continuous stream.
   `SongState::getAuxASum()`/`getAuxBSum()` are likewise empty unless a track
   sent, and `AudioBlockEvent` is built from those, sent every block either
-  way. `VisualizationThread` answers an empty raw bus - or one whose loudest
-  channel is below -100 dBFS RMS (`kVisibleFloor`, the spectrum's floor: an
-  inaudible reverb tail, voices left rendering zeros) - with zero loudness and,
+  way. Silence is made at the sources, so nothing downstream tests samples: a voice
+  ends once it falls below `constants::SILENCE_KILL_FLOOR_DB` in its release
+  or for good in its sustain (`SoundFontVoice::render()`,
+  `EnvelopeFilterDsp::applyEffect()`), and the send bus stops reaching the mix
+  once its output stays under `kBusAudibleFloor` (-100 dBFS). `VisualizationThread`
+  answers an empty raw bus with zero loudness and,
   until the spectrum (`SpectrumAnalyzer::atRest()`) and DirAC
   (`DiracAnalyzer::atRest()`) hold zeros and have said so, with real zero
   blocks fed to them; after that a result carries only the meter reading and

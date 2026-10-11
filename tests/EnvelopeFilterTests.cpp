@@ -40,17 +40,24 @@ namespace {
 
 }
 
-TEST(envelope_filter_state_stays_active_while_held_even_below_the_silence_floor) {
+TEST(envelope_filter_state_held_in_a_sustain_below_the_floor_ends) {
   ChannelConfiguration config(44100);
-  // Sustain well below the -60dB default floor (0.0001 ~= -80dB), long
-  // release - if the silence-kill threshold ever fired outside RELEASE,
-  // this held (never stopNote()'d) voice would be killed immediately.
-  auto state = makeEnvelopeFilterState(config, /*sustain=*/0.0001f, /*release=*/5.0f);
-  CHECK(state->isActive());
+  // A sustain below the -60dB floor (0 here, as an envelope with sustain="0"
+  // reaches once its decay is over) is silent for good while the note is
+  // held, so the voice ends instead of rendering silence until a note-off.
+  for (float sustain : {0.0f, 0.0001f}) {
+    auto state = makeEnvelopeFilterState(config, sustain, /*release=*/5.0f);
+    state->render(4096);
+    CHECK(!state->isActive());
+  }
+}
 
+TEST(envelope_filter_state_held_in_an_audible_sustain_stays_active) {
+  ChannelConfiguration config(44100);
+  auto state = makeEnvelopeFilterState(config, /*sustain=*/0.01f, /*release=*/5.0f); // -40dB
   for (int i = 0; i < 8; i++) {
     state->render(4096);
-    CHECK(state->isActive()); // still held - must never be killed regardless of how quiet
+    CHECK(state->isActive());
   }
 }
 

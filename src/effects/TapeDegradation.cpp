@@ -411,7 +411,11 @@ public:
     auto reduced_config = reduceForEffect(getChannelConfiguration());
     auto raw = renderChildren(frames, instruments, context, reduced_config);
     bool had_real_audio = raw.hasChannel(Channel::Main);
-    auto data = ensureMainChannel(std::move(raw), frames);
+    // A send, like Main, keeps hearing the machine (its hiss) once it has
+    // carried audio, after the voices feeding it have ended.
+    seen_aux_a_ |= raw.hasChannel(Channel::AuxA);
+    seen_aux_b_ |= raw.hasChannel(Channel::AuxB);
+    auto data = ensureAuxChannels(ensureMainChannel(std::move(raw), frames), seen_aux_a_, seen_aux_b_, frames);
     dsp_.applyEffect(data, had_real_audio);
     setEffectActive(data.numberOfChannels() > 0);
     setTrackInfo(TrackInfo(isEffectActive(), data.isClipping()));
@@ -427,6 +431,7 @@ protected:
 private:
   SphericalPosition position_;
   TapeDegradationDsp dsp_;
+  bool seen_aux_a_ = false, seen_aux_b_ = false;
 };
 
 class TapeDegradationVoiceState : public EffectVoiceState {
