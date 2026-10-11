@@ -90,6 +90,7 @@ add_executable(synth_tests
 	TapeVoiceLifecycleTests.cpp
 	HashFieldTests.cpp
 	PlayerMultiBufferTests.cpp
+	NullAudioTests.cpp
 	Utf8Tests.cpp
 	SongStructureTests.cpp
 	SampleTrackTests.cpp

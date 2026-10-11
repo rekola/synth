@@ -66,11 +66,10 @@ Windows) selects between the full `synth` and the render-only one
 `main.cpp`); with it OFF the terminal UI, ALSA, Launchpad and PipeWire sources
 aren't built and `EscapeCoalescerTests` is left out. `.github/workflows/
 ci-windows-x86_64.yml` builds, runs ctest and renders songs. The `#ifdef
-_WIN32`s this needed (each to go in `plans/windows-port.md` steps 1-3):
-`EventQueue.h` (condition variable instead of eventfd), `AudioAPI.h` (a
-`pollfd` stand-in), `Player::play()` (stubbed), `ShutdownSignal.cpp`,
-`DeviceSettings.cpp`/`Controller.cpp` (config and SoundFont paths) and
-`AudioBuffer.h` (aligned allocation). Files open by UTF-8 path through
+_WIN32`s this needed (each to go in `plans/windows-port.md` steps 2-3):
+`AudioAPI.h` (a `pollfd` stand-in for the MIDI descriptors),
+`ShutdownSignal.cpp`, `DeviceSettings.cpp`/`Controller.cpp` (config and
+SoundFont paths) and `AudioBuffer.h` (aligned allocation). Files open by UTF-8 path through
 `util/FileOpen.h`.
 
 ## Run
@@ -104,8 +103,8 @@ named in a private one-PCM config (`openPcm()`, `AlsaAudio.cpp`), so period
 sizes, polling, delay queries and xrun recovery stay the one ALSA path for
 every device. `Controller::setCaptureDevice()`/`setPlaybackDevice()` save the
 choice and push `SET_CAPTURE_DEVICE`/`SET_PLAYBACK_DEVICE`: the audio thread
-owns the PCM handles, so `Player` makes the switch and rebuilds its poll set
-(`devices_changed_`). A switch that can't happen - the node is gone, the
+owns the PCM handles, so `Player` makes the switch (`devices_changed_`; the
+backend's `wait()` rebuilds its own set each call). A switch that can't happen - the node is gone, the
 rate or block size can't match the running song, capture is in use - logs why
 and keeps the current device. MIDI is read on the UI thread, so
 `UI::selectMidiInput()` connects it there instead, never through an event; a
@@ -122,6 +121,18 @@ Identical labels are told apart by where the device is plugged in
 cut down to the USB port; the node name if none), numbered as a last resort.
 `tools/e2e/verify_device_selection.py` drives the pickers against a real
 PipeWire (and skips without one).
+
+**Waiting.** Nothing outside a backend sees a file descriptor of the audio
+device: `Player` calls `AudioAPI::wait(notifier, want_capture, timeout)` and
+gets back which of woken/playback/capture is ready (`WaitResult`). The wakeup
+is `util/Notifier.h` (level-triggered; eventfd on Linux, a condition variable
+elsewhere), which `EventQueue` raises while it holds events. `AlsaAudio::wait()`
+polls the notifier's fd with its streams' own (capture's masked off while not
+wanted: an unstarted capture stream is "ready" forever). `NullAudio`
+(`--null-audio`) takes blocks at the pace of the clock with no device, so the
+real `Player` loop runs on machines without sound hardware (CI, tests). MIDI
+descriptors are still read through `AudioAPI` by the UI loops until MIDI moves
+out of the audio backend.
 
 `--render` needs no terminal or audio device: it renders the song offline
 (plus the effect/release tail until silence, capped at 10 s) and exits — use

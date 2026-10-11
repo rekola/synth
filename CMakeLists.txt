@@ -142,6 +142,7 @@ add_library(synth_engine STATIC
 	src/instruments/OscillatorKernel.cpp
 	src/audio/DeviceSettings.cpp
 	src/audio/OfflineRenderer.cpp
+	src/audio/NullAudio.cpp
 	src/audio/SampleFileLoader.cpp
 	src/audio/TimeStretcher.cpp
 	src/model/PatternBlockOps.cpp
