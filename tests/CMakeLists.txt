@@ -135,3 +135,9 @@ if(Python3_Interpreter_FOUND)
   add_test(NAME no_banned_randomness
 	   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../tools/check_no_banned_randomness.py)
 endif()
+
+# Draws with canvas' Cairo backend; the GDI+ one joins when the terminal UI
+# reaches Windows.
+if(NOT WIN32)
+  target_sources(synth_tests PRIVATE ../src/ui/SpectrumImage.cpp SpectrumImageTests.cpp)
+endif()

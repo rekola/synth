@@ -37,6 +37,7 @@ jobs:
             mingw-w64-ucrt-x86_64-soundtouch
             mingw-w64-ucrt-x86_64-libunistring
             mingw-w64-ucrt-x86_64-python
+            git
 
       - name: Configure
         run: cmake -G Ninja -B build -DSYNTH_MARCH=x86-64-v2

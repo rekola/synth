@@ -50,6 +50,8 @@ endif()
 # compiler, and GCC warns that passing one by value to a function that isn't
 # inlined would differ between units built with different -march. Everything
 # using them is inline and the whole project is built with one -march.
+# What canvas is built with: no warning flags of ours, and none of its own.
+set(SYNTH_CANVAS_BASE_FLAGS "${CMAKE_CXX_FLAGS} -march=${SYNTH_MARCH} -w")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=${SYNTH_MARCH} -Wall -Wno-psabi -Wsuggest-override -Werror=return-local-addr -Werror=multichar -Werror=enum-compare -Werror=return-type -Werror=conversion-null -Werror=parentheses -Werror=switch -Werror=address -Werror=trigraphs -Werror=pointer-arith -Werror=cast-qual -Werror=non-virtual-dtor ${SYNTH_FP_FLAGS} -Werror=write-strings -Werror=return-local-addr -Wuninitialized -Wno-suggest-override -Werror=sign-conversion -Werror=sign-compare -Werror=sign-promo -Werror=duplicated-cond -Werror=duplicated-branches -Werror=logical-op -Werror=redundant-decls -Werror=cast-align -Wformat=2 -Werror=format -Werror=shadow -Werror=missing-declarations")
 # -Wnull-dereference deliberately not enabled: at -O2 with heavy inlining it
 # produces false positives inside ordinary std::vector/std::unordered_map
@@ -174,6 +176,29 @@ target_include_directories(synth_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_include_directories(synth_engine SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 set_source_files_properties(third_party/tinyxml2/tinyxml2.cpp PROPERTIES COMPILE_OPTIONS "-w")
 target_link_libraries(synth_engine PUBLIC m sndfile fmt pthread)
+
+# canvas (2D drawing for the scopes and meters). Its warnings are its own, so
+# it is built from a plain checkout outside this project's flag set.
+include(FetchContent)
+FetchContent_Declare(canvas
+  GIT_REPOSITORY https://github.com/rekola/canvas
+  GIT_TAG 43a866cbf49ffc14b12cf97d87ee71cf376a20fe)
+FetchContent_GetProperties(canvas)
+if(NOT canvas_POPULATED)
+  FetchContent_Populate(canvas)
+endif()
+set(CANVAS_CXX_FLAGS_SAVED "${CMAKE_CXX_FLAGS}")
+set(CMAKE_CXX_FLAGS "${SYNTH_CANVAS_BASE_FLAGS}")
+set(CANVAS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+if(WIN32)
+  set(CANVAS_BACKEND_CAIRO OFF CACHE BOOL "" FORCE)
+  set(CANVAS_BACKEND_GDIPLUS ON CACHE BOOL "" FORCE)
+endif()
+add_subdirectory(${canvas_SOURCE_DIR} ${canvas_BINARY_DIR} EXCLUDE_FROM_ALL)
+set(CMAKE_CXX_FLAGS "${CANVAS_CXX_FLAGS_SAVED}")
+# Its headers are reached as SYSTEM includes, like third_party/.
+target_include_directories(synth_engine SYSTEM PUBLIC ${canvas_SOURCE_DIR}/include)
+target_link_libraries(synth_engine PUBLIC canvas)
 target_include_directories(synth_engine PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 # libunistring backs src/util/Utf8.h's grapheme-cluster-aware UTF-8
@@ -295,6 +320,7 @@ if(SYNTH_BUILD_INTERACTIVE)
   	src/ui/tui/ClipGrid.cpp
   	src/ui/tui/ChannelMeter.cpp
   	src/ui/tui/SpectrumMeter.cpp
+  	src/ui/SpectrumImage.cpp
   	src/ui/tui/SubcellGlyphs.cpp
   )
   target_include_directories(synth PRIVATE ${CMAKE_CURRENT_BINARY_DIR})

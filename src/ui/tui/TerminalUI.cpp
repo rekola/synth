@@ -11,6 +11,7 @@
 #include "ClipGrid.h"
 #include "ChannelMeter.h"
 #include "SpectrumMeter.h"
+#include "../SpectrumImage.h"
 #include "OutlineView.h"
 #include "CoverArt.h"
 #include "SpinBox.h"
@@ -1526,32 +1527,8 @@ protected:
       SpectrumMeter::drawBars(levels);
       return;
     }
-    auto & styles = getPlane().getStyles();
-    // Opaque background: a transparent pixel would composite against the raw
-    // terminal's background instead of this app's.
-    vector<uint32_t> buffer(static_cast<size_t>(pxy) * pxx, pixelOf(styles.window_bg_color));
-    // The gradient colour at pixel row `y` (from the bottom), blended `t` of
-    // the way from the background.
-    auto shade = [&](unsigned y, float t) {
-      auto color = styles.window_bg_color.blend(t, styles.spectrumColor((static_cast<float>(y) + 0.5f) / static_cast<float>(pxy)));
-      return pixelOf(color);
-    };
-    // The curve's height at each column, in pixels from the bottom.
-    float top = static_cast<float>(pxy) - 2.0f;
-    auto height = [&](unsigned x) { return levels[x] * top + 1.0f; };
-    for (unsigned x = 0; x < pxx; x++) {
-      float h = height(x);
-      // The line reaches the neighbours' midpoints so steep slopes stay connected.
-      float prev = x > 0 ? 0.5f * (h + height(x - 1)) : h, next = x + 1 < pxx ? 0.5f * (h + height(x + 1)) : h;
-      float lo = std::min({h, prev, next}) - 0.9f, hi = std::max({h, prev, next}) + 0.9f;
-      for (unsigned y = 0; y < pxy; y++) {
-        float yc = static_cast<float>(y) + 0.5f; // pixel centre, from the bottom
-        if (yc < lo) { buffer[(pxy - 1 - y) * pxx + x] = shade(y, 0.22f); continue; }
-        float cover = std::clamp(std::min(yc - lo, hi - yc), 0.0f, 1.0f);
-        if (cover <= 0.0f) break;
-        buffer[(pxy - 1 - y) * pxx + x] = shade(y, std::max(0.22f, cover));
-      }
-    }
+    // Opaque, so a pixel never composites against the raw terminal background.
+    auto buffer = spectrum_image::render(levels, pxx, pxy, getPlane().getStyles());
     ncpp::Visual visual(buffer.data(), static_cast<int>(pxy), static_cast<int>(pxx * 4), static_cast<int>(pxx));
     ncvisual_options vopts{};
     vopts.n = nativePlane();

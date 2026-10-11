@@ -27,8 +27,8 @@ cmake --build build -j
 Produces `build/synth`.
 
 Dependencies (Ubuntu): `libnotcurses-dev libnotcurses++-dev libfmt-dev
-libsndfile1-dev libasound2-dev libunistring-dev libsoundtouch-dev` plus
-CMake and a C++17 compiler. The C++ bindings (`ncpp/NotCurses.hh`, what
+libsndfile1-dev libasound2-dev libunistring-dev libsoundtouch-dev
+libcairo2-dev` plus CMake, pkg-config, git and a C++17 compiler. The C++ bindings (`ncpp/NotCurses.hh`, what
 `main.cpp`/`TerminalUI.cpp` include) ship in `libnotcurses++-dev`, a
 separate package `libnotcurses-dev` does not pull in as a dependency —
 both are required. `libunistring-dev` backs `src/util/Utf8.h`'s
@@ -43,6 +43,13 @@ degraded resample-based fallback would also shift pitch, a correctness
 defect this codebase won't ship. FFT support (the live spectrum analyzer,
 MagLS binaural precomputation) is via vendored PocketFFT
 (`third_party/pocketfft/`) — no separate FFT library package needed.
+canvas (`rekola/canvas`, 2D drawing for the scopes and meters, drawn as
+pixels with Cairo) is fetched at configure time at a pinned commit
+(`FetchContent` in `CMakeLists.txt`, built with none of our warning flags, its
+headers reached as SYSTEM includes; GDI+ on Windows); bump the pin when canvas
+changes. `src/ui/SpectrumImage.{h,cpp}` is the first user: the pixel spectrum
+(`TerminalPixelSpectrumMeter`) is an `ImageData` it draws, blitted by the
+terminal. The cell (braille) path and the heatmap are not on canvas yet.
 `libpipewire-0.3-dev` is optional too (`SYNTH_ENABLE_PIPEWIRE`,
 auto-detected, and cmake says so when it isn't used): it only backs
 `src/audio/AudioDevices.cpp`'s listing of the audio server's own inputs and
