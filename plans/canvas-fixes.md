@@ -4,7 +4,7 @@ Work in `rekola/canvas` (default branch `master`) before and while synth
 starts drawing with it (`plans/cell-ui-terminal.md`, "2D drawing: canvas").
 canvas has other users, so nothing is removed that anyone could still use:
 every backend, the texture packing (DXT, ETC1, `PackedImageData`),
-`FloydSteinberg`, `ColorProvider` and `HitRegion` stay. Each step is one pull
+`FloydSteinberg`, `ColorProvider`, `HitRegion` and `PerlinSurface` stay. Each step is one pull
 request with pixel tests for what it fixes, and each keeps the existing API
 working unless it says otherwise.
 
@@ -17,6 +17,8 @@ working unless it says otherwise.
   data; Linux CI (Cairo) and Windows CI (GDI+, MSYS2 UCRT64, compile only)
   (#93).
 - Texture packing optional (`CANVAS_TEXTURE_PACKING`, off by default) (#94).
+- Unique include guards (`_CANVAS_` prefix), with a test that includes
+  canvas after a client's own `Color.h`/`Image.h` (#95).
 
 ## Kept, and why
 
@@ -28,6 +30,9 @@ working unless it says otherwise.
   texture formats (RGBA4, RGB565, RGB555, RGBA5551) for `PackedImageData`.
   It does not reduce to a palette, so it doesn't serve a 256-colour terminal
   or Sixel yet; step 7 adds that.
+- **`PerlinSurface`**: a read-only Perlin-noise surface, a source for
+  `drawImage()`. It doesn't compile (item 25); fixing it is two small
+  changes, so it is fixed rather than deleted.
 
 ## Bugs
 
@@ -37,8 +42,12 @@ API and state (`Context`, `GraphicsState`, `Style`, `Attribute`):
 
 1. **Gradients share one object.** `createLinearGradient()` returns a
    reference to a single `Style` member and never clears its stops, so the
-   second gradient keeps the first one's stops (3 stops where 2 were set).
-   Return a new gradient value each call.
+   second gradient keeps the first one's stops (3 stops where 2 were set),
+   and only copying each into `fillStyle` before making the next is safe.
+   Return a new `Style` by value each call. This changes the API: a caller
+   that writes `auto & g = ctx.createLinearGradient(...)` stops compiling
+   (a reference can't bind to the returned value) and becomes `auto g`,
+   so nothing changes behaviour silently.
 2. **`save()`/`restore()` restore the path.** `currentPath` and `clipPath`
    live in `GraphicsState`; in HTML5 the current path is not drawing state
    (a rect added between save and restore disappeared). The clip region
@@ -123,15 +132,33 @@ Pixels (`ImageData`, the backends):
     source set and draws with it. Draw nothing (or the solid colour) until
     filters exist. (By reading.)
 
+22. **GDI+ geometry is half a pixel off HTML5.** Its `Graphics` uses
+    `PixelOffsetModeNone`, where integer coordinates are pixel centres, so a
+    1 px line on an integer coordinate is one crisp row and fills are
+    shifted - the opposite of what #92 made Cairo do. Use
+    `PixelOffsetModeHalf` (integer coordinates are pixel edges) and run the
+    geometry pixel tests on GDI+. Check images and text origins the same
+    way. (By reading; confirmed by the tests in step 5.)
+
 Image files:
 
-22. **Cairo and GDI+ prefix `"assets/"` to every image name.** Replace with
+23. **Cairo and GDI+ prefix `"assets/"` to every image name.** Replace with
     a `FilenameConverter` on every backend's factory (the Quartz shape),
     defaulting to the name unchanged. Synth loads its icons from its
     install directory through this.
-23. **Non-ASCII paths fail on Windows** (`stbi_load` uses `fopen`). Define
+24. **Non-ASCII paths fail on Windows** (`stbi_load` uses `fopen`). Define
     `STBI_WINDOWS_UTF8` so paths are UTF-8 on every platform, as synth's
     are.
+
+Build:
+
+25. **`PerlinSurface` doesn't compile**: it calls `Surface`'s constructor
+    without the channel count, and doesn't implement `Surface`'s pure
+    virtuals (`renderPath`, `renderText`, `measureText`, `drawImage`,
+    `createImage`). Pass 4 channels, make the drawing calls no-ops (it is a
+    source, not a target), give `createImage()` its pixels, add it to the
+    build and test that a drawn noise image reads back non-uniform. Its
+    `lockMemory()` also isn't marked `override`.
 
 ## Additions
 
@@ -150,12 +177,14 @@ Image files:
   a factory so the same tests run on GDI+ in the Windows job (it only
   compiles there now), and add a macOS job that builds the Quartz backend.
   Android stays unbuilt in CI (needs the NDK and a JVM to test).
-- **Header names:** include guards are generic (`_COLOR_H_`, `_IMAGE_H_`,
-  `_ATTRIBUTE_H_`) and the headers are reached as `<Color.h>`,
-  `<Image.h>`, `<Font.h>`; synth has its own `model/Color.h`. Rename the
-  guards to `CANVAS_*` now. Moving the headers to `include/canvas/` breaks
-  every user's includes, so offer it as a compatible step: headers move,
-  `include/` keeps forwarding headers for a release.
+- **Header names:** the guards are unique now (#95), but canvas's headers
+  still include each other as `<Color.h>`, `<Image.h>`, `<Point.h>`, which
+  works only with canvas's `include/` on the include path and picks up a
+  client's own `Color.h` if that comes first (synth has `model/Color.h`).
+  Include each other with quoted relative includes (`"Color.h"`), move the
+  headers to `include/canvas/` and install them there, so clients write
+  `<canvas/Color.h>`. This breaks every user's includes, so `include/`
+  keeps a forwarding header per old name for a release.
 - **README:** the fluent example after item 8; drop "used to create OpenGL
   textures" and "Quartz2D on iOS" as the library's description; link the
   geometry and pixel format sections from CLAUDE.md's.
@@ -166,13 +195,18 @@ Image files:
    correct caller relies on).
 2. Transforms: items 3, 4, 5, 6, 10, 11 - one PR, since they share the
    decision to transform on entry.
-3. Images: items 15, 16, 17, 22, 23, 14. Synth's icons need this one.
+3. Images: items 15, 16, 17, 23, 24, 14. Synth's icons need this one.
 4. Colours: item 13.
-5. GDI+: items 18-21 with the per-backend pixel tests running in the
-   Windows job; item 21 for Cairo.
+5. GDI+: the per-backend pixel tests running in the Windows job, then items
+   22 and 18-20 against them; item 21 for Cairo.
 6. Line style, radial gradients and curves.
 7. Palette and ordered dithering.
-8. Header guards; then the optional `include/canvas/` move.
+8. Quoted includes inside canvas and the `include/canvas/` move with
+   forwarding headers.
+9. `PerlinSurface` (item 25). Independent; can go any time.
+
+Each step also updates canvas's `CLAUDE.md` "Known gaps" and README for
+what it closes.
 
 Synth needs 1-4 before its charts move onto canvas (step 2 of
 `plans/cell-ui-terminal.md`), 5 before its Windows build draws with GDI+,
