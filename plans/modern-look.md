@@ -42,7 +42,10 @@ already a `StyleProvider` constant, which is the lever.
    drawn as pixels in the window and in terminals with Kitty graphics or
    Sixel, with a Unicode fallback for other terminals chosen to render in
    common monospace fonts (▸ ▹ ● ○ ◆ ✎ ⏹ are the base), checked against
-   the width probe. The icons are part of the look, so they are designed
+   the width probe. An icon without a fitting character uses one shared
+   generic icon glyph; icons that matter for using the program get their
+   own, since the glyph is also what screen readers and braille displays
+   get. The icons are part of the look, so they are designed
    with the tokens, not picked from a stock family.
 6. **Motion that explains.** 120-250 ms eased transitions where a state
    changes in place: queued to playing, a panel opening, the cursor moving

@@ -143,8 +143,11 @@ dropped, not an error.
   - Windows console input (`ReadConsoleInputW`) also reports key releases,
     so the terminal backend gets held notes there for free.
 - **Icons.** The app registers its own icons by id: a vector source
-  (SVG), drawn as pixels in both backends, and a Unicode fallback glyph for
-  terminals without pixel graphics.
+  (SVG), drawn as pixels in both backends, a name, and optionally a Unicode
+  fallback glyph for terminals without pixel graphics. An icon with no glyph
+  of its own falls back to one shared generic icon glyph, so any icon can be
+  added without first finding a Unicode character for it; the generic glyph
+  must not be one that already carries a meaning (not ◆, ●, ▸ and so on).
   An icon takes one or more cells, like any other cell content.
   - Window: rasterized at the current scale into the glyph atlas and tinted
     by the cell's foreground colour, so icons follow the theme and state
@@ -165,11 +168,17 @@ dropped, not an error.
       re-sent whenever its cell is redrawn. The diff renderer treats an
       icon cell as changed when its icon or colours change, and erases a
       replaced image.
-    - Fallback: the icon's Unicode glyph when neither protocol is
-      available, when the cell size in pixels is unknown, inside a
-      multiplexer that doesn't pass graphics through, or when the user
-      turns pixel icons off. The fallback always exists, so every icon
+    - Fallback: the icon's Unicode glyph (or the generic one) when
+      neither protocol is available, when the cell size in pixels is
+      unknown, inside a multiplexer that doesn't pass graphics through, or
+      when the user turns pixel icons off. An icon with its own glyph
       keeps its meaning in a plain terminal.
+  - Accessibility: the glyph is also what a screen reader or braille
+    display gets in the terminal, and a Unicode character is understood
+    everywhere, so an icon that matters for using the program should have
+    its own glyph, not the generic one. The accessibility tree reports the
+    icon's name, in both backends, since screen readers name symbols
+    inconsistently.
   - The same ids name menu item icons and, where the hardware allows, the
     Launchpad's own meanings, so one icon list covers every surface.
 - **Clipboard:** the system clipboard in both backends. The terminal uses
