@@ -50,15 +50,15 @@ THEMES = {
   'text.on-accent': (0.180, 0.020, 215),
  },
  'light': {
-  'surface.base':   (0.975, 0.005, H),
-  'surface.panel':  (0.945, 0.006, H),
-  'surface.raised': (0.915, 0.007, H),
-  'surface.overlay':(0.985, 0.004, H),
-  'text.primary':   (0.230, 0.015, H),
-  'text.secondary': (0.430, 0.015, H),
-  'text.disabled':  (0.560, 0.012, H),
-  'accent':         (0.480, 0.110, 225),
-  'accent.dim':     (0.880, 0.040, 225),
+  'surface.base':   (0.965, 0.006, H),
+  'surface.panel':  (0.925, 0.008, H),
+  'surface.raised': (0.870, 0.010, H),
+  'surface.overlay':(0.995, 0.003, H),
+  'text.primary':   (0.200, 0.015, H),
+  'text.secondary': (0.370, 0.015, H),
+  'text.disabled':  (0.500, 0.012, H),
+  'accent':         (0.450, 0.115, 225),
+  'accent.dim':     (0.820, 0.050, 225),
   'text.on-accent': (0.985, 0.005, 225),
  },
 }
@@ -66,15 +66,15 @@ THEMES = {
 # Shared with the Launchpad, so the same in every theme: the Launchpad is
 # always dark and has no icons, so a clip's colour (its track's) and its
 # state must read the same on the pads and on the screen. One lightness band,
-# L 0.50-0.64, is readable (3:1) on both the darkest and the lightest surface.
+# L about 0.585, is readable (3:1) on both the darkest and the lightest surface.
 # playing also means queued to play, and recording also queued to record: the
 # pads tell them apart by pulsing and flashing, the terminal by the glyph.
 SHARED = {
- 'state.playing':        (0.600, 0.190, 145),
- 'state.playing.dim':    (0.580, 0.060, 145),   # paused
+ 'state.playing':        (0.585, 0.190, 145),
+ 'state.playing.dim':    (0.585, 0.060, 145),   # paused
  'state.recording':      (0.600, 0.210, 27),
- 'state.recording.dim':  (0.580, 0.075, 27),    # armed, queued to stop
- 'text.on-track':        (0.130, 0.015, H),     # text on a track or state colour
+ 'state.recording.dim':  (0.585, 0.075, 27),    # armed, queued to stop
+ 'text.on-track':        (0.080, 0.012, H),     # text on a track or state colour
  'data.heat':            (0.720, 0.140, 65),    # the DirAC heatmap's fixed hue
 }
 # The level meter ramp, quiet to loud (not a Launchpad matter).
@@ -83,7 +83,7 @@ METER = [(0.0, (0.560, 0.130, 150)), (0.5, (0.700, 0.185, 140)), (0.78, (0.780, 
 # Track identity colours: one lightness and chroma, hues spread by the
 # golden ratio over the arcs the Launchpad's own state colours leave free
 # (not near its green or red).
-TRACK_L, TRACK_C = 0.60, 0.12
+TRACK_L, TRACK_C = 0.585, 0.12
 ARCS = [(45.0, 105.0), (180.0, 340.0)]
 def track_hue(i):
     t = (0.5 + i * 0.6180339887) % 1.0
