@@ -794,6 +794,7 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                         {"Toggle Binaural Mixer", "", "toggle-mixer-type"},
                         {nullptr, nullptr, nullptr},
                         {"Set Song Key...", "", "set-song-key"},
+                        {"Set Scale...", "", "set-song-scale"},
                         {"Set Tuning System...", "", "set-song-tuning"},
                         {"Set Time Signature...", "", "set-time-signature"},
                         {nullptr, nullptr, nullptr},

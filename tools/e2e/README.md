@@ -116,6 +116,9 @@ you're changing.
   (track, locator, clip names): Enter commits, Ctrl-g and M-x
   cancel, and a typed space never reaches the global toggle-playing
   binding. Independent of Launchpad.
+- **`verify_set_scale.py`** - `set-song-scale` lists the scales, choosing
+  one says so on the status line, and saving writes it to the song file.
+  Independent of Launchpad.
 - **`fake_launchpad.c` / `verify_launchpad_e2e.py`** - baseline single
   pad press/aftertouch/release, switching into NOTES mode and arming
   Record Arm first (a plain press only ever auditions - it never writes
