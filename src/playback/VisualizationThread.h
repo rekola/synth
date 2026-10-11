@@ -5,6 +5,7 @@
 #include "../dsp/SpectrumAnalyzer.h"
 #include "../dsp/DiracAnalyzer.h"
 #include "../ambisonic/MixerType.h"
+#include "../audio/AudioBuffer.h"
 
 #include <algorithm>
 #include <memory>
@@ -70,6 +71,10 @@ class VisualizationThread : public EventHandler {
   // Whether the last grid sent was the all-zero one an analyzer at rest
   // leaves (the FFT's equivalent is SpectrumAnalyzer::atRest()).
   bool dirac_zero_sent_ = false;
+  // RMS below which a block counts as silent (-100 dBFS, the spectrum's
+  // floor; the meters stop far above it), and what the analyzers are fed then.
+  static constexpr float kVisibleFloor = 1e-5f;
+  AudioBuffer empty_bus_;
   // Results sent in a row with everything at rest, and how many the meter needs
   // to fall to nothing (about three seconds of blocks; see configure()).
   int rest_results_ = 0, rest_results_limit_ = 0;

@@ -35,10 +35,26 @@ VisualizationThread::handleAudioBlockEvent(AudioBlockEvent & ev) {
   // fields from raw_bus).
   // An empty raw bus means the mixer accumulated nothing: silent by
   // structure, so the meter reads zero without scanning anything.
-  const bool silent = !ev.getRawBus().hasChannel(Channel::Main);
+  bool silent = !ev.getRawBus().hasChannel(Channel::Main);
   auto channel_loudness = silent
                               ? std::vector<float>(static_cast<size_t>(controller_->getChannelConfiguration().numberOfChannels()), 0.0f)
                               : ev.getRawBus().calculateLoudness();
+  // An inaudible tail (a reverb decaying for half a minute more) shows
+  // nothing on any scope, so it counts as silence: the scopes come to rest.
+  auto aux_a = ev.getAuxA().hasChannel(Channel::Main) ? ev.getAuxA().calculateLoudness() : std::vector<float>{0.0f};
+  auto aux_b = ev.getAuxB().hasChannel(Channel::Main) ? ev.getAuxB().calculateLoudness() : std::vector<float>{0.0f};
+  if (!silent) {
+    float loudest = 0.0f;
+    for (auto * levels : {&channel_loudness, &aux_a, &aux_b})
+      for (auto l : *levels) loudest = std::max(loudest, l);
+    if (loudest < kVisibleFloor) {
+      silent = true;
+      std::fill(channel_loudness.begin(), channel_loudness.end(), 0.0f);
+      aux_a = aux_b = {0.0f};
+    }
+  }
+  if (empty_bus_.numberOfFrames() != ev.getRawBus().numberOfFrames()) empty_bus_ = AudioBuffer(0, false, false, ev.getRawBus().numberOfFrames());
+  const AudioBuffer & bus = silent ? empty_bus_ : ev.getRawBus();
 
   // Meter legend - each *character* lines up with one meter *column* (2
   // samples/braille-column), so the label reads as an actual legend for
@@ -76,8 +92,6 @@ VisualizationThread::handleAudioBlockEvent(AudioBlockEvent & ev) {
   if (channel_loudness.size() % 2 == 1) channel_loudness.push_back(0.0f);
 
   // One column each, an absent aux channel (nothing sent) reading zero.
-  auto aux_a = ev.getAuxA().hasChannel(Channel::Main) ? ev.getAuxA().calculateLoudness() : std::vector<float>{0.0f};
-  auto aux_b = ev.getAuxB().hasChannel(Channel::Main) ? ev.getAuxB().calculateLoudness() : std::vector<float>{0.0f};
   channel_loudness.insert(channel_loudness.end(), aux_a.begin(), aux_a.end());
   channel_loudness.insert(channel_loudness.end(), aux_b.begin(), aux_b.end());
   result->setChannelLoudness(std::move(channel_loudness));
@@ -110,7 +124,7 @@ VisualizationThread::handleAudioBlockEvent(AudioBlockEvent & ev) {
   if (!silent) dirac_zero_sent_ = false;
 
   decode_mixer_->reset();
-  decode_mixer_->accumulate(ev.getRawBus());
+  decode_mixer_->accumulate(bus);
   auto active_master = decode_mixer_->encode();
 
   if (spectrum_.addData(active_master)) {
@@ -118,7 +132,7 @@ VisualizationThread::handleAudioBlockEvent(AudioBlockEvent & ev) {
     result->setFFT(spectrum_.calculateFFT(), spectrum_.binHz());
   }
 
-  dirac_->process(ev.getRawBus());
+  dirac_->process(bus);
   // plans/dirac-heatmap-scope.md SS1: deliver the DirAC grid at roughly
   // every 3rd analysis frame (~28.7Hz), not every one (~86Hz) - terminal
   // redraw/color-mapping cost buys nothing above that. Diffed against a

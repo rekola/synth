@@ -263,3 +263,37 @@ TEST(visualization_thread_empty_bus_gives_zero_result_then_stops_analyzing) {
   }
   CHECK(fft_again);
 }
+
+// A bus that carries channels but nothing a scope can show - a reverb tail
+// far below the spectrum's floor, or voices left rendering zeros - settles
+// the way an empty one does.
+TEST(visualization_thread_inaudible_bus_settles_like_an_empty_one) {
+  for (float amplitude : {1e-7f, 0.0f}) {
+    Controller controller{ChannelConfiguration(44100, 1)};
+    VisualizationThread thread(&controller);
+    const int frames = 256;
+    thread.configure(44100, frames);
+    auto push = [&](float a) {
+      AudioBuffer raw(4, frames);
+      for (int c = 0; c < 4; c++) {
+        for (int i = 0; i < frames; i++) raw.getChannelData(c)[i] = a * sinf(static_cast<float>(i) * 0.3f);
+      }
+      AudioBuffer master(2, frames);
+      master.zero();
+      AudioBlockEvent ev(std::move(master), std::move(raw), AudioBuffer(0, false, false, frames), AudioBuffer(0, false, false, frames));
+      thread.handleAudioBlockEvent(ev);
+      if (!controller.getUIEventQueue().hasEvents()) return std::unique_ptr<VisualizationResultEvent>();
+      auto popped = controller.getUIEventQueue().pop();
+      return std::unique_ptr<VisualizationResultEvent>(dynamic_cast<VisualizationResultEvent *>(popped.release()));
+    };
+    for (int n = 0; n < 40; n++) push(1.0f);
+    int results_at_the_end = 0;
+    for (int n = 0; n < 1500; n++) {
+      auto r = push(amplitude);
+      if (r)
+        for (float v : r->getChannelLoudness()) CHECK(v == 0.0f);
+      if (n >= 1480 && r) results_at_the_end++;
+    }
+    CHECK(results_at_the_end == 0);
+  }
+}

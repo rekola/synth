@@ -80,15 +80,17 @@ class PlaybackInfo {
   // ones would draw the same, so the second need not be sent or redrawn.
   // Levels are taken at the resolution a display can show, so a reading
   // wandering in the far decimals (a faint tail) does not count as a change.
-  std::vector<std::pair<const char *, uint64_t>> signatureParts() const {
+  // Calls part(name, hash) for each part; allocates nothing (the audio
+  // thread hashes every snapshot).
+  template <class Part>
+  void forEachSignaturePart(Part part) const {
     auto mix = [](uint64_t h, uint64_t v) { return (h ^ v) * 1099511628211ULL; };
     auto level = [](float f) { return static_cast<uint64_t>(static_cast<int64_t>(std::lround(f * 4096.0f))); };
     constexpr uint64_t kSeed = 14695981039346656037ULL;
-    std::vector<std::pair<const char *, uint64_t>> parts;
     auto scalars = [&](const char * name, std::initializer_list<uint64_t> values) {
       uint64_t h = kSeed;
       for (auto v : values) h = mix(h, v);
-      parts.emplace_back(name, h);
+      part(name, h);
     };
     scalars("transport", { static_cast<uint64_t>(is_playing_), static_cast<uint64_t>(absolute_pos_), static_cast<uint64_t>(sample_pos_), static_cast<uint64_t>(position_edit_seq_) });
     scalars("voices", { static_cast<uint64_t>(voice_count_), static_cast<uint64_t>(allocated_voice_count_) });
@@ -101,23 +103,28 @@ class PlaybackInfo {
                         static_cast<uint64_t>(t.isRecording())),
                     level(t.getLiveSendMain()) ^ (level(t.getLiveSendA()) << 1) ^ (level(t.getLiveSendB()) << 2) ^ (level(t.getLiveAzimuth() / 360.0f) << 3));
     }
-    parts.emplace_back("tracks", tracks);
+    part("tracks", tracks);
     uint64_t voices = 0;
     for (auto & [ id, list ] : active_voices_) {
       uint64_t v = static_cast<uint64_t>(id);
       for (auto & voice : list) v = mix(mix(v, static_cast<uint64_t>(voice.note_value)), level(voice.loudness));
       voices += v;
     }
-    parts.emplace_back("active-voices", voices);
+    part("active-voices", voices);
     uint64_t live = 0;
     for (auto & [ id, t ] : live_tracks_) live += mix(mix(mix(static_cast<uint64_t>(id), static_cast<uint64_t>(t.clip_index)), static_cast<uint64_t>(t.launch_clock)), static_cast<uint64_t>(t.queued));
-    parts.emplace_back("launched-clips", live);
+    part("launched-clips", live);
+  }
+
+  std::vector<std::pair<const char *, uint64_t>> signatureParts() const {
+    std::vector<std::pair<const char *, uint64_t>> parts;
+    forEachSignaturePart([&](const char * name, uint64_t h) { parts.emplace_back(name, h); });
     return parts;
   }
 
   uint64_t signature() const {
     uint64_t h = 14695981039346656037ULL;
-    for (auto & part : signatureParts()) h = (h ^ part.second) * 1099511628211ULL;
+    forEachSignaturePart([&](const char *, uint64_t part) { h = (h ^ part) * 1099511628211ULL; });
     return h;
   }
 
