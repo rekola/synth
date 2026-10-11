@@ -221,31 +221,31 @@ class InputEvent : public Event {
       case 'q':
         return base + 270; // D𝄭
       case '2':
-        return base + 272;         // D𝄬
+        return base + 272;         // Cx
       case 'w': return base + 274; // D
       case 's':
-        return base + 275;         // D𝄮
+        return base + 275;         // E𝄫
       case 'x': return base + 277; // D#
       case 'd': return base + 279; // Eb
       case 'c': return base + 282; // E
       case 'v': return base + 287; // F
       case 'g':
-        return base + 289;         // F𝄱
+        return base + 289;         // G𝄫
       case 'b': return base + 296; // G
       case 'h': return base + 301; // Ab
       case 'u':
-        return base + 303;         // A𝄯
+        return base + 303;         // G𝄪
       case 'n': return base + 304; // A
       case 'j':
-        return base + 306;         // A𝄱
+        return base + 306;         // B𝄫
       case 'm': return base + 308; // A𝄰
       case 'k': return base + 310; // Bb
       case 'i':
-        return base + 311;         // B𝄬
+        return base + 311;         // A𝄪
       case '8': return base + 313; // B
       case ',': return base + 53 + 265; // C'
       case 'l':
-        return base + 53 + 275;         // D𝄮'
+        return base + 53 + 275;         // E𝄫'
       case '.': return base + 53 + 277; // D#'
       case '-': return base + 53 + 282; // E'
       }

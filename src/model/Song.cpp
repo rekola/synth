@@ -1,6 +1,5 @@
 #include "Song.h"
 
-#include <cmath>
 #include <cstdlib>
 #include <set>
 
@@ -1518,11 +1517,15 @@ Song::getScaleDegreesWindow(int start_index, int count, bool major_if_none) cons
   // text omits one) - only its pitch class matters here.
   auto tonic = key_note_number >= 0 ? ((key_note_number % edo_steps) + edo_steps) % edo_steps : 0;
 
-  if (scale == Scale::NONE && major_if_none) scale = Scale::MAJOR;
-  auto degree_names = scaleDegreeNames(scale);
-  auto degree_ratios = scaleDegreeRatios(scale);
+  auto degree_names = scaleDegreeNames(scale == Scale::NONE && major_if_none ? Scale::MAJOR : scale);
   vector<int> offsets_from_tonic;
-  if (!degree_names.empty()) {
+  if (degree_names.empty()) {
+    // No scale chosen (or Scale::NONE resolved nothing) - the plain
+    // chromatic scale instead, one degree per semitone/edo-step, cycling
+    // every edo_steps the same way a named scale's own degree list cycles
+    // every full pass through it below.
+    for (int i = 0; i < edo_steps; i++) offsets_from_tonic.push_back(i);
+  } else {
     // Each degree name resolved as its own interval from C under this
     // song's actual tuning (Note::stringToKey(tuning_, name) - stringToKey(tuning_, "C")),
     // then added to the tonic below - see this method's own header
@@ -1531,17 +1534,6 @@ Song::getScaleDegreesWindow(int start_index, int count, bool major_if_none) cons
     // interval set per one.
     auto c_value = Note::stringToKey(tuning, "C");
     for (auto & name : degree_names) offsets_from_tonic.push_back(Note::stringToKey(tuning, name) - c_value);
-  } else if (!degree_ratios.empty()) {
-    // The tuning's nearest step to each ratio.
-    for (auto & ratio : degree_ratios) {
-      auto octaves = std::log2(static_cast<double>(ratio.num) / ratio.den);
-      offsets_from_tonic.push_back(static_cast<int>(std::lround(octaves * edo_steps)));
-    }
-  } else {
-    // No scale chosen - the plain chromatic scale instead, one degree per
-    // semitone/edo-step, cycling every edo_steps the same way a named
-    // scale's own degree list cycles every full pass through it below.
-    for (int i = 0; i < edo_steps; i++) offsets_from_tonic.push_back(i);
   }
   auto n = static_cast<int>(offsets_from_tonic.size());
   if (n <= 0) return {};

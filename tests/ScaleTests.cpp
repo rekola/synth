@@ -79,8 +79,8 @@ TEST(scale_utonal_31edo) {
   for (size_t i = 0; i < expected.size(); i++) CHECK(degrees[i] == expected[i]);
 }
 
-// In 53-EDO each degree is the step nearest its ratio
-// (docs/53edo_note_numbers.txt): 7:4 is A𝄰, 43 steps, not A♯.
+// The same spellings in 53-EDO land on the same ratios
+// (docs/53edo_note_numbers.txt): 7:4 is A𝄰, 43 steps (A♯ would be 42).
 TEST(scale_otonal_utonal_53edo) {
   Song song(Tuning::EDO53, -1);
   song.setScale(Scale::OTONAL);
@@ -92,7 +92,7 @@ TEST(scale_otonal_utonal_53edo) {
 }
 
 // 12- and 19-EDO have no steps of their own for the septimal ratios; the
-// nearest ones stand in.
+// spellings land on the nearest ones.
 TEST(scale_otonal_utonal_12edo_19edo) {
   Song song12(Tuning::EDO12, -1);
   song12.setScale(Scale::OTONAL);

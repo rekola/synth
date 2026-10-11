@@ -75,23 +75,25 @@ The Application draws on several traditions.
   natural notes are the just major scale, made of the three major triads
   F A C, C E G and G B D: C D E F G A B = 1/1 9/8 5/4 4/3 3/2 5/3 15/8 =
   steps 0 9 17 22 31 39 48. A sharp or flat is the chromatic semitone 25:24
-  (3 steps), a double sharp or flat two of them (6 steps), and an arrow
-  raises or lowers by the syntonic comma 81:80 (1 step), where Johnston writes
-  + and −. Each accidental is a single symbol: 𝄮 𝄯 (natural up/down),
-  𝄰 𝄱 (sharp up/down), 𝄬 𝄭 (flat up/down). D-A is therefore 40:27, a comma
-  short of a fifth, and the fifth above D is A𝄮. The other tunings have no
-  separate comma step and ignore the arrows, so a 53-EDO spelling still names
-  the right note in 31-EDO. See John Fonville, "Ben Johnston's Extended Just
+  (3 steps), and an arrow raises or lowers by the syntonic comma 81:80
+  (1 step), where Johnston writes + and −. A double sharp or flat is 35:32
+  (7 steps), the interval 31-EDO's double sharp is, rather than two 25:24
+  sharps (6 steps): with it E𝄫 is 8:7 and B𝄫 12:7 in both tunings. Each
+  accidental is a single symbol: 𝄮 𝄯 (natural up/down), 𝄰 𝄱 (sharp up/down),
+  𝄬 𝄭 (flat up/down). D-A is therefore 40:27, a comma short of a fifth, and
+  the fifth above D is A𝄮. The other tunings have no separate comma step and
+  ignore the arrows, so a 53-EDO spelling still names the right note in
+  31-EDO. See John Fonville, "Ben Johnston's Extended Just
   Intonation: A Guide for Interpreters", *Perspectives of New Music* 29/2
   (1991); the table is [53edo_note_numbers.txt](docs/53edo_note_numbers.txt).
 - **Scales.** A song has a key and an optional scale: major (the Ionian
-  mode), minor (the Aeolian mode), 7-note otonal or 7-note utonal. Major and
-  minor are written once as note names, so each tuning spells them its own
-  way: meantone in 12, 19 and 31-EDO, just in 53-EDO. The otonal and utonal
-  scales are written as ratios, 1/1 7/6 5/4 4/3 3/2 5/3 7/4 and its mirror
-  image 1/1 8/7 6/5 4/3 3/2 8/5 12/7, and each tuning plays the step nearest
-  each ratio: 31 and 53-EDO come within 6 cents of every one, while 12 and
-  19-EDO only approximate the septimal ones. The 7-note
+  mode), minor (the Aeolian mode), 7-note otonal or 7-note utonal. Each is
+  written once as note names: major and minor come out meantone in 12, 19 and
+  31-EDO and just in 53-EDO. Otonal (C D♯ E F G A A𝄰 = 1/1 7/6 5/4 4/3 3/2
+  5/3 7/4) and utonal (C E𝄫 E♭ F G A♭ B𝄫 = 1/1 8/7 6/5 4/3 3/2 8/5 12/7) are
+  spelled so that 31 and 53-EDO both come within 6 cents of every ratio; 12
+  and 19-EDO only approximate the septimal ones. The 7:4 is A𝄰 because
+  53-EDO's A♯ is 26:15; the other tunings read it as A♯. The 7-note
   otonal and utonal scales borrow Partch's terms (1949) but are not his longer
   scales: they have seven notes each, and their intervals
   were derived by the methods in Kyle Gann's *The Arithmetic of Listening*

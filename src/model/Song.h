@@ -74,9 +74,9 @@ class Song : public SongObject {
   // itself. Values keep climbing past the octave boundary rather than
   // wrapping back below the tonic, so the list is always strictly
   // ascending. getScale()'s own degrees (Scale.h's scaleDegreeNames(), in
-  // Note::stringToKey()'s note-name syntax, or scaleDegreeRatios(), played
-  // as the nearest step) are each resolved against the active tuning and
-  // added to the song's tonic pitch class (getKey()). The degree list is
+  // Note::stringToKey()'s note-name syntax) are each resolved against the
+  // active tuning and added to the song's tonic pitch class (getKey()), so
+  // the same degree list is correct under every tuning. The degree list is
   // treated as repeating one octave higher every full cycle through it;
   // this assumes each named scale spans exactly one octave, true of every
   // scale here today. Scale::NONE falls back to the plain chromatic scale
