@@ -2,72 +2,20 @@
 #define _EVENTQUEUE_H_
 
 #include "Event.h"
+#include "../util/Notifier.h"
 
-#include <cstdint>
+#include <deque>
 #include <memory>
 #include <mutex>
-#include <deque>
-#ifdef _WIN32
-#include <chrono>
-#include <condition_variable>
-#else
-#include <poll.h>
-#include <sys/eventfd.h>
-#include <unistd.h>
-#endif
 
-// Unbounded multi-producer/single-consumer queue with a pollable fd. The
-// deque is the only source of truth; the eventfd is just a wakeup signal,
-// kept readable exactly while the deque is non-empty (both updated under
-// the same lock). An eventfd write never blocks, so push() can't stall
-// the producer however far behind the consumer falls.
-#ifdef _WIN32
-// Windows has no pollable fd for this; a condition variable stands in until
-// the portable wait/notifier of plans/windows-port.md step 1.
+// Unbounded multi-producer/single-consumer queue with a wakeup a consumer can
+// wait on. The deque is the only source of truth; the notifier is just a
+// signal, kept raised exactly while the deque is non-empty (both updated
+// under the same lock). Raising it never blocks, so push() can't stall the
+// producer however far behind the consumer falls.
 class EventQueue {
  public:
   EventQueue() = default;
-  EventQueue(const EventQueue &) = delete;
-  EventQueue & operator=(const EventQueue &) = delete;
-
-  void push(std::unique_ptr<Event> event) {
-    {
-      std::lock_guard<std::mutex> guard(event_mutex);
-      events.push_front(std::move(event));
-    }
-    ready.notify_one();
-  }
-
-  // Blocks until an event is available.
-  std::unique_ptr<Event> pop() {
-    std::unique_lock<std::mutex> lock(event_mutex);
-    ready.wait(lock, [this] { return !events.empty(); });
-    auto e = std::move(events.back());
-    events.pop_back();
-    return e;
-  }
-
-  // Waits up to timeout_ms for an event; true if one is available.
-  bool wait(int timeout_ms) {
-    std::unique_lock<std::mutex> lock(event_mutex);
-    return ready.wait_for(lock, std::chrono::milliseconds(timeout_ms), [this] { return !events.empty(); });
-  }
-
-  bool hasEvents() const {
-    std::lock_guard<std::mutex> guard(event_mutex);
-    return !events.empty();
-  }
-
- private:
-  mutable std::mutex event_mutex;
-  std::condition_variable ready;
-  std::deque<std::unique_ptr<Event> > events;
-};
-#else
-class EventQueue {
- public:
-  EventQueue() : event_fd(eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC)) { }
-  ~EventQueue() { close(event_fd); }
 
   EventQueue(const EventQueue &) = delete;
   EventQueue & operator=(const EventQueue &) = delete;
@@ -75,17 +23,17 @@ class EventQueue {
   void push(std::unique_ptr<Event> event) {
     std::lock_guard<std::mutex> guard(event_mutex);
     events.push_front(std::move(event));
-    uint64_t one = 1;
-    (void)!write(event_fd, &one, sizeof(one));
+    notifier_.signal();
   }
 
-  int getPollFd() const { return event_fd; }
+  // What a consumer that waits on more than this queue passes along.
+  Notifier & notifier() { return notifier_; }
+#ifndef _WIN32
+  int getPollFd() const { return notifier_.fd(); }
+#endif
 
   // Waits up to timeout_ms for an event; true if one is available.
-  bool wait(int timeout_ms) {
-    pollfd d{event_fd, POLLIN, 0};
-    return poll(&d, 1, timeout_ms) > 0 && d.revents;
-  }
+  bool wait(int timeout_ms) { return notifier_.wait(timeout_ms); }
 
   // Blocks until an event is available.
   std::unique_ptr<Event> pop() {
@@ -95,15 +43,11 @@ class EventQueue {
         if (!events.empty()) {
           auto e = std::move(events.back());
           events.pop_back();
-          if (events.empty()) {
-            uint64_t count;
-            (void)!read(event_fd, &count, sizeof(count));
-          }
+          if (events.empty()) notifier_.clear();
           return e;
         }
       }
-      pollfd d { event_fd, POLLIN, 0 };
-      poll(&d, 1, -1);
+      notifier_.wait(-1);
     }
   }
 
@@ -113,10 +57,9 @@ class EventQueue {
   }
 
  private:
-  int event_fd;
+  Notifier notifier_;
   mutable std::mutex event_mutex;
   std::deque<std::unique_ptr<Event> > events;
 };
-#endif
 
 #endif

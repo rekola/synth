@@ -2,8 +2,8 @@
 #define _AUDIOAPI_H_
 
 #ifdef _WIN32
-// Descriptor lists are an ALSA notion; this stand-in lets AudioAPI compile
-// until the portable wait of plans/windows-port.md step 1.
+// MIDI descriptor lists are an ALSA notion; this stand-in lets AudioAPI compile
+// until MIDI moves out of the audio backend.
 struct pollfd {
   int fd;
   short events;
@@ -17,15 +17,29 @@ struct pollfd {
 #include <vector>
 
 #include "../playback/MidiEvent.h"
+#include "../util/Notifier.h"
 
 class AudioBuffer;
 class Logger;
+
+// What AudioAPI::wait() found ready; all false means it timed out.
+struct WaitResult {
+  bool woken = false;    // the notifier was raised
+  bool playback = false; // room for another block of output
+  bool capture = false;  // a block of input is ready (only if asked for)
+};
 
 class AudioAPI {
  public:
   explicit AudioAPI(int _frequency, short _channels) : frequency(_frequency), channels(_channels) { }
   virtual ~AudioAPI() { }
   
+  // Blocks until `wake` is raised, the device wants another block of output,
+  // captured input is ready (watched only while `want_capture`) or timeout_ms
+  // passes. The backend owns whatever it waits on, so it follows a device
+  // switch without the caller knowing; wake is not cleared.
+  virtual WaitResult wait(Notifier & wake, bool want_capture, int timeout_ms) = 0;
+
   virtual void play(const AudioBuffer & data, Logger & logger) = 0;
   virtual AudioBuffer record(Logger & logger) = 0;
   virtual size_t getFrameCount() const = 0;
@@ -76,20 +90,16 @@ class AudioAPI {
   int getFrequency() const { return frequency; }
   short numberOfChannels() const { return channels; }
 
-  const std::vector<pollfd> getPlaybackDescriptors() const { return playback_descriptors; }
-  const std::vector<pollfd> getCaptureDescriptors() const { return capture_descriptors; }
   const std::vector<pollfd> getMidiCaptureDescriptors() const { return midi_capture_descriptors; }
   
 protected:
   void setFrequency(int _frequency) { frequency = _frequency; }
-  void setPlaybackDescriptors(const std::vector<pollfd> & d) { playback_descriptors = d; }
-  void setCaptureDescriptors(const std::vector<pollfd> & d) { capture_descriptors = d; }
   void setMidiCaptureDescriptors(const std::vector<pollfd> & d) { midi_capture_descriptors = d; }
   
 private:
   int frequency;
   short channels;
-  std::vector<pollfd> playback_descriptors, capture_descriptors, midi_capture_descriptors;
+  std::vector<pollfd> midi_capture_descriptors;
 };
 
 #endif

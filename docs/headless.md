@@ -19,6 +19,7 @@ Launchpad LEDs cleared) with exit status 0.
 |---|---|
 | `--headless` | No terminal UI; status lines on stderr. |
 | `--autoplay` | Start the transport once running (headless only). |
+| `--null-audio` | No sound device: blocks are discarded at the pace of the clock. For machines without audio hardware and for tests. |
 | `--daemon` | `--headless`, detached from the terminal. |
 | `--log-file F` | With `--daemon`: where stderr goes (appended; default `/dev/null`). |
 | `--pid-file F` | With `--daemon`: write the daemon's pid here. |

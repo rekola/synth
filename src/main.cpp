@@ -1,4 +1,5 @@
 #include "audio/AlsaAudio.h"
+#include "audio/NullAudio.h"
 #include "audio/AudioDevices.h"
 #include "audio/DeviceSettings.h"
 #include "launchpad/LaunchpadIO.h"
@@ -46,6 +47,7 @@ int main(int argc, char *argv[]) {
   bool headless = false; // --headless: no terminal UI, status lines on stderr
   bool daemon = false; // --daemon: --headless, detached from the terminal
   bool autoplay = false; // --autoplay: start the transport once running
+  bool null_audio = false; // --null-audio: no sound device, blocks paced by the clock
   string log_file; // --log-file: where a daemon's stderr goes
   string pid_file; // --pid-file: where a daemon writes its pid
 
@@ -65,6 +67,8 @@ int main(int argc, char *argv[]) {
       headless = daemon = true;
     } else if (strcmp(argv[i], "--autoplay") == 0) {
       autoplay = true;
+    } else if (strcmp(argv[i], "--null-audio") == 0) {
+      null_audio = true;
     } else if (strcmp(argv[i], "--log-file") == 0 || strcmp(argv[i], "--pid-file") == 0) {
       bool is_log = strcmp(argv[i], "--log-file") == 0;
       if (i + 1 >= argc) {
@@ -154,8 +158,15 @@ int main(int argc, char *argv[]) {
   // needs to be built against whatever the device actually agreed to -
   // Controller copies channel_config at construction time, so this has to
   // happen first, not be patched up after the fact.
-  AlsaAudio audio(channel_config.getAudioOutSampleRate(), channel_config.getDeviceChannels());
-  audio.initialize(logger, devices);
+  unique_ptr<AudioAPI> audio_device;
+  if (null_audio) {
+    audio_device = make_unique<NullAudio>(channel_config.getAudioOutSampleRate(), channel_config.getDeviceChannels());
+  } else {
+    auto alsa = make_unique<AlsaAudio>(channel_config.getAudioOutSampleRate(), channel_config.getDeviceChannels());
+    alsa->initialize(logger, devices);
+    audio_device = std::move(alsa);
+  }
+  AudioAPI & audio = *audio_device;
   channel_config.setAudioOutSampleRate(audio.getFrequency());
 
   auto controller = make_shared<Controller>(channel_config);

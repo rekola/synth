@@ -18,6 +18,7 @@ class AlsaAudio : public AudioAPI {
   // interface) must not leave the program without sound.
   void initialize(Logger & logger, const DeviceSettings & devices = DeviceSettings());
 
+  WaitResult wait(Notifier & wake, bool want_capture, int timeout_ms) override;
   void play(const AudioBuffer & data, Logger & logger) override;
   AudioBuffer record(Logger & logger) override;
   size_t getFrameCount() const override { return output_frames; }
@@ -48,6 +49,9 @@ class AlsaAudio : public AudioAPI {
   // connects it, dropping the previous connection. Quiet when the source
   // simply isn't there (yet).
   void connectMidiInput(Logger * logger);
+
+  // The streams' poll descriptors and wait()'s scratch set.
+  std::vector<pollfd> playback_fds_, capture_fds_, wait_fds_;
 
   snd_pcm_t * pcm_handle = 0, * capture_handle = 0;
   snd_seq_t * seq_handle = 0;

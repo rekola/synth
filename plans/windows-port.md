@@ -117,7 +117,11 @@ Expected outcome: a green Windows job, downloadable WAVs rendered by a
 Windows binary, and a short list of the `#ifdef`s step 0 had to add (each
 to be removed by a later step).
 
-## Step 1 - Portable wakeup and wait
+## Step 1 - Portable wakeup and wait (done, except MIDI)
+
+Done: `util/Notifier`, `AudioAPI::wait()` (playback/capture/woken), `NullAudio`
+and `--null-audio`; `Player::play()` is portable. The MIDI descriptors the UI
+loops poll move with step 2.
 
 The audio thread is a blocking loop: `Player.cpp` polls the PCM descriptors,
 the MIDI descriptors and the playback `EventQueue`'s eventfd. Windows has no
