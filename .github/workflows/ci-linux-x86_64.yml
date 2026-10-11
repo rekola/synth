@@ -42,6 +42,8 @@ jobs:
             libasound2-dev \
             libunistring-dev \
             libsoundtouch-dev \
+            libcairo2-dev \
+            pkg-config \
             fluid-soundfont-gm
 
       - name: Configure

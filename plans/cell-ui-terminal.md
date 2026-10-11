@@ -144,7 +144,9 @@ of the switch.
 ## Steps
 
 1. Canvas readiness, in the canvas repository (above). Independent.
-2. Synth's charts and meters onto canvas (above).
+2. Synth's charts and meters onto canvas (above). Started: canvas is in the
+   build and the pixel spectrum is drawn with it (`SpectrumImage`); the
+   cell path, the heatmap, the level meters and `ChannelMeter` remain.
 3. `plans/modern-look.md` steps 1-3: audit, mock, tokens (no visible
    change).
 4. Create `lib/cellui` with `UIPlane`/`UIMenu`/the chart and input types
