@@ -44,6 +44,7 @@
 #include "../../bus/BusEffectRegistry.h"
 
 #include <cstdio>
+#include <ctime>
 #include <cstdlib>
 #include <clocale>
 #include <cassert>
@@ -2336,6 +2337,12 @@ TerminalUI::renderComponents(bool refresh) {
   refresh = refresh || force_next_render_;
   force_next_render_ = false;
   bool render = false;
+  // Scopes coming back on screen start empty at once: a silent analysis sends
+  // nothing more to replace what they held.
+  if (scopes_stale_ && scopes_on_screen_) {
+    blankScopes();
+    render = true;
+  }
   auto active = active_element_.lock();
   auto & song = getController().getSong();
   // The shared/global track selection - Song's own, not any one widget's
@@ -2788,6 +2795,22 @@ TerminalUI::handlePlaybackEvent(PlaybackEvent & ev) {
   }
 }
 
+// Shows the scopes empty and forgets what they held, so the next result
+// redraws them whatever it equals.
+void
+TerminalUI::blankScopes() {
+  scopes_stale_ = false;
+  chart_->clear();
+  heatmap_->setGrid(std::vector<float>(DiracAnalyzer::kGridSize, 0.0f), std::vector<float>(DiracAnalyzer::kGridSize, 0.0f));
+  heatmap_->commit();
+  volume_meter_->clear(last_meter_label_);
+  last_fft_.clear();
+  last_brightness_.clear();
+  last_saturation_.clear();
+  last_loudness_.clear();
+  dirac_running_max_ = 0.0f;
+}
+
 void
 TerminalUI::handleVisualizationResultEvent(VisualizationResultEvent & ev) {
   // If a newer event is already queued behind this one, this one's visual
@@ -2802,18 +2825,10 @@ TerminalUI::handleVisualizationResultEvent(VisualizationResultEvent & ev) {
   // Scopes that are off screen aren't updated at all.
   if (!superseded && scopes_on_screen_) {
     if (scopes_stale_) {
-      scopes_stale_ = false;
-      chart_->clear();
-      heatmap_->setGrid(std::vector<float>(DiracAnalyzer::kGridSize, 0.0f), std::vector<float>(DiracAnalyzer::kGridSize, 0.0f));
-      heatmap_->commit();
-      volume_meter_->clear(ev.getMeterLabel());
-      last_fft_.clear();
-      last_brightness_.clear();
-      last_saturation_.clear();
-      last_loudness_.clear();
-      dirac_running_max_ = 0.0f;
+      blankScopes();
       changed = true;
     }
+    last_meter_label_ = ev.getMeterLabel();
     // Raw, pre-mixdown per-channel levels (ambisonic bus, then always
     // AuxA/AuxB last - see VisualizationThread.cpp) rather than the final
     // decoded L/R output.
@@ -3077,12 +3092,18 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
   const char * stats_path = getenv("SYNTH_UI_STATS");
   g_ui_stats_on = stats_path != nullptr;
   auto stats_since = std::chrono::steady_clock::now();
+  timespec stats_cpu_since {};
+  clock_gettime(CLOCK_THREAD_CPUTIME_ID, &stats_cpu_since);
   auto count = [](const std::string & what) { statCount(what); };
 
   while ( !shouldClose() ) {
     bool render = false;
     bool other_wake = false; // input, MIDI, Launchpad or stderr woke the loop, not just the event queue
     if (stats_path && std::chrono::steady_clock::now() - stats_since >= std::chrono::seconds(1)) {
+      timespec cpu_now {};
+      clock_gettime(CLOCK_THREAD_CPUTIME_ID, &cpu_now);
+      g_ui_stats["cpu_us"] = static_cast<int>((cpu_now.tv_sec - stats_cpu_since.tv_sec) * 1000000L + (cpu_now.tv_nsec - stats_cpu_since.tv_nsec) / 1000L);
+      stats_cpu_since = cpu_now;
       if (FILE * f = fopen(stats_path, "a")) {
 	for (auto & [ what, n ] : g_ui_stats) fprintf(f, "%s=%d ", what.c_str(), n);
 	fputs("\n", f);

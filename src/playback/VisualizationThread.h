@@ -50,6 +50,7 @@ class VisualizationThread : public EventHandler {
     for (; size + frame_count <= sample_rate / 10; size += frame_count) { }
     spectrum_.setSize(size, sample_rate);
     dirac_ = std::make_unique<DiracAnalyzer>(sample_rate);
+    rest_results_limit_ = 4 * sample_rate / std::max(frame_count, 1);
   }
 
   void handleAudioBlockEvent(AudioBlockEvent & ev) override;
@@ -69,6 +70,9 @@ class VisualizationThread : public EventHandler {
   // Whether the last grid sent was the all-zero one an analyzer at rest
   // leaves (the FFT's equivalent is SpectrumAnalyzer::atRest()).
   bool dirac_zero_sent_ = false;
+  // Results sent in a row with everything at rest, and how many the meter needs
+  // to fall to nothing (about three seconds of blocks; see configure()).
+  int rest_results_ = 0, rest_results_limit_ = 0;
 
   // A scratch decoder, used only to turn AudioBlockEvent::getRawBus()
   // (the active buffer's own raw ambisonic bus - see that class's own
