@@ -83,13 +83,41 @@ fluent, which suits scopes and meters. Its backends are the platforms' own
 - Cairo on Linux.
 - Quartz, if macOS ever comes.
 
-Plan:
+### Canvas readiness (in the canvas repository)
+
+The core and the Cairo backend compile cleanly as C++17, but the library
+isn't ready to be a dependency yet. Before synth uses it:
+
+- **Build.** A `CMakeLists.txt` with one option per backend (Cairo,
+  GDI+, Quartz, Android) and an installable, exported target, so synth can
+  take it with `find_package` or FetchContent. The Android and Quartz
+  backends and the DXT/ETC1 texture compression are off by default, so
+  none of them reaches synth's build.
+- **Pixel format.** `ImageData`'s layout is defined and documented: byte
+  order, and straight or premultiplied alpha. The terminal's Sixel and
+  Kitty graphics output and the sub-cell quantizer read it directly.
+  Fix the Gaussian blur's handling of premultiplied alpha (its own TODO)
+  if shadows are used.
+- **Tests and CI.** Pixel tests for what synth draws: a filled rect, an
+  antialiased line, a polyline, a linear gradient, an image drawn and read
+  back. CI runs them on Linux (Cairo) and on Windows (GDI+, MSYS2 UCRT64).
+- **Warnings.** Nothing to change: synth includes canvas's headers as
+  SYSTEM includes, as it does for `third_party/`.
+- **Text stays out.** Cairo's text path uses its basic font API, with no
+  shaping or font fallback. Chart labels and axis numbers therefore stay
+  cell text, drawn by Cell UI. Text in canvas waits for phase 2, if it is
+  needed at all.
+- **Not now:** a GPU backend, removing Cairo, or a DirectWrite path.
+
+### Synth onto canvas
 
 Move synth's chart and meter paint code onto canvas, drawing each into its
 own span's image. The terminal draws that ImageData as pixels or through
 the sub-cell quantizer. This deletes custom paint code early and needs no
-other part of this plan, so it can go first. (In phase 2 the same images
-become textures.)
+other part of this plan, so it can go first. Cairo first; GDI+ joins once
+the Windows CI job exists (`plans/windows-port.md` step 0). Canvas (MIT)
+and its vendored stb headers go into `THIRD_PARTY_LICENSES.md`. (In phase 2
+the same images become textures.)
 
 Keep canvas a separate library that `cellui` depends on rather than merging
 it in. It is useful on its own, and the UI library stays about layout and
@@ -115,20 +143,21 @@ of the switch.
 
 ## Steps
 
-1. Canvas for synth's charts and meters (above). Independent.
-2. `plans/modern-look.md` steps 1-3: audit, mock, tokens (no visible
+1. Canvas readiness, in the canvas repository (above). Independent.
+2. Synth's charts and meters onto canvas (above).
+3. `plans/modern-look.md` steps 1-3: audit, mock, tokens (no visible
    change).
-3. Create `lib/cellui` with `UIPlane`/`UIMenu`/the chart and input types
+4. Create `lib/cellui` with `UIPlane`/`UIMenu`/the chart and input types
    moved in, the full API defined, and the gallery app, still rendered
    through notcurses behind the new API.
-4. The terminal backend replaces notcurses. Same look, same e2e results.
-5. Icons: the app's icon list, Kitty graphics/Sixel/glyph fallback, menu
+5. The terminal backend replaces notcurses. Same look, same e2e results.
+6. Icons: the app's icon list, Kitty graphics/Sixel/glyph fallback, menu
    icons.
-6. `plans/modern-look.md` steps 4-5: the modernized look and the light and
+7. `plans/modern-look.md` steps 4-5: the modernized look and the light and
    high-contrast themes.
-7. Keymap profiles in the keymap layer, emacs the only one in the
+8. Keymap profiles in the keymap layer, emacs the only one in the
    terminal.
-8. Accessibility tree published by the widgets (the terminal uses only
+9. Accessibility tree published by the widgets (the terminal uses only
    focus); strings through a catalog.
-9. Windows console support in the terminal backend, once
+10. Windows console support in the terminal backend, once
    `plans/windows-port.md` has its platform layer.
