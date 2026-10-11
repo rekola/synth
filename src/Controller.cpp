@@ -18,7 +18,7 @@
 #include <filesystem>
 #include <cstdlib>
 
-#include <fmt/core.h>
+#include <fmt/format.h>
 
 using namespace std;
 
@@ -44,7 +44,11 @@ vector<string> splitPathComponents(const string & path) {
   vector<string> parts;
   size_t start = 0;
   while (true) {
+#ifdef _WIN32
+    auto pos = path.find_first_of("/\\", start); // paths there use either
+#else
     auto pos = path.find('/', start);
+#endif
     if (pos == string::npos) {
       parts.push_back(path.substr(start));
       break;
@@ -133,7 +137,12 @@ findDefaultSoundFont() {
   if (fs::is_regular_file("data/FluidR3_GM.sf2", ec)) return "data/FluidR3_GM.sf2";
 
   vector<fs::path> dirs;
-  if (auto home = getenv("HOME")) {
+#ifdef _WIN32
+  const char * home = getenv("USERPROFILE");
+#else
+  const char * home = getenv("HOME");
+#endif
+  if (home) {
     dirs.push_back(fs::path(home) / ".local/share/soundfonts");
     dirs.push_back(fs::path(home) / ".local/share/sounds/sf2");
   }

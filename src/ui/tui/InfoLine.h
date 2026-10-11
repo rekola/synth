@@ -7,7 +7,7 @@
 #include "../../util/Utf8.h"
 
 #include <algorithm>
-#include <fmt/core.h>
+#include <fmt/format.h>
 
 using namespace std;
 

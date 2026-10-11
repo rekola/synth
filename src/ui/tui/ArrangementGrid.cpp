@@ -12,7 +12,7 @@
 #include "../KeyChord.h"
 
 #include <algorithm>
-#include <fmt/core.h>
+#include <fmt/format.h>
 
 using namespace std;
 

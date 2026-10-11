@@ -1,3 +1,4 @@
+#include <cstdio>
 #include "Player.h"
 #include "../audio/AudioAPI.h"
 #include "../Controller.h"
@@ -742,6 +743,12 @@ void Player::handleQueuedEvent(std::unique_ptr<Event> event) {
 
 void
 Player::play(AudioAPI & audio) {
+#ifdef _WIN32
+  // The device loop waits on ALSA descriptors; no Windows audio backend yet.
+  (void)audio;
+  std::fputs("Realtime playback is not available on Windows yet\n", stderr);
+}
+#else
   EventLogger logger(&(controller_->getUIEventQueue()));
 
   auto & event_queue = controller_->getPlaybackEventQueue();
@@ -1081,6 +1088,7 @@ Player::play(AudioAPI & audio) {
     }
   }
 }
+#endif
 
 std::unique_ptr<PlaybackEvent>
 Player::createPlaybackEvent(const string & buffer_name, const Song & song, const SongState & state) {

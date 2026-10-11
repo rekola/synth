@@ -55,6 +55,24 @@ it is, "(PipeWire)" or "(ALSA sound cards)".
 `SYNTH_ENABLE_BINAURAL`, auto-detected) — without it, `--ambisonic` still
 works via the cardioid stereo decoder fallback.
 
+### Windows
+
+User-facing build instructions are in `docs/building.md`. Windows builds with MSYS2 UCRT64 (MinGW-w64 GCC; the DSP code needs GCC vector
+extensions), packages `mingw-w64-ucrt-x86_64-{gcc,cmake,ninja,fmt,libsndfile,
+soundtouch,libunistring,python}`. `SYNTH_BUILD_INTERACTIVE` (default ON, OFF on
+Windows) selects between the full `synth` and the render-only one
+(`src/main_render.cpp`: `--render`, `--help`, `--licenses` and the options
+`--render` honours, parsed by `src/cli/CommonOptions.*`, shared with
+`main.cpp`); with it OFF the terminal UI, ALSA, Launchpad and PipeWire sources
+aren't built and `EscapeCoalescerTests` is left out. `.github/workflows/
+ci-windows-x86_64.yml` builds, runs ctest and renders songs. The `#ifdef
+_WIN32`s this needed (each to go in `plans/windows-port.md` steps 1-3):
+`EventQueue.h` (condition variable instead of eventfd), `AudioAPI.h` (a
+`pollfd` stand-in), `Player::play()` (stubbed), `ShutdownSignal.cpp`,
+`DeviceSettings.cpp`/`Controller.cpp` (config and SoundFont paths) and
+`AudioBuffer.h` (aligned allocation). Files open by UTF-8 path through
+`util/FileOpen.h`.
+
 ## Run
 
 ```sh

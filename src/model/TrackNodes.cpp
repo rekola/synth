@@ -22,7 +22,7 @@
 #include "../effects/TapeDegradation.h"
 #include "../effects/Tremolo.h"
 
-#include <fmt/core.h>
+#include <fmt/format.h>
 
 #include <cstdlib>
 

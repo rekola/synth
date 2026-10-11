@@ -21,6 +21,7 @@
    USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
+#include "../util/FileOpen.h"
 #include "SoundFont.h"
 #include "SpatialPlacement.h"
 
@@ -162,7 +163,7 @@ static inline float tsf_cents2Hertz(float cents) { return 8.176f * powf(2.0f, ce
 #include <unordered_map>
 
 static int tsf_stream_stdio_read(FILE* f, void* ptr, unsigned int size) { return (int)fread(ptr, 1, size, f); }
-static int tsf_stream_stdio_skip(FILE* f, unsigned int count) { return !fseek(f, count, SEEK_CUR); }
+static int tsf_stream_stdio_skip(FILE * f, unsigned int count) { return !fseek(f, static_cast<long>(count), SEEK_CUR); }
 
 enum { TSF_LOOPMODE_NONE, TSF_LOOPMODE_CONTINUOUS, TSF_LOOPMODE_SUSTAIN };
 
@@ -473,12 +474,7 @@ public:
   // Directly load a SoundFont from a .sf2 file path
   void loadFile(const std::string & filename) {
     struct tsf_stream stream = { nullptr, (int(*)(void*,void*,unsigned int))&tsf_stream_stdio_read, (int(*)(void*,unsigned int))&tsf_stream_stdio_skip };
-#if __STDC_WANT_SECURE_LIB__
-    FILE * fh = nullptr;
-    fopen_s(&fh, filename.c_str(), "rb");
-#else
-    FILE * fh = fopen(filename.c_str(), "rb");
-#endif
+    FILE * fh = openFile(filename, "rb");
     if (!fh) {
       // if (e) *e = TSF_FILENOTFOUND;
       return;

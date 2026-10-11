@@ -7,15 +7,63 @@
 #include <memory>
 #include <mutex>
 #include <deque>
+#ifdef _WIN32
+#include <chrono>
+#include <condition_variable>
+#else
 #include <poll.h>
 #include <sys/eventfd.h>
 #include <unistd.h>
+#endif
 
 // Unbounded multi-producer/single-consumer queue with a pollable fd. The
 // deque is the only source of truth; the eventfd is just a wakeup signal,
 // kept readable exactly while the deque is non-empty (both updated under
 // the same lock). An eventfd write never blocks, so push() can't stall
 // the producer however far behind the consumer falls.
+#ifdef _WIN32
+// Windows has no pollable fd for this; a condition variable stands in until
+// the portable wait/notifier of plans/windows-port.md step 1.
+class EventQueue {
+ public:
+  EventQueue() = default;
+  EventQueue(const EventQueue &) = delete;
+  EventQueue & operator=(const EventQueue &) = delete;
+
+  void push(std::unique_ptr<Event> event) {
+    {
+      std::lock_guard<std::mutex> guard(event_mutex);
+      events.push_front(std::move(event));
+    }
+    ready.notify_one();
+  }
+
+  // Blocks until an event is available.
+  std::unique_ptr<Event> pop() {
+    std::unique_lock<std::mutex> lock(event_mutex);
+    ready.wait(lock, [this] { return !events.empty(); });
+    auto e = std::move(events.back());
+    events.pop_back();
+    return e;
+  }
+
+  // Waits up to timeout_ms for an event; true if one is available.
+  bool wait(int timeout_ms) {
+    std::unique_lock<std::mutex> lock(event_mutex);
+    return ready.wait_for(lock, std::chrono::milliseconds(timeout_ms), [this] { return !events.empty(); });
+  }
+
+  bool hasEvents() const {
+    std::lock_guard<std::mutex> guard(event_mutex);
+    return !events.empty();
+  }
+
+ private:
+  mutable std::mutex event_mutex;
+  std::condition_variable ready;
+  std::deque<std::unique_ptr<Event> > events;
+};
+#else
 class EventQueue {
  public:
   EventQueue() : event_fd(eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC)) { }
@@ -32,6 +80,12 @@ class EventQueue {
   }
 
   int getPollFd() const { return event_fd; }
+
+  // Waits up to timeout_ms for an event; true if one is available.
+  bool wait(int timeout_ms) {
+    pollfd d{event_fd, POLLIN, 0};
+    return poll(&d, 1, timeout_ms) > 0 && d.revents;
+  }
 
   // Blocks until an event is available.
   std::unique_ptr<Event> pop() {
@@ -63,5 +117,6 @@ class EventQueue {
   mutable std::mutex event_mutex;
   std::deque<std::unique_ptr<Event> > events;
 };
+#endif
 
 #endif

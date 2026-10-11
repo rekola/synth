@@ -1,7 +1,17 @@
 #ifndef _AUDIOAPI_H_
 #define _AUDIOAPI_H_
 
+#ifdef _WIN32
+// Descriptor lists are an ALSA notion; this stand-in lets AudioAPI compile
+// until the portable wait of plans/windows-port.md step 1.
+struct pollfd {
+  int fd;
+  short events;
+  short revents;
+};
+#else
 #include <poll.h>
+#endif
 #include <cstddef>
 #include <string>
 #include <vector>

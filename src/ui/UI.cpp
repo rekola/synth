@@ -29,7 +29,7 @@
 #include <algorithm>
 #include <iterator>
 #include <pthread.h>
-#include <fmt/core.h>
+#include <fmt/format.h>
 #include <memory>
 #include <thread>
 
