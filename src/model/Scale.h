@@ -5,8 +5,9 @@
 #include <string_view>
 #include <vector>
 
-// A song-wide scale, for the sequencer (Song::getScaleDegreesWindow()); the
-// Launchpad's keyboard ignores it. NONE is the explicit "no scale chosen"
+// A song-wide scale, for the sequencer (Song::getScaleDegreesWindow()) and,
+// for a just scale, the ratio each note is tuned to; the Launchpad's keyboard
+// ignores it. NONE is the explicit "no scale chosen"
 // state, not a fifth real scale - getScaleDegreesWindow() falls back to the
 // plain chromatic scale for it.
 enum class Scale {
@@ -60,6 +61,44 @@ static inline std::vector<std::string_view> scaleDegreeNames(Scale scale) {
   case Scale::NONE: return {};
   }
   return {};
+}
+
+// The exact ratio above the tonic of each of scaleDegreeNames()'s degrees, for
+// a scale that is a just scale: otonal is harmonics 12:14:15:16:18:20:21 of
+// the tonic, utonal its mirror. Empty for the others, whose notes have no one
+// ratio that suits every chord.
+struct ScaleRatio {
+  int num = 1, den = 1;
+};
+
+static inline std::vector<ScaleRatio> scaleDegreeRatios(Scale scale) {
+  switch (scale) {
+    case Scale::OTONAL:
+      return {{1, 1}, {7, 6}, {5, 4}, {4, 3}, {3, 2}, {5, 3}, {7, 4}};
+    case Scale::UTONAL:
+      return {{1, 1}, {8, 7}, {6, 5}, {4, 3}, {3, 2}, {8, 5}, {12, 7}};
+    case Scale::NONE:
+    case Scale::MAJOR:
+    case Scale::MINOR:
+      return {};
+  }
+  return {};
+}
+
+// The scale played together with this one: otonal and utonal are mirror
+// images built from the same numbers, so a song in either has both.
+static inline Scale pairedScale(Scale scale) {
+  switch (scale) {
+    case Scale::OTONAL:
+      return Scale::UTONAL;
+    case Scale::UTONAL:
+      return Scale::OTONAL;
+    case Scale::NONE:
+    case Scale::MAJOR:
+    case Scale::MINOR:
+      return Scale::NONE;
+  }
+  return Scale::NONE;
 }
 
 #endif

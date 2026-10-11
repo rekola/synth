@@ -1,4 +1,4 @@
-# Just intonation: scale ratios, then adaptive tuning
+# Just intonation: the Launchpad keyboard, then adaptive tuning
 
 Goal: every pitched note in 12/19/31/53-EDO can carry a cent correction toward
 just intonation, stored in its local fx (`+hh`/`-hh`) and computed by the app.
@@ -14,137 +14,75 @@ or are held into it, as one chord, tunes the lowest from the key and every other
 note against that lowest one, each through the step table (the simplest ratio
 within min(half a step, 20 cents), primes up to 13).
 
-Two phases are left:
+Scale ratios are built too: in an otonal or utonal song a note of either
+scale gets its exact ratio whatever its chord (`scaleDegreeRatios()`,
+`just_intonation::ScaleCorrections`, both scales together, the song's own first
+where they share a step in 12/19-EDO); live notes sound with it
+(`SongScalars::scale_corrections`, `Player`'s `PLAY_NOTE`) and recorded or typed
+notes are written with it (`tuneNewNote()`). Other notes are tuned by the chord
+tuner, against the exact ratio when the chord's lowest note is a scale note.
 
-1. **Scale ratios** (next): the otonal and utonal scales give each note its
-   exact ratio, played together, live as well as written.
-2. **Adaptive just intonation** (last): for the major and minor scales, songs
-   with no scale, and notes outside a ratio scale. The otonal/utonal work does
-   not need it, but writing in the ordinary major and minor scales does.
+Left: the Launchpad keyboard for these scales (a decision, below) and adaptive
+just intonation for everything without scale ratios.
 
-## Phase 1 - scale ratios for otonal and utonal (next)
+## Launchpad keyboard: chromatic or in-key (to decide)
 
-### Why the current tuner is not enough for them
+The pitched Note mode keyboard is isomorphic over every step of the tuning
+(`resolveKeyboardNotes()`). In 31-EDO only 11-13 of its 64 pads land on a note
+of one 7-note scale (20 on the 11 notes of both), and no other pair of
+isomorphic steps does much better for one scale (at most 19, checked over every
+step pair and tonic position). The tonic pad stays where it is. The alternative is an in-key
+layout that shows only scale notes.
 
-The step table guesses which ratio each step stands for, picking the simplest.
-An EDO step stands for several ratios a comma apart (31-EDO's step 5 is both 9/8
-and 10/9), and when the interval two scale notes actually form is not the
-simplest for its step, the guess is wrong. Measured from the tonic the table
-happens to give every otonal and utonal note correctly, but the tuner measures
-from the bar's lowest note, not the tonic. Every chord containing the tonic
-comes out right only while the tonic is lowest (which is why the old check
-passed). Voice one with another note lowest and a third of them break: in
-31-EDO, of the triads of each scale that contain C with another note lowest,
-10 of 30 are wrong. Key C, corrections in cents from `correctionCentsInChord()`:
+**What existed.** An in-key keyboard was built and then replaced
+(rekola/synth#33, then rekola/synth#39): pad (0,0) the tonic at the device's octave, each
+column the next degree of `Song::getScaleDegreesWindow()`, each row three
+degrees (a fourth) higher, `Scale::NONE` playing as major. rekola/synth#39 made the
+keyboard always isomorphic and left the scale to the step view, where 91/92
+move the edited sound one scale degree. The step view has no in-key pads of its
+own; its bottom rows are the same isomorphic keyboard. So the in-key layout is
+gone from the code, but restoring it is small: `getScaleDegreesWindow()` is
+still there, and only `resolveKeyboardNotes()` needs a second branch.
 
-| Chord (lowest first) | What it is | Wrong note | Gets | Scale ratio gives |
-|---|---|---|---|---|
-| G C E A | C6 (12:15:18:20) over G | A | +16 (27/16) | -6 (5/3) |
-| F A C E | F major 7, otonal notes | E | -17 (13/7 over F) | -1 (5/4) |
-| G C F | Csus4 over G | F | +16 (27/20) | -5 (4/3) |
-| E C D♯ | otonal | D♯ | -13 | -4 (7/6) |
-| E♭ F C | utonal | F | +16 | -5 (4/3) |
-| E𝄫 G C | utonal | G | -11 (13/10 over E𝄫) | +5 (3/2) |
-| G A♭ C | utonal | A♭ | +17 | +1 (8/5) |
+**Is the old one suitable?** For major and minor, yes: 7 degrees, rows a
+fourth apart, every pad a scale note, four octaves on the grid. For
+otonal and utonal played together it is not: it lays out only the song's own 7
+notes, so an otonal song's E𝄫, E♭, A♭ and B𝄫 (the utonal notes) cannot be
+played at all. For a just scale it should lay out the notes of both, the same
+11 the tuner uses:
 
-Each time the interval from the lowest note to the wrong one (G-A 10/9, F-E
-15/8) is not the simplest ratio of its step. Chords without the tonic fare worse:
-34 of the 60 voicings of each scale's tonic-free triads are wrong (F G A𝄰,
-16:18:21, in all three); only the pure ones, E G A𝄰 (5:6:7) and E𝄫 F A♭
-(1/7:1/6:1/5), survive every voicing, because each interval inside them happens
-to be the simplest of its step. The bar is also per track: a
-melody G-A in one bar gets the 27/16 A even while another track holds C, since
-the tuner never sees the other track. So the same pitch class lands up to a
-comma apart depending on voicing and on what else its track plays in the bar.
+| 31-EDO step | 0 | 6 | 7 | 8 | 10 | 13 | 18 | 21 | 23 | 24 | 25 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Note | C | E𝄫 | D♯ | E♭ | E | F | G | A♭ | A | B𝄫 | A𝄰 |
 
-The otonal and utonal scales are fixed just scales: each note has one ratio to the tonic, and every interval between
-two of them is the quotient of their ratios. Nothing needs guessing.
+Each row is 8 of them; the next row starts a fourth higher, which is 5 degrees
+here (F is the sixth note), so a row overlaps the next by three notes and the
+grid spans about 3.8 octaves. In general the row stride is the number of
+degrees below the fourth (3 for a 7-note scale, 5 for the 11, 4 for the 9 that
+remain where the scales share steps in 12 and 19-EDO). The cost of any in-key
+layout is that it is not isomorphic: a chord's shape depends on which degree
+it starts on. Pad colours stay the consonance colours by pitch class.
 
-Also missing: the two scales are meant to be played together (C E G and
-C E♭ G side by side), but a song has one scale; and live notes (pads, MIDI,
-keyboard) are never corrected, so what is played is not what is written.
+**Switching on the Launchpad.** A repeated press of Note (CC96) while the
+device is already in Note mode toggles chromatic and in-key, the same way a
+repeated Session (CC95) press toggles the mixer submode; any other mode's press
+of 96 still just enters Note mode in whichever layout it was left. Per device,
+like the octave and the grid mode. The Note LED shows which: the current
+colour for chromatic, a second hue for in-key (as 95 shows green or orange).
+Shift + 96 stays open/close the selected clip. In the step view (where 96 is
+dark today) the toggle could apply to the bottom four rows too. The terminal
+gets no command: only a pad controller has the keyboard, so it would be a
+`pad-` command at most.
 
-### The ratios
+**To decide.**
+- In-key for a just scale: both scales' 11 notes (recommended), or only the
+  song's own 7.
+- `Scale::NONE` in-key: play as major (as before), or keep the toggle off with
+  a status message.
+- Whether the toggle also applies in the step view's bottom rows.
+- The in-key LED colour for CC96.
 
-`Scale.h` gets a ratio for each degree next to its name:
-
-| Scale | Names | Ratios | Harmonic numbers |
-|---|---|---|---|
-| otonal | C D♯ E F G A A𝄰 | 1/1 7/6 5/4 4/3 3/2 5/3 7/4 | multiples 12:14:15:16:18:20:21 of a low C |
-| utonal | C E𝄫 E♭ F G A♭ B𝄫 | 1/1 8/7 6/5 4/3 3/2 8/5 12/7 | a high C divided by 24, 21, 20, 18, 16, 15, 14 |
-
-They are mirror images built from the same numbers. Major, minor and none get
-no ratios.
-
-The step a degree sits on still comes from its name (`Note::stringToKey()`, as
-`Song::getScaleDegreesWindow()` does), so the Launchpad keyboard, the step view
-and the tuner agree on which key is which note. The correction is the ratio's
-cents minus that step's equal-tempered cents. Pinned as tests:
-
-| EDO | Otonal | Utonal |
-|---|---|---|
-| 12 | 0 -33 -14 -2 +2 -16 -31 | 0 +31 +16 -2 +2 +14 +33 |
-| 19 | 0 +14 +7 -7 +7 0 +21 | 0 -21 0 -7 +7 -7 -14 |
-| 31 | 0 -4 -1 -5 +5 -6 +1 | 0 -1 +6 -5 +5 +1 +4 |
-| 53 | 0 -5 +1 0 0 +1 -5 | 0 +5 -1 0 0 -1 +5 |
-
-(In order of the degrees above. The otonal 7/4 is spelled A𝄰, which every
-tuning but 53-EDO reads as A♯.)
-
-### One pair, played together
-
-A song whose scale is otonal or utonal is tuned with the ratios of both: 11
-notes in 31 and 53-EDO (C, E𝄫, D♯, E♭, E, F, G, A♭, A, B𝄫, A𝄰), the shared
-1/1, 4/3 and 3/2 agreeing. Any mix of the two is then pure: C E G, C E♭ G,
-F A C D♯ (an otonal chord on F, 4:5:6:7), B𝄫 C E♭ G (a utonal chord on G), each
-interval the quotient of the two ratios. In 12 and 19-EDO the two scales share
-keys (12: D♯/E♭ and A/B𝄫; 19: D♯/E𝄫 and A𝄰/B𝄫); there the song's own scale
-takes the step and the other scale fills only the steps left free.
-
-### The rule
-
-A pitched note whose interval from the key (octaves ignored) is one of those
-steps gets that ratio's correction: no chord, no bar, no neighbours, no drift.
-That also makes a clip's tuning independent of where it is placed. Every other
-note (outside the 11, or any note in a song with no ratio scale) is tuned as
-today until phase 2. When such a note's chord bass is a scale note, the bass's
-exact ratio is what it is tuned against.
-
-### Live notes
-
-Pads, MIDI and keyboard note-ons on a pitched track sound with the scale
-correction, so playing is heard as it will be written. `PLAY_NOTE` carries no
-correction now; `Player` computes it from the published song's tuning, key and
-scale and passes it the way `SongState` passes a pattern note's
-`NoteOverride::detune_cents`. Notes outside the scale stay equal-tempered live
-(nothing to tune them against in real time). A recorded scale note is written
-with its `+hh`/`-hh` so playback matches; others are written untuned, as now.
-
-### Work
-
-- `model/Scale.h`: the ratio per degree, and the pair rule (which steps take
-  which ratio for a tuning, key and scale) in one function that both the tuner
-  and the live path call.
-- `model/JustIntonation.{h,cpp}`: `scaleCorrectionCents(tuning, scale, key,
-  note_value)` returning the correction or nothing.
-- `PatternBlockOps.cpp`: `chordCorrections()` takes the scale correction first
-  for each note, the bass included; the transpose retune goes through the same.
-- Live: `Player`'s `PLAY_NOTE`, and the recording paths (`ClipPlayer` takes,
-  note capture, pattern-editor note entry) write the fx.
-- Docs: `docs/glossary.md` (the otonal/utonal paragraph: their ratios, the
-  pair), `docs/terminal.md` (what apply does in a ratio scale, live
-  correction), the `Scale.h` comment, the CLAUDE.md just-intonation paragraph.
-
-### Tests
-
-The correction table above for every EDO; every triad of the 11 notes, in
-every voicing, giving the scale ratios (this covers the chords above, the ones
-without the tonic, and otonal and utonal notes mixed); C E G and C E♭ G in one bar of a 31-EDO otonal song; the 12 and
-19-EDO collision rule; a major-scale song unchanged; transpose keeps scale
-notes on their ratios; a live note's detune in `Player`; a recorded scale note
-carries its fx.
-
-## Phase 2 - adaptive just intonation: tuning across tracks, with drift and loops (last)
+## Adaptive just intonation: tuning across tracks, with drift and loops
 
 For scales where no single pitch per note suits every chord: the major and minor
 scales most songs are written in (D is 9/8 in one chord and 10/9 in another),
@@ -153,7 +91,7 @@ its 11. It replaces the current tuner's per-track, bar-long chords: a track may
 hold a single note that only gives body to another track's (a perfect fifth
 above it, once), a harmony can change on any row, and the right behaviour
 differs between the two views. One model over every track replaces it. A note
-with a scale ratio (phase 1) is never free: it is fixed at its ratio and serves
+with a scale ratio is never free: it is fixed at its ratio and serves
 only as a reference.
 
 ### The chord goes away
@@ -204,7 +142,7 @@ sounding or has just sounded:
   one, so errors accumulate along a progression: stack a perfect fifth on C ten
   times and each step carries the last one's error. That is intended in the
   arrangement. What happens at the +-255 limit is below.
-- **Live notes** stay as phase 1 leaves them; adapting while playing is not
+- **Live notes** keep only their scale corrections; adapting while playing is not
   planned.
 
 ### Two modes, picked by the view
@@ -299,11 +237,7 @@ pitch, so a section after them starts from there.
 
 ## Open
 
-- Phase 1: the Launchpad keyboard for the 11 notes. In 31-EDO only 11-13 of the
-  64 pads land on a note of one scale; moving the tonic pad raises that to 18,
-  and no other isomorphic step pair does better than 19. An in-key layout (rows
-  of scale degrees) would use every pad but is no longer isomorphic.
-- Phase 2: the memory length (6 pitch classes is a guess); how a scene's cycle is
+- Adaptive: the memory length (6 pitch classes is a guess); how a scene's cycle is
   built when clip lengths do not divide the longest; and which of the three
   clip-instance options (the plan recommends 2), which gates the arrangement
   mode, built last.

@@ -392,7 +392,12 @@ region` writes each pitched note's correction toward a just ratio
 primes up to 13): the notes that start in a bar of a track's pattern, plus the
 ones held into it, are one chord, tuned above its lowest note, which is tuned
 from the song key (`chordCorrections()` in `PatternBlockOps.cpp`, the context
-read from the whole pattern). `+00` marks a note that needs none, and
+read from the whole pattern). In an otonal or utonal song a note of either
+scale instead gets its exact scale ratio (`scaleDegreeRatios()` in `Scale.h`,
+`just_intonation::ScaleCorrections`, both scales together, the song's own first
+where they share a step), whatever its chord; live notes sound with it
+(`SongScalars::scale_corrections`, read by `Player`'s `PLAY_NOTE`) and recorded
+or typed ones are written with it (`tuneNewNote()`). `+00` marks a note that needs none, and
 `clear-tuning-correction-region` removes them. A note that carries one is
 "tuned": transposing retunes it for its new pitch and place in its chord, and `transposeSong()` moves
 the key with the notes when no pitched note is left outside its `SongScope`,

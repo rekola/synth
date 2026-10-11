@@ -285,3 +285,53 @@ TEST(a_percussion_track_is_left_alone) {
   CHECK(applyJustIntonationToSong(song, SongScope::ARRANGEMENT).notes == 0);
   CHECK(!arrangement.getNotes(0, track_id)[0].hasFx());
 }
+
+TEST(in_a_just_scale_every_note_gets_its_scale_ratio_whatever_its_chord) {
+  // F A C E, all otonal notes: the chord tuner alone puts E at 13/7 above F.
+  Song song(Tuning::EDO31, kKey);
+  song.setScale(Scale::OTONAL);
+  auto track_id = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
+  auto arrangement = song.getArrangement();
+  ArrangementBackgroundGrid grid(arrangement);
+  arrangement.setNote(0, track_id, 0, Note(kKey + 13, 100));      // F
+  arrangement.setNote(0, track_id, 1, Note(kKey + 23, 100));      // A
+  arrangement.setNote(0, track_id, 2, Note(kKey + 31, 100));      // C
+  arrangement.setNote(0, track_id, 3, Note(kKey + 31 + 10, 100)); // E
+  vector<int> track_ids = {track_id};
+
+  applyJustIntonationBlock(grid, 0, 0, track_ids, 0, 0, context(), never);
+  CHECK(arrangement.getNotes(0, track_id)[3].getTuningCorrectionCents() == -17);
+
+  applyJustIntonationToSong(song, SongScope::ARRANGEMENT);
+  auto notes = arrangement.getNotes(0, track_id);
+  CHECK(notes[0].getFx() == "-05"); // 4/3
+  CHECK(notes[1].getFx() == "-06"); // 5/3
+  CHECK(notes[2].getFx() == "+00");
+  CHECK(notes[3].getFx() == "-01"); // 5/4
+}
+
+TEST(a_new_note_of_a_just_scale_is_written_with_its_correction) {
+  Song song(Tuning::EDO31, kKey);
+  auto pitched = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
+  auto drums = song.addTrack(make_unique<PercussionTrack>()).getInternalId();
+
+  Note note(kKey + 7, 100);
+  tuneNewNote(song, pitched, note);
+  CHECK(!note.hasFx()); // no scale: untuned, as before
+
+  song.setScale(Scale::OTONAL);
+  tuneNewNote(song, pitched, note);
+  CHECK(note.getFx() == "-04"); // 7/6
+  Note utonal(kKey + 8, 100);
+  tuneNewNote(song, pitched, utonal);
+  CHECK(utonal.getFx() == "+06"); // 6/5, from the paired scale
+  Note outside(kKey + 1, 100);
+  tuneNewNote(song, pitched, outside);
+  CHECK(!outside.hasFx());
+  Note drum(kKey + 7, 100);
+  tuneNewNote(song, drums, drum);
+  CHECK(!drum.hasFx());
+  Note off(kKey + 7, 0);
+  tuneNewNote(song, pitched, off);
+  CHECK(!off.hasFx());
+}

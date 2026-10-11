@@ -1,4 +1,5 @@
 #include "JustIntonation.h"
+#include "Note.h"
 
 #include <algorithm>
 #include <cmath>
@@ -106,6 +107,50 @@ int correctionCentsInChord(int edo, int value, int bass, int key) {
   double just = cents(root) + cents(upper);
   double equal = (bass_steps + interval) * 1200.0 / edo;
   return static_cast<int>(std::lround(just - equal));
+}
+
+std::optional<int> ScaleCorrections::forNote(int note_value) const {
+  if (edo <= 0) return std::nullopt;
+  auto step = static_cast<size_t>((((note_value - key) % edo) + edo) % edo);
+  if (!present[step]) return std::nullopt;
+  return cents[step];
+}
+
+ScaleCorrections scaleCorrectionsFor(Tuning tuning, Scale scale, int key) {
+  ScaleCorrections out;
+  int edo = edoStepsFor(tuning);
+  if (edo <= 0 || edo > ScaleCorrections::kMaxSteps || scaleDegreeRatios(scale).empty()) return out;
+  out.edo = edo;
+  out.key = ((std::max(key, 0) % edo) + edo) % edo;
+  const double step_cents = 1200.0 / edo;
+  int c = Note::stringToKey(tuning, "C");
+  for (auto s : {scale, pairedScale(scale)}) {
+    auto names = scaleDegreeNames(s);
+    auto ratios = scaleDegreeRatios(s);
+    for (size_t i = 0; i < names.size() && i < ratios.size(); i++) {
+      int step = (((Note::stringToKey(tuning, names[i]) - c) % edo) + edo) % edo;
+      auto index = static_cast<size_t>(step);
+      if (out.present[index]) continue; // the song's own scale named it first
+      double just = 1200.0 * std::log2(static_cast<double>(ratios[i].num) / ratios[i].den);
+      out.cents[index] = static_cast<int16_t>(std::lround(just - step * step_cents));
+      out.present[index] = true;
+    }
+  }
+  return out;
+}
+
+int correctionCentsInChord(int edo, int value, int bass, int key, const ScaleCorrections & scale) {
+  if (scale.empty() || scale.edo != edo) return correctionCentsInChord(edo, value, bass, key);
+  if (auto own = scale.forNote(value)) return *own;
+  auto bass_correction = scale.forNote(bass);
+  if (!bass_correction) return correctionCentsInChord(edo, value, bass, key);
+  auto upper = intervalFor(edo, value - bass);
+  // No ratio for the interval: the note keeps its place against the key.
+  if (!upper.found) return correctionCentsFor(edo, value - std::max(key, 0));
+  double step_cents = 1200.0 / edo;
+  int interval = (((value - bass) % edo) + edo) % edo;
+  double upper_cents = 1200.0 * std::log2(static_cast<double>(upper.num) / upper.den);
+  return static_cast<int>(std::lround(*bass_correction + upper_cents - interval * step_cents));
 }
 
 int correctionCentsForNote(Tuning tuning, int note_value, int key) {

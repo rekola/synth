@@ -418,7 +418,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
     };
 
     // A note that carried a tuning correction gets the one for its new pitch.
-    IntonationContext intonation{song.getTuning(), song.getKey(), song.getArrangementBars()};
+    auto intonation = intonationContextOf(song);
     auto b = getEffectiveSelectionBounds(song, track_ids);
     if (isWholeSong(b.scope)) {
       transposeSong(song, songScopeOf(b.scope), true);
@@ -448,7 +448,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
     };
 
     // A note that carried a tuning correction gets the one for its new pitch.
-    IntonationContext intonation{song.getTuning(), song.getKey(), song.getArrangementBars()};
+    auto intonation = intonationContextOf(song);
     auto b = getEffectiveSelectionBounds(song, track_ids);
     if (isWholeSong(b.scope)) {
       transposeSong(song, songScopeOf(b.scope), false);
@@ -508,7 +508,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
       auto * track = song.getMasterTrack().getChildByInternalId(track_id);
       return track && song.getTuningForTrack(*track) == Tuning::PERCUSSION;
     };
-    IntonationContext intonation{song.getTuning(), song.getKey(), song.getArrangementBars()};
+    auto intonation = intonationContextOf(song);
 
     TuningSummary summary;
     auto b = getEffectiveSelectionBounds(song, track_ids);
@@ -2220,21 +2220,22 @@ PatternEditor::offerInputKey(const InputEvent & input) {
 	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, getController().getActiveBufferName(), track_id, note_column));
 	  } else {
 	    Note note(midi_note, 0x28, current_delay);
+            tuneNewNote(song, track_id, note);
 
-	    // A terminal that never negotiated the Kitty keyboard protocol
-	    // reports every keystroke as InputEvent::Kind::UNKNOWN (see its
-	    // own doc comment) - there is no way to ever learn such a key was
-	    // released, so none of the hold-tracking machinery below
-	    // (auto-play-while-held, whole-row replace, the live-column
-	    // collision check, active_keyboard_notes_ itself) can safely run:
-	    // an entry added for an UNKNOWN key would never be removed,
-	    // permanently occupying "a note is held" state and (among other
-	    // things) engaging auto-play exactly once, on the very first
-	    // note, then never letting go - which is the bug this guard
-	    // fixes. Falls back to the simple, immediate, one-shot-per-
-	    // keystroke behavior this codebase always had before Kitty
-	    // support existed.
-	    bool has_hold_info = input.getKind() != InputEvent::Kind::UNKNOWN;
+            // A terminal that never negotiated the Kitty keyboard protocol
+            // reports every keystroke as InputEvent::Kind::UNKNOWN (see its
+            // own doc comment) - there is no way to ever learn such a key was
+            // released, so none of the hold-tracking machinery below
+            // (auto-play-while-held, whole-row replace, the live-column
+            // collision check, active_keyboard_notes_ itself) can safely run:
+            // an entry added for an UNKNOWN key would never be removed,
+            // permanently occupying "a note is held" state and (among other
+            // things) engaging auto-play exactly once, on the very first
+            // note, then never letting go - which is the bug this guard
+            // fixes. Falls back to the simple, immediate, one-shot-per-
+            // keystroke behavior this codebase always had before Kitty
+            // support existed.
+            bool has_hold_info = input.getKind() != InputEvent::Kind::UNKNOWN;
 
 	    // Both views treat held keys alike: the row stays put and the cursor
 	    // steps once when the last key lifts (pending_step_). Nothing starts
