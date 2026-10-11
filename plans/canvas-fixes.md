@@ -31,8 +31,8 @@ working unless it says otherwise.
   It does not reduce to a palette, so it doesn't serve a 256-colour terminal
   or Sixel yet; step 7 adds that.
 - **`PerlinSurface`**: a read-only Perlin-noise surface, a source for
-  `drawImage()`. It doesn't compile (item 25); fixing it is two small
-  changes, so it is fixed rather than deleted.
+  `drawImage()`. It doesn't compile (item 25); fixing it is small,
+  so it is fixed rather than deleted.
 
 ## Bugs
 
