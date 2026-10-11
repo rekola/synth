@@ -133,7 +133,12 @@ findDefaultSoundFont() {
   if (fs::is_regular_file("data/FluidR3_GM.sf2", ec)) return "data/FluidR3_GM.sf2";
 
   vector<fs::path> dirs;
-  if (auto home = getenv("HOME")) {
+#ifdef _WIN32
+  const char * home = getenv("USERPROFILE");
+#else
+  const char * home = getenv("HOME");
+#endif
+  if (home) {
     dirs.push_back(fs::path(home) / ".local/share/soundfonts");
     dirs.push_back(fs::path(home) / ".local/share/sounds/sf2");
   }

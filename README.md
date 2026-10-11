@@ -2,6 +2,7 @@
 
 [![Linux x86-64](https://github.com/rekola/synth/actions/workflows/ci-linux-x86_64.yml/badge.svg)](https://github.com/rekola/synth/actions/workflows/ci-linux-x86_64.yml)
 [![Linux ARM64](https://github.com/rekola/synth/actions/workflows/ci-linux-arm64.yml/badge.svg)](https://github.com/rekola/synth/actions/workflows/ci-linux-arm64.yml)
+[![Windows x86-64](https://github.com/rekola/synth/actions/workflows/ci-windows-x86_64.yml/badge.svg)](https://github.com/rekola/synth/actions/workflows/ci-windows-x86_64.yml)
 
 ![Screenshot of Live View](https://raw.githubusercontent.com/rekola/synth/refs/heads/main/assets/screenshot1.png)
 
@@ -145,6 +146,23 @@ Known to work are kitty, xterm and GNOME Terminal. The full table is in
 A connected Novation Launchpad (Mini MK3 / X) becomes a drum rack or isomorphic
 keyboard, a step sequencer and a clip launcher. See
 [docs/launchpad.md](docs/launchpad.md) for the layout, colors and every button.
+
+## Windows
+
+Windows support is just starting: only the engine, the tests and a render-only
+`synth` (`synth --render out.wav song.xml`) build there. There is no terminal
+UI, realtime audio, MIDI or Launchpad yet. The toolchain is MSYS2 UCRT64
+(MinGW-w64 GCC); in an MSYS2 UCRT64 shell:
+
+```sh
+pacman -S mingw-w64-ucrt-x86_64-{gcc,cmake,ninja,fmt,libsndfile,soundtouch,libunistring,python}
+cmake -G Ninja -B build
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+CI builds this on every push and uploads the binary and some rendered songs.
+The plan is in [plans/windows-port.md](plans/windows-port.md).
 
 ## Third-party code
 

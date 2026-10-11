@@ -58,6 +58,12 @@ serializeDeviceSettings(const DeviceSettings & settings) {
 
 std::string
 defaultDeviceSettingsPath() {
+#ifdef _WIN32
+  if (auto appdata = std::getenv("APPDATA"); appdata && *appdata) {
+    return (fs::path(appdata) / "synth" / "devices.conf").string();
+  }
+  return "";
+#endif
   if (auto xdg = std::getenv("XDG_CONFIG_HOME"); xdg && *xdg) {
     return (fs::path(xdg) / "synth" / "devices.conf").string();
   }

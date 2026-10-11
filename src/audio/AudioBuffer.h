@@ -4,6 +4,10 @@
 #include "../ambisonic/ChannelConfiguration.h"
 #include "../dsp/Vec8.h"
 
+#include <cstdlib>
+#ifdef _WIN32
+#include <malloc.h>
+#endif
 #include <cstring>
 #include <cmath>
 #include <cassert>
@@ -86,7 +90,7 @@ class AudioBuffer final {
     : channels_(other.channels_), frames_(other.frames_), stride_(other.stride_), data_(std::exchange(other.data_, nullptr)), is_solo_(other.is_solo_), bpm_(other.bpm_), has_aux_a_(other.has_aux_a_), has_aux_b_(other.has_aux_b_) {
   }
   ~AudioBuffer() {
-    free(data_);
+    alignedFree(data_);
   }
   AudioBuffer & operator=(const AudioBuffer & other) noexcept {
     if (&other != this) {
@@ -101,14 +105,14 @@ class AudioBuffer final {
       auto new_data = allocate(channels_, stride_);
       if (new_data && other.data_) memcpy(new_data, other.data_, allocationBytes(channels_, stride_));
 
-      free(data_);
+      alignedFree(data_);
       data_ = new_data;
     }
     return *this;
   }
   AudioBuffer & operator=(AudioBuffer && other) noexcept {
     if (&other != this) {
-      free(data_);
+      alignedFree(data_);
 
       channels_ = other.channels_;
       frames_ = other.frames_;
@@ -165,7 +169,7 @@ class AudioBuffer final {
   }
 
   void clear() {
-    free(data_);
+    alignedFree(data_);
     data_ = 0;
     frames_ = 0;
     stride_ = 0;
@@ -183,7 +187,7 @@ class AudioBuffer final {
     for (int j = 0; j < channels_; j++) {
       memcpy(new_data + static_cast<size_t>(j) * static_cast<size_t>(new_stride), getChannelData(j), static_cast<size_t>(frames_to_copy) * sizeof(float));
     }
-    free(data_);
+    alignedFree(data_);
     data_ = new_data;
     frames_ = new_size;
     stride_ = new_stride;
@@ -381,7 +385,19 @@ private:
   }
 
   static float * allocate(int channels, int stride) {
+#ifdef _WIN32
+    return static_cast<float *>(_aligned_malloc(allocationBytes(channels, stride), kAlignment));
+#else
     return static_cast<float *>(aligned_alloc(kAlignment, allocationBytes(channels, stride)));
+#endif
+  }
+
+  static void alignedFree(void * p) {
+#ifdef _WIN32
+    _aligned_free(p);
+#else
+    free(p);
+#endif
   }
 
   // Channel::Main is always channel 0 when present. AuxA/AuxB always land

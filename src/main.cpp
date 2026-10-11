@@ -11,7 +11,7 @@
 #include "util/StderrLogger.h"
 #include "audio/OfflineRenderer.h"
 #include "ambisonic/AmbisonicEncoding.h"
-#include "generated/ThirdPartyLicenses.h"
+#include "cli/CommonOptions.h"
 #include "generated/InstallPaths.h"
 
 #include <cstring>
@@ -20,39 +20,10 @@
 #include <termios.h>
 #include <unistd.h>
 
-#include <sndfile.h>
 #include <ncpp/NotCurses.hh>
 #include <fmt/core.h>
 
 using namespace std;
-
-// Render the loaded song offline and write it as a WAV file.
-static bool renderSongToWav(Controller & controller, const ChannelConfiguration & channel_config, const string & path) {
-  auto & song = controller.getSong();
-  auto result = renderSongOffline(song, channel_config, controller.getMixerType(), 1024, 10, 1e-5f, controller.getUseLegacyBinaural());
-
-  if (result.interleaved.empty()) {
-    fmt::print(stderr, "Song has nothing to render\n");
-    return false;
-  }
-
-  SF_INFO info{};
-  info.samplerate = result.sampleRate;
-  info.channels = result.channels;
-  info.format = SF_FORMAT_WAV | SF_FORMAT_FLOAT;
-  auto file = sf_open(path.c_str(), SFM_WRITE, &info);
-  if (!file) {
-    fmt::print(stderr, "Could not open {} for writing: {}\n", path, sf_strerror(nullptr));
-    return false;
-  }
-
-  sf_writef_float(file, result.interleaved.data(), static_cast<sf_count_t>(result.numberOfFrames()));
-  sf_close(file);
-
-  fmt::print(stderr, "Rendered {:.1f} seconds to {}\n",
-	     static_cast<double>(result.numberOfFrames()) / result.sampleRate, path);
-  return true;
-}
 
 int main(int argc, char *argv[]) {
   // 48000, not 44100: the "default" ALSA device is commonly PipeWire's
@@ -62,9 +33,7 @@ int main(int argc, char *argv[]) {
   // in that plugin, adding latency (and a little quality loss) for no
   // benefit. --samplerate still overrides this.
   ChannelConfiguration channel_config(48000, kAmbisonicOrder); // default to the highest supported order
-  bool force_cardioid = false; // --stereo: skip binaural HRTF decode even if available
-  bool force_legacy_binaural = false; // --legacy-binaural: use the old virtual-speaker-rig decoder instead of MagLS
-  bool show_licenses = false; // --licenses: print third-party license text and exit
+  CommonOptions common;                                        // --stereo, --legacy-binaural, --licenses, --render
   UI::View initial_view = UI::View::LIVE; // --view live|arrangement: which view the UI starts in
   // The saved audio/MIDI device choices; --capture-device/--playback-device/
   // --midi-input override them for this run only (`devices`), never the file
@@ -74,7 +43,6 @@ int main(int argc, char *argv[]) {
   auto devices = saved_devices;
   bool list_devices = false; // --list-devices: print what can be selected and exit
   vector<string> input;
-  string render_path;
   bool headless = false; // --headless: no terminal UI, status lines on stderr
   bool daemon = false; // --daemon: --headless, detached from the terminal
   bool autoplay = false; // --autoplay: start the transport once running
@@ -82,26 +50,7 @@ int main(int argc, char *argv[]) {
   string pid_file; // --pid-file: where a daemon writes its pid
 
   for (int i = 1; i < argc; i++) {
-    if (strcmp(argv[i], "--samplerate") == 0) {
-      int samplerate = 0;
-      if (i + 1 < argc && argv[i + 1][0] != '-') {
-	i++;
-	samplerate = atoi(argv[i]);	
-      }
-      if (!samplerate) {
-	fmt::print(stderr, "invalid parameters for samplerate\n");
-	exit(1);
-      }
-      channel_config.setAudioOutSampleRate(samplerate);
-    } else if (strcmp(argv[i], "--render") == 0) {
-      if (i + 1 < argc) {
-	i++;
-	render_path = argv[i];
-      }
-      if (render_path.empty()) {
-	fmt::print(stderr, "--render requires an output file\n");
-	exit(1);
-      }
+    if (parseCommonOption(argc, argv, i, common, channel_config)) {
     } else if (strcmp(argv[i], "--view") == 0) {
       if (i + 1 < argc && strcmp(argv[i + 1], "live") == 0) initial_view = UI::View::LIVE;
       else if (i + 1 < argc && strcmp(argv[i + 1], "arrangement") == 0) initial_view = UI::View::ARRANGEMENT;
@@ -123,12 +72,6 @@ int main(int argc, char *argv[]) {
 	exit(1);
       }
       (is_log ? log_file : pid_file) = argv[++i];
-    } else if (strcmp(argv[i], "--stereo") == 0) {
-      force_cardioid = true;
-    } else if (strcmp(argv[i], "--legacy-binaural") == 0) {
-      force_legacy_binaural = true;
-    } else if (strcmp(argv[i], "--licenses") == 0) {
-      show_licenses = true;
     } else if (strcmp(argv[i], "--capture-device") == 0 || strcmp(argv[i], "--playback-device") == 0 ||
                strcmp(argv[i], "--midi-input") == 0) {
       if (i + 1 >= argc) {
@@ -140,17 +83,6 @@ int main(int argc, char *argv[]) {
       *target = argv[++i];
     } else if (strcmp(argv[i], "--list-devices") == 0) {
       list_devices = true;
-    } else if (strcmp(argv[i], "--ambisonic") == 0) {
-      int order = kAmbisonicOrder; // bare --ambisonic (no explicit number) means the highest supported order
-      if (i + 1 < argc && argv[i + 1][0] != '-') {
-	i++;
-	order = atoi(argv[i]);
-      }
-      if (order < 1 || order > kAmbisonicOrder) {
-	fmt::print(stderr, "invalid ambisonic order (must be 1-{})\n", kAmbisonicOrder);
-	exit(1);
-      }
-      channel_config.setAmbisonicOrder(order);
     } else if (argv[i][0] == '-') {
       fmt::print(stderr, "invalid parameter\n");
       exit(1);
@@ -159,8 +91,8 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  if (show_licenses) {
-    fmt::print("{}\n", kThirdPartyLicensesText);
+  if (common.show_licenses) {
+    printLicenses();
     return 0;
   }
 
@@ -180,7 +112,7 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
-  if (!render_path.empty()) {
+  if (!common.render_path.empty()) {
     // Offline render never touches a real audio device (see the --render
     // section of CLAUDE.md), so there's nothing to negotiate - channel_config
     // stays exactly as requested.
@@ -189,14 +121,13 @@ int main(int argc, char *argv[]) {
       exit(1);
     }
     auto controller = make_shared<Controller>(channel_config);
-    if (force_cardioid) controller->setMixerType(MixerType::AMBISONIC_STEREO);
-    if (force_legacy_binaural) controller->setUseLegacyBinaural(true);
+    applyCommonOptions(common, *controller);
     // Song::open() already printed the actual reason (missing file,
     // invalid XML, malformed command data, ...) to stderr - no separate
     // message here, which used to unconditionally claim "not found"
     // regardless of which of those it actually was.
     if (!controller->openSong(input.front())) exit(1);
-    return renderSongToWav(*controller, channel_config, render_path) ? 0 : 1;
+    return renderSongToWav(*controller, channel_config, common.render_path) ? 0 : 1;
   }
 
   if ((!log_file.empty() || !pid_file.empty()) && !daemon) {
@@ -229,8 +160,7 @@ int main(int argc, char *argv[]) {
 
   auto controller = make_shared<Controller>(channel_config);
   controller->setDeviceSettings(saved_devices, devices_path);
-  if (force_cardioid) controller->setMixerType(MixerType::AMBISONIC_STEREO);
-  if (force_legacy_binaural) controller->setUseLegacyBinaural(true);
+  applyCommonOptions(common, *controller);
 
   if (!input.empty()) {
     // Every positional argument opens its own buffer (openSong() switches
