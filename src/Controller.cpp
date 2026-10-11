@@ -18,7 +18,7 @@
 #include <filesystem>
 #include <cstdlib>
 
-#include <fmt/core.h>
+#include <fmt/format.h>
 
 using namespace std;
 

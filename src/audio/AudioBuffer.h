@@ -4,6 +4,7 @@
 #include "../ambisonic/ChannelConfiguration.h"
 #include "../dsp/Vec8.h"
 
+#include <cstdint>
 #include <cstdlib>
 #ifdef _WIN32
 #include <malloc.h>

@@ -18,7 +18,7 @@
 #include <chrono>
 #include <cmath>
 #include <memory>
-#include <fmt/core.h>
+#include <fmt/format.h>
 
 using namespace std;
 
