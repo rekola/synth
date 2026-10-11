@@ -57,12 +57,10 @@ TEST(scale_major_12edo_transposed_to_key) {
   for (size_t i = 0; i < expected.size(); i++) CHECK(degrees[i] == expected[i]);
 }
 
-// The two special microtonal scales: C D♯ E F G A A♯ (OTONAL) and
-// C E𝄫 E♭ F G A♭ B𝄫 (UTONAL), resolved in 31-EDO where D♯/A♯ and E𝄫/E♭
-// are genuinely distinct pitches (12-EDO can't express them). Values are
-// cross-checked against docs/31edo_note_numbers.txt's own published table
-// (steps relative to its C-4 origin); the 8th row is the tonic 31 steps up
-// (one 31-EDO octave).
+// The two septimal scales, 1/1 7/6 5/4 4/3 3/2 5/3 7/4 (OTONAL) and
+// 1/1 8/7 6/5 4/3 3/2 8/5 12/7 (UTONAL), in 31-EDO: C D♯ E F G A A♯ and
+// C E𝄫 E♭ F G A♭ B𝄫 (docs/31edo_note_numbers.txt); the 8th row is the tonic
+// an octave up.
 TEST(scale_otonal_31edo) {
   Song song(Tuning::EDO31, -1);
   song.setScale(Scale::OTONAL);
@@ -79,6 +77,43 @@ TEST(scale_utonal_31edo) {
   vector<int> expected = {0, 6, 8, 13, 18, 21, 24, 31};
   CHECK(degrees.size() == expected.size());
   for (size_t i = 0; i < expected.size(); i++) CHECK(degrees[i] == expected[i]);
+}
+
+// In 53-EDO each degree is the step nearest its ratio
+// (docs/53edo_note_numbers.txt): 7:4 is A𝄰, 43 steps, not A♯.
+TEST(scale_otonal_utonal_53edo) {
+  Song song(Tuning::EDO53, -1);
+  song.setScale(Scale::OTONAL);
+  vector<int> otonal = {0, 12, 17, 22, 31, 39, 43, 53};
+  CHECK(song.getScaleDegreesWindow(0, 8) == otonal);
+  song.setScale(Scale::UTONAL);
+  vector<int> utonal = {0, 10, 14, 22, 31, 36, 41, 53};
+  CHECK(song.getScaleDegreesWindow(0, 8) == utonal);
+}
+
+// 12- and 19-EDO have no steps of their own for the septimal ratios; the
+// nearest ones stand in.
+TEST(scale_otonal_utonal_12edo_19edo) {
+  Song song12(Tuning::EDO12, -1);
+  song12.setScale(Scale::OTONAL);
+  CHECK(song12.getScaleDegreesWindow(0, 7) == (vector<int>{0, 3, 4, 5, 7, 9, 10}));
+  song12.setScale(Scale::UTONAL);
+  CHECK(song12.getScaleDegreesWindow(0, 7) == (vector<int>{0, 2, 3, 5, 7, 8, 9}));
+  Song song19(Tuning::EDO19, -1);
+  song19.setScale(Scale::OTONAL);
+  CHECK(song19.getScaleDegreesWindow(0, 7) == (vector<int>{0, 4, 6, 8, 11, 14, 15}));
+  song19.setScale(Scale::UTONAL);
+  CHECK(song19.getScaleDegreesWindow(0, 7) == (vector<int>{0, 4, 5, 8, 11, 13, 15}));
+}
+
+// 53-EDO's natural notes are the just major scale, so major and minor come
+// out just: 1/1 9/8 5/4 4/3 3/2 5/3 15/8 and 1/1 9/8 6/5 4/3 3/2 8/5 9/5.
+TEST(scale_major_minor_53edo_are_just) {
+  Song song(Tuning::EDO53, -1);
+  song.setScale(Scale::MAJOR);
+  CHECK(song.getScaleDegreesWindow(0, 7) == (vector<int>{0, 9, 17, 22, 31, 39, 48}));
+  song.setScale(Scale::MINOR);
+  CHECK(song.getScaleDegreesWindow(0, 7) == (vector<int>{0, 9, 14, 22, 31, 36, 45}));
 }
 
 // getScaleDegreesWindow() at a positive, mid-scale start_index - the step

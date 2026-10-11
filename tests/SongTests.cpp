@@ -1390,6 +1390,31 @@ TEST(c_flat_note_name_round_trips_with_its_own_octave_number) {
   }
 }
 
+// 53-EDO spells notes in just intonation: the natural notes are the just
+// major scale, a sharp or flat is 25:24 (3 steps), an arrow a syntonic comma
+// (1 step), and a double sharp or flat is two sharps or flats.
+TEST(note_names_53edo_spell_just_intonation) {
+  auto steps = [](const char * name) { return Note::stringToKey(Tuning::EDO53, name) - Note::stringToKey(Tuning::EDO53, "C4"); };
+  CHECK(steps("D4") == 9);                 // 9:8
+  CHECK(steps("E4") == 17);                // 5:4
+  CHECK(steps("A4") == 39);                // 5:3
+  CHECK(steps("A𝄮4") - steps("D4") == 31); // the fifth above D is A raised by a comma
+  CHECK(steps("C♯4") == 3);
+  CHECK(steps("C𝄪4") == 2 * steps("C♯4"));
+  CHECK(steps("Cx4") == steps("C𝄪4"));
+  CHECK(steps("E𝄫4") == steps("E4") - 2 * 3);
+  CHECK(steps("Ebb4") == steps("E𝄫4"));
+  CHECK(steps("D𝄮4") == 10); // 8:7
+  CHECK(steps("A𝄰4") == 43); // 7:4
+  CHECK(steps("A𝄱4") == 41); // 12:7
+  // The meantone tunings have no comma step: the arrows are ignored there.
+  for (auto tuning : {Tuning::EDO12, Tuning::EDO19, Tuning::EDO31}) {
+    CHECK(Note::stringToKey(tuning, "A𝄮4") == Note::stringToKey(tuning, "A4"));
+    CHECK(Note::stringToKey(tuning, "A𝄰4") == Note::stringToKey(tuning, "A♯4"));
+    CHECK(Note::stringToKey(tuning, "E𝄭4") == Note::stringToKey(tuning, "E♭4"));
+  }
+}
+
 TEST(note_names_round_trip_for_every_value_in_every_tuning) {
   for (auto tuning : {Tuning::EDO12, Tuning::EDO19, Tuning::EDO31, Tuning::EDO53}) {
     for (int v = 60; v < 400; ++v) {

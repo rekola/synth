@@ -150,11 +150,10 @@ class Note {
 
   static inline std::string keyToString(Tuning tuning, int value) {
     static const char * note_names_53edo[] = {
-      "C", "C𝄮", "D𝄫", "C♯", "C𝄰", "D𝄭", "D♭", "C𝄪", "D𝄯", "D", "E𝄫", "D𝄱", "D♯", "D𝄰",
-      "E♭", "F𝄫", "D𝄪", "E", "E𝄮", "F♭", "E♯", "F𝄯", "F", "F𝄮", "E𝄪", "F♯", "F𝄰",
-      "G𝄭", "G♭", "F𝄪", "G𝄯", "G", "A𝄫", "G𝄱", "G♯", "A𝄭", "A♭", "A𝄬", "G𝄪", "A",
-      "A𝄮", "B𝄫", "A♯", "A𝄰", "B𝄭", "B♭", "A𝄪", "B𝄯", "B", "B𝄮", "B𝄱", "B♯", "B𝄰"
-    };
+        "C", "C𝄮", "C𝄱", "C♯", "C𝄰", "D𝄭", "D♭", "D𝄬", "D𝄯", "D", "D𝄮", "D𝄱", "D♯", "D𝄰",
+        "E♭", "E𝄬", "E𝄯", "E", "E𝄮", "F♭", "E♯", "F𝄯", "F", "F𝄮", "F𝄱", "F♯", "F𝄰",
+        "G𝄭", "G♭", "G𝄬", "G𝄯", "G", "G𝄮", "G𝄱", "G♯", "A𝄭", "A♭", "A𝄬", "A𝄯", "A",
+        "A𝄮", "A𝄱", "A♯", "A𝄰", "B𝄭", "B♭", "B𝄬", "B𝄯", "B", "B𝄮", "B𝄱", "B♯", "B𝄰"};
     static const char * note_names_31edo[] = { "C", "D𝄫", "C♯", "D♭", "C𝄪", "D", "E𝄫", "D♯",
 					       "E♭", "D𝄪", "E", "F♭", "E♯", "F", "G𝄫", "F♯",
 					       "G♭", "F𝄪", "G", "A𝄫", "G♯", "A♭", "G𝄪", "A",
@@ -356,12 +355,14 @@ class Note {
 	}
 
 	if (accidental == "x" || accidental == "𝄪") value += 2;
-	else if (accidental == "#" || accidental == "♯") value += 1;
-	else if (accidental == "bb" || accidental == "𝄫") value -= 2;
-	else if (accidental == "b" || accidental == "♭") value -= 1;
-	else {
-	  assert(accidental.empty() || accidental == "-" || accidental == "♮");
-	}
+        else if (accidental == "#" || accidental == "♯" || accidental == "𝄱" || accidental == "𝄰")
+          value += 1;
+        else if (accidental == "bb" || accidental == "𝄫") value -= 2;
+        else if (accidental == "b" || accidental == "♭" || accidental == "𝄭" || accidental == "𝄬")
+          value -= 1;
+        else {
+          assert(accidental.empty() || accidental == "-" || accidental == "♮" || accidental == "𝄮" || accidental == "𝄯");
+        }
 
 	return value;
       } else if (tuning == Tuning::EDO31) {
@@ -399,8 +400,9 @@ class Note {
 	  assert(0);
 	}
 
-	if (accidental == "x" || accidental == "𝄪") value += 7;
-	else if (accidental == "𝄰") value += 4;
+        if (accidental == "x" || accidental == "𝄪")
+          value += 6;
+        else if (accidental == "𝄰") value += 4;
 	else if (accidental == "#" || accidental == "♯") value += 3;
 	else if (accidental == "𝄱") value += 2;
 	else if (accidental == "𝄮") value += 1;
@@ -408,8 +410,9 @@ class Note {
 	else if (accidental == "𝄬") value -= 2;
 	else if (accidental == "b" || accidental == "♭") value -= 3;
 	else if (accidental == "𝄭") value -= 4;
-	else if (accidental == "bb" || accidental == "𝄫") value -= 7;
-	else {
+        else if (accidental == "bb" || accidental == "𝄫")
+          value -= 6;
+        else {
 	  assert(accidental.empty() || accidental == "-" || accidental == "♮");
 	}
 

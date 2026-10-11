@@ -53,11 +53,11 @@ The Application draws on several traditions.
 - **Tunings.** A song is tuned to 12, 19, 31 or 53 equal divisions of the
   octave (EDO); a new song starts in 31-EDO, which Adriaan Fokker revived (organ
   built 1950 for Teylers Museum, Haarlem). Drum tracks have no tuning: a
-  note is a General MIDI drum. Notes are spelled with sharps, flats, double sharps and double flats,
-  and a tuning can spell the same pitch in several ways. In 12-EDO, E♯ is F. In
+  note is a General MIDI drum. Notes are spelled with sharps, flats, double sharps and double flats
+  (plus arrows in 53-EDO, below), and a tuning can spell the same pitch in several ways. In 12-EDO, E♯ is F. In
   31-EDO, E♯ and F are different pitches, but D𝄪 and F𝄫 are the same one. Note numbers for each tuning
   are in `docs/`, for example [31edo_note_numbers.txt](docs/31edo_note_numbers.txt).
-- **Notation.** Every tuning's note names are a chain of fifths: the seven
+- **Notation.** In 12, 19 and 31-EDO the note names are a chain of fifths: the seven
   natural notes C D E F G A B are the usual seven consecutive fifths
   (F C G D A E B), and each further fifth up adds a sharp, each fifth down a
   flat (F♯ is the fifth above B, B♭ the fifth below F). The tuning only decides how
@@ -68,9 +68,30 @@ The Application draws on several traditions.
   C♯ and D♭ differ by one step. In 12-EDO the sharp is 1 step and the chain
   closes on itself, which is why E♯ is F there. See Fokker, "Equal Temperament
   and the Thirty-one-keyed Organ", *The Scientific Monthly* 81 (1955).
+- **53-EDO notation.** 53-EDO is not a meantone tuning: four of its fifths
+  make the Pythagorean third 81:64 (18 steps), a comma above 5:4 (17 steps).
+  So that C-E is a 5:4 major third there as well, its note names follow Ben
+  Johnston's just-intonation notation instead of a chain of fifths. The
+  natural notes are the just major scale, made of the three major triads
+  F A C, C E G and G B D: C D E F G A B = 1/1 9/8 5/4 4/3 3/2 5/3 15/8 =
+  steps 0 9 17 22 31 39 48. A sharp or flat is the chromatic semitone 25:24
+  (3 steps), a double sharp or flat two of them (6 steps), and an arrow
+  raises or lowers by the syntonic comma 81:80 (1 step), where Johnston writes
+  + and −. Each accidental is a single symbol: 𝄮 𝄯 (natural up/down),
+  𝄰 𝄱 (sharp up/down), 𝄬 𝄭 (flat up/down). D-A is therefore 40:27, a comma
+  short of a fifth, and the fifth above D is A𝄮. The other tunings have no
+  separate comma step and ignore the arrows, so a 53-EDO spelling still names
+  the right note in 31-EDO. See John Fonville, "Ben Johnston's Extended Just
+  Intonation: A Guide for Interpreters", *Perspectives of New Music* 29/2
+  (1991); the table is [53edo_note_numbers.txt](docs/53edo_note_numbers.txt).
 - **Scales.** A song has a key and an optional scale: major (the Ionian
-  mode), minor (the Aeolian mode), 7-note otonal or 7-note utonal. Each is
-  written once as note names, so it is correct in every tuning. The 7-note
+  mode), minor (the Aeolian mode), 7-note otonal or 7-note utonal. Major and
+  minor are written once as note names, so each tuning spells them its own
+  way: meantone in 12, 19 and 31-EDO, just in 53-EDO. The otonal and utonal
+  scales are written as ratios, 1/1 7/6 5/4 4/3 3/2 5/3 7/4 and its mirror
+  image 1/1 8/7 6/5 4/3 3/2 8/5 12/7, and each tuning plays the step nearest
+  each ratio: 31 and 53-EDO come within 6 cents of every one, while 12 and
+  19-EDO only approximate the septimal ones. The 7-note
   otonal and utonal scales borrow Partch's terms (1949) but are not his longer
   scales: they have seven notes each, and their intervals
   were derived by the methods in Kyle Gann's *The Arithmetic of Listening*

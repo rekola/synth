@@ -36,27 +36,44 @@ static inline Scale scaleFromString(const std::string & text) {
   return Scale::NONE;
 }
 
-// Each scale's own degrees, relative to C, in Note::stringToKey()'s own
-// note-name syntax - resolved against the song's actual tuning/key there
-// (Song::getScaleDegreesWindow()), not decoded into semitone numbers here, so
-// the exact same degree list is correct under every supported tuning
-// (12/19/31/53-EDO) rather than needing one hardcoded interval set per
-// tuning. Empty for Scale::NONE - Song::getScaleDegreesWindow() reads that as
-// "use the plain chromatic scale instead" rather than calling this at
-// all. OTONAL/UTONAL are two fixed 7-note scales named after the otonal
-// (overtone) and utonal (undertone) series of just intonation (not the
-// longer scales of Partch, who coined the terms) - UTONAL's
-// own E𝄫/A♭ spelling only actually diverges from an enharmonic respelling once the
-// tuning has finer-than-semitone resolution (31/53-EDO); in 12-EDO it
-// still resolves correctly (Note::stringToKey()'s own double-flat
-// support), just degenerately (E𝄫 there sounds identical to D).
+// MAJOR/MINOR's degrees above C as note names in Note::stringToKey()'s
+// syntax, resolved against the song's tuning (Song::getScaleDegreesWindow()),
+// so the one list follows each tuning's own spelling: meantone major and
+// minor in 12/19/31-EDO, just major and minor in 53-EDO. Empty for the scales
+// given as ratios below and for Scale::NONE, which getScaleDegreesWindow()
+// reads as the chromatic scale.
 static inline std::vector<std::string_view> scaleDegreeNames(Scale scale) {
   switch (scale) {
   case Scale::MAJOR: return { "C", "D", "E", "F", "G", "A", "B" };
   case Scale::MINOR: return { "C", "D", "E♭", "F", "G", "A♭", "B♭" };
-  case Scale::OTONAL: return { "C", "D♯", "E", "F", "G", "A", "A♯" };
-  case Scale::UTONAL: return { "C", "E𝄫", "E♭", "F", "G", "A♭", "B𝄫" };
-  case Scale::NONE: return {};
+  case Scale::OTONAL:
+  case Scale::UTONAL:
+  case Scale::NONE:
+    return {};
+  }
+  return {};
+}
+
+struct ScaleRatio {
+  int num, den;
+};
+
+// OTONAL/UTONAL's degrees as frequency ratios above the tonic; a tuning plays
+// the nearest step to each. They are not note names because not every
+// septimal degree has one spelling that means it in every tuning (8:7 is E𝄫
+// in 31-EDO but D𝄮 in 53-EDO). OTONAL is harmonics 12, 14, 15, 16, 18, 20
+// and 21 of one fundamental, UTONAL its mirror image about the tonic. Partch
+// coined the terms.
+static inline std::vector<ScaleRatio> scaleDegreeRatios(Scale scale) {
+  switch (scale) {
+    case Scale::OTONAL:
+      return {{1, 1}, {7, 6}, {5, 4}, {4, 3}, {3, 2}, {5, 3}, {7, 4}};
+    case Scale::UTONAL:
+      return {{1, 1}, {8, 7}, {6, 5}, {4, 3}, {3, 2}, {8, 5}, {12, 7}};
+    case Scale::MAJOR:
+    case Scale::MINOR:
+    case Scale::NONE:
+      return {};
   }
   return {};
 }

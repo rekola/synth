@@ -67,8 +67,3 @@ are being discussed separately and are not in this plan.
     style octave numbers. Ratios are written `a:b` in some rows and `a/b` in
     others (31-EDO table), and `1+10/11`-style entries appear. One format for
     all tables.
-
-## Code comments
-
-12. **`src/model/Scale.h`**: "UTONAL's own E𝄫/A♭ spelling" - A♭ is an ordinary
-    note in every tuning; the degree meant is B𝄫 ("E𝄫/B𝄫").

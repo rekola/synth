@@ -218,26 +218,34 @@ class InputEvent : public Event {
       switch (id_) {
       case 'z': return base + 265; // C
       case '1': return base + 268; // C#
-      case 'q': return base + 270; // Db
-      case '2': return base + 272; // Cx
+      case 'q':
+        return base + 270; // D𝄭
+      case '2':
+        return base + 272;         // D𝄬
       case 'w': return base + 274; // D
-      case 's': return base + 275; // E𝄫
+      case 's':
+        return base + 275;         // D𝄮
       case 'x': return base + 277; // D#
       case 'd': return base + 279; // Eb
       case 'c': return base + 282; // E
       case 'v': return base + 287; // F
-      case 'g': return base + 289; // G𝄫
+      case 'g':
+        return base + 289;         // F𝄱
       case 'b': return base + 296; // G
       case 'h': return base + 301; // Ab
-      case 'u': return base + 303; // G𝄪
+      case 'u':
+        return base + 303;         // A𝄯
       case 'n': return base + 304; // A
-      case 'j': return base + 306; // B𝄫
+      case 'j':
+        return base + 306;         // A𝄱
       case 'm': return base + 308; // A𝄰
       case 'k': return base + 310; // Bb
-      case 'i': return base + 311; // A𝄪
+      case 'i':
+        return base + 311;         // B𝄬
       case '8': return base + 313; // B
       case ',': return base + 53 + 265; // C'
-      case 'l': return base + 53 + 275; // E𝄫'
+      case 'l':
+        return base + 53 + 275;         // D𝄮'
       case '.': return base + 53 + 277; // D#'
       case '-': return base + 53 + 282; // E'
       }

@@ -43,9 +43,10 @@ quarter-tone-ish shading) that a simple black/white keyboard can't
 distinguish.
 
 That scheme was replaced with a different organizing principle: coloring
-by *consonance* rather than by scale-degree distance. Standard microtonal
-note names (sharps, flats, double-flats, ...) are built from a fixed,
-12-tone-shaped chain of fifths, which stops matching musical intuition
+by *consonance* rather than by scale-degree distance. Microtonal note
+names (sharps, flats, double-flats, ...) are built from a fixed, 12-tone-shaped
+set of seven letters (a chain of fifths, or in 53-EDO a just major scale),
+which stops matching musical intuition
 well once an EDO is fine enough that the interesting structure is no
 longer "how many fifths from the tonic" but "how consonant is this
 interval, period." The new scheme instead recursively factors the octave
