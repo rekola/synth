@@ -34,9 +34,9 @@ surface, so a single colour works on both.
 
 | Token | Value | Meaning |
 |---|---|---|
-| `state.playing` | `#009b28` | A clip playing **or queued to play**. The pads tell the two apart by pulsing (playing) and flashing (queued), the terminal by the glyph (`▸`, `▹`), later by a fade. Hue 145, the Launchpad's green. |
+| `state.playing` | `#009b28` | The fill of a whole clip slot while it is playing **or queued to play**, as the whole pad turns green. The pads tell the two apart by pulsing (playing) and flashing (queued), the terminal by the glyph (`▸`, `▹`), later by a fade. Hue 145, the Launchpad's green. |
 | `state.playing.dim` | `#648464` | Launched while the transport is paused. Same hue, little chroma. |
-| `state.recording` | `#e23532` | Recording **or queued to record**. Hue 27, the Launchpad's red. |
+| `state.recording` | `#e23532` | The fill of a slot while recording **or queued to record**. Hue 27, the Launchpad's red. |
 | `state.recording.dim` | `#a26962` | An armed track's empty slot, or a take queued to stop. |
 | `text.on-track` | `#04080d` | Text on a track or state colour, in both themes. |
 | `data.heat` | `#e09036` | The DirAC heatmap's fixed hue (not a Launchpad matter, listed with the rest of the colours that have no light variant). |

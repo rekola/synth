@@ -37,7 +37,10 @@ already a `StyleProvider` constant, which is the lever.
    on both the darkest and the lightest surface. Track colours come from one
    formula in a perceptual colour space (OKLCH): fixed lightness and chroma,
    hue spread evenly over the arcs the green and red state colours leave free,
-   so a track never reads as a playing or a recording clip. See
+   so a track never reads as a playing or a recording clip. A clip slot is
+   coloured exactly like its pad: wholly its track's colour when idle, wholly
+   green while playing or queued, wholly red while recording or queued to
+   record, dim red for an armed track's empty slot. See
    `plans/modern-look-tokens.md`.
 4. **Type hierarchy with few levels.** Mono for data (notes, hex values),
    the UI font for labels in the window backend. Two sizes, two weights.
