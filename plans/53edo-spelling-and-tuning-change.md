@@ -81,3 +81,15 @@ So arrows in 31-EDO's display would be needed at least for D♭, F♯, G♭ and 
 and the D♭ one (16:15, the diatonic semitone) is not septimal at all. If item
 1 is built, the display question is only about how 31-EDO reads, not about
 conversion.
+
+## 4. Considered: 41-EDO for the large tuning
+
+41-EDO was weighed as a smaller alternative to 53-EDO and dropped (its
+draft table is gone). It has the same notation problems: its fifth is pure
+(+0.5 cents), so four fifths make a Pythagorean third a comma (1 step)
+above 5:4, D-A in a just spelling is again 40:27, and the A♯ of a just
+spelling is 12:7, not 7:4. It is weaker where these scales need it: 5:4 is
+5.8 cents off (53-EDO: 1.4), and the otonal and utonal scales come within
+6.3 cents (53-EDO: 4.8, 31-EDO: 6.0). Its strengths are fewer steps and
+consistency up to the 15-odd-limit (53-EDO: 9), which would matter for
+11- and 13-limit harmony.

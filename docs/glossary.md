@@ -33,7 +33,7 @@ for a major third) instead of equal steps. Intervals tuned that way have no
 beating between their partials and sound pure. Every EDO only approximates
 these ratios, so a song's notes stay on its EDO grid and each one carries a
 small tuning correction, in cents, that nudges it toward the pure ratio; see
-terminal.md.
+user-interface.md.
 
 The simplest way to have it is to give every note one fixed ratio to the
 key. That works in any EDO, 12 included, and every interval between any two
@@ -124,6 +124,17 @@ A note's pitch offset in cents, stored in its fx as `+hh` or `-hh`
 (12/19/31/53 steps per octave).
 
 **Unison**
-The strings struck together for one piano key, tuned a cent or so apart.
-Their slow beating, and their slightly different decay rates, give a piano
-note its shimmer and its double decay. See additive.md.
+Several sounds at the same pitch at once; as an interval, 1:1. Exactly alike
+they would only be louder, so a unison's character comes from small
+differences: a few cents of pitch, which beat slowly, and differences in
+timing and decay. Here it appears as:
+- instruments or tracks playing the same notes;
+- an `<oscillator>` with several `voices` at `ratio` 1, spread over `detune`
+  cents and each drifting on its own;
+- detuned copies of an instrument layered in a `<group>` (the `detune` of
+  `<fm>` and `<padsynth>`);
+- the strings struck together for one piano key (`unisonVoices` and
+  `unisonDetune` of `<additive>`), a cent or so apart on a real piano and
+  2.5 cents in the `piano` preset. Their beating and their slightly different
+  decay rates give a piano note its shimmer and its double decay; see
+  additive.md.

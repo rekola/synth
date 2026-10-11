@@ -124,10 +124,12 @@ partials), per-partial level over time, A-weighted level and peak.
 ## Presets
 
 Only a few numbers come from a source or a derivation: the strike point of 1/8
-and 1 cent between unison strings (the brief), `stretch` 0.001 (the FM pianos'),
-the felt exponent, and the bar's mode ratios (the roots of `cos(x)·cosh(x) = 1`).
-Every other value is a starting value to listen to and adjust, not a measurement
-of a real instrument.
+and 1 cent between unison strings (both typical of a piano), `stretch` 0.001
+(the FM pianos'), the felt exponent, and the bar's mode ratios (the roots of
+`cos(x)·cosh(x) = 1`). The `piano` preset has since moved two of them after
+listening, to 2.5 cents and `stretch` 0.003 (Tuning the presets, below). Every
+other value is a starting value to listen to and adjust, not a measurement of a
+real instrument.
 
 | Preset | Character |
 |---|---|
