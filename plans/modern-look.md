@@ -94,6 +94,9 @@ Themes are data:
   than drawn lines.
 - Half-block (▀ ▄) edges where a surface change needs a softer boundary than
   a full cell.
+- The command reader (M-x) and the messages stay on the last row, as in
+  Emacs, with its candidate list as a small floating layer above it. Whether
+  that changes is for the graphical backend to decide later, not this phase.
 
 ## Steps
 
