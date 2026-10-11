@@ -1,12 +1,20 @@
-# Terminal workflow
+# User interface
 
-The terminal UI follows Emacs: mark and point selection, kill and yank, M-x for
-any named command, ESC as the Meta prefix, C-x C-c to quit and C-k to kill a
-row. Each open song is a buffer, as in Emacs, and
-`next-buffer` and `previous-buffer` switch between them; this belongs to the
-terminal interface only, and other interfaces will follow their own conventions. An operation that is a copy or a move is done with
-the kill ring rather than with a command of its own, so there is no
-"duplicate" or "delete" command for clips.
+Everything the program does is a named command (`kill-region`, `launch-scene`,
+`undo`, ...). Every command can be run by name from M-x, most are in the menus,
+and a keymap binds keys to them. The bindings below are the Emacs keymap, the
+one the terminal interface uses. A graphical interface with a second keymap
+following the usual desktop, DAW and tracker conventions is planned; the
+command names, M-x and the Emacs keymap stay as they are. What the terminal
+can't do is listed under [Terminal](#terminal) at the end.
+
+## Emacs keymap
+
+Mark and point selection, kill and yank, M-x for any named command, ESC as the
+Meta prefix, C-x C-c to quit and C-k to kill a row. Each open song is a buffer,
+as in Emacs, and `next-buffer` and `previous-buffer` switch between them. An
+operation that is a copy or a move is done with the kill ring rather than with
+a command of its own, so there is no "duplicate" or "delete" command for clips.
 
 ## Kill, copy and yank
 
@@ -135,7 +143,7 @@ gives each tuned note the correction for its new pitch, and transposing the
 whole song moves the key with the notes when no pitched note is left outside
 the selection, so the corrections stay as they were; otherwise the key stays
 and the notes are retuned against it.
-`undo` takes any of these back. Terminal only.
+`undo` takes any of these back. Not on the Launchpad.
 
 ## Humanize
 
@@ -143,7 +151,7 @@ and the notes are retuned against it.
 notes: each sounding note's velocity moves by up to ±12 and its delay later by
 up to 32/255 of a row. Offs and aftertouch are left alone, percussion is
 included, and the mark stays, so repeated runs keep adding variation. Every
-run draws new values; `undo` takes a run back. Terminal only.
+run draws new values; `undo` takes a run back. Not on the Launchpad.
 
 ## Other clip commands
 
@@ -156,12 +164,32 @@ selection) and `merge-clip-to-background`.
 
 A command that only a pad controller dispatches, and that nothing else
 registers, is named with a `pad-` prefix (`pad-next-track`, `pad-prev-track`).
-A pad gesture whose terminal equivalent is copy, kill or yank gets no command
+A pad gesture whose keyboard equivalent is copy, kill or yank gets no command
 of its own: the device calls the underlying function directly. That is why the
 Launchpad's delete never touches the clipboard.
 See `launchpad.md` for the gestures.
 
-## Supported terminals
+## Terminal
+
+### Limitations
+
+The terminal interface does everything the program does, with these limits:
+
+- **Key releases.** Only terminals with the Kitty keyboard protocol (kitty,
+  foot, WezTerm, Ghostty) report a key going up. Elsewhere keyboard note entry
+  can't tell how long a note is held, so it can't play chords; the Launchpad and
+  MIDI input are unaffected.
+- **Key combinations.** Without that protocol many combinations arrive as the
+  same byte (C-_ and C-/, for example) or not at all (most Ctrl+Shift chords),
+  so some commands have fewer bindings there, and M-x is always the way in.
+- **Pixel graphics.** Terminals with Kitty graphics or Sixels draw the spectrum
+  analyzer and the DirAC heatmap as real pixels; the rest get braille cells.
+- **Color.** A terminal without true color (xterm) is limited to the
+  256-color palette.
+- **Motion.** Everything moves in whole cells: scrolling, playheads and fades
+  step rather than glide.
+
+### Supported terminals
 
 Known to work are kitty, xterm and GNOME Terminal; the rest are untested here.
 The Graphics and Mouse columns come from testing another program (nanoclj) in
@@ -181,14 +209,9 @@ these terminals; xterm's lack of true color applies to synth as well.
 | GNOME Terminal | Works | None | ? | Sixel support is not enabled by default |
 | mintty | Untested | ? | ? | Not tested yet. |
 
-## Terminal setup
+### Setup
 
-Pixel graphics (Kitty graphics or Sixels) and the Kitty keyboard protocol are
-optional; the UI falls back to braille cells and ordinary key encodings. Without
-the keyboard protocol a terminal never reports a key going up, so held notes and
-musical chords can't be played from the keyboard there.
-
-### xterm
+#### xterm
 
 xterm's defaults are poor for this UI: 16 colors, no Sixels, a small image
 limit, a tiny bitmap font. Put this in `~/.Xresources`:

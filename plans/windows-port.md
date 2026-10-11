@@ -196,7 +196,5 @@ Verify by hand with a Launchpad on Windows; document in `docs/headless.md`.
 
 ## After this plan
 
-The UI: either a graphical backend implementing `UIPlane`/`UIMenu`/the chart
-interfaces (the widgets in `ui/tui/` already draw only through `UIPlane`;
-notcurses is confined to `TerminalUI.cpp`), a toolkit UI, or notcurses in
-Windows Terminal as a stopgap. Decided separately.
+The UI: `plans/cell-ui.md` (the Cell UI library - a terminal backend that
+replaces notcurses, then a GPU window backend).

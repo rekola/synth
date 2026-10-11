@@ -177,7 +177,7 @@ Hold shift and Pan, then press a clip pad to delete what its slot holds, one
 layer per press: a populated slot loses its clip (leaving an empty slot in
 place, so the scene rows of every other track stay aligned), and an empty slot
 loses its stop button. Live View only. The terminal's `kill-region` in the clip grid
-does the same, but also puts the clip on the clipboard (see `terminal.md`).
+does the same, but also puts the clip on the clipboard (see `user-interface.md`).
 
 With the transport stopped, or when the clip is not sounding, the delete is
 instant. A clip that is playing, or queued, on its track while the transport

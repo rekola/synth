@@ -33,7 +33,7 @@ for a major third) instead of equal steps. Intervals tuned that way have no
 beating between their partials and sound pure. Every EDO only approximates
 these ratios, so a song's notes stay on its EDO grid and each one carries a
 small tuning correction, in cents, that nudges it toward the pure ratio; see
-terminal.md.
+user-interface.md.
 
 The simplest way to have it is to give every note one fixed ratio to the
 key. That works in any EDO, 12 included, and every interval between any two

@@ -42,11 +42,12 @@ The Application draws on several traditions.
   voices of the Yamaha DX7 (1983), the synthesizer that made FM widespread,
   standing in for a handful of General MIDI programs. See
   [docs/fm.md](docs/fm.md).
-- **Emacs.** In the terminal interface each song is a buffer, as in Emacs:
-  several can be open and switched between, with selection, kill and yank, and
-  the M-x prompt. That is only the terminal interface; other interfaces are
-  planned and will follow their own conventions. See
-  [docs/terminal.md](docs/terminal.md).
+- **Emacs.** The keymap the terminal interface uses follows Emacs: each song
+  is a buffer, several can be open and switched between, with mark and point
+  selection, kill and yank, and the M-x prompt for any command by name. A
+  graphical interface is planned that defaults to the usual desktop, DAW and
+  tracker keys, with the Emacs keymap still available. See
+  [docs/user-interface.md](docs/user-interface.md).
 
 # Scales and Tunings
 
@@ -133,10 +134,10 @@ a note is held, so they can play musical chords (several notes at once); other
 terminals can't. Terminals with Kitty graphics or Sixels get pixel graphics:
 the spectrum analyzer and the DirAC heatmap in the scopes are drawn as real
 pixels instead of braille cells, and without pixel support they fall back to
-braille. See [docs/terminal.md](docs/terminal.md) for terminal-specific setup.
+braille. See [docs/user-interface.md](docs/user-interface.md#terminal) for terminal-specific setup.
 
 Known to work are kitty, xterm and GNOME Terminal. The full table is in
-[docs/terminal.md](docs/terminal.md#supported-terminals).
+[docs/user-interface.md](docs/user-interface.md#supported-terminals).
 
 # Launchpad support
 
