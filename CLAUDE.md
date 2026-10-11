@@ -66,8 +66,7 @@ Windows) selects between the full `synth` and the render-only one
 `main.cpp`); with it OFF the terminal UI, ALSA, Launchpad and PipeWire sources
 aren't built and `EscapeCoalescerTests` is left out. `.github/workflows/
 ci-windows-x86_64.yml` builds, runs ctest and renders songs. The `#ifdef
-_WIN32`s this needed (each to go in `plans/windows-port.md` steps 2-3):
-`AudioAPI.h` (a `pollfd` stand-in for the MIDI descriptors),
+_WIN32`s this needed (each to go in `plans/windows-port.md` step 3):
 `ShutdownSignal.cpp`, `DeviceSettings.cpp`/`Controller.cpp` (config and
 SoundFont paths) and `AudioBuffer.h` (aligned allocation). Files open by UTF-8 path through
 `util/FileOpen.h`.
@@ -109,7 +108,7 @@ rate or block size can't match the running song, capture is in use - logs why
 and keeps the current device. MIDI is read on the UI thread, so
 `UI::selectMidiInput()` connects it there instead, never through an event; a
 chosen source that is unplugged is reconnected when its port reappears
-(`AlsaAudio::recordMIDI()`). A saved device that is missing at startup falls
+(`AlsaMidiInput::readEvents()`). A saved device that is missing at startup falls
 back to the default, with the choice kept. A node name that doesn't exist is
 rejected up front (`playbackDeviceExists()`/`captureDeviceExists()`) because
 the server silently substitutes the default input for an unknown one.
@@ -130,9 +129,13 @@ elsewhere), which `EventQueue` raises while it holds events. `AlsaAudio::wait()`
 polls the notifier's fd with its streams' own (capture's masked off while not
 wanted: an unstarted capture stream is "ready" forever). `NullAudio`
 (`--null-audio`) takes blocks at the pace of the clock with no device, so the
-real `Player` loop runs on machines without sound hardware (CI, tests). MIDI
-descriptors are still read through `AudioAPI` by the UI loops until MIDI moves
-out of the audio backend.
+real `Player` loop runs on machines without sound hardware (CI, tests). MIDI input
+is `midi/MidiInput.h` (`readEvents()` on the UI thread, `AlsaMidiInput`) and
+Launchpad I/O sits on a `midi/MidiPorts.h` `MidiPortBackend` (`AlsaMidiPorts`),
+neither part of `AudioAPI`. The UI loops block on a `util/WaitSet.h` (groups of
+`Notifier`s and, on POSIX, file descriptors) that each source adds itself to
+(`addTo()`), and read a source when its group is ready; `LaunchpadIO` is
+platform-neutral and tested against a fake backend.
 
 `--render` needs no terminal or audio device: it renders the song offline
 (plus the effect/release tail until silence, capped at 10 s) and exits — use

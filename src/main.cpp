@@ -3,6 +3,8 @@
 #include "audio/AudioDevices.h"
 #include "audio/DeviceSettings.h"
 #include "launchpad/LaunchpadIO.h"
+#include "midi/MidiInput.h"
+#include "midi/MidiPorts.h"
 #include "launchpad/LaunchpadManager.h"
 #include "ui/tui/TerminalUI.h"
 #include "ui/headless/HeadlessUI.h"
@@ -206,7 +208,10 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  LaunchpadIO launchpad_io;
+  auto midi = createMidiInput(logger);
+  midi->setSource(devices.midi_input, logger);
+
+  LaunchpadIO launchpad_io(createMidiPortBackend());
   launchpad_io.initialize(logger);
   LaunchpadManager launchpad_manager;
 
@@ -223,7 +228,7 @@ int main(int argc, char *argv[]) {
     ui.initialize(controller);
     installShutdownSignalHandlers();
     if (daemon) daemonStarted();
-    ui.start(audio, launchpad_io, launchpad_manager);
+    ui.start(audio, *midi, launchpad_io, launchpad_manager);
     return 0;
   }
 
@@ -259,7 +264,7 @@ int main(int argc, char *argv[]) {
   TerminalUI ui(nc);
   ui.setInitialView(initial_view);
   ui.initialize(controller);
-  ui.start(audio, launchpad_io, launchpad_manager);
+  ui.start(audio, *midi, launchpad_io, launchpad_manager);
 
   return 0;
 }

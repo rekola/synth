@@ -163,6 +163,9 @@ add_library(synth_engine STATIC
 	src/util/ShutdownSignal.cpp
 	src/util/FileOpen.cpp
 	src/cli/CommonOptions.cpp
+	src/util/Notifier.cpp
+	src/util/WaitSet.cpp
+	src/launchpad/LaunchpadIO.cpp
 )
 target_include_directories(synth_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 # Vendored code (third_party/) as a SYSTEM include path: headers reached
@@ -279,7 +282,8 @@ if(SYNTH_BUILD_INTERACTIVE)
   	src/ui/UI.cpp
   	src/audio/AlsaAudio.cpp
   	src/audio/AudioDevices.cpp
-  	src/launchpad/LaunchpadIO.cpp
+  	src/midi/AlsaMidiInput.cpp
+  	src/midi/AlsaMidiPorts.cpp
   	src/launchpad/LaunchpadManager.cpp
   	src/ui/headless/HeadlessUI.cpp
   	src/util/Daemon.cpp

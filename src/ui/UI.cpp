@@ -5,6 +5,7 @@
 #include "../audio/AudioBuffer.h"
 #include "../audio/AudioDevices.h"
 #include "../launchpad/LaunchpadIO.h"
+#include "../midi/MidiInput.h"
 #include "../launchpad/LaunchpadManager.h"
 #include "../launchpad/LaunchpadChannelPressureEvent.h"
 #include "../launchpad/LaunchpadPadEvent.h"
@@ -83,15 +84,16 @@ void UI::selectPlaybackDevice(const std::string & name, const std::string & labe
 }
 
 void UI::selectMidiInput(const std::string & spec, const std::string & label) {
-  if (!audio_) return;
-  audio_->setMidiInput(spec, getLogger());
+  if (!midi_) return;
+  midi_->setSource(spec, getLogger());
   auto change = getController().setMidiInput(spec);
   if (!change.message.empty()) setStatus("MIDI input " + label + " (" + change.message + ")");
 }
 
 void
-UI::start(AudioAPI & audio, LaunchpadIO & launchpad_io, LaunchpadManager & launchpad_manager) {
+UI::start(AudioAPI & audio, MidiInput & midi, LaunchpadIO & launchpad_io, LaunchpadManager & launchpad_manager) {
   audio_ = &audio;
+  midi_ = &midi;
 
   // AlsaAudio::initialize() already logged this to stderr, before this UI
   // (and its StatusLogger) even existed - a failed/missing capture device
@@ -110,7 +112,7 @@ UI::start(AudioAPI & audio, LaunchpadIO & launchpad_io, LaunchpadManager & launc
   std::thread audio_thread(audio_thread_func, &(getController()), &audio);
   std::thread visualization_thread(visualization_thread_func, &(getController()), audio.getFrequency(), audio.getFrameCount());
 
-  startUI(audio, launchpad_io);
+  startUI(audio, midi, launchpad_io);
 
   getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::TERMINATE));
   getController().getVisualizationQueue().push(make_unique<AudioBlockEvent>(AudioBuffer(), AudioBuffer(), AudioBuffer(), AudioBuffer()));

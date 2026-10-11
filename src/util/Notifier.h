@@ -1,10 +1,7 @@
 #ifndef _NOTIFIER_H_
 #define _NOTIFIER_H_
 
-#include <chrono>
-#include <condition_variable>
 #include <cstdint>
-#include <mutex>
 
 #ifndef _WIN32
 #include <poll.h>
@@ -13,41 +10,29 @@
 #endif
 
 // A level-triggered wakeup a thread blocks on: signal() raises it from any
-// thread and it stays raised until clear(). Where a waiter also needs other
-// descriptors (the UI loops, ALSA), fd() is what it polls.
+// thread and it stays raised until clear(). A thread that waits on more than
+// one thing puts it in a WaitSet.
 class Notifier {
  public:
+  Notifier(const Notifier &) = delete;
+  Notifier & operator=(const Notifier &) = delete;
+
 #ifdef _WIN32
-  Notifier() = default;
+  // A manual-reset event; defined in Notifier.cpp so <windows.h> stays out
+  // of every header that includes this one.
+  Notifier();
+  ~Notifier();
 
-  void signal() {
-    {
-      std::lock_guard<std::mutex> guard(mutex_);
-      raised_ = true;
-    }
-    cv_.notify_all();
-  }
-
-  void clear() {
-    std::lock_guard<std::mutex> guard(mutex_);
-    raised_ = false;
-  }
-
+  void signal();
+  void clear();
   // Waits up to timeout_ms (negative: for as long as it takes); true if
   // raised. Does not clear.
-  bool wait(int timeout_ms) {
-    std::unique_lock<std::mutex> lock(mutex_);
-    if (timeout_ms < 0) {
-      cv_.wait(lock, [this] { return raised_; });
-      return true;
-    }
-    return cv_.wait_for(lock, std::chrono::milliseconds(timeout_ms), [this] { return raised_; });
-  }
+  bool wait(int timeout_ms);
+
+  void * handle() const { return handle_; }
 
  private:
-  std::mutex mutex_;
-  std::condition_variable cv_;
-  bool raised_ = false;
+  void * handle_;
 #else
   Notifier() : fd_(eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC)) { }
   ~Notifier() { close(fd_); }
@@ -74,10 +59,6 @@ class Notifier {
  private:
   int fd_;
 #endif
-
- public:
-  Notifier(const Notifier &) = delete;
-  Notifier & operator=(const Notifier &) = delete;
 };
 
 #endif

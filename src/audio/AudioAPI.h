@@ -1,22 +1,10 @@
 #ifndef _AUDIOAPI_H_
 #define _AUDIOAPI_H_
 
-#ifdef _WIN32
-// MIDI descriptor lists are an ALSA notion; this stand-in lets AudioAPI compile
-// until MIDI moves out of the audio backend.
-struct pollfd {
-  int fd;
-  short events;
-  short revents;
-};
-#else
-#include <poll.h>
-#endif
 #include <cstddef>
 #include <string>
 #include <vector>
 
-#include "../playback/MidiEvent.h"
 #include "../util/Notifier.h"
 
 class AudioBuffer;
@@ -45,7 +33,6 @@ class AudioAPI {
   virtual size_t getFrameCount() const = 0;
   virtual void startRecording() = 0;
   virtual void stopRecording() = 0;
-  virtual std::vector<MidiEvent> recordMIDI() = 0;
 
   // Round-trip recording-latency compensation: frames still sitting queued
   // in the playback ring buffer before what's written next actually
@@ -79,27 +66,18 @@ class AudioAPI {
   // DeviceSettings audio name.
   virtual bool setCaptureDevice(const std::string & name, Logger & logger) = 0;
   virtual bool setPlaybackDevice(const std::string & name, Logger & logger) = 0;
-  // Connects the named ALSA sequencer source (DeviceSettings::midi_input) to
-  // this program's input port, replacing whatever was connected this way
-  // before; "" just disconnects. A source that isn't present yet is
-  // connected when it appears.
-  virtual void setMidiInput(const std::string & spec, Logger & logger) = 0;
   // Like getCaptureDeviceName(): what playback actually opened.
   virtual std::string getPlaybackDeviceName() const = 0;
 
   int getFrequency() const { return frequency; }
   short numberOfChannels() const { return channels; }
 
-  const std::vector<pollfd> getMidiCaptureDescriptors() const { return midi_capture_descriptors; }
-  
 protected:
   void setFrequency(int _frequency) { frequency = _frequency; }
-  void setMidiCaptureDescriptors(const std::vector<pollfd> & d) { midi_capture_descriptors = d; }
-  
+
 private:
   int frequency;
   short channels;
-  std::vector<pollfd> midi_capture_descriptors;
 };
 
 #endif

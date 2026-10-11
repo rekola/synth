@@ -24,7 +24,6 @@ class AlsaAudio : public AudioAPI {
   size_t getFrameCount() const override { return output_frames; }
   void startRecording() override;
   void stopRecording() override;
-  std::vector<MidiEvent> recordMIDI() override;
 
   int getPlaybackDelayFrames() const override;
   int getCaptureDelayFrames() const override;
@@ -35,26 +34,18 @@ class AlsaAudio : public AudioAPI {
 
   bool setCaptureDevice(const std::string & name, Logger & logger) override;
   bool setPlaybackDevice(const std::string & name, Logger & logger) override;
-  void setMidiInput(const std::string & spec, Logger & logger) override;
 
  private:
   std::vector<pollfd> getPollDescriptors(snd_pcm_t * handle);
-  std::vector<pollfd> getMidiPollDescriptors(snd_seq_t * handle);
 
   // Opens and configures one direction at the rate/channel count in use,
   // returning its period size (0 on failure, already logged). Playback's
   // result is checked against output_frames by the caller where it matters.
   size_t openCapture(const std::string & name, Logger & logger, snd_pcm_t *& handle);
-  // Resolves midi_input_spec_ against the sequencer's current ports and
-  // connects it, dropping the previous connection. Quiet when the source
-  // simply isn't there (yet).
-  void connectMidiInput(Logger * logger);
-
   // The streams' poll descriptors and wait()'s scratch set.
   std::vector<pollfd> playback_fds_, capture_fds_, wait_fds_;
 
   snd_pcm_t * pcm_handle = 0, * capture_handle = 0;
-  snd_seq_t * seq_handle = 0;
   size_t output_frames = 0, input_frames = 0;
   bool recording_started = false;
   // Last playback write error and when it was logged (play()'s own rate limit).
@@ -66,11 +57,6 @@ class AlsaAudio : public AudioAPI {
   std::string capture_device_name_;
   // Likewise for playback; "default" after a fallback.
   std::string playback_device_name_;
-  // The wanted MIDI source, and the port it is currently connected from
-  // (-1 when none), so a replug can reconnect and a change can disconnect.
-  std::string midi_input_spec_;
-  int midi_connected_client_ = -1, midi_connected_port_ = -1;
-  int midi_own_port_ = 0;
 };
 
 #endif

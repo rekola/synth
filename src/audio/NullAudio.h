@@ -18,7 +18,6 @@ class NullAudio : public AudioAPI {
   size_t getFrameCount() const override { return block_frames_; }
   void startRecording() override { }
   void stopRecording() override { }
-  std::vector<MidiEvent> recordMIDI() override { return {}; }
 
   int getPlaybackDelayFrames() const override { return 0; }
   int getCaptureDelayFrames() const override { return 0; }
@@ -29,7 +28,6 @@ class NullAudio : public AudioAPI {
 
   bool setCaptureDevice(const std::string &, Logger &) override { return false; }
   bool setPlaybackDevice(const std::string &, Logger &) override { return false; }
-  void setMidiInput(const std::string &, Logger &) override { }
 
   // Blocks handed to play() so far.
   size_t blocksPlayed() const { return blocks_played_; }
