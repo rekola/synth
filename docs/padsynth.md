@@ -109,6 +109,33 @@ covers: `brass.synth`/`brass.synth.soft` use `saw-piano-wide`/`saw-piano`
 closest character to a synth-brass section) rather than a preset built
 to represent brass specifically.
 
+## Sample set
+
+One wavetable is built per pitch region. A preset gives a base frequency
+`f_b`, `octaves` `O`, `samples_per_octave` `q` and a `table_length`. The
+regions cover `O + 1` octaves: `(O + 1) * q` of them, `1/q` octave apart,
+centred on `f_b` (with an even count `f_b` falls between the two middle
+regions). Region `j` is built for the pitch `f_b * 2^((j - (M-1)/2) / q)`
+with `M = (O + 1) * q`. A note uses the region nearest to it in pitch, so
+notes below the lowest region or above the highest one are resampled from
+the end region. The `octaves` values are the base instrument patch's own
+octave setting, which counts one fewer than the octaves the regions span.
+
+| Preset | `f_b` Hz | `O` | `q` | Regions | Table length | Lowest Hz | Highest Hz |
+|---|---|---|---|---|---|---|---|
+| `keyboard` | 392.4 | 5 | 2 | 12 | 131072 | 58.3 | 2640 |
+| `synth-piano-3-b` | 392.4 | 6 | 2 | 14 | 131072 | 41.2 | 3733 |
+| `church-organ` | 261.6 | 4 | 2 | 10 | 131072 | 55.0 | 1244 |
+| `bells` | 392.4 | 5 | 2 | 12 | 131072 | 58.3 | 2640 |
+| `bells-3` | 392.4 | 5 | 2 | 12 | 131072 | 58.3 | 2640 |
+| `strings` | 261.6 | 6 | 2 | 14 | 262144 | 27.5 | 2489 |
+| `dual-strings` | 261.6 | 6 | 2 | 14 | 262144 | 27.5 | 2489 |
+| `saw-piano` | 261.6 | 6 | 2 | 14 | 131072 | 27.5 | 2489 |
+| `saw-piano-wide` | 261.6 | 6 | 2 | 14 | 262144 | 27.5 | 2489 |
+| `soft-pad` | 261.6 | 3 | 2 | 8 | 131072 | 77.8 | 880 |
+| `choir-pad4` | 261.6 | 4 | 3 | 15 | 131072 | 51.9 | 1318 |
+| `long-spacechoir2` | 261.6 | 4 | 2 | 10 | 131072 | 55.0 | 1244 |
+
 ## Oscillator shape
 
 Every preset is built from a specific instrument patch's oscillator shape: a

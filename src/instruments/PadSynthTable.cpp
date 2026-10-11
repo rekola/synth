@@ -38,22 +38,22 @@ PadSynthTable::oscillatorMagnitudes() const {
 
 float
 PadSynthTable::sampleFrequency(int j) const {
-  int M = sampleCount();
-  float O = static_cast<float>(params_.octaves);
-  return params_.base_frequency_hz * std::exp2(
-    static_cast<float>(j) * O / static_cast<float>(M) - static_cast<float>(M - 1) * O / (2.0f * static_cast<float>(M)));
+  // Regions are 1/q octave apart and centred on the base frequency, so
+  // the base lies between the two middle regions when their count is even.
+  float q = static_cast<float>(params_.samples_per_octave);
+  float centre = static_cast<float>(sampleCount() - 1) * 0.5f;
+  return params_.base_frequency_hz * std::exp2((static_cast<float>(j) - centre) / q);
 }
 
 int
 PadSynthTable::nearestSampleIndex(float f0) const {
-  int M = sampleCount();
-  float O = static_cast<float>(params_.octaves);
+  float q = static_cast<float>(params_.samples_per_octave);
+  float centre = static_cast<float>(sampleCount() - 1) * 0.5f;
   float safe_f0 = f0 > 0.0f ? f0 : params_.base_frequency_hz;
-  // Invert sampleFrequency(j): j = (log2(f0/f_b) + (M-1)*O/(2M)) * M/O.
-  float target = (std::log2(safe_f0 / params_.base_frequency_hz) + static_cast<float>(M - 1) * O / (2.0f * static_cast<float>(M)))
-    * static_cast<float>(M) / O;
+  // Invert sampleFrequency(j).
+  float target = std::log2(safe_f0 / params_.base_frequency_hz) * q + centre;
   int j = static_cast<int>(std::lround(target));
-  return std::max(0, std::min(M - 1, j));
+  return std::max(0, std::min(sampleCount() - 1, j));
 }
 
 float
