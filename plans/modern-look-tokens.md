@@ -34,7 +34,7 @@ surface, so a single colour works on both.
 
 | Token | Value | Meaning |
 |---|---|---|
-| `state.playing` | `#009b28` | The fill of a whole clip slot while it is playing **or queued to play**, as the whole pad turns green. The pads tell the two apart by pulsing (playing) and flashing (queued), the terminal by the glyph (`▸`, `▹`), later by a fade. Hue 145, the Launchpad's green. |
+| `state.playing` | `#009b28` | The fill of a whole clip slot while it is playing **or queued to play**, as the whole pad turns green. Playing pulses and queued flashes, on the pads and in the terminal alike (`statePulse()` in `ClipGrid.cpp`: a one-second pulse between the colour and a shade 60% darker, a 250 ms flash); the glyph (`▸`, `▹`) tells them apart where there is no motion. Hue 145, the Launchpad's green. |
 | `state.playing.dim` | `#648464` | Launched while the transport is paused. Same hue, little chroma. |
 | `state.recording` | `#e23532` | The fill of a slot while recording **or queued to record**. Hue 27, the Launchpad's red. |
 | `state.recording.dim` | `#a26962` | An armed track's empty slot, or a take queued to stop. |

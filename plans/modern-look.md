@@ -29,7 +29,9 @@ already a `StyleProvider` constant, which is the lever.
    and the cursor (the cursor is already cyan-leaning), and semantic colours
    reserved for state: playing green and recording red, with their dim forms.
    Queued is not a colour: a queued clip uses the playing (or recording)
-   colour and differs by pulsing on the pads and by its glyph on screen.
+   colour and differs by motion, as on the pads: playing and recording pulse,
+   queued flashes (the clip grid already does this, `statePulse()`), and the
+   glyph shape tells them apart where there is no motion (reduced motion).
 3. **Track colours and clip states are shared with the Launchpad, so they do
    not change with the theme.** The Launchpad is always dark and has no icons,
    so a clip's colour and state must be identical on the pads and the screen:
@@ -77,7 +79,7 @@ widgets use by role:
 - text.primary / .secondary / .disabled / .on-accent
 - accent, accent.dim, focus
 - state.playing / .recording (+ dim forms), the same in every theme; queued
-  uses these (pulse on the pads, glyph on screen)
+  uses these (pulse or flash, on the pads and on screen)
 - track colours (8 from the formula) and text.on-track, the same in every theme
 - meter ramp (already `meterColor()`)
 - grid lines: bar, beat (as tones, not lines, where possible)

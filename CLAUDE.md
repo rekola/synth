@@ -988,8 +988,11 @@ would otherwise resume showing.
   place - green for playing (▸) or queued (▹), dim green (▸) while the
   transport is paused, red for recording (●) or
   queued to record (○), dim red for an armed track's empty slot (○) or a
-  take queued to stop (●). Terminal cells can't pulse, so the glyph's
-  shape tells queued from running.
+  take queued to stop (●) - and a clip's slot background takes the state
+  color too, pulsing like the pad (`statePulse()` in `ClipGrid.cpp`: playing
+  and recording pulse smoothly over a second between the color and a shade
+  60% darker, the queued states flash every 250 ms), so the glyph's shape is
+  what tells queued from running without motion.
   The last column is the master's, scrolling with the tracks: its slots
   launch a whole scene (`LaunchpadManager::launchScene()`), its last row
   stops every track, and its Sends row shows its Send Main/A/B. Sends
