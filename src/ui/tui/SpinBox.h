@@ -12,7 +12,7 @@
 #include <functional>
 #include <string>
 
-#include <fmt/core.h>
+#include <fmt/format.h>
 
 // A small, reusable inline numeric stepper: an optional label, a small
 // left-arrow button, a directly-editable value field, and a small right-

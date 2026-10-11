@@ -19,7 +19,12 @@ TEST(shutdown_flag_starts_clear_and_can_be_requested) {
 // process to stop must set the flag instead of killing the process.
 TEST(shutdown_signals_set_the_flag) {
   installShutdownSignalHandlers();
-  for (int sig : { SIGINT, SIGTERM, SIGHUP }) {
+#ifdef SIGHUP
+  const int signals[] = {SIGINT, SIGTERM, SIGHUP};
+#else
+  const int signals[] = {SIGINT, SIGTERM}; // Windows has no SIGHUP
+#endif
+  for (int sig : signals) {
     clearShutdownRequest();
     raise(sig);
     CHECK(shutdownRequested());

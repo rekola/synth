@@ -27,8 +27,9 @@
 #include "../playback/ThresholdRecordingTriggeredEvent.h"
 
 #include <algorithm>
+#include <iterator>
 #include <pthread.h>
-#include <fmt/core.h>
+#include <fmt/format.h>
 #include <memory>
 #include <thread>
 
@@ -415,6 +416,24 @@ UI::initializeCommands() {
     for (auto & source : listMidiSources()) choices.push_back({source.label, source.spec});
     chooseDevice("MIDI input", std::move(choices), getController().getDeviceSettings().midi_input,
                  [this](const Choice & choice) { selectMidiInput(choice.value, choice.label); });
+  });
+  // The song's scale: which degrees the step view steps through.
+  commands_.define("set-song-scale", [this]() {
+    static const Scale kScales[] = {Scale::NONE, Scale::MAJOR, Scale::MINOR, Scale::OTONAL, Scale::UTONAL};
+    std::vector<Choice> choices;
+    int current = -1;
+    for (auto scale : kScales) {
+      if (scale == getController().getSong().getScale()) current = static_cast<int>(choices.size());
+      choices.push_back({scaleLabel(scale), to_string(scale)});
+    }
+    showChoiceDialog("Scale", std::move(choices), current, [this, current](int index) {
+      if (index == current || index < 0 || index >= static_cast<int>(std::size(kScales))) return;
+      auto scale = kScales[index];
+      auto & song = getController().getSong();
+      Song::Edit edit(song, "set scale");
+      song.setScale(scale);
+      setStatus("Scale " + scaleLabel(scale));
+    });
   });
   commands_.define("next-buffer", [this]() {
     getController().cycleBuffer(true);

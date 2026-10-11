@@ -317,8 +317,8 @@ void AlsaAudio::initialize(Logger & logger, const DeviceSettings & devices) {
   }
   logger.log(status);
 
-  setPlaybackDescriptors(getPollDescriptors(pcm_handle));
-  if (capture_handle) setCaptureDescriptors(getPollDescriptors(capture_handle));
+  playback_fds_ = getPollDescriptors(pcm_handle);
+  if (capture_handle) capture_fds_ = getPollDescriptors(capture_handle);
   if (seq_handle) setMidiCaptureDescriptors(getMidiPollDescriptors(seq_handle));
 
   if (!devices.midi_input.empty()) setMidiInput(devices.midi_input, logger);
@@ -355,7 +355,7 @@ bool AlsaAudio::setPlaybackDevice(const string & requested, Logger & logger) {
   pcm_handle = handle;
   playback_device_name_ = name;
   last_play_error_ = 0;
-  setPlaybackDescriptors(getPollDescriptors(pcm_handle));
+  playback_fds_ = getPollDescriptors(pcm_handle);
   // Dropped, not drained: draining would stall the audio thread for the
   // length of the old queue.
   snd_pcm_drop(old);
@@ -383,7 +383,7 @@ bool AlsaAudio::setCaptureDevice(const string & requested, Logger & logger) {
   // The new stream is prepared but not started, the state startRecording()
   // expects.
   recording_started = false;
-  setCaptureDescriptors(getPollDescriptors(capture_handle));
+  capture_fds_ = getPollDescriptors(capture_handle);
   return true;
 }
 
@@ -418,6 +418,32 @@ void AlsaAudio::connectMidiInput(Logger * logger) {
     return;
   }
   if (logger) logger->log("MIDI input '" + midi_input_spec_ + "' not found, connecting when it appears");
+}
+
+WaitResult
+AlsaAudio::wait(Notifier & wake, bool want_capture, int timeout_ms) {
+  // Rebuilt each call from the current streams, so a device switch needs no
+  // bookkeeping. Capture stays in the set with its events cleared while not
+  // wanted: an open but never started capture stream (see startRecording())
+  // has a frozen position and would report ready forever.
+  wait_fds_.clear();
+  wait_fds_.push_back(pollfd { wake.fd(), POLLIN, 0 });
+  wait_fds_.insert(wait_fds_.end(), playback_fds_.begin(), playback_fds_.end());
+  for (auto d : capture_fds_) {
+    if (!want_capture) d.events = 0;
+    wait_fds_.push_back(d);
+  }
+
+  WaitResult result;
+  if (poll(wait_fds_.data(), wait_fds_.size(), timeout_ms) <= 0) return result;
+  result.woken = wait_fds_[0].revents != 0;
+  for (size_t i = 0; i < playback_fds_.size(); i++) {
+    if (wait_fds_[1 + i].revents) result.playback = true;
+  }
+  for (size_t i = 0; i < capture_fds_.size(); i++) {
+    if (wait_fds_[1 + playback_fds_.size() + i].revents) result.capture = true;
+  }
+  return result;
 }
 
 std::vector<pollfd>

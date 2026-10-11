@@ -2,33 +2,34 @@
 
 [![Linux x86-64](https://github.com/rekola/synth/actions/workflows/ci-linux-x86_64.yml/badge.svg)](https://github.com/rekola/synth/actions/workflows/ci-linux-x86_64.yml)
 [![Linux ARM64](https://github.com/rekola/synth/actions/workflows/ci-linux-arm64.yml/badge.svg)](https://github.com/rekola/synth/actions/workflows/ci-linux-arm64.yml)
+[![Windows x86-64](https://github.com/rekola/synth/actions/workflows/ci-windows-x86_64.yml/badge.svg)](https://github.com/rekola/synth/actions/workflows/ci-windows-x86_64.yml)
 
 ![Screenshot of Live View](https://raw.githubusercontent.com/rekola/synth/refs/heads/main/assets/screenshot1.png)
 
-A microtonal multiparadigm music production system, which combines live sequencer with a traditional tracker.
+A microtonal, multiparadigm music production system that combines a live sequencer with a traditional tracker.
 
 ## Features
 
 - Live sequencer with sample and note based clips
-- Microtonal (12/19/31/53-EDO)
-- SoundFont2
+- Microtonal: 12, 19, 31 or 53 equal divisions of the octave (EDO), with just intonation
+- SoundFont 2 (General MIDI) instruments
 - Headless mode (for art installations or escape rooms)
-- Ambisonic Bus
+- 3D spatial audio (ambisonics), heard binaurally on headphones
 - Emacs-style buffers and keybindings
-- Works out of the box (Basic instruments are included and no low-latency requirements)
+- Works out of the box: basic instruments are built in and no low-latency audio setup is needed
 - Keyboard driven
 - Launchpad support
 
-# Background
+## Background
 
-The Application draws on several traditions.
+The application draws on several traditions.
 
 - **Tracker.** Music is written as rows in a grid, one column per voice. The
   first known tracker is Ultimate Soundtracker (Obarski, 1987): four channels,
   each row a note, a sample and an effect. Scream Tracker, FastTracker 2 and
   Impulse Tracker added a volume column and lettered effect commands, and
   Renoise (2002) several note columns per track and a delay column. The
-  Application's pattern editor follows the later trackers; see
+  application's pattern editor follows the later trackers; see
   [docs/commands.md](docs/commands.md).
 - **Live sequencer.** Live View holds a clip launcher: a grid of clips, one
   column per track, launched on the bar and grouped into scenes; see
@@ -42,22 +43,23 @@ The Application draws on several traditions.
   voices of the Yamaha DX7 (1983), the synthesizer that made FM widespread,
   standing in for a handful of General MIDI programs. See
   [docs/fm.md](docs/fm.md).
-- **Emacs.** In the terminal interface each song is a buffer, as in Emacs:
-  several can be open and switched between, with selection, kill and yank, and
-  the M-x prompt. That is only the terminal interface; other interfaces are
-  planned and will follow their own conventions. See
-  [docs/terminal.md](docs/terminal.md).
+- **Emacs.** The keymap the terminal interface uses follows Emacs: each song
+  is a buffer, several can be open and switched between, with mark and point
+  selection, kill and yank, and the M-x prompt for any command by name. A
+  graphical interface is planned that defaults to the usual desktop, DAW and
+  tracker keys, with the Emacs keymap still available. See
+  [docs/user-interface.md](docs/user-interface.md).
 
-# Scales and Tunings
+## Scales and Tunings
 
 - **Tunings.** A song is tuned to 12, 19, 31 or 53 equal divisions of the
   octave (EDO); a new song starts in 31-EDO, which Adriaan Fokker revived (organ
   built 1950 for Teylers Museum, Haarlem). Drum tracks have no tuning: a
-  note is a General MIDI drum. Notes are spelled with sharps, flats, double sharps and double flats,
-  and a tuning can spell the same pitch in several ways. In 12-EDO, E♯ is F. In
+  note is a General MIDI drum. Notes are spelled with sharps, flats, double sharps and double flats
+  (plus arrows in 53-EDO, below), and a tuning can spell the same pitch in several ways. In 12-EDO, E♯ is F. In
   31-EDO, E♯ and F are different pitches, but D𝄪 and F𝄫 are the same one. Note numbers for each tuning
   are in `docs/`, for example [31edo_note_numbers.txt](docs/31edo_note_numbers.txt).
-- **Notation.** Every tuning's note names are a chain of fifths: the seven
+- **Notation.** In 12, 19 and 31-EDO the note names are a chain of fifths: the seven
   natural notes C D E F G A B are the usual seven consecutive fifths
   (F C G D A E B), and each further fifth up adds a sharp, each fifth down a
   flat (F♯ is the fifth above B, B♭ the fifth below F). The tuning only decides how
@@ -68,16 +70,39 @@ The Application draws on several traditions.
   C♯ and D♭ differ by one step. In 12-EDO the sharp is 1 step and the chain
   closes on itself, which is why E♯ is F there. See Fokker, "Equal Temperament
   and the Thirty-one-keyed Organ", *The Scientific Monthly* 81 (1955).
+- **53-EDO notation.** 53-EDO is not a meantone tuning: four of its fifths
+  make the Pythagorean third 81:64 (18 steps), a comma above 5:4 (17 steps).
+  So that C-E is a 5:4 major third there as well, its note names follow Ben
+  Johnston's just-intonation notation instead of a chain of fifths. The
+  natural notes are the just major scale, made of the three major triads
+  F A C, C E G and G B D: C D E F G A B = 1/1 9/8 5/4 4/3 3/2 5/3 15/8 =
+  steps 0 9 17 22 31 39 48. A sharp or flat is the chromatic semitone 25:24
+  (3 steps), and an arrow raises or lowers by the syntonic comma 81:80
+  (1 step), where Johnston writes + and −. A double sharp or flat is 35:32
+  (7 steps), the interval 31-EDO's double sharp is, rather than two 25:24
+  sharps (6 steps): with it E𝄫 is 8:7 and B𝄫 12:7 in both tunings. Each
+  accidental is a single symbol: 𝄮 𝄯 (natural up/down), 𝄰 𝄱 (sharp up/down),
+  𝄬 𝄭 (flat up/down). D-A is therefore 40:27, a comma short of a fifth, and
+  the fifth above D is A𝄮. The other tunings have no separate comma step and
+  ignore the arrows, so a 53-EDO spelling still names the right note in
+  31-EDO. See John Fonville, "Ben Johnston's Extended Just
+  Intonation: A Guide for Interpreters", *Perspectives of New Music* 29/2
+  (1991); the table is [53edo_note_numbers.txt](docs/53edo_note_numbers.txt).
 - **Scales.** A song has a key and an optional scale: major (the Ionian
   mode), minor (the Aeolian mode), 7-note otonal or 7-note utonal. Each is
-  written once as note names, so it is correct in every tuning. The 7-note
+  written once as note names: major and minor come out meantone in 12, 19 and
+  31-EDO and just in 53-EDO. Otonal (C D♯ E F G A A𝄰 = 1/1 7/6 5/4 4/3 3/2
+  5/3 7/4) and utonal (C E𝄫 E♭ F G A♭ B𝄫 = 1/1 8/7 6/5 4/3 3/2 8/5 12/7) are
+  spelled so that 31 and 53-EDO both come within 6 cents of every ratio; 12
+  and 19-EDO only approximate the septimal ones. The 7:4 is A𝄰 because
+  53-EDO's A♯ is 26:15; the other tunings read it as A♯. The 7-note
   otonal and utonal scales borrow Partch's terms (1949) but are not his longer
   scales: they have seven notes each, and their intervals
   were derived by the methods in Kyle Gann's *The Arithmetic of Listening*
-  (2019). The scale picks the sound the Launchpad's step rows edit; it does not change the
-  playing keyboard.
+  (2019). The scale decides which notes the Launchpad's step view steps
+  through; it does not change the playing keyboard.
 
-## Pianos and Just Intervals
+### Pianos and Just Intervals
 
 Sampled pianos can't play microtonal chords in tune; use a synthesized piano
 such as `piano.electric.tine` instead.
@@ -99,9 +124,10 @@ middle C). What remains is the tuning's own error, such as 31-EDO's 4:3 being
 
 The acoustic piano (`<additive preset="piano"/>`, also `piano.acoustic.grand`
 when the SoundFont has no piano; [docs/additive.md](docs/additive.md)) puts partial *n* at
-the same n + (n−1)·ε, using harmonic partials with a bounded stretch.
+n + (n−1)·ε as well, using harmonic partials with a bounded stretch (ε = 0.003
+in its `piano` preset).
 
-# Terminal support
+## Terminal support
 
 The terminal UI works in any terminal notcurses supports, but a modern one is
 better. Terminals with the Kitty keyboard protocol (kitty, foot, WezTerm,
@@ -110,18 +136,18 @@ a note is held, so they can play musical chords (several notes at once); other
 terminals can't. Terminals with Kitty graphics or Sixels get pixel graphics:
 the spectrum analyzer and the DirAC heatmap in the scopes are drawn as real
 pixels instead of braille cells, and without pixel support they fall back to
-braille. See [docs/terminal.md](docs/terminal.md) for terminal-specific setup.
+braille. See [docs/user-interface.md](docs/user-interface.md#terminal) for terminal-specific setup.
 
 Known to work are kitty, xterm and GNOME Terminal. The full table is in
-[docs/terminal.md](docs/terminal.md#supported-terminals).
+[docs/user-interface.md](docs/user-interface.md#supported-terminals).
 
-# Launchpad support
+## Launchpad support
 
 A connected Novation Launchpad (Mini MK3 / X) becomes a drum rack or isomorphic
 keyboard, a step sequencer and a clip launcher. See
 [docs/launchpad.md](docs/launchpad.md) for the layout, colors and every button.
 
-# Third-party code
+## Third-party code
 
 This project is MIT-licensed (`LICENSE`). It vendors a small amount of
 third-party source under `third_party/` (currently `tinyxml2`, zlib
@@ -130,17 +156,17 @@ license, and PocketFFT, BSD-3-Clause - the FFT backend behind
 permissively/LGPL-licensed system libraries. See `THIRD_PARTY_LICENSES.md`
 for the full picture, or run `synth --licenses` to print it.
 
-# Roadmap / missing functionality:
+## Roadmap / missing functionality
 
 The major things that are missing are the following:
 
 * A proper name
 * GUI
 * Lighting control (DMX/ArtNet)
-* Just tuning
+* Adaptive just intonation, which tunes each note against what sounds with it in any track
 * Continuous MIDI recording with retroactive capture
 
-## Minor Missing Features
+### Minor Missing Features
 
 * DirAC heatmap marker overlay for every active spatial object, not just track positions — track azimuth/elevation markers, plus Granular Cloud grains and other shared-bus-effect taps (FDNReverb, MultiTapDelay)
 * DC Filter and Soft Clipping

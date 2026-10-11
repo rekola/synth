@@ -7,7 +7,6 @@
 
 #include <algorithm>
 #include <array>
-#include <poll.h>
 #include <memory>
 
 using namespace std;
@@ -156,12 +155,8 @@ void
 VisualizationThread::run() {
   auto & queue = controller_->getVisualizationQueue();
 
-  pollfd descriptor;
-  descriptor.fd = queue.getPollFd();
-  descriptor.events = POLLIN;
-
   while (!terminate_) {
-    if (poll(&descriptor, 1, 1000) > 0 && descriptor.revents) {
+    if (queue.wait(1000)) {
       auto event = queue.pop();
       handleEvent(*event);
       while (queue.hasEvents()) {

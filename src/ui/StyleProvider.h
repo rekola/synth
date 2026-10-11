@@ -2,6 +2,7 @@
 #define _STYLEPROVIDER_H_
 
 #include "../model/Color.h"
+#include "Theme.h"
 
 #include <algorithm>
 #include <iterator>
@@ -9,14 +10,41 @@
 
 class StyleProvider {
  public:
+  StyleProvider() { applyTheme(Theme::dark()); }
+  explicit StyleProvider(const Theme & initial) { applyTheme(initial); }
+
+  // Sets every colour a token covers; the others keep their values.
+  void applyTheme(const Theme & t) {
+    theme = t;
+    highlight_fg_color = t.text_on_accent;
+    highlight_bg_color = t.accent;
+    highlight_unfocused_bg_color = t.accent_dim;
+    window_border_color = t.surface_overlay;
+    window_fg_color = t.text_secondary;
+    window_bg_color = t.surface_base;
+    window_accent_fg_color = t.text_primary;
+    window_accent_bg_color = t.surface_panel;
+    window_beat_accent_fg_color = t.grid_beat_fg;
+    window_beat_accent_bg_color = t.grid_beat_bg;
+    window_bar_accent_fg_color = t.grid_bar_fg;
+    window_bar_accent_bg_color = t.grid_bar_bg;
+    clip_playing_color = t.state_playing;
+    clip_paused_color = t.state_playing_dim;
+    clip_recording_color = t.state_recording;
+    clip_armed_color = t.state_recording_dim;
+    heading_bg_color = t.surface_raised;
+  }
+
+  Theme theme;
+
   // Cursor and playhead colors lean cyan, so they never read as the
   // neutral grey bar/beat highlighting.
   // The cursor/region of the focused widget.
-  Color highlight_fg_color = "#000000";
-  Color highlight_bg_color = "#bcd4e0";
+  Color highlight_fg_color;
+  Color highlight_bg_color;
   // The cursor of an unfocused widget - where its edits would land - on
   // plain window_fg_color text.
-  Color highlight_unfocused_bg_color = "#3a4a54";
+  Color highlight_unfocused_bg_color;
   // What a colored cell (a clip, an arrangement instance) brightens toward
   // under a cursor or playhead, instead of taking either background above.
   Color cursor_tint_color = "#d0ecff";
@@ -28,19 +56,19 @@ class StyleProvider {
   static constexpr float kRowTintAlpha = 0.35f;
   Color cursorRowTint(Color base) const { return base.blend(kRowTintAlpha, cursor_row_tint_color); }
 
-  Color window_border_color = "#323232";
-  Color window_fg_color = "#9e9e9e";
-  Color window_bg_color = "#111111";
-  Color window_accent_fg_color = "#ffffff";
-  Color window_accent_bg_color = "#292929";
+  Color window_border_color;
+  Color window_fg_color;
+  Color window_bg_color;
+  Color window_accent_fg_color;
+  Color window_accent_bg_color;
 
   // The pattern editor's beat rows, and its bar rows (Song::
   // getRowsPerBar()) a step above them. Both stay well below the cursor
   // row's tint, so the cursor still stands out on an accented row.
-  Color window_beat_accent_fg_color = "#c4c4c4";
-  Color window_beat_accent_bg_color = "#232323";
-  Color window_bar_accent_fg_color = "#ffffff";
-  Color window_bar_accent_bg_color = "#323232";
+  Color window_beat_accent_fg_color;
+  Color window_beat_accent_bg_color;
+  Color window_bar_accent_fg_color;
+  Color window_bar_accent_bg_color;
 
   Color command_column_color = "#c67610";
 
@@ -99,10 +127,10 @@ class StyleProvider {
   // playing or queued; launched while the transport is paused; recording
   // or queued to record; an armed track's empty slot, or a take queued to
   // stop.
-  Color clip_playing_color = "#50e070";
-  Color clip_paused_color = "#2e7a3e";
-  Color clip_recording_color = "#ff3c3c";
-  Color clip_armed_color = "#a04040";
+  Color clip_playing_color;
+  Color clip_paused_color;
+  Color clip_recording_color;
+  Color clip_armed_color;
 
   // Pattern editor locators.
   Color locator_color = "#e03030";
@@ -114,7 +142,7 @@ class StyleProvider {
   // track header row, and the divider between them) - brighter than
   // window_accent_bg_color, so they read as a stronger accent than the
   // content beneath them.
-  Color heading_bg_color = "#3d3d3d";
+  Color heading_bg_color;
 
 
   // OutlineView's Details panel action buttons (Delete/Add to Song/

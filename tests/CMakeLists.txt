@@ -7,8 +7,6 @@ add_executable(synth_tests
 	# needs notcurses's headers (types, macros, static inline helpers), not
 	# the linked library, so this keeps that distinction visible at the
 	# build-system level too - see EscapeCoalescer.h's own top comment.
-	../src/ui/tui/EscapeCoalescer.cpp
-	EscapeCoalescerTests.cpp
 	# Same reasoning as EscapeCoalescer.cpp above - SubcellGlyphs.cpp has no
 	# notcurses dependency of its own at all (plain integer/table logic),
 	# so it's an even simpler case for direct inclusion here rather than
@@ -34,6 +32,7 @@ add_executable(synth_tests
 	ControllerTests.cpp
 	DeviceSettingsTests.cpp
 	ChoiceListTests.cpp
+	ThemeTests.cpp
 	DeviceLabelsTests.cpp
 	PatternBlockOpsTests.cpp
 	JustIntonationTests.cpp
@@ -91,6 +90,7 @@ add_executable(synth_tests
 	TapeVoiceLifecycleTests.cpp
 	HashFieldTests.cpp
 	PlayerMultiBufferTests.cpp
+	NullAudioTests.cpp
 	Utf8Tests.cpp
 	SongStructureTests.cpp
 	SampleTrackTests.cpp
@@ -112,6 +112,11 @@ add_executable(synth_tests
 	AmbisonicStackEncoderTests.cpp
 )
 
+# Needs notcurses's headers, so only where the terminal UI is built.
+if(SYNTH_BUILD_INTERACTIVE)
+  target_sources(synth_tests PRIVATE ../src/ui/tui/EscapeCoalescer.cpp EscapeCoalescerTests.cpp)
+endif()
+
 target_link_libraries(synth_tests synth_engine)
 target_compile_definitions(synth_tests PRIVATE
 	TESTS_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
@@ -129,4 +134,10 @@ find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
   add_test(NAME no_banned_randomness
 	   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../tools/check_no_banned_randomness.py)
+endif()
+
+# Draws with canvas' Cairo backend; the GDI+ one joins when the terminal UI
+# reaches Windows.
+if(NOT WIN32)
+  target_sources(synth_tests PRIVATE ../src/ui/SpectrumImage.cpp SpectrumImageTests.cpp ../src/ui/HeatmapImage.cpp HeatmapImageTests.cpp)
 endif()

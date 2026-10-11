@@ -28,6 +28,23 @@ static inline std::string to_string(Scale scale) {
   return "";
 }
 
+// The name shown in menus and dialogs.
+static inline std::string scaleLabel(Scale scale) {
+  switch (scale) {
+    case Scale::NONE:
+      return "None (chromatic)";
+    case Scale::MAJOR:
+      return "Major";
+    case Scale::MINOR:
+      return "Minor";
+    case Scale::OTONAL:
+      return "Otonal";
+    case Scale::UTONAL:
+      return "Utonal";
+  }
+  return "";
+}
+
 static inline Scale scaleFromString(const std::string & text) {
   if (text == "major") return Scale::MAJOR;
   if (text == "minor") return Scale::MINOR;
@@ -45,16 +62,17 @@ static inline Scale scaleFromString(const std::string & text) {
 // "use the plain chromatic scale instead" rather than calling this at
 // all. OTONAL/UTONAL are two fixed 7-note scales named after the otonal
 // (overtone) and utonal (undertone) series of just intonation (not the
-// longer scales of Partch, who coined the terms) - UTONAL's
-// own E𝄫/A♭ spelling only actually diverges from an enharmonic respelling once the
-// tuning has finer-than-semitone resolution (31/53-EDO); in 12-EDO it
-// still resolves correctly (Note::stringToKey()'s own double-flat
-// support), just degenerately (E𝄫 there sounds identical to D).
+// longer scales of Partch, who coined the terms): 1/1 7/6 5/4 4/3 3/2 5/3 7/4
+// and 1/1 8/7 6/5 4/3 3/2 8/5 12/7. The septimal degrees are spelled to mean
+// those ratios in both 31 and 53-EDO; 7:4 is A𝄰 because 53-EDO's A♯ is 26:15
+// and the other tunings ignore the arrow. In 12 and 19-EDO the septimal
+// degrees are approximations (in 12-EDO E𝄫 sounds identical to D).
 static inline std::vector<std::string_view> scaleDegreeNames(Scale scale) {
   switch (scale) {
   case Scale::MAJOR: return { "C", "D", "E", "F", "G", "A", "B" };
   case Scale::MINOR: return { "C", "D", "E♭", "F", "G", "A♭", "B♭" };
-  case Scale::OTONAL: return { "C", "D♯", "E", "F", "G", "A", "A♯" };
+  case Scale::OTONAL:
+    return {"C", "D♯", "E", "F", "G", "A", "A𝄰"};
   case Scale::UTONAL: return { "C", "E𝄫", "E♭", "F", "G", "A♭", "B𝄫" };
   case Scale::NONE: return {};
   }

@@ -44,14 +44,20 @@ EXCLUDED_DIR_PARTS = {"third_party", "build"}
 
 
 def repo_root() -> Path:
-    out = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
-        cwd=Path(__file__).resolve().parent,
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return Path(out.stdout.strip())
+    here = Path(__file__).resolve().parent
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=here,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return Path(out.stdout.strip())
+    except (OSError, subprocess.CalledProcessError):
+        # No git on the PATH (a Windows build shell): this script lives in
+        # tools/ at the repository root.
+        return here.parent
 
 
 def strip_line_comment(line: str) -> str:
