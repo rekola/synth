@@ -121,3 +121,15 @@ Themes are data:
 6. **Window backend:** the same tokens plus elevation shadows, radius,
    padding, the UI font and smooth motion, in `plans/cell-ui-window.md`'s
    styles step.
+
+## Open: switching a track's instrument
+
+Today there is only `add-instrument-track`; no command changes the instrument
+a track plays. Wanted: switch quickly and see the name as it changes. The name
+shows on the second line of the track heading (Live View's heading has no
+parent tracks, only the leaf's own; the Arrangement view's has the parent
+columns, which the mock does not draw). Candidates, to settle with the
+feature itself rather than the look: `select-instrument` (the existing small
+floating list, the song's instruments, the current one preselected),
+`next-instrument`/`previous-instrument` for a quick cycle, the new name echoed
+on the last row, one undo step, and a pad command for the Launchpad.
