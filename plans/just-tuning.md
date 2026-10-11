@@ -30,24 +30,30 @@ The step table guesses which ratio each step stands for, picking the simplest.
 An EDO step stands for several ratios a comma apart (31-EDO's step 5 is both 9/8
 and 10/9), and when the interval two scale notes actually form is not the
 simplest for its step, the guess is wrong. Measured from the tonic the table
-happens to give every otonal and utonal note correctly, which is why the old
-plan's check passed: every chord it checked contained the tonic. A bar without
-the tonic does not. 31-EDO, key C, corrections in cents from
-`correctionCentsInChord()`:
+happens to give every otonal and utonal note correctly, but the tuner measures
+from the bar's lowest note, not the tonic. Every chord containing the tonic
+comes out right only while the tonic is lowest (which is why the old check
+passed). Voice one with another note lowest and a third of them break: in
+31-EDO, of the triads of each scale that contain C with another note lowest,
+10 of 30 are wrong. Key C, corrections in cents from `correctionCentsInChord()`:
 
-| Bar (lowest first) | True interval | Table picks | Upper note gets | Scale ratio gives |
+| Chord (lowest first) | What it is | Wrong note | Gets | Scale ratio gives |
 |---|---|---|---|---|
-| G, A | 10/9 | 9/8 | A +16 (27/16) | A -6 (5/3) |
-| G, F above | 16/9 | 9/5 | F +16 (27/20) | F -5 (4/3) |
-| F, E above | 15/8 | 13/7 | E -17 | E -1 (5/4) |
-| E, F | 16/15 | 14/13 | F +11 | F -5 (4/3) |
-| F, A♯ | 21/16 | 13/10 | A♯ -15 | A♯ +1 (7/4) |
+| G C E A | C6 (12:15:18:20) over G | A | +16 (27/16) | -6 (5/3) |
+| F A C E | F major 7, otonal notes | E | -17 (13/7 over F) | -1 (5/4) |
+| G C F | Csus4 over G | F | +16 (27/20) | -5 (4/3) |
+| E C D♯ | otonal | D♯ | -13 | -4 (7/6) |
+| E♭ F C | utonal | F | +16 | -5 (4/3) |
+| E𝄫 G C | utonal | G | -11 (13/10 over E𝄫) | +5 (3/2) |
+| G A♭ C | utonal | A♭ | +17 | +1 (8/5) |
 
-So the same pitch class lands on up to a comma's worth of different pitches
-depending on what else is in its bar, and the bar is not even a chord: a melody
-G-A inside one bar gets the 27/16 A. In 31-EDO 10 of the 42 ordered pairs of
-distinct notes of each scale come out wrong. The otonal and utonal scales are fixed
-just scales: each note has one ratio to the tonic, and every interval between
+Each time the interval from the lowest note to the wrong one (G-A 10/9, F-E
+15/8) is not the simplest ratio of its step. The bar is also per track: a
+melody G-A in one bar gets the 27/16 A even while another track holds C, since
+the tuner never sees the other track. So the same pitch class lands up to a
+comma apart depending on voicing and on what else its track plays in the bar.
+
+The otonal and utonal scales are fixed just scales: each note has one ratio to the tonic, and every interval between
 two of them is the quotient of their ratios. Nothing needs guessing.
 
 Also missing: the two scales are meant to be played together (C E G and
@@ -127,8 +133,8 @@ with its `+hh`/`-hh` so playback matches; others are written untuned, as now.
 
 ### Tests
 
-The correction table above for every EDO; the five bars above giving the
-scale ratio; C E G and C E♭ G in one bar of a 31-EDO otonal song; the 12 and
+The correction table above for every EDO; the chords above giving the
+scale ratio in every voicing; C E G and C E♭ G in one bar of a 31-EDO otonal song; the 12 and
 19-EDO collision rule; a major-scale song unchanged; transpose keeps scale
 notes on their ratios; a live note's detune in `Player`; a recorded scale note
 carries its fx.
