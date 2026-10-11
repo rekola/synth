@@ -92,10 +92,13 @@ Themes are data:
 
 1. **Audit:** screenshot every view and dialog in the terminal, list each
    colour, glyph and line used, and map each to a token or mark it for
-   removal.
+   removal. Views done (`plans/modern-look-audit.md`, captured with
+   `tools/modern_look/capture.py`); dialogs still to do.
 2. **Mock:** an HTML mock of Live View and Arrangement view in the proposed
    tokens, dark and light, to agree on the direction before code. This is
-   also the reference for the window backend.
+   also the reference for the window backend. Done:
+   `plans/modern-look-mock.html`, with the token values and contrast checks in
+   `plans/modern-look-tokens.md`; the direction is still to be agreed.
 3. **Tokens:** restructure `StyleProvider` into tokens, with the dark theme
    matching today's look exactly. This step is pure refactoring.
 4. **Apply in the terminal:**
