@@ -3,9 +3,12 @@
 Everything the program does is a named command (`kill-region`, `launch-scene`,
 `undo`, ...). Every command can be run by name from M-x, most are in the menus,
 and a keymap binds keys to them. The bindings below are the Emacs keymap, the
-one the terminal interface uses. A graphical interface with a second keymap
-following the usual desktop, DAW and tracker conventions is planned; the
-command names, M-x and the Emacs keymap stay as they are. What the terminal
+one the terminal interface uses: a terminal can't send many of the key
+combinations the usual desktop shortcuts rely on (most Ctrl+Shift chords,
+and Ctrl-C, Ctrl-Z and Ctrl-S belong to the terminal itself), while Emacs's
+prefix keys work in any terminal. A graphical interface is planned with a
+second keymap following the usual desktop, DAW and tracker conventions; the
+command names, M-x and the Emacs keymap stay as they are there too. What the terminal
 can't do is listed under [Terminal](#terminal) at the end.
 
 ## Emacs keymap

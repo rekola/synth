@@ -97,10 +97,11 @@ input.
 
 ## Keymaps
 
-Both profiles from `plans/cell-ui.md` go in now, in the app's keymap layer:
-emacs stays the default; standard is selectable and works as far as the
-terminal can send it. Its gaps are listed in `docs/user-interface.md`'s
-Terminal section.
+The terminal keeps the emacs keymap only; the standard keymap needs key
+combinations a terminal can't send (`plans/cell-ui.md`). What this phase
+does is make the keymap layer hold named profiles, with emacs as the one
+the terminal uses, so phase 2 adds the standard profile without changing
+how commands are bound.
 
 ## Modernizations
 
@@ -125,7 +126,8 @@ of the switch.
    icons.
 6. `plans/modern-look.md` steps 4-5: the modernized look and the light and
    high-contrast themes.
-7. Keymap profiles (emacs/standard).
+7. Keymap profiles in the keymap layer, emacs the only one in the
+   terminal.
 8. Accessibility tree published by the widgets (the terminal uses only
    focus); strings through a catalog.
 9. Windows console support in the terminal backend, once

@@ -112,8 +112,10 @@ looks, input latency, idle CPU and installer size.
 3. Styles beyond the terminal: geometry, spans, borders, gradients, radius,
    shadows, smooth scrolling; `plans/modern-look.md` step 6.
 4. Icons in the window and the menus.
-5. Accessibility adapters; input methods tested with a CJK input method.
-6. Start menu entry for the window in the Windows installer
+5. The standard keymap (`plans/cell-ui.md`), the window's default, with the
+   emacs keymap selectable; `docs/user-interface.md` gets its table.
+6. Accessibility adapters; input methods tested with a CJK input method.
+7. Start menu entry for the window in the Windows installer
    (`plans/windows-port.md`).
-7. Voice commands, layers in 3D and the rest of the ideas in
+8. Voice commands, layers in 3D and the rest of the ideas in
    `plans/cell-ui.md`, as wanted.

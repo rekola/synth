@@ -175,15 +175,23 @@ library types or thin aliases. `UI` and `TerminalUI` stay in the app,
 
 ## Keymaps
 
-- Two keymap profiles, both available in both backends:
-  - **emacs:** today's bindings, the terminal's default.
-  - **standard:** the window's default. It is built from three layers:
+- Two keymap profiles:
+  - **emacs:** today's bindings. The terminal's only keymap, and selectable
+    in the window too. It exists because a terminal can't send the
+    combinations the standard keymap needs: without the Kitty protocol
+    Ctrl+Shift chords don't arrive at all, several Ctrl keys collapse into
+    one byte, and Ctrl-C, Ctrl-Z and Ctrl-S belong to the terminal itself
+    (interrupt, suspend, flow control). Emacs's prefix keys work within
+    what every terminal sends.
+  - **standard:** the window's default, window only. It is built from
+    three layers:
     - desktop conventions: Ctrl-C/X/V/Z, Ctrl-Shift-Z and Ctrl-Y for
       redo, Ctrl-S/O/N, Delete, shift-selection, F1;
     - live-sequencer conventions: Tab for the view, Space to play,
       duplicate and the clip commands;
     - tracker conventions in the pattern editor.
-- Commands, M-x and the menus are the same in both. The standard keymap
+- Commands, M-x and the menus are the same in both keymaps and both
+  backends. The standard keymap
   also gets a command palette key bound to the same minibuffer (key to be
   decided).
 - The standard bindings are the ones those conventions share and their
@@ -192,9 +200,8 @@ library types or thin aliases. `UI` and `TerminalUI` stay in the app,
   copied from another program's manual, and no binding is credited to one.
 - In the standard keymap a selection uses the system clipboard. The region
   model (there's always a region) stays.
-- In the terminal, the standard keymap loses what the terminal can't send
-  (Ctrl+Shift chords without the Kitty protocol, Ctrl-C/Ctrl-Z unless raw
-  mode takes them). That goes in the Terminal limitations section.
+- The keymap layer holds both profiles from phase 1 on, so the standard one
+  is added in phase 2 without changing how commands are bound.
 
 ## What custom toolkits usually lack (and our answer)
 
