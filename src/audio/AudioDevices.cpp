@@ -2,7 +2,6 @@
 
 #include "DeviceLabels.h"
 #include "DeviceSettings.h"
-#include "../launchpad/LaunchpadProtocol.h"
 
 #include <alsa/asoundlib.h>
 
@@ -265,54 +264,3 @@ void uniquifyLabels(vector<AudioDeviceInfo> & devices) {
   for (size_t i = 0; i < devices.size(); i++) devices[i].label = labels[i];
 }
 
-vector<MidiSourceInfo>
-listMidiSources() {
-  vector<MidiSourceInfo> result;
-  snd_seq_t * seq = nullptr;
-  if (snd_seq_open(&seq, "default", SND_SEQ_OPEN_INPUT, 0) < 0) return result;
-  snd_seq_set_client_name(seq, "synth-list");
-
-  snd_seq_client_info_t * client_info;
-  snd_seq_port_info_t * port_info;
-  snd_seq_client_info_alloca(&client_info);
-  snd_seq_port_info_alloca(&port_info);
-
-  snd_seq_client_info_set_client(client_info, -1);
-  while (snd_seq_query_next_client(seq, client_info) >= 0) {
-    int client = snd_seq_client_info_get_client(client_info);
-    if (client == SND_SEQ_CLIENT_SYSTEM || client == snd_seq_client_id(seq)) continue;
-    string client_name = snd_seq_client_info_get_name(client_info);
-    // Our own player and Launchpad connections, and any other running copy.
-    if (client_name == "synth" || client_name.compare(0, 6, "synth-") == 0) continue;
-
-    snd_seq_port_info_set_client(port_info, client);
-    snd_seq_port_info_set_port(port_info, -1);
-    while (snd_seq_query_next_port(seq, port_info) >= 0) {
-      auto caps = snd_seq_port_info_get_capability(port_info);
-      if (!(caps & SND_SEQ_PORT_CAP_READ) || !(caps & SND_SEQ_PORT_CAP_SUBS_READ)) continue;
-      if (caps & SND_SEQ_PORT_CAP_NO_EXPORT) continue;
-      string port_name = snd_seq_port_info_get_name(port_info);
-      if (LaunchpadProtocol::modelFromDeviceName(port_name) ||
-          LaunchpadProtocol::modelFromDeviceName(client_name)) continue;
-
-      MidiSourceInfo info;
-      info.client = client;
-      info.port = snd_seq_port_info_get_port(port_info);
-      info.spec = client_name + ":" + port_name;
-      info.label = client_name == port_name ? client_name : client_name + ": " + port_name;
-      result.push_back(std::move(info));
-    }
-  }
-  snd_seq_close(seq);
-
-  // Two ports sharing a spec could not be told apart on reconnect.
-  map<string, int> seen;
-  for (auto & info : result) {
-    int n = ++seen[info.spec];
-    if (n > 1) {
-      info.spec += " (" + to_string(n) + ")";
-      info.label += " (" + to_string(n) + ")";
-    }
-  }
-  return result;
-}

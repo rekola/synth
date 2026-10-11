@@ -19,6 +19,8 @@
 #include "../../dsp/DiracAnalyzer.h"
 #include "../../audio/AudioAPI.h"
 #include "../../launchpad/LaunchpadIO.h"
+#include "../../midi/MidiInput.h"
+#include "../../util/WaitSet.h"
 #include "../../launchpad/LaunchpadPadEvent.h"
 #include "../../launchpad/LaunchpadButtonEvent.h"
 #include "../../launchpad/LaunchpadChannelPressureEvent.h"
@@ -2956,7 +2958,7 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
 }
 
 void
-TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
+TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
   int out_pipe[2];
 
   if (pipe(out_pipe) != 0) { // make a pipe
@@ -2979,36 +2981,20 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
   dup2(out_pipe[1], STDERR_FILENO); // redirect stderr to the pipe
   close(out_pipe[1]);
 
-  size_t num_midi_capture_desc = audio.getMidiCaptureDescriptors().size();
-  auto launchpad_descriptors = launchpad_io.getPollDescriptors();
-  size_t num_launchpad_desc = launchpad_descriptors.size();
-  size_t midi_base = 3;
-  size_t launchpad_base = midi_base + num_midi_capture_desc;
-  size_t num_descriptors = launchpad_base + num_launchpad_desc;
-  auto descriptors = std::make_unique<pollfd[]>(num_descriptors);
+  // In the order the loop handles them.
+  WaitSet waits;
+  auto input_group = waits.group();
+  auto events_group = waits.group();
+  auto stderr_group = waits.group();
+  auto midi_group = waits.group();
+  auto launchpad_group = waits.group();
 
-#if 1
-  descriptors[0].fd = nc->get_inputready_fd();
-#else
-  descriptors[0].fd = 0;
-#endif
-  descriptors[0].events = POLLIN;
+  waits.addFd(input_group, nc->get_inputready_fd());
+  waits.add(events_group, getController().getUIEventQueue().notifier());
+  waits.addFd(stderr_group, out_pipe[0]);
+  midi.addTo(waits, midi_group);
+  launchpad_io.addTo(waits, launchpad_group);
 
-  descriptors[1].fd = getController().getUIEventQueue().getPollFd();
-  descriptors[1].events = POLLIN;
-
-  descriptors[2].fd = out_pipe[0];
-  descriptors[2].events = POLLIN;
-
-  for (size_t i = 0; i < num_midi_capture_desc; i++) {
-    descriptors[midi_base + i] = audio.getMidiCaptureDescriptors()[i];
-  }
-
-  for (size_t i = 0; i < num_launchpad_desc; i++) {
-    descriptors[launchpad_base + i] = launchpad_descriptors[i];
-  }
-
-  // setStatus("Starting... nd = " + to_string(num_descriptors));
 
   renderComponents(true);
 
@@ -3063,17 +3049,16 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
     }
 
     // setStatus("polling");
-    int poll_result = poll(descriptors.get(), num_descriptors, poll_timeout_ms);
-    count(poll_result > 0 ? "wake" : "timeout");
-    if (poll_result > 0) {
-      for (size_t i = 0; i < num_descriptors; i++) {
-	auto & d = descriptors[i];
-	if (d.revents) {
-	  count("fd" + std::to_string(i));
-	  if (i != 1) other_wake = true;
-	  if (i == 0) {
+    bool woken = waits.wait(poll_timeout_ms);
+    count(woken ? "wake" : "timeout");
+    if (woken) {
+      for (auto group : { input_group, events_group, stderr_group, midi_group, launchpad_group }) {
+	if (waits.ready(group)) {
+	  count("fd" + std::to_string(group));
+	  if (group != events_group) other_wake = true;
+	  if (group == input_group) {
 	    render |= readInput();
-	  } else if (i == 1) {
+	  } else if (group == events_group) {
 	    auto event = getController().getUIEventQueue().pop();
 	    auto t0 = std::chrono::steady_clock::now();
 	    handleEvent(*event);
@@ -3088,7 +3073,7 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
 	      if (stats_path) { count(typeid(*next_event).name()); if (next_event->needRedraw()) count("redraw:" + std::string(typeid(*next_event).name())); }
 	      if (next_event->needRedraw()) render = true;
 	    }
-	  } else if (i == 2) {
+	  } else if (group == stderr_group) {
 	    char buffer[4096];
 	    int r = read(out_pipe[0], buffer, 4096);
 	    if (real_stderr_fd >= 0 && r > 0) {
@@ -3116,8 +3101,8 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
 		break;
 	      }
 	    }
-	  } else if (i < launchpad_base) {
-	    auto evs = audio.recordMIDI();
+	  } else if (group == midi_group) {
+	    auto evs = midi.readEvents();
 	    // setStatus("got midi events: " + to_string(evs.size()));
 
 	    for (auto & ev : evs) {
@@ -3136,7 +3121,7 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
       }
     }
 
-    if (poll_result > 0 || frame_pending) {
+    if (woken || frame_pending) {
       render_pending |= render;
       auto now = std::chrono::steady_clock::now();
       if (!other_wake && !render_pending && !frame_pending && now - last_frame < kIdleFrameInterval) {

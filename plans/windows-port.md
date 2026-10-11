@@ -142,7 +142,13 @@ fds for any of these (WASAPI and MIDI give event `HANDLE`s).
   and an integration test run the real `Player` loop on CI on both
   platforms, which have no sound hardware.
 
-## Step 2 - Split MIDI and Launchpad I/O from audio
+## Step 2 - Split MIDI and Launchpad I/O from audio (done, except Windows names)
+
+Done: `midi/MidiInput.h` (`AlsaMidiInput`), `midi/MidiPorts.h`
+(`MidiPortBackend`, `AlsaMidiPorts`), `LaunchpadIO` platform-neutral with tests
+against a fake backend, and `util/WaitSet` (Notifiers, plus fds on POSIX) for the
+UI loops; `AudioAPI` no longer knows MIDI or descriptors. Left: the Windows
+port names in `modelFromDeviceName()`, and the WinMM backends (step 4).
 
 - `AudioAPI::recordMIDI()`/`setMidiInput()` move to a `MidiInput`
   interface (list sources, connect by name, poll events, reconnect on
