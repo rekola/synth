@@ -49,8 +49,8 @@ passed). Voice one with another note lowest and a third of them break: in
 
 Each time the interval from the lowest note to the wrong one (G-A 10/9, F-E
 15/8) is not the simplest ratio of its step. Chords without the tonic fare worse:
-34 of the 60 voicings of each scale's tonic-free triads are wrong (F G A♯,
-16:18:21, in all three); only the pure ones, E G A♯ (5:6:7) and E𝄫 F A♭
+34 of the 60 voicings of each scale's tonic-free triads are wrong (F G A𝄰,
+16:18:21, in all three); only the pure ones, E G A𝄰 (5:6:7) and E𝄫 F A♭
 (1/7:1/6:1/5), survive every voicing, because each interval inside them happens
 to be the simplest of its step. The bar is also per track: a
 melody G-A in one bar gets the 27/16 A even while another track holds C, since
@@ -70,7 +70,7 @@ keyboard) are never corrected, so what is played is not what is written.
 
 | Scale | Names | Ratios | Harmonic numbers |
 |---|---|---|---|
-| otonal | C D♯ E F G A A♯ | 1/1 7/6 5/4 4/3 3/2 5/3 7/4 | multiples 12:14:15:16:18:20:21 of a low C |
+| otonal | C D♯ E F G A A𝄰 | 1/1 7/6 5/4 4/3 3/2 5/3 7/4 | multiples 12:14:15:16:18:20:21 of a low C |
 | utonal | C E𝄫 E♭ F G A♭ B𝄫 | 1/1 8/7 6/5 4/3 3/2 8/5 12/7 | a high C divided by 24, 21, 20, 18, 16, 15, 14 |
 
 They are mirror images built from the same numbers. Major, minor and none get
@@ -86,19 +86,19 @@ cents minus that step's equal-tempered cents. Pinned as tests:
 | 12 | 0 -33 -14 -2 +2 -16 -31 | 0 +31 +16 -2 +2 +14 +33 |
 | 19 | 0 +14 +7 -7 +7 0 +21 | 0 -21 0 -7 +7 -7 -14 |
 | 31 | 0 -4 -1 -5 +5 -6 +1 | 0 -1 +6 -5 +5 +1 +4 |
-| 53 | 0 -5 +1 0 0 +1 +18 | 0 +5 -1 0 0 -1 +5 |
+| 53 | 0 -5 +1 0 0 +1 -5 | 0 +5 -1 0 0 -1 +5 |
 
-(In order of the degrees above. 53-EDO's A♯ is a step below the nearest step to
-7/4; see Open.)
+(In order of the degrees above. The otonal 7/4 is spelled A𝄰, which every
+tuning but 53-EDO reads as A♯.)
 
 ### One pair, played together
 
 A song whose scale is otonal or utonal is tuned with the ratios of both: 11
-notes in 31 and 53-EDO (C, E𝄫, D♯, E♭, E, F, G, A♭, A, B𝄫, A♯), the shared
+notes in 31 and 53-EDO (C, E𝄫, D♯, E♭, E, F, G, A♭, A, B𝄫, A𝄰), the shared
 1/1, 4/3 and 3/2 agreeing. Any mix of the two is then pure: C E G, C E♭ G,
 F A C D♯ (an otonal chord on F, 4:5:6:7), B𝄫 C E♭ G (a utonal chord on G), each
 interval the quotient of the two ratios. In 12 and 19-EDO the two scales share
-keys (12: D♯/E♭ and A/B𝄫; 19: D♯/E𝄫 and A♯/B𝄫); there the song's own scale
+keys (12: D♯/E♭ and A/B𝄫; 19: D♯/E𝄫 and A𝄰/B𝄫); there the song's own scale
 takes the step and the other scale fills only the steps left free.
 
 ### The rule
@@ -299,9 +299,6 @@ pitch, so a section after them starts from there.
 
 ## Open
 
-- Phase 1: 53-EDO spells 7/4 as A♯, a step below its nearest step, so it carries
-  +18 cents. Fine within the fx range; respelling the degree would move the
-  Launchpad key too.
 - Phase 1: the Launchpad keyboard for the 11 notes. In 31-EDO only 11-13 of the
   64 pads land on a note of one scale; moving the tonic pad raises that to 18,
   and no other isomorphic step pair does better than 19. An in-key layout (rows
