@@ -57,7 +57,7 @@ works via the cardioid stereo decoder fallback.
 
 ### Windows
 
-Windows builds with MSYS2 UCRT64 (MinGW-w64 GCC; the DSP code needs GCC vector
+User-facing build instructions are in `docs/building.md`. Windows builds with MSYS2 UCRT64 (MinGW-w64 GCC; the DSP code needs GCC vector
 extensions), packages `mingw-w64-ucrt-x86_64-{gcc,cmake,ninja,fmt,libsndfile,
 soundtouch,libunistring,python}`. `SYNTH_BUILD_INTERACTIVE` (default ON, OFF on
 Windows) selects between the full `synth` and the render-only one
