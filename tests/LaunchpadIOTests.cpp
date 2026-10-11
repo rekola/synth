@@ -76,10 +76,12 @@ class FakeMidiPorts : public MidiPortBackend {
 };
 
 struct Rig {
+  // Declared first so it outlives the LaunchpadIO, whose destructor still
+  // sends (the LEDs going dark).
+  vector<FakeMidiPorts::Sent> log;
+  StderrLogger logger;
   FakeMidiPorts * fake = nullptr;
   unique_ptr<LaunchpadIO> io;
-  StderrLogger logger;
-  vector<FakeMidiPorts::Sent> log;
 
   Rig() {
     setIgnoreHardware(false);
