@@ -47,27 +47,22 @@ checked and found right, so it need not be checked again.
    `piano.electric.fm` uses 1.002 (ε = 0.002) and a 0.51 clang layer whose
    sidebands are inharmonic on purpose (docs/fm.md). State the ε per layer
    and the folded sidebands, or say "close to" instead of "at".
-5. **padsynth.md, `bells` and `bells-3`.** "Partials landing at
-   1,2,4,5,7,9,11,13,... rather than a plain harmonic series": partials at
-   whole-number multiples are a harmonic series with gaps, not an
-   inharmonic bell spectrum. Say "a harmonic series with gaps", or move the
-   partials off the whole numbers if a bell is wanted.
-6. **bus_effects.md, GranularCloud defaults.** "±15¢ would be below the
+5. **bus_effects.md, GranularCloud defaults.** "±15¢ would be below the
    threshold of perception": a pitch difference of 5 to 10 cents is
    noticeable, and grains detuned against each other beat. Give the reason
    the default is ±40¢ without the threshold claim.
-7. **Fokker's organ (README, drums-and-sequencer.md).** Built 1950 by the
+6. **Fokker's organ (README, drums-and-sequencer.md).** Built 1950 by the
    firm of Pels to Fokker's design and installed at Teylers Museum,
    Haarlem; it has been in the Muziekgebouw aan 't IJ, Amsterdam, since
    about 2009. Add where it is now. 31-EDO itself goes back to Huygens
    (*Novus cyclus harmonicus*, 1691), who related it to quarter-comma
    meantone; Fokker revived it. Name Huygens.
-8. **Fokker organ and Archiphone have keys, not pads**
+7. **Fokker organ and Archiphone have keys, not pads**
    (drums-and-sequencer.md, "Where it comes from" and "Pad colors").
-9. **Glossary, Groove: Renoise's groove.** "Four per-line amounts that repeat
+8. **Glossary, Groove: Renoise's groove.** "Four per-line amounts that repeat
    every four lines": each of the four sliders delays the second line of a
    pair, so the pattern repeats every eight lines (at four lines per beat).
-10. **README, tracker history.**
+9. **README, tracker history.**
     - "Scream Tracker, FastTracker 2 and Impulse Tracker added a volume column
       and lettered effect commands": the volume column and lettered commands
       came with Scream Tracker 3 (1994) and Impulse Tracker; FastTracker 2
@@ -113,6 +108,13 @@ checked and found right, so it need not be checked again.
    `correctionCentsInChord()`; it needs tests for the major-scale ii chord
    (which must still get its 10:9 D) and for the otonal and utonal pairs
    above.
+
+   The scale and the corrections: today a correction depends on the key and
+   the chord, never on the scale, so `set-song-scale` changes no note and
+   needs neither to retune nor to clear them. If the tuner starts reading
+   the scale (this option, or just intonation applied automatically when
+   notes are played and recorded), changing the scale must retune every note
+   that carries a correction, the way transposing already does.
 4. **31-EDO tunes B as 13:7.** The step chooser takes the ratio with the
    smallest numerator times denominator within 20 cents, which makes
    31-EDO's step 28 (B, the major seventh) 13:7 (height 91) instead of 15:8

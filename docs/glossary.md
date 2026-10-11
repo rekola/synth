@@ -124,7 +124,17 @@ A note's pitch offset in cents, stored in its fx as `+hh` or `-hh`
 (12/19/31/53 steps per octave).
 
 **Unison**
-The strings struck together for one piano key, tuned a cent or so apart (the
-additive `piano` preset uses 2.5 cents).
-Their slow beating, and their slightly different decay rates, give a piano
-note its shimmer and its double decay. See additive.md.
+Several sounds at the same pitch at once; as an interval, 1:1. Exactly alike
+they would only be louder, so a unison's character comes from small
+differences: a few cents of pitch, which beat slowly, and differences in
+timing and decay. Here it appears as:
+- instruments or tracks playing the same notes;
+- an `<oscillator>` with several `voices` at `ratio` 1, spread over `detune`
+  cents and each drifting on its own;
+- detuned copies of an instrument layered in a `<group>` (the `detune` of
+  `<fm>` and `<padsynth>`);
+- the strings struck together for one piano key (`unisonVoices` and
+  `unisonDetune` of `<additive>`), a cent or so apart on a real piano and
+  2.5 cents in the `piano` preset. Their beating and their slightly different
+  decay rates give a piano note its shimmer and its double decay; see
+  additive.md.

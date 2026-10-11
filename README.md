@@ -97,13 +97,8 @@ The application draws on several traditions.
   otonal and utonal scales borrow Partch's terms (1949) but are not his longer
   scales: they have seven notes each, and their intervals
   were derived by the methods in Kyle Gann's *The Arithmetic of Listening*
-  (2019). Choose the scale with `set-song-scale` (Song menu, *Set Scale...*).
-  It decides which notes the Launchpad's step view steps through; it does not
-  change the playing keyboard.
-- **Just intonation.** `apply-just-intonation-region` gives each note a tuning
-  correction in cents that moves it from the tuning's step to a just ratio,
-  chord by chord; see [docs/terminal.md](docs/terminal.md#just-intonation) and
-  the [glossary](docs/glossary.md).
+  (2019). The scale decides which notes the Launchpad's step view steps
+  through; it does not change the playing keyboard.
 
 ### Pianos and Just Intervals
 
