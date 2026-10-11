@@ -192,7 +192,36 @@ dropped, not an error.
   data. The OS dark/light preference, high contrast and reduced motion are
   read in the GPU backend.
 
-### Rendering (GPU backend)
+### Host for the window backend (open)
+
+Cell UI doesn't have to sit on SDL3. Its window backend can also be hosted by
+an existing toolkit. The toolkit then only supplies windows, input, text,
+menus and dialogs, while the cells, styles, spans and icons are still drawn
+by our code into one surface. That is different from a Qt or wxWidgets UI:
+no widget is rewritten, the app still only sees Cell UI, and the terminal
+backend is unaffected.
+
+| Host | Gives us | Costs us |
+|---|---|---|
+| SDL3 (the plan above) | Small, simple, game-style rendering freedom (SDL_GPU) | Native menus, IME details, font fallback, accessibility adapters, i18n tooling are all ours (the "lack" table below) |
+| Qt 6 | Nearly the whole "lack" table: accessibility (UIA/AT-SPI through `QAccessibleInterface`, which we implement for the grid), IME, HarfBuzz shaping and font fallback, HiDPI, translation tooling, native menus on Windows and a native-looking menu bar on Linux (with KDE's global menu), modal dialogs, native file dialogs. Qt Quick's scene graph renders through Vulkan/D3D/Metal with custom shaders, so shadows, blur, layers and 3D transforms stay possible; Qt Quick 3D XR covers a headset later | Large runtime (tens of MB in the installer), Qt's build tooling, Qt's event loop on the main thread, LGPL obligations for an MIT project (dynamic linking, relinkable), and some modules (Qt Quick 3D among them) are GPL or commercial only, which rules them out unless the licence changes |
+| wxWidgets | Truly native menus and dialogs on every platform, GTK ones on Linux; lighter than Qt; a licence that allows static linking | A GPU surface (`wxGLCanvas`) inside native widgets is the weak spot, especially on Wayland; accessibility outside Windows is thin, and IME into a custom-drawn surface is ours again; effects need our own OpenGL anyway |
+| Dear ImGui | Fast tool and debug panels | Nothing on the "lack" table: it needs a platform layer (SDL3 itself), draws its own menus, and has no accessibility or real IME. Useful at most for developer panels inside the window backend, not as the host |
+
+Recommendation: **Qt 6 as the host**, using only its LGPL modules (Core,
+Gui, Quick, and Widgets only for the menu bar and dialogs if Quick's aren't
+enough). The biggest risk of a custom toolkit is the long tail of
+accessibility, IME, fonts, translation and platform menus, and Qt removes
+most of it, leaving us the part that is actually ours: the cell grid and its
+look. The cost is size and build weight, not a second UI. Keep the Cell UI
+API free of Qt types, so the host can still be swapped for SDL3 later.
+
+Before committing to either, a short spike: the pattern editor drawn
+through a minimal window backend on each host (cells, glyph atlas, one
+shadowed popup, a menu, a modal dialog), compared on Linux and Windows for
+looks, input latency, idle CPU and installer size.
+
+### Rendering (GPU backend, SDL3 host)
 
 - **SDL3** handles windows, input, IME, dialogs, popups, clipboard and file
   drops on Linux (X11/Wayland) and Windows. It is in MSYS2, and is vendored
@@ -380,7 +409,7 @@ that bounded:
    e2e results.
 3. Keymap profiles (emacs/standard) in the app's keymap layer, the standard
    one built from verified bindings, usable in the terminal already.
-4. GPU backend: main window, cells, text, input, popups, dialogs, file
+4. Host spike (above), then the GPU backend: main window, cells, text, input, popups, dialogs, file
    dialogs, menus (native on Windows), `--ui window|terminal`, default
    chosen by whether a display is available.
 5. Styles beyond the terminal: geometry, spans, borders, gradients, radius,
