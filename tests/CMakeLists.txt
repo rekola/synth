@@ -139,5 +139,5 @@ endif()
 # Draws with canvas' Cairo backend; the GDI+ one joins when the terminal UI
 # reaches Windows.
 if(NOT WIN32)
-  target_sources(synth_tests PRIVATE ../src/ui/SpectrumImage.cpp SpectrumImageTests.cpp)
+  target_sources(synth_tests PRIVATE ../src/ui/SpectrumImage.cpp SpectrumImageTests.cpp ../src/ui/HeatmapImage.cpp HeatmapImageTests.cpp)
 endif()
