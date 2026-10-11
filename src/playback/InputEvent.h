@@ -218,7 +218,7 @@ class InputEvent : public Event {
       switch (id_) {
       case 'z': return base + 265; // C
       case '1': return base + 268; // C#
-      case 'q': return base + 270; // Db
+      case 'q': return base + 270; // D𝄭
       case '2': return base + 272; // Cx
       case 'w': return base + 274; // D
       case 's': return base + 275; // E𝄫

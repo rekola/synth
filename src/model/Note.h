@@ -356,11 +356,13 @@ class Note {
 	}
 
 	if (accidental == "x" || accidental == "𝄪") value += 2;
-	else if (accidental == "#" || accidental == "♯") value += 1;
+        else if (accidental == "#" || accidental == "♯" || accidental == "𝄱" || accidental == "𝄰")
+          value += 1;
 	else if (accidental == "bb" || accidental == "𝄫") value -= 2;
-	else if (accidental == "b" || accidental == "♭") value -= 1;
+        else if (accidental == "b" || accidental == "♭" || accidental == "𝄭" || accidental == "𝄬")
+          value -= 1;
 	else {
-	  assert(accidental.empty() || accidental == "-" || accidental == "♮");
+          assert(accidental.empty() || accidental == "-" || accidental == "♮" || accidental == "𝄮" || accidental == "𝄯");
 	}
 
 	return value;
