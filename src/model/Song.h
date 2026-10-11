@@ -274,7 +274,7 @@ class Song : public SongObject {
 	song_.edit_kind_ = kind;
 	song_.edit_wrote_ = false;
 	if (typing) song_.joinTypingRun();
-	else song_.typing_count_ = 0;
+	else if (!song_.doc_->inGroup()) song_.typing_count_ = 0; // the keys of a chord are steps of the run, not breaks in it
 	song_.doc_->begin(label, origin == Origin::USER, typing);
       } else if (kind == Kind::STRUCTURE) {
 	song_.edit_kind_ = Kind::STRUCTURE;
@@ -321,6 +321,16 @@ class Song : public SongObject {
   static constexpr int kTypingRunLimit = 20;
   static constexpr std::chrono::milliseconds kTypingIdle{2000};
   void breakTypingRun() { typing_count_ = 0; doc_->breakAmalgamation(); }
+  // Ends an undo group that was one step of a typing run (the notes of one
+  // chord): it joins the open run, under the same idle and length limits as
+  // a typed edit, or starts a new one.
+  void endTypingGroup() {
+    auto now = std::chrono::steady_clock::now();
+    bool join = typing_count_ > 0 && typing_count_ < kTypingRunLimit && now - typing_time_ < kTypingIdle;
+    typing_time_ = now;
+    typing_count_ = join ? typing_count_ + 1 : 1;
+    doc_->endGroup(true, join);
+  }
 
   // Undo and redo (doc/UndoHistory.h). Both return false when there is
   // nothing to do, and always while a live take is open (the take is one

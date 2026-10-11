@@ -1340,6 +1340,7 @@ class Controller {
   // tracks, or the next mirror would put the old values back.
   void resendTrackStateToAudio();
   bool note_held_ = false;
+  bool undo_group_chord_only_ = false; // the open undo group is only the keys of a chord
   std::shared_ptr<Song> undo_group_song_;
   int auto_record_sessions_ = 0;
   // setClipGridFocused()/setClipGridCursor()'s own backing fields -

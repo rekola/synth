@@ -95,10 +95,10 @@ the cursor leaves the cell, the pattern editor loses focus or any other key is
 pressed; Enter commits it and moves to the next column. A delay needs a note (or
 aftertouch) to belong to, so typing one on an empty column is refused; a velocity
 there makes an aftertouch. A command is text and is written as it is typed. Typed digits are amalgamated as Emacs does with typed characters: the hex
-digits of a velocity or delay and the characters of a command, run on from one
-cell to the next, undo as one step. The run ends when you move the cursor or
-press any other command, edit something else, pause for two seconds, or reach
-20 edits.
+digits of a velocity or delay, the characters of a command, and typed notes
+(a chord counts as one, an off or a delete as one), run on from one cell to the
+next, undo as one step. The run ends when you move the cursor or press any
+other command, edit something else, pause for two seconds, or reach 20 edits.
 
 The keys of a chord are one step, however long they are held (on a terminal
 that reports key releases). Held keys behave alike in both views: the cursor

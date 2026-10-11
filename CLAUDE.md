@@ -1569,7 +1569,8 @@ would otherwise resume showing.
   (`Document::begin(..., amalgamate)`) while the run is unbroken
   (`Song::breakTypingRun()` from `PatternEditor` on any non-typing key, an
   idle gap, `kTypingRunLimit`), so velocity/delay digits and command
-  characters undo together; note entry does not use it yet. An undo or redo whose change
+  characters and typed notes undo together (the keys of a chord are a group, `Document::endGroup(typing_run, join)` /
+  `Song::endTypingGroup()`, that is one step of the run). An undo or redo whose change
   is in a clip that is playing, queued or recording is refused
   (`Song::nextUndoPlace()`/`nextRedoPlace()` say where it would land before it
   does). Held note keys keep a group open

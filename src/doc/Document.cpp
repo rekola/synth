@@ -272,20 +272,17 @@ void Document::commit() {
 
 void Document::beginGroup(const std::string & label) {
   assert(!in_group_ && depth_ == 0);
+  group_run_ = amalgam_sequence_;
   amalgam_sequence_ = 0;
   in_group_ = true;
   group_start_ = journal_.size();
   group_label_ = label;
 }
 
-void Document::endGroup() {
+void Document::endGroup(bool typing_run, bool join) {
   assert(in_group_);
   in_group_ = false;
   amalgam_sequence_ = 0;
-  if (journal_.size() <= group_start_ + 1) {
-    if (journal_.size() == group_start_ + 1 && journal_.back().tracked) journal_.back().label = group_label_;
-    return;
-  }
   // Untracked entries (the audio thread's mirror writes) stay entries of
   // their own, before the merged one, so undoing the group never undoes them.
   JournalEntry merged;
@@ -300,8 +297,18 @@ void Document::endGroup() {
   journal_.erase(journal_.begin() + static_cast<std::ptrdiff_t>(group_start_), journal_.end());
   for (auto & entry : untracked) journal_.push_back(std::move(entry));
   if (merged.ops.empty()) return;
+  // Carrying on the run that was open before the group: the entry just ahead
+  // of it, if nothing came between.
+  if (typing_run && join && group_run_ != 0 && group_start_ > 0 && untracked.empty() && journal_.size() == group_start_ &&
+      journal_.back().sequence == group_run_ && journal_.back().tracked) {
+    auto & into = journal_.back();
+    into.ops.insert(into.ops.end(), merged.ops.begin(), merged.ops.end());
+    amalgam_sequence_ = into.sequence;
+    return;
+  }
   merged.sequence = ++sequence_;
   journal_.push_back(std::move(merged));
+  if (typing_run) amalgam_sequence_ = journal_.back().sequence;
 }
 
 std::vector<Op> Document::inverse(const JournalEntry & entry) {

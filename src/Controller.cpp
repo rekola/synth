@@ -1413,15 +1413,19 @@ Controller::extendClipRecordingClipIfNeeded(int track_id, int absolute_step) {
 void
 Controller::updateUndoGroup() {
   bool want = isAnyClipRecording() || auto_record_sessions_ > 0 || note_held_ || (isNoteCaptureArmed() && getPlaybackInfo().isPlaying());
+  if (undo_group_song_ && (isAnyClipRecording() || auto_record_sessions_ > 0 || (isNoteCaptureArmed() && getPlaybackInfo().isPlaying()))) undo_group_chord_only_ = false;
   if (want == (undo_group_song_ != nullptr)) return;
   if (want) {
     auto song = getCurrentSong();
     if (!song || song->inEdit() || song->document().inGroup()) return;
     song->document().beginGroup("record take");
     undo_group_song_ = song;
+    undo_group_chord_only_ = !isAnyClipRecording() && auto_record_sessions_ == 0 && !(isNoteCaptureArmed() && getPlaybackInfo().isPlaying());
   } else {
     if (undo_group_song_->inEdit()) return; // closed by the next call, from the frame loop
-    undo_group_song_->document().endGroup();
+    // The notes of a chord are one step of the run of typed notes; a take is a step of its own.
+    if (undo_group_chord_only_) undo_group_song_->endTypingGroup();
+    else undo_group_song_->document().endGroup();
     undo_group_song_.reset();
   }
 }
