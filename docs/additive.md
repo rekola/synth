@@ -21,21 +21,15 @@ decay is a *timbral* effect, the note's brightness fading as it ages; the parent
 `<envelope>` still governs overall amplitude, so give a piano a long decay stage
 and `sustain="0"` rather than letting the envelope shorten the strings.
 
-## Tuning
+## Partials
 
-With `tuningMatched` (the default) every partial sits on the nearest step of the
-song's tuning, `2^(round(N·log2 n)/N)` for `N` steps per octave, so the partials
-two chord tones share meet exactly when the interval is one of the tuning's own.
-In 31-EDO, partial 3 is 5.2 cents flat of 3:1, and the shared partials of 7:6,
-8:7, 7:4 and 12:7 (the lower note's 7th, 8th, 7th and 12th) land on the same
-step as the upper note's 6th, 7th, 4th and 7th. `N` is read from the song's
-current tuning when the note starts; `Tuning::PERCUSSION` has no steps, so
-partials are plain harmonics there.
+Partials sit at plain harmonics; the song's tuning only picks the note's
+fundamental. Tuning corrections on notes handle just intonation.
 
 `stretch` (ε) adds a small, bounded inharmonicity: partial n sits at
-`grid(n) + (n-1)·ε` times the fundamental, the same form the FM electric pianos
+`n + (n-1)·ε` times the fundamental, the same form the FM electric pianos
 get from a modulator at 1+ε. The fundamental is never moved, partial n is at
-most about `1200·log2(1+ε)` cents above its grid position (1.7 cents at
+most about `1200·log2(1+ε)` cents above its harmonic (1.7 cents at
 ε = 0.001), and the partials two notes share differ by at most about ε times the
 lower note's fundamental for intervals up to an octave. A stiff string's
 `n·sqrt(1+B·n²)` stretch is not used: it would detune exactly the partials
@@ -96,7 +90,6 @@ spread around the track's position, so the body is wider than the strings.
 |---|---|
 | `preset` | Below. Supplies every other attribute's default; an explicit attribute overrides it. An unknown name is `default`. |
 | `partials` | Modes per string (those past Nyquist are skipped). |
-| `tuningMatched` | `false` leaves partials at plain harmonics (plus `stretch`). Default `true`. |
 | `stretch` | ε above. |
 | `unisonVoices` / `unisonDetune` | Strings per note and their spacing in cents. |
 | `excitation` | `hammer` or `pluck`. |
@@ -138,8 +131,8 @@ of a real instrument.
 
 | Preset | Character |
 |---|---|
-| `default` | A plain struck string: one string, partials on the tuning, a mild hammer, moderate decay. |
-| `piano` | Three strings 2.5 cents apart, 80 partials on the tuning with `stretch` 0.003, struck at 1/8 by a hammer with a 3 kHz corner that rises with the key, outer strings decaying 70% faster and slower, bass ringing longer, a five-mode body knocking harder on low keys, spread 90°. The library's `piano.acoustic.grand` when the SoundFont has no piano; a SoundFont's own piano wins. |
+| `default` | A plain struck string: one string, harmonic partials, a mild hammer, moderate decay. |
+| `piano` | Three strings 2.5 cents apart, 80 harmonic partials with `stretch` 0.003, struck at 1/8 by a hammer with a 3 kHz corner that rises with the key, outer strings decaying 70% faster and slower, bass ringing longer, a five-mode body knocking harder on low keys, spread 90°. The library's `piano.acoustic.grand` when the SoundFont has no piano; a SoundFont's own piano wins. |
 | `guitar-nylon` | One string plucked at 1/5 with a soft fingertip (1.5 kHz), high partials dying quickly, a small body. |
 | `guitar-steel` | The same with a bright pick (5 kHz), a longer ring, more stretch. |
 | `harp` | Long decays lengthening strongly toward the bass, strings spread 60° across the keyboard. |

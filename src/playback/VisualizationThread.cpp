@@ -100,9 +100,14 @@ VisualizationThread::handleAudioBlockEvent(AudioBlockEvent & ev) {
   // they hold zeros themselves (and have said so); after that there is
   // nothing left to compute and the result carries just the meter.
   if (silent && spectrum_.atRest() && dirac_zero_sent_) {
+    // Everything reads zero. The meter's bars need zeros for a while to fall
+    // to nothing; after that a repeat tells the UI nothing, so it is not sent
+    // and the UI sleeps until sound returns.
+    if (++rest_results_ > rest_results_limit_) return;
     controller_->getUIEventQueue().push(move(result));
     return;
   }
+  rest_results_ = 0;
   if (!silent) dirac_zero_sent_ = false;
 
   decode_mixer_->reset();

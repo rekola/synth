@@ -1,5 +1,4 @@
 #include "AdditiveModel.h"
-#include "SpectralBandProfile.h"
 #include "../dsp/HashField.h"
 
 #include <algorithm>
@@ -26,9 +25,8 @@ constexpr float kReferenceVelocity = 0.5f;
 constexpr double kNoteRms = 0.5;
 } // namespace
 
-float additivePartialRatio(int n, int partials, float stretch, int edo_steps, bool tuning_matched) {
-  float grid = tuningMatchedPartialRatio(n, edo_steps, partials, tuning_matched);
-  return grid + static_cast<float>(n - 1) * stretch;
+float additivePartialRatio(int n, float stretch) {
+  return static_cast<float>(n) + static_cast<float>(n - 1) * stretch;
 }
 
 float unisonOffsetCents(int string, int strings, float spacing_cents, const NoteCoordinate & coord) {
@@ -95,7 +93,7 @@ buildPartialSpecs(const AdditiveModelParams & params, const NoteContext & note) 
   // Frequency ratio of mode n of the string or bar.
   auto ratio = [&](int n) {
     return bar ? params.modes[static_cast<size_t>(n - 1)]
-               : additivePartialRatio(n, partials, params.stretch, note.edo_steps, params.tuning_matched);
+               : additivePartialRatio(n, params.stretch);
   };
 
   // Starting level of each mode before normalising: the excitation's

@@ -13,7 +13,6 @@
 #include "../ambisonic/ChannelConfiguration.h"
 
 #include <memory>
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -33,14 +32,10 @@ unique_ptr<EnvelopeFilter> makeEnvelope(float attack, float hold, float decay, f
   return env;
 }
 
-// tuning_matched left unset (nullopt) means "keep the named preset's own
-// default" - only set it to actually differentiate a pad from another one
-// sharing the same base preset.
-unique_ptr<PadSynth> makePadSynth(const string & preset, optional<bool> tuning_matched = nullopt, float detune_cents = 0.0f) {
+unique_ptr<PadSynth> makePadSynth(const string & preset, float detune_cents = 0.0f) {
   auto pad = make_unique<PadSynth>();
   MemoryParameterSource params;
   params.set("preset", preset);
-  if (tuning_matched) params.set("tuningMatched", *tuning_matched);
   if (detune_cents != 0.0f) params.set("detune", detune_cents);
   pad->loadParameters(params);
   return pad;
@@ -51,10 +46,9 @@ unique_ptr<PadSynth> makePadSynth(const string & preset, optional<bool> tuning_m
 // directly in C++ via MemoryParameterSource rather than parsed from an
 // XML string, the same round-trip-without-XML technique SongState::
 // initialize() already uses for bus-slot effects.
-unique_ptr<Track> makeEnvelopePad(const string & padsynth_preset, float attack, float hold, float decay, float sustain, float release,
-                                   optional<bool> tuning_matched = nullopt) {
+unique_ptr<Track> makeEnvelopePad(const string & padsynth_preset, float attack, float hold, float decay, float sustain, float release) {
   auto env = makeEnvelope(attack, hold, decay, sustain, release);
-  env->addChild(makePadSynth(padsynth_preset, tuning_matched));
+  env->addChild(makePadSynth(padsynth_preset));
   return env;
 }
 
@@ -70,7 +64,7 @@ unique_ptr<Track> makeEnsemblePad(const string & padsynth_preset, int copies, fl
   auto group = make_unique<Group>();
   for (int k = 0; k < copies; k++) {
     float cents = copies > 1 ? -detune_cents / 2.0f + detune_cents * static_cast<float>(k) / static_cast<float>(copies - 1) : 0.0f;
-    group->addChild(makePadSynth(padsynth_preset, nullopt, cents));
+    group->addChild(makePadSynth(padsynth_preset, cents));
   }
   env->addChild(std::move(group));
   return env;
@@ -294,7 +288,7 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   registerNamed(provider, "brass.synth.soft", "Soft Synth Brass", makeEnvelopePad("saw-piano", 0.25f, 0.0f, 0.3f, 0.9f, 0.6f));
 
   // Additive piano - <envelope>+<additive preset="piano">: three strings a
-  // cent apart, every partial on the song's tuning, so septimal chords stay
+  // cent apart, harmonic partials, so septimal chords stay
   // in tune. Sustain 0 with a long decay stage (8s, past where the bank's own
   // per-partial decay has gone inaudible - see SinusoidBank's -90dB culling)
   // so the envelope never audibly truncates the tail, and a short release

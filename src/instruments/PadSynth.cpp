@@ -14,7 +14,7 @@ PadSynth::playNote(const ChannelConfiguration & config, const SphericalPosition 
   // render() has no modulator input point (it reads straight from the
   // wavetable), so forwarding children into it would just construct and
   // track voices whose output is never actually consumed.
-  ensureWavetable(config, tuning);
+  ensureWavetable(config);
   auto placed = spatial::placeGeneric(position, spatial_mode, note_coord.getColumn(), tuning, note_value);
 
   detune *= powf(2.0f, detune_cents_ / 1200.0f);
@@ -30,7 +30,7 @@ PadSynth::playNote(const ChannelConfiguration & config, const SphericalPosition 
 
 void
 PadSynth::prewarm(const ChannelConfiguration & config, Tuning tuning, int note_value) const {
-  ensureWavetable(config, tuning);
+  ensureWavetable(config);
   // ensureWavetable() only constructs the (cheap) PadSynthTable
   // object itself - the actual expensive table generation happens lazily
   // inside its own getTable(f0), normally not called until a voice's
@@ -40,22 +40,17 @@ PadSynth::prewarm(const ChannelConfiguration & config, Tuning tuning, int note_v
 }
 
 void
-PadSynth::ensureWavetable(const ChannelConfiguration & config, Tuning tuning) const {
+PadSynth::ensureWavetable(const ChannelConfiguration & config) const {
   // (Re)built the first time this instrument is actually played (or
-  // prewarm()ed), or if the output sample rate or the song's own tuning
+  // prewarm()ed), or if the output sample rate
   // has changed since - see this class's header comment for why prepare()
-  // can't do this instead. N (edo_steps) comes from the engine's own
-  // current tuning, not a hardcoded constant, so a tuning-matched table
-  // always snaps to whatever scale the song is actually using.
-  int edo_steps = edoStepsFor(tuning);
-  if (!wavetable_ || wavetable_->getSampleRate() != config.getAudioOutSampleRate() || wavetable_tuning_ != tuning) {
+  // can't do this instead.
+  if (!wavetable_ || wavetable_->getSampleRate() != config.getAudioOutSampleRate()) {
     // PadSynthTable owns a full copy of the preset's own
     // oscillator/profile/position data - only the instance-level
-    // overrides (tuning/remap/seed) come from this instrument's own XML
+    // overrides (remap/seed) come from this instrument's own XML
     // attributes.
     PadSynthParams params = getPadSynthPreset(preset_);
-    params.edo_steps = edo_steps;
-    params.tuning_matched = tuning_matched_;
     params.envelope_anchor_hz = envelope_anchor_hz_;
     params.envelope_tracking = envelope_tracking_;
     params.postprocess_kind = envelope_postprocess_ == "residue" ? SpectralPostprocessKind::ResidueClassWeighting
@@ -66,7 +61,6 @@ PadSynth::ensureWavetable(const ChannelConfiguration & config, Tuning tuning) co
     params.postprocess_amount = envelope_postprocess_amount_;
     params.seed = seed_;
     wavetable_ = std::make_shared<PadSynthTable>(config.getAudioOutSampleRate(), std::move(params));
-    wavetable_tuning_ = tuning;
   }
 }
 
@@ -80,7 +74,6 @@ PadSynth::loadParameters(const ParameterSource & input) {
   // Explicit attributes override their preset's own default, the same
   // "preset supplies defaults, an authored attribute always wins" shape
   // TapeDegradation::loadParameters() already uses.
-  tuning_matched_ = input.get<bool>("tuningMatched", preset.tuning_matched);
   level_ = input.get<float>("level", 1.0f);
   detune_cents_ = input.get<float>("detune", 0.0f);
   seed_ = static_cast<uint64_t>(input.get<int>("seed", 1));
@@ -106,7 +99,6 @@ PadSynth::storeParameters(ParameterSource & output) const {
 
   auto & preset = getPadSynthPreset(preset_);
   output.set("preset", preset_, std::string("strings"));
-  output.set("tuningMatched", tuning_matched_, preset.tuning_matched);
   output.set("level", level_, 1.0f);
   output.set("detune", detune_cents_, 0.0f);
   output.set("seed", static_cast<int>(seed_), 1);

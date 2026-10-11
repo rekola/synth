@@ -111,6 +111,8 @@ class ScenePatternSource : public PatternSource {
   // loop wrapped, beyond the rows it played; reset by the call. The view
   // moves by the same so the line carries on down the screen.
   int takeCursorJump() { auto jump = cursor_jump_; cursor_jump_ = 0; return jump; }
+  // True while any track has a launched clip (its playhead moves on its own).
+  bool anyPlaying() const;
 
  private:
   // Always the active buffer's song - it changes when the buffer does.

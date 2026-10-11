@@ -44,6 +44,7 @@
 #include "../../bus/BusEffectRegistry.h"
 
 #include <cstdio>
+#include <ctime>
 #include <cstdlib>
 #include <clocale>
 #include <cassert>
@@ -2336,6 +2337,12 @@ TerminalUI::renderComponents(bool refresh) {
   refresh = refresh || force_next_render_;
   force_next_render_ = false;
   bool render = false;
+  // Scopes coming back on screen start empty at once: a silent analysis sends
+  // nothing more to replace what they held.
+  if (scopes_stale_ && scopes_on_screen_) {
+    blankScopes();
+    render = true;
+  }
   auto active = active_element_.lock();
   auto & song = getController().getSong();
   // The shared/global track selection - Song's own, not any one widget's
@@ -2772,22 +2779,36 @@ TerminalUI::handlePlaybackEvent(PlaybackEvent & ev) {
 
   // Redraw only for a snapshot that shows something new: a block of idle
   // audio repeats the last one.
-  auto mix = [](uint64_t h, uint64_t v) { return (h ^ v) * 1099511628211ULL; };
-  auto bits = [](float f) { uint32_t u; std::memcpy(&u, &f, sizeof u); return static_cast<uint64_t>(u); };
-  auto & info = ev.getInfo();
-  uint64_t signature = 14695981039346656037ULL;
-  for (uint64_t v : { static_cast<uint64_t>(info.isPlaying()), static_cast<uint64_t>(info.getAbsolutePosition()), static_cast<uint64_t>(info.getSamplePos()),
-                      static_cast<uint64_t>(info.getVoiceCount()), static_cast<uint64_t>(info.getAllocatedVoiceCount()), static_cast<uint64_t>(info.getLiveClock()),
-                      static_cast<uint64_t>(info.getLiveSeq()), static_cast<uint64_t>(info.getSceneSeq()), static_cast<uint64_t>(info.getTempo()) }) signature = mix(signature, v);
-  for (auto track_id : getController().getSong().getRootTrackIds()) {
-    auto & track = info.getTrackInfo(track_id);
-    signature = mix(signature, bits(track.getMeterValue()) + (track.isActive() ? 1 : 0) + (track.isClipping() ? 2 : 0));
-    for (auto & voice : info.getActiveVoices(track_id)) signature = mix(mix(signature, static_cast<uint64_t>(voice.note_value)), bits(voice.loudness));
+  auto signature = ev.getInfo().signature();
+  if (g_ui_stats_on && signature != last_playback_signature_) {
+    // Which part of the snapshot differs, for SYNTH_UI_STATS.
+    auto parts = ev.getInfo().signatureParts();
+    for (size_t i = 0; i < parts.size() && i < last_playback_parts_.size(); i++) {
+      if (parts[i].second != last_playback_parts_[i]) statCount(std::string("changed:") + parts[i].first);
+    }
+    last_playback_parts_.clear();
+    for (auto & part : parts) last_playback_parts_.push_back(part.second);
   }
   if (signature != last_playback_signature_) {
     last_playback_signature_ = signature;
     ev.redraw();
   }
+}
+
+// Shows the scopes empty and forgets what they held, so the next result
+// redraws them whatever it equals.
+void
+TerminalUI::blankScopes() {
+  scopes_stale_ = false;
+  chart_->clear();
+  heatmap_->setGrid(std::vector<float>(DiracAnalyzer::kGridSize, 0.0f), std::vector<float>(DiracAnalyzer::kGridSize, 0.0f));
+  heatmap_->commit();
+  volume_meter_->clear(last_meter_label_);
+  last_fft_.clear();
+  last_brightness_.clear();
+  last_saturation_.clear();
+  last_loudness_.clear();
+  dirac_running_max_ = 0.0f;
 }
 
 void
@@ -2804,18 +2825,10 @@ TerminalUI::handleVisualizationResultEvent(VisualizationResultEvent & ev) {
   // Scopes that are off screen aren't updated at all.
   if (!superseded && scopes_on_screen_) {
     if (scopes_stale_) {
-      scopes_stale_ = false;
-      chart_->clear();
-      heatmap_->setGrid(std::vector<float>(DiracAnalyzer::kGridSize, 0.0f), std::vector<float>(DiracAnalyzer::kGridSize, 0.0f));
-      heatmap_->commit();
-      volume_meter_->clear(ev.getMeterLabel());
-      last_fft_.clear();
-      last_brightness_.clear();
-      last_saturation_.clear();
-      last_loudness_.clear();
-      dirac_running_max_ = 0.0f;
+      blankScopes();
       changed = true;
     }
+    last_meter_label_ = ev.getMeterLabel();
     // Raw, pre-mixdown per-channel levels (ambisonic bus, then always
     // AuxA/AuxB last - see VisualizationThread.cpp) rather than the final
     // decoded L/R output.
@@ -3069,17 +3082,28 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
   auto last_frame = std::chrono::steady_clock::now() - kMinFrameInterval;
   bool frame_pending = false;
   bool render_pending = false; // a redraw asked for while the frame was held back
+  // Between events that ask for nothing, frames come this seldom: the widgets
+  // have nothing new to find, and the audio thread wakes the loop ~190 times
+  // a second even when paused.
+  constexpr auto kIdleFrameInterval = std::chrono::milliseconds(100);
 
   // SYNTH_UI_STATS=<file>: once a second, what woke the UI thread and what it
   // drew, to find where idle CPU goes.
   const char * stats_path = getenv("SYNTH_UI_STATS");
   g_ui_stats_on = stats_path != nullptr;
   auto stats_since = std::chrono::steady_clock::now();
+  timespec stats_cpu_since {};
+  clock_gettime(CLOCK_THREAD_CPUTIME_ID, &stats_cpu_since);
   auto count = [](const std::string & what) { statCount(what); };
 
   while ( !shouldClose() ) {
     bool render = false;
+    bool other_wake = false; // input, MIDI, Launchpad or stderr woke the loop, not just the event queue
     if (stats_path && std::chrono::steady_clock::now() - stats_since >= std::chrono::seconds(1)) {
+      timespec cpu_now {};
+      clock_gettime(CLOCK_THREAD_CPUTIME_ID, &cpu_now);
+      g_ui_stats["cpu_us"] = static_cast<int>((cpu_now.tv_sec - stats_cpu_since.tv_sec) * 1000000L + (cpu_now.tv_nsec - stats_cpu_since.tv_nsec) / 1000L);
+      stats_cpu_since = cpu_now;
       if (FILE * f = fopen(stats_path, "a")) {
 	for (auto & [ what, n ] : g_ui_stats) fprintf(f, "%s=%d ", what.c_str(), n);
 	fputs("\n", f);
@@ -3107,16 +3131,21 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
 	auto & d = descriptors[i];
 	if (d.revents) {
 	  count("fd" + std::to_string(i));
+	  if (i != 1) other_wake = true;
 	  if (i == 0) {
 	    render |= readInput();
 	  } else if (i == 1) {
 	    auto event = getController().getUIEventQueue().pop();
+	    auto t0 = std::chrono::steady_clock::now();
 	    handleEvent(*event);
+	    if (stats_path) g_ui_stats["us:" + std::string(typeid(*event).name())] += static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - t0).count());
 	    if (stats_path) { count(typeid(*event).name()); if (event->needRedraw()) count("redraw:" + std::string(typeid(*event).name())); }
 	    if (event->needRedraw()) render = true;
 	    while ( getController().getUIEventQueue().hasEvents() ) {
 	      auto next_event = getController().getUIEventQueue().pop();
+	      auto t1 = std::chrono::steady_clock::now();
 	      handleEvent(*next_event);
+	      if (stats_path) g_ui_stats["us:" + std::string(typeid(*next_event).name())] += static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - t1).count());
 	      if (stats_path) { count(typeid(*next_event).name()); if (next_event->needRedraw()) count("redraw:" + std::string(typeid(*next_event).name())); }
 	      if (next_event->needRedraw()) render = true;
 	    }
@@ -3171,6 +3200,10 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
     if (poll_result > 0 || frame_pending) {
       render_pending |= render;
       auto now = std::chrono::steady_clock::now();
+      if (!other_wake && !render_pending && !frame_pending && now - last_frame < kIdleFrameInterval) {
+	count("idle-wake-skipped");
+	continue;
+      }
       if (now - last_frame < kMinFrameInterval) {
 	frame_pending = true;
 	continue;
@@ -3180,7 +3213,9 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
       render = render_pending;
       render_pending = false;
 
+      auto t2 = std::chrono::steady_clock::now();
       bool components = renderComponents();
+      if (stats_path) g_ui_stats["us:renderComponents"] += static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - t2).count());
       count("frame");
       if (components) count("frame:components-asked-redraw");
       render |= components;

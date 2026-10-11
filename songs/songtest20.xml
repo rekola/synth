@@ -12,14 +12,14 @@
         <envelope id="i3" name="Additive Struck-String" attack="0.0049999999" hold="0" decay="1.5" sustain="0.30000001" release="0.5" keynumToHold="0" keynumToDecay="0">
             <additive preset="default"/>
         </envelope>
-        <envelope id="i4" name="PadSynth Bells (matched)" attack="0.02" hold="0" decay="0.80000001" sustain="0.5" release="1.2" keynumToHold="0" keynumToDecay="0">
+        <envelope id="i4" name="PadSynth Bells" attack="0.02" hold="0" decay="0.80000001" sustain="0.5" release="1.2" keynumToHold="0" keynumToDecay="0">
             <padsynth preset="bells"/>
         </envelope>
-        <envelope id="i5" name="PadSynth Bells" attack="0.02" hold="0" decay="1" sustain="0.30000001" release="1.5" keynumToHold="0" keynumToDecay="0">
-            <padsynth preset="bells" tuningMatched="false"/>
+        <envelope id="i5" name="PadSynth Bells (long)" attack="0.02" hold="0" decay="1" sustain="0.30000001" release="1.5" keynumToHold="0" keynumToDecay="0">
+            <padsynth preset="bells"/>
         </envelope>
-        <envelope id="i6" name="PadSynth Strings (unmatched)" attack="0.050000001" hold="0" decay="0.60000002" sustain="0.69999999" release="1" keynumToHold="0" keynumToDecay="0">
-            <padsynth tuningMatched="false"/>
+        <envelope id="i6" name="PadSynth Strings" attack="0.050000001" hold="0" decay="0.60000002" sustain="0.69999999" release="1" keynumToHold="0" keynumToDecay="0">
+            <padsynth/>
         </envelope>
         <instrument id="i7" from="piano.electric.tine"/>
         <instrument id="i8" from="piano.electric.grand"/>

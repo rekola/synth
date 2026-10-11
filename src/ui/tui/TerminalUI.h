@@ -128,6 +128,7 @@ private:
   // unchanged display needs no redraw (a pixel blit is the costly part).
   std::vector<float> last_fft_, last_loudness_;
   std::vector<int> last_brightness_, last_saturation_;
+  std::vector<uint64_t> last_playback_parts_; // SYNTH_UI_STATS only
   uint64_t last_playback_signature_ = 0; // of the last playback snapshot that was drawn
 
   std::shared_ptr<InfoLine> info_line_;
@@ -168,6 +169,8 @@ private:
   // they were hidden, and a silent analysis sends nothing more to replace
   // it, so the next result starts them empty.
   bool scopes_stale_ = false;
+  std::string last_meter_label_; // the legend of the last result, for blanking
+  void blankScopes();
   // What syncLiveView() last left both widgets showing.
   int synced_track_id_ = -1, laid_out_clip_grid_height_ = -1;
   // Set by a handler that changes what's on screen (the view changing,

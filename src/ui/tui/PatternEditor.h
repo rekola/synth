@@ -440,6 +440,9 @@ private:
   void changeEditStep(int delta);
   void setEditStep(int step);
   bool reportLockedCursor();
+  // `delta_rows` cut short at the edge of the pattern an open selection was
+  // marked in (0, with a status message, when already there).
+  int limitToSelectionPattern(int delta_rows);
   // Set when what's shown changed in a way render()'s own dirty checks
   // don't see (the source switching, per-track playheads moving).
   bool force_full_redraw_ = false;

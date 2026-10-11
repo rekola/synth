@@ -22,7 +22,6 @@ Additive::playNote(const ChannelConfiguration & config, const SphericalPosition 
   AdditiveModelParams model;
   model.partials = partials_;
   model.stretch = stretch_;
-  model.tuning_matched = tuningMatched_;
   model.unison_voices = unisonVoices_;
   model.unison_detune_cents = unisonDetune_;
   model.modes = parseModeRatios(modes_);
@@ -41,7 +40,7 @@ Additive::playNote(const ChannelConfiguration & config, const SphericalPosition 
   model.thump = thump_;
   model.thump_tracking = thumpTracking_;
   model.body = body_;
-  voice->trigger(model, edoStepsFor(tuning), note_coord);
+  voice->trigger(model, note_coord);
 
   // No children: <additive> has no modulator input of its own.
   return voice;
@@ -56,7 +55,6 @@ Additive::loadParameters(const ParameterSource & input) {
 
   partials_ = input.get<int>("partials", preset.partials);
   stretch_ = input.get<float>("stretch", preset.stretch);
-  tuningMatched_ = input.get<bool>("tuningMatched", preset.tuningMatched);
   unisonVoices_ = input.get<int>("unisonVoices", preset.unisonVoices);
   unisonDetune_ = input.get<float>("unisonDetune", preset.unisonDetune);
   modes_ = input.get<std::string>("modes", std::string(preset.modes));
@@ -91,7 +89,6 @@ Additive::storeParameters(ParameterSource & output) const {
 
   output.set("partials", partials_, preset.partials);
   output.set("stretch", stretch_, preset.stretch);
-  output.set("tuningMatched", tuningMatched_, preset.tuningMatched);
   output.set("unisonVoices", unisonVoices_, preset.unisonVoices);
   output.set("unisonDetune", unisonDetune_, preset.unisonDetune);
   output.set("modes", modes_, std::string(preset.modes));

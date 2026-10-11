@@ -1360,10 +1360,11 @@ would otherwise resume showing.
   until the spectrum (`SpectrumAnalyzer::atRest()`) and DirAC
   (`DiracAnalyzer::atRest()`) hold zeros and have said so, with real zero
   blocks fed to them; after that a result carries only the meter reading and
-  nothing is decoded or analyzed. The UI redraws nothing for an unchanged
-  result, and restarts the scopes empty when they come back on screen
-  (`TerminalUI::scopes_stale_`), since nothing more arrives to replace
-  what they held.
+  nothing is decoded or analyzed, and once the meter has had time to fall
+  (about four seconds) no result is sent at all, so an idle UI sleeps. The UI
+  redraws nothing for an unchanged result, and blanks the scopes itself when
+  they come back on screen (`TerminalUI::scopes_stale_`, `blankScopes()` from
+  `renderComponents()`), since nothing more arrives to replace what they held.
 - That DSP lives in `src/bus/` (the shared send bus's own subsystem, depending
   on `src/dsp/` — reusable, dependency-free DSP building blocks, never the
   reverse) — `SongState`'s `SendBusProcessor` (`bus/SendBusProcessor.h`/
@@ -1631,6 +1632,13 @@ would otherwise resume showing.
   request and no merge; it never means leave work uncommitted in the
   cloud. On a desktop session the user's own "don't commit" stands as
   written.
+- Branches, cloud sessions only: once a branch's pull request is merged, it is
+  finished. You may, and must, start the next change on a new branch off the
+  latest default branch (a fresh name, e.g. `claude/<topic>`) - never push
+  more commits onto a merged branch, even when the session names it as the
+  one to develop on. Check whether the PR is merged before committing
+  follow-up work. On a desktop session the user creates and switches
+  branches; stay on the one that is checked out.
 - Never link to the chat/session that produced a change (no `Claude-Session:`
   trailer, no claude.ai/code URL) in commit messages, PR descriptions, or
   comments; the URL isn't useful to other readers and can't be fully removed

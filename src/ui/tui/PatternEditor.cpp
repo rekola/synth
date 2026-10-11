@@ -568,7 +568,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
     auto & info = getController().getPlaybackInfo();
     if (info.isPlaying() && source_->cursorFollowsTransport()) return;
     if (reportLockedCursor()) return;
-    source_->moveCursor(-1);
+    source_->moveCursor(limitToSelectionPattern(-1));
     new_cursor.subcol = 0;
   });
 
@@ -576,7 +576,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
     auto & info = getController().getPlaybackInfo();
     if (info.isPlaying() && source_->cursorFollowsTransport()) return;
     if (reportLockedCursor()) return;
-    source_->moveCursor(1);
+    source_->moveCursor(limitToSelectionPattern(1));
     new_cursor.subcol = 0;
   });
 
@@ -787,6 +787,22 @@ PatternEditor::setEditStep(int step) {
   getController().getUIEventQueue().push(make_unique<LogEvent>("Edit step: " + std::to_string(edit_step_size)));
 }
 
+int PatternEditor::limitToSelectionPattern(int delta_rows) {
+  if (!selection_active_ || delta_rows == 0) return delta_rows;
+  auto block = selection_start_pattern_;
+  auto here = source_->cursor();
+  if (block < 0 || block >= source_->blockCount() || here.block != block) return delta_rows;
+  auto target = source_->advance(here, delta_rows);
+  if (target.row >= 0 && target.block == block) return delta_rows;
+  // Moves past the first or last block clamp to it anyway.
+  if (target.row < 0 && block == 0) return delta_rows;
+  if (target.block >= source_->blockCount() && block == source_->blockCount() - 1) return delta_rows;
+  RowAddress edge = delta_rows < 0 ? RowAddress{block, 0} : RowAddress{block, source_->blockLength(block) - 1};
+  auto limited = source_->rowsBetween(here, edge);
+  if (limited == 0) getController().getUIEventQueue().push(make_unique<LogEvent>("Selection can't cross a pattern boundary"));
+  return limited;
+}
+
 bool
 PatternEditor::reportLockedCursor() {
   if (!source_->cursorLocked()) return false;
@@ -800,6 +816,13 @@ PatternEditor::syncCursorTrack(const Song & song) {
   if (track_ids.empty()) return;
   auto track_id = track_ids[static_cast<size_t>(std::clamp(new_cursor.track, 0, static_cast<int>(track_ids.size()) - 1))];
   if (track_id == synced_cursor_track_id_) return;
+  // A selection stays within the pattern it was marked in: a track whose
+  // position is in another is refused, the cursor staying where it was.
+  if (selection_active_ && synced_cursor_track_id_ >= 0 && source_->trackCursor(track_id).block != selection_start_pattern_) {
+    new_cursor = current_cursor;
+    getController().getUIEventQueue().push(make_unique<LogEvent>("Selection can't cross a pattern boundary"));
+    return;
+  }
   // The cursor row moves to where the new track's position is already
   // shown, so nothing on screen moves.
   RowAddress top{ view_block_, current_scroll_.row };
@@ -1560,6 +1583,9 @@ PatternEditor::handleMouse(const InputEvent & input) {
   auto heading_height = song.getMasterTrack().getDepth() + 1;
   // A drag that reaches past the top or bottom of the rows scrolls the view
   // along, one row per kDragScrollInterval.
+  // With a clip playing, each track's playhead moves on its own, so a region
+  // can't be dragged: a click only picks a track and a column.
+  if (mouse_down_ && isLiveMode() && scene_source_->anyPlaying()) return true;
   bool past_edge = mouse_down_ && x >= 0 && x < cols && (y < heading_height || y >= rows);
   if (past_edge) {
     auto now = std::chrono::steady_clock::now();
@@ -1591,6 +1617,20 @@ PatternEditor::handleMouse(const InputEvent & input) {
     if (span.x <= x) hit = &span;
   }
   bool on_locator = !in_heading && spans.locator_x >= 0 && x >= spans.locator_x;
+  if (isLiveMode() && !fresh_press) {
+    // A drag in Live View stays in the track it started in: the pointer
+    // picks the nearest of that track's columns instead.
+    hit = nullptr;
+    const ColumnSpan * first = nullptr;
+    for (auto & span : spans.columns) {
+      if (span.track != mouse_anchor_.track) continue;
+      if (!first) first = &span;
+      if (span.x <= x) hit = &span;
+    }
+    if (!hit) hit = first;
+    if (!hit) return true;
+    on_locator = false;
+  }
   if (!hit && !on_locator && in_heading) return true;
 
   GridPosition target = new_cursor;
@@ -1637,7 +1677,7 @@ PatternEditor::handleMouse(const InputEvent & input) {
     } else {
       auto line = source_->rowsBetween({ view_block_, current_scroll_.row }, source_->cursor());
       auto delta = (y - heading_height) - line;
-      if (delta != 0) source_->moveCursor(delta);
+      if (delta != 0) source_->moveCursor(limitToSelectionPattern(delta));
     }
   }
 
@@ -1799,7 +1839,7 @@ PatternEditor::offerInputKey(const InputEvent & input) {
     // handles only actually stopping if it's still genuinely playing
     // (the user may have manually stopped it in the meantime).
     if (active_keyboard_notes_.empty() && pending_step_ != 0) {
-      source_->moveCursor(pending_step_);
+      source_->moveCursor(limitToSelectionPattern(pending_step_));
       pending_step_ = 0;
     }
     if (auto_started_playback_ && active_keyboard_notes_.empty()) {
@@ -1857,23 +1897,28 @@ PatternEditor::offerInputKey(const InputEvent & input) {
       if (track && track->getType() == TrackType::INSTRUMENT_CONTROL) {
 	auto & instrument_track = dynamic_cast<const InstrumentTrack&>(*track);
 	bool changed = false;
-	Song::Edit edit(song, "change instrument");
-	auto set_instrument = [&](int instrument_id) {
-	  song.editTrack(instrument_track.getInternalId(), [&](Track & edited) { static_cast<InstrumentTrack &>(edited).setInstrumentId(instrument_id); });
-	  changed = true;
-	};
-	if (input.getId() == NCKEY_KP_DIVIDE && instrument_track.getInstrumentId() > 0) {
-	  set_instrument(instrument_track.getInstrumentId() - 1);
-	} else {
-	  auto & instruments = song.getInstrumentPool().getInstruments();
-	  if (input.getId() == NCKEY_KP_MULTIPLY && instrument_track.getInstrumentId() + 1 < static_cast<int>(instruments.size())) {
-	    set_instrument(instrument_track.getInstrumentId() + 1);
-	  }
-	}
-	if (!changed) edit.discard();
-	if (changed) {
-	  event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CLEAR_VOICES, getController().getActiveBufferName(), instrument_track.getInternalId()));
-	}
+        auto track_internal_id = instrument_track.getInternalId();
+        {
+          Song::Edit edit(song, "change instrument");
+          auto set_instrument = [&](int instrument_id) {
+            song.editTrack(track_internal_id, [&](Track & edited) { static_cast<InstrumentTrack &>(edited).setInstrumentId(instrument_id); });
+            changed = true;
+          };
+          if (input.getId() == NCKEY_KP_DIVIDE && instrument_track.getInstrumentId() > 0) {
+            set_instrument(instrument_track.getInstrumentId() - 1);
+          } else {
+            auto & instruments = song.getInstrumentPool().getInstruments();
+            if (input.getId() == NCKEY_KP_MULTIPLY && instrument_track.getInstrumentId() + 1 < static_cast<int>(instruments.size())) {
+              set_instrument(instrument_track.getInstrumentId() + 1);
+            }
+          }
+          if (!changed) edit.discard();
+        }
+        // After the edit has published: the audio thread rebuilds the cleared
+        // track's state from the content it holds, which must be the new one.
+        if (changed) {
+          event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CLEAR_VOICES, getController().getActiveBufferName(), track_internal_id));
+        }
       }
       return true;
     } else if (input.getId() == NCKEY_LEFT || input.getId() == NCKEY_RIGHT) {
@@ -1964,14 +2009,14 @@ PatternEditor::offerInputKey(const InputEvent & input) {
       return true;
     } else if (input.getId() == NCKEY_PGUP) {
       if (!transport_owns_row) {
-	source_->moveCursor(-16);
-	new_cursor.subcol = 0;
+        source_->moveCursor(limitToSelectionPattern(-16));
+        new_cursor.subcol = 0;
       }
       return true;
     } else if (input.getId() == NCKEY_PGDOWN) { // scrollwheel down
       if (!transport_owns_row) {
-	source_->moveCursor(16);
-	new_cursor.subcol = 0;
+        source_->moveCursor(limitToSelectionPattern(16));
+        new_cursor.subcol = 0;
       }
       return true;
     } else {
@@ -2019,8 +2064,8 @@ PatternEditor::offerInputKey(const InputEvent & input) {
 	  // Same row-level Backspace-steps-back/Delete-stays-put distinction
 	  // the note column's own is_delete handling makes below.
 	  if (!transport_owns_row && input.getId() == NCKEY_BACKSPACE) {
-	    source_->moveCursor(-edit_step_size);
-	  }
+            source_->moveCursor(limitToSelectionPattern(-edit_step_size));
+          }
 	  return true;
 	}
 
@@ -2242,8 +2287,8 @@ PatternEditor::offerInputKey(const InputEvent & input) {
 	      // key to be released.
 	      if (!auto_started_playback_) pending_step_ = n * edit_step_size; // one step per chord, not per key
 	    } else if (n) {
-	      source_->moveCursor(n * edit_step_size);
-	    }
+              source_->moveCursor(limitToSelectionPattern(n * edit_step_size));
+            }
 	  }
 
 	  return true;

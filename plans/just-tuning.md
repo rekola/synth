@@ -471,9 +471,23 @@ pitch, so a section after them starts from there.
   slot are by-ear values, as is the 20 cent cap.
 - Phase 5: native pan on percussion and the arc presets may double the key table
   and the arc; check by ear with FluidR3, which this container lacks.
-- Phase 5: a Launchpad step-grid audition sends the note value as its column, so
-  on a ring track it auditions at a different slot than the pattern plays it at.
 - Phase 6: the memory length (6 pitch classes is a guess); how a scene's cycle is
   built when clip lengths do not divide the longest; and which of the three
   clip-instance options (the plan recommends 2), which gates the arrangement
   mode, built last (phase 3 settles it for tonic-referenced scales).
+- To settle at the end: which slot a drum or a live note takes on the ring. The
+  slot is the `NoteCoordinate` column, which each source fills its own way: a
+  pattern note its authored column; keyboard, Launchpad note mode and MIDI the
+  lowest free column; and the Launchpad step-grid audition (the sound played
+  once when a step is switched on in the step view) the note value, because
+  `PLAY_NOTE` and `STOP_NOTE` also use that column as the voice key and a step
+  press has no pattern column its release could find. So on a track set to
+  `ring`, one drum can sit at three different points: auditioned from a step,
+  played on the pad, and played back from the pattern. A kit on `auto` uses its
+  key table and ignores the slot, so this matters only for a percussion track
+  set to `ring`. One idea: the pad's offset in the 4x4 rack (note - 36, 0 to 15)
+  as the slot in the audition and on the playing surface. That makes the first
+  two agree but not the playback, which would still use the pattern column; a
+  consistent answer needs the percussion slot to come from the note value in the
+  placement itself, or the voice key to be separate from the slot. Pitched tracks
+  have no rack to take an offset from.

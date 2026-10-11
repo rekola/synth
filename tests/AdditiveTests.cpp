@@ -73,97 +73,25 @@ TEST(generic_instrument_shows_the_soundfont_preset_name_not_its_path) {
 
 namespace {
 constexpr float kMiddleC = 261.63f;
-const int kEdos[] = {12, 19, 31, 53};
 
 float centsOf(float ratio) { return 1200.0f * std::log2(ratio); }
-
-// Steps per octave E of the tuning and the tuned ratio of a just interval
-// p:q, as the nearest step.
-float tunedIntervalRatio(int edo, int p, int q) {
-  return std::exp2(std::round(static_cast<float>(edo) * std::log2(static_cast<float>(p) / static_cast<float>(q))) / static_cast<float>(edo));
-}
 } // namespace
 
-TEST(additive_every_partial_is_on_a_tuning_step) {
-  for (int edo : kEdos) {
-    for (int n = 1; n <= 40; n++) {
-      float ratio = additivePartialRatio(n, 40, 0.0f, edo, true);
-      float steps = static_cast<float>(edo) * std::log2(ratio);
-      CHECK_NEAR(steps, std::round(steps), 1e-3f);
-      // The nearest step to the true harmonic.
-      CHECK(std::fabs(steps - static_cast<float>(edo) * std::log2(static_cast<float>(n))) <= 0.5f + 1e-3f);
-    }
-  }
-}
-
-// Regression: a stretched partial once landed near the third harmonic. No
-// partial may fall more than half a step below its harmonic.
-TEST(additive_partial_n_is_never_far_below_the_harmonic) {
-  for (int edo : kEdos) {
-    for (float stretch : {0.0f, 0.001f, 0.01f}) {
-      for (int n = 1; n <= 64; n++) {
-        // Within half a step of the harmonic, never the thousands of cents off.
-        float off = centsOf(additivePartialRatio(n, 64, stretch, edo, true) / static_cast<float>(n));
-        CHECK(off >= -(600.0f / static_cast<float>(edo)) - 0.01f);
-      }
-    }
+TEST(additive_partials_are_plain_harmonics_plus_stretch) {
+  for (int n = 1; n <= 30; n++) {
+    CHECK_NEAR(additivePartialRatio(n, 0.0f), static_cast<float>(n), 1e-5f);
+    CHECK_NEAR(additivePartialRatio(n, 0.002f), static_cast<float>(n) + static_cast<float>(n - 1) * 0.002f, 1e-5f);
   }
 }
 
 TEST(additive_stretch_is_bounded_and_leaves_the_fundamental_alone) {
-  for (int edo : kEdos) {
-    for (float stretch : {0.001f, 0.003f}) {
-      // (n-1)*stretch over a grid position that can sit half a step below n.
-      float limit_cents = 1200.0f * std::log2(1.0f + stretch * std::exp2(0.5f / static_cast<float>(edo)));
-      CHECK(additivePartialRatio(1, 64, stretch, edo, true) == 1.0f);
-      for (int n = 2; n <= 64; n++) {
-        float shift = centsOf(additivePartialRatio(n, 64, stretch, edo, true) / additivePartialRatio(n, 64, 0.0f, edo, true));
-        CHECK(shift > 0.0f);
-        CHECK(shift <= limit_cents + 1e-3f);
-      }
+  for (float stretch : {0.001f, 0.003f}) {
+    CHECK(additivePartialRatio(1, stretch) == 1.0f);
+    for (int n = 2; n <= 64; n++) {
+      float shift = centsOf(additivePartialRatio(n, stretch) / static_cast<float>(n));
+      CHECK(shift > 0.0f);
+      CHECK(shift <= 1200.0f * std::log2(1.0f + stretch) + 1e-3f);
     }
-  }
-}
-
-// Shared partials of a tuned interval (the root's pk with the upper note's
-// qk) coincide on the grid, so what is left is the stretch term: exactly
-// stretch * f_root * ((pk - 1) - r * (qk - 1)).
-TEST(additive_septimal_shared_partials_meet) {
-  struct Interval {
-    int p, q;
-  };
-  const Interval intervals[] = {{7, 6}, {8, 7}, {7, 4}, {12, 7}};
-  const float stretch = 0.001f;
-  for (int edo : kEdos) {
-    for (auto iv : intervals) {
-      float r = tunedIntervalRatio(edo, iv.p, iv.q);
-      float root = kMiddleC, upper = kMiddleC * r;
-      for (int k = 1; iv.p * k <= 24; k++) {
-        int pk = iv.p * k, qk = iv.q * k;
-        float flat_a = root * additivePartialRatio(pk, 64, 0.0f, edo, true);
-        float flat_b = upper * additivePartialRatio(qk, 64, 0.0f, edo, true);
-        CHECK(std::fabs(centsOf(flat_a / flat_b)) < 1e-3f);
-
-        float a = root * additivePartialRatio(pk, 64, stretch, edo, true);
-        float b = upper * additivePartialRatio(qk, 64, stretch, edo, true);
-        float expected = stretch * root * (static_cast<float>(pk - 1) - r * static_cast<float>(qk - 1));
-        CHECK_NEAR(a - b, expected, 5e-3f);
-        CHECK(std::fabs(a - b) <= 2.0f * stretch * root);
-      }
-    }
-  }
-}
-
-TEST(additive_31edo_partial_3_is_5_2_cents_flat) {
-  float ratio = additivePartialRatio(3, 28, 0.0f, 31, true);
-  CHECK_NEAR(ratio, std::exp2(49.0f / 31.0f), 1e-5f);
-  CHECK_NEAR(centsOf(ratio / 3.0f), -5.18f, 0.01f);
-}
-
-TEST(additive_tuning_matching_off_gives_plain_harmonics_plus_stretch) {
-  for (int n = 1; n <= 30; n++) {
-    CHECK_NEAR(additivePartialRatio(n, 30, 0.002f, 31, false), static_cast<float>(n) + static_cast<float>(n - 1) * 0.002f, 1e-5f);
-    CHECK_NEAR(additivePartialRatio(n, 30, 0.0f, 0, true), static_cast<float>(n), 1e-5f);
   }
 }
 
@@ -193,7 +121,7 @@ TEST(additive_partial_specs_group_by_string_and_skip_nyquist) {
   params.unison_voices = 3;
   params.strike = 0.37f; // no mode of the first 28 has a node here
   params.partial_floor_db = -200.0f;
-  NoteContext note{kMiddleC, 0.8f, 44100.0f, 31, NoteCoordinate(0, 4, 0)};
+  NoteContext note{kMiddleC, 0.8f, 44100.0f, NoteCoordinate(0, 4, 0)};
   auto specs = buildPartialSpecs(params, note);
   CHECK(specs.size() == 3 * 28);
   int per_group[3] = {0, 0, 0};
@@ -275,8 +203,8 @@ float totalPower(const std::vector<PartialSpec> & specs, int strings) {
   return power;
 }
 
-NoteContext noteAt(float f0, float velocity = 0.5f, int edo = 12) {
-  return NoteContext{f0, velocity, 96000.0f, edo, NoteCoordinate(0, 1, 0)};
+NoteContext noteAt(float f0, float velocity = 0.5f) {
+  return NoteContext{f0, velocity, 96000.0f, NoteCoordinate(0, 1, 0)};
 }
 } // namespace
 
@@ -385,7 +313,7 @@ TEST(additive_piano_resonator_count_is_bounded_on_every_key) {
   params.thump = preset.thump;
   params.body = preset.body;
   for (float f = 32.7f; f < 2100.0f; f *= 1.0595f) {
-    auto specs = buildPartialSpecs(params, noteAt(f, 1.0f, 31));
+    auto specs = buildPartialSpecs(params, noteAt(f, 1.0f));
     CHECK(specs.size() <= static_cast<size_t>(preset.unisonVoices * preset.partials) + preset.body.size());
     CHECK(specs.size() >= 20);
   }
@@ -401,7 +329,6 @@ TEST(additive_decay_rises_with_frequency_and_falls_with_key) {
   params.decay_b = 1e-4f;
   params.decay_p = 1.5f;
   params.decay_tracking = 0.5f;
-  params.tuning_matched = false;
   params.partial_floor_db = -300.0f;
   auto alphaAt = [&](float f0, int n) {
     for (const auto & p : buildPartialSpecs(params, noteAt(f0)))
@@ -462,13 +389,13 @@ TEST(additive_thump_is_fixed_in_hz_short_and_off_without_a_level) {
   params.unison_voices = 2;
   params.thump = 0.3f;
   params.body = {{70.0f, 1.0f, 60.0f}, {120.0f, 0.7f, 50.0f}};
-  auto bodyOf = [&](float f0, int edo) {
+  auto bodyOf = [&](float f0) {
     std::vector<PartialSpec> out;
-    for (const auto & p : buildPartialSpecs(params, noteAt(f0, 0.5f, edo)))
+    for (const auto & p : buildPartialSpecs(params, noteAt(f0, 0.5f)))
       if (p.group >= 2) out.push_back(p);
     return out;
   };
-  auto low = bodyOf(65.0f, 12), high = bodyOf(1046.0f, 31);
+  auto low = bodyOf(65.0f), high = bodyOf(1046.0f);
   CHECK(low.size() == 2 && high.size() == 2);
   for (size_t i = 0; i < 2; i++) {
     CHECK(low[i].frequency_hz == high[i].frequency_hz);
@@ -478,7 +405,7 @@ TEST(additive_thump_is_fixed_in_hz_short_and_off_without_a_level) {
   }
 
   params.thump = 0.0f;
-  CHECK(bodyOf(65.0f, 12).empty());
+  CHECK(bodyOf(65.0f).empty());
 }
 
 // The body knocks harder on a low key than on a high one when it tracks the key,
@@ -524,7 +451,6 @@ TEST(additive_pluck_spectrum_follows_one_over_n_squared_with_a_comb) {
   params.excitation = Excitation::Pluck;
   params.strike = 0.2f;
   params.pluck_cutoff_hz = 0.0f;
-  params.tuning_matched = false;
   params.partial_floor_db = -120.0f;
   auto specs = firstString(buildPartialSpecs(params, noteAt(100.0f)));
   CHECK(specs.size() == 10); // modes 5 and 10 have a node at 1/5
@@ -557,11 +483,9 @@ TEST(additive_modes_replace_the_harmonic_series) {
   params.partials = 4;
   params.modes = {1.0f, 2.756f, 5.404f, 8.933f};
   params.partial_floor_db = -300.0f;
-  for (int edo : {12, 31}) {
-    auto specs = buildPartialSpecs(params, noteAt(220.0f, 0.5f, edo));
-    CHECK(specs.size() == 4);
-    for (size_t k = 0; k < 4; k++) CHECK_NEAR(specs[k].frequency_hz, 220.0f * params.modes[k], 1e-3f);
-  }
+  auto specs = buildPartialSpecs(params, noteAt(220.0f));
+  CHECK(specs.size() == 4);
+  for (size_t k = 0; k < 4; k++) CHECK_NEAR(specs[k].frequency_hz, 220.0f * params.modes[k], 1e-3f);
   params.partials = 2;
   CHECK(buildPartialSpecs(params, noteAt(220.0f)).size() == 2);
 }
