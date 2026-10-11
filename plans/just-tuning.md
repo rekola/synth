@@ -48,7 +48,11 @@ passed). Voice one with another note lowest and a third of them break: in
 | G A♭ C | utonal | A♭ | +17 | +1 (8/5) |
 
 Each time the interval from the lowest note to the wrong one (G-A 10/9, F-E
-15/8) is not the simplest ratio of its step. The bar is also per track: a
+15/8) is not the simplest ratio of its step. Chords without the tonic fare worse:
+34 of the 60 voicings of each scale's tonic-free triads are wrong (F G A♯,
+16:18:21, in all three); only the pure ones, E G A♯ (5:6:7) and E𝄫 F A♭
+(1/7:1/6:1/5), survive every voicing, because each interval inside them happens
+to be the simplest of its step. The bar is also per track: a
 melody G-A in one bar gets the 27/16 A even while another track holds C, since
 the tuner never sees the other track. So the same pitch class lands up to a
 comma apart depending on voicing and on what else its track plays in the bar.
@@ -133,8 +137,9 @@ with its `+hh`/`-hh` so playback matches; others are written untuned, as now.
 
 ### Tests
 
-The correction table above for every EDO; the chords above giving the
-scale ratio in every voicing; C E G and C E♭ G in one bar of a 31-EDO otonal song; the 12 and
+The correction table above for every EDO; every triad of the 11 notes, in
+every voicing, giving the scale ratios (this covers the chords above, the ones
+without the tonic, and otonal and utonal notes mixed); C E G and C E♭ G in one bar of a 31-EDO otonal song; the 12 and
 19-EDO collision rule; a major-scale song unchanged; transpose keeps scale
 notes on their ratios; a live note's detune in `Player`; a recorded scale note
 carries its fx.
