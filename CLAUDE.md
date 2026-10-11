@@ -1360,10 +1360,11 @@ would otherwise resume showing.
   until the spectrum (`SpectrumAnalyzer::atRest()`) and DirAC
   (`DiracAnalyzer::atRest()`) hold zeros and have said so, with real zero
   blocks fed to them; after that a result carries only the meter reading and
-  nothing is decoded or analyzed. The UI redraws nothing for an unchanged
-  result, and restarts the scopes empty when they come back on screen
-  (`TerminalUI::scopes_stale_`), since nothing more arrives to replace
-  what they held.
+  nothing is decoded or analyzed, and once the meter has had time to fall
+  (about four seconds) no result is sent at all, so an idle UI sleeps. The UI
+  redraws nothing for an unchanged result, and blanks the scopes itself when
+  they come back on screen (`TerminalUI::scopes_stale_`, `blankScopes()` from
+  `renderComponents()`), since nothing more arrives to replace what they held.
 - That DSP lives in `src/bus/` (the shared send bus's own subsystem, depending
   on `src/dsp/` — reusable, dependency-free DSP building blocks, never the
   reverse) — `SongState`'s `SendBusProcessor` (`bus/SendBusProcessor.h`/

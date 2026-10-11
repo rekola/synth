@@ -169,6 +169,8 @@ private:
   // they were hidden, and a silent analysis sends nothing more to replace
   // it, so the next result starts them empty.
   bool scopes_stale_ = false;
+  std::string last_meter_label_; // the legend of the last result, for blanking
+  void blankScopes();
   // What syncLiveView() last left both widgets showing.
   int synced_track_id_ = -1, laid_out_clip_grid_height_ = -1;
   // Set by a handler that changes what's on screen (the view changing,

@@ -211,6 +211,7 @@ TEST(visualization_thread_empty_bus_gives_zero_result_then_stops_analyzing) {
     master.zero();
     AudioBlockEvent ev(std::move(master), std::move(raw), AudioBuffer(0, false, false, frames), AudioBuffer(0, false, false, frames));
     thread.handleAudioBlockEvent(ev);
+    if (!controller.getUIEventQueue().hasEvents()) return std::unique_ptr<VisualizationResultEvent>();
     auto popped = controller.getUIEventQueue().pop();
     return std::unique_ptr<VisualizationResultEvent>(dynamic_cast<VisualizationResultEvent *>(popped.release()));
   };
@@ -227,15 +228,18 @@ TEST(visualization_thread_empty_bus_gives_zero_result_then_stops_analyzing) {
   }
 
   // Then silence by structure: every block gets a result, loudness zero,
-  // and the analyzers end up showing zeros.
+  // and the analyzers end up showing zeros; once the meter has had time to
+  // fall (about four seconds) and everything is at rest, nothing more is sent.
   std::vector<float> last_fft;
   std::vector<float> last_grid;
   int blocks_with_analysis_after_settling = 0;
   const int silent_blocks = 1500; // ~9 s: the 100 ms window and DirAC's smoothing have run out
+  int results_at_the_end = 0;
   for (int n = 0; n < silent_blocks; n++) {
     auto r = push(AudioBuffer(0, false, false, frames));
-    CHECK(r != nullptr);
-    if (!r) return;
+    if (n < 600) CHECK(r != nullptr);
+    if (n >= silent_blocks - 20 && r) results_at_the_end++;
+    if (!r) continue;
     CHECK(r->getChannelLoudness().size() == 6); // 4 regular + AuxA + AuxB
     for (float v : r->getChannelLoudness()) CHECK(v == 0.0f);
     if (!r->getFFT().empty()) last_fft = r->getFFT();
@@ -246,8 +250,10 @@ TEST(visualization_thread_empty_bus_gives_zero_result_then_stops_analyzing) {
   for (float v : last_fft) CHECK_NEAR(v, -100.0f, 1e-3f);
   CHECK(!last_grid.empty());
   for (float v : last_grid) CHECK(v == 0.0f);
-  // Settled: nothing is decoded or analyzed any more, so no payload at all.
+  // Settled: nothing is decoded or analyzed any more, so no payload at all,
+  // and no result either.
   CHECK(blocks_with_analysis_after_settling == 0);
+  CHECK(results_at_the_end == 0);
 
   // Sound coming back is analyzed again.
   bool fft_again = false;
