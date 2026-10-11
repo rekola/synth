@@ -124,6 +124,7 @@ A note's pitch offset in cents, stored in its fx as `+hh` or `-hh`
 (12/19/31/53 steps per octave).
 
 **Unison**
-The strings struck together for one piano key, tuned a cent or so apart.
+The strings struck together for one piano key, tuned a cent or so apart (the
+additive `piano` preset uses 2.5 cents).
 Their slow beating, and their slightly different decay rates, give a piano
 note its shimmer and its double decay. See additive.md.
