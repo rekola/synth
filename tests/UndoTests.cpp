@@ -461,3 +461,72 @@ TEST(mute_and_solo_are_not_undone_and_do_not_break_the_run_of_undos) {
   CHECK(leaf->isMuted());
   CHECK(leaf->getSends().a == 0.0f);
 }
+
+TEST(chords_and_single_notes_typed_in_a_row_undo_as_one_step) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  CHECK(controller.openSong(std::string(TESTS_FIXTURES_DIR) + "/center_note.xml"));
+  auto & song = controller.getSong();
+  auto track_id = song.getRootTrackIds().at(0);
+  auto journal = song.document().journal().size();
+  auto notesAt = [&](int row) { return song.getArrangement().findPattern(track_id)->getNotesByRow().count(row); };
+
+  // A chord, a lone note, another chord, then a typed off: one run.
+  controller.setNoteHeld(true);
+  for (int column = 0; column < 2; column++) song.getArrangement().setNote(30, track_id, column, Note(60 + column * 4, 100));
+  controller.setNoteHeld(false);
+  controller.setNoteHeld(true);
+  song.getArrangement().setNote(31, track_id, 0, Note(62, 100));
+  controller.setNoteHeld(false);
+  {
+    Song::Edit edit(song, "enter note", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, true); // a typed off
+    song.getArrangement().setNote(32, track_id, 0, Note(0, 0));
+  }
+  controller.setNoteHeld(true);
+  song.getArrangement().setNote(33, track_id, 0, Note(64, 100));
+  controller.setNoteHeld(false);
+
+  CHECK(song.document().journal().size() == journal + 1);
+  CHECK(song.undo());
+  for (int row = 30; row <= 33; row++) CHECK(notesAt(row) == 0);
+}
+
+TEST(a_cursor_move_ends_the_run_of_typed_notes) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  CHECK(controller.openSong(std::string(TESTS_FIXTURES_DIR) + "/center_note.xml"));
+  auto & song = controller.getSong();
+  auto track_id = song.getRootTrackIds().at(0);
+  auto notesAt = [&](int row) { return song.getArrangement().findPattern(track_id)->getNotesByRow().count(row); };
+
+  controller.setNoteHeld(true);
+  song.getArrangement().setNote(30, track_id, 0, Note(60, 100));
+  controller.setNoteHeld(false);
+  song.breakTypingRun(); // an arrow key
+  controller.setNoteHeld(true);
+  song.getArrangement().setNote(31, track_id, 0, Note(62, 100));
+  controller.setNoteHeld(false);
+
+  CHECK(song.undo());
+  CHECK(notesAt(31) == 0 && notesAt(30) == 1);
+  CHECK(song.undo());
+  CHECK(notesAt(30) == 0);
+}
+
+TEST(a_second_chord_joins_the_first_one_s_run) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  CHECK(controller.openSong(std::string(TESTS_FIXTURES_DIR) + "/center_note.xml"));
+  auto & song = controller.getSong();
+  auto track_id = song.getRootTrackIds().at(0);
+  auto journal = song.document().journal().size();
+
+  controller.setNoteHeld(true);
+  song.getArrangement().setNote(30, track_id, 0, Note(60, 100));
+  controller.setNoteHeld(false);
+  CHECK(song.document().journal().size() == journal + 1);
+  controller.setNoteHeld(true);
+  song.getArrangement().setNote(31, track_id, 0, Note(62, 100));
+  controller.setNoteHeld(false);
+  CHECK(song.document().journal().size() == journal + 1); // joined the run
+}
