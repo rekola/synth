@@ -111,8 +111,8 @@ release so a combination never has to be undone.
 | Button | Action |
 | --- | --- |
 | Record Arm (19) | **Undo** (lit while there is something to undo) |
-| Mute (39, Pro MK3 30) | **Redo** (lit only while an undo can be taken back) |
-| Solo (29, Pro MK3 20) | **Metronome** click |
+| Mute (39) | **Redo** (lit only while an undo can be taken back) |
+| Solo (29) | **Metronome** click |
 | Volume (89) | **Duplicate** |
 | Pan (79) | **Delete** |
 | Send A (69) | **Quantise** |

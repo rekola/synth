@@ -13,8 +13,8 @@
 // XML attribute one-for-one except `preset`, `level` and the body table.
 //
 // Only a few values come from a source or a derivation: the strike point of
-// 1/8 and the 1 cent between unison strings (the brief), the stretch of
-// 0.001 (the FM pianos'), the felt exponent behind hammerVelocity, and the
+// 1/8 and the 1 cent between unison strings (both typical of a piano), the
+// stretch of 0.001 (the FM pianos'), the felt exponent behind hammerVelocity, and the
 // free-free bar mode ratios. Every other number below is a starting value
 // chosen to be listened to and adjusted, not a measurement of a real
 // instrument.
@@ -77,11 +77,11 @@ inline const AdditivePresetParams & getAdditivePreset(const std::string & name) 
       /* body           */ {},
   };
 
-  // A piano: three strings a cent apart, harmonic partials with a
-  // 0.001 bounded stretch, struck at 1/8 by a hammer whose corner is fixed in
-  // Hz (so the bass has many partials), outer strings decaying half again
-  // faster and slower than the middle one, bass ringing longer, and a short
-  // soundboard thump spread wide. The decay and thump numbers are starting
+  // A piano: three strings 2.5 cents apart, harmonic partials with a
+  // 0.003 bounded stretch, struck at 1/8 by a hammer whose corner rises
+  // gently with the key (so the bass has many partials), outer strings
+  // decaying 70% faster and slower than the middle one, bass ringing longer,
+  // and a short soundboard thump spread wide. The decay and thump numbers are starting
   // values for listening.
   static const AdditivePresetParams kPiano{
       /* partials       */ 80,

@@ -28,6 +28,23 @@ static inline std::string to_string(Scale scale) {
   return "";
 }
 
+// The name shown in menus and dialogs.
+static inline std::string scaleLabel(Scale scale) {
+  switch (scale) {
+    case Scale::NONE:
+      return "None (chromatic)";
+    case Scale::MAJOR:
+      return "Major";
+    case Scale::MINOR:
+      return "Minor";
+    case Scale::OTONAL:
+      return "Otonal";
+    case Scale::UTONAL:
+      return "Utonal";
+  }
+  return "";
+}
+
 static inline Scale scaleFromString(const std::string & text) {
   if (text == "major") return Scale::MAJOR;
   if (text == "minor") return Scale::MINOR;

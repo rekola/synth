@@ -5,30 +5,30 @@
 
 ![Screenshot of Live View](https://raw.githubusercontent.com/rekola/synth/refs/heads/main/assets/screenshot1.png)
 
-A microtonal multiparadigm music production system, which combines live sequencer with a traditional tracker.
+A microtonal, multiparadigm music production system that combines a live sequencer with a traditional tracker.
 
 ## Features
 
 - Live sequencer with sample and note based clips
-- Microtonal (12/19/31/53-EDO)
-- SoundFont2
+- Microtonal: 12, 19, 31 or 53 equal divisions of the octave (EDO), with just intonation
+- SoundFont 2 (General MIDI) instruments
 - Headless mode (for art installations or escape rooms)
-- Ambisonic Bus
+- 3D spatial audio (ambisonics), heard binaurally on headphones
 - Emacs-style buffers and keybindings
-- Works out of the box (Basic instruments are included and no low-latency requirements)
+- Works out of the box: basic instruments are built in and no low-latency audio setup is needed
 - Keyboard driven
 - Launchpad support
 
-# Background
+## Background
 
-The Application draws on several traditions.
+The application draws on several traditions.
 
 - **Tracker.** Music is written as rows in a grid, one column per voice. The
   first known tracker is Ultimate Soundtracker (Obarski, 1987): four channels,
   each row a note, a sample and an effect. Scream Tracker, FastTracker 2 and
   Impulse Tracker added a volume column and lettered effect commands, and
   Renoise (2002) several note columns per track and a delay column. The
-  Application's pattern editor follows the later trackers; see
+  application's pattern editor follows the later trackers; see
   [docs/commands.md](docs/commands.md).
 - **Live sequencer.** Live View holds a clip launcher: a grid of clips, one
   column per track, launched on the bar and grouped into scenes; see
@@ -48,7 +48,7 @@ The Application draws on several traditions.
   planned and will follow their own conventions. See
   [docs/terminal.md](docs/terminal.md).
 
-# Scales and Tunings
+## Scales and Tunings
 
 - **Tunings.** A song is tuned to 12, 19, 31 or 53 equal divisions of the
   octave (EDO); a new song starts in 31-EDO, which Adriaan Fokker revived (organ
@@ -97,10 +97,10 @@ The Application draws on several traditions.
   otonal and utonal scales borrow Partch's terms (1949) but are not his longer
   scales: they have seven notes each, and their intervals
   were derived by the methods in Kyle Gann's *The Arithmetic of Listening*
-  (2019). The scale picks the sound the Launchpad's step rows edit; it does not change the
-  playing keyboard.
+  (2019). The scale decides which notes the Launchpad's step view steps
+  through; it does not change the playing keyboard.
 
-## Pianos and Just Intervals
+### Pianos and Just Intervals
 
 Sampled pianos can't play microtonal chords in tune; use a synthesized piano
 such as `piano.electric.tine` instead.
@@ -122,9 +122,10 @@ middle C). What remains is the tuning's own error, such as 31-EDO's 4:3 being
 
 The acoustic piano (`<additive preset="piano"/>`, also `piano.acoustic.grand`
 when the SoundFont has no piano; [docs/additive.md](docs/additive.md)) puts partial *n* at
-the same n + (n−1)·ε, using harmonic partials with a bounded stretch.
+n + (n−1)·ε as well, using harmonic partials with a bounded stretch (ε = 0.003
+in its `piano` preset).
 
-# Terminal support
+## Terminal support
 
 The terminal UI works in any terminal notcurses supports, but a modern one is
 better. Terminals with the Kitty keyboard protocol (kitty, foot, WezTerm,
@@ -138,13 +139,13 @@ braille. See [docs/terminal.md](docs/terminal.md) for terminal-specific setup.
 Known to work are kitty, xterm and GNOME Terminal. The full table is in
 [docs/terminal.md](docs/terminal.md#supported-terminals).
 
-# Launchpad support
+## Launchpad support
 
 A connected Novation Launchpad (Mini MK3 / X) becomes a drum rack or isomorphic
 keyboard, a step sequencer and a clip launcher. See
 [docs/launchpad.md](docs/launchpad.md) for the layout, colors and every button.
 
-# Third-party code
+## Third-party code
 
 This project is MIT-licensed (`LICENSE`). It vendors a small amount of
 third-party source under `third_party/` (currently `tinyxml2`, zlib
@@ -153,17 +154,17 @@ license, and PocketFFT, BSD-3-Clause - the FFT backend behind
 permissively/LGPL-licensed system libraries. See `THIRD_PARTY_LICENSES.md`
 for the full picture, or run `synth --licenses` to print it.
 
-# Roadmap / missing functionality:
+## Roadmap / missing functionality
 
 The major things that are missing are the following:
 
 * A proper name
 * GUI
 * Lighting control (DMX/ArtNet)
-* Just tuning
+* Adaptive just intonation, which tunes each note against what sounds with it in any track
 * Continuous MIDI recording with retroactive capture
 
-## Minor Missing Features
+### Minor Missing Features
 
 * DirAC heatmap marker overlay for every active spatial object, not just track positions — track azimuth/elevation markers, plus Granular Cloud grains and other shared-bus-effect taps (FDNReverb, MultiTapDelay)
 * DC Filter and Soft Clipping
