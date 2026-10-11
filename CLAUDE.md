@@ -595,7 +595,7 @@ would otherwise resume showing.
   below it, overwriting what is there (`duplicateClip()`,
   `ArrangementOps.h` - an independent copy under a fresh id; an overwritten
   clip's arrangement placements go with it). One hold can copy several
-  clips. The terminal has no such command: a clip is duplicated by copying it in the clip grid and yanking it onto another slot (`docs/terminal.md`).
+  clips. There is no such command: a clip is duplicated by copying it in the clip grid and yanking it onto another slot (`docs/user-interface.md`).
 - **Select a clip** (shift + pad, `Controller::selectClipSlot()`) - moves the
   shared track cursor and the clip grid's cursor onto that slot, empty ones
   included, without launching or opening anything, so it is where the next
@@ -1499,8 +1499,8 @@ would otherwise resume showing.
   must compile warning-clean.
 - A command only a pad controller dispatches (nothing else registers it) is
   named with a `pad-` prefix (`pad-next-track`), not `launchpad-`: other
-  devices can use it too. A pad gesture whose terminal equivalent is
-  copy/kill/yank gets no command of its own (`docs/terminal.md`).
+  devices can use it too. A pad gesture whose keyboard equivalent is
+  copy/kill/yank gets no command of its own (`docs/user-interface.md`).
 - Where a well-known convention exists in the lineage this project draws on,
   prefer it to inventing something new, and where a document records the
   lineage (`docs/drums-and-sequencer.md`, the README), keep it accurate. Add a
@@ -1532,7 +1532,7 @@ would otherwise resume showing.
   when the published content no longer matches the model.
 - Undo (`doc/UndoHistory.h`, `Song::undo()`/`redo()`, the `undo` and
   `undo-redo` commands from `Controller`; bindings and the Launchpad's shift +
-  Record Arm / Mute in `docs/terminal.md`/`docs/launchpad.md`): the Emacs
+  Record Arm / Mute in `docs/user-interface.md`/`docs/launchpad.md`): the Emacs
   policy over the journal. An undo appends the inverse of an earlier entry, so
   nothing is dropped and undoing an undo is a redo; the run of undos is broken
   only by a tracked edit (cursor moves are not edits), and `Origin::SYNC`
