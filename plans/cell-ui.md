@@ -7,10 +7,22 @@ shows them. There are two backends:
 
 - **Terminal** (`cellui::term`). It replaces notcurses, does the
   terminal-only work itself and keeps compatibility with every terminal.
-- **Window** (`cellui::gpu`). A GPU-rendered window on Linux (X11/Wayland)
+- **Window** (`cellui::window`). A GPU-rendered window on Linux (X11/Wayland)
   and Windows, with real dialogs and menus.
 
 The app can pick either one when a display server is running.
+
+The work comes in two phases, each with its own plan, while the Windows
+port (`plans/windows-port.md`) proceeds alongside:
+
+1. **Terminal Cell UI** (`plans/cell-ui-terminal.md`): the library is
+   separated out with the terminal backend only, notcurses goes, and the
+   modernizations a terminal can show (`plans/modern-look.md`) go in.
+2. **Window Cell UI** (`plans/cell-ui-window.md`): considered once the UI
+   is separated. It chooses a host and adds the graphical backend.
+
+This file is the shared design: why, what the library provides, keymaps
+and the long-term risks.
 
 "TUI" and "GUI" stay as the names of the two backends. "Cell UI" is the
 approach: one cell-based UI with two renderings.
@@ -74,20 +86,26 @@ cheap because the semantics are already there.
 ## Architecture
 
 ```
-app (synth)  ->  cellui  -> term backend   (VT output, terminfo, probing)
-                         -> gpu backend    (SDL3, SDL_GPU, HarfBuzz/FreeType)
-                         uses canvas       (2D drawing for pixel regions:
-                                            GDI+ on Windows, Cairo on Linux)
+app (synth)  ->  cellui  -> terminal backend  (phase 1: VT output, terminfo, probing)
+                         -> window backend    (phase 2: host to be chosen)
+                         uses canvas          (2D drawing for pixel regions:
+                                               GDI+ on Windows, Cairo on Linux)
 ```
 
 The app talks only to `cellui`. Backend capabilities are queryable, but an
 app that ignores them still works: an effect the terminal can't do is
-dropped, not an error.
+dropped, not an error. Phase 1 defines the whole API below, including the
+parts only the window can show, so phase 2 adds a backend without changing
+the app.
 
 ### What the library provides
 
+Each item says what the terminal does with it; what the window does is in
+`plans/cell-ui-window.md`.
+
 - **Planes (layers).** A grid of cells with z-order, visibility, opacity and
-  a transform. The terminal backend only honours z-order and visibility.
+  a transform (a 4x4 matrix, so 3D placement stays possible). The terminal
+  honours z-order and visibility.
 - **Cells.** A grapheme cluster (UTF-8; width from `util/Utf8.h`'s rules,
   which move into the library) plus fg, bg, bold, italic and underline, as
   `UIPlane` has now. On top of that comes a **style id** into a style table:
@@ -96,216 +114,57 @@ dropped, not an error.
   in the terminal: gradients to their mid colour, borders to box-drawing
   characters only where the style asks for them, everything else dropped.
 - **Spans.** A rectangle of cells merged into one, for a label or a pixel
-  region. A pixel region is drawn with the canvas API (below) and is
-  re-rendered only when its content changes.
-- **Geometry.** Per-plane column widths and row heights in GPU pixels, so
-  the app can say "this row is 1.5 rows high" (a scene header) or "this
-  column has 4px of padding". The terminal backend rounds to whole cells.
-  App code keeps addressing cells. Pixel positions are for the backend, and
-  for the mouse (events carry both).
-- **Scrolling.** A plane's scroll offset is fractional. The GPU backend
-  glides with vsync; the terminal steps.
-- **Windows.**
-  - The main window.
-  - **Dialogs:** separate OS windows with a real title bar, draggable,
-    modal when asked (`SDL_SetWindowParent` + `SDL_SetWindowModal`). Their
-    content is cells and canvas like everything else.
-  - **Popups:** menus, tooltips and pickers, as `SDL_CreatePopupWindow`, so
-    they can leave the main window's area (Wayland `xdg_popup` included).
-  - In the terminal, dialogs and popups are planes drawn inside the screen,
-    as now.
-- **Native dialogs** for files (open/save/folder: `SDL_ShowOpenFileDialog`
-  and friends, portal-backed on Linux) and message boxes.
+  region. A pixel region is drawn with canvas and re-rendered only when its
+  content changes. The terminal shows it with Kitty graphics or Sixel, or
+  quantized to braille or sextant cells.
+- **Geometry.** Per-plane column widths and row heights in pixels, so the
+  app can say "this row is 1.5 rows high" (a scene header) or "this column
+  has 4px of padding". The terminal rounds to whole cells. App code keeps
+  addressing cells; events carry both cell and pixel positions.
+- **Scrolling.** A plane's scroll offset is fractional. The terminal steps.
+- **Windows, dialogs and popups.** A main window, dialogs (modal when asked)
+  and popups (menus, tooltips, pickers). In the terminal they are planes
+  inside the screen, as now. File dialogs are a library call; the terminal
+  answers it with its own picker.
 - **Menus.** A menu model (items, submenus, checkable and radio items,
-  accelerator text, enabled state), built once by the app; `UIMenu`
-  becomes it.
-  - Windows: a real `HMENU` on the main window (`SetMenu` on the HWND SDL
-    exposes).
-  - Linux: no native menu bar exists outside a toolkit, so the library
-    draws one that looks native, as popup windows with the system font,
-    not as cells. It takes the desktop's colour scheme, accent and font
-    from the desktop portal's settings and fontconfig. Not GTK: a GTK menu
-    needs a GTK parent widget and GTK's main loop, on Wayland it cannot
-    attach to another toolkit's surface, and it would look like GNOME on
-    KDE anyway. Exporting the menu over D-Bus for desktops with a global
-    menu bar (KDE Plasma's) is a cheap addition later.
-  - macOS, if ever: `NSMenu`.
-  - Terminal: drawn in cells, as now.
+  accelerator text, enabled state, icons), built once by the app; `UIMenu`
+  becomes it. The terminal draws it in cells, as now.
 - **Text entry.** One single-line text field (the minibuffer, renaming,
   dialog fields): cursor, selection, word movement, clipboard, undo, and
-  IME composition (`SDL_EVENT_TEXT_EDITING`). This is the one real widget
-  in the library, and the one that takes the most care.
-- **Input.**
-  - Key down and key up with physical key and modifiers, kept separate from
-    text input (keyboard layouts and IME).
-  - Mouse with pixel and cell coordinates, precise wheel deltas, and file
-    drops (samples onto a slot).
-  - Windows console input (`ReadConsoleInputW`) also reports key releases,
-    so the terminal backend gets held notes there for free.
-- **Icons.** The app registers its own icons by id: a vector source
-  (SVG), drawn as pixels in both backends, a name, and optionally a Unicode
+  input-method composition. This is the one real widget in the library, and
+  the one that takes the most care.
+- **Input.** Key down and key up with physical key and modifiers, kept
+  separate from text input (keyboard layouts, input methods); mouse with
+  pixel and cell coordinates and precise wheel deltas; file drops.
+- **Icons.** The app registers its own icons by id: a vector source (SVG),
+  drawn as pixels in both backends, a name, and optionally a Unicode
   fallback glyph for terminals without pixel graphics. An icon with no glyph
   of its own falls back to one shared generic icon glyph, so any icon can be
   added without first finding a Unicode character for it; the generic glyph
   must not be one that already carries a meaning (not ◆, ●, ▸ and so on).
   An icon takes one or more cells, like any other cell content.
-  - Window: rasterized at the current scale into the glyph atlas and tinted
-    by the cell's foreground colour, so icons follow the theme and state
-    colours. The SVG is parsed with a small vendored parser (lunasvg or
-    nanosvg) or drawn with canvas.
-  - Terminal: drawn as pixels with Kitty graphics or Sixel, whichever the
-    startup probe found.
-    - The SVG is rasterized at the terminal's cell size in pixels (from the
-      Kitty graphics reply or the window-size report), tinted with the
-      cell's foreground and composited onto its background. Sixel's
-      transparency is unreliable across terminals, so the background is
-      filled in rather than left transparent.
-    - Kitty graphics: each (icon, colours, size) image is uploaded once
-      under an image id and placed by id, which is cheap to repeat.
-      Unicode placeholder placements make icons scroll and clear with the
-      text around them.
-    - Sixel: the encoded image is cached per (icon, colours, size) and
-      re-sent whenever its cell is redrawn. The diff renderer treats an
-      icon cell as changed when its icon or colours change, and erases a
-      replaced image.
-    - Fallback: the icon's Unicode glyph (or the generic one) when
-      neither protocol is available, when the cell size in pixels is
-      unknown, inside a multiplexer that doesn't pass graphics through, or
-      when the user turns pixel icons off. An icon with its own glyph
-      keeps its meaning in a plain terminal.
   - Accessibility: the glyph is also what a screen reader or braille
     display gets in the terminal, and a Unicode character is understood
     everywhere, so an icon that matters for using the program should have
     its own glyph, not the generic one. The accessibility tree reports the
-    icon's name, in both backends, since screen readers name symbols
-    inconsistently.
+    icon's name, since screen readers name symbols inconsistently.
   - The same ids name menu item icons and, where the hardware allows, the
     Launchpad's own meanings, so one icon list covers every surface.
-- **Clipboard:** the system clipboard in both backends. The terminal uses
-  OSC 52 where the terminal allows it.
+- **Clipboard:** the system clipboard. The terminal uses OSC 52 where the
+  terminal allows it.
 - **Accessibility tree:** each widget publishes roles (grid, row, cell,
-  button, slider, text field), names, values and focus. The GPU backend
-  exposes it through AccessKit (C bindings over UI Automation on Windows
-  and AT-SPI on Linux). The terminal backend keeps the real terminal cursor
-  on the focused cell, which is what terminal screen readers follow.
+  button, slider, text field), names, values and focus. The terminal keeps
+  the real terminal cursor on the focused cell, which is what terminal
+  screen readers follow; the window hands the tree to the platform.
 - **Themes:** the style table and the colour tokens (`StyleProvider`) are
-  data. The OS dark/light preference, high contrast and reduced motion are
-  read in the GPU backend.
-
-### Host for the window backend (open)
-
-Cell UI doesn't have to sit on SDL3. Its window backend can also be hosted by
-an existing toolkit. The toolkit then only supplies windows, input, text,
-menus and dialogs, while the cells, styles, spans and icons are still drawn
-by our code into one surface. That is different from a Qt or wxWidgets UI:
-no widget is rewritten, the app still only sees Cell UI, and the terminal
-backend is unaffected.
-
-| Host | Gives us | Costs us |
-|---|---|---|
-| SDL3 (the plan above) | Small, simple, game-style rendering freedom (SDL_GPU) | Native menus, IME details, font fallback, accessibility adapters, i18n tooling are all ours (the "lack" table below) |
-| Qt 6 | Nearly the whole "lack" table: accessibility (UIA/AT-SPI through `QAccessibleInterface`, which we implement for the grid), IME, HarfBuzz shaping and font fallback, HiDPI, translation tooling, native menus on Windows and a native-looking menu bar on Linux (with KDE's global menu), modal dialogs, native file dialogs. Qt Quick's scene graph renders through Vulkan/D3D/Metal with custom shaders, so shadows, blur, layers and 3D transforms stay possible; Qt Quick 3D XR covers a headset later | Large runtime (tens of MB in the installer), Qt's build tooling, Qt's event loop on the main thread, LGPL obligations for an MIT project (dynamic linking, relinkable), and some modules (Qt Quick 3D among them) are GPL or commercial only, which rules them out unless the licence changes |
-| wxWidgets | Truly native menus and dialogs on every platform, GTK ones on Linux; lighter than Qt; a licence that allows static linking | A GPU surface (`wxGLCanvas`) inside native widgets is the weak spot, especially on Wayland; accessibility outside Windows is thin, and IME into a custom-drawn surface is ours again; effects need our own OpenGL anyway |
-| Dear ImGui | Fast tool and debug panels | Nothing on the "lack" table: it needs a platform layer (SDL3 itself), draws its own menus, and has no accessibility or real IME. Useful at most for developer panels inside the window backend, not as the host |
-
-Recommendation: **Qt 6 as the host**, using only its LGPL modules (Core,
-Gui, Quick, and Widgets only for the menu bar and dialogs if Quick's aren't
-enough). The biggest risk of a custom toolkit is the long tail of
-accessibility, IME, fonts, translation and platform menus, and Qt removes
-most of it, leaving us the part that is actually ours: the cell grid and its
-look. The cost is size and build weight, not a second UI. Keep the Cell UI
-API free of Qt types, so the host can still be swapped for SDL3 later.
-
-Before committing to either, a short spike: the pattern editor drawn
-through a minimal window backend on each host (cells, glyph atlas, one
-shadowed popup, a menu, a modal dialog), compared on Linux and Windows for
-looks, input latency, idle CPU and installer size.
-
-### Rendering (GPU backend, SDL3 host)
-
-- **SDL3** handles windows, input, IME, dialogs, popups, clipboard and file
-  drops on Linux (X11/Wayland) and Windows. It is in MSYS2, and is vendored
-  via FetchContent where the distro has none (Ubuntu 24.04).
-- **Use SDL_GPU, not raw OpenGL.** Yes, render on the GPU, but through
-  SDL_GPU (Vulkan on Linux, D3D12 on Windows, Metal if macOS ever comes):
-  - OpenGL is deprecated on macOS, and Windows OpenGL drivers are the least
-    reliable path there.
-  - Software rasterizers cover machines without a GPU (WARP on Windows,
-    lavapipe on Linux), so there is no separate fallback renderer to keep.
-- **Speed isn't the reason.** A few thousand cells is nothing for any GPU
-  path. The point is smooth frame pacing, effects, and an idle UI that
-  draws nothing (the engine side already sends nothing when idle; keep it
-  that way).
-- **One instanced draw for cells:** a quad per cell, glyphs from an atlas.
-- **SDF shaders** for rounded rects, borders, gradients and shadows. Blur
-  for floating layers is a two-pass shader on that layer's texture.
-- **Pixel regions are textures,** uploaded only when changed.
-- **Text:** FreeType + HarfBuzz everywhere (one stack, real shaping),
-  fontconfig fallback on Linux, DirectWrite font fallback lookup on
-  Windows. Bundle a UI font and a mono font (both OFL) so the look is the
-  same everywhere; system fonts cover scripts they lack.
-- **HiDPI:** per-monitor scale from SDL; the atlas is rebuilt per scale.
-
-### Terminal backend (replacing notcurses)
-
-- A cell buffer diffed against the last frame and written as escape
-  sequences: the curses model, without curses' screen layer.
-- Basic capabilities come from terminfo (libtinfo, i.e. ncurses's terminfo
-  database), so old terminals keep working. Newer features are probed at
-  startup:
-  - device attributes and XTVERSION;
-  - the Kitty keyboard protocol;
-  - Kitty graphics and Sixel;
-  - true colour (COLORTERM, then a query);
-  - character width, by printing a probe glyph and reading the cursor
-    position (terminals disagree on emoji and the newer symbols).
-- Input is our own parser (legacy keys, CSI u, SGR mouse, bracketed paste),
-  with `EscapeCoalescer` kept.
-- Pixel regions go to Kitty graphics or Sixel where available. Otherwise
-  the canvas image is quantized to braille or sextant cells. That one
-  quantizer replaces the per-widget sub-cell paint code
-  (`TerminalHeatmapChart`, the braille path of `SpectrumMeter`) with a
-  single path.
-- Windows: VT output through ConPTY/Windows Terminal
-  (`ENABLE_VIRTUAL_TERMINAL_PROCESSING`), console input records for keys.
-- Expect 4-6k lines. It's the first thing to build: it removes notcurses,
-  proves the library API against the real app with no new rendering
-  questions, and gives Windows a terminal UI.
-
-### 2D drawing: canvas
-
-`rekola/canvas` has the right API: the HTML5 Canvas 2D one, familiar and
-fluent, which suits scopes and meters. Its backends are the platforms' own
-2D libraries:
-
-- GDI+ on Windows. Its weak spot, unantialiased clipping, doesn't matter
-  here: everything is drawn inside a cell rectangle (a span), so no clip
-  path is needed.
-- Cairo on Linux.
-- Quartz, if macOS ever comes.
-
-Plan:
-
-1. **Now (no UI change needed):** move synth's chart and meter paint code
-   onto canvas, drawing each into its own span's image. The terminal draws
-   that ImageData as pixels or through the sub-cell quantizer. This deletes
-   custom paint code early, independent of everything else here.
-2. **With the GPU backend:** the images become textures, uploaded only when
-   they change. A canvas GPU backend for the subset synth draws (rects,
-   rounded rects, antialiased lines and polylines, gradients, images, text
-   through the same atlas, shadows) can come later, if CPU drawing plus
-   upload ever shows up in profiles.
-
-Keep canvas a separate library that `cellui` depends on rather than merging
-it in. It is useful on its own, and the UI library stays about layout and
-input.
+  data.
 
 ## Where it lives
 
 1. A library target inside this repository (`lib/cellui/`, its own
    `CMakeLists.txt`, no `#include` of anything in `src/`), with its own tests
    and a small gallery app that shows every cell style, span, dialog and menu
-   in both backends.
+   in each backend.
 2. Move it to its own repository once the API has stopped moving, the way
    synth itself was extracted from `personal`. Not before: while the app is
    the only user, changing both in one commit is the fast path.
@@ -345,7 +204,7 @@ now, even if the work comes later.
 | Area | What goes wrong | Our answer |
 |---|---|---|
 | Accessibility | Screen readers see an opaque canvas; the app is unusable for blind users, and the gap grows with every widget | Accessibility tree from day one (roles from the cell model), AccessKit adapters; the terminal backend keeps the real cursor on focus |
-| Text input / IME | CJK input, dead keys, compose and emoji pickers break; text fields lack word movement, undo and selection | One text field done properly, IME via SDL3; no other text widgets |
+| Text input / IME | CJK input, dead keys, compose and emoji pickers break; text fields lack word movement, undo and selection | One text field done properly, input methods via the window host; no other text widgets |
 | Internationalization | Strings hard-coded in code; no plural forms; layouts assume English widths; no right-to-left | Strings through a catalog (gettext-style, ids in code); cell widths from text measurement, never assumed; right-to-left: labels only (note data stays left-to-right), decided when a language needs it |
 | Fonts | Missing glyphs (tofu), no shaping, no fallback | HarfBuzz + FreeType + system fallback; bundled UI/mono fonts |
 | HiDPI / multi-monitor | Blurry text, wrong size when moving between monitors | Per-monitor scale, atlas per scale |
@@ -368,12 +227,12 @@ that bounded:
 - **Scope:** a cell grid, spans, styles, planes, one text field, menus,
   dialogs, popups. No general widget set, no layout engine beyond the
   grid. Anything else stays app code.
-- **Lean on mature libraries** for the hard platform parts: SDL3, HarfBuzz,
-  FreeType, AccessKit, canvas (GDI+/Cairo).
-- **Order:** the terminal backend first. It replaces a dependency that's
-  already broken, so that cost has to be paid anyway. The window backend
-  comes second, behind a flag, while the terminal stays the default until
-  the window one is better.
+- **Lean on mature libraries** for the hard platform parts: the window host
+  (`plans/cell-ui-window.md`), canvas (GDI+/Cairo).
+- **Order:** the terminal backend first (phase 1). It replaces a dependency
+  that's already broken, so that cost has to be paid anyway. The window
+  backend comes second (phase 2), behind a flag, while the terminal stays
+  the default until the window one is better.
 - **Rough size:**
   - terminal backend: 4-6k lines;
   - window backend core (windows, cells, text, atlas, input, dialogs,
@@ -382,42 +241,3 @@ that bounded:
 - **Comparison:** a Qt UI is a full second front end (widgets ~6k lines
   now and growing with every feature), plus Qt's build and licence
   obligations. That is the cost being traded against.
-
-## CI and installer
-
-- CI builds both backends on Linux and Windows (`plans/windows-port.md` step
-  0 sets up the Windows job). Golden-image tests of the gallery app run
-  through software Vulkan (lavapipe) on Linux and WARP on Windows.
-- **Windows installer:** Inno Setup, built on CI from tags.
-  - It bundles the MSYS2 runtime DLLs the binary needs (collected with
-    `ntldd`), the default song, a General MIDI SoundFont (FluidR3_GM, MIT),
-    a SOFA file if its licence allows, and the licence texts.
-  - Start menu entries for the window and the terminal.
-  - Later: an MSIX or winget manifest.
-- **Code signing:** an unsigned installer triggers SmartScreen warnings. A
-  signing service (Azure Trusted Signing or similar) runs in the release
-  job once there are users to protect.
-- **Linux:** AppImage or Flatpak later; distro packages need no installer.
-
-## Steps
-
-1. Canvas for synth's charts and meters (GDI+ on Windows, Cairo on Linux),
-   terminal draws ImageData via pixels or the sub-cell quantizer. Independent of the rest.
-2. Create `lib/cellui` with `UIPlane`/`UIMenu`/input types moved in and the
-   gallery app; the terminal backend replaces notcurses
-   (`TerminalUI.cpp`'s planes, input, menus, charts). Same look, same
-   e2e results.
-3. Keymap profiles (emacs/standard) in the app's keymap layer, the standard
-   one built from verified bindings, usable in the terminal already.
-4. Host spike (above), then the GPU backend: main window, cells, text, input, popups, dialogs, file
-   dialogs, menus (native on Windows), `--ui window|terminal`, default
-   chosen by whether a display is available.
-5. Styles beyond the terminal: geometry, spans, borders, gradients, radius,
-   shadows, smooth scrolling. The look comes from
-   `plans/modern-look.md`.
-6. Accessibility tree and AccessKit; string catalog.
-7. Icons: the app's icon list (SVG plus terminal fallback) in both
-   backends and the menus.
-8. Windows installer and signing.
-9. Voice commands (whisper.cpp), then layers in 3D and the rest of the
-   ideas above as wanted.

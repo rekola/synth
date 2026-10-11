@@ -1,7 +1,8 @@
 # Modern look
 
-Make the UI look current rather than dated, in the terminal now and in the
-window backend later (`plans/cell-ui.md`). Most of this is about decisions,
+Make the UI look current rather than dated, in the terminal now (steps 1-5,
+part of `plans/cell-ui-terminal.md`) and in the window later (step 6,
+`plans/cell-ui-window.md`). Most of this is about decisions,
 not rendering features, so it starts in the terminal. Every colour is
 already a `StyleProvider` constant, which is the lever.
 
@@ -105,5 +106,5 @@ Themes are data:
    - fades for state changes.
 5. **Light and high-contrast themes,** with a theme command and a setting.
 6. **Window backend:** the same tokens plus elevation shadows, radius,
-   padding, the UI font and smooth motion, once `plans/cell-ui.md` reaches
-   its styles step.
+   padding, the UI font and smooth motion, in `plans/cell-ui-window.md`'s
+   styles step.

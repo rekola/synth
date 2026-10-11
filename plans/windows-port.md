@@ -5,8 +5,10 @@ own, without deciding the graphical UI yet. Step 0 gets a CI-built
 command-line binary that renders songs. Steps 1-5 make the platform layer
 (audio, MIDI, Launchpad, OS utilities) backend-neutral and add Windows
 backends, ending with `--headless` (playback + Launchpad performance) working
-on Windows. The UI choice (terminal-cell grid in a graphical window vs. a
-toolkit) is left open and is not part of this plan.
+on Windows; step 6 packages it. This runs alongside phase 1 of the Cell UI
+(`plans/cell-ui-terminal.md`), which replaces notcurses: once both are far
+enough, the terminal UI runs in a Windows console too. The graphical UI is
+phase 2 (`plans/cell-ui-window.md`) and not part of this plan.
 
 ## Decisions
 
@@ -194,7 +196,21 @@ input, sample recording, a Launchpad as the performance surface. This is the
 first Windows build a musician can use, and still needs no UI decision.
 Verify by hand with a Launchpad on Windows; document in `docs/headless.md`.
 
+## Step 6 - Installer
+
+- **Inno Setup**, built on CI from tags.
+  - It bundles the MSYS2 runtime DLLs the binary needs (collected with
+    `ntldd`), the default song, a General MIDI SoundFont (FluidR3_GM, MIT),
+    a SOFA file if its licence allows, and the licence texts.
+  - Start menu entries for the terminal UI (once it runs on Windows) and
+    `--headless`; the window gets one in phase 2.
+  - Later: an MSIX or winget manifest.
+- **Code signing:** an unsigned installer triggers SmartScreen warnings. A
+  signing service (Azure Trusted Signing or similar) runs in the release
+  job once there are users to protect.
+- **Linux:** AppImage or Flatpak later; distro packages need no installer.
+
 ## After this plan
 
-The UI: `plans/cell-ui.md` (the Cell UI library - a terminal backend that
-replaces notcurses, then a GPU window backend).
+The graphical UI: `plans/cell-ui-window.md`, once the Cell UI's terminal
+phase has separated the UI.
