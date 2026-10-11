@@ -143,15 +143,33 @@ dropped, not an error.
   - Windows console input (`ReadConsoleInputW`) also reports key releases,
     so the terminal backend gets held notes there for free.
 - **Icons.** The app registers its own icons by id: a vector source
-  (SVG) for the window backend and a Unicode fallback glyph for the terminal.
+  (SVG), drawn as pixels in both backends, and a Unicode fallback glyph for
+  terminals without pixel graphics.
   An icon takes one or more cells, like any other cell content.
   - Window: rasterized at the current scale into the glyph atlas and tinted
     by the cell's foreground colour, so icons follow the theme and state
     colours. The SVG is parsed with a small vendored parser (lunasvg or
     nanosvg) or drawn with canvas.
-  - Terminal: the fallback glyph; with Kitty graphics, optionally the icon
-    itself at cell size. The fallback must exist, so every icon still has a
-    meaning in a plain terminal.
+  - Terminal: drawn as pixels with Kitty graphics or Sixel, whichever the
+    startup probe found.
+    - The SVG is rasterized at the terminal's cell size in pixels (from the
+      Kitty graphics reply or the window-size report), tinted with the
+      cell's foreground and composited onto its background. Sixel's
+      transparency is unreliable across terminals, so the background is
+      filled in rather than left transparent.
+    - Kitty graphics: each (icon, colours, size) image is uploaded once
+      under an image id and placed by id, which is cheap to repeat.
+      Unicode placeholder placements make icons scroll and clear with the
+      text around them.
+    - Sixel: the encoded image is cached per (icon, colours, size) and
+      re-sent whenever its cell is redrawn. The diff renderer treats an
+      icon cell as changed when its icon or colours change, and erases a
+      replaced image.
+    - Fallback: the icon's Unicode glyph when neither protocol is
+      available, when the cell size in pixels is unknown, inside a
+      multiplexer that doesn't pass graphics through, or when the user
+      turns pixel icons off. The fallback always exists, so every icon
+      keeps its meaning in a plain terminal.
   - The same ids name menu item icons and, where the hardware allows, the
     Launchpad's own meanings, so one icon list covers every surface.
 - **Clipboard:** the system clipboard in both backends. The terminal uses

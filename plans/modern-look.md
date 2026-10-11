@@ -38,8 +38,9 @@ already a `StyleProvider` constant, which is the lever.
    In the terminal: bold only for headings and the focused item, italic
    for placeholders.
 5. **One icon set, our own.** One list of icon meanings, each drawn as our
-   own SVG in one consistent style (stroke width, corner radius, grid) for
-   the window, with a Unicode fallback for the terminal chosen to render in
+   own SVG in one consistent style (stroke width, corner radius, grid),
+   drawn as pixels in the window and in terminals with Kitty graphics or
+   Sixel, with a Unicode fallback for other terminals chosen to render in
    common monospace fonts (▸ ▹ ● ○ ◆ ✎ ⏹ are the base), checked against
    the width probe. The icons are part of the look, so they are designed
    with the tokens, not picked from a stock family.
