@@ -37,12 +37,12 @@ already a `StyleProvider` constant, which is the lever.
    the UI font for labels in the window backend. Two sizes, two weights.
    In the terminal: bold only for headings and the focused item, italic
    for placeholders.
-5. **One icon set.**
-   - Terminal: a fixed list of Unicode symbols chosen to render in common
-     monospace fonts (▸ ▹ ● ○ ◆ ✎ ⏹ are the base), checked against the
-     width probe.
-   - Window: one vector icon family under a permissive licence, drawn from
-     the same list of meanings.
+5. **One icon set, our own.** One list of icon meanings, each drawn as our
+   own SVG in one consistent style (stroke width, corner radius, grid) for
+   the window, with a Unicode fallback for the terminal chosen to render in
+   common monospace fonts (▸ ▹ ● ○ ◆ ✎ ⏹ are the base), checked against
+   the width probe. The icons are part of the look, so they are designed
+   with the tokens, not picked from a stock family.
 6. **Motion that explains.** 120-250 ms eased transitions where a state
    changes in place: queued to playing, a panel opening, the cursor moving
    to an undo place. The terminal does this as colour fades, as it already

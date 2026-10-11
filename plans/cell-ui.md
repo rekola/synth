@@ -76,7 +76,8 @@ cheap because the semantics are already there.
 ```
 app (synth)  ->  cellui  -> term backend   (VT output, terminfo, probing)
                          -> gpu backend    (SDL3, SDL_GPU, HarfBuzz/FreeType)
-                         uses canvas       (2D drawing for pixel regions)
+                         uses canvas       (2D drawing for pixel regions:
+                                            GDI+ on Windows, Cairo on Linux)
 ```
 
 The app talks only to `cellui`. Backend capabilities are queryable, but an
@@ -122,7 +123,12 @@ dropped, not an error.
     exposes).
   - Linux: no native menu bar exists outside a toolkit, so the library
     draws one that looks native, as popup windows with the system font,
-    not as cells.
+    not as cells. It takes the desktop's colour scheme, accent and font
+    from the desktop portal's settings and fontconfig. Not GTK: a GTK menu
+    needs a GTK parent widget and GTK's main loop, on Wayland it cannot
+    attach to another toolkit's surface, and it would look like GNOME on
+    KDE anyway. Exporting the menu over D-Bus for desktops with a global
+    menu bar (KDE Plasma's) is a cheap addition later.
   - macOS, if ever: `NSMenu`.
   - Terminal: drawn in cells, as now.
 - **Text entry.** One single-line text field (the minibuffer, renaming,
@@ -136,6 +142,18 @@ dropped, not an error.
     drops (samples onto a slot).
   - Windows console input (`ReadConsoleInputW`) also reports key releases,
     so the terminal backend gets held notes there for free.
+- **Icons.** The app registers its own icons by id: a vector source
+  (SVG) for the window backend and a Unicode fallback glyph for the terminal.
+  An icon takes one or more cells, like any other cell content.
+  - Window: rasterized at the current scale into the glyph atlas and tinted
+    by the cell's foreground colour, so icons follow the theme and state
+    colours. The SVG is parsed with a small vendored parser (lunasvg or
+    nanosvg) or drawn with canvas.
+  - Terminal: the fallback glyph; with Kitty graphics, optionally the icon
+    itself at cell size. The fallback must exist, so every icon still has a
+    meaning in a plain terminal.
+  - The same ids name menu item icons and, where the hardware allows, the
+    Launchpad's own meanings, so one icon list covers every surface.
 - **Clipboard:** the system clipboard in both backends. The terminal uses
   OSC 52 where the terminal allows it.
 - **Accessibility tree:** each widget publishes roles (grid, row, cell,
@@ -200,34 +218,27 @@ dropped, not an error.
 
 ### 2D drawing: canvas
 
-`rekola/canvas` has the right API, the HTML5 Canvas 2D one, familiar and
-fluent, and it suits scopes and meters. Its backends are CPU rasterizers:
+`rekola/canvas` has the right API: the HTML5 Canvas 2D one, familiar and
+fluent, which suits scopes and meters. Its backends are the platforms' own
+2D libraries:
 
+- GDI+ on Windows. Its weak spot, unantialiased clipping, doesn't matter
+  here: everything is drawn inside a cell rectangle (a span), so no clip
+  path is needed.
 - Cairo on Linux.
-- GDI+ on Windows: legacy, with unantialiased clipping according to its own
-  README.
-- Quartz and Android.
+- Quartz, if macOS ever comes.
 
 Plan:
 
 1. **Now (no UI change needed):** move synth's chart and meter paint code
-   onto canvas with the Cairo backend. Cairo is also in MSYS2, so it serves
-   Windows too and GDI+ isn't used. The terminal draws the resulting
-   ImageData via pixels or the sub-cell quantizer. This deletes custom paint
-   code early, independent of everything else here.
-2. **With the GPU backend:** add a canvas GPU backend for the subset synth
-   draws:
-   - rects and rounded rects;
-   - lines and polylines (antialiased, by SDF or expanded quads);
-   - linear and radial gradients;
-   - images;
-   - text through the same atlas;
-   - shadows.
-   Anything outside the subset (arbitrary filled paths) still rasterizes
-   on the CPU into a texture.
-3. **Cairo becomes optional** when nothing in synth needs the CPU path any
-   more. Writing our own general path rasterizer to drop Cairo isn't worth
-   it.
+   onto canvas, drawing each into its own span's image. The terminal draws
+   that ImageData as pixels or through the sub-cell quantizer. This deletes
+   custom paint code early, independent of everything else here.
+2. **With the GPU backend:** the images become textures, uploaded only when
+   they change. A canvas GPU backend for the subset synth draws (rects,
+   rounded rects, antialiased lines and polylines, gradients, images, text
+   through the same atlas, shadows) can come later, if CPU drawing plus
+   upload ever shows up in profiles.
 
 Keep canvas a separate library that `cellui` depends on rather than merging
 it in. It is useful on its own, and the UI library stays about layout and
@@ -260,10 +271,10 @@ library types or thin aliases. `UI` and `TerminalUI` stay in the app,
 - Commands, M-x and the menus are the same in both. The standard keymap
   also gets a command palette key bound to the same minibuffer (key to be
   decided).
-- Check every standard binding against the reference manual of the program
-  it comes from before adding it, and record it in `docs/user-interface.md`
-  with its source, as `docs/commands.md` does for effect commands. Leave out
-  any binding not known exactly.
+- The standard bindings are the ones those conventions share and their
+  users already know, chosen once from that common knowledge and documented
+  as this program's own bindings in `docs/user-interface.md`. No binding is
+  copied from another program's manual, and no binding is credited to one.
 - In the standard keymap a selection uses the system clipboard. The region
   model (there's always a region) stays.
 - In the terminal, the standard keymap loses what the terminal can't send
@@ -282,7 +293,7 @@ now, even if the work comes later.
 | Internationalization | Strings hard-coded in code; no plural forms; layouts assume English widths; no right-to-left | Strings through a catalog (gettext-style, ids in code); cell widths from text measurement, never assumed; right-to-left: labels only (note data stays left-to-right), decided when a language needs it |
 | Fonts | Missing glyphs (tofu), no shaping, no fallback | HarfBuzz + FreeType + system fallback; bundled UI/mono fonts |
 | HiDPI / multi-monitor | Blurry text, wrong size when moving between monitors | Per-monitor scale, atlas per scale |
-| Platform integration | No native menus or dialogs, wrong shortcuts (Cmd vs Ctrl), no dark-mode follow, no recent files | Native menus on Windows, native file dialogs, OS theme and reduced-motion follow, standard keymap |
+| Platform integration | No native menus or dialogs, wrong shortcuts (Cmd vs Ctrl), no dark-mode follow, no recent files | Native menus on Windows, native-looking ones on Linux, native file dialogs, OS theme and reduced-motion follow, standard keymap |
 | Power | Immediate-mode UIs redraw at 60 fps forever | Retained cells with damage tracking; draw only on change or animation |
 | Remote desktop / VMs | GPU path missing or slow | WARP/lavapipe fallback; the terminal backend for SSH |
 | Testing | UI bugs found by hand | Offscreen rendering to images with tolerant golden tests on CI (lavapipe/WARP); the existing pty-based e2e scripts keep covering the terminal |
@@ -302,7 +313,7 @@ that bounded:
   dialogs, popups. No general widget set, no layout engine beyond the
   grid. Anything else stays app code.
 - **Lean on mature libraries** for the hard platform parts: SDL3, HarfBuzz,
-  FreeType, AccessKit, canvas/Cairo.
+  FreeType, AccessKit, canvas (GDI+/Cairo).
 - **Order:** the terminal backend first. It replaces a dependency that's
   already broken, so that cost has to be paid anyway. The window backend
   comes second, behind a flag, while the terminal stays the default until
@@ -334,8 +345,8 @@ that bounded:
 
 ## Steps
 
-1. Canvas for synth's charts and meters (Cairo backend), terminal draws
-   ImageData via pixels or the sub-cell quantizer. Independent of the rest.
+1. Canvas for synth's charts and meters (GDI+ on Windows, Cairo on Linux),
+   terminal draws ImageData via pixels or the sub-cell quantizer. Independent of the rest.
 2. Create `lib/cellui` with `UIPlane`/`UIMenu`/input types moved in and the
    gallery app; the terminal backend replaces notcurses
    (`TerminalUI.cpp`'s planes, input, menus, charts). Same look, same
@@ -349,7 +360,8 @@ that bounded:
    shadows, smooth scrolling. The look comes from
    `plans/modern-look.md`.
 6. Accessibility tree and AccessKit; string catalog.
-7. Canvas GPU backend; Cairo optional.
+7. Icons: the app's icon list (SVG plus terminal fallback) in both
+   backends and the menus.
 8. Windows installer and signing.
 9. Voice commands (whisper.cpp), then layers in 3D and the rest of the
    ideas above as wanted.
