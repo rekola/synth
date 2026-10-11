@@ -6,6 +6,7 @@
 #include "../src/ambisonic/ChannelConfiguration.h"
 #include "../src/instruments/PadSynth.h"
 #include "../src/instruments/PadSynthTable.h"
+#include "../src/instruments/PadSynthVoice.h"
 #include "../src/dsp/RealFFT.h"
 #include "../src/instruments/InstrumentLibrary.h"
 #include "../src/instruments/InstrumentProvider.h"
@@ -166,7 +167,7 @@ int risingCrossings(float detune_cents) {
 
   int crossings = 0;
   float prev = 0.0f;
-  for (int block = 0; block < 8; block++) {
+  for (int block = 0; block < 64; block++) {
     auto out = voice->render(1024);
     for (int k = 0; k < 1024; k++) {
       float v = out.getChannelData(0)[k];
@@ -183,9 +184,9 @@ TEST(padsynth_detune_in_cents_shifts_pitch_and_round_trips) {
   int base = risingCrossings(0.0f);
   int octave = risingCrossings(1200.0f);
   CHECK(base > 20);
-  // 1200 cents is an octave up: twice the cycles, give or take a cycle at
-  // the edges of the measured window.
-  CHECK(octave >= 2 * base - 2 && octave <= 2 * base + 2);
+  // 1200 cents is an octave up: twice the cycles. The band has some width,
+  // so a stretch of the table where it dips adds or drops a few crossings.
+  CHECK(octave >= 1.85 * base && octave <= 2.15 * base);
 
   PadSynth pad;
   MemoryParameterSource params;
@@ -204,7 +205,7 @@ TEST(padsynth_detune_in_cents_shifts_pitch_and_round_trips) {
 namespace {
 
 // A group of padsynth copies playing one note, summed.
-AudioBuffer renderEnsemble(const vector<float> & cents, int frames) {
+AudioBuffer renderEnsemble(const vector<float> & cents, int frames, int row = 4) {
   vector<unique_ptr<PadSynth>> pads;
   vector<unique_ptr<VoiceState>> voices;
   ChannelConfiguration config(44100, 1);
@@ -218,7 +219,7 @@ AudioBuffer renderEnsemble(const vector<float> & cents, int frames) {
     params.set("preset", string("strings"));
     params.set("detune", c);
     pad->loadParameters(params);
-    voices.push_back(pad->playNote(config, position, SpatialMode::AUTO, Tuning::EDO31, 1.0f, 1.0f, 160, SendLevels{}, NoteCoordinate(1, 4, 0)));
+    voices.push_back(pad->playNote(config, position, SpatialMode::AUTO, Tuning::EDO31, 1.0f, 1.0f, 160, SendLevels{}, NoteCoordinate(1, row, 0)));
     pads.push_back(move(pad));
   }
   for (auto & v : voices) sum.mixNamed(v->render(frames));
@@ -234,16 +235,23 @@ double rmsOf(const AudioBuffer & b) {
 
 } // namespace
 
-// Detuned copies of one note must not start phase-locked: three coherent
-// copies would sum to three times one copy's level, independent ones to
-// about the square root of three.
+// Detuned copies of one note must not start phase-locked (they start at
+// unrelated places in the table): three coherent copies would sum to three
+// times one copy's level, independent ones to about the square root of three.
 TEST(padsynth_detuned_ensemble_copies_start_at_different_phases) {
   const int frames = 1024; // well inside one beat period, so the copies stay near their start phases
-  double single = rmsOf(renderEnsemble({ 0.0f }, frames));
-  double three = rmsOf(renderEnsemble({ -14.0f, 0.0f, 14.0f }, frames));
-  CHECK(single > 1e-4);
-  CHECK(three < 2.5 * single); // locked would be ~3x
-  CHECK(three > 0.6 * single);
+  // Summed over many notes, the power of three independent copies is three
+  // times one copy's; locked copies would give nine times.
+  double single = 0.0, three = 0.0;
+  for (int row = 0; row < 32; row++) {
+    double s1 = rmsOf(renderEnsemble({ 0.0f }, frames, row));
+    double s3 = rmsOf(renderEnsemble({ -14.0f, 0.0f, 14.0f }, frames, row));
+    single += s1 * s1;
+    three += s3 * s3;
+  }
+  CHECK(single > 1e-8);
+  CHECK(three < 5.0 * single);
+  CHECK(three > 1.5 * single);
 }
 
 TEST(library_ensemble_pads_are_three_detuned_padsynth_copies_and_render) {
@@ -351,4 +359,46 @@ TEST(padsynth_stretch_postprocess_moves_harmonic_h_to_n_times_h) {
   CHECK(moved > 0.0);
   CHECK(harmonicAmplitude(wave, f0, 3) < 0.05 * moved);
   CHECK(harmonicAmplitude(wave, f0, 5) < 0.05 * moved);
+}
+
+namespace {
+
+vector<float> firstBlock(const NoteCoordinate & coord, int frames) {
+  PadSynth pad;
+  MemoryParameterSource params;
+  params.set("preset", string("strings"));
+  pad.loadParameters(params);
+  ChannelConfiguration config(44100, 1);
+  SphericalPosition position;
+  position.distance = 1.0f;
+  auto voice = pad.playNote(config, position, SpatialMode::AUTO, Tuning::EDO31, 1.0f, 1.0f, 160, SendLevels{}, coord);
+  auto out = voice->render(frames);
+  return vector<float>(out.getChannelData(0), out.getChannelData(0) + frames);
+}
+
+} // namespace
+
+TEST(padsynth_notes_start_anywhere_in_the_table) {
+  // Chord notes (columns), repeated notes (rows) and detuned copies
+  // (instances) are spread over the whole table, not bunched near its
+  // start.
+  vector<float> starts;
+  for (int row = 0; row < 8; row++)
+    for (int column = 0; column < 4; column++)
+      for (int instance = 0; instance < 2; instance++)
+        starts.push_back(padSynthStartFraction(NoteCoordinate(1, row * 4, column).withInstance(instance)));
+  float lo = 1.0f, hi = 0.0f;
+  int in_each_quarter[4] = { 0, 0, 0, 0 };
+  for (float f : starts) {
+    CHECK(f >= 0.0f && f < 1.0f);
+    lo = std::min(lo, f);
+    hi = std::max(hi, f);
+    in_each_quarter[static_cast<int>(f * 4.0f)]++;
+  }
+  CHECK(hi - lo > 0.8f);
+  for (int q : in_each_quarter) CHECK(q >= 8);
+
+  // The same coordinate always starts in the same place.
+  CHECK(padSynthStartFraction(NoteCoordinate(1, 4, 1)) == padSynthStartFraction(NoteCoordinate(1, 4, 1)));
+  CHECK(firstBlock(NoteCoordinate(0, 4, 1), 1024) == firstBlock(NoteCoordinate(0, 4, 1), 1024));
 }

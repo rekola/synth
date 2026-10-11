@@ -145,8 +145,11 @@ pitch, not one voice with wider partials. Layer detuned copies in a
 `brass.synth` (`InstrumentLibrary.cpp`) are three-copy ensembles, and
 `songs/oscillator_demo.xml`'s choir is `<envelope><group><padsynth
 detune="-8"/><padsynth/><padsynth detune="8"/></group></envelope>`. Every
-copy reads the same shared wavetable at its own pitch, and a detuned copy
-starts at its own phase, so the copies don't start phase-locked. A plain
+copy reads the same shared wavetable at its own pitch. A note starts at a
+position anywhere in the table, hashed from its note coordinate (a detuned
+copy has its own), so chord notes and the copies of an ensemble read
+unrelated stretches of the table and don't start phase-locked. The same
+note always starts in the same place. A plain
 `<padsynth>` used directly (as most of `songs/oscillator_demo.xml`'s
 comparison tracks deliberately are, to isolate the preset itself) reads
 noticeably thinner and more static.
