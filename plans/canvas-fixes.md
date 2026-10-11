@@ -19,6 +19,10 @@ working unless it says otherwise.
 - Texture packing optional (`CANVAS_TEXTURE_PACKING`, off by default) (#94).
 - Unique include guards (`_CANVAS_` prefix), with a test that includes
   canvas after a client's own `Color.h`/`Image.h` (#95).
+- Step 1 below, items 1, 2, 7, 8, 9 and 12 (#96): gradients are values
+  (`auto & g = createLinearGradient()` becomes `auto g`), the path survives
+  `restore()`, fluent calls return `Context&`, attribute assignment keeps
+  its owner, `closePath()` uses the subpath start, `getExtents()` fixed.
 
 ## Kept, and why
 
@@ -191,7 +195,7 @@ Build:
 
 ## Steps
 
-1. State: items 1, 2, 7, 8, 9, 12 (small, header-only, no behaviour a
+1. Done (#96). State: items 1, 2, 7, 8, 9, 12 (small, header-only, no behaviour a
    correct caller relies on).
 2. Transforms: items 3, 4, 5, 6, 10, 11 - one PR, since they share the
    decision to transform on entry.
