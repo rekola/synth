@@ -6,6 +6,7 @@
 #include "../src/ambisonic/ChannelConfiguration.h"
 #include "../src/instruments/PadSynth.h"
 #include "../src/instruments/PadSynthTable.h"
+#include "../src/instruments/PadSynthPresets.h"
 #include "../src/instruments/PadSynthVoice.h"
 #include "../src/dsp/RealFFT.h"
 #include "../src/instruments/InstrumentLibrary.h"
@@ -425,15 +426,46 @@ TEST(padsynth_regions_span_octaves_plus_one_centred_on_the_base) {
 
   // 7 octaves at 2 per octave: 14 regions, half an octave apart, from
   // 27.5 Hz to 2489 Hz around the base.
-  CHECK_NEAR(table.tableBaseFrequency(1.0f), 27.5f, 0.05f);
-  CHECK_NEAR(table.tableBaseFrequency(100000.0f), 2488.9f, 3.0f);
+  CHECK_NEAR(table.tableBaseFrequency(1.0f), 27.5f, 0.4f); // within half a bin
+  CHECK_NEAR(table.tableBaseFrequency(100000.0f), 2488.9f, 0.4f);
   vector<float> regions;
   for (float f = 20.0f; f < 4000.0f; f *= 1.01f) {
     float r = table.tableBaseFrequency(f);
     if (regions.empty() || std::fabs(r - regions.back()) > 0.01f) regions.push_back(r);
   }
   CHECK(regions.size() == 14);
-  for (size_t i = 1; i < regions.size(); i++) CHECK_NEAR(regions[i] / regions[i - 1], std::sqrt(2.0f), 1e-3f);
+  for (size_t i = 1; i < regions.size(); i++) CHECK_NEAR(regions[i] / regions[i - 1], std::sqrt(2.0f), 0.02f);
   // A note picks the region nearest in pitch.
   CHECK_NEAR(table.tableBaseFrequency(261.6f * 1.1f), 261.6f * std::exp2(0.25f), 0.5f);
+}
+
+TEST(padsynth_region_frequencies_are_whole_numbers_of_bins) {
+  PadSynthParams params = getPadSynthPreset("saw-piano");
+  PadSynthTable table(kTableSampleRate, params);
+  double bin_hz = static_cast<double>(kTableSampleRate) / static_cast<double>(params.table_length);
+  for (float f = 20.0f; f < 5000.0f; f *= 1.05f) {
+    double bins = static_cast<double>(table.tableBaseFrequency(f)) / bin_hz;
+    CHECK_NEAR(bins, std::round(bins), 1e-3);
+  }
+}
+
+TEST(padsynth_narrow_lowest_partial_is_one_steady_bin) {
+  // saw-piano's lowest region has a 1.3 cent band, about 0.2 bins wide: it
+  // used to be split over two bins that beat against each other.
+  PadSynthParams params = getPadSynthPreset("saw-piano");
+  PadSynthTable table(kTableSampleRate, params);
+  float f0 = table.tableBaseFrequency(1.0f);
+  const auto & wave = table.getTable(1.0f);
+  RealFFT<float> fft(wave.size());
+  auto & spectrum = fft.forward(wave);
+  double bin_hz = static_cast<double>(kTableSampleRate) / static_cast<double>(wave.size());
+  size_t centre = static_cast<size_t>(std::lround(static_cast<double>(f0) / bin_hz));
+  double window = 0.0, strongest = 0.0;
+  for (size_t b = centre - 3; b <= centre + 3; b++) {
+    double p = std::norm(spectrum[b]);
+    window += p;
+    strongest = std::max(strongest, p);
+  }
+  CHECK(window > 0.0);
+  CHECK(strongest > 0.999 * window); // one bin: no beating
 }

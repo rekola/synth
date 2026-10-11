@@ -42,7 +42,13 @@ PadSynthTable::sampleFrequency(int j) const {
   // the base lies between the two middle regions when their count is even.
   float q = static_cast<float>(params_.samples_per_octave);
   float centre = static_cast<float>(sampleCount() - 1) * 0.5f;
-  return params_.base_frequency_hz * std::exp2((static_cast<float>(j) - centre) / q);
+  float f = params_.base_frequency_hz * std::exp2((static_cast<float>(j) - centre) / q);
+
+  // Rounded to a whole number of FFT bins, so whole-number partials land
+  // exactly on bins instead of being split over two. Voices resample from
+  // tableBaseFrequency(), so the pitch of a note stays exact.
+  float bin_hz = static_cast<float>(sample_rate_) / static_cast<float>(params_.table_length);
+  return std::max(1.0f, std::round(f / bin_hz)) * bin_hz;
 }
 
 int

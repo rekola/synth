@@ -121,6 +121,14 @@ notes below the lowest region or above the highest one are resampled from
 the end region. The `octaves` values are the base instrument patch's own
 octave setting, which counts one fewer than the octaves the regions span.
 
+Each region's pitch is rounded to a whole number of FFT bins (the sample
+rate over the table length), so partials at whole multiples of it land
+exactly on bins; voices resample from the rounded value, so a note's own
+pitch is not affected. A partial narrower than 1.5 bins (a few cents wide at
+the bottom of the range) goes entirely into its nearest bin, with the same
+energy as a wider one, instead of being split over two bins that beat
+slowly against each other.
+
 | Preset | `f_b` Hz | `O` | `q` | Regions | Table length | Lowest Hz | Highest Hz |
 |---|---|---|---|---|---|---|---|
 | `keyboard` | 392.4 | 5 | 2 | 12 | 131072 | 58.3 | 2640 |

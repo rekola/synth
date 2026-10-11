@@ -68,7 +68,8 @@ float partialPosition(int h, const PositionParams & params);
 // stretch for a window wider than the profile itself, interpolated
 // accumulation otherwise) kept as separate, deliberate code paths rather
 // than unified into one - both exist specifically to keep a partial's own
-// total energy independent of its window width. `bandwidth_cents` is c;
+// total energy independent of its window width; a window under 1.5 bins
+// goes entirely into the nearest bin. `bandwidth_cents` is c;
 // `alpha` is the profile's own width correction - the real window is
 // c/alpha wide, not c alone (see docs/padsynth.md).
 void placePartial(std::vector<float> & amplitude_spectrum, float amplitude, float partial_frequency_hz,
