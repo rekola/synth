@@ -47,9 +47,14 @@ canvas (`rekola/canvas`, 2D drawing for the scopes and meters, drawn as
 pixels with Cairo) is fetched at configure time at a pinned commit
 (`FetchContent` in `CMakeLists.txt`, built with none of our warning flags, its
 headers reached as SYSTEM includes; GDI+ on Windows); bump the pin when canvas
-changes. `src/ui/SpectrumImage.{h,cpp}` is the first user: the pixel spectrum
-(`TerminalPixelSpectrumMeter`) is an `ImageData` it draws, blitted by the
-terminal. The cell (braille) path and the heatmap are not on canvas yet.
+changes. `src/ui/SpectrumImage.{h,cpp}` and `src/ui/HeatmapImage.{h,cpp}` are
+the users so far: the pixel spectrum (`TerminalPixelSpectrumMeter`) and the
+pixel DirAC heatmap (`TerminalPixelHeatmapChart`, its axis labels still
+drawn over the result) are images they draw with canvas, blitted by the
+terminal. An `ImageData` handed to canvas to draw is read in the surface's
+own layout (bytes B, G, R, A, premultiplied), not as RGBA; what is read back
+is the same layout, and the renderers return RGBA. The cell (braille)
+paths, the level meters and `ChannelMeter` are not on canvas yet.
 `libpipewire-0.3-dev` is optional too (`SYNTH_ENABLE_PIPEWIRE`,
 auto-detected, and cmake says so when it isn't used): it only backs
 `src/audio/AudioDevices.cpp`'s listing of the audio server's own inputs and

@@ -321,6 +321,7 @@ if(SYNTH_BUILD_INTERACTIVE)
   	src/ui/tui/ChannelMeter.cpp
   	src/ui/tui/SpectrumMeter.cpp
   	src/ui/SpectrumImage.cpp
+  	src/ui/HeatmapImage.cpp
   	src/ui/tui/SubcellGlyphs.cpp
   )
   target_include_directories(synth PRIVATE ${CMAKE_CURRENT_BINARY_DIR})

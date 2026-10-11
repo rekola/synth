@@ -12,6 +12,7 @@
 #include "ChannelMeter.h"
 #include "SpectrumMeter.h"
 #include "../SpectrumImage.h"
+#include "../HeatmapImage.h"
 #include "OutlineView.h"
 #include "CoverArt.h"
 #include "SpinBox.h"
@@ -75,11 +76,6 @@
 
 
 namespace {
-// An opaque pixel in the RGBA byte order notcurses blits.
-uint32_t pixelOf(const Color & c) {
-  return (0xffu << 24) | (static_cast<uint32_t>(c.getBlue()) << 16) | (static_cast<uint32_t>(c.getGreen()) << 8) | static_cast<uint32_t>(c.getRed());
-}
-
 uint64_t channelsOf(const Color & fg, const Color & bg) {
   return NCCHANNELS_INITIALIZER(static_cast<unsigned>(fg.getRed()), static_cast<unsigned>(fg.getGreen()), static_cast<unsigned>(fg.getBlue()),
                                 static_cast<unsigned>(bg.getRed()), static_cast<unsigned>(bg.getGreen()), static_cast<unsigned>(bg.getBlue()));
@@ -1037,15 +1033,9 @@ namespace {
 // shares - the heatmap repaints every cell/pixel each frame, so it has no
 // untouched cells to show it through the way the other charts do.
 SubcellRgb heatmapCellColor(const Color & background, float saturation, float value) {
-  if (value < 0.0f) value = 0.0f;
-  else if (value > 1.0f) value = 1.0f;
-  uint8_t r, g, b;
-  heatmapHsvToRgb(kHeatmapHue, saturation, 1.0f, r, g, b);
-  return {
-    static_cast<float>(background.getRed()) * (1.0f - value) + static_cast<float>(r) * value,
-    static_cast<float>(background.getGreen()) * (1.0f - value) + static_cast<float>(g) * value,
-    static_cast<float>(background.getBlue()) * (1.0f - value) + static_cast<float>(b) * value,
-  };
+  SubcellRgb c{};
+  heatmap_image::cellColor(background, saturation, value, c.r, c.g, c.b);
+  return c;
 }
 
 // Computes destination index d's source-index range [lo,hi) along one axis
@@ -1390,36 +1380,7 @@ public:
     // Same footer-row reservation as TerminalPixelChart::commit().
     if (!footer_label_.empty() && celldimy > 0 && pxy > celldimy) pxy -= celldimy;
 
-    auto & background = getPlane().getStyles().window_bg_color;
-    vector<uint32_t> buffer(static_cast<size_t>(pxy) * pxx, pixelOf(background)); // overwritten below for every pixel regardless, kept consistent for clarity
-
-    std::vector<float> agg_brightness, agg_saturation;
-    resampleGrid(brightness_, saturation_, gridCols(), gridRows(), static_cast<int>(pxx), static_cast<int>(pxy), agg_brightness, agg_saturation);
-
-    for (unsigned py = 0; py < pxy; py++) {
-      // agg_* row 0 is the BOTTOM (resampleGrid()'s contract), but py=0 is
-      // the TOP of the image - flip vertically.
-      unsigned vy = pxy - 1 - py;
-      for (unsigned px = 0; px < pxx; px++) {
-        size_t idx = static_cast<size_t>(vy) * pxx + px;
-
-        SubcellRgb rgb = heatmapCellColor(background, agg_saturation[idx], agg_brightness[idx]);
-        buffer[py * pxx + px] = (0xffu << 24) | (static_cast<uint32_t>(rgb.b) << 16) | (static_cast<uint32_t>(rgb.g) << 8) | static_cast<uint32_t>(rgb.r);
-      }
-    }
-
-    for (auto & marker : markers_) {
-      unsigned mx = static_cast<unsigned>(marker.u * static_cast<float>(pxx));
-      unsigned my_from_bottom = static_cast<unsigned>(marker.v * static_cast<float>(pxy));
-      unsigned my = my_from_bottom < pxy ? pxy - 1 - my_from_bottom : 0;
-      for (int dy = -1; dy <= 1; dy++) {
-        for (int dx = -1; dx <= 1; dx++) {
-          long y = static_cast<long>(my) + dy, x = static_cast<long>(mx) + dx;
-          if (y < 0 || y >= static_cast<long>(pxy) || x < 0 || x >= static_cast<long>(pxx)) continue;
-          buffer[static_cast<size_t>(y) * pxx + static_cast<size_t>(x)] = 0xffffffffu; // opaque white
-        }
-      }
-    }
+    auto buffer = heatmap_image::render(brightness_, saturation_, gridCols(), gridRows(), markers_, pxx, pxy, getPlane().getStyles());
 
     // Axis labels go into the image itself: text in the plane's cells would
     // be hidden under the bitmap.
