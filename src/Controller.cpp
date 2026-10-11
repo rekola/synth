@@ -44,7 +44,11 @@ vector<string> splitPathComponents(const string & path) {
   vector<string> parts;
   size_t start = 0;
   while (true) {
+#ifdef _WIN32
+    auto pos = path.find_first_of("/\\", start); // paths there use either
+#else
     auto pos = path.find('/', start);
+#endif
     if (pos == string::npos) {
       parts.push_back(path.substr(start));
       break;
