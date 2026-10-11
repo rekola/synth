@@ -48,8 +48,8 @@ names (sharps, flats, double-flats, ...) are built from a fixed, 12-tone-shaped
 set of seven letters (a chain of fifths, or in 53-EDO a just major scale),
 which stops matching musical intuition
 well once an EDO is fine enough that the interesting structure is no
-longer "how many fifths from the tonic" but "how consonant is this
-interval, period." The new scheme instead recursively factors the octave
+longer how many fifths a note is from the tonic, but how consonant its
+interval to the tonic is in itself. The new scheme instead recursively factors the octave
 the way classical interval theory does - `2/1 = 4/3 * 3/2` (the octave's
 simplest factor pair is the fourth and fifth), then `3/2 = 6/5 * 5/4` (the
 fifth's own simplest factor pair is the minor and major third), and so on
