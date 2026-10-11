@@ -122,6 +122,10 @@ per partial, its window width and placement chosen so a partial's total
 energy stays the same regardless of how wide its band is) at that
 patch's base note, octave span, and sample layout.
 
+The shape is computed on a 1024-point oscillator, so it has harmonics 1 to
+511. A 39 Hz region therefore reaches about 20 kHz; a 255-harmonic shape
+stopped near 10 kHz there.
+
 This lets even a preset with a sparse explicit harmonic list (`bells`,
 `bells-3`) reproduce its much richer spectrum - the sparse list
 is only the starting point the waveshaper/filter then reshapes, not the

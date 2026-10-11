@@ -402,3 +402,17 @@ TEST(padsynth_notes_start_anywhere_in_the_table) {
   CHECK(padSynthStartFraction(NoteCoordinate(1, 4, 1)) == padSynthStartFraction(NoteCoordinate(1, 4, 1)));
   CHECK(firstBlock(NoteCoordinate(0, 4, 1), 1024) == firstBlock(NoteCoordinate(0, 4, 1), 1024));
 }
+
+TEST(padsynth_lowest_region_carries_partials_above_harmonic_255) {
+  // A power ramp falls off as 1/h, so it still has content at harmonic 300
+  // (11.7 kHz at 39 Hz) that a 255-harmonic spectrum would drop.
+  PadSynthParams params = harmonicParams({}, 39.0f);
+  params.oscillator.base_function = OscillatorShaping::BaseFunction::PowerRamp;
+  params.oscillator.base_shape_param = 0.3766f;
+  params.oscillator.harmonics = { { 1, 1.0f } };
+  PadSynthTable table(kTableSampleRate, params);
+  float f0 = table.tableBaseFrequency(39.0f);
+  const auto & wave = table.getTable(39.0f);
+  CHECK(harmonicAmplitude(wave, f0, 300) > 0.0);
+  CHECK(harmonicAmplitude(wave, f0, 300) < harmonicAmplitude(wave, f0, 1));
+}
