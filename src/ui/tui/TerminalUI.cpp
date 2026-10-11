@@ -92,6 +92,27 @@ namespace {
 std::map<std::string, int> g_ui_stats;
 bool g_ui_stats_on = false;
 void statCount(const std::string & what) { if (g_ui_stats_on) g_ui_stats[what]++; }
+
+// Every thread's CPU time so far in clock ticks, by thread name.
+std::map<std::string, long> threadCpuTicks() {
+  std::map<std::string, long> ticks;
+  std::error_code ec;
+  for (auto & entry : std::filesystem::directory_iterator("/proc/self/task", ec)) {
+    FILE * f = fopen((entry.path() / "stat").c_str(), "r");
+    if (!f) continue;
+    char line[1024];
+    size_t n = fread(line, 1, sizeof line - 1, f);
+    fclose(f);
+    line[n] = 0;
+    // pid (comm) state ppid ... utime stime: fields 14 and 15.
+    char *open = strchr(line, '('), *close = strrchr(line, ')');
+    if (!open || !close) continue;
+    long utime = 0, stime = 0;
+    if (sscanf(close + 2, "%*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u %ld %ld", &utime, &stime) != 2) continue;
+    ticks[std::string(open + 1, close)] += utime + stime;
+  }
+  return ticks;
+}
 }
 using namespace fmt;
 
@@ -3094,6 +3115,7 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
   auto stats_since = std::chrono::steady_clock::now();
   timespec stats_cpu_since {};
   clock_gettime(CLOCK_THREAD_CPUTIME_ID, &stats_cpu_since);
+  auto stats_thread_ticks = stats_path ? threadCpuTicks() : std::map<std::string, long>{};
   auto count = [](const std::string & what) { statCount(what); };
 
   while ( !shouldClose() ) {
@@ -3104,6 +3126,13 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
       clock_gettime(CLOCK_THREAD_CPUTIME_ID, &cpu_now);
       g_ui_stats["cpu_us"] = static_cast<int>((cpu_now.tv_sec - stats_cpu_since.tv_sec) * 1000000L + (cpu_now.tv_nsec - stats_cpu_since.tv_nsec) / 1000L);
       stats_cpu_since = cpu_now;
+      // Every thread's share of a CPU over the second, in percent.
+      auto thread_ticks = threadCpuTicks();
+      for (auto & [name, t] : thread_ticks) {
+        auto it = stats_thread_ticks.find(name);
+        if (it != stats_thread_ticks.end()) g_ui_stats["cpu%:" + name] = static_cast<int>(100 * (t - it->second) / std::max(1L, sysconf(_SC_CLK_TCK)));
+      }
+      stats_thread_ticks = std::move(thread_ticks);
       if (FILE * f = fopen(stats_path, "a")) {
 	for (auto & [ what, n ] : g_ui_stats) fprintf(f, "%s=%d ", what.c_str(), n);
 	fputs("\n", f);
