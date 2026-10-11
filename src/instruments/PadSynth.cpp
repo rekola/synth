@@ -34,8 +34,8 @@ PadSynth::prewarm(const ChannelConfiguration & config, Tuning tuning, int note_v
   // ensureWavetable() only constructs the (cheap) PadSynthTable
   // object itself - the actual expensive table generation happens lazily
   // inside its own getTable(f0), normally not called until a voice's
-  // first render(). Force it now, for the region `note_value` falls in,
-  // so that first render() finds it already built.
+  // note-on. Force it now, for the region `note_value` falls in,
+  // so that note-on finds it already built.
   wavetable_->getTable(getFrequencyFor(tuning, note_value) * powf(2.0f, detune_cents_ / 1200.0f));
 }
 

@@ -116,9 +116,10 @@ One wavetable is built per pitch region. A preset gives a base frequency
 regions cover `O + 1` octaves: `(O + 1) * q` of them, `1/q` octave apart,
 centred on `f_b` (with an even count `f_b` falls between the two middle
 regions). Region `j` is built for the pitch `f_b * 2^((j - (M-1)/2) / q)`
-with `M = (O + 1) * q`. A note uses the region nearest to it in pitch, so
-notes below the lowest region or above the highest one are resampled from
-the end region. The `octaves` values are the base instrument patch's own
+with `M = (O + 1) * q`. A note uses the region nearest to it in pitch, chosen
+at note-on and kept for the whole note (a pitch change across a boundary
+doesn't swap tables), so notes below the lowest region or above the highest
+one are resampled from the end region. The `octaves` values are the base instrument patch's own
 octave setting, which counts one fewer than the octaves the regions span.
 
 Each region's pitch is rounded to a whole number of FFT bins (the sample

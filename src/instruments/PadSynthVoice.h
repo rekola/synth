@@ -26,11 +26,21 @@ public:
       start_fraction_(padSynthStartFraction(note_coord)) {
   }
 
+  void playNote(float frequency, float velocity, int note_value) override {
+    bool fresh = getFrequency() == 0.0f;
+    InstrumentVoice::playNote(frequency, velocity, note_value);
+    if (fresh) {
+      wave_ = nullptr;
+      selectTable();
+    }
+  }
+
   AudioBuffer render(int frames) override {
     float gain = decibelsToGain(getGainDB()) * level_;
 
-    const std::vector<float> & wave = table_->getTable(getFrequency());
-    float table_base_freq = table_->tableBaseFrequency(getFrequency());
+    selectTable(); // normally already done at note-on
+    const std::vector<float> & wave = *wave_;
+    float table_base_freq = table_base_freq_;
     double table_len = static_cast<double>(wave.size());
 
     // Table-samples advanced per output sample - the ratio of this note's
@@ -72,7 +82,18 @@ public:
   }
 
 private:
+  // The region is chosen once, at note-on, and kept for the whole note: a
+  // pitch change across a region boundary would otherwise swap tables at
+  // the same position and click.
+  void selectTable() {
+    if (wave_) return;
+    wave_ = &table_->getTable(getFrequency());
+    table_base_freq_ = table_->tableBaseFrequency(getFrequency());
+  }
+
   std::shared_ptr<PadSynthTable> table_;
+  const std::vector<float> * wave_ = nullptr;
+  float table_base_freq_ = 1.0f;
   float level_;
   float start_fraction_; // where in the table the note starts, as a fraction of its length
   double table_pos_ = 0.0;

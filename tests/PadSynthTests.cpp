@@ -469,3 +469,35 @@ TEST(padsynth_narrow_lowest_partial_is_one_steady_bin) {
   CHECK(window > 0.0);
   CHECK(strongest > 0.999 * window); // one bin: no beating
 }
+
+TEST(padsynth_voice_keeps_its_region_when_the_pitch_crosses_a_boundary) {
+  PadSynthParams params = harmonicParams({ 1 }, 100.0f);
+  params.octaves = 1;
+  params.samples_per_octave = 2; // regions a half octave apart
+  auto table = std::make_shared<PadSynthTable>(kTableSampleRate, params);
+
+  // The boundary between two neighbouring regions.
+  float below = 100.0f;
+  float base = table->tableBaseFrequency(below);
+  float boundary = below;
+  while (table->tableBaseFrequency(boundary) == base) boundary *= 1.0001f;
+
+  ChannelConfiguration config(kTableSampleRate, 1);
+  SphericalPosition position;
+  position.distance = 1.0f;
+  PadSynthVoice voice(config, position, 1.0f, table, 1.0f, SendLevels{}, NoteCoordinate(0, 0, 0));
+  voice.playNote(boundary * 0.995f, 1.0f, 60);
+
+  vector<float> out;
+  for (int block = 0; block < 2; block++) {
+    if (block == 1) voice.playNote(boundary * 1.005f, 1.0f, 60); // bent over the boundary
+    auto b = voice.render(512);
+    out.insert(out.end(), b.getChannelData(0), b.getChannelData(0) + 512);
+  }
+  float biggest_step = 0.0f, join_step = std::fabs(out[512] - out[511]);
+  for (size_t i = 1; i < out.size(); i++) {
+    if (i != 512) biggest_step = std::max(biggest_step, std::fabs(out[i] - out[i - 1]));
+  }
+  CHECK(biggest_step > 0.0f);
+  CHECK(join_step < 2.0f * biggest_step); // no jump to a different table
+}
