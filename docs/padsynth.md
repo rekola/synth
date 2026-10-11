@@ -70,7 +70,10 @@ An optional, independent postprocess stage shapes the result further:
 == r mod n` at full amplitude and scales every other harmonic by
 `(1 - amount)`; `"stretch"` (stretch-mix) mixes the spectrum with a copy
 of itself stretched by a factor of `n` along the harmonic axis
-(`out = (1-amount)*S + amount*S'`, `S'[n*h] = S[h]`).
+(`out = (1-amount)*S + amount*S'`, `S'[n*h] = S[h]`). Harmonics are counted
+from the fundamental as 1 in both stages. Residue `n=2, r=1` keeps the odd
+harmonics, `n=k, r=0` the multiples of `k`; stretch by `k` moves harmonic
+`h` to `k*h`.
 
 Partial positioning (`g(h)` - where a preset's partials actually sit,
 e.g. an explicit non-integer sequence or a fractional stiff-string-style

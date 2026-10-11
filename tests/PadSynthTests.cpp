@@ -5,6 +5,8 @@
 #include "../src/audio/OfflineRenderer.h"
 #include "../src/ambisonic/ChannelConfiguration.h"
 #include "../src/instruments/PadSynth.h"
+#include "../src/instruments/PadSynthTable.h"
+#include "../src/dsp/RealFFT.h"
 #include "../src/instruments/InstrumentLibrary.h"
 #include "../src/instruments/InstrumentProvider.h"
 #include "../src/state/MemoryParameterSource.h"
@@ -268,4 +270,85 @@ TEST(library_ensemble_pads_are_three_detuned_padsynth_copies_and_render) {
     }
     CHECK(any);
   }
+}
+
+namespace {
+
+constexpr int kTableSampleRate = 44100;
+
+// A table with the given harmonics at amplitude 1 and no spectrum shaping
+// beyond the options set by `tweak`, in a single region near `region_hz`.
+PadSynthParams harmonicParams(const std::vector<int> & harmonics, float region_hz) {
+  PadSynthParams params;
+  params.oscillator.base_function = OscillatorShaping::BaseFunction::None;
+  for (int h : harmonics) params.oscillator.harmonics.push_back({ h, 1.0f });
+  params.bandwidth_cents = 20.0f;
+  params.base_frequency_hz = region_hz;
+  params.octaves = 1;
+  params.samples_per_octave = 1;
+  params.table_length = 1 << 16;
+  return params;
+}
+
+// Amplitude of harmonic h in a table whose fundamental is f0: the root of
+// the spectrum's power within a quarter fundamental of h * f0.
+double harmonicAmplitude(const std::vector<float> & table, float f0, int h) {
+  RealFFT<float> fft(table.size());
+  auto & spectrum = fft.forward(table);
+  double bin_hz = static_cast<double>(kTableSampleRate) / static_cast<double>(table.size());
+  double lo = (h - 0.25) * f0 / bin_hz, hi = (h + 0.25) * f0 / bin_hz;
+  double power = 0.0;
+  for (size_t b = static_cast<size_t>(lo); b <= static_cast<size_t>(hi) && b < spectrum.size(); b++) power += std::norm(spectrum[b]);
+  return std::sqrt(power);
+}
+
+} // namespace
+
+TEST(padsynth_envelope_remap_reads_harmonic_one_from_the_first_slot) {
+  std::vector<int> all;
+  for (int h = 1; h <= 255; h++) all.push_back(h);
+  PadSynthParams params = harmonicParams(all, 72.0f);
+  params.envelope_anchor_hz = 289.4f;
+  params.envelope_tracking = 1.0f;
+  PadSynthTable table(kTableSampleRate, params);
+
+  float f0 = table.tableBaseFrequency(72.0f);
+  float r = f0 / 289.4f; // gather: harmonic h reads the flat prototype at h * r
+  CHECK(r > 0.2f && r < 0.3f);
+  const auto & wave = table.getTable(72.0f);
+  double ref = harmonicAmplitude(wave, f0, 6); // 6 * r > 1: full level
+  CHECK_NEAR(harmonicAmplitude(wave, f0, 1) / ref, r, 0.03);
+  CHECK_NEAR(harmonicAmplitude(wave, f0, 2) / ref, 2.0f * r, 0.05);
+  CHECK_NEAR(harmonicAmplitude(wave, f0, 3) / ref, 3.0f * r, 0.07);
+}
+
+TEST(padsynth_residue_postprocess_keeps_the_harmonics_it_names) {
+  // n = 2, r = 0 with full strength keeps the even harmonics only.
+  PadSynthParams params = harmonicParams({ 1, 2, 3, 4 }, 100.0f);
+  params.postprocess_kind = SpectralPostprocessKind::ResidueClassWeighting;
+  params.postprocess_n = 2;
+  params.postprocess_r = 0;
+  params.postprocess_amount = 1.0f;
+  PadSynthTable table(kTableSampleRate, params);
+  float f0 = table.tableBaseFrequency(100.0f);
+  const auto & wave = table.getTable(100.0f);
+  double even = harmonicAmplitude(wave, f0, 2);
+  CHECK(even > 0.0);
+  CHECK(harmonicAmplitude(wave, f0, 4) > 0.5 * even);
+  CHECK(harmonicAmplitude(wave, f0, 1) < 0.05 * even);
+  CHECK(harmonicAmplitude(wave, f0, 3) < 0.05 * even);
+}
+
+TEST(padsynth_stretch_postprocess_moves_harmonic_h_to_n_times_h) {
+  PadSynthParams params = harmonicParams({ 3 }, 100.0f);
+  params.postprocess_kind = SpectralPostprocessKind::StretchMix;
+  params.postprocess_n = 2;
+  params.postprocess_amount = 1.0f;
+  PadSynthTable table(kTableSampleRate, params);
+  float f0 = table.tableBaseFrequency(100.0f);
+  const auto & wave = table.getTable(100.0f);
+  double moved = harmonicAmplitude(wave, f0, 6);
+  CHECK(moved > 0.0);
+  CHECK(harmonicAmplitude(wave, f0, 3) < 0.05 * moved);
+  CHECK(harmonicAmplitude(wave, f0, 5) < 0.05 * moved);
 }

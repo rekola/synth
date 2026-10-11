@@ -77,28 +77,32 @@ PadSynthTable::renderSample(int j) const {
   const std::vector<float> & prototype = oscillatorMagnitudes();
 
   // Step 9: anchored spectral-envelope remap + postprocess, evaluated at
-  // this sample's own base frequency f_j.
+  // this sample's own base frequency f_j. Those functions index from
+  // harmonic 1 at 0; the prototype has DC at 0, so hand them A[1..].
+  std::vector<float> body(prototype.begin() + 1, prototype.end());
   std::vector<float> remapped;
   if (params_.envelope_anchor_hz > 0.0f && params_.envelope_tracking != 0.0f) {
-    anchoredSpectralEnvelopeRemap(prototype, f_j, params_.envelope_anchor_hz, params_.envelope_tracking,
+    anchoredSpectralEnvelopeRemap(body, f_j, params_.envelope_anchor_hz, params_.envelope_tracking,
                                    /* accumulate_in_power */ true, remapped);
   } else {
-    remapped = prototype;
+    remapped = body;
   }
-  std::vector<float> shaped;
+  std::vector<float> post;
   switch (params_.postprocess_kind) {
     case SpectralPostprocessKind::ResidueClassWeighting:
-      shaped = remapped;
-      residueClassWeighting(shaped, params_.postprocess_n, params_.postprocess_r, params_.postprocess_amount);
+      post = remapped;
+      residueClassWeighting(post, params_.postprocess_n, params_.postprocess_r, params_.postprocess_amount);
       break;
     case SpectralPostprocessKind::StretchMix:
-      stretchMix(remapped, params_.postprocess_n, params_.postprocess_amount, shaped);
+      stretchMix(remapped, params_.postprocess_n, params_.postprocess_amount, post);
       break;
     case SpectralPostprocessKind::None:
     default:
-      shaped = remapped;
+      post = remapped;
       break;
   }
+  std::vector<float> shaped(post.size() + 1, 0.0f); // DC = 0 in front again
+  std::copy(post.begin(), post.end(), shaped.begin() + 1);
 
   // Step 10: normalize so the peak of A[h], h >= 1, is 1.
   float peak = 0.0f;
