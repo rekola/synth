@@ -41,8 +41,8 @@ inline bool isDefaultDevice(const std::string & name) {
 DeviceSettings parseDeviceSettings(const std::string & text);
 std::string serializeDeviceSettings(const DeviceSettings & settings);
 
-// $XDG_CONFIG_HOME/synth/devices.conf, else ~/.config/synth/devices.conf;
-// empty if neither variable is set.
+// devices.conf in paths::configDir() ($XDG_CONFIG_HOME/synth, else
+// ~/.config/synth, on Linux); empty if there is no such directory.
 std::string defaultDeviceSettingsPath();
 
 // A missing or unreadable file is just empty settings.

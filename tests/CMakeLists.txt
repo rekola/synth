@@ -91,6 +91,7 @@ add_executable(synth_tests
 	HashFieldTests.cpp
 	PlayerMultiBufferTests.cpp
 	NullAudioTests.cpp
+	PathsTests.cpp
 	WaitSetTests.cpp
 	LaunchpadIOTests.cpp
 	Utf8Tests.cpp

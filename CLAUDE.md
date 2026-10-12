@@ -78,10 +78,16 @@ Windows) selects between the full `synth` and the render-only one
 `main.cpp`); with it OFF the terminal UI, ALSA, Launchpad and PipeWire sources
 aren't built and `EscapeCoalescerTests` is left out. `.github/workflows/
 ci-windows-x86_64.yml` builds, runs ctest and renders songs. The `#ifdef
-_WIN32`s this needed (each to go in `plans/windows-port.md` step 3):
-`ShutdownSignal.cpp`, `DeviceSettings.cpp`/`Controller.cpp` (config and
-SoundFont paths) and `AudioBuffer.h` (aligned allocation). Files open by UTF-8 path through
-`util/FileOpen.h`.
+_WIN32`s this needed live in small platform helpers: `util/Paths.h` (the
+config dir `%APPDATA%\synth`, the user and installed data dirs, the executable's
+dir and the installed default song - `DeviceSettings`, `findDefaultSoundFont()`
+and `findDefaultSofaFile()` only add sub-paths to these),
+`util/ThreadSupport.h` (thread names via `SetThreadDescription`;
+`AudioThreadPriority`, MMCSS "Pro Audio" on Windows and nothing on Linux, held
+by the audio thread), `ShutdownSignal.cpp` (a console control handler for
+Ctrl-C and the console closing), `Daemon.cpp` (`--daemon` says it is unsupported
+and exits), `Notifier.h` and `AudioBuffer.h` (aligned allocation). Files open by
+UTF-8 path through `util/FileOpen.h`.
 
 ## Run
 
