@@ -39,6 +39,11 @@ add_library(cellui STATIC
   src/term/FrameEncoder.cpp
   src/term/InputParser.cpp
   src/term/TermEvent.cpp)
+if(NOT WIN32)
+  target_sources(cellui PRIVATE src/term/TerminalSession.cpp)
+  find_package(Threads REQUIRED)
+  target_link_libraries(cellui PUBLIC Threads::Threads)
+endif()
 target_include_directories(cellui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_include_directories(cellui PRIVATE ${UNISTRING_INCLUDE_DIR})
 target_link_libraries(cellui PUBLIC ${UNISTRING_LIBRARY})
@@ -72,6 +77,9 @@ add_executable(cellui_tests
   tests/LevelMeterTests.cpp
   tests/MeterTests.cpp
   tests/Utf8Tests.cpp)
+if(NOT WIN32)
+  target_sources(cellui_tests PRIVATE tests/TerminalSessionTests.cpp)
+endif()
 target_link_libraries(cellui_tests PRIVATE cellui)
 target_compile_definitions(cellui_tests PRIVATE CELLUI_TEST_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests")
 add_test(NAME cellui_tests COMMAND cellui_tests)
