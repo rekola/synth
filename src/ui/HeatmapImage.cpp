@@ -1,7 +1,7 @@
 #include "HeatmapImage.h"
 
-#include <Context.h>
-#include <ContextCairo.h>
+#include <canvas/Context.h>
+#include <canvas/ContextCairo.h>
 
 #include <algorithm>
 #include <cmath>
@@ -49,6 +49,7 @@ std::vector<uint32_t> render(const std::vector<float> & brightness, const std::v
   canvas::ContextCairo ctx(width, height);
   const double sx = static_cast<double>(width) / static_cast<double>(cols), sy = static_cast<double>(height) / static_cast<double>(rows);
   canvas::ImageData image(small.data(), gw, gh, 4);
+  image.setFormat(canvas::ChannelOrder::BGR, true);
   ctx.drawImage(image, -sx, -sy, sx * gw, sy * gh);
 
   ctx.fillStyle = canvas::Color(1.0f, 1.0f, 1.0f, 1.0f);
