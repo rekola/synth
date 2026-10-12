@@ -51,6 +51,11 @@ class UIPlane {
   virtual void setUnderline(bool b) = 0;
   virtual void setBold(bool b) = 0;
   virtual void setItalic(bool b) = 0;
+  // What putstr() writes next is drawn over what lies below with its
+  // background averaged with that one's (a translucent popup), and its
+  // foreground leaning to white or black against the result. Default no-op.
+  virtual void setBgBlend(bool) { }
+  virtual void setFgContrast(bool) { }
   virtual void erase() = 0;
   virtual void putstr(int y, int x, const std::string & s) = 0;
   virtual std::unique_ptr<UIPlane> createChild() = 0;

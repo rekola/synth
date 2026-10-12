@@ -22,6 +22,11 @@ class CellBuffer {
     bool underline = false;
     // The right half of a double-width cell before it; draws nothing.
     bool continuation = false;
+    // When composed over another plane: the background is averaged with
+    // what is below, and the foreground leans to white or black against the
+    // final background.
+    bool bg_blend = false;
+    bool fg_contrast = false;
   };
 
   struct Style {
@@ -29,6 +34,8 @@ class CellBuffer {
     bool bold = false;
     bool italic = false;
     bool underline = false;
+    bool bg_blend = false;
+    bool fg_contrast = false;
   };
 
   CellBuffer(int rows, int cols);
@@ -44,7 +51,8 @@ class CellBuffer {
   // A cell nothing was written to (or that was erased): transparent when a
   // plane is drawn over another.
   static bool isBlank(const Cell & c) {
-    return c.text == " " && !c.fg && !c.bg && !c.bold && !c.italic && !c.underline && !c.continuation;
+    return c.text == " " && !c.fg && !c.bg && !c.bold && !c.italic && !c.underline && !c.continuation &&
+           !c.bg_blend && !c.fg_contrast;
   }
 
   // Writes `text` from (row, col) in `style`, clipped to the rectangle
