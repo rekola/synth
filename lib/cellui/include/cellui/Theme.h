@@ -8,24 +8,28 @@
 namespace cellui {
 
 // How a track's identity colour is made from its ordinal: the original steps
-// the HSL hue by the golden angle at a fixed saturation and lightness; the
-// modern one steps the OKLCH hue by the golden ratio over the arcs the clip
-// state colours leave free, at one lightness and chroma, so a track never
-// looks like a playing or a recording clip.
+// the HSL hue by the golden angle at a fixed saturation and lightness. The
+// modern one has one OKLCH lightness and, for each of the first eight tracks,
+// a hue and a chroma picked to keep the closest two as different as can be on
+// the screen and on the Launchpad's pads, with the hues clear of the clip
+// state colours (a muted colour beside a vivid one tells close hues apart);
+// later tracks step the hue by the golden ratio over the arcs the states leave
+// free, so a track never looks like a playing or a recording clip.
 struct TrackPalette {
-  enum class Model { GOLDEN_HSL, OKLCH_ARCS };
+  enum class Model { GOLDEN_HSL, OKLCH_TABLE };
   Model model = Model::GOLDEN_HSL;
   float lightness = 0.42f;
   float saturation_or_chroma = 0.35f;
 
   static TrackPalette original() { return { Model::GOLDEN_HSL, 0.42f, 0.35f }; }
-  static TrackPalette modern() { return { Model::OKLCH_ARCS, 0.585f, 0.12f }; }
+  static TrackPalette modern() { return { Model::OKLCH_TABLE, 0.585f, 0.12f }; }
 
   // The model's own hue, in degrees.
   float hue(int ordinal) const {
     if (model == Model::GOLDEN_HSL) return std::fmod(static_cast<float>(ordinal) * 137.50776f, 360.0f);
-    constexpr float arcs[2][2] = { { 45.0f, 105.0f }, { 180.0f, 340.0f } };
-    float t = std::fmod(0.5f + static_cast<float>(ordinal) * 0.6180339887f, 1.0f);
+    if (ordinal < kTableSize) return kTable[ordinal].hue;
+    constexpr float arcs[2][2] = { { 62.0f, 110.0f }, { 180.0f, 352.0f } };
+    float t = std::fmod(0.5f + static_cast<float>(ordinal - kTableSize) * 0.6180339887f, 1.0f);
     float pos = t * ((arcs[0][1] - arcs[0][0]) + (arcs[1][1] - arcs[1][0]));
     for (auto & arc : arcs) {
       if (pos <= arc[1] - arc[0]) return arc[0] + pos;
@@ -33,12 +37,29 @@ struct TrackPalette {
     }
     return arcs[1][1];
   }
+  float chroma(int ordinal) const {
+    return model == Model::OKLCH_TABLE && ordinal < kTableSize && ordinal >= 0 ? kTable[ordinal].chroma : saturation_or_chroma;
+  }
   Color color(int ordinal) const {
     return model == Model::GOLDEN_HSL ? Color::fromHSL(hue(ordinal), saturation_or_chroma, lightness)
-                                      : Color::fromOklch(lightness, saturation_or_chroma, hue(ordinal));
+                                      : Color::fromOklch(lightness, chroma(ordinal), hue(ordinal));
   }
-  // The same colour's HSL hue, for a device that shades it its own way.
+  // The same colour's HSL hue, and the saturation a pad shows it with: a pad
+  // has only its primaries, so a muted colour is shown less saturated.
   float hslHue(int ordinal) const { return color(ordinal).hslHue(); }
+  float padSaturation(int ordinal) const {
+    if (model == Model::GOLDEN_HSL) return 0.8f;
+    return std::fmin(1.0f, 0.35f + chroma(ordinal) / 0.17f * 0.55f);
+  }
+
+ private:
+  struct Entry {
+    float hue, chroma;
+  };
+  static constexpr int kTableSize = 8;
+  static constexpr Entry kTable[kTableSize] = {
+    { 239, 0.16f }, { 350, 0.08f }, { 105, 0.16f }, { 278, 0.19f }, { 182, 0.08f }, { 314, 0.12f }, { 78, 0.19f }, { 272, 0.04f },
+  };
 };
 
 // The colour tokens of a theme, by role: widgets ask for what a colour

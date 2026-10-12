@@ -2,6 +2,7 @@
 
 #include <cellui/StyleProvider.h>
 
+#include <array>
 #include <cmath>
 #include <cstdlib>
 
@@ -124,20 +125,18 @@ TEST(the_original_track_colours_are_the_golden_angle_hsl_ones) {
 }
 
 TEST(the_modern_track_colours_are_the_token_table) {
-  const char * expected[] = {"#0088b5", "#a86e14", "#7171c1", "#009095", "#a65f99", "#3d80c0", "#977800", "#8969b7"};
+  const char * expected[] = {"#0085cf", "#a06882", "#8b7f00", "#6668e9", "#3c8b7f", "#9565ad", "#b76600", "#737b94"};
   auto p = Theme::dark().tracks;
   for (int i = 0; i < 8; i++) CHECK(near(p.color(i), expected[i]));
 }
 
-// The arcs leave the first eight tracks well clear of the states; later ones
-// can come as close as the arc edge (18 degrees from red).
 TEST(modern_track_hues_stay_clear_of_the_clip_state_hues) {
   auto p = TrackPalette::modern();
-  for (int i = 0; i < 8; i++) {
+  for (int i = 0; i < 64; i++) {
     float h = p.hue(i);
     for (float state : {145.0f, 27.0f}) {
       float d = std::fabs(std::fmod(h - state + 540.0f, 360.0f) - 180.0f);
-      CHECK(d >= 35.0f);
+      CHECK(d >= 34.5f);
     }
   }
 }
@@ -171,4 +170,32 @@ TEST(the_clip_states_are_the_same_in_every_modern_theme) {
   CHECK(same(d.state_recording, l.state_recording));
   CHECK(same(d.text_on_track, l.text_on_track));
   CHECK(same(d.meter_low, l.meter_low));
+}
+
+TEST(the_first_modern_tracks_differ_from_each_other_and_on_the_pads) {
+  auto p = TrackPalette::modern();
+  auto lab = [](const Color & c) {
+    auto lin = [](int v) {
+      double x = v / 255.0;
+      return x <= 0.04045 ? x / 12.92 : std::pow((x + 0.055) / 1.055, 2.4);
+    };
+    double r = lin(c.getRed()), g = lin(c.getGreen()), b = lin(c.getBlue());
+    double l = std::cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+    double m = std::cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+    double s = std::cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+    return std::array<double, 3>{ 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+                                  1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+                                  0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s };
+  };
+  auto dist = [&](const Color & a, const Color & b) {
+    auto x = lab(a), y = lab(b);
+    return 100.0 * std::sqrt((x[0] - y[0]) * (x[0] - y[0]) + (x[1] - y[1]) * (x[1] - y[1]) + (x[2] - y[2]) * (x[2] - y[2]));
+  };
+  auto pad = [&](int i) { return Color::fromHSL(p.hslHue(i), p.padSaturation(i), 0.3f); };
+  for (int i = 0; i < 8; i++) {
+    for (int j = i + 1; j < 8; j++) {
+      CHECK(dist(p.color(i), p.color(j)) >= 7.0);
+      CHECK(dist(pad(i), pad(j)) >= 11.0);
+    }
+  }
 }

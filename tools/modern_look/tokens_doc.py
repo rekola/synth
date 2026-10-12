@@ -65,16 +65,20 @@ hardware's own.
 
 ### Track colours
 
-The same eight in both themes, from one formula: OKLCH L 0.585, C 0.12, the hue
-stepped by the golden ratio over the hue arcs the two state colours leave
-free (45-105 and 180-340 degrees), so a track never looks like a playing or a
-recording clip, and the pads can tell the two apart without icons.
+The same eight in both themes. One lightness (OKLCH L 0.585); for each a hue and
+a chroma, picked to make the least difference between any two as large as it
+can be, on the screen and as a Launchpad pad shows it, with the hues kept
+clear of the two state colours, so a track never looks like a playing or a
+recording clip. A muted colour beside a vivid one tells close hues apart. The
+order puts similar ones far apart in the ordinal, since neighbours are what sit
+side by side. Tracks past the eighth step the hue by the golden ratio over the
+free arcs (62-110 and 180-352 degrees, each 35 degrees from a state hue) at chroma 0.12.
 
-| Track | Hue | Colour |
-|---|---|---|
+| Track | Hue | Chroma | Colour |
+|---|---|---|---|
 '''
 for i in range(8):
-    md += f"| {i} | {sh['track_hues'][i]} | `{sh['tracks'][i]}` |\n"
+    md += f"| {i} | {sh['track_hues'][i]} | {sh['track_chromas'][i]} | `{sh['tracks'][i]}` |\n"
 md += '''
 Where a track colour is under text (a placed arrangement block, a clip
 number) the text is `text.on-track`. The Launchpad takes the same colours,

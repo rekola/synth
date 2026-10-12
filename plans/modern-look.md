@@ -130,10 +130,11 @@ Themes are data:
    - the new surfaces and neutrals; Done: `Theme::dark()`/`light()` hold
      them, today's look is `Theme::original()`, `--theme` and the
      `select-theme` command choose (dark by default);
-   - track colours from the formula; Done: `TrackPalette` in the theme (the
-     Launchpad takes the modern palette's hues in every theme). The formula's
-     arcs keep the first eight tracks 35 degrees from the clip state hues; a
-     later track can come within 18 degrees of red;
+   - track colours; Done: `TrackPalette` in the theme. The first eight are a
+     table of hue and chroma picked so the closest two differ as much as
+     possible on the screen and as Launchpad pads (the Launchpad takes the
+     palette's hues and a saturation from the chroma in every theme); later
+     ones step the hue over the arcs the clip state hues leave free;
    - fewer lines, but not between tracks in the tracker view;
    - the icon list;
    - fades for state changes.
