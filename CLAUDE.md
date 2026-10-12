@@ -451,7 +451,8 @@ where they share a step), whatever its chord; live notes sound with it
 (`SongScalars::scale_corrections`, read by `Player`'s `PLAY_NOTE`) and recorded
 or typed ones are written with it (`tuneNewNote()`). `+00` marks a note that needs none, and
 `clear-tuning-correction-region` removes them. A note that carries one is
-"tuned": transposing retunes it for its new pitch and place in its chord, and `transposeSong()` moves
+"tuned": transposing retunes it for its new pitch and place in its chord, changing the scale
+(`set-song-scale`) retunes every tuned note of the song for the new scale (`retuneSong()`), and `transposeSong()` moves
 the key with the notes when no pitched note is left outside its `SongScope`,
 so corrections stay valid. "Tuning" in this codebase
 stays the song's EDO; the offset is a tuning correction (`docs/glossary.md`).

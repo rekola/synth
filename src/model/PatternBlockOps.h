@@ -159,6 +159,10 @@ int clearTuningCorrectionsInSong(Song & song, SongScope scope);
 // their corrections stay as they were); otherwise it stays, and tuned notes
 // are retuned for their new place against it.
 void transposeSong(Song & song, SongScope scope, bool up);
+// Gives every note of the song that carries a tuning correction (both scopes)
+// a fresh one for the song's current scale and key, as when the scale changes;
+// untuned notes stay untuned. Returns how many were retuned.
+int retuneSong(Song & song);
 void humanizeSong(Song & song, SongScope scope, const HumanizeAmount & amount, NoiseGenerator & rng);
 
 // Merges `block` into `grid` starting at (target_row, track_id, target_note_offset),
