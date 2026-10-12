@@ -384,7 +384,7 @@ ClipGrid::activateCell(const Song & song, const std::vector<int> & track_ids, bo
 }
 
 bool
-ClipGrid::handleMouse(const InputEvent & input) {
+ClipGrid::handleMouse(const cellui::Input & input) {
   if (input.getKind() == InputEvent::Kind::RELEASE) {
     mouse_down_ = false;
     return true;
@@ -425,7 +425,7 @@ ClipGrid::handleMouse(const InputEvent & input) {
 }
 
 bool
-ClipGrid::offerInput(const InputEvent & input) {
+ClipGrid::offerInput(const cellui::Input & input) {
   // const - Song::getClips() has a non-const overload that inserts an
   // empty entry for a track that doesn't have one yet (needed for actual
   // mutation elsewhere, e.g. ArrangementOps.cpp); most of this method

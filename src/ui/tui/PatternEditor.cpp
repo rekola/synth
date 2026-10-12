@@ -1,3 +1,4 @@
+#include "../../playback/KeyboardNotes.h"
 #include "PatternEditor.h"
 #include "LevelMeter.h"
 
@@ -1570,7 +1571,7 @@ PatternEditor::handleBufferChanged() {
 }
 
 bool
-PatternEditor::handleMouse(const InputEvent & input) {
+PatternEditor::handleMouse(const cellui::Input & input) {
   if (input.getKind() == InputEvent::Kind::RELEASE) {
     mouse_down_ = false;
     return true;
@@ -1725,7 +1726,7 @@ PatternEditor::commitPendingValue() {
 }
 
 bool
-PatternEditor::offerInput(const InputEvent & input) {
+PatternEditor::offerInput(const cellui::Input & input) {
   // Only consecutive hex digits extend a pending value; any other key
   // (a move, a click, undo, ...) commits it first.
   if (pending_.valid && input.getKind() != InputEvent::Kind::RELEASE && input.getId() == NCKEY_ENTER) {
@@ -1742,7 +1743,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 }
 
 bool
-PatternEditor::offerInputKey(const InputEvent & input) {
+PatternEditor::offerInputKey(const cellui::Input & input) {
   // Anything but typing ends the run of typed characters that undoes as one
   // step (Song::breakTypingRun()).
   if (input.getKind() != InputEvent::Kind::RELEASE) {
@@ -2199,7 +2200,7 @@ PatternEditor::offerInputKey(const InputEvent & input) {
 	if (!is_off) {
 	  auto track = song.getMasterTrack().getChildByInternalId(track_id);
 	  auto tuning = track ? song.getTuningForTrack(*track) : song.getTuning();
-	  midi_note = input.toMidiNote(getController().getGlobalOctave(), tuning);
+	  midi_note = keyToMidiNote(input, getController().getGlobalOctave(), tuning);
 	}
 
 	if (is_repeat && midi_note >= 0) return true; // already sounding - nothing to redo

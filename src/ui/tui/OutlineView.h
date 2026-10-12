@@ -87,7 +87,7 @@ class OutlineView : public UIElement {
 
   }
 
-  bool offerInput(const InputEvent & input) override;
+  bool offerInput(const cellui::Input & input) override;
   bool render(const StyleProvider & styles, bool refresh, bool focused);
   // Closes the details popup - for when this panel stops being shown
   // (the popup is a separate plane that would otherwise stay up).
@@ -145,7 +145,7 @@ protected:
   // side). Resolved on RELEASE, matching SpinBox's own click
   // convention - a press, or a drag while held, only shows what is
   // pressed; the release acts on it.
-  bool handleClick(const InputEvent & input);
+  bool handleClick(const cellui::Input & input);
   // What a click at the screen position lands on: a tree row (data_
   // index) or a button, or neither.
   struct ClickTarget {

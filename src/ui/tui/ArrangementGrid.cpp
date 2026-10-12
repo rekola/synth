@@ -79,10 +79,10 @@ ArrangementGrid::ensureCursorVisible(int bar_count, int visible_rows, int visibl
 }
 
 bool
-ArrangementGrid::offerInput(const InputEvent & input) {
+ArrangementGrid::offerInput(const cellui::Input & input) {
   // A left click picks the (bar, track) cell under it; Enter still commits it.
   if (input.getId() == NCKEY_BUTTON1) {
-    if (input.getKind() == InputEvent::Kind::RELEASE) return true;
+    if (input.getKind() == cellui::Input::Kind::RELEASE) return true;
     auto & song = getController().getSong();
     auto num_tracks = static_cast<int>(getVisibleTrackIds(song).size());
     auto [ pos_y, pos_x ] = getPosition();
@@ -104,7 +104,7 @@ ArrangementGrid::offerInput(const InputEvent & input) {
   // The mouse wheel scrolls the view (Shift: tracks), not the cursor, and
   // detaches it from the cursor/playhead until the cursor next moves.
   if (input.getId() == NCKEY_BUTTON4 || input.getId() == NCKEY_BUTTON5) {
-    if (input.getKind() == InputEvent::Kind::RELEASE) return true;
+    if (input.getKind() == cellui::Input::Kind::RELEASE) return true;
     int direction = input.getId() == NCKEY_BUTTON4 ? -1 : 1;
     if (input.hasShift()) scroll_col_ += direction;
     else scroll_row_ += direction;
@@ -113,7 +113,7 @@ ArrangementGrid::offerInput(const InputEvent & input) {
   }
 
   if (dispatchCommand(input)) return true;
-  if (input.getKind() == InputEvent::Kind::RELEASE) return false;
+  if (input.getKind() == cellui::Input::Kind::RELEASE) return false;
 
   auto & song = getController().getSong();
   auto track_ids = getVisibleTrackIds(song);

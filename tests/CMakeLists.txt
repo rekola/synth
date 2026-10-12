@@ -27,6 +27,7 @@ add_executable(synth_tests
 	DeviceLabelsTests.cpp
 	PatternBlockOpsTests.cpp
 	JustIntonationTests.cpp
+	KeyboardNotesTests.cpp
 	SpatialPlacementTests.cpp
 	TuningCorrectionOpsTests.cpp
 	PatternSourceTests.cpp
@@ -91,7 +92,6 @@ add_executable(synth_tests
 	TimeStretcherTests.cpp
 	RecordingRingBufferTests.cpp
 	MonoFifoTests.cpp
-	LevelMeterTests.cpp
 	LaunchpadPanTests.cpp
 	RhythmPatternLibraryTests.cpp
 	SwingTests.cpp

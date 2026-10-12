@@ -26,7 +26,7 @@
 #include <utility>
 
 class Synth;
-class InputEvent;
+#include <cellui/Input.h>
 #include "../StyleProvider.h"
 class Song;
 class VisibleTrackInfo;
@@ -42,7 +42,7 @@ class PatternEditor : public UIElement {
   // playhead-row tint is transport state, not input focus - the same
   // either way.
   bool render(const StyleProvider & styles, bool refresh, bool focused);
-  bool offerInput(const InputEvent & input) override;
+  bool offerInput(const cellui::Input & input) override;
   void handleMidiEvent(MidiEvent & ev) override;
 
   // Mirrors StatusLine::isReaderActive(): while this widget's inline editor
@@ -218,7 +218,7 @@ public:
   void commitPendingValue();
   void focusCell(const Song::EditPlace & place) { focus_cell_ = place; }
 private:
-  bool offerInputKey(const InputEvent & input);
+  bool offerInputKey(const cellui::Input & input);
   static bool anyMeterLive(const PlaybackInfo & info, const std::vector<int> & track_ids);
 
   int current_score_playing_row = 0;
@@ -398,7 +398,7 @@ private:
   // A left-button press picks a cell, dragging from it selects a region;
   // handleMouse() tells a drag from a fresh press by the button not having
   // been released in between.
-  bool handleMouse(const InputEvent & input);
+  bool handleMouse(const cellui::Input & input);
  public:
   bool isMouseDown() const { return mouse_down_; }
   void releaseMouse() { mouse_down_ = false; }

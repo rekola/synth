@@ -23,6 +23,8 @@
 #define NCKEY_BACKSPACE   preterunicode(8)
 #define NCKEY_PGDOWN  preterunicode(9)
 #define NCKEY_PGUP    preterunicode(10)
+#define NCKEY_HOME    preterunicode(11)
+#define NCKEY_END     preterunicode(12)
 
 #define NCKEY_ENTER   preterunicode(121)
 
@@ -40,9 +42,9 @@
 // Divide/Multiply key exists in notcurses's own enum, nor does notcurses
 // recognize the legacy VT220/xterm "SS3 + modifier digit" encoding some
 // terminals still send for them (ESC 'O' '5' 'o'/'j') as a single key
-// event at all - see TerminalUI::readInput()'s own escape-sequence
-// recognizer, which synthesizes InputEvents carrying these ids instead of
-// leaking the 4 raw bytes through as if they'd been typed. Defined
+// event at all - the terminal's escape-sequence recognizer synthesizes
+// inputs carrying these ids instead of leaking the 4 raw bytes through as
+// if they'd been typed. Defined
 // unconditionally (unlike the block above) since they have no notcurses
 // equivalent to fall back to either way, and picked well above any index
 // notcurses's own nckeys.h uses (currently tops out at 500), so they can
@@ -55,8 +57,7 @@ namespace cellui {
 class Input {
  public:
   // Kitty-protocol terminals (kitty, foot, wezterm, ghostty, ...) report
-  // real press/repeat/release for each physical key - see
-  // TerminalUI::readInput(). A terminal with no such support (notcurses
+  // real press/repeat/release for each physical key. A terminal with no such support (notcurses
   // reports NCTYPE_UNKNOWN for literally every keystroke there, its own
   // signal that the terminal never negotiated the protocol at all - no
   // capability query needed) can't distinguish a fresh press from a held
@@ -66,19 +67,16 @@ class Input {
   // the realtime-auto-play-while-held feature) must treat UNKNOWN as "no
   // hold information available" and fall back to the old one-shot-per-
   // keystroke behavior, not silently mistake it for a real, eventually-
-  // released press - see PatternEditor::offerInput()'s own note-entry
-  // code for exactly where that fallback happens.
+  // released press.
   enum class Kind { UNKNOWN, PRESS, REPEAT, RELEASE };
 
-  // true_case_id defaults to id itself - only TerminalUI::readInput()'s
-  // own dispatchRawKey ever passes a distinct value, for a plain letter
-  // key: id is unconditionally lowercased there (case-insensitive
-  // keybinding dispatch and note-entry both need that - see that
-  // lambda's own comment), which would otherwise make it impossible for
-  // an active reader (track name/locator/M-x text entry, none of
-  // which care about keybindings or note-entry at all) to ever receive a
-  // genuine uppercase letter. getTrueCaseId() is what a reader is fed
-  // instead - see UIPlane::offerInput()'s own use of it.
+  // true_case_id defaults to id itself - only the terminal's key reader
+  // passes a distinct value, for a plain letter key: id is lowercased there
+  // (case-insensitive keybinding dispatch and note-entry both need that),
+  // which would otherwise make it impossible for an active text reader
+  // (a name or command prompt, which cares about neither) to ever receive
+  // a genuine uppercase letter. getTrueCaseId() is what a reader is fed
+  // instead.
   Input(int id, int y, int x, bool alt, bool shift, bool ctrl, bool meta, Kind kind = Kind::UNKNOWN,
 	     int true_case_id = -1)
     : id_(id), true_case_id_(true_case_id == -1 ? id : true_case_id),
