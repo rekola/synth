@@ -24,16 +24,15 @@ A microtonal, multiparadigm music production system that combines a live sequenc
 
 The application draws on several traditions.
 
-- **Tracker.** Music is written as rows in a grid, one column per voice.
-  Ultimate Soundtracker (Karsten Obarski, 1987, Amiga) is usually counted the
-  first tracker: four channels, each row a note, a sample and an effect. Its
-  layout, music as rows that scroll up the screen while it plays, is thought
-  to come from Chris Hülsbeck's Soundmonitor (1986, Commodore 64), which
-  already showed music that way. Scream Tracker 3 and FastTracker 2 (both
-  1994) added a volume column, Scream Tracker 3 and Impulse Tracker lettered
-  effect commands, and Renoise (2002) has several note columns per track and a
-  delay column. The application's pattern editor follows the later trackers;
-  see
+- **Tracker.** Music is written as rows in a grid, one column per voice. Chris
+  Hülsbeck's Soundmonitor (1986, Commodore 64) showed music as rows that
+  scroll up the screen while it plays, and is thought to have inspired
+  Ultimate Soundtracker (Karsten Obarski, 1987, Amiga), usually counted the
+  first tracker: four channels, each row a note, a sample and an effect.
+  Scream Tracker 3 and FastTracker 2 (both 1994) added a volume column, Scream
+  Tracker 3 and Impulse Tracker lettered effect commands, and Renoise (2002)
+  has several note columns per track and a delay column. The application's
+  pattern editor follows the later trackers; see
   [docs/commands.md](docs/commands.md).
 - **Live sequencer.** Live View holds a clip launcher: a grid of clips, one
   column per track, launched on the bar and grouped into scenes; see
