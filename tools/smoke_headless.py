@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Runs `synth --headless --null-audio --autoplay SONG` for a few seconds,
+"""Runs `synth --headless --null-audio --autoplay [SONG]` for a few seconds,
 asks it to stop the way Ctrl-C would, and checks that it played and exited
-cleanly. Usage: smoke_headless.py BINARY SONG [SECONDS]"""
+cleanly. Usage: smoke_headless.py BINARY SONG|- [SECONDS]
+"-" gives no song, so the default one is used."""
 import os
 import signal
 import subprocess
@@ -16,7 +17,10 @@ def main():
     if os.name == "nt":
         # Ctrl-Break goes to the child's own process group only.
         kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
-    proc = subprocess.Popen([binary, "--headless", "--null-audio", "--autoplay", song],
+    command = [binary, "--headless", "--null-audio", "--autoplay"]
+    if song != "-":
+        command.append(song)
+    proc = subprocess.Popen(command,
                             stderr=subprocess.PIPE, text=True, **kwargs)
     time.sleep(seconds)
     proc.send_signal(signal.CTRL_BREAK_EVENT if os.name == "nt" else signal.SIGINT)

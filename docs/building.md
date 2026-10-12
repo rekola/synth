@@ -32,3 +32,23 @@ ctest --test-dir build --output-on-failure
 
 CI builds this on every push and uploads the binary and some rendered songs.
 The plan is in [plans/windows-port.md](../plans/windows-port.md).
+
+## Windows installer
+
+`.github/workflows/release-windows.yml` builds an [Inno Setup](https://jrsoftware.org/isinfo.php)
+installer, `synth-<version>-windows-x86_64-setup.exe`, on every `v*` tag (it
+is attached to the release), on demand, and on changes to the files that make
+it. `tools/windows/stage.sh` lays out the program, the MSYS2 runtime DLLs it
+needs, the songs and the licence texts (and SoundFonts, below), and
+`tools/windows/synth.iss` packs that. The job then installs the result with no
+MSYS2 on the PATH and plays a song from it, which catches a missing DLL.
+
+To include a General MIDI SoundFont, set the repository variables
+`SYNTH_SOUNDFONT_URL` (a direct link to the `.sf2`), `SYNTH_SOUNDFONT_SHA256`
+and, for its licence text, `SYNTH_SOUNDFONT_LICENSE_URL`. Without them the
+installer has no SoundFont and instrument tracks use the built-in fallback
+instrument. Installed copies also read SoundFonts from
+`%LOCALAPPDATA%\synth\soundfonts`.
+
+The installer is not signed, so Windows SmartScreen will warn when it is run.
+
