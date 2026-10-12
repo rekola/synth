@@ -156,6 +156,14 @@ public:
     addVoice(column, move(voice));
   }
 
+  // noteOn() with a per-note override, as a pattern note's fx gives one.
+  void noteOn(int column, const Track & instrument, Tuning tuning, float velocity, int note_value, const NoteCoordinate & note_coord,
+              const NoteOverride & note_override) {
+    note_override_ = note_override;
+    noteOn(column, instrument, tuning, velocity, note_value, note_coord);
+    note_override_ = {};
+  }
+
   // Live-audition polyphonic aftertouch (Player::handlePlaybackControlEvent()'s
   // NOTE_PRESSURE case) - the counterpart to noteOn() above.
   void notePressure(int column, float velocity) { applyAftertouch(column, velocity); }

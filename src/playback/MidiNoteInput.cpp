@@ -4,6 +4,7 @@
 #include "../Controller.h"
 #include "../instruments/Tuning.h"
 #include "../model/Note.h"
+#include "../model/PatternBlockOps.h"
 #include "../model/Song.h"
 
 #include <algorithm>
@@ -90,7 +91,9 @@ MidiNoteInput::handle(const MidiEvent & ev, Controller & controller, int track_i
     if (!options.write) return false;
     auto target = resolve(track_id);
     Song::Edit edit(song, "enter note", Song::Edit::Kind::CONTENT);
-    target.pattern->setNote(target.effective_row, column, Note(note_value, ev.getVelocity(), current_delay));
+    Note note(note_value, ev.getVelocity(), current_delay);
+    tuneNewNote(song, track_id, note);
+    target.pattern->setNote(target.effective_row, column, note);
     return true;
   }
 

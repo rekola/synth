@@ -4,6 +4,7 @@
 #include "Arrangement.h"
 #include "BarGrid.h"
 #include "Clip.h"
+#include "JustIntonation.h"
 #include "Swing.h"
 #include "TimeSignature.h"
 #include "../instruments/Tuning.h"
@@ -33,11 +34,14 @@ struct SongScalars {
   bool floor_reflection_enabled = constants::DEFAULT_FLOOR_REFLECTION_ENABLED;
   float floor_reflection_strength = constants::DEFAULT_FLOOR_REFLECTION_STRENGTH;
   float ground_absorption = constants::DEFAULT_GROUND_ABSORPTION;
+  // What a live note of a just scale is corrected by.
+  just_intonation::ScaleCorrections scale_corrections;
 
   bool operator==(const SongScalars & o) const {
     return tempo == o.tempo && swing == o.swing && time_signature == o.time_signature && running_bars.signature == o.running_bars.signature &&
-      running_bars.origin == o.running_bars.origin && tuning == o.tuning && ear_height == o.ear_height && floor_reflection_enabled == o.floor_reflection_enabled &&
-      floor_reflection_strength == o.floor_reflection_strength && ground_absorption == o.ground_absorption;
+           running_bars.origin == o.running_bars.origin && tuning == o.tuning && ear_height == o.ear_height && floor_reflection_enabled == o.floor_reflection_enabled &&
+           floor_reflection_strength == o.floor_reflection_strength && ground_absorption == o.ground_absorption &&
+           scale_corrections == o.scale_corrections;
   }
 };
 

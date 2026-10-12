@@ -45,7 +45,10 @@ compromise.
 The 7-note otonal and utonal scales are different. They are named after
 Partch's overtone and undertone series but are not his much longer scales:
 each has seven notes, chosen so that the intervals between them are simple
-ones. They have no D to argue over, so one fixed pitch per note serves.
+ones. They have no D to argue over, so one fixed pitch per note serves: the
+scale gives it (otonal 1/1 7/6 5/4 4/3 3/2 5/3 7/4, harmonics 12 to 21 of the
+key; utonal 1/1 8/7 6/5 4/3 3/2 8/5 12/7, its mirror image), and a song in
+either scale is tuned with both, so the two can be played together.
 
 **Adaptive just intonation**
 Just intonation that follows the music instead of returning to the key; also
