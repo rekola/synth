@@ -397,7 +397,11 @@ UI::initializeCommands() {
   // audio server's own, so a missing device may just mean this build can't
   // see the server.
   auto deviceDialogTitle = [](const std::string & what) {
+#ifdef _WIN32
+    return what + " (Windows audio)";
+#else
     return what + (pipeWireAvailable() ? " (PipeWire)" : " (ALSA sound cards)");
+#endif
   };
   commands_.define("select-capture-device", [this, chooseDevice, deviceDialogTitle]() {
     std::vector<Choice> choices;
