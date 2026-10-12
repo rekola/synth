@@ -1311,11 +1311,13 @@ would otherwise resume showing.
   mapping), the key chord packing, `Keymap` and `CommandRegistry`, and the theme (`Theme`,
   `StyleProvider`) and `UIPlane` (it carries the app's own object as an opaque
   `getAppContext()`, which `UIElement::getController()` casts back; input is
-  `cellui::Input`). The old paths (`util/Utf8.h`, `ui/Markdown.h`,
+  `cellui::Input`), and the widget base `Element` (`Element.h`: the plane,
+  drawing, the keymap and prefix-chord dispatch; the app's `UIElement` adds the
+  event handler, `InputEvent` and the controller). The old paths (`util/Utf8.h`, `ui/Markdown.h`,
   `ui/ChoiceList.h`, `ui/tui/SubcellGlyphs.h`, `model/Color.h`, `ui/Keymap.h`, `ui/CommandRegistry.h`, `ui/KeyChord.h`, `ui/Theme.h`,
   `ui/StyleProvider.h`, `ui/UIPlane.h`) are forwarding
   headers with aliases (`Utf8`, `markdown`, `Color`, ...), so call sites did not
-  change; `UIElement`, `UIMenu` and the rest follow, one slice
+  change; `UIMenu` and the rest follow, one slice
   at a time, as the library's types stop needing `Controller` and the event
   model. Its tests are in `lib/cellui/tests/` with a copy of the tiny test
   framework (no dependency on `tests/`).
