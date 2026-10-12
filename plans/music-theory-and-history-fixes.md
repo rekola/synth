@@ -4,19 +4,7 @@ What is left of the music theory and history review once its corrections
 were made (README, glossary, the note tables, drums-and-sequencer.md,
 bus_effects.md). Each item needs a choice before it is built.
 
-## 1. Changing the scale leaves stale corrections
-
-Notes of an otonal or utonal song get their scale's exact ratio whatever
-their chord, live and when recorded or typed, so a written note's correction
-now depends on the scale. `set-song-scale` changes only the scale: a note
-written in an otonal song keeps its otonal correction after the song is
-switched to major, or to no scale.
-
-Options: retune every note that carries a correction when the scale changes,
-as transposing already does (one undoable edit with the scale change); or
-clear them; or ask. Retuning matches how transposing treats tuned notes.
-
-## 2. 31-EDO tunes B as 13:7
+## 1. 31-EDO tunes B as 13:7
 
 The step chooser (`model/JustIntonation.cpp`) takes the ratio with the
 smallest numerator times denominator within 20 cents, which makes 31-EDO's
@@ -43,7 +31,7 @@ Rules tried on every step of the four tunings:
   user-interface.md's "31-EDO reaches 7/6 and 11/10" becomes 7/6 and 12/11,
   and the just-intonation tests need their expected ratios checked.
 
-## 3. 6/8 and the beat
+## 2. 6/8 and the beat
 
 The rows-per-beat rule is 16/d, so 6/8 has six beats of 2 rows, and
 time_signatures.md says 3/4 and 6/8 "differ in the beat only".

@@ -157,7 +157,9 @@ removes the corrections again, whatever put them there. Transposing the region
 gives each tuned note the correction for its new pitch, and transposing the
 whole song moves the key with the notes when no pitched note is left outside
 the selection, so the corrections stay as they were; otherwise the key stays
-and the notes are retuned against it.
+and the notes are retuned against it. Changing the song's scale
+(`set-song-scale`) retunes every tuned note of the song for the new scale, in
+the same undo step; untuned notes stay untuned.
 `undo` takes any of these back. Not on the Launchpad.
 
 ## Humanize

@@ -24,6 +24,7 @@
 #include "../model/SampleTrack.h"
 #include "../model/Song.h"
 #include "../model/ArrangementOps.h"
+#include "../model/PatternBlockOps.h"
 #include "../playback/RecordEvent.h"
 #include "../playback/RecordingLatencyEvent.h"
 #include "../playback/ThresholdRecordingTriggeredEvent.h"
@@ -422,7 +423,9 @@ UI::initializeCommands() {
     chooseDevice("MIDI input", std::move(choices), getController().getDeviceSettings().midi_input,
                  [this](const Choice & choice) { selectMidiInput(choice.value, choice.label); });
   });
-  // The song's scale: which degrees the step view steps through.
+  // The song's scale: which degrees the step view steps through, and the
+  // ratios of a just scale's notes, so the notes that carry a tuning
+  // correction are retuned for it in the same edit.
   commands_.define("set-song-scale", [this]() {
     static const Scale kScales[] = {Scale::NONE, Scale::MAJOR, Scale::MINOR, Scale::OTONAL, Scale::UTONAL};
     std::vector<Choice> choices;
@@ -437,7 +440,8 @@ UI::initializeCommands() {
       auto & song = getController().getSong();
       Song::Edit edit(song, "set scale");
       song.setScale(scale);
-      setStatus("Scale " + scaleLabel(scale));
+      int retuned = retuneSong(song);
+      setStatus("Scale " + scaleLabel(scale) + (retuned > 0 ? fmt::format(", {} tuned notes retuned", retuned) : ""));
     });
   });
   commands_.define("next-buffer", [this]() {
