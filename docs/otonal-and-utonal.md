@@ -43,7 +43,7 @@ scale, E♭ has a 5:4 above it (G) but no fifth, so it carries no triad of the
 table either.
 
 Played live, recorded or typed, and after `apply-just-intonation-region`, each
-note of either scale sounds at its exact ratio to the key, so these chords come
-out pure ([user-interface.md](user-interface.md#just-intonation)). Without a tuning correction,
-31 and 53-EDO come within 6 cents of every ratio; 12 and 19-EDO only
-approximate the septimal ones.
+note of either scale sounds at its exact ratio to the key, so these chords
+come out pure ([user-interface.md](user-interface.md#just-intonation)).
+Without a tuning correction, 31 and 53-EDO come within 6 cents of every ratio;
+12 and 19-EDO only approximate the septimal ones.
