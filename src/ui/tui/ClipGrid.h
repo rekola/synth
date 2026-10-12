@@ -16,7 +16,7 @@
 #include <unordered_map>
 #include <vector>
 
-class InputEvent;
+#include <cellui/Input.h>
 #include "../StyleProvider.h"
 class Song;
 
@@ -61,7 +61,7 @@ class ClipGrid : public UIElement {
   // The clip each track is at (its position in the pattern editor below) -
   // marked, faintly, in that track's own column. Unset, nothing is.
   void setTrackClipSource(std::function<int(int track_id)> source) { track_clip_source_ = std::move(source); }
-  bool offerInput(const InputEvent & input) override;
+  bool offerInput(const cellui::Input & input) override;
   // See PatternEditor::isReaderActive()/cancelReaderEdit().
   bool isReaderActive() const { return inline_editor_.isOpen(); }
   void cancelReaderEdit() { inline_editor_.cancel(); }
@@ -212,7 +212,7 @@ class ClipGrid : public UIElement {
   void activateCell(const Song & song, const std::vector<int> & track_ids, bool edit_sends);
   // A left-button press or release: picks the cell under it, and a clip
   // slot (or the master's scene/stop-all slots) acts as a button.
-  bool handleMouse(const InputEvent & input);
+  bool handleMouse(const cellui::Input & input);
   // Between a press and its release - see handleMouse().
   bool mouse_down_ = false;
   void startClipRename(const Song & song, const std::vector<int> & track_ids);

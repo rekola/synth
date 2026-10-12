@@ -1307,19 +1307,19 @@ would otherwise resume showing.
   dialogs use), `ChoiceList`, the sub-cell glyph tables and two-colour
   quantizer (`SubcellGlyphs.h`), and the input data (`Input.h`: key id, modifiers,
   position, press/release kind, and the `NCKEY_*` key ids; the app's
-  `InputEvent` is an `Input` that is also an `Event`, with the note-entry key
-  mapping), the key chord packing, `Keymap` and `CommandRegistry`, and the theme (`Theme`,
+  `InputEvent` is an `Input` that is also an `Event`; the note-entry key mapping
+  is `keyToMidiNote()` in `playback/KeyboardNotes.h`), the key chord packing, `Keymap` and `CommandRegistry`, and the theme (`Theme`,
   `StyleProvider`) and `UIPlane` (it carries the app's own object as an opaque
   `getAppContext()`, which `UIElement::getController()` casts back; input is
   `cellui::Input`), and the widget base `Element` (`Element.h`: the plane,
-  drawing, the keymap and prefix-chord dispatch; the app's `UIElement` adds the
-  event handler, `InputEvent` and the controller), and the 2D grid chart contract
+  drawing, `offerInput(const Input &)`, the keymap and prefix-chord dispatch;
+  the app's `UIElement` adds the event handler and the controller), `UIMenu`, and the 2D grid chart contract
   `HeatmapChart` (`HeatmapChart.h`, with the fixed hue and the HSV helper its
   renderers share). The old paths (`util/Utf8.h`, `ui/Markdown.h`,
   `ui/ChoiceList.h`, `ui/tui/SubcellGlyphs.h`, `model/Color.h`, `ui/Keymap.h`, `ui/CommandRegistry.h`, `ui/KeyChord.h`, `ui/Theme.h`,
-  `ui/StyleProvider.h`, `ui/UIPlane.h`, `ui/HeatmapChart.h`) are forwarding
+  `ui/StyleProvider.h`, `ui/UIPlane.h`, `ui/HeatmapChart.h`, `ui/UIMenu.h`) are forwarding
   headers with aliases (`Utf8`, `markdown`, `Color`, ...), so call sites did not
-  change; `UIMenu` and the rest follow, one slice
+  change; the rest follow, one slice
   at a time, as the library's types stop needing `Controller` and the event
   model. Its tests are in `lib/cellui/tests/` with a copy of the tiny test
   framework (no dependency on `tests/`).

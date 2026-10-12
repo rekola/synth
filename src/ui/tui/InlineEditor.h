@@ -8,7 +8,7 @@
 #include <string>
 
 #include "../UIPlane.h"
-class InputEvent;
+#include <cellui/Input.h>
 
 // A one-line, in-place text field over a widget's own cells (a track,
 // clip or locator name). Enter commits through the callback
@@ -36,7 +36,7 @@ class InlineEditor {
   bool open(const Field & field, std::function<void(std::string)> commit);
   bool isOpen() const;
   // Always consumes the input while open; returns false only when closed.
-  bool offerInput(const InputEvent & input);
+  bool offerInput(const cellui::Input & input);
   // Closes without committing. A no-op if nothing is open.
   void cancel();
   void paintBackdrop();

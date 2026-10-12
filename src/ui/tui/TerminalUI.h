@@ -17,7 +17,7 @@ namespace ncpp {
   class NotCurses;
 };
 
-class UIMenu;
+#include "../UIMenu.h"
 class SpectrumMeter;
 #include "../HeatmapChart.h"
 class ChannelMeter;
@@ -40,7 +40,7 @@ class TerminalUI : public UI {
   void refresh() override;
   void render() override;
 
-  bool offerInput(const InputEvent & input) override;
+  bool offerInput(const cellui::Input & input) override;
 
   void setStatus(std::string s) override;
   void showInfoDialog(const std::string & title, const std::string & markdown) override;
@@ -153,7 +153,7 @@ private:
   ChoiceDialog choice_dialog_;
   std::function<void(int)> choice_callback_;
   void layoutChoiceDialog();
-  void handleChoiceDialogInput(const InputEvent & input);
+  void handleChoiceDialogInput(const cellui::Input & input);
   void closeChoiceDialog() {
     choice_dialog_.close();
     choice_callback_ = nullptr;

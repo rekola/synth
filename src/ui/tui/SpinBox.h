@@ -101,7 +101,7 @@ class SpinBox : public UIElement {
     return true;
   }
 
-  bool offerInput(const InputEvent & input) override {
+  bool offerInput(const cellui::Input & input) override {
     if (input.getId() == NCKEY_BUTTON1) {
       if (input.getKind() != InputEvent::Kind::RELEASE) {
         arrow_press_ = hitsArrow(input.getY(), input.getX());

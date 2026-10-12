@@ -27,6 +27,12 @@ class Element {
   }
   virtual ~Element() { }
 
+  // Offers a key or mouse event to this widget; true when it was used. The
+  // default passes it on to the plane.
+  virtual bool offerInput(const Input & input) {
+    return plane_ ? plane_->offerInput(input) : false;
+  }
+
   // Emacs-style named-command dispatch: subclasses populate keymap_/
   // commands_ (typically in their constructor) and call dispatchCommand()
   // from their own offerInput() wherever a migrated binding should take
