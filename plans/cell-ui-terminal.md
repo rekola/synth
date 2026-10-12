@@ -163,6 +163,13 @@ of the switch.
    What stays in the app is what knows the song or the controller, and the
    notcurses implementations that step 5 replaces.
 5. The terminal backend replaces notcurses. Same look, same e2e results.
+   Started, in `lib/cellui` (`cellui/term/`), not yet used by the app: our
+   own input parser (keys in every encoding, mouse, paste, focus, replies,
+   a grace deadline instead of a spinning wait) and start-up discovery (the
+   queries and the capability record, tested against replies recorded from
+   seven terminals). Next: the frame encoder (diff, cursor motion, SGR,
+   colour quantisation, synchronized output), the tty session (termios,
+   signals, restoration, waitable handle), then `TerminalUI` onto them.
 6. Icons: the app's icon list, Kitty graphics/Sixel/glyph fallback, menu
    icons.
 7. `plans/modern-look.md` steps 4-5: the modernized look and the light and
