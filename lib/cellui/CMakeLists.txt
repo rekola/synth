@@ -34,7 +34,9 @@ add_library(cellui STATIC
   src/Markdown.cpp
   src/SpectrumMeter.cpp
   src/SubcellGlyphs.cpp
-  src/Utf8.cpp)
+  src/Utf8.cpp
+  src/term/InputParser.cpp
+  src/term/TermEvent.cpp)
 target_include_directories(cellui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_include_directories(cellui PRIVATE ${UNISTRING_INCLUDE_DIR})
 target_link_libraries(cellui PUBLIC ${UNISTRING_LIBRARY})
@@ -61,6 +63,7 @@ add_executable(cellui_tests
   tests/SpinBoxTests.cpp
   tests/SubcellGlyphsTests.cpp
   tests/InlineEditorTests.cpp
+  tests/InputParserTests.cpp
   tests/KeymapTests.cpp
   tests/LevelMeterTests.cpp
   tests/MeterTests.cpp
