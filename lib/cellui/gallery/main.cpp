@@ -22,7 +22,8 @@ int main(int argc, char ** argv) {
   cellui::StyleProvider styles(theme);
   cellui::CellBuffer buffer(120, 72);
   cellui::BufferPlane plane(buffer, styles);
-  int rows = cellui::drawGallery(plane, theme);
-  std::cout << (plain ? buffer.toPlainText() : buffer.toAnsi(rows));
+  cellui::Gallery gallery(plane, theme);
+  plane.refresh();
+  std::cout << (plain ? buffer.toPlainText() : buffer.toAnsi(gallery.rows()));
   return 0;
 }

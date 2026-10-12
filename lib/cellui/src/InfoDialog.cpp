@@ -1,11 +1,13 @@
-#include "InfoDialog.h"
+#include <cellui/InfoDialog.h>
 
-#include "../Markdown.h"
-#include "../../util/Utf8.h"
+#include <cellui/Markdown.h>
+#include <cellui/Utf8.h>
 
 #include <algorithm>
 
 using namespace std;
+
+namespace cellui {
 
 namespace {
 
@@ -32,7 +34,7 @@ InfoDialog::show(UIPlane & parent, const string & title, const string & source, 
   plane_->setFgColor(border.getRed(), border.getGreen(), border.getBlue());
   plane_->setBold(false);
   auto heading = "┌─ " + title + " ";
-  plane_->putstr(0, 0, heading + repeatUtf8("─", std::max(0, width - 1 - Utf8::displayWidth(heading))) + "┐");
+  plane_->putstr(0, 0, heading + repeatUtf8("─", std::max(0, width - 1 - utf8::displayWidth(heading))) + "┐");
   for (int row = 1; row < rows - 1; row++) {
     plane_->putstr(row, 0, "│" + string(static_cast<size_t>(width - 2), ' ') + "│");
   }
@@ -47,7 +49,7 @@ InfoDialog::show(UIPlane & parent, const string & title, const string & source, 
       else if (run.italic) plane_->setItalic(true);
       else plane_->setBold(false);
       plane_->putstr(i + 1, x, run.text);
-      x += Utf8::displayWidth(run.text);
+      x += utf8::displayWidth(run.text);
     }
   }
   plane_->setBold(false);
@@ -59,3 +61,5 @@ InfoDialog::move(int y, int x) {
   plane_->move(y, x);
   plane_->moveToTop();
 }
+
+}  // namespace cellui

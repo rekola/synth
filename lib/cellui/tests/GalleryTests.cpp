@@ -16,7 +16,9 @@ std::string renderPage(int & rows) {
   StyleProvider styles(theme);
   CellBuffer buffer(120, 72);
   BufferPlane plane(buffer, styles);
-  rows = drawGallery(plane, theme);
+  Gallery gallery(plane, theme);
+  plane.refresh();
+  rows = gallery.rows();
   return buffer.toPlainText();
 }
 
@@ -53,8 +55,9 @@ TEST(gallery_ansi_carries_the_theme_colours) {
   StyleProvider styles(theme);
   CellBuffer buffer(120, 72);
   BufferPlane plane(buffer, styles);
-  int rows = drawGallery(plane, theme);
-  std::string ansi = buffer.toAnsi(rows);
+  Gallery gallery(plane, theme);
+  plane.refresh();
+  std::string ansi = buffer.toAnsi(gallery.rows());
   // The playing token #50e070 is a background in the accent-and-state list.
   CHECK(ansi.find("48;2;80;224;112") != std::string::npos);
   // Bold, italic and underline each appear.
