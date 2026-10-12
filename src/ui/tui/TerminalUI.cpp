@@ -257,7 +257,7 @@ public:
   void putstr(int y, int x, const std::string & s) override { plane->putstr(y, x, s.c_str()); }
   unique_ptr<UIPlane> createChild() override {
     auto child_plane = new Plane(1, 1, 0, 0);
-    child_plane->set_base("", 0, channelsOf(getStyles().reader_text_color, Color(0x20, 0, 0x20)));
+    child_plane->set_base("", 0, channelsOf(getStyles().reader_text_color, getStyles().popup_bg_color));
     return make_unique<TerminalPlane>(getAppContext(), getStyles(), child_plane);
   }
   
@@ -519,19 +519,15 @@ public:
   // pattern above.
   void showPicker(int y, int x, int rows, int cols, int item_count) override {
     if (selector) return; // already active - see UIPlane.h's own comment
-    // Dark background/light foreground matching this app's own theme
-    // (StyleProvider isn't reachable from here - see TerminalMenu's own
-    // header/sectionchannels for the identical precedent of hardcoding
-    // colors directly rather than threading StyleProvider this deep) -
-    // left at 0 (notcurses's own "no color set" default), these read as
-    // full-bright white-on-whatever's-already-there instead, not this
-    // app's dark theme.
+    // The theme's picker colours - left at 0 (notcurses's own "no color
+    // set" default), these read as full-bright white-on-whatever's-already-
+    // there instead.
     //
     // opchannels is the cursor's own colors swapped: the selector draws
     // its current row with opchannels' fg/bg swapped back, so that row
     // shows the same cursor every widget does.
     uint64_t opchannels = channelsOf(getStyles().highlight_bg_color, getStyles().highlight_fg_color);
-    uint64_t boxchannels = NCCHANNELS_INITIALIZER(0x60, 0x60, 0x60, 0x20, 0x20, 0x20);
+    uint64_t boxchannels = channelsOf(getStyles().picker_border_color, getStyles().picker_bg_color);
     // descchannels deliberately its own dark/neutral pair, not opchannels
     // again - every item's own .desc is always empty (addItem() callers
     // pass only an id), but ncselector.c's draw loop still unconditionally
@@ -539,7 +535,7 @@ public:
     // it ("%s" -> " %s") - sharing opchannels there would extend the
     // swapped highlight one cell past the option text itself on the
     // current row, a stray colored space right after it.
-    uint64_t descchannels = NCCHANNELS_INITIALIZER(0x20, 0x20, 0x20, 0x20, 0x20, 0x20);
+    uint64_t descchannels = channelsOf(getStyles().picker_bg_color, getStyles().picker_bg_color);
     // opchannels' own alpha left OPAQUE on both sides (not BLEND like
     // box/base/descchannels below) - BLEND on its bg word made the
     // highlighted row's text (that word, swapped into the fg slot) read
@@ -588,7 +584,7 @@ public:
     // BLEND alpha, matching opchannels/boxchannels above, so it's the
     // same partial transparency, not an opaque patch around the edges of
     // an otherwise-translucent popup.
-    uint64_t base_channels = NCCHANNELS_INITIALIZER(0xc0, 0xc0, 0xc0, 0x20, 0x20, 0x20);
+    uint64_t base_channels = channelsOf(getStyles().picker_fg_color, getStyles().picker_bg_color);
     ncchannels_set_bg_alpha(&base_channels, NCALPHA_BLEND);
     ncplane_set_base(picker_ncplane, " ", 0, base_channels);
     // A freshly created plane already sits above its parent by default,
@@ -865,6 +861,14 @@ public:
     : buffer_names_(std::move(buffer_names)), buffer_display_names_(std::move(buffer_display_names)),
       active_buffer_name_(std::move(active_buffer_name)) { rebuild(); }
 
+  void applyStyles(const StyleProvider & styles) override {
+    header_fg_ = styles.menu_fg_color;
+    header_bg_ = styles.menu_bg_color;
+    section_fg_ = styles.menu_section_fg_color;
+    section_bg_ = styles.menu_section_bg_color;
+    rebuild();
+  }
+
   void refreshBuffers(const vector<string> & buffer_names, const vector<string> & buffer_display_names,
 		       const string & active_buffer_name) override {
     buffer_names_ = buffer_names;
@@ -1023,8 +1027,8 @@ private:
 	.shortcut = { .id = static_cast<uint32_t>(section.mnemonic), .alt = true } });
     }
 
-    uint64_t headerchannels = NCCHANNELS_INITIALIZER(0xff, 0xff, 0xff, 0x7f, 0x34, 0x7f);
-    uint64_t sectionchannels = NCCHANNELS_INITIALIZER(0xff, 0xff, 0xff, 0x00, 0x00, 0x00);
+    uint64_t headerchannels = channelsOf(header_fg_, header_bg_);
+    uint64_t sectionchannels = channelsOf(section_fg_, section_bg_);
     ncchannels_set_fg_alpha(&sectionchannels, NCALPHA_HIGHCONTRAST);
     ncchannels_set_bg_alpha(&sectionchannels, NCALPHA_BLEND);
     ncchannels_set_bg_alpha(&headerchannels, NCALPHA_BLEND);
@@ -1036,6 +1040,9 @@ private:
   vector<string> buffer_names_;
   vector<string> buffer_display_names_;
   string active_buffer_name_;
+  // The theme's colours, the original theme's until applyStyles().
+  Color header_fg_ = Color(0xff, 0xff, 0xff), header_bg_ = Color(0x7f, 0x34, 0x7f);
+  Color section_fg_ = Color(0xff, 0xff, 0xff), section_bg_ = Color(0, 0, 0);
   unique_ptr<Menu> menu;
   vector<string> desc_storage_;
   std::map<string, string> item_commands_;
@@ -1548,6 +1555,7 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
     buffer_display_names.reserve(buffer_names.size());
     for (auto & name : buffer_names) buffer_display_names.push_back(controller->getBufferDisplayName(name));
     menu_ = make_shared<TerminalMenu>(buffer_names, std::move(buffer_display_names), controller->getActiveBufferName());
+    menu_->applyStyles(styles_);
   }
 
   bool use_pixel = notcurses_check_pixel_support(*nc) != NCPIXEL_NONE;
@@ -1591,6 +1599,7 @@ TerminalUI::applyTheme(const Theme & theme) {
   setFgColor(styles_.window_fg_color);
   setBgColor(styles_.window_bg_color);
   fill();
+  if (menu_) menu_->applyStyles(styles_);
   scopes_stale_ = true;
   force_next_render_ = true;
 }
@@ -2218,11 +2227,12 @@ TerminalUI::layout() {
   // hidden, the workspace below covers these rows instead.)
   setFgColor(styles_.window_border_color);
   setBgColor(styles_.window_bg_color);
+  const char * divider_glyph = styles_.grid_lines ? "│" : " ";
   for (int row = 0; show_scopes && row < kScopeHeight; row++) {
-    putstr(scope_row + row, cover_art_divider_x, "│");
-    putstr(scope_row + row, matrix_divider_x, "│");
-    putstr(scope_row + row, divider1_x, "│");
-    putstr(scope_row + row, divider2_x, "│");
+    putstr(scope_row + row, cover_art_divider_x, divider_glyph);
+    putstr(scope_row + row, matrix_divider_x, divider_glyph);
+    putstr(scope_row + row, divider1_x, divider_glyph);
+    putstr(scope_row + row, divider2_x, divider_glyph);
   }
   // The workspace below the scope row. notcurses refuses/ignores a plane
   // resize to zero rows or columns (confirmed via a pty+notcurses
@@ -2248,8 +2258,8 @@ TerminalUI::layout() {
       // carries the header row's backdrop across to the clip grid's.
       setFgColor(styles_.window_border_color);
       for (int row = 0; row < workspace_rows; row++) {
-        setBgColor(row == 0 ? styles_.heading_bg_color : styles_.window_bg_color);
-        putstr(workspace_row + row, outline_cols - 1, "│");
+        setBgColor(row == 0 && styles_.grid_lines ? styles_.heading_bg_color : styles_.window_bg_color);
+        putstr(workspace_row + row, outline_cols - 1, divider_glyph);
       }
     }
     chart_->setVisible(live_scopes);

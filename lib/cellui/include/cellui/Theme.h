@@ -96,6 +96,11 @@ struct Theme {
 
   TrackPalette tracks = TrackPalette::original();
 
+  // Columns of a grid are told apart by a line between them; without lines
+  // each column body is a panel surface with a gutter of the base surface
+  // between. (The tracker view keeps its lines either way.)
+  bool grid_lines = true;
+
   // Roles outside the surfaces: the cursor tints, text on a track colour,
   // the command and reader text, the info bar, the meter and spectrum
   // ramps, track flags, locators, buttons and the master track's bar.
@@ -127,6 +132,17 @@ struct Theme {
   Color button_pressed_bg;
   Color row_pressed_bg;
   Color master_track;
+  // The menu bar, and the sections that drop down from it.
+  Color menu_fg;
+  Color menu_bg;
+  Color menu_section_fg;
+  Color menu_section_bg;
+  // Floating layers: the background of a child plane such as the command
+  // candidates, and the list picker's background, text and border.
+  Color popup_bg;
+  Color picker_bg;
+  Color picker_fg;
+  Color picker_border;
   // The pattern editor's data columns: local fx, velocity, delay.
   Color data_fx;
   Color data_velocity;
@@ -181,6 +197,14 @@ struct Theme {
     t.button_pressed_bg = Color("#7a2850");
     t.row_pressed_bg = Color("#5c7c8c");
     t.master_track = Color("#533918");
+    t.menu_fg = Color("#ffffff");
+    t.menu_bg = Color("#7f347f");
+    t.menu_section_fg = Color("#ffffff");
+    t.menu_section_bg = Color("#000000");
+    t.popup_bg = Color("#200020");
+    t.picker_bg = Color("#202020");
+    t.picker_fg = Color("#c0c0c0");
+    t.picker_border = Color("#606060");
     t.data_fx = Color("#d65cd6");
     t.data_velocity = Color("#bfa426");
     t.data_delay = Color("#42c1ea");
@@ -192,6 +216,7 @@ struct Theme {
   static Theme dark() {
     Theme t = original();
     t.tracks = TrackPalette::modern();
+    t.grid_lines = false;
     t.surface_base = Color("#0d1115");
     t.surface_panel = Color("#161a1e");
     t.surface_raised = Color("#21262b");
@@ -228,6 +253,14 @@ struct Theme {
     t.button_pressed_bg = Color("#4f9fb4");
     t.row_pressed_bg = Color("#2d5f6a");
     t.master_track = t.surface_raised;
+    t.menu_fg = t.text_primary;
+    t.menu_bg = t.surface_raised;
+    t.menu_section_fg = t.text_primary;
+    t.menu_section_bg = t.surface_overlay;
+    t.popup_bg = t.surface_overlay;
+    t.picker_bg = t.surface_overlay;
+    t.picker_fg = t.text_primary;
+    t.picker_border = t.text_secondary;
     t.data_fx = Color("#c58be0");
     t.data_velocity = Color("#d4b03c");
     t.data_delay = Color("#6cc4e0");

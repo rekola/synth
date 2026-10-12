@@ -206,6 +206,7 @@ class ClipGrid : public UIElement {
   // Edits the Send Main/A/B of the column under the cursor - a track's,
   // or the master's (the dry mix and the send bus's returns).
   void startSendEdit(int track_id, int send);
+  void putDivider(const StyleProvider & styles, int y, int x, bool header);
   void putSendValues(int y, int x, const SendLevels & sends, int highlighted, const StyleProvider & styles);
   // What Enter (or a click, which never opens the Sends editor) does on the
   // cell under the cursor.

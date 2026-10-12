@@ -65,6 +65,12 @@ TEST(dark_theme_keeps_the_other_colours_too) {
   CHECK(same(s.button_pressed_bg_color, "#7a2850"));
   CHECK(same(s.row_pressed_bg_color, "#5c7c8c"));
   CHECK(same(s.master_track_color, "#533918"));
+  CHECK(same(s.menu_bg_color, "#7f347f"));
+  CHECK(same(s.menu_section_bg_color, "#000000"));
+  CHECK(same(s.popup_bg_color, "#200020"));
+  CHECK(same(s.picker_bg_color, "#202020"));
+  CHECK(same(s.picker_fg_color, "#c0c0c0"));
+  CHECK(same(s.picker_border_color, "#606060"));
   CHECK(same(s.data_fx_color, "#d65cd6"));
   CHECK(same(s.data_velocity_color, "#bfa426"));
   CHECK(same(s.data_delay_color, "#42c1ea"));
@@ -157,6 +163,10 @@ TEST(modern_themes_keep_text_readable) {
     CHECK(contrast(t.data_velocity, t.surface_base) >= 4.5);
     CHECK(contrast(t.data_delay, t.surface_base) >= 4.5);
     CHECK(contrast(t.info_line_fg, t.info_line_bg) >= 4.5);
+    CHECK(contrast(t.menu_fg, t.menu_bg) >= 4.5);
+    CHECK(contrast(t.menu_section_fg, t.menu_section_bg) >= 4.5);
+    CHECK(contrast(t.picker_fg, t.picker_bg) >= 4.5);
+    CHECK(contrast(t.picker_border, t.picker_bg) >= 3.0);
     for (int i = 0; i < 8; i++) {
       CHECK(contrast(t.tracks.color(i), t.surface_base) >= 3.0);
       CHECK(contrast(t.text_on_track, t.tracks.color(i)) >= 4.5);
@@ -198,4 +208,14 @@ TEST(the_first_modern_tracks_differ_from_each_other_and_on_the_pads) {
       CHECK(dist(pad(i), pad(j)) >= 11.0);
     }
   }
+}
+
+TEST(only_the_original_theme_draws_lines_between_grid_columns) {
+  StyleProvider o(Theme::original()), d(Theme::dark()), l(Theme::light());
+  CHECK(o.grid_lines);
+  CHECK(same(o.grid_bg_color, o.window_bg_color));
+  CHECK(!d.grid_lines);
+  CHECK(same(d.grid_bg_color, d.theme.surface_panel));
+  CHECK(!l.grid_lines);
+  CHECK(same(l.grid_bg_color, l.theme.surface_panel));
 }
