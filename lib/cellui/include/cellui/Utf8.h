@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 // Grapheme-cluster-aware UTF-8 display-width measurement and truncation,
 // backed by libunistring (unigbrk.h/uniwidth.h - the header itself is only
@@ -39,6 +40,9 @@ std::string dropLeadingColumns(const std::string & text, int columns);
 // no-op if text is already that wide or wider. Never truncates - combine
 // with truncateToWidth() first when a call site needs both.
 std::string padToWidth(const std::string & text, int width);
+
+// Splits text into its grapheme clusters.
+std::vector<std::string> clusters(const std::string & text);
 
 // Encodes a single Unicode codepoint as UTF-8 - up through 3-byte (BMP)
 // covers space and the Block Elements quadrants; the 4-byte case is
