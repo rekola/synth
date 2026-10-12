@@ -22,16 +22,19 @@ The general word for rhythmic feel: how a pattern's timing (and often
 accents) deviates from a rigid grid. Swing is the simplest groove. Other
 DAWs go further. Ableton's *Groove Pool* holds templates of per-position
 timing and velocity that you apply to clips. Renoise's *Groove* panel is
-closer to this project: four per-line amounts that repeat every four lines
-and apply song-wide at playback, without changing the pattern data. Here,
+closer to this project: four sliders, each delaying the second line of a pair,
+so the pattern repeats every eight lines (at four lines per beat), applied
+song-wide at playback without changing the pattern data. Here,
 "groove" means timing feel only, and for now that is just swing. The
 Library's drum patterns are not grooves in this sense; see Rhythm.
 
 **Just intonation**
 Tuning notes to simple whole-number frequency ratios (3/2 for a fifth, 5/4
-for a major third) instead of equal steps. Intervals tuned that way have no
-beating between their partials and sound pure. Every EDO only approximates
-these ratios, so a song's notes stay on its EDO grid and each one carries a
+for a major third) instead of equal steps. Intervals tuned that way sound
+pure: for sounds whose partials are whole-number multiples of the fundamental,
+as most pitched instruments' nearly are, the partials two notes share coincide
+and do not beat. Every EDO approximates these ratios (only its octaves are
+exact), so a song's notes stay on its EDO grid and each one carries a
 small tuning correction, in cents, that nudges it toward the pure ratio; see
 user-interface.md.
 
@@ -42,10 +45,12 @@ comes out as simple as it could. In a major scale, the D that suits a G major
 chord is a little too high for a D minor chord, and one fixed D has to be a
 compromise.
 
-The 7-note otonal and utonal scales are different. They are named after
-Partch's overtone and undertone series but are not his much longer scales:
-each has seven notes, chosen so that the intervals between them are simple
-ones. They have no D to argue over, so one fixed pitch per note serves.
+The otonal and utonal scales (below) are different: one fixed pitch per note
+serves them, since every interval between two of their notes is a simple
+ratio, and their chords tune the same against any of their notes. Only a few
+seconds differ when a chord is tuned from its lowest note: G-A in the otonal
+scale is 10:9 between the fixed pitches, but A tuned above G is 9:8 (E♭-F in
+the utonal scale likewise).
 
 **Adaptive just intonation**
 Just intonation that follows the music instead of returning to the key; also
@@ -57,8 +62,8 @@ by two chords, or one that moves by a step, lands on slightly different pitches
 each time. The adaptive kind tunes each note against what is sounding, or has
 only just sounded, in any track, so a melody over a bass line is pure against
 that bass line, and an arpeggio hangs together although its notes never sound
-at once. It is planned, not yet available. The 7-note otonal and utonal scales
-do not need it.
+at once. It is planned, not yet available. The otonal and utonal scales hardly
+need it.
 
 The price is *drift*. A pure interval is exact only against its own reference,
 and the reference may itself have been tuned against an earlier note, so errors
@@ -80,6 +85,19 @@ can also be placed into the arrangement.
 The view with the clip launcher, the outline panel and the pattern editor
 showing each track's own clip; Tab switches to and from the arrangement
 view. The Launchpad's Live mode shows the same clip grid on the pads.
+
+**Otonal and utonal**
+Two 7-note scales that mirror each other around the tonic. Otonal (C D♯ E F G
+A A𝄰 = 1/1 7/6 5/4 4/3 3/2 5/3 7/4): all seven are harmonics (12, 14, 15, 16,
+18, 20, 21) of one low F, which is what Harry Partch called otonal. It holds
+the 4:5:6:7 chord C E G A𝄰 and pure major triads on C and F. Utonal (C E𝄫 E♭ F
+G A♭ B𝄫 = 1/1 8/7 6/5 4/3 3/2 8/5 12/7) is the otonal scale turned upside
+down: all seven are undertones of one high G. It holds the 1/7:1/6:1/5:1/4
+chord E𝄫 F A♭ C and pure minor triads on C and F. Note that the otonal scale
+is not the harmonic series of its own tonic but of the note a fifth below it.
+Partch's otonalities and utonalities are six-note chords over the odd numbers
+1, 3, 5, 7, 9 and 11; these scales use 15 and 21 as well, and are the
+application's own.
 
 **Rhythm**
 A pre-written drum pattern in the Library, such as Waltz, Funk or Bossa

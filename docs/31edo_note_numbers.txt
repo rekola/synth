@@ -8,7 +8,7 @@
 161	E𝄫4	6	8:7	septimal whole tone
 162	D♯4	7	7:6	septimal minor third
 163	E♭4	8	6:5	minor third
-164	D𝄪4/F𝄫4	9	11:9, 16:3	neutral third
+164	D𝄪4/F𝄫4	9	11:9, 16:13	neutral third
 165	E-4	10	5:4	major third
 166	F♭4	11	9:7	diminished fourth
 167	E♯4	12	21:16, 13:10, 17:13, 125:96

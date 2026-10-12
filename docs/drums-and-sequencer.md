@@ -14,7 +14,7 @@ steps. Live View, the buttons and the other modes are in
   until a layout is known exactly.
 - **Pad colours.** Pitched pads are coloured by consonance, which is our own
   choice (see Pad colors below); the 31-EDO organ built for Adriaan Fokker and
-  the Archiphone coloured pads by distance from the diatonic scale instead.
+  the Archiphone coloured their keys by distance from the diatonic scale instead.
 
 ## Playing
 
@@ -34,7 +34,8 @@ Note mode (96) shows a playing surface that follows the track:
 ## Pad colors
 
 LED coloring originally followed the notational convention of Adriaan
-Fokker's 31-EDO organ (built 1950 for Teylers Museum, Haarlem) and the
+Fokker's 31-EDO organ (built by Bernard Pels, at Teylers Museum, Haarlem,
+from 1950, now in the Muziekgebouw aan 't IJ, Amsterdam) and the
 later Archiphone: each pad was colored by its *distance from the song's
 diatonic scale* (tonic / diatonic degree / sharp / flat / diesis /
 accidental), generalizing the idea that 31-EDO's chromatic notes split
