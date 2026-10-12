@@ -16,6 +16,8 @@
 #include <optional>
 #include <vector>
 
+class Controller;
+
 class UIElement : public EventHandler {
  public:
   explicit UIElement() { }
@@ -131,7 +133,7 @@ class UIElement : public EventHandler {
     else return std::pair(0, 0);
   }
   
-  Controller & getController() const { return *(plane_->getController()); }
+  Controller & getController() const { return *static_cast<Controller *>(plane_->getAppContext().get()); }
 
 protected:
   void setPlane(std::unique_ptr<UIPlane> plane) { plane_ = std::move(plane); }

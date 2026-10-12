@@ -24,7 +24,6 @@ add_executable(synth_tests
 	FMTests.cpp
 	ControllerTests.cpp
 	DeviceSettingsTests.cpp
-	ThemeTests.cpp
 	DeviceLabelsTests.cpp
 	PatternBlockOpsTests.cpp
 	JustIntonationTests.cpp

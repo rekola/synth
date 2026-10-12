@@ -38,6 +38,7 @@ add_executable(cellui_tests
   tests/ChoiceListTests.cpp
   tests/ColorTests.cpp
   tests/MarkdownTests.cpp
+  tests/ThemeTests.cpp
   tests/SubcellGlyphsTests.cpp
   tests/KeymapTests.cpp
   tests/Utf8Tests.cpp)

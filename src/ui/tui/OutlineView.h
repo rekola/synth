@@ -11,7 +11,7 @@
 #include <string>
 #include <utility>
 
-class StyleProvider;
+#include "../StyleProvider.h"
 
 // What a row's own default action(s) - NCKEY_ENTER/NCKEY_DEL, and what
 // renderButtonBar() shows for it - target. SECTION covers every plain

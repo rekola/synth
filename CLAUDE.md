@@ -1306,10 +1306,14 @@ would otherwise resume showing.
   quantizer (`SubcellGlyphs.h`), and the input data (`Input.h`: key id, modifiers,
   position, press/release kind, and the `NCKEY_*` key ids; the app's
   `InputEvent` is an `Input` that is also an `Event`, with the note-entry key
-  mapping), the key chord packing, `Keymap` and `CommandRegistry`. The old paths (`util/Utf8.h`, `ui/Markdown.h`,
-  `ui/ChoiceList.h`, `ui/tui/SubcellGlyphs.h`, `model/Color.h`, `ui/Keymap.h`, `ui/CommandRegistry.h`, `ui/KeyChord.h`) are forwarding
+  mapping), the key chord packing, `Keymap` and `CommandRegistry`, and the theme (`Theme`,
+  `StyleProvider`) and `UIPlane` (it carries the app's own object as an opaque
+  `getAppContext()`, which `UIElement::getController()` casts back; input is
+  `cellui::Input`). The old paths (`util/Utf8.h`, `ui/Markdown.h`,
+  `ui/ChoiceList.h`, `ui/tui/SubcellGlyphs.h`, `model/Color.h`, `ui/Keymap.h`, `ui/CommandRegistry.h`, `ui/KeyChord.h`, `ui/Theme.h`,
+  `ui/StyleProvider.h`, `ui/UIPlane.h`) are forwarding
   headers with aliases (`Utf8`, `markdown`, `Color`, ...), so call sites did not
-  change; `UIPlane`, `UIMenu` and the rest follow, one slice
+  change; `UIElement`, `UIMenu` and the rest follow, one slice
   at a time, as the library's types stop needing `Controller` and the event
   model. Its tests are in `lib/cellui/tests/` with a copy of the tiny test
   framework (no dependency on `tests/`).
