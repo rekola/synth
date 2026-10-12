@@ -156,8 +156,11 @@ of the switch.
    own project with the dependency-free leaves moved in (`Color`, `utf8`,
    `markdown`, `ChoiceList`, the sub-cell glyphs, then the input data, key chord, keymap
    and command registry); the theme, `UIPlane`, the widget base `Element` and `HeatmapChart` are in too;
-   `UIMenu` and `offerInput(const Input &)` too; the 1D charts and the gallery app
-   are next.
+   `UIMenu` and `offerInput(const Input &)` too, and the gallery app has started: a
+   headless `BufferPlane` over a `CellBuffer` draws the page of what the library
+   has so far (styles, tokens, glyphs, text, Markdown, a choice list), checked
+   against a golden file. The 1D charts and the dialogs, menus and icons for the
+   page are next.
 5. The terminal backend replaces notcurses. Same look, same e2e results.
 6. Icons: the app's icon list, Kitty graphics/Sixel/glyph fallback, menu
    icons.

@@ -1314,7 +1314,10 @@ would otherwise resume showing.
   `cellui::Input`), and the widget base `Element` (`Element.h`: the plane,
   drawing, `offerInput(const Input &)`, the keymap and prefix-chord dispatch;
   the app's `UIElement` adds the event handler and the controller), `UIMenu`, and the 2D grid chart contract
-  `HeatmapChart` (`HeatmapChart.h`, with the fixed hue and the HSV helper its
+  `HeatmapChart`, and `BufferPlane`/`CellBuffer` (a plane that draws into a
+  grid of cells rendering as plain text or ANSI) with the gallery page
+  (`Gallery.h`, `cellui_gallery`; its text is a golden file in
+  `lib/cellui/tests/golden/`, rewritten with `CELLUI_UPDATE_GOLDEN=1`) (`HeatmapChart.h`, with the fixed hue and the HSV helper its
   renderers share). The old paths (`util/Utf8.h`, `ui/Markdown.h`,
   `ui/ChoiceList.h`, `ui/tui/SubcellGlyphs.h`, `model/Color.h`, `ui/Keymap.h`, `ui/CommandRegistry.h`, `ui/KeyChord.h`, `ui/Theme.h`,
   `ui/StyleProvider.h`, `ui/UIPlane.h`, `ui/HeatmapChart.h`, `ui/UIMenu.h`) are forwarding

@@ -1,0 +1,52 @@
+Cell UI gallery
+
+Text styles
+normal  bold   italic  underline  bold italic
+
+Surfaces and text
+ surface.base        secondary text      disabled text       #111111
+ surface.panel       secondary text      disabled text       #292929
+ surface.raised      secondary text      disabled text       #3d3d3d
+ surface.overlay     secondary text      disabled text       #323232
+
+Accent and state
+ accent                  #bcd4e0
+ accent.dim              #3a4a54
+ focus                   #bcd4e0
+ state.playing           #50e070
+ state.playing.dim       #2e7a3e
+ state.recording         #ff3c3c
+ state.recording.dim     #a04040
+
+Level meter ramp
+████████████████████████████████
+
+Sub-cell glyphs
+quadrants  ░▘▝▀▖▌▞▛▗▚▐▜▄▙▟█
+sextants   🬀🬃🬆🬉🬌🬏🬒🬔🬗🬚🬝🬠🬣🬦🬨🬫🬮🬱🬴🬷🬺
+braille    ⠁⠘⠍⠖⠣⠺⠯⡀⡑⡌⡝⡢⡳⡮⡿⢐⢅⢜⢩⢲⢧⢾⣋⣄⣕⣨⣹⣦⣷
+
+Width and truncation
+plain text               10 columns, cut to 6: [plain ]
+café                     4 columns, cut to 6: [café]
+é (combining)            13 columns, cut to 6: [é (com]
+漢字 (wide)              11 columns, cut to 6: [漢字 (]
+𝄪 sharp                  7 columns, cut to 6: [𝄪 shar]
+
+Markdown
+Heading
+
+A paragraph with italic and bold
+words that wraps at the width of the
+box.
+
+Second
+
+And a second paragraph.
+
+Choice list
+ Device 3
+ Device 4
+ Device 5
+ Device 6
+entry 6 of 8

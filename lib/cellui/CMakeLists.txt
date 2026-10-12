@@ -24,6 +24,9 @@ if(NOT (UNISTRING_LIBRARY AND UNISTRING_INCLUDE_DIR))
 endif()
 
 add_library(cellui STATIC
+  src/BufferPlane.cpp
+  src/CellBuffer.cpp
+  src/Gallery.cpp
   src/Markdown.cpp
   src/SubcellGlyphs.cpp
   src/Utf8.cpp)
@@ -31,13 +34,20 @@ target_include_directories(cellui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_include_directories(cellui PRIVATE ${UNISTRING_INCLUDE_DIR})
 target_link_libraries(cellui PUBLIC ${UNISTRING_LIBRARY})
 
+# Prints the gallery page (every style and widget the library has).
+add_executable(cellui_gallery gallery/main.cpp)
+target_link_libraries(cellui_gallery PRIVATE cellui)
+
 # The library's own tests: plain functions registered with TEST(), run by
 # tests/test_main.cpp; no framework dependency.
 add_executable(cellui_tests
   tests/test_main.cpp
+  tests/BufferPlaneTests.cpp
+  tests/CellBufferTests.cpp
   tests/ChoiceListTests.cpp
   tests/ColorTests.cpp
   tests/ElementTests.cpp
+  tests/GalleryTests.cpp
   tests/HeatmapChartTests.cpp
   tests/MarkdownTests.cpp
   tests/ThemeTests.cpp
@@ -45,6 +55,7 @@ add_executable(cellui_tests
   tests/KeymapTests.cpp
   tests/Utf8Tests.cpp)
 target_link_libraries(cellui_tests PRIVATE cellui)
+target_compile_definitions(cellui_tests PRIVATE CELLUI_TEST_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests")
 add_test(NAME cellui_tests COMMAND cellui_tests)
 
 # Nothing in the library may reach into the application.
