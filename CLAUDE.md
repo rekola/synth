@@ -1303,12 +1303,13 @@ would otherwise resume showing.
   the app: `Color` (`#rgb` now means each digit doubled), `utf8` (grapheme-
   aware width, truncation and padding), `markdown` (the tiny subset the info
   dialogs use), `ChoiceList`, the sub-cell glyph tables and two-colour
-  quantizer (`SubcellGlyphs.h`), and the key chord packing, `Keymap` and
-  `CommandRegistry` (the app's `KeyChord::pack(InputEvent)` overload stays in
-  `src/ui/KeyChord.h`). The old paths (`util/Utf8.h`, `ui/Markdown.h`,
-  `ui/ChoiceList.h`, `ui/tui/SubcellGlyphs.h`, `model/Color.h`) are forwarding
+  quantizer (`SubcellGlyphs.h`), and the input data (`Input.h`: key id, modifiers,
+  position, press/release kind, and the `NCKEY_*` key ids; the app's
+  `InputEvent` is an `Input` that is also an `Event`, with the note-entry key
+  mapping), the key chord packing, `Keymap` and `CommandRegistry`. The old paths (`util/Utf8.h`, `ui/Markdown.h`,
+  `ui/ChoiceList.h`, `ui/tui/SubcellGlyphs.h`, `model/Color.h`, `ui/Keymap.h`, `ui/CommandRegistry.h`, `ui/KeyChord.h`) are forwarding
   headers with aliases (`Utf8`, `markdown`, `Color`, ...), so call sites did not
-  change; `UIPlane`, `UIMenu`, the input event and the rest follow, one slice
+  change; `UIPlane`, `UIMenu` and the rest follow, one slice
   at a time, as the library's types stop needing `Controller` and the event
   model. Its tests are in `lib/cellui/tests/` with a copy of the tiny test
   framework (no dependency on `tests/`).

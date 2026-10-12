@@ -43,3 +43,11 @@ TEST(keymap_binds_prefixes_and_checks_names) {
   map.bind(cc, "typo");
   CHECK(!map.allBoundIn(reg));
 }
+
+TEST(keychord_packs_an_input_like_its_fields) {
+  Input in('x', 0, 0, false, false, true, false);
+  CHECK(KeyChord::pack(in) == KeyChord::pack('x', true, false, false, false));
+  CHECK(in.getTrueCaseId() == 'x');
+  Input upper('x', 0, 0, false, true, false, false, Input::Kind::PRESS, 'X');
+  CHECK(upper.getTrueCaseId() == 'X' && upper.getKind() == Input::Kind::PRESS);
+}

@@ -1,7 +1,6 @@
 #pragma once
 
-// pack(id, modifiers) lives in lib/cellui; the overload for the app's input
-// event is here.
+// The implementation lives in lib/cellui; this keeps the old name.
 #include "../playback/InputEvent.h"
 
 #include <cellui/KeyChord.h>
@@ -10,8 +9,6 @@ namespace KeyChord {
 
 using cellui::KeyChord::pack;
 
-inline uint64_t pack(const InputEvent & input) {
-  return pack(input.getId(), input.hasCtrl(), input.hasAlt(), input.hasShift(), input.hasMeta());
-}
+// An InputEvent is a cellui::Input, so the library overload serves it.
 
 }
