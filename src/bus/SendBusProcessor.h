@@ -79,10 +79,12 @@ class SendBusProcessor {
 
   // aux_a_mono/aux_b_mono: single-channel (mono) cross-track sums for
   // this block, feeding slot A/B's input respectively (before any chain
-  // send - see the class comment above). Always processes, even when both
-  // are silent, so every slot's internal tail/feedback/pattern state
-  // stays continuous across blocks (same reasoning as
-  // AmbisonicBinauralMixer's overlap-add tail). return_a/return_b scale
+  // send - see the class comment above). Processes silent input too, so
+  // every slot's internal tail/feedback/pattern state stays continuous
+  // across blocks, until input and output have both stayed under
+  // kBusAudibleFloor for longer than either effect keeps a sample
+  // (BusEffect::idleAfterSeconds()): nothing audible is left inside then,
+  // so the effects are not run again until input returns. return_a/return_b scale
   // each slot's output into the bus (the master track's Send A/B) - not
   // what slot B's chain send feeds slot A, which stays pre-return.
   void process(const AudioBuffer & aux_a_mono, const AudioBuffer & aux_b_mono, int frames, float return_a = 1.0f, float return_b = 1.0f);
@@ -91,8 +93,7 @@ class SendBusProcessor {
 
   // Whether the last process() produced anything worth mixing in: its peak
   // reached kBusAudibleFloor within the last kBusAudibleHoldSeconds. When
-  // false the caller leaves getBusAmbisonic() out of the mix; the effects
-  // have run regardless, so their state stays continuous.
+  // false the caller leaves getBusAmbisonic() out of the mix.
   bool isAudible() const { return hold_remaining_ > 0; }
 
  private:
@@ -119,6 +120,9 @@ class SendBusProcessor {
 
   int hold_frames_;        // kBusAudibleHoldSeconds in frames
   int hold_remaining_ = 0; // frames of audibility left, see isAudible()
+  int sample_rate_;
+  long quiet_frames_ = 0; // input and output under kBusAudibleFloor this long, see process()
+  bool idle_ = false;     // the effects were not run; bus_ambisonic_ holds zeros
 
   AudioBuffer bus_ambisonic_;    // always ambisonic_channels_ channels
   AudioBuffer direct_scratch_;   // one slot's encodeDirect() output, when its return isn't unity

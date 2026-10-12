@@ -1462,7 +1462,10 @@ would otherwise resume showing.
   (`DiracAnalyzer::atRest()`) hold zeros and have said so, with real zero
   blocks fed to them; after that a result carries only the meter reading and
   nothing is decoded or analyzed, and once the meter has had time to fall
-  (about four seconds) no result is sent at all, so an idle UI sleeps. The UI
+  (`VisualizationThread::kSettleSeconds`) no result is sent at all, so an idle
+  UI sleeps; a second later `Player` stops sending it silent blocks, so it
+  sleeps too. `AmbisonicMagLSDecoder::encode()` with nothing accumulated and its
+  tail drained writes zeros without touching the tail. The UI
   redraws nothing for an unchanged result, and blanks the scopes itself when
   they come back on screen (`TerminalUI::scopes_stale_`, `blankScopes()` from
   `renderComponents()`), since nothing more arrives to replace what they held.
@@ -1475,11 +1478,15 @@ would otherwise resume showing.
   mono accumulators, and — only when its own `ChannelConfiguration` is
   `AMBISONIC` (skipped for the one synthetic top-level `MONO` config a
   Compressor regression test constructs directly, which has no sensible
-  ambisonic tap-encode target) — always runs them through
-  `SendBusProcessor::process()` (even when both are silent, so every
-  slot's internal tail/feedback/modulation state stays continuous across
-  blocks — the same reasoning as `AmbisonicBinauralMixer`'s overlap-add
-  tail), then accumulates the result directly into the mixer with a
+  ambisonic tap-encode target) — runs them through
+  `SendBusProcessor::process()` (silent input included, so every slot's
+  internal tail/feedback/modulation state stays continuous across blocks,
+  until input and output - the bus's and each effect's own before its return
+  scales it, `getChainSendSum()` - have stayed under `kBusAudibleFloor` for
+  longer than either effect keeps a sound, `BusEffect::idleAfterSeconds()`
+  (its longest delay, or a diffuse encoder's ring-down; never for an effect
+  that doesn't say, or a frozen granular cloud): nothing audible is left
+  inside then, and the effects aren't run until input returns), then accumulates the result directly into the mixer with a
   single `mixer.accumulate()` call — but only while the bus is audible
   (`SendBusProcessor::isAudible()`: its block peak reached
   `kBusAudibleFloor` within the last `kBusAudibleHoldSeconds`; the floor
@@ -1501,8 +1508,8 @@ would otherwise resume showing.
   `SongState::initialize()` installs the real ones, so `process()` is
   always safe to call even pre-load); any of the three real effects can
   occupy either slot. Every `BusEffect` shares the same shape:
-  `process(monoInput, frames)` always runs, even on silent input, so
-  internal state stays continuous; `getNumTaps()`/`getTap()`/
+  `process(monoInput, frames)` runs on silent input too (until the bus is
+  idle, above), so internal state stays continuous; `getNumTaps()`/`getTap()`/
   `getTapDirection()` expose its output as N independent spatial taps
   (`FDNReverb`: 8 feedback-delay lines at the cube-vertex directions from
   `AmbisonicEncoding.h`'s `cubeVertexDirections()`; `MultiTapDelay`: 4

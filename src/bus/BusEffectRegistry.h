@@ -20,6 +20,7 @@ class NullBusEffect : public BusEffect {
   explicit NullBusEffect(int sampleRate) : BusEffect(sampleRate) { }
   void process(const float *, int) override { }
   int getNumTaps() const override { return 0; }
+  float idleAfterSeconds() const override { return 0.0f; }
   const float * getTap(int) const override { return nullptr; } // never called: getNumTaps() == 0
   SphericalPosition getTapDirection(int) const override { return SphericalPosition{}; } // never called
 };

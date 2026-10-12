@@ -119,6 +119,8 @@ private:
   std::unordered_map<std::string, std::unique_ptr<SongState>> live_states_;
   // The last snapshot sent per buffer (signature, sent at all).
   std::unordered_map<std::string, std::pair<uint64_t, bool>> last_snapshot_signature_;
+  // How long the active buffer has been silent by structure, see play().
+  long silent_frames_ = 0;
 
   // Which live_states_ entry (empty when nothing is playing) actually has
   // its pattern position auto-advanced each block. A single name, not a
