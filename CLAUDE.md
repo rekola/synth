@@ -51,8 +51,9 @@ changes. `src/ui/SpectrumImage.{h,cpp}` and `src/ui/HeatmapImage.{h,cpp}` are
 the users so far: the pixel spectrum (`TerminalPixelSpectrumMeter`) and the
 pixel DirAC heatmap (`TerminalPixelHeatmapChart`, its axis labels still
 drawn over the result) are images they draw with canvas, blitted by the
-terminal. An `ImageData` handed to canvas to draw is read in the surface's
-own layout (bytes B, G, R, A, premultiplied), not as RGBA; what is read back
+terminal. An `ImageData` handed to canvas to draw is RGB straight-alpha unless
+tagged otherwise (`setFormat(ChannelOrder::BGR, true)` for bytes B, G, R, A,
+premultiplied, as we build them); what is read back
 is the same layout, and the renderers return RGBA. The cell (braille)
 paths, the level meters and `ChannelMeter` are not on canvas yet.
 `libpipewire-0.3-dev` is optional too (`SYNTH_ENABLE_PIPEWIRE`,

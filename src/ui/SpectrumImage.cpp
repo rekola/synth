@@ -1,7 +1,7 @@
 #include "SpectrumImage.h"
 
-#include <Context.h>
-#include <ContextCairo.h>
+#include <canvas/Context.h>
+#include <canvas/ContextCairo.h>
 
 #include <algorithm>
 #include <cstring>
@@ -32,7 +32,7 @@ std::vector<uint32_t> render(const std::vector<float> & levels, unsigned width, 
   for (unsigned x = 0; x < width; x++) ctx.lineTo(static_cast<double>(x) + 0.5, y_at(x));
   ctx.lineTo(static_cast<double>(width), h).closePath();
 
-  auto & fill = ctx.createLinearGradient(0, h, 0, 0);
+  auto fill = ctx.createLinearGradient(0, h, 0, 0);
   fill.addColorStop(0.0f, toCanvas(styles.spectrumColor(0.0f), 0.22f));
   fill.addColorStop(1.0f, toCanvas(styles.spectrumColor(1.0f), 0.22f));
   ctx.fillStyle = fill;
@@ -40,7 +40,7 @@ std::vector<uint32_t> render(const std::vector<float> & levels, unsigned width, 
 
   ctx.beginPath().moveTo(0.5, y_at(0));
   for (unsigned x = 1; x < width; x++) ctx.lineTo(static_cast<double>(x) + 0.5, y_at(x));
-  auto & stroke = ctx.createLinearGradient(0, h, 0, 0);
+  auto stroke = ctx.createLinearGradient(0, h, 0, 0);
   stroke.addColorStop(0.0f, toCanvas(styles.spectrumColor(0.0f)));
   stroke.addColorStop(1.0f, toCanvas(styles.spectrumColor(1.0f)));
   ctx.strokeStyle = stroke;

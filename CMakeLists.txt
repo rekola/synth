@@ -197,7 +197,7 @@ endif()
 include(FetchContent)
 FetchContent_Declare(canvas
   GIT_REPOSITORY https://github.com/rekola/canvas
-  GIT_TAG 43a866cbf49ffc14b12cf97d87ee71cf376a20fe)
+  GIT_TAG bbe8228a9c04be1ad677bf5c0486ec8ed1a72564)
 FetchContent_GetProperties(canvas)
 if(NOT canvas_POPULATED)
   FetchContent_Populate(canvas)
