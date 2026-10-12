@@ -23,7 +23,9 @@ already a `StyleProvider` constant, which is the lever.
 1. **Group by surface, not by line.** A few background tones (elevation
    levels: base, panel, raised, overlay) separate areas. A line is used only
    where tone can't do it. A floating layer gets a shadow in the window and a
-   one-step lighter tone in the terminal.
+   one-step lighter tone in the terminal. The exception is the tracker view
+   (the pattern editor): it keeps its lines between tracks, as trackers
+   traditionally have, because tone alone leaves nothing dividing the tracks.
 2. **Neutrals plus one accent.** Slightly cool greys for surfaces and text in
    three emphasis levels (primary, secondary, disabled), one accent for focus
    and the cursor (the cursor is already cyan-leaning), and semantic colours
@@ -82,7 +84,8 @@ widgets use by role:
   uses these (pulse or flash, on the pads and on screen)
 - track colours (8 from the formula) and text.on-track, the same in every theme
 - meter ramp (already `meterColor()`)
-- grid lines: bar, beat (as tones, not lines, where possible)
+- grid lines: bar, beat (as tones, not lines, where possible); the track
+  dividers of the tracker view are lines (a token for their colour)
 
 Themes are data:
 
@@ -93,8 +96,8 @@ Themes are data:
 
 - True colour where available; elsewhere map each token to the nearest
   palette entry by perceptual distance, not by RGB distance.
-- Use box-drawing only for real containers (dialogs, popups). Rounded corners
-  (╭ ╮ ╰ ╯) for floating ones.
+- Use box-drawing for real containers (dialogs, popups) and for the tracker
+  view's lines between tracks. Rounded corners (╭ ╮ ╰ ╯) for floating ones.
 - One-cell gutters between widgets, filled with the base surface rather
   than drawn lines.
 - Half-block (▀ ▄) edges where a surface change needs a softer boundary than
@@ -119,7 +122,7 @@ Themes are data:
 4. **Apply in the terminal:**
    - the new surfaces and neutrals;
    - track colours from the formula;
-   - fewer lines;
+   - fewer lines, but not between tracks in the tracker view;
    - the icon list;
    - fades for state changes.
 5. **Light and high-contrast themes,** with a theme command and a setting.

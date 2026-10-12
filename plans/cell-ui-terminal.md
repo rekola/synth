@@ -154,8 +154,8 @@ of the switch.
    moved in, the full API defined, and the gallery app, still rendered
    through notcurses behind the new API. Started: the library exists as its
    own project with the dependency-free leaves moved in (`Color`, `utf8`,
-   `markdown`, `ChoiceList`, the sub-cell glyphs); the planes, menus, input
-   and styles are next.
+   `markdown`, `ChoiceList`, the sub-cell glyphs, then the input data, key chord, keymap
+   and command registry); the theme and `UIPlane` are in too; `UIElement`, menus and charts are next.
 5. The terminal backend replaces notcurses. Same look, same e2e results.
 6. Icons: the app's icon list, Kitty graphics/Sixel/glyph fallback, menu
    icons.

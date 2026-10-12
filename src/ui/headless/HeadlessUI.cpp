@@ -39,9 +39,9 @@ class HeadlessPlane : public UIPlane {
   void setItalic(bool) override { }
   void erase() override { }
   void putstr(int, int, const std::string &) override { }
-  std::unique_ptr<UIPlane> createChild() override { return std::make_unique<HeadlessPlane>(getController(), getStyles()); }
+  std::unique_ptr<UIPlane> createChild() override { return std::make_unique<HeadlessPlane>(getAppContext(), getStyles()); }
   void drawBorder() override { }
-  bool offerInput(const InputEvent &) override { return false; }
+  bool offerInput(const cellui::Input &) override { return false; }
   void showReader(const std::string &, int, int, int, int, const std::string &, std::optional<Color>) override { }
   std::string closeReader() override { return ""; }
   bool readerActive() const override { return false; }

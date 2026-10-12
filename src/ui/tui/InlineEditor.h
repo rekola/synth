@@ -7,7 +7,7 @@
 #include <optional>
 #include <string>
 
-class UIPlane;
+#include "../UIPlane.h"
 class InputEvent;
 
 // A one-line, in-place text field over a widget's own cells (a track,

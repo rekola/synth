@@ -27,7 +27,7 @@
 
 class Synth;
 class InputEvent;
-class StyleProvider;
+#include "../StyleProvider.h"
 class Song;
 class VisibleTrackInfo;
 class Controller;

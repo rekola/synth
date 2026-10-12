@@ -7,7 +7,7 @@
 #include <vector>
 
 class InputEvent;
-class StyleProvider;
+#include "../StyleProvider.h"
 class Song;
 
 // Always-visible overview of the whole song: one row per bar of the
