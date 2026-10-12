@@ -1,6 +1,8 @@
 #include "TestFramework.h"
 
-#include "../src/ui/ChoiceList.h"
+#include <cellui/ChoiceList.h>
+
+using namespace cellui;
 
 TEST(choice_list_starts_on_the_requested_entry_and_clamps_it) {
   ChoiceList list;

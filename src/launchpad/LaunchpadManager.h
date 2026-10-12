@@ -399,9 +399,8 @@ class LaunchpadManager {
   bool handleCommand(std::string_view name, int device_id, int fallback_track_index, int num_tracks, Controller & controller);
 
   // Resolves the note this pad currently maps to for this device: the
-  // fixed 4x4 GM kit on a PercussionTrack, the song's scale on anything
-  // pitched (pad (0,0) is the tonic at this device's octave, each column
-  // one scale degree up, each row a fourth up). Returns -1 for a pad with
+  // fixed 4x4 GM kit on a PercussionTrack, the isomorphic keyboard on
+  // anything pitched (resolveKeyboardNotes()). Returns -1 for a pad with
   // no sound or a tuning with no interval structure - callers treat that
   // as "ignore this press".
   int resolveNote(const Song & song, int device_id, int track_id, int x, int y) const;

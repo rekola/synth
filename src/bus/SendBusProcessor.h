@@ -45,12 +45,13 @@
 // FDNReverb::getTapDirection(), which now owns what this class used to
 // hardcode for whichever effect happened to be in slot A).
 // Peak level (per sample, any ambisonic channel) below which the bus's
-// output counts as silent: -180 dB, far under anything a 24-bit output or
-// a float one resolves next to real program material, and a factor 1e11
-// above kDenormalGuard (BusEffect.h), the only thing left flowing through
-// an idle effect. Judged per block, so a tail that merely dips between
-// swells is not mistaken for silence.
-inline constexpr float kBusAudibleFloor = 1e-9f;
+// output counts as silent: -100 dBFS, inaudible next to any program
+// material, so a decayed tail stops reaching the mix (and the scopes) as
+// structural silence instead of half a minute more of it. Far above
+// kDenormalGuard (BusEffect.h), the only thing left flowing through an idle
+// effect. Judged per block, so a tail that merely dips between swells is
+// not mistaken for silence.
+inline constexpr float kBusAudibleFloor = 1e-5f;
 
 // How long the output keeps counting as audible after its peak last
 // reached kBusAudibleFloor, so a decaying tail is never cut mid-fade.

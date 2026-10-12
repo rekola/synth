@@ -4,6 +4,7 @@
 
 #include "LaunchpadIO.h"
 #include "LaunchpadLayout.h"
+#include "../model/PatternBlockOps.h"
 #include "LaunchpadProtocol.h"
 #include "LaunchpadPadEvent.h"
 #include "LaunchpadChannelPressureEvent.h"
@@ -1823,6 +1824,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
       // not current_delay, which reads the global transport's own delay
       // tracking - meaningless while it never advances during one.
       Note note(note_value, velocity, clip_recording_here ? static_cast<short>(take_step.delay) : current_delay);
+      tuneNewNote(song, track_id, note);
       Song::Edit edit(song, "record note");
       edit_target.pattern->setNote(edit_target.effective_row, note_column, note);
     }
@@ -1853,7 +1855,9 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
         fan_out_column++;
       }
       Song::Edit edit(song, "record note");
-      fan_out_pattern.setNote(fan_out_session_row, fan_out_column, Note(note_value, velocity, static_cast<short>(take_step.delay)));
+      Note fan_out_note(note_value, velocity, static_cast<short>(take_step.delay));
+      tuneNewNote(song, fan_out_track_id, fan_out_note);
+      fan_out_pattern.setNote(fan_out_session_row, fan_out_column, fan_out_note);
       if (controller.isMonitoring(fan_out_track_id)) {
         event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), fan_out_track_id, fan_out_column, note_value, velocity));
       }
@@ -2201,7 +2205,9 @@ LaunchpadManager::handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & co
         }
       }
     } else {
-      auto column = edit_target.pattern->pushNote(edit_target.effective_row, Note(note, static_cast<short>(constants::DEFAULT_VELOCITY)));
+      Note step_note(note, static_cast<short>(constants::DEFAULT_VELOCITY));
+      if (pitched) tuneNewNote(controller.getSong(), track_id, step_note);
+      auto column = edit_target.pattern->pushNote(edit_target.effective_row, step_note);
       if (off_target.pattern) {
         auto next = off_target.pattern->getNotes(off_target.effective_row);
         if (column >= static_cast<int>(next.size()) || !next[static_cast<size_t>(column)].isDefined()) {

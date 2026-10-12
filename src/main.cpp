@@ -1,4 +1,8 @@
+#ifdef _WIN32
+#include "audio/WasapiAudio.h"
+#else
 #include "audio/AlsaAudio.h"
+#endif
 #include "audio/NullAudio.h"
 #include "audio/AudioDevices.h"
 #include "audio/DeviceSettings.h"
@@ -6,7 +10,9 @@
 #include "midi/MidiInput.h"
 #include "midi/MidiPorts.h"
 #include "launchpad/LaunchpadManager.h"
+#ifdef SYNTH_TERMINAL_UI
 #include "ui/tui/TerminalUI.h"
+#endif
 #include "ui/headless/HeadlessUI.h"
 #include "util/Daemon.h"
 #include "util/ShutdownSignal.h"
@@ -15,15 +21,19 @@
 #include "audio/OfflineRenderer.h"
 #include "ambisonic/AmbisonicEncoding.h"
 #include "cli/CommonOptions.h"
-#include "generated/InstallPaths.h"
+#include "util/Paths.h"
 
 #include <cstring>
 #include <filesystem>
 #include <signal.h>
+#ifdef SYNTH_TERMINAL_UI
 #include <termios.h>
 #include <unistd.h>
+#endif
 
+#ifdef SYNTH_TERMINAL_UI
 #include <ncpp/NotCurses.hh>
+#endif
 #include <fmt/core.h>
 
 using namespace std;
@@ -164,9 +174,13 @@ int main(int argc, char *argv[]) {
   if (null_audio) {
     audio_device = make_unique<NullAudio>(channel_config.getAudioOutSampleRate(), channel_config.getDeviceChannels());
   } else {
-    auto alsa = make_unique<AlsaAudio>(channel_config.getAudioOutSampleRate(), channel_config.getDeviceChannels());
-    alsa->initialize(logger, devices);
-    audio_device = std::move(alsa);
+#ifdef _WIN32
+    auto device = make_unique<WasapiAudio>(channel_config.getAudioOutSampleRate(), channel_config.getDeviceChannels());
+#else
+    auto device = make_unique<AlsaAudio>(channel_config.getAudioOutSampleRate(), channel_config.getDeviceChannels());
+#endif
+    device->initialize(logger, devices);
+    audio_device = std::move(device);
   }
   AudioAPI & audio = *audio_device;
   channel_config.setAudioOutSampleRate(audio.getFrequency());
@@ -192,7 +206,7 @@ int main(int argc, char *argv[]) {
     // default: the project-local, cwd-relative copy first (running
     // straight out of the source tree, findDefaultSoundFont()'s own
     // data/-override precedent in Controller.cpp), then the `make
-    // install`ed copy (kInstalledWelcomeSongPath, baked in at configure
+    // install`ed copy (paths::installedWelcomeSongPath(), baked in at configure
     // time - see InstallPaths.h.in), falling back to a fresh empty buffer
     // if neither is there. No separate "new song" entry point otherwise
     // (see Controller.h's own switchToBuffer() comment) - freshBufferName()
@@ -202,7 +216,7 @@ int main(int argc, char *argv[]) {
     error_code ec;
     string welcome_song;
     if (filesystem::is_regular_file("songs/welcome.xml", ec)) welcome_song = "songs/welcome.xml";
-    else if (filesystem::is_regular_file(kInstalledWelcomeSongPath, ec)) welcome_song = kInstalledWelcomeSongPath;
+    else if (filesystem::is_regular_file(paths::installedWelcomeSongPath(), ec)) welcome_song = paths::installedWelcomeSongPath();
     if (welcome_song.empty() || !controller->openSong(welcome_song)) {
       controller->switchToBuffer(controller->freshBufferName());
     }
@@ -232,6 +246,11 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
+#ifndef SYNTH_TERMINAL_UI
+  (void)initial_view;
+  fmt::print(stderr, "This build has no terminal UI; use --headless\n");
+  return 1;
+#else
   // notcurses_options nopts{};
   // nopts.flags = NCOPTION_INHIBIT_SETLOCALE;
   auto nc = make_shared<ncpp::NotCurses>();
@@ -267,4 +286,5 @@ int main(int argc, char *argv[]) {
   ui.start(audio, *midi, launchpad_io, launchpad_manager);
 
   return 0;
+#endif
 }

@@ -1,4 +1,4 @@
-#include "Utf8.h"
+#include <cellui/Utf8.h>
 
 #include <unigbrk.h>
 #include <uniwidth.h>
@@ -6,7 +6,7 @@
 
 #include <cstdint>
 
-namespace Utf8 {
+namespace cellui::utf8 {
 
 namespace {
 
@@ -109,4 +109,4 @@ encodeCodepoint(uint32_t codepoint) {
   return s;
 }
 
-}  // namespace Utf8
+}  // namespace cellui::utf8

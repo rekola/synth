@@ -9,15 +9,17 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(GNUInstallDirs)
 
-# The terminal UI, ALSA audio/MIDI, Launchpad and PipeWire exist only for
-# Linux today. Off elsewhere (Windows) the build is the engine, the tests and
-# a render-only `synth` (src/main_render.cpp); see plans/windows-port.md.
+# The full `synth` (--headless, the Launchpad, live MIDI and audio) builds
+# everywhere; OFF gives the engine, the tests and a render-only `synth`
+# (src/main_render.cpp). The terminal UI (notcurses) exists only for Linux
+# today, so Windows gets the full program without it.
+option(SYNTH_BUILD_INTERACTIVE "Build the full synth (headless mode, Launchpad, live audio/MIDI)" ON)
 if(WIN32)
-  set(SYNTH_BUILD_INTERACTIVE_DEFAULT OFF)
+  set(SYNTH_BUILD_TERMINAL_UI_DEFAULT OFF)
 else()
-  set(SYNTH_BUILD_INTERACTIVE_DEFAULT ON)
+  set(SYNTH_BUILD_TERMINAL_UI_DEFAULT ON)
 endif()
-option(SYNTH_BUILD_INTERACTIVE "Build the interactive synth (terminal UI, ALSA, Launchpad)" ${SYNTH_BUILD_INTERACTIVE_DEFAULT})
+option(SYNTH_BUILD_TERMINAL_UI "Build the notcurses terminal UI" ${SYNTH_BUILD_TERMINAL_UI_DEFAULT})
 
 # Default to an optimized build when the generator supports build types (a
 # plain `cmake -B build` with no CMAKE_BUILD_TYPE otherwise applies no -O
@@ -154,18 +156,18 @@ add_library(synth_engine STATIC
 	src/ui/tui/PatternScroll.cpp
 	src/ui/ArrangementPatternSource.cpp
 	src/ui/ScenePatternSource.cpp
-	src/ui/Markdown.cpp
 	src/launchpad/LaunchpadLayout.cpp
 	src/launchpad/LaunchpadProtocol.cpp
 	src/model/SampleTrack.cpp
 	src/model/SampleContent.cpp
 	src/model/WaveformPeaks.cpp
 	src/ambisonic/MixerFactory.cpp
-	src/util/Utf8.cpp
 	src/util/ShutdownSignal.cpp
 	src/util/FileOpen.cpp
 	src/cli/CommonOptions.cpp
 	src/util/Notifier.cpp
+	src/util/Paths.cpp
+	src/util/ThreadSupport.cpp
 	src/util/WaitSet.cpp
 	src/launchpad/LaunchpadIO.cpp
 )
@@ -179,13 +181,25 @@ target_include_directories(synth_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_include_directories(synth_engine SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 set_source_files_properties(third_party/tinyxml2/tinyxml2.cpp PROPERTIES COMPILE_OPTIONS "-w")
 target_link_libraries(synth_engine PUBLIC m sndfile fmt pthread)
+if(WIN32)
+  target_link_libraries(synth_engine PUBLIC avrt ole32 uuid winmm)
+  # The Windows audio and MIDI backends; the engine library holds them like
+  # the portable ones, and the interactive program picks them up from there.
+  target_sources(synth_engine PRIVATE
+    src/audio/AudioDevicesWasapi.cpp
+    src/audio/WasapiAudio.cpp
+    src/audio/WasapiEndpoints.cpp
+    src/midi/WinMmDevices.cpp
+    src/midi/WinMmMidiInput.cpp
+    src/midi/WinMmMidiPorts.cpp)
+endif()
 
 # canvas (2D drawing for the scopes and meters). Its warnings are its own, so
 # it is built from a plain checkout outside this project's flag set.
 include(FetchContent)
 FetchContent_Declare(canvas
   GIT_REPOSITORY https://github.com/rekola/canvas
-  GIT_TAG 43a866cbf49ffc14b12cf97d87ee71cf376a20fe)
+  GIT_TAG bbe8228a9c04be1ad677bf5c0486ec8ed1a72564)
 FetchContent_GetProperties(canvas)
 if(NOT canvas_POPULATED)
   FetchContent_Populate(canvas)
@@ -204,26 +218,11 @@ target_include_directories(synth_engine SYSTEM PUBLIC ${canvas_SOURCE_DIR}/inclu
 target_link_libraries(synth_engine PUBLIC canvas)
 target_include_directories(synth_engine PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
-# libunistring backs src/util/Utf8.h's grapheme-cluster-aware UTF-8
-# truncation/width helpers (used by PatternEditor::renderHeading() to
-# truncate track/instrument names without corrupting a multi-byte
-# character or splitting a grapheme cluster - see docs/known_bugs.md's
-# history on this). Not optional the way libmysofa is: there's no
-# graceful fallback for "not UTF-8-aware" the way there is for binaural
-# vs. cardioid decoding, and its runtime half (libunistring5) is already
-# a hard dependency of notcurses itself (`apt-cache depends
-# libnotcurses-dev` lists it), so there's no real environment where this
-# project builds but libunistring is genuinely unavailable. No
-# pkg-config file ships with libunistring-dev on Ubuntu (confirmed), so
-# this uses the same find_library/find_path shape as libmysofa below
-# rather than find_package.
-find_library(UNISTRING_LIBRARY unistring)
-find_path(UNISTRING_INCLUDE_DIR unigbrk.h)
-if(NOT (UNISTRING_LIBRARY AND UNISTRING_INCLUDE_DIR))
-  message(FATAL_ERROR "libunistring not found (install libunistring-dev)")
-endif()
-target_include_directories(synth_engine PRIVATE ${UNISTRING_INCLUDE_DIR})
-target_link_libraries(synth_engine PUBLIC ${UNISTRING_LIBRARY})
+# Cell UI (lib/cellui): the UI library, which also owns the libunistring
+# dependency (grapheme-aware text width). Built with these same flags.
+enable_testing()  # before the subdirectory, so its tests register here too
+add_subdirectory(lib/cellui)
+target_link_libraries(synth_engine PUBLIC cellui)
 
 # SoundTouch (pitch-preserving time-stretch, src/audio/TimeStretcher.cpp -
 # used by SampleTrackState::triggerClip() when a clip's own recorded tempo
@@ -305,33 +304,43 @@ if(SYNTH_BUILD_INTERACTIVE)
   # add the executable
   add_executable(synth src/main.cpp
   	src/ui/UI.cpp
-  	src/audio/AlsaAudio.cpp
-  	src/audio/AudioDevices.cpp
-  	src/midi/AlsaMidiInput.cpp
-  	src/midi/AlsaMidiPorts.cpp
   	src/launchpad/LaunchpadManager.cpp
   	src/ui/headless/HeadlessUI.cpp
   	src/util/Daemon.cpp
-  	src/ui/tui/TerminalUI.cpp
-  	src/ui/tui/EscapeCoalescer.cpp
-  	src/ui/tui/NotcursesInputEventSource.cpp
-  	src/ui/tui/OutlineView.cpp
-  	src/ui/tui/InfoDialog.cpp
-  	src/ui/tui/ChoiceDialog.cpp
-  	src/ui/tui/PatternEditor.cpp
-  	src/ui/tui/ArrangementGrid.cpp
-  	src/ui/tui/InlineEditor.cpp
-  	src/ui/tui/ClipGrid.cpp
-  	src/ui/tui/ChannelMeter.cpp
-  	src/ui/tui/SpectrumMeter.cpp
-  	src/ui/SpectrumImage.cpp
-  	src/ui/HeatmapImage.cpp
-  	src/ui/tui/SubcellGlyphs.cpp
   )
   target_include_directories(synth PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+  target_link_libraries(synth synth_engine)
 
-  target_link_libraries(synth synth_engine asound notcurses++ notcurses notcurses-core)
+  if(NOT WIN32)
+    target_sources(synth PRIVATE
+      src/audio/AlsaAudio.cpp
+      src/audio/AudioDevices.cpp
+      src/midi/AlsaMidiInput.cpp
+      src/midi/AlsaMidiPorts.cpp)
+    target_link_libraries(synth asound)
+  endif()
 
+  if(SYNTH_BUILD_TERMINAL_UI)
+    target_sources(synth PRIVATE
+      src/ui/tui/TerminalUI.cpp
+      src/ui/tui/EscapeCoalescer.cpp
+      src/ui/tui/NotcursesInputEventSource.cpp
+      src/ui/tui/OutlineView.cpp
+      src/ui/tui/InfoDialog.cpp
+      src/ui/tui/ChoiceDialog.cpp
+      src/ui/tui/PatternEditor.cpp
+      src/ui/tui/ArrangementGrid.cpp
+      src/ui/tui/InlineEditor.cpp
+      src/ui/tui/ClipGrid.cpp
+      src/ui/tui/ChannelMeter.cpp
+      src/ui/tui/SpectrumMeter.cpp
+      src/ui/SpectrumImage.cpp
+      src/ui/HeatmapImage.cpp)
+    target_compile_definitions(synth PRIVATE SYNTH_TERMINAL_UI)
+    target_link_libraries(synth notcurses++ notcurses notcurses-core)
+  endif()
+
+  if(NOT WIN32)
   # Optional PipeWire: lets the device pickers and --list-devices list the
   # audio server's own inputs and outputs (AudioDevices.cpp). Selection itself
   # goes through ALSA's pipewire plugin, so nothing else changes; without
@@ -357,6 +366,7 @@ if(SYNTH_BUILD_INTERACTIVE)
     endif()
     target_compile_definitions(synth PRIVATE SYNTH_HAVE_PIPEWIRE)
     target_link_libraries(synth PkgConfig::PIPEWIRE)
+  endif()
   endif()
 
 else()

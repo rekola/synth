@@ -31,7 +31,7 @@ libsndfile1-dev libasound2-dev libunistring-dev libsoundtouch-dev
 libcairo2-dev` plus CMake, pkg-config, git and a C++17 compiler. The C++ bindings (`ncpp/NotCurses.hh`, what
 `main.cpp`/`TerminalUI.cpp` include) ship in `libnotcurses++-dev`, a
 separate package `libnotcurses-dev` does not pull in as a dependency —
-both are required. `libunistring-dev` backs `src/util/Utf8.h`'s
+both are required. `libunistring-dev` backs `lib/cellui`'s `cellui/Utf8.h`
 grapheme-cluster-aware UTF-8 truncation/width helpers — its runtime half
 (`libunistring5`) is already pulled in transitively by `libnotcurses-dev`,
 but the headers/link package isn't, so it still needs installing
@@ -51,8 +51,9 @@ changes. `src/ui/SpectrumImage.{h,cpp}` and `src/ui/HeatmapImage.{h,cpp}` are
 the users so far: the pixel spectrum (`TerminalPixelSpectrumMeter`) and the
 pixel DirAC heatmap (`TerminalPixelHeatmapChart`, its axis labels still
 drawn over the result) are images they draw with canvas, blitted by the
-terminal. An `ImageData` handed to canvas to draw is read in the surface's
-own layout (bytes B, G, R, A, premultiplied), not as RGBA; what is read back
+terminal. An `ImageData` handed to canvas to draw is RGB straight-alpha unless
+tagged otherwise (`setFormat(ChannelOrder::BGR, true)` for bytes B, G, R, A,
+premultiplied, as we build them); what is read back
 is the same layout, and the renderers return RGBA. The cell (braille)
 paths, the level meters and `ChannelMeter` are not on canvas yet.
 `libpipewire-0.3-dev` is optional too (`SYNTH_ENABLE_PIPEWIRE`,
@@ -71,17 +72,24 @@ works via the cardioid stereo decoder fallback.
 
 User-facing build instructions are in `docs/building.md`. Windows builds with MSYS2 UCRT64 (MinGW-w64 GCC; the DSP code needs GCC vector
 extensions), packages `mingw-w64-ucrt-x86_64-{gcc,cmake,ninja,fmt,libsndfile,
-soundtouch,libunistring,python}`. `SYNTH_BUILD_INTERACTIVE` (default ON, OFF on
-Windows) selects between the full `synth` and the render-only one
+soundtouch,libunistring,python}`. `SYNTH_BUILD_INTERACTIVE` (default ON) selects between the full `synth` and the render-only one
 (`src/main_render.cpp`: `--render`, `--help`, `--licenses` and the options
 `--render` honours, parsed by `src/cli/CommonOptions.*`, shared with
-`main.cpp`); with it OFF the terminal UI, ALSA, Launchpad and PipeWire sources
-aren't built and `EscapeCoalescerTests` is left out. `.github/workflows/
+`main.cpp`); `SYNTH_BUILD_TERMINAL_UI` (default ON, OFF on Windows) adds the
+notcurses UI (`SYNTH_TERMINAL_UI` in `main.cpp`, `EscapeCoalescerTests`), so
+Windows has the full program run with `--headless` (`tools/smoke_headless.py`
+in CI); ALSA and PipeWire sources are Linux only. `.github/workflows/
 ci-windows-x86_64.yml` builds, runs ctest and renders songs. The `#ifdef
-_WIN32`s this needed (each to go in `plans/windows-port.md` step 3):
-`ShutdownSignal.cpp`, `DeviceSettings.cpp`/`Controller.cpp` (config and
-SoundFont paths) and `AudioBuffer.h` (aligned allocation). Files open by UTF-8 path through
-`util/FileOpen.h`.
+_WIN32`s this needed live in small platform helpers: `util/Paths.h` (the
+config dir `%APPDATA%\synth`, the user and installed data dirs, the executable's
+dir and the installed default song - `DeviceSettings`, `findDefaultSoundFont()`
+and `findDefaultSofaFile()` only add sub-paths to these),
+`util/ThreadSupport.h` (thread names via `SetThreadDescription`;
+`AudioThreadPriority`, MMCSS "Pro Audio" on Windows and nothing on Linux, held
+by the audio thread), `ShutdownSignal.cpp` (a console control handler for
+Ctrl-C and the console closing), `Daemon.cpp` (`--daemon` says it is unsupported
+and exits), `Notifier.h` and `AudioBuffer.h` (aligned allocation). The Windows device backends sit in `synth_engine` behind the same interfaces: `audio/WasapiAudio` (shared-mode, event-driven WASAPI; `wasapi:<endpoint id>` names, `AudioDevicesWasapi.cpp` for the lists) and WinMM MIDI (`midi/WinMmMidiInput`, `WinMmMidiPorts`; `winmm::Watcher` polls the device list, as WinMM has no hotplug notice). They compile in CI but nothing there can run them against a device. The installer (Inno Setup) is built by `.github/workflows/release-windows.yml` from `tools/windows/` and described in `docs/building.md`. Files open by
+UTF-8 path through `util/FileOpen.h`.
 
 ## Run
 
@@ -436,7 +444,12 @@ region` writes each pitched note's correction toward a just ratio
 primes up to 13): the notes that start in a bar of a track's pattern, plus the
 ones held into it, are one chord, tuned above its lowest note, which is tuned
 from the song key (`chordCorrections()` in `PatternBlockOps.cpp`, the context
-read from the whole pattern). `+00` marks a note that needs none, and
+read from the whole pattern). In an otonal or utonal song a note of either
+scale instead gets its exact scale ratio (`scaleDegreeRatios()` in `Scale.h`,
+`just_intonation::ScaleCorrections`, both scales together, the song's own first
+where they share a step), whatever its chord; live notes sound with it
+(`SongScalars::scale_corrections`, read by `Player`'s `PLAY_NOTE`) and recorded
+or typed ones are written with it (`tuneNewNote()`). `+00` marks a note that needs none, and
 `clear-tuning-correction-region` removes them. A note that carries one is
 "tuned": transposing retunes it for its new pitch and place in its chord, and `transposeSong()` moves
 the key with the notes when no pitched note is left outside its `SongScope`,
@@ -1282,10 +1295,34 @@ would otherwise resume showing.
   - `src/launchpad/` — Launchpad hardware I/O and layout - see the
     Launchpad section above.
   - `src/util/` — small, dependency-free helpers (`constants.h`,
-    `Logger.h`, …) used from everywhere. `Utf8.h`/`.cpp` is the one
-    exception to "dependency-free" (it wraps libunistring, keeping its
-    header out of `Utf8.h` itself) - still dependency-free of every other
-    synth module, which is the property call sites actually rely on.
+    `Logger.h`, …) used from everywhere.
+- `lib/cellui/` — **Cell UI**, the UI library (plan: `plans/cell-ui.md`), its
+  own CMake project (`cmake -S lib/cellui -B build-cellui` builds and tests it
+  alone, which CI does) that includes nothing from `src/` - a ctest
+  (`cellui_includes_nothing_from_src`) fails on any include that leaves it.
+  Headers are `cellui/X.h`, in `namespace cellui`; the library owns the
+  libunistring dependency. So far it holds the leaves that never depended on
+  the app: `Color` (`#rgb` now means each digit doubled), `utf8` (grapheme-
+  aware width, truncation and padding), `markdown` (the tiny subset the info
+  dialogs use), `ChoiceList`, the sub-cell glyph tables and two-colour
+  quantizer (`SubcellGlyphs.h`), and the input data (`Input.h`: key id, modifiers,
+  position, press/release kind, and the `NCKEY_*` key ids; the app's
+  `InputEvent` is an `Input` that is also an `Event`, with the note-entry key
+  mapping), the key chord packing, `Keymap` and `CommandRegistry`, and the theme (`Theme`,
+  `StyleProvider`) and `UIPlane` (it carries the app's own object as an opaque
+  `getAppContext()`, which `UIElement::getController()` casts back; input is
+  `cellui::Input`), and the widget base `Element` (`Element.h`: the plane,
+  drawing, the keymap and prefix-chord dispatch; the app's `UIElement` adds the
+  event handler, `InputEvent` and the controller), and the 2D grid chart contract
+  `HeatmapChart` (`HeatmapChart.h`, with the fixed hue and the HSV helper its
+  renderers share). The old paths (`util/Utf8.h`, `ui/Markdown.h`,
+  `ui/ChoiceList.h`, `ui/tui/SubcellGlyphs.h`, `model/Color.h`, `ui/Keymap.h`, `ui/CommandRegistry.h`, `ui/KeyChord.h`, `ui/Theme.h`,
+  `ui/StyleProvider.h`, `ui/UIPlane.h`, `ui/HeatmapChart.h`) are forwarding
+  headers with aliases (`Utf8`, `markdown`, `Color`, ...), so call sites did not
+  change; `UIMenu` and the rest follow, one slice
+  at a time, as the library's types stop needing `Controller` and the event
+  model. Its tests are in `lib/cellui/tests/` with a copy of the tiny test
+  framework (no dependency on `tests/`).
 
   `src/effects/`, `src/bus/`, and `src/dsp/` (below) predate this split
   and already lived in their own directories before it; this list only
@@ -1403,9 +1440,12 @@ would otherwise resume showing.
   full stereo block of zeros: the device needs a continuous stream.
   `SongState::getAuxASum()`/`getAuxBSum()` are likewise empty unless a track
   sent, and `AudioBlockEvent` is built from those, sent every block either
-  way. `VisualizationThread` answers an empty raw bus - or one whose loudest
-  channel is below -100 dBFS RMS (`kVisibleFloor`, the spectrum's floor: an
-  inaudible reverb tail, voices left rendering zeros) - with zero loudness and,
+  way. Silence is made at the sources, so nothing downstream tests samples: a voice
+  ends once it falls below `constants::SILENCE_KILL_FLOOR_DB` in its release
+  or for good in its sustain (`SoundFontVoice::render()`,
+  `EnvelopeFilterDsp::applyEffect()`), and the send bus stops reaching the mix
+  once its output stays under `kBusAudibleFloor` (-100 dBFS). `VisualizationThread`
+  answers an empty raw bus with zero loudness and,
   until the spectrum (`SpectrumAnalyzer::atRest()`) and DirAC
   (`DiracAnalyzer::atRest()`) hold zeros and have said so, with real zero
   blocks fed to them; after that a result carries only the meter reading and

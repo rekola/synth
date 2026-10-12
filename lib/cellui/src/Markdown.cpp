@@ -1,12 +1,11 @@
-#include "Markdown.h"
-
-#include "../util/Utf8.h"
+#include <cellui/Markdown.h>
+#include <cellui/Utf8.h>
 
 #include <algorithm>
 
 using namespace std;
 
-namespace markdown {
+namespace cellui::markdown {
 
 namespace {
 
@@ -164,7 +163,7 @@ void appendRun(Line & line, const string & text, bool bold, bool italic) {
 
 int lineWidth(const Line & line) {
   int width = 0;
-  for (auto & run : line) width += Utf8::displayWidth(run.text);
+  for (auto & run : line) width += utf8::displayWidth(run.text);
   return width;
 }
 
@@ -178,7 +177,7 @@ vector<Line> layout(const Document & doc, int width) {
     if (!lines.empty()) lines.emplace_back();
     Line current;
     for (auto & word : splitWords(block.spans, block.kind == Block::Kind::HEADING)) {
-      auto word_width = Utf8::displayWidth(word.text);
+      auto word_width = utf8::displayWidth(word.text);
       bool space = word.space_before && !current.empty();
       if (!current.empty() && lineWidth(current) + (space ? 1 : 0) + word_width > width) {
 	lines.push_back(std::move(current));
@@ -193,4 +192,4 @@ vector<Line> layout(const Document & doc, int width) {
   return lines;
 }
 
-} // namespace markdown
+} // namespace cellui::markdown

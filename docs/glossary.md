@@ -45,12 +45,11 @@ comes out as simple as it could. In a major scale, the D that suits a G major
 chord is a little too high for a D minor chord, and one fixed D has to be a
 compromise.
 
-The otonal and utonal scales (below) are different: one fixed pitch per note
-serves them, since every interval between two of their notes is a simple
-ratio, and their chords tune the same against any of their notes. Only a few
-seconds differ when a chord is tuned from its lowest note: G-A in the otonal
-scale is 10:9 between the fixed pitches, but A tuned above G is 9:8 (E♭-F in
-the utonal scale likewise).
+The otonal and utonal scales (below) are different. They have no D to argue
+over, so one fixed pitch per note serves: the scale gives it (otonal 1/1 7/6
+5/4 4/3 3/2 5/3 7/4, utonal 1/1 8/7 6/5 4/3 3/2 8/5 12/7), whatever the chord,
+and a song in either scale is tuned with both, so the two can be played
+together.
 
 **Adaptive just intonation**
 Just intonation that follows the music instead of returning to the key; also
@@ -62,7 +61,7 @@ by two chords, or one that moves by a step, lands on slightly different pitches
 each time. The adaptive kind tunes each note against what is sounding, or has
 only just sounded, in any track, so a melody over a bass line is pure against
 that bass line, and an arpeggio hangs together although its notes never sound
-at once. It is planned, not yet available. The otonal and utonal scales hardly
+at once. It is planned, not yet available. The otonal and utonal scales do not
 need it.
 
 The price is *drift*. A pure interval is exact only against its own reference,

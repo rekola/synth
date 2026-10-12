@@ -73,7 +73,13 @@ contentDigest(const SongScalars & scalars, const Arrangement & arrangement, cons
   s = combine(s, std::hash<float>()(scalars.ear_height));
   s = combine(s, static_cast<uint64_t>(scalars.floor_reflection_enabled));
   s = combine(s, std::hash<float>()(scalars.floor_reflection_strength));
-  total += combine(s, std::hash<float>()(scalars.ground_absorption));
+  s = combine(s, std::hash<float>()(scalars.ground_absorption));
+  s = combine(s, static_cast<uint64_t>(scalars.scale_corrections.edo * 100 + scalars.scale_corrections.key));
+  for (int step = 0; step < scalars.scale_corrections.edo; step++) {
+    auto index = static_cast<size_t>(step);
+    if (scalars.scale_corrections.present[index]) s = combine(s, static_cast<uint64_t>(step * 1000 + scalars.scale_corrections.cents[index] + 500));
+  }
+  total += s;
   for (auto & [ track_id, pattern ] : arrangement.getPatternsByTrack()) total += combine(combine(10, static_cast<uint64_t>(track_id)), digestPattern(pattern));
   for (auto & [ track_id, instances ] : arrangement.getInstancesByTrack()) {
     uint64_t t = combine(11, static_cast<uint64_t>(track_id));

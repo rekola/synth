@@ -37,6 +37,17 @@ Stop a daemon with `kill $(cat F)`.
 
 If no song is given, `songs/welcome.xml` is used as in the terminal UI.
 
+## Windows
+
+Windows builds have no terminal UI, so `--headless` is how to run the program
+there (`synth.exe --headless --autoplay songs\demo3.xml`). Audio goes through
+WASAPI and MIDI and a Launchpad through WinMM. Ctrl-C and Ctrl-Break end the
+run cleanly. `--daemon` is not supported. With no pickers, choose devices with
+`--list-devices` and the `--playback-device`/`--capture-device`/`--midi-input`
+options, or write the choice to `%APPDATA%\synth\devices.conf` (the format
+is in `docs/devices.md`). Audio and MIDI have not been tried on real hardware
+yet; a Launchpad is not recognised on Windows until its port names are known.
+
 ## Limitations
 
 Anything that needs the terminal UI is not available: editing, M-x and the
@@ -44,6 +55,10 @@ keyboard, and other peripherals. The "cursor" headless mode uses is the
 song's current track plus the transport position, both held outside the UI.
 
 ## Testing
+
+`tools/smoke_headless.py` runs headless mode with `--null-audio` for a few
+seconds, stops it as Ctrl-C would and checks that it played; the Windows CI
+job uses it.
 
 `tools/e2e/verify_headless.py` runs headless mode against `build/synth`
 using ALSA's `null` PCM, so it needs no sound card.

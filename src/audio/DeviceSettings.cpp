@@ -1,4 +1,5 @@
 #include "DeviceSettings.h"
+#include "../util/Paths.h"
 
 #include <cstdlib>
 #include <filesystem>
@@ -58,19 +59,8 @@ serializeDeviceSettings(const DeviceSettings & settings) {
 
 std::string
 defaultDeviceSettingsPath() {
-#ifdef _WIN32
-  if (auto appdata = std::getenv("APPDATA"); appdata && *appdata) {
-    return (fs::path(appdata) / "synth" / "devices.conf").string();
-  }
-  return "";
-#endif
-  if (auto xdg = std::getenv("XDG_CONFIG_HOME"); xdg && *xdg) {
-    return (fs::path(xdg) / "synth" / "devices.conf").string();
-  }
-  if (auto home = std::getenv("HOME"); home && *home) {
-    return (fs::path(home) / ".config" / "synth" / "devices.conf").string();
-  }
-  return "";
+  auto dir = paths::configDir();
+  return dir.empty() ? "" : (dir / "devices.conf").string();
 }
 
 DeviceSettings

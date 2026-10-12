@@ -583,6 +583,7 @@ Song::scalars() const {
   out.floor_reflection_enabled = getFloorReflectionEnabled();
   out.floor_reflection_strength = getFloorReflectionStrength();
   out.ground_absorption = getGroundAbsorption();
+  out.scale_corrections = just_intonation::scaleCorrectionsFor(getTuning(), getScale(), getKey());
   return out;
 }
 

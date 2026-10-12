@@ -1,6 +1,8 @@
 #include "TestFramework.h"
 
-#include "../src/util/Utf8.h"
+#include <cellui/Utf8.h>
+
+using namespace cellui;
 
 // Layout-invariant style: rather than asserting exact column-width numbers
 // (which depend on Unicode data tables this test can't hand-verify), most
@@ -21,37 +23,37 @@ inRange(size_t n, size_t lo, size_t hi) {
 }  // namespace
 
 TEST(utf8_truncate_ascii_matches_plain_byte_truncation) {
-  CHECK(Utf8::truncateToWidth("hello world", 5) == "hello");
-  CHECK(Utf8::truncateToWidth("hello", 5) == "hello");
-  CHECK(Utf8::truncateToWidth("hello", 100) == "hello");
-  CHECK(Utf8::truncateToWidth("", 5) == "");
+  CHECK(utf8::truncateToWidth("hello world", 5) == "hello");
+  CHECK(utf8::truncateToWidth("hello", 5) == "hello");
+  CHECK(utf8::truncateToWidth("hello", 100) == "hello");
+  CHECK(utf8::truncateToWidth("", 5) == "");
 }
 
 TEST(utf8_drop_leading_columns) {
-  CHECK(Utf8::dropLeadingColumns("hello world", 6) == "world");
-  CHECK(Utf8::dropLeadingColumns("hello", 0) == "hello");
-  CHECK(Utf8::dropLeadingColumns("hello", 100) == "");
-  CHECK(Utf8::dropLeadingColumns("\u00e9t\u00e9", 1) == "t\u00e9"); // a 2-byte character counts as one column
+  CHECK(utf8::dropLeadingColumns("hello world", 6) == "world");
+  CHECK(utf8::dropLeadingColumns("hello", 0) == "hello");
+  CHECK(utf8::dropLeadingColumns("hello", 100) == "");
+  CHECK(utf8::dropLeadingColumns("\u00e9t\u00e9", 1) == "t\u00e9"); // a 2-byte character counts as one column
   // A double-width character cut in half leaves a space in its place.
-  CHECK(Utf8::dropLeadingColumns("\u4e2dx", 1) == " x");
-  CHECK(Utf8::dropLeadingColumns("\u4e2dx", 2) == "x");
+  CHECK(utf8::dropLeadingColumns("\u4e2dx", 1) == " x");
+  CHECK(utf8::dropLeadingColumns("\u4e2dx", 2) == "x");
 }
 
 TEST(utf8_pad_ascii_matches_plain_byte_padding) {
-  CHECK(Utf8::padToWidth("hi", 5) == "hi   ");
-  CHECK(Utf8::padToWidth("hello", 5) == "hello");
-  CHECK(Utf8::padToWidth("hello world", 5) == "hello world");  // never truncates
+  CHECK(utf8::padToWidth("hi", 5) == "hi   ");
+  CHECK(utf8::padToWidth("hello", 5) == "hello");
+  CHECK(utf8::padToWidth("hello world", 5) == "hello world");  // never truncates
 }
 
 TEST(utf8_display_width_ascii_is_byte_length) {
-  CHECK(Utf8::displayWidth("") == 0);
-  CHECK(Utf8::displayWidth("hello") == 5);
+  CHECK(utf8::displayWidth("") == 0);
+  CHECK(utf8::displayWidth("hello") == 5);
 }
 
 TEST(utf8_truncate_max_columns_non_positive_returns_empty) {
-  CHECK(Utf8::truncateToWidth("hello", 0) == "");
-  CHECK(Utf8::truncateToWidth("hello", -1) == "");
-  CHECK(Utf8::truncateToWidth(std::string(), 0) == "");
+  CHECK(utf8::truncateToWidth("hello", 0) == "");
+  CHECK(utf8::truncateToWidth("hello", -1) == "");
+  CHECK(utf8::truncateToWidth(std::string(), 0) == "");
 }
 
 // U+1D1AA MUSICAL SYMBOL DOUBLE SHARP (this codebase's own 𝄪, see Note.h) -
@@ -61,7 +63,7 @@ TEST(utf8_truncate_never_splits_a_4byte_astral_codepoint) {
   const std::string text = "ab\U0001D1AAcd";
   CHECK(text.size() == 8);
   for (int max_columns = 0; max_columns <= 10; max_columns++) {
-    auto result = Utf8::truncateToWidth(text, max_columns);
+    auto result = utf8::truncateToWidth(text, max_columns);
     CHECK(!inRange(result.size(), 3, 6));  // never stop 1-3 bytes into the 4-byte glyph
     CHECK(text.compare(0, result.size(), result) == 0);  // result is always a real prefix of text
   }
@@ -74,7 +76,7 @@ TEST(utf8_truncate_never_splits_base_char_from_combining_accent) {
   CHECK(text.size() == 5);
   // Cluster boundaries: after 'x' (1), after "é" (4), after 'y' (5).
   for (int max_columns = 0; max_columns <= 6; max_columns++) {
-    auto result = Utf8::truncateToWidth(text, max_columns);
+    auto result = utf8::truncateToWidth(text, max_columns);
     CHECK(result.size() != 2 && result.size() != 3);  // never a base char without its accent, or a lone accent byte
     CHECK(text.compare(0, result.size(), result) == 0);
   }
@@ -95,7 +97,7 @@ TEST(utf8_truncate_never_splits_a_single_regional_indicator_codepoint) {
   const std::string text = "ab" "\U0001F1EB\U0001F1EE" "cd";
   CHECK(text.size() == 12);
   for (int max_columns = 0; max_columns <= 14; max_columns++) {
-    auto result = Utf8::truncateToWidth(text, max_columns);
+    auto result = utf8::truncateToWidth(text, max_columns);
     CHECK(!inRange(result.size(), 3, 6));   // never stop inside the first RI codepoint
     CHECK(!inRange(result.size(), 7, 10));  // never stop inside the second RI codepoint
     CHECK(text.compare(0, result.size(), result) == 0);
@@ -115,7 +117,7 @@ TEST(utf8_truncate_never_splits_the_emoji_plus_zwj_cluster_or_the_trailing_codep
   const std::string text = "ab" "\U0001F600\u200D\U0001F600" "cd";
   CHECK(text.size() == 15);
   for (int max_columns = 0; max_columns <= 17; max_columns++) {
-    auto result = Utf8::truncateToWidth(text, max_columns);
+    auto result = utf8::truncateToWidth(text, max_columns);
     CHECK(!inRange(result.size(), 3, 9));    // never stop inside the emoji+ZWJ cluster
     CHECK(!inRange(result.size(), 10, 13));  // never stop inside the trailing emoji codepoint
     CHECK(text.compare(0, result.size(), result) == 0);
@@ -123,15 +125,15 @@ TEST(utf8_truncate_never_splits_the_emoji_plus_zwj_cluster_or_the_trailing_codep
 }
 
 TEST(utf8_pad_is_noop_when_already_at_or_above_target_width) {
-  CHECK(Utf8::padToWidth("hello", 5) == "hello");
-  CHECK(Utf8::padToWidth("hello", 3) == "hello");
+  CHECK(utf8::padToWidth("hello", 5) == "hello");
+  CHECK(utf8::padToWidth("hello", 3) == "hello");
 }
 
 TEST(utf8_pad_pads_by_display_columns_not_bytes) {
   // "é" is 3 bytes but 1 display column - the bug this module fixes
   // on the padding side: a byte-count pad loop would add too few spaces.
-  auto padded = Utf8::padToWidth("é", 4);
-  CHECK(Utf8::displayWidth(padded) == 4);
+  auto padded = utf8::padToWidth("é", 4);
+  CHECK(utf8::displayWidth(padded) == 4);
   CHECK(padded.size() == 3 + 3);  // 3 bytes of content + 3 ASCII space bytes
 }
 
@@ -142,27 +144,27 @@ TEST(utf8_malformed_input_does_not_hang_and_stays_bounded) {
   const std::string truncated_lead = "ab\xC3";
   const std::string lone_continuation = "ab\x80""cd";
 
-  auto r1 = Utf8::truncateToWidth(truncated_lead, 10);
+  auto r1 = utf8::truncateToWidth(truncated_lead, 10);
   CHECK(r1.size() <= truncated_lead.size());
 
-  auto r2 = Utf8::truncateToWidth(lone_continuation, 10);
+  auto r2 = utf8::truncateToWidth(lone_continuation, 10);
   CHECK(r2.size() <= lone_continuation.size());
 
-  (void)Utf8::displayWidth(truncated_lead);
-  (void)Utf8::displayWidth(lone_continuation);
+  (void)utf8::displayWidth(truncated_lead);
+  (void)utf8::displayWidth(lone_continuation);
 }
 
 TEST(utf8_encode_codepoint_covers_every_byte_length) {
-  CHECK(Utf8::encodeCodepoint(0x41) == "A"); // 1-byte (ASCII)
-  CHECK(Utf8::encodeCodepoint(0xE9) == "\xC3\xA9"); // 2-byte ("é")
-  CHECK(Utf8::encodeCodepoint(0x2588) == "\xE2\x96\x88"); // 3-byte (FULL BLOCK)
-  CHECK(Utf8::encodeCodepoint(0x1FB00) == "\xF0\x9F\xAC\x80"); // 4-byte (sextant range)
+  CHECK(utf8::encodeCodepoint(0x41) == "A"); // 1-byte (ASCII)
+  CHECK(utf8::encodeCodepoint(0xE9) == "\xC3\xA9"); // 2-byte ("é")
+  CHECK(utf8::encodeCodepoint(0x2588) == "\xE2\x96\x88"); // 3-byte (FULL BLOCK)
+  CHECK(utf8::encodeCodepoint(0x1FB00) == "\xF0\x9F\xAC\x80"); // 4-byte (sextant range)
 }
 
 TEST(utf8_encode_codepoint_round_trips_through_display_width) {
   // Every real encoded codepoint is well-formed enough for the rest of
   // this module to measure - a malformed encoder would silently corrupt
   // every glyph table built on top of it (SubcellGlyphs.h).
-  CHECK(Utf8::displayWidth(Utf8::encodeCodepoint(0x2588)) >= 0);
-  CHECK(Utf8::displayWidth(Utf8::encodeCodepoint(0x1FB00)) >= 0);
+  CHECK(utf8::displayWidth(utf8::encodeCodepoint(0x2588)) >= 0);
+  CHECK(utf8::displayWidth(utf8::encodeCodepoint(0x1FB00)) >= 0);
 }

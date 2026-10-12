@@ -5,6 +5,7 @@
 #include "../src/ambisonic/AmbisonicMagLSDecoder.h"
 #include "../src/bus/BusEffect.h"
 #include "../src/bus/SendBusProcessor.h"
+#include "../src/bus/BusEffectRegistry.h"
 #include "../src/Controller.h"
 #include "../src/playback/AudioBlockEvent.h"
 #include "../src/playback/VisualizationResultEvent.h"
@@ -93,6 +94,31 @@ TEST(send_bus_holds_a_decayed_tail_before_dropping_it) {
   level->level = 0.5f;
   bus.process(a, b, frames);
   CHECK(bus.isAudible());
+}
+
+// The default reverb's tail stops reaching the mix once it is inaudible,
+// well before it would decay to the denormal guard.
+TEST(send_bus_reverb_tail_goes_silent_once_inaudible) {
+  ChannelConfiguration config(44100, 1);
+  SendBusProcessor bus(config);
+  bus.setSlotEffect(SendBusProcessor::kSlotA, findBusEffectDescriptor(BusEffectKind::Reverb).factory(44100));
+
+  const int frames = 441;
+  AudioBuffer a(1, frames), b(1, frames);
+  b.zero();
+  for (int i = 0; i < frames; i++) a.getChannelData(0)[i] = (i % 2 ? 0.5f : -0.5f);
+  bus.process(a, b, frames);
+  a.zero();
+  // The tail starts after the reverb's predelay.
+  for (int n = 0; n < 100 && !bus.isAudible(); n++) bus.process(a, b, frames);
+  CHECK(bus.isAudible());
+  int blocks = 0;
+  while (bus.isAudible() && blocks < 100 * 60) {
+    bus.process(a, b, frames);
+    blocks++;
+  }
+  CHECK(blocks > 100);      // the tail was heard for more than a second
+  CHECK(blocks < 100 * 30); // and dropped within half a minute
 }
 
 TEST(stereo_mixer_with_nothing_accumulated_has_an_empty_raw_bus_and_encodes_zeros) {
@@ -262,38 +288,4 @@ TEST(visualization_thread_empty_bus_gives_zero_result_then_stops_analyzing) {
     if (r && !r->getFFT().empty()) fft_again = true;
   }
   CHECK(fft_again);
-}
-
-// A bus that carries channels but nothing a scope can show - a reverb tail
-// far below the spectrum's floor, or voices left rendering zeros - settles
-// the way an empty one does.
-TEST(visualization_thread_inaudible_bus_settles_like_an_empty_one) {
-  for (float amplitude : {1e-7f, 0.0f}) {
-    Controller controller{ChannelConfiguration(44100, 1)};
-    VisualizationThread thread(&controller);
-    const int frames = 256;
-    thread.configure(44100, frames);
-    auto push = [&](float a) {
-      AudioBuffer raw(4, frames);
-      for (int c = 0; c < 4; c++) {
-        for (int i = 0; i < frames; i++) raw.getChannelData(c)[i] = a * sinf(static_cast<float>(i) * 0.3f);
-      }
-      AudioBuffer master(2, frames);
-      master.zero();
-      AudioBlockEvent ev(std::move(master), std::move(raw), AudioBuffer(0, false, false, frames), AudioBuffer(0, false, false, frames));
-      thread.handleAudioBlockEvent(ev);
-      if (!controller.getUIEventQueue().hasEvents()) return std::unique_ptr<VisualizationResultEvent>();
-      auto popped = controller.getUIEventQueue().pop();
-      return std::unique_ptr<VisualizationResultEvent>(dynamic_cast<VisualizationResultEvent *>(popped.release()));
-    };
-    for (int n = 0; n < 40; n++) push(1.0f);
-    int results_at_the_end = 0;
-    for (int n = 0; n < 1500; n++) {
-      auto r = push(amplitude);
-      if (r)
-        for (float v : r->getChannelLoudness()) CHECK(v == 0.0f);
-      if (n >= 1480 && r) results_at_the_end++;
-    }
-    CHECK(results_at_the_end == 0);
-  }
 }

@@ -55,6 +55,13 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
+      # The UI library builds and passes its own tests without the application.
+      - name: Cell UI on its own
+        run: |
+          cmake -S lib/cellui -B build-cellui
+          cmake --build build-cellui -j
+          ctest --test-dir build-cellui --output-on-failure
+
       # The real Player loop over a device-less backend: no sound hardware on
       # the runner. Fails if the transport never reports playing.
       - name: Headless smoke test

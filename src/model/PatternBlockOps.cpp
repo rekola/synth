@@ -87,7 +87,7 @@ CorrectionMap chordCorrections(const PatternView & pattern, const IntonationCont
     }
     for (auto & [column, events] : columns) {
       for (auto i = lower_bound(events.begin(), events.end(), make_pair(start, INT_MIN)); i != events.end() && i->first < end; ++i) {
-        if (i->second >= 0) result[{i->first, column}] = just_intonation::correctionCentsInChord(edo, i->second, bass, context.key);
+        if (i->second >= 0) result[{i->first, column}] = just_intonation::correctionCentsInChord(edo, i->second, bass, context.key, context.scale);
       }
     }
   }
@@ -200,10 +200,6 @@ void forEachNoteRow(PatternView pattern, Fn fn) {
     auto copy = notes;
     if (fn(copy)) pattern.setNotes(row, copy);
   }
-}
-
-IntonationContext contextOf(const Song & song) {
-  return {song.getTuning(), song.getKey(), song.getArrangementBars()};
 }
 
 bool isPercussionTrack(const Song & song, int track_id) {
@@ -464,7 +460,7 @@ clearTuningCorrectionBlockNotes(PatternGrid & grid, int row_lo, int row_hi,
 
 TuningSummary
 applyJustIntonationToSong(Song & song, SongScope scope) {
-  return tuneSongPatterns(song, scope, contextOf(song), false);
+  return tuneSongPatterns(song, scope, intonationContextOf(song), false);
 }
 
 int clearTuningCorrectionsInSong(Song & song, SongScope scope) {
@@ -597,4 +593,16 @@ pastePatternBlockLocators(Song & song, int first_row, const vector<string> & blo
     if (row < 0 || row >= num_rows) continue;
     song.setLocator(first_row + row, block[row_offset]);
   }
+}
+
+IntonationContext
+intonationContextOf(const Song & song) {
+  return {song.getTuning(), song.getKey(), song.getArrangementBars(),
+          just_intonation::scaleCorrectionsFor(song.getTuning(), song.getScale(), song.getKey())};
+}
+
+void tuneNewNote(const Song & song, int track_id, Note & note) {
+  if (!isPitched(note) || isPercussionTrack(song, track_id)) return;
+  auto scale = just_intonation::scaleCorrectionsFor(song.getTuning(), song.getScale(), song.getKey());
+  if (auto cents = scale.forNote(note.getValue())) note.setTuningCorrection(*cents);
 }

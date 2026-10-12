@@ -1,6 +1,8 @@
 #include "TestFramework.h"
 
-#include "../src/ui/StyleProvider.h"
+#include <cellui/StyleProvider.h>
+
+using namespace cellui;
 
 namespace {
 bool same(const Color & a, const Color & b) {

@@ -370,16 +370,24 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	      auto tuning = track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : content->scalars.tuning;
 	      Note note(midi_note, midi_velocity);
 
-	      // A live note has no authored row to build a
-	      // real NoteCoordinate from - live_note_counter_ (this Player's
-	      // own, advanced once per live note-on) stands in for
-	      // absolute_row instead, so InstrumentVoice can still derive a
-	      // decorrelated start phase for it the same way a pattern note's
-	      // real coordinate does (see Player.h's own comment on why this
-	      // counter's monotonic growth is fine here, unlike everywhere
-	      // else this migration cares about reproducibility).
+              // A live note has no authored row to build a
+              // real NoteCoordinate from - live_note_counter_ (this Player's
+              // own, advanced once per live note-on) stands in for
+              // absolute_row instead, so InstrumentVoice can still derive a
+              // decorrelated start phase for it the same way a pattern note's
+              // real coordinate does (see Player.h's own comment on why this
+              // counter's monotonic growth is fine here, unlike everywhere
+              // else this migration cares about reproducibility).
+              // A note of a just scale sounds at its exact ratio, as it is written.
+              NoteOverride note_override;
+              if (tuning != Tuning::PERCUSSION) {
+                if (auto cents = content->scalars.scale_corrections.forNote(note.getValue())) {
+                  note_override.has_detune = true;
+                  note_override.detune_cents = static_cast<float>(*cents);
+                }
+              }
               track_state->noteOn(column, *instrument, tuning, note.getVelocityAsFloat(), note.getValue(),
-                                  NoteCoordinate(state.getSongStructure().getOrdinalFor(*track), live_note_counter_++, column));
+                                  NoteCoordinate(state.getSongStructure().getOrdinalFor(*track), live_note_counter_++, column), note_override);
             } else {
 	      track_state->notePressure(column, midi_velocity / 127.0f);
 	    }

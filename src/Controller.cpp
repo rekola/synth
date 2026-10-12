@@ -1,4 +1,5 @@
 #include "Controller.h"
+#include "util/Paths.h"
 
 #include "model/Song.h"
 #include "model/TrackType.h"
@@ -137,17 +138,13 @@ findDefaultSoundFont() {
   if (fs::is_regular_file("data/FluidR3_GM.sf2", ec)) return "data/FluidR3_GM.sf2";
 
   vector<fs::path> dirs;
-#ifdef _WIN32
-  const char * home = getenv("USERPROFILE");
-#else
-  const char * home = getenv("HOME");
-#endif
-  if (home) {
-    dirs.push_back(fs::path(home) / ".local/share/soundfonts");
-    dirs.push_back(fs::path(home) / ".local/share/sounds/sf2");
+  auto user = paths::userDataDir();
+  if (!user.empty()) {
+    dirs.push_back(user / "soundfonts");
+    dirs.push_back(user / "sounds" / "sf2");
   }
-  dirs.push_back("/usr/share/soundfonts");
-  dirs.push_back("/usr/share/sounds/sf2");
+  dirs.push_back(paths::installDataDir() / "soundfonts");
+  dirs.push_back(paths::installDataDir() / "sounds" / "sf2");
 
   const char * preferred[] = {
     "FluidR3_GM.sf2",

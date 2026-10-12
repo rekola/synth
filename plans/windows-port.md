@@ -165,7 +165,12 @@ port names in `modelFromDeviceName()`, and the WinMM backends (step 4).
 - The e2e simulators stay ALSA-only; that is fine - they test the Linux
   backend and the shared logic above it.
 
-## Step 3 - OS utilities
+## Step 3 - OS utilities (done)
+
+Done: `util/Paths`, `util/ThreadSupport` (names, `AudioThreadPriority`), a
+console control handler in `ShutdownSignal`, and `--daemon` refusing on
+Windows. The Windows install layout (where `share` lives next to the
+executable) is settled by step 6.
 
 - Thread naming (`UI.cpp`): `SetThreadDescription` on Windows.
 - Shutdown (`ShutdownSignal.cpp`): `SetConsoleCtrlHandler` for Ctrl-C /
@@ -179,7 +184,7 @@ port names in `modelFromDeviceName()`, and the WinMM backends (step 4).
 - Real-time priority for the audio thread: MMCSS (`AvSetMmThreadCharacteristics`
   "Pro Audio") on Windows, whatever Linux does today unchanged.
 
-## Step 4 - Windows backends
+## Step 4 - Windows backends (written, not yet run on hardware)
 
 - **WASAPI audio** (`audio/WasapiAudio.*`): shared mode, event-driven,
   float32, the song's sample rate (resampling by the engine if the mix
@@ -199,14 +204,18 @@ port names in `modelFromDeviceName()`, and the WinMM backends (step 4).
 - CI builds all of these; nothing can run against real devices there -
   `NullAudio` covers the `Player` loop.
 
-## Step 5 - `--headless` on Windows
+## Step 5 - `--headless` on Windows (built, not yet run with devices)
 
 With steps 1-4, `HeadlessUI` (no terminal) should work: play a song, MIDI
 input, sample recording, a Launchpad as the performance surface. This is the
 first Windows build a musician can use, and still needs no UI decision.
 Verify by hand with a Launchpad on Windows; document in `docs/headless.md`.
 
-## Step 6 - Installer
+## Step 6 - Installer (built on CI, not yet run by a person)
+
+Done: `release-windows.yml`, `tools/windows/` (see `docs/building.md`). Left:
+the SoundFont (needs a pinned URL and checksum), a SOFA file, Start menu
+entries for the terminal UI, signing, MSIX/winget.
 
 - **Inno Setup**, built on CI from tags.
   - It bundles the MSYS2 runtime DLLs the binary needs (collected with
@@ -224,3 +233,9 @@ Verify by hand with a Launchpad on Windows; document in `docs/headless.md`.
 
 The graphical UI: `plans/cell-ui-window.md`, once the Cell UI's terminal
 phase has separated the UI.
+
+Step 4 notes: the backends are in `synth_engine` on Windows (`WasapiAudio`,
+`AudioDevicesWasapi`, `WinMmMidiInput`, `WinMmMidiPorts`) and compile in CI,
+but have not run against real devices. The output rate is the device's mix
+rate, adopted like ALSA's negotiated one; a Launchpad is not recognised on
+Windows until its WinMM port names are added to `modelFromDeviceName()`.

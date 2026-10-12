@@ -5,6 +5,7 @@
 #include "../dsp/NoiseGenerator.h"
 #include "../model/Note.h"
 #include "../model/Command.h"
+#include "JustIntonation.h"
 #include "../instruments/Tuning.h"
 
 #include <functional>
@@ -47,12 +48,23 @@ void pastePatternBlock(PatternGrid & grid, const PatternBlock & block, int num_r
 // key (Song::getKey(), a full note value of which only the pitch class
 // counts), and the bars that decide which notes form one chord - the notes
 // that start in the same bar (or the same `kChordWindowBars` bars), together
-// with the ones still held into it.
+// with the ones still held into it. In a song whose scale is a just scale,
+// `scale` holds each of its notes' exact correction, which they get whatever
+// their chord.
 struct IntonationContext {
   Tuning tuning = Tuning::EDO12;
   int key = 0;
   BarGrid bars;
+  just_intonation::ScaleCorrections scale;
 };
+
+// The song's own context: its EDO, key, arrangement bars and scale.
+IntonationContext intonationContextOf(const Song & song);
+
+// A note just played into `track_id` (recorded or typed): in a song whose
+// scale is a just scale, a scale note gets its scale correction, so it plays
+// back as it sounded live. Any other note is left untuned.
+void tuneNewNote(const Song & song, int track_id, Note & note);
 
 // How many bars one chord context spans.
 constexpr int kChordWindowBars = 1;

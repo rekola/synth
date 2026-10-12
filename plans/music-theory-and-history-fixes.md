@@ -4,31 +4,17 @@ What is left of the music theory and history review once its corrections
 were made (README, glossary, the note tables, drums-and-sequencer.md,
 bus_effects.md). Each item needs a choice before it is built.
 
-## 1. The chord tuner and the otonal/utonal seconds
+## 1. Changing the scale leaves stale corrections
 
-The chord tuner tunes every note above the chord's lowest note. For the
-otonal and utonal scales that reproduces the fixed pitches for every chord
-that holds the tonic (the triads and tetrads, tested), but not for a few
-seconds: G-A in the otonal scale is 10:9 between the fixed pitches, while A
-tuned above G is 9:8, a comma (21.5 cents) away; E♭-F in the utonal scale
-likewise. In 31-EDO the tuner also picks 14:13 for E-F and D♯-E, and 13:10
-for F-A𝄰, where the fixed pitches give 16:15, 15:14 and 21:16 (8.9 to 16.6
-cents apart). The glossary now says this.
+Notes of an otonal or utonal song get their scale's exact ratio whatever
+their chord, live and when recorded or typed, so a written note's correction
+now depends on the scale. `set-song-scale` changes only the scale: a note
+written in an otonal song keeps its otonal correction after the song is
+switched to major, or to no scale.
 
-These seconds do not occur as the bass and an upper note of a chord in the
-current songs, so this matters only once such chords are written.
-
-Options: leave it (documented); or, for an interval above the bass, prefer
-the ratio the key-relative pitches already give when it is within the error
-cap, which changes `correctionCentsInChord()` and needs tests for the
-major-scale ii chord (which must still get its 10:9 D) and for the pairs
-above. Best decided together with the automatic just intonation now being
-built, since that changes the same code.
-
-Whatever the tuner does: today a correction depends on the key and the chord,
-never on the scale, so `set-song-scale` changes no note. If the tuner starts
-reading the scale, changing the scale must retune every note that carries a
-correction, the way transposing already does.
+Options: retune every note that carries a correction when the scale changes,
+as transposing already does (one undoable edit with the scale change); or
+clear them; or ask. Retuning matches how transposing treats tuned notes.
 
 ## 2. 31-EDO tunes B as 13:7
 

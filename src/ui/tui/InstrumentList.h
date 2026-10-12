@@ -3,7 +3,7 @@
 
 #include "../UIElement.h"
 
-class StyleProvider;
+#include "../StyleProvider.h"
 
 class InstrumentList : public UIElement {
  public:

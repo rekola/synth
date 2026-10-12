@@ -17,9 +17,10 @@ decoding) and `libpipewire-0.3-dev` (PipeWire device lists) are optional.
 
 ## Windows
 
-Windows support is just starting: only the engine, the tests and a render-only
-`synth` (`synth --render out.wav song.xml`) build there. There is no terminal
-UI, realtime audio, MIDI or Launchpad yet. The toolchain is MSYS2 UCRT64
+The Windows build has no terminal UI: `synth --render out.wav song.xml` renders
+a song and `synth --headless` plays one (see [headless.md](headless.md)), with
+WASAPI audio, WinMM MIDI and a Launchpad, none of them tried on real hardware
+yet. The toolchain is MSYS2 UCRT64
 (MinGW-w64 GCC); in an MSYS2 UCRT64 shell:
 
 ```sh
@@ -31,3 +32,23 @@ ctest --test-dir build --output-on-failure
 
 CI builds this on every push and uploads the binary and some rendered songs.
 The plan is in [plans/windows-port.md](../plans/windows-port.md).
+
+## Windows installer
+
+`.github/workflows/release-windows.yml` builds an [Inno Setup](https://jrsoftware.org/isinfo.php)
+installer, `synth-<version>-windows-x86_64-setup.exe`, on every `v*` tag (it
+is attached to the release), on demand, and on changes to the files that make
+it. `tools/windows/stage.sh` lays out the program, the MSYS2 runtime DLLs it
+needs, the songs and the licence texts (and SoundFonts, below), and
+`tools/windows/synth.iss` packs that. The job then installs the result with no
+MSYS2 on the PATH and plays a song from it, which catches a missing DLL.
+
+To include a General MIDI SoundFont, set the repository variables
+`SYNTH_SOUNDFONT_URL` (a direct link to the `.sf2`), `SYNTH_SOUNDFONT_SHA256`
+and, for its licence text, `SYNTH_SOUNDFONT_LICENSE_URL`. Without them the
+installer has no SoundFont and instrument tracks use the built-in fallback
+instrument. Installed copies also read SoundFonts from
+`%LOCALAPPDATA%\synth\soundfonts`.
+
+The installer is not signed, so Windows SmartScreen will warn when it is run.
+

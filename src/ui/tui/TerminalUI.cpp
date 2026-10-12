@@ -146,7 +146,7 @@ static inline ncintype_e to_ncintype(InputEvent::Kind kind) {
 // content from (see reader.c's own ncreader_offer_input()) - true case
 // has to reach *that* field for a reader to ever see a real uppercase
 // letter.
-static inline ncinput to_ncinput(const InputEvent & input, bool use_true_case = false) {
+static inline ncinput to_ncinput(const cellui::Input & input, bool use_true_case = false) {
   auto case_id = use_true_case ? input.getTrueCaseId() : input.getId();
   ncinput ni = { .id = static_cast<uint32_t>(case_id), .y = input.getY(), .x = input.getX(), .utf8 = { 0, 0, 0, 0, 0 }, .alt = input.hasAlt(), .shift = input.hasShift(), .ctrl = input.hasCtrl(), .evtype = to_ncintype(input.getKind()), .modifiers = static_cast<uint32_t>((input.hasAlt() ? NCKEY_MOD_ALT : 0) | (input.hasCtrl() ? NCKEY_MOD_CTRL : 0) | (input.hasShift() ? NCKEY_MOD_SHIFT : 0) | (input.hasMeta() ? NCKEY_MOD_META : 0)), .ypx = -1, .xpx = -1 };
   // eff_text was added in notcurses 3.0.10 - Ubuntu 24.04's packaged
@@ -193,7 +193,7 @@ static inline long long now() {
 
 class TerminalPlane : public UIPlane {
 public:
-  TerminalPlane(std::shared_ptr<Controller> & _controller, const StyleProvider & styles, Plane * _plane, bool _owner = true) : UIPlane(_controller, styles), plane(_plane), owner(_owner) {
+  TerminalPlane(std::shared_ptr<void> _controller, const StyleProvider & styles, Plane * _plane, bool _owner = true) : UIPlane(std::move(_controller), styles), plane(_plane), owner(_owner) {
     unsigned int y, x;
     plane->get_dim(&y, &x);
     setDim(pair(static_cast<int>(y), static_cast<int>(x)));
@@ -258,7 +258,7 @@ public:
   unique_ptr<UIPlane> createChild() override {
     auto child_plane = new Plane(1, 1, 0, 0);
     child_plane->set_base("", 0, channelsOf(getStyles().reader_text_color, Color(0x20, 0, 0x20)));
-    return make_unique<TerminalPlane>(getController(), getStyles(), child_plane);
+    return make_unique<TerminalPlane>(getAppContext(), getStyles(), child_plane);
   }
   
   void drawBorder() override {
@@ -636,7 +636,7 @@ public:
     selector.reset();
   }
 
-  bool offerInput(const InputEvent & input) override {
+  bool offerInput(const cellui::Input & input) override {
     if (reader) {
       // Confirmed bug in ncreader's own do_backspace() (src/lib/reader.c),
       // isolated in a standalone reproduction against this exact linked

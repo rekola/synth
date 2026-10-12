@@ -117,6 +117,18 @@ from its equal-tempered pitch to a just ratio (`model/JustIntonation.h`). The
 correction goes in the note's fx as `+hh` or `-hh` (commands.md), and `+00`
 marks a note as tuned that needs none.
 
+In a song whose scale is otonal or utonal, those scales' notes need no
+guessing: each has one exact ratio to the key (otonal 1/1 7/6 5/4 4/3 3/2 5/3
+7/4, utonal 1/1 8/7 6/5 4/3 3/2 8/5 12/7). A song in either scale has both, the
+11 notes they make together in 31 and 53-EDO (where they share a step in 12 and
+19-EDO, the song's own scale has it). Every note on one of them gets its
+ratio's correction whatever its chord, so any mix and voicing of the two (C E G
+against C E♭ G, F A C E, a chord without the key) comes out pure. They also
+sound that way as they are played - pads, MIDI and keyboard notes - and a
+recorded or typed note of them is written with its correction. Any other note
+is tuned as below, against the exact ratio when its chord's lowest note is a
+scale note.
+
 A note is tuned together with the others of its chord. Per track and per
 pattern (a track's background, or one clip), the notes that start in a bar,
 plus the ones still held into it, are one chord, so an arpeggio is one chord
