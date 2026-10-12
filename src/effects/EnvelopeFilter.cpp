@@ -60,7 +60,10 @@ public:
      // unison stack), which otherwise keeps rendering at full cost for
      // the whole release - "let children play" (stopNote(), below) means
      // nothing else ever stops them early.
-     if (envelope_state_.isReleasing() && TrackState::gainToDecibels(gainStart) < constants::SILENCE_KILL_FLOOR_DB) {
+     //
+     // A SUSTAIN below the floor (sustain 0, or a held note left in it) is
+     // silent for good: nothing but a new note raises it, so it ends too.
+     if ((envelope_state_.isReleasing() || envelope_state_.isSustaining()) && TrackState::gainToDecibels(gainStart) < constants::SILENCE_KILL_FLOOR_DB) {
        envelope_state_.nextSegment(EnvelopeState::RELEASE);
      }
 
