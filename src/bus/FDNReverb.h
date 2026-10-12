@@ -102,6 +102,7 @@ class FDNReverb : public BusEffect {
   void process(const float * input, int frames) override;
 
   int getNumTaps() const override { return kNumLines; }
+  float idleAfterSeconds() const override;
   const float * getTap(int i) const override { return taps_[static_cast<size_t>(i)].data(); }
 
   // The 8 taps' directions never move (unlike MultiTapDelay's feedback

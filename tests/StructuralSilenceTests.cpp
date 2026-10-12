@@ -121,6 +121,58 @@ TEST(send_bus_reverb_tail_goes_silent_once_inaudible) {
   CHECK(blocks < 100 * 30); // and dropped within half a minute
 }
 
+namespace {
+
+// One tap that plays `level` while `ringing`, counting how often it is run.
+struct CountingEffect : BusEffect {
+  explicit CountingEffect(int rate) : BusEffect(rate) {}
+  void process(const float *, int frames) override {
+    calls++;
+    tap_.assign(static_cast<size_t>(frames), ringing ? 0.5f : 0.0f);
+  }
+  int getNumTaps() const override { return 1; }
+  const float * getTap(int) const override { return tap_.data(); }
+  SphericalPosition getTapDirection(int) const override { return SphericalPosition{}; }
+  float idleAfterSeconds() const override { return 0.1f; }
+  std::vector<float> tap_;
+  bool ringing = false;
+  int calls = 0;
+};
+
+} // namespace
+
+TEST(send_bus_stops_running_its_effects_once_nothing_is_left_inside) {
+  ChannelConfiguration config(44100, 1);
+  SendBusProcessor bus(config);
+  auto effect = std::make_unique<CountingEffect>(44100);
+  auto * counting = effect.get();
+  bus.setSlotEffect(SendBusProcessor::kSlotA, std::move(effect));
+
+  const int frames = 441; // 10 ms
+  AudioBuffer a(1, frames), b(1, frames);
+  a.zero();
+  b.zero();
+
+  // Ringing behind a muted return is still a tail: the effect keeps running.
+  counting->ringing = true;
+  for (int i = 0; i < 50; i++) bus.process(a, b, frames, 0.0f, 0.0f);
+  CHECK(counting->calls == 50);
+
+  // Silent in and out for its 100 ms: no longer run.
+  counting->ringing = false;
+  for (int i = 0; i < 50; i++) bus.process(a, b, frames);
+  CHECK(counting->calls < 50 + 15);
+  int calls = counting->calls;
+  bus.process(a, b, frames);
+  CHECK(counting->calls == calls);
+  CHECK(!bus.isAudible());
+
+  // Input wakes it at once.
+  a.getChannelData(0)[0] = 0.5f;
+  bus.process(a, b, frames);
+  CHECK(counting->calls == calls + 1);
+}
+
 TEST(stereo_mixer_with_nothing_accumulated_has_an_empty_raw_bus_and_encodes_zeros) {
   AmbisonicStereoMixer mixer(4, 44100);
   mixer.reset();

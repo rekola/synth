@@ -369,6 +369,12 @@ AmbisonicMagLSDecoder::accumulate(const AudioBuffer & input) {
 AudioBuffer
 AmbisonicMagLSDecoder::encode() {
   int frames = buffer_.numberOfFrames();
+  // Nothing accumulated and the tail drained: a block of zeros.
+  if (!accumulated() && tail_silent_) {
+    AudioBuffer out(getOutChannels(), frames);
+    out.zero();
+    return out;
+  }
   size_t tail_len = left_tail_.size();
   size_t acc_size = static_cast<size_t>(frames) + tail_len;
 
@@ -414,6 +420,8 @@ AmbisonicMagLSDecoder::encode() {
     left_tail_[i] = left_acc_[static_cast<size_t>(frames) + i];
     right_tail_[i] = right_acc_[static_cast<size_t>(frames) + i];
   }
+  tail_silent_ = std::all_of(left_tail_.begin(), left_tail_.end(), [](float v) { return v == 0.0f; }) &&
+                 std::all_of(right_tail_.begin(), right_tail_.end(), [](float v) { return v == 0.0f; });
 
   return out;
 }

@@ -99,6 +99,7 @@ class MultiTapDelay : public BusEffect {
   void process(const float * input, int frames) override;
 
   int getNumTaps() const override { return kNumTaps; }
+  float idleAfterSeconds() const override { return kMaxDelaySeconds; }
   const float * getTap(int i) const override { return taps_[static_cast<size_t>(i)].data(); }
   SphericalPosition getTapDirection(int i) const override {
     return SphericalPosition{ azimuth_[static_cast<size_t>(i)], elevation_[static_cast<size_t>(i)], 1.0f };
