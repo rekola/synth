@@ -152,15 +152,16 @@ of the switch.
    change).
 4. Create `lib/cellui` with `UIPlane`/`UIMenu`/the chart and input types
    moved in, the full API defined, and the gallery app, still rendered
-   through notcurses behind the new API. Started: the library exists as its
-   own project with the dependency-free leaves moved in (`Color`, `utf8`,
-   `markdown`, `ChoiceList`, the sub-cell glyphs, then the input data, key chord, keymap
-   and command registry); the theme, `UIPlane`, the widget base `Element` and `HeatmapChart` are in too;
-   `UIMenu` and `offerInput(const Input &)` too, and the gallery app has started: a
-   headless `BufferPlane` over a `CellBuffer` draws the page of what the library
-   has so far (styles, tokens, glyphs, text, Markdown, a choice list), checked
-   against a golden file. The 1D charts and the dialogs, menus and icons for the
-   page are next.
+   through notcurses behind the new API. Done: the library is its own
+   project and includes nothing from `src/`. It holds the leaves (`Color`,
+   `utf8`, `markdown`, `ChoiceList`, the sub-cell glyphs), the input data,
+   key chords, keymap and command registry, the theme, `UIPlane`, the widget
+   base `Element`, `UIMenu`, `HeatmapChart`, the generic widgets (choice and
+   info dialogs, inline editor, spin box, cover art, the level, channel and
+   spectrum meters) and a headless plane (`BufferPlane` over `CellBuffer`)
+   with the gallery page that shows them, checked against a golden file.
+   What stays in the app is what knows the song or the controller, and the
+   notcurses implementations that step 5 replaces.
 5. The terminal backend replaces notcurses. Same look, same e2e results.
 6. Icons: the app's icon list, Kitty graphics/Sixel/glyph fallback, menu
    icons.

@@ -335,3 +335,52 @@ TEST(a_new_note_of_a_just_scale_is_written_with_its_correction) {
   tuneNewNote(song, pitched, off);
   CHECK(!off.hasFx());
 }
+
+TEST(changing_the_scale_retunes_the_tuned_notes_and_leaves_the_rest) {
+  Song song(Tuning::EDO31, kKey);
+  song.setScale(Scale::OTONAL);
+  auto track_id = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
+  auto arrangement = song.getArrangement();
+  arrangement.setNote(0, track_id, 0, Note(kKey + 13, 100));      // F
+  arrangement.setNote(0, track_id, 1, Note(kKey + 23, 100));      // A
+  arrangement.setNote(0, track_id, 2, Note(kKey + 31, 100));      // C
+  arrangement.setNote(0, track_id, 3, Note(kKey + 31 + 10, 100)); // E
+  Clip clip(track_id);
+  clip.setLength(4);
+  clip.getLeafPattern().setNote(0, 0, Note(kKey + 10, 100)); // E, in a clip nothing places
+  auto unplaced = song.addClip(move(clip));
+  applyJustIntonationToSong(song, SongScope::ARRANGEMENT);
+  applyJustIntonationToSong(song, SongScope::SCENES);
+  auto untuned = unplaced.getLeafPattern();
+  untuned.setNote(2, 0, Note(kKey + 18, 100));
+  CHECK(arrangement.getNotes(0, track_id)[3].getFx() == "-01"); // 5/4, the scale's ratio
+
+  song.setScale(Scale::MAJOR);
+  CHECK(retuneSong(song) == 5);
+  CHECK(arrangement.getNotes(0, track_id)[3].getTuningCorrectionCents() == -17); // the chord tuner's, above F
+  CHECK(unplaced.getLeafPattern().getNote(0, 0).hasTuningCorrection());
+  CHECK(!unplaced.getLeafPattern().getNote(2, 0).hasFx()); // an untuned note stays untuned
+
+  song.setScale(Scale::OTONAL);
+  retuneSong(song);
+  CHECK(arrangement.getNotes(0, track_id)[3].getFx() == "-01");
+}
+
+TEST(transposing_a_just_scale_song_keeps_its_scale_ratios) {
+  Song song(Tuning::EDO31, kKey);
+  song.setScale(Scale::OTONAL);
+  auto track_id = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
+  Clip clip(track_id);
+  clip.setLength(4);
+  clip.getLeafPattern().setNote(0, 0, Note(kKey + 13, 100));      // F
+  clip.getLeafPattern().setNote(0, 1, Note(kKey + 23, 100));      // A
+  clip.getLeafPattern().setNote(0, 2, Note(kKey + 31, 100));      // C
+  clip.getLeafPattern().setNote(0, 3, Note(kKey + 31 + 10, 100)); // E
+  auto view = song.addClip(move(clip));
+  applyJustIntonationToSong(song, SongScope::SCENES);
+
+  transposeSong(song, SongScope::SCENES, true); // only clips: the key goes along
+  CHECK(song.getKey() == kKey + 1);
+  CHECK(view.getLeafPattern().getNote(0, 3).getFx() == "-01"); // still 5/4, not the chord tuner's -17
+  CHECK(view.getLeafPattern().getNote(0, 0).getFx() == "-05");
+}

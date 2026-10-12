@@ -18,17 +18,17 @@ namespace ncpp {
 };
 
 #include "../UIMenu.h"
-class SpectrumMeter;
+#include "SpectrumMeter.h"
 #include "../HeatmapChart.h"
-class ChannelMeter;
+#include "ChannelMeter.h"
 class InfoLine;
 class StatusLine;
 class PatternEditor;
 class ArrangementGrid;
 class ClipGrid;
 class OutlineView;
-class CoverArt;
-class SpinBox;
+#include "CoverArt.h"
+#include "SpinBox.h"
 
 class TerminalUI : public UI {
  public:
@@ -104,10 +104,10 @@ protected:
   // ArrangementGrid.h's own comment on why ArrangementGrid itself never
   // calls this directly.
   void commitOverviewCell(int track_id, int row);
-  bool tryActivate(int y, int x, std::shared_ptr<UIElement> element);
+  bool tryActivate(int y, int x, std::shared_ptr<cellui::Element> element);
   // The widgets the current view shows that can take focus, in C-x o
   // (other-window) order.
-  std::vector<std::shared_ptr<UIElement>> focusableElements() const;
+  std::vector<std::shared_ptr<cellui::Element>> focusableElements() const;
 
 private:
   std::shared_ptr<ncpp::NotCurses> nc;
@@ -195,7 +195,7 @@ private:
   // getGlobalOctave(). Lives inline in the info bar's own row (see
   // layout()), always-on and click-activatable like pattern_editor_.
   std::shared_ptr<SpinBox> octave_control_;
-  std::weak_ptr<UIElement> active_element_;
+  std::weak_ptr<cellui::Element> active_element_;
 
   // launchpad_manager_ itself is UI's own now (set once in UI::start(),
   // before wireLaunchpad() runs) - the Launchpad command-dispatch path

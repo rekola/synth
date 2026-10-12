@@ -24,11 +24,14 @@ A microtonal, multiparadigm music production system that combines a live sequenc
 
 The application draws on several traditions.
 
-- **Tracker.** Music is written as rows in a grid, one column per voice. The
-  first known tracker is Ultimate Soundtracker (Obarski, 1987): four channels,
-  each row a note, a sample and an effect. Scream Tracker, FastTracker 2 and
-  Impulse Tracker added a volume column and lettered effect commands, and
-  Renoise (2002) several note columns per track and a delay column. The
+- **Tracker.** Music is written as rows in a grid, one column per voice. Chris
+  Hülsbeck's Soundmonitor (1986, Commodore 64) already had this layout, its
+  steps scrolling up the screen as the music played. It probably inspired
+  Ultimate Soundtracker (Karsten Obarski, 1987, Amiga), usually counted the
+  first tracker: four channels, each row a note, a sample and an effect.
+  Scream Tracker 3 and FastTracker 2 (both 1994) added a volume column, Scream
+  Tracker 3 and Impulse Tracker brought lettered effect commands, and Renoise
+  (2002) has several note columns per track and a delay column. The
   application's pattern editor follows the later trackers; see
   [docs/commands.md](docs/commands.md).
 - **Live sequencer.** Live View holds a clip launcher: a grid of clips, one
@@ -53,8 +56,10 @@ The application draws on several traditions.
 ## Scales and Tunings
 
 - **Tunings.** A song is tuned to 12, 19, 31 or 53 equal divisions of the
-  octave (EDO); a new song starts in 31-EDO, which Adriaan Fokker revived (organ
-  built 1950 for Teylers Museum, Haarlem). Drum tracks have no tuning: a
+  octave (EDO); a new song starts in 31-EDO, which Christiaan Huygens described
+  in 1691 and Adriaan Fokker revived: his 31-tone organ, built by Bernard Pels,
+  stood in Teylers Museum, Haarlem, from 1950 and is now in the Muziekgebouw
+  aan 't IJ, Amsterdam. Drum tracks have no tuning: a
   note is a General MIDI drum. Notes are spelled with sharps, flats, double sharps and double flats
   (plus arrows in 53-EDO, below), and a tuning can spell the same pitch in several ways. In 12-EDO, E♯ is F. In
   31-EDO, E♯ and F are different pitches, but D𝄪 and F𝄫 are the same one. Note numbers for each tuning
@@ -89,18 +94,24 @@ The application draws on several traditions.
   Intonation: A Guide for Interpreters", *Perspectives of New Music* 29/2
   (1991); the table is [53edo_note_numbers.txt](docs/53edo_note_numbers.txt).
 - **Scales.** A song has a key and an optional scale: major (the Ionian
-  mode), minor (the Aeolian mode), 7-note otonal or 7-note utonal. Each is
-  written once as note names: major and minor come out meantone in 12, 19 and
-  31-EDO and just in 53-EDO. Otonal (C D♯ E F G A A𝄰 = 1/1 7/6 5/4 4/3 3/2
-  5/3 7/4) and utonal (C E𝄫 E♭ F G A♭ B𝄫 = 1/1 8/7 6/5 4/3 3/2 8/5 12/7) are
-  spelled so that 31 and 53-EDO both come within 6 cents of every ratio; 12
-  and 19-EDO only approximate the septimal ones. The 7:4 is A𝄰 because
-  53-EDO's A♯ is 26:15; the other tunings read it as A♯. The 7-note
-  otonal and utonal scales borrow Partch's terms (1949) but are not his longer
-  scales: they have seven notes each, and their intervals
-  were derived by the methods in Kyle Gann's *The Arithmetic of Listening*
-  (2019). The scale decides which notes the Launchpad's step view steps
+  mode), minor (the Aeolian mode), otonal or utonal. Each is written once as
+  note names: major and minor come out meantone in 12, 19 and 31-EDO and just
+  in 53-EDO. The scale decides which notes the Launchpad's step view steps
   through; it does not change the playing keyboard.
+- **Otonal and utonal.** Two 7-note scales that mirror each other around the
+  tonic. **Otonal** (C D♯ E F G A A𝄰 = 1/1 7/6 5/4 4/3 3/2 5/3 7/4): all seven
+  are harmonics (12, 14, 15, 16, 18, 20, 21) of one low F, which is what
+  Harry Partch called otonal (*Genesis of a Music*, 1949). It holds the 4:5:6:7
+  chord C E G A𝄰 and pure major triads on C and F. **Utonal** (C E𝄫 E♭ F G A♭
+  B𝄫 = 1/1 8/7 6/5 4/3 3/2 8/5 12/7) is the otonal scale turned upside down:
+  all seven are undertones of one high G. It holds the 1/7:1/6:1/5:1/4 chord
+  E𝄫 F A♭ C and pure minor triads on C and F. Partch's own otonalities and
+  utonalities are six-note chords; these scales are the application's own,
+  inspired by Kyle Gann's *The Arithmetic of Listening* (2019) and its account
+  of the arithmetic and harmonic means. They are spelled so that 31 and 53-EDO
+  both come within 6 cents of every ratio; 12 and 19-EDO only approximate the
+  septimal ones. The 7:4 is A𝄰 because 53-EDO's A♯ is 26:15; the other
+  tunings read it as A♯.
 
 ### Pianos and Just Intervals
 
@@ -116,11 +127,16 @@ string's partial *n* is about 866·B·n² cents sharp (Fletcher, 1964; B is
 repitching a sample keeps that error. Melodies are unaffected, as beating
 needs simultaneous notes.
 
-The FM electric pianos (`piano.electric.*`, [docs/fm.md](docs/fm.md)) put partial *n* at
-n + (n−1)·ε, using an FM modulator at 1+ε times the carrier, so shared
-partials beat at most ε times the fundamental (ε = 0.001: a quarter of a hertz at
-middle C). What remains is the tuning's own error, such as 31-EDO's 4:3 being
-5.2 cents wide, which tuning corrections on the notes can remove.
+The FM electric pianos (`piano.electric.*`, [docs/fm.md](docs/fm.md)) keep their
+partials on or very near whole-number multiples of the note. A layer whose
+modulator is at a whole-number ratio to the carrier is exactly harmonic. A layer
+at 1+ε times the carrier (ε = 0.001 or 0.002) puts partial *n* at n + (n−1)·ε
+and, where the lower sidebands fold back, also at n + (n+1)·ε, so shared
+partials beat at most a few times ε times the fundamental: under a hertz at
+middle C for ε = 0.001. `piano.electric.fm` also has a strike layer at 0.51
+times the carrier whose partials are off the harmonics on purpose. What remains
+is the tuning's own error, such as 31-EDO's 4:3 being 5.2 cents wide, which
+tuning corrections on the notes can remove.
 
 The acoustic piano (`<additive preset="piano"/>`, also `piano.acoustic.grand`
 when the SoundFont has no piano; [docs/additive.md](docs/additive.md)) puts partial *n* at

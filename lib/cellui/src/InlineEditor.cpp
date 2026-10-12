@@ -1,9 +1,10 @@
-#include "InlineEditor.h"
-#include "../UIPlane.h"
-#include "../../playback/EventHandler.h"
-#include "../../playback/InputEvent.h"
+#include <cellui/InlineEditor.h>
+#include <cellui/UIPlane.h>
+#include <cellui/Input.h>
 
 #include <utility>
+
+namespace cellui {
 
 bool
 InlineEditor::open(const Field & field, std::function<void(std::string)> commit) {
@@ -63,3 +64,5 @@ InlineEditor::paintBackdrop() {
   plane_.setBgColor(field_.backdrop.getRed(), field_.backdrop.getGreen(), field_.backdrop.getBlue());
   plane_.putstr(field_.row, field_.col, std::string(static_cast<size_t>(field_.width), ' '));
 }
+
+}  // namespace cellui

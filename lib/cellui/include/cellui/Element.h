@@ -41,8 +41,8 @@ class Element {
   bool executeCommand(std::string_view name) { return commands_.execute(std::string(name)); }
 
   // Read-only counterpart to executeCommand() - every name in this
-  // element's own registry starting with `prefix` (the M-x minibuffer's
-  // autocomplete support; see UI::commandCompletions()).
+  // element's own registry starting with `prefix` (autocomplete support
+  // for a command prompt).
   std::vector<std::string> commandNames(std::string_view prefix) const {
     return commands_.matching(std::string(prefix));
   }
@@ -139,18 +139,16 @@ protected:
   bool hasPlane() const { return plane_ != nullptr; }
 
   // Called after every resize() (including the initial construction-time
-  // resize/move calls in UI::layout()), so subclasses that cache geometry-
+  // resize/move calls), so subclasses that cache geometry-
   // dependent state (e.g. a notcurses plot/visual object) can invalidate it.
-  // `resize()` is not virtual (it's called through Chart*/UIElement*-typed
-  // handles in UI.cpp), so this hook exists specifically to still reach
-  // subclass-specific behavior on resize.
+  // `resize()` is not virtual (it's called through base-typed handles), so
+  // this hook exists to still reach subclass-specific behavior on resize.
   virtual void onResize() { }
 
 public:
   // Whether this widget wants a bare Escape keypress delivered right away
   // (e.g. to close a popup), rather than only once the next key shows
-  // whether it was the start of an Alt chord - see TerminalUI::
-  // readInput().
+  // whether it was the start of an Alt chord.
   virtual bool wantsBareEscape() const { return false; }
 
 protected:
@@ -161,8 +159,8 @@ protected:
     // ignore it here rather than have every widget's keymap guard against
     // it individually. REPEAT is untouched (still actionable, same as
     // before) - e.g. holding a transpose/kill-region binding should keep
-    // repeating, unlike PatternEditor's own raw note-entry keys below,
-    // which suppress repeat themselves.
+    // repeating, unlike a widget's own raw note-entry keys, which
+    // suppress repeat themselves.
     if (input.getKind() == Input::Kind::RELEASE) return false;
     auto chord = KeyChord::pack(input);
 

@@ -1,11 +1,13 @@
 #include <cellui/Gallery.h>
 
 #include <cellui/ChoiceList.h>
+#include <cellui/InfoDialog.h>
 #include <cellui/Markdown.h>
 #include <cellui/SubcellGlyphs.h>
 #include <cellui/Utf8.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -73,7 +75,7 @@ Color readableOn(const Color & bg) {
 
 }  // namespace
 
-int drawGallery(UIPlane & plane, const Theme & theme) {
+Gallery::Gallery(UIPlane & plane, const Theme & theme) {
   const StyleProvider & styles = plane.getStyles();
   int width = plane.getDim().second;
 
@@ -199,7 +201,54 @@ int drawGallery(UIPlane & plane, const Theme & theme) {
   page.text(0, "entry " + std::to_string(list.selected() + 1) + " of " + std::to_string(list.count()));
   page.skip();
 
-  return page.row();
+  page.skip();
+  page.heading("Info dialog");
+  dialog_.show(plane, "About", "# Cell UI\n\nA small *toolkit* for **text** interfaces, drawn here from Markdown.", 44, 10);
+  dialog_.move(page.row(), 0);
+  page.skip(dialog_.rows());
+
+  page.skip();
+  page.heading("Choice dialog");
+  choice_.open("Devices", {"Built-in Audio", "USB Interface (port 2-1)", "HDMI Output", "Bluetooth Speaker"}, 1);
+  // Centred on a 44-column strip that starts at this row.
+  choice_.show(plane, 2 * page.row() + 6, 44);
+  page.skip(6);
+
+  page.skip();
+  page.heading("Meters");
+  {
+    // A spectrum falling off with frequency, with a few peaks.
+    std::vector<float> db(256);
+    for (size_t i = 0; i < db.size(); i++) {
+      float t = static_cast<float>(i) / static_cast<float>(db.size());
+      db[i] = -12.0f - 55.0f * std::sqrt(t) + 8.0f * std::sin(static_cast<float>(i) * 0.35f);
+    }
+    spectrum_ = std::make_unique<SpectrumMeter>(plane);
+    spectrum_->resize(4, 40);
+    spectrum_->move(page.row(), 0);
+    spectrum_->setSpectrum(db, 86.0f);
+
+    channels_ = std::make_unique<ChannelMeter>(plane);
+    channels_->resize(5, 10);
+    channels_->move(page.row(), 44);
+    channels_->setLevels({0.7f, 0.3f, 0.12f, 0.5f, 0.02f, 0.9f, 1.2f, 0.0f}, "W Y Z X");
+  }
+  page.skip(5);
+
+  page.skip();
+  page.heading("Spin box and cover art");
+  spin_ = std::make_unique<SpinBox>(plane, "Octave", 0, 8, [this] { return octave_; },
+                                    [this](int v) { octave_ = v; }, theme.surface_panel, theme.text_primary);
+  spin_->resize(1, spin_->preferredWidth());
+  spin_->move(page.row(), 0);
+  spin_->render(plane.getStyles(), true);
+  cover_ = std::make_unique<CoverArt>(plane);
+  cover_->resize(4, CoverArt::widthForHeight(4));
+  cover_->move(page.row(), 30);
+  cover_->render(plane.getStyles(), true);
+  page.skip(5);
+
+  rows_ = page.row();
 }
 
 }  // namespace cellui
