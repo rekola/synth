@@ -1,3 +1,4 @@
+#include "../../playback/KeyboardNotes.h"
 #include "OutlineView.h"
 
 #include "../../Controller.h"
@@ -678,7 +679,7 @@ OutlineView::runDetailsAction(DetailsAction action) {
 }
 
 bool
-OutlineView::handleClick(const InputEvent & input) {
+OutlineView::handleClick(const cellui::Input & input) {
   // Resolved on release only, matching SpinBox's own click convention.
   // A press - and each drag while held, which arrives as another press -
   // shows what is under the mouse as pressed, and holds off placing a
@@ -732,7 +733,7 @@ OutlineView::hitTest(int screen_y, int screen_x) const {
 }
 
 bool
-OutlineView::offerInput(const InputEvent & input) {
+OutlineView::offerInput(const cellui::Input & input) {
   // The Info popup is modal: it closes on its own keys or a click, and
   // swallows everything else. A key's release still gets through, to stop
   // a preview note held when it opened.
@@ -887,7 +888,7 @@ OutlineView::offerInput(const InputEvent & input) {
     // PatternEditor's own identical guard.
     if (input.getKind() == InputEvent::Kind::REPEAT) return true;
 
-    auto midi_note = input.toMidiNote(getController().getGlobalOctave(), getController().getSong().getTuning());
+    auto midi_note = keyToMidiNote(input, getController().getGlobalOctave(), getController().getSong().getTuning());
     if (midi_note < 0) return false;
 
     auto & row = data_[static_cast<size_t>(new_cursor_row_)];

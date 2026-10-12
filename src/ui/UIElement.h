@@ -21,14 +21,6 @@ class UIElement : public cellui::Element, public EventHandler {
   UIElement() { }
   explicit UIElement(UIPlane & parent) : cellui::Element(parent) { }
 
-  virtual bool offerInput(const InputEvent & input) {
-    if (hasPlane()) {
-      return getPlane().offerInput(input);
-    } else {
-      return false;
-    }
-  }
-
   Controller & getController() const { return *static_cast<Controller *>(getPlane().getAppContext().get()); }
 };
 

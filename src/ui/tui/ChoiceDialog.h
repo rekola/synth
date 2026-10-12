@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-class InputEvent;
+#include <cellui/Input.h>
 
 // A modal, bordered list the person picks one entry from: the terminal
 // rendering of UI::showChoiceDialog(). Up/Down/PageUp/PageDown/Home/End (and
@@ -33,7 +33,7 @@ class ChoiceDialog {
 
   // Feeds one input event; the dialog swallows everything, so the caller
   // only needs the result.
-  Result offerInput(const InputEvent & input);
+  Result offerInput(const cellui::Input & input);
 
   int selected() const { return list_.selected(); }
 

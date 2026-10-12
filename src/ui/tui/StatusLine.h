@@ -94,7 +94,7 @@ class StatusLine : public UIElement {
     showPrompt(prompt, std::move(on_submit), initial_text);
   }
 
-  bool offerInput(const InputEvent & input) override {
+  bool offerInput(const cellui::Input & input) override {
     if (getPlane().readerActive()) {
       if (tab_completer_ && input.getId() == NCKEY_TAB) {
 	// A local copy, not tab_completer_() directly - see the identical

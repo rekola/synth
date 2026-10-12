@@ -65,7 +65,7 @@ InstrumentList::renderRow(const StyleProvider & styles, int row, bool highlight)
 }
 
 bool
-InstrumentList::offerInput(const InputEvent & input) {
+InstrumentList::offerInput(const cellui::Input & input) {
   auto & song = getController().getSong();
   auto [rows, cols] = getDim();
   auto num_instruments = static_cast<int>(song.getInstrumentPool().getInstruments().size());

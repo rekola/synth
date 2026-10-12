@@ -103,7 +103,7 @@ void ChoiceDialog::show(UIPlane & parent, int screen_rows, int screen_cols) {
 }
 
 ChoiceDialog::Result
-ChoiceDialog::offerInput(const InputEvent & input) {
+ChoiceDialog::offerInput(const cellui::Input & input) {
   if (labels_.empty()) return Result::CANCELLED;
   auto id = input.getId();
 

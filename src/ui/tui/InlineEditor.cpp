@@ -26,7 +26,7 @@ InlineEditor::isOpen() const {
 }
 
 bool
-InlineEditor::offerInput(const InputEvent & input) {
+InlineEditor::offerInput(const cellui::Input & input) {
   if (!open_) return false;
   if (input.getId() == NCKEY_ENTER) {
     auto text = plane_.closeReader();

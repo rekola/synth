@@ -885,7 +885,7 @@ public:
   // offer_input() doesn't roll up on it either) or Enter while some item is
   // highlighted (ncmenu_selected() non-null), then map the item's display
   // text to a command name and roll the section back up.
-  bool offerInput(const InputEvent & input) override {
+  bool offerInput(const cellui::Input & input) override {
     auto ni = to_ncinput(input);
 
     if (ni.id == NCKEY_BUTTON1 && ni.evtype == NCTYPE_RELEASE) {
@@ -2466,7 +2466,7 @@ TerminalUI::tryActivate(int y, int x, std::shared_ptr<UIElement> element) {
 }
 
 bool
-TerminalUI::offerInput(const InputEvent & input) {
+TerminalUI::offerInput(const cellui::Input & input) {
   bool handled = false;
 
   // No open reader (StatusLine's M-x minibuffer, any widget's inline
@@ -2673,7 +2673,7 @@ void TerminalUI::layoutChoiceDialog() {
   choice_dialog_.show(getPlane(), screen_rows, screen_cols);
 }
 
-void TerminalUI::handleChoiceDialogInput(const InputEvent & input) {
+void TerminalUI::handleChoiceDialogInput(const cellui::Input & input) {
   auto result = choice_dialog_.offerInput(input);
   if (result == ChoiceDialog::Result::NONE) {
     layoutChoiceDialog(); // redraw with the moved selection
