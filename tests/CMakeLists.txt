@@ -7,13 +7,6 @@ add_executable(synth_tests
 	# needs notcurses's headers (types, macros, static inline helpers), not
 	# the linked library, so this keeps that distinction visible at the
 	# build-system level too - see EscapeCoalescer.h's own top comment.
-	# Same reasoning as EscapeCoalescer.cpp above - SubcellGlyphs.cpp has no
-	# notcurses dependency of its own at all (plain integer/table logic),
-	# so it's an even simpler case for direct inclusion here rather than
-	# folding into synth_engine.
-	../src/ui/tui/SubcellGlyphs.cpp
-	SubcellGlyphsTests.cpp
-	MarkdownTests.cpp
 	DocumentTests.cpp
 	SongEditTests.cpp
 	ContentPublishingTests.cpp
@@ -31,7 +24,6 @@ add_executable(synth_tests
 	FMTests.cpp
 	ControllerTests.cpp
 	DeviceSettingsTests.cpp
-	ChoiceListTests.cpp
 	ThemeTests.cpp
 	DeviceLabelsTests.cpp
 	PatternBlockOpsTests.cpp
@@ -94,7 +86,6 @@ add_executable(synth_tests
 	PathsTests.cpp
 	WaitSetTests.cpp
 	LaunchpadIOTests.cpp
-	Utf8Tests.cpp
 	SongStructureTests.cpp
 	SampleTrackTests.cpp
 	TimeStretcherTests.cpp

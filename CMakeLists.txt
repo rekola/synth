@@ -154,14 +154,12 @@ add_library(synth_engine STATIC
 	src/ui/tui/PatternScroll.cpp
 	src/ui/ArrangementPatternSource.cpp
 	src/ui/ScenePatternSource.cpp
-	src/ui/Markdown.cpp
 	src/launchpad/LaunchpadLayout.cpp
 	src/launchpad/LaunchpadProtocol.cpp
 	src/model/SampleTrack.cpp
 	src/model/SampleContent.cpp
 	src/model/WaveformPeaks.cpp
 	src/ambisonic/MixerFactory.cpp
-	src/util/Utf8.cpp
 	src/util/ShutdownSignal.cpp
 	src/util/FileOpen.cpp
 	src/cli/CommonOptions.cpp
@@ -209,26 +207,11 @@ target_include_directories(synth_engine SYSTEM PUBLIC ${canvas_SOURCE_DIR}/inclu
 target_link_libraries(synth_engine PUBLIC canvas)
 target_include_directories(synth_engine PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
-# libunistring backs src/util/Utf8.h's grapheme-cluster-aware UTF-8
-# truncation/width helpers (used by PatternEditor::renderHeading() to
-# truncate track/instrument names without corrupting a multi-byte
-# character or splitting a grapheme cluster - see docs/known_bugs.md's
-# history on this). Not optional the way libmysofa is: there's no
-# graceful fallback for "not UTF-8-aware" the way there is for binaural
-# vs. cardioid decoding, and its runtime half (libunistring5) is already
-# a hard dependency of notcurses itself (`apt-cache depends
-# libnotcurses-dev` lists it), so there's no real environment where this
-# project builds but libunistring is genuinely unavailable. No
-# pkg-config file ships with libunistring-dev on Ubuntu (confirmed), so
-# this uses the same find_library/find_path shape as libmysofa below
-# rather than find_package.
-find_library(UNISTRING_LIBRARY unistring)
-find_path(UNISTRING_INCLUDE_DIR unigbrk.h)
-if(NOT (UNISTRING_LIBRARY AND UNISTRING_INCLUDE_DIR))
-  message(FATAL_ERROR "libunistring not found (install libunistring-dev)")
-endif()
-target_include_directories(synth_engine PRIVATE ${UNISTRING_INCLUDE_DIR})
-target_link_libraries(synth_engine PUBLIC ${UNISTRING_LIBRARY})
+# Cell UI (lib/cellui): the UI library, which also owns the libunistring
+# dependency (grapheme-aware text width). Built with these same flags.
+enable_testing()  # before the subdirectory, so its tests register here too
+add_subdirectory(lib/cellui)
+target_link_libraries(synth_engine PUBLIC cellui)
 
 # SoundTouch (pitch-preserving time-stretch, src/audio/TimeStretcher.cpp -
 # used by SampleTrackState::triggerClip() when a clip's own recorded tempo
@@ -331,7 +314,6 @@ if(SYNTH_BUILD_INTERACTIVE)
   	src/ui/tui/SpectrumMeter.cpp
   	src/ui/SpectrumImage.cpp
   	src/ui/HeatmapImage.cpp
-  	src/ui/tui/SubcellGlyphs.cpp
   )
   target_include_directories(synth PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 

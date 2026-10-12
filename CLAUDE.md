@@ -31,7 +31,7 @@ libsndfile1-dev libasound2-dev libunistring-dev libsoundtouch-dev
 libcairo2-dev` plus CMake, pkg-config, git and a C++17 compiler. The C++ bindings (`ncpp/NotCurses.hh`, what
 `main.cpp`/`TerminalUI.cpp` include) ship in `libnotcurses++-dev`, a
 separate package `libnotcurses-dev` does not pull in as a dependency —
-both are required. `libunistring-dev` backs `src/util/Utf8.h`'s
+both are required. `libunistring-dev` backs `lib/cellui`'s `cellui/Utf8.h`
 grapheme-cluster-aware UTF-8 truncation/width helpers — its runtime half
 (`libunistring5`) is already pulled in transitively by `libnotcurses-dev`,
 but the headers/link package isn't, so it still needs installing
@@ -1293,10 +1293,23 @@ would otherwise resume showing.
   - `src/launchpad/` — Launchpad hardware I/O and layout - see the
     Launchpad section above.
   - `src/util/` — small, dependency-free helpers (`constants.h`,
-    `Logger.h`, …) used from everywhere. `Utf8.h`/`.cpp` is the one
-    exception to "dependency-free" (it wraps libunistring, keeping its
-    header out of `Utf8.h` itself) - still dependency-free of every other
-    synth module, which is the property call sites actually rely on.
+    `Logger.h`, …) used from everywhere.
+- `lib/cellui/` — **Cell UI**, the UI library (plan: `plans/cell-ui.md`), its
+  own CMake project (`cmake -S lib/cellui -B build-cellui` builds and tests it
+  alone, which CI does) that includes nothing from `src/` - a ctest
+  (`cellui_includes_nothing_from_src`) fails on any include that leaves it.
+  Headers are `cellui/X.h`, in `namespace cellui`; the library owns the
+  libunistring dependency. So far it holds the leaves that never depended on
+  the app: `Color` (`#rgb` now means each digit doubled), `utf8` (grapheme-
+  aware width, truncation and padding), `markdown` (the tiny subset the info
+  dialogs use), `ChoiceList`, and the sub-cell glyph tables and two-colour
+  quantizer (`SubcellGlyphs.h`). The old paths (`util/Utf8.h`, `ui/Markdown.h`,
+  `ui/ChoiceList.h`, `ui/tui/SubcellGlyphs.h`, `model/Color.h`) are forwarding
+  headers with aliases (`Utf8`, `markdown`, `Color`, ...), so call sites did not
+  change; `UIPlane`, `UIMenu`, the input event and the rest follow, one slice
+  at a time, as the library's types stop needing `Controller` and the event
+  model. Its tests are in `lib/cellui/tests/` with a copy of the tiny test
+  framework (no dependency on `tests/`).
 
   `src/effects/`, `src/bus/`, and `src/dsp/` (below) predate this split
   and already lived in their own directories before it; this list only
