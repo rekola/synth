@@ -56,8 +56,11 @@ TEST(swing_round_trips_through_the_song_file_and_defaults_to_straight) {
 
   Song straight;
   straight.save(path);
-  std::ifstream in(path);
-  std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  std::string text;
+  { // closed before remove_all: Windows can't delete an open file
+    std::ifstream in(path);
+    text.assign((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  }
   CHECK(text.find("swing=") == std::string::npos); // straight is the default, so it isn't written
   Song reloaded;
   CHECK(reloaded.open(path, provider));

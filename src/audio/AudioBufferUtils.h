@@ -30,4 +30,27 @@ inline AudioBuffer ensureMainChannel(AudioBuffer data, int frames) {
   return forced;
 }
 
+// Adds AuxA/AuxB (zeroed) to `data` where asked for and missing, keeping
+// what it already carries - for an effect that keeps a send going through
+// silence once it has carried one.
+inline AudioBuffer ensureAuxChannels(AudioBuffer data, bool aux_a, bool aux_b, int frames) {
+  bool add_a = aux_a && !data.hasChannel(Channel::AuxA), add_b = aux_b && !data.hasChannel(Channel::AuxB);
+  if (!add_a && !add_b) return data;
+
+  AudioBuffer forced(data.regularChannelCount(), data.hasChannel(Channel::AuxA) || add_a, data.hasChannel(Channel::AuxB) || add_b, frames);
+  forced.zero();
+  for (int c = 0; c < data.regularChannelCount(); c++) {
+    auto src = data.getChannelData(c);
+    auto dst = forced.getChannelData(c);
+    for (int i = 0; i < frames; i++) dst[i] = src[i];
+  }
+  for (auto ch : {Channel::AuxA, Channel::AuxB}) {
+    if (auto * src = data.getChannel(ch)) {
+      auto dst = forced.getChannel(ch);
+      for (int i = 0; i < frames; i++) dst[i] = src[i];
+    }
+  }
+  return forced;
+}
+
 #endif

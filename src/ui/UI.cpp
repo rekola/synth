@@ -5,6 +5,8 @@
 #include "../audio/AudioBuffer.h"
 #include "../audio/AudioDevices.h"
 #include "../launchpad/LaunchpadIO.h"
+#include "../util/ThreadSupport.h"
+#include "../midi/MidiInput.h"
 #include "../launchpad/LaunchpadManager.h"
 #include "../launchpad/LaunchpadChannelPressureEvent.h"
 #include "../launchpad/LaunchpadPadEvent.h"
@@ -27,8 +29,8 @@
 #include "../playback/ThresholdRecordingTriggeredEvent.h"
 
 #include <algorithm>
-#include <pthread.h>
-#include <fmt/core.h>
+#include <iterator>
+#include <fmt/format.h>
 #include <memory>
 #include <thread>
 
@@ -36,17 +38,16 @@ using namespace std;
 
 namespace {
 
-// Shown by top -H and ps -L (15 characters at most).
-void nameThread(const char * name) { pthread_setname_np(pthread_self(), name); }
 
 void audio_thread_func(Controller * controller, AudioAPI * audio) {
-  nameThread("synth-audio");
+  setCurrentThreadName("synth-audio");
+  AudioThreadPriority priority;
   Player player(controller->getChannelConfiguration(), controller);
   player.play(*audio);
 }
 
 void visualization_thread_func(Controller * controller, int sample_rate, int frame_count) {
-  nameThread("synth-visual");
+  setCurrentThreadName("synth-visual");
   VisualizationThread visualization_thread(controller);
   visualization_thread.configure(sample_rate, frame_count);
   visualization_thread.run();
@@ -82,15 +83,16 @@ void UI::selectPlaybackDevice(const std::string & name, const std::string & labe
 }
 
 void UI::selectMidiInput(const std::string & spec, const std::string & label) {
-  if (!audio_) return;
-  audio_->setMidiInput(spec, getLogger());
+  if (!midi_) return;
+  midi_->setSource(spec, getLogger());
   auto change = getController().setMidiInput(spec);
   if (!change.message.empty()) setStatus("MIDI input " + label + " (" + change.message + ")");
 }
 
 void
-UI::start(AudioAPI & audio, LaunchpadIO & launchpad_io, LaunchpadManager & launchpad_manager) {
+UI::start(AudioAPI & audio, MidiInput & midi, LaunchpadIO & launchpad_io, LaunchpadManager & launchpad_manager) {
   audio_ = &audio;
+  midi_ = &midi;
 
   // AlsaAudio::initialize() already logged this to stderr, before this UI
   // (and its StatusLogger) even existed - a failed/missing capture device
@@ -105,11 +107,11 @@ UI::start(AudioAPI & audio, LaunchpadIO & launchpad_io, LaunchpadManager & launc
   launchpad_manager_ = &launchpad_manager;
   wireLaunchpad(launchpad_manager);
 
-  nameThread("synth-ui");
+  setCurrentThreadName("synth-ui");
   std::thread audio_thread(audio_thread_func, &(getController()), &audio);
   std::thread visualization_thread(visualization_thread_func, &(getController()), audio.getFrequency(), audio.getFrameCount());
 
-  startUI(audio, launchpad_io);
+  startUI(audio, midi, launchpad_io);
 
   getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::TERMINATE));
   getController().getVisualizationQueue().push(make_unique<AudioBlockEvent>(AudioBuffer(), AudioBuffer(), AudioBuffer(), AudioBuffer()));
@@ -415,6 +417,24 @@ UI::initializeCommands() {
     for (auto & source : listMidiSources()) choices.push_back({source.label, source.spec});
     chooseDevice("MIDI input", std::move(choices), getController().getDeviceSettings().midi_input,
                  [this](const Choice & choice) { selectMidiInput(choice.value, choice.label); });
+  });
+  // The song's scale: which degrees the step view steps through.
+  commands_.define("set-song-scale", [this]() {
+    static const Scale kScales[] = {Scale::NONE, Scale::MAJOR, Scale::MINOR, Scale::OTONAL, Scale::UTONAL};
+    std::vector<Choice> choices;
+    int current = -1;
+    for (auto scale : kScales) {
+      if (scale == getController().getSong().getScale()) current = static_cast<int>(choices.size());
+      choices.push_back({scaleLabel(scale), to_string(scale)});
+    }
+    showChoiceDialog("Scale", std::move(choices), current, [this, current](int index) {
+      if (index == current || index < 0 || index >= static_cast<int>(std::size(kScales))) return;
+      auto scale = kScales[index];
+      auto & song = getController().getSong();
+      Song::Edit edit(song, "set scale");
+      song.setScale(scale);
+      setStatus("Scale " + scaleLabel(scale));
+    });
   });
   commands_.define("next-buffer", [this]() {
     getController().cycleBuffer(true);

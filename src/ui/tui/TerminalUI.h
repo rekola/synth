@@ -70,7 +70,7 @@ class TerminalUI : public UI {
   void handleVisualizationResultEvent(VisualizationResultEvent & ev) override;
 
 protected:
-  void startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) override;
+  void startUI(AudioAPI & audio, MidiInput & midi, LaunchpadIO & launchpad_io) override;
   int launchpadEditStepSize() const override;
   bool executeLaunchpadCommand(std::string_view name) override { return executeCommand(name); }
   void wireLaunchpad(LaunchpadManager & launchpad_manager) override;

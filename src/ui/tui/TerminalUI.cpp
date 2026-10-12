@@ -11,12 +11,16 @@
 #include "ClipGrid.h"
 #include "ChannelMeter.h"
 #include "SpectrumMeter.h"
+#include "../SpectrumImage.h"
+#include "../HeatmapImage.h"
 #include "OutlineView.h"
 #include "CoverArt.h"
 #include "SpinBox.h"
 #include "../../dsp/DiracAnalyzer.h"
 #include "../../audio/AudioAPI.h"
 #include "../../launchpad/LaunchpadIO.h"
+#include "../../midi/MidiInput.h"
+#include "../../util/WaitSet.h"
 #include "../../launchpad/LaunchpadPadEvent.h"
 #include "../../launchpad/LaunchpadButtonEvent.h"
 #include "../../launchpad/LaunchpadChannelPressureEvent.h"
@@ -74,11 +78,6 @@
 
 
 namespace {
-// An opaque pixel in the RGBA byte order notcurses blits.
-uint32_t pixelOf(const Color & c) {
-  return (0xffu << 24) | (static_cast<uint32_t>(c.getBlue()) << 16) | (static_cast<uint32_t>(c.getGreen()) << 8) | static_cast<uint32_t>(c.getRed());
-}
-
 uint64_t channelsOf(const Color & fg, const Color & bg) {
   return NCCHANNELS_INITIALIZER(static_cast<unsigned>(fg.getRed()), static_cast<unsigned>(fg.getGreen()), static_cast<unsigned>(fg.getBlue()),
                                 static_cast<unsigned>(bg.getRed()), static_cast<unsigned>(bg.getGreen()), static_cast<unsigned>(bg.getBlue()));
@@ -92,6 +91,27 @@ namespace {
 std::map<std::string, int> g_ui_stats;
 bool g_ui_stats_on = false;
 void statCount(const std::string & what) { if (g_ui_stats_on) g_ui_stats[what]++; }
+
+// Every thread's CPU time so far in clock ticks, by thread name.
+std::map<std::string, long> threadCpuTicks() {
+  std::map<std::string, long> ticks;
+  std::error_code ec;
+  for (auto & entry : std::filesystem::directory_iterator("/proc/self/task", ec)) {
+    FILE * f = fopen((entry.path() / "stat").c_str(), "r");
+    if (!f) continue;
+    char line[1024];
+    size_t n = fread(line, 1, sizeof line - 1, f);
+    fclose(f);
+    line[n] = 0;
+    // pid (comm) state ppid ... utime stime: fields 14 and 15.
+    char *open = strchr(line, '('), *close = strrchr(line, ')');
+    if (!open || !close) continue;
+    long utime = 0, stime = 0;
+    if (sscanf(close + 2, "%*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u %ld %ld", &utime, &stime) != 2) continue;
+    ticks[std::string(open + 1, close)] += utime + stime;
+  }
+  return ticks;
+}
 }
 using namespace fmt;
 
@@ -794,6 +814,7 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                         {"Toggle Binaural Mixer", "", "toggle-mixer-type"},
                         {nullptr, nullptr, nullptr},
                         {"Set Song Key...", "", "set-song-key"},
+                        {"Set Scale...", "", "set-song-scale"},
                         {"Set Tuning System...", "", "set-song-tuning"},
                         {"Set Time Signature...", "", "set-time-signature"},
                         {nullptr, nullptr, nullptr},
@@ -1035,15 +1056,9 @@ namespace {
 // shares - the heatmap repaints every cell/pixel each frame, so it has no
 // untouched cells to show it through the way the other charts do.
 SubcellRgb heatmapCellColor(const Color & background, float saturation, float value) {
-  if (value < 0.0f) value = 0.0f;
-  else if (value > 1.0f) value = 1.0f;
-  uint8_t r, g, b;
-  heatmapHsvToRgb(kHeatmapHue, saturation, 1.0f, r, g, b);
-  return {
-    static_cast<float>(background.getRed()) * (1.0f - value) + static_cast<float>(r) * value,
-    static_cast<float>(background.getGreen()) * (1.0f - value) + static_cast<float>(g) * value,
-    static_cast<float>(background.getBlue()) * (1.0f - value) + static_cast<float>(b) * value,
-  };
+  SubcellRgb c{};
+  heatmap_image::cellColor(background, saturation, value, c.r, c.g, c.b);
+  return c;
 }
 
 // Computes destination index d's source-index range [lo,hi) along one axis
@@ -1388,36 +1403,7 @@ public:
     // Same footer-row reservation as TerminalPixelChart::commit().
     if (!footer_label_.empty() && celldimy > 0 && pxy > celldimy) pxy -= celldimy;
 
-    auto & background = getPlane().getStyles().window_bg_color;
-    vector<uint32_t> buffer(static_cast<size_t>(pxy) * pxx, pixelOf(background)); // overwritten below for every pixel regardless, kept consistent for clarity
-
-    std::vector<float> agg_brightness, agg_saturation;
-    resampleGrid(brightness_, saturation_, gridCols(), gridRows(), static_cast<int>(pxx), static_cast<int>(pxy), agg_brightness, agg_saturation);
-
-    for (unsigned py = 0; py < pxy; py++) {
-      // agg_* row 0 is the BOTTOM (resampleGrid()'s contract), but py=0 is
-      // the TOP of the image - flip vertically.
-      unsigned vy = pxy - 1 - py;
-      for (unsigned px = 0; px < pxx; px++) {
-        size_t idx = static_cast<size_t>(vy) * pxx + px;
-
-        SubcellRgb rgb = heatmapCellColor(background, agg_saturation[idx], agg_brightness[idx]);
-        buffer[py * pxx + px] = (0xffu << 24) | (static_cast<uint32_t>(rgb.b) << 16) | (static_cast<uint32_t>(rgb.g) << 8) | static_cast<uint32_t>(rgb.r);
-      }
-    }
-
-    for (auto & marker : markers_) {
-      unsigned mx = static_cast<unsigned>(marker.u * static_cast<float>(pxx));
-      unsigned my_from_bottom = static_cast<unsigned>(marker.v * static_cast<float>(pxy));
-      unsigned my = my_from_bottom < pxy ? pxy - 1 - my_from_bottom : 0;
-      for (int dy = -1; dy <= 1; dy++) {
-        for (int dx = -1; dx <= 1; dx++) {
-          long y = static_cast<long>(my) + dy, x = static_cast<long>(mx) + dx;
-          if (y < 0 || y >= static_cast<long>(pxy) || x < 0 || x >= static_cast<long>(pxx)) continue;
-          buffer[static_cast<size_t>(y) * pxx + static_cast<size_t>(x)] = 0xffffffffu; // opaque white
-        }
-      }
-    }
+    auto buffer = heatmap_image::render(brightness_, saturation_, gridCols(), gridRows(), markers_, pxx, pxy, getPlane().getStyles());
 
     // Axis labels go into the image itself: text in the plane's cells would
     // be hidden under the bitmap.
@@ -1525,32 +1511,8 @@ protected:
       SpectrumMeter::drawBars(levels);
       return;
     }
-    auto & styles = getPlane().getStyles();
-    // Opaque background: a transparent pixel would composite against the raw
-    // terminal's background instead of this app's.
-    vector<uint32_t> buffer(static_cast<size_t>(pxy) * pxx, pixelOf(styles.window_bg_color));
-    // The gradient colour at pixel row `y` (from the bottom), blended `t` of
-    // the way from the background.
-    auto shade = [&](unsigned y, float t) {
-      auto color = styles.window_bg_color.blend(t, styles.spectrumColor((static_cast<float>(y) + 0.5f) / static_cast<float>(pxy)));
-      return pixelOf(color);
-    };
-    // The curve's height at each column, in pixels from the bottom.
-    float top = static_cast<float>(pxy) - 2.0f;
-    auto height = [&](unsigned x) { return levels[x] * top + 1.0f; };
-    for (unsigned x = 0; x < pxx; x++) {
-      float h = height(x);
-      // The line reaches the neighbours' midpoints so steep slopes stay connected.
-      float prev = x > 0 ? 0.5f * (h + height(x - 1)) : h, next = x + 1 < pxx ? 0.5f * (h + height(x + 1)) : h;
-      float lo = std::min({h, prev, next}) - 0.9f, hi = std::max({h, prev, next}) + 0.9f;
-      for (unsigned y = 0; y < pxy; y++) {
-        float yc = static_cast<float>(y) + 0.5f; // pixel centre, from the bottom
-        if (yc < lo) { buffer[(pxy - 1 - y) * pxx + x] = shade(y, 0.22f); continue; }
-        float cover = std::clamp(std::min(yc - lo, hi - yc), 0.0f, 1.0f);
-        if (cover <= 0.0f) break;
-        buffer[(pxy - 1 - y) * pxx + x] = shade(y, std::max(0.22f, cover));
-      }
-    }
+    // Opaque, so a pixel never composites against the raw terminal background.
+    auto buffer = spectrum_image::render(levels, pxx, pxy, getPlane().getStyles());
     ncpp::Visual visual(buffer.data(), static_cast<int>(pxy), static_cast<int>(pxx * 4), static_cast<int>(pxx));
     ncvisual_options vopts{};
     vopts.n = nativePlane();
@@ -3017,7 +2979,7 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
 }
 
 void
-TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
+TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
   int out_pipe[2];
 
   if (pipe(out_pipe) != 0) { // make a pipe
@@ -3040,36 +3002,20 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
   dup2(out_pipe[1], STDERR_FILENO); // redirect stderr to the pipe
   close(out_pipe[1]);
 
-  size_t num_midi_capture_desc = audio.getMidiCaptureDescriptors().size();
-  auto launchpad_descriptors = launchpad_io.getPollDescriptors();
-  size_t num_launchpad_desc = launchpad_descriptors.size();
-  size_t midi_base = 3;
-  size_t launchpad_base = midi_base + num_midi_capture_desc;
-  size_t num_descriptors = launchpad_base + num_launchpad_desc;
-  auto descriptors = std::make_unique<pollfd[]>(num_descriptors);
+  // In the order the loop handles them.
+  WaitSet waits;
+  auto input_group = waits.group();
+  auto events_group = waits.group();
+  auto stderr_group = waits.group();
+  auto midi_group = waits.group();
+  auto launchpad_group = waits.group();
 
-#if 1
-  descriptors[0].fd = nc->get_inputready_fd();
-#else
-  descriptors[0].fd = 0;
-#endif
-  descriptors[0].events = POLLIN;
+  waits.addFd(input_group, nc->get_inputready_fd());
+  waits.add(events_group, getController().getUIEventQueue().notifier());
+  waits.addFd(stderr_group, out_pipe[0]);
+  midi.addTo(waits, midi_group);
+  launchpad_io.addTo(waits, launchpad_group);
 
-  descriptors[1].fd = getController().getUIEventQueue().getPollFd();
-  descriptors[1].events = POLLIN;
-
-  descriptors[2].fd = out_pipe[0];
-  descriptors[2].events = POLLIN;
-
-  for (size_t i = 0; i < num_midi_capture_desc; i++) {
-    descriptors[midi_base + i] = audio.getMidiCaptureDescriptors()[i];
-  }
-
-  for (size_t i = 0; i < num_launchpad_desc; i++) {
-    descriptors[launchpad_base + i] = launchpad_descriptors[i];
-  }
-
-  // setStatus("Starting... nd = " + to_string(num_descriptors));
 
   renderComponents(true);
 
@@ -3094,6 +3040,7 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
   auto stats_since = std::chrono::steady_clock::now();
   timespec stats_cpu_since {};
   clock_gettime(CLOCK_THREAD_CPUTIME_ID, &stats_cpu_since);
+  auto stats_thread_ticks = stats_path ? threadCpuTicks() : std::map<std::string, long>{};
   auto count = [](const std::string & what) { statCount(what); };
 
   while ( !shouldClose() ) {
@@ -3104,6 +3051,13 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
       clock_gettime(CLOCK_THREAD_CPUTIME_ID, &cpu_now);
       g_ui_stats["cpu_us"] = static_cast<int>((cpu_now.tv_sec - stats_cpu_since.tv_sec) * 1000000L + (cpu_now.tv_nsec - stats_cpu_since.tv_nsec) / 1000L);
       stats_cpu_since = cpu_now;
+      // Every thread's share of a CPU over the second, in percent.
+      auto thread_ticks = threadCpuTicks();
+      for (auto & [name, t] : thread_ticks) {
+        auto it = stats_thread_ticks.find(name);
+        if (it != stats_thread_ticks.end()) g_ui_stats["cpu%:" + name] = static_cast<int>(100 * (t - it->second) / std::max(1L, sysconf(_SC_CLK_TCK)));
+      }
+      stats_thread_ticks = std::move(thread_ticks);
       if (FILE * f = fopen(stats_path, "a")) {
 	for (auto & [ what, n ] : g_ui_stats) fprintf(f, "%s=%d ", what.c_str(), n);
 	fputs("\n", f);
@@ -3124,17 +3078,16 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
     }
 
     // setStatus("polling");
-    int poll_result = poll(descriptors.get(), num_descriptors, poll_timeout_ms);
-    count(poll_result > 0 ? "wake" : "timeout");
-    if (poll_result > 0) {
-      for (size_t i = 0; i < num_descriptors; i++) {
-	auto & d = descriptors[i];
-	if (d.revents) {
-	  count("fd" + std::to_string(i));
-	  if (i != 1) other_wake = true;
-	  if (i == 0) {
+    bool woken = waits.wait(poll_timeout_ms);
+    count(woken ? "wake" : "timeout");
+    if (woken) {
+      for (auto group : { input_group, events_group, stderr_group, midi_group, launchpad_group }) {
+	if (waits.ready(group)) {
+	  count("fd" + std::to_string(group));
+	  if (group != events_group) other_wake = true;
+	  if (group == input_group) {
 	    render |= readInput();
-	  } else if (i == 1) {
+	  } else if (group == events_group) {
 	    auto event = getController().getUIEventQueue().pop();
 	    auto t0 = std::chrono::steady_clock::now();
 	    handleEvent(*event);
@@ -3149,7 +3102,7 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
 	      if (stats_path) { count(typeid(*next_event).name()); if (next_event->needRedraw()) count("redraw:" + std::string(typeid(*next_event).name())); }
 	      if (next_event->needRedraw()) render = true;
 	    }
-	  } else if (i == 2) {
+	  } else if (group == stderr_group) {
 	    char buffer[4096];
 	    int r = read(out_pipe[0], buffer, 4096);
 	    if (real_stderr_fd >= 0 && r > 0) {
@@ -3177,8 +3130,8 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
 		break;
 	      }
 	    }
-	  } else if (i < launchpad_base) {
-	    auto evs = audio.recordMIDI();
+	  } else if (group == midi_group) {
+	    auto evs = midi.readEvents();
 	    // setStatus("got midi events: " + to_string(evs.size()));
 
 	    for (auto & ev : evs) {
@@ -3197,7 +3150,7 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
       }
     }
 
-    if (poll_result > 0 || frame_pending) {
+    if (woken || frame_pending) {
       render_pending |= render;
       auto now = std::chrono::steady_clock::now();
       if (!other_wake && !render_pending && !frame_pending && now - last_frame < kIdleFrameInterval) {

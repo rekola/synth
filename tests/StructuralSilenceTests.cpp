@@ -5,6 +5,7 @@
 #include "../src/ambisonic/AmbisonicMagLSDecoder.h"
 #include "../src/bus/BusEffect.h"
 #include "../src/bus/SendBusProcessor.h"
+#include "../src/bus/BusEffectRegistry.h"
 #include "../src/Controller.h"
 #include "../src/playback/AudioBlockEvent.h"
 #include "../src/playback/VisualizationResultEvent.h"
@@ -93,6 +94,31 @@ TEST(send_bus_holds_a_decayed_tail_before_dropping_it) {
   level->level = 0.5f;
   bus.process(a, b, frames);
   CHECK(bus.isAudible());
+}
+
+// The default reverb's tail stops reaching the mix once it is inaudible,
+// well before it would decay to the denormal guard.
+TEST(send_bus_reverb_tail_goes_silent_once_inaudible) {
+  ChannelConfiguration config(44100, 1);
+  SendBusProcessor bus(config);
+  bus.setSlotEffect(SendBusProcessor::kSlotA, findBusEffectDescriptor(BusEffectKind::Reverb).factory(44100));
+
+  const int frames = 441;
+  AudioBuffer a(1, frames), b(1, frames);
+  b.zero();
+  for (int i = 0; i < frames; i++) a.getChannelData(0)[i] = (i % 2 ? 0.5f : -0.5f);
+  bus.process(a, b, frames);
+  a.zero();
+  // The tail starts after the reverb's predelay.
+  for (int n = 0; n < 100 && !bus.isAudible(); n++) bus.process(a, b, frames);
+  CHECK(bus.isAudible());
+  int blocks = 0;
+  while (bus.isAudible() && blocks < 100 * 60) {
+    bus.process(a, b, frames);
+    blocks++;
+  }
+  CHECK(blocks > 100);      // the tail was heard for more than a second
+  CHECK(blocks < 100 * 30); // and dropped within half a minute
 }
 
 TEST(stereo_mixer_with_nothing_accumulated_has_an_empty_raw_bus_and_encodes_zeros) {

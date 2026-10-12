@@ -1,3 +1,4 @@
+#include "../util/FileOpen.h"
 #include "Song.h"
 
 #include <cstdlib>
@@ -802,7 +803,15 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
   setlocale(LC_ALL, "C");
   
   XMLDocument doc;
-  if (doc.LoadFile(filename.c_str()) != 0) {
+  FILE * song_file = openFile(filename, "rb");
+  if (!song_file) {
+    fmt::print(stderr, "Could not load {}: cannot open file\n", filename);
+    setlocale(LC_ALL, oldLocale.c_str());
+    return false;
+  }
+  const bool parsed = doc.LoadFile(song_file) == 0;
+  fclose(song_file);
+  if (!parsed) {
     // Covers both "file doesn't exist" and "file exists but isn't valid
     // XML" - tinyxml2's own ErrorStr() distinguishes them (and gives a
     // line number for the latter), which a caller-side blanket "file not
@@ -1249,8 +1258,11 @@ Song::save(const std::string & filename) const {
   for (auto & instrument : getInstrumentPool().getInstruments()) {
     storeChildTrack(*instrument, doc, instruments, getInstrumentPool());
   }
-  
-  doc.SaveFile(filename.c_str());
+
+  if (FILE * song_file = openFile(filename, "wb")) {
+    doc.SaveFile(song_file);
+    fclose(song_file);
+  }
 
   setlocale(LC_ALL, oldLocale.c_str());
 }

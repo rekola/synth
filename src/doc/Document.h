@@ -143,8 +143,13 @@ class Document {
   // listeners fire and the edit is visible (and audible) right away. Only
   // the history is merged, when the group ends. Anything else committed
   // meanwhile joins the group.
+  //
+  // A group that is one step of a run of typing (the notes of one chord)
+  // ends with `typing_run`: it then starts the run, or with `join` carries
+  // on the one that was open when the group began, so the next typed edit
+  // or group joins the same entry.
   void beginGroup(const std::string & label);
-  void endGroup();
+  void endGroup(bool typing_run = false, bool join = false);
   bool inGroup() const { return in_group_; }
 
   const std::vector<JournalEntry> & journal() const { return journal_; }
@@ -213,6 +218,7 @@ class Document {
   ImplicitScope * implicit_scope_ = nullptr;
   bool in_group_ = false;
   size_t group_start_ = 0;
+  uint64_t group_run_ = 0; // amalgam_sequence_ when the group began
   std::string group_label_;
 };
 

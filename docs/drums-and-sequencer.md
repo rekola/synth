@@ -28,8 +28,8 @@ Note mode (96) shows a playing surface that follows the track:
 - **Pitched track**: an isomorphic keyboard, the same in every song: pad
   positions map to pitches by fixed intervals of the song's tuning, with the
   song's key at the anchor pad at the device's octave, and the pads are
-  colored by their distance from the tonic. The song's scale is not used here;
-  it decides the step view's rows (below).
+  colored by how consonant their interval to the tonic is (Pad colors, below).
+  The song's scale is not used here; it decides the step view's rows (below).
 
 ## Pad colors
 
@@ -85,7 +85,7 @@ that sound there; a pitched note lasts one step. One sound is selected at a
 time, so chords (several held notes) are not supported yet. Pressing a playing pad both
 selects it and sounds it, and records it as usual while capture is armed.
 On a pitched track, 91 and 92 move the sound the steps edit one scale degree
-up or down (the song's scale; with none chosen, every step of the tuning),
+up or down (the song's scale, `set-song-scale`; with none chosen, every step of the tuning),
 so a degree can be picked without pressing its pad. For a clip longer than 32
 steps, 93 and 94 scroll the window. A lone press of
 95 closes it.

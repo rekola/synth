@@ -1,4 +1,5 @@
 #include "Controller.h"
+#include "util/Paths.h"
 
 #include "model/Song.h"
 #include "model/TrackType.h"
@@ -18,7 +19,7 @@
 #include <filesystem>
 #include <cstdlib>
 
-#include <fmt/core.h>
+#include <fmt/format.h>
 
 using namespace std;
 
@@ -44,7 +45,11 @@ vector<string> splitPathComponents(const string & path) {
   vector<string> parts;
   size_t start = 0;
   while (true) {
+#ifdef _WIN32
+    auto pos = path.find_first_of("/\\", start); // paths there use either
+#else
     auto pos = path.find('/', start);
+#endif
     if (pos == string::npos) {
       parts.push_back(path.substr(start));
       break;
@@ -133,12 +138,13 @@ findDefaultSoundFont() {
   if (fs::is_regular_file("data/FluidR3_GM.sf2", ec)) return "data/FluidR3_GM.sf2";
 
   vector<fs::path> dirs;
-  if (auto home = getenv("HOME")) {
-    dirs.push_back(fs::path(home) / ".local/share/soundfonts");
-    dirs.push_back(fs::path(home) / ".local/share/sounds/sf2");
+  auto user = paths::userDataDir();
+  if (!user.empty()) {
+    dirs.push_back(user / "soundfonts");
+    dirs.push_back(user / "sounds" / "sf2");
   }
-  dirs.push_back("/usr/share/soundfonts");
-  dirs.push_back("/usr/share/sounds/sf2");
+  dirs.push_back(paths::installDataDir() / "soundfonts");
+  dirs.push_back(paths::installDataDir() / "sounds" / "sf2");
 
   const char * preferred[] = {
     "FluidR3_GM.sf2",
@@ -1404,15 +1410,19 @@ Controller::extendClipRecordingClipIfNeeded(int track_id, int absolute_step) {
 void
 Controller::updateUndoGroup() {
   bool want = isAnyClipRecording() || auto_record_sessions_ > 0 || note_held_ || (isNoteCaptureArmed() && getPlaybackInfo().isPlaying());
+  if (undo_group_song_ && (isAnyClipRecording() || auto_record_sessions_ > 0 || (isNoteCaptureArmed() && getPlaybackInfo().isPlaying()))) undo_group_chord_only_ = false;
   if (want == (undo_group_song_ != nullptr)) return;
   if (want) {
     auto song = getCurrentSong();
     if (!song || song->inEdit() || song->document().inGroup()) return;
     song->document().beginGroup("record take");
     undo_group_song_ = song;
+    undo_group_chord_only_ = !isAnyClipRecording() && auto_record_sessions_ == 0 && !(isNoteCaptureArmed() && getPlaybackInfo().isPlaying());
   } else {
     if (undo_group_song_->inEdit()) return; // closed by the next call, from the frame loop
-    undo_group_song_->document().endGroup();
+    // The notes of a chord are one step of the run of typed notes; a take is a step of its own.
+    if (undo_group_chord_only_) undo_group_song_->endTypingGroup();
+    else undo_group_song_->document().endGroup();
     undo_group_song_.reset();
   }
 }

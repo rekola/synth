@@ -1,3 +1,4 @@
+#include "../util/FileOpen.h"
 #include "SampleFileLoader.h"
 
 #include "AudioBuffer.h"
@@ -17,7 +18,7 @@ loadMonoSample(const string & path) {
   SF_INFO sfinfo;
   memset(&sfinfo, 0, sizeof(sfinfo));
 
-  SNDFILE * infile = sf_open(path.c_str(), SFM_READ, &sfinfo);
+  SNDFILE * infile = openSoundFile(path, SFM_READ, &sfinfo);
   if (!infile) return {};
 
   int channels = sfinfo.channels;
@@ -54,7 +55,7 @@ writeMonoSample(const string & path, const AudioBuffer & buffer, int sample_rate
   info.channels = 1;
   info.format = SF_FORMAT_WAV | SF_FORMAT_FLOAT;
 
-  auto file = sf_open(path.c_str(), SFM_WRITE, &info);
+  auto file = openSoundFile(path, SFM_WRITE, &info);
   if (!file) return false;
 
   sf_writef_float(file, buffer.getChannelData(0), static_cast<sf_count_t>(buffer.numberOfFrames()));

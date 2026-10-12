@@ -11,6 +11,7 @@
 
 class AudioAPI;
 class LaunchpadIO;
+class MidiInput;
 class LaunchpadManager;
 class LaunchpadChannelPressureEvent;
 class LaunchpadPadEvent;
@@ -43,7 +44,7 @@ class UI : public UIElement {
   // Spawns the audio/visualization threads, hands off to startUI() (the
   // concrete backend's own main loop) until it returns, then signals both
   // threads to stop and joins them.
-  void start(AudioAPI & audio, LaunchpadIO & launchpad_io, LaunchpadManager & launchpad_manager);
+  void start(AudioAPI & audio, MidiInput & midi, LaunchpadIO & launchpad_io, LaunchpadManager & launchpad_manager);
 
   virtual void setStatus(std::string s) = 0;
 
@@ -97,7 +98,7 @@ protected:
   // backend re-lays out its widgets and moves focus here.
   virtual void viewChanged() { }
 
-  virtual void startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) = 0;
+  virtual void startUI(AudioAPI & audio, MidiInput & midi, LaunchpadIO & launchpad_io) = 0;
 
   // Hook for a concrete UI to wire up whatever per-widget Launchpad
   // callbacks it needs (session/track-move, drum-edit request, ...) -
@@ -149,6 +150,7 @@ protected:
   // (selectMidiInput()); every other audio change goes through the audio
   // thread's own event queue.
   AudioAPI * audio_ = nullptr;
+  MidiInput * midi_ = nullptr;
 
  private:
   void initializeCommands();

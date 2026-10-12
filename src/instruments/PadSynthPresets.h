@@ -134,8 +134,8 @@ inline const PadSynthParams & getPadSynthPreset(const std::string & name) {
   // nonlinearly, filling in the rest of the spectrum - the small handful
   // of dominant partials plus that reshaping is what actually makes this
   // read as a bell rather than a generic tone. Partial positions land at
-  // 1,2,4,5,7,9,11,13,... rather than a plain harmonic series - a real
-  // bell's strike-tone partials aren't simple integer multiples.
+  // 1,2,4,5,7,9,11,13,...: snapped to whole numbers, so still harmonic,
+  // with gaps.
   static const PadSynthParams kBells = preset(
     []{
       OCP o;

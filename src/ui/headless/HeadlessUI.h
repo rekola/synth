@@ -37,7 +37,7 @@ class HeadlessUI : public UI {
   void handleMidiEvent(MidiEvent & ev) override;
 
 protected:
-  void startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) override;
+  void startUI(AudioAPI & audio, MidiInput & midi, LaunchpadIO & launchpad_io) override;
   void wireLaunchpad(LaunchpadManager & launchpad_manager) override;
 
 private:

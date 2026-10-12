@@ -9,6 +9,16 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(GNUInstallDirs)
 
+# The terminal UI, ALSA audio/MIDI, Launchpad and PipeWire exist only for
+# Linux today. Off elsewhere (Windows) the build is the engine, the tests and
+# a render-only `synth` (src/main_render.cpp); see plans/windows-port.md.
+if(WIN32)
+  set(SYNTH_BUILD_INTERACTIVE_DEFAULT OFF)
+else()
+  set(SYNTH_BUILD_INTERACTIVE_DEFAULT ON)
+endif()
+option(SYNTH_BUILD_INTERACTIVE "Build the interactive synth (terminal UI, ALSA, Launchpad)" ${SYNTH_BUILD_INTERACTIVE_DEFAULT})
+
 # Default to an optimized build when the generator supports build types (a
 # plain `cmake -B build` with no CMAKE_BUILD_TYPE otherwise applies no -O
 # flag at all - effectively -O0 - which is a real trap for an audio engine:
@@ -40,6 +50,8 @@ endif()
 # compiler, and GCC warns that passing one by value to a function that isn't
 # inlined would differ between units built with different -march. Everything
 # using them is inline and the whole project is built with one -march.
+# What canvas is built with: no warning flags of ours, and none of its own.
+set(SYNTH_CANVAS_BASE_FLAGS "${CMAKE_CXX_FLAGS} -march=${SYNTH_MARCH} -w")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=${SYNTH_MARCH} -Wall -Wno-psabi -Wsuggest-override -Werror=return-local-addr -Werror=multichar -Werror=enum-compare -Werror=return-type -Werror=conversion-null -Werror=parentheses -Werror=switch -Werror=address -Werror=trigraphs -Werror=pointer-arith -Werror=cast-qual -Werror=non-virtual-dtor ${SYNTH_FP_FLAGS} -Werror=write-strings -Werror=return-local-addr -Wuninitialized -Wno-suggest-override -Werror=sign-conversion -Werror=sign-compare -Werror=sign-promo -Werror=duplicated-cond -Werror=duplicated-branches -Werror=logical-op -Werror=redundant-decls -Werror=cast-align -Wformat=2 -Werror=format -Werror=shadow -Werror=missing-declarations")
 # -Wnull-dereference deliberately not enabled: at -O2 with heavy inlining it
 # produces false positives inside ordinary std::vector/std::unordered_map
@@ -132,6 +144,7 @@ add_library(synth_engine STATIC
 	src/instruments/OscillatorKernel.cpp
 	src/audio/DeviceSettings.cpp
 	src/audio/OfflineRenderer.cpp
+	src/audio/NullAudio.cpp
 	src/audio/SampleFileLoader.cpp
 	src/audio/TimeStretcher.cpp
 	src/model/PatternBlockOps.cpp
@@ -150,6 +163,13 @@ add_library(synth_engine STATIC
 	src/ambisonic/MixerFactory.cpp
 	src/util/Utf8.cpp
 	src/util/ShutdownSignal.cpp
+	src/util/FileOpen.cpp
+	src/cli/CommonOptions.cpp
+	src/util/Notifier.cpp
+	src/util/Paths.cpp
+	src/util/ThreadSupport.cpp
+	src/util/WaitSet.cpp
+	src/launchpad/LaunchpadIO.cpp
 )
 target_include_directories(synth_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 # Vendored code (third_party/) as a SYSTEM include path: headers reached
@@ -161,6 +181,33 @@ target_include_directories(synth_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_include_directories(synth_engine SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 set_source_files_properties(third_party/tinyxml2/tinyxml2.cpp PROPERTIES COMPILE_OPTIONS "-w")
 target_link_libraries(synth_engine PUBLIC m sndfile fmt pthread)
+if(WIN32)
+  target_link_libraries(synth_engine PUBLIC avrt)
+endif()
+
+# canvas (2D drawing for the scopes and meters). Its warnings are its own, so
+# it is built from a plain checkout outside this project's flag set.
+include(FetchContent)
+FetchContent_Declare(canvas
+  GIT_REPOSITORY https://github.com/rekola/canvas
+  GIT_TAG 43a866cbf49ffc14b12cf97d87ee71cf376a20fe)
+FetchContent_GetProperties(canvas)
+if(NOT canvas_POPULATED)
+  FetchContent_Populate(canvas)
+endif()
+set(CANVAS_CXX_FLAGS_SAVED "${CMAKE_CXX_FLAGS}")
+set(CMAKE_CXX_FLAGS "${SYNTH_CANVAS_BASE_FLAGS}")
+set(CANVAS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+if(WIN32)
+  set(CANVAS_BACKEND_CAIRO OFF CACHE BOOL "" FORCE)
+  set(CANVAS_BACKEND_GDIPLUS ON CACHE BOOL "" FORCE)
+endif()
+add_subdirectory(${canvas_SOURCE_DIR} ${canvas_BINARY_DIR} EXCLUDE_FROM_ALL)
+set(CMAKE_CXX_FLAGS "${CANVAS_CXX_FLAGS_SAVED}")
+# Its headers are reached as SYSTEM includes, like third_party/.
+target_include_directories(synth_engine SYSTEM PUBLIC ${canvas_SOURCE_DIR}/include)
+target_link_libraries(synth_engine PUBLIC canvas)
+target_include_directories(synth_engine PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 # libunistring backs src/util/Utf8.h's grapheme-cluster-aware UTF-8
 # truncation/width helpers (used by PatternEditor::renderHeading() to
@@ -259,58 +306,68 @@ configure_file(
 	@ONLY
 )
 
-# add the executable
-add_executable(synth src/main.cpp
-	src/ui/UI.cpp
-	src/audio/AlsaAudio.cpp
-	src/audio/AudioDevices.cpp
-	src/launchpad/LaunchpadIO.cpp
-	src/launchpad/LaunchpadManager.cpp
-	src/ui/headless/HeadlessUI.cpp
-	src/util/Daemon.cpp
-	src/ui/tui/TerminalUI.cpp
-	src/ui/tui/EscapeCoalescer.cpp
-	src/ui/tui/NotcursesInputEventSource.cpp
-	src/ui/tui/OutlineView.cpp
-	src/ui/tui/InfoDialog.cpp
-	src/ui/tui/ChoiceDialog.cpp
-	src/ui/tui/PatternEditor.cpp
-	src/ui/tui/ArrangementGrid.cpp
-	src/ui/tui/InlineEditor.cpp
-	src/ui/tui/ClipGrid.cpp
-	src/ui/tui/ChannelMeter.cpp
-	src/ui/tui/SpectrumMeter.cpp
-	src/ui/tui/SubcellGlyphs.cpp
-)
-target_include_directories(synth PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+if(SYNTH_BUILD_INTERACTIVE)
+  # add the executable
+  add_executable(synth src/main.cpp
+  	src/ui/UI.cpp
+  	src/audio/AlsaAudio.cpp
+  	src/audio/AudioDevices.cpp
+  	src/midi/AlsaMidiInput.cpp
+  	src/midi/AlsaMidiPorts.cpp
+  	src/launchpad/LaunchpadManager.cpp
+  	src/ui/headless/HeadlessUI.cpp
+  	src/util/Daemon.cpp
+  	src/ui/tui/TerminalUI.cpp
+  	src/ui/tui/EscapeCoalescer.cpp
+  	src/ui/tui/NotcursesInputEventSource.cpp
+  	src/ui/tui/OutlineView.cpp
+  	src/ui/tui/InfoDialog.cpp
+  	src/ui/tui/ChoiceDialog.cpp
+  	src/ui/tui/PatternEditor.cpp
+  	src/ui/tui/ArrangementGrid.cpp
+  	src/ui/tui/InlineEditor.cpp
+  	src/ui/tui/ClipGrid.cpp
+  	src/ui/tui/ChannelMeter.cpp
+  	src/ui/tui/SpectrumMeter.cpp
+  	src/ui/SpectrumImage.cpp
+  	src/ui/HeatmapImage.cpp
+  	src/ui/tui/SubcellGlyphs.cpp
+  )
+  target_include_directories(synth PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
-target_link_libraries(synth synth_engine asound notcurses++ notcurses notcurses-core)
+  target_link_libraries(synth synth_engine asound notcurses++ notcurses notcurses-core)
 
-# Optional PipeWire: lets the device pickers and --list-devices list the
-# audio server's own inputs and outputs (AudioDevices.cpp). Selection itself
-# goes through ALSA's pipewire plugin, so nothing else changes; without
-# libpipewire the lists fall back to ALSA's own PCM names, which on a
-# PipeWire system show little more than "default".
-find_package(PkgConfig QUIET)
-if(PkgConfig_FOUND)
-  pkg_check_modules(PIPEWIRE IMPORTED_TARGET libpipewire-0.3)
-endif()
-if(PIPEWIRE_FOUND)
-  set(SYNTH_ENABLE_PIPEWIRE_DEFAULT ON)
-else()
-  set(SYNTH_ENABLE_PIPEWIRE_DEFAULT OFF)
-endif()
-option(SYNTH_ENABLE_PIPEWIRE "Build with libpipewire for listing PipeWire devices" ${SYNTH_ENABLE_PIPEWIRE_DEFAULT})
-if(NOT SYNTH_ENABLE_PIPEWIRE)
-  message(STATUS "libpipewire not used: the device pickers will list sound cards only"
-                 " (install libpipewire-0.3-dev and re-run cmake for the audio server's own list)")
-endif()
-if(SYNTH_ENABLE_PIPEWIRE)
-  if(NOT PIPEWIRE_FOUND)
-    message(FATAL_ERROR "SYNTH_ENABLE_PIPEWIRE requested but libpipewire was not found (install libpipewire-0.3-dev)")
+  # Optional PipeWire: lets the device pickers and --list-devices list the
+  # audio server's own inputs and outputs (AudioDevices.cpp). Selection itself
+  # goes through ALSA's pipewire plugin, so nothing else changes; without
+  # libpipewire the lists fall back to ALSA's own PCM names, which on a
+  # PipeWire system show little more than "default".
+  find_package(PkgConfig QUIET)
+  if(PkgConfig_FOUND)
+    pkg_check_modules(PIPEWIRE IMPORTED_TARGET libpipewire-0.3)
   endif()
-  target_compile_definitions(synth PRIVATE SYNTH_HAVE_PIPEWIRE)
-  target_link_libraries(synth PkgConfig::PIPEWIRE)
+  if(PIPEWIRE_FOUND)
+    set(SYNTH_ENABLE_PIPEWIRE_DEFAULT ON)
+  else()
+    set(SYNTH_ENABLE_PIPEWIRE_DEFAULT OFF)
+  endif()
+  option(SYNTH_ENABLE_PIPEWIRE "Build with libpipewire for listing PipeWire devices" ${SYNTH_ENABLE_PIPEWIRE_DEFAULT})
+  if(NOT SYNTH_ENABLE_PIPEWIRE)
+    message(STATUS "libpipewire not used: the device pickers will list sound cards only"
+                   " (install libpipewire-0.3-dev and re-run cmake for the audio server's own list)")
+  endif()
+  if(SYNTH_ENABLE_PIPEWIRE)
+    if(NOT PIPEWIRE_FOUND)
+      message(FATAL_ERROR "SYNTH_ENABLE_PIPEWIRE requested but libpipewire was not found (install libpipewire-0.3-dev)")
+    endif()
+    target_compile_definitions(synth PRIVATE SYNTH_HAVE_PIPEWIRE)
+    target_link_libraries(synth PkgConfig::PIPEWIRE)
+  endif()
+
+else()
+  add_executable(synth src/main_render.cpp)
+  target_include_directories(synth PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+  target_link_libraries(synth synth_engine)
 endif()
 
 install(TARGETS synth RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

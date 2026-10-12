@@ -2210,8 +2210,13 @@ PatternEditor::offerInputKey(const InputEvent & input) {
 	// lands on the same row.
 	bool hold_tracked_note = false;
 
+	// The group of a chord opens before the first write, not inside it.
+	if (midi_note >= 0 && !is_delete && !is_off && input.getKind() != InputEvent::Kind::UNKNOWN && active_keyboard_notes_.empty()) getController().setNoteHeld(true);
+
 	if (is_delete || midi_note >= 0 || is_off) {
-	  Song::Edit edit(song, "enter note", Song::Edit::Kind::CONTENT);
+	  // Typed notes, offs and deletes undo as a run, like typed digits; the keys of a chord are
+	  // already one group, which joins the run when it ends.
+	  Song::Edit edit(song, "enter note", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, !song.document().inGroup());
 	  if (is_delete) {
 	    edit_target.pattern->deleteNote(edit_target.effective_row, note_column);
 	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, getController().getActiveBufferName(), track_id, note_column));
@@ -2241,7 +2246,6 @@ PatternEditor::offerInputKey(const InputEvent & input) {
 	    // steps once when the last key lifts (pending_step_). Nothing starts
 	    // the transport; only a transport that already runs moves the row.
 	    bool was_first_held_note = has_hold_info && active_keyboard_notes_.empty();
-	    if (was_first_held_note) getController().setNoteHeld(true); // before the first write: a chord is one undo step
 
 	    if (input.hasShift()) {
 	      note_column = edit_target.pattern->pushNote(edit_target.effective_row, note);

@@ -27,8 +27,8 @@ cmake --build build -j
 Produces `build/synth`.
 
 Dependencies (Ubuntu): `libnotcurses-dev libnotcurses++-dev libfmt-dev
-libsndfile1-dev libasound2-dev libunistring-dev libsoundtouch-dev` plus
-CMake and a C++17 compiler. The C++ bindings (`ncpp/NotCurses.hh`, what
+libsndfile1-dev libasound2-dev libunistring-dev libsoundtouch-dev
+libcairo2-dev` plus CMake, pkg-config, git and a C++17 compiler. The C++ bindings (`ncpp/NotCurses.hh`, what
 `main.cpp`/`TerminalUI.cpp` include) ship in `libnotcurses++-dev`, a
 separate package `libnotcurses-dev` does not pull in as a dependency —
 both are required. `libunistring-dev` backs `src/util/Utf8.h`'s
@@ -43,6 +43,18 @@ degraded resample-based fallback would also shift pitch, a correctness
 defect this codebase won't ship. FFT support (the live spectrum analyzer,
 MagLS binaural precomputation) is via vendored PocketFFT
 (`third_party/pocketfft/`) — no separate FFT library package needed.
+canvas (`rekola/canvas`, 2D drawing for the scopes and meters, drawn as
+pixels with Cairo) is fetched at configure time at a pinned commit
+(`FetchContent` in `CMakeLists.txt`, built with none of our warning flags, its
+headers reached as SYSTEM includes; GDI+ on Windows); bump the pin when canvas
+changes. `src/ui/SpectrumImage.{h,cpp}` and `src/ui/HeatmapImage.{h,cpp}` are
+the users so far: the pixel spectrum (`TerminalPixelSpectrumMeter`) and the
+pixel DirAC heatmap (`TerminalPixelHeatmapChart`, its axis labels still
+drawn over the result) are images they draw with canvas, blitted by the
+terminal. An `ImageData` handed to canvas to draw is read in the surface's
+own layout (bytes B, G, R, A, premultiplied), not as RGBA; what is read back
+is the same layout, and the renderers return RGBA. The cell (braille)
+paths, the level meters and `ChannelMeter` are not on canvas yet.
 `libpipewire-0.3-dev` is optional too (`SYNTH_ENABLE_PIPEWIRE`,
 auto-detected, and cmake says so when it isn't used): it only backs
 `src/audio/AudioDevices.cpp`'s listing of the audio server's own inputs and
@@ -54,6 +66,28 @@ it is, "(PipeWire)" or "(ALSA sound cards)".
 `libmysofa-dev` is optional (binaural ambisonic decoding,
 `SYNTH_ENABLE_BINAURAL`, auto-detected) — without it, `--ambisonic` still
 works via the cardioid stereo decoder fallback.
+
+### Windows
+
+User-facing build instructions are in `docs/building.md`. Windows builds with MSYS2 UCRT64 (MinGW-w64 GCC; the DSP code needs GCC vector
+extensions), packages `mingw-w64-ucrt-x86_64-{gcc,cmake,ninja,fmt,libsndfile,
+soundtouch,libunistring,python}`. `SYNTH_BUILD_INTERACTIVE` (default ON, OFF on
+Windows) selects between the full `synth` and the render-only one
+(`src/main_render.cpp`: `--render`, `--help`, `--licenses` and the options
+`--render` honours, parsed by `src/cli/CommonOptions.*`, shared with
+`main.cpp`); with it OFF the terminal UI, ALSA, Launchpad and PipeWire sources
+aren't built and `EscapeCoalescerTests` is left out. `.github/workflows/
+ci-windows-x86_64.yml` builds, runs ctest and renders songs. The `#ifdef
+_WIN32`s this needed live in small platform helpers: `util/Paths.h` (the
+config dir `%APPDATA%\synth`, the user and installed data dirs, the executable's
+dir and the installed default song - `DeviceSettings`, `findDefaultSoundFont()`
+and `findDefaultSofaFile()` only add sub-paths to these),
+`util/ThreadSupport.h` (thread names via `SetThreadDescription`;
+`AudioThreadPriority`, MMCSS "Pro Audio" on Windows and nothing on Linux, held
+by the audio thread), `ShutdownSignal.cpp` (a console control handler for
+Ctrl-C and the console closing), `Daemon.cpp` (`--daemon` says it is unsupported
+and exits), `Notifier.h` and `AudioBuffer.h` (aligned allocation). Files open by
+UTF-8 path through `util/FileOpen.h`.
 
 ## Run
 
@@ -86,13 +120,13 @@ named in a private one-PCM config (`openPcm()`, `AlsaAudio.cpp`), so period
 sizes, polling, delay queries and xrun recovery stay the one ALSA path for
 every device. `Controller::setCaptureDevice()`/`setPlaybackDevice()` save the
 choice and push `SET_CAPTURE_DEVICE`/`SET_PLAYBACK_DEVICE`: the audio thread
-owns the PCM handles, so `Player` makes the switch and rebuilds its poll set
-(`devices_changed_`). A switch that can't happen - the node is gone, the
+owns the PCM handles, so `Player` makes the switch (`devices_changed_`; the
+backend's `wait()` rebuilds its own set each call). A switch that can't happen - the node is gone, the
 rate or block size can't match the running song, capture is in use - logs why
 and keeps the current device. MIDI is read on the UI thread, so
 `UI::selectMidiInput()` connects it there instead, never through an event; a
 chosen source that is unplugged is reconnected when its port reappears
-(`AlsaAudio::recordMIDI()`). A saved device that is missing at startup falls
+(`AlsaMidiInput::readEvents()`). A saved device that is missing at startup falls
 back to the default, with the choice kept. A node name that doesn't exist is
 rejected up front (`playbackDeviceExists()`/`captureDeviceExists()`) because
 the server silently substitutes the default input for an unknown one.
@@ -104,6 +138,22 @@ Identical labels are told apart by where the device is plugged in
 cut down to the USB port; the node name if none), numbered as a last resort.
 `tools/e2e/verify_device_selection.py` drives the pickers against a real
 PipeWire (and skips without one).
+
+**Waiting.** Nothing outside a backend sees a file descriptor of the audio
+device: `Player` calls `AudioAPI::wait(notifier, want_capture, timeout)` and
+gets back which of woken/playback/capture is ready (`WaitResult`). The wakeup
+is `util/Notifier.h` (level-triggered; eventfd on Linux, a condition variable
+elsewhere), which `EventQueue` raises while it holds events. `AlsaAudio::wait()`
+polls the notifier's fd with its streams' own (capture's masked off while not
+wanted: an unstarted capture stream is "ready" forever). `NullAudio`
+(`--null-audio`) takes blocks at the pace of the clock with no device, so the
+real `Player` loop runs on machines without sound hardware (CI, tests). MIDI input
+is `midi/MidiInput.h` (`readEvents()` on the UI thread, `AlsaMidiInput`) and
+Launchpad I/O sits on a `midi/MidiPorts.h` `MidiPortBackend` (`AlsaMidiPorts`),
+neither part of `AudioAPI`. The UI loops block on a `util/WaitSet.h` (groups of
+`Notifier`s and, on POSIX, file descriptors) that each source adds itself to
+(`addTo()`), and read a source when its group is ready; `LaunchpadIO` is
+platform-neutral and tested against a fake backend.
 
 `--render` needs no terminal or audio device: it renders the song offline
 (plus the effect/release tail until silence, capped at 10 s) and exits — use
@@ -600,7 +650,7 @@ would otherwise resume showing.
   below it, overwriting what is there (`duplicateClip()`,
   `ArrangementOps.h` - an independent copy under a fresh id; an overwritten
   clip's arrangement placements go with it). One hold can copy several
-  clips. The terminal has no such command: a clip is duplicated by copying it in the clip grid and yanking it onto another slot (`docs/terminal.md`).
+  clips. There is no such command: a clip is duplicated by copying it in the clip grid and yanking it onto another slot (`docs/user-interface.md`).
 - **Select a clip** (shift + pad, `Controller::selectClipSlot()`) - moves the
   shared track cursor and the clip grid's cursor onto that slot, empty ones
   included, without launching or opening anything, so it is where the next
@@ -952,8 +1002,11 @@ would otherwise resume showing.
   place - green for playing (▸) or queued (▹), dim green (▸) while the
   transport is paused, red for recording (●) or
   queued to record (○), dim red for an armed track's empty slot (○) or a
-  take queued to stop (●). Terminal cells can't pulse, so the glyph's
-  shape tells queued from running.
+  take queued to stop (●) - and a clip's slot background takes the state
+  color too, pulsing like the pad (`statePulse()` in `ClipGrid.cpp`: playing
+  and recording pulse smoothly over a second between the color and a shade
+  60% darker, the queued states flash every 250 ms), so the glyph's shape is
+  what tells queued from running without motion.
   The last column is the master's, scrolling with the tracks: its slots
   launch a whole scene (`LaunchpadManager::launchScene()`), its last row
   stops every track, and its Sends row shows its Send Main/A/B. Sends
@@ -1361,7 +1414,12 @@ would otherwise resume showing.
   full stereo block of zeros: the device needs a continuous stream.
   `SongState::getAuxASum()`/`getAuxBSum()` are likewise empty unless a track
   sent, and `AudioBlockEvent` is built from those, sent every block either
-  way. `VisualizationThread` answers an empty raw bus with zero loudness and,
+  way. Silence is made at the sources, so nothing downstream tests samples: a voice
+  ends once it falls below `constants::SILENCE_KILL_FLOOR_DB` in its release
+  or for good in its sustain (`SoundFontVoice::render()`,
+  `EnvelopeFilterDsp::applyEffect()`), and the send bus stops reaching the mix
+  once its output stays under `kBusAudibleFloor` (-100 dBFS). `VisualizationThread`
+  answers an empty raw bus with zero loudness and,
   until the spectrum (`SpectrumAnalyzer::atRest()`) and DirAC
   (`DiracAnalyzer::atRest()`) hold zeros and have said so, with real zero
   blocks fed to them; after that a result carries only the meter reading and
@@ -1504,8 +1562,8 @@ would otherwise resume showing.
   must compile warning-clean.
 - A command only a pad controller dispatches (nothing else registers it) is
   named with a `pad-` prefix (`pad-next-track`), not `launchpad-`: other
-  devices can use it too. A pad gesture whose terminal equivalent is
-  copy/kill/yank gets no command of its own (`docs/terminal.md`).
+  devices can use it too. A pad gesture whose keyboard equivalent is
+  copy/kill/yank gets no command of its own (`docs/user-interface.md`).
 - Where a well-known convention exists in the lineage this project draws on,
   prefer it to inventing something new, and where a document records the
   lineage (`docs/drums-and-sequencer.md`, the README), keep it accurate. Add a
@@ -1537,7 +1595,7 @@ would otherwise resume showing.
   when the published content no longer matches the model.
 - Undo (`doc/UndoHistory.h`, `Song::undo()`/`redo()`, the `undo` and
   `undo-redo` commands from `Controller`; bindings and the Launchpad's shift +
-  Record Arm / Mute in `docs/terminal.md`/`docs/launchpad.md`): the Emacs
+  Record Arm / Mute in `docs/user-interface.md`/`docs/launchpad.md`): the Emacs
   policy over the journal. An undo appends the inverse of an earlier entry, so
   nothing is dropped and undoing an undo is a redo; the run of undos is broken
   only by a tracked edit (cursor moves are not edits), and `Origin::SYNC`
@@ -1556,7 +1614,8 @@ would otherwise resume showing.
   (`Document::begin(..., amalgamate)`) while the run is unbroken
   (`Song::breakTypingRun()` from `PatternEditor` on any non-typing key, an
   idle gap, `kTypingRunLimit`), so velocity/delay digits and command
-  characters undo together; note entry does not use it yet. An undo or redo whose change
+  characters and typed notes undo together (the keys of a chord are a group, `Document::endGroup(typing_run, join)` /
+  `Song::endTypingGroup()`, that is one step of the run). An undo or redo whose change
   is in a clip that is playing, queued or recording is refused
   (`Song::nextUndoPlace()`/`nextRedoPlace()` say where it would land before it
   does). Held note keys keep a group open
