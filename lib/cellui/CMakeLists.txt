@@ -36,6 +36,7 @@ add_library(cellui STATIC
   src/SubcellGlyphs.cpp
   src/Utf8.cpp
   src/term/Discovery.cpp
+  src/term/FrameEncoder.cpp
   src/term/InputParser.cpp
   src/term/TermEvent.cpp)
 target_include_directories(cellui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -57,6 +58,7 @@ add_executable(cellui_tests
   tests/ColorTests.cpp
   tests/DiscoveryTests.cpp
   tests/ElementTests.cpp
+  tests/FrameEncoderTests.cpp
   tests/GalleryTests.cpp
   tests/HeatmapChartTests.cpp
   tests/InfoDialogTests.cpp
