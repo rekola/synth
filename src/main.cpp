@@ -10,7 +10,9 @@
 #include "midi/MidiInput.h"
 #include "midi/MidiPorts.h"
 #include "launchpad/LaunchpadManager.h"
+#ifdef SYNTH_TERMINAL_UI
 #include "ui/tui/TerminalUI.h"
+#endif
 #include "ui/headless/HeadlessUI.h"
 #include "util/Daemon.h"
 #include "util/ShutdownSignal.h"
@@ -24,10 +26,14 @@
 #include <cstring>
 #include <filesystem>
 #include <signal.h>
+#ifdef SYNTH_TERMINAL_UI
 #include <termios.h>
 #include <unistd.h>
+#endif
 
+#ifdef SYNTH_TERMINAL_UI
 #include <ncpp/NotCurses.hh>
+#endif
 #include <fmt/core.h>
 
 using namespace std;
@@ -240,6 +246,11 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
+#ifndef SYNTH_TERMINAL_UI
+  (void)initial_view;
+  fmt::print(stderr, "This build has no terminal UI; use --headless\n");
+  return 1;
+#else
   // notcurses_options nopts{};
   // nopts.flags = NCOPTION_INHIBIT_SETLOCALE;
   auto nc = make_shared<ncpp::NotCurses>();
@@ -275,4 +286,5 @@ int main(int argc, char *argv[]) {
   ui.start(audio, *midi, launchpad_io, launchpad_manager);
 
   return 0;
+#endif
 }

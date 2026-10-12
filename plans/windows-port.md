@@ -204,7 +204,7 @@ executable) is settled by step 6.
 - CI builds all of these; nothing can run against real devices there -
   `NullAudio` covers the `Player` loop.
 
-## Step 5 - `--headless` on Windows
+## Step 5 - `--headless` on Windows (built, not yet run with devices)
 
 With steps 1-4, `HeadlessUI` (no terminal) should work: play a song, MIDI
 input, sample recording, a Launchpad as the performance surface. This is the

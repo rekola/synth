@@ -72,12 +72,13 @@ works via the cardioid stereo decoder fallback.
 
 User-facing build instructions are in `docs/building.md`. Windows builds with MSYS2 UCRT64 (MinGW-w64 GCC; the DSP code needs GCC vector
 extensions), packages `mingw-w64-ucrt-x86_64-{gcc,cmake,ninja,fmt,libsndfile,
-soundtouch,libunistring,python}`. `SYNTH_BUILD_INTERACTIVE` (default ON, OFF on
-Windows) selects between the full `synth` and the render-only one
+soundtouch,libunistring,python}`. `SYNTH_BUILD_INTERACTIVE` (default ON) selects between the full `synth` and the render-only one
 (`src/main_render.cpp`: `--render`, `--help`, `--licenses` and the options
 `--render` honours, parsed by `src/cli/CommonOptions.*`, shared with
-`main.cpp`); with it OFF the terminal UI, ALSA, Launchpad and PipeWire sources
-aren't built and `EscapeCoalescerTests` is left out. `.github/workflows/
+`main.cpp`); `SYNTH_BUILD_TERMINAL_UI` (default ON, OFF on Windows) adds the
+notcurses UI (`SYNTH_TERMINAL_UI` in `main.cpp`, `EscapeCoalescerTests`), so
+Windows has the full program run with `--headless` (`tools/smoke_headless.py`
+in CI); ALSA and PipeWire sources are Linux only. `.github/workflows/
 ci-windows-x86_64.yml` builds, runs ctest and renders songs. The `#ifdef
 _WIN32`s this needed live in small platform helpers: `util/Paths.h` (the
 config dir `%APPDATA%\synth`, the user and installed data dirs, the executable's
