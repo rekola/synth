@@ -278,7 +278,7 @@ ClipGrid::startClipRename(const Song & song, const std::vector<int> & track_ids)
   field.width = edit_width;
   field.initial_text = clip.getName();
   field.text_color = getPlane().getStyles().clip_text_color;
-  field.backdrop = structure.getBaselineInfo(track_id).getColor().blend(0.05f, Color(0, 0, 0));
+  field.backdrop = structure.getBaselineInfo(track_id).getColor(getPlane().getStyles().tracks).blend(0.05f, Color(0, 0, 0));
   inline_editor_.open(field, [this, track_id, clip_row](std::string text) {
     auto & target_song = getController().getSong();
     auto target_clips = target_song.getClips(track_id);
@@ -778,7 +778,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
           auto clip_name_width = kColWidth - 3 - trailing; // marker + "▸ " + the trailing columns
           auto name_field = Utf8::padToWidth(Utf8::truncateToWidth(name, clip_name_width), clip_name_width);
           text = fmt::format("{}▸ {}", marker, name_field);
-          row_bg = structure.getBaselineInfo(track_id).getColor();
+          row_bg = structure.getBaselineInfo(track_id).getColor(styles.tracks);
         } else {
           // Without a stop button, launching the slot does nothing.
           bool stops = clip_row >= clips.size() || clips[clip_row].hasStopButton();

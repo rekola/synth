@@ -17,6 +17,7 @@ class StyleProvider {
   // Sets every colour from the theme's tokens.
   void applyTheme(const Theme & t) {
     theme = t;
+    tracks = t.tracks;
     highlight_fg_color = t.text_on_accent;
     highlight_bg_color = t.accent;
     highlight_unfocused_bg_color = t.accent_dim;
@@ -65,6 +66,10 @@ class StyleProvider {
   }
 
   Theme theme;
+
+  // A track's identity colour, from the theme's palette.
+  TrackPalette tracks;
+  Color trackColor(int ordinal) const { return tracks.color(ordinal); }
 
   // Cursor and playhead colors lean cyan, so they never read as the
   // neutral grey bar/beat highlighting.

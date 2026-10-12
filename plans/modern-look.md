@@ -127,8 +127,13 @@ Themes are data:
    only derives from it. The track colours and the tracker-view line colour
    get their tokens in step 4.
 4. **Apply in the terminal:**
-   - the new surfaces and neutrals;
-   - track colours from the formula;
+   - the new surfaces and neutrals; Done: `Theme::dark()`/`light()` hold
+     them, today's look is `Theme::original()`, `--theme` and the
+     `select-theme` command choose (dark by default);
+   - track colours from the formula; Done: `TrackPalette` in the theme (the
+     Launchpad takes the modern palette's hues in every theme). The formula's
+     arcs keep the first eight tracks 35 degrees from the clip state hues; a
+     later track can come within 18 degrees of red;
    - fewer lines, but not between tracks in the tracker view;
    - the icon list;
    - fades for state changes.

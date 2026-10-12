@@ -1022,7 +1022,7 @@ PatternEditor::startTrackNameEdit() {
   field.width = edit_width;
   field.initial_text = track->getName();
   field.text_color = last_styles_->clip_text_color;
-  field.backdrop = track_info.getColor().blend(0.05f, Color(0, 0, 0));
+  field.backdrop = track_info.getColor(getPlane().getStyles().tracks).blend(0.05f, Color(0, 0, 0));
   inline_editor_.open(field, [this, track_id](std::string text) {
     auto & target_song = getController().getSong();
     if (target_song.getMasterTrack().getChildByInternalId(track_id)) {
@@ -2463,7 +2463,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
     // brightened-when-selected one.
     auto track_base_color = [&](const Track * t) -> Color {
       auto vis_info = get_track_info(t);
-      if (level == 0 && vis_info && vis_info->color_ordinal_ >= 0) return vis_info->getColor();
+      if (level == 0 && vis_info && vis_info->color_ordinal_ >= 0) return vis_info->getColor(styles.tracks);
       // Fixed, not depth-shaded grey like every other ancestor box below -
       // there's only ever one master per song.
       if (t->getType() == TrackType::MASTER) return styles.master_track_color;
@@ -3259,7 +3259,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       // fixed foreground colors) deliberately - this is a background-only
       // cue, not a general dim/tint the way is_neighboring_pattern/
       // is_repeat_row are.
-      if (drawn_as_instance) bg = bg.blend(0.2f, track_info.getColor());
+      if (drawn_as_instance) bg = bg.blend(0.2f, track_info.getColor(styles.tracks));
       // VELOCITY/DELAY's own fixed bright colors and EFFECT's own
       // command_column_color (below) are picked independently of fg/bg -
       // tuned for contrast against the *undimmed* row background - so
@@ -3375,7 +3375,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  // real content behind this one cell needs to read as "there's
 	  // something here" at a glance, not blend into the row the way an
 	  // ordinary tinted cell is meant to.
-	  if (drawn_as_instance) setBgColor((cell_is_selected ? cur_bg : tintForPlayhead(bg)).blend(0.5f, track_info.getColor()));
+	  if (drawn_as_instance) setBgColor((cell_is_selected ? cur_bg : tintForPlayhead(bg)).blend(0.5f, track_info.getColor(styles.tracks)));
 	  auto width = std::max(track_info.getTrackWidth() - 1, 0);
 	  putstr(display_row, current_pos, std::string(static_cast<size_t>(width), ' '));
 	  // An instance's own content never shows the "·" - it's specifically
@@ -3452,7 +3452,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	    // dim_fixed_color() (which only ever pulls toward black) - then
 	    // waveformFg() layers the playhead/selection cue on top (see its
 	    // own comment).
-	    auto waveform_fg = track_info.getColor().blend(0.35f, styles.window_fg_color);
+	    auto waveform_fg = track_info.getColor(styles.tracks).blend(0.35f, styles.window_fg_color);
 	    renderWaveformRow(peaks, wf_row, width, waveformFg(waveform_fg), waveformBg(), current_pos);
 	    // renderWaveformRow() leaves both fg/bg at whatever its own last
 	    // cell's quantized colors were, not cell_fg/cell_bg - restore both
@@ -3703,7 +3703,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	right_is_instance = source_->hasInstance(next_track_id, address);
 	if (right_is_instance && !in_selection) {
 	  auto next_it = all_track_info.find(next_track_id);
-	  if (next_it != all_track_info.end()) right_bg = right_bg.blend(0.2f, next_it->second.getColor());
+	  if (next_it != all_track_info.end()) right_bg = right_bg.blend(0.2f, next_it->second.getColor(styles.tracks));
 	}
       }
 
