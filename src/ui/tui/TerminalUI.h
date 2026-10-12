@@ -19,7 +19,7 @@ namespace ncpp {
 
 class UIMenu;
 class SpectrumMeter;
-class HeatmapChart;
+#include "../HeatmapChart.h"
 class ChannelMeter;
 class InfoLine;
 class StatusLine;

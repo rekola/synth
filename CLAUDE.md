@@ -1313,9 +1313,11 @@ would otherwise resume showing.
   `getAppContext()`, which `UIElement::getController()` casts back; input is
   `cellui::Input`), and the widget base `Element` (`Element.h`: the plane,
   drawing, the keymap and prefix-chord dispatch; the app's `UIElement` adds the
-  event handler, `InputEvent` and the controller). The old paths (`util/Utf8.h`, `ui/Markdown.h`,
+  event handler, `InputEvent` and the controller), and the 2D grid chart contract
+  `HeatmapChart` (`HeatmapChart.h`, with the fixed hue and the HSV helper its
+  renderers share). The old paths (`util/Utf8.h`, `ui/Markdown.h`,
   `ui/ChoiceList.h`, `ui/tui/SubcellGlyphs.h`, `model/Color.h`, `ui/Keymap.h`, `ui/CommandRegistry.h`, `ui/KeyChord.h`, `ui/Theme.h`,
-  `ui/StyleProvider.h`, `ui/UIPlane.h`) are forwarding
+  `ui/StyleProvider.h`, `ui/UIPlane.h`, `ui/HeatmapChart.h`) are forwarding
   headers with aliases (`Utf8`, `markdown`, `Color`, ...), so call sites did not
   change; `UIMenu` and the rest follow, one slice
   at a time, as the library's types stop needing `Controller` and the event
