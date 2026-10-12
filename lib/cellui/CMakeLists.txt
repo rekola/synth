@@ -33,6 +33,7 @@ add_library(cellui STATIC
   src/InlineEditor.cpp
   src/LineEditor.cpp
   src/Markdown.cpp
+  src/MenuBar.cpp
   src/SpectrumMeter.cpp
   src/SubcellGlyphs.cpp
   src/Utf8.cpp
@@ -77,6 +78,7 @@ add_executable(cellui_tests
   tests/KeymapTests.cpp
   tests/LevelMeterTests.cpp
   tests/LineEditorTests.cpp
+  tests/MenuBarTests.cpp
   tests/MeterTests.cpp
   tests/Utf8Tests.cpp)
 if(NOT WIN32)
