@@ -39,6 +39,7 @@ add_executable(cellui_tests
   tests/ColorTests.cpp
   tests/MarkdownTests.cpp
   tests/SubcellGlyphsTests.cpp
+  tests/KeymapTests.cpp
   tests/Utf8Tests.cpp)
 target_link_libraries(cellui_tests PRIVATE cellui)
 add_test(NAME cellui_tests COMMAND cellui_tests)

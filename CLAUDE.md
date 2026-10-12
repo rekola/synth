@@ -1302,8 +1302,10 @@ would otherwise resume showing.
   libunistring dependency. So far it holds the leaves that never depended on
   the app: `Color` (`#rgb` now means each digit doubled), `utf8` (grapheme-
   aware width, truncation and padding), `markdown` (the tiny subset the info
-  dialogs use), `ChoiceList`, and the sub-cell glyph tables and two-colour
-  quantizer (`SubcellGlyphs.h`). The old paths (`util/Utf8.h`, `ui/Markdown.h`,
+  dialogs use), `ChoiceList`, the sub-cell glyph tables and two-colour
+  quantizer (`SubcellGlyphs.h`), and the key chord packing, `Keymap` and
+  `CommandRegistry` (the app's `KeyChord::pack(InputEvent)` overload stays in
+  `src/ui/KeyChord.h`). The old paths (`util/Utf8.h`, `ui/Markdown.h`,
   `ui/ChoiceList.h`, `ui/tui/SubcellGlyphs.h`, `model/Color.h`) are forwarding
   headers with aliases (`Utf8`, `markdown`, `Color`, ...), so call sites did not
   change; `UIPlane`, `UIMenu`, the input event and the rest follow, one slice
