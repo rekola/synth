@@ -29,9 +29,9 @@ TEST(gallery_page_matches_the_golden_text) {
   std::string page = renderPage(rows);
   std::string path = std::string(CELLUI_TEST_DIR) + "/golden/gallery.txt";
   if (std::getenv("CELLUI_UPDATE_GOLDEN")) {
-    std::ofstream(path) << page;
+    std::ofstream(path, std::ios::binary) << page;
   }
-  std::ifstream in(path);
+  std::ifstream in(path, std::ios::binary);
   CHECK(in.good());
   std::stringstream expected;
   expected << in.rdbuf();
