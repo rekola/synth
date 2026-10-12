@@ -1,6 +1,7 @@
 #include <cellui/Gallery.h>
 
 #include <cellui/ChoiceList.h>
+#include <cellui/InfoDialog.h>
 #include <cellui/Markdown.h>
 #include <cellui/SubcellGlyphs.h>
 #include <cellui/Utf8.h>
@@ -73,7 +74,7 @@ Color readableOn(const Color & bg) {
 
 }  // namespace
 
-int drawGallery(UIPlane & plane, const Theme & theme) {
+Gallery::Gallery(UIPlane & plane, const Theme & theme) {
   const StyleProvider & styles = plane.getStyles();
   int width = plane.getDim().second;
 
@@ -199,7 +200,13 @@ int drawGallery(UIPlane & plane, const Theme & theme) {
   page.text(0, "entry " + std::to_string(list.selected() + 1) + " of " + std::to_string(list.count()));
   page.skip();
 
-  return page.row();
+  page.skip();
+  page.heading("Info dialog");
+  dialog_.show(plane, "About", "# Cell UI\n\nA small *toolkit* for **text** interfaces, drawn here from Markdown.", 44, 10);
+  dialog_.move(page.row(), 0);
+  page.skip(dialog_.rows());
+
+  rows_ = page.row();
 }
 
 }  // namespace cellui

@@ -50,3 +50,11 @@ Choice list
  Device 5
  Device 6
 entry 6 of 8
+
+Info dialog
+┌─ About ──────────────────────────────────┐
+│ Cell UI                                  │
+│                                          │
+│ A small toolkit for text interfaces,     │
+│ drawn here from Markdown.                │
+└──────────────────────────────────────────┘

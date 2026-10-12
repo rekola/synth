@@ -159,8 +159,8 @@ of the switch.
    `UIMenu` and `offerInput(const Input &)` too, and the gallery app has started: a
    headless `BufferPlane` over a `CellBuffer` draws the page of what the library
    has so far (styles, tokens, glyphs, text, Markdown, a choice list), checked
-   against a golden file. The 1D charts and the dialogs, menus and icons for the
-   page are next.
+   against a golden file. `InfoDialog` is in the library too, and the page shows it. The 1D charts and
+   the other dialogs, menus and icons for the page are next.
 5. The terminal backend replaces notcurses. Same look, same e2e results.
 6. Icons: the app's icon list, Kitty graphics/Sixel/glyph fallback, menu
    icons.

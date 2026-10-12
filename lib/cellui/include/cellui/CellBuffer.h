@@ -36,6 +36,16 @@ class CellBuffer {
   int rows() const { return rows_; }
   int cols() const { return cols_; }
   const Cell & at(int row, int col) const { return cells_[index(row, col)]; }
+  // Replaces one cell (a double-width character is a lead cell followed by
+  // its continuation cell; the caller sets both).
+  void put(int row, int col, const Cell & cell) {
+    if (row >= 0 && row < rows_ && col >= 0 && col < cols_) cells_[index(row, col)] = cell;
+  }
+  // A cell nothing was written to (or that was erased): transparent when a
+  // plane is drawn over another.
+  static bool isBlank(const Cell & c) {
+    return c.text == " " && !c.fg && !c.bg && !c.bold && !c.italic && !c.underline && !c.continuation;
+  }
 
   // Writes `text` from (row, col) in `style`, clipped to the rectangle
   // [clip_row, clip_row + clip_rows) x [clip_col, clip_col + clip_cols) and

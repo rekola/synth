@@ -27,6 +27,7 @@ add_library(cellui STATIC
   src/BufferPlane.cpp
   src/CellBuffer.cpp
   src/Gallery.cpp
+  src/InfoDialog.cpp
   src/Markdown.cpp
   src/SubcellGlyphs.cpp
   src/Utf8.cpp)
@@ -49,6 +50,7 @@ add_executable(cellui_tests
   tests/ElementTests.cpp
   tests/GalleryTests.cpp
   tests/HeatmapChartTests.cpp
+  tests/InfoDialogTests.cpp
   tests/MarkdownTests.cpp
   tests/ThemeTests.cpp
   tests/SubcellGlyphsTests.cpp
