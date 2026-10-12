@@ -9,15 +9,17 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(GNUInstallDirs)
 
-# The terminal UI, ALSA audio/MIDI, Launchpad and PipeWire exist only for
-# Linux today. Off elsewhere (Windows) the build is the engine, the tests and
-# a render-only `synth` (src/main_render.cpp); see plans/windows-port.md.
+# The full `synth` (--headless, the Launchpad, live MIDI and audio) builds
+# everywhere; OFF gives the engine, the tests and a render-only `synth`
+# (src/main_render.cpp). The terminal UI (notcurses) exists only for Linux
+# today, so Windows gets the full program without it.
+option(SYNTH_BUILD_INTERACTIVE "Build the full synth (headless mode, Launchpad, live audio/MIDI)" ON)
 if(WIN32)
-  set(SYNTH_BUILD_INTERACTIVE_DEFAULT OFF)
+  set(SYNTH_BUILD_TERMINAL_UI_DEFAULT OFF)
 else()
-  set(SYNTH_BUILD_INTERACTIVE_DEFAULT ON)
+  set(SYNTH_BUILD_TERMINAL_UI_DEFAULT ON)
 endif()
-option(SYNTH_BUILD_INTERACTIVE "Build the interactive synth (terminal UI, ALSA, Launchpad)" ${SYNTH_BUILD_INTERACTIVE_DEFAULT})
+option(SYNTH_BUILD_TERMINAL_UI "Build the notcurses terminal UI" ${SYNTH_BUILD_TERMINAL_UI_DEFAULT})
 
 # Default to an optimized build when the generator supports build types (a
 # plain `cmake -B build` with no CMAKE_BUILD_TYPE otherwise applies no -O
@@ -302,32 +304,43 @@ if(SYNTH_BUILD_INTERACTIVE)
   # add the executable
   add_executable(synth src/main.cpp
   	src/ui/UI.cpp
-  	src/audio/AlsaAudio.cpp
-  	src/audio/AudioDevices.cpp
-  	src/midi/AlsaMidiInput.cpp
-  	src/midi/AlsaMidiPorts.cpp
   	src/launchpad/LaunchpadManager.cpp
   	src/ui/headless/HeadlessUI.cpp
   	src/util/Daemon.cpp
-  	src/ui/tui/TerminalUI.cpp
-  	src/ui/tui/EscapeCoalescer.cpp
-  	src/ui/tui/NotcursesInputEventSource.cpp
-  	src/ui/tui/OutlineView.cpp
-  	src/ui/tui/InfoDialog.cpp
-  	src/ui/tui/ChoiceDialog.cpp
-  	src/ui/tui/PatternEditor.cpp
-  	src/ui/tui/ArrangementGrid.cpp
-  	src/ui/tui/InlineEditor.cpp
-  	src/ui/tui/ClipGrid.cpp
-  	src/ui/tui/ChannelMeter.cpp
-  	src/ui/tui/SpectrumMeter.cpp
-  	src/ui/SpectrumImage.cpp
-  	src/ui/HeatmapImage.cpp
   )
   target_include_directories(synth PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+  target_link_libraries(synth synth_engine)
 
-  target_link_libraries(synth synth_engine asound notcurses++ notcurses notcurses-core)
+  if(NOT WIN32)
+    target_sources(synth PRIVATE
+      src/audio/AlsaAudio.cpp
+      src/audio/AudioDevices.cpp
+      src/midi/AlsaMidiInput.cpp
+      src/midi/AlsaMidiPorts.cpp)
+    target_link_libraries(synth asound)
+  endif()
 
+  if(SYNTH_BUILD_TERMINAL_UI)
+    target_sources(synth PRIVATE
+      src/ui/tui/TerminalUI.cpp
+      src/ui/tui/EscapeCoalescer.cpp
+      src/ui/tui/NotcursesInputEventSource.cpp
+      src/ui/tui/OutlineView.cpp
+      src/ui/tui/InfoDialog.cpp
+      src/ui/tui/ChoiceDialog.cpp
+      src/ui/tui/PatternEditor.cpp
+      src/ui/tui/ArrangementGrid.cpp
+      src/ui/tui/InlineEditor.cpp
+      src/ui/tui/ClipGrid.cpp
+      src/ui/tui/ChannelMeter.cpp
+      src/ui/tui/SpectrumMeter.cpp
+      src/ui/SpectrumImage.cpp
+      src/ui/HeatmapImage.cpp)
+    target_compile_definitions(synth PRIVATE SYNTH_TERMINAL_UI)
+    target_link_libraries(synth notcurses++ notcurses notcurses-core)
+  endif()
+
+  if(NOT WIN32)
   # Optional PipeWire: lets the device pickers and --list-devices list the
   # audio server's own inputs and outputs (AudioDevices.cpp). Selection itself
   # goes through ALSA's pipewire plugin, so nothing else changes; without
@@ -353,6 +366,7 @@ if(SYNTH_BUILD_INTERACTIVE)
     endif()
     target_compile_definitions(synth PRIVATE SYNTH_HAVE_PIPEWIRE)
     target_link_libraries(synth PkgConfig::PIPEWIRE)
+  endif()
   endif()
 
 else()

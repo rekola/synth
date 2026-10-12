@@ -108,7 +108,7 @@ add_executable(synth_tests
 )
 
 # Needs notcurses's headers, so only where the terminal UI is built.
-if(SYNTH_BUILD_INTERACTIVE)
+if(SYNTH_BUILD_TERMINAL_UI)
   target_sources(synth_tests PRIVATE ../src/ui/tui/EscapeCoalescer.cpp EscapeCoalescerTests.cpp)
 endif()
 

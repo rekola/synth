@@ -79,7 +79,11 @@ HeadlessUI::setStatus(std::string s) {
   auto ms = duration_cast<milliseconds>(now.time_since_epoch()).count() % 1000;
   time_t t = system_clock::to_time_t(now);
   struct tm tm_buf;
+#ifdef _WIN32
+  localtime_s(&tm_buf, &t);
+#else
   localtime_r(&t, &tm_buf);
+#endif
   char stamp[16];
   strftime(stamp, sizeof stamp, "%H:%M:%S", &tm_buf);
   fprintf(stderr, "[%s.%03d] %s\n", stamp, static_cast<int>(ms), s.c_str());
