@@ -1314,21 +1314,25 @@ would otherwise resume showing.
   `cellui::Input`), and the widget base `Element` (`Element.h`: the plane,
   drawing, `offerInput(const Input &)`, the keymap and prefix-chord dispatch;
   the app's `UIElement` adds the event handler and the controller), `UIMenu`, and the 2D grid chart contract
-  `HeatmapChart`, `InfoDialog` (the cell rendering of a Markdown info box; a
+  `HeatmapChart`, the generic widgets (`ChoiceDialog`, `InlineEditor`, `SpinBox`, `CoverArt`, `ChannelMeter`,
+  `SpectrumMeter` and `LevelMeter.h`'s one dB mapping, ballistics and glyph cells, plus
+  `Digit.h`), `InfoDialog` (the cell rendering of a Markdown info box; a
   backend with richer text drawing lays out `markdown::parse()` itself instead,
   through `UI::showInfoDialog(title, markdown)`), and `BufferPlane`/`CellBuffer` (a
   plane that keeps its own cells, the way a screen's planes do - drawing, moving,
   raising and hiding work on the plane, and `refresh()` composes the tree into a
   grid of cells rendering as plain text or ANSI) with the gallery page
-  (`Gallery.h`, a class that keeps its dialog's plane, `cellui_gallery`; its text is a golden file in
+  (`Gallery.h`, a class that keeps its widgets' planes, `cellui_gallery`; its text is a golden file in
   `lib/cellui/tests/golden/`, rewritten with `CELLUI_UPDATE_GOLDEN=1`) (`HeatmapChart.h`, with the fixed hue and the HSV helper its
   renderers share). The old paths (`util/Utf8.h`, `ui/Markdown.h`,
   `ui/ChoiceList.h`, `ui/tui/SubcellGlyphs.h`, `model/Color.h`, `ui/Keymap.h`, `ui/CommandRegistry.h`, `ui/KeyChord.h`, `ui/Theme.h`,
-  `ui/StyleProvider.h`, `ui/UIPlane.h`, `ui/HeatmapChart.h`, `ui/UIMenu.h`, `ui/tui/InfoDialog.h`) are forwarding
+  `ui/StyleProvider.h`, `ui/UIPlane.h`, `ui/HeatmapChart.h`, `ui/UIMenu.h`, `util/digit.h` and the headers of the widgets above in
+  `ui/tui/`) are forwarding
   headers with aliases (`Utf8`, `markdown`, `Color`, ...), so call sites did not
-  change; the rest follow, one slice
-  at a time, as the library's types stop needing `Controller` and the event
-  model. Its tests are in `lib/cellui/tests/` with a copy of the tiny test
+  change; what stays in the app is what knows the song or the controller (`PatternEditor`,
+  `ClipGrid`, `ArrangementGrid`, `OutlineView`, `InfoLine`, `StatusLine`, `PatternScroll`) and the
+  notcurses implementations (`TerminalPlane`, `TerminalMenu`, the pixel charts),
+  which the terminal backend replaces. Its tests are in `lib/cellui/tests/` with a copy of the tiny test
   framework (no dependency on `tests/`).
 
   `src/effects/`, `src/bus/`, and `src/dsp/` (below) predate this split

@@ -1,11 +1,11 @@
-#include "ChoiceDialog.h"
+#include <cellui/ChoiceDialog.h>
 
-#include "../../playback/InputEvent.h"
-#include "../../util/Utf8.h"
-
-#include <notcurses/notcurses.h>
+#include <cellui/Input.h>
+#include <cellui/Utf8.h>
 
 #include <algorithm>
+
+namespace cellui {
 
 using namespace std;
 
@@ -42,9 +42,9 @@ void ChoiceDialog::show(UIPlane & parent, int screen_rows, int screen_cols) {
 
   // Each border line is its text plus "x- " before and " " and the corner
   // after, so the footer and title need that much room beside the box edge.
-  int widest = Utf8::displayWidth(kHint) + 6;
-  widest = std::max(widest, Utf8::displayWidth(title_) + 6);
-  for (auto & label : labels_) widest = std::max(widest, Utf8::displayWidth(label) + 6);
+  int widest = utf8::displayWidth(kHint) + 6;
+  widest = std::max(widest, utf8::displayWidth(title_) + 6);
+  for (auto & label : labels_) widest = std::max(widest, utf8::displayWidth(label) + 6);
   width_ = std::min({widest, kMaxWidth, std::max(10, screen_cols - 2)});
   // Two rows for the border, and leave a little of the screen around it.
   rows_ = std::min(static_cast<int>(labels_.size()) + 2, std::max(3, screen_rows - 2));
@@ -60,9 +60,9 @@ void ChoiceDialog::show(UIPlane & parent, int screen_rows, int screen_cols) {
   plane_->setFgColor(border.getRed(), border.getGreen(), border.getBlue());
   plane_->setBold(false);
   auto heading = "┌─ " + title_ + " ";
-  plane_->putstr(0, 0, heading + repeatUtf8("─", std::max(0, width_ - 1 - Utf8::displayWidth(heading))) + "┐");
+  plane_->putstr(0, 0, heading + repeatUtf8("─", std::max(0, width_ - 1 - utf8::displayWidth(heading))) + "┐");
   auto footing = string("└─ ") + kHint + " ";
-  plane_->putstr(rows_ - 1, 0, footing + repeatUtf8("─", std::max(0, width_ - 1 - Utf8::displayWidth(footing))) + "┘");
+  plane_->putstr(rows_ - 1, 0, footing + repeatUtf8("─", std::max(0, width_ - 1 - utf8::displayWidth(footing))) + "┘");
 
   int first = list_.firstVisible(visibleRows());
   int inner = width_ - 2;
@@ -92,8 +92,8 @@ void ChoiceDialog::show(UIPlane & parent, int screen_rows, int screen_cols) {
     // covers the whole row.
     string text = string(" ") + (index == current_ ? "●" : " ") + " " + labels_[static_cast<size_t>(index)];
     // A label that doesn't fit ends in an ellipsis, so it is clear it goes on.
-    if (Utf8::displayWidth(text) > inner) text = Utf8::truncateToWidth(text, inner - 1) + "\u2026";
-    plane_->putstr(i + 1, 1, Utf8::padToWidth(text, inner));
+    if (utf8::displayWidth(text) > inner) text = utf8::truncateToWidth(text, inner - 1) + "\u2026";
+    plane_->putstr(i + 1, 1, utf8::padToWidth(text, inner));
   }
 
   x_ = (screen_cols - width_) / 2;
@@ -109,7 +109,7 @@ ChoiceDialog::offerInput(const cellui::Input & input) {
 
   if (id == NCKEY_BUTTON1) {
     // Resolved on release, like every other click in the app.
-    if (input.getKind() != InputEvent::Kind::RELEASE) return Result::NONE;
+    if (input.getKind() != Input::Kind::RELEASE) return Result::NONE;
     int row = input.getY() - y_ - 1, col = input.getX() - x_;
     if (row < 0 || row >= visibleRows() || col < 1 || col >= width_ - 1) {
       // Outside the list (the border counts as outside): dismiss.
@@ -120,7 +120,7 @@ ChoiceDialog::offerInput(const cellui::Input & input) {
     return Result::CHOSEN;
   }
   // Releases of keys do nothing; everything below acts on the press.
-  if (input.getKind() == InputEvent::Kind::RELEASE) return Result::NONE;
+  if (input.getKind() == Input::Kind::RELEASE) return Result::NONE;
 
   if (id == NCKEY_ENTER) return Result::CHOSEN;
   if (id == NCKEY_ESC || id == 'q' || (input.hasCtrl() && id == 'g')) return Result::CANCELLED;
@@ -144,3 +144,5 @@ ChoiceDialog::offerInput(const cellui::Input & input) {
     list_.scroll(1, visibleRows());
   return Result::NONE;
 }
+
+}  // namespace cellui

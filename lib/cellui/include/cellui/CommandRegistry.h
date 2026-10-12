@@ -42,8 +42,7 @@ class CommandRegistry {
   // prefixes_ entry it was indexed under, so it stops being executable,
   // M-x-completable, or (via has()) reported as defined at all. A no-op if
   // `name` was never defined. Needed for commands whose whole set can
-  // shrink at runtime (e.g. TerminalMenu's per-open-buffer
-  // "switch-to-buffer:<name>" commands, Controller::refreshBufferCommands())
+  // shrink at runtime (e.g. one command per open buffer)
   // - define() alone can add/overwrite but never retract one.
   void undefine(const std::string & name) {
     if (commands_.erase(name) == 0) return;

@@ -26,9 +26,13 @@ endif()
 add_library(cellui STATIC
   src/BufferPlane.cpp
   src/CellBuffer.cpp
+  src/ChannelMeter.cpp
+  src/ChoiceDialog.cpp
   src/Gallery.cpp
   src/InfoDialog.cpp
+  src/InlineEditor.cpp
   src/Markdown.cpp
+  src/SpectrumMeter.cpp
   src/SubcellGlyphs.cpp
   src/Utf8.cpp)
 target_include_directories(cellui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -45,6 +49,7 @@ add_executable(cellui_tests
   tests/test_main.cpp
   tests/BufferPlaneTests.cpp
   tests/CellBufferTests.cpp
+  tests/ChoiceDialogTests.cpp
   tests/ChoiceListTests.cpp
   tests/ColorTests.cpp
   tests/ElementTests.cpp
@@ -53,8 +58,12 @@ add_executable(cellui_tests
   tests/InfoDialogTests.cpp
   tests/MarkdownTests.cpp
   tests/ThemeTests.cpp
+  tests/SpinBoxTests.cpp
   tests/SubcellGlyphsTests.cpp
+  tests/InlineEditorTests.cpp
   tests/KeymapTests.cpp
+  tests/LevelMeterTests.cpp
+  tests/MeterTests.cpp
   tests/Utf8Tests.cpp)
 target_link_libraries(cellui_tests PRIVATE cellui)
 target_compile_definitions(cellui_tests PRIVATE CELLUI_TEST_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests")

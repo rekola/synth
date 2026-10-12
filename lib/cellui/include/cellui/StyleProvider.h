@@ -139,27 +139,27 @@ class StyleProvider {
   // The arrangement grid's mark for a bar with a locator.
   Color locator_mark_color = "#c8c8c8";
 
-  // The Live View's panel headers (OutlineView's heading, ClipGrid's
-  // track header row, and the divider between them) - brighter than
+  // Panel headers (a list's heading, a grid's track header row, and
+  // the divider between them) - brighter than
   // window_accent_bg_color, so they read as a stronger accent than the
   // content beneath them.
   Color heading_bg_color;
 
 
-  // OutlineView's Details panel action buttons (Delete/Add to Song/
-  // Preview/Stop) - distinct from command_column_color so a clickable
-  // button reads as its own kind of thing rather than borrowing the
-  // pattern editor's command-column hue.
+  // Action buttons in a details panel - distinct from
+  // command_column_color so a clickable button reads as its own kind of
+  // thing rather than borrowing the pattern editor's command-column hue.
   Color button_fg_color = "#ffffff";
   Color button_bg_color = "#c04080";
   // While the mouse is held down on a button, all of it.
   Color button_pressed_bg_color = "#7a2850";
-  // While the mouse is held down on a list row (OutlineView's tree).
+  // While the mouse is held down on a list row.
   Color row_pressed_bg_color = "#5c7c8c";
 
   // Same hue as command_column_color, but at half that color's lightness
-  // and a moderately lower saturation - PatternEditor's master-track
-  // ancestor row (a whole title bar, not text on a dark background).
+  // and a moderately lower saturation - the pattern editor's
+  // master-track ancestor row (a whole title bar, not text on a dark
+  // background).
   Color master_track_color = "#533918";
 };
 

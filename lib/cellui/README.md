@@ -12,13 +12,16 @@ Headers are `cellui/X.h` in `namespace cellui`. So far: `Color`, `utf8`
 (grapheme-aware text width), `markdown`, `ChoiceList`, the sub-cell glyph
 tables, input (`Input`, `KeyChord`, `Keymap`, `CommandRegistry`), the theme
 (`Theme`, `StyleProvider`), and the widget side: `UIPlane`, `Element`,
-`UIMenu`, `HeatmapChart`, `InfoDialog`.
+`UIMenu`, `HeatmapChart`, and the generic widgets: `InfoDialog`,
+`ChoiceDialog`, `InlineEditor`, `SpinBox`, `CoverArt` and the level, channel and
+spectrum meters.
 
 ## Gallery
 
 `cellui_gallery` prints the gallery page: every text style, the theme's colour
 tokens, the level meter ramp, the sub-cell glyphs, width and truncation of
-wide and combining characters, a Markdown document and a choice list.
+wide and combining characters, a Markdown document, a choice list, the dialogs, the meters, a spin box and
+cover art.
 
     build-cellui/cellui_gallery            # 24-bit colour escape sequences
     build-cellui/cellui_gallery --plain    # the text alone

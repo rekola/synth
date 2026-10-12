@@ -2405,7 +2405,7 @@ TerminalUI::syncLiveView() {
   return true;
 }
 
-std::vector<std::shared_ptr<UIElement>>
+std::vector<std::shared_ptr<cellui::Element>>
 TerminalUI::focusableElements() const {
   if (getView() == View::ARRANGEMENT) {
     if (!scopes_visible_) return { pattern_editor_ };
@@ -2413,7 +2413,7 @@ TerminalUI::focusableElements() const {
   }
   // Screen order, the way Emacs cycles windows: the outline panel
   // (top-left), the clip grid beside it, then the pattern editor below.
-  std::vector<std::shared_ptr<UIElement>> elements;
+  std::vector<std::shared_ptr<cellui::Element>> elements;
   if (isOutlineVisible()) elements.push_back(outline_view_);
   elements.push_back(clip_grid_);
   elements.push_back(pattern_editor_);
@@ -2453,7 +2453,7 @@ TerminalUI::viewChanged() {
 }
 
 bool
-TerminalUI::tryActivate(int y, int x, std::shared_ptr<UIElement> element) {
+TerminalUI::tryActivate(int y, int x, std::shared_ptr<cellui::Element> element) {
   auto [pos_y, pos_x] = element->getPosition();
   auto [rows, cols] = element->getDim();
 

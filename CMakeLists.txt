@@ -326,13 +326,9 @@ if(SYNTH_BUILD_INTERACTIVE)
       src/ui/tui/EscapeCoalescer.cpp
       src/ui/tui/NotcursesInputEventSource.cpp
       src/ui/tui/OutlineView.cpp
-      src/ui/tui/ChoiceDialog.cpp
       src/ui/tui/PatternEditor.cpp
       src/ui/tui/ArrangementGrid.cpp
-      src/ui/tui/InlineEditor.cpp
       src/ui/tui/ClipGrid.cpp
-      src/ui/tui/ChannelMeter.cpp
-      src/ui/tui/SpectrumMeter.cpp
       src/ui/SpectrumImage.cpp
       src/ui/HeatmapImage.cpp)
     target_compile_definitions(synth PRIVATE SYNTH_TERMINAL_UI)

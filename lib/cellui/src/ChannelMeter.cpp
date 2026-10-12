@@ -1,9 +1,11 @@
-#include "ChannelMeter.h"
+#include <cellui/ChannelMeter.h>
 
-#include "../UIPlane.h"
-#include "../StyleProvider.h"
+#include <cellui/UIPlane.h>
+#include <cellui/StyleProvider.h>
 
 #include <algorithm>
+
+namespace cellui {
 
 void
 ChannelMeter::setLevels(const std::vector<float> & rms, const std::string & label) {
@@ -47,3 +49,5 @@ ChannelMeter::setLevels(const std::vector<float> & rms, const std::string & labe
     putstr(rows - 1, 0, label);
   }
 }
+
+}  // namespace cellui
