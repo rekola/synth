@@ -111,17 +111,30 @@ Themes are data:
 1. **Audit:** screenshot every view and dialog in the terminal, list each
    colour, glyph and line used, and map each to a token or mark it for
    removal. Views done (`plans/modern-look-audit.md`, captured with
-   `tools/modern_look/capture.py`); dialogs still to do.
+   `tools/modern_look/capture.py`); the dialogs are audited last, after the
+   look is applied to the views.
 2. **Mock:** an HTML mock of Live View and Arrangement view in the proposed
    tokens, dark and light, to agree on the direction before code. This is
    also the reference for the window backend. Done:
    `plans/modern-look-mock.html`, with the token values and contrast checks in
-   `plans/modern-look-tokens.md`; the direction is still to be agreed.
+   `plans/modern-look-tokens.md`; the direction is agreed.
 3. **Tokens:** restructure `StyleProvider` into tokens, with the dark theme
-   matching today's look exactly. This step is pure refactoring.
+   matching today's look exactly. This step is pure refactoring. Done:
+   `Theme` holds every colour `StyleProvider` hands out (surfaces, text,
+   accent, state, the grid tones, and the cursor tints, command and reader
+   text, info bar, meter and spectrum ramps, track flags, locators, buttons,
+   master track), `Theme::dark()` has today's values, and `StyleProvider`
+   only derives from it. The track colours and the tracker-view line colour
+   get their tokens in step 4.
 4. **Apply in the terminal:**
-   - the new surfaces and neutrals;
-   - track colours from the formula;
+   - the new surfaces and neutrals; Done: `Theme::dark()`/`light()` hold
+     them, today's look is `Theme::original()`, `--theme` and the
+     `select-theme` command choose (dark by default);
+   - track colours; Done: `TrackPalette` in the theme. The first eight are a
+     table of hue and chroma picked so the closest two differ as much as
+     possible on the screen and as Launchpad pads (the Launchpad takes the
+     palette's hues and a saturation from the chroma in every theme); later
+     ones step the hue over the arcs the clip state hues leave free;
    - fewer lines, but not between tracks in the tracker view;
    - the icon list;
    - fades for state changes.

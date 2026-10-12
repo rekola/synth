@@ -57,6 +57,41 @@ class Color {
 		 static_cast<int>((b1 + m) * 255.0f + 0.5f));
   }
 
+  // OKLCH (lightness 0..1, chroma, hue in degrees) to sRGB, each channel
+  // clamped into gamut. Lets a palette hold lightness and chroma fixed and
+  // step only the hue, with the same perceived brightness at every hue.
+  static Color fromOklch(float lightness, float chroma, float hue) {
+    float a = chroma * std::cos(hue * 3.14159265f / 180.0f);
+    float b = chroma * std::sin(hue * 3.14159265f / 180.0f);
+    float l_ = lightness + 0.3963377774f * a + 0.2158037573f * b;
+    float m_ = lightness - 0.1055613458f * a - 0.0638541728f * b;
+    float s_ = lightness - 0.0894841775f * a - 1.2914855480f * b;
+    float l = l_ * l_ * l_, m = m_ * m_ * m_, s = s_ * s_ * s_;
+    float rgb[3] = {
+      4.0767416621f * l - 3.3077115913f * m + 0.2309699292f * s,
+      -1.2684380046f * l + 2.6097574011f * m - 0.3413193965f * s,
+      -0.0041960863f * l - 0.7034186147f * m + 1.7076147010f * s,
+    };
+    int out[3];
+    for (int i = 0; i < 3; i++) {
+      float x = std::fmin(1.0f, std::fmax(0.0f, rgb[i]));
+      float g = x <= 0.0031308f ? 12.92f * x : 1.055f * std::pow(x, 1.0f / 2.4f) - 0.055f;
+      out[i] = static_cast<int>(g * 255.0f + 0.5f);
+    }
+    return Color(out[0], out[1], out[2]);
+  }
+
+  // The HSL hue in degrees, 0 for a grey.
+  float hslHue() const {
+    float r = red / 255.0f, g = green / 255.0f, b = blue / 255.0f;
+    float mx = std::fmax(r, std::fmax(g, b)), mn = std::fmin(r, std::fmin(g, b));
+    float d = mx - mn;
+    if (d <= 0.0f) return 0.0f;
+    float h = mx == r ? std::fmod((g - b) / d, 6.0f) : mx == g ? (b - r) / d + 2.0f : (r - g) / d + 4.0f;
+    h *= 60.0f;
+    return h < 0.0f ? h + 360.0f : h;
+  }
+
  private:
   // A non-hex character counts as 0 rather than rejecting the whole value.
   static inline int hexDigit(char c) {

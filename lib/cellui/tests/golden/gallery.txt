@@ -4,19 +4,19 @@ Text styles
 normal  bold   italic  underline  bold italic
 
 Surfaces and text
- surface.base        secondary text      disabled text       #111111
- surface.panel       secondary text      disabled text       #292929
- surface.raised      secondary text      disabled text       #3d3d3d
- surface.overlay     secondary text      disabled text       #323232
+ surface.base        secondary text      disabled text       #0d1115
+ surface.panel       secondary text      disabled text       #161a1e
+ surface.raised      secondary text      disabled text       #21262b
+ surface.overlay     secondary text      disabled text       #2d3238
 
 Accent and state
- accent                  #bcd4e0
- accent.dim              #3a4a54
- focus                   #bcd4e0
- state.playing           #50e070
- state.playing.dim       #2e7a3e
- state.recording         #ff3c3c
- state.recording.dim     #a04040
+ accent                  #7acce0
+ accent.dim              #234951
+ focus                   #7acce0
+ state.playing           #009722
+ state.playing.dim       #668666
+ state.recording         #e23532
+ state.recording.dim     #a46a64
 
 Level meter ramp
 ████████████████████████████████

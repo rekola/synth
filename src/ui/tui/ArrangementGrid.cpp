@@ -360,7 +360,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   // cell's text already uses), uncolored on purpose, so a track's own
   // color never means anything but "a real instance is here."
   auto track_color = [&](int track_id) {
-    return structure.getBaselineInfo(track_id).getColor();
+    return structure.getBaselineInfo(track_id).getColor(styles.tracks);
   };
 
   // Per visible column, the active instance (if any) the previous bar row

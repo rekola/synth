@@ -20,6 +20,7 @@
 #include "../Controller.h"
 #include "../util/constants.h"
 #include "../model/Color.h"
+#include "../ui/Theme.h"
 
 #include <algorithm>
 #include <chrono>
@@ -27,6 +28,14 @@
 using namespace std;
 
 namespace {
+
+// The pads show the modern palette's hues in every theme, so a clip reads the
+// same on the pads whichever theme the screen has.
+const TrackPalette kPadTrackPalette = TrackPalette::modern();
+
+Color padTrackColor(int ordinal) {
+  return Color::fromHSL(kPadTrackPalette.hslHue(ordinal), kPadTrackPalette.padSaturation(ordinal), 0.3f);
+}
   // How long CC98 (handleRecordButton()) must be held before release means
   // Capture MIDI instead of a quick tap's own Session Record. Long enough
   // that a normal deliberate tap never accidentally reads as a hold.
@@ -3004,7 +3013,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     // whitelist here once silently left a SampleTrack's own fader/LED
     // feedback at 0 regardless of its actual send/pan values.
     auto track_id = track_ids[static_cast<size_t>(i)];
-    track_colors[static_cast<size_t>(i)] = Color::fromHSL(structure.getBaselineInfo(track_id).getHue(), 0.8f, 0.3f);
+    track_colors[static_cast<size_t>(i)] = padTrackColor(structure.getBaselineInfo(track_id).color_ordinal_);
     auto track = song.getMasterTrack().getChildByInternalId(track_id);
     if (track) {
       auto & leaf_track = dynamic_cast<const LeafTrack&>(*track);
@@ -3078,7 +3087,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
       // emitted LED pixel at a given lightness reads brighter than the
       // same value does as terminal glyph text, so the two surfaces are
       // tuned independently here rather than sharing one constant.
-      auto identity = Color::fromHSL(structure.getBaselineInfo(live_track_id).getHue(), 0.8f, 0.3f);
+      auto identity = padTrackColor(structure.getBaselineInfo(live_track_id).color_ordinal_);
       auto clips = song.getClips(live_track_id);
       // STOP_CLIP's own picker-row state: a clip is playing right now - a
       // launched one on a taken-over track, else whatever the arrangement

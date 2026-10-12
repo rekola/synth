@@ -38,6 +38,7 @@ class TerminalUI : public UI {
   void initialize(std::shared_ptr<Controller> & controller);
 
   void refresh() override;
+  void applyTheme(const Theme & theme) override;
   void render() override;
 
   bool offerInput(const cellui::Input & input) override;
