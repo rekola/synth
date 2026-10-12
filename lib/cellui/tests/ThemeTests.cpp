@@ -64,6 +64,9 @@ TEST(dark_theme_keeps_the_other_colours_too) {
   CHECK(same(s.button_pressed_bg_color, "#7a2850"));
   CHECK(same(s.row_pressed_bg_color, "#5c7c8c"));
   CHECK(same(s.master_track_color, "#533918"));
+  CHECK(same(s.data_fx_color, "#d65cd6"));
+  CHECK(same(s.data_velocity_color, "#bfa426"));
+  CHECK(same(s.data_delay_color, "#42c1ea"));
 }
 
 TEST(applying_a_theme_changes_what_its_tokens_cover) {
@@ -151,6 +154,9 @@ TEST(modern_themes_keep_text_readable) {
     CHECK(contrast(t.text_disabled, t.surface_base) >= 3.0);
     CHECK(contrast(t.accent, t.surface_base) >= 3.0);
     CHECK(contrast(t.button_fg, t.button_bg) >= 4.5);
+    CHECK(contrast(t.data_fx, t.surface_base) >= 4.5);
+    CHECK(contrast(t.data_velocity, t.surface_base) >= 4.5);
+    CHECK(contrast(t.data_delay, t.surface_base) >= 4.5);
     CHECK(contrast(t.info_line_fg, t.info_line_bg) >= 4.5);
     for (int i = 0; i < 8; i++) {
       CHECK(contrast(t.tracks.color(i), t.surface_base) >= 3.0);

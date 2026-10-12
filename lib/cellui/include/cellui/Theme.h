@@ -106,6 +106,10 @@ struct Theme {
   Color button_pressed_bg;
   Color row_pressed_bg;
   Color master_track;
+  // The pattern editor's data columns: local fx, velocity, delay.
+  Color data_fx;
+  Color data_velocity;
+  Color data_delay;
 
   static Theme original() {
     Theme t;
@@ -156,6 +160,9 @@ struct Theme {
     t.button_pressed_bg = Color("#7a2850");
     t.row_pressed_bg = Color("#5c7c8c");
     t.master_track = Color("#533918");
+    t.data_fx = Color("#d65cd6");
+    t.data_velocity = Color("#bfa426");
+    t.data_delay = Color("#42c1ea");
     return t;
   }
 
@@ -200,6 +207,9 @@ struct Theme {
     t.button_pressed_bg = Color("#4f9fb4");
     t.row_pressed_bg = Color("#2d5f6a");
     t.master_track = t.surface_raised;
+    t.data_fx = Color("#c58be0");
+    t.data_velocity = Color("#d4b03c");
+    t.data_delay = Color("#6cc4e0");
     return t;
   }
 
@@ -240,6 +250,9 @@ struct Theme {
     t.button_pressed_bg = Color("#004a66");
     t.row_pressed_bg = Color("#8ab8cc");
     t.master_track = t.surface_raised;
+    t.data_fx = Color("#8a3fa8");
+    t.data_velocity = Color("#7a5c00");
+    t.data_delay = Color("#00607f");
     return t;
   }
 

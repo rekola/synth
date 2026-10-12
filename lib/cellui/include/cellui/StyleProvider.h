@@ -63,6 +63,9 @@ class StyleProvider {
     button_pressed_bg_color = t.button_pressed_bg;
     row_pressed_bg_color = t.row_pressed_bg;
     master_track_color = t.master_track;
+    data_fx_color = t.data_fx;
+    data_velocity_color = t.data_velocity;
+    data_delay_color = t.data_delay;
   }
 
   Theme theme;
@@ -194,6 +197,11 @@ class StyleProvider {
   // master-track ancestor row (a whole title bar, not text on a dark
   // background).
   Color master_track_color;
+
+  // The pattern editor's data columns: local fx, velocity, delay.
+  Color data_fx_color;
+  Color data_velocity_color;
+  Color data_delay_color;
 };
 
 }  // namespace cellui

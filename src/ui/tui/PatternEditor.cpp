@@ -3571,9 +3571,9 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  auto glyph = [](char c) { return c == Note::kFxEmpty ? string("\u00b7") : string(1, c); };
 	  string shown;
 	  for (char c : s) shown += glyph(c);
-	  // Magenta, like the other data columns' own fixed hues; the region's
+	  // Its own fixed hue, like the other data columns; the region's
 	  // dark foreground inside the highlight.
-	  cell_fg = column_selected ? cur_fg : tintForPlayhead(dim_fixed_color(Color("#d65cd6")));
+	  cell_fg = column_selected ? cur_fg : tintForPlayhead(dim_fixed_color(styles.data_fx_color));
 	  cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
 	  if (!note.isDefined() || !note.hasFx()) cell_fg = cell_fg.blend(0.5f, cell_bg);
 	  setFgColor(cell_fg);
@@ -3624,7 +3624,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  // tintForPlayhead() layers the playhead row's own translucent tint
 	  // on top of the bright color when not selected, same as every other
 	  // column type.
-	  cell_fg = column_selected ? cur_fg : tintForPlayhead(dim_fixed_color(column_type == ColumnType::VELOCITY ? Color("#bfa426") : Color("#42c1ea")));
+	  cell_fg = column_selected ? cur_fg : tintForPlayhead(dim_fixed_color(column_type == ColumnType::VELOCITY ? styles.data_velocity_color : styles.data_delay_color));
 	  cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
 	  if (!note.isDefined()) cell_fg = cell_fg.blend(0.5f, cell_bg);
 	  setFgColor(cell_fg);
