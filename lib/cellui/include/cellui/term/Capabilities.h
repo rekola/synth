@@ -48,12 +48,22 @@ struct Capabilities {
   bool rxvt = false;
 };
 
+// A guess at the display's scale factor (1 for a 96-dpi display, 2 for a
+// typical HiDPI one) from the cell height in pixels: terminals report no
+// DPI, but a default-sized monospace font fills a cell of about 18 pixels
+// at scale 1. Rounded to quarter steps, as display scaling settings are,
+// within 1 to 4; 1 when the cell size is unknown. A large font at scale 1
+// reads as a larger scale, which is what sizing drawn text to match the
+// terminal's wants anyway.
+double estimateDisplayScale(int cell_px_height);
+
 // What discovery needs from the environment. The caller fills it from the
 // process environment; tests fill it by hand.
 struct Environment {
   std::string term;           // $TERM
   std::string colorterm;      // $COLORTERM
   std::string term_program;   // $TERM_PROGRAM
+  bool konsole = false;       // $KONSOLE_VERSION set
   bool ssh = false;           // $SSH_CONNECTION or $SSH_TTY set
   bool linux_console = false; // the tty is a Linux virtual console
   bool windows = false;

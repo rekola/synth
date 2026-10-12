@@ -1,6 +1,7 @@
 #include <cellui/term/Discovery.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <vector>
 
@@ -64,6 +65,7 @@ Environment Environment::fromProcess() {
   env.term = get("TERM");
   env.colorterm = get("COLORTERM");
   env.term_program = get("TERM_PROGRAM");
+  env.konsole = !get("KONSOLE_VERSION").empty();
   env.ssh = !get("SSH_CONNECTION").empty() || !get("SSH_TTY").empty();
   env.colors_override = get("CELLUI_COLORS");
   env.pixels_override = get("CELLUI_PIXELS");
@@ -71,6 +73,13 @@ Environment Environment::fromProcess() {
   env.windows = true;
 #endif
   return env;
+}
+
+double estimateDisplayScale(int cell_px_height) {
+  if (cell_px_height <= 0) return 1.0;
+  constexpr double kCellHeightAtScale1 = 18.0;
+  double scale = std::round(cell_px_height / kCellHeightAtScale1 * 4.0) / 4.0;
+  return std::clamp(scale, 1.0, 4.0);
 }
 
 Discovery::Discovery(Environment env) : env_(std::move(env)) { }
@@ -233,6 +242,8 @@ Capabilities Discovery::result() const {
   else if (!tn_name_.empty()) name = tn_name_;
   else if (da2_pp_ == 83) name = "screen";
   else if (contains(env_.term, "alacritty") && da2_pp_ >= 0) name = "alacritty";
+  else if (env_.term_program == "iTerm.app") name = "iterm2";
+  else if (env_.konsole) name = "konsole";
   std::string version;
   if (!xtversion_name_.empty() && xtversion_name_ == name) version = xtversion_version_;
   else if (da2_pv_ >= 0 && (name == "screen" || name == "alacritty" || name == "xterm")) {
@@ -247,7 +258,12 @@ Capabilities Discovery::result() const {
   int term_colors = colorsForTerm(env_.term);
   bool always_direct = name == "kitty" || name == "alacritty" || name == "foot" || name == "wezterm" ||
                        name == "contour" || name == "iterm2" || name == "konsole" || name == "windows";
-  bool truecolor = term_colors > 256 || env_.colorterm == "truecolor" || env_.colorterm == "24bit" || tcap_rgb_ || always_direct;
+  // Terminals known by $TERM_PROGRAM to take 24-bit colour even when
+  // $COLORTERM does not say so.
+  bool program_direct = env_.term_program == "iTerm.app" || env_.term_program == "Hyper" ||
+                        env_.term_program == "HyperTerm" || env_.term_program == "MacTerm";
+  bool truecolor = term_colors > 256 || env_.colorterm == "truecolor" || env_.colorterm == "24bit" || tcap_rgb_ ||
+                   always_direct || program_direct;
   if (name == "screen" && !atLeast(version, "5")) truecolor = false;
   if (name == "apple" || name == "terminology") truecolor = false;
   if (truecolor) caps.colors = ColorDepth::TRUECOLOR;
@@ -262,6 +278,12 @@ Capabilities Discovery::result() const {
   caps.column_move = term_colors > 0 || tcap_hpa_ || complete_;
   caps.default_fg = default_fg_;
   caps.default_bg = default_bg_;
+  // A terminal that reports only its background most likely draws text in
+  // whichever of black and white stands out against it.
+  if (!default_fg_ && default_bg_) {
+    bool dark = default_bg_->getRed() < 128 && default_bg_->getGreen() < 128 && default_bg_->getBlue() < 128;
+    caps.default_fg = dark ? Color(255, 255, 255) : Color(0, 0, 0);
+  }
   caps.kitty_keyboard = kitty_keyboard_;
   caps.pixel_mouse = pixel_mouse_;
 

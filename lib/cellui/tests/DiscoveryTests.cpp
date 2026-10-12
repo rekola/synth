@@ -166,3 +166,26 @@ TEST(discovery_environment) {
   ssh.ssh = true;
   CHECK(Discovery(ssh).timeout() == std::chrono::milliseconds(2000));
 }
+
+TEST(discovery_environment_hints) {
+  Environment iterm = xtermEnv();
+  iterm.term_program = "iTerm.app";
+  Capabilities c = discover("\x1b[?62c", iterm);
+  CHECK(c.terminal == "iterm2" && c.colors == ColorDepth::TRUECOLOR);
+  Environment konsole = xtermEnv();
+  konsole.konsole = true;
+  CHECK(discover("\x1b[?62c", konsole).terminal == "konsole");
+  // Only a background reported: the foreground is guessed against it.
+  Capabilities light = discover("\x1b]11;rgb:ffff/ffff/ffff\x1b\\\x1b[?62c");
+  CHECK(light.default_fg && light.default_fg->getRed() == 0);
+}
+
+TEST(display_scale_from_cell_height) {
+  CHECK(estimateDisplayScale(0) == 1.0);
+  CHECK(estimateDisplayScale(16) == 1.0);
+  CHECK(estimateDisplayScale(18) == 1.0);
+  CHECK(estimateDisplayScale(24) == 1.25);
+  CHECK(estimateDisplayScale(27) == 1.5);
+  CHECK(estimateDisplayScale(36) == 2.0);
+  CHECK(estimateDisplayScale(200) == 4.0);
+}
