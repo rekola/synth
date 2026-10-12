@@ -1,10 +1,12 @@
-#include "SpectrumMeter.h"
+#include <cellui/SpectrumMeter.h>
 
-#include "../UIPlane.h"
-#include "../StyleProvider.h"
+#include <cellui/UIPlane.h>
+#include <cellui/StyleProvider.h>
 
 #include <algorithm>
 #include <cmath>
+
+namespace cellui {
 
 bool
 SpectrumMeter::setSpectrum(const std::vector<float> & db, float bin_hz) {
@@ -102,3 +104,5 @@ SpectrumMeter::drawBars(const std::vector<float> & levels) {
     }
   }
 }
+
+}  // namespace cellui

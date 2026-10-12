@@ -1,16 +1,24 @@
 #pragma once
 
+#include <cellui/ChannelMeter.h>
+#include <cellui/ChoiceDialog.h>
+#include <cellui/CoverArt.h>
 #include <cellui/InfoDialog.h>
+#include <cellui/SpectrumMeter.h>
+#include <cellui/SpinBox.h>
 #include <cellui/Theme.h>
 #include <cellui/UIPlane.h>
+
+#include <memory>
 
 namespace cellui {
 
 // The gallery page, drawn onto `plane` when constructed: every text style,
 // the theme's colour tokens, the sub-cell glyph tables, the level meter ramp,
-// a Markdown document, wide and combining characters, a choice list and an
-// info dialog, as the terminal shows them. The page keeps the dialog's plane,
-// so it must outlive the refresh() that shows it. It draws through UIPlane
+// a Markdown document, wide and combining characters, a choice list, an info
+// dialog, a choice dialog, and the meters, spin box and cover art widgets, as
+// the terminal shows them. The page keeps the widgets and their planes, so it
+// must outlive the refresh() that shows them. It draws through UIPlane
 // only, so any backend can show it.
 class Gallery {
  public:
@@ -21,6 +29,12 @@ class Gallery {
 
  private:
   InfoDialog dialog_;
+  ChoiceDialog choice_;
+  int octave_ = 4;
+  std::unique_ptr<SpectrumMeter> spectrum_;
+  std::unique_ptr<ChannelMeter> channels_;
+  std::unique_ptr<SpinBox> spin_;
+  std::unique_ptr<CoverArt> cover_;
   int rows_ = 0;
 };
 

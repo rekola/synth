@@ -46,8 +46,9 @@ TEST(gallery_row_count_matches_the_text) {
   int lines = 0;
   for (char c : page) lines += c == '\n';
   CHECK(rows > 40);
-  // The last row drawn holds text, so the text has as many lines.
-  CHECK(lines == rows);
+  // The page ends with a widget a few rows tall that draws on only some of
+  // them, so the text has at most as many lines as the page has rows.
+  CHECK(lines <= rows && rows - lines < 6);
 }
 
 TEST(gallery_ansi_carries_the_theme_colours) {

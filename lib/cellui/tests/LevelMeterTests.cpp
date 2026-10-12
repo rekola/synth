@@ -1,6 +1,8 @@
 #include "TestFramework.h"
 
-#include "../src/ui/tui/LevelMeter.h"
+#include <cellui/LevelMeter.h>
+
+using namespace cellui;
 
 TEST(level_meter_fraction_maps_minus_60_to_0_db_onto_0_to_1) {
   CHECK(level_meter::fraction(-1.0f) == 0.0f); // TrackInfo's "no reading yet"

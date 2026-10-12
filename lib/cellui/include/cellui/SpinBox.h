@@ -1,0 +1,259 @@
+#pragma once
+
+#include <cellui/Element.h>
+#include <cellui/StyleProvider.h>
+#include <cellui/Color.h>
+#include <cellui/Input.h>
+#include <cellui/Digit.h>
+#include <cellui/Utf8.h>
+
+#include <algorithm>
+#include <functional>
+#include <string>
+
+
+namespace cellui {
+
+namespace spinbox_detail {
+// `text` centred in `width` columns, the extra column (if any) on the right.
+inline std::string centered(const std::string & text, int width) {
+  int gap = std::max(0, width - utf8::displayWidth(text));
+  return std::string(static_cast<size_t>(gap / 2), ' ') + text + std::string(static_cast<size_t>(gap - gap / 2), ' ');
+}
+}  // namespace spinbox_detail
+
+// A small, reusable inline numeric stepper: an optional label, a small
+// left-arrow button, a directly-editable value field, and a small right-
+// arrow button, all mouse-clickable - a compact toolbar-style spinner,
+// sized to disappear into a single line (e.g. an info bar) rather than
+// needing its own bordered box. The arrows and the value field all share
+// one dark chip look (see render()) rather than the arrows standing out
+// as separate bright buttons.
+// Owns none of the value itself (only get_value/set_value callbacks), so
+// the same class can back any bounded integer.
+class SpinBox : public Element {
+ public:
+  // bg_color/fg_color are the widget's own idle colors (label text only -
+  // the value field always shows dark-on-bright regardless, see render())
+  // - passed in rather than pulled from StyleProvider since this widget is
+  // meant to blend into whatever bar it's embedded in, not the theme's
+  // generic window colors.
+  SpinBox(UIPlane & parent, std::string label, int min_value, int max_value,
+          std::function<int()> get_value, std::function<void(int)> set_value,
+          Color bg_color, Color fg_color)
+    : Element(parent), label_(std::move(label)), min_value_(min_value), max_value_(max_value),
+      get_value_(std::move(get_value)), set_value_(std::move(set_value)),
+      bg_color_(bg_color), fg_color_(fg_color) { }
+
+  // Exact column width this widget needs at its current label/min/max -
+  // callers size their resize() call from this instead of guessing a
+  // round number, so layout and hit-testing can never drift apart.
+  int preferredWidth() const {
+    auto c = layoutColumns();
+    return c.plus_start + buttonWidth() + 1;
+  } // +1: blank column right of the right arrow
+
+  bool render(const StyleProvider & styles, bool refresh = false) {
+    auto value = get_value_();
+    if (!refresh && value == current_value_ && editing_ == current_editing_ && edit_buffer_ == current_edit_buffer_) {
+      return false;
+    }
+
+    auto c = layoutColumns();
+    auto cols = getDim().second;
+
+    // Blank the whole row first in the ambient bar colors - otherwise the
+    // gap after the label (and anything else render() doesn't explicitly
+    // overwrite below) would show through as whatever a freshly created
+    // plane's own base cell defaults to (see UIPlane::createChild()),
+    // not a blend-in blank.
+    setFgColor(fg_color_);
+    setBgColor(bg_color_);
+    putstr(0, 0, std::string(static_cast<size_t>(std::max(0, cols)), ' '));
+    if (!label_.empty()) putstr(0, 0, label_);
+
+    // Arrows: same dark-background/bright-text look as the field's own
+    // idle state below, so the whole minus/digit/plus run reads as one
+    // chip rather than the arrows standing out as separate buttons. Blank
+    // from right after the label (not just from minus_start) so the gap
+    // column before the left arrow is part of the dark chip too, rather
+    // than showing the ambient bar color between the label and the chip.
+    setFgColor(styles.window_accent_fg_color);
+    setBgColor(styles.window_bg_color);
+    auto chip_width = c.plus_start + buttonWidth() + 1 - c.label_width; // +1: trailing padding column
+    putstr(0, c.label_width, std::string(static_cast<size_t>(std::max(0, chip_width)), ' '));
+    putstr(0, c.minus_start, kMinusGlyph);
+    putstr(0, c.plus_start, kPlusGlyph);
+
+    if (editing_) {
+      setFgColor(styles.highlight_fg_color);
+      setBgColor(styles.highlight_bg_color);
+    } else {
+      // Dark background, bright text - real per-cell transparency isn't
+      // something this terminal-cell model offers, so "dark" stands in
+      // for it: the field reads as its own cut-out chip against the
+      // ambient bar rather than just more label-colored text.
+      setFgColor(styles.window_accent_fg_color);
+      setBgColor(styles.window_bg_color);
+    }
+    // One character of padding on each side of the digit - part of the
+    // field's own width (see layoutColumns()), filled here via center
+    // alignment rather than as separately-drawn blank cells.
+    auto field_width = c.field_end - c.field_start;
+    putstr(0, c.field_start, spinbox_detail::centered(fieldText(), field_width));
+
+    current_value_ = value;
+    current_editing_ = editing_;
+    current_edit_buffer_ = edit_buffer_;
+    return true;
+  }
+
+  bool offerInput(const cellui::Input & input) override {
+    if (input.getId() == NCKEY_BUTTON1) {
+      if (input.getKind() != Input::Kind::RELEASE) {
+        arrow_press_ = hitsArrow(input.getY(), input.getX());
+        return true;
+      }
+      arrow_press_ = false; // resolved on release, a click is resolved on release
+      auto [pos_y, pos_x] = getPosition();
+      auto [rows, cols] = getDim();
+      auto y = input.getY() - pos_y, x = input.getX() - pos_x;
+      if (y < 0 || y >= rows || x < 0 || x >= cols) return true; // shouldn't happen - only reached while this is the click's own target
+      auto c = layoutColumns();
+      if (y == 0 && x >= c.minus_start && x < c.minus_start + buttonWidth()) {
+	cancelEditing();
+	step(-1);
+      } else if (y == 0 && x >= c.plus_start && x < c.plus_start + buttonWidth()) {
+	cancelEditing();
+	step(1);
+      } else if (y == 0 && x >= c.field_start && x < c.field_end) {
+	editing_ = true;
+	edit_buffer_.clear();
+      } else {
+	cancelEditing();
+      }
+      return true;
+    } else if (input.getId() == NCKEY_BUTTON4) { // scroll wheel up
+      cancelEditing();
+      step(1);
+      return true;
+    } else if (input.getId() == NCKEY_BUTTON5) { // scroll wheel down
+      cancelEditing();
+      step(-1);
+      return true;
+    }
+
+    if (!editing_) return false;
+    if (input.getKind() == Input::Kind::RELEASE) return true; // consume key-up while editing - nothing to do
+
+    if (input.getId() == NCKEY_ENTER) {
+      commitEdit();
+    } else if (input.getId() == NCKEY_ESC) {
+      cancelEditing();
+    } else if (input.getId() == NCKEY_BACKSPACE) {
+      if (!edit_buffer_.empty()) edit_buffer_.pop_back();
+    } else if (auto d = digit(input.getId(), 10);
+               d >= 0 && !input.hasCtrl() && !input.hasAlt() && !input.hasMeta()) {
+      edit_buffer_ += static_cast<char>('0' + d);
+      if (parsedBuffer() * 10 > max_value_ || static_cast<int>(edit_buffer_.size()) >= fieldWidth()) commitEdit(); // no further digit could apply
+    } else {
+      cancelEditing(); // any other key ends the edit and is left for the app to handle
+      return false;
+    }
+    return true;
+  }
+
+  bool isEditing() const { return editing_; }
+
+  // Whether a screen cell is on either arrow button; clicks there are
+  // handled without taking focus.
+  bool hitsArrow(int screen_y, int screen_x) const {
+    auto [pos_y, pos_x] = getPosition();
+    auto c = layoutColumns();
+    auto y = screen_y - pos_y, x = screen_x - pos_x;
+    auto w = buttonWidth();
+    return y == 0 && ((x >= c.minus_start && x < c.minus_start + w) || (x >= c.plus_start && x < c.plus_start + w));
+  }
+
+  // True between a press on an arrow and its release.
+  bool arrowPressPending() const { return arrow_press_; }
+
+  // Discards any half-typed value without committing it - called both by
+  // this widget's own offerInput() (a click on +/-/elsewhere while
+  // editing) and by whatever tracks focus (a click that moves focus away
+  // from this widget entirely). The contract is "explicit commit or cancel,
+  // never commit-on-blur".
+  void cancelEditing() { editing_ = false; edit_buffer_.clear(); }
+
+ private:
+  // Small triangular arrows (U+25C2/U+25B8), not the heavy plus/minus this
+  // widget used to draw as separate bright chips - their actual column
+  // width is confirmed via utf8::displayWidth() below, not assumed, which
+  // is why every column below is computed through buttonWidth() rather
+  // than a hardcoded 1.
+  static constexpr const char * kMinusGlyph = "◂";
+  static constexpr const char * kPlusGlyph = "▸";
+
+  // Single-row layout: "<label><gap><minus><pad><digit><pad><plus>" - the
+  // gap after the label and the padding around the digit are both real
+  // reserved columns; the buttons themselves need no such gap since the
+  // whole minus/pad/digit/pad/plus span shares one dark chip background
+  // (see render()).
+  struct Columns { int label_width, minus_start, field_start, field_end, plus_start; };
+
+  // Column ranges (half-open), shared by render() and offerInput() so
+  // layout and hit-testing can never drift apart.
+  Columns layoutColumns() const {
+    auto label_width = utf8::displayWidth(label_);
+    auto minus_start = label_width + (label_width > 0 ? 1 : 0); // 1-column gap after a non-empty label
+    auto field_start = minus_start + buttonWidth();
+    auto field_end = field_start + fieldWidth() + 2; // +2 = one padding column on each side of the digit
+    auto plus_start = field_end;
+    return { label_width, minus_start, field_start, field_end, plus_start };
+  }
+
+  static int buttonWidth() {
+    return std::max(utf8::displayWidth(kMinusGlyph), utf8::displayWidth(kPlusGlyph));
+  }
+
+  int fieldWidth() const {
+    auto w = static_cast<int>(std::to_string(max_value_).size());
+    if (min_value_ < 0) w = std::max(w, static_cast<int>(std::to_string(min_value_).size()));
+    return std::max(w, 1);
+  }
+
+  std::string fieldText() const {
+    if (editing_ && !edit_buffer_.empty()) return edit_buffer_;
+    return std::to_string(get_value_());
+  }
+
+  int parsedBuffer() const {
+    int parsed = 0;
+    for (char ch : edit_buffer_) parsed = parsed * 10 + (ch - '0');
+    return parsed;
+  }
+
+  void commitEdit() {
+    if (!edit_buffer_.empty()) set_value_(std::clamp(parsedBuffer(), min_value_, max_value_));
+    cancelEditing();
+  }
+
+  void step(int delta) { set_value_(std::clamp(get_value_() + delta, min_value_, max_value_)); }
+
+  std::string label_;
+  int min_value_, max_value_;
+  std::function<int()> get_value_;
+  std::function<void(int)> set_value_;
+  Color bg_color_, fg_color_;
+
+  bool editing_ = false;
+  bool arrow_press_ = false;
+  std::string edit_buffer_;
+
+  // Dirty-check cache, same convention as the other widgets' current_*_ fields.
+  int current_value_ = 0;
+  bool current_editing_ = false;
+  std::string current_edit_buffer_;
+};
+
+}  // namespace cellui
