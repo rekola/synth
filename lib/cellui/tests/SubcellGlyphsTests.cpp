@@ -1,6 +1,8 @@
 #include "TestFramework.h"
 
-#include "../src/ui/tui/SubcellGlyphs.h"
+#include <cellui/SubcellGlyphs.h>
+
+using namespace cellui;
 
 #include <vector>
 

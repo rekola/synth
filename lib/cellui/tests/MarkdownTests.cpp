@@ -1,6 +1,8 @@
 #include "TestFramework.h"
 
-#include "../src/ui/Markdown.h"
+#include <cellui/Markdown.h>
+
+using namespace cellui;
 
 using namespace markdown;
 
