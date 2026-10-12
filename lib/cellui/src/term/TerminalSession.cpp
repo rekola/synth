@@ -242,6 +242,7 @@ void TerminalSession::negotiate(const Environment & env) {
   if (caps_.cell_px_height == 0 && cell_h > 0) {
     caps_.cell_px_height = cell_h;
     caps_.cell_px_width = cell_w;
+    caps_.display_scale = estimateDisplayScale(cell_h);
   }
   if (caps_.rows > 0 && caps_.cols > 0 && !size_known_) {
     rows_ = caps_.rows;
@@ -382,6 +383,7 @@ std::vector<TermEvent> TerminalSession::poll() {
       if (e.reply == ReplyKind::WINDOW_REPORT && e.params.size() == 3 && e.params[0] == 6 && e.params[1] > 0) {
         caps_.cell_px_height = e.params[1];
         caps_.cell_px_width = e.params[2];
+        caps_.display_scale = estimateDisplayScale(caps_.cell_px_height);
         parser_.setPixelMouse(false, e.params[1], e.params[2]);
       }
       continue;

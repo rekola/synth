@@ -24,6 +24,8 @@ struct Capabilities {
   int rows = 0, cols = 0;
   // The cell size in pixels, 0 when unknown. It is also the base text size.
   int cell_px_height = 0, cell_px_width = 0;
+  // estimateDisplayScale() of the cell height.
+  double display_scale = 1.0;
   std::optional<Color> default_fg, default_bg;
 
   ColorDepth colors = ColorDepth::C8;
@@ -52,9 +54,10 @@ struct Capabilities {
 // typical HiDPI one) from the cell height in pixels: terminals report no
 // DPI, but a default-sized monospace font fills a cell of about 18 pixels
 // at scale 1. Rounded to quarter steps, as display scaling settings are,
-// within 1 to 4; 1 when the cell size is unknown. A large font at scale 1
-// reads as a larger scale, which is what sizing drawn text to match the
-// terminal's wants anyway.
+// within 1 to 4; 1 when the cell size is unknown. The application scales
+// what it draws in pixels by it - icons, text, line widths, but not
+// hairlines - so nothing comes out too small; a large font at scale 1 reads
+// as a larger scale, which suits that too.
 double estimateDisplayScale(int cell_px_height);
 
 // What discovery needs from the environment. The caller fills it from the

@@ -165,11 +165,18 @@ of the switch.
 5. The terminal backend replaces notcurses. Same look, same e2e results.
    Started, in `lib/cellui` (`cellui/term/`), not yet used by the app: our
    own input parser (keys in every encoding, mouse, paste, focus, replies,
-   a grace deadline instead of a spinning wait) and start-up discovery (the
+   a grace deadline instead of a spinning wait), start-up discovery (the
    queries and the capability record, tested against replies recorded from
-   seven terminals). Next: the frame encoder (diff, cursor motion, SGR,
-   colour quantisation, synchronized output), the tty session (termios,
-   signals, restoration, waitable handle), then `TerminalUI` onto them.
+   seven terminals), the frame encoder (diff, cursor motion, SGR, colour
+   quantisation, synchronized output), the tty session (termios, signals,
+   restoration, waitable descriptors; `cellui_gallery --live` tries it),
+   and `BufferPlane` with what `TerminalPlane` gets from notcurses
+   (translucent cells, the reader on `LineEditor`, the picker). The display
+   scale is guessed from the cell height (`estimateDisplayScale()`) and
+   reported by `UIPlane::displayScale()`: the scopes and icons scale text,
+   icons and line widths by it, hairlines excepted. Next: the menu bar,
+   images (kitty graphics, Sixel) from the pixel charts, then `TerminalUI`
+   onto all of it and notcurses out of the build.
 6. Icons: the app's icon list, Kitty graphics/Sixel/glyph fallback, menu
    icons.
 7. `plans/modern-look.md` steps 4-5: the modernized look and the light and

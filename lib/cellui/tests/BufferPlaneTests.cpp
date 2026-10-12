@@ -280,3 +280,13 @@ TEST(element_drawn_through_a_buffer_plane) {
   CHECK(b.toPlainText() == "\n    title\n    secon\n");
   CHECK(b.at(1, 4).bold);
 }
+
+TEST(bufferplane_display_scale_is_the_roots) {
+  StyleProvider styles;
+  CellBuffer b(2, 2);
+  BufferPlane root(b, styles);
+  auto child = root.createChild();
+  CHECK(child->displayScale() == 1.0);
+  root.setDisplayScale(2.0);
+  CHECK(child->displayScale() == 2.0);
+}

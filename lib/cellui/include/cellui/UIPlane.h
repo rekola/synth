@@ -46,6 +46,10 @@ class UIPlane {
   // Every widget that paints sub-character-resolution content asks the plane
   // instead of guessing for itself.
   virtual bool canRenderSextants() const { return false; }
+  // How much larger than at 96 dpi to draw anything sized in pixels
+  // (icons, text, line widths; hairlines stay one pixel). A terminal
+  // reports no DPI, so its backend guesses from the cell size.
+  virtual double displayScale() const { return 1.0; }
   virtual void setFgColor(int r, int g, int b) = 0;
   virtual void setBgColor(int r, int g, int b) = 0;
   virtual void setUnderline(bool b) = 0;

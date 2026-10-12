@@ -80,6 +80,9 @@ class BufferPlane : public UIPlane {
     default_fg_ = fg;
     default_bg_ = bg;
   }
+  // What displayScale() reports, for the whole tree (root only).
+  void setDisplayScale(double scale) { display_scale_ = scale; }
+  double displayScale() const override { return root().display_scale_; }
   // Where the terminal's cursor goes: in the open reader, if any (root only).
   std::optional<std::pair<int, int>> cursorPosition() const;
   // This plane's top-left corner on the screen.
@@ -121,6 +124,7 @@ class BufferPlane : public UIPlane {
   // Root only.
   BufferPlane * active_reader_ = nullptr;
   Color default_fg_ = Color(255, 255, 255), default_bg_ = Color(0, 0, 0);
+  double display_scale_ = 1.0;
 };
 
 }  // namespace cellui

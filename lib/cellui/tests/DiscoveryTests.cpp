@@ -63,6 +63,7 @@ TEST(discovery_xterm) {
   CHECK(c.pixel_mouse);
   CHECK(c.sync == SyncForm::NONE);
   CHECK(c.cell_px_height == 20 && c.cell_px_width == 10);
+  CHECK(c.display_scale == 1.0);
   CHECK(c.rows == 24 && c.cols == 80);
   CHECK(!c.kitty_keyboard && !c.sextants);
   CHECK(c.default_bg && c.default_bg->getRed() == 255);

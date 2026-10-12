@@ -315,6 +315,8 @@ Capabilities Discovery::result() const {
     caps.cell_px_width = text_px_w_ / cols;
   }
 
+  caps.display_scale = estimateDisplayScale(caps.cell_px_height);
+
   // Images: kitty graphics, then iTerm2's, then Sixel.
   bool sixel = da1_sixel_ || (name == "alacritty" && sixel_max_w_ > 0);
   if (sixel) {
