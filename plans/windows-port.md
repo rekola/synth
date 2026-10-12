@@ -211,7 +211,11 @@ input, sample recording, a Launchpad as the performance surface. This is the
 first Windows build a musician can use, and still needs no UI decision.
 Verify by hand with a Launchpad on Windows; document in `docs/headless.md`.
 
-## Step 6 - Installer
+## Step 6 - Installer (built on CI, not yet run by a person)
+
+Done: `release-windows.yml`, `tools/windows/` (see `docs/building.md`). Left:
+the SoundFont (needs a pinned URL and checksum), a SOFA file, Start menu
+entries for the terminal UI, signing, MSIX/winget.
 
 - **Inno Setup**, built on CI from tags.
   - It bundles the MSYS2 runtime DLLs the binary needs (collected with
