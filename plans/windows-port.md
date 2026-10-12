@@ -184,7 +184,7 @@ executable) is settled by step 6.
 - Real-time priority for the audio thread: MMCSS (`AvSetMmThreadCharacteristics`
   "Pro Audio") on Windows, whatever Linux does today unchanged.
 
-## Step 4 - Windows backends
+## Step 4 - Windows backends (written, not yet run on hardware)
 
 - **WASAPI audio** (`audio/WasapiAudio.*`): shared mode, event-driven,
   float32, the song's sample rate (resampling by the engine if the mix
@@ -229,3 +229,9 @@ Verify by hand with a Launchpad on Windows; document in `docs/headless.md`.
 
 The graphical UI: `plans/cell-ui-window.md`, once the Cell UI's terminal
 phase has separated the UI.
+
+Step 4 notes: the backends are in `synth_engine` on Windows (`WasapiAudio`,
+`AudioDevicesWasapi`, `WinMmMidiInput`, `WinMmMidiPorts`) and compile in CI,
+but have not run against real devices. The output rate is the device's mix
+rate, adopted like ALSA's negotiated one; a Launchpad is not recognised on
+Windows until its WinMM port names are added to `modelFromDeviceName()`.

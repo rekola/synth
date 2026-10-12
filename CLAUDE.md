@@ -86,7 +86,7 @@ and `findDefaultSofaFile()` only add sub-paths to these),
 `AudioThreadPriority`, MMCSS "Pro Audio" on Windows and nothing on Linux, held
 by the audio thread), `ShutdownSignal.cpp` (a console control handler for
 Ctrl-C and the console closing), `Daemon.cpp` (`--daemon` says it is unsupported
-and exits), `Notifier.h` and `AudioBuffer.h` (aligned allocation). Files open by
+and exits), `Notifier.h` and `AudioBuffer.h` (aligned allocation). The Windows device backends sit in `synth_engine` behind the same interfaces: `audio/WasapiAudio` (shared-mode, event-driven WASAPI; `wasapi:<endpoint id>` names, `AudioDevicesWasapi.cpp` for the lists) and WinMM MIDI (`midi/WinMmMidiInput`, `WinMmMidiPorts`; `winmm::Watcher` polls the device list, as WinMM has no hotplug notice). They compile in CI but nothing there can run them against a device. Files open by
 UTF-8 path through `util/FileOpen.h`.
 
 ## Run

@@ -70,7 +70,12 @@ source that is missing is connected as soon as it appears.
 - Anything else is an ALSA PCM name such as `hw:1,0`. Only useful without
   PipeWire; with it, cards are normally held by PipeWire and the nodes should
   be used instead.
-- MIDI is `<client name>:<port name>` of an ALSA sequencer port. Launchpads
+- `wasapi:<endpoint id>` (Windows) is an audio endpoint, by the id Windows
+  gives it, which survives restarts. Output runs at the rate the output
+  device is set to in Windows (the program adopts it); the system converts
+  the channel count, and the rate and channel count of an input.
+- MIDI is `<client name>:<port name>` of an ALSA sequencer port (on Windows,
+  the name of a WinMM input). Launchpads
   are left out of the list, since they have their own connection.
 
 ## What the lists show

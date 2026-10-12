@@ -182,7 +182,16 @@ target_include_directories(synth_engine SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR
 set_source_files_properties(third_party/tinyxml2/tinyxml2.cpp PROPERTIES COMPILE_OPTIONS "-w")
 target_link_libraries(synth_engine PUBLIC m sndfile fmt pthread)
 if(WIN32)
-  target_link_libraries(synth_engine PUBLIC avrt)
+  target_link_libraries(synth_engine PUBLIC avrt ole32 uuid winmm)
+  # The Windows audio and MIDI backends; the engine library holds them like
+  # the portable ones, and the interactive program picks them up from there.
+  target_sources(synth_engine PRIVATE
+    src/audio/AudioDevicesWasapi.cpp
+    src/audio/WasapiAudio.cpp
+    src/audio/WasapiEndpoints.cpp
+    src/midi/WinMmDevices.cpp
+    src/midi/WinMmMidiInput.cpp
+    src/midi/WinMmMidiPorts.cpp)
 endif()
 
 # canvas (2D drawing for the scopes and meters). Its warnings are its own, so

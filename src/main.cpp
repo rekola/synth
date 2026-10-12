@@ -1,4 +1,8 @@
+#ifdef _WIN32
+#include "audio/WasapiAudio.h"
+#else
 #include "audio/AlsaAudio.h"
+#endif
 #include "audio/NullAudio.h"
 #include "audio/AudioDevices.h"
 #include "audio/DeviceSettings.h"
@@ -164,9 +168,13 @@ int main(int argc, char *argv[]) {
   if (null_audio) {
     audio_device = make_unique<NullAudio>(channel_config.getAudioOutSampleRate(), channel_config.getDeviceChannels());
   } else {
-    auto alsa = make_unique<AlsaAudio>(channel_config.getAudioOutSampleRate(), channel_config.getDeviceChannels());
-    alsa->initialize(logger, devices);
-    audio_device = std::move(alsa);
+#ifdef _WIN32
+    auto device = make_unique<WasapiAudio>(channel_config.getAudioOutSampleRate(), channel_config.getDeviceChannels());
+#else
+    auto device = make_unique<AlsaAudio>(channel_config.getAudioOutSampleRate(), channel_config.getDeviceChannels());
+#endif
+    device->initialize(logger, devices);
+    audio_device = std::move(device);
   }
   AudioAPI & audio = *audio_device;
   channel_config.setAudioOutSampleRate(audio.getFrequency());

@@ -9,7 +9,8 @@
 // An audio name is "" or "default" (the system default), "pw:<node name>" (a
 // PipeWire node, matched by its stable node.name rather than its numeric id,
 // which changes every session) or anything else, taken as a raw ALSA PCM name
-// (e.g. "hw:1,0"). A MIDI input is "<client name>:<port name>", or "" for none
+// (e.g. "hw:1,0"). On Windows, "wasapi:<endpoint id>" names an audio endpoint
+// by its stable id. A MIDI input is "<client name>:<port name>", or "" for none
 // (connections made outside the program still work).
 struct DeviceSettings {
   std::string capture;
@@ -29,6 +30,16 @@ inline bool isPipeWireDevice(const std::string & name) {
 
 inline std::string pipeWireNodeName(const std::string & name) {
   return isPipeWireDevice(name) ? name.substr(3) : std::string();
+}
+
+constexpr const char * kWasapiPrefix = "wasapi:";
+
+inline bool isWasapiDevice(const std::string & name) {
+  return name.compare(0, 7, kWasapiPrefix) == 0 && name.size() > 7;
+}
+
+inline std::string wasapiEndpointId(const std::string & name) {
+  return isWasapiDevice(name) ? name.substr(7) : std::string();
 }
 
 inline bool isDefaultDevice(const std::string & name) {
