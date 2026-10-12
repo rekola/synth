@@ -35,6 +35,7 @@ add_library(cellui STATIC
   src/SpectrumMeter.cpp
   src/SubcellGlyphs.cpp
   src/Utf8.cpp
+  src/term/Discovery.cpp
   src/term/InputParser.cpp
   src/term/TermEvent.cpp)
 target_include_directories(cellui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -54,6 +55,7 @@ add_executable(cellui_tests
   tests/ChoiceDialogTests.cpp
   tests/ChoiceListTests.cpp
   tests/ColorTests.cpp
+  tests/DiscoveryTests.cpp
   tests/ElementTests.cpp
   tests/GalleryTests.cpp
   tests/HeatmapChartTests.cpp
