@@ -52,7 +52,9 @@ def spawn(song=SONG, view="arrangement"):
         # one physically connected, synth would otherwise auto-connect to
         # both at once - see LaunchpadIO.h's own ignore_hardware_ comment.
         os.environ["SYNTH_LAUNCHPAD_NO_HARDWARE"] = "1"
-        os.execvp(BINARY, [BINARY, "--view", view, song])
+        # SYNTH_E2E_NULL_AUDIO=1 runs without a sound device (CI, containers).
+        extra = ["--null-audio"] if os.environ.get("SYNTH_E2E_NULL_AUDIO") else []
+        os.execvp(BINARY, [BINARY, *extra, "--view", view, song])
         os._exit(1)
     set_winsize(master_fd, ROWS, COLS, XPIX, YPIX)
     os.set_blocking(master_fd, False)
