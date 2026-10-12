@@ -166,6 +166,8 @@ add_library(synth_engine STATIC
 	src/util/FileOpen.cpp
 	src/cli/CommonOptions.cpp
 	src/util/Notifier.cpp
+	src/util/Paths.cpp
+	src/util/ThreadSupport.cpp
 	src/util/WaitSet.cpp
 	src/launchpad/LaunchpadIO.cpp
 )
@@ -179,6 +181,9 @@ target_include_directories(synth_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_include_directories(synth_engine SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 set_source_files_properties(third_party/tinyxml2/tinyxml2.cpp PROPERTIES COMPILE_OPTIONS "-w")
 target_link_libraries(synth_engine PUBLIC m sndfile fmt pthread)
+if(WIN32)
+  target_link_libraries(synth_engine PUBLIC avrt)
+endif()
 
 # canvas (2D drawing for the scopes and meters). Its warnings are its own, so
 # it is built from a plain checkout outside this project's flag set.

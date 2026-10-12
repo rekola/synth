@@ -15,7 +15,7 @@
 #include "audio/OfflineRenderer.h"
 #include "ambisonic/AmbisonicEncoding.h"
 #include "cli/CommonOptions.h"
-#include "generated/InstallPaths.h"
+#include "util/Paths.h"
 
 #include <cstring>
 #include <filesystem>
@@ -192,7 +192,7 @@ int main(int argc, char *argv[]) {
     // default: the project-local, cwd-relative copy first (running
     // straight out of the source tree, findDefaultSoundFont()'s own
     // data/-override precedent in Controller.cpp), then the `make
-    // install`ed copy (kInstalledWelcomeSongPath, baked in at configure
+    // install`ed copy (paths::installedWelcomeSongPath(), baked in at configure
     // time - see InstallPaths.h.in), falling back to a fresh empty buffer
     // if neither is there. No separate "new song" entry point otherwise
     // (see Controller.h's own switchToBuffer() comment) - freshBufferName()
@@ -202,7 +202,7 @@ int main(int argc, char *argv[]) {
     error_code ec;
     string welcome_song;
     if (filesystem::is_regular_file("songs/welcome.xml", ec)) welcome_song = "songs/welcome.xml";
-    else if (filesystem::is_regular_file(kInstalledWelcomeSongPath, ec)) welcome_song = kInstalledWelcomeSongPath;
+    else if (filesystem::is_regular_file(paths::installedWelcomeSongPath(), ec)) welcome_song = paths::installedWelcomeSongPath();
     if (welcome_song.empty() || !controller->openSong(welcome_song)) {
       controller->switchToBuffer(controller->freshBufferName());
     }

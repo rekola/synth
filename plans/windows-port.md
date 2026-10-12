@@ -165,7 +165,12 @@ port names in `modelFromDeviceName()`, and the WinMM backends (step 4).
 - The e2e simulators stay ALSA-only; that is fine - they test the Linux
   backend and the shared logic above it.
 
-## Step 3 - OS utilities
+## Step 3 - OS utilities (done)
+
+Done: `util/Paths`, `util/ThreadSupport` (names, `AudioThreadPriority`), a
+console control handler in `ShutdownSignal`, and `--daemon` refusing on
+Windows. The Windows install layout (where `share` lives next to the
+executable) is settled by step 6.
 
 - Thread naming (`UI.cpp`): `SetThreadDescription` on Windows.
 - Shutdown (`ShutdownSignal.cpp`): `SetConsoleCtrlHandler` for Ctrl-C /
