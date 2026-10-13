@@ -128,7 +128,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
     auto & song = getController().getSong();
     Song::Edit edit(song, "kill region");
     auto point = source_->cursor();
-    auto track_ids = song.getRootTrackIds();
+    auto track_ids = trackIds(song);
     auto grid = source_->editGrid(selectionAnchor(), false);
     auto locator_base = source_->locatorRow({ point.block, 0 });
 
@@ -223,7 +223,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
     }
     auto & song = getController().getSong();
     auto point = source_->cursor();
-    auto track_ids = song.getRootTrackIds();
+    auto track_ids = trackIds(song);
     auto grid = source_->readGrid(selectionAnchor());
     auto locator_base = source_->locatorRow({ point.block, 0 });
 
@@ -273,7 +273,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
     if (!clipboard_empty) {
       auto & song = getController().getSong();
       auto point = source_->cursor();
-      auto track_ids = song.getRootTrackIds();
+      auto track_ids = trackIds(song);
 
       // A Note::getValue() means a different kind of value under a
       // different tuning (percussion GM key vs. a pitched scale degree) -
@@ -342,7 +342,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
   // happens to send.
   commands_.define("insert-row", [this]() {
     auto & song = getController().getSong();
-    auto track_ids = song.getRootTrackIds();
+    auto track_ids = trackIds(song);
     if (current_cursor.track < 0 || current_cursor.track >= static_cast<int>(track_ids.size())) return;
     auto cursor_track_id = track_ids[static_cast<size_t>(current_cursor.track)];
     Song::Edit edit(song, "insert row");
@@ -365,7 +365,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
   // content) or any other track's row.
   commands_.define("kill-row", [this]() {
     auto & song = getController().getSong();
-    auto track_ids = song.getRootTrackIds();
+    auto track_ids = trackIds(song);
     if (current_cursor.track < 0 || current_cursor.track >= static_cast<int>(track_ids.size())) return;
     auto cursor_track_id = track_ids[static_cast<size_t>(current_cursor.track)];
     auto point = source_->cursor();
@@ -407,7 +407,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
     auto & song = getController().getSong();
     Song::Edit edit(song, "transpose region up");
     auto grid = source_->editGrid(selectionAnchor(), false);
-    auto track_ids = song.getRootTrackIds();
+    auto track_ids = trackIds(song);
 
     // A percussion or drum-machine track's Note::getValue() selects which
     // drum sound plays (a MIDI key), not a pitch - transposing it would
@@ -440,7 +440,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
     auto & song = getController().getSong();
     Song::Edit edit(song, "transpose region down");
     auto grid = source_->editGrid(selectionAnchor(), false);
-    auto track_ids = song.getRootTrackIds();
+    auto track_ids = trackIds(song);
 
     // See transpose-region-up's own comment.
     auto is_percussion = [&song](int track_id) {
@@ -471,7 +471,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
     auto & song = getController().getSong();
     Song::Edit edit(song, "humanize region");
     auto grid = source_->editGrid(selectionAnchor(), false);
-    auto track_ids = song.getRootTrackIds();
+    auto track_ids = trackIds(song);
     static NoiseGenerator rng{std::random_device{}()};
 
     auto b = getEffectiveSelectionBounds(song, track_ids);
@@ -504,7 +504,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
     auto & song = getController().getSong();
     Song::Edit edit(song, "apply just intonation");
     auto grid = source_->editGrid(selectionAnchor(), false);
-    auto track_ids = song.getRootTrackIds();
+    auto track_ids = trackIds(song);
     auto is_percussion = [&song](int track_id) {
       auto * track = song.getMasterTrack().getChildByInternalId(track_id);
       return track && song.getTuningForTrack(*track) == Tuning::PERCUSSION;
@@ -533,7 +533,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
     auto & song = getController().getSong();
     Song::Edit edit(song, "clear tuning corrections");
     auto grid = source_->editGrid(selectionAnchor(), false);
-    auto track_ids = song.getRootTrackIds();
+    auto track_ids = trackIds(song);
 
     int cleared = 0;
     auto b = getEffectiveSelectionBounds(song, track_ids);
@@ -593,7 +593,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
   // shared cursor's own track when nothing set it.
   commands_.define("toggle-mute", [this]() {
     auto & song = getController().getSong();
-    auto track_ids = song.getRootTrackIds();
+    auto track_ids = trackIds(song);
     if (track_ids.empty()) return;
     auto track_id = getController().consumePendingCommandTrack(track_ids[static_cast<size_t>(current_cursor.track)]);
     getController().toggleTrackMuted(track_id);
@@ -601,7 +601,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
 
   commands_.define("toggle-solo", [this]() {
     auto & song = getController().getSong();
-    auto track_ids = song.getRootTrackIds();
+    auto track_ids = trackIds(song);
     if (track_ids.empty()) return;
     auto track_id = getController().consumePendingCommandTrack(track_ids[static_cast<size_t>(current_cursor.track)]);
     getController().toggleTrackSolo(track_id);
@@ -616,7 +616,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
   // Enter while the cursor sits on a collapsed track - see offerInput().
   commands_.define("toggle-track-collapse", [this]() {
     auto & song = getController().getSong();
-    auto track_ids = song.getRootTrackIds();
+    auto track_ids = trackIds(song);
     if (track_ids.empty()) return;
     auto track_id = getController().consumePendingCommandTrack(track_ids[static_cast<size_t>(current_cursor.track)]);
     getController().toggleTrackCollapsed(track_id);
@@ -631,7 +631,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
   // removeNoteColumn and LeafTrack::getMinNoteColumns).
   commands_.define("add-note-column", [this]() {
     auto & song = getController().getSong();
-    auto track_ids = song.getRootTrackIds();
+    auto track_ids = trackIds(song);
     if (track_ids.empty()) return;
     auto track_id = getController().consumePendingCommandTrack(track_ids[static_cast<size_t>(current_cursor.track)]);
     getController().addNoteColumn(track_id);
@@ -639,7 +639,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
 
   commands_.define("remove-note-column", [this]() {
     auto & song = getController().getSong();
-    auto track_ids = song.getRootTrackIds();
+    auto track_ids = trackIds(song);
     if (track_ids.empty()) return;
     auto track_id = getController().consumePendingCommandTrack(track_ids[static_cast<size_t>(current_cursor.track)]);
     getController().removeNoteColumn(track_id);
@@ -766,7 +766,7 @@ PatternEditor::setCursorTrack(int track_index) {
   new_cursor.col = new_cursor.subcol = 0;
 
   auto & song = getController().getSong();
-  auto track_ids = song.getRootTrackIds();
+  auto track_ids = trackIds(song);
   if (track_index >= 0 && track_index < static_cast<int>(track_ids.size())) song.setCurrentTrackId(track_ids[static_cast<size_t>(track_index)]);
 }
 
@@ -813,7 +813,7 @@ PatternEditor::reportLockedCursor() {
 
 void
 PatternEditor::syncCursorTrack(const Song & song) {
-  auto track_ids = song.getRootTrackIds();
+  auto track_ids = trackIds(song);
   if (track_ids.empty()) return;
   auto track_id = track_ids[static_cast<size_t>(std::clamp(new_cursor.track, 0, static_cast<int>(track_ids.size()) - 1))];
   if (track_id == synced_cursor_track_id_) return;
@@ -837,11 +837,28 @@ PatternEditor::syncCursorTrack(const Song & song) {
   synced_cursor_track_id_ = track_id;
 }
 
+std::vector<int>
+PatternEditor::trackIds(const Song & song) const {
+  return isLiveMode() ? song.getPlayableTrackIds() : song.getRootTrackIds();
+}
+
 void
 PatternEditor::setLiveMode(bool live) {
   PatternSource * source = live ? static_cast<PatternSource *>(scene_source_.get()) : arrangement_source_.get();
   if (source == source_) return;
+  // The cursor is an index into the track list, which differs between the
+  // two modes, so it follows its track.
+  auto & song = getController().getSong();
+  auto before = trackIds(song);
+  auto at = new_cursor.track;
+  auto track_id = at >= 0 && at < static_cast<int>(before.size()) ? before[static_cast<size_t>(at)] : -1;
   source_ = source;
+  if (track_id >= 0) {
+    auto after = trackIds(song);
+    auto it = std::find(after.begin(), after.end(), track_id);
+    if (it != after.end()) new_cursor.track = current_cursor.track = static_cast<int>(it - after.begin());
+    else if (!after.empty()) new_cursor.track = current_cursor.track = std::min(new_cursor.track, static_cast<int>(after.size()) - 1);
+  }
   synced_cursor_track_id_ = -1;
   view_block_ = 0;
   // A mark's block and a scroll position mean nothing in the other
@@ -871,7 +888,7 @@ PatternEditor::scrollView(int delta_rows) {
 
 void
 PatternEditor::scrollViewTracks(int delta_tracks) {
-  auto num_tracks = static_cast<int>(getController().getSong().getRootTrackIds().size());
+  auto num_tracks = static_cast<int>(trackIds(getController().getSong()).size());
   current_scroll_.track = std::clamp(current_scroll_.track + delta_tracks, 0, std::max(num_tracks - 1, 0));
   current_scroll_.col = 0;
   view_detached_ = true;
@@ -945,7 +962,7 @@ PatternEditor::startTrackNameEdit() {
   if (inline_editor_.isOpen()) return;
 
   auto & song = getController().getSong();
-  auto track_ids = song.getRootTrackIds();
+  auto track_ids = trackIds(song);
   if (current_cursor.track >= static_cast<int>(track_ids.size())) return;
 
   // Prefer showing the *whole* track (heading included) for the reader,
@@ -1040,7 +1057,7 @@ PatternEditor::copyToClip() {
     return;
   }
   auto & song = getController().getSong();
-  auto track_ids = song.getRootTrackIds();
+  auto track_ids = trackIds(song);
   if (current_cursor.track < 0 || current_cursor.track >= static_cast<int>(track_ids.size())) return;
   auto track_id = track_ids[static_cast<size_t>(current_cursor.track)];
 
@@ -1254,7 +1271,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
 
   auto track_info = getTrackInformation(song, new_row);
 
-  auto track_ids = song.getRootTrackIds();
+  auto track_ids = trackIds(song);
 
   // Tracks can be deleted from anywhere (delete-track is a global command),
   // so keep the cursor on a real track and column.
@@ -1437,7 +1454,7 @@ PatternEditor::anyMeterLive(const PlaybackInfo & info, const std::vector<int> & 
 
 void
 PatternEditor::handleMidiEvent(MidiEvent & ev) {
-  auto track_ids = getController().getSong().getRootTrackIds();
+  auto track_ids = trackIds(getController().getSong());
   int track_id = track_ids[static_cast<size_t>(new_cursor.track)];
 
   MidiNoteInput::Options options;
@@ -1578,7 +1595,7 @@ PatternEditor::handleMouse(const cellui::Input & input) {
     return true;
   }
   auto & song = getController().getSong();
-  auto track_ids = song.getRootTrackIds();
+  auto track_ids = trackIds(song);
   auto [ pos_y, pos_x ] = getPosition();
   auto [ rows, cols ] = getDim();
   auto y = input.getY() - pos_y, x = input.getX() - pos_x;
@@ -1777,7 +1794,7 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
   // something they just landed on.
   if (!new_cursor.isOnLocator() && input.getId() == Key::Enter) {
     auto & song = getController().getSong();
-    auto track_ids = song.getRootTrackIds();
+    auto track_ids = trackIds(song);
     if (current_cursor.track < static_cast<int>(track_ids.size())) {
       auto track_id = track_ids[static_cast<size_t>(current_cursor.track)];
       auto track = song.getMasterTrack().getChildByInternalId(track_id);
@@ -1853,7 +1870,7 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 
   auto all_track_info = getTrackInformation(song, current_scroll_.row);
 
-  auto track_ids = song.getRootTrackIds();
+  auto track_ids = trackIds(song);
   auto num_tracks = static_cast<int>(track_ids.size());
 
   auto current_track = song.getMasterTrack().getChildByInternalId(track_ids[static_cast<size_t>(current_cursor.track)]);
@@ -2555,9 +2572,9 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
       if (level_meter::barSteps(fraction, 1) > 0) meters_showing_ = true;
       return fraction;
     };
-    auto draw_vu_meter = [&](int row, int col, float fraction, bool clipping) {
+    auto draw_vu_meter = [&](int row, int col, float fraction, bool clipping, const Color & background) {
       cellui::VuReading reading{fraction, 0.0f, clipping};
-      cellui::VuMeterLook look{styles.window_bg_color, styles.meter_active_color};
+      cellui::VuMeterLook look{background, styles.meter_active_color};
       if (scopes_) scopes_->drawVuMeter(getPlane(), row, col, 1, reading, look, row, row + 1);
       else cellui::drawCellVuMeter(getPlane(), row, col, 1, reading, look, row, row + 1);
     };
@@ -2586,7 +2603,8 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	// this row's first visible heading color on the right. Drawn over
 	// column 4, not column 5, so the heading content actually drawn
 	// below still starts exactly where it always has.
-	draw_edge(heading_height - 2 - level, gutterWidth() - 1, styles.window_bg_color, segment_color(track));
+	// With a colour slice the header needs no marker before it.
+	if (!styles.track_chips) draw_edge(heading_height - 2 - level, gutterWidth() - 1, styles.window_bg_color, segment_color(track));
 	drew_left_edge = true;
       }
 
@@ -2646,6 +2664,10 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    // display-width budget and as a putstr() column offset.
 	    auto text_width = std::max(0, actual_width - (has_mute_solo ? 3 : 1) - toggle_width - chip_width);
 	    auto name_pos = current_pos + chip_width + toggle_width;
+	    // M, S and the divider sit at the segment's right edge, wherever the
+	    // name ends: when the segment is narrower than its parts (scrolled
+	    // at the screen edge) a name that doesn't fit is cut, not the flags.
+	    const auto flags_pos = current_pos + actual_width - (has_mute_solo ? 3 : 1);
 
 	    // The display label is still type-specific (a raw sample/step
 	    // sequencer has nothing resembling an "instrument" to resolve),
@@ -2733,15 +2755,15 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	      auto off_color = styles.track_chips ? styles.theme.text_disabled : faint_color(track);
 	      if (is_muted) setFgColor(styles.track_chips ? styles.mute_color : Color(0, 0, 0));
 	      else setFgColor(off_color);
-	      putstr(heading_height - 2 - level, name_pos + text_width, "M");
+	      putstr(heading_height - 2 - level, flags_pos, "M");
 	      if (is_solo) setFgColor(styles.track_chips ? styles.solo_color : Color(0, 0, 0));
 	      else setFgColor(off_color);
-	      putstr(heading_height - 2 - level, name_pos + text_width + 1, "S");
+	      putstr(heading_height - 2 - level, flags_pos + 1, "S");
 	    }
 	    // Drawn last - draw_divider() changes the current fg/bg colors as
 	    // a side effect, and nothing else in this branch relies on them
 	    // afterward.
-	    draw_divider(heading_height - 2 - level, name_pos + text_width + (has_mute_solo ? 2 : 0), track, i);
+	    draw_divider(heading_height - 2 - level, flags_pos + (has_mute_solo ? 2 : 0), track, i);
 
 	    // The track's colour as a slice at the left of both heading lines.
 	    if (chip) {
@@ -2759,8 +2781,9 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    if (styles.track_chips) setFgColor(is_fixed_percussion_label ? styles.theme.text_disabled : styles.window_accent_fg_color);
 	    else if (is_fixed_percussion_label) setFgColor(0x78, 0x78, 0x78);
 	    else setFgColor(0xf0, 0xf0, 0xf0);
-	    setBgColor(chip ? styles.heading_bg_color : styles.window_bg_color);
-	    // The line's blanks, so the surface runs across it.
+	    setBgColor(chip ? segment_color(track) : styles.window_bg_color);
+	    // The line's blanks (the selection tint included), so the surface runs
+	    // across it up to the divider.
 	    if (chip) putstr(heading_height - 2 - level + 1, current_pos + chip_width, std::string(static_cast<size_t>(std::max(0, actual_width - 1 - chip_width)), ' '));
 
 	    auto instrument_name_width = std::max(0, actual_width - 1 - chip_width);
@@ -2787,8 +2810,11 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 
 	    if (meter_width > 0) {
 	      auto & track_info = info.getTrackInfo(track->getInternalId());
-	      draw_vu_meter(heading_height - 2 - level + 1, current_pos + chip_width + instrument_name_width, meter_fraction(track->getInternalId(), track_info), track_info.isClipping());
+	      draw_vu_meter(heading_height - 2 - level + 1, current_pos + chip_width + instrument_name_width, meter_fraction(track->getInternalId(), track_info), track_info.isClipping(),
+			    chip ? segment_color(track) : styles.window_bg_color);
 	    }
+	    // The divider on the instrument line too, so the line is closed.
+	    if (chip) draw_divider(heading_height - 2 - level + 1, current_pos + actual_width - 1, track, i);
 	  }
 	} else if (actual_width <= 1) {
 	  // No room for even the "▸"/"◂" collapse toggle, let alone the
@@ -3199,9 +3225,9 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       setFgColor(styles.window_border_color);
       setBgColor(styles.window_bg_color);
 	
-      putstr(display_row, current_pos + 4, "│");
+      putstr(display_row, current_pos + row_digits_ + 2, "│");
 	
-      current_pos += 5;
+      current_pos += gutterWidth();
     } else {
       auto track_id = track_ids[static_cast<size_t>(i)];
       if (per_track_rows) {

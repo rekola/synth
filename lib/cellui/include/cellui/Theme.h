@@ -259,7 +259,7 @@ struct Theme {
     t.button_bg = t.accent;
     t.button_pressed_bg = Color("#4f9fb4");
     t.row_pressed_bg = Color("#2f6b78");
-    t.master_track = t.surface_raised;
+    t.master_track = t.surface_overlay;
     t.menu_fg = t.text_primary;
     t.menu_bg = t.surface_raised;
     t.menu_section_fg = t.text_primary;
@@ -310,7 +310,7 @@ struct Theme {
     t.button_bg = t.accent;
     t.button_pressed_bg = Color("#004a66");
     t.row_pressed_bg = Color("#8ab8cc");
-    t.master_track = t.surface_raised;
+    t.master_track = t.surface_overlay;
     t.menu_fg = t.text_primary;
     t.menu_bg = t.surface_raised;
     t.menu_section_fg = t.text_primary;

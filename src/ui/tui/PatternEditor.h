@@ -86,6 +86,10 @@ class PatternEditor : public UIElement {
   // the transport as the cursor row; Live mode edits clips directly,
   // one scene at a time (ScenePatternSource).
   void setLiveMode(bool live);
+  // The tracks the editor has columns for: every track in Arrangement view,
+  // only the playable ones in Live View, where an effect's or the master's
+  // commands belong to no clip.
+  std::vector<int> trackIds(const Song & song) const;
   bool isLiveMode() const { return source_ == scene_source_.get(); }
   // Live mode: puts `track_id`'s position on `row` of scene `scene` (not while
   // that track plays). A no-op in Arrangement mode.
