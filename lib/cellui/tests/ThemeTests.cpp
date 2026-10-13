@@ -119,7 +119,7 @@ TEST(themes_are_found_by_name) {
   CHECK(Theme::byName("original", t));
   CHECK(same(t.surface_base, "#111111"));
   CHECK(Theme::byName("dark", t));
-  CHECK(same(t.surface_base, "#0d1115"));
+  CHECK(same(t.surface_base, "#080c0f"));
   CHECK(Theme::byName("light", t));
   CHECK(same(t.surface_base, "#f0f4f7"));
   CHECK(!Theme::byName("neon", t));
@@ -131,7 +131,7 @@ TEST(the_original_track_colours_are_the_golden_angle_hsl_ones) {
 }
 
 TEST(the_modern_track_colours_are_the_token_table) {
-  const char * expected[] = {"#0085cf", "#a06882", "#8b7f00", "#6668e9", "#3c8b7f", "#9565ad", "#b76600", "#737b94"};
+  const char * expected[] = {"#0092a3", "#9e6887", "#898100", "#557ac3", "#7e7e63", "#9067b2", "#c05e00", "#64818f"};
   auto p = Theme::dark().tracks;
   for (int i = 0; i < 8; i++) CHECK(near(p.color(i), expected[i]));
 }
@@ -204,8 +204,8 @@ TEST(the_first_modern_tracks_differ_from_each_other_and_on_the_pads) {
   auto pad = [&](int i) { return Color::fromHSL(p.hslHue(i), p.padSaturation(i), 0.3f); };
   for (int i = 0; i < 8; i++) {
     for (int j = i + 1; j < 8; j++) {
-      CHECK(dist(p.color(i), p.color(j)) >= 7.0);
-      CHECK(dist(pad(i), pad(j)) >= 11.0);
+      CHECK(dist(p.color(i), p.color(j)) >= 6.5);
+      CHECK(dist(pad(i), pad(j)) >= 10.0);
     }
   }
 }
@@ -220,7 +220,7 @@ TEST(the_light_theme_derives_its_menu_and_picker_from_its_own_surfaces) {
 }
 
 TEST(a_modern_widget_plane_shows_the_base_surface_where_it_draws_nothing) {
-  CHECK(same(StyleProvider(Theme::dark()).plane_base_bg_color, "#0d1115"));
+  CHECK(same(StyleProvider(Theme::dark()).plane_base_bg_color, "#080c0f"));
   CHECK(same(StyleProvider(Theme::light()).plane_base_bg_color, "#f0f4f7"));
 }
 

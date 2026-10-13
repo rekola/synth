@@ -12,7 +12,8 @@ namespace cellui {
 // modern one has one OKLCH lightness and, for each of the first eight tracks,
 // a hue and a chroma picked to keep the closest two as different as can be on
 // the screen and on the Launchpad's pads, with the hues clear of the clip
-// state colours (a muted colour beside a vivid one tells close hues apart);
+// state colours: one colour per family (orange, olive, cyan, blue, purple,
+// pink) and two greys, without the gamut's pure blue corner;
 // later tracks step the hue by the golden ratio over the arcs the states leave
 // free, so a track never looks like a playing or a recording clip.
 struct TrackPalette {
@@ -58,7 +59,7 @@ struct TrackPalette {
   };
   static constexpr int kTableSize = 8;
   static constexpr Entry kTable[kTableSize] = {
-    { 239, 0.16f }, { 350, 0.08f }, { 105, 0.16f }, { 278, 0.19f }, { 182, 0.08f }, { 314, 0.12f }, { 78, 0.19f }, { 272, 0.04f },
+    { 205, 0.14f }, { 344, 0.08f }, { 108, 0.19f }, { 263, 0.12f }, { 108, 0.04f }, { 308, 0.12f }, { 69, 0.19f }, { 230, 0.04f },
   };
 };
 
@@ -218,23 +219,23 @@ struct Theme {
     Theme t = original();
     t.tracks = TrackPalette::modern();
     t.grid_lines = false;
-    t.surface_base = Color("#0d1115");
-    t.surface_panel = Color("#161a1e");
-    t.surface_raised = Color("#21262b");
-    t.surface_overlay = Color("#2d3238");
-    t.text_primary = Color("#e7ecf0");
-    t.text_secondary = Color("#acb2b7");
-    t.text_disabled = Color("#70757a");
-    t.text_on_accent = Color("#071417");
-    t.accent = Color("#7acce0");
-    t.accent_dim = Color("#234951");
+    t.surface_base = Color("#080c0f");
+    t.surface_panel = Color("#151a1f");
+    t.surface_raised = Color("#252b30");
+    t.surface_overlay = Color("#363d43");
+    t.text_primary = Color("#f0f4f7");
+    t.text_secondary = Color("#bfc5ca");
+    t.text_disabled = Color("#82878c");
+    t.text_on_accent = Color("#040f13");
+    t.accent = Color("#75d4eb");
+    t.accent_dim = Color("#245560");
     t.focus = t.accent;
     shareStates(t);
     t.grid_beat_fg = t.text_secondary;
     t.grid_beat_bg = t.surface_panel;
     t.grid_bar_fg = t.text_primary;
     t.grid_bar_bg = t.surface_raised;
-    t.cursor_tint = Color("#bce5ef");
+    t.cursor_tint = Color("#bae9f5");
     t.cursor_row_tint = t.accent;
     t.command_column = Color("#d4963c");
     t.reader_text = t.accent;
@@ -252,7 +253,7 @@ struct Theme {
     t.button_fg = t.text_on_accent;
     t.button_bg = t.accent;
     t.button_pressed_bg = Color("#4f9fb4");
-    t.row_pressed_bg = Color("#2d5f6a");
+    t.row_pressed_bg = Color("#2f6b78");
     t.master_track = t.surface_raised;
     t.menu_fg = t.text_primary;
     t.menu_bg = t.surface_raised;
