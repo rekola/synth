@@ -16,7 +16,8 @@ canvas::Color toCanvas(const Color & c, float alpha = 1.0f) {
 
 }  // namespace
 
-std::vector<uint32_t> render(const std::vector<float> & levels, unsigned width, unsigned height, const StyleProvider & styles) {
+std::vector<uint32_t> render(const std::vector<float> & levels, unsigned width, unsigned height, const StyleProvider & styles,
+                             float scale) {
   std::vector<uint32_t> out(static_cast<size_t>(width) * height, 0);
   if (width == 0 || height == 0 || levels.size() != width) return out;
 
@@ -25,9 +26,11 @@ std::vector<uint32_t> render(const std::vector<float> & levels, unsigned width, 
   ctx.fillStyle = toCanvas(styles.window_bg_color);
   ctx.fillRect(0, 0, width, height);
 
-  // The curve, one point per column centre, a pixel in from the top and
-  // bottom edges.
-  auto y_at = [&](unsigned x) { return h - (levels[x] * (h - 2.0f) + 1.0f); };
+  // The curve, one point per column centre, half its width in from the top
+  // and bottom edges.
+  const float line_width = 1.5f * std::max(1.0f, scale);
+  const float inset = std::min(line_width / 1.5f, h / 4.0f);
+  auto y_at = [&](unsigned x) { return h - (levels[x] * (h - 2.0f * inset) + inset); };
   ctx.beginPath().moveTo(0.0, h);
   for (unsigned x = 0; x < width; x++) ctx.lineTo(static_cast<double>(x) + 0.5, y_at(x));
   ctx.lineTo(static_cast<double>(width), h).closePath();
@@ -44,7 +47,7 @@ std::vector<uint32_t> render(const std::vector<float> & levels, unsigned width, 
   stroke.addColorStop(0.0f, toCanvas(styles.spectrumColor(0.0f)));
   stroke.addColorStop(1.0f, toCanvas(styles.spectrumColor(1.0f)));
   ctx.strokeStyle = stroke;
-  ctx.lineWidth = 1.5f;
+  ctx.lineWidth = line_width;
   ctx.stroke();
 
   // The surface holds premultiplied B, G, R, A; everything is opaque, so

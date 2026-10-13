@@ -13,7 +13,9 @@ namespace spectrum_image {
 // both shaded from the bottom up by StyleProvider::spectrumColor(), on the
 // window background. Returns width*height pixels, row 0 at the top, one
 // uint32_t per pixel with bytes R, G, B, A in memory order (all opaque).
-std::vector<uint32_t> render(const std::vector<float> & levels, unsigned width, unsigned height, const StyleProvider & styles);
+// The curve's width scales by `scale`, the display scale.
+std::vector<uint32_t> render(const std::vector<float> & levels, unsigned width, unsigned height, const StyleProvider & styles,
+                             float scale = 1.0f);
 
 }  // namespace spectrum_image
 

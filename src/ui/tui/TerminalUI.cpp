@@ -848,7 +848,8 @@ protected:
       return;
     }
     // Opaque, so a pixel never composites against the raw terminal background.
-    auto buffer = spectrum_image::render(levels, static_cast<unsigned>(pxx), static_cast<unsigned>(pxy), getPlane().getStyles());
+    auto buffer = spectrum_image::render(levels, static_cast<unsigned>(pxx), static_cast<unsigned>(pxy), getPlane().getStyles(),
+                                         static_cast<float>(getPlane().displayScale()));
     getPlane().drawImage(buffer, pxx, pxy);
   }
 };
