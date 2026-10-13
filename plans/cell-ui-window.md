@@ -89,8 +89,12 @@ or if accessibility on Windows is needed from the first release.
 - **Styles:** everything the style table holds - fonts, padding, borders,
   radius, gradients, shadows.
 - **Geometry and scrolling:** pixel row heights and column widths; smooth,
-  vsync-paced scrolling and playheads.
-- **Spans:** canvas images become textures, uploaded only when they change.
+  vsync-paced scrolling and playheads, through Cell UI's viewport
+  (`plans/cell-ui-terminal.md`): the window owns the fractional offset and
+  animates it on the frame clock, and the widgets don't change.
+- **Spans:** canvas images become textures, keyed like the terminal's
+  images, so they are uploaded only when they change and a scroll only
+  moves them.
 - **Dialogs:** separate OS windows with a real title bar, draggable, modal
   when asked. Their content is cells and canvas like everything else.
 - **Popups:** menus, tooltips and pickers as popup windows, so they can
@@ -116,10 +120,40 @@ or if accessibility on Windows is needed from the first release.
 - **Themes:** the OS dark/light preference, high contrast and reduced
   motion are followed unless set.
 
+## Linux: GTK 4
+
+GTK 4, not GTK 3: GTK 3 draws custom widgets with Cairo on the CPU, while
+GTK 4 renders through GSK, a GPU scene graph (its GL renderer, or Vulkan
+where the GTK version defaults to it). No OpenGL or SDL of our own is
+needed.
+
+- **Drawing:** the window is one custom widget whose `snapshot()` builds
+  render nodes: colour rectangles for backgrounds, Pango layouts for text
+  (GSK caches glyphs in its own atlas), `GdkTexture`s for canvas images
+  (uploaded once, reused while their key is unchanged), rounded clips,
+  borders and outset shadows for the modern look, and blur behind floating
+  layers.
+- **Text:** Pango, so shaping (HarfBuzz) and font fallback (fontconfig)
+  come with it. A run of cells with one style is one layout, not one per
+  cell.
+- **Keeping it fast:** a few thousand cells is little for GSK, but the
+  nodes are built so it stays that way - each plane's nodes are kept and
+  reused while the plane is unchanged (render nodes are immutable), so a
+  frame rebuilds only what changed; no `append_cairo` for large areas (that
+  is CPU drawing uploaded every frame); an idle UI queues no frames.
+- **Pacing:** redraws and smooth scrolling follow `GdkFrameClock`, which is
+  vsync-paced.
+- **Escape hatch:** `GtkGLArea` for a pane that needs its own shaders, used
+  only if a measurement shows GSK falls short.
+- **Measure first:** the pattern editor through the GTK backend at 4K and
+  high refresh, checked for frame time and idle CPU, before the rest is
+  built on it.
+- **Version:** Ubuntu 24.04 has GTK 4.14, the oldest supported.
+
 ## Rendering with SDL3 as host (not taken)
 
-Kept for reference: neither platform uses SDL3 now. The text stack and HiDPI
-notes still describe what the Linux backend needs alongside GTK.
+Kept for reference: neither platform uses SDL3 now. On Linux, GTK 4's GSK
+and Pango replace the rendering and text notes below.
 
 - **SDL3** handles windows, input, IME, dialogs, popups, clipboard and file
   drops on Linux (X11/Wayland) and Windows. It is in MSYS2, and is vendored

@@ -147,6 +147,41 @@ before the terminal backend replaces notcurses, so the new backend is built
 against tokens from the start; the visible changes can land on either side
 of the switch.
 
+## Scrolling and images
+
+Today each widget keeps its own scroll offset and draws only what shows, in
+whole cells, and repeats the wheel rules itself. A plane keys its images by
+cell position, so a scrolled meter is a new image and is uploaded again.
+
+- **Viewport.** Cell UI gets a shared viewport: a widget states its content
+  size and draws the part it is given; the viewport owns the offset and the
+  rules each widget repeats today - the wheel goes to the widget under the
+  pointer without moving focus, it scrolls the view and not the cursor
+  (Shift scrolls sideways), the view stays detached until the cursor moves,
+  and the cursor is kept a margin from the edges. A widget keeps its own
+  policy where it is special (`PatternScroll` for the pattern editor's
+  sideways scrolling). `PatternEditor`, `OutlineView`, `ClipGrid`,
+  `ArrangementGrid` and `ChoiceDialog`/`ChoiceList` move onto it;
+  `LineEditor`'s scrolling within one line stays its own. The terminal
+  rounds the offset to whole cells; the window uses the same offset with a
+  fractional part (`plans/cell-ui-window.md`).
+- **Image identity.** `drawImageAt()` takes a key - the widget's own id for
+  the picture, or a hash of its pixels when none is given - and a plane
+  keeps an image as it moves, so a move changes where it is placed, not
+  its version. With kitty graphics a moved image is only placed again
+  (`a=p`), no pixels sent; a test checks that a scroll uploads nothing.
+  Sixel and iTerm2 images have no ids, so every image in a scrolled pane
+  is sent again. That is accepted: the images in scrolling panes are a cell
+  or two (track meters, icons), and the meters are resent every frame while
+  audio plays anyway; the large scopes sit in fixed panes.
+- **Not used:** the terminal's own scrolling (DECSTBM scroll regions,
+  SU/SD, insert/delete line, DECSLRM margins). Scroll regions span the full
+  width while the panes sit side by side, few terminals have left/right
+  margins, and terminals treat painted Sixel pixels differently when they
+  scroll.
+- **Later, optional:** kitty's Unicode placeholders (kitty, Ghostty), where
+  an image is written as text and moves with it.
+
 ## Steps
 
 1. Canvas readiness, in the canvas repository (above). Independent.
@@ -192,17 +227,21 @@ of the switch.
    fail, to be studied and fixed separately by a local agent that has the
    e2e setup. Still open: the real-terminal
    checks of foot, WezTerm, tmux and iTerm2.
-6. Icons: the app's icon list, Kitty graphics/Sixel/glyph fallback, menu
-   icons.
-7. `plans/modern-look.md` steps 4-5: the modernized look and the light and
+6. A test backend: `BufferPlane`'s composition with each frame given out as
+   JSON (plane tree, cell text and styles, image placements with their keys,
+   focus) and input taken from the test, so synth's own tests assert on
+   what the UI shows - an image that moved told apart from a new one -
+   without a pty or a terminal emulator. The terminal layer stays covered by
+   Cell UI's backend tests and a few pty smoke tests.
+7. Viewports and image identity (Scrolling and images, above).
+8. Icons: the app's icon list, Kitty graphics/Sixel/glyph fallback, menu
+   icons, keyed so a static icon in a scrolling list costs nothing with
+   kitty graphics.
+9. `plans/modern-look.md` steps 4-5: the modernized look and the light and
    high-contrast themes.
-8. Keymap profiles in the keymap layer, emacs the only one in the
+10. Keymap profiles in the keymap layer, emacs the only one in the
    terminal.
-9. Accessibility tree published by the widgets (the terminal uses only
+11. Accessibility tree published by the widgets (the terminal uses only
    focus); strings through a catalog.
-10. A GTK backend for Cell UI on Linux (`plans/cell-ui-window.md`).
-11. A test backend: `BufferPlane`'s composition with each frame given out as
-   JSON (plane tree, cell text and styles, image placements, focus) and
-   input taken from the test, so synth's own tests assert on what the UI
-   shows without a pty or a terminal emulator. The terminal layer stays
-   covered by Cell UI's backend tests and a few pty smoke tests.
+12. A GTK backend for Cell UI on Linux, then the Win32 one
+   (`plans/cell-ui-window.md`).
