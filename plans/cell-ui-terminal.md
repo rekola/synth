@@ -156,7 +156,9 @@ of the switch.
    dependency, and the pixel spectrum and heatmap are drawn with it
    (`SpectrumImage`, `HeatmapImage`). The VU meters have pixel versions
    too (`VuMeterImage`, `Scopes::drawVuMeter()`), drawn into a widget's own
-   plane as images at cell positions (`UIPlane::drawImageAt()`).
+   plane as images at cell positions (`UIPlane::drawImageAt()`). Confirmed
+   in real terminals: the pixel scopes and VU meters in kitty and xterm;
+   GNOME Terminal (VTE built without Sixel) shows the cell versions.
 3. `plans/modern-look.md` steps 1-3: audit, mock, tokens (no visible
    change).
 4. Create `lib/cellui` with `UIPlane`/`UIMenu`/the chart and input types
