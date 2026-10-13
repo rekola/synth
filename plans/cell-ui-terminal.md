@@ -163,23 +163,20 @@ of the switch.
    What stays in the app is what knows the song or the controller, and the
    notcurses implementations that step 5 replaces.
 5. The terminal backend replaces notcurses. Same look, same e2e results.
-   Started, in `lib/cellui` (`cellui/term/`), not yet used by the app: our
-   own input parser (keys in every encoding, mouse, paste, focus, replies,
-   a grace deadline instead of a spinning wait), start-up discovery (the
-   queries and the capability record, tested against replies recorded from
-   seven terminals), the frame encoder (diff, cursor motion, SGR, colour
-   quantisation, synchronized output), the tty session (termios, signals,
-   restoration, waitable descriptors; `cellui_gallery --live` tries it),
-   and `BufferPlane` with what `TerminalPlane` gets from notcurses
-   (translucent cells, the reader on `LineEditor`, the picker). The display
-   scale is guessed from the cell height (`estimateDisplayScale()`) and
-   reported by `UIPlane::displayScale()`: the scopes and icons scale text,
-   icons and line widths by it, hairlines excepted. The terminal's default
-   colours give `Capabilities::appearance` (light or dark,
-   `detectAppearance()`), which becomes the default theme (`dark` or `light`,
-   `--theme` still overriding) once the app runs on the new backend. Next: the menu bar,
-   images (kitty graphics, Sixel) from the pixel charts, then `TerminalUI`
-   onto all of it and notcurses out of the build.
+   Done in the code: notcurses is out of the build and `TerminalUI` runs on
+   `lib/cellui`'s terminal backend (`cellui/term/`: `InputParser`,
+   `Discovery`/`Capabilities`, `FrameEncoder`, `ImageEncoder`,
+   `TerminalSession`), drawing through a root `BufferPlane` (flat children,
+   the reader on `LineEditor`, the picker, translucency, images) with the
+   menu on `MenuBar`. The display scale is guessed from the cell height
+   (`estimateDisplayScale()`, `UIPlane::displayScale()`: text, icons and line
+   widths scale by it, hairlines excepted), and the default `--theme`
+   follows the terminal's colours (`detectAppearance()`). The non-Launchpad
+   e2e scripts give the notcurses build's results or better. Still open:
+   the Launchpad e2e scripts (they need an ALSA sequencer, which the cloud
+   containers lack), the real-terminal checks (kitty, foot, WezTerm, xterm
+   with Sixel, VTE, tmux), iTerm2's own image format (it draws Sixel for
+   now), and drawing the scopes' line widths by the display scale.
 6. Icons: the app's icon list, Kitty graphics/Sixel/glyph fallback, menu
    icons.
 7. `plans/modern-look.md` steps 4-5: the modernized look and the light and
