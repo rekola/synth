@@ -282,32 +282,43 @@ configure_file(
 )
 
 if(SYNTH_BUILD_INTERACTIVE)
-  # add the executable
-  add_executable(synth src/main.cpp
+  # The UI layer (the app-level UI, the Launchpad logic, the headless
+  # backend and, if built, the terminal UI) is a library of its own so the
+  # tests can drive the terminal UI on Cell UI's test terminal.
+  add_library(synth_ui STATIC
   	src/ui/UI.cpp
   	src/launchpad/LaunchpadManager.cpp
   	src/ui/headless/HeadlessUI.cpp
-  	src/util/Daemon.cpp
   )
-  target_include_directories(synth PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
-  target_link_libraries(synth synth_engine)
-
-  if(NOT WIN32)
-    target_sources(synth PRIVATE
-      src/audio/AlsaAudio.cpp
-      src/audio/AudioDevices.cpp
-      src/midi/AlsaMidiInput.cpp
-      src/midi/AlsaMidiPorts.cpp)
-    target_link_libraries(synth asound)
-  endif()
-
+  target_link_libraries(synth_ui PUBLIC synth_engine)
   if(SYNTH_BUILD_TERMINAL_UI)
-    target_sources(synth PRIVATE
+    target_sources(synth_ui PRIVATE
       src/ui/tui/TerminalUI.cpp
       src/ui/tui/OutlineView.cpp
       src/ui/tui/PatternEditor.cpp
       src/ui/tui/ArrangementGrid.cpp
       src/ui/tui/ClipGrid.cpp)
+  endif()
+
+  # add the executable
+  add_executable(synth src/main.cpp
+  	src/util/Daemon.cpp
+  )
+  target_include_directories(synth PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+  target_link_libraries(synth synth_ui)
+
+  if(NOT WIN32)
+    # AudioDevices lists the choices UI's device pickers show.
+    target_sources(synth_ui PRIVATE src/audio/AudioDevices.cpp)
+    target_sources(synth PRIVATE
+      src/audio/AlsaAudio.cpp
+      src/midi/AlsaMidiPorts.cpp)
+    target_sources(synth_ui PRIVATE src/midi/AlsaMidiInput.cpp)
+    target_link_libraries(synth_ui PUBLIC asound)
+    target_link_libraries(synth asound)
+  endif()
+
+  if(SYNTH_BUILD_TERMINAL_UI)
     target_compile_definitions(synth PRIVATE SYNTH_TERMINAL_UI)
   endif()
 
@@ -335,8 +346,8 @@ if(SYNTH_BUILD_INTERACTIVE)
     if(NOT PIPEWIRE_FOUND)
       message(FATAL_ERROR "SYNTH_ENABLE_PIPEWIRE requested but libpipewire was not found (install libpipewire-0.3-dev)")
     endif()
-    target_compile_definitions(synth PRIVATE SYNTH_HAVE_PIPEWIRE)
-    target_link_libraries(synth PkgConfig::PIPEWIRE)
+    target_compile_definitions(synth_ui PRIVATE SYNTH_HAVE_PIPEWIRE)
+    target_link_libraries(synth_ui PUBLIC PkgConfig::PIPEWIRE)
   endif()
   endif()
 

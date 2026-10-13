@@ -42,6 +42,9 @@ class UIPlane {
   // a hidden plane can sit anywhere without ever showing, whatever the
   // screen size becomes. Default no-op.
   virtual void setVisible(bool) {}
+  // A name for the plane in a test's or an inspector's view of the tree
+  // (PlaneInfo); default no-op.
+  virtual void setName(const std::string &) {}
   // Whether the display can draw the 2x3 sextant glyphs (Symbols for Legacy
   // Computing, U+1FB00+). The default is false, the safe answer for a plane
   // with no display to ask; a backend answers once from what it detected.

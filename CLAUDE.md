@@ -1345,6 +1345,16 @@ would otherwise resume showing.
   `detectAppearance()`, which picks the default `--theme`), `FrameEncoder` (the
   frame diff as escape sequences), `ImageEncoder` (kitty graphics, iTerm2 inline images, Sixel) and
   `TerminalSession` (the tty, its modes, signals and restoration).
+  `Terminal` (`cellui/term/Terminal.h`) is what the app needs of one - size, capabilities,
+  events, a frame to show - which `TerminalSession` and `cellui::test::TestBackend`
+  implement. `TestBackend` (`cellui/TestBackend.h`) has no tty or window: input is
+  pushed by the test, and each presented frame is kept for the test to read
+  directly (`text()`, `frame()` cells and their styles, `info()`: the plane tree from
+  `BufferPlane::describe()` and the focus `TerminalUI::focusName()` gives, `cursor()`,
+  `images()`), so `tests/TerminalUITests.cpp` drives the real
+  `TerminalUI` (`step()` is one loop turn without waiting) and asserts on what it
+  shows. It is named for the test, not the terminal, so a window backend's tests can use it too.
+  The UI sources are the `synth_ui` library for that reason.
   `cellui_gallery --live` shows the gallery through it. Its tests are in `lib/cellui/tests/` with a copy of the tiny test
   framework (no dependency on `tests/`).
 

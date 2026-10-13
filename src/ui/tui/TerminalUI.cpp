@@ -65,7 +65,7 @@
 #include <cellui/MenuBar.h>
 #include <cellui/KeyReader.h>
 #include <cellui/term/TerminalScopes.h>
-#include <cellui/term/TerminalSession.h>
+#include <cellui/term/Terminal.h>
 
 #include <poll.h>
 
@@ -377,7 +377,7 @@ private:
   string activated_command_;
 };
 
-TerminalUI::TerminalUI(cellui::term::TerminalSession & session)
+TerminalUI::TerminalUI(cellui::term::Terminal & session)
   : session_(session), screen_(session.rows(), session.cols()) {
   // Something that closes on a bare Escape gets it at once, rather than when
   // the next key shows it was no Alt prefix.
@@ -480,7 +480,41 @@ TerminalUI::render() {
   root_plane_->refresh();
   cellui::term::CursorRequest cursor;
   if (auto at = root_plane_->cursorPosition()) cursor = { true, at->first, at->second };
-  session_.present(screen_, cursor, root_plane_->images());
+  if (session_.wantsFrameInfo()) {
+    cellui::FrameInfo info;
+    info.planes = root_plane_->describe();
+    info.focus = focusName();
+    session_.present(screen_, cursor, root_plane_->images(), &info);
+  } else {
+    session_.present(screen_, cursor, root_plane_->images());
+  }
+}
+
+void
+TerminalUI::step() {
+  readInput();
+  while (getController().getUIEventQueue().hasEvents()) {
+    auto event = getController().getUIEventQueue().pop();
+    handleEvent(*event);
+  }
+  renderComponents();
+  menu_->raiseToTop();
+  render();
+}
+
+std::string
+TerminalUI::focusName() const {
+  if (choice_dialog_.isOpen()) return "choice-dialog";
+  if (info_dialog_.isOpen()) return "info-dialog";
+  if (outline_view_ && outline_view_->isModal()) return "outline-view";
+  auto active = active_element_.lock();
+  if (!active) return "";
+  if (active == pattern_editor_) return "pattern-editor";
+  if (active == arrangement_grid_) return "arrangement-grid";
+  if (active == clip_grid_) return "clip-grid";
+  if (active == outline_view_) return "outline-view";
+  if (active == status_line_) return "status-line";
+  return "other";
 }
 
 void

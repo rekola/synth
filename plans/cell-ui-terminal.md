@@ -227,12 +227,24 @@ cell position, so a scrolled meter is a new image and is uploaded again.
    fail, to be studied and fixed separately by a local agent that has the
    e2e setup. Still open: the real-terminal
    checks of foot, WezTerm, tmux and iTerm2.
-6. A test backend: `BufferPlane`'s composition with each frame given out as
-   JSON (plane tree, cell text and styles, image placements with their keys,
-   focus) and input taken from the test, so synth's own tests assert on
+6. A test backend: `BufferPlane`'s composition with each frame kept for
+   the test to read (plane tree, cell text and styles, image placements with
+   their keys, focus) and input taken from the test, so synth's own tests assert on
    what the UI shows - an image that moved told apart from a new one -
    without a pty or a terminal emulator. The terminal layer stays covered by
-   Cell UI's backend tests and a few pty smoke tests.
+   Cell UI's backend tests and a few pty smoke tests. Done except the image
+   keys: `cellui::term::Terminal` is what `TerminalUI` needs of a terminal
+   (`TerminalSession` implements it), `cellui::test::TestBackend` is the test one - input
+   pushed by the test (`pushKey()`, `pushText()`, `pushMouse()`, `pushPaste()`,
+   `resize()`), frames kept and read back by direct access (`text()`, `frame()`, `info()`) with the
+   plane tree (`BufferPlane::describe()`, `UIPlane::setName()`) and the
+   focus `TerminalUI` names (`focusName()`). `TerminalUI::step()` runs one
+   turn of the loop without waiting; the UI sources are the `synth_ui`
+   library, so `tests/TerminalUITests.cpp` drives the real UI on it. A JSON
+   form of the frame was left out: tests read the frame directly, and
+   nothing outside the process needs it. The image placements, keys
+   included, are read with `images()`; image identity (step 7) makes the keys
+   mean something.
 7. Viewports and image identity (Scrolling and images, above). Image
    identity is done: `drawImageAt()` takes an id (0 = a hash of the pixels),
    and a `BufferPlane` that erased and redraws a picture keeps its key and

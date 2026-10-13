@@ -3,6 +3,7 @@
 #include <cellui/Utf8.h>
 
 #include <algorithm>
+#include <tuple>
 
 namespace cellui {
 
@@ -259,6 +260,18 @@ std::pair<int, int> BufferPlane::screenPosition() const {
   if (!parent_) return {y, x};
   auto [py, px] = parent_->screenPosition();
   return {py + y, px + x};
+}
+
+PlaneInfo BufferPlane::describe() const {
+  PlaneInfo info;
+  info.name = name_;
+  std::tie(info.y, info.x) = getPosition();
+  std::tie(info.rows, info.cols) = getDim();
+  info.visible = visible_;
+  info.reader = editor_ != nullptr;
+  info.picker = picker_ != nullptr;
+  for (const BufferPlane * child : children_) info.children.push_back(child->describe());
+  return info;
 }
 
 bool BufferPlane::shown() const {

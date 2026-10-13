@@ -3,6 +3,7 @@
 #include <cellui/CellBuffer.h>
 #include <cellui/Image.h>
 #include <cellui/LineEditor.h>
+#include <cellui/PlaneInfo.h>
 #include <cellui/UIPlane.h>
 
 #include <memory>
@@ -40,6 +41,9 @@ class BufferPlane : public UIPlane {
   void moveToTop() override;
   void setVisible(bool visible) override { visible_ = visible; }
   bool isVisible() const { return visible_; }
+  void setName(const std::string & name) override { name_ = name; }
+  // This plane and the planes on it, as they are now.
+  PlaneInfo describe() const;
 
   void setFgColor(int r, int g, int b) override { style_.fg = Color(r, g, b); }
   void setBgColor(int r, int g, int b) override { style_.bg = Color(r, g, b); }
@@ -151,6 +155,7 @@ class BufferPlane : public UIPlane {
   std::vector<BufferPlane *> children_;  // bottom to top
   CellBuffer::Style style_;
   bool visible_ = true;
+  std::string name_;
 
   // The reader: the text, the plane it shows in, its colour and column.
   std::unique_ptr<LineEditor> editor_;
