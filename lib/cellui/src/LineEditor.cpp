@@ -67,26 +67,26 @@ bool LineEditor::offerInput(const Input & input) {
   int id = input.getId();
   bool ctrl = input.hasCtrl(), alt = input.hasAlt() || input.hasMeta();
   size_t n = clusters_.size();
-  if ((ctrl && id == 'b') || (!ctrl && !alt && id == NCKEY_LEFT)) {
+  if ((ctrl && id == 'b') || (!ctrl && !alt && id == Key::Left)) {
     if (cursor_ > 0) cursor_--;
-  } else if ((ctrl && id == 'f') || (!ctrl && !alt && id == NCKEY_RIGHT)) {
+  } else if ((ctrl && id == 'f') || (!ctrl && !alt && id == Key::Right)) {
     if (cursor_ < n) cursor_++;
-  } else if ((ctrl && id == 'a') || id == NCKEY_HOME) {
+  } else if ((ctrl && id == 'a') || id == Key::Home) {
     cursor_ = 0;
-  } else if ((ctrl && id == 'e') || id == NCKEY_END) {
+  } else if ((ctrl && id == 'e') || id == Key::End) {
     cursor_ = n;
   } else if (alt && !ctrl && id == 'b') {
     cursor_ = wordBackward(cursor_);
   } else if (alt && !ctrl && id == 'f') {
     cursor_ = wordForward(cursor_);
-  } else if (alt && (id == NCKEY_BACKSPACE || id == 0x7f)) {
+  } else if (alt && (id == Key::Backspace || id == 0x7f)) {
     kill(wordBackward(cursor_), cursor_);
-  } else if (id == NCKEY_BACKSPACE || (ctrl && id == 'h')) {
+  } else if (id == Key::Backspace || (ctrl && id == 'h')) {
     if (cursor_ > 0) {
       clusters_.erase(clusters_.begin() + static_cast<long>(cursor_ - 1));
       cursor_--;
     }
-  } else if (id == NCKEY_DEL || (ctrl && id == 'd')) {
+  } else if (id == Key::Delete || (ctrl && id == 'd')) {
     if (cursor_ < n) clusters_.erase(clusters_.begin() + static_cast<long>(cursor_));
   } else if (ctrl && id == 'k') {
     kill(cursor_, n);
@@ -104,7 +104,7 @@ bool LineEditor::offerInput(const Input & input) {
       std::swap(clusters_[at - 1], clusters_[at]);
       cursor_ = at + 1;
     }
-  } else if (!ctrl && !alt && id >= 0x20 && id != 0x7f && id < PRETERUNICODEBASE) {
+  } else if (!ctrl && !alt && id >= 0x20 && id != 0x7f && id < Key::First) {
     insert(utf8::encodeCodepoint(static_cast<uint32_t>(input.getTrueCaseId())));
   } else {
     return false;

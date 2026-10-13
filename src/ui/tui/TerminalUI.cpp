@@ -962,7 +962,7 @@ TerminalUI::readInput() {
       break;
     case TermEvent::Type::RESIZE:
       resizeScreen();
-      escape_input_->source.push(cellui::Input(NCKEY_RESIZE, -1, -1, false, false, false, false));
+      escape_input_->source.push(cellui::Input(Key::Resize, -1, -1, false, false, false, false));
       break;
     case TermEvent::Type::PASTE:
       // Pasted text goes into an open text field; elsewhere it is not
@@ -1001,7 +1001,7 @@ TerminalUI::readInput() {
     // A key release says nothing about the held Escape; Escape's own release
     // belongs to it.
     if (escape_held_ && input.getKind() == InputEvent::Kind::RELEASE) {
-      if (input.getId() != NCKEY_ESC) offerInput(input);
+      if (input.getId() != Key::Escape) offerInput(input);
       continue;
     }
 
@@ -1011,11 +1011,11 @@ TerminalUI::readInput() {
     if (escape_held_) {
       if (escape_input_->coalescer.lastFolded()) escape_delivered_ = true;
       escape_held_ = false;
-      if (!escape_delivered_) offerInput(cellui::Input(NCKEY_ESC, -1, -1, false, false, false, false, input.getKind()));
+      if (!escape_delivered_) offerInput(cellui::Input(Key::Escape, -1, -1, false, false, false, false, input.getKind()));
       escape_delivered_ = false;
     }
 
-    if (input.getId() == NCKEY_ESC && !input.hasAlt() && input.getKind() != InputEvent::Kind::RELEASE) {
+    if (input.getId() == Key::Escape && !input.hasAlt() && input.getKind() != InputEvent::Kind::RELEASE) {
       escape_held_ = true;
       // A widget that wants a bare Escape (closing a popup) gets it right
       // away rather than once the next key arrives. It still stays held
@@ -1029,7 +1029,7 @@ TerminalUI::readInput() {
         closeInfoDialog();
         escape_delivered_ = true;
       } else if (active && active->wantsBareEscape()) {
-        cellui::Input escape(NCKEY_ESC, input.getY(), input.getX(), false, false, false, false, input.getKind());
+        cellui::Input escape(Key::Escape, input.getY(), input.getX(), false, false, false, false, input.getKind());
         active->offerInput(escape);
         escape_delivered_ = true;
       }
@@ -1312,8 +1312,8 @@ TerminalUI::initializeWidgets() {
   // is C-x k (plain k), next-buffer/previous-buffer are C-x <right>/C-x
   // <left>, and select-named-buffer (switch-to-buffer) is C-x b.
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('k', false, false, false, false), "kill-buffer");
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack(NCKEY_RIGHT, false, false, false, false), "next-buffer");
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack(NCKEY_LEFT, false, false, false, false), "previous-buffer");
+  keymap_.bindPrefixed(ctrl_x, KeyChord::pack(Key::Right, false, false, false, false), "next-buffer");
+  keymap_.bindPrefixed(ctrl_x, KeyChord::pack(Key::Left, false, false, false, false), "previous-buffer");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('b', false, false, false, false), "select-named-buffer");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('o', false, false, false, false), "other-window");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('m', false, false, false, false), "merge-clip-to-background");
@@ -1772,28 +1772,28 @@ TerminalUI::offerInput(const cellui::Input & input) {
     clip_grid_->isReaderActive();
   // The choice dialog is modal too, and owns its keys until it is chosen
   // from or cancelled.
-  if (choice_dialog_.isOpen() && input.getId() != NCKEY_RESIZE && !(input.hasCtrl() && input.getId() == 'l')) {
+  if (choice_dialog_.isOpen() && input.getId() != Key::Resize && !(input.hasCtrl() && input.getId() == 'l')) {
     handleChoiceDialogInput(input);
     return true;
   }
   // The info dialog is modal: it closes on its own keys or a click and
   // swallows everything else but a resize or redraw.
-  if (info_dialog_.isOpen() && input.getId() != NCKEY_RESIZE && !(input.hasCtrl() && input.getId() == 'l')) {
+  if (info_dialog_.isOpen() && input.getId() != Key::Resize && !(input.hasCtrl() && input.getId() == 'l')) {
     auto id = input.getId();
-    if (id == NCKEY_ESC || id == NCKEY_ENTER || id == 'q' || id == NCKEY_BUTTON1 || (input.hasCtrl() && id == 'g')) {
+    if (id == Key::Escape || id == Key::Enter || id == 'q' || id == Key::Button1 || (input.hasCtrl() && id == 'g')) {
       closeInfoDialog();
     }
     return true;
   }
   // A modal popup takes everything but a resize or redraw.
-  if (outline_view_ && outline_view_->isModal() && input.getId() != NCKEY_RESIZE && !(input.hasCtrl() && input.getId() == 'l')) {
+  if (outline_view_ && outline_view_->isModal() && input.getId() != Key::Resize && !(input.hasCtrl() && input.getId() == 'l')) {
     outline_view_->offerInput(input);
     return true;
   }
   // An open menu owns the mouse: its dropdown is drawn over the widgets, and
   // a click on an item must not also reach the widget underneath it (which
   // would move its cursor, and so change what the item's command acts on).
-  if (menu_->isOpen() && input.getId() >= NCKEY_MOTION && input.getId() <= NCKEY_BUTTON11) {
+  if (menu_->isOpen() && input.getId() >= Key::Motion && input.getId() <= Key::Button11) {
     if (menu_->offerInput(input)) {
       if (auto cmd = menu_->takeActivatedCommand(); !cmd.empty()) {
 	if (!getController().sendCommand(cmd)) setStatus("Invalid command");
@@ -1806,7 +1806,7 @@ TerminalUI::offerInput(const cellui::Input & input) {
   if (input.getKind() != InputEvent::Kind::RELEASE && (input.hasCtrl() || input.hasAlt())) pattern_editor_->commitPendingValue();
   if (!reader_active && dispatchCommand(input)) return true;
 
-  if (input.getId() == NCKEY_RESIZE) {
+  if (input.getId() == Key::Resize) {
     // The screen and the root plane already have the new size
     // (resizeScreen(), as the event was read); the terminal reflowed, so
     // the next frame redraws everything.
@@ -1825,7 +1825,7 @@ TerminalUI::offerInput(const cellui::Input & input) {
     force_next_render_ = true;
   } else if (input.hasCtrl() && input.getId() == 'l') {
     refresh();
-  } else if (input.getId() == NCKEY_BUTTON4 || input.getId() == NCKEY_BUTTON5) {
+  } else if (input.getId() == Key::Button4 || input.getId() == Key::Button5) {
     // The mouse wheel scrolls whichever shown widget is under the mouse,
     // without moving focus (Emacs's own mouse-wheel-follow-mouse default) -
     // each widget scrolls its view, never its cursor.
@@ -1838,12 +1838,12 @@ TerminalUI::offerInput(const cellui::Input & input) {
       }
     }
     return true;
-  } else if (input.getId() == NCKEY_BUTTON1 && (octave_control_->arrowPressPending() ||
+  } else if (input.getId() == Key::Button1 && (octave_control_->arrowPressPending() ||
                                                 (input.getKind() != InputEvent::Kind::RELEASE && octave_control_->hitsArrow(input.getY(), input.getX())))) {
     // The octave arrows act on click without taking focus from the active element.
     octave_control_->offerInput(input);
     return true;
-  } else if (input.getId() == NCKEY_BUTTON1 && (input.getKind() == InputEvent::Kind::RELEASE || clip_grid_->isMouseDown() || pattern_editor_->isMouseDown())) {
+  } else if (input.getId() == Key::Button1 && (input.getKind() == InputEvent::Kind::RELEASE || clip_grid_->isMouseDown() || pattern_editor_->isMouseDown())) {
     // A release, or a press repeating as a drag moves, belongs to the
     // widget the button went down on - it must not hand focus to whatever
     // the pointer is over now. The release also ends the press everywhere,
@@ -1852,7 +1852,7 @@ TerminalUI::offerInput(const cellui::Input & input) {
       clip_grid_->releaseMouse();
       pattern_editor_->releaseMouse();
     }
-  } else if (input.getId() == NCKEY_BUTTON1) {
+  } else if (input.getId() == Key::Button1) {
     auto previous_active_element = active_element_.lock();
     active_element_.reset();
 

@@ -19,40 +19,40 @@ uint32_t singleCodepoint(const std::string & text) {
 
 const char * keyName(int key) {
   switch (key) {
-    case NCKEY_UP: return "Up";
-    case NCKEY_DOWN: return "Down";
-    case NCKEY_LEFT: return "Left";
-    case NCKEY_RIGHT: return "Right";
-    case NCKEY_HOME: return "Home";
-    case NCKEY_END: return "End";
-    case NCKEY_BEGIN: return "Begin";
-    case NCKEY_INS: return "Insert";
-    case NCKEY_DEL: return "Delete";
-    case NCKEY_PGUP: return "PgUp";
-    case NCKEY_PGDOWN: return "PgDn";
-    case NCKEY_BACKSPACE: return "Backspace";
-    case NCKEY_ENTER: return "Enter";
-    case NCKEY_TAB: return "Tab";
-    case NCKEY_ESC: return "Esc";
-    case NCKEY_SPACE: return "Space";
-    case NCKEY_MOTION: return "Motion";
-    case NCKEY_BUTTON4: return "WheelUp";
-    case NCKEY_BUTTON5: return "WheelDown";
-    case NCKEY_BUTTON6: return "WheelLeft";
-    case NCKEY_BUTTON7: return "WheelRight";
-    case NCKEY_LSHIFT: return "LeftShift";
-    case NCKEY_KP_DIVIDE: return "KpDivide";
-    case NCKEY_KP_MULTIPLY: return "KpMultiply";
-    case NCKEY_SEPARATOR: return "KpSeparator";
+    case Key::Up: return "Up";
+    case Key::Down: return "Down";
+    case Key::Left: return "Left";
+    case Key::Right: return "Right";
+    case Key::Home: return "Home";
+    case Key::End: return "End";
+    case Key::Begin: return "Begin";
+    case Key::Insert: return "Insert";
+    case Key::Delete: return "Delete";
+    case Key::PageUp: return "PgUp";
+    case Key::PageDown: return "PgDn";
+    case Key::Backspace: return "Backspace";
+    case Key::Enter: return "Enter";
+    case Key::Tab: return "Tab";
+    case Key::Escape: return "Esc";
+    case Key::Space: return "Space";
+    case Key::Motion: return "Motion";
+    case Key::Button4: return "WheelUp";
+    case Key::Button5: return "WheelDown";
+    case Key::Button6: return "WheelLeft";
+    case Key::Button7: return "WheelRight";
+    case Key::LeftShift: return "LeftShift";
+    case Key::KpDivide: return "KpDivide";
+    case Key::KpMultiply: return "KpMultiply";
+    case Key::Separator: return "KpSeparator";
     default: return nullptr;
   }
 }
 
 std::string keyText(int key) {
   if (const char * name = keyName(key)) return name;
-  if (key >= NCKEY_F00 && key <= NCKEY_F60) return "F" + std::to_string(key - NCKEY_F00);
-  if (key >= NCKEY_BUTTON1 && key <= NCKEY_BUTTON11) return "Button" + std::to_string(key - NCKEY_BUTTON1 + 1);
-  if (key >= PRETERUNICODEBASE) return "Key" + std::to_string(key - PRETERUNICODEBASE);
+  if (key >= Key::F0 && key <= Key::F60) return "F" + std::to_string(key - Key::F0);
+  if (key >= Key::Button1 && key <= Key::Button11) return "Button" + std::to_string(key - Key::Button1 + 1);
+  if (key >= Key::First) return "Key" + std::to_string(key - Key::First);
   return utf8::encodeCodepoint(static_cast<uint32_t>(key));
 }
 
@@ -75,9 +75,9 @@ Input toInput(const TermEvent & e) {
   if (e.type == TermEvent::Type::MOUSE) {
     return Input(e.key, e.y, e.x, alt, shift, ctrl, meta, kind);
   }
-  if (e.type == TermEvent::Type::RESIZE) return Input(NCKEY_RESIZE, -1, -1, false, false, false, false);
-  if (e.type == TermEvent::Type::END) return Input(NCKEY_EOF, -1, -1, false, false, false, false);
-  if (e.type != TermEvent::Type::KEY) return Input(NCKEY_INVALID, -1, -1, false, false, false, false);
+  if (e.type == TermEvent::Type::RESIZE) return Input(Key::Resize, -1, -1, false, false, false, false);
+  if (e.type == TermEvent::Type::END) return Input(Key::Eof, -1, -1, false, false, false, false);
+  if (e.type != TermEvent::Type::KEY) return Input(Key::Invalid, -1, -1, false, false, false, false);
 
   // A key whose produced character the terminal reported ('!' for Shift+1)
   // is that character, as a legacy terminal sends it.

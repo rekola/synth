@@ -120,12 +120,12 @@ std::string sanitizeUtf8(const std::string & s, bool hold_tail, std::string & ta
 }
 
 int kittyFunctionalKey(int code) {
-  if (code == 13) return NCKEY_ENTER;
-  if (code == 9) return NCKEY_TAB;
-  if (code == 27) return NCKEY_ESC;
-  if (code == 127 || code == 8) return NCKEY_BACKSPACE;
-  if (code >= 57358 && code <= 57363) return preterunicode(150 + (code - 57358));
-  if (code >= 57376 && code <= 57398) return NCKEY_F13 + (code - 57376);
+  if (code == 13) return Key::Enter;
+  if (code == 9) return Key::Tab;
+  if (code == 27) return Key::Escape;
+  if (code == 127 || code == 8) return Key::Backspace;
+  if (code >= 57358 && code <= 57363) return Key::CapsLock + (code - 57358);
+  if (code >= 57376 && code <= 57398) return Key::F13 + (code - 57376);
   if (code >= 57399 && code <= 57408) return ('0' + (code - 57399));
   switch (code) {
     case 57409: return '.';
@@ -133,34 +133,34 @@ int kittyFunctionalKey(int code) {
     case 57411: return '*';
     case 57412: return '-';
     case 57413: return '+';
-    case 57414: return NCKEY_ENTER;
+    case 57414: return Key::Enter;
     case 57415: return '=';
-    case 57416: return NCKEY_SEPARATOR;
-    case 57417: return NCKEY_LEFT;
-    case 57418: return NCKEY_RIGHT;
-    case 57419: return NCKEY_UP;
-    case 57420: return NCKEY_DOWN;
-    case 57421: return NCKEY_PGUP;
-    case 57422: return NCKEY_PGDOWN;
-    case 57423: return NCKEY_HOME;
-    case 57424: return NCKEY_END;
-    case 57425: return NCKEY_INS;
-    case 57426: return NCKEY_DEL;
-    case 57427: return NCKEY_BEGIN;
+    case 57416: return Key::Separator;
+    case 57417: return Key::Left;
+    case 57418: return Key::Right;
+    case 57419: return Key::Up;
+    case 57420: return Key::Down;
+    case 57421: return Key::PageUp;
+    case 57422: return Key::PageDown;
+    case 57423: return Key::Home;
+    case 57424: return Key::End;
+    case 57425: return Key::Insert;
+    case 57426: return Key::Delete;
+    case 57427: return Key::Begin;
     default: break;
   }
-  if (code >= 57428 && code <= 57440) return NCKEY_MEDIA_PLAY + (code - 57428);
-  if (code >= 57441 && code <= 57452) return NCKEY_LSHIFT + (code - 57441);
-  if (code == 57453) return NCKEY_L3SHIFT;
-  if (code == 57454) return NCKEY_L5SHIFT;
+  if (code >= 57428 && code <= 57440) return Key::MediaPlay + (code - 57428);
+  if (code >= 57441 && code <= 57452) return Key::LeftShift + (code - 57441);
+  if (code == 57453) return Key::Level3Shift;
+  if (code == 57454) return Key::Level5Shift;
   return (code);
 }
 
 // A keypad '/' or '*' with a modifier other than Shift is a key of its own.
 int keypadOperator(int key, unsigned mods) {
   if ((mods & ~static_cast<unsigned>(kModShift | kModCapsLock | kModNumLock)) == 0) return key;
-  if (key == '/') return NCKEY_KP_DIVIDE;
-  if (key == '*') return NCKEY_KP_MULTIPLY;
+  if (key == '/') return Key::KpDivide;
+  if (key == '*') return Key::KpMultiply;
   return key;
 }
 
@@ -231,7 +231,7 @@ void InputParser::settle() {
   reset();
   switch (was) {
     case State::ESC:
-      emitKey(NCKEY_ESC, 0);
+      emitKey(Key::Escape, 0);
       break;
     case State::CSI:
       if (bare) emitKey('[', kModAlt);
@@ -267,10 +267,10 @@ void InputParser::emitControl(unsigned char c, bool alt) {
   switch (c) {
     case 0x00: emitKey(' ', mods | kModCtrl); return;
     case 0x08:
-    case 0x7F: emitKey(NCKEY_BACKSPACE, mods); return;
-    case 0x09: emitKey(NCKEY_TAB, mods); return;
+    case 0x7F: emitKey(Key::Backspace, mods); return;
+    case 0x09: emitKey(Key::Tab, mods); return;
     case 0x0A:
-    case 0x0D: emitKey(NCKEY_ENTER, mods); return;
+    case 0x0D: emitKey(Key::Enter, mods); return;
     case 0x1C: emitKey('\\', mods | kModCtrl); return;
     case 0x1D: emitKey(']', mods | kModCtrl); return;
     case 0x1E: emitKey('^', mods | kModCtrl); return;
@@ -336,7 +336,7 @@ void InputParser::byte(unsigned char c) {
         string_type_ = static_cast<char>(c);
         string_.clear();
       } else if (c == 0x1B) {
-        emitKey(NCKEY_ESC, 0);
+        emitKey(Key::Escape, 0);
         raw_.assign(1, '\x1b');
       } else {
         state_ = State::GROUND;
@@ -574,18 +574,18 @@ void InputParser::dispatchLetterKey(char final_byte, const Params & params) {
   int key = 0;
   unsigned extra = 0;
   switch (final_byte) {
-    case 'A': key = NCKEY_UP; break;
-    case 'B': key = NCKEY_DOWN; break;
-    case 'C': key = NCKEY_RIGHT; break;
-    case 'D': key = NCKEY_LEFT; break;
-    case 'E': key = NCKEY_BEGIN; break;
-    case 'F': key = NCKEY_END; break;
-    case 'H': key = NCKEY_HOME; break;
-    case 'P': key = NCKEY_F01; break;
-    case 'Q': key = NCKEY_F02; break;
-    case 'R': key = NCKEY_F03; break;
-    case 'S': key = NCKEY_F04; break;
-    case 'Z': key = NCKEY_TAB; extra = kModShift; break;
+    case 'A': key = Key::Up; break;
+    case 'B': key = Key::Down; break;
+    case 'C': key = Key::Right; break;
+    case 'D': key = Key::Left; break;
+    case 'E': key = Key::Begin; break;
+    case 'F': key = Key::End; break;
+    case 'H': key = Key::Home; break;
+    case 'P': key = Key::F1; break;
+    case 'Q': key = Key::F2; break;
+    case 'R': key = Key::F3; break;
+    case 'S': key = Key::F4; break;
+    case 'Z': key = Key::Tab; extra = kModShift; break;
     default: return;
   }
   int mod = 1, event = -1;
@@ -605,33 +605,33 @@ void InputParser::dispatchTildeKey(const Params & params) {
   int event = field(params, 1, -1, 1);
   int key = 0;
   switch (number) {
-    case 1: case 7: key = NCKEY_HOME; break;
-    case 2: key = NCKEY_INS; break;
-    case 3: key = NCKEY_DEL; break;
-    case 4: case 8: key = NCKEY_END; break;
-    case 5: key = NCKEY_PGUP; break;
-    case 6: key = NCKEY_PGDOWN; break;
+    case 1: case 7: key = Key::Home; break;
+    case 2: key = Key::Insert; break;
+    case 3: key = Key::Delete; break;
+    case 4: case 8: key = Key::End; break;
+    case 5: key = Key::PageUp; break;
+    case 6: key = Key::PageDown; break;
     case 11: case 12: case 13: case 14: case 15:
-      key = NCKEY_F01 + (number - 11);
+      key = Key::F1 + (number - 11);
       break;
     case 17: case 18: case 19: case 20: case 21:
-      key = NCKEY_F06 + (number - 17);
+      key = Key::F6 + (number - 17);
       break;
-    case 23: key = NCKEY_F11; break;
-    case 24: key = NCKEY_F12; break;
-    case 25: key = NCKEY_F13; break;
-    case 26: key = NCKEY_F14; break;
-    case 28: key = NCKEY_F15; break;
-    case 29: key = NCKEY_F16; break;
+    case 23: key = Key::F11; break;
+    case 24: key = Key::F12; break;
+    case 25: key = Key::F13; break;
+    case 26: key = Key::F14; break;
+    case 28: key = Key::F15; break;
+    case 29: key = Key::F16; break;
     case 31: case 32: case 33: case 34:
-      key = NCKEY_F17 + (number - 31);
+      key = Key::F17 + (number - 31);
       break;
     case 27: {
       // modifyOtherKeys: CSI 27 ; modifier ; code ~
       int code = field(params, 2, -1);
       if (code < 0) break;
-      int k = code == 13 ? NCKEY_ENTER : code == 9 ? NCKEY_TAB : code == 27 ? NCKEY_ESC
-                 : code == 127 || code == 8 ? NCKEY_BACKSPACE : (code);
+      int k = code == 13 ? Key::Enter : code == 9 ? Key::Tab : code == 27 ? Key::Escape
+                 : code == 127 || code == 8 ? Key::Backspace : (code);
       emitKey(k, legacyMods(mod), eventKind(-1, kitty_));
       return;
     }
@@ -684,18 +684,18 @@ void InputParser::dispatchSs3(unsigned char final_byte) {
   TermEvent::Kind kind = eventKind(-1, kitty_);
   int key = 0;
   switch (final_byte) {
-    case 'A': key = NCKEY_UP; break;
-    case 'B': key = NCKEY_DOWN; break;
-    case 'C': key = NCKEY_RIGHT; break;
-    case 'D': key = NCKEY_LEFT; break;
-    case 'E': key = NCKEY_BEGIN; break;
-    case 'F': key = NCKEY_END; break;
-    case 'H': key = NCKEY_HOME; break;
-    case 'P': key = NCKEY_F01; break;
-    case 'Q': key = NCKEY_F02; break;
-    case 'R': key = NCKEY_F03; break;
-    case 'S': key = NCKEY_F04; break;
-    case 'M': key = NCKEY_ENTER; break;
+    case 'A': key = Key::Up; break;
+    case 'B': key = Key::Down; break;
+    case 'C': key = Key::Right; break;
+    case 'D': key = Key::Left; break;
+    case 'E': key = Key::Begin; break;
+    case 'F': key = Key::End; break;
+    case 'H': key = Key::Home; break;
+    case 'P': key = Key::F1; break;
+    case 'Q': key = Key::F2; break;
+    case 'R': key = Key::F3; break;
+    case 'S': key = Key::F4; break;
+    case 'M': key = Key::Enter; break;
     case 'X': key = '='; break;
     case 'j': key = '*'; break;
     case 'k': key = '+'; break;
@@ -802,12 +802,12 @@ void InputParser::mouse(int code, int px, int py, bool release, bool pixels) {
   if (code & 16) mods |= kModCtrl;
   int low = code & 3;
   int key;
-  if (code & 64) key = NCKEY_BUTTON4 + (low);
-  else if (code & 128) key = NCKEY_BUTTON8 + (low);
-  else if (low == 3) key = NCKEY_MOTION;
-  else key = NCKEY_BUTTON1 + (low);
+  if (code & 64) key = Key::Button4 + (low);
+  else if (code & 128) key = Key::Button8 + (low);
+  else if (low == 3) key = Key::Motion;
+  else key = Key::Button1 + (low);
   TermEvent::Kind kind;
-  if (code & 32) kind = key == NCKEY_MOTION ? TermEvent::Kind::MOVE : TermEvent::Kind::DRAG;
+  if (code & 32) kind = key == Key::Motion ? TermEvent::Kind::MOVE : TermEvent::Kind::DRAG;
   else kind = release ? TermEvent::Kind::RELEASE : TermEvent::Kind::PRESS;
   TermEvent e = TermEvent::makeKey(key, mods, kind);
   e.type = TermEvent::Type::MOUSE;

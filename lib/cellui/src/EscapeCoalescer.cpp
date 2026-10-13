@@ -17,7 +17,7 @@ namespace {
 
 bool
 isMouse(int id) {
-  return id >= NCKEY_MOTION && id <= NCKEY_BUTTON11;
+  return id >= Key::Motion && id <= Key::Button11;
 }
 
 // '[' (CSI) and 'O' (SS3) are the two legacy escape-sequence introducer
@@ -43,13 +43,13 @@ bool
 isKeyboardEvent(const Input & in) {
   if (in.getKind() == Input::Kind::RELEASE) return false;
   if (isMouse(in.getId())) return false;
-  if (in.getId() == NCKEY_RESIZE) return false;
+  if (in.getId() == Key::Resize) return false;
   return true;
 }
 
 bool
 isUnmodifiedEscapePress(const Input & in) {
-  return in.getId() == NCKEY_ESC && in.getKind() != Input::Kind::RELEASE && in.getKind() != Input::Kind::REPEAT && !in.hasAlt();
+  return in.getId() == Key::Escape && in.getKind() != Input::Kind::RELEASE && in.getKind() != Input::Kind::REPEAT && !in.hasAlt();
 }
 
 Input

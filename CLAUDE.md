@@ -1303,7 +1303,7 @@ would otherwise resume showing.
   aware width, truncation and padding), `markdown` (the tiny subset the info
   dialogs use), `ChoiceList`, the sub-cell glyph tables and two-colour
   quantizer (`SubcellGlyphs.h`), the Escape-as-Meta coalescer (`EscapeCoalescer.h`), and the input data (`Input.h`: key id, modifiers,
-  position, press/release kind, and the `NCKEY_*` key ids; the app's
+  position, press/release kind, and the key ids `cellui::Key::Up` and so on, `Key::` in the app; the app's
   `InputEvent` is an `Input` that is also an `Event`; the note-entry key mapping
   is `keyToMidiNote()` in `playback/KeyboardNotes.h`), the key chord packing, `Keymap` and `CommandRegistry`, and the theme (`Theme`,
   `StyleProvider`) and `UIPlane` (it carries the app's own object as an opaque

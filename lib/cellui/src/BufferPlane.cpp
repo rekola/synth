@@ -402,7 +402,7 @@ bool BufferPlane::offerInput(const Input & input) {
   int shown = std::max(1, pk.plane->getDim().first - 4);
   int id = input.getId();
   bool release = input.getKind() == Input::Kind::RELEASE;
-  if (id == NCKEY_BUTTON1) {
+  if (id == Key::Button1) {
     if (!release) return false;
     auto [py, px] = pk.plane->screenPosition();
     int row = input.getY() - py - 2, col = input.getX() - px;
@@ -412,10 +412,10 @@ bool BufferPlane::offerInput(const Input & input) {
     return true;
   }
   if (release) return false;
-  if (id == NCKEY_UP || id == NCKEY_BUTTON4) move(-1);
-  else if (id == NCKEY_DOWN || id == NCKEY_BUTTON5) move(1);
-  else if (id == NCKEY_PGUP) move(-shown);
-  else if (id == NCKEY_PGDOWN) move(shown);
+  if (id == Key::Up || id == Key::Button4) move(-1);
+  else if (id == Key::Down || id == Key::Button5) move(1);
+  else if (id == Key::PageUp) move(-shown);
+  else if (id == Key::PageDown) move(shown);
   else return false;
   return true;
 }

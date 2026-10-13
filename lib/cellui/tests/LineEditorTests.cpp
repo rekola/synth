@@ -17,13 +17,13 @@ void type(LineEditor & e, const std::string & s) {
 TEST(line_editor_inserts_at_the_cursor) {
   LineEditor e;
   type(e, "play 120bpm");
-  e.offerInput(key(NCKEY_LEFT));
-  e.offerInput(key(NCKEY_LEFT));
-  e.offerInput(key(NCKEY_LEFT));
+  e.offerInput(key(cellui::Key::Left));
+  e.offerInput(key(cellui::Key::Left));
+  e.offerInput(key(cellui::Key::Left));
   type(e, "X");
   CHECK(e.text() == "play 120Xbpm");
-  e.offerInput(key(NCKEY_BACKSPACE));
-  e.offerInput(key(NCKEY_BACKSPACE));
+  e.offerInput(key(cellui::Key::Backspace));
+  e.offerInput(key(cellui::Key::Backspace));
   CHECK(e.text() == "play 12bpm");
   e.offerInput(key('a', true));
   e.offerInput(key('d', true));
@@ -54,8 +54,8 @@ TEST(line_editor_words_and_kills) {
 TEST(line_editor_keeps_clusters_whole) {
   LineEditor e;
   e.setText("e\xcc\x81x");  // e + combining acute, then x
-  e.offerInput(key(NCKEY_LEFT));
-  e.offerInput(key(NCKEY_BACKSPACE));
+  e.offerInput(key(cellui::Key::Left));
+  e.offerInput(key(cellui::Key::Backspace));
   CHECK(e.text() == "x");
   // Shifted letters arrive in their true case.
   e.offerInput(Input('a', -1, -1, false, true, false, false, Input::Kind::UNKNOWN, 'A'));
@@ -79,8 +79,8 @@ TEST(line_editor_scrolls_to_the_cursor) {
 
 TEST(line_editor_leaves_field_keys_to_the_owner) {
   LineEditor e;
-  CHECK(!e.offerInput(key(NCKEY_ENTER)));
+  CHECK(!e.offerInput(key(cellui::Key::Enter)));
   CHECK(!e.offerInput(key('g', true)));
-  CHECK(!e.offerInput(key(NCKEY_UP)));
-  CHECK(!e.offerInput(key(NCKEY_TAB)));
+  CHECK(!e.offerInput(key(cellui::Key::Up)));
+  CHECK(!e.offerInput(key(cellui::Key::Tab)));
 }

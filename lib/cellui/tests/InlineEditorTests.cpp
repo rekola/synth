@@ -37,7 +37,7 @@ TEST(inlineeditor_enter_commits_and_ctrl_g_cancels) {
   InlineEditor editor(root);
   int commits = 0;
   editor.open({}, [&](std::string) { commits++; });
-  CHECK(editor.offerInput(key(NCKEY_ENTER)));
+  CHECK(editor.offerInput(key(cellui::Key::Enter)));
   CHECK(commits == 1);
   CHECK(!editor.isOpen());
   editor.open({}, [&](std::string) { commits++; });

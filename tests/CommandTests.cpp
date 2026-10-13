@@ -24,9 +24,9 @@ TEST(command_update_data_rejects_slash_and_punctuation_on_mnemonic_columns) {
   CHECK(!c.updateData(0, '/'));
   CHECK(!c.updateData(0, ' '));
   CHECK(!c.updateData(0, '.'));
-  CHECK(!c.updateData(1, NCKEY_BACKSPACE));
-  CHECK(!c.updateData(0, NCKEY_DEL));
-  CHECK(!c.updateData(1, NCKEY_LEFT));
+  CHECK(!c.updateData(1, Key::Backspace));
+  CHECK(!c.updateData(0, Key::Delete));
+  CHECK(!c.updateData(1, Key::Left));
 }
 
 // Column 2/3 (the hex argument) is narrower than the mnemonic columns -

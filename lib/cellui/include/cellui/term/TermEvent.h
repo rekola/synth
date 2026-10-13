@@ -56,7 +56,7 @@ struct TermEvent {
 
   Type type = Type::KEY;
   Kind kind = Kind::UNKNOWN;
-  // A codepoint, or one of the NCKEY_* ids. An ASCII letter is reported in
+  // A codepoint, or one of the Key:: ids. An ASCII letter is reported in
   // upper case when Ctrl, Shift or Caps Lock is held (legacy terminals
   // cannot tell Ctrl-a from Ctrl-A).
   int key = 0;

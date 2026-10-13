@@ -278,10 +278,10 @@ TEST(term_event_to_input) {
   shifted.text = "!";
   Input bang = toInput(shifted);
   CHECK(bang.getId() == '!' && bang.getKind() == Input::Kind::PRESS);
-  TermEvent drag = TermEvent::makeKey(NCKEY_BUTTON1, 0, TermEvent::Kind::DRAG);
+  TermEvent drag = TermEvent::makeKey(cellui::Key::Button1, 0, TermEvent::Kind::DRAG);
   drag.type = TermEvent::Type::MOUSE;
   drag.y = 3;
   drag.x = 4;
   Input d = toInput(drag);
-  CHECK(d.getId() == NCKEY_BUTTON1 && d.getKind() == Input::Kind::PRESS && d.getY() == 3 && d.getX() == 4);
+  CHECK(d.getId() == cellui::Key::Button1 && d.getKind() == Input::Kind::PRESS && d.getY() == 3 && d.getX() == 4);
 }

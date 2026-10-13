@@ -81,7 +81,7 @@ ArrangementGrid::ensureCursorVisible(int bar_count, int visible_rows, int visibl
 bool
 ArrangementGrid::offerInput(const cellui::Input & input) {
   // A left click picks the (bar, track) cell under it; Enter still commits it.
-  if (input.getId() == NCKEY_BUTTON1) {
+  if (input.getId() == Key::Button1) {
     if (input.getKind() == cellui::Input::Kind::RELEASE) return true;
     auto & song = getController().getSong();
     auto num_tracks = static_cast<int>(getVisibleTrackIds(song).size());
@@ -103,9 +103,9 @@ ArrangementGrid::offerInput(const cellui::Input & input) {
 
   // The mouse wheel scrolls the view (Shift: tracks), not the cursor, and
   // detaches it from the cursor/playhead until the cursor next moves.
-  if (input.getId() == NCKEY_BUTTON4 || input.getId() == NCKEY_BUTTON5) {
+  if (input.getId() == Key::Button4 || input.getId() == Key::Button5) {
     if (input.getKind() == cellui::Input::Kind::RELEASE) return true;
-    int direction = input.getId() == NCKEY_BUTTON4 ? -1 : 1;
+    int direction = input.getId() == Key::Button4 ? -1 : 1;
     if (input.hasShift()) scroll_col_ += direction;
     else scroll_row_ += direction;
     view_detached_ = true;
@@ -129,7 +129,7 @@ ArrangementGrid::offerInput(const cellui::Input & input) {
     cursor_bar_ = clamp(cursor_bar_ + delta, 0, barCount(song, playing_bar) - 1);
   };
 
-  if (input.getId() == NCKEY_ENTER) {
+  if (input.getId() == Key::Enter) {
     // A bar past the arrangement's end is a valid target: it just moves
     // the playhead/track selection there - "look at/jump to this
     // position" and "put real content here" stay two separate actions.
@@ -139,16 +139,16 @@ ArrangementGrid::offerInput(const cellui::Input & input) {
     return true;
   }
 
-  if (input.getId() == NCKEY_UP) move_cursor(-1);
-  else if (input.getId() == NCKEY_DOWN) move_cursor(1);
+  if (input.getId() == Key::Up) move_cursor(-1);
+  else if (input.getId() == Key::Down) move_cursor(1);
   // A full screenful at a time - same "jump by the viewport's own
   // height" reading Page Up/Down carry everywhere else in this app,
   // rather than PatternEditor's own fixed 16-row jump (which counts raw
   // pattern rows, not this grid's own bar rows, so a fixed count
   // wouldn't mean the same thing here).
-  else if (input.getId() == NCKEY_PGUP) move_cursor(-getDim().first);
-  else if (input.getId() == NCKEY_PGDOWN) move_cursor(getDim().first);
-  else if (input.getId() == NCKEY_BACKSPACE) {
+  else if (input.getId() == Key::PageUp) move_cursor(-getDim().first);
+  else if (input.getId() == Key::PageDown) move_cursor(getDim().first);
+  else if (input.getId() == Key::Backspace) {
     if (cursor_track_index_ < num_tracks) {
       auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
       auto bar_start_row = bar_row(cursor_bar_);
@@ -177,7 +177,7 @@ ArrangementGrid::offerInput(const cellui::Input & input) {
       // duplicate the one that already does the job.
     }
   }
-  else if (input.getId() == NCKEY_DEL || (input.hasCtrl() && input.getId() == 'k')) {
+  else if (input.getId() == Key::Delete || (input.hasCtrl() && input.getId() == 'k')) {
     // Fully removes the clip itself (ArrangementOps.h's deleteClip()) -
     // every placement of it anywhere in the song, not just the one under
     // the cursor - unlike Backspace above, which only ends this one
@@ -217,8 +217,8 @@ ArrangementGrid::offerInput(const cellui::Input & input) {
   }
   // Left/Right move across per-track columns, stopping at the grid's
   // own edges.
-  else if (input.getId() == NCKEY_LEFT) cursor_track_index_--;
-  else if (input.getId() == NCKEY_RIGHT) cursor_track_index_++;
+  else if (input.getId() == Key::Left) cursor_track_index_--;
+  else if (input.getId() == Key::Right) cursor_track_index_++;
   else return false;
 
   cursor_track_index_ = clamp(cursor_track_index_, 0, max(0, num_tracks - 1));

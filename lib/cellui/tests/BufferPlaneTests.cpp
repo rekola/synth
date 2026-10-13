@@ -208,7 +208,7 @@ TEST(bufferplane_reader_edits_a_field_and_places_the_cursor) {
   line->showReader("M-x ");
   CHECK(line->readerActive());
   for (char c : std::string("sav")) line->offerInput(Input(c, -1, -1, false, false, false, false));
-  line->offerInput(Input(NCKEY_LEFT, -1, -1, false, false, false, false));
+  line->offerInput(Input(cellui::Key::Left, -1, -1, false, false, false, false));
   line->offerInput(Input('X', -1, -1, false, true, false, false, Input::Kind::UNKNOWN, 'X'));
   root.refresh();
   CHECK(b.toPlainText() == "\nM-x saXv\n");
@@ -235,14 +235,14 @@ TEST(bufferplane_picker_lists_and_wraps) {
   root.refresh();
   CHECK(b.toPlainText() == "\n  ╭────────╮\n  │        │\n  │ alpha  │\n  │  beta  │\n  │ gamma  │\n  │        │\n  ╰────────╯\n");
   CHECK(root.getPickerSelection() == "alpha");
-  CHECK(root.offerInput(Input(NCKEY_UP, -1, -1, false, false, false, false)));
+  CHECK(root.offerInput(Input(cellui::Key::Up, -1, -1, false, false, false, false)));
   CHECK(root.getPickerSelection() == "gamma");
   root.selectPickerItem(1);
   CHECK(root.getPickerSelection() == "beta");
   // A click on a row selects it; Enter is the owner's.
-  CHECK(root.offerInput(Input(NCKEY_BUTTON1, 3, 5, false, false, false, false, Input::Kind::RELEASE)));
+  CHECK(root.offerInput(Input(cellui::Key::Button1, 3, 5, false, false, false, false, Input::Kind::RELEASE)));
   CHECK(root.getPickerSelection() == "alpha");
-  CHECK(!root.offerInput(Input(NCKEY_ENTER, -1, -1, false, false, false, false)));
+  CHECK(!root.offerInput(Input(cellui::Key::Enter, -1, -1, false, false, false, false)));
   root.closePicker();
   CHECK(!root.pickerActive());
 }

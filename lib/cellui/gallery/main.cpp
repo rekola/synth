@@ -86,13 +86,13 @@ int live(const cellui::CellBuffer & page, int page_rows) {
       if (e.type == TermEvent::Type::END) running = false;
       if (e.type == TermEvent::Type::KEY && e.kind != TermEvent::Kind::RELEASE) {
         if (e.key == 'q' && e.mods == 0) running = false;
-        if (e.key == NCKEY_UP) top--;
-        if (e.key == NCKEY_DOWN) top++;
-        if (e.key == NCKEY_PGUP) top -= view;
-        if (e.key == NCKEY_PGDOWN) top += view;
+        if (e.key == cellui::Key::Up) top--;
+        if (e.key == cellui::Key::Down) top++;
+        if (e.key == cellui::Key::PageUp) top -= view;
+        if (e.key == cellui::Key::PageDown) top += view;
       }
-      if (e.type == TermEvent::Type::MOUSE && e.key == NCKEY_BUTTON4) top -= 3;
-      if (e.type == TermEvent::Type::MOUSE && e.key == NCKEY_BUTTON5) top += 3;
+      if (e.type == TermEvent::Type::MOUSE && e.key == cellui::Key::Button4) top -= 3;
+      if (e.type == TermEvent::Type::MOUSE && e.key == cellui::Key::Button5) top += 3;
     }
   }
   return 0;

@@ -5,6 +5,9 @@
 
 #include <cellui/Input.h>
 
+// The key ids, as Key::Up and so on.
+namespace Key = cellui::Key;
+
 // The note-entry keyboard mapping: the MIDI note a key plays in a tuning, or -1.
 inline int keyToMidiNote(const cellui::Input & input, int octave, Tuning tuning) {
   if (tuning == Tuning::PERCUSSION) {

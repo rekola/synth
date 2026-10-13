@@ -101,13 +101,13 @@ class StatusLine : public UIElement {
 
   bool offerInput(const cellui::Input & input) override {
     if (getPlane().readerActive()) {
-      if (tab_completer_ && input.getId() == NCKEY_TAB) {
+      if (tab_completer_ && input.getId() == Key::Tab) {
 	// A local copy, not tab_completer_() directly - see the identical
 	// reasoning on the Enter branch below.
 	auto completer = tab_completer_;
 	completer();
 	return true;
-      } else if (input.getId() == NCKEY_ENTER) {
+      } else if (input.getId() == Key::Enter) {
 	if (enter_completer_) {
 	  // M-x only (the one strict completion domain - see showMx()):
 	  // submit if the typed text is already a real, exact command name,

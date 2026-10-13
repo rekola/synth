@@ -44,11 +44,11 @@ struct Fixture {
 
 TEST(escape_alone_stays_pending_indefinitely) {
   Fixture f;
-  f.source.schedule(makeEvent(NCKEY_ESC));
+  f.source.schedule(makeEvent(cellui::Key::Escape));
 
   Input ni(0, 0, 0, false, false, false, false);
   CHECK(f.coalescer.next(&ni));
-  CHECK(ni.getId() == NCKEY_ESC);
+  CHECK(ni.getId() == cellui::Key::Escape);
   CHECK(!ni.hasAlt());
   CHECK(f.coalescer.escapePending());
 
@@ -62,11 +62,11 @@ TEST(escape_alone_stays_pending_indefinitely) {
 
 TEST(escape_then_w_much_later_still_coalesces_to_alt_w) {
   Fixture f;
-  f.source.schedule(makeEvent(NCKEY_ESC));
+  f.source.schedule(makeEvent(cellui::Key::Escape));
 
   Input ni(0, 0, 0, false, false, false, false);
   CHECK(f.coalescer.next(&ni));
-  CHECK(ni.getId() == NCKEY_ESC);
+  CHECK(ni.getId() == cellui::Key::Escape);
   CHECK(f.coalescer.escapePending());
 
   // Simulates however long a real person takes to then press 'w' -
@@ -84,20 +84,20 @@ TEST(escape_then_w_much_later_still_coalesces_to_alt_w) {
 
 TEST(mouse_and_resize_events_while_pending_do_not_end_the_wait) {
   Fixture f;
-  f.source.schedule(makeEvent(NCKEY_ESC));
+  f.source.schedule(makeEvent(cellui::Key::Escape));
   Input ni(0, 0, 0, false, false, false, false);
   CHECK(f.coalescer.next(&ni));
   CHECK(f.coalescer.escapePending());
 
-  f.source.schedule(makeEvent(NCKEY_BUTTON1, Input::Kind::PRESS));
+  f.source.schedule(makeEvent(cellui::Key::Button1, Input::Kind::PRESS));
   CHECK(f.coalescer.next(&ni));
-  CHECK(ni.getId() == NCKEY_BUTTON1);
+  CHECK(ni.getId() == cellui::Key::Button1);
   CHECK(!ni.hasAlt());
   CHECK(f.coalescer.escapePending()); // still waiting - a click isn't a keyboard follow-up
 
-  f.source.schedule(makeEvent(NCKEY_RESIZE));
+  f.source.schedule(makeEvent(cellui::Key::Resize));
   CHECK(f.coalescer.next(&ni));
-  CHECK(ni.getId() == NCKEY_RESIZE);
+  CHECK(ni.getId() == cellui::Key::Resize);
   CHECK(f.coalescer.escapePending());
 
   f.source.schedule(makeEvent('q'));
@@ -114,7 +114,7 @@ TEST(escape_then_bracket_or_O_declined_but_ends_the_wait) {
   // which depends on seeing a plain, un-Alt-modified 'O' after ESC).
   for (int id : {'[', 'O'}) {
     Fixture f;
-    f.source.schedule(makeEvent(NCKEY_ESC));
+    f.source.schedule(makeEvent(cellui::Key::Escape));
     Input ni(0, 0, 0, false, false, false, false);
     CHECK(f.coalescer.next(&ni));
     CHECK(f.coalescer.escapePending());
@@ -136,7 +136,7 @@ TEST(ctrl_modified_keystroke_after_pending_escape_is_not_folded) {
   // Ctrl-modified binding) stop working until some later unmodified
   // keypress happened to absorb the fold instead.
   Fixture f;
-  f.source.schedule(makeEvent(NCKEY_ESC));
+  f.source.schedule(makeEvent(cellui::Key::Escape));
   Input ni(0, 0, 0, false, false, false, false);
   CHECK(f.coalescer.next(&ni));
   CHECK(f.coalescer.escapePending());
@@ -155,7 +155,7 @@ TEST(shift_modified_keystroke_after_pending_escape_is_not_folded) {
   // arriving alongside it unasked would divert into the Alt-Left/Right
   // track-move branch instead and silently drop the note.
   Fixture f;
-  f.source.schedule(makeEvent(NCKEY_ESC));
+  f.source.schedule(makeEvent(cellui::Key::Escape));
   Input ni(0, 0, 0, false, false, false, false);
   CHECK(f.coalescer.next(&ni));
   CHECK(f.coalescer.escapePending());
@@ -170,14 +170,14 @@ TEST(shift_modified_keystroke_after_pending_escape_is_not_folded) {
 
 TEST(a_second_bare_escape_restarts_the_wait) {
   Fixture f;
-  f.source.schedule(makeEvent(NCKEY_ESC));
+  f.source.schedule(makeEvent(cellui::Key::Escape));
   Input ni(0, 0, 0, false, false, false, false);
   CHECK(f.coalescer.next(&ni));
   CHECK(f.coalescer.escapePending());
 
-  f.source.schedule(makeEvent(NCKEY_ESC));
+  f.source.schedule(makeEvent(cellui::Key::Escape));
   CHECK(f.coalescer.next(&ni));
-  CHECK(ni.getId() == NCKEY_ESC);
+  CHECK(ni.getId() == cellui::Key::Escape);
   CHECK(!ni.hasAlt());
   CHECK(f.coalescer.escapePending()); // still (freshly) waiting, not folded as Alt-Escape
 
@@ -190,12 +190,12 @@ TEST(a_second_bare_escape_restarts_the_wait) {
 TEST(paste_containing_escape_not_coalesced) {
   Fixture f;
   f.coalescer.setInPaste(true);
-  f.source.schedule(makeEvent(NCKEY_ESC));
+  f.source.schedule(makeEvent(cellui::Key::Escape));
   f.source.schedule(makeEvent('w'));
 
   Input ni(0, 0, 0, false, false, false, false);
   CHECK(f.coalescer.next(&ni));
-  CHECK(ni.getId() == NCKEY_ESC);
+  CHECK(ni.getId() == cellui::Key::Escape);
   CHECK(!f.coalescer.escapePending());
   CHECK(f.coalescer.next(&ni));
   CHECK(ni.getId() == 'w');
@@ -204,7 +204,7 @@ TEST(paste_containing_escape_not_coalesced) {
 
 TEST(entering_paste_mid_wait_cancels_a_pending_escape) {
   Fixture f;
-  f.source.schedule(makeEvent(NCKEY_ESC));
+  f.source.schedule(makeEvent(cellui::Key::Escape));
   Input ni(0, 0, 0, false, false, false, false);
   CHECK(f.coalescer.next(&ni));
   CHECK(f.coalescer.escapePending());
@@ -217,15 +217,15 @@ TEST(kitty_protocol_escape_then_key_folds_across_the_releases) {
   Fixture f;
   // A kitty-protocol terminal reports every press and release: Escape's
   // release leaves the wait open, and the folded key's release is Alt too.
-  f.source.schedule(makeEvent(NCKEY_ESC, Input::Kind::PRESS));
-  f.source.schedule(makeEvent(NCKEY_ESC, Input::Kind::RELEASE));
+  f.source.schedule(makeEvent(cellui::Key::Escape, Input::Kind::PRESS));
+  f.source.schedule(makeEvent(cellui::Key::Escape, Input::Kind::RELEASE));
   f.source.schedule(makeEvent('x', Input::Kind::PRESS));
   f.source.schedule(makeEvent('x', Input::Kind::RELEASE));
   f.source.schedule(makeEvent('y', Input::Kind::PRESS));
 
   Input ni(0, 0, 0, false, false, false, false);
   CHECK(f.coalescer.next(&ni));
-  CHECK(ni.getId() == NCKEY_ESC && f.coalescer.escapePending());
+  CHECK(ni.getId() == cellui::Key::Escape && f.coalescer.escapePending());
   CHECK(f.coalescer.next(&ni));
   CHECK(ni.getKind() == Input::Kind::RELEASE && f.coalescer.escapePending() && !f.coalescer.lastFolded());
   CHECK(f.coalescer.next(&ni));
@@ -239,13 +239,13 @@ TEST(kitty_protocol_escape_then_key_folds_across_the_releases) {
 
 TEST(mouse_click_before_first_keystroke_does_not_disable_coalescing) {
   Fixture f;
-  f.source.schedule(makeEvent(NCKEY_BUTTON1, Input::Kind::PRESS));
+  f.source.schedule(makeEvent(cellui::Key::Button1, Input::Kind::PRESS));
 
   Input ni(0, 0, 0, false, false, false, false);
   CHECK(f.coalescer.next(&ni));
-  CHECK(ni.getId() == NCKEY_BUTTON1);
+  CHECK(ni.getId() == cellui::Key::Button1);
 
-  f.source.schedule(makeEvent(NCKEY_ESC));
+  f.source.schedule(makeEvent(cellui::Key::Escape));
   f.source.schedule(makeEvent('w'));
 
   CHECK(f.coalescer.next(&ni));

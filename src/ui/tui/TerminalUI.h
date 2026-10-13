@@ -186,7 +186,7 @@ private:
   // What syncLiveView() last left both widgets showing.
   int synced_track_id_ = -1, laid_out_clip_grid_height_ = -1;
   // Set by a handler that changes what's on screen (the view changing,
-  // NCKEY_RESIZE) from *inside* input handling - before this
+  // Key::Resize) from *inside* input handling - before this
   // class's own main loop (startUI()) reaches its own renderComponents()
   // call, the one that actually decides whether to call render() (the
   // real terminal update). Calling renderComponents(true) directly from in
