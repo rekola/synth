@@ -1,6 +1,8 @@
 #include "TestFramework.h"
 
-#include "../src/ui/SpectrumImage.h"
+#include <cellui/SpectrumImage.h>
+
+using namespace cellui;
 
 namespace {
 

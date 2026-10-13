@@ -1,6 +1,8 @@
 #include "TestFramework.h"
 
-#include "../src/ui/HeatmapImage.h"
+#include <cellui/HeatmapImage.h>
+
+using namespace cellui;
 
 namespace {
 

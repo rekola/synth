@@ -150,10 +150,11 @@ of the switch.
 ## Steps
 
 1. Canvas readiness, in the canvas repository (above). Independent.
-2. Scopes in Cell UI (above): the pixel spectrum and the pixel heatmap are
-   drawn with canvas (`SpectrumImage`, `HeatmapImage`); the scopes and both
-   their versions move into Cell UI behind `cellui::Scopes`, and the VU
-   meters get pixel versions.
+2. Scopes in Cell UI (above). Done: the scopes and both their versions are
+   in Cell UI behind `cellui::Scopes` (`cellScopes()`, `pixelScopes()`;
+   `cellui::term::scopes()` picks the terminal's), canvas is Cell UI's
+   dependency, and the pixel spectrum and heatmap are drawn with it
+   (`SpectrumImage`, `HeatmapImage`). Left: the VU meters' pixel versions.
 3. `plans/modern-look.md` steps 1-3: audit, mock, tokens (no visible
    change).
 4. Create `lib/cellui` with `UIPlane`/`UIMenu`/the chart and input types
@@ -196,3 +197,8 @@ of the switch.
 9. Accessibility tree published by the widgets (the terminal uses only
    focus); strings through a catalog.
 10. A GTK backend for Cell UI on Linux (`plans/cell-ui-window.md`).
+11. A test backend: `BufferPlane`'s composition with each frame given out as
+   JSON (plane tree, cell text and styles, image placements, focus) and
+   input taken from the test, so synth's own tests assert on what the UI
+   shows without a pty or a terminal emulator. The terminal layer stays
+   covered by Cell UI's backend tests and a few pty smoke tests.

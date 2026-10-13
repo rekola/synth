@@ -1,4 +1,4 @@
-#include "SpectrumImage.h"
+#include <cellui/SpectrumImage.h>
 
 #include <canvas/Context.h>
 #include <canvas/ContextCairo.h>
@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+
+namespace cellui {
 
 namespace spectrum_image {
 
@@ -73,3 +75,5 @@ std::vector<uint32_t> render(const std::vector<float> & levels, unsigned width, 
 }
 
 }  // namespace spectrum_image
+
+}  // namespace cellui
