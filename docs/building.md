@@ -8,8 +8,7 @@ cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
-Produces `build/synth`. On Ubuntu the dependencies are `libnotcurses-dev
-libnotcurses++-dev libfmt-dev libsndfile1-dev libasound2-dev libunistring-dev
+Produces `build/synth`. On Ubuntu the dependencies are `libfmt-dev libsndfile1-dev libasound2-dev libunistring-dev
 libsoundtouch-dev libcairo2-dev`, plus CMake, pkg-config, git and a C++17
 compiler. The 2D drawing library [canvas](https://github.com/rekola/canvas) is
 fetched at configure time, so the first `cmake -B build` needs network access. `libmysofa-dev` (binaural

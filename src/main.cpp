@@ -33,7 +33,7 @@
 #endif
 
 #ifdef SYNTH_TERMINAL_UI
-#include <ncpp/NotCurses.hh>
+#include <cellui/term/TerminalSession.h>
 #endif
 #include <fmt/core.h>
 
@@ -49,6 +49,7 @@ int main(int argc, char *argv[]) {
   ChannelConfiguration channel_config(48000, kAmbisonicOrder); // default to the highest supported order
   CommonOptions common;                                        // --stereo, --legacy-binaural, --licenses, --render
   string theme_name = "dark"; // --theme dark|light|original: the terminal UI's colours
+  bool theme_given = false;
   UI::View initial_view = UI::View::LIVE; // --view live|arrangement: which view the UI starts in
   // The saved audio/MIDI device choices; --capture-device/--playback-device/
   // --midi-input override them for this run only (`devices`), never the file
@@ -82,6 +83,7 @@ int main(int argc, char *argv[]) {
 	exit(1);
       }
       theme_name = argv[i + 1];
+      theme_given = true;
       i++;
     } else if (strcmp(argv[i], "--headless") == 0) {
       headless = true;
@@ -259,39 +261,29 @@ int main(int argc, char *argv[]) {
 #ifndef SYNTH_TERMINAL_UI
   (void)initial_view;
   (void)theme_name;
+  (void)theme_given;
   fmt::print(stderr, "This build has no terminal UI; use --headless\n");
   return 1;
 #else
-  // notcurses_options nopts{};
-  // nopts.flags = NCOPTION_INHIBIT_SETLOCALE;
-  auto nc = make_shared<ncpp::NotCurses>();
-  nc->mouse_enable(NCMICE_ALL_EVENTS);
-  nc->linesigs_disable();
-
-  // notcurses's own raw-mode setup leaves IXON (software flow control) on -
-  // confirmed via direct termios inspection, not just inferred - so Ctrl-S/
-  // Ctrl-Q (needed for the C-x C-s save binding, UI.cpp) get intercepted by
-  // the kernel tty driver as XOFF/XON (pausing/resuming terminal output)
-  // instead of ever reaching notcurses's input decoder as keystrokes, the
-  // same class of "a control character doesn't reach the app" problem
-  // linesigs_disable() above already solves for Ctrl-C/Ctrl-Z. Must run
-  // after NotCurses's own constructor, which does its own termios setup -
-  // doing this first would just get overwritten.
-  if (isatty(STDIN_FILENO)) {
-    struct termios t;
-    if (tcgetattr(STDIN_FILENO, &t) == 0) {
-      t.c_iflag &= ~(tcflag_t)(IXON | IXOFF);
-      tcsetattr(STDIN_FILENO, TCSANOW, &t);
-    }
+  std::string terminal_error;
+  auto session = cellui::term::TerminalSession::open(cellui::term::SessionOptions(), &terminal_error);
+  if (!session) {
+    fmt::print(stderr, "Cannot start the terminal UI: {}\n", terminal_error);
+    return 1;
   }
-  
-  // After notcurses is up, so these replace the handlers it installed:
-  // a SIGTERM/SIGHUP then ends the main loop and unwinds normally (the
-  // terminal gets restored, Launchpad LEDs get cleared) instead of
-  // notcurses's handler killing the process.
+
+  // After the session is up, so these replace its handlers for the
+  // termination signals: a SIGTERM/SIGHUP then ends the main loop and
+  // unwinds normally (the terminal gets restored, Launchpad LEDs get
+  // cleared) instead of the process being killed.
   installShutdownSignalHandlers();
 
-  TerminalUI ui(nc);
+  // Without --theme, the colours follow the terminal's own: light on a
+  // light background.
+  if (!theme_given) {
+    theme_name = session->capabilities().appearance == cellui::term::Appearance::LIGHT ? "light" : "dark";
+  }
+  TerminalUI ui(*session);
   ui.setInitialView(initial_view);
   ui.setTheme(theme_name);
   ui.initialize(controller);

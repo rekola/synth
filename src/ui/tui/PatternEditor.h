@@ -16,6 +16,8 @@
 #include "InlineEditor.h"
 #include "LevelMeter.h"
 
+#include <cellui/Scopes.h>
+
 #include <chrono>
 #include <functional>
 #include <memory>
@@ -213,9 +215,13 @@ protected:
   PendingNibbles pending_;
   // Asked for by an undo; applied in render(), where the track's columns are known.
   std::optional<Song::EditPlace> focus_cell_;
+  const cellui::Scopes * scopes_ = nullptr;
 public:
   // Writes a half-typed velocity or delay to the song.
   void commitPendingValue();
+  // The backend's scopes, which draw the VU meters; unset, they are drawn
+  // in cells.
+  void setScopes(const cellui::Scopes * scopes) { scopes_ = scopes; }
   void focusCell(const Song::EditPlace & place) { focus_cell_ = place; }
 private:
   bool offerInputKey(const cellui::Input & input);

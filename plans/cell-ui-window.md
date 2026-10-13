@@ -3,11 +3,15 @@
 The graphical backend of Cell UI (`plans/cell-ui.md`). It starts once phase 1
 (`plans/cell-ui-terminal.md`) has separated the UI: the app then talks only
 to `cellui`, and this phase adds a backend without touching the widgets.
-Linux (X11/Wayland, whenever a display server is running) and Windows; the
-terminal stays selectable (`--ui window|terminal`, the default chosen by
-whether a display is available).
+Linux (X11/Wayland, whenever a display server is running) and Windows; on
+Linux the terminal stays selectable (`--ui window|terminal`, the default
+chosen by whether a display is available), and Windows has only the window.
 
-## Host (to be decided first)
+Decided: on Linux the window backend is a **GTK** backend for Cell UI; on
+Windows it is written directly against **Win32**, drawing with Direct2D and
+DirectWrite (below). No cross-platform toolkit sits under either.
+
+## Host (decided: GTK on Linux, Win32 on Windows)
 
 Cell UI doesn't have to sit on SDL3. Its window backend can also be hosted by
 an existing toolkit. The toolkit then only supplies windows, input, text,
@@ -23,18 +27,60 @@ backend is unaffected.
 | wxWidgets | Truly native menus and dialogs on every platform, GTK ones on Linux; lighter than Qt; a licence that allows static linking | A GPU surface (`wxGLCanvas`) inside native widgets is the weak spot, especially on Wayland; accessibility outside Windows is thin, and IME into a custom-drawn surface is ours again; effects need our own OpenGL anyway |
 | Dear ImGui | Fast tool and debug panels | Nothing on the "lack" table: it needs a platform layer (SDL3 itself), draws its own menus, and has no accessibility or real IME. Useful at most for developer panels inside the window backend, not as the host |
 
-Recommendation: **Qt 6 as the host**, using only its LGPL modules (Core,
-Gui, Quick, and Widgets only for the menu bar and dialogs if Quick's aren't
-enough). The biggest risk of a custom toolkit is the long tail of
-accessibility, IME, fonts, translation and platform menus, and Qt removes
-most of it, leaving us the part that is actually ours: the cell grid and its
-look. The cost is size and build weight, not a second UI. Keep the Cell UI
-API free of Qt types, so the host can still be swapped for SDL3 later.
+Qt 6 was recommended as one host for both platforms, for the long tail of
+accessibility, IME, fonts, translation and platform menus. With GTK on Linux
+it would serve Windows alone, and Windows is the platform whose own APIs
+already cover that tail:
 
-Before committing to either, a short spike: the pattern editor drawn
-through a minimal window backend on each host (cells, glyph atlas, one
-shadowed popup, a menu, a modal dialog), compared on Linux and Windows for
-looks, input latency, idle CPU and installer size.
+| Item | Qt on Windows | Win32 directly |
+|---|---|---|
+| Text shaping, font fallback, emoji | HarfBuzz in Qt | DirectWrite |
+| HiDPI | handled | per-monitor v2 in the manifest, `WM_DPICHANGED` |
+| IME | handled | IMM32 messages; needed only where text is typed (the minibuffer, name editors) |
+| File dialogs, message boxes | native wrappers | the same native dialogs (`IFileOpenDialog`) |
+| Menus | wraps `HMENU` | `HMENU` |
+| Accessibility | UIA bridge, the grid still ours (`QAccessibleInterface`) | a UIA provider of our own, the grid included |
+| Size, licence, build | tens of MB of DLLs, LGPL relinking, Qt's tooling | nothing beyond Windows, the existing MinGW build |
+| Event loop | Qt's on the main thread | ours: `MsgWaitForMultipleObjectsEx` waits on messages and `Notifier` event handles, as `WaitSet` does |
+
+Accessibility is the one place Qt saves real work, and less than it seems:
+nearly all of the UI is custom-drawn cells that we describe either way; Qt
+would save the window-level plumbing (the root provider, events, focus).
+That is the accepted cost. GTK on Windows (one host for both) was also
+considered: it has no UI Automation backend on Windows and brings a large,
+foreign-looking runtime, so it loses on what Windows users notice.
+
+Revisit only if a spike shows Direct2D/DirectWrite drawing the cells worse,
+or if accessibility on Windows is needed from the first release.
+
+## Windows: Win32
+
+- **Target:** Windows 10 1903 or later and Windows 11, x86-64 (the MSYS2
+  UCRT64 build). 1903 brings the manifest's UTF-8 code page; per-monitor
+  DPI v2 needs 1703. The dark title bar (`DWMWA_USE_IMMERSIVE_DARK_MODE`) is
+  used where the OS has it and silently absent where not. ARM64 later, from
+  MSYS2's Clang toolchain, if asked for.
+- **Window and input:** `CreateWindowExW` and a window procedure, messages
+  translated into `cellui::Input`. Alt arrives as `WM_SYSKEYDOWN`; F10 and
+  a bare Alt are taken from the system menu so Meta chords reach the
+  keymap; AltGr (seen as Ctrl+Alt) types its character.
+- **Drawing:** Direct2D into a DXGI flip-model swap chain on Direct3D 11,
+  waitable for vsync pacing; DirectWrite for text and font fallback, WIC
+  for images. An idle UI presents nothing.
+- **canvas:** gets a Direct2D/DirectWrite backend that replaces GDI+, so the
+  pixel scopes and VU meters build on Windows too.
+- **Main loop:** `MsgWaitForMultipleObjectsEx`; on Windows `Notifier` is an
+  event handle, so the audio thread's wakeups, WinMM MIDI and window
+  messages wake the same `WaitSet`.
+- **Dialogs and menus:** native file dialogs and message boxes through
+  COM; the menu bar is an `HMENU`; Cell UI's own dialogs are separate
+  owned windows.
+- **Accessibility:** the widget tree is kept describable, and a UI
+  Automation provider (`IRawElementProviderSimple` and fragments for the
+  grid) comes in the accessibility step, not the first release.
+- **Libraries:** `d2d1`, `dwrite`, `d3d11`, `dxgi`, `windowscodecs`,
+  `ole32`, `uuid`, `imm32`, `dwmapi` - all in mingw-w64, all part of
+  Windows.
 
 ## What the window does with the library's API
 
@@ -51,28 +97,29 @@ looks, input latency, idle CPU and installer size.
   leave the main window's area (Wayland's `xdg_popup` included).
 - **File dialogs and message boxes:** native (portal-backed on Linux).
 - **Menus:**
-  - Windows: a real `HMENU` on the main window (or the host's native menu
-    bar).
+  - Windows: a real `HMENU` on the main window.
   - Linux: no native menu bar exists outside a toolkit, so it is drawn to
     look native, as popup windows with the system font, not as cells. It
     takes the desktop's colour scheme, accent and font from the desktop
-    portal's settings and fontconfig. Not GTK: a GTK menu needs a GTK
-    parent widget and GTK's main loop, on Wayland it cannot attach to
-    another toolkit's surface, and it would look like GNOME on KDE anyway.
-    Exporting the menu over D-Bus for desktops with a global menu bar (KDE
-    Plasma's) is a cheap addition later. With Qt as the host, its menu bar
-    covers this.
+    portal's settings and fontconfig. With GTK as the Linux host the menu
+    bar is GTK's own, in GTK's main loop. Exporting the menu over D-Bus for
+    desktops with a global menu bar (KDE Plasma's) is a cheap addition
+    later.
   - macOS, if ever: `NSMenu`.
 - **Icons:** rasterized at the current scale into the glyph atlas and
   tinted by the cell's foreground colour, so icons follow the theme and
   state colours.
 - **Text entry:** input-method composition from the host.
 - **Accessibility:** the tree goes to UI Automation on Windows and AT-SPI on
-  Linux (through Qt's accessibility with Qt as host, AccessKit with SDL3).
+  Linux (through GTK's accessibility on Linux, our own UIA provider on
+  Windows).
 - **Themes:** the OS dark/light preference, high contrast and reduced
   motion are followed unless set.
 
-## Rendering with SDL3 as host
+## Rendering with SDL3 as host (not taken)
+
+Kept for reference: neither platform uses SDL3 now. The text stack and HiDPI
+notes still describe what the Linux backend needs alongside GTK.
 
 - **SDL3** handles windows, input, IME, dialogs, popups, clipboard and file
   drops on Linux (X11/Wayland) and Windows. It is in MSYS2, and is vendored
@@ -106,7 +153,8 @@ looks, input latency, idle CPU and installer size.
 
 ## Steps
 
-1. Host spike (above) and the decision.
+1. GTK backend on Linux; Win32 backend on Windows, with canvas's Direct2D
+   backend.
 2. Main window, cells, text, input, popups, dialogs, file dialogs, menus;
    `--ui window|terminal`.
 3. Styles beyond the terminal: geometry, spans, borders, gradients, radius,

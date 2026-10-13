@@ -29,9 +29,8 @@ extern const unsigned int kQuadrantCodepoints[16];
 // mask 21 (0b010101, left column only) = LEFT HALF BLOCK U+258C, mask 42
 // (0b101010, right column only) = RIGHT HALF BLOCK U+2590. The remaining
 // 60 masks get consecutive new codepoints U+1FB00..U+1FB3B in mask order,
-// skipping 21/42. Only actually a real glyph on a terminal that reports
-// notcurses_cansextant() - checked once via UIPlane::canRenderSextants(),
-// not per call.
+// skipping 21/42. Only actually a real glyph on a terminal that has
+// sextants - checked once via UIPlane::canRenderSextants(), not per call.
 unsigned int sextantCodepoint(int mask);
 
 // Unicode Braille Patterns (U+2800-U+28FF) for an 8-bit mask over a

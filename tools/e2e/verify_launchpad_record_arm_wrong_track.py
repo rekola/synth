@@ -79,22 +79,30 @@ clip_grid_text = scr.dump()
 print("\n--- ClipGrid screen dump ---")
 print(clip_grid_text)
 
-# Two tracks means two ClipGrid columns share each screen row (track
-# 0's own cell, then a "│" divider, then track 1's), so "▸" (ClipGrid.
-# cpp's own populated-clip icon) isn't necessarily the row's first
-# character the way the single-track holes test could assume - split each
-# row on "│" and check each column's own cell instead. Excludes the
-# status line's own "Octave: ◂ 4 ▸", which also contains "▸" but isn't a
-# ClipGrid row at all (no "│" divider in it in the right place).
+# The grid has no divider between tracks, so a row's cells are told apart
+# by screen column: the header row ("T0 ... T1 ... Master") gives each
+# track's first column (cell columns, since a wide glyph shifts string
+# indices). "▸" (ClipGrid.cpp's populated-clip icon) in a track's span
+# means a populated clip.
+def cells(y):
+    buf = scr.screen.buffer[y]
+    return "".join(buf[x].data or " " for x in range(scr.screen.columns))
+
+header_y = next((y for y in range(scr.screen.lines)
+                 if cells(y).startswith("T0") and "T1" in cells(y) and "Master" in cells(y)), None)
 track0_populated, track1_populated = [], []
-for line in clip_grid_text.splitlines():
-    cells = line.split("│")
-    if len(cells) < 2 or "Octave:" in line:
-        continue
-    if "▸" in cells[0]:
-        track0_populated.append(line)
-    if "▸" in cells[1]:
-        track1_populated.append(line)
+if header_y is not None:
+    header = cells(header_y)
+    x1, xm = header.index("T1"), header.index("Master")
+    for y in range(header_y + 1, scr.screen.lines):
+        row = cells(y)
+        if row.startswith("Sends"):
+            break
+        if "▸" in row[:x1]:
+            track0_populated.append(row)
+        if "▸" in row[x1:xm]:
+            track1_populated.append(row)
+check("the clip grid header was found", header_y is not None, clip_grid_text)
 
 check("track 0 (left as the assigned/cursor track, never armed) shows no populated clip at all",
       len(track0_populated) == 0, track0_populated)

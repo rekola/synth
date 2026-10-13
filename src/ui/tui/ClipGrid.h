@@ -4,6 +4,8 @@
 #include "../UIElement.h"
 #include "InlineEditor.h"
 #include "LevelMeter.h"
+
+#include <cellui/Scopes.h>
 #include "../../launchpad/ClipHighlight.h"
 #include "../../model/Clip.h"
 #include "../../model/SendLevels.h"
@@ -53,6 +55,10 @@ class ClipGrid : public UIElement {
   ClipGrid(UIPlane & parent);
 
   bool render(const StyleProvider & styles, bool refresh, bool focused);
+
+  // The backend's scopes, which draw the VU meters; unset, they are drawn
+  // in cells.
+  void setScopes(const cellui::Scopes * scopes) { scopes_ = scopes; }
 
   // A clip slot's transport/recording state (LaunchpadManager::
   // clipHighlight()), shown on its row the way a Launchpad pad shows it.
@@ -180,8 +186,8 @@ class ClipGrid : public UIElement {
   std::function<void(int track_id, int clip_index)> trigger_callback_;
   std::function<void(int clip_index)> scene_callback_;
   std::function<void()> stop_all_callback_;
-  // The visible meters' levels and peak markers at the last redraw, in bar
-  // steps (two entries per column) - a change redraws.
+  // The visible meters' levels and peak markers at the last redraw, in
+  // 1/256ths of the meter (two entries per column) - a change redraws.
   std::vector<int> current_meter_steps_;
   // What a column's meter shows now, and the smoothing behind it, by track
   // id (the master's included).
@@ -192,6 +198,7 @@ class ClipGrid : public UIElement {
     float peak_fraction = 0.0f;
   };
   std::unordered_map<int, MeterDisplay> meters_;
+  const cellui::Scopes * scopes_ = nullptr;
   std::chrono::steady_clock::time_point last_meter_update_;
 
   // Clip and track rename share one editor; only one can be open at a time.

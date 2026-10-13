@@ -4,8 +4,8 @@ Separate the UI into the Cell UI library (`plans/cell-ui.md`) with only the
 terminal backend, replace notcurses with it, and put in the modernizations a
 terminal can show (`plans/modern-look.md`). The window backend
 (`plans/cell-ui-window.md`) is considered only once this is done. The
-Windows port (`plans/windows-port.md`) runs alongside: the two meet when the
-terminal backend runs in a Windows console.
+Windows port (`plans/windows-port.md`) runs alongside; Windows gets only the
+graphical UI, never the terminal one.
 
 ## Done when
 
@@ -34,19 +34,14 @@ terminal backend runs in a Windows console.
     position (terminals disagree on emoji and the newer symbols).
 - Input is our own parser (legacy keys, CSI u, SGR mouse, bracketed paste),
   with `EscapeCoalescer` kept.
-- Pixel regions go to Kitty graphics or Sixel where available. Otherwise
-  the canvas image is quantized to braille or sextant cells. That one
-  quantizer replaces the per-widget sub-cell paint code
-  (`TerminalHeatmapChart`, the braille path of `SpectrumMeter`) with a
-  single path.
-- Windows: VT output through ConPTY/Windows Terminal
-  (`ENABLE_VIRTUAL_TERMINAL_PROCESSING`), console input records for keys
-  (`ReadConsoleInputW`), which report key releases, so held notes work
-  there in any console. Built once `plans/windows-port.md` has the platform
-  layer (its steps 1 and 3).
-- Expect 4-6k lines. It removes notcurses, proves the library API against
-  the real app with no new rendering questions, and gives Windows a
-  terminal UI.
+- Pixel regions go to Kitty graphics, iTerm2's inline images or Sixel
+  where available. Without them a widget draws its cell version by hand
+  (see Scopes below); a canvas image is never quantized to braille or
+  sextant cells, since a hand-drawn view can put its labels in terminal
+  text.
+- No Windows console support: Windows uses the graphical UI only.
+- Expect 4-6k lines. It removes notcurses and proves the library API
+  against the real app with no new rendering questions.
 
 ## Icons in the terminal
 
@@ -109,15 +104,26 @@ isn't ready to be a dependency yet. Before synth uses it:
   needed at all.
 - **Not now:** a GPU backend, removing Cairo, or a DirectWrite path.
 
-### Synth onto canvas
+### Scopes in Cell UI
 
-Move synth's chart and meter paint code onto canvas, drawing each into its
-own span's image. The terminal draws that ImageData as pixels or through
-the sub-cell quantizer. This deletes custom paint code early and needs no
-other part of this plan, so it can go first. Cairo first; GDI+ joins once
-the Windows CI job exists (`plans/windows-port.md` step 0). Canvas (MIT)
-and its vendored stb headers go into `THIRD_PARTY_LICENSES.md`. (In phase 2
-the same images become textures.)
+The scopes - the spectrum, the DirAC heatmap and the VU meters (the scope
+row's channel meter and the level meters in the clip grid and the pattern
+editor) - are Cell UI widgets, and each backend provides its own versions of them through
+a factory (`cellui::Scopes`), so the app asks for a scope and never knows
+how it is drawn:
+
+- The terminal's cell versions are drawn by hand: braille bars, a quadrant
+  or sextant heatmap, the axis labels in terminal text. canvas is not used
+  for them, not even for sub-cells.
+- The terminal's pixel versions, when it shows images, are drawn with
+  canvas and sent as images.
+- The window backend draws its own (phase 2).
+
+A level meter inside the clip grid or the pattern editor is a small scope
+of its own placed over its cells, so it too gets a pixel version. Cairo first; GDI+ joins once the Windows CI
+job exists (`plans/windows-port.md` step 0). Canvas (MIT) and its vendored
+stb headers go into `THIRD_PARTY_LICENSES.md`. (In phase 2 the same images
+become textures.)
 
 Keep canvas a separate library that `cellui` depends on rather than merging
 it in. It is useful on its own, and the UI library stays about layout and
@@ -144,10 +150,15 @@ of the switch.
 ## Steps
 
 1. Canvas readiness, in the canvas repository (above). Independent.
-2. Synth's charts and meters onto canvas (above). Started: canvas is in the
-   build and the pixel spectrum and the pixel heatmap are drawn with it
-   (`SpectrumImage`, `HeatmapImage`); the cell paths, the level meters and
-   `ChannelMeter` remain.
+2. Scopes in Cell UI (above). Done: the scopes and both their versions are
+   in Cell UI behind `cellui::Scopes` (`cellScopes()`, `pixelScopes()`;
+   `cellui::term::scopes()` picks the terminal's), canvas is Cell UI's
+   dependency, and the pixel spectrum and heatmap are drawn with it
+   (`SpectrumImage`, `HeatmapImage`). The VU meters have pixel versions
+   too (`VuMeterImage`, `Scopes::drawVuMeter()`), drawn into a widget's own
+   plane as images at cell positions (`UIPlane::drawImageAt()`). Confirmed
+   in real terminals: the pixel scopes and VU meters in kitty and xterm;
+   GNOME Terminal (VTE built without Sixel) shows the cell versions.
 3. `plans/modern-look.md` steps 1-3: audit, mock, tokens (no visible
    change).
 4. Create `lib/cellui` with `UIPlane`/`UIMenu`/the chart and input types
@@ -163,6 +174,24 @@ of the switch.
    What stays in the app is what knows the song or the controller, and the
    notcurses implementations that step 5 replaces.
 5. The terminal backend replaces notcurses. Same look, same e2e results.
+   Done in the code: notcurses is out of the build and `TerminalUI` runs on
+   `lib/cellui`'s terminal backend (`cellui/term/`: `InputParser`,
+   `Discovery`/`Capabilities`, `FrameEncoder`, `ImageEncoder`,
+   `TerminalSession`), drawing through a root `BufferPlane` (flat children,
+   the reader on `LineEditor`, the picker, translucency, images) with the
+   menu on `MenuBar`. The display scale is guessed from the cell height
+   (`estimateDisplayScale()`, `UIPlane::displayScale()`: text, icons and line
+   widths scale by it, hairlines excepted), and the default `--theme`
+   follows the terminal's colours (`detectAppearance()`). The non-Launchpad
+   e2e scripts give the notcurses build's results or better. iTerm2 gets
+   its own inline images (PNG, `OSC 1337`), the spectrum's curve widens
+   with the display scale, and key ids have names of our own
+   (`cellui::Key`). Confirmed in real terminals: xterm with Sixel, kitty
+   (Alt-x, and Escape then x as M-x) and VTE (GNOME Terminal). The
+   Launchpad e2e scripts were run on a machine with an ALSA sequencer: four
+   fail, to be studied and fixed separately by a local agent that has the
+   e2e setup. Still open: the real-terminal
+   checks of foot, WezTerm, tmux and iTerm2.
 6. Icons: the app's icon list, Kitty graphics/Sixel/glyph fallback, menu
    icons.
 7. `plans/modern-look.md` steps 4-5: the modernized look and the light and
@@ -171,5 +200,9 @@ of the switch.
    terminal.
 9. Accessibility tree published by the widgets (the terminal uses only
    focus); strings through a catalog.
-10. Windows console support in the terminal backend, once
-   `plans/windows-port.md` has its platform layer.
+10. A GTK backend for Cell UI on Linux (`plans/cell-ui-window.md`).
+11. A test backend: `BufferPlane`'s composition with each frame given out as
+   JSON (plane tree, cell text and styles, image placements, focus) and
+   input taken from the test, so synth's own tests assert on what the UI
+   shows without a pty or a terminal emulator. The terminal layer stays
+   covered by Cell UI's backend tests and a few pty smoke tests.

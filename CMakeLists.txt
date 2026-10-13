@@ -11,15 +11,15 @@ include(GNUInstallDirs)
 
 # The full `synth` (--headless, the Launchpad, live MIDI and audio) builds
 # everywhere; OFF gives the engine, the tests and a render-only `synth`
-# (src/main_render.cpp). The terminal UI (notcurses) exists only for Linux
-# today, so Windows gets the full program without it.
+# (src/main_render.cpp). The terminal UI (lib/cellui's terminal backend) is
+# POSIX only today, so Windows gets the full program without it.
 option(SYNTH_BUILD_INTERACTIVE "Build the full synth (headless mode, Launchpad, live audio/MIDI)" ON)
 if(WIN32)
   set(SYNTH_BUILD_TERMINAL_UI_DEFAULT OFF)
 else()
   set(SYNTH_BUILD_TERMINAL_UI_DEFAULT ON)
 endif()
-option(SYNTH_BUILD_TERMINAL_UI "Build the notcurses terminal UI" ${SYNTH_BUILD_TERMINAL_UI_DEFAULT})
+option(SYNTH_BUILD_TERMINAL_UI "Build the terminal UI" ${SYNTH_BUILD_TERMINAL_UI_DEFAULT})
 
 # Default to an optimized build when the generator supports build types (a
 # plain `cmake -B build` with no CMAKE_BUILD_TYPE otherwise applies no -O
@@ -79,7 +79,7 @@ if(SYNTH_ENABLE_SANITIZERS)
 endif()
 
 # Engine library: song model, playback, instruments and effects. Has no
-# dependency on the terminal UI (notcurses) or audio device (ALSA), so it can
+# dependency on the terminal UI or audio device (ALSA), so it can
 # be linked into the test suite and any future offline tooling.
 add_library(synth_engine STATIC
 	src/doc/Document.cpp
@@ -194,33 +194,14 @@ if(WIN32)
     src/midi/WinMmMidiPorts.cpp)
 endif()
 
-# canvas (2D drawing for the scopes and meters). Its warnings are its own, so
-# it is built from a plain checkout outside this project's flag set.
-include(FetchContent)
-FetchContent_Declare(canvas
-  GIT_REPOSITORY https://github.com/rekola/canvas
-  GIT_TAG bbe8228a9c04be1ad677bf5c0486ec8ed1a72564)
-FetchContent_GetProperties(canvas)
-if(NOT canvas_POPULATED)
-  FetchContent_Populate(canvas)
-endif()
-set(CANVAS_CXX_FLAGS_SAVED "${CMAKE_CXX_FLAGS}")
-set(CMAKE_CXX_FLAGS "${SYNTH_CANVAS_BASE_FLAGS}")
-set(CANVAS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-if(WIN32)
-  set(CANVAS_BACKEND_CAIRO OFF CACHE BOOL "" FORCE)
-  set(CANVAS_BACKEND_GDIPLUS ON CACHE BOOL "" FORCE)
-endif()
-add_subdirectory(${canvas_SOURCE_DIR} ${canvas_BINARY_DIR} EXCLUDE_FROM_ALL)
-set(CMAKE_CXX_FLAGS "${CANVAS_CXX_FLAGS_SAVED}")
-# Its headers are reached as SYSTEM includes, like third_party/.
-target_include_directories(synth_engine SYSTEM PUBLIC ${canvas_SOURCE_DIR}/include)
-target_link_libraries(synth_engine PUBLIC canvas)
 target_include_directories(synth_engine PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 # Cell UI (lib/cellui): the UI library, which also owns the libunistring
 # dependency (grapheme-aware text width). Built with these same flags.
 enable_testing()  # before the subdirectory, so its tests register here too
+# It also brings canvas (2D drawing for the scopes' pixel versions), built
+# without our warning flags.
+set(CELLUI_CANVAS_CXX_FLAGS "${SYNTH_CANVAS_BASE_FLAGS}")
 add_subdirectory(lib/cellui)
 target_link_libraries(synth_engine PUBLIC cellui)
 
@@ -323,16 +304,11 @@ if(SYNTH_BUILD_INTERACTIVE)
   if(SYNTH_BUILD_TERMINAL_UI)
     target_sources(synth PRIVATE
       src/ui/tui/TerminalUI.cpp
-      src/ui/tui/EscapeCoalescer.cpp
-      src/ui/tui/NotcursesInputEventSource.cpp
       src/ui/tui/OutlineView.cpp
       src/ui/tui/PatternEditor.cpp
       src/ui/tui/ArrangementGrid.cpp
-      src/ui/tui/ClipGrid.cpp
-      src/ui/SpectrumImage.cpp
-      src/ui/HeatmapImage.cpp)
+      src/ui/tui/ClipGrid.cpp)
     target_compile_definitions(synth PRIVATE SYNTH_TERMINAL_UI)
-    target_link_libraries(synth notcurses++ notcurses notcurses-core)
   endif()
 
   if(NOT WIN32)

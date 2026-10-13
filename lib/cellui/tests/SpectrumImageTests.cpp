@@ -1,6 +1,8 @@
 #include "TestFramework.h"
 
-#include "../src/ui/SpectrumImage.h"
+#include <cellui/SpectrumImage.h>
+
+using namespace cellui;
 
 namespace {
 
@@ -48,4 +50,38 @@ TEST(spectrum_image_wrong_level_count_gives_a_blank_image) {
   auto img = spectrum_image::render(std::vector<float>(5, 1.0f), 10, 10, styles);
   CHECK(img.size() == 100u);
   for (uint32_t p : img) CHECK(p == 0u);
+}
+
+TEST(spectrum_image_curve_widens_with_the_display_scale) {
+  StyleProvider styles;
+  std::vector<float> levels(20, 0.5f);
+  auto covered = [&](float scale) {
+    auto img = spectrum_image::render(levels, 20, 40, styles, scale);
+    Rgb bg = at(img, 20, 10, 0);
+    int n = 0;
+    for (unsigned y = 0; y < 40; y++) {
+      Rgb p = at(img, 20, 10, y);
+      if (p.r != bg.r || p.g != bg.g || p.b != bg.b) n++;
+    }
+    return n;
+  };
+  CHECK(covered(2.0f) > covered(1.0f));
+}
+
+TEST(spectrum_image_fractional_scale_fills_the_exact_size) {
+  StyleProvider styles;
+  std::vector<float> levels(101, 0.5f);
+  auto img = spectrum_image::render(levels, 101, 37, styles, 1.25f);
+  CHECK(img.size() == 101u * 37u);
+  bool opaque = true;
+  for (uint32_t p : img) opaque = opaque && (p >> 24) == 0xffu;
+  CHECK(opaque);
+  // The curve reaches the last column.
+  Rgb bg = at(img, 101, 100, 0);
+  bool drawn = false;
+  for (unsigned y = 0; y < 37; y++) {
+    Rgb p = at(img, 101, 100, y);
+    drawn = drawn || p.r != bg.r || p.g != bg.g || p.b != bg.b;
+  }
+  CHECK(drawn);
 }

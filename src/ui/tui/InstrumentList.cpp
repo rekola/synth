@@ -70,15 +70,15 @@ InstrumentList::offerInput(const cellui::Input & input) {
   auto [rows, cols] = getDim();
   auto num_instruments = static_cast<int>(song.getInstrumentPool().getInstruments().size());
 
-  if (input.getId() == NCKEY_UP) {
+  if (input.getId() == Key::Up) {
     if (new_cursor_row > 0) new_cursor_row--;
     if (new_cursor_row < new_scroll_pos) new_scroll_pos = new_cursor_row;
     return true;
-  } else if (input.getId() == NCKEY_DOWN) {
+  } else if (input.getId() == Key::Down) {
     if (new_cursor_row + 1 < num_instruments) new_cursor_row++;
     if (new_cursor_row >= new_scroll_pos + rows - 2) new_scroll_pos = new_cursor_row - (rows - 2) + 1;
     return true;
-  } else if (input.getId() == NCKEY_ENTER) {
+  } else if (input.getId() == Key::Enter) {
     // select instrument
     return true;
   } else {

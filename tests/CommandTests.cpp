@@ -8,7 +8,7 @@
 
 // PatternEditor::offerInput()'s ColumnType::TRACK_FX branch relies on
 // updateData() to validate a raw InputEvent::getId() codepoint itself
-// (see its own comment for why a notcurses special-key code - arrows,
+// (see its own comment for why a synthesized special-key code - arrows,
 // F-keys, Insert, PageUp, ... - must never reach values_ untested), rather
 // than pre-classifying input with a separate function.
 TEST(command_update_data_accepts_mnemonic_column_charset) {
@@ -24,9 +24,9 @@ TEST(command_update_data_rejects_slash_and_punctuation_on_mnemonic_columns) {
   CHECK(!c.updateData(0, '/'));
   CHECK(!c.updateData(0, ' '));
   CHECK(!c.updateData(0, '.'));
-  CHECK(!c.updateData(1, NCKEY_BACKSPACE));
-  CHECK(!c.updateData(0, NCKEY_DEL));
-  CHECK(!c.updateData(1, NCKEY_LEFT));
+  CHECK(!c.updateData(1, Key::Backspace));
+  CHECK(!c.updateData(0, Key::Delete));
+  CHECK(!c.updateData(1, Key::Left));
 }
 
 // Column 2/3 (the hex argument) is narrower than the mnemonic columns -

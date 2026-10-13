@@ -21,6 +21,7 @@ public:
   static constexpr size_t kMaxChannels = 18;
 
   explicit ChannelMeter(UIPlane & parent) : Element(parent) { }
+  ~ChannelMeter() override = default;
 
   // A fresh reading, one linear RMS per channel (missing ones are
   // silent), and the legend for it. Redraws.
@@ -41,7 +42,7 @@ public:
     setLevels({}, label);
   }
 
-private:
+protected:
   struct Channel {
     level_meter::Ballistics ballistics;
     level_meter::PeakHold peak_hold;
@@ -49,7 +50,13 @@ private:
     float peak_fraction = 0.0f;
     bool clipping = false;
   };
+  // Draws the bars in the top `bar_rows` rows of the first `cells` cells,
+  // two channels to a cell, over the background setLevels() filled in.
+  virtual void drawBars(int bar_rows, int cells);
+
   std::array<Channel, kMaxChannels> channels_;
+
+private:
   std::chrono::steady_clock::time_point last_update_;
 };
 

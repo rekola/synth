@@ -8,7 +8,7 @@ using namespace cellui;
 namespace {
 
 Input wheel(int id) { return Input(id, 0, 0, false, false, false, false, Input::Kind::PRESS); }
-Input clickAt(int y, int x) { return Input(NCKEY_BUTTON1, y, x, false, false, false, false, Input::Kind::RELEASE); }
+Input clickAt(int y, int x) { return Input(cellui::Key::Button1, y, x, false, false, false, false, Input::Kind::RELEASE); }
 Input typed(int id) { return Input(id, 0, 0, false, false, false, false, Input::Kind::PRESS); }
 
 struct Fixture {
@@ -63,19 +63,19 @@ TEST(spinbox_arrow_clicks_and_wheel_step_within_the_range) {
   CHECK(f.spin.offerInput(clickAt(1, f.minus_x)));
   CHECK(f.spin.offerInput(clickAt(1, f.minus_x)));
   CHECK(f.value == 3);
-  CHECK(f.spin.offerInput(wheel(NCKEY_BUTTON4)));
+  CHECK(f.spin.offerInput(wheel(cellui::Key::Button4)));
   CHECK(f.value == 4);
-  CHECK(f.spin.offerInput(wheel(NCKEY_BUTTON5)));
-  CHECK(f.spin.offerInput(wheel(NCKEY_BUTTON5)));
+  CHECK(f.spin.offerInput(wheel(cellui::Key::Button5)));
+  CHECK(f.spin.offerInput(wheel(cellui::Key::Button5)));
   CHECK(f.value == 2);
   f.value = 8;
-  f.spin.offerInput(wheel(NCKEY_BUTTON4));
+  f.spin.offerInput(wheel(cellui::Key::Button4));
   CHECK(f.value == 8);  // clamped at the maximum
 }
 
 TEST(spinbox_pressing_an_arrow_is_pending_until_release) {
   Fixture f;
-  Input press(NCKEY_BUTTON1, 1, f.plus_x, false, false, false, false, Input::Kind::PRESS);
+  Input press(cellui::Key::Button1, 1, f.plus_x, false, false, false, false, Input::Kind::PRESS);
   CHECK(f.spin.offerInput(press));
   CHECK(f.spin.arrowPressPending());
   CHECK(f.value == 4);
@@ -98,7 +98,7 @@ TEST(spinbox_typing_a_value_commits_when_no_digit_could_follow) {
 TEST(spinbox_escape_cancels_an_edit_and_other_keys_end_it) {
   Fixture f;
   f.spin.offerInput(clickAt(1, f.field_x));
-  CHECK(f.spin.offerInput(typed(NCKEY_ESC)));
+  CHECK(f.spin.offerInput(typed(cellui::Key::Escape)));
   CHECK(!f.spin.isEditing());
   CHECK(f.value == 4);
   f.spin.offerInput(clickAt(1, f.field_x));

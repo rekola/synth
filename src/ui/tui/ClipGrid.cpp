@@ -189,8 +189,8 @@ ClipGrid::ClipGrid(UIPlane & parent) : UIElement(parent) {
   // (Backspace/Del clearing note content, Ctrl-K placing a stop instance,
   // both in PatternEditor; ArrangementGrid's own Backspace doing the
   // same) - rather than a dedicated modifier chord of its own.
-  keymap_.bind(KeyChord::pack(NCKEY_DEL, false, false, false, false), "kill-region");
-  keymap_.bind(KeyChord::pack(NCKEY_BACKSPACE, false, false, false, false), "kill-region");
+  keymap_.bind(KeyChord::pack(Key::Delete, false, false, false, false), "kill-region");
+  keymap_.bind(KeyChord::pack(Key::Backspace, false, false, false, false), "kill-region");
   keymap_.bind(KeyChord::pack('k', true, false, false, false), "kill-region");
   keymap_.bind(KeyChord::pack('w', true, false, false, false), "kill-region");
   keymap_.bind(KeyChord::pack('w', false, true, false, false), "kill-ring-save");
@@ -442,13 +442,13 @@ ClipGrid::offerInput(const cellui::Input & input) {
   // While a rename editor is open it owns every key.
   if (inline_editor_.offerInput(input)) return true;
 
-  if (input.getId() == NCKEY_BUTTON1) return handleMouse(input);
+  if (input.getId() == Key::Button1) return handleMouse(input);
 
   // The mouse wheel scrolls the view (Shift: tracks), not the cursor, until
   // the cursor next moves.
-  if (input.getId() == NCKEY_BUTTON4 || input.getId() == NCKEY_BUTTON5) {
+  if (input.getId() == Key::Button4 || input.getId() == Key::Button5) {
     if (input.getKind() == InputEvent::Kind::RELEASE) return true;
-    int direction = input.getId() == NCKEY_BUTTON4 ? -1 : 1;
+    int direction = input.getId() == Key::Button4 ? -1 : 1;
     if (input.hasShift()) scroll_col_ += direction;
     else scroll_row_ += direction;
     view_detached_ = true;
@@ -463,10 +463,10 @@ ClipGrid::offerInput(const cellui::Input & input) {
   // the clip under the cursor), 'l' (toggle its own loop flag) - Mute/
   // Solo are dispatchCommand()'s job now, handled above via this
   // constructor's own toggle-mute/toggle-solo bindings.
-  if (input.getId() == NCKEY_UP) cursor_row_--;
-  else if (input.getId() == NCKEY_DOWN) cursor_row_++;
-  else if (input.getId() == NCKEY_LEFT || input.getId() == NCKEY_RIGHT) {
-    int step = input.getId() == NCKEY_LEFT ? -1 : 1;
+  if (input.getId() == Key::Up) cursor_row_--;
+  else if (input.getId() == Key::Down) cursor_row_++;
+  else if (input.getId() == Key::Left || input.getId() == Key::Right) {
+    int step = input.getId() == Key::Left ? -1 : 1;
     bool on_sends = rowKindFor(cursor_row_) == RowKind::SENDS;
     // On the Sends row the three values are cells of their own: Left and
     // Right walk through them, then on into the next column.
@@ -476,9 +476,9 @@ ClipGrid::offerInput(const cellui::Input & input) {
       cursor_send_ = step > 0 ? 0 : 2;
     }
   }
-  else if (input.getId() == NCKEY_PGUP) cursor_row_ -= getDim().first;
-  else if (input.getId() == NCKEY_PGDOWN) cursor_row_ += getDim().first;
-  else if (input.getId() == NCKEY_F02) {
+  else if (input.getId() == Key::PageUp) cursor_row_ -= getDim().first;
+  else if (input.getId() == Key::PageDown) cursor_row_ += getDim().first;
+  else if (input.getId() == Key::F2) {
     // Renames the clip under the cursor, or the track when there's no
     // clip there (the cursor never sits on the header row itself); on the
     // master column's scene slot, the scene.
@@ -510,7 +510,7 @@ ClipGrid::offerInput(const cellui::Input & input) {
       }
     }
     return true;
-  } else if (input.getId() == NCKEY_ENTER) {
+  } else if (input.getId() == Key::Enter) {
     activateCell(song, track_ids, true);
     return true;
   }
@@ -588,8 +588,8 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   current_clip_states_ = std::move(clip_states);
   current_track_clips_ = std::move(track_clips);
 
-  // The meters, in bar steps (negative while clipping) - only a visible
-  // change redraws.
+  // The meters, in 1/256ths of the meter (negative while clipping) - only
+  // a change a pixel meter could show redraws.
   auto & playback_info = getController().getPlaybackInfo();
   auto now = std::chrono::steady_clock::now();
   auto meter_dt = std::min(std::chrono::duration<float>(now - last_meter_update_).count(), 0.25f);
@@ -601,9 +601,9 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     auto & meter = meters_[track_id];
     meter.fraction = level_meter::fraction(meter.ballistics.update(track_info.getMeterValue(), meter_dt));
     meter.peak_fraction = meter.peak_hold.update(meter.fraction, meter_dt);
-    auto steps = level_meter::barSteps(meter.fraction, kMeterRows);
+    auto steps = static_cast<int>(meter.fraction * 256.0f + 0.5f);
     meter_steps.push_back(track_info.isClipping() ? -1 - steps : steps);
-    meter_steps.push_back(level_meter::barSteps(meter.peak_fraction, kMeterRows));
+    meter_steps.push_back(static_cast<int>(meter.peak_fraction * 256.0f + 0.5f));
   }
   bool meters_changed = meter_steps != current_meter_steps_;
   current_meter_steps_ = std::move(meter_steps);
@@ -737,7 +737,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
 
       // A clip row's own trailing repeat glyph (U+21BB) renders wider in
       // this terminal than this codebase's own width tools (Utf8::
-      // displayWidth(), and notcurses's own internal column-advance) can
+      // displayWidth(), and so the frame encoder's own column-advance) can
       // account for - the same "ambiguous width" mismatch documented
       // elsewhere in this codebase, just not one this file can route
       // around by avoiding the glyph entirely, since a loop indicator is
@@ -899,15 +899,12 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
 void
 ClipGrid::renderMeter(const StyleProvider & styles, int x, int rows, int track_id, bool clipping) {
   auto & meter = meters_[track_id];
-  auto cells = level_meter::verticalBar(meter.fraction, kMeterRows, meter.peak_fraction);
-  auto top = clipRowCount() + kSendsLabel; // physical row of the meter's top cell
-  setBgColor(styles.window_bg_color);
-  for (int i = 0; i < kMeterRows; i++) {
-    auto y = top + i - scroll_row_ + 1; // +1 for the header row
-    // Shaded by the height of this cell; i = 0 is the top one.
-    setFgColor(clipping ? styles.meter_clip_color : styles.meterColor((static_cast<float>(kMeterRows - i) - 0.5f) / static_cast<float>(kMeterRows)));
-    if (y >= 1 && y < rows) putstr(y, x + kColWidth - 1, cells[static_cast<size_t>(i)]);
-  }
+  auto top = clipRowCount() + kSendsLabel - scroll_row_ + 1; // the meter's top cell; +1 for the header row
+  cellui::VuReading reading{meter.fraction, meter.peak_fraction, clipping};
+  cellui::VuMeterLook look{styles.window_bg_color, std::nullopt};
+  // Below the header row, inside the plane.
+  if (scopes_) scopes_->drawVuMeter(getPlane(), top, x + kColWidth - 1, kMeterRows, reading, look, 1, rows);
+  else cellui::drawCellVuMeter(getPlane(), top, x + kColWidth - 1, kMeterRows, reading, look, 1, rows);
 }
 
 void

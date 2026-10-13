@@ -109,7 +109,7 @@ class SpinBox : public Element {
   }
 
   bool offerInput(const cellui::Input & input) override {
-    if (input.getId() == NCKEY_BUTTON1) {
+    if (input.getId() == Key::Button1) {
       if (input.getKind() != Input::Kind::RELEASE) {
         arrow_press_ = hitsArrow(input.getY(), input.getX());
         return true;
@@ -133,11 +133,11 @@ class SpinBox : public Element {
 	cancelEditing();
       }
       return true;
-    } else if (input.getId() == NCKEY_BUTTON4) { // scroll wheel up
+    } else if (input.getId() == Key::Button4) { // scroll wheel up
       cancelEditing();
       step(1);
       return true;
-    } else if (input.getId() == NCKEY_BUTTON5) { // scroll wheel down
+    } else if (input.getId() == Key::Button5) { // scroll wheel down
       cancelEditing();
       step(-1);
       return true;
@@ -146,11 +146,11 @@ class SpinBox : public Element {
     if (!editing_) return false;
     if (input.getKind() == Input::Kind::RELEASE) return true; // consume key-up while editing - nothing to do
 
-    if (input.getId() == NCKEY_ENTER) {
+    if (input.getId() == Key::Enter) {
       commitEdit();
-    } else if (input.getId() == NCKEY_ESC) {
+    } else if (input.getId() == Key::Escape) {
       cancelEditing();
-    } else if (input.getId() == NCKEY_BACKSPACE) {
+    } else if (input.getId() == Key::Backspace) {
       if (!edit_buffer_.empty()) edit_buffer_.pop_back();
     } else if (auto d = digit(input.getId(), 10);
                d >= 0 && !input.hasCtrl() && !input.hasAlt() && !input.hasMeta()) {

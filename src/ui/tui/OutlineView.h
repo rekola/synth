@@ -13,7 +13,7 @@
 
 #include "../StyleProvider.h"
 
-// What a row's own default action(s) - NCKEY_ENTER/NCKEY_DEL, and what
+// What a row's own default action(s) - Key::Enter/Key::Delete, and what
 // renderButtonBar() shows for it - target. SECTION covers every plain
 // heading row (Song, Library, Tracks, a group name, ...), which has none.
 enum class OutlineRowKind { SECTION, TRACK, POOL_INSTRUMENT, LIBRARY_INSTRUMENT, LIBRARY_RHYTHM };
@@ -72,13 +72,13 @@ struct DetailsLine {
 // Rhythms row's own pattern (PREVIEW_RHYTHM/PREVIEW_STOP), 'a' stops
 // whichever of these is currently sounding - none of this routed through
 // any Track/buffer for a Library row, since nothing being previewed is
-// part of the song yet - and NCKEY_ENTER commits a Library row for real:
+// part of the song yet - and Key::Enter commits a Library row for real:
 // an instrument joins the active song's own instrument pool
 // (Song::addInstrument()), a rhythm becomes a real Clip on whichever
 // PercussionTrack its own target picker currently names (see
 // openTargetPicker()'s own comment - 't' or a click opens it as a real
 // floating plane over this one, a candidate picked by clicking it or
-// Enter) - Song::addClip(). NCKEY_DEL/NCKEY_BACKSPACE on a Track or pool
+// Enter) - Song::addClip(). Key::Delete/Key::Backspace on a Track or pool
 // Instruments row removes it outright - no Clone yet (that wants real
 // undo scaffolding first, not a one-off here).
 class OutlineView : public UIElement {
@@ -114,7 +114,7 @@ protected:
   void renderInfoPopup(const StyleProvider & styles);
 
  private:
-  // Common tail of NCKEY_UP/DOWN/PGUP/PGDOWN - moves the cursor by
+  // Common tail of Key::Up/DOWN/PGUP/PGDOWN - moves the cursor by
   // `delta` rows (clamped to data_'s own extent) and keeps it scrolled
   // into view.
   void moveCursorBy(int delta);
@@ -138,7 +138,7 @@ protected:
   // see infoMarkdown().
   std::vector<DetailsLine> buildDetailsLines(const outline_row_s & row) const;
   std::string libraryInstrumentName(const std::string & ref_name) const;
-  // NCKEY_BUTTON1 - hit-tests the click against whichever of the tree/
+  // Key::Button1 - hit-tests the click against whichever of the tree/
   // Details panel it landed in (see this class's own header comment) and
   // either moves the cursor straight to the clicked row (tree side) or
   // runs whatever DetailsAction that Details line carries, if any (panel
@@ -156,14 +156,14 @@ protected:
   ClickTarget hitTest(int screen_y, int screen_x) const;
   // The actual effect behind a DetailsAction - shared by handleClick()
   // above and every keyboard path that already triggers the same thing
-  // (NCKEY_ENTER/NCKEY_DEL/'p'/'a'/'t' in offerInput()), so a click and its
+  // (Key::Enter/Key::Delete/'p'/'a'/'t' in offerInput()), so a click and its
   // keyboard equivalent can never drift apart.
   void runDetailsAction(DetailsAction action);
-  // NCKEY_ENTER on a Library > Instruments row - see this class's own
+  // Key::Enter on a Library > Instruments row - see this class's own
   // header comment. A no-op on any other row (delegates to
   // addSelectedLibraryRhythmToSong() for a Rhythms row instead).
   void addSelectedLibraryInstrumentToPool();
-  // NCKEY_ENTER on a Library > Rhythms row - see this class's own header
+  // Key::Enter on a Library > Rhythms row - see this class's own header
   // comment. Targets resolveTargetTrackId()'s own current choice - an
   // existing PercussionTrack (root tracks only, matching this view's own
   // shallow Tracks listing) picked via the row's own inline target
@@ -212,7 +212,7 @@ protected:
   // highlighted - no items, or the plane was closed with none selected)
   // leaves selected_target_track_id_ untouched.
   void applyTargetPickerSelection(const std::string & selection);
-  // NCKEY_DEL/NCKEY_BACKSPACE on a Track or pool Instruments row - see
+  // Key::Delete/Key::Backspace on a Track or pool Instruments row - see
   // this class's own header comment. A no-op on any other row, and on a
   // song's own last remaining root track (same floor PatternEditor's
   // "delete-track" command holds - docs/known_bugs.md's own

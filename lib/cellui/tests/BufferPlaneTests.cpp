@@ -197,16 +197,75 @@ TEST(bufferplane_draws_a_rounded_border) {
   CHECK(b.toPlainText() == "╭───╮\n│   │\n╰───╯\n");
 }
 
-TEST(bufferplane_reader_and_picker_stay_inactive) {
+TEST(bufferplane_reader_edits_a_field_and_places_the_cursor) {
+  StyleProvider styles;
+  CellBuffer b(2, 20);
+  BufferPlane root(b, styles);
+  auto line = root.createChild();
+  line->resize(1, 20);
+  line->move(1, 0);
+  line->putstr(0, 0, "an old long message");
+  line->showReader("M-x ");
+  CHECK(line->readerActive());
+  for (char c : std::string("sav")) line->offerInput(Input(c, -1, -1, false, false, false, false));
+  line->offerInput(Input(cellui::Key::Left, -1, -1, false, false, false, false));
+  line->offerInput(Input('X', -1, -1, false, true, false, false, Input::Kind::UNKNOWN, 'X'));
+  root.refresh();
+  CHECK(b.toPlainText() == "\nM-x saXv\n");
+  auto & bp = static_cast<BufferPlane &>(*line);
+  CHECK(root.cursorPosition() == std::optional(std::pair(1, 7)));
+  CHECK(line->getReaderContents() == "saXv");
+  line->setReaderContents("save-song");
+  line->showReaderIndicator(9, " [Sole completion]");
+  root.refresh();
+  CHECK(b.toPlainText() == "\nM-x save-song [Sole\n");
+  line->hideReaderIndicator();
+  CHECK(bp.closeReader() == "save-song");
+  CHECK(!line->readerActive() && !root.cursorPosition());
+}
+
+TEST(bufferplane_picker_lists_and_wraps) {
+  StyleProvider styles;
+  CellBuffer b(10, 20);
+  BufferPlane root(b, styles);
+  root.showPicker(1, 2, 8, 12, 3);
+  root.addItem("alpha", "");
+  root.addItem("beta", "");
+  root.addItem("gamma", "");
+  root.refresh();
+  CHECK(b.toPlainText() == "\n  ╭────────╮\n  │        │\n  │ alpha  │\n  │  beta  │\n  │ gamma  │\n  │        │\n  ╰────────╯\n");
+  CHECK(root.getPickerSelection() == "alpha");
+  CHECK(root.offerInput(Input(cellui::Key::Up, -1, -1, false, false, false, false)));
+  CHECK(root.getPickerSelection() == "gamma");
+  root.selectPickerItem(1);
+  CHECK(root.getPickerSelection() == "beta");
+  // A click on a row selects it; Enter is the owner's.
+  CHECK(root.offerInput(Input(cellui::Key::Button1, 3, 5, false, false, false, false, Input::Kind::RELEASE)));
+  CHECK(root.getPickerSelection() == "alpha");
+  CHECK(!root.offerInput(Input(cellui::Key::Enter, -1, -1, false, false, false, false)));
+  root.closePicker();
+  CHECK(!root.pickerActive());
+}
+
+TEST(bufferplane_translucent_cells_blend_with_what_is_below) {
   StyleProvider styles;
   CellBuffer b(1, 4);
   BufferPlane root(b, styles);
-  UIPlane & plane = root;
-  plane.showReader("prompt");
-  root.showPicker(0, 0, 1, 4, 1);
-  CHECK(!root.readerActive());
-  CHECK(!root.pickerActive());
-  CHECK(!root.offerInput(Input('a', 0, 0, false, false, false, false)));
+  root.setBgColor(0x80, 0x80, 0x80);
+  root.putstr(0, 0, "....");
+  auto top = root.createChild();
+  top->setBgColor(0xff, 0, 0);
+  top->setFgColor(0xff, 0xff, 0xff);
+  top->setBgBlend(true);
+  top->putstr(0, 0, "x");
+  top->setBgBlend(false);
+  top->setFgContrast(true);
+  top->setFgColor(0x40, 0x40, 0x40);
+  top->setBgColor(0, 0, 0);
+  top->putstr(0, 1, "y");
+  root.refresh();
+  CHECK(b.at(0, 0).text == "x" && b.at(0, 0).bg->getRed() == 0xbf && b.at(0, 0).bg->getGreen() == 0x40);
+  CHECK(b.at(0, 1).fg->getRed() == (3 * 255 + 0x40) / 4);
 }
 
 TEST(element_drawn_through_a_buffer_plane) {
@@ -220,4 +279,107 @@ TEST(element_drawn_through_a_buffer_plane) {
   root.refresh();
   CHECK(b.toPlainText() == "\n    title\n    secon\n");
   CHECK(b.at(1, 4).bold);
+}
+
+TEST(bufferplane_display_scale_is_the_roots) {
+  StyleProvider styles;
+  CellBuffer b(2, 2);
+  BufferPlane root(b, styles);
+  auto child = root.createChild();
+  CHECK(child->displayScale() == 1.0);
+  root.setDisplayScale(2.0);
+  CHECK(child->displayScale() == 2.0);
+}
+
+TEST(bufferplane_flat_children_are_the_roots) {
+  StyleProvider styles;
+  CellBuffer b(4, 10);
+  BufferPlane root(b, styles);
+  root.setFlatChildren(true);
+  auto panel = root.createChild();
+  panel->resize(4, 3);
+  auto later = root.createChild();
+  later->resize(1, 10);
+  later->move(2, 0);
+  later->putstr(0, 0, "..........");
+  // A popup asked of the narrow panel is placed on the screen, unclipped,
+  // above the plane created after the panel.
+  auto popup = panel->createChild();
+  popup->resize(1, 6);
+  popup->move(2, 2);
+  popup->putstr(0, 0, "popup!");
+  root.refresh();
+  CHECK(b.toPlainText() == "\n\n..popup!..\n");
+}
+
+TEST(bufferplane_themed_base_colours_what_a_child_leaves_unwritten) {
+  StyleProvider styles;
+  CellBuffer b(1, 6);
+  BufferPlane root(b, styles);
+  root.setThemedBases(true);
+  root.putstr(0, 0, "abcdef");
+  auto widget = root.createChild();
+  widget->resize(1, 3);
+  widget->putstr(0, 0, "X");
+  auto overlay = root.createChild();
+  overlay->resize(1, 2);
+  overlay->move(0, 4);
+  overlay->makeTransparent();
+  root.refresh();
+  // The glyph below shows through, on the widget's base.
+  CHECK(b.toPlainText() == "Xbcdef\n");
+  CHECK(b.at(0, 1).bg && b.at(0, 1).bg->getRed() == styles.plane_base_bg_color.getRed() && b.at(0, 1).bg->getBlue() == styles.plane_base_bg_color.getBlue());
+  CHECK(!b.at(0, 3).bg && !b.at(0, 4).bg);
+}
+
+TEST(bufferplane_image_at_a_cell_covers_only_its_cells) {
+  StyleProvider styles;
+  CellBuffer b(3, 6);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(4, 2);
+  root.putstr(0, 0, "abcdef");
+  root.putstr(1, 0, "ghijkl");
+  int h = 0, w = 0;
+  CHECK(root.cellPixelSize(h, w) && h == 4 && w == 2);
+  // Two cells wide, one tall, from (1, 2); then redrawn there.
+  root.drawImageAt(1, 2, std::vector<uint32_t>(4 * 4, 0xff0000ffu), 4, 4);
+  root.drawImageAt(1, 2, std::vector<uint32_t>(4 * 4, 0xff00ff00u), 4, 4);
+  root.refresh();
+  CHECK(root.images().size() == 1);
+  CHECK(b.at(1, 2).image == 1 && b.at(1, 3).image == 1);
+  CHECK(!b.at(1, 1).image && !b.at(1, 4).image && !b.at(0, 2).image);
+  CHECK(b.at(0, 2).text == "c" && b.at(1, 4).text == "k");
+  root.erase();
+  root.refresh();
+  CHECK(root.images().empty());
+}
+
+TEST(bufferplane_the_same_image_again_keeps_its_version) {
+  StyleProvider styles;
+  CellBuffer b(2, 2);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(4, 2);
+  root.drawImage(std::vector<uint32_t>(4 * 8, 0xff0000ffu), 4, 8);
+  root.refresh();
+  auto version = root.images()[0].image->version;
+  root.drawImage(std::vector<uint32_t>(4 * 8, 0xff0000ffu), 4, 8);
+  root.refresh();
+  CHECK(root.images()[0].image->version == version);
+  root.drawImage(std::vector<uint32_t>(4 * 8, 0xff00ff00u), 4, 8);
+  root.refresh();
+  CHECK(root.images()[0].image->version != version);
+}
+
+TEST(bufferplane_an_erased_image_drawn_again_is_the_same_image) {
+  StyleProvider styles;
+  CellBuffer b(2, 2);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(4, 2);
+  root.drawImageAt(1, 0, std::vector<uint32_t>(4 * 4, 0xff0000ffu), 4, 4);
+  root.refresh();
+  auto first = root.images()[0];
+  root.erase();
+  root.drawImageAt(1, 0, std::vector<uint32_t>(4 * 4, 0xff0000ffu), 4, 4);
+  root.refresh();
+  CHECK(root.images().size() == 1 && root.images()[0].key == first.key && root.images()[0].image->version == first.image->version);
 }

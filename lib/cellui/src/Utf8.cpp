@@ -52,6 +52,21 @@ truncateToWidth(const std::string & text, int max_columns) {
   return text.substr(0, committed_offset);
 }
 
+std::vector<std::string>
+clusters(const std::string & text) {
+  std::vector<std::string> out;
+  const uint8_t * start = asBytes(text);
+  const uint8_t * end = start + text.size();
+  const uint8_t * cluster_start = start;
+  while (cluster_start < end) {
+    const uint8_t * cluster_end = u8_grapheme_next(cluster_start, end);
+    if (!cluster_end || cluster_end <= cluster_start) cluster_end = cluster_start + 1;
+    out.emplace_back(reinterpret_cast<const char *>(cluster_start), static_cast<size_t>(cluster_end - cluster_start));
+    cluster_start = cluster_end;
+  }
+  return out;
+}
+
 std::string
 dropLeadingColumns(const std::string & text, int columns) {
   if (columns <= 0) return text;
