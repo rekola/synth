@@ -243,8 +243,8 @@ def has_defined_velocity(line):
 def note_columns(line):
     """Every note sub-column's own 3-char NOTE text on a pattern-row
     line, in order - a chord/multi-voice track packs NOTE(3)+space+
-    VELOCITY(2)+space+DELAY(2)+space into a fixed 10-char group per
-    column, followed by the row's own shared EFFECT(4) column (no
+    VELOCITY(2)+space+DELAY(2)+space+local FX(3)+space into a fixed
+    14-char group per column, followed by the row's own shared EFFECT(4) column (no
     trailing group of its own, so the walk below stops there
     naturally). Position-based rather than matching against note-name
     text, since a note's own accidental glyph varies by tuning (31-EDO's
@@ -256,17 +256,18 @@ def note_columns(line):
     content = line[line.index("│") + 1:]
     cols = []
     i = 0
-    while i + 10 <= len(content):
+    while i + 14 <= len(content):
         col = content[i:i + 3]
         # A genuine column is always "···" (undefined), "OFF", or a real
         # note's own text - never dashes: that's only ever a fragment of
         # the row's own trailing EFFECT(4) column, caught here when
-        # `content`'s length isn't an exact multiple of 10 (e.g. a
+        # `content`'s length isn't an exact multiple of 14 (e.g. a
         # shorter trailing divider glyph shifting everything by a
-        # character or two).
-        if col.strip("-") != "":
+        # character or two). The same goes for a trailing divider glyph
+        # ("│") caught in the window.
+        if col.strip("-") != "" and "│" not in col:
             cols.append(col)
-        i += 10
+        i += 14
     return cols
 
 

@@ -68,8 +68,15 @@ while time.time() < deadline and fake.poll() is None:
 # Confirm the on-screen highlighted/cursor column moved from track 0's span
 # into track 1's (i.e. past the second bar) - the observable effect of the
 # "pad-next-track" command actually firing.
-def highlighted_cols(screen, y, bg="bcd4e0"):
-    return [x for x in range(screen.columns) if screen.buffer[y][x].bg == bg]
+def highlighted_cols(screen, y):
+    # The cursor is the cells whose background differs from the row's own
+    # (the row tint fills most of it) and from the screen's default one,
+    # whatever the theme; the row-number gutter before the first divider is
+    # left out.
+    bgs = [screen.buffer[y][x].bg for x in range(screen.columns)]
+    row_bg = max(set(bgs), key=bgs.count)
+    default_bg = screen.buffer[0][screen.columns - 1].bg
+    return [x for x, bg in enumerate(bgs) if x > bar1 and bg not in (row_bg, default_bg)]
 
 y_final = find_pattern_row(scr.screen)
 cols_final = highlighted_cols(scr.screen, y_final)
