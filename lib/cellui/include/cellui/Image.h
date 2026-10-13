@@ -1,0 +1,45 @@
+#pragma once
+
+#include <cstdint>
+#include <memory>
+#include <vector>
+
+namespace cellui {
+
+// Pixels a plane shows instead of text: width*height pixels, row 0 at the
+// top, one uint32_t per pixel with bytes R, G, B, A in memory order. Each
+// new picture gets a new version, so a backend sends it only when it
+// changed.
+struct Image {
+  int width = 0, height = 0;
+  std::vector<uint32_t> pixels;
+  uint64_t version = 0;
+
+  static uint8_t red(uint32_t p) { return static_cast<uint8_t>(reinterpret_cast<const uint8_t *>(&p)[0]); }
+  static uint8_t green(uint32_t p) { return static_cast<uint8_t>(reinterpret_cast<const uint8_t *>(&p)[1]); }
+  static uint8_t blue(uint32_t p) { return static_cast<uint8_t>(reinterpret_cast<const uint8_t *>(&p)[2]); }
+  static uint8_t alpha(uint32_t p) { return static_cast<uint8_t>(reinterpret_cast<const uint8_t *>(&p)[3]); }
+  static uint32_t pack(uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255) {
+    uint32_t p;
+    uint8_t * bytes = reinterpret_cast<uint8_t *>(&p);
+    bytes[0] = r;
+    bytes[1] = g;
+    bytes[2] = b;
+    bytes[3] = a;
+    return p;
+  }
+};
+
+// Where a composed frame shows an image: the image, the plane it belongs to
+// (a key stable for the plane's lifetime), and the screen cell of the
+// image's top-left corner. The cells it occupies in the frame are marked
+// with `index` + 1 (CellBuffer::Cell::image); a cell another plane covers
+// is not marked.
+struct ImagePlacement {
+  std::shared_ptr<const Image> image;
+  uint64_t key = 0;
+  int row = 0, col = 0;
+  int index = 0;
+};
+
+}  // namespace cellui

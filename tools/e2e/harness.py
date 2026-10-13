@@ -3,13 +3,13 @@ scripts in this directory: forks the compiled `synth` binary under a
 pty and feeds its output through `pyte` so a script can screen-scrape the
 pattern editor exactly as a person would see it, without a real terminal.
 
-The only genuinely fiddly part is `Screen._respond`: notcurses probes an
-interactive terminal for its capabilities on startup (cursor position,
-pixel geometry, Kitty keyboard protocol support, etc.) and will hang
-waiting for a reply that a plain pty never sends on its own - `_respond`
-answers each of those queries with a plausible canned reply as soon as it
-sees one go out, exactly as a real terminal would, so `synth` starts
-up normally instead of stalling.
+The only genuinely fiddly part is `Screen._respond`: the terminal backend
+probes an interactive terminal for its capabilities on startup (cursor
+position, pixel geometry, Kitty keyboard protocol support, etc.) and waits
+up to a second for the replies a plain pty never sends on its own -
+`_respond` answers each of those queries with a plausible canned reply as
+soon as it sees one go out, exactly as a real terminal would, so `synth`
+starts up at once.
 
 Not part of the CMake/ctest build on purpose: these scripts drive real
 ALSA I/O (via the fake_launchpad_*.c simulators, see README.md), which
@@ -52,7 +52,9 @@ def spawn(song=SONG, view="arrangement"):
         # one physically connected, synth would otherwise auto-connect to
         # both at once - see LaunchpadIO.h's own ignore_hardware_ comment.
         os.environ["SYNTH_LAUNCHPAD_NO_HARDWARE"] = "1"
-        os.execvp(BINARY, [BINARY, "--view", view, song])
+        # SYNTH_E2E_NULL_AUDIO=1 runs without a sound device (CI, containers).
+        extra = ["--null-audio"] if os.environ.get("SYNTH_E2E_NULL_AUDIO") else []
+        os.execvp(BINARY, [BINARY, *extra, "--view", view, song])
         os._exit(1)
     set_winsize(master_fd, ROWS, COLS, XPIX, YPIX)
     os.set_blocking(master_fd, False)

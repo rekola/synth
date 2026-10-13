@@ -3,7 +3,9 @@
 #include <cellui/Input.h>
 #include <cellui/StyleProvider.h>
 
+#include <cstdint>
 #include <string>
+#include <vector>
 #include <utility>
 #include <memory>
 #include <optional>
@@ -46,6 +48,26 @@ class UIPlane {
   // Every widget that paints sub-character-resolution content asks the plane
   // instead of guessing for itself.
   virtual bool canRenderSextants() const { return false; }
+  // How much larger than at 96 dpi to draw anything sized in pixels
+  // (icons, text, line widths; hairlines stay one pixel). A terminal
+  // reports no DPI, so its backend guesses from the cell size.
+  virtual double displayScale() const { return 1.0; }
+  // The plane's size in pixels, when the display can show pixels here;
+  // false when it cannot (no image protocol, or the cell size unknown), and
+  // a chart then draws in cells.
+  virtual bool pixelSize(int & height, int & width) const {
+    (void)height;
+    (void)width;
+    return false;
+  }
+  // Shows `pixels` (width*height, row 0 at the top, bytes R, G, B, A) from
+  // the plane's top-left corner in place of its text, until erase(). Only
+  // where pixelSize() said yes.
+  virtual void drawImage(const std::vector<uint32_t> & pixels, int width, int height) {
+    (void)pixels;
+    (void)width;
+    (void)height;
+  }
   virtual void setFgColor(int r, int g, int b) = 0;
   virtual void setBgColor(int r, int g, int b) = 0;
   // The terminal's own background for what is drawn from now on, and for
@@ -57,6 +79,11 @@ class UIPlane {
   virtual void setUnderline(bool b) = 0;
   virtual void setBold(bool b) = 0;
   virtual void setItalic(bool b) = 0;
+  // What putstr() writes next is drawn over what lies below with its
+  // background averaged with that one's (a translucent popup), and its
+  // foreground leaning to white or black against the result. Default no-op.
+  virtual void setBgBlend(bool) { }
+  virtual void setFgContrast(bool) { }
   virtual void erase() = 0;
   virtual void putstr(int y, int x, const std::string & s) = 0;
   virtual std::unique_ptr<UIPlane> createChild() = 0;

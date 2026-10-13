@@ -31,10 +31,23 @@ add_library(cellui STATIC
   src/Gallery.cpp
   src/InfoDialog.cpp
   src/InlineEditor.cpp
+  src/EscapeCoalescer.cpp
+  src/LineEditor.cpp
   src/Markdown.cpp
+  src/MenuBar.cpp
   src/SpectrumMeter.cpp
   src/SubcellGlyphs.cpp
-  src/Utf8.cpp)
+  src/Utf8.cpp
+  src/term/Discovery.cpp
+  src/term/FrameEncoder.cpp
+  src/term/ImageEncoder.cpp
+  src/term/InputParser.cpp
+  src/term/TermEvent.cpp)
+if(NOT WIN32)
+  target_sources(cellui PRIVATE src/term/TerminalSession.cpp)
+  find_package(Threads REQUIRED)
+  target_link_libraries(cellui PUBLIC Threads::Threads)
+endif()
 target_include_directories(cellui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_include_directories(cellui PRIVATE ${UNISTRING_INCLUDE_DIR})
 target_link_libraries(cellui PUBLIC ${UNISTRING_LIBRARY})
@@ -52,7 +65,10 @@ add_executable(cellui_tests
   tests/ChoiceDialogTests.cpp
   tests/ChoiceListTests.cpp
   tests/ColorTests.cpp
+  tests/DiscoveryTests.cpp
   tests/ElementTests.cpp
+  tests/FrameEncoderTests.cpp
+  tests/ImageEncoderTests.cpp
   tests/GalleryTests.cpp
   tests/HeatmapChartTests.cpp
   tests/InfoDialogTests.cpp
@@ -61,10 +77,17 @@ add_executable(cellui_tests
   tests/SpinBoxTests.cpp
   tests/SubcellGlyphsTests.cpp
   tests/InlineEditorTests.cpp
+  tests/InputParserTests.cpp
   tests/KeymapTests.cpp
   tests/LevelMeterTests.cpp
+  tests/EscapeCoalescerTests.cpp
+  tests/LineEditorTests.cpp
+  tests/MenuBarTests.cpp
   tests/MeterTests.cpp
   tests/Utf8Tests.cpp)
+if(NOT WIN32)
+  target_sources(cellui_tests PRIVATE tests/TerminalSessionTests.cpp)
+endif()
 target_link_libraries(cellui_tests PRIVATE cellui)
 target_compile_definitions(cellui_tests PRIVATE CELLUI_TEST_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests")
 add_test(NAME cellui_tests COMMAND cellui_tests)

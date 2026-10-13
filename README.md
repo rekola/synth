@@ -145,8 +145,8 @@ in its `piano` preset).
 
 ## Terminal support
 
-The terminal UI works in any terminal notcurses supports, but a modern one is
-better. Terminals with the Kitty keyboard protocol (kitty, foot, WezTerm,
+The terminal UI works in any terminal with xterm-style escape sequences, but a
+modern one is better. Terminals with the Kitty keyboard protocol (kitty, foot, WezTerm,
 Ghostty) report key releases, which keyboard note entry needs to know how long
 a note is held, so they can play musical chords (several notes at once); other
 terminals can't. Terminals with Kitty graphics or Sixels get pixel graphics:

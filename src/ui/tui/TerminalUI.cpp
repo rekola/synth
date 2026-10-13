@@ -26,8 +26,6 @@
 #include "../../launchpad/LaunchpadChannelPressureEvent.h"
 #include "../../launchpad/LaunchpadProtocol.h"
 #include "../../launchpad/LaunchpadManager.h"
-#include "EscapeCoalescer.h"
-#include "NotcursesInputEventSource.h"
 #include "SubcellGlyphs.h"
 #include "../../util/Utf8.h"
 #include "../../util/constants.h"
@@ -66,24 +64,13 @@
 
 #include <sys/time.h>
 
-#include <ncpp/NotCurses.hh>
-#include <ncpp/Plane.hh>
-#include <ncpp/Plot.hh>
-#include <ncpp/Reader.hh>
-#include <ncpp/Menu.hh>
-#include <ncpp/Selector.hh>
-#include <ncpp/Visual.hh>
+#include <cellui/MenuBar.h>
+#include <cellui/EscapeCoalescer.h>
+#include <cellui/term/TerminalSession.h>
 
 #include <poll.h>
 
 
-namespace {
-uint64_t channelsOf(const Color & fg, const Color & bg) {
-  return NCCHANNELS_INITIALIZER(static_cast<unsigned>(fg.getRed()), static_cast<unsigned>(fg.getGreen()), static_cast<unsigned>(fg.getBlue()),
-                                static_cast<unsigned>(bg.getRed()), static_cast<unsigned>(bg.getGreen()), static_cast<unsigned>(bg.getBlue()));
-}
-}
-using namespace ncpp;
 using namespace std;
 
 namespace {
@@ -115,72 +102,6 @@ std::map<std::string, long> threadCpuTicks() {
 }
 using namespace fmt;
 
-// The inverse of readInput()'s ni.evtype -> InputEvent::Kind mapping below -
-// needed because ncmenu_offer_input() only treats a mouse click on the menu
-// bar as consumed when evtype is specifically NCTYPE_RELEASE (confirmed
-// against the real library: NCTYPE_UNKNOWN and NCTYPE_PRESS are both
-// silently ignored). Hardcoding NCTYPE_UNKNOWN here - discarding the real
-// press/release Kind InputEvent already carries - meant a mouse click could
-// never open the File menu on any terminal, mouse-protocol support
-// notwithstanding.
-static inline ncintype_e to_ncintype(InputEvent::Kind kind) {
-  switch (kind) {
-  case InputEvent::Kind::PRESS: return NCTYPE_PRESS;
-  case InputEvent::Kind::REPEAT: return NCTYPE_REPEAT;
-  case InputEvent::Kind::RELEASE: return NCTYPE_RELEASE;
-  default: return NCTYPE_UNKNOWN;
-  }
-}
-
-// use_true_case is for an active reader (track name/locator/M-x text
-// entry) only: TerminalUI::readInput()'s dispatchRawKey unconditionally
-// lowercases a plain letter's own id (needed for case-insensitive
-// keybinding dispatch and note-entry - see InputEvent's own comment on
-// getTrueCaseId()), so a menu/selector - which do want that normalized
-// form, for consistent mnemonic matching regardless of caps lock -
-// keep passing false (the default) here. A reader cares about neither;
-// it wants whatever was actually typed. id itself barely matters for a
-// reader either way (ncreader_offer_input() only compares it against
-// Backspace/arrow-key/synthesized ids, never a letter), but eff_text is
-// what its own plain-character insertion path actually reads character
-// content from (see reader.c's own ncreader_offer_input()) - true case
-// has to reach *that* field for a reader to ever see a real uppercase
-// letter.
-static inline ncinput to_ncinput(const cellui::Input & input, bool use_true_case = false) {
-  auto case_id = use_true_case ? input.getTrueCaseId() : input.getId();
-  ncinput ni = { .id = static_cast<uint32_t>(case_id), .y = input.getY(), .x = input.getX(), .utf8 = { 0, 0, 0, 0, 0 }, .alt = input.hasAlt(), .shift = input.hasShift(), .ctrl = input.hasCtrl(), .evtype = to_ncintype(input.getKind()), .modifiers = static_cast<uint32_t>((input.hasAlt() ? NCKEY_MOD_ALT : 0) | (input.hasCtrl() ? NCKEY_MOD_CTRL : 0) | (input.hasShift() ? NCKEY_MOD_SHIFT : 0) | (input.hasMeta() ? NCKEY_MOD_META : 0)), .ypx = -1, .xpx = -1 };
-  // eff_text was added in notcurses 3.0.10 - Ubuntu 24.04's packaged
-  // 3.0.7 (what CI builds against) predates it, so this field can't be
-  // set unconditionally; NCINPUT_MAX_EFF_TEXT_CODEPOINTS, defined right
-  // next to it, doubles as its own feature-test macro.
-#ifdef NCINPUT_MAX_EFF_TEXT_CODEPOINTS
-  ni.eff_text[0] = static_cast<uint32_t>(case_id);
-#endif
-  return ni;
-}
-
-// ncreader has no "set full contents" call - only single-EGC writes - so
-// seeding/replacing its contents means feeding `text`'s own UTF-8
-// codepoints one at a time. Splitting on codepoint boundaries rather than
-// full Unicode grapheme clusters (combining marks/ZWJ sequences would each
-// become a separate write instead of one grouped EGC) is an acceptable
-// first-pass approximation for plain locator/command text - see
-// PatternEditor's own locator-editing entry points and StatusLine's M-x
-// autocomplete.
-static inline void writeEgcString(ncreader * reader, const string & text) {
-  size_t i = 0;
-  while (i < text.size()) {
-    unsigned char c = static_cast<unsigned char>(text[i]);
-    size_t len = 1;
-    if ((c & 0xE0) == 0xC0) len = 2;
-    else if ((c & 0xF0) == 0xE0) len = 3;
-    else if ((c & 0xF8) == 0xF0) len = 4;
-    len = std::min(len, text.size() - i);
-    ncreader_write_egc(reader, text.substr(i, len).c_str());
-    i += len;
-  }
-}
-
 static inline long long now() {
   struct timeval tv;
   int r = gettimeofday(&tv, 0);
@@ -191,541 +112,13 @@ static inline long long now() {
   }
 }
 
-class TerminalPlane : public UIPlane {
-public:
-  TerminalPlane(std::shared_ptr<void> _controller, const StyleProvider & styles, Plane * _plane, bool _owner = true) : UIPlane(std::move(_controller), styles), plane(_plane), owner(_owner) {
-    unsigned int y, x;
-    plane->get_dim(&y, &x);
-    setDim(pair(static_cast<int>(y), static_cast<int>(x)));
-    setPosition(pair(0, 0));
-    // A terminal's own capabilities don't change mid-session - figured
-    // out once, here, rather than re-querying notcurses on every render.
-    sextant_support_ = notcurses_cansextant(ncplane_notcurses_const(plane->to_ncplane()));
-  }
-  ~TerminalPlane() {
-    if (owner) delete plane;
-  }
-  void resize(int rows, int cols) override {
-    if (plane->to_ncplane()) {
-      UIPlane::resize(rows, cols);
-      plane->resize(rows, cols);
-    }
-  }
-  void move(int y, int x) override {
-    if (plane->to_ncplane()) {
-      UIPlane::move(y, x);
-      plane->move(y, x);
-    }
-  }
-  void moveToTop() override {
-    if (plane->to_ncplane()) plane->move_top();
-  }
-  // A hidden plane is moved, with its children, into a pile of its own,
-  // which notcurses never renders; showing it rebinds it to the standard
-  // plane's pile.
-  void setVisible(bool visible) override {
-    auto * n = plane->to_ncplane();
-    if (!n || visible == visible_) return;
-    visible_ = visible;
-    auto * parent = visible ? notcurses_stdplane(ncplane_notcurses(n)) : n;
-    ncplane_reparent_family(n, parent);
-  }
-  void setFgColor(int r, int g, int b) override { plane->set_fg_rgb8(r, g, b); }
-  void setBgColor(int r, int g, int b) override { plane->set_bg_rgb8(r, g, b); }
-  void setBgDefault() override { plane->set_bg_default(); }
-  void makeTransparent() override {
-    uint64_t channels = 0;
-    ncchannels_set_fg_alpha(&channels, NCALPHA_TRANSPARENT);
-    ncchannels_set_bg_alpha(&channels, NCALPHA_TRANSPARENT);
-    plane->set_base(" ", 0, channels);
-  }
-  void setUnderline(bool b) override {
-    if (b) {
-      plane->styles_set(CellStyle::Underline);
-    } else {
-      plane->styles_set(CellStyle::None);
-    }
-  }
-  void setBold(bool b) override {
-    if (b) {
-      plane->styles_set(CellStyle::Bold);
-    } else {
-      plane->styles_set(CellStyle::None);
-    }
-  }
-  void setItalic(bool b) override {
-    if (b) {
-      plane->styles_set(CellStyle::Italic);
-    } else {
-      plane->styles_set(CellStyle::None);
-    }
-  }
-  void erase() override { plane->erase(); }
-  void putstr(int y, int x, const std::string & s) override { plane->putstr(y, x, s.c_str()); }
-  unique_ptr<UIPlane> createChild() override {
-    auto child_plane = new Plane(1, 1, 0, 0);
-    child_plane->set_base("", 0, channelsOf(getStyles().reader_text_color, getStyles().plane_base_bg_color));
-    return make_unique<TerminalPlane>(getAppContext(), getStyles(), child_plane);
-  }
-  
-  void drawBorder() override {
-    plane->erase();
-
-    unsigned fg_red, fg_green, fg_blue;
-    plane->get_fg_rgb8(&fg_red, &fg_green, &fg_blue);
-
-    unsigned bg_red, bg_green, bg_blue;
-    plane->get_bg_rgb8(&bg_red, &bg_green, &bg_blue);
-
-    auto channels = NCCHANNELS_INITIALIZER(fg_red, fg_green, fg_blue, bg_red, bg_green, bg_blue);
-    
-    nccell ul = NCCELL_TRIVIAL_INITIALIZER, ur = NCCELL_TRIVIAL_INITIALIZER;
-    nccell lr = NCCELL_TRIVIAL_INITIALIZER, ll = NCCELL_TRIVIAL_INITIALIZER;
-    nccell hl = NCCELL_TRIVIAL_INITIALIZER, vl = NCCELL_TRIVIAL_INITIALIZER;
-    if (nccells_rounded_box(plane->to_ncplane(), NCSTYLE_NONE, 0, &ul, &ur, &ll, &lr, &hl, &vl)) {
-      return;
-    }
-    ul.channels = ur.channels = ll.channels = lr.channels = hl.channels = vl.channels = channels;
-    nccell_set_bg_alpha(&ul, NCALPHA_BLEND);
-    nccell_set_bg_alpha(&ur, NCALPHA_BLEND);
-    nccell_set_bg_alpha(&ll, NCALPHA_BLEND);
-    nccell_set_bg_alpha(&lr, NCALPHA_BLEND);
-    nccell_set_bg_alpha(&hl, NCALPHA_BLEND);
-    nccell_set_bg_alpha(&vl, NCALPHA_BLEND);
-    
-    if (ncplane_perimeter(plane->to_ncplane(), &ul, &ur, &ll, &lr, &hl, &vl, 0)) {
-      nccell_release(plane->to_ncplane(), &ul); nccell_release(plane->to_ncplane(), &ur); nccell_release(plane->to_ncplane(), &hl);
-      nccell_release(plane->to_ncplane(), &ll); nccell_release(plane->to_ncplane(), &lr); nccell_release(plane->to_ncplane(), &vl);
-      return;
-    }
-    nccell_release(plane->to_ncplane(), &ul); nccell_release(plane->to_ncplane(), &ur); nccell_release(plane->to_ncplane(), &hl);
-    nccell_release(plane->to_ncplane(), &ll); nccell_release(plane->to_ncplane(), &lr); nccell_release(plane->to_ncplane(), &vl);
-  }
-  
-  // y/x/rows/cols let a caller that isn't a one-line plane (PatternEditor's
-  // locator editing, which needs the reader positioned at the cursor's
-  // own screen row, not row 0) place and size the reader plane explicitly.
-  // x == -1/rows == -1/cols == -1 (the defaults) reproduce exactly what
-  // this used to hardcode - StatusLine's existing calls are untouched.
-  void showReader(const std::string & prompt = "", int y = 0, int x = -1, int rows = -1, int cols = -1,
-		   const std::string & initial_text = "",
-		   std::optional<Color> text_color_arg = std::nullopt) override {
-    auto text_color = text_color_arg.value_or(getStyles().reader_text_color);
-    if (!readerActive()) {
-      setOwning(false);
-
-      // Erase this plane's own stale content on row y, from column x
-      // onward (e.g. a previous status message longer than the new
-      // prompt) before drawing the prompt - the reader plane created
-      // below only ever covers its own bounds and its own cells only
-      // get real content where the user has actually typed so far, so
-      // anything left over underneath/beyond that was otherwise still
-      // visible right through it (confirmed via a standalone
-      // reproduction against the real library: opening the reader over
-      // a long previous message left its stale tail visible past the
-      // cursor until enough was typed to physically overwrite it).
-      // Scoped to just this one row, starting at x (0 when unset, same
-      // as reader_x's own default below) and reaching the plane's own
-      // right edge, via ncplane_erase_region() rather than erase() (the
-      // whole plane) - StatusLine passes x/y as their unset defaults,
-      // always starting from this row's very first column same as
-      // before, but PatternEditor's locator editor
-      // (startLocatorEdit()) reuses this same call on its own much
-      // taller plane with an explicit x placed after real pattern grid
-      // content on that row, which a whole-row-from-0 erase wiped out
-      // from under the reader right along with the actual stale content
-      // past it. xlen must be an explicit positive width, not 0 - unlike
-      // ylen, an xlen of 0 means "ignore xstart, erase the entire row's
-      // width regardless" (see ncplane_erase_region()'s own doc comment)
-      // and would put column 0 straight back in scope.
-      auto erase_cols = getDim().second;
-      auto erase_xstart = x == -1 ? 0 : x;
-      ncplane_erase_region(getPlane().to_ncplane(), y, erase_xstart, 1, std::max(erase_cols - erase_xstart, 1));
-      // The reader plane below is opaque and covers its own bounds, so any
-      // prompt text must be drawn onto *this* (the still-visible underlying
-      // plane) first, and the reader plane offset past it - otherwise the
-      // prompt is drawn then immediately hidden under the reader, and the
-      // whole M-x minibuffer silently looks like it never opened even
-      // though it's actually active and correctly accepting input.
-      if (!prompt.empty()) putstr(y, 0, prompt);
-      auto prompt_width = static_cast<unsigned int>(prompt.size());
-
-      ncreader_options reader_opts;
-      // text_color (pink by default), matching the reader plane's own
-      // colors below - see that comment for why. Background alpha
-      // TRANSPARENT too, for the same reason: the typed glyphs themselves
-      // shouldn't paint an opaque patch behind them either.
-      reader_opts.tchannels = channelsOf(text_color, Color(0, 0, 0));
-      ncchannels_set_fg_alpha(&reader_opts.tchannels, NCALPHA_HIGHCONTRAST);
-      ncchannels_set_bg_alpha(&reader_opts.tchannels, NCALPHA_TRANSPARENT);
-      reader_opts.tattrword = 0; // attributes used for input
-      reader_opts.flags = NCREADER_OPTION_CURSOR | NCREADER_OPTION_HORSCROLL;
-
-      auto [plane_rows, plane_cols] = getDim();
-      auto reader_x = x == -1 ? static_cast<int>(prompt_width) : x;
-      auto reader_rows = rows == -1 ? static_cast<unsigned int>(plane_rows) : static_cast<unsigned int>(rows);
-      unsigned int reader_cols;
-      if (cols == -1) {
-	reader_cols = static_cast<unsigned int>(plane_cols) > prompt_width ?
-	  static_cast<unsigned int>(plane_cols) - prompt_width : 1u;
-      } else {
-	// NOT widened past the caller's own requested on-screen width,
-	// despite ncreader_contents() (src/lib/reader.c) reading back from
-	// this exact plane rather than the wider offscreen buffer
-	// HORSCROLL scrolls within - meaning typed text that outgrows this
-	// plane's own width is genuinely unrecoverable through that call
-	// (confirmed via a standalone reproduction against the real
-	// library) - a first attempt at widening this plane to work around
-	// that regressed much worse: every ncreader_redraw() (i.e. every
-	// keystroke, not just this call) recopies its *entire* width from
-	// the offscreen textarea, so any column beyond what's actually
-	// been typed so far gets overwritten with blank cells on every
-	// redraw - widening this plane past the caller's own narrow slot
-	// meant every keystroke re-blanked everything to its right (other
-	// tracks' own headings, Mute/Solo, ...), not just once at open
-	// time the way showReader()'s own one-time erase above did. Left
-	// at the caller's own width; the truncation above is a known,
-	// accepted limitation until a real fix (e.g. tracking typed
-	// content independently of ncreader_contents()) is worth the cost.
-	reader_cols = cols > 0 ? static_cast<unsigned int>(cols) : 1u;
-      }
-
-      ncplane_options opts = {
-	.y = y,
-	.x = reader_x,
-	.rows = reader_rows,
-	.cols = reader_cols,
-	.userptr = nullptr,
-	.name = nullptr,
-	.resizecb = nullptr,
-	.flags = 0,
-	.margin_b = 0,
-	.margin_r = 0
-      };
-
-      auto reader_plane = ncplane_create(getPlane().to_ncplane(), &opts);
-      // text_color, defaulting to the same pink createChild() already
-      // gives every other UI plane's own base cell, so by default the
-      // M-x prompt/completion indicator (drawn directly on the
-      // surrounding StatusLine plane, not this one) and the typed text
-      // here read as one consistent color instead of the reader's own
-      // text standing out in an unrelated green - a caller whose reader
-      // sits over its own non-default backdrop (PatternEditor's
-      // track-name editor) overrides it instead for whatever actually
-      // reads well there. Background alpha TRANSPARENT rather than an
-      // explicit opaque color: this plane no longer paints its own
-      // background at all, letting whatever's actually behind it show
-      // straight through instead of a guessed-at literal color that may
-      // not match. Set on both the base cell (below, for the plane's own
-      // unwritten cells) and tchannels (above, for the glyphs ncreader
-      // actually echoes as typed) so neither path leaves a stray opaque
-      // patch.
-      ncplane_set_fg_rgb8(reader_plane, static_cast<unsigned>(text_color.getRed()), static_cast<unsigned>(text_color.getGreen()), static_cast<unsigned>(text_color.getBlue()));
-      uint64_t base_channels = channelsOf(text_color, Color(0, 0, 0));
-      ncchannels_set_bg_alpha(&base_channels, NCALPHA_TRANSPARENT);
-      ncplane_set_base(reader_plane, " ", 0, base_channels);
-      reader = ncreader_create(reader_plane, &reader_opts);
-      writeEgcString(reader, initial_text);
-      // showReaderIndicator()'s own `x` is a column *within the typed
-      // text* (0 at the reader's own left edge), but its indicator_plane
-      // is parented to this same plane (getPlane(), not reader_plane), so
-      // it needs reader_x added back in to land at the right *absolute*
-      // column - without this the indicator draws prompt_width columns
-      // too far left, encroaching on the prompt/already-typed text
-      // instead of sitting right after the cursor.
-      reader_text_x = reader_x;
-    }
-  }
-
-  bool readerActive() const override { return reader != 0; }
-
-  string closeReader() override {
-    char* contents;
-    ncreader_destroy(reader, &contents);
-    string r = contents;
-    free(contents);
-    reader = 0;
-    if (indicator_plane) {
-      ncplane_destroy(indicator_plane);
-      indicator_plane = nullptr;
-    }
-    return r;
-  }
-
-  string getReaderContents() const override {
-    if (!reader) return "";
-    char * contents = ncreader_contents(reader);
-    string r = contents ? contents : "";
-    free(contents);
-    return r;
-  }
-
-  void setReaderContents(const string & text) override {
-    if (!reader) return;
-    ncreader_clear(reader);
-    writeEgcString(reader, text);
-  }
-
-  // A plane of its own, not drawn onto the reader's - see this method's
-  // own doc comment on UIPlane.h for why (writing onto the reader's own
-  // plane, even blank/erasing spaces, was confirmed to corrupt what
-  // ncreader_contents()/getReaderContents() itself reports back as
-  // typed). Created lazily on first use, positioned/erased/reshown fresh
-  // each call - moving an existing plane and re-drawing its (freshly
-  // erased) content is cheap, so there's no need to track whether this is
-  // a reposition of an already-visible indicator or a first appearance.
-  void showReaderIndicator(int x, const string & s) override {
-    if (!reader) return;
-    // `x` is a column within the *typed text* (0 at the reader's own left
-    // edge) - this plane is parented to getPlane() (the same StatusLine
-    // plane the reader itself is offset within), not to reader_plane, so
-    // it needs reader_text_x added back in to land at the right absolute
-    // column - see showReader()'s own comment on that member.
-    auto abs_x = reader_text_x + x;
-    if (!indicator_plane) {
-      ncplane_options opts = {
-	.y = 0, .x = abs_x, .rows = 1, .cols = kIndicatorPlaneCols,
-	.userptr = nullptr, .name = nullptr, .resizecb = nullptr,
-	.flags = 0, .margin_b = 0, .margin_r = 0
-      };
-      indicator_plane = ncplane_create(getPlane().to_ncplane(), &opts);
-      // White, not the reader's own pink - a deliberate contrast so the
-      // indicator (this app's own message) doesn't read as more of the
-      // user's typed input.
-      ncplane_set_fg_rgb8(indicator_plane, 0xff, 0xff, 0xff);
-      uint64_t base_channels = NCCHANNELS_INITIALIZER(0xff, 0xff, 0xff, 0, 0, 0);
-      ncchannels_set_bg_alpha(&base_channels, NCALPHA_TRANSPARENT);
-      ncplane_set_base(indicator_plane, " ", 0, base_channels);
-    }
-    ncplane_move_yx(indicator_plane, 0, abs_x);
-    ncplane_erase(indicator_plane);
-    ncplane_putstr_yx(indicator_plane, 0, 0, s.c_str());
-    ncplane_move_top(indicator_plane);
-  }
-
-  void hideReaderIndicator() override {
-    // Destroyed, not just erased: an erased-but-still-present plane keeps
-    // sitting raised above the reader (showReaderIndicator()'s own
-    // ncplane_move_top()), and even a blank cell there is still real
-    // content at that z-order - it keeps blocking whatever the reader
-    // itself draws underneath afterward (e.g. the next character actually
-    // typed there), rather than getting out of the way entirely.
-    // showReaderIndicator() already creates it lazily on demand, so
-    // there's nothing to reinitialize by destroying it here.
-    if (indicator_plane) {
-      ncplane_destroy(indicator_plane);
-      indicator_plane = nullptr;
-    }
-  }
-
-  // A genuine child plane of its own (positioned/sized by the caller),
-  // not getPlane() itself - Selector's constructor calls
-  // take_plane_ownership() on whatever Plane it's given, which would
-  // otherwise hand over (and eventually destroy) this widget's own real
-  // rendering plane. Mirrors showReader()'s own raw ncplane_create()
-  // pattern above.
-  void showPicker(int y, int x, int rows, int cols, int item_count) override {
-    if (selector) return; // already active - see UIPlane.h's own comment
-    // The theme's picker colours - left at 0 (notcurses's own "no color
-    // set" default), these read as full-bright white-on-whatever's-already-
-    // there instead.
-    //
-    // opchannels is the cursor's own colors swapped: the selector draws
-    // its current row with opchannels' fg/bg swapped back, so that row
-    // shows the same cursor every widget does.
-    uint64_t opchannels = channelsOf(getStyles().highlight_bg_color, getStyles().highlight_fg_color);
-    uint64_t boxchannels = channelsOf(getStyles().picker_border_color, getStyles().picker_bg_color);
-    // descchannels deliberately its own dark/neutral pair, not opchannels
-    // again - every item's own .desc is always empty (addItem() callers
-    // pass only an id), but ncselector.c's draw loop still unconditionally
-    // prints a literal leading space in descchannels' own colors before
-    // it ("%s" -> " %s") - sharing opchannels there would extend the
-    // swapped highlight one cell past the option text itself on the
-    // current row, a stray colored space right after it.
-    uint64_t descchannels = channelsOf(getStyles().picker_bg_color, getStyles().picker_bg_color);
-    // opchannels' own alpha left OPAQUE on both sides (not BLEND like
-    // box/base/descchannels below) - BLEND on its bg word made the
-    // highlighted row's text (that word, swapped into the fg slot) read
-    // as a soft blended grey-green instead of a crisp black, despite the
-    // RGB already being pure black above.
-    ncchannels_set_bg_alpha(&descchannels, NCALPHA_BLEND);
-    ncchannels_set_fg_alpha(&descchannels, NCALPHA_BLEND);
-    ncchannels_set_bg_alpha(&boxchannels, NCALPHA_BLEND);
-    ncchannels_set_fg_alpha(&descchannels, NCALPHA_BLEND);
-    ncchannels_set_bg_alpha(&descchannels, NCALPHA_BLEND);
-    ncselector_options opts =
-      {
-       .title = nullptr,
-       .secondary = nullptr,
-       .footer = nullptr,
-       .items = nullptr,
-       .defidx = 0,
-       // Pinned to the exact item count, not 0 ("use all available
-       // space") - see this method's own doc comment on UIPlane.h for
-       // why 0 shows as blank padding rows above/below a tight list.
-       .maxdisplay = static_cast<unsigned>(std::max(0, item_count)),
-       .opchannels = opchannels,
-       .descchannels = descchannels,
-       .titlechannels = opchannels,
-       .footchannels = opchannels,
-       .boxchannels = boxchannels,
-       .flags = 0
-      };
-    ncplane_options popts = {
-      .y = y,
-      .x = x,
-      .rows = static_cast<unsigned>(std::max(1, rows)),
-      .cols = static_cast<unsigned>(std::max(1, cols)),
-      .userptr = nullptr,
-      .name = nullptr,
-      .resizecb = nullptr,
-      .flags = 0,
-      .margin_b = 0,
-      .margin_r = 0
-    };
-    auto * picker_ncplane = ncplane_create(getPlane().to_ncplane(), &popts);
-    // Explicit dark base cell too, so any cell ncselector's own drawing
-    // never touches (e.g. this plane's own rows past a maxdisplay-limited
-    // body, now shorter than a generously-sized `rows`) still reads as
-    // this app's dark background rather than the terminal's own default -
-    // BLEND alpha, matching opchannels/boxchannels above, so it's the
-    // same partial transparency, not an opaque patch around the edges of
-    // an otherwise-translucent popup.
-    uint64_t base_channels = channelsOf(getStyles().picker_fg_color, getStyles().picker_bg_color);
-    ncchannels_set_bg_alpha(&base_channels, NCALPHA_BLEND);
-    ncplane_set_base(picker_ncplane, " ", 0, base_channels);
-    // A freshly created plane already sits above its parent by default,
-    // but raised explicitly anyway - the whole point of a real overlay
-    // plane, rather than text drawn inline, is that it's unambiguously on
-    // top regardless of whatever else this or a sibling widget draws
-    // later in the same frame (TerminalMenu's own raiseToTop() makes the
-    // same guarantee for its own dropdown, for the same reason).
-    ncplane_move_top(picker_ncplane);
-    // A stack-local wrapper, not a heap one: Selector's constructor calls
-    // take_plane_ownership() on it (Plane::release_native_plane(), so its
-    // own destructor at the end of this scope becomes a no-op) - nothing
-    // left to clean up once construction returns.
-    Plane wrapper(picker_ncplane);
-    selector = make_unique<Selector>(wrapper, &opts);
-  }
-
-  void addItem(const string & id, const string & description) override {
-    if (!selector) return;
-    // Unlike ncmenu_item's own .desc field (see TerminalMenu::rebuild()'s
-    // comment), ncselector_additem() (src/lib/selector.c) strdup()s both
-    // strings into its own storage immediately - a plain c_str() straight
-    // off these locals is safe, nothing needs to outlive this call.
-    ncselector_item item = { .option = id.c_str(), .desc = description.c_str() };
-    selector->additem(&item);
-  }
-
-  // See UIPlane.h's own comment on why this - not a nonzero defidx at
-  // create time - is how a picker starts highlighted somewhere other
-  // than row 0.
-  void selectPickerItem(int index) override {
-    if (!selector) return;
-    for (int i = 0; i < index; i++) selector->nextitem();
-  }
-
-  bool pickerActive() const override { return selector != nullptr; }
-
-  string getPickerSelection() const override {
-    if (!selector) return "";
-    auto * s = selector->get_selected();
-    return s ? s : "";
-  }
-
-  void closePicker() override {
-    selector.reset();
-  }
-
-  bool offerInput(const cellui::Input & input) override {
-    if (reader) {
-      // Confirmed bug in ncreader's own do_backspace() (src/lib/reader.c),
-      // isolated in a standalone reproduction against this exact linked
-      // library (libnotcurses-core.so.3.0.17) independent of anything in
-      // this app: erasing a buffer's *last remaining* character is a
-      // silent no-op - ncreader_contents() still reports the old,
-      // unerased content afterward, not just a stale on-screen glyph.
-      // Erasing down to 2+ remaining characters works correctly; it's
-      // specifically the "only one character left" case that fails.
-      // Detected here by comparing contents before/after actually
-      // dispatching the keystroke (rather than pre-emptively guessing
-      // from length alone, which can't tell "cursor right after the one
-      // character" - where backspace should empty the buffer - apart
-      // from "cursor before it" - where backspace should already be a
-      // real no-op - since ncreader exposes no public cursor-position
-      // query): a Backspace that produces no change at all despite
-      // non-empty prior content is always this bug in practice (an
-      // honest no-op only happens with an already-empty buffer, excluded
-      // by the emptiness check below) - ncreader_clear() (already used
-      // the same way by setReaderContents() above) forces the correct
-      // empty result directly, bypassing the broken path entirely.
-      string before;
-      if (input.getId() == NCKEY_BACKSPACE) {
-	char * c = ncreader_contents(reader);
-	before = c ? c : "";
-	free(c);
-      }
-      auto ni = to_ncinput(input, true); // true case - see to_ncinput()'s own comment
-      ncreader_offer_input(reader, &ni);
-      if (!before.empty()) {
-	char * c = ncreader_contents(reader);
-	string after = c ? c : "";
-	free(c);
-	if (after == before) ncreader_clear(reader);
-      }
-      return true;
-    } else if (selector) {
-      auto ni = to_ncinput(input);
-      return selector->offer_input(&ni);
-    } else {
-      return false;
-    }
-  }
-  
-  void setOwning(bool t) { owner = t; }
-
-  Plane & getPlane() { return *plane; }
-
-  void refresh() override {
-    unsigned int y, x;
-    plane->get_dim(&y, &x);
-    setDim(pair(static_cast<int>(y), static_cast<int>(x)));
-  }
-
-  bool canRenderSextants() const override { return sextant_support_; }
-
-private:
-  // Wide enough for " [Sole completion]" (18) - the longer of the two
-  // indicator strings showReaderIndicator() ever actually draws - plus a
-  // little slack.
-  static constexpr unsigned int kIndicatorPlaneCols = 20;
-
-  Plane * plane;
-  ncreader * reader = 0;
-  // The reader's own left edge, in this plane's (getPlane()'s) own
-  // coordinate space - showReader()'s reader_x, remembered so
-  // showReaderIndicator() can convert its own "column within the typed
-  // text" argument into an absolute column.
-  int reader_text_x = 0;
-  ncplane * indicator_plane = nullptr;
-  unique_ptr<Selector> selector;
-  bool owner;
-  bool visible_ = true;
-  bool sextant_support_;
-};
-
 // One declarative source for every section/item, rather than hand-written
-// ncmenu_item/ncmenu_section arrays plus a separately-maintained desc->
-// command map (the shape a single File/New item used to get away with) -
-// adding an item is one line here, not several coordinated edits.
-// `label == nullptr` is a separator (a real ncmenu primitive - NULL desc
-// renders a horizontal divider, per notcurses.h's own struct comment - not
-// an app-level hack); `binding` is the human-readable keybinding shown
-// right-aligned against the item box's widest label, e.g. "Save    C-x
-// C-s" - ncmenu_item's own .shortcut field is deliberately left zeroed for
-// every item below rather than used for this (see the display-constraints
+// item arrays plus a separately-maintained desc->command map - adding an
+// item is one line here, not several coordinated edits. `label == nullptr`
+// is a separator (MenuBar draws it as a divider); `binding` is the
+// human-readable keybinding shown right-aligned against the item box's
+// widest label, e.g. "Save    C-x C-s" - an item has no shortcut of its own
+// (see the display-constraints
 // note in plans/menu-bar-expansion.md: it renders as a single bare
 // character with no modifier indication, misleading for anything but a
 // plain unmodified key, which is nearly nothing real this app binds).
@@ -862,18 +255,28 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
   return spec;
 }
 
+// The menu bar: menuSpec()'s sections on a MenuBar in a plane of its own
+// over the whole screen. A menu item has only display text, so this maps an
+// activated item to its command.
 class TerminalMenu : public UIMenu {
 public:
-  TerminalMenu(vector<string> buffer_names, vector<string> buffer_display_names, string active_buffer_name)
-    : buffer_names_(std::move(buffer_names)), buffer_display_names_(std::move(buffer_display_names)),
-      active_buffer_name_(std::move(active_buffer_name)) { rebuild(); }
+  TerminalMenu(UIPlane & parent, vector<string> buffer_names, vector<string> buffer_display_names, string active_buffer_name)
+    : parent_(parent), plane_(parent.createChild()), bar_(*plane_), buffer_names_(std::move(buffer_names)),
+      buffer_display_names_(std::move(buffer_display_names)), active_buffer_name_(std::move(active_buffer_name)) {
+    // The plane spans the tallest section; below the bar and an open
+    // section the screen shows through.
+    plane_->makeTransparent();
+    rebuild();
+  }
 
   void applyStyles(const StyleProvider & styles) override {
-    header_fg_ = styles.menu_fg_color;
-    header_bg_ = styles.menu_bg_color;
-    section_fg_ = styles.menu_section_fg_color;
-    section_bg_ = styles.menu_section_bg_color;
-    rebuild();
+    cellui::MenuBar::Colors colors;
+    colors.header_fg = styles.menu_fg_color;
+    colors.header_bg = styles.menu_bg_color;
+    colors.section_fg = styles.menu_section_fg_color;
+    colors.section_bg = styles.menu_section_bg_color;
+    bar_.setColors(colors);
+    bar_.draw();
   }
 
   void refreshBuffers(const vector<string> & buffer_names, const vector<string> & buffer_display_names,
@@ -884,40 +287,12 @@ public:
     rebuild();
   }
 
-  // Confirmed against the real library: ncmenu_offer_input() never treats a
-  // click on an item (as opposed to a section header) or an Enter keypress
-  // as "activating" that item, on its own - both are absent from its own
-  // documented list of inputs it reacts to. It also doesn't need to (there's
-  // no notion of a command to run baked into an ncmenu_item, just display
-  // text), so this app has to detect activation itself: a button-release
-  // landing on an item (ncmenu_mouse_selected(), checked before
-  // offer_input() would otherwise just silently ignore that same click -
-  // it's not "outside" the plane, which has grown to cover the dropdown, so
-  // offer_input() doesn't roll up on it either) or Enter while some item is
-  // highlighted (ncmenu_selected() non-null), then map the item's display
-  // text to a command name and roll the section back up.
   bool offerInput(const cellui::Input & input) override {
-    auto ni = to_ncinput(input);
-
-    if (ni.id == NCKEY_BUTTON1 && ni.evtype == NCTYPE_RELEASE) {
-      ncinput shortcut_ni;
-      if (auto clicked = menu->get_mouse_selected(&ni, &shortcut_ni)) {
-	activate(clicked);
-	return true;
-      }
+    if (!bar_.offerInput(input)) return false;
+    if (auto activated = bar_.takeActivated()) {
+      activated_command_ = commands_[static_cast<size_t>(activated->first)][static_cast<size_t>(activated->second)];
     }
-
-    // Checked before offer_input() gets a chance to ignore it (returning
-    // false, per the confirmed absence of Enter from its own list) and
-    // leak the keystroke through to the pattern editor as a note.
-    if (ni.id == NCKEY_ENTER) {
-      if (auto sel = menu->get_selected()) {
-	activate(sel);
-	return true;
-      }
-    }
-
-    return menu->offer_input(&ni);
+    return true;
   }
 
   std::string takeActivatedCommand() override {
@@ -926,56 +301,24 @@ public:
     return c;
   }
 
-  void raiseToTop() override { menu->get_plane()->move_top(); }
-
-  // A section is unrolled (the plane's own size says nothing: it always
-  // covers the screen).
-  bool isOpen() const override { return menu->get_selected() != nullptr; }
-
-private:
-  void activate(const char * item_desc) {
-    if (auto it = item_commands_.find(item_desc); it != item_commands_.end()) activated_command_ = it->second;
-    menu->rollup();
+  // Also follows the screen's width, which a resize changes.
+  void raiseToTop() override {
+    if (parent_.getDim().second != cols_) {
+      cols_ = parent_.getDim().second;
+      bar_.layout(cols_);
+    }
+    plane_->moveToTop();
   }
 
-  // (Re)builds the whole ncmenu from scratch against buffer_names_' current
-  // contents - the constructor's original one-shot job, now also
-  // refreshBuffers()'s, since ncmenu has no API to replace one section's
-  // items in an existing menu (confirmed against the real library: nothing
-  // between ncmenu_create() and ncmenu_destroy() touches item content) -
-  // recreating the whole `menu` is the only way to show a changed buffer
-  // list. The old Menu (and its ncplane) is destroyed by the reassignment
-  // below; the render loop's own per-frame raiseToTop() (TerminalUI's main
-  // loop) picks the replacement back up without this needing to call it
-  // itself.
-  void rebuild() {
-    // desc_storage_/item_commands_ back every non-separator ncmenu_item's
-    // .desc pointer and the activation lookup below respectively - reset
-    // together with menu itself so a rebuild never leaves either holding a
-    // stale entry from the previous buffer list.
-    desc_storage_.clear();
-    item_commands_.clear();
+  bool isOpen() const override { return bar_.isOpen(); }
 
-    // Every buffer item's *label* is buffer_display_names_' own text
-    // (Controller::getBufferDisplayName()'s already-disambiguated output,
-    // computed by the caller - see refreshBuffers()'s own comment on
-    // UIMenu.h for why this class can't just call it itself), not the
-    // full path buffer_names_ itself carries (which stays the real songs_
-    // key everywhere else, e.g. save-song's target) - prefixed with "* "
-    // for whichever one is active_buffer_name_. Each item's own *command*
-    // is still "switch-to-buffer:" plus the *full* name
-    // (Controller::refreshBufferCommands() keeps one such command defined
-    // per open buffer), never the display text - a menu click has to
-    // reach the same specific buffer a same-display one wouldn't.
-    // display_labels/commands are this function's own local vectors, not
-    // menuSpec()'s: MenuItemSpec::label/command point directly into
-    // whatever backs them without copying, so both must outlive
-    // menuSpec()'s own return - true for locals here (alive for the rest
-    // of this function), not for ones that would go out of scope the
-    // moment menuSpec() itself returned.
+private:
+  // Every buffer item's label is its display name (Controller::
+  // getBufferDisplayName()'s disambiguated text, from the caller), prefixed
+  // with "* " for the active one; its command is "switch-to-buffer:" plus
+  // the full name, so an item reaches that buffer even when two show alike.
+  void rebuild() {
     vector<string> display_labels, commands;
-    display_labels.reserve(buffer_names_.size());
-    commands.reserve(buffer_names_.size());
     for (size_t i = 0; i < buffer_names_.size(); i++) {
       auto & name = buffer_names_[i];
       auto & display_name = i < buffer_display_names_.size() ? buffer_display_names_[i] : name;
@@ -983,76 +326,55 @@ private:
       commands.push_back("switch-to-buffer:" + name);
     }
     vector<MenuItemSpec> buffer_items;
-    buffer_items.reserve(buffer_names_.size());
     for (size_t i = 0; i < buffer_names_.size(); i++) {
       buffer_items.push_back({ display_labels[i].c_str(), "", commands[i].c_str() });
     }
-
     auto spec = menuSpec(std::move(buffer_items));
 
-    // desc_storage_ is reserved to its final size up front so no
-    // reallocation (which would move/invalidate short (SSO) strings' own
-    // buffers) can happen while still being filled below; must stay alive
-    // through ncmenu_create()'s call at the bottom of this function, which
-    // deep-copies the ncmenu_item/ncmenu_section arrays themselves
-    // (confirmed against the real library - see
-    // plans/menu-bar-expansion.md) but not anything *they* point to a
-    // moment later.
-    size_t total_items = 0;
-    for (auto & section : spec) total_items += section.items.size();
-    desc_storage_.reserve(total_items);
-
-    vector<vector<ncmenu_item>> item_arrays;
-    vector<ncmenu_section> sections;
+    // An item's binding is shown right-aligned after the section's widest
+    // label.
+    vector<cellui::MenuBar::Section> sections;
+    commands_.clear();
     for (auto & section : spec) {
       size_t label_width = 0;
       for (auto & item : section.items) {
-	if (item.label) label_width = std::max(label_width, strlen(item.label));
+	if (item.label) label_width = std::max(label_width, static_cast<size_t>(Utf8::displayWidth(item.label)));
       }
-
-      vector<ncmenu_item> items;
+      cellui::MenuBar::Section out;
+      out.name = section.name;
+      out.mnemonic = section.mnemonic;
+      vector<string> section_commands;
       for (auto & item : section.items) {
+	cellui::MenuBar::Item entry;
 	if (!item.label) {
-	  items.push_back({ .desc = nullptr, .shortcut = {} });
-	  continue;
+	  entry.separator = true;
+	  section_commands.emplace_back();
+	} else {
+	  entry.label = item.label;
+	  if (item.binding && item.binding[0]) {
+	    entry.label.append(label_width + 2 - static_cast<size_t>(Utf8::displayWidth(item.label)), ' ');
+	    entry.label += item.binding;
+	  }
+	  section_commands.emplace_back(item.command ? item.command : "");
 	}
-	string desc = item.label;
-	if (item.binding && item.binding[0]) {
-	  desc.append(label_width + 2 - strlen(item.label), ' ');
-	  desc += item.binding;
-	}
-	desc_storage_.push_back(std::move(desc));
-	items.push_back({ .desc = desc_storage_.back().c_str(), .shortcut = {} });
-	if (item.command) item_commands_[desc_storage_.back()] = item.command;
+	out.items.push_back(std::move(entry));
       }
-      item_arrays.push_back(std::move(items));
+      sections.push_back(std::move(out));
+      commands_.push_back(std::move(section_commands));
     }
-    for (size_t i = 0; i < item_arrays.size(); i++) {
-      auto & section = spec[i];
-      sections.push_back({ .name = section.name, .itemcount = static_cast<int>(item_arrays[i].size()),
-	.items = item_arrays[i].data(),
-	.shortcut = { .id = static_cast<uint32_t>(section.mnemonic), .alt = true } });
-    }
-
-    uint64_t headerchannels = channelsOf(header_fg_, header_bg_);
-    uint64_t sectionchannels = channelsOf(section_fg_, section_bg_);
-    ncchannels_set_fg_alpha(&sectionchannels, NCALPHA_HIGHCONTRAST);
-    ncchannels_set_bg_alpha(&sectionchannels, NCALPHA_BLEND);
-    ncchannels_set_bg_alpha(&headerchannels, NCALPHA_BLEND);
-    ncmenu_options mopts = { .sections = sections.data(), .sectioncount = static_cast<int>(sections.size()),
-      .headerchannels = headerchannels, .sectionchannels = sectionchannels, .flags = 0 };
-    menu = make_unique<Menu>(&mopts);
+    bar_.setSections(std::move(sections));
+    cols_ = parent_.getDim().second;
+    bar_.layout(cols_);
   }
 
+  UIPlane & parent_;
+  unique_ptr<UIPlane> plane_;
+  cellui::MenuBar bar_;
+  int cols_ = 0;
   vector<string> buffer_names_;
   vector<string> buffer_display_names_;
   string active_buffer_name_;
-  // The theme's colours, the original theme's until applyStyles().
-  Color header_fg_ = Color(0xff, 0xff, 0xff), header_bg_ = Color(0x7f, 0x34, 0x7f);
-  Color section_fg_ = Color(0xff, 0xff, 0xff), section_bg_ = Color(0, 0, 0);
-  unique_ptr<Menu> menu;
-  vector<string> desc_storage_;
-  std::map<string, string> item_commands_;
+  vector<vector<string>> commands_;  // by section, then item
   string activated_command_;
 };
 
@@ -1405,17 +727,15 @@ public:
   void commit() override {
     if (brightness_.empty()) return;
 
-    auto & tplane = dynamic_cast<TerminalPlane&>(getPlane());
-    auto native_plane = tplane.getPlane().to_ncplane();
+    int px_h = 0, px_w = 0;
+    if (!getPlane().pixelSize(px_h, px_w)) return;
+    auto [plane_rows, plane_cols] = getDim();
+    unsigned pxy = static_cast<unsigned>(px_h), pxx = static_cast<unsigned>(px_w);
+    unsigned celldimy = std::max(1u, pxy / static_cast<unsigned>(std::max(1, plane_rows)));
+    unsigned celldimx = std::max(1u, pxx / static_cast<unsigned>(std::max(1, plane_cols)));
 
-    unsigned pxy = 0, pxx = 0, celldimy = 0, celldimx = 0;
-    ncplane_pixel_geom(native_plane, &pxy, &pxx, &celldimy, &celldimx, nullptr, nullptr);
-    if (pxy == 0 || pxx == 0) return;
-    if (celldimy == 0) celldimy = 1;
-    if (celldimx == 0) celldimx = 1;
-
-    // Same footer-row reservation as TerminalPixelChart::commit().
-    if (!footer_label_.empty() && celldimy > 0 && pxy > celldimy) pxy -= celldimy;
+    // A footer row, when there is one, stays text below the image.
+    if (!footer_label_.empty() && pxy > celldimy) pxy -= celldimy;
 
     auto buffer = heatmap_image::render(brightness_, saturation_, gridCols(), gridRows(), markers_, pxx, pxy, getPlane().getStyles());
 
@@ -1429,17 +749,7 @@ public:
       }
     }
 
-    ncpp::Visual visual(buffer.data(), static_cast<int>(pxy), static_cast<int>(pxx * 4), static_cast<int>(pxx));
-    ncvisual_options vopts{};
-    vopts.n = native_plane;
-    vopts.scaling = NCSCALE_NONE;
-    vopts.blitter = NCBLIT_PIXEL;
-    visual.blit(&vopts);
-
-    auto [rows, cols] = getDim();
-    if (!footer_label_.empty()) {
-      putstr(static_cast<int>(rows) - 1, 0, footer_label_);
-    }
+    getPlane().drawImage(buffer, static_cast<int>(pxx), static_cast<int>(pxy));
   }
 
 private:
@@ -1457,21 +767,33 @@ private:
 // keypress registered at all.
 constexpr auto kEscapeIndicatorDelay = std::chrono::milliseconds(300);
 
-// Bundles the Alt-key coalescing pipeline (see EscapeCoalescer.h)'s three
-// pieces - defined here, not in TerminalUI.h, so that header stays free
-// of notcurses types (same reasoning as kp_escape_pending_'s own comment
-// there).
-class TerminalUI::EscapeInputPipeline {
+// The inputs the terminal session decoded, handed to the Alt-key
+// coalescing pipeline (cellui/EscapeCoalescer.h) one at a time.
+class QueuedInputSource : public cellui::InputEventSource {
 public:
-  explicit EscapeInputPipeline(ncpp::NotCurses & nc) : source(nc), coalescer(source, detector) { }
+  void push(const cellui::Input & input) { queue_.push_back(input); }
+  bool next(cellui::Input * input) override {
+    if (queue_.empty()) return false;
+    *input = queue_.front();
+    queue_.pop_front();
+    return true;
+  }
 
-  KittyProtocolDetector detector;
-  NotcursesInputEventSource source;
-  EscapeSequenceCoalescer coalescer;
+private:
+  std::deque<cellui::Input> queue_;
 };
 
-TerminalUI::TerminalUI(std::shared_ptr<ncpp::NotCurses> _nc)
-  : nc(_nc), escape_input_(make_unique<EscapeInputPipeline>(*nc)) {
+class TerminalUI::EscapeInputPipeline {
+public:
+  EscapeInputPipeline() : coalescer(source, detector) { }
+
+  cellui::KittyProtocolDetector detector;
+  QueuedInputSource source;
+  cellui::EscapeSequenceCoalescer coalescer;
+};
+
+TerminalUI::TerminalUI(cellui::term::TerminalSession & session)
+  : session_(session), screen_(session.rows(), session.cols()), escape_input_(make_unique<EscapeInputPipeline>()) {
 }
 
 TerminalUI::~TerminalUI() {
@@ -1506,50 +828,44 @@ TerminalUI::escapeIndicatorPollTimeoutMs() const {
   return static_cast<int>(std::clamp<long long>(remaining_ms, 0, kDefaultPollTimeoutMs));
 }
 
-// Pixel-graphics spectrum (sixel/Kitty/iTerm2, whichever the terminal
-// negotiates): one bar per pixel column (no peak hold), blitted onto the meter's own plane.
+// Pixel-graphics spectrum (kitty graphics or Sixel, whichever the terminal
+// has): one bar per pixel column (no peak hold), drawn as the meter's
+// plane's image.
 class TerminalPixelSpectrumMeter : public SpectrumMeter {
 public:
   using SpectrumMeter::SpectrumMeter;
 
 protected:
   size_t barCount(int cols) override {
-    unsigned pxx = 0;
-    if (pixelGeom(nullptr, &pxx) && pxx > 0) return pxx;
+    int pxy = 0, pxx = 0;
+    if (getPlane().pixelSize(pxy, pxx)) return static_cast<size_t>(pxx);
     return SpectrumMeter::barCount(cols);
   }
 
   void drawBars(const std::vector<float> & levels) override {
-    unsigned pxy = 0, pxx = 0;
-    if (!pixelGeom(&pxy, &pxx) || levels.size() != pxx) {
+    int pxy = 0, pxx = 0;
+    if (!getPlane().pixelSize(pxy, pxx) || levels.size() != static_cast<size_t>(pxx)) {
       SpectrumMeter::drawBars(levels);
       return;
     }
     // Opaque, so a pixel never composites against the raw terminal background.
-    auto buffer = spectrum_image::render(levels, pxx, pxy, getPlane().getStyles());
-    ncpp::Visual visual(buffer.data(), static_cast<int>(pxy), static_cast<int>(pxx * 4), static_cast<int>(pxx));
-    ncvisual_options vopts{};
-    vopts.n = nativePlane();
-    vopts.scaling = NCSCALE_NONE;
-    vopts.blitter = NCBLIT_PIXEL;
-    visual.blit(&vopts);
-  }
-
-private:
-  ncplane * nativePlane() { return dynamic_cast<TerminalPlane&>(getPlane()).getPlane().to_ncplane(); }
-
-  bool pixelGeom(unsigned * pxy, unsigned * pxx) {
-    unsigned y = 0, x = 0;
-    ncplane_pixel_geom(nativePlane(), &y, &x, nullptr, nullptr, nullptr, nullptr);
-    if (pxy) *pxy = y;
-    if (pxx) *pxx = x;
-    return y > 0 && x > 0;
+    auto buffer = spectrum_image::render(levels, static_cast<unsigned>(pxx), static_cast<unsigned>(pxy), getPlane().getStyles());
+    getPlane().drawImage(buffer, pxx, pxy);
   }
 };
 
 void
 TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
-  auto root_plane = make_unique<TerminalPlane>(controller, styles_, nc->get_stdplane(), false);
+  const auto & caps = session_.capabilities();
+  bool use_pixel = caps.pixels != cellui::term::PixelProtocol::NONE && caps.cell_px_height > 0 && caps.cell_px_width > 0;
+  auto root_plane = make_unique<cellui::BufferPlane>(screen_, styles_, controller);
+  root_plane_ = root_plane.get();
+  if (caps.default_fg && caps.default_bg) root_plane_->setDefaultColors(*caps.default_fg, *caps.default_bg);
+  root_plane_->setDisplayScale(caps.display_scale);
+  root_plane_->setSextants(caps.sextants);
+  root_plane_->setFlatChildren(true);
+  root_plane_->setThemedBases(true);
+  if (use_pixel) root_plane_->setCellPixelSize(caps.cell_px_height, caps.cell_px_width);
   setPlane(std::move(root_plane));
 
   setFgColor(styles_.window_fg_color);
@@ -1561,11 +877,10 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
     vector<string> buffer_display_names;
     buffer_display_names.reserve(buffer_names.size());
     for (auto & name : buffer_names) buffer_display_names.push_back(controller->getBufferDisplayName(name));
-    menu_ = make_shared<TerminalMenu>(buffer_names, std::move(buffer_display_names), controller->getActiveBufferName());
+    menu_ = make_shared<TerminalMenu>(getPlane(), buffer_names, std::move(buffer_display_names), controller->getActiveBufferName());
     menu_->applyStyles(styles_);
   }
 
-  bool use_pixel = notcurses_check_pixel_support(*nc) != NCPIXEL_NONE;
   if (use_pixel) chart_ = make_shared<TerminalPixelSpectrumMeter>(getPlane());
   else chart_ = make_shared<SpectrumMeter>(getPlane());
   volume_meter_ = make_shared<ChannelMeter>(getPlane());
@@ -1591,12 +906,22 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
   // section's dropdown even though the menu still functions correctly.
   menu_->raiseToTop();
 
-  nc->render();
+  render();
 }
 
 void
 TerminalUI::render() {
-  nc->render();
+  root_plane_->refresh();
+  cellui::term::CursorRequest cursor;
+  if (auto at = root_plane_->cursorPosition()) cursor = { true, at->first, at->second };
+  session_.present(screen_, cursor, root_plane_->images());
+}
+
+void
+TerminalUI::resizeScreen() {
+  if (screen_.rows() == session_.rows() && screen_.cols() == session_.cols()) return;
+  screen_ = cellui::CellBuffer(session_.rows(), session_.cols());
+  root_plane_->resize(session_.rows(), session_.cols());
 }
 
 // The command row has no background of its own: the display cannot draw the
@@ -1624,59 +949,34 @@ TerminalUI::applyTheme(const Theme & theme) {
 
 void
 TerminalUI::refresh() {
-  nc->refresh(nullptr, nullptr);
+  session_.redraw();
 }
 
 bool
 TerminalUI::readInput() {
-  ncinput ni;
-
-  // Applies the same id/modifier massaging this loop has always done, then
-  // constructs and dispatches one InputEvent - factored out so a byte the
-  // KP-escape-sequence recognizer below ends up replaying (see
-  // kp_escape_depth_'s own comment) goes through identical processing to
-  // one that was never buffered at all.
-  auto dispatchRawKey = [this](int raw_id, int y, int x, unsigned modifiers, InputEvent::Kind kind) {
-    bool alt = modifiers & NCKEY_MOD_ALT;
-    bool shift = modifiers & NCKEY_MOD_SHIFT;
-    bool ctrl = modifiers & NCKEY_MOD_CTRL;
-    bool meta = modifiers & NCKEY_MOD_META;
-
-    int id = raw_id;
-    int true_case_id = raw_id; // see InputEvent's own comment on this field
-    if (id >= 'A' && id <= 'Z') {
-      id = tolower(id);
-      if (!ctrl) shift = true; // fix bug in notcurses
-    } else if (id == 28) {
-      ctrl = true;
-      alt = meta = shift = false;
-      id = '\\';
+  using cellui::term::TermEvent;
+  for (auto & event : session_.poll()) {
+    switch (event.type) {
+    case TermEvent::Type::KEY:
+    case TermEvent::Type::MOUSE:
+      escape_input_->source.push(cellui::term::toInput(event));
+      break;
+    case TermEvent::Type::RESIZE:
+      resizeScreen();
+      escape_input_->source.push(cellui::Input(NCKEY_RESIZE, -1, -1, false, false, false, false));
+      break;
+    case TermEvent::Type::PASTE:
+      // Pasted text goes into an open text field; elsewhere it is not
+      // typed as keys, which would play it as notes and commands.
+      root_plane_->insertIntoReader(event.text);
+      break;
+    case TermEvent::Type::END:
+      close_ui_ = true;
+      break;
+    default:
+      break;
     }
-
-    InputEvent input(id, y, x, alt, shift, ctrl, meta, kind, true_case_id);
-    offerInput(input);
-  };
-
-  // Replays every byte the KP-escape recognizer had buffered so far, in
-  // order, then resets it - used whenever a partial match turns out not
-  // to be the sequence after all.
-  auto flushPendingKpEscape = [this, &dispatchRawKey]() {
-    for (int i = kp_escape_delivered_ ? 1 : 0; i < kp_escape_depth_; i++) {
-      auto & p = kp_escape_pending_[i];
-      dispatchRawKey(p.id, p.y, p.x, p.modifiers, p.kind);
-    }
-    kp_escape_depth_ = 0;
-    kp_escape_delivered_ = false;
-  };
-
-  // Only the very first dequeue of a batch gets definitely_pending=true -
-  // it's the one call directly backed by poll() having just reported
-  // notcurses's own input-ready fd readable (see startUI()'s own poll()
-  // call, and NotcursesInputEventSource's top comment for why this
-  // matters: a genuine Ctrl-Space, codepoint 0, is otherwise
-  // indistinguishable from "nothing available" here). Every later
-  // dequeue in the same drain burst has no such external guarantee.
-  bool first_dequeue = true;
+  }
 
   while (true) {
     // Emacs shows "ESC-" in the echo area while a Meta-prefix wait is
@@ -1687,8 +987,8 @@ TerminalUI::readInput() {
     // called from startUI()'s own loop) - a fast Alt-chord that resolves
     // well within that window never flickers the indicator at all.
     bool escape_was_pending = escape_input_->coalescer.escapePending();
-    if (!escape_input_->coalescer.next(&ni, first_dequeue)) break;
-    first_dequeue = false;
+    cellui::Input input(0, -1, -1, false, false, false, false);
+    if (!escape_input_->coalescer.next(&input)) break;
     bool escape_now_pending = escape_input_->coalescer.escapePending();
     if (escape_now_pending && !escape_was_pending) {
       escape_pending_since_ = std::chrono::steady_clock::now();
@@ -1699,89 +999,36 @@ TerminalUI::readInput() {
       escape_indicator_shown_ = false;
     }
 
-    // Legacy terminals only ever report NCTYPE_UNKNOWN (no press/release
-    // distinction - notcurses's own signal that this terminal never
-    // negotiated the Kitty keyboard protocol at all, no separate
-    // capability query needed); the Kitty keyboard protocol (kitty, foot,
-    // wezterm, ghostty, ...) reports real NCTYPE_PRESS/NCTYPE_REPEAT/
-    // NCTYPE_RELEASE events for the same physical keystroke. Mapped to
-    // its own distinct InputEvent::Kind::UNKNOWN (not silently folded
-    // into PRESS) - see that enum's own doc comment for why: code that
-    // tracks "is this key still held" cannot infer anything of the kind
-    // from an UNKNOWN-kind terminal, since it has no way to ever learn
-    // that the key was released. RELEASE now reaches offerInput() (it
-    // didn't used to - see InputEvent::Kind's own doc comment):
-    // UIElement::dispatchCommand() ignores it outright so no keymap-bound
-    // command double-fires the way plain presses used to (the bug this
-    // code used to guard against by dropping RELEASE entirely), but
-    // PatternEditor's own raw note-entry code needs to see it, to send a
-    // note-off when a held note key is physically released.
-    auto kind = ni.evtype == NCTYPE_RELEASE ? InputEvent::Kind::RELEASE
-              : ni.evtype == NCTYPE_REPEAT ? InputEvent::Kind::REPEAT
-              : ni.evtype == NCTYPE_PRESS ? InputEvent::Kind::PRESS
-              : InputEvent::Kind::UNKNOWN;
+    // A held bare Escape goes ahead of whatever followed it (see
+    // escape_held_'s own comment), unless a widget already took it.
+    if (escape_held_) {
+      escape_held_ = false;
+      if (!escape_delivered_) offerInput(cellui::Input(NCKEY_ESC, -1, -1, false, false, false, false, input.getKind()));
+      escape_delivered_ = false;
+    }
 
-    // Legacy xterm/VT220 "SS3 + modifier digit" encoding some terminals
-    // still send for a Ctrl-modified numeric-keypad Divide/Multiply
-    // keystroke instead of the Kitty keyboard protocol (confirmed via
-    // notcurses-input against a real terminal: notcurses's own
-    // escape-sequence lexer doesn't recognize this pattern as a single
-    // key, so all 4 bytes - ESC, 'O', '5', then 'o' or 'j' - arrive as
-    // their own separate, unmodified raw events). Recognized here and
-    // turned into one synthetic Ctrl-modified InputEvent
-    // (NCKEY_KP_DIVIDE/NCKEY_KP_MULTIPLY) instead of leaking "O5o"/"O5j"
-    // through as if it had been typed into the pattern grid. A byte that
-    // breaks a partial match falls through to normal dispatch below (via
-    // flushPendingKpEscape() replaying whatever was buffered first), so a
-    // real standalone Escape or Esc-then-x for M-x still work exactly as
-    // before.
-    if (kp_escape_depth_ == 0 && ni.id == NCKEY_ESC) {
-      kp_escape_pending_[0] = { static_cast<int>(ni.id), ni.y, ni.x, ni.modifiers, kind };
-      kp_escape_depth_ = 1;
+    if (input.getId() == NCKEY_ESC && !input.hasAlt() && input.getKind() != InputEvent::Kind::RELEASE) {
+      escape_held_ = true;
       // A widget that wants a bare Escape (closing a popup) gets it right
-      // away rather than once the next key arrives. It still stays
-      // buffered here and in the Alt coalescer, so it can go on to be an
-      // Alt chord's prefix or part of a keypad sequence - it's just never
-      // delivered a second time (kp_escape_delivered_).
+      // away rather than once the next key arrives. It still stays held
+      // here and in the Alt coalescer, so it can go on to be an Alt chord's
+      // prefix - it's just never delivered a second time.
       auto active = outline_view_ && outline_view_->isModal() ? outline_view_ : active_element_.lock();
       if (choice_dialog_.isOpen()) {
         closeChoiceDialog();
-        kp_escape_delivered_ = true;
+        escape_delivered_ = true;
       } else if (info_dialog_.isOpen()) {
         closeInfoDialog();
-        kp_escape_delivered_ = true;
+        escape_delivered_ = true;
       } else if (active && active->wantsBareEscape()) {
-        InputEvent escape(NCKEY_ESC, ni.y, ni.x, false, false, false, false, kind);
+        cellui::Input escape(NCKEY_ESC, input.getY(), input.getX(), false, false, false, false, input.getKind());
         active->offerInput(escape);
-	kp_escape_delivered_ = true;
+        escape_delivered_ = true;
       }
       continue;
-    } else if (kp_escape_depth_ == 1) {
-      if (ni.id == 'O') {
-	kp_escape_pending_[1] = { static_cast<int>(ni.id), ni.y, ni.x, ni.modifiers, kind };
-	kp_escape_depth_ = 2;
-	continue;
-      }
-      flushPendingKpEscape();
-    } else if (kp_escape_depth_ == 2) {
-      if (ni.id == '5') {
-	kp_escape_pending_[2] = { static_cast<int>(ni.id), ni.y, ni.x, ni.modifiers, kind };
-	kp_escape_depth_ = 3;
-	continue;
-      }
-      flushPendingKpEscape();
-    } else if (kp_escape_depth_ == 3) {
-      if (ni.id == 'o' || ni.id == 'j') {
-	kp_escape_depth_ = 0;
-	kp_escape_delivered_ = false;
-	InputEvent input(ni.id == 'o' ? NCKEY_KP_DIVIDE : NCKEY_KP_MULTIPLY, ni.y, ni.x, false, false, true, false, kind);
-	offerInput(input);
-	continue;
-      }
-      flushPendingKpEscape();
     }
 
-    dispatchRawKey(static_cast<int>(ni.id), ni.y, ni.x, ni.modifiers, kind);
+    offerInput(input);
   }
 
   return true;
@@ -2070,8 +1317,8 @@ TerminalUI::initializeWidgets() {
   keymap_.bind(KeyChord::pack('/', true, false, false, false), "undo");
   keymap_.bind(KeyChord::pack('_', true, true, false, false), "undo-redo");
   // What terminals actually send for them: the single control byte 0x1f
-  // (notcurses reports it as key 31, no modifiers; with Alt in front for the
-  // redo), and in the Kitty protocol Ctrl+Shift+- for C-_.
+  // (older builds reported it as key 31, no modifiers; with Alt in front for
+  // the redo; the parser now decodes it as Ctrl+_), and in the Kitty protocol Ctrl+Shift+- for C-_.
   keymap_.bind(KeyChord::pack(31, false, false, false, false), "undo");
   keymap_.bind(KeyChord::pack(31, false, true, false, false), "undo-redo");
   keymap_.bind(KeyChord::pack('-', true, false, true, false), "undo");
@@ -2252,11 +1499,9 @@ TerminalUI::layout() {
     putstr(scope_row + row, divider1_x, divider_glyph);
     putstr(scope_row + row, divider2_x, divider_glyph);
   }
-  // The workspace below the scope row. notcurses refuses/ignores a plane
-  // resize to zero rows or columns (confirmed via a pty+notcurses
-  // reproduction), so a widget the current view doesn't show can't be
-  // shrunk away - it gets the same rect as a visible one instead, and
-  // moveToTop() raises the visible ones above it.
+  // The workspace below the scope row. A widget the current view doesn't
+  // show gets the same rect as a visible one instead of being shrunk to
+  // nothing, and moveToTop() raises the visible ones above it.
   int workspace_row = show_scopes ? 1 + kScopeHeight : 1;
   int workspace_rows = std::max(2, rows - 2 - workspace_row);
   if (getView() == View::LIVE) {
@@ -2335,7 +1580,7 @@ bool
 TerminalUI::renderComponents(bool refresh) {
   // See force_next_render_'s own comment on TerminalUI.h - consumed here
   // (the one call site whose own return value actually reaches startUI()'s
-  // nc->render() gate), not at whichever earlier, input-handling call site
+  // render() gate), not at whichever earlier, input-handling call site
   // actually requested it.
   if (getView() == View::LIVE && syncLiveView()) force_next_render_ = true;
   refresh = refresh || force_next_render_;
@@ -2540,7 +1785,7 @@ TerminalUI::offerInput(const cellui::Input & input) {
   // An open menu owns the mouse: its dropdown is drawn over the widgets, and
   // a click on an item must not also reach the widget underneath it (which
   // would move its cursor, and so change what the item's command acts on).
-  if (menu_->isOpen() && nckey_mouse_p(static_cast<uint32_t>(input.getId()))) {
+  if (menu_->isOpen() && input.getId() >= NCKEY_MOTION && input.getId() <= NCKEY_BUTTON11) {
     if (menu_->offerInput(input)) {
       if (auto cmd = menu_->takeActivatedCommand(); !cmd.empty()) {
 	if (!getController().sendCommand(cmd)) setStatus("Invalid command");
@@ -2554,11 +1799,10 @@ TerminalUI::offerInput(const cellui::Input & input) {
   if (!reader_active && dispatchCommand(input)) return true;
 
   if (input.getId() == NCKEY_RESIZE) {
-    // notcurses_refresh() is what makes notcurses acknowledge the terminal's
-    // new dimensions (they're otherwise stale until this is called); it
-    // must run before anything queries plane sizes or lays out against them.
+    // The screen and the root plane already have the new size
+    // (resizeScreen(), as the event was read); the terminal reflowed, so
+    // the next frame redraws everything.
     refresh();
-    getPlane().refresh();
     layout();
     layoutInfoDialog();
     layoutChoiceDialog();
@@ -2566,8 +1810,8 @@ TerminalUI::offerInput(const cellui::Input & input) {
     // force_next_render_'s own comment on TerminalUI.h: this runs from
     // inside input handling, before startUI()'s own main loop reaches its
     // own renderComponents() call (the one that actually gates
-    // nc->render(), the real terminal flush) - a direct call here would
-    // draw everything correctly into notcurses's own plane state, then
+    // render(), the real terminal update) - a direct call here would
+    // draw everything correctly into the planes, then
     // report "nothing left to redraw" right back to that outer call,
     // which would then skip the flush and never actually show it.
     force_next_render_ = true;
@@ -3052,7 +2296,8 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
   auto midi_group = waits.group();
   auto launchpad_group = waits.group();
 
-  waits.addFd(input_group, nc->get_inputready_fd());
+  waits.addFd(input_group, session_.inputFd());
+  waits.addFd(input_group, session_.wakeFd());
   waits.add(events_group, getController().getUIEventQueue().notifier());
   waits.addFd(stderr_group, out_pipe[0]);
   midi.addTo(waits, midi_group);
@@ -3119,8 +2364,20 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
       poll_timeout_ms = poll_timeout_ms < 0 ? static_cast<int>(wait) : std::min(poll_timeout_ms, static_cast<int>(wait));
     }
 
-    // setStatus("polling");
+    // The terminal's input waits a few milliseconds for the rest of a
+    // sequence a read split; when that runs out, what it holds is settled.
+    if (auto deadline = session_.nextDeadline()) {
+      auto wait = std::chrono::duration_cast<std::chrono::milliseconds>(*deadline - std::chrono::steady_clock::now()).count() + 1;
+      wait = std::max<long>(wait, 0);
+      poll_timeout_ms = poll_timeout_ms < 0 ? static_cast<int>(wait) : std::min(poll_timeout_ms, static_cast<int>(wait));
+    }
+
     bool woken = waits.wait(poll_timeout_ms);
+    if (!woken && session_.nextDeadline() && std::chrono::steady_clock::now() >= *session_.nextDeadline()) {
+      readInput();
+      other_wake = true;
+      woken = true;
+    }
     count(woken ? "wake" : "timeout");
     if (woken) {
       for (auto group : { input_group, events_group, stderr_group, midi_group, launchpad_group }) {
@@ -3216,19 +2473,12 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
       render |= components;
 
       if (render) {
-	count("nc_render");
-	// Reasserted every frame, not just once at startup: the scope
-	// charts'/heatmap's own plot_plane_ (TerminalChart::setSample(),
-	// above) is created lazily on first real sample data, and destroyed/
-	// recreated again on every resize - each such plane is a fresh
-	// sibling of menu_'s (both bind directly to the real stdplane, not
-	// to their logical parent widget - see TerminalPlane::createChild()),
-	// so it lands on top of menu_ again the moment it's (re)created,
-	// silently re-hiding an unrolled section's dropdown. See
-	// UIMenu::raiseToTop()'s own comment for the base z-order issue this
-	// guards against.
+	count("present");
+	// Reasserted every frame: a plane created after the menu (a reader, a
+	// picker, a widget's own child) lands above it, hiding an unrolled
+	// section's dropdown. See UIMenu::raiseToTop()'s own comment.
 	menu_->raiseToTop();
-	nc->render();
+	TerminalUI::render();
       }
     }
   }

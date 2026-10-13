@@ -9,7 +9,7 @@
 class VisibleTrackInfo;
 
 // Computes the pattern grid's new scroll position for PatternEditor::render(),
-// pulled out into a pure function (no UIElement/notcurses dependency) so it
+// pulled out into a pure function (no UIElement or terminal dependency) so it
 // can be exhaustively unit-tested (see tests/PatternScrollTests.cpp) rather
 // than only exercised by eye through a real terminal.
 //

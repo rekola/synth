@@ -163,6 +163,24 @@ of the switch.
    What stays in the app is what knows the song or the controller, and the
    notcurses implementations that step 5 replaces.
 5. The terminal backend replaces notcurses. Same look, same e2e results.
+   Done in the code: notcurses is out of the build and `TerminalUI` runs on
+   `lib/cellui`'s terminal backend (`cellui/term/`: `InputParser`,
+   `Discovery`/`Capabilities`, `FrameEncoder`, `ImageEncoder`,
+   `TerminalSession`), drawing through a root `BufferPlane` (flat children,
+   the reader on `LineEditor`, the picker, translucency, images) with the
+   menu on `MenuBar`. The display scale is guessed from the cell height
+   (`estimateDisplayScale()`, `UIPlane::displayScale()`: text, icons and line
+   widths scale by it, hairlines excepted), and the default `--theme`
+   follows the terminal's colours (`detectAppearance()`). The non-Launchpad
+   e2e scripts give the notcurses build's results or better. Still open:
+   the Launchpad e2e scripts (they need an ALSA sequencer, which the cloud
+   containers lack), the real-terminal checks (kitty, foot, WezTerm, xterm
+   with Sixel, VTE, tmux), iTerm2's own image format (it draws Sixel for
+   now), drawing the scopes' line widths by the display scale, Alt-x
+   (M-x) in a real kitty (it works against kitty's recorded replies; it did
+   not work on notcurses either), and key ids with names of our own instead
+   of notcurses' (`NCKEY_BUTTON4` and the rest in `cellui/Input.h`, used
+   across the app).
 6. Icons: the app's icon list, Kitty graphics/Sixel/glyph fallback, menu
    icons.
 7. `plans/modern-look.md` steps 4-5: the modernized look and the light and

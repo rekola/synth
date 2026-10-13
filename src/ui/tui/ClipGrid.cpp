@@ -729,7 +729,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
 
       // A clip row's own trailing repeat glyph (U+21BB) renders wider in
       // this terminal than this codebase's own width tools (Utf8::
-      // displayWidth(), and notcurses's own internal column-advance) can
+      // displayWidth(), and so the frame encoder's own column-advance) can
       // account for - the same "ambiguous width" mismatch documented
       // elsewhere in this codebase, just not one this file can route
       // around by avoiding the glyph entirely, since a loop indicator is

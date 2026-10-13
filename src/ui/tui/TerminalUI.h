@@ -13,9 +13,12 @@
 #include <string_view>
 #include <vector>
 
-namespace ncpp {
-  class NotCurses;
-};
+#include <cellui/BufferPlane.h>
+#include <cellui/CellBuffer.h>
+
+namespace cellui::term {
+  class TerminalSession;
+}
 
 #include "../UIMenu.h"
 #include "SpectrumMeter.h"
@@ -32,7 +35,8 @@ class OutlineView;
 
 class TerminalUI : public UI {
  public:
-  explicit TerminalUI(std::shared_ptr<ncpp::NotCurses> _nc);
+  // Draws on, and reads from, the terminal `session` set up.
+  explicit TerminalUI(cellui::term::TerminalSession & session);
   ~TerminalUI();
 
   void initialize(std::shared_ptr<Controller> & controller);
@@ -88,7 +92,7 @@ protected:
 
   // Constructs every widget (menu_ through octave_control_ below) and
   // defines every UI-level command/keybinding - called once from
-  // initialize(), after the notcurses-specific widgets (menu_/chart_/
+  // initialize(), after the backend-specific widgets (menu_/chart_/
   // volume_meter_/heatmap_) it also depends on are already in place.
   void initializeWidgets();
 
@@ -112,7 +116,13 @@ protected:
   std::vector<std::shared_ptr<cellui::Element>> focusableElements() const;
 
 private:
-  std::shared_ptr<ncpp::NotCurses> nc;
+  cellui::term::TerminalSession & session_;
+  // What the planes compose into, the size of the terminal; the root plane
+  // covers it.
+  cellui::CellBuffer screen_;
+  cellui::BufferPlane * root_plane_ = nullptr;
+  // Sizes the screen and the root plane to the terminal.
+  void resizeScreen();
 
   std::shared_ptr<UIMenu> menu_;
   std::shared_ptr<SpectrumMeter> chart_;
@@ -178,15 +188,15 @@ private:
   // Set by a handler that changes what's on screen (the view changing,
   // NCKEY_RESIZE) from *inside* input handling - before this
   // class's own main loop (startUI()) reaches its own renderComponents()
-  // call, the one that actually decides whether to call nc->render() (the
-  // real terminal flush). Calling renderComponents(true) directly from in
-  // here would draw everything correctly into notcurses's own plane
-  // state, but its return value (and every widget's own now-freshly-
-  // updated "did I already draw this" memoized state) would be consumed
-  // right then and discarded - by the time the outer loop makes its own
-  // renderComponents() call a moment later, every widget correctly
-  // reports "nothing new to draw," so nc->render() never actually runs
-  // and the correctly-drawn content never reaches the real terminal.
+  // call, the one that actually decides whether to call render() (the
+  // real terminal update). Calling renderComponents(true) directly from in
+  // here would draw everything correctly into the planes, but its return
+  // value (and every widget's own now-freshly-updated "did I already draw
+  // this" memoized state) would be consumed right then and discarded - by
+  // the time the outer loop makes its own renderComponents() call a moment
+  // later, every widget correctly reports "nothing new to draw," so
+  // render() never actually runs and the content never reaches the
+  // terminal.
   // Setting this instead defers the forced refresh to that one outer
   // call, so its own return value (and therefore the flush) reflects it.
   bool force_next_render_ = false;
@@ -206,25 +216,15 @@ private:
   // copy is separate and only used for actual pattern editing (note
   // entry).
 
-  // Legacy xterm/VT220 "SS3 + modifier digit" escape sequence recognizer
-  // for Ctrl+Numpad-Divide/Multiply (see readInput()'s own comment) - the
-  // raw bytes buffered so far (ESC, then 'O', then '5') can be replayed
-  // verbatim as ordinary InputEvents if what looked like the start of the
-  // sequence turns out not to be (e.g. a real standalone Escape, or
-  // Esc-then-x for M-x). Kept notcurses-type-free (plain ints/unsigned
-  // rather than ncinput) so this header doesn't need a notcurses include.
-  struct PendingRawKey { int id = 0, y = 0, x = 0; unsigned modifiers = 0; InputEvent::Kind kind = InputEvent::Kind::UNKNOWN; };
-  int kp_escape_depth_ = 0; // 0 = no legacy KP-escape sequence in progress, 1-3 = that many bytes matched so far
-  PendingRawKey kp_escape_pending_[3]; // ESC, 'O', '5', in order
-  // The buffered ESC already went to a widget that wanted it bare (see
-  // UIElement::wantsBareEscape()) - replaying it would deliver it twice.
-  bool kp_escape_delivered_ = false;
+  // A bare Escape is held until the next input arrives, then offered ahead
+  // of it (unless a widget that takes a bare Escape already had it): Escape
+  // followed by a key is an Alt chord (cellui/EscapeCoalescer.h), and widgets see
+  // the Escape only once it is known not to be the start of one.
+  bool escape_held_ = false;
+  bool escape_delivered_ = false;
 
-  // Alt-key coalescing (EscapeCoalescer.h) - the notcurses input source
-  // readInput() actually pulls events from. Kept behind a pointer to an
-  // incomplete type, defined only in TerminalUI.cpp, for the same reason
-  // kp_escape_pending_ above is kept plain-int typed: this header
-  // shouldn't need a notcurses include.
+  // Alt-key coalescing (cellui/EscapeCoalescer.h) over the inputs the terminal
+  // session decoded.
   class EscapeInputPipeline;
   std::unique_ptr<EscapeInputPipeline> escape_input_;
 
