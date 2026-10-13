@@ -1,9 +1,5 @@
 add_executable(synth_tests
 	test_main.cpp
-	# The terminal UI's Escape-as-Meta coalescer, compiled in directly as
-	# TerminalUI.cpp's own sources are added straight to the executable.
-	../src/ui/tui/EscapeCoalescer.cpp
-	EscapeCoalescerTests.cpp
 	DocumentTests.cpp
 	SongEditTests.cpp
 	ContentPublishingTests.cpp

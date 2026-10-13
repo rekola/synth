@@ -218,12 +218,12 @@ private:
 
   // A bare Escape is held until the next input arrives, then offered ahead
   // of it (unless a widget that takes a bare Escape already had it): Escape
-  // followed by a key is an Alt chord (EscapeCoalescer.h), and widgets see
+  // followed by a key is an Alt chord (cellui/EscapeCoalescer.h), and widgets see
   // the Escape only once it is known not to be the start of one.
   bool escape_held_ = false;
   bool escape_delivered_ = false;
 
-  // Alt-key coalescing (EscapeCoalescer.h) over the inputs the terminal
+  // Alt-key coalescing (cellui/EscapeCoalescer.h) over the inputs the terminal
   // session decoded.
   class EscapeInputPipeline;
   std::unique_ptr<EscapeInputPipeline> escape_input_;

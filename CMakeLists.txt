@@ -323,7 +323,6 @@ if(SYNTH_BUILD_INTERACTIVE)
   if(SYNTH_BUILD_TERMINAL_UI)
     target_sources(synth PRIVATE
       src/ui/tui/TerminalUI.cpp
-      src/ui/tui/EscapeCoalescer.cpp
       src/ui/tui/OutlineView.cpp
       src/ui/tui/PatternEditor.cpp
       src/ui/tui/ArrangementGrid.cpp

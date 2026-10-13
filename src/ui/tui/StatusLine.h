@@ -141,7 +141,7 @@ class StatusLine : public UIElement {
     } else if ((input.hasAlt() || input.hasMeta()) && (input.getId() == 'x' || input.getId() == 'X')) {
       // Whether the terminal sent physical Alt-x as one event directly, or
       // ESC then, arbitrarily later, x - TerminalUI.cpp's
-      // EscapeSequenceCoalescer (see EscapeCoalescer.h) already folds
+      // EscapeSequenceCoalescer (see cellui/EscapeCoalescer.h) already folds
       // either into a single Alt-modified event before it ever reaches
       // here, so there's exactly one path to check, not two.
       showMx();

@@ -176,7 +176,11 @@ of the switch.
    the Launchpad e2e scripts (they need an ALSA sequencer, which the cloud
    containers lack), the real-terminal checks (kitty, foot, WezTerm, xterm
    with Sixel, VTE, tmux), iTerm2's own image format (it draws Sixel for
-   now), and drawing the scopes' line widths by the display scale.
+   now), drawing the scopes' line widths by the display scale, Alt-x
+   (M-x) in a real kitty (it works against kitty's recorded replies; it did
+   not work on notcurses either), and key ids with names of our own instead
+   of notcurses' (`NCKEY_BUTTON4` and the rest in `cellui/Input.h`, used
+   across the app).
 6. Icons: the app's icon list, Kitty graphics/Sixel/glyph fallback, menu
    icons.
 7. `plans/modern-look.md` steps 4-5: the modernized look and the light and

@@ -1,11 +1,11 @@
 #include "TestFramework.h"
 
-#include "../src/ui/tui/EscapeCoalescer.h"
+#include <cellui/EscapeCoalescer.h>
 
 #include <deque>
 
 using namespace std;
-using cellui::Input;
+using namespace cellui;
 
 namespace {
 

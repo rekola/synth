@@ -404,7 +404,7 @@ same path. Not yet migrated: `StatusLine`, `OutlineView`, and
 `InstrumentList` (dead code anyway). `StatusLine`'s M-x detection is down
 to a single check now, an Alt/Meta-modified `x` event - it no longer needs
 its own two-step `ESC`-then-`x` state machine, since `TerminalUI.cpp`'s
-`EscapeSequenceCoalescer` (`EscapeCoalescer.h`) already folds a bare `ESC`
+`cellui::EscapeSequenceCoalescer` (`cellui/EscapeCoalescer.h`) already folds a bare `ESC`
 followed, arbitrarily later, by `x` into a single Alt-modified event
 before it ever reaches `StatusLine`, the same as a terminal that sends
 physical Alt-x as one event directly; see that header's own top comment
@@ -1257,10 +1257,7 @@ would otherwise resume showing.
     `TerminalUI` (the sole such subclass today - owns every widget,
     `initializeWidgets()`/`layout()`/`renderComponents()`, every Emacs
     keybinding, and every `EventHandler` override), `PatternEditor`/
-    `OutlineView` and the rest of the terminal widgets, plus
-    the Escape-as-Meta input coalescing (`EscapeCoalescer`) and text-cell
-    rendering helpers (`SubcellGlyphs.h`) that wouldn't apply to a
-    pixel-based UI.
+    `OutlineView` and the rest of the terminal widgets.
 
     Info dialogs (the outline panel's details popup, the About dialog) have
     their content written as Markdown, parsed by `ui/Markdown.h` - a tiny
@@ -1305,7 +1302,7 @@ would otherwise resume showing.
   the app: `Color` (`#rgb` now means each digit doubled), `utf8` (grapheme-
   aware width, truncation and padding), `markdown` (the tiny subset the info
   dialogs use), `ChoiceList`, the sub-cell glyph tables and two-colour
-  quantizer (`SubcellGlyphs.h`), and the input data (`Input.h`: key id, modifiers,
+  quantizer (`SubcellGlyphs.h`), the Escape-as-Meta coalescer (`EscapeCoalescer.h`), and the input data (`Input.h`: key id, modifiers,
   position, press/release kind, and the `NCKEY_*` key ids; the app's
   `InputEvent` is an `Input` that is also an `Event`; the note-entry key mapping
   is `keyToMidiNote()` in `playback/KeyboardNotes.h`), the key chord packing, `Keymap` and `CommandRegistry`, and the theme (`Theme`,

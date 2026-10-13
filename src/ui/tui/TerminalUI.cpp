@@ -26,7 +26,6 @@
 #include "../../launchpad/LaunchpadChannelPressureEvent.h"
 #include "../../launchpad/LaunchpadProtocol.h"
 #include "../../launchpad/LaunchpadManager.h"
-#include "EscapeCoalescer.h"
 #include "SubcellGlyphs.h"
 #include "../../util/Utf8.h"
 #include "../../util/constants.h"
@@ -66,6 +65,7 @@
 #include <sys/time.h>
 
 #include <cellui/MenuBar.h>
+#include <cellui/EscapeCoalescer.h>
 #include <cellui/term/TerminalSession.h>
 
 #include <poll.h>
@@ -768,8 +768,8 @@ private:
 constexpr auto kEscapeIndicatorDelay = std::chrono::milliseconds(300);
 
 // The inputs the terminal session decoded, handed to the Alt-key
-// coalescing pipeline (EscapeCoalescer.h) one at a time.
-class QueuedInputSource : public InputEventSource {
+// coalescing pipeline (cellui/EscapeCoalescer.h) one at a time.
+class QueuedInputSource : public cellui::InputEventSource {
 public:
   void push(const cellui::Input & input) { queue_.push_back(input); }
   bool next(cellui::Input * input) override {
@@ -787,9 +787,9 @@ class TerminalUI::EscapeInputPipeline {
 public:
   EscapeInputPipeline() : coalescer(source, detector) { }
 
-  KittyProtocolDetector detector;
+  cellui::KittyProtocolDetector detector;
   QueuedInputSource source;
-  EscapeSequenceCoalescer coalescer;
+  cellui::EscapeSequenceCoalescer coalescer;
 };
 
 TerminalUI::TerminalUI(cellui::term::TerminalSession & session)

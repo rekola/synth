@@ -1,7 +1,8 @@
-#ifndef _ESCAPECOALESCER_H_
-#define _ESCAPECOALESCER_H_
+#pragma once
 
 #include <cellui/Input.h>
+
+namespace cellui {
 
 // Coalesces the legacy Meta/Alt-key encoding - a plain Escape followed by
 // the modified key, with no guarantee they arrive close together in time -
@@ -27,7 +28,7 @@ public:
   virtual ~InputEventSource() = default;
 
   // Returns true and fills *input if one was immediately available.
-  virtual bool next(cellui::Input * input) = 0;
+  virtual bool next(Input * input) = 0;
 };
 
 // Determines, from the events arriving this session, whether the terminal
@@ -43,7 +44,7 @@ public:
   // press/release always carries a real kind regardless of the keyboard
   // protocol, so feeding one would misdetect the protocol as active from
   // the session's first click.
-  void observe(cellui::Input::Kind kind);
+  void observe(Input::Kind kind);
 
   bool active() const { return active_; }
 
@@ -64,7 +65,7 @@ public:
 
   // Fetches the next logical input, applying coalescing. Returns false if
   // none is available right now. Never blocks.
-  bool next(cellui::Input * input);
+  bool next(Input * input);
 
   // True from the moment a bare Escape is seen until the wait it starts
   // resolves - folded into the next keystroke's Alt modifier, or given up
@@ -80,4 +81,4 @@ private:
   bool pending_ = false;
 };
 
-#endif
+}  // namespace cellui

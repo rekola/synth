@@ -1,6 +1,6 @@
-#include "EscapeCoalescer.h"
+#include <cellui/EscapeCoalescer.h>
 
-using cellui::Input;
+namespace cellui {
 
 void
 KittyProtocolDetector::observe(Input::Kind kind) {
@@ -92,3 +92,5 @@ EscapeSequenceCoalescer::next(Input * input) {
   if (isUnmodifiedEscapePress(*input)) pending_ = true;
   return true;
 }
+
+}  // namespace cellui
