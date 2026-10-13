@@ -738,9 +738,9 @@ OutlineView::offerInput(const cellui::Input & input) {
   // swallows everything else. A key's release still gets through, to stop
   // a preview note held when it opened.
   if (info_open_) {
-    bool is_click = input.getId() == NCKEY_BUTTON1;
+    bool is_click = input.getId() == Key::Button1;
     bool closes = is_click ? input.getKind() == InputEvent::Kind::RELEASE
-      : input.getKind() != InputEvent::Kind::RELEASE && (input.getId() == '?' || input.getId() == NCKEY_ESC || (input.hasCtrl() && input.getId() == 'g'));
+      : input.getKind() != InputEvent::Kind::RELEASE && (input.getId() == '?' || input.getId() == Key::Escape || (input.hasCtrl() && input.getId() == 'g'));
     if (closes) {
       runDetailsAction(DetailsAction::TOGGLE_INFO);
       return true;
@@ -758,7 +758,7 @@ OutlineView::offerInput(const cellui::Input & input) {
   // PgDown) is just forwarded to the selector to navigate with, same as
   // ncselector_offer_input()'s own documented input set.
   if (getPlane().pickerActive()) {
-    if (input.getId() == NCKEY_ENTER) {
+    if (input.getId() == Key::Enter) {
       auto selection = getPlane().getPickerSelection();
       closeTargetPicker();
       applyTargetPickerSelection(selection);
@@ -766,7 +766,7 @@ OutlineView::offerInput(const cellui::Input & input) {
     } else if (input.hasCtrl() && input.getId() == 'g') {
       closeTargetPicker();
       return true;
-    } else if (input.getId() == NCKEY_BUTTON1 && input.getKind() == InputEvent::Kind::RELEASE) {
+    } else if (input.getId() == Key::Button1 && input.getKind() == InputEvent::Kind::RELEASE) {
       if (getPlane().offerInput(input)) {
         // Landed on an item (or the scroll arrows) - ncselector_offer_input()
         // only reports a click as relevant when it actually lands inside
@@ -795,7 +795,7 @@ OutlineView::offerInput(const cellui::Input & input) {
   // mouse-button release would otherwise be swallowed there, since it's
   // never the held preview-note key) - see handleClick()'s own comment
   // for why it resolves on release anyway.
-  if (input.getId() == NCKEY_BUTTON1) return handleClick(input);
+  if (input.getId() == Key::Button1) return handleClick(input);
   // A held preview-note key's RELEASE is handled once, up front, exactly
   // like PatternEditor's own live note entry (see its own comment on why
   // RELEASE needs this special early-return treatment) - it either matches
@@ -812,38 +812,38 @@ OutlineView::offerInput(const cellui::Input & input) {
     // preview.
     runDetailsAction(DetailsAction::TOGGLE_INFO);
     return true;
-  } else if (((input.hasCtrl() && input.getId() == 'g') || input.getId() == NCKEY_ESC) && info_open_) {
+  } else if (((input.hasCtrl() && input.getId() == 'g') || input.getId() == Key::Escape) && info_open_) {
     runDetailsAction(DetailsAction::TOGGLE_INFO);
     return true;
-  } else if (input.getId() == NCKEY_UP) {
+  } else if (input.getId() == Key::Up) {
     moveCursorBy(-1);
     return true;
-  } else if (input.getId() == NCKEY_DOWN) {
+  } else if (input.getId() == Key::Down) {
     moveCursorBy(1);
     return true;
-  } else if (input.getId() == NCKEY_LEFT) {
+  } else if (input.getId() == Key::Left) {
     scrollColumnsBy(-kColumnScrollStep);
     return true;
-  } else if (input.getId() == NCKEY_RIGHT) {
+  } else if (input.getId() == Key::Right) {
     scrollColumnsBy(kColumnScrollStep);
     return true;
-  } else if (input.getId() == NCKEY_BUTTON4 || input.getId() == NCKEY_BUTTON5) {
+  } else if (input.getId() == Key::Button4 || input.getId() == Key::Button5) {
     // The wheel scrolls the view, not the cursor (see scrollBy()); Shift
     // scrolls sideways.
-    int direction = input.getId() == NCKEY_BUTTON4 ? -1 : 1;
+    int direction = input.getId() == Key::Button4 ? -1 : 1;
     if (input.hasShift()) scrollColumnsBy(direction * kColumnScrollStep);
     else scrollBy(direction);
     return true;
-  } else if (input.getId() == NCKEY_PGUP) {
+  } else if (input.getId() == Key::PageUp) {
     moveCursorBy(-cursorRows());
     return true;
-  } else if (input.getId() == NCKEY_PGDOWN) {
+  } else if (input.getId() == Key::PageDown) {
     moveCursorBy(cursorRows());
     return true;
-  } else if (input.getId() == NCKEY_ENTER) {
+  } else if (input.getId() == Key::Enter) {
     runDetailsAction(DetailsAction::ADD_TO_SONG);
     return true;
-  } else if (input.getId() == NCKEY_DEL || input.getId() == NCKEY_BACKSPACE) {
+  } else if (input.getId() == Key::Delete || input.getId() == Key::Backspace) {
     runDetailsAction(DetailsAction::DELETE);
     return true;
   } else if (input.getId() == 'p' && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size()) &&

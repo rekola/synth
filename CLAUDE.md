@@ -403,8 +403,10 @@ Controller-level commands (`save-song`, `add-filter`) and the per-widget ones
 same path. Not yet migrated: `StatusLine`, `OutlineView`, and
 `InstrumentList` (dead code anyway). `StatusLine`'s M-x detection is down
 to a single check now, an Alt/Meta-modified `x` event - it no longer needs
-its own two-step `ESC`-then-`x` state machine, since `TerminalUI.cpp`'s
-`cellui::EscapeSequenceCoalescer` (`cellui/EscapeCoalescer.h`) already folds a bare `ESC`
+its own two-step `ESC`-then-`x` state machine, since `TerminalUI`'s
+`cellui::KeyReader` (`cellui/KeyReader.h`, over `cellui/EscapeCoalescer.h`; it
+also holds a bare Escape until the next key decides it, asking the app's
+`takeEscape` hook whether something closes on it at once) already folds a bare `ESC`
 followed, arbitrarily later, by `x` into a single Alt-modified event
 before it ever reaches `StatusLine`, the same as a terminal that sends
 physical Alt-x as one event directly; see that header's own top comment
@@ -467,7 +469,7 @@ functions used for this.
 The FFT spectrum (`SpectrumMeter`, `ui/tui/SpectrumMeter.h`) draws its
 log-frequency bars through `LevelMeter.h`'s braille sub-cell renderer, the
 same one the volume meters use. When the terminal session found an image
-protocol (kitty graphics or Sixel; iTerm2 draws Sixel for now) and the cell
+protocol (kitty graphics, iTerm2's inline images or Sixel) and the cell
 size in pixels, `TerminalUI.cpp`'s `TerminalPixelSpectrumMeter` overrides
 `barCount()`/`drawBars()` to draw one bar per pixel column as the meter's
 plane's image (`UIPlane::pixelSize()`/`drawImage()`) instead; the choice is
@@ -1302,8 +1304,8 @@ would otherwise resume showing.
   the app: `Color` (`#rgb` now means each digit doubled), `utf8` (grapheme-
   aware width, truncation and padding), `markdown` (the tiny subset the info
   dialogs use), `ChoiceList`, the sub-cell glyph tables and two-colour
-  quantizer (`SubcellGlyphs.h`), the Escape-as-Meta coalescer (`EscapeCoalescer.h`), and the input data (`Input.h`: key id, modifiers,
-  position, press/release kind, and the `NCKEY_*` key ids; the app's
+  quantizer (`SubcellGlyphs.h`), the Escape-as-Meta coalescer (`EscapeCoalescer.h`) and `KeyReader` (the inputs as widgets see them, Escape as Meta included, and when the "ESC-" indicator is due), and the input data (`Input.h`: key id, modifiers,
+  position, press/release kind, and the key ids `cellui::Key::Up` and so on, `Key::` in the app; the app's
   `InputEvent` is an `Input` that is also an `Event`; the note-entry key mapping
   is `keyToMidiNote()` in `playback/KeyboardNotes.h`), the key chord packing, `Keymap` and `CommandRegistry`, and the theme (`Theme`,
   `StyleProvider`) and `UIPlane` (it carries the app's own object as an opaque
@@ -1334,7 +1336,7 @@ would otherwise resume showing.
   (start-up queries with a deadline; the display scale guessed from the cell
   size, `estimateDisplayScale()`, and light or dark from the default colours,
   `detectAppearance()`, which picks the default `--theme`), `FrameEncoder` (the
-  frame diff as escape sequences), `ImageEncoder` (kitty graphics, Sixel) and
+  frame diff as escape sequences), `ImageEncoder` (kitty graphics, iTerm2 inline images, Sixel) and
   `TerminalSession` (the tty, its modes, signals and restoration).
   `cellui_gallery --live` shows the gallery through it. Its tests are in `lib/cellui/tests/` with a copy of the tiny test
   framework (no dependency on `tests/`).

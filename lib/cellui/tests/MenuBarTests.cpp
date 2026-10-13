@@ -15,7 +15,7 @@ std::vector<MenuBar::Section> sections() {
 }
 
 Input key(int id, bool alt = false) { return Input(id, -1, -1, alt, false, false, false); }
-Input click(int y, int x) { return Input(NCKEY_BUTTON1, y, x, false, false, false, false, Input::Kind::RELEASE); }
+Input click(int y, int x) { return Input(cellui::Key::Button1, y, x, false, false, false, false, Input::Kind::RELEASE); }
 
 }  // namespace
 
@@ -36,13 +36,13 @@ TEST(menubar_header_and_open_section) {
   CHECK(b.toPlainText() == "  File  Help\n  ╭────╮\n  │Open│\n  ├────┤\n  │Quit│\n  ╰────╯\n");
   CHECK(menu.selectedItem() == 0);
   // Down skips the separator, and wraps.
-  menu.offerInput(key(NCKEY_DOWN));
+  menu.offerInput(key(cellui::Key::Down));
   CHECK(menu.selectedItem() == 2);
-  menu.offerInput(key(NCKEY_DOWN));
+  menu.offerInput(key(cellui::Key::Down));
   CHECK(menu.selectedItem() == 0);
-  menu.offerInput(key(NCKEY_RIGHT));
+  menu.offerInput(key(cellui::Key::Right));
   CHECK(menu.openSection() == 1 && menu.selectedItem() == 0);
-  menu.offerInput(key(NCKEY_ENTER));
+  menu.offerInput(key(cellui::Key::Enter));
   CHECK(!menu.isOpen());
   auto a = menu.takeActivated();
   CHECK(a && a->first == 1 && a->second == 0);
@@ -68,7 +68,7 @@ TEST(menubar_mouse) {
   CHECK(menu.openSection() == 1);
   CHECK(menu.offerInput(click(0, 9)));
   CHECK(!menu.isOpen());
-  CHECK(!menu.offerInput(key(NCKEY_ESC)));
+  CHECK(!menu.offerInput(key(cellui::Key::Escape)));
 }
 
 TEST(menubar_box_stays_on_screen_and_is_translucent) {

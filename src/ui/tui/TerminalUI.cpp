@@ -65,7 +65,7 @@
 #include <sys/time.h>
 
 #include <cellui/MenuBar.h>
-#include <cellui/EscapeCoalescer.h>
+#include <cellui/KeyReader.h>
 #include <cellui/term/TerminalSession.h>
 
 #include <poll.h>
@@ -757,74 +757,48 @@ private:
   std::vector<Marker> markers_;
 };
 
-// How long a pending Escape (EscapeSequenceCoalescer::escapePending())
-// must stay open before the "ESC-" indicator actually appears
-// (updateEscapeIndicator()) - long enough that an ordinary fast Alt-chord
-// (typed close enough together to resolve within one readInput() drain
-// burst, or split across two but still well within human reaction time)
-// never flickers it, short enough that a person who actually paused after
-// Escape gets confirmation promptly rather than wondering whether the
-// keypress registered at all.
-constexpr auto kEscapeIndicatorDelay = std::chrono::milliseconds(300);
-
-// The inputs the terminal session decoded, handed to the Alt-key
-// coalescing pipeline (cellui/EscapeCoalescer.h) one at a time.
-class QueuedInputSource : public cellui::InputEventSource {
-public:
-  void push(const cellui::Input & input) { queue_.push_back(input); }
-  bool next(cellui::Input * input) override {
-    if (queue_.empty()) return false;
-    *input = queue_.front();
-    queue_.pop_front();
-    return true;
-  }
-
-private:
-  std::deque<cellui::Input> queue_;
-};
-
-class TerminalUI::EscapeInputPipeline {
-public:
-  EscapeInputPipeline() : coalescer(source, detector) { }
-
-  cellui::KittyProtocolDetector detector;
-  QueuedInputSource source;
-  cellui::EscapeSequenceCoalescer coalescer;
-};
-
 TerminalUI::TerminalUI(cellui::term::TerminalSession & session)
-  : session_(session), screen_(session.rows(), session.cols()), escape_input_(make_unique<EscapeInputPipeline>()) {
+  : session_(session), screen_(session.rows(), session.cols()) {
+  // Something that closes on a bare Escape gets it at once, rather than when
+  // the next key shows it was no Alt prefix.
+  key_reader_.takeEscape = [this](const cellui::Input & escape) {
+    auto active = outline_view_ && outline_view_->isModal() ? outline_view_ : active_element_.lock();
+    if (choice_dialog_.isOpen()) {
+      closeChoiceDialog();
+    } else if (info_dialog_.isOpen()) {
+      closeInfoDialog();
+    } else if (active && active->wantsBareEscape()) {
+      active->offerInput(escape);
+    } else {
+      return false;
+    }
+    return true;
+  };
 }
 
 TerminalUI::~TerminalUI() {
 }
 
-// Called once per startUI() loop iteration, whether it woke on a real fd
-// or the poll() timeout below - shows "ESC-" the moment kEscapeIndicatorDelay
-// has actually elapsed with the wait still open. Clearing it again happens
-// in readInput() instead, right when the wait ends (immediately, not on a
-// delay - there's nothing to debounce about a wait that's already over).
+// Shows "ESC-" once a pending Escape has waited KeyReader::kIndicatorDelay,
+// the way Emacs shows its Meta prefix; readInput() clears it when the wait
+// ends.
 void
 TerminalUI::updateEscapeIndicator() {
-  if (!escape_pending_since_ || escape_indicator_shown_) return;
-  if (std::chrono::steady_clock::now() - *escape_pending_since_ >= kEscapeIndicatorDelay) {
+  auto due = key_reader_.indicatorDue();
+  if (!due || escape_indicator_shown_) return;
+  if (std::chrono::steady_clock::now() >= *due) {
     setStatus("ESC-");
     escape_indicator_shown_ = true;
   }
 }
 
-// startUI()'s own poll() otherwise waits up to a full second regardless of
-// what's happening - fine normally, but while a pending Escape hasn't yet
-// crossed kEscapeIndicatorDelay, that would make the indicator's own
-// appearance late and irregular (anywhere up to a second past the actual
-// delay) rather than landing right on it. Only shortens the wait while
-// there's an actual reason to wake up early; otherwise unchanged.
+// The loop's wait, shortened so the indicator appears on time.
 int
 TerminalUI::escapeIndicatorPollTimeoutMs() const {
   constexpr int kDefaultPollTimeoutMs = 1000;
-  if (!escape_pending_since_ || escape_indicator_shown_) return kDefaultPollTimeoutMs;
-  auto remaining = kEscapeIndicatorDelay - (std::chrono::steady_clock::now() - *escape_pending_since_);
-  auto remaining_ms = std::chrono::duration_cast<std::chrono::milliseconds>(remaining).count();
+  auto due = key_reader_.indicatorDue();
+  if (!due || escape_indicator_shown_) return kDefaultPollTimeoutMs;
+  auto remaining_ms = std::chrono::duration_cast<std::chrono::milliseconds>(*due - std::chrono::steady_clock::now()).count();
   return static_cast<int>(std::clamp<long long>(remaining_ms, 0, kDefaultPollTimeoutMs));
 }
 
@@ -849,7 +823,8 @@ protected:
       return;
     }
     // Opaque, so a pixel never composites against the raw terminal background.
-    auto buffer = spectrum_image::render(levels, static_cast<unsigned>(pxx), static_cast<unsigned>(pxy), getPlane().getStyles());
+    auto buffer = spectrum_image::render(levels, static_cast<unsigned>(pxx), static_cast<unsigned>(pxy), getPlane().getStyles(),
+                                         static_cast<float>(getPlane().displayScale()));
     getPlane().drawImage(buffer, pxx, pxy);
   }
 };
@@ -959,11 +934,11 @@ TerminalUI::readInput() {
     switch (event.type) {
     case TermEvent::Type::KEY:
     case TermEvent::Type::MOUSE:
-      escape_input_->source.push(cellui::term::toInput(event));
+      key_reader_.push(cellui::term::toInput(event));
       break;
     case TermEvent::Type::RESIZE:
       resizeScreen();
-      escape_input_->source.push(cellui::Input(NCKEY_RESIZE, -1, -1, false, false, false, false));
+      key_reader_.push(cellui::Input(Key::Resize, -1, -1, false, false, false, false));
       break;
     case TermEvent::Type::PASTE:
       // Pasted text goes into an open text field; elsewhere it is not
@@ -978,59 +953,12 @@ TerminalUI::readInput() {
     }
   }
 
-  while (true) {
-    // Emacs shows "ESC-" in the echo area while a Meta-prefix wait is
-    // open (EscapeSequenceCoalescer::escapePending()'s own comment) -
-    // matched here, but not immediately: recorded on the transition, with
-    // the actual indicator shown only once escapeIndicatorPollTimeoutMs()'s
-    // delay has passed with the wait still open (updateEscapeIndicator(),
-    // called from startUI()'s own loop) - a fast Alt-chord that resolves
-    // well within that window never flickers the indicator at all.
-    bool escape_was_pending = escape_input_->coalescer.escapePending();
-    cellui::Input input(0, -1, -1, false, false, false, false);
-    if (!escape_input_->coalescer.next(&input)) break;
-    bool escape_now_pending = escape_input_->coalescer.escapePending();
-    if (escape_now_pending && !escape_was_pending) {
-      escape_pending_since_ = std::chrono::steady_clock::now();
-      escape_indicator_shown_ = false;
-    } else if (!escape_now_pending && escape_was_pending) {
-      if (escape_indicator_shown_) setStatus("");
-      escape_pending_since_.reset();
-      escape_indicator_shown_ = false;
-    }
-
-    // A held bare Escape goes ahead of whatever followed it (see
-    // escape_held_'s own comment), unless a widget already took it.
-    if (escape_held_) {
-      escape_held_ = false;
-      if (!escape_delivered_) offerInput(cellui::Input(NCKEY_ESC, -1, -1, false, false, false, false, input.getKind()));
-      escape_delivered_ = false;
-    }
-
-    if (input.getId() == NCKEY_ESC && !input.hasAlt() && input.getKind() != InputEvent::Kind::RELEASE) {
-      escape_held_ = true;
-      // A widget that wants a bare Escape (closing a popup) gets it right
-      // away rather than once the next key arrives. It still stays held
-      // here and in the Alt coalescer, so it can go on to be an Alt chord's
-      // prefix - it's just never delivered a second time.
-      auto active = outline_view_ && outline_view_->isModal() ? outline_view_ : active_element_.lock();
-      if (choice_dialog_.isOpen()) {
-        closeChoiceDialog();
-        escape_delivered_ = true;
-      } else if (info_dialog_.isOpen()) {
-        closeInfoDialog();
-        escape_delivered_ = true;
-      } else if (active && active->wantsBareEscape()) {
-        cellui::Input escape(NCKEY_ESC, input.getY(), input.getX(), false, false, false, false, input.getKind());
-        active->offerInput(escape);
-        escape_delivered_ = true;
-      }
-      continue;
-    }
-
-    offerInput(input);
+  cellui::Input input(0, -1, -1, false, false, false, false);
+  while (key_reader_.next(&input)) offerInput(input);
+  if (escape_indicator_shown_ && !key_reader_.escapePending()) {
+    setStatus("");
+    escape_indicator_shown_ = false;
   }
-
   return true;
 }
 
@@ -1304,8 +1232,8 @@ TerminalUI::initializeWidgets() {
   // is C-x k (plain k), next-buffer/previous-buffer are C-x <right>/C-x
   // <left>, and select-named-buffer (switch-to-buffer) is C-x b.
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('k', false, false, false, false), "kill-buffer");
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack(NCKEY_RIGHT, false, false, false, false), "next-buffer");
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack(NCKEY_LEFT, false, false, false, false), "previous-buffer");
+  keymap_.bindPrefixed(ctrl_x, KeyChord::pack(Key::Right, false, false, false, false), "next-buffer");
+  keymap_.bindPrefixed(ctrl_x, KeyChord::pack(Key::Left, false, false, false, false), "previous-buffer");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('b', false, false, false, false), "select-named-buffer");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('o', false, false, false, false), "other-window");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('m', false, false, false, false), "merge-clip-to-background");
@@ -1764,28 +1692,28 @@ TerminalUI::offerInput(const cellui::Input & input) {
     clip_grid_->isReaderActive();
   // The choice dialog is modal too, and owns its keys until it is chosen
   // from or cancelled.
-  if (choice_dialog_.isOpen() && input.getId() != NCKEY_RESIZE && !(input.hasCtrl() && input.getId() == 'l')) {
+  if (choice_dialog_.isOpen() && input.getId() != Key::Resize && !(input.hasCtrl() && input.getId() == 'l')) {
     handleChoiceDialogInput(input);
     return true;
   }
   // The info dialog is modal: it closes on its own keys or a click and
   // swallows everything else but a resize or redraw.
-  if (info_dialog_.isOpen() && input.getId() != NCKEY_RESIZE && !(input.hasCtrl() && input.getId() == 'l')) {
+  if (info_dialog_.isOpen() && input.getId() != Key::Resize && !(input.hasCtrl() && input.getId() == 'l')) {
     auto id = input.getId();
-    if (id == NCKEY_ESC || id == NCKEY_ENTER || id == 'q' || id == NCKEY_BUTTON1 || (input.hasCtrl() && id == 'g')) {
+    if (id == Key::Escape || id == Key::Enter || id == 'q' || id == Key::Button1 || (input.hasCtrl() && id == 'g')) {
       closeInfoDialog();
     }
     return true;
   }
   // A modal popup takes everything but a resize or redraw.
-  if (outline_view_ && outline_view_->isModal() && input.getId() != NCKEY_RESIZE && !(input.hasCtrl() && input.getId() == 'l')) {
+  if (outline_view_ && outline_view_->isModal() && input.getId() != Key::Resize && !(input.hasCtrl() && input.getId() == 'l')) {
     outline_view_->offerInput(input);
     return true;
   }
   // An open menu owns the mouse: its dropdown is drawn over the widgets, and
   // a click on an item must not also reach the widget underneath it (which
   // would move its cursor, and so change what the item's command acts on).
-  if (menu_->isOpen() && input.getId() >= NCKEY_MOTION && input.getId() <= NCKEY_BUTTON11) {
+  if (menu_->isOpen() && input.getId() >= Key::Motion && input.getId() <= Key::Button11) {
     if (menu_->offerInput(input)) {
       if (auto cmd = menu_->takeActivatedCommand(); !cmd.empty()) {
 	if (!getController().sendCommand(cmd)) setStatus("Invalid command");
@@ -1798,7 +1726,7 @@ TerminalUI::offerInput(const cellui::Input & input) {
   if (input.getKind() != InputEvent::Kind::RELEASE && (input.hasCtrl() || input.hasAlt())) pattern_editor_->commitPendingValue();
   if (!reader_active && dispatchCommand(input)) return true;
 
-  if (input.getId() == NCKEY_RESIZE) {
+  if (input.getId() == Key::Resize) {
     // The screen and the root plane already have the new size
     // (resizeScreen(), as the event was read); the terminal reflowed, so
     // the next frame redraws everything.
@@ -1817,7 +1745,7 @@ TerminalUI::offerInput(const cellui::Input & input) {
     force_next_render_ = true;
   } else if (input.hasCtrl() && input.getId() == 'l') {
     refresh();
-  } else if (input.getId() == NCKEY_BUTTON4 || input.getId() == NCKEY_BUTTON5) {
+  } else if (input.getId() == Key::Button4 || input.getId() == Key::Button5) {
     // The mouse wheel scrolls whichever shown widget is under the mouse,
     // without moving focus (Emacs's own mouse-wheel-follow-mouse default) -
     // each widget scrolls its view, never its cursor.
@@ -1830,12 +1758,12 @@ TerminalUI::offerInput(const cellui::Input & input) {
       }
     }
     return true;
-  } else if (input.getId() == NCKEY_BUTTON1 && (octave_control_->arrowPressPending() ||
+  } else if (input.getId() == Key::Button1 && (octave_control_->arrowPressPending() ||
                                                 (input.getKind() != InputEvent::Kind::RELEASE && octave_control_->hitsArrow(input.getY(), input.getX())))) {
     // The octave arrows act on click without taking focus from the active element.
     octave_control_->offerInput(input);
     return true;
-  } else if (input.getId() == NCKEY_BUTTON1 && (input.getKind() == InputEvent::Kind::RELEASE || clip_grid_->isMouseDown() || pattern_editor_->isMouseDown())) {
+  } else if (input.getId() == Key::Button1 && (input.getKind() == InputEvent::Kind::RELEASE || clip_grid_->isMouseDown() || pattern_editor_->isMouseDown())) {
     // A release, or a press repeating as a drag moves, belongs to the
     // widget the button went down on - it must not hand focus to whatever
     // the pointer is over now. The release also ends the press everywhere,
@@ -1844,7 +1772,7 @@ TerminalUI::offerInput(const cellui::Input & input) {
       clip_grid_->releaseMouse();
       pattern_editor_->releaseMouse();
     }
-  } else if (input.getId() == NCKEY_BUTTON1) {
+  } else if (input.getId() == Key::Button1) {
     auto previous_active_element = active_element_.lock();
     active_element_.reset();
 

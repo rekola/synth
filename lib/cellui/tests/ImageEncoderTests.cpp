@@ -141,3 +141,93 @@ TEST(frame_encoder_leaves_image_cells_to_the_image) {
   std::string back = e.encode(f);
   CHECK(back == "\x1b[1;2H  ");
 }
+
+namespace {
+
+uint32_t be32(const std::vector<uint8_t> & d, size_t i) {
+  return (uint32_t(d[i]) << 24) | (uint32_t(d[i + 1]) << 16) | (uint32_t(d[i + 2]) << 8) | d[i + 3];
+}
+
+// The scanlines of a PNG made by encodePng(): its stored deflate blocks
+// joined, with the zlib checksum verified.
+std::vector<uint8_t> pngScanlines(const std::vector<uint8_t> & png, uint32_t & width, uint32_t & height) {
+  std::vector<uint8_t> raw;
+  size_t i = 8;
+  while (i + 8 <= png.size()) {
+    uint32_t len = be32(png, i);
+    std::string type(png.begin() + static_cast<long>(i + 4), png.begin() + static_cast<long>(i + 8));
+    size_t data = i + 8;
+    if (type == "IHDR") {
+      width = be32(png, data);
+      height = be32(png, data + 4);
+    } else if (type == "IDAT") {
+      size_t p = data + 2;
+      bool last = false;
+      while (!last) {
+        last = png[p] & 1;
+        size_t n = png[p + 1] | (png[p + 2] << 8);
+        raw.insert(raw.end(), png.begin() + static_cast<long>(p + 5), png.begin() + static_cast<long>(p + 5 + n));
+        p += 5 + n;
+      }
+      uint32_t a = 1, b = 0;
+      for (uint8_t v : raw) {
+        a = (a + v) % 65521;
+        b = (b + a) % 65521;
+      }
+      if (be32(png, p) != ((b << 16) | a)) raw.clear();
+    }
+    i = data + len + 4;
+  }
+  return raw;
+}
+
+}  // namespace
+
+TEST(png_encoding_round_trips) {
+  Image img;
+  img.width = 3;
+  img.height = 2;
+  img.pixels = {Image::pack(1, 2, 3), Image::pack(4, 5, 6), Image::pack(7, 8, 9),
+                Image::pack(10, 11, 12), Image::pack(13, 14, 15, 128), Image::pack(16, 17, 18)};
+  std::vector<uint8_t> png = encodePng(img, 1, 0, 2, 2);
+  CHECK(png.size() > 8 && png[1] == 'P' && png[2] == 'N' && png[3] == 'G');
+  uint32_t w = 0, h = 0;
+  std::vector<uint8_t> raw = pngScanlines(png, w, h);
+  CHECK(w == 2 && h == 2);
+  std::vector<uint8_t> want = {0, 4, 5, 6, 255, 7, 8, 9, 255, 0, 13, 14, 15, 128, 16, 17, 18, 255};
+  CHECK(raw == want);
+  // Larger than one stored block.
+  Image big;
+  big.width = 200;
+  big.height = 100;
+  big.pixels = solid(200, 100, Image::pack(9, 8, 7));
+  raw = pngScanlines(encodePng(big, 0, 0, 200, 100), w, h);
+  CHECK(raw.size() == 100u * (200u * 4 + 1));
+}
+
+TEST(iterm2_images_send_a_png_per_visible_rectangle) {
+  StyleProvider styles;
+  CellBuffer b(4, 8);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(6, 2);
+  auto chart = root.createChild();
+  chart->resize(2, 3);
+  chart->drawImage(solid(6, 12, Image::pack(10, 20, 30)), 6, 12);
+  ImageEncoder enc(profile(PixelProtocol::ITERM2));
+  root.refresh();
+  std::string first = enc.encode(b, root.images(), true);
+  CHECK(count(first, "\x1b]1337;File=inline=1;") == 1);
+  CHECK(first.compare(0, 6, "\x1b[1;1H") == 0);
+  CHECK(count(first, ";width=3;height=2;preserveAspectRatio=0;doNotMoveCursor=1:") == 1);
+  root.refresh();
+  CHECK(enc.encode(b, root.images(), false).empty());
+  // A popup over the middle column of the first row leaves three rectangles.
+  auto popup = root.createChild();
+  popup->resize(1, 1);
+  popup->move(0, 1);
+  popup->putstr(0, 0, "x");
+  root.refresh();
+  std::string covered = enc.encode(b, root.images(), false);
+  CHECK(count(covered, "\x1b]1337;File=") == 3);
+  CHECK(count(covered, "\x1b[1;3H\x1b]1337;") == 1);
+}

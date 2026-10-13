@@ -107,7 +107,7 @@ ChoiceDialog::offerInput(const cellui::Input & input) {
   if (labels_.empty()) return Result::CANCELLED;
   auto id = input.getId();
 
-  if (id == NCKEY_BUTTON1) {
+  if (id == Key::Button1) {
     // Resolved on release, like every other click in the app.
     if (input.getKind() != Input::Kind::RELEASE) return Result::NONE;
     int row = input.getY() - y_ - 1, col = input.getX() - x_;
@@ -122,25 +122,25 @@ ChoiceDialog::offerInput(const cellui::Input & input) {
   // Releases of keys do nothing; everything below acts on the press.
   if (input.getKind() == Input::Kind::RELEASE) return Result::NONE;
 
-  if (id == NCKEY_ENTER) return Result::CHOSEN;
-  if (id == NCKEY_ESC || id == 'q' || (input.hasCtrl() && id == 'g')) return Result::CANCELLED;
+  if (id == Key::Enter) return Result::CHOSEN;
+  if (id == Key::Escape || id == 'q' || (input.hasCtrl() && id == 'g')) return Result::CANCELLED;
 
   int page = std::max(1, visibleRows() - 1);
-  if (id == NCKEY_UP || (input.hasCtrl() && id == 'p'))
+  if (id == Key::Up || (input.hasCtrl() && id == 'p'))
     list_.move(-1);
-  else if (id == NCKEY_DOWN || (input.hasCtrl() && id == 'n'))
+  else if (id == Key::Down || (input.hasCtrl() && id == 'n'))
     list_.move(1);
-  else if (id == NCKEY_PGUP)
+  else if (id == Key::PageUp)
     list_.move(-page);
-  else if (id == NCKEY_PGDOWN)
+  else if (id == Key::PageDown)
     list_.move(page);
-  else if (id == NCKEY_HOME)
+  else if (id == Key::Home)
     list_.home();
-  else if (id == NCKEY_END)
+  else if (id == Key::End)
     list_.end();
-  else if (id == NCKEY_BUTTON4)
+  else if (id == Key::Button4)
     list_.scroll(-1, visibleRows());
-  else if (id == NCKEY_BUTTON5)
+  else if (id == Key::Button5)
     list_.scroll(1, visibleRows());
   return Result::NONE;
 }

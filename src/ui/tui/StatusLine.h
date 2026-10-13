@@ -101,13 +101,13 @@ class StatusLine : public UIElement {
 
   bool offerInput(const cellui::Input & input) override {
     if (getPlane().readerActive()) {
-      if (tab_completer_ && input.getId() == NCKEY_TAB) {
+      if (tab_completer_ && input.getId() == Key::Tab) {
 	// A local copy, not tab_completer_() directly - see the identical
 	// reasoning on the Enter branch below.
 	auto completer = tab_completer_;
 	completer();
 	return true;
-      } else if (input.getId() == NCKEY_ENTER) {
+      } else if (input.getId() == Key::Enter) {
 	if (enter_completer_) {
 	  // M-x only (the one strict completion domain - see showMx()):
 	  // submit if the typed text is already a real, exact command name,
@@ -141,7 +141,7 @@ class StatusLine : public UIElement {
     } else if ((input.hasAlt() || input.hasMeta()) && (input.getId() == 'x' || input.getId() == 'X')) {
       // Whether the terminal sent physical Alt-x as one event directly, or
       // ESC then, arbitrarily later, x - TerminalUI.cpp's
-      // EscapeSequenceCoalescer (see cellui/EscapeCoalescer.h) already folds
+      // KeyReader (cellui/KeyReader.h) already folds
       // either into a single Alt-modified event before it ever reaches
       // here, so there's exactly one path to check, not two.
       showMx();

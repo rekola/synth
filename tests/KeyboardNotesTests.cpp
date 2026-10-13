@@ -25,7 +25,7 @@ TEST(keyboard_notes_percussion_ignores_octave) {
 }
 
 TEST(keyboard_notes_unmapped_key_is_minus_one) {
-  CHECK(keyToMidiNote(key(NCKEY_ENTER), 4, Tuning::EDO12) == -1);
+  CHECK(keyToMidiNote(key(Key::Enter), 4, Tuning::EDO12) == -1);
   CHECK(keyToMidiNote(key('q'), 4, Tuning::PERCUSSION) == 37);
   CHECK(keyToMidiNote(key('!'), 4, Tuning::EDO12) == -1);
 }

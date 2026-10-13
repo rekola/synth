@@ -660,18 +660,18 @@ PatternEditor::PatternEditor(UIPlane & parent)
   keymap_.bind(KeyChord::pack('w', false, true, false, false), "kill-ring-save");  // Alt-W
   keymap_.bind(KeyChord::pack('y', true, false, false, false), "yank");
   keymap_.bind(KeyChord::pack('k', true, false, false, false), "kill-row"); // Ctrl-K
-  keymap_.bind(KeyChord::pack(NCKEY_INS, false, false, false, false), "insert-row"); // plain Insert (was inline handling)
+  keymap_.bind(KeyChord::pack(Key::Insert, false, false, false, false), "insert-row"); // plain Insert (was inline handling)
   keymap_.bind(KeyChord::pack('g', true, false, false, false), "keyboard-quit");
-  keymap_.bind(KeyChord::pack(NCKEY_UP, true, false, true, false), "transpose-region-up");    // Ctrl+Shift+Up
-  keymap_.bind(KeyChord::pack(NCKEY_DOWN, true, false, true, false), "transpose-region-down"); // Ctrl+Shift+Down
+  keymap_.bind(KeyChord::pack(Key::Up, true, false, true, false), "transpose-region-up");    // Ctrl+Shift+Up
+  keymap_.bind(KeyChord::pack(Key::Down, true, false, true, false), "transpose-region-down"); // Ctrl+Shift+Down
   keymap_.bind(KeyChord::pack('\\', true, false, false, false), "toggle-solo");  // Ctrl-\ (was Ctrl-only inline handling)
   keymap_.bind(KeyChord::pack('\\', false, false, false, false), "toggle-mute"); // backslash key
   keymap_.bind(KeyChord::pack('c', true, false, true, false), "toggle-track-collapse"); // Ctrl+Shift+C ("Collapse")
-  keymap_.bind(KeyChord::pack(NCKEY_F02, false, false, false, false), "rename-track"); // F2
-  keymap_.bind(KeyChord::pack(NCKEY_UP, false, false, false, false), "move-row-up");     // plain Up (was inline handling)
-  keymap_.bind(KeyChord::pack(NCKEY_DOWN, false, false, false, false), "move-row-down"); // plain Down
-  keymap_.bind(KeyChord::pack(NCKEY_RIGHT, true, false, true, false), "add-note-column");   // Ctrl+Shift+Right
-  keymap_.bind(KeyChord::pack(NCKEY_LEFT, true, false, true, false), "remove-note-column"); // Ctrl+Shift+Left
+  keymap_.bind(KeyChord::pack(Key::F2, false, false, false, false), "rename-track"); // F2
+  keymap_.bind(KeyChord::pack(Key::Up, false, false, false, false), "move-row-up");     // plain Up (was inline handling)
+  keymap_.bind(KeyChord::pack(Key::Down, false, false, false, false), "move-row-down"); // plain Down
+  keymap_.bind(KeyChord::pack(Key::Right, true, false, true, false), "add-note-column");   // Ctrl+Shift+Right
+  keymap_.bind(KeyChord::pack(Key::Left, true, false, true, false), "remove-note-column"); // Ctrl+Shift+Left
 
   assertCommandBindingsValid();
 }
@@ -1729,7 +1729,7 @@ bool
 PatternEditor::offerInput(const cellui::Input & input) {
   // Only consecutive hex digits extend a pending value; any other key
   // (a move, a click, undo, ...) commits it first.
-  if (pending_.valid && input.getKind() != InputEvent::Kind::RELEASE && input.getId() == NCKEY_ENTER) {
+  if (pending_.valid && input.getKind() != InputEvent::Kind::RELEASE && input.getId() == Key::Enter) {
     auto next = pending_.next;
     commitPendingValue();
     new_cursor = next;
@@ -1748,21 +1748,21 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
   // step (Song::breakTypingRun()).
   if (input.getKind() != InputEvent::Kind::RELEASE) {
     auto id = input.getId();
-    bool typing_key = !input.hasCtrl() && !input.hasAlt() && ((id >= 32 && id < 127) || id == NCKEY_DEL || id == NCKEY_BACKSPACE);
+    bool typing_key = !input.hasCtrl() && !input.hasAlt() && ((id >= 32 && id < 127) || id == Key::Delete || id == Key::Backspace);
     if (!typing_key) getController().getSong().breakTypingRun();
   }
 
   // While the locator or track-name editor is open it owns every key.
   if (inline_editor_.offerInput(input)) return true;
 
-  if (input.getId() == NCKEY_BUTTON1) return handleMouse(input);
+  if (input.getId() == Key::Button1) return handleMouse(input);
   if (input.getKind() != InputEvent::Kind::RELEASE) pointer_scroll_ = false;
 
   // Cursor parked on the locator slot (Right arrow past the last
   // track's last column - see GridPosition::scope's own comment) but not
   // editing it yet: Enter is the explicit "start editing" trigger -
   // reaching the slot on its own must never start editing by itself.
-  if (new_cursor.isOnLocator() && input.getId() == NCKEY_ENTER) {
+  if (new_cursor.isOnLocator() && input.getId() == Key::Enter) {
     startLocatorEdit();
     return true;
   }
@@ -1774,7 +1774,7 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
   // toggle-track-collapse (Ctrl+Shift+C) is still the only way to
   // collapse a track, so Enter never surprises the user by hiding
   // something they just landed on.
-  if (!new_cursor.isOnLocator() && input.getId() == NCKEY_ENTER) {
+  if (!new_cursor.isOnLocator() && input.getId() == Key::Enter) {
     auto & song = getController().getSong();
     auto track_ids = song.getRootTrackIds();
     if (current_cursor.track < static_cast<int>(track_ids.size())) {
@@ -1865,7 +1865,7 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
     if (it0 != all_track_info.end()) track_info = it0->second;
   }
 
-  if (input.getId() == NCKEY_BUTTON1) {
+  if (input.getId() == Key::Button1) {
 
   } else if (input.hasCtrl() && !input.hasMeta()) {
     if (input.getId() == 'a') {
@@ -1881,7 +1881,7 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
     } else if (input.getId() == 'd') {
       // duplicate track
       return true;
-    } else if (input.getId() == NCKEY_KP_DIVIDE || input.getId() == NCKEY_KP_MULTIPLY) {
+    } else if (input.getId() == Key::KpDivide || input.getId() == Key::KpMultiply) {
       // Instrument selection - moved here from Ctrl+Left/Right (now "move
       // cursor to the neighboring track", see below) to free that chord
       // up. Numpad Divide/Multiply rather than a modifier combo on
@@ -1905,11 +1905,11 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
             song.editTrack(track_internal_id, [&](Track & edited) { static_cast<InstrumentTrack &>(edited).setInstrumentId(instrument_id); });
             changed = true;
           };
-          if (input.getId() == NCKEY_KP_DIVIDE && instrument_track.getInstrumentId() > 0) {
+          if (input.getId() == Key::KpDivide && instrument_track.getInstrumentId() > 0) {
             set_instrument(instrument_track.getInstrumentId() - 1);
           } else {
             auto & instruments = song.getInstrumentPool().getInstruments();
-            if (input.getId() == NCKEY_KP_MULTIPLY && instrument_track.getInstrumentId() + 1 < static_cast<int>(instruments.size())) {
+            if (input.getId() == Key::KpMultiply && instrument_track.getInstrumentId() + 1 < static_cast<int>(instruments.size())) {
               set_instrument(instrument_track.getInstrumentId() + 1);
             }
           }
@@ -1922,7 +1922,7 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
         }
       }
       return true;
-    } else if (input.getId() == NCKEY_LEFT || input.getId() == NCKEY_RIGHT) {
+    } else if (input.getId() == Key::Left || input.getId() == Key::Right) {
       // Emacs-style word motion, one level up from plain Left/Right's
       // note-column navigation (see the !input.hasMeta() branch below):
       // jumps straight to the neighboring track rather than stepping
@@ -1934,7 +1934,7 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
       // doing nothing, and Ctrl+Left backs out of it the same way plain
       // Left does, rather than also stepping a track left in the same
       // keypress.
-      if (input.getId() == NCKEY_LEFT) {
+      if (input.getId() == Key::Left) {
 	if (new_cursor.isOnLocator()) {
 	  new_cursor.scope = SelectionScope::NOTE_COLUMN;
 	} else if (new_cursor.track > 0) {
@@ -1956,15 +1956,15 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
       return false;
     }
   } else if (input.hasAlt()) {
-    if (input.getId() == NCKEY_LEFT) {
+    if (input.getId() == Key::Left) {
       // move selected track to left
       return true;
-    } else if (input.getId() == NCKEY_RIGHT) {
+    } else if (input.getId() == Key::Right) {
       // move selected track to right
       return true;
     }
   } else if (!input.hasMeta()) {
-    if (input.getId() == NCKEY_LEFT) {
+    if (input.getId() == Key::Left) {
       if (new_cursor.isOnLocator()) {
 	// Back out of the locator slot without touching track/col -
 	// they're already sitting on the last track's last column, exactly
@@ -1981,7 +1981,7 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 	new_cursor.col = it != all_track_info.end() ? it->second.getColumnCount() - 1 : 0;
       }
       return true;
-    } else if (input.getId() == NCKEY_RIGHT) {
+    } else if (input.getId() == Key::Right) {
       if (new_cursor.col + 1 < track_info.getColumnCount()) {
 	new_cursor.col++;
 	new_cursor.subcol = 0;
@@ -2000,21 +2000,21 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 	if (source_->hasLocators()) new_cursor.scope = SelectionScope::LOCATOR;
       }
       return true;
-    } else if (input.getId() == NCKEY_BUTTON4 || input.getId() == NCKEY_BUTTON5) {
+    } else if (input.getId() == Key::Button4 || input.getId() == Key::Button5) {
       // The mouse wheel scrolls the view, never the cursor (which in
       // arrangement mode is the transport); Shift scrolls tracks sideways.
       if (input.getKind() == InputEvent::Kind::RELEASE) return true;
-      int direction = input.getId() == NCKEY_BUTTON4 ? -1 : 1;
+      int direction = input.getId() == Key::Button4 ? -1 : 1;
       if (input.hasShift()) scrollViewTracks(direction);
       else scrollView(direction);
       return true;
-    } else if (input.getId() == NCKEY_PGUP) {
+    } else if (input.getId() == Key::PageUp) {
       if (!transport_owns_row) {
         source_->moveCursor(limitToSelectionPattern(-16));
         new_cursor.subcol = 0;
       }
       return true;
-    } else if (input.getId() == NCKEY_PGDOWN) { // scrollwheel down
+    } else if (input.getId() == Key::PageDown) { // scrollwheel down
       if (!transport_owns_row) {
         source_->moveCursor(limitToSelectionPattern(16));
         new_cursor.subcol = 0;
@@ -2054,17 +2054,17 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 	// include_command path already uses. Without this explicit check,
 	// these two keys used to fall into the permissive "first two
 	// characters can be anything" branch below whenever the cursor was
-	// on subcol 0/1, silently writing NCKEY_DEL/NCKEY_BACKSPACE's own
+	// on subcol 0/1, silently writing Key::Delete/Key::Backspace's own
 	// (non-ASCII, synthesized) key code into the command as if
 	// it were a typed character, instead of being ignored (subcol 2/3)
 	// or actually deleting.
-	if (input.getId() == NCKEY_DEL || input.getId() == NCKEY_BACKSPACE) {
+	if (input.getId() == Key::Delete || input.getId() == Key::Backspace) {
 	  Song::Edit edit(song, "clear command", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, true);
 	  set_command(Command());
 	  row_edited = true;
 	  // Same row-level Backspace-steps-back/Delete-stays-put distinction
 	  // the note column's own is_delete handling makes below.
-	  if (!transport_owns_row && input.getId() == NCKEY_BACKSPACE) {
+	  if (!transport_owns_row && input.getId() == Key::Backspace) {
             source_->moveCursor(limitToSelectionPattern(-edit_step_size));
           }
 	  return true;
@@ -2103,7 +2103,7 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 	auto note_column = track_info.getNoteNumber(new_cursor.col);
 	Note note;
 	if (note_column < static_cast<int>(notes.size())) note = notes[static_cast<size_t>(note_column)];
-	if (input.getId() == NCKEY_DEL || input.getId() == NCKEY_BACKSPACE) {
+	if (input.getId() == Key::Delete || input.getId() == Key::Backspace) {
 	  // The whole three characters go together, like the effect column's.
 	  note.setFx("---");
 	  Song::Edit edit(song, "clear note fx", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, true);
@@ -2182,7 +2182,7 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 	}
 
 	bool is_off = input.getId() == 'a';
-	bool is_delete = input.getId() == NCKEY_DEL || input.getId() == NCKEY_BACKSPACE;
+	bool is_delete = input.getId() == Key::Delete || input.getId() == Key::Backspace;
 	auto note_column = track_info.getNoteNumber(new_cursor.col);
 	// A cursor that neither follows the transport nor a playing clip's
   // playhead isn't on the transport's row, so its sub-row position says
@@ -2285,8 +2285,8 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 	    // done above) and step backward, undoing the forward step a note
 	    // entry would have made - unlike Delete, which deletes in place and
 	    // leaves the cursor where it was.
-	    if (input.getId() == NCKEY_BACKSPACE) n = -1;
-	    else if (input.getId() != NCKEY_DEL) n = 1;
+	    if (input.getId() == Key::Backspace) n = -1;
+	    else if (input.getId() != Key::Delete) n = 1;
 	    if (n && hold_tracked_note) {
 	      // The transport moves the row itself once a session auto-started by
 	      // this chord is playing; otherwise the step waits for the last

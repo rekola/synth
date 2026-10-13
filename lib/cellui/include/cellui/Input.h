@@ -1,165 +1,157 @@
 #pragma once
 
-#ifndef PRETERUNICODEBASE
-
-// Key ids above the Unicode range (the values notcurses used, which the
-// application's key bindings were written against). A key that produces a
-// character is that character's codepoint instead.
-#define PRETERUNICODEBASE 1115000
-#define preterunicode(w) ((w) + PRETERUNICODEBASE)
-
-#define NCKEY_INVALID   preterunicode(0)
-#define NCKEY_RESIZE    preterunicode(1)
-#define NCKEY_UP        preterunicode(2)
-#define NCKEY_RIGHT     preterunicode(3)
-#define NCKEY_DOWN      preterunicode(4)
-#define NCKEY_LEFT      preterunicode(5)
-#define NCKEY_INS       preterunicode(6)
-#define NCKEY_DEL       preterunicode(7)
-#define NCKEY_BACKSPACE preterunicode(8)
-#define NCKEY_PGDOWN    preterunicode(9)
-#define NCKEY_PGUP      preterunicode(10)
-#define NCKEY_HOME      preterunicode(11)
-#define NCKEY_END       preterunicode(12)
-#define NCKEY_F00       preterunicode(20)
-#define NCKEY_F01       preterunicode(21)
-#define NCKEY_F02       preterunicode(22)
-#define NCKEY_F03       preterunicode(23)
-#define NCKEY_F04       preterunicode(24)
-#define NCKEY_F05       preterunicode(25)
-#define NCKEY_F06       preterunicode(26)
-#define NCKEY_F07       preterunicode(27)
-#define NCKEY_F08       preterunicode(28)
-#define NCKEY_F09       preterunicode(29)
-#define NCKEY_F10       preterunicode(30)
-#define NCKEY_F11       preterunicode(31)
-#define NCKEY_F12       preterunicode(32)
-#define NCKEY_F13       preterunicode(33)
-#define NCKEY_F14       preterunicode(34)
-#define NCKEY_F15       preterunicode(35)
-#define NCKEY_F16       preterunicode(36)
-#define NCKEY_F17       preterunicode(37)
-#define NCKEY_F18       preterunicode(38)
-#define NCKEY_F19       preterunicode(39)
-#define NCKEY_F20       preterunicode(40)
-#define NCKEY_F21       preterunicode(41)
-#define NCKEY_F22       preterunicode(42)
-#define NCKEY_F23       preterunicode(43)
-#define NCKEY_F24       preterunicode(44)
-#define NCKEY_F25       preterunicode(45)
-#define NCKEY_F26       preterunicode(46)
-#define NCKEY_F27       preterunicode(47)
-#define NCKEY_F28       preterunicode(48)
-#define NCKEY_F29       preterunicode(49)
-#define NCKEY_F30       preterunicode(50)
-#define NCKEY_F31       preterunicode(51)
-#define NCKEY_F32       preterunicode(52)
-#define NCKEY_F33       preterunicode(53)
-#define NCKEY_F34       preterunicode(54)
-#define NCKEY_F35       preterunicode(55)
-#define NCKEY_F36       preterunicode(56)
-#define NCKEY_F37       preterunicode(57)
-#define NCKEY_F38       preterunicode(58)
-#define NCKEY_F39       preterunicode(59)
-#define NCKEY_F40       preterunicode(60)
-#define NCKEY_F41       preterunicode(61)
-#define NCKEY_F42       preterunicode(62)
-#define NCKEY_F43       preterunicode(63)
-#define NCKEY_F44       preterunicode(64)
-#define NCKEY_F45       preterunicode(65)
-#define NCKEY_F46       preterunicode(66)
-#define NCKEY_F47       preterunicode(67)
-#define NCKEY_F48       preterunicode(68)
-#define NCKEY_F49       preterunicode(69)
-#define NCKEY_F50       preterunicode(70)
-#define NCKEY_F51       preterunicode(71)
-#define NCKEY_F52       preterunicode(72)
-#define NCKEY_F53       preterunicode(73)
-#define NCKEY_F54       preterunicode(74)
-#define NCKEY_F55       preterunicode(75)
-#define NCKEY_F56       preterunicode(76)
-#define NCKEY_F57       preterunicode(77)
-#define NCKEY_F58       preterunicode(78)
-#define NCKEY_F59       preterunicode(79)
-#define NCKEY_F60       preterunicode(80)
-#define NCKEY_ENTER        preterunicode(121)
-#define NCKEY_CLS          preterunicode(122)
-#define NCKEY_DLEFT        preterunicode(123)
-#define NCKEY_DRIGHT       preterunicode(124)
-#define NCKEY_ULEFT        preterunicode(125)
-#define NCKEY_URIGHT       preterunicode(126)
-#define NCKEY_CENTER       preterunicode(127)
-#define NCKEY_BEGIN        preterunicode(128)
-#define NCKEY_CANCEL       preterunicode(129)
-#define NCKEY_CLOSE        preterunicode(130)
-#define NCKEY_COMMAND      preterunicode(131)
-#define NCKEY_COPY         preterunicode(132)
-#define NCKEY_EXIT         preterunicode(133)
-#define NCKEY_PRINT        preterunicode(134)
-#define NCKEY_REFRESH      preterunicode(135)
-#define NCKEY_SEPARATOR    preterunicode(136)
-#define NCKEY_CAPS_LOCK    preterunicode(150)
-#define NCKEY_SCROLL_LOCK  preterunicode(151)
-#define NCKEY_NUM_LOCK     preterunicode(152)
-#define NCKEY_PRINT_SCREEN preterunicode(153)
-#define NCKEY_PAUSE        preterunicode(154)
-#define NCKEY_MENU         preterunicode(155)
-#define NCKEY_MEDIA_PLAY   preterunicode(158)
-#define NCKEY_MEDIA_PAUSE  preterunicode(159)
-#define NCKEY_MEDIA_PPAUSE preterunicode(160)
-#define NCKEY_MEDIA_REV    preterunicode(161)
-#define NCKEY_MEDIA_STOP   preterunicode(162)
-#define NCKEY_MEDIA_FF     preterunicode(163)
-#define NCKEY_MEDIA_REWIND preterunicode(164)
-#define NCKEY_MEDIA_NEXT   preterunicode(165)
-#define NCKEY_MEDIA_PREV   preterunicode(166)
-#define NCKEY_MEDIA_RECORD preterunicode(167)
-#define NCKEY_MEDIA_LVOL   preterunicode(168)
-#define NCKEY_MEDIA_RVOL   preterunicode(169)
-#define NCKEY_MEDIA_MUTE   preterunicode(170)
-#define NCKEY_LSHIFT       preterunicode(171)
-#define NCKEY_LCTRL        preterunicode(172)
-#define NCKEY_LALT         preterunicode(173)
-#define NCKEY_LSUPER       preterunicode(174)
-#define NCKEY_LHYPER       preterunicode(175)
-#define NCKEY_LMETA        preterunicode(176)
-#define NCKEY_RSHIFT       preterunicode(177)
-#define NCKEY_RCTRL        preterunicode(178)
-#define NCKEY_RALT         preterunicode(179)
-#define NCKEY_RSUPER       preterunicode(180)
-#define NCKEY_RHYPER       preterunicode(181)
-#define NCKEY_RMETA        preterunicode(182)
-#define NCKEY_L3SHIFT      preterunicode(183)
-#define NCKEY_L5SHIFT      preterunicode(184)
-#define NCKEY_MOTION       preterunicode(200)
-#define NCKEY_BUTTON1      preterunicode(201)
-#define NCKEY_BUTTON2      preterunicode(202)
-#define NCKEY_BUTTON3      preterunicode(203)
-#define NCKEY_BUTTON4      preterunicode(204)
-#define NCKEY_BUTTON5      preterunicode(205)
-#define NCKEY_BUTTON6      preterunicode(206)
-#define NCKEY_BUTTON7      preterunicode(207)
-#define NCKEY_BUTTON8      preterunicode(208)
-#define NCKEY_BUTTON9      preterunicode(209)
-#define NCKEY_BUTTON10     preterunicode(210)
-#define NCKEY_BUTTON11     preterunicode(211)
-#define NCKEY_SIGNAL       preterunicode(400)
-#define NCKEY_EOF          preterunicode(500)
-
-#define NCKEY_TAB       0x09
-#define NCKEY_ESC       0x1b
-#define NCKEY_SPACE     0x20
-
-#endif
-
-// A Ctrl-modified numeric-keypad Divide/Multiply: keys of their own, which
-// the terminal parser reports for the legacy "SS3 + modifier digit"
-// encoding (ESC 'O' '5' 'o'/'j') and the kitty keypad codes, well above
-// every id in the block above.
-#define NCKEY_KP_DIVIDE   preterunicode(900)
-#define NCKEY_KP_MULTIPLY preterunicode(901)
-
 namespace cellui {
+
+// Key ids. A key that produces a character is that character's codepoint;
+// the others are ids above the Unicode range, from First up. Keypad Divide and Multiply with Ctrl are keys of their own, which
+// the parser reports for the legacy "SS3 + modifier digit" encoding and the
+// kitty keypad codes.
+namespace Key {
+constexpr int First = 1115000;
+constexpr int Invalid = First;
+constexpr int Resize = First + 1;
+constexpr int Up = First + 2;
+constexpr int Right = First + 3;
+constexpr int Down = First + 4;
+constexpr int Left = First + 5;
+constexpr int Insert = First + 6;
+constexpr int Delete = First + 7;
+constexpr int Backspace = First + 8;
+constexpr int PageDown = First + 9;
+constexpr int PageUp = First + 10;
+constexpr int Home = First + 11;
+constexpr int End = First + 12;
+constexpr int F0 = First + 20;
+constexpr int F1 = First + 21;
+constexpr int F2 = First + 22;
+constexpr int F3 = First + 23;
+constexpr int F4 = First + 24;
+constexpr int F5 = First + 25;
+constexpr int F6 = First + 26;
+constexpr int F7 = First + 27;
+constexpr int F8 = First + 28;
+constexpr int F9 = First + 29;
+constexpr int F10 = First + 30;
+constexpr int F11 = First + 31;
+constexpr int F12 = First + 32;
+constexpr int F13 = First + 33;
+constexpr int F14 = First + 34;
+constexpr int F15 = First + 35;
+constexpr int F16 = First + 36;
+constexpr int F17 = First + 37;
+constexpr int F18 = First + 38;
+constexpr int F19 = First + 39;
+constexpr int F20 = First + 40;
+constexpr int F21 = First + 41;
+constexpr int F22 = First + 42;
+constexpr int F23 = First + 43;
+constexpr int F24 = First + 44;
+constexpr int F25 = First + 45;
+constexpr int F26 = First + 46;
+constexpr int F27 = First + 47;
+constexpr int F28 = First + 48;
+constexpr int F29 = First + 49;
+constexpr int F30 = First + 50;
+constexpr int F31 = First + 51;
+constexpr int F32 = First + 52;
+constexpr int F33 = First + 53;
+constexpr int F34 = First + 54;
+constexpr int F35 = First + 55;
+constexpr int F36 = First + 56;
+constexpr int F37 = First + 57;
+constexpr int F38 = First + 58;
+constexpr int F39 = First + 59;
+constexpr int F40 = First + 60;
+constexpr int F41 = First + 61;
+constexpr int F42 = First + 62;
+constexpr int F43 = First + 63;
+constexpr int F44 = First + 64;
+constexpr int F45 = First + 65;
+constexpr int F46 = First + 66;
+constexpr int F47 = First + 67;
+constexpr int F48 = First + 68;
+constexpr int F49 = First + 69;
+constexpr int F50 = First + 70;
+constexpr int F51 = First + 71;
+constexpr int F52 = First + 72;
+constexpr int F53 = First + 73;
+constexpr int F54 = First + 74;
+constexpr int F55 = First + 75;
+constexpr int F56 = First + 76;
+constexpr int F57 = First + 77;
+constexpr int F58 = First + 78;
+constexpr int F59 = First + 79;
+constexpr int F60 = First + 80;
+constexpr int Enter = First + 121;
+constexpr int Clear = First + 122;
+constexpr int DownLeft = First + 123;
+constexpr int DownRight = First + 124;
+constexpr int UpLeft = First + 125;
+constexpr int UpRight = First + 126;
+constexpr int Center = First + 127;
+constexpr int Begin = First + 128;
+constexpr int Cancel = First + 129;
+constexpr int Close = First + 130;
+constexpr int Command = First + 131;
+constexpr int Copy = First + 132;
+constexpr int Exit = First + 133;
+constexpr int Print = First + 134;
+constexpr int Refresh = First + 135;
+constexpr int Separator = First + 136;
+constexpr int CapsLock = First + 150;
+constexpr int ScrollLock = First + 151;
+constexpr int NumLock = First + 152;
+constexpr int PrintScreen = First + 153;
+constexpr int Pause = First + 154;
+constexpr int Menu = First + 155;
+constexpr int MediaPlay = First + 158;
+constexpr int MediaPause = First + 159;
+constexpr int MediaPlayPause = First + 160;
+constexpr int MediaReverse = First + 161;
+constexpr int MediaStop = First + 162;
+constexpr int MediaFastForward = First + 163;
+constexpr int MediaRewind = First + 164;
+constexpr int MediaNext = First + 165;
+constexpr int MediaPrev = First + 166;
+constexpr int MediaRecord = First + 167;
+constexpr int MediaVolumeDown = First + 168;
+constexpr int MediaVolumeUp = First + 169;
+constexpr int MediaMute = First + 170;
+constexpr int LeftShift = First + 171;
+constexpr int LeftCtrl = First + 172;
+constexpr int LeftAlt = First + 173;
+constexpr int LeftSuper = First + 174;
+constexpr int LeftHyper = First + 175;
+constexpr int LeftMeta = First + 176;
+constexpr int RightShift = First + 177;
+constexpr int RightCtrl = First + 178;
+constexpr int RightAlt = First + 179;
+constexpr int RightSuper = First + 180;
+constexpr int RightHyper = First + 181;
+constexpr int RightMeta = First + 182;
+constexpr int Level3Shift = First + 183;
+constexpr int Level5Shift = First + 184;
+constexpr int Motion = First + 200;
+constexpr int Button1 = First + 201;
+constexpr int Button2 = First + 202;
+constexpr int Button3 = First + 203;
+constexpr int Button4 = First + 204;
+constexpr int Button5 = First + 205;
+constexpr int Button6 = First + 206;
+constexpr int Button7 = First + 207;
+constexpr int Button8 = First + 208;
+constexpr int Button9 = First + 209;
+constexpr int Button10 = First + 210;
+constexpr int Button11 = First + 211;
+constexpr int Signal = First + 400;
+constexpr int Eof = First + 500;
+constexpr int Tab = 0x09;
+constexpr int Escape = 0x1b;
+constexpr int Space = 0x20;
+constexpr int KpDivide = First + 900;
+constexpr int KpMultiply = First + 901;
+}  // namespace Key
+
 
 class Input {
  public:

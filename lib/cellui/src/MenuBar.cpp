@@ -176,7 +176,7 @@ std::optional<std::pair<int, int>> MenuBar::takeActivated() {
 bool MenuBar::offerInput(const Input & input) {
   int id = input.getId();
   bool release = input.getKind() == Input::Kind::RELEASE;
-  if (id == NCKEY_BUTTON1) {
+  if (id == Key::Button1) {
     if (!release) return false;
     auto [py, px] = plane_.getPosition();
     int y = input.getY() - py, x = input.getX() - px;
@@ -212,12 +212,12 @@ bool MenuBar::offerInput(const Input & input) {
     }
   }
   if (open_ < 0) return false;
-  if (id == NCKEY_LEFT) stepSection(-1);
-  else if (id == NCKEY_RIGHT) stepSection(1);
-  else if (id == NCKEY_UP || id == NCKEY_BUTTON4) step(-1);
-  else if (id == NCKEY_DOWN || id == NCKEY_BUTTON5) step(1);
-  else if (id == NCKEY_ESC) close();
-  else if (id == NCKEY_ENTER) {
+  if (id == Key::Left) stepSection(-1);
+  else if (id == Key::Right) stepSection(1);
+  else if (id == Key::Up || id == Key::Button4) step(-1);
+  else if (id == Key::Down || id == Key::Button5) step(1);
+  else if (id == Key::Escape) close();
+  else if (id == Key::Enter) {
     if (selected_ >= 0) activated_ = std::pair(open_, selected_);
     close();
   } else {

@@ -189,8 +189,8 @@ ClipGrid::ClipGrid(UIPlane & parent) : UIElement(parent) {
   // (Backspace/Del clearing note content, Ctrl-K placing a stop instance,
   // both in PatternEditor; ArrangementGrid's own Backspace doing the
   // same) - rather than a dedicated modifier chord of its own.
-  keymap_.bind(KeyChord::pack(NCKEY_DEL, false, false, false, false), "kill-region");
-  keymap_.bind(KeyChord::pack(NCKEY_BACKSPACE, false, false, false, false), "kill-region");
+  keymap_.bind(KeyChord::pack(Key::Delete, false, false, false, false), "kill-region");
+  keymap_.bind(KeyChord::pack(Key::Backspace, false, false, false, false), "kill-region");
   keymap_.bind(KeyChord::pack('k', true, false, false, false), "kill-region");
   keymap_.bind(KeyChord::pack('w', true, false, false, false), "kill-region");
   keymap_.bind(KeyChord::pack('w', false, true, false, false), "kill-ring-save");
@@ -441,13 +441,13 @@ ClipGrid::offerInput(const cellui::Input & input) {
   // While a rename editor is open it owns every key.
   if (inline_editor_.offerInput(input)) return true;
 
-  if (input.getId() == NCKEY_BUTTON1) return handleMouse(input);
+  if (input.getId() == Key::Button1) return handleMouse(input);
 
   // The mouse wheel scrolls the view (Shift: tracks), not the cursor, until
   // the cursor next moves.
-  if (input.getId() == NCKEY_BUTTON4 || input.getId() == NCKEY_BUTTON5) {
+  if (input.getId() == Key::Button4 || input.getId() == Key::Button5) {
     if (input.getKind() == InputEvent::Kind::RELEASE) return true;
-    int direction = input.getId() == NCKEY_BUTTON4 ? -1 : 1;
+    int direction = input.getId() == Key::Button4 ? -1 : 1;
     if (input.hasShift()) scroll_col_ += direction;
     else scroll_row_ += direction;
     view_detached_ = true;
@@ -462,10 +462,10 @@ ClipGrid::offerInput(const cellui::Input & input) {
   // the clip under the cursor), 'l' (toggle its own loop flag) - Mute/
   // Solo are dispatchCommand()'s job now, handled above via this
   // constructor's own toggle-mute/toggle-solo bindings.
-  if (input.getId() == NCKEY_UP) cursor_row_--;
-  else if (input.getId() == NCKEY_DOWN) cursor_row_++;
-  else if (input.getId() == NCKEY_LEFT || input.getId() == NCKEY_RIGHT) {
-    int step = input.getId() == NCKEY_LEFT ? -1 : 1;
+  if (input.getId() == Key::Up) cursor_row_--;
+  else if (input.getId() == Key::Down) cursor_row_++;
+  else if (input.getId() == Key::Left || input.getId() == Key::Right) {
+    int step = input.getId() == Key::Left ? -1 : 1;
     bool on_sends = rowKindFor(cursor_row_) == RowKind::SENDS;
     // On the Sends row the three values are cells of their own: Left and
     // Right walk through them, then on into the next column.
@@ -475,9 +475,9 @@ ClipGrid::offerInput(const cellui::Input & input) {
       cursor_send_ = step > 0 ? 0 : 2;
     }
   }
-  else if (input.getId() == NCKEY_PGUP) cursor_row_ -= getDim().first;
-  else if (input.getId() == NCKEY_PGDOWN) cursor_row_ += getDim().first;
-  else if (input.getId() == NCKEY_F02) {
+  else if (input.getId() == Key::PageUp) cursor_row_ -= getDim().first;
+  else if (input.getId() == Key::PageDown) cursor_row_ += getDim().first;
+  else if (input.getId() == Key::F2) {
     // Renames the clip under the cursor, or the track when there's no
     // clip there (the cursor never sits on the header row itself); on the
     // master column's scene slot, the scene.
@@ -509,7 +509,7 @@ ClipGrid::offerInput(const cellui::Input & input) {
       }
     }
     return true;
-  } else if (input.getId() == NCKEY_ENTER) {
+  } else if (input.getId() == Key::Enter) {
     activateCell(song, track_ids, true);
     return true;
   }

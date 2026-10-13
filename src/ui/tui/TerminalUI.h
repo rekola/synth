@@ -6,6 +6,7 @@
 #include "../UI.h"
 #include "../StyleProvider.h"
 #include "../../playback/InputEvent.h"
+#include <cellui/KeyReader.h>
 #include <chrono>
 #include <memory>
 #include <optional>
@@ -83,10 +84,7 @@ protected:
   void viewChanged() override;
   bool readInput();
 
-  // How long a pending Escape (EscapeSequenceCoalescer::escapePending())
-  // must stay open before startUI()'s own loop shows the "ESC-" indicator
-  // - see that loop's own comment on why this is a delay rather than
-  // immediate, and updateEscapeIndicator()'s comment for what drives it.
+  // The "ESC-" indicator while an Escape waits for its next key.
   int escapeIndicatorPollTimeoutMs() const;
   void updateEscapeIndicator();
 
@@ -186,7 +184,7 @@ private:
   // What syncLiveView() last left both widgets showing.
   int synced_track_id_ = -1, laid_out_clip_grid_height_ = -1;
   // Set by a handler that changes what's on screen (the view changing,
-  // NCKEY_RESIZE) from *inside* input handling - before this
+  // Key::Resize) from *inside* input handling - before this
   // class's own main loop (startUI()) reaches its own renderComponents()
   // call, the one that actually decides whether to call render() (the
   // real terminal update). Calling renderComponents(true) directly from in
@@ -216,26 +214,9 @@ private:
   // copy is separate and only used for actual pattern editing (note
   // entry).
 
-  // A bare Escape is held until the next input arrives, then offered ahead
-  // of it (unless a widget that takes a bare Escape already had it): Escape
-  // followed by a key is an Alt chord (cellui/EscapeCoalescer.h), and widgets see
-  // the Escape only once it is known not to be the start of one.
-  bool escape_held_ = false;
-  bool escape_delivered_ = false;
-
-  // Alt-key coalescing (cellui/EscapeCoalescer.h) over the inputs the terminal
-  // session decoded.
-  class EscapeInputPipeline;
-  std::unique_ptr<EscapeInputPipeline> escape_input_;
-
-  // When the currently-open Escape wait began (unset when none is open) -
-  // set in readInput() the moment EscapeSequenceCoalescer::escapePending()
-  // turns true, read by updateEscapeIndicator()/escapeIndicatorPollTimeoutMs()
-  // to decide when the delay has elapsed. escape_indicator_shown_ tracks
-  // whether "ESC-" has actually been printed yet for the current wait, so
-  // it's only cleared (and only if it was actually shown) once, exactly
-  // when the wait ends.
-  std::optional<std::chrono::steady_clock::time_point> escape_pending_since_;
+  // The terminal's inputs as the widgets see them, Escape as Meta included.
+  cellui::KeyReader key_reader_;
+  // Whether "ESC-" is on the status line for the current wait.
   bool escape_indicator_shown_ = false;
 };
 
