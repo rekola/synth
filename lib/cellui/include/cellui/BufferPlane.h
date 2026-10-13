@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cellui/CellBuffer.h>
+#include <cellui/Image.h>
 #include <cellui/LineEditor.h>
 #include <cellui/UIPlane.h>
 
@@ -47,7 +48,10 @@ class BufferPlane : public UIPlane {
   void setItalic(bool b) override { style_.italic = b; }
   void setBgBlend(bool b) override { style_.bg_blend = b; }
   void setFgContrast(bool b) override { style_.fg_contrast = b; }
-  void erase() override { local_.clear(0, 0, local_.rows(), local_.cols()); }
+  void erase() override {
+    local_.clear(0, 0, local_.rows(), local_.cols());
+    image_.reset();
+  }
   void putstr(int y, int x, const std::string & s) override;
   std::unique_ptr<UIPlane> createChild() override;
   void drawBorder() override;
@@ -80,6 +84,15 @@ class BufferPlane : public UIPlane {
     default_fg_ = fg;
     default_bg_ = bg;
   }
+  bool pixelSize(int & height, int & width) const override;
+  void drawImage(const std::vector<uint32_t> & pixels, int width, int height) override;
+  // The cell size in pixels, 0 when pixels cannot be shown (root only).
+  void setCellPixelSize(int height, int width) {
+    cell_px_h_ = height;
+    cell_px_w_ = width;
+  }
+  // The images the last refresh() composed, bottom to top (root only).
+  const std::vector<ImagePlacement> & images() const { return placements_; }
   // What displayScale() reports, for the whole tree (root only).
   void setDisplayScale(double scale) { display_scale_ = scale; }
   double displayScale() const override { return root().display_scale_; }
@@ -125,6 +138,11 @@ class BufferPlane : public UIPlane {
   BufferPlane * active_reader_ = nullptr;
   Color default_fg_ = Color(255, 255, 255), default_bg_ = Color(0, 0, 0);
   double display_scale_ = 1.0;
+  int cell_px_h_ = 0, cell_px_w_ = 0;
+  mutable std::vector<ImagePlacement> placements_;
+
+  std::shared_ptr<Image> image_;
+  uint64_t key_ = 0;
 };
 
 }  // namespace cellui

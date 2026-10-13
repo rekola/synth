@@ -53,7 +53,15 @@ class FrameEncoder {
     pen_known_ = false;
   }
 
-  std::string encode(const CellBuffer & frame, const CursorRequest & cursor = {});
+  // Whether the next encode() of a frame this size clears the screen.
+  bool willClear(const CellBuffer & frame) const {
+    return full_ || !last_ || last_->rows() != frame.rows() || last_->cols() != frame.cols();
+  }
+
+  // Cells an image covers (CellBuffer::Cell::image) are left to `images`,
+  // the bytes that draw the images, sent after the text in the same update;
+  // the cursor is not known after them.
+  std::string encode(const CellBuffer & frame, const CursorRequest & cursor = {}, const std::string & images = "");
 
  private:
   // A colour as sent: the terminal's default, a palette index or RGB.

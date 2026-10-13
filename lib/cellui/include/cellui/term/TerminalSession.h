@@ -3,6 +3,7 @@
 #include <cellui/CellBuffer.h>
 #include <cellui/term/Capabilities.h>
 #include <cellui/term/FrameEncoder.h>
+#include <cellui/term/ImageEncoder.h>
 #include <cellui/term/InputParser.h>
 
 #include <chrono>
@@ -64,8 +65,8 @@ class TerminalSession {
   // already read from the terminal.
   std::vector<TermEvent> poll();
 
-  // Draws a frame (see FrameEncoder).
-  void present(const CellBuffer & frame, const CursorRequest & cursor = {});
+  // Draws a frame (see FrameEncoder) and its images (ImageEncoder).
+  void present(const CellBuffer & frame, const CursorRequest & cursor = {}, const std::vector<ImagePlacement> & images = {});
   // Writes raw bytes, all of them.
   void write(const std::string & bytes);
 
@@ -96,6 +97,7 @@ class TerminalSession {
   Capabilities caps_;
   InputParser parser_;
   FrameEncoder encoder_;
+  ImageEncoder images_;
   std::string setup_;
   std::string restore_;
   std::deque<TermEvent> pending_;

@@ -39,6 +39,7 @@ add_library(cellui STATIC
   src/Utf8.cpp
   src/term/Discovery.cpp
   src/term/FrameEncoder.cpp
+  src/term/ImageEncoder.cpp
   src/term/InputParser.cpp
   src/term/TermEvent.cpp)
 if(NOT WIN32)
@@ -66,6 +67,7 @@ add_executable(cellui_tests
   tests/DiscoveryTests.cpp
   tests/ElementTests.cpp
   tests/FrameEncoderTests.cpp
+  tests/ImageEncoderTests.cpp
   tests/GalleryTests.cpp
   tests/HeatmapChartTests.cpp
   tests/InfoDialogTests.cpp

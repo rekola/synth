@@ -254,6 +254,7 @@ void TerminalSession::negotiate(const Environment & env) {
   parser_.setKittyKeyboard(caps_.kitty_keyboard);
   parser_.setRxvt(caps_.rxvt);
   encoder_ = FrameEncoder(EncoderProfile::from(caps_));
+  images_ = ImageEncoder(ImageEncoder::Profile::from(caps_));
 }
 
 void TerminalSession::enterModes() {
@@ -326,8 +327,9 @@ void TerminalSession::write(const std::string & bytes) {
   pthread_sigmask(SIG_SETMASK, &old, nullptr);
 }
 
-void TerminalSession::present(const CellBuffer & frame, const CursorRequest & cursor) {
-  write(encoder_.encode(frame, cursor));
+void TerminalSession::present(const CellBuffer & frame, const CursorRequest & cursor, const std::vector<ImagePlacement> & images) {
+  std::string pixels = images_.encode(frame, images, encoder_.willClear(frame));
+  write(encoder_.encode(frame, cursor, pixels));
 }
 
 void TerminalSession::wake() {
@@ -384,6 +386,9 @@ std::vector<TermEvent> TerminalSession::poll() {
         caps_.cell_px_height = e.params[1];
         caps_.cell_px_width = e.params[2];
         caps_.display_scale = estimateDisplayScale(caps_.cell_px_height);
+        ImageEncoder::Profile profile = ImageEncoder::Profile::from(caps_);
+        write(images_.clear());
+        images_ = ImageEncoder(profile);
         parser_.setPixelMouse(false, e.params[1], e.params[2]);
       }
       continue;

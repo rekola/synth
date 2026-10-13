@@ -27,6 +27,8 @@ class CellBuffer {
     // final background.
     bool bg_blend = false;
     bool fg_contrast = false;
+    // A cell an image covers: the placement's index + 1 (see ImagePlacement).
+    int image = 0;
   };
 
   struct Style {
@@ -52,7 +54,7 @@ class CellBuffer {
   // plane is drawn over another.
   static bool isBlank(const Cell & c) {
     return c.text == " " && !c.fg && !c.bg && !c.bold && !c.italic && !c.underline && !c.continuation &&
-           !c.bg_blend && !c.fg_contrast;
+           !c.bg_blend && !c.fg_contrast && !c.image;
   }
 
   // Writes `text` from (row, col) in `style`, clipped to the rectangle

@@ -47,7 +47,7 @@ bool sameColor(const std::optional<Color> & a, const std::optional<Color> & b) {
 }
 
 bool sameCell(const CellBuffer::Cell & a, const CellBuffer::Cell & b) {
-  return a.text == b.text && a.continuation == b.continuation && a.bold == b.bold && a.italic == b.italic &&
+  return a.text == b.text && a.continuation == b.continuation && a.image == b.image && a.bold == b.bold && a.italic == b.italic &&
          a.underline == b.underline && sameColor(a.fg, b.fg) && sameColor(a.bg, b.bg);
 }
 
@@ -162,7 +162,7 @@ void FrameEncoder::pen(std::string & out, const CellBuffer::Cell & cell) {
   underline_ = cell.underline;
 }
 
-std::string FrameEncoder::encode(const CellBuffer & frame, const CursorRequest & cursor) {
+std::string FrameEncoder::encode(const CellBuffer & frame, const CursorRequest & cursor, const std::string & images) {
   int rows = frame.rows(), cols = frame.cols();
   std::string body;
   if (full_ || !last_ || last_->rows() != rows || last_->cols() != cols) {
@@ -179,6 +179,11 @@ std::string FrameEncoder::encode(const CellBuffer & frame, const CursorRequest &
   for (int r = 0; r < rows; r++) {
     for (int c = 0; c < cols; c++) {
       const CellBuffer::Cell & cell = frame.at(r, c);
+      if (cell.image) {
+        // The image draws this cell; the text under it is not sent.
+        if (!last.at(r, c).image) last.put(r, c, cell);
+        continue;
+      }
       if (cell.continuation) continue;
       bool wide = c + 1 < cols && frame.at(r, c + 1).continuation;
       bool damaged = !sameCell(cell, last.at(r, c)) || (wide && !sameCell(frame.at(r, c + 1), last.at(r, c + 1)));
@@ -200,6 +205,10 @@ std::string FrameEncoder::encode(const CellBuffer & frame, const CursorRequest &
 
   bool cursor_changed = cursor.visible != cursor_visible_ ||
                         (cursor.visible && (cursor.y != shown_y_ || cursor.x != shown_x_));
+  if (!images.empty()) {
+    body += images;
+    cursor_y_ = cursor_x_ = -1;
+  }
   if (body.empty() && !cursor_changed) return "";
   std::string out;
   if (profile_.sync == SyncForm::MODE) out += "\x1b[?2026h";
