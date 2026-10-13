@@ -3,11 +3,14 @@
 The graphical backend of Cell UI (`plans/cell-ui.md`). It starts once phase 1
 (`plans/cell-ui-terminal.md`) has separated the UI: the app then talks only
 to `cellui`, and this phase adds a backend without touching the widgets.
-Linux (X11/Wayland, whenever a display server is running) and Windows; the
-terminal stays selectable (`--ui window|terminal`, the default chosen by
-whether a display is available).
+Linux (X11/Wayland, whenever a display server is running) and Windows; on
+Linux the terminal stays selectable (`--ui window|terminal`, the default
+chosen by whether a display is available), and Windows has only the window.
 
-## Host (to be decided first)
+Decided: on Linux the window backend is a **GTK** backend for Cell UI. The
+host on Windows is still open; the comparison below is kept for it.
+
+## Host (decided for Linux: GTK; open for Windows)
 
 Cell UI doesn't have to sit on SDL3. Its window backend can also be hosted by
 an existing toolkit. The toolkit then only supplies windows, input, text,
@@ -23,7 +26,7 @@ backend is unaffected.
 | wxWidgets | Truly native menus and dialogs on every platform, GTK ones on Linux; lighter than Qt; a licence that allows static linking | A GPU surface (`wxGLCanvas`) inside native widgets is the weak spot, especially on Wayland; accessibility outside Windows is thin, and IME into a custom-drawn surface is ours again; effects need our own OpenGL anyway |
 | Dear ImGui | Fast tool and debug panels | Nothing on the "lack" table: it needs a platform layer (SDL3 itself), draws its own menus, and has no accessibility or real IME. Useful at most for developer panels inside the window backend, not as the host |
 
-Recommendation: **Qt 6 as the host**, using only its LGPL modules (Core,
+Recommendation before the GTK decision: **Qt 6 as the host**, using only its LGPL modules (Core,
 Gui, Quick, and Widgets only for the menu bar and dialogs if Quick's aren't
 enough). The biggest risk of a custom toolkit is the long tail of
 accessibility, IME, fonts, translation and platform menus, and Qt removes
@@ -56,12 +59,10 @@ looks, input latency, idle CPU and installer size.
   - Linux: no native menu bar exists outside a toolkit, so it is drawn to
     look native, as popup windows with the system font, not as cells. It
     takes the desktop's colour scheme, accent and font from the desktop
-    portal's settings and fontconfig. Not GTK: a GTK menu needs a GTK
-    parent widget and GTK's main loop, on Wayland it cannot attach to
-    another toolkit's surface, and it would look like GNOME on KDE anyway.
-    Exporting the menu over D-Bus for desktops with a global menu bar (KDE
-    Plasma's) is a cheap addition later. With Qt as the host, its menu bar
-    covers this.
+    portal's settings and fontconfig. With GTK as the Linux host the menu
+    bar is GTK's own, in GTK's main loop. Exporting the menu over D-Bus for
+    desktops with a global menu bar (KDE Plasma's) is a cheap addition
+    later.
   - macOS, if ever: `NSMenu`.
 - **Icons:** rasterized at the current scale into the glyph atlas and
   tinted by the cell's foreground colour, so icons follow the theme and
@@ -106,7 +107,7 @@ looks, input latency, idle CPU and installer size.
 
 ## Steps
 
-1. Host spike (above) and the decision.
+1. GTK backend on Linux; the host spike and decision for Windows.
 2. Main window, cells, text, input, popups, dialogs, file dialogs, menus;
    `--ui window|terminal`.
 3. Styles beyond the terminal: geometry, spans, borders, gradients, radius,
