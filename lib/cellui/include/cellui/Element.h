@@ -109,6 +109,10 @@ class Element {
   Element & setBgColor(Color color) {
     return setBgColor(color.getRed(), color.getGreen(), color.getBlue());
   }
+  Element & setBgDefault() {
+    if (plane_) plane_->setBgDefault();
+    return *this;
+  }
   Element & setUnderline(bool b) {
     if (plane_) plane_->setUnderline(b);
     return *this;

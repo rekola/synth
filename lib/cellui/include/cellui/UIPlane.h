@@ -48,6 +48,12 @@ class UIPlane {
   virtual bool canRenderSextants() const { return false; }
   virtual void setFgColor(int r, int g, int b) = 0;
   virtual void setBgColor(int r, int g, int b) = 0;
+  // The terminal's own background for what is drawn from now on, and for
+  // what the plane shows where it draws nothing: a row the display cannot
+  // always draw to its end (the last cell of the last row) must not differ
+  // from the rest of it. Default no-ops for a plane with no display default.
+  virtual void setBgDefault() { }
+  virtual void makeTransparent() { }
   virtual void setUnderline(bool b) = 0;
   virtual void setBold(bool b) = 0;
   virtual void setItalic(bool b) = 0;

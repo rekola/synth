@@ -137,9 +137,10 @@ struct Theme {
   Color menu_bg;
   Color menu_section_fg;
   Color menu_section_bg;
-  // Floating layers: the background of a child plane such as the command
-  // candidates, and the list picker's background, text and border.
-  Color popup_bg;
+  // The base of a widget's plane, which shows wherever the widget draws
+  // nothing (a scope between its bars), and the list picker's background,
+  // text and border.
+  Color plane_base_bg;
   Color picker_bg;
   Color picker_fg;
   Color picker_border;
@@ -201,7 +202,7 @@ struct Theme {
     t.menu_bg = Color("#7f347f");
     t.menu_section_fg = Color("#ffffff");
     t.menu_section_bg = Color("#000000");
-    t.popup_bg = Color("#200020");
+    t.plane_base_bg = Color("#200020");
     t.picker_bg = Color("#202020");
     t.picker_fg = Color("#c0c0c0");
     t.picker_border = Color("#606060");
@@ -257,7 +258,7 @@ struct Theme {
     t.menu_bg = t.surface_raised;
     t.menu_section_fg = t.text_primary;
     t.menu_section_bg = t.surface_overlay;
-    t.popup_bg = t.surface_overlay;
+    t.plane_base_bg = t.surface_base;
     t.picker_bg = t.surface_overlay;
     t.picker_fg = t.text_primary;
     t.picker_border = t.text_secondary;
@@ -304,6 +305,14 @@ struct Theme {
     t.button_pressed_bg = Color("#004a66");
     t.row_pressed_bg = Color("#8ab8cc");
     t.master_track = t.surface_raised;
+    t.menu_fg = t.text_primary;
+    t.menu_bg = t.surface_raised;
+    t.menu_section_fg = t.text_primary;
+    t.menu_section_bg = t.surface_overlay;
+    t.plane_base_bg = t.surface_base;
+    t.picker_bg = t.surface_overlay;
+    t.picker_fg = t.text_primary;
+    t.picker_border = t.text_secondary;
     t.data_fx = Color("#8a3fa8");
     t.data_velocity = Color("#7a5c00");
     t.data_delay = Color("#00607f");

@@ -69,7 +69,7 @@ class StyleProvider {
     menu_bg_color = t.menu_bg;
     menu_section_fg_color = t.menu_section_fg;
     menu_section_bg_color = t.menu_section_bg;
-    popup_bg_color = t.popup_bg;
+    plane_base_bg_color = t.plane_base_bg;
     picker_bg_color = t.picker_bg;
     picker_fg_color = t.picker_fg;
     picker_border_color = t.picker_border;
@@ -219,9 +219,9 @@ class StyleProvider {
   Color menu_section_fg_color;
   Color menu_section_bg_color;
 
-  // Floating layers: a child plane's background (the command candidates)
-  // and the list picker's background, text and border.
-  Color popup_bg_color;
+  // A widget plane's base, shown where the widget draws nothing, and the
+  // list picker's background, text and border.
+  Color plane_base_bg_color;
   Color picker_bg_color;
   Color picker_fg_color;
   Color picker_border_color;

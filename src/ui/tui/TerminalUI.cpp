@@ -232,6 +232,13 @@ public:
   }
   void setFgColor(int r, int g, int b) override { plane->set_fg_rgb8(r, g, b); }
   void setBgColor(int r, int g, int b) override { plane->set_bg_rgb8(r, g, b); }
+  void setBgDefault() override { plane->set_bg_default(); }
+  void makeTransparent() override {
+    uint64_t channels = 0;
+    ncchannels_set_fg_alpha(&channels, NCALPHA_TRANSPARENT);
+    ncchannels_set_bg_alpha(&channels, NCALPHA_TRANSPARENT);
+    plane->set_base(" ", 0, channels);
+  }
   void setUnderline(bool b) override {
     if (b) {
       plane->styles_set(CellStyle::Underline);
@@ -257,7 +264,7 @@ public:
   void putstr(int y, int x, const std::string & s) override { plane->putstr(y, x, s.c_str()); }
   unique_ptr<UIPlane> createChild() override {
     auto child_plane = new Plane(1, 1, 0, 0);
-    child_plane->set_base("", 0, channelsOf(getStyles().reader_text_color, getStyles().popup_bg_color));
+    child_plane->set_base("", 0, channelsOf(getStyles().reader_text_color, getStyles().plane_base_bg_color));
     return make_unique<TerminalPlane>(getAppContext(), getStyles(), child_plane);
   }
   
@@ -1592,6 +1599,16 @@ TerminalUI::render() {
   nc->render();
 }
 
+// The command row has no background of its own: the display cannot draw the
+// last cell of the last row, so a coloured row would end in a different one.
+void
+TerminalUI::clearLastRow() {
+  auto [rows, cols] = getDim();
+  if (rows < 1) return;
+  setBgDefault();
+  putstr(rows - 1, 0, std::string(static_cast<size_t>(cols), ' '));
+}
+
 void
 TerminalUI::applyTheme(const Theme & theme) {
   styles_.applyTheme(theme);
@@ -1599,6 +1616,7 @@ TerminalUI::applyTheme(const Theme & theme) {
   setFgColor(styles_.window_fg_color);
   setBgColor(styles_.window_bg_color);
   fill();
+  clearLastRow();
   if (menu_) menu_->applyStyles(styles_);
   scopes_stale_ = true;
   force_next_render_ = true;
@@ -2268,17 +2286,19 @@ TerminalUI::layout() {
       int scope_x_width = outline_cols - 1;
       int chart_row = workspace_row + outline_rows + 1;
       int heatmap_row = chart_row + kScopeHeight + 1;
-      // A title bar above each scope, like the outline's heading; it ends in
-      // a half block over the divider column.
+      // A title bar above each scope, like the outline's heading; with
+      // lines between the columns it ends in a half block over the divider.
       const std::pair<int, const char *> titles[] = { { chart_row - 1, "Spectrum" }, { heatmap_row - 1, "DirAC" } };
       for (auto & [ title_row, title ] : titles) {
         setFgColor(styles_.window_accent_fg_color);
         setBgColor(styles_.heading_bg_color);
         putstr(title_row, 0, std::string(static_cast<size_t>(scope_x_width), ' '));
         putstr(title_row, 1, title);
-        setFgColor(styles_.heading_bg_color);
-        setBgColor(styles_.window_bg_color);
-        putstr(title_row, scope_x_width, "▌");
+        if (styles_.grid_lines) {
+          setFgColor(styles_.heading_bg_color);
+          setBgColor(styles_.window_bg_color);
+          putstr(title_row, scope_x_width, "▌");
+        }
       }
       chart_->resize(kScopeHeight, scope_x_width).move(chart_row, 0);
       heatmap_->resize(kScopeHeight, scope_x_width).move(heatmap_row, 0);
@@ -2308,6 +2328,7 @@ TerminalUI::layout() {
   auto octave_width = octave_control_->preferredWidth();
   octave_control_->resize(1, octave_width).move(rows - 2, std::max(0, cols - octave_width));
   status_line_->resize(1, cols - 1).move(rows - 1, 0);
+  clearLastRow();
 }
 
 bool

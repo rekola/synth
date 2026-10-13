@@ -67,7 +67,7 @@ TEST(dark_theme_keeps_the_other_colours_too) {
   CHECK(same(s.master_track_color, "#533918"));
   CHECK(same(s.menu_bg_color, "#7f347f"));
   CHECK(same(s.menu_section_bg_color, "#000000"));
-  CHECK(same(s.popup_bg_color, "#200020"));
+  CHECK(same(s.plane_base_bg_color, "#200020"));
   CHECK(same(s.picker_bg_color, "#202020"));
   CHECK(same(s.picker_fg_color, "#c0c0c0"));
   CHECK(same(s.picker_border_color, "#606060"));
@@ -208,6 +208,20 @@ TEST(the_first_modern_tracks_differ_from_each_other_and_on_the_pads) {
       CHECK(dist(pad(i), pad(j)) >= 11.0);
     }
   }
+}
+
+TEST(the_light_theme_derives_its_menu_and_picker_from_its_own_surfaces) {
+  auto l = Theme::light();
+  CHECK(same(l.menu_bg, l.surface_raised));
+  CHECK(same(l.menu_section_bg, l.surface_overlay));
+  CHECK(same(l.picker_bg, l.surface_overlay));
+  CHECK(same(l.picker_fg, l.text_primary));
+  CHECK(same(l.plane_base_bg, l.surface_base));
+}
+
+TEST(a_modern_widget_plane_shows_the_base_surface_where_it_draws_nothing) {
+  CHECK(same(StyleProvider(Theme::dark()).plane_base_bg_color, "#0d1115"));
+  CHECK(same(StyleProvider(Theme::light()).plane_base_bg_color, "#f0f4f7"));
 }
 
 TEST(only_the_original_theme_draws_lines_between_grid_columns) {
