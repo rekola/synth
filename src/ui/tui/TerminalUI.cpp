@@ -785,9 +785,8 @@ private:
 
 class TerminalUI::EscapeInputPipeline {
 public:
-  EscapeInputPipeline() : coalescer(source, detector) { }
+  EscapeInputPipeline() : coalescer(source) { }
 
-  cellui::KittyProtocolDetector detector;
   QueuedInputSource source;
   cellui::EscapeSequenceCoalescer coalescer;
 };
@@ -999,9 +998,18 @@ TerminalUI::readInput() {
       escape_indicator_shown_ = false;
     }
 
+    // A key release says nothing about the held Escape; Escape's own release
+    // belongs to it.
+    if (escape_held_ && input.getKind() == InputEvent::Kind::RELEASE) {
+      if (input.getId() != NCKEY_ESC) offerInput(input);
+      continue;
+    }
+
     // A held bare Escape goes ahead of whatever followed it (see
-    // escape_held_'s own comment), unless a widget already took it.
+    // escape_held_'s own comment), unless a widget already took it or it
+    // became the Alt prefix of the input that followed.
     if (escape_held_) {
+      if (escape_input_->coalescer.lastFolded()) escape_delivered_ = true;
       escape_held_ = false;
       if (!escape_delivered_) offerInput(cellui::Input(NCKEY_ESC, -1, -1, false, false, false, false, input.getKind()));
       escape_delivered_ = false;

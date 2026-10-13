@@ -2,21 +2,15 @@
 
 namespace cellui {
 
-void
-KittyProtocolDetector::observe(Input::Kind kind) {
-  if (settled_) return;
-  active_ = (kind != Input::Kind::UNKNOWN);
-  settled_ = true;
-}
-
-EscapeSequenceCoalescer::EscapeSequenceCoalescer(InputEventSource & source, KittyProtocolDetector & detector)
-  : source_(source), detector_(detector) {
-}
+EscapeSequenceCoalescer::EscapeSequenceCoalescer(InputEventSource & source) : source_(source) { }
 
 void
 EscapeSequenceCoalescer::setInPaste(bool in_paste) {
   in_paste_ = in_paste;
-  if (in_paste_) pending_ = false; // a paste's first character isn't retroactively Alt-chorded
+  if (in_paste_) {
+    pending_ = false; // a paste's first character isn't retroactively Alt-chorded
+    folded_id_ = -1;
+  }
 }
 
 namespace {
@@ -67,12 +61,18 @@ withAlt(const Input & in) {
 
 bool
 EscapeSequenceCoalescer::next(Input * input) {
+  last_folded_ = false;
   if (!source_.next(input)) return false;
 
-  if (!isMouse(input->getId())) detector_.observe(input->getKind());
-
-  if (detector_.active() || in_paste_) {
+  if (in_paste_) {
     pending_ = false;
+    return true;
+  }
+
+  // The release of a key whose press was folded is part of the same chord.
+  if (input->getKind() == Input::Kind::RELEASE && input->getId() == folded_id_) {
+    folded_id_ = -1;
+    if (!input->hasAlt()) *input = withAlt(*input);
     return true;
   }
 
@@ -82,7 +82,9 @@ EscapeSequenceCoalescer::next(Input * input) {
     if (isUnmodifiedEscapePress(*input)) {
       pending_ = true; // another bare Escape just restarts the wait
     } else if (!isSequenceIntroducer(*input) && !isAlreadyModified(*input)) {
-      *input = withAlt(*input);
+      if (!input->hasAlt()) *input = withAlt(*input);
+      last_folded_ = true;
+      folded_id_ = input->getId();
     }
     // else: declined, passed through as-is, and (like any other real
     // keyboard event) ends the wait.

@@ -174,11 +174,11 @@ of the switch.
    follows the terminal's colours (`detectAppearance()`). The non-Launchpad
    e2e scripts give the notcurses build's results or better. Still open:
    the Launchpad e2e scripts (they need an ALSA sequencer, which the cloud
-   containers lack), the real-terminal checks (kitty, foot, WezTerm, xterm
-   with Sixel, VTE, tmux), iTerm2's own image format (it draws Sixel for
-   now), drawing the scopes' line widths by the display scale, Alt-x
-   (M-x) in a real kitty (it works against kitty's recorded replies; it did
-   not work on notcurses either), and key ids with names of our own instead
+   containers lack), the real-terminal checks (foot, WezTerm, VTE, tmux;
+   xterm with Sixel and kitty's Alt-x are confirmed, and Escape then x is
+   M-x under the kitty keyboard protocol too), iTerm2's own image format
+   (it draws Sixel for now), drawing the scopes' line widths by the display
+   scale, and key ids with names of our own instead
    of notcurses' (`NCKEY_BUTTON4` and the rest in `cellui/Input.h`, used
    across the app).
 6. Icons: the app's icon list, Kitty graphics/Sixel/glyph fallback, menu

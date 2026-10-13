@@ -11,10 +11,9 @@ namespace {
 
 constexpr unsigned kShift = 1, kCtrl = 4;
 
-// Legacy terminals report every keystroke's kind as UNKNOWN (see
-// KittyProtocolDetector's own comment) - that's the default here so a test
-// has to opt in to PRESS/etc. explicitly to simulate a kitty-protocol
-// terminal instead.
+// Legacy terminals report every keystroke's kind as UNKNOWN - that's the
+// default here, so a test opts in to PRESS/RELEASE to simulate a terminal
+// running the kitty keyboard protocol.
 Input makeEvent(int id, Input::Kind kind = Input::Kind::UNKNOWN, unsigned modifiers = 0) {
   return Input(id, -1, -1, false, modifiers & kShift, modifiers & kCtrl, false, kind);
 }
@@ -38,8 +37,7 @@ private:
 
 struct Fixture {
   FakeInputEventSource source;
-  KittyProtocolDetector detector;
-  EscapeSequenceCoalescer coalescer{source, detector};
+  EscapeSequenceCoalescer coalescer{source};
 };
 
 }
@@ -215,37 +213,37 @@ TEST(entering_paste_mid_wait_cancels_a_pending_escape) {
   CHECK(!f.coalescer.escapePending());
 }
 
-TEST(kitty_protocol_active_passes_events_through_untouched) {
+TEST(kitty_protocol_escape_then_key_folds_across_the_releases) {
   Fixture f;
-  f.detector.observe(Input::Kind::PRESS); // settles the detector active, as a real Kitty terminal's first keystroke would
-  CHECK(f.detector.active());
-
+  // A kitty-protocol terminal reports every press and release: Escape's
+  // release leaves the wait open, and the folded key's release is Alt too.
   f.source.schedule(makeEvent(NCKEY_ESC, Input::Kind::PRESS));
-  f.source.schedule(makeEvent('w', Input::Kind::PRESS));
+  f.source.schedule(makeEvent(NCKEY_ESC, Input::Kind::RELEASE));
+  f.source.schedule(makeEvent('x', Input::Kind::PRESS));
+  f.source.schedule(makeEvent('x', Input::Kind::RELEASE));
+  f.source.schedule(makeEvent('y', Input::Kind::PRESS));
 
   Input ni(0, 0, 0, false, false, false, false);
   CHECK(f.coalescer.next(&ni));
-  CHECK(ni.getId() == NCKEY_ESC);
+  CHECK(ni.getId() == NCKEY_ESC && f.coalescer.escapePending());
+  CHECK(f.coalescer.next(&ni));
+  CHECK(ni.getKind() == Input::Kind::RELEASE && f.coalescer.escapePending() && !f.coalescer.lastFolded());
+  CHECK(f.coalescer.next(&ni));
+  CHECK(ni.getId() == 'x' && ni.hasAlt() && ni.getKind() == Input::Kind::PRESS && f.coalescer.lastFolded());
   CHECK(!f.coalescer.escapePending());
   CHECK(f.coalescer.next(&ni));
-  CHECK(ni.getId() == 'w');
-  CHECK(!ni.hasAlt());
+  CHECK(ni.getId() == 'x' && ni.hasAlt() && ni.getKind() == Input::Kind::RELEASE && !f.coalescer.lastFolded());
+  CHECK(f.coalescer.next(&ni));
+  CHECK(ni.getId() == 'y' && !ni.hasAlt());
 }
 
 TEST(mouse_click_before_first_keystroke_does_not_disable_coalescing) {
   Fixture f;
-  // A mouse click's evtype is always real (SGR mouse reporting always
-  // distinguishes press from release), even on a legacy terminal that
-  // reports Input::Kind::UNKNOWN for every keyboard event - feeding it to the
-  // detector must not be mistaken for Kitty keyboard protocol support,
-  // or every keystroke after the session's first mouse click would stop
-  // coalescing.
   f.source.schedule(makeEvent(NCKEY_BUTTON1, Input::Kind::PRESS));
 
   Input ni(0, 0, 0, false, false, false, false);
   CHECK(f.coalescer.next(&ni));
   CHECK(ni.getId() == NCKEY_BUTTON1);
-  CHECK(!f.detector.active());
 
   f.source.schedule(makeEvent(NCKEY_ESC));
   f.source.schedule(makeEvent('w'));
@@ -255,21 +253,4 @@ TEST(mouse_click_before_first_keystroke_does_not_disable_coalescing) {
   CHECK(f.coalescer.next(&ni));
   CHECK(ni.getId() == 'w');
   CHECK(ni.hasAlt());
-}
-
-TEST(kitty_protocol_detector_latches_inactive_on_first_unknown) {
-  KittyProtocolDetector d;
-  CHECK(!d.active());
-  d.observe(Input::Kind::UNKNOWN);
-  CHECK(!d.active());
-  d.observe(Input::Kind::PRESS); // already settled - must not flip
-  CHECK(!d.active());
-}
-
-TEST(kitty_protocol_detector_latches_active_on_first_press) {
-  KittyProtocolDetector d;
-  d.observe(Input::Kind::PRESS);
-  CHECK(d.active());
-  d.observe(Input::Kind::UNKNOWN); // already settled - must not flip
-  CHECK(d.active());
 }
