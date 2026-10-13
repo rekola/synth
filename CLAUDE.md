@@ -41,18 +41,27 @@ defect this codebase won't ship. FFT support (the live spectrum analyzer,
 MagLS binaural precomputation) is via vendored PocketFFT
 (`third_party/pocketfft/`) — no separate FFT library package needed.
 canvas (`rekola/canvas`, 2D drawing for the scopes and meters, drawn as
-pixels with Cairo) is fetched at configure time at a pinned commit
-(`FetchContent` in `CMakeLists.txt`, built with none of our warning flags, its
-headers reached as SYSTEM includes; GDI+ on Windows); bump the pin when canvas
-changes. `src/ui/SpectrumImage.{h,cpp}` and `src/ui/HeatmapImage.{h,cpp}` are
-the users so far: the pixel spectrum (`TerminalPixelSpectrumMeter`) and the
-pixel DirAC heatmap (`TerminalPixelHeatmapChart`, its axis labels still
-drawn over the result) are images they draw with canvas, blitted by the
-terminal. An `ImageData` handed to canvas to draw is RGB straight-alpha unless
+pixels with Cairo) is a dependency of Cell UI, fetched at configure time at a
+pinned commit (`FetchContent` in `lib/cellui/CMakeLists.txt`, built with none
+of our warning flags, its headers reached as SYSTEM includes; GDI+ on
+Windows); bump the pin when canvas changes. The scopes - the spectrum, the
+DirAC heatmap, the channel meter - are Cell UI widgets in the versions each
+backend provides (`cellui::Scopes`, `cellui/Scopes.h`;
+`cellui::term::scopes(caps)` picks the terminal's): the cell versions are
+drawn by hand (braille bars, a quadrant or sextant heatmap, labels in text,
+`src/Scopes.cpp`), never through canvas, and the pixel versions are images
+drawn with canvas (`cellui/SpectrumImage.h`, `cellui/HeatmapImage.h`,
+`src/PixelScopes.cpp`, the heatmap's axis labels drawn into the image). An `ImageData` handed to canvas to draw is RGB straight-alpha unless
 tagged otherwise (`setFormat(ChannelOrder::BGR, true)` for bytes B, G, R, A,
 premultiplied, as we build them); what is read back
-is the same layout, and the renderers return RGBA. The cell (braille)
-paths, the level meters and `ChannelMeter` are not on canvas yet.
+is the same layout, and the renderers return RGBA. The VU meters have pixel
+versions too: the channel meter's bars are one image over its bar rows, and
+the clip grid's and pattern editor's level meters are drawn through
+`Scopes::drawVuMeter()` into the widget's own plane (`cellui/VuMeterImage.h`;
+`drawCellVuMeter()` is the cell version), as images at cell positions
+(`UIPlane::drawImageAt()`: a plane holds one image per cell position, covering
+only the cells it reaches, and the same picture drawn again - even after
+`erase()` - keeps its version, so it isn't sent again).
 `libpipewire-0.3-dev` is optional too (`SYNTH_ENABLE_PIPEWIRE`,
 auto-detected, and cmake says so when it isn't used): it only backs
 `src/audio/AudioDevices.cpp`'s listing of the audio server's own inputs and
@@ -470,10 +479,10 @@ The FFT spectrum (`SpectrumMeter`, `ui/tui/SpectrumMeter.h`) draws its
 log-frequency bars through `LevelMeter.h`'s braille sub-cell renderer, the
 same one the volume meters use. When the terminal session found an image
 protocol (kitty graphics, iTerm2's inline images or Sixel) and the cell
-size in pixels, `TerminalUI.cpp`'s `TerminalPixelSpectrumMeter` overrides
+size in pixels, the pixel version (`cellui::pixelScopes()`) overrides
 `barCount()`/`drawBars()` to draw one bar per pixel column as the meter's
 plane's image (`UIPlane::pixelSize()`/`drawImage()`) instead; the choice is
-made once at startup in `TerminalUI::initialize()`. Both the spectrum and the DirAC heatmap show in
+made once at startup in `TerminalUI::initialize()` (`cellui::term::scopes()`). Both the spectrum and the DirAC heatmap show in
 Arrangement view's scope row and in Live View's left column, stacked
 under the full-height outline panel, each below a title bar (only while the
 outline is shown and the terminal is tall enough); off-screen scopes are not updated.
@@ -1240,10 +1249,8 @@ would otherwise resume showing.
     render-surface interfaces a future non-terminal UI could implement
     against too - a concrete backend's real implementation, e.g.
     `TerminalMenu`, lives entirely inside that backend's own file, not
-    alongside the interface), `Chart`/`HeatmapChart`
-    (same pattern - `TerminalChart`/`TerminalPixelChart`/
-    `TerminalHeatmapChart`/`TerminalPixelHeatmapChart` are
-    `TerminalUI.cpp`'s own concrete renderers), `StyleProvider` (a plain
+    alongside the interface), `HeatmapChart` (its versions are Cell UI's,
+    through `cellui::Scopes`), `StyleProvider` (a plain
     named-color theme struct, not terminal-specific itself), the
     Emacs-style keybinding dispatch (`KeyChord.h`/`Keymap.h`/
     `CommandRegistry.h`), and selection/clipboard data types

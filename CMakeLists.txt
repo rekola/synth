@@ -194,33 +194,14 @@ if(WIN32)
     src/midi/WinMmMidiPorts.cpp)
 endif()
 
-# canvas (2D drawing for the scopes and meters). Its warnings are its own, so
-# it is built from a plain checkout outside this project's flag set.
-include(FetchContent)
-FetchContent_Declare(canvas
-  GIT_REPOSITORY https://github.com/rekola/canvas
-  GIT_TAG bbe8228a9c04be1ad677bf5c0486ec8ed1a72564)
-FetchContent_GetProperties(canvas)
-if(NOT canvas_POPULATED)
-  FetchContent_Populate(canvas)
-endif()
-set(CANVAS_CXX_FLAGS_SAVED "${CMAKE_CXX_FLAGS}")
-set(CMAKE_CXX_FLAGS "${SYNTH_CANVAS_BASE_FLAGS}")
-set(CANVAS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-if(WIN32)
-  set(CANVAS_BACKEND_CAIRO OFF CACHE BOOL "" FORCE)
-  set(CANVAS_BACKEND_GDIPLUS ON CACHE BOOL "" FORCE)
-endif()
-add_subdirectory(${canvas_SOURCE_DIR} ${canvas_BINARY_DIR} EXCLUDE_FROM_ALL)
-set(CMAKE_CXX_FLAGS "${CANVAS_CXX_FLAGS_SAVED}")
-# Its headers are reached as SYSTEM includes, like third_party/.
-target_include_directories(synth_engine SYSTEM PUBLIC ${canvas_SOURCE_DIR}/include)
-target_link_libraries(synth_engine PUBLIC canvas)
 target_include_directories(synth_engine PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 # Cell UI (lib/cellui): the UI library, which also owns the libunistring
 # dependency (grapheme-aware text width). Built with these same flags.
 enable_testing()  # before the subdirectory, so its tests register here too
+# It also brings canvas (2D drawing for the scopes' pixel versions), built
+# without our warning flags.
+set(CELLUI_CANVAS_CXX_FLAGS "${SYNTH_CANVAS_BASE_FLAGS}")
 add_subdirectory(lib/cellui)
 target_link_libraries(synth_engine PUBLIC cellui)
 
@@ -326,9 +307,7 @@ if(SYNTH_BUILD_INTERACTIVE)
       src/ui/tui/OutlineView.cpp
       src/ui/tui/PatternEditor.cpp
       src/ui/tui/ArrangementGrid.cpp
-      src/ui/tui/ClipGrid.cpp
-      src/ui/SpectrumImage.cpp
-      src/ui/HeatmapImage.cpp)
+      src/ui/tui/ClipGrid.cpp)
     target_compile_definitions(synth PRIVATE SYNTH_TERMINAL_UI)
   endif()
 

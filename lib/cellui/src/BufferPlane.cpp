@@ -46,14 +46,14 @@ struct BufferPlane::Picker {
 };
 
 BufferPlane::BufferPlane(CellBuffer & target, const StyleProvider & styles, std::shared_ptr<void> app_context)
-  : UIPlane(std::move(app_context), styles), local_(target.rows(), target.cols()), target_(&target), key_(nextKey()) {
+  : UIPlane(std::move(app_context), styles), local_(target.rows(), target.cols()), target_(&target) {
   setDim(std::pair(target.rows(), target.cols()));
   setPosition(std::pair(0, 0));
 }
 
 BufferPlane::BufferPlane(BufferPlane & parent)
   : UIPlane(parent.getAppContext(), parent.getStyles()),
-    local_(parent.getDim().first, parent.getDim().second), parent_(&parent), key_(nextKey()) {
+    local_(parent.getDim().first, parent.getDim().second), parent_(&parent) {
   setDim(parent.getDim());
   setPosition(std::pair(0, 0));
   parent.children_.push_back(this);
@@ -121,23 +121,7 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
   // The plane's own rectangle, inside the clip.
   int row_lo = std::max(clip_row, row), row_hi = std::min(clip_row + clip_rows, row + local_.rows());
   int col_lo = std::max(clip_col, col), col_hi = std::min(clip_col + clip_cols, col + local_.cols());
-  if (image_ && row_lo < row_hi && col_lo < col_hi) {
-    // An image plane shows its pixels, not its text: its cells are marked
-    // for the backend, which draws the image wherever they stay marked.
-    ImagePlacement placement;
-    placement.image = image_;
-    placement.key = key_;
-    placement.row = row;
-    placement.col = col;
-    placement.index = static_cast<int>(top.placements_.size());
-    top.placements_.push_back(placement);
-    CellBuffer::Cell marked;
-    marked.image = placement.index + 1;
-    for (int r = row_lo; r < row_hi; r++) {
-      for (int c = col_lo; c < col_hi; c++) out.put(r, c, marked);
-    }
-  }
-  for (int r = row_lo; r < row_hi && !image_; r++) {
+  for (int r = row_lo; r < row_hi; r++) {
     for (int c = col_lo; c < col_hi; c++) {
       const CellBuffer::Cell & cell = local_.at(r - row, c - col);
       if (CellBuffer::isBlank(cell)) {
@@ -164,6 +148,29 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
       out.put(r, c, put);
     }
   }
+  // An image shows its pixels in place of the cells it covers: they are
+  // marked for the backend, which draws the image wherever they stay marked.
+  int cell_h = top.cell_px_h_, cell_w = top.cell_px_w_;
+  for (const PlacedImage & placed : images_) {
+    if (cell_h <= 0 || cell_w <= 0 || row_lo >= row_hi || col_lo >= col_hi) break;
+    int top_row = row + placed.row, left_col = col + placed.col;
+    int r_hi = std::min(row_hi, top_row + (placed.image->height + cell_h - 1) / cell_h);
+    int c_hi = std::min(col_hi, left_col + (placed.image->width + cell_w - 1) / cell_w);
+    int r_lo = std::max(row_lo, top_row), c_lo = std::max(col_lo, left_col);
+    if (r_lo >= r_hi || c_lo >= c_hi) continue;
+    ImagePlacement placement;
+    placement.image = placed.image;
+    placement.key = placed.key;
+    placement.row = top_row;
+    placement.col = left_col;
+    placement.index = static_cast<int>(top.placements_.size());
+    top.placements_.push_back(placement);
+    CellBuffer::Cell marked;
+    marked.image = placement.index + 1;
+    for (int r = r_lo; r < r_hi; r++) {
+      for (int c = c_lo; c < c_hi; c++) out.put(r, c, marked);
+    }
+  }
   if (row_lo >= row_hi || col_lo >= col_hi) return;
   for (const BufferPlane * child : children_) {
     child->compose(out, row + child->getPosition().first, col + child->getPosition().second,
@@ -179,14 +186,50 @@ bool BufferPlane::pixelSize(int & height, int & width) const {
   return height > 0 && width > 0;
 }
 
+bool BufferPlane::cellPixelSize(int & height, int & width) const {
+  const BufferPlane & top = root();
+  if (top.cell_px_h_ <= 0 || top.cell_px_w_ <= 0) return false;
+  height = top.cell_px_h_;
+  width = top.cell_px_w_;
+  return true;
+}
+
 void BufferPlane::drawImage(const std::vector<uint32_t> & pixels, int width, int height) {
+  // A whole-plane image replaces any others.
+  images_.erase(std::remove_if(images_.begin(), images_.end(), [](const PlacedImage & p) { return p.row != 0 || p.col != 0; }), images_.end());
+  drawImageAt(0, 0, pixels, width, height);
+}
+
+void BufferPlane::drawImageAt(int row, int col, const std::vector<uint32_t> & pixels, int width, int height) {
   if (width <= 0 || height <= 0 || pixels.size() < static_cast<size_t>(width) * static_cast<size_t>(height)) return;
+  // The same picture again keeps its version and key, so it is not sent
+  // again - also when the plane was erased and redrawn in between.
+  auto same = [&](const PlacedImage & placed) {
+    return placed.row == row && placed.col == col && placed.image->width == width && placed.image->height == height &&
+           std::equal(placed.image->pixels.begin(), placed.image->pixels.end(), pixels.begin());
+  };
+  for (PlacedImage & placed : images_) {
+    if (same(placed)) return;
+  }
+  for (PlacedImage & placed : erased_images_) {
+    if (same(placed)) {
+      images_.erase(std::remove_if(images_.begin(), images_.end(), [&](const PlacedImage & p) { return p.row == row && p.col == col; }), images_.end());
+      images_.push_back(placed);
+      return;
+    }
+  }
   auto image = std::make_shared<Image>();
   image->width = width;
   image->height = height;
   image->pixels.assign(pixels.begin(), pixels.begin() + static_cast<long>(width) * height);
   image->version = nextImageVersion();
-  image_ = std::move(image);
+  for (PlacedImage & placed : images_) {
+    if (placed.row == row && placed.col == col) {
+      placed.image = std::move(image);
+      return;
+    }
+  }
+  images_.push_back(PlacedImage{row, col, std::move(image), nextKey()});
 }
 
 std::pair<int, int> BufferPlane::screenPosition() const {

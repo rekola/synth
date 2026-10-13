@@ -57,7 +57,9 @@ class BufferPlane : public UIPlane {
   void setFgContrast(bool b) override { style_.fg_contrast = b; }
   void erase() override {
     local_.clear(0, 0, local_.rows(), local_.cols());
-    image_.reset();
+    // Kept, so the same picture drawn again after erase() is not sent again.
+    erased_images_ = std::move(images_);
+    images_.clear();
   }
   void putstr(int y, int x, const std::string & s) override;
   std::unique_ptr<UIPlane> createChild() override;
@@ -95,7 +97,9 @@ class BufferPlane : public UIPlane {
     default_bg_ = bg;
   }
   bool pixelSize(int & height, int & width) const override;
+  bool cellPixelSize(int & height, int & width) const override;
   void drawImage(const std::vector<uint32_t> & pixels, int width, int height) override;
+  void drawImageAt(int row, int col, const std::vector<uint32_t> & pixels, int width, int height) override;
   // The cell size in pixels, 0 when pixels cannot be shown (root only).
   void setCellPixelSize(int height, int width) {
     cell_px_h_ = height;
@@ -169,8 +173,15 @@ class BufferPlane : public UIPlane {
 
   // The background of the cells nothing was written to; unset shows below.
   std::optional<Color> base_bg_;
-  std::shared_ptr<Image> image_;
-  uint64_t key_ = 0;
+  // The images shown over the plane's cells, by cell position, each under
+  // a key of its own so the backend can tell a moved or redrawn image apart.
+  struct PlacedImage {
+    int row = 0, col = 0;
+    std::shared_ptr<Image> image;
+    uint64_t key = 0;
+  };
+  std::vector<PlacedImage> images_;
+  std::vector<PlacedImage> erased_images_;  // what erase() last took away
 };
 
 }  // namespace cellui

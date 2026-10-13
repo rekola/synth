@@ -1,4 +1,4 @@
-#include "HeatmapImage.h"
+#include <cellui/HeatmapImage.h>
 
 #include <canvas/Context.h>
 #include <canvas/ContextCairo.h>
@@ -6,16 +6,9 @@
 #include <algorithm>
 #include <cmath>
 
-namespace heatmap_image {
+namespace cellui {
 
-void cellColor(const Color & background, float saturation, float value, float & r, float & g, float & b) {
-  value = std::clamp(value, 0.0f, 1.0f);
-  uint8_t lr, lg, lb;
-  heatmapHsvToRgb(kHeatmapHue, std::clamp(saturation, 0.0f, 1.0f), 1.0f, lr, lg, lb);
-  r = static_cast<float>(background.getRed()) * (1.0f - value) + static_cast<float>(lr) * value;
-  g = static_cast<float>(background.getGreen()) * (1.0f - value) + static_cast<float>(lg) * value;
-  b = static_cast<float>(background.getBlue()) * (1.0f - value) + static_cast<float>(lb) * value;
-}
+namespace heatmap_image {
 
 std::vector<uint32_t> render(const std::vector<float> & brightness, const std::vector<float> & saturation, int cols, int rows,
                              const std::vector<HeatmapChart::Marker> & markers, unsigned width, unsigned height, const StyleProvider & styles) {
@@ -71,3 +64,5 @@ std::vector<uint32_t> render(const std::vector<float> & brightness, const std::v
 }
 
 }  // namespace heatmap_image
+
+}  // namespace cellui

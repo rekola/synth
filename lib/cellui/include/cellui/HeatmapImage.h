@@ -1,18 +1,27 @@
-#ifndef _HEATMAPIMAGE_H_
-#define _HEATMAPIMAGE_H_
+#pragma once
 
-#include "HeatmapChart.h"
-#include "StyleProvider.h"
+#include <cellui/HeatmapChart.h>
+#include <cellui/StyleProvider.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <vector>
+
+namespace cellui {
 
 namespace heatmap_image {
 
 // The colour of one cell: the window background at value 0, the fully lit
 // fixed-hue colour at value 1, a straight lerp between (so a value that only
 // ever decays towards 0 settles on the background without a cutoff).
-void cellColor(const Color & background, float saturation, float value, float & r, float & g, float & b);
+inline void cellColor(const Color & background, float saturation, float value, float & r, float & g, float & b) {
+  value = std::clamp(value, 0.0f, 1.0f);
+  uint8_t lr, lg, lb;
+  heatmapHsvToRgb(kHeatmapHue, std::clamp(saturation, 0.0f, 1.0f), 1.0f, lr, lg, lb);
+  r = static_cast<float>(background.getRed()) * (1.0f - value) + static_cast<float>(lr) * value;
+  g = static_cast<float>(background.getGreen()) * (1.0f - value) + static_cast<float>(lg) * value;
+  b = static_cast<float>(background.getBlue()) * (1.0f - value) + static_cast<float>(lb) * value;
+}
 
 // The heatmap as pixels: `brightness`/`saturation` are cols*rows entries,
 // row 0 at the bottom (HeatmapChart::setGrid()), smoothly scaled up to
@@ -24,4 +33,5 @@ std::vector<uint32_t> render(const std::vector<float> & brightness, const std::v
 
 }  // namespace heatmap_image
 
-#endif
+}  // namespace cellui
+

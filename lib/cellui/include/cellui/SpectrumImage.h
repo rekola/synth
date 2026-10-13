@@ -1,10 +1,11 @@
-#ifndef _SPECTRUMIMAGE_H_
-#define _SPECTRUMIMAGE_H_
+#pragma once
 
-#include "StyleProvider.h"
+#include <cellui/StyleProvider.h>
 
 #include <cstdint>
 #include <vector>
+
+namespace cellui {
 
 namespace spectrum_image {
 
@@ -20,4 +21,5 @@ std::vector<uint32_t> render(const std::vector<float> & levels, unsigned width, 
 
 }  // namespace spectrum_image
 
-#endif
+}  // namespace cellui
+
