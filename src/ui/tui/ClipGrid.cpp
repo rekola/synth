@@ -715,7 +715,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
       // text/pad/put path every other row below shares.
       if (physical_row == clip_rows + kSendsValue) {
         setFgColor(styles.window_fg_color);
-        setBgColor(styles.window_bg_color);
+        setBgColor(styles.grid_bg_color);
         putstr(y, x, string(static_cast<size_t>(kColWidth), ' ')); // opaque row background first
         if (leaf) {
           auto sends = leaf->getSends();
@@ -742,7 +742,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
       // there's no un-colored sliver left showing through underneath it.
       if (physical_row < clip_rows) {
         auto clip_row = static_cast<size_t>(physical_row);
-        Color row_fg = styles.clip_text_color, row_bg = styles.window_bg_color;
+        Color row_fg = styles.clip_text_color, row_bg = styles.grid_bg_color;
         string text;
         // Content-aware, not just in-bounds - holes are allowed (Song::
         // ensureClipAt()), so an in-bounds but still-empty filler renders
@@ -845,11 +845,11 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
       }
 
       string text;
-      Color fg = styles.window_fg_color, bg = styles.window_bg_color;
+      Color fg = styles.window_fg_color, bg = styles.grid_bg_color;
       bool is_divider = physical_row == clip_rows + kSendsDivider || physical_row == clip_rows + kDirectionDivider;
 
       if (is_divider) {
-        text = string(static_cast<size_t>(kColWidth), '-');
+        text = string(static_cast<size_t>(kColWidth), styles.grid_lines ? '-' : ' ');
         fg = styles.window_border_color;
       } else if (physical_row == clip_rows + kSendsLabel) { // Sends label (decorative, not cursor-addressable) - "Sends" itself lives here, its own unit ("dB") on the value row right under it
         text = sendsLabel();
@@ -879,10 +879,9 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
 
     setFgColor(styles.window_border_color);
     setBgColor(styles.heading_bg_color); // the header row's own backdrop, not the plain window background below it
-    putstr(0, x + kColWidth, "│");
+    putDivider(styles, 0, x + kColWidth, true);
     // Dividers belong to no track, so no track's clip mark reaches them.
-    setBgColor(styles.window_bg_color);
-    for (auto y = 1; y < rows; y++) putstr(y, x + kColWidth, "│");
+    for (auto y = 1; y < rows; y++) putDivider(styles, y, x + kColWidth, false);
   }
 
   inline_editor_.paintBackdrop();
@@ -923,7 +922,7 @@ ClipGrid::renderMasterColumn(const StyleProvider & styles, int x, int rows, bool
     auto y = 1 + vr;
     if (physical_row >= physicalRowCount()) break;
     bool is_cursor_cell = focused && cursor_here && physical_row == cursor_physical;
-    Color fg = styles.window_fg_color, bg = styles.window_bg_color;
+    Color fg = styles.window_fg_color, bg = styles.grid_bg_color;
     if (is_cursor_cell) {
       fg = styles.highlight_fg_color;
       bg = styles.highlight_bg_color;
@@ -960,7 +959,7 @@ ClipGrid::renderMasterColumn(const StyleProvider & styles, int x, int rows, bool
       // The master's own Send Main/A/B: the dry mix and the send bus's two
       // returns - the same row, and parameters, a track has.
       setFgColor(styles.window_fg_color);
-      setBgColor(styles.window_bg_color);
+      setBgColor(styles.grid_bg_color);
       putstr(y, x, std::string(static_cast<size_t>(kColWidth), ' '));
       setItalic(true);
       putstr(y, x, " dB  ");
@@ -970,7 +969,7 @@ ClipGrid::renderMasterColumn(const StyleProvider & styles, int x, int rows, bool
     }
     std::string text;
     if (offset == kSendsDivider || offset == kDirectionDivider) {
-      text = std::string(static_cast<size_t>(kColWidth), '-');
+      text = std::string(static_cast<size_t>(kColWidth), styles.grid_lines ? '-' : ' ');
       fg = styles.window_border_color;
     } else if (offset == kSendsLabel) {
       text = sendsLabel();
@@ -986,11 +985,17 @@ ClipGrid::renderMasterColumn(const StyleProvider & styles, int x, int rows, bool
   }
 
   // The trailing divider every column has, the header's in its backdrop.
+  putDivider(styles, 0, x + kColWidth, true);
+  for (auto y = 1; y < rows && scroll_row_ + y - 1 < physicalRowCount(); y++) putDivider(styles, y, x + kColWidth, false);
+}
+
+// The column after a track: a line in the header's backdrop and the window's,
+// or a gutter of the window's own colour when the theme has no grid lines.
+void
+ClipGrid::putDivider(const StyleProvider & styles, int y, int x, bool header) {
   setFgColor(styles.window_border_color);
-  setBgColor(styles.heading_bg_color);
-  putstr(0, x + kColWidth, "│");
-  setBgColor(styles.window_bg_color);
-  for (auto y = 1; y < rows && scroll_row_ + y - 1 < physicalRowCount(); y++) putstr(y, x + kColWidth, "│");
+  setBgColor(header && styles.grid_lines ? styles.heading_bg_color : styles.window_bg_color);
+  putstr(y, x, styles.grid_lines ? "│" : " ");
 }
 
 void
@@ -999,7 +1004,7 @@ ClipGrid::putSendValues(int y, int x, const SendLevels & sends, int highlighted,
   for (int i = 0; i < 3; i++) {
     bool on = i == highlighted;
     setFgColor(on ? styles.highlight_fg_color : styles.window_fg_color);
-    setBgColor(on ? styles.highlight_bg_color : styles.window_bg_color);
+    setBgColor(on ? styles.highlight_bg_color : styles.grid_bg_color);
     putstr(y, x + 5 + i * 4, fmt::format("{:>4.0f}", sendDb(values[i])));
   }
 }

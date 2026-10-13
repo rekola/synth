@@ -13,7 +13,12 @@
 
 class StatusLine : public UIElement {
  public:
-  StatusLine(UIPlane & parent) : UIElement(parent) { }
+  // No background of its own: the display cannot draw the last cell of the
+  // last row, so a coloured row would end in a different one.
+  StatusLine(UIPlane & parent) : UIElement(parent) {
+    getPlane().makeTransparent();
+    getPlane().setBgDefault();
+  }
 
   bool isReaderActive() { return getPlane().readerActive(); }
 
