@@ -157,6 +157,7 @@ bool TerminalSession::start(SessionOptions & options, std::string * error) {
   setNonblocking(fd_);
   line_signals_ = options.line_signals;
   mouse_ = options.mouse;
+  dither_ = options.dither;
   parser_.setGrace(options.grace);
 
   // cbreak, plus what an Emacs-style key map needs: Ctrl-S/Q (flow
@@ -249,7 +250,7 @@ void TerminalSession::negotiate(const Environment & env) {
   parser_.setKittyKeyboard(caps_.kitty_keyboard);
   parser_.setRxvt(caps_.rxvt);
   encoder_ = FrameEncoder(EncoderProfile::from(caps_));
-  images_ = ImageEncoder(ImageEncoder::Profile::from(caps_));
+  images_ = ImageEncoder(imageProfile());
 }
 
 void TerminalSession::enterModes() {
@@ -300,6 +301,12 @@ void TerminalSession::close() {
   wake_read_ = wake_write_ = -1;
   if (own_fd_) ::close(fd_);
   fd_ = -1;
+}
+
+ImageEncoder::Profile TerminalSession::imageProfile() const {
+  ImageEncoder::Profile profile = ImageEncoder::Profile::from(caps_);
+  profile.dither = dither_;
+  return profile;
 }
 
 void TerminalSession::setMouseReporting(bool on) {
@@ -388,7 +395,7 @@ std::vector<TermEvent> TerminalSession::poll() {
         caps_.cell_px_height = e.params[1];
         caps_.cell_px_width = e.params[2];
         caps_.display_scale = estimateDisplayScale(caps_.cell_px_height);
-        ImageEncoder::Profile profile = ImageEncoder::Profile::from(caps_);
+        ImageEncoder::Profile profile = imageProfile();
         write(images_.clear());
         images_ = ImageEncoder(profile);
         parser_.setPixelMouse(false, e.params[1], e.params[2]);

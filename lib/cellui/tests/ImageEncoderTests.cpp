@@ -314,3 +314,53 @@ TEST(padded_stretched_images_place_their_inside) {
   ImageEncoder iterm(profile(PixelProtocol::ITERM2));
   CHECK(count(iterm.encode(b, {p}, true), ";width=4;height=2;") == 1);
 }
+
+// A colour between palette entries is dithered: a mix of entries that
+// averages to it, not the nearest one everywhere.
+TEST(sixel_images_are_dithered) {
+  Dither fs;
+  fs.method = Dither::Method::FLOYD_STEINBERG;
+  Image img;
+  img.width = 12;
+  img.height = 12;
+  img.pixels.assign(144, Image::pack(20, 20, 20));  // between the greys 18 and 28
+  std::vector<bool> keep(144, true);
+  for (const Dither & d : {Dither{}, fs}) {
+    std::string s = encodeSixel(img, 0, 0, 12, 12, keep, d);
+    CHECK(count(s, ";2;7;7;7") == 1);   // grey 18
+    CHECK(count(s, ";2;11;11;11") == 1);  // grey 28
+  }
+}
+
+// The ordered pattern belongs to the screen, not the image: two tiles that
+// meet line up, and a redraw keeps it.
+TEST(ordered_dithering_follows_the_screen) {
+  Image img;
+  img.width = 16;
+  img.height = 12;
+  img.pixels.assign(16 * 12, Image::pack(60, 70, 90));  // between cube levels
+  std::vector<bool> keep(16 * 12, true);
+  Dither at;
+  at.origin_x = 3;
+  at.origin_y = 5;
+  Dither period = at;  // a whole matrix (8 pixels) on
+  period.origin_x += 8;
+  period.origin_y += 16;
+  Dither shifted = at;
+  shifted.origin_x += 1;
+  std::string a = encodeSixel(img, 0, 0, 16, 12, keep, at);
+  CHECK(a == encodeSixel(img, 0, 0, 16, 12, keep, period));
+  CHECK(a != encodeSixel(img, 0, 0, 16, 12, keep, shifted));
+  Dither nearest;
+  nearest.method = Dither::Method::NEAREST;
+  CHECK(count(encodeSixel(img, 0, 0, 16, 12, keep, nearest), ";2;") == 1);  // one colour
+  CHECK(count(a, ";2;") > 1);
+}
+
+TEST(dither_methods_by_name) {
+  Dither::Method m = Dither::Method::NEAREST;
+  CHECK(Dither::byName("floyd-steinberg", m) && m == Dither::Method::FLOYD_STEINBERG);
+  CHECK(Dither::byName("ordered", m) && m == Dither::Method::ORDERED);
+  CHECK(Dither::byName("nearest", m) && m == Dither::Method::NEAREST);
+  CHECK(!Dither::byName("bayer", m));
+}

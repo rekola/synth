@@ -102,6 +102,54 @@ void paletteRgb(int index, int & r, int & g, int & b) {
   }
 }
 
+// The 8x8 Bayer matrix as thresholds in (0, 1).
+float bayer8(int x, int y) {
+  static const float * table = [] {
+    static float t[64];
+    int m[64] = {0};
+    for (int size = 1; size < 8; size *= 2) {
+      int next[64] = {0};
+      for (int yy = 0; yy < size; yy++) {
+        for (int xx = 0; xx < size; xx++) {
+          int v = 4 * m[yy * 8 + xx];
+          next[yy * 8 + xx] = v;
+          next[yy * 8 + xx + size] = v + 2;
+          next[(yy + size) * 8 + xx] = v + 3;
+          next[(yy + size) * 8 + xx + size] = v + 1;
+        }
+      }
+      std::copy(std::begin(next), std::end(next), std::begin(m));
+    }
+    for (int i = 0; i < 64; i++) t[i] = (static_cast<float>(m[i]) + 0.5f) / 64.0f;
+    return t;
+  }();
+  return table[(y & 7) * 8 + (x & 7)];
+}
+
+// Of the two entries around `v` on a ramp of `levels`, the upper one when
+// v lies above `threshold` of the way between them.
+int orderedLevel(int v, const int * levels, int count, float threshold) {
+  int i = 0;
+  while (i + 2 < count && v >= levels[i + 1]) i++;
+  float span = static_cast<float>(levels[i + 1] - levels[i]);
+  float frac = std::clamp(static_cast<float>(v - levels[i]) / span, 0.0f, 1.0f);
+  return frac > threshold ? i + 1 : i;
+}
+
+// A pixel's palette index by ordered dithering: each channel between its
+// two cube levels, a grey on the grey ramp (with the cube's black and
+// white at its ends) - exact for any gap, with no search.
+int orderedIndex(int r, int g, int b, float threshold) {
+  int hi = std::max({r, g, b}), lo = std::min({r, g, b});
+  if (hi - lo < 12) {
+    static const int kGreys[26] = {0, 8, 18, 28, 38, 48, 58, 68, 78, 88, 98, 108, 118, 128, 138, 148, 158, 168, 178, 188, 198, 208, 218, 228, 238, 255};
+    int k = orderedLevel((r + g + b) / 3, kGreys, 26, threshold);
+    return k == 0 ? 16 : k == 25 ? 231 : 232 + (k - 1);
+  }
+  return 16 + 36 * orderedLevel(r, kCubeLevels, 6, threshold) + 6 * orderedLevel(g, kCubeLevels, 6, threshold) +
+         orderedLevel(b, kCubeLevels, 6, threshold);
+}
+
 int percent(int v) { return static_cast<int>(std::lround(v * 100.0 / 255.0)); }
 
 uint32_t crc32(const uint8_t * data, size_t size, uint32_t crc = 0) {
@@ -192,10 +240,58 @@ std::vector<uint8_t> encodePng(const Image & image, int x0, int y0, int width, i
   return png;
 }
 
-std::string encodeSixel(const Image & image, int x0, int y0, int width, int height, const std::vector<bool> & keep) {
+std::string encodeSixel(const Image & image, int x0, int y0, int width, int height, const std::vector<bool> & keep,
+                        const Dither & dither) {
+  // Each pixel's palette index, dithered.
+  std::vector<int> indices(static_cast<size_t>(width) * static_cast<size_t>(height));
+  auto pixel = [&](int x, int y) {
+    return image.pixels[static_cast<size_t>(y0 + y) * static_cast<size_t>(image.width) + static_cast<size_t>(x0 + x)];
+  };
+  if (dither.method == Dither::Method::FLOYD_STEINBERG) {
+    // Error rows with a border on both sides.
+    std::vector<float> current(static_cast<size_t>(width + 2) * 3, 0.0f), next(current.size(), 0.0f);
+    for (int y = 0; y < height; y++) {
+      std::fill(next.begin(), next.end(), 0.0f);
+      for (int x = 0; x < width; x++) {
+        uint32_t p = pixel(x, y);
+        size_t e = static_cast<size_t>(x + 1) * 3;
+        float want[3] = {Image::red(p) + current[e], Image::green(p) + current[e + 1], Image::blue(p) + current[e + 2]};
+        int c[3];
+        for (size_t k = 0; k < 3; k++) c[k] = static_cast<int>(std::lround(std::clamp(want[k], 0.0f, 255.0f)));
+        int index = nearest256(Color(c[0], c[1], c[2]));
+        indices[static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x)] = index;
+        int got[3];
+        paletteRgb(index, got[0], got[1], got[2]);
+        for (size_t k = 0; k < 3; k++) {
+          float error = want[k] - static_cast<float>(got[k]);
+          current[e + 3 + k] += error * 7.0f / 16.0f;
+          next[e - 3 + k] += error * 3.0f / 16.0f;
+          next[e + k] += error * 5.0f / 16.0f;
+          next[e + 3 + k] += error * 1.0f / 16.0f;
+        }
+      }
+      current.swap(next);
+    }
+  } else {
+    std::unordered_map<uint32_t, int> cache;
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        uint32_t p = pixel(x, y);
+        int index;
+        if (dither.method == Dither::Method::ORDERED) {
+          index = orderedIndex(Image::red(p), Image::green(p), Image::blue(p), bayer8(dither.origin_x + x, dither.origin_y + y));
+        } else {
+          auto it = cache.find(p & 0x00ffffffu);
+          index = it != cache.end() ? it->second : nearest256(Color(Image::red(p), Image::green(p), Image::blue(p)));
+          cache.emplace(p & 0x00ffffffu, index);
+        }
+        indices[static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x)] = index;
+      }
+    }
+  }
+
   // Each pixel's register (its palette index - 16), or -1 when left out.
   std::vector<int> regs(static_cast<size_t>(width) * static_cast<size_t>(height), -1);
-  std::unordered_map<uint32_t, int> cache;
   std::set<int> used;
   bool transparent = height % 6 != 0;
   for (int y = 0; y < height; y++) {
@@ -206,17 +302,8 @@ std::string encodeSixel(const Image & image, int x0, int y0, int width, int heig
         transparent = true;
         continue;
       }
-      uint32_t rgb = p & 0x00ffffffu;
-      auto it = cache.find(rgb);
-      int reg;
-      if (it != cache.end()) {
-        reg = it->second;
-      } else {
-        reg = nearest256(Color(Image::red(p), Image::green(p), Image::blue(p))) - 16;
-        cache.emplace(rgb, reg);
-      }
-      regs[i] = reg;
-      used.insert(reg);
+      regs[i] = indices[i] - 16;
+      used.insert(regs[i]);
     }
   }
   std::string out = "\x1bP0;" + std::string(transparent ? "1" : "0") + ";0q\"1;1;" + std::to_string(width) + ";" + std::to_string(height);
@@ -389,7 +476,11 @@ std::string ImageEncoder::sixel(const CellBuffer & frame, const ImagePlacement &
     sixel_ready_ = true;
   }
   out += cup(r0, c0);
-  out += encodeSixel(img, x, y, w, h, keep);
+  Dither dither;
+  dither.method = profile_.dither;
+  dither.origin_x = p.col * cw + x;
+  dither.origin_y = p.row * ch + y;
+  out += encodeSixel(img, x, y, w, h, keep, dither);
   return out;
 }
 

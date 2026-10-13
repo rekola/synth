@@ -35,6 +35,7 @@
 #ifdef SYNTH_TERMINAL_UI
 #include <cellui/term/TerminalSession.h>
 #endif
+#include <cellui/term/ImageEncoder.h>
 #include <fmt/core.h>
 
 using namespace std;
@@ -51,6 +52,9 @@ int main(int argc, char *argv[]) {
   string theme_name = "dark"; // --theme dark|light|original: the terminal UI's colours
   bool theme_given = false;
   UI::View initial_view = UI::View::LIVE; // --view live|arrangement: which view the UI starts in
+  // --dither nearest|ordered|floyd-steinberg: how what has to meet the
+  // terminal's palette (Sixel images) is dithered.
+  auto dither = cellui::term::Dither::Method::ORDERED;
   // The saved audio/MIDI device choices; --capture-device/--playback-device/
   // --midi-input override them for this run only (`devices`), never the file
   // (`saved_devices`, what the Controller persists from).
@@ -74,6 +78,12 @@ int main(int argc, char *argv[]) {
       else {
 	fmt::print(stderr, "--view requires 'live' or 'arrangement'\n");
 	exit(1);
+      }
+      i++;
+    } else if (strcmp(argv[i], "--dither") == 0) {
+      if (i + 1 >= argc || !cellui::term::Dither::byName(argv[i + 1], dither)) {
+        fmt::print(stderr, "--dither requires 'nearest', 'ordered' or 'floyd-steinberg'\n");
+        exit(1);
       }
       i++;
     } else if (strcmp(argv[i], "--theme") == 0) {
@@ -262,11 +272,14 @@ int main(int argc, char *argv[]) {
   (void)initial_view;
   (void)theme_name;
   (void)theme_given;
+  (void)dither;
   fmt::print(stderr, "This build has no terminal UI; use --headless\n");
   return 1;
 #else
   std::string terminal_error;
-  auto session = cellui::term::TerminalSession::open(cellui::term::SessionOptions(), &terminal_error);
+  cellui::term::SessionOptions session_options;
+  session_options.dither = dither;
+  auto session = cellui::term::TerminalSession::open(session_options, &terminal_error);
   if (!session) {
     fmt::print(stderr, "Cannot start the terminal UI: {}\n", terminal_error);
     return 1;

@@ -117,8 +117,19 @@ so at most a theme of its own later.
      picture's edges with transparency, which left a seam of what is below
      between tiles; with the pad it blends them with the real neighbours.
    - kitty, iTerm2 and Sixel (xterm). Sixel can't stretch, so the encoder
-     scales the picture before sending it; its palette bands the blur until
-     the dithering step.
+     scales the picture before sending it (the smaller drawing saves only
+     CPU there, not bytes), and dithers it to the 240 cube and grey-ramp
+     entries (`term::Dither`, `--dither nearest|ordered|floyd-steinberg`,
+     ordered by default). Ordered dithering is per channel between the
+     palette's own levels (so the cube's 0-95 gap is spanned too), its 8x8
+     Bayer matrix fixed to the screen's pixels, so tiles meet and a redrawn
+     tile keeps its pattern. Floyd-Steinberg is the finest grain but starts
+     afresh in every tile, which shows the tile grid. Nearest bands. On the
+     test screen: ordered 94 ms / 577 KB to open and 23 ms / 123 KB a
+     playhead step, Floyd-Steinberg 251 ms / 921 KB and 50 ms / 177 KB,
+     nearest 105 ms / 31 KB and 23 ms / 5 KB (noise doesn't compress into
+     Sixel's runs). canvas's `quantize()` searches the whole palette per
+     pixel (991 ms to open) and has no screen origin for its matrix.
    - The cells under a picture are blanked as it arrives, and an info dialog
      hands the mouse back to the terminal while it is open: its text can be
      selected, and the blurred screen behind it has nothing to select.
