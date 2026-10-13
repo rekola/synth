@@ -302,6 +302,12 @@ void TerminalSession::close() {
   fd_ = -1;
 }
 
+void TerminalSession::setMouseReporting(bool on) {
+  if (!mouse_ || on == mouse_reporting_) return;
+  mouse_reporting_ = on;
+  write(on ? "\x1b[?1002;1006h" : "\x1b[?1002;1006l");
+}
+
 void TerminalSession::write(const std::string & bytes) {
   if (fd_ < 0 || bytes.empty()) return;
   // A signal's restoration must not land inside a half-written sequence.

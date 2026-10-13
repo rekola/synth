@@ -66,3 +66,16 @@ TEST(infodialog_center_and_close) {
   CHECK(!d.isOpen());
   CHECK(b.toPlainText().empty());
 }
+
+TEST(infodialog_italic_ends_with_its_run) {
+  StyleProvider styles;
+  CellBuffer b(4, 30);
+  BufferPlane root(b, styles);
+  InfoDialog d;
+  d.show(root, "T", "a *b* c", 28, 4);
+  root.refresh();
+  // Row 1: "│ a b c" - "a" at column 2, "b" at 4, "c" at 6.
+  CHECK(!b.at(1, 2).italic);
+  CHECK(b.at(1, 4).italic);
+  CHECK(!b.at(1, 6).italic);
+}

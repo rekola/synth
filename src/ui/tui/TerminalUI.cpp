@@ -434,10 +434,9 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
   root_plane_->setFlatChildren(true);
   root_plane_->setThemedBases(true);
   if (use_pixel) root_plane_->setCellPixelSize(caps.cell_px_height, caps.cell_px_width);
-  // A modal's backdrop is drawn and blurred as pictures where the terminal
-  // can stretch one over cells; Sixel can't, and its palette would band the
-  // blur, so it keeps the blur in cells.
-  if (use_pixel && caps.pixels != cellui::term::PixelProtocol::SIXEL) root_plane_->setRasterizer(cellui::canvasRasterizer());
+  // A modal's backdrop is drawn and blurred as pictures (Sixel's stretched
+  // before they are sent).
+  if (use_pixel) root_plane_->setRasterizer(cellui::canvasRasterizer());
   setPlane(std::move(root_plane));
 
   setFgColor(styles_.window_fg_color);
@@ -482,6 +481,9 @@ void TerminalUI::raiseOverlays() {
   modal_scrim_.raise();
   choice_dialog_.raise();
   info_dialog_.raise();
+  // An info dialog takes no clicks: the terminal selects its text instead
+  // (the blurred screen behind it has none to select).
+  session_.setMouseReporting(!info_dialog_.isOpen());
 }
 
 void
@@ -1332,11 +1334,12 @@ TerminalUI::offerInput(const cellui::Input & input) {
     handleChoiceDialogInput(input);
     return true;
   }
-  // The info dialog is modal: it closes on its own keys or a click and
-  // swallows everything else but a resize or redraw.
+  // The info dialog is modal: it closes on its own keys and swallows
+  // everything else but a resize or redraw. The mouse is the terminal's
+  // while it is open (raiseOverlays()), so its text can be selected.
   if (info_dialog_.isOpen() && input.getId() != Key::Resize && !(input.hasCtrl() && input.getId() == 'l')) {
     auto id = input.getId();
-    if (id == Key::Escape || id == Key::Enter || id == 'q' || id == Key::Button1 || (input.hasCtrl() && id == 'g')) {
+    if (id == Key::Escape || id == Key::Enter || id == 'q' || (input.hasCtrl() && id == 'g')) {
       closeInfoDialog();
     }
     return true;

@@ -112,8 +112,16 @@ so at most a theme of its own later.
      fingerprint of the cells and pictures it reads changes, so the
      background keeps running under the dialog and static areas are not sent
      again.
-   - kitty and iTerm2's protocol only; Sixel keeps the cell blur (it can't
-     stretch a picture, and its palette would band the blur).
+   - Each tile's picture carries a pad of 2 pixels of its neighbours
+     (`Image::pad`), outside the part shown: kitty blends a stretched
+     picture's edges with transparency, which left a seam of what is below
+     between tiles; with the pad it blends them with the real neighbours.
+   - kitty, iTerm2 and Sixel (xterm). Sixel can't stretch, so the encoder
+     scales the picture before sending it; its palette bands the blur until
+     the dithering step.
+   - The cells under a picture are blanked as it arrives, and an info dialog
+     hands the mouse back to the terminal while it is open: its text can be
+     selected, and the blurred screen behind it has nothing to select.
    - Measured on a 200 x 50 screen of 10 x 20 pixel cells: opening 24 ms and
      328 KB (169 tiles), a playhead row moving 4.8 ms and 56 KB a frame (28
      tiles). If that is too much: draw a dirty band once and cut its tiles
@@ -122,8 +130,10 @@ so at most a theme of its own later.
    - Next: the terminal's own font. kitty answers it through XTGETTCAP
      (`kitty-query-font_family`, `kitty-query-font_size`); elsewhere a user
      setting, falling back to `monospace`.
-3. Dialog elevation over the scrim: border contrast and a one-cell offset
-   (brutalist) or dithered shadow.
+3. Dialog elevation over the scrim: no border lines (dated; the backdrop
+   already sets the dialog apart), the dialog a raised surface with a
+   one-cell offset (brutalist) or dithered shadow, its title as a heading
+   inside.
 4. Border styles per edge, marching ants for the region.
 5. Phosphor decay (the frame diff) on the pattern editor.
 6. Gradients and spans formalised; shader hook.

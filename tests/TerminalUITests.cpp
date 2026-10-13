@@ -153,3 +153,17 @@ TEST(terminal_ui_modal_backdrop_is_pictures_where_the_terminal_shows_them) {
   f.press(cellui::Key::Escape);
   for (auto & p : f.terminal.images()) CHECK(!p.image->stretched());
 }
+
+// The about dialog leaves the mouse to the terminal, to select its text with,
+// and so a click doesn't close it; it takes the mouse back when closed.
+TEST(terminal_ui_info_dialog_leaves_the_mouse_to_the_terminal) {
+  UIFixture f;
+  CHECK(f.terminal.mouseReporting());
+  f.execute("about");
+  CHECK(!f.terminal.mouseReporting());
+  f.terminal.pushMouse(20, 60, cellui::Key::Button1);
+  f.ui->step();
+  CHECK(f.terminal.info().focus == "info-dialog");
+  f.press(cellui::Key::Escape);
+  CHECK(f.terminal.mouseReporting());
+}

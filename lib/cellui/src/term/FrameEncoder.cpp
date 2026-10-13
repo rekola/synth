@@ -180,8 +180,18 @@ std::string FrameEncoder::encode(const CellBuffer & frame, const CursorRequest &
     for (int c = 0; c < cols; c++) {
       const CellBuffer::Cell & cell = frame.at(r, c);
       if (cell.image) {
-        // The image draws this cell; the text under it is not sent.
-        if (!last.at(r, c).image) last.put(r, c, cell);
+        // The image draws this cell. What was under it is blanked as the
+        // image arrives (in the same frame, before it), so a selection in
+        // the terminal finds nothing there; after that nothing is sent.
+        if (!last.at(r, c).image) {
+          CellBuffer::Cell blank;
+          moveTo(body, r, c);
+          pen(body, blank);
+          body += ' ';
+          blank.image = cell.image;
+          last.put(r, c, blank);
+          cursor_x_ = c + 1 >= cols ? -1 : c + 1;
+        }
         continue;
       }
       if (cell.continuation) continue;

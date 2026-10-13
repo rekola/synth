@@ -136,7 +136,10 @@ TEST(frame_encoder_leaves_image_cells_to_the_image) {
   marked.image = 1;
   f.put(0, 1, marked);
   f.put(0, 2, marked);
-  CHECK(e.encode(f, {}, "IMG") == "IMG");
+  // Blanked as the image arrives, so nothing under it can be selected; then
+  // left to the image.
+  CHECK(e.encode(f, {}, "IMG") == "\x1b[2G  IMG");
+  CHECK(e.encode(f, {}, "").empty());
   f.write(0, 1, "  ", {});
   std::string back = e.encode(f);
   CHECK(back == "\x1b[1;2H  ");
@@ -285,4 +288,29 @@ TEST(stretched_images_are_scaled_over_their_cells) {
 
   ImageEncoder six(profile(PixelProtocol::SIXEL));
   CHECK(count(six.encode(b, {p}, true), "\x1bP") == 1);
+}
+
+// A padded picture is placed as its inside, the pad there for the terminal
+// to blend the edges with as it scales.
+TEST(padded_stretched_images_place_their_inside) {
+  CellBuffer b(3, 4);  // iTerm2's pictures stay off the last row
+  auto image = std::make_shared<Image>();
+  image->width = 8;
+  image->height = 10;
+  image->pixels = solid(8, 10, Image::pack(1, 2, 3));
+  image->cols = 4;
+  image->rows = 2;
+  image->pad = 2;
+  image->version = 1;
+  ImagePlacement p;
+  p.image = image;
+  p.key = 1;
+  CellBuffer::Cell marked;
+  marked.image = 1;
+  for (int r = 0; r < 2; r++)
+    for (int c = 0; c < 4; c++) b.put(r, c, marked);
+  ImageEncoder kitty(profile(PixelProtocol::KITTY));
+  CHECK(count(kitty.encode(b, {p}, true), "x=2,y=2,w=4,h=6,c=4,r=2,") == 1);
+  ImageEncoder iterm(profile(PixelProtocol::ITERM2));
+  CHECK(count(iterm.encode(b, {p}, true), ";width=4;height=2;") == 1);
 }

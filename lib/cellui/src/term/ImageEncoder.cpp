@@ -38,6 +38,24 @@ std::string base64(const std::vector<uint8_t> & data) {
   return out;
 }
 
+// The part of a stretched picture that is shown: without its pad.
+Image withoutPad(const Image & src) {
+  if (src.pad <= 0) return src;
+  Image out = src;
+  out.pad = 0;
+  out.width = std::max(1, src.width - 2 * src.pad);
+  out.height = std::max(1, src.height - 2 * src.pad);
+  out.pixels.assign(static_cast<size_t>(out.width) * static_cast<size_t>(out.height), 0);
+  for (int y = 0; y < out.height; y++) {
+    for (int x = 0; x < out.width; x++) {
+      int sx = std::min(x + src.pad, src.width - 1), sy = std::min(y + src.pad, src.height - 1);
+      out.pixels[static_cast<size_t>(y) * static_cast<size_t>(out.width) + static_cast<size_t>(x)] =
+        src.pixels[static_cast<size_t>(sy) * static_cast<size_t>(src.width) + static_cast<size_t>(sx)];
+    }
+  }
+  return out;
+}
+
 // The picture resampled to width x height (bilinear).
 Image stretch(const Image & src, int width, int height) {
   Image out;
@@ -345,7 +363,7 @@ std::string ImageEncoder::sixel(const CellBuffer & frame, const ImagePlacement &
   int ch = profile_.cell_px_height, cw = profile_.cell_px_width;
   // Sixel draws a pixel to a pixel, so a stretched picture is scaled here.
   Image natural;
-  if (p.image->stretched()) natural = stretch(*p.image, p.image->cols * cw, p.image->rows * ch);
+  if (p.image->stretched()) natural = stretch(withoutPad(*p.image), p.image->cols * cw, p.image->rows * ch);
   const Image & img = p.image->stretched() ? natural : *p.image;
   int r0 = rects[0].row, c0 = rects[0].col, r1 = r0, c1 = c0;
   for (const Rect & r : rects) {

@@ -44,15 +44,16 @@ InfoDialog::show(UIPlane & parent, const string & title, const string & source, 
   for (int i = 0; i < rows - 2; i++) {
     int x = 2;
     for (auto & run : lines[static_cast<size_t>(i)]) {
-      // The plane keeps one style at a time (bold wins over italic).
-      if (run.bold) plane_->setBold(true);
-      else if (run.italic) plane_->setItalic(true);
-      else plane_->setBold(false);
+      // The plane keeps one style at a time (bold wins over italic); each
+      // run sets both, so one doesn't carry into the next.
+      plane_->setBold(run.bold);
+      plane_->setItalic(!run.bold && run.italic);
       plane_->putstr(i + 1, x, run.text);
       x += utf8::displayWidth(run.text);
     }
   }
   plane_->setBold(false);
+  plane_->setItalic(false);
 }
 
 void

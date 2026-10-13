@@ -370,20 +370,26 @@ int BufferPlane::backdropTile(const CellBuffer & below, int row, int col, int ro
     int scale = std::clamp(blur * ch / 8, 1, 8);
     Image drawn = rasterizer_->render(below, placements_, r0, c0, r1 - r0, c1 - c0, ch, cw, scale, default_fg_, default_bg_);
     filterPixels(drawn, backdrop, blur * ch / 2 / scale, backdrop.tint.value_or(default_bg_));
+    // The tile's own pixels, and a pad of its neighbours' around them for
+    // the display to blend the edges with as it stretches it.
+    constexpr int kPad = 2;
     auto image = std::make_shared<Image>();
     int x0 = (col - c0) * cw / scale, x1 = std::min(drawn.width, (col + cols - c0) * cw / scale);
     int y0 = (row - r0) * ch / scale, y1 = std::min(drawn.height, (row + rows - r0) * ch / scale);
-    image->width = std::max(1, x1 - x0);
-    image->height = std::max(1, y1 - y0);
+    image->width = std::max(1, x1 - x0) + 2 * kPad;
+    image->height = std::max(1, y1 - y0) + 2 * kPad;
     image->pixels.assign(static_cast<size_t>(image->width) * static_cast<size_t>(image->height), Image::pack(0, 0, 0));
-    for (int y = y0; y < y1; y++) {
-      for (int x = x0; x < x1; x++) {
-        image->pixels[static_cast<size_t>(y - y0) * static_cast<size_t>(image->width) + static_cast<size_t>(x - x0)] =
-          drawn.pixels[static_cast<size_t>(y) * static_cast<size_t>(drawn.width) + static_cast<size_t>(x)];
+    for (int y = 0; y < image->height; y++) {
+      int sy = std::clamp(y0 - kPad + y, 0, drawn.height - 1);
+      for (int x = 0; x < image->width; x++) {
+        int sx = std::clamp(x0 - kPad + x, 0, drawn.width - 1);
+        image->pixels[static_cast<size_t>(y) * static_cast<size_t>(image->width) + static_cast<size_t>(x)] =
+          drawn.pixels[static_cast<size_t>(sy) * static_cast<size_t>(drawn.width) + static_cast<size_t>(sx)];
       }
     }
     image->cols = cols;
     image->rows = rows;
+    image->pad = kPad;
     image->version = nextImageVersion();
     tile->image = image;
     tile->hash = print.value();

@@ -73,6 +73,8 @@ class TerminalSession : public Terminal {
   // The next present() redraws the whole screen (after the screen may have
   // been disturbed, Emacs's C-l).
   void redraw() override { encoder_.invalidate(); }
+  // Only when the session was opened with the mouse (SessionOptions::mouse).
+  void setMouseReporting(bool on) override;
   // Writes raw bytes, all of them.
   void write(const std::string & bytes);
 
@@ -98,6 +100,7 @@ class TerminalSession : public Terminal {
   bool handlers_ = false;
   bool line_signals_ = false;
   bool mouse_ = true;
+  bool mouse_reporting_ = true;
   int rows_ = 24, cols_ = 80;
   bool size_known_ = false;
   Capabilities caps_;

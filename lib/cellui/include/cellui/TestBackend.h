@@ -37,6 +37,8 @@ class TestBackend : public term::Terminal {
                const std::vector<ImagePlacement> & images = {}, const FrameInfo * info = nullptr) override;
   bool wantsFrameInfo() const override { return true; }
   void redraw() override { redraws_++; }
+  void setMouseReporting(bool on) override { mouse_reporting_ = on; }
+  bool mouseReporting() const { return mouse_reporting_; }
 
   // Input.
   void push(const term::TermEvent & event);
@@ -73,6 +75,7 @@ class TestBackend : public term::Terminal {
   std::vector<ImagePlacement> images_;
   FrameInfo info_;
   size_t frames_ = 0, redraws_ = 0;
+  bool mouse_reporting_ = true;
 };
 
 }  // namespace cellui::term
