@@ -242,9 +242,16 @@ cell position, so a scrolled meter is a new image and is uploaded again.
    turn of the loop without waiting; the UI sources are the `synth_ui`
    library, so `tests/TerminalUITests.cpp` drives the real UI on it. A JSON
    form of the frame was left out: tests read the frame directly, and
-   nothing outside the process needs it. The image keys are not in the
-   frame yet; they come with image identity in step 7.
-7. Viewports and image identity (Scrolling and images, above).
+   nothing outside the process needs it. The image placements, keys
+   included, are read with `images()`; image identity (step 7) makes the keys
+   mean something.
+7. Viewports and image identity (Scrolling and images, above). Image
+   identity is done: `drawImageAt()` takes an id (0 = a hash of the pixels),
+   and a `BufferPlane` that erased and redraws a picture keeps its key and
+   version wherever it lands, so kitty only places it again (tested through
+   `ImageEncoder`); same pixels in two places stay two images. Open: the
+   viewport, and the widgets drawing whole pictures (the clipped VU meter
+   slice still changes with the scroll) and passing ids.
 8. Icons: the app's icon list, Kitty graphics/Sixel/glyph fallback, menu
    icons, keyed so a static icon in a scrolling list costs nothing with
    kitty graphics.

@@ -231,3 +231,21 @@ TEST(iterm2_images_send_a_png_per_visible_rectangle) {
   CHECK(count(covered, "\x1b]1337;File=") == 3);
   CHECK(count(covered, "\x1b[1;3H\x1b]1337;") == 1);
 }
+
+TEST(kitty_a_scrolled_image_is_placed_again_and_not_sent) {
+  StyleProvider styles;
+  CellBuffer b(6, 8);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(6, 2);
+  ImageEncoder enc(profile(PixelProtocol::KITTY));
+  root.drawImageAt(1, 1, solid(2, 6, Image::pack(10, 20, 30)), 2, 6);
+  root.refresh();
+  CHECK(count(enc.encode(b, root.images(), true), "a=t") == 1);
+  for (int row = 2; row <= 4; row++) {
+    root.erase();
+    root.drawImageAt(row, 1, solid(2, 6, Image::pack(10, 20, 30)), 2, 6);
+    root.refresh();
+    std::string moved = enc.encode(b, root.images(), false);
+    CHECK(count(moved, "a=t") == 0 && count(moved, "a=d,d=I") == 0 && count(moved, "a=p,i=1,") == 1);
+  }
+}
