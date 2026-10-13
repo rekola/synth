@@ -52,9 +52,9 @@ void CellBuffer::write(int row, int col, const std::string & text, const Style &
     }
     if (col >= col_lo && col + width <= col_hi) {
       Cell & cell = cells_[index(row, col)];
-      cell = Cell{glyph, style.fg, style.bg, style.bold, style.italic, style.underline, false, style.bg_blend, style.fg_contrast};
+      cell = Cell{glyph, style.fg, style.bg, style.bold, style.italic, style.underline, false, style.bg_blend, style.fg_contrast, 0, style.backdrop};
       if (width == 2) {
-        cells_[index(row, col + 1)] = Cell{"", style.fg, style.bg, style.bold, style.italic, style.underline, true, style.bg_blend, style.fg_contrast};
+        cells_[index(row, col + 1)] = Cell{"", style.fg, style.bg, style.bold, style.italic, style.underline, true, style.bg_blend, style.fg_contrast, 0, style.backdrop};
       }
       last_col = col;
     } else {

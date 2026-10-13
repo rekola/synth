@@ -25,6 +25,10 @@ class InfoDialog {
     move((screen_rows - rows_) / 2, (screen_cols - width_) / 2);
   }
   void close() { plane_.reset(); }
+  // Above every plane under the same parent.
+  void raise() {
+    if (plane_) plane_->moveToTop();
+  }
 
   int rows() const { return rows_; }
   int width() const { return width_; }

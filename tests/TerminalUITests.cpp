@@ -105,3 +105,31 @@ TEST(terminal_ui_set_song_scale_lists_scales_and_saves_the_choice) {
   CHECK(read().find("scale=\"otonal\"") != std::string::npos);
   fs::remove(song);
 }
+
+// A modal dialog frosts everything behind it, and closing it gives the screen
+// back as it was.
+TEST(terminal_ui_modal_dialog_shows_the_screen_behind_it_through_a_backdrop) {
+  UIFixture f;
+  auto menu = f.terminal.text().find("File");
+  CHECK(menu != std::string::npos);
+  auto sharp = f.terminal.frame().at(0, 0);
+  auto hasScrim = [&] {
+    for (auto & plane : f.terminal.info().planes.children)
+      if (plane.name == "scrim") return true;
+    return false;
+  };
+  CHECK(!hasScrim());
+
+  f.execute("about");
+  CHECK(hasScrim());
+  auto red = [](const cellui::CellBuffer::Cell & cell) { return cell.fg.value_or(cellui::Color()).getRed(); };
+  auto green = [](const cellui::CellBuffer::Cell & cell) { return cell.fg.value_or(cellui::Color()).getGreen(); };
+  auto frosted = f.terminal.frame().at(0, 0);
+  CHECK(frosted.fg.has_value() && sharp.fg.has_value());
+  CHECK(red(frosted) != red(sharp) || green(frosted) != green(sharp));
+
+  f.press(cellui::Key::Escape);
+  CHECK(!hasScrim());
+  auto back = f.terminal.frame().at(0, 0);
+  CHECK(red(back) == red(sharp) && green(back) == green(sharp) && back.text == sharp.text);
+}

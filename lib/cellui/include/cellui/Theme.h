@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cellui/Backdrop.h>
 #include <cellui/Color.h>
 
 #include <cmath>
@@ -153,6 +154,8 @@ struct Theme {
   Color data_fx;
   Color data_velocity;
   Color data_delay;
+  // What a modal dialog does to everything behind it.
+  Backdrop modal_backdrop;
 
   static Theme original() {
     Theme t;
@@ -271,6 +274,7 @@ struct Theme {
     t.data_fx = Color("#c58be0");
     t.data_velocity = Color("#d4b03c");
     t.data_delay = Color("#6cc4e0");
+    t.modal_backdrop = Backdrop{ 2, 0.35f, t.surface_base };
     return t;
   }
 
@@ -322,6 +326,7 @@ struct Theme {
     t.data_fx = Color("#8a3fa8");
     t.data_velocity = Color("#7a5c00");
     t.data_delay = Color("#00607f");
+    t.modal_backdrop = Backdrop{ 2, 0.3f, t.surface_base };
     return t;
   }
 

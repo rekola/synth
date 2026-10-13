@@ -27,6 +27,10 @@ class ChoiceDialog {
   // starts, -1 for none. Nothing is drawn until show().
   void open(std::string title, std::vector<std::string> labels, int current);
   void close();
+  // Above every plane under the same parent.
+  void raise() {
+    if (plane_) plane_->moveToTop();
+  }
 
   // (Re)draws the box under `parent`, centred on a screen of the given size.
   // Call again after a resize or any change of selection.

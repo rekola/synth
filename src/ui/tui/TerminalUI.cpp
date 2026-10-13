@@ -341,7 +341,7 @@ private:
       }
       cellui::MenuBar::Section out;
       out.name = section.name;
-      out.mnemonic = section.mnemonic;
+      out.mnemonic = static_cast<unsigned char>(section.mnemonic);
       vector<string> section_commands;
       for (auto & item : section.items) {
 	cellui::MenuBar::Item entry;
@@ -466,17 +466,23 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
   if (initial_view_ == View::LIVE) setView(View::LIVE);
   else layout();
 
-  // Every other widget above was created after menu_, so without this the
-  // scope charts/pattern editor/status line all sit above it in z-order -
-  // see UIMenu::raiseToTop()'s own comment for why that hides an unrolled
-  // section's dropdown even though the menu still functions correctly.
-  menu_->raiseToTop();
-
   render();
+}
+
+// Every other widget was created after menu_, and layout() and a reader,
+// a picker or a widget's own child can land above it too, hiding an
+// unrolled section's dropdown (see UIMenu::raiseToTop()), so it is raised
+// before every frame - and an open modal dialog, on its scrim, above it.
+void TerminalUI::raiseOverlays() {
+  menu_->raiseToTop();
+  modal_scrim_.raise();
+  choice_dialog_.raise();
+  info_dialog_.raise();
 }
 
 void
 TerminalUI::render() {
+  raiseOverlays();
   root_plane_->refresh();
   cellui::term::CursorRequest cursor;
   if (auto at = root_plane_->cursorPosition()) cursor = { true, at->first, at->second };
@@ -498,7 +504,6 @@ TerminalUI::step() {
     handleEvent(*event);
   }
   renderComponents();
-  menu_->raiseToTop();
   render();
 }
 
@@ -1508,8 +1513,18 @@ void TerminalUI::showChoiceDialog(const std::string & title, std::vector<Choice>
   force_next_render_ = true;
 }
 
+void TerminalUI::layoutModalScrim() {
+  if (!choice_dialog_.isOpen() && info_dialog_title_.empty()) {
+    modal_scrim_.close();
+    return;
+  }
+  auto [screen_rows, screen_cols] = getDim();
+  modal_scrim_.show(getPlane(), screen_rows, screen_cols, getPlane().getStyles().theme.modal_backdrop);
+}
+
 void TerminalUI::layoutChoiceDialog() {
   if (!choice_dialog_.isOpen()) return;
+  layoutModalScrim();
   auto [screen_rows, screen_cols] = getDim();
   choice_dialog_.show(getPlane(), screen_rows, screen_cols);
 }
@@ -1533,6 +1548,7 @@ void TerminalUI::handleChoiceDialogInput(const cellui::Input & input) {
 void
 TerminalUI::layoutInfoDialog() {
   if (info_dialog_title_.empty()) return;
+  layoutModalScrim();
   auto [screen_rows, screen_cols] = getDim();
   auto width = std::min(60, screen_cols);
   info_dialog_.show(getPlane(), info_dialog_title_, info_dialog_markdown_, width, screen_rows);
@@ -2028,12 +2044,8 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
       render |= components;
 
       if (render) {
-	count("present");
-	// Reasserted every frame: a plane created after the menu (a reader, a
-	// picker, a widget's own child) lands above it, hiding an unrolled
-	// section's dropdown. See UIMenu::raiseToTop()'s own comment.
-	menu_->raiseToTop();
-	TerminalUI::render();
+        count("present");
+        TerminalUI::render();
       }
     }
   }

@@ -7,6 +7,7 @@
 #include "../StyleProvider.h"
 #include "../../playback/InputEvent.h"
 #include <cellui/KeyReader.h>
+#include <cellui/Scrim.h>
 #include <cellui/Scopes.h>
 #include <chrono>
 #include <memory>
@@ -178,9 +179,20 @@ private:
   void closeChoiceDialog() {
     choice_dialog_.close();
     choice_callback_ = nullptr;
+    layoutModalScrim();
     force_next_render_ = true;
   }
-  void closeInfoDialog() { info_dialog_.close(); info_dialog_title_.clear(); force_next_render_ = true; }
+  void closeInfoDialog() {
+    info_dialog_.close();
+    info_dialog_title_.clear();
+    layoutModalScrim();
+    force_next_render_ = true;
+  }
+  // Under whichever modal dialog is open, the rest of the screen shows
+  // through the theme's modal backdrop.
+  cellui::Scrim modal_scrim_;
+  void layoutModalScrim();
+  void raiseOverlays();
   // Arrangement view's scope row (toggle-scopes); Live View never
   // shows it - see layout().
   bool scopes_visible_ = true;

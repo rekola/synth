@@ -64,6 +64,7 @@ add_library(cellui STATIC
   src/MenuBar.cpp
   src/Scopes.cpp
   src/SpectrumMeter.cpp
+  src/Scrim.cpp
   src/SubcellGlyphs.cpp
   src/Utf8.cpp
   src/term/Discovery.cpp

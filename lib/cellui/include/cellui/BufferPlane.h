@@ -20,7 +20,9 @@ namespace cellui {
 // them into the root's CellBuffer - children over their parent in the order
 // they were created or raised, a cell nothing was written to showing what is
 // below it, every child clipped to its parent. A translucent cell
-// (setBgBlend()) averages its background with what is below.
+// (setBgBlend()) averages its background with what is below, and a backdrop
+// cell (setBackdrop()) shows what is below blurred and dimmed, images
+// included: an image under one is shown filtered, whole.
 //
 // It is what the terminal backend draws: the terminal shows the composed
 // buffer. So it also has the reader (a one-line field over its own child
@@ -59,6 +61,7 @@ class BufferPlane : public UIPlane {
   void setItalic(bool b) override { style_.italic = b; }
   void setBgBlend(bool b) override { style_.bg_blend = b; }
   void setFgContrast(bool b) override { style_.fg_contrast = b; }
+  void setBackdrop(const Backdrop & b) override { style_.backdrop = b; }
   void erase() override {
     local_.clear(0, 0, local_.rows(), local_.cols());
     // Kept, so the same picture drawn again after erase() is not sent again.
@@ -147,6 +150,8 @@ class BufferPlane : public UIPlane {
   // corner at (row, col), inside the clip rectangle.
   void compose(CellBuffer & out, int row, int col, int clip_row, int clip_col, int clip_rows, int clip_cols) const;
   bool shown() const;
+  // The placement's image as `backdrop` shows it (root only).
+  std::shared_ptr<const Image> filteredImage(const ImagePlacement & placement, const Backdrop & backdrop) const;
   void drawReader();
   void drawPicker();
 
@@ -176,6 +181,15 @@ class BufferPlane : public UIPlane {
   bool themed_bases_ = false;
   int cell_px_h_ = 0, cell_px_w_ = 0;
   mutable std::vector<ImagePlacement> placements_;
+  // Images as a backdrop shows them, kept while they are shown so that one
+  // is filtered and sent once.
+  struct FilteredImage {
+    uint64_t key = 0, source_version = 0;
+    Backdrop backdrop;
+    std::shared_ptr<const Image> image;
+    bool used = false;
+  };
+  mutable std::vector<FilteredImage> filtered_images_;
 
   // The background of the cells nothing was written to; unset shows below.
   std::optional<Color> base_bg_;

@@ -3,6 +3,8 @@
 #include <cellui/Utf8.h>
 
 #include <algorithm>
+#include <array>
+#include <map>
 #include <tuple>
 
 namespace cellui {
@@ -32,6 +34,162 @@ uint64_t nextImageVersion() {
   static uint64_t version = 0;
   return ++version;
 }
+
+uint32_t firstCodepoint(const std::string & s) {
+  if (s.empty()) return 0;
+  auto b = [&](size_t i) { return i < s.size() ? static_cast<uint32_t>(static_cast<unsigned char>(s[i])) : 0u; };
+  uint32_t c = b(0);
+  if (c < 0x80) return c;
+  if ((c >> 5) == 6) return ((c & 0x1F) << 6) | (b(1) & 0x3F);
+  if ((c >> 4) == 14) return ((c & 0x0F) << 12) | ((b(1) & 0x3F) << 6) | (b(2) & 0x3F);
+  return ((c & 0x07) << 18) | ((b(1) & 0x3F) << 12) | ((b(2) & 0x3F) << 6) | (b(3) & 0x3F);
+}
+
+// Roughly how much of its cell a glyph inks: what a blurred cell's colour
+// mixes its foreground in by.
+float inkCoverage(const std::string & text) {
+  uint32_t cp = firstCodepoint(text);
+  if (cp == 0 || cp == ' ') return 0.0f;
+  if (cp == 0x2588) return 1.0f;                                                 // full block
+  if (cp >= 0x2581 && cp <= 0x2587) return static_cast<float>(cp - 0x2580) / 8;  // lower eighths
+  if (cp >= 0x2589 && cp <= 0x258F) return static_cast<float>(0x2590 - cp) / 8;  // left eighths
+  if (cp == 0x2580 || cp == 0x2590) return 0.5f;                                 // upper, right half
+  if (cp >= 0x2591 && cp <= 0x2593) return static_cast<float>(cp - 0x2590) / 4;  // shades
+  if (cp >= 0x2800 && cp <= 0x28FF) {                                            // braille dots
+    int dots = 0;
+    for (uint32_t bits = cp - 0x2800; bits; bits >>= 1) dots += static_cast<int>(bits & 1);
+    return 0.06f * static_cast<float>(dots);
+  }
+  if (cp >= 0x2500 && cp <= 0x257F) return 0.15f;  // box drawing
+  return 0.2f;
+}
+
+// One pass of a box blur along rows or columns, the window shrinking at the
+// edges.
+void blurPass(std::vector<uint32_t> & px, int w, int h, int radius, bool along_rows) {
+  int lines = along_rows ? h : w, length = along_rows ? w : h;
+  std::vector<std::array<int, 4>> line(static_cast<size_t>(length));
+  auto at = [&](int l, int i) -> uint32_t & {
+    return px[along_rows ? static_cast<size_t>(l) * static_cast<size_t>(w) + static_cast<size_t>(i)
+                         : static_cast<size_t>(i) * static_cast<size_t>(w) + static_cast<size_t>(l)];
+  };
+  for (int l = 0; l < lines; l++) {
+    for (int i = 0; i < length; i++) {
+      uint32_t p = at(l, i);
+      line[static_cast<size_t>(i)] = {Image::red(p), Image::green(p), Image::blue(p), Image::alpha(p)};
+    }
+    std::array<int, 4> sum = {0, 0, 0, 0};
+    int lo = 0, hi = 0;  // the window [lo, hi)
+    for (int i = 0; i < length; i++) {
+      for (; hi < std::min(length, i + radius + 1); hi++)
+        for (size_t k = 0; k < 4; k++) sum[k] += line[static_cast<size_t>(hi)][k];
+      for (; lo < i - radius; lo++)
+        for (size_t k = 0; k < 4; k++) sum[k] -= line[static_cast<size_t>(lo)][k];
+      int n = hi - lo;
+      at(l, i) = Image::pack(static_cast<uint8_t>(sum[0] / n), static_cast<uint8_t>(sum[1] / n), static_cast<uint8_t>(sum[2] / n),
+                             static_cast<uint8_t>(sum[3] / n));
+    }
+  }
+}
+
+// The layers below a plane with backdrop cells, kept as they were before
+// the plane drew, and each of their cells as a backdrop shows it.
+class BackdropSource {
+ public:
+  BackdropSource(const CellBuffer & below, const std::vector<ImagePlacement> & images, int cell_h, int cell_w, Color fg, Color bg)
+    : below_(below), images_(images), cell_h_(cell_h), cell_w_(cell_w), default_fg_(fg), default_bg_(bg),
+      sums_(static_cast<size_t>(below.rows() + 1) * static_cast<size_t>(below.cols() + 1)) {
+    // A summed-area table of the cells' colours, so any blur radius is four
+    // lookups.
+    for (int r = 0; r < below.rows(); r++) {
+      for (int c = 0; c < below.cols(); c++) {
+        Color tone = toneOf(r, c);
+        auto & s = sum(r + 1, c + 1);
+        const auto & up = sum(r, c + 1), & left = sum(r + 1, c), & diag = sum(r, c);
+        s = {up[0] + left[0] - diag[0] + tone.getRed(), up[1] + left[1] - diag[1] + tone.getGreen(),
+             up[2] + left[2] - diag[2] + tone.getBlue()};
+      }
+    }
+  }
+
+  CellBuffer::Cell seen(int row, int col, const Backdrop & b) const {
+    CellBuffer::Cell cell = below_.at(row, col);
+    Color fg = cell.fg.value_or(default_fg_), bg = cell.bg.value_or(default_bg_);
+    if (b.blur > 0) {
+      int radius = std::min(b.blur, Backdrop::kMaxBlur);
+      Color blurred = average(row - radius, col - 2 * radius, row + radius + 1, col + 2 * radius + 1);
+      // Out of focus, a glyph's ink spreads into the cells around it.
+      fg = fg.blend(std::min(1.0f, 0.4f + 0.2f * static_cast<float>(radius)), blurred);
+      bg = blurred;
+      cell.underline = false;
+      if (radius >= Backdrop::kGlyphGoneBlur && !cell.image) {
+        cell.text = " ";
+        cell.continuation = cell.bold = cell.italic = false;
+      }
+    }
+    if (b.dim > 0.0f) {
+      Color tint = b.tint.value_or(default_bg_);
+      fg = fg.blend(b.dim, tint);
+      bg = bg.blend(b.dim, tint);
+    }
+    cell.fg = fg;
+    cell.bg = bg;
+    cell.bg_blend = cell.fg_contrast = false;
+    cell.backdrop = {};
+    return cell;
+  }
+
+ private:
+  using Sum = std::array<long, 3>;
+  Sum & sum(int r, int c) { return sums_[static_cast<size_t>(r) * static_cast<size_t>(below_.cols() + 1) + static_cast<size_t>(c)]; }
+  const Sum & sum(int r, int c) const {
+    return sums_[static_cast<size_t>(r) * static_cast<size_t>(below_.cols() + 1) + static_cast<size_t>(c)];
+  }
+
+  // The cells in rows [r0, r1) and columns [c0, c1), inside the buffer.
+  Color average(int r0, int c0, int r1, int c1) const {
+    r0 = std::max(r0, 0), c0 = std::max(c0, 0), r1 = std::min(r1, below_.rows()), c1 = std::min(c1, below_.cols());
+    long n = static_cast<long>(r1 - r0) * (c1 - c0);
+    if (n <= 0) return default_bg_;
+    int ch[3];
+    for (size_t k = 0; k < 3; k++) ch[k] = static_cast<int>((sum(r1, c1)[k] - sum(r0, c1)[k] - sum(r1, c0)[k] + sum(r0, c0)[k]) / n);
+    return Color(ch[0], ch[1], ch[2]);
+  }
+
+  // A cell's colour as the eye averages it: its background with its glyph's
+  // ink, or an image's pixels over the display's background.
+  Color toneOf(int r, int c) const {
+    const CellBuffer::Cell & cell = below_.at(r, c);
+    Color bg = cell.bg.value_or(default_bg_);
+    if (cell.image > 0 && static_cast<size_t>(cell.image) <= images_.size() && cell_h_ > 0 && cell_w_ > 0) {
+      const ImagePlacement & p = images_[static_cast<size_t>(cell.image - 1)];
+      const Image & img = *p.image;
+      int y0 = std::max(0, (r - p.row) * cell_h_), y1 = std::min(img.height, (r - p.row + 1) * cell_h_);
+      int x0 = std::max(0, (c - p.col) * cell_w_), x1 = std::min(img.width, (c - p.col + 1) * cell_w_);
+      if (y0 >= y1 || x0 >= x1) return default_bg_;
+      long ch[3] = {0, 0, 0};
+      for (int y = y0; y < y1; y++) {
+        for (int x = x0; x < x1; x++) {
+          uint32_t px = img.pixels[static_cast<size_t>(y) * static_cast<size_t>(img.width) + static_cast<size_t>(x)];
+          int a = Image::alpha(px);
+          ch[0] += (Image::red(px) * a + default_bg_.getRed() * (255 - a)) / 255;
+          ch[1] += (Image::green(px) * a + default_bg_.getGreen() * (255 - a)) / 255;
+          ch[2] += (Image::blue(px) * a + default_bg_.getBlue() * (255 - a)) / 255;
+        }
+      }
+      long n = static_cast<long>(y1 - y0) * (x1 - x0);
+      return Color(static_cast<int>(ch[0] / n), static_cast<int>(ch[1] / n), static_cast<int>(ch[2] / n));
+    }
+    float ink = inkCoverage(cell.text);
+    return ink > 0.0f ? bg.blend(ink, cell.fg.value_or(default_fg_)) : bg;
+  }
+
+  CellBuffer below_;
+  const std::vector<ImagePlacement> & images_;
+  int cell_h_, cell_w_;
+  Color default_fg_, default_bg_;
+  std::vector<Sum> sums_;
+};
 
 }  // namespace
 
@@ -113,7 +271,39 @@ void BufferPlane::refresh() {
   if (!top.target_) return;
   top.target_->clear(0, 0, top.target_->rows(), top.target_->cols());
   top.placements_.clear();
+  for (auto & f : top.filtered_images_) f.used = false;
   top.compose(*top.target_, 0, 0, 0, 0, top.target_->rows(), top.target_->cols());
+  auto & cache = top.filtered_images_;
+  cache.erase(std::remove_if(cache.begin(), cache.end(), [](const FilteredImage & f) { return !f.used; }), cache.end());
+}
+
+std::shared_ptr<const Image> BufferPlane::filteredImage(const ImagePlacement & placement, const Backdrop & backdrop) const {
+  for (auto & f : filtered_images_) {
+    if (f.key == placement.key && f.source_version == placement.image->version && f.backdrop == backdrop) {
+      f.used = true;
+      return f.image;
+    }
+  }
+  auto image = std::make_shared<Image>(*placement.image);
+  image->version = nextImageVersion();
+  // The blur a cell backdrop gives, in pixels.
+  int radius = std::min(backdrop.blur, Backdrop::kMaxBlur) * std::max(1, cell_px_h_) / 2;
+  if (radius > 0) {
+    for (int pass = 0; pass < 2; pass++) {
+      blurPass(image->pixels, image->width, image->height, radius, true);
+      blurPass(image->pixels, image->width, image->height, radius, false);
+    }
+  }
+  if (backdrop.dim > 0.0f) {
+    Color tint = backdrop.tint.value_or(default_bg_);
+    for (auto & px : image->pixels) {
+      Color c = Color(Image::red(px), Image::green(px), Image::blue(px)).blend(backdrop.dim, tint);
+      px = Image::pack(static_cast<uint8_t>(c.getRed()), static_cast<uint8_t>(c.getGreen()), static_cast<uint8_t>(c.getBlue()),
+                       Image::alpha(px));
+    }
+  }
+  filtered_images_.push_back(FilteredImage{placement.key, placement.image->version, backdrop, image, true});
+  return image;
 }
 
 void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int clip_col, int clip_rows, int clip_cols) const {
@@ -122,6 +312,16 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
   // The plane's own rectangle, inside the clip.
   int row_lo = std::max(clip_row, row), row_hi = std::min(clip_row + clip_rows, row + local_.rows());
   int col_lo = std::max(clip_col, col), col_hi = std::min(clip_col + clip_cols, col + local_.cols());
+  // Backdrop cells show the layers below as they were before this plane.
+  std::unique_ptr<BackdropSource> source;
+  for (int r = row_lo; r < row_hi && !source; r++) {
+    for (int c = col_lo; c < col_hi; c++) {
+      if (!local_.at(r - row, c - col).backdrop.active()) continue;
+      source = std::make_unique<BackdropSource>(out, top.placements_, top.cell_px_h_, top.cell_px_w_, top.default_fg_, top.default_bg_);
+      break;
+    }
+  }
+  std::map<int, Backdrop> filtered;  // the placements a backdrop covers
   for (int r = row_lo; r < row_hi; r++) {
     for (int c = col_lo; c < col_hi; c++) {
       const CellBuffer::Cell & cell = local_.at(r - row, c - col);
@@ -136,9 +336,21 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
       // A double-width character is drawn whole or not at all.
       if (cell.continuation && c - 1 < col_lo) continue;
       if (c + 1 < col + local_.cols() && local_.at(r - row, c + 1 - col).continuation && c + 1 >= col_hi) continue;
+      CellBuffer::Cell below = out.at(r, c);
       CellBuffer::Cell put = cell;
+      if (cell.backdrop.active()) {
+        below = source->seen(r, c, cell.backdrop);
+        if (below.image) filtered.emplace(below.image - 1, cell.backdrop);
+        CellBuffer::Cell own = cell;
+        own.backdrop = {};
+        if (CellBuffer::isBlank(own)) {
+          out.put(r, c, below);
+          continue;
+        }
+        put.backdrop = {};
+        if (!put.bg) put.bg = below.bg;
+      }
       if (cell.bg_blend) {
-        const CellBuffer::Cell & below = out.at(r, c);
         put.bg = average(cell.bg.value_or(top.default_bg_), below.bg.value_or(top.default_bg_));
         put.bg_blend = false;
       }
@@ -148,6 +360,10 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
       }
       out.put(r, c, put);
     }
+  }
+  for (auto & [index, backdrop] : filtered) {
+    ImagePlacement & placement = top.placements_[static_cast<size_t>(index)];
+    placement.image = top.filteredImage(placement, backdrop);
   }
   // An image shows its pixels in place of the cells it covers: they are
   // marked for the backend, which draws the image wherever they stay marked.
