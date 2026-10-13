@@ -24,6 +24,12 @@ class Discovery {
   std::string queries() const;
 
   void ingest(const TermEvent & reply);
+  // The cell size the kernel's window size gives, for a terminal that does
+  // not answer the pixel queries (xterm refuses them by default).
+  void setWindowCellPixels(int height, int width) {
+    win_cell_px_h_ = height;
+    win_cell_px_w_ = width;
+  }
   bool complete() const { return complete_; }
 
   // How long to wait for the replies: longer over ssh.
@@ -53,6 +59,7 @@ class Discovery {
   bool da1_sixel_ = false;
   bool kitty_graphics_ = false;
   int text_px_h_ = 0, text_px_w_ = 0, cell_px_h_ = 0, cell_px_w_ = 0;
+  int win_cell_px_h_ = 0, win_cell_px_w_ = 0;
   int rows_ = 0, cols_ = 0;
 };
 

@@ -324,7 +324,8 @@ Capabilities Discovery::result() const {
   caps.undercurl = name == "kitty" || name == "vte" || name == "mintty" || (name == "wezterm" && version >= "20210610");
   caps.distinct_default_bg = name == "kitty";
 
-  // Cell size: the cell report, else the text area divided by the size.
+  // Cell size: the cell report, else the text area divided by the size,
+  // else the kernel's window size.
   int rows = rows_, cols = cols_;
   caps.rows = rows;
   caps.cols = cols;
@@ -334,6 +335,9 @@ Capabilities Discovery::result() const {
   } else if (text_px_h_ > 0 && text_px_w_ > 0 && rows > 0 && cols > 0) {
     caps.cell_px_height = text_px_h_ / rows;
     caps.cell_px_width = text_px_w_ / cols;
+  } else if (win_cell_px_h_ > 0 && win_cell_px_w_ > 0) {
+    caps.cell_px_height = win_cell_px_h_;
+    caps.cell_px_width = win_cell_px_w_;
   }
 
   caps.display_scale = estimateDisplayScale(caps.cell_px_height);

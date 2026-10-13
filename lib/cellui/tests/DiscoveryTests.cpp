@@ -150,6 +150,19 @@ TEST(discovery_divergences) {
   CHECK(p.hasEvents() && p.pop().type == TermEvent::Type::REPLY && !p.hasEvents());
 }
 
+TEST(discovery_falls_back_to_the_window_size_for_the_cell_size) {
+  // xterm refuses the pixel size queries by default; the kernel's window
+  // size still gives the cell size, and Sixel stays on.
+  Discovery d(xtermEnv());
+  InputParser p;
+  p.feed(std::string("\x1b[8;24;80t\x1b[?64;1;2;4;6;9;15;16;17;18;21;22;28c"), InputParser::TimePoint{});
+  while (p.hasEvents()) d.ingest(p.pop());
+  CHECK(d.result().pixels == PixelProtocol::NONE);
+  d.setWindowCellPixels(20, 10);
+  Capabilities c = d.result();
+  CHECK(c.pixels == PixelProtocol::SIXEL && c.cell_px_height == 20 && c.cell_px_width == 10);
+}
+
 TEST(discovery_environment) {
   Environment env = xtermEnv();
   env.colorterm = "truecolor";
