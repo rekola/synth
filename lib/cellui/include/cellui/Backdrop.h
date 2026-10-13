@@ -19,7 +19,7 @@ struct Backdrop {
 
   int blur = 0;               // radius in rows, 0 to kMaxBlur
   float dim = 0.0f;           // 0 to 1
-  std::optional<Color> tint;  // unset: the display's own background
+  std::optional<Color> tint = std::nullopt;  // unset: the display's own background
 
   bool active() const { return blur > 0 || dim > 0.0f; }
   bool operator==(const Backdrop & o) const {

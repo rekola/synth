@@ -133,3 +133,23 @@ TEST(terminal_ui_modal_dialog_shows_the_screen_behind_it_through_a_backdrop) {
   auto back = f.terminal.frame().at(0, 0);
   CHECK(red(back) == red(sharp) && green(back) == green(sharp) && back.text == sharp.text);
 }
+
+// Where the terminal shows images stretched over cells, the backdrop is
+// pictures of the screen behind, in tiles, and the dialog stays text.
+TEST(terminal_ui_modal_backdrop_is_pictures_where_the_terminal_shows_them) {
+  cellui::term::Capabilities caps;
+  caps.pixels = cellui::term::PixelProtocol::KITTY;
+  caps.cell_px_height = 20;
+  caps.cell_px_width = 10;
+  UIFixture f("", UI::View::LIVE, caps);
+  size_t before = f.terminal.images().size();
+  f.execute("about");
+  size_t stretched = 0;
+  for (auto & p : f.terminal.images()) stretched += p.image->stretched();
+  CHECK(stretched > 0);
+  CHECK(f.terminal.images().size() > before);
+  CHECK(f.terminal.frame().at(0, 0).image > 0);
+  CHECK(f.text().find("About") != std::string::npos);
+  f.press(cellui::Key::Escape);
+  for (auto & p : f.terminal.images()) CHECK(!p.image->stretched());
+}

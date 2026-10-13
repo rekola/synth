@@ -38,6 +38,39 @@ std::string base64(const std::vector<uint8_t> & data) {
   return out;
 }
 
+// The picture resampled to width x height (bilinear).
+Image stretch(const Image & src, int width, int height) {
+  Image out;
+  out.width = std::max(1, width);
+  out.height = std::max(1, height);
+  out.version = src.version;
+  out.pixels.resize(static_cast<size_t>(out.width) * static_cast<size_t>(out.height));
+  auto at = [&](int x, int y) {
+    x = std::clamp(x, 0, src.width - 1);
+    y = std::clamp(y, 0, src.height - 1);
+    return src.pixels[static_cast<size_t>(y) * static_cast<size_t>(src.width) + static_cast<size_t>(x)];
+  };
+  for (int y = 0; y < out.height; y++) {
+    float fy = (static_cast<float>(y) + 0.5f) * static_cast<float>(src.height) / static_cast<float>(out.height) - 0.5f;
+    int y0 = static_cast<int>(std::floor(fy));
+    float ty = fy - static_cast<float>(y0);
+    for (int x = 0; x < out.width; x++) {
+      float fx = (static_cast<float>(x) + 0.5f) * static_cast<float>(src.width) / static_cast<float>(out.width) - 0.5f;
+      int x0 = static_cast<int>(std::floor(fx));
+      float tx = fx - static_cast<float>(x0);
+      uint32_t a = at(x0, y0), b = at(x0 + 1, y0), c = at(x0, y0 + 1), d = at(x0 + 1, y0 + 1);
+      auto mix = [&](uint8_t (*channel)(uint32_t)) {
+        float top = static_cast<float>(channel(a)) * (1 - tx) + static_cast<float>(channel(b)) * tx;
+        float bottom = static_cast<float>(channel(c)) * (1 - tx) + static_cast<float>(channel(d)) * tx;
+        return static_cast<uint8_t>(top * (1 - ty) + bottom * ty + 0.5f);
+      };
+      out.pixels[static_cast<size_t>(y) * static_cast<size_t>(out.width) + static_cast<size_t>(x)] =
+        Image::pack(mix(Image::red), mix(Image::green), mix(Image::blue), mix(Image::alpha));
+    }
+  }
+  return out;
+}
+
 std::string cup(int row, int col) { return "\x1b[" + std::to_string(row + 1) + ";" + std::to_string(col + 1) + "H"; }
 
 void paletteRgb(int index, int & r, int & g, int & b) {
@@ -216,7 +249,7 @@ std::vector<ImageEncoder::Rect> ImageEncoder::visibleRects(const CellBuffer & fr
   std::vector<Rect> rects;
   int ch = profile_.cell_px_height, cw = profile_.cell_px_width;
   if (ch <= 0 || cw <= 0) return rects;
-  int rows = (p.image->height + ch - 1) / ch, cols = (p.image->width + cw - 1) / cw;
+  int rows = p.image->coveredRows(ch), cols = p.image->coveredCols(cw);
   int row_hi = std::min(p.row + rows, frame.rows() - (avoid_last_row ? 1 : 0));
   int col_hi = std::min(p.col + cols, frame.cols());
   for (int r = std::max(p.row, 0); r < row_hi; r++) {
@@ -276,12 +309,16 @@ std::string ImageEncoder::kitty(const CellBuffer & frame, const ImagePlacement &
     int ch = profile_.cell_px_height, cw = profile_.cell_px_width;
     for (size_t k = 0; k < rects.size(); k++) {
       const Rect & r = rects[k];
-      int x = (r.col - p.col) * cw, y = (r.row - p.row) * ch;
-      int w = std::min(r.cols * cw, img.width - x), h = std::min(r.rows * ch, img.height - y);
-      if (w <= 0 || h <= 0) continue;
+      int x0, x1, y0, y1;
+      img.pixelSpan(r.col - p.col, r.cols, cw, true, x0, x1);
+      img.pixelSpan(r.row - p.row, r.rows, ch, false, y0, y1);
+      if (x1 <= x0 || y1 <= y0) continue;
       out += cup(r.row, r.col);
-      out += "\x1b_Ga=p,i=" + std::to_string(shown.id) + ",p=" + std::to_string(k + 1) + ",x=" + std::to_string(x) +
-             ",y=" + std::to_string(y) + ",w=" + std::to_string(w) + ",h=" + std::to_string(h) + ",C=1,q=2\x1b\\";
+      out += "\x1b_Ga=p,i=" + std::to_string(shown.id) + ",p=" + std::to_string(k + 1) + ",x=" + std::to_string(x0) +
+             ",y=" + std::to_string(y0) + ",w=" + std::to_string(x1 - x0) + ",h=" + std::to_string(y1 - y0);
+      // A stretched picture is scaled by the terminal over its cells.
+      if (img.stretched()) out += ",c=" + std::to_string(r.cols) + ",r=" + std::to_string(r.rows);
+      out += ",C=1,q=2\x1b\\";
     }
     // Placements this picture no longer has.
     if (!changed && !cleared) {
@@ -298,15 +335,18 @@ std::string ImageEncoder::kitty(const CellBuffer & frame, const ImagePlacement &
 }
 
 std::string ImageEncoder::sixel(const CellBuffer & frame, const ImagePlacement & p, Shown & shown, bool fresh, bool cleared) {
-  const Image & img = *p.image;
   std::vector<Rect> rects = visibleRects(frame, p, true);
-  bool changed = fresh || cleared || shown.version != img.version || rects != shown.rects || p.row != shown.row || p.col != shown.col;
-  shown.version = img.version;
+  bool changed = fresh || cleared || shown.version != p.image->version || rects != shown.rects || p.row != shown.row || p.col != shown.col;
+  shown.version = p.image->version;
   shown.rects = rects;
   shown.row = p.row;
   shown.col = p.col;
   if (!changed || rects.empty()) return "";
   int ch = profile_.cell_px_height, cw = profile_.cell_px_width;
+  // Sixel draws a pixel to a pixel, so a stretched picture is scaled here.
+  Image natural;
+  if (p.image->stretched()) natural = stretch(*p.image, p.image->cols * cw, p.image->rows * ch);
+  const Image & img = p.image->stretched() ? natural : *p.image;
   int r0 = rects[0].row, c0 = rects[0].col, r1 = r0, c1 = c0;
   for (const Rect & r : rects) {
     r0 = std::min(r0, r.row);
@@ -347,12 +387,14 @@ std::string ImageEncoder::iterm2(const CellBuffer & frame, const ImagePlacement 
   int ch = profile_.cell_px_height, cw = profile_.cell_px_width;
   std::string out;
   for (const Rect & r : rects) {
-    int x = (r.col - p.col) * cw, y = (r.row - p.row) * ch;
-    int w = std::min(r.cols * cw, img.width - x), h = std::min(r.rows * ch, img.height - y);
-    if (w <= 0 || h <= 0) continue;
-    std::vector<uint8_t> png = encodePng(img, x, y, w, h);
-    // Sized in cells, so the terminal's own pixel scale does not matter.
-    int rows = (h + ch - 1) / ch, cols = (w + cw - 1) / cw;
+    int x0, x1, y0, y1;
+    img.pixelSpan(r.col - p.col, r.cols, cw, true, x0, x1);
+    img.pixelSpan(r.row - p.row, r.rows, ch, false, y0, y1);
+    if (x1 <= x0 || y1 <= y0) continue;
+    std::vector<uint8_t> png = encodePng(img, x0, y0, x1 - x0, y1 - y0);
+    // Sized in cells, so the terminal's own pixel scale does not matter
+    // (and a stretched picture is scaled by it).
+    int rows = img.stretched() ? r.rows : (y1 - y0 + ch - 1) / ch, cols = img.stretched() ? r.cols : (x1 - x0 + cw - 1) / cw;
     out += cup(r.row, r.col);
     out += "\x1b]1337;File=inline=1;size=" + std::to_string(png.size()) + ";width=" + std::to_string(cols) +
            ";height=" + std::to_string(rows) + ";preserveAspectRatio=0;doNotMoveCursor=1:" + base64(png) + "\a";

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cellui/CellBuffer.h>
+#include <cellui/CellRasterizer.h>
 #include <cellui/Image.h>
 #include <cellui/LineEditor.h>
 #include <cellui/PlaneInfo.h>
@@ -125,6 +126,13 @@ class BufferPlane : public UIPlane {
   // plane base background (under the glyph below) wherever it writes
   // nothing, until makeTransparent() (root only).
   void setThemedBases(bool themed) { themed_bases_ = themed; }
+  // With a rasterizer and the cell size in pixels, a blurring backdrop is
+  // shown as pictures of the cells below it drawn, blurred and stretched
+  // over its cells, in tiles redrawn only when what they show changed
+  // (root only).
+  void setRasterizer(std::shared_ptr<CellRasterizer> rasterizer) { rasterizer_ = std::move(rasterizer); }
+  // How many tiles the last refresh() drew anew (root only).
+  int redrawnBackdropTiles() const { return redrawn_tiles_; }
   // What canRenderSextants() reports, for the whole tree (root only).
   void setSextants(bool can) { sextants_ = can; }
   bool canRenderSextants() const override { return root().sextants_; }
@@ -152,6 +160,10 @@ class BufferPlane : public UIPlane {
   bool shown() const;
   // The placement's image as `backdrop` shows it (root only).
   std::shared_ptr<const Image> filteredImage(const ImagePlacement & placement, const Backdrop & backdrop) const;
+  // Places the backdrop picture of screen cells [row, row + rows) x
+  // [col, col + cols) over `below`, drawn anew only if what it shows changed,
+  // and returns its placement's index (root only).
+  int backdropTile(const CellBuffer & below, int row, int col, int rows, int cols, const Backdrop & backdrop) const;
   void drawReader();
   void drawPicker();
 
@@ -190,6 +202,16 @@ class BufferPlane : public UIPlane {
     bool used = false;
   };
   mutable std::vector<FilteredImage> filtered_images_;
+  std::shared_ptr<CellRasterizer> rasterizer_;
+  struct BackdropTile {
+    int row = 0, col = 0, rows = 0, cols = 0;
+    uint64_t hash = 0, key = 0;
+    Backdrop backdrop;
+    std::shared_ptr<const Image> image;
+    bool used = false;
+  };
+  mutable std::vector<BackdropTile> backdrop_tiles_;
+  mutable int redrawn_tiles_ = 0;
 
   // The background of the cells nothing was written to; unset shows below.
   std::optional<Color> base_bg_;

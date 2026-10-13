@@ -434,6 +434,10 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
   root_plane_->setFlatChildren(true);
   root_plane_->setThemedBases(true);
   if (use_pixel) root_plane_->setCellPixelSize(caps.cell_px_height, caps.cell_px_width);
+  // A modal's backdrop is drawn and blurred as pictures where the terminal
+  // can stretch one over cells; Sixel can't, and its palette would band the
+  // blur, so it keeps the blur in cells.
+  if (use_pixel && caps.pixels != cellui::term::PixelProtocol::SIXEL) root_plane_->setRasterizer(cellui::canvasRasterizer());
   setPlane(std::move(root_plane));
 
   setFgColor(styles_.window_fg_color);

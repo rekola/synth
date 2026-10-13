@@ -32,7 +32,7 @@ class CellBuffer {
     int image = 0;
     // What lies below shows through blurred and dimmed; with no text or
     // colours of its own the cell is just that.
-    Backdrop backdrop;
+    Backdrop backdrop = {};
   };
 
   struct Style {
@@ -42,7 +42,7 @@ class CellBuffer {
     bool underline = false;
     bool bg_blend = false;
     bool fg_contrast = false;
-    Backdrop backdrop;
+    Backdrop backdrop = {};
   };
 
   CellBuffer(int rows, int cols);

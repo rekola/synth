@@ -557,3 +557,66 @@ TEST(bufferplane_image_under_a_backdrop_is_filtered_once) {
   root.refresh();
   CHECK(root.images()[0].image->version == sharp);
 }
+
+namespace {
+
+// Draws every cell in one colour, and counts what it was asked for.
+class CountingRasterizer : public CellRasterizer {
+ public:
+  Image render(const CellBuffer &, const std::vector<ImagePlacement> &, int, int, int rows, int cols, int cell_h, int cell_w,
+               int scale, Color, Color) override {
+    calls++;
+    Image out;
+    out.width = std::max(1, cols * cell_w / scale);
+    out.height = std::max(1, rows * cell_h / scale);
+    out.pixels.assign(static_cast<size_t>(out.width) * static_cast<size_t>(out.height), Image::pack(90, 90, 90));
+    return out;
+  }
+  int calls = 0;
+};
+
+}  // namespace
+
+TEST(bufferplane_pixel_backdrop_redraws_only_tiles_whose_source_changed) {
+  StyleProvider styles;
+  CellBuffer b(8, 48);  // two rows of three tiles
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(8, 4);
+  auto rasterizer = std::make_shared<CountingRasterizer>();
+  root.setRasterizer(rasterizer);
+  for (int r = 0; r < 8; r++) root.putstr(r, 0, std::string(48, 'x'));
+  auto scrim = scrimOver(root, Backdrop{1});
+  auto dialog = root.createChild();
+  dialog->resize(1, 2);
+  dialog->move(3, 20);
+  dialog->putstr(0, 0, "ok");
+
+  root.refresh();
+  CHECK(root.redrawnBackdropTiles() == 6);
+  CHECK(root.images().size() == 6);
+  // Every tile is a picture stretched over its cells.
+  CHECK(root.images()[0].image->cols == 16 && root.images()[0].image->rows == 4);
+  CHECK(b.at(0, 0).image > 0);
+  // The dialog over it stays text.
+  CHECK(b.at(3, 20).text == "o" && b.at(3, 20).image == 0);
+
+  std::vector<uint64_t> versions;
+  for (auto & p : root.images()) versions.push_back(p.image->version);
+  root.refresh();
+  CHECK(root.redrawnBackdropTiles() == 0);
+  for (size_t i = 0; i < versions.size(); i++) CHECK(root.images()[i].image->version == versions[i]);
+
+  // A change in the top-left corner reaches only the tiles within the blur.
+  root.putstr(0, 0, "y");
+  root.refresh();
+  CHECK(root.redrawnBackdropTiles() == 1);
+  // One near a tile's corner reaches its neighbours too.
+  root.putstr(4, 16, "y");
+  root.refresh();
+  CHECK(root.redrawnBackdropTiles() == 4);
+
+  scrim.reset();
+  root.refresh();
+  CHECK(root.images().empty());
+  CHECK(b.at(0, 0).text == "y");
+}

@@ -92,6 +92,51 @@ void blurPass(std::vector<uint32_t> & px, int w, int h, int radius, bool along_r
   }
 }
 
+// Blurs the pixels over `radius` and dims them toward `tint`.
+void filterPixels(Image & image, const Backdrop & backdrop, int radius, const Color & tint) {
+  if (radius > 0) {
+    for (int pass = 0; pass < 2; pass++) {
+      blurPass(image.pixels, image.width, image.height, radius, true);
+      blurPass(image.pixels, image.width, image.height, radius, false);
+    }
+  }
+  if (backdrop.dim > 0.0f) {
+    for (auto & px : image.pixels) {
+      Color c = Color(Image::red(px), Image::green(px), Image::blue(px)).blend(backdrop.dim, tint);
+      px = Image::pack(static_cast<uint8_t>(c.getRed()), static_cast<uint8_t>(c.getGreen()), static_cast<uint8_t>(c.getBlue()),
+                       Image::alpha(px));
+    }
+  }
+}
+
+// What a backdrop tile is drawn from, as one number: the cells, and the
+// pictures under them by identity and the part of them each cell shows.
+class Fingerprint {
+ public:
+  void add(uint64_t v) {
+    for (int i = 0; i < 8; i++) {
+      hash_ ^= (v >> (8 * i)) & 0xFF;
+      hash_ *= 0x100000001b3ULL;
+    }
+  }
+  void add(const std::string & s) {
+    for (char ch : s) {
+      hash_ ^= static_cast<unsigned char>(ch);
+      hash_ *= 0x100000001b3ULL;
+    }
+    add(s.size());
+  }
+  void add(const std::optional<Color> & c) {
+    uint64_t v = 0;
+    if (c) v = uint64_t{1} << 24 | static_cast<uint64_t>(c->getRed()) << 16 | static_cast<uint64_t>(c->getGreen()) << 8 | static_cast<uint64_t>(c->getBlue());
+    add(v);
+  }
+  uint64_t value() const { return hash_; }
+
+ private:
+  uint64_t hash_ = 0xcbf29ce484222325ULL;
+};
+
 // The layers below a plane with backdrop cells, kept as they were before
 // the plane drew, and each of their cells as a backdrop shows it.
 class BackdropSource {
@@ -111,6 +156,8 @@ class BackdropSource {
       }
     }
   }
+
+  const CellBuffer & below() const { return below_; }
 
   CellBuffer::Cell seen(int row, int col, const Backdrop & b) const {
     CellBuffer::Cell cell = below_.at(row, col);
@@ -164,8 +211,9 @@ class BackdropSource {
     if (cell.image > 0 && static_cast<size_t>(cell.image) <= images_.size() && cell_h_ > 0 && cell_w_ > 0) {
       const ImagePlacement & p = images_[static_cast<size_t>(cell.image - 1)];
       const Image & img = *p.image;
-      int y0 = std::max(0, (r - p.row) * cell_h_), y1 = std::min(img.height, (r - p.row + 1) * cell_h_);
-      int x0 = std::max(0, (c - p.col) * cell_w_), x1 = std::min(img.width, (c - p.col + 1) * cell_w_);
+      int y0, y1, x0, x1;
+      img.pixelSpan(r - p.row, 1, cell_h_, false, y0, y1);
+      img.pixelSpan(c - p.col, 1, cell_w_, true, x0, x1);
       if (y0 >= y1 || x0 >= x1) return default_bg_;
       long ch[3] = {0, 0, 0};
       for (int y = y0; y < y1; y++) {
@@ -272,9 +320,84 @@ void BufferPlane::refresh() {
   top.target_->clear(0, 0, top.target_->rows(), top.target_->cols());
   top.placements_.clear();
   for (auto & f : top.filtered_images_) f.used = false;
+  for (auto & t : top.backdrop_tiles_) t.used = false;
+  top.redrawn_tiles_ = 0;
   top.compose(*top.target_, 0, 0, 0, 0, top.target_->rows(), top.target_->cols());
   auto & cache = top.filtered_images_;
   cache.erase(std::remove_if(cache.begin(), cache.end(), [](const FilteredImage & f) { return !f.used; }), cache.end());
+  auto & tiles = top.backdrop_tiles_;
+  tiles.erase(std::remove_if(tiles.begin(), tiles.end(), [](const BackdropTile & t) { return !t.used; }), tiles.end());
+}
+
+int BufferPlane::backdropTile(const CellBuffer & below, int row, int col, int rows, int cols, const Backdrop & backdrop) const {
+  int blur = std::min(backdrop.blur, Backdrop::kMaxBlur);
+  // What lies within the blur's reach is drawn too.
+  int r0 = std::max(0, row - blur), r1 = std::min(below.rows(), row + rows + blur);
+  int c0 = std::max(0, col - 2 * blur), c1 = std::min(below.cols(), col + cols + 2 * blur);
+  Fingerprint print;
+  print.add(static_cast<uint64_t>(r0) << 32 | static_cast<uint32_t>(c0));
+  print.add(static_cast<uint64_t>(r1) << 32 | static_cast<uint32_t>(c1));
+  print.add(std::optional<Color>(default_fg_));
+  print.add(std::optional<Color>(default_bg_));
+  for (int r = r0; r < r1; r++) {
+    for (int c = c0; c < c1; c++) {
+      const CellBuffer::Cell & cell = below.at(r, c);
+      if (cell.image > 0 && static_cast<size_t>(cell.image) <= placements_.size()) {
+        const ImagePlacement & p = placements_[static_cast<size_t>(cell.image - 1)];
+        print.add(p.key);
+        print.add(p.image->version);
+        print.add(static_cast<uint64_t>(r - p.row) << 32 | static_cast<uint32_t>(c - p.col));
+        continue;
+      }
+      print.add(cell.text);
+      print.add(cell.fg);
+      print.add(cell.bg);
+      print.add(static_cast<uint64_t>(cell.bold) | static_cast<uint64_t>(cell.continuation) << 1);
+    }
+  }
+  BackdropTile * tile = nullptr;
+  for (auto & t : backdrop_tiles_) {
+    if (t.row == row && t.col == col && t.rows == rows && t.cols == cols) tile = &t;
+  }
+  if (!tile) {
+    backdrop_tiles_.push_back(BackdropTile{row, col, rows, cols, 0, nextKey(), {}, nullptr, false});
+    tile = &backdrop_tiles_.back();
+  }
+  tile->used = true;
+  if (!tile->image || tile->hash != print.value() || tile->backdrop != backdrop) {
+    // Drawn smaller than the display shows it: a blur needs no more detail.
+    int ch = cell_px_h_, cw = cell_px_w_;
+    int scale = std::clamp(blur * ch / 8, 1, 8);
+    Image drawn = rasterizer_->render(below, placements_, r0, c0, r1 - r0, c1 - c0, ch, cw, scale, default_fg_, default_bg_);
+    filterPixels(drawn, backdrop, blur * ch / 2 / scale, backdrop.tint.value_or(default_bg_));
+    auto image = std::make_shared<Image>();
+    int x0 = (col - c0) * cw / scale, x1 = std::min(drawn.width, (col + cols - c0) * cw / scale);
+    int y0 = (row - r0) * ch / scale, y1 = std::min(drawn.height, (row + rows - r0) * ch / scale);
+    image->width = std::max(1, x1 - x0);
+    image->height = std::max(1, y1 - y0);
+    image->pixels.assign(static_cast<size_t>(image->width) * static_cast<size_t>(image->height), Image::pack(0, 0, 0));
+    for (int y = y0; y < y1; y++) {
+      for (int x = x0; x < x1; x++) {
+        image->pixels[static_cast<size_t>(y - y0) * static_cast<size_t>(image->width) + static_cast<size_t>(x - x0)] =
+          drawn.pixels[static_cast<size_t>(y) * static_cast<size_t>(drawn.width) + static_cast<size_t>(x)];
+      }
+    }
+    image->cols = cols;
+    image->rows = rows;
+    image->version = nextImageVersion();
+    tile->image = image;
+    tile->hash = print.value();
+    tile->backdrop = backdrop;
+    redrawn_tiles_++;
+  }
+  ImagePlacement placement;
+  placement.image = tile->image;
+  placement.key = tile->key;
+  placement.row = row;
+  placement.col = col;
+  placement.index = static_cast<int>(placements_.size());
+  placements_.push_back(placement);
+  return placement.index;
 }
 
 std::shared_ptr<const Image> BufferPlane::filteredImage(const ImagePlacement & placement, const Backdrop & backdrop) const {
@@ -287,21 +410,8 @@ std::shared_ptr<const Image> BufferPlane::filteredImage(const ImagePlacement & p
   auto image = std::make_shared<Image>(*placement.image);
   image->version = nextImageVersion();
   // The blur a cell backdrop gives, in pixels.
-  int radius = std::min(backdrop.blur, Backdrop::kMaxBlur) * std::max(1, cell_px_h_) / 2;
-  if (radius > 0) {
-    for (int pass = 0; pass < 2; pass++) {
-      blurPass(image->pixels, image->width, image->height, radius, true);
-      blurPass(image->pixels, image->width, image->height, radius, false);
-    }
-  }
-  if (backdrop.dim > 0.0f) {
-    Color tint = backdrop.tint.value_or(default_bg_);
-    for (auto & px : image->pixels) {
-      Color c = Color(Image::red(px), Image::green(px), Image::blue(px)).blend(backdrop.dim, tint);
-      px = Image::pack(static_cast<uint8_t>(c.getRed()), static_cast<uint8_t>(c.getGreen()), static_cast<uint8_t>(c.getBlue()),
-                       Image::alpha(px));
-    }
-  }
+  filterPixels(*image, backdrop, std::min(backdrop.blur, Backdrop::kMaxBlur) * std::max(1, cell_px_h_) / 2,
+               backdrop.tint.value_or(default_bg_));
   filtered_images_.push_back(FilteredImage{placement.key, placement.image->version, backdrop, image, true});
   return image;
 }
@@ -322,6 +432,25 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
     }
   }
   std::map<int, Backdrop> filtered;  // the placements a backdrop covers
+  // With pixels, a blurring backdrop is pictures in tiles of the screen.
+  constexpr int kTileRows = 4, kTileCols = 16;
+  std::map<std::pair<int, int>, int> tiles;  // tile origin -> placement index
+  if (source && top.rasterizer_ && top.cell_px_h_ > 0 && top.cell_px_w_ > 0) {
+    for (int tr = row_lo / kTileRows * kTileRows; tr < row_hi; tr += kTileRows) {
+      for (int tc = col_lo / kTileCols * kTileCols; tc < col_hi; tc += kTileCols) {
+        int r0 = std::max(tr, row_lo), r1 = std::min(tr + kTileRows, row_hi);
+        int c0 = std::max(tc, col_lo), c1 = std::min(tc + kTileCols, col_hi);
+        // A tile takes the backdrop of its first cell that blurs.
+        const Backdrop * backdrop = nullptr;
+        for (int r = r0; r < r1 && !backdrop; r++) {
+          for (int c = c0; c < c1 && !backdrop; c++) {
+            if (local_.at(r - row, c - col).backdrop.blur > 0) backdrop = &local_.at(r - row, c - col).backdrop;
+          }
+        }
+        if (backdrop) tiles[{tr, tc}] = top.backdropTile(source->below(), r0, c0, r1 - r0, c1 - c0, *backdrop);
+      }
+    }
+  }
   for (int r = row_lo; r < row_hi; r++) {
     for (int c = col_lo; c < col_hi; c++) {
       const CellBuffer::Cell & cell = local_.at(r - row, c - col);
@@ -340,10 +469,17 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
       CellBuffer::Cell put = cell;
       if (cell.backdrop.active()) {
         below = source->seen(r, c, cell.backdrop);
-        if (below.image) filtered.emplace(below.image - 1, cell.backdrop);
         CellBuffer::Cell own = cell;
         own.backdrop = {};
         if (CellBuffer::isBlank(own)) {
+          auto tile = tiles.find({r / kTileRows * kTileRows, c / kTileCols * kTileCols});
+          if (tile != tiles.end() && cell.backdrop.blur > 0) {
+            CellBuffer::Cell marked;
+            marked.image = tile->second + 1;
+            out.put(r, c, marked);
+            continue;
+          }
+          if (below.image) filtered.emplace(below.image - 1, cell.backdrop);
           out.put(r, c, below);
           continue;
         }
@@ -371,8 +507,8 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
   for (const PlacedImage & placed : images_) {
     if (cell_h <= 0 || cell_w <= 0 || row_lo >= row_hi || col_lo >= col_hi) break;
     int top_row = row + placed.row, left_col = col + placed.col;
-    int r_hi = std::min(row_hi, top_row + (placed.image->height + cell_h - 1) / cell_h);
-    int c_hi = std::min(col_hi, left_col + (placed.image->width + cell_w - 1) / cell_w);
+    int r_hi = std::min(row_hi, top_row + placed.image->coveredRows(cell_h));
+    int c_hi = std::min(col_hi, left_col + placed.image->coveredCols(cell_w));
     int r_lo = std::max(row_lo, top_row), c_lo = std::max(col_lo, left_col);
     if (placed.clip_top != INT_MIN) r_lo = std::max(r_lo, row + placed.clip_top);
     if (placed.clip_bottom != INT_MAX) r_hi = std::min(r_hi, row + placed.clip_bottom);

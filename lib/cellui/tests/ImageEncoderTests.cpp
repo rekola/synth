@@ -249,3 +249,40 @@ TEST(kitty_a_scrolled_image_is_placed_again_and_not_sent) {
     CHECK(count(moved, "a=t") == 0 && count(moved, "a=d,d=I") == 0 && count(moved, "a=p,i=1,") == 1);
   }
 }
+
+// A picture smaller than the cells it covers is stretched over them by the
+// terminal (kitty, iTerm2), or here before it is sent (Sixel).
+TEST(stretched_images_are_scaled_over_their_cells) {
+  CellBuffer b(3, 6);
+  auto image = std::make_shared<Image>();
+  image->width = 4;
+  image->height = 6;
+  image->pixels = solid(4, 6, Image::pack(200, 100, 50));
+  image->cols = 4;
+  image->rows = 2;
+  image->version = 7;
+  ImagePlacement p;
+  p.image = image;
+  p.key = 1;
+  CellBuffer::Cell marked;
+  marked.image = 1;
+  for (int r = 0; r < 2; r++)
+    for (int c = 0; c < 4; c++) b.put(r, c, marked);
+
+  ImageEncoder kitty(profile(PixelProtocol::KITTY));
+  std::string k = kitty.encode(b, {p}, true);
+  CHECK(count(k, "a=t,f=24,s=4,v=6,") == 1);
+  CHECK(count(k, "a=p,i=1,p=1,x=0,y=0,w=4,h=6,c=4,r=2,") == 1);
+
+  // Half of it covered: half of its pixels, over half of its cells.
+  for (int r = 0; r < 2; r++)
+    for (int c = 2; c < 4; c++) b.put(r, c, CellBuffer::Cell{});
+  std::string half = kitty.encode(b, {p}, false);
+  CHECK(count(half, "x=0,y=0,w=2,h=6,c=2,r=2,") == 1);
+
+  ImageEncoder iterm(profile(PixelProtocol::ITERM2));
+  CHECK(count(iterm.encode(b, {p}, true), ";width=2;height=2;") == 1);
+
+  ImageEncoder six(profile(PixelProtocol::SIXEL));
+  CHECK(count(six.encode(b, {p}, true), "\x1bP") == 1);
+}

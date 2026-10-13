@@ -29,10 +29,11 @@ using cellui::term::kModCtrl;
 struct UIFixture {
   ChannelConfiguration config{44100, 1};
   std::shared_ptr<Controller> controller = std::make_shared<Controller>(config);
-  cellui::test::TestBackend terminal{40, 120};
+  cellui::test::TestBackend terminal;
   std::unique_ptr<TerminalUI> ui;
 
-  explicit UIFixture(const std::string & song = "", UI::View view = UI::View::LIVE) {
+  explicit UIFixture(const std::string & song = "", UI::View view = UI::View::LIVE, cellui::term::Capabilities caps = {})
+      : terminal(40, 120, std::move(caps)) {
     if (song.empty()) controller->switchToBuffer(controller->freshBufferName());
     else CHECK(controller->openSong(song));
     ui = std::make_unique<TerminalUI>(terminal);

@@ -5,8 +5,8 @@ This plan is about what that buys beyond "one UI for two backends": things a
 widget toolkit makes hard, and a look that is modern rather than dated
 (`plans/modern-look.md` covers the tokens; this covers the effects).
 
-Status: under discussion. Step 1 (backdrop blur under modal dialogs) is
-built on `claude/cell-ui-backdrop-blur` to have something concrete to look at.
+Status: under discussion. Steps 1 and 2 (backdrop blur under modal dialogs,
+in cells and in pixels) are built on `claude/cell-ui-backdrop-blur`.
 
 ## The selling point
 
@@ -59,7 +59,7 @@ Each idea with its cell (terminal) and pixel (window) rendering:
 
 | Effect | Cell rendering | Pixel rendering | Notes |
 |---|---|---|---|
-| Backdrop blur under modals | average of each cell's background and ink over a box twice as wide as tall, glyphs fading into it and gone from radius 3; images under it blurred in pixels | gaussian of the layer below | step 1 |
+| Backdrop blur under modals | with an image protocol: the cells below drawn as pixels, blurred, in tiles; otherwise the average of each cell's background and ink over a box twice as wide as tall, glyphs fading into it | gaussian of the layer below | steps 1-2 |
 | Borders, drag handles | box drawing; dashed `┄┆`; handles as `⠿` | SDF strokes | |
 | Marching ants | dashed border whose phase advances on the frame clock | the same, dash pattern in pixels | selection region |
 | Supercells (spans) | merged text cell; a pixel region where the terminal has images | texture on a quad, a 3D view | |
@@ -99,9 +99,32 @@ so at most a theme of its own later.
 1. Backdrop blur and dim under modal dialogs: `Backdrop` cell attribute,
    `Scrim`, `Theme::modal_backdrop`, images filtered once while covered. Done
    on the branch.
-2. Dialog elevation over the scrim: border contrast and a one-cell offset
+2. The backdrop in pixels, in the terminal. Done on the branch:
+   - `CellRasterizer` draws composed cells as pixels (`canvasRasterizer()`):
+     backgrounds, block elements, braille and images drawn directly with
+     exact pixel coverage, text with canvas in runs, in the system's
+     monospace font (fontconfig's `monospace`), sized so its advance is a
+     cell's width. The window backend's cell renderer starts here.
+   - A blurring backdrop is tiles of 4 x 16 cells, each drawn with its blur
+     margin at a fraction of the display's resolution, blurred, dimmed and
+     stretched by the terminal over its cells (`Image::cols`/`rows`; kitty's
+     `c=`/`r=`, iTerm2's cell size). A tile is drawn again only when a
+     fingerprint of the cells and pictures it reads changes, so the
+     background keeps running under the dialog and static areas are not sent
+     again.
+   - kitty and iTerm2's protocol only; Sixel keeps the cell blur (it can't
+     stretch a picture, and its palette would band the blur).
+   - Measured on a 200 x 50 screen of 10 x 20 pixel cells: opening 24 ms and
+     328 KB (169 tiles), a playhead row moving 4.8 ms and 56 KB a frame (28
+     tiles). If that is too much: draw a dirty band once and cut its tiles
+     (the margins are now drawn three times over), lower the rate, or blur
+     more (smaller pictures).
+   - Next: the terminal's own font. kitty answers it through XTGETTCAP
+     (`kitty-query-font_family`, `kitty-query-font_size`); elsewhere a user
+     setting, falling back to `monospace`.
+3. Dialog elevation over the scrim: border contrast and a one-cell offset
    (brutalist) or dithered shadow.
-3. Border styles per edge, marching ants for the region.
-4. Phosphor decay (the frame diff) on the pattern editor.
-5. Gradients and spans formalised; shader hook.
-6. Particles, shakes, inertia: with the window backend's frame clock.
+4. Border styles per edge, marching ants for the region.
+5. Phosphor decay (the frame diff) on the pattern editor.
+6. Gradients and spans formalised; shader hook.
+7. Particles, shakes, inertia: with the window backend's frame clock.
