@@ -95,10 +95,10 @@ you're changing.
   playing, the columns to its right don't change at all (text or
   colors), and the rows the playing track doesn't have (before its first
   clip) draw blank.
-- **`verify_scroll_margin.py`** - the pattern editor's scroll margin:
-  the highlighted row moves down the screen without scrolling until it
-  comes within 3 rows of the bottom, and stays there as the view
-  scrolls.
+
+The scroll margin, the clip grid's stop buttons and `set-song-scale` used to be
+scripts here; they are now unit tests on the test terminal
+(`tests/TerminalUITests.cpp`).
 - **`verify_mouse_wheel.py`** - the wheel scrolls the widget under the
   mouse without moving focus, scrolls its view but never its cursor (or
   the transport), Shift scrolls tracks sideways, and the next cursor move
@@ -108,17 +108,11 @@ you're changing.
   over a placed clip: a region marked inside the clip stops at its end and
   kills the clip's notes, never the background's; a yank lands in whatever
   the cursor is on and stops where that content ends.
-- **`verify_clipgrid_stop_button.py`** - the clip grid's stop buttons:
-  kill-region on an empty slot removes its stop button (its ⏹ goes), a
-  second press has nothing left to delete, and toggle-stop-button brings
-  it back.
 - **`verify_inline_editors.py`** - every widget's inline text editor
   (track, locator, clip names): Enter commits, Ctrl-g and M-x
   cancel, and a typed space never reaches the global toggle-playing
   binding. Independent of Launchpad.
-- **`verify_set_scale.py`** - `set-song-scale` lists the scales, choosing
-  one says so on the status line, and saving writes it to the song file.
-  Independent of Launchpad.
+
 - **`fake_launchpad.c` / `verify_launchpad_e2e.py`** - baseline single
   pad press/aftertouch/release, switching into NOTES mode and arming
   Record Arm first (a plain press only ever auditions - it never writes
