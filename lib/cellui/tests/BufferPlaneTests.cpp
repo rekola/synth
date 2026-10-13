@@ -383,3 +383,21 @@ TEST(bufferplane_an_erased_image_drawn_again_is_the_same_image) {
   root.refresh();
   CHECK(root.images().size() == 1 && root.images()[0].key == first.key && root.images()[0].image->version == first.image->version);
 }
+
+TEST(bufferplane_describe_gives_the_tree_in_stacking_order) {
+  StyleProvider styles;
+  CellBuffer b(6, 12);
+  BufferPlane root(b, styles);
+  auto a = root.createChild();
+  auto c = root.createChild();
+  a->resize(2, 3);
+  c->resize(1, 1);
+  c->move(4, 5);
+  c->setVisible(false);
+  a->moveToTop();
+  auto info = root.describe();
+  CHECK(info.children.size() == 2);
+  CHECK(info.children[0].y == 4 && info.children[0].x == 5);
+  CHECK(!info.children[0].visible);
+  CHECK(info.children[1].rows == 2 && info.children[1].cols == 3);
+}

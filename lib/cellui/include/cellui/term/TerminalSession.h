@@ -5,6 +5,7 @@
 #include <cellui/term/FrameEncoder.h>
 #include <cellui/term/ImageEncoder.h>
 #include <cellui/term/InputParser.h>
+#include <cellui/term/Terminal.h>
 
 #include <chrono>
 #include <deque>
@@ -39,37 +40,39 @@ struct SessionOptions {
 // The caller's loop waits for inputFd() or wakeFd() to be readable, or for
 // nextDeadline(), then calls poll(), which returns every event available
 // without blocking.
-class TerminalSession {
+class TerminalSession : public Terminal {
  public:
   using TimePoint = InputParser::TimePoint;
 
   // Starts a session; nullptr (with *error set) when there is no usable
   // terminal. Waits for the start-up replies, at most Discovery::timeout().
   static std::unique_ptr<TerminalSession> open(SessionOptions options, std::string * error = nullptr);
-  ~TerminalSession();
+  ~TerminalSession() override;
   TerminalSession(const TerminalSession &) = delete;
   TerminalSession & operator=(const TerminalSession &) = delete;
 
   // Puts the terminal back as it was. Idempotent.
   void close();
 
-  const Capabilities & capabilities() const { return caps_; }
-  int rows() const { return rows_; }
-  int cols() const { return cols_; }
+  const Capabilities & capabilities() const override { return caps_; }
+  int rows() const override { return rows_; }
+  int cols() const override { return cols_; }
 
-  int inputFd() const { return fd_; }
-  int wakeFd() const { return wake_read_; }
-  std::optional<TimePoint> nextDeadline() const { return parser_.nextDeadline(); }
+  int inputFd() const override { return fd_; }
+  int wakeFd() const override { return wake_read_; }
+  std::optional<TimePoint> nextDeadline() const override { return parser_.nextDeadline(); }
 
   // Every event available now. A resize is reported with the new size,
   // already read from the terminal.
-  std::vector<TermEvent> poll();
+  std::vector<TermEvent> poll() override;
 
   // Draws a frame (see FrameEncoder) and its images (ImageEncoder).
-  void present(const CellBuffer & frame, const CursorRequest & cursor = {}, const std::vector<ImagePlacement> & images = {});
+  // A real terminal has no use for the frame info.
+  void present(const CellBuffer & frame, const CursorRequest & cursor = {}, const std::vector<ImagePlacement> & images = {},
+               const FrameInfo * info = nullptr) override;
   // The next present() redraws the whole screen (after the screen may have
   // been disturbed, Emacs's C-l).
-  void redraw() { encoder_.invalidate(); }
+  void redraw() override { encoder_.invalidate(); }
   // Writes raw bytes, all of them.
   void write(const std::string & bytes);
 
