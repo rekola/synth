@@ -176,9 +176,10 @@ of the switch.
    its own inline images (PNG, `OSC 1337`), the spectrum's curve widens
    with the display scale, and key ids have names of our own
    (`cellui::Key`). Confirmed in real terminals: xterm with Sixel, kitty
-   (Alt-x, and Escape then x as M-x). Still open: the Launchpad e2e scripts
-   (they need an ALSA sequencer, which the cloud containers lack) and the
-   real-terminal checks of foot, WezTerm, VTE, tmux and iTerm2.
+   (Alt-x, and Escape then x as M-x) and VTE (GNOME Terminal). Still open:
+   the Launchpad e2e scripts (they need an ALSA sequencer, which the cloud
+   containers lack) and the real-terminal checks of foot, WezTerm, tmux and
+   iTerm2.
 6. Icons: the app's icon list, Kitty graphics/Sixel/glyph fallback, menu
    icons.
 7. `plans/modern-look.md` steps 4-5: the modernized look and the light and
