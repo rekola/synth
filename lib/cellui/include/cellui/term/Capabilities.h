@@ -12,6 +12,8 @@ enum class PixelProtocol { NONE, SIXEL, ITERM2, KITTY };
 // Synchronized output as a private mode, or as the DCS pair some terminals
 // implement without answering a mode query.
 enum class SyncForm { NONE, MODE, DCS };
+// Whether the terminal draws dark text on a light background or the reverse.
+enum class Appearance { DARK, LIGHT };
 
 // What start-up learned about the terminal, frozen once start-up ends.
 struct Capabilities {
@@ -27,6 +29,8 @@ struct Capabilities {
   // estimateDisplayScale() of the cell height.
   double display_scale = 1.0;
   std::optional<Color> default_fg, default_bg;
+  // detectAppearance() of the default colours: the theme to start with.
+  Appearance appearance = Appearance::DARK;
 
   ColorDepth colors = ColorDepth::C8;
   // An absolute column move (CHA) exists; without it every move is a CUP.
@@ -59,6 +63,12 @@ struct Capabilities {
 // hairlines - so nothing comes out too small; a large font at scale 1 reads
 // as a larger scale, which suits that too.
 double estimateDisplayScale(int cell_px_height);
+
+// Light when the background is lighter than the foreground (by relative
+// luminance), or with only the background known, when black text would
+// stand out on it more than white; dark otherwise, and when neither is
+// known.
+Appearance detectAppearance(const std::optional<Color> & fg, const std::optional<Color> & bg);
 
 // What discovery needs from the environment. The caller fills it from the
 // process environment; tests fill it by hand.

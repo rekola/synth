@@ -82,6 +82,27 @@ double estimateDisplayScale(int cell_px_height) {
   return std::clamp(scale, 1.0, 4.0);
 }
 
+namespace {
+
+// WCAG relative luminance, 0 (black) to 1 (white).
+double luminance(const Color & c) {
+  auto linear = [](int v) {
+    double s = v / 255.0;
+    return s <= 0.04045 ? s / 12.92 : std::pow((s + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * linear(c.getRed()) + 0.7152 * linear(c.getGreen()) + 0.0722 * linear(c.getBlue());
+}
+
+}  // namespace
+
+Appearance detectAppearance(const std::optional<Color> & fg, const std::optional<Color> & bg) {
+  if (!bg) return Appearance::DARK;
+  double b = luminance(*bg);
+  if (fg) return b > luminance(*fg) ? Appearance::LIGHT : Appearance::DARK;
+  // Black and white contrast equally with a luminance of about 0.18.
+  return b > 0.179 ? Appearance::LIGHT : Appearance::DARK;
+}
+
 Discovery::Discovery(Environment env) : env_(std::move(env)) { }
 
 bool Discovery::preIdentified() const {
@@ -280,9 +301,9 @@ Capabilities Discovery::result() const {
   caps.default_bg = default_bg_;
   // A terminal that reports only its background most likely draws text in
   // whichever of black and white stands out against it.
+  caps.appearance = detectAppearance(default_fg_, default_bg_);
   if (!default_fg_ && default_bg_) {
-    bool dark = default_bg_->getRed() < 128 && default_bg_->getGreen() < 128 && default_bg_->getBlue() < 128;
-    caps.default_fg = dark ? Color(255, 255, 255) : Color(0, 0, 0);
+    caps.default_fg = caps.appearance == Appearance::LIGHT ? Color(0, 0, 0) : Color(255, 255, 255);
   }
   caps.kitty_keyboard = kitty_keyboard_;
   caps.pixel_mouse = pixel_mouse_;

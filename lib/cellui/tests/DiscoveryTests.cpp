@@ -190,3 +190,16 @@ TEST(display_scale_from_cell_height) {
   CHECK(estimateDisplayScale(36) == 2.0);
   CHECK(estimateDisplayScale(200) == 4.0);
 }
+
+TEST(discovery_appearance_from_the_default_colours) {
+  CHECK(detectAppearance(std::nullopt, std::nullopt) == Appearance::DARK);
+  CHECK(detectAppearance(cellui::Color(0, 0, 0), cellui::Color(255, 255, 255)) == Appearance::LIGHT);
+  CHECK(detectAppearance(cellui::Color(0xdd, 0xdd, 0xdd), cellui::Color(0x11, 0x11, 0x11)) == Appearance::DARK);
+  // Solarized light: a mid-grey foreground on cream.
+  CHECK(detectAppearance(cellui::Color(0x65, 0x7b, 0x83), cellui::Color(0xfd, 0xf6, 0xe3)) == Appearance::LIGHT);
+  CHECK(detectAppearance(std::nullopt, cellui::Color(0xc0, 0xc0, 0xc0)) == Appearance::LIGHT);
+  CHECK(detectAppearance(std::nullopt, cellui::Color(0x30, 0x30, 0x30)) == Appearance::DARK);
+  // xterm's recording: black on white.
+  CHECK(discover(readFixture("xterm")).appearance == Appearance::LIGHT);
+  CHECK(discover(readFixture("kitty")).appearance == Appearance::DARK);
+}

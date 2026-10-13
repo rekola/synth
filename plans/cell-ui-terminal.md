@@ -174,7 +174,10 @@ of the switch.
    (translucent cells, the reader on `LineEditor`, the picker). The display
    scale is guessed from the cell height (`estimateDisplayScale()`) and
    reported by `UIPlane::displayScale()`: the scopes and icons scale text,
-   icons and line widths by it, hairlines excepted. Next: the menu bar,
+   icons and line widths by it, hairlines excepted. The terminal's default
+   colours give `Capabilities::appearance` (light or dark,
+   `detectAppearance()`), which picks the starting theme once step 7 adds a
+   light one. Next: the menu bar,
    images (kitty graphics, Sixel) from the pixel charts, then `TerminalUI`
    onto all of it and notcurses out of the build.
 6. Icons: the app's icon list, Kitty graphics/Sixel/glyph fallback, menu
