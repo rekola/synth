@@ -65,7 +65,7 @@
 #include <sys/time.h>
 
 #include <cellui/MenuBar.h>
-#include <cellui/EscapeCoalescer.h>
+#include <cellui/KeyReader.h>
 #include <cellui/term/TerminalSession.h>
 
 #include <poll.h>
@@ -757,73 +757,48 @@ private:
   std::vector<Marker> markers_;
 };
 
-// How long a pending Escape (EscapeSequenceCoalescer::escapePending())
-// must stay open before the "ESC-" indicator actually appears
-// (updateEscapeIndicator()) - long enough that an ordinary fast Alt-chord
-// (typed close enough together to resolve within one readInput() drain
-// burst, or split across two but still well within human reaction time)
-// never flickers it, short enough that a person who actually paused after
-// Escape gets confirmation promptly rather than wondering whether the
-// keypress registered at all.
-constexpr auto kEscapeIndicatorDelay = std::chrono::milliseconds(300);
-
-// The inputs the terminal session decoded, handed to the Alt-key
-// coalescing pipeline (cellui/EscapeCoalescer.h) one at a time.
-class QueuedInputSource : public cellui::InputEventSource {
-public:
-  void push(const cellui::Input & input) { queue_.push_back(input); }
-  bool next(cellui::Input * input) override {
-    if (queue_.empty()) return false;
-    *input = queue_.front();
-    queue_.pop_front();
-    return true;
-  }
-
-private:
-  std::deque<cellui::Input> queue_;
-};
-
-class TerminalUI::EscapeInputPipeline {
-public:
-  EscapeInputPipeline() : coalescer(source) { }
-
-  QueuedInputSource source;
-  cellui::EscapeSequenceCoalescer coalescer;
-};
-
 TerminalUI::TerminalUI(cellui::term::TerminalSession & session)
-  : session_(session), screen_(session.rows(), session.cols()), escape_input_(make_unique<EscapeInputPipeline>()) {
+  : session_(session), screen_(session.rows(), session.cols()) {
+  // Something that closes on a bare Escape gets it at once, rather than when
+  // the next key shows it was no Alt prefix.
+  key_reader_.takeEscape = [this](const cellui::Input & escape) {
+    auto active = outline_view_ && outline_view_->isModal() ? outline_view_ : active_element_.lock();
+    if (choice_dialog_.isOpen()) {
+      closeChoiceDialog();
+    } else if (info_dialog_.isOpen()) {
+      closeInfoDialog();
+    } else if (active && active->wantsBareEscape()) {
+      active->offerInput(escape);
+    } else {
+      return false;
+    }
+    return true;
+  };
 }
 
 TerminalUI::~TerminalUI() {
 }
 
-// Called once per startUI() loop iteration, whether it woke on a real fd
-// or the poll() timeout below - shows "ESC-" the moment kEscapeIndicatorDelay
-// has actually elapsed with the wait still open. Clearing it again happens
-// in readInput() instead, right when the wait ends (immediately, not on a
-// delay - there's nothing to debounce about a wait that's already over).
+// Shows "ESC-" once a pending Escape has waited KeyReader::kIndicatorDelay,
+// the way Emacs shows its Meta prefix; readInput() clears it when the wait
+// ends.
 void
 TerminalUI::updateEscapeIndicator() {
-  if (!escape_pending_since_ || escape_indicator_shown_) return;
-  if (std::chrono::steady_clock::now() - *escape_pending_since_ >= kEscapeIndicatorDelay) {
+  auto due = key_reader_.indicatorDue();
+  if (!due || escape_indicator_shown_) return;
+  if (std::chrono::steady_clock::now() >= *due) {
     setStatus("ESC-");
     escape_indicator_shown_ = true;
   }
 }
 
-// startUI()'s own poll() otherwise waits up to a full second regardless of
-// what's happening - fine normally, but while a pending Escape hasn't yet
-// crossed kEscapeIndicatorDelay, that would make the indicator's own
-// appearance late and irregular (anywhere up to a second past the actual
-// delay) rather than landing right on it. Only shortens the wait while
-// there's an actual reason to wake up early; otherwise unchanged.
+// The loop's wait, shortened so the indicator appears on time.
 int
 TerminalUI::escapeIndicatorPollTimeoutMs() const {
   constexpr int kDefaultPollTimeoutMs = 1000;
-  if (!escape_pending_since_ || escape_indicator_shown_) return kDefaultPollTimeoutMs;
-  auto remaining = kEscapeIndicatorDelay - (std::chrono::steady_clock::now() - *escape_pending_since_);
-  auto remaining_ms = std::chrono::duration_cast<std::chrono::milliseconds>(remaining).count();
+  auto due = key_reader_.indicatorDue();
+  if (!due || escape_indicator_shown_) return kDefaultPollTimeoutMs;
+  auto remaining_ms = std::chrono::duration_cast<std::chrono::milliseconds>(*due - std::chrono::steady_clock::now()).count();
   return static_cast<int>(std::clamp<long long>(remaining_ms, 0, kDefaultPollTimeoutMs));
 }
 
@@ -959,11 +934,11 @@ TerminalUI::readInput() {
     switch (event.type) {
     case TermEvent::Type::KEY:
     case TermEvent::Type::MOUSE:
-      escape_input_->source.push(cellui::term::toInput(event));
+      key_reader_.push(cellui::term::toInput(event));
       break;
     case TermEvent::Type::RESIZE:
       resizeScreen();
-      escape_input_->source.push(cellui::Input(Key::Resize, -1, -1, false, false, false, false));
+      key_reader_.push(cellui::Input(Key::Resize, -1, -1, false, false, false, false));
       break;
     case TermEvent::Type::PASTE:
       // Pasted text goes into an open text field; elsewhere it is not
@@ -978,68 +953,12 @@ TerminalUI::readInput() {
     }
   }
 
-  while (true) {
-    // Emacs shows "ESC-" in the echo area while a Meta-prefix wait is
-    // open (EscapeSequenceCoalescer::escapePending()'s own comment) -
-    // matched here, but not immediately: recorded on the transition, with
-    // the actual indicator shown only once escapeIndicatorPollTimeoutMs()'s
-    // delay has passed with the wait still open (updateEscapeIndicator(),
-    // called from startUI()'s own loop) - a fast Alt-chord that resolves
-    // well within that window never flickers the indicator at all.
-    bool escape_was_pending = escape_input_->coalescer.escapePending();
-    cellui::Input input(0, -1, -1, false, false, false, false);
-    if (!escape_input_->coalescer.next(&input)) break;
-    bool escape_now_pending = escape_input_->coalescer.escapePending();
-    if (escape_now_pending && !escape_was_pending) {
-      escape_pending_since_ = std::chrono::steady_clock::now();
-      escape_indicator_shown_ = false;
-    } else if (!escape_now_pending && escape_was_pending) {
-      if (escape_indicator_shown_) setStatus("");
-      escape_pending_since_.reset();
-      escape_indicator_shown_ = false;
-    }
-
-    // A key release says nothing about the held Escape; Escape's own release
-    // belongs to it.
-    if (escape_held_ && input.getKind() == InputEvent::Kind::RELEASE) {
-      if (input.getId() != Key::Escape) offerInput(input);
-      continue;
-    }
-
-    // A held bare Escape goes ahead of whatever followed it (see
-    // escape_held_'s own comment), unless a widget already took it or it
-    // became the Alt prefix of the input that followed.
-    if (escape_held_) {
-      if (escape_input_->coalescer.lastFolded()) escape_delivered_ = true;
-      escape_held_ = false;
-      if (!escape_delivered_) offerInput(cellui::Input(Key::Escape, -1, -1, false, false, false, false, input.getKind()));
-      escape_delivered_ = false;
-    }
-
-    if (input.getId() == Key::Escape && !input.hasAlt() && input.getKind() != InputEvent::Kind::RELEASE) {
-      escape_held_ = true;
-      // A widget that wants a bare Escape (closing a popup) gets it right
-      // away rather than once the next key arrives. It still stays held
-      // here and in the Alt coalescer, so it can go on to be an Alt chord's
-      // prefix - it's just never delivered a second time.
-      auto active = outline_view_ && outline_view_->isModal() ? outline_view_ : active_element_.lock();
-      if (choice_dialog_.isOpen()) {
-        closeChoiceDialog();
-        escape_delivered_ = true;
-      } else if (info_dialog_.isOpen()) {
-        closeInfoDialog();
-        escape_delivered_ = true;
-      } else if (active && active->wantsBareEscape()) {
-        cellui::Input escape(Key::Escape, input.getY(), input.getX(), false, false, false, false, input.getKind());
-        active->offerInput(escape);
-        escape_delivered_ = true;
-      }
-      continue;
-    }
-
-    offerInput(input);
+  cellui::Input input(0, -1, -1, false, false, false, false);
+  while (key_reader_.next(&input)) offerInput(input);
+  if (escape_indicator_shown_ && !key_reader_.escapePending()) {
+    setStatus("");
+    escape_indicator_shown_ = false;
   }
-
   return true;
 }
 

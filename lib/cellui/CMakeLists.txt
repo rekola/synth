@@ -32,6 +32,7 @@ add_library(cellui STATIC
   src/InfoDialog.cpp
   src/InlineEditor.cpp
   src/EscapeCoalescer.cpp
+  src/KeyReader.cpp
   src/LineEditor.cpp
   src/Markdown.cpp
   src/MenuBar.cpp
@@ -81,6 +82,7 @@ add_executable(cellui_tests
   tests/KeymapTests.cpp
   tests/LevelMeterTests.cpp
   tests/EscapeCoalescerTests.cpp
+  tests/KeyReaderTests.cpp
   tests/LineEditorTests.cpp
   tests/MenuBarTests.cpp
   tests/MeterTests.cpp
