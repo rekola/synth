@@ -8,7 +8,8 @@ shows them. There are two backends:
 - **Terminal** (`cellui::term`). It replaces notcurses, does the
   terminal-only work itself and keeps compatibility with every terminal.
 - **Window** (`cellui::window`). A window on Linux (X11/Wayland), a GTK
-  backend there, and on Windows, with real dialogs and menus.
+  backend there, and on Windows, written directly against Win32 (Direct2D,
+  DirectWrite), with real dialogs and menus.
 
 On Linux the app can pick either one when a display server is running;
 Windows has only the window.
