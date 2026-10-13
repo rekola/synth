@@ -449,10 +449,10 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
     menu_->applyStyles(styles_);
   }
 
-  auto scopes = cellui::term::scopes(caps);
-  chart_ = scopes->spectrum(getPlane());
-  volume_meter_ = scopes->channelMeter(getPlane());
-  heatmap_ = scopes->heatmap(getPlane(), DiracAnalyzer::kAzimuthBins, DiracAnalyzer::kElevationBins);
+  scopes_ = cellui::term::scopes(caps);
+  chart_ = scopes_->spectrum(getPlane());
+  volume_meter_ = scopes_->channelMeter(getPlane());
+  heatmap_ = scopes_->heatmap(getPlane(), DiracAnalyzer::kAzimuthBins, DiracAnalyzer::kElevationBins);
 
   // No footer legend on either scope: the heatmap's axis extremes are
   // drawn directly in the grid area instead (axisLabels(), above), and the
@@ -576,8 +576,10 @@ void
 TerminalUI::initializeWidgets() {
   // chart and volume are missing
   pattern_editor_ = make_shared<PatternEditor>(getPlane());
+  pattern_editor_->setScopes(scopes_.get());
   arrangement_grid_ = make_shared<ArrangementGrid>(getPlane());
   clip_grid_ = make_shared<ClipGrid>(getPlane());
+  clip_grid_->setScopes(scopes_.get());
   outline_view_ = make_shared<OutlineView>(getPlane());
   // Enter commits the cell under this grid's own (local, passive) cursor
   // to shared state - see ArrangementGrid.h's own comment on why this is a

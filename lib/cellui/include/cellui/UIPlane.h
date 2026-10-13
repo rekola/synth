@@ -60,10 +60,22 @@ class UIPlane {
     (void)width;
     return false;
   }
+  // The size of one cell in pixels, under the same condition.
+  virtual bool cellPixelSize(int & height, int & width) const {
+    (void)height;
+    (void)width;
+    return false;
+  }
   // Shows `pixels` (width*height, row 0 at the top, bytes R, G, B, A) from
   // the plane's top-left corner in place of its text, until erase(). Only
   // where pixelSize() said yes.
-  virtual void drawImage(const std::vector<uint32_t> & pixels, int width, int height) {
+  virtual void drawImage(const std::vector<uint32_t> & pixels, int width, int height) { drawImageAt(0, 0, pixels, width, height); }
+  // The same from cell (row, col), covering only the cells the image
+  // reaches; the plane's text shows in the others. A plane holds one image
+  // per position, each replacing the last drawn there.
+  virtual void drawImageAt(int row, int col, const std::vector<uint32_t> & pixels, int width, int height) {
+    (void)row;
+    (void)col;
     (void)pixels;
     (void)width;
     (void)height;

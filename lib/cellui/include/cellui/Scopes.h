@@ -3,6 +3,7 @@
 #include <cellui/ChannelMeter.h>
 #include <cellui/HeatmapChart.h>
 #include <cellui/SpectrumMeter.h>
+#include <cellui/VuMeterImage.h>
 
 #include <memory>
 
@@ -19,7 +20,17 @@ class Scopes {
   // A heatmap of a grid_cols x grid_rows grid.
   virtual std::shared_ptr<HeatmapChart> heatmap(UIPlane & parent, int grid_cols, int grid_rows) const = 0;
   virtual std::shared_ptr<ChannelMeter> channelMeter(UIPlane & parent) const = 0;
+  // A VU meter drawn into a widget's own plane: `rows` cells tall from
+  // (row, col), one cell wide, drawn only in the plane rows from clip_top up
+  // to clip_bottom (a meter partly scrolled out of view).
+  virtual void drawVuMeter(UIPlane & plane, int row, int col, int rows, const VuReading & reading, const VuMeterLook & look,
+                           int clip_top, int clip_bottom) const = 0;
 };
+
+// The cell version of drawVuMeter(): a braille bar in the cell's right dot
+// column, shaded by height (or in look.color), on look.background.
+void drawCellVuMeter(UIPlane & plane, int row, int col, int rows, const VuReading & reading, const VuMeterLook & look, int clip_top,
+                     int clip_bottom);
 
 // Drawn in cells by hand: braille bars, a quadrant or sextant heatmap, the
 // labels in text. Every backend can show these.

@@ -144,6 +144,28 @@ private:
   std::vector<Marker> markers_;
 };
 
+}  // namespace
+
+void drawCellVuMeter(UIPlane & plane, int row, int col, int rows, const VuReading & reading, const VuMeterLook & look, int clip_top,
+                     int clip_bottom) {
+  if (rows <= 0) return;
+  auto & styles = plane.getStyles();
+  auto cells = level_meter::verticalBar(reading.fraction, rows, reading.peak);
+  plane.setBgColor(look.background.getRed(), look.background.getGreen(), look.background.getBlue());
+  for (int i = 0; i < rows; i++) {
+    int y = row + i;
+    if (y < clip_top || y >= clip_bottom) continue;
+    // Shaded by the height of this cell; i = 0 is the top one.
+    Color fg = reading.clipping ? styles.meter_clip_color
+               : look.color     ? *look.color
+                                : styles.meterColor((static_cast<float>(rows - i) - 0.5f) / static_cast<float>(rows));
+    plane.setFgColor(fg.getRed(), fg.getGreen(), fg.getBlue());
+    plane.putstr(y, col, cells[static_cast<size_t>(i)]);
+  }
+}
+
+namespace {
+
 class CellScopes : public Scopes {
  public:
   std::shared_ptr<SpectrumMeter> spectrum(UIPlane & parent) const override { return std::make_shared<SpectrumMeter>(parent); }
@@ -151,6 +173,10 @@ class CellScopes : public Scopes {
     return std::make_shared<CellHeatmapChart>(parent, grid_cols, grid_rows);
   }
   std::shared_ptr<ChannelMeter> channelMeter(UIPlane & parent) const override { return std::make_shared<ChannelMeter>(parent); }
+  void drawVuMeter(UIPlane & plane, int row, int col, int rows, const VuReading & reading, const VuMeterLook & look, int clip_top,
+                   int clip_bottom) const override {
+    drawCellVuMeter(plane, row, col, rows, reading, look, clip_top, clip_bottom);
+  }
 };
 
 }  // namespace

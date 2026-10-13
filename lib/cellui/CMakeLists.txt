@@ -79,7 +79,7 @@ endif()
 # The pixel versions draw with canvas' Cairo backend; the GDI+ one joins with
 # the window backend on Windows.
 if(NOT WIN32)
-  target_sources(cellui PRIVATE src/HeatmapImage.cpp src/PixelScopes.cpp src/SpectrumImage.cpp)
+  target_sources(cellui PRIVATE src/HeatmapImage.cpp src/PixelScopes.cpp src/SpectrumImage.cpp src/VuMeterImage.cpp)
   target_compile_definitions(cellui PRIVATE CELLUI_PIXEL_SCOPES)
 endif()
 # canvas' headers are reached as SYSTEM includes.
@@ -124,7 +124,8 @@ add_executable(cellui_tests
   tests/MeterTests.cpp
   tests/Utf8Tests.cpp)
 if(NOT WIN32)
-  target_sources(cellui_tests PRIVATE tests/TerminalSessionTests.cpp tests/HeatmapImageTests.cpp tests/SpectrumImageTests.cpp)
+  target_sources(cellui_tests PRIVATE tests/TerminalSessionTests.cpp tests/HeatmapImageTests.cpp tests/SpectrumImageTests.cpp
+    tests/VuMeterTests.cpp)
 endif()
 target_link_libraries(cellui_tests PRIVATE cellui)
 target_compile_definitions(cellui_tests PRIVATE CELLUI_TEST_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests")

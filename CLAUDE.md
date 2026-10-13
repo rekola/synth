@@ -54,8 +54,14 @@ drawn with canvas (`cellui/SpectrumImage.h`, `cellui/HeatmapImage.h`,
 `src/PixelScopes.cpp`, the heatmap's axis labels drawn into the image). An `ImageData` handed to canvas to draw is RGB straight-alpha unless
 tagged otherwise (`setFormat(ChannelOrder::BGR, true)` for bytes B, G, R, A,
 premultiplied, as we build them); what is read back
-is the same layout, and the renderers return RGBA. The VU meters' pixel
-versions are not built yet.
+is the same layout, and the renderers return RGBA. The VU meters have pixel
+versions too: the channel meter's bars are one image over its bar rows, and
+the clip grid's and pattern editor's level meters are drawn through
+`Scopes::drawVuMeter()` into the widget's own plane (`cellui/VuMeterImage.h`;
+`drawCellVuMeter()` is the cell version), as images at cell positions
+(`UIPlane::drawImageAt()`: a plane holds one image per cell position, covering
+only the cells it reaches, and the same picture drawn again - even after
+`erase()` - keeps its version, so it isn't sent again).
 `libpipewire-0.3-dev` is optional too (`SYNTH_ENABLE_PIPEWIRE`,
 auto-detected, and cmake says so when it isn't used): it only backs
 `src/audio/AudioDevices.cpp`'s listing of the audio server's own inputs and

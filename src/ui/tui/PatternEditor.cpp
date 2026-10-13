@@ -2539,23 +2539,25 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
       draw_edge(row, col, segment_color(left), next_segment_color(idx));
     };
     // The per-track VU meter next to a leaf's instrument name - a single
-    // vertical cell, its dots filling bottom-up in the right dot column
-    // (flush with the row's own right edge): one dot for the quietest
-    // non-silent reading, all 4 at full scale. meter_dots() gives a
-    // track's smoothed, dB-mapped level as 0..4 of them.
+    // vertical cell, filling bottom-up in the right part of the cell (flush
+    // with the row's own right edge), in whichever version the backend's
+    // scopes draw. meter_fraction() gives a track's smoothed, dB-mapped
+    // level as a fraction of the meter.
     meters_showing_ = false;
-    auto meter_dots = [&](int track_id, const TrackInfo & track_info) {
+    auto meter_fraction = [&](int track_id, const TrackInfo & track_info) {
       auto & smoothing = meter_smoothing_[track_id];
       auto now = std::chrono::steady_clock::now();
       auto dt = std::min(std::chrono::duration<float>(now - smoothing.last_update).count(), 0.25f);
       smoothing.last_update = now;
-      auto dots = level_meter::barSteps(level_meter::fraction(smoothing.ballistics.update(track_info.getMeterValue(), dt)), 1);
-      if (dots > 0) meters_showing_ = true;
-      return dots;
+      auto fraction = level_meter::fraction(smoothing.ballistics.update(track_info.getMeterValue(), dt));
+      if (level_meter::barSteps(fraction, 1) > 0) meters_showing_ = true;
+      return fraction;
     };
-    auto draw_vu_meter = [&](int row, int col, int dots, bool clipping) {
-      setFgColor(clipping ? styles.meter_clip_color : styles.meter_active_color);
-      putstr(row, col, level_meter::verticalCell(dots));
+    auto draw_vu_meter = [&](int row, int col, float fraction, bool clipping) {
+      cellui::VuReading reading{fraction, 0.0f, clipping};
+      cellui::VuMeterLook look{styles.window_bg_color, styles.meter_active_color};
+      if (scopes_) scopes_->drawVuMeter(getPlane(), row, col, 1, reading, look, row, row + 1);
+      else cellui::drawCellVuMeter(getPlane(), row, col, 1, reading, look, row, row + 1);
     };
 
     // Whether the left-edge marker (below) has been drawn yet for this
@@ -2767,7 +2769,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 
 	    if (meter_width > 0) {
 	      auto & track_info = info.getTrackInfo(track->getInternalId());
-	      draw_vu_meter(heading_height - 2 - level + 1, current_pos + instrument_name_width, meter_dots(track->getInternalId(), track_info), track_info.isClipping());
+	      draw_vu_meter(heading_height - 2 - level + 1, current_pos + instrument_name_width, meter_fraction(track->getInternalId(), track_info), track_info.isClipping());
 	    }
 	  }
 	} else if (actual_width <= 1) {

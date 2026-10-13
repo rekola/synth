@@ -7,6 +7,7 @@
 #include "../StyleProvider.h"
 #include "../../playback/InputEvent.h"
 #include <cellui/KeyReader.h>
+#include <cellui/Scopes.h>
 #include <chrono>
 #include <memory>
 #include <optional>
@@ -126,6 +127,8 @@ private:
   std::shared_ptr<SpectrumMeter> chart_;
   std::shared_ptr<ChannelMeter> volume_meter_;
   std::shared_ptr<HeatmapChart> heatmap_;
+  // The scopes in the versions this terminal shows.
+  std::unique_ptr<cellui::Scopes> scopes_;
   std::shared_ptr<StatusLine> status_line_;
 
   StyleProvider styles_;

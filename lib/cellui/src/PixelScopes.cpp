@@ -6,6 +6,7 @@
 #include <cellui/SpectrumImage.h>
 #include <cellui/StyleProvider.h>
 #include <cellui/UIPlane.h>
+#include <cellui/VuMeterImage.h>
 
 #include <algorithm>
 #include <vector>
@@ -133,13 +134,55 @@ protected:
   }
 };
 
+// The channel meter's bars as one image over its bar rows, two channels to
+// a cell; the legend below stays text.
+class PixelChannelMeter : public ChannelMeter {
+ public:
+  using ChannelMeter::ChannelMeter;
+
+ protected:
+  void drawBars(int bar_rows, int cells) override {
+    int cell_h = 0, cell_w = 0;
+    if (!getPlane().cellPixelSize(cell_h, cell_w)) {
+      ChannelMeter::drawBars(bar_rows, cells);
+      return;
+    }
+    std::vector<std::optional<VuReading>> columns;
+    for (int i = 0; i < 2 * cells; i++) {
+      auto & channel = channels_[static_cast<size_t>(i)];
+      columns.push_back(VuReading{channel.fraction, channel.peak_fraction, channel.clipping});
+    }
+    auto & styles = getPlane().getStyles();
+    unsigned width = static_cast<unsigned>(cells * cell_w), height = static_cast<unsigned>(bar_rows * cell_h);
+    auto pixels = vu_meter_image::render(columns, VuMeterLook{styles.window_bg_color, std::nullopt}, width, height, styles,
+                                         static_cast<float>(getPlane().displayScale()));
+    getPlane().drawImageAt(0, 0, pixels, static_cast<int>(width), static_cast<int>(height));
+  }
+};
+
 class PixelScopes : public Scopes {
  public:
   std::shared_ptr<SpectrumMeter> spectrum(UIPlane & parent) const override { return std::make_shared<PixelSpectrumMeter>(parent); }
   std::shared_ptr<HeatmapChart> heatmap(UIPlane & parent, int grid_cols, int grid_rows) const override {
     return std::make_shared<PixelHeatmapChart>(parent, grid_cols, grid_rows);
   }
-  std::shared_ptr<ChannelMeter> channelMeter(UIPlane & parent) const override { return std::make_shared<ChannelMeter>(parent); }
+  std::shared_ptr<ChannelMeter> channelMeter(UIPlane & parent) const override { return std::make_shared<PixelChannelMeter>(parent); }
+  void drawVuMeter(UIPlane & plane, int row, int col, int rows, const VuReading & reading, const VuMeterLook & look, int clip_top,
+                   int clip_bottom) const override {
+    int cell_h = 0, cell_w = 0;
+    int top = std::max(row, clip_top), bottom = std::min(row + rows, clip_bottom);
+    if (rows <= 0 || top >= bottom) return;
+    if (!plane.cellPixelSize(cell_h, cell_w)) {
+      drawCellVuMeter(plane, row, col, rows, reading, look, clip_top, clip_bottom);
+      return;
+    }
+    // The whole meter, of which the visible rows are shown.
+    unsigned width = static_cast<unsigned>(cell_w), height = static_cast<unsigned>(rows * cell_h);
+    auto pixels = vu_meter_image::render({std::nullopt, reading}, look, width, height, plane.getStyles(), static_cast<float>(plane.displayScale()));
+    size_t from = static_cast<size_t>((top - row) * cell_h) * width, to = static_cast<size_t>((bottom - row) * cell_h) * width;
+    std::vector<uint32_t> visible(pixels.begin() + static_cast<long>(from), pixels.begin() + static_cast<long>(to));
+    plane.drawImageAt(top, col, visible, static_cast<int>(width), (bottom - top) * cell_h);
+  }
 };
 
 }  // namespace

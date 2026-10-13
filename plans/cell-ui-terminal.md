@@ -154,7 +154,9 @@ of the switch.
    in Cell UI behind `cellui::Scopes` (`cellScopes()`, `pixelScopes()`;
    `cellui::term::scopes()` picks the terminal's), canvas is Cell UI's
    dependency, and the pixel spectrum and heatmap are drawn with it
-   (`SpectrumImage`, `HeatmapImage`). Left: the VU meters' pixel versions.
+   (`SpectrumImage`, `HeatmapImage`). The VU meters have pixel versions
+   too (`VuMeterImage`, `Scopes::drawVuMeter()`), drawn into a widget's own
+   plane as images at cell positions (`UIPlane::drawImageAt()`).
 3. `plans/modern-look.md` steps 1-3: audit, mock, tokens (no visible
    change).
 4. Create `lib/cellui` with `UIPlane`/`UIMenu`/the chart and input types

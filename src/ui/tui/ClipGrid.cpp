@@ -587,8 +587,8 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   current_clip_states_ = std::move(clip_states);
   current_track_clips_ = std::move(track_clips);
 
-  // The meters, in bar steps (negative while clipping) - only a visible
-  // change redraws.
+  // The meters, in 1/256ths of the meter (negative while clipping) - only
+  // a change a pixel meter could show redraws.
   auto & playback_info = getController().getPlaybackInfo();
   auto now = std::chrono::steady_clock::now();
   auto meter_dt = std::min(std::chrono::duration<float>(now - last_meter_update_).count(), 0.25f);
@@ -600,9 +600,9 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     auto & meter = meters_[track_id];
     meter.fraction = level_meter::fraction(meter.ballistics.update(track_info.getMeterValue(), meter_dt));
     meter.peak_fraction = meter.peak_hold.update(meter.fraction, meter_dt);
-    auto steps = level_meter::barSteps(meter.fraction, kMeterRows);
+    auto steps = static_cast<int>(meter.fraction * 256.0f + 0.5f);
     meter_steps.push_back(track_info.isClipping() ? -1 - steps : steps);
-    meter_steps.push_back(level_meter::barSteps(meter.peak_fraction, kMeterRows));
+    meter_steps.push_back(static_cast<int>(meter.peak_fraction * 256.0f + 0.5f));
   }
   bool meters_changed = meter_steps != current_meter_steps_;
   current_meter_steps_ = std::move(meter_steps);
@@ -891,15 +891,12 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
 void
 ClipGrid::renderMeter(const StyleProvider & styles, int x, int rows, int track_id, bool clipping) {
   auto & meter = meters_[track_id];
-  auto cells = level_meter::verticalBar(meter.fraction, kMeterRows, meter.peak_fraction);
-  auto top = clipRowCount() + kSendsLabel; // physical row of the meter's top cell
-  setBgColor(styles.window_bg_color);
-  for (int i = 0; i < kMeterRows; i++) {
-    auto y = top + i - scroll_row_ + 1; // +1 for the header row
-    // Shaded by the height of this cell; i = 0 is the top one.
-    setFgColor(clipping ? styles.meter_clip_color : styles.meterColor((static_cast<float>(kMeterRows - i) - 0.5f) / static_cast<float>(kMeterRows)));
-    if (y >= 1 && y < rows) putstr(y, x + kColWidth - 1, cells[static_cast<size_t>(i)]);
-  }
+  auto top = clipRowCount() + kSendsLabel - scroll_row_ + 1; // the meter's top cell; +1 for the header row
+  cellui::VuReading reading{meter.fraction, meter.peak_fraction, clipping};
+  cellui::VuMeterLook look{styles.window_bg_color, std::nullopt};
+  // Below the header row, inside the plane.
+  if (scopes_) scopes_->drawVuMeter(getPlane(), top, x + kColWidth - 1, kMeterRows, reading, look, 1, rows);
+  else cellui::drawCellVuMeter(getPlane(), top, x + kColWidth - 1, kMeterRows, reading, look, 1, rows);
 }
 
 void

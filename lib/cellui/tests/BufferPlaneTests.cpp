@@ -331,3 +331,55 @@ TEST(bufferplane_themed_base_colours_what_a_child_leaves_unwritten) {
   CHECK(b.at(0, 1).bg && b.at(0, 1).bg->getRed() == styles.plane_base_bg_color.getRed() && b.at(0, 1).bg->getBlue() == styles.plane_base_bg_color.getBlue());
   CHECK(!b.at(0, 3).bg && !b.at(0, 4).bg);
 }
+
+TEST(bufferplane_image_at_a_cell_covers_only_its_cells) {
+  StyleProvider styles;
+  CellBuffer b(3, 6);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(4, 2);
+  root.putstr(0, 0, "abcdef");
+  root.putstr(1, 0, "ghijkl");
+  int h = 0, w = 0;
+  CHECK(root.cellPixelSize(h, w) && h == 4 && w == 2);
+  // Two cells wide, one tall, from (1, 2); then redrawn there.
+  root.drawImageAt(1, 2, std::vector<uint32_t>(4 * 4, 0xff0000ffu), 4, 4);
+  root.drawImageAt(1, 2, std::vector<uint32_t>(4 * 4, 0xff00ff00u), 4, 4);
+  root.refresh();
+  CHECK(root.images().size() == 1);
+  CHECK(b.at(1, 2).image == 1 && b.at(1, 3).image == 1);
+  CHECK(!b.at(1, 1).image && !b.at(1, 4).image && !b.at(0, 2).image);
+  CHECK(b.at(0, 2).text == "c" && b.at(1, 4).text == "k");
+  root.erase();
+  root.refresh();
+  CHECK(root.images().empty());
+}
+
+TEST(bufferplane_the_same_image_again_keeps_its_version) {
+  StyleProvider styles;
+  CellBuffer b(2, 2);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(4, 2);
+  root.drawImage(std::vector<uint32_t>(4 * 8, 0xff0000ffu), 4, 8);
+  root.refresh();
+  auto version = root.images()[0].image->version;
+  root.drawImage(std::vector<uint32_t>(4 * 8, 0xff0000ffu), 4, 8);
+  root.refresh();
+  CHECK(root.images()[0].image->version == version);
+  root.drawImage(std::vector<uint32_t>(4 * 8, 0xff00ff00u), 4, 8);
+  root.refresh();
+  CHECK(root.images()[0].image->version != version);
+}
+
+TEST(bufferplane_an_erased_image_drawn_again_is_the_same_image) {
+  StyleProvider styles;
+  CellBuffer b(2, 2);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(4, 2);
+  root.drawImageAt(1, 0, std::vector<uint32_t>(4 * 4, 0xff0000ffu), 4, 4);
+  root.refresh();
+  auto first = root.images()[0];
+  root.erase();
+  root.drawImageAt(1, 0, std::vector<uint32_t>(4 * 4, 0xff0000ffu), 4, 4);
+  root.refresh();
+  CHECK(root.images().size() == 1 && root.images()[0].key == first.key && root.images()[0].image->version == first.image->version);
+}
