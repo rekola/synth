@@ -68,6 +68,9 @@ class BufferPlane : public UIPlane {
   void setReaderContents(const std::string & text) override;
   // Inserts text at the reader's cursor (a paste).
   void insertReaderText(const std::string & text);
+  // The same, into whichever reader of the tree is open; newlines become
+  // spaces, as a field is one line. Returns whether one was (root only).
+  bool insertIntoReader(const std::string & text);
   void showReaderIndicator(int x, const std::string & s) override;
   void hideReaderIndicator() override { indicator_.reset(); }
 
@@ -93,6 +96,15 @@ class BufferPlane : public UIPlane {
   }
   // The images the last refresh() composed, bottom to top (root only).
   const std::vector<ImagePlacement> & images() const { return placements_; }
+  // With flat children, createChild() on any plane of the tree makes a plane
+  // of the root's, placed in screen coordinates and stacked by creation
+  // order, not one nested in (and clipped to) the plane it was asked of -
+  // the model the terminal application's widgets were written for, where a
+  // widget's popup can rise above any other widget (root only).
+  void setFlatChildren(bool flat) { flat_ = flat; }
+  // What canRenderSextants() reports, for the whole tree (root only).
+  void setSextants(bool can) { sextants_ = can; }
+  bool canRenderSextants() const override { return root().sextants_; }
   // What displayScale() reports, for the whole tree (root only).
   void setDisplayScale(double scale) { display_scale_ = scale; }
   double displayScale() const override { return root().display_scale_; }
@@ -138,6 +150,8 @@ class BufferPlane : public UIPlane {
   BufferPlane * active_reader_ = nullptr;
   Color default_fg_ = Color(255, 255, 255), default_bg_ = Color(0, 0, 0);
   double display_scale_ = 1.0;
+  bool sextants_ = false;
+  bool flat_ = false;
   int cell_px_h_ = 0, cell_px_w_ = 0;
   mutable std::vector<ImagePlacement> placements_;
 

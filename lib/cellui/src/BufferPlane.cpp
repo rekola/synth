@@ -88,7 +88,8 @@ void BufferPlane::putstr(int y, int x, const std::string & s) {
 }
 
 std::unique_ptr<UIPlane> BufferPlane::createChild() {
-  return std::unique_ptr<UIPlane>(new BufferPlane(*this));
+  BufferPlane & parent = root().flat_ ? root() : *this;
+  return std::unique_ptr<UIPlane>(new BufferPlane(parent));
 }
 
 void BufferPlane::drawBorder() {
@@ -251,6 +252,15 @@ void BufferPlane::insertReaderText(const std::string & text) {
   if (!editor_) return;
   editor_->insert(text);
   drawReader();
+}
+
+bool BufferPlane::insertIntoReader(const std::string & text) {
+  BufferPlane * reader = root().active_reader_;
+  if (!reader) return false;
+  std::string line = text;
+  std::replace(line.begin(), line.end(), '\n', ' ');
+  reader->insertReaderText(line);
+  return true;
 }
 
 void BufferPlane::showReaderIndicator(int x, const std::string & s) {

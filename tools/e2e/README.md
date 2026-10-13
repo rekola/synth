@@ -66,9 +66,9 @@ you're changing.
 
 - **`harness.py`** - shared driver every script below imports: forks
   `synth` under a pty with a given song and answers the terminal-
-  capability queries notcurses probes for on startup (cursor position,
-  pixel geometry, Kitty keyboard protocol, etc.) so it doesn't hang
-  waiting for a reply a plain pty never sends. Not Launchpad-specific -
+  capability queries the terminal backend sends on startup (cursor
+  position, pixel geometry, Kitty keyboard protocol, etc.) so it doesn't
+  wait for replies a plain pty never sends. Not Launchpad-specific -
   reusable for testing any keybinding/UI behavior. `hide_outline()` hides
   Live View's outline panel, for scripts that read the clip grid's
   rows from the start of each line.

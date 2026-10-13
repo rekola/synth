@@ -338,8 +338,8 @@ PatternEditor::PatternEditor(UIPlane & parent)
   // (Arrangement::insertRowForTrack()), leaving every other track and the
   // row's own locator (not this one track's own content) untouched.
   // Promoted from the raw key handler, now reachable by name (M-x, a
-  // menu item, Launchpad) rather than only a keystroke notcurses happens
-  // to decode correctly on a given terminal.
+  // menu item, Launchpad) rather than only a keystroke a given terminal
+  // happens to send.
   commands_.define("insert-row", [this]() {
     auto & song = getController().getSong();
     auto track_ids = song.getRootTrackIds();
@@ -2055,7 +2055,7 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 	// these two keys used to fall into the permissive "first two
 	// characters can be anything" branch below whenever the cursor was
 	// on subcol 0/1, silently writing NCKEY_DEL/NCKEY_BACKSPACE's own
-	// (non-ASCII, notcurses-internal) key code into the command as if
+	// (non-ASCII, synthesized) key code into the command as if
 	// it were a typed character, instead of being ignored (subcol 2/3)
 	// or actually deleting.
 	if (input.getId() == NCKEY_DEL || input.getId() == NCKEY_BACKSPACE) {
@@ -2078,7 +2078,7 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 	// updateData()'s own validation, every unbound non-printable key
 	// (arrows/F-keys/Insert/PageUp/... not already intercepted by an
 	// earlier else-if branch above, or Ctrl/Alt chords with no keymap
-	// entry) is a notcurses key code far outside any printable range,
+	// entry) is a synthesized key code far outside any printable range,
 	// and would otherwise get silently written into the command as if
 	// it were a typed character.
 	int command_row;

@@ -1,7 +1,8 @@
 # synth — microtonal tracker / synthesizer
 
 Tracker-style music production system with microtonal notes (12/19/31/53-EDO).
-Terminal UI (notcurses), ALSA audio output, songs stored as XML.
+Terminal UI (Cell UI's own terminal backend, `lib/cellui`), ALSA audio
+output, songs stored as XML.
 Formerly developed as the `syna/` subdirectory of the private `personal` repo;
 full history was preserved when it was extracted into this repository.
 
@@ -26,16 +27,12 @@ cmake --build build -j
 
 Produces `build/synth`.
 
-Dependencies (Ubuntu): `libnotcurses-dev libnotcurses++-dev libfmt-dev
-libsndfile1-dev libasound2-dev libunistring-dev libsoundtouch-dev
-libcairo2-dev` plus CMake, pkg-config, git and a C++17 compiler. The C++ bindings (`ncpp/NotCurses.hh`, what
-`main.cpp`/`TerminalUI.cpp` include) ship in `libnotcurses++-dev`, a
-separate package `libnotcurses-dev` does not pull in as a dependency —
-both are required. `libunistring-dev` backs `lib/cellui`'s `cellui/Utf8.h`
-grapheme-cluster-aware UTF-8 truncation/width helpers — its runtime half
-(`libunistring5`) is already pulled in transitively by `libnotcurses-dev`,
-but the headers/link package isn't, so it still needs installing
-explicitly. `libsoundtouch-dev` backs `src/audio/TimeStretcher.h`'s
+Dependencies (Ubuntu): `libfmt-dev libsndfile1-dev libasound2-dev
+libunistring-dev libsoundtouch-dev libcairo2-dev` plus CMake, pkg-config,
+git and a C++17 compiler. The terminal UI needs no terminal library: Cell
+UI's terminal backend (`lib/cellui`, `cellui/term/`) writes escape
+sequences itself. `libunistring-dev` backs `lib/cellui`'s `cellui/Utf8.h`
+grapheme-cluster-aware UTF-8 truncation/width helpers. `libsoundtouch-dev` backs `src/audio/TimeStretcher.h`'s
 pitch-preserving time-stretch (a `SampleTrack` clip whose own recorded
 tempo disagrees with the song's current one, `SampleTrackState::
 triggerClip()`) — not optional the way `libmysofa-dev` is below, since a
@@ -76,7 +73,7 @@ soundtouch,libunistring,python}`. `SYNTH_BUILD_INTERACTIVE` (default ON) selects
 (`src/main_render.cpp`: `--render`, `--help`, `--licenses` and the options
 `--render` honours, parsed by `src/cli/CommonOptions.*`, shared with
 `main.cpp`); `SYNTH_BUILD_TERMINAL_UI` (default ON, OFF on Windows) adds the
-notcurses UI (`SYNTH_TERMINAL_UI` in `main.cpp`, `EscapeCoalescerTests`), so
+terminal UI (`SYNTH_TERMINAL_UI` in `main.cpp`; Cell UI's terminal backend is POSIX only so far), so
 Windows has the full program run with `--headless` (`tools/smoke_headless.py`
 in CI); ALSA and PipeWire sources are Linux only. `.github/workflows/
 ci-windows-x86_64.yml` builds, runs ctest and renders songs. The `#ifdef
@@ -178,7 +175,7 @@ ctest --test-dir build --output-on-failure
 ```
 
 `synth_engine` (song model, playback, instruments, effects — everything
-except the notcurses UI and ALSA output) is a separate static library so
+except the terminal UI and ALSA output) is a separate static library so
 `tests/synth_tests` can link it without a display or audio device. Tests are
 plain functions registered with `TEST(name) { ... }` (see
 `tests/TestFramework.h`) and use `CHECK`/`CHECK_NEAR`; no external test
@@ -201,7 +198,7 @@ Build with `-DSYNTH_ENABLE_SANITIZERS=ON` to enable ASan+UBSan for the whole
 project; useful for chasing memory bugs (e.g. `AudioBuffer`'s copy-assignment
 leak was confirmed this way).
 
-Needs a real terminal (notcurses full-screen UI) and an ALSA output device.
+Needs a real terminal (a full-screen UI) and an ALSA output device.
 Options: `--samplerate N`, `--stereo`, `--ambisonic [order]`,
 `--legacy-binaural`, `--view live|arrangement`. Every song is always rendered through an
 ambisonic bus (ACN/SN3D, AmbiX convention) — there is no plain-stereo-pan
@@ -469,12 +466,12 @@ functions used for this.
 
 The FFT spectrum (`SpectrumMeter`, `ui/tui/SpectrumMeter.h`) draws its
 log-frequency bars through `LevelMeter.h`'s braille sub-cell renderer, the
-same one the volume meters use. When `notcurses_check_pixel_support()`
-reports support (sixel/Kitty graphics/iTerm2, whichever the terminal
-negotiates), `TerminalUI.cpp`'s `TerminalPixelSpectrumMeter` overrides
-`barCount()`/`drawBars()` to blit one bar per pixel column onto the
-meter's own plane instead; the choice is made once at startup in
-`TerminalUI::initialize()`. Both the spectrum and the DirAC heatmap show in
+same one the volume meters use. When the terminal session found an image
+protocol (kitty graphics or Sixel; iTerm2 draws Sixel for now) and the cell
+size in pixels, `TerminalUI.cpp`'s `TerminalPixelSpectrumMeter` overrides
+`barCount()`/`drawBars()` to draw one bar per pixel column as the meter's
+plane's image (`UIPlane::pixelSize()`/`drawImage()`) instead; the choice is
+made once at startup in `TerminalUI::initialize()`. Both the spectrum and the DirAC heatmap show in
 Arrangement view's scope row and in Live View's left column, stacked
 under the full-height outline panel, each below a title bar (only while the
 outline is shown and the terminal is tall enough); off-screen scopes are not updated.
@@ -1236,12 +1233,12 @@ would otherwise resume showing.
     `synth_engine`, so `Controller` and the tests use it), `AudioDevices`
     (listing what can be chosen; executable-only, like `AlsaAudio`),
     `AudioBuffer`, `OfflineRenderer`.
-  - `src/ui/` — toolkit-agnostic UI plumbing with no notcurses
+  - `src/ui/` — toolkit-agnostic UI plumbing with no terminal
     dependency: `UI`/`UIElement`/`UIPlane`/`UIMenu` (abstract app/widget/
     render-surface interfaces a future non-terminal UI could implement
     against too - a concrete backend's real implementation, e.g.
-    `TerminalPlane`/`TerminalMenu`, lives entirely inside that backend's
-    own file, not alongside the interface), `Chart`/`HeatmapChart`
+    `TerminalMenu`, lives entirely inside that backend's own file, not
+    alongside the interface), `Chart`/`HeatmapChart`
     (same pattern - `TerminalChart`/`TerminalPixelChart`/
     `TerminalHeatmapChart`/`TerminalPixelHeatmapChart` are
     `TerminalUI.cpp`'s own concrete renderers), `StyleProvider` (a plain
@@ -1254,14 +1251,16 @@ would otherwise resume showing.
     visualization threads, running until told to quit, reporting status)
     - a concrete subclass owns its own widget set, screen layout, and
     Launchpad callback wiring (`UI::wireLaunchpad()`'s hook). `src/ui/tui/`
-    — the concrete notcurses implementation built on those interfaces:
+    — the concrete terminal implementation built on those interfaces and
+    on Cell UI's terminal backend (`cellui::term::TerminalSession`, the
+    screen a root `cellui::BufferPlane` composes):
     `TerminalUI` (the sole such subclass today - owns every widget,
     `initializeWidgets()`/`layout()`/`renderComponents()`, every Emacs
     keybinding, and every `EventHandler` override), `PatternEditor`/
     `OutlineView` and the rest of the terminal widgets, plus
-    notcurses-specific input handling (`NotcursesInputEventSource`,
-    `EscapeCoalescer`) and text-cell rendering helpers (`SubcellGlyphs.h`)
-    that wouldn't apply to a pixel-based UI.
+    the Escape-as-Meta input coalescing (`EscapeCoalescer`) and text-cell
+    rendering helpers (`SubcellGlyphs.h`) that wouldn't apply to a
+    pixel-based UI.
 
     Info dialogs (the outline panel's details popup, the About dialog) have
     their content written as Markdown, parsed by `ui/Markdown.h` - a tiny
@@ -1332,8 +1331,15 @@ would otherwise resume showing.
   headers with aliases (`Utf8`, `markdown`, `Color`, ...), so call sites did not
   change; what stays in the app is what knows the song or the controller (`PatternEditor`,
   `ClipGrid`, `ArrangementGrid`, `OutlineView`, `InfoLine`, `StatusLine`, `PatternScroll`) and the
-  notcurses implementations (`TerminalPlane`, `TerminalMenu`, the pixel charts),
-  which the terminal backend replaces. Its tests are in `lib/cellui/tests/` with a copy of the tiny test
+  terminal UI's own glue (`TerminalMenu` on `MenuBar`, the pixel charts). The
+  terminal backend is `cellui/term/`: `InputParser` (keys, mouse, paste, focus,
+  query replies, a short grace for split sequences), `Discovery`/`Capabilities`
+  (start-up queries with a deadline; the display scale guessed from the cell
+  size, `estimateDisplayScale()`, and light or dark from the default colours,
+  `detectAppearance()`, which picks the default `--theme`), `FrameEncoder` (the
+  frame diff as escape sequences), `ImageEncoder` (kitty graphics, Sixel) and
+  `TerminalSession` (the tty, its modes, signals and restoration).
+  `cellui_gallery --live` shows the gallery through it. Its tests are in `lib/cellui/tests/` with a copy of the tiny test
   framework (no dependency on `tests/`).
 
   `src/effects/`, `src/bus/`, and `src/dsp/` (below) predate this split

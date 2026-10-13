@@ -5,49 +5,35 @@
 #include <deque>
 
 using namespace std;
+using cellui::Input;
 
 namespace {
 
-// Legacy terminals report every keystroke's evtype as NCTYPE_UNKNOWN (see
-// KittyProtocolDetector's own comment) - that's the default here so a
-// test has to opt in to NCTYPE_PRESS/etc. explicitly to simulate a
-// Kitty-protocol terminal instead.
-ncinput makeEvent(uint32_t id, ncintype_e evtype = NCTYPE_UNKNOWN, unsigned modifiers = 0) {
-  ncinput ni{};
-  ni.id = id;
-  ni.evtype = evtype;
-  ni.modifiers = modifiers;
-  return ni;
+constexpr unsigned kShift = 1, kCtrl = 4;
+
+// Legacy terminals report every keystroke's kind as UNKNOWN (see
+// KittyProtocolDetector's own comment) - that's the default here so a test
+// has to opt in to PRESS/etc. explicitly to simulate a kitty-protocol
+// terminal instead.
+Input makeEvent(int id, Input::Kind kind = Input::Kind::UNKNOWN, unsigned modifiers = 0) {
+  return Input(id, -1, -1, false, modifiers & kShift, modifiers & kCtrl, false, kind);
 }
 
-// A scripted, nonblocking InputEventSource - events become available in
-// the order they're scheduled, with no notion of timing at all (matching
-// EscapeSequenceCoalescer's own event-driven, no-deadline design: a test
-// exercising the "waits indefinitely" behavior does so simply by calling
-// next() an arbitrary number of times with nothing scheduled in between,
-// not by advancing any clock).
+// A scripted, nonblocking InputEventSource - events become available in the
+// order they're scheduled, with no notion of timing at all.
 class FakeInputEventSource : public InputEventSource {
 public:
-  void schedule(ncinput event) { queue_.push_back(event); }
+  void schedule(Input event) { queue_.push_back(event); }
 
-  // `definitely_pending` disambiguates a real notcurses_get() codepoint-0
-  // return from "nothing available" (NotcursesInputEventSource's own
-  // problem to solve) - this fake's own bool+output-param contract is
-  // already unambiguous regardless of the event's id, so there's nothing
-  // for it to do with the flag; just record it for tests that care what
-  // the coalescer forwarded.
-  bool next(ncinput * ni, bool definitely_pending = false) override {
-    last_definitely_pending = definitely_pending;
+  bool next(Input * in) override {
     if (queue_.empty()) return false;
-    *ni = queue_.front();
+    *in = queue_.front();
     queue_.pop_front();
     return true;
   }
 
-  bool last_definitely_pending = false;
-
 private:
-  deque<ncinput> queue_;
+  deque<Input> queue_;
 };
 
 struct Fixture {
@@ -58,26 +44,14 @@ struct Fixture {
 
 }
 
-TEST(definitely_pending_is_forwarded_to_the_source) {
-  Fixture f;
-  f.source.schedule(makeEvent('a'));
-  ncinput ni;
-  CHECK(f.coalescer.next(&ni)); // default false
-  CHECK(!f.source.last_definitely_pending);
-
-  f.source.schedule(makeEvent('b'));
-  CHECK(f.coalescer.next(&ni, true));
-  CHECK(f.source.last_definitely_pending);
-}
-
 TEST(escape_alone_stays_pending_indefinitely) {
   Fixture f;
   f.source.schedule(makeEvent(NCKEY_ESC));
 
-  ncinput ni;
+  Input ni(0, 0, 0, false, false, false, false);
   CHECK(f.coalescer.next(&ni));
-  CHECK(ni.id == NCKEY_ESC);
-  CHECK(!ncinput_alt_p(&ni));
+  CHECK(ni.getId() == NCKEY_ESC);
+  CHECK(!ni.hasAlt());
   CHECK(f.coalescer.escapePending());
 
   // Nothing else scheduled - next() just reports "no event right now",
@@ -92,9 +66,9 @@ TEST(escape_then_w_much_later_still_coalesces_to_alt_w) {
   Fixture f;
   f.source.schedule(makeEvent(NCKEY_ESC));
 
-  ncinput ni;
+  Input ni(0, 0, 0, false, false, false, false);
   CHECK(f.coalescer.next(&ni));
-  CHECK(ni.id == NCKEY_ESC);
+  CHECK(ni.getId() == NCKEY_ESC);
   CHECK(f.coalescer.escapePending());
 
   // Simulates however long a real person takes to then press 'w' -
@@ -105,33 +79,33 @@ TEST(escape_then_w_much_later_still_coalesces_to_alt_w) {
 
   f.source.schedule(makeEvent('w'));
   CHECK(f.coalescer.next(&ni));
-  CHECK(ni.id == 'w');
-  CHECK(ncinput_alt_p(&ni));
+  CHECK(ni.getId() == 'w');
+  CHECK(ni.hasAlt());
   CHECK(!f.coalescer.escapePending());
 }
 
 TEST(mouse_and_resize_events_while_pending_do_not_end_the_wait) {
   Fixture f;
   f.source.schedule(makeEvent(NCKEY_ESC));
-  ncinput ni;
+  Input ni(0, 0, 0, false, false, false, false);
   CHECK(f.coalescer.next(&ni));
   CHECK(f.coalescer.escapePending());
 
-  f.source.schedule(makeEvent(NCKEY_BUTTON1, NCTYPE_PRESS));
+  f.source.schedule(makeEvent(NCKEY_BUTTON1, Input::Kind::PRESS));
   CHECK(f.coalescer.next(&ni));
-  CHECK(ni.id == NCKEY_BUTTON1);
-  CHECK(!ncinput_alt_p(&ni));
+  CHECK(ni.getId() == NCKEY_BUTTON1);
+  CHECK(!ni.hasAlt());
   CHECK(f.coalescer.escapePending()); // still waiting - a click isn't a keyboard follow-up
 
   f.source.schedule(makeEvent(NCKEY_RESIZE));
   CHECK(f.coalescer.next(&ni));
-  CHECK(ni.id == NCKEY_RESIZE);
+  CHECK(ni.getId() == NCKEY_RESIZE);
   CHECK(f.coalescer.escapePending());
 
   f.source.schedule(makeEvent('q'));
   CHECK(f.coalescer.next(&ni));
-  CHECK(ni.id == 'q');
-  CHECK(ncinput_alt_p(&ni));
+  CHECK(ni.getId() == 'q');
+  CHECK(ni.hasAlt());
   CHECK(!f.coalescer.escapePending());
 }
 
@@ -140,17 +114,17 @@ TEST(escape_then_bracket_or_O_declined_but_ends_the_wait) {
   // Alt-O keypress is ambiguous with them at the byte level, so they're
   // never folded (see TerminalUI.cpp's own SS3-sequence recognizer,
   // which depends on seeing a plain, un-Alt-modified 'O' after ESC).
-  for (uint32_t id : {static_cast<uint32_t>('['), static_cast<uint32_t>('O')}) {
+  for (int id : {'[', 'O'}) {
     Fixture f;
     f.source.schedule(makeEvent(NCKEY_ESC));
-    ncinput ni;
+    Input ni(0, 0, 0, false, false, false, false);
     CHECK(f.coalescer.next(&ni));
     CHECK(f.coalescer.escapePending());
 
     f.source.schedule(makeEvent(id));
     CHECK(f.coalescer.next(&ni));
-    CHECK(ni.id == id);
-    CHECK(!ncinput_alt_p(&ni));
+    CHECK(ni.getId() == id);
+    CHECK(!ni.hasAlt());
     CHECK(!f.coalescer.escapePending()); // a real keystroke was declined, not ignored - wait is over
   }
 }
@@ -165,15 +139,15 @@ TEST(ctrl_modified_keystroke_after_pending_escape_is_not_folded) {
   // keypress happened to absorb the fold instead.
   Fixture f;
   f.source.schedule(makeEvent(NCKEY_ESC));
-  ncinput ni;
+  Input ni(0, 0, 0, false, false, false, false);
   CHECK(f.coalescer.next(&ni));
   CHECK(f.coalescer.escapePending());
 
-  f.source.schedule(makeEvent('g', NCTYPE_UNKNOWN, NCKEY_MOD_CTRL));
+  f.source.schedule(makeEvent('g', Input::Kind::UNKNOWN, kCtrl));
   CHECK(f.coalescer.next(&ni));
-  CHECK(ni.id == 'g');
-  CHECK(ncinput_ctrl_p(&ni));
-  CHECK(!ncinput_alt_p(&ni));
+  CHECK(ni.getId() == 'g');
+  CHECK(ni.hasCtrl());
+  CHECK(!ni.hasAlt());
   CHECK(!f.coalescer.escapePending());
 }
 
@@ -184,35 +158,35 @@ TEST(shift_modified_keystroke_after_pending_escape_is_not_folded) {
   // track-move branch instead and silently drop the note.
   Fixture f;
   f.source.schedule(makeEvent(NCKEY_ESC));
-  ncinput ni;
+  Input ni(0, 0, 0, false, false, false, false);
   CHECK(f.coalescer.next(&ni));
   CHECK(f.coalescer.escapePending());
 
-  f.source.schedule(makeEvent('w', NCTYPE_UNKNOWN, NCKEY_MOD_SHIFT));
+  f.source.schedule(makeEvent('w', Input::Kind::UNKNOWN, kShift));
   CHECK(f.coalescer.next(&ni));
-  CHECK(ni.id == 'w');
-  CHECK(ncinput_shift_p(&ni));
-  CHECK(!ncinput_alt_p(&ni));
+  CHECK(ni.getId() == 'w');
+  CHECK(ni.hasShift());
+  CHECK(!ni.hasAlt());
   CHECK(!f.coalescer.escapePending());
 }
 
 TEST(a_second_bare_escape_restarts_the_wait) {
   Fixture f;
   f.source.schedule(makeEvent(NCKEY_ESC));
-  ncinput ni;
+  Input ni(0, 0, 0, false, false, false, false);
   CHECK(f.coalescer.next(&ni));
   CHECK(f.coalescer.escapePending());
 
   f.source.schedule(makeEvent(NCKEY_ESC));
   CHECK(f.coalescer.next(&ni));
-  CHECK(ni.id == NCKEY_ESC);
-  CHECK(!ncinput_alt_p(&ni));
+  CHECK(ni.getId() == NCKEY_ESC);
+  CHECK(!ni.hasAlt());
   CHECK(f.coalescer.escapePending()); // still (freshly) waiting, not folded as Alt-Escape
 
   f.source.schedule(makeEvent('w'));
   CHECK(f.coalescer.next(&ni));
-  CHECK(ni.id == 'w');
-  CHECK(ncinput_alt_p(&ni));
+  CHECK(ni.getId() == 'w');
+  CHECK(ni.hasAlt());
 }
 
 TEST(paste_containing_escape_not_coalesced) {
@@ -221,19 +195,19 @@ TEST(paste_containing_escape_not_coalesced) {
   f.source.schedule(makeEvent(NCKEY_ESC));
   f.source.schedule(makeEvent('w'));
 
-  ncinput ni;
+  Input ni(0, 0, 0, false, false, false, false);
   CHECK(f.coalescer.next(&ni));
-  CHECK(ni.id == NCKEY_ESC);
+  CHECK(ni.getId() == NCKEY_ESC);
   CHECK(!f.coalescer.escapePending());
   CHECK(f.coalescer.next(&ni));
-  CHECK(ni.id == 'w');
-  CHECK(!ncinput_alt_p(&ni));
+  CHECK(ni.getId() == 'w');
+  CHECK(!ni.hasAlt());
 }
 
 TEST(entering_paste_mid_wait_cancels_a_pending_escape) {
   Fixture f;
   f.source.schedule(makeEvent(NCKEY_ESC));
-  ncinput ni;
+  Input ni(0, 0, 0, false, false, false, false);
   CHECK(f.coalescer.next(&ni));
   CHECK(f.coalescer.escapePending());
 
@@ -243,82 +217,34 @@ TEST(entering_paste_mid_wait_cancels_a_pending_escape) {
 
 TEST(kitty_protocol_active_passes_events_through_untouched) {
   Fixture f;
-  f.detector.observe(NCTYPE_PRESS); // settles the detector active, as a real Kitty terminal's first keystroke would
+  f.detector.observe(Input::Kind::PRESS); // settles the detector active, as a real Kitty terminal's first keystroke would
   CHECK(f.detector.active());
 
-  f.source.schedule(makeEvent(NCKEY_ESC, NCTYPE_PRESS));
-  f.source.schedule(makeEvent('w', NCTYPE_PRESS));
+  f.source.schedule(makeEvent(NCKEY_ESC, Input::Kind::PRESS));
+  f.source.schedule(makeEvent('w', Input::Kind::PRESS));
 
-  ncinput ni;
+  Input ni(0, 0, 0, false, false, false, false);
   CHECK(f.coalescer.next(&ni));
-  CHECK(ni.id == NCKEY_ESC);
+  CHECK(ni.getId() == NCKEY_ESC);
   CHECK(!f.coalescer.escapePending());
   CHECK(f.coalescer.next(&ni));
-  CHECK(ni.id == 'w');
-  CHECK(!ncinput_alt_p(&ni));
-}
-
-TEST(notcurses_legacy_alt_merge_is_normalized_into_modifiers) {
-  // notcurses's own walk_automaton() (automaton.c) already merges ESC
-  // immediately followed by an unmatched single byte into one ncinput for
-  // that byte - it never surfaces a separate ESC event for next() to
-  // coalesce at all - but records the result only via the deprecated
-  // `ncinput.alt` bool, never `modifiers`. This never reaches next() as
-  // an ESC event; it arrives already merged, exactly like this.
-  Fixture f;
-  ncinput merged = makeEvent('w');
-  merged.alt = true;
-  f.source.schedule(merged);
-
-  ncinput ni;
-  CHECK(f.coalescer.next(&ni));
-  CHECK(ni.id == 'w');
-  CHECK(ncinput_alt_p(&ni));
-  CHECK(!f.coalescer.escapePending());
-}
-
-TEST(ctrl_space_legacy_nul_byte_is_normalized_to_space_plus_ctrl) {
-  // notcurses's own load_ncinput() (in.c) converts every C0 control byte
-  // 1-26 into the corresponding letter with NCKEY_MOD_CTRL set, but
-  // deliberately excludes 0 from that range check - so Ctrl-Space's
-  // legacy NUL-byte encoding arrives as a bare, unmodified codepoint 0
-  // rather than matching this codebase's own Ctrl-Space keybinding
-  // (id=' ', NCKEY_MOD_CTRL set).
-  Fixture f;
-  f.source.schedule(makeEvent(0));
-
-  ncinput ni;
-  CHECK(f.coalescer.next(&ni));
-  CHECK(ni.id == ' ');
-  CHECK(ncinput_ctrl_p(&ni));
-}
-
-TEST(codepoint_zero_with_ctrl_already_set_is_left_alone) {
-  // Guards the normalization's own !ncinput_ctrl_p() check: an event that
-  // already reports id 0 with Ctrl set (however that might arise) isn't
-  // rewritten into Space a second time.
-  Fixture f;
-  f.source.schedule(makeEvent(0, NCTYPE_UNKNOWN, NCKEY_MOD_CTRL));
-
-  ncinput ni;
-  CHECK(f.coalescer.next(&ni));
-  CHECK(ni.id == 0);
-  CHECK(ncinput_ctrl_p(&ni));
+  CHECK(ni.getId() == 'w');
+  CHECK(!ni.hasAlt());
 }
 
 TEST(mouse_click_before_first_keystroke_does_not_disable_coalescing) {
   Fixture f;
   // A mouse click's evtype is always real (SGR mouse reporting always
   // distinguishes press from release), even on a legacy terminal that
-  // reports NCTYPE_UNKNOWN for every keyboard event - feeding it to the
+  // reports Input::Kind::UNKNOWN for every keyboard event - feeding it to the
   // detector must not be mistaken for Kitty keyboard protocol support,
   // or every keystroke after the session's first mouse click would stop
   // coalescing.
-  f.source.schedule(makeEvent(NCKEY_BUTTON1, NCTYPE_PRESS));
+  f.source.schedule(makeEvent(NCKEY_BUTTON1, Input::Kind::PRESS));
 
-  ncinput ni;
+  Input ni(0, 0, 0, false, false, false, false);
   CHECK(f.coalescer.next(&ni));
-  CHECK(ni.id == NCKEY_BUTTON1);
+  CHECK(ni.getId() == NCKEY_BUTTON1);
   CHECK(!f.detector.active());
 
   f.source.schedule(makeEvent(NCKEY_ESC));
@@ -327,23 +253,23 @@ TEST(mouse_click_before_first_keystroke_does_not_disable_coalescing) {
   CHECK(f.coalescer.next(&ni));
   CHECK(f.coalescer.escapePending());
   CHECK(f.coalescer.next(&ni));
-  CHECK(ni.id == 'w');
-  CHECK(ncinput_alt_p(&ni));
+  CHECK(ni.getId() == 'w');
+  CHECK(ni.hasAlt());
 }
 
 TEST(kitty_protocol_detector_latches_inactive_on_first_unknown) {
   KittyProtocolDetector d;
   CHECK(!d.active());
-  d.observe(NCTYPE_UNKNOWN);
+  d.observe(Input::Kind::UNKNOWN);
   CHECK(!d.active());
-  d.observe(NCTYPE_PRESS); // already settled - must not flip
+  d.observe(Input::Kind::PRESS); // already settled - must not flip
   CHECK(!d.active());
 }
 
 TEST(kitty_protocol_detector_latches_active_on_first_press) {
   KittyProtocolDetector d;
-  d.observe(NCTYPE_PRESS);
+  d.observe(Input::Kind::PRESS);
   CHECK(d.active());
-  d.observe(NCTYPE_UNKNOWN); // already settled - must not flip
+  d.observe(Input::Kind::UNKNOWN); // already settled - must not flip
   CHECK(d.active());
 }

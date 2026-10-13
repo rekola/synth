@@ -67,6 +67,9 @@ class TerminalSession {
 
   // Draws a frame (see FrameEncoder) and its images (ImageEncoder).
   void present(const CellBuffer & frame, const CursorRequest & cursor = {}, const std::vector<ImagePlacement> & images = {});
+  // The next present() redraws the whole screen (after the screen may have
+  // been disturbed, Emacs's C-l).
+  void redraw() { encoder_.invalidate(); }
   // Writes raw bytes, all of them.
   void write(const std::string & bytes);
 

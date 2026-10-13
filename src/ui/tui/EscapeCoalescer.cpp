@@ -1,9 +1,11 @@
 #include "EscapeCoalescer.h"
 
+using cellui::Input;
+
 void
-KittyProtocolDetector::observe(ncintype_e evtype) {
+KittyProtocolDetector::observe(Input::Kind kind) {
   if (settled_) return;
-  active_ = (evtype != NCTYPE_UNKNOWN);
+  active_ = (kind != Input::Kind::UNKNOWN);
   settled_ = true;
 }
 
@@ -19,121 +21,55 @@ EscapeSequenceCoalescer::setInPaste(bool in_paste) {
 
 namespace {
 
+bool
+isMouse(int id) {
+  return id >= NCKEY_MOTION && id <= NCKEY_BUTTON11;
+}
+
 // '[' (CSI) and 'O' (SS3) are the two legacy escape-sequence introducer
-// bytes - a real Alt-[ or Alt-O keypress encodes identically to their
-// sequence-introducer reading, the same ambiguity that already exists
-// without this coalescer (see TerminalUI.cpp's readInput() and its own
-// SS3-sequence recognizer for a concrete example depending on seeing an
-// un-modified 'O' after ESC: ESC 'O' '5' 'o'/'j', each arriving as its
-// own separate event). Declining to fold them changes nothing that
-// worked before this coalescer existed.
+// bytes: a real Alt-[ or Alt-O is ambiguous with them at the byte level, so
+// they are never folded.
 bool
-isSequenceIntroducer(const ncinput & ni) {
-  return ni.id == '[' || ni.id == 'O';
+isSequenceIntroducer(const Input & in) {
+  return in.getId() == '[' || in.getId() == 'O';
 }
 
-// A keystroke that already carries Ctrl, Shift, or Meta is never folded
-// either - not an ambiguity this time, but a deliberate choice mirroring
-// notcurses's own native ESC+letter merge (walk_automaton() in
-// automaton.c - see normalizeLegacyAlt()'s own comment): that merge only
-// ever represents a plain Alt chord with no other modifier riding along,
-// never Alt combined with anything else. Nothing in this codebase binds a
-// genuine Ctrl+Alt or Shift+Alt chord either, while Ctrl-W/-Y/-G and
-// Shift's own role in raw note entry (starting a new chord column - see
-// PatternEditor.cpp's input.hasShift() branch) are exact-match on Alt
-// being *unset*. With no deadline, a pending Escape can sit open for as
-// long as a person takes to press the next key - long enough that an
-// incidental Escape (a habit left over from elsewhere, or simply changing
-// their mind) followed by ordinary continued use, Ctrl-G or a
-// Shift-modified note included, is a real scenario, not just a
-// theoretical one. Folding Alt onto that next keystroke regardless of
-// what it turned out to be would silently break any of them until some
-// later unmodified keypress happened to absorb the fold instead.
+// A keystroke that already carries Ctrl, Shift or Meta is never folded: with
+// no deadline, an incidental Escape followed by ordinary continued use
+// (Ctrl-G, a Shift-modified note starting a chord column) is a real
+// scenario, and nothing binds a Ctrl+Alt or Shift+Alt chord.
 bool
-isAlreadyModified(const ncinput & ni) {
-  return ncinput_ctrl_p(&ni) || ncinput_shift_p(&ni) || ncinput_meta_p(&ni);
+isAlreadyModified(const Input & in) {
+  return in.hasCtrl() || in.hasShift() || in.hasMeta();
 }
 
-// Events that don't correspond to a keyboard keystroke at all - a mouse
-// press/release, or a synthetic resize - say nothing about whether a
-// pending Escape's wait should end; they're noise with respect to
-// "waiting for the next thing the user types".
+// A mouse event or a resize says nothing about whether a pending Escape's
+// wait should end.
 bool
-isKeyboardEvent(const ncinput & ni) {
-  if (ni.evtype == NCTYPE_RELEASE) return false;
-  if (nckey_mouse_p(ni.id)) return false;
-  if (ni.id == NCKEY_RESIZE) return false;
+isKeyboardEvent(const Input & in) {
+  if (in.getKind() == Input::Kind::RELEASE) return false;
+  if (isMouse(in.getId())) return false;
+  if (in.getId() == NCKEY_RESIZE) return false;
   return true;
 }
 
 bool
-isUnmodifiedEscapePress(const ncinput & ni) {
-  return ni.id == NCKEY_ESC && ni.evtype != NCTYPE_RELEASE && ni.evtype != NCTYPE_REPEAT && !ncinput_alt_p(&ni);
+isUnmodifiedEscapePress(const Input & in) {
+  return in.getId() == NCKEY_ESC && in.getKind() != Input::Kind::RELEASE && in.getKind() != Input::Kind::REPEAT && !in.hasAlt();
 }
 
-// notcurses's own legacy-Alt handling (walk_automaton() in automaton.c):
-// when ESC is immediately followed, in the same read, by a byte that
-// doesn't extend any known multi-byte escape sequence (an ordinary
-// Alt-modified letter, e.g. Alt-w - as opposed to Alt-[ or Alt-O, which
-// really are still ambiguous with a genuine CSI/SS3 introducer and do
-// still arrive as separate events for next() to coalesce below),
-// notcurses already merges the two bytes into a single ncinput for that
-// candidate byte - it never surfaces the ESC as its own event at all, so
-// next() below never even gets a bare ESC to coalesce for that case. But
-// that merge is recorded only via the deprecated `ncinput.alt` bool
-// (confirmed against the installed 3.0.17 source) - it never touches the
-// modern `modifiers` bitmask, so ncinput_alt_p() (and every exact-match
-// keybinding in this codebase, e.g. PatternEditor's Alt-W) would never
-// see it otherwise. Normalized into `modifiers` here, the one place a raw
-// notcurses event is examined before anything else - see this
-// component's own header comment on why `.alt` isn't read anywhere else.
-void
-normalizeLegacyAlt(ncinput & ni) {
-  if (ni.alt && !ncinput_alt_p(&ni)) ni.modifiers |= NCKEY_MOD_ALT;
-}
-
-// Legacy terminals encode Ctrl-Space as a literal NUL byte. Every *other*
-// C0 control byte (Ctrl-A through Ctrl-Z, values 1-26) gets converted by
-// notcurses's own load_ncinput() (in.c) into the corresponding letter with
-// NCKEY_MOD_CTRL set - but that function's range check is `id > 0 && id <=
-// 26`, deliberately excluding 0 (confirmed against the installed 3.0.17
-// source), so Ctrl-Space alone arrives as a bare, unmodified codepoint 0
-// instead. This codebase's own Ctrl-Space keybinding (`KeyChord::pack(' ',
-// true, ...)`, PatternEditor.cpp's set-mark) - like a Kitty-protocol
-// terminal's own native report of the same physical chord, which sends
-// the actual codepoint (32) with the modifier bit set, never 0 - expects
-// id=' ' with NCKEY_MOD_CTRL, so this fills the one gap load_ncinput()
-// itself leaves in that otherwise-uniform conversion.
-void
-normalizeCtrlSpace(ncinput & ni) {
-  if (ni.id == 0 && !ncinput_ctrl_p(&ni)) {
-    ni.id = ' ';
-    ni.modifiers |= NCKEY_MOD_CTRL;
-  }
+Input
+withAlt(const Input & in) {
+  return Input(in.getId(), in.getY(), in.getX(), true, in.hasShift(), in.hasCtrl(), in.hasMeta(), in.getKind(), in.getTrueCaseId());
 }
 
 }
 
 bool
-EscapeSequenceCoalescer::next(ncinput * ni, bool definitely_pending) {
-  if (!source_.next(ni, definitely_pending)) return false;
+EscapeSequenceCoalescer::next(Input * input) {
+  if (!source_.next(input)) return false;
 
-  normalizeLegacyAlt(*ni);
-  normalizeCtrlSpace(*ni);
-
-  // Mouse press/release always carries a real NCTYPE_PRESS/NCTYPE_RELEASE
-  // (SGR mouse reporting distinguishes them unconditionally - confirmed
-  // against notcurses's own mouse_click() in in.c, which sets evtype
-  // itself before load_ncinput() ever gets a chance to apply its
-  // Kitty-protocol-conditional UNKNOWN->PRESS backfill), completely
-  // independent of whether the Kitty keyboard protocol is active. Feeding
-  // a mouse event's evtype to the detector would misread the session's
-  // very first mouse click - clicking into the pattern editor to focus
-  // it, say - as proof of Kitty-protocol support, latching coalescing off
-  // for every keystroke afterward on a terminal that never actually
-  // negotiated it. Only a genuine keyboard event says anything about the
-  // protocol.
-  if (!nckey_mouse_p(ni->id)) detector_.observe(ni->evtype);
+  if (!isMouse(input->getId())) detector_.observe(input->getKind());
 
   if (detector_.active() || in_paste_) {
     pending_ = false;
@@ -141,19 +77,18 @@ EscapeSequenceCoalescer::next(ncinput * ni, bool definitely_pending) {
   }
 
   if (pending_) {
-    if (!isKeyboardEvent(*ni)) return true; // noise - keep waiting
+    if (!isKeyboardEvent(*input)) return true; // noise - keep waiting
     pending_ = false;
-    if (isUnmodifiedEscapePress(*ni)) {
+    if (isUnmodifiedEscapePress(*input)) {
       pending_ = true; // another bare Escape just restarts the wait
-    } else if (!isSequenceIntroducer(*ni) && !isAlreadyModified(*ni)) {
-      ni->modifiers |= NCKEY_MOD_ALT;
+    } else if (!isSequenceIntroducer(*input) && !isAlreadyModified(*input)) {
+      *input = withAlt(*input);
     }
-    // else: a CSI/SS3 introducer byte, or an already Ctrl/Shift/Meta-
-    // modified keystroke - declined, passed through as-is, and (like any
-    // other real keyboard event) ends the wait.
+    // else: declined, passed through as-is, and (like any other real
+    // keyboard event) ends the wait.
     return true;
   }
 
-  if (isUnmodifiedEscapePress(*ni)) pending_ = true;
+  if (isUnmodifiedEscapePress(*input)) pending_ = true;
   return true;
 }

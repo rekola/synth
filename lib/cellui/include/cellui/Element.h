@@ -140,7 +140,7 @@ protected:
 
   // Called after every resize() (including the initial construction-time
   // resize/move calls), so subclasses that cache geometry-
-  // dependent state (e.g. a notcurses plot/visual object) can invalidate it.
+  // dependent state (e.g. an image sized to the plane) can invalidate it.
   // `resize()` is not virtual (it's called through base-typed handles), so
   // this hook exists to still reach subclass-specific behavior on resize.
   virtual void onResize() { }

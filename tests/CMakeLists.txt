@@ -1,12 +1,9 @@
 add_executable(synth_tests
 	test_main.cpp
-	# Compiled directly as an extra source here (mirroring how
-	# TerminalUI.cpp itself is only ever added straight to the `synth`
-	# executable, never into synth_engine) rather than folded into
-	# synth_engine's own library composition: EscapeCoalescer.h/.cpp only
-	# needs notcurses's headers (types, macros, static inline helpers), not
-	# the linked library, so this keeps that distinction visible at the
-	# build-system level too - see EscapeCoalescer.h's own top comment.
+	# The terminal UI's Escape-as-Meta coalescer, compiled in directly as
+	# TerminalUI.cpp's own sources are added straight to the executable.
+	../src/ui/tui/EscapeCoalescer.cpp
+	EscapeCoalescerTests.cpp
 	DocumentTests.cpp
 	SongEditTests.cpp
 	ContentPublishingTests.cpp
@@ -105,11 +102,6 @@ add_executable(synth_tests
 	OscillatorArrayTests.cpp
 	AmbisonicStackEncoderTests.cpp
 )
-
-# Needs notcurses's headers, so only where the terminal UI is built.
-if(SYNTH_BUILD_TERMINAL_UI)
-  target_sources(synth_tests PRIVATE ../src/ui/tui/EscapeCoalescer.cpp EscapeCoalescerTests.cpp)
-endif()
 
 target_link_libraries(synth_tests synth_engine)
 target_compile_definitions(synth_tests PRIVATE

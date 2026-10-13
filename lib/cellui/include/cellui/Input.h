@@ -2,9 +2,9 @@
 
 #ifndef PRETERUNICODEBASE
 
-// Key ids above the Unicode range, the values notcurses uses, so the two
-// can be included together while the application moves off it. A key that
-// produces a character is that character's codepoint instead.
+// Key ids above the Unicode range (the values notcurses used, which the
+// application's key bindings were written against). A key that produces a
+// character is that character's codepoint instead.
 #define PRETERUNICODEBASE 1115000
 #define preterunicode(w) ((w) + PRETERUNICODEBASE)
 
@@ -152,17 +152,10 @@
 
 #endif
 
-// Synthetic, non-notcurses key ids: no real Ctrl-modified numeric-keypad
-// Divide/Multiply key exists in notcurses's own enum, nor does notcurses
-// recognize the legacy VT220/xterm "SS3 + modifier digit" encoding some
-// terminals still send for them (ESC 'O' '5' 'o'/'j') as a single key
-// event at all - the terminal's escape-sequence recognizer synthesizes
-// inputs carrying these ids instead of leaking the 4 raw bytes through as
-// if they'd been typed. Defined
-// unconditionally (unlike the block above) since they have no notcurses
-// equivalent to fall back to either way, and picked well above any index
-// notcurses's own nckeys.h uses (currently tops out at 500), so they can
-// never collide with a real key.
+// A Ctrl-modified numeric-keypad Divide/Multiply: keys of their own, which
+// the terminal parser reports for the legacy "SS3 + modifier digit"
+// encoding (ESC 'O' '5' 'o'/'j') and the kitty keypad codes, well above
+// every id in the block above.
 #define NCKEY_KP_DIVIDE   preterunicode(900)
 #define NCKEY_KP_MULTIPLY preterunicode(901)
 
@@ -171,10 +164,8 @@ namespace cellui {
 class Input {
  public:
   // Kitty-protocol terminals (kitty, foot, wezterm, ghostty, ...) report
-  // real press/repeat/release for each physical key. A terminal with no such support (notcurses
-  // reports NCTYPE_UNKNOWN for literally every keystroke there, its own
-  // signal that the terminal never negotiated the protocol at all - no
-  // capability query needed) can't distinguish a fresh press from a held
+  // real press/repeat/release for each physical key. A terminal with no such support (the
+  // parser reports UNKNOWN for every keystroke there) can't distinguish a fresh press from a held
   // key's auto-repeat or its eventual release, so UNKNOWN is kept
   // distinct from PRESS rather than folded into it: code that tracks
   // "this key is currently held" (note-entry's active_keyboard_notes_,

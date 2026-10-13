@@ -8,7 +8,7 @@
 
 // PatternEditor::offerInput()'s ColumnType::TRACK_FX branch relies on
 // updateData() to validate a raw InputEvent::getId() codepoint itself
-// (see its own comment for why a notcurses special-key code - arrows,
+// (see its own comment for why a synthesized special-key code - arrows,
 // F-keys, Insert, PageUp, ... - must never reach values_ untested), rather
 // than pre-classifying input with a separate function.
 TEST(command_update_data_accepts_mnemonic_column_charset) {

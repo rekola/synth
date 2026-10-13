@@ -11,15 +11,15 @@ include(GNUInstallDirs)
 
 # The full `synth` (--headless, the Launchpad, live MIDI and audio) builds
 # everywhere; OFF gives the engine, the tests and a render-only `synth`
-# (src/main_render.cpp). The terminal UI (notcurses) exists only for Linux
-# today, so Windows gets the full program without it.
+# (src/main_render.cpp). The terminal UI (lib/cellui's terminal backend) is
+# POSIX only today, so Windows gets the full program without it.
 option(SYNTH_BUILD_INTERACTIVE "Build the full synth (headless mode, Launchpad, live audio/MIDI)" ON)
 if(WIN32)
   set(SYNTH_BUILD_TERMINAL_UI_DEFAULT OFF)
 else()
   set(SYNTH_BUILD_TERMINAL_UI_DEFAULT ON)
 endif()
-option(SYNTH_BUILD_TERMINAL_UI "Build the notcurses terminal UI" ${SYNTH_BUILD_TERMINAL_UI_DEFAULT})
+option(SYNTH_BUILD_TERMINAL_UI "Build the terminal UI" ${SYNTH_BUILD_TERMINAL_UI_DEFAULT})
 
 # Default to an optimized build when the generator supports build types (a
 # plain `cmake -B build` with no CMAKE_BUILD_TYPE otherwise applies no -O
@@ -79,7 +79,7 @@ if(SYNTH_ENABLE_SANITIZERS)
 endif()
 
 # Engine library: song model, playback, instruments and effects. Has no
-# dependency on the terminal UI (notcurses) or audio device (ALSA), so it can
+# dependency on the terminal UI or audio device (ALSA), so it can
 # be linked into the test suite and any future offline tooling.
 add_library(synth_engine STATIC
 	src/doc/Document.cpp
@@ -324,7 +324,6 @@ if(SYNTH_BUILD_INTERACTIVE)
     target_sources(synth PRIVATE
       src/ui/tui/TerminalUI.cpp
       src/ui/tui/EscapeCoalescer.cpp
-      src/ui/tui/NotcursesInputEventSource.cpp
       src/ui/tui/OutlineView.cpp
       src/ui/tui/PatternEditor.cpp
       src/ui/tui/ArrangementGrid.cpp
@@ -332,7 +331,6 @@ if(SYNTH_BUILD_INTERACTIVE)
       src/ui/SpectrumImage.cpp
       src/ui/HeatmapImage.cpp)
     target_compile_definitions(synth PRIVATE SYNTH_TERMINAL_UI)
-    target_link_libraries(synth notcurses++ notcurses notcurses-core)
   endif()
 
   if(NOT WIN32)

@@ -195,3 +195,18 @@ TEST(encoder_visible_cursor_is_placed_after_the_frame) {
   CHECK(same(e.encode(f, {true, 23, 12}), "\x1b[13G"));
   CHECK(same(e.encode(f), "\x1b[?25l"));
 }
+
+TEST(encoder_sends_a_glyph_in_its_own_background_as_a_space) {
+  FrameEncoder e(profile(ColorDepth::TRUECOLOR));
+  CellBuffer f(1, 4);
+  e.encode(f);
+  CellBuffer::Style same;
+  same.fg = Color(9, 9, 9);
+  same.bg = Color(9, 9, 9);
+  f.write(0, 0, "▌", same);
+  std::string out = e.encode(f);
+  CHECK(out.find("▌") == std::string::npos && out.back() == ' ');
+  same.underline = true;
+  f.write(0, 1, "▌", same);
+  CHECK(e.encode(f).find("▌") != std::string::npos);
+}

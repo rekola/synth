@@ -290,3 +290,24 @@ TEST(bufferplane_display_scale_is_the_roots) {
   root.setDisplayScale(2.0);
   CHECK(child->displayScale() == 2.0);
 }
+
+TEST(bufferplane_flat_children_are_the_roots) {
+  StyleProvider styles;
+  CellBuffer b(4, 10);
+  BufferPlane root(b, styles);
+  root.setFlatChildren(true);
+  auto panel = root.createChild();
+  panel->resize(4, 3);
+  auto later = root.createChild();
+  later->resize(1, 10);
+  later->move(2, 0);
+  later->putstr(0, 0, "..........");
+  // A popup asked of the narrow panel is placed on the screen, unclipped,
+  // above the plane created after the panel.
+  auto popup = panel->createChild();
+  popup->resize(1, 6);
+  popup->move(2, 2);
+  popup->putstr(0, 0, "popup!");
+  root.refresh();
+  CHECK(b.toPlainText() == "\n\n..popup!..\n");
+}

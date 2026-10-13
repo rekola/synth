@@ -190,7 +190,11 @@ std::string FrameEncoder::encode(const CellBuffer & frame, const CursorRequest &
       if (!damaged) continue;
       moveTo(body, r, c);
       pen(body, cell);
-      body += cell.text.empty() ? std::string(" ") : cell.text;
+      // A glyph in its own background colour is invisible: a space is the
+      // same picture in fewer bytes, unless an underline would show.
+      bool invisible = fg_ == bg_ && fg_.kind != Ink::DEFAULT && !cell.underline;
+      if (invisible) body += wide ? "  " : " ";
+      else body += cell.text.empty() ? std::string(" ") : cell.text;
       last.put(r, c, cell);
       int width = wide ? 2 : 1;
       if (wide) last.put(r, c + 1, frame.at(r, c + 1));
@@ -198,7 +202,7 @@ std::string FrameEncoder::encode(const CellBuffer & frame, const CursorRequest &
       // At the right edge the cursor stays put or waits to wrap; and after
       // a cluster the terminal may draw at another width, its column is
       // not known. Either way the next cell needs an explicit move.
-      if (cursor_x_ >= cols || widthRisky(cell.text)) cursor_x_ = -1;
+      if (cursor_x_ >= cols || (!invisible && widthRisky(cell.text))) cursor_x_ = -1;
       if (wide) c++;
     }
   }
