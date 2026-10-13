@@ -158,6 +158,8 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
     int r_hi = std::min(row_hi, top_row + (placed.image->height + cell_h - 1) / cell_h);
     int c_hi = std::min(col_hi, left_col + (placed.image->width + cell_w - 1) / cell_w);
     int r_lo = std::max(row_lo, top_row), c_lo = std::max(col_lo, left_col);
+    if (placed.clip_top != INT_MIN) r_lo = std::max(r_lo, row + placed.clip_top);
+    if (placed.clip_bottom != INT_MAX) r_hi = std::min(r_hi, row + placed.clip_bottom);
     if (r_lo >= r_hi || c_lo >= c_hi) continue;
     ImagePlacement placement;
     placement.image = placed.image;
@@ -201,7 +203,8 @@ void BufferPlane::drawImage(const std::vector<uint32_t> & pixels, int width, int
   drawImageAt(0, 0, pixels, width, height, id);
 }
 
-void BufferPlane::drawImageAt(int row, int col, const std::vector<uint32_t> & pixels, int width, int height, uint64_t id) {
+void BufferPlane::drawImageAt(int row, int col, const std::vector<uint32_t> & pixels, int width, int height, uint64_t id, int clip_top,
+                              int clip_bottom) {
   if (width <= 0 || height <= 0 || pixels.size() < static_cast<size_t>(width) * static_cast<size_t>(height)) return;
   size_t count = static_cast<size_t>(width) * static_cast<size_t>(height);
   bool explicit_id = id != 0;
@@ -230,14 +233,11 @@ void BufferPlane::drawImageAt(int row, int col, const std::vector<uint32_t> & pi
   // it is not sent again; other pixels there are the slot's image changed.
   for (PlacedImage & placed : images_) {
     if (placed.row != row || placed.col != col) continue;
-    if (equal(placed)) {
-      placed.identity = identity;
-      placed.explicit_id = explicit_id;
-      return;
-    }
-    placed.image = fresh();
+    placed.clip_top = clip_top;
+    placed.clip_bottom = clip_bottom;
     placed.identity = identity;
     placed.explicit_id = explicit_id;
+    if (!equal(placed)) placed.image = fresh();
     return;
   }
   // A picture the plane showed before its last erase() is the same image,
@@ -248,11 +248,13 @@ void BufferPlane::drawImageAt(int row, int col, const std::vector<uint32_t> & pi
     erased_images_.erase(it);
     placed.row = row;
     placed.col = col;
+    placed.clip_top = clip_top;
+    placed.clip_bottom = clip_bottom;
     if (!equal(placed)) placed.image = fresh();
     images_.push_back(std::move(placed));
     return;
   }
-  images_.push_back(PlacedImage{row, col, fresh(), nextKey(), identity, explicit_id});
+  images_.push_back(PlacedImage{row, col, fresh(), nextKey(), identity, explicit_id, clip_top, clip_bottom});
 }
 
 std::pair<int, int> BufferPlane::screenPosition() const {

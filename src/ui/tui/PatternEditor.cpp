@@ -2572,10 +2572,10 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
       if (level_meter::barSteps(fraction, 1) > 0) meters_showing_ = true;
       return fraction;
     };
-    auto draw_vu_meter = [&](int row, int col, float fraction, bool clipping, const Color & background) {
+    auto draw_vu_meter = [&](int row, int col, float fraction, bool clipping, const Color & background, int track_id) {
       cellui::VuReading reading{fraction, 0.0f, clipping};
       cellui::VuMeterLook look{background, styles.meter_active_color};
-      if (scopes_) scopes_->drawVuMeter(getPlane(), row, col, 1, reading, look, row, row + 1);
+      if (scopes_) scopes_->drawVuMeter(getPlane(), row, col, 1, reading, look, row, row + 1, static_cast<uint64_t>(track_id) + 2);
       else cellui::drawCellVuMeter(getPlane(), row, col, 1, reading, look, row, row + 1);
     };
 
@@ -2812,7 +2812,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    if (meter_width > 0) {
 	      auto & track_info = info.getTrackInfo(track->getInternalId());
 	      draw_vu_meter(heading_height - 2 - level + 1, current_pos + chip_width + instrument_name_width, meter_fraction(track->getInternalId(), track_info), track_info.isClipping(),
-			    chip ? segment_color(track) : styles.window_bg_color);
+			    chip ? segment_color(track) : styles.window_bg_color, track->getInternalId());
 	    }
 	    // The divider on the instrument line too, so the line is closed.
 	    if (chip) draw_divider(heading_height - 2 - level + 1, current_pos + actual_width - 1, track, i);

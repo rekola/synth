@@ -246,12 +246,13 @@ cell position, so a scrolled meter is a new image and is uploaded again.
    included, are read with `images()`; image identity (step 7) makes the keys
    mean something.
 7. Viewports and image identity (Scrolling and images, above). Image
-   identity is done: `drawImageAt()` takes an id (0 = a hash of the pixels),
-   and a `BufferPlane` that erased and redraws a picture keeps its key and
-   version wherever it lands, so kitty only places it again (tested through
-   `ImageEncoder`); same pixels in two places stay two images. Open: the
-   viewport, and the widgets drawing whole pictures (the clipped VU meter
-   slice still changes with the scroll) and passing ids.
+   identity is done: `drawImageAt()` takes an id (0 = a hash of the pixels)
+   and a plane clip, and a `BufferPlane` that erased and redraws a picture
+   keeps its key and version wherever it lands, so kitty only places it again
+   (tested through `ImageEncoder`); same pixels in two places stay two
+   images. The VU meters draw their whole picture, whatever is scrolled out
+   of view, under an id of their own (the track's), and the plane crops it.
+   Open: the viewport.
 8. Icons: the app's icon list, Kitty graphics/Sixel/glyph fallback, menu
    icons, keyed so a static icon in a scrolling list costs nothing with
    kitty graphics.

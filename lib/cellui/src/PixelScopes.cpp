@@ -168,7 +168,7 @@ class PixelScopes : public Scopes {
   }
   std::shared_ptr<ChannelMeter> channelMeter(UIPlane & parent) const override { return std::make_shared<PixelChannelMeter>(parent); }
   void drawVuMeter(UIPlane & plane, int row, int col, int rows, const VuReading & reading, const VuMeterLook & look, int clip_top,
-                   int clip_bottom) const override {
+                   int clip_bottom, uint64_t id) const override {
     int cell_h = 0, cell_w = 0;
     int top = std::max(row, clip_top), bottom = std::min(row + rows, clip_bottom);
     if (rows <= 0 || top >= bottom) return;
@@ -176,12 +176,11 @@ class PixelScopes : public Scopes {
       drawCellVuMeter(plane, row, col, rows, reading, look, clip_top, clip_bottom);
       return;
     }
-    // The whole meter, of which the visible rows are shown.
+    // The whole meter, wherever it is scrolled to; the plane shows the rows
+    // from clip_top to clip_bottom.
     unsigned width = static_cast<unsigned>(cell_w), height = static_cast<unsigned>(rows * cell_h);
     auto pixels = vu_meter_image::render({std::nullopt, reading}, look, width, height, plane.getStyles(), static_cast<float>(plane.displayScale()));
-    size_t from = static_cast<size_t>((top - row) * cell_h) * width, to = static_cast<size_t>((bottom - row) * cell_h) * width;
-    std::vector<uint32_t> visible(pixels.begin() + static_cast<long>(from), pixels.begin() + static_cast<long>(to));
-    plane.drawImageAt(top, col, visible, static_cast<int>(width), (bottom - top) * cell_h);
+    plane.drawImageAt(row, col, pixels, static_cast<int>(width), static_cast<int>(height), id, clip_top, clip_bottom);
   }
 };
 
