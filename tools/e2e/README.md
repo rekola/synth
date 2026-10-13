@@ -95,10 +95,9 @@ you're changing.
   playing, the columns to its right don't change at all (text or
   colors), and the rows the playing track doesn't have (before its first
   clip) draw blank.
-
-The scroll margin, the clip grid's stop buttons and `set-song-scale` used to be
-scripts here; they are now unit tests on the test terminal
-(`tests/TerminalUITests.cpp`).
+- The scroll margin, the clip grid's stop buttons and `set-song-scale` are
+  unit tests on the test terminal now (`tests/TerminalUITests.cpp`), not
+  scripts here.
 - **`verify_mouse_wheel.py`** - the wheel scrolls the widget under the
   mouse without moving focus, scrolls its view but never its cursor (or
   the transport), Shift scrolls tracks sideways, and the next cursor move
@@ -112,7 +111,6 @@ scripts here; they are now unit tests on the test terminal
   (track, locator, clip names): Enter commits, Ctrl-g and M-x
   cancel, and a typed space never reaches the global toggle-playing
   binding. Independent of Launchpad.
-
 - **`fake_launchpad.c` / `verify_launchpad_e2e.py`** - baseline single
   pad press/aftertouch/release, switching into NOTES mode and arming
   Record Arm first (a plain press only ever auditions - it never writes
