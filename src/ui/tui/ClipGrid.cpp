@@ -336,9 +336,10 @@ ClipGrid::startTrackRename(const Song & song, const std::vector<int> & track_ids
   // replacing.
   SongStructure structure(song);
   auto prefix = "T" + std::to_string(structure.getBaselineInfo(track_id).color_ordinal_) + " ";
-  auto name_area_width = kColWidth - kHeaderFlagsWidth;
+  const int chip_width = getPlane().getStyles().track_chips ? 2 : 0;
+  auto name_area_width = kColWidth - kHeaderFlagsWidth - chip_width;
   auto prefix_width = std::min(static_cast<int>(prefix.size()), name_area_width);
-  auto edit_col = col_x + prefix_width;
+  auto edit_col = col_x + chip_width + prefix_width;
   auto edit_width = std::max(name_area_width - prefix_width, 1);
 
   InlineEditor::Field field;
@@ -666,7 +667,9 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     // comment). Plain accent color for the name, like every other
     // non-clip cell in this column - the track's own identity color is
     // reserved for its clip cells alone.
-    auto name_width = kColWidth - kHeaderFlagsWidth;
+    // With chips the track's colour is a slice at the left of the header.
+    const int chip_width = styles.track_chips ? 2 : 0;
+    auto name_width = kColWidth - kHeaderFlagsWidth - chip_width;
     // -1 is the header row's own physical value (physicalFor()'s own
     // comment) - never a real physical_row inside the loop below, so this
     // is the header's one and only cursor check.
@@ -678,11 +681,16 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     auto friendly_name = (leaf && !leaf->getName().empty()) ? " " + leaf->getName() : string();
     auto header = Utf8::padToWidth(Utf8::truncateToWidth(prefix + friendly_name, name_width), name_width);
     auto upright_len = std::min(header.size(), prefix.size());
-    putstr(0, x, header.substr(0, upright_len));
+    putstr(0, x + chip_width, header.substr(0, upright_len));
     if (upright_len < header.size()) {
       setItalic(true);
-      putstr(0, x + static_cast<int>(upright_len), header.substr(upright_len));
+      putstr(0, x + chip_width + static_cast<int>(upright_len), header.substr(upright_len));
       setItalic(false);
+    }
+    if (chip_width > 0) {
+      setBgColor(structure.getBaselineInfo(track_id).getColor(styles.tracks));
+      putstr(0, x, " ");
+      setBgColor(header_is_cursor ? styles.highlight_bg_color : styles.heading_bg_color);
     }
     bool muted = leaf && leaf->isMuted();
     bool solo = leaf && leaf->isSolo();

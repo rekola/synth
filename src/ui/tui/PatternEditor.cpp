@@ -1021,8 +1021,9 @@ PatternEditor::startTrackNameEdit() {
   field.col = edit_col;
   field.width = edit_width;
   field.initial_text = track->getName();
-  field.text_color = last_styles_->clip_text_color;
-  field.backdrop = track_info.getColor(getPlane().getStyles().tracks).blend(0.05f, Color(0, 0, 0));
+  field.text_color = last_styles_->track_chips ? last_styles_->window_accent_fg_color : last_styles_->clip_text_color;
+  field.backdrop = last_styles_->track_chips ? last_styles_->heading_bg_color
+                                             : track_info.getColor(getPlane().getStyles().tracks).blend(0.05f, Color(0, 0, 0));
   inline_editor_.open(field, [this, track_id](std::string text) {
     auto & target_song = getController().getSong();
     if (target_song.getMasterTrack().getChildByInternalId(track_id)) {
@@ -2463,7 +2464,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
     // brightened-when-selected one.
     auto track_base_color = [&](const Track * t) -> Color {
       auto vis_info = get_track_info(t);
-      if (level == 0 && vis_info && vis_info->color_ordinal_ >= 0) return vis_info->getColor(styles.tracks);
+      if (level == 0 && vis_info && vis_info->color_ordinal_ >= 0) return styles.track_chips ? styles.heading_bg_color : vis_info->getColor(styles.tracks);
       // Fixed, not depth-shaded grey like every other ancestor box below -
       // there's only ever one master per song.
       if (t->getType() == TrackType::MASTER) return styles.master_track_color;
@@ -2526,7 +2527,8 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
       bool same = left_color.getRed() == right_color.getRed() && left_color.getGreen() == right_color.getGreen() &&
 	left_color.getBlue() == right_color.getBlue();
       if (same) {
-	setFgColor(0x00, 0x00, 0x00);
+	if (styles.track_chips) setFgColor(styles.window_border_color);
+	else setFgColor(0x00, 0x00, 0x00);
 	setBgColor(right_color);
 	putstr(row, col, "│");
       } else {
@@ -2601,7 +2603,12 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  bool is_color_eligible = vis_info && vis_info->color_ordinal_ >= 0;
 	  bool is_collapsed = track->isCollapsed();
 
-	  setFgColor(0xff, 0xff, 0xff);
+	  // The heading text: white on the track's colour, or the theme's
+	  // text on the raised surface when the colour is only a slice.
+	  const bool chip = styles.track_chips && is_color_eligible;
+	  const Color heading_fg = styles.track_chips ? styles.window_accent_fg_color : Color(0xff, 0xff, 0xff);
+	  const int chip_width = chip ? 1 : 0;
+	  setFgColor(heading_fg);
 	  setBgColor(segment_color(track));
 
 	  // A track with no color (Effect) has no mute/solo either - skip
@@ -2635,8 +2642,8 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    // std::max(0, ...): a narrow enough column (actual_width < 3) would
 	    // otherwise make text_width negative, and it's used below both as a
 	    // display-width budget and as a putstr() column offset.
-	    auto text_width = std::max(0, actual_width - (has_mute_solo ? 3 : 1) - toggle_width);
-	    auto name_pos = current_pos + toggle_width;
+	    auto text_width = std::max(0, actual_width - (has_mute_solo ? 3 : 1) - toggle_width - chip_width);
+	    auto name_pos = current_pos + chip_width + toggle_width;
 
 	    // The display label is still type-specific (a raw sample/step
 	    // sequencer has nothing resembling an "instrument" to resolve),
@@ -2693,8 +2700,8 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	      // White, matching the heading text - a heading control, not a
 	      // status indicator (contrast the faint Mute/Solo OFF glyphs
 	      // just below, or the ancestor row's own activity dot).
-	      setFgColor(0xff, 0xff, 0xff);
-	      putstr(heading_height - 2 - level, current_pos, is_collapsed ? "▸" : "◂ ");
+	      setFgColor(heading_fg);
+	      putstr(heading_height - 2 - level, current_pos + chip_width, is_collapsed ? "▸" : "◂ ");
 	    }
 	    // The "T<N>" prefix is drawn upright; the artist's own friendly
 	    // name after it is italic, so it reads as the track's own label
@@ -2721,11 +2728,11 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    if (has_mute_solo) {
 	      // OFF: faint_color() - see its own comment. ON: unchanged -
 	      // the glyph blends into the header instead.
-	      auto off_color = faint_color(track);
-	      if (is_muted) setFgColor(0x00, 0x00, 0x00);
+	      auto off_color = styles.track_chips ? styles.theme.text_disabled : faint_color(track);
+	      if (is_muted) setFgColor(styles.track_chips ? styles.mute_color : Color(0, 0, 0));
 	      else setFgColor(off_color);
 	      putstr(heading_height - 2 - level, name_pos + text_width, "M");
-	      if (is_solo) setFgColor(0x00, 0x00, 0x00);
+	      if (is_solo) setFgColor(styles.track_chips ? styles.solo_color : Color(0, 0, 0));
 	      else setFgColor(off_color);
 	      putstr(heading_height - 2 - level, name_pos + text_width + 1, "S");
 	    }
@@ -2734,16 +2741,27 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    // afterward.
 	    draw_divider(heading_height - 2 - level, name_pos + text_width + (has_mute_solo ? 2 : 0), track, i);
 
+	    // The track's colour as a slice at the left of both heading lines.
+	    if (chip) {
+	      setFgColor(heading_fg);
+	      setBgColor(vis_info->getColor(styles.tracks));
+	      putstr(heading_height - 2 - level, current_pos, " ");
+	      putstr(heading_height - 2 - level + 1, current_pos, " ");
+	    }
+
 	    // Half brightness for PercussionTrack's fixed "(percussion)" label -
 	    // not a real per-track instrument setting (see above), so it reads
 	    // as visibly less prominent than every other track's own actual
 	    // instrument name.
 	    bool is_fixed_percussion_label = track->getType() == TrackType::PERCUSSION_CONTROL;
-	    if (is_fixed_percussion_label) setFgColor(0x78, 0x78, 0x78);
+	    if (styles.track_chips) setFgColor(is_fixed_percussion_label ? styles.theme.text_disabled : styles.window_accent_fg_color);
+	    else if (is_fixed_percussion_label) setFgColor(0x78, 0x78, 0x78);
 	    else setFgColor(0xf0, 0xf0, 0xf0);
-	    setBgColor(styles.window_bg_color);
+	    setBgColor(chip ? styles.heading_bg_color : styles.window_bg_color);
+	    // The line's blanks, so the surface runs across it.
+	    if (chip) putstr(heading_height - 2 - level + 1, current_pos + chip_width, std::string(static_cast<size_t>(std::max(0, actual_width - 1 - chip_width)), ' '));
 
-	    auto instrument_name_width = std::max(0, actual_width - 1);
+	    auto instrument_name_width = std::max(0, actual_width - 1 - chip_width);
 	    // Reserve exactly 1 column at the right for the single-cell
 	    // vertical VU meter, but never shrinking the name below
 	    // kMinNameWidth - a narrow column just goes without a meter
@@ -2763,11 +2781,11 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    // line (1-based, as the clip grid numbers them).
 	    if (auto block = source_->trackBlock(track->getInternalId())) instrument_name = std::to_string(*block + 1) + " " + instrument_name;
 	    instrument_name = Utf8::truncateToWidth(instrument_name, instrument_name_width);
-	    putstr(heading_height - 2 - level + 1, current_pos, instrument_name);
+	    putstr(heading_height - 2 - level + 1, current_pos + chip_width, instrument_name);
 
 	    if (meter_width > 0) {
 	      auto & track_info = info.getTrackInfo(track->getInternalId());
-	      draw_vu_meter(heading_height - 2 - level + 1, current_pos + instrument_name_width, meter_dots(track->getInternalId(), track_info), track_info.isClipping());
+	      draw_vu_meter(heading_height - 2 - level + 1, current_pos + chip_width + instrument_name_width, meter_dots(track->getInternalId(), track_info), track_info.isClipping());
 	    }
 	  }
 	} else if (actual_width <= 1) {

@@ -137,6 +137,9 @@ Themes are data:
      gamut's pure blue (the Launchpad takes the palette's hues and a
      saturation from the chroma in every theme); later ones step the hue over
      the arcs the clip state hues leave free;
+   - track headers: the raised surface with a slice of the track's colour at
+     the left instead of a block of it (`Theme::track_chips`, the clip grid's
+     header and the tracker's two heading lines); Done;
    - fewer lines, but not between tracks in the tracker view;
    - the icon list;
    - fades for state changes.

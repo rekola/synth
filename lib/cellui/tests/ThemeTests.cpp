@@ -219,6 +219,12 @@ TEST(the_light_theme_derives_its_menu_and_picker_from_its_own_surfaces) {
   CHECK(same(l.plane_base_bg, l.surface_base));
 }
 
+TEST(only_the_modern_themes_show_a_track_as_a_slice_on_its_header) {
+  CHECK(!StyleProvider(Theme::original()).track_chips);
+  CHECK(StyleProvider(Theme::dark()).track_chips);
+  CHECK(StyleProvider(Theme::light()).track_chips);
+}
+
 TEST(a_modern_widget_plane_shows_the_base_surface_where_it_draws_nothing) {
   CHECK(same(StyleProvider(Theme::dark()).plane_base_bg_color, "#080c0f"));
   CHECK(same(StyleProvider(Theme::light()).plane_base_bg_color, "#f0f4f7"));
