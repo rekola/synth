@@ -73,7 +73,9 @@ you're changing.
   Live View's outline panel, for scripts that read the clip grid's
   rows from the start of each line.
 - **`verify_keybindings.py`** - general Emacs-keybinding smoke test
-  (Ctrl-Space/W/Y/G/C-x o/C-x b/C-x C-c), independent of Launchpad.
+  (Ctrl-Space/W/Y/G/C-x o/C-x b/C-x C-c), independent of Launchpad. Kept as a
+  pty smoke test: the real key encodings through the terminal parser, and the
+  process actually exiting. What the keys do is covered by the unit tests.
 - **`verify_live_pattern_editor.py`** - PatternEditor's Live mode
   (Live View): locators only in Arrangement view, typing into an
   empty slot creates a clip (not arrangement content), a launched clip's
@@ -86,22 +88,15 @@ you're changing.
   numbers and row accents; a playing track's position can't be moved (Up
   says so) while a stopped one's can; and moving one track never moves
   another.
-- **`verify_live_view_layout.py`** - Live View's layout: no scope
-  row, the clip grid's cursor its own (never moving the pattern
-  editor's track, nor following it) and never on its header row, each track's column
-  marking its own clip, and the outline panel's button bar and `?`
-  details popup.
 - **`verify_live_playing_columns.py`** - with the focused track
   playing, the columns to its right don't change at all (text or
   colors), and the rows the playing track doesn't have (before its first
   clip) draw blank.
-- The scroll margin, the clip grid's stop buttons and `set-song-scale` are
-  unit tests on the test terminal now (`tests/TerminalUITests.cpp`), not
-  scripts here.
-- **`verify_mouse_wheel.py`** - the wheel scrolls the widget under the
-  mouse without moving focus, scrolls its view but never its cursor (or
-  the transport), Shift scrolls tracks sideways, and the next cursor move
-  brings the view back.
+- The scroll margin, the clip grid's stop buttons, `set-song-scale`, the mouse
+  wheel, Live View's layout and the keybindings' effects are unit tests on the
+  test backend now (`tests/TerminalUITests.cpp`, `TerminalUIViewTests.cpp`),
+  not scripts here.
+
 - **`verify_arrangement_clip_region.py`** (fixture
   `arrangement_clip_region_test.xml`) - Arrangement view's block commands
   over a placed clip: a region marked inside the clip stops at its end and
