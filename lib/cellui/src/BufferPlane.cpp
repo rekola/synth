@@ -194,42 +194,64 @@ bool BufferPlane::cellPixelSize(int & height, int & width) const {
   return true;
 }
 
-void BufferPlane::drawImage(const std::vector<uint32_t> & pixels, int width, int height) {
+void BufferPlane::drawImage(const std::vector<uint32_t> & pixels, int width, int height, uint64_t id) {
   // A whole-plane image replaces any others.
   images_.erase(std::remove_if(images_.begin(), images_.end(), [](const PlacedImage & p) { return p.row != 0 || p.col != 0; }), images_.end());
-  drawImageAt(0, 0, pixels, width, height);
+  drawImageAt(0, 0, pixels, width, height, id);
 }
 
-void BufferPlane::drawImageAt(int row, int col, const std::vector<uint32_t> & pixels, int width, int height) {
+void BufferPlane::drawImageAt(int row, int col, const std::vector<uint32_t> & pixels, int width, int height, uint64_t id) {
   if (width <= 0 || height <= 0 || pixels.size() < static_cast<size_t>(width) * static_cast<size_t>(height)) return;
-  // The same picture again keeps its version and key, so it is not sent
-  // again - also when the plane was erased and redrawn in between.
-  auto same = [&](const PlacedImage & placed) {
-    return placed.row == row && placed.col == col && placed.image->width == width && placed.image->height == height &&
+  size_t count = static_cast<size_t>(width) * static_cast<size_t>(height);
+  bool explicit_id = id != 0;
+  uint64_t identity = id;
+  if (!explicit_id) {
+    // FNV-1a over the size and the pixels.
+    identity = 14695981039346656037ull;
+    auto mix = [&](uint64_t v) { identity = (identity ^ v) * 1099511628211ull; };
+    mix(static_cast<uint64_t>(width));
+    mix(static_cast<uint64_t>(height));
+    for (size_t i = 0; i < count; i++) mix(pixels[i]);
+  }
+  auto equal = [&](const PlacedImage & placed) {
+    return placed.image->width == width && placed.image->height == height &&
            std::equal(placed.image->pixels.begin(), placed.image->pixels.end(), pixels.begin());
   };
+  auto fresh = [&]() {
+    auto image = std::make_shared<Image>();
+    image->width = width;
+    image->height = height;
+    image->pixels.assign(pixels.begin(), pixels.begin() + static_cast<long>(count));
+    image->version = nextImageVersion();
+    return image;
+  };
+  // The same picture again at the same place keeps its version and key, so
+  // it is not sent again; other pixels there are the slot's image changed.
   for (PlacedImage & placed : images_) {
-    if (same(placed)) return;
-  }
-  for (PlacedImage & placed : erased_images_) {
-    if (same(placed)) {
-      images_.erase(std::remove_if(images_.begin(), images_.end(), [&](const PlacedImage & p) { return p.row == row && p.col == col; }), images_.end());
-      images_.push_back(placed);
+    if (placed.row != row || placed.col != col) continue;
+    if (equal(placed)) {
+      placed.identity = identity;
+      placed.explicit_id = explicit_id;
       return;
     }
+    placed.image = fresh();
+    placed.identity = identity;
+    placed.explicit_id = explicit_id;
+    return;
   }
-  auto image = std::make_shared<Image>();
-  image->width = width;
-  image->height = height;
-  image->pixels.assign(pixels.begin(), pixels.begin() + static_cast<long>(width) * height);
-  image->version = nextImageVersion();
-  for (PlacedImage & placed : images_) {
-    if (placed.row == row && placed.col == col) {
-      placed.image = std::move(image);
-      return;
-    }
+  // A picture the plane showed before its last erase() is the same image,
+  // wherever it is drawn now.
+  for (auto it = erased_images_.begin(); it != erased_images_.end(); ++it) {
+    if (it->identity != identity || it->explicit_id != explicit_id) continue;
+    PlacedImage placed = *it;
+    erased_images_.erase(it);
+    placed.row = row;
+    placed.col = col;
+    if (!equal(placed)) placed.image = fresh();
+    images_.push_back(std::move(placed));
+    return;
   }
-  images_.push_back(PlacedImage{row, col, std::move(image), nextKey()});
+  images_.push_back(PlacedImage{row, col, fresh(), nextKey(), identity, explicit_id});
 }
 
 std::pair<int, int> BufferPlane::screenPosition() const {

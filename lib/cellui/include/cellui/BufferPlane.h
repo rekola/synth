@@ -98,8 +98,8 @@ class BufferPlane : public UIPlane {
   }
   bool pixelSize(int & height, int & width) const override;
   bool cellPixelSize(int & height, int & width) const override;
-  void drawImage(const std::vector<uint32_t> & pixels, int width, int height) override;
-  void drawImageAt(int row, int col, const std::vector<uint32_t> & pixels, int width, int height) override;
+  void drawImage(const std::vector<uint32_t> & pixels, int width, int height, uint64_t id = 0) override;
+  void drawImageAt(int row, int col, const std::vector<uint32_t> & pixels, int width, int height, uint64_t id = 0) override;
   // The cell size in pixels, 0 when pixels cannot be shown (root only).
   void setCellPixelSize(int height, int width) {
     cell_px_h_ = height;
@@ -179,6 +179,8 @@ class BufferPlane : public UIPlane {
     int row = 0, col = 0;
     std::shared_ptr<Image> image;
     uint64_t key = 0;
+    uint64_t identity = 0;  // the caller's id, or a hash of the pixels
+    bool explicit_id = false;
   };
   std::vector<PlacedImage> images_;
   std::vector<PlacedImage> erased_images_;  // what erase() last took away

@@ -69,11 +69,18 @@ class UIPlane {
   // Shows `pixels` (width*height, row 0 at the top, bytes R, G, B, A) from
   // the plane's top-left corner in place of its text, until erase(). Only
   // where pixelSize() said yes.
-  virtual void drawImage(const std::vector<uint32_t> & pixels, int width, int height) { drawImageAt(0, 0, pixels, width, height); }
+  virtual void drawImage(const std::vector<uint32_t> & pixels, int width, int height, uint64_t id = 0) {
+    drawImageAt(0, 0, pixels, width, height, id);
+  }
   // The same from cell (row, col), covering only the cells the image
   // reaches; the plane's text shows in the others. A plane holds one image
-  // per position, each replacing the last drawn there.
-  virtual void drawImageAt(int row, int col, const std::vector<uint32_t> & pixels, int width, int height) {
+  // per position, each replacing the last drawn there. `id` names the
+  // picture: the widget's own id for it, or 0 for a hash of its pixels. The
+  // same picture drawn at another position (after erase()) is the same
+  // image, moved: a backend places it again and sends no pixels. With an id,
+  // new pixels under the same id are the same image changed.
+  virtual void drawImageAt(int row, int col, const std::vector<uint32_t> & pixels, int width, int height, uint64_t id = 0) {
+    (void)id;
     (void)row;
     (void)col;
     (void)pixels;

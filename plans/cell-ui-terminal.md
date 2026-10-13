@@ -233,7 +233,13 @@ cell position, so a scrolled meter is a new image and is uploaded again.
    what the UI shows - an image that moved told apart from a new one -
    without a pty or a terminal emulator. The terminal layer stays covered by
    Cell UI's backend tests and a few pty smoke tests.
-7. Viewports and image identity (Scrolling and images, above).
+7. Viewports and image identity (Scrolling and images, above). Image
+   identity is done: `drawImageAt()` takes an id (0 = a hash of the pixels),
+   and a `BufferPlane` that erased and redraws a picture keeps its key and
+   version wherever it lands, so kitty only places it again (tested through
+   `ImageEncoder`); same pixels in two places stay two images. Open: the
+   viewport, and the widgets drawing whole pictures (the clipped VU meter
+   slice still changes with the scroll) and passing ids.
 8. Icons: the app's icon list, Kitty graphics/Sixel/glyph fallback, menu
    icons, keyed so a static icon in a scrolling list costs nothing with
    kitty graphics.

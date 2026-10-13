@@ -383,3 +383,52 @@ TEST(bufferplane_an_erased_image_drawn_again_is_the_same_image) {
   root.refresh();
   CHECK(root.images().size() == 1 && root.images()[0].key == first.key && root.images()[0].image->version == first.image->version);
 }
+
+TEST(bufferplane_an_image_that_moved_keeps_its_key_and_version) {
+  StyleProvider styles;
+  CellBuffer b(4, 4);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(4, 2);
+  root.drawImageAt(0, 0, std::vector<uint32_t>(4 * 4, 0xff0000ffu), 4, 4);
+  root.refresh();
+  auto first = root.images()[0];
+  root.erase();
+  root.drawImageAt(2, 1, std::vector<uint32_t>(4 * 4, 0xff0000ffu), 4, 4);
+  root.refresh();
+  CHECK(root.images().size() == 1 && root.images()[0].row == 2 && root.images()[0].col == 1);
+  CHECK(root.images()[0].key == first.key && root.images()[0].image->version == first.image->version);
+}
+
+TEST(bufferplane_image_ids_name_the_picture_whatever_its_pixels) {
+  StyleProvider styles;
+  CellBuffer b(4, 4);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(4, 2);
+  root.drawImageAt(0, 0, std::vector<uint32_t>(4 * 4, 0xff0000ffu), 4, 4, 7);
+  root.refresh();
+  auto first = root.images()[0];
+  // The same id with other pixels, moved: the same image, changed.
+  root.erase();
+  root.drawImageAt(2, 0, std::vector<uint32_t>(4 * 4, 0xff00ff00u), 4, 4, 7);
+  root.refresh();
+  CHECK(root.images()[0].key == first.key && root.images()[0].image->version != first.image->version);
+  // Another id with the same pixels is another image.
+  root.erase();
+  root.drawImageAt(0, 0, std::vector<uint32_t>(4 * 4, 0xff00ff00u), 4, 4, 8);
+  root.refresh();
+  CHECK(root.images()[0].key != first.key);
+}
+
+TEST(bufferplane_two_identical_pictures_stay_two_images) {
+  StyleProvider styles;
+  CellBuffer b(4, 4);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(4, 2);
+  for (int i = 0; i < 2; i++) {
+    root.drawImageAt(0, 0, std::vector<uint32_t>(4 * 4, 0xff0000ffu), 4, 4);
+    root.drawImageAt(2, 0, std::vector<uint32_t>(4 * 4, 0xff0000ffu), 4, 4);
+    root.refresh();
+    CHECK(root.images().size() == 2 && root.images()[0].key != root.images()[1].key);
+    root.erase();
+  }
+}
