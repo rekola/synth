@@ -205,4 +205,12 @@ of the switch.
    JSON (plane tree, cell text and styles, image placements, focus) and
    input taken from the test, so synth's own tests assert on what the UI
    shows without a pty or a terminal emulator. The terminal layer stays
-   covered by Cell UI's backend tests and a few pty smoke tests.
+   covered by Cell UI's backend tests and a few pty smoke tests. Done:
+   `cellui::term::Terminal` is what `TerminalUI` needs of a terminal
+   (`TerminalSession` implements it), `TestTerminal` is the test one - input
+   pushed by the test (`pushKey()`, `pushText()`, `pushMouse()`, `pushPaste()`,
+   `resize()`), frames kept and read back (`text()`, `toJson()`) with the
+   plane tree (`BufferPlane::describe()`, `UIPlane::setName()`) and the
+   focus `TerminalUI` names (`focusName()`). `TerminalUI::step()` runs one
+   turn of the loop without waiting; the UI sources are the `synth_ui`
+   library, so `tests/TerminalUITests.cpp` drives the real UI on it.

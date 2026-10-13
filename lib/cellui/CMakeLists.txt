@@ -70,7 +70,8 @@ add_library(cellui STATIC
   src/term/FrameEncoder.cpp
   src/term/ImageEncoder.cpp
   src/term/InputParser.cpp
-  src/term/TermEvent.cpp)
+  src/term/TermEvent.cpp
+  src/term/TestTerminal.cpp)
 if(NOT WIN32)
   target_sources(cellui PRIVATE src/term/TerminalSession.cpp)
   find_package(Threads REQUIRED)
@@ -97,6 +98,7 @@ target_link_libraries(cellui_gallery PRIVATE cellui)
 # tests/test_main.cpp; no framework dependency.
 add_executable(cellui_tests
   tests/test_main.cpp
+  tests/TestTerminalTests.cpp
   tests/BufferPlaneTests.cpp
   tests/CellBufferTests.cpp
   tests/ChoiceDialogTests.cpp

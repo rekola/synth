@@ -322,7 +322,8 @@ void TerminalSession::write(const std::string & bytes) {
   pthread_sigmask(SIG_SETMASK, &old, nullptr);
 }
 
-void TerminalSession::present(const CellBuffer & frame, const CursorRequest & cursor, const std::vector<ImagePlacement> & images) {
+void TerminalSession::present(const CellBuffer & frame, const CursorRequest & cursor, const std::vector<ImagePlacement> & images,
+                              const FrameInfo *) {
   std::string pixels = images_.encode(frame, images, encoder_.willClear(frame));
   write(encoder_.encode(frame, cursor, pixels));
 }

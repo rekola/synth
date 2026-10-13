@@ -19,7 +19,7 @@
 #include <cellui/CellBuffer.h>
 
 namespace cellui::term {
-  class TerminalSession;
+  class Terminal;
 }
 
 #include "../UIMenu.h"
@@ -37,8 +37,9 @@ class OutlineView;
 
 class TerminalUI : public UI {
  public:
-  // Draws on, and reads from, the terminal `session` set up.
-  explicit TerminalUI(cellui::term::TerminalSession & session);
+  // Draws on, and reads from, `session`: a TerminalSession, or a
+  // TestTerminal in a test.
+  explicit TerminalUI(cellui::term::Terminal & session);
   ~TerminalUI();
 
   void initialize(std::shared_ptr<Controller> & controller);
@@ -60,6 +61,11 @@ class TerminalUI : public UI {
   // StatusLine's M-x path (routed via Controller::sendCommand's fallback,
   // see Controller.h) reaches per-widget commands like "set-mark".
   bool executeCommand(std::string_view name);
+
+  // One turn of the main loop without waiting, for tests: takes the input
+  // and the controller's events that are there, lays out, and presents a
+  // frame (always, changed or not).
+  void step();
 
   // Read-only counterpart to executeCommand(), same active-element-then-
   // pattern-editor-then-own chain, but collecting every match instead of
@@ -84,6 +90,8 @@ protected:
   void wireLaunchpad(LaunchpadManager & launchpad_manager) override;
   void viewChanged() override;
   bool readInput();
+  // Which widget takes the keys, by name (for a test backend's frames).
+  std::string focusName() const;
 
   // The "ESC-" indicator while an Escape waits for its next key.
   int escapeIndicatorPollTimeoutMs() const;
@@ -115,7 +123,7 @@ protected:
   std::vector<std::shared_ptr<cellui::Element>> focusableElements() const;
 
 private:
-  cellui::term::TerminalSession & session_;
+  cellui::term::Terminal & session_;
   // What the planes compose into, the size of the terminal; the root plane
   // covers it.
   cellui::CellBuffer screen_;
