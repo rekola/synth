@@ -65,3 +65,21 @@ TEST(spectrum_image_curve_widens_with_the_display_scale) {
   };
   CHECK(covered(2.0f) > covered(1.0f));
 }
+
+TEST(spectrum_image_fractional_scale_fills_the_exact_size) {
+  StyleProvider styles;
+  std::vector<float> levels(101, 0.5f);
+  auto img = spectrum_image::render(levels, 101, 37, styles, 1.25f);
+  CHECK(img.size() == 101u * 37u);
+  bool opaque = true;
+  for (uint32_t p : img) opaque = opaque && (p >> 24) == 0xffu;
+  CHECK(opaque);
+  // The curve reaches the last column.
+  Rgb bg = at(img, 101, 100, 0);
+  bool drawn = false;
+  for (unsigned y = 0; y < 37; y++) {
+    Rgb p = at(img, 101, 100, y);
+    drawn = drawn || p.r != bg.r || p.g != bg.g || p.b != bg.b;
+  }
+  CHECK(drawn);
+}
