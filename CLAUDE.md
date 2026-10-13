@@ -467,7 +467,7 @@ functions used for this.
 The FFT spectrum (`SpectrumMeter`, `ui/tui/SpectrumMeter.h`) draws its
 log-frequency bars through `LevelMeter.h`'s braille sub-cell renderer, the
 same one the volume meters use. When the terminal session found an image
-protocol (kitty graphics or Sixel; iTerm2 draws Sixel for now) and the cell
+protocol (kitty graphics, iTerm2's inline images or Sixel) and the cell
 size in pixels, `TerminalUI.cpp`'s `TerminalPixelSpectrumMeter` overrides
 `barCount()`/`drawBars()` to draw one bar per pixel column as the meter's
 plane's image (`UIPlane::pixelSize()`/`drawImage()`) instead; the choice is
@@ -1334,7 +1334,7 @@ would otherwise resume showing.
   (start-up queries with a deadline; the display scale guessed from the cell
   size, `estimateDisplayScale()`, and light or dark from the default colours,
   `detectAppearance()`, which picks the default `--theme`), `FrameEncoder` (the
-  frame diff as escape sequences), `ImageEncoder` (kitty graphics, Sixel) and
+  frame diff as escape sequences), `ImageEncoder` (kitty graphics, iTerm2 inline images, Sixel) and
   `TerminalSession` (the tty, its modes, signals and restoration).
   `cellui_gallery --live` shows the gallery through it. Its tests are in `lib/cellui/tests/` with a copy of the tiny test
   framework (no dependency on `tests/`).
