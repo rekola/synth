@@ -336,7 +336,7 @@ ClipGrid::startTrackRename(const Song & song, const std::vector<int> & track_ids
   // replacing.
   SongStructure structure(song);
   auto prefix = "T" + std::to_string(structure.getBaselineInfo(track_id).color_ordinal_) + " ";
-  const int chip_width = getPlane().getStyles().track_chips ? 2 : 0;
+  const int chip_width = getPlane().getStyles().track_chips ? 1 : 0;
   auto name_area_width = kColWidth - kHeaderFlagsWidth - chip_width;
   auto prefix_width = std::min(static_cast<int>(prefix.size()), name_area_width);
   auto edit_col = col_x + chip_width + prefix_width;
@@ -667,8 +667,10 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     // comment). Plain accent color for the name, like every other
     // non-clip cell in this column - the track's own identity color is
     // reserved for its clip cells alone.
-    // With chips the track's colour is a slice at the left of the header.
-    const int chip_width = styles.track_chips ? 2 : 0;
+    // With chips the track's colour is a half-cell slice at the left of the
+    // header, a shade toward the text colour so that it doesn't run into the
+    // colour of the first clip slot below it.
+    const int chip_width = styles.track_chips ? 1 : 0;
     auto name_width = kColWidth - kHeaderFlagsWidth - chip_width;
     // -1 is the header row's own physical value (physicalFor()'s own
     // comment) - never a real physical_row inside the loop below, so this
@@ -688,9 +690,8 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
       setItalic(false);
     }
     if (chip_width > 0) {
-      setBgColor(structure.getBaselineInfo(track_id).getColor(styles.tracks));
-      putstr(0, x, " ");
-      setBgColor(header_is_cursor ? styles.highlight_bg_color : styles.heading_bg_color);
+      setFgColor(structure.getBaselineInfo(track_id).getColor(styles.tracks).blend(0.3f, styles.window_accent_fg_color));
+      putstr(0, x, "▌");
     }
     bool muted = leaf && leaf->isMuted();
     bool solo = leaf && leaf->isSolo();
