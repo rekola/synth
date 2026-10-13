@@ -19,6 +19,7 @@ class StyleProvider {
     theme = t;
     tracks = t.tracks;
     grid_lines = t.grid_lines;
+    track_chips = t.track_chips;
     grid_bg_color = t.grid_lines ? t.surface_base : t.surface_panel;
     highlight_fg_color = t.text_on_accent;
     highlight_bg_color = t.accent;
@@ -83,6 +84,8 @@ class StyleProvider {
   // Whether grid columns have a line between them, and the colour of a
   // column's body: the window's, or a panel surface over the gutters.
   bool grid_lines = true;
+  // Track headers carry the track's colour as a slice, not a block.
+  bool track_chips = false;
   Color grid_bg_color;
 
   // A track's identity colour, from the theme's palette.

@@ -102,6 +102,10 @@ struct Theme {
   // between. (The tracker view keeps its lines either way.)
   bool grid_lines = true;
 
+  // A track header is the raised surface with a narrow slice of the track's
+  // colour at its left, instead of a block of that colour.
+  bool track_chips = false;
+
   // Roles outside the surfaces: the cursor tints, text on a track colour,
   // the command and reader text, the info bar, the meter and spectrum
   // ramps, track flags, locators, buttons and the master track's bar.
@@ -219,6 +223,7 @@ struct Theme {
     Theme t = original();
     t.tracks = TrackPalette::modern();
     t.grid_lines = false;
+    t.track_chips = true;
     t.surface_base = Color("#080c0f");
     t.surface_panel = Color("#151a1f");
     t.surface_raised = Color("#252b30");
@@ -254,7 +259,7 @@ struct Theme {
     t.button_bg = t.accent;
     t.button_pressed_bg = Color("#4f9fb4");
     t.row_pressed_bg = Color("#2f6b78");
-    t.master_track = t.surface_raised;
+    t.master_track = t.surface_overlay;
     t.menu_fg = t.text_primary;
     t.menu_bg = t.surface_raised;
     t.menu_section_fg = t.text_primary;
@@ -305,7 +310,7 @@ struct Theme {
     t.button_bg = t.accent;
     t.button_pressed_bg = Color("#004a66");
     t.row_pressed_bg = Color("#8ab8cc");
-    t.master_track = t.surface_raised;
+    t.master_track = t.surface_overlay;
     t.menu_fg = t.text_primary;
     t.menu_bg = t.surface_raised;
     t.menu_section_fg = t.text_primary;

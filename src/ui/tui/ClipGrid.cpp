@@ -336,9 +336,10 @@ ClipGrid::startTrackRename(const Song & song, const std::vector<int> & track_ids
   // replacing.
   SongStructure structure(song);
   auto prefix = "T" + std::to_string(structure.getBaselineInfo(track_id).color_ordinal_) + " ";
-  auto name_area_width = kColWidth - kHeaderFlagsWidth;
+  const int chip_width = getPlane().getStyles().track_chips ? 1 : 0;
+  auto name_area_width = kColWidth - kHeaderFlagsWidth - chip_width;
   auto prefix_width = std::min(static_cast<int>(prefix.size()), name_area_width);
-  auto edit_col = col_x + prefix_width;
+  auto edit_col = col_x + chip_width + prefix_width;
   auto edit_width = std::max(name_area_width - prefix_width, 1);
 
   InlineEditor::Field field;
@@ -666,7 +667,11 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     // comment). Plain accent color for the name, like every other
     // non-clip cell in this column - the track's own identity color is
     // reserved for its clip cells alone.
-    auto name_width = kColWidth - kHeaderFlagsWidth;
+    // With chips the track's colour is a half-cell slice at the left of the
+    // header, a shade toward the text colour so that it doesn't run into the
+    // colour of the first clip slot below it.
+    const int chip_width = styles.track_chips ? 1 : 0;
+    auto name_width = kColWidth - kHeaderFlagsWidth - chip_width;
     // -1 is the header row's own physical value (physicalFor()'s own
     // comment) - never a real physical_row inside the loop below, so this
     // is the header's one and only cursor check.
@@ -678,11 +683,15 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     auto friendly_name = (leaf && !leaf->getName().empty()) ? " " + leaf->getName() : string();
     auto header = Utf8::padToWidth(Utf8::truncateToWidth(prefix + friendly_name, name_width), name_width);
     auto upright_len = std::min(header.size(), prefix.size());
-    putstr(0, x, header.substr(0, upright_len));
+    putstr(0, x + chip_width, header.substr(0, upright_len));
     if (upright_len < header.size()) {
       setItalic(true);
-      putstr(0, x + static_cast<int>(upright_len), header.substr(upright_len));
+      putstr(0, x + chip_width + static_cast<int>(upright_len), header.substr(upright_len));
       setItalic(false);
+    }
+    if (chip_width > 0) {
+      setFgColor(structure.getBaselineInfo(track_id).getColor(styles.tracks).blend(0.3f, styles.window_accent_fg_color));
+      putstr(0, x, "▌");
     }
     bool muted = leaf && leaf->isMuted();
     bool solo = leaf && leaf->isSolo();
@@ -893,7 +902,7 @@ ClipGrid::renderMeter(const StyleProvider & styles, int x, int rows, int track_i
   auto & meter = meters_[track_id];
   auto top = clipRowCount() + kSendsLabel - scroll_row_ + 1; // the meter's top cell; +1 for the header row
   cellui::VuReading reading{meter.fraction, meter.peak_fraction, clipping};
-  cellui::VuMeterLook look{styles.window_bg_color, std::nullopt};
+  cellui::VuMeterLook look{styles.grid_bg_color, std::nullopt};
   // Below the header row, inside the plane.
   if (scopes_) scopes_->drawVuMeter(getPlane(), top, x + kColWidth - 1, kMeterRows, reading, look, 1, rows, static_cast<uint64_t>(track_id) + 2);
   else cellui::drawCellVuMeter(getPlane(), top, x + kColWidth - 1, kMeterRows, reading, look, 1, rows);

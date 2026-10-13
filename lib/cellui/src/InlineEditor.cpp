@@ -29,6 +29,9 @@ InlineEditor::isOpen() const {
 bool
 InlineEditor::offerInput(const cellui::Input & input) {
   if (!open_) return false;
+  // The release of the key that opened the field (Enter, in the pattern
+  // editor) must not close it again.
+  if (input.getKind() == cellui::Input::Kind::RELEASE) return true;
   if (input.getId() == Key::Enter) {
     auto text = plane_.closeReader();
     auto commit = std::move(commit_);

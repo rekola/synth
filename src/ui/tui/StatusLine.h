@@ -100,6 +100,8 @@ class StatusLine : public UIElement {
   }
 
   bool offerInput(const cellui::Input & input) override {
+    // A key's release never submits or edits the reader.
+    if (getPlane().readerActive() && input.getKind() == cellui::Input::Kind::RELEASE) return true;
     if (getPlane().readerActive()) {
       if (tab_completer_ && input.getId() == Key::Tab) {
 	// A local copy, not tab_completer_() directly - see the identical

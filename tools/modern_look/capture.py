@@ -24,7 +24,7 @@ def spawn(song, view):
     import pty
     pid, master_fd = pty.fork()
     if pid == 0:
-        os.environ["TERM"] = "xterm-256color"
+        os.environ["TERM"] = "xterm-256color"; os.environ["COLORTERM"] = "truecolor"
         os.environ["SYNTH_LAUNCHPAD_NO_HARDWARE"] = "1"
         os.execvp(harness.BINARY, [harness.BINARY, "--null-audio", "--view", view, song])
         os._exit(1)

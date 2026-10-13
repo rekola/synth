@@ -598,7 +598,7 @@ TerminalUI::commitOverviewCell(int track_id, int row) {
   auto & song = getController().getSong();
   getController().setEditPosition(row);
 
-  auto track_ids = song.getRootTrackIds();
+  auto track_ids = pattern_editor_->trackIds(song);
   auto it = find(track_ids.begin(), track_ids.end(), track_id);
   if (it != track_ids.end()) {
     pattern_editor_->setCursorTrack(static_cast<int>(it - track_ids.begin()));
@@ -1231,7 +1231,7 @@ TerminalUI::syncLiveView() {
   if (track_id != synced_track_id_) {
     auto playable = song.getPlayableTrackIds();
     if (std::find(playable.begin(), playable.end(), track_id) != playable.end()) clip_grid_->setCursorTrackIndex(indexOfTrack(playable, track_id));
-    auto roots = song.getRootTrackIds();
+    auto roots = pattern_editor_->trackIds(song);
     auto it = std::find(roots.begin(), roots.end(), track_id);
     if (it != roots.end() && pattern_editor_->getCursorTrackIndex() != it - roots.begin()) pattern_editor_->setCursorTrack(static_cast<int>(it - roots.begin()));
     synced_track_id_ = track_id;
@@ -1778,7 +1778,7 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
   // left focused to edit there.
   getController().setClipSelectListener([this](int track_id, int clip_index) {
     auto & song = getController().getSong();
-    auto root_ids = song.getRootTrackIds();
+    auto root_ids = pattern_editor_->trackIds(song);
     auto root = std::find(root_ids.begin(), root_ids.end(), track_id);
     if (root != root_ids.end()) pattern_editor_->setCursorTrack(static_cast<int>(root - root_ids.begin()));
     auto playable = song.getPlayableTrackIds();
@@ -1789,7 +1789,7 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
   getController().setUndoCellListener([this](const Song::EditPlace & place) { pattern_editor_->focusCell(place); });
   getController().setUndoFocusListener([this](int track_id, int clip_index, int row) {
     auto & song = getController().getSong();
-    auto root_ids = song.getRootTrackIds();
+    auto root_ids = pattern_editor_->trackIds(song);
     auto root = std::find(root_ids.begin(), root_ids.end(), track_id);
     if (root != root_ids.end()) pattern_editor_->setCursorTrack(static_cast<int>(root - root_ids.begin()));
     auto playable = song.getPlayableTrackIds();
@@ -1801,7 +1801,7 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
   getController().setDrumEditRequestListener([this](int track_id, bool opened) {
     if (opened) {
       auto & song = getController().getSong();
-      auto track_ids = song.getRootTrackIds();
+      auto track_ids = pattern_editor_->trackIds(song);
       auto it = std::find(track_ids.begin(), track_ids.end(), track_id);
       if (it != track_ids.end()) pattern_editor_->setCursorTrack(static_cast<int>(it - track_ids.begin()));
       launchpad_manager_->openStepView();
