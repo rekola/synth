@@ -668,8 +668,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     // non-clip cell in this column - the track's own identity color is
     // reserved for its clip cells alone.
     // With chips the track's colour is a half-cell slice at the left of the
-    // header, a shade toward the text colour so that it doesn't run into the
-    // colour of the first clip slot below it.
+    // header (StyleProvider::trackChipColor()).
     const int chip_width = styles.track_chips ? 1 : 0;
     auto name_width = kColWidth - kHeaderFlagsWidth - chip_width;
     // -1 is the header row's own physical value (physicalFor()'s own
@@ -690,7 +689,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
       setItalic(false);
     }
     if (chip_width > 0) {
-      setFgColor(structure.getBaselineInfo(track_id).getColor(styles.tracks).blend(0.3f, styles.window_accent_fg_color));
+      setFgColor(styles.trackChipColor(structure.getBaselineInfo(track_id).color_ordinal_));
       putstr(0, x, "▌");
     }
     bool muted = leaf && leaf->isMuted();
