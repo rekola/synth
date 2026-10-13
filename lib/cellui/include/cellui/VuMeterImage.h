@@ -28,7 +28,8 @@ namespace vu_meter_image {
 
 // Vertical bars side by side across a width x height image, one per
 // column slot (a cell's two dot columns are two slots), each filled from the
-// bottom with a peak line above it; an empty slot stays background. Drawn at
+// bottom with a peak line above it; an empty slot stays background. The slots
+// are equal whole pixels, any pixels left over split between the edges. Drawn at
 // `scale`, the display scale. Returns width*height pixels, row 0 at the
 // top, bytes R, G, B, A (all opaque).
 std::vector<uint32_t> render(const std::vector<std::optional<VuReading>> & columns, const VuMeterLook & look, unsigned width,

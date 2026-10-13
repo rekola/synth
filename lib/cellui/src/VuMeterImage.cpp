@@ -28,14 +28,20 @@ std::vector<uint32_t> render(const std::vector<std::optional<VuReading>> & colum
   ctx.fillStyle = toCanvas(look.background);
   ctx.fillRect(0, 0, w, h);
   const float thickness = std::max(1.0f, std::round(scale));
-  const float slot = columns.empty() ? w : w / static_cast<float>(columns.size());
+  // Every slot is the same whole number of pixels, so the bars are evenly
+  // spaced; what is left over is split between the left and right edges.
+  const unsigned count = static_cast<unsigned>(std::max<size_t>(1, columns.size()));
+  const unsigned slot = std::max(1u, width / count);
+  const unsigned margin = width > slot * count ? (width - slot * count) / 2 : 0;
+  const unsigned bar = std::clamp(static_cast<unsigned>(std::lround(static_cast<float>(slot) * 0.7f)), 1u, slot);
+  const unsigned gap = (slot - bar) / 2;
 
   for (size_t i = 0; i < columns.size(); i++) {
     if (!columns[i]) continue;
     const VuReading & reading = *columns[i];
     // The bar in the middle of its slot, a gap either side.
-    const float x0 = std::round(slot * (static_cast<float>(i) + 0.15f));
-    const float x1 = std::max(x0 + 1.0f, std::round(slot * (static_cast<float>(i) + 0.85f)));
+    const float x0 = static_cast<float>(margin + static_cast<unsigned>(i) * slot + gap);
+    const float x1 = x0 + static_cast<float>(bar);
     const float fill = std::clamp(reading.fraction, 0.0f, 1.0f) * h;
     if (fill > 0.0f) {
       if (reading.clipping) {

@@ -36,6 +36,31 @@ TEST(vu_meter_image_fills_its_slot_from_the_bottom) {
   CHECK(same(at(img, 10, 5, 20), styles.meter_clip_color));
 }
 
+TEST(vu_meter_image_spaces_its_bars_evenly_with_the_rest_at_the_edges) {
+  StyleProvider styles;
+  VuMeterLook look{Color(10, 20, 30), Color(200, 100, 50)};
+  // 27 pixels don't divide into 4 slots: the bars stay evenly spaced.
+  std::vector<std::optional<VuReading>> full(4, VuReading{1.0f, 0.0f, false});
+  auto img = vu_meter_image::render(full, look, 27, 8, styles);
+  std::vector<unsigned> starts, ends;
+  for (unsigned x = 0; x < 27; x++) {
+    bool on = same(at(img, 27, x, 4), *look.color);
+    bool before = x > 0 && same(at(img, 27, x - 1, 4), *look.color);
+    if (on && !before) starts.push_back(x);
+    if (!on && before) ends.push_back(x);
+  }
+  if (same(at(img, 27, 26, 4), *look.color)) ends.push_back(27);
+  CHECK(starts.size() == 4 && ends.size() == 4);
+  for (size_t i = 1; i < starts.size() && i < ends.size(); i++) {
+    CHECK(starts[i] - starts[i - 1] == starts[1] - starts[0]);
+    CHECK(ends[i] - starts[i] == ends[0] - starts[0]);
+  }
+  if (starts.size() == 4 && ends.size() == 4) {
+    unsigned left = starts[0], right = 27 - ends[3];
+    CHECK(left <= right + 1 && right <= left + 1);
+  }
+}
+
 TEST(vu_meter_cell_version_is_the_braille_bar_clipped_to_its_rows) {
   StyleProvider styles;
   CellBuffer b(6, 2);
