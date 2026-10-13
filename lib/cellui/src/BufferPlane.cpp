@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <map>
 #include <tuple>
 
@@ -92,10 +93,25 @@ void blurPass(std::vector<uint32_t> & px, int w, int h, int radius, bool along_r
   }
 }
 
+// Three box passes, close to a Gaussian (two leave a blur's corners
+// square).
+constexpr int kBlurPasses = 3;
+
+// The box radius, in pixels, of a backdrop's blur for cells `cell_h`
+// pixels tall drawn `scale` times smaller: as strong as two passes of half a
+// row per step of blur (a box of radius r adds r(r + 1) / 3 to the
+// variance).
+int boxRadius(int blur, int cell_h, int scale) {
+  double two_pass = std::min(blur, Backdrop::kMaxBlur) * cell_h / 2 / std::max(1, scale);
+  if (two_pass <= 0) return 0;
+  double variance = 2 * two_pass * (two_pass + 1) / 3;
+  return std::max(1, static_cast<int>(std::lround((std::sqrt(1 + 4 * variance * 3 / kBlurPasses) - 1) / 2)));
+}
+
 // Blurs the pixels over `radius` and dims them toward `tint`.
 void filterPixels(Image & image, const Backdrop & backdrop, int radius, const Color & tint) {
   if (radius > 0) {
-    for (int pass = 0; pass < 2; pass++) {
+    for (int pass = 0; pass < kBlurPasses; pass++) {
       blurPass(image.pixels, image.width, image.height, radius, true);
       blurPass(image.pixels, image.width, image.height, radius, false);
     }
@@ -331,9 +347,17 @@ void BufferPlane::refresh() {
 
 int BufferPlane::backdropTile(const CellBuffer & below, int row, int col, int rows, int cols, const Backdrop & backdrop) const {
   int blur = std::min(backdrop.blur, Backdrop::kMaxBlur);
-  // What lies within the blur's reach is drawn too.
-  int r0 = std::max(0, row - blur), r1 = std::min(below.rows(), row + rows + blur);
-  int c0 = std::max(0, col - 2 * blur), c1 = std::min(below.cols(), col + cols + 2 * blur);
+  // Drawn smaller than the display shows it: a blur needs no more detail.
+  int ch = cell_px_h_, cw = cell_px_w_;
+  int scale = std::clamp(blur * ch / 8, 1, 8);
+  int radius = boxRadius(blur, ch, scale);
+  // What lies within the blur's reach is drawn too, so the tile's edges
+  // match its neighbours' - all but the last ninth of the reach, which
+  // weighs too little to show and would widen the margin by a row.
+  int reach = kBlurPasses * radius * scale * 8 / 9;
+  int margin_rows = (reach + ch - 1) / ch, margin_cols = (reach + cw - 1) / cw;
+  int r0 = std::max(0, row - margin_rows), r1 = std::min(below.rows(), row + rows + margin_rows);
+  int c0 = std::max(0, col - margin_cols), c1 = std::min(below.cols(), col + cols + margin_cols);
   Fingerprint print;
   print.add(static_cast<uint64_t>(r0) << 32 | static_cast<uint32_t>(c0));
   print.add(static_cast<uint64_t>(r1) << 32 | static_cast<uint32_t>(c1));
@@ -365,14 +389,11 @@ int BufferPlane::backdropTile(const CellBuffer & below, int row, int col, int ro
   }
   tile->used = true;
   if (!tile->image || tile->hash != print.value() || tile->backdrop != backdrop) {
-    // Drawn smaller than the display shows it: a blur needs no more detail.
-    int ch = cell_px_h_, cw = cell_px_w_;
-    int scale = std::clamp(blur * ch / 8, 1, 8);
     Image drawn = rasterizer_->render(below, placements_, r0, c0, r1 - r0, c1 - c0, ch, cw, scale, default_fg_, default_bg_);
-    filterPixels(drawn, backdrop, blur * ch / 2 / scale, backdrop.tint.value_or(default_bg_));
+    filterPixels(drawn, backdrop, radius, backdrop.tint.value_or(default_bg_));
     // The tile's own pixels, and a pad of its neighbours' around them for
     // the display to blend the edges with as it stretches it.
-    constexpr int kPad = 2;
+    constexpr int kPad = 1;
     auto image = std::make_shared<Image>();
     int x0 = (col - c0) * cw / scale, x1 = std::min(drawn.width, (col + cols - c0) * cw / scale);
     int y0 = (row - r0) * ch / scale, y1 = std::min(drawn.height, (row + rows - r0) * ch / scale);
@@ -416,8 +437,7 @@ std::shared_ptr<const Image> BufferPlane::filteredImage(const ImagePlacement & p
   auto image = std::make_shared<Image>(*placement.image);
   image->version = nextImageVersion();
   // The blur a cell backdrop gives, in pixels.
-  filterPixels(*image, backdrop, std::min(backdrop.blur, Backdrop::kMaxBlur) * std::max(1, cell_px_h_) / 2,
-               backdrop.tint.value_or(default_bg_));
+  filterPixels(*image, backdrop, boxRadius(backdrop.blur, std::max(1, cell_px_h_), 1), backdrop.tint.value_or(default_bg_));
   filtered_images_.push_back(FilteredImage{placement.key, placement.image->version, backdrop, image, true});
   return image;
 }

@@ -597,8 +597,8 @@ TEST(bufferplane_pixel_backdrop_redraws_only_tiles_whose_source_changed) {
   // Every tile is a picture stretched over its cells.
   CHECK(root.images()[0].image->cols == 16 && root.images()[0].image->rows == 4);
   // With a pad of its neighbours for the terminal to blend its edges with.
-  CHECK(root.images()[0].image->pad == 2);
-  CHECK(root.images()[0].image->width == 16 * 4 + 4 && root.images()[0].image->height == 4 * 8 + 4);
+  CHECK(root.images()[0].image->pad == 1);
+  CHECK(root.images()[0].image->width == 16 * 4 + 2 && root.images()[0].image->height == 4 * 8 + 2);
   CHECK(b.at(0, 0).image > 0);
   // The dialog over it stays text.
   CHECK(b.at(3, 20).text == "o" && b.at(3, 20).image == 0);

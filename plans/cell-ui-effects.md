@@ -112,7 +112,7 @@ so at most a theme of its own later.
      fingerprint of the cells and pictures it reads changes, so the
      background keeps running under the dialog and static areas are not sent
      again.
-   - Each tile's picture carries a pad of 2 pixels of its neighbours
+   - Each tile's picture carries a pad of 1 pixel of its neighbours
      (`Image::pad`), outside the part shown: kitty blends a stretched
      picture's edges with transparency, which left a seam of what is below
      between tiles; with the pad it blends them with the real neighbours.
@@ -122,11 +122,15 @@ so at most a theme of its own later.
    - The cells under a picture are blanked as it arrives, and an info dialog
      hands the mouse back to the terminal while it is open: its text can be
      selected, and the blurred screen behind it has nothing to select.
-   - Measured on a 200 x 50 screen of 10 x 20 pixel cells: opening 24 ms and
-     328 KB (169 tiles), a playhead row moving 4.8 ms and 56 KB a frame (28
-     tiles). If that is too much: draw a dirty band once and cut its tiles
+   - The blur is three box passes (close to a Gaussian; two left square
+     corners), as strong as two passes of half a row per step of blur.
+   - Measured on a 200 x 50 screen of 10 x 20 pixel cells: opening 29 ms and
+     392 KB (169 tiles), a playhead row moving 5.8 ms and 67 KB a frame (28
+     tiles); the pad is a fifth of the bytes. If that is too much: draw a dirty band once and cut its tiles
      (the margins are now drawn three times over), lower the rate, or blur
-     more (smaller pictures).
+     more (smaller pictures). What remains blocky is the picture's low
+     resolution, magnified by the terminal; half the reduction would be
+     smooth at about 4x the bytes, perhaps as a setting for local use.
    - Next: the terminal's own font. kitty answers it through XTGETTCAP
      (`kitty-query-font_family`, `kitty-query-font_size`); elsewhere a user
      setting, falling back to `monospace`.
