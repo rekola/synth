@@ -22,9 +22,10 @@ class Scopes {
   virtual std::shared_ptr<ChannelMeter> channelMeter(UIPlane & parent) const = 0;
   // A VU meter drawn into a widget's own plane: `rows` cells tall from
   // (row, col), one cell wide, drawn only in the plane rows from clip_top up
-  // to clip_bottom (a meter partly scrolled out of view).
+  // to clip_bottom (a meter partly scrolled out of view). `id` names the
+  // meter for the plane's images (see UIPlane::drawImageAt()); 0 for none.
   virtual void drawVuMeter(UIPlane & plane, int row, int col, int rows, const VuReading & reading, const VuMeterLook & look,
-                           int clip_top, int clip_bottom) const = 0;
+                           int clip_top, int clip_bottom, uint64_t id = 0) const = 0;
 };
 
 // The cell version of drawVuMeter(): a braille bar in the cell's right dot

@@ -3,6 +3,7 @@
 #include <cellui/Input.h>
 #include <cellui/StyleProvider.h>
 
+#include <climits>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -81,8 +82,15 @@ class UIPlane {
   // picture: the widget's own id for it, or 0 for a hash of its pixels. The
   // same picture drawn at another position (after erase()) is the same
   // image, moved: a backend places it again and sends no pixels. With an id,
-  // new pixels under the same id are the same image changed.
-  virtual void drawImageAt(int row, int col, const std::vector<uint32_t> & pixels, int width, int height, uint64_t id = 0) {
+  // new pixels under the same id are the same image changed. The image may
+  // reach beyond the plane (row or col negative, or past its edge); only the
+  // part inside the plane shows, and inside plane rows clip_top up to
+  // clip_bottom, so a picture partly scrolled out of view is still the whole
+  // picture.
+  virtual void drawImageAt(int row, int col, const std::vector<uint32_t> & pixels, int width, int height, uint64_t id = 0,
+                           int clip_top = INT_MIN, int clip_bottom = INT_MAX) {
+    (void)clip_top;
+    (void)clip_bottom;
     (void)id;
     (void)row;
     (void)col;

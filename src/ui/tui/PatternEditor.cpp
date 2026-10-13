@@ -2553,10 +2553,10 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
       if (level_meter::barSteps(fraction, 1) > 0) meters_showing_ = true;
       return fraction;
     };
-    auto draw_vu_meter = [&](int row, int col, float fraction, bool clipping) {
+    auto draw_vu_meter = [&](int row, int col, float fraction, bool clipping, int track_id) {
       cellui::VuReading reading{fraction, 0.0f, clipping};
       cellui::VuMeterLook look{styles.window_bg_color, styles.meter_active_color};
-      if (scopes_) scopes_->drawVuMeter(getPlane(), row, col, 1, reading, look, row, row + 1);
+      if (scopes_) scopes_->drawVuMeter(getPlane(), row, col, 1, reading, look, row, row + 1, static_cast<uint64_t>(track_id) + 2);
       else cellui::drawCellVuMeter(getPlane(), row, col, 1, reading, look, row, row + 1);
     };
 
@@ -2769,7 +2769,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 
 	    if (meter_width > 0) {
 	      auto & track_info = info.getTrackInfo(track->getInternalId());
-	      draw_vu_meter(heading_height - 2 - level + 1, current_pos + instrument_name_width, meter_fraction(track->getInternalId(), track_info), track_info.isClipping());
+	      draw_vu_meter(heading_height - 2 - level + 1, current_pos + instrument_name_width, meter_fraction(track->getInternalId(), track_info), track_info.isClipping(), track->getInternalId());
 	    }
 	  }
 	} else if (actual_width <= 1) {

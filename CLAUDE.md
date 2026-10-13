@@ -61,7 +61,7 @@ the clip grid's and pattern editor's level meters are drawn through
 `drawCellVuMeter()` is the cell version), as images at cell positions
 (`UIPlane::drawImageAt()`: a plane holds one image per cell position, covering
 only the cells it reaches, and the same picture - an id given to `drawImageAt()`, or a hash of its pixels - drawn again, even after
-`erase()` and at another position, keeps its key and version, so it isn't sent again, only placed).
+`erase()` and at another position, keeps its key and version, so it isn't sent again, only placed; a meter scrolled partly out of view is drawn whole at its real position with a row clip, so its pixels do not change with the scroll).
 `libpipewire-0.3-dev` is optional too (`SYNTH_ENABLE_PIPEWIRE`,
 auto-detected, and cmake says so when it isn't used): it only backs
 `src/audio/AudioDevices.cpp`'s listing of the audio server's own inputs and

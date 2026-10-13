@@ -174,7 +174,7 @@ class CellScopes : public Scopes {
   }
   std::shared_ptr<ChannelMeter> channelMeter(UIPlane & parent) const override { return std::make_shared<ChannelMeter>(parent); }
   void drawVuMeter(UIPlane & plane, int row, int col, int rows, const VuReading & reading, const VuMeterLook & look, int clip_top,
-                   int clip_bottom) const override {
+                   int clip_bottom, uint64_t) const override {
     drawCellVuMeter(plane, row, col, rows, reading, look, clip_top, clip_bottom);
   }
 };

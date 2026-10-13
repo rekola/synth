@@ -81,12 +81,27 @@ TEST(vu_meter_pixel_version_shows_only_its_visible_rows) {
   CellBuffer b(6, 3);
   BufferPlane root(b, styles);
   root.setCellPixelSize(8, 4);
-  // A five-row meter from row -2: rows 0-2 show.
+  // A five-row meter from row -2: rows 0-2 show, of the whole picture.
   scopes->drawVuMeter(root, -2, 2, 5, VuReading{0.5f, 0.0f, false}, VuMeterLook{styles.window_bg_color, std::nullopt}, 0, 6);
   root.refresh();
   CHECK(root.images().size() == 1);
-  CHECK(root.images()[0].row == 0 && root.images()[0].col == 2 && root.images()[0].image->height == 3 * 8);
+  CHECK(root.images()[0].row == -2 && root.images()[0].col == 2 && root.images()[0].image->height == 5 * 8);
   CHECK(b.at(0, 2).image && b.at(2, 2).image && !b.at(3, 2).image && !b.at(0, 1).image);
+  // Scrolled, it is the same picture, placed elsewhere.
+  uint64_t version = 0;
+  for (int row = -1; row <= 3; row++) {
+    root.erase();
+    scopes->drawVuMeter(root, row, 2, 5, VuReading{0.5f, 0.0f, false}, VuMeterLook{styles.window_bg_color, std::nullopt}, 0, 6, 9);
+    root.refresh();
+    CHECK(root.images().size() == 1 && root.images()[0].row == row);
+    if (row == -1) version = root.images()[0].image->version;
+    CHECK(root.images()[0].image->version == version);
+  }
+  // Clipped to rows 1-2 of the plane: the cells outside stay text.
+  root.erase();
+  scopes->drawVuMeter(root, 0, 2, 5, VuReading{0.5f, 0.0f, false}, VuMeterLook{styles.window_bg_color, std::nullopt}, 1, 3, 9);
+  root.refresh();
+  CHECK(!b.at(0, 2).image && b.at(1, 2).image && b.at(2, 2).image && !b.at(3, 2).image);
   // Without the cell size in pixels it falls back to cells.
   CellBuffer c(5, 1);
   BufferPlane plain(c, styles);

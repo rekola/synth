@@ -895,7 +895,7 @@ ClipGrid::renderMeter(const StyleProvider & styles, int x, int rows, int track_i
   cellui::VuReading reading{meter.fraction, meter.peak_fraction, clipping};
   cellui::VuMeterLook look{styles.window_bg_color, std::nullopt};
   // Below the header row, inside the plane.
-  if (scopes_) scopes_->drawVuMeter(getPlane(), top, x + kColWidth - 1, kMeterRows, reading, look, 1, rows);
+  if (scopes_) scopes_->drawVuMeter(getPlane(), top, x + kColWidth - 1, kMeterRows, reading, look, 1, rows, static_cast<uint64_t>(track_id) + 2);
   else cellui::drawCellVuMeter(getPlane(), top, x + kColWidth - 1, kMeterRows, reading, look, 1, rows);
 }
 
