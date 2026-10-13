@@ -136,7 +136,10 @@ TEST(frame_encoder_leaves_image_cells_to_the_image) {
   marked.image = 1;
   f.put(0, 1, marked);
   f.put(0, 2, marked);
-  CHECK(e.encode(f, {}, "IMG") == "IMG");
+  // Blanked as the image arrives, so nothing under it can be selected; then
+  // left to the image.
+  CHECK(e.encode(f, {}, "IMG") == "\x1b[2G  IMG");
+  CHECK(e.encode(f, {}, "").empty());
   f.write(0, 1, "  ", {});
   std::string back = e.encode(f);
   CHECK(back == "\x1b[1;2H  ");
@@ -248,4 +251,116 @@ TEST(kitty_a_scrolled_image_is_placed_again_and_not_sent) {
     std::string moved = enc.encode(b, root.images(), false);
     CHECK(count(moved, "a=t") == 0 && count(moved, "a=d,d=I") == 0 && count(moved, "a=p,i=1,") == 1);
   }
+}
+
+// A picture smaller than the cells it covers is stretched over them by the
+// terminal (kitty, iTerm2), or here before it is sent (Sixel).
+TEST(stretched_images_are_scaled_over_their_cells) {
+  CellBuffer b(3, 6);
+  auto image = std::make_shared<Image>();
+  image->width = 4;
+  image->height = 6;
+  image->pixels = solid(4, 6, Image::pack(200, 100, 50));
+  image->cols = 4;
+  image->rows = 2;
+  image->version = 7;
+  ImagePlacement p;
+  p.image = image;
+  p.key = 1;
+  CellBuffer::Cell marked;
+  marked.image = 1;
+  for (int r = 0; r < 2; r++)
+    for (int c = 0; c < 4; c++) b.put(r, c, marked);
+
+  ImageEncoder kitty(profile(PixelProtocol::KITTY));
+  std::string k = kitty.encode(b, {p}, true);
+  CHECK(count(k, "a=t,f=24,s=4,v=6,") == 1);
+  CHECK(count(k, "a=p,i=1,p=1,x=0,y=0,w=4,h=6,c=4,r=2,") == 1);
+
+  // Half of it covered: half of its pixels, over half of its cells.
+  for (int r = 0; r < 2; r++)
+    for (int c = 2; c < 4; c++) b.put(r, c, CellBuffer::Cell{});
+  std::string half = kitty.encode(b, {p}, false);
+  CHECK(count(half, "x=0,y=0,w=2,h=6,c=2,r=2,") == 1);
+
+  ImageEncoder iterm(profile(PixelProtocol::ITERM2));
+  CHECK(count(iterm.encode(b, {p}, true), ";width=2;height=2;") == 1);
+
+  ImageEncoder six(profile(PixelProtocol::SIXEL));
+  CHECK(count(six.encode(b, {p}, true), "\x1bP") == 1);
+}
+
+// A padded picture is placed as its inside, the pad there for the terminal
+// to blend the edges with as it scales.
+TEST(padded_stretched_images_place_their_inside) {
+  CellBuffer b(3, 4);  // iTerm2's pictures stay off the last row
+  auto image = std::make_shared<Image>();
+  image->width = 8;
+  image->height = 10;
+  image->pixels = solid(8, 10, Image::pack(1, 2, 3));
+  image->cols = 4;
+  image->rows = 2;
+  image->pad = 2;
+  image->version = 1;
+  ImagePlacement p;
+  p.image = image;
+  p.key = 1;
+  CellBuffer::Cell marked;
+  marked.image = 1;
+  for (int r = 0; r < 2; r++)
+    for (int c = 0; c < 4; c++) b.put(r, c, marked);
+  ImageEncoder kitty(profile(PixelProtocol::KITTY));
+  CHECK(count(kitty.encode(b, {p}, true), "x=2,y=2,w=4,h=6,c=4,r=2,") == 1);
+  ImageEncoder iterm(profile(PixelProtocol::ITERM2));
+  CHECK(count(iterm.encode(b, {p}, true), ";width=4;height=2;") == 1);
+}
+
+// A colour between palette entries is dithered: a mix of entries that
+// averages to it, not the nearest one everywhere.
+TEST(sixel_images_are_dithered) {
+  Dither fs;
+  fs.method = Dither::Method::FLOYD_STEINBERG;
+  Image img;
+  img.width = 12;
+  img.height = 12;
+  img.pixels.assign(144, Image::pack(20, 20, 20));  // between the greys 18 and 28
+  std::vector<bool> keep(144, true);
+  for (const Dither & d : {Dither{}, fs}) {
+    std::string s = encodeSixel(img, 0, 0, 12, 12, keep, d);
+    CHECK(count(s, ";2;7;7;7") == 1);   // grey 18
+    CHECK(count(s, ";2;11;11;11") == 1);  // grey 28
+  }
+}
+
+// The ordered pattern belongs to the screen, not the image: two tiles that
+// meet line up, and a redraw keeps it.
+TEST(ordered_dithering_follows_the_screen) {
+  Image img;
+  img.width = 16;
+  img.height = 12;
+  img.pixels.assign(16 * 12, Image::pack(60, 70, 90));  // between cube levels
+  std::vector<bool> keep(16 * 12, true);
+  Dither at;
+  at.origin_x = 3;
+  at.origin_y = 5;
+  Dither period = at;  // a whole matrix (8 pixels) on
+  period.origin_x += 8;
+  period.origin_y += 16;
+  Dither shifted = at;
+  shifted.origin_x += 1;
+  std::string a = encodeSixel(img, 0, 0, 16, 12, keep, at);
+  CHECK(a == encodeSixel(img, 0, 0, 16, 12, keep, period));
+  CHECK(a != encodeSixel(img, 0, 0, 16, 12, keep, shifted));
+  Dither nearest;
+  nearest.method = Dither::Method::NEAREST;
+  CHECK(count(encodeSixel(img, 0, 0, 16, 12, keep, nearest), ";2;") == 1);  // one colour
+  CHECK(count(a, ";2;") > 1);
+}
+
+TEST(dither_methods_by_name) {
+  Dither::Method m = Dither::Method::NEAREST;
+  CHECK(Dither::byName("floyd-steinberg", m) && m == Dither::Method::FLOYD_STEINBERG);
+  CHECK(Dither::byName("ordered", m) && m == Dither::Method::ORDERED);
+  CHECK(Dither::byName("nearest", m) && m == Dither::Method::NEAREST);
+  CHECK(!Dither::byName("bayer", m));
 }

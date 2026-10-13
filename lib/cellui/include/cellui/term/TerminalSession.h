@@ -28,6 +28,8 @@ struct SessionOptions {
   // to its handler instead, which ends the session normally.
   bool install_signal_handlers = true;
   bool mouse = true;
+  // How what has to meet a palette (Sixel images) is dithered.
+  Dither::Method dither = Dither::Method::ORDERED;
   Environment env = Environment::fromProcess();
   std::chrono::milliseconds grace{25};
 };
@@ -73,6 +75,8 @@ class TerminalSession : public Terminal {
   // The next present() redraws the whole screen (after the screen may have
   // been disturbed, Emacs's C-l).
   void redraw() override { encoder_.invalidate(); }
+  // Only when the session was opened with the mouse (SessionOptions::mouse).
+  void setMouseReporting(bool on) override;
   // Writes raw bytes, all of them.
   void write(const std::string & bytes);
 
@@ -98,6 +102,11 @@ class TerminalSession : public Terminal {
   bool handlers_ = false;
   bool line_signals_ = false;
   bool mouse_ = true;
+  bool mouse_reporting_ = true;
+  Dither::Method dither_ = Dither::Method::ORDERED;
+  // The image encoder's profile for the capabilities, with the session's
+  // dithering.
+  ImageEncoder::Profile imageProfile() const;
   int rows_ = 24, cols_ = 80;
   bool size_known_ = false;
   Capabilities caps_;

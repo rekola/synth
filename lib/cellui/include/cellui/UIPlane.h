@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cellui/Backdrop.h>
 #include <cellui/Input.h>
 #include <cellui/StyleProvider.h>
 
@@ -114,6 +115,10 @@ class UIPlane {
   // foreground leaning to white or black against the result. Default no-op.
   virtual void setBgBlend(bool) { }
   virtual void setFgContrast(bool) { }
+  // What putstr() writes next shows the planes below it through `backdrop`
+  // (blurred and dimmed); a space written with no colours is nothing but
+  // that. Default no-op: a display that can't, shows them as they are.
+  virtual void setBackdrop(const Backdrop &) { }
   virtual void erase() = 0;
   virtual void putstr(int y, int x, const std::string & s) = 0;
   virtual std::unique_ptr<UIPlane> createChild() = 0;

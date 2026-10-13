@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cellui/CellBuffer.h>
+#include <cellui/CellRasterizer.h>
 #include <cellui/Image.h>
 #include <cellui/LineEditor.h>
 #include <cellui/PlaneInfo.h>
@@ -20,7 +21,9 @@ namespace cellui {
 // them into the root's CellBuffer - children over their parent in the order
 // they were created or raised, a cell nothing was written to showing what is
 // below it, every child clipped to its parent. A translucent cell
-// (setBgBlend()) averages its background with what is below.
+// (setBgBlend()) averages its background with what is below, and a backdrop
+// cell (setBackdrop()) shows what is below blurred and dimmed, images
+// included: an image under one is shown filtered, whole.
 //
 // It is what the terminal backend draws: the terminal shows the composed
 // buffer. So it also has the reader (a one-line field over its own child
@@ -59,6 +62,7 @@ class BufferPlane : public UIPlane {
   void setItalic(bool b) override { style_.italic = b; }
   void setBgBlend(bool b) override { style_.bg_blend = b; }
   void setFgContrast(bool b) override { style_.fg_contrast = b; }
+  void setBackdrop(const Backdrop & b) override { style_.backdrop = b; }
   void erase() override {
     local_.clear(0, 0, local_.rows(), local_.cols());
     // Kept, so the same picture drawn again after erase() is not sent again.
@@ -122,6 +126,13 @@ class BufferPlane : public UIPlane {
   // plane base background (under the glyph below) wherever it writes
   // nothing, until makeTransparent() (root only).
   void setThemedBases(bool themed) { themed_bases_ = themed; }
+  // With a rasterizer and the cell size in pixels, a blurring backdrop is
+  // shown as pictures of the cells below it drawn, blurred and stretched
+  // over its cells, in tiles redrawn only when what they show changed
+  // (root only).
+  void setRasterizer(std::shared_ptr<CellRasterizer> rasterizer) { rasterizer_ = std::move(rasterizer); }
+  // How many tiles the last refresh() drew anew (root only).
+  int redrawnBackdropTiles() const { return redrawn_tiles_; }
   // What canRenderSextants() reports, for the whole tree (root only).
   void setSextants(bool can) { sextants_ = can; }
   bool canRenderSextants() const override { return root().sextants_; }
@@ -147,6 +158,12 @@ class BufferPlane : public UIPlane {
   // corner at (row, col), inside the clip rectangle.
   void compose(CellBuffer & out, int row, int col, int clip_row, int clip_col, int clip_rows, int clip_cols) const;
   bool shown() const;
+  // The placement's image as `backdrop` shows it (root only).
+  std::shared_ptr<const Image> filteredImage(const ImagePlacement & placement, const Backdrop & backdrop) const;
+  // Places the backdrop picture of screen cells [row, row + rows) x
+  // [col, col + cols) over `below`, drawn anew only if what it shows changed,
+  // and returns its placement's index (root only).
+  int backdropTile(const CellBuffer & below, int row, int col, int rows, int cols, const Backdrop & backdrop) const;
   void drawReader();
   void drawPicker();
 
@@ -176,6 +193,25 @@ class BufferPlane : public UIPlane {
   bool themed_bases_ = false;
   int cell_px_h_ = 0, cell_px_w_ = 0;
   mutable std::vector<ImagePlacement> placements_;
+  // Images as a backdrop shows them, kept while they are shown so that one
+  // is filtered and sent once.
+  struct FilteredImage {
+    uint64_t key = 0, source_version = 0;
+    Backdrop backdrop;
+    std::shared_ptr<const Image> image;
+    bool used = false;
+  };
+  mutable std::vector<FilteredImage> filtered_images_;
+  std::shared_ptr<CellRasterizer> rasterizer_;
+  struct BackdropTile {
+    int row = 0, col = 0, rows = 0, cols = 0;
+    uint64_t hash = 0, key = 0;
+    Backdrop backdrop;
+    std::shared_ptr<const Image> image;
+    bool used = false;
+  };
+  mutable std::vector<BackdropTile> backdrop_tiles_;
+  mutable int redrawn_tiles_ = 0;
 
   // The background of the cells nothing was written to; unset shows below.
   std::optional<Color> base_bg_;

@@ -42,6 +42,9 @@ class Terminal {
   virtual bool wantsFrameInfo() const { return false; }
   // The next frame is drawn in full.
   virtual void redraw() = 0;
+  // Whether the mouse is reported to the application; off, the terminal
+  // uses it itself (selecting text). Default no-op.
+  virtual void setMouseReporting(bool) { }
 };
 
 }  // namespace cellui::term

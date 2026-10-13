@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cellui/Backdrop.h>
 #include <cellui/Color.h>
 
 #include <optional>
@@ -29,6 +30,9 @@ class CellBuffer {
     bool fg_contrast = false;
     // A cell an image covers: the placement's index + 1 (see ImagePlacement).
     int image = 0;
+    // What lies below shows through blurred and dimmed; with no text or
+    // colours of its own the cell is just that.
+    Backdrop backdrop = {};
   };
 
   struct Style {
@@ -38,6 +42,7 @@ class CellBuffer {
     bool underline = false;
     bool bg_blend = false;
     bool fg_contrast = false;
+    Backdrop backdrop = {};
   };
 
   CellBuffer(int rows, int cols);
@@ -54,7 +59,7 @@ class CellBuffer {
   // plane is drawn over another.
   static bool isBlank(const Cell & c) {
     return c.text == " " && !c.fg && !c.bg && !c.bold && !c.italic && !c.underline && !c.continuation &&
-           !c.bg_blend && !c.fg_contrast && !c.image;
+           !c.bg_blend && !c.fg_contrast && !c.image && !c.backdrop.active();
   }
 
   // Writes `text` from (row, col) in `style`, clipped to the rectangle

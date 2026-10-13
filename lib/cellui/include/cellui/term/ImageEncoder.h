@@ -11,6 +11,27 @@
 
 namespace cellui::term {
 
+// How colours go to a palette where the terminal has only one: today a
+// Sixel image's to the 240 xterm cube and grey-ramp entries.
+struct Dither {
+  enum class Method {
+    NEAREST,          // the nearest entry everywhere: bands in a gradient
+    ORDERED,          // a Bayer matrix fixed to the screen, so tiles and redraws line up
+    FLOYD_STEINBERG,  // error diffusion: smoothest, but each image starts afresh
+  };
+  Method method = Method::ORDERED;
+  // "nearest", "ordered" or "floyd-steinberg"; false for another name.
+  static bool byName(const std::string & name, Method & out) {
+    if (name == "nearest") out = Method::NEAREST;
+    else if (name == "ordered") out = Method::ORDERED;
+    else if (name == "floyd-steinberg") out = Method::FLOYD_STEINBERG;
+    else return false;
+    return true;
+  }
+  // The screen pixel of the region's top-left corner (ordered dithering).
+  int origin_x = 0, origin_y = 0;
+};
+
 // The bytes that show a frame's images, by kitty graphics, iTerm2's inline
 // images or Sixel. Only
 // what changed is sent: a new picture, a move, or a change in which of its
@@ -28,6 +49,7 @@ class ImageEncoder {
     int cell_px_height = 0, cell_px_width = 0;
     // Sent once, before the first Sixel image.
     std::string sixel_setup;
+    Dither::Method dither = Dither::Method::ORDERED;
     static Profile from(const Capabilities & caps);
   };
 
@@ -67,8 +89,9 @@ class ImageEncoder {
 
 // The pixels encoded as Sixel: covered pixels (where `keep` says false, one
 // entry per pixel) are left transparent, and colours go to the 240 xterm
-// cube and grey-ramp entries. Exposed for tests.
-std::string encodeSixel(const Image & image, int x, int y, int width, int height, const std::vector<bool> & keep);
+// cube and grey-ramp entries, dithered. Exposed for tests.
+std::string encodeSixel(const Image & image, int x, int y, int width, int height, const std::vector<bool> & keep,
+                        const Dither & dither = {});
 
 // A rectangle of the pixels as a PNG file (8-bit RGBA, stored uncompressed).
 // Exposed for tests.

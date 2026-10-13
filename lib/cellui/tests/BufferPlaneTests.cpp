@@ -450,3 +450,176 @@ TEST(bufferplane_describe_gives_the_tree_in_stacking_order) {
   CHECK(!info.children[0].visible);
   CHECK(info.children[1].rows == 2 && info.children[1].cols == 3);
 }
+
+namespace {
+
+// A plane over the whole screen made of nothing but backdrop cells.
+std::unique_ptr<UIPlane> scrimOver(BufferPlane & root, const Backdrop & backdrop) {
+  auto scrim = root.createChild();
+  auto [rows, cols] = root.getDim();
+  scrim->setBackdrop(backdrop);
+  for (int r = 0; r < rows; r++) scrim->putstr(r, 0, std::string(static_cast<size_t>(cols), ' '));
+  return scrim;
+}
+
+}  // namespace
+
+TEST(bufferplane_backdrop_dims_toward_its_tint_and_keeps_the_text) {
+  StyleProvider styles;
+  CellBuffer b(1, 4);
+  BufferPlane root(b, styles);
+  root.setFgColor(200, 200, 200);
+  root.setBgColor(100, 100, 100);
+  root.putstr(0, 0, "ab");
+  auto scrim = scrimOver(root, Backdrop{0, 0.5f, Color(0, 0, 0)});
+  root.refresh();
+  CHECK(b.toPlainText() == "ab\n");
+  CHECK(b.at(0, 0).fg->getRed() == 100);
+  CHECK(b.at(0, 0).bg->getRed() == 50);
+  CHECK(!b.at(0, 0).backdrop.active());
+}
+
+TEST(bufferplane_backdrop_blur_spreads_colour_and_fades_glyphs) {
+  StyleProvider styles;
+  CellBuffer b(3, 9);
+  BufferPlane root(b, styles);
+  root.setDefaultColors(Color(255, 255, 255), Color(0, 0, 0));
+  root.setFgColor(255, 255, 255);
+  root.setBgColor(0, 0, 0);
+  for (int r = 0; r < 3; r++) root.putstr(r, 0, "         ");
+  root.setBgColor(240, 0, 0);
+  root.putstr(1, 4, "x");
+  auto scrim = scrimOver(root, Backdrop{1});
+  root.refresh();
+  // The red cell bleeds into its neighbours and is no longer pure red.
+  CHECK(b.at(1, 3).bg->getRed() > 0);
+  CHECK(b.at(1, 4).bg->getRed() < 240);
+  // The glyph stays, fading toward what is around it.
+  CHECK(b.at(1, 4).text == "x");
+  CHECK(b.at(1, 4).fg->getGreen() < 255);
+  // Far enough away, nothing reaches.
+  CHECK(b.at(1, 0).bg->getRed() == 0);
+}
+
+TEST(bufferplane_strong_backdrop_blur_leaves_no_glyph) {
+  StyleProvider styles;
+  CellBuffer b(2, 6);
+  BufferPlane root(b, styles);
+  root.putstr(0, 0, "hello");
+  auto scrim = scrimOver(root, Backdrop{Backdrop::kGlyphGoneBlur});
+  root.refresh();
+  CHECK(b.toPlainText().empty());
+}
+
+TEST(bufferplane_text_over_a_backdrop_is_sharp_and_planes_above_are_untouched) {
+  StyleProvider styles;
+  CellBuffer b(1, 8);
+  BufferPlane root(b, styles);
+  root.putstr(0, 0, "behind");
+  auto scrim = scrimOver(root, Backdrop{Backdrop::kGlyphGoneBlur, 0.3f});
+  scrim->setFgColor(1, 2, 3);
+  scrim->putstr(0, 0, "on");
+  auto dialog = root.createChild();
+  dialog->resize(1, 2);
+  dialog->move(0, 6);
+  dialog->setFgColor(9, 9, 9);
+  dialog->putstr(0, 0, "ok");
+  root.refresh();
+  CHECK(b.toPlainText() == "on    ok\n");
+  CHECK(b.at(0, 0).fg->getBlue() == 3);
+  CHECK(b.at(0, 0).bg.has_value());  // the frosted backdrop under it
+  CHECK(b.at(0, 6).fg->getRed() == 9);
+}
+
+TEST(bufferplane_image_under_a_backdrop_is_filtered_once) {
+  StyleProvider styles;
+  CellBuffer b(4, 8);
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(4, 2);
+  // Black with one white line across the middle.
+  std::vector<uint32_t> pixels(8 * 8, Image::pack(0, 0, 0));
+  for (size_t x = 0; x < 8; x++) pixels[4 * 8 + x] = Image::pack(255, 255, 255);
+  root.drawImageAt(0, 0, pixels, 8, 8);
+  root.refresh();
+  uint64_t sharp = root.images()[0].image->version;
+
+  auto scrim = scrimOver(root, Backdrop{1});
+  root.refresh();
+  auto blurred = root.images()[0].image;
+  CHECK(blurred->version != sharp);
+  CHECK(Image::red(blurred->pixels[2 * 8]) > 0);    // the line spread upward
+  CHECK(Image::red(blurred->pixels[4 * 8]) < 255);  // and lost its peak
+  // The same frame again is the same filtered picture: nothing to resend.
+  root.refresh();
+  CHECK(root.images()[0].image->version == blurred->version);
+
+  scrim.reset();
+  root.refresh();
+  CHECK(root.images()[0].image->version == sharp);
+}
+
+namespace {
+
+// Draws every cell in one colour, and counts what it was asked for.
+class CountingRasterizer : public CellRasterizer {
+ public:
+  Image render(const CellBuffer &, const std::vector<ImagePlacement> &, int, int, int rows, int cols, int cell_h, int cell_w,
+               int scale, Color, Color) override {
+    calls++;
+    Image out;
+    out.width = std::max(1, cols * cell_w / scale);
+    out.height = std::max(1, rows * cell_h / scale);
+    out.pixels.assign(static_cast<size_t>(out.width) * static_cast<size_t>(out.height), Image::pack(90, 90, 90));
+    return out;
+  }
+  int calls = 0;
+};
+
+}  // namespace
+
+TEST(bufferplane_pixel_backdrop_redraws_only_tiles_whose_source_changed) {
+  StyleProvider styles;
+  CellBuffer b(8, 48);  // two rows of three tiles
+  BufferPlane root(b, styles);
+  root.setCellPixelSize(8, 4);
+  auto rasterizer = std::make_shared<CountingRasterizer>();
+  root.setRasterizer(rasterizer);
+  for (int r = 0; r < 8; r++) root.putstr(r, 0, std::string(48, 'x'));
+  auto scrim = scrimOver(root, Backdrop{1});
+  auto dialog = root.createChild();
+  dialog->resize(1, 2);
+  dialog->move(3, 20);
+  dialog->putstr(0, 0, "ok");
+
+  root.refresh();
+  CHECK(root.redrawnBackdropTiles() == 6);
+  CHECK(root.images().size() == 6);
+  // Every tile is a picture stretched over its cells.
+  CHECK(root.images()[0].image->cols == 16 && root.images()[0].image->rows == 4);
+  // With a pad of its neighbours for the terminal to blend its edges with.
+  CHECK(root.images()[0].image->pad == 1);
+  CHECK(root.images()[0].image->width == 16 * 4 + 2 && root.images()[0].image->height == 4 * 8 + 2);
+  CHECK(b.at(0, 0).image > 0);
+  // The dialog over it stays text.
+  CHECK(b.at(3, 20).text == "o" && b.at(3, 20).image == 0);
+
+  std::vector<uint64_t> versions;
+  for (auto & p : root.images()) versions.push_back(p.image->version);
+  root.refresh();
+  CHECK(root.redrawnBackdropTiles() == 0);
+  for (size_t i = 0; i < versions.size(); i++) CHECK(root.images()[i].image->version == versions[i]);
+
+  // A change in the top-left corner reaches only the tiles within the blur.
+  root.putstr(0, 0, "y");
+  root.refresh();
+  CHECK(root.redrawnBackdropTiles() == 1);
+  // One near a tile's corner reaches its neighbours too.
+  root.putstr(4, 16, "y");
+  root.refresh();
+  CHECK(root.redrawnBackdropTiles() == 4);
+
+  scrim.reset();
+  root.refresh();
+  CHECK(root.images().empty());
+  CHECK(b.at(0, 0).text == "y");
+}

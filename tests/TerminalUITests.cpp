@@ -105,3 +105,65 @@ TEST(terminal_ui_set_song_scale_lists_scales_and_saves_the_choice) {
   CHECK(read().find("scale=\"otonal\"") != std::string::npos);
   fs::remove(song);
 }
+
+// A modal dialog frosts everything behind it, and closing it gives the screen
+// back as it was.
+TEST(terminal_ui_modal_dialog_shows_the_screen_behind_it_through_a_backdrop) {
+  UIFixture f;
+  auto menu = f.terminal.text().find("File");
+  CHECK(menu != std::string::npos);
+  auto sharp = f.terminal.frame().at(0, 0);
+  auto hasScrim = [&] {
+    for (auto & plane : f.terminal.info().planes.children)
+      if (plane.name == "scrim") return true;
+    return false;
+  };
+  CHECK(!hasScrim());
+
+  f.execute("about");
+  CHECK(hasScrim());
+  auto red = [](const cellui::CellBuffer::Cell & cell) { return cell.fg.value_or(cellui::Color()).getRed(); };
+  auto green = [](const cellui::CellBuffer::Cell & cell) { return cell.fg.value_or(cellui::Color()).getGreen(); };
+  auto frosted = f.terminal.frame().at(0, 0);
+  CHECK(frosted.fg.has_value() && sharp.fg.has_value());
+  CHECK(red(frosted) != red(sharp) || green(frosted) != green(sharp));
+
+  f.press(cellui::Key::Escape);
+  CHECK(!hasScrim());
+  auto back = f.terminal.frame().at(0, 0);
+  CHECK(red(back) == red(sharp) && green(back) == green(sharp) && back.text == sharp.text);
+}
+
+// Where the terminal shows images stretched over cells, the backdrop is
+// pictures of the screen behind, in tiles, and the dialog stays text.
+TEST(terminal_ui_modal_backdrop_is_pictures_where_the_terminal_shows_them) {
+  cellui::term::Capabilities caps;
+  caps.pixels = cellui::term::PixelProtocol::KITTY;
+  caps.cell_px_height = 20;
+  caps.cell_px_width = 10;
+  UIFixture f("", UI::View::LIVE, caps);
+  size_t before = f.terminal.images().size();
+  f.execute("about");
+  size_t stretched = 0;
+  for (auto & p : f.terminal.images()) stretched += p.image->stretched();
+  CHECK(stretched > 0);
+  CHECK(f.terminal.images().size() > before);
+  CHECK(f.terminal.frame().at(0, 0).image > 0);
+  CHECK(f.text().find("About") != std::string::npos);
+  f.press(cellui::Key::Escape);
+  for (auto & p : f.terminal.images()) CHECK(!p.image->stretched());
+}
+
+// The about dialog leaves the mouse to the terminal, to select its text with,
+// and so a click doesn't close it; it takes the mouse back when closed.
+TEST(terminal_ui_info_dialog_leaves_the_mouse_to_the_terminal) {
+  UIFixture f;
+  CHECK(f.terminal.mouseReporting());
+  f.execute("about");
+  CHECK(!f.terminal.mouseReporting());
+  f.terminal.pushMouse(20, 60, cellui::Key::Button1);
+  f.ui->step();
+  CHECK(f.terminal.info().focus == "info-dialog");
+  f.press(cellui::Key::Escape);
+  CHECK(f.terminal.mouseReporting());
+}

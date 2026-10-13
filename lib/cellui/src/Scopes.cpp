@@ -1,5 +1,7 @@
 #include <cellui/Scopes.h>
 
+#include <cellui/CellRasterizer.h>
+
 #include "HeatmapGrid.h"
 
 #include <cellui/StyleProvider.h>
@@ -185,6 +187,7 @@ std::unique_ptr<Scopes> cellScopes() { return std::make_unique<CellScopes>(); }
 
 #ifndef CELLUI_PIXEL_SCOPES
 std::unique_ptr<Scopes> pixelScopes() { return nullptr; }
+std::unique_ptr<CellRasterizer> canvasRasterizer(const std::string &) { return nullptr; }
 #endif
 
 }  // namespace cellui

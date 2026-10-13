@@ -38,6 +38,57 @@ std::string base64(const std::vector<uint8_t> & data) {
   return out;
 }
 
+// The part of a stretched picture that is shown: without its pad.
+Image withoutPad(const Image & src) {
+  if (src.pad <= 0) return src;
+  Image out = src;
+  out.pad = 0;
+  out.width = std::max(1, src.width - 2 * src.pad);
+  out.height = std::max(1, src.height - 2 * src.pad);
+  out.pixels.assign(static_cast<size_t>(out.width) * static_cast<size_t>(out.height), 0);
+  for (int y = 0; y < out.height; y++) {
+    for (int x = 0; x < out.width; x++) {
+      int sx = std::min(x + src.pad, src.width - 1), sy = std::min(y + src.pad, src.height - 1);
+      out.pixels[static_cast<size_t>(y) * static_cast<size_t>(out.width) + static_cast<size_t>(x)] =
+        src.pixels[static_cast<size_t>(sy) * static_cast<size_t>(src.width) + static_cast<size_t>(sx)];
+    }
+  }
+  return out;
+}
+
+// The picture resampled to width x height (bilinear).
+Image stretch(const Image & src, int width, int height) {
+  Image out;
+  out.width = std::max(1, width);
+  out.height = std::max(1, height);
+  out.version = src.version;
+  out.pixels.resize(static_cast<size_t>(out.width) * static_cast<size_t>(out.height));
+  auto at = [&](int x, int y) {
+    x = std::clamp(x, 0, src.width - 1);
+    y = std::clamp(y, 0, src.height - 1);
+    return src.pixels[static_cast<size_t>(y) * static_cast<size_t>(src.width) + static_cast<size_t>(x)];
+  };
+  for (int y = 0; y < out.height; y++) {
+    float fy = (static_cast<float>(y) + 0.5f) * static_cast<float>(src.height) / static_cast<float>(out.height) - 0.5f;
+    int y0 = static_cast<int>(std::floor(fy));
+    float ty = fy - static_cast<float>(y0);
+    for (int x = 0; x < out.width; x++) {
+      float fx = (static_cast<float>(x) + 0.5f) * static_cast<float>(src.width) / static_cast<float>(out.width) - 0.5f;
+      int x0 = static_cast<int>(std::floor(fx));
+      float tx = fx - static_cast<float>(x0);
+      uint32_t a = at(x0, y0), b = at(x0 + 1, y0), c = at(x0, y0 + 1), d = at(x0 + 1, y0 + 1);
+      auto mix = [&](uint8_t (*channel)(uint32_t)) {
+        float top = static_cast<float>(channel(a)) * (1 - tx) + static_cast<float>(channel(b)) * tx;
+        float bottom = static_cast<float>(channel(c)) * (1 - tx) + static_cast<float>(channel(d)) * tx;
+        return static_cast<uint8_t>(top * (1 - ty) + bottom * ty + 0.5f);
+      };
+      out.pixels[static_cast<size_t>(y) * static_cast<size_t>(out.width) + static_cast<size_t>(x)] =
+        Image::pack(mix(Image::red), mix(Image::green), mix(Image::blue), mix(Image::alpha));
+    }
+  }
+  return out;
+}
+
 std::string cup(int row, int col) { return "\x1b[" + std::to_string(row + 1) + ";" + std::to_string(col + 1) + "H"; }
 
 void paletteRgb(int index, int & r, int & g, int & b) {
@@ -49,6 +100,54 @@ void paletteRgb(int index, int & r, int & g, int & b) {
     g = kCubeLevels[(i / 6) % 6];
     b = kCubeLevels[i % 6];
   }
+}
+
+// The 8x8 Bayer matrix as thresholds in (0, 1).
+float bayer8(int x, int y) {
+  static const float * table = [] {
+    static float t[64];
+    int m[64] = {0};
+    for (int size = 1; size < 8; size *= 2) {
+      int next[64] = {0};
+      for (int yy = 0; yy < size; yy++) {
+        for (int xx = 0; xx < size; xx++) {
+          int v = 4 * m[yy * 8 + xx];
+          next[yy * 8 + xx] = v;
+          next[yy * 8 + xx + size] = v + 2;
+          next[(yy + size) * 8 + xx] = v + 3;
+          next[(yy + size) * 8 + xx + size] = v + 1;
+        }
+      }
+      std::copy(std::begin(next), std::end(next), std::begin(m));
+    }
+    for (int i = 0; i < 64; i++) t[i] = (static_cast<float>(m[i]) + 0.5f) / 64.0f;
+    return t;
+  }();
+  return table[(y & 7) * 8 + (x & 7)];
+}
+
+// Of the two entries around `v` on a ramp of `levels`, the upper one when
+// v lies above `threshold` of the way between them.
+int orderedLevel(int v, const int * levels, int count, float threshold) {
+  int i = 0;
+  while (i + 2 < count && v >= levels[i + 1]) i++;
+  float span = static_cast<float>(levels[i + 1] - levels[i]);
+  float frac = std::clamp(static_cast<float>(v - levels[i]) / span, 0.0f, 1.0f);
+  return frac > threshold ? i + 1 : i;
+}
+
+// A pixel's palette index by ordered dithering: each channel between its
+// two cube levels, a grey on the grey ramp (with the cube's black and
+// white at its ends) - exact for any gap, with no search.
+int orderedIndex(int r, int g, int b, float threshold) {
+  int hi = std::max({r, g, b}), lo = std::min({r, g, b});
+  if (hi - lo < 12) {
+    static const int kGreys[26] = {0, 8, 18, 28, 38, 48, 58, 68, 78, 88, 98, 108, 118, 128, 138, 148, 158, 168, 178, 188, 198, 208, 218, 228, 238, 255};
+    int k = orderedLevel((r + g + b) / 3, kGreys, 26, threshold);
+    return k == 0 ? 16 : k == 25 ? 231 : 232 + (k - 1);
+  }
+  return 16 + 36 * orderedLevel(r, kCubeLevels, 6, threshold) + 6 * orderedLevel(g, kCubeLevels, 6, threshold) +
+         orderedLevel(b, kCubeLevels, 6, threshold);
 }
 
 int percent(int v) { return static_cast<int>(std::lround(v * 100.0 / 255.0)); }
@@ -141,10 +240,58 @@ std::vector<uint8_t> encodePng(const Image & image, int x0, int y0, int width, i
   return png;
 }
 
-std::string encodeSixel(const Image & image, int x0, int y0, int width, int height, const std::vector<bool> & keep) {
+std::string encodeSixel(const Image & image, int x0, int y0, int width, int height, const std::vector<bool> & keep,
+                        const Dither & dither) {
+  // Each pixel's palette index, dithered.
+  std::vector<int> indices(static_cast<size_t>(width) * static_cast<size_t>(height));
+  auto pixel = [&](int x, int y) {
+    return image.pixels[static_cast<size_t>(y0 + y) * static_cast<size_t>(image.width) + static_cast<size_t>(x0 + x)];
+  };
+  if (dither.method == Dither::Method::FLOYD_STEINBERG) {
+    // Error rows with a border on both sides.
+    std::vector<float> current(static_cast<size_t>(width + 2) * 3, 0.0f), next(current.size(), 0.0f);
+    for (int y = 0; y < height; y++) {
+      std::fill(next.begin(), next.end(), 0.0f);
+      for (int x = 0; x < width; x++) {
+        uint32_t p = pixel(x, y);
+        size_t e = static_cast<size_t>(x + 1) * 3;
+        float want[3] = {Image::red(p) + current[e], Image::green(p) + current[e + 1], Image::blue(p) + current[e + 2]};
+        int c[3];
+        for (size_t k = 0; k < 3; k++) c[k] = static_cast<int>(std::lround(std::clamp(want[k], 0.0f, 255.0f)));
+        int index = nearest256(Color(c[0], c[1], c[2]));
+        indices[static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x)] = index;
+        int got[3];
+        paletteRgb(index, got[0], got[1], got[2]);
+        for (size_t k = 0; k < 3; k++) {
+          float error = want[k] - static_cast<float>(got[k]);
+          current[e + 3 + k] += error * 7.0f / 16.0f;
+          next[e - 3 + k] += error * 3.0f / 16.0f;
+          next[e + k] += error * 5.0f / 16.0f;
+          next[e + 3 + k] += error * 1.0f / 16.0f;
+        }
+      }
+      current.swap(next);
+    }
+  } else {
+    std::unordered_map<uint32_t, int> cache;
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        uint32_t p = pixel(x, y);
+        int index;
+        if (dither.method == Dither::Method::ORDERED) {
+          index = orderedIndex(Image::red(p), Image::green(p), Image::blue(p), bayer8(dither.origin_x + x, dither.origin_y + y));
+        } else {
+          auto it = cache.find(p & 0x00ffffffu);
+          index = it != cache.end() ? it->second : nearest256(Color(Image::red(p), Image::green(p), Image::blue(p)));
+          cache.emplace(p & 0x00ffffffu, index);
+        }
+        indices[static_cast<size_t>(y) * static_cast<size_t>(width) + static_cast<size_t>(x)] = index;
+      }
+    }
+  }
+
   // Each pixel's register (its palette index - 16), or -1 when left out.
   std::vector<int> regs(static_cast<size_t>(width) * static_cast<size_t>(height), -1);
-  std::unordered_map<uint32_t, int> cache;
   std::set<int> used;
   bool transparent = height % 6 != 0;
   for (int y = 0; y < height; y++) {
@@ -155,17 +302,8 @@ std::string encodeSixel(const Image & image, int x0, int y0, int width, int heig
         transparent = true;
         continue;
       }
-      uint32_t rgb = p & 0x00ffffffu;
-      auto it = cache.find(rgb);
-      int reg;
-      if (it != cache.end()) {
-        reg = it->second;
-      } else {
-        reg = nearest256(Color(Image::red(p), Image::green(p), Image::blue(p))) - 16;
-        cache.emplace(rgb, reg);
-      }
-      regs[i] = reg;
-      used.insert(reg);
+      regs[i] = indices[i] - 16;
+      used.insert(regs[i]);
     }
   }
   std::string out = "\x1bP0;" + std::string(transparent ? "1" : "0") + ";0q\"1;1;" + std::to_string(width) + ";" + std::to_string(height);
@@ -216,7 +354,7 @@ std::vector<ImageEncoder::Rect> ImageEncoder::visibleRects(const CellBuffer & fr
   std::vector<Rect> rects;
   int ch = profile_.cell_px_height, cw = profile_.cell_px_width;
   if (ch <= 0 || cw <= 0) return rects;
-  int rows = (p.image->height + ch - 1) / ch, cols = (p.image->width + cw - 1) / cw;
+  int rows = p.image->coveredRows(ch), cols = p.image->coveredCols(cw);
   int row_hi = std::min(p.row + rows, frame.rows() - (avoid_last_row ? 1 : 0));
   int col_hi = std::min(p.col + cols, frame.cols());
   for (int r = std::max(p.row, 0); r < row_hi; r++) {
@@ -276,12 +414,16 @@ std::string ImageEncoder::kitty(const CellBuffer & frame, const ImagePlacement &
     int ch = profile_.cell_px_height, cw = profile_.cell_px_width;
     for (size_t k = 0; k < rects.size(); k++) {
       const Rect & r = rects[k];
-      int x = (r.col - p.col) * cw, y = (r.row - p.row) * ch;
-      int w = std::min(r.cols * cw, img.width - x), h = std::min(r.rows * ch, img.height - y);
-      if (w <= 0 || h <= 0) continue;
+      int x0, x1, y0, y1;
+      img.pixelSpan(r.col - p.col, r.cols, cw, true, x0, x1);
+      img.pixelSpan(r.row - p.row, r.rows, ch, false, y0, y1);
+      if (x1 <= x0 || y1 <= y0) continue;
       out += cup(r.row, r.col);
-      out += "\x1b_Ga=p,i=" + std::to_string(shown.id) + ",p=" + std::to_string(k + 1) + ",x=" + std::to_string(x) +
-             ",y=" + std::to_string(y) + ",w=" + std::to_string(w) + ",h=" + std::to_string(h) + ",C=1,q=2\x1b\\";
+      out += "\x1b_Ga=p,i=" + std::to_string(shown.id) + ",p=" + std::to_string(k + 1) + ",x=" + std::to_string(x0) +
+             ",y=" + std::to_string(y0) + ",w=" + std::to_string(x1 - x0) + ",h=" + std::to_string(y1 - y0);
+      // A stretched picture is scaled by the terminal over its cells.
+      if (img.stretched()) out += ",c=" + std::to_string(r.cols) + ",r=" + std::to_string(r.rows);
+      out += ",C=1,q=2\x1b\\";
     }
     // Placements this picture no longer has.
     if (!changed && !cleared) {
@@ -298,15 +440,18 @@ std::string ImageEncoder::kitty(const CellBuffer & frame, const ImagePlacement &
 }
 
 std::string ImageEncoder::sixel(const CellBuffer & frame, const ImagePlacement & p, Shown & shown, bool fresh, bool cleared) {
-  const Image & img = *p.image;
   std::vector<Rect> rects = visibleRects(frame, p, true);
-  bool changed = fresh || cleared || shown.version != img.version || rects != shown.rects || p.row != shown.row || p.col != shown.col;
-  shown.version = img.version;
+  bool changed = fresh || cleared || shown.version != p.image->version || rects != shown.rects || p.row != shown.row || p.col != shown.col;
+  shown.version = p.image->version;
   shown.rects = rects;
   shown.row = p.row;
   shown.col = p.col;
   if (!changed || rects.empty()) return "";
   int ch = profile_.cell_px_height, cw = profile_.cell_px_width;
+  // Sixel draws a pixel to a pixel, so a stretched picture is scaled here.
+  Image natural;
+  if (p.image->stretched()) natural = stretch(withoutPad(*p.image), p.image->cols * cw, p.image->rows * ch);
+  const Image & img = p.image->stretched() ? natural : *p.image;
   int r0 = rects[0].row, c0 = rects[0].col, r1 = r0, c1 = c0;
   for (const Rect & r : rects) {
     r0 = std::min(r0, r.row);
@@ -331,7 +476,11 @@ std::string ImageEncoder::sixel(const CellBuffer & frame, const ImagePlacement &
     sixel_ready_ = true;
   }
   out += cup(r0, c0);
-  out += encodeSixel(img, x, y, w, h, keep);
+  Dither dither;
+  dither.method = profile_.dither;
+  dither.origin_x = p.col * cw + x;
+  dither.origin_y = p.row * ch + y;
+  out += encodeSixel(img, x, y, w, h, keep, dither);
   return out;
 }
 
@@ -347,12 +496,14 @@ std::string ImageEncoder::iterm2(const CellBuffer & frame, const ImagePlacement 
   int ch = profile_.cell_px_height, cw = profile_.cell_px_width;
   std::string out;
   for (const Rect & r : rects) {
-    int x = (r.col - p.col) * cw, y = (r.row - p.row) * ch;
-    int w = std::min(r.cols * cw, img.width - x), h = std::min(r.rows * ch, img.height - y);
-    if (w <= 0 || h <= 0) continue;
-    std::vector<uint8_t> png = encodePng(img, x, y, w, h);
-    // Sized in cells, so the terminal's own pixel scale does not matter.
-    int rows = (h + ch - 1) / ch, cols = (w + cw - 1) / cw;
+    int x0, x1, y0, y1;
+    img.pixelSpan(r.col - p.col, r.cols, cw, true, x0, x1);
+    img.pixelSpan(r.row - p.row, r.rows, ch, false, y0, y1);
+    if (x1 <= x0 || y1 <= y0) continue;
+    std::vector<uint8_t> png = encodePng(img, x0, y0, x1 - x0, y1 - y0);
+    // Sized in cells, so the terminal's own pixel scale does not matter
+    // (and a stretched picture is scaled by it).
+    int rows = img.stretched() ? r.rows : (y1 - y0 + ch - 1) / ch, cols = img.stretched() ? r.cols : (x1 - x0 + cw - 1) / cw;
     out += cup(r.row, r.col);
     out += "\x1b]1337;File=inline=1;size=" + std::to_string(png.size()) + ";width=" + std::to_string(cols) +
            ";height=" + std::to_string(rows) + ";preserveAspectRatio=0;doNotMoveCursor=1:" + base64(png) + "\a";
