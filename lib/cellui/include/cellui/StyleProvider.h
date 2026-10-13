@@ -91,6 +91,9 @@ class StyleProvider {
   // A track's identity colour, from the theme's palette.
   TrackPalette tracks;
   Color trackColor(int ordinal) const { return tracks.color(ordinal); }
+  // The slice of it on a track header: a shade toward the text colour, so it
+  // stays apart from the track's colour on a clip slot below.
+  Color trackChipColor(int ordinal) const { return tracks.color(ordinal).blend(0.3f, window_accent_fg_color); }
 
   // Cursor and playhead colors lean cyan, so they never read as the
   // neutral grey bar/beat highlighting.

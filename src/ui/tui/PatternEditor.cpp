@@ -2768,7 +2768,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    // The track's colour as a half-cell slice at the left of both heading
 	    // lines; the other half of its cell is a margin before the text.
 	    if (chip) {
-	      setFgColor(vis_info->getColor(styles.tracks));
+	      setFgColor(styles.trackChipColor(vis_info->color_ordinal_));
 	      setBgColor(segment_color(track));
 	      putstr(heading_height - 2 - level, current_pos, "▌");
 	      putstr(heading_height - 2 - level + 1, current_pos, "▌");
