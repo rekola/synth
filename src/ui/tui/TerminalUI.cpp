@@ -263,7 +263,20 @@ public:
   TerminalMenu(UIPlane & parent, vector<string> buffer_names, vector<string> buffer_display_names, string active_buffer_name)
     : parent_(parent), plane_(parent.createChild()), bar_(*plane_), buffer_names_(std::move(buffer_names)),
       buffer_display_names_(std::move(buffer_display_names)), active_buffer_name_(std::move(active_buffer_name)) {
+    // The plane spans the tallest section; below the bar and an open
+    // section the screen shows through.
+    plane_->makeTransparent();
     rebuild();
+  }
+
+  void applyStyles(const StyleProvider & styles) override {
+    cellui::MenuBar::Colors colors;
+    colors.header_fg = styles.menu_fg_color;
+    colors.header_bg = styles.menu_bg_color;
+    colors.section_fg = styles.menu_section_fg_color;
+    colors.section_bg = styles.menu_section_bg_color;
+    bar_.setColors(colors);
+    bar_.draw();
   }
 
   void refreshBuffers(const vector<string> & buffer_names, const vector<string> & buffer_display_names,
@@ -851,6 +864,7 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
   root_plane_->setDisplayScale(caps.display_scale);
   root_plane_->setSextants(caps.sextants);
   root_plane_->setFlatChildren(true);
+  root_plane_->setThemedBases(true);
   if (use_pixel) root_plane_->setCellPixelSize(caps.cell_px_height, caps.cell_px_width);
   setPlane(std::move(root_plane));
 
@@ -864,6 +878,7 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
     buffer_display_names.reserve(buffer_names.size());
     for (auto & name : buffer_names) buffer_display_names.push_back(controller->getBufferDisplayName(name));
     menu_ = make_shared<TerminalMenu>(getPlane(), buffer_names, std::move(buffer_display_names), controller->getActiveBufferName());
+    menu_->applyStyles(styles_);
   }
 
   if (use_pixel) chart_ = make_shared<TerminalPixelSpectrumMeter>(getPlane());
@@ -909,6 +924,16 @@ TerminalUI::resizeScreen() {
   root_plane_->resize(session_.rows(), session_.cols());
 }
 
+// The command row has no background of its own: the display cannot draw the
+// last cell of the last row, so a coloured row would end in a different one.
+void
+TerminalUI::clearLastRow() {
+  auto [rows, cols] = getDim();
+  if (rows < 1) return;
+  setBgDefault();
+  putstr(rows - 1, 0, std::string(static_cast<size_t>(cols), ' '));
+}
+
 void
 TerminalUI::applyTheme(const Theme & theme) {
   styles_.applyTheme(theme);
@@ -916,6 +941,8 @@ TerminalUI::applyTheme(const Theme & theme) {
   setFgColor(styles_.window_fg_color);
   setBgColor(styles_.window_bg_color);
   fill();
+  clearLastRow();
+  if (menu_) menu_->applyStyles(styles_);
   scopes_stale_ = true;
   force_next_render_ = true;
 }
@@ -1465,11 +1492,12 @@ TerminalUI::layout() {
   // hidden, the workspace below covers these rows instead.)
   setFgColor(styles_.window_border_color);
   setBgColor(styles_.window_bg_color);
+  const char * divider_glyph = styles_.grid_lines ? "│" : " ";
   for (int row = 0; show_scopes && row < kScopeHeight; row++) {
-    putstr(scope_row + row, cover_art_divider_x, "│");
-    putstr(scope_row + row, matrix_divider_x, "│");
-    putstr(scope_row + row, divider1_x, "│");
-    putstr(scope_row + row, divider2_x, "│");
+    putstr(scope_row + row, cover_art_divider_x, divider_glyph);
+    putstr(scope_row + row, matrix_divider_x, divider_glyph);
+    putstr(scope_row + row, divider1_x, divider_glyph);
+    putstr(scope_row + row, divider2_x, divider_glyph);
   }
   // The workspace below the scope row. A widget the current view doesn't
   // show gets the same rect as a visible one instead of being shrunk to
@@ -1493,8 +1521,8 @@ TerminalUI::layout() {
       // carries the header row's backdrop across to the clip grid's.
       setFgColor(styles_.window_border_color);
       for (int row = 0; row < workspace_rows; row++) {
-        setBgColor(row == 0 ? styles_.heading_bg_color : styles_.window_bg_color);
-        putstr(workspace_row + row, outline_cols - 1, "│");
+        setBgColor(row == 0 && styles_.grid_lines ? styles_.heading_bg_color : styles_.window_bg_color);
+        putstr(workspace_row + row, outline_cols - 1, divider_glyph);
       }
     }
     chart_->setVisible(live_scopes);
@@ -1503,17 +1531,19 @@ TerminalUI::layout() {
       int scope_x_width = outline_cols - 1;
       int chart_row = workspace_row + outline_rows + 1;
       int heatmap_row = chart_row + kScopeHeight + 1;
-      // A title bar above each scope, like the outline's heading; it ends in
-      // a half block over the divider column.
+      // A title bar above each scope, like the outline's heading; with
+      // lines between the columns it ends in a half block over the divider.
       const std::pair<int, const char *> titles[] = { { chart_row - 1, "Spectrum" }, { heatmap_row - 1, "DirAC" } };
       for (auto & [ title_row, title ] : titles) {
         setFgColor(styles_.window_accent_fg_color);
         setBgColor(styles_.heading_bg_color);
         putstr(title_row, 0, std::string(static_cast<size_t>(scope_x_width), ' '));
         putstr(title_row, 1, title);
-        setFgColor(styles_.heading_bg_color);
-        setBgColor(styles_.window_bg_color);
-        putstr(title_row, scope_x_width, "▌");
+        if (styles_.grid_lines) {
+          setFgColor(styles_.heading_bg_color);
+          setBgColor(styles_.window_bg_color);
+          putstr(title_row, scope_x_width, "▌");
+        }
       }
       chart_->resize(kScopeHeight, scope_x_width).move(chart_row, 0);
       heatmap_->resize(kScopeHeight, scope_x_width).move(heatmap_row, 0);
@@ -1543,6 +1573,7 @@ TerminalUI::layout() {
   auto octave_width = octave_control_->preferredWidth();
   octave_control_->resize(1, octave_width).move(rows - 2, std::max(0, cols - octave_width));
   status_line_->resize(1, cols - 1).move(rows - 1, 0);
+  clearLastRow();
 }
 
 bool

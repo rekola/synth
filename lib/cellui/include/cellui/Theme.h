@@ -12,7 +12,8 @@ namespace cellui {
 // modern one has one OKLCH lightness and, for each of the first eight tracks,
 // a hue and a chroma picked to keep the closest two as different as can be on
 // the screen and on the Launchpad's pads, with the hues clear of the clip
-// state colours (a muted colour beside a vivid one tells close hues apart);
+// state colours: one colour per family (orange, olive, cyan, blue, purple,
+// pink) and two greys, without the gamut's pure blue corner;
 // later tracks step the hue by the golden ratio over the arcs the states leave
 // free, so a track never looks like a playing or a recording clip.
 struct TrackPalette {
@@ -58,7 +59,7 @@ struct TrackPalette {
   };
   static constexpr int kTableSize = 8;
   static constexpr Entry kTable[kTableSize] = {
-    { 239, 0.16f }, { 350, 0.08f }, { 105, 0.16f }, { 278, 0.19f }, { 182, 0.08f }, { 314, 0.12f }, { 78, 0.19f }, { 272, 0.04f },
+    { 205, 0.14f }, { 344, 0.08f }, { 108, 0.19f }, { 263, 0.12f }, { 108, 0.04f }, { 308, 0.12f }, { 69, 0.19f }, { 230, 0.04f },
   };
 };
 
@@ -96,6 +97,11 @@ struct Theme {
 
   TrackPalette tracks = TrackPalette::original();
 
+  // Columns of a grid are told apart by a line between them; without lines
+  // each column body is a panel surface with a gutter of the base surface
+  // between. (The tracker view keeps its lines either way.)
+  bool grid_lines = true;
+
   // Roles outside the surfaces: the cursor tints, text on a track colour,
   // the command and reader text, the info bar, the meter and spectrum
   // ramps, track flags, locators, buttons and the master track's bar.
@@ -127,6 +133,18 @@ struct Theme {
   Color button_pressed_bg;
   Color row_pressed_bg;
   Color master_track;
+  // The menu bar, and the sections that drop down from it.
+  Color menu_fg;
+  Color menu_bg;
+  Color menu_section_fg;
+  Color menu_section_bg;
+  // The base of a widget's plane, which shows wherever the widget draws
+  // nothing (a scope between its bars), and the list picker's background,
+  // text and border.
+  Color plane_base_bg;
+  Color picker_bg;
+  Color picker_fg;
+  Color picker_border;
   // The pattern editor's data columns: local fx, velocity, delay.
   Color data_fx;
   Color data_velocity;
@@ -181,6 +199,14 @@ struct Theme {
     t.button_pressed_bg = Color("#7a2850");
     t.row_pressed_bg = Color("#5c7c8c");
     t.master_track = Color("#533918");
+    t.menu_fg = Color("#ffffff");
+    t.menu_bg = Color("#7f347f");
+    t.menu_section_fg = Color("#ffffff");
+    t.menu_section_bg = Color("#000000");
+    t.plane_base_bg = Color("#200020");
+    t.picker_bg = Color("#202020");
+    t.picker_fg = Color("#c0c0c0");
+    t.picker_border = Color("#606060");
     t.data_fx = Color("#d65cd6");
     t.data_velocity = Color("#bfa426");
     t.data_delay = Color("#42c1ea");
@@ -192,23 +218,24 @@ struct Theme {
   static Theme dark() {
     Theme t = original();
     t.tracks = TrackPalette::modern();
-    t.surface_base = Color("#0d1115");
-    t.surface_panel = Color("#161a1e");
-    t.surface_raised = Color("#21262b");
-    t.surface_overlay = Color("#2d3238");
-    t.text_primary = Color("#e7ecf0");
-    t.text_secondary = Color("#acb2b7");
-    t.text_disabled = Color("#70757a");
-    t.text_on_accent = Color("#071417");
-    t.accent = Color("#7acce0");
-    t.accent_dim = Color("#234951");
+    t.grid_lines = false;
+    t.surface_base = Color("#080c0f");
+    t.surface_panel = Color("#151a1f");
+    t.surface_raised = Color("#252b30");
+    t.surface_overlay = Color("#363d43");
+    t.text_primary = Color("#f0f4f7");
+    t.text_secondary = Color("#bfc5ca");
+    t.text_disabled = Color("#82878c");
+    t.text_on_accent = Color("#040f13");
+    t.accent = Color("#75d4eb");
+    t.accent_dim = Color("#245560");
     t.focus = t.accent;
     shareStates(t);
     t.grid_beat_fg = t.text_secondary;
     t.grid_beat_bg = t.surface_panel;
     t.grid_bar_fg = t.text_primary;
     t.grid_bar_bg = t.surface_raised;
-    t.cursor_tint = Color("#bce5ef");
+    t.cursor_tint = Color("#bae9f5");
     t.cursor_row_tint = t.accent;
     t.command_column = Color("#d4963c");
     t.reader_text = t.accent;
@@ -226,8 +253,16 @@ struct Theme {
     t.button_fg = t.text_on_accent;
     t.button_bg = t.accent;
     t.button_pressed_bg = Color("#4f9fb4");
-    t.row_pressed_bg = Color("#2d5f6a");
+    t.row_pressed_bg = Color("#2f6b78");
     t.master_track = t.surface_raised;
+    t.menu_fg = t.text_primary;
+    t.menu_bg = t.surface_raised;
+    t.menu_section_fg = t.text_primary;
+    t.menu_section_bg = t.surface_overlay;
+    t.plane_base_bg = t.surface_base;
+    t.picker_bg = t.surface_overlay;
+    t.picker_fg = t.text_primary;
+    t.picker_border = t.text_secondary;
     t.data_fx = Color("#c58be0");
     t.data_velocity = Color("#d4b03c");
     t.data_delay = Color("#6cc4e0");
@@ -271,6 +306,14 @@ struct Theme {
     t.button_pressed_bg = Color("#004a66");
     t.row_pressed_bg = Color("#8ab8cc");
     t.master_track = t.surface_raised;
+    t.menu_fg = t.text_primary;
+    t.menu_bg = t.surface_raised;
+    t.menu_section_fg = t.text_primary;
+    t.menu_section_bg = t.surface_overlay;
+    t.plane_base_bg = t.surface_base;
+    t.picker_bg = t.surface_overlay;
+    t.picker_fg = t.text_primary;
+    t.picker_border = t.text_secondary;
     t.data_fx = Color("#8a3fa8");
     t.data_velocity = Color("#7a5c00");
     t.data_delay = Color("#00607f");

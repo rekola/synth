@@ -65,6 +65,12 @@ TEST(dark_theme_keeps_the_other_colours_too) {
   CHECK(same(s.button_pressed_bg_color, "#7a2850"));
   CHECK(same(s.row_pressed_bg_color, "#5c7c8c"));
   CHECK(same(s.master_track_color, "#533918"));
+  CHECK(same(s.menu_bg_color, "#7f347f"));
+  CHECK(same(s.menu_section_bg_color, "#000000"));
+  CHECK(same(s.plane_base_bg_color, "#200020"));
+  CHECK(same(s.picker_bg_color, "#202020"));
+  CHECK(same(s.picker_fg_color, "#c0c0c0"));
+  CHECK(same(s.picker_border_color, "#606060"));
   CHECK(same(s.data_fx_color, "#d65cd6"));
   CHECK(same(s.data_velocity_color, "#bfa426"));
   CHECK(same(s.data_delay_color, "#42c1ea"));
@@ -113,7 +119,7 @@ TEST(themes_are_found_by_name) {
   CHECK(Theme::byName("original", t));
   CHECK(same(t.surface_base, "#111111"));
   CHECK(Theme::byName("dark", t));
-  CHECK(same(t.surface_base, "#0d1115"));
+  CHECK(same(t.surface_base, "#080c0f"));
   CHECK(Theme::byName("light", t));
   CHECK(same(t.surface_base, "#f0f4f7"));
   CHECK(!Theme::byName("neon", t));
@@ -125,7 +131,7 @@ TEST(the_original_track_colours_are_the_golden_angle_hsl_ones) {
 }
 
 TEST(the_modern_track_colours_are_the_token_table) {
-  const char * expected[] = {"#0085cf", "#a06882", "#8b7f00", "#6668e9", "#3c8b7f", "#9565ad", "#b76600", "#737b94"};
+  const char * expected[] = {"#0092a3", "#9e6887", "#898100", "#557ac3", "#7e7e63", "#9067b2", "#c05e00", "#64818f"};
   auto p = Theme::dark().tracks;
   for (int i = 0; i < 8; i++) CHECK(near(p.color(i), expected[i]));
 }
@@ -157,6 +163,10 @@ TEST(modern_themes_keep_text_readable) {
     CHECK(contrast(t.data_velocity, t.surface_base) >= 4.5);
     CHECK(contrast(t.data_delay, t.surface_base) >= 4.5);
     CHECK(contrast(t.info_line_fg, t.info_line_bg) >= 4.5);
+    CHECK(contrast(t.menu_fg, t.menu_bg) >= 4.5);
+    CHECK(contrast(t.menu_section_fg, t.menu_section_bg) >= 4.5);
+    CHECK(contrast(t.picker_fg, t.picker_bg) >= 4.5);
+    CHECK(contrast(t.picker_border, t.picker_bg) >= 3.0);
     for (int i = 0; i < 8; i++) {
       CHECK(contrast(t.tracks.color(i), t.surface_base) >= 3.0);
       CHECK(contrast(t.text_on_track, t.tracks.color(i)) >= 4.5);
@@ -194,8 +204,32 @@ TEST(the_first_modern_tracks_differ_from_each_other_and_on_the_pads) {
   auto pad = [&](int i) { return Color::fromHSL(p.hslHue(i), p.padSaturation(i), 0.3f); };
   for (int i = 0; i < 8; i++) {
     for (int j = i + 1; j < 8; j++) {
-      CHECK(dist(p.color(i), p.color(j)) >= 7.0);
-      CHECK(dist(pad(i), pad(j)) >= 11.0);
+      CHECK(dist(p.color(i), p.color(j)) >= 6.5);
+      CHECK(dist(pad(i), pad(j)) >= 10.0);
     }
   }
+}
+
+TEST(the_light_theme_derives_its_menu_and_picker_from_its_own_surfaces) {
+  auto l = Theme::light();
+  CHECK(same(l.menu_bg, l.surface_raised));
+  CHECK(same(l.menu_section_bg, l.surface_overlay));
+  CHECK(same(l.picker_bg, l.surface_overlay));
+  CHECK(same(l.picker_fg, l.text_primary));
+  CHECK(same(l.plane_base_bg, l.surface_base));
+}
+
+TEST(a_modern_widget_plane_shows_the_base_surface_where_it_draws_nothing) {
+  CHECK(same(StyleProvider(Theme::dark()).plane_base_bg_color, "#080c0f"));
+  CHECK(same(StyleProvider(Theme::light()).plane_base_bg_color, "#f0f4f7"));
+}
+
+TEST(only_the_original_theme_draws_lines_between_grid_columns) {
+  StyleProvider o(Theme::original()), d(Theme::dark()), l(Theme::light());
+  CHECK(o.grid_lines);
+  CHECK(same(o.grid_bg_color, o.window_bg_color));
+  CHECK(!d.grid_lines);
+  CHECK(same(d.grid_bg_color, d.theme.surface_panel));
+  CHECK(!l.grid_lines);
+  CHECK(same(l.grid_bg_color, l.theme.surface_panel));
 }

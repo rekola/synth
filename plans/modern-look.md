@@ -132,9 +132,11 @@ Themes are data:
      `select-theme` command choose (dark by default);
    - track colours; Done: `TrackPalette` in the theme. The first eight are a
      table of hue and chroma picked so the closest two differ as much as
-     possible on the screen and as Launchpad pads (the Launchpad takes the
-     palette's hues and a saturation from the chroma in every theme); later
-     ones step the hue over the arcs the clip state hues leave free;
+     possible on the screen and as Launchpad pads, one colour per family
+     (orange, olive, cyan, blue, purple, pink) and two greys, without the
+     gamut's pure blue (the Launchpad takes the palette's hues and a
+     saturation from the chroma in every theme); later ones step the hue over
+     the arcs the clip state hues leave free;
    - fewer lines, but not between tracks in the tracker view;
    - the icon list;
    - fades for state changes.

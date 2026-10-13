@@ -43,6 +43,13 @@ class BufferPlane : public UIPlane {
 
   void setFgColor(int r, int g, int b) override { style_.fg = Color(r, g, b); }
   void setBgColor(int r, int g, int b) override { style_.bg = Color(r, g, b); }
+  void setBgDefault() override {
+    style_.bg.reset();
+    base_bg_.reset();
+  }
+  // Where nothing is written the plane shows what is below it, glyph and
+  // colours alike, even with a themed base.
+  void makeTransparent() override { base_bg_.reset(); }
   void setUnderline(bool b) override { style_.underline = b; }
   void setBold(bool b) override { style_.bold = b; }
   void setItalic(bool b) override { style_.italic = b; }
@@ -102,6 +109,10 @@ class BufferPlane : public UIPlane {
   // the model the terminal application's widgets were written for, where a
   // widget's popup can rise above any other widget (root only).
   void setFlatChildren(bool flat) { flat_ = flat; }
+  // With themed bases, a plane made by createChild() shows the theme's
+  // plane base background (under the glyph below) wherever it writes
+  // nothing, until makeTransparent() (root only).
+  void setThemedBases(bool themed) { themed_bases_ = themed; }
   // What canRenderSextants() reports, for the whole tree (root only).
   void setSextants(bool can) { sextants_ = can; }
   bool canRenderSextants() const override { return root().sextants_; }
@@ -152,9 +163,12 @@ class BufferPlane : public UIPlane {
   double display_scale_ = 1.0;
   bool sextants_ = false;
   bool flat_ = false;
+  bool themed_bases_ = false;
   int cell_px_h_ = 0, cell_px_w_ = 0;
   mutable std::vector<ImagePlacement> placements_;
 
+  // The background of the cells nothing was written to; unset shows below.
+  std::optional<Color> base_bg_;
   std::shared_ptr<Image> image_;
   uint64_t key_ = 0;
 };

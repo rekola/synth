@@ -18,6 +18,8 @@ class StyleProvider {
   void applyTheme(const Theme & t) {
     theme = t;
     tracks = t.tracks;
+    grid_lines = t.grid_lines;
+    grid_bg_color = t.grid_lines ? t.surface_base : t.surface_panel;
     highlight_fg_color = t.text_on_accent;
     highlight_bg_color = t.accent;
     highlight_unfocused_bg_color = t.accent_dim;
@@ -63,12 +65,25 @@ class StyleProvider {
     button_pressed_bg_color = t.button_pressed_bg;
     row_pressed_bg_color = t.row_pressed_bg;
     master_track_color = t.master_track;
+    menu_fg_color = t.menu_fg;
+    menu_bg_color = t.menu_bg;
+    menu_section_fg_color = t.menu_section_fg;
+    menu_section_bg_color = t.menu_section_bg;
+    plane_base_bg_color = t.plane_base_bg;
+    picker_bg_color = t.picker_bg;
+    picker_fg_color = t.picker_fg;
+    picker_border_color = t.picker_border;
     data_fx_color = t.data_fx;
     data_velocity_color = t.data_velocity;
     data_delay_color = t.data_delay;
   }
 
   Theme theme;
+
+  // Whether grid columns have a line between them, and the colour of a
+  // column's body: the window's, or a panel surface over the gutters.
+  bool grid_lines = true;
+  Color grid_bg_color;
 
   // A track's identity colour, from the theme's palette.
   TrackPalette tracks;
@@ -197,6 +212,19 @@ class StyleProvider {
   // master-track ancestor row (a whole title bar, not text on a dark
   // background).
   Color master_track_color;
+
+  // The menu bar, and the sections that drop down from it.
+  Color menu_fg_color;
+  Color menu_bg_color;
+  Color menu_section_fg_color;
+  Color menu_section_bg_color;
+
+  // A widget plane's base, shown where the widget draws nothing, and the
+  // list picker's background, text and border.
+  Color plane_base_bg_color;
+  Color picker_bg_color;
+  Color picker_fg_color;
+  Color picker_border_color;
 
   // The pattern editor's data columns: local fx, velocity, delay.
   Color data_fx_color;

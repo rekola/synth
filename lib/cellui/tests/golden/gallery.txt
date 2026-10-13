@@ -4,15 +4,15 @@ Text styles
 normal  bold   italic  underline  bold italic
 
 Surfaces and text
- surface.base        secondary text      disabled text       #0d1115
- surface.panel       secondary text      disabled text       #161a1e
- surface.raised      secondary text      disabled text       #21262b
- surface.overlay     secondary text      disabled text       #2d3238
+ surface.base        secondary text      disabled text       #080c0f
+ surface.panel       secondary text      disabled text       #151a1f
+ surface.raised      secondary text      disabled text       #252b30
+ surface.overlay     secondary text      disabled text       #363d43
 
 Accent and state
- accent                  #7acce0
- accent.dim              #234951
- focus                   #7acce0
+ accent                  #75d4eb
+ accent.dim              #245560
+ focus                   #75d4eb
  state.playing           #009722
  state.playing.dim       #668666
  state.recording         #e23532

@@ -55,6 +55,8 @@ class MenuBar {
   // Sizes the plane to its parent's width and draws.
   void layout(int parent_cols);
   void draw();
+  // Takes effect on the next draw().
+  void setColors(const Colors & colors) { colors_ = colors; }
 
   // Whether the input was the menu's.
   bool offerInput(const Input & input);

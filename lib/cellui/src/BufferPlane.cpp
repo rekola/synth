@@ -89,7 +89,9 @@ void BufferPlane::putstr(int y, int x, const std::string & s) {
 
 std::unique_ptr<UIPlane> BufferPlane::createChild() {
   BufferPlane & parent = root().flat_ ? root() : *this;
-  return std::unique_ptr<UIPlane>(new BufferPlane(parent));
+  auto child = std::unique_ptr<BufferPlane>(new BufferPlane(parent));
+  if (root().themed_bases_) child->base_bg_ = getStyles().plane_base_bg_color;
+  return child;
 }
 
 void BufferPlane::drawBorder() {
@@ -138,7 +140,14 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
   for (int r = row_lo; r < row_hi && !image_; r++) {
     for (int c = col_lo; c < col_hi; c++) {
       const CellBuffer::Cell & cell = local_.at(r - row, c - col);
-      if (CellBuffer::isBlank(cell)) continue;
+      if (CellBuffer::isBlank(cell)) {
+        if (base_bg_) {
+          CellBuffer::Cell below = out.at(r, c);
+          below.bg = base_bg_;
+          out.put(r, c, below);
+        }
+        continue;
+      }
       // A double-width character is drawn whole or not at all.
       if (cell.continuation && c - 1 < col_lo) continue;
       if (c + 1 < col + local_.cols() && local_.at(r - row, c + 1 - col).continuation && c + 1 >= col_hi) continue;
@@ -331,11 +340,11 @@ void BufferPlane::drawPicker() {
   p.erase();
 
   CellBuffer::Style base;
-  base.fg = Color(0xc0, 0xc0, 0xc0);
-  base.bg = Color(0x20, 0x20, 0x20);
+  base.fg = theme.picker_fg_color;
+  base.bg = theme.picker_bg_color;
   base.bg_blend = true;
   CellBuffer::Style box = base;
-  box.fg = Color(0x60, 0x60, 0x60);
+  box.fg = theme.picker_border_color;
   CellBuffer::Style option;
   option.fg = theme.highlight_bg_color;
   option.bg = theme.highlight_fg_color;
@@ -343,7 +352,7 @@ void BufferPlane::drawPicker() {
   option_selected.fg = theme.highlight_fg_color;
   option_selected.bg = theme.highlight_bg_color;
   CellBuffer::Style desc = base;
-  desc.fg = Color(0x20, 0x20, 0x20);
+  desc.fg = theme.picker_bg_color;
 
   for (int r = 0; r < rows; r++) p.local_.write(r, 0, std::string(static_cast<size_t>(body_cols), ' '), base);
   std::string horizontal;

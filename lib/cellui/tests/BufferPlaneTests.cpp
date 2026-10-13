@@ -311,3 +311,23 @@ TEST(bufferplane_flat_children_are_the_roots) {
   root.refresh();
   CHECK(b.toPlainText() == "\n\n..popup!..\n");
 }
+
+TEST(bufferplane_themed_base_colours_what_a_child_leaves_unwritten) {
+  StyleProvider styles;
+  CellBuffer b(1, 6);
+  BufferPlane root(b, styles);
+  root.setThemedBases(true);
+  root.putstr(0, 0, "abcdef");
+  auto widget = root.createChild();
+  widget->resize(1, 3);
+  widget->putstr(0, 0, "X");
+  auto overlay = root.createChild();
+  overlay->resize(1, 2);
+  overlay->move(0, 4);
+  overlay->makeTransparent();
+  root.refresh();
+  // The glyph below shows through, on the widget's base.
+  CHECK(b.toPlainText() == "Xbcdef\n");
+  CHECK(b.at(0, 1).bg && b.at(0, 1).bg->getRed() == styles.plane_base_bg_color.getRed() && b.at(0, 1).bg->getBlue() == styles.plane_base_bg_color.getBlue());
+  CHECK(!b.at(0, 3).bg && !b.at(0, 4).bg);
+}
