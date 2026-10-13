@@ -444,6 +444,20 @@ UI::initializeCommands() {
       setStatus("Scale " + scaleLabel(scale) + (retuned > 0 ? fmt::format(", {} tuned notes retuned", retuned) : ""));
     });
   });
+  // The colours: the modern look in dark or light, or the original one.
+  commands_.define("select-theme", [this]() {
+    static const char * const kNames[] = {"dark", "light", "original"};
+    std::vector<Choice> choices;
+    int current = -1;
+    for (auto name : kNames) {
+      if (theme_name_ == name) current = static_cast<int>(choices.size());
+      choices.push_back({name, name});
+    }
+    showChoiceDialog("Theme", std::move(choices), current, [this, current](int index) {
+      if (index == current || index < 0 || index >= static_cast<int>(std::size(kNames))) return;
+      if (setTheme(kNames[index])) setStatus(std::string("Theme ") + kNames[index]);
+    });
+  });
   commands_.define("next-buffer", [this]() {
     getController().cycleBuffer(true);
   });

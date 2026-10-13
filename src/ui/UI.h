@@ -2,6 +2,7 @@
 #define _UI_H_
 
 #include "UIElement.h"
+#include "Theme.h"
 #include "../util/Logger.h"
 
 #include <functional>
@@ -50,6 +51,18 @@ class UI : public UIElement {
 
   // Shows a modal dialog with Markdown content (see Markdown.h) - what a
   // command like "about" calls, so each backend only renders the text.
+  // Switches the colours by name (dark, light, original); false if there is
+  // no such theme. Called before initialize() for the --theme option, or
+  // from the select-theme command.
+  bool setTheme(const std::string & name) {
+    Theme theme;
+    if (!Theme::byName(name, theme)) return false;
+    theme_name_ = name;
+    applyTheme(theme);
+    return true;
+  }
+  // The backend takes the colours and redraws.
+  virtual void applyTheme(const Theme & /*theme*/) { }
   virtual void showInfoDialog(const std::string & title, const std::string & markdown) = 0;
 
   // One entry of a choice dialog: what the person sees, and what the command
@@ -159,6 +172,7 @@ protected:
   View view_ = View::ARRANGEMENT;
 protected:
   View initial_view_ = View::LIVE;
+  std::string theme_name_ = "dark";
 private:
   bool outline_visible_ = true;
 };

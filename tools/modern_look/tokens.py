@@ -80,23 +80,22 @@ SHARED = {
 # The level meter ramp, quiet to loud (not a Launchpad matter).
 METER = [(0.0, (0.560, 0.130, 150)), (0.5, (0.700, 0.185, 140)), (0.78, (0.780, 0.160, 85)), (0.92, (0.680, 0.200, 45)), (1.0, (0.600, 0.215, 27))]
 
-# Track identity colours: one lightness and chroma, hues spread by the
-# golden ratio over the arcs the Launchpad's own state colours leave free
-# (not near its green or red).
-TRACK_L, TRACK_C = 0.585, 0.12
-ARCS = [(45.0, 105.0), (180.0, 340.0)]
-def track_hue(i):
-    t = (0.5 + i * 0.6180339887) % 1.0
-    pos = t * sum(b - a for a, b in ARCS)
-    for a, b in ARCS:
-        if pos <= b - a: return a + pos
-        pos -= b - a
-    return ARCS[-1][1]
+# Track identity colours: one lightness, and for each of the first eight a
+# hue and a chroma, picked so the least pair of them (on the screen, and as a
+# Launchpad pad shows it) differs as much as it can while the hues stay clear
+# of the Launchpad's own state colours (green, red); a muted one beside a vivid
+# one tells close hues apart. The order puts similar ones far apart in the
+# ordinal, as neighbours are what sit side by side. Later tracks step the hue
+# by the golden ratio over the free arcs at the middle chroma.
+TRACK_L = 0.585
+TRACKS = [(239, 0.16), (350, 0.08), (105, 0.16), (278, 0.19), (182, 0.08), (314, 0.12), (78, 0.19), (272, 0.04)]
+def track_hue(i): return TRACKS[i][0]
+def track_chroma(i): return TRACKS[i][1]
 
 out = {}
 def put(name, d): out.setdefault(name, {}).update(d)
 shared_rgb = {k: oklch_to_srgb(*v) for k, v in SHARED.items()}
-tracks_rgb = [oklch_to_srgb(TRACK_L, TRACK_C, track_hue(i)) for i in range(8)]
+tracks_rgb = [oklch_to_srgb(TRACK_L, track_chroma(i), track_hue(i)) for i in range(8)]
 meter_rgb = [(f, oklch_to_srgb(*c)) for f, c in METER]
 for name, th in THEMES.items():
     rgb = {k: oklch_to_srgb(*v) for k, v in th.items()}
@@ -136,9 +135,22 @@ for i in range(8):
     h = track_hue(i)
     d = min(abs((h - sh + 180) % 360 - 180) for sh in (145, 27))
     print(f'track {i}: hue {h:6.1f}  nearest state hue {d:5.1f}  {"ok" if d >= 35 else "FAIL"}')
+def oklab(rgb):
+    def lin(c): return c/12.92 if c <= 0.04045 else ((c+0.055)/1.055)**2.4
+    r, g, b = (lin(c) for c in rgb)
+    l = (0.4122214708*r + 0.5363325363*g + 0.0514459929*b) ** (1/3)
+    m = (0.2119034982*r + 0.6806995451*g + 0.1073969566*b) ** (1/3)
+    s = (0.0883024619*r + 0.2817188376*g + 0.6299787005*b) ** (1/3)
+    return (0.2104542553*l + 0.7936177850*m - 0.0040720468*s,
+            1.9779984951*l - 2.4285922050*m + 0.4505937099*s,
+            0.0259040371*l + 0.7827717662*m - 0.8086757660*s)
+print('== track colours, least difference between two (OKLab distance x100, need >= 7)')
+least = min((math.dist(oklab(tracks_rgb[i]), oklab(tracks_rgb[j]))*100, i, j) for i in range(8) for j in range(i+1, 8))
+print(f'tracks {least[1]} and {least[2]}: {least[0]:5.1f}  {"ok" if least[0] >= 7 else "FAIL"}')
 sh = {k: hexof(v) for k, v in shared_rgb.items()}
 sh['tracks'] = [hexof(v) for v in tracks_rgb]
-sh['track_hues'] = [round(track_hue(i), 1) for i in range(8)]
+sh['track_hues'] = [track_hue(i) for i in range(8)]
+sh['track_chromas'] = [track_chroma(i) for i in range(8)]
 sh['meter'] = [[f, hexof(c)] for f, c in meter_rgb]
 out['shared'] = sh
 if len(sys.argv) > 1:

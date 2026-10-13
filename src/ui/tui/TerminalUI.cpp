@@ -1585,6 +1585,17 @@ TerminalUI::render() {
 }
 
 void
+TerminalUI::applyTheme(const Theme & theme) {
+  styles_.applyTheme(theme);
+  if (!hasPlane()) return;
+  setFgColor(styles_.window_fg_color);
+  setBgColor(styles_.window_bg_color);
+  fill();
+  scopes_stale_ = true;
+  force_next_render_ = true;
+}
+
+void
 TerminalUI::refresh() {
   nc->refresh(nullptr, nullptr);
 }

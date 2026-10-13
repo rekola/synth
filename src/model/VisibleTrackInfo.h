@@ -2,6 +2,7 @@
 #define _VISIBLETRACKINFO_H_
 
 #include "Color.h"
+#include "../ui/Theme.h"
 
 #include <cmath>
 #include <utility>
@@ -171,31 +172,14 @@ public:
 
   // Only meaningful when color_ordinal_ >= 0 - the caller decides what a
   // negative ordinal (not color-eligible) should look like instead (see
-  // PatternEditor::renderHeading()'s grey fallback). Hue is generated
-  // from the ordinal via the golden-angle step (360 / phi^2 degrees) -
-  // the standard technique for a sequence of hues that stay visually
-  // well-spread from each other no matter how many tracks exist, rather
-  // than a fixed-size palette that starts repeating after N tracks.
-  // Saturation/lightness are fixed - darkened and desaturated enough for
-  // white text to sit on top of. All three values are a starting point,
-  // tuned by eye - the mechanism (fixed S/L, generated H) is the point,
-  // not the exact numbers.
-  // The hue alone - factored out of getColor() below so a caller that
-  // wants this track's identity at a different saturation/lightness (e.g.
-  // a background-content fallback glyph, rendered as foreground text
-  // rather than a colored block - see ArrangementGrid.cpp) doesn't have to
-  // duplicate the golden-angle formula to get the same hue getColor()
-  // would.
-  float getHue() const {
-    constexpr float kGoldenAngle = 137.50776f;
-    return std::fmod(static_cast<float>(color_ordinal_) * kGoldenAngle, 360.0f);
-  }
+  // PatternEditor::renderHeading()'s grey fallback). The palette (the
+  // theme's) makes the colour from the ordinal with a stepped hue, which
+  // stays well spread however many tracks exist, unlike a fixed-size list
+  // that starts repeating. The hue alone is there for a caller that wants
+  // the identity at another saturation or lightness.
+  float getHue(const TrackPalette & palette) const { return palette.hue(color_ordinal_); }
 
-  Color getColor() const {
-    constexpr float kSaturation = 0.35f;
-    constexpr float kLightness = 0.42f;
-    return Color::fromHSL(getHue(), kSaturation, kLightness);
-  }
+  Color getColor(const TrackPalette & palette) const { return palette.color(color_ordinal_); }
 
   int num_subtracks_ = 1;
   int num_velocity_columns_ = 0;

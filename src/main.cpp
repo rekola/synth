@@ -1,4 +1,5 @@
 #ifdef _WIN32
+#include "ui/Theme.h"
 #include "audio/WasapiAudio.h"
 #else
 #include "audio/AlsaAudio.h"
@@ -47,6 +48,7 @@ int main(int argc, char *argv[]) {
   // benefit. --samplerate still overrides this.
   ChannelConfiguration channel_config(48000, kAmbisonicOrder); // default to the highest supported order
   CommonOptions common;                                        // --stereo, --legacy-binaural, --licenses, --render
+  string theme_name = "dark"; // --theme dark|light|original: the terminal UI's colours
   UI::View initial_view = UI::View::LIVE; // --view live|arrangement: which view the UI starts in
   // The saved audio/MIDI device choices; --capture-device/--playback-device/
   // --midi-input override them for this run only (`devices`), never the file
@@ -72,6 +74,14 @@ int main(int argc, char *argv[]) {
 	fmt::print(stderr, "--view requires 'live' or 'arrangement'\n");
 	exit(1);
       }
+      i++;
+    } else if (strcmp(argv[i], "--theme") == 0) {
+      Theme probe;
+      if (i + 1 >= argc || !Theme::byName(argv[i + 1], probe)) {
+	fmt::print(stderr, "--theme requires 'dark', 'light' or 'original'\n");
+	exit(1);
+      }
+      theme_name = argv[i + 1];
       i++;
     } else if (strcmp(argv[i], "--headless") == 0) {
       headless = true;
@@ -248,6 +258,7 @@ int main(int argc, char *argv[]) {
 
 #ifndef SYNTH_TERMINAL_UI
   (void)initial_view;
+  (void)theme_name;
   fmt::print(stderr, "This build has no terminal UI; use --headless\n");
   return 1;
 #else
@@ -282,6 +293,7 @@ int main(int argc, char *argv[]) {
 
   TerminalUI ui(nc);
   ui.setInitialView(initial_view);
+  ui.setTheme(theme_name);
   ui.initialize(controller);
   ui.start(audio, *midi, launchpad_io, launchpad_manager);
 

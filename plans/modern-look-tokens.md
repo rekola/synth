@@ -4,9 +4,11 @@ The values behind `plans/modern-look.md` step 2, mocked in
 `plans/modern-look-mock.html`. They come from `tools/modern_look/tokens.py`,
 which holds the OKLCH source, converts to sRGB and checks the contrast rules;
 this file is written from its output by `tools/modern_look/tokens_doc.py`.
-Change the values in `tokens.py` and re-run both. These are proposals for step
-4: step 3 keeps today's dark look exactly, and `Theme::dark()` stays as it is
-until then.
+Change the values in `tokens.py` and re-run both. `Theme::dark()` and
+`Theme::light()` (`lib/cellui/include/cellui/Theme.h`) hold these values;
+today's look is kept as `Theme::original()`. Roles the tables do not list
+(cursor tints, command and reader text, track flags, locators, buttons, the
+spectrum) take values derived from them there.
 
 ## Per theme
 
@@ -55,21 +57,25 @@ hardware's own.
 
 ### Track colours
 
-The same eight in both themes, from one formula: OKLCH L 0.585, C 0.12, the hue
-stepped by the golden ratio over the hue arcs the two state colours leave
-free (45-105 and 180-340 degrees), so a track never looks like a playing or a
-recording clip, and the pads can tell the two apart without icons.
+The same eight in both themes. One lightness (OKLCH L 0.585); for each a hue and
+a chroma, picked to make the least difference between any two as large as it
+can be, on the screen and as a Launchpad pad shows it, with the hues kept
+clear of the two state colours, so a track never looks like a playing or a
+recording clip. A muted colour beside a vivid one tells close hues apart. The
+order puts similar ones far apart in the ordinal, since neighbours are what sit
+side by side. Tracks past the eighth step the hue by the golden ratio over the
+free arcs (62-110 and 180-352 degrees, each 35 degrees from a state hue) at chroma 0.12.
 
-| Track | Hue | Colour |
-|---|---|---|
-| 0 | 230.0 | `#0088b5` |
-| 1 | 71.0 | `#a86e14` |
-| 2 | 281.9 | `#7171c1` |
-| 3 | 197.9 | `#009095` |
-| 4 | 333.9 | `#a65f99` |
-| 5 | 249.8 | `#3d80c0` |
-| 6 | 90.8 | `#977800` |
-| 7 | 301.8 | `#8969b7` |
+| Track | Hue | Chroma | Colour |
+|---|---|---|---|
+| 0 | 239 | 0.16 | `#0085cf` |
+| 1 | 350 | 0.08 | `#a06882` |
+| 2 | 105 | 0.16 | `#8b7f00` |
+| 3 | 278 | 0.19 | `#6668e9` |
+| 4 | 182 | 0.08 | `#3c8b7f` |
+| 5 | 314 | 0.12 | `#9565ad` |
+| 6 | 78 | 0.19 | `#b76600` |
+| 7 | 272 | 0.04 | `#737b94` |
 
 Where a track colour is under text (a placed arrangement block, a clip
 number) the text is `text.on-track`. The Launchpad takes the same colours,
@@ -102,22 +108,22 @@ state.recording / base              4.33  need 3.0  ok
 state.recording / panel             4.00  need 3.0  ok
 state.recording.dim / base          4.36  need 3.0  ok
 state.recording.dim / panel         4.03  need 3.0  ok
-track 0 / base                      4.66  need 3.0  ok
-track 0 / panel                     4.31  need 3.0  ok
-track 1 / base                      4.41  need 3.0  ok
-track 1 / panel                     4.07  need 3.0  ok
-track 2 / base                      4.38  need 3.0  ok
-track 2 / panel                     4.04  need 3.0  ok
-track 3 / base                      4.92  need 3.0  ok
-track 3 / panel                     4.54  need 3.0  ok
-track 4 / base                      4.24  need 3.0  ok
-track 4 / panel                     3.92  need 3.0  ok
-track 5 / base                      4.54  need 3.0  ok
-track 5 / panel                     4.19  need 3.0  ok
-track 6 / base                      4.50  need 3.0  ok
-track 6 / panel                     4.16  need 3.0  ok
-track 7 / base                      4.31  need 3.0  ok
-track 7 / panel                     3.98  need 3.0  ok
+track 0 / base                      4.74  need 3.0  ok
+track 0 / panel                     4.37  need 3.0  ok
+track 1 / base                      4.33  need 3.0  ok
+track 1 / panel                     4.00  need 3.0  ok
+track 2 / base                      4.62  need 3.0  ok
+track 2 / panel                     4.27  need 3.0  ok
+track 3 / base                      4.26  need 3.0  ok
+track 3 / panel                     3.94  need 3.0  ok
+track 4 / base                      4.71  need 3.0  ok
+track 4 / panel                     4.35  need 3.0  ok
+track 5 / base                      4.27  need 3.0  ok
+track 5 / panel                     3.95  need 3.0  ok
+track 6 / base                      4.44  need 3.0  ok
+track 6 / panel                     4.10  need 3.0  ok
+track 7 / base                      4.50  need 3.0  ok
+track 7 / panel                     4.15  need 3.0  ok
 == light
 text.primary / base                16.35  need 4.5  ok
 text.primary / raised              12.22  need 4.5  ok
@@ -135,44 +141,46 @@ state.recording / base              3.96  need 3.0  ok
 state.recording / panel             3.51  need 3.0  ok
 state.recording.dim / base          3.93  need 3.0  ok
 state.recording.dim / panel         3.48  need 3.0  ok
-track 0 / base                      3.68  need 3.0  ok
-track 0 / panel                     3.26  need 3.0  ok
-track 1 / base                      3.89  need 3.0  ok
-track 1 / panel                     3.45  need 3.0  ok
-track 2 / base                      3.92  need 3.0  ok
-track 2 / panel                     3.47  need 3.0  ok
-track 3 / base                      3.48  need 3.0  ok
-track 3 / panel                     3.09  need 3.0  ok
-track 4 / base                      4.04  need 3.0  ok
-track 4 / panel                     3.58  need 3.0  ok
-track 5 / base                      3.78  need 3.0  ok
-track 5 / panel                     3.35  need 3.0  ok
-track 6 / base                      3.81  need 3.0  ok
-track 6 / panel                     3.38  need 3.0  ok
-track 7 / base                      3.98  need 3.0  ok
-track 7 / panel                     3.53  need 3.0  ok
+track 0 / base                      3.62  need 3.0  ok
+track 0 / panel                     3.21  need 3.0  ok
+track 1 / base                      3.96  need 3.0  ok
+track 1 / panel                     3.51  need 3.0  ok
+track 2 / base                      3.71  need 3.0  ok
+track 2 / panel                     3.29  need 3.0  ok
+track 3 / base                      4.02  need 3.0  ok
+track 3 / panel                     3.57  need 3.0  ok
+track 4 / base                      3.64  need 3.0  ok
+track 4 / panel                     3.23  need 3.0  ok
+track 5 / base                      4.01  need 3.0  ok
+track 5 / panel                     3.56  need 3.0  ok
+track 6 / base                      3.86  need 3.0  ok
+track 6 / panel                     3.43  need 3.0  ok
+track 7 / base                      3.81  need 3.0  ok
+track 7 / panel                     3.38  need 3.0  ok
 == shared (text on the colour)
 text.on-track / state.playing       5.37  need 4.5  ok
 text.on-track / state.playing.dim   5.09  need 4.5  ok
 text.on-track / state.recording     4.75  need 4.5  ok
 text.on-track / state.recording.dim  4.78  need 4.5  ok
-text.on-track / track 0             5.11  need 4.5  ok
-text.on-track / track 1             4.83  need 4.5  ok
-text.on-track / track 2             4.80  need 4.5  ok
-text.on-track / track 3             5.39  need 4.5  ok
-text.on-track / track 4             4.65  need 4.5  ok
-text.on-track / track 5             4.97  need 4.5  ok
-text.on-track / track 6             4.94  need 4.5  ok
-text.on-track / track 7             4.72  need 4.5  ok
+text.on-track / track 0             5.19  need 4.5  ok
+text.on-track / track 1             4.75  need 4.5  ok
+text.on-track / track 2             5.07  need 4.5  ok
+text.on-track / track 3             4.67  need 4.5  ok
+text.on-track / track 4             5.16  need 4.5  ok
+text.on-track / track 5             4.69  need 4.5  ok
+text.on-track / track 6             4.87  need 4.5  ok
+text.on-track / track 7             4.93  need 4.5  ok
 == track hues, distance to the state hues (need >= 35 degrees)
-track 0: hue  230.0  nearest state hue  85.0  ok
-track 1: hue   71.0  nearest state hue  44.0  ok
-track 2: hue  281.9  nearest state hue 105.1  ok
-track 3: hue  197.9  nearest state hue  52.9  ok
-track 4: hue  333.9  nearest state hue  53.1  ok
-track 5: hue  249.8  nearest state hue 104.8  ok
-track 6: hue   90.8  nearest state hue  54.2  ok
-track 7: hue  301.8  nearest state hue  85.2  ok
+track 0: hue  239.0  nearest state hue  94.0  ok
+track 1: hue  350.0  nearest state hue  37.0  ok
+track 2: hue  105.0  nearest state hue  40.0  ok
+track 3: hue  278.0  nearest state hue 109.0  ok
+track 4: hue  182.0  nearest state hue  37.0  ok
+track 5: hue  314.0  nearest state hue  73.0  ok
+track 6: hue   78.0  nearest state hue  51.0  ok
+track 7: hue  272.0  nearest state hue 115.0  ok
+== track colours, least difference between two (OKLab distance x100, need >= 7)
+tracks 1 and 5:   7.3  ok
 ```
 
 Not yet covered: a high-contrast theme (step 5), the heatmap and spectrum
