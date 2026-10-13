@@ -1,12 +1,13 @@
 #include "TestFramework.h"
 
 #include <cellui/BufferPlane.h>
-#include <cellui/term/TestTerminal.h>
+#include <cellui/TestBackend.h>
 
 #include <poll.h>
 
 using namespace cellui;
 using namespace cellui::term;
+using cellui::test::TestBackend;
 
 namespace {
 
@@ -16,7 +17,7 @@ bool readable(int fd) {
 }
 
 // What an application does with a terminal: draw on a root plane, present.
-void draw(TestTerminal & t, BufferPlane & root, CellBuffer & screen, const std::string & focus = "") {
+void draw(TestBackend & t, BufferPlane & root, CellBuffer & screen, const std::string & focus = "") {
   root.refresh();
   FrameInfo info;
   info.planes = root.describe();
@@ -26,8 +27,8 @@ void draw(TestTerminal & t, BufferPlane & root, CellBuffer & screen, const std::
 
 }  // namespace
 
-TEST(testterminal_reports_its_size_and_wants_frame_info) {
-  TestTerminal t(5, 20);
+TEST(testbackend_reports_its_size_and_wants_frame_info) {
+  TestBackend t(5, 20);
   CHECK(t.rows() == 5);
   CHECK(t.cols() == 20);
   CHECK(t.capabilities().rows == 5);
@@ -35,8 +36,8 @@ TEST(testterminal_reports_its_size_and_wants_frame_info) {
   CHECK(!t.nextDeadline());
 }
 
-TEST(testterminal_input_is_readable_until_polled) {
-  TestTerminal t;
+TEST(testbackend_input_is_readable_until_polled) {
+  TestBackend t;
   CHECK(!readable(t.inputFd()));
   t.pushKey('a');
   t.pushKey(Key::Up, kModCtrl);
@@ -50,8 +51,8 @@ TEST(testterminal_input_is_readable_until_polled) {
   CHECK(t.poll().empty());
 }
 
-TEST(testterminal_wake_is_its_own_fd) {
-  TestTerminal t;
+TEST(testbackend_wake_is_its_own_fd) {
+  TestBackend t;
   CHECK(!readable(t.wakeFd()));
   t.wake();
   CHECK(readable(t.wakeFd()));
@@ -60,8 +61,8 @@ TEST(testterminal_wake_is_its_own_fd) {
   CHECK(!readable(t.wakeFd()));
 }
 
-TEST(testterminal_text_mouse_paste_resize_and_end) {
-  TestTerminal t(10, 10);
+TEST(testbackend_text_mouse_paste_resize_and_end) {
+  TestBackend t(10, 10);
   t.pushText("a\xC3\xA4");
   t.pushMouse(3, 4, Key::Button1);
   t.pushPaste("hello");
@@ -80,8 +81,8 @@ TEST(testterminal_text_mouse_paste_resize_and_end) {
   CHECK(t.rows() == 20 && t.cols() == 30);
 }
 
-TEST(testterminal_keeps_the_presented_frame) {
-  TestTerminal t(3, 10);
+TEST(testbackend_keeps_the_presented_frame) {
+  TestBackend t(3, 10);
   StyleProvider styles;
   CellBuffer screen(3, 10);
   BufferPlane root(screen, styles);
@@ -94,8 +95,8 @@ TEST(testterminal_keeps_the_presented_frame) {
   CHECK(t.redrawCount() == 1);
 }
 
-TEST(testterminal_json_has_text_styles_planes_and_focus) {
-  TestTerminal t(2, 8);
+TEST(testbackend_frame_gives_text_styles_planes_and_focus) {
+  TestBackend t(2, 8);
   StyleProvider styles;
   CellBuffer screen(2, 8);
   BufferPlane root(screen, styles);
@@ -104,25 +105,26 @@ TEST(testterminal_json_has_text_styles_planes_and_focus) {
   root.putstr(0, 0, "ab");
   root.setBold(false);
   root.setFgColor(0, 255, 0);
-  root.putstr(0, 2, "c\"");
+  root.putstr(0, 2, "c");
   auto child = root.createChild();
   child->setName("box");
   child->resize(1, 3);
   child->move(1, 2);
   child->putstr(0, 0, "xyz");
   draw(t, root, screen, "editor");
-  std::string expected =
-    "{\"rows\":2,\"cols\":8,\"cursor\":null,\"focus\":\"editor\","
-    "\"planes\":{\"y\":0,\"x\":0,\"rows\":2,\"cols\":8,\"visible\":true,\"children\":["
-    "{\"name\":\"box\",\"y\":1,\"x\":2,\"rows\":1,\"cols\":3,\"visible\":true,\"children\":[]}]},"
-    "\"lines\":[{\"text\":\"abc\\\"\",\"styles\":["
-    "{\"x\":0,\"cols\":2,\"fg\":\"#ff0000\",\"bold\":true},{\"x\":2,\"cols\":2,\"fg\":\"#00ff00\"}]},"
-    "{\"text\":\"  xyz\",\"styles\":[]}],\"images\":[]}";
-  CHECK(t.toJson() == expected);
+
+  CHECK(t.text() == "abc\n  xyz\n");
+  CHECK(t.frame().at(0, 0).bold && t.frame().at(0, 0).fg && t.frame().at(0, 0).fg->getRed() == 255);
+  CHECK(!t.frame().at(0, 2).bold && t.frame().at(0, 2).fg && t.frame().at(0, 2).fg->getGreen() == 255);
+  CHECK(t.info().focus == "editor");
+  CHECK(t.info().planes.children.size() == 1);
+  const auto & box = t.info().planes.children[0];
+  CHECK(box.name == "box");
+  CHECK(box.y == 1 && box.x == 2 && box.rows == 1 && box.cols == 3 && box.visible);
 }
 
-TEST(testterminal_json_reports_the_cursor_and_images) {
-  TestTerminal t(2, 4);
+TEST(testbackend_frame_reports_the_cursor_and_images) {
+  TestBackend t(2, 4);
   StyleProvider styles;
   CellBuffer screen(2, 4);
   BufferPlane root(screen, styles);
@@ -135,9 +137,14 @@ TEST(testterminal_json_reports_the_cursor_and_images) {
   auto at = root.cursorPosition();
   CHECK(at.has_value());
   t.present(screen, { true, at->first, at->second }, root.images(), &info);
-  std::string json = t.toJson();
-  CHECK(json.find("\"cursor\":{\"y\":1,\"x\":2}") != std::string::npos);
-  CHECK(json.find("\"images\":[{\"row\":0,\"col\":1,\"width\":10,\"height\":10}]") != std::string::npos);
-  CHECK(json.find("\"reader\":true") != std::string::npos);
-  CHECK(json.find("\"image\":0") != std::string::npos);
+
+  CHECK(t.cursor().visible && t.cursor().y == 1 && t.cursor().x == 2);
+  CHECK(t.images().size() == 1);
+  CHECK(t.images()[0].row == 0 && t.images()[0].col == 1);
+  CHECK(t.images()[0].image->width == 10 && t.images()[0].image->height == 10);
+  // The cells the image covers are marked with its index + 1.
+  CHECK(t.frame().at(0, 1).image == 1);
+  CHECK(t.frame().at(0, 0).image == 0);
+  // The reader is open on the plane showReader() was called on.
+  CHECK(t.info().planes.reader);
 }

@@ -15,7 +15,7 @@ namespace cellui::term {
 
 // What an application needs of a terminal: its capabilities and size, the
 // events that come from it, and somewhere to put a frame. TerminalSession is
-// the real one; TestTerminal keeps the frames and takes its input from the
+// the real one; TestBackend keeps the frames and takes its input from the
 // test, so an application can be exercised without a tty.
 class Terminal {
  public:

@@ -38,7 +38,7 @@ class OutlineView;
 class TerminalUI : public UI {
  public:
   // Draws on, and reads from, `session`: a TerminalSession, or a
-  // TestTerminal in a test.
+  // TestBackend in a test.
   explicit TerminalUI(cellui::term::Terminal & session);
   ~TerminalUI();
 

@@ -4,7 +4,7 @@
 #include "../src/ambisonic/ChannelConfiguration.h"
 #include "../src/ui/tui/TerminalUI.h"
 
-#include <cellui/term/TestTerminal.h>
+#include <cellui/TestBackend.h>
 
 #include <cctype>
 #include <filesystem>
@@ -29,7 +29,7 @@ using cellui::term::kModCtrl;
 struct UIFixture {
   ChannelConfiguration config{44100, 1};
   std::shared_ptr<Controller> controller = std::make_shared<Controller>(config);
-  cellui::term::TestTerminal terminal{40, 120};
+  cellui::test::TestBackend terminal{40, 120};
   std::unique_ptr<TerminalUI> ui;
 
   explicit UIFixture(const std::string & song = "", UI::View view = UI::View::LIVE) {
@@ -97,7 +97,6 @@ TEST(terminal_ui_presents_a_frame_with_its_focus_and_planes) {
   CHECK(f.terminal.info().focus == "clip-grid");
   CHECK(!f.terminal.info().planes.children.empty());
   CHECK(f.terminal.frame().rows() == 40);
-  CHECK(f.terminal.toJson().find("\"focus\":\"clip-grid\"") != std::string::npos);
 }
 
 TEST(terminal_ui_tab_switches_view_and_moves_focus) {
