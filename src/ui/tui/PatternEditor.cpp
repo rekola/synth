@@ -2765,12 +2765,13 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    // afterward.
 	    draw_divider(heading_height - 2 - level, flags_pos + (has_mute_solo ? 2 : 0), track, i);
 
-	    // The track's colour as a slice at the left of both heading lines.
+	    // The track's colour as a half-cell slice at the left of both heading
+	    // lines; the other half of its cell is a margin before the text.
 	    if (chip) {
-	      setFgColor(heading_fg);
-	      setBgColor(vis_info->getColor(styles.tracks));
-	      putstr(heading_height - 2 - level, current_pos, " ");
-	      putstr(heading_height - 2 - level + 1, current_pos, " ");
+	      setFgColor(vis_info->getColor(styles.tracks));
+	      setBgColor(segment_color(track));
+	      putstr(heading_height - 2 - level, current_pos, "▌");
+	      putstr(heading_height - 2 - level + 1, current_pos, "▌");
 	    }
 
 	    // Half brightness for PercussionTrack's fixed "(percussion)" label -
