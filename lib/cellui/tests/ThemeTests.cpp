@@ -225,6 +225,17 @@ TEST(only_the_modern_themes_show_a_track_as_a_slice_on_its_header) {
   CHECK(StyleProvider(Theme::light()).track_chips);
 }
 
+TEST(the_header_slice_is_a_shade_of_the_track_colour_toward_the_text) {
+  StyleProvider d(Theme::dark()), l(Theme::light());
+  for (int i = 0; i < 8; i++) {
+    CHECK(!same(d.trackChipColor(i), d.trackColor(i)));
+    CHECK(d.trackChipColor(i).getRed() + d.trackChipColor(i).getGreen() + d.trackChipColor(i).getBlue() >
+          d.trackColor(i).getRed() + d.trackColor(i).getGreen() + d.trackColor(i).getBlue());
+    CHECK(l.trackChipColor(i).getRed() + l.trackChipColor(i).getGreen() + l.trackChipColor(i).getBlue() <
+          l.trackColor(i).getRed() + l.trackColor(i).getGreen() + l.trackColor(i).getBlue());
+  }
+}
+
 TEST(a_modern_widget_plane_shows_the_base_surface_where_it_draws_nothing) {
   CHECK(same(StyleProvider(Theme::dark()).plane_base_bg_color, "#080c0f"));
   CHECK(same(StyleProvider(Theme::light()).plane_base_bg_color, "#f0f4f7"));
