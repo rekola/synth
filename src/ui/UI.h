@@ -103,6 +103,9 @@ class UI : public UIElement {
   // before the backend's initialize().
   void setInitialView(View view) { initial_view_ = view; }
   bool isOutlineVisible() const { return outline_visible_; }
+  // True once a backend's main loop should end: close_ui_ was set, or a
+  // shutdown signal (SIGINT/SIGTERM/SIGHUP) arrived.
+  bool shouldClose() const;
 
 protected:
   void setView(View view);
@@ -146,10 +149,6 @@ protected:
   void selectPlaybackDevice(const std::string & name, const std::string & label);
   // MIDI is read on the UI thread, so this connects it directly.
   void selectMidiInput(const std::string & spec, const std::string & label);
-
-  // True once a backend's main loop should end: close_ui_ was set, or a
-  // shutdown signal (SIGINT/SIGTERM/SIGHUP) arrived.
-  bool shouldClose() const;
 
   bool close_ui_ = false;
 
