@@ -176,8 +176,8 @@ of the switch.
    reported by `UIPlane::displayScale()`: the scopes and icons scale text,
    icons and line widths by it, hairlines excepted. The terminal's default
    colours give `Capabilities::appearance` (light or dark,
-   `detectAppearance()`), which picks the starting theme once step 7 adds a
-   light one. Next: the menu bar,
+   `detectAppearance()`), which becomes the default theme (`dark` or `light`,
+   `--theme` still overriding) once the app runs on the new backend. Next: the menu bar,
    images (kitty graphics, Sixel) from the pixel charts, then `TerminalUI`
    onto all of it and notcurses out of the build.
 6. Icons: the app's icon list, Kitty graphics/Sixel/glyph fallback, menu
