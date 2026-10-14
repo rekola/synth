@@ -100,7 +100,7 @@ of the two files carries the license text below in its own header.
 ```
 LICENSE (MIT)
 
-Copyright (C) 2021, Mikael Rekola
+Copyright (C) 2021-2026, Mikael Rekola
 Based on TinySoundFont, Copyright (C) 2017, 2018 Bernhard Schelling
 Based on SFZero, Copyright (C) 2012 Steve Folta (https://github.com/stevefolta/SFZero)
 
@@ -133,7 +133,8 @@ Barrett), which are part of that source.
 ```
 The MIT License (MIT)
 
-Copyright (c) 2014-2015 Sometrik Oy
+Copyright (c) 2025-2026 Mikael Rekola
+Copyright (c) 2014-2025 Sometrik Oy
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
