@@ -11,7 +11,7 @@
 
 namespace cellui {
 
-// A modal, bordered list the person picks one entry from: the terminal
+// A modal list on a raised panel (no border) the person picks one entry from: the terminal
 // rendering of a choice dialog. Up/Down/PageUp/PageDown/Home/End (and
 // the Emacs-style next/previous-line keys) move, Enter or a click chooses,
 // Escape or a click outside cancels; the mouse wheel scrolls.
@@ -43,7 +43,7 @@ class ChoiceDialog {
   int selected() const { return list_.selected(); }
 
  private:
-  int visibleRows() const { return rows_ - 2; }
+  int visibleRows() const { return rows_ - 5; }  // see kChromeRows
 
   std::unique_ptr<UIPlane> plane_;
   std::string title_;

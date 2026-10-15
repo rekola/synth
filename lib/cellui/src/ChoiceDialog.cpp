@@ -15,12 +15,10 @@ namespace {
 // what tells two of the same make apart.
 constexpr int kMaxWidth = 110;
 constexpr const char * kHint = "Enter: choose  Esc: cancel";
-
-string repeatUtf8(const string & glyph, int count) {
-  string out;
-  for (int i = 0; i < count; i++) out += glyph;
-  return out;
-}
+// The rows above the list (padding, title) and in all around it (also a gap,
+// the hint and padding below).
+constexpr int kTopRows = 2;
+constexpr int kChromeRows = 5;
 
 } // namespace
 
@@ -40,60 +38,61 @@ void ChoiceDialog::close() {
 void ChoiceDialog::show(UIPlane & parent, int screen_rows, int screen_cols) {
   if (labels_.empty()) return;
 
-  // Each border line is its text plus "x- " before and " " and the corner
-  // after, so the footer and title need that much room beside the box edge.
-  int widest = utf8::displayWidth(kHint) + 6;
-  widest = std::max(widest, utf8::displayWidth(title_) + 6);
-  for (auto & label : labels_) widest = std::max(widest, utf8::displayWidth(label) + 6);
+  // One column of padding each side of the text, and a column beside the
+  // longest label for the scroll arrows.
+  int widest = utf8::displayWidth(kHint) + 4;
+  widest = std::max(widest, utf8::displayWidth(title_) + 4);
+  for (auto & label : labels_) widest = std::max(widest, utf8::displayWidth(label) + 8);
   width_ = std::min({widest, kMaxWidth, std::max(10, screen_cols - 2)});
-  // Two rows for the border, and leave a little of the screen around it.
-  rows_ = std::min(static_cast<int>(labels_.size()) + 2, std::max(3, screen_rows - 2));
+  // A padding row, the title, the list, a gap, the hint and a padding row,
+  // leaving a little of the screen around it.
+  rows_ = std::min(static_cast<int>(labels_.size()) + kChromeRows, std::max(kChromeRows + 1, screen_rows - 2));
 
   if (!plane_) plane_ = parent.createChild();
   plane_->resize(rows_, width_);
-
   auto & styles = plane_->getStyles();
-  auto bg = styles.window_accent_bg_color, fg = styles.window_fg_color, border = styles.window_border_color;
-  auto cursor_fg = styles.highlight_fg_color, cursor_bg = styles.highlight_bg_color;
 
-  plane_->setBgColor(bg.getRed(), bg.getGreen(), bg.getBlue());
-  plane_->setFgColor(border.getRed(), border.getGreen(), border.getBlue());
+  auto bg = styles.picker_bg_color, fg = styles.window_fg_color, strong = styles.window_accent_fg_color;
+  auto cursor_fg = styles.highlight_fg_color, cursor_bg = styles.highlight_bg_color;
+  auto set = [&](const Color & foreground, const Color & background) {
+    plane_->setFgColor(foreground.getRed(), foreground.getGreen(), foreground.getBlue());
+    plane_->setBgColor(background.getRed(), background.getGreen(), background.getBlue());
+  };
+
+  set(fg, bg);
   plane_->setBold(false);
-  auto heading = "┌─ " + title_ + " ";
-  plane_->putstr(0, 0, heading + repeatUtf8("─", std::max(0, width_ - 1 - utf8::displayWidth(heading))) + "┐");
-  auto footing = string("└─ ") + kHint + " ";
-  plane_->putstr(rows_ - 1, 0, footing + repeatUtf8("─", std::max(0, width_ - 1 - utf8::displayWidth(footing))) + "┘");
+  plane_->setItalic(false);
+  for (int row = 0; row < rows_; row++) plane_->putstr(row, 0, string(static_cast<size_t>(width_), ' '));
+  int inner = width_ - 2;
+  set(strong, bg);
+  plane_->setBold(true);
+  plane_->putstr(1, 1, utf8::truncateToWidth(title_, inner));
+  plane_->setBold(false);
+  set(fg, bg);
+  plane_->putstr(rows_ - 2, 1, utf8::truncateToWidth(kHint, inner));
 
   int first = list_.firstVisible(visibleRows());
-  int inner = width_ - 2;
   for (int i = 0; i < visibleRows(); i++) {
     int index = first + i;
     bool selected = index == list_.selected();
-
-    plane_->setBgColor(bg.getRed(), bg.getGreen(), bg.getBlue());
-    plane_->setFgColor(border.getRed(), border.getGreen(), border.getBlue());
-    // The border's right edge doubles as the scroll indicator.
-    string edge = "│";
-    if (i == 0 && first > 0)
-      edge = "▲";
-    else if (i == visibleRows() - 1 && first + visibleRows() < static_cast<int>(labels_.size()))
-      edge = "▼";
-    plane_->putstr(i + 1, 0, "│");
-    plane_->putstr(i + 1, width_ - 1, edge);
-
-    if (selected) {
-      plane_->setBgColor(cursor_bg.getRed(), cursor_bg.getGreen(), cursor_bg.getBlue());
-      plane_->setFgColor(cursor_fg.getRed(), cursor_fg.getGreen(), cursor_fg.getBlue());
-    } else {
-      plane_->setBgColor(bg.getRed(), bg.getGreen(), bg.getBlue());
-      plane_->setFgColor(fg.getRed(), fg.getGreen(), fg.getBlue());
-    }
+    if (selected) set(cursor_fg, cursor_bg);
+    else set(fg, bg);
     // A marker for the one in use, then the label, padded so the cursor
-    // covers the whole row.
-    string text = string(" ") + (index == current_ ? "●" : " ") + " " + labels_[static_cast<size_t>(index)];
+    // covers the whole row; the last column is left for the scroll arrows.
+    string text = string(index == current_ ? "●" : " ") + " " + labels_[static_cast<size_t>(index)];
     // A label that doesn't fit ends in an ellipsis, so it is clear it goes on.
-    if (utf8::displayWidth(text) > inner) text = utf8::truncateToWidth(text, inner - 1) + "\u2026";
-    plane_->putstr(i + 1, 1, utf8::padToWidth(text, inner));
+    int room = inner - 2;
+    if (utf8::displayWidth(text) > room) text = utf8::truncateToWidth(text, room - 1) + "\u2026";
+    plane_->putstr(kTopRows + i, 0, " " + utf8::padToWidth(text, inner));
+    plane_->putstr(kTopRows + i, width_ - 1, " ");
+    // The arrows ride the right margin.
+    const char * arrow = nullptr;
+    if (i == 0 && first > 0) arrow = "▲";
+    else if (i == visibleRows() - 1 && first + visibleRows() < static_cast<int>(labels_.size())) arrow = "▼";
+    if (arrow) {
+      set(fg, bg);
+      plane_->putstr(kTopRows + i, width_ - 1, arrow);
+    }
   }
 
   x_ = (screen_cols - width_) / 2;
@@ -110,9 +109,9 @@ ChoiceDialog::offerInput(const cellui::Input & input) {
   if (id == Key::Button1) {
     // Resolved on release, like every other click in the app.
     if (input.getKind() != Input::Kind::RELEASE) return Result::NONE;
-    int row = input.getY() - y_ - 1, col = input.getX() - x_;
-    if (row < 0 || row >= visibleRows() || col < 1 || col >= width_ - 1) {
-      // Outside the list (the border counts as outside): dismiss.
+    int row = input.getY() - y_ - kTopRows, col = input.getX() - x_;
+    if (row < 0 || row >= visibleRows() || col < 0 || col >= width_) {
+      // Outside the list: the padding and title are inert, the page behind dismisses.
       bool inside_box = input.getY() >= y_ && input.getY() < y_ + rows_ && col >= 0 && col < width_;
       return inside_box ? Result::NONE : Result::CANCELLED;
     }

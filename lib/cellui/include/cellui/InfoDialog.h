@@ -7,7 +7,7 @@
 
 namespace cellui {
 
-// A bordered text box on its own plane, its content Markdown (Markdown.h):
+// A text box on its own raised plane, no border,, its content Markdown (Markdown.h):
 // the cell rendering of an info dialog, which a backend that can draw text
 // more richly replaces by laying out markdown::parse() itself. Used both as
 // a modal dialog and as a details popup.
