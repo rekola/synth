@@ -52,20 +52,22 @@ Choice list
 entry 6 of 8
 
 Info dialog
-┌─ About ──────────────────────────────────┐
-│ Cell UI                                  │
-│                                          │
-│ A small toolkit for text interfaces,     │
-│ drawn here from Markdown.                │
-└──────────────────────────────────────────┘
 
-Choice dialog
-      ┌─ Devices ────────────────────┐
-      │   Built-in Audio             │
-      │ ● USB Interface (port 2-1)   │
-      │   HDMI Output                │
-      │   Bluetooth Speaker          │
-      └─ Enter: choose  Esc: cancel ─┘
+  About
+
+  Cell UI
+
+  A small toolkit for text interfaces,
+  drawn here from Markdown.
+
+
+Choice Devices
+         Built-in Audio
+       ● USB Interface (port 2-1)
+         HDMI Output
+         Bluetooth Speaker
+
+       Enter: choose  Esc: cancel
 
 Meters
 ⣤⣤⣤⣀⣀⣀⣤⣤⣤⣤⣤⣤⣤⣤⣤⣄⣀⡀                          ⣆⢠⢸⡇
