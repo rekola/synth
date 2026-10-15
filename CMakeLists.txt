@@ -118,6 +118,7 @@ add_library(synth_engine STATIC
 	third_party/tinyxml2/tinyxml2.cpp
 	src/effects/ResonantFilter.cpp
 	src/effects/BiquadFilter.cpp
+	src/effects/Equalizer.cpp
 	src/effects/Distortion.cpp
 	src/effects/Tremolo.cpp
 	src/effects/Chorus.cpp
@@ -295,6 +296,7 @@ if(SYNTH_BUILD_INTERACTIVE)
     target_sources(synth_ui PRIVATE
       src/ui/tui/TerminalUI.cpp
       src/ui/tui/OutlineView.cpp
+      src/ui/tui/EqualizerEditor.cpp
       src/ui/tui/PatternEditor.cpp
       src/ui/tui/ArrangementGrid.cpp
       src/ui/tui/ClipGrid.cpp)

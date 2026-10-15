@@ -215,6 +215,8 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                         {nullptr, nullptr, nullptr},
                         {"Set Bus Effect A...", "", "set-bus-effect-a"},
                         {"Set Bus Effect B...", "", "set-bus-effect-b"},
+                        {nullptr, nullptr, nullptr},
+                        {"Edit Equalizer...", "", "edit-equalizer"},
                     }},
       // How the active song is shown (UI::View) - not a buffer of its own.
       {"View", 'v', {
@@ -383,7 +385,9 @@ TerminalUI::TerminalUI(cellui::term::Terminal & session)
   // the next key shows it was no Alt prefix.
   key_reader_.takeEscape = [this](const cellui::Input & escape) {
     auto active = outline_view_ && outline_view_->isModal() ? outline_view_ : active_element_.lock();
-    if (choice_dialog_.isOpen()) {
+    if (equalizer_editor_.isOpen()) {
+      closeEqualizerEditor();
+    } else if (choice_dialog_.isOpen()) {
       closeChoiceDialog();
     } else if (info_dialog_.isOpen()) {
       closeInfoDialog();
@@ -479,6 +483,7 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
 void TerminalUI::raiseOverlays() {
   menu_->raiseToTop();
   modal_scrim_.raise();
+  equalizer_editor_.raise();
   choice_dialog_.raise();
   info_dialog_.raise();
   // An info dialog takes no clicks: the terminal selects its text instead
@@ -515,6 +520,7 @@ TerminalUI::step() {
 
 std::string
 TerminalUI::focusName() const {
+  if (equalizer_editor_.isOpen()) return "equalizer-editor";
   if (choice_dialog_.isOpen()) return "choice-dialog";
   if (info_dialog_.isOpen()) return "info-dialog";
   if (outline_view_ && outline_view_->isModal()) return "outline-view";
@@ -626,6 +632,7 @@ TerminalUI::initializeWidgets() {
   clip_grid_ = make_shared<ClipGrid>(getPlane());
   clip_grid_->setScopes(scopes_.get());
   outline_view_ = make_shared<OutlineView>(getPlane());
+  outline_view_->setEditEffectHandler([this](int track_id) { showEqualizerEditor(track_id); });
   // Enter commits the cell under this grid's own (local, passive) cursor
   // to shared state - see ArrangementGrid.h's own comment on why this is a
   // callback rather than the grid reaching for PatternEditor/
@@ -1149,6 +1156,10 @@ TerminalUI::renderComponents(bool refresh) {
   // render() gate), not at whichever earlier, input-handling call site
   // actually requested it.
   if (getView() == View::LIVE && syncLiveView()) force_next_render_ = true;
+  if (equalizer_editor_.isOpen() && equalizer_editor_.refresh(getController())) {
+    layoutEqualizerEditor();
+    force_next_render_ = true;
+  }
   refresh = refresh || force_next_render_;
   force_next_render_ = false;
   bool render = false;
@@ -1328,6 +1339,11 @@ TerminalUI::offerInput(const cellui::Input & input) {
   // keystroke meant for it.
   bool reader_active = status_line_->isReaderActive() || pattern_editor_->isReaderActive() ||
     clip_grid_->isReaderActive();
+  // The equalizer editor is modal and owns its keys until it is closed.
+  if (equalizer_editor_.isOpen() && input.getId() != Key::Resize && !(input.hasCtrl() && input.getId() == 'l')) {
+    handleEqualizerEditorInput(input);
+    return true;
+  }
   // The choice dialog is modal too, and owns its keys until it is chosen
   // from or cancelled.
   if (choice_dialog_.isOpen() && input.getId() != Key::Resize && !(input.hasCtrl() && input.getId() == 'l')) {
@@ -1373,6 +1389,7 @@ TerminalUI::offerInput(const cellui::Input & input) {
     layout();
     layoutInfoDialog();
     layoutChoiceDialog();
+    layoutEqualizerEditor();
     // Deferred, not a direct renderComponents(true) call - see
     // force_next_render_'s own comment on TerminalUI.h: this runs from
     // inside input handling, before startUI()'s own main loop reaches its
@@ -1520,8 +1537,31 @@ void TerminalUI::showChoiceDialog(const std::string & title, std::vector<Choice>
   force_next_render_ = true;
 }
 
+void TerminalUI::showEqualizerEditor(int track_id) {
+  equalizer_editor_.open(getController(), track_id);
+  if (!equalizer_editor_.isOpen()) {
+    setStatus("No such equalizer");
+    return;
+  }
+  layoutEqualizerEditor();
+  force_next_render_ = true;
+}
+
+void TerminalUI::layoutEqualizerEditor() {
+  if (!equalizer_editor_.isOpen()) return;
+  layoutModalScrim();
+  auto [screen_rows, screen_cols] = getDim();
+  equalizer_editor_.show(getPlane(), screen_rows, screen_cols);
+}
+
+void TerminalUI::handleEqualizerEditorInput(const cellui::Input & input) {
+  auto result = equalizer_editor_.offerInput(getController(), input);
+  if (result == EqualizerEditor::Result::REDRAW) layoutEqualizerEditor();
+  if (result != EqualizerEditor::Result::NONE) force_next_render_ = true;
+}
+
 void TerminalUI::layoutModalScrim() {
-  if (!choice_dialog_.isOpen() && info_dialog_title_.empty()) {
+  if (!choice_dialog_.isOpen() && info_dialog_title_.empty() && !equalizer_editor_.isOpen()) {
     modal_scrim_.close();
     return;
   }

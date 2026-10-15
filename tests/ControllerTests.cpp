@@ -2083,3 +2083,35 @@ TEST(playback_info_reports_round_trip_latency_in_milliseconds) {
   fresh.setRoundTripLatency(1024, false);
   CHECK(fresh.getRoundTripLatencyMs() == -1);
 }
+
+TEST(controller_edits_an_equalizer_band_and_undo_takes_it_back) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  CHECK(controller.openSong(std::string(TESTS_FIXTURES_DIR) + "/equalizer_flat.xml"));
+
+  auto ids = controller.getEqualizerIds();
+  CHECK(ids.size() == 1);
+  auto id = ids[0];
+  CHECK(controller.findEqualizer(id) != nullptr);
+  CHECK(controller.findEqualizerFor(-1) == id);
+
+  auto band = controller.findEqualizer(id)->getBand(4);
+  band.gain_db = 9.0f;
+  band.freq = 3000.0f;
+  controller.setEqualizerBand(id, 4, band);
+  CHECK_NEAR(controller.findEqualizer(id)->getBand(4).gain_db, 9.0f, 1e-6f);
+  CHECK_NEAR(controller.findEqualizer(id)->getBand(4).freq, 3000.0f, 1e-3f);
+  // Other bands stay as they were.
+  CHECK_NEAR(controller.findEqualizer(id)->getBand(3).gain_db, 0.0f, 1e-6f);
+
+  // A drag is one undo step however many edits it makes.
+  controller.beginEqualizerGesture();
+  for (float db : { 1.0f, 2.0f, 3.0f }) {
+    band.gain_db = db;
+    controller.setEqualizerBand(id, 4, band);
+  }
+  controller.endEqualizerGesture();
+  CHECK_NEAR(controller.findEqualizer(id)->getBand(4).gain_db, 3.0f, 1e-6f);
+  controller.sendCommand("undo");
+  CHECK_NEAR(controller.findEqualizer(id)->getBand(4).gain_db, 9.0f, 1e-6f);
+}

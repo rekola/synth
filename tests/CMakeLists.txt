@@ -17,6 +17,7 @@ add_executable(synth_tests
 	FMTests.cpp
 	ControllerTests.cpp
 	DeviceSettingsTests.cpp
+	EqualizerEditorModelTests.cpp
 	DeviceLabelsTests.cpp
 	PatternBlockOpsTests.cpp
 	JustIntonationTests.cpp

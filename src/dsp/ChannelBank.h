@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <cstring>
+#include <algorithm>
 #include <vector>
 
 // Filters that apply one recurrence to many channels at once, a channel per
@@ -120,6 +121,12 @@ class BiquadBank : public PlaneTable {
   };
 
   BiquadBank(int slots, const Coefficients & c) : PlaneTable(slots, 4), c_(c), z_(static_cast<size_t>(groups())) { }
+
+  // Takes effect from the next apply(); the filter's history is kept, so a
+  // coefficient change mid-signal doesn't click.
+  void setCoefficients(const Coefficients & c) { c_ = c; }
+  // Forgets the history (a bank that has sat unused holds stale values).
+  void clearState() { std::fill(z_.begin(), z_.end(), State {}); }
 
   void apply(int frames) {
     const v4d a0 = {c_.a0, c_.a0, c_.a0, c_.a0}, a1 = {c_.a1, c_.a1, c_.a1, c_.a1}, a2 = {c_.a2, c_.a2, c_.a2, c_.a2};
