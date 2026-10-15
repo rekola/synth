@@ -203,12 +203,14 @@ Gallery::Gallery(UIPlane & plane, const Theme & theme) {
 
   page.skip();
   page.heading("Info dialog");
+  dialog_.setDimBackground(false);
   dialog_.show(plane, "About", "# Cell UI\n\nA small *toolkit* for **text** interfaces, drawn here from Markdown.", 44, 10);
   dialog_.move(page.row(), 0);
   page.skip(dialog_.rows());
 
   page.skip();
   page.heading("Choice dialog");
+  choice_.setDimBackground(false);
   choice_.open("Devices", {"Built-in Audio", "USB Interface (port 2-1)", "HDMI Output", "Bluetooth Speaker"}, 1);
   // Centred on a 44-column strip that starts at this row.
   choice_.show(plane, 2 * page.row() + 6, 44);

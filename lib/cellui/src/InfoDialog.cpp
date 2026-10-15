@@ -9,50 +9,55 @@ using namespace std;
 
 namespace cellui {
 
-namespace {
-
-string repeatUtf8(const string & glyph, int count) {
-  string out;
-  for (int i = 0; i < count; i++) out += glyph;
-  return out;
-}
-
-} // namespace
+constexpr float kScrimAmount = 0.6f;
 
 void
 InfoDialog::show(UIPlane & parent, const string & title, const string & source, int width, int max_rows) {
   auto lines = markdown::layout(markdown::parse(source), width - 4);
-  auto rows = std::min(static_cast<int>(lines.size()) + 2, std::max(3, max_rows));
+  // A padding row, the title, a gap, the text and a padding row.
+  constexpr int kTopRows = 3, kChrome = 4;
+  auto rows = std::min(static_cast<int>(lines.size()) + kChrome, std::max(kChrome + 1, max_rows));
+  auto & styles = parent.getStyles();
+  if (!dim_) scrim_.reset();
+  if (dim_ && !scrim_) {
+    scrim_ = parent.createChild();
+    scrim_->makeTransparent();
+  }
+  auto [screen_rows, screen_cols] = parent.getDim();
+  if (scrim_) {
+    scrim_->resize(screen_rows, screen_cols);
+    scrim_->move(0, 0);
+    scrim_->setScrim(styles.window_bg_color, kScrimAmount);
+    scrim_->moveToTop();
+  }
   if (!plane_) plane_ = parent.createChild();
   rows_ = rows;
   width_ = width;
   plane_->resize(rows, width);
 
-  auto & styles = plane_->getStyles();
-  auto bg = styles.window_accent_bg_color, fg = styles.window_fg_color, border = styles.window_border_color;
+  auto bg = styles.picker_bg_color, fg = styles.window_fg_color, strong = styles.window_accent_fg_color;
   plane_->setBgColor(bg.getRed(), bg.getGreen(), bg.getBlue());
-  plane_->setFgColor(border.getRed(), border.getGreen(), border.getBlue());
+  plane_->setFgColor(fg.getRed(), fg.getGreen(), fg.getBlue());
   plane_->setBold(false);
-  auto heading = "┌─ " + title + " ";
-  plane_->putstr(0, 0, heading + repeatUtf8("─", std::max(0, width - 1 - utf8::displayWidth(heading))) + "┐");
-  for (int row = 1; row < rows - 1; row++) {
-    plane_->putstr(row, 0, "│" + string(static_cast<size_t>(width - 2), ' ') + "│");
-  }
-  plane_->putstr(rows - 1, 0, "└" + repeatUtf8("─", width - 2) + "┘");
+  plane_->setItalic(false);
+  for (int row = 0; row < rows; row++) plane_->putstr(row, 0, string(static_cast<size_t>(width), ' '));
+  plane_->setFgColor(strong.getRed(), strong.getGreen(), strong.getBlue());
+  plane_->setBold(true);
+  plane_->putstr(1, 2, utf8::truncateToWidth(title, width - 4));
 
   plane_->setFgColor(fg.getRed(), fg.getGreen(), fg.getBlue());
-  for (int i = 0; i < rows - 2; i++) {
+  for (int i = 0; i < rows - kChrome; i++) {
     int x = 2;
     for (auto & run : lines[static_cast<size_t>(i)]) {
       // The plane keeps one style at a time (bold wins over italic).
-      if (run.bold) plane_->setBold(true);
-      else if (run.italic) plane_->setItalic(true);
-      else plane_->setBold(false);
-      plane_->putstr(i + 1, x, run.text);
+      plane_->setBold(run.bold);
+      plane_->setItalic(!run.bold && run.italic);
+      plane_->putstr(kTopRows + i, x, run.text);
       x += utf8::displayWidth(run.text);
     }
   }
   plane_->setBold(false);
+  plane_->setItalic(false);
 }
 
 void

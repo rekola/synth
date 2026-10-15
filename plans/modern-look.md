@@ -96,7 +96,9 @@ Themes are data:
 
 - True colour where available; elsewhere map each token to the nearest
   palette entry by perceptual distance, not by RGB distance.
-- Use box-drawing for real containers (dialogs, popups) and for the tracker
+- Modal dialogs have no border: a raised panel with a bold title and a dim
+  hint line, over a page dimmed by a scrim (`UIPlane::setScrim()`; images
+  below give way to it). Use box-drawing for other containers and for the tracker
   view's lines between tracks. Rounded corners (╭ ╮ ╰ ╯) for floating ones.
 - One-cell gutters between widgets, filled with the base surface rather
   than drawn lines.

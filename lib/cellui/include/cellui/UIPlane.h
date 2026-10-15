@@ -114,6 +114,10 @@ class UIPlane {
   // foreground leaning to white or black against the result. Default no-op.
   virtual void setBgBlend(bool) { }
   virtual void setFgContrast(bool) { }
+  // The plane dims what lies below it (the page behind a modal dialog):
+  // colours lean `amount` (0..1) toward `tint`, and images below are not
+  // shown. Amount 0 clears it. Default no-op.
+  virtual void setScrim(const Color &, float) { }
   virtual void erase() = 0;
   virtual void putstr(int y, int x, const std::string & s) = 0;
   virtual std::unique_ptr<UIPlane> createChild() = 0;

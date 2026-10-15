@@ -2032,7 +2032,8 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
 	// Reasserted every frame: a plane created after the menu (a reader, a
 	// picker, a widget's own child) lands above it, hiding an unrolled
 	// section's dropdown. See UIMenu::raiseToTop()'s own comment.
-	menu_->raiseToTop();
+	// Not over a dialog: its dimming layer covers the menu bar too.
+	if (!choice_dialog_.isOpen() && !info_dialog_.isOpen()) menu_->raiseToTop();
 	TerminalUI::render();
       }
     }

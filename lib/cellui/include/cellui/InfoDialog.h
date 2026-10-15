@@ -7,7 +7,7 @@
 
 namespace cellui {
 
-// A bordered text box on its own plane, its content Markdown (Markdown.h):
+// A text box on its own raised plane, no border, over a dimmed page,, its content Markdown (Markdown.h):
 // the cell rendering of an info dialog, which a backend that can draw text
 // more richly replaces by laying out markdown::parse() itself. Used both as
 // a modal dialog and as a details popup.
@@ -24,13 +24,21 @@ class InfoDialog {
   void center(int screen_rows, int screen_cols) {
     move((screen_rows - rows_) / 2, (screen_cols - width_) / 2);
   }
-  void close() { plane_.reset(); }
+  // Whether the page behind is dimmed while it shows (the default); off for
+  // a dialog shown as part of a page.
+  void setDimBackground(bool dim) { dim_ = dim; }
+
+  void close() {
+    plane_.reset();
+    scrim_.reset();
+  }
 
   int rows() const { return rows_; }
   int width() const { return width_; }
 
  private:
-  std::unique_ptr<UIPlane> plane_;
+  bool dim_ = true;
+  std::unique_ptr<UIPlane> scrim_, plane_;  // the dimming layer is created first, so it stays below
   int rows_ = 0, width_ = 0;
 };
 

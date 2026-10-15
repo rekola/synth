@@ -122,6 +122,18 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
   // The plane's own rectangle, inside the clip.
   int row_lo = std::max(clip_row, row), row_hi = std::min(clip_row + clip_rows, row + local_.rows());
   int col_lo = std::max(clip_col, col), col_hi = std::min(clip_col + clip_cols, col + local_.cols());
+  if (scrim_amount_ > 0.0f) {
+    for (int r = row_lo; r < row_hi; r++) {
+      for (int c = col_lo; c < col_hi; c++) {
+        CellBuffer::Cell cell = out.at(r, c);
+        // An image can't be dimmed in place: it gives way to the tint.
+        if (cell.image) cell = CellBuffer::Cell{};
+        cell.fg = cell.fg.value_or(top.default_fg_).blend(scrim_amount_, scrim_tint_);
+        cell.bg = cell.bg.value_or(top.default_bg_).blend(scrim_amount_, scrim_tint_);
+        out.put(r, c, cell);
+      }
+    }
+  }
   for (int r = row_lo; r < row_hi; r++) {
     for (int c = col_lo; c < col_hi; c++) {
       const CellBuffer::Cell & cell = local_.at(r - row, c - col);

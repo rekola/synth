@@ -59,6 +59,10 @@ class BufferPlane : public UIPlane {
   void setItalic(bool b) override { style_.italic = b; }
   void setBgBlend(bool b) override { style_.bg_blend = b; }
   void setFgContrast(bool b) override { style_.fg_contrast = b; }
+  void setScrim(const Color & tint, float amount) override {
+    scrim_tint_ = tint;
+    scrim_amount_ = amount;
+  }
   void erase() override {
     local_.clear(0, 0, local_.rows(), local_.cols());
     // Kept, so the same picture drawn again after erase() is not sent again.
@@ -157,6 +161,8 @@ class BufferPlane : public UIPlane {
   CellBuffer::Style style_;
   bool visible_ = true;
   std::string name_;
+  Color scrim_tint_;
+  float scrim_amount_ = 0.0f;
 
   // The reader: the text, the plane it shows in, its colour and column.
   std::unique_ptr<LineEditor> editor_;

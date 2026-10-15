@@ -11,7 +11,7 @@
 
 namespace cellui {
 
-// A modal, bordered list the person picks one entry from: the terminal
+// A modal list on a raised panel (no border) over a dimmed page, the person picks one entry from: the terminal
 // rendering of a choice dialog. Up/Down/PageUp/PageDown/Home/End (and
 // the Emacs-style next/previous-line keys) move, Enter or a click chooses,
 // Escape or a click outside cancels; the mouse wheel scrolls.
@@ -26,6 +26,10 @@ class ChoiceDialog {
   // `current` is marked (the entry already in use) and is where the selection
   // starts, -1 for none. Nothing is drawn until show().
   void open(std::string title, std::vector<std::string> labels, int current);
+  // Whether the page behind is dimmed while it shows (the default); off for
+  // a dialog shown as part of a page.
+  void setDimBackground(bool dim) { dim_ = dim; }
+
   void close();
 
   // (Re)draws the box under `parent`, centred on a screen of the given size.
@@ -39,9 +43,10 @@ class ChoiceDialog {
   int selected() const { return list_.selected(); }
 
  private:
-  int visibleRows() const { return rows_ - 2; }
+  int visibleRows() const { return rows_ - 5; }  // see kChromeRows
 
-  std::unique_ptr<UIPlane> plane_;
+  bool dim_ = true;
+  std::unique_ptr<UIPlane> scrim_, plane_;  // the dimming layer is created first, so it stays below
   std::string title_;
   std::vector<std::string> labels_;
   int current_ = -1;
