@@ -6,7 +6,7 @@ widget toolkit makes hard, and a look that is modern rather than dated
 (`plans/modern-look.md` covers the tokens; this covers the effects).
 
 Status: under discussion. Steps 1 and 2 (backdrop blur under modal dialogs,
-in cells and in pixels) are built on `claude/cell-ui-backdrop-blur`.
+in cells and in pixels) are done. What comes next is open: see "What next".
 
 ## The selling point
 
@@ -93,6 +93,59 @@ so at most a theme of its own later.
 - Effects are cell attributes resolved by the compositor, never drawn by a
   widget, so a widget gets them without code and the terminal and window
   agree.
+
+## What next
+
+Wanted: one thing people think a terminal can't do (as the blurred backdrop
+was), or one thing that sells the cell grid in the window the way a block
+world sold a game: the limitation turned into the medium. The candidates,
+the strongest of each group first.
+
+### Thought impossible in a terminal
+
+They share one trick, **pixels in motion, text at rest**: while a region
+moves or changes it is shown as a picture of its own cells (`CellRasterizer`,
+stretched images), and it is text again once it stops. Text stays text for
+reading, selecting and screen readers; only motion is pictures.
+
+1. **Zoom out to the whole song.** The pattern editor (or the arrangement)
+   zooms out continuously until the whole song fits the screen as a miniature
+   of its own cells - each note a few pixels in its track's colour, bars and
+   scenes still readable as shapes - and zooms back into any bar. Useful
+   (navigation, an overview of where things are), and the miniature is only
+   the cells drawn smaller, which the rasterizer already does. A cell version
+   exists too: braille or sextant dots per note.
+2. **Smooth scrolling and inertia.** Scrolling the pattern editor glides by
+   pixels, with inertia, and Live View's per-track lines slide instead of
+   jumping; text returns as soon as the motion ends. Costs a picture of the
+   moving region on every frame of the motion (bytes with kitty and iTerm2,
+   CPU everywhere), so Sixel probably keeps stepping.
+3. **Large type.** Scene names, the song's title and locators at two to four
+   times the cell size in the system's font, as pictures (a scene launch
+   showing its name big for a moment). Easy, less striking.
+
+### The grid as the medium (GTK)
+
+4. **The pattern is a landscape.** Tilt the tracker (the plane's 4x4
+   transform) and every note cell rises into a block: its height the
+   velocity, its colour the track, its length the note's; the playhead a
+   light sweeping across the terrain, and the cursor still moving over it, so
+   it stays editable. Tilt back and it is text again. Only possible because
+   the UI is cells: a cell grid is already a height map. Needs the GTK
+   backend with per-plane render nodes and 3D transforms.
+5. **Cells are things.** Glyphs as bodies: a killed region's characters fall
+   and fade, a yank flies them into their cells, an undo pulls them back.
+   Every glyph knows where it belongs, so the physics is only the transition
+   between two grids. Reduced motion turns it off.
+6. **See where you hear it.** The tracks' panels arranged in perspective
+   around the listener at their spatial positions, the DirAC heatmap as the
+   floor. The headset idea of `plans/cell-ui.md`, on a flat screen.
+7. **The screen is a Launchpad.** Every note cell lit by its own voice's
+   envelope and the clip grid pulsing exactly as the pads do: the screen and
+   the hardware as one grid of light.
+
+Of these, 1 can start now and shows the trick at its most useful; 4 is the
+block-world move, and the reason plane transforms are 4x4 matrices.
 
 ## Steps
 
