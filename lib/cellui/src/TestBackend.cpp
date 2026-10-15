@@ -34,10 +34,8 @@ void closeFd(int & fd) {
 
 }  // namespace
 
-TestBackend::TestBackend(int rows, int cols, term::Capabilities caps)
-  : caps_(std::move(caps)), rows_(rows), cols_(cols), frame_(rows, cols) {
-  caps_.rows = rows;
-  caps_.cols = cols;
+TestBackend::TestBackend(int rows, int cols, DisplayInfo display)
+  : display_(std::move(display)), rows_(rows), cols_(cols), frame_(rows, cols) {
   makePipe(pipe_);
   makePipe(wake_);
 }
@@ -49,15 +47,15 @@ TestBackend::~TestBackend() {
   }
 }
 
-std::vector<term::TermEvent> TestBackend::poll() {
+std::vector<BackendEvent> TestBackend::poll() {
   drain(pipe_[0]);
   drain(wake_[0]);
-  std::vector<term::TermEvent> out(queue_.begin(), queue_.end());
+  std::vector<BackendEvent> out(queue_.begin(), queue_.end());
   queue_.clear();
   return out;
 }
 
-void TestBackend::push(const term::TermEvent & event) {
+void TestBackend::push(const BackendEvent & event) {
   queue_.push_back(event);
   char c = 'e';
   ssize_t n = ::write(pipe_[1], &c, 1);
@@ -66,52 +64,31 @@ void TestBackend::push(const term::TermEvent & event) {
 
 void TestBackend::pushText(const std::string & text) {
   for (const std::string & cluster : utf8::clusters(text)) {
-    term::TermEvent e = term::TermEvent::makeKey(0);
-    e.text = cluster;
     // The first codepoint of the cluster, decoded.
     unsigned char lead = static_cast<unsigned char>(cluster[0]);
     int len = lead < 0x80 ? 1 : lead < 0xE0 ? 2 : lead < 0xF0 ? 3 : 4;
     int cp = len == 1 ? lead : lead & (0xFF >> (len + 1));
     for (int i = 1; i < len && static_cast<size_t>(i) < cluster.size(); i++) cp = (cp << 6) | (static_cast<unsigned char>(cluster[static_cast<size_t>(i)]) & 0x3F);
-    e.key = cp;
-    push(e);
+    pushKey(cp);
   }
 }
 
-void TestBackend::pushMouse(int y, int x, int key, unsigned mods, term::TermEvent::Kind kind) {
-  term::TermEvent e;
-  e.type = term::TermEvent::Type::MOUSE;
-  e.kind = kind;
-  e.key = key;
-  e.mods = mods;
-  e.y = y;
-  e.x = x;
-  push(e);
+void TestBackend::pushMouse(int y, int x, int key, unsigned mods, Input::Kind kind) {
+  push(BackendEvent::makeInput(Input(key, y, x, mods & kModAlt, mods & kModShift, mods & kModCtrl, mods & (kModMeta | kModSuper), kind)));
 }
 
 void TestBackend::pushPaste(const std::string & text) {
-  term::TermEvent e;
-  e.type = term::TermEvent::Type::PASTE;
-  e.text = text;
-  push(e);
+  push(BackendEvent::makePaste(text));
 }
 
 void TestBackend::resize(int rows, int cols) {
   rows_ = rows;
   cols_ = cols;
-  caps_.rows = rows;
-  caps_.cols = cols;
-  term::TermEvent e;
-  e.type = term::TermEvent::Type::RESIZE;
-  e.rows = rows;
-  e.cols = cols;
-  push(e);
+  push(BackendEvent::makeResize(rows, cols));
 }
 
 void TestBackend::pushEnd() {
-  term::TermEvent e;
-  e.type = term::TermEvent::Type::END;
-  push(e);
+  push(BackendEvent::makeClose());
 }
 
 void TestBackend::wake() {
@@ -120,7 +97,7 @@ void TestBackend::wake() {
   (void)n;
 }
 
-void TestBackend::present(const CellBuffer & frame, const term::CursorRequest & cursor, const std::vector<ImagePlacement> & images,
+void TestBackend::present(const CellBuffer & frame, const CursorRequest & cursor, const std::vector<ImagePlacement> & images,
                            const FrameInfo * info) {
   frame_ = frame;
   cursor_ = cursor;

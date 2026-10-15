@@ -1,22 +1,23 @@
 #pragma once
 
+#include <cellui/BackendEvent.h>
 #include <cellui/Input.h>
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
 namespace cellui::term {
 
-// Modifier bits, in the kitty keyboard protocol's layout.
-constexpr unsigned kModShift = 1;
-constexpr unsigned kModAlt = 2;
-constexpr unsigned kModCtrl = 4;
-constexpr unsigned kModSuper = 8;
-constexpr unsigned kModHyper = 16;
-constexpr unsigned kModMeta = 32;
-constexpr unsigned kModCapsLock = 64;
-constexpr unsigned kModNumLock = 128;
+using cellui::kModAlt;
+using cellui::kModCapsLock;
+using cellui::kModCtrl;
+using cellui::kModHyper;
+using cellui::kModMeta;
+using cellui::kModNumLock;
+using cellui::kModShift;
+using cellui::kModSuper;
 
 // A reply to one of the start-up queries. Replies are recognised at any
 // time; after start-up nothing needs them and they are dropped.
@@ -94,6 +95,11 @@ struct TermEvent {
 // becomes lower case with Shift (the original kept as the true-case id), as
 // key bindings and note entry expect; Meta and Super both count as Meta.
 Input toInput(const TermEvent & event);
+
+// What the application is told of an event: keys and mouse as Input, a
+// paste, a resize, the end of input. Focus changes, unknown sequences and
+// query replies are the terminal's own business.
+std::optional<BackendEvent> toBackendEvent(const TermEvent & event);
 
 // A readable form of an event, for tests and logs ("Ctrl+A", "Up release",
 // "paste \"hi\"").

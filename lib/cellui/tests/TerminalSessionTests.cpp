@@ -107,7 +107,7 @@ std::vector<TermEvent> pollFor(TerminalSession & s, size_t count) {
   for (int i = 0; i < 100 && got.size() < count; i++) {
     struct pollfd p = {s.inputFd(), POLLIN, 0};
     ::poll(&p, 1, 10);
-    for (auto & e : s.poll()) got.push_back(e);
+    for (auto & e : s.pollTerm()) got.push_back(e);
   }
   return got;
 }
@@ -125,7 +125,7 @@ TEST(session_negotiates_draws_reads_and_restores) {
   CHECK(session->capabilities().answered);
   CHECK(session->capabilities().terminal == "kitty");
   CHECK(session->rows() == 30 && session->cols() == 100);
-  CHECK(session->capabilities().cell_px_height == 20);
+  CHECK(session->capabilities().display.cell_px_height == 20);
   CHECK(term.waitFor("\x1b[?2004h"));
   std::string out = term.output();
   CHECK(out.compare(0, 8, "\x1b[?1049h") == 0);
@@ -191,7 +191,7 @@ TEST(session_wake_makes_the_wake_descriptor_readable) {
   CHECK(::poll(&p, 1, 0) == 0);
   session->wake();
   CHECK(::poll(&p, 1, 0) == 1);
-  session->poll();
+  session->pollTerm();
   CHECK(::poll(&p, 1, 0) == 0);
 }
 
