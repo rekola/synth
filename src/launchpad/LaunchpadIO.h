@@ -2,8 +2,7 @@
 #define _LAUNCHPADIO_H_
 
 #include "LaunchpadProtocol.h"
-
-#include <alsa/asoundlib.h>
+#include "../midi/MidiPorts.h"
 
 #include <memory>
 #include <optional>
@@ -12,37 +11,37 @@
 class Logger;
 class Event;
 
-// ALSA-facing Launchpad I/O: the only part of Launchpad support that
-// touches real hardware (everything else - layout math, SysEx encode/decode
-// - lives in the hardware-agnostic LaunchpadLayout/LaunchpadProtocol).
-// Owns its own dedicated ALSA sequencer client/port (separate from
-// AlsaAudio's), since sending SysEx/LEDs requires a read+write-capable
-// port that doesn't exist anywhere in this codebase yet.
+// Launchpad I/O: finds the devices among the MIDI ports, connects to them and
+// turns what they send into events and what we send into SysEx. The port
+// system itself (ALSA's sequencer, ...) is a MidiPortBackend; everything
+// else - layout math, SysEx encode/decode - lives in the hardware-agnostic
+// LaunchpadLayout/LaunchpadProtocol.
 //
 // v1 scope (see the Launchpad plan): multiple simultaneously-connected
 // devices are supported (including hotplugged while running), but all
 // route to whatever the current track is (no per-device routing yet).
 class LaunchpadIO {
  public:
-  LaunchpadIO();
+  // `backend` may be null (no MIDI on this platform): then there are never
+  // any devices.
+  explicit LaunchpadIO(std::unique_ptr<MidiPortBackend> backend);
   ~LaunchpadIO();
 
-  // Opens the ALSA sequencer client/port, scans already-connected clients
-  // by name for known Launchpad models (auto-connecting to each match),
-  // and subscribes to hotplug (device connect/disconnect) notifications
-  // for as long as this object lives. Never blocks waiting for any device
-  // reply - see the plan's design decision on not stalling the UI thread's
-  // poll loop.
+  // Opens the backend, scans the ports already there by name for known
+  // Launchpad models (auto-connecting to each match), and follows ports
+  // coming and going for as long as this object lives. Never blocks waiting
+  // for any device reply - see the plan's design decision on not stalling
+  // the UI thread's loop.
   void initialize(Logger & logger);
 
-  std::vector<pollfd> getPollDescriptors() const;
+  // What becomes ready when pollEvents() has something to return.
+  void addTo(WaitSet & waits, WaitSet::Group group);
 
   // Drains and decodes all currently-pending events (LaunchpadPadEvent for
   // grid presses/aftertouch, LaunchpadButtonEvent for the extra CC-numbered
   // buttons) into a common Event vector - the consumer (TerminalUI) only
   // ever needs Event& to dispatch, via EventHandler::handleEvent. Must only
-  // be called after poll() has reported one of getPollDescriptors()'s fds
-  // ready.
+  // be called after the wait group added by addTo() was reported ready.
   std::vector<std::unique_ptr<Event>> pollEvents();
 
   // Stable ids (see Session::session_id below) of every currently-ready
@@ -68,7 +67,7 @@ class LaunchpadIO {
 
   struct Session {
     LaunchpadProtocol::Model model;
-    int client, port;
+    MidiPortAddress address;
     SessionState state;
     // Stable identity for this connection, assigned once at connect time -
     // unlike the session's position in the `sessions` vector, this never
@@ -81,8 +80,7 @@ class LaunchpadIO {
   };
 
   void scanForDevices(Logger & logger);
-  void connectToDevice(Logger & logger, int client, int port, LaunchpadProtocol::Model model, bool is_daw_port);
-  void sendSysEx(const std::vector<uint8_t> & bytes, int dest_client, int dest_port);
+  void connectToDevice(Logger & logger, MidiPortAddress address, LaunchpadProtocol::Model model, bool is_daw_port);
 
   // Blanks every LED on every currently-ready device - the destructor's
   // own last act, so a Launchpad doesn't sit there still showing whatever
@@ -96,16 +94,16 @@ class LaunchpadIO {
 
   // Hotplug: handles PORT_START/PORT_EXIT events arriving via the system
   // announce port subscription set up in initialize().
-  void handlePortStart(int client, int port);
-  void handlePortExit(int client, int port);
+  void handlePortStart(MidiPortAddress address);
+  void handlePortExit(MidiPortAddress address);
 
-  // Whether a device-named ALSA client is one to connect to at all:
+  // Whether a port is one to connect to at all:
   // real hardware and the e2e simulators never mix. The simulators
   // (tools/e2e/fake_launchpad_*.c) register under a real Launchpad's own
   // port name, so their client name carries kSimulatorMarker - an
   // interactive session skips those, and a harness-spawned one (see
-  // ignore_hardware_) skips kernel (hardware) clients instead.
-  bool acceptsClient(snd_seq_client_info_t * client_info) const;
+  // ignore_hardware_) skips hardware clients instead.
+  bool acceptsPort(const MidiPortInfo & info) const;
   static constexpr const char * kSimulatorMarker = "(e2e)";
 
   // True when the SYNTH_LAUNCHPAD_NO_HARDWARE environment variable is set
@@ -115,8 +113,7 @@ class LaunchpadIO {
   // (updating its LEDs, or taking its stray traffic as the simulator's).
   bool ignore_hardware_ = false;
 
-  snd_seq_t * seq_handle = nullptr;
-  int our_port = -1;
+  std::unique_ptr<MidiPortBackend> backend_;
   Logger * logger_ = nullptr;
   std::vector<Session> sessions;
   int next_session_id_ = 0;

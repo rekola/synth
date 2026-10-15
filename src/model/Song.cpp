@@ -1,3 +1,4 @@
+#include "../util/FileOpen.h"
 #include "Song.h"
 
 #include <cstdlib>
@@ -14,7 +15,6 @@
 #include "SampleContent.h"
 #include "Group.h"
 #include "../audio/SampleFileLoader.h"
-#include "../instruments/Arpeggiator.h"
 #include "../instruments/Oscillator.h"
 #include "../instruments/PadSynth.h"
 #include "../instruments/Noise.h"
@@ -139,6 +139,7 @@ static bool parsePatternContent(XMLElement & pattern_element, Pattern & pattern,
     auto column_text = it->Attribute("column");
     auto velocity_text = it->Attribute("velocity");
     auto delay_text = it->Attribute("delay");
+    auto fx_text = it->Attribute("fx");
 
     auto value_text = it->GetText();
     if (!value_text) value_text = it->Attribute("value");
@@ -151,7 +152,9 @@ static bool parsePatternContent(XMLElement & pattern_element, Pattern & pattern,
 
       auto notes = Note::createFromString(value_text, velocity, delay, tuning);
       for (int i = 0; i < static_cast<int>(notes.size()); i++) {
-	pattern.setNote(row, start_column + i, notes[static_cast<size_t>(i)]);
+	auto note = notes[static_cast<size_t>(i)];
+	if (fx_text) note.setFx(fx_text);
+	pattern.setNote(row, start_column + i, note);
       }
     }
   }
@@ -308,6 +311,7 @@ static void storePatternContent(XMLDocument & doc, XMLElement * pattern_element,
       if (col > 0) note_element->SetAttribute("column", col);
       if (note.getVelocity() != constants::DEFAULT_VELOCITY) note_element->SetAttribute("velocity", note.getVelocity());
       if (note.getDelay() > 0) note_element->SetAttribute("delay", note.getDelay());
+      if (note.hasFx()) note_element->SetAttribute("fx", std::string(note.getFx()).c_str());
       note_element->SetText(note_text.c_str());
       pattern_element->InsertEndChild(note_element);
     }
@@ -579,6 +583,7 @@ Song::scalars() const {
   out.floor_reflection_enabled = getFloorReflectionEnabled();
   out.floor_reflection_strength = getFloorReflectionStrength();
   out.ground_absorption = getGroundAbsorption();
+  out.scale_corrections = just_intonation::scaleCorrectionsFor(getTuning(), getScale(), getKey());
   return out;
 }
 
@@ -798,7 +803,15 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
   setlocale(LC_ALL, "C");
   
   XMLDocument doc;
-  if (doc.LoadFile(filename.c_str()) != 0) {
+  FILE * song_file = openFile(filename, "rb");
+  if (!song_file) {
+    fmt::print(stderr, "Could not load {}: cannot open file\n", filename);
+    setlocale(LC_ALL, oldLocale.c_str());
+    return false;
+  }
+  const bool parsed = doc.LoadFile(song_file) == 0;
+  fclose(song_file);
+  if (!parsed) {
     // Covers both "file doesn't exist" and "file exists but isn't valid
     // XML" - tinyxml2's own ErrorStr() distinguishes them (and gives a
     // line number for the latter), which a caller-side blanket "file not
@@ -1245,8 +1258,11 @@ Song::save(const std::string & filename) const {
   for (auto & instrument : getInstrumentPool().getInstruments()) {
     storeChildTrack(*instrument, doc, instruments, getInstrumentPool());
   }
-  
-  doc.SaveFile(filename.c_str());
+
+  if (FILE * song_file = openFile(filename, "wb")) {
+    doc.SaveFile(song_file);
+    fclose(song_file);
+  }
 
   setlocale(LC_ALL, oldLocale.c_str());
 }
@@ -1558,6 +1574,7 @@ Song::getScaleDegreesWindow(int start_index, int count, bool major_if_none) cons
 bool
 Song::undo() {
   if (edit_depth_ > 0 || doc_->inGroup()) return false;
+  breakTypingRun();
   bool done;
   {
     Edit edit(*this, "undo");
@@ -1571,6 +1588,7 @@ Song::undo() {
 bool
 Song::redo() {
   if (edit_depth_ > 0 || doc_->inGroup()) return false;
+  breakTypingRun();
   bool done;
   {
     Edit edit(*this, "redo");
@@ -1582,10 +1600,19 @@ Song::redo() {
 }
 
 Song::EditPlace
-Song::lastUndoPlace() const {
+Song::placeOf(const std::vector<doc::Op> & ops) const {
   using namespace scoreschema;
   auto & d = *doc_;
-  for (auto & op : history_.lastOps()) {
+  // A clip's scene is its position among its track's clips.
+  auto sceneOf = [&d](const doc::Node & clip, const doc::Op * op) {
+    if (op) return static_cast<int>(op->index);
+    auto parent = d.get(clip.parent);
+    auto siblings = parent ? parent->children(clip.parent_slot) : nullptr;
+    if (!siblings) return -1;
+    auto it = std::find(siblings->begin(), siblings->end(), clip.id);
+    return it == siblings->end() ? -1 : static_cast<int>(it - siblings->begin());
+  };
+  for (auto & op : ops) {
     // An inserted or removed node may be detached, so its parent is the op's.
     bool child_op = op.kind == doc::Op::Kind::INSERT || op.kind == doc::Op::Kind::REMOVE;
     auto node = d.get(child_op ? op.child : op.node);
@@ -1596,18 +1623,22 @@ Song::lastUndoPlace() const {
         auto row = doc::get(d, node->id, type == "note" ? kNoteRow : kCommandRow);
         auto pattern = d.get(parent_id);
         auto owner = pattern ? d.get(pattern->parent) : nullptr;
-        if (owner && owner->type == "clip") return { doc::get(d, owner->id, kClipTrack), -1 };
-        if (pattern) return { doc::get(d, pattern->id, kPatternTrack), row };
+        bool note = type == "note";
+        auto field = !note ? Field::COMMAND : op.kind == doc::Op::Kind::SET && op.key == kNoteVelocity.key ? Field::VELOCITY
+                   : op.kind == doc::Op::Kind::SET && op.key == kNoteDelay.key ? Field::DELAY : Field::NOTE;
+        auto column = doc::get(d, node->id, note ? kNoteColumn : kCommandColumn);
+        if (owner && owner->type == "clip") return { doc::get(d, owner->id, kClipTrack), row, sceneOf(*owner, nullptr), field, column };
+        if (pattern) return { doc::get(d, pattern->id, kPatternTrack), row, -1, field, column };
       } else if (type == "pattern") {
         auto owner = d.get(parent_id);
-        if (owner && owner->type == "clip") return { doc::get(d, owner->id, kClipTrack), -1 };
-        return { doc::get(d, node->id, kPatternTrack), -1 };
+        if (owner && owner->type == "clip") return { doc::get(d, owner->id, kClipTrack), 0, sceneOf(*owner, nullptr) };
+        return { doc::get(d, node->id, kPatternTrack), -1, -1 };
       } else if (type == "instance") {
-        return { doc::get(d, node->id, kInstanceTrack), doc::get(d, node->id, kInstanceRow) };
+        return { doc::get(d, node->id, kInstanceTrack), doc::get(d, node->id, kInstanceRow), -1 };
       } else if (type == "clip") {
-        return { doc::get(d, node->id, kClipTrack), -1 };
+        return { doc::get(d, node->id, kClipTrack), 0, sceneOf(*node, child_op && depth == 0 ? &op : nullptr) };
       } else if (auto iid = node->find(tracknodes::kIidKey)) {
-        if (auto id = std::get_if<int64_t>(iid)) return { static_cast<int>(*id), -1 };
+        if (auto id = std::get_if<int64_t>(iid)) return { static_cast<int>(*id), -1, -1 };
       }
       node = d.get(parent_id);
       parent_id = node ? node->parent : doc::kNoNode;

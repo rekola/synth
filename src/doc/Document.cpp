@@ -205,10 +205,11 @@ void Document::moveChild(NodeId parent_id, const std::string & slot, size_t from
   if (attached(parent_id)) record(std::move(op));
 }
 
-void Document::begin(const std::string & label, bool tracked) {
+void Document::begin(const std::string & label, bool tracked, bool amalgamate) {
   if (depth_++ == 0) {
     pending_label_ = label;
     pending_tracked_ = tracked;
+    pending_amalgamate_ = amalgamate && tracked && !in_group_;
     pending_ops_.clear();
     if (verify_) pre_dump_ = dump();
   } else if (pending_label_.empty()) {
@@ -228,6 +229,10 @@ void Document::commit() {
   entry.tracked = pending_tracked_;
   pending_ops_.clear();
   pending_label_.clear();
+  bool amalgamate = pending_amalgamate_;
+  pending_amalgamate_ = false;
+  // Appended to the previous entry only when that is still the newest one.
+  bool merge = amalgamate && amalgam_sequence_ != 0 && !journal_.empty() && journal_.back().sequence == amalgam_sequence_ && journal_.back().tracked;
 
   if (verify_) {
     auto post = dump();
@@ -252,7 +257,14 @@ void Document::commit() {
       if (op.child != kNoNode) changes.changed.insert(op.child);
     }
   }
-  journal_.push_back(std::move(entry));
+  if (merge) {
+    --sequence_; // the entry took a number it no longer needs
+    auto & into = journal_.back();
+    into.ops.insert(into.ops.end(), entry.ops.begin(), entry.ops.end());
+  } else {
+    journal_.push_back(std::move(entry));
+  }
+  amalgam_sequence_ = amalgamate ? journal_.back().sequence : 0;
   // Listeners may start transactions of their own.
   auto listeners = listeners_;
   for (auto & [ handle, fn ] : listeners) fn(changes);
@@ -260,18 +272,17 @@ void Document::commit() {
 
 void Document::beginGroup(const std::string & label) {
   assert(!in_group_ && depth_ == 0);
+  group_run_ = amalgam_sequence_;
+  amalgam_sequence_ = 0;
   in_group_ = true;
   group_start_ = journal_.size();
   group_label_ = label;
 }
 
-void Document::endGroup() {
+void Document::endGroup(bool typing_run, bool join) {
   assert(in_group_);
   in_group_ = false;
-  if (journal_.size() <= group_start_ + 1) {
-    if (journal_.size() == group_start_ + 1 && journal_.back().tracked) journal_.back().label = group_label_;
-    return;
-  }
+  amalgam_sequence_ = 0;
   // Untracked entries (the audio thread's mirror writes) stay entries of
   // their own, before the merged one, so undoing the group never undoes them.
   JournalEntry merged;
@@ -286,8 +297,18 @@ void Document::endGroup() {
   journal_.erase(journal_.begin() + static_cast<std::ptrdiff_t>(group_start_), journal_.end());
   for (auto & entry : untracked) journal_.push_back(std::move(entry));
   if (merged.ops.empty()) return;
+  // Carrying on the run that was open before the group: the entry just ahead
+  // of it, if nothing came between.
+  if (typing_run && join && group_run_ != 0 && group_start_ > 0 && untracked.empty() && journal_.size() == group_start_ &&
+      journal_.back().sequence == group_run_ && journal_.back().tracked) {
+    auto & into = journal_.back();
+    into.ops.insert(into.ops.end(), merged.ops.begin(), merged.ops.end());
+    amalgam_sequence_ = into.sequence;
+    return;
+  }
   merged.sequence = ++sequence_;
   journal_.push_back(std::move(merged));
+  if (typing_run) amalgam_sequence_ = journal_.back().sequence;
 }
 
 std::vector<Op> Document::inverse(const JournalEntry & entry) {

@@ -1,6 +1,6 @@
 /* LICENSE (MIT)
 
-   Copyright (C) 2021, Mikael Rekola
+   Copyright (C) 2021-2026, Mikael Rekola
    Based on TinySoundFont, Copyright (C) 2017, 2018 Bernhard Schelling
    Based on SFZero, Copyright (C) 2012 Steve Folta (https://github.com/stevefolta/SFZero)
 
@@ -21,7 +21,9 @@
    USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
+#include "../util/FileOpen.h"
 #include "SoundFont.h"
+#include "SpatialPlacement.h"
 
 #include "../dsp/Biquad.h"
 #include "FourCC.h"
@@ -161,7 +163,7 @@ static inline float tsf_cents2Hertz(float cents) { return 8.176f * powf(2.0f, ce
 #include <unordered_map>
 
 static int tsf_stream_stdio_read(FILE* f, void* ptr, unsigned int size) { return (int)fread(ptr, 1, size, f); }
-static int tsf_stream_stdio_skip(FILE* f, unsigned int count) { return !fseek(f, count, SEEK_CUR); }
+static int tsf_stream_stdio_skip(FILE * f, unsigned int count) { return !fseek(f, static_cast<long>(count), SEEK_CUR); }
 
 enum { TSF_LOOPMODE_NONE, TSF_LOOPMODE_CONTINUOUS, TSF_LOOPMODE_SUSTAIN };
 
@@ -472,12 +474,7 @@ public:
   // Directly load a SoundFont from a .sf2 file path
   void loadFile(const std::string & filename) {
     struct tsf_stream stream = { nullptr, (int(*)(void*,void*,unsigned int))&tsf_stream_stdio_read, (int(*)(void*,unsigned int))&tsf_stream_stdio_skip };
-#if __STDC_WANT_SECURE_LIB__
-    FILE * fh = nullptr;
-    fopen_s(&fh, filename.c_str(), "rb");
-#else
-    FILE * fh = fopen(filename.c_str(), "rb");
-#endif
+    FILE * fh = openFile(filename, "rb");
     if (!fh) {
       // if (e) *e = TSF_FILENOTFOUND;
       return;
@@ -940,31 +937,21 @@ static bool destInPitchSet(uint16_t dest) {
 }
 
 class SoundFontVoice : public InstrumentVoice {
-public:
-  // skip_native_pan: TEMPORARY - true only for GM percussion (bank 128)
-  // regions, whose position is already fully resolved by
-  // applyPercussionOffset() (SoundFontInstrument::playNote()). The
-  // region's own native SF2 pan (adjustPositionForPan(), below) uses a
-  // pan-convention that's under separate investigation, so for now,
-  // percussion plays from exactly the new key-offset-resolved position
-  // instead of also folding in that region pan. Every other instrument
-  // (pitched SF2 presets, non-percussion banks) is untouched by any of
-  // this and keeps using adjustPositionForPan() exactly as before -
-  // defaults to false so every other call site is unaffected.
+ public:
   // generator_overrides: song-authored SF2 generator overrides (id -> value,
   // see SF2GeneratorTable.h/GenericInstrument's own generator_overrides_) -
   // baked into this one voice's construction, not re-consulted afterward.
   // Defaulted empty, so this is a pure addition to the parameter list; every
   // existing call site keeps compiling unchanged. See
   // effectiveInitialFilterFc() for the one generator actually consulted.
-  SoundFontVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, std::shared_ptr<SoundFontFile> sf, size_t preset, size_t region_idx, const SendLevels & sends = {}, bool skip_native_pan = false, const NoteCoordinate & note_coord = {}, std::unordered_map<SF2Generator, float> generator_overrides = {})
-    : InstrumentVoice(channel_config,
-                       skip_native_pan ? position : adjustPositionForPan(position, regionFor(sf.get(), preset, region_idx)),
-                       detune,
-                       SendLevels{ sends.main, combineRegionSendA(sends.a, regionFor(sf.get(), preset, region_idx)), sends.b },
-                       note_coord),
-      sf_(sf), generator_overrides_(std::move(generator_overrides))
-  {
+  SoundFontVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, std::shared_ptr<SoundFontFile> sf, size_t preset, size_t region_idx, const SendLevels & sends = {}, const NoteCoordinate & note_coord = {}, std::unordered_map<SF2Generator, float> generator_overrides = {})
+      : InstrumentVoice(channel_config,
+                        adjustPositionForPan(position, regionFor(sf.get(), preset, region_idx)),
+                        detune,
+                        SendLevels{sends.main, combineRegionSendA(sends.a, regionFor(sf.get(), preset, region_idx)), sends.b},
+                        note_coord),
+        sf_(sf),
+        generator_overrides_(std::move(generator_overrides)) {
     auto f = sf_.get();
     if (preset < f->presets_.size()) {
       auto & regions = f->presets_[preset].regions;
@@ -1028,7 +1015,7 @@ public:
       chorus_engine_->setMix(1.0f); // fully wet - chorus_send_ controls how much of it reaches the mix, applied at encode time
     }
   }
-  
+
   void playNote(float frequency, float velocity, int note_value) override {
     assert(frequency > 0);
     if (!voiceRegion_) return;
@@ -1463,14 +1450,21 @@ SoundFontVoice::render(int numSamples) {
 
     // Silence-kill threshold: a long-tailed release (common for GM pad/
     // string patches) can sit well below audibility for most of its
-    // authored duration, still consuming full render cost every block.
-    // isReleasing() gates this to the release stage only - a held note
-    // can legitimately be this quiet during ATTACK or a deliberately
-    // quiet SUSTAIN and must never be killed early regardless. Jumping
-    // straight to DONE (same transition a naturally-completed release
-    // already makes) reuses the exact path isActive()/
-    // clearFinishedVoices() already rely on - no separate reaping logic.
-    if (ampenv_.isReleasing() && gainToDecibels(dryGainMono) < constants::SILENCE_KILL_FLOOR_DB) {
+    // authored duration, still consuming full render cost every block. Only
+    // the release stage and a SUSTAIN qualify - a held note can legitimately
+    // be this quiet during ATTACK (it is still rising), and a quiet but
+    // audible sustain stays. Jumping straight to DONE (same transition a
+    // naturally-completed release already makes) reuses the exact path
+    // isActive()/clearFinishedVoices() already rely on - no separate
+    // reaping logic.
+    //
+    // A SUSTAIN below the floor is silent for good (a piano that decays to
+    // nothing while its key is held, or a note that never gets a note-off):
+    // nothing but a new note raises it, so it is reaped the same way
+    // instead of staying allocated for as long as the note is "held".
+    // Not when the gain is modulated per block (dynamicGain).
+    bool silent_for_good = ampenv_.isSustaining() && !dynamicGain;
+    if ((ampenv_.isReleasing() || silent_for_good) && gainToDecibels(dryGainMono) < constants::SILENCE_KILL_FLOOR_DB) {
       ampenv_.nextSegment(EnvelopeState::RELEASE);
       // Keep both envelopes consistent, matching killNote()'s existing
       // precedent - isDone()-guarded for the same reason stopNote() guards
@@ -1678,19 +1672,15 @@ constexpr PercussionOffset kPercussionOffsets[56] = {
 
 // Bank-0 GM program numbers whose keys are physically separated
 // radiators - a real per-key position to sweep across, not just a
-// bigger point source - shared by SoundFontInstrument::getDefaultExtent()
-// (their nonzero default extent) and SoundFontInstrument::playNote()
-// (which, like the percussion-offset mechanism, resolves these
-// instruments' position via the pitched arc rather than the region's own
-// native SF2 pan - see SoundFontVoice's skip_native_pan): piano family
+// bigger point source. SoundFontInstrument::playNote() gives them the arc
+// under AUTO, and getDefaultExtent() a nonzero default extent: piano family
 // (0-7), glockenspiel/vibraphone/marimba/xylophone/tubular bells (9,
 // 11-14 - mallet instruments, each bar its own radiator), orchestral harp
 // (46, each string its own radiator), and timpani (47, a set - each drum
 // its own radiator). Other chromatic percussion (celesta 8, music box 10,
 // dulcimer 15) and every organ (16-20) also get a nonzero default extent
-// in getDefaultExtent() but are deliberately not part of this set - they
-// have no per-key arc, just a plain (larger) point-ish source, so their
-// regions keep using the native pan as before.
+// but are not part of this set: they have no per-key arc, so AUTO places
+// them on the ring.
 bool isPitchedArcFamily(const tsf_preset & preset) {
   if (preset.bank != 0) return false;
   return preset.preset <= 7 || preset.preset == 9 || (preset.preset >= 11 && preset.preset <= 14) || preset.preset == 46 || preset.preset == 47;
@@ -1703,33 +1693,7 @@ bool isPitchedArcFamily(const tsf_preset & preset) {
 // constant chosen so a full re-render reproduces bit-identical jitter.
 constexpr uint64_t kPercussionJitterSalt = 0x2545f491d2b79f5Bull;
 
-// Converts a normalized (u, v) offset (fractions of the instrument's own
-// extent, horizontal/vertical) into a real azimuth/elevation delta and
-// adds it to `position` - the one shared algebra behind both the
-// percussion table and the pitched arc below (also used, independently,
-// by the floor reflection and the oscillator array's spread):
-// x = u*extent, y = v*extent/kExtentShapeRatio, delta = atan2(x or y,
-// distance). A zero-extent instrument (a point source - nothing to
-// offset within) or no position ever set at all (distance <= 0, same
-// "nothing to attach a direction to" reasoning computeAmbisonicGains()
-// itself uses) leave `position` untouched. Perspective mirror is
-// computed fresh from distance, not stored - <= 1 reads as "player"
-// (u/v used as given), > 1 as "audience" (mirrored) - no live per-note
-// distance edit path exists in this codebase, so this can never flip
-// mid-note.
-SphericalPosition applyNormalizedOffset(const SphericalPosition & position, float u, float v) {
-  if (position.extent <= 0.0f || position.distance <= 0.0f) return position;
-
-  float mirror_sign = position.distance <= 1.0f ? 1.0f : -1.0f;
-  float x = u * position.extent;
-  float y = v * position.extent / kExtentShapeRatio;
-  constexpr float kRad2Deg = 180.0f / static_cast<float>(M_PI);
-
-  SphericalPosition result = position;
-  result.azimuth += atan2f(mirror_sign * x, position.distance) * kRad2Deg;
-  result.elevation += atan2f(y, position.distance) * kRad2Deg;
-  return result;
-}
+using spatial::applyNormalizedOffset;
 
 // Applies a GM percussion key's own position offset - table lookup plus
 // a small per-hit jitter, then applyNormalizedOffset() above. midiKey
@@ -1858,9 +1822,40 @@ public:
     }
   }
 
-  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}) const override {
+  // AUTO is what the preset's family does: a GM kit takes its key table, the
+  // arc families their key range, anything else the ring. RING and ARC are
+  // explicit and work on any preset; a kit's arc runs over the fixed key
+  // span, any other preset's over its own mapped key range.
+  SphericalPosition place(const SphericalPosition & position, SpatialMode mode, int slot, Tuning tuning, int note_value, const NoteCoordinate & note_coord) const {
+    auto * f = sf_.get();
+    bool has_preset = preset_ < f->presets_.size();
+    bool is_percussion = has_preset && f->presets_[preset_].bank == 128;
+    bool is_arc_family = has_preset && isPitchedArcFamily(f->presets_[preset_]);
+    int midiKey = (tuning == Tuning::PERCUSSION) ? note_value : int(round(log2(getFrequencyFor(tuning, note_value) / 440) * 12 + 69));
+
+    if (mode == SpatialMode::AUTO) {
+      if (is_percussion) return applyPercussionOffset(position, midiKey, note_coord);
+      mode = is_arc_family ? SpatialMode::ARC : SpatialMode::RING;
+    }
+    if (mode == SpatialMode::RING) return spatial::placeOnSpiral(position, slot);
+    if (!has_preset || is_percussion) return spatial::placeGeneric(position, mode, slot, tuning, note_value);
+
+    // The instrument's actual mapped key range - the union of every
+    // region's own lokey/hikey, not a single region's (a real preset
+    // commonly layers several regions, e.g. per velocity, each covering the
+    // same overall range).
+    int lokeyMin = 127, hikeyMax = 0;
+    for (auto & region : f->presets_[preset_].regions) {
+      lokeyMin = std::min<int>(lokeyMin, region.lokey);
+      hikeyMax = std::max<int>(hikeyMax, region.hikey);
+    }
+    return applyPitchedArcOffset(position, midiKey, lokeyMin, hikeyMax);
+  }
+
+  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, SpatialMode spatial_mode, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const override {
     float frequency = getFrequencyFor(tuning, note_value);
     assert(frequency > 0);
+    auto placed = place(position, spatial_mode, note_coord.getColumn(), tuning, note_value, note_coord);
 
     vector<pair<int, unique_ptr<VoiceState> > > voices;
 
@@ -1876,40 +1871,6 @@ public:
       int midiKey = (tuning == Tuning::PERCUSSION) ? note_value : int(round(log2(frequency / 440) * 12 + 69));
       auto midiVelocity = (short)(velocity * 127);
       if (midiVelocity > 127) midiVelocity = 127;
-
-      // GM percussion kit (bank 128) - apply this key's own compiled-in
-      // position offset once, before the per-region loop below, so every
-      // region matching this note-on (velocity layers etc.) shares the
-      // same resolved position. Anything else (a pitched preset, or no
-      // preset at all) leaves `position` untouched entirely - see
-      // applyPercussionOffset()'s own doc comment for the full contract.
-      bool is_percussion = preset_ < f->presets_.size() && f->presets_[preset_].bank == 128;
-      bool is_arc = preset_ < f->presets_.size() && isPitchedArcFamily(f->presets_[preset_]);
-
-      SphericalPosition adjusted_position = position;
-      if (is_percussion) {
-	adjusted_position = applyPercussionOffset(position, midiKey, note_coord);
-      } else if (is_arc) {
-	// The instrument's actual mapped key range - the union of every
-	// region's own lokey/hikey, not a single region's (a real preset
-	// commonly layers several regions, e.g. per velocity, each
-	// covering the same overall range) - so the arc spans the whole
-	// playable instrument, not just whichever region happens to be
-	// scanned first.
-	int lokeyMin = 127, hikeyMax = 0;
-	for (auto & region : f->presets_[preset_].regions) {
-	  lokeyMin = std::min<int>(lokeyMin, region.lokey);
-	  hikeyMax = std::max<int>(hikeyMax, region.hikey);
-	}
-	adjusted_position = applyPitchedArcOffset(position, midiKey, lokeyMin, hikeyMax);
-      }
-
-      // Percussion/pitched-arc instruments also skip the region's own
-      // native SF2 pan below (TEMPORARY - see SoundFontVoice's ctor doc
-      // comment) so they play from exactly their resolved position;
-      // everything else (other pitched presets, unmatched banks) is
-      // untouched and keeps the native pan exactly as before.
-      bool position_resolved_by_new_mechanism = is_percussion || is_arc;
 
       // Play all matching regions.
 
@@ -1927,16 +1888,12 @@ public:
 	// actually can: VoiceState::getExclusiveClasses() exposes this
 	// region's own class to that caller.
 
-	// Each region's own position (folded in via SoundFontVoice::getPosition())
-	// gets encoded directly by the voice itself (InstrumentVoice::encodePosition()).
-	// adjusted_position (not the raw incoming position) already carries
-	// this key's own percussion offset, if any. position_resolved_by_new_mechanism
-	// also skips SoundFontVoice's own native-pan folding (TEMPORARY - see
-	// its ctor's doc comment) so percussion/pitched-arc instruments play
-	// from exactly their resolved position; every other instrument keeps
-	// that folding.
-	auto voice = make_unique<SoundFontVoice>(channel_config, adjusted_position, detune, sf_, preset_, region_idx, sends, position_resolved_by_new_mechanism, note_coord, generator_overrides_);
-	voice->playNote(frequency, velocity, note_value);
+        // Each region's own position (folded in via SoundFontVoice::getPosition())
+        // gets encoded directly by the voice itself (InstrumentVoice::encodePosition()),
+        // with the region's own SF2 pan folded in. `position` is already placed
+        // (SoundFontInstrument::place()).
+        auto voice = make_unique<SoundFontVoice>(channel_config, placed, detune, sf_, preset_, region_idx, sends, note_coord, generator_overrides_);
+        voice->playNote(frequency, velocity, note_value);
 
 	// Keyed by region_idx, not getInternalId() (constant across every
 	// region this loop matches) - addChild()'s children_[id] = ... would

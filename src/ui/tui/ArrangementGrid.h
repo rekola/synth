@@ -6,8 +6,8 @@
 #include <functional>
 #include <vector>
 
-class InputEvent;
-class StyleProvider;
+#include <cellui/Input.h>
+#include "../StyleProvider.h"
 class Song;
 
 // Always-visible overview of the whole song: one row per bar of the
@@ -66,7 +66,7 @@ class ArrangementGrid : public UIElement {
   // of its own to show) regardless of focus, since it's not this widget's
   // own local state to gate on that the way the cursor cell's is.
   bool render(const StyleProvider & styles, bool refresh, bool focused, int selected_track_id);
-  bool offerInput(const InputEvent & input) override;
+  bool offerInput(const cellui::Input & input) override;
 
   // Called (once, from UI::initialize()) with the (track_id, row) under
   // the cursor whenever Enter commits it - row is the first row of the

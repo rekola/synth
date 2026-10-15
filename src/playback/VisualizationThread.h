@@ -6,6 +6,7 @@
 #include "../dsp/DiracAnalyzer.h"
 #include "../ambisonic/MixerType.h"
 
+#include <algorithm>
 #include <memory>
 
 class Controller;
@@ -24,6 +25,9 @@ class Mixer;
 // computed.
 class VisualizationThread : public EventHandler {
  public:
+  // How long silent blocks take to bring every scope to rest (the meter's
+  // fall is the slowest); after that they change nothing.
+  static constexpr int kSettleSeconds = 4;
   // Both out-of-line (defined in VisualizationThread.cpp, where Mixer.h's
   // full definition is visible) - decode_mixer_ below is a
   // unique_ptr<Mixer>, and Mixer is only forward-declared here, so even
@@ -49,6 +53,7 @@ class VisualizationThread : public EventHandler {
     for (; size + frame_count <= sample_rate / 10; size += frame_count) { }
     spectrum_.setSize(size, sample_rate);
     dirac_ = std::make_unique<DiracAnalyzer>(sample_rate);
+    rest_results_limit_ = kSettleSeconds * sample_rate / std::max(frame_count, 1);
   }
 
   void handleAudioBlockEvent(AudioBlockEvent & ev) override;
@@ -65,6 +70,12 @@ class VisualizationThread : public EventHandler {
   std::unique_ptr<DiracAnalyzer> dirac_; // constructed by configure() - needs sample_rate, unknown at this object's own construction time
   int dirac_last_pushed_frame_ = 0;      // SS1's every-3rd-analysis-frame render-throttle - see handleAudioBlockEvent()
   bool terminate_ = false;
+  // Whether the last grid sent was the all-zero one an analyzer at rest
+  // leaves (the FFT's equivalent is SpectrumAnalyzer::atRest()).
+  bool dirac_zero_sent_ = false;
+  // Results sent in a row with everything at rest, and how many the meter needs
+  // to fall to nothing (about three seconds of blocks; see configure()).
+  int rest_results_ = 0, rest_results_limit_ = 0;
 
   // A scratch decoder, used only to turn AudioBlockEvent::getRawBus()
   // (the active buffer's own raw ambisonic bus - see that class's own

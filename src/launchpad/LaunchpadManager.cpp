@@ -4,6 +4,7 @@
 
 #include "LaunchpadIO.h"
 #include "LaunchpadLayout.h"
+#include "../model/PatternBlockOps.h"
 #include "LaunchpadProtocol.h"
 #include "LaunchpadPadEvent.h"
 #include "LaunchpadChannelPressureEvent.h"
@@ -19,6 +20,7 @@
 #include "../Controller.h"
 #include "../util/constants.h"
 #include "../model/Color.h"
+#include "../ui/Theme.h"
 
 #include <algorithm>
 #include <chrono>
@@ -26,6 +28,14 @@
 using namespace std;
 
 namespace {
+
+// The pads show the modern palette's hues in every theme, so a clip reads the
+// same on the pads whichever theme the screen has.
+const TrackPalette kPadTrackPalette = TrackPalette::modern();
+
+Color padTrackColor(int ordinal) {
+  return Color::fromHSL(kPadTrackPalette.hslHue(ordinal), kPadTrackPalette.padSaturation(ordinal), 0.3f);
+}
   // How long CC98 (handleRecordButton()) must be held before release means
   // Capture MIDI instead of a quick tap's own Session Record. Long enough
   // that a normal deliberate tap never accidentally reads as a hold.
@@ -1823,6 +1833,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
       // not current_delay, which reads the global transport's own delay
       // tracking - meaningless while it never advances during one.
       Note note(note_value, velocity, clip_recording_here ? static_cast<short>(take_step.delay) : current_delay);
+      tuneNewNote(song, track_id, note);
       Song::Edit edit(song, "record note");
       edit_target.pattern->setNote(edit_target.effective_row, note_column, note);
     }
@@ -1853,7 +1864,9 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
         fan_out_column++;
       }
       Song::Edit edit(song, "record note");
-      fan_out_pattern.setNote(fan_out_session_row, fan_out_column, Note(note_value, velocity, static_cast<short>(take_step.delay)));
+      Note fan_out_note(note_value, velocity, static_cast<short>(take_step.delay));
+      tuneNewNote(song, fan_out_track_id, fan_out_note);
+      fan_out_pattern.setNote(fan_out_session_row, fan_out_column, fan_out_note);
       if (controller.isMonitoring(fan_out_track_id)) {
         event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), fan_out_track_id, fan_out_column, note_value, velocity));
       }
@@ -2201,7 +2214,9 @@ LaunchpadManager::handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & co
         }
       }
     } else {
-      auto column = edit_target.pattern->pushNote(edit_target.effective_row, Note(note, static_cast<short>(constants::DEFAULT_VELOCITY)));
+      Note step_note(note, static_cast<short>(constants::DEFAULT_VELOCITY));
+      if (pitched) tuneNewNote(controller.getSong(), track_id, step_note);
+      auto column = edit_target.pattern->pushNote(edit_target.effective_row, step_note);
       if (off_target.pattern) {
         auto next = off_target.pattern->getNotes(off_target.effective_row);
         if (column >= static_cast<int>(next.size()) || !next[static_cast<size_t>(column)].isDefined()) {
@@ -2998,7 +3013,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     // whitelist here once silently left a SampleTrack's own fader/LED
     // feedback at 0 regardless of its actual send/pan values.
     auto track_id = track_ids[static_cast<size_t>(i)];
-    track_colors[static_cast<size_t>(i)] = Color::fromHSL(structure.getBaselineInfo(track_id).getHue(), 0.8f, 0.3f);
+    track_colors[static_cast<size_t>(i)] = padTrackColor(structure.getBaselineInfo(track_id).color_ordinal_);
     auto track = song.getMasterTrack().getChildByInternalId(track_id);
     if (track) {
       auto & leaf_track = dynamic_cast<const LeafTrack&>(*track);
@@ -3072,7 +3087,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
       // emitted LED pixel at a given lightness reads brighter than the
       // same value does as terminal glyph text, so the two surfaces are
       // tuned independently here rather than sharing one constant.
-      auto identity = Color::fromHSL(structure.getBaselineInfo(live_track_id).getHue(), 0.8f, 0.3f);
+      auto identity = padTrackColor(structure.getBaselineInfo(live_track_id).color_ordinal_);
       auto clips = song.getClips(live_track_id);
       // STOP_CLIP's own picker-row state: a clip is playing right now - a
       // launched one on a taken-over track, else whatever the arrangement

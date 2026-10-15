@@ -5,6 +5,8 @@
 #include "../audio/AudioBuffer.h"
 #include "../audio/AudioDevices.h"
 #include "../launchpad/LaunchpadIO.h"
+#include "../util/ThreadSupport.h"
+#include "../midi/MidiInput.h"
 #include "../launchpad/LaunchpadManager.h"
 #include "../launchpad/LaunchpadChannelPressureEvent.h"
 #include "../launchpad/LaunchpadPadEvent.h"
@@ -22,12 +24,14 @@
 #include "../model/SampleTrack.h"
 #include "../model/Song.h"
 #include "../model/ArrangementOps.h"
+#include "../model/PatternBlockOps.h"
 #include "../playback/RecordEvent.h"
 #include "../playback/RecordingLatencyEvent.h"
 #include "../playback/ThresholdRecordingTriggeredEvent.h"
 
 #include <algorithm>
-#include <fmt/core.h>
+#include <iterator>
+#include <fmt/format.h>
 #include <memory>
 #include <thread>
 
@@ -35,12 +39,16 @@ using namespace std;
 
 namespace {
 
+
 void audio_thread_func(Controller * controller, AudioAPI * audio) {
+  setCurrentThreadName("synth-audio");
+  AudioThreadPriority priority;
   Player player(controller->getChannelConfiguration(), controller);
   player.play(*audio);
 }
 
 void visualization_thread_func(Controller * controller, int sample_rate, int frame_count) {
+  setCurrentThreadName("synth-visual");
   VisualizationThread visualization_thread(controller);
   visualization_thread.configure(sample_rate, frame_count);
   visualization_thread.run();
@@ -76,15 +84,16 @@ void UI::selectPlaybackDevice(const std::string & name, const std::string & labe
 }
 
 void UI::selectMidiInput(const std::string & spec, const std::string & label) {
-  if (!audio_) return;
-  audio_->setMidiInput(spec, getLogger());
+  if (!midi_) return;
+  midi_->setSource(spec, getLogger());
   auto change = getController().setMidiInput(spec);
   if (!change.message.empty()) setStatus("MIDI input " + label + " (" + change.message + ")");
 }
 
 void
-UI::start(AudioAPI & audio, LaunchpadIO & launchpad_io, LaunchpadManager & launchpad_manager) {
+UI::start(AudioAPI & audio, MidiInput & midi, LaunchpadIO & launchpad_io, LaunchpadManager & launchpad_manager) {
   audio_ = &audio;
+  midi_ = &midi;
 
   // AlsaAudio::initialize() already logged this to stderr, before this UI
   // (and its StatusLogger) even existed - a failed/missing capture device
@@ -99,10 +108,11 @@ UI::start(AudioAPI & audio, LaunchpadIO & launchpad_io, LaunchpadManager & launc
   launchpad_manager_ = &launchpad_manager;
   wireLaunchpad(launchpad_manager);
 
+  setCurrentThreadName("synth-ui");
   std::thread audio_thread(audio_thread_func, &(getController()), &audio);
   std::thread visualization_thread(visualization_thread_func, &(getController()), audio.getFrequency(), audio.getFrameCount());
 
-  startUI(audio, launchpad_io);
+  startUI(audio, midi, launchpad_io);
 
   getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::TERMINATE));
   getController().getVisualizationQueue().push(make_unique<AudioBlockEvent>(AudioBuffer(), AudioBuffer(), AudioBuffer(), AudioBuffer()));
@@ -395,7 +405,11 @@ UI::initializeCommands() {
   // audio server's own, so a missing device may just mean this build can't
   // see the server.
   auto deviceDialogTitle = [](const std::string & what) {
+#ifdef _WIN32
+    return what + " (Windows audio)";
+#else
     return what + (pipeWireAvailable() ? " (PipeWire)" : " (ALSA sound cards)");
+#endif
   };
   commands_.define("select-capture-device", [this, chooseDevice, deviceDialogTitle]() {
     std::vector<Choice> choices;
@@ -415,6 +429,41 @@ UI::initializeCommands() {
     for (auto & source : listMidiSources()) choices.push_back({source.label, source.spec});
     chooseDevice("MIDI input", std::move(choices), getController().getDeviceSettings().midi_input,
                  [this](const Choice & choice) { selectMidiInput(choice.value, choice.label); });
+  });
+  // The song's scale: which degrees the step view steps through, and the
+  // ratios of a just scale's notes, so the notes that carry a tuning
+  // correction are retuned for it in the same edit.
+  commands_.define("set-song-scale", [this]() {
+    static const Scale kScales[] = {Scale::NONE, Scale::MAJOR, Scale::MINOR, Scale::OTONAL, Scale::UTONAL};
+    std::vector<Choice> choices;
+    int current = -1;
+    for (auto scale : kScales) {
+      if (scale == getController().getSong().getScale()) current = static_cast<int>(choices.size());
+      choices.push_back({scaleLabel(scale), to_string(scale)});
+    }
+    showChoiceDialog("Scale", std::move(choices), current, [this, current](int index) {
+      if (index == current || index < 0 || index >= static_cast<int>(std::size(kScales))) return;
+      auto scale = kScales[index];
+      auto & song = getController().getSong();
+      Song::Edit edit(song, "set scale");
+      song.setScale(scale);
+      int retuned = retuneSong(song);
+      setStatus("Scale " + scaleLabel(scale) + (retuned > 0 ? fmt::format(", {} tuned notes retuned", retuned) : ""));
+    });
+  });
+  // The colours: the modern look in dark or light, or the original one.
+  commands_.define("select-theme", [this]() {
+    static const char * const kNames[] = {"dark", "light", "original"};
+    std::vector<Choice> choices;
+    int current = -1;
+    for (auto name : kNames) {
+      if (theme_name_ == name) current = static_cast<int>(choices.size());
+      choices.push_back({name, name});
+    }
+    showChoiceDialog("Theme", std::move(choices), current, [this, current](int index) {
+      if (index == current || index < 0 || index >= static_cast<int>(std::size(kNames))) return;
+      if (setTheme(kNames[index])) setStatus(std::string("Theme ") + kNames[index]);
+    });
   });
   commands_.define("next-buffer", [this]() {
     getController().cycleBuffer(true);

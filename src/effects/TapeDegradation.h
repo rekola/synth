@@ -39,8 +39,8 @@ class TapeDegradation : public MonoEffect {
   // too, just with no position known (omnidirectional), rather than
   // silently falling through to Track::createVoiceState()'s inert plain
   // VoiceState.
-  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune,
-                                        float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}) const override;
+  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, SpatialMode spatial_mode, Tuning tuning, float detune,
+                                        float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const override;
 
  private:
   TapeTransportParams buildTransportParams() const;

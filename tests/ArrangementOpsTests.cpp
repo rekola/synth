@@ -788,3 +788,62 @@ TEST(record_quantize_is_off_by_default_and_round_trips_through_the_song_file) {
   CHECK(reloaded.getRecordQuantize());
   std::filesystem::remove(path);
 }
+
+// Ending a placement must not let an earlier looping clip play on into the
+// space it left.
+TEST(removing_a_placement_after_a_looping_clip_leaves_a_stop_so_the_earlier_clip_does_not_fill_the_space) {
+  Song song;
+  auto track_id = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
+  Clip first(track_id);
+  first.setLength(16);
+  first.setLooping(true);
+  first.getLeafPattern().setNote(0, 0, Note(60, 100));
+  auto first_id = song.addClip(move(first)).getId();
+  Clip second(track_id);
+  second.setLength(16);
+  second.getLeafPattern().setNote(0, 0, Note(64, 100));
+  auto second_id = song.addClip(move(second)).getId();
+  song.getArrangement().setInstance(track_id, 0, first_id);
+  song.getArrangement().setInstance(track_id, 32, second_id);
+
+  CHECK(removeInstanceLeavingSilence(song, track_id, 32));
+  CHECK(resolveInstanceAt(song, track_id, 40).clip_index == Arrangement::kStopInstance);
+  CHECK(resolveInstanceAt(song, track_id, 8).clip_index == 0); // the first clip is still there
+
+  // With nothing before it, the event is just removed.
+  song.getArrangement().setInstance(track_id, 64, second_id);
+  song.getArrangement().clearInstance(track_id, 0);
+  song.getArrangement().clearInstance(track_id, 32);
+  CHECK(!removeInstanceLeavingSilence(song, track_id, 64));
+  CHECK(resolveInstanceAt(song, track_id, 70).clip_index != 1);
+}
+
+TEST(a_notes_local_fx_is_validated_and_round_trips_through_the_song_file) {
+  Note note(60, 100);
+  CHECK(!note.hasFx());
+  CHECK(note.setFx("r3f"));
+  CHECK(note.getFx() == "R3F"); // letters are stored uppercase
+  CHECK(!note.setFx("R3G")); // the argument is hex
+  CHECK(!note.setFx("R3"));
+  CHECK(note.getFx() == "R3F"); // a rejected value changes nothing
+  CHECK(note.setFxChar(1, '.'));
+  CHECK(note.getFx() == "R.F");
+  CHECK(!note.setFxChar(1, '-')); // a sign is only the first character
+
+  Song song;
+  auto track_id = song.addTrack(std::make_unique<InstrumentTrack>(0)).getInternalId();
+  Note with_fx(60, 100);
+  with_fx.setFx("D12");
+  song.getArrangement()->setNote(0, track_id, 0, with_fx);
+  CHECK(song.getArrangement()->getNotes(0, track_id)[0].getFx() == "D12");
+
+  auto path = std::string(TESTS_SCRATCH_DIR) + "/note_fx_round_trip.xml";
+  song.save(path);
+  Song reloaded;
+  InstrumentProvider provider;
+  CHECK(reloaded.open(path, provider));
+  auto notes = reloaded.getArrangement()->getNotes(0, reloaded.getRootTrackIds()[0]);
+  CHECK(notes.size() == 1);
+  CHECK(notes[0].getFx() == "D12");
+  std::filesystem::remove(path);
+}

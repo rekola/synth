@@ -7,6 +7,7 @@
 #include <memory>
 
 class Controller;
+namespace cellui { class Input; }
 class InputEvent;
 
 // A modal editor for one equalizer effect, the terminal rendering of
@@ -31,13 +32,18 @@ class EqualizerEditor {
   // (Re)draws the box under `parent`, centred on a screen of the given size.
   void show(UIPlane & parent, int screen_rows, int screen_cols);
 
-  Result offerInput(Controller & controller, const InputEvent & input);
+  // Above every plane under the same parent.
+  void raise() {
+    if (plane_) plane_->moveToTop();
+  }
+
+  Result offerInput(Controller & controller, const cellui::Input & input);
 
  private:
   void edit(Controller & controller, int band, const Equalizer::Band & value);
   void drawPlot();
   void drawTable();
-  Result handleMouse(Controller & controller, const InputEvent & input);
+  Result handleMouse(Controller & controller, const cellui::Input & input);
 
   int track_id_ = -1;
   int selected_ = 0;

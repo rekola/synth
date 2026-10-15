@@ -226,9 +226,8 @@ def main():
 
         mx(scr, "select-playback-device")
         check("the dialog opens again", dialog_open(scr), scr)
-        # notcurses holds a lone Escape byte until the next one arrives (so it
-        # can tell it from the start of a sequence); a second Escape releases
-        # it. Nothing is sent after this - the second one stays buffered.
+        # A lone Escape is delivered once the terminal parser's short grace
+        # for the rest of a sequence has passed; the dialog closes on it.
         scr.send(b"\x1b")
         scr.pump(0.5)
         scr.send(b"\x1b")

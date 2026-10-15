@@ -13,15 +13,14 @@
 // XML attribute one-for-one except `preset`, `level` and the body table.
 //
 // Only a few values come from a source or a derivation: the strike point of
-// 1/8 and the 1 cent between unison strings (the brief), the stretch of
-// 0.001 (the FM pianos'), the felt exponent behind hammerVelocity, and the
+// 1/8 and the 1 cent between unison strings (both typical of a piano), the
+// stretch of 0.001 (the FM pianos'), the felt exponent behind hammerVelocity, and the
 // free-free bar mode ratios. Every other number below is a starting value
 // chosen to be listened to and adjusted, not a measurement of a real
 // instrument.
 struct AdditivePresetParams {
   int partials;
   float stretch;
-  bool tuningMatched;
   int unisonVoices;
   float unisonDetune;
   const char * modes;
@@ -50,12 +49,11 @@ constexpr float kFeltExponent = 3.0f;
 } // namespace additive_presets
 
 // An unrecognized preset name falls back to `default`, a plain struck
-// string: one string, partials on the tuning, a mild hammer, moderate decay.
+// string: one string, harmonic partials, a mild hammer, moderate decay.
 inline const AdditivePresetParams & getAdditivePreset(const std::string & name) {
   static const AdditivePresetParams kDefault{
       /* partials       */ 16,
       /* stretch        */ 0.0f,
-      /* tuningMatched  */ true,
       /* unisonVoices   */ 1,
       /* unisonDetune   */ 1.0f,
       /* modes          */ "",
@@ -79,16 +77,15 @@ inline const AdditivePresetParams & getAdditivePreset(const std::string & name) 
       /* body           */ {},
   };
 
-  // A piano: three strings a cent apart, every partial on the tuning with a
-  // 0.001 bounded stretch, struck at 1/8 by a hammer whose corner is fixed in
-  // Hz (so the bass has many partials), outer strings decaying half again
-  // faster and slower than the middle one, bass ringing longer, and a short
-  // soundboard thump spread wide. The decay and thump numbers are starting
+  // A piano: three strings 2.5 cents apart, harmonic partials with a
+  // 0.003 bounded stretch, struck at 1/8 by a hammer whose corner rises
+  // gently with the key (so the bass has many partials), outer strings
+  // decaying 70% faster and slower than the middle one, bass ringing longer,
+  // and a short soundboard thump spread wide. The decay and thump numbers are starting
   // values for listening.
   static const AdditivePresetParams kPiano{
       /* partials       */ 80,
       /* stretch        */ 0.003f,
-      /* tuningMatched  */ true,
       /* unisonVoices   */ 3,
       /* unisonDetune   */ 2.5f,
       /* modes          */ "",
@@ -118,7 +115,6 @@ inline const AdditivePresetParams & getAdditivePreset(const std::string & name) 
   static const AdditivePresetParams kGuitarNylon{
       /* partials       */ 30,
       /* stretch        */ 0.0005f,
-      /* tuningMatched  */ true,
       /* unisonVoices   */ 1,
       /* unisonDetune   */ 1.0f,
       /* modes          */ "",
@@ -147,7 +143,6 @@ inline const AdditivePresetParams & getAdditivePreset(const std::string & name) 
   static const AdditivePresetParams kGuitarSteel{
       /* partials       */ 40,
       /* stretch        */ 0.002f,
-      /* tuningMatched  */ true,
       /* unisonVoices   */ 1,
       /* unisonDetune   */ 1.0f,
       /* modes          */ "",
@@ -176,7 +171,6 @@ inline const AdditivePresetParams & getAdditivePreset(const std::string & name) 
   static const AdditivePresetParams kHarp{
       /* partials       */ 24,
       /* stretch        */ 0.0005f,
-      /* tuningMatched  */ true,
       /* unisonVoices   */ 1,
       /* unisonDetune   */ 1.0f,
       /* modes          */ "",
@@ -205,7 +199,6 @@ inline const AdditivePresetParams & getAdditivePreset(const std::string & name) 
   static const AdditivePresetParams kHarpsichord{
       /* partials       */ 30,
       /* stretch        */ 0.0005f,
-      /* tuningMatched  */ true,
       /* unisonVoices   */ 2,
       /* unisonDetune   */ 0.5f,
       /* modes          */ "",
@@ -235,7 +228,6 @@ inline const AdditivePresetParams & getAdditivePreset(const std::string & name) 
   static const AdditivePresetParams kBar{
       /* partials       */ 4,
       /* stretch        */ 0.0f,
-      /* tuningMatched  */ true,
       /* unisonVoices   */ 1,
       /* unisonDetune   */ 1.0f,
       /* modes          */ "1 2.756 5.404 8.933",

@@ -44,6 +44,20 @@ static uint64_t lastSequence(const Document & document) {
   return document.journal().empty() ? 0 : document.journal().back().sequence;
 }
 
+std::vector<Op> UndoHistory::peekUndo(const Document & document) const {
+  if (document.inGroup()) return {};
+  const JournalEntry * target = nullptr;
+  if (chainIntact(document)) target = next_ ? find(document, next_) : nullptr;
+  else target = newestTracked(document);
+  return target ? Document::inverse(*target) : std::vector<Op>();
+}
+
+std::vector<Op> UndoHistory::peekRedo(const Document & document) const {
+  if (document.inGroup() || !canRedo(document)) return {};
+  auto entry = find(document, chain_.back().undo_sequence);
+  return entry ? Document::inverse(*entry) : std::vector<Op>();
+}
+
 bool UndoHistory::undo(Document & document) {
   if (document.inGroup()) return false;
   if (!chainIntact(document)) {

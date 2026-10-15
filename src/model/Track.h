@@ -8,6 +8,7 @@
 #include "SendLevels.h"
 #include "NoteCoordinate.h"
 #include "../instruments/Tuning.h"
+#include "../ambisonic/SpatialMode.h"
 
 #include <string_view>
 #include <vector>
@@ -96,15 +97,21 @@ class Track : public StatefulSongObject {
 
   virtual const char * getElementName() const = 0;
 
-  // note_coord: per-note coordinate for reproducible HashField jitter
-  // (the oscillator array's detune/spread, TapeDegradation's per-instance
-  // seed, ...). Both defaults live only here - every override that
-  // recurses into children must forward whatever it received.
-  virtual std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}) const {
+  // position: the track's (extent-resolved) position. spatial_mode: the
+  // track's, which says how a leaf instrument places the note around it (the
+  // note's column, note_coord.getColumn(), picks the slot on the ring). A leaf
+  // instrument places the note itself (spatial::placeGeneric(), or its own
+  // placement); a wrapper just passes both on.
+  // note_coord: per-note coordinate - required, every note has one: its
+  // authored (track, row, column), or for a live note a stand-in row - used for
+  // the ring slot and for reproducible HashField jitter (the oscillator
+  // array's detune/spread, TapeDegradation's per-instance seed, ...). Every
+  // override that recurses into children must forward whatever it received.
+  virtual std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, SpatialMode spatial_mode, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const {
     auto group = createVoiceState(config);
     auto child_config = getChildChannelConfiguration(config);
     for (auto & child : getChildren()) {
-      auto voice = child->playNote(child_config, position, tuning, detune, velocity, note_value, sends, note_coord);
+      auto voice = child->playNote(child_config, position, spatial_mode, tuning, detune, velocity, note_value, sends, note_coord);
       if (voice.get()) group->addChild(child->getInternalId(), std::move(voice));
     }
     return group;

@@ -11,6 +11,10 @@ void addProp(std::vector<std::pair<std::string, doc::Value> > & props, const doc
   if (!doc::isDefault(value, prop.def)) props.emplace_back(prop.key, doc::toValue(value));
 }
 
+void addProp(std::vector<std::pair<std::string, doc::Value> > & props, const doc::Prop<std::string> & prop, const std::string & value) {
+  if (!doc::isDefault(value, prop.def)) props.emplace_back(prop.key, doc::toValue(value));
+}
+
 }  // namespace
 
 PatternView
@@ -54,7 +58,9 @@ PatternView::columnOf(doc::NodeId child) const {
 
 Note
 PatternView::noteOf(doc::NodeId child) const {
-  return Note(doc::get(*doc_, child, kNoteValue), static_cast<short>(doc::get(*doc_, child, kNoteVelocity)), static_cast<short>(doc::get(*doc_, child, kNoteDelay)));
+  Note note(doc::get(*doc_, child, kNoteValue), static_cast<short>(doc::get(*doc_, child, kNoteVelocity)), static_cast<short>(doc::get(*doc_, child, kNoteDelay)));
+  note.setFx(doc::getRef(*doc_, child, kNoteFx));
+  return note;
 }
 
 Command
@@ -118,6 +124,7 @@ PatternView::setNote(int row, int note_column, Note note) {
     doc::set(*doc_, node, kNoteValue, note.getValue());
     doc::set(*doc_, node, kNoteVelocity, static_cast<int>(note.getVelocity()));
     doc::set(*doc_, node, kNoteDelay, static_cast<int>(note.getDelay()));
+    doc::set(*doc_, node, kNoteFx, std::string(note.getFx()));
     return;
   }
   std::vector<std::pair<std::string, doc::Value> > props;
@@ -126,6 +133,7 @@ PatternView::setNote(int row, int note_column, Note note) {
   addProp(props, kNoteValue, note.getValue());
   addProp(props, kNoteVelocity, note.getVelocity());
   addProp(props, kNoteDelay, note.getDelay());
+  addProp(props, kNoteFx, std::string(note.getFx()));
   doc_->insertChild(node_, kNotesSlot, index, doc_->create("note", std::move(props)));
 }
 

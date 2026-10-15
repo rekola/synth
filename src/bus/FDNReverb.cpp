@@ -46,13 +46,6 @@ constexpr float kInjectionGain = 0.35355339059327373f;
 constexpr float kDiffuserMs[3] = { 3.0f, 5.0f, 7.0f };
 constexpr float kDiffuserGain = 0.5f;
 
-// Denormal guard: decaying feedback filters are a classic denormal CPU
-// trap. A tiny alternating-sign value keeps every line's state just above
-// the denormal range without being audible - unlike FTZ/DAZ, this doesn't
-// change floating-point behavior for any other DSP sharing this audio
-// thread (this codebase doesn't set FTZ/DAZ anywhere).
-constexpr float kDenormalGuard = 1e-20f;
-
 // How long a `size` change's tap-output fade takes - see FDNReverb.h.
 constexpr float kSizeChangeFadeMs = 10.0f;
 
@@ -122,6 +115,11 @@ FDNReverb::getTapDirection(int i) const {
   static const auto directions = cubeVertexDirections();
   auto & d = directions[static_cast<size_t>(i)];
   return SphericalPosition{ d.azimuth, d.elevation, 1.0f };
+}
+
+float FDNReverb::idleAfterSeconds() const {
+  // The pre-delay, the input diffusers and the longest line at its widest.
+  return kMaxPreDelaySeconds + 0.05f + kBaseDelayMs[kNumLines - 1] * kMaxSize * 0.001f;
 }
 
 void

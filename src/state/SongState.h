@@ -97,7 +97,7 @@ class SongState : public TrackState {
   }
 
   // A tempo edit while playing: everything derived from the tempo is
-  // refreshed - the row length, the tempo the arpeggiators and sample
+  // refreshed - the row length, the tempo sample
   // tracks read, and the bus effects' tempo-synced times. The row already
   // in flight just ends sooner or later (samplesUntilNextRow()); a sample
   // clip already sounding keeps the stretch it was triggered with.
@@ -154,6 +154,8 @@ class SongState : public TrackState {
           scheduleRetrigger(track_id, frame_offset, command.getRetriggerIntervalTicks(), command.getRetriggerVolumeCode());
         } else if (command.isAzimuthSlide()) {
           scheduleAzimuthSlide(track_id, frame_offset, command.getAzimuthSlidePerTick());
+        } else if (command.isExtentSet()) {
+          if (auto * leaf_state = dynamic_cast<LeafTrackState *>(getChildByInternalId(track_id))) leaf_state->setExtent(command.getExtentSetMeters());
         } else if (command.isVolumeSet() || command.isAzimuthSet()) {
           // 0Lxx/0Pxx - an absolute set, applied the instant
 	  // this row starts (unlike the slide commands above, there's
@@ -566,9 +568,28 @@ class SongState : public TrackState {
 		float velocity = note.isOff() ? 0.0f : note.getVelocityAsFloat();
 		auto delay_samples = int((note.getDelayAsFloat() + swing::offsetRows(swing_row, swing_)) * getChannelConfiguration().getSampleInterval(tempo_));
 		int note_value = (note.isAftertouch() || note.isOff()) ? -1 : note.getValue();
-		render_context_.addPendingEvent(track_id, i + delay_samples, int(j), tuning, velocity, note_value, NoteCoordinate(song_structure_.getOrdinalFor(track_id), row_idx, int(j)));
+		// The note's own fx is a command with an implicit leading 0.
+		Command fx;
+		NoteOverride note_override;
+		if (note.hasTuningCorrection()) {
+		  note_override.has_detune = true;
+		  note_override.detune_cents = static_cast<float>(note.getTuningCorrectionCents());
+		} else if (note.hasFx()) {
+		  // An unset character reads as the command's own "-" placeholder.
+		  std::string text = std::string("0") + std::string(note.getFx());
+		  std::replace(text.begin(), text.end(), Note::kFxEmpty, '-');
+		  if (fx.setData(text)) {
+		    if (fx.isAzimuthSet()) { note_override.has_azimuth = true; note_override.azimuth = fx.getAzimuthSetDegrees(); }
+		    else if (fx.isExtentSet()) { note_override.has_extent = true; note_override.extent = fx.getExtentSetMeters(); }
+		  }
+		}
+		render_context_.addPendingEvent(track_id, i + delay_samples, int(j), tuning, velocity, note_value, NoteCoordinate(song_structure_.getOrdinalFor(track_id), row_idx, int(j)), note_override);
 		if (note.isOff()) last_notes_[track_id].erase(int(j));
-		else if (note_value >= 0 && velocity > 0.0f) last_notes_[track_id][int(j)] = LastNote { int(j), tuning, velocity, note_value, row_idx };
+		else if (note_value >= 0 && velocity > 0.0f) {
+		  LastNote last { int(j), tuning, velocity, note_value, row_idx, note_override };
+		  last_notes_[track_id][int(j)] = last;
+		  if (fx.isRetrigger()) scheduleNoteRetrigger(track_id, i + delay_samples, last, fx.getRetriggerIntervalTicks(), fx.getRetriggerVolumeCode());
+		}
 	      }
 	    }
 
@@ -636,10 +657,22 @@ class SongState : public TrackState {
     // shutdown push once its queue filled up - a real, reproducible
     // freeze-on-quit for any song with no instruments loaded (confirmed via
     // direct instrumentation, not guessed at).
-    if (aux_a_sum_.numberOfFrames() != frames) aux_a_sum_ = AudioBuffer(1, frames);
-    if (aux_b_sum_.numberOfFrames() != frames) aux_b_sum_ = AudioBuffer(1, frames);
-    aux_a_sum_.zero();
-    aux_b_sum_.zero();
+    if (aux_a_sum_.numberOfFrames() != frames) {
+      aux_a_sum_ = AudioBuffer(1, frames);
+      aux_a_sum_.zero();
+      aux_a_used_ = false;
+    }
+    if (aux_b_sum_.numberOfFrames() != frames) {
+      aux_b_sum_ = AudioBuffer(1, frames);
+      aux_b_sum_.zero();
+      aux_b_used_ = false;
+    }
+    if (empty_aux_.numberOfFrames() != frames) empty_aux_ = AudioBuffer(0, false, false, frames);
+    // The sums feed the send bus, which needs real zeros; they are only
+    // written when a track sends, so only then is there anything to clear.
+    if (aux_a_used_) aux_a_sum_.zero();
+    if (aux_b_used_) aux_b_sum_.zero();
+    aux_a_used_ = aux_b_used_ = false;
 
     // Every top-level track was already registered as *its own* TreeNode
     // child of this SongState above (track_snapshot's own comment) - the
@@ -664,10 +697,12 @@ class SongState : public TrackState {
     if (auto * a = data.getChannel(Channel::AuxA)) {
       auto dst = aux_a_sum_.getChannelData(0);
       for (int i = 0; i < frames; i++) dst[i] += a[i];
+      aux_a_used_ = true;
     }
     if (auto * b = data.getChannel(Channel::AuxB)) {
       auto dst = aux_b_sum_.getChannelData(0);
       for (int i = 0; i < frames; i++) dst[i] += b[i];
+      aux_b_used_ = true;
     }
 
     // The send bus's own output is always ambisonic-shaped (see
@@ -685,7 +720,7 @@ class SongState : public TrackState {
       // reverb tail/chorus modulation stay continuous across blocks (see
       // SendBusProcessor.h).
       send_bus_.process(aux_a_sum_, aux_b_sum_, frames, master_sends_.a, master_sends_.b);
-      mixer.accumulate(send_bus_.getBusAmbisonic());
+      if (send_bus_.isAudible()) mixer.accumulate(send_bus_.getBusAmbisonic());
     }
 
     measureMasterOutput(data, frames);
@@ -700,34 +735,6 @@ class SongState : public TrackState {
   
   bool isPlaying() const { return is_playing_; }
   void setIsPlaying(bool b) { is_playing_ = b; }
-
-  // Snapshots getPositionEditSeq() at the moment playback stops
-  // (Player.cpp's PlaybackControlEvent::STOP, right after
-  // setIsPlaying(false)) - resyncPlayheadAfterStop() below compares
-  // against this to tell "resumed from exactly where it paused" apart from
-  // "the playhead moved while stopped" (a seek, or the pattern editor's
-  // own cursor navigation - both drive SET_POSITION/MOVE_POSITION, both
-  // bump position_edit_seq_ the same way real per-row playback advance
-  // already does - see getPositionEditSeq()'s own comment).
-  void notePlaybackStopped() { position_edit_seq_at_stop_ = position_edit_seq_; }
-
-  // Called once per stopped-to-playing transition (Player.cpp's
-  // PlaybackControlEvent::PLAY, right after setIsPlaying(true)) - see
-  // TrackState::resyncPlayhead()'s own comment for why a track's internal
-  // clock needs this at all. Only actually resyncs if the position changed
-  // while stopped: resuming from exactly the same spot the transport was
-  // paused at needs no correction - nothing about the row grid's own
-  // timeline changed, so whatever phase a track's internal clock already
-  // drifted to from having kept rendering through the stopped interval
-  // (confirmed intentional - see SongState::renderBlock()'s own comment)
-  // is fine left alone. Forcing it unconditionally on every resume made
-  // even a plain pause/resume at the same row yank a still-cycling
-  // arpeggiator back to its first step, which is only actually correct
-  // when resuming genuinely means "start this phrase over" - i.e. the
-  // playhead itself moved during the stop.
-  void resyncPlayheadAfterStop() {
-    if (position_edit_seq_ != position_edit_seq_at_stop_) resyncPlayhead();
-  }
 
   // See render()'s own comment on recording_muted_'s use - set/cleared by
   // PlaybackControlEvent::SET_RECORDING_MUTE, pushed by LaunchpadManager/
@@ -816,25 +823,32 @@ class SongState : public TrackState {
     setPosition(next_bar + std::min(row_in_bar, barsAt(next_bar).barRows() - 1));
   }
 
+  struct LastNote { int column; Tuning tuning; float velocity; int note_value; int row; NoteOverride note_override; };
+
   // 0Rxy (Command::isRetrigger()) - re-fires every note still playing on
   // the track every `interval_ticks` ticks across the row starting at
   // block-relative sample offset `row_start`, velocity per `volume_code`.
   // Same-id events retrigger the voice in place.
   void scheduleRetrigger(int track_id, int row_start, int interval_ticks, int volume_code) {
     auto it = last_notes_.find(track_id);
-    if (it == last_notes_.end() || interval_ticks <= 0) return;
+    if (it == last_notes_.end()) return;
+    for (auto & [ column, last ] : it->second) scheduleNoteRetrigger(track_id, row_start, last, interval_ticks, volume_code);
+  }
+
+  // The same for one note, starting `row_start` samples into the block - what
+  // a note's own Rxy fx does.
+  void scheduleNoteRetrigger(int track_id, int row_start, const LastNote & last, int interval_ticks, int volume_code) {
+    if (interval_ticks <= 0) return;
     int row_samples = getChannelConfiguration().getSampleInterval(tempo_);
     int tick_interval = std::max(1, row_samples / constants::TICKS_PER_ROW);
-    for (auto & [ column, last ] : it->second) {
-      float velocity = last.velocity;
-      for (int tick = interval_ticks; tick < constants::TICKS_PER_ROW; tick += interval_ticks) {
-        int offset = tick * tick_interval;
-        if (offset >= row_samples) break;
-        velocity = Command::retriggerVelocityStep(last.velocity, velocity, volume_code);
-        if (velocity <= 0.0f) break;
-        render_context_.addPendingEvent(track_id, row_start + offset, static_cast<short>(column), last.tuning, velocity, last.note_value,
-                                        NoteCoordinate(song_structure_.getOrdinalFor(track_id), last.row, last.column));
-      }
+    float velocity = last.velocity;
+    for (int tick = interval_ticks; tick < constants::TICKS_PER_ROW; tick += interval_ticks) {
+      int offset = tick * tick_interval;
+      if (offset >= row_samples) break;
+      velocity = Command::retriggerVelocityStep(last.velocity, velocity, volume_code);
+      if (velocity <= 0.0f) break;
+      render_context_.addPendingEvent(track_id, row_start + offset, static_cast<short>(last.column), last.tuning, velocity, last.note_value,
+                                      NoteCoordinate(song_structure_.getOrdinalFor(track_id), last.row, last.column), last.note_override);
     }
   }
 
@@ -879,9 +893,10 @@ class SongState : public TrackState {
 
   // Raw, pre-send-bus-processing per-block sums (mono) - used by the UI's
   // raw-channel volume meter to show AuxA/AuxB levels before they're
-  // folded into the shared reverb/chorus wet signal.
-  const AudioBuffer & getAuxASum() const { return aux_a_sum_; }
-  const AudioBuffer & getAuxBSum() const { return aux_b_sum_; }
+  // folded into the shared reverb/chorus wet signal. Structurally empty (no
+  // channels, still frame-sized) when no track sent anything this block.
+  const AudioBuffer & getAuxASum() const { return aux_a_used_ ? aux_a_sum_ : empty_aux_; }
+  const AudioBuffer & getAuxBSum() const { return aux_b_used_ ? aux_b_sum_ : empty_aux_; }
 
   // Rebuilt whenever song.getMajorVersion() has moved on since the last build
   // (see renderBlock()) - adding/removing/reordering a track while this
@@ -948,15 +963,15 @@ private:
   bool recording_muted_ = false;
   int sample_pos_ = 0, absolute_pos_ = 0;
   int position_edit_seq_ = 0;
-  int position_edit_seq_at_stop_ = -1; // see notePlaybackStopped()/resyncPlayheadAfterStop()
   // The notes still playing per track (last note-on per column), what 0Rxy retriggers.
-  struct LastNote { int column; Tuning tuning; float velocity; int note_value; int row; };
   std::unordered_map<int, std::map<int, LastNote>> last_notes_; // track -> note column
   bool pending_break_ = false; // ZBxx seen on the row currently completing
   int pending_break_row_ = 0;
   RenderContext render_context_;
   SendBusProcessor send_bus_;
-  AudioBuffer aux_a_sum_, aux_b_sum_;
+  AudioBuffer aux_a_sum_, aux_b_sum_; // always mono, zeros unless *_used_
+  bool aux_a_used_ = false, aux_b_used_ = false;
+  AudioBuffer empty_aux_;
   SongStructure song_structure_;
   SendLevels master_sends_;
   float master_meter_value_ = -1.0f;

@@ -435,8 +435,9 @@ ClipPlayer::playheads() const {
     head.row = origin >= 0 ? max(0, info.getLiveClock() - origin) : 0;
   }
   // A track following the arrangement plays whatever clip is placed at the
-  // transport's row.
-  if (info.isPlaying()) {
+  // transport's row - paused too, once anything has played; a song that has
+  // never played has no clip playing.
+  if (info.isPlaying() || info.getLiveClock() > 0) {
     auto position = info.getAbsolutePosition();
     for (auto track_id : song.getPlayableTrackIds()) {
       auto * live_track = info.getLiveTrack(track_id);

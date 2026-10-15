@@ -101,6 +101,14 @@ ScenePatternSource::isPlaying(int track_id) const {
   return it != playheads_.end() && it->second.row >= 0;
 }
 
+bool
+ScenePatternSource::anyPlaying() const {
+  for (auto & [ track_id, playhead ] : playheads_) {
+    if (playhead.row >= 0) return true;
+  }
+  return false;
+}
+
 int
 ScenePatternSource::loopLength(int track_id, int scene) const {
   auto clips = song().getClips(track_id);
@@ -242,13 +250,33 @@ void
 ScenePatternSource::moveCursor(int delta_rows) {
   if (cursorLocked()) return;
   if (isPlaying(cursor_track_id_)) {
-    // Paused with a launched clip under the cursor: its playhead is the
-    // cursor, within the clip, and every other launched clip moves along.
+    // Paused with a clip under the cursor: its playhead is the cursor,
+    // within the clip. A launched clip's moves every other launched clip
+    // along; one the arrangement is playing moves the arrangement's position.
     auto & playhead = playheads_.at(cursor_track_id_);
     auto clips = song().getClips(cursor_track_id_);
     if (playhead.scene < 0 || playhead.scene >= static_cast<int>(clips.size())) return;
-    auto length = std::max(1, clips[static_cast<size_t>(playhead.scene)].getLength());
-    controller_.getClipPlayer().shiftLaunchedClips(std::clamp(playhead.row + delta_rows, 0, length - 1) - playhead.row);
+    auto clip = clips[static_cast<size_t>(playhead.scene)];
+    auto length = std::max(1, clip.getLength());
+    auto & clip_player = controller_.getClipPlayer();
+    if (clip_player.isTakenOver(cursor_track_id_) && clip.isLooping() && playhead.looping && playhead.elapsed >= 0) {
+      // A launched looping clip's playhead runs on through its loop, so the
+      // view moves with it the way it does while playing. Elapsed rows
+      // can't go below 0, so a step back past the start is a whole number
+      // of loops further on, which the view makes up for.
+      auto short_by = std::max(0, -(playhead.elapsed + delta_rows));
+      auto loops = (short_by + length - 1) / length;
+      clip_player.shiftLaunchedClips(delta_rows + loops * length);
+      cursor_jump_ += loops * length;
+      return;
+    }
+    // A looping clip wraps either way; a one-shot stops at its ends.
+    auto target = clip.isLooping() ? ((playhead.row + delta_rows) % length + length) % length
+                                   : std::clamp(playhead.row + delta_rows, 0, length - 1);
+    auto moved = target - playhead.row;
+    if (clip_player.isTakenOver(cursor_track_id_))
+      clip_player.shiftLaunchedClips(moved);
+    else if (moved != 0) controller_.setEditPosition(controller_.getPlaybackInfo().getAbsolutePosition() + moved);
     return;
   }
   auto old_cursor = cursor();
@@ -278,7 +306,13 @@ ScenePatternSource::moveStoppedTracks(int rows) {
 
 void
 ScenePatternSource::setTrackPosition(int track_id, RowAddress address) {
-  if (isPlaying(track_id)) return;
+  if (isPlaying(track_id)) {
+    // Paused with a clip under the cursor: the playhead is the position,
+    // so it is moved within its clip.
+    auto & playhead = playheads_.at(track_id);
+    if (track_id == cursor_track_id_ && playhead.scene == address.block) moveCursor(address.row - sceneRow(track_id, playhead));
+    return;
+  }
   positions()[track_id] = clamp(address);
 }
 

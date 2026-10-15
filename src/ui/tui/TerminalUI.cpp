@@ -17,13 +17,13 @@
 #include "../../dsp/DiracAnalyzer.h"
 #include "../../audio/AudioAPI.h"
 #include "../../launchpad/LaunchpadIO.h"
+#include "../../midi/MidiInput.h"
+#include "../../util/WaitSet.h"
 #include "../../launchpad/LaunchpadPadEvent.h"
 #include "../../launchpad/LaunchpadButtonEvent.h"
 #include "../../launchpad/LaunchpadChannelPressureEvent.h"
 #include "../../launchpad/LaunchpadProtocol.h"
 #include "../../launchpad/LaunchpadManager.h"
-#include "EscapeCoalescer.h"
-#include "NotcursesInputEventSource.h"
 #include "SubcellGlyphs.h"
 #include "../../util/Utf8.h"
 #include "../../util/constants.h"
@@ -44,6 +44,7 @@
 #include "../../bus/BusEffectRegistry.h"
 
 #include <cstdio>
+#include <ctime>
 #include <cstdlib>
 #include <clocale>
 #include <cassert>
@@ -61,97 +62,44 @@
 
 #include <sys/time.h>
 
-#include <ncpp/NotCurses.hh>
-#include <ncpp/Plane.hh>
-#include <ncpp/Plot.hh>
-#include <ncpp/Reader.hh>
-#include <ncpp/Menu.hh>
-#include <ncpp/Selector.hh>
-#include <ncpp/Visual.hh>
+#include <cellui/MenuBar.h>
+#include <cellui/KeyReader.h>
+#include <cellui/term/TerminalScopes.h>
+#include <cellui/term/Terminal.h>
 
 #include <poll.h>
 
 
-namespace {
-// An opaque pixel in the RGBA byte order notcurses blits.
-uint32_t pixelOf(const Color & c) {
-  return (0xffu << 24) | (static_cast<uint32_t>(c.getBlue()) << 16) | (static_cast<uint32_t>(c.getGreen()) << 8) | static_cast<uint32_t>(c.getRed());
-}
-
-uint64_t channelsOf(const Color & fg, const Color & bg) {
-  return NCCHANNELS_INITIALIZER(static_cast<unsigned>(fg.getRed()), static_cast<unsigned>(fg.getGreen()), static_cast<unsigned>(fg.getBlue()),
-                                static_cast<unsigned>(bg.getRed()), static_cast<unsigned>(bg.getGreen()), static_cast<unsigned>(bg.getBlue()));
-}
-}
-using namespace ncpp;
 using namespace std;
+
+namespace {
+// SYNTH_UI_STATS=<file>: see startUI().
+std::map<std::string, int> g_ui_stats;
+bool g_ui_stats_on = false;
+void statCount(const std::string & what) { if (g_ui_stats_on) g_ui_stats[what]++; }
+
+// Every thread's CPU time so far in clock ticks, by thread name.
+std::map<std::string, long> threadCpuTicks() {
+  std::map<std::string, long> ticks;
+  std::error_code ec;
+  for (auto & entry : std::filesystem::directory_iterator("/proc/self/task", ec)) {
+    FILE * f = fopen((entry.path() / "stat").c_str(), "r");
+    if (!f) continue;
+    char line[1024];
+    size_t n = fread(line, 1, sizeof line - 1, f);
+    fclose(f);
+    line[n] = 0;
+    // pid (comm) state ppid ... utime stime: fields 14 and 15.
+    char *open = strchr(line, '('), *close = strrchr(line, ')');
+    if (!open || !close) continue;
+    long utime = 0, stime = 0;
+    if (sscanf(close + 2, "%*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u %ld %ld", &utime, &stime) != 2) continue;
+    ticks[std::string(open + 1, close)] += utime + stime;
+  }
+  return ticks;
+}
+}
 using namespace fmt;
-
-// The inverse of readInput()'s ni.evtype -> InputEvent::Kind mapping below -
-// needed because ncmenu_offer_input() only treats a mouse click on the menu
-// bar as consumed when evtype is specifically NCTYPE_RELEASE (confirmed
-// against the real library: NCTYPE_UNKNOWN and NCTYPE_PRESS are both
-// silently ignored). Hardcoding NCTYPE_UNKNOWN here - discarding the real
-// press/release Kind InputEvent already carries - meant a mouse click could
-// never open the File menu on any terminal, mouse-protocol support
-// notwithstanding.
-static inline ncintype_e to_ncintype(InputEvent::Kind kind) {
-  switch (kind) {
-  case InputEvent::Kind::PRESS: return NCTYPE_PRESS;
-  case InputEvent::Kind::REPEAT: return NCTYPE_REPEAT;
-  case InputEvent::Kind::RELEASE: return NCTYPE_RELEASE;
-  default: return NCTYPE_UNKNOWN;
-  }
-}
-
-// use_true_case is for an active reader (track name/locator/M-x text
-// entry) only: TerminalUI::readInput()'s dispatchRawKey unconditionally
-// lowercases a plain letter's own id (needed for case-insensitive
-// keybinding dispatch and note-entry - see InputEvent's own comment on
-// getTrueCaseId()), so a menu/selector - which do want that normalized
-// form, for consistent mnemonic matching regardless of caps lock -
-// keep passing false (the default) here. A reader cares about neither;
-// it wants whatever was actually typed. id itself barely matters for a
-// reader either way (ncreader_offer_input() only compares it against
-// Backspace/arrow-key/synthesized ids, never a letter), but eff_text is
-// what its own plain-character insertion path actually reads character
-// content from (see reader.c's own ncreader_offer_input()) - true case
-// has to reach *that* field for a reader to ever see a real uppercase
-// letter.
-static inline ncinput to_ncinput(const InputEvent & input, bool use_true_case = false) {
-  auto case_id = use_true_case ? input.getTrueCaseId() : input.getId();
-  ncinput ni = { .id = static_cast<uint32_t>(case_id), .y = input.getY(), .x = input.getX(), .utf8 = { 0, 0, 0, 0, 0 }, .alt = input.hasAlt(), .shift = input.hasShift(), .ctrl = input.hasCtrl(), .evtype = to_ncintype(input.getKind()), .modifiers = static_cast<uint32_t>((input.hasAlt() ? NCKEY_MOD_ALT : 0) | (input.hasCtrl() ? NCKEY_MOD_CTRL : 0) | (input.hasShift() ? NCKEY_MOD_SHIFT : 0) | (input.hasMeta() ? NCKEY_MOD_META : 0)), .ypx = -1, .xpx = -1 };
-  // eff_text was added in notcurses 3.0.10 - Ubuntu 24.04's packaged
-  // 3.0.7 (what CI builds against) predates it, so this field can't be
-  // set unconditionally; NCINPUT_MAX_EFF_TEXT_CODEPOINTS, defined right
-  // next to it, doubles as its own feature-test macro.
-#ifdef NCINPUT_MAX_EFF_TEXT_CODEPOINTS
-  ni.eff_text[0] = static_cast<uint32_t>(case_id);
-#endif
-  return ni;
-}
-
-// ncreader has no "set full contents" call - only single-EGC writes - so
-// seeding/replacing its contents means feeding `text`'s own UTF-8
-// codepoints one at a time. Splitting on codepoint boundaries rather than
-// full Unicode grapheme clusters (combining marks/ZWJ sequences would each
-// become a separate write instead of one grouped EGC) is an acceptable
-// first-pass approximation for plain locator/command text - see
-// PatternEditor's own locator-editing entry points and StatusLine's M-x
-// autocomplete.
-static inline void writeEgcString(ncreader * reader, const string & text) {
-  size_t i = 0;
-  while (i < text.size()) {
-    unsigned char c = static_cast<unsigned char>(text[i]);
-    size_t len = 1;
-    if ((c & 0xE0) == 0xC0) len = 2;
-    else if ((c & 0xF0) == 0xE0) len = 3;
-    else if ((c & 0xF8) == 0xF0) len = 4;
-    len = std::min(len, text.size() - i);
-    ncreader_write_egc(reader, text.substr(i, len).c_str());
-    i += len;
-  }
-}
 
 static inline long long now() {
   struct timeval tv;
@@ -163,538 +111,13 @@ static inline long long now() {
   }
 }
 
-class TerminalPlane : public UIPlane {
-public:
-  TerminalPlane(std::shared_ptr<Controller> & _controller, const StyleProvider & styles, Plane * _plane, bool _owner = true) : UIPlane(_controller, styles), plane(_plane), owner(_owner) {
-    unsigned int y, x;
-    plane->get_dim(&y, &x);
-    setDim(pair(static_cast<int>(y), static_cast<int>(x)));
-    setPosition(pair(0, 0));
-    // A terminal's own capabilities don't change mid-session - figured
-    // out once, here, rather than re-querying notcurses on every render.
-    sextant_support_ = notcurses_cansextant(ncplane_notcurses_const(plane->to_ncplane()));
-  }
-  ~TerminalPlane() {
-    if (owner) delete plane;
-  }
-  void resize(int rows, int cols) override {
-    if (plane->to_ncplane()) {
-      UIPlane::resize(rows, cols);
-      plane->resize(rows, cols);
-    }
-  }
-  void move(int y, int x) override {
-    if (plane->to_ncplane()) {
-      UIPlane::move(y, x);
-      plane->move(y, x);
-    }
-  }
-  void moveToTop() override {
-    if (plane->to_ncplane()) plane->move_top();
-  }
-  // A hidden plane is moved, with its children, into a pile of its own,
-  // which notcurses never renders; showing it rebinds it to the standard
-  // plane's pile.
-  void setVisible(bool visible) override {
-    auto * n = plane->to_ncplane();
-    if (!n || visible == visible_) return;
-    visible_ = visible;
-    auto * parent = visible ? notcurses_stdplane(ncplane_notcurses(n)) : n;
-    ncplane_reparent_family(n, parent);
-  }
-  void setFgColor(int r, int g, int b) override { plane->set_fg_rgb8(r, g, b); }
-  void setBgColor(int r, int g, int b) override { plane->set_bg_rgb8(r, g, b); }
-  void setUnderline(bool b) override {
-    if (b) {
-      plane->styles_set(CellStyle::Underline);
-    } else {
-      plane->styles_set(CellStyle::None);
-    }
-  }
-  void setBold(bool b) override {
-    if (b) {
-      plane->styles_set(CellStyle::Bold);
-    } else {
-      plane->styles_set(CellStyle::None);
-    }
-  }
-  void setItalic(bool b) override {
-    if (b) {
-      plane->styles_set(CellStyle::Italic);
-    } else {
-      plane->styles_set(CellStyle::None);
-    }
-  }
-  void erase() override { plane->erase(); }
-  void putstr(int y, int x, const std::string & s) override { plane->putstr(y, x, s.c_str()); }
-  unique_ptr<UIPlane> createChild() override {
-    auto child_plane = new Plane(1, 1, 0, 0);
-    child_plane->set_base("", 0, channelsOf(getStyles().reader_text_color, Color(0x20, 0, 0x20)));
-    return make_unique<TerminalPlane>(getController(), getStyles(), child_plane);
-  }
-  
-  void drawBorder() override {
-    plane->erase();
-
-    unsigned fg_red, fg_green, fg_blue;
-    plane->get_fg_rgb8(&fg_red, &fg_green, &fg_blue);
-
-    unsigned bg_red, bg_green, bg_blue;
-    plane->get_bg_rgb8(&bg_red, &bg_green, &bg_blue);
-
-    auto channels = NCCHANNELS_INITIALIZER(fg_red, fg_green, fg_blue, bg_red, bg_green, bg_blue);
-    
-    nccell ul = NCCELL_TRIVIAL_INITIALIZER, ur = NCCELL_TRIVIAL_INITIALIZER;
-    nccell lr = NCCELL_TRIVIAL_INITIALIZER, ll = NCCELL_TRIVIAL_INITIALIZER;
-    nccell hl = NCCELL_TRIVIAL_INITIALIZER, vl = NCCELL_TRIVIAL_INITIALIZER;
-    if (nccells_rounded_box(plane->to_ncplane(), NCSTYLE_NONE, 0, &ul, &ur, &ll, &lr, &hl, &vl)) {
-      return;
-    }
-    ul.channels = ur.channels = ll.channels = lr.channels = hl.channels = vl.channels = channels;
-    nccell_set_bg_alpha(&ul, NCALPHA_BLEND);
-    nccell_set_bg_alpha(&ur, NCALPHA_BLEND);
-    nccell_set_bg_alpha(&ll, NCALPHA_BLEND);
-    nccell_set_bg_alpha(&lr, NCALPHA_BLEND);
-    nccell_set_bg_alpha(&hl, NCALPHA_BLEND);
-    nccell_set_bg_alpha(&vl, NCALPHA_BLEND);
-    
-    if (ncplane_perimeter(plane->to_ncplane(), &ul, &ur, &ll, &lr, &hl, &vl, 0)) {
-      nccell_release(plane->to_ncplane(), &ul); nccell_release(plane->to_ncplane(), &ur); nccell_release(plane->to_ncplane(), &hl);
-      nccell_release(plane->to_ncplane(), &ll); nccell_release(plane->to_ncplane(), &lr); nccell_release(plane->to_ncplane(), &vl);
-      return;
-    }
-    nccell_release(plane->to_ncplane(), &ul); nccell_release(plane->to_ncplane(), &ur); nccell_release(plane->to_ncplane(), &hl);
-    nccell_release(plane->to_ncplane(), &ll); nccell_release(plane->to_ncplane(), &lr); nccell_release(plane->to_ncplane(), &vl);
-  }
-  
-  // y/x/rows/cols let a caller that isn't a one-line plane (PatternEditor's
-  // locator editing, which needs the reader positioned at the cursor's
-  // own screen row, not row 0) place and size the reader plane explicitly.
-  // x == -1/rows == -1/cols == -1 (the defaults) reproduce exactly what
-  // this used to hardcode - StatusLine's existing calls are untouched.
-  void showReader(const std::string & prompt = "", int y = 0, int x = -1, int rows = -1, int cols = -1,
-		   const std::string & initial_text = "",
-		   std::optional<Color> text_color_arg = std::nullopt) override {
-    auto text_color = text_color_arg.value_or(getStyles().reader_text_color);
-    if (!readerActive()) {
-      setOwning(false);
-
-      // Erase this plane's own stale content on row y, from column x
-      // onward (e.g. a previous status message longer than the new
-      // prompt) before drawing the prompt - the reader plane created
-      // below only ever covers its own bounds and its own cells only
-      // get real content where the user has actually typed so far, so
-      // anything left over underneath/beyond that was otherwise still
-      // visible right through it (confirmed via a standalone
-      // reproduction against the real library: opening the reader over
-      // a long previous message left its stale tail visible past the
-      // cursor until enough was typed to physically overwrite it).
-      // Scoped to just this one row, starting at x (0 when unset, same
-      // as reader_x's own default below) and reaching the plane's own
-      // right edge, via ncplane_erase_region() rather than erase() (the
-      // whole plane) - StatusLine passes x/y as their unset defaults,
-      // always starting from this row's very first column same as
-      // before, but PatternEditor's locator editor
-      // (startLocatorEdit()) reuses this same call on its own much
-      // taller plane with an explicit x placed after real pattern grid
-      // content on that row, which a whole-row-from-0 erase wiped out
-      // from under the reader right along with the actual stale content
-      // past it. xlen must be an explicit positive width, not 0 - unlike
-      // ylen, an xlen of 0 means "ignore xstart, erase the entire row's
-      // width regardless" (see ncplane_erase_region()'s own doc comment)
-      // and would put column 0 straight back in scope.
-      auto erase_cols = getDim().second;
-      auto erase_xstart = x == -1 ? 0 : x;
-      ncplane_erase_region(getPlane().to_ncplane(), y, erase_xstart, 1, std::max(erase_cols - erase_xstart, 1));
-      // The reader plane below is opaque and covers its own bounds, so any
-      // prompt text must be drawn onto *this* (the still-visible underlying
-      // plane) first, and the reader plane offset past it - otherwise the
-      // prompt is drawn then immediately hidden under the reader, and the
-      // whole M-x minibuffer silently looks like it never opened even
-      // though it's actually active and correctly accepting input.
-      if (!prompt.empty()) putstr(y, 0, prompt);
-      auto prompt_width = static_cast<unsigned int>(prompt.size());
-
-      ncreader_options reader_opts;
-      // text_color (pink by default), matching the reader plane's own
-      // colors below - see that comment for why. Background alpha
-      // TRANSPARENT too, for the same reason: the typed glyphs themselves
-      // shouldn't paint an opaque patch behind them either.
-      reader_opts.tchannels = channelsOf(text_color, Color(0, 0, 0));
-      ncchannels_set_fg_alpha(&reader_opts.tchannels, NCALPHA_HIGHCONTRAST);
-      ncchannels_set_bg_alpha(&reader_opts.tchannels, NCALPHA_TRANSPARENT);
-      reader_opts.tattrword = 0; // attributes used for input
-      reader_opts.flags = NCREADER_OPTION_CURSOR | NCREADER_OPTION_HORSCROLL;
-
-      auto [plane_rows, plane_cols] = getDim();
-      auto reader_x = x == -1 ? static_cast<int>(prompt_width) : x;
-      auto reader_rows = rows == -1 ? static_cast<unsigned int>(plane_rows) : static_cast<unsigned int>(rows);
-      unsigned int reader_cols;
-      if (cols == -1) {
-	reader_cols = static_cast<unsigned int>(plane_cols) > prompt_width ?
-	  static_cast<unsigned int>(plane_cols) - prompt_width : 1u;
-      } else {
-	// NOT widened past the caller's own requested on-screen width,
-	// despite ncreader_contents() (src/lib/reader.c) reading back from
-	// this exact plane rather than the wider offscreen buffer
-	// HORSCROLL scrolls within - meaning typed text that outgrows this
-	// plane's own width is genuinely unrecoverable through that call
-	// (confirmed via a standalone reproduction against the real
-	// library) - a first attempt at widening this plane to work around
-	// that regressed much worse: every ncreader_redraw() (i.e. every
-	// keystroke, not just this call) recopies its *entire* width from
-	// the offscreen textarea, so any column beyond what's actually
-	// been typed so far gets overwritten with blank cells on every
-	// redraw - widening this plane past the caller's own narrow slot
-	// meant every keystroke re-blanked everything to its right (other
-	// tracks' own headings, Mute/Solo, ...), not just once at open
-	// time the way showReader()'s own one-time erase above did. Left
-	// at the caller's own width; the truncation above is a known,
-	// accepted limitation until a real fix (e.g. tracking typed
-	// content independently of ncreader_contents()) is worth the cost.
-	reader_cols = cols > 0 ? static_cast<unsigned int>(cols) : 1u;
-      }
-
-      ncplane_options opts = {
-	.y = y,
-	.x = reader_x,
-	.rows = reader_rows,
-	.cols = reader_cols,
-	.userptr = nullptr,
-	.name = nullptr,
-	.resizecb = nullptr,
-	.flags = 0,
-	.margin_b = 0,
-	.margin_r = 0
-      };
-
-      auto reader_plane = ncplane_create(getPlane().to_ncplane(), &opts);
-      // text_color, defaulting to the same pink createChild() already
-      // gives every other UI plane's own base cell, so by default the
-      // M-x prompt/completion indicator (drawn directly on the
-      // surrounding StatusLine plane, not this one) and the typed text
-      // here read as one consistent color instead of the reader's own
-      // text standing out in an unrelated green - a caller whose reader
-      // sits over its own non-default backdrop (PatternEditor's
-      // track-name editor) overrides it instead for whatever actually
-      // reads well there. Background alpha TRANSPARENT rather than an
-      // explicit opaque color: this plane no longer paints its own
-      // background at all, letting whatever's actually behind it show
-      // straight through instead of a guessed-at literal color that may
-      // not match. Set on both the base cell (below, for the plane's own
-      // unwritten cells) and tchannels (above, for the glyphs ncreader
-      // actually echoes as typed) so neither path leaves a stray opaque
-      // patch.
-      ncplane_set_fg_rgb8(reader_plane, static_cast<unsigned>(text_color.getRed()), static_cast<unsigned>(text_color.getGreen()), static_cast<unsigned>(text_color.getBlue()));
-      uint64_t base_channels = channelsOf(text_color, Color(0, 0, 0));
-      ncchannels_set_bg_alpha(&base_channels, NCALPHA_TRANSPARENT);
-      ncplane_set_base(reader_plane, " ", 0, base_channels);
-      reader = ncreader_create(reader_plane, &reader_opts);
-      writeEgcString(reader, initial_text);
-      // showReaderIndicator()'s own `x` is a column *within the typed
-      // text* (0 at the reader's own left edge), but its indicator_plane
-      // is parented to this same plane (getPlane(), not reader_plane), so
-      // it needs reader_x added back in to land at the right *absolute*
-      // column - without this the indicator draws prompt_width columns
-      // too far left, encroaching on the prompt/already-typed text
-      // instead of sitting right after the cursor.
-      reader_text_x = reader_x;
-    }
-  }
-
-  bool readerActive() const override { return reader != 0; }
-
-  string closeReader() override {
-    char* contents;
-    ncreader_destroy(reader, &contents);
-    string r = contents;
-    free(contents);
-    reader = 0;
-    if (indicator_plane) {
-      ncplane_destroy(indicator_plane);
-      indicator_plane = nullptr;
-    }
-    return r;
-  }
-
-  string getReaderContents() const override {
-    if (!reader) return "";
-    char * contents = ncreader_contents(reader);
-    string r = contents ? contents : "";
-    free(contents);
-    return r;
-  }
-
-  void setReaderContents(const string & text) override {
-    if (!reader) return;
-    ncreader_clear(reader);
-    writeEgcString(reader, text);
-  }
-
-  // A plane of its own, not drawn onto the reader's - see this method's
-  // own doc comment on UIPlane.h for why (writing onto the reader's own
-  // plane, even blank/erasing spaces, was confirmed to corrupt what
-  // ncreader_contents()/getReaderContents() itself reports back as
-  // typed). Created lazily on first use, positioned/erased/reshown fresh
-  // each call - moving an existing plane and re-drawing its (freshly
-  // erased) content is cheap, so there's no need to track whether this is
-  // a reposition of an already-visible indicator or a first appearance.
-  void showReaderIndicator(int x, const string & s) override {
-    if (!reader) return;
-    // `x` is a column within the *typed text* (0 at the reader's own left
-    // edge) - this plane is parented to getPlane() (the same StatusLine
-    // plane the reader itself is offset within), not to reader_plane, so
-    // it needs reader_text_x added back in to land at the right absolute
-    // column - see showReader()'s own comment on that member.
-    auto abs_x = reader_text_x + x;
-    if (!indicator_plane) {
-      ncplane_options opts = {
-	.y = 0, .x = abs_x, .rows = 1, .cols = kIndicatorPlaneCols,
-	.userptr = nullptr, .name = nullptr, .resizecb = nullptr,
-	.flags = 0, .margin_b = 0, .margin_r = 0
-      };
-      indicator_plane = ncplane_create(getPlane().to_ncplane(), &opts);
-      // White, not the reader's own pink - a deliberate contrast so the
-      // indicator (this app's own message) doesn't read as more of the
-      // user's typed input.
-      ncplane_set_fg_rgb8(indicator_plane, 0xff, 0xff, 0xff);
-      uint64_t base_channels = NCCHANNELS_INITIALIZER(0xff, 0xff, 0xff, 0, 0, 0);
-      ncchannels_set_bg_alpha(&base_channels, NCALPHA_TRANSPARENT);
-      ncplane_set_base(indicator_plane, " ", 0, base_channels);
-    }
-    ncplane_move_yx(indicator_plane, 0, abs_x);
-    ncplane_erase(indicator_plane);
-    ncplane_putstr_yx(indicator_plane, 0, 0, s.c_str());
-    ncplane_move_top(indicator_plane);
-  }
-
-  void hideReaderIndicator() override {
-    // Destroyed, not just erased: an erased-but-still-present plane keeps
-    // sitting raised above the reader (showReaderIndicator()'s own
-    // ncplane_move_top()), and even a blank cell there is still real
-    // content at that z-order - it keeps blocking whatever the reader
-    // itself draws underneath afterward (e.g. the next character actually
-    // typed there), rather than getting out of the way entirely.
-    // showReaderIndicator() already creates it lazily on demand, so
-    // there's nothing to reinitialize by destroying it here.
-    if (indicator_plane) {
-      ncplane_destroy(indicator_plane);
-      indicator_plane = nullptr;
-    }
-  }
-
-  // A genuine child plane of its own (positioned/sized by the caller),
-  // not getPlane() itself - Selector's constructor calls
-  // take_plane_ownership() on whatever Plane it's given, which would
-  // otherwise hand over (and eventually destroy) this widget's own real
-  // rendering plane. Mirrors showReader()'s own raw ncplane_create()
-  // pattern above.
-  void showPicker(int y, int x, int rows, int cols, int item_count) override {
-    if (selector) return; // already active - see UIPlane.h's own comment
-    // Dark background/light foreground matching this app's own theme
-    // (StyleProvider isn't reachable from here - see TerminalMenu's own
-    // header/sectionchannels for the identical precedent of hardcoding
-    // colors directly rather than threading StyleProvider this deep) -
-    // left at 0 (notcurses's own "no color set" default), these read as
-    // full-bright white-on-whatever's-already-there instead, not this
-    // app's dark theme.
-    //
-    // opchannels is the cursor's own colors swapped: the selector draws
-    // its current row with opchannels' fg/bg swapped back, so that row
-    // shows the same cursor every widget does.
-    uint64_t opchannels = channelsOf(getStyles().highlight_bg_color, getStyles().highlight_fg_color);
-    uint64_t boxchannels = NCCHANNELS_INITIALIZER(0x60, 0x60, 0x60, 0x20, 0x20, 0x20);
-    // descchannels deliberately its own dark/neutral pair, not opchannels
-    // again - every item's own .desc is always empty (addItem() callers
-    // pass only an id), but ncselector.c's draw loop still unconditionally
-    // prints a literal leading space in descchannels' own colors before
-    // it ("%s" -> " %s") - sharing opchannels there would extend the
-    // swapped highlight one cell past the option text itself on the
-    // current row, a stray colored space right after it.
-    uint64_t descchannels = NCCHANNELS_INITIALIZER(0x20, 0x20, 0x20, 0x20, 0x20, 0x20);
-    // opchannels' own alpha left OPAQUE on both sides (not BLEND like
-    // box/base/descchannels below) - BLEND on its bg word made the
-    // highlighted row's text (that word, swapped into the fg slot) read
-    // as a soft blended grey-green instead of a crisp black, despite the
-    // RGB already being pure black above.
-    ncchannels_set_bg_alpha(&descchannels, NCALPHA_BLEND);
-    ncchannels_set_fg_alpha(&descchannels, NCALPHA_BLEND);
-    ncchannels_set_bg_alpha(&boxchannels, NCALPHA_BLEND);
-    ncchannels_set_fg_alpha(&descchannels, NCALPHA_BLEND);
-    ncchannels_set_bg_alpha(&descchannels, NCALPHA_BLEND);
-    ncselector_options opts =
-      {
-       .title = nullptr,
-       .secondary = nullptr,
-       .footer = nullptr,
-       .items = nullptr,
-       .defidx = 0,
-       // Pinned to the exact item count, not 0 ("use all available
-       // space") - see this method's own doc comment on UIPlane.h for
-       // why 0 shows as blank padding rows above/below a tight list.
-       .maxdisplay = static_cast<unsigned>(std::max(0, item_count)),
-       .opchannels = opchannels,
-       .descchannels = descchannels,
-       .titlechannels = opchannels,
-       .footchannels = opchannels,
-       .boxchannels = boxchannels,
-       .flags = 0
-      };
-    ncplane_options popts = {
-      .y = y,
-      .x = x,
-      .rows = static_cast<unsigned>(std::max(1, rows)),
-      .cols = static_cast<unsigned>(std::max(1, cols)),
-      .userptr = nullptr,
-      .name = nullptr,
-      .resizecb = nullptr,
-      .flags = 0,
-      .margin_b = 0,
-      .margin_r = 0
-    };
-    auto * picker_ncplane = ncplane_create(getPlane().to_ncplane(), &popts);
-    // Explicit dark base cell too, so any cell ncselector's own drawing
-    // never touches (e.g. this plane's own rows past a maxdisplay-limited
-    // body, now shorter than a generously-sized `rows`) still reads as
-    // this app's dark background rather than the terminal's own default -
-    // BLEND alpha, matching opchannels/boxchannels above, so it's the
-    // same partial transparency, not an opaque patch around the edges of
-    // an otherwise-translucent popup.
-    uint64_t base_channels = NCCHANNELS_INITIALIZER(0xc0, 0xc0, 0xc0, 0x20, 0x20, 0x20);
-    ncchannels_set_bg_alpha(&base_channels, NCALPHA_BLEND);
-    ncplane_set_base(picker_ncplane, " ", 0, base_channels);
-    // A freshly created plane already sits above its parent by default,
-    // but raised explicitly anyway - the whole point of a real overlay
-    // plane, rather than text drawn inline, is that it's unambiguously on
-    // top regardless of whatever else this or a sibling widget draws
-    // later in the same frame (TerminalMenu's own raiseToTop() makes the
-    // same guarantee for its own dropdown, for the same reason).
-    ncplane_move_top(picker_ncplane);
-    // A stack-local wrapper, not a heap one: Selector's constructor calls
-    // take_plane_ownership() on it (Plane::release_native_plane(), so its
-    // own destructor at the end of this scope becomes a no-op) - nothing
-    // left to clean up once construction returns.
-    Plane wrapper(picker_ncplane);
-    selector = make_unique<Selector>(wrapper, &opts);
-  }
-
-  void addItem(const string & id, const string & description) override {
-    if (!selector) return;
-    // Unlike ncmenu_item's own .desc field (see TerminalMenu::rebuild()'s
-    // comment), ncselector_additem() (src/lib/selector.c) strdup()s both
-    // strings into its own storage immediately - a plain c_str() straight
-    // off these locals is safe, nothing needs to outlive this call.
-    ncselector_item item = { .option = id.c_str(), .desc = description.c_str() };
-    selector->additem(&item);
-  }
-
-  // See UIPlane.h's own comment on why this - not a nonzero defidx at
-  // create time - is how a picker starts highlighted somewhere other
-  // than row 0.
-  void selectPickerItem(int index) override {
-    if (!selector) return;
-    for (int i = 0; i < index; i++) selector->nextitem();
-  }
-
-  bool pickerActive() const override { return selector != nullptr; }
-
-  string getPickerSelection() const override {
-    if (!selector) return "";
-    auto * s = selector->get_selected();
-    return s ? s : "";
-  }
-
-  void closePicker() override {
-    selector.reset();
-  }
-
-  bool offerInput(const InputEvent & input) override {
-    if (reader) {
-      // Confirmed bug in ncreader's own do_backspace() (src/lib/reader.c),
-      // isolated in a standalone reproduction against this exact linked
-      // library (libnotcurses-core.so.3.0.17) independent of anything in
-      // this app: erasing a buffer's *last remaining* character is a
-      // silent no-op - ncreader_contents() still reports the old,
-      // unerased content afterward, not just a stale on-screen glyph.
-      // Erasing down to 2+ remaining characters works correctly; it's
-      // specifically the "only one character left" case that fails.
-      // Detected here by comparing contents before/after actually
-      // dispatching the keystroke (rather than pre-emptively guessing
-      // from length alone, which can't tell "cursor right after the one
-      // character" - where backspace should empty the buffer - apart
-      // from "cursor before it" - where backspace should already be a
-      // real no-op - since ncreader exposes no public cursor-position
-      // query): a Backspace that produces no change at all despite
-      // non-empty prior content is always this bug in practice (an
-      // honest no-op only happens with an already-empty buffer, excluded
-      // by the emptiness check below) - ncreader_clear() (already used
-      // the same way by setReaderContents() above) forces the correct
-      // empty result directly, bypassing the broken path entirely.
-      string before;
-      if (input.getId() == NCKEY_BACKSPACE) {
-	char * c = ncreader_contents(reader);
-	before = c ? c : "";
-	free(c);
-      }
-      auto ni = to_ncinput(input, true); // true case - see to_ncinput()'s own comment
-      ncreader_offer_input(reader, &ni);
-      if (!before.empty()) {
-	char * c = ncreader_contents(reader);
-	string after = c ? c : "";
-	free(c);
-	if (after == before) ncreader_clear(reader);
-      }
-      return true;
-    } else if (selector) {
-      auto ni = to_ncinput(input);
-      return selector->offer_input(&ni);
-    } else {
-      return false;
-    }
-  }
-  
-  void setOwning(bool t) { owner = t; }
-
-  Plane & getPlane() { return *plane; }
-
-  void refresh() override {
-    unsigned int y, x;
-    plane->get_dim(&y, &x);
-    setDim(pair(static_cast<int>(y), static_cast<int>(x)));
-  }
-
-  bool canRenderSextants() const override { return sextant_support_; }
-
-private:
-  // Wide enough for " [Sole completion]" (18) - the longer of the two
-  // indicator strings showReaderIndicator() ever actually draws - plus a
-  // little slack.
-  static constexpr unsigned int kIndicatorPlaneCols = 20;
-
-  Plane * plane;
-  ncreader * reader = 0;
-  // The reader's own left edge, in this plane's (getPlane()'s) own
-  // coordinate space - showReader()'s reader_x, remembered so
-  // showReaderIndicator() can convert its own "column within the typed
-  // text" argument into an absolute column.
-  int reader_text_x = 0;
-  ncplane * indicator_plane = nullptr;
-  unique_ptr<Selector> selector;
-  bool owner;
-  bool visible_ = true;
-  bool sextant_support_;
-};
-
 // One declarative source for every section/item, rather than hand-written
-// ncmenu_item/ncmenu_section arrays plus a separately-maintained desc->
-// command map (the shape a single File/New item used to get away with) -
-// adding an item is one line here, not several coordinated edits.
-// `label == nullptr` is a separator (a real ncmenu primitive - NULL desc
-// renders a horizontal divider, per notcurses.h's own struct comment - not
-// an app-level hack); `binding` is the human-readable keybinding shown
-// right-aligned against the item box's widest label, e.g. "Save    C-x
-// C-s" - ncmenu_item's own .shortcut field is deliberately left zeroed for
-// every item below rather than used for this (see the display-constraints
+// item arrays plus a separately-maintained desc->command map - adding an
+// item is one line here, not several coordinated edits. `label == nullptr`
+// is a separator (MenuBar draws it as a divider); `binding` is the
+// human-readable keybinding shown right-aligned against the item box's
+// widest label, e.g. "Save    C-x C-s" - an item has no shortcut of its own
+// (see the display-constraints
 // note in plans/menu-bar-expansion.md: it renders as a single bare
 // character with no modifier indication, misleading for anything but a
 // plain unmodified key, which is nearly nothing real this app binds).
@@ -730,6 +153,7 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                         {"Undo", "C-x u", "undo"},
                         {"Redo", "C-M-_", "undo-redo"},
                         {nullptr, nullptr, nullptr},
+                        {"Select All", "C-x h", "mark-whole-buffer"},
                         {"Set Mark", "C-SPC", "set-mark"},
                         {"Kill Region", "C-w", "kill-region"},
                         {"Copy", "M-w", "kill-ring-save"},
@@ -739,6 +163,9 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                         {"Transpose Up", "C-S-Up", "transpose-region-up"},
                         {"Transpose Down", "C-S-Down", "transpose-region-down"},
                         {"Humanize", "", "humanize-region"},
+                        {nullptr, nullptr, nullptr},
+                        {"Apply Just Intonation", "", "apply-just-intonation-region"},
+                        {"Clear Tuning Corrections", "", "clear-tuning-correction-region"},
                     }},
       {"Track", 't', {
                          {"Add Instrument Track", "C-t", "add-instrument-track"},
@@ -782,6 +209,7 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                         {"Toggle Binaural Mixer", "", "toggle-mixer-type"},
                         {nullptr, nullptr, nullptr},
                         {"Set Song Key...", "", "set-song-key"},
+                        {"Set Scale...", "", "set-song-scale"},
                         {"Set Tuning System...", "", "set-song-tuning"},
                         {"Set Time Signature...", "", "set-time-signature"},
                         {nullptr, nullptr, nullptr},
@@ -828,11 +256,29 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
   return spec;
 }
 
+// The menu bar: menuSpec()'s sections on a MenuBar in a plane of its own
+// over the whole screen. A menu item has only display text, so this maps an
+// activated item to its command.
 class TerminalMenu : public UIMenu {
 public:
-  TerminalMenu(vector<string> buffer_names, vector<string> buffer_display_names, string active_buffer_name)
-    : buffer_names_(std::move(buffer_names)), buffer_display_names_(std::move(buffer_display_names)),
-      active_buffer_name_(std::move(active_buffer_name)) { rebuild(); }
+  TerminalMenu(UIPlane & parent, vector<string> buffer_names, vector<string> buffer_display_names, string active_buffer_name)
+    : parent_(parent), plane_(parent.createChild()), bar_(*plane_), buffer_names_(std::move(buffer_names)),
+      buffer_display_names_(std::move(buffer_display_names)), active_buffer_name_(std::move(active_buffer_name)) {
+    // The plane spans the tallest section; below the bar and an open
+    // section the screen shows through.
+    plane_->makeTransparent();
+    rebuild();
+  }
+
+  void applyStyles(const StyleProvider & styles) override {
+    cellui::MenuBar::Colors colors;
+    colors.header_fg = styles.menu_fg_color;
+    colors.header_bg = styles.menu_bg_color;
+    colors.section_fg = styles.menu_section_fg_color;
+    colors.section_bg = styles.menu_section_bg_color;
+    bar_.setColors(colors);
+    bar_.draw();
+  }
 
   void refreshBuffers(const vector<string> & buffer_names, const vector<string> & buffer_display_names,
 		       const string & active_buffer_name) override {
@@ -842,40 +288,12 @@ public:
     rebuild();
   }
 
-  // Confirmed against the real library: ncmenu_offer_input() never treats a
-  // click on an item (as opposed to a section header) or an Enter keypress
-  // as "activating" that item, on its own - both are absent from its own
-  // documented list of inputs it reacts to. It also doesn't need to (there's
-  // no notion of a command to run baked into an ncmenu_item, just display
-  // text), so this app has to detect activation itself: a button-release
-  // landing on an item (ncmenu_mouse_selected(), checked before
-  // offer_input() would otherwise just silently ignore that same click -
-  // it's not "outside" the plane, which has grown to cover the dropdown, so
-  // offer_input() doesn't roll up on it either) or Enter while some item is
-  // highlighted (ncmenu_selected() non-null), then map the item's display
-  // text to a command name and roll the section back up.
-  bool offerInput(const InputEvent & input) override {
-    auto ni = to_ncinput(input);
-
-    if (ni.id == NCKEY_BUTTON1 && ni.evtype == NCTYPE_RELEASE) {
-      ncinput shortcut_ni;
-      if (auto clicked = menu->get_mouse_selected(&ni, &shortcut_ni)) {
-	activate(clicked);
-	return true;
-      }
+  bool offerInput(const cellui::Input & input) override {
+    if (!bar_.offerInput(input)) return false;
+    if (auto activated = bar_.takeActivated()) {
+      activated_command_ = commands_[static_cast<size_t>(activated->first)][static_cast<size_t>(activated->second)];
     }
-
-    // Checked before offer_input() gets a chance to ignore it (returning
-    // false, per the confirmed absence of Enter from its own list) and
-    // leak the keystroke through to the pattern editor as a note.
-    if (ni.id == NCKEY_ENTER) {
-      if (auto sel = menu->get_selected()) {
-	activate(sel);
-	return true;
-      }
-    }
-
-    return menu->offer_input(&ni);
+    return true;
   }
 
   std::string takeActivatedCommand() override {
@@ -884,52 +302,24 @@ public:
     return c;
   }
 
-  void raiseToTop() override { menu->get_plane()->move_top(); }
-
-private:
-  void activate(const char * item_desc) {
-    if (auto it = item_commands_.find(item_desc); it != item_commands_.end()) activated_command_ = it->second;
-    menu->rollup();
+  // Also follows the screen's width, which a resize changes.
+  void raiseToTop() override {
+    if (parent_.getDim().second != cols_) {
+      cols_ = parent_.getDim().second;
+      bar_.layout(cols_);
+    }
+    plane_->moveToTop();
   }
 
-  // (Re)builds the whole ncmenu from scratch against buffer_names_' current
-  // contents - the constructor's original one-shot job, now also
-  // refreshBuffers()'s, since ncmenu has no API to replace one section's
-  // items in an existing menu (confirmed against the real library: nothing
-  // between ncmenu_create() and ncmenu_destroy() touches item content) -
-  // recreating the whole `menu` is the only way to show a changed buffer
-  // list. The old Menu (and its ncplane) is destroyed by the reassignment
-  // below; the render loop's own per-frame raiseToTop() (TerminalUI's main
-  // loop) picks the replacement back up without this needing to call it
-  // itself.
-  void rebuild() {
-    // desc_storage_/item_commands_ back every non-separator ncmenu_item's
-    // .desc pointer and the activation lookup below respectively - reset
-    // together with menu itself so a rebuild never leaves either holding a
-    // stale entry from the previous buffer list.
-    desc_storage_.clear();
-    item_commands_.clear();
+  bool isOpen() const override { return bar_.isOpen(); }
 
-    // Every buffer item's *label* is buffer_display_names_' own text
-    // (Controller::getBufferDisplayName()'s already-disambiguated output,
-    // computed by the caller - see refreshBuffers()'s own comment on
-    // UIMenu.h for why this class can't just call it itself), not the
-    // full path buffer_names_ itself carries (which stays the real songs_
-    // key everywhere else, e.g. save-song's target) - prefixed with "* "
-    // for whichever one is active_buffer_name_. Each item's own *command*
-    // is still "switch-to-buffer:" plus the *full* name
-    // (Controller::refreshBufferCommands() keeps one such command defined
-    // per open buffer), never the display text - a menu click has to
-    // reach the same specific buffer a same-display one wouldn't.
-    // display_labels/commands are this function's own local vectors, not
-    // menuSpec()'s: MenuItemSpec::label/command point directly into
-    // whatever backs them without copying, so both must outlive
-    // menuSpec()'s own return - true for locals here (alive for the rest
-    // of this function), not for ones that would go out of scope the
-    // moment menuSpec() itself returned.
+private:
+  // Every buffer item's label is its display name (Controller::
+  // getBufferDisplayName()'s disambiguated text, from the caller), prefixed
+  // with "* " for the active one; its command is "switch-to-buffer:" plus
+  // the full name, so an item reaches that buffer even when two show alike.
+  void rebuild() {
     vector<string> display_labels, commands;
-    display_labels.reserve(buffer_names_.size());
-    commands.reserve(buffer_names_.size());
     for (size_t i = 0; i < buffer_names_.size(); i++) {
       auto & name = buffer_names_[i];
       auto & display_name = i < buffer_display_names_.size() ? buffer_display_names_[i] : name;
@@ -937,629 +327,120 @@ private:
       commands.push_back("switch-to-buffer:" + name);
     }
     vector<MenuItemSpec> buffer_items;
-    buffer_items.reserve(buffer_names_.size());
     for (size_t i = 0; i < buffer_names_.size(); i++) {
       buffer_items.push_back({ display_labels[i].c_str(), "", commands[i].c_str() });
     }
-
     auto spec = menuSpec(std::move(buffer_items));
 
-    // desc_storage_ is reserved to its final size up front so no
-    // reallocation (which would move/invalidate short (SSO) strings' own
-    // buffers) can happen while still being filled below; must stay alive
-    // through ncmenu_create()'s call at the bottom of this function, which
-    // deep-copies the ncmenu_item/ncmenu_section arrays themselves
-    // (confirmed against the real library - see
-    // plans/menu-bar-expansion.md) but not anything *they* point to a
-    // moment later.
-    size_t total_items = 0;
-    for (auto & section : spec) total_items += section.items.size();
-    desc_storage_.reserve(total_items);
-
-    vector<vector<ncmenu_item>> item_arrays;
-    vector<ncmenu_section> sections;
+    // An item's binding is shown right-aligned after the section's widest
+    // label.
+    vector<cellui::MenuBar::Section> sections;
+    commands_.clear();
     for (auto & section : spec) {
       size_t label_width = 0;
       for (auto & item : section.items) {
-	if (item.label) label_width = std::max(label_width, strlen(item.label));
+	if (item.label) label_width = std::max(label_width, static_cast<size_t>(Utf8::displayWidth(item.label)));
       }
-
-      vector<ncmenu_item> items;
+      cellui::MenuBar::Section out;
+      out.name = section.name;
+      out.mnemonic = static_cast<unsigned char>(section.mnemonic);
+      vector<string> section_commands;
       for (auto & item : section.items) {
+	cellui::MenuBar::Item entry;
 	if (!item.label) {
-	  items.push_back({ .desc = nullptr, .shortcut = {} });
-	  continue;
+	  entry.separator = true;
+	  section_commands.emplace_back();
+	} else {
+	  entry.label = item.label;
+	  if (item.binding && item.binding[0]) {
+	    entry.label.append(label_width + 2 - static_cast<size_t>(Utf8::displayWidth(item.label)), ' ');
+	    entry.label += item.binding;
+	  }
+	  section_commands.emplace_back(item.command ? item.command : "");
 	}
-	string desc = item.label;
-	if (item.binding && item.binding[0]) {
-	  desc.append(label_width + 2 - strlen(item.label), ' ');
-	  desc += item.binding;
-	}
-	desc_storage_.push_back(std::move(desc));
-	items.push_back({ .desc = desc_storage_.back().c_str(), .shortcut = {} });
-	if (item.command) item_commands_[desc_storage_.back()] = item.command;
+	out.items.push_back(std::move(entry));
       }
-      item_arrays.push_back(std::move(items));
+      sections.push_back(std::move(out));
+      commands_.push_back(std::move(section_commands));
     }
-    for (size_t i = 0; i < item_arrays.size(); i++) {
-      auto & section = spec[i];
-      sections.push_back({ .name = section.name, .itemcount = static_cast<int>(item_arrays[i].size()),
-	.items = item_arrays[i].data(),
-	.shortcut = { .id = static_cast<uint32_t>(section.mnemonic), .alt = true } });
-    }
-
-    uint64_t headerchannels = NCCHANNELS_INITIALIZER(0xff, 0xff, 0xff, 0x7f, 0x34, 0x7f);
-    uint64_t sectionchannels = NCCHANNELS_INITIALIZER(0xff, 0xff, 0xff, 0x00, 0x00, 0x00);
-    ncchannels_set_fg_alpha(&sectionchannels, NCALPHA_HIGHCONTRAST);
-    ncchannels_set_bg_alpha(&sectionchannels, NCALPHA_BLEND);
-    ncchannels_set_bg_alpha(&headerchannels, NCALPHA_BLEND);
-    ncmenu_options mopts = { .sections = sections.data(), .sectioncount = static_cast<int>(sections.size()),
-      .headerchannels = headerchannels, .sectionchannels = sectionchannels, .flags = 0 };
-    menu = make_unique<Menu>(&mopts);
+    bar_.setSections(std::move(sections));
+    cols_ = parent_.getDim().second;
+    bar_.layout(cols_);
   }
 
+  UIPlane & parent_;
+  unique_ptr<UIPlane> plane_;
+  cellui::MenuBar bar_;
+  int cols_ = 0;
   vector<string> buffer_names_;
   vector<string> buffer_display_names_;
   string active_buffer_name_;
-  unique_ptr<Menu> menu;
-  vector<string> desc_storage_;
-  std::map<string, string> item_commands_;
+  vector<vector<string>> commands_;  // by section, then item
   string activated_command_;
 };
 
-namespace {
-
-// Lerps from `background` (value == 0) to the fully-bright HSV color
-// (value == 1), using value itself as the blend weight - continuous by
-// construction, so a cell whose value only ever asymptotically approaches
-// 0 (dsp/DiracAnalyzer.cpp's grid ballistics are a one-pole decay that
-// never mathematically reaches exact 0) still converges to the background
-// color rather than needing a separate cutoff/threshold to special-case
-// "close enough to silent." No explicit epsilon check needed anywhere:
-// once value is astronomically small, its weight in the lerp is too.
-// `background` is window_bg_color, the idle background every scope
-// shares - the heatmap repaints every cell/pixel each frame, so it has no
-// untouched cells to show it through the way the other charts do.
-SubcellRgb heatmapCellColor(const Color & background, float saturation, float value) {
-  if (value < 0.0f) value = 0.0f;
-  else if (value > 1.0f) value = 1.0f;
-  uint8_t r, g, b;
-  heatmapHsvToRgb(kHeatmapHue, saturation, 1.0f, r, g, b);
-  return {
-    static_cast<float>(background.getRed()) * (1.0f - value) + static_cast<float>(r) * value,
-    static_cast<float>(background.getGreen()) * (1.0f - value) + static_cast<float>(g) * value,
-    static_cast<float>(background.getBlue()) * (1.0f - value) + static_cast<float>(b) * value,
-  };
-}
-
-// Computes destination index d's source-index range [lo,hi) along one axis
-// of size grid_size, resampled to dest_size - two different, deliberately
-// separate strategies depending on direction, because a single formula
-// that's correct for one gets the other wrong:
-//
-// - Downsampling (dest_size <= grid_size, TerminalHeatmapChart's usual
-//   case): a proper partition via round(d*grid_size/dest_size) boundaries,
-//   not floor or ceiling. lo(d) is literally hi(d-1), so consecutive
-//   buckets never leave a gap (a truncating/floor upper bound can drop a
-//   source cell a bucket's real span only partially reaches into - a real,
-//   confirmed bug: grid_size=18, dest_size=15, d=7's real span [8.4,9.6)
-//   genuinely overlaps both source rows 8 and 9, but floor(9.6)=9 as an
-//   exclusive bound only ever included row 8) nor overlap (a ceiling upper
-//   bound independently applied to every d, tried and reverted here, fixed
-//   the gap but then had d=6's range reach into row 8 too, so an
-//   elevation=0 source split 50/50 across rows 8/9 by DiracAnalyzer.cpp's
-//   own bilinear splat lit up all 3 sextant sub-rows instead of
-//   concentrating in the true middle one).
-//
-// - Upsampling (dest_size > grid_size, TerminalPixelHeatmapChart's usual
-//   case, and TerminalHeatmapChart's own azimuth axis before
-//   DiracAnalyzer::kAzimuthBins was widened enough to avoid it): the same
-//   round-boundary formula can tie at consecutive d (two different d's
-//   round to the same source index), leaving one of them an empty range;
-//   patching that by grabbing the *next* source index (as the downsampling
-//   fallback below does) breaks the tie asymmetrically, double-covering
-//   one source cell while its symmetric neighbor only gets single
-//   coverage - the horizontal counterpart of the elevation bug above (a
-//   source split 50/50 across two adjacent azimuth bins rendered as three
-//   equally-bright sub-columns instead of a symmetric two-and-two split).
-//   Each destination index instead independently gets its own single
-//   nearest source cell, by that destination cell's real-valued *center*
-//   (d+0.5) rather than its edge - ties are then impossible since
-//   consecutive d's centers can never round to the same source index the
-//   way consecutive *boundaries* can.
-void axisRange(int d, int grid_size, int dest_size, int & lo, int & hi) {
-  if (dest_size <= grid_size) {
-    lo = (d * grid_size + dest_size / 2) / dest_size;
-    hi = ((d + 1) * grid_size + dest_size / 2) / dest_size;
-    if (hi <= lo) hi = lo + 1; // degenerate (dest_size far smaller than grid_size): still show something
-  } else {
-    lo = ((2 * d + 1) * grid_size) / (2 * dest_size); // floor((d+0.5)*grid_size/dest_size)
-    hi = lo + 1;
-  }
-  if (lo >= grid_size) lo = grid_size - 1;
-  if (hi > grid_size) hi = grid_size;
-}
-
-// Brightness and brightness-weighted saturation: interpolating the weighted
-// form keeps a dark cell's saturation from tinting its lit neighbour.
-struct BrightSat { float b = 0.0f, sb = 0.0f; };
-
-// Resamples one line of `src_n` cells to `dst_n`: smoothly (linear between
-// cell centres) when enlarging, and by axisRange()'s max when shrinking, so a
-// narrow peak survives.
-void resampleLine(const BrightSat * in, int in_stride, int src_n, BrightSat * out, int out_stride, int dst_n) {
-  for (int d = 0; d < dst_n; d++) {
-    BrightSat result;
-    if (dst_n > src_n) {
-      float pos = (static_cast<float>(d) + 0.5f) * static_cast<float>(src_n) / static_cast<float>(dst_n) - 0.5f;
-      int i0 = static_cast<int>(std::floor(pos));
-      float t = pos - static_cast<float>(i0);
-      const BrightSat & a = in[std::clamp(i0, 0, src_n - 1) * in_stride];
-      const BrightSat & b = in[std::clamp(i0 + 1, 0, src_n - 1) * in_stride];
-      result = { a.b + (b.b - a.b) * t, a.sb + (b.sb - a.sb) * t };
+TerminalUI::TerminalUI(cellui::term::Terminal & session)
+  : session_(session), screen_(session.rows(), session.cols()) {
+  // Something that closes on a bare Escape gets it at once, rather than when
+  // the next key shows it was no Alt prefix.
+  key_reader_.takeEscape = [this](const cellui::Input & escape) {
+    auto active = outline_view_ && outline_view_->isModal() ? outline_view_ : active_element_.lock();
+    if (equalizer_editor_.isOpen()) {
+      closeEqualizerEditor();
+    } else if (choice_dialog_.isOpen()) {
+      closeChoiceDialog();
+    } else if (info_dialog_.isOpen()) {
+      closeInfoDialog();
+    } else if (active && active->wantsBareEscape()) {
+      active->offerInput(escape);
     } else {
-      int lo, hi;
-      axisRange(d, src_n, dst_n, lo, hi);
-      for (int i = lo; i < hi; i++) if (in[i * in_stride].b > result.b) result = in[i * in_stride];
+      return false;
     }
-    out[d * out_stride] = result;
-  }
-}
-
-// Resamples the logical grid_cols x grid_rows brightness/saturation grid to a
-// dest_cols x dest_rows destination resolution (a coarse grid is smoothed up
-// to real pixels or sub-cells, a fine one reduced by max), one axis at a time.
-// Both dest_row 0 and grid row 0 are "bottom" here - callers flip to screen
-// coordinates (row 0 = top) themselves.
-void resampleGrid(const std::vector<float> & brightness, const std::vector<float> & saturation,
-                   int grid_cols, int grid_rows, int dest_cols, int dest_rows,
-                   std::vector<float> & out_brightness, std::vector<float> & out_saturation) {
-  out_brightness.assign(static_cast<size_t>(dest_cols) * static_cast<size_t>(dest_rows), 0.0f);
-  out_saturation.assign(static_cast<size_t>(dest_cols) * static_cast<size_t>(dest_rows), 0.0f);
-  if (dest_cols <= 0 || dest_rows <= 0) return;
-
-  std::vector<BrightSat> source(static_cast<size_t>(grid_cols) * static_cast<size_t>(grid_rows));
-  for (size_t i = 0; i < source.size(); i++) source[i] = { brightness[i], brightness[i] * saturation[i] };
-
-  // Columns first (each grid row to dest_cols), then rows (each dest column to dest_rows).
-  std::vector<BrightSat> wide(static_cast<size_t>(dest_cols) * static_cast<size_t>(grid_rows));
-  for (int gy = 0; gy < grid_rows; gy++) {
-    resampleLine(&source[static_cast<size_t>(gy * grid_cols)], 1, grid_cols, &wide[static_cast<size_t>(gy * dest_cols)], 1, dest_cols);
-  }
-  std::vector<BrightSat> result(static_cast<size_t>(dest_cols) * static_cast<size_t>(dest_rows));
-  for (int dx = 0; dx < dest_cols; dx++) {
-    resampleLine(&wide[static_cast<size_t>(dx)], dest_cols, grid_rows, &result[static_cast<size_t>(dx)], dest_cols, dest_rows);
-  }
-  for (size_t i = 0; i < result.size(); i++) {
-    out_brightness[i] = std::clamp(result[i].b, 0.0f, 1.0f);
-    out_saturation[i] = result[i].b > 1e-9f ? std::clamp(result[i].sb / result[i].b, 0.0f, 1.0f) : 0.0f;
-  }
-}
-
-struct AxisLabel { int row, col; const char * text; };
-
-// The heatmap's own axis extremes, placed directly in the grid area rather
-// than a separate legend row - elevation labels on the top/bottom rows
-// (matching HeatmapChart's row-0-is-bottom-of-data/screen-row-0-is-top
-// convention, so "+90" naturally sits where the top of the grid is),
-// azimuth labels at the left/right edges of a middle row (azimuth bin 0
-// is the left edge, bin kAzimuthBins-1 the right - see DiracAnalyzer.cpp's
-// own az_pos splat math). Labels are always drawn, never hidden by
-// activity underneath them - instead, each character cell a label
-// occupies is an exception to the normal two-color quadrant/pixel
-// blend: it collapses to a single mean color (its underlying sub-samples
-// averaged) used as that character's background, with the glyph itself
-// drawn in white blended with transparency over that background
-// (labelForegroundColor(), below) - so the label always reads clearly
-// while still visibly taking on whatever hue/brightness is really there.
-constexpr float kLabelForegroundAlpha = 0.55f; // how much white shows through the glyph
-
-void labelForegroundColor(const SubcellRgb & bg, uint8_t & r, uint8_t & g, uint8_t & b) {
-  r = static_cast<uint8_t>(kLabelForegroundAlpha * 255.0f + (1.0f - kLabelForegroundAlpha) * bg.r);
-  g = static_cast<uint8_t>(kLabelForegroundAlpha * 255.0f + (1.0f - kLabelForegroundAlpha) * bg.g);
-  b = static_cast<uint8_t>(kLabelForegroundAlpha * 255.0f + (1.0f - kLabelForegroundAlpha) * bg.b);
-}
-
-std::array<AxisLabel, 4> axisLabels(int usable_rows, int cols) {
-  int el_col = max(0, (cols - 3) / 2); // "+90"/"-90" are both 3 characters wide
-  return {{
-    { 0, el_col, "+90" },
-    { usable_rows - 1, el_col, "-90" },
-    { usable_rows / 2, 0, "-180" },
-    { usable_rows / 2, cols - 4, "+180" },
-  }};
-}
-
-// 5x7 glyphs for the characters axisLabels() uses, row-major ('#' = ink).
-const char * pixelGlyph(char c) {
-  switch (c) {
-    case '+': return "....." "..#.." "..#.." "#####" "..#.." "..#.." ".....";
-    case '-': return "....." "....." "....." "#####" "....." "....." ".....";
-    case '0': return ".###." "#...#" "#..##" "#.#.#" "##..#" "#...#" ".###.";
-    case '1': return "..#.." ".##.." "..#.." "..#.." "..#.." "..#.." ".###.";
-    case '8': return ".###." "#...#" "#...#" ".###." "#...#" "#...#" ".###.";
-    case '9': return ".###." "#...#" "#...#" ".####" "....#" "#...#" ".###.";
-    default: return nullptr;
-  }
-}
-
-// Draws a label into the ABGR pixel buffer (row 0 = top), each glyph
-// scaled to the character cell and blended in white so the heatmap
-// still shows through.
-void drawPixelLabel(vector<uint32_t> & buffer, unsigned pxx, unsigned pxy, const AxisLabel & label, unsigned cell_w, unsigned cell_h) {
-  // About half the cell's height: small, unobtrusive marks.
-  const unsigned sx = max(1u, cell_w / 12), sy = max(1u, cell_h / 16);
-  const unsigned glyph_w = 5 * sx, glyph_h = 7 * sy;
-  for (unsigned c = 0; label.text[c]; c++) {
-    const char * glyph = pixelGlyph(label.text[c]);
-    if (!glyph) continue;
-    long x0 = static_cast<long>(label.col + static_cast<int>(c)) * cell_w + (cell_w > glyph_w ? (cell_w - glyph_w) / 2 : 0);
-    long y0 = static_cast<long>(label.row) * cell_h + (cell_h > glyph_h ? (cell_h - glyph_h) / 2 : 0);
-    for (unsigned gy = 0; gy < 7; gy++) {
-      for (unsigned gx = 0; gx < 5; gx++) {
-        if (glyph[gy * 5 + gx] != '#') continue;
-        for (unsigned dy = 0; dy < sy; dy++) {
-          for (unsigned dx = 0; dx < sx; dx++) {
-            long x = x0 + static_cast<long>(gx * sx + dx), y = y0 + static_cast<long>(gy * sy + dy);
-            if (x < 0 || y < 0 || x >= static_cast<long>(pxx) || y >= static_cast<long>(pxy)) continue;
-            uint32_t & pixel = buffer[static_cast<size_t>(y) * pxx + static_cast<size_t>(x)];
-            auto mix = [](uint32_t channel) { return static_cast<uint32_t>(kLabelForegroundAlpha * 255.0f + (1.0f - kLabelForegroundAlpha) * static_cast<float>(channel)); };
-            pixel = (0xffu << 24) | (mix((pixel >> 16) & 0xffu) << 16) | (mix((pixel >> 8) & 0xffu) << 8) | mix(pixel & 0xffu);
-          }
-        }
-      }
-    }
-  }
-}
-}
-
-// Character-cell fallback for HeatmapChart, no pixel-graphics support
-// needed: paints one Unicode block glyph per character cell - a sextant
-// (2x3 sub-cells, SubcellGlyphs.h's sextantCodepoint()) when
-// UIPlane::canRenderSextants() confirms the terminal supports Unicode
-// 13's sextant range, else a quadrant (2x2 sub-cells, kQuadrantCodepoints),
-// read once at construction (the terminal's capabilities don't change
-// mid-session) - tripling (sextants) or doubling (quadrants) the
-// effective vertical resolution over a flat one-color-per-cell approach.
-// Each cell's foreground/background pair is the optimal 2-color
-// quantization (quantizeToTwoColors) of its real sub-samples, not a naive
-// corner pick or a fixed brightness threshold. 24-bit truecolor is
-// near-universally supported even on terminals without sixel/Kitty image
-// support, unlike the braille dot glyphs TerminalChart uses for 1D bars -
-// a heatmap wants a genuine 2D color field, not a thresholded on/off
-// pattern along one axis. Resamples (resampleGrid(), above) from the
-// logical gridCols()xgridRows() grid to however many sub-cells this
-// widget actually has (2x the character-cell count horizontally always,
-// 3x or 2x vertically depending on sextant support).
-class TerminalHeatmapChart : public HeatmapChart {
-public:
-  TerminalHeatmapChart(UIPlane & parent, int grid_cols, int grid_rows)
-    : HeatmapChart(parent, grid_cols, grid_rows) {
-    use_sextants_ = getPlane().canRenderSextants();
-  }
-
-  void setGrid(const std::vector<float> & brightness, const std::vector<float> & saturation) override {
-    brightness_ = brightness;
-    saturation_ = saturation;
-  }
-
-  void setMarkers(std::vector<Marker> markers) override {
-    markers_ = std::move(markers);
-  }
-
-  void commit() override {
-    if (brightness_.empty()) return;
-    auto & background = getPlane().getStyles().window_bg_color;
-    auto [rows, cols] = getDim();
-    int usable_rows = footer_label_.empty() ? rows : rows - 1;
-    if (usable_rows <= 0 || cols <= 0) return;
-
-    int sub_rows = use_sextants_ ? 3 : 2;
-    int vcols = cols * 2, vrows = usable_rows * sub_rows; // sextant/quadrant sub-cell resolution
-    std::vector<float> agg_brightness, agg_saturation;
-    resampleGrid(brightness_, saturation_, gridCols(), gridRows(), vcols, vrows, agg_brightness, agg_saturation);
-
-    std::vector<SubcellRgb> samples(static_cast<size_t>(sub_rows * 2));
-    for (int sy = 0; sy < usable_rows; sy++) {
-      for (int sx = 0; sx < cols; sx++) {
-        // Gather this character cell's sub-samples (row-major - top-left
-        // first, matching kQuadrantCodepoints'/sextantCodepoint()'s own bit
-        // order) from the resampled sub-grid. Screen row 0 is the TOP of
-        // the widget, but sub-grid row 0 is the BOTTOM (resampleGrid()'s
-        // contract, inherited from HeatmapChart.h's own setGrid()) - flip
-        // vertically.
-        int bit = 0;
-        for (int qy = 0; qy < sub_rows; qy++) {
-          int vy_from_top = sy * sub_rows + qy;
-          int vy = vrows - 1 - vy_from_top;
-          for (int qx = 0; qx < 2; qx++) {
-            int vx = sx * 2 + qx;
-            size_t idx = static_cast<size_t>(vy * vcols + vx);
-            samples[static_cast<size_t>(bit)] = heatmapCellColor(background, agg_saturation[idx], agg_brightness[idx]);
-            bit++;
-          }
-        }
-
-        SubcellRgb on_color, off_color;
-        int mask = quantizeToTwoColors(samples, on_color, off_color);
-
-        setFgColor(static_cast<int>(on_color.r), static_cast<int>(on_color.g), static_cast<int>(on_color.b));
-        setBgColor(static_cast<int>(off_color.r), static_cast<int>(off_color.g), static_cast<int>(off_color.b));
-        putstr(sy, sx, Utf8::encodeCodepoint(use_sextants_ ? sextantCodepoint(mask) : kQuadrantCodepoints[mask]));
-      }
-    }
-    setFgColor(255, 255, 255);
-    setBgColor(background); // don't leave the last cell's colors "stuck" for whatever draws next (e.g. the footer label below)
-
-    for (auto & marker : markers_) {
-      int sx = static_cast<int>(marker.u * static_cast<float>(cols));
-      int sy = usable_rows - 1 - static_cast<int>(marker.v * static_cast<float>(usable_rows));
-      if (sx < 0 || sx >= cols || sy < 0 || sy >= usable_rows) continue;
-      putstr(sy, sx, '+');
-    }
-
-    for (auto & label : axisLabels(usable_rows, cols)) {
-      std::string text = label.text;
-      for (int c = 0; c < static_cast<int>(text.size()); c++) {
-        int sx = label.col + c;
-        if (sx < 0 || sx >= cols) continue;
-
-        // This character's own sub-samples, collapsed to a single mean
-        // color - the exception to the normal two-color sextant/quadrant
-        // blend that a label-covered cell gets (see axisLabels()'s own
-        // comment above).
-        SubcellRgb sum{0, 0, 0};
-        for (int qy = 0; qy < sub_rows; qy++) {
-          int vy_from_top = label.row * sub_rows + qy;
-          int vy = vrows - 1 - vy_from_top;
-          for (int qx = 0; qx < 2; qx++) {
-            int vx = sx * 2 + qx;
-            size_t idx = static_cast<size_t>(vy * vcols + vx);
-            SubcellRgb rgb = heatmapCellColor(background, agg_saturation[idx], agg_brightness[idx]);
-            sum.r += rgb.r; sum.g += rgb.g; sum.b += rgb.b;
-          }
-        }
-        float sample_count = static_cast<float>(sub_rows * 2);
-        SubcellRgb mean{sum.r / sample_count, sum.g / sample_count, sum.b / sample_count};
-
-        uint8_t fr, fg, fb;
-        labelForegroundColor(mean, fr, fg, fb);
-        setFgColor(fr, fg, fb);
-        setBgColor(static_cast<int>(mean.r), static_cast<int>(mean.g), static_cast<int>(mean.b));
-        putstr(label.row, sx, std::string(1, text[static_cast<size_t>(c)]));
-      }
-    }
-
-    if (!footer_label_.empty()) {
-      putstr(rows - 1, 0, footer_label_);
-    }
-  }
-
-private:
-  bool use_sextants_;
-  std::vector<float> brightness_, saturation_;
-  std::vector<Marker> markers_;
-};
-
-// Pixel-graphics HeatmapChart renderer - same ncvisual/pixel-blit approach
-// as TerminalPixelChart, but a genuine 2D image resampled (resampleGrid(),
-// above - smoothly upscaled, since real pixel counts exceed the logical
-// grid) to the plane's real pixel dimensions, instead of vertical bars.
-class TerminalPixelHeatmapChart : public HeatmapChart {
-public:
-  TerminalPixelHeatmapChart(UIPlane & parent, int grid_cols, int grid_rows)
-    : HeatmapChart(parent, grid_cols, grid_rows) { }
-
-  void setGrid(const std::vector<float> & brightness, const std::vector<float> & saturation) override {
-    brightness_ = brightness;
-    saturation_ = saturation;
-  }
-
-  void setMarkers(std::vector<Marker> markers) override {
-    markers_ = std::move(markers);
-  }
-
-  void commit() override {
-    if (brightness_.empty()) return;
-
-    auto & tplane = dynamic_cast<TerminalPlane&>(getPlane());
-    auto native_plane = tplane.getPlane().to_ncplane();
-
-    unsigned pxy = 0, pxx = 0, celldimy = 0, celldimx = 0;
-    ncplane_pixel_geom(native_plane, &pxy, &pxx, &celldimy, &celldimx, nullptr, nullptr);
-    if (pxy == 0 || pxx == 0) return;
-    if (celldimy == 0) celldimy = 1;
-    if (celldimx == 0) celldimx = 1;
-
-    // Same footer-row reservation as TerminalPixelChart::commit().
-    if (!footer_label_.empty() && celldimy > 0 && pxy > celldimy) pxy -= celldimy;
-
-    auto & background = getPlane().getStyles().window_bg_color;
-    vector<uint32_t> buffer(static_cast<size_t>(pxy) * pxx, pixelOf(background)); // overwritten below for every pixel regardless, kept consistent for clarity
-
-    std::vector<float> agg_brightness, agg_saturation;
-    resampleGrid(brightness_, saturation_, gridCols(), gridRows(), static_cast<int>(pxx), static_cast<int>(pxy), agg_brightness, agg_saturation);
-
-    for (unsigned py = 0; py < pxy; py++) {
-      // agg_* row 0 is the BOTTOM (resampleGrid()'s contract), but py=0 is
-      // the TOP of the image - flip vertically.
-      unsigned vy = pxy - 1 - py;
-      for (unsigned px = 0; px < pxx; px++) {
-        size_t idx = static_cast<size_t>(vy) * pxx + px;
-
-        SubcellRgb rgb = heatmapCellColor(background, agg_saturation[idx], agg_brightness[idx]);
-        buffer[py * pxx + px] = (0xffu << 24) | (static_cast<uint32_t>(rgb.b) << 16) | (static_cast<uint32_t>(rgb.g) << 8) | static_cast<uint32_t>(rgb.r);
-      }
-    }
-
-    for (auto & marker : markers_) {
-      unsigned mx = static_cast<unsigned>(marker.u * static_cast<float>(pxx));
-      unsigned my_from_bottom = static_cast<unsigned>(marker.v * static_cast<float>(pxy));
-      unsigned my = my_from_bottom < pxy ? pxy - 1 - my_from_bottom : 0;
-      for (int dy = -1; dy <= 1; dy++) {
-        for (int dx = -1; dx <= 1; dx++) {
-          long y = static_cast<long>(my) + dy, x = static_cast<long>(mx) + dx;
-          if (y < 0 || y >= static_cast<long>(pxy) || x < 0 || x >= static_cast<long>(pxx)) continue;
-          buffer[static_cast<size_t>(y) * pxx + static_cast<size_t>(x)] = 0xffffffffu; // opaque white
-        }
-      }
-    }
-
-    // Axis labels go into the image itself: text in the plane's cells would
-    // be hidden under the bitmap.
-    {
-      auto [label_rows, label_cols] = getDim();
-      int usable_rows = footer_label_.empty() ? static_cast<int>(label_rows) : static_cast<int>(label_rows) - 1;
-      for (auto & label : axisLabels(usable_rows, static_cast<int>(label_cols))) {
-        drawPixelLabel(buffer, pxx, pxy, label, celldimx, celldimy);
-      }
-    }
-
-    ncpp::Visual visual(buffer.data(), static_cast<int>(pxy), static_cast<int>(pxx * 4), static_cast<int>(pxx));
-    ncvisual_options vopts{};
-    vopts.n = native_plane;
-    vopts.scaling = NCSCALE_NONE;
-    vopts.blitter = NCBLIT_PIXEL;
-    visual.blit(&vopts);
-
-    auto [rows, cols] = getDim();
-    if (!footer_label_.empty()) {
-      putstr(static_cast<int>(rows) - 1, 0, footer_label_);
-    }
-  }
-
-private:
-  std::vector<float> brightness_, saturation_;
-  std::vector<Marker> markers_;
-};
-
-// How long a pending Escape (EscapeSequenceCoalescer::escapePending())
-// must stay open before the "ESC-" indicator actually appears
-// (updateEscapeIndicator()) - long enough that an ordinary fast Alt-chord
-// (typed close enough together to resolve within one readInput() drain
-// burst, or split across two but still well within human reaction time)
-// never flickers it, short enough that a person who actually paused after
-// Escape gets confirmation promptly rather than wondering whether the
-// keypress registered at all.
-constexpr auto kEscapeIndicatorDelay = std::chrono::milliseconds(300);
-
-// Bundles the Alt-key coalescing pipeline (see EscapeCoalescer.h)'s three
-// pieces - defined here, not in TerminalUI.h, so that header stays free
-// of notcurses types (same reasoning as kp_escape_pending_'s own comment
-// there).
-class TerminalUI::EscapeInputPipeline {
-public:
-  explicit EscapeInputPipeline(ncpp::NotCurses & nc) : source(nc), coalescer(source, detector) { }
-
-  KittyProtocolDetector detector;
-  NotcursesInputEventSource source;
-  EscapeSequenceCoalescer coalescer;
-};
-
-TerminalUI::TerminalUI(std::shared_ptr<ncpp::NotCurses> _nc)
-  : nc(_nc), escape_input_(make_unique<EscapeInputPipeline>(*nc)) {
+    return true;
+  };
 }
 
 TerminalUI::~TerminalUI() {
 }
 
-// Called once per startUI() loop iteration, whether it woke on a real fd
-// or the poll() timeout below - shows "ESC-" the moment kEscapeIndicatorDelay
-// has actually elapsed with the wait still open. Clearing it again happens
-// in readInput() instead, right when the wait ends (immediately, not on a
-// delay - there's nothing to debounce about a wait that's already over).
+// Shows "ESC-" once a pending Escape has waited KeyReader::kIndicatorDelay,
+// the way Emacs shows its Meta prefix; readInput() clears it when the wait
+// ends.
 void
 TerminalUI::updateEscapeIndicator() {
-  if (!escape_pending_since_ || escape_indicator_shown_) return;
-  if (std::chrono::steady_clock::now() - *escape_pending_since_ >= kEscapeIndicatorDelay) {
+  auto due = key_reader_.indicatorDue();
+  if (!due || escape_indicator_shown_) return;
+  if (std::chrono::steady_clock::now() >= *due) {
     setStatus("ESC-");
     escape_indicator_shown_ = true;
   }
 }
 
-// startUI()'s own poll() otherwise waits up to a full second regardless of
-// what's happening - fine normally, but while a pending Escape hasn't yet
-// crossed kEscapeIndicatorDelay, that would make the indicator's own
-// appearance late and irregular (anywhere up to a second past the actual
-// delay) rather than landing right on it. Only shortens the wait while
-// there's an actual reason to wake up early; otherwise unchanged.
+// The loop's wait, shortened so the indicator appears on time.
 int
 TerminalUI::escapeIndicatorPollTimeoutMs() const {
   constexpr int kDefaultPollTimeoutMs = 1000;
-  if (!escape_pending_since_ || escape_indicator_shown_) return kDefaultPollTimeoutMs;
-  auto remaining = kEscapeIndicatorDelay - (std::chrono::steady_clock::now() - *escape_pending_since_);
-  auto remaining_ms = std::chrono::duration_cast<std::chrono::milliseconds>(remaining).count();
+  auto due = key_reader_.indicatorDue();
+  if (!due || escape_indicator_shown_) return kDefaultPollTimeoutMs;
+  auto remaining_ms = std::chrono::duration_cast<std::chrono::milliseconds>(*due - std::chrono::steady_clock::now()).count();
   return static_cast<int>(std::clamp<long long>(remaining_ms, 0, kDefaultPollTimeoutMs));
 }
 
-// Pixel-graphics spectrum (sixel/Kitty/iTerm2, whichever the terminal
-// negotiates): one bar per pixel column (no peak hold), blitted onto the meter's own plane.
-class TerminalPixelSpectrumMeter : public SpectrumMeter {
-public:
-  using SpectrumMeter::SpectrumMeter;
-
-protected:
-  size_t barCount(int cols) override {
-    unsigned pxx = 0;
-    if (pixelGeom(nullptr, &pxx) && pxx > 0) return pxx;
-    return SpectrumMeter::barCount(cols);
-  }
-
-  void drawBars(const std::vector<float> & levels) override {
-    unsigned pxy = 0, pxx = 0;
-    if (!pixelGeom(&pxy, &pxx) || levels.size() != pxx) {
-      SpectrumMeter::drawBars(levels);
-      return;
-    }
-    auto & styles = getPlane().getStyles();
-    // Opaque background: a transparent pixel would composite against the raw
-    // terminal's background instead of this app's.
-    vector<uint32_t> buffer(static_cast<size_t>(pxy) * pxx, pixelOf(styles.window_bg_color));
-    // The gradient colour at pixel row `y` (from the bottom), blended `t` of
-    // the way from the background.
-    auto shade = [&](unsigned y, float t) {
-      auto color = styles.window_bg_color.blend(t, styles.spectrumColor((static_cast<float>(y) + 0.5f) / static_cast<float>(pxy)));
-      return pixelOf(color);
-    };
-    // The curve's height at each column, in pixels from the bottom.
-    float top = static_cast<float>(pxy) - 2.0f;
-    auto height = [&](unsigned x) { return levels[x] * top + 1.0f; };
-    for (unsigned x = 0; x < pxx; x++) {
-      float h = height(x);
-      // The line reaches the neighbours' midpoints so steep slopes stay connected.
-      float prev = x > 0 ? 0.5f * (h + height(x - 1)) : h, next = x + 1 < pxx ? 0.5f * (h + height(x + 1)) : h;
-      float lo = std::min({h, prev, next}) - 0.9f, hi = std::max({h, prev, next}) + 0.9f;
-      for (unsigned y = 0; y < pxy; y++) {
-        float yc = static_cast<float>(y) + 0.5f; // pixel centre, from the bottom
-        if (yc < lo) { buffer[(pxy - 1 - y) * pxx + x] = shade(y, 0.22f); continue; }
-        float cover = std::clamp(std::min(yc - lo, hi - yc), 0.0f, 1.0f);
-        if (cover <= 0.0f) break;
-        buffer[(pxy - 1 - y) * pxx + x] = shade(y, std::max(0.22f, cover));
-      }
-    }
-    ncpp::Visual visual(buffer.data(), static_cast<int>(pxy), static_cast<int>(pxx * 4), static_cast<int>(pxx));
-    ncvisual_options vopts{};
-    vopts.n = nativePlane();
-    vopts.scaling = NCSCALE_NONE;
-    vopts.blitter = NCBLIT_PIXEL;
-    visual.blit(&vopts);
-  }
-
-private:
-  ncplane * nativePlane() { return dynamic_cast<TerminalPlane&>(getPlane()).getPlane().to_ncplane(); }
-
-  bool pixelGeom(unsigned * pxy, unsigned * pxx) {
-    unsigned y = 0, x = 0;
-    ncplane_pixel_geom(nativePlane(), &y, &x, nullptr, nullptr, nullptr, nullptr);
-    if (pxy) *pxy = y;
-    if (pxx) *pxx = x;
-    return y > 0 && x > 0;
-  }
-};
-
 void
 TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
-  auto root_plane = make_unique<TerminalPlane>(controller, styles_, nc->get_stdplane(), false);
+  const auto & caps = session_.capabilities();
+  bool use_pixel = caps.pixels != cellui::term::PixelProtocol::NONE && caps.cell_px_height > 0 && caps.cell_px_width > 0;
+  auto root_plane = make_unique<cellui::BufferPlane>(screen_, styles_, controller);
+  root_plane_ = root_plane.get();
+  if (caps.default_fg && caps.default_bg) root_plane_->setDefaultColors(*caps.default_fg, *caps.default_bg);
+  root_plane_->setDisplayScale(caps.display_scale);
+  root_plane_->setSextants(caps.sextants);
+  root_plane_->setFlatChildren(true);
+  root_plane_->setThemedBases(true);
+  if (use_pixel) root_plane_->setCellPixelSize(caps.cell_px_height, caps.cell_px_width);
+  // A modal's backdrop is drawn and blurred as pictures (Sixel's stretched
+  // before they are sent).
+  if (use_pixel) root_plane_->setRasterizer(cellui::canvasRasterizer());
   setPlane(std::move(root_plane));
 
   setFgColor(styles_.window_fg_color);
@@ -1571,16 +452,14 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
     vector<string> buffer_display_names;
     buffer_display_names.reserve(buffer_names.size());
     for (auto & name : buffer_names) buffer_display_names.push_back(controller->getBufferDisplayName(name));
-    menu_ = make_shared<TerminalMenu>(buffer_names, std::move(buffer_display_names), controller->getActiveBufferName());
+    menu_ = make_shared<TerminalMenu>(getPlane(), buffer_names, std::move(buffer_display_names), controller->getActiveBufferName());
+    menu_->applyStyles(styles_);
   }
 
-  bool use_pixel = notcurses_check_pixel_support(*nc) != NCPIXEL_NONE;
-  if (use_pixel) chart_ = make_shared<TerminalPixelSpectrumMeter>(getPlane());
-  else chart_ = make_shared<SpectrumMeter>(getPlane());
-  volume_meter_ = make_shared<ChannelMeter>(getPlane());
-
-  if (use_pixel) heatmap_ = make_shared<TerminalPixelHeatmapChart>(getPlane(), DiracAnalyzer::kAzimuthBins, DiracAnalyzer::kElevationBins);
-  else heatmap_ = make_shared<TerminalHeatmapChart>(getPlane(), DiracAnalyzer::kAzimuthBins, DiracAnalyzer::kElevationBins);
+  scopes_ = cellui::term::scopes(caps);
+  chart_ = scopes_->spectrum(getPlane());
+  volume_meter_ = scopes_->channelMeter(getPlane());
+  heatmap_ = scopes_->heatmap(getPlane(), DiracAnalyzer::kAzimuthBins, DiracAnalyzer::kElevationBins);
 
   // No footer legend on either scope: the heatmap's axis extremes are
   // drawn directly in the grid area instead (axisLabels(), above), and the
@@ -1594,185 +473,134 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
   if (initial_view_ == View::LIVE) setView(View::LIVE);
   else layout();
 
-  // Every other widget above was created after menu_, so without this the
-  // scope charts/pattern editor/status line all sit above it in z-order -
-  // see UIMenu::raiseToTop()'s own comment for why that hides an unrolled
-  // section's dropdown even though the menu still functions correctly.
-  menu_->raiseToTop();
+  render();
+}
 
-  nc->render();
+// Every other widget was created after menu_, and layout() and a reader,
+// a picker or a widget's own child can land above it too, hiding an
+// unrolled section's dropdown (see UIMenu::raiseToTop()), so it is raised
+// before every frame - and an open modal dialog, on its scrim, above it.
+void TerminalUI::raiseOverlays() {
+  menu_->raiseToTop();
+  modal_scrim_.raise();
+  equalizer_editor_.raise();
+  choice_dialog_.raise();
+  info_dialog_.raise();
+  // An info dialog takes no clicks: the terminal selects its text instead
+  // (the blurred screen behind it has none to select).
+  session_.setMouseReporting(!info_dialog_.isOpen());
 }
 
 void
 TerminalUI::render() {
-  nc->render();
+  raiseOverlays();
+  root_plane_->refresh();
+  cellui::term::CursorRequest cursor;
+  if (auto at = root_plane_->cursorPosition()) cursor = { true, at->first, at->second };
+  if (session_.wantsFrameInfo()) {
+    cellui::FrameInfo info;
+    info.planes = root_plane_->describe();
+    info.focus = focusName();
+    session_.present(screen_, cursor, root_plane_->images(), &info);
+  } else {
+    session_.present(screen_, cursor, root_plane_->images());
+  }
+}
+
+void
+TerminalUI::step() {
+  readInput();
+  while (getController().getUIEventQueue().hasEvents()) {
+    auto event = getController().getUIEventQueue().pop();
+    handleEvent(*event);
+  }
+  renderComponents();
+  render();
+}
+
+std::string
+TerminalUI::focusName() const {
+  if (equalizer_editor_.isOpen()) return "equalizer-editor";
+  if (choice_dialog_.isOpen()) return "choice-dialog";
+  if (info_dialog_.isOpen()) return "info-dialog";
+  if (outline_view_ && outline_view_->isModal()) return "outline-view";
+  auto active = active_element_.lock();
+  if (!active) return "";
+  if (active == pattern_editor_) return "pattern-editor";
+  if (active == arrangement_grid_) return "arrangement-grid";
+  if (active == clip_grid_) return "clip-grid";
+  if (active == outline_view_) return "outline-view";
+  if (active == status_line_) return "status-line";
+  return "other";
+}
+
+void
+TerminalUI::resizeScreen() {
+  if (screen_.rows() == session_.rows() && screen_.cols() == session_.cols()) return;
+  screen_ = cellui::CellBuffer(session_.rows(), session_.cols());
+  root_plane_->resize(session_.rows(), session_.cols());
+}
+
+// The command row has no background of its own: the display cannot draw the
+// last cell of the last row, so a coloured row would end in a different one.
+void
+TerminalUI::clearLastRow() {
+  auto [rows, cols] = getDim();
+  if (rows < 1) return;
+  setBgDefault();
+  putstr(rows - 1, 0, std::string(static_cast<size_t>(cols), ' '));
+}
+
+void
+TerminalUI::applyTheme(const Theme & theme) {
+  styles_.applyTheme(theme);
+  if (!hasPlane()) return;
+  setFgColor(styles_.window_fg_color);
+  setBgColor(styles_.window_bg_color);
+  fill();
+  clearLastRow();
+  if (menu_) menu_->applyStyles(styles_);
+  scopes_stale_ = true;
+  force_next_render_ = true;
 }
 
 void
 TerminalUI::refresh() {
-  nc->refresh(nullptr, nullptr);
+  session_.redraw();
 }
 
 bool
 TerminalUI::readInput() {
-  ncinput ni;
-
-  // Applies the same id/modifier massaging this loop has always done, then
-  // constructs and dispatches one InputEvent - factored out so a byte the
-  // KP-escape-sequence recognizer below ends up replaying (see
-  // kp_escape_depth_'s own comment) goes through identical processing to
-  // one that was never buffered at all.
-  auto dispatchRawKey = [this](int raw_id, int y, int x, unsigned modifiers, InputEvent::Kind kind) {
-    bool alt = modifiers & NCKEY_MOD_ALT;
-    bool shift = modifiers & NCKEY_MOD_SHIFT;
-    bool ctrl = modifiers & NCKEY_MOD_CTRL;
-    bool meta = modifiers & NCKEY_MOD_META;
-
-    int id = raw_id;
-    int true_case_id = raw_id; // see InputEvent's own comment on this field
-    if (id >= 'A' && id <= 'Z') {
-      id = tolower(id);
-      if (!ctrl) shift = true; // fix bug in notcurses
-    } else if (id == 28) {
-      ctrl = true;
-      alt = meta = shift = false;
-      id = '\\';
+  using cellui::term::TermEvent;
+  for (auto & event : session_.poll()) {
+    switch (event.type) {
+    case TermEvent::Type::KEY:
+    case TermEvent::Type::MOUSE:
+      key_reader_.push(cellui::term::toInput(event));
+      break;
+    case TermEvent::Type::RESIZE:
+      resizeScreen();
+      key_reader_.push(cellui::Input(Key::Resize, -1, -1, false, false, false, false));
+      break;
+    case TermEvent::Type::PASTE:
+      // Pasted text goes into an open text field; elsewhere it is not
+      // typed as keys, which would play it as notes and commands.
+      root_plane_->insertIntoReader(event.text);
+      break;
+    case TermEvent::Type::END:
+      close_ui_ = true;
+      break;
+    default:
+      break;
     }
-
-    InputEvent input(id, y, x, alt, shift, ctrl, meta, kind, true_case_id);
-    offerInput(input);
-  };
-
-  // Replays every byte the KP-escape recognizer had buffered so far, in
-  // order, then resets it - used whenever a partial match turns out not
-  // to be the sequence after all.
-  auto flushPendingKpEscape = [this, &dispatchRawKey]() {
-    for (int i = kp_escape_delivered_ ? 1 : 0; i < kp_escape_depth_; i++) {
-      auto & p = kp_escape_pending_[i];
-      dispatchRawKey(p.id, p.y, p.x, p.modifiers, p.kind);
-    }
-    kp_escape_depth_ = 0;
-    kp_escape_delivered_ = false;
-  };
-
-  // Only the very first dequeue of a batch gets definitely_pending=true -
-  // it's the one call directly backed by poll() having just reported
-  // notcurses's own input-ready fd readable (see startUI()'s own poll()
-  // call, and NotcursesInputEventSource's top comment for why this
-  // matters: a genuine Ctrl-Space, codepoint 0, is otherwise
-  // indistinguishable from "nothing available" here). Every later
-  // dequeue in the same drain burst has no such external guarantee.
-  bool first_dequeue = true;
-
-  while (true) {
-    // Emacs shows "ESC-" in the echo area while a Meta-prefix wait is
-    // open (EscapeSequenceCoalescer::escapePending()'s own comment) -
-    // matched here, but not immediately: recorded on the transition, with
-    // the actual indicator shown only once escapeIndicatorPollTimeoutMs()'s
-    // delay has passed with the wait still open (updateEscapeIndicator(),
-    // called from startUI()'s own loop) - a fast Alt-chord that resolves
-    // well within that window never flickers the indicator at all.
-    bool escape_was_pending = escape_input_->coalescer.escapePending();
-    if (!escape_input_->coalescer.next(&ni, first_dequeue)) break;
-    first_dequeue = false;
-    bool escape_now_pending = escape_input_->coalescer.escapePending();
-    if (escape_now_pending && !escape_was_pending) {
-      escape_pending_since_ = std::chrono::steady_clock::now();
-      escape_indicator_shown_ = false;
-    } else if (!escape_now_pending && escape_was_pending) {
-      if (escape_indicator_shown_) setStatus("");
-      escape_pending_since_.reset();
-      escape_indicator_shown_ = false;
-    }
-
-    // Legacy terminals only ever report NCTYPE_UNKNOWN (no press/release
-    // distinction - notcurses's own signal that this terminal never
-    // negotiated the Kitty keyboard protocol at all, no separate
-    // capability query needed); the Kitty keyboard protocol (kitty, foot,
-    // wezterm, ghostty, ...) reports real NCTYPE_PRESS/NCTYPE_REPEAT/
-    // NCTYPE_RELEASE events for the same physical keystroke. Mapped to
-    // its own distinct InputEvent::Kind::UNKNOWN (not silently folded
-    // into PRESS) - see that enum's own doc comment for why: code that
-    // tracks "is this key still held" cannot infer anything of the kind
-    // from an UNKNOWN-kind terminal, since it has no way to ever learn
-    // that the key was released. RELEASE now reaches offerInput() (it
-    // didn't used to - see InputEvent::Kind's own doc comment):
-    // UIElement::dispatchCommand() ignores it outright so no keymap-bound
-    // command double-fires the way plain presses used to (the bug this
-    // code used to guard against by dropping RELEASE entirely), but
-    // PatternEditor's own raw note-entry code needs to see it, to send a
-    // note-off when a held note key is physically released.
-    auto kind = ni.evtype == NCTYPE_RELEASE ? InputEvent::Kind::RELEASE
-              : ni.evtype == NCTYPE_REPEAT ? InputEvent::Kind::REPEAT
-              : ni.evtype == NCTYPE_PRESS ? InputEvent::Kind::PRESS
-              : InputEvent::Kind::UNKNOWN;
-
-    // Legacy xterm/VT220 "SS3 + modifier digit" encoding some terminals
-    // still send for a Ctrl-modified numeric-keypad Divide/Multiply
-    // keystroke instead of the Kitty keyboard protocol (confirmed via
-    // notcurses-input against a real terminal: notcurses's own
-    // escape-sequence lexer doesn't recognize this pattern as a single
-    // key, so all 4 bytes - ESC, 'O', '5', then 'o' or 'j' - arrive as
-    // their own separate, unmodified raw events). Recognized here and
-    // turned into one synthetic Ctrl-modified InputEvent
-    // (NCKEY_KP_DIVIDE/NCKEY_KP_MULTIPLY) instead of leaking "O5o"/"O5j"
-    // through as if it had been typed into the pattern grid. A byte that
-    // breaks a partial match falls through to normal dispatch below (via
-    // flushPendingKpEscape() replaying whatever was buffered first), so a
-    // real standalone Escape or Esc-then-x for M-x still work exactly as
-    // before.
-    if (kp_escape_depth_ == 0 && ni.id == NCKEY_ESC) {
-      kp_escape_pending_[0] = { static_cast<int>(ni.id), ni.y, ni.x, ni.modifiers, kind };
-      kp_escape_depth_ = 1;
-      // A widget that wants a bare Escape (closing a popup) gets it right
-      // away rather than once the next key arrives. It still stays
-      // buffered here and in the Alt coalescer, so it can go on to be an
-      // Alt chord's prefix or part of a keypad sequence - it's just never
-      // delivered a second time (kp_escape_delivered_).
-      auto active = outline_view_ && outline_view_->isModal() ? outline_view_ : active_element_.lock();
-      if (equalizer_editor_.isOpen()) {
-        closeEqualizerEditor();
-        kp_escape_delivered_ = true;
-      } else if (choice_dialog_.isOpen()) {
-        closeChoiceDialog();
-        kp_escape_delivered_ = true;
-      } else if (info_dialog_.isOpen()) {
-        closeInfoDialog();
-        kp_escape_delivered_ = true;
-      } else if (active && active->wantsBareEscape()) {
-        InputEvent escape(NCKEY_ESC, ni.y, ni.x, false, false, false, false, kind);
-        active->offerInput(escape);
-	kp_escape_delivered_ = true;
-      }
-      continue;
-    } else if (kp_escape_depth_ == 1) {
-      if (ni.id == 'O') {
-	kp_escape_pending_[1] = { static_cast<int>(ni.id), ni.y, ni.x, ni.modifiers, kind };
-	kp_escape_depth_ = 2;
-	continue;
-      }
-      flushPendingKpEscape();
-    } else if (kp_escape_depth_ == 2) {
-      if (ni.id == '5') {
-	kp_escape_pending_[2] = { static_cast<int>(ni.id), ni.y, ni.x, ni.modifiers, kind };
-	kp_escape_depth_ = 3;
-	continue;
-      }
-      flushPendingKpEscape();
-    } else if (kp_escape_depth_ == 3) {
-      if (ni.id == 'o' || ni.id == 'j') {
-	kp_escape_depth_ = 0;
-	kp_escape_delivered_ = false;
-	InputEvent input(ni.id == 'o' ? NCKEY_KP_DIVIDE : NCKEY_KP_MULTIPLY, ni.y, ni.x, false, false, true, false, kind);
-	offerInput(input);
-	continue;
-      }
-      flushPendingKpEscape();
-    }
-
-    dispatchRawKey(static_cast<int>(ni.id), ni.y, ni.x, ni.modifiers, kind);
   }
 
+  cellui::Input input(0, -1, -1, false, false, false, false);
+  while (key_reader_.next(&input)) offerInput(input);
+  if (escape_indicator_shown_ && !key_reader_.escapePending()) {
+    setStatus("");
+    escape_indicator_shown_ = false;
+  }
   return true;
 }
 
@@ -1787,7 +615,7 @@ TerminalUI::commitOverviewCell(int track_id, int row) {
   auto & song = getController().getSong();
   getController().setEditPosition(row);
 
-  auto track_ids = song.getRootTrackIds();
+  auto track_ids = pattern_editor_->trackIds(song);
   auto it = find(track_ids.begin(), track_ids.end(), track_id);
   if (it != track_ids.end()) {
     pattern_editor_->setCursorTrack(static_cast<int>(it - track_ids.begin()));
@@ -1799,8 +627,10 @@ void
 TerminalUI::initializeWidgets() {
   // chart and volume are missing
   pattern_editor_ = make_shared<PatternEditor>(getPlane());
+  pattern_editor_->setScopes(scopes_.get());
   arrangement_grid_ = make_shared<ArrangementGrid>(getPlane());
   clip_grid_ = make_shared<ClipGrid>(getPlane());
+  clip_grid_->setScopes(scopes_.get());
   outline_view_ = make_shared<OutlineView>(getPlane());
   outline_view_->setEditEffectHandler([this](int track_id) { showEqualizerEditor(track_id); });
   // Enter commits the cell under this grid's own (local, passive) cursor
@@ -1976,6 +806,9 @@ TerminalUI::initializeWidgets() {
   // PatternEditor's - unlike the M-x path, which does go through that
   // fallback chain).
   commands_.define("exchange-point-and-mark", [this]() { pattern_editor_->executeCommand("exchange-point-and-mark"); });
+  // Same reasoning: the C-x prefix is only recognized here, but the whole
+  // song is selected in the pattern editor.
+  commands_.define("mark-whole-buffer", [this]() { pattern_editor_->executeCommand("mark-whole-buffer"); });
   // merge-clip-to-background/toggle-record-arm are UI's own now (plain
   // Controller::sendCommand() forwarding, same shape save-song's own
   // C-x-reachable wrapper uses) - both target Song::getCurrentTrackId(),
@@ -2038,13 +871,14 @@ TerminalUI::initializeWidgets() {
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('f', true, false, false, false), "open-song");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('w', true, false, false, false), "save-song-as");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('x', true, false, false, false), "exchange-point-and-mark");
+  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('h', false, false, false, false), "mark-whole-buffer");
   // The buffer commands' own real Emacs bindings, unlike every C-x C-<letter>
   // above, hold Ctrl for the C-x prefix only, not the second key: kill-buffer
   // is C-x k (plain k), next-buffer/previous-buffer are C-x <right>/C-x
   // <left>, and select-named-buffer (switch-to-buffer) is C-x b.
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('k', false, false, false, false), "kill-buffer");
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack(NCKEY_RIGHT, false, false, false, false), "next-buffer");
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack(NCKEY_LEFT, false, false, false, false), "previous-buffer");
+  keymap_.bindPrefixed(ctrl_x, KeyChord::pack(Key::Right, false, false, false, false), "next-buffer");
+  keymap_.bindPrefixed(ctrl_x, KeyChord::pack(Key::Left, false, false, false, false), "previous-buffer");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('b', false, false, false, false), "select-named-buffer");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('o', false, false, false, false), "other-window");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('m', false, false, false, false), "merge-clip-to-background");
@@ -2055,6 +889,13 @@ TerminalUI::initializeWidgets() {
   keymap_.bind(KeyChord::pack('_', true, false, false, false), "undo");
   keymap_.bind(KeyChord::pack('/', true, false, false, false), "undo");
   keymap_.bind(KeyChord::pack('_', true, true, false, false), "undo-redo");
+  // What terminals actually send for them: the single control byte 0x1f
+  // (older builds reported it as key 31, no modifiers; with Alt in front for
+  // the redo; the parser now decodes it as Ctrl+_), and in the Kitty protocol Ctrl+Shift+- for C-_.
+  keymap_.bind(KeyChord::pack(31, false, false, false, false), "undo");
+  keymap_.bind(KeyChord::pack(31, false, true, false, false), "undo-redo");
+  keymap_.bind(KeyChord::pack('-', true, false, true, false), "undo");
+  keymap_.bind(KeyChord::pack('-', true, true, true, false), "undo-redo");
   keymap_.bind(KeyChord::pack(' ', false, false, false, false), "toggle-playing");
   keymap_.bind(KeyChord::pack('[', false, false, false, false), "octave-down");
   keymap_.bind(KeyChord::pack(']', false, false, false, false), "octave-up");
@@ -2176,7 +1017,9 @@ TerminalUI::layout() {
   int live_scope_rows = 2 * kScopeHeight + 2;
   bool live_scopes = getView() == View::LIVE && scopes_visible_ && live_outline_cols > 0
     && std::max(2, rows - 3) - live_scope_rows >= 6;
+  const bool scopes_were_on_screen = scopes_on_screen_;
   scopes_on_screen_ = show_scopes || live_scopes;
+  if (scopes_on_screen_ && !scopes_were_on_screen) scopes_stale_ = true;
 
   // cover_art_ claims the scope row's own leftmost columns first (the
   // literal top-left corner) - square-looking, sized off the row height
@@ -2222,17 +1065,16 @@ TerminalUI::layout() {
   // hidden, the workspace below covers these rows instead.)
   setFgColor(styles_.window_border_color);
   setBgColor(styles_.window_bg_color);
+  const char * divider_glyph = styles_.grid_lines ? "│" : " ";
   for (int row = 0; show_scopes && row < kScopeHeight; row++) {
-    putstr(scope_row + row, cover_art_divider_x, "│");
-    putstr(scope_row + row, matrix_divider_x, "│");
-    putstr(scope_row + row, divider1_x, "│");
-    putstr(scope_row + row, divider2_x, "│");
+    putstr(scope_row + row, cover_art_divider_x, divider_glyph);
+    putstr(scope_row + row, matrix_divider_x, divider_glyph);
+    putstr(scope_row + row, divider1_x, divider_glyph);
+    putstr(scope_row + row, divider2_x, divider_glyph);
   }
-  // The workspace below the scope row. notcurses refuses/ignores a plane
-  // resize to zero rows or columns (confirmed via a pty+notcurses
-  // reproduction), so a widget the current view doesn't show can't be
-  // shrunk away - it gets the same rect as a visible one instead, and
-  // moveToTop() raises the visible ones above it.
+  // The workspace below the scope row. A widget the current view doesn't
+  // show gets the same rect as a visible one instead of being shrunk to
+  // nothing, and moveToTop() raises the visible ones above it.
   int workspace_row = show_scopes ? 1 + kScopeHeight : 1;
   int workspace_rows = std::max(2, rows - 2 - workspace_row);
   if (getView() == View::LIVE) {
@@ -2252,8 +1094,8 @@ TerminalUI::layout() {
       // carries the header row's backdrop across to the clip grid's.
       setFgColor(styles_.window_border_color);
       for (int row = 0; row < workspace_rows; row++) {
-        setBgColor(row == 0 ? styles_.heading_bg_color : styles_.window_bg_color);
-        putstr(workspace_row + row, outline_cols - 1, "│");
+        setBgColor(row == 0 && styles_.grid_lines ? styles_.heading_bg_color : styles_.window_bg_color);
+        putstr(workspace_row + row, outline_cols - 1, divider_glyph);
       }
     }
     chart_->setVisible(live_scopes);
@@ -2262,17 +1104,19 @@ TerminalUI::layout() {
       int scope_x_width = outline_cols - 1;
       int chart_row = workspace_row + outline_rows + 1;
       int heatmap_row = chart_row + kScopeHeight + 1;
-      // A title bar above each scope, like the outline's heading; it ends in
-      // a half block over the divider column.
+      // A title bar above each scope, like the outline's heading; with
+      // lines between the columns it ends in a half block over the divider.
       const std::pair<int, const char *> titles[] = { { chart_row - 1, "Spectrum" }, { heatmap_row - 1, "DirAC" } };
       for (auto & [ title_row, title ] : titles) {
         setFgColor(styles_.window_accent_fg_color);
         setBgColor(styles_.heading_bg_color);
         putstr(title_row, 0, std::string(static_cast<size_t>(scope_x_width), ' '));
         putstr(title_row, 1, title);
-        setFgColor(styles_.heading_bg_color);
-        setBgColor(styles_.window_bg_color);
-        putstr(title_row, scope_x_width, "▌");
+        if (styles_.grid_lines) {
+          setFgColor(styles_.heading_bg_color);
+          setBgColor(styles_.window_bg_color);
+          putstr(title_row, scope_x_width, "▌");
+        }
       }
       chart_->resize(kScopeHeight, scope_x_width).move(chart_row, 0);
       heatmap_->resize(kScopeHeight, scope_x_width).move(heatmap_row, 0);
@@ -2302,13 +1146,14 @@ TerminalUI::layout() {
   auto octave_width = octave_control_->preferredWidth();
   octave_control_->resize(1, octave_width).move(rows - 2, std::max(0, cols - octave_width));
   status_line_->resize(1, cols - 1).move(rows - 1, 0);
+  clearLastRow();
 }
 
 bool
 TerminalUI::renderComponents(bool refresh) {
   // See force_next_render_'s own comment on TerminalUI.h - consumed here
   // (the one call site whose own return value actually reaches startUI()'s
-  // nc->render() gate), not at whichever earlier, input-handling call site
+  // render() gate), not at whichever earlier, input-handling call site
   // actually requested it.
   if (getView() == View::LIVE && syncLiveView()) force_next_render_ = true;
   if (equalizer_editor_.isOpen() && equalizer_editor_.refresh(getController())) {
@@ -2318,6 +1163,12 @@ TerminalUI::renderComponents(bool refresh) {
   refresh = refresh || force_next_render_;
   force_next_render_ = false;
   bool render = false;
+  // Scopes coming back on screen start empty at once: a silent analysis sends
+  // nothing more to replace what they held.
+  if (scopes_stale_ && scopes_on_screen_) {
+    blankScopes();
+    render = true;
+  }
   auto active = active_element_.lock();
   auto & song = getController().getSong();
   // The shared/global track selection - Song's own, not any one widget's
@@ -2364,14 +1215,14 @@ TerminalUI::renderComponents(bool refresh) {
       return getController().getClipPlayer().clipHighlight(track_id, clip_index);
     });
     clip_grid_->setTrackClipSource([this](int track_id) { return pattern_editor_->getLiveScene(track_id); });
-    render |= clip_grid_->render(styles_, refresh, active == clip_grid_);
-    if (isOutlineVisible()) render |= outline_view_->render(styles_, refresh, active == outline_view_);
+    if (clip_grid_->render(styles_, refresh, active == clip_grid_)) { render = true; statCount("render:clip_grid_"); }
+    if (isOutlineVisible()) if (outline_view_->render(styles_, refresh, active == outline_view_)) { render = true; statCount("render:outline_view_"); }
   }
-  render |= pattern_editor_->render(styles_, refresh, active == pattern_editor_);
-  render |= arrangement_grid_->render(styles_, refresh, active == arrangement_grid_, selected_track_id);
-  render |= cover_art_->render(styles_, refresh);
-  render |= info_line_->render(styles_, refresh);
-  render |= octave_control_->render(styles_, refresh);
+  if (pattern_editor_->render(styles_, refresh, active == pattern_editor_)) { render = true; statCount("render:pattern_editor_"); }
+  if (arrangement_grid_->render(styles_, refresh, active == arrangement_grid_, selected_track_id)) { render = true; statCount("render:arrangement_grid_"); }
+  if (cover_art_->render(styles_, refresh)) { render = true; statCount("render:cover_art_"); }
+  if (info_line_->render(styles_, refresh)) { render = true; statCount("render:info_line_"); }
+  if (octave_control_->render(styles_, refresh)) { render = true; statCount("render:octave_control_"); }
 
   auto & clip_player = getController().getClipPlayer();
   clip_player.setAssignRow(arrangement_grid_->getCursorRow(song));
@@ -2402,7 +1253,7 @@ TerminalUI::syncLiveView() {
   if (track_id != synced_track_id_) {
     auto playable = song.getPlayableTrackIds();
     if (std::find(playable.begin(), playable.end(), track_id) != playable.end()) clip_grid_->setCursorTrackIndex(indexOfTrack(playable, track_id));
-    auto roots = song.getRootTrackIds();
+    auto roots = pattern_editor_->trackIds(song);
     auto it = std::find(roots.begin(), roots.end(), track_id);
     if (it != roots.end() && pattern_editor_->getCursorTrackIndex() != it - roots.begin()) pattern_editor_->setCursorTrack(static_cast<int>(it - roots.begin()));
     synced_track_id_ = track_id;
@@ -2418,7 +1269,7 @@ TerminalUI::syncLiveView() {
   return true;
 }
 
-std::vector<std::shared_ptr<UIElement>>
+std::vector<std::shared_ptr<cellui::Element>>
 TerminalUI::focusableElements() const {
   if (getView() == View::ARRANGEMENT) {
     if (!scopes_visible_) return { pattern_editor_ };
@@ -2426,7 +1277,7 @@ TerminalUI::focusableElements() const {
   }
   // Screen order, the way Emacs cycles windows: the outline panel
   // (top-left), the clip grid beside it, then the pattern editor below.
-  std::vector<std::shared_ptr<UIElement>> elements;
+  std::vector<std::shared_ptr<cellui::Element>> elements;
   if (isOutlineVisible()) elements.push_back(outline_view_);
   elements.push_back(clip_grid_);
   elements.push_back(pattern_editor_);
@@ -2466,7 +1317,7 @@ TerminalUI::viewChanged() {
 }
 
 bool
-TerminalUI::tryActivate(int y, int x, std::shared_ptr<UIElement> element) {
+TerminalUI::tryActivate(int y, int x, std::shared_ptr<cellui::Element> element) {
   auto [pos_y, pos_x] = element->getPosition();
   auto [rows, cols] = element->getDim();
 
@@ -2479,7 +1330,7 @@ TerminalUI::tryActivate(int y, int x, std::shared_ptr<UIElement> element) {
 }
 
 bool
-TerminalUI::offerInput(const InputEvent & input) {
+TerminalUI::offerInput(const cellui::Input & input) {
   bool handled = false;
 
   // No open reader (StatusLine's M-x minibuffer, any widget's inline
@@ -2489,39 +1340,52 @@ TerminalUI::offerInput(const InputEvent & input) {
   bool reader_active = status_line_->isReaderActive() || pattern_editor_->isReaderActive() ||
     clip_grid_->isReaderActive();
   // The equalizer editor is modal and owns its keys until it is closed.
-  if (equalizer_editor_.isOpen() && input.getId() != NCKEY_RESIZE && !(input.hasCtrl() && input.getId() == 'l')) {
+  if (equalizer_editor_.isOpen() && input.getId() != Key::Resize && !(input.hasCtrl() && input.getId() == 'l')) {
     handleEqualizerEditorInput(input);
     return true;
   }
   // The choice dialog is modal too, and owns its keys until it is chosen
   // from or cancelled.
-  if (choice_dialog_.isOpen() && input.getId() != NCKEY_RESIZE && !(input.hasCtrl() && input.getId() == 'l')) {
+  if (choice_dialog_.isOpen() && input.getId() != Key::Resize && !(input.hasCtrl() && input.getId() == 'l')) {
     handleChoiceDialogInput(input);
     return true;
   }
-  // The info dialog is modal: it closes on its own keys or a click and
-  // swallows everything else but a resize or redraw.
-  if (info_dialog_.isOpen() && input.getId() != NCKEY_RESIZE && !(input.hasCtrl() && input.getId() == 'l')) {
+  // The info dialog is modal: it closes on its own keys and swallows
+  // everything else but a resize or redraw. The mouse is the terminal's
+  // while it is open (raiseOverlays()), so its text can be selected.
+  if (info_dialog_.isOpen() && input.getId() != Key::Resize && !(input.hasCtrl() && input.getId() == 'l')) {
     auto id = input.getId();
-    if (id == NCKEY_ESC || id == NCKEY_ENTER || id == 'q' || id == NCKEY_BUTTON1 || (input.hasCtrl() && id == 'g')) {
+    if (id == Key::Escape || id == Key::Enter || id == 'q' || (input.hasCtrl() && id == 'g')) {
       closeInfoDialog();
     }
     return true;
   }
   // A modal popup takes everything but a resize or redraw.
-  if (outline_view_ && outline_view_->isModal() && input.getId() != NCKEY_RESIZE && !(input.hasCtrl() && input.getId() == 'l')) {
+  if (outline_view_ && outline_view_->isModal() && input.getId() != Key::Resize && !(input.hasCtrl() && input.getId() == 'l')) {
     outline_view_->offerInput(input);
     return true;
   }
+  // An open menu owns the mouse: its dropdown is drawn over the widgets, and
+  // a click on an item must not also reach the widget underneath it (which
+  // would move its cursor, and so change what the item's command acts on).
+  if (menu_->isOpen() && input.getId() >= Key::Motion && input.getId() <= Key::Button11) {
+    if (menu_->offerInput(input)) {
+      if (auto cmd = menu_->takeActivatedCommand(); !cmd.empty()) {
+	if (!getController().sendCommand(cmd)) setStatus("Invalid command");
+      }
+    }
+    return true;
+  }
   if (octave_control_->isEditing() && octave_control_->offerInput(input)) return true;
+  // A command (undo, save, ...) must see a half-typed velocity or delay.
+  if (input.getKind() != InputEvent::Kind::RELEASE && (input.hasCtrl() || input.hasAlt())) pattern_editor_->commitPendingValue();
   if (!reader_active && dispatchCommand(input)) return true;
 
-  if (input.getId() == NCKEY_RESIZE) {
-    // notcurses_refresh() is what makes notcurses acknowledge the terminal's
-    // new dimensions (they're otherwise stale until this is called); it
-    // must run before anything queries plane sizes or lays out against them.
+  if (input.getId() == Key::Resize) {
+    // The screen and the root plane already have the new size
+    // (resizeScreen(), as the event was read); the terminal reflowed, so
+    // the next frame redraws everything.
     refresh();
-    getPlane().refresh();
     layout();
     layoutInfoDialog();
     layoutChoiceDialog();
@@ -2530,14 +1394,14 @@ TerminalUI::offerInput(const InputEvent & input) {
     // force_next_render_'s own comment on TerminalUI.h: this runs from
     // inside input handling, before startUI()'s own main loop reaches its
     // own renderComponents() call (the one that actually gates
-    // nc->render(), the real terminal flush) - a direct call here would
-    // draw everything correctly into notcurses's own plane state, then
+    // render(), the real terminal update) - a direct call here would
+    // draw everything correctly into the planes, then
     // report "nothing left to redraw" right back to that outer call,
     // which would then skip the flush and never actually show it.
     force_next_render_ = true;
   } else if (input.hasCtrl() && input.getId() == 'l') {
     refresh();
-  } else if (input.getId() == NCKEY_BUTTON4 || input.getId() == NCKEY_BUTTON5) {
+  } else if (input.getId() == Key::Button4 || input.getId() == Key::Button5) {
     // The mouse wheel scrolls whichever shown widget is under the mouse,
     // without moving focus (Emacs's own mouse-wheel-follow-mouse default) -
     // each widget scrolls its view, never its cursor.
@@ -2550,12 +1414,12 @@ TerminalUI::offerInput(const InputEvent & input) {
       }
     }
     return true;
-  } else if (input.getId() == NCKEY_BUTTON1 && (octave_control_->arrowPressPending() ||
+  } else if (input.getId() == Key::Button1 && (octave_control_->arrowPressPending() ||
                                                 (input.getKind() != InputEvent::Kind::RELEASE && octave_control_->hitsArrow(input.getY(), input.getX())))) {
     // The octave arrows act on click without taking focus from the active element.
     octave_control_->offerInput(input);
     return true;
-  } else if (input.getId() == NCKEY_BUTTON1 && (input.getKind() == InputEvent::Kind::RELEASE || clip_grid_->isMouseDown() || pattern_editor_->isMouseDown())) {
+  } else if (input.getId() == Key::Button1 && (input.getKind() == InputEvent::Kind::RELEASE || clip_grid_->isMouseDown() || pattern_editor_->isMouseDown())) {
     // A release, or a press repeating as a drag moves, belongs to the
     // widget the button went down on - it must not hand focus to whatever
     // the pointer is over now. The release also ends the press everywhere,
@@ -2564,7 +1428,7 @@ TerminalUI::offerInput(const InputEvent & input) {
       clip_grid_->releaseMouse();
       pattern_editor_->releaseMouse();
     }
-  } else if (input.getId() == NCKEY_BUTTON1) {
+  } else if (input.getId() == Key::Button1) {
     auto previous_active_element = active_element_.lock();
     active_element_.reset();
 
@@ -2685,23 +1549,34 @@ void TerminalUI::showEqualizerEditor(int track_id) {
 
 void TerminalUI::layoutEqualizerEditor() {
   if (!equalizer_editor_.isOpen()) return;
+  layoutModalScrim();
   auto [screen_rows, screen_cols] = getDim();
   equalizer_editor_.show(getPlane(), screen_rows, screen_cols);
 }
 
-void TerminalUI::handleEqualizerEditorInput(const InputEvent & input) {
+void TerminalUI::handleEqualizerEditorInput(const cellui::Input & input) {
   auto result = equalizer_editor_.offerInput(getController(), input);
   if (result == EqualizerEditor::Result::REDRAW) layoutEqualizerEditor();
   if (result != EqualizerEditor::Result::NONE) force_next_render_ = true;
 }
 
+void TerminalUI::layoutModalScrim() {
+  if (!choice_dialog_.isOpen() && info_dialog_title_.empty() && !equalizer_editor_.isOpen()) {
+    modal_scrim_.close();
+    return;
+  }
+  auto [screen_rows, screen_cols] = getDim();
+  modal_scrim_.show(getPlane(), screen_rows, screen_cols, getPlane().getStyles().theme.modal_backdrop);
+}
+
 void TerminalUI::layoutChoiceDialog() {
   if (!choice_dialog_.isOpen()) return;
+  layoutModalScrim();
   auto [screen_rows, screen_cols] = getDim();
   choice_dialog_.show(getPlane(), screen_rows, screen_cols);
 }
 
-void TerminalUI::handleChoiceDialogInput(const InputEvent & input) {
+void TerminalUI::handleChoiceDialogInput(const cellui::Input & input) {
   auto result = choice_dialog_.offerInput(input);
   if (result == ChoiceDialog::Result::NONE) {
     layoutChoiceDialog(); // redraw with the moved selection
@@ -2720,6 +1595,7 @@ void TerminalUI::handleChoiceDialogInput(const InputEvent & input) {
 void
 TerminalUI::layoutInfoDialog() {
   if (info_dialog_title_.empty()) return;
+  layoutModalScrim();
   auto [screen_rows, screen_cols] = getDim();
   auto width = std::min(60, screen_cols);
   info_dialog_.show(getPlane(), info_dialog_title_, info_dialog_markdown_, width, screen_rows);
@@ -2767,7 +1643,38 @@ TerminalUI::handlePlaybackEvent(PlaybackEvent & ev) {
   // clip_ids/held_track_ids of its own.
   getController().extendRecordingSampleClipIfNeeded();
 
-  ev.redraw();
+  // Redraw only for a snapshot that shows something new: a block of idle
+  // audio repeats the last one.
+  auto signature = ev.getInfo().signature();
+  if (g_ui_stats_on && signature != last_playback_signature_) {
+    // Which part of the snapshot differs, for SYNTH_UI_STATS.
+    auto parts = ev.getInfo().signatureParts();
+    for (size_t i = 0; i < parts.size() && i < last_playback_parts_.size(); i++) {
+      if (parts[i].second != last_playback_parts_[i]) statCount(std::string("changed:") + parts[i].first);
+    }
+    last_playback_parts_.clear();
+    for (auto & part : parts) last_playback_parts_.push_back(part.second);
+  }
+  if (signature != last_playback_signature_) {
+    last_playback_signature_ = signature;
+    ev.redraw();
+  }
+}
+
+// Shows the scopes empty and forgets what they held, so the next result
+// redraws them whatever it equals.
+void
+TerminalUI::blankScopes() {
+  scopes_stale_ = false;
+  chart_->clear();
+  heatmap_->setGrid(std::vector<float>(DiracAnalyzer::kGridSize, 0.0f), std::vector<float>(DiracAnalyzer::kGridSize, 0.0f));
+  heatmap_->commit();
+  volume_meter_->clear(last_meter_label_);
+  last_fft_.clear();
+  last_brightness_.clear();
+  last_saturation_.clear();
+  last_loudness_.clear();
+  dirac_running_max_ = 0.0f;
 }
 
 void
@@ -2780,15 +1687,27 @@ TerminalUI::handleVisualizationResultEvent(VisualizationResultEvent & ev) {
   // work once per superseded event during a catch-up burst, so the app
   // catches up faster instead of falling further behind.
   bool superseded = getController().getUIEventQueue().hasEvents();
+  bool changed = superseded; // a superseded event is redrawn by the one behind it
   // Scopes that are off screen aren't updated at all.
   if (!superseded && scopes_on_screen_) {
+    if (scopes_stale_) {
+      blankScopes();
+      changed = true;
+    }
+    last_meter_label_ = ev.getMeterLabel();
     // Raw, pre-mixdown per-channel levels (ambisonic bus, then always
     // AuxA/AuxB last - see VisualizationThread.cpp) rather than the final
     // decoded L/R output.
-    if (getView() == View::ARRANGEMENT) volume_meter_->setLevels(ev.getChannelLoudness(), ev.getMeterLabel());
+    // A reading equal to the last still has to go in while the bars fall.
+    if (getView() == View::ARRANGEMENT && (ev.getChannelLoudness() != last_loudness_ || !volume_meter_->atRest())) {
+      last_loudness_ = ev.getChannelLoudness();
+      volume_meter_->setLevels(ev.getChannelLoudness(), ev.getMeterLabel());
+      changed = true;
+    }
 
-    if (!ev.getFFT().empty()) {
-      chart_->setSpectrum(ev.getFFT(), ev.getFFTBinHz());
+    if (!ev.getFFT().empty() && ev.getFFT() != last_fft_) {
+      last_fft_ = ev.getFFT();
+      if (chart_->setSpectrum(ev.getFFT(), ev.getFFTBinHz())) changed = true;
     }
 
     if (ev.hasDiracGrid()) {
@@ -2842,12 +1761,20 @@ TerminalUI::handleVisualizationResultEvent(VisualizationResultEvent & ev) {
         if (brightness[i] > 1.0f) brightness[i] = 1.0f;
         saturation[i] = displayed[i] > 1e-12f ? grid[i] / displayed[i] : 0.0f;
       }
-      heatmap_->setGrid(brightness, saturation);
-      heatmap_->commit();
+      // Compared at 1/512: a smaller step is no change in any pixel's colour.
+      auto quantize = [](const std::vector<float> & v) { std::vector<int> q(v.size()); for (size_t i = 0; i < v.size(); i++) q[i] = static_cast<int>(v[i] * 512.0f + 0.5f); return q; };
+      auto quantized_brightness = quantize(brightness), quantized_saturation = quantize(saturation);
+      if (quantized_brightness != last_brightness_ || quantized_saturation != last_saturation_) {
+	last_brightness_ = std::move(quantized_brightness);
+	last_saturation_ = std::move(quantized_saturation);
+	heatmap_->setGrid(brightness, saturation);
+	heatmap_->commit();
+	changed = true;
+      }
     }
   }
 
-  ev.redraw();
+  if (changed) ev.redraw();
 }
 
 void
@@ -2914,7 +1841,7 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
   // left focused to edit there.
   getController().setClipSelectListener([this](int track_id, int clip_index) {
     auto & song = getController().getSong();
-    auto root_ids = song.getRootTrackIds();
+    auto root_ids = pattern_editor_->trackIds(song);
     auto root = std::find(root_ids.begin(), root_ids.end(), track_id);
     if (root != root_ids.end()) pattern_editor_->setCursorTrack(static_cast<int>(root - root_ids.begin()));
     auto playable = song.getPlayableTrackIds();
@@ -2922,10 +1849,22 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
     if (column != playable.end()) clip_grid_->setCursorTrackIndex(static_cast<int>(column - playable.begin()));
     clip_grid_->setCursorClipIndex(clip_index);
   });
+  getController().setUndoCellListener([this](const Song::EditPlace & place) { pattern_editor_->focusCell(place); });
+  getController().setUndoFocusListener([this](int track_id, int clip_index, int row) {
+    auto & song = getController().getSong();
+    auto root_ids = pattern_editor_->trackIds(song);
+    auto root = std::find(root_ids.begin(), root_ids.end(), track_id);
+    if (root != root_ids.end()) pattern_editor_->setCursorTrack(static_cast<int>(root - root_ids.begin()));
+    auto playable = song.getPlayableTrackIds();
+    auto column = std::find(playable.begin(), playable.end(), track_id);
+    if (column != playable.end()) clip_grid_->setCursorTrackIndex(static_cast<int>(column - playable.begin()));
+    clip_grid_->setCursorClipIndex(clip_index);
+    pattern_editor_->focusLiveRow(track_id, clip_index, row);
+  });
   getController().setDrumEditRequestListener([this](int track_id, bool opened) {
     if (opened) {
       auto & song = getController().getSong();
-      auto track_ids = song.getRootTrackIds();
+      auto track_ids = pattern_editor_->trackIds(song);
       auto it = std::find(track_ids.begin(), track_ids.end(), track_id);
       if (it != track_ids.end()) pattern_editor_->setCursorTrack(static_cast<int>(it - track_ids.begin()));
       launchpad_manager_->openStepView();
@@ -2944,7 +1883,7 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
 }
 
 void
-TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
+TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
   int out_pipe[2];
 
   if (pipe(out_pipe) != 0) { // make a pipe
@@ -2967,66 +1906,120 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
   dup2(out_pipe[1], STDERR_FILENO); // redirect stderr to the pipe
   close(out_pipe[1]);
 
-  size_t num_midi_capture_desc = audio.getMidiCaptureDescriptors().size();
-  auto launchpad_descriptors = launchpad_io.getPollDescriptors();
-  size_t num_launchpad_desc = launchpad_descriptors.size();
-  size_t midi_base = 3;
-  size_t launchpad_base = midi_base + num_midi_capture_desc;
-  size_t num_descriptors = launchpad_base + num_launchpad_desc;
-  auto descriptors = std::make_unique<pollfd[]>(num_descriptors);
+  // In the order the loop handles them.
+  WaitSet waits;
+  auto input_group = waits.group();
+  auto events_group = waits.group();
+  auto stderr_group = waits.group();
+  auto midi_group = waits.group();
+  auto launchpad_group = waits.group();
 
-#if 1
-  descriptors[0].fd = nc->get_inputready_fd();
-#else
-  descriptors[0].fd = 0;
-#endif
-  descriptors[0].events = POLLIN;
+  waits.addFd(input_group, session_.inputFd());
+  waits.addFd(input_group, session_.wakeFd());
+  waits.add(events_group, getController().getUIEventQueue().notifier());
+  waits.addFd(stderr_group, out_pipe[0]);
+  midi.addTo(waits, midi_group);
+  launchpad_io.addTo(waits, launchpad_group);
 
-  descriptors[1].fd = getController().getUIEventQueue().getPollFd();
-  descriptors[1].events = POLLIN;
-
-  descriptors[2].fd = out_pipe[0];
-  descriptors[2].events = POLLIN;
-
-  for (size_t i = 0; i < num_midi_capture_desc; i++) {
-    descriptors[midi_base + i] = audio.getMidiCaptureDescriptors()[i];
-  }
-
-  for (size_t i = 0; i < num_launchpad_desc; i++) {
-    descriptors[launchpad_base + i] = launchpad_descriptors[i];
-  }
-
-  // setStatus("Starting... nd = " + to_string(num_descriptors));
 
   renderComponents(true);
 
   string waiting_stderr;
-  
+  // Playback and visualization events arrive with every audio block (about
+  // 190 a second); drawing for each of them would use far more of the
+  // terminal than the eye can follow, so a frame is drawn at most every
+  // kMinFrameInterval and the changes in between are folded into it.
+  constexpr auto kMinFrameInterval = std::chrono::milliseconds(25);
+  auto last_frame = std::chrono::steady_clock::now() - kMinFrameInterval;
+  bool frame_pending = false;
+  bool render_pending = false; // a redraw asked for while the frame was held back
+  // Between events that ask for nothing, frames come this seldom: the widgets
+  // have nothing new to find, and the audio thread wakes the loop ~190 times
+  // a second even when paused.
+  constexpr auto kIdleFrameInterval = std::chrono::milliseconds(100);
+
+  // SYNTH_UI_STATS=<file>: once a second, what woke the UI thread and what it
+  // drew, to find where idle CPU goes.
+  const char * stats_path = getenv("SYNTH_UI_STATS");
+  g_ui_stats_on = stats_path != nullptr;
+  auto stats_since = std::chrono::steady_clock::now();
+  timespec stats_cpu_since {};
+  clock_gettime(CLOCK_THREAD_CPUTIME_ID, &stats_cpu_since);
+  auto stats_thread_ticks = stats_path ? threadCpuTicks() : std::map<std::string, long>{};
+  auto count = [](const std::string & what) { statCount(what); };
+
   while ( !shouldClose() ) {
     bool render = false;
+    bool other_wake = false; // input, MIDI, Launchpad or stderr woke the loop, not just the event queue
+    if (stats_path && std::chrono::steady_clock::now() - stats_since >= std::chrono::seconds(1)) {
+      timespec cpu_now {};
+      clock_gettime(CLOCK_THREAD_CPUTIME_ID, &cpu_now);
+      g_ui_stats["cpu_us"] = static_cast<int>((cpu_now.tv_sec - stats_cpu_since.tv_sec) * 1000000L + (cpu_now.tv_nsec - stats_cpu_since.tv_nsec) / 1000L);
+      stats_cpu_since = cpu_now;
+      // Every thread's share of a CPU over the second, in percent.
+      auto thread_ticks = threadCpuTicks();
+      for (auto & [name, t] : thread_ticks) {
+        auto it = stats_thread_ticks.find(name);
+        if (it != stats_thread_ticks.end()) g_ui_stats["cpu%:" + name] = static_cast<int>(100 * (t - it->second) / std::max(1L, sysconf(_SC_CLK_TCK)));
+      }
+      stats_thread_ticks = std::move(thread_ticks);
+      if (FILE * f = fopen(stats_path, "a")) {
+	for (auto & [ what, n ] : g_ui_stats) fprintf(f, "%s=%d ", what.c_str(), n);
+	fputs("\n", f);
+	fclose(f);
+      }
+      g_ui_stats.clear();
+      stats_since = std::chrono::steady_clock::now();
+    }
 
     updateEscapeIndicator();
 
     int poll_timeout_ms = escapeIndicatorPollTimeoutMs();
+    // A redraw deferred by the frame limiter below wakes the loop when it is due.
+    if (frame_pending) {
+      auto wait = std::chrono::duration_cast<std::chrono::milliseconds>(kMinFrameInterval - (std::chrono::steady_clock::now() - last_frame)).count() + 1;
+      wait = std::max<long>(wait, 1);
+      poll_timeout_ms = poll_timeout_ms < 0 ? static_cast<int>(wait) : std::min(poll_timeout_ms, static_cast<int>(wait));
+    }
 
-    // setStatus("polling");
-    int poll_result = poll(descriptors.get(), num_descriptors, poll_timeout_ms);
-    if (poll_result > 0) {
-      for (size_t i = 0; i < num_descriptors; i++) {
-	auto & d = descriptors[i];
-	if (d.revents) {
-	  if (i == 0) {
+    // The terminal's input waits a few milliseconds for the rest of a
+    // sequence a read split; when that runs out, what it holds is settled.
+    if (auto deadline = session_.nextDeadline()) {
+      auto wait = std::chrono::duration_cast<std::chrono::milliseconds>(*deadline - std::chrono::steady_clock::now()).count() + 1;
+      wait = std::max<long>(wait, 0);
+      poll_timeout_ms = poll_timeout_ms < 0 ? static_cast<int>(wait) : std::min(poll_timeout_ms, static_cast<int>(wait));
+    }
+
+    bool woken = waits.wait(poll_timeout_ms);
+    if (!woken && session_.nextDeadline() && std::chrono::steady_clock::now() >= *session_.nextDeadline()) {
+      readInput();
+      other_wake = true;
+      woken = true;
+    }
+    count(woken ? "wake" : "timeout");
+    if (woken) {
+      for (auto group : { input_group, events_group, stderr_group, midi_group, launchpad_group }) {
+	if (waits.ready(group)) {
+	  count("fd" + std::to_string(group));
+	  if (group != events_group) other_wake = true;
+	  if (group == input_group) {
 	    render |= readInput();
-	  } else if (i == 1) {
+	  } else if (group == events_group) {
 	    auto event = getController().getUIEventQueue().pop();
+	    auto t0 = std::chrono::steady_clock::now();
 	    handleEvent(*event);
+	    if (stats_path) g_ui_stats["us:" + std::string(typeid(*event).name())] += static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - t0).count());
+	    if (stats_path) { count(typeid(*event).name()); if (event->needRedraw()) count("redraw:" + std::string(typeid(*event).name())); }
 	    if (event->needRedraw()) render = true;
 	    while ( getController().getUIEventQueue().hasEvents() ) {
 	      auto next_event = getController().getUIEventQueue().pop();
+	      auto t1 = std::chrono::steady_clock::now();
 	      handleEvent(*next_event);
+	      if (stats_path) g_ui_stats["us:" + std::string(typeid(*next_event).name())] += static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - t1).count());
+	      if (stats_path) { count(typeid(*next_event).name()); if (next_event->needRedraw()) count("redraw:" + std::string(typeid(*next_event).name())); }
 	      if (next_event->needRedraw()) render = true;
 	    }
-	  } else if (i == 2) {
+	  } else if (group == stderr_group) {
 	    char buffer[4096];
 	    int r = read(out_pipe[0], buffer, 4096);
 	    if (real_stderr_fd >= 0 && r > 0) {
@@ -3054,8 +2047,8 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
 		break;
 	      }
 	    }
-	  } else if (i < launchpad_base) {
-	    auto evs = audio.recordMIDI();
+	  } else if (group == midi_group) {
+	    auto evs = midi.readEvents();
 	    // setStatus("got midi events: " + to_string(evs.size()));
 
 	    for (auto & ev : evs) {
@@ -3072,22 +2065,34 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
 	  }
 	}
       }
-      
-      render |= renderComponents();
+    }
+
+    if (woken || frame_pending) {
+      render_pending |= render;
+      auto now = std::chrono::steady_clock::now();
+      if (!other_wake && !render_pending && !frame_pending && now - last_frame < kIdleFrameInterval) {
+	count("idle-wake-skipped");
+	continue;
+      }
+      if (now - last_frame < kMinFrameInterval) {
+	frame_pending = true;
+	continue;
+      }
+      frame_pending = false;
+      last_frame = now;
+      render = render_pending;
+      render_pending = false;
+
+      auto t2 = std::chrono::steady_clock::now();
+      bool components = renderComponents();
+      if (stats_path) g_ui_stats["us:renderComponents"] += static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - t2).count());
+      count("frame");
+      if (components) count("frame:components-asked-redraw");
+      render |= components;
 
       if (render) {
-	// Reasserted every frame, not just once at startup: the scope
-	// charts'/heatmap's own plot_plane_ (TerminalChart::setSample(),
-	// above) is created lazily on first real sample data, and destroyed/
-	// recreated again on every resize - each such plane is a fresh
-	// sibling of menu_'s (both bind directly to the real stdplane, not
-	// to their logical parent widget - see TerminalPlane::createChild()),
-	// so it lands on top of menu_ again the moment it's (re)created,
-	// silently re-hiding an unrolled section's dropdown. See
-	// UIMenu::raiseToTop()'s own comment for the base z-order issue this
-	// guards against.
-	menu_->raiseToTop();
-	nc->render();
+        count("present");
+        TerminalUI::render();
       }
     }
   }

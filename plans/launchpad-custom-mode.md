@@ -4,7 +4,7 @@
 exclusive four-way group) only drives the percussion lane picker today,
 gated on the assigned track being a `PercussionTrack`. Pressing Custom on
 anything else currently shows a blank grid. A few concrete directions for
-what it could mean once a pitched `InstrumentTrack` (or `Arpeggiator`) is
+what it could mean once a pitched `InstrumentTrack` is
 assigned instead:
 
 - **Scale/mode editor**: light up the current EDO's scale degrees against
@@ -18,9 +18,6 @@ assigned instead:
   directly on the grid (a hardware-only alternative to
   `PatternEditor.cpp`'s Numpad Divide/Multiply cycle), useful with no
   terminal attached at all.
-- **Arpeggiator step editor**: for an `Arpeggiator` track, a step-grid
-  surface analogous to the drum machine's, editing arp steps instead of
-  drum hits.
 - **Effect parameter surface**: expose a per-track effect's key parameters
   (e.g. filter cutoff/resonance) as a bank of pads/faders, the same
   grid-repurposing shape Send A/B/Pan already use.

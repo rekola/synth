@@ -17,14 +17,6 @@ struct AudioDeviceInfo {
   std::string detail;
 };
 
-struct MidiSourceInfo {
-  // DeviceSettings::midi_input value: "<client name>:<port name>".
-  std::string spec;
-  std::string label;
-  int client = 0;
-  int port = 0;
-};
-
 // Whether node listing goes through PipeWire itself (built with libpipewire
 // and a daemon answered) or falls back to ALSA's own PCM list - which on a
 // PipeWire system shows little more than "default" and the raw cards.
@@ -36,11 +28,6 @@ bool pipeWireAvailable();
 // --capture-device/--playback-device.
 std::vector<AudioDeviceInfo> listCaptureDevices();
 std::vector<AudioDeviceInfo> listPlaybackDevices();
-
-// Readable ALSA sequencer ports - hardware and PipeWire/other software
-// sources alike. This program's own ports and Launchpads (which have a
-// connection of their own) are left out.
-std::vector<MidiSourceInfo> listMidiSources();
 
 // Whether `name` (a "pw:" value) names a node that exists right now. True
 // for anything that isn't a PipeWire name, and when PipeWire can't be

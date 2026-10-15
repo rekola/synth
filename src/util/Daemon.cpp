@@ -1,5 +1,19 @@
 #include "Daemon.h"
 
+#ifdef _WIN32
+#include <cstdio>
+#include <cstdlib>
+
+void
+daemonize(const std::string &, const std::string &) {
+  std::fputs("--daemon is not supported on Windows\n", stderr);
+  std::exit(1);
+}
+
+void
+daemonStarted() { }
+#else
+
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
@@ -73,3 +87,4 @@ daemonStarted() {
   close(ready_fd);
   ready_fd = -1;
 }
+#endif

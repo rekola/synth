@@ -1,15 +1,13 @@
 #include "EqualizerEditor.h"
 
 #include "../EqualizerEditorModel.h"
-#include "../Spline.h"
+#include <cellui/Spline.h>
 #include "../StyleProvider.h"
 #include "../UIPlane.h"
 #include "../../Controller.h"
 #include "../../model/Color.h"
-#include "../../playback/InputEvent.h"
+#include <cellui/Input.h>
 #include "../../util/Utf8.h"
-
-#include <notcurses/notcurses.h>
 
 #include <algorithm>
 #include <cmath>
@@ -17,6 +15,7 @@
 #include <vector>
 
 using namespace std;
+namespace Key = cellui::Key;
 
 namespace {
 
@@ -147,7 +146,7 @@ void EqualizerEditor::drawPlot() {
     float hz = eqeditor::unitToFreq((static_cast<float>(i) + 0.5f) / static_cast<float>(knots.size()));
     knots[i] = eqeditor::gainToUnit(eq_.responseDb(hz, static_cast<float>(sample_rate_)));
   }
-  auto curve = spline::sample(knots, static_cast<size_t>(pxw));
+  auto curve = cellui::spline::sample(knots, static_cast<size_t>(pxw));
   auto pixelRow = [&](size_t x) { return static_cast<int>(std::lround((1.0f - curve[x]) * static_cast<float>(pyh - 1))); };
 
   vector<int> bits(static_cast<size_t>(pw * ph), 0);
@@ -271,19 +270,19 @@ void EqualizerEditor::drawTable() {
 }
 
 EqualizerEditor::Result
-EqualizerEditor::handleMouse(Controller & controller, const InputEvent & input) {
+EqualizerEditor::handleMouse(Controller & controller, const cellui::Input & input) {
   auto id = input.getId();
-  if (id == NCKEY_BUTTON4 || id == NCKEY_BUTTON5) {
+  if (id == Key::Button4 || id == Key::Button5) {
     // The wheel narrows or widens the selected band (Shift: gain instead).
-    if (input.getKind() == InputEvent::Kind::RELEASE) return Result::NONE;
-    float direction = id == NCKEY_BUTTON4 ? 1.0f : -1.0f;
+    if (input.getKind() == cellui::Input::Kind::RELEASE) return Result::NONE;
+    float direction = id == Key::Button4 ? 1.0f : -1.0f;
     auto band = eq_.getBand(selected_);
     edit(controller, selected_, input.hasShift() ? eqeditor::withGainDelta(band, direction * 0.5f) : eqeditor::withQScale(band, direction > 0 ? 1.1f : 1.0f / 1.1f));
     return Result::REDRAW;
   }
 
   int row = input.getY() - y_, col = input.getX() - x_;
-  if (input.getKind() == InputEvent::Kind::RELEASE) {
+  if (input.getKind() == cellui::Input::Kind::RELEASE) {
     if (dragging_) controller.endEqualizerGesture();
     dragging_ = false;
     return Result::REDRAW;
@@ -324,18 +323,18 @@ EqualizerEditor::handleMouse(Controller & controller, const InputEvent & input) 
 }
 
 EqualizerEditor::Result
-EqualizerEditor::offerInput(Controller & controller, const InputEvent & input) {
+EqualizerEditor::offerInput(Controller & controller, const cellui::Input & input) {
   if (!isOpen()) return Result::CLOSED;
   auto id = input.getId();
 
-  if (id == NCKEY_BUTTON1 || id == NCKEY_BUTTON4 || id == NCKEY_BUTTON5) {
+  if (id == Key::Button1 || id == Key::Button4 || id == Key::Button5) {
     auto result = handleMouse(controller, input);
     if (result == Result::CLOSED) close(controller);
     return result;
   }
-  if (input.getKind() == InputEvent::Kind::RELEASE) return Result::NONE;
+  if (input.getKind() == cellui::Input::Kind::RELEASE) return Result::NONE;
 
-  if (id == NCKEY_ESC || id == NCKEY_ENTER || id == 'q' || (input.hasCtrl() && id == 'g')) {
+  if (id == Key::Escape || id == Key::Enter || id == 'q' || (input.hasCtrl() && id == 'g')) {
     close(controller);
     return Result::CLOSED;
   }
@@ -343,19 +342,19 @@ EqualizerEditor::offerInput(Controller & controller, const InputEvent & input) {
   auto band = eq_.getBand(selected_);
   bool shift = input.hasShift();
   auto true_id = input.getTrueCaseId();
-  if (id == NCKEY_LEFT && shift) edit(controller, selected_, eqeditor::withFreqOctaves(band, -1.0f / 12.0f));
-  else if (id == NCKEY_RIGHT && shift) edit(controller, selected_, eqeditor::withFreqOctaves(band, 1.0f / 12.0f));
-  else if (id == NCKEY_LEFT) selected_ = (selected_ + Equalizer::kBands - 1) % Equalizer::kBands;
-  else if (id == NCKEY_RIGHT) selected_ = (selected_ + 1) % Equalizer::kBands;
-  else if (id == NCKEY_UP) edit(controller, selected_, eqeditor::withGainDelta(band, shift ? 3.0f : 0.5f));
-  else if (id == NCKEY_DOWN) edit(controller, selected_, eqeditor::withGainDelta(band, shift ? -3.0f : -0.5f));
+  if (id == Key::Left && shift) edit(controller, selected_, eqeditor::withFreqOctaves(band, -1.0f / 12.0f));
+  else if (id == Key::Right && shift) edit(controller, selected_, eqeditor::withFreqOctaves(band, 1.0f / 12.0f));
+  else if (id == Key::Left) selected_ = (selected_ + Equalizer::kBands - 1) % Equalizer::kBands;
+  else if (id == Key::Right) selected_ = (selected_ + 1) % Equalizer::kBands;
+  else if (id == Key::Up) edit(controller, selected_, eqeditor::withGainDelta(band, shift ? 3.0f : 0.5f));
+  else if (id == Key::Down) edit(controller, selected_, eqeditor::withGainDelta(band, shift ? -3.0f : -0.5f));
   else if (id == '[') edit(controller, selected_, eqeditor::withQScale(band, 1.0f / 1.1f));
   else if (id == ']') edit(controller, selected_, eqeditor::withQScale(band, 1.1f));
-  else if (id == NCKEY_HOME) selected_ = 0;
-  else if (id == NCKEY_END) selected_ = Equalizer::kBands - 1;
+  else if (id == Key::Home) selected_ = 0;
+  else if (id == Key::End) selected_ = Equalizer::kBands - 1;
   else if (id >= '1' && id <= '8') selected_ = static_cast<int>(id - '1');
   else if (id == 't') edit(controller, selected_, eqeditor::withNextType(band, true_id == 'T' ? -1 : 1));
-  else if (id == NCKEY_SPACE) { band.on = !band.on; edit(controller, selected_, band); }
+  else if (id == Key::Space) { band.on = !band.on; edit(controller, selected_, band); }
   else if (id == 'r') {
     Equalizer defaults;
     edit(controller, selected_, defaults.getBand(selected_));

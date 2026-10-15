@@ -63,6 +63,13 @@ void placeClipInstance(Song & song, int track_id, int row, int clip_index);
 // stretch would do nothing a caller couldn't have skipped outright.
 void placeStopInstance(Song & song, int track_id, int row);
 
+// Removes the placement event at `row`. If an earlier looping clip would then
+// play on into that space, a stop takes the event's place instead, so the
+// space stays as silent as the removed clip left it; with nothing before it
+// the event is just removed. Returns true if a stop was left. The caller's
+// Song::Edit scope covers it, as with placeStopInstance().
+bool removeInstanceLeavingSilence(Song & song, int track_id, int row);
+
 // Merges the clip instance active at (track_id, row) into the track's own
 // background content in the arrangement, across every row this one
 // placement covers (a looping one up to the track's next event, or the

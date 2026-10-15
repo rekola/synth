@@ -100,7 +100,7 @@ of the two files carries the license text below in its own header.
 ```
 LICENSE (MIT)
 
-Copyright (C) 2021, Mikael Rekola
+Copyright (C) 2021-2026, Mikael Rekola
 Based on TinySoundFont, Copyright (C) 2017, 2018 Bernhard Schelling
 Based on SFZero, Copyright (C) 2012 Steve Folta (https://github.com/stevefolta/SFZero)
 
@@ -121,6 +121,40 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR TH
 USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
+## Fetched source (built into the binary, not under `third_party/`)
+
+### canvas (https://github.com/rekola/canvas)
+
+MIT. Fetched at configure time (`FetchContent`, pinned commit) and compiled
+into `synth`: the 2D drawing library behind the scopes and meters. It
+carries `stb_image` and `stb_image_resize` (public domain / MIT, Sean
+Barrett), which are part of that source.
+
+```
+The MIT License (MIT)
+
+Copyright (c) 2025-2026 Mikael Rekola
+Copyright (c) 2014-2025 Sometrik Oy
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
 ## Dynamically-linked system libraries
 
 Linked, not vendored/redistributed as source - listed here for completeness,
@@ -131,7 +165,7 @@ at a summary level rather than full license text.
 | libsndfile | LGPL-2.1+ |
 | libfmt | MIT |
 | ALSA (libasound) | LGPL-2.1+ |
-| notcurses | Apache-2.0 / MIT |
 | libmysofa | BSD-3-Clause |
 | libunistring | LGPL-3+ / GPL-2+ |
 | SoundTouch | LGPL-2.1+ |
+| Cairo (libcairo, through canvas, Linux) | LGPL-2.1 / MPL-1.1 |

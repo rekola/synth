@@ -352,7 +352,7 @@ TEST(oscillator_default_array_is_a_single_member) {
   SphericalPosition position;
   position.distance = 1.0f;
 
-  auto voice = osc.playNote(config, position, Tuning::EDO31, 1.0f, 1.0f, 60, SendLevels{}, NoteCoordinate(0, 0, 0));
+  auto voice = osc.playNote(config, position, SpatialMode::AUTO, Tuning::EDO31, 1.0f, 1.0f, 60, SendLevels{}, NoteCoordinate(0, 0, 0));
   CHECK(voice.get() != nullptr);
   CHECK(voice->getAllocatedVoiceCount() == 1);
 }
@@ -371,7 +371,7 @@ TEST(oscillator_voices_attribute_builds_one_array_voice) {
   position.distance = 1.0f;
   position.extent = 1.0f;
 
-  auto voice = osc.playNote(config, position, Tuning::EDO31, 1.0f, 1.0f, 60, SendLevels{}, NoteCoordinate(0, 0, 0));
+  auto voice = osc.playNote(config, position, SpatialMode::AUTO, Tuning::EDO31, 1.0f, 1.0f, 60, SendLevels{}, NoteCoordinate(0, 0, 0));
   CHECK(voice->getAllocatedVoiceCount() == 1); // one voice, however many members
 
   bool any = false;

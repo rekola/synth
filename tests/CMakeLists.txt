@@ -1,21 +1,5 @@
 add_executable(synth_tests
 	test_main.cpp
-	# Compiled directly as an extra source here (mirroring how
-	# TerminalUI.cpp itself is only ever added straight to the `synth`
-	# executable, never into synth_engine) rather than folded into
-	# synth_engine's own library composition: EscapeCoalescer.h/.cpp only
-	# needs notcurses's headers (types, macros, static inline helpers), not
-	# the linked library, so this keeps that distinction visible at the
-	# build-system level too - see EscapeCoalescer.h's own top comment.
-	../src/ui/tui/EscapeCoalescer.cpp
-	EscapeCoalescerTests.cpp
-	# Same reasoning as EscapeCoalescer.cpp above - SubcellGlyphs.cpp has no
-	# notcurses dependency of its own at all (plain integer/table logic),
-	# so it's an even simpler case for direct inclusion here rather than
-	# folding into synth_engine.
-	../src/ui/tui/SubcellGlyphs.cpp
-	SubcellGlyphsTests.cpp
-	MarkdownTests.cpp
 	DocumentTests.cpp
 	SongEditTests.cpp
 	ContentPublishingTests.cpp
@@ -33,10 +17,13 @@ add_executable(synth_tests
 	FMTests.cpp
 	ControllerTests.cpp
 	DeviceSettingsTests.cpp
-	ChoiceListTests.cpp
 	EqualizerEditorModelTests.cpp
 	DeviceLabelsTests.cpp
 	PatternBlockOpsTests.cpp
+	JustIntonationTests.cpp
+	KeyboardNotesTests.cpp
+	SpatialPlacementTests.cpp
+	TuningCorrectionOpsTests.cpp
 	PatternSourceTests.cpp
 	ArrangementOpsTests.cpp
 	ArrangementTests.cpp
@@ -67,7 +54,6 @@ add_executable(synth_tests
 	ChorusEngineTests.cpp
 	AllpassFilterTests.cpp
 	SpectralEnvelopeRemapTests.cpp
-	SpectralBandProfileTests.cpp
 	OscillatorShapingChainTests.cpp
 	PadSynthPartialProfileTests.cpp
 	FloorReflectionTests.cpp
@@ -82,22 +68,24 @@ add_executable(synth_tests
 	HalfbandFilterTests.cpp
 	AmbisonicDiffuseEncoderTests.cpp
 	SendBusProcessorTests.cpp
+	StructuralSilenceTests.cpp
 	BusEffectLiveUpdateTests.cpp
 	HazeTests.cpp
-	ArpeggiatorStateTests.cpp
-	ResyncPlayheadTests.cpp
 	FractionalDelayLineTests.cpp
 	TapeTransportTests.cpp
 	TapeVoiceLifecycleTests.cpp
 	HashFieldTests.cpp
 	PlayerMultiBufferTests.cpp
-	Utf8Tests.cpp
+	NullAudioTests.cpp
+	PathsTests.cpp
+	WindowsBackendTests.cpp
+	WaitSetTests.cpp
+	LaunchpadIOTests.cpp
 	SongStructureTests.cpp
 	SampleTrackTests.cpp
 	TimeStretcherTests.cpp
 	RecordingRingBufferTests.cpp
 	MonoFifoTests.cpp
-	LevelMeterTests.cpp
 	LaunchpadPanTests.cpp
 	RhythmPatternLibraryTests.cpp
 	SwingTests.cpp
@@ -113,6 +101,11 @@ add_executable(synth_tests
 )
 
 target_link_libraries(synth_tests synth_engine)
+# The terminal UI, driven on Cell UI's test terminal.
+if(SYNTH_BUILD_INTERACTIVE AND SYNTH_BUILD_TERMINAL_UI)
+  target_sources(synth_tests PRIVATE TerminalUITests.cpp TerminalUIViewTests.cpp)
+  target_link_libraries(synth_tests synth_ui)
+endif()
 target_compile_definitions(synth_tests PRIVATE
 	TESTS_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
 	TESTS_SCRATCH_DIR="${CMAKE_CURRENT_BINARY_DIR}"
@@ -130,3 +123,4 @@ if(Python3_Interpreter_FOUND)
   add_test(NAME no_banned_randomness
 	   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../tools/check_no_banned_randomness.py)
 endif()
+

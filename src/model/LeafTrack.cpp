@@ -12,6 +12,7 @@ LeafTrack::loadParameters(const ParameterSource & input) {
   setDistance(input.get<float>("distance"));
   setElevation(input.get<float>("elevation"));
   setExtent(input.get<float>("extent", -1.0f));
+  setSpatialMode(spatialModeFromName(input.get<std::string>("spatial", "auto")));
   setMinNoteColumns(input.get<int>("noteColumns", 1));
 }
 
@@ -23,6 +24,7 @@ LeafTrack::storeParameters(ParameterSource & output) const {
   output.set("distance", getDistance());
   output.set("elevation", getElevation());
   output.set("extent", getExtent(), -1.0f);
+  if (getSpatialMode() != SpatialMode::AUTO) output.set("spatial", std::string(spatialModeName(getSpatialMode())));
   if (isSolo()) output.set("solo", true);
   if (isMuted()) output.set("mute", true);
   if (getMonitor() != Monitor::AUTO) output.set("monitor", std::string(getMonitor() == Monitor::IN ? "in" : "off"));

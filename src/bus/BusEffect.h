@@ -5,7 +5,19 @@
 #include "../ambisonic/SphericalPosition.h"
 #include "../model/SongObject.h"
 
+#include <limits>
 #include <vector>
+
+// Denormal guard shared by the bus effects' feedback paths: decaying
+// feedback filters are a classic denormal CPU trap, and a tiny
+// alternating-sign value keeps every line's state just above the denormal
+// range without being audible - unlike FTZ/DAZ, this doesn't change
+// floating-point behavior for any other DSP sharing the audio thread
+// (this codebase doesn't set FTZ/DAZ anywhere). It keeps a faint signal
+// flowing through an idle effect forever, which is why SendBusProcessor
+// judges audibility against kBusAudibleFloor, far above it, rather than
+// against exact zero.
+inline constexpr float kDenormalGuard = 1e-20f;
 
 // Common base for the shared send bus's effects (SendBusProcessor owns two
 // of these, one per slot, both fed by a cross-track SendA/SendB mono sum
@@ -55,12 +67,18 @@ class BusEffect : public SongObject {
       default_wet_level_(defaultWetLevel), default_chain_send_level_(defaultChainSendLevel) { }
   virtual ~BusEffect() = default;
 
-  // Always runs, even for silent input, so internal tail/feedback/
-  // modulation state stays continuous across blocks.
+  // Runs for silent input too, so internal tail/feedback/modulation state
+  // stays continuous across blocks, until the bus is idle (below).
   virtual void process(const float * monoInput, int frames) = 0;
 
   virtual int getNumTaps() const = 0;
   virtual const float * getTap(int i) const = 0;
+
+  // How long input and output must both stay silent before nothing
+  // audible is left inside (its longest delay, pre-delay included):
+  // SendBusProcessor stops calling process() after that. Infinity, the
+  // default, is never.
+  virtual float idleAfterSeconds() const { return std::numeric_limits<float>::infinity(); }
   virtual SphericalPosition getTapDirection(int i) const = 0;
 
   // Pre-encode mono sum of this effect's current-block tap outputs - what

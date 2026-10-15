@@ -3,6 +3,10 @@
 
 #include "../UIElement.h"
 #include "../GridPosition.h"
+#include "../../model/Song.h"
+#include "../../state/PlaybackInfo.h"
+#include <chrono>
+#include <optional>
 #include "../../model/PatternBlockOps.h"
 #include "../ClipboardEntry.h"
 #include "../../playback/MidiNoteInput.h"
@@ -11,6 +15,8 @@
 #include "../ScenePatternSource.h"
 #include "InlineEditor.h"
 #include "LevelMeter.h"
+
+#include <cellui/Scopes.h>
 
 #include <chrono>
 #include <functional>
@@ -22,8 +28,8 @@
 #include <utility>
 
 class Synth;
-class InputEvent;
-class StyleProvider;
+#include <cellui/Input.h>
+#include "../StyleProvider.h"
 class Song;
 class VisibleTrackInfo;
 class Controller;
@@ -38,7 +44,7 @@ class PatternEditor : public UIElement {
   // playhead-row tint is transport state, not input focus - the same
   // either way.
   bool render(const StyleProvider & styles, bool refresh, bool focused);
-  bool offerInput(const InputEvent & input) override;
+  bool offerInput(const cellui::Input & input) override;
   void handleMidiEvent(MidiEvent & ev) override;
 
   // Mirrors StatusLine::isReaderActive(): while this widget's inline editor
@@ -80,7 +86,14 @@ class PatternEditor : public UIElement {
   // the transport as the cursor row; Live mode edits clips directly,
   // one scene at a time (ScenePatternSource).
   void setLiveMode(bool live);
+  // The tracks the editor has columns for: every track in Arrangement view,
+  // only the playable ones in Live View, where an effect's or the master's
+  // commands belong to no clip.
+  std::vector<int> trackIds(const Song & song) const;
   bool isLiveMode() const { return source_ == scene_source_.get(); }
+  // Live mode: puts `track_id`'s position on `row` of scene `scene` (not while
+  // that track plays). A no-op in Arrangement mode.
+  void focusLiveRow(int track_id, int scene, int row);
   // The scene (clip) `track_id`'s own live-mode position is in.
   int getLiveScene(int track_id) const { return scene_source_->trackBlock(track_id).value_or(0); }
   // Where each track's launched clip is playing, for Live mode's
@@ -194,6 +207,29 @@ protected:
   // on its own; only Enter (see offerInput()) does that
   // (startLocatorEdit()).
   GridPosition current_cursor, new_cursor;
+
+  struct PendingNibbles {
+    bool valid = false;
+    int track_id = -1, note_column = 0, value = 0;
+    ColumnType type = ColumnType::VELOCITY;
+    RowAddress at;
+    GridPosition next; // where Enter moves to
+    bool matches(int track, int column, ColumnType t, RowAddress a) const;
+  };
+  PendingNibbles pending_;
+  // Asked for by an undo; applied in render(), where the track's columns are known.
+  std::optional<Song::EditPlace> focus_cell_;
+  const cellui::Scopes * scopes_ = nullptr;
+public:
+  // Writes a half-typed velocity or delay to the song.
+  void commitPendingValue();
+  // The backend's scopes, which draw the VU meters; unset, they are drawn
+  // in cells.
+  void setScopes(const cellui::Scopes * scopes) { scopes_ = scopes; }
+  void focusCell(const Song::EditPlace & place) { focus_cell_ = place; }
+private:
+  bool offerInputKey(const cellui::Input & input);
+  static bool anyMeterLive(const PlaybackInfo & info, const std::vector<int> & track_ids);
 
   int current_score_playing_row = 0;
   int current_score_pattern = 0;  
@@ -310,6 +346,16 @@ protected:
   // opposite sides of the grid/locator boundary" apart from "both are
   // on the same side" - see its own comment on SelectionScope::EVERYTHING.
   bool selection_active_ = false;
+  // The whole song is selected (mark-whole-buffer): no mark, and it ends as
+  // soon as the cursor moves off where it was when the command ran.
+  bool whole_song_ = false;
+  struct WholeSongAnchor {
+    int track = 0, col = 0, row = 0;
+    SelectionScope scope = SelectionScope::NOTE_COLUMN;
+    bool operator==(const WholeSongAnchor & o) const { return track == o.track && col == o.col && row == o.row && scope == o.scope; }
+  };
+  WholeSongAnchor whole_song_anchor_;
+  WholeSongAnchor wholeSongAnchorNow() const;
   int selection_start_pattern_ = 0, selection_start_row_ = 0, selection_start_track_ = 0;
   int selection_start_col_ = 0;
   SelectionScope selection_start_scope_ = SelectionScope::NOTE_COLUMN;
@@ -362,7 +408,7 @@ protected:
   // A left-button press picks a cell, dragging from it selects a region;
   // handleMouse() tells a drag from a fresh press by the button not having
   // been released in between.
-  bool handleMouse(const InputEvent & input);
+  bool handleMouse(const cellui::Input & input);
  public:
   bool isMouseDown() const { return mouse_down_; }
   void releaseMouse() { mouse_down_ = false; }
@@ -371,6 +417,11 @@ protected:
   bool mouse_down_ = false;
   MouseAnchor mouse_anchor_;
   int mouse_last_row_ = 0;
+  // The pointer chose the cursor row, so the view holds still until a key
+  // moves it; a drag past an edge scrolls at this pace.
+  bool pointer_scroll_ = false;
+  static constexpr std::chrono::milliseconds kDragScrollInterval{ 120 };
+  std::chrono::steady_clock::time_point drag_scroll_time_;
 
   // Where rows, cells and edits come from - see PatternSource.h. Points at
   // one of the two sources below, per setLiveMode().
@@ -399,6 +450,9 @@ protected:
   void changeEditStep(int delta);
   void setEditStep(int step);
   bool reportLockedCursor();
+  // `delta_rows` cut short at the edge of the pattern an open selection was
+  // marked in (0, with a status message, when already there).
+  int limitToSelectionPattern(int delta_rows);
   // Set when what's shown changed in a way render()'s own dirty checks
   // don't see (the source switching, per-track playheads moving).
   bool force_full_redraw_ = false;

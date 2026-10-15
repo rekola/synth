@@ -42,7 +42,7 @@ class PlaybackControlEvent : public Event {
   // PREVIEW_NOTE/PREVIEW_POOL_NOTE/PREVIEW_RHYTHM/PREVIEW_STOP:
   // OutlineView's own instrument/rhythm audition path, before anything is
   // ever committed to a song (see Song::addInstrument()/OutlineView.cpp's
-  // own NCKEY_ENTER handling for that separate, actually-persisted
+  // own Key::Enter handling for that separate, actually-persisted
   // action). Buffer-agnostic like TERMINATE/MIXER_CHANGED below (there is
   // no owning Track, let alone buffer - nothing being previewed is part
   // of any song yet, PREVIEW_POOL_NOTE included: it addresses a slot in

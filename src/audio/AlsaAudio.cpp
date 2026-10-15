@@ -292,36 +292,14 @@ void AlsaAudio::initialize(Logger & logger, const DeviceSettings & devices) {
     logger.log("WARNING: recording disabled");
   }
 
-  // MIDI is optional like capture: a machine without the sequencer (no
-  // snd-seq module, say) still plays and records audio.
-  if (snd_seq_open(&seq_handle, "default", SND_SEQ_OPEN_DUPLEX, 0) < 0) {
-    seq_handle = nullptr;
-    logger.log("Error opening ALSA sequencer, MIDI input disabled");
-  } else {
-    snd_seq_set_client_name(seq_handle, "synth");
-    midi_own_port_ = snd_seq_create_simple_port(seq_handle, "synth",
-                                                SND_SEQ_PORT_CAP_WRITE | SND_SEQ_PORT_CAP_SUBS_WRITE,
-                                                SND_SEQ_PORT_TYPE_APPLICATION);
-    if (midi_own_port_ < 0) {
-      logger.log("Error creating sequencer port");
-      exit(1);
-    }
-    // Port and client announcements, so a chosen MIDI source that is plugged
-    // in later (or replugged) gets connected - see recordMIDI().
-    snd_seq_connect_from(seq_handle, midi_own_port_, SND_SEQ_CLIENT_SYSTEM, SND_SEQ_PORT_SYSTEM_ANNOUNCE);
-  }
-
   auto status = string("Playback: name = ") + string(snd_pcm_name(pcm_handle)) + string(", state = ") + string(snd_pcm_state_name(snd_pcm_state(pcm_handle)));
   if (capture_handle) {
     status += string(" Capture: name = ") + string(snd_pcm_name(capture_handle)) + string(", state = ") + string(snd_pcm_state_name(snd_pcm_state(capture_handle)));
   }
   logger.log(status);
 
-  setPlaybackDescriptors(getPollDescriptors(pcm_handle));
-  if (capture_handle) setCaptureDescriptors(getPollDescriptors(capture_handle));
-  if (seq_handle) setMidiCaptureDescriptors(getMidiPollDescriptors(seq_handle));
-
-  if (!devices.midi_input.empty()) setMidiInput(devices.midi_input, logger);
+  playback_fds_ = getPollDescriptors(pcm_handle);
+  if (capture_handle) capture_fds_ = getPollDescriptors(capture_handle);
 }
 
 bool AlsaAudio::setPlaybackDevice(const string & requested, Logger & logger) {
@@ -355,7 +333,7 @@ bool AlsaAudio::setPlaybackDevice(const string & requested, Logger & logger) {
   pcm_handle = handle;
   playback_device_name_ = name;
   last_play_error_ = 0;
-  setPlaybackDescriptors(getPollDescriptors(pcm_handle));
+  playback_fds_ = getPollDescriptors(pcm_handle);
   // Dropped, not drained: draining would stall the audio thread for the
   // length of the old queue.
   snd_pcm_drop(old);
@@ -383,41 +361,34 @@ bool AlsaAudio::setCaptureDevice(const string & requested, Logger & logger) {
   // The new stream is prepared but not started, the state startRecording()
   // expects.
   recording_started = false;
-  setCaptureDescriptors(getPollDescriptors(capture_handle));
+  capture_fds_ = getPollDescriptors(capture_handle);
   return true;
 }
 
-void AlsaAudio::setMidiInput(const string & spec, Logger & logger) {
-  midi_input_spec_ = spec;
-  connectMidiInput(&logger);
-}
+WaitResult
+AlsaAudio::wait(Notifier & wake, bool want_capture, int timeout_ms) {
+  // Rebuilt each call from the current streams, so a device switch needs no
+  // bookkeeping. Capture stays in the set with its events cleared while not
+  // wanted: an open but never started capture stream (see startRecording())
+  // has a frozen position and would report ready forever.
+  wait_fds_.clear();
+  wait_fds_.push_back(pollfd { wake.fd(), POLLIN, 0 });
+  wait_fds_.insert(wait_fds_.end(), playback_fds_.begin(), playback_fds_.end());
+  for (auto d : capture_fds_) {
+    if (!want_capture) d.events = 0;
+    wait_fds_.push_back(d);
+  }
 
-void AlsaAudio::connectMidiInput(Logger * logger) {
-  if (!seq_handle) {
-    if (logger && !midi_input_spec_.empty()) logger->log("MIDI input unavailable: no ALSA sequencer");
-    return;
+  WaitResult result;
+  if (poll(wait_fds_.data(), wait_fds_.size(), timeout_ms) <= 0) return result;
+  result.woken = wait_fds_[0].revents != 0;
+  for (size_t i = 0; i < playback_fds_.size(); i++) {
+    if (wait_fds_[1 + i].revents) result.playback = true;
   }
-  if (midi_connected_client_ >= 0) {
-    snd_seq_disconnect_from(seq_handle, midi_own_port_, midi_connected_client_, midi_connected_port_);
-    midi_connected_client_ = midi_connected_port_ = -1;
+  for (size_t i = 0; i < capture_fds_.size(); i++) {
+    if (wait_fds_[1 + playback_fds_.size() + i].revents) result.capture = true;
   }
-  if (midi_input_spec_.empty()) {
-    if (logger) logger->log("MIDI input: none selected");
-    return;
-  }
-  for (auto & source : listMidiSources()) {
-    if (source.spec != midi_input_spec_) continue;
-    int r = snd_seq_connect_from(seq_handle, midi_own_port_, source.client, source.port);
-    if (r < 0) {
-      if (logger) logger->log(string("WARNING: Can't connect MIDI input '") + source.label + "': " + snd_strerror(r));
-    } else {
-      midi_connected_client_ = source.client;
-      midi_connected_port_ = source.port;
-      if (logger) logger->log("MIDI input: " + source.label);
-    }
-    return;
-  }
-  if (logger) logger->log("MIDI input '" + midi_input_spec_ + "' not found, connecting when it appears");
+  return result;
 }
 
 std::vector<pollfd>
@@ -426,24 +397,6 @@ AlsaAudio::getPollDescriptors(snd_pcm_t * handle) {
   struct pollfd * pfds = (struct pollfd *)alloca(sizeof(struct pollfd) * (nfds + 1));
     
   if (snd_pcm_poll_descriptors(handle, pfds, nfds) < 0) {
-    fmt::print(stderr, "Error getting descriptor\n");
-    exit(1);
-  }
-
-  vector<pollfd> r;
-  for (size_t i = 0; i < nfds; i++) {
-    r.push_back(pfds[i]);
-  }
-  return r;
-}
-
-std::vector<pollfd>
-AlsaAudio::getMidiPollDescriptors(snd_seq_t * handle) {
-  auto nfds = static_cast<size_t>(snd_seq_poll_descriptors_count(handle, POLLIN));
-
-  struct pollfd * pfds = (struct pollfd *)alloca(sizeof(struct pollfd) * (nfds + 1));
-
-  if (snd_seq_poll_descriptors(handle, pfds, nfds, POLLIN) < 0) {
     fmt::print(stderr, "Error getting descriptor\n");
     exit(1);
   }
@@ -605,56 +558,3 @@ AlsaAudio::getCaptureDelayFrames() const {
   return static_cast<int>(delay);
 }
 
-vector<MidiEvent>
-AlsaAudio::recordMIDI() {
-  vector<MidiEvent> r;
-
-  do {
-    snd_seq_event_t *ev;
-    snd_seq_event_input(seq_handle, &ev);
-
-    switch (ev->type) {
-      case SND_SEQ_EVENT_PORT_START:
-        // A chosen source that wasn't there, or was unplugged, is back.
-        if (midi_connected_client_ < 0 && !midi_input_spec_.empty() && ev->data.addr.client != snd_seq_client_id(seq_handle)) {
-          connectMidiInput(nullptr);
-        }
-        break;
-      case SND_SEQ_EVENT_PORT_EXIT:
-      case SND_SEQ_EVENT_CLIENT_EXIT:
-        // ALSA drops the subscription itself; just remember that it's gone.
-        if (ev->data.addr.client == midi_connected_client_ &&
-            (ev->type == SND_SEQ_EVENT_CLIENT_EXIT || ev->data.addr.port == midi_connected_port_)) {
-          midi_connected_client_ = midi_connected_port_ = -1;
-        }
-        break;
-      case SND_SEQ_EVENT_SYSTEM:
-        break;
-      case SND_SEQ_EVENT_RESULT:
-        break;
-      case SND_SEQ_EVENT_KEYPRESS:
-        r.push_back(MidiEvent(MidiEvent::NOTE_PRESSURE, ev->data.note.note, ev->data.note.velocity));
-        break;
-      case SND_SEQ_EVENT_CHANPRESS:
-        // Channel-wide value, same union member as PITCHBEND/CONTROLLER below
-        // (no specific note involved, unlike KEYPRESS's per-note aftertouch
-        // above) - note field is unused.
-        r.push_back(MidiEvent(MidiEvent::CHANNEL_PRESSURE, 0, ev->data.control.value));
-        break;
-      case SND_SEQ_EVENT_PITCHBEND:
-        break;
-      case SND_SEQ_EVENT_CONTROLLER:
-        break;
-      case SND_SEQ_EVENT_NOTEON:
-        r.push_back(MidiEvent(MidiEvent::NOTE_ON, ev->data.note.note, ev->data.note.velocity));
-        break;
-      case SND_SEQ_EVENT_NOTEOFF:
-        r.push_back(MidiEvent(MidiEvent::NOTE_OFF, ev->data.note.note, 0));
-        break;
-    }
-
-    snd_seq_free_event(ev);
-  } while (snd_seq_event_input_pending(seq_handle, 0) > 0);
-  
-  return r;
-}

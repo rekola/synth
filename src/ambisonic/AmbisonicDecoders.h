@@ -17,7 +17,7 @@ class AmbisonicStereoMixer : public Mixer {
     : Mixer(2, outSampleRate), ambisonic_channels_(ambisonic_channels), buffer_(static_cast<short>(ambisonic_channels), 0) { }
 
   void reset() override {
-    buffer_.zero();
+    resetAccumulator(buffer_);
   }
 
   // mixNamed() rather than mix() - `input` (a track's rendered output) may
@@ -30,12 +30,17 @@ class AmbisonicStereoMixer : public Mixer {
       buffer_.zero();
     }
     buffer_.mixNamed(input);
+    noteAccumulated(input);
   }
 
-  const AudioBuffer & getRawBus() const override { return buffer_; }
+  const AudioBuffer & getRawBus() const override { return rawBusOf(buffer_); }
 
   AudioBuffer encode() override {
     AudioBuffer out(static_cast<short>(getOutChannels()), buffer_.numberOfFrames());
+    if (!accumulated()) {
+      out.zero();
+      return out;
+    }
     decodeToStereo(buffer_, out);
 
     for (int c = 0; c < out.numberOfChannels(); c++) {

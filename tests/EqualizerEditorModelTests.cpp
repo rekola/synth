@@ -1,7 +1,7 @@
 #include "TestFramework.h"
 
 #include "../src/ui/EqualizerEditorModel.h"
-#include "../src/ui/Spline.h"
+#include <cellui/Spline.h>
 
 #include <cmath>
 
@@ -56,8 +56,8 @@ TEST(equalizer_editor_nearest_band_follows_the_marker_positions) {
 }
 
 TEST(spline_passes_through_flat_knots_and_stays_in_range) {
-  auto flat = spline::sample({ 0.4f, 0.4f, 0.4f, 0.4f }, 17);
+  auto flat = cellui::spline::sample({ 0.4f, 0.4f, 0.4f, 0.4f }, 17);
   for (float v : flat) CHECK_NEAR(v, 0.4f, 1e-5f);
-  auto spiky = spline::sample({ 0.0f, 1.0f, 0.0f, 1.0f, 0.0f }, 50);
+  auto spiky = cellui::spline::sample({ 0.0f, 1.0f, 0.0f, 1.0f, 0.0f }, 50);
   for (float v : spiky) CHECK(v >= 0.0f && v <= 1.0f);
 }

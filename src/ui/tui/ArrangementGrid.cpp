@@ -12,7 +12,7 @@
 #include "../KeyChord.h"
 
 #include <algorithm>
-#include <fmt/core.h>
+#include <fmt/format.h>
 
 using namespace std;
 
@@ -79,10 +79,10 @@ ArrangementGrid::ensureCursorVisible(int bar_count, int visible_rows, int visibl
 }
 
 bool
-ArrangementGrid::offerInput(const InputEvent & input) {
+ArrangementGrid::offerInput(const cellui::Input & input) {
   // A left click picks the (bar, track) cell under it; Enter still commits it.
-  if (input.getId() == NCKEY_BUTTON1) {
-    if (input.getKind() == InputEvent::Kind::RELEASE) return true;
+  if (input.getId() == Key::Button1) {
+    if (input.getKind() == cellui::Input::Kind::RELEASE) return true;
     auto & song = getController().getSong();
     auto num_tracks = static_cast<int>(getVisibleTrackIds(song).size());
     auto [ pos_y, pos_x ] = getPosition();
@@ -103,9 +103,9 @@ ArrangementGrid::offerInput(const InputEvent & input) {
 
   // The mouse wheel scrolls the view (Shift: tracks), not the cursor, and
   // detaches it from the cursor/playhead until the cursor next moves.
-  if (input.getId() == NCKEY_BUTTON4 || input.getId() == NCKEY_BUTTON5) {
-    if (input.getKind() == InputEvent::Kind::RELEASE) return true;
-    int direction = input.getId() == NCKEY_BUTTON4 ? -1 : 1;
+  if (input.getId() == Key::Button4 || input.getId() == Key::Button5) {
+    if (input.getKind() == cellui::Input::Kind::RELEASE) return true;
+    int direction = input.getId() == Key::Button4 ? -1 : 1;
     if (input.hasShift()) scroll_col_ += direction;
     else scroll_row_ += direction;
     view_detached_ = true;
@@ -113,7 +113,7 @@ ArrangementGrid::offerInput(const InputEvent & input) {
   }
 
   if (dispatchCommand(input)) return true;
-  if (input.getKind() == InputEvent::Kind::RELEASE) return false;
+  if (input.getKind() == cellui::Input::Kind::RELEASE) return false;
 
   auto & song = getController().getSong();
   auto track_ids = getVisibleTrackIds(song);
@@ -129,7 +129,7 @@ ArrangementGrid::offerInput(const InputEvent & input) {
     cursor_bar_ = clamp(cursor_bar_ + delta, 0, barCount(song, playing_bar) - 1);
   };
 
-  if (input.getId() == NCKEY_ENTER) {
+  if (input.getId() == Key::Enter) {
     // A bar past the arrangement's end is a valid target: it just moves
     // the playhead/track selection there - "look at/jump to this
     // position" and "put real content here" stay two separate actions.
@@ -139,35 +139,28 @@ ArrangementGrid::offerInput(const InputEvent & input) {
     return true;
   }
 
-  if (input.getId() == NCKEY_UP) move_cursor(-1);
-  else if (input.getId() == NCKEY_DOWN) move_cursor(1);
+  if (input.getId() == Key::Up) move_cursor(-1);
+  else if (input.getId() == Key::Down) move_cursor(1);
   // A full screenful at a time - same "jump by the viewport's own
   // height" reading Page Up/Down carry everywhere else in this app,
   // rather than PatternEditor's own fixed 16-row jump (which counts raw
   // pattern rows, not this grid's own bar rows, so a fixed count
   // wouldn't mean the same thing here).
-  else if (input.getId() == NCKEY_PGUP) move_cursor(-getDim().first);
-  else if (input.getId() == NCKEY_PGDOWN) move_cursor(getDim().first);
-  else if (input.getId() == NCKEY_BACKSPACE) {
+  else if (input.getId() == Key::PageUp) move_cursor(-getDim().first);
+  else if (input.getId() == Key::PageDown) move_cursor(getDim().first);
+  else if (input.getId() == Key::Backspace) {
     if (cursor_track_index_ < num_tracks) {
-      auto arrangement = song.getArrangement();
       auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
       auto bar_start_row = bar_row(cursor_bar_);
       auto active = resolveInstanceForBar(song, track_id, bar_start_row, bar_length(cursor_bar_));
       if (active.clip_index >= 0 && active.start_row >= bar_start_row) {
-        // On the instance's own leading (head) bar - removes the
-        // placement event outright (Arrangement::clearInstance()) rather than
-        // replacing it with a stop: there's nothing "after" to silence
-        // here, the instance's own event genuinely lives at this exact
-        // row, so removing it is both sufficient and more correct than
-        // leaving an explicit OFF behind - reverts to whatever's actually
-        // still active from before it (same as deleting a clip or a stop
-        // already does), instead of forcing continued silence where
-        // there might be nothing to silence at all. The clip itself is
-        // untouched, still in the track's own clip list - this only ends
-        // this one placement of it, same scope Backspace already had.
+        // On the instance's own leading (head) bar - removes the placement
+        // event, leaving a stop in its place when an earlier looping clip
+        // would otherwise play on into the space (removeInstanceLeavingSilence()).
+        // The clip itself is untouched, still in the track's own clip list -
+        // this only ends this one placement of it.
         Song::Edit edit(song, "end clip placement");
-        arrangement.clearInstance(track_id, active.start_row);
+        removeInstanceLeavingSilence(song, track_id, active.start_row);
       } else if (active.clip_index >= 0) {
         // A later (tail) bar the same instance merely continues through -
         // no single event's own row to remove here, only a stop can
@@ -184,7 +177,7 @@ ArrangementGrid::offerInput(const InputEvent & input) {
       // duplicate the one that already does the job.
     }
   }
-  else if (input.getId() == NCKEY_DEL || (input.hasCtrl() && input.getId() == 'k')) {
+  else if (input.getId() == Key::Delete || (input.hasCtrl() && input.getId() == 'k')) {
     // Fully removes the clip itself (ArrangementOps.h's deleteClip()) -
     // every placement of it anywhere in the song, not just the one under
     // the cursor - unlike Backspace above, which only ends this one
@@ -224,8 +217,8 @@ ArrangementGrid::offerInput(const InputEvent & input) {
   }
   // Left/Right move across per-track columns, stopping at the grid's
   // own edges.
-  else if (input.getId() == NCKEY_LEFT) cursor_track_index_--;
-  else if (input.getId() == NCKEY_RIGHT) cursor_track_index_++;
+  else if (input.getId() == Key::Left) cursor_track_index_--;
+  else if (input.getId() == Key::Right) cursor_track_index_++;
   else return false;
 
   cursor_track_index_ = clamp(cursor_track_index_, 0, max(0, num_tracks - 1));
@@ -367,7 +360,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   // cell's text already uses), uncolored on purpose, so a track's own
   // color never means anything but "a real instance is here."
   auto track_color = [&](int track_id) {
-    return structure.getBaselineInfo(track_id).getColor();
+    return structure.getBaselineInfo(track_id).getColor(styles.tracks);
   };
 
   // Per visible column, the active instance (if any) the previous bar row

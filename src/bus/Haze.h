@@ -129,6 +129,9 @@ class Haze : public BusEffect {
 
   // No point-source taps - see the class comment above.
   int getNumTaps() const override { return 0; }
+  // The pre-delay, then the diffuse encoder's allpass chains ringing down
+  // (unseen behind a muted return).
+  float idleAfterSeconds() const override { return kMaxPredelaySeconds + 1.5f; }
   const float * getTap(int) const override { return nullptr; } // never called: getNumTaps() == 0
   SphericalPosition getTapDirection(int) const override { return SphericalPosition{}; } // never called
 

@@ -2,6 +2,7 @@
 #define _VISIBLETRACKINFO_H_
 
 #include "Color.h"
+#include "../ui/Theme.h"
 
 #include <cmath>
 #include <utility>
@@ -11,7 +12,8 @@ enum class ColumnType {
   NOTE,
   VELOCITY,
   DELAY,
-  EFFECT
+  LOCAL_FX, // a note column's own fx (Note::getFx())
+  TRACK_FX // the track-wide effect command column, unlike LOCAL_FX
 };
 
 class VisibleTrackInfo {
@@ -27,7 +29,7 @@ public:
   // placeholder cell collapsing is meant to shrink it down to.
   int getColumnCount() const {
     if (collapsed_) return 1;
-    return num_subtracks_ * ((has_note_column_ ? 1 : 0) + num_velocity_columns_ + (has_delay_column_ ? 1 : 0)) + (has_effect_column_ ? 1 : 0);
+    return num_subtracks_ * ((has_note_column_ ? 1 : 0) + num_velocity_columns_ + (has_delay_column_ ? 1 : 0) + (has_local_fx_column_ ? 1 : 0)) + (has_track_fx_column_ ? 1 : 0);
   }
   // The track's true total on-screen footprint, *including* its own
   // trailing "|" border character and (a color-eligible, non-collapsed
@@ -76,8 +78,8 @@ public:
     // A collapsed track hides every column's own content (see
     // PatternEditor::renderRow) - collapsed_content_width_ blank
     // content cells plus its own trailing "│" border, instead of the
-    // type's normal content width + 1. An instrument/percussion/
-    // arpeggiator track (see SongStructure.cpp) gets 1 blank cell, so
+    // type's normal content width + 1. An instrument/percussion
+    // track (see SongStructure.cpp) gets 1 blank cell, so
     // its "▸"/"◂" heading toggle has an actual cell of its own to sit
     // in rather than the border being the track's *entire* on-screen
     // footprint; an effect track has no such toggle at this level (its
@@ -94,24 +96,25 @@ public:
     // NOTE's fixed 4 characters to show a legible shape, so this
     // overrides the NOTE case below when set - 0 (default) leaves every
     // other track type's own sizing untouched, and a SampleTrack's own
-    // separate EFFECT column (its command column, alongside the
-    // waveform) still gets EFFECT's own ordinary width below, not this
+    // separate TRACK_FX column (its command column, alongside the
+    // waveform) still gets TRACK_FX's own ordinary width below, not this
     // override.
     if (sample_placeholder_width_ > 0 && column_type == ColumnType::NOTE) return sample_placeholder_width_ + identifier_cell;
     switch (column_type) {
     case ColumnType::NOTE: return 4 + identifier_cell;
     case ColumnType::VELOCITY: return 3 + identifier_cell;
     case ColumnType::DELAY: return 3 + identifier_cell;
-    case ColumnType::EFFECT: return 5 + identifier_cell;
+    case ColumnType::LOCAL_FX: return 4 + identifier_cell;
+    case ColumnType::TRACK_FX: return 5 + identifier_cell;
     default: return 0;
     }
   }
   ColumnType getColumnType(int k) const {
     auto column_count = getColumnCount();
-    if (has_effect_column_ && k == column_count - 1) {
-      return ColumnType::EFFECT;
+    if (has_track_fx_column_ && k == column_count - 1) {
+      return ColumnType::TRACK_FX;
     } else {
-      auto n = (has_note_column_ ? 1 : 0) + num_velocity_columns_ + (has_delay_column_ ? 1 : 0);
+      auto n = (has_note_column_ ? 1 : 0) + num_velocity_columns_ + (has_delay_column_ ? 1 : 0) + (has_local_fx_column_ ? 1 : 0);
       k = k % n;
 
       if (has_note_column_) {
@@ -126,6 +129,11 @@ public:
 	if (k == 0) return ColumnType::DELAY;
 	else k--;      
       }
+
+      if (has_local_fx_column_) {
+	if (k == 0) return ColumnType::LOCAL_FX;
+	else k--;
+      }
       
       return ColumnType::UNKNOWN;
     }
@@ -133,10 +141,11 @@ public:
   bool isNoteColumn(int k) const { return getColumnType(k) == ColumnType::NOTE; }
   bool isVelocityColumn(int k) const { return getColumnType(k) == ColumnType::VELOCITY; }
   bool isDelayColumn(int k) const { return getColumnType(k) == ColumnType::DELAY; }
-  bool isEffectColumn(int k) const { return getColumnType(k) == ColumnType::EFFECT; }
+  bool isLocalFxColumn(int k) const { return getColumnType(k) == ColumnType::LOCAL_FX; }
+  bool isTrackFxColumn(int k) const { return getColumnType(k) == ColumnType::TRACK_FX; }
   
   int getNoteNumber(int k) const {
-    auto n = (has_note_column_ ? 1 : 0) + num_velocity_columns_ + (has_delay_column_ ? 1 : 0);
+    auto n = (has_note_column_ ? 1 : 0) + num_velocity_columns_ + (has_delay_column_ ? 1 : 0) + (has_local_fx_column_ ? 1 : 0);
     return k / n;
   }
 
@@ -147,11 +156,11 @@ public:
   // alone), and hence what the cursor's own always-on highlight actually
   // covers - see PatternScroll.cpp, which keeps the whole range on screen
   // rather than just k. {k, k} for the effect column, which belongs to no
-  // note number (isEffectColumn() callers already special-case it the same
+  // note number (isTrackFxColumn() callers already special-case it the same
   // way before trusting getNoteNumber()).
   std::pair<int, int> getNoteColumnRange(int k) const {
-    if (isEffectColumn(k)) return { k, k };
-    auto n = (has_note_column_ ? 1 : 0) + num_velocity_columns_ + (has_delay_column_ ? 1 : 0);
+    if (isTrackFxColumn(k)) return { k, k };
+    auto n = (has_note_column_ ? 1 : 0) + num_velocity_columns_ + (has_delay_column_ ? 1 : 0) + (has_local_fx_column_ ? 1 : 0);
     if (n <= 0) return { k, k };
     auto note = getNoteNumber(k);
     return { note * n, note * n + n - 1 };
@@ -163,37 +172,21 @@ public:
 
   // Only meaningful when color_ordinal_ >= 0 - the caller decides what a
   // negative ordinal (not color-eligible) should look like instead (see
-  // PatternEditor::renderHeading()'s grey fallback). Hue is generated
-  // from the ordinal via the golden-angle step (360 / phi^2 degrees) -
-  // the standard technique for a sequence of hues that stay visually
-  // well-spread from each other no matter how many tracks exist, rather
-  // than a fixed-size palette that starts repeating after N tracks.
-  // Saturation/lightness are fixed - darkened and desaturated enough for
-  // white text to sit on top of. All three values are a starting point,
-  // tuned by eye - the mechanism (fixed S/L, generated H) is the point,
-  // not the exact numbers.
-  // The hue alone - factored out of getColor() below so a caller that
-  // wants this track's identity at a different saturation/lightness (e.g.
-  // a background-content fallback glyph, rendered as foreground text
-  // rather than a colored block - see ArrangementGrid.cpp) doesn't have to
-  // duplicate the golden-angle formula to get the same hue getColor()
-  // would.
-  float getHue() const {
-    constexpr float kGoldenAngle = 137.50776f;
-    return std::fmod(static_cast<float>(color_ordinal_) * kGoldenAngle, 360.0f);
-  }
+  // PatternEditor::renderHeading()'s grey fallback). The palette (the
+  // theme's) makes the colour from the ordinal with a stepped hue, which
+  // stays well spread however many tracks exist, unlike a fixed-size list
+  // that starts repeating. The hue alone is there for a caller that wants
+  // the identity at another saturation or lightness.
+  float getHue(const TrackPalette & palette) const { return palette.hue(color_ordinal_); }
 
-  Color getColor() const {
-    constexpr float kSaturation = 0.35f;
-    constexpr float kLightness = 0.42f;
-    return Color::fromHSL(getHue(), kSaturation, kLightness);
-  }
+  Color getColor(const TrackPalette & palette) const { return palette.color(color_ordinal_); }
 
   int num_subtracks_ = 1;
   int num_velocity_columns_ = 0;
   bool has_note_column_ = true;
   bool has_delay_column_ = false;
-  bool has_effect_column_ = false;
+  bool has_local_fx_column_ = false;
+  bool has_track_fx_column_ = false;
   // getColumnWidth()'s own override for a SampleTrack's single column -
   // see that method's own comment. 0 (default) for every other track
   // type.
@@ -208,7 +201,7 @@ public:
   // Only meaningful while collapsed_ - how many blank content cells
   // getColumnWidth() gives the track's sole remaining column, besides
   // its trailing "│" border (see that method's own comment). Defaults
-  // to the instrument/percussion/arpeggiator/sample/drum-machine case;
+  // to the instrument/percussion/sample/drum-machine case;
   // SongStructure.cpp sets it to 0 for TrackType::EFFECT, whose
   // collapsed heading toggle lives on its ancestor-row box instead of
   // this level, so its own column needs no cell of its own to hold one.

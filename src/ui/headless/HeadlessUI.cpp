@@ -2,6 +2,8 @@
 
 #include "../UIPlane.h"
 #include "../../launchpad/LaunchpadIO.h"
+#include "../../midi/MidiInput.h"
+#include "../../util/WaitSet.h"
 #include "../../launchpad/LaunchpadManager.h"
 #include "../../audio/AudioAPI.h"
 #include "../../playback/LogEvent.h"
@@ -19,7 +21,6 @@
 #include <chrono>
 #include <cstdio>
 #include <ctime>
-#include <poll.h>
 
 using namespace std;
 
@@ -38,9 +39,9 @@ class HeadlessPlane : public UIPlane {
   void setItalic(bool) override { }
   void erase() override { }
   void putstr(int, int, const std::string &) override { }
-  std::unique_ptr<UIPlane> createChild() override { return std::make_unique<HeadlessPlane>(getController(), getStyles()); }
+  std::unique_ptr<UIPlane> createChild() override { return std::make_unique<HeadlessPlane>(getAppContext(), getStyles()); }
   void drawBorder() override { }
-  bool offerInput(const InputEvent &) override { return false; }
+  bool offerInput(const cellui::Input &) override { return false; }
   void showReader(const std::string &, int, int, int, int, const std::string &, std::optional<Color>) override { }
   std::string closeReader() override { return ""; }
   bool readerActive() const override { return false; }
@@ -78,7 +79,11 @@ HeadlessUI::setStatus(std::string s) {
   auto ms = duration_cast<milliseconds>(now.time_since_epoch()).count() % 1000;
   time_t t = system_clock::to_time_t(now);
   struct tm tm_buf;
+#ifdef _WIN32
+  localtime_s(&tm_buf, &t);
+#else
   localtime_r(&t, &tm_buf);
+#endif
   char stamp[16];
   strftime(stamp, sizeof stamp, "%H:%M:%S", &tm_buf);
   fprintf(stderr, "[%s.%03d] %s\n", stamp, static_cast<int>(ms), s.c_str());
@@ -188,17 +193,14 @@ HeadlessUI::tick() {
 }
 
 void
-HeadlessUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
-  auto midi_descriptors = audio.getMidiCaptureDescriptors();
-  auto launchpad_descriptors = launchpad_io.getPollDescriptors();
-  constexpr size_t kMidiBase = 1;
-  size_t launchpad_base = kMidiBase + midi_descriptors.size();
-  vector<pollfd> descriptors(launchpad_base + launchpad_descriptors.size());
-
-  descriptors[0].fd = getController().getUIEventQueue().getPollFd();
-  descriptors[0].events = POLLIN;
-  copy(midi_descriptors.begin(), midi_descriptors.end(), descriptors.begin() + kMidiBase);
-  copy(launchpad_descriptors.begin(), launchpad_descriptors.end(), descriptors.begin() + static_cast<ptrdiff_t>(launchpad_base));
+HeadlessUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
+  WaitSet waits;
+  auto events_group = waits.group();
+  auto midi_group = waits.group();
+  auto launchpad_group = waits.group();
+  waits.add(events_group, getController().getUIEventQueue().notifier());
+  midi.addTo(waits, midi_group);
+  launchpad_io.addTo(waits, launchpad_group);
 
   if (autoplay_) {
     getController().togglePlaying();
@@ -206,21 +208,19 @@ HeadlessUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
   }
 
   while (!shouldClose()) {
-    // poll() returns early with EINTR when a shutdown signal arrives.
-    int poll_result = poll(descriptors.data(), descriptors.size(), kTickIntervalMs);
-    if (poll_result > 0) {
-      for (size_t i = 0; i < descriptors.size(); i++) {
-	if (!descriptors[i].revents) continue;
-	if (i == 0) {
-	  while (getController().getUIEventQueue().hasEvents()) {
-	    auto event = getController().getUIEventQueue().pop();
-	    handleEvent(*event);
-	  }
-	} else if (i < launchpad_base) {
-	  for (auto & ev : audio.recordMIDI()) handleEvent(ev);
-	} else {
-	  for (auto & ev : launchpad_io.pollEvents()) handleEvent(*ev);
+    // The wait returns early when a shutdown signal arrives.
+    if (waits.wait(kTickIntervalMs)) {
+      if (waits.ready(events_group)) {
+	while (getController().getUIEventQueue().hasEvents()) {
+	  auto event = getController().getUIEventQueue().pop();
+	  handleEvent(*event);
 	}
+      }
+      if (waits.ready(midi_group)) {
+	for (auto & ev : midi.readEvents()) handleEvent(ev);
+      }
+      if (waits.ready(launchpad_group)) {
+	for (auto & ev : launchpad_io.pollEvents()) handleEvent(*ev);
       }
     }
     tick();

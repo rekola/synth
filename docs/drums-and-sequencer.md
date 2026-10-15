@@ -14,7 +14,7 @@ steps. Live View, the buttons and the other modes are in
   until a layout is known exactly.
 - **Pad colours.** Pitched pads are coloured by consonance, which is our own
   choice (see Pad colors below); the 31-EDO organ built for Adriaan Fokker and
-  the Archiphone coloured pads by distance from the diatonic scale instead.
+  the Archiphone coloured their keys by distance from the diatonic scale instead.
 
 ## Playing
 
@@ -28,13 +28,14 @@ Note mode (96) shows a playing surface that follows the track:
 - **Pitched track**: an isomorphic keyboard, the same in every song: pad
   positions map to pitches by fixed intervals of the song's tuning, with the
   song's key at the anchor pad at the device's octave, and the pads are
-  colored by their distance from the tonic. The song's scale is not used here;
-  it decides the step view's rows (below).
+  colored by how consonant their interval to the tonic is (Pad colors, below).
+  The song's scale is not used here; it decides the step view's rows (below).
 
 ## Pad colors
 
 LED coloring originally followed the notational convention of Adriaan
-Fokker's 31-EDO organ (built 1950 for Teylers Museum, Haarlem) and the
+Fokker's 31-EDO organ (built by Bernard Pels, at Teylers Museum, Haarlem,
+from 1950, now in the Muziekgebouw aan 't IJ, Amsterdam) and the
 later Archiphone: each pad was colored by its *distance from the song's
 diatonic scale* (tonic / diatonic degree / sharp / flat / diesis /
 accidental), generalizing the idea that 31-EDO's chromatic notes split
@@ -43,12 +44,13 @@ quarter-tone-ish shading) that a simple black/white keyboard can't
 distinguish.
 
 That scheme was replaced with a different organizing principle: coloring
-by *consonance* rather than by scale-degree distance. Standard microtonal
-note names (sharps, flats, double-flats, ...) are built from a fixed,
-12-tone-shaped chain of fifths, which stops matching musical intuition
+by *consonance* rather than by scale-degree distance. Microtonal note
+names (sharps, flats, double-flats, ...) are built from a fixed, 12-tone-shaped
+set of seven letters (a chain of fifths, or in 53-EDO a just major scale),
+which stops matching musical intuition
 well once an EDO is fine enough that the interesting structure is no
-longer "how many fifths from the tonic" but "how consonant is this
-interval, period." The new scheme instead recursively factors the octave
+longer how many fifths a note is from the tonic, but how consonant its
+interval to the tonic is in itself. The new scheme instead recursively factors the octave
 the way classical interval theory does - `2/1 = 4/3 * 3/2` (the octave's
 simplest factor pair is the fourth and fifth), then `3/2 = 6/5 * 5/4` (the
 fifth's own simplest factor pair is the minor and major third), and so on
@@ -84,7 +86,7 @@ that sound there; a pitched note lasts one step. One sound is selected at a
 time, so chords (several held notes) are not supported yet. Pressing a playing pad both
 selects it and sounds it, and records it as usual while capture is armed.
 On a pitched track, 91 and 92 move the sound the steps edit one scale degree
-up or down (the song's scale; with none chosen, every step of the tuning),
+up or down (the song's scale, `set-song-scale`; with none chosen, every step of the tuning),
 so a degree can be picked without pressing its pad. For a clip longer than 32
 steps, 93 and 94 scroll the window. A lone press of
 95 closes it.

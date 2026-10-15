@@ -1,19 +1,21 @@
 #include "Oscillator.h"
+#include "SpatialPlacement.h"
 
 #include "OscillatorVoice.h"
 
 using namespace std;
 
 std::unique_ptr<VoiceState>
-Oscillator::playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const {
+Oscillator::playNote(const ChannelConfiguration & config, const SphericalPosition & position, SpatialMode spatial_mode, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const {
   detune *= harmonic_;
   detune /= subharmonic_;
+  auto placed = spatial::placeGeneric(position, spatial_mode, note_coord.getColumn(), tuning, note_value);
 
   // The voice encodes its own ambisonic output directly from its own
   // position (see InstrumentVoice::encodePosition()) - no external reduce/
   // re-encode step needed. Its own start phase is derived internally from
   // note_coord (InstrumentVoice's own constructor), not computed here.
-  auto voice = std::make_unique<OscillatorVoice>(config, position, detune, type_, level_, pulse_width_, sends, note_coord, array_);
+  auto voice = std::make_unique<OscillatorVoice>(config, placed, detune, type_, level_, pulse_width_, sends, note_coord, array_);
   voice->playNote(getFrequencyFor(tuning, note_value), velocity, note_value);
 
   return voice;

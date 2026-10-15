@@ -30,5 +30,7 @@ public:
 
 unique_ptr<TrackState>
 PercussionTrack::createState(const ChannelConfiguration & config, const SongStructure & structure) const {
-  return make_unique<PercussionTrackState>(config, isSolo(), isMuted(), getInternalId(), getPosition(), getSends());
+  auto state = make_unique<PercussionTrackState>(config, isSolo(), isMuted(), getInternalId(), getPosition(), getSends());
+  state->setSpatialMode(getSpatialMode());
+  return state;
 }

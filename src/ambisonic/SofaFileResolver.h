@@ -1,6 +1,8 @@
 #ifndef _SOFAFILERESOLVER_H_
 #define _SOFAFILERESOLVER_H_
 
+#include "../util/Paths.h"
+
 #include <cstdlib>
 #include <filesystem>
 #include <string>
@@ -23,11 +25,10 @@ inline std::string findDefaultSofaFile() {
   }
 
   std::vector<fs::path> dirs;
-  if (auto home = getenv("HOME")) {
-    dirs.push_back(fs::path(home) / ".local/share/sofa");
-  }
-  dirs.push_back("/usr/share/libmysofa");
-  dirs.push_back("/usr/share/sofa");
+  auto user = paths::userDataDir();
+  if (!user.empty()) dirs.push_back(user / "sofa");
+  dirs.push_back(paths::installDataDir() / "libmysofa");
+  dirs.push_back(paths::installDataDir() / "sofa");
 
   const char * preferred[] = {
     "default.sofa",

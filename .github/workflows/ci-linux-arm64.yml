@@ -26,13 +26,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             cmake \
-            libnotcurses-dev \
-            libnotcurses++-dev \
             libfmt-dev \
             libsndfile1-dev \
             libasound2-dev \
             libunistring-dev \
             libsoundtouch-dev \
+            libcairo2-dev \
+            pkg-config \
             fluid-soundfont-gm
 
       - name: Configure

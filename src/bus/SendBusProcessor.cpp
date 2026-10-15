@@ -1,10 +1,14 @@
 #include "SendBusProcessor.h"
 #include "BusEffectRegistry.h"
 
+#include <algorithm>
+
 using namespace std;
 
 SendBusProcessor::SendBusProcessor(const ChannelConfiguration & config)
-  : ambisonic_channels_(config.numberOfChannels()) {
+    : ambisonic_channels_(config.numberOfChannels()),
+      hold_frames_(static_cast<int>(kBusAudibleHoldSeconds * static_cast<float>(config.getAudioOutSampleRate()))),
+      sample_rate_(config.getAudioOutSampleRate()) {
   // Safe, silent defaults until SongState::initialize() installs the
   // song's real slot configuration - see slots_'s own doc comment.
   slots_[kSlotA] = make_unique<NullBusEffect>(config.getAudioOutSampleRate());
@@ -14,12 +18,27 @@ SendBusProcessor::SendBusProcessor(const ChannelConfiguration & config)
 void
 SendBusProcessor::setSlotEffect(int slot, std::unique_ptr<BusEffect> effect) {
   slots_[static_cast<size_t>(slot)] = std::move(effect);
+  quiet_frames_ = 0;
 }
 
 void
 SendBusProcessor::process(const AudioBuffer & aux_a_mono, const AudioBuffer & aux_b_mono, int frames, float return_a, float return_b) {
   auto & slot_a = *slots_[kSlotA];
   auto & slot_b = *slots_[kSlotB];
+
+  // Idle: nothing has come in or out for longer than either effect keeps a
+  // sample, so what is left inside is below the floor too.
+  float input_peak = std::max(dsp::maxAbs(aux_a_mono.getChannelData(0), frames), dsp::maxAbs(aux_b_mono.getChannelData(0), frames));
+  double idle_after = std::max(slot_a.idleAfterSeconds(), slot_b.idleAfterSeconds());
+  if (input_peak < kBusAudibleFloor && static_cast<double>(quiet_frames_) >= idle_after * sample_rate_) {
+    hold_remaining_ = 0;
+    bool sized = bus_ambisonic_.numberOfFrames() == frames && bus_ambisonic_.numberOfChannels() == ambisonic_channels_;
+    if (!sized) bus_ambisonic_ = AudioBuffer(static_cast<short>(ambisonic_channels_), frames);
+    if (!idle_ || !sized) bus_ambisonic_.zero();
+    idle_ = true;
+    return;
+  }
+  idle_ = false;
 
   // Slot B runs first so its chain send can reach slot A within the same
   // block (a deliberate zero-added-latency choice, not the alternative of
@@ -31,6 +50,7 @@ SendBusProcessor::process(const AudioBuffer & aux_a_mono, const AudioBuffer & au
   if (static_cast<int>(combined_a_input_.size()) != frames) combined_a_input_.resize(static_cast<size_t>(frames));
 
   slot_b.getChainSendSum(chain_scratch_.data(), frames);
+  float slot_b_output_peak = dsp::maxAbs(chain_scratch_.data(), frames);
   float chain_level = slot_b.getChainSendLevel();
   auto a_in = aux_a_mono.getChannelData(0);
   for (int i = 0; i < frames; i++) {
@@ -83,4 +103,16 @@ SendBusProcessor::process(const AudioBuffer & aux_a_mono, const AudioBuffer & au
       for (int i = 0; i < frames; i++) dst[i] += src[i] * slot_return;
     }
   }
+
+  float peak = 0.0f;
+  for (int c = 0; c < ambisonic_channels_; c++) {
+    peak = std::max(peak, dsp::maxAbs(bus_ambisonic_.getChannelData(c), frames));
+  }
+  hold_remaining_ = peak >= kBusAudibleFloor ? hold_frames_ : std::max(0, hold_remaining_ - frames);
+
+  // What the bus put out, and what the effects put out before their
+  // returns scale it: a muted return hides a tail, it does not end it.
+  slot_a.getChainSendSum(chain_scratch_.data(), frames);
+  float output_peak = std::max({peak, dsp::maxAbs(chain_scratch_.data(), frames), slot_b_output_peak});
+  quiet_frames_ = input_peak < kBusAudibleFloor && output_peak < kBusAudibleFloor ? quiet_frames_ + frames : 0;
 }

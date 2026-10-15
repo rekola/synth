@@ -1,0 +1,14 @@
+# value	note names	step	ratios  (value is C4 = 60; add 12 per octave)
+60	C-4/B♯3/D𝄫4	0
+61	C♯4/D♭4/B𝄪3	1
+62	D-4/C𝄪4/E𝄫4	2
+63	D♯4/E♭4/F𝄫4	3
+64	E-4/F♭4/D𝄪4	4
+65	F-4/E♯4/G𝄫4	5
+66	F♯4/G♭4/E𝄪4	6
+67	G-4/F𝄪4/A𝄫4	7
+68	G♯4/A♭4	8
+69	A-4/G𝄪4/B𝄫4	9
+70	A♯4/B♭4/C𝄫5	10
+71	B-4/C♭5/A𝄪4	11
+72	C-5/B♯4/D𝄫5	12

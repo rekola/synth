@@ -95,6 +95,10 @@ GranularEngine::GranularEngine(int sampleRate)
                 kDefaultPitchScatter, kDefaultAmplitudeJitter);
 }
 
+float GranularEngine::memorySeconds() {
+  return kMaxCaptureSeconds + kMaxGrainSizeMs * 0.001f;
+}
+
 void
 GranularEngine::setParameters(float grainSizeMs, float densityPerSec,
                                float scanPositionSeconds, float scanJitterSeconds,

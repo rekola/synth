@@ -77,12 +77,10 @@ TEST(demoted_songstate_keeps_ringing_a_held_voice_while_the_new_playing_state_ad
   CHECK(state_a.getVoiceCount() > 0);
 
   // Buffer B now takes over the "playing" role - mirrors Player.cpp's PLAY
-  // handling exactly: A is demoted (isPlaying(false) + notePlaybackStopped()),
+  // handling exactly: A is demoted (isPlaying(false)),
   // never torn down.
   state_a.setIsPlaying(false);
-  state_a.notePlaybackStopped();
   state_b.setIsPlaying(true);
-  state_b.resyncPlayheadAfterStop();
 
   auto absolute_before = state_a.getAbsolutePosition();
 
@@ -763,4 +761,62 @@ TEST(preview_rhythm_without_swing_hits_on_the_row) {
   auto count = player.getStartedNoteCountForTest();
   player.renderPreview(interval / 4);
   CHECK(player.getStartedNoteCountForTest() > count); // on the row itself, in its first quarter
+}
+
+namespace {
+
+// The frequency of a live note played through Player, from the upward zero
+// crossings of the omni channel over a second of audio.
+double liveNoteFrequency(Scale scale) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto buffer_name = controller.getActiveBufferName();
+  auto & song = controller.getSong();
+  song.setTuning(Tuning::EDO12);
+  song.setKey(60);
+  song.setScale(scale);
+  song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+
+  Player player(config, &controller);
+  PlaybackControlEvent play_note(PlaybackControlEvent::PLAY_NOTE, buffer_name, track.getInternalId(), 0, 63, 100); // D-sharp
+  player.handlePlaybackControlEvent(play_note);
+  auto * state = player.getLiveStateForTest(buffer_name);
+  if (!state) return 0.0;
+
+  auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
+  vector<float> samples;
+  for (int block = 0; block < 44100 / 256; block++) {
+    mixer->reset();
+    state->renderBlock(256, song, *mixer);
+    auto & bus = mixer->getRawBus();
+    if (!bus.hasChannel(Channel::Main)) return 0.0;
+    auto data = bus.getChannelData(0);
+    samples.insert(samples.end(), data, data + bus.numberOfFrames());
+  }
+  // Interpolated crossings, skipping the attack.
+  double first = -1, last = -1;
+  int crossings = 0;
+  for (size_t i = 4410; i + 1 < samples.size(); i++) {
+    if (samples[i] < 0.0f && samples[i + 1] >= 0.0f) {
+      double t = static_cast<double>(i) + samples[i] / (samples[i] - samples[i + 1]);
+      if (first < 0)
+        first = t;
+      else
+        crossings++;
+      last = t;
+    }
+  }
+  return crossings > 0 ? crossings * 44100.0 / (last - first) : 0.0;
+}
+
+} // namespace
+
+TEST(a_live_note_of_a_just_scale_sounds_at_its_exact_ratio) {
+  auto equal = liveNoteFrequency(Scale::MAJOR);
+  auto just = liveNoteFrequency(Scale::OTONAL);
+  CHECK(equal > 0.0 && just > 0.0);
+  // 12-EDO D-sharp in an otonal song is 7/6, 33 cents below the equal-tempered step.
+  CHECK_NEAR(1200.0 * std::log2(just / equal), -33.0, 1.0);
 }
