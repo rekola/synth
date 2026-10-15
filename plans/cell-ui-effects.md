@@ -98,54 +98,58 @@ so at most a theme of its own later.
 
 Wanted: one thing people think a terminal can't do (as the blurred backdrop
 was), or one thing that sells the cell grid in the window the way a block
-world sold a game: the limitation turned into the medium. The candidates,
-the strongest of each group first.
+world sold a game: the limitation turned into the medium.
 
-### Thought impossible in a terminal
+**Decided: text stays text.** In the terminal, text is never shown as a
+picture of itself: it must stay real text that can be selected and read by a
+screen reader. So no zooming or smooth scrolling of text in the terminal -
+rendering text there is rendering the whole screen as a frame buffer. A
+backdrop is the exception because what it covers is meant to be out of reach
+(and so unselectable).
 
-They share one trick, **pixels in motion, text at rest**: while a region
-moves or changes it is shown as a picture of its own cells (`CellRasterizer`,
-stretched images), and it is text again once it stops. Text stays text for
-reading, selecting and screen readers; only motion is pictures.
+### Depth, light and materials (GTK)
 
-1. **Zoom out to the whole song.** The pattern editor (or the arrangement)
-   zooms out continuously until the whole song fits the screen as a miniature
-   of its own cells - each note a few pixels in its track's colour, bars and
-   scenes still readable as shapes - and zooms back into any bar. Useful
-   (navigation, an overview of where things are), and the miniature is only
-   the cells drawn smaller, which the rasterizer already does. A cell version
-   exists too: braille or sextant dots per note.
-2. **Smooth scrolling and inertia.** Scrolling the pattern editor glides by
-   pixels, with inertia, and Live View's per-track lines slide instead of
-   jumping; text returns as soon as the motion ends. Costs a picture of the
-   moving region on every frame of the motion (bytes with kitty and iTerm2,
-   CPU everywhere), so Sixel probably keeps stepping.
-3. **Large type.** Scene names, the song's title and locators at two to four
-   times the cell size in the system's font, as pictures (a scene launch
-   showing its name big for a moment). Easy, less striking.
+The cells have depth, and the window is lit:
 
-### The grid as the medium (GTK)
+- **The camera.** The grid stays face-on: text on the cells' top faces is crisp
+  and pixel-aligned, real text (Pango, in the accessibility tree, selected by
+  picking through the projection). A gentle perspective around the screen's
+  centre shows the sides of anything with height away from the centre, as when
+  looking down at a real surface.
+- **The playhead is a bar of glass.** A slab across the row, floating above
+  the grid; the perspective shows its top or bottom face depending on where on
+  the screen it is. It refracts the cells beneath it (with a Fresnel
+  reflection and a little dispersion at the edges) - shaped as a lens, it
+  magnifies the row being played.
+- **Materials follow meaning.** Notes are slightly raised keys (height from
+  velocity), empty cells flat, bar and beat rows different surfaces rather than
+  tints.
+- **State colours are lights.** A playing clip glows and lights its track's
+  column; recording casts red. Lights driven by what the cells mean, which only
+  a grid of meanings can do.
+- **The terminal** shows the same as tones: today's look, the playhead a row
+  tint.
 
-4. **The pattern is a landscape.** Tilt the tracker (the plane's 4x4
-   transform) and every note cell rises into a block: its height the
-   velocity, its colour the track, its length the note's; the playhead a
-   light sweeping across the terrain, and the cursor still moving over it, so
-   it stays editable. Tilt back and it is text again. Only possible because
-   the UI is cells: a cell grid is already a height map. Needs the GTK
-   backend with per-plane render nodes and 3D transforms.
-5. **Cells are things.** Glyphs as bodies: a killed region's characters fall
-   and fade, a yank flies them into their cells, an undo pulls them back.
-   Every glyph knows where it belongs, so the physics is only the transition
-   between two grids. Reduced motion turns it off.
-6. **See where you hear it.** The tracks' panels arranged in perspective
-   around the listener at their spatial positions, the DirAC heatmap as the
-   floor. The headset idea of `plans/cell-ui.md`, on a flat screen.
-7. **The screen is a Launchpad.** Every note cell lit by its own voice's
-   envelope and the clip grid pulsing exactly as the pads do: the screen and
-   the hardware as one grid of light.
+How: GSK has 3D transforms but no lighting or refraction (and its shader node
+is deprecated), so the pattern editor's pane is drawn by our own shaders in a
+`GtkGLArea` (`plans/cell-ui-window.md`'s escape hatch): the cells into colour
+and height textures, lighting with normals from the height, then the glass
+slab refracting the lit result. Rules: text stays legible (depth shows off
+the centre only; refraction only over the row being played), nothing moves
+while the transport is stopped, reduced motion keeps the depth and drops the
+moving light. Needs the GTK backend first.
 
-Of these, 1 can start now and shows the trick at its most useful; 4 is the
-block-world move, and the reason plane transforms are 4x4 matrices.
+### Other candidates (GTK)
+
+- **Cells are things.** Glyphs as bodies: a killed region's characters fall and
+  fade, a yank flies them into their cells, an undo pulls them back. Every glyph
+  knows where it belongs, so the physics is the transition between two grids.
+- **See where you hear it.** The tracks' panels in perspective around the
+  listener at their spatial positions, the DirAC heatmap as the floor.
+- **The screen is a Launchpad.** Every note cell lit by its own voice's
+  envelope, the clip grid pulsing as the pads do.
+- **The pattern is a landscape.** Tilted, note cells rise into blocks; tilted
+  back, it is text again (less readable while tilted than the above).
 
 ## Steps
 
