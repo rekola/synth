@@ -11,11 +11,10 @@ namespace cellui {
 // them `dim` of the way toward `tint`. A modal dialog's scrim is a layer of
 // such cells. A display with pixels blurs pixels; the terminal blurs cells:
 // a cell's colour is its background mixed with its glyph's ink, averaged
-// over its neighbours, and its glyph fades into that average, gone from
-// kGlyphGoneBlur on.
+// over its neighbours, and a blurred cell is only that colour, with no glyph
+// left to read or select.
 struct Backdrop {
   static constexpr int kMaxBlur = 4;
-  static constexpr int kGlyphGoneBlur = 3;
 
   int blur = 0;               // radius in rows, 0 to kMaxBlur
   float dim = 0.0f;           // 0 to 1

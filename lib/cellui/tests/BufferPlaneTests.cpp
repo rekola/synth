@@ -479,7 +479,7 @@ TEST(bufferplane_backdrop_dims_toward_its_tint_and_keeps_the_text) {
   CHECK(!b.at(0, 0).backdrop.active());
 }
 
-TEST(bufferplane_backdrop_blur_spreads_colour_and_fades_glyphs) {
+TEST(bufferplane_backdrop_blur_spreads_colour_and_leaves_no_glyph) {
   StyleProvider styles;
   CellBuffer b(3, 9);
   BufferPlane root(b, styles);
@@ -494,21 +494,33 @@ TEST(bufferplane_backdrop_blur_spreads_colour_and_fades_glyphs) {
   // The red cell bleeds into its neighbours and is no longer pure red.
   CHECK(b.at(1, 3).bg->getRed() > 0);
   CHECK(b.at(1, 4).bg->getRed() < 240);
-  // The glyph stays, fading toward what is around it.
-  CHECK(b.at(1, 4).text == "x");
-  CHECK(b.at(1, 4).fg->getGreen() < 255);
+  // Only colour is left, nothing to read or select.
+  CHECK(b.at(1, 4).text == " ");
+  CHECK(b.toPlainText().empty());
   // Far enough away, nothing reaches.
   CHECK(b.at(1, 0).bg->getRed() == 0);
 }
 
-TEST(bufferplane_strong_backdrop_blur_leaves_no_glyph) {
+TEST(bufferplane_backdrop_blur_leaves_no_glyph_wide_ones_included) {
   StyleProvider styles;
   CellBuffer b(2, 6);
   BufferPlane root(b, styles);
-  root.putstr(0, 0, "hello");
-  auto scrim = scrimOver(root, Backdrop{Backdrop::kGlyphGoneBlur});
+  root.putstr(0, 0, "hi");
+  root.putstr(1, 0, "◆漢");
+  auto scrim = scrimOver(root, Backdrop{1});
   root.refresh();
   CHECK(b.toPlainText().empty());
+  for (int c = 0; c < 6; c++) CHECK(!b.at(1, c).continuation);
+}
+
+TEST(bufferplane_dim_only_backdrop_keeps_the_glyphs) {
+  StyleProvider styles;
+  CellBuffer b(1, 6);
+  BufferPlane root(b, styles);
+  root.putstr(0, 0, "hello");
+  auto scrim = scrimOver(root, Backdrop{0, 0.5f});
+  root.refresh();
+  CHECK(b.toPlainText() == "hello\n");
 }
 
 TEST(bufferplane_text_over_a_backdrop_is_sharp_and_planes_above_are_untouched) {
@@ -516,7 +528,7 @@ TEST(bufferplane_text_over_a_backdrop_is_sharp_and_planes_above_are_untouched) {
   CellBuffer b(1, 8);
   BufferPlane root(b, styles);
   root.putstr(0, 0, "behind");
-  auto scrim = scrimOver(root, Backdrop{Backdrop::kGlyphGoneBlur, 0.3f});
+  auto scrim = scrimOver(root, Backdrop{1, 0.3f});
   scrim->setFgColor(1, 2, 3);
   scrim->putstr(0, 0, "on");
   auto dialog = root.createChild();

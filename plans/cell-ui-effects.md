@@ -59,7 +59,7 @@ Each idea with its cell (terminal) and pixel (window) rendering:
 
 | Effect | Cell rendering | Pixel rendering | Notes |
 |---|---|---|---|
-| Backdrop blur under modals | with an image protocol: the cells below drawn as pixels, blurred, in tiles; otherwise the average of each cell's background and ink over a box twice as wide as tall, glyphs fading into it | gaussian of the layer below | steps 1-2 |
+| Backdrop blur under modals | with an image protocol: the cells below drawn as pixels, blurred, in tiles; otherwise the average of each cell's background and ink over a box twice as wide as tall, as background colour only: no glyph is left to read or select | gaussian of the layer below | steps 1-2 |
 | Borders, drag handles | box drawing; dashed `┄┆`; handles as `⠿` | SDF strokes | |
 | Marching ants | dashed border whose phase advances on the frame clock | the same, dash pattern in pixels | selection region |
 | Supercells (spans) | merged text cell; a pixel region where the terminal has images | texture on a quad, a 3D view | |
