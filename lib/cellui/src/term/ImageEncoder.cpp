@@ -188,8 +188,8 @@ void chunk(std::vector<uint8_t> & out, const char * type, const std::vector<uint
 ImageEncoder::Profile ImageEncoder::Profile::from(const Capabilities & caps) {
   Profile p;
   p.protocol = caps.pixels;
-  p.cell_px_height = caps.cell_px_height;
-  p.cell_px_width = caps.cell_px_width;
+  p.cell_px_height = caps.display.cell_px_height;
+  p.cell_px_width = caps.display.cell_px_width;
   p.sixel_setup = caps.sixel_setup;
   return p;
 }

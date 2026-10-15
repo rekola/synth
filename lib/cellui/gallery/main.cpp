@@ -53,8 +53,8 @@ int live(const cellui::CellBuffer & page, int page_rows) {
                         (caps.answered ? "" : " (no reply)") + ", colours " + colorName(caps.colors) +
                         ", images " + pixelName(caps.pixels) + (caps.kitty_keyboard ? ", kitty keys" : "") +
                         (caps.sync != SyncForm::NONE ? ", sync" : "") + ", cell " +
-                        std::to_string(caps.cell_px_width) + "x" + std::to_string(caps.cell_px_height) + " px, scale " +
-                        std::to_string(caps.display_scale).substr(0, 4);
+                        std::to_string(caps.display.cell_px_width) + "x" + std::to_string(caps.display.cell_px_height) + " px, scale " +
+                        std::to_string(caps.display.display_scale).substr(0, 4);
   std::string last = "q quits";
   int top = 0;
   bool running = true;
@@ -81,7 +81,7 @@ int live(const cellui::CellBuffer & page, int page_rows) {
       timeout = static_cast<int>(std::max<long long>(0, ms + 1));
     }
     ::poll(fds, 2, timeout);
-    for (const TermEvent & e : session->poll()) {
+    for (const TermEvent & e : session->pollTerm()) {
       last = describe(e);
       if (e.type == TermEvent::Type::END) running = false;
       if (e.type == TermEvent::Type::KEY && e.kind != TermEvent::Kind::RELEASE) {

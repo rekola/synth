@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cellui/Color.h>
+#include <cellui/DisplayInfo.h>
 
 #include <optional>
 #include <string>
@@ -24,11 +25,11 @@ struct Capabilities {
   bool answered = false;
 
   int rows = 0, cols = 0;
-  // The cell size in pixels, 0 when unknown. It is also the base text size.
-  int cell_px_height = 0, cell_px_width = 0;
-  // estimateDisplayScale() of the cell height.
-  double display_scale = 1.0;
-  std::optional<Color> default_fg, default_bg;
+  // What the application is told about the display: the cell size in
+  // pixels (also the base text size), the default colours, the scale
+  // (estimateDisplayScale() of the cell height) and the glyphs and pictures
+  // available.
+  DisplayInfo display;
   // detectAppearance() of the default colours: the theme to start with.
   Appearance appearance = Appearance::DARK;
 
@@ -45,7 +46,7 @@ struct Capabilities {
   // Sent once before the first Sixel image.
   std::string sixel_setup;
 
-  bool half_blocks = true, quadrants = false, sextants = false, braille = true;
+  bool half_blocks = true, quadrants = false, braille = true;
   bool undercurl = false;
   // kitty draws a background equal to its own default as the default
   // (translucent under background opacity), so an explicit one must differ.

@@ -26,12 +26,6 @@ struct EncoderProfile {
   static EncoderProfile from(const Capabilities & caps);
 };
 
-// Where the terminal's cursor should be shown after a frame, if anywhere.
-struct CursorRequest {
-  bool visible = false;
-  int y = 0, x = 0;
-};
-
 // Turns composed frames into the bytes that update a terminal from the
 // last frame it was sent: only cells that changed are written, row by row,
 // with absolute cursor moves (a column move on the same row) and only the

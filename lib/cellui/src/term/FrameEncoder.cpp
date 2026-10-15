@@ -80,7 +80,7 @@ EncoderProfile EncoderProfile::from(const Capabilities & caps) {
   p.colors = caps.colors;
   p.column_move = caps.column_move;
   p.sync = caps.sync;
-  if (caps.distinct_default_bg) p.distinct_from = caps.default_bg;
+  if (caps.distinct_default_bg) p.distinct_from = caps.display.default_bg;
   return p;
 }
 

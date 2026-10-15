@@ -13,6 +13,12 @@ namespace cellui {
 // text style. It is what a plane draws into when nothing is attached to a
 // screen, and it renders itself as plain text (for tests) or as ANSI escape
 // sequences (for a terminal).
+// Where the cursor should be shown after a frame, if anywhere.
+struct CursorRequest {
+  bool visible = false;
+  int y = 0, x = 0;
+};
+
 class CellBuffer {
  public:
   struct Cell {

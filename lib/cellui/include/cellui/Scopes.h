@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cellui/ChannelMeter.h>
+#include <cellui/DisplayInfo.h>
 #include <cellui/HeatmapChart.h>
 #include <cellui/SpectrumMeter.h>
 #include <cellui/VuMeterImage.h>
@@ -41,5 +42,14 @@ std::unique_ptr<Scopes> cellScopes();
 // (UIPlane::pixelSize()/drawImage()). Not available where canvas has no
 // pixel backend built (nullptr).
 std::unique_ptr<Scopes> pixelScopes();
+
+// The scopes a display shows: the pixel version when pictures can be shown,
+// else the cell version.
+inline std::unique_ptr<Scopes> scopesFor(const DisplayInfo & display) {
+  if (display.pictures && display.cell_px_height > 0 && display.cell_px_width > 0) {
+    if (auto pixel = pixelScopes()) return pixel;
+  }
+  return cellScopes();
+}
 
 }  // namespace cellui

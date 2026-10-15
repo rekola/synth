@@ -202,9 +202,9 @@ void TerminalSession::readSize() {
     rows_ = ws.ws_row;
     cols_ = ws.ws_col;
     size_known_ = true;
-    if (ws.ws_ypixel > 0 && ws.ws_xpixel > 0 && caps_.cell_px_height == 0) {
-      caps_.cell_px_height = ws.ws_ypixel / ws.ws_row;
-      caps_.cell_px_width = ws.ws_xpixel / ws.ws_col;
+    if (ws.ws_ypixel > 0 && ws.ws_xpixel > 0 && caps_.display.cell_px_height == 0) {
+      caps_.display.cell_px_height = ws.ws_ypixel / ws.ws_row;
+      caps_.display.cell_px_width = ws.ws_xpixel / ws.ws_col;
     }
   }
   parser_.setScreenSize(rows_, cols_);
@@ -238,7 +238,7 @@ void TerminalSession::negotiate(const Environment & env) {
       else pending_.push_back(std::move(e));
     }
   }
-  discovery.setWindowCellPixels(caps_.cell_px_height, caps_.cell_px_width);
+  discovery.setWindowCellPixels(caps_.display.cell_px_height, caps_.display.cell_px_width);
   caps_ = discovery.result();
   if (caps_.rows > 0 && caps_.cols > 0 && !size_known_) {
     rows_ = caps_.rows;
@@ -309,7 +309,8 @@ ImageEncoder::Profile TerminalSession::imageProfile() const {
   return profile;
 }
 
-void TerminalSession::setMouseReporting(bool on) {
+void TerminalSession::setNativeSelection(bool native) {
+  bool on = !native;
   if (!mouse_ || on == mouse_reporting_) return;
   mouse_reporting_ = on;
   write(on ? "\x1b[?1002;1006h" : "\x1b[?1002;1006l");
@@ -348,7 +349,15 @@ void TerminalSession::wake() {
   (void)n;
 }
 
-std::vector<TermEvent> TerminalSession::poll() {
+std::vector<BackendEvent> TerminalSession::poll() {
+  std::vector<BackendEvent> out;
+  for (const TermEvent & e : pollTerm()) {
+    if (auto event = toBackendEvent(e)) out.push_back(std::move(*event));
+  }
+  return out;
+}
+
+std::vector<TermEvent> TerminalSession::pollTerm() {
   std::vector<TermEvent> out(pending_.begin(), pending_.end());
   pending_.clear();
   if (!open_) return out;
@@ -392,9 +401,9 @@ std::vector<TermEvent> TerminalSession::poll() {
     TermEvent e = parser_.pop();
     if (e.type == TermEvent::Type::REPLY) {
       if (e.reply == ReplyKind::WINDOW_REPORT && e.params.size() == 3 && e.params[0] == 6 && e.params[1] > 0) {
-        caps_.cell_px_height = e.params[1];
-        caps_.cell_px_width = e.params[2];
-        caps_.display_scale = estimateDisplayScale(caps_.cell_px_height);
+        caps_.display.cell_px_height = e.params[1];
+        caps_.display.cell_px_width = e.params[2];
+        caps_.display.display_scale = estimateDisplayScale(caps_.display.cell_px_height);
         ImageEncoder::Profile profile = imageProfile();
         write(images_.clear());
         images_ = ImageEncoder(profile);

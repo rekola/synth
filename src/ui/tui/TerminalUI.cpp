@@ -64,8 +64,8 @@
 
 #include <cellui/MenuBar.h>
 #include <cellui/KeyReader.h>
-#include <cellui/term/TerminalScopes.h>
-#include <cellui/term/Terminal.h>
+#include <cellui/Scopes.h>
+#include <cellui/Backend.h>
 
 #include <poll.h>
 
@@ -377,8 +377,8 @@ private:
   string activated_command_;
 };
 
-TerminalUI::TerminalUI(cellui::term::Terminal & session)
-  : session_(session), screen_(session.rows(), session.cols()) {
+TerminalUI::TerminalUI(cellui::Backend & backend)
+    : backend_(backend), screen_(backend.rows(), backend.cols()) {
   // Something that closes on a bare Escape gets it at once, rather than when
   // the next key shows it was no Alt prefix.
   key_reader_.takeEscape = [this](const cellui::Input & escape) {
@@ -424,16 +424,16 @@ TerminalUI::escapeIndicatorPollTimeoutMs() const {
 
 void
 TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
-  const auto & caps = session_.capabilities();
-  bool use_pixel = caps.pixels != cellui::term::PixelProtocol::NONE && caps.cell_px_height > 0 && caps.cell_px_width > 0;
+  const auto & display = backend_.display();
+  bool use_pixel = display.pictures && display.cell_px_height > 0 && display.cell_px_width > 0;
   auto root_plane = make_unique<cellui::BufferPlane>(screen_, styles_, controller);
   root_plane_ = root_plane.get();
-  if (caps.default_fg && caps.default_bg) root_plane_->setDefaultColors(*caps.default_fg, *caps.default_bg);
-  root_plane_->setDisplayScale(caps.display_scale);
-  root_plane_->setSextants(caps.sextants);
+  if (display.default_fg && display.default_bg) root_plane_->setDefaultColors(*display.default_fg, *display.default_bg);
+  root_plane_->setDisplayScale(display.display_scale);
+  root_plane_->setSextants(display.sextants);
   root_plane_->setFlatChildren(true);
   root_plane_->setThemedBases(true);
-  if (use_pixel) root_plane_->setCellPixelSize(caps.cell_px_height, caps.cell_px_width);
+  if (use_pixel) root_plane_->setCellPixelSize(display.cell_px_height, display.cell_px_width);
   // A modal's backdrop is drawn and blurred as pictures (Sixel's stretched
   // before they are sent).
   if (use_pixel) root_plane_->setRasterizer(cellui::canvasRasterizer());
@@ -452,7 +452,7 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
     menu_->applyStyles(styles_);
   }
 
-  scopes_ = cellui::term::scopes(caps);
+  scopes_ = cellui::scopesFor(display);
   chart_ = scopes_->spectrum(getPlane());
   volume_meter_ = scopes_->channelMeter(getPlane());
   heatmap_ = scopes_->heatmap(getPlane(), DiracAnalyzer::kAzimuthBins, DiracAnalyzer::kElevationBins);
@@ -483,22 +483,22 @@ void TerminalUI::raiseOverlays() {
   info_dialog_.raise();
   // An info dialog takes no clicks: the terminal selects its text instead
   // (the blurred screen behind it has none to select).
-  session_.setMouseReporting(!info_dialog_.isOpen());
+  backend_.setNativeSelection(info_dialog_.isOpen());
 }
 
 void
 TerminalUI::render() {
   raiseOverlays();
   root_plane_->refresh();
-  cellui::term::CursorRequest cursor;
+  cellui::CursorRequest cursor;
   if (auto at = root_plane_->cursorPosition()) cursor = { true, at->first, at->second };
-  if (session_.wantsFrameInfo()) {
+  if (backend_.wantsFrameInfo()) {
     cellui::FrameInfo info;
     info.planes = root_plane_->describe();
     info.focus = focusName();
-    session_.present(screen_, cursor, root_plane_->images(), &info);
+    backend_.present(screen_, cursor, root_plane_->images(), &info);
   } else {
-    session_.present(screen_, cursor, root_plane_->images());
+    backend_.present(screen_, cursor, root_plane_->images());
   }
 }
 
@@ -530,9 +530,9 @@ TerminalUI::focusName() const {
 
 void
 TerminalUI::resizeScreen() {
-  if (screen_.rows() == session_.rows() && screen_.cols() == session_.cols()) return;
-  screen_ = cellui::CellBuffer(session_.rows(), session_.cols());
-  root_plane_->resize(session_.rows(), session_.cols());
+  if (screen_.rows() == backend_.rows() && screen_.cols() == backend_.cols()) return;
+  screen_ = cellui::CellBuffer(backend_.rows(), backend_.cols());
+  root_plane_->resize(backend_.rows(), backend_.cols());
 }
 
 // The command row has no background of its own: the display cannot draw the
@@ -560,32 +560,31 @@ TerminalUI::applyTheme(const Theme & theme) {
 
 void
 TerminalUI::refresh() {
-  session_.redraw();
+  backend_.redraw();
 }
 
 bool
 TerminalUI::readInput() {
-  using cellui::term::TermEvent;
-  for (auto & event : session_.poll()) {
+  using cellui::BackendEvent;
+  for (auto & event : backend_.poll()) {
     switch (event.type) {
-    case TermEvent::Type::KEY:
-    case TermEvent::Type::MOUSE:
-      key_reader_.push(cellui::term::toInput(event));
-      break;
-    case TermEvent::Type::RESIZE:
-      resizeScreen();
-      key_reader_.push(cellui::Input(Key::Resize, -1, -1, false, false, false, false));
-      break;
-    case TermEvent::Type::PASTE:
-      // Pasted text goes into an open text field; elsewhere it is not
-      // typed as keys, which would play it as notes and commands.
-      root_plane_->insertIntoReader(event.text);
-      break;
-    case TermEvent::Type::END:
-      close_ui_ = true;
-      break;
-    default:
-      break;
+      case BackendEvent::Type::INPUT:
+        key_reader_.push(event.input);
+        break;
+      case BackendEvent::Type::RESIZE:
+        resizeScreen();
+        key_reader_.push(cellui::Input(Key::Resize, -1, -1, false, false, false, false));
+        break;
+      case BackendEvent::Type::PASTE:
+        // Pasted text goes into an open text field; elsewhere it is not
+        // typed as keys, which would play it as notes and commands.
+        root_plane_->insertIntoReader(event.text);
+        break;
+      case BackendEvent::Type::CLOSE:
+        close_ui_ = true;
+        break;
+      default:
+        break;
     }
   }
 
@@ -1768,7 +1767,7 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
   // seeds from PatternEditor's cursor when Live View first opens
   // (setCursorTrackIndex()'s own comment) - a track change made on the
   // Launchpad has to be reflected there too, not just in PatternEditor,
-  // regardless of which one currently has terminal focus. session_ids
+  // regardless of which one currently has terminal focus. backend_ids
   // (the same track_ids getPlayableTrackIds() column order is keyed by)
   // isn't available here, but PatternEditor's own cursor is already an
   // index into that identical ordering, so no translation is needed.
@@ -1874,8 +1873,8 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
   auto midi_group = waits.group();
   auto launchpad_group = waits.group();
 
-  waits.addFd(input_group, session_.inputFd());
-  waits.addFd(input_group, session_.wakeFd());
+  waits.addFd(input_group, backend_.inputFd());
+  waits.addFd(input_group, backend_.wakeFd());
   waits.add(events_group, getController().getUIEventQueue().notifier());
   waits.addFd(stderr_group, out_pipe[0]);
   midi.addTo(waits, midi_group);
@@ -1944,14 +1943,14 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
 
     // The terminal's input waits a few milliseconds for the rest of a
     // sequence a read split; when that runs out, what it holds is settled.
-    if (auto deadline = session_.nextDeadline()) {
+    if (auto deadline = backend_.nextDeadline()) {
       auto wait = std::chrono::duration_cast<std::chrono::milliseconds>(*deadline - std::chrono::steady_clock::now()).count() + 1;
       wait = std::max<long>(wait, 0);
       poll_timeout_ms = poll_timeout_ms < 0 ? static_cast<int>(wait) : std::min(poll_timeout_ms, static_cast<int>(wait));
     }
 
     bool woken = waits.wait(poll_timeout_ms);
-    if (!woken && session_.nextDeadline() && std::chrono::steady_clock::now() >= *session_.nextDeadline()) {
+    if (!woken && backend_.nextDeadline() && std::chrono::steady_clock::now() >= *backend_.nextDeadline()) {
       readInput();
       other_wake = true;
       woken = true;

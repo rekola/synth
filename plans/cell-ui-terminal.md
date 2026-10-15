@@ -187,7 +187,7 @@ cell position, so a scrolled meter is a new image and is uploaded again.
 1. Canvas readiness, in the canvas repository (above). Independent.
 2. Scopes in Cell UI (above). Done: the scopes and both their versions are
    in Cell UI behind `cellui::Scopes` (`cellScopes()`, `pixelScopes()`;
-   `cellui::term::scopes()` picks the terminal's), canvas is Cell UI's
+   `cellui::scopesFor()` picks the display's), canvas is Cell UI's
    dependency, and the pixel spectrum and heatmap are drawn with it
    (`SpectrumImage`, `HeatmapImage`). The VU meters have pixel versions
    too (`VuMeterImage`, `Scopes::drawVuMeter()`), drawn into a widget's own
@@ -233,7 +233,7 @@ cell position, so a scrolled meter is a new image and is uploaded again.
    what the UI shows - an image that moved told apart from a new one -
    without a pty or a terminal emulator. The terminal layer stays covered by
    Cell UI's backend tests and a few pty smoke tests. Done except the image
-   keys: `cellui::term::Terminal` is what `TerminalUI` needs of a terminal
+   keys: `cellui::Backend` is what `TerminalUI` needs of a display
    (`TerminalSession` implements it), `cellui::test::TestBackend` is the test one - input
    pushed by the test (`pushKey()`, `pushText()`, `pushMouse()`, `pushPaste()`,
    `resize()`), frames kept and read back by direct access (`text()`, `frame()`, `info()`) with the

@@ -47,7 +47,7 @@ of our warning flags, its headers reached as SYSTEM includes; GDI+ on
 Windows); bump the pin when canvas changes. The scopes - the spectrum, the
 DirAC heatmap, the channel meter - are Cell UI widgets in the versions each
 backend provides (`cellui::Scopes`, `cellui/Scopes.h`;
-`cellui::term::scopes(caps)` picks the terminal's): the cell versions are
+`cellui::scopesFor(display)` picks the display's): the cell versions are
 drawn by hand (braille bars, a quadrant or sextant heatmap, labels in text,
 `src/Scopes.cpp`), never through canvas, and the pixel versions are images
 drawn with canvas (`cellui/SpectrumImage.h`, `cellui/HeatmapImage.h`,
@@ -482,7 +482,7 @@ protocol (kitty graphics, iTerm2's inline images or Sixel) and the cell
 size in pixels, the pixel version (`cellui::pixelScopes()`) overrides
 `barCount()`/`drawBars()` to draw one bar per pixel column as the meter's
 plane's image (`UIPlane::pixelSize()`/`drawImage()`) instead; the choice is
-made once at startup in `TerminalUI::initialize()` (`cellui::term::scopes()`). Both the spectrum and the DirAC heatmap show in
+made once at startup in `TerminalUI::initialize()` (`cellui::scopesFor()`). Both the spectrum and the DirAC heatmap show in
 Arrangement view's scope row and in Live View's left column, stacked
 under the full-height outline panel, each below a title bar (only while the
 outline is shown and the terminal is tall enough); off-screen scopes are not updated.
@@ -1345,9 +1345,16 @@ would otherwise resume showing.
   `detectAppearance()`, which picks the default `--theme`), `FrameEncoder` (the
   frame diff as escape sequences), `ImageEncoder` (kitty graphics, iTerm2 inline images, Sixel) and
   `TerminalSession` (the tty, its modes, signals and restoration).
-  `Terminal` (`cellui/term/Terminal.h`) is what the app needs of one - size, capabilities,
-  events, a frame to show - which `TerminalSession` and `cellui::test::TestBackend`
-  implement. `TestBackend` (`cellui/TestBackend.h`) has no tty or window: input is
+  `cellui::Backend` (`cellui/Backend.h`, outside `term/`) is what the app needs of any
+  display - `DisplayInfo` (`cellui/DisplayInfo.h`: cell size in pixels, whether pictures
+  can be shown, default colours, display scale, sextants), size, `BackendEvent`s
+  (`cellui/BackendEvent.h`: input as `cellui::Input`, resize, paste, close), a frame to
+  show, and `setNativeSelection()` (the user selects text with the mouse instead of the
+  app getting the clicks) - which `TerminalSession` and `cellui::test::TestBackend`
+  implement. `TerminalSession` translates its `TermEvent`s (which stay inside `term/`,
+  `pollTerm()` for its own tests) and keeps the terminal-only `Capabilities` (image
+  protocol, kitty keyboard, query replies, dither) around the `DisplayInfo` it hands out.
+  `TerminalUI` and its tests use only `Backend`, `BackendEvent` and `DisplayInfo`. `TestBackend` (`cellui/TestBackend.h`) has no tty or window: input is
   pushed by the test, and each presented frame is kept for the test to read
   directly (`text()`, `frame()` cells and their styles, `info()`: the plane tree from
   `BufferPlane::describe()` and the focus `TerminalUI::focusName()` gives, `cursor()`,

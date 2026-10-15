@@ -6,7 +6,6 @@
 #include <poll.h>
 
 using namespace cellui;
-using namespace cellui::term;
 using cellui::test::TestBackend;
 
 namespace {
@@ -31,7 +30,6 @@ TEST(testbackend_reports_its_size_and_wants_frame_info) {
   TestBackend t(5, 20);
   CHECK(t.rows() == 5);
   CHECK(t.cols() == 20);
-  CHECK(t.capabilities().rows == 5);
   CHECK(t.wantsFrameInfo());
   CHECK(!t.nextDeadline());
 }
@@ -44,9 +42,9 @@ TEST(testbackend_input_is_readable_until_polled) {
   CHECK(readable(t.inputFd()));
   auto events = t.poll();
   CHECK(events.size() == 2);
-  CHECK(events[0].key == 'a');
-  CHECK(events[1].key == Key::Up);
-  CHECK(events[1].mods == kModCtrl);
+  CHECK(events[0].input.getId() == 'a');
+  CHECK(events[1].input.getId() == Key::Up);
+  CHECK(events[1].input.hasCtrl() && !events[1].input.hasShift());
   CHECK(!readable(t.inputFd()));
   CHECK(t.poll().empty());
 }
@@ -70,14 +68,13 @@ TEST(testbackend_text_mouse_paste_resize_and_end) {
   t.pushEnd();
   auto e = t.poll();
   CHECK(e.size() == 6);
-  CHECK(e[0].key == 'a');
-  CHECK(e[1].key == 0xE4);
-  CHECK(e[1].text == "\xC3\xA4");
-  CHECK(e[2].type == TermEvent::Type::MOUSE);
-  CHECK(e[2].y == 3 && e[2].x == 4);
-  CHECK(e[3].type == TermEvent::Type::PASTE && e[3].text == "hello");
-  CHECK(e[4].type == TermEvent::Type::RESIZE && e[4].rows == 20 && e[4].cols == 30);
-  CHECK(e[5].type == TermEvent::Type::END);
+  CHECK(e[0].input.getId() == 'a');
+  CHECK(e[1].input.getId() == 0xE4);
+  CHECK(e[2].type == BackendEvent::Type::INPUT);
+  CHECK(e[2].input.getY() == 3 && e[2].input.getX() == 4 && e[2].input.getId() == Key::Button1);
+  CHECK(e[3].type == BackendEvent::Type::PASTE && e[3].text == "hello");
+  CHECK(e[4].type == BackendEvent::Type::RESIZE && e[4].rows == 20 && e[4].cols == 30);
+  CHECK(e[5].type == BackendEvent::Type::CLOSE);
   CHECK(t.rows() == 20 && t.cols() == 30);
 }
 

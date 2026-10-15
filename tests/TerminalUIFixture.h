@@ -21,8 +21,8 @@
 
 namespace terminal_ui_test {
 
-using cellui::term::kModAlt;
-using cellui::term::kModCtrl;
+using cellui::kModAlt;
+using cellui::kModCtrl;
 
 // A terminal UI over a song (a fresh one by default) on a test terminal: no
 // tty, no audio device. Every key is followed by one turn of the UI's loop.
@@ -32,8 +32,8 @@ struct UIFixture {
   cellui::test::TestBackend terminal;
   std::unique_ptr<TerminalUI> ui;
 
-  explicit UIFixture(const std::string & song = "", UI::View view = UI::View::LIVE, cellui::term::Capabilities caps = {})
-      : terminal(40, 120, std::move(caps)) {
+  explicit UIFixture(const std::string & song = "", UI::View view = UI::View::LIVE, cellui::DisplayInfo display = {})
+      : terminal(40, 120, std::move(display)) {
     if (song.empty()) controller->switchToBuffer(controller->freshBufferName());
     else CHECK(controller->openSong(song));
     ui = std::make_unique<TerminalUI>(terminal);
@@ -78,7 +78,7 @@ struct UIFixture {
   }
   // The wheel at (y, x), one notch.
   void wheel(int y, int x, bool down = true, bool shift = false) {
-    terminal.pushMouse(y, x, down ? cellui::Key::Button5 : cellui::Key::Button4, shift ? cellui::term::kModShift : 0);
+    terminal.pushMouse(y, x, down ? cellui::Key::Button5 : cellui::Key::Button4, shift ? cellui::kModShift : 0);
     ui->step();
   }
   // The background of the cell at (y, x) as "rrggbb", "" when it has none.
