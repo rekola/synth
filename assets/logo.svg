@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>synth</title>
+  <style>
+    .ink { fill: #1b1f27; }
+    .cur { fill: #22b8cf; }
+    @media (prefers-color-scheme: dark) {
+      .ink { fill: #e6e9ef; }
+      .cur { fill: #4fd8ec; }
+    }
+  </style>
+  <defs>
+    <clipPath id="sphere"><circle cx="128" cy="128" r="112"/></clipPath>
+  </defs>
+  <g clip-path="url(#sphere)">
+    <rect class="ink" x="16.00" y="19.33" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="74.25" y="19.33" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="132.50" y="19.33" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="190.75" y="19.33" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="16.00" y="38.00" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="74.25" y="38.00" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="132.50" y="38.00" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="190.75" y="38.00" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="16.00" y="56.67" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="74.25" y="56.67" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="132.50" y="56.67" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="190.75" y="56.67" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="16.00" y="75.33" width="49.25" height="12" rx="2"/>
+    <rect class="cur" x="74.25" y="75.33" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="132.50" y="75.33" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="190.75" y="75.33" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="16.00" y="94.00" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="74.25" y="94.00" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="132.50" y="94.00" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="190.75" y="94.00" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="16.00" y="112.67" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="74.25" y="112.67" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="132.50" y="112.67" width="49.25" height="12" rx="2"/>
+    <rect class="cur" x="190.75" y="112.67" width="49.25" height="12" rx="2"/>
+    <rect class="cur" x="16.00" y="131.33" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="74.25" y="131.33" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="132.50" y="131.33" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="190.75" y="131.33" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="16.00" y="150.00" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="74.25" y="150.00" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="132.50" y="150.00" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="190.75" y="150.00" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="16.00" y="168.67" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="74.25" y="168.67" width="49.25" height="12" rx="2"/>
+    <rect class="cur" x="132.50" y="168.67" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="190.75" y="168.67" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="16.00" y="187.33" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="74.25" y="187.33" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="132.50" y="187.33" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="190.75" y="187.33" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="16.00" y="206.00" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="74.25" y="206.00" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="132.50" y="206.00" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="190.75" y="206.00" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="16.00" y="224.67" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="74.25" y="224.67" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="132.50" y="224.67" width="49.25" height="12" rx="2"/>
+    <rect class="ink" x="190.75" y="224.67" width="49.25" height="12" rx="2"/>
+  </g>
+</svg>
