@@ -9,6 +9,12 @@
 
 namespace cellui {
 
+// Where the cursor should be shown after a frame, if anywhere.
+struct CursorRequest {
+  bool visible = false;
+  int y = 0, x = 0;
+};
+
 // A grid of character cells, each one grapheme cluster with its colours and
 // text style. It is what a plane draws into when nothing is attached to a
 // screen, and it renders itself as plain text (for tests) or as ANSI escape

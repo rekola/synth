@@ -1,11 +1,11 @@
 #pragma once
 
+#include <cellui/Backend.h>
 #include <cellui/CellBuffer.h>
 #include <cellui/term/Capabilities.h>
 #include <cellui/term/FrameEncoder.h>
 #include <cellui/term/ImageEncoder.h>
 #include <cellui/term/InputParser.h>
-#include <cellui/term/Terminal.h>
 
 #include <chrono>
 #include <deque>
@@ -42,7 +42,7 @@ struct SessionOptions {
 // The caller's loop waits for inputFd() or wakeFd() to be readable, or for
 // nextDeadline(), then calls poll(), which returns every event available
 // without blocking.
-class TerminalSession : public Terminal {
+class TerminalSession : public Backend {
  public:
   using TimePoint = InputParser::TimePoint;
 
@@ -56,7 +56,9 @@ class TerminalSession : public Terminal {
   // Puts the terminal back as it was. Idempotent.
   void close();
 
-  const Capabilities & capabilities() const override { return caps_; }
+  // What start-up learned; display() is its part the application sees.
+  const Capabilities & capabilities() const { return caps_; }
+  const DisplayInfo & display() const override { return caps_.display; }
   int rows() const override { return rows_; }
   int cols() const override { return cols_; }
 
@@ -64,9 +66,11 @@ class TerminalSession : public Terminal {
   int wakeFd() const override { return wake_read_; }
   std::optional<TimePoint> nextDeadline() const override { return parser_.nextDeadline(); }
 
-  // Every event available now. A resize is reported with the new size,
-  // already read from the terminal.
-  std::vector<TermEvent> poll() override;
+  // Every event available now, as the application sees them. A resize is
+  // reported with the new size, already read from the terminal.
+  std::vector<BackendEvent> poll() override;
+  // The same events as the terminal sent them, queries' replies aside.
+  std::vector<TermEvent> pollTerm();
 
   // Draws a frame (see FrameEncoder) and its images (ImageEncoder).
   // A real terminal has no use for the frame info.
@@ -76,7 +80,7 @@ class TerminalSession : public Terminal {
   // been disturbed, Emacs's C-l).
   void redraw() override { encoder_.invalidate(); }
   // Only when the session was opened with the mouse (SessionOptions::mouse).
-  void setMouseReporting(bool on) override;
+  void setNativeSelection(bool on) override;
   // Writes raw bytes, all of them.
   void write(const std::string & bytes);
 

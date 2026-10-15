@@ -94,7 +94,7 @@ TEST(terminal_ui_emacs_keybindings_reach_their_commands) {
   UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT);
   f.otherWindow();  // a fresh session starts on the overview, not the pattern editor
 
-  f.press(' ', cellui::term::kModCtrl);
+  f.press(' ', cellui::kModCtrl);
   CHECK(f.text().find("Mark set") != std::string::npos);
   f.press(Key::Down);
   f.press(Key::Down);
@@ -102,7 +102,7 @@ TEST(terminal_ui_emacs_keybindings_reach_their_commands) {
   CHECK(f.text().find("Region killed") != std::string::npos);
   f.ctrl('y');
   CHECK(f.text().find("Yanked") != std::string::npos);
-  f.press(' ', cellui::term::kModCtrl);
+  f.press(' ', cellui::kModCtrl);
   f.ctrl('g');
   CHECK(f.text().find("Mark deactivated") != std::string::npos);
 

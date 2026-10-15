@@ -297,13 +297,13 @@ Capabilities Discovery::result() const {
   else if (env_.colors_override == "24bit") caps.colors = ColorDepth::TRUECOLOR;
 
   caps.column_move = term_colors > 0 || tcap_hpa_ || complete_;
-  caps.default_fg = default_fg_;
-  caps.default_bg = default_bg_;
+  caps.display.default_fg = default_fg_;
+  caps.display.default_bg = default_bg_;
   // A terminal that reports only its background most likely draws text in
   // whichever of black and white stands out against it.
   caps.appearance = detectAppearance(default_fg_, default_bg_);
   if (!default_fg_ && default_bg_) {
-    caps.default_fg = caps.appearance == Appearance::LIGHT ? Color(0, 0, 0) : Color(255, 255, 255);
+    caps.display.default_fg = caps.appearance == Appearance::LIGHT ? Color(0, 0, 0) : Color(255, 255, 255);
   }
   caps.kitty_keyboard = kitty_keyboard_;
   caps.pixel_mouse = pixel_mouse_;
@@ -315,9 +315,9 @@ Capabilities Discovery::result() const {
   else if (name == "alacritty" || name == "iterm2") caps.sync = SyncForm::DCS;
 
   // Glyph repertoire.
-  caps.sextants = name == "kitty" || name == "vte" || name == "foot" || name == "contour" ||
+  caps.display.sextants = name == "kitty" || name == "vte" || name == "foot" || name == "contour" ||
                   (name == "wezterm" && version >= "20210610");
-  caps.quadrants = caps.sextants || name == "wezterm" || name == "alacritty" || name == "iterm2" ||
+  caps.quadrants = caps.display.sextants || name == "wezterm" || name == "alacritty" || name == "iterm2" ||
                    name == "konsole" || name == "mlterm" || name == "terminology" || name == "rxvt" || name == "windows";
   caps.braille = name != "rxvt" && name != "linux";
   caps.half_blocks = name != "linux";
@@ -330,17 +330,17 @@ Capabilities Discovery::result() const {
   caps.rows = rows;
   caps.cols = cols;
   if (cell_px_h_ > 0 && cell_px_w_ > 0) {
-    caps.cell_px_height = cell_px_h_;
-    caps.cell_px_width = cell_px_w_;
+    caps.display.cell_px_height = cell_px_h_;
+    caps.display.cell_px_width = cell_px_w_;
   } else if (text_px_h_ > 0 && text_px_w_ > 0 && rows > 0 && cols > 0) {
-    caps.cell_px_height = text_px_h_ / rows;
-    caps.cell_px_width = text_px_w_ / cols;
+    caps.display.cell_px_height = text_px_h_ / rows;
+    caps.display.cell_px_width = text_px_w_ / cols;
   } else if (win_cell_px_h_ > 0 && win_cell_px_w_ > 0) {
-    caps.cell_px_height = win_cell_px_h_;
-    caps.cell_px_width = win_cell_px_w_;
+    caps.display.cell_px_height = win_cell_px_h_;
+    caps.display.cell_px_width = win_cell_px_w_;
   }
 
-  caps.display_scale = estimateDisplayScale(caps.cell_px_height);
+  caps.display.display_scale = estimateDisplayScale(caps.display.cell_px_height);
 
   // Images: kitty graphics, then iTerm2's, then Sixel.
   bool sixel = da1_sixel_ || (name == "alacritty" && sixel_max_w_ > 0);
@@ -364,7 +364,8 @@ Capabilities Discovery::result() const {
   else if (env_.pixels_override == "sixel") caps.pixels = PixelProtocol::SIXEL;
   else if (env_.pixels_override == "kitty") caps.pixels = PixelProtocol::KITTY;
   else if (env_.pixels_override == "iterm2") caps.pixels = PixelProtocol::ITERM2;
-  if (caps.cell_px_height <= 0 || caps.cell_px_width <= 0) caps.pixels = PixelProtocol::NONE;
+  if (caps.display.cell_px_height <= 0 || caps.display.cell_px_width <= 0) caps.pixels = PixelProtocol::NONE;
+  caps.display.pictures = caps.pixels != PixelProtocol::NONE;
   return caps;
 }
 

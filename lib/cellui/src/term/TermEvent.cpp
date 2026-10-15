@@ -84,12 +84,18 @@ Input toInput(const TermEvent & e) {
   int raw = e.key;
   uint32_t produced = singleCodepoint(e.text);
   if (produced >= 0x20 && produced != 0x7F && !ctrl && !alt) raw = static_cast<int>(produced);
-  int id = raw;
-  if (id >= 'A' && id <= 'Z') {
-    id += 'a' - 'A';
-    if (!ctrl) shift = true;
+  return keyInput(raw, e.mods, kind);
+}
+
+std::optional<BackendEvent> toBackendEvent(const TermEvent & e) {
+  switch (e.type) {
+    case TermEvent::Type::KEY:
+    case TermEvent::Type::MOUSE: return BackendEvent::makeInput(toInput(e));
+    case TermEvent::Type::PASTE: return BackendEvent::makePaste(e.text);
+    case TermEvent::Type::RESIZE: return BackendEvent::makeResize(e.rows, e.cols);
+    case TermEvent::Type::END: return BackendEvent::makeClose();
+    default: return std::nullopt;
   }
-  return Input(id, -1, -1, alt, shift, ctrl, meta, kind, raw);
 }
 
 std::string describe(const TermEvent & e) {

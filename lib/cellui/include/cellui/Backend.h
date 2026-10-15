@@ -1,29 +1,29 @@
 #pragma once
 
+#include <cellui/BackendEvent.h>
 #include <cellui/CellBuffer.h>
+#include <cellui/DisplayInfo.h>
 #include <cellui/Image.h>
 #include <cellui/PlaneInfo.h>
-#include <cellui/term/Capabilities.h>
-#include <cellui/term/FrameEncoder.h>
-#include <cellui/term/TermEvent.h>
 
 #include <chrono>
 #include <optional>
 #include <vector>
 
-namespace cellui::term {
+namespace cellui {
 
-// What an application needs of a terminal: its capabilities and size, the
-// events that come from it, and somewhere to put a frame. TerminalSession is
-// the real one; TestBackend keeps the frames and takes its input from the
-// test, so an application can be exercised without a tty.
-class Terminal {
+// What an application needs of the thing it is shown on: the display and its
+// size, the events that come from it, and somewhere to put a frame.
+// term::TerminalSession is the terminal's, test::TestBackend keeps the
+// frames and takes its input from the test, so an application can be
+// exercised without a tty.
+class Backend {
  public:
   using TimePoint = std::chrono::steady_clock::time_point;
 
-  virtual ~Terminal() = default;
+  virtual ~Backend() = default;
 
-  virtual const Capabilities & capabilities() const = 0;
+  virtual const DisplayInfo & display() const = 0;
   virtual int rows() const = 0;
   virtual int cols() const = 0;
 
@@ -33,7 +33,7 @@ class Terminal {
   virtual int wakeFd() const = 0;
   virtual std::optional<TimePoint> nextDeadline() const = 0;
   // Every event available now, without blocking.
-  virtual std::vector<TermEvent> poll() = 0;
+  virtual std::vector<BackendEvent> poll() = 0;
 
   // Shows a frame. `info` is given only when wantsFrameInfo() says it is
   // used.
@@ -42,9 +42,9 @@ class Terminal {
   virtual bool wantsFrameInfo() const { return false; }
   // The next frame is drawn in full.
   virtual void redraw() = 0;
-  // Whether the mouse is reported to the application; off, the terminal
-  // uses it itself (selecting text). Default no-op.
-  virtual void setMouseReporting(bool) { }
+  // Whether the user selects text with the mouse instead of the application
+  // getting the clicks. Default no-op.
+  virtual void setNativeSelection(bool) { }
 };
 
-}  // namespace cellui::term
+}  // namespace cellui

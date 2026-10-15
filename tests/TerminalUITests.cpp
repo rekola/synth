@@ -137,11 +137,11 @@ TEST(terminal_ui_modal_dialog_shows_the_screen_behind_it_through_a_backdrop) {
 // Where the terminal shows images stretched over cells, the backdrop is
 // pictures of the screen behind, in tiles, and the dialog stays text.
 TEST(terminal_ui_modal_backdrop_is_pictures_where_the_terminal_shows_them) {
-  cellui::term::Capabilities caps;
-  caps.pixels = cellui::term::PixelProtocol::KITTY;
-  caps.cell_px_height = 20;
-  caps.cell_px_width = 10;
-  UIFixture f("", UI::View::LIVE, caps);
+  cellui::DisplayInfo display;
+  display.pictures = true;
+  display.cell_px_height = 20;
+  display.cell_px_width = 10;
+  UIFixture f("", UI::View::LIVE, display);
   size_t before = f.terminal.images().size();
   f.execute("about");
   size_t stretched = 0;
@@ -158,12 +158,12 @@ TEST(terminal_ui_modal_backdrop_is_pictures_where_the_terminal_shows_them) {
 // and so a click doesn't close it; it takes the mouse back when closed.
 TEST(terminal_ui_info_dialog_leaves_the_mouse_to_the_terminal) {
   UIFixture f;
-  CHECK(f.terminal.mouseReporting());
+  CHECK(!f.terminal.nativeSelection());
   f.execute("about");
-  CHECK(!f.terminal.mouseReporting());
+  CHECK(f.terminal.nativeSelection());
   f.terminal.pushMouse(20, 60, cellui::Key::Button1);
   f.ui->step();
   CHECK(f.terminal.info().focus == "info-dialog");
   f.press(cellui::Key::Escape);
-  CHECK(f.terminal.mouseReporting());
+  CHECK(!f.terminal.nativeSelection());
 }

@@ -19,8 +19,8 @@
 #include <cellui/BufferPlane.h>
 #include <cellui/CellBuffer.h>
 
-namespace cellui::term {
-  class Terminal;
+namespace cellui {
+class Backend;
 }
 
 #include "../UIMenu.h"
@@ -38,9 +38,9 @@ class OutlineView;
 
 class TerminalUI : public UI {
  public:
-  // Draws on, and reads from, `session`: a TerminalSession, or a
+  // Draws on, and reads from, `backend`: a terminal session, or a
   // TestBackend in a test.
-  explicit TerminalUI(cellui::term::Terminal & session);
+  explicit TerminalUI(cellui::Backend & backend);
   ~TerminalUI();
 
   void initialize(std::shared_ptr<Controller> & controller);
@@ -124,63 +124,63 @@ protected:
   std::vector<std::shared_ptr<cellui::Element>> focusableElements() const;
 
 private:
-  cellui::term::Terminal & session_;
-  // What the planes compose into, the size of the terminal; the root plane
-  // covers it.
-  cellui::CellBuffer screen_;
-  cellui::BufferPlane * root_plane_ = nullptr;
-  // Sizes the screen and the root plane to the terminal.
-  void resizeScreen();
+ cellui::Backend & backend_;
+ // What the planes compose into, the size of the terminal; the root plane
+ // covers it.
+ cellui::CellBuffer screen_;
+ cellui::BufferPlane * root_plane_ = nullptr;
+ // Sizes the screen and the root plane to the terminal.
+ void resizeScreen();
 
-  std::shared_ptr<UIMenu> menu_;
-  std::shared_ptr<SpectrumMeter> chart_;
-  std::shared_ptr<ChannelMeter> volume_meter_;
-  std::shared_ptr<HeatmapChart> heatmap_;
-  // The scopes in the versions this terminal shows.
-  std::unique_ptr<cellui::Scopes> scopes_;
-  std::shared_ptr<StatusLine> status_line_;
+ std::shared_ptr<UIMenu> menu_;
+ std::shared_ptr<SpectrumMeter> chart_;
+ std::shared_ptr<ChannelMeter> volume_meter_;
+ std::shared_ptr<HeatmapChart> heatmap_;
+ // The scopes in the versions this terminal shows.
+ std::unique_ptr<cellui::Scopes> scopes_;
+ std::shared_ptr<StatusLine> status_line_;
 
-  StyleProvider styles_;
+ StyleProvider styles_;
 
-  // Auto-scaling brightness reference for the DirAC heatmap - see
-  // handleVisualizationResultEvent()'s own comment on why this needs to
-  // persist across events rather than being derived fresh each time.
-  float dirac_running_max_ = 0.0f;
-  // What the scopes last drew, and when anything last moved: a silent,
-  // unchanged display needs no redraw (a pixel blit is the costly part).
-  std::vector<float> last_fft_, last_loudness_;
-  std::vector<int> last_brightness_, last_saturation_;
-  std::vector<uint64_t> last_playback_parts_; // SYNTH_UI_STATS only
-  uint64_t last_playback_signature_ = 0; // of the last playback snapshot that was drawn
+ // Auto-scaling brightness reference for the DirAC heatmap - see
+ // handleVisualizationResultEvent()'s own comment on why this needs to
+ // persist across events rather than being derived fresh each time.
+ float dirac_running_max_ = 0.0f;
+ // What the scopes last drew, and when anything last moved: a silent,
+ // unchanged display needs no redraw (a pixel blit is the costly part).
+ std::vector<float> last_fft_, last_loudness_;
+ std::vector<int> last_brightness_, last_saturation_;
+ std::vector<uint64_t> last_playback_parts_; // SYNTH_UI_STATS only
+ uint64_t last_playback_signature_ = 0;      // of the last playback snapshot that was drawn
 
-  std::shared_ptr<InfoLine> info_line_;
-  std::shared_ptr<PatternEditor> pattern_editor_;
-  // Always visible in the scope row's leftmost columns (see layout()),
-  // sharing that row's real estate with chart_/heatmap_/volume_meter_.
-  std::shared_ptr<ArrangementGrid> arrangement_grid_;
-  // Shown only in Live View (UI::View), above pattern_editor_, with
-  // outline_view_ as an optional panel on its left (see layout()/
-  // renderComponents()) - both stay real, constructed objects the whole
-  // time; only which ones are on screen changes.
-  std::shared_ptr<ClipGrid> clip_grid_;
-  std::shared_ptr<OutlineView> outline_view_;
-  // The modal dialog showInfoDialog() opens (About, ...); it takes all
-  // input until closed. Its source is kept to re-center it on resize.
-  InfoDialog info_dialog_;
-  std::string info_dialog_title_, info_dialog_markdown_;
-  void layoutInfoDialog();
+ std::shared_ptr<InfoLine> info_line_;
+ std::shared_ptr<PatternEditor> pattern_editor_;
+ // Always visible in the scope row's leftmost columns (see layout()),
+ // sharing that row's real estate with chart_/heatmap_/volume_meter_.
+ std::shared_ptr<ArrangementGrid> arrangement_grid_;
+ // Shown only in Live View (UI::View), above pattern_editor_, with
+ // outline_view_ as an optional panel on its left (see layout()/
+ // renderComponents()) - both stay real, constructed objects the whole
+ // time; only which ones are on screen changes.
+ std::shared_ptr<ClipGrid> clip_grid_;
+ std::shared_ptr<OutlineView> outline_view_;
+ // The modal dialog showInfoDialog() opens (About, ...); it takes all
+ // input until closed. Its source is kept to re-center it on resize.
+ InfoDialog info_dialog_;
+ std::string info_dialog_title_, info_dialog_markdown_;
+ void layoutInfoDialog();
 
-  // The modal list showChoiceDialog() opens (the device pickers, ...); like
-  // the info dialog it takes all input until it is chosen from or cancelled.
-  ChoiceDialog choice_dialog_;
-  std::function<void(int)> choice_callback_;
-  void layoutChoiceDialog();
-  void handleChoiceDialogInput(const cellui::Input & input);
-  void closeChoiceDialog() {
-    choice_dialog_.close();
-    choice_callback_ = nullptr;
-    layoutModalScrim();
-    force_next_render_ = true;
+ // The modal list showChoiceDialog() opens (the device pickers, ...); like
+ // the info dialog it takes all input until it is chosen from or cancelled.
+ ChoiceDialog choice_dialog_;
+ std::function<void(int)> choice_callback_;
+ void layoutChoiceDialog();
+ void handleChoiceDialogInput(const cellui::Input & input);
+ void closeChoiceDialog() {
+   choice_dialog_.close();
+   choice_callback_ = nullptr;
+   layoutModalScrim();
+   force_next_render_ = true;
   }
   void closeInfoDialog() {
     info_dialog_.close();

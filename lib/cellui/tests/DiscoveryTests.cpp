@@ -62,11 +62,11 @@ TEST(discovery_xterm) {
   CHECK(c.sixel_setup == "\x1b[?80l\x1b[?8452h");
   CHECK(c.pixel_mouse);
   CHECK(c.sync == SyncForm::NONE);
-  CHECK(c.cell_px_height == 20 && c.cell_px_width == 10);
-  CHECK(c.display_scale == 1.0);
+  CHECK(c.display.cell_px_height == 20 && c.display.cell_px_width == 10);
+  CHECK(c.display.display_scale == 1.0);
   CHECK(c.rows == 24 && c.cols == 80);
-  CHECK(!c.kitty_keyboard && !c.sextants);
-  CHECK(c.default_bg && c.default_bg->getRed() == 255);
+  CHECK(!c.kitty_keyboard && !c.display.sextants);
+  CHECK(c.display.default_bg && c.display.default_bg->getRed() == 255);
 }
 
 TEST(discovery_kitty) {
@@ -76,7 +76,7 @@ TEST(discovery_kitty) {
   CHECK(c.kitty_keyboard);
   CHECK(c.pixels == PixelProtocol::KITTY && c.kitty_graphics_animation);
   CHECK(c.sync == SyncForm::NONE);  // reported, but not used on kitty
-  CHECK(c.sextants && c.quadrants && c.distinct_default_bg);
+  CHECK(c.display.sextants && c.quadrants && c.distinct_default_bg);
 }
 
 TEST(discovery_foot) {
@@ -86,14 +86,14 @@ TEST(discovery_foot) {
   CHECK(c.kitty_keyboard);
   CHECK(c.pixels == PixelProtocol::SIXEL);
   CHECK(c.sync == SyncForm::MODE);
-  CHECK(c.default_bg && c.default_bg->getRed() == 0x11);
+  CHECK(c.display.default_bg && c.display.default_bg->getRed() == 0x11);
 }
 
 TEST(discovery_wezterm) {
   Capabilities c = discover(readFixture("wezterm"));
   CHECK(c.terminal == "wezterm" && c.version == "20240203-110809-5046fc22");
   CHECK(c.colors == ColorDepth::TRUECOLOR);
-  CHECK(c.sextants && c.undercurl);
+  CHECK(c.display.sextants && c.undercurl);
   CHECK(c.pixels == PixelProtocol::KITTY && !c.kitty_graphics_animation);
   CHECK(c.sync == SyncForm::MODE);
 }
@@ -101,7 +101,7 @@ TEST(discovery_wezterm) {
 TEST(discovery_vte) {
   Capabilities c = discover(readFixture("vte"));
   CHECK(c.terminal == "vte");
-  CHECK(c.quadrants && c.sextants);
+  CHECK(c.quadrants && c.display.sextants);
   CHECK(c.colors == ColorDepth::C256);
   CHECK(c.pixels == PixelProtocol::NONE);
 }
@@ -121,7 +121,7 @@ TEST(discovery_minimal_and_silent_terminals) {
   Capabilities silent = discover("");
   CHECK(!silent.answered);
   CHECK(silent.colors == ColorDepth::C256 && silent.pixels == PixelProtocol::NONE && silent.sync == SyncForm::NONE);
-  CHECK(silent.half_blocks && silent.braille && !silent.quadrants && !silent.sextants);
+  CHECK(silent.half_blocks && silent.braille && !silent.quadrants && !silent.display.sextants);
 }
 
 TEST(discovery_replies_split_anywhere) {
@@ -143,7 +143,7 @@ TEST(discovery_divergences) {
   CHECK(discover("\x1b[?1;0;256S\x1b[6;20;10t\x1b[?62;22c").pixels == PixelProtocol::NONE);
   // The cell size report wins over the text area divided by the size.
   Capabilities c = discover("\x1b[4;485;805t\x1b[6;20;10t\x1b[8;24;80t\x1b[?62c");
-  CHECK(c.cell_px_height == 20 && c.cell_px_width == 10);
+  CHECK(c.display.cell_px_height == 20 && c.display.cell_px_width == 10);
   // An unknown XTGETTCAP answer changes nothing and produces no keys.
   InputParser p;
   p.feed("\x1bP1+r7878=31\x1b\\", InputParser::TimePoint{});
@@ -160,7 +160,7 @@ TEST(discovery_falls_back_to_the_window_size_for_the_cell_size) {
   CHECK(d.result().pixels == PixelProtocol::NONE);
   d.setWindowCellPixels(20, 10);
   Capabilities c = d.result();
-  CHECK(c.pixels == PixelProtocol::SIXEL && c.cell_px_height == 20 && c.cell_px_width == 10);
+  CHECK(c.pixels == PixelProtocol::SIXEL && c.display.cell_px_height == 20 && c.display.cell_px_width == 10);
 }
 
 TEST(discovery_environment) {
@@ -191,7 +191,7 @@ TEST(discovery_environment_hints) {
   CHECK(discover("\x1b[?62c", konsole).terminal == "konsole");
   // Only a background reported: the foreground is guessed against it.
   Capabilities light = discover("\x1b]11;rgb:ffff/ffff/ffff\x1b\\\x1b[?62c");
-  CHECK(light.default_fg && light.default_fg->getRed() == 0);
+  CHECK(light.display.default_fg && light.display.default_fg->getRed() == 0);
 }
 
 TEST(display_scale_from_cell_height) {

@@ -2,6 +2,16 @@
 
 namespace cellui {
 
+// Modifier bits, in the kitty keyboard protocol's layout.
+constexpr unsigned kModShift = 1;
+constexpr unsigned kModAlt = 2;
+constexpr unsigned kModCtrl = 4;
+constexpr unsigned kModSuper = 8;
+constexpr unsigned kModHyper = 16;
+constexpr unsigned kModMeta = 32;
+constexpr unsigned kModCapsLock = 64;
+constexpr unsigned kModNumLock = 128;
+
 // Key ids. A key that produces a character is that character's codepoint;
 // the others are ids above the Unicode range, from First up. Keypad Divide and Multiply with Ctrl are keys of their own, which
 // the parser reports for the legacy "SS3 + modifier digit" encoding and the
@@ -195,5 +205,21 @@ class Input {
   bool alt_, shift_, ctrl_, meta_;
   Kind kind_;
 };
+
+// The Input for a key press: an upper-case ASCII letter becomes lower case
+// with Shift (without Ctrl; the original kept as the true-case id), as key
+// bindings and note entry expect. Meta and Super both count as Meta.
+inline Input keyInput(int key, unsigned mods, Input::Kind kind = Input::Kind::UNKNOWN) {
+  bool alt = mods & kModAlt;
+  bool shift = mods & kModShift;
+  bool ctrl = mods & kModCtrl;
+  bool meta = mods & (kModMeta | kModSuper);
+  int id = key;
+  if (id >= 'A' && id <= 'Z') {
+    id += 'a' - 'A';
+    if (!ctrl) shift = true;
+  }
+  return Input(id, -1, -1, alt, shift, ctrl, meta, kind, key);
+}
 
 }  // namespace cellui
