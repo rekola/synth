@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cellui/Backend.h>
+#include <cellui/PollEventLoop.h>
 
 #include <deque>
 #include <string>
@@ -28,6 +29,7 @@ class TestBackend : public Backend {
   const DisplayInfo & display() const override { return display_; }
   int rows() const override { return rows_; }
   int cols() const override { return cols_; }
+  EventLoop & eventLoop() override { return loop_; }
   int inputFd() const override { return pipe_[0]; }
   int wakeFd() const override { return wake_[0]; }
   std::optional<TimePoint> nextDeadline() const override { return std::nullopt; }
@@ -65,6 +67,7 @@ class TestBackend : public Backend {
   const FrameInfo & info() const { return info_; }
 
  private:
+  PollEventLoop loop_;
   DisplayInfo display_;
   int rows_, cols_;
   int pipe_[2] = { -1, -1 };

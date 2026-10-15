@@ -58,6 +58,7 @@ add_library(cellui STATIC
   src/InfoDialog.cpp
   src/InlineEditor.cpp
   src/EscapeCoalescer.cpp
+  src/EventLoop.cpp
   src/KeyReader.cpp
   src/LineEditor.cpp
   src/Markdown.cpp
@@ -73,7 +74,7 @@ add_library(cellui STATIC
   src/term/InputParser.cpp
   src/term/TermEvent.cpp)
 if(NOT WIN32)
-  target_sources(cellui PRIVATE src/term/TerminalSession.cpp src/TestBackend.cpp)
+  target_sources(cellui PRIVATE src/PollEventLoop.cpp src/term/TerminalSession.cpp src/TestBackend.cpp)
   find_package(Threads REQUIRED)
   target_link_libraries(cellui PUBLIC Threads::Threads)
 endif()
@@ -125,7 +126,7 @@ add_executable(cellui_tests
   tests/MeterTests.cpp
   tests/Utf8Tests.cpp)
 if(NOT WIN32)
-  target_sources(cellui_tests PRIVATE tests/CanvasRasterizerTests.cpp tests/TerminalSessionTests.cpp tests/TestBackendTests.cpp tests/HeatmapImageTests.cpp tests/SpectrumImageTests.cpp
+  target_sources(cellui_tests PRIVATE tests/CanvasRasterizerTests.cpp tests/EventLoopTests.cpp tests/TerminalSessionTests.cpp tests/TestBackendTests.cpp tests/HeatmapImageTests.cpp tests/SpectrumImageTests.cpp
     tests/VuMeterTests.cpp)
 endif()
 target_link_libraries(cellui_tests PRIVATE cellui)

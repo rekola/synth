@@ -3,6 +3,7 @@
 #include <cellui/BackendEvent.h>
 #include <cellui/CellBuffer.h>
 #include <cellui/DisplayInfo.h>
+#include <cellui/EventLoop.h>
 #include <cellui/Image.h>
 #include <cellui/PlaneInfo.h>
 
@@ -27,8 +28,9 @@ class Backend {
   virtual int rows() const = 0;
   virtual int cols() const = 0;
 
-  // A loop waits for either to be readable, or for nextDeadline(), then
-  // calls poll().
+  // The loop the application runs on: it waits for either of these to be
+  // readable, or for nextDeadline(), then calls poll().
+  virtual EventLoop & eventLoop() = 0;
   virtual int inputFd() const = 0;
   virtual int wakeFd() const = 0;
   virtual std::optional<TimePoint> nextDeadline() const = 0;

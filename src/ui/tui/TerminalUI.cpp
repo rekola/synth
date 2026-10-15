@@ -1907,11 +1907,100 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
   auto stats_thread_ticks = stats_path ? threadCpuTicks() : std::map<std::string, long>{};
   auto count = [](const std::string & what) { statCount(what); };
 
-  while ( !shouldClose() ) {
-    bool render = false;
-    bool other_wake = false; // input, MIDI, Launchpad or stderr woke the loop, not just the event queue
+  // A turn: what the handlers below set, then the frame logic in the after
+  // hook. The loop is the backend's own.
+  bool render = false;
+  bool other_wake = false; // input, MIDI, Launchpad or stderr woke the loop, not just the event queue
+  auto & loop = backend_.eventLoop();
+  auto add_source = [&](WaitSet::Group group, cellui::EventLoop::Handler handler) {
+    loop.addSource(waits.fds(group), std::move(handler));
+  };
+  add_source(input_group, [&] {
+    count("fd" + std::to_string(input_group));
+    other_wake = true;
+    render |= readInput();
+  });
+  add_source(events_group, [&] {
+    count("fd" + std::to_string(events_group));
+    auto event = getController().getUIEventQueue().pop();
+    auto t0 = std::chrono::steady_clock::now();
+    handleEvent(*event);
+    if (stats_path) g_ui_stats["us:" + std::string(typeid(*event).name())] += static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - t0).count());
+    if (stats_path) {
+      count(typeid(*event).name());
+      if (event->needRedraw()) count("redraw:" + std::string(typeid(*event).name()));
+    }
+    if (event->needRedraw()) render = true;
+    while (getController().getUIEventQueue().hasEvents()) {
+      auto next_event = getController().getUIEventQueue().pop();
+      auto t1 = std::chrono::steady_clock::now();
+      handleEvent(*next_event);
+      if (stats_path) g_ui_stats["us:" + std::string(typeid(*next_event).name())] += static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - t1).count());
+      if (stats_path) {
+        count(typeid(*next_event).name());
+        if (next_event->needRedraw()) count("redraw:" + std::string(typeid(*next_event).name()));
+      }
+      if (next_event->needRedraw()) render = true;
+    }
+  });
+  add_source(stderr_group, [&] {
+    count("fd" + std::to_string(stderr_group));
+    other_wake = true;
+    char buffer[4096];
+    int r = read(out_pipe[0], buffer, 4096);
+    if (real_stderr_fd >= 0 && r > 0) {
+      // Raw bytes, not the line-split/status-line text below - this
+      // is a faithful mirror of what stderr would have received
+      // without the redirect above, not a reformatted copy. Loops to
+      // cover a partial write (a real possibility for a pipe/socket
+      // destination); best-effort otherwise - a write() failure here
+      // (e.g. the destination process on the other end of a pipe
+      // already exited) must never take the whole UI down with it.
+      int written = 0;
+      while (written < r) {
+        auto n = write(real_stderr_fd, buffer + written, static_cast<size_t>(r - written));
+        if (n <= 0) break;
+        written += static_cast<int>(n);
+      }
+    }
+    waiting_stderr += string(buffer, static_cast<size_t>(r));
+    while (1) {
+      auto pos = waiting_stderr.find('\n');
+      if (pos != string::npos) {
+        setStatus(waiting_stderr.substr(0, pos));
+        waiting_stderr.erase(0, pos + 1);
+      } else {
+        break;
+      }
+    }
+  });
+  add_source(midi_group, [&] {
+    count("fd" + std::to_string(midi_group));
+    other_wake = true;
+    auto evs = midi.readEvents();
+    // setStatus("got midi events: " + to_string(evs.size()));
+
+    for (auto & ev : evs) {
+      handleEvent(ev);
+      if (ev.needRedraw()) render = true;
+    }
+  });
+  add_source(launchpad_group, [&] {
+    count("fd" + std::to_string(launchpad_group));
+    other_wake = true;
+    auto evs = launchpad_io.pollEvents();
+
+    for (auto & ev : evs) {
+      handleEvent(*ev);
+      if (ev->needRedraw()) render = true;
+    }
+  });
+
+  loop.setBefore([&]() -> int {
+    render = false;
+    other_wake = false;
     if (stats_path && std::chrono::steady_clock::now() - stats_since >= std::chrono::seconds(1)) {
-      timespec cpu_now {};
+      timespec cpu_now{};
       clock_gettime(CLOCK_THREAD_CPUTIME_ID, &cpu_now);
       g_ui_stats["cpu_us"] = static_cast<int>((cpu_now.tv_sec - stats_cpu_since.tv_sec) * 1000000L + (cpu_now.tv_nsec - stats_cpu_since.tv_nsec) / 1000L);
       stats_cpu_since = cpu_now;
@@ -1923,9 +2012,9 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
       }
       stats_thread_ticks = std::move(thread_ticks);
       if (FILE * f = fopen(stats_path, "a")) {
-	for (auto & [ what, n ] : g_ui_stats) fprintf(f, "%s=%d ", what.c_str(), n);
-	fputs("\n", f);
-	fclose(f);
+        for (auto & [what, n] : g_ui_stats) fprintf(f, "%s=%d ", what.c_str(), n);
+        fputs("\n", f);
+        fclose(f);
       }
       g_ui_stats.clear();
       stats_since = std::chrono::steady_clock::now();
@@ -1948,94 +2037,31 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
       wait = std::max<long>(wait, 0);
       poll_timeout_ms = poll_timeout_ms < 0 ? static_cast<int>(wait) : std::min(poll_timeout_ms, static_cast<int>(wait));
     }
+    return poll_timeout_ms;
+  });
 
-    bool woken = waits.wait(poll_timeout_ms);
+  loop.setAfter([&](bool woken) {
+    if (shouldClose()) {
+      loop.quit();
+      return;
+    }
     if (!woken && backend_.nextDeadline() && std::chrono::steady_clock::now() >= *backend_.nextDeadline()) {
       readInput();
       other_wake = true;
       woken = true;
     }
     count(woken ? "wake" : "timeout");
-    if (woken) {
-      for (auto group : { input_group, events_group, stderr_group, midi_group, launchpad_group }) {
-	if (waits.ready(group)) {
-	  count("fd" + std::to_string(group));
-	  if (group != events_group) other_wake = true;
-	  if (group == input_group) {
-	    render |= readInput();
-	  } else if (group == events_group) {
-	    auto event = getController().getUIEventQueue().pop();
-	    auto t0 = std::chrono::steady_clock::now();
-	    handleEvent(*event);
-	    if (stats_path) g_ui_stats["us:" + std::string(typeid(*event).name())] += static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - t0).count());
-	    if (stats_path) { count(typeid(*event).name()); if (event->needRedraw()) count("redraw:" + std::string(typeid(*event).name())); }
-	    if (event->needRedraw()) render = true;
-	    while ( getController().getUIEventQueue().hasEvents() ) {
-	      auto next_event = getController().getUIEventQueue().pop();
-	      auto t1 = std::chrono::steady_clock::now();
-	      handleEvent(*next_event);
-	      if (stats_path) g_ui_stats["us:" + std::string(typeid(*next_event).name())] += static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - t1).count());
-	      if (stats_path) { count(typeid(*next_event).name()); if (next_event->needRedraw()) count("redraw:" + std::string(typeid(*next_event).name())); }
-	      if (next_event->needRedraw()) render = true;
-	    }
-	  } else if (group == stderr_group) {
-	    char buffer[4096];
-	    int r = read(out_pipe[0], buffer, 4096);
-	    if (real_stderr_fd >= 0 && r > 0) {
-	      // Raw bytes, not the line-split/status-line text below - this
-	      // is a faithful mirror of what stderr would have received
-	      // without the redirect above, not a reformatted copy. Loops to
-	      // cover a partial write (a real possibility for a pipe/socket
-	      // destination); best-effort otherwise - a write() failure here
-	      // (e.g. the destination process on the other end of a pipe
-	      // already exited) must never take the whole UI down with it.
-	      int written = 0;
-	      while (written < r) {
-		auto n = write(real_stderr_fd, buffer + written, static_cast<size_t>(r - written));
-		if (n <= 0) break;
-		written += static_cast<int>(n);
-	      }
-	    }
-	    waiting_stderr += string(buffer, static_cast<size_t>(r));
-	    while ( 1 ) {
-	      auto pos = waiting_stderr.find('\n');
-	      if (pos != string::npos) {
-		setStatus(waiting_stderr.substr(0, pos));
-		waiting_stderr.erase(0, pos + 1);
-	      } else {
-		break;
-	      }
-	    }
-	  } else if (group == midi_group) {
-	    auto evs = midi.readEvents();
-	    // setStatus("got midi events: " + to_string(evs.size()));
-
-	    for (auto & ev : evs) {
-	      handleEvent(ev);
-	      if (ev.needRedraw()) render = true;
-	    }
-	  } else {
-	    auto evs = launchpad_io.pollEvents();
-
-	    for (auto & ev : evs) {
-	      handleEvent(*ev);
-	      if (ev->needRedraw()) render = true;
-	    }
-	  }
-	}
-      }
-    }
 
     if (woken || frame_pending) {
       render_pending |= render;
       auto now = std::chrono::steady_clock::now();
       if (!other_wake && !render_pending && !frame_pending && now - last_frame < kIdleFrameInterval) {
 	count("idle-wake-skipped");
-	continue;
+        return;
       }
       if (now - last_frame < kMinFrameInterval) {
 	frame_pending = true;
-	continue;
+        return;
       }
       frame_pending = false;
       last_frame = now;
@@ -2054,5 +2080,7 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
         TerminalUI::render();
       }
     }
-  }
+  });
+
+  if (!shouldClose()) loop.run();
 }
