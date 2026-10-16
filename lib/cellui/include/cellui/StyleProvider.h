@@ -73,7 +73,6 @@ class StyleProvider {
     plane_base_bg_color = t.plane_base_bg;
     picker_bg_color = t.picker_bg;
     picker_fg_color = t.picker_fg;
-    picker_border_color = t.picker_border;
     data_fx_color = t.data_fx;
     data_velocity_color = t.data_velocity;
     data_delay_color = t.data_delay;
@@ -226,11 +225,10 @@ class StyleProvider {
   Color menu_section_bg_color;
 
   // A widget plane's base, shown where the widget draws nothing, and the
-  // list picker's background, text and border.
+  // list picker's background and text.
   Color plane_base_bg_color;
   Color picker_bg_color;
   Color picker_fg_color;
-  Color picker_border_color;
 
   // The pattern editor's data columns: local fx, velocity, delay.
   Color data_fx_color;

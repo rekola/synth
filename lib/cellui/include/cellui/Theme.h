@@ -145,11 +145,10 @@ struct Theme {
   Color menu_section_bg;
   // The base of a widget's plane, which shows wherever the widget draws
   // nothing (a scope between its bars), and the list picker's background,
-  // text and border.
+  // and text.
   Color plane_base_bg;
   Color picker_bg;
   Color picker_fg;
-  Color picker_border;
   // The pattern editor's data columns: local fx, velocity, delay.
   Color data_fx;
   Color data_velocity;
@@ -213,7 +212,6 @@ struct Theme {
     t.plane_base_bg = Color("#200020");
     t.picker_bg = Color("#202020");
     t.picker_fg = Color("#c0c0c0");
-    t.picker_border = Color("#606060");
     t.data_fx = Color("#d65cd6");
     t.data_velocity = Color("#bfa426");
     t.data_delay = Color("#42c1ea");
@@ -270,7 +268,6 @@ struct Theme {
     t.plane_base_bg = t.surface_base;
     t.picker_bg = t.surface_overlay;
     t.picker_fg = t.text_primary;
-    t.picker_border = t.text_secondary;
     t.data_fx = Color("#c58be0");
     t.data_velocity = Color("#d4b03c");
     t.data_delay = Color("#6cc4e0");
@@ -322,7 +319,6 @@ struct Theme {
     t.plane_base_bg = t.surface_base;
     t.picker_bg = t.surface_overlay;
     t.picker_fg = t.text_primary;
-    t.picker_border = t.text_secondary;
     t.data_fx = Color("#8a3fa8");
     t.data_velocity = Color("#7a5c00");
     t.data_delay = Color("#00607f");

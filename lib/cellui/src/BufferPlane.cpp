@@ -441,9 +441,9 @@ void BufferPlane::showReaderIndicator(int x, const std::string & s) {
   indicator_->moveToTop();
 }
 
-// The picker: a rounded box, a blank row, the items (each option right-
-// aligned to the longest, then its description), a blank row. The list
-// wraps around at both ends.
+// The picker: an opaque panel with no border, a row of padding, the items
+// (each option right-aligned to the longest, then its description), a row of
+// padding. The list wraps around at both ends.
 
 void BufferPlane::showPicker(int y, int x, int rows, int cols, int item_count) {
   if (picker_) return;
@@ -490,17 +490,14 @@ void BufferPlane::drawPicker() {
   int count = pk.count();
   int shown = pk.max_display > 0 ? std::min(pk.max_display, count) : count;
   int body_cols = longest_option + longest_desc + 5;
-  int rows = std::min(std::max(shown, 1) + 4, getDim().first - pk.y);
-  shown = std::max(0, std::min(shown, rows - 4));
+  int rows = std::min(std::max(shown, 1) + 2, getDim().first - pk.y);
+  shown = std::max(0, std::min(shown, rows - 2));
   p.resize(std::max(rows, 1), body_cols);
   p.erase();
 
   CellBuffer::Style base;
   base.fg = theme.picker_fg_color;
   base.bg = theme.picker_bg_color;
-  base.bg_blend = true;
-  CellBuffer::Style box = base;
-  box.fg = theme.picker_border_color;
   CellBuffer::Style option;
   option.fg = theme.highlight_bg_color;
   option.bg = theme.highlight_fg_color;
@@ -511,14 +508,6 @@ void BufferPlane::drawPicker() {
   desc.fg = theme.picker_bg_color;
 
   for (int r = 0; r < rows; r++) p.local_.write(r, 0, std::string(static_cast<size_t>(body_cols), ' '), base);
-  std::string horizontal;
-  for (int c = 0; c < body_cols - 2; c++) horizontal += "─";
-  p.local_.write(0, 0, "╭" + horizontal + "╮", box);
-  p.local_.write(rows - 1, 0, "╰" + horizontal + "╯", box);
-  for (int r = 1; r < rows - 1; r++) {
-    p.local_.write(r, 0, "│", box);
-    p.local_.write(r, body_cols - 1, "│", box);
-  }
   if (count == 0 || shown == 0) return;
   // Keep the selection inside the window, which wraps around.
   int offset = ((pk.selected - pk.first) % count + count) % count;
@@ -528,16 +517,16 @@ void BufferPlane::drawPicker() {
     bool selected = item == pk.selected;
     const std::string & text = pk.options[static_cast<size_t>(item)];
     int col = 2 + longest_option - utf8::displayWidth(text);
-    p.local_.write(2 + i, col, text, selected ? option_selected : option);
+    p.local_.write(1 + i, col, text, selected ? option_selected : option);
     CellBuffer::Style d = desc;
     if (selected) std::swap(d.fg, d.bg);
-    p.local_.write(2 + i, 2 + longest_option, " " + pk.descriptions[static_cast<size_t>(item)], d);
+    p.local_.write(1 + i, 2 + longest_option, " " + pk.descriptions[static_cast<size_t>(item)], d);
   }
   if (shown < count) {
     CellBuffer::Style arrow = desc;
     arrow.fg = theme.highlight_bg_color;
-    p.local_.write(1, 2 + longest_option, "↑", arrow);
-    p.local_.write(rows - 2, 2 + longest_option, "↓", arrow);
+    p.local_.write(0, 2 + longest_option, "↑", arrow);
+    p.local_.write(rows - 1, 2 + longest_option, "↓", arrow);
   }
 }
 
@@ -555,13 +544,13 @@ bool BufferPlane::offerInput(const Input & input) {
     pk.selected = ((pk.selected + delta) % count + count) % count;
     drawPicker();
   };
-  int shown = std::max(1, pk.plane->getDim().first - 4);
+  int shown = std::max(1, pk.plane->getDim().first - 2);
   int id = input.getId();
   bool release = input.getKind() == Input::Kind::RELEASE;
   if (id == Key::Button1) {
     if (!release) return false;
     auto [py, px] = pk.plane->screenPosition();
-    int row = input.getY() - py - 2, col = input.getX() - px;
+    int row = input.getY() - py - 1, col = input.getX() - px;
     if (row < 0 || row >= shown || col < 0 || col >= pk.plane->getDim().second) return false;
     pk.selected = (pk.first + row) % count;
     drawPicker();

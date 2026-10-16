@@ -233,14 +233,15 @@ TEST(bufferplane_picker_lists_and_wraps) {
   root.addItem("beta", "");
   root.addItem("gamma", "");
   root.refresh();
-  CHECK(b.toPlainText() == "\n  ╭────────╮\n  │        │\n  │ alpha  │\n  │  beta  │\n  │ gamma  │\n  │        │\n  ╰────────╯\n");
+  CHECK(b.toPlainText() == "\n\n    alpha\n     beta\n    gamma\n");
+  CHECK(b.at(2, 2).bg && b.at(1, 2).bg);  // opaque, padding rows included
   CHECK(root.getPickerSelection() == "alpha");
   CHECK(root.offerInput(Input(cellui::Key::Up, -1, -1, false, false, false, false)));
   CHECK(root.getPickerSelection() == "gamma");
   root.selectPickerItem(1);
   CHECK(root.getPickerSelection() == "beta");
   // A click on a row selects it; Enter is the owner's.
-  CHECK(root.offerInput(Input(cellui::Key::Button1, 3, 5, false, false, false, false, Input::Kind::RELEASE)));
+  CHECK(root.offerInput(Input(cellui::Key::Button1, 2, 5, false, false, false, false, Input::Kind::RELEASE)));
   CHECK(root.getPickerSelection() == "alpha");
   CHECK(!root.offerInput(Input(cellui::Key::Enter, -1, -1, false, false, false, false)));
   root.closePicker();

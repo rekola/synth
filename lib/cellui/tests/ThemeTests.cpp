@@ -70,7 +70,6 @@ TEST(dark_theme_keeps_the_other_colours_too) {
   CHECK(same(s.plane_base_bg_color, "#200020"));
   CHECK(same(s.picker_bg_color, "#202020"));
   CHECK(same(s.picker_fg_color, "#c0c0c0"));
-  CHECK(same(s.picker_border_color, "#606060"));
   CHECK(same(s.data_fx_color, "#d65cd6"));
   CHECK(same(s.data_velocity_color, "#bfa426"));
   CHECK(same(s.data_delay_color, "#42c1ea"));
@@ -166,7 +165,6 @@ TEST(modern_themes_keep_text_readable) {
     CHECK(contrast(t.menu_fg, t.menu_bg) >= 4.5);
     CHECK(contrast(t.menu_section_fg, t.menu_section_bg) >= 4.5);
     CHECK(contrast(t.picker_fg, t.picker_bg) >= 4.5);
-    CHECK(contrast(t.picker_border, t.picker_bg) >= 3.0);
     for (int i = 0; i < 8; i++) {
       CHECK(contrast(t.tracks.color(i), t.surface_base) >= 3.0);
       CHECK(contrast(t.text_on_track, t.tracks.color(i)) >= 4.5);
