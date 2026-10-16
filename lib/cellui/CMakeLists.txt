@@ -30,7 +30,7 @@ if(NOT TARGET canvas)
   include(FetchContent)
   FetchContent_Declare(canvas
     GIT_REPOSITORY https://github.com/rekola/canvas
-    GIT_TAG 0d437f50c438fecc5e21ef7ebc195bc72ac0935e)
+    GIT_TAG 2bc306e71a2049112871e78e605aae86cb89c195)
   FetchContent_GetProperties(canvas)
   if(NOT canvas_POPULATED)
     FetchContent_Populate(canvas)
