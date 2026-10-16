@@ -291,6 +291,8 @@ protected:
   std::unique_ptr<UIPlane> tree_plane_;
   // The cursor's row in the view, a whole number except while it eases.
   double cursor_y_ = 0;
+  // The cursor appears at its row instead of easing there (after a click).
+  bool snap_cursor_ = false;
   double current_cursor_y_ = -1;
   std::chrono::steady_clock::time_point last_tick_ = std::chrono::steady_clock::now();
   // -1 until the panel is first focused or clicked: no row is
