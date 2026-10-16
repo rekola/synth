@@ -81,3 +81,21 @@ TEST(fades_ease_is_flat_at_the_ends_and_half_in_the_middle) {
   CHECK(Fades::ease(0.1f) < 0.1f);
   CHECK(Fades::ease(-1.0f) == 0.0f && Fades::ease(2.0f) == 1.0f);
 }
+
+TEST(fades_a_number_eases_like_a_colour_and_a_first_sight_is_at_once) {
+  Fades fades;
+  auto t0 = Clock::now();
+  CHECK_NEAR(fades.value(1, 0.0f, true, t0), 0.0f, 1e-6);
+  CHECK(!fades.active(t0));
+  CHECK_NEAR(fades.value(1, 1.0f, true, t0), 0.0f, 1e-6);
+  CHECK(fades.active(t0));
+  CHECK_NEAR(fades.value(1, 1.0f, true, t0 + Fades::kDuration / 2), 0.5f, 0.01);
+  // Turned back midway: no jump.
+  CHECK_NEAR(fades.value(1, 0.0f, true, t0 + Fades::kDuration / 2), 0.5f, 0.01);
+  auto end = t0 + Fades::kDuration * 3;
+  CHECK_NEAR(fades.value(1, 0.0f, true, end), 0.0f, 1e-6);
+  CHECK(!fades.active(end));
+  // Reduced motion: at once.
+  CHECK_NEAR(fades.value(2, 0.0f, false, t0), 0.0f, 1e-6);
+  CHECK_NEAR(fades.value(2, 1.0f, false, t0), 1.0f, 1e-6);
+}

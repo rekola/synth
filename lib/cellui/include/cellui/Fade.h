@@ -40,19 +40,34 @@ class Fades {
     return shown(e, now);
   }
 
+  // The same for a plain number, such as how much of a tint a thing wears.
+  float value(uint64_t key, float target, bool animate = true, Clock::time_point now = Clock::now()) {
+    auto it = values_.find(key);
+    if (it == values_.end() || !animate) {
+      values_[key] = ValueEntry{target, target, now - kDuration, true};
+      return target;
+    }
+    ValueEntry & e = it->second;
+    e.seen = true;
+    if (e.to != target) {
+      e.from = shownValue(e, now);
+      e.to = target;
+      e.start = now;
+    }
+    return shownValue(e, now);
+  }
+
   // Forgets the things the last frame did not ask for.
   void sweep() {
-    for (auto it = entries_.begin(); it != entries_.end();) {
-      if (!it->second.seen) it = entries_.erase(it);
-      else {
-        it->second.seen = false;
-        ++it;
-      }
-    }
+    sweepMap(entries_);
+    sweepMap(values_);
   }
 
   bool active(Clock::time_point now = Clock::now()) const {
     for (auto & [key, e] : entries_) {
+      if (now - e.start < kDuration) return true;
+    }
+    for (auto & [key, e] : values_) {
       if (now - e.start < kDuration) return true;
     }
     return false;
@@ -71,6 +86,28 @@ class Fades {
     bool seen = true;
   };
 
+  struct ValueEntry {
+    float from, to;
+    Clock::time_point start;
+    bool seen = true;
+  };
+
+  template <typename Map>
+  static void sweepMap(Map & map) {
+    for (auto it = map.begin(); it != map.end();) {
+      if (!it->second.seen) it = map.erase(it);
+      else {
+        it->second.seen = false;
+        ++it;
+      }
+    }
+  }
+
+  static float shownValue(const ValueEntry & e, Clock::time_point now) {
+    float t = std::chrono::duration<float>(now - e.start) / std::chrono::duration<float>(kDuration);
+    return t >= 1.0f ? e.to : e.from + (e.to - e.from) * ease(t);
+  }
+
   static bool same(const Color & a, const Color & b) {
     return a.getRed() == b.getRed() && a.getGreen() == b.getGreen() && a.getBlue() == b.getBlue();
   }
@@ -81,6 +118,7 @@ class Fades {
   }
 
   std::unordered_map<uint64_t, Entry> entries_;
+  std::unordered_map<uint64_t, ValueEntry> values_;
 };
 
 }  // namespace cellui

@@ -835,18 +835,39 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
         // dark and bright shade like the Launchpad pad (before the cursor/
         // tint below, so those still apply on top).
         if (has_real_clip) {
-          // The slot's base shade eases between its clip colour and the state
-          // colour when the state changes; the pulse or flash is applied on
-          // top at once, so it keeps its own timing.
-          bool red = state == ClipHighlight::RECORDING || state == ClipHighlight::RECORD_QUEUED
-            || state == ClipHighlight::RECORD_STOPPING;
-          Color bright = red ? styles.clip_recording_color : styles.clip_playing_color;
-          Color target = state == ClipHighlight::NONE ? row_bg
-            : state == ClipHighlight::PAUSED ? styles.clip_paused_color : bright;
-          uint64_t key = (static_cast<uint64_t>(track_id) << 32) | static_cast<uint32_t>(clip_row);
-          row_bg = fades_.color(key, target, !styles.reduced_motion);
-          bool pulses = state != ClipHighlight::NONE && state != ClipHighlight::PAUSED;
-          if (pulses) row_bg = row_bg.blend(0.6f * (1.0f - statePulse(state, styles.reduced_motion)), Color(0, 0, 0));
+          // Each state tint (running green, recording red, paused) is worn by a
+          // weight that eases in and out as the state starts or ends, so a
+          // change between states crossfades too. The pulse or flash runs under
+          // the weight the whole time; a tint that is on its way out keeps
+          // pulsing as the state it last had.
+          enum Layer { GREEN, RED, PAUSE, LAYERS };
+          auto layerOf = [](ClipHighlight s) {
+            switch (s) {
+            case ClipHighlight::NONE: return -1;
+            case ClipHighlight::PAUSED: return static_cast<int>(PAUSE);
+            case ClipHighlight::RECORDING:
+            case ClipHighlight::RECORD_QUEUED:
+            case ClipHighlight::RECORD_STOPPING: return static_cast<int>(RED);
+            default: return static_cast<int>(GREEN);
+            }
+          };
+          uint64_t slot_key = (static_cast<uint64_t>(track_id) << 32) | static_cast<uint32_t>(clip_row);
+          int active = layerOf(state);
+          for (int layer = 0; layer < LAYERS; layer++) {
+            uint64_t key = slot_key * LAYERS + static_cast<uint64_t>(layer);
+            if (layer == active) fade_states_[key] = state;
+            float weight = fades_.value(key, layer == active ? 1.0f : 0.0f, !styles.reduced_motion);
+            auto remembered = fade_states_.find(key);
+            if (weight <= 0.0f || remembered == fade_states_.end()) {
+              if (layer != active) fade_states_.erase(key);
+              continue;
+            }
+            auto shown = remembered->second;
+            Color bright = layer == RED ? styles.clip_recording_color : styles.clip_playing_color;
+            Color tint = layer == PAUSE ? styles.clip_paused_color
+              : bright.blend(0.6f * (1.0f - statePulse(shown, styles.reduced_motion)), Color(0, 0, 0));
+            row_bg = row_bg.blend(weight, tint);
+          }
         }
         if (is_cursor_cell && !has_real_clip) {
           row_fg = styles.highlight_fg_color;
@@ -912,6 +933,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   }
 
   fades_.sweep();
+  if (!fades_.active()) fade_states_.clear();
   inline_editor_.paintBackdrop();
   return true;
 }

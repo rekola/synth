@@ -185,6 +185,8 @@ class ClipGrid : public UIElement {
   std::vector<int> current_track_clips_;
   // The visible clip slots' states at the last redraw - a change redraws.
   cellui::Fades fades_;
+  // The state a slot last wore, to keep its pulse going while the tint fades out.
+  std::unordered_map<uint64_t, ClipHighlight> fade_states_;
   std::vector<ClipHighlight> current_clip_states_;
 
   std::function<void(int track_id, int clip_index)> trigger_callback_;
