@@ -43,6 +43,8 @@ class BufferPlane : public UIPlane {
   void resize(int rows, int cols) override;
   void moveToTop() override;
   void setVisible(bool visible) override { visible_ = visible; }
+  void setElevation(float elevation) override { elevation_ = elevation; }
+  float elevation() const override { return elevation_; }
   bool isVisible() const { return visible_; }
   void setName(const std::string & name) override { name_ = name; }
   // This plane and the planes on it, as they are now.
@@ -139,6 +141,9 @@ class BufferPlane : public UIPlane {
   // composed below it. A backdrop is the display's to apply, so the frame
   // holds only what is above it (root only).
   std::vector<BackdropLayer> takeBackdropLayers() { return std::move(layers_); }
+  // The planes above the base the last refresh() drew, lowest first (root
+  // only).
+  std::vector<ElevatedArea> takeElevations() { return std::move(elevations_); }
   // What canRenderSextants() reports, for the whole tree (root only).
   void setSextants(bool can) { sextants_ = can; }
   bool canRenderSextants() const override { return root().sextants_; }
@@ -160,9 +165,17 @@ class BufferPlane : public UIPlane {
 
   BufferPlane & root() { return parent_ ? parent_->root() : *this; }
   const BufferPlane & root() const { return parent_ ? parent_->root() : *this; }
-  // Draws this plane and its children onto `out` with the plane's top-left
-  // corner at (row, col), inside the clip rectangle.
+  // Draws this plane (not its children) onto `out` with its top-left corner
+  // at (row, col), inside the clip rectangle.
   void compose(CellBuffer & out, int row, int col, int clip_row, int clip_col, int clip_rows, int clip_cols) const;
+  // A plane to draw, where, inside which clip, and how high: refresh() lists
+  // the shown tree in order, sorts it by height and composes each.
+  struct Paint {
+    const BufferPlane * plane;
+    int row, col, clip_row, clip_col, clip_rows, clip_cols;
+    float elevation;
+  };
+  void collect(std::vector<Paint> & paints, int row, int col, int clip_row, int clip_col, int clip_rows, int clip_cols, float base) const;
   bool shown() const;
   void drawReader();
   void drawPicker();
@@ -179,6 +192,7 @@ class BufferPlane : public UIPlane {
   std::optional<Band> band_;
   bool overscan_ = false;
   bool visible_ = true;
+  float elevation_ = 0;
   std::string name_;
 
   // The reader: the text, the plane it shows in, its colour and column.
@@ -197,6 +211,7 @@ class BufferPlane : public UIPlane {
   bool sextants_ = false;
   bool smooth_scroll_ = false;
   mutable std::vector<BackdropLayer> layers_;
+  std::vector<ElevatedArea> elevations_;
   bool flat_ = false;
   bool themed_bases_ = false;
   int cell_px_h_ = 0, cell_px_w_ = 0;

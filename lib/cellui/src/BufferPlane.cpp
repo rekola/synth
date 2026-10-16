@@ -128,7 +128,36 @@ void BufferPlane::refresh() {
   top.target_->clear(0, 0, top.target_->rows(), top.target_->cols());
   top.placements_.clear();
   top.layers_.clear();
-  top.compose(*top.target_, 0, 0, 0, 0, top.target_->rows(), top.target_->cols());
+  top.elevations_.clear();
+  // Lower planes first, whatever their place in the tree; planes of one
+  // height in tree order (a parent before its children).
+  std::vector<Paint> paints;
+  top.collect(paints, 0, 0, 0, 0, top.target_->rows(), top.target_->cols(), 0.0f);
+  std::stable_sort(paints.begin(), paints.end(), [](const Paint & a, const Paint & b) { return a.elevation < b.elevation; });
+  for (const Paint & p : paints) {
+    p.plane->compose(*top.target_, p.row, p.col, p.clip_row, p.clip_col, p.clip_rows, p.clip_cols);
+    if (p.elevation <= 0.0f) continue;
+    auto [rows, cols] = p.plane->getDim();
+    int r0 = std::max(p.clip_row, p.row), r1 = std::min(p.clip_row + p.clip_rows, p.row + rows);
+    int c0 = std::max(p.clip_col, p.col), c1 = std::min(p.clip_col + p.clip_cols, p.col + cols);
+    if (r0 < r1 && c0 < c1) top.elevations_.push_back(ElevatedArea{ r0, c0, r1 - r0, c1 - c0, p.elevation, p.plane->name_ });
+  }
+}
+
+void BufferPlane::collect(std::vector<Paint> & paints, int row, int col, int clip_row, int clip_col, int clip_rows, int clip_cols,
+                          float base) const {
+  if (!visible_) return;
+  float height = base + elevation_;
+  paints.push_back(Paint{ this, row, col, clip_row, clip_col, clip_rows, clip_cols, height });
+  // Children are clipped to the plane's own rectangle.
+  int plane_rows = std::min(local_.rows(), getDim().first), plane_cols = std::min(local_.cols(), getDim().second);
+  int row_lo = std::max(clip_row, row), row_hi = std::min(clip_row + clip_rows, row + plane_rows);
+  int col_lo = std::max(clip_col, col), col_hi = std::min(clip_col + clip_cols, col + plane_cols);
+  if (row_lo >= row_hi || col_lo >= col_hi) return;
+  for (const BufferPlane * child : children_) {
+    child->collect(paints, row + child->getPosition().first, col + child->getPosition().second, row_lo, col_lo, row_hi - row_lo,
+                   col_hi - col_lo, height);
+  }
 }
 
 void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int clip_col, int clip_rows, int clip_cols) const {
@@ -163,9 +192,6 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
     content.band = band_;
     top.layers_.push_back(BackdropLayer{ out, Backdrop{}, row, col, plane_rows, plane_cols, std::move(content) });
     out.clear(0, 0, out.rows(), out.cols());
-    for (const BufferPlane * child : children_) {
-      child->compose(out, row + child->getPosition().first, col + child->getPosition().second, row_lo, col_lo, row_hi - row_lo, col_hi - col_lo);
-    }
     return;
   }
   // A backdrop is the display's to apply: what is composed below it is set
@@ -249,11 +275,6 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
     for (int r = r_lo; r < r_hi; r++) {
       for (int c = c_lo; c < c_hi; c++) out.put(r, c, marked);
     }
-  }
-  if (row_lo >= row_hi || col_lo >= col_hi) return;
-  for (const BufferPlane * child : children_) {
-    child->compose(out, row + child->getPosition().first, col + child->getPosition().second,
-                   row_lo, col_lo, row_hi - row_lo, col_hi - col_lo);
   }
 }
 
@@ -346,6 +367,7 @@ PlaneInfo BufferPlane::describe() const {
   std::tie(info.y, info.x) = getPosition();
   std::tie(info.rows, info.cols) = getDim();
   info.visible = visible_;
+  info.elevation = elevation_;
   info.reader = editor_ != nullptr;
   info.picker = picker_ != nullptr;
   for (const BufferPlane * child : children_) info.children.push_back(child->describe());
@@ -432,6 +454,7 @@ void BufferPlane::showReaderIndicator(int x, const std::string & s) {
   if (!editor_) return;
   if (!indicator_) {
     indicator_ = makeChild();
+    indicator_->setElevation(getStyles().theme.elevation.overlay);
     indicator_->resize(1, kIndicatorCols);
     indicator_->style_.fg = Color(0xff, 0xff, 0xff);
   }
@@ -449,6 +472,7 @@ void BufferPlane::showPicker(int y, int x, int rows, int cols, int item_count) {
   if (picker_) return;
   picker_ = std::make_unique<Picker>();
   picker_->plane = makeChild();
+  picker_->plane->setElevation(getStyles().theme.elevation.overlay);
   picker_->y = y;
   picker_->x = x;
   picker_->plane->move(y, x);

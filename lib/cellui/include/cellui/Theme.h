@@ -155,6 +155,15 @@ struct Theme {
   Color data_delay;
   // What a modal dialog does to everything behind it.
   Backdrop modal_backdrop;
+  // How far above its parent a plane floats, by role, in pixels at 96 dpi:
+  // what is higher is drawn over what is lower, and a display with depth can
+  // show the difference.
+  struct Elevation {
+    float panel = 1;
+    float raised = 2;
+    float overlay = 8;   // menus, pickers, popups
+    float modal = 16;    // a modal dialog and its scrim
+  } elevation;
 
   static Theme original() {
     Theme t;

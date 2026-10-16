@@ -48,7 +48,10 @@ void ChoiceDialog::show(UIPlane & parent, int screen_rows, int screen_cols) {
   // leaving a little of the screen around it.
   rows_ = std::min(static_cast<int>(labels_.size()) + kChromeRows, std::max(kChromeRows + 1, screen_rows - 2));
 
-  if (!plane_) plane_ = parent.createChild();
+  if (!plane_) {
+    plane_ = parent.createChild();
+    plane_->setElevation(elevation_.value_or(plane_->getStyles().theme.elevation.overlay));
+  }
   plane_->resize(rows_, width_);
   auto & styles = plane_->getStyles();
 

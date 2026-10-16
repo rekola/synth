@@ -45,6 +45,12 @@ class UIPlane {
   // a hidden plane can sit anywhere without ever showing, whatever the
   // screen size becomes. Default no-op.
   virtual void setVisible(bool) {}
+  // How far above its parent the plane floats (Theme::elevation's steps), so
+  // a child adds to its parent's height; negative sinks it. What is higher
+  // is drawn over what is lower wherever it sits in the tree, and planes of
+  // one height in tree order. Default no-op for a display with no layers.
+  virtual void setElevation(float) {}
+  virtual float elevation() const { return 0; }
   // A name for the plane in a test's or an inspector's view of the tree
   // (PlaneInfo); default no-op.
   virtual void setName(const std::string &) {}

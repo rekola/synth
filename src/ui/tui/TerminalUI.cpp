@@ -436,6 +436,9 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
   root_plane_->setThemedBases(true);
   if (use_pixel) root_plane_->setCellPixelSize(display.cell_px_height, display.cell_px_width);
   setPlane(std::move(root_plane));
+  // The modal dialogs float above every overlay (menus, pickers, popups).
+  choice_dialog_.setElevation(styles_.theme.elevation.modal);
+  info_dialog_.setElevation(styles_.theme.elevation.modal);
 
   setFgColor(styles_.window_fg_color);
   setBgColor(styles_.window_bg_color);
@@ -470,10 +473,11 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
   render();
 }
 
-// Every other widget was created after menu_, and layout() and a reader,
-// a picker or a widget's own child can land above it too, hiding an
-// unrolled section's dropdown (see UIMenu::raiseToTop()), so it is raised
-// before every frame - and an open modal dialog, on its scrim, above it.
+// Every other widget was created after menu_, and layout() can raise a
+// widget above its header row, so it is raised before every frame (its open
+// section floats at the overlay elevation over everything but a modal
+// dialog) - and an open modal dialog above its scrim, which share the modal
+// elevation.
 void TerminalUI::raiseOverlays() {
   menu_->raiseToTop();
   modal_scrim_.raise();
@@ -492,6 +496,7 @@ TerminalUI::render() {
   if (auto at = root_plane_->cursorPosition()) cursor = { true, at->first, at->second };
   cellui::FrameInfo info;
   info.backdrops = root_plane_->takeBackdropLayers();
+  info.elevations = root_plane_->takeElevations();
   if (backend_.wantsFrameInfo()) {
     info.planes = root_plane_->describe();
     info.focus = focusName();

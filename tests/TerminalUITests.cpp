@@ -199,3 +199,24 @@ TEST(terminal_ui_info_dialog_leaves_the_mouse_to_the_terminal) {
   f.press(cellui::Key::Escape);
   CHECK(!f.terminal.nativeSelection());
 }
+
+// The menu's open section floats at the overlay elevation, a modal dialog
+// and its scrim above it at the modal one.
+TEST(terminal_ui_overlays_and_modal_dialogs_float_at_their_elevations) {
+  UIFixture f;
+  const auto & elevation = cellui::Theme::dark().elevation;
+  CHECK(f.terminal.info().elevations.empty());
+  f.meta('f');
+  auto areas = f.terminal.info().elevations;
+  CHECK(areas.size() == 1 && areas[0].name == "menu-section" && areas[0].elevation == elevation.overlay);
+  f.press(cellui::Key::Escape);
+  f.press(cellui::Key::Escape);
+
+  f.execute("about");
+  areas = f.terminal.info().elevations;
+  CHECK(areas.size() == 2);
+  CHECK(areas[0].name == "scrim" && areas[0].elevation == elevation.modal);
+  CHECK(areas[1].elevation == elevation.modal && areas[1].rows < f.terminal.frame().rows());
+  f.press(cellui::Key::Escape);
+  CHECK(f.terminal.info().elevations.empty());
+}

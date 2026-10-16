@@ -90,3 +90,28 @@ TEST(menubar_panel_stays_on_screen_and_is_opaque_without_a_border) {
   CHECK(b.at(1, 0).text == " " && !b.at(1, 0).bg);
   CHECK(b.at(0, 0).bg && b.at(0, 0).bg->getRed() == MenuBar::Colors().header_bg.getRed());
 }
+
+TEST(menubar_open_section_floats_at_the_overlay_elevation) {
+  StyleProvider styles;
+  CellBuffer b(8, 30);
+  BufferPlane root(b, styles);
+  auto plane = root.createChild();
+  MenuBar menu(*plane);
+  menu.setSections(sections());
+  menu.layout(30);
+  // A plane created after the bar, at the base, doesn't cover the section.
+  auto later = root.createChild();
+  later->resize(8, 30);
+  later->move(1, 0);
+  later->putstr(0, 0, std::string(30, 'x'));
+  menu.open(0);
+  root.refresh();
+  CHECK(b.toPlainText().find("xx Open") != std::string::npos);
+  auto areas = root.takeElevations();
+  CHECK(areas.size() == 1 && areas[0].name == "menu-section");
+  CHECK(areas[0].elevation == styles.theme.elevation.overlay);
+  CHECK(areas[0].row == 1 && areas[0].rows == 4);
+  menu.close();
+  root.refresh();
+  CHECK(root.takeElevations().empty());
+}

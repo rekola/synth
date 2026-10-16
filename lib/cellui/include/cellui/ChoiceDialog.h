@@ -4,6 +4,7 @@
 #include <cellui/Element.h>
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -27,6 +28,12 @@ class ChoiceDialog {
   // starts, -1 for none. Nothing is drawn until show().
   void open(std::string title, std::vector<std::string> labels, int current);
   void close();
+  // How high it floats (UIPlane::setElevation()): the theme's overlay
+  // elevation unless set; a modal dialog is set to the modal one.
+  void setElevation(float elevation) {
+    elevation_ = elevation;
+    if (plane_ && elevation_) plane_->setElevation(*elevation_);
+  }
   // Above every plane under the same parent.
   void raise() {
     if (plane_) plane_->moveToTop();
@@ -46,6 +53,7 @@ class ChoiceDialog {
   int visibleRows() const { return rows_ - 5; }  // see kChromeRows
 
   std::unique_ptr<UIPlane> plane_;
+  std::optional<float> elevation_;
   std::string title_;
   std::vector<std::string> labels_;
   int current_ = -1;

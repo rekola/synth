@@ -583,3 +583,76 @@ TEST(bufferplane_a_band_over_a_plane_goes_with_its_scroll_layer) {
   root.refresh();
   CHECK(root.takeBackdropLayers().empty() && b.at(2, 1).text == "a");
 }
+
+TEST(bufferplane_higher_planes_draw_over_lower_ones_wherever_they_are_in_the_tree) {
+  StyleProvider styles;
+  CellBuffer b(1, 6);
+  BufferPlane root(b, styles);
+  auto high = root.createChild();
+  high->setName("high");
+  high->resize(1, 3);
+  high->setElevation(8);
+  high->putstr(0, 0, "HHH");
+  // Created later, so above in tree order, but lower.
+  auto low = root.createChild();
+  low->resize(1, 6);
+  low->putstr(0, 0, "llllll");
+  root.refresh();
+  CHECK(b.toPlainText() == "HHHlll\n");
+
+  // One height: tree order, as before elevation.
+  high->setElevation(0);
+  root.refresh();
+  CHECK(b.toPlainText() == "llllll\n");
+
+  // A child adds its elevation to its parent's, and stays clipped to it.
+  auto parent = root.createChild();
+  parent->resize(1, 2);
+  parent->move(0, 4);
+  parent->setElevation(2);
+  parent->putstr(0, 0, "pp");
+  low->setElevation(4);
+  root.refresh();
+  CHECK(b.toPlainText() == "llllll\n");
+  auto child = parent->createChild();
+  child->resize(1, 4);
+  child->setElevation(3);
+  child->putstr(0, 0, "cccc");
+  root.refresh();
+  CHECK(b.toPlainText() == "llllcc\n");
+
+  // A negative elevation sinks a plane below the base.
+  low->setElevation(-1);
+  child->setElevation(0);
+  root.refresh();
+  CHECK(b.toPlainText() == "HHHlcc\n");
+}
+
+TEST(bufferplane_reports_the_areas_above_the_base) {
+  StyleProvider styles;
+  CellBuffer b(5, 10);
+  BufferPlane root(b, styles);
+  auto panel = root.createChild();
+  panel->setName("panel");
+  panel->resize(3, 6);
+  panel->move(1, 1);
+  panel->setElevation(2);
+  auto popup = panel->createChild();
+  popup->setName("popup");
+  popup->resize(4, 4);  // reaches past the panel: only the part inside counts
+  popup->move(1, 3);
+  popup->setElevation(8);
+  auto flat = root.createChild();
+  flat->resize(1, 1);
+  root.refresh();
+  auto areas = root.takeElevations();
+  CHECK(areas.size() == 2);
+  CHECK(areas[0].name == "panel" && areas[0].row == 1 && areas[0].col == 1 && areas[0].rows == 3 && areas[0].cols == 6);
+  CHECK(areas[0].elevation == 2);
+  CHECK(areas[1].name == "popup" && areas[1].row == 2 && areas[1].col == 4 && areas[1].rows == 2 && areas[1].cols == 3);
+  CHECK(areas[1].elevation == 10);
+  CHECK(root.describe().children[0].elevation == 2);
+  panel->setVisible(false);
+  root.refresh();
+  CHECK(root.takeElevations().empty());
+}
