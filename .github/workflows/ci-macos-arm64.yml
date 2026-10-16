@@ -17,6 +17,12 @@ jobs:
   build-and-test:
     runs-on: macos-15
 
+    # Homebrew's GCC does not search /opt/homebrew on its own; canvas includes
+    # <cairo/cairo.h> while pkg-config only gives .../include/cairo.
+    env:
+      CPATH: /opt/homebrew/include
+      LIBRARY_PATH: /opt/homebrew/lib
+
     steps:
       - uses: actions/checkout@v4
 
