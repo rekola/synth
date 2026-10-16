@@ -156,7 +156,7 @@ PipeWire (and skips without one).
 **Waiting.** Nothing outside a backend sees a file descriptor of the audio
 device: `Player` calls `AudioAPI::wait(notifier, want_capture, timeout)` and
 gets back which of woken/playback/capture is ready (`WaitResult`). The wakeup
-is `util/Notifier.h` (level-triggered; eventfd on Linux, a condition variable
+is `util/Notifier.h` (level-triggered; eventfd on Linux, an event on Windows, a pipe
 elsewhere), which `EventQueue` raises while it holds events. `AlsaAudio::wait()`
 polls the notifier's fd with its streams' own (capture's masked off while not
 wanted: an unstarted capture stream is "ready" forever). `NullAudio`
