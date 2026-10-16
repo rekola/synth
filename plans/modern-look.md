@@ -144,7 +144,10 @@ Themes are data:
      header and the tracker's two heading lines); Done;
    - fewer lines, but not between tracks in the tracker view;
    - the icon list;
-   - fades for state changes.
+   - fades for state changes: `cellui::Fades` eases a colour over 160 ms by a
+     key; the clip grid's slots use it, and `--reduced-motion` (or
+     `SYNTH_REDUCED_MOTION=1`) turns it off and holds pulses steady. The other
+     in-place changes (flags, cursor to an undo place, panels) are next;
 5. **Light and high-contrast themes,** with a theme command and a setting.
 6. **Window backend:** the same tokens plus elevation shadows, radius,
    padding, the UI font and smooth motion, in `plans/cell-ui-window.md`'s

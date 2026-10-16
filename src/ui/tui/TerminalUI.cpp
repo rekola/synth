@@ -559,6 +559,12 @@ TerminalUI::applyTheme(const Theme & theme) {
 }
 
 void
+TerminalUI::setReducedMotion(bool reduced) {
+  styles_.reduced_motion = reduced;
+  force_next_render_ = true;
+}
+
+void
 TerminalUI::refresh() {
   backend_.redraw();
 }
@@ -2079,6 +2085,9 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
         count("present");
         TerminalUI::render();
       }
+      // A colour still easing needs the next frame even if nothing else wakes
+      // the loop.
+      if (getView() == View::LIVE && clip_grid_->isAnimating()) frame_pending = true;
     }
   });
 

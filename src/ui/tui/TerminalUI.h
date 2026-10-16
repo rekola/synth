@@ -48,6 +48,7 @@ class TerminalUI : public UI {
   void refresh() override;
   void clearLastRow();
   void applyTheme(const Theme & theme) override;
+  void setReducedMotion(bool reduced) override;
   void render() override;
 
   bool offerInput(const cellui::Input & input) override;

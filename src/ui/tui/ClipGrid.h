@@ -5,6 +5,7 @@
 #include "InlineEditor.h"
 #include "LevelMeter.h"
 
+#include <cellui/Fade.h>
 #include <cellui/Scopes.h>
 #include "../../launchpad/ClipHighlight.h"
 #include "../../model/Clip.h"
@@ -70,6 +71,8 @@ class ClipGrid : public UIElement {
   bool offerInput(const cellui::Input & input) override;
   // See PatternEditor::isReaderActive()/cancelReaderEdit().
   bool isReaderActive() const { return inline_editor_.isOpen(); }
+  // A colour is easing: the loop keeps drawing frames until it has arrived.
+  bool isAnimating() const { return fades_.active(); }
   void cancelReaderEdit() { inline_editor_.cancel(); }
 
   // Lets UI move the column cursor to the shared current track
@@ -181,6 +184,7 @@ class ClipGrid : public UIElement {
   // redraws.
   std::vector<int> current_track_clips_;
   // The visible clip slots' states at the last redraw - a change redraws.
+  cellui::Fades fades_;
   std::vector<ClipHighlight> current_clip_states_;
 
   std::function<void(int track_id, int clip_index)> trigger_callback_;

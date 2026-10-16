@@ -34,7 +34,19 @@ asLeafTrack(const Song & song, int track_id) {
 // states flash on and off - the terminal's stand-in for the Launchpad's own
 // hardware-animated pulse/flash.
 float
-statePulse(ClipHighlight state) {
+statePulse(ClipHighlight state, bool reduced_motion) {
+  // With motion off the slot holds a steady shade: full for running, half for
+  // queued, whose glyph already tells them apart.
+  if (reduced_motion) {
+    switch (state) {
+    case ClipHighlight::PLAYING:
+    case ClipHighlight::RECORDING: return 1.0f;
+    case ClipHighlight::QUEUED:
+    case ClipHighlight::RECORD_QUEUED:
+    case ClipHighlight::RECORD_STOPPING: return 0.5f;
+    default: return 0.0f;
+    }
+  }
   using Clock = std::chrono::steady_clock;
   auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now().time_since_epoch()).count();
   switch (state) {
@@ -608,7 +620,8 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   bool meters_changed = meter_steps != current_meter_steps_;
   current_meter_steps_ = std::move(meter_steps);
 
-  if (!refresh && !editor_redraw && !clip_states_changed && !meters_changed && new_version == current_song_version_ &&
+  bool fading = fades_.active();
+  if (!refresh && !editor_redraw && !clip_states_changed && !meters_changed && !fading && new_version == current_song_version_ &&
       cursor_track_index_ == current_cursor_track_index_ && cursor_row_ == current_cursor_row_ &&
       scroll_col_ == current_scroll_col_ && scroll_row_ == current_scroll_row_ &&
       focused == current_focused_ && focused_clip_id == current_focused_clip_id_) {
@@ -821,13 +834,19 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
         // The slot takes the state color, pulsing or flashing between its
         // dark and bright shade like the Launchpad pad (before the cursor/
         // tint below, so those still apply on top).
-        if (has_real_clip && state != ClipHighlight::NONE) {
+        if (has_real_clip) {
+          // The slot's base shade eases between its clip colour and the state
+          // colour when the state changes; the pulse or flash is applied on
+          // top at once, so it keeps its own timing.
           bool red = state == ClipHighlight::RECORDING || state == ClipHighlight::RECORD_QUEUED
             || state == ClipHighlight::RECORD_STOPPING;
           Color bright = red ? styles.clip_recording_color : styles.clip_playing_color;
-          Color dark = bright.blend(0.6f, Color(0, 0, 0));
-          row_bg = state == ClipHighlight::PAUSED ? styles.clip_paused_color
-            : dark.blend(statePulse(state), bright);
+          Color target = state == ClipHighlight::NONE ? row_bg
+            : state == ClipHighlight::PAUSED ? styles.clip_paused_color : bright;
+          uint64_t key = (static_cast<uint64_t>(track_id) << 32) | static_cast<uint32_t>(clip_row);
+          row_bg = fades_.color(key, target, !styles.reduced_motion);
+          bool pulses = state != ClipHighlight::NONE && state != ClipHighlight::PAUSED;
+          if (pulses) row_bg = row_bg.blend(0.6f * (1.0f - statePulse(state, styles.reduced_motion)), Color(0, 0, 0));
         }
         if (is_cursor_cell && !has_real_clip) {
           row_fg = styles.highlight_fg_color;
@@ -892,6 +911,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     for (auto y = 1; y < rows; y++) putDivider(styles, y, x + kColWidth, false);
   }
 
+  fades_.sweep();
   inline_editor_.paintBackdrop();
   return true;
 }

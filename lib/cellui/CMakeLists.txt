@@ -135,6 +135,7 @@ add_executable(cellui_tests
   tests/ColorTests.cpp
   tests/DiscoveryTests.cpp
   tests/ElementTests.cpp
+  tests/FadeTests.cpp
   tests/FrameEncoderTests.cpp
   tests/ImageEncoderTests.cpp
   tests/GalleryTests.cpp
