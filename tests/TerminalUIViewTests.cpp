@@ -263,3 +263,41 @@ TEST(terminal_ui_smooth_scroll_moves_the_arrangement_grid_between_bars) {
   CHECK(between && seen > 0.0 && seen < 1.0);
   CHECK(!shift());  // settled on a whole bar
 }
+
+// The outline's tree scrolls by parts of a row under its heading, which stays
+// where it is.
+TEST(terminal_ui_smooth_scroll_moves_the_outline_tree_under_its_heading) {
+  cellui::DisplayInfo display;
+  display.smooth_scroll = true;
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, display);
+  auto shift = [&]() -> std::optional<double> {
+    for (const auto & layer : f.terminal.info().backdrops) {
+      if (layer.scroll) return layer.scroll->shift_rows;
+    }
+    return std::nullopt;
+  };
+  auto heading_row = [&]() {
+    for (size_t y = 0; y < 6; y++) {
+      if (f.line(y).find("Outline") == 1) return static_cast<int>(y);
+    }
+    return -1;
+  };
+  int heading = heading_row();
+  CHECK(heading >= 0);
+  CHECK(!shift());
+  f.wheel(heading + 5, 5);
+  bool between = false;
+  for (int i = 0; i < 100; i++) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(16));
+    f.ui->step();
+    if (auto s = shift()) {
+      between = true;
+      CHECK(*s > 0.0 && *s < 1.0);
+    }
+    CHECK(heading_row() == heading);
+  }
+  CHECK(between);
+  CHECK(!shift());
+  // It moved: the tree's first rows are not the first any more.
+  CHECK(f.line(static_cast<size_t>(heading + 1)).find("Song") == std::string::npos);
+}
