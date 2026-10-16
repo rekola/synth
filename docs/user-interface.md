@@ -21,9 +21,14 @@ keymap so far:
 | `kill-region` (cut) | Ctrl+X | C-w |
 | `kill-ring-save` (copy) | Ctrl+C | M-w |
 | `yank` (paste) | Ctrl+V | C-y |
+| `open-song` | Ctrl+O | C-x C-f |
+| `save-song` | Ctrl+S | C-x C-s |
+| `save-song-as` | Ctrl+Shift+S | C-x C-w |
+| `save-buffers-kill-terminal` (quit) | Ctrl+Q | C-x C-c |
 
-Ctrl+X is cut there, so the `C-x` prefix sequences (save, open, quit, buffers)
-are Emacs-only for now; their commands remain in the menus and the prompt.
+Ctrl+X is cut there, so the `C-x` prefix sequences are Emacs-only; the buffer
+commands (`next-buffer`, `kill-buffer`, ...) have no desktop chord yet and are
+in the menus and the prompt.
 
 What the terminal
 can't do is listed under [Terminal](#terminal) at the end.

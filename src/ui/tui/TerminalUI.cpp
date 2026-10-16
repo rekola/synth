@@ -144,11 +144,11 @@ struct MenuSectionSpec {
 static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
   vector<MenuSectionSpec> spec = {
       {"File", 'f', {
-                        {"Open...", "C-x C-f", "open-song"},
-                        {"Save", "C-x C-s", "save-song"},
-                        {"Save As...", "C-x C-w", "save-song-as"},
+                        {"Open...", "C-x C-f", "open-song", "C-o"},
+                        {"Save", "C-x C-s", "save-song", "C-s"},
+                        {"Save As...", "C-x C-w", "save-song-as", "C-S-S"},
                         {nullptr, nullptr, nullptr},
-                        {"Quit", "C-x C-c", "save-buffers-kill-terminal"},
+                        {"Quit", "C-x C-c", "save-buffers-kill-terminal", "C-q"},
                     }},
       {"Edit", 'e', {
                         {"Undo", "C-x u", "undo", "C-z"},
@@ -890,6 +890,11 @@ TerminalUI::initializeWidgets() {
   keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('-', true, false, true, false), "undo");
   keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('-', true, true, true, false), "undo-redo");
   // The desktop ones.
+  // File commands, with the C-x prefix Emacs-only (Ctrl+X is cut here).
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('s', true, false, false, false), "save-song");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('s', true, false, true, false), "save-song-as");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('o', true, false, false, false), "open-song");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('q', true, false, false, false), "save-buffers-kill-terminal");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('z', true, false, false, false), "undo");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('z', true, false, true, false), "undo-redo");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('y', true, false, false, false), "undo-redo");

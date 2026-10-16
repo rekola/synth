@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="31edo" tempo="140">
+    <instruments/>
+    <tracks id="master">
+        <track id="track1" azimuth="0" distance="0" elevation="0" instrument="0"/>
+    </tracks>
+    <arrangement/>
+</song>

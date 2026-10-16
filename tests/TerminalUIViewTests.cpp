@@ -386,3 +386,24 @@ TEST(terminal_ui_desktop_ctrl_x_is_not_a_prefix) {
   emacs.press('b');
   CHECK(lastLine(emacs).find("uffer") != std::string::npos);
 }
+
+// The desktop keymap saves with Ctrl+S, which the Emacs one leaves unbound.
+TEST(terminal_ui_desktop_ctrl_s_saves) {
+  // A fresh buffer saves as song.xml in the working directory.
+  auto dir = std::filesystem::temp_directory_path() / "synth_ctrl_s_test";
+  std::filesystem::create_directories(dir);
+  auto previous = std::filesystem::current_path();
+  std::filesystem::current_path(dir);
+  auto saves = [](UIFixture & f) {
+    f.press('s', kModCtrl);
+    return lastLine(f).find("Saved") != std::string::npos;
+  };
+  UIFixture emacs;
+  CHECK(!saves(emacs));
+  cellui::DisplayInfo desktop_display;
+  desktop_display.keymap_profile = cellui::KeymapProfile::DESKTOP;
+  UIFixture desktop("", UI::View::LIVE, desktop_display);
+  CHECK(saves(desktop));
+  std::filesystem::current_path(previous);
+  std::filesystem::remove_all(dir);
+}

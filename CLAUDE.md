@@ -432,8 +432,9 @@ name)` works in both profiles; `bind(profile, chord, name)` only in one and wins
 over a shared binding of the same chord. A binding is migrated by making it
 profile-specific; one that is not works everywhere. Migrated so far: the command
 prompt (`StatusLine::isCommandPromptChord()`: M-x / Ctrl+Shift+P), undo/redo,
-cut/copy/paste (`kill-region`/`kill-ring-save`/`yank`), and the `C-x` prefix
-(Emacs only, since Ctrl+X is cut on the desktop). `docs/user-interface.md` lists
+cut/copy/paste (`kill-region`/`kill-ring-save`/`yank`), save/open/save-as/quit
+(Ctrl+S/O/Shift+S/Q on the desktop; Ctrl+Q exists only there), and the `C-x`
+prefix (Emacs only, since Ctrl+X is cut on the desktop). `docs/user-interface.md` lists
 the desktop chords.
 
 Keybinding dispatch is centralized, Emacs-style (v1, partial): `KeyChord.h`/
