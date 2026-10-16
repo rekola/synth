@@ -127,6 +127,7 @@ struct MenuItemSpec {
   const char * label;    // nullptr = separator
   const char * binding;  // human-readable keybinding shown next to label; "" = none
   const char * command;  // name passed to Controller::sendCommand() on activation
+  const char * desktop_binding = nullptr;  // shown instead of `binding` on a display using the desktop keymap
 };
 struct MenuSectionSpec {
   const char * name;
@@ -150,14 +151,14 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                         {"Quit", "C-x C-c", "save-buffers-kill-terminal"},
                     }},
       {"Edit", 'e', {
-                        {"Undo", "C-x u", "undo"},
-                        {"Redo", "C-M-_", "undo-redo"},
+                        {"Undo", "C-x u", "undo", "C-z"},
+                        {"Redo", "C-M-_", "undo-redo", "C-S-Z"},
                         {nullptr, nullptr, nullptr},
                         {"Select All", "C-x h", "mark-whole-buffer"},
                         {"Set Mark", "C-SPC", "set-mark"},
-                        {"Kill Region", "C-w", "kill-region"},
-                        {"Copy", "M-w", "kill-ring-save"},
-                        {"Yank", "C-y", "yank"},
+                        {"Kill Region", "C-w", "kill-region", "C-x"},
+                        {"Copy", "M-w", "kill-ring-save", "C-c"},
+                        {"Yank", "C-y", "yank", "C-v"},
                         {"Cancel", "C-g", "keyboard-quit"},
                         {nullptr, nullptr, nullptr},
                         {"Transpose Up", "C-S-Up", "transpose-region-up"},
@@ -195,9 +196,9 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                         {"New Clip from Selection", "", "copy-to-clip"},
                         {"Merge Clip to Background", "C-x m", "merge-clip-to-background"},
                         {nullptr, nullptr, nullptr},
-                        {"Copy Clip", "M-w", "kill-ring-save"},
-                        {"Kill Clip", "C-w", "kill-region"},
-                        {"Yank Clip", "C-y", "yank"},
+                        {"Copy Clip", "M-w", "kill-ring-save", "C-c"},
+                        {"Kill Clip", "C-w", "kill-region", "C-x"},
+                        {"Yank Clip", "C-y", "yank", "C-v"},
                         {"Quantize Clip", "", "quantize-clip"},
                         {"Double Clip Length", "", "double-clip-length"},
                         {"Halve Clip Length", "", "halve-clip-length"},
@@ -334,6 +335,7 @@ private:
     // label.
     vector<cellui::MenuBar::Section> sections;
     commands_.clear();
+    bool desktop = parent_.keymapProfile() == cellui::KeymapProfile::DESKTOP;
     for (auto & section : spec) {
       size_t label_width = 0;
       for (auto & item : section.items) {
@@ -350,9 +352,10 @@ private:
 	  section_commands.emplace_back();
 	} else {
 	  entry.label = item.label;
-	  if (item.binding && item.binding[0]) {
+	  const char * binding = desktop && item.desktop_binding ? item.desktop_binding : item.binding;
+	  if (binding && binding[0]) {
 	    entry.label.append(label_width + 2 - static_cast<size_t>(Utf8::displayWidth(item.label)), ' ');
-	    entry.label += item.binding;
+	    entry.label += binding;
 	  }
 	  section_commands.emplace_back(item.command ? item.command : "");
 	}
@@ -432,6 +435,7 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
   root_plane_->setDisplayScale(display.display_scale);
   root_plane_->setSextants(display.sextants);
   root_plane_->setSmoothScroll(display.smooth_scroll);
+  root_plane_->setKeymapProfile(display.keymap_profile);
   root_plane_->setFlatChildren(true);
   root_plane_->setThemedBases(true);
   if (use_pixel) root_plane_->setCellPixelSize(display.cell_px_height, display.cell_px_width);
@@ -855,36 +859,40 @@ TerminalUI::initializeWidgets() {
   // more - see select-named-buffer's own comment above for why there's no
   // separate "New" command left to bind.
   auto ctrl_x = KeyChord::pack('x', true, false, false, false);
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('c', true, false, false, false), "save-buffers-kill-terminal");
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('s', true, false, false, false), "save-song");
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('f', true, false, false, false), "open-song");
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('w', true, false, false, false), "save-song-as");
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('x', true, false, false, false), "exchange-point-and-mark");
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('h', false, false, false, false), "mark-whole-buffer");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('c', true, false, false, false), "save-buffers-kill-terminal");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('s', true, false, false, false), "save-song");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('f', true, false, false, false), "open-song");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('w', true, false, false, false), "save-song-as");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('x', true, false, false, false), "exchange-point-and-mark");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('h', false, false, false, false), "mark-whole-buffer");
   // The buffer commands' own real Emacs bindings, unlike every C-x C-<letter>
   // above, hold Ctrl for the C-x prefix only, not the second key: kill-buffer
   // is C-x k (plain k), next-buffer/previous-buffer are C-x <right>/C-x
   // <left>, and select-named-buffer (switch-to-buffer) is C-x b.
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('k', false, false, false, false), "kill-buffer");
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack(Key::Right, false, false, false, false), "next-buffer");
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack(Key::Left, false, false, false, false), "previous-buffer");
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('b', false, false, false, false), "select-named-buffer");
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('o', false, false, false, false), "other-window");
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('m', false, false, false, false), "merge-clip-to-background");
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('r', false, false, false, false), "toggle-record-arm");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('k', false, false, false, false), "kill-buffer");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack(Key::Right, false, false, false, false), "next-buffer");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack(Key::Left, false, false, false, false), "previous-buffer");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('b', false, false, false, false), "select-named-buffer");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('o', false, false, false, false), "other-window");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('m', false, false, false, false), "merge-clip-to-background");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('r', false, false, false, false), "toggle-record-arm");
   // Emacs's own undo bindings: C-x u, plus C-_ and C-/ (a terminal sends the
   // same byte for both). undo-redo (Emacs 28) is on C-M-_.
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('u', false, false, false, false), "undo");
-  keymap_.bind(KeyChord::pack('_', true, false, false, false), "undo");
-  keymap_.bind(KeyChord::pack('/', true, false, false, false), "undo");
-  keymap_.bind(KeyChord::pack('_', true, true, false, false), "undo-redo");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('u', false, false, false, false), "undo");
+  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('_', true, false, false, false), "undo");
+  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('/', true, false, false, false), "undo");
+  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('_', true, true, false, false), "undo-redo");
   // What terminals actually send for them: the single control byte 0x1f
   // (older builds reported it as key 31, no modifiers; with Alt in front for
   // the redo; the parser now decodes it as Ctrl+_), and in the Kitty protocol Ctrl+Shift+- for C-_.
-  keymap_.bind(KeyChord::pack(31, false, false, false, false), "undo");
-  keymap_.bind(KeyChord::pack(31, false, true, false, false), "undo-redo");
-  keymap_.bind(KeyChord::pack('-', true, false, true, false), "undo");
-  keymap_.bind(KeyChord::pack('-', true, true, true, false), "undo-redo");
+  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack(31, false, false, false, false), "undo");
+  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack(31, false, true, false, false), "undo-redo");
+  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('-', true, false, true, false), "undo");
+  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('-', true, true, true, false), "undo-redo");
+  // The desktop ones.
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('z', true, false, false, false), "undo");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('z', true, false, true, false), "undo-redo");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('y', true, false, false, false), "undo-redo");
   keymap_.bind(KeyChord::pack(' ', false, false, false, false), "toggle-playing");
   keymap_.bind(KeyChord::pack('[', false, false, false, false), "octave-down");
   keymap_.bind(KeyChord::pack(']', false, false, false, false), "octave-up");

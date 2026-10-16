@@ -20,6 +20,17 @@ class StatusLine : public UIElement {
     getPlane().setBgDefault();
   }
 
+  // The chord that opens the command prompt: Alt-x on the Emacs keymap
+  // (whether the terminal sent it as one event or as ESC then x, KeyReader
+  // folds either into a single Alt-modified event before it gets here),
+  // Ctrl+Shift+P on the desktop one.
+  bool isCommandPromptChord(const cellui::Input & input) {
+    if (keymapProfile() == cellui::KeymapProfile::DESKTOP) {
+      return input.hasCtrl() && input.hasShift() && !input.hasAlt() && !input.hasMeta() && input.getId() == 'p';
+    }
+    return (input.hasAlt() || input.hasMeta()) && (input.getId() == 'x' || input.getId() == 'X');
+  }
+
   bool isReaderActive() { return getPlane().readerActive(); }
 
   void setMessage(std::string s) {
@@ -140,17 +151,7 @@ class StatusLine : public UIElement {
 	showIndicator("");
 	return UIElement::offerInput(input);
       }
-    } else if (input.hasCtrl() && input.hasShift() && !input.hasAlt() && (input.getId() == 'p' || input.getId() == 'P')) {
-      // The non-terminal binding for the same prompt (the window backend,
-      // or a terminal speaking the kitty keyboard protocol).
-      showMx();
-      return true;
-    } else if ((input.hasAlt() || input.hasMeta()) && (input.getId() == 'x' || input.getId() == 'X')) {
-      // Whether the terminal sent physical Alt-x as one event directly, or
-      // ESC then, arbitrarily later, x - TerminalUI.cpp's
-      // KeyReader (cellui/KeyReader.h) already folds
-      // either into a single Alt-modified event before it ever reaches
-      // here, so there's exactly one path to check, not two.
+    } else if (isCommandPromptChord(input)) {
       showMx();
       return true;
     }

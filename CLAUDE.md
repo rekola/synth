@@ -425,6 +425,17 @@ mnemonic's own trailing hex-digit argument (e.g. `YLxx`'s slide amount)
 stays permissive too, parsing a non-hex character as digit 0 rather than
 rejecting it (`Command::getAzimuthSlidePerTick()`).
 
+Keymap profiles: a display declares its `cellui::KeymapProfile`
+(`DisplayInfo::keymap_profile`: the terminal `EMACS`, the GTK window `DESKTOP`),
+which reaches widgets through `UIPlane::keymapProfile()`. `Keymap::bind(chord,
+name)` works in both profiles; `bind(profile, chord, name)` only in one and wins
+over a shared binding of the same chord. A binding is migrated by making it
+profile-specific; one that is not works everywhere. Migrated so far: the command
+prompt (`StatusLine::isCommandPromptChord()`: M-x / Ctrl+Shift+P), undo/redo,
+cut/copy/paste (`kill-region`/`kill-ring-save`/`yank`), and the `C-x` prefix
+(Emacs only, since Ctrl+X is cut on the desktop). `docs/user-interface.md` lists
+the desktop chords.
+
 Keybinding dispatch is centralized, Emacs-style (v1, partial): `KeyChord.h`/
 `Keymap.h`/`CommandRegistry.h` provide a chord→command-name→callable lookup,
 and `UIElement::dispatchCommand()` runs it. Widgets populate their own

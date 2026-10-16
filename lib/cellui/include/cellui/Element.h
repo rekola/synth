@@ -175,20 +175,24 @@ protected:
     // through to whatever it would otherwise have done (e.g. self-insert
     // in a text field) - a half-typed prefix should never silently do
     // something else instead.
+    auto profile = keymapProfile();
     if (pending_prefix_) {
       auto prefix = *pending_prefix_;
       pending_prefix_.reset();
-      if (auto name = keymap_.lookupPrefixed(prefix, chord)) return commands_.execute(*name);
+      if (auto name = keymap_.lookupPrefixed(prefix, chord, profile)) return commands_.execute(*name);
       return true;
     }
-    if (keymap_.isPrefix(chord)) {
+    if (keymap_.isPrefix(chord, profile)) {
       pending_prefix_ = chord;
       return true;
     }
 
-    if (auto name = keymap_.lookup(chord)) return commands_.execute(*name);
+    if (auto name = keymap_.lookup(chord, profile)) return commands_.execute(*name);
     return false;
   }
+
+  // The profile the display uses; bindings are looked up in it.
+  KeymapProfile keymapProfile() const { return plane_ ? plane_->keymapProfile() : KeymapProfile::EMACS; }
 
   // Call after populating keymap_/commands_ in a subclass constructor to
   // catch a typo'd command name immediately instead of as a silently dead

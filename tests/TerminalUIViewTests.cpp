@@ -350,3 +350,39 @@ TEST(terminal_ui_smooth_scroll_keeps_the_outline_cursor_in_place_at_the_edge) {
   }
   CHECK(moved);
 }
+
+// The command prompt opens with M-x on the Emacs keymap and with
+// Ctrl+Shift+P on the desktop one, and each keymap ignores the other's chord.
+TEST(terminal_ui_command_prompt_chord_follows_the_keymap_profile) {
+  auto opens = [](UIFixture & f, int key, unsigned mods) {
+    f.press(key, mods);
+    bool open = lastLine(f).find("M-x") != std::string::npos;
+    if (open) f.ctrl('g');
+    return open;
+  };
+  UIFixture emacs;
+  CHECK(opens(emacs, 'x', kModAlt));
+  CHECK(!opens(emacs, 'p', kModCtrl | cellui::kModShift));
+
+  cellui::DisplayInfo desktop_display;
+  desktop_display.keymap_profile = cellui::KeymapProfile::DESKTOP;
+  UIFixture desktop("", UI::View::LIVE, desktop_display);
+  CHECK(opens(desktop, 'p', kModCtrl | cellui::kModShift));
+  CHECK(!opens(desktop, 'x', kModAlt));
+}
+
+// Ctrl-X is the cut chord on the desktop keymap, not a prefix that swallows
+// the next key.
+TEST(terminal_ui_desktop_ctrl_x_is_not_a_prefix) {
+  cellui::DisplayInfo desktop_display;
+  desktop_display.keymap_profile = cellui::KeymapProfile::DESKTOP;
+  UIFixture f("", UI::View::LIVE, desktop_display);
+  f.press('x', kModCtrl);
+  f.press('b');  // C-x b would open the buffer prompt on the Emacs keymap
+  CHECK(lastLine(f).find("buffer") == std::string::npos);
+
+  UIFixture emacs;
+  emacs.press('x', kModCtrl);
+  emacs.press('b');
+  CHECK(lastLine(emacs).find("uffer") != std::string::npos);
+}

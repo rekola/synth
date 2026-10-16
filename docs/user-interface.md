@@ -8,10 +8,24 @@ combinations the usual desktop shortcuts rely on (most Ctrl+Shift chords,
 and Ctrl-C, Ctrl-Z and Ctrl-S belong to the terminal itself), while Emacs's
 prefix keys work in any terminal. A graphical interface is planned with a
 second keymap following the usual desktop, DAW and tracker conventions; the
-command names, M-x and the Emacs keymap stay as they are there too. The first
-desktop binding is Ctrl+Shift+P, which opens the same command prompt as M-x
-(in the window, or a terminal with the Kitty keyboard protocol); every other
-command keeps its Emacs binding until the second keymap exists. What the terminal
+command names stay the same in both. A display
+declares which keymap it uses: the terminal the Emacs one, the window the
+desktop one. A binding that has not been migrated works in both. The desktop
+keymap so far:
+
+| Command | Desktop chord | Emacs chord |
+| --- | --- | --- |
+| command prompt | Ctrl+Shift+P | M-x |
+| `undo` | Ctrl+Z | C-x u, C-/ |
+| `undo-redo` | Ctrl+Shift+Z, Ctrl+Y | C-M-_ |
+| `kill-region` (cut) | Ctrl+X | C-w |
+| `kill-ring-save` (copy) | Ctrl+C | M-w |
+| `yank` (paste) | Ctrl+V | C-y |
+
+Ctrl+X is cut there, so the `C-x` prefix sequences (save, open, quit, buffers)
+are Emacs-only for now; their commands remain in the menus and the prompt.
+
+What the terminal
 can't do is listed under [Terminal](#terminal) at the end.
 
 ## Emacs keymap
