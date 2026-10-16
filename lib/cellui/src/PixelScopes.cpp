@@ -82,6 +82,30 @@ public:
 
     int px_h = 0, px_w = 0;
     if (!getPlane().pixelSize(px_h, px_w)) return;
+
+    // Nothing to show yet and no pixels ever drawn: the background in cells,
+    // with the labels as text, and no image.
+    if (!has_pixels_ && markers_.empty() && std::all_of(brightness_.begin(), brightness_.end(), [](float v) { return v <= 0.0f; })) {
+      auto [rows, cols] = getDim();
+      auto & background = getPlane().getStyles().window_bg_color;
+      setBgColor(background);
+      fill();
+      int usable_rows = footer_label_.empty() ? rows : rows - 1;
+      for (auto & label : axisLabels(usable_rows, cols)) {
+        uint8_t fr, fg, fb;
+        labelForegroundColor(SubcellRgb{static_cast<float>(background.getRed()), static_cast<float>(background.getGreen()),
+                                        static_cast<float>(background.getBlue())},
+                             fr, fg, fb);
+        setFgColor(fr, fg, fb);
+        putstr(label.row, label.col, label.text);
+      }
+      if (!footer_label_.empty()) {
+        setFgColor(255, 255, 255);
+        putstr(rows - 1, 0, footer_label_);
+      }
+      return;
+    }
+    has_pixels_ = true;
     auto [plane_rows, plane_cols] = getDim();
     unsigned pxy = static_cast<unsigned>(px_h), pxx = static_cast<unsigned>(px_w);
     unsigned celldimy = std::max(1u, pxy / static_cast<unsigned>(std::max(1, plane_rows)));
@@ -108,6 +132,7 @@ public:
 private:
   std::vector<float> brightness_, saturation_;
   std::vector<Marker> markers_;
+  bool has_pixels_ = false;
 };
 
 // The spectrum as the plane's image: one level per pixel column, drawn
@@ -129,11 +154,24 @@ protected:
       SpectrumMeter::drawBars(levels);
       return;
     }
+    // Pixels are made lazily: until a level is above zero, only the
+    // background, in cells.
+    if (!has_pixels_) {
+      if (std::all_of(levels.begin(), levels.end(), [](float v) { return v <= 0.0f; })) {
+        setBgColor(getPlane().getStyles().window_bg_color);
+        fill();
+        return;
+      }
+      has_pixels_ = true;
+    }
     // Opaque, so a pixel never composites against the raw terminal background.
     auto buffer = spectrum_image::render(levels, static_cast<unsigned>(pxx), static_cast<unsigned>(pxy), getPlane().getStyles(),
                                          static_cast<float>(getPlane().displayScale()));
     getPlane().drawImage(buffer, pxx, pxy);
   }
+
+ private:
+  bool has_pixels_ = false;
 };
 
 // The channel meter's bars as one image over its bar rows, two channels to
@@ -149,6 +187,17 @@ class PixelChannelMeter : public ChannelMeter {
       ChannelMeter::drawBars(bar_rows, cells);
       return;
     }
+    // Lazily, as the spectrum: the plane is already the background, which is
+    // all a silent meter is.
+    if (!has_pixels_) {
+      bool silent = true;
+      for (int i = 0; i < 2 * cells; i++) {
+        auto & channel = channels_[static_cast<size_t>(i)];
+        if (channel.fraction > 0.0f || channel.peak_fraction > 0.0f || channel.clipping) silent = false;
+      }
+      if (silent) return;
+      has_pixels_ = true;
+    }
     std::vector<std::optional<VuReading>> columns;
     for (int i = 0; i < 2 * cells; i++) {
       auto & channel = channels_[static_cast<size_t>(i)];
@@ -160,6 +209,9 @@ class PixelChannelMeter : public ChannelMeter {
                                          static_cast<float>(getPlane().displayScale()));
     getPlane().drawImageAt(0, 0, pixels, static_cast<int>(width), static_cast<int>(height));
   }
+
+ private:
+  bool has_pixels_ = false;
 };
 
 class PixelScopes : public Scopes {
