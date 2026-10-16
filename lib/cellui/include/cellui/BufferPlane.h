@@ -63,6 +63,11 @@ class BufferPlane : public UIPlane {
   void setBgBlend(bool b) override { style_.bg_blend = b; }
   void setFgContrast(bool b) override { style_.fg_contrast = b; }
   void setBackdrop(const Backdrop & b) override { style_.backdrop = b; }
+  void setScrollOffset(double rows, double cols) override;
+  // Whether the display can shift a plane by a fraction of a cell; planes
+  // are shown unshifted otherwise (root only).
+  void setSmoothScroll(bool smooth) { smooth_scroll_ = smooth; }
+  bool smoothScroll() const override { return root().smooth_scroll_; }
   void erase() override {
     local_.clear(0, 0, local_.rows(), local_.cols());
     // Kept, so the same picture drawn again after erase() is not sent again.
@@ -163,6 +168,11 @@ class BufferPlane : public UIPlane {
   BufferPlane * parent_ = nullptr;
   std::vector<BufferPlane *> children_;  // bottom to top
   CellBuffer::Style style_;
+  // A plane that scrolls by fractions of a cell holds a row and a column
+  // more than its size (overscan_), and composes as a scroll layer while
+  // shifted.
+  double scroll_rows_ = 0, scroll_cols_ = 0;
+  bool overscan_ = false;
   bool visible_ = true;
   std::string name_;
 
@@ -180,6 +190,7 @@ class BufferPlane : public UIPlane {
   Color default_fg_ = Color(255, 255, 255), default_bg_ = Color(0, 0, 0);
   double display_scale_ = 1.0;
   bool sextants_ = false;
+  bool smooth_scroll_ = false;
   mutable std::vector<BackdropLayer> layers_;
   bool flat_ = false;
   bool themed_bases_ = false;

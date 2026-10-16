@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
 
 // Which part of a larger content a widget shows, and the rules every
 // scrolling widget shares: the offset stays inside the content, the wheel
@@ -10,8 +11,13 @@
 // and draws the part it is given; where a widget is special (the pattern
 // editor's sideways scrolling) it keeps that policy and only uses the axis.
 //
-// Offsets are whole cells. A backend that scrolls by fractions of a cell
-// will take the fractional part from the same offset.
+// The offset a widget reasons with - what scrollTo(), reveal() and the
+// wheel move, and what a click is resolved against - is a whole number of
+// cells. Where the display scrolls smoothly the view follows it with an
+// animation: shown() is the position now, the widget draws from firstShown()
+// with one cell more than the view holds, and the plane shifts that by
+// fraction() (UIPlane::setScrollOffset()). Where it does not, shown() is the
+// offset itself and fraction() is 0.
 namespace cellui {
 
 // One dimension.
@@ -31,9 +37,14 @@ class ScrollAxis {
     content_ = std::max(0, content);
     view_ = std::max(0, view);
     offset_ = std::clamp(offset_, 0, maxOffset());
+    shown_ = std::clamp(shown_, 0.0, static_cast<double>(maxOffset()));
+    if (!smooth_) shown_ = offset_;
   }
 
-  void scrollTo(int offset) { offset_ = std::clamp(offset, 0, maxOffset()); }
+  void scrollTo(int offset) {
+    offset_ = std::clamp(offset, 0, maxOffset());
+    if (!smooth_) shown_ = offset_;
+  }
   void scrollBy(int delta) { scrollTo(offset_ + delta); }
 
   // Slides the view just far enough that `index` is at least `margin` cells
@@ -55,7 +66,37 @@ class ScrollAxis {
     if (index - before < offset_) offset_ = index - before;
     if (index + after >= offset_ + view_) offset_ = index + after - view_ + 1;
     offset_ = std::clamp(offset_, 0, maxOffset());
+    if (!smooth_) shown_ = offset_;
   }
+
+  // Whether the view follows the offset with an animation, or jumps to it.
+  void setSmooth(bool smooth) {
+    smooth_ = smooth;
+    if (!smooth_) shown_ = offset_;
+  }
+  bool smooth() const { return smooth_; }
+  // Where the view is now, in cells; the first cell it shows and how far
+  // into it the view is (0 up to, not including, 1).
+  double shown() const { return shown_; }
+  int firstShown() const { return static_cast<int>(std::floor(shown_)); }
+  double fraction() const { return shown_ - std::floor(shown_); }
+  bool animating() const { return shown_ != static_cast<double>(offset_); }
+  // Moves the view toward the offset by `seconds` of the animation: it
+  // closes the distance exponentially, so it starts fast and settles, with a
+  // time constant of kSettleSeconds.
+  void tick(double seconds) {
+    if (!animating()) return;
+    double distance = offset_ - shown_;
+    shown_ += distance * (1.0 - std::exp(-std::max(0.0, seconds) / kSettleSeconds));
+    if (std::abs(offset_ - shown_) < kSnap) shown_ = offset_;
+  }
+  static constexpr double kSettleSeconds = 0.06;
+  static constexpr double kSnap = 0.02;
+
+  // The index of the cell shown `cell` cells from the top of the view: the
+  // one under the middle of that cell, which is what a click is on while the
+  // view moves.
+  int indexAt(int cell) const { return static_cast<int>(std::floor(shown_ + cell + 0.5)); }
 
   // Whether `index` is inside the view.
   bool shows(int index) const { return index >= offset_ && index < offset_ + view_; }
@@ -64,6 +105,8 @@ class ScrollAxis {
   int offset_ = 0;
   int content_ = 0;
   int view_ = 0;
+  double shown_ = 0;
+  bool smooth_ = false;
 };
 
 // Two dimensions, with the detached state the wheel sets.
@@ -89,6 +132,16 @@ class Viewport {
   // nor a playhead; attach() when the cursor next moves.
   bool detached() const { return detached_; }
   void attach() { detached_ = false; }
+
+  void setSmooth(bool smooth) {
+    rows.setSmooth(smooth);
+    cols.setSmooth(smooth);
+  }
+  void tick(double seconds) {
+    rows.tick(seconds);
+    cols.tick(seconds);
+  }
+  bool animating() const { return rows.animating() || cols.animating(); }
 
  private:
   bool detached_ = false;

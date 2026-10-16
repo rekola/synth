@@ -119,6 +119,57 @@ TEST(gtk_window_draws_a_frame_over_a_backdrop_layer) {
   CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
 }
 
+// A plane scrolled by part of a cell is drawn from a texture of its own, kept
+// while its cells are unchanged: moving it by another fraction rasterizes
+// nothing.
+TEST(gtk_window_scrolls_a_plane_without_rasterizing_it_again) {
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  CHECK(w->display().smooth_scroll);
+  StyleProvider styles;
+  CellBuffer screen(w->rows(), w->cols());
+  BufferPlane root(screen, styles);
+  root.setSmoothScroll(true);
+  root.putstr(0, 0, "the heading");
+  auto list = root.createChild();
+  list->resize(5, 20);
+  list->move(2, 1);
+  list->setBgColor(30, 30, 50);
+  for (int r = 0; r < 6; r++) list->putstr(r, 0, "row " + std::to_string(r) + std::string(10, ' '));
+  list->setScrollOffset(0.25, 0);
+  root.refresh();
+  FrameInfo info;
+  info.backdrops = root.takeBackdropLayers();
+  CHECK(info.backdrops.size() == 1 && info.backdrops[0].scroll);
+  size_t before = w->stats().frames;
+  w->present(screen, {}, root.images(), &info);
+  CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+  double raster = w->stats().raster_ms_total;
+  CHECK(raster > 0);
+  for (double shift : { 0.5, 0.75 }) {
+    list->setScrollOffset(shift, 0);
+    root.refresh();
+    FrameInfo moved;
+    moved.backdrops = root.takeBackdropLayers();
+    CHECK(moved.backdrops.size() == 1);
+    before = w->stats().frames;
+    w->present(screen, {}, root.images(), &moved);
+    CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+  }
+  CHECK(w->stats().raster_ms_total == raster);
+  // Other cells in the plane are a new texture.
+  list->erase();
+  list->putstr(0, 0, "changed");
+  list->setScrollOffset(0.5, 0);
+  root.refresh();
+  FrameInfo changed;
+  changed.backdrops = root.takeBackdropLayers();
+  before = w->stats().frames;
+  w->present(screen, {}, root.images(), &changed);
+  CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+  CHECK(w->stats().raster_ms_total > raster);
+}
+
 TEST(gtk_window_wake_is_its_own_fd) {
   gtk::Window * w = theWindow();
   if (!w) return;
@@ -251,6 +302,20 @@ TEST(gtk_window_input_from_the_display) {
   if (got.size() >= 2) {
     CHECK(got[0].input.getId() == Key::Button5 && got[0].input.getY() == 3 && got[0].input.getX() == 5);
     CHECK(got[1].input.getId() == Key::Button4);
+  }
+
+  // The wheel goes to where the pointer is now, not to the last cell clicked.
+  got.clear();
+  xdotool("search --name cellui-test mousemove --window %1 " + std::to_string(cw * 9 + 2) + " " + std::to_string(ch * 6 + 2) + " click 5");
+  CHECK(pumpUntil(*w, [&] {
+    for (auto & e : w->poll()) got.push_back(e);
+    for (auto & e : got) {
+      if (e.input.getId() == Key::Button5) return true;
+    }
+    return false;
+  }));
+  for (auto & e : got) {
+    if (e.input.getId() == Key::Button5) CHECK(e.input.getY() == 6 && e.input.getX() == 9);
   }
 
   // A new window size is a resize in cells.

@@ -20,6 +20,9 @@ struct DisplayInfo {
   double display_scale = 1.0;
   // Whether the sextant glyphs can be drawn.
   bool sextants = false;
+  // Whether a plane's content can be shown shifted by a fraction of a cell
+  // (UIPlane::setScrollOffset()), so a view can scroll smoothly.
+  bool smooth_scroll = false;
 };
 
 }  // namespace cellui

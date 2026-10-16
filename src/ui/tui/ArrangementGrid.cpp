@@ -87,7 +87,7 @@ ArrangementGrid::offerInput(const cellui::Input & input) {
     auto track = viewport_.cols.offset() + x / kColWidth;
     if (track >= num_tracks || x >= max(0, cols - 2) / kColWidth * kColWidth) return true; // the locator column, or past the last track
     auto playing_bar = song.getArrangementBars().barIndex(getController().getPlaybackInfo().getAbsolutePosition());
-    auto bar = viewport_.rows.offset() + y;
+    auto bar = viewport_.rows.indexAt(y);
     if (bar >= barCount(song, playing_bar)) return true; // below the last bar
     cursor_track_index_ = track;
     cursor_bar_ = bar;
@@ -282,6 +282,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   auto visible_rows = rows;
   auto visible_cols = max(0, cols - kLocatorWidth - 1) / kColWidth;
   auto locators = song.getLocators();
+  viewport_.setSmooth(getPlane().smoothScroll());
 
   // Exactly one of the two ever drives the scroll position in a given
   // frame, never both (letting both run unconditionally, one after the
@@ -313,11 +314,17 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   if (!follow_cursor && !viewport_.detached()) viewport_.rows.reveal(playing_bar);
 
   auto new_version = song.getMajorVersion();
+  {
+    // The view follows where it was scrolled to.
+    auto now = std::chrono::steady_clock::now();
+    viewport_.tick(std::min(0.1, std::chrono::duration<double>(now - last_tick_).count()));
+    last_tick_ = now;
+  }
 
   if (!refresh && new_version == current_song_version_ && playing_row == current_playing_row_ &&
       cursor_bar_ == current_cursor_bar_ &&
       cursor_track_index_ == current_cursor_track_index_ &&
-      viewport_.rows.offset() == current_scroll_row_ && viewport_.cols.offset() == current_scroll_col_ &&
+      viewport_.rows.shown() == current_shown_row_ && viewport_.cols.offset() == current_scroll_col_ &&
       focused == current_focused_ && selected_track_id == current_selected_track_id_) {
     return false;
   }
@@ -325,7 +332,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   current_playing_row_ = playing_row;
   current_cursor_bar_ = cursor_bar_;
   current_cursor_track_index_ = cursor_track_index_;
-  current_scroll_row_ = viewport_.rows.offset();
+  current_shown_row_ = viewport_.rows.shown();
   current_scroll_col_ = viewport_.cols.offset();
   current_selected_track_id_ = selected_track_id;
   current_focused_ = focused;
@@ -333,6 +340,11 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   setFgColor(styles.window_fg_color);
   setBgColor(styles.window_bg_color);
   erase();
+  // The bars are drawn from the first one the view shows, with one more than
+  // fit, and the plane shifts them by the part of a bar the view is between.
+  auto first_bar = viewport_.rows.firstShown();
+  auto drawn_rows = visible_rows + (viewport_.rows.smooth() ? 1 : 0);
+  getPlane().setScrollOffset(viewport_.rows.fraction(), 0);
 
   // Every id in track_ids is already color-eligible (getVisibleTrackIds()
   // filtered out anything that isn't), so every column below has a real
@@ -364,9 +376,9 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   // it doesn't show its digit again.
   vector<int> prev_clip_index(static_cast<size_t>(visible_cols), Arrangement::kNoInstance);
   vector<int> prev_start_row(static_cast<size_t>(visible_cols), -1);
-  if (viewport_.rows.offset() > 0) {
+  if (first_bar > 0) {
     for (auto vc = 0; vc < visible_cols && viewport_.cols.offset() + vc < num_tracks; vc++) {
-      auto above_row = bars.barStartRow(viewport_.rows.offset() - 1);
+      auto above_row = bars.barStartRow(first_bar - 1);
       auto above = resolveInstanceForBar(song, track_ids[static_cast<size_t>(viewport_.cols.offset() + vc)], above_row, bars.nextBarStart(above_row) - above_row);
       prev_clip_index[static_cast<size_t>(vc)] = above.clip_index;
       prev_start_row[static_cast<size_t>(vc)] = above.start_row;
@@ -374,8 +386,8 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   }
   auto arrangement = song.getArrangement();
 
-  for (auto vr = 0; vr < visible_rows; vr++) {
-    auto bar = viewport_.rows.offset() + vr;
+  for (auto vr = 0; vr < drawn_rows; vr++) {
+    auto bar = first_bar + vr;
     // Past the bars there are, nothing left to show - still painted
     // explicitly below rather than left to whatever an earlier frame drew
     // in this same screen cell.

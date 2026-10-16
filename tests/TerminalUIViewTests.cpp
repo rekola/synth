@@ -2,7 +2,10 @@
 
 #include "TerminalUIFixture.h"
 
+#include <chrono>
+#include <optional>
 #include <regex>
+#include <thread>
 
 using namespace terminal_ui_test;
 namespace Key = cellui::Key;
@@ -230,4 +233,33 @@ TEST(terminal_ui_live_view_layout_and_the_clip_grid_cursor) {
 
   f.press(Key::Tab);
   CHECK(f.line(1).find("Outline") == std::string::npos);  // Arrangement view brings the scope row back
+}
+
+// On a display that shifts planes by part of a cell, a wheel notch moves the
+// arrangement grid there over several frames: it is shown between bars, as a
+// plane shifted by a fraction, until it settles on the whole bar.
+TEST(terminal_ui_smooth_scroll_moves_the_arrangement_grid_between_bars) {
+  cellui::DisplayInfo display;
+  display.smooth_scroll = true;
+  UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT, display);
+  auto shift = [&]() -> std::optional<double> {
+    for (const auto & layer : f.terminal.info().backdrops) {
+      if (layer.scroll) return layer.scroll->shift_rows;
+    }
+    return std::nullopt;
+  };
+  CHECK(!shift());  // at rest it is not shifted
+  f.wheel(3, 20);
+  double seen = 0;
+  bool between = false;
+  for (int i = 0; i < 100; i++) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(16));
+    f.ui->step();
+    if (auto s = shift()) {
+      between = true;
+      seen = *s;
+    }
+  }
+  CHECK(between && seen > 0.0 && seen < 1.0);
+  CHECK(!shift());  // settled on a whole bar
 }
