@@ -34,6 +34,9 @@
 
 #ifdef SYNTH_TERMINAL_UI
 #include <cellui/term/TerminalSession.h>
+#ifdef SYNTH_GTK_UI
+#include <cellui/gtk/Window.h>
+#endif
 #endif
 #include <cellui/term/ImageEncoder.h>
 #include <fmt/core.h>
@@ -51,6 +54,7 @@ int main(int argc, char *argv[]) {
   CommonOptions common;                                        // --stereo, --legacy-binaural, --licenses, --render
   string theme_name = "dark"; // --theme dark|light|original: the terminal UI's colours
   bool theme_given = false;
+  bool window_ui = false;                 // --ui window|terminal: which backend the UI runs on
   UI::View initial_view = UI::View::LIVE; // --view live|arrangement: which view the UI starts in
   // --dither nearest|ordered|floyd-steinberg: how what has to meet the
   // terminal's palette (Sixel images) is dithered.
@@ -78,6 +82,16 @@ int main(int argc, char *argv[]) {
       else {
 	fmt::print(stderr, "--view requires 'live' or 'arrangement'\n");
 	exit(1);
+      }
+      i++;
+    } else if (strcmp(argv[i], "--ui") == 0) {
+      if (i + 1 < argc && strcmp(argv[i + 1], "window") == 0)
+        window_ui = true;
+      else if (i + 1 < argc && strcmp(argv[i + 1], "terminal") == 0)
+        window_ui = false;
+      else {
+        fmt::print(stderr, "--ui requires 'window' or 'terminal'\n");
+        exit(1);
       }
       i++;
     } else if (strcmp(argv[i], "--dither") == 0) {
@@ -269,6 +283,7 @@ int main(int argc, char *argv[]) {
   }
 
 #ifndef SYNTH_TERMINAL_UI
+  (void)window_ui;
   (void)initial_view;
   (void)theme_name;
   (void)theme_given;
@@ -276,31 +291,62 @@ int main(int argc, char *argv[]) {
   fmt::print(stderr, "This build has no terminal UI; use --headless\n");
   return 1;
 #else
-  std::string terminal_error;
-  cellui::term::SessionOptions session_options;
-  session_options.dither = dither;
-  auto session = cellui::term::TerminalSession::open(session_options, &terminal_error);
-  if (!session) {
-    fmt::print(stderr, "Cannot start the terminal UI: {}\n", terminal_error);
+  std::string ui_error;
+  std::unique_ptr<cellui::Backend> backend;
+  // Without --theme, the colours follow the backend's own: light on a
+  // light background.
+  bool light = false;
+  if (window_ui) {
+#ifdef SYNTH_GTK_UI
+    backend = cellui::gtk::Window::open({}, &ui_error);
+    if (!backend) {
+      fmt::print(stderr, "Cannot start the window UI: {}\n", ui_error);
+      return 1;
+    }
+    if (auto bg = backend->display().default_bg) light = bg->getRed() + bg->getGreen() + bg->getBlue() > 3 * 128;
+#else
+    fmt::print(stderr, "This build has no window UI (it needs GTK 4.10 or later; see SYNTH_ENABLE_GTK)\n");
     return 1;
+#endif
+  } else {
+    cellui::term::SessionOptions session_options;
+    session_options.dither = dither;
+    auto session = cellui::term::TerminalSession::open(session_options, &ui_error);
+    if (!session) {
+      fmt::print(stderr, "Cannot start the terminal UI: {}\n", ui_error);
+      return 1;
+    }
+    light = session->capabilities().appearance == cellui::term::Appearance::LIGHT;
+    backend = std::move(session);
   }
 
-  // After the session is up, so these replace its handlers for the
+  // After the backend is up, so these replace its handlers for the
   // termination signals: a SIGTERM/SIGHUP then ends the main loop and
   // unwinds normally (the terminal gets restored, Launchpad LEDs get
   // cleared) instead of the process being killed.
   installShutdownSignalHandlers();
 
-  // Without --theme, the colours follow the terminal's own: light on a
-  // light background.
-  if (!theme_given) {
-    theme_name = session->capabilities().appearance == cellui::term::Appearance::LIGHT ? "light" : "dark";
-  }
-  TerminalUI ui(*session);
+  if (!theme_given) theme_name = light ? "light" : "dark";
+  TerminalUI ui(*backend);
   ui.setInitialView(initial_view);
   ui.setTheme(theme_name);
   ui.initialize(controller);
   ui.start(audio, *midi, launchpad_io, launchpad_manager);
+
+#ifdef SYNTH_GTK_UI
+  // SYNTH_WINDOW_STATS=<file>: how long the window's frames took to draw.
+  if (window_ui) {
+    if (const char * stats_path = getenv("SYNTH_WINDOW_STATS")) {
+      const auto & stats = static_cast<cellui::gtk::Window &>(*backend).stats();
+      if (FILE * f = fopen(stats_path, "a")) {
+        double n = static_cast<double>(std::max<size_t>(stats.frames, 1));
+        fprintf(f, "frames=%zu draw_ms_mean=%.2f draw_ms_max=%.2f raster_ms_mean=%.2f raster_ms_max=%.2f\n", stats.frames, stats.draw_ms_total / n,
+                stats.draw_ms_max, stats.raster_ms_total / n, stats.raster_ms_max);
+        fclose(f);
+      }
+    }
+  }
+#endif
 
   return 0;
 #endif

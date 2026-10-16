@@ -188,7 +188,14 @@ and Pango replace the rendering and text notes below.
 ## Steps
 
 1. GTK backend on Linux; Win32 backend on Windows, with canvas's Direct2D
-   backend.
+   backend. GTK first version done (`cellui::gtk::Window`, `--ui window`):
+   the whole frame rasterized with `canvasRasterizer()` at scale 1 into one
+   `GdkTexture`, on a re-entrant `EventLoop` that both backends use
+   (`GlibEventLoop` here). Measured under Xvfb (software rendering, 4
+   cores) on a playing Live View: 15 ms a frame at 1200x760, 30 ms at
+   1600x1000 - all of it the rasterizer, so the per-plane render nodes
+   (below) or rasterizing only the rows that changed come first. Not done:
+   render nodes, input methods, HiDPI, dialogs, menus.
 2. Main window, cells, text, input, popups, dialogs, file dialogs, menus;
    `--ui window|terminal`.
 3. Styles beyond the terminal: geometry, spans, borders, gradients, radius,

@@ -2,6 +2,7 @@
 
 #include <cellui/Backend.h>
 #include <cellui/CellBuffer.h>
+#include <cellui/PollEventLoop.h>
 #include <cellui/term/Capabilities.h>
 #include <cellui/term/FrameEncoder.h>
 #include <cellui/term/ImageEncoder.h>
@@ -62,6 +63,7 @@ class TerminalSession : public Backend {
   int rows() const override { return rows_; }
   int cols() const override { return cols_; }
 
+  EventLoop & eventLoop() override { return loop_; }
   int inputFd() const override { return fd_; }
   int wakeFd() const override { return wake_read_; }
   std::optional<TimePoint> nextDeadline() const override { return parser_.nextDeadline(); }
@@ -99,6 +101,7 @@ class TerminalSession : public Backend {
   void enterModes();
   void readSize();
 
+  PollEventLoop loop_;
   int fd_ = -1;
   bool own_fd_ = false;
   int wake_read_ = -1, wake_write_ = -1;

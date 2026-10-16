@@ -202,6 +202,27 @@ enable_testing()  # before the subdirectory, so its tests register here too
 # It also brings canvas (2D drawing for the scopes' pixel versions), built
 # without our warning flags.
 set(CELLUI_CANVAS_CXX_FLAGS "${SYNTH_CANVAS_BASE_FLAGS}")
+# The window backend (cellui/gtk/, --ui window) is optional: GTK 4.10 or later,
+# Linux only, found with pkg-config, and without it the terminal is the only
+# UI (cmake says so).
+set(SYNTH_ENABLE_GTK_DEFAULT OFF)
+if(NOT WIN32 AND NOT APPLE)
+  find_package(PkgConfig QUIET)
+  if(PkgConfig_FOUND)
+    pkg_check_modules(SYNTH_GTK4 QUIET gtk4>=4.10)
+  endif()
+  if(SYNTH_GTK4_FOUND)
+    set(SYNTH_ENABLE_GTK_DEFAULT ON)
+  endif()
+endif()
+option(SYNTH_ENABLE_GTK "Build the GTK 4 window UI (--ui window)" ${SYNTH_ENABLE_GTK_DEFAULT})
+if(SYNTH_ENABLE_GTK AND NOT SYNTH_GTK4_FOUND)
+  message(FATAL_ERROR "SYNTH_ENABLE_GTK requested but GTK 4.10 or later was not found (install libgtk-4-dev)")
+endif()
+if(NOT SYNTH_ENABLE_GTK)
+  message(STATUS "Window UI: not built (GTK 4.10 or later not enabled or not found; --ui window unavailable)")
+endif()
+set(CELLUI_ENABLE_GTK ${SYNTH_ENABLE_GTK})
 add_subdirectory(lib/cellui)
 target_link_libraries(synth_engine PUBLIC cellui)
 
@@ -320,6 +341,9 @@ if(SYNTH_BUILD_INTERACTIVE)
 
   if(SYNTH_BUILD_TERMINAL_UI)
     target_compile_definitions(synth PRIVATE SYNTH_TERMINAL_UI)
+    if(SYNTH_ENABLE_GTK)
+      target_compile_definitions(synth PRIVATE SYNTH_GTK_UI)
+    endif()
   endif()
 
   if(NOT WIN32)

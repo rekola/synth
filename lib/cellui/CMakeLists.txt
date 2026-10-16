@@ -58,6 +58,7 @@ add_library(cellui STATIC
   src/InfoDialog.cpp
   src/InlineEditor.cpp
   src/EscapeCoalescer.cpp
+  src/EventLoop.cpp
   src/KeyReader.cpp
   src/LineEditor.cpp
   src/Markdown.cpp
@@ -73,9 +74,38 @@ add_library(cellui STATIC
   src/term/InputParser.cpp
   src/term/TermEvent.cpp)
 if(NOT WIN32)
-  target_sources(cellui PRIVATE src/term/TerminalSession.cpp src/TestBackend.cpp)
+  target_sources(cellui PRIVATE src/PollEventLoop.cpp src/term/TerminalSession.cpp src/TestBackend.cpp)
   find_package(Threads REQUIRED)
   target_link_libraries(cellui PUBLIC Threads::Threads)
+endif()
+# The GTK 4 window backend (cellui/gtk/): CELLUI_ENABLE_GTK, set by the
+# including project (SYNTH_ENABLE_GTK) or, standalone, found here.
+if(CELLUI_STANDALONE AND NOT DEFINED CELLUI_ENABLE_GTK AND NOT WIN32 AND NOT APPLE)
+  find_package(PkgConfig QUIET)
+  if(PkgConfig_FOUND)
+    pkg_check_modules(CELLUI_GTK4_PROBE QUIET gtk4>=4.10)
+  endif()
+  if(CELLUI_GTK4_PROBE_FOUND)
+    set(CELLUI_ENABLE_GTK ON)
+  endif()
+endif()
+if(CELLUI_ENABLE_GTK)
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(CELLUI_GTK4 REQUIRED IMPORTED_TARGET gtk4>=4.10)
+  target_sources(cellui PRIVATE src/gtk/GlibEventLoop.cpp src/gtk/Window.cpp)
+  target_link_libraries(cellui PRIVATE PkgConfig::CELLUI_GTK4)
+  target_compile_definitions(cellui PUBLIC CELLUI_HAS_GTK)
+  # Needs a display: run under Xvfb (xvfb-run) when there is none, skipped
+  # when neither exists.
+  add_executable(cellui_gtk_tests tests/test_main.cpp tests/GtkWindowTests.cpp)
+  target_link_libraries(cellui_gtk_tests PRIVATE cellui)
+  find_program(CELLUI_XVFB_RUN xvfb-run)
+  if(CELLUI_XVFB_RUN)
+    add_test(NAME cellui_gtk_tests COMMAND ${CELLUI_XVFB_RUN} -a $<TARGET_FILE:cellui_gtk_tests>)
+  else()
+    add_test(NAME cellui_gtk_tests COMMAND cellui_gtk_tests)
+  endif()
+  set_tests_properties(cellui_gtk_tests PROPERTIES SKIP_REGULAR_EXPRESSION "SKIP: no display")
 endif()
 # The pixel versions draw with canvas' Cairo backend; the GDI+ one joins with
 # the window backend on Windows.
@@ -125,7 +155,7 @@ add_executable(cellui_tests
   tests/MeterTests.cpp
   tests/Utf8Tests.cpp)
 if(NOT WIN32)
-  target_sources(cellui_tests PRIVATE tests/CanvasRasterizerTests.cpp tests/TerminalSessionTests.cpp tests/TestBackendTests.cpp tests/HeatmapImageTests.cpp tests/SpectrumImageTests.cpp
+  target_sources(cellui_tests PRIVATE tests/CanvasRasterizerTests.cpp tests/EventLoopTests.cpp tests/TerminalSessionTests.cpp tests/TestBackendTests.cpp tests/HeatmapImageTests.cpp tests/SpectrumImageTests.cpp
     tests/VuMeterTests.cpp)
 endif()
 target_link_libraries(cellui_tests PRIVATE cellui)

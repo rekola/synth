@@ -70,6 +70,12 @@ without it the lists fall back to the machine's sound cards (one entry per
 card input/output via the ALSA control API - not `snd_device_name_hint()`'s
 dozens of virtual PCMs per card); the dialog title always names which list
 it is, "(PipeWire)" or "(ALSA sound cards)".
+`libgtk-4-dev` is optional too (`SYNTH_ENABLE_GTK`, auto-detected, GTK 4.10 or
+later, Linux only, and cmake says so when it isn't used): it builds the window
+backend (`lib/cellui/src/gtk/`) and `--ui window`; without it the terminal is
+the only UI. `cellui_gtk_tests` needs a display, so ctest runs it under
+`xvfb-run` (and `xdotool`, which drives its input checks) and skips it where
+neither is there.
 `libmysofa-dev` is optional (binaural ambisonic decoding,
 `SYNTH_ENABLE_BINAURAL`, auto-detected) — without it, `--ambisonic` still
 works via the cardioid stereo decoder fallback.
@@ -208,6 +214,10 @@ project; useful for chasing memory bugs (e.g. `AudioBuffer`'s copy-assignment
 leak was confirmed this way).
 
 Needs a real terminal (a full-screen UI) and an ALSA output device.
+`--ui window|terminal` chooses the backend (`cellui::gtk::Window` or
+`cellui::term::TerminalSession`; the terminal is the default, `TerminalUI` runs
+on either through `cellui::Backend`); `SYNTH_WINDOW_STATS=<file>` appends how
+long the window's frames took to draw when it exits.
 Options: `--samplerate N`, `--stereo`, `--ambisonic [order]`,
 `--legacy-binaural`, `--view live|arrangement`. Every song is always rendered through an
 ambisonic bus (ACN/SN3D, AmbiX convention) — there is no plain-stereo-pan
@@ -1354,7 +1364,26 @@ would otherwise resume showing.
   implement. `TerminalSession` translates its `TermEvent`s (which stay inside `term/`,
   `pollTerm()` for its own tests) and keeps the terminal-only `Capabilities` (image
   protocol, kitty keyboard, query replies, dither) around the `DisplayInfo` it hands out.
-  `TerminalUI` and its tests use only `Backend`, `BackendEvent` and `DisplayInfo`. `TestBackend` (`cellui/TestBackend.h`) has no tty or window: input is
+  `TerminalUI` and its tests use only `Backend`, `BackendEvent` and `DisplayInfo`.
+  The loop is the backend's too: `Backend::eventLoop()` gives an `EventLoop`
+  (`cellui/EventLoop.h`: `run()`, `quit()`, `iterate(block)`, sources that are file
+  descriptors, a before hook that returns how long the turn may wait and an after hook;
+  re-entrant, so a handler may `run()` a nested loop - a modal dialog waiting for its
+  answer - and `quit()` ends the innermost). `PollEventLoop` (poll(2)) serves the
+  terminal session and `TestBackend`; `TerminalUI::startUI()` registers the app's
+  `WaitSet` groups (`WaitSet::fds()`) as sources and does its per-turn work in the hooks.
+  The window backend is `cellui/gtk/`: `GlibEventLoop` (a turn is one
+  `g_main_context_iteration()`, the app's descriptors are GSources on the same
+  context as GTK's own) and `Window`, a `GtkWindow` with one custom widget whose
+  `snapshot()` rasterizes the presented frame (cells and the images over them) with
+  `canvasRasterizer()` at scale 1 into one `GdkTexture`, only when something was
+  presented. It reports `DisplayInfo` with the cell size from the font's Pango metrics,
+  pictures always available and no sextants, and turns GTK's key (taken in the capture
+  phase, with real press/repeat/release), click, drag (the held button's press again at
+  each new cell), wheel (buttons 4-7) and paste (Ctrl+Shift+V, Shift+Insert) events into
+  `BackendEvent`s; a size change is a `RESIZE` in cells and closing the window a `CLOSE`.
+  Events wait in a queue behind an eventfd that is `inputFd()`. Not done yet: per-plane
+  render nodes, input methods, HiDPI, native dialogs and menus. `TestBackend` (`cellui/TestBackend.h`) has no tty or window: input is
   pushed by the test, and each presented frame is kept for the test to read
   directly (`text()`, `frame()` cells and their styles, `info()`: the plane tree from
   `BufferPlane::describe()` and the focus `TerminalUI::focusName()` gives, `cursor()`,

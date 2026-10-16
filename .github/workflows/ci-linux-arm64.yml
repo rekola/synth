@@ -32,6 +32,9 @@ jobs:
             libunistring-dev \
             libsoundtouch-dev \
             libcairo2-dev \
+            libgtk-4-dev \
+            xvfb \
+            xdotool \
             pkg-config \
             fluid-soundfont-gm
 

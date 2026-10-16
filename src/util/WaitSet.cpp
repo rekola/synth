@@ -19,6 +19,15 @@ WaitSet::addFd(Group group, int fd) {
   slots_.push_back({ fd, group });
 }
 
+std::vector<int>
+WaitSet::fds(Group group) const {
+  std::vector<int> result;
+  for (auto & slot : slots_) {
+    if (slot.group == group) result.push_back(slot.fd);
+  }
+  return result;
+}
+
 bool
 WaitSet::wait(int timeout_ms) {
   fds_.resize(slots_.size());
