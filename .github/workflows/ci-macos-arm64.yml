@@ -48,6 +48,7 @@ jobs:
               -DCMAKE_CXX_COMPILER=g++-$GCC_VERSION \
               -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
               -DBUILD_SHARED_LIBS=OFF \
+              -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
               -DFMT_TEST=OFF -DFMT_DOC=OFF -DSOUNDSTRETCH=OFF
             cmake --build "build-$dir"
             cmake --install "build-$dir"
