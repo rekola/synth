@@ -268,9 +268,10 @@ class Command {
   float getGlideTargetDb() const {
     auto x = digit(values_[2], 16);
     float magnitude = static_cast<float>(x < 0 ? 0 : x);
-    // A product by a constant, not a division: reciprocal-math rewrites
-    // x / 15 into x * (1 / 15) and nibble 15 then lands off 0 dB.
-    return -80.0f + magnitude * (80.0f / 15.0f);
+    // The top nibble is exactly 0 dB; the line below leaves a few millionths
+    // of a dB there once the compiler fuses it or takes the reciprocal of 15.
+    if (x >= 15) return 0.0f;
+    return -80.0f + (magnitude / 15.0f) * 80.0f;
   }
 
   // y (values_[3], one hex digit, same permissive parsing) maps
