@@ -9,57 +9,28 @@ jobs:
   # Build, test and render only: there is no macOS audio or MIDI backend yet
   # (ALSA is Linux only, WASAPI/WinMM Windows only), so the interactive
   # program is off (SYNTH_BUILD_INTERACTIVE=OFF, the render-only `synth`).
-  # Homebrew GCC, not Apple clang, because the DSP code uses GCC vector
-  # extensions and the warning set in CMakeLists.txt is GCC syntax - the same
-  # reason the Windows job uses MinGW-w64 GCC. GCC uses libstdc++, so the C++
-  # dependencies (fmt, SoundTouch) are built with it here instead of taken
-  # from Homebrew, whose bottles use libc++ and do not link. -march is left at
-  # the default (native): no ARM golden-render hash is captured, so nothing
-  # here needs bit-exact output across runs (see the Linux ARM64 job).
+  # Apple clang with Homebrew's libraries: the same toolchain as the system
+  # frameworks (canvas' Quartz 2D backend cannot be built by GCC) and the same
+  # C++ library as Homebrew's fmt and SoundTouch. -march is pinned to a fixed
+  # baseline; no ARM golden-render hash is captured (see the Linux ARM64 job).
   build-and-test:
     runs-on: macos-15
 
-    # Homebrew's GCC does not search /opt/homebrew on its own; the
-    # *_INCLUDE_PATH variables are searched as system directories.
+    # Clang does not search /opt/homebrew on its own.
     env:
-      DEPS: /Users/runner/deps
-      C_INCLUDE_PATH: /Users/runner/deps/include:/opt/homebrew/include
-      CPLUS_INCLUDE_PATH: /Users/runner/deps/include:/opt/homebrew/include
-      LIBRARY_PATH: /Users/runner/deps/lib:/opt/homebrew/lib
+      CPATH: /opt/homebrew/include
+      LIBRARY_PATH: /opt/homebrew/lib
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Install dependencies
-        run: brew install gcc cmake ninja pkg-config libsndfile libunistring cairo
-
-      - name: Build fmt and SoundTouch with GCC
-        run: |
-          GCC_VERSION=$(brew list --versions gcc | awk '{print $2}' | cut -d. -f1)
-          echo "GCC_VERSION=$GCC_VERSION" >> "$GITHUB_ENV"
-          mkdir -p "$DEPS/src" && cd "$DEPS/src"
-          curl -fsSL https://github.com/fmtlib/fmt/archive/refs/tags/10.2.1.tar.gz | tar xz
-          curl -fsSL https://www.surina.net/soundtouch/soundtouch-2.3.3.tar.gz | tar xz
-          for dir in fmt-10.2.1 soundtouch; do
-            cmake -G Ninja -S "$dir" -B "build-$dir" \
-              -DCMAKE_BUILD_TYPE=Release \
-              -DCMAKE_INSTALL_PREFIX="$DEPS" \
-              -DCMAKE_C_COMPILER=gcc-$GCC_VERSION \
-              -DCMAKE_CXX_COMPILER=g++-$GCC_VERSION \
-              -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-              -DBUILD_SHARED_LIBS=OFF \
-              -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
-              -DFMT_TEST=OFF -DFMT_DOC=OFF -DSOUNDSTRETCH=OFF
-            cmake --build "build-$dir"
-            cmake --install "build-$dir"
-          done
+        run: brew install cmake ninja pkg-config fmt libsndfile sound-touch libunistring cairo
 
       - name: Configure
         run: |
           cmake -G Ninja -B build \
-            -DCMAKE_C_COMPILER=gcc-$GCC_VERSION \
-            -DCMAKE_CXX_COMPILER=g++-$GCC_VERSION \
-            -DCMAKE_PREFIX_PATH="$DEPS" \
+            -DSYNTH_MARCH=armv8-a \
             -DSYNTH_BUILD_INTERACTIVE=OFF
 
       # -k 0: report every compile error in one run, not just the first.
