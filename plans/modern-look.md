@@ -97,7 +97,9 @@ Themes are data:
 - True colour where available; elsewhere map each token to the nearest
   palette entry by perceptual distance, not by RGB distance.
 - Modal dialogs have no border: a raised panel with a bold title and a dim
-  hint line, over the scrim's blurred and dimmed page. Use box-drawing for
+  hint line, over the scrim's blurred and dimmed page. Menus (the bar's
+  dropdowns and the list picker) are the same: opaque raised panels with
+  padding, no border and no translucency. Use box-drawing for
   other containers and for the tracker
   view's lines between tracks. Rounded corners (╭ ╮ ╰ ╯) for floating ones.
 - One-cell gutters between widgets, filled with the base surface rather

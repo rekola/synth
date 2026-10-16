@@ -102,14 +102,23 @@ struct Window::Impl {
   int input_fd = -1, wake_fd = -1;
   std::deque<BackendEvent> queue;
 
-  // The frame being shown, and the texture made from it when the widget last
-  // drew it.
+  // The frame being shown: what lies above the backdrops, and the layers
+  // below each of them.
   CellBuffer frame{ 0, 0 };
   CursorRequest cursor;
   std::vector<ImagePlacement> images;
-  GdkTexture * texture = nullptr;
-  bool dirty = true;
+  std::vector<BackdropLayer> layers;
+  // The texture made of each layer's cells, and of the frame's, kept while
+  // what they show is unchanged (a texture that stays the same is not
+  // uploaded again).
+  struct Painted {
+    uint64_t print = 0;
+    GdkTexture * texture = nullptr;
+    int row = 0, col = 0;  // the cell the texture's corner is at
+  };
+  std::vector<Painted> painted;
   FrameStats stats;
+
 
   std::set<guint> held_keys;
   int held_button = 0;
@@ -136,6 +145,14 @@ struct Window::Impl {
 
   void measure(const WindowOptions & options);
   void snapshot(GtkSnapshot * snapshot);
+  const Painted & paint(size_t slot, const CellBuffer & cells, bool transparent, bool with_images = true);
+  void appendTexture(GtkSnapshot * snapshot, const Painted & painted, int row = 0, int col = 0) const;
+  void forgetTextures() {
+    for (Painted & p : painted) {
+      if (p.texture) g_object_unref(p.texture);
+      p = {};
+    }
+  }
   void allocated(int width, int height);
   void pasteClipboard();
   bool keyEvent(guint keyval, GdkModifierType state, bool pressed, guint keycode);
@@ -235,6 +252,7 @@ void Window::Impl::measure(const WindowOptions & options) {
   display_info.default_bg = bg;
   display_info.display_scale = 1.0;
   display_info.sextants = false;
+  display_info.smooth_scroll = true;
 }
 
 void Window::Impl::allocated(int width, int height) {
@@ -245,36 +263,203 @@ void Window::Impl::allocated(int width, int height) {
   push(BackendEvent::makeResize(rows, cols));
 }
 
+namespace {
+
+// What cells and pictures look like, as one number.
+class Print {
+ public:
+  void add(uint64_t v) { value_ = (value_ ^ v) * 1099511628211ull; }
+  void add(const std::string & text) {
+    for (char c : text) add(static_cast<uint64_t>(static_cast<unsigned char>(c)));
+    add(static_cast<uint64_t>(text.size()));
+  }
+  void add(const std::optional<Color> & c) {
+    uint64_t packed = 0;
+    if (c) packed = uint64_t{ 1 } << 32 | static_cast<uint64_t>(c->getRed()) << 16 | static_cast<uint64_t>(c->getGreen()) << 8 | static_cast<uint64_t>(c->getBlue());
+    add(packed);
+  }
+  uint64_t value() const { return value_; }
+
+ private:
+  uint64_t value_ = 14695981039346656037ull;
+};
+
+uint64_t printOf(const CellBuffer & cells, const std::vector<ImagePlacement> & images, bool transparent, bool with_images) {
+  Print print;
+  print.add(static_cast<uint64_t>(cells.rows()) << 32 | static_cast<uint32_t>(cells.cols()));
+  print.add(transparent);
+  for (int r = 0; r < cells.rows(); r++) {
+    for (int c = 0; c < cells.cols(); c++) {
+      const CellBuffer::Cell & cell = cells.at(r, c);
+      print.add(cell.text);
+      print.add(cell.fg);
+      print.add(cell.bg);
+      print.add(static_cast<uint64_t>(cell.bold) | static_cast<uint64_t>(cell.italic) << 1 | static_cast<uint64_t>(cell.underline) << 2 |
+                static_cast<uint64_t>(cell.continuation) << 3 | static_cast<uint64_t>(cell.image) << 4);
+    }
+  }
+  for (const ImagePlacement & p : with_images ? images : std::vector<ImagePlacement>()) {
+    print.add(p.key);
+    print.add(p.image ? p.image->version : 0);
+    print.add(static_cast<uint64_t>(p.row) << 32 | static_cast<uint32_t>(p.col));
+  }
+  return print.value();
+}
+
+}  // namespace
+
+// The texture of a layer's cells, drawn again only when they or the pictures
+// over them changed. A transparent one holds only the rectangle the
+// non-blank cells span, with the blank cells in it see-through.
+const Window::Impl::Painted & Window::Impl::paint(size_t slot, const CellBuffer & cells, bool transparent, bool with_images) {
+  if (painted.size() <= slot) painted.resize(slot + 1);
+  Painted & p = painted[slot];
+  uint64_t print = printOf(cells, with_images ? images : std::vector<ImagePlacement>(), transparent, with_images);
+  if (print == p.print && (p.texture || transparent)) return p;
+  if (p.texture) g_object_unref(p.texture);
+  p.texture = nullptr;
+  p.print = print;
+
+  int r0 = 0, c0 = 0, r1 = cells.rows(), c1 = cells.cols();
+  if (transparent) {
+    r0 = r1;
+    c0 = c1;
+    r1 = c1 = 0;
+    for (int r = 0; r < cells.rows(); r++) {
+      for (int c = 0; c < cells.cols(); c++) {
+        if (CellBuffer::isBlank(cells.at(r, c))) continue;
+        r0 = std::min(r0, r), r1 = std::max(r1, r + 1);
+        c0 = std::min(c0, c), c1 = std::max(c1, c + 1);
+      }
+    }
+    if (r0 >= r1 || c0 >= c1) return p;
+  }
+  if (r1 <= r0 || c1 <= c0) return p;
+  auto start = Clock::now();
+  Image image = rasterizer->render(cells, with_images ? images : std::vector<ImagePlacement>(), r0, c0, r1 - r0, c1 - c0, cell_h, cell_w, 1, *display_info.default_fg, *display_info.default_bg);
+  if (image.width > 0 && image.height > 0) {
+    if (transparent) {
+      for (int r = r0; r < r1; r++) {
+        for (int c = c0; c < c1; c++) {
+          if (!CellBuffer::isBlank(cells.at(r, c))) continue;
+          int y_end = std::min(image.height, (r - r0 + 1) * cell_h), x_end = std::min(image.width, (c - c0 + 1) * cell_w);
+          for (int y = (r - r0) * cell_h; y < y_end; y++) {
+            for (int x = (c - c0) * cell_w; x < x_end; x++) image.pixels[static_cast<size_t>(y) * static_cast<size_t>(image.width) + static_cast<size_t>(x)] = 0;
+          }
+        }
+      }
+    }
+    // The pixels move into the texture's bytes; no copy.
+    auto * pixels = new std::vector<uint32_t>(std::move(image.pixels));
+    GBytes * bytes = g_bytes_new_with_free_func(
+        pixels->data(), pixels->size() * sizeof(uint32_t), [](gpointer data) { delete static_cast<std::vector<uint32_t> *>(data); }, pixels);
+    p.texture = gdk_memory_texture_new(image.width, image.height, GDK_MEMORY_R8G8B8A8_PREMULTIPLIED, bytes, static_cast<gsize>(image.width) * 4);
+    g_bytes_unref(bytes);
+    p.row = r0;
+    p.col = c0;
+  }
+  double ms = msSince(start);
+  stats.raster_ms_total += ms;
+  stats.raster_ms_max = std::max(stats.raster_ms_max, ms);
+  return p;
+}
+
+void Window::Impl::appendTexture(GtkSnapshot * snap, const Painted & p, int row, int col) const {
+  if (!p.texture) return;
+  graphene_rect_t bounds = GRAPHENE_RECT_INIT(static_cast<float>((p.col + col) * cell_w), static_cast<float>((p.row + row) * cell_h),
+                                              static_cast<float>(gdk_texture_get_width(p.texture)), static_cast<float>(gdk_texture_get_height(p.texture)));
+  gtk_snapshot_append_scaled_texture(snap, p.texture, GSK_SCALING_FILTER_NEAREST, &bounds);
+}
+
 void Window::Impl::snapshot(GtkSnapshot * snap) {
   auto start = Clock::now();
   int width = gtk_widget_get_width(view), height = gtk_widget_get_height(view);
-  auto channel = [](const Color & c) { return GdkRGBA{ c.getRed() / 255.0f, c.getGreen() / 255.0f, c.getBlue() / 255.0f, 1.0f }; };
+  auto channel = [](const Color & c, float alpha = 1.0f) {
+    return GdkRGBA{ c.getRed() / 255.0f, c.getGreen() / 255.0f, c.getBlue() / 255.0f, alpha };
+  };
   Color fg = *display_info.default_fg, bg = *display_info.default_bg;
 
   graphene_rect_t all = GRAPHENE_RECT_INIT(0, 0, static_cast<float>(width), static_cast<float>(height));
   GdkRGBA background = channel(bg);
-  gtk_snapshot_append_color(snap, &background, &all);
+  size_t scrolls = 0;
+  if (frame.rows() > 0 && frame.cols() > 0 && rasterizer) {
+    if (layers.empty()) {
+      gtk_snapshot_append_color(snap, &background, &all);
+      appendTexture(snap, paint(0, frame, false));
+    } else {
+      // Each backdrop blurs and dims everything below it, on the GPU: what
+      // is composed so far is a node, drawn as it is and again, blurred,
+      // inside the backdrop's cells.
+      GskRenderNode * below = nullptr;
+      for (size_t i = 0; i < layers.size(); i++) {
+        const BackdropLayer & layer = layers[i];
+        GtkSnapshot * s = gtk_snapshot_new();
+        if (below) gtk_snapshot_append_node(s, below);
+        else gtk_snapshot_append_color(s, &background, &all);
+        appendTexture(s, paint(i, layer.cells, i > 0));
+        if (layer.scroll) {
+          // A plane scrolled by part of a cell: its own texture, kept while
+          // its cells are unchanged, moved by the fraction and cut to the
+          // plane. A scroll costs a translation, not a rasterization.
+          const ScrollContent & content = *layer.scroll;
+          graphene_rect_t shown = GRAPHENE_RECT_INIT(static_cast<float>(content.col * cell_w), static_cast<float>(content.row * cell_h),
+                                                     static_cast<float>(content.cols * cell_w), static_cast<float>(content.rows * cell_h));
+          graphene_point_t shift = GRAPHENE_POINT_INIT(static_cast<float>(-content.shift_cols * cell_w), static_cast<float>(-content.shift_rows * cell_h));
+          gtk_snapshot_push_clip(s, &shown);
+          gtk_snapshot_save(s);
+          gtk_snapshot_translate(s, &shift);
+          appendTexture(s, paint(layers.size() + 1 + scrolls++, content.cells, true, false), content.row, content.col);
+          gtk_snapshot_restore(s);
+          if (content.band) {
+            const Band & band = *content.band;
+            GdkRGBA tint = channel(band.color, band.alpha);
+            graphene_rect_t strip = GRAPHENE_RECT_INIT(static_cast<float>((content.col + band.col) * cell_w), static_cast<float>((content.row + band.row) * cell_h),
+                                                       static_cast<float>(band.cols * cell_w), static_cast<float>(band.rows * cell_h));
+            gtk_snapshot_append_color(s, &tint, &strip);
+          }
+          gtk_snapshot_pop(s);
+        }
+        GskRenderNode * composed = gtk_snapshot_free_to_node(s);
+        if (below) gsk_render_node_unref(below);
 
-  if (dirty && frame.rows() > 0 && frame.cols() > 0 && rasterizer) {
-    auto raster_start = Clock::now();
-    Image image = rasterizer->render(frame, images, 0, 0, frame.rows(), frame.cols(), cell_h, cell_w, 1, fg, bg);
-    if (image.width > 0 && image.height > 0) {
-      // The pixels move into the texture's bytes; no copy.
-      auto * pixels = new std::vector<uint32_t>(std::move(image.pixels));
-      GBytes * bytes = g_bytes_new_with_free_func(
-          pixels->data(), pixels->size() * sizeof(uint32_t), [](gpointer data) { delete static_cast<std::vector<uint32_t> *>(data); }, pixels);
-      if (texture) g_object_unref(texture);
-      texture = gdk_memory_texture_new(image.width, image.height, GDK_MEMORY_R8G8B8A8, bytes, static_cast<gsize>(image.width) * 4);
-      g_bytes_unref(bytes);
+        s = gtk_snapshot_new();
+        gtk_snapshot_append_node(s, composed);
+        graphene_rect_t region = GRAPHENE_RECT_INIT(static_cast<float>(layer.col * cell_w), static_cast<float>(layer.row * cell_h),
+                                                    static_cast<float>(layer.cols * cell_w), static_cast<float>(layer.rows * cell_h));
+        if (layer.backdrop.blur > 0) {
+          // A Gaussian whose spread grows with the backdrop's blur, as two
+          // passes of half a row per step would (a blur node's radius is
+          // twice its spread).
+          double half_row = std::min(layer.backdrop.blur, Backdrop::kMaxBlur) * cell_h / 2.0;
+          double radius = 2.0 * std::sqrt(2.0 * half_row * (half_row + 1.0) / 3.0);
+          // The edge of the screen blurs with the background, not with nothing.
+          float margin = static_cast<float>(3.0 * radius);
+          graphene_rect_t backing = GRAPHENE_RECT_INIT(region.origin.x - margin, region.origin.y - margin, region.size.width + 2 * margin,
+                                                       region.size.height + 2 * margin);
+          gtk_snapshot_push_clip(s, &region);
+          gtk_snapshot_push_blur(s, radius);
+          gtk_snapshot_append_color(s, &background, &backing);
+          gtk_snapshot_append_node(s, composed);
+          gtk_snapshot_pop(s);
+          gtk_snapshot_pop(s);
+        }
+        if (layer.backdrop.dim > 0.0f) {
+          GdkRGBA tint = channel(layer.backdrop.tint.value_or(bg), layer.backdrop.dim);
+          gtk_snapshot_append_color(s, &tint, &region);
+        }
+        gsk_render_node_unref(composed);
+        below = gtk_snapshot_free_to_node(s);
+      }
+      gtk_snapshot_append_node(snap, below);
+      gsk_render_node_unref(below);
+      appendTexture(snap, paint(layers.size(), frame, true));
     }
-    dirty = false;
-    double ms = msSince(raster_start);
-    stats.raster_ms_total += ms;
-    stats.raster_ms_max = std::max(stats.raster_ms_max, ms);
-  }
-  if (texture) {
-    graphene_rect_t bounds = GRAPHENE_RECT_INIT(0, 0, static_cast<float>(gdk_texture_get_width(texture)), static_cast<float>(gdk_texture_get_height(texture)));
-    gtk_snapshot_append_scaled_texture(snap, texture, GSK_SCALING_FILTER_NEAREST, &bounds);
+    // Layers that are gone leave their textures.
+    size_t used = layers.size() + 1 + scrolls;
+    for (size_t i = used; i < painted.size(); i++) {
+      if (painted[i].texture) g_object_unref(painted[i].texture);
+    }
+    painted.resize(used);
   }
   if (cursor.visible) {
     graphene_rect_t bar = GRAPHENE_RECT_INIT(static_cast<float>(cursor.x * cell_w), static_cast<float>(cursor.y * cell_h), 2.0f, static_cast<float>(cell_h));
@@ -333,12 +518,13 @@ void Window::Impl::buttonEvent(int button, double x, double y, bool pressed, Gdk
 }
 
 void Window::Impl::motionEvent(double x, double y, GdkModifierType state) {
-  if (!held_button) return;
   int row, col;
   cellAt(x, y, row, col);
   if (row == last_row && col == last_col) return;
+  // The pointer's cell, for the wheel to be sent to.
   last_row = row;
   last_col = col;
+  if (!held_button) return;
   unsigned mods = modsFrom(state);
   // A drag repeats the press of the held button at the new cell.
   Input input(Key::Button1 + held_button - 1, row, col, mods & kModAlt, mods & kModShift, mods & kModCtrl, mods & (kModMeta | kModSuper),
@@ -451,7 +637,7 @@ Window::~Window() {
   if (!impl_) return;
   if (impl_->view) reinterpret_cast<CelluiView *>(impl_->view)->impl = nullptr;
   if (impl_->window) gtk_window_destroy(GTK_WINDOW(impl_->window));
-  if (impl_->texture) g_object_unref(impl_->texture);
+  impl_->forgetTextures();
   if (impl_->input_fd >= 0) ::close(impl_->input_fd);
   if (impl_->wake_fd >= 0) ::close(impl_->wake_fd);
 }
@@ -472,16 +658,16 @@ std::vector<BackendEvent> Window::poll() {
   return out;
 }
 
-void Window::present(const CellBuffer & frame, const CursorRequest & cursor, const std::vector<ImagePlacement> & images, const FrameInfo *) {
+void Window::present(const CellBuffer & frame, const CursorRequest & cursor, const std::vector<ImagePlacement> & images, const FrameInfo * info) {
   impl_->frame = frame;
   impl_->cursor = cursor;
   impl_->images = images;
-  impl_->dirty = true;
+  impl_->layers = info ? info->backdrops : std::vector<BackdropLayer>();
   gtk_widget_queue_draw(impl_->view);
 }
 
 void Window::redraw() {
-  impl_->dirty = true;
+  impl_->forgetTextures();
   gtk_widget_queue_draw(impl_->view);
 }
 

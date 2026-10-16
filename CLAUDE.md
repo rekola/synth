@@ -41,10 +41,12 @@ defect this codebase won't ship. FFT support (the live spectrum analyzer,
 MagLS binaural precomputation) is via vendored PocketFFT
 (`third_party/pocketfft/`) — no separate FFT library package needed.
 canvas (`rekola/canvas`, 2D drawing for the scopes and meters, drawn as
-pixels with Cairo) is a dependency of Cell UI, fetched at configure time at a
+pixels with Cairo, or Quartz 2D on macOS) is a dependency of Cell UI, fetched at configure time at a
 pinned commit (`FetchContent` in `lib/cellui/CMakeLists.txt`, built with none
 of our warning flags, its headers reached as SYSTEM includes; GDI+ on
-Windows); bump the pin when canvas changes. The scopes - the spectrum, the
+Windows); bump the pin when canvas changes. The pixel versions make their
+drawing context through `cellui::nativeContext()` (`src/NativeContext.h`), the
+one place that names a canvas backend. The scopes - the spectrum, the
 DirAC heatmap, the channel meter - are Cell UI widgets in the versions each
 backend provides (`cellui::Scopes`, `cellui/Scopes.h`;
 `cellui::scopesFor(display)` picks the display's): the cell versions are
@@ -103,6 +105,24 @@ Ctrl-C and the console closing), `Daemon.cpp` (`--daemon` says it is unsupported
 and exits), `Notifier.h` and `AudioBuffer.h` (aligned allocation). The Windows device backends sit in `synth_engine` behind the same interfaces: `audio/WasapiAudio` (shared-mode, event-driven WASAPI; `wasapi:<endpoint id>` names, `AudioDevicesWasapi.cpp` for the lists) and WinMM MIDI (`midi/WinMmMidiInput`, `WinMmMidiPorts`; `winmm::Watcher` polls the device list, as WinMM has no hotplug notice). They compile in CI but nothing there can run them against a device. The installer (Inno Setup) is built by `.github/workflows/release-windows.yml` from `tools/windows/` and described in `docs/building.md`. Files open by
 UTF-8 path through `util/FileOpen.h`.
 
+### macOS
+
+Builds with Apple clang (Xcode command line tools) and Homebrew: `brew install
+cmake ninja pkg-config fmt libsndfile sound-touch libunistring`. Not GCC:
+canvas' Quartz 2D backend includes Apple's framework headers (blocks syntax),
+and Homebrew's `fmt`/`sound-touch` are built against libc++, which GCC's
+libstdc++ cannot link. Clang does not search `/opt/homebrew`, so set
+`CPATH=/opt/homebrew/include` and `LIBRARY_PATH=/opt/homebrew/lib`. There is
+no audio or MIDI backend yet, so only `-DSYNTH_BUILD_INTERACTIVE=OFF` (the
+render-only `synth`, the engine and the tests) builds;
+`.github/workflows/ci-macos-arm64.yml` does that, runs ctest and renders
+songs. Clang optimizes on `-ffinite-math-only` harder than GCC, so
+`CMakeLists.txt` keeps `-fno-finite-math-only` with `-ffast-math` there. The
+pixel scopes draw through canvas' Quartz 2D backend (no Cairo or fontconfig);
+Core Text falls back to another font for a missing glyph by itself, so
+`CanvasRasterizer` has no fontconfig there. `Notifier` is a pipe (no eventfd)
+and `executableDir()` uses `_NSGetExecutablePath`.
+
 ## Run
 
 ```sh
@@ -156,7 +176,7 @@ PipeWire (and skips without one).
 **Waiting.** Nothing outside a backend sees a file descriptor of the audio
 device: `Player` calls `AudioAPI::wait(notifier, want_capture, timeout)` and
 gets back which of woken/playback/capture is ready (`WaitResult`). The wakeup
-is `util/Notifier.h` (level-triggered; eventfd on Linux, a condition variable
+is `util/Notifier.h` (level-triggered; eventfd on Linux, an event on Windows, a pipe
 elsewhere), which `EventQueue` raises while it holds events. `AlsaAudio::wait()`
 polls the notifier's fd with its streams' own (capture's masked off while not
 wanted: an unstarted capture stream is "ready" forever). `NullAudio`
@@ -1332,7 +1352,7 @@ would otherwise resume showing.
   the app's `UIElement` adds the event handler and the controller), `UIMenu`, and the 2D grid chart contract
   `HeatmapChart`, the generic widgets (`ChoiceDialog`, `InlineEditor`, `SpinBox`, `CoverArt`, `ChannelMeter`,
   `SpectrumMeter` and `LevelMeter.h`'s one dB mapping, ballistics and glyph cells, plus
-  `Digit.h`), `InfoDialog` (the cell rendering of a Markdown info box; a
+  `Digit.h`, `Viewport.h`: the offset, `reveal()` margins and the wheel's detached state every scrolling widget shares; `ChoiceList`, `OutlineView` and `ArrangementGrid` use it; where `DisplayInfo::smooth_scroll` it also animates a shown position toward the offset, and a widget on a plane of its own draws one row more and calls `UIPlane::setScrollOffset()` with the fraction - the plane then composes as a `BackdropLayer::scroll` layer, which the window draws translated from a texture of its own, as `ArrangementGrid` and `OutlineView` (its tree on a plane of its own, under the heading and the button bar, and its cursor, on a smoothly scrolling display, a translucent `setBand()` over the tree so the row shows through: it eases to its row in the view, so at the first or last row in view, with the keys going on, it stays in place and only the content moves (other displays highlight the row in the tree); the content extends the button bar's rows past the last row so that one can scroll clear of the bar) do; `UIPlane::setBand()` puts a translucent strip at a fractional row over such a plane, unshifted, which is the arrangement grid's playhead while the transport plays), `InfoDialog` (the cell rendering of a Markdown info box; a
   backend with richer text drawing lays out `markdown::parse()` itself instead,
   through `UI::showInfoDialog(title, markdown)`), and `BufferPlane`/`CellBuffer` (a
   plane that keeps its own cells, the way a screen's planes do - drawing, moving,
@@ -1377,13 +1397,30 @@ would otherwise resume showing.
   context as GTK's own) and `Window`, a `GtkWindow` with one custom widget whose
   `snapshot()` rasterizes the presented frame (cells and the images over them) with
   `canvasRasterizer()` at scale 1 into one `GdkTexture`, only when something was
-  presented. It reports `DisplayInfo` with the cell size from the font's Pango metrics,
+  presented (its text is drawn in the system's monospace font; a character that font
+  lacks, such as the musical accidentals of the 31- and 53-EDO note names, is drawn from
+  the best installed font that has it, found with fontconfig - the drawing library's own
+  text has no fallback - and shrunk to its cell if wider; fontconfig comes with
+  `libcairo2-dev`). It reports `DisplayInfo` with the cell size from the font's Pango metrics,
   pictures always available and no sextants, and turns GTK's key (taken in the capture
   phase, with real press/repeat/release), click, drag (the held button's press again at
   each new cell), wheel (buttons 4-7) and paste (Ctrl+Shift+V, Shift+Insert) events into
   `BackendEvent`s; a size change is a `RESIZE` in cells and closing the window a `CLOSE`.
-  Events wait in a queue behind an eventfd that is `inputFd()`. Not done yet: per-plane
-  render nodes, input methods, HiDPI, native dialogs and menus. `TestBackend` (`cellui/TestBackend.h`) has no tty or window: input is
+  Events wait in a queue behind an eventfd that is `inputFd()`. A backdrop is the
+  backend's to apply: `BufferPlane::refresh()` sets what is composed below each one aside as a
+  `BackdropLayer` (cells, blur, dim, tint and the rectangle it covers; `takeBackdropLayers()`,
+  handed to the backend in `FrameInfo::backdrops`, always given, bottom first) and leaves the
+  frame with only what is above it, so no backend's work shows in the application or in
+  `BufferPlane`. `Window` draws each layer as a texture (kept while a fingerprint of its cells
+  and pictures is unchanged), then the stack so far again under a GSK blur node and a dim
+  colour inside the backdrop's cells; it never makes the blur itself, whatever the renderer.
+  The terminal cannot blur, so what it shows is made in its own backend: `term::BackdropEmulation`
+  (`TerminalSession::present()`) - cells averaged over their neighbours with the glyphs
+  faded out, or with pictures the cells drawn, blurred and stretched in tiles of 4 x 16
+  cells redrawn only when what they show changed. `TestBackend` stacks the layers
+  unblurred (`info().backdrops` has them) and shows them as a terminal does after
+  `emulateBackdrops(true)`. Not done yet: per-plane render nodes, input methods, HiDPI, native
+  dialogs and menus. `TestBackend` (`cellui/TestBackend.h`) has no tty or window: input is
   pushed by the test, and each presented frame is kept for the test to read
   directly (`text()`, `frame()` cells and their styles, `info()`: the plane tree from
   `BufferPlane::describe()` and the focus `TerminalUI::focusName()` gives, `cursor()`,

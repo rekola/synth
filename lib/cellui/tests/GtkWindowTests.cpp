@@ -84,6 +84,122 @@ TEST(gtk_window_draws_a_presented_frame) {
   CHECK(w->stats().frames == drawn);
 }
 
+TEST(gtk_window_draws_a_frame_over_a_backdrop_layer) {
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  StyleProvider styles;
+  CellBuffer screen(w->rows(), w->cols());
+  BufferPlane root(screen, styles);
+  root.putstr(1, 2, "below the dialog");
+  auto scrim = root.createChild();
+  scrim->setBackdrop(Backdrop{ 2, 0.3f });
+  for (int r = 0; r < w->rows(); r++) scrim->putstr(r, 0, std::string(static_cast<size_t>(w->cols()), ' '));
+  auto dialog = root.createChild();
+  dialog->resize(3, 20);
+  dialog->move(4, 5);
+  dialog->setBgColor(40, 40, 60);
+  dialog->putstr(1, 2, "dialog");
+  root.refresh();
+  FrameInfo info;
+  info.backdrops = root.takeBackdropLayers();
+  CHECK(info.backdrops.size() == 1);
+  size_t before = w->stats().frames;
+  w->present(screen, {}, root.images(), &info);
+  CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+  // The layer's texture is kept: the same frame again draws without
+  // rasterizing anything.
+  double raster = w->stats().raster_ms_total;
+  before = w->stats().frames;
+  w->present(screen, {}, root.images(), &info);
+  CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+  CHECK(w->stats().raster_ms_total == raster);
+  // A frame without layers after it.
+  w->present(screen, {}, root.images());
+  before = w->stats().frames;
+  CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+}
+
+// A plane scrolled by part of a cell is drawn from a texture of its own, kept
+// while its cells are unchanged: moving it by another fraction rasterizes
+// nothing.
+TEST(gtk_window_scrolls_a_plane_without_rasterizing_it_again) {
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  CHECK(w->display().smooth_scroll);
+  StyleProvider styles;
+  CellBuffer screen(w->rows(), w->cols());
+  BufferPlane root(screen, styles);
+  root.setSmoothScroll(true);
+  root.putstr(0, 0, "the heading");
+  auto list = root.createChild();
+  list->resize(5, 20);
+  list->move(2, 1);
+  list->setBgColor(30, 30, 50);
+  for (int r = 0; r < 6; r++) list->putstr(r, 0, "row " + std::to_string(r) + std::string(10, ' '));
+  list->setScrollOffset(0.25, 0);
+  root.refresh();
+  FrameInfo info;
+  info.backdrops = root.takeBackdropLayers();
+  CHECK(info.backdrops.size() == 1 && info.backdrops[0].scroll);
+  size_t before = w->stats().frames;
+  w->present(screen, {}, root.images(), &info);
+  CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+  double raster = w->stats().raster_ms_total;
+  CHECK(raster > 0);
+  for (double shift : { 0.5, 0.75 }) {
+    list->setScrollOffset(shift, 0);
+    root.refresh();
+    FrameInfo moved;
+    moved.backdrops = root.takeBackdropLayers();
+    CHECK(moved.backdrops.size() == 1);
+    before = w->stats().frames;
+    w->present(screen, {}, root.images(), &moved);
+    CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+  }
+  CHECK(w->stats().raster_ms_total == raster);
+  // Other cells in the plane are a new texture.
+  list->erase();
+  list->putstr(0, 0, "changed");
+  list->setScrollOffset(0.5, 0);
+  root.refresh();
+  FrameInfo changed;
+  changed.backdrops = root.takeBackdropLayers();
+  before = w->stats().frames;
+  w->present(screen, {}, root.images(), &changed);
+  CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+  CHECK(w->stats().raster_ms_total > raster);
+}
+
+// A band over a scrolled plane (a playhead) moves without the plane's
+// texture being drawn again.
+TEST(gtk_window_moves_a_band_without_rasterizing) {
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  StyleProvider styles;
+  CellBuffer screen(w->rows(), w->cols());
+  BufferPlane root(screen, styles);
+  root.setSmoothScroll(true);
+  auto list = root.createChild();
+  list->resize(5, 20);
+  list->move(2, 1);
+  list->setBgColor(30, 30, 50);
+  for (int r = 0; r < 5; r++) list->putstr(r, 0, "row " + std::to_string(r) + std::string(10, ' '));
+  size_t before = 0;
+  double raster = -1;
+  for (double y : { 0.5, 1.25, 2.9 }) {
+    list->setBand(Band{ y, 0.12, 0, 20, Color(255, 200, 0), 1.0f });
+    root.refresh();
+    FrameInfo info;
+    info.backdrops = root.takeBackdropLayers();
+    CHECK(info.backdrops.size() == 1 && info.backdrops[0].scroll && info.backdrops[0].scroll->band);
+    before = w->stats().frames;
+    w->present(screen, {}, root.images(), &info);
+    CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+    if (raster < 0) raster = w->stats().raster_ms_total;
+  }
+  CHECK(w->stats().raster_ms_total == raster);
+}
+
 TEST(gtk_window_wake_is_its_own_fd) {
   gtk::Window * w = theWindow();
   if (!w) return;
@@ -121,6 +237,18 @@ TEST(gtk_loop_runs_ready_sources_and_hooks) {
   CHECK(order == "btbR");
   ::close(fds[0]);
   ::close(fds[1]);
+}
+
+TEST(gtk_loop_idle_wait_sleeps_through_the_time_limit) {
+  if (!theWindow()) return;
+  gtk::GlibEventLoop loop;
+  int turns = 0;
+  loop.setBefore([&] { return 100; });
+  loop.setAfter([&](bool) { turns++; });
+  auto start = std::chrono::steady_clock::now();
+  while (std::chrono::steady_clock::now() - start < std::chrono::milliseconds(500)) loop.iterate(true);
+  // A wait that signalled its own context would return at once, every time.
+  CHECK(turns < 20);
 }
 
 TEST(gtk_loop_runs_nest_and_quit_ends_the_innermost) {
@@ -188,6 +316,16 @@ TEST(gtk_window_input_from_the_display) {
     CHECK(got[4].input.getId() == Key::Up);
   }
 
+  // Alt comes with the key as the Alt modifier, for the M-x chord.
+  got.clear();
+  xdotool("key alt+x");
+  CHECK(gather(2));
+  if (got.size() >= 2) {
+    bool x_alt = false;
+    for (auto & e : got) x_alt |= e.input.getId() == 'x' && e.input.hasAlt();
+    CHECK(x_alt);
+  }
+
   // A click: the cell under the pointer, press and release.
   got.clear();
   int cw = w->display().cell_px_width, ch = w->display().cell_px_height;
@@ -206,6 +344,20 @@ TEST(gtk_window_input_from_the_display) {
   if (got.size() >= 2) {
     CHECK(got[0].input.getId() == Key::Button5 && got[0].input.getY() == 3 && got[0].input.getX() == 5);
     CHECK(got[1].input.getId() == Key::Button4);
+  }
+
+  // The wheel goes to where the pointer is now, not to the last cell clicked.
+  got.clear();
+  xdotool("search --name cellui-test mousemove --window %1 " + std::to_string(cw * 9 + 2) + " " + std::to_string(ch * 6 + 2) + " click 5");
+  CHECK(pumpUntil(*w, [&] {
+    for (auto & e : w->poll()) got.push_back(e);
+    for (auto & e : got) {
+      if (e.input.getId() == Key::Button5) return true;
+    }
+    return false;
+  }));
+  for (auto & e : got) {
+    if (e.input.getId() == Key::Button5) CHECK(e.input.getY() == 6 && e.input.getX() == 9);
   }
 
   // A new window size is a resize in cells.

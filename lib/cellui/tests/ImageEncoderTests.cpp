@@ -168,7 +168,7 @@ std::vector<uint8_t> pngScanlines(const std::vector<uint8_t> & png, uint32_t & w
       bool last = false;
       while (!last) {
         last = png[p] & 1;
-        size_t n = png[p + 1] | (png[p + 2] << 8);
+        size_t n = static_cast<size_t>(png[p + 1] | (png[p + 2] << 8));
         raw.insert(raw.end(), png.begin() + static_cast<long>(p + 5), png.begin() + static_cast<long>(p + 5 + n));
         p += 5 + n;
       }

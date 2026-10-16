@@ -3,6 +3,7 @@
 #include <cellui/term/TerminalSession.h>
 
 #include <atomic>
+#include <csignal>
 #include <fcntl.h>
 #include <fstream>
 #include <mutex>

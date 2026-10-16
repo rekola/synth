@@ -110,6 +110,7 @@ TEST(terminal_ui_set_song_scale_lists_scales_and_saves_the_choice) {
 // back as it was.
 TEST(terminal_ui_modal_dialog_shows_the_screen_behind_it_through_a_backdrop) {
   UIFixture f;
+  f.terminal.emulateBackdrops(true); // as a terminal shows one
   auto menu = f.terminal.text().find("File");
   CHECK(menu != std::string::npos);
   auto sharp = f.terminal.frame().at(0, 0);
@@ -134,6 +135,21 @@ TEST(terminal_ui_modal_dialog_shows_the_screen_behind_it_through_a_backdrop) {
   CHECK(red(back) == red(sharp) && green(back) == green(sharp) && back.text == sharp.text);
 }
 
+// The app only sets what is behind a modal dialog aside; the backend applies
+// the backdrop.
+TEST(terminal_ui_modal_dialog_gives_the_backend_the_screen_behind_it_as_a_layer) {
+  UIFixture f;
+  CHECK(f.terminal.info().backdrops.empty());
+  f.execute("about");
+  const auto & layers = f.terminal.info().backdrops;
+  CHECK(layers.size() == 1);
+  CHECK(layers[0].backdrop.active());
+  CHECK(layers[0].cells.toPlainText().find("File") != std::string::npos);
+  CHECK(layers[0].cells.toPlainText().find("About") == std::string::npos);
+  f.press(cellui::Key::Escape);
+  CHECK(f.terminal.info().backdrops.empty());
+}
+
 // Where the terminal shows images stretched over cells, the backdrop is
 // pictures of the screen behind, in tiles, and the dialog stays text.
 TEST(terminal_ui_modal_backdrop_is_pictures_where_the_terminal_shows_them) {
@@ -142,6 +158,7 @@ TEST(terminal_ui_modal_backdrop_is_pictures_where_the_terminal_shows_them) {
   display.cell_px_height = 20;
   display.cell_px_width = 10;
   UIFixture f("", UI::View::LIVE, display);
+  f.terminal.emulateBackdrops(true);
   size_t before = f.terminal.images().size();
   f.execute("about");
   size_t stretched = 0;
@@ -152,6 +169,21 @@ TEST(terminal_ui_modal_backdrop_is_pictures_where_the_terminal_shows_them) {
   CHECK(f.text().find("About") != std::string::npos);
   f.press(cellui::Key::Escape);
   for (auto & p : f.terminal.images()) CHECK(!p.image->stretched());
+}
+
+// A backend that reports releases (a window, a kitty-protocol terminal) sends
+// the release of the Enter that ran the command after the dialog is open; it
+// must not close it.
+TEST(terminal_ui_info_dialog_ignores_key_releases) {
+  UIFixture f;
+  f.execute("about");
+  f.terminal.pushKey(cellui::Key::Enter, 0, cellui::Input::Kind::RELEASE);
+  f.terminal.pushKey('q', 0, cellui::Input::Kind::RELEASE);
+  f.ui->step();
+  CHECK(f.terminal.info().focus == "info-dialog");
+  f.terminal.pushKey(cellui::Key::Enter, 0, cellui::Input::Kind::PRESS);
+  f.ui->step();
+  CHECK(f.terminal.info().focus != "info-dialog");
 }
 
 // The about dialog leaves the mouse to the terminal, to select its text with,

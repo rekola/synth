@@ -2,6 +2,7 @@
 
 #include <cellui/Backend.h>
 #include <cellui/PollEventLoop.h>
+#include <cellui/term/BackdropEmulation.h>
 
 #include <deque>
 #include <string>
@@ -38,13 +39,16 @@ class TestBackend : public Backend {
                const std::vector<ImagePlacement> & images = {}, const FrameInfo * info = nullptr) override;
   bool wantsFrameInfo() const override { return true; }
   void redraw() override { redraws_++; }
+  // Shows backdrops as a terminal would (blurred cells or pictures); off,
+  // the layers are stacked as they are, and info().backdrops has them.
+  void emulateBackdrops(bool on) { emulate_backdrops_ = on; }
   void setNativeSelection(bool on) override { native_selection_ = on; }
   bool nativeSelection() const { return native_selection_; }
 
   // Input.
   void push(const BackendEvent & event);
   // `mods` are the kMod bits (Input.h).
-  void pushKey(int key, unsigned mods = 0) { push(BackendEvent::makeInput(keyInput(key, mods))); }
+  void pushKey(int key, unsigned mods = 0, Input::Kind kind = Input::Kind::UNKNOWN) { push(BackendEvent::makeInput(keyInput(key, mods, kind))); }
   // Each character of `text` as a key (UTF-8 aware).
   void pushText(const std::string & text);
   void pushMouse(int y, int x, int key, unsigned mods = 0, Input::Kind kind = Input::Kind::PRESS);
@@ -77,6 +81,8 @@ class TestBackend : public Backend {
   CursorRequest cursor_;
   std::vector<ImagePlacement> images_;
   FrameInfo info_;
+  term::BackdropEmulation backdrops_;
+  bool emulate_backdrops_ = false;
   size_t frames_ = 0, redraws_ = 0;
   bool native_selection_ = false;
 };

@@ -1,7 +1,7 @@
 #pragma once
 
+#include <cellui/BackdropLayer.h>
 #include <cellui/CellBuffer.h>
-#include <cellui/CellRasterizer.h>
 #include <cellui/Image.h>
 #include <cellui/LineEditor.h>
 #include <cellui/PlaneInfo.h>
@@ -63,6 +63,15 @@ class BufferPlane : public UIPlane {
   void setBgBlend(bool b) override { style_.bg_blend = b; }
   void setFgContrast(bool b) override { style_.fg_contrast = b; }
   void setBackdrop(const Backdrop & b) override { style_.backdrop = b; }
+  void setScrollOffset(double rows, double cols) override;
+  void setBand(const Band & band) override {
+    if (root().smooth_scroll_) band_ = band;
+  }
+  void clearBand() override { band_.reset(); }
+  // Whether the display can shift a plane by a fraction of a cell; planes
+  // are shown unshifted otherwise (root only).
+  void setSmoothScroll(bool smooth) { smooth_scroll_ = smooth; }
+  bool smoothScroll() const override { return root().smooth_scroll_; }
   void erase() override {
     local_.clear(0, 0, local_.rows(), local_.cols());
     // Kept, so the same picture drawn again after erase() is not sent again.
@@ -126,13 +135,10 @@ class BufferPlane : public UIPlane {
   // plane base background (under the glyph below) wherever it writes
   // nothing, until makeTransparent() (root only).
   void setThemedBases(bool themed) { themed_bases_ = themed; }
-  // With a rasterizer and the cell size in pixels, a blurring backdrop is
-  // shown as pictures of the cells below it drawn, blurred and stretched
-  // over its cells, in tiles redrawn only when what they show changed
-  // (root only).
-  void setRasterizer(std::shared_ptr<CellRasterizer> rasterizer) { rasterizer_ = std::move(rasterizer); }
-  // How many tiles the last refresh() drew anew (root only).
-  int redrawnBackdropTiles() const { return redrawn_tiles_; }
+  // The layers the last refresh() set aside, one for each backdrop: what was
+  // composed below it. A backdrop is the display's to apply, so the frame
+  // holds only what is above it (root only).
+  std::vector<BackdropLayer> takeBackdropLayers() { return std::move(layers_); }
   // What canRenderSextants() reports, for the whole tree (root only).
   void setSextants(bool can) { sextants_ = can; }
   bool canRenderSextants() const override { return root().sextants_; }
@@ -158,12 +164,6 @@ class BufferPlane : public UIPlane {
   // corner at (row, col), inside the clip rectangle.
   void compose(CellBuffer & out, int row, int col, int clip_row, int clip_col, int clip_rows, int clip_cols) const;
   bool shown() const;
-  // The placement's image as `backdrop` shows it (root only).
-  std::shared_ptr<const Image> filteredImage(const ImagePlacement & placement, const Backdrop & backdrop) const;
-  // Places the backdrop picture of screen cells [row, row + rows) x
-  // [col, col + cols) over `below`, drawn anew only if what it shows changed,
-  // and returns its placement's index (root only).
-  int backdropTile(const CellBuffer & below, int row, int col, int rows, int cols, const Backdrop & backdrop) const;
   void drawReader();
   void drawPicker();
 
@@ -172,6 +172,12 @@ class BufferPlane : public UIPlane {
   BufferPlane * parent_ = nullptr;
   std::vector<BufferPlane *> children_;  // bottom to top
   CellBuffer::Style style_;
+  // A plane that scrolls by fractions of a cell holds a row and a column
+  // more than its size (overscan_), and composes as a scroll layer while
+  // shifted.
+  double scroll_rows_ = 0, scroll_cols_ = 0;
+  std::optional<Band> band_;
+  bool overscan_ = false;
   bool visible_ = true;
   std::string name_;
 
@@ -189,30 +195,12 @@ class BufferPlane : public UIPlane {
   Color default_fg_ = Color(255, 255, 255), default_bg_ = Color(0, 0, 0);
   double display_scale_ = 1.0;
   bool sextants_ = false;
+  bool smooth_scroll_ = false;
+  mutable std::vector<BackdropLayer> layers_;
   bool flat_ = false;
   bool themed_bases_ = false;
   int cell_px_h_ = 0, cell_px_w_ = 0;
   mutable std::vector<ImagePlacement> placements_;
-  // Images as a backdrop shows them, kept while they are shown so that one
-  // is filtered and sent once.
-  struct FilteredImage {
-    uint64_t key = 0, source_version = 0;
-    Backdrop backdrop;
-    std::shared_ptr<const Image> image;
-    bool used = false;
-  };
-  mutable std::vector<FilteredImage> filtered_images_;
-  std::shared_ptr<CellRasterizer> rasterizer_;
-  struct BackdropTile {
-    int row = 0, col = 0, rows = 0, cols = 0;
-    uint64_t hash = 0, key = 0;
-    Backdrop backdrop;
-    std::shared_ptr<const Image> image;
-    bool used = false;
-  };
-  mutable std::vector<BackdropTile> backdrop_tiles_;
-  mutable int redrawn_tiles_ = 0;
-
   // The background of the cells nothing was written to; unset shows below.
   std::optional<Color> base_bg_;
   // The images shown over the plane's cells, by cell position, each under

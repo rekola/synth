@@ -4,7 +4,12 @@
 
 #include "TerminalUIFixture.h"
 
+#include <chrono>
+#include <cmath>
+#include <map>
+#include <optional>
 #include <regex>
+#include <thread>
 
 using namespace terminal_ui_test;
 namespace Key = cellui::Key;
@@ -247,4 +252,118 @@ TEST(terminal_ui_live_view_layout_and_the_clip_grid_cursor) {
 
   f.press(Key::Tab);
   CHECK(f.line(1).find("Outline") == std::string::npos);  // Arrangement view brings the scope row back
+}
+
+// On a display that shifts planes by part of a cell, a wheel notch moves the
+// arrangement grid there over several frames: it is shown between bars, as a
+// plane shifted by a fraction, until it settles on the whole bar.
+TEST(terminal_ui_smooth_scroll_moves_the_arrangement_grid_between_bars) {
+  cellui::DisplayInfo display;
+  display.smooth_scroll = true;
+  UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT, display);
+  auto shift = [&]() -> std::optional<double> {
+    for (const auto & layer : f.terminal.info().backdrops) {
+      if (layer.scroll) return layer.scroll->shift_rows;
+    }
+    return std::nullopt;
+  };
+  CHECK(!shift());  // at rest it is not shifted
+  f.wheel(3, 20);
+  double seen = 0;
+  bool between = false;
+  for (int i = 0; i < 100; i++) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(16));
+    f.ui->step();
+    if (auto s = shift()) {
+      between = true;
+      seen = *s;
+    }
+  }
+  CHECK(between && seen > 0.0 && seen < 1.0);
+  CHECK(!shift());  // settled on a whole bar
+}
+
+// The outline's tree scrolls by parts of a row under its heading, which stays
+// where it is.
+TEST(terminal_ui_smooth_scroll_moves_the_outline_tree_under_its_heading) {
+  cellui::DisplayInfo display;
+  display.smooth_scroll = true;
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, display);
+  auto shift = [&]() -> std::optional<double> {
+    for (const auto & layer : f.terminal.info().backdrops) {
+      if (layer.scroll) return layer.scroll->shift_rows;
+    }
+    return std::nullopt;
+  };
+  auto heading_row = [&]() {
+    for (size_t y = 0; y < 6; y++) {
+      if (f.line(y).find("Outline") == 1) return static_cast<int>(y);
+    }
+    return -1;
+  };
+  int heading = heading_row();
+  CHECK(heading >= 0);
+  CHECK(!shift());
+  f.wheel(heading + 5, 5);
+  bool between = false;
+  for (int i = 0; i < 100; i++) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(16));
+    f.ui->step();
+    if (auto s = shift()) {
+      between = true;
+      CHECK(*s > 0.0 && *s < 1.0);
+    }
+    CHECK(heading_row() == heading);
+  }
+  CHECK(between);
+  CHECK(!shift());
+  // It moved: the tree's first rows are not the first any more.
+  CHECK(f.line(static_cast<size_t>(heading + 1)).find("Song") == std::string::npos);
+}
+
+// The outline's cursor is a layer of its own: once it is on the last row in
+// view and the keys go on, it stays where it is and only the content moves.
+TEST(terminal_ui_smooth_scroll_keeps_the_outline_cursor_in_place_at_the_edge) {
+  cellui::DisplayInfo display;
+  display.smooth_scroll = true;
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, display);
+  int heading = -1;
+  for (size_t y = 0; y < 6; y++) {
+    if (f.line(y).find("Outline") == 1) heading = static_cast<int>(y);
+  }
+  CHECK(heading >= 0);
+  // The cursor is a translucent band over the tree, so the row shows through.
+  auto cursor_row = [&]() {
+    for (const auto & layer : f.terminal.info().backdrops) {
+      if (layer.scroll && layer.scroll->band) {
+        return static_cast<int>(std::lround(layer.scroll->row + layer.scroll->band->row));
+      }
+    }
+    return -1;
+  };
+  auto settle = [&]() {
+    for (int i = 0; i < 100; i++) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(16));
+      f.ui->step();
+    }
+  };
+  for (int i = 0; i < 4 && f.terminal.info().focus != "outline-view"; i++) f.otherWindow();
+  settle();
+  for (int i = 0; i < 40; i++) f.press(cellui::Key::Down);
+  settle();
+  int edge = cursor_row();
+  CHECK(edge > heading + 3);
+  // More keys: the content moves under it, the cursor does not.
+  bool moved = false;
+  std::string before = f.line(static_cast<size_t>(edge));
+  for (int i = 0; i < 3; i++) {
+    f.press(cellui::Key::Down);
+    for (int j = 0; j < 40; j++) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(8));
+      f.ui->step();
+      CHECK(cursor_row() == edge);
+    }
+    if (f.line(static_cast<size_t>(edge)) != before) moved = true;
+  }
+  CHECK(moved);
 }

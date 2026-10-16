@@ -8,6 +8,9 @@ namespace cellui {
 
 namespace {
 
+// Columns of padding each side of an item's label in the open panel.
+constexpr int kPad = 1;
+
 int lower(int c) { return c >= 'A' && c <= 'Z' ? c - 'A' + 'a' : c; }
 
 }  // namespace
@@ -35,7 +38,7 @@ int MenuBar::bodyWidth(int section) const {
 
 int MenuBar::boxColumn() const {
   int x = sectionColumn(open_);
-  int width = bodyWidth(open_) + 2;
+  int width = bodyWidth(open_) + 2 * kPad;
   if (x + width > cols_) x = std::max(0, cols_ - width);
   return x;
 }
@@ -45,15 +48,13 @@ void MenuBar::layout(int parent_cols) {
   size_t longest = 0;
   for (const Section & s : sections_) longest = std::max(longest, s.items.size());
   plane_.move(0, 0);
-  plane_.resize(1 + static_cast<int>(longest) + 2, std::max(1, cols_));
+  plane_.resize(1 + static_cast<int>(longest) + 1, std::max(1, cols_));
   draw();
 }
 
 void MenuBar::draw() {
   plane_.erase();
   if (cols_ <= 0) return;
-  plane_.setBgBlend(colors_.translucent);
-  plane_.setFgContrast(false);
   auto ink = [&](const Color & fg, const Color & bg) {
     plane_.setFgColor(fg.getRed(), fg.getGreen(), fg.getBlue());
     plane_.setBgColor(bg.getRed(), bg.getGreen(), bg.getBlue());
@@ -87,38 +88,33 @@ void MenuBar::draw() {
   }
   if (open_ < 0) return;
 
-  // The open section: a rounded box, the items inside.
+  // The open section: an opaque panel under the header, no border, a column
+  // of padding each side of the labels and a row below them.
   const Section & s = sections_[static_cast<size_t>(open_)];
   int body = bodyWidth(open_);
+  int width = body + 2 * kPad;
   int x0 = boxColumn();
-  std::string horizontal;
-  for (int i = 0; i < body; i++) horizontal += "─";
-  ink(colors_.header_fg, colors_.header_bg);
-  plane_.putstr(1, x0, "╭" + horizontal + "╮");
-  plane_.putstr(2 + static_cast<int>(s.items.size()), x0, "╰" + horizontal + "╯");
-  for (size_t i = 0; i < s.items.size(); i++) {
-    int y = 2 + static_cast<int>(i);
-    const Item & item = s.items[i];
+  int rows = static_cast<int>(s.items.size());
+  ink(colors_.section_fg, colors_.section_bg);
+  for (int y = 1; y <= rows + 1; y++) plane_.putstr(y, x0, std::string(static_cast<size_t>(width), ' '));
+  for (int i = 0; i < rows; i++) {
+    int y = 1 + i;
+    const Item & item = s.items[static_cast<size_t>(i)];
     if (item.separator) {
-      ink(colors_.header_fg, colors_.header_bg);
-      plane_.putstr(y, x0, "├" + horizontal + "┤");
+      std::string rule;
+      for (int k = 0; k < body; k++) rule += "─";
+      ink(colors_.disabled_fg, colors_.section_bg);
+      plane_.putstr(y, x0 + kPad, rule);
       continue;
     }
-    ink(colors_.header_fg, colors_.header_bg);
-    plane_.putstr(y, x0, "│");
-    plane_.putstr(y, x0 + body + 1, "│");
-    std::string text = utf8::padToWidth(item.label, body);
-    if (static_cast<int>(i) == selected_) {
-      // The highlighted item: the section's colours swapped, solid.
-      plane_.setBgBlend(false);
+    std::string text = std::string(kPad, ' ') + utf8::padToWidth(item.label, body) + std::string(kPad, ' ');
+    if (i == selected_) {
+      // The highlighted item: the section's colours swapped, across the panel.
       ink(colors_.section_bg, colors_.section_fg);
     } else {
-      plane_.setFgContrast(colors_.translucent);
       ink(item.enabled ? colors_.section_fg : colors_.disabled_fg, colors_.section_bg);
     }
-    plane_.putstr(y, x0 + 1, text);
-    plane_.setBgBlend(colors_.translucent);
-    plane_.setFgContrast(false);
+    plane_.putstr(y, x0, text);
   }
 }
 
@@ -193,8 +189,8 @@ bool MenuBar::offerInput(const Input & input) {
       return false;
     }
     if (open_ >= 0) {
-      int item = y - 2, x0 = boxColumn();
-      if (x > x0 && x <= x0 + bodyWidth(open_) && selectable(open_, item)) {
+      int item = y - 1, x0 = boxColumn();
+      if (x >= x0 && x < x0 + bodyWidth(open_) + 2 * kPad && selectable(open_, item)) {
         activated_ = std::pair(open_, item);
         close();
         return true;

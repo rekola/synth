@@ -1,10 +1,16 @@
 #include <cellui/CellRasterizer.h>
+#include <cellui/Utf8.h>
 
 #include <canvas/Context.h>
-#include <canvas/ContextCairo.h>
+#include "NativeContext.h"
+
+#ifndef __APPLE__
+#include <fontconfig/fontconfig.h>
+#endif
 
 #include <algorithm>
 #include <cmath>
+#include <map>
 
 namespace cellui {
 
@@ -19,6 +25,87 @@ uint32_t firstCodepoint(const std::string & s) {
   if ((c >> 4) == 14) return ((c & 0x0F) << 12) | ((b(1) & 0x3F) << 6) | (b(2) & 0x3F);
   return ((c & 0x07) << 18) | ((b(1) & 0x3F) << 12) | ((b(2) & 0x3F) << 6) | (b(3) & 0x3F);
 }
+
+#ifdef __APPLE__
+// Core Text draws a character the font lacks with another font by itself.
+class FontFallback {
+ public:
+  explicit FontFallback(std::string) { }
+  const std::string & familyFor(uint32_t) {
+    static const std::string kPrimary;
+    return kPrimary;
+  }
+};
+#else
+// Which font draws a character. The text drawing has no fallback of its own,
+// so a character the font asked for lacks (a musical accidental, say) is drawn
+// with the best installed font that has it, asked of fontconfig.
+class FontFallback {
+ public:
+  explicit FontFallback(std::string family) : family_(std::move(family)) {
+    FcInit();
+    primary_ = charsetOf(family_, 0);
+  }
+  ~FontFallback() {
+    if (primary_) FcCharSetDestroy(primary_);
+  }
+  FontFallback(const FontFallback &) = delete;
+  FontFallback & operator=(const FontFallback &) = delete;
+
+  // The family to draw `cp` with: empty for the one asked for.
+  const std::string & familyFor(uint32_t cp) {
+    static const std::string kPrimary;
+    if (cp < 0x80 || !primary_ || FcCharSetHasChar(primary_, cp)) return kPrimary;
+    auto found = cache_.find(cp);
+    if (found == cache_.end()) found = cache_.emplace(cp, search(cp)).first;
+    return found->second;
+  }
+
+ private:
+  // The best installed font for `family` that has `cp` (any, when 0).
+  FcPattern * match(const std::string & family, uint32_t cp) const {
+    FcPattern * pattern = FcPatternCreate();
+    FcPatternAddString(pattern, FC_FAMILY, reinterpret_cast<const FcChar8 *>(family.c_str()));
+    if (cp) {
+      FcCharSet * wanted = FcCharSetCreate();
+      FcCharSetAddChar(wanted, cp);
+      FcPatternAddCharSet(pattern, FC_CHARSET, wanted);
+      FcCharSetDestroy(wanted);
+    }
+    FcConfigSubstitute(nullptr, pattern, FcMatchPattern);
+    FcDefaultSubstitute(pattern);
+    FcResult result;
+    FcPattern * best = FcFontMatch(nullptr, pattern, &result);
+    FcPatternDestroy(pattern);
+    return best;
+  }
+  FcCharSet * charsetOf(const std::string & family, uint32_t cp) const {
+    FcPattern * best = match(family, cp);
+    if (!best) return nullptr;
+    FcCharSet * set = nullptr;
+    FcCharSet * own = nullptr;
+    if (FcPatternGetCharSet(best, FC_CHARSET, 0, &own) == FcResultMatch) set = FcCharSetCopy(own);
+    FcPatternDestroy(best);
+    return set;
+  }
+  std::string search(uint32_t cp) const {
+    std::string name;
+    FcPattern * best = match(family_, cp);
+    if (!best) return name;
+    FcChar8 * family = nullptr;
+    FcCharSet * set = nullptr;
+    if (FcPatternGetCharSet(best, FC_CHARSET, 0, &set) == FcResultMatch && FcCharSetHasChar(set, cp) &&
+        FcPatternGetString(best, FC_FAMILY, 0, &family) == FcResultMatch)
+      name = reinterpret_cast<const char *>(family);
+    FcPatternDestroy(best);
+    return name;
+  }
+
+  std::string family_;
+  FcCharSet * primary_ = nullptr;
+  std::map<uint32_t, std::string> cache_;
+};
+#endif
 
 // An opaque RGB picture that rectangles are drawn into with their exact
 // coverage of each pixel, so shapes smaller than a pixel still count.
@@ -71,7 +158,7 @@ class Pixels {
 
 class CanvasRasterizer : public CellRasterizer {
  public:
-  explicit CanvasRasterizer(std::string family) : family_(std::move(family)) { }
+  explicit CanvasRasterizer(std::string family) : family_(family), fonts_(std::move(family)) { }
 
   Image render(const CellBuffer & cells, const std::vector<ImagePlacement> & images, int row, int col, int rows, int cols, int cell_h,
                int cell_w, int scale, Color default_fg, Color default_bg) override {
@@ -157,11 +244,12 @@ class CanvasRasterizer : public CellRasterizer {
     return true;
   }
 
-  // The text, in runs of cells of one colour and weight, over the picture,
+  // The text, a cell at a time in runs of one colour and weight, over the picture,
   // in the system's font sized so that its advance is a cell's width.
   void drawText(std::vector<unsigned char> & rgba, const CellBuffer & cells, int row, int col, int r_lo, int r_hi, int c_lo, int c_hi,
                 int width, int height, double s, int cell_h, int cell_w, const Color & default_fg) {
-    canvas::ContextCairo ctx(static_cast<unsigned>(width), static_cast<unsigned>(height));
+    auto context = cellui::nativeContext(static_cast<unsigned>(width), static_cast<unsigned>(height));
+    canvas::Context & ctx = *context;
     canvas::ImageData base(rgba.data(), static_cast<unsigned>(width), static_cast<unsigned>(height), 4);
     ctx.drawImage(base, 0, 0, width, height);
     ctx.scale(1.0 / s, 1.0 / s);
@@ -177,8 +265,13 @@ class CanvasRasterizer : public CellRasterizer {
           continue;
         }
         Color fg = first.fg.value_or(default_fg);
-        std::string run;
-        int start = c;
+        ctx.fillStyle = canvas::Color(fg.getRed() / 255.0f, fg.getGreen() / 255.0f, fg.getBlue() / 255.0f, 1.0f);
+        ctx.font.weight = first.bold ? "bold" : "normal";
+        auto draw = [&](const std::string & text, int at, const std::string & family) {
+          if (text.empty()) return;
+          ctx.font.family = family;
+          ctx.fillText(text, (at - col) * cell_w, (r - row) * cell_h + cell_h / 2.0);
+        };
         for (; c < c_hi; c++) {
           const CellBuffer::Cell & cell = cells.at(r, c);
           if (cell.continuation) continue;
@@ -186,11 +279,23 @@ class CanvasRasterizer : public CellRasterizer {
           if (cell.image > 0 || cell.bold != first.bold || cell_fg.getRed() != fg.getRed() || cell_fg.getGreen() != fg.getGreen() ||
               cell_fg.getBlue() != fg.getBlue() || drawShape(none, cell, 0, 0, 1, 1, Color()))
             break;
-          run += cell.text;
+          const std::string & other = fonts_.familyFor(firstCodepoint(cell.text));
+          if (!other.empty()) {
+            // A character of another font stands alone in its cell.
+            // Shrunk to its cell if its font draws it wider.
+            float size = ctx.font.size;
+            ctx.font.family = other;
+            double glyph_width = ctx.measureText(cell.text).width;
+            int cells_wide = std::max(1, utf8::displayWidth(cell.text));
+            if (glyph_width > cells_wide * cell_w) ctx.font.size = static_cast<float>(size * cells_wide * cell_w / glyph_width);
+            draw(cell.text, c, other);
+            ctx.font.size = size;
+            continue;
+          }
+          // One cell at a time, so the glyphs sit on the grid whatever the
+          // font's advances are (a space is not always as wide as a letter).
+          if (cell.text != " ") draw(cell.text, c, family_);
         }
-        ctx.fillStyle = canvas::Color(fg.getRed() / 255.0f, fg.getGreen() / 255.0f, fg.getBlue() / 255.0f, 1.0f);
-        ctx.font.weight = first.bold ? "bold" : "normal";
-        ctx.fillText(run, (start - col) * cell_w, (r - row) * cell_h + cell_h / 2.0);
       }
     }
     // The surface's own layout is bytes B, G, R, A (opaque here).
@@ -220,6 +325,7 @@ class CanvasRasterizer : public CellRasterizer {
   }
 
   std::string family_;
+  FontFallback fonts_;
   int measured_h_ = 0, measured_w_ = 0;
   float font_size_ = 0;
 };

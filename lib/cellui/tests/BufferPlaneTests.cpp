@@ -233,14 +233,15 @@ TEST(bufferplane_picker_lists_and_wraps) {
   root.addItem("beta", "");
   root.addItem("gamma", "");
   root.refresh();
-  CHECK(b.toPlainText() == "\n  ╭────────╮\n  │        │\n  │ alpha  │\n  │  beta  │\n  │ gamma  │\n  │        │\n  ╰────────╯\n");
+  CHECK(b.toPlainText() == "\n\n    alpha\n     beta\n    gamma\n");
+  CHECK(b.at(2, 2).bg && b.at(1, 2).bg);  // opaque, padding rows included
   CHECK(root.getPickerSelection() == "alpha");
   CHECK(root.offerInput(Input(cellui::Key::Up, -1, -1, false, false, false, false)));
   CHECK(root.getPickerSelection() == "gamma");
   root.selectPickerItem(1);
   CHECK(root.getPickerSelection() == "beta");
   // A click on a row selects it; Enter is the owner's.
-  CHECK(root.offerInput(Input(cellui::Key::Button1, 3, 5, false, false, false, false, Input::Kind::RELEASE)));
+  CHECK(root.offerInput(Input(cellui::Key::Button1, 2, 5, false, false, false, false, Input::Kind::RELEASE)));
   CHECK(root.getPickerSelection() == "alpha");
   CHECK(!root.offerInput(Input(cellui::Key::Enter, -1, -1, false, false, false, false)));
   root.closePicker();
@@ -464,174 +465,121 @@ std::unique_ptr<UIPlane> scrimOver(BufferPlane & root, const Backdrop & backdrop
 
 }  // namespace
 
-TEST(bufferplane_backdrop_dims_toward_its_tint_and_keeps_the_text) {
-  StyleProvider styles;
-  CellBuffer b(1, 4);
-  BufferPlane root(b, styles);
-  root.setFgColor(200, 200, 200);
-  root.setBgColor(100, 100, 100);
-  root.putstr(0, 0, "ab");
-  auto scrim = scrimOver(root, Backdrop{0, 0.5f, Color(0, 0, 0)});
-  root.refresh();
-  CHECK(b.toPlainText() == "ab\n");
-  CHECK(b.at(0, 0).fg->getRed() == 100);
-  CHECK(b.at(0, 0).bg->getRed() == 50);
-  CHECK(!b.at(0, 0).backdrop.active());
-}
-
-TEST(bufferplane_backdrop_blur_spreads_colour_and_leaves_no_glyph) {
-  StyleProvider styles;
-  CellBuffer b(3, 9);
-  BufferPlane root(b, styles);
-  root.setDefaultColors(Color(255, 255, 255), Color(0, 0, 0));
-  root.setFgColor(255, 255, 255);
-  root.setBgColor(0, 0, 0);
-  for (int r = 0; r < 3; r++) root.putstr(r, 0, "         ");
-  root.setBgColor(240, 0, 0);
-  root.putstr(1, 4, "x");
-  auto scrim = scrimOver(root, Backdrop{1});
-  root.refresh();
-  // The red cell bleeds into its neighbours and is no longer pure red.
-  CHECK(b.at(1, 3).bg->getRed() > 0);
-  CHECK(b.at(1, 4).bg->getRed() < 240);
-  // Only colour is left, nothing to read or select.
-  CHECK(b.at(1, 4).text == " ");
-  CHECK(b.toPlainText().empty());
-  // Far enough away, nothing reaches.
-  CHECK(b.at(1, 0).bg->getRed() == 0);
-}
-
-TEST(bufferplane_backdrop_blur_leaves_no_glyph_wide_ones_included) {
+// What lies below a backdrop is set aside as a layer for the display to
+// apply, and the frame holds only what is above.
+TEST(bufferplane_backdrop_sets_the_layer_below_aside) {
   StyleProvider styles;
   CellBuffer b(2, 6);
   BufferPlane root(b, styles);
-  root.putstr(0, 0, "hi");
-  root.putstr(1, 0, "◆漢");
-  auto scrim = scrimOver(root, Backdrop{1});
-  root.refresh();
-  CHECK(b.toPlainText().empty());
-  for (int c = 0; c < 6; c++) CHECK(!b.at(1, c).continuation);
-}
-
-TEST(bufferplane_dim_only_backdrop_keeps_the_glyphs) {
-  StyleProvider styles;
-  CellBuffer b(1, 6);
-  BufferPlane root(b, styles);
-  root.putstr(0, 0, "hello");
-  auto scrim = scrimOver(root, Backdrop{0, 0.5f});
-  root.refresh();
-  CHECK(b.toPlainText() == "hello\n");
-}
-
-TEST(bufferplane_text_over_a_backdrop_is_sharp_and_planes_above_are_untouched) {
-  StyleProvider styles;
-  CellBuffer b(1, 8);
-  BufferPlane root(b, styles);
-  root.putstr(0, 0, "behind");
-  auto scrim = scrimOver(root, Backdrop{1, 0.3f});
-  scrim->setFgColor(1, 2, 3);
-  scrim->putstr(0, 0, "on");
+  root.putstr(0, 0, "below");
+  auto scrim = scrimOver(root, Backdrop{2, 0.3f});
   auto dialog = root.createChild();
-  dialog->resize(1, 2);
-  dialog->move(0, 6);
-  dialog->setFgColor(9, 9, 9);
-  dialog->putstr(0, 0, "ok");
+  dialog->resize(1, 3);
+  dialog->move(1, 1);
+  dialog->putstr(0, 0, "top");
   root.refresh();
-  CHECK(b.toPlainText() == "on    ok\n");
-  CHECK(b.at(0, 0).fg->getBlue() == 3);
-  CHECK(b.at(0, 0).bg.has_value());  // the frosted backdrop under it
-  CHECK(b.at(0, 6).fg->getRed() == 9);
+
+  auto layers = root.takeBackdropLayers();
+  CHECK(layers.size() == 1);
+  CHECK(layers[0].cells.toPlainText() == "below\n");
+  CHECK(layers[0].backdrop.blur == 2 && layers[0].backdrop.dim == 0.3f);
+  CHECK(layers[0].row == 0 && layers[0].col == 0 && layers[0].rows == 2 && layers[0].cols == 6);
+  // The frame has the dialog alone, and nothing of the backdrop's own cells.
+  CHECK(b.toPlainText() == "\n top\n");
+  CHECK(!b.at(0, 0).backdrop.active() && CellBuffer::isBlank(b.at(0, 0)));
+  // Taken: a refresh without a backdrop sets nothing aside.
+  scrim.reset();
+  root.refresh();
+  CHECK(root.takeBackdropLayers().empty());
 }
 
-TEST(bufferplane_image_under_a_backdrop_is_filtered_once) {
+
+
+TEST(bufferplane_a_plane_shifted_by_part_of_a_cell_is_a_scroll_layer) {
+  StyleProvider styles;
+  CellBuffer b(6, 10);
+  BufferPlane root(b, styles);
+  root.setSmoothScroll(true);
+  root.putstr(0, 0, "below");
+  auto list = root.createChild();
+  list->resize(3, 6);
+  list->move(2, 1);
+  list->setScrollOffset(0.25, 0);
+  // One row and column more than it shows.
+  list->putstr(0, 0, "aaaaaa");
+  list->putstr(3, 0, "dddddd");
+  list->putstr(1, 6, "x");
+  auto above = root.createChild();
+  above->resize(1, 3);
+  above->move(3, 2);
+  above->putstr(0, 0, "top");
+  root.refresh();
+  auto layers = root.takeBackdropLayers();
+  CHECK(layers.size() == 1 && layers[0].scroll);
+  const auto & scroll = *layers[0].scroll;
+  CHECK(scroll.row == 2 && scroll.col == 1 && scroll.rows == 3 && scroll.cols == 6);
+  CHECK(scroll.shift_rows == 0.25 && scroll.shift_cols == 0.0);
+  CHECK(scroll.cells.rows() == 4 && scroll.cells.cols() == 7);
+  CHECK(scroll.cells.at(0, 0).text == "a" && scroll.cells.at(3, 0).text == "d" && scroll.cells.at(1, 6).text == "x");
+  CHECK(!layers[0].backdrop.active());
+  // What was below is the layer's; the frame has only what lies above, and
+  // nothing of the shifted plane.
+  CHECK(layers[0].cells.at(0, 0).text == "b");
+  CHECK(b.at(2, 1).text == " " && b.at(3, 2).text == "t" && b.at(0, 0).text == " ");
+}
+
+TEST(bufferplane_a_plane_is_not_shifted_where_the_display_cannot) {
   StyleProvider styles;
   CellBuffer b(4, 8);
   BufferPlane root(b, styles);
-  root.setCellPixelSize(4, 2);
-  // Black with one white line across the middle.
-  std::vector<uint32_t> pixels(8 * 8, Image::pack(0, 0, 0));
-  for (size_t x = 0; x < 8; x++) pixels[4 * 8 + x] = Image::pack(255, 255, 255);
-  root.drawImageAt(0, 0, pixels, 8, 8);
+  auto list = root.createChild();
+  list->resize(2, 4);
+  list->setScrollOffset(0.5, 0);
+  list->putstr(0, 0, "abcd");
   root.refresh();
-  uint64_t sharp = root.images()[0].image->version;
-
-  auto scrim = scrimOver(root, Backdrop{1});
-  root.refresh();
-  auto blurred = root.images()[0].image;
-  CHECK(blurred->version != sharp);
-  CHECK(Image::red(blurred->pixels[2 * 8]) > 0);    // the line spread upward
-  CHECK(Image::red(blurred->pixels[4 * 8]) < 255);  // and lost its peak
-  // The same frame again is the same filtered picture: nothing to resend.
-  root.refresh();
-  CHECK(root.images()[0].image->version == blurred->version);
-
-  scrim.reset();
-  root.refresh();
-  CHECK(root.images()[0].image->version == sharp);
+  CHECK(root.takeBackdropLayers().empty());
+  CHECK(b.at(0, 0).text == "a");
 }
 
-namespace {
-
-// Draws every cell in one colour, and counts what it was asked for.
-class CountingRasterizer : public CellRasterizer {
- public:
-  Image render(const CellBuffer &, const std::vector<ImagePlacement> &, int, int, int rows, int cols, int cell_h, int cell_w,
-               int scale, Color, Color) override {
-    calls++;
-    Image out;
-    out.width = std::max(1, cols * cell_w / scale);
-    out.height = std::max(1, rows * cell_h / scale);
-    out.pixels.assign(static_cast<size_t>(out.width) * static_cast<size_t>(out.height), Image::pack(90, 90, 90));
-    return out;
-  }
-  int calls = 0;
-};
-
-}  // namespace
-
-TEST(bufferplane_pixel_backdrop_redraws_only_tiles_whose_source_changed) {
+TEST(bufferplane_a_plane_with_no_shift_left_composes_in_place_again) {
   StyleProvider styles;
-  CellBuffer b(8, 48);  // two rows of three tiles
+  CellBuffer b(4, 8);
   BufferPlane root(b, styles);
-  root.setCellPixelSize(8, 4);
-  auto rasterizer = std::make_shared<CountingRasterizer>();
-  root.setRasterizer(rasterizer);
-  for (int r = 0; r < 8; r++) root.putstr(r, 0, std::string(48, 'x'));
-  auto scrim = scrimOver(root, Backdrop{1});
-  auto dialog = root.createChild();
-  dialog->resize(1, 2);
-  dialog->move(3, 20);
-  dialog->putstr(0, 0, "ok");
+  root.setSmoothScroll(true);
+  auto list = root.createChild();
+  list->resize(2, 4);
+  list->setScrollOffset(0.5, 0);
+  list->putstr(0, 0, "abcd");
+  list->putstr(2, 0, "over");  // the overscan row
+  root.refresh();
+  CHECK(root.takeBackdropLayers().size() == 1);
+  list->setScrollOffset(0, 0);
+  root.refresh();
+  CHECK(root.takeBackdropLayers().empty());
+  CHECK(b.at(0, 0).text == "a" && b.at(1, 0).text == " " && b.at(2, 0).text == " ");
+}
 
+TEST(bufferplane_a_band_over_a_plane_goes_with_its_scroll_layer) {
+  StyleProvider styles;
+  CellBuffer b(6, 10);
+  BufferPlane root(b, styles);
+  auto list = root.createChild();
+  list->resize(3, 6);
+  list->move(2, 1);
+  list->putstr(0, 0, "abcdef");
+  // Not where the display cannot show it.
+  list->setBand(Band{ 1.5, 0.1, 0, 6, Color(255, 0, 0), 1.0f });
   root.refresh();
-  CHECK(root.redrawnBackdropTiles() == 6);
-  CHECK(root.images().size() == 6);
-  // Every tile is a picture stretched over its cells.
-  CHECK(root.images()[0].image->cols == 16 && root.images()[0].image->rows == 4);
-  // With a pad of its neighbours for the terminal to blend its edges with.
-  CHECK(root.images()[0].image->pad == 1);
-  CHECK(root.images()[0].image->width == 16 * 4 + 2 && root.images()[0].image->height == 4 * 8 + 2);
-  CHECK(b.at(0, 0).image > 0);
-  // The dialog over it stays text.
-  CHECK(b.at(3, 20).text == "o" && b.at(3, 20).image == 0);
-
-  std::vector<uint64_t> versions;
-  for (auto & p : root.images()) versions.push_back(p.image->version);
+  CHECK(root.takeBackdropLayers().empty());
+  root.setSmoothScroll(true);
+  list->setBand(Band{ 1.5, 0.1, 0, 6, Color(255, 0, 0), 0.5f });
   root.refresh();
-  CHECK(root.redrawnBackdropTiles() == 0);
-  for (size_t i = 0; i < versions.size(); i++) CHECK(root.images()[i].image->version == versions[i]);
-
-  // A change in the top-left corner reaches only the tiles within the blur.
-  root.putstr(0, 0, "y");
+  auto layers = root.takeBackdropLayers();
+  // A scroll layer with no shift, only for the band.
+  CHECK(layers.size() == 1 && layers[0].scroll && layers[0].scroll->shift_rows == 0.0);
+  CHECK(layers[0].scroll->band && layers[0].scroll->band->row == 1.5 && layers[0].scroll->band->alpha == 0.5f);
+  CHECK(layers[0].scroll->cells.at(0, 0).text == "a");
+  list->clearBand();
   root.refresh();
-  CHECK(root.redrawnBackdropTiles() == 1);
-  // One near a tile's corner reaches its neighbours too.
-  root.putstr(4, 16, "y");
-  root.refresh();
-  CHECK(root.redrawnBackdropTiles() == 4);
-
-  scrim.reset();
-  root.refresh();
-  CHECK(root.images().empty());
-  CHECK(b.at(0, 0).text == "y");
+  CHECK(root.takeBackdropLayers().empty() && b.at(2, 1).text == "a");
 }

@@ -1,7 +1,7 @@
 #include <cellui/SpectrumImage.h>
 
 #include <canvas/Context.h>
-#include <canvas/ContextCairo.h>
+#include "NativeContext.h"
 
 #include <algorithm>
 #include <cmath>
@@ -28,7 +28,8 @@ std::vector<uint32_t> render(const std::vector<float> & levels, unsigned width, 
   // covers the image (canvas sizes are whole logical units), cropped below.
   scale = std::max(1.0f, scale);
   auto logical = [&](unsigned px) { return static_cast<unsigned>(std::ceil(static_cast<float>(px) / scale)); };
-  canvas::ContextCairo ctx(logical(width), logical(height), 4, scale);
+  auto context = cellui::nativeContext(logical(width), logical(height), 4, scale);
+  canvas::Context & ctx = *context;
   const float w = static_cast<float>(width) / scale, h = static_cast<float>(height) / scale;
   ctx.fillStyle = toCanvas(styles.window_bg_color);
   ctx.fillRect(0, 0, logical(width), logical(height));

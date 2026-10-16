@@ -3,6 +3,7 @@
 [![Linux x86-64](https://github.com/rekola/synth/actions/workflows/ci-linux-x86_64.yml/badge.svg)](https://github.com/rekola/synth/actions/workflows/ci-linux-x86_64.yml)
 [![Linux ARM64](https://github.com/rekola/synth/actions/workflows/ci-linux-arm64.yml/badge.svg)](https://github.com/rekola/synth/actions/workflows/ci-linux-arm64.yml)
 [![Windows x86-64](https://github.com/rekola/synth/actions/workflows/ci-windows-x86_64.yml/badge.svg)](https://github.com/rekola/synth/actions/workflows/ci-windows-x86_64.yml)
+[![macOS ARM64](https://github.com/rekola/synth/actions/workflows/ci-macos-arm64.yml/badge.svg)](https://github.com/rekola/synth/actions/workflows/ci-macos-arm64.yml)
 
 ![Screenshot of Live View](https://raw.githubusercontent.com/rekola/synth/refs/heads/main/assets/screenshot1.png)
 
@@ -45,13 +46,13 @@ The application draws on several traditions.
   modulation (1973). A few of them are approximations of individual factory
   voices of the Yamaha DX7 (1983), the synthesizer that made FM widespread,
   standing in for a handful of General MIDI programs. See
-  [docs/fm.md](docs/fm.md).
-- **Emacs.** The keymap the terminal interface uses follows Emacs: each song
-  is a buffer, several can be open and switched between, with mark and point
-  selection, kill and yank, and the M-x prompt for any command by name. A
-  graphical interface is planned that defaults to the usual desktop, DAW and
-  tracker keys, with the Emacs keymap still available. See
-  [docs/user-interface.md](docs/user-interface.md).
+  [docs/fm.md](docs/fm.md).  
+- **Command Palette.** The application has a combined command prompt and status
+  line at the bottom of the screen. It is invoked by typing M-x when using
+  the terminal keybindings or by Ctrl+Shift+P when using the standard GUI keybindings.
+  The concept follows that of Emacs and its "Minibuffer", but currently, there is
+  a plan to change it to a modern **Command Palette**, which would provided fuzzy
+  matching and more helpful feedback about each command's description and keybinding.
 
 ## Scales and Tunings
 
@@ -196,5 +197,3 @@ The major things that are missing are the following:
 * New recordings are initially drafts and can then be either merged or promoted to a clip
 * Ambient textures (waves, campfire, thunder, rain etc.)
 * Launch modes and Follow actions
-* Emacs features:
-    - Kill-ring rotation (yank-pop / M-y)

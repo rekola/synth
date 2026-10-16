@@ -431,12 +431,10 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
   if (display.default_fg && display.default_bg) root_plane_->setDefaultColors(*display.default_fg, *display.default_bg);
   root_plane_->setDisplayScale(display.display_scale);
   root_plane_->setSextants(display.sextants);
+  root_plane_->setSmoothScroll(display.smooth_scroll);
   root_plane_->setFlatChildren(true);
   root_plane_->setThemedBases(true);
   if (use_pixel) root_plane_->setCellPixelSize(display.cell_px_height, display.cell_px_width);
-  // A modal's backdrop is drawn and blurred as pictures (Sixel's stretched
-  // before they are sent).
-  if (use_pixel) root_plane_->setRasterizer(cellui::canvasRasterizer());
   setPlane(std::move(root_plane));
 
   setFgColor(styles_.window_fg_color);
@@ -492,14 +490,13 @@ TerminalUI::render() {
   root_plane_->refresh();
   cellui::CursorRequest cursor;
   if (auto at = root_plane_->cursorPosition()) cursor = { true, at->first, at->second };
+  cellui::FrameInfo info;
+  info.backdrops = root_plane_->takeBackdropLayers();
   if (backend_.wantsFrameInfo()) {
-    cellui::FrameInfo info;
     info.planes = root_plane_->describe();
     info.focus = focusName();
-    backend_.present(screen_, cursor, root_plane_->images(), &info);
-  } else {
-    backend_.present(screen_, cursor, root_plane_->images());
   }
+  backend_.present(screen_, cursor, root_plane_->images(), &info);
 }
 
 void
@@ -1297,6 +1294,7 @@ TerminalUI::viewChanged() {
   // keep swallowing keys.
   if (getView() == View::ARRANGEMENT) clip_grid_->cancelReaderEdit();
   if (getView() != View::LIVE || !isOutlineVisible()) outline_view_->closeInfoPopup();
+  outline_view_->setShown(getView() == View::LIVE && isOutlineVisible());
   // Live View edits clips one scene at a time; Arrangement view edits
   // the arrangement and placed clips.
   pattern_editor_->cancelReaderEdit();
@@ -1344,7 +1342,10 @@ TerminalUI::offerInput(const cellui::Input & input) {
   // while it is open (raiseOverlays()), so its text can be selected.
   if (info_dialog_.isOpen() && input.getId() != Key::Resize && !(input.hasCtrl() && input.getId() == 'l')) {
     auto id = input.getId();
-    if (id == Key::Escape || id == Key::Enter || id == 'q' || (input.hasCtrl() && id == 'g')) {
+    // Not a release: the Enter that opened it, from the minibuffer, is
+    // released after it is open.
+    if (input.getKind() != InputEvent::Kind::RELEASE &&
+        (id == Key::Escape || id == Key::Enter || id == 'q' || (input.hasCtrl() && id == 'g'))) {
       closeInfoDialog();
     }
     return true;
@@ -1448,7 +1449,9 @@ TerminalUI::offerInput(const cellui::Input & input) {
     // Launchpad button commands via executeCommand()) silently no-op'd -
     // including plain Up/Down arrow - until the user happened to click
     // directly back on the workspace.
-    if (!activated) active_element_ = pattern_editor_;
+    // A click on the menu bar (the top row) leaves focus where it was.
+    bool on_menu = input.getY() == 0;
+    if (!activated) active_element_ = (on_menu && previous_active_element) ? previous_active_element : pattern_editor_;
 
     // A click that moves focus away from the octave stepper while it's
     // mid-edit discards the half-typed value rather than leaving it stuck
@@ -1893,9 +1896,13 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
   // Playback and visualization events arrive with every audio block (about
   // 190 a second); drawing for each of them would use far more of the
   // terminal than the eye can follow, so a frame is drawn at most every
-  // kMinFrameInterval and the changes in between are folded into it.
-  constexpr auto kMinFrameInterval = std::chrono::milliseconds(25);
-  auto last_frame = std::chrono::steady_clock::now() - kMinFrameInterval;
+  // kSteadyFrameInterval and the changes in between are folded into it.
+  constexpr auto kSteadyFrameInterval = std::chrono::milliseconds(25);
+  // A view that scrolls smoothly is shown at the display's pace, not the steady one.
+  constexpr auto kAnimatedFrameInterval = std::chrono::milliseconds(16);
+  auto animating = [&]() { return (arrangement_grid_ && arrangement_grid_->animating()) || (outline_view_ && outline_view_->animating()); };
+  auto min_frame_interval = [&]() { return animating() ? kAnimatedFrameInterval : kSteadyFrameInterval; };
+  auto last_frame = std::chrono::steady_clock::now() - kSteadyFrameInterval;
   bool frame_pending = false;
   bool render_pending = false; // a redraw asked for while the frame was held back
   // Between events that ask for nothing, frames come this seldom: the widgets
@@ -2029,9 +2036,11 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
     updateEscapeIndicator();
 
     int poll_timeout_ms = escapeIndicatorPollTimeoutMs();
+    // A view still moving toward where it was scrolled to asks for the next frame.
+    if (animating()) frame_pending = true;
     // A redraw deferred by the frame limiter below wakes the loop when it is due.
     if (frame_pending) {
-      auto wait = std::chrono::duration_cast<std::chrono::milliseconds>(kMinFrameInterval - (std::chrono::steady_clock::now() - last_frame)).count() + 1;
+      auto wait = std::chrono::duration_cast<std::chrono::milliseconds>(min_frame_interval() - (std::chrono::steady_clock::now() - last_frame)).count() + 1;
       wait = std::max<long>(wait, 1);
       poll_timeout_ms = poll_timeout_ms < 0 ? static_cast<int>(wait) : std::min(poll_timeout_ms, static_cast<int>(wait));
     }
@@ -2065,7 +2074,7 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
 	count("idle-wake-skipped");
         return;
       }
-      if (now - last_frame < kMinFrameInterval) {
+      if (now - last_frame < min_frame_interval()) {
 	frame_pending = true;
         return;
       }

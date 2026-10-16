@@ -13,8 +13,8 @@ namespace cellui {
 
 // A menu bar drawn into a plane of its own that spans its parent's width at
 // the top: a header row of section names, and below it the open section as
-// a rounded box of items. The plane is as tall as the header plus the
-// longest section and its box; cells nothing is drawn in stay transparent,
+// an opaque panel of items, with no border. The plane is as tall as the
+// header plus the longest section and its padding row; cells nothing is drawn in stay transparent,
 // so only the header and an open section show.
 //
 //   - Alt+<mnemonic>, or a click on a section's name, opens it; a click on
@@ -41,8 +41,6 @@ class MenuBar {
     Color header_fg = Color(255, 255, 255), header_bg = Color(0x7f, 0x34, 0x7f);
     Color section_fg = Color(255, 255, 255), section_bg = Color(0, 0, 0);
     Color disabled_fg = Color(0xdd, 0xdd, 0xdd);
-    // The header and the open section are translucent over what is below.
-    bool translucent = true;
   };
 
   explicit MenuBar(UIPlane & plane) : plane_(plane) { }

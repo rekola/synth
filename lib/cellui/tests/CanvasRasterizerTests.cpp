@@ -2,6 +2,12 @@
 
 #include <cellui/CellRasterizer.h>
 
+#ifndef __APPLE__
+#include <fontconfig/fontconfig.h>
+#endif
+
+#include <cstdio>
+
 using namespace cellui;
 
 namespace {
@@ -58,4 +64,89 @@ TEST(canvas_rasterizer_draws_text_in_the_foreground) {
   for (uint32_t px : img.pixels) lit += Image::red(px) > 128;
   // Some ink, but not a filled cell: a glyph from the system's font.
   CHECK(lit > 20 && lit < 600);
+}
+
+namespace {
+
+// How many pixels of a one-cell picture of `text` are lit.
+int inkOf(CellRasterizer & rasterizer, const std::string & text) {
+  CellBuffer cells(1, 1);
+  CellBuffer::Cell cell;
+  cell.text = text;
+  cell.fg = Color(255, 255, 255);
+  cells.put(0, 0, cell);
+  Image img = rasterizer.render(cells, {}, 0, 0, 1, 1, 40, 20, 1, Color(255, 255, 255), Color(0, 0, 0));
+  int lit = 0;
+  for (uint32_t px : img.pixels) lit += Image::red(px) > 128;
+  return lit;
+}
+
+#ifdef __APPLE__
+// Core Text falls back to a font that has it (Apple Symbols has the musical
+// symbols), so the drawing is checked rather than skipped.
+bool someFontHas(uint32_t) { return true; }
+#else
+// Whether any installed font has the character.
+bool someFontHas(uint32_t cp) {
+  FcInit();
+  FcCharSet * wanted = FcCharSetCreate();
+  FcCharSetAddChar(wanted, cp);
+  FcPattern * pattern = FcPatternCreate();
+  FcPatternAddCharSet(pattern, FC_CHARSET, wanted);
+  FcConfigSubstitute(nullptr, pattern, FcMatchPattern);
+  FcDefaultSubstitute(pattern);
+  FcResult result;
+  FcPattern * best = FcFontMatch(nullptr, pattern, &result);
+  bool has = false;
+  FcCharSet * set = nullptr;
+  if (best && FcPatternGetCharSet(best, FC_CHARSET, 0, &set) == FcResultMatch) has = FcCharSetHasChar(set, cp);
+  if (best) FcPatternDestroy(best);
+  FcPatternDestroy(pattern);
+  FcCharSetDestroy(wanted);
+  return has;
+}
+#endif
+
+}  // namespace
+
+// The accidentals of the microtonal note names are in few fonts, rarely the
+// monospace one: a character it lacks is drawn from one that has it, not left
+// as a box or a gap.
+TEST(canvas_rasterizer_draws_a_character_the_font_lacks_from_another_font) {
+  if (!someFontHas(0x1D12B)) {
+    std::printf("SKIP: no installed font has the double flat\n");
+    return;
+  }
+  auto rasterizer = canvasRasterizer();
+  // A character no font has is whatever the system draws for a missing one.
+  int missing = inkOf(*rasterizer, "\xF4\x8F\xBF\xBD");
+  int double_flat = inkOf(*rasterizer, "\xF0\x9D\x84\xAB");  // U+1D12B
+  CHECK(double_flat > 20);
+  CHECK(double_flat != missing);
+}
+
+// Text around it stays in the font asked for, in its own cells.
+TEST(canvas_rasterizer_keeps_the_cells_of_text_around_a_fallback_character) {
+  if (!someFontHas(0x1D12B)) {
+    std::printf("SKIP: no installed font has the double flat\n");
+    return;
+  }
+  auto rasterizer = canvasRasterizer();
+  CellBuffer cells(1, 3);
+  for (int c = 0; c < 3; c++) {
+    CellBuffer::Cell cell;
+    cell.text = c == 1 ? "\xF0\x9D\x84\xAB" : "M";  // M, a double flat, M
+    cell.fg = Color(255, 255, 255);
+    cells.put(0, c, cell);
+  }
+  Image img = rasterizer->render(cells, {}, 0, 0, 1, 3, 40, 20, 1, Color(255, 255, 255), Color(0, 0, 0));
+  auto lit = [&](int c) {
+    int n = 0;
+    for (int y = 0; y < 40; y++)
+      for (int x = c * 20; x < (c + 1) * 20; x++) n += Image::red(pixelAt(img, x, y)) > 128;
+    return n;
+  };
+  CHECK(lit(0) > 20 && lit(1) > 5 && lit(2) > 20);
+  // The third cell is the first one's twin.
+  CHECK(lit(0) == lit(2));
 }
