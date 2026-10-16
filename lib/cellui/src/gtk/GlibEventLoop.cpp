@@ -39,23 +39,34 @@ void fdFinalize(GSource * source) {
 
 GSourceFuncs fd_funcs = { nullptr, fdCheck, fdDispatch, fdFinalize, nullptr, nullptr };
 
-// Only there to end a wait after the turn's time limit: its ready time is
-// set before every turn.
+// Only there to end a wait after the turn's time limit, which prepare()
+// reports as the poll timeout. (Setting a ready time every turn would signal
+// the context's own wakeup descriptor each time, and the loop would spin.)
+struct TimerSource {
+  GSource base;
+  int timeout_ms;
+};
+
+gboolean timerPrepare(GSource * source, gint * timeout) {
+  int ms = reinterpret_cast<TimerSource *>(source)->timeout_ms;
+  *timeout = ms;
+  return ms == 0;
+}
 gboolean timerDispatch(GSource *, GSourceFunc, gpointer) { return G_SOURCE_CONTINUE; }
-GSourceFuncs timer_funcs = { nullptr, nullptr, timerDispatch, nullptr, nullptr, nullptr };
+GSourceFuncs timer_funcs = { timerPrepare, nullptr, timerDispatch, nullptr, nullptr, nullptr };
 
 }  // namespace
 
 struct GlibEventLoop::Impl {
-  GSource * timer = nullptr;
+  TimerSource * timer = nullptr;
   std::vector<GSource *> sources;
   bool ran = false;
 };
 
 GlibEventLoop::GlibEventLoop() : impl_(new Impl) {
-  impl_->timer = g_source_new(&timer_funcs, sizeof(GSource));
-  g_source_set_ready_time(impl_->timer, -1);
-  g_source_attach(impl_->timer, nullptr);
+  impl_->timer = reinterpret_cast<TimerSource *>(g_source_new(&timer_funcs, sizeof(TimerSource)));
+  impl_->timer->timeout_ms = -1;
+  g_source_attach(&impl_->timer->base, nullptr);
 }
 
 GlibEventLoop::~GlibEventLoop() {
@@ -63,8 +74,8 @@ GlibEventLoop::~GlibEventLoop() {
     g_source_destroy(source);
     g_source_unref(source);
   }
-  g_source_destroy(impl_->timer);
-  g_source_unref(impl_->timer);
+  g_source_destroy(&impl_->timer->base);
+  g_source_unref(&impl_->timer->base);
 }
 
 void GlibEventLoop::addSource(const std::vector<int> & fds, Handler handler) {
@@ -80,8 +91,7 @@ void GlibEventLoop::addSource(const std::vector<int> & fds, Handler handler) {
 
 bool GlibEventLoop::iterate(bool block) {
   int timeout = beforeTurn();
-  if (block && timeout >= 0) g_source_set_ready_time(impl_->timer, g_get_monotonic_time() + static_cast<gint64>(timeout) * 1000);
-  else g_source_set_ready_time(impl_->timer, -1);
+  impl_->timer->timeout_ms = block ? timeout : -1;
   impl_->ran = false;
   g_main_context_iteration(nullptr, block ? TRUE : FALSE);
   bool ran = impl_->ran;
