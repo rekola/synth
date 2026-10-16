@@ -1288,6 +1288,7 @@ TerminalUI::viewChanged() {
   // keep swallowing keys.
   if (getView() == View::ARRANGEMENT) clip_grid_->cancelReaderEdit();
   if (getView() != View::LIVE || !isOutlineVisible()) outline_view_->closeInfoPopup();
+  outline_view_->setShown(getView() == View::LIVE && isOutlineVisible());
   // Live View edits clips one scene at a time; Arrangement view edits
   // the arrangement and placed clips.
   pattern_editor_->cancelReaderEdit();
@@ -1893,7 +1894,7 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
   constexpr auto kSteadyFrameInterval = std::chrono::milliseconds(25);
   // A view that scrolls smoothly is shown at the display's pace, not the steady one.
   constexpr auto kAnimatedFrameInterval = std::chrono::milliseconds(16);
-  auto animating = [&]() { return arrangement_grid_ && arrangement_grid_->animating(); };
+  auto animating = [&]() { return (arrangement_grid_ && arrangement_grid_->animating()) || (outline_view_ && outline_view_->animating()); };
   auto min_frame_interval = [&]() { return animating() ? kAnimatedFrameInterval : kSteadyFrameInterval; };
   auto last_frame = std::chrono::steady_clock::now() - kSteadyFrameInterval;
   bool frame_pending = false;

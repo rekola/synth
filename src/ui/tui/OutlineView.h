@@ -5,6 +5,7 @@
 #include "../UIElement.h"
 #include "../../model/TrackType.h"
 
+#include <chrono>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -99,9 +100,18 @@ class OutlineView : public UIElement {
   bool wantsBareEscape() const override { return info_open_; }
   // The Info popup takes all input while it is open.
   bool isModal() const { return info_open_; }
+  // Whether the view is still moving toward where it was scrolled to (on a
+  // display that scrolls smoothly), so another frame is due.
+  bool animating() const { return viewport_.animating(); }
+  // The tree is a plane of its own (so it can scroll by parts of a row under
+  // the heading and the button bar); this shows or hides it with the panel.
+  void setShown(bool shown) {
+    if (tree_plane_) tree_plane_->setVisible(shown);
+  }
 
 protected:
   void renderRow(const StyleProvider & styles, int row, bool cursor, bool focused);
+  void renderTree(const StyleProvider & styles, bool focused);
   // The shared one-row title strip at the very top - static text (plus
   // the divider column, drawn here too since neither side of it changes
   // without a full refresh), only ever needs (re)drawing on one.
@@ -259,8 +269,11 @@ protected:
   // The tree's rows and columns: its offsets are the "new" scroll positions,
   // and what the last render drew is kept beside them.
   cellui::Viewport viewport_;
-  int current_scroll_pos_ = 0;
+  double current_shown_row_ = -1;
+  int current_first_row_ = 0;  // the first data row the tree plane was drawn from
   int current_column_scroll_ = 0;
+  std::unique_ptr<UIPlane> tree_plane_;
+  std::chrono::steady_clock::time_point last_tick_ = std::chrono::steady_clock::now();
   // -1 until the panel is first focused or clicked: no row is
   // highlighted and no buttons show before that.
   int new_cursor_row_ = -1, current_cursor_row_ = -1;

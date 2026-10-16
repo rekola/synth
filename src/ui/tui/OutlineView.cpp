@@ -148,40 +148,47 @@ OutlineView::render(const StyleProvider & styles, bool refresh, bool focused) {
     new_cursor_row_ = std::min(viewport_.rows.offset(), static_cast<int>(data_.size()) - 1);
   }
 
-  // The rows may have narrowed since the last scroll.
-  syncViewport();
+  // The tree is a plane of its own, under the panel's: the heading and the
+  // button bar are drawn on the panel's plane over it, and only the tree
+  // scrolls by parts of a row.
+  if (!tree_plane_) {
+    tree_plane_ = getPlane().createChild();
+    getPlane().makeTransparent();
+    getPlane().moveToTop();
+  }
+  tree_plane_->setVisible(true);
 
-  if (song.getMajorVersion() != current_song_version_ || viewport_.rows.offset() != current_scroll_pos_ ||
+  // The rows may have narrowed since the last scroll.
+  viewport_.rows.setSmooth(getPlane().smoothScroll());
+  syncViewport();
+  {
+    // The view follows where it was scrolled to.
+    auto now = std::chrono::steady_clock::now();
+    viewport_.rows.tick(std::min(0.1, std::chrono::duration<double>(now - last_tick_).count()));
+    last_tick_ = now;
+  }
+
+  if (song.getMajorVersion() != current_song_version_ || viewport_.rows.shown() != current_shown_row_ ||
       viewport_.cols.offset() != current_column_scroll_ || focused != current_focused_) {
     render_all = true;
   }
 
-  auto tree_rows = treeRows();
   bool cursor_changed = new_cursor_row_ != current_cursor_row_;
 
   bool need_refresh = false;
-  if (render_all) {
-    current_scroll_pos_ = viewport_.rows.offset();
+  // The button bar overlays the tree and depends on which row the cursor is
+  // on (a different kind may show completely different actions, or none),
+  // so everything is drawn again whenever the cursor, the row's details
+  // (the target-track picker committing a choice, the popup opening or
+  // closing) or the view changed: rows the old bar covered come back.
+  if (render_all || cursor_changed || details_dirty_) {
+    current_shown_row_ = viewport_.rows.shown();
+    current_first_row_ = viewport_.rows.firstShown();
     current_column_scroll_ = viewport_.cols.offset();
 
+    getPlane().erase();
     renderHeading(styles);
-    for (int i = 0; i < tree_rows; i++) {
-      renderRow(styles, i, i == new_cursor_row_ - current_scroll_pos_, focused);
-    }
-    renderButtonBar(styles);
-    renderInfoPopup(styles);
-    need_refresh = true;
-  } else if (cursor_changed || details_dirty_) {
-    // The button bar overlays the tree and depends on which row the cursor
-    // is now on (a different kind may show completely different actions, or
-    // none), so the whole tree is repainted underneath it: rows the old bar
-    // covered come back. Also redrawn (with the cursor itself untouched)
-    // whenever details_dirty_ says this row's own details changed without
-    // moving the cursor at all - the target-track picker committing a new
-    // choice, or the popup opening/closing.
-    for (int i = 0; i < tree_rows; i++) {
-      renderRow(styles, i, i == new_cursor_row_ - current_scroll_pos_, focused);
-    }
+    renderTree(styles, focused);
     renderButtonBar(styles);
     renderInfoPopup(styles);
     need_refresh = true;
@@ -387,28 +394,44 @@ OutlineView::buildDetailsLines(const outline_row_s & row) const {
 }
 
 void
-OutlineView::renderRow(const StyleProvider & styles, int display_row, bool cursor, bool focused) {
+OutlineView::renderTree(const StyleProvider & styles, bool focused) {
+  auto [ pos_y, pos_x ] = getPosition();
   auto tree_rows = treeRows();
+  tree_plane_->move(pos_y + kTreeTop, pos_x);
+  tree_plane_->resize(tree_rows, getDim().second);
+  // One row more than fits, for the plane to shift into view.
+  tree_plane_->setScrollOffset(viewport_.rows.fraction(), 0);
+  tree_plane_->erase();
+  int drawn = tree_rows + (viewport_.rows.smooth() ? 1 : 0);
+  for (int i = 0; i < drawn; i++) renderRow(styles, i, i + current_first_row_ == new_cursor_row_, focused);
+}
+
+void
+OutlineView::renderRow(const StyleProvider & styles, int display_row, bool cursor, bool focused) {
+  auto tree_rows = treeRows() + 1;
   auto tree_width = getDim().second;
+  UIPlane & plane = *tree_plane_;
+  auto fg = [&](const Color & c) { plane.setFgColor(c.getRed(), c.getGreen(), c.getBlue()); };
+  auto bg = [&](const Color & c) { plane.setBgColor(c.getRed(), c.getGreen(), c.getBlue()); };
 
   if (display_row >= 0 && display_row < tree_rows) {
-    auto data_row = static_cast<size_t>(display_row + current_scroll_pos_);
+    auto data_row = static_cast<size_t>(display_row + current_first_row_);
     if (pressed_.data_row >= 0 && static_cast<size_t>(pressed_.data_row) == data_row) {
-      setFgColor(styles.highlight_fg_color);
-      setBgColor(styles.row_pressed_bg_color);
+      fg(styles.highlight_fg_color);
+      bg(styles.row_pressed_bg_color);
     } else if (cursor && focused) {
-      setFgColor(styles.highlight_fg_color);
-      setBgColor(styles.highlight_bg_color);
+      fg(styles.highlight_fg_color);
+      bg(styles.highlight_bg_color);
     } else if (cursor) {
-      setFgColor(styles.window_fg_color);
-      setBgColor(styles.highlight_unfocused_bg_color);
+      fg(styles.window_fg_color);
+      bg(styles.highlight_unfocused_bg_color);
     } else {
-      setFgColor(styles.window_fg_color);
-      setBgColor(styles.window_bg_color);
+      fg(styles.window_fg_color);
+      bg(styles.window_bg_color);
     }
 
     string padding(static_cast<size_t>(std::max(0, tree_width)), ' ');
-    putstr(kTreeTop + display_row, 0, padding);
+    plane.putstr(display_row, 0, padding);
 
     if (data_row < data_.size()) {
       auto & data = data_[data_row];
@@ -419,7 +442,7 @@ OutlineView::renderRow(const StyleProvider & styles, int display_row, bool curso
         label = Utf8::dropLeadingColumns(label, -x);
         x = 0;
       }
-      putstr(kTreeTop + display_row, x, Utf8::truncateToWidth(label, tree_width - x));
+      plane.putstr(display_row, x, Utf8::truncateToWidth(label, tree_width - x));
     }
   }
 }
@@ -721,7 +744,7 @@ OutlineView::hitTest(int screen_y, int screen_x) const {
 
   auto bar_row = y - buttonBarTop();
   if (bar_row < 0) {
-    auto data_row = y - kTreeTop + current_scroll_pos_;
+    auto data_row = viewport_.rows.indexAt(y - kTreeTop);
     if (data_row < static_cast<int>(data_.size())) target.data_row = data_row;
   } else if (new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size())) {
     // The exact same placements renderButtonBar() just drew.
