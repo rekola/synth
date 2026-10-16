@@ -102,16 +102,33 @@ class OutlineView : public UIElement {
   bool isModal() const { return info_open_; }
   // Whether the view is still moving toward where it was scrolled to (on a
   // display that scrolls smoothly), so another frame is due.
-  bool animating() const { return viewport_.animating(); }
+  bool animating() const {
+    return viewport_.animating() || (cursorOnOwnLayer() && new_cursor_row_ >= 0 && cursorInView() && cursor_y_ != cursorTargetY());
+  }
   // The tree is a plane of its own (so it can scroll by parts of a row under
   // the heading and the button bar); this shows or hides it with the panel.
   void setShown(bool shown) {
     if (tree_plane_) tree_plane_->setVisible(shown);
+    if (cursor_plane_ && !shown) cursor_plane_->setVisible(false);
   }
 
 protected:
   void renderRow(const StyleProvider & styles, int row, bool cursor, bool focused);
   void renderTree(const StyleProvider & styles, bool focused);
+  // Draws one data row on `plane` at `display_row`.
+  void drawRow(const StyleProvider & styles, UIPlane & plane, int display_row, size_t data_row, bool cursor,
+               bool focused);
+  // Where the smooth-scrolling display keeps the cursor: a plane of its own
+  // over the tree, easing to its row in the view. At an edge of the view the
+  // target stays put while the content scrolls, so the cursor stays in place.
+  bool cursorOnOwnLayer() const;
+  double cursorTargetY() const;
+  bool cursorInView() const {
+    auto y = cursorTargetY();
+    return y >= 0 && y <= std::max(0, treeRows() - 1);
+  }
+  void tickCursor(double seconds);
+  void renderCursor(const StyleProvider & styles, bool focused);
   // The shared one-row title strip at the very top - static text (plus
   // the divider column, drawn here too since neither side of it changes
   // without a full refresh), only ever needs (re)drawing on one.
@@ -273,6 +290,10 @@ protected:
   int current_first_row_ = 0;  // the first data row the tree plane was drawn from
   int current_column_scroll_ = 0;
   std::unique_ptr<UIPlane> tree_plane_;
+  std::unique_ptr<UIPlane> cursor_plane_;
+  // The cursor's row in the view, a whole number except while it eases.
+  double cursor_y_ = 0;
+  double current_cursor_y_ = -1;
   std::chrono::steady_clock::time_point last_tick_ = std::chrono::steady_clock::now();
   // -1 until the panel is first focused or clicked: no row is
   // highlighted and no buttons show before that.

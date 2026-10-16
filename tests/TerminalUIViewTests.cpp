@@ -3,6 +3,7 @@
 #include "TerminalUIFixture.h"
 
 #include <chrono>
+#include <map>
 #include <optional>
 #include <regex>
 #include <thread>
@@ -300,4 +301,52 @@ TEST(terminal_ui_smooth_scroll_moves_the_outline_tree_under_its_heading) {
   CHECK(!shift());
   // It moved: the tree's first rows are not the first any more.
   CHECK(f.line(static_cast<size_t>(heading + 1)).find("Song") == std::string::npos);
+}
+
+// The outline's cursor is a layer of its own: once it is on the last row in
+// view and the keys go on, it stays where it is and only the content moves.
+TEST(terminal_ui_smooth_scroll_keeps_the_outline_cursor_in_place_at_the_edge) {
+  cellui::DisplayInfo display;
+  display.smooth_scroll = true;
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, display);
+  int heading = -1;
+  for (size_t y = 0; y < 6; y++) {
+    if (f.line(y).find("Outline") == 1) heading = static_cast<int>(y);
+  }
+  CHECK(heading >= 0);
+  // The tree row drawn on the cursor's colour rather than the tree's (the button bar's rows, which start with a
+  // bracket, aside).
+  auto cursor_row = [&]() {
+    auto tree_bg = f.bg(heading + 1, 2);
+    for (int y = heading + 1; y < heading + 24; y++) {
+      if (f.line(static_cast<size_t>(y)).substr(1, 30).find('[') != std::string::npos) continue;
+      if (f.bg(y, 2) != tree_bg) return y;
+    }
+    return -1;
+  };
+  auto settle = [&]() {
+    for (int i = 0; i < 100; i++) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(16));
+      f.ui->step();
+    }
+  };
+  for (int i = 0; i < 4 && f.terminal.info().focus != "outline-view"; i++) f.otherWindow();
+  settle();
+  for (int i = 0; i < 40; i++) f.press(cellui::Key::Down);
+  settle();
+  int edge = cursor_row();
+  CHECK(edge > heading + 3);
+  // More keys: the content moves under it, the cursor does not.
+  bool moved = false;
+  std::string before = f.line(static_cast<size_t>(edge));
+  for (int i = 0; i < 3; i++) {
+    f.press(cellui::Key::Down);
+    for (int j = 0; j < 40; j++) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(8));
+      f.ui->step();
+      CHECK(cursor_row() == edge);
+    }
+    if (f.line(static_cast<size_t>(edge)) != before) moved = true;
+  }
+  CHECK(moved);
 }
