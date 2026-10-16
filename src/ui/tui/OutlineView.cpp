@@ -533,7 +533,7 @@ OutlineView::openTargetPicker() {
   auto cols = getDim().second;
   auto candidates = compatibleTargetTrackRows();
   auto item_count = static_cast<int>(candidates.size()) + 1; // +1 for "New track"
-  // +2 for ncselector's own top/bottom border. Opens just above the button
+  // +2 for the picker's padding rows. Opens just above the button
   // bar, so it never covers the button that opened it, capped so it never
   // reaches above the tree's first row.
   auto wanted_rows = item_count + 2;

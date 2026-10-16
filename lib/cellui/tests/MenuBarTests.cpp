@@ -27,13 +27,13 @@ TEST(menubar_header_and_open_section) {
   MenuBar menu(*plane);
   menu.setSections(sections());
   menu.layout(30);
-  CHECK(plane->getDim() == std::pair(6, 30));
+  CHECK(plane->getDim() == std::pair(5, 30));
   root.refresh();
   CHECK(b.toPlainText() == "  File  Help\n");
   CHECK(b.at(0, 2).bold && b.at(0, 2).underline && !b.at(0, 3).bold);
   CHECK(menu.offerInput(key('f', true)));
   root.refresh();
-  CHECK(b.toPlainText() == "  File  Help\n  ╭────╮\n  │Open│\n  ├────┤\n  │Quit│\n  ╰────╯\n");
+  CHECK(b.toPlainText() == "  File  Help\n   Open\n   ────\n   Quit\n");
   CHECK(menu.selectedItem() == 0);
   // Down skips the separator, and wraps.
   menu.offerInput(key(cellui::Key::Down));
@@ -59,8 +59,8 @@ TEST(menubar_mouse) {
   menu.layout(30);
   CHECK(menu.offerInput(click(0, 3)));
   CHECK(menu.openSection() == 0);
-  CHECK(!menu.offerInput(click(3, 4)));  // the separator
-  CHECK(menu.offerInput(click(4, 4)));
+  CHECK(!menu.offerInput(click(2, 4)));  // the separator
+  CHECK(menu.offerInput(click(3, 4)));
   auto a = menu.takeActivated();
   CHECK(a && a->first == 0 && a->second == 2);
   CHECK(!menu.isOpen());
@@ -71,7 +71,7 @@ TEST(menubar_mouse) {
   CHECK(!menu.offerInput(key(cellui::Key::Escape)));
 }
 
-TEST(menubar_box_stays_on_screen_and_is_translucent) {
+TEST(menubar_panel_stays_on_screen_and_is_opaque_without_a_border) {
   StyleProvider styles;
   CellBuffer b(4, 12);
   BufferPlane root(b, styles);
@@ -83,7 +83,10 @@ TEST(menubar_box_stays_on_screen_and_is_translucent) {
   menu.layout(12);
   menu.open(1);
   root.refresh();
-  CHECK(b.toPlainText() == "  File  Help\n  ╭────────╮\n  │About it│\n  ╰────────╯\n");
-  // The header's background is averaged with what is below it.
-  CHECK(b.at(0, 0).bg && b.at(0, 0).bg->getRed() == (0x7f + 0x80) / 2);
+  CHECK(b.toPlainText() == "  File  Help\n   About it\n");
+  // The panel is one column wider each side of the label and its colours
+  // are its own, not an average with what is below.
+  CHECK(b.at(1, 2).bg && b.at(1, 11).bg);
+  CHECK(b.at(1, 0).text == " " && !b.at(1, 0).bg);
+  CHECK(b.at(0, 0).bg && b.at(0, 0).bg->getRed() == MenuBar::Colors().header_bg.getRed());
 }
