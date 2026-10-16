@@ -3,6 +3,7 @@
 #include <cellui/Backend.h>
 #include <cellui/CellBuffer.h>
 #include <cellui/PollEventLoop.h>
+#include <cellui/term/BackdropEmulation.h>
 #include <cellui/term/Capabilities.h>
 #include <cellui/term/FrameEncoder.h>
 #include <cellui/term/ImageEncoder.h>
@@ -120,6 +121,8 @@ class TerminalSession : public Backend {
   InputParser parser_;
   FrameEncoder encoder_;
   ImageEncoder images_;
+  // What a terminal makes of a backdrop (it cannot blur one).
+  BackdropEmulation backdrops_;
   std::string setup_;
   std::string restore_;
   std::deque<TermEvent> pending_;

@@ -99,7 +99,9 @@ so at most a theme of its own later.
 1. Backdrop blur and dim under modal dialogs: `Backdrop` cell attribute,
    `Scrim`, `Theme::modal_backdrop`, images filtered once while covered. Done
    on the branch.
-2. The backdrop in pixels, in the terminal. Done on the branch:
+2. The backdrop in pixels, in the terminal. Done on the branch (it now lives
+   in the terminal backend, `term::BackdropEmulation`, made from the layers
+   `BufferPlane` sets aside; a window blurs them itself):
    - `CellRasterizer` draws composed cells as pixels (`canvasRasterizer()`):
      backgrounds, block elements, braille and images drawn directly with
      exact pixel coverage, text with canvas in runs, in the system's
