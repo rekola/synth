@@ -16,6 +16,11 @@ jobs:
   build-and-test:
     runs-on: macos-15
 
+    strategy:
+      fail-fast: false
+      matrix:
+        fast_math: [ON, OFF]
+
     # Clang does not search /opt/homebrew on its own.
     env:
       CPATH: /opt/homebrew/include
@@ -31,6 +36,7 @@ jobs:
         run: |
           cmake -G Ninja -B build \
             -DSYNTH_MARCH=armv8-a \
+            -DSYNTH_FAST_MATH=${{ matrix.fast_math }} \
             -DSYNTH_BUILD_INTERACTIVE=OFF
 
       # -k 0: report every compile error in one run, not just the first.
@@ -58,5 +64,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: rendered-wavs-macos
+          name: rendered-wavs-macos-fastmath-${{ matrix.fast_math }}
           path: rendered/*.wav

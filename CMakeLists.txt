@@ -45,6 +45,11 @@ set(SYNTH_MARCH "native" CACHE STRING "Value passed to -march (e.g. native, x86-
 option(SYNTH_FAST_MATH "Compile with -ffast-math (reassociation, finite-math-only, flush-to-zero at startup). Off keeps only -fno-math-errno." ON)
 if(SYNTH_FAST_MATH)
   set(SYNTH_FP_FLAGS "-ffast-math -fno-math-errno")
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    # Clang optimizes on -ffinite-math-only much harder than GCC does, and
+    # code here uses infinity (e.g. BusEffect::idleAfterSeconds()).
+    string(APPEND SYNTH_FP_FLAGS " -fno-finite-math-only")
+  endif()
 else()
   set(SYNTH_FP_FLAGS "-fno-math-errno")
 endif()
