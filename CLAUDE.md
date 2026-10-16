@@ -41,10 +41,12 @@ defect this codebase won't ship. FFT support (the live spectrum analyzer,
 MagLS binaural precomputation) is via vendored PocketFFT
 (`third_party/pocketfft/`) — no separate FFT library package needed.
 canvas (`rekola/canvas`, 2D drawing for the scopes and meters, drawn as
-pixels with Cairo) is a dependency of Cell UI, fetched at configure time at a
+pixels with Cairo, or Quartz 2D on macOS) is a dependency of Cell UI, fetched at configure time at a
 pinned commit (`FetchContent` in `lib/cellui/CMakeLists.txt`, built with none
 of our warning flags, its headers reached as SYSTEM includes; GDI+ on
-Windows); bump the pin when canvas changes. The scopes - the spectrum, the
+Windows); bump the pin when canvas changes. The pixel versions make their
+drawing context through `cellui::nativeContext()` (`src/NativeContext.h`), the
+one place that names a canvas backend. The scopes - the spectrum, the
 DirAC heatmap, the channel meter - are Cell UI widgets in the versions each
 backend provides (`cellui::Scopes`, `cellui/Scopes.h`;
 `cellui::scopesFor(display)` picks the display's): the cell versions are
@@ -102,6 +104,24 @@ by the audio thread), `ShutdownSignal.cpp` (a console control handler for
 Ctrl-C and the console closing), `Daemon.cpp` (`--daemon` says it is unsupported
 and exits), `Notifier.h` and `AudioBuffer.h` (aligned allocation). The Windows device backends sit in `synth_engine` behind the same interfaces: `audio/WasapiAudio` (shared-mode, event-driven WASAPI; `wasapi:<endpoint id>` names, `AudioDevicesWasapi.cpp` for the lists) and WinMM MIDI (`midi/WinMmMidiInput`, `WinMmMidiPorts`; `winmm::Watcher` polls the device list, as WinMM has no hotplug notice). They compile in CI but nothing there can run them against a device. The installer (Inno Setup) is built by `.github/workflows/release-windows.yml` from `tools/windows/` and described in `docs/building.md`. Files open by
 UTF-8 path through `util/FileOpen.h`.
+
+### macOS
+
+Builds with Apple clang (Xcode command line tools) and Homebrew: `brew install
+cmake ninja pkg-config fmt libsndfile sound-touch libunistring`. Not GCC:
+canvas' Quartz 2D backend includes Apple's framework headers (blocks syntax),
+and Homebrew's `fmt`/`sound-touch` are built against libc++, which GCC's
+libstdc++ cannot link. Clang does not search `/opt/homebrew`, so set
+`CPATH=/opt/homebrew/include` and `LIBRARY_PATH=/opt/homebrew/lib`. There is
+no audio or MIDI backend yet, so only `-DSYNTH_BUILD_INTERACTIVE=OFF` (the
+render-only `synth`, the engine and the tests) builds;
+`.github/workflows/ci-macos-arm64.yml` does that, runs ctest and renders
+songs. Clang optimizes on `-ffinite-math-only` harder than GCC, so
+`CMakeLists.txt` keeps `-fno-finite-math-only` with `-ffast-math` there. The
+pixel scopes draw through canvas' Quartz 2D backend (no Cairo or fontconfig);
+Core Text falls back to another font for a missing glyph by itself, so
+`CanvasRasterizer` has no fontconfig there. `Notifier` is a pipe (no eventfd)
+and `executableDir()` uses `_NSGetExecutablePath`.
 
 ## Run
 
