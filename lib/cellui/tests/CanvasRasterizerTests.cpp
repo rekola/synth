@@ -113,7 +113,6 @@ TEST(canvas_rasterizer_draws_a_character_the_font_lacks_from_another_font) {
   // A character no font has is whatever the system draws for a missing one.
   int missing = inkOf(*rasterizer, "\xF4\x8F\xBF\xBD");
   int double_flat = inkOf(*rasterizer, "\xF0\x9D\x84\xAB");  // U+1D12B
-  std::printf("DIAG double_flat=%d missing=%d\n", double_flat, missing);
   CHECK(double_flat > 20);
   CHECK(double_flat != missing);
 }
@@ -139,7 +138,6 @@ TEST(canvas_rasterizer_keeps_the_cells_of_text_around_a_fallback_character) {
       for (int x = c * 20; x < (c + 1) * 20; x++) n += Image::red(pixelAt(img, x, y)) > 128;
     return n;
   };
-  std::printf("DIAG lit=%d %d %d\n", lit(0), lit(1), lit(2));
   CHECK(lit(0) > 20 && lit(1) > 5 && lit(2) > 20);
   // The third cell is the first one's twin.
   CHECK(lit(0) == lit(2));
