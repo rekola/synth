@@ -230,7 +230,7 @@ class CanvasRasterizer : public CellRasterizer {
     return true;
   }
 
-  // The text, in runs of cells of one colour and weight, over the picture,
+  // The text, a cell at a time in runs of one colour and weight, over the picture,
   // in the system's font sized so that its advance is a cell's width.
   void drawText(std::vector<unsigned char> & rgba, const CellBuffer & cells, int row, int col, int r_lo, int r_hi, int c_lo, int c_hi,
                 int width, int height, double s, int cell_h, int cell_w, const Color & default_fg) {
@@ -257,8 +257,6 @@ class CanvasRasterizer : public CellRasterizer {
           ctx.font.family = family;
           ctx.fillText(text, (at - col) * cell_w, (r - row) * cell_h + cell_h / 2.0);
         };
-        std::string run;
-        int start = c;
         for (; c < c_hi; c++) {
           const CellBuffer::Cell & cell = cells.at(r, c);
           if (cell.continuation) continue;
@@ -269,7 +267,6 @@ class CanvasRasterizer : public CellRasterizer {
           const std::string & other = fonts_.familyFor(firstCodepoint(cell.text));
           if (!other.empty()) {
             // A character of another font stands alone in its cell.
-            draw(run, start, family_);
             // Shrunk to its cell if its font draws it wider.
             float size = ctx.font.size;
             ctx.font.family = other;
@@ -278,14 +275,12 @@ class CanvasRasterizer : public CellRasterizer {
             if (glyph_width > cells_wide * cell_w) ctx.font.size = static_cast<float>(size * cells_wide * cell_w / glyph_width);
             draw(cell.text, c, other);
             ctx.font.size = size;
-            run.clear();
-            start = c + 1;
             continue;
           }
-          if (run.empty()) start = c;
-          run += cell.text;
+          // One cell at a time, so the glyphs sit on the grid whatever the
+          // font's advances are (a space is not always as wide as a letter).
+          if (cell.text != " ") draw(cell.text, c, family_);
         }
-        draw(run, start, family_);
       }
     }
     // The surface's own layout is bytes B, G, R, A (opaque here).
