@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cellui/Backdrop.h>
+#include <cellui/BackdropLayer.h>
 #include <cellui/Input.h>
 #include <cellui/StyleProvider.h>
 
@@ -128,6 +129,10 @@ class UIPlane {
   // it shows, for the content to shift into view. Images in such a plane
   // are not shifted. Default no-op.
   virtual void setScrollOffset(double rows, double cols) { (void)rows; (void)cols; }
+  // A translucent band over the plane (see Band), where the display scrolls
+  // smoothly; it stays until cleared. Default no-op.
+  virtual void setBand(const Band & band) { (void)band; }
+  virtual void clearBand() { }
   virtual void erase() = 0;
   virtual void putstr(int y, int x, const std::string & s) = 0;
   virtual std::unique_ptr<UIPlane> createChild() = 0;

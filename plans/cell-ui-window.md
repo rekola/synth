@@ -103,7 +103,11 @@ or if accessibility on Windows is needed from the first release.
   with their meters, apart from its rows is the next such change). Still to
   do: pictures inside a scrolled plane (the VU meters),
   the window's frame clock instead of a fixed 16 ms, and the cost of
-  re-rasterizing the rest of the frame while the transport plays.
+  re-rasterizing the rest of the frame while the transport plays. The
+  arrangement grid's playhead is a `Band` (a translucent strip at a
+  fractional row over a scrolled plane, not shifted with the content, drawn
+  by the window as a colour rectangle): it moves through the bars by the
+  transport's position inside the row, not by whole bars.
 - **Spans:** canvas images become textures, keyed like the terminal's
   images, so they are uploaded only when they change and a scroll only
   moves them.

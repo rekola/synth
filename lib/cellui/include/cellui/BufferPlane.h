@@ -64,6 +64,10 @@ class BufferPlane : public UIPlane {
   void setFgContrast(bool b) override { style_.fg_contrast = b; }
   void setBackdrop(const Backdrop & b) override { style_.backdrop = b; }
   void setScrollOffset(double rows, double cols) override;
+  void setBand(const Band & band) override {
+    if (root().smooth_scroll_) band_ = band;
+  }
+  void clearBand() override { band_.reset(); }
   // Whether the display can shift a plane by a fraction of a cell; planes
   // are shown unshifted otherwise (root only).
   void setSmoothScroll(bool smooth) { smooth_scroll_ = smooth; }
@@ -172,6 +176,7 @@ class BufferPlane : public UIPlane {
   // more than its size (overscan_), and composes as a scroll layer while
   // shifted.
   double scroll_rows_ = 0, scroll_cols_ = 0;
+  std::optional<Band> band_;
   bool overscan_ = false;
   bool visible_ = true;
   std::string name_;

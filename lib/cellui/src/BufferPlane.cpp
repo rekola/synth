@@ -140,7 +140,7 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
   int col_lo = std::max(clip_col, col), col_hi = std::min(clip_col + clip_cols, col + plane_cols);
   // A plane shifted by a fraction of a cell is the display's to draw: what is
   // composed below it is set aside, with the plane's cells, as a layer.
-  if ((scroll_rows_ > 0 || scroll_cols_ > 0) && row_lo < row_hi && col_lo < col_hi && row_lo == row && col_lo == col && row_hi == row + plane_rows &&
+  if ((scroll_rows_ > 0 || scroll_cols_ > 0 || band_) && row_lo < row_hi && col_lo < col_hi && row_lo == row && col_lo == col && row_hi == row + plane_rows &&
       col_hi == col + plane_cols) {
     ScrollContent content;
     content.cells = local_;
@@ -160,6 +160,7 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
     content.cols = plane_cols;
     content.shift_rows = scroll_rows_;
     content.shift_cols = scroll_cols_;
+    content.band = band_;
     top.layers_.push_back(BackdropLayer{ out, Backdrop{}, row, col, plane_rows, plane_cols, std::move(content) });
     out.clear(0, 0, out.rows(), out.cols());
     for (const BufferPlane * child : children_) {

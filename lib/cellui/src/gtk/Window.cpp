@@ -410,6 +410,13 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
           gtk_snapshot_translate(s, &shift);
           appendTexture(s, paint(layers.size() + 1 + scrolls++, content.cells, true, false), content.row, content.col);
           gtk_snapshot_restore(s);
+          if (content.band) {
+            const Band & band = *content.band;
+            GdkRGBA tint = channel(band.color, band.alpha);
+            graphene_rect_t strip = GRAPHENE_RECT_INIT(static_cast<float>((content.col + band.col) * cell_w), static_cast<float>((content.row + band.row) * cell_h),
+                                                       static_cast<float>(band.cols * cell_w), static_cast<float>(band.rows * cell_h));
+            gtk_snapshot_append_color(s, &tint, &strip);
+          }
           gtk_snapshot_pop(s);
         }
         GskRenderNode * composed = gtk_snapshot_free_to_node(s);

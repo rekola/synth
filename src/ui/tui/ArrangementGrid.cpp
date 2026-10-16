@@ -313,6 +313,11 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
 
   if (!follow_cursor && !viewport_.detached()) viewport_.rows.reveal(playing_bar);
 
+  // Where the transport is inside its bar, while it plays (0 to 255).
+  auto phase = playback_info.isPlaying() ? playback_info.getCurrentDelay() : 0;
+  // On a display that scrolls smoothly the playhead is a line of its own
+  // that moves through the bars, not a bar's tint that steps.
+  bool smooth_playhead = viewport_.rows.smooth() && playback_info.isPlaying();
   auto new_version = song.getMajorVersion();
   {
     // The view follows where it was scrolled to.
@@ -321,7 +326,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
     last_tick_ = now;
   }
 
-  if (!refresh && new_version == current_song_version_ && playing_row == current_playing_row_ &&
+  if (!refresh && new_version == current_song_version_ && playing_row == current_playing_row_ && smooth_playhead == current_smooth_playhead_ && (!smooth_playhead || phase == current_phase_) &&
       cursor_bar_ == current_cursor_bar_ &&
       cursor_track_index_ == current_cursor_track_index_ &&
       viewport_.rows.shown() == current_shown_row_ && viewport_.cols.offset() == current_scroll_col_ &&
@@ -330,6 +335,8 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   }
   current_song_version_ = new_version;
   current_playing_row_ = playing_row;
+  current_phase_ = phase;
+  current_smooth_playhead_ = smooth_playhead;
   current_cursor_bar_ = cursor_bar_;
   current_cursor_track_index_ = cursor_track_index_;
   current_shown_row_ = viewport_.rows.shown();
@@ -484,7 +491,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
       prev_clip_index[static_cast<size_t>(vc)] = cur_clip_index;
       prev_start_row[static_cast<size_t>(vc)] = cur_start_row;
 
-      if (is_playing_row) bg = styles.cursorRowTint(bg);
+      if (is_playing_row && !smooth_playhead) bg = styles.cursorRowTint(bg);
 
       // The shared/global track selection's own column - brightens an
       // active instance's own color (never the plain background, which
@@ -537,6 +544,18 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
     setFgColor(is_playing_row ? styles.cursor_tint_color : styles.locator_mark_color);
     setBgColor(styles.window_bg_color);
     putstr(vr, visible_cols * kColWidth + kLocatorWidth, has_locator ? "›" : " ");
+  }
+
+  if (smooth_playhead) {
+    // The playhead: a line through the playing bar, as far through it as the
+    // transport is, over the bars as they scroll.
+    auto bar_start = bars.barStartRow(playing_bar);
+    auto bar_rows = std::max(1, bars.nextBarStart(bar_start) - bar_start);
+    double bar_position = playing_bar + (playing_row - bar_start + phase / 256.0) / bar_rows;
+    constexpr double kLineRows = 0.12;
+    getPlane().setBand(cellui::Band{ bar_position - viewport_.rows.shown() - kLineRows / 2, kLineRows, 0, cols, styles.cursor_tint_color, 1.0f });
+  } else {
+    getPlane().clearBand();
   }
 
   return true;

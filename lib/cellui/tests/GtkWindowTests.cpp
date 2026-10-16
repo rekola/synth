@@ -170,6 +170,36 @@ TEST(gtk_window_scrolls_a_plane_without_rasterizing_it_again) {
   CHECK(w->stats().raster_ms_total > raster);
 }
 
+// A band over a scrolled plane (a playhead) moves without the plane's
+// texture being drawn again.
+TEST(gtk_window_moves_a_band_without_rasterizing) {
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  StyleProvider styles;
+  CellBuffer screen(w->rows(), w->cols());
+  BufferPlane root(screen, styles);
+  root.setSmoothScroll(true);
+  auto list = root.createChild();
+  list->resize(5, 20);
+  list->move(2, 1);
+  list->setBgColor(30, 30, 50);
+  for (int r = 0; r < 5; r++) list->putstr(r, 0, "row " + std::to_string(r) + std::string(10, ' '));
+  size_t before = 0;
+  double raster = -1;
+  for (double y : { 0.5, 1.25, 2.9 }) {
+    list->setBand(Band{ y, 0.12, 0, 20, Color(255, 200, 0), 1.0f });
+    root.refresh();
+    FrameInfo info;
+    info.backdrops = root.takeBackdropLayers();
+    CHECK(info.backdrops.size() == 1 && info.backdrops[0].scroll && info.backdrops[0].scroll->band);
+    before = w->stats().frames;
+    w->present(screen, {}, root.images(), &info);
+    CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+    if (raster < 0) raster = w->stats().raster_ms_total;
+  }
+  CHECK(w->stats().raster_ms_total == raster);
+}
+
 TEST(gtk_window_wake_is_its_own_fd) {
   gtk::Window * w = theWindow();
   if (!w) return;

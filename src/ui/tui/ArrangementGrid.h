@@ -133,6 +133,8 @@ class ArrangementGrid : public UIElement {
   int current_playing_row_ = -1;
   int current_cursor_bar_ = -1, current_cursor_track_index_ = -1;
   double current_shown_row_ = -1;
+  int current_phase_ = -1;
+  bool current_smooth_playhead_ = false;
   int current_scroll_col_ = -1;
   std::chrono::steady_clock::time_point last_tick_ = std::chrono::steady_clock::now();
   bool current_focused_ = false;

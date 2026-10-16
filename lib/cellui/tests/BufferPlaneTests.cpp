@@ -557,3 +557,28 @@ TEST(bufferplane_a_plane_with_no_shift_left_composes_in_place_again) {
   CHECK(root.takeBackdropLayers().empty());
   CHECK(b.at(0, 0).text == "a" && b.at(1, 0).text == " " && b.at(2, 0).text == " ");
 }
+
+TEST(bufferplane_a_band_over_a_plane_goes_with_its_scroll_layer) {
+  StyleProvider styles;
+  CellBuffer b(6, 10);
+  BufferPlane root(b, styles);
+  auto list = root.createChild();
+  list->resize(3, 6);
+  list->move(2, 1);
+  list->putstr(0, 0, "abcdef");
+  // Not where the display cannot show it.
+  list->setBand(Band{ 1.5, 0.1, 0, 6, Color(255, 0, 0), 1.0f });
+  root.refresh();
+  CHECK(root.takeBackdropLayers().empty());
+  root.setSmoothScroll(true);
+  list->setBand(Band{ 1.5, 0.1, 0, 6, Color(255, 0, 0), 0.5f });
+  root.refresh();
+  auto layers = root.takeBackdropLayers();
+  // A scroll layer with no shift, only for the band.
+  CHECK(layers.size() == 1 && layers[0].scroll && layers[0].scroll->shift_rows == 0.0);
+  CHECK(layers[0].scroll->band && layers[0].scroll->band->row == 1.5 && layers[0].scroll->band->alpha == 0.5f);
+  CHECK(layers[0].scroll->cells.at(0, 0).text == "a");
+  list->clearBand();
+  root.refresh();
+  CHECK(root.takeBackdropLayers().empty() && b.at(2, 1).text == "a");
+}
