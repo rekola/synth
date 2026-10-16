@@ -9,6 +9,8 @@
 #include <cellui/VuMeterImage.h>
 
 #include <algorithm>
+#include <set>
+#include <utility>
 #include <vector>
 
 namespace cellui {
@@ -176,12 +178,27 @@ class PixelScopes : public Scopes {
       drawCellVuMeter(plane, row, col, rows, reading, look, clip_top, clip_bottom);
       return;
     }
+    // Pixels are made lazily: a meter that has never sounded is only its
+    // background in text cells. Once it has pixels it keeps them, even at
+    // zero.
+    auto key = std::make_pair(&plane, id);
+    if (!drawn_.count(key)) {
+      if (reading.fraction <= 0.0f && reading.peak <= 0.0f && !reading.clipping) {
+        drawCellVuMeter(plane, row, col, rows, reading, look, clip_top, clip_bottom);
+        return;
+      }
+      drawn_.insert(key);
+    }
     // The whole meter, wherever it is scrolled to; the plane shows the rows
     // from clip_top to clip_bottom.
     unsigned width = static_cast<unsigned>(cell_w), height = static_cast<unsigned>(rows * cell_h);
     auto pixels = vu_meter_image::render({std::nullopt, reading}, look, width, height, plane.getStyles(), static_cast<float>(plane.displayScale()));
     plane.drawImageAt(row, col, pixels, static_cast<int>(width), static_cast<int>(height), id, clip_top, clip_bottom);
   }
+
+ private:
+  // The meters (plane, id) that have been drawn as pixels.
+  mutable std::set<std::pair<const UIPlane *, uint64_t>> drawn_;
 };
 
 }  // namespace
