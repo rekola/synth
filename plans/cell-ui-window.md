@@ -88,10 +88,26 @@ or if accessibility on Windows is needed from the first release.
   behind floating layers.
 - **Styles:** everything the style table holds - fonts, padding, borders,
   radius, gradients, shadows.
-- **Geometry and scrolling:** pixel row heights and column widths; smooth,
-  vsync-paced scrolling and playheads, through Cell UI's viewport
-  (`plans/cell-ui-terminal.md`): the window owns the fractional offset and
-  animates it on the frame clock, and the widgets don't change.
+- **Geometry and scrolling:** pixel row heights and column widths; smooth
+  scrolling and playheads, through Cell UI's viewport
+  (`plans/cell-ui-terminal.md`). Done for a widget with a plane of its own
+  (the arrangement grid, and the outline, whose tree has a plane of its own
+  under its heading and button bar): `Viewport` keeps the offset the widget
+  reasons with and a shown position that follows it (`DisplayInfo::
+  smooth_scroll`), the widget draws one row more than fits from the first
+  one shown and calls `UIPlane::setScrollOffset()` with the fraction, and the
+  plane composes as a layer (`ScrollContent`) that the window draws from a
+  texture of its own, translated and clipped - a scroll step rasterizes
+  nothing. A widget that draws several kinds of content on one plane
+  needs a plane for the part that scrolls (the pattern editor's headings,
+  with their meters, apart from its rows is the next such change). Still to
+  do: pictures inside a scrolled plane (the VU meters),
+  the window's frame clock instead of a fixed 16 ms, and the cost of
+  re-rasterizing the rest of the frame while the transport plays. The
+  arrangement grid's playhead is a `Band` (a translucent strip at a
+  fractional row over a scrolled plane, not shifted with the content, drawn
+  by the window as a colour rectangle): it moves through the bars by the
+  transport's position inside the row, not by whole bars.
 - **Spans:** canvas images become textures, keyed like the terminal's
   images, so they are uploaded only when they change and a scroll only
   moves them.

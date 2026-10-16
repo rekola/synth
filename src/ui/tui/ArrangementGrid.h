@@ -3,10 +3,12 @@
 
 #include "../UIElement.h"
 
+#include <chrono>
 #include <functional>
 #include <vector>
 
 #include <cellui/Input.h>
+#include <cellui/Viewport.h>
 #include "../StyleProvider.h"
 class Song;
 
@@ -93,6 +95,10 @@ class ArrangementGrid : public UIElement {
   // scroll of its own for them to drive.
   void moveCursorBar(int delta);
 
+  // Whether the view is still moving toward where it was scrolled to (on a
+  // display that scrolls smoothly), so another frame is due.
+  bool animating() const { return viewport_.animating(); }
+
  private:
   // How many bar rows there are to show: the arrangement's own bars plus
   // one empty one past its end to place into, reaching the cursor and the
@@ -103,7 +109,7 @@ class ArrangementGrid : public UIElement {
   // the scroll position to whatever range is currently valid. Only when
   // `follow_cursor` is set (this widget is focused - see render()'s own
   // comment on why not otherwise) does it also slide
-  // scroll_row_/scroll_col_ just far enough that the (possibly newly
+  // the viewport just far enough that the (possibly newly
   // clamped) cursor is back inside the visible viewport - never scrolls
   // further than that, so the viewport only moves when the cursor's
   // movement actually pushed it out of view.
@@ -118,7 +124,7 @@ class ArrangementGrid : public UIElement {
   // Top-left corner of the visible viewport, in bars and tracks - kept in
   // sync with the cursor by ensureCursorVisible() rather than tracked
   // independently, so the cursor is always on screen.
-  int scroll_row_ = 0, scroll_col_ = 0;
+  cellui::Viewport viewport_;
 
   // What render() last drew, so it can skip redrawing when nothing this
   // widget actually shows has changed - same dirty-check shape InfoLine's
@@ -126,11 +132,11 @@ class ArrangementGrid : public UIElement {
   int current_song_version_ = -1;
   int current_playing_row_ = -1;
   int current_cursor_bar_ = -1, current_cursor_track_index_ = -1;
-  int current_scroll_row_ = -1, current_scroll_col_ = -1;
-  // Set by the mouse wheel, which scrolls the view without the cursor:
-  // the view then follows neither the cursor nor the playhead until the
-  // cursor next moves.
-  bool view_detached_ = false;
+  double current_shown_row_ = -1;
+  int current_phase_ = -1;
+  bool current_smooth_playhead_ = false;
+  int current_scroll_col_ = -1;
+  std::chrono::steady_clock::time_point last_tick_ = std::chrono::steady_clock::now();
   bool current_focused_ = false;
   int current_selected_track_id_ = -1;
 

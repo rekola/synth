@@ -493,3 +493,92 @@ TEST(bufferplane_backdrop_sets_the_layer_below_aside) {
 }
 
 
+
+TEST(bufferplane_a_plane_shifted_by_part_of_a_cell_is_a_scroll_layer) {
+  StyleProvider styles;
+  CellBuffer b(6, 10);
+  BufferPlane root(b, styles);
+  root.setSmoothScroll(true);
+  root.putstr(0, 0, "below");
+  auto list = root.createChild();
+  list->resize(3, 6);
+  list->move(2, 1);
+  list->setScrollOffset(0.25, 0);
+  // One row and column more than it shows.
+  list->putstr(0, 0, "aaaaaa");
+  list->putstr(3, 0, "dddddd");
+  list->putstr(1, 6, "x");
+  auto above = root.createChild();
+  above->resize(1, 3);
+  above->move(3, 2);
+  above->putstr(0, 0, "top");
+  root.refresh();
+  auto layers = root.takeBackdropLayers();
+  CHECK(layers.size() == 1 && layers[0].scroll);
+  const auto & scroll = *layers[0].scroll;
+  CHECK(scroll.row == 2 && scroll.col == 1 && scroll.rows == 3 && scroll.cols == 6);
+  CHECK(scroll.shift_rows == 0.25 && scroll.shift_cols == 0.0);
+  CHECK(scroll.cells.rows() == 4 && scroll.cells.cols() == 7);
+  CHECK(scroll.cells.at(0, 0).text == "a" && scroll.cells.at(3, 0).text == "d" && scroll.cells.at(1, 6).text == "x");
+  CHECK(!layers[0].backdrop.active());
+  // What was below is the layer's; the frame has only what lies above, and
+  // nothing of the shifted plane.
+  CHECK(layers[0].cells.at(0, 0).text == "b");
+  CHECK(b.at(2, 1).text == " " && b.at(3, 2).text == "t" && b.at(0, 0).text == " ");
+}
+
+TEST(bufferplane_a_plane_is_not_shifted_where_the_display_cannot) {
+  StyleProvider styles;
+  CellBuffer b(4, 8);
+  BufferPlane root(b, styles);
+  auto list = root.createChild();
+  list->resize(2, 4);
+  list->setScrollOffset(0.5, 0);
+  list->putstr(0, 0, "abcd");
+  root.refresh();
+  CHECK(root.takeBackdropLayers().empty());
+  CHECK(b.at(0, 0).text == "a");
+}
+
+TEST(bufferplane_a_plane_with_no_shift_left_composes_in_place_again) {
+  StyleProvider styles;
+  CellBuffer b(4, 8);
+  BufferPlane root(b, styles);
+  root.setSmoothScroll(true);
+  auto list = root.createChild();
+  list->resize(2, 4);
+  list->setScrollOffset(0.5, 0);
+  list->putstr(0, 0, "abcd");
+  list->putstr(2, 0, "over");  // the overscan row
+  root.refresh();
+  CHECK(root.takeBackdropLayers().size() == 1);
+  list->setScrollOffset(0, 0);
+  root.refresh();
+  CHECK(root.takeBackdropLayers().empty());
+  CHECK(b.at(0, 0).text == "a" && b.at(1, 0).text == " " && b.at(2, 0).text == " ");
+}
+
+TEST(bufferplane_a_band_over_a_plane_goes_with_its_scroll_layer) {
+  StyleProvider styles;
+  CellBuffer b(6, 10);
+  BufferPlane root(b, styles);
+  auto list = root.createChild();
+  list->resize(3, 6);
+  list->move(2, 1);
+  list->putstr(0, 0, "abcdef");
+  // Not where the display cannot show it.
+  list->setBand(Band{ 1.5, 0.1, 0, 6, Color(255, 0, 0), 1.0f });
+  root.refresh();
+  CHECK(root.takeBackdropLayers().empty());
+  root.setSmoothScroll(true);
+  list->setBand(Band{ 1.5, 0.1, 0, 6, Color(255, 0, 0), 0.5f });
+  root.refresh();
+  auto layers = root.takeBackdropLayers();
+  // A scroll layer with no shift, only for the band.
+  CHECK(layers.size() == 1 && layers[0].scroll && layers[0].scroll->shift_rows == 0.0);
+  CHECK(layers[0].scroll->band && layers[0].scroll->band->row == 1.5 && layers[0].scroll->band->alpha == 0.5f);
+  CHECK(layers[0].scroll->cells.at(0, 0).text == "a");
+  list->clearBand();
+  root.refresh();
+  CHECK(root.takeBackdropLayers().empty() && b.at(2, 1).text == "a");
+}

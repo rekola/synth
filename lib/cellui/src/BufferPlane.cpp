@@ -72,12 +72,23 @@ BufferPlane::~BufferPlane() {
 void BufferPlane::resize(int rows, int cols) {
   rows = std::max(0, rows);
   cols = std::max(0, cols);
-  CellBuffer resized(rows, cols);
-  for (int r = 0; r < std::min(rows, local_.rows()); r++) {
-    for (int c = 0; c < std::min(cols, local_.cols()); c++) resized.put(r, c, local_.at(r, c));
+  int extra = overscan_ ? 1 : 0;
+  CellBuffer resized(rows + extra, cols + extra);
+  for (int r = 0; r < std::min(rows + extra, local_.rows()); r++) {
+    for (int c = 0; c < std::min(cols + extra, local_.cols()); c++) resized.put(r, c, local_.at(r, c));
   }
   local_ = std::move(resized);
   UIPlane::resize(rows, cols);
+}
+
+void BufferPlane::setScrollOffset(double rows, double cols) {
+  if (!root().smooth_scroll_) rows = cols = 0;
+  scroll_rows_ = std::clamp(rows, 0.0, 0.999);
+  scroll_cols_ = std::clamp(cols, 0.0, 0.999);
+  if ((scroll_rows_ > 0 || scroll_cols_ > 0) && !overscan_) {
+    overscan_ = true;
+    resize(getDim().first, getDim().second);
+  }
 }
 
 void BufferPlane::moveToTop() {
@@ -124,8 +135,39 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
   if (!visible_) return;
   const BufferPlane & top = root();
   // The plane's own rectangle, inside the clip.
-  int row_lo = std::max(clip_row, row), row_hi = std::min(clip_row + clip_rows, row + local_.rows());
-  int col_lo = std::max(clip_col, col), col_hi = std::min(clip_col + clip_cols, col + local_.cols());
+  int plane_rows = std::min(local_.rows(), getDim().first), plane_cols = std::min(local_.cols(), getDim().second);
+  int row_lo = std::max(clip_row, row), row_hi = std::min(clip_row + clip_rows, row + plane_rows);
+  int col_lo = std::max(clip_col, col), col_hi = std::min(clip_col + clip_cols, col + plane_cols);
+  // A plane shifted by a fraction of a cell is the display's to draw: what is
+  // composed below it is set aside, with the plane's cells, as a layer.
+  if ((scroll_rows_ > 0 || scroll_cols_ > 0 || band_) && row_lo < row_hi && col_lo < col_hi && row_lo == row && col_lo == col && row_hi == row + plane_rows &&
+      col_hi == col + plane_cols) {
+    ScrollContent content;
+    content.cells = local_;
+    if (base_bg_) {
+      for (int r = 0; r < content.cells.rows(); r++) {
+        for (int c = 0; c < content.cells.cols(); c++) {
+          if (!CellBuffer::isBlank(content.cells.at(r, c))) continue;
+          CellBuffer::Cell filled;
+          filled.bg = base_bg_;
+          content.cells.put(r, c, filled);
+        }
+      }
+    }
+    content.row = row;
+    content.col = col;
+    content.rows = plane_rows;
+    content.cols = plane_cols;
+    content.shift_rows = scroll_rows_;
+    content.shift_cols = scroll_cols_;
+    content.band = band_;
+    top.layers_.push_back(BackdropLayer{ out, Backdrop{}, row, col, plane_rows, plane_cols, std::move(content) });
+    out.clear(0, 0, out.rows(), out.cols());
+    for (const BufferPlane * child : children_) {
+      child->compose(out, row + child->getPosition().first, col + child->getPosition().second, row_lo, col_lo, row_hi - row_lo, col_hi - col_lo);
+    }
+    return;
+  }
   // A backdrop is the display's to apply: what is composed below it is set
   // aside as a layer, over the rectangle its cells span, and the cells above
   // it start blank.
@@ -142,7 +184,7 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
       }
     }
     if (found) {
-      top.layers_.push_back(BackdropLayer{ out, *found, r_min, c_min, r_max - r_min, c_max - c_min });
+      top.layers_.push_back(BackdropLayer{ out, *found, r_min, c_min, r_max - r_min, c_max - c_min, std::nullopt });
       out.clear(0, 0, out.rows(), out.cols());
     }
   }

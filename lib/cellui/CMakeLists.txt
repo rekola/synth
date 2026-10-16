@@ -149,6 +149,7 @@ add_executable(cellui_tests
   tests/ThemeTests.cpp
   tests/SpinBoxTests.cpp
   tests/SubcellGlyphsTests.cpp
+  tests/ViewportTests.cpp
   tests/InlineEditorTests.cpp
   tests/InputParserTests.cpp
   tests/KeymapTests.cpp

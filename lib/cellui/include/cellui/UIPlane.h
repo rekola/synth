@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cellui/Backdrop.h>
+#include <cellui/BackdropLayer.h>
 #include <cellui/Input.h>
 #include <cellui/StyleProvider.h>
 
@@ -57,6 +58,8 @@ class UIPlane {
   // (icons, text, line widths; hairlines stay one pixel). A terminal
   // reports no DPI, so its backend guesses from the cell size.
   virtual double displayScale() const { return 1.0; }
+  // Whether setScrollOffset() shifts a plane here.
+  virtual bool smoothScroll() const { return false; }
   // The plane's size in pixels, when the display can show pixels here;
   // false when it cannot (no image protocol, or the cell size unknown), and
   // a chart then draws in cells.
@@ -119,6 +122,17 @@ class UIPlane {
   // (blurred and dimmed); a space written with no colours is nothing but
   // that. Default no-op: a display that can't, shows them as they are.
   virtual void setBackdrop(const Backdrop &) { }
+  // Shows what the plane draws shifted up by `rows` and left by `cols`, each
+  // a fraction of a cell (0 up to, not including, 1), clipped to the plane,
+  // where DisplayInfo::smooth_scroll says the display can: a view scrolled by
+  // less than a cell. The plane then holds one row and one column more than
+  // it shows, for the content to shift into view. Images in such a plane
+  // are not shifted. Default no-op.
+  virtual void setScrollOffset(double rows, double cols) { (void)rows; (void)cols; }
+  // A translucent band over the plane (see Band), where the display scrolls
+  // smoothly; it stays until cleared. Default no-op.
+  virtual void setBand(const Band & band) { (void)band; }
+  virtual void clearBand() { }
   virtual void erase() = 0;
   virtual void putstr(int y, int x, const std::string & s) = 0;
   virtual std::unique_ptr<UIPlane> createChild() = 0;
