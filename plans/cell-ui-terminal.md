@@ -255,9 +255,10 @@ cell position, so a scrolled meter is a new image and is uploaded again.
    The viewport is begun: `cellui::Viewport`/`ScrollAxis` (`Viewport.h`:
    content and view sizes, the offset kept inside, `reveal()` with margins,
    the wheel and its detached state) is in, and `ChoiceList`, `OutlineView`
-   and `ArrangementGrid` use it. Open: `ClipGrid` and `PatternEditor` (with
-   `PatternScroll`'s sideways policy), then a fractional offset for the
-   window.
+   and `ArrangementGrid` use it. It also animates a shown position toward
+   the offset where the display scrolls smoothly (the GTK window; see
+   `plans/cell-ui-window.md`). Open: `ClipGrid` and `PatternEditor` (with
+   `PatternScroll`'s sideways policy) onto it.
 8. Icons: the app's icon list, Kitty graphics/Sixel/glyph fallback, menu
    icons, keyed so a static icon in a scrolling list costs nothing with
    kitty graphics.

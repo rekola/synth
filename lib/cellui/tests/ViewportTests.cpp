@@ -84,3 +84,58 @@ TEST(viewport_wheel_scrolls_the_view_and_detaches_it) {
   for (int i = 0; i < 100; i++) view.wheel(1, false);
   CHECK(view.rows.offset() == 40);
 }
+
+TEST(scroll_axis_animates_toward_its_offset_when_smooth) {
+  ScrollAxis axis;
+  axis.setExtent(100, 10);
+  axis.setSmooth(true);
+  axis.scrollTo(10);
+  // The offset is where the view is going, shown() where it is.
+  CHECK(axis.offset() == 10 && axis.shown() == 0.0 && axis.animating());
+  axis.tick(ScrollAxis::kSettleSeconds);
+  CHECK(axis.shown() > 5.0 && axis.shown() < 7.0);
+  CHECK(axis.firstShown() == static_cast<int>(axis.shown()) && axis.fraction() > 0.0 && axis.fraction() < 1.0);
+  for (int i = 0; i < 100 && axis.animating(); i++) axis.tick(0.016);
+  CHECK(!axis.animating() && axis.shown() == 10.0 && axis.fraction() == 0.0);
+  // Back the other way, passing through the fractions.
+  axis.scrollTo(0);
+  axis.tick(0.016);
+  CHECK(axis.shown() < 10.0 && axis.shown() > 0.0);
+}
+
+TEST(scroll_axis_index_at_is_what_is_shown_under_a_cell) {
+  ScrollAxis axis;
+  axis.setExtent(100, 10);
+  axis.scrollTo(7);
+  CHECK(axis.indexAt(0) == 7 && axis.indexAt(3) == 10);
+  axis.setSmooth(true);
+  axis.scrollTo(8);
+  axis.tick(ScrollAxis::kSettleSeconds);
+  // Between 7 and 8, the view moved more than half a row: row 8 is under the top cell.
+  CHECK(axis.shown() > 7.5 && axis.indexAt(0) == 8);
+}
+
+TEST(scroll_axis_jumps_when_not_smooth) {
+  ScrollAxis axis;
+  axis.setExtent(100, 10);
+  axis.scrollTo(7);
+  CHECK(axis.shown() == 7.0 && !axis.animating() && axis.fraction() == 0.0);
+  axis.reveal(40);
+  CHECK(axis.shown() == static_cast<double>(axis.offset()));
+  // Smooth off again in the middle of an animation: the view lands.
+  axis.setSmooth(true);
+  axis.scrollTo(0);
+  CHECK(axis.animating());
+  axis.setSmooth(false);
+  CHECK(!axis.animating() && axis.shown() == 0.0);
+}
+
+TEST(scroll_axis_keeps_the_shown_position_inside_a_shrunk_content) {
+  ScrollAxis axis;
+  axis.setExtent(100, 10);
+  axis.setSmooth(true);
+  axis.scrollTo(80);
+  for (int i = 0; i < 200; i++) axis.tick(0.016);
+  axis.setExtent(30, 10);
+  CHECK(axis.offset() == 20 && axis.shown() == 20.0);
+}

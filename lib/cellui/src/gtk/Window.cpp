@@ -145,8 +145,8 @@ struct Window::Impl {
 
   void measure(const WindowOptions & options);
   void snapshot(GtkSnapshot * snapshot);
-  const Painted & paint(size_t slot, const CellBuffer & cells, bool transparent);
-  void appendTexture(GtkSnapshot * snapshot, const Painted & painted) const;
+  const Painted & paint(size_t slot, const CellBuffer & cells, bool transparent, bool with_images = true);
+  void appendTexture(GtkSnapshot * snapshot, const Painted & painted, int row = 0, int col = 0) const;
   void forgetTextures() {
     for (Painted & p : painted) {
       if (p.texture) g_object_unref(p.texture);
@@ -252,6 +252,7 @@ void Window::Impl::measure(const WindowOptions & options) {
   display_info.default_bg = bg;
   display_info.display_scale = 1.0;
   display_info.sextants = false;
+  display_info.smooth_scroll = true;
 }
 
 void Window::Impl::allocated(int width, int height) {
@@ -283,7 +284,7 @@ class Print {
   uint64_t value_ = 14695981039346656037ull;
 };
 
-uint64_t printOf(const CellBuffer & cells, const std::vector<ImagePlacement> & images, bool transparent) {
+uint64_t printOf(const CellBuffer & cells, const std::vector<ImagePlacement> & images, bool transparent, bool with_images) {
   Print print;
   print.add(static_cast<uint64_t>(cells.rows()) << 32 | static_cast<uint32_t>(cells.cols()));
   print.add(transparent);
@@ -297,7 +298,7 @@ uint64_t printOf(const CellBuffer & cells, const std::vector<ImagePlacement> & i
                 static_cast<uint64_t>(cell.continuation) << 3 | static_cast<uint64_t>(cell.image) << 4);
     }
   }
-  for (const ImagePlacement & p : images) {
+  for (const ImagePlacement & p : with_images ? images : std::vector<ImagePlacement>()) {
     print.add(p.key);
     print.add(p.image ? p.image->version : 0);
     print.add(static_cast<uint64_t>(p.row) << 32 | static_cast<uint32_t>(p.col));
@@ -310,10 +311,10 @@ uint64_t printOf(const CellBuffer & cells, const std::vector<ImagePlacement> & i
 // The texture of a layer's cells, drawn again only when they or the pictures
 // over them changed. A transparent one holds only the rectangle the
 // non-blank cells span, with the blank cells in it see-through.
-const Window::Impl::Painted & Window::Impl::paint(size_t slot, const CellBuffer & cells, bool transparent) {
+const Window::Impl::Painted & Window::Impl::paint(size_t slot, const CellBuffer & cells, bool transparent, bool with_images) {
   if (painted.size() <= slot) painted.resize(slot + 1);
   Painted & p = painted[slot];
-  uint64_t print = printOf(cells, images, transparent);
+  uint64_t print = printOf(cells, with_images ? images : std::vector<ImagePlacement>(), transparent, with_images);
   if (print == p.print && (p.texture || transparent)) return p;
   if (p.texture) g_object_unref(p.texture);
   p.texture = nullptr;
@@ -335,7 +336,7 @@ const Window::Impl::Painted & Window::Impl::paint(size_t slot, const CellBuffer 
   }
   if (r1 <= r0 || c1 <= c0) return p;
   auto start = Clock::now();
-  Image image = rasterizer->render(cells, images, r0, c0, r1 - r0, c1 - c0, cell_h, cell_w, 1, *display_info.default_fg, *display_info.default_bg);
+  Image image = rasterizer->render(cells, with_images ? images : std::vector<ImagePlacement>(), r0, c0, r1 - r0, c1 - c0, cell_h, cell_w, 1, *display_info.default_fg, *display_info.default_bg);
   if (image.width > 0 && image.height > 0) {
     if (transparent) {
       for (int r = r0; r < r1; r++) {
@@ -363,9 +364,9 @@ const Window::Impl::Painted & Window::Impl::paint(size_t slot, const CellBuffer 
   return p;
 }
 
-void Window::Impl::appendTexture(GtkSnapshot * snap, const Painted & p) const {
+void Window::Impl::appendTexture(GtkSnapshot * snap, const Painted & p, int row, int col) const {
   if (!p.texture) return;
-  graphene_rect_t bounds = GRAPHENE_RECT_INIT(static_cast<float>(p.col * cell_w), static_cast<float>(p.row * cell_h),
+  graphene_rect_t bounds = GRAPHENE_RECT_INIT(static_cast<float>((p.col + col) * cell_w), static_cast<float>((p.row + row) * cell_h),
                                               static_cast<float>(gdk_texture_get_width(p.texture)), static_cast<float>(gdk_texture_get_height(p.texture)));
   gtk_snapshot_append_scaled_texture(snap, p.texture, GSK_SCALING_FILTER_NEAREST, &bounds);
 }
@@ -380,6 +381,7 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
 
   graphene_rect_t all = GRAPHENE_RECT_INIT(0, 0, static_cast<float>(width), static_cast<float>(height));
   GdkRGBA background = channel(bg);
+  size_t scrolls = 0;
   if (frame.rows() > 0 && frame.cols() > 0 && rasterizer) {
     if (layers.empty()) {
       gtk_snapshot_append_color(snap, &background, &all);
@@ -395,6 +397,21 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
         if (below) gtk_snapshot_append_node(s, below);
         else gtk_snapshot_append_color(s, &background, &all);
         appendTexture(s, paint(i, layer.cells, i > 0));
+        if (layer.scroll) {
+          // A plane scrolled by part of a cell: its own texture, kept while
+          // its cells are unchanged, moved by the fraction and cut to the
+          // plane. A scroll costs a translation, not a rasterization.
+          const ScrollContent & content = *layer.scroll;
+          graphene_rect_t shown = GRAPHENE_RECT_INIT(static_cast<float>(content.col * cell_w), static_cast<float>(content.row * cell_h),
+                                                     static_cast<float>(content.cols * cell_w), static_cast<float>(content.rows * cell_h));
+          graphene_point_t shift = GRAPHENE_POINT_INIT(static_cast<float>(-content.shift_cols * cell_w), static_cast<float>(-content.shift_rows * cell_h));
+          gtk_snapshot_push_clip(s, &shown);
+          gtk_snapshot_save(s);
+          gtk_snapshot_translate(s, &shift);
+          appendTexture(s, paint(layers.size() + 1 + scrolls++, content.cells, true, false), content.row, content.col);
+          gtk_snapshot_restore(s);
+          gtk_snapshot_pop(s);
+        }
         GskRenderNode * composed = gtk_snapshot_free_to_node(s);
         if (below) gsk_render_node_unref(below);
 
@@ -431,10 +448,11 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
       appendTexture(snap, paint(layers.size(), frame, true));
     }
     // Layers that are gone leave their textures.
-    for (size_t i = layers.size() + 1; i < painted.size(); i++) {
+    size_t used = layers.size() + 1 + scrolls;
+    for (size_t i = used; i < painted.size(); i++) {
       if (painted[i].texture) g_object_unref(painted[i].texture);
     }
-    painted.resize(layers.size() + 1);
+    painted.resize(used);
   }
   if (cursor.visible) {
     graphene_rect_t bar = GRAPHENE_RECT_INIT(static_cast<float>(cursor.x * cell_w), static_cast<float>(cursor.y * cell_h), 2.0f, static_cast<float>(cell_h));
@@ -493,12 +511,13 @@ void Window::Impl::buttonEvent(int button, double x, double y, bool pressed, Gdk
 }
 
 void Window::Impl::motionEvent(double x, double y, GdkModifierType state) {
-  if (!held_button) return;
   int row, col;
   cellAt(x, y, row, col);
   if (row == last_row && col == last_col) return;
+  // The pointer's cell, for the wheel to be sent to.
   last_row = row;
   last_col = col;
+  if (!held_button) return;
   unsigned mods = modsFrom(state);
   // A drag repeats the press of the held button at the new cell.
   Input input(Key::Button1 + held_button - 1, row, col, mods & kModAlt, mods & kModShift, mods & kModCtrl, mods & (kModMeta | kModSuper),

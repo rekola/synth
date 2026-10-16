@@ -115,8 +115,23 @@ void TestBackend::present(const CellBuffer & frame, const CursorRequest & cursor
           }
         }
       };
+      // A plane scrolled by part of a cell is shown where its cells are; the
+      // fraction is in the layer for the test to read.
+      auto overScroll = [&](CellBuffer & out, const BackdropLayer & layer) {
+        if (!layer.scroll) return;
+        const ScrollContent & content = *layer.scroll;
+        for (int r = 0; r < content.rows; r++) {
+          for (int c = 0; c < content.cols; c++) {
+            if (!CellBuffer::isBlank(content.cells.at(r, c))) out.put(content.row + r, content.col + c, content.cells.at(r, c));
+          }
+        }
+      };
       CellBuffer stacked = info_.backdrops[0].cells;
-      for (size_t i = 1; i < info_.backdrops.size(); i++) over(stacked, info_.backdrops[i].cells);
+      overScroll(stacked, info_.backdrops[0]);
+      for (size_t i = 1; i < info_.backdrops.size(); i++) {
+        over(stacked, info_.backdrops[i].cells);
+        overScroll(stacked, info_.backdrops[i]);
+      }
       over(stacked, frame_);
       frame_ = std::move(stacked);
     }

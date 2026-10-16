@@ -396,6 +396,16 @@ void BackdropEmulation::apply(CellBuffer & frame, std::vector<ImagePlacement> & 
     CellBuffer out = layers[0].cells;
     for (size_t i = 0; i < layers.size(); i++) {
       if (i > 0) over(out, layers[i].cells);
+      if (const auto & scroll = layers[i].scroll) {
+        // A terminal does not shift a plane by part of a cell: its cells
+        // are shown where they are.
+        for (int r = 0; r < scroll->rows; r++) {
+          for (int c = 0; c < scroll->cols; c++) {
+            if (!CellBuffer::isBlank(scroll->cells.at(r, c))) out.put(scroll->row + r, scroll->col + c, scroll->cells.at(r, c));
+          }
+        }
+        continue;
+      }
       applyLayer(out, images, layers[i], display);
     }
     over(out, frame);
