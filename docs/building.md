@@ -33,6 +33,24 @@ ctest --test-dir build --output-on-failure
 CI builds this on every push and uploads the binary and some rendered songs.
 The plan is in [plans/windows-port.md](../plans/windows-port.md).
 
+## macOS
+
+The macOS build has no audio or MIDI yet, so it renders songs offline
+(`synth --render out.wav song.xml`) and runs the tests; the interactive
+program does not build. The toolchain is Apple clang (Xcode command line
+tools) with Homebrew's libraries, not GCC:
+
+```sh
+brew install cmake ninja pkg-config fmt libsndfile sound-touch libunistring
+export CPATH=/opt/homebrew/include LIBRARY_PATH=/opt/homebrew/lib
+cmake -G Ninja -B build -DSYNTH_BUILD_INTERACTIVE=OFF
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+CI builds this on Apple Silicon. The scopes are drawn with canvas' Quartz 2D
+backend, so Cairo is not needed.
+
 ## Windows installer
 
 `.github/workflows/release-windows.yml` builds an [Inno Setup](https://jrsoftware.org/isinfo.php)
