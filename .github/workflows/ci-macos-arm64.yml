@@ -67,7 +67,12 @@ jobs:
         run: cmake --build build -- -k 0
 
       - name: Test
-        run: ctest --test-dir build --output-on-failure
+        run: |
+          # Passing tests print two lines each; show only the rest.
+          status=0
+          ctest --test-dir build --output-on-failure > ctest.log 2>&1 || status=$?
+          grep -vE '^\[PASS\]|^--- .* ---$' ctest.log || true
+          exit $status
 
       - name: Render songs
         run: |
