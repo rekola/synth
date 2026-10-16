@@ -2,6 +2,7 @@
 #define _OUTLINEVIEW_H_
 
 #include "InfoDialog.h"
+#include <cellui/Fade.h>
 #include "../UIElement.h"
 #include "../../model/TrackType.h"
 
@@ -83,6 +84,9 @@ struct DetailsLine {
 // undo scaffolding first, not a one-off here).
 class OutlineView : public UIElement {
  public:
+  // The focus level is still easing: the loop keeps drawing frames.
+  bool isAnimating() const { return fades_.active() || focus_fade_drawn_; }
+
   OutlineView(UIPlane & parent) : UIElement(parent) {
 
   }
@@ -253,6 +257,9 @@ protected:
   std::vector<struct outline_row_s> data_;
   int current_song_version_ = 0;
   bool current_focused_ = false;
+  float focus_ = 0.0f;
+  cellui::Fades fades_;
+  bool focus_fade_drawn_ = false;
   int new_scroll_pos_ = 0, current_scroll_pos_ = 0;
   int new_column_scroll_ = 0, current_column_scroll_ = 0;
   // -1 until the panel is first focused or clicked: no row is

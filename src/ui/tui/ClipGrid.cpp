@@ -565,6 +565,12 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   // once here (not per-cell) since it's the same value for every column.
   auto focused_clip_id = getController().getFocusedClip();
 
+  // How focused the grid is, eased: the cursor fades in and out with it.
+  focus_ = fades_.value(0, focused ? 1.0f : 0.0f, !styles.reduced_motion);
+  // One more frame after it ends draws the final state.
+  bool fading = fades_.active() || focus_fade_drawn_;
+  focus_fade_drawn_ = fades_.active();
+  fades_.sweep();
   auto new_version = song.getMajorVersion();
   bool editor_redraw = inline_editor_.consumeRedrawRequest();
   auto clip_rows = clipRowCount();
@@ -620,7 +626,6 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   bool meters_changed = meter_steps != current_meter_steps_;
   current_meter_steps_ = std::move(meter_steps);
 
-  bool fading = fades_.active();
   if (!refresh && !editor_redraw && !clip_states_changed && !meters_changed && !fading && new_version == current_song_version_ &&
       cursor_track_index_ == current_cursor_track_index_ && cursor_row_ == current_cursor_row_ &&
       scroll_col_ == current_scroll_col_ && scroll_row_ == current_scroll_row_ &&
@@ -659,7 +664,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     auto track_index = scroll_col_ + vc;
     if (track_index == num_tracks) {
       auto & master_info = playback_info.getTrackInfo(master_id);
-      renderMasterColumn(styles, vc * (kColWidth + 1), rows, focused, num_tracks, sceneState);
+      renderMasterColumn(styles, vc * (kColWidth + 1), rows, focus_ > 0.0f, num_tracks, sceneState);
       renderMeter(styles, vc * (kColWidth + 1), rows, master_id, master_info.isClipping());
       break;
     }
@@ -687,9 +692,9 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     // -1 is the header row's own physical value (physicalFor()'s own
     // comment) - never a real physical_row inside the loop below, so this
     // is the header's one and only cursor check.
-    bool header_is_cursor = focused && track_index == cursor_track_index_ && cursor_physical == -1;
-    setFgColor(header_is_cursor ? styles.highlight_fg_color : styles.window_accent_fg_color);
-    setBgColor(header_is_cursor ? styles.highlight_bg_color : styles.heading_bg_color);
+    bool header_is_cursor = focus_ > 0.0f && track_index == cursor_track_index_ && cursor_physical == -1;
+    setFgColor(header_is_cursor ? styles.window_accent_fg_color.blend(focus_, styles.highlight_fg_color) : styles.window_accent_fg_color);
+    setBgColor(header_is_cursor ? styles.heading_bg_color.blend(focus_, styles.highlight_bg_color) : styles.heading_bg_color);
     putstr(0, x, string(static_cast<size_t>(kColWidth), ' ')); // opaque header background first, across the whole column
     auto prefix = "T" + std::to_string(structure.getBaselineInfo(track_id).color_ordinal_);
     auto friendly_name = (leaf && !leaf->getName().empty()) ? " " + leaf->getName() : string();
@@ -725,7 +730,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     for (auto vr = 0; vr < visible_rows; vr++) {
       auto physical_row = scroll_row_ + vr;
       auto y = 1 + vr;
-      bool is_cursor_cell = focused && track_index == cursor_track_index_ && physical_row == cursor_physical;
+      bool is_cursor_cell = focus_ > 0.0f && track_index == cursor_track_index_ && physical_row == cursor_physical;
       // The cursor track's clip being edited in the pattern editor below
       // is marked with a pencil.
       bool is_edited_clip = track_clip_source_ && track_index == cursor_track_index_ && physical_row < clip_rows && physical_row == track_clip_source_(track_id);
@@ -834,50 +839,23 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
         // The slot takes the state color, pulsing or flashing between its
         // dark and bright shade like the Launchpad pad (before the cursor/
         // tint below, so those still apply on top).
-        if (has_real_clip) {
-          // Each state tint (running green, recording red, paused) is worn by a
-          // weight that eases in and out as the state starts or ends, so a
-          // change between states crossfades too. The pulse or flash runs under
-          // the weight the whole time; a tint that is on its way out keeps
-          // pulsing as the state it last had.
-          enum Layer { GREEN, RED, PAUSE, LAYERS };
-          auto layerOf = [](ClipHighlight s) {
-            switch (s) {
-            case ClipHighlight::NONE: return -1;
-            case ClipHighlight::PAUSED: return static_cast<int>(PAUSE);
-            case ClipHighlight::RECORDING:
-            case ClipHighlight::RECORD_QUEUED:
-            case ClipHighlight::RECORD_STOPPING: return static_cast<int>(RED);
-            default: return static_cast<int>(GREEN);
-            }
-          };
-          uint64_t slot_key = (static_cast<uint64_t>(track_id) << 32) | static_cast<uint32_t>(clip_row);
-          int active = layerOf(state);
-          for (int layer = 0; layer < LAYERS; layer++) {
-            uint64_t key = slot_key * LAYERS + static_cast<uint64_t>(layer);
-            if (layer == active) fade_states_[key] = state;
-            float weight = fades_.value(key, layer == active ? 1.0f : 0.0f, !styles.reduced_motion);
-            auto remembered = fade_states_.find(key);
-            if (weight <= 0.0f || remembered == fade_states_.end()) {
-              if (layer != active) fade_states_.erase(key);
-              continue;
-            }
-            auto shown = remembered->second;
-            Color bright = layer == RED ? styles.clip_recording_color : styles.clip_playing_color;
-            Color tint = layer == PAUSE ? styles.clip_paused_color
-              : bright.blend(0.6f * (1.0f - statePulse(shown, styles.reduced_motion)), Color(0, 0, 0));
-            row_bg = row_bg.blend(weight, tint);
-          }
+        if (has_real_clip && state != ClipHighlight::NONE) {
+          bool red = state == ClipHighlight::RECORDING || state == ClipHighlight::RECORD_QUEUED
+            || state == ClipHighlight::RECORD_STOPPING;
+          Color bright = red ? styles.clip_recording_color : styles.clip_playing_color;
+          Color dark = bright.blend(0.6f, Color(0, 0, 0));
+          row_bg = state == ClipHighlight::PAUSED ? styles.clip_paused_color
+            : dark.blend(statePulse(state, styles.reduced_motion), bright);
         }
         if (is_cursor_cell && !has_real_clip) {
-          row_fg = styles.highlight_fg_color;
-          row_bg = styles.highlight_bg_color;
+          row_fg = row_fg.blend(focus_, styles.highlight_fg_color);
+          row_bg = row_bg.blend(focus_, styles.highlight_bg_color);
         } else if (is_cursor_cell) {
           // A clip's background is its track's identity color - the cursor
           // brightens it rather than replacing it, the same as
           // ArrangementGrid's cursor on its colored instance cells.
-          row_fg = styles.highlight_fg_color;
-          row_bg = row_bg.blend(0.5f, styles.cursor_tint_color);
+          row_fg = row_fg.blend(focus_, styles.highlight_fg_color);
+          row_bg = row_bg.blend(0.5f * focus_, styles.cursor_tint_color);
         }
         setFgColor(row_fg);
         setBgColor(row_bg);
@@ -914,8 +892,8 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
       // is_cursor_cell true - the Sends value row and every clip row are
       // handled directly above, each with their own cursor treatment.
       if (is_cursor_cell) {
-        fg = styles.highlight_fg_color;
-        bg = styles.highlight_bg_color;
+        fg = fg.blend(focus_, styles.highlight_fg_color);
+        bg = bg.blend(focus_, styles.highlight_bg_color);
       }
       setFgColor(fg);
       setBgColor(bg);
@@ -932,8 +910,6 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     for (auto y = 1; y < rows; y++) putDivider(styles, y, x + kColWidth, false);
   }
 
-  fades_.sweep();
-  if (!fades_.active()) fade_states_.clear();
   inline_editor_.paintBackdrop();
   return true;
 }
@@ -971,8 +947,8 @@ ClipGrid::renderMasterColumn(const StyleProvider & styles, int x, int rows, bool
     bool is_cursor_cell = focused && cursor_here && physical_row == cursor_physical;
     Color fg = styles.window_fg_color, bg = styles.grid_bg_color;
     if (is_cursor_cell) {
-      fg = styles.highlight_fg_color;
-      bg = styles.highlight_bg_color;
+      fg = fg.blend(focus_, styles.highlight_fg_color);
+      bg = bg.blend(focus_, styles.highlight_bg_color);
     }
 
     if (physical_row < clip_rows) {

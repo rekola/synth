@@ -1358,6 +1358,13 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   // separately (see SelectionBounds::operator==).
   // A pass fading in or out keeps redrawing, once more after it ends.
   bool fading = isLiveMode() && scene_source_->isFading();
+  // How focused the widget is, eased: its cursor fades between the focused and unfocused look.
+  focus_ = fades_.value(0, focused ? 1.0f : 0.0f, !styles.reduced_motion);
+  // One more frame after it ends draws the final state.
+  bool focus_fading = fades_.active() || focus_fade_drawn_;
+  focus_fade_drawn_ = fades_.active();
+  fades_.sweep();
+  if (focus_fading) force_full_redraw_ = true;
   if (fading || fading_drawn_) force_full_redraw_ = true;
   fading_drawn_ = fading;
   if (score_pattern != current_score_pattern ||
@@ -3199,8 +3206,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     bool column_scoped_selection = row_track_in_selection &&
                                    sel_bounds.scope != SelectionScope::TRACK && sel_bounds.scope != SelectionScope::EVERYTHING && !isWholeSong(sel_bounds.scope);
     // Unfocused, the region still shows, faintly - it's where edits land.
-    Color region_fg = focused ? styles.highlight_fg_color : styles.window_fg_color;
-    Color region_bg = focused ? styles.highlight_bg_color : styles.highlight_unfocused_bg_color;
+    Color region_fg = styles.window_fg_color.blend(focus_, styles.highlight_fg_color);
+    Color region_bg = styles.highlight_unfocused_bg_color.blend(focus_, styles.highlight_bg_color);
     bool in_selection = row_track_in_selection && !column_scoped_selection;
     if (in_selection) {
       fg = region_fg;

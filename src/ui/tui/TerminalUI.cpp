@@ -2087,7 +2087,8 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
       }
       // A colour still easing needs the next frame even if nothing else wakes
       // the loop.
-      if (getView() == View::LIVE && clip_grid_->isAnimating()) frame_pending = true;
+      if ((getView() == View::LIVE && (clip_grid_->isAnimating() || outline_view_->isAnimating())) || pattern_editor_->isAnimating() ||
+          arrangement_grid_->isAnimating()) frame_pending = true;
     }
   });
 

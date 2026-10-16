@@ -144,8 +144,9 @@ Themes are data:
      header and the tracker's two heading lines); Done;
    - fewer lines, but not between tracks in the tracker view;
    - the icon list;
-   - fades for state changes: `cellui::Fades` eases a colour over 160 ms by a
-     key; the clip grid's slots use it, and `--reduced-motion` (or
+   - fades for state changes: `cellui::Fades` eases a colour or a number over 160 ms by a
+     key; the clip grid, pattern editor, outline and arrangement grid ease their
+     cursor between the focused and unfocused look with it, and `--reduced-motion` (or
      `SYNTH_REDUCED_MOTION=1`) turns it off and holds pulses steady. The other
      in-place changes (flags, cursor to an undo place, panels) are next;
 5. **Light and high-contrast themes,** with a theme command and a setting.
