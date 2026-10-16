@@ -1,7 +1,7 @@
 #include <cellui/VuMeterImage.h>
 
 #include <canvas/Context.h>
-#include <canvas/ContextCairo.h>
+#include "NativeContext.h"
 
 #include <algorithm>
 #include <cmath>
@@ -23,7 +23,8 @@ std::vector<uint32_t> render(const std::vector<std::optional<VuReading>> & colum
   std::vector<uint32_t> out(static_cast<size_t>(width) * height, 0);
   if (width == 0 || height == 0) return out;
 
-  canvas::ContextCairo ctx(width, height);
+  auto context = cellui::nativeContext(width, height);
+  canvas::Context & ctx = *context;
   const float w = static_cast<float>(width), h = static_cast<float>(height);
   ctx.fillStyle = toCanvas(look.background);
   ctx.fillRect(0, 0, w, h);

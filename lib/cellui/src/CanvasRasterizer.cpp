@@ -2,9 +2,11 @@
 #include <cellui/Utf8.h>
 
 #include <canvas/Context.h>
-#include <canvas/ContextCairo.h>
+#include "NativeContext.h"
 
+#ifndef __APPLE__
 #include <fontconfig/fontconfig.h>
+#endif
 
 #include <algorithm>
 #include <cmath>
@@ -24,6 +26,17 @@ uint32_t firstCodepoint(const std::string & s) {
   return ((c & 0x07) << 18) | ((b(1) & 0x3F) << 12) | ((b(2) & 0x3F) << 6) | (b(3) & 0x3F);
 }
 
+#ifdef __APPLE__
+// Core Text draws a character the font lacks with another font by itself.
+class FontFallback {
+ public:
+  explicit FontFallback(std::string) { }
+  const std::string & familyFor(uint32_t) {
+    static const std::string kPrimary;
+    return kPrimary;
+  }
+};
+#else
 // Which font draws a character. The text drawing has no fallback of its own,
 // so a character the font asked for lacks (a musical accidental, say) is drawn
 // with the best installed font that has it, asked of fontconfig.
@@ -92,6 +105,7 @@ class FontFallback {
   FcCharSet * primary_ = nullptr;
   std::map<uint32_t, std::string> cache_;
 };
+#endif
 
 // An opaque RGB picture that rectangles are drawn into with their exact
 // coverage of each pixel, so shapes smaller than a pixel still count.
@@ -234,7 +248,8 @@ class CanvasRasterizer : public CellRasterizer {
   // in the system's font sized so that its advance is a cell's width.
   void drawText(std::vector<unsigned char> & rgba, const CellBuffer & cells, int row, int col, int r_lo, int r_hi, int c_lo, int c_hi,
                 int width, int height, double s, int cell_h, int cell_w, const Color & default_fg) {
-    canvas::ContextCairo ctx(static_cast<unsigned>(width), static_cast<unsigned>(height));
+    auto context = cellui::nativeContext(static_cast<unsigned>(width), static_cast<unsigned>(height));
+    canvas::Context & ctx = *context;
     canvas::ImageData base(rgba.data(), static_cast<unsigned>(width), static_cast<unsigned>(height), 4);
     ctx.drawImage(base, 0, 0, width, height);
     ctx.scale(1.0 / s, 1.0 / s);
