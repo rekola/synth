@@ -164,12 +164,15 @@ OutlineView::render(const StyleProvider & styles, bool refresh, bool focused) {
   {
     // The view follows where it was scrolled to.
     auto now = std::chrono::steady_clock::now();
-    viewport_.rows.tick(std::min(0.1, std::chrono::duration<double>(now - last_tick_).count()));
+    auto seconds = std::min(0.1, std::chrono::duration<double>(now - last_tick_).count());
+    viewport_.rows.tick(seconds);
+    tickCursor(seconds);
     last_tick_ = now;
   }
 
   if (song.getMajorVersion() != current_song_version_ || viewport_.rows.shown() != current_shown_row_ ||
-      viewport_.cols.offset() != current_column_scroll_ || focused != current_focused_) {
+      viewport_.cols.offset() != current_column_scroll_ || focused != current_focused_ ||
+      cursor_y_ != current_cursor_y_) {
     render_all = true;
   }
 
@@ -189,6 +192,8 @@ OutlineView::render(const StyleProvider & styles, bool refresh, bool focused) {
     getPlane().erase();
     renderHeading(styles);
     renderTree(styles, focused);
+    renderCursor(styles, focused);
+    current_cursor_y_ = cursor_y_;
     renderButtonBar(styles);
     renderInfoPopup(styles);
     need_refresh = true;
@@ -403,19 +408,26 @@ OutlineView::renderTree(const StyleProvider & styles, bool focused) {
   tree_plane_->setScrollOffset(viewport_.rows.fraction(), 0);
   tree_plane_->erase();
   int drawn = tree_rows + (viewport_.rows.smooth() ? 1 : 0);
-  for (int i = 0; i < drawn; i++) renderRow(styles, i, i + current_first_row_ == new_cursor_row_, focused);
+  bool own_layer = cursorOnOwnLayer();
+  for (int i = 0; i < drawn; i++) {
+    renderRow(styles, i, !own_layer && i + current_first_row_ == new_cursor_row_, focused);
+  }
 }
 
 void
 OutlineView::renderRow(const StyleProvider & styles, int display_row, bool cursor, bool focused) {
-  auto tree_rows = treeRows() + 1;
+  if (display_row < 0 || display_row >= treeRows() + 1) return;
+  drawRow(styles, *tree_plane_, display_row, static_cast<size_t>(display_row + current_first_row_), cursor, focused);
+}
+
+void
+OutlineView::drawRow(const StyleProvider & styles, UIPlane & plane, int display_row, size_t data_row, bool cursor,
+                     bool focused) {
   auto tree_width = getDim().second;
-  UIPlane & plane = *tree_plane_;
   auto fg = [&](const Color & c) { plane.setFgColor(c.getRed(), c.getGreen(), c.getBlue()); };
   auto bg = [&](const Color & c) { plane.setBgColor(c.getRed(), c.getGreen(), c.getBlue()); };
 
-  if (display_row >= 0 && display_row < tree_rows) {
-    auto data_row = static_cast<size_t>(display_row + current_first_row_);
+  {
     if (pressed_.data_row >= 0 && static_cast<size_t>(pressed_.data_row) == data_row) {
       fg(styles.highlight_fg_color);
       bg(styles.row_pressed_bg_color);
@@ -447,6 +459,51 @@ OutlineView::renderRow(const StyleProvider & styles, int display_row, bool curso
   }
 }
 
+bool
+OutlineView::cursorOnOwnLayer() const {
+  return tree_plane_ && viewport_.rows.smooth();
+}
+
+double
+OutlineView::cursorTargetY() const {
+  return static_cast<double>(new_cursor_row_ - viewport_.rows.offset());
+}
+
+void
+OutlineView::tickCursor(double seconds) {
+  auto target = cursorTargetY();
+  auto last = static_cast<double>(std::max(0, treeRows() - 1));
+  // A cursor outside the view (the wheel scrolled it away) is not shown;
+  // it joins the view from the nearer edge.
+  if (target < 0 || target > last) {
+    cursor_y_ = std::clamp(target, -1.0, last + 1.0);
+    return;
+  }
+  if (!viewport_.rows.smooth()) {
+    cursor_y_ = target;
+    return;
+  }
+  cursor_y_ += (target - cursor_y_) * (1.0 - std::exp(-std::max(0.0, seconds) / cellui::ScrollAxis::kSettleSeconds));
+  if (std::abs(target - cursor_y_) < cellui::ScrollAxis::kSnap) cursor_y_ = target;
+  cursor_y_ = std::clamp(cursor_y_, 0.0, last);
+}
+
+void
+OutlineView::renderCursor(const StyleProvider & styles, bool focused) {
+  if (!tree_plane_) return;
+  auto last = static_cast<double>(std::max(0, treeRows() - 1));
+  bool show = cursorOnOwnLayer() && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size()) &&
+              cursor_y_ >= 0 && cursor_y_ <= last;
+  if (!show) {
+    tree_plane_->clearBand();
+    return;
+  }
+  // A translucent band over the tree, so the row shows through; it moves by
+  // parts of a row independently of the content.
+  const auto & color = focused ? styles.highlight_bg_color : styles.highlight_unfocused_bg_color;
+  tree_plane_->setBand(cellui::Band{ cursor_y_, 1.0, 0, getDim().second, color, focused ? 0.45f : 0.6f });
+}
+
 void
 OutlineView::moveCursorBy(int delta) {
   new_cursor_row_ = std::clamp(new_cursor_row_ + delta, 0, std::max(0, static_cast<int>(data_.size()) - 1));
@@ -457,7 +514,8 @@ OutlineView::moveCursorBy(int delta) {
 
 void
 OutlineView::syncViewport() {
-  viewport_.setExtent(static_cast<int>(data_.size()), widestRow(), treeRows(), getDim().second);
+  // The last rows can scroll up out from under the button bar.
+  viewport_.setExtent(static_cast<int>(data_.size()) + kButtonBarRows, widestRow(), treeRows(), getDim().second);
 }
 
 void
