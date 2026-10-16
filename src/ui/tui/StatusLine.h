@@ -140,6 +140,11 @@ class StatusLine : public UIElement {
 	showIndicator("");
 	return UIElement::offerInput(input);
       }
+    } else if (input.hasCtrl() && input.hasShift() && !input.hasAlt() && (input.getId() == 'p' || input.getId() == 'P')) {
+      // The non-terminal binding for the same prompt (the window backend,
+      // or a terminal speaking the kitty keyboard protocol).
+      showMx();
+      return true;
     } else if ((input.hasAlt() || input.hasMeta()) && (input.getId() == 'x' || input.getId() == 'X')) {
       // Whether the terminal sent physical Alt-x as one event directly, or
       // ESC then, arbitrarily later, x - TerminalUI.cpp's
