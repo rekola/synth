@@ -1420,6 +1420,9 @@ would otherwise resume showing.
   `BufferPlane`. `Window` draws each layer as a texture (kept while a fingerprint of its cells
   and pictures is unchanged), then the stack so far again under a GSK blur node and a dim
   colour inside the backdrop's cells; it never makes the blur itself, whatever the renderer.
+  Over the frame it draws a soft GSK outset shadow around every area of `FrameInfo::elevations`
+  that no later backdrop covers (`ElevatedArea::layer`), lower and softer the higher it is, and
+  draws every higher area's cells again over a lower one's shadow (`FrameStats::shadows`).
   The terminal cannot blur, so what it shows is made in its own backend: `term::BackdropEmulation`
   (`TerminalSession::present()`) - cells averaged over their neighbours with the glyphs
   faded out, or with pictures the cells drawn, blurred and stretched in tiles of 4 x 16

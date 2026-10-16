@@ -26,6 +26,9 @@ struct ElevatedArea {
   int row = 0, col = 0, rows = 0, cols = 0;
   float elevation = 0;
   std::string name;
+  // How many of the frame's backdrop layers lie below it: one fewer than
+  // FrameInfo::backdrops has means a later backdrop covers it.
+  size_t layer = 0;
 };
 
 // What an application tells a backend about a frame besides its cells.

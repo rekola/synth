@@ -140,7 +140,7 @@ void BufferPlane::refresh() {
     auto [rows, cols] = p.plane->getDim();
     int r0 = std::max(p.clip_row, p.row), r1 = std::min(p.clip_row + p.clip_rows, p.row + rows);
     int c0 = std::max(p.clip_col, p.col), c1 = std::min(p.clip_col + p.clip_cols, p.col + cols);
-    if (r0 < r1 && c0 < c1) top.elevations_.push_back(ElevatedArea{ r0, c0, r1 - r0, c1 - c0, p.elevation, p.plane->name_ });
+    if (r0 < r1 && c0 < c1) top.elevations_.push_back(ElevatedArea{ r0, c0, r1 - r0, c1 - c0, p.elevation, p.plane->name_, top.layers_.size() });
   }
 }
 
