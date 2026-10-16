@@ -44,7 +44,7 @@ class TestBackend : public Backend {
   // Input.
   void push(const BackendEvent & event);
   // `mods` are the kMod bits (Input.h).
-  void pushKey(int key, unsigned mods = 0) { push(BackendEvent::makeInput(keyInput(key, mods))); }
+  void pushKey(int key, unsigned mods = 0, Input::Kind kind = Input::Kind::UNKNOWN) { push(BackendEvent::makeInput(keyInput(key, mods, kind))); }
   // Each character of `text` as a key (UTF-8 aware).
   void pushText(const std::string & text);
   void pushMouse(int y, int x, int key, unsigned mods = 0, Input::Kind kind = Input::Kind::PRESS);
