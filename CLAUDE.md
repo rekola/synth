@@ -1377,7 +1377,11 @@ would otherwise resume showing.
   context as GTK's own) and `Window`, a `GtkWindow` with one custom widget whose
   `snapshot()` rasterizes the presented frame (cells and the images over them) with
   `canvasRasterizer()` at scale 1 into one `GdkTexture`, only when something was
-  presented. It reports `DisplayInfo` with the cell size from the font's Pango metrics,
+  presented (its text is drawn in the system's monospace font; a character that font
+  lacks, such as the musical accidentals of the 31- and 53-EDO note names, is drawn from
+  the best installed font that has it, found with fontconfig - the drawing library's own
+  text has no fallback - and shrunk to its cell if wider; fontconfig comes with
+  `libcairo2-dev`). It reports `DisplayInfo` with the cell size from the font's Pango metrics,
   pictures always available and no sextants, and turns GTK's key (taken in the capture
   phase, with real press/repeat/release), click, drag (the held button's press again at
   each new cell), wheel (buttons 4-7) and paste (Ctrl+Shift+V, Shift+Insert) events into

@@ -30,7 +30,7 @@ if(NOT TARGET canvas)
   include(FetchContent)
   FetchContent_Declare(canvas
     GIT_REPOSITORY https://github.com/rekola/canvas
-    GIT_TAG bbe8228a9c04be1ad677bf5c0486ec8ed1a72564)
+    GIT_TAG 8968cb22fb69d055c86ba37b4fcc2d9344eac8f4)
   FetchContent_GetProperties(canvas)
   if(NOT canvas_POPULATED)
     FetchContent_Populate(canvas)
@@ -112,6 +112,10 @@ endif()
 # the window backend on Windows.
 if(NOT WIN32)
   target_sources(cellui PRIVATE src/CanvasRasterizer.cpp src/HeatmapImage.cpp src/PixelScopes.cpp src/SpectrumImage.cpp src/VuMeterImage.cpp)
+  # Text in a font the one asked for lacks is found with fontconfig.
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(CELLUI_FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig)
+  target_link_libraries(cellui PRIVATE PkgConfig::CELLUI_FONTCONFIG)
   target_compile_definitions(cellui PRIVATE CELLUI_PIXEL_SCOPES)
 endif()
 # canvas' headers are reached as SYSTEM includes.
@@ -161,6 +165,9 @@ if(NOT WIN32)
     tests/VuMeterTests.cpp)
 endif()
 target_link_libraries(cellui_tests PRIVATE cellui)
+if(NOT WIN32)
+  target_link_libraries(cellui_tests PRIVATE PkgConfig::CELLUI_FONTCONFIG)
+endif()
 target_compile_definitions(cellui_tests PRIVATE CELLUI_TEST_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests")
 add_test(NAME cellui_tests COMMAND cellui_tests)
 
