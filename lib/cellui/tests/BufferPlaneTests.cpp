@@ -464,6 +464,46 @@ std::unique_ptr<UIPlane> scrimOver(BufferPlane & root, const Backdrop & backdrop
 
 }  // namespace
 
+// A display that applies backdrops itself is given what lies below each one
+// as a layer, and the frame holds only what is above.
+TEST(bufferplane_native_backdrop_sets_the_layer_below_aside) {
+  StyleProvider styles;
+  CellBuffer b(2, 6);
+  BufferPlane root(b, styles);
+  root.setNativeBackdrop(true);
+  root.putstr(0, 0, "below");
+  auto scrim = scrimOver(root, Backdrop{2, 0.3f});
+  auto dialog = root.createChild();
+  dialog->resize(1, 3);
+  dialog->move(1, 1);
+  dialog->putstr(0, 0, "top");
+  root.refresh();
+
+  auto layers = root.takeBackdropLayers();
+  CHECK(layers.size() == 1);
+  CHECK(layers[0].cells.toPlainText() == "below\n");
+  CHECK(layers[0].backdrop.blur == 2 && layers[0].backdrop.dim == 0.3f);
+  CHECK(layers[0].row == 0 && layers[0].col == 0 && layers[0].rows == 2 && layers[0].cols == 6);
+  // The frame has the dialog alone, and nothing of the backdrop's own cells.
+  CHECK(b.toPlainText() == "\n top\n");
+  CHECK(!b.at(0, 0).backdrop.active() && CellBuffer::isBlank(b.at(0, 0)));
+  // Taken: a refresh without a backdrop sets nothing aside.
+  scrim.reset();
+  root.refresh();
+  CHECK(root.takeBackdropLayers().empty());
+}
+
+TEST(bufferplane_without_a_native_backdrop_sets_nothing_aside) {
+  StyleProvider styles;
+  CellBuffer b(1, 4);
+  BufferPlane root(b, styles);
+  root.putstr(0, 0, "ab");
+  auto scrim = scrimOver(root, Backdrop{0, 0.3f});
+  root.refresh();
+  CHECK(root.takeBackdropLayers().empty());
+  CHECK(b.toPlainText() == "ab\n");
+}
+
 TEST(bufferplane_backdrop_dims_toward_its_tint_and_keeps_the_text) {
   StyleProvider styles;
   CellBuffer b(1, 4);

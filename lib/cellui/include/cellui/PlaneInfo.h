@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cellui/BackdropLayer.h>
+
 #include <string>
 #include <vector>
 
@@ -22,6 +24,9 @@ struct FrameInfo {
   PlaneInfo planes;
   // Which widget takes the keys, in the application's own words.
   std::string focus;
+  // The layers below each backdrop, bottom first, when the display blurs
+  // and dims them itself.
+  std::vector<BackdropLayer> backdrops;
 };
 
 }  // namespace cellui

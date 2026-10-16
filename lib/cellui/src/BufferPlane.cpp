@@ -334,6 +334,7 @@ void BufferPlane::refresh() {
   if (!top.target_) return;
   top.target_->clear(0, 0, top.target_->rows(), top.target_->cols());
   top.placements_.clear();
+  top.layers_.clear();
   for (auto & f : top.filtered_images_) f.used = false;
   for (auto & t : top.backdrop_tiles_) t.used = false;
   top.redrawn_tiles_ = 0;
@@ -447,9 +448,29 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
   // The plane's own rectangle, inside the clip.
   int row_lo = std::max(clip_row, row), row_hi = std::min(clip_row + clip_rows, row + local_.rows());
   int col_lo = std::max(clip_col, col), col_hi = std::min(clip_col + clip_cols, col + local_.cols());
+  // With a native backdrop what lies below is set aside, and the cells
+  // above start blank.
+  const bool native = top.native_backdrop_;
+  if (native) {
+    int r_min = row_hi, r_max = row_lo, c_min = col_hi, c_max = col_lo;
+    const Backdrop * found = nullptr;
+    for (int r = row_lo; r < row_hi; r++) {
+      for (int c = col_lo; c < col_hi; c++) {
+        const Backdrop & b = local_.at(r - row, c - col).backdrop;
+        if (!b.active()) continue;
+        if (!found) found = &b;
+        r_min = std::min(r_min, r), r_max = std::max(r_max, r + 1);
+        c_min = std::min(c_min, c), c_max = std::max(c_max, c + 1);
+      }
+    }
+    if (found) {
+      top.layers_.push_back(BackdropLayer{ out, *found, r_min, c_min, r_max - r_min, c_max - c_min });
+      out.clear(0, 0, out.rows(), out.cols());
+    }
+  }
   // Backdrop cells show the layers below as they were before this plane.
   std::unique_ptr<BackdropSource> source;
-  for (int r = row_lo; r < row_hi && !source; r++) {
+  for (int r = row_lo; r < row_hi && !source && !native; r++) {
     for (int c = col_lo; c < col_hi; c++) {
       if (!local_.at(r - row, c - col).backdrop.active()) continue;
       source = std::make_unique<BackdropSource>(out, top.placements_, top.cell_px_h_, top.cell_px_w_, top.default_fg_, top.default_bg_);
@@ -478,8 +499,17 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
   }
   for (int r = row_lo; r < row_hi; r++) {
     for (int c = col_lo; c < col_hi; c++) {
-      const CellBuffer::Cell & cell = local_.at(r - row, c - col);
+      const CellBuffer::Cell * shown = &local_.at(r - row, c - col);
+      CellBuffer::Cell without_backdrop;
+      if (native && shown->backdrop.active()) {
+        without_backdrop = *shown;
+        without_backdrop.backdrop = {};
+        shown = &without_backdrop;
+      }
+      const CellBuffer::Cell & cell = *shown;
       if (CellBuffer::isBlank(cell)) {
+        // A backdrop's own cells show nothing here: the display draws it.
+        if (shown == &without_backdrop) continue;
         if (base_bg_) {
           CellBuffer::Cell below = out.at(r, c);
           below.bg = base_bg_;

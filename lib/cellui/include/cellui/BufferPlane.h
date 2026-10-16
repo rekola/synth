@@ -131,6 +131,12 @@ class BufferPlane : public UIPlane {
   // over its cells, in tiles redrawn only when what they show changed
   // (root only).
   void setRasterizer(std::shared_ptr<CellRasterizer> rasterizer) { rasterizer_ = std::move(rasterizer); }
+  // With a native backdrop, a backdrop is not applied to the cells: what
+  // lies below it is kept apart as a layer (takeBackdropLayers()) and the
+  // frame holds only what is above it (root only).
+  void setNativeBackdrop(bool native) { native_backdrop_ = native; }
+  // The layers the last refresh() set aside, bottom first (root only).
+  std::vector<BackdropLayer> takeBackdropLayers() { return std::move(layers_); }
   // How many tiles the last refresh() drew anew (root only).
   int redrawnBackdropTiles() const { return redrawn_tiles_; }
   // What canRenderSextants() reports, for the whole tree (root only).
@@ -189,6 +195,8 @@ class BufferPlane : public UIPlane {
   Color default_fg_ = Color(255, 255, 255), default_bg_ = Color(0, 0, 0);
   double display_scale_ = 1.0;
   bool sextants_ = false;
+  bool native_backdrop_ = false;
+  mutable std::vector<BackdropLayer> layers_;
   bool flat_ = false;
   bool themed_bases_ = false;
   int cell_px_h_ = 0, cell_px_w_ = 0;

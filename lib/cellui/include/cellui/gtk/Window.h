@@ -50,6 +50,8 @@ class Window : public Backend {
 
   void present(const CellBuffer & frame, const CursorRequest & cursor = {}, const std::vector<ImagePlacement> & images = {},
                const FrameInfo * info = nullptr) override;
+  // Asks for a frame info: the backdrops' layers come in it.
+  bool wantsFrameInfo() const override { return true; }
   void redraw() override;
 
   // Makes wakeFd() readable; any thread may call it.

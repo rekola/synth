@@ -195,7 +195,10 @@ and Pango replace the rendering and text notes below.
    cores) on a playing Live View: 15 ms a frame at 1200x760, 30 ms at
    1600x1000 - all of it the rasterizer, so the per-plane render nodes
    (below) or rasterizing only the rows that changed come first. Not done:
-   render nodes, input methods, HiDPI, dialogs, menus.
+   render nodes, input methods, HiDPI, dialogs, menus. Backdrops are blurred
+   by GSK (a blur node over the layer below, `FrameInfo::backdrops`), with the
+   CPU version as the fallback for a software renderer; the measured cost is
+   in the pull request, as the GPU's can't be timed under Xvfb.
 2. Main window, cells, text, input, popups, dialogs, file dialogs, menus;
    `--ui window|terminal`.
 3. Styles beyond the terminal: geometry, spans, borders, gradients, radius,

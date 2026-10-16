@@ -84,6 +84,44 @@ TEST(gtk_window_draws_a_presented_frame) {
   CHECK(w->stats().frames == drawn);
 }
 
+TEST(gtk_window_draws_a_frame_over_a_backdrop_layer) {
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  CHECK(w->display().native_backdrop || std::getenv("CELLUI_CPU_BLUR"));
+  CHECK(w->wantsFrameInfo());
+  StyleProvider styles;
+  CellBuffer screen(w->rows(), w->cols());
+  BufferPlane root(screen, styles);
+  root.setNativeBackdrop(true);
+  root.putstr(1, 2, "below the dialog");
+  auto scrim = root.createChild();
+  scrim->setBackdrop(Backdrop{ 2, 0.3f });
+  for (int r = 0; r < w->rows(); r++) scrim->putstr(r, 0, std::string(static_cast<size_t>(w->cols()), ' '));
+  auto dialog = root.createChild();
+  dialog->resize(3, 20);
+  dialog->move(4, 5);
+  dialog->setBgColor(40, 40, 60);
+  dialog->putstr(1, 2, "dialog");
+  root.refresh();
+  FrameInfo info;
+  info.backdrops = root.takeBackdropLayers();
+  CHECK(info.backdrops.size() == 1);
+  size_t before = w->stats().frames;
+  w->present(screen, {}, root.images(), &info);
+  CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+  // The layer's texture is kept: the same frame again draws without
+  // rasterizing anything.
+  double raster = w->stats().raster_ms_total;
+  before = w->stats().frames;
+  w->present(screen, {}, root.images(), &info);
+  CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+  CHECK(w->stats().raster_ms_total == raster);
+  // A frame without layers after it.
+  w->present(screen, {}, root.images());
+  before = w->stats().frames;
+  CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+}
+
 TEST(gtk_window_wake_is_its_own_fd) {
   gtk::Window * w = theWindow();
   if (!w) return;
