@@ -3,6 +3,7 @@
 #include "TerminalUIFixture.h"
 
 #include <chrono>
+#include <cmath>
 #include <map>
 #include <optional>
 #include <regex>
@@ -314,13 +315,12 @@ TEST(terminal_ui_smooth_scroll_keeps_the_outline_cursor_in_place_at_the_edge) {
     if (f.line(y).find("Outline") == 1) heading = static_cast<int>(y);
   }
   CHECK(heading >= 0);
-  // The tree row drawn on the cursor's colour rather than the tree's (the button bar's rows, which start with a
-  // bracket, aside).
+  // The cursor is a translucent band over the tree, so the row shows through.
   auto cursor_row = [&]() {
-    auto tree_bg = f.bg(heading + 1, 2);
-    for (int y = heading + 1; y < heading + 24; y++) {
-      if (f.line(static_cast<size_t>(y)).substr(1, 30).find('[') != std::string::npos) continue;
-      if (f.bg(y, 2) != tree_bg) return y;
+    for (const auto & layer : f.terminal.info().backdrops) {
+      if (layer.scroll && layer.scroll->band) {
+        return static_cast<int>(std::lround(layer.scroll->row + layer.scroll->band->row));
+      }
     }
     return -1;
   };

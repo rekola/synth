@@ -153,8 +153,6 @@ OutlineView::render(const StyleProvider & styles, bool refresh, bool focused) {
   // scrolls by parts of a row.
   if (!tree_plane_) {
     tree_plane_ = getPlane().createChild();
-    cursor_plane_ = getPlane().createChild();
-    cursor_plane_->makeTransparent();
     getPlane().makeTransparent();
     getPlane().moveToTop();
   }
@@ -463,7 +461,7 @@ OutlineView::drawRow(const StyleProvider & styles, UIPlane & plane, int display_
 
 bool
 OutlineView::cursorOnOwnLayer() const {
-  return cursor_plane_ != nullptr;
+  return tree_plane_ && viewport_.rows.smooth();
 }
 
 double
@@ -492,26 +490,18 @@ OutlineView::tickCursor(double seconds) {
 
 void
 OutlineView::renderCursor(const StyleProvider & styles, bool focused) {
-  if (!cursor_plane_) return;
+  if (!tree_plane_) return;
   auto last = static_cast<double>(std::max(0, treeRows() - 1));
   bool show = cursorOnOwnLayer() && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size()) &&
               cursor_y_ >= 0 && cursor_y_ <= last;
-  cursor_plane_->setVisible(show);
-  if (!show) return;
-  auto [ pos_y, pos_x ] = getPosition();
-  auto row = static_cast<int>(std::floor(cursor_y_));
-  auto fraction = cursor_y_ - row;
-  // Two rows tall, so a plane shifted by a part of a row still holds the whole cursor row.
-  cursor_plane_->move(pos_y + kTreeTop + row, pos_x);
-  cursor_plane_->resize(2, getDim().second);
-  cursor_plane_->erase();
-  if (fraction < cellui::ScrollAxis::kSnap) {
-    cursor_plane_->setScrollOffset(0, 0);
-    drawRow(styles, *cursor_plane_, 0, static_cast<size_t>(new_cursor_row_), true, focused);
-  } else {
-    cursor_plane_->setScrollOffset(1.0 - fraction, 0);
-    drawRow(styles, *cursor_plane_, 1, static_cast<size_t>(new_cursor_row_), true, focused);
+  if (!show) {
+    tree_plane_->clearBand();
+    return;
   }
+  // A translucent band over the tree, so the row shows through; it moves by
+  // parts of a row independently of the content.
+  const auto & color = focused ? styles.highlight_bg_color : styles.highlight_unfocused_bg_color;
+  tree_plane_->setBand(cellui::Band{ cursor_y_, 1.0, 0, getDim().second, color, focused ? 0.45f : 0.6f });
 }
 
 void

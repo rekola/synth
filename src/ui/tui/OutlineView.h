@@ -109,7 +109,6 @@ class OutlineView : public UIElement {
   // the heading and the button bar); this shows or hides it with the panel.
   void setShown(bool shown) {
     if (tree_plane_) tree_plane_->setVisible(shown);
-    if (cursor_plane_ && !shown) cursor_plane_->setVisible(false);
   }
 
 protected:
@@ -290,7 +289,6 @@ protected:
   int current_first_row_ = 0;  // the first data row the tree plane was drawn from
   int current_column_scroll_ = 0;
   std::unique_ptr<UIPlane> tree_plane_;
-  std::unique_ptr<UIPlane> cursor_plane_;
   // The cursor's row in the view, a whole number except while it eases.
   double cursor_y_ = 0;
   double current_cursor_y_ = -1;
