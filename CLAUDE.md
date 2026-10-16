@@ -1332,7 +1332,7 @@ would otherwise resume showing.
   the app's `UIElement` adds the event handler and the controller), `UIMenu`, and the 2D grid chart contract
   `HeatmapChart`, the generic widgets (`ChoiceDialog`, `InlineEditor`, `SpinBox`, `CoverArt`, `ChannelMeter`,
   `SpectrumMeter` and `LevelMeter.h`'s one dB mapping, ballistics and glyph cells, plus
-  `Digit.h`), `InfoDialog` (the cell rendering of a Markdown info box; a
+  `Digit.h`, `Viewport.h`: the offset, `reveal()` margins and the wheel's detached state every scrolling widget shares; `ChoiceList`, `OutlineView` and `ArrangementGrid` use it), `InfoDialog` (the cell rendering of a Markdown info box; a
   backend with richer text drawing lays out `markdown::parse()` itself instead,
   through `UI::showInfoDialog(title, markdown)`), and `BufferPlane`/`CellBuffer` (a
   plane that keeps its own cells, the way a screen's planes do - drawing, moving,

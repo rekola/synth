@@ -12,6 +12,7 @@
 #include <utility>
 
 #include "../StyleProvider.h"
+#include <cellui/Viewport.h>
 
 // What a row's own default action(s) - Key::Enter/Key::Delete, and what
 // renderButtonBar() shows for it - target. SECTION covers every plain
@@ -118,18 +119,20 @@ protected:
   // `delta` rows (clamped to data_'s own extent) and keeps it scrolled
   // into view.
   void moveCursorBy(int delta);
-  // The scroll-wheel's own tail - moves new_scroll_pos_ (the viewport)
-  // by `delta` rows without ever touching new_cursor_row_ (the
-  // selection), unlike moveCursorBy() above - scrolling to look at more
-  // of the tree shouldn't drag the current selection along with it.
-  // Clamped so the view can never scroll past the point where the last
-  // row is already fully visible.
+  // The scroll-wheel's own tail - moves the viewport by `delta` rows
+  // without ever touching new_cursor_row_ (the selection), unlike
+  // moveCursorBy() above - scrolling to look at more of the tree shouldn't
+  // drag the current selection along with it. Clamped so the view can never
+  // scroll past the point where the last row is already fully visible.
   void scrollBy(int delta);
+  // States the tree's size to the viewport: its rows, and the widest row's
+  // overhang as columns.
+  void syncViewport();
   // Scrolls the tree sideways by `delta` columns, so a label wider than
   // the panel can be read; clamped to the widest label.
   void scrollColumnsBy(int delta);
-  // How far the tree can scroll sideways: the widest row's overhang.
-  int maxColumnScroll() const;
+  // The widest row's width.
+  int widestRow() const;
   // The Details panel's own content for `row`, line by line - the single
   // source both renderButtonBar()/the details popup (drawing) and handleClick() (hit-
   // testing a click against whichever line it lands on) build from, so
@@ -253,8 +256,11 @@ protected:
   std::vector<struct outline_row_s> data_;
   int current_song_version_ = 0;
   bool current_focused_ = false;
-  int new_scroll_pos_ = 0, current_scroll_pos_ = 0;
-  int new_column_scroll_ = 0, current_column_scroll_ = 0;
+  // The tree's rows and columns: its offsets are the "new" scroll positions,
+  // and what the last render drew is kept beside them.
+  cellui::Viewport viewport_;
+  int current_scroll_pos_ = 0;
+  int current_column_scroll_ = 0;
   // -1 until the panel is first focused or clicked: no row is
   // highlighted and no buttons show before that.
   int new_cursor_row_ = -1, current_cursor_row_ = -1;

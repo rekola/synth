@@ -252,7 +252,12 @@ cell position, so a scrolled meter is a new image and is uploaded again.
    (tested through `ImageEncoder`); same pixels in two places stay two
    images. The VU meters draw their whole picture, whatever is scrolled out
    of view, under an id of their own (the track's), and the plane crops it.
-   Open: the viewport.
+   The viewport is begun: `cellui::Viewport`/`ScrollAxis` (`Viewport.h`:
+   content and view sizes, the offset kept inside, `reveal()` with margins,
+   the wheel and its detached state) is in, and `ChoiceList`, `OutlineView`
+   and `ArrangementGrid` use it. Open: `ClipGrid` and `PatternEditor` (with
+   `PatternScroll`'s sideways policy), then a fractional offset for the
+   window.
 8. Icons: the app's icon list, Kitty graphics/Sixel/glyph fallback, menu
    icons, keyed so a static icon in a scrolling list costs nothing with
    kitty graphics.

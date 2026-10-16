@@ -7,6 +7,7 @@
 #include <vector>
 
 #include <cellui/Input.h>
+#include <cellui/Viewport.h>
 #include "../StyleProvider.h"
 class Song;
 
@@ -103,7 +104,7 @@ class ArrangementGrid : public UIElement {
   // the scroll position to whatever range is currently valid. Only when
   // `follow_cursor` is set (this widget is focused - see render()'s own
   // comment on why not otherwise) does it also slide
-  // scroll_row_/scroll_col_ just far enough that the (possibly newly
+  // the viewport just far enough that the (possibly newly
   // clamped) cursor is back inside the visible viewport - never scrolls
   // further than that, so the viewport only moves when the cursor's
   // movement actually pushed it out of view.
@@ -118,7 +119,7 @@ class ArrangementGrid : public UIElement {
   // Top-left corner of the visible viewport, in bars and tracks - kept in
   // sync with the cursor by ensureCursorVisible() rather than tracked
   // independently, so the cursor is always on screen.
-  int scroll_row_ = 0, scroll_col_ = 0;
+  cellui::Viewport viewport_;
 
   // What render() last drew, so it can skip redrawing when nothing this
   // widget actually shows has changed - same dirty-check shape InfoLine's
@@ -127,10 +128,6 @@ class ArrangementGrid : public UIElement {
   int current_playing_row_ = -1;
   int current_cursor_bar_ = -1, current_cursor_track_index_ = -1;
   int current_scroll_row_ = -1, current_scroll_col_ = -1;
-  // Set by the mouse wheel, which scrolls the view without the cursor:
-  // the view then follows neither the cursor nor the playhead until the
-  // cursor next moves.
-  bool view_detached_ = false;
   bool current_focused_ = false;
   int current_selected_track_id_ = -1;
 

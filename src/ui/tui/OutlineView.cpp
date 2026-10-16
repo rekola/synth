@@ -145,14 +145,14 @@ OutlineView::render(const StyleProvider & styles, bool refresh, bool focused) {
   // Focusing the panel puts the cursor on the first row in view - unless
   // a click did, which picks its own row.
   if (focused && new_cursor_row_ < 0 && !click_pending_ && !data_.empty()) {
-    new_cursor_row_ = std::min(new_scroll_pos_, static_cast<int>(data_.size()) - 1);
+    new_cursor_row_ = std::min(viewport_.rows.offset(), static_cast<int>(data_.size()) - 1);
   }
 
   // The rows may have narrowed since the last scroll.
-  new_column_scroll_ = std::min(new_column_scroll_, maxColumnScroll());
+  syncViewport();
 
-  if (song.getMajorVersion() != current_song_version_ || new_scroll_pos_ != current_scroll_pos_ ||
-      new_column_scroll_ != current_column_scroll_ || focused != current_focused_) {
+  if (song.getMajorVersion() != current_song_version_ || viewport_.rows.offset() != current_scroll_pos_ ||
+      viewport_.cols.offset() != current_column_scroll_ || focused != current_focused_) {
     render_all = true;
   }
 
@@ -161,8 +161,8 @@ OutlineView::render(const StyleProvider & styles, bool refresh, bool focused) {
 
   bool need_refresh = false;
   if (render_all) {
-    current_scroll_pos_ = new_scroll_pos_;
-    current_column_scroll_ = new_column_scroll_;
+    current_scroll_pos_ = viewport_.rows.offset();
+    current_column_scroll_ = viewport_.cols.offset();
 
     renderHeading(styles);
     for (int i = 0; i < tree_rows; i++) {
@@ -426,33 +426,36 @@ OutlineView::renderRow(const StyleProvider & styles, int display_row, bool curso
 
 void
 OutlineView::moveCursorBy(int delta) {
-  auto tree_rows = cursorRows();
-
   new_cursor_row_ = std::clamp(new_cursor_row_ + delta, 0, std::max(0, static_cast<int>(data_.size()) - 1));
-  if (new_cursor_row_ < new_scroll_pos_) new_scroll_pos_ = new_cursor_row_;
-  if (new_cursor_row_ >= new_scroll_pos_ + tree_rows) new_scroll_pos_ = new_cursor_row_ - tree_rows + 1;
+  // Kept above the rows the button bar can cover.
+  syncViewport();
+  viewport_.rows.reveal(new_cursor_row_, 0, kButtonBarRows);
+}
+
+void
+OutlineView::syncViewport() {
+  viewport_.setExtent(static_cast<int>(data_.size()), widestRow(), treeRows(), getDim().second);
 }
 
 void
 OutlineView::scrollBy(int delta) {
   // Never touches new_cursor_row_ - see this method's own doc comment on
-  // OutlineView.h for why that's deliberate. Clamped so the view can
-  // never scroll past the point where the last row is already fully
-  // visible at the bottom.
-  auto max_scroll = std::max(0, static_cast<int>(data_.size()) - treeRows());
-  new_scroll_pos_ = std::clamp(new_scroll_pos_ + delta, 0, max_scroll);
+  // OutlineView.h for why that's deliberate.
+  syncViewport();
+  viewport_.rows.scrollBy(delta);
 }
 
 void
 OutlineView::scrollColumnsBy(int delta) {
-  new_column_scroll_ = std::clamp(new_column_scroll_ + delta, 0, maxColumnScroll());
+  syncViewport();
+  viewport_.cols.scrollBy(delta);
 }
 
 int
-OutlineView::maxColumnScroll() const {
+OutlineView::widestRow() const {
   int widest = 0;
   for (auto & row : data_) widest = std::max(widest, row.level * kIndentPerLevel + Utf8::displayWidth(row.label));
-  return std::max(0, widest - getDim().second);
+  return widest;
 }
 
 void
@@ -702,7 +705,7 @@ OutlineView::handleClick(const cellui::Input & input) {
     if (target == pressed) runDetailsAction(*target.action);
   } else if (target.data_row >= 0) {
     // The clicked row is already on screen by definition, so this never
-    // needs to touch new_scroll_pos_ the way moveCursorBy() does.
+    // needs to scroll the viewport the way moveCursorBy() does.
     new_cursor_row_ = target.data_row;
   }
   return true;
