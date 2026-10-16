@@ -1,0 +1,56 @@
+name: macOS ARM64
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  # Build, test and render only: there is no macOS audio or MIDI backend yet
+  # (ALSA is Linux only, WASAPI/WinMM Windows only), so the interactive
+  # program is off (SYNTH_BUILD_INTERACTIVE=OFF, the render-only `synth`).
+  # Homebrew GCC, not Apple clang, because the DSP code uses GCC vector
+  # extensions and the warning set in CMakeLists.txt is GCC syntax - the same
+  # reason the Windows job uses MinGW-w64 GCC. -march is left at the default
+  # (native): no ARM golden-render hash is captured, so nothing here needs
+  # bit-exact output across runs (see the Linux ARM64 job).
+  build-and-test:
+    runs-on: macos-14
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          brew update
+          brew install gcc cmake ninja pkg-config fmt libsndfile soundtouch libunistring cairo
+
+      - name: Configure
+        run: |
+          GCC_VERSION=$(brew list --versions gcc | awk '{print $2}' | cut -d. -f1)
+          cmake -G Ninja -B build \
+            -DCMAKE_C_COMPILER=gcc-$GCC_VERSION \
+            -DCMAKE_CXX_COMPILER=g++-$GCC_VERSION \
+            -DSYNTH_BUILD_INTERACTIVE=OFF
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Render songs
+        run: |
+          mkdir -p rendered
+          for song in demo3 welcome; do
+            ./build/synth --render "rendered/$song.wav" "songs/$song.xml"
+            # A WAV header alone is 44+ bytes; a real render is far larger.
+            size=$(stat -f %z "rendered/$song.wav")
+            echo "$song.wav: $size bytes"
+            test "$size" -gt 100000
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rendered-wavs-macos
+          path: rendered/*.wav
