@@ -21,8 +21,9 @@ struct PaletteEntry {
 // A modal command prompt on a raised panel: a query line, the commands that
 // fuzzy-match it best first with their keybindings, and the selected one's
 // description below. Typing edits the query; Up/Down (and the Emacs-style
-// next/previous-line keys) move; Enter or a click chooses; Escape or a click
-// outside cancels. The caller runs the chosen command.
+// next/previous-line keys) move; Tab completes the query as far as every
+// command starting with it agrees, as in the Emacs minibuffer; Enter or a
+// click chooses; Escape or a click outside cancels. The caller runs the chosen command.
 class CommandPalette {
  public:
   enum class Result { NONE,
@@ -49,6 +50,8 @@ class CommandPalette {
   // The selected command, nullptr when nothing matches.
   const PaletteEntry * chosen() const;
   const std::string & query() const { return query_; }
+  // What the last Tab had to say ("[No match]"), "" if nothing.
+  const std::string & note() const { return note_; }
   // The names shown, best match first.
   std::vector<std::string> shownNames() const;
 
@@ -58,12 +61,15 @@ class CommandPalette {
     std::vector<int> positions;
   };
   void refilter();
+  void complete();
   int visibleRows() const { return rows_ - 6; }
 
   bool open_ = false;
   std::unique_ptr<UIPlane> plane_;
   std::vector<PaletteEntry> entries_;
   std::string query_;
+  // "[No match]" or "[Sole completion]" after a Tab, until the next edit.
+  std::string note_;
   std::vector<Shown> shown_;
   ChoiceList list_;
   int y_ = 0, x_ = 0, rows_ = 0, width_ = 0;

@@ -446,7 +446,9 @@ each with its binding, and the selected one's description below. The app gives i
 without one, so add a line there with a new command), bindings from
 `Element::bindingFor()`, which reads the widget's `Keymap` for the display's
 profile (`Keymap::sequencesFor()`, spelled by `KeyChord::describe()`). Choosing
-runs `Controller::sendCommand()` after the palette has closed.
+runs `Controller::sendCommand()` after the palette has closed. Tab is
+Emacs-style completion (`CommandPalette::complete()`): the query becomes the
+longest prefix shared by every name starting with it.
 
 Keybinding dispatch is centralized, Emacs-style (v1, partial): `KeyChord.h`/
 `Keymap.h`/`CommandRegistry.h` provide a chord→command-name→callable lookup,

@@ -4,6 +4,7 @@
 #include <cellui/Utf8.h>
 
 #include <algorithm>
+#include <cctype>
 
 namespace cellui {
 
@@ -13,7 +14,7 @@ namespace {
 
 constexpr int kMaxWidth = 80;
 constexpr int kMaxListRows = 12;
-constexpr const char * kHint = "Enter: run  Esc: cancel";
+constexpr const char * kHint = "Enter: run  Tab: complete  Esc: cancel";
 // A padding row, the query and a gap above the list.
 constexpr int kTopRows = 3;
 // Those, and below the list the description, the hint and a padding row.
@@ -36,7 +37,36 @@ void CommandPalette::close() {
   open_ = false;
 }
 
+// Emacs-style completion: the query becomes the longest prefix shared by
+// every name that starts with it. It never runs anything, and when there is
+// nothing to add it only says why.
+void CommandPalette::complete() {
+  auto same = [](char a, char b) { return std::tolower(static_cast<unsigned char>(a)) == std::tolower(static_cast<unsigned char>(b)); };
+  string common;
+  int matches = 0;
+  for (auto & entry : entries_) {
+    auto & name = entry.name;
+    if (name.size() < query_.size() || !equal(query_.begin(), query_.end(), name.begin(), same)) continue;
+    if (matches++ == 0) {
+      common = name;
+      continue;
+    }
+    size_t n = 0;
+    while (n < common.size() && n < name.size() && common[n] == name[n]) n++;
+    common.resize(n);
+  }
+  if (matches == 0) {
+    note_ = "[No match]";
+  } else if (common.size() > query_.size()) {
+    query_ = common;
+    refilter();
+  } else {
+    note_ = matches == 1 ? "[Sole completion]" : "";
+  }
+}
+
 void CommandPalette::refilter() {
+  note_.clear();
   struct Scored {
     int score;
     size_t entry;
@@ -145,7 +175,8 @@ void CommandPalette::show(UIPlane & parent, int screen_rows, int screen_cols) {
 
   // The selected command's description, then the hint.
   set(quiet, bg);
-  if (auto * entry = chosen()) plane_->putstr(rows_ - 3, 1, utf8::truncateToWidth(entry->description, inner));
+  if (!note_.empty()) plane_->putstr(rows_ - 3, 1, note_);
+  else if (auto * entry = chosen()) plane_->putstr(rows_ - 3, 1, utf8::truncateToWidth(entry->description, inner));
   plane_->putstr(rows_ - 2, 1, utf8::truncateToWidth(kHint, inner));
 
   x_ = (screen_cols - width_) / 2;
@@ -191,6 +222,8 @@ CommandPalette::Result CommandPalette::offerInput(const Input & input) {
     list_.scroll(-1, visibleRows());
   else if (id == Key::Button5)
     list_.scroll(1, visibleRows());
+  else if (id == Key::Tab)
+    complete();
   else if (id == Key::Backspace || (ctrl && id == 'h')) {
     // Whole UTF-8 characters off the end.
     while (!query_.empty() && (static_cast<unsigned char>(query_.back()) & 0xC0) == 0x80) query_.pop_back();

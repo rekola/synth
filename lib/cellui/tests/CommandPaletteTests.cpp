@@ -161,3 +161,38 @@ TEST(chords_are_described_per_profile) {
   CHECK(KeyChord::describe({KeyChord::pack(' ', false, false, false, false)}, P::EMACS) == "SPC");
   CHECK(KeyChord::describe({KeyChord::pack(Key::F2, false, false, false, false)}, P::DESKTOP) == "F2");
 }
+
+TEST(palette_tab_completes_to_the_longest_shared_prefix_like_a_minibuffer) {
+  Fixture f;
+  f.feed("sa");
+  f.palette.offerInput(key(Key::Tab));
+  CHECK(f.palette.query() == "save-song");  // save-song and save-song-as agree up to here
+  f.palette.offerInput(key(Key::Tab));
+  CHECK(f.palette.query() == "save-song");  // nothing more to add
+  CHECK(f.palette.note().empty());
+  f.feed("-");
+  f.palette.offerInput(key(Key::Tab));
+  CHECK(f.palette.query() == "save-song-as");
+  f.palette.offerInput(key(Key::Tab));
+  CHECK(f.palette.note() == "[Sole completion]");
+  f.palette.offerInput(key(Key::Backspace));
+  CHECK(f.palette.note().empty());
+}
+
+TEST(palette_tab_with_no_command_starting_with_the_query_says_so) {
+  Fixture f;
+  f.feed("view");  // matches toggle-view by fuzzy, but no name starts with it
+  f.palette.offerInput(key(Key::Tab));
+  CHECK(f.palette.query() == "view");
+  CHECK(f.palette.note() == "[No match]");
+  f.palette.show(f.root, 20, 80);
+  f.root.refresh();
+  CHECK(f.buffer.toPlainText().find("[No match]") != std::string::npos);
+}
+
+TEST(palette_tab_completion_ignores_case_and_runs_nothing) {
+  Fixture f;
+  f.feed("UN");
+  CHECK(f.palette.offerInput(key(Key::Tab)) == CommandPalette::Result::NONE);
+  CHECK(f.palette.query() == "undo");
+}

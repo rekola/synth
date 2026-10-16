@@ -29,7 +29,9 @@ keymap so far:
 Both open the command palette, a list of every command: type to narrow it by
 fuzzy matching (the letters in order, `tgv` finds `toggle-view`; a match at the
 start of a word or of the name ranks higher), Up/Down or C-n/C-p to move, Enter
-to run the selected command, Escape or C-g to cancel. Each row shows the
+Tab to complete what is typed as far as every command starting with it agrees
+(as in the Emacs minibuffer; `[No match]` when none does), Enter to run the
+selected command, Escape or C-g to cancel. Each row shows the
 command's keybinding in the display's keymap, and the selected command's
 description is shown below the list.
 
