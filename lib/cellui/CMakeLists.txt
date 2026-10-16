@@ -68,6 +68,7 @@ add_library(cellui STATIC
   src/Scrim.cpp
   src/SubcellGlyphs.cpp
   src/Utf8.cpp
+  src/term/BackdropEmulation.cpp
   src/term/Discovery.cpp
   src/term/FrameEncoder.cpp
   src/term/ImageEncoder.cpp
@@ -155,7 +156,7 @@ add_executable(cellui_tests
   tests/MeterTests.cpp
   tests/Utf8Tests.cpp)
 if(NOT WIN32)
-  target_sources(cellui_tests PRIVATE tests/CanvasRasterizerTests.cpp tests/EventLoopTests.cpp tests/TerminalSessionTests.cpp tests/TestBackendTests.cpp tests/HeatmapImageTests.cpp tests/SpectrumImageTests.cpp
+  target_sources(cellui_tests PRIVATE tests/BackdropEmulationTests.cpp tests/CanvasRasterizerTests.cpp tests/EventLoopTests.cpp tests/TerminalSessionTests.cpp tests/TestBackendTests.cpp tests/HeatmapImageTests.cpp tests/SpectrumImageTests.cpp
     tests/VuMeterTests.cpp)
 endif()
 target_link_libraries(cellui_tests PRIVATE cellui)

@@ -87,12 +87,9 @@ TEST(gtk_window_draws_a_presented_frame) {
 TEST(gtk_window_draws_a_frame_over_a_backdrop_layer) {
   gtk::Window * w = theWindow();
   if (!w) return;
-  CHECK(w->display().native_backdrop || std::getenv("CELLUI_CPU_BLUR"));
-  CHECK(w->wantsFrameInfo());
   StyleProvider styles;
   CellBuffer screen(w->rows(), w->cols());
   BufferPlane root(screen, styles);
-  root.setNativeBackdrop(true);
   root.putstr(1, 2, "below the dialog");
   auto scrim = root.createChild();
   scrim->setBackdrop(Backdrop{ 2, 0.3f });

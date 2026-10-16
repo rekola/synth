@@ -1382,17 +1382,21 @@ would otherwise resume showing.
   phase, with real press/repeat/release), click, drag (the held button's press again at
   each new cell), wheel (buttons 4-7) and paste (Ctrl+Shift+V, Shift+Insert) events into
   `BackendEvent`s; a size change is a `RESIZE` in cells and closing the window a `CLOSE`.
-  Events wait in a queue behind an eventfd that is `inputFd()`. The window blurs and
-  dims backdrops itself (`DisplayInfo::native_backdrop`): `BufferPlane::setNativeBackdrop()`
-  makes `compose()` set what lies below each backdrop aside as a `BackdropLayer`
-  (`FrameInfo::backdrops`, taken with `takeBackdropLayers()`) and leave the frame with only
-  what is above, and `Window` draws each layer as a texture (kept while a fingerprint of its
-  cells and pictures is unchanged), then the stack so far again under a GSK blur node and a
-  dim colour inside the backdrop's cells, at the strength the cell and picture versions
-  have. A renderer that takes over 100 ms three paints running with a backdrop up (software
-  GL) turns it off, `TerminalUI` re-reads the flag each frame and the CPU version takes over;
-  `CELLUI_CPU_BLUR=1` starts there. Not done yet: per-plane render nodes, input methods,
-  HiDPI, native dialogs and menus. `TestBackend` (`cellui/TestBackend.h`) has no tty or window: input is
+  Events wait in a queue behind an eventfd that is `inputFd()`. A backdrop is the
+  backend's to apply: `BufferPlane::refresh()` sets what is composed below each one aside as a
+  `BackdropLayer` (cells, blur, dim, tint and the rectangle it covers; `takeBackdropLayers()`,
+  handed to the backend in `FrameInfo::backdrops`, always given, bottom first) and leaves the
+  frame with only what is above it, so no backend's work shows in the application or in
+  `BufferPlane`. `Window` draws each layer as a texture (kept while a fingerprint of its cells
+  and pictures is unchanged), then the stack so far again under a GSK blur node and a dim
+  colour inside the backdrop's cells; it never makes the blur itself, whatever the renderer.
+  The terminal cannot blur, so what it shows is made in its own backend: `term::BackdropEmulation`
+  (`TerminalSession::present()`) - cells averaged over their neighbours with the glyphs
+  faded out, or with pictures the cells drawn, blurred and stretched in tiles of 4 x 16
+  cells redrawn only when what they show changed. `TestBackend` stacks the layers
+  unblurred (`info().backdrops` has them) and shows them as a terminal does after
+  `emulateBackdrops(true)`. Not done yet: per-plane render nodes, input methods, HiDPI, native
+  dialogs and menus. `TestBackend` (`cellui/TestBackend.h`) has no tty or window: input is
   pushed by the test, and each presented frame is kept for the test to read
   directly (`text()`, `frame()` cells and their styles, `info()`: the plane tree from
   `BufferPlane::describe()` and the focus `TerminalUI::focusName()` gives, `cursor()`,

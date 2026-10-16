@@ -37,8 +37,9 @@ class Backend {
   // Every event available now, without blocking.
   virtual std::vector<BackendEvent> poll() = 0;
 
-  // Shows a frame. `info` is given only when wantsFrameInfo() says it is
-  // used.
+  // Shows a frame. `info` has the backdrops' layers, which the backend
+  // applies; its planes and focus are given only when wantsFrameInfo() says
+  // they are used.
   virtual void present(const CellBuffer & frame, const CursorRequest & cursor = {},
                        const std::vector<ImagePlacement> & images = {}, const FrameInfo * info = nullptr) = 0;
   virtual bool wantsFrameInfo() const { return false; }

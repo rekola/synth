@@ -20,10 +20,6 @@ struct DisplayInfo {
   double display_scale = 1.0;
   // Whether the sextant glyphs can be drawn.
   bool sextants = false;
-  // Whether the display blurs and dims what lies below a backdrop itself
-  // (FrameInfo::backdrops), better than the cells or pictures the
-  // application could make of it.
-  bool native_backdrop = false;
 };
 
 }  // namespace cellui

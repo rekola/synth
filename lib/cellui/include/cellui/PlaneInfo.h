@@ -24,8 +24,9 @@ struct FrameInfo {
   PlaneInfo planes;
   // Which widget takes the keys, in the application's own words.
   std::string focus;
-  // The layers below each backdrop, bottom first, when the display blurs
-  // and dims them itself.
+  // The layers below each backdrop, bottom first. The display applies the
+  // backdrops (blurs and dims the layer below); the frame's cells are what
+  // is above the last one. Always given, empty without a backdrop.
   std::vector<BackdropLayer> backdrops;
 };
 

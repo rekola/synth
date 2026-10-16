@@ -431,13 +431,9 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
   if (display.default_fg && display.default_bg) root_plane_->setDefaultColors(*display.default_fg, *display.default_bg);
   root_plane_->setDisplayScale(display.display_scale);
   root_plane_->setSextants(display.sextants);
-  root_plane_->setNativeBackdrop(display.native_backdrop);
   root_plane_->setFlatChildren(true);
   root_plane_->setThemedBases(true);
   if (use_pixel) root_plane_->setCellPixelSize(display.cell_px_height, display.cell_px_width);
-  // A modal's backdrop is drawn and blurred as pictures (Sixel's stretched
-  // before they are sent).
-  if (use_pixel) root_plane_->setRasterizer(cellui::canvasRasterizer());
   setPlane(std::move(root_plane));
 
   setFgColor(styles_.window_fg_color);
@@ -490,20 +486,16 @@ void TerminalUI::raiseOverlays() {
 void
 TerminalUI::render() {
   raiseOverlays();
-  // A backend may stop blurring backdrops itself (a renderer too slow for it).
-  root_plane_->setNativeBackdrop(backend_.display().native_backdrop);
   root_plane_->refresh();
   cellui::CursorRequest cursor;
   if (auto at = root_plane_->cursorPosition()) cursor = { true, at->first, at->second };
+  cellui::FrameInfo info;
+  info.backdrops = root_plane_->takeBackdropLayers();
   if (backend_.wantsFrameInfo()) {
-    cellui::FrameInfo info;
     info.planes = root_plane_->describe();
     info.focus = focusName();
-    info.backdrops = root_plane_->takeBackdropLayers();
-    backend_.present(screen_, cursor, root_plane_->images(), &info);
-  } else {
-    backend_.present(screen_, cursor, root_plane_->images());
   }
+  backend_.present(screen_, cursor, root_plane_->images(), &info);
 }
 
 void

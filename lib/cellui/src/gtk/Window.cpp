@@ -11,8 +11,6 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
-#include <cstdio>
-#include <cstdlib>
 #include <deque>
 #include <set>
 
@@ -121,28 +119,6 @@ struct Window::Impl {
   std::vector<Painted> painted;
   FrameStats stats;
 
-  // How long the frame clock's paint takes while a backdrop is shown: a
-  // renderer in software makes the blur too slow to be worth it, and then
-  // the application makes the backdrop itself.
-  Clock::time_point paint_started;
-  bool painting_backdrop = false;
-  int slow_paints = 0;
-  void paintStarted() {
-    paint_started = Clock::now();
-    painting_backdrop = !layers.empty();
-  }
-  void paintEnded() {
-    if (!painting_backdrop || !display_info.native_backdrop) return;
-    slow_paints = msSince(paint_started) > kSlowPaintMs ? slow_paints + 1 : 0;
-    if (slow_paints < kSlowPaints) return;
-    display_info.native_backdrop = false;
-    layers.clear();
-    std::fprintf(stderr, "The window's renderer is too slow to blur the backdrop; using the CPU blur\n");
-    // Asks the application for a frame without layers.
-    push(BackendEvent::makeResize(rows, cols));
-  }
-  static constexpr double kSlowPaintMs = 100;
-  static constexpr int kSlowPaints = 3;
 
   std::set<guint> held_keys;
   int held_button = 0;
@@ -276,9 +252,6 @@ void Window::Impl::measure(const WindowOptions & options) {
   display_info.default_bg = bg;
   display_info.display_scale = 1.0;
   display_info.sextants = false;
-  // CELLUI_CPU_BLUR=1 leaves the backdrop to the application's own cell and
-  // picture versions, to compare the two.
-  display_info.native_backdrop = !std::getenv("CELLUI_CPU_BLUR");
 }
 
 void Window::Impl::allocated(int width, int height) {
@@ -430,9 +403,9 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
         graphene_rect_t region = GRAPHENE_RECT_INIT(static_cast<float>(layer.col * cell_w), static_cast<float>(layer.row * cell_h),
                                                     static_cast<float>(layer.cols * cell_w), static_cast<float>(layer.rows * cell_h));
         if (layer.backdrop.blur > 0) {
-          // The same strength as the cell and picture versions: a Gaussian
-          // whose spread is that of their box passes (a blur node's radius
-          // is twice its spread).
+          // A Gaussian whose spread grows with the backdrop's blur, as two
+          // passes of half a row per step would (a blur node's radius is
+          // twice its spread).
           double half_row = std::min(layer.backdrop.blur, Backdrop::kMaxBlur) * cell_h / 2.0;
           double radius = 2.0 * std::sqrt(2.0 * half_row * (half_row + 1.0) / 3.0);
           // The edge of the screen blurs with the background, not with nothing.
@@ -627,11 +600,6 @@ std::unique_ptr<Window> Window::open(const WindowOptions & options, std::string 
                    }),
                    self);
 
-  gtk_widget_realize(impl.window);
-  if (GdkFrameClock * clock = gtk_widget_get_frame_clock(impl.window)) {
-    g_signal_connect(clock, "before-paint", G_CALLBACK(+[](GdkFrameClock *, gpointer data) { static_cast<Impl *>(data)->paintStarted(); }), self);
-    g_signal_connect(clock, "after-paint", G_CALLBACK(+[](GdkFrameClock *, gpointer data) { static_cast<Impl *>(data)->paintEnded(); }), self);
-  }
   gtk_window_present(GTK_WINDOW(impl.window));
   gtk_widget_grab_focus(impl.view);
   return w;
