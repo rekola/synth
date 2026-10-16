@@ -158,6 +158,18 @@ TEST(gtk_loop_runs_ready_sources_and_hooks) {
   ::close(fds[1]);
 }
 
+TEST(gtk_loop_idle_wait_sleeps_through_the_time_limit) {
+  if (!theWindow()) return;
+  gtk::GlibEventLoop loop;
+  int turns = 0;
+  loop.setBefore([&] { return 100; });
+  loop.setAfter([&](bool) { turns++; });
+  auto start = std::chrono::steady_clock::now();
+  while (std::chrono::steady_clock::now() - start < std::chrono::milliseconds(500)) loop.iterate(true);
+  // A wait that signalled its own context would return at once, every time.
+  CHECK(turns < 20);
+}
+
 TEST(gtk_loop_runs_nest_and_quit_ends_the_innermost) {
   if (!theWindow()) return;
   gtk::GlibEventLoop loop;
