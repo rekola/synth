@@ -180,14 +180,13 @@ class BackdropSource {
     Color fg = cell.fg.value_or(default_fg_), bg = cell.bg.value_or(default_bg_);
     if (b.blur > 0) {
       int radius = std::min(b.blur, Backdrop::kMaxBlur);
-      Color blurred = average(row - radius, col - 2 * radius, row + radius + 1, col + 2 * radius + 1);
-      // Out of focus, a glyph's ink spreads into the cells around it.
-      fg = fg.blend(std::min(1.0f, 0.4f + 0.2f * static_cast<float>(radius)), blurred);
-      bg = blurred;
-      cell.underline = false;
-      if (radius >= Backdrop::kGlyphGoneBlur && !cell.image) {
+      // A glyph's ink goes into the colour; the cell keeps no glyph, so
+      // nothing behind the backdrop can be read or selected.
+      bg = average(row - radius, col - 2 * radius, row + radius + 1, col + 2 * radius + 1);
+      fg = bg;
+      if (!cell.image) {
         cell.text = " ";
-        cell.continuation = cell.bold = cell.italic = false;
+        cell.continuation = cell.bold = cell.italic = cell.underline = false;
       }
     }
     if (b.dim > 0.0f) {
