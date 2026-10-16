@@ -99,10 +99,28 @@ void TestBackend::wake() {
 
 void TestBackend::present(const CellBuffer & frame, const CursorRequest & cursor, const std::vector<ImagePlacement> & images,
                            const FrameInfo * info) {
-  frame_ = frame;
+  info_ = info ? *info : FrameInfo();
   cursor_ = cursor;
   images_ = images;
-  info_ = info ? *info : FrameInfo();
+  frame_ = frame;
+  if (!info_.backdrops.empty() || backdrops_.holdsState()) {
+    if (emulate_backdrops_) {
+      backdrops_.apply(frame_, images_, info_.backdrops, display_);
+    } else if (!info_.backdrops.empty()) {
+      // Each layer under the next, unblurred.
+      auto over = [](CellBuffer & out, const CellBuffer & cells) {
+        for (int r = 0; r < std::min(out.rows(), cells.rows()); r++) {
+          for (int c = 0; c < std::min(out.cols(), cells.cols()); c++) {
+            if (!CellBuffer::isBlank(cells.at(r, c))) out.put(r, c, cells.at(r, c));
+          }
+        }
+      };
+      CellBuffer stacked = info_.backdrops[0].cells;
+      for (size_t i = 1; i < info_.backdrops.size(); i++) over(stacked, info_.backdrops[i].cells);
+      over(stacked, frame_);
+      frame_ = std::move(stacked);
+    }
+  }
   frames_++;
 }
 

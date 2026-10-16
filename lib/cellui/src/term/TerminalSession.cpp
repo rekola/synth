@@ -337,7 +337,19 @@ void TerminalSession::write(const std::string & bytes) {
 }
 
 void TerminalSession::present(const CellBuffer & frame, const CursorRequest & cursor, const std::vector<ImagePlacement> & images,
-                              const FrameInfo *) {
+                              const FrameInfo * info) {
+  // A backdrop is made of what the terminal can show; the frame and its
+  // pictures are copied only then.
+  static const std::vector<BackdropLayer> kNoLayers;
+  const std::vector<BackdropLayer> & layers = info ? info->backdrops : kNoLayers;
+  if (!layers.empty() || backdrops_.holdsState()) {
+    CellBuffer shown = frame;
+    std::vector<ImagePlacement> placements = images;
+    backdrops_.apply(shown, placements, layers, caps_.display);
+    std::string pixels = images_.encode(shown, placements, encoder_.willClear(shown));
+    write(encoder_.encode(shown, cursor, pixels));
+    return;
+  }
   std::string pixels = images_.encode(frame, images, encoder_.willClear(frame));
   write(encoder_.encode(frame, cursor, pixels));
 }
