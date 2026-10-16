@@ -106,7 +106,9 @@ void restoreAtExit() { restoreFromSignal(); }
 sigset_t blockedWhileWriting() {
   sigset_t set;
   sigemptyset(&set);
-  for (int s : kTerminationSignals) sigaddset(&set, s);
+  // Parenthesised to call the function: where sigaddset is a macro (macOS) it
+  // does int arithmetic on an unsigned sigset_t.
+  for (int s : kTerminationSignals) (sigaddset)(&set, s);
   return set;
 }
 

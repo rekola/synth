@@ -30,7 +30,7 @@ if(NOT TARGET canvas)
   include(FetchContent)
   FetchContent_Declare(canvas
     GIT_REPOSITORY https://github.com/rekola/canvas
-    GIT_TAG 8968cb22fb69d055c86ba37b4fcc2d9344eac8f4)
+    GIT_TAG 2bc306e71a2049112871e78e605aae86cb89c195)
   FetchContent_GetProperties(canvas)
   if(NOT canvas_POPULATED)
     FetchContent_Populate(canvas)
@@ -44,6 +44,10 @@ if(NOT TARGET canvas)
   if(WIN32)
     set(CANVAS_BACKEND_CAIRO OFF CACHE BOOL "" FORCE)
     set(CANVAS_BACKEND_GDIPLUS ON CACHE BOOL "" FORCE)
+  endif()
+  if(APPLE)
+    set(CANVAS_BACKEND_CAIRO OFF CACHE BOOL "" FORCE)
+    set(CANVAS_BACKEND_QUARTZ ON CACHE BOOL "" FORCE)
   endif()
   add_subdirectory(${canvas_SOURCE_DIR} ${canvas_BINARY_DIR} EXCLUDE_FROM_ALL)
   set(CMAKE_CXX_FLAGS "${CANVAS_CXX_FLAGS_SAVED}")
@@ -108,14 +112,17 @@ if(CELLUI_ENABLE_GTK)
   endif()
   set_tests_properties(cellui_gtk_tests PROPERTIES SKIP_REGULAR_EXPRESSION "SKIP: no display")
 endif()
-# The pixel versions draw with canvas' Cairo backend; the GDI+ one joins with
-# the window backend on Windows.
+# The pixel versions draw with canvas' Cairo backend, or its Quartz 2D one on
+# Apple platforms; the GDI+ one joins with the window backend on Windows.
 if(NOT WIN32)
-  target_sources(cellui PRIVATE src/CanvasRasterizer.cpp src/HeatmapImage.cpp src/PixelScopes.cpp src/SpectrumImage.cpp src/VuMeterImage.cpp)
-  # Text in a font the one asked for lacks is found with fontconfig.
-  find_package(PkgConfig REQUIRED)
-  pkg_check_modules(CELLUI_FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig)
-  target_link_libraries(cellui PRIVATE PkgConfig::CELLUI_FONTCONFIG)
+  target_sources(cellui PRIVATE src/CanvasRasterizer.cpp src/HeatmapImage.cpp src/NativeContext.cpp src/PixelScopes.cpp src/SpectrumImage.cpp src/VuMeterImage.cpp)
+  if(NOT APPLE)
+    # Text in a font the one asked for lacks is found with fontconfig (Core
+    # Text falls back by itself).
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(CELLUI_FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig)
+    target_link_libraries(cellui PRIVATE PkgConfig::CELLUI_FONTCONFIG)
+  endif()
   target_compile_definitions(cellui PRIVATE CELLUI_PIXEL_SCOPES)
 endif()
 # canvas' headers are reached as SYSTEM includes.
@@ -165,7 +172,7 @@ if(NOT WIN32)
     tests/VuMeterTests.cpp)
 endif()
 target_link_libraries(cellui_tests PRIVATE cellui)
-if(NOT WIN32)
+if(NOT WIN32 AND NOT APPLE)
   target_link_libraries(cellui_tests PRIVATE PkgConfig::CELLUI_FONTCONFIG)
 endif()
 target_compile_definitions(cellui_tests PRIVATE CELLUI_TEST_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests")

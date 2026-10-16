@@ -2,7 +2,9 @@
 
 #include <cellui/CellRasterizer.h>
 
+#ifndef __APPLE__
 #include <fontconfig/fontconfig.h>
+#endif
 
 #include <cstdio>
 
@@ -79,6 +81,11 @@ int inkOf(CellRasterizer & rasterizer, const std::string & text) {
   return lit;
 }
 
+#ifdef __APPLE__
+// Core Text falls back to a font that has it (Apple Symbols has the musical
+// symbols), so the drawing is checked rather than skipped.
+bool someFontHas(uint32_t) { return true; }
+#else
 // Whether any installed font has the character.
 bool someFontHas(uint32_t cp) {
   FcInit();
@@ -98,6 +105,7 @@ bool someFontHas(uint32_t cp) {
   FcCharSetDestroy(wanted);
   return has;
 }
+#endif
 
 }  // namespace
 
