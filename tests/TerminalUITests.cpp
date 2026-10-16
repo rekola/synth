@@ -154,6 +154,21 @@ TEST(terminal_ui_modal_backdrop_is_pictures_where_the_terminal_shows_them) {
   for (auto & p : f.terminal.images()) CHECK(!p.image->stretched());
 }
 
+// A backend that reports releases (a window, a kitty-protocol terminal) sends
+// the release of the Enter that ran the command after the dialog is open; it
+// must not close it.
+TEST(terminal_ui_info_dialog_ignores_key_releases) {
+  UIFixture f;
+  f.execute("about");
+  f.terminal.pushKey(cellui::Key::Enter, 0, cellui::Input::Kind::RELEASE);
+  f.terminal.pushKey('q', 0, cellui::Input::Kind::RELEASE);
+  f.ui->step();
+  CHECK(f.terminal.info().focus == "info-dialog");
+  f.terminal.pushKey(cellui::Key::Enter, 0, cellui::Input::Kind::PRESS);
+  f.ui->step();
+  CHECK(f.terminal.info().focus != "info-dialog");
+}
+
 // The about dialog leaves the mouse to the terminal, to select its text with,
 // and so a click doesn't close it; it takes the mouse back when closed.
 TEST(terminal_ui_info_dialog_leaves_the_mouse_to_the_terminal) {

@@ -188,6 +188,16 @@ TEST(gtk_window_input_from_the_display) {
     CHECK(got[4].input.getId() == Key::Up);
   }
 
+  // Alt comes with the key as the Alt modifier, for the M-x chord.
+  got.clear();
+  xdotool("key alt+x");
+  CHECK(gather(2));
+  if (got.size() >= 2) {
+    bool x_alt = false;
+    for (auto & e : got) x_alt |= e.input.getId() == 'x' && e.input.hasAlt();
+    CHECK(x_alt);
+  }
+
   // A click: the cell under the pointer, press and release.
   got.clear();
   int cw = w->display().cell_px_width, ch = w->display().cell_px_height;
