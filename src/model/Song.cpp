@@ -308,7 +308,7 @@ static void storePatternContent(XMLDocument & doc, XMLElement * pattern_element,
       auto note_text = note.toString(tuning);
       auto note_element = doc.NewElement("note");
       note_element->SetAttribute("row", static_cast<int>(row));
-      if (col > 0) note_element->SetAttribute("column", col);
+      if (col > 0) note_element->SetAttribute("column", static_cast<int>(col));
       if (note.getVelocity() != constants::DEFAULT_VELOCITY) note_element->SetAttribute("velocity", note.getVelocity());
       if (note.getDelay() > 0) note_element->SetAttribute("delay", note.getDelay());
       if (note.hasFx()) note_element->SetAttribute("fx", std::string(note.getFx()).c_str());
@@ -328,7 +328,7 @@ static void storePatternContent(XMLDocument & doc, XMLElement * pattern_element,
       auto data = to_string(command);
       auto command_element = doc.NewElement("command");
       command_element->SetAttribute("row", static_cast<int>(row));
-      if (col > 0) command_element->SetAttribute("column", col);
+      if (col > 0) command_element->SetAttribute("column", static_cast<int>(col));
       command_element->SetAttribute("data", data.c_str());
       pattern_element->InsertEndChild(command_element);
     }

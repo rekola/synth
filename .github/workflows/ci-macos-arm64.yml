@@ -39,7 +39,7 @@ jobs:
             -DSYNTH_BUILD_INTERACTIVE=OFF
 
       - name: Build
-        run: cmake --build build
+        run: cmake --build build -- -k 0
 
       - name: Test
         run: ctest --test-dir build --output-on-failure
