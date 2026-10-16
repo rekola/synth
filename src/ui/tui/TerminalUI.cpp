@@ -1442,7 +1442,9 @@ TerminalUI::offerInput(const cellui::Input & input) {
     // Launchpad button commands via executeCommand()) silently no-op'd -
     // including plain Up/Down arrow - until the user happened to click
     // directly back on the workspace.
-    if (!activated) active_element_ = pattern_editor_;
+    // A click on the menu bar (the top row) leaves focus where it was.
+    bool on_menu = input.getY() == 0;
+    if (!activated) active_element_ = (on_menu && previous_active_element) ? previous_active_element : pattern_editor_;
 
     // A click that moves focus away from the octave stepper while it's
     // mid-edit discards the half-typed value rather than leaving it stuck
