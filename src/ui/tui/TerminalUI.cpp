@@ -3,6 +3,7 @@
 #include "../../playback/InputEvent.h"
 #include "../../Controller.h"
 #include "../UIMenu.h"
+#include "../CommandDescriptions.h"
 #include "../HeatmapChart.h"
 #include "InfoLine.h"
 #include "StatusLine.h"
@@ -386,7 +387,11 @@ TerminalUI::TerminalUI(cellui::Backend & backend)
   // the next key shows it was no Alt prefix.
   key_reader_.takeEscape = [this](const cellui::Input & escape) {
     auto active = outline_view_ && outline_view_->isModal() ? outline_view_ : active_element_.lock();
-    if (choice_dialog_.isOpen()) {
+    if (command_palette_.isOpen()) {
+      command_palette_.close();
+      layoutModalScrim();
+      force_next_render_ = true;
+    } else if (choice_dialog_.isOpen()) {
       closeChoiceDialog();
     } else if (info_dialog_.isOpen()) {
       closeInfoDialog();
@@ -481,6 +486,7 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
 void TerminalUI::raiseOverlays() {
   menu_->raiseToTop();
   modal_scrim_.raise();
+  command_palette_.raise();
   choice_dialog_.raise();
   info_dialog_.raise();
   // An info dialog takes no clicks: the terminal selects its text instead
@@ -516,6 +522,7 @@ TerminalUI::step() {
 
 std::string
 TerminalUI::focusName() const {
+  if (command_palette_.isOpen()) return "command-palette";
   if (choice_dialog_.isOpen()) return "choice-dialog";
   if (info_dialog_.isOpen()) return "info-dialog";
   if (outline_view_ && outline_view_->isModal()) return "outline-view";
@@ -641,6 +648,7 @@ TerminalUI::initializeWidgets() {
   // See StatusLine::showPrompt()'s own comment: opening any StatusLine
   // reader (M-x included) must take focus away from any widget's own
   // inline editor rather than opening on top of it.
+  status_line_->setCommandPaletteCallback([this]() { showCommandPalette(); });
   status_line_->setBeforeShowPromptCallback([this]() {
     pattern_editor_->cancelReaderEdit();
     clip_grid_->cancelReaderEdit();
@@ -1340,6 +1348,10 @@ TerminalUI::offerInput(const cellui::Input & input) {
     clip_grid_->isReaderActive();
   // The choice dialog is modal too, and owns its keys until it is chosen
   // from or cancelled.
+  if (command_palette_.isOpen() && input.getId() != Key::Resize && !(input.hasCtrl() && input.getId() == 'l')) {
+    handleCommandPaletteInput(input);
+    return true;
+  }
   if (choice_dialog_.isOpen() && input.getId() != Key::Resize && !(input.hasCtrl() && input.getId() == 'l')) {
     handleChoiceDialogInput(input);
     return true;
@@ -1386,6 +1398,7 @@ TerminalUI::offerInput(const cellui::Input & input) {
     layout();
     layoutInfoDialog();
     layoutChoiceDialog();
+    layoutCommandPalette();
     // Deferred, not a direct renderComponents(true) call - see
     // force_next_render_'s own comment on TerminalUI.h: this runs from
     // inside input handling, before startUI()'s own main loop reaches its
@@ -1535,8 +1548,55 @@ void TerminalUI::showChoiceDialog(const std::string & title, std::vector<Choice>
   force_next_render_ = true;
 }
 
+// How the active widgets bind `command` on this display, the focused one first.
+std::string TerminalUI::bindingFor(const std::string & command) const {
+  if (auto active = active_element_.lock()) {
+    if (auto binding = active->bindingFor(command); !binding.empty()) return binding;
+  }
+  if (auto binding = pattern_editor_->bindingFor(command); !binding.empty()) return binding;
+  if (auto binding = clip_grid_->bindingFor(command); !binding.empty()) return binding;
+  return cellui::Element::bindingFor(command);
+}
+
+void TerminalUI::showCommandPalette() {
+  // Opening it aborts a widget's own half-typed edit, like any prompt.
+  pattern_editor_->cancelReaderEdit();
+  clip_grid_->cancelReaderEdit();
+  std::vector<cellui::PaletteEntry> entries;
+  for (auto & name : commandCompletions("")) {
+    entries.push_back({ name, commandDescription(name), bindingFor(name) });
+  }
+  command_palette_.open(std::move(entries));
+  layoutCommandPalette();
+  force_next_render_ = true;
+}
+
+void TerminalUI::layoutCommandPalette() {
+  if (!command_palette_.isOpen()) return;
+  layoutModalScrim();
+  auto [screen_rows, screen_cols] = getDim();
+  command_palette_.show(getPlane(), screen_rows, screen_cols);
+}
+
+void TerminalUI::handleCommandPaletteInput(const cellui::Input & input) {
+  auto result = command_palette_.offerInput(input);
+  if (result == cellui::CommandPalette::Result::NONE) {
+    layoutCommandPalette(); // redraw with the new query or selection
+    force_next_render_ = true;
+    return;
+  }
+  std::string name;
+  if (result == cellui::CommandPalette::Result::CHOSEN && command_palette_.chosen()) name = command_palette_.chosen()->name;
+  // Closed before the command runs: it may open a prompt or a dialog of its
+  // own, and nothing should be left modal while it does.
+  command_palette_.close();
+  layoutModalScrim();
+  force_next_render_ = true;
+  if (!name.empty() && !getController().sendCommand(name)) setStatus("Invalid command");
+}
+
 void TerminalUI::layoutModalScrim() {
-  if (!choice_dialog_.isOpen() && info_dialog_title_.empty()) {
+  if (!command_palette_.isOpen() && !choice_dialog_.isOpen() && info_dialog_title_.empty()) {
     modal_scrim_.close();
     return;
   }

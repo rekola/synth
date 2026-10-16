@@ -1,6 +1,7 @@
 #include "TestFramework.h"
 
 #include "TerminalUIFixture.h"
+#include "../src/ui/CommandDescriptions.h"
 
 #include <chrono>
 #include <cmath>
@@ -226,7 +227,7 @@ TEST(terminal_ui_live_view_layout_and_the_clip_grid_cursor) {
   f.press(Key::Escape);
   CHECK(f.text().find("Play note keys to preview") == std::string::npos);
   f.type("x");
-  CHECK(lastLine(f).find("M-x") != std::string::npos);
+  CHECK(f.terminal.info().focus == "command-palette");
   f.ctrl('g');
 
   // Back in the clip grid, its cursor is where it was left, whatever the
@@ -357,7 +358,7 @@ TEST(terminal_ui_smooth_scroll_keeps_the_outline_cursor_in_place_at_the_edge) {
 TEST(terminal_ui_command_prompt_chord_follows_the_keymap_profile) {
   auto opens = [](UIFixture & f, int key, unsigned mods) {
     f.press(key, mods);
-    bool open = lastLine(f).find("M-x") != std::string::npos;
+    bool open = f.terminal.info().focus == "command-palette";
     if (open) f.ctrl('g');
     return open;
   };
@@ -407,4 +408,42 @@ TEST(terminal_ui_desktop_ctrl_s_saves) {
   CHECK(saves(desktop));
   std::filesystem::current_path(previous);
   std::filesystem::remove_all(dir);
+}
+
+// The palette lists the commands, narrows them as the query is typed, shows
+// the bindings, and runs the chosen one.
+TEST(terminal_ui_command_palette_filters_and_runs_a_command) {
+  UIFixture f;
+  f.meta('x');
+  CHECK(f.terminal.info().focus == "command-palette");
+  CHECK(f.text().find("about") != std::string::npos);  // the list starts alphabetically
+  // A fuzzy query: the letters in order, not adjacent.
+  f.type("tgv");
+  CHECK(f.text().find("toggle-view") != std::string::npos);
+  CHECK(f.text().find("Switch between Live View and the arrangement") != std::string::npos);
+  CHECK(f.text().find("toggle-mute") == std::string::npos);
+  CHECK(f.text().find("TAB") != std::string::npos);
+  f.press(cellui::Key::Enter);
+  CHECK(f.terminal.info().focus == "pattern-editor");  // Live View -> Arrangement view and the editor
+}
+
+TEST(terminal_ui_command_palette_shows_the_desktop_binding_on_a_desktop_display) {
+  cellui::DisplayInfo desktop_display;
+  desktop_display.keymap_profile = cellui::KeymapProfile::DESKTOP;
+  UIFixture f("", UI::View::LIVE, desktop_display);
+  f.press('p', kModCtrl | cellui::kModShift);
+  f.type("undo");
+  CHECK(f.text().find("Ctrl+Z") != std::string::npos);
+  CHECK(f.text().find("Ctrl+Shift+Z") == std::string::npos);  // undo-redo is below, not shown selected
+  f.press(cellui::Key::Escape);
+  CHECK(f.terminal.info().focus != "command-palette");
+}
+
+// Every command the palette lists says what it does.
+TEST(every_command_has_a_description) {
+  UIFixture f;
+  for (auto & name : f.controller->commandCompletions("")) {
+    if (commandDescription(name).empty()) fprintf(stderr, "no description: %s\n", name.c_str());
+    CHECK(!commandDescription(name).empty());
+  }
 }

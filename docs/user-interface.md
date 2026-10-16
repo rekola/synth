@@ -26,6 +26,13 @@ keymap so far:
 | `save-song-as` | Ctrl+Shift+S | C-x C-w |
 | `save-buffers-kill-terminal` (quit) | Ctrl+Q | C-x C-c |
 
+Both open the command palette, a list of every command: type to narrow it by
+fuzzy matching (the letters in order, `tgv` finds `toggle-view`; a match at the
+start of a word or of the name ranks higher), Up/Down or C-n/C-p to move, Enter
+to run the selected command, Escape or C-g to cancel. Each row shows the
+command's keybinding in the display's keymap, and the selected command's
+description is shown below the list.
+
 Ctrl+X is cut there, so the `C-x` prefix sequences are Emacs-only; the buffer
 commands (`next-buffer`, `kill-buffer`, ...) have no desktop chord yet and are
 in the menus and the prompt.

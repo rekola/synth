@@ -431,11 +431,22 @@ which reaches widgets through `UIPlane::keymapProfile()`. `Keymap::bind(chord,
 name)` works in both profiles; `bind(profile, chord, name)` only in one and wins
 over a shared binding of the same chord. A binding is migrated by making it
 profile-specific; one that is not works everywhere. Migrated so far: the command
-prompt (`StatusLine::isCommandPromptChord()`: M-x / Ctrl+Shift+P), undo/redo,
+prompt (`StatusLine::isCommandPromptChord()`: M-x / Ctrl+Shift+P, either one opens the command palette), undo/redo,
 cut/copy/paste (`kill-region`/`kill-ring-save`/`yank`), save/open/save-as/quit
 (Ctrl+S/O/Shift+S/Q on the desktop; Ctrl+Q exists only there), and the `C-x`
 prefix (Emacs only, since Ctrl+X is cut on the desktop). `docs/user-interface.md` lists
 the desktop chords.
+
+The command palette (`cellui::CommandPalette`, `cellui/CommandPalette.h`; opened by
+`TerminalUI::showCommandPalette()`) is a modal list like `ChoiceDialog`: a query
+line, the commands that `cellui::fuzzyMatch()` (`FuzzyMatch.h`) ranks best first,
+each with its binding, and the selected one's description below. The app gives it
+`PaletteEntry`s: names from `commandCompletions("")`, descriptions from
+`commandDescription()` (`ui/CommandDescriptions.cpp`; a test fails for a command
+without one, so add a line there with a new command), bindings from
+`Element::bindingFor()`, which reads the widget's `Keymap` for the display's
+profile (`Keymap::sequencesFor()`, spelled by `KeyChord::describe()`). Choosing
+runs `Controller::sendCommand()` after the palette has closed.
 
 Keybinding dispatch is centralized, Emacs-style (v1, partial): `KeyChord.h`/
 `Keymap.h`/`CommandRegistry.h` provide a chord→command-name→callable lookup,
@@ -444,8 +455,7 @@ and `UIElement::dispatchCommand()` runs it. Widgets populate their own
 commands and `UI`'s `quit`/`new-song`/`toggle-playing`) and call
 `dispatchCommand(input)` early in their `offerInput()` override; anything
 not bound falls through to the widget's existing manual `offerInput` logic
-unchanged. `StatusLine`'s M-x minibuffer still calls
-`Controller::sendCommand()`, which now falls back (via
+unchanged. `Controller::sendCommand()` (what the command palette calls) falls back (via
 `Controller::setCommandFallback()`, wired once in `UI::initialize()`) to
 `UI::executeCommand()` — checks the active element's registry, then UI's own
 — for any name it doesn't recognize itself, so M-x can invoke both
@@ -453,7 +463,7 @@ Controller-level commands (`save-song`, `add-filter`) and the per-widget ones
 (`set-mark`, `kill-region`, `transpose-region-up`/`-down`, …) through the
 same path. Not yet migrated: `StatusLine`, `OutlineView`, and
 `InstrumentList` (dead code anyway). `StatusLine`'s M-x detection is down
-to a single check now, an Alt/Meta-modified `x` event - it no longer needs
+to a single check now, an Alt/Meta-modified `x` event (on the Emacs keymap) - it no longer needs
 its own two-step `ESC`-then-`x` state machine, since `TerminalUI`'s
 `cellui::KeyReader` (`cellui/KeyReader.h`, over `cellui/EscapeCoalescer.h`; it
 also holds a bare Escape until the next key decides it, asking the app's

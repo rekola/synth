@@ -7,6 +7,7 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace cellui {
 
@@ -58,6 +59,23 @@ class Keymap {
 
   // Startup-time safety net: a typo'd command name is an assertion failure
   // instead of a silently dead keybinding.
+  // Every key sequence (one chord, or a prefix and a chord) that runs
+  // `command_name` in `profile`, in no particular order.
+  std::vector<std::vector<uint64_t>> sequencesFor(const std::string & command_name, KeymapProfile profile) const {
+    std::vector<std::vector<uint64_t>> result;
+    for (const Table * t : {&shared_, &table(profile)}) {
+      for (auto & [chord, name] : t->bindings) {
+	if (name == command_name && lookup(chord, profile) == &name) result.push_back({chord});
+      }
+      for (auto & [prefix, chords] : t->prefixed) {
+	for (auto & [chord, name] : chords) {
+	  if (name == command_name && lookupPrefixed(prefix, chord, profile) == &name) result.push_back({prefix, chord});
+	}
+      }
+    }
+    return result;
+  }
+
   bool allBoundIn(const CommandRegistry & registry) const {
     return allBound(shared_, registry) && allBound(emacs_, registry) && allBound(desktop_, registry);
   }

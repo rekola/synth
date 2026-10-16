@@ -19,5 +19,12 @@ inline uint64_t pack(const Input & input) {
   return pack(input.getId(), input.hasCtrl(), input.hasAlt(), input.hasShift(), input.hasMeta());
 }
 
+// The bits of pack(), for reading a chord back.
+inline int idOf(uint64_t chord) { return static_cast<int>(chord >> 4); }
+inline bool hasCtrl(uint64_t chord) { return chord & 1u; }
+inline bool hasAlt(uint64_t chord) { return chord & 2u; }
+inline bool hasShift(uint64_t chord) { return chord & 4u; }
+inline bool hasMeta(uint64_t chord) { return chord & 8u; }
+
 }  // namespace KeyChord
 }  // namespace cellui
