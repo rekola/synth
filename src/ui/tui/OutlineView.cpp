@@ -463,7 +463,7 @@ OutlineView::drawRow(const StyleProvider & styles, UIPlane & plane, int display_
 
 bool
 OutlineView::cursorOnOwnLayer() const {
-  return cursor_plane_ && viewport_.rows.smooth();
+  return cursor_plane_ != nullptr;
 }
 
 double
@@ -473,16 +473,16 @@ OutlineView::cursorTargetY() const {
 
 void
 OutlineView::tickCursor(double seconds) {
-  if (!cursorOnOwnLayer()) {
-    cursor_y_ = cursorTargetY();
-    return;
-  }
   auto target = cursorTargetY();
   auto last = static_cast<double>(std::max(0, treeRows() - 1));
   // A cursor outside the view (the wheel scrolled it away) is not shown;
   // it joins the view from the nearer edge.
   if (target < 0 || target > last) {
     cursor_y_ = std::clamp(target, -1.0, last + 1.0);
+    return;
+  }
+  if (!viewport_.rows.smooth()) {
+    cursor_y_ = target;
     return;
   }
   cursor_y_ += (target - cursor_y_) * (1.0 - std::exp(-std::max(0.0, seconds) / cellui::ScrollAxis::kSettleSeconds));
