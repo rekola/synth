@@ -1338,7 +1338,10 @@ TerminalUI::offerInput(const cellui::Input & input) {
   // while it is open (raiseOverlays()), so its text can be selected.
   if (info_dialog_.isOpen() && input.getId() != Key::Resize && !(input.hasCtrl() && input.getId() == 'l')) {
     auto id = input.getId();
-    if (id == Key::Escape || id == Key::Enter || id == 'q' || (input.hasCtrl() && id == 'g')) {
+    // Not a release: the Enter that opened it, from the minibuffer, is
+    // released after it is open.
+    if (input.getKind() != InputEvent::Kind::RELEASE &&
+        (id == Key::Escape || id == Key::Enter || id == 'q' || (input.hasCtrl() && id == 'g'))) {
       closeInfoDialog();
     }
     return true;
