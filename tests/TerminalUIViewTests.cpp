@@ -396,6 +396,7 @@ TEST(terminal_ui_smooth_scroll_cursor_appears_on_the_clicked_row) {
   f.terminal.pushMouse(y, 5, cellui::Key::Button1, 0, cellui::Input::Kind::RELEASE);
   f.ui->step();
   CHECK(std::abs(band_row() - y) < 0.01);
+}
 
 // The command prompt opens with M-x on the Emacs keymap and with
 // Ctrl+Shift+P on the desktop one, and each keymap ignores the other's chord.
