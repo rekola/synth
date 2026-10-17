@@ -115,6 +115,9 @@ struct Window::Impl {
     uint64_t print = 0;
     GdkTexture * texture = nullptr;
     int row = 0, col = 0;  // the cell the texture's corner is at
+    // An opaque layer is kept as bands of rows, each with its own texture, so
+    // a change in a few rows (the scopes, while playing) draws only those.
+    std::vector<Painted> bands;
   };
   std::vector<Painted> painted;
   FrameStats stats;
@@ -147,11 +150,13 @@ struct Window::Impl {
   void snapshot(GtkSnapshot * snapshot);
   const Painted & paint(size_t slot, const CellBuffer & cells, bool transparent, bool with_images = true);
   void appendTexture(GtkSnapshot * snapshot, const Painted & painted, int row = 0, int col = 0) const;
+  static void release(Painted & p) {
+    if (p.texture) g_object_unref(p.texture);
+    for (Painted & band : p.bands) release(band);
+    p = {};
+  }
   void forgetTextures() {
-    for (Painted & p : painted) {
-      if (p.texture) g_object_unref(p.texture);
-      p = {};
-    }
+    for (Painted & p : painted) release(p);
   }
   void allocated(int width, int height);
   void pasteClipboard();
@@ -285,11 +290,13 @@ class Print {
   uint64_t value_ = 14695981039346656037ull;
 };
 
-uint64_t printOf(const CellBuffer & cells, const std::vector<ImagePlacement> & images, bool transparent, bool with_images) {
+// Rows [r0, r1) of the cells, and the pictures they show.
+uint64_t printOf(const CellBuffer & cells, const std::vector<ImagePlacement> & images, int r0, int r1, bool transparent, bool with_images) {
   Print print;
-  print.add(static_cast<uint64_t>(cells.rows()) << 32 | static_cast<uint32_t>(cells.cols()));
+  print.add(static_cast<uint64_t>(r0) << 32 | static_cast<uint32_t>(cells.cols()));
   print.add(transparent);
-  for (int r = 0; r < cells.rows(); r++) {
+  std::set<int> shown;
+  for (int r = r0; r < r1; r++) {
     for (int c = 0; c < cells.cols(); c++) {
       const CellBuffer::Cell & cell = cells.at(r, c);
       print.add(cell.text);
@@ -297,9 +304,12 @@ uint64_t printOf(const CellBuffer & cells, const std::vector<ImagePlacement> & i
       print.add(cell.bg);
       print.add(static_cast<uint64_t>(cell.bold) | static_cast<uint64_t>(cell.italic) << 1 | static_cast<uint64_t>(cell.underline) << 2 |
                 static_cast<uint64_t>(cell.continuation) << 3 | static_cast<uint64_t>(cell.image) << 4);
+      if (with_images && cell.image > 0) shown.insert(cell.image);
     }
   }
-  for (const ImagePlacement & p : with_images ? images : std::vector<ImagePlacement>()) {
+  for (int index : shown) {
+    if (static_cast<size_t>(index) > images.size()) continue;
+    const ImagePlacement & p = images[static_cast<size_t>(index - 1)];
     print.add(p.key);
     print.add(p.image ? p.image->version : 0);
     print.add(static_cast<uint64_t>(p.row) << 32 | static_cast<uint32_t>(p.col));
@@ -315,7 +325,43 @@ uint64_t printOf(const CellBuffer & cells, const std::vector<ImagePlacement> & i
 const Window::Impl::Painted & Window::Impl::paint(size_t slot, const CellBuffer & cells, bool transparent, bool with_images) {
   if (painted.size() <= slot) painted.resize(slot + 1);
   Painted & p = painted[slot];
-  uint64_t print = printOf(cells, with_images ? images : std::vector<ImagePlacement>(), transparent, with_images);
+  if (!transparent) {
+    // Bands of rows, each redrawn only when its own cells or pictures changed.
+    constexpr int kBandRows = 4;
+    size_t count = static_cast<size_t>((cells.rows() + kBandRows - 1) / kBandRows);
+    uint64_t shape = static_cast<uint64_t>(cells.rows()) << 32 | static_cast<uint32_t>(cells.cols());
+    if (p.bands.size() != count || p.print != shape) {
+      for (Painted & band : p.bands) release(band);
+      p.bands.assign(count, Painted());
+      p.print = shape;
+    }
+    for (size_t i = 0; i < count; i++) {
+      int r0 = static_cast<int>(i) * kBandRows, r1 = std::min(r0 + kBandRows, cells.rows());
+      Painted & band = p.bands[i];
+      uint64_t print = printOf(cells, images, r0, r1, false, with_images);
+      if (print == band.print && band.texture) continue;
+      if (band.texture) g_object_unref(band.texture);
+      band.texture = nullptr;
+      band.print = print;
+      auto start = Clock::now();
+      Image image = rasterizer->render(cells, with_images ? images : std::vector<ImagePlacement>(), r0, 0, r1 - r0, cells.cols(), cell_h, cell_w, 1,
+                                       *display_info.default_fg, *display_info.default_bg);
+      if (image.width > 0 && image.height > 0) {
+        auto * pixels = new std::vector<uint32_t>(std::move(image.pixels));
+        GBytes * bytes = g_bytes_new_with_free_func(
+            pixels->data(), pixels->size() * sizeof(uint32_t), [](gpointer data) { delete static_cast<std::vector<uint32_t> *>(data); }, pixels);
+        band.texture = gdk_memory_texture_new(image.width, image.height, GDK_MEMORY_R8G8B8A8_PREMULTIPLIED, bytes, static_cast<gsize>(image.width) * 4);
+        g_bytes_unref(bytes);
+        band.row = r0;
+        band.col = 0;
+      }
+      double ms = msSince(start);
+      stats.raster_ms_total += ms;
+      stats.raster_ms_max = std::max(stats.raster_ms_max, ms);
+    }
+    return p;
+  }
+  uint64_t print = printOf(cells, images, 0, cells.rows(), transparent, with_images);
   if (print == p.print && (p.texture || transparent)) return p;
   if (p.texture) g_object_unref(p.texture);
   p.texture = nullptr;
@@ -366,6 +412,7 @@ const Window::Impl::Painted & Window::Impl::paint(size_t slot, const CellBuffer 
 }
 
 void Window::Impl::appendTexture(GtkSnapshot * snap, const Painted & p, int row, int col) const {
+  for (const Painted & band : p.bands) appendTexture(snap, band, row, col);
   if (!p.texture) return;
   graphene_rect_t bounds = GRAPHENE_RECT_INIT(static_cast<float>((p.col + col) * cell_w), static_cast<float>((p.row + row) * cell_h),
                                               static_cast<float>(gdk_texture_get_width(p.texture)), static_cast<float>(gdk_texture_get_height(p.texture)));
@@ -457,9 +504,7 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
     }
     // Layers that are gone leave their textures.
     size_t used = layers.size() + 1 + scrolls;
-    for (size_t i = used; i < painted.size(); i++) {
-      if (painted[i].texture) g_object_unref(painted[i].texture);
-    }
+    for (size_t i = used; i < painted.size(); i++) release(painted[i]);
     painted.resize(used);
   }
   if (cursor.visible) {
