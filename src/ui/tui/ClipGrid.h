@@ -139,9 +139,8 @@ class ClipGrid : public UIElement {
   // the track instead (see offerInput()).
   enum class RowKind { HEADER, CLIP, SENDS, DIRECTION };
   // logical row index -> physical row offset (0 = the row right after the
-  // header; -1 is the header row itself, always drawn at screen row 0
-  // regardless of scroll_row_ - see ensureCursorVisible()'s own handling
-  // of a negative cursor_physical) - the layout this class always draws:
+  // header; -1 is the header row itself, always drawn at screen row 0) -
+  // the layout this class always draws:
   // the header, clipRowCount() clip rows, then (as offsets from there,
   // SendsDirectionRow) divider, Sends label + Sends value, divider,
   // Direction label + Direction value. Only the *value* row of
@@ -158,14 +157,9 @@ class ClipGrid : public UIElement {
   // Which of a Sends row's Main/A/B values the cursor is on (0-2).
   int cursor_send_ = 0;
   int cursor_row_ = 1; // logical row index - see physicalFor()'s own comment; starts on the first clip row, not the header
-  int scroll_col_ = 0, scroll_row_ = 0; // scroll_row_ is in *physical* row space, like the on-screen content itself
 
   int current_song_version_ = -1;
   int current_cursor_track_index_ = -1, current_cursor_row_ = -1;
-  int current_scroll_col_ = -1, current_scroll_row_ = -1;
-  // Set by the mouse wheel, which scrolls the view without the cursor;
-  // cleared when the cursor next moves.
-  bool view_detached_ = false;
   bool current_focused_ = false;
   std::string current_focused_clip_id_;
   // clip recording arms/disarms with no song version bump of its own
@@ -211,7 +205,7 @@ class ClipGrid : public UIElement {
   // Clip and track rename share one editor; only one can be open at a time.
   InlineEditor inline_editor_{getPlane()};
 
-  void ensureCursorVisible(int visible_rows, int visible_cols, int num_tracks);
+  void keepCursorShown(int visible_rows, int num_tracks);
   void renderMasterColumn(const StyleProvider & styles, int x, int rows, bool focused, int num_tracks,
                           const std::function<ClipHighlight(int clip_row)> & scene_state);
   // A column's level meter and peak marker in its last cell, over

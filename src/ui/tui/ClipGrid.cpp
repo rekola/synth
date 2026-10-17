@@ -240,25 +240,15 @@ ClipGrid::physicalFor(int logical_row) const {
   return clip_rows + kDirectionValue;
 }
 
-void
-ClipGrid::ensureCursorVisible(int visible_rows, int visible_cols, int num_tracks) {
+void ClipGrid::keepCursorShown(int visible_rows, int num_tracks) {
   // Column num_tracks is the master's, the last one.
-  auto num_columns = num_tracks + 1;
   cursor_track_index_ = clamp(cursor_track_index_, 0, num_tracks);
   cursor_row_ = clamp(cursor_row_, 1, logicalRowCount() - 1); // never the header row
-
-  scroll_col_ = clamp(scroll_col_, 0, max(0, num_columns - visible_cols));
-  scroll_row_ = clamp(scroll_row_, 0, max(0, physicalRowCount() - visible_rows));
-  if (view_detached_) return; // the mouse wheel scrolled away from the cursor
-
-  if (cursor_track_index_ < scroll_col_) scroll_col_ = cursor_track_index_;
-  if (visible_cols > 0 && cursor_track_index_ >= scroll_col_ + visible_cols) scroll_col_ = cursor_track_index_ - visible_cols + 1;
-  scroll_col_ = clamp(scroll_col_, 0, max(0, num_columns - visible_cols));
-
-  auto cursor_physical = physicalFor(cursor_row_);
-  if (cursor_physical < scroll_row_) scroll_row_ = cursor_physical;
-  if (visible_rows > 0 && cursor_physical >= scroll_row_ + visible_rows) scroll_row_ = cursor_physical - visible_rows + 1;
-  scroll_row_ = clamp(scroll_row_, 0, max(0, physicalRowCount() - visible_rows));
+  // The grid doesn't scroll (its clips stand above the panels around it), so
+  // the cursor stays on the rows it shows. Its track is shared: one the grid
+  // has no column for shows no cursor (the arrow keys stay on the columns
+  // shown, offerInput()).
+  while (cursor_row_ > 1 && physicalFor(cursor_row_) >= visible_rows) cursor_row_--;
 }
 
 void
@@ -273,11 +263,11 @@ ClipGrid::startClipRename(const Song & song, const std::vector<int> & track_ids)
   // as kill-region above - nothing to give a name to yet.
   if (clip_row < 0 || static_cast<size_t>(clip_row) >= clips.size() || clips[static_cast<size_t>(clip_row)].isEmpty()) return; // no clip here to rename
 
-  auto physical_row = clip_row - scroll_row_ + 1; // +1 for the header row
+  auto physical_row = clip_row + 1; // +1 for the header row
   auto [ rows, cols ] = getDim();
-  if (physical_row < 0 || physical_row >= rows) return; // off-screen - shouldn't happen given ensureCursorVisible(), a cosmetic nuisance if it ever does
-  auto x = cursor_track_index_ - scroll_col_;
-  if (x < 0) return; // column itself scrolled off - same defensive case
+  if (physical_row < 0 || physical_row >= rows) return; // off-screen - shouldn't happen given keepCursorShown(), a cosmetic nuisance if it ever does
+  auto x = cursor_track_index_;
+  if (x < 0 || x * (kColWidth + 1) >= cols) return; // no column for the track
   auto col_x = x * (kColWidth + 1);
 
   // The editable span is the name only: the leading marker, "▸ " and clip
@@ -312,9 +302,9 @@ ClipGrid::startClipRename(const Song & song, const std::vector<int> & track_ids)
 void ClipGrid::startSceneRename() {
   if (inline_editor_.isOpen()) return;
   auto scene = physicalFor(cursor_row_);
-  auto row = scene - scroll_row_ + 1; // +1 for the header row
-  auto column = cursor_track_index_ - scroll_col_;
-  if (row < 1 || row >= getDim().first || column < 0) return;
+  auto row = scene + 1; // +1 for the header row
+  auto column = cursor_track_index_;
+  if (row < 1 || row >= getDim().first || column < 0 || column * (kColWidth + 1) >= getDim().second) return;
 
   // The editable span follows the " ▸ " launch glyph. Typing "90 BPM" or
   // "3/4" sets the scene's tempo or time signature (shown at the right of
@@ -344,8 +334,8 @@ ClipGrid::startTrackRename(const Song & song, const std::vector<int> & track_ids
   auto * track = song.getMasterTrack().getChildByInternalId(track_id);
   if (!track) return;
 
-  auto x = cursor_track_index_ - scroll_col_;
-  if (x < 0) return; // column itself scrolled off
+  auto x = cursor_track_index_;
+  if (x < 0 || x * (kColWidth + 1) >= getDim().second) return; // no column for the track
   auto col_x = x * (kColWidth + 1);
 
   // The editable span excludes the leading "T<N> " structural label
@@ -422,13 +412,13 @@ ClipGrid::handleMouse(const cellui::Input & input) {
   bool fresh_press = !mouse_down_;
   mouse_down_ = true;
 
-  auto column = scroll_col_ + x / (kColWidth + 1);
+  auto column = x / (kColWidth + 1);
   if (x % (kColWidth + 1) == kColWidth || column > num_tracks) return true; // a divider, or past the last column
 
   auto clip_rows = clipRowCount();
   int logical_row = 0;
   if (y > 0) {
-    auto physical = scroll_row_ + y - 1;
+    auto physical = y - 1;
     if (physical < clip_rows) logical_row = physical + 1;
     else if (physical == clip_rows + kSendsValue) logical_row = clip_rows + 1;
     else if (physical == clip_rows + kDirectionValue) logical_row = clip_rows + 2;
@@ -438,7 +428,6 @@ ClipGrid::handleMouse(const cellui::Input & input) {
   if (logical_row == 0) return true; // the header, or a label/divider row: only the track is picked
   cursor_send_ = std::clamp((x % (kColWidth + 1) - 5) / 4, 0, 2); // meaningful on the Sends row only
   cursor_row_ = logical_row;
-  view_detached_ = false;
   if (column < num_tracks) getController().getSong().setCurrentTrackId(track_ids[static_cast<size_t>(column)]); // non-const, see offerInput()'s own `song` comment
 
   if (fresh_press) activateCell(song, track_ids, false);
@@ -463,17 +452,6 @@ ClipGrid::offerInput(const cellui::Input & input) {
   if (inline_editor_.offerInput(input)) return true;
 
   if (input.getId() == Key::Button1) return handleMouse(input);
-
-  // The mouse wheel scrolls the view (Shift: tracks), not the cursor, until
-  // the cursor next moves.
-  if (input.getId() == Key::Button4 || input.getId() == Key::Button5) {
-    if (input.getKind() == InputEvent::Kind::RELEASE) return true;
-    int direction = input.getId() == Key::Button4 ? -1 : 1;
-    if (input.hasShift()) scroll_col_ += direction;
-    else scroll_row_ += direction;
-    view_detached_ = true;
-    return true;
-  }
 
   if (dispatchCommand(input)) return true;
   if (input.getKind() == InputEvent::Kind::RELEASE) return false;
@@ -538,6 +516,13 @@ ClipGrid::offerInput(const cellui::Input & input) {
 
   cursor_track_index_ = clamp(cursor_track_index_, 0, num_tracks); // num_tracks: the master column
   cursor_row_ = clamp(cursor_row_, 1, logicalRowCount() - 1); // never the header row
+  // Only the rows and whole columns shown: the grid doesn't scroll.
+  {
+    auto [rows, cols] = getDim();
+    int visible_cols = max(1, cols / (kColWidth + 1));
+    if (input.getId() == Key::Right) cursor_track_index_ = min(cursor_track_index_, visible_cols - 1);
+    while (cursor_row_ > 1 && physicalFor(cursor_row_) >= rows - 1) cursor_row_--;
+  }
 
   // Song::getCurrentTrackId() sync - see PatternEditor::render()'s own
   // equivalent for why this matters (a command like merge-clip-to-
@@ -559,14 +544,11 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   auto [ rows, cols ] = getDim();
   if (rows < 2 || cols < 1) return false;
 
-  auto visible_rows = max(0, rows - 1); // row 0 is the header, never scrolled
-  auto visible_cols = max(0, cols) / (kColWidth + 1); // whole columns, what the cursor is kept within
+  auto visible_rows = max(0, rows - 1); // row 0 is the header
   // Columns drawn: a last one cut off by the edge too, so the whole width fills.
   auto drawn_cols = (max(0, cols) + kColWidth) / (kColWidth + 1);
 
-  // A moved cursor reattaches a view the mouse wheel detached.
-  if (view_detached_ && (cursor_track_index_ != current_cursor_track_index_ || cursor_row_ != current_cursor_row_)) view_detached_ = false;
-  ensureCursorVisible(visible_rows, visible_cols, num_tracks);
+  keepCursorShown(visible_rows, num_tracks);
 
   // Which clip (if any) is currently focused for editing - shown as a
   // marker on its own row below, independent of cursor position. Read
@@ -602,10 +584,10 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   // The track (or, past the last track, the master) a column index shows.
   auto columnTrackId = [&](int column) { return column < num_tracks ? track_ids[static_cast<size_t>(column)] : master_id; };
   std::vector<ClipHighlight> clip_states;
-  for (auto vc = 0; vc < drawn_cols && scroll_col_ + vc <= num_tracks; vc++) {
-    auto column = scroll_col_ + vc;
+  for (auto vc = 0; vc < drawn_cols && vc <= num_tracks; vc++) {
+    auto column = vc;
     for (auto vr = 0; vr < visible_rows; vr++) {
-      clip_states.push_back(column < num_tracks ? clipState(column, scroll_row_ + vr) : sceneState(scroll_row_ + vr));
+      clip_states.push_back(column < num_tracks ? clipState(column, vr) : sceneState(vr));
     }
   }
   std::vector<int> track_clips;
@@ -621,8 +603,8 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   auto meter_dt = std::min(std::chrono::duration<float>(now - last_meter_update_).count(), 0.25f);
   last_meter_update_ = now;
   std::vector<int> meter_steps;
-  for (auto vc = 0; vc < drawn_cols && scroll_col_ + vc <= num_tracks; vc++) {
-    auto track_id = columnTrackId(scroll_col_ + vc);
+  for (auto vc = 0; vc < drawn_cols && vc <= num_tracks; vc++) {
+    auto track_id = columnTrackId(vc);
     auto & track_info = playback_info.getTrackInfo(track_id);
     auto & meter = meters_[track_id];
     meter.fraction = level_meter::fraction(meter.ballistics.update(track_info.getMeterValue(), meter_dt));
@@ -636,7 +618,6 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
 
   if (!refresh && !editor_redraw && !clip_states_changed && !meters_changed && !fading && new_version == current_song_version_ &&
       cursor_track_index_ == current_cursor_track_index_ && cursor_row_ == current_cursor_row_ &&
-      scroll_col_ == current_scroll_col_ && scroll_row_ == current_scroll_row_ &&
       focused == current_focused_ && focused_clip_id == current_focused_clip_id_) {
     return false;
   }
@@ -644,8 +625,6 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   current_song_version_ = new_version;
   current_cursor_track_index_ = cursor_track_index_;
   current_cursor_row_ = cursor_row_;
-  current_scroll_col_ = scroll_col_;
-  current_scroll_row_ = scroll_row_;
   current_focused_ = focused;
 
   setFgColor(styles.window_fg_color);
@@ -669,7 +648,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   auto cursor_physical = physicalFor(cursor_row_);
 
   for (auto vc = 0; vc < drawn_cols; vc++) {
-    auto track_index = scroll_col_ + vc;
+    auto track_index = vc;
     if (track_index == num_tracks) {
       auto & master_info = playback_info.getTrackInfo(master_id);
       renderMasterColumn(styles, vc * (kColWidth + 1), rows, focus_ > 0.0f, num_tracks, sceneState);
@@ -736,7 +715,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     putstr(0, x + name_width + 4, "S");
 
     for (auto vr = 0; vr < visible_rows; vr++) {
-      auto physical_row = scroll_row_ + vr;
+      auto physical_row = vr;
       auto y = 1 + vr;
       bool is_cursor_cell = focus_ > 0.0f && track_index == cursor_track_index_ && physical_row == cursor_physical;
       // The cursor track's clip being edited in the pattern editor below
@@ -928,7 +907,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
 void
 ClipGrid::renderMeter(const StyleProvider & styles, int x, int rows, int track_id, bool clipping) {
   auto & meter = meters_[track_id];
-  auto top = clipRowCount() + kSendsLabel - scroll_row_ + 1; // the meter's top cell; +1 for the header row
+  auto top = clipRowCount() + kSendsLabel + 1; // the meter's top cell; +1 for the header row
   cellui::VuReading reading{meter.fraction, meter.peak_fraction, clipping};
   cellui::VuMeterLook look{styles.grid_bg_color, std::nullopt};
   // Below the header row, inside the plane.
@@ -952,7 +931,7 @@ ClipGrid::renderMasterColumn(const StyleProvider & styles, int x, int rows, bool
   putstr(0, x, Utf8::padToWidth("Master", kColWidth));
 
   for (auto vr = 0; vr + 1 < rows; vr++) {
-    auto physical_row = scroll_row_ + vr;
+    auto physical_row = vr;
     auto y = 1 + vr;
     if (physical_row >= physicalRowCount()) break;
     bool is_cursor_cell = focused && cursor_here && physical_row == cursor_physical;
@@ -1020,7 +999,7 @@ ClipGrid::renderMasterColumn(const StyleProvider & styles, int x, int rows, bool
 
   // The trailing divider every column has, the header's in its backdrop.
   putDivider(styles, 0, x + kColWidth, true);
-  for (auto y = 1; y < rows && scroll_row_ + y - 1 < physicalRowCount(); y++) putDivider(styles, y, x + kColWidth, false);
+  for (auto y = 1; y < rows && y - 1 < physicalRowCount(); y++) putDivider(styles, y, x + kColWidth, false);
 }
 
 // The column after a track: a line in the header's backdrop and the window's,
@@ -1046,9 +1025,9 @@ ClipGrid::putSendValues(int y, int x, const SendLevels & sends, int highlighted,
 void
 ClipGrid::startSendEdit(int track_id, int send) {
   if (inline_editor_.isOpen()) return;
-  auto row = clipRowCount() + kSendsValue - scroll_row_ + 1; // +1 for the header row
-  auto column = cursor_track_index_ - scroll_col_;
-  if (row < 1 || row >= getDim().first || column < 0) return;
+  auto row = clipRowCount() + kSendsValue + 1; // +1 for the header row
+  auto column = cursor_track_index_;
+  if (row < 1 || row >= getDim().first || column < 0 || column * (kColWidth + 1) >= getDim().second) return;
   auto * track = getController().getSong().getMasterTrack().getChildByInternalId(track_id);
   if (!track) return;
   send = std::clamp(send, 0, 2);

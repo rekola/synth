@@ -1145,7 +1145,10 @@ would otherwise resume showing.
   one transport in both views. The mouse wheel
   scrolls the widget under the mouse without moving focus, and scrolls its
   view, never its cursor (so never the transport); Shift scrolls tracks
-  sideways, and the next cursor move brings the view back.
+  sideways, and the next cursor move brings the view back. The clip grid
+  doesn't scroll at all, since its clips stand above the panels around it:
+  it shows the rows and columns that fit, its cursor stays on them, and a
+  current track with no column there shows no cursor in it.
   The left button picks cells: in `ClipGrid` a click moves the cursor
   and presses the slot like Enter does (a clip launches, the master's
   scene/stop-all slots fire; Sends rows only select), in `ArrangementGrid`
