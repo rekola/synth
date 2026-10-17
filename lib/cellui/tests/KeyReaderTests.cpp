@@ -73,3 +73,23 @@ TEST(key_reader_a_taken_escape_is_not_delivered_again) {
   out = drain(r);
   CHECK(asked == 2 && out.size() == 1 && out[0].getId() == 'x' && out[0].hasAlt());
 }
+
+TEST(key_reader_without_escape_as_meta_delivers_escape_at_once) {
+  KeyReader r;
+  r.setEscapeAsMeta(false);
+  r.push(key(Key::Escape));
+  auto out = drain(r);
+  CHECK(out.size() == 1 && out[0].getId() == Key::Escape && !r.escapePending() && !r.indicatorDue());
+  r.push(key('x'));
+  out = drain(r);
+  CHECK(out.size() == 1 && out[0].getId() == 'x' && !out[0].hasAlt());
+}
+
+TEST(key_reader_without_escape_as_meta_still_offers_escape_to_take) {
+  KeyReader r;
+  r.setEscapeAsMeta(false);
+  r.takeEscape = [](const Input &) { return true; };
+  r.push(key(Key::Escape, Input::Kind::PRESS));
+  r.push(key(Key::Escape, Input::Kind::RELEASE));
+  CHECK(drain(r).empty());
+}

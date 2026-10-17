@@ -440,6 +440,7 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
   root_plane_->setSextants(display.sextants);
   root_plane_->setSmoothScroll(display.smooth_scroll);
   root_plane_->setKeymapProfile(display.keymap_profile);
+  key_reader_.setEscapeAsMeta(display.keymap_profile == cellui::KeymapProfile::EMACS);
   root_plane_->setFlatChildren(true);
   root_plane_->setThemedBases(true);
   if (use_pixel) root_plane_->setCellPixelSize(display.cell_px_height, display.cell_px_width);
