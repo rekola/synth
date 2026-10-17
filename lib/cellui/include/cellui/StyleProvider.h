@@ -11,6 +11,10 @@ namespace cellui {
 
 class StyleProvider {
  public:
+  // Motion off: states change at once instead of easing, and what pulses or
+  // flashes holds a steady shade. Not part of a theme; set by the app.
+  bool reduced_motion = false;
+
   StyleProvider() { applyTheme(Theme::dark()); }
   explicit StyleProvider(const Theme & initial) { applyTheme(initial); }
 

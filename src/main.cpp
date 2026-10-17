@@ -54,6 +54,8 @@ int main(int argc, char *argv[]) {
   CommonOptions common;                                        // --stereo, --legacy-binaural, --licenses, --render
   string theme_name = "dark"; // --theme dark|light|original: the terminal UI's colours
   bool theme_given = false;
+  // --reduced-motion (or SYNTH_REDUCED_MOTION=1): no easing, no pulsing.
+  bool reduced_motion = getenv("SYNTH_REDUCED_MOTION") != nullptr && strcmp(getenv("SYNTH_REDUCED_MOTION"), "0") != 0;
   bool window_ui = false;                 // --ui window|terminal: which backend the UI runs on
   UI::View initial_view = UI::View::LIVE; // --view live|arrangement: which view the UI starts in
   // --dither nearest|ordered|floyd-steinberg: how what has to meet the
@@ -109,6 +111,8 @@ int main(int argc, char *argv[]) {
       theme_name = argv[i + 1];
       theme_given = true;
       i++;
+    } else if (strcmp(argv[i], "--reduced-motion") == 0) {
+      reduced_motion = true;
     } else if (strcmp(argv[i], "--headless") == 0) {
       headless = true;
     } else if (strcmp(argv[i], "--daemon") == 0) {
@@ -287,6 +291,7 @@ int main(int argc, char *argv[]) {
   (void)initial_view;
   (void)theme_name;
   (void)theme_given;
+  (void)reduced_motion;
   (void)dither;
   fmt::print(stderr, "This build has no terminal UI; use --headless\n");
   return 1;
@@ -330,6 +335,7 @@ int main(int argc, char *argv[]) {
   TerminalUI ui(*backend);
   ui.setInitialView(initial_view);
   ui.setTheme(theme_name);
+  ui.setReducedMotion(reduced_motion);
   ui.initialize(controller);
   ui.start(audio, *midi, launchpad_io, launchpad_manager);
 

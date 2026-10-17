@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cellui/Color.h>
+#include <cellui/KeymapProfile.h>
 
 #include <optional>
 
@@ -23,6 +24,9 @@ struct DisplayInfo {
   // Whether a plane's content can be shown shifted by a fraction of a cell
   // (UIPlane::setScrollOffset()), so a view can scroll smoothly.
   bool smooth_scroll = false;
+  // The key chords the application binds commands to here: the terminal's
+  // are Emacs's, a window's the usual desktop ones.
+  KeymapProfile keymap_profile = KeymapProfile::EMACS;
 };
 
 }  // namespace cellui

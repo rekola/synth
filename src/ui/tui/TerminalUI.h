@@ -2,6 +2,7 @@
 #define _TERMINALUI_H_
 
 #include "ChoiceDialog.h"
+#include <cellui/CommandPalette.h>
 #include "InfoDialog.h"
 #include "../UI.h"
 #include "../StyleProvider.h"
@@ -48,6 +49,7 @@ class TerminalUI : public UI {
   void refresh() override;
   void clearLastRow();
   void applyTheme(const Theme & theme) override;
+  void setReducedMotion(bool reduced) override;
   void render() override;
 
   bool offerInput(const cellui::Input & input) override;
@@ -172,6 +174,13 @@ private:
 
  // The modal list showChoiceDialog() opens (the device pickers, ...); like
  // the info dialog it takes all input until it is chosen from or cancelled.
+ // The command palette M-x and its desktop chord open; like the choice
+ // dialog it is modal and sits on the scrim.
+ cellui::CommandPalette command_palette_;
+ void showCommandPalette();
+ void layoutCommandPalette();
+ void handleCommandPaletteInput(const cellui::Input & input);
+ std::string bindingFor(const std::string & command) const;
  ChoiceDialog choice_dialog_;
  std::function<void(int)> choice_callback_;
  void layoutChoiceDialog();

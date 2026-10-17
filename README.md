@@ -47,12 +47,15 @@ The application draws on several traditions.
   voices of the Yamaha DX7 (1983), the synthesizer that made FM widespread,
   standing in for a handful of General MIDI programs. See
   [docs/fm.md](docs/fm.md).  
-- **Command Palette.** The application has a combined command prompt and status
-  line at the bottom of the screen. It is invoked by typing M-x when using
-  the terminal keybindings or by Ctrl+Shift+P when using the standard GUI keybindings.
-  The concept follows that of Emacs and its "Minibuffer", but currently, there is
-  a plan to change it to a modern **Command Palette**, which would provided fuzzy
-  matching and more helpful feedback about each command's description and keybinding.
+- **Command Palette.** Every command can be run by name from the command
+  palette, opened with M-x when using the terminal keybindings or with
+  Ctrl+Shift+P when using the standard GUI keybindings. Typing narrows the list
+  by fuzzy matching (`tgv` finds `toggle-view`), the best match comes first, Tab
+  completes a prefix the way the Emacs minibuffer does, and
+  each command shows its keybinding and, for the selected one, a short
+  description. The concept follows that of Emacs' M-x and its "Minibuffer"; the
+  status line at the bottom of the screen is still used for messages and for
+  prompts that ask for a name.
 
 ## Scales and Tunings
 

@@ -16,6 +16,7 @@
 #include "InlineEditor.h"
 #include "LevelMeter.h"
 
+#include <cellui/Fade.h>
 #include <cellui/Scopes.h>
 
 #include <chrono>
@@ -51,6 +52,8 @@ class PatternEditor : public UIElement {
   // is open, UI::offerInput() must not let a global keybinding (Space/
   // toggle-playing, C-x C-c/quit, ...) steal a keystroke meant for it.
   bool isReaderActive() const { return inline_editor_.isOpen(); }
+  // The focus level is still easing: the loop keeps drawing frames.
+  bool isAnimating() const { return fades_.active() || focus_fade_drawn_; }
 
   // Aborts the locator/track-name editor without committing anything -
   // used by StatusLine so opening M-x takes focus away from it rather than
@@ -466,6 +469,9 @@ private:
   bool force_full_redraw_ = false;
   std::unordered_map<int, ScenePatternSource::Playhead> live_playheads_;
   bool fading_drawn_ = false;
+  float focus_ = 0.0f;
+  cellui::Fades fades_;
+  bool focus_fade_drawn_ = false;
 
   // The block at the top of the view - current_scroll_.row counts from
   // its start. Follows the cursor's own block, scrolled just far enough to

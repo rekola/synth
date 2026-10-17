@@ -312,6 +312,7 @@ if(SYNTH_BUILD_INTERACTIVE)
   # backend and, if built, the terminal UI) is a library of its own so the
   # tests can drive the terminal UI on Cell UI's test terminal.
   add_library(synth_ui STATIC
+  	src/ui/CommandDescriptions.cpp
   	src/ui/UI.cpp
   	src/launchpad/LaunchpadManager.cpp
   	src/ui/headless/HeadlessUI.cpp
