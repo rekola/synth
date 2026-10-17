@@ -11,6 +11,9 @@ void Scrim::show(UIPlane & parent, int rows, int cols, const Backdrop & backdrop
   }
   if (!plane_) plane_ = parent.createChild();
   plane_->setName("scrim");
+  // Under the modal dialog it is drawn for, which floats at the same height
+  // and is raised above it.
+  plane_->setElevation(plane_->getStyles().theme.elevation.modal);
   plane_->makeTransparent();
   plane_->resize(rows, cols);
   plane_->move(0, 0);

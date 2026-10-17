@@ -47,6 +47,8 @@ void MenuBar::layout(int parent_cols) {
   cols_ = parent_cols;
   size_t longest = 0;
   for (const Section & s : sections_) longest = std::max(longest, s.items.size());
+  // As tall as the longest section, so the panel on its child plane is never
+  // cut off by it; below the header its cells stay transparent.
   plane_.move(0, 0);
   plane_.resize(1 + static_cast<int>(longest) + 1, std::max(1, cols_));
   draw();
@@ -86,35 +88,55 @@ void MenuBar::draw() {
       x += utf8::displayWidth(c);
     }
   }
-  if (open_ < 0) return;
+  if (open_ < 0) {
+    panel_.reset();
+    return;
+  }
 
   // The open section: an opaque panel under the header, no border, a column
-  // of padding each side of the labels and a row below them.
+  // of padding each side of the labels and a row below them. The bar's
+  // plane is at its parent's top-left corner, so the panel's place is the
+  // same whether a child is placed in the parent's coordinates or the
+  // screen's.
   const Section & s = sections_[static_cast<size_t>(open_)];
   int body = bodyWidth(open_);
   int width = body + 2 * kPad;
   int x0 = boxColumn();
   int rows = static_cast<int>(s.items.size());
-  ink(colors_.section_fg, colors_.section_bg);
-  for (int y = 1; y <= rows + 1; y++) plane_.putstr(y, x0, std::string(static_cast<size_t>(width), ' '));
+  if (!panel_) {
+    panel_ = plane_.createChild();
+    panel_->setName("menu-section");
+    panel_->setElevation(panel_->getStyles().theme.elevation.overlay);
+  }
+  auto [bar_y, bar_x] = plane_.getPosition();
+  panel_->move(bar_y + 1, bar_x + x0);
+  panel_->resize(rows + 1, width);
+  panel_->erase();
+  UIPlane & panel = *panel_;
+  auto panelInk = [&](const Color & fg, const Color & bg) {
+    panel.setFgColor(fg.getRed(), fg.getGreen(), fg.getBlue());
+    panel.setBgColor(bg.getRed(), bg.getGreen(), bg.getBlue());
+  };
+  panelInk(colors_.section_fg, colors_.section_bg);
+  for (int y = 0; y <= rows; y++) panel.putstr(y, 0, std::string(static_cast<size_t>(width), ' '));
   for (int i = 0; i < rows; i++) {
     int y = 1 + i;
     const Item & item = s.items[static_cast<size_t>(i)];
     if (item.separator) {
       std::string rule;
       for (int k = 0; k < body; k++) rule += "─";
-      ink(colors_.disabled_fg, colors_.section_bg);
-      plane_.putstr(y, x0 + kPad, rule);
+      panelInk(colors_.disabled_fg, colors_.section_bg);
+      panel.putstr(y - 1, kPad, rule);
       continue;
     }
     std::string text = std::string(kPad, ' ') + utf8::padToWidth(item.label, body) + std::string(kPad, ' ');
     if (i == selected_) {
       // The highlighted item: the section's colours swapped, across the panel.
-      ink(colors_.section_bg, colors_.section_fg);
+      panelInk(colors_.section_bg, colors_.section_fg);
     } else {
-      ink(item.enabled ? colors_.section_fg : colors_.disabled_fg, colors_.section_bg);
+      panelInk(item.enabled ? colors_.section_fg : colors_.disabled_fg, colors_.section_bg);
     }
-    plane_.putstr(y, x0, text);
+    panel.putstr(y - 1, 0, text);
   }
 }
 

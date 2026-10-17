@@ -39,6 +39,11 @@ class CellBuffer {
     // What lies below shows through blurred and dimmed; with no text or
     // colours of its own the cell is just that.
     Backdrop backdrop = {};
+    // How far the cell stands above its plane, in cell widths
+    // (UIPlane::setLift()); once composed, its height above the base.
+    float lift = 0.0f;
+    // Part of one piece with the lifted cells right above it.
+    bool lift_joined = false;
   };
 
   struct Style {
@@ -49,6 +54,8 @@ class CellBuffer {
     bool bg_blend = false;
     bool fg_contrast = false;
     Backdrop backdrop = {};
+    float lift = 0.0f;
+    bool lift_joined = false;
   };
 
   CellBuffer(int rows, int cols);

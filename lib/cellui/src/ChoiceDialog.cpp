@@ -57,7 +57,10 @@ void ChoiceDialog::show(UIPlane & parent, int screen_rows, int screen_cols) {
   // leaving a little of the screen around it.
   rows_ = std::min(static_cast<int>(labels_.size()) + kChromeRows, std::max(kChromeRows + 1, screen_rows - 2));
 
-  if (!plane_) plane_ = parent.createChild();
+  if (!plane_) {
+    plane_ = parent.createChild();
+    plane_->setElevation(elevation_.value_or(plane_->getStyles().theme.elevation.overlay));
+  }
   plane_->resize(rows_, width_);
   auto & styles = plane_->getStyles();
 
@@ -120,7 +123,11 @@ void ChoiceDialog::show(UIPlane & parent, int screen_rows, int screen_cols) {
   plane_->move(y_, x_);
   plane_->moveToTop();
 
-  if (!list_plane_) list_plane_ = parent.createChild();
+  if (!list_plane_) {
+    list_plane_ = parent.createChild();
+    // Over the box, at its height.
+    list_plane_->setElevation(plane_->elevation());
+  }
   list_plane_->move(y_ + kTopRows, x_);
   list_plane_->resize(rows, width_ - 1);
   list_plane_->setScrollOffset(list_.fraction(), 0);

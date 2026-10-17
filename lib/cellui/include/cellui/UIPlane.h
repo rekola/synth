@@ -46,6 +46,13 @@ class UIPlane {
   // a hidden plane can sit anywhere without ever showing, whatever the
   // screen size becomes. Default no-op.
   virtual void setVisible(bool) {}
+  // How far above its parent the plane floats, in cell widths
+  // (Theme::elevation's steps), so
+  // a child adds to its parent's height; negative sinks it. What is higher
+  // is drawn over what is lower wherever it sits in the tree, and planes of
+  // one height in tree order. Default no-op for a display with no layers.
+  virtual void setElevation(float) {}
+  virtual float elevation() const { return 0; }
   // A name for the plane in a test's or an inspector's view of the tree
   // (PlaneInfo); default no-op.
   virtual void setName(const std::string &) {}
@@ -125,6 +132,12 @@ class UIPlane {
   // (blurred and dimmed); a space written with no colours is nothing but
   // that. Default no-op: a display that can't, shows them as they are.
   virtual void setBackdrop(const Backdrop &) { }
+  // How far the cells drawn next stand above the plane, in cell widths, like
+  // a card on it (0: flat). A run of them in a row is one piece; with
+  // `joins_above` it is one with the run of the same height and columns
+  // right above it. A display that shows height (shadows) shows them raised;
+  // elsewhere nothing changes. Default no-op.
+  virtual void setLift(float, bool joins_above = false) { (void)joins_above; }
   // Shows what the plane draws shifted up by `rows` and left by `cols`, each
   // a fraction of a cell (0 up to, not including, 1), clipped to the plane,
   // where DisplayInfo::smooth_scroll says the display can: a view scrolled by

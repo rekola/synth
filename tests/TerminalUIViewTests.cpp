@@ -201,8 +201,8 @@ TEST(terminal_ui_focus_change_fades_the_cursor) {
   f.ui->setReducedMotion(false);
   f.ui->step();
   CHECK(!gridCursorRows(f).empty());
-  f.otherWindow();  // the pattern editor
-  CHECK(!gridCursorRows(f).empty());  // still on its way out
+  f.otherWindow();                   // the pattern editor
+  CHECK(!gridCursorRows(f).empty()); // still on its way out
   std::this_thread::sleep_for(std::chrono::milliseconds(300));
   f.ui->step();
   f.ui->step();
@@ -425,7 +425,7 @@ TEST(terminal_ui_desktop_ctrl_x_is_not_a_prefix) {
   desktop_display.keymap_profile = cellui::KeymapProfile::DESKTOP;
   UIFixture f("", UI::View::LIVE, desktop_display);
   f.press('x', kModCtrl);
-  f.press('b');  // C-x b would open the buffer prompt on the Emacs keymap
+  f.press('b'); // C-x b would open the buffer prompt on the Emacs keymap
   CHECK(lastLine(f).find("buffer") == std::string::npos);
 
   UIFixture emacs;
@@ -461,7 +461,7 @@ TEST(terminal_ui_command_palette_filters_and_runs_a_command) {
   UIFixture f;
   f.meta('x');
   CHECK(f.terminal.info().focus == "command-palette");
-  CHECK(f.text().find("about") != std::string::npos);  // the list starts alphabetically
+  CHECK(f.text().find("about") != std::string::npos); // the list starts alphabetically
   // A fuzzy query: the letters in order, not adjacent.
   f.type("tgv");
   CHECK(f.text().find("toggle-view") != std::string::npos);
@@ -469,7 +469,7 @@ TEST(terminal_ui_command_palette_filters_and_runs_a_command) {
   CHECK(f.text().find("toggle-mute") == std::string::npos);
   CHECK(f.text().find("TAB") != std::string::npos);
   f.press(cellui::Key::Enter);
-  CHECK(f.terminal.info().focus == "pattern-editor");  // Live View -> Arrangement view and the editor
+  CHECK(f.terminal.info().focus == "pattern-editor"); // Live View -> Arrangement view and the editor
 }
 
 TEST(terminal_ui_command_palette_shows_the_desktop_binding_on_a_desktop_display) {
@@ -479,7 +479,7 @@ TEST(terminal_ui_command_palette_shows_the_desktop_binding_on_a_desktop_display)
   f.press('p', kModCtrl | cellui::kModShift);
   f.type("undo");
   CHECK(f.text().find("Ctrl+Z") != std::string::npos);
-  CHECK(f.text().find("Ctrl+Shift+Z") == std::string::npos);  // undo-redo is below, not shown selected
+  CHECK(f.text().find("Ctrl+Shift+Z") == std::string::npos); // undo-redo is below, not shown selected
   f.press(cellui::Key::Escape);
   CHECK(f.terminal.info().focus != "command-palette");
 }

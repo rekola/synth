@@ -113,17 +113,17 @@ class StatusLine : public UIElement {
     if (getPlane().readerActive() && input.getKind() == cellui::Input::Kind::RELEASE) return true;
     if (getPlane().readerActive()) {
       if (tab_completer_ && input.getId() == Key::Tab) {
-	// A local copy, not tab_completer_() directly: finishing the reader
-	// reassigns tab_completer_, which would destroy the std::function
-	// still executing if it were called through the member itself.
-	auto completer = tab_completer_;
+        // A local copy, not tab_completer_() directly: finishing the reader
+        // reassigns tab_completer_, which would destroy the std::function
+        // still executing if it were called through the member itself.
+        auto completer = tab_completer_;
 	completer();
 	return true;
       } else if (input.getId() == Key::Enter) {
-	// Accepts whatever is typed, matched or not (buffer names, file
-	// paths: a name that doesn't exist yet is still worth trying).
-	submitReader();
-	return true;
+        // Accepts whatever is typed, matched or not (buffer names, file
+        // paths: a name that doesn't exist yet is still worth trying).
+        submitReader();
+        return true;
       } else if (input.hasCtrl() && input.getId() == 'g') {
 	cancelReader();
 	return true;
@@ -165,7 +165,7 @@ class StatusLine : public UIElement {
     closeReader();
   }
 
-private:
+ private:
   // Emacs-style autocomplete against a flat candidate set (M-x commands,
   // buffer names): extend the typed text as far as every candidate sharing
   // its prefix agrees, or flash "[No match]" if nothing shares the prefix

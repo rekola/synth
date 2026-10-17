@@ -199,3 +199,13 @@ TEST(terminal_ui_info_dialog_leaves_the_mouse_to_the_terminal) {
   f.press(cellui::Key::Escape);
   CHECK(!f.terminal.nativeSelection());
 }
+
+// A choice dialog's entries show over its raised box.
+TEST(terminal_ui_choice_dialog_entries_show_over_the_raised_box) {
+  UIFixture f;
+  f.ui->showChoiceDialog("Pick one", {{"Alpha entry", "a"}, {"Beta entry", "b"}}, 0, [](int) {});
+  f.ui->step();
+  CHECK(f.terminal.text().find("Pick one") != std::string::npos);
+  CHECK(f.terminal.text().find("Alpha entry") != std::string::npos);
+  CHECK(f.terminal.text().find("Beta entry") != std::string::npos);
+}

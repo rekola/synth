@@ -583,3 +583,120 @@ TEST(bufferplane_a_band_over_a_plane_goes_with_its_scroll_layer) {
   root.refresh();
   CHECK(root.takeBackdropLayers().empty() && b.at(2, 1).text == "a");
 }
+
+TEST(bufferplane_higher_planes_draw_over_lower_ones_wherever_they_are_in_the_tree) {
+  StyleProvider styles;
+  CellBuffer b(1, 6);
+  BufferPlane root(b, styles);
+  auto high = root.createChild();
+  high->setName("high");
+  high->resize(1, 3);
+  high->setElevation(8);
+  high->putstr(0, 0, "HHH");
+  // Created later, so above in tree order, but lower.
+  auto low = root.createChild();
+  low->resize(1, 6);
+  low->putstr(0, 0, "llllll");
+  root.refresh();
+  CHECK(b.toPlainText() == "HHHlll\n");
+
+  // One height: tree order, as before elevation.
+  high->setElevation(0);
+  root.refresh();
+  CHECK(b.toPlainText() == "llllll\n");
+
+  // A child adds its elevation to its parent's, and stays clipped to it.
+  auto parent = root.createChild();
+  parent->resize(1, 2);
+  parent->move(0, 4);
+  parent->setElevation(2);
+  parent->putstr(0, 0, "pp");
+  low->setElevation(4);
+  root.refresh();
+  CHECK(b.toPlainText() == "llllll\n");
+  auto child = parent->createChild();
+  child->resize(1, 4);
+  child->setElevation(3);
+  child->putstr(0, 0, "cccc");
+  root.refresh();
+  CHECK(b.toPlainText() == "llllcc\n");
+
+  // A negative elevation sinks a plane below the base.
+  low->setElevation(-1);
+  child->setElevation(0);
+  root.refresh();
+  CHECK(b.toPlainText() == "HHHlcc\n");
+}
+
+TEST(bufferplane_reports_the_areas_above_the_base) {
+  StyleProvider styles;
+  CellBuffer b(5, 10);
+  BufferPlane root(b, styles);
+  auto panel = root.createChild();
+  panel->setName("panel");
+  panel->resize(3, 6);
+  panel->move(1, 1);
+  panel->setElevation(2);
+  auto popup = panel->createChild();
+  popup->setName("popup");
+  popup->resize(4, 4);  // reaches past the panel: only the part inside counts
+  popup->move(1, 3);
+  popup->setElevation(8);
+  auto flat = root.createChild();
+  flat->resize(1, 1);
+  root.refresh();
+  auto areas = root.takeElevations();
+  CHECK(areas.size() == 2);
+  CHECK(areas[0].name == "panel" && areas[0].row == 1 && areas[0].col == 1 && areas[0].rows == 3 && areas[0].cols == 6);
+  CHECK(areas[0].elevation == 2);
+  CHECK(areas[1].name == "popup" && areas[1].row == 2 && areas[1].col == 4 && areas[1].rows == 2 && areas[1].cols == 3);
+  CHECK(areas[1].elevation == 10);
+  CHECK(root.describe().children[0].elevation == 2);
+  panel->setVisible(false);
+  root.refresh();
+  CHECK(root.takeElevations().empty());
+}
+
+// Lifted cells stand above their plane: each run in a row is a piece, joined
+// to the run above only when asked, and covered cells cast nothing.
+TEST(bufferplane_reports_lifted_cells_as_pieces) {
+  StyleProvider styles;
+  CellBuffer b(5, 10);
+  BufferPlane root(b, styles);
+  auto plane = root.createChild();
+  plane->setName("plane");
+  plane->resize(5, 10);
+  plane->setElevation(1);
+  plane->setLift(0.5f);
+  plane->putstr(0, 0, "aaa");
+  plane->setLift(0.5f, true);
+  plane->putstr(1, 0, "bbb");  // one piece with the row above
+  plane->setLift(0.5f);
+  plane->putstr(2, 0, "ccc");  // a piece of its own
+  plane->setLift(0);
+  plane->putstr(2, 1, "x");    // splits it
+  plane->setLift(1);
+  plane->putstr(4, 0, "dd");
+  plane->setLift(0);
+  auto cover = root.createChild();
+  cover->setName("cover");
+  cover->resize(1, 1);
+  cover->move(4, 1);
+  cover->setElevation(1);
+  cover->putstr(0, 0, "#");
+  root.refresh();
+  std::vector<ElevatedArea> lifted;
+  for (const auto & area : root.takeElevations()) {
+    if (area.name.empty()) lifted.push_back(area);
+  }
+  CHECK(lifted.size() == 4);
+  auto at = [&](int row, int col, int rows, int cols, float elevation) {
+    return std::any_of(lifted.begin(), lifted.end(), [&](const ElevatedArea & a) {
+      return a.row == row && a.col == col && a.rows == rows && a.cols == cols && a.elevation == elevation;
+    });
+  };
+  CHECK(at(0, 0, 2, 3, 1.5f));
+  CHECK(at(2, 0, 1, 1, 1.5f));
+  CHECK(at(2, 2, 1, 1, 1.5f));
+  CHECK(at(4, 0, 1, 1, 2.0f));
+}

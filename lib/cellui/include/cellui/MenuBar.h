@@ -4,6 +4,7 @@
 #include <cellui/Input.h>
 #include <cellui/UIPlane.h>
 
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -13,9 +14,10 @@ namespace cellui {
 
 // A menu bar drawn into a plane of its own that spans its parent's width at
 // the top: a header row of section names, and below it the open section as
-// an opaque panel of items, with no border. The plane is as tall as the
-// header plus the longest section and its padding row; cells nothing is drawn in stay transparent,
-// so only the header and an open section show.
+// an opaque panel of items, with no border, on a child plane floating at the
+// theme's overlay elevation. The plane is as tall as the header plus the
+// longest section and its padding row; cells nothing is drawn in stay
+// transparent, so only the header and an open section show.
 //
 //   - Alt+<mnemonic>, or a click on a section's name, opens it; a click on
 //     the open one closes it.
@@ -79,6 +81,7 @@ class MenuBar {
   int bodyWidth(int section) const;
 
   UIPlane & plane_;
+  std::unique_ptr<UIPlane> panel_;  // the open section's
   Colors colors_;
   std::vector<Section> sections_;
   int cols_ = 0;
