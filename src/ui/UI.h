@@ -63,6 +63,8 @@ class UI : public UIElement {
   }
   // The backend takes the colours and redraws.
   virtual void applyTheme(const Theme & /*theme*/) { }
+  // Motion off (--reduced-motion): colours change at once and nothing pulses.
+  virtual void setReducedMotion(bool /*reduced*/) { }
   virtual void showInfoDialog(const std::string & title, const std::string & markdown) = 0;
 
   // One entry of a choice dialog: what the person sees, and what the command

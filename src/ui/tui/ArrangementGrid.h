@@ -7,6 +7,7 @@
 #include <functional>
 #include <vector>
 
+#include <cellui/Fade.h>
 #include <cellui/Input.h>
 #include <cellui/Viewport.h>
 #include "../StyleProvider.h"
@@ -55,6 +56,9 @@ class Song;
 // PatternEditor, the playhead, or Launchpad even exist).
 class ArrangementGrid : public UIElement {
  public:
+  // The focus level is still easing: the loop keeps drawing frames.
+  bool isAnimating() const { return fades_.active() || focus_fade_drawn_; }
+
   ArrangementGrid(UIPlane & parent);
 
   // `focused` (whether this widget is UI::active_element_ - it has no way
@@ -138,6 +142,9 @@ class ArrangementGrid : public UIElement {
   int current_scroll_col_ = -1;
   std::chrono::steady_clock::time_point last_tick_ = std::chrono::steady_clock::now();
   bool current_focused_ = false;
+  float focus_ = 0.0f;
+  cellui::Fades fades_;
+  bool focus_fade_drawn_ = false;
   int current_selected_track_id_ = -1;
 
   std::function<void(int track_id, int row)> commit_callback_;

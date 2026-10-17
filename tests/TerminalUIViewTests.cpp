@@ -1,3 +1,5 @@
+#include <chrono>
+#include <thread>
 #include "TestFramework.h"
 
 #include "TerminalUIFixture.h"
@@ -192,6 +194,21 @@ std::string lastLine(const UIFixture & f) {
 // moving the pattern editor's track, nor following it, and never on the
 // header row), each track's column marking the clip that track is at, and
 // the outline panel's button bar and details popup.
+// With motion on, the cursor of a widget that loses focus fades out instead
+// of vanishing at once.
+TEST(terminal_ui_focus_change_fades_the_cursor) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);
+  f.ui->setReducedMotion(false);
+  f.ui->step();
+  CHECK(!gridCursorRows(f).empty());
+  f.otherWindow();  // the pattern editor
+  CHECK(!gridCursorRows(f).empty());  // still on its way out
+  std::this_thread::sleep_for(std::chrono::milliseconds(300));
+  f.ui->step();
+  f.ui->step();
+  CHECK(gridCursorRows(f).empty());
+}
+
 TEST(terminal_ui_live_view_layout_and_the_clip_grid_cursor) {
   UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);
   CHECK(f.line(1).compare(0, 8, " Outline") == 0 && f.line(1).find("T0") != std::string::npos);

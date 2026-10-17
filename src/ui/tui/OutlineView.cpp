@@ -44,6 +44,13 @@ string poolInstrumentDescription(const Track * instrument) {
 bool
 OutlineView::render(const StyleProvider & styles, bool refresh, bool focused) {
   bool render_all = refresh;
+  // How focused the widget is, eased: its cursor fades between the focused and unfocused look.
+  focus_ = fades_.value(0, focused ? 1.0f : 0.0f, !styles.reduced_motion);
+  // One more frame after it ends draws the final state.
+  bool focus_fading = fades_.active() || focus_fade_drawn_;
+  focus_fade_drawn_ = fades_.active();
+  fades_.sweep();
+  if (focus_fading) render_all = true;
   auto & song = getController().getSong();
   auto & instrument_provider = getController().getInstrumentProvider();
 
@@ -431,12 +438,9 @@ OutlineView::drawRow(const StyleProvider & styles, UIPlane & plane, int display_
     if (pressed_.data_row >= 0 && static_cast<size_t>(pressed_.data_row) == data_row) {
       fg(styles.highlight_fg_color);
       bg(styles.row_pressed_bg_color);
-    } else if (cursor && focused) {
-      fg(styles.highlight_fg_color);
-      bg(styles.highlight_bg_color);
     } else if (cursor) {
-      fg(styles.window_fg_color);
-      bg(styles.highlight_unfocused_bg_color);
+      fg(styles.window_fg_color.blend(focus_, styles.highlight_fg_color));
+      bg(styles.highlight_unfocused_bg_color.blend(focus_, styles.highlight_bg_color));
     } else {
       fg(styles.window_fg_color);
       bg(styles.window_bg_color);
