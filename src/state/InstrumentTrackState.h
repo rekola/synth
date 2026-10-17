@@ -116,7 +116,7 @@ public:
     data.setBpm(context.getBpm());
     data.zero();
     for (auto & [ pos, s ] : chunks) data.assignNamed(s, pos);
-    applyStutter(data);
+    applyPerformanceAudio(data);
 
     // getSends()/getPosition().azimuth are already this block's own
     // post-glide values - every chunk's own renderVoices() call above

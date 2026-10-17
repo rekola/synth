@@ -22,15 +22,24 @@ To try on the hardware: whether the fixed amounts feel right (Duck -12 dB,
 Roll a sixteenth / 32nd / 64th, Orbit one to four turns a bar), and whether
 Roll should also re-fire notes already playing when it is pressed.
 
-## 2. Stutter (built, apart from the large-grain mode)
+## 2. Stutter and Erode (built)
 
 A buffer repeat of the track's own output: from the press, capture the
 track's rendered (encoded) audio and loop a grid-synced slice of it while
 held, with short crossfades at the seams; pressure shortens the slice
 (quarter note toward a 32nd). Built: `state/TrackStutter.h`, the Stutter row, capture starting
-on the next row (at once with the transport stopped). Still to do: a second
-mode that picks slices at random, now and then reversed, with longer
-crossfades - large grains, the sound broken into pieces. Works on every track type, sample tracks included. The capture
+on the next row (at once with the transport stopped). The large-grain shuffle
+first planned here was dropped: reordering grid slices is a digital glitch,
+not the organic degradation wanted. That is **Erode** instead
+(`state/TrackErode.h`), its own row under Stutter: a patchy grain engine on
+the track's live output, after granular processors such as Mutable
+Instruments Clouds - grains of 40-250 ms from up to 300 ms back, random
+level, a few cents of detune and a small turn about the vertical, silence
+between them; pressure thins the grains out. A tape-machine version (wow,
+dropouts, hiss) was tried and rejected.
+
+Later idea: a Stutter whose loop wears a little more on every pass, a tape
+loop disintegrating as it plays. Works on every track type, sample tracks included. The capture
 buffer costs one channel per ambisonic channel only while held.
 
 ## 3. A filter in every voice, the expression axes, and the Filter row

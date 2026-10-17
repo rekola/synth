@@ -14,6 +14,7 @@
 #include "../src/ambisonic/MixerType.h"
 #include "../src/playback/PerformanceEffect.h"
 #include "../src/state/TrackStutter.h"
+#include "../src/state/TrackErode.h"
 #include "../src/audio/AudioBuffer.h"
 
 #include <vector>
@@ -82,7 +83,8 @@ TEST(performance_grid_rows_hold_roll_on_top_and_orbit_at_the_bottom) {
   CHECK(performance::effectForGridRow(7) == PerformanceEffect::ROLL);
   CHECK(performance::effectForGridRow(0) == PerformanceEffect::ORBIT);
   CHECK(performance::effectForGridRow(6) == PerformanceEffect::STUTTER);
-  CHECK(performance::effectForGridRow(5) == PerformanceEffect::NONE);
+  CHECK(performance::effectForGridRow(5) == PerformanceEffect::ERODE);
+  CHECK(performance::effectForGridRow(4) == PerformanceEffect::NONE);
   CHECK(performance::effectForGridRow(8) == PerformanceEffect::NONE);
 }
 
@@ -253,4 +255,90 @@ TEST(performance_stutter_repeats_the_track_after_its_note_ends) {
 
   CHECK(render_tail(false) < 1e-4f);
   CHECK(render_tail(true) > 0.01f);
+}
+
+namespace {
+
+// Runs a front-facing sine (first order: W and X equal, Y silent) through
+// TrackErode for `seconds`, after a quarter second to settle, and returns the
+// share of frames where W is silent, the loudest W and the loudest Y.
+struct ErodeRun { float silent_share = 0.0f, peak_w = 0.0f, peak_y = 0.0f; bool finite = true; };
+ErodeRun runErode(TrackErode & erode, int & frame, float seconds) {
+  const int rate = 44100, block = 256;
+  ErodeRun run;
+  int silent = 0, counted = 0;
+  const int blocks = static_cast<int>(seconds * rate) / block;
+  for (int b = 0; b < blocks; b++) {
+    AudioBuffer data(4, false, false, block);
+    for (int i = 0; i < block; i++) {
+      float v = 0.5f * sinf(2.0f * 3.14159265f * 220.0f * static_cast<float>(frame + i) / rate);
+      data.getChannelData(0)[i] = v;
+      data.getChannelData(1)[i] = 0.0f;
+      data.getChannelData(2)[i] = 0.0f;
+      data.getChannelData(3)[i] = v;
+    }
+    erode.process(data);
+    for (int i = 0; i < block; i++) {
+      float w = data.getChannelData(0)[i], y = data.getChannelData(1)[i];
+      run.finite = run.finite && std::isfinite(w) && std::isfinite(y);
+      run.peak_w = max(run.peak_w, fabsf(w));
+      run.peak_y = max(run.peak_y, fabsf(y));
+      silent += fabsf(w) < 1e-6f ? 1 : 0;
+      counted++;
+    }
+    frame += block;
+  }
+  run.silent_share = static_cast<float>(silent) / static_cast<float>(max(counted, 1));
+  return run;
+}
+
+} // namespace
+
+// Fully eroded, the sound comes through in fragments with silence between
+// them, turned a little off the front; lightly, it is mostly there.
+TEST(track_erode_breaks_the_sound_into_patches) {
+  int frame = 0;
+  TrackErode heavy(3);
+  heavy.start(44100, 4, 1.0f);
+  runErode(heavy, frame, 0.25f);
+  auto eroded = runErode(heavy, frame, 2.0f);
+  CHECK(eroded.finite);
+  CHECK(eroded.silent_share > 0.2f);
+  CHECK(eroded.peak_w > 0.05f);
+  CHECK(eroded.peak_y > 1e-3f); // turned
+
+  frame = 0;
+  TrackErode light(3);
+  light.start(44100, 4, 0.0f);
+  runErode(light, frame, 0.25f);
+  auto grainy = runErode(light, frame, 2.0f);
+  CHECK(grainy.silent_share < eroded.silent_share);
+}
+
+// Released, Erode fades back to the track's own signal, unchanged.
+TEST(track_erode_hands_the_sound_back_on_release) {
+  int frame = 0;
+  TrackErode erode(5);
+  erode.start(44100, 4, 0.5f);
+  runErode(erode, frame, 0.5f);
+  erode.release();
+  runErode(erode, frame, 0.05f);
+  CHECK(erode.isOff());
+  auto after = runErode(erode, frame, 0.1f);
+  CHECK(after.silent_share < 0.01f);
+  CHECK(after.peak_y == 0.0f);
+}
+
+// Held from the Custom grid, Erode reaches the track.
+TEST(performance_erode_reaches_the_track) {
+  SineSong s;
+  float clean = s.renderPeak(4096, 0);
+  s.state.setPerformance(s.track_id, PerformanceEffect::ERODE, 127);
+  s.renderPeak(44100 / 4);
+  float eroded = s.renderPeak(44100);
+  CHECK(std::isfinite(eroded));
+  CHECK(fabsf(eroded - clean) > 1e-3f);
+  s.state.setPerformance(s.track_id, PerformanceEffect::ERODE, performance::kRelease);
+  s.renderPeak(4096);
+  CHECK_NEAR(s.renderPeak(4096, 0), clean, 1e-4f);
 }

@@ -522,7 +522,7 @@ would otherwise resume showing.
   while another stays on ordinary note entry. Defaults to `LIVE`.
   `CUSTOM` is the performance grid (`handlePerformancePadEvent()`,
   `playback/PerformanceEffect.h`): columns are Live View's tracks, rows
-  effects (Roll, Stutter, Duck, Send A/B throws, Orbit), held to apply, pressure
+  effects (Roll, Stutter, Erode, Duck, Send A/B throws, Orbit), held to apply, pressure
   deepening them. A pad sends `SET_PERFORMANCE`; `SongState::setPerformance()`
   keeps what is held (never the song) and hands it to `LeafTrackState::
   setPerformanceTargets()`, which applies it to the voices only, so `sends_`/
@@ -530,8 +530,10 @@ would otherwise resume showing.
   song's values. Roll re-fires each note that starts while held, pattern or
   live (`SongState::startRoll()`), until it ends or the pad is released.
   Stutter captures the track's whole rendered block (`TrackStutter`, applied
-  by `LeafTrackState::applyStutter()` before the level is reported) from the
-  next row and loops it until released. `SEND_MAIN`/`PAN`/`SEND_A`/`SEND_B`, plus the
+  by `LeafTrackState::applyPerformanceAudio()` before the level is reported)
+  from the next row and loops it until released; Erode (`TrackErode`) records
+  it continuously and plays it back as sparse, large grains with silence
+  between them, each turned a little about the vertical. `SEND_MAIN`/`PAN`/`SEND_A`/`SEND_B`, plus the
   track-picker overlay's three purposes (Stop Clip/Mute/Solo - see its
   own bullet below), together form Live's own **mixer submode radio
   group** (`DeviceState::mixer_mode`, off by default) - see the

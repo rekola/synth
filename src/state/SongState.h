@@ -842,8 +842,10 @@ class SongState : public TrackState {
     float stutter_rows = 0.0f; // 0: no stutter
     bool stutter_start = false; // a new stutter, still to be handed to the track
     int stutter_delay = 0;
+    float erode = -1.0f; // negative: no erosion
     bool isIdle() const {
-      return roll_ticks == 0 && duck_gain == 1.0f && throw_a == 0.0f && throw_b == 0.0f && orbit_turns_per_bar == 0.0f && stutter_rows == 0.0f;
+      return roll_ticks == 0 && duck_gain == 1.0f && throw_a == 0.0f && throw_b == 0.0f && orbit_turns_per_bar == 0.0f && stutter_rows == 0.0f &&
+             erode < 0.0f;
     }
   };
 
@@ -867,6 +869,7 @@ class SongState : public TrackState {
 	} else {
 	  track_state->releaseStutter();
 	}
+	track_state->setErode(held.erode);
       }
       held.stutter_start = false;
       if (held.isIdle()) it = performance_.erase(it);
@@ -1056,6 +1059,7 @@ class SongState : public TrackState {
 	held.stutter_rows = performance::stutterSliceRows(pressure);
       }
       break;
+    case PerformanceEffect::ERODE: held.erode = release ? -1.0f : performance::erodeAmount(pressure); break;
     case PerformanceEffect::NONE: break;
     }
   }

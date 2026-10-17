@@ -271,6 +271,8 @@ namespace {
   constexpr Rgb LAUNCHPAD_PERFORMANCE_ORBIT_DIM    { 40, 12, 0 };
   constexpr Rgb LAUNCHPAD_PERFORMANCE_STUTTER_BRIGHT { 0, 110, 127 };
   constexpr Rgb LAUNCHPAD_PERFORMANCE_STUTTER_DIM    { 0, 30, 35 };
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_ERODE_BRIGHT   { 110, 45, 10 };
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_ERODE_DIM      { 30, 12, 3 };
 
   // Volume/Pan/Send A/Send B's own fader micro-values (FaderState::
   // micro_step) show as a lightness scale on just the fader's own top pad,
@@ -2592,6 +2594,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
       case PerformanceEffect::THROW_B: bright = LAUNCHPAD_MIXER_SEND_B_BRIGHT; dim = LAUNCHPAD_MIXER_SEND_B_DIM; break;
       case PerformanceEffect::ORBIT: bright = LAUNCHPAD_PERFORMANCE_ORBIT_BRIGHT; dim = LAUNCHPAD_PERFORMANCE_ORBIT_DIM; break;
       case PerformanceEffect::STUTTER: bright = LAUNCHPAD_PERFORMANCE_STUTTER_BRIGHT; dim = LAUNCHPAD_PERFORMANCE_STUTTER_DIM; break;
+      case PerformanceEffect::ERODE: bright = LAUNCHPAD_PERFORMANCE_ERODE_BRIGHT; dim = LAUNCHPAD_PERFORMANCE_ERODE_DIM; break;
       case PerformanceEffect::NONE: break;
       }
       for (int x = 0; x < 8; x++) {

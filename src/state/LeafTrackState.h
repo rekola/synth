@@ -9,6 +9,7 @@
 #include "../dsp/ValueRamp.h"
 #include "../playback/PerformanceEffect.h"
 #include "TrackStutter.h"
+#include "TrackErode.h"
 
 #include <algorithm>
 #include <cmath>
@@ -375,6 +376,17 @@ public:
   void setStutterSlice(int slice) { stutter_.setSlice(slice); }
   void releaseStutter() { stutter_.release(); }
 
+  // Erode (TrackErode) at `amount` (0-1), or released with a negative amount.
+  void setErode(float amount) {
+    if (amount < 0.0f) {
+      erode_.release();
+    } else if (erode_.isOff()) {
+      erode_.start(getChannelConfiguration().getAudioOutSampleRate(), getChannelConfiguration().numberOfChannels(), amount);
+    } else {
+      erode_.setAmount(amount);
+    }
+  }
+
   void setPerformanceTargets(float duck_gain, float throw_a, float throw_b, float orbit_degrees_per_frame) {
     const int ramp_frames = static_cast<int>(performance::kRampSeconds * static_cast<float>(getChannelConfiguration().getAudioOutSampleRate()));
     if (perf_duck_.getTargetValue() != duck_gain) perf_duck_.glideTo(duck_gain, ramp_frames);
@@ -393,8 +405,12 @@ public:
   }
 
 protected:
- // A track's whole rendered block, before it reports its level.
- void applyStutter(AudioBuffer & data) { stutter_.process(data); }
+ // Stutter and Erode on a track's whole rendered block, before it reports
+ // its level.
+ void applyPerformanceAudio(AudioBuffer & data) {
+   stutter_.process(data);
+   erode_.process(data);
+ }
 
  // Read access to this track's own position/sends/id for a subclass that
  // needs to construct its own voices directly (e.g.
@@ -530,6 +546,7 @@ private:
   float orbit_offset_ = 0.0f;
   dsp::ValueRamp orbit_return_;
   TrackStutter stutter_;
+  TrackErode erode_{ static_cast<uint32_t>(track_id_) + 1u };
 };
 
 #endif
