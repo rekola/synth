@@ -25,8 +25,8 @@ constexpr PerformanceEffect kGridRows[8] = {
   PerformanceEffect::THROW_B,
   PerformanceEffect::THROW_A,
   PerformanceEffect::DUCK,
-  PerformanceEffect::NONE, // resonant low-pass
-  PerformanceEffect::NONE, // low-pass
+  PerformanceEffect::NONE, // free
+  PerformanceEffect::NONE, // filter
   PerformanceEffect::NONE, // stutter
   PerformanceEffect::ROLL,
 };

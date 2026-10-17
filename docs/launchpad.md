@@ -261,8 +261,8 @@ everything it holds.
 | --- | --- | --- |
 | 8 | Roll | Every note that starts on the track while the pad is held repeats from its own start every sixteenth (a 32nd, then a 64th, pressing harder) until the note ends or the pad is released. Notes already playing when it is pressed are left alone. |
 | 7 | (stutter, not built) | dark |
-| 6 | (low-pass, not built) | dark |
-| 5 | (resonant low-pass, not built) | dark |
+| 6 | (filter, not built) | dark |
+| 5 | (free) | dark |
 | 4 | Duck | The track's dry signal drops by 12 dB, to silence at full pressure; its sends are untouched. |
 | 3 | Throw A | Send A rises to full, throwing the track into the Send A effect (the reverb by default). |
 | 2 | Throw B | The same for Send B (the delay by default). |
