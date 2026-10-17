@@ -601,10 +601,10 @@ void Window::Impl::buttonEvent(int button, double x, double y, bool pressed, Gdk
 
 // Sets the widget's pointer to the shape asked for over the pointer's cell.
 void Window::Impl::updateMouseCursor() {
-  MouseCursor cursor = mouseCursorAt(mouse_cursors, last_row, last_col);
-  if (cursor == shown_cursor) return;
-  shown_cursor = cursor;
-  gtk_widget_set_cursor_from_name(view, mouseCursorName(cursor));
+  MouseCursor shape = mouseCursorAt(mouse_cursors, last_row, last_col);
+  if (shape == shown_cursor) return;
+  shown_cursor = shape;
+  gtk_widget_set_cursor_from_name(view, mouseCursorName(shape));
 }
 
 void Window::Impl::motionEvent(double x, double y, GdkModifierType state) {
