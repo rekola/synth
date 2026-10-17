@@ -214,3 +214,28 @@ TEST(palette_sits_on_the_bottom_rows_with_the_query_on_the_last) {
   CHECK(lines[19].find("M-x undo") == 1);
   CHECK(lines[15].find("undo") == std::string::npos);  // nothing above the list
 }
+
+namespace {
+bool sameColor(const Color & a, const Color & b) {
+  return a.getRed() == b.getRed() && a.getGreen() == b.getGreen() && a.getBlue() == b.getBlue();
+}
+}  // namespace
+
+TEST(palette_list_is_a_raised_panel_but_the_description_and_query_use_the_display_background) {
+  Fixture f;
+  f.feed("undo");
+  // Rows 16 and 17 list the two matches, 18 is the description, 19 the query.
+  auto panel = f.styles.picker_bg_color;
+  // The selected row (16) takes the cursor colour, the other the panel's.
+  CHECK(f.buffer.at(16, 10).bg && sameColor(*f.buffer.at(16, 10).bg, f.styles.highlight_bg_color));
+  CHECK(f.buffer.at(17, 10).bg && sameColor(*f.buffer.at(17, 10).bg, panel));
+  for (int row : {18, 19}) {
+    for (int col : {0, 1, 10, 79}) CHECK(!f.buffer.at(row, col).bg);
+  }
+  // The description is quiet and italic, so it does not read as a command.
+  auto & description = f.buffer.at(18, 3);
+  CHECK(description.italic);
+  CHECK(description.fg && sameColor(*description.fg, f.styles.theme.text_secondary));
+  CHECK(!f.buffer.at(16, 3).italic);
+  CHECK(f.buffer.at(16, 3).fg && !sameColor(*f.buffer.at(16, 3).fg, *description.fg));
+}
