@@ -256,6 +256,7 @@ void Window::Impl::measure(const WindowOptions & options) {
   display_info.sextants = false;
   display_info.smooth_scroll = true;
   display_info.keymap_profile = KeymapProfile::DESKTOP;
+  display_info.escape_as_meta = false;
 }
 
 void Window::Impl::allocated(int width, int height) {
