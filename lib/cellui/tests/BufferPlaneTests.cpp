@@ -656,3 +656,47 @@ TEST(bufferplane_reports_the_areas_above_the_base) {
   root.refresh();
   CHECK(root.takeElevations().empty());
 }
+
+// Lifted cells stand above their plane: each run in a row is a piece, joined
+// to the run above only when asked, and covered cells cast nothing.
+TEST(bufferplane_reports_lifted_cells_as_pieces) {
+  StyleProvider styles;
+  CellBuffer b(5, 10);
+  BufferPlane root(b, styles);
+  auto plane = root.createChild();
+  plane->setName("plane");
+  plane->resize(5, 10);
+  plane->setElevation(1);
+  plane->setLift(0.5f);
+  plane->putstr(0, 0, "aaa");
+  plane->setLift(0.5f, true);
+  plane->putstr(1, 0, "bbb");  // one piece with the row above
+  plane->setLift(0.5f);
+  plane->putstr(2, 0, "ccc");  // a piece of its own
+  plane->setLift(0);
+  plane->putstr(2, 1, "x");    // splits it
+  plane->setLift(1);
+  plane->putstr(4, 0, "dd");
+  plane->setLift(0);
+  auto cover = root.createChild();
+  cover->setName("cover");
+  cover->resize(1, 1);
+  cover->move(4, 1);
+  cover->setElevation(1);
+  cover->putstr(0, 0, "#");
+  root.refresh();
+  std::vector<ElevatedArea> lifted;
+  for (const auto & area : root.takeElevations()) {
+    if (area.name.empty()) lifted.push_back(area);
+  }
+  CHECK(lifted.size() == 4);
+  auto at = [&](int row, int col, int rows, int cols, float elevation) {
+    return std::any_of(lifted.begin(), lifted.end(), [&](const ElevatedArea & a) {
+      return a.row == row && a.col == col && a.rows == rows && a.cols == cols && a.elevation == elevation;
+    });
+  };
+  CHECK(at(0, 0, 2, 3, 1.5f));
+  CHECK(at(2, 0, 1, 1, 1.5f));
+  CHECK(at(2, 2, 1, 1, 1.5f));
+  CHECK(at(4, 0, 1, 1, 2.0f));
+}
