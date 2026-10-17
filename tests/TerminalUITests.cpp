@@ -230,6 +230,16 @@ TEST(terminal_ui_overlays_and_modal_dialogs_float_at_their_elevations) {
   CHECK(planes().empty());
 }
 
+// A choice dialog's entries show over its raised box.
+TEST(terminal_ui_choice_dialog_entries_show_over_the_raised_box) {
+  UIFixture f;
+  f.ui->showChoiceDialog("Pick one", {{"Alpha entry", "a"}, {"Beta entry", "b"}}, 0, [](int) {});
+  f.ui->step();
+  CHECK(f.terminal.text().find("Pick one") != std::string::npos);
+  CHECK(f.terminal.text().find("Alpha entry") != std::string::npos);
+  CHECK(f.terminal.text().find("Beta entry") != std::string::npos);
+}
+
 // Live View: the clip grid's track headers stand half a cell above it and its
 // clips a whole one; the pattern editor's track headers half a cell, a
 // group's (the master's) a quarter.

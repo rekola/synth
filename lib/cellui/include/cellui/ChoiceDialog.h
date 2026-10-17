@@ -3,6 +3,7 @@
 #include <cellui/ChoiceList.h>
 #include <cellui/Element.h>
 
+#include <chrono>
 #include <memory>
 #include <optional>
 #include <string>
@@ -37,7 +38,10 @@ class ChoiceDialog {
   // Above every plane under the same parent.
   void raise() {
     if (plane_) plane_->moveToTop();
+    if (list_plane_) list_plane_->moveToTop();
   }
+  // Whether the list is still moving (smooth scrolling): another show() is due.
+  bool animating() const;
 
   // (Re)draws the box under `parent`, centred on a screen of the given size.
   // Call again after a resize or any change of selection.
@@ -52,8 +56,15 @@ class ChoiceDialog {
  private:
   int visibleRows() const { return rows_ - 5; }  // see kChromeRows
 
+  // The box with its title and hint; the entries are a plane of their own
+  // over it, so they can scroll by parts of a row under a cursor band.
   std::unique_ptr<UIPlane> plane_;
   std::optional<float> elevation_;
+  std::unique_ptr<UIPlane> list_plane_;
+  // The cursor's row in the list: a whole number except while it eases.
+  double cursor_y_ = 0;
+  bool fresh_ = true;
+  std::chrono::steady_clock::time_point last_tick_;
   std::string title_;
   std::vector<std::string> labels_;
   int current_ = -1;

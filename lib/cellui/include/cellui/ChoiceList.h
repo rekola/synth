@@ -46,6 +46,24 @@ class ChoiceList {
     selected_ = count_ == 0 ? 0 : std::clamp(selected_, window_.offset(), std::min(count_ - 1, window_.offset() + window_.view() - 1));
   }
 
+  // Where the display scrolls smoothly the window follows its offset with an
+  // animation (see ScrollAxis): firstShown() and fraction() say where it is.
+  void setSmooth(bool smooth) { window_.setSmooth(smooth); }
+  bool smooth() const { return window_.smooth(); }
+  // The window jumps to its offset (a list just opened).
+  void snap() {
+    bool smooth = window_.smooth();
+    window_.setSmooth(false);
+    window_.setSmooth(smooth);
+  }
+  void tick(double seconds) { window_.tick(seconds); }
+  bool animating() const { return window_.animating(); }
+  int offset() const { return window_.offset(); }
+  int firstShown() const { return window_.firstShown(); }
+  double fraction() const { return window_.fraction(); }
+  // The entry under row `row` of the window, as drawn now.
+  int indexAt(int row) const { return window_.indexAt(row); }
+
  private:
   int count_ = 0;
   int selected_ = 0;

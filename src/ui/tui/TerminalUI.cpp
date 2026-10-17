@@ -1185,6 +1185,11 @@ TerminalUI::renderComponents(bool refresh) {
     blankScopes();
     render = true;
   }
+  // A choice list scrolling or easing its cursor draws itself each frame.
+  if (choice_dialog_.animating()) {
+    layoutChoiceDialog();
+    render = true;
+  }
   auto active = active_element_.lock();
   auto & song = getController().getSong();
   // The shared/global track selection - Song's own, not any one widget's
@@ -1977,7 +1982,7 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
   constexpr auto kSteadyFrameInterval = std::chrono::milliseconds(25);
   // A view that scrolls smoothly is shown at the display's pace, not the steady one.
   constexpr auto kAnimatedFrameInterval = std::chrono::milliseconds(16);
-  auto animating = [&]() { return (arrangement_grid_ && arrangement_grid_->animating()) || (outline_view_ && outline_view_->animating()); };
+  auto animating = [&]() { return (arrangement_grid_ && arrangement_grid_->animating()) || (outline_view_ && outline_view_->animating()) || choice_dialog_.animating(); };
   auto min_frame_interval = [&]() { return animating() ? kAnimatedFrameInterval : kSteadyFrameInterval; };
   auto last_frame = std::chrono::steady_clock::now() - kSteadyFrameInterval;
   bool frame_pending = false;
