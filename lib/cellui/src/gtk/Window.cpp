@@ -380,32 +380,65 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top) {
   const Color & bg = *display_info.default_bg;
   bool dark = bg.getRed() + bg.getGreen() + bg.getBlue() < 384;
   stats.shadows = 0;
-  GdkRGBA shade = { 0, 0, 0, dark ? 0.55f : 0.22f };
+  // Two shadows, as many design systems draw them: a key light from above,
+  // offset down by half the height and blurred by all of it, and a faint
+  // ambient one all around. Height is in cell widths.
+  GdkRGBA key = { 0, 0, 0, dark ? 0.65f : 0.18f };
+  GdkRGBA ambient = { 0, 0, 0, dark ? 0.4f : 0.12f };
+  GdkRGBA highlight = { 1, 1, 1, dark ? 0.14f : 0.55f };
+  GdkRGBA edge = { 0, 0, 0, dark ? 0.3f : 0.1f };
   auto rectOf = [&](const ElevatedArea & a) {
     return GRAPHENE_RECT_INIT(static_cast<float>(a.col * cell_w), static_cast<float>(a.row * cell_h), static_cast<float>(a.cols * cell_w),
                               static_cast<float>(a.rows * cell_h));
   };
-  for (size_t i = 0; i < elevations.size(); i++) {
-    const ElevatedArea & area = elevations[i];
-    if (area.layer < layers.size()) continue;
-    float e = area.elevation;
-    float dy = 0.4f * e, blur = 1.2f * e + 2.0f;
-    GskRoundedRect outline;
-    graphene_rect_t rect = rectOf(area);
-    gsk_rounded_rect_init_from_rect(&outline, &rect, 0);
-    gtk_snapshot_append_outset_shadow(snap, &outline, &shade, 0, dy, 0, blur);
-    stats.shadows++;
-    // What is higher than it covers its shadow.
-    graphene_rect_t reach = GRAPHENE_RECT_INIT(rect.origin.x - 2 * blur, rect.origin.y - 2 * blur + dy, rect.size.width + 4 * blur,
-                                               rect.size.height + 4 * blur);
-    for (size_t j = i + 1; j < elevations.size(); j++) {
-      if (elevations[j].elevation <= e || elevations[j].layer < layers.size()) continue;
-      graphene_rect_t above = rectOf(elevations[j]), meet;
-      if (!graphene_rect_intersection(&above, &reach, &meet)) continue;
-      gtk_snapshot_push_clip(snap, &above);
-      appendTexture(snap, top);
-      gtk_snapshot_pop(snap);
+  auto shown = [&](const ElevatedArea & a) { return a.layer >= layers.size(); };
+  // Height by height, lowest first: each one's shadows, then everything as
+  // high or higher drawn again over them, so a shadow falls only on what is
+  // lower (neighbours of one height included).
+  size_t i = 0;
+  while (i < elevations.size()) {
+    float e = elevations[i].elevation;
+    size_t level_end = i;
+    while (level_end < elevations.size() && elevations[level_end].elevation == e) level_end++;
+    float px = e * static_cast<float>(cell_w);
+    float dy = 0.5f * px, blur = px, ambient_blur = std::max(2.0f, 0.25f * px);
+    graphene_rect_t reach = GRAPHENE_RECT_INIT(0, 0, 0, 0);
+    bool any = false;
+    for (size_t k = i; k < level_end; k++) {
+      if (!shown(elevations[k])) continue;
+      graphene_rect_t rect = rectOf(elevations[k]);
+      GskRoundedRect outline;
+      gsk_rounded_rect_init_from_rect(&outline, &rect, 0);
+      gtk_snapshot_append_outset_shadow(snap, &outline, &ambient, 0, 0, 0, ambient_blur);
+      gtk_snapshot_append_outset_shadow(snap, &outline, &key, 0, dy, 0, blur);
+      stats.shadows++;
+      graphene_rect_t r = GRAPHENE_RECT_INIT(rect.origin.x - 2 * blur, rect.origin.y - 2 * ambient_blur, rect.size.width + 4 * blur,
+                                             rect.size.height + 2 * ambient_blur + dy + 2 * blur);
+      if (any) graphene_rect_union(&reach, &r, &reach);
+      else reach = r;
+      any = true;
     }
+    if (any) {
+      for (size_t j = i; j < elevations.size(); j++) {
+        if (!shown(elevations[j])) continue;
+        graphene_rect_t above = rectOf(elevations[j]), meet;
+        if (!graphene_rect_intersection(&above, &reach, &meet)) continue;
+        gtk_snapshot_push_clip(snap, &above);
+        appendTexture(snap, top);
+        gtk_snapshot_pop(snap);
+      }
+      // A light top edge and a darker bottom one, so pieces side by side
+      // or stacked read apart.
+      for (size_t k = i; k < level_end; k++) {
+        if (!shown(elevations[k])) continue;
+        graphene_rect_t rect = rectOf(elevations[k]);
+        graphene_rect_t top_edge = GRAPHENE_RECT_INIT(rect.origin.x, rect.origin.y, rect.size.width, 1);
+        graphene_rect_t bottom_edge = GRAPHENE_RECT_INIT(rect.origin.x, rect.origin.y + rect.size.height - 1, rect.size.width, 1);
+        gtk_snapshot_append_color(snap, &highlight, &top_edge);
+        gtk_snapshot_append_color(snap, &edge, &bottom_edge);
+      }
+    }
+    i = level_end;
   }
 }
 
@@ -706,6 +739,8 @@ void Window::present(const CellBuffer & frame, const CursorRequest & cursor, con
   impl_->images = images;
   impl_->layers = info ? info->backdrops : std::vector<BackdropLayer>();
   impl_->elevations = info ? info->elevations : std::vector<ElevatedArea>();
+  std::stable_sort(impl_->elevations.begin(), impl_->elevations.end(),
+                   [](const ElevatedArea & a, const ElevatedArea & b) { return a.elevation < b.elevation; });
   gtk_widget_queue_draw(impl_->view);
 }
 
