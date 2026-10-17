@@ -4,6 +4,7 @@
 #include <cellui/Utf8.h>
 
 #include <algorithm>
+#include <cmath>
 
 namespace cellui {
 
@@ -27,10 +28,18 @@ void ChoiceDialog::open(string title, vector<string> labels, int current) {
   labels_ = std::move(labels);
   current_ = current;
   list_.reset(static_cast<int>(labels_.size()), std::max(0, current));
+  fresh_ = true;
+}
+
+bool ChoiceDialog::animating() const {
+  if (!isOpen()) return false;
+  double target = list_.selected() - list_.offset();
+  return list_.animating() || (list_.smooth() && cursor_y_ != target);
 }
 
 void ChoiceDialog::close() {
   plane_.reset();
+  list_plane_.reset();
   labels_.clear();
   title_.clear();
 }
@@ -54,10 +63,11 @@ void ChoiceDialog::show(UIPlane & parent, int screen_rows, int screen_cols) {
 
   auto bg = styles.picker_bg_color, fg = styles.window_fg_color, strong = styles.window_accent_fg_color;
   auto cursor_fg = styles.highlight_fg_color, cursor_bg = styles.highlight_bg_color;
-  auto set = [&](const Color & foreground, const Color & background) {
-    plane_->setFgColor(foreground.getRed(), foreground.getGreen(), foreground.getBlue());
-    plane_->setBgColor(background.getRed(), background.getGreen(), background.getBlue());
+  auto set_on = [](UIPlane & plane, const Color & foreground, const Color & background) {
+    plane.setFgColor(foreground.getRed(), foreground.getGreen(), foreground.getBlue());
+    plane.setBgColor(background.getRed(), background.getGreen(), background.getBlue());
   };
+  auto set = [&](const Color & foreground, const Color & background) { set_on(*plane_, foreground, background); };
 
   set(fg, bg);
   plane_->setBold(false);
@@ -71,34 +81,75 @@ void ChoiceDialog::show(UIPlane & parent, int screen_rows, int screen_cols) {
   set(fg, bg);
   plane_->putstr(rows_ - 2, 1, utf8::truncateToWidth(kHint, inner));
 
-  int first = list_.firstVisible(visibleRows());
-  for (int i = 0; i < visibleRows(); i++) {
-    int index = first + i;
-    bool selected = index == list_.selected();
-    if (selected) set(cursor_fg, cursor_bg);
-    else set(fg, bg);
-    // A marker for the one in use, then the label, padded so the cursor
-    // covers the whole row; the last column is left for the scroll arrows.
-    string text = string(index == current_ ? "●" : " ") + " " + labels_[static_cast<size_t>(index)];
-    // A label that doesn't fit ends in an ellipsis, so it is clear it goes on.
-    int room = inner - 2;
-    if (utf8::displayWidth(text) > room) text = utf8::truncateToWidth(text, room - 1) + "\u2026";
-    plane_->putstr(kTopRows + i, 0, " " + utf8::padToWidth(text, inner));
-    plane_->putstr(kTopRows + i, width_ - 1, " ");
-    // The arrows ride the right margin.
+  // The entries scroll smoothly where the display does, under a translucent
+  // cursor band that eases to the selection.
+  list_.setSmooth(parent.smoothScroll());
+  int rows = visibleRows();
+  list_.firstVisible(rows);
+  double target = list_.selected() - list_.offset();
+  if (fresh_) {
+    list_.snap();
+    cursor_y_ = target;
+    fresh_ = false;
+    last_tick_ = std::chrono::steady_clock::now();
+  }
+  auto now = std::chrono::steady_clock::now();
+  double seconds = std::min(0.1, std::chrono::duration<double>(now - last_tick_).count());
+  last_tick_ = now;
+  list_.tick(seconds);
+  if (!list_.smooth()) {
+    cursor_y_ = target;
+  } else {
+    cursor_y_ += (target - cursor_y_) * (1.0 - std::exp(-seconds / ScrollAxis::kSettleSeconds));
+    if (std::abs(target - cursor_y_) < ScrollAxis::kSnap) cursor_y_ = target;
+  }
+  cursor_y_ = std::clamp(cursor_y_, 0.0, static_cast<double>(std::max(0, rows - 1)));
+
+  int count = static_cast<int>(labels_.size());
+  int first = list_.offset();
+  // The arrows ride the right margin of the box, beside the list.
+  for (int i = 0; i < rows; i++) {
     const char * arrow = nullptr;
     if (i == 0 && first > 0) arrow = "▲";
-    else if (i == visibleRows() - 1 && first + visibleRows() < static_cast<int>(labels_.size())) arrow = "▼";
-    if (arrow) {
-      set(fg, bg);
-      plane_->putstr(kTopRows + i, width_ - 1, arrow);
-    }
+    else if (i == rows - 1 && first + rows < count) arrow = "▼";
+    plane_->putstr(kTopRows + i, width_ - 1, arrow ? arrow : " ");
   }
 
   x_ = (screen_cols - width_) / 2;
   y_ = (screen_rows - rows_) / 2;
   plane_->move(y_, x_);
   plane_->moveToTop();
+
+  if (!list_plane_) list_plane_ = parent.createChild();
+  list_plane_->move(y_ + kTopRows, x_);
+  list_plane_->resize(rows, width_ - 1);
+  list_plane_->setScrollOffset(list_.fraction(), 0);
+  list_plane_->erase();
+  set_on(*list_plane_, fg, bg);
+  int drawn = rows + (list_.smooth() ? 1 : 0);
+  for (int i = 0; i < drawn; i++) {
+    int index = list_.firstShown() + i;
+    bool selected = !list_.smooth() && index == list_.selected();
+    if (selected) set_on(*list_plane_, cursor_fg, cursor_bg);
+    else set_on(*list_plane_, fg, bg);
+    string text;
+    if (index < count) {
+      // A marker for the one in use, then the label, padded so the cursor
+      // covers the whole row.
+      text = string(index == current_ ? "●" : " ") + " " + labels_[static_cast<size_t>(index)];
+      // A label that doesn't fit ends in an ellipsis, so it is clear it goes on.
+      int room = inner - 2;
+      if (utf8::displayWidth(text) > room) text = utf8::truncateToWidth(text, room - 1) + "\u2026";
+    }
+    list_plane_->putstr(i, 0, " " + utf8::padToWidth(text, inner));
+  }
+  if (list_.smooth()) {
+    const auto & band = cursor_bg;
+    list_plane_->setBand(Band{ cursor_y_, 1.0, 0, width_ - 1, band, 0.45f });
+  } else {
+    list_plane_->clearBand();
+  }
+  list_plane_->moveToTop();
 }
 
 ChoiceDialog::Result
@@ -115,7 +166,7 @@ ChoiceDialog::offerInput(const cellui::Input & input) {
       bool inside_box = input.getY() >= y_ && input.getY() < y_ + rows_ && col >= 0 && col < width_;
       return inside_box ? Result::NONE : Result::CANCELLED;
     }
-    list_.select(list_.firstVisible(visibleRows()) + row);
+    list_.select(list_.indexAt(row));
     return Result::CHOSEN;
   }
   // Releases of keys do nothing; everything below acts on the press.

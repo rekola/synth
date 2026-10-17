@@ -3,6 +3,9 @@
 #include <cellui/BufferPlane.h>
 #include <cellui/ChoiceDialog.h>
 
+#include <chrono>
+#include <thread>
+
 using namespace cellui;
 
 namespace {
@@ -122,4 +125,43 @@ TEST(choicedialog_close_removes_it_and_empty_dialog_cancels) {
   CHECK(!f.dialog.isOpen());
   CHECK(f.buffer.toPlainText().empty());
   CHECK(f.dialog.offerInput(key('x')) == ChoiceDialog::Result::CANCELLED);
+}
+
+TEST(choicedialog_smooth_list_scrolls_under_a_cursor_band_that_stays_at_the_edge) {
+  StyleProvider styles;
+  CellBuffer buffer(10, 40);
+  BufferPlane root(buffer, styles);
+  root.setSmoothScroll(true);
+  ChoiceDialog dialog;
+  std::vector<std::string> labels;
+  for (int i = 1; i <= 20; i++) labels.push_back("item " + std::to_string(i));
+  dialog.open("Many", labels, 0);  // room for 3 entries
+  auto show = [&]() {
+    dialog.show(root, 10, 40);
+    root.refresh();
+    return root.takeBackdropLayers();
+  };
+  auto band_row = [&](const std::vector<BackdropLayer> & layers) {
+    for (auto & layer : layers) {
+      if (layer.scroll && layer.scroll->band) return layer.scroll->band->row;
+    }
+    return -1.0;
+  };
+  show();
+  // Down past the bottom of the window: the band reaches the last row and stays there while the list scrolls.
+  for (int i = 0; i < 6; i++) dialog.offerInput(key(cellui::Key::Down));
+  bool shifted = false;
+  double edge = -1;
+  for (int i = 0; i < 100; i++) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(8));
+    auto layers = show();
+    for (auto & layer : layers) {
+      if (layer.scroll && layer.scroll->shift_rows > 0 && layer.scroll->shift_rows < 1) shifted = true;
+    }
+    if (!dialog.animating()) edge = band_row(layers);
+  }
+  CHECK(shifted);
+  CHECK(!dialog.animating());
+  CHECK(edge == 2.0);  // the last of the three rows
+  CHECK(dialog.selected() == 6);
 }
