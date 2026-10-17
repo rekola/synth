@@ -1,7 +1,8 @@
 # User interface
 
 Everything the program does is a named command (`kill-region`, `launch-scene`,
-`undo`, ...). Every command can be run by name from M-x, most are in the menus,
+`undo`, ...). Every command can be run by name from the command palette (M-x or
+Ctrl+Shift+P, below), most are in the menus,
 and a keymap binds keys to them. The bindings below are the Emacs keymap, the
 one the terminal interface uses: a terminal can't send many of the key
 combinations the usual desktop shortcuts rely on (most Ctrl+Shift chords,
@@ -15,7 +16,7 @@ keymap so far:
 
 | Command | Desktop chord | Emacs chord |
 | --- | --- | --- |
-| command prompt | Ctrl+Shift+P | M-x |
+| command palette | Ctrl+Shift+P | M-x |
 | `undo` | Ctrl+Z | C-x u, C-/ |
 | `undo-redo` | Ctrl+Shift+Z, Ctrl+Y | C-M-_ |
 | `kill-region` (cut) | Ctrl+X | C-w |
@@ -26,21 +27,35 @@ keymap so far:
 | `save-song-as` | Ctrl+Shift+S | C-x C-w |
 | `save-buffers-kill-terminal` (quit) | Ctrl+Q | C-x C-c |
 
-Both open the command palette, across the last rows of the screen with the query on the last row (where the status line is) and the commands above it: type to narrow it by
-fuzzy matching (the letters in order, `tgv` finds `toggle-view`; a match at the
-start of a word or of the name ranks higher), Up/Down or C-n/C-p to move, Enter
-Tab to complete what is typed as far as every command starting with it agrees
-(as in the Emacs minibuffer; `[No match]` when none does), Enter to run the
-selected command, Escape or C-g to cancel. Each row shows the
-command's keybinding in the display's keymap, and the selected command's
-description is shown below the list.
-
 Ctrl+X is cut there, so the `C-x` prefix sequences are Emacs-only; the buffer
 commands (`next-buffer`, `kill-buffer`, ...) have no desktop chord yet and are
-in the menus and the prompt.
+in the menus and the command palette. What the terminal can't do is listed
+under [Terminal](#terminal) at the end.
 
-What the terminal
-can't do is listed under [Terminal](#terminal) at the end.
+## Command palette
+
+M-x on the Emacs keymap and Ctrl+Shift+P on the desktop one open the command
+palette, which runs any command by name. It sits on the last rows of the
+screen, where the status line is: the query on the last row (`M-x ` or `> `),
+the selected command's description above it, and the matching commands above
+that, best match first. The list is a raised panel; the description (quiet and
+italic) and the query are on the display's own background. The status line is
+still used for messages and for prompts that ask for a name.
+
+- Typing narrows the list by fuzzy matching: the letters in order, not
+  adjacent (`tgv` finds `toggle-view`); an exact name ranks first, then a
+  prefix, then matches at the start of words, then scattered letters.
+- Tab completes what is typed as far as every command starting with it agrees,
+  the way Emacs completes a command name; `[No match]` shows when none does. It never runs
+  anything.
+- Each row shows the command's keybinding in the display's keymap.
+- Up/Down or C-n/C-p move, Enter or a click runs the selected command, Escape,
+  C-g or a click outside cancels.
+
+The palette takes M-x and Tab completion of the name from Emacs, and from the
+command palette of Sublime Text the chord Ctrl+Shift+P, matching the typed
+letters in order, and showing each command's keybinding and description. There is no minibuffer: the status line only shows
+messages and asks for names (a file, a buffer, a new name).
 
 ## Emacs keymap
 

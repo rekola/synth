@@ -195,8 +195,8 @@ class Controller {
 
   // Read-only counterpart to sendCommand()'s fallback chain: every known
   // command name starting with `prefix`, from commands_ below plus
-  // whatever setCommandCompleter() reaches - the M-x minibuffer
-  // (StatusLine) uses this for autocomplete, never to execute anything. A
+  // whatever setCommandCompleter() reaches - the command palette
+  // uses this for its list, never to execute anything. A
   // set, not a list: Controller's own names and whatever the fallback
   // reaches are two independent sources that could in principle name the
   // same command, and ordered so a later phase can show the candidates

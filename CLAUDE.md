@@ -316,8 +316,8 @@ raw-N-channel mixer) was retired entirely along with `STEREO`; every mixer
 save-buffers-kill-terminal binding - there is no separate Ctrl-Q quit
 shortcut, deliberately: this codebase follows Emacs keybindings, not
 one-off shortcuts, wherever Emacs already has a convention for the
-action), Ctrl-N creates a new song, **Alt-x** opens the M-x command
-minibuffer (see below for the mechanism that makes it work reliably on
+action), Ctrl-N creates a new song, **Alt-x** opens the command
+palette (see below for the mechanism that makes it work reliably on
 any terminal, ESC-then-x included). Ctrl-K is `PatternEditor`'s own
 kill-row (Emacs's own C-k, kill-line, repurposed the same way), not an
 M-x trigger.
@@ -486,8 +486,8 @@ now takes an optional prompt string and draws it *before* creating the
 reader's (opaque) child plane, offsetting the reader past it — the prompt
 used to be drawn via a separate `setMessage()` call *after* `showReader()`,
 which silently no-oped since `setMessage()` defers to `pending_message`
-whenever `readerActive()` is already true, so the "M-x " prompt was never
-actually visible even when the minibuffer genuinely opened and worked.
+whenever `readerActive()` is already true, so a status-line prompt was never
+actually visible even when its reader genuinely opened and worked.
 
 `transpose-region-up`/`transpose-region-down` (Ctrl+Shift+Up/Down) transpose
 the effective region (same "always something to act on, even unmarked"
@@ -1346,7 +1346,7 @@ would otherwise resume showing.
     binds them to - only the *binding* is backend-specific, not what the
     command does. A command stays in `TerminalUI` instead when it
     genuinely can't be shared yet - needs a prompt/dialog (`StatusLine`'s
-    minibuffer has no GUI equivalent today) or reaches directly into a
+    name prompts have no GUI equivalent today) or reaches directly into a
     concrete terminal widget pointer (`pattern_editor_`/
     `arrangement_grid_`) with no abstract stand-in to go through. The one
     deliberate, permanent exception is pattern-editor selection/copy-paste

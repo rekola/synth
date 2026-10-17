@@ -162,7 +162,7 @@ TEST(chords_are_described_per_profile) {
   CHECK(KeyChord::describe({KeyChord::pack(Key::F2, false, false, false, false)}, P::DESKTOP) == "F2");
 }
 
-TEST(palette_tab_completes_to_the_longest_shared_prefix_like_a_minibuffer) {
+TEST(palette_tab_completes_to_the_longest_shared_prefix) {
   Fixture f;
   f.feed("sa");
   f.palette.offerInput(key(Key::Tab));
