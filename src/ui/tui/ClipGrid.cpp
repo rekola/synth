@@ -82,6 +82,7 @@ constexpr int kHeaderFlagsWidth = 5;
 }
 
 ClipGrid::ClipGrid(UIPlane & parent) : UIElement(parent) {
+  getPlane().setName("clip-grid");
   // Mute/Solo apply to the cursor's own column (a per-track state, not
   // tied to any particular row), same as the 'l' loop toggle stays a
   // manual offerInput() branch below rather than a command - there's
