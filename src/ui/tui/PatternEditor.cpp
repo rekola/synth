@@ -656,9 +656,14 @@ PatternEditor::PatternEditor(UIPlane & parent)
   keymap_.bind(KeyChord::pack('+', true, false, false, false), "edit-step-increase");
   keymap_.bind(KeyChord::pack('-', true, false, false, false), "edit-step-decrease");
   keymap_.bind(KeyChord::pack(' ', true, false, false, false), "set-mark");  // Ctrl-Space
-  keymap_.bind(KeyChord::pack('w', true, false, false, false), "kill-region");
-  keymap_.bind(KeyChord::pack('w', false, true, false, false), "kill-ring-save");  // Alt-W
-  keymap_.bind(KeyChord::pack('y', true, false, false, false), "yank");
+  // Cut, copy and paste: the Emacs chords in the terminal, the usual
+  // desktop ones elsewhere.
+  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('w', true, false, false, false), "kill-region");
+  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('w', false, true, false, false), "kill-ring-save");  // Alt-W
+  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('y', true, false, false, false), "yank");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('x', true, false, false, false), "kill-region");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('c', true, false, false, false), "kill-ring-save");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('v', true, false, false, false), "yank");
   keymap_.bind(KeyChord::pack('k', true, false, false, false), "kill-row"); // Ctrl-K
   keymap_.bind(KeyChord::pack(Key::Insert, false, false, false, false), "insert-row"); // plain Insert (was inline handling)
   keymap_.bind(KeyChord::pack('g', true, false, false, false), "keyboard-quit");

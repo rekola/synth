@@ -192,9 +192,14 @@ ClipGrid::ClipGrid(UIPlane & parent) : UIElement(parent) {
   keymap_.bind(KeyChord::pack(Key::Delete, false, false, false, false), "kill-region");
   keymap_.bind(KeyChord::pack(Key::Backspace, false, false, false, false), "kill-region");
   keymap_.bind(KeyChord::pack('k', true, false, false, false), "kill-region");
-  keymap_.bind(KeyChord::pack('w', true, false, false, false), "kill-region");
-  keymap_.bind(KeyChord::pack('w', false, true, false, false), "kill-ring-save");
-  keymap_.bind(KeyChord::pack('y', true, false, false, false), "yank");
+  // Cut, copy and paste: the Emacs chords in the terminal, the usual
+  // desktop ones elsewhere.
+  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('w', true, false, false, false), "kill-region");
+  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('w', false, true, false, false), "kill-ring-save");
+  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('y', true, false, false, false), "yank");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('x', true, false, false, false), "kill-region");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('c', true, false, false, false), "kill-ring-save");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('v', true, false, false, false), "yank");
   assertCommandBindingsValid();
 }
 
