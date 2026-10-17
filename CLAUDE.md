@@ -520,9 +520,15 @@ would otherwise resume showing.
   exclusive, purely per-device (`toggleGridMode()`), never tied to
   terminal UI focus - one connected Launchpad can sit in Live View
   while another stays on ordinary note entry. Defaults to `LIVE`.
-  `CUSTOM` is deliberately generic ("customize whatever's assigned to
-  this device") and has nothing built for it today - it shows a blank
-  grid. `SEND_MAIN`/`PAN`/`SEND_A`/`SEND_B`, plus the
+  `CUSTOM` is the performance grid (`handlePerformancePadEvent()`,
+  `playback/PerformanceEffect.h`): columns are Live View's tracks, rows
+  effects (Roll, Duck, Send A/B throws, Orbit), held to apply, pressure
+  deepening them. A pad sends `SET_PERFORMANCE`; `SongState::setPerformance()`
+  keeps what is held (never the song) and hands it to `LeafTrackState::
+  setPerformanceTargets()`, which applies it to the voices only, so `sends_`/
+  `position_` - what `TrackInfo` reports and the song mirrors - keep the
+  song's values. Roll re-fires each note that starts while held, pattern or
+  live (`SongState::startRoll()`), until it ends or the pad is released. `SEND_MAIN`/`PAN`/`SEND_A`/`SEND_B`, plus the
   track-picker overlay's three purposes (Stop Clip/Mute/Solo - see its
   own bullet below), together form Live's own **mixer submode radio
   group** (`DeviceState::mixer_mode`, off by default) - see the

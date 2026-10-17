@@ -12,6 +12,11 @@ grid mode, so one can sit in Live View while another does note entry.
   and the click sit where Novation's Launchpad Pro MK3 puts them, and the Tempo
   and Swing views follow that device's views; the other shift functions are
   ours.
+- **Custom.** A grid of held, non-destructive per-track effects is the
+  performance mode of hardware trackers (Polyend Tracker); the layout (a
+  column per track, a row per effect, pressure for depth) and the effects
+  themselves are ours. Roll is the tracker retrigger command, applied to every
+  note that starts while it is held.
 
 ## Note mode
 
@@ -30,7 +35,7 @@ gesture).
 | --- | --- |
 | 95 | Session: opens Live View's clip grid on the pads |
 | 96 | Note: the drum rack or isomorphic keyboard (plus the step rows while a clip is open for editing) |
-| 97 | Custom: nothing yet |
+| 97 | Custom: the performance grid (below) |
 | shift + 97 | Draw: a per-pad coloring toy, independent of the song |
 | shift + Send B | Tempo: the song's tempo as a number on the pads |
 | shift + Stop Clip | Swing: the song's swing as a number on the pads |
@@ -239,6 +244,33 @@ is bright red while anything records, dim red otherwise.
 
 Notes played on the grid during a take are recorded with their exact timing
 unless Record Quantise is on (see Quantise above).
+
+## Performance grid (Custom)
+
+Custom (97) turns the grid into performance effects. Columns are the tracks,
+in the same order as Live View's. Rows are effects. Holding a pad applies that
+row's effect to that column's track, and releasing it ends the effect, which
+glides back over 10 ms so a press never clicks. Several pads can be held at
+once. Pressing harder deepens an effect on a Launchpad X or Pro MK3; the Mini
+MK3 senses no pressure, so it gets the plain press amount. Nothing is written
+to the song: the track's own sends and azimuth stay as they are, and the
+effects are not recorded. Leaving Custom, or unplugging the device, releases
+everything it holds.
+
+| Row (top to bottom) | Effect | Holding it |
+| --- | --- | --- |
+| 8 | Roll | Every note that starts on the track while the pad is held repeats from its own start every sixteenth (a 32nd, then a 64th, pressing harder) until the note ends or the pad is released. Notes already playing when it is pressed are left alone. |
+| 7 | (stutter, not built) | dark |
+| 6 | (low-pass, not built) | dark |
+| 5 | (resonant low-pass, not built) | dark |
+| 4 | Duck | The track's dry signal drops by 12 dB, to silence at full pressure; its sends are untouched. |
+| 3 | Throw A | Send A rises to full, throwing the track into the Send A effect (the reverb by default). |
+| 2 | Throw B | The same for Send B (the delay by default). |
+| 1 | Orbit | The track's sound circles the listener, one turn a bar, up to four pressing harder; released, it turns back the short way. |
+
+Each row has its own colour, dim while idle and bright while held: white for
+Roll, red for Duck, the Send A and Send B colours for the throws, orange for
+Orbit. A column with no track is dark.
 
 ## Step grid
 
