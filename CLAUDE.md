@@ -1360,10 +1360,13 @@ would otherwise resume showing.
   grid of cells rendering as plain text or ANSI; a plane's elevation,
   `UIPlane::setElevation()`, adds to its parent's, and the tree is drawn lowest
   first, planes of one height in tree order, so a popup floats over everything
-  below it wherever it sits in the tree - `Theme::elevation`'s steps: panel,
-  raised, overlay for menus, pickers and popups, modal for a modal dialog and
-  its scrim - and every frame tells the backend the areas above the base,
-  `FrameInfo::elevations`) with the gallery page
+  below it wherever it sits in the tree - `Theme::elevation`'s steps, in cell
+  widths: panel (a group track's header), raised (a track's header), card (a
+  clip), overlay for menus, pickers and popups, modal for a modal dialog and
+  its scrim; cells can stand above their plane too (`UIPlane::setLift()`, a
+  cell attribute, so a partial redraw keeps it: a run in a row is one piece,
+  joined to the one above only when asked) - and every frame tells the backend
+  the areas above the base, `FrameInfo::elevations`) with the gallery page
   (`Gallery.h`, a class that keeps its widgets' planes, `cellui_gallery`; its text is a golden file in
   `lib/cellui/tests/golden/`, rewritten with `CELLUI_UPDATE_GOLDEN=1`) (`HeatmapChart.h`, with the fixed hue and the HSV helper its
   renderers share). The old paths (`util/Utf8.h`, `ui/Markdown.h`,

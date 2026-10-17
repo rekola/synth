@@ -65,6 +65,10 @@ class BufferPlane : public UIPlane {
   void setBgBlend(bool b) override { style_.bg_blend = b; }
   void setFgContrast(bool b) override { style_.fg_contrast = b; }
   void setBackdrop(const Backdrop & b) override { style_.backdrop = b; }
+  void setLift(float lift, bool joins_above) override {
+    style_.lift = lift;
+    style_.lift_joined = joins_above;
+  }
   void setScrollOffset(double rows, double cols) override;
   void setBand(const Band & band) override {
     if (root().smooth_scroll_) band_ = band;
@@ -167,7 +171,8 @@ class BufferPlane : public UIPlane {
   const BufferPlane & root() const { return parent_ ? parent_->root() : *this; }
   // Draws this plane (not its children) onto `out` with its top-left corner
   // at (row, col), inside the clip rectangle.
-  void compose(CellBuffer & out, int row, int col, int clip_row, int clip_col, int clip_rows, int clip_cols) const;
+  // `height` is the plane's own above the base (its cells' lifts add to it).
+  void compose(CellBuffer & out, int row, int col, int clip_row, int clip_col, int clip_rows, int clip_cols, float height) const;
   // A plane to draw, where, inside which clip, and how high: refresh() lists
   // the shown tree in order, sorts it by height and composes each.
   struct Paint {
@@ -175,6 +180,7 @@ class BufferPlane : public UIPlane {
     int row, col, clip_row, clip_col, clip_rows, clip_cols;
     float elevation;
   };
+  void collectLifts();
   void collect(std::vector<Paint> & paints, int row, int col, int clip_row, int clip_col, int clip_rows, int clip_cols, float base) const;
   bool shown() const;
   void drawReader();

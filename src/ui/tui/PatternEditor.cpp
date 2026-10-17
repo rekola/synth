@@ -2339,7 +2339,8 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
   auto heading_height = song.getMasterTrack().getDepth() + 1;
 
   string padding(static_cast<size_t>(cols), ' ');
-  
+
+  setLift(0);
   setBgColor(styles.window_bg_color);
   for (auto i = 0; i < heading_height; i++) {
     putstr(i, 0, padding);
@@ -2659,10 +2660,12 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    // further down.
 	    draw_divider(heading_height - 2 - level, current_pos, track, i);
 	  } else {
-	    // std::max(0, ...): a narrow enough column (actual_width < 3) would
-	    // otherwise make text_width negative, and it's used below both as a
-	    // display-width budget and as a putstr() column offset.
-	    auto text_width = std::max(0, actual_width - (has_mute_solo ? 3 : 1) - toggle_width - chip_width);
+            // std::max(0, ...): a narrow enough column (actual_width < 3) would
+            // otherwise make text_width negative, and it's used below both as a
+            // display-width budget and as a putstr() column offset.
+            // A track's header stands on the editor; a group's (below) lower.
+            if (is_color_eligible) setLift(styles.theme.elevation.raised);
+            auto text_width = std::max(0, actual_width - (has_mute_solo ? 3 : 1) - toggle_width - chip_width);
 	    auto name_pos = current_pos + chip_width + toggle_width;
 	    // M, S and the divider sit at the segment's right edge, wherever the
 	    // name ends: when the segment is narrower than its parts (scrolled
@@ -2760,18 +2763,21 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	      else setFgColor(off_color);
 	      putstr(heading_height - 2 - level, flags_pos + 1, "S");
 	    }
-	    // Drawn last - draw_divider() changes the current fg/bg colors as
-	    // a side effect, and nothing else in this branch relies on them
-	    // afterward.
-	    draw_divider(heading_height - 2 - level, flags_pos + (has_mute_solo ? 2 : 0), track, i);
+            // Drawn last - draw_divider() changes the current fg/bg colors as
+            // a side effect, and nothing else in this branch relies on them
+            // afterward. The divider is the groove between headers.
+            setLift(0);
+            draw_divider(heading_height - 2 - level, flags_pos + (has_mute_solo ? 2 : 0), track, i);
 
 	    // The track's colour as a half-cell slice at the left of both heading
 	    // lines; the other half of its cell is a margin before the text.
 	    if (chip) {
 	      setFgColor(styles.trackChipColor(vis_info->color_ordinal_));
 	      setBgColor(segment_color(track));
-	      putstr(heading_height - 2 - level, current_pos, "▌");
-	      putstr(heading_height - 2 - level + 1, current_pos, "▌");
+              setLift(styles.theme.elevation.raised);
+              putstr(heading_height - 2 - level, current_pos, "▌");
+              setLift(styles.theme.elevation.raised, true);
+              putstr(heading_height - 2 - level + 1, current_pos, "▌");
 	    }
 
 	    // Half brightness for PercussionTrack's fixed "(percussion)" label -
@@ -2815,7 +2821,8 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 			    chip ? segment_color(track) : styles.window_bg_color, track->getInternalId());
 	    }
 	    // The divider on the instrument line too, so the line is closed.
-	    if (chip) draw_divider(heading_height - 2 - level + 1, current_pos + actual_width - 1, track, i);
+            setLift(0);
+            if (chip) draw_divider(heading_height - 2 - level + 1, current_pos + actual_width - 1, track, i);
 	  }
 	} else if (actual_width <= 1) {
 	  // No room for even the "▸"/"◂" collapse toggle, let alone the
@@ -2841,8 +2848,10 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  auto element_name_width = std::max(0, remaining - (show_dot ? 1 : 0));
 
 	  setBgColor(segment_color(track));
+          // A group's header: one piece over all its rows.
+          setLift(styles.theme.elevation.panel, true);
 
-	  // A track's own row shows up at every level from where its
+          // A track's own row shows up at every level from where its
 	  // subtree first starts merging up through getDepth() - 1, where
 	  // its whole subtree finally merges into one span (see the
 	  // hop-walk above) - drawing the toggle/name/dot at each of those
@@ -2885,7 +2894,8 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  // Drawn last for both branches - see the level 0 branch's own
 	  // comment on why. At the segment's own last column regardless of
 	  // how the budget above split up the rest of it.
-	  draw_divider(heading_height - 2 - level, current_pos + actual_width - 1, track, i);
+          setLift(0);
+          draw_divider(heading_height - 2 - level, current_pos + actual_width - 1, track, i);
 	}
       }
       

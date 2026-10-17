@@ -20,10 +20,10 @@ low contrast.
 
 | Token | Dark | Light | Used for |
 |---|---|---|---|
-| `surface.base` | `#080c0f` | `#f0f4f7` | The window and the quietest areas |
-| `surface.panel` | `#151a1f` | `#e2e7eb` | Panels: outline, scopes, clip slots, pattern editor |
-| `surface.raised` | `#252b30` | `#cfd5db` | Headings, bar rows |
-| `surface.overlay` | `#363d43` | `#fcfeff` | Floating layers (the command candidates, dialogs) |
+| `surface.base` | `#11161a` | `#f0f4f7` | The window and the quietest areas |
+| `surface.panel` | `#1c2227` | `#e2e7eb` | Panels: outline, scopes, clip slots, pattern editor |
+| `surface.raised` | `#2c3338` | `#cfd5db` | Headings, bar rows |
+| `surface.overlay` | `#3e464c` | `#fcfeff` | Floating layers (the command candidates, dialogs) |
 | `text.primary` | `#f0f4f7` | `#11171d` | Data, headings, the thing being read |
 | `text.secondary` | `#bfc5ca` | `#3a4148` | Labels, units, empty cells next to data |
 | `text.disabled` | `#82878c` | `#5e646a` | Placeholders, off flags, unset cells (UI-glyph contrast) |

@@ -205,18 +205,51 @@ TEST(terminal_ui_info_dialog_leaves_the_mouse_to_the_terminal) {
 TEST(terminal_ui_overlays_and_modal_dialogs_float_at_their_elevations) {
   UIFixture f;
   const auto & elevation = cellui::Theme::dark().elevation;
-  CHECK(f.terminal.info().elevations.empty());
+  // The planes above the base, without the lifted cells (which have no name).
+  auto planes = [&] {
+    std::vector<cellui::ElevatedArea> named;
+    for (const auto & area : f.terminal.info().elevations) {
+      if (!area.name.empty()) named.push_back(area);
+    }
+    return named;
+  };
+  CHECK(planes().empty());
   f.meta('f');
-  auto areas = f.terminal.info().elevations;
+  auto areas = planes();
   CHECK(areas.size() == 1 && areas[0].name == "menu-section" && areas[0].elevation == elevation.overlay);
   f.press(cellui::Key::Escape);
   f.press(cellui::Key::Escape);
 
   f.execute("about");
+  // What the scrim blurs casts no shadow, lifted cells included.
   areas = f.terminal.info().elevations;
   CHECK(areas.size() == 2);
   CHECK(areas[0].name == "scrim" && areas[0].elevation == elevation.modal);
   CHECK(areas[1].elevation == elevation.modal && areas[1].rows < f.terminal.frame().rows());
   f.press(cellui::Key::Escape);
-  CHECK(f.terminal.info().elevations.empty());
+  CHECK(planes().empty());
+}
+
+// Live View: the clip grid's track headers stand half a cell above it and its
+// clips a whole one; the pattern editor's track headers half a cell, a
+// group's (the master's) a quarter.
+TEST(terminal_ui_clips_and_track_headers_stand_on_their_widgets) {
+  UIFixture f(fixture("terminal_ui_live.xml"), UI::View::LIVE);
+  const auto & elevation = cellui::Theme::dark().elevation;
+  std::vector<cellui::ElevatedArea> headers, groups, clips;
+  for (const auto & area : f.terminal.info().elevations) {
+    if (area.elevation == elevation.raised) headers.push_back(area);
+    if (area.elevation == elevation.panel) groups.push_back(area);
+    if (area.elevation == elevation.card) clips.push_back(area);
+  }
+  // One populated clip of eight; the empty slots stay flat.
+  CHECK(clips.size() == 1 && clips[0].rows == 1);
+  // The clip grid's one track header, and the pattern editor's: two lines,
+  // one piece.
+  CHECK(headers.size() == 2);
+  CHECK(std::any_of(headers.begin(), headers.end(), [](const cellui::ElevatedArea & a) { return a.rows == 2; }));
+  // The master's header in the clip grid, and its row over the tracks in the
+  // pattern editor.
+  CHECK(groups.size() == 2);
+  for (const auto & area : f.terminal.info().elevations) CHECK(area.name.empty());
 }

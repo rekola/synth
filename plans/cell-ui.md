@@ -108,10 +108,12 @@ Each item says what the terminal does with it; what the window does is in
 - **Planes (layers).** A grid of cells with z-order, visibility, opacity and
   a transform (a 4x4 matrix, so 3D placement stays possible). The terminal
   honours z-order and visibility. Done: elevation - a plane's height above its
-  parent (`UIPlane::setElevation()`, the theme's steps panel, raised, overlay
-  and modal), which orders drawing (lowest first, ties in tree order) and is
-  handed to the backend as the areas above the base (`FrameInfo::elevations`),
-  for a display with depth to show (shadows, a height field).
+  parent in cell widths (`UIPlane::setElevation()`, the theme's steps panel,
+  raised, card, overlay and modal), which orders drawing (lowest first, ties
+  in tree order), and a cell's lift above its plane (`UIPlane::setLift()`: the
+  clip grid's clips, the track headers), both handed to the backend as the
+  areas above the base (`FrameInfo::elevations`), for a display with depth to
+  show (shadows, a height field).
 - **Cells.** A grapheme cluster (UTF-8; width from `util/Utf8.h`'s rules,
   which move into the library) plus fg, bg, bold, italic and underline, as
   `UIPlane` has now. On top of that comes a **style id** into a style table:

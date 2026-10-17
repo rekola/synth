@@ -125,6 +125,10 @@ class Element {
     if (plane_) plane_->setItalic(b);
     return *this;
   }
+  Element & setLift(float lift, bool joins_above = false) {
+    if (plane_) plane_->setLift(lift, joins_above);
+    return *this;
+  }
 
   std::pair<int, int> getPosition() const {
     if (plane_) return plane_->getPosition();
