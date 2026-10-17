@@ -260,7 +260,7 @@ everything it holds.
 | Row (top to bottom) | Effect | Holding it |
 | --- | --- | --- |
 | 8 | Roll | Every note that starts on the track while the pad is held repeats from its own start every sixteenth (a 32nd, then a 64th, pressing harder) until the note ends or the pad is released. Notes already playing when it is pressed are left alone. |
-| 7 | (stutter, not built) | dark |
+| 7 | Stutter | From the next row, the track's own sound is captured and then repeated: a quarter note on a press, an eighth, a sixteenth and a 32nd pressing harder (a shorter loop repeats the start of what was captured). It repeats everything the track sends, sample tracks included, until the pad is released, when it fades back to the live track. With the transport stopped it starts capturing at once. |
 | 6 | (filter, not built) | dark |
 | 5 | (free) | dark |
 | 4 | Duck | The track's dry signal drops by 12 dB, to silence at full pressure; its sends are untouched. |
@@ -269,7 +269,7 @@ everything it holds.
 | 1 | Orbit | The track's sound circles the listener, one turn a bar, up to four pressing harder; released, it turns back the short way. |
 
 Each row has its own colour, dim while idle and bright while held: white for
-Roll, red for Duck, the Send A and Send B colours for the throws, orange for
+Roll, cyan for Stutter, red for Duck, the Send A and Send B colours for the throws, orange for
 Orbit. A column with no track is dark.
 
 ## Step grid

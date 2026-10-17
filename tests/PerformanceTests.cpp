@@ -13,6 +13,10 @@
 #include "../src/ambisonic/MixerFactory.h"
 #include "../src/ambisonic/MixerType.h"
 #include "../src/playback/PerformanceEffect.h"
+#include "../src/state/TrackStutter.h"
+#include "../src/audio/AudioBuffer.h"
+
+#include <vector>
 
 #include <algorithm>
 #include <cmath>
@@ -77,7 +81,8 @@ struct SineSong {
 TEST(performance_grid_rows_hold_roll_on_top_and_orbit_at_the_bottom) {
   CHECK(performance::effectForGridRow(7) == PerformanceEffect::ROLL);
   CHECK(performance::effectForGridRow(0) == PerformanceEffect::ORBIT);
-  CHECK(performance::effectForGridRow(6) == PerformanceEffect::NONE);
+  CHECK(performance::effectForGridRow(6) == PerformanceEffect::STUTTER);
+  CHECK(performance::effectForGridRow(5) == PerformanceEffect::NONE);
   CHECK(performance::effectForGridRow(8) == PerformanceEffect::NONE);
 }
 
@@ -189,4 +194,63 @@ TEST(performance_roll_refires_a_live_note_until_it_stops) {
   s.state.liveNoteStarted(s.track_id, 0, Tuning::EDO12, 0.8f, 60, 0, NoteOverride{});
   s.state.setPerformance(s.track_id, PerformanceEffect::ROLL, performance::kRelease);
   CHECK(s.state.rollingNoteCount(s.track_id) == 0);
+}
+
+// TrackStutter passes the live signal through while it captures, then
+// repeats what it captured, and fades back to the live signal on release.
+TEST(track_stutter_repeats_its_capture_and_returns_to_live) {
+  TrackStutter stutter;
+  const int slice = 100, fade = 4, block = 50;
+  stutter.start(0, slice, 400, 1, fade);
+  vector<float> out;
+  int frame = 0;
+  auto run = [&](int blocks) {
+    for (int b = 0; b < blocks; b++) {
+      AudioBuffer data(1, false, false, block);
+      for (int i = 0; i < block; i++) data.getChannelData(0)[i] = static_cast<float>(frame + i);
+      stutter.process(data);
+      CHECK(data.hasChannel(Channel::Main));
+      for (int i = 0; i < block; i++) out.push_back(data.getChannelData(0)[i]);
+      frame += block;
+    }
+  };
+  run(8); // 400 frames: the capture, then three repeats
+  for (int f = 0; f < slice - fade; f++) CHECK_NEAR(out[static_cast<size_t>(f)], static_cast<float>(f), 1e-6f);
+  for (int repeat = 1; repeat < 4; repeat++) {
+    for (int k = fade; k < slice - fade; k++) CHECK_NEAR(out[static_cast<size_t>(repeat * slice + k)], static_cast<float>(k), 1e-6f);
+  }
+  stutter.release();
+  run(2);
+  CHECK(stutter.isOff());
+  CHECK_NEAR(out.back(), static_cast<float>(frame - 1), 1e-6f); // live again
+}
+
+// Stutter pressed before a short note keeps repeating it long after the note
+// itself has died away.
+TEST(performance_stutter_repeats_the_track_after_its_note_ends) {
+  InstrumentProvider provider;
+  Song song;
+  CHECK(song.open(string(TESTS_FIXTURES_DIR) + "/decaying_note.xml", provider));
+
+  auto render_tail = [&](bool stutter) {
+    ChannelConfiguration config(44100, 1);
+    auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
+    SongState state(config);
+    state.initialize(song);
+    state.setIsPlaying(true);
+    int track_id = song.getPlayableTrackIds().front();
+    if (stutter) state.setPerformance(track_id, PerformanceEffect::STUTTER, 0);
+    float tail_peak = 0.0f;
+    for (int done = 0; done < 44100; done += 256) {
+      state.renderBlock(256, song, *mixer);
+      auto & bus = mixer->getRawBus();
+      if (done < 44100 * 3 / 4 || !bus.hasChannel(Channel::Main)) continue;
+      auto * data = bus.getChannelData(0);
+      for (int i = 0; i < 256; i++) tail_peak = max(tail_peak, fabsf(data[i]));
+    }
+    return tail_peak;
+  };
+
+  CHECK(render_tail(false) < 1e-4f);
+  CHECK(render_tail(true) > 0.01f);
 }

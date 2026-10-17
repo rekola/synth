@@ -6,7 +6,7 @@
 // A performance effect: held on a track from the Launchpad's Custom grid, it
 // changes how the track sounds until released and is never written to the
 // song. `pressure` is 0 for a plain press and up to 127 with pad pressure.
-enum class PerformanceEffect { NONE, ROLL, DUCK, THROW_A, THROW_B, ORBIT };
+enum class PerformanceEffect { NONE, ROLL, DUCK, THROW_A, THROW_B, ORBIT, STUTTER };
 
 namespace performance {
 
@@ -27,7 +27,7 @@ constexpr PerformanceEffect kGridRows[8] = {
   PerformanceEffect::DUCK,
   PerformanceEffect::NONE, // free
   PerformanceEffect::NONE, // filter
-  PerformanceEffect::NONE, // stutter
+  PerformanceEffect::STUTTER,
   PerformanceEffect::ROLL,
 };
 
@@ -41,6 +41,14 @@ inline PerformanceEffect effectForGridRow(int y) {
 inline int rollIntervalTicks(int pressure) {
   return pressure < 43 ? 12 : pressure < 86 ? 6 : 3;
 }
+
+// Stutter: the slice of the track's output it repeats, in rows - a quarter
+// note on a press, then an eighth, a sixteenth and a 32nd pressing harder.
+inline float stutterSliceRows(int pressure) {
+  return pressure < 32 ? 4.0f : pressure < 64 ? 2.0f : pressure < 96 ? 1.0f : 0.5f;
+}
+// The fade at the stutter's seams.
+constexpr float kStutterFadeSeconds = 0.003f;
 
 // Duck: the gain on the track's dry signal, -12 dB on a press, down to
 // silence at full pressure.

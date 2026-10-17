@@ -117,6 +117,7 @@ public:
     data.setBpm(context.getBpm());
     data.zero();
     for (auto & [ pos, s ] : chunks) data.assignNamed(s, pos);
+    applyStutter(data);
 
     setTrackInfo(TrackInfo(isActive(), data.isClipping(), isActive() ? data.calculateMainRMS() : input_loudness_,
       getSends().main, getSends().a, getSends().b, getPosition().azimuth, true));

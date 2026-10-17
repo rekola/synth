@@ -839,20 +839,36 @@ class SongState : public TrackState {
     float duck_gain = 1.0f;
     float throw_a = 0.0f, throw_b = 0.0f;
     float orbit_turns_per_bar = 0.0f;
-    bool isIdle() const { return roll_ticks == 0 && duck_gain == 1.0f && throw_a == 0.0f && throw_b == 0.0f && orbit_turns_per_bar == 0.0f; }
+    float stutter_rows = 0.0f; // 0: no stutter
+    bool stutter_start = false; // a new stutter, still to be handed to the track
+    int stutter_delay = 0;
+    bool isIdle() const {
+      return roll_ticks == 0 && duck_gain == 1.0f && throw_a == 0.0f && throw_b == 0.0f && orbit_turns_per_bar == 0.0f && stutter_rows == 0.0f;
+    }
   };
 
   // Hands every held performance effect to its track, which glides to it;
   // a released one is handed over once more, as idle, and then forgotten.
   void pushPerformance() {
     if (performance_.empty()) return;
-    const float bar_frames = static_cast<float>(barsAt(absolute_pos_).barRows()) * static_cast<float>(getChannelConfiguration().getSampleInterval(tempo_));
+    const int row_frames = getChannelConfiguration().getSampleInterval(tempo_);
+    const float bar_frames = static_cast<float>(barsAt(absolute_pos_).barRows()) * static_cast<float>(row_frames);
     for (auto it = performance_.begin(); it != performance_.end(); ) {
       auto & held = it->second;
       if (auto * track_state = dynamic_cast<LeafTrackState *>(getChildByInternalId(it->first))) {
 	float orbit_rate = bar_frames > 0.0f ? held.orbit_turns_per_bar * 360.0f / bar_frames : 0.0f;
 	track_state->setPerformanceTargets(held.duck_gain, held.throw_a, held.throw_b, orbit_rate);
+	const int slice = static_cast<int>(held.stutter_rows * static_cast<float>(row_frames));
+	if (held.stutter_start) {
+	  const int capacity = static_cast<int>(performance::stutterSliceRows(0) * static_cast<float>(row_frames));
+	  track_state->startStutter(held.stutter_delay, slice, capacity);
+	} else if (slice > 0) {
+	  track_state->setStutterSlice(slice);
+	} else {
+	  track_state->releaseStutter();
+	}
       }
+      held.stutter_start = false;
       if (held.isIdle()) it = performance_.erase(it);
       else ++it;
     }
@@ -1028,6 +1044,18 @@ class SongState : public TrackState {
     case PerformanceEffect::THROW_A: held.throw_a = release ? 0.0f : 1.0f; break;
     case PerformanceEffect::THROW_B: held.throw_b = release ? 0.0f : 1.0f; break;
     case PerformanceEffect::ORBIT: held.orbit_turns_per_bar = release ? 0.0f : performance::orbitTurnsPerBar(pressure); break;
+    case PerformanceEffect::STUTTER:
+      if (release) held.stutter_rows = 0.0f;
+      else {
+	// A new stutter starts capturing on the next row, so its repeats keep
+	// to the grid; with the transport stopped there is no grid to wait for.
+	if (held.stutter_rows == 0.0f) {
+	  held.stutter_start = true;
+	  held.stutter_delay = isPlaying() && getSamplePos() != 0 ? samplesUntilNextRow() : 0;
+	}
+	held.stutter_rows = performance::stutterSliceRows(pressure);
+      }
+      break;
     case PerformanceEffect::NONE: break;
     }
   }

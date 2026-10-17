@@ -8,6 +8,7 @@
 #include "../model/SendLevels.h"
 #include "../dsp/ValueRamp.h"
 #include "../playback/PerformanceEffect.h"
+#include "TrackStutter.h"
 
 #include <algorithm>
 #include <cmath>
@@ -365,6 +366,15 @@ public:
   // listener (0 turns it back). They reach the voices only - sends_ and
   // position_ keep the song's values, which is what TrackInfo reports and
   // the song mirrors.
+  // Stutter (TrackStutter): capture this track's output `delay` frames from
+  // now and repeat `slice` frames of it until released.
+  void startStutter(int delay, int slice, int capacity) {
+    const int fade = static_cast<int>(performance::kStutterFadeSeconds * static_cast<float>(getChannelConfiguration().getAudioOutSampleRate()));
+    stutter_.start(delay, slice, capacity, getChannelConfiguration().numberOfChannels(), fade);
+  }
+  void setStutterSlice(int slice) { stutter_.setSlice(slice); }
+  void releaseStutter() { stutter_.release(); }
+
   void setPerformanceTargets(float duck_gain, float throw_a, float throw_b, float orbit_degrees_per_frame) {
     const int ramp_frames = static_cast<int>(performance::kRampSeconds * static_cast<float>(getChannelConfiguration().getAudioOutSampleRate()));
     if (perf_duck_.getTargetValue() != duck_gain) perf_duck_.glideTo(duck_gain, ramp_frames);
@@ -383,6 +393,9 @@ public:
   }
 
 protected:
+ // A track's whole rendered block, before it reports its level.
+ void applyStutter(AudioBuffer & data) { stutter_.process(data); }
+
  // Read access to this track's own position/sends/id for a subclass that
  // needs to construct its own voices directly (e.g.
  // SampleTrackState::triggerClip()) rather than through
@@ -516,6 +529,7 @@ private:
   float orbit_rate_ = 0.0f; // degrees per frame
   float orbit_offset_ = 0.0f;
   dsp::ValueRamp orbit_return_;
+  TrackStutter stutter_;
 };
 
 #endif
