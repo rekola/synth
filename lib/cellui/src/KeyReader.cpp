@@ -3,6 +3,23 @@
 namespace cellui {
 
 bool KeyReader::next(Input * input) {
+  if (!escape_as_meta_) {
+    // Escape is an ordinary key: delivered at once unless something took it.
+    while (source_.next(input)) {
+      bool bare_escape = input->getId() == Key::Escape && !input->hasAlt();
+      if (bare_escape && input->getKind() == Input::Kind::RELEASE) {
+        if (escape_taken_) {
+          escape_taken_ = false;
+          continue;
+        }
+      } else if (bare_escape && input->getKind() != Input::Kind::RELEASE) {
+        escape_taken_ = takeEscape && takeEscape(*input);
+        if (escape_taken_) continue;
+      }
+      return true;
+    }
+    return false;
+  }
   while (out_.empty()) {
     Input in(0, -1, -1, false, false, false, false);
     bool was_pending = coalescer_.escapePending();
