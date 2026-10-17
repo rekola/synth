@@ -47,14 +47,15 @@ The application draws on several traditions.
   voices of the Yamaha DX7 (1983), the synthesizer that made FM widespread,
   standing in for a handful of General MIDI programs. See
   [docs/fm.md](docs/fm.md).  
-- **Command palette.** Every command can be run by name. Emacs' M-x asks for
-  it in the minibuffer on the last row of the screen and completes it with
-  Tab; the command palettes of editors such as Visual Studio Code and Sublime
-  Text, opened with Ctrl+Shift+P, match fuzzily and show each command's
-  keybinding and description. The application's palette sits on the last rows
-  like the minibuffer and matches like the palettes; M-x opens it with the
-  terminal keybindings and Ctrl+Shift+P with the GUI ones. See
-  [docs/user-interface.md](docs/user-interface.md).
+- **Command palette.** Emacs (1976, first written as macros for the TECO
+  editor by Guy Steele and Richard Stallman; GNU Emacs' first public release
+  was in 1985) runs any command by name with M-x, completing the name with Tab.
+  Jon Skinner added the command palette to Sublime Text 2 in 2011, opened with
+  Ctrl+Shift+P, and Atom and Visual Studio Code later took it up. The
+  application's palette is on the last rows of the screen and completes with
+  Tab like M-x, and matches the typed letters in order like the editor
+  palettes; M-x opens it with the terminal keybindings and Ctrl+Shift+P with
+  the GUI ones. See [docs/user-interface.md](docs/user-interface.md).
 
 ## Scales and Tunings
 

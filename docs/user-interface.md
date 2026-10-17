@@ -46,16 +46,17 @@ still used for messages and for prompts that ask for a name.
   adjacent (`tgv` finds `toggle-view`); an exact name ranks first, then a
   prefix, then matches at the start of words, then scattered letters.
 - Tab completes what is typed as far as every command starting with it agrees,
-  as in the Emacs minibuffer; `[No match]` shows when none does. It never runs
+  the way Emacs completes a command name; `[No match]` shows when none does. It never runs
   anything.
 - Each row shows the command's keybinding in the display's keymap.
 - Up/Down or C-n/C-p move, Enter or a click runs the selected command, Escape,
   C-g or a click outside cancels.
 
-The palette follows the Emacs minibuffer in sitting on the last row with Tab
-completion and a candidate list above the prompt, and the command palettes of
-modern editors in being opened with Ctrl+Shift+P, matching fuzzily, and showing
-each command's keybinding and description.
+The palette takes M-x and Tab completion of the name from Emacs, and from the
+command palettes of Sublime Text, Atom and Visual Studio Code the chord
+Ctrl+Shift+P, matching the typed letters in order, and showing each command's
+keybinding and description. There is no minibuffer: the status line only shows
+messages and asks for names (a file, a buffer, a new name).
 
 ## Emacs keymap
 

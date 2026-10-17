@@ -23,7 +23,7 @@ struct PaletteEntry {
 // description above it, and above that the commands that fuzzy-match best
 // first with their keybindings, the list growing upward as more match. Typing edits the query; Up/Down (and the Emacs-style
 // next/previous-line keys) move; Tab completes the query as far as every
-// command starting with it agrees, as in the Emacs minibuffer; Enter or a
+// command starting with it agrees, the way Emacs completes a command name; Enter or a
 // click chooses; Escape or a click outside cancels. The caller runs the chosen command.
 class CommandPalette {
  public:

@@ -964,7 +964,7 @@ bool
 TerminalUI::executeCommand(std::string_view name) {
   // A command reached here other than through M-x's own submission (a menu
   // click, Launchpad-by-name dispatch) always takes focus away from
-  // whatever M-x was reading, same as StatusLine::cancelReader()'s own
+  // whatever a status-line prompt was reading, same as StatusLine::cancelReader()'s own
   // Ctrl-g - mirrors real Emacs, where clicking a menu item while typing
   // in the minibuffer just aborts the minibuffer read and runs the
   // command, rather than the command running while the minibuffer keeps
@@ -1355,7 +1355,7 @@ bool
 TerminalUI::offerInput(const cellui::Input & input) {
   bool handled = false;
 
-  // No open reader (StatusLine's M-x minibuffer, any widget's inline
+  // No open reader (a StatusLine prompt, any widget's inline
   // editor - see PatternEditor::isReaderActive()'s own comment) may let a
   // global keybinding (Space/toggle-playing, C-x C-c/quit, ...) steal a
   // keystroke meant for it.
@@ -1376,7 +1376,7 @@ TerminalUI::offerInput(const cellui::Input & input) {
   // while it is open (raiseOverlays()), so its text can be selected.
   if (info_dialog_.isOpen() && input.getId() != Key::Resize && !(input.hasCtrl() && input.getId() == 'l')) {
     auto id = input.getId();
-    // Not a release: the Enter that opened it, from the minibuffer, is
+    // Not a release: the Enter that opened it, from the command palette, is
     // released after it is open.
     if (input.getKind() != InputEvent::Kind::RELEASE &&
         (id == Key::Escape || id == Key::Enter || id == 'q' || (input.hasCtrl() && id == 'g'))) {
