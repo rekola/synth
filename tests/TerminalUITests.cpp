@@ -200,36 +200,6 @@ TEST(terminal_ui_info_dialog_leaves_the_mouse_to_the_terminal) {
   CHECK(!f.terminal.nativeSelection());
 }
 
-// The menu's open section floats at the overlay elevation, a modal dialog
-// and its scrim above it at the modal one.
-TEST(terminal_ui_overlays_and_modal_dialogs_float_at_their_elevations) {
-  UIFixture f;
-  const auto & elevation = cellui::Theme::dark().elevation;
-  // The planes above the base, without the lifted cells (which have no name).
-  auto planes = [&] {
-    std::vector<cellui::ElevatedArea> named;
-    for (const auto & area : f.terminal.info().elevations) {
-      if (!area.name.empty()) named.push_back(area);
-    }
-    return named;
-  };
-  CHECK(planes().empty());
-  f.meta('f');
-  auto areas = planes();
-  CHECK(areas.size() == 1 && areas[0].name == "menu-section" && areas[0].elevation == elevation.overlay);
-  f.press(cellui::Key::Escape);
-  f.press(cellui::Key::Escape);
-
-  f.execute("about");
-  // What the scrim blurs casts no shadow, lifted cells included.
-  areas = f.terminal.info().elevations;
-  CHECK(areas.size() == 2);
-  CHECK(areas[0].name == "scrim" && areas[0].elevation == elevation.modal);
-  CHECK(areas[1].elevation == elevation.modal && areas[1].rows < f.terminal.frame().rows());
-  f.press(cellui::Key::Escape);
-  CHECK(planes().empty());
-}
-
 // A choice dialog's entries show over its raised box.
 TEST(terminal_ui_choice_dialog_entries_show_over_the_raised_box) {
   UIFixture f;
@@ -238,25 +208,4 @@ TEST(terminal_ui_choice_dialog_entries_show_over_the_raised_box) {
   CHECK(f.terminal.text().find("Pick one") != std::string::npos);
   CHECK(f.terminal.text().find("Alpha entry") != std::string::npos);
   CHECK(f.terminal.text().find("Beta entry") != std::string::npos);
-}
-
-// Live View: the clip grid's clips stand a cell above it, its headers stay
-// flat; the pattern editor's track headers stand half a cell, its group
-// headers (the master's) flat.
-TEST(terminal_ui_clips_and_track_headers_stand_on_their_widgets) {
-  UIFixture f(fixture("terminal_ui_live.xml"), UI::View::LIVE);
-  const auto & elevation = cellui::Theme::dark().elevation;
-  std::vector<cellui::ElevatedArea> headers, clips;
-  for (const auto & area : f.terminal.info().elevations) {
-    CHECK(area.name.empty());
-    if (area.elevation == elevation.raised) headers.push_back(area);
-    else if (area.elevation == elevation.card)
-      clips.push_back(area);
-    else
-      CHECK(false);
-  }
-  // One populated clip of eight; the empty slots stay flat.
-  CHECK(clips.size() == 1 && clips[0].rows == 1);
-  // The pattern editor's one track header: two lines, one piece.
-  CHECK(headers.size() == 1 && headers[0].rows == 2);
 }

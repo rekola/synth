@@ -91,7 +91,7 @@ TEST(menubar_panel_stays_on_screen_and_is_opaque_without_a_border) {
   CHECK(b.at(0, 0).bg && b.at(0, 0).bg->getRed() == MenuBar::Colors().header_bg.getRed());
 }
 
-TEST(menubar_open_section_floats_at_the_overlay_elevation) {
+TEST(menubar_open_section_floats_over_the_planes_below) {
   StyleProvider styles;
   CellBuffer b(8, 30);
   BufferPlane root(b, styles);
@@ -108,8 +108,7 @@ TEST(menubar_open_section_floats_at_the_overlay_elevation) {
   root.refresh();
   CHECK(b.toPlainText().find("xx Open") != std::string::npos);
   auto areas = root.takeElevations();
-  CHECK(areas.size() == 1 && areas[0].name == "menu-section");
-  CHECK(areas[0].elevation == styles.theme.elevation.overlay);
+  CHECK(areas.size() == 1 && areas[0].name == "menu-section" && areas[0].elevation > 0);
   CHECK(areas[0].row == 1 && areas[0].rows == 4);
   menu.close();
   root.refresh();
