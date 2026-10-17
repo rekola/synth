@@ -16,7 +16,10 @@ InfoDialog::show(UIPlane & parent, const string & title, const string & source, 
   // A padding row, the title, a gap, the text and a padding row.
   constexpr int kTopRows = 3, kChrome = 4;
   auto rows = std::min(static_cast<int>(lines.size()) + kChrome, std::max(kChrome + 1, max_rows));
-  if (!plane_) plane_ = parent.createChild();
+  if (!plane_) {
+    plane_ = parent.createChild();
+    plane_->setElevation(elevation_.value_or(plane_->getStyles().theme.elevation.overlay));
+  }
   auto & styles = plane_->getStyles();
   rows_ = rows;
   width_ = width;

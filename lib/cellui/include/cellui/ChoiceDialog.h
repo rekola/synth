@@ -5,6 +5,7 @@
 
 #include <chrono>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -28,6 +29,12 @@ class ChoiceDialog {
   // starts, -1 for none. Nothing is drawn until show().
   void open(std::string title, std::vector<std::string> labels, int current);
   void close();
+  // How high it floats (UIPlane::setElevation()): the theme's overlay
+  // elevation unless set; a modal dialog is set to the modal one.
+  void setElevation(float elevation) {
+    elevation_ = elevation;
+    if (plane_ && elevation_) plane_->setElevation(*elevation_);
+  }
   // Above every plane under the same parent.
   void raise() {
     if (plane_) plane_->moveToTop();
@@ -52,6 +59,7 @@ class ChoiceDialog {
   // The box with its title and hint; the entries are a plane of their own
   // over it, so they can scroll by parts of a row under a cursor band.
   std::unique_ptr<UIPlane> plane_;
+  std::optional<float> elevation_;
   std::unique_ptr<UIPlane> list_plane_;
   // The cursor's row in the list: a whole number except while it eases.
   double cursor_y_ = 0;

@@ -108,6 +108,7 @@ struct Window::Impl {
   CursorRequest cursor;
   std::vector<ImagePlacement> images;
   std::vector<BackdropLayer> layers;
+  std::vector<ElevatedArea> elevations;
   // The texture made of each layer's cells, and of the frame's, kept while
   // what they show is unchanged (a texture that stays the same is not
   // uploaded again).
@@ -115,9 +116,10 @@ struct Window::Impl {
     uint64_t print = 0;
     GdkTexture * texture = nullptr;
     int row = 0, col = 0;  // the cell the texture's corner is at
-    // An opaque layer is kept as bands of rows, each with its own texture, so
-    // a change in a few rows (the scopes, while playing) draws only those.
+    // A layer is kept as bands of rows, each with its own texture, so a
+    // change in a few rows (the scopes, while playing) draws only those.
     std::vector<Painted> bands;
+    bool valid = false;  // a band that has been painted (it may hold no texture)
   };
   std::vector<Painted> painted;
   FrameStats stats;
@@ -155,6 +157,7 @@ struct Window::Impl {
     for (Painted & band : p.bands) release(band);
     p = {};
   }
+  void appendShadows(GtkSnapshot * snap, const Painted & top);
   void forgetTextures() {
     for (Painted & p : painted) release(p);
   }
@@ -319,95 +322,71 @@ uint64_t printOf(const CellBuffer & cells, const std::vector<ImagePlacement> & i
 
 }  // namespace
 
-// The texture of a layer's cells, drawn again only when they or the pictures
-// over them changed. A transparent one holds only the rectangle the
+// The textures of a layer's cells, kept as bands of rows and drawn again only
+// for a band whose cells or pictures changed (the scopes, while playing, are
+// a few bands). A transparent layer's band holds only the rectangle its
 // non-blank cells span, with the blank cells in it see-through.
 const Window::Impl::Painted & Window::Impl::paint(size_t slot, const CellBuffer & cells, bool transparent, bool with_images) {
   if (painted.size() <= slot) painted.resize(slot + 1);
   Painted & p = painted[slot];
-  if (!transparent) {
-    // Bands of rows, each redrawn only when its own cells or pictures changed.
-    constexpr int kBandRows = 4;
-    size_t count = static_cast<size_t>((cells.rows() + kBandRows - 1) / kBandRows);
-    uint64_t shape = static_cast<uint64_t>(cells.rows()) << 32 | static_cast<uint32_t>(cells.cols());
-    if (p.bands.size() != count || p.print != shape) {
-      for (Painted & band : p.bands) release(band);
-      p.bands.assign(count, Painted());
-      p.print = shape;
-    }
-    for (size_t i = 0; i < count; i++) {
-      int r0 = static_cast<int>(i) * kBandRows, r1 = std::min(r0 + kBandRows, cells.rows());
-      Painted & band = p.bands[i];
-      uint64_t print = printOf(cells, images, r0, r1, false, with_images);
-      if (print == band.print && band.texture) continue;
-      if (band.texture) g_object_unref(band.texture);
-      band.texture = nullptr;
-      band.print = print;
-      auto start = Clock::now();
-      Image image = rasterizer->render(cells, with_images ? images : std::vector<ImagePlacement>(), r0, 0, r1 - r0, cells.cols(), cell_h, cell_w, 1,
-                                       *display_info.default_fg, *display_info.default_bg);
-      if (image.width > 0 && image.height > 0) {
-        auto * pixels = new std::vector<uint32_t>(std::move(image.pixels));
-        GBytes * bytes = g_bytes_new_with_free_func(
-            pixels->data(), pixels->size() * sizeof(uint32_t), [](gpointer data) { delete static_cast<std::vector<uint32_t> *>(data); }, pixels);
-        band.texture = gdk_memory_texture_new(image.width, image.height, GDK_MEMORY_R8G8B8A8_PREMULTIPLIED, bytes, static_cast<gsize>(image.width) * 4);
-        g_bytes_unref(bytes);
-        band.row = r0;
-        band.col = 0;
-      }
-      double ms = msSince(start);
-      stats.raster_ms_total += ms;
-      stats.raster_ms_max = std::max(stats.raster_ms_max, ms);
-    }
-    return p;
+  constexpr int kBandRows = 4;
+  size_t count = static_cast<size_t>((cells.rows() + kBandRows - 1) / kBandRows);
+  uint64_t shape = static_cast<uint64_t>(cells.rows()) << 32 | static_cast<uint32_t>(cells.cols());
+  if (p.bands.size() != count || p.print != shape) {
+    for (Painted & band : p.bands) release(band);
+    p.bands.assign(count, Painted());
+    p.print = shape;
   }
-  uint64_t print = printOf(cells, images, 0, cells.rows(), transparent, with_images);
-  if (print == p.print && (p.texture || transparent)) return p;
-  if (p.texture) g_object_unref(p.texture);
-  p.texture = nullptr;
-  p.print = print;
+  for (size_t i = 0; i < count; i++) {
+    int r0 = static_cast<int>(i) * kBandRows, r1 = std::min(r0 + kBandRows, cells.rows());
+    Painted & band = p.bands[i];
+    uint64_t print = printOf(cells, images, r0, r1, transparent, with_images);
+    if (print == band.print && band.valid) continue;
+    if (band.texture) g_object_unref(band.texture);
+    band.texture = nullptr;
+    band.print = print;
+    band.valid = true;
 
-  int r0 = 0, c0 = 0, r1 = cells.rows(), c1 = cells.cols();
-  if (transparent) {
-    r0 = r1;
-    c0 = c1;
-    r1 = c1 = 0;
-    for (int r = 0; r < cells.rows(); r++) {
-      for (int c = 0; c < cells.cols(); c++) {
-        if (CellBuffer::isBlank(cells.at(r, c))) continue;
-        r0 = std::min(r0, r), r1 = std::max(r1, r + 1);
-        c0 = std::min(c0, c), c1 = std::max(c1, c + 1);
-      }
-    }
-    if (r0 >= r1 || c0 >= c1) return p;
-  }
-  if (r1 <= r0 || c1 <= c0) return p;
-  auto start = Clock::now();
-  Image image = rasterizer->render(cells, with_images ? images : std::vector<ImagePlacement>(), r0, c0, r1 - r0, c1 - c0, cell_h, cell_w, 1, *display_info.default_fg, *display_info.default_bg);
-  if (image.width > 0 && image.height > 0) {
+    int c0 = 0, c1 = cells.cols();
     if (transparent) {
+      c0 = c1;
+      c1 = 0;
       for (int r = r0; r < r1; r++) {
-        for (int c = c0; c < c1; c++) {
-          if (!CellBuffer::isBlank(cells.at(r, c))) continue;
-          int y_end = std::min(image.height, (r - r0 + 1) * cell_h), x_end = std::min(image.width, (c - c0 + 1) * cell_w);
-          for (int y = (r - r0) * cell_h; y < y_end; y++) {
-            for (int x = (c - c0) * cell_w; x < x_end; x++) image.pixels[static_cast<size_t>(y) * static_cast<size_t>(image.width) + static_cast<size_t>(x)] = 0;
-          }
+        for (int c = 0; c < cells.cols(); c++) {
+          if (CellBuffer::isBlank(cells.at(r, c))) continue;
+          c0 = std::min(c0, c), c1 = std::max(c1, c + 1);
         }
       }
     }
-    // The pixels move into the texture's bytes; no copy.
-    auto * pixels = new std::vector<uint32_t>(std::move(image.pixels));
-    GBytes * bytes = g_bytes_new_with_free_func(
-        pixels->data(), pixels->size() * sizeof(uint32_t), [](gpointer data) { delete static_cast<std::vector<uint32_t> *>(data); }, pixels);
-    p.texture = gdk_memory_texture_new(image.width, image.height, GDK_MEMORY_R8G8B8A8_PREMULTIPLIED, bytes, static_cast<gsize>(image.width) * 4);
-    g_bytes_unref(bytes);
-    p.row = r0;
-    p.col = c0;
+    if (c0 >= c1) continue;
+    auto start = Clock::now();
+    Image image = rasterizer->render(cells, with_images ? images : std::vector<ImagePlacement>(), r0, c0, r1 - r0, c1 - c0, cell_h, cell_w, 1,
+                                     *display_info.default_fg, *display_info.default_bg);
+    if (image.width > 0 && image.height > 0) {
+      if (transparent) {
+        for (int r = r0; r < r1; r++) {
+          for (int c = c0; c < c1; c++) {
+            if (!CellBuffer::isBlank(cells.at(r, c))) continue;
+            int y_end = std::min(image.height, (r - r0 + 1) * cell_h), x_end = std::min(image.width, (c - c0 + 1) * cell_w);
+            for (int y = (r - r0) * cell_h; y < y_end; y++) {
+              for (int x = (c - c0) * cell_w; x < x_end; x++) image.pixels[static_cast<size_t>(y) * static_cast<size_t>(image.width) + static_cast<size_t>(x)] = 0;
+            }
+          }
+        }
+      }
+      // The pixels move into the texture's bytes; no copy.
+      auto * pixels = new std::vector<uint32_t>(std::move(image.pixels));
+      GBytes * bytes = g_bytes_new_with_free_func(
+          pixels->data(), pixels->size() * sizeof(uint32_t), [](gpointer data) { delete static_cast<std::vector<uint32_t> *>(data); }, pixels);
+      band.texture = gdk_memory_texture_new(image.width, image.height, GDK_MEMORY_R8G8B8A8_PREMULTIPLIED, bytes, static_cast<gsize>(image.width) * 4);
+      g_bytes_unref(bytes);
+      band.row = r0;
+      band.col = c0;
+    }
+    double ms = msSince(start);
+    stats.raster_ms_total += ms;
+    stats.raster_ms_max = std::max(stats.raster_ms_max, ms);
   }
-  double ms = msSince(start);
-  stats.raster_ms_total += ms;
-  stats.raster_ms_max = std::max(stats.raster_ms_max, ms);
   return p;
 }
 
@@ -417,6 +396,76 @@ void Window::Impl::appendTexture(GtkSnapshot * snap, const Painted & p, int row,
   graphene_rect_t bounds = GRAPHENE_RECT_INIT(static_cast<float>((p.col + col) * cell_w), static_cast<float>((p.row + row) * cell_h),
                                               static_cast<float>(gdk_texture_get_width(p.texture)), static_cast<float>(gdk_texture_get_height(p.texture)));
   gtk_snapshot_append_scaled_texture(snap, p.texture, GSK_SCALING_FILTER_NEAREST, &bounds);
+}
+
+// A soft shadow around every plane above the base that nothing blurs, the
+// higher the softer and the further down: drawn over the frame, outside the
+// plane, and under every plane higher than it, which is drawn again over it.
+void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top) {
+  const Color & bg = *display_info.default_bg;
+  bool dark = bg.getRed() + bg.getGreen() + bg.getBlue() < 384;
+  stats.shadows = 0;
+  // Two shadows, as many design systems draw them: a key light from the upper
+  // left, offset down by half the height (and right by a little less, so the
+  // corner below right is shaded too) and blurred by all of it, and a faint
+  // ambient one all around. Height is in cell widths.
+  GdkRGBA key = { 0, 0, 0, dark ? 0.65f : 0.18f };
+  GdkRGBA ambient = { 0, 0, 0, dark ? 0.4f : 0.12f };
+  GdkRGBA highlight = { 1, 1, 1, dark ? 0.14f : 0.55f };
+  GdkRGBA edge = { 0, 0, 0, dark ? 0.3f : 0.1f };
+  auto rectOf = [&](const ElevatedArea & a) {
+    return GRAPHENE_RECT_INIT(static_cast<float>(a.col * cell_w), static_cast<float>(a.row * cell_h), static_cast<float>(a.cols * cell_w),
+                              static_cast<float>(a.rows * cell_h));
+  };
+  auto shown = [&](const ElevatedArea & a) { return a.layer >= layers.size(); };
+  // Height by height, lowest first: each one's shadows, then everything as
+  // high or higher drawn again over them, so a shadow falls only on what is
+  // lower (neighbours of one height included).
+  size_t i = 0;
+  while (i < elevations.size()) {
+    float e = elevations[i].elevation;
+    size_t level_end = i;
+    while (level_end < elevations.size() && elevations[level_end].elevation == e) level_end++;
+    float px = e * static_cast<float>(cell_w);
+    float dx = 0.3f * px, dy = 0.5f * px, blur = px, ambient_blur = std::max(2.0f, 0.25f * px);
+    graphene_rect_t reach = GRAPHENE_RECT_INIT(0, 0, 0, 0);
+    bool any = false;
+    for (size_t k = i; k < level_end; k++) {
+      if (!shown(elevations[k])) continue;
+      graphene_rect_t rect = rectOf(elevations[k]);
+      GskRoundedRect outline;
+      gsk_rounded_rect_init_from_rect(&outline, &rect, 0);
+      gtk_snapshot_append_outset_shadow(snap, &outline, &ambient, 0, 0, 0, ambient_blur);
+      gtk_snapshot_append_outset_shadow(snap, &outline, &key, dx, dy, 0, blur);
+      stats.shadows++;
+      graphene_rect_t r = GRAPHENE_RECT_INIT(rect.origin.x - 2 * blur, rect.origin.y - 2 * ambient_blur, rect.size.width + 4 * blur + dx,
+                                             rect.size.height + 2 * ambient_blur + dy + 2 * blur);
+      if (any) graphene_rect_union(&reach, &r, &reach);
+      else reach = r;
+      any = true;
+    }
+    if (any) {
+      for (size_t j = i; j < elevations.size(); j++) {
+        if (!shown(elevations[j])) continue;
+        graphene_rect_t above = rectOf(elevations[j]), meet;
+        if (!graphene_rect_intersection(&above, &reach, &meet)) continue;
+        gtk_snapshot_push_clip(snap, &above);
+        appendTexture(snap, top);
+        gtk_snapshot_pop(snap);
+      }
+      // A light top edge and a darker bottom one, so pieces side by side
+      // or stacked read apart.
+      for (size_t k = i; k < level_end; k++) {
+        if (!shown(elevations[k])) continue;
+        graphene_rect_t rect = rectOf(elevations[k]);
+        graphene_rect_t top_edge = GRAPHENE_RECT_INIT(rect.origin.x, rect.origin.y, rect.size.width, 1);
+        graphene_rect_t bottom_edge = GRAPHENE_RECT_INIT(rect.origin.x, rect.origin.y + rect.size.height - 1, rect.size.width, 1);
+        gtk_snapshot_append_color(snap, &highlight, &top_edge);
+        gtk_snapshot_append_color(snap, &edge, &bottom_edge);
+      }
+    }
+    i = level_end;
+  }
 }
 
 void Window::Impl::snapshot(GtkSnapshot * snap) {
@@ -433,7 +482,9 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
   if (frame.rows() > 0 && frame.cols() > 0 && rasterizer) {
     if (layers.empty()) {
       gtk_snapshot_append_color(snap, &background, &all);
-      appendTexture(snap, paint(0, frame, false));
+      const Painted & top = paint(0, frame, false);
+      appendTexture(snap, top);
+      appendShadows(snap, top);
     } else {
       // Each backdrop blurs and dims everything below it, on the GPU: what
       // is composed so far is a node, drawn as it is and again, blurred,
@@ -500,7 +551,9 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
       }
       gtk_snapshot_append_node(snap, below);
       gsk_render_node_unref(below);
-      appendTexture(snap, paint(layers.size(), frame, true));
+      const Painted & top = paint(layers.size(), frame, true);
+      appendTexture(snap, top);
+      appendShadows(snap, top);
     }
     // Layers that are gone leave their textures.
     size_t used = layers.size() + 1 + scrolls;
@@ -709,6 +762,9 @@ void Window::present(const CellBuffer & frame, const CursorRequest & cursor, con
   impl_->cursor = cursor;
   impl_->images = images;
   impl_->layers = info ? info->backdrops : std::vector<BackdropLayer>();
+  impl_->elevations = info ? info->elevations : std::vector<ElevatedArea>();
+  std::stable_sort(impl_->elevations.begin(), impl_->elevations.end(),
+                   [](const ElevatedArea & a, const ElevatedArea & b) { return a.elevation < b.elevation; });
   gtk_widget_queue_draw(impl_->view);
 }
 

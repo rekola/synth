@@ -49,13 +49,22 @@ The application draws on several traditions.
   [docs/fm.md](docs/fm.md).  
 - **Command Palette.** Every command can be run by name from the command
   palette, opened with M-x when using the terminal keybindings or with
-  Ctrl+Shift+P when using the standard GUI keybindings. Typing narrows the list
-  by fuzzy matching (`tgv` finds `toggle-view`), the best match comes first, Tab
-  completes a prefix the way the Emacs minibuffer does, and
-  each command shows its keybinding and, for the selected one, a short
-  description. The concept follows that of Emacs' M-x and its "Minibuffer"; the
-  status line at the bottom of the screen is still used for messages and for
-  prompts that ask for a name.
+  Ctrl+Shift+P when using the standard GUI keybindings. It sits on the last
+  rows of the screen, where the status line is, with the query on the very last
+  row and the matching commands listed above it. Typing narrows the list by
+  fuzzy matching (`tgv` finds `toggle-view`), the best match comes first, Tab
+  completes a prefix, and each command shows its keybinding and, for the
+  selected one, a short description. The status line is still used for messages
+  and for prompts that ask for a name.
+
+  The palette combines two traditions. From Emacs it takes M-x and the
+  minibuffer on the last row of the screen, with Tab completion of what has
+  been typed so far, and the list of candidates shown above the prompt as the
+  vertical completion packages for Emacs do. From the command palettes of
+  modern editors such as Visual Studio Code and Sublime Text it takes
+  Ctrl+Shift+P as the way in, fuzzy matching, and showing each command's
+  keybinding and description. The terminal keybindings follow the first, the
+  GUI keybindings the second; see [docs/user-interface.md](docs/user-interface.md).
 
 ## Scales and Tunings
 

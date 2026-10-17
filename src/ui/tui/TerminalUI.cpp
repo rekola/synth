@@ -128,7 +128,7 @@ struct MenuItemSpec {
   const char * label;    // nullptr = separator
   const char * binding;  // human-readable keybinding shown next to label; "" = none
   const char * command;  // name passed to Controller::sendCommand() on activation
-  const char * desktop_binding = nullptr;  // shown instead of `binding` on a display using the desktop keymap
+  const char * desktop_binding = nullptr; // shown instead of `binding` on a display using the desktop keymap
 };
 struct MenuSectionSpec {
   const char * name;
@@ -353,12 +353,12 @@ private:
 	  section_commands.emplace_back();
 	} else {
 	  entry.label = item.label;
-	  const char * binding = desktop && item.desktop_binding ? item.desktop_binding : item.binding;
-	  if (binding && binding[0]) {
-	    entry.label.append(label_width + 2 - static_cast<size_t>(Utf8::displayWidth(item.label)), ' ');
-	    entry.label += binding;
-	  }
-	  section_commands.emplace_back(item.command ? item.command : "");
+          const char * binding = desktop && item.desktop_binding ? item.desktop_binding : item.binding;
+          if (binding && binding[0]) {
+            entry.label.append(label_width + 2 - static_cast<size_t>(Utf8::displayWidth(item.label)), ' ');
+            entry.label += binding;
+          }
+          section_commands.emplace_back(item.command ? item.command : "");
 	}
 	out.items.push_back(std::move(entry));
       }
@@ -389,7 +389,6 @@ TerminalUI::TerminalUI(cellui::Backend & backend)
     auto active = outline_view_ && outline_view_->isModal() ? outline_view_ : active_element_.lock();
     if (command_palette_.isOpen()) {
       command_palette_.close();
-      layoutModalScrim();
       force_next_render_ = true;
     } else if (choice_dialog_.isOpen()) {
       closeChoiceDialog();
@@ -445,6 +444,9 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
   root_plane_->setThemedBases(true);
   if (use_pixel) root_plane_->setCellPixelSize(display.cell_px_height, display.cell_px_width);
   setPlane(std::move(root_plane));
+  // The modal dialogs float above every overlay (menus, pickers, popups).
+  choice_dialog_.setElevation(styles_.theme.elevation.modal);
+  info_dialog_.setElevation(styles_.theme.elevation.modal);
 
   setFgColor(styles_.window_fg_color);
   setBgColor(styles_.window_bg_color);
@@ -479,10 +481,11 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
   render();
 }
 
-// Every other widget was created after menu_, and layout() and a reader,
-// a picker or a widget's own child can land above it too, hiding an
-// unrolled section's dropdown (see UIMenu::raiseToTop()), so it is raised
-// before every frame - and an open modal dialog, on its scrim, above it.
+// Every other widget was created after menu_, and layout() can raise a
+// widget above its header row, so it is raised before every frame (its open
+// section floats at the overlay elevation over everything but a modal
+// dialog) - and an open modal dialog above its scrim, which share the modal
+// elevation.
 void TerminalUI::raiseOverlays() {
   menu_->raiseToTop();
   modal_scrim_.raise();
@@ -502,6 +505,7 @@ TerminalUI::render() {
   if (auto at = root_plane_->cursorPosition()) cursor = { true, at->first, at->second };
   cellui::FrameInfo info;
   info.backdrops = root_plane_->takeBackdropLayers();
+  info.elevations = root_plane_->takeElevations();
   if (backend_.wantsFrameInfo()) {
     info.planes = root_plane_->describe();
     info.focus = focusName();
@@ -566,8 +570,7 @@ TerminalUI::applyTheme(const Theme & theme) {
   force_next_render_ = true;
 }
 
-void
-TerminalUI::setReducedMotion(bool reduced) {
+void TerminalUI::setReducedMotion(bool reduced) {
   styles_.reduced_motion = reduced;
   force_next_render_ = true;
 }
@@ -1575,7 +1578,7 @@ void TerminalUI::showCommandPalette() {
   clip_grid_->cancelReaderEdit();
   std::vector<cellui::PaletteEntry> entries;
   for (auto & name : commandCompletions("")) {
-    entries.push_back({ name, commandDescription(name), bindingFor(name) });
+    entries.push_back({name, commandDescription(name), bindingFor(name)});
   }
   command_palette_.open(std::move(entries));
   layoutCommandPalette();
@@ -1584,7 +1587,6 @@ void TerminalUI::showCommandPalette() {
 
 void TerminalUI::layoutCommandPalette() {
   if (!command_palette_.isOpen()) return;
-  layoutModalScrim();
   auto [screen_rows, screen_cols] = getDim();
   command_palette_.show(getPlane(), screen_rows, screen_cols);
 }
@@ -1601,13 +1603,12 @@ void TerminalUI::handleCommandPaletteInput(const cellui::Input & input) {
   // Closed before the command runs: it may open a prompt or a dialog of its
   // own, and nothing should be left modal while it does.
   command_palette_.close();
-  layoutModalScrim();
   force_next_render_ = true;
   if (!name.empty() && !getController().sendCommand(name)) setStatus("Invalid command");
 }
 
 void TerminalUI::layoutModalScrim() {
-  if (!command_palette_.isOpen() && !choice_dialog_.isOpen() && info_dialog_title_.empty()) {
+  if (!choice_dialog_.isOpen() && info_dialog_title_.empty()) {
     modal_scrim_.close();
     return;
   }

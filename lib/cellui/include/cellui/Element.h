@@ -126,6 +126,10 @@ class Element {
     if (plane_) plane_->setItalic(b);
     return *this;
   }
+  Element & setLift(float lift, bool joins_above = false) {
+    if (plane_) plane_->setLift(lift, joins_above);
+    return *this;
+  }
 
   std::pair<int, int> getPosition() const {
     if (plane_) return plane_->getPosition();
@@ -236,6 +240,10 @@ protected:
   // time. Per-instance, not shared - each widget that adopts prefix
   // bindings tracks its own in-progress sequence independently.
   std::optional<uint64_t> pending_prefix_;
+
+  // Lets a widget with planes of its own draw on each through the ordinary
+  // drawing helpers: exchanges the plane the helpers draw on with `other`.
+  void swapPlane(std::unique_ptr<UIPlane> & other) { plane_.swap(other); }
 
 private:
   std::unique_ptr<UIPlane> plane_;

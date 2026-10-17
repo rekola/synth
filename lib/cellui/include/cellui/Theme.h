@@ -155,6 +155,16 @@ struct Theme {
   Color data_delay;
   // What a modal dialog does to everything behind it.
   Backdrop modal_backdrop;
+  // How far above its parent a plane (or a lifted cell) stands, by role, in
+  // cell widths: what is higher is drawn over what is lower, and a display
+  // with depth can show the difference.
+  struct Elevation {
+    float panel = 0.25f;
+    float raised = 0.5f;  // a track's header
+    float card = 1;       // a clip
+    float overlay = 2;    // menus, pickers, popups
+    float modal = 4;      // a modal dialog and its scrim
+  } elevation;
 
   static Theme original() {
     Theme t;
@@ -225,10 +235,10 @@ struct Theme {
     t.tracks = TrackPalette::modern();
     t.grid_lines = false;
     t.track_chips = true;
-    t.surface_base = Color("#080c0f");
-    t.surface_panel = Color("#151a1f");
-    t.surface_raised = Color("#252b30");
-    t.surface_overlay = Color("#363d43");
+    t.surface_base = Color("#11161a");
+    t.surface_panel = Color("#1c2227");
+    t.surface_raised = Color("#2c3338");
+    t.surface_overlay = Color("#3e464c");
     t.text_primary = Color("#f0f4f7");
     t.text_secondary = Color("#bfc5ca");
     t.text_disabled = Color("#82878c");

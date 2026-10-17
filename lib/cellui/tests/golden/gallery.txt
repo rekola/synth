@@ -4,10 +4,10 @@ Text styles
 normal  bold   italic  underline  bold italic
 
 Surfaces and text
- surface.base        secondary text      disabled text       #080c0f
- surface.panel       secondary text      disabled text       #151a1f
- surface.raised      secondary text      disabled text       #252b30
- surface.overlay     secondary text      disabled text       #363d43
+ surface.base        secondary text      disabled text       #11161a
+ surface.panel       secondary text      disabled text       #1c2227
+ surface.raised      secondary text      disabled text       #2c3338
+ surface.overlay     secondary text      disabled text       #3e464c
 
 Accent and state
  accent                  #75d4eb

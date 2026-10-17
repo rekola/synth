@@ -3,6 +3,7 @@
 #include <cellui/UIPlane.h>
 
 #include <memory>
+#include <optional>
 #include <string>
 
 namespace cellui {
@@ -25,6 +26,12 @@ class InfoDialog {
     move((screen_rows - rows_) / 2, (screen_cols - width_) / 2);
   }
   void close() { plane_.reset(); }
+  // How high it floats (UIPlane::setElevation()): the theme's overlay
+  // elevation unless set; a modal dialog is set to the modal one.
+  void setElevation(float elevation) {
+    elevation_ = elevation;
+    if (plane_ && elevation_) plane_->setElevation(*elevation_);
+  }
   // Above every plane under the same parent.
   void raise() {
     if (plane_) plane_->moveToTop();
@@ -35,6 +42,7 @@ class InfoDialog {
 
  private:
   std::unique_ptr<UIPlane> plane_;
+  std::optional<float> elevation_;
   int rows_ = 0, width_ = 0;
 };
 

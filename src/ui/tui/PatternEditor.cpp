@@ -659,7 +659,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
   // Cut, copy and paste: the Emacs chords in the terminal, the usual
   // desktop ones elsewhere.
   keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('w', true, false, false, false), "kill-region");
-  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('w', false, true, false, false), "kill-ring-save");  // Alt-W
+  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('w', false, true, false, false), "kill-ring-save"); // Alt-W
   keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('y', true, false, false, false), "yank");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('x', true, false, false, false), "kill-region");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('c', true, false, false, false), "kill-ring-save");
@@ -1197,6 +1197,34 @@ bool
 PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) {
   last_styles_ = &styles; // see its own comment - startTrackNameEdit()'s only source of one
   bool render_all = refresh;
+  // The rows' plane is under the widget's own, which holds the headings.
+  if (!rows_plane_) {
+    rows_plane_ = getPlane().createChild();
+    getPlane().makeTransparent();
+    getPlane().moveToTop();
+  }
+  {
+    auto [pos_y, pos_x] = getPosition();
+    auto [plane_rows, plane_cols] = getDim();
+    rows_plane_->move(pos_y, pos_x);
+    if (plane_rows != rows_plane_rows_ || plane_cols != rows_plane_cols_) {
+      rows_plane_->resize(plane_rows, plane_cols);
+      rows_plane_rows_ = plane_rows;
+      rows_plane_cols_ = plane_cols;
+      render_all = true;
+    }
+  }
+  struct RowsPlane {
+    PatternEditor & editor;
+    explicit RowsPlane(PatternEditor & e) : editor(e) {
+      editor.swapPlane(editor.rows_plane_);
+      editor.drawing_rows_ = true;
+    }
+    ~RowsPlane() {
+      editor.swapPlane(editor.rows_plane_);
+      editor.drawing_rows_ = false;
+    }
+  } rows_guard(*this);
   auto & info = getController().getPlaybackInfo();
   auto & song = getController().getSong();
   syncCursorTrack(song);
@@ -2338,6 +2366,15 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 
 void
 PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & all_track_info, bool focused) {
+  // Back on the widget's own plane for the headings.
+  if (drawing_rows_) swapPlane(rows_plane_);
+  erase();
+  renderHeadingOnPlane(styles, track_ids, all_track_info, focused);
+  if (drawing_rows_) swapPlane(rows_plane_);
+}
+
+void
+PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & all_track_info, bool focused) {
   auto & song = getController().getSong();
   auto & info = getController().getPlaybackInfo();
 
@@ -2351,7 +2388,8 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
   auto heading_height = song.getMasterTrack().getDepth() + 1;
 
   string padding(static_cast<size_t>(cols), ' ');
-  
+
+  setLift(0);
   setBgColor(styles.window_bg_color);
   for (auto i = 0; i < heading_height; i++) {
     putstr(i, 0, padding);
@@ -2671,10 +2709,12 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    // further down.
 	    draw_divider(heading_height - 2 - level, current_pos, track, i);
 	  } else {
-	    // std::max(0, ...): a narrow enough column (actual_width < 3) would
-	    // otherwise make text_width negative, and it's used below both as a
-	    // display-width budget and as a putstr() column offset.
-	    auto text_width = std::max(0, actual_width - (has_mute_solo ? 3 : 1) - toggle_width - chip_width);
+            // std::max(0, ...): a narrow enough column (actual_width < 3) would
+            // otherwise make text_width negative, and it's used below both as a
+            // display-width budget and as a putstr() column offset.
+            // A track's header stands on the editor.
+            if (is_color_eligible) setLift(styles.theme.elevation.raised);
+            auto text_width = std::max(0, actual_width - (has_mute_solo ? 3 : 1) - toggle_width - chip_width);
 	    auto name_pos = current_pos + chip_width + toggle_width;
 	    // M, S and the divider sit at the segment's right edge, wherever the
 	    // name ends: when the segment is narrower than its parts (scrolled
@@ -2772,18 +2812,21 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	      else setFgColor(off_color);
 	      putstr(heading_height - 2 - level, flags_pos + 1, "S");
 	    }
-	    // Drawn last - draw_divider() changes the current fg/bg colors as
-	    // a side effect, and nothing else in this branch relies on them
-	    // afterward.
-	    draw_divider(heading_height - 2 - level, flags_pos + (has_mute_solo ? 2 : 0), track, i);
+            // Drawn last - draw_divider() changes the current fg/bg colors as
+            // a side effect, and nothing else in this branch relies on them
+            // afterward. The divider is the groove between headers.
+            setLift(0);
+            draw_divider(heading_height - 2 - level, flags_pos + (has_mute_solo ? 2 : 0), track, i);
 
 	    // The track's colour as a half-cell slice at the left of both heading
 	    // lines; the other half of its cell is a margin before the text.
 	    if (chip) {
 	      setFgColor(styles.trackChipColor(vis_info->color_ordinal_));
 	      setBgColor(segment_color(track));
-	      putstr(heading_height - 2 - level, current_pos, "▌");
-	      putstr(heading_height - 2 - level + 1, current_pos, "▌");
+              setLift(styles.theme.elevation.raised);
+              putstr(heading_height - 2 - level, current_pos, "▌");
+              setLift(styles.theme.elevation.raised, true);
+              putstr(heading_height - 2 - level + 1, current_pos, "▌");
 	    }
 
 	    // Half brightness for PercussionTrack's fixed "(percussion)" label -
@@ -2827,7 +2870,8 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 			    chip ? segment_color(track) : styles.window_bg_color, track->getInternalId());
 	    }
 	    // The divider on the instrument line too, so the line is closed.
-	    if (chip) draw_divider(heading_height - 2 - level + 1, current_pos + actual_width - 1, track, i);
+            setLift(0);
+            if (chip) draw_divider(heading_height - 2 - level + 1, current_pos + actual_width - 1, track, i);
 	  }
 	} else if (actual_width <= 1) {
 	  // No room for even the "▸"/"◂" collapse toggle, let alone the
@@ -2852,9 +2896,9 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  bool show_dot = remaining >= 1 && track->getType() == TrackType::EFFECT;
 	  auto element_name_width = std::max(0, remaining - (show_dot ? 1 : 0));
 
-	  setBgColor(segment_color(track));
+          setBgColor(segment_color(track));
 
-	  // A track's own row shows up at every level from where its
+          // A track's own row shows up at every level from where its
 	  // subtree first starts merging up through getDepth() - 1, where
 	  // its whole subtree finally merges into one span (see the
 	  // hop-walk above) - drawing the toggle/name/dot at each of those
@@ -2894,10 +2938,10 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    setFgColor(0x00, 0x00, 0x00);
 	    putstr(heading_height - 2 - level, current_pos, string(static_cast<size_t>(actual_width - 1), ' '));
 	  }
-	  // Drawn last for both branches - see the level 0 branch's own
-	  // comment on why. At the segment's own last column regardless of
-	  // how the budget above split up the rest of it.
-	  draw_divider(heading_height - 2 - level, current_pos + actual_width - 1, track, i);
+          // Drawn last for both branches - see the level 0 branch's own
+          // comment on why. At the segment's own last column regardless of
+          // how the budget above split up the rest of it.
+          draw_divider(heading_height - 2 - level, current_pos + actual_width - 1, track, i);
 	}
       }
       

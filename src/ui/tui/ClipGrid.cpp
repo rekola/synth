@@ -33,18 +33,20 @@ asLeafTrack(const Song & song, int track_id) {
 // color right now (0..1): playing and recording pulse smoothly, queued
 // states flash on and off - the terminal's stand-in for the Launchpad's own
 // hardware-animated pulse/flash.
-float
-statePulse(ClipHighlight state, bool reduced_motion) {
+float statePulse(ClipHighlight state, bool reduced_motion) {
   // With motion off the slot holds a steady shade: full for running, half for
   // queued, whose glyph already tells them apart.
   if (reduced_motion) {
     switch (state) {
-    case ClipHighlight::PLAYING:
-    case ClipHighlight::RECORDING: return 1.0f;
-    case ClipHighlight::QUEUED:
-    case ClipHighlight::RECORD_QUEUED:
-    case ClipHighlight::RECORD_STOPPING: return 0.5f;
-    default: return 0.0f;
+      case ClipHighlight::PLAYING:
+      case ClipHighlight::RECORDING:
+        return 1.0f;
+      case ClipHighlight::QUEUED:
+      case ClipHighlight::RECORD_QUEUED:
+      case ClipHighlight::RECORD_STOPPING:
+        return 0.5f;
+      default:
+        return 0.0f;
     }
   }
   using Clock = std::chrono::steady_clock;
@@ -850,7 +852,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
           Color bright = red ? styles.clip_recording_color : styles.clip_playing_color;
           Color dark = bright.blend(0.6f, Color(0, 0, 0));
           row_bg = state == ClipHighlight::PAUSED ? styles.clip_paused_color
-            : dark.blend(statePulse(state, styles.reduced_motion), bright);
+                                                  : dark.blend(statePulse(state, styles.reduced_motion), bright);
         }
         if (is_cursor_cell && !has_real_clip) {
           row_fg = row_fg.blend(focus_, styles.highlight_fg_color);
@@ -862,6 +864,8 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
           row_fg = row_fg.blend(focus_, styles.highlight_fg_color);
           row_bg = row_bg.blend(0.5f * focus_, styles.cursor_tint_color);
         }
+        // A clip stands on the grid like a card.
+        if (has_real_clip) setLift(styles.theme.elevation.card);
         setFgColor(row_fg);
         setBgColor(row_bg);
         putstr(y, x, string(static_cast<size_t>(kColWidth), ' ')); // opaque row background first
@@ -872,6 +876,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
           setFgColor(glyph_fg);
           putstr(y, x + 1, glyph);
         }
+        setLift(0);
         continue;
       }
 

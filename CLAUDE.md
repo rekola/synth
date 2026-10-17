@@ -438,9 +438,15 @@ prefix (Emacs only, since Ctrl+X is cut on the desktop). `docs/user-interface.md
 the desktop chords.
 
 The command palette (`cellui::CommandPalette`, `cellui/CommandPalette.h`; opened by
-`TerminalUI::showCommandPalette()`) is a modal list like `ChoiceDialog`: a query
-line, the commands that `cellui::fuzzyMatch()` (`FuzzyMatch.h`) ranks best first,
-each with its binding, and the selected one's description below. The app gives it
+`TerminalUI::showCommandPalette()`) is a modal panel across the bottom rows of
+the screen, where the status line is, with no scrim: the query on the last row
+("M-x " on the Emacs keymap, "> " on the desktop one), the selected command's
+description above it, and above that the commands that `cellui::fuzzyMatch()`
+(`FuzzyMatch.h`) ranks best first, each with its binding, the list growing
+upward with the number of matches. Only the list is a raised panel
+(`picker_bg_color`); the description (quiet, italic) and the query sit on the
+display's own background like the status line they cover, so the description is
+not taken for a command. The app gives it
 `PaletteEntry`s: names from `commandCompletions("")`, descriptions from
 `commandDescription()` (`ui/CommandDescriptions.cpp`; a test fails for a command
 without one, so add a line there with a new command), bindings from
@@ -1381,7 +1387,16 @@ would otherwise resume showing.
   through `UI::showInfoDialog(title, markdown)`), and `BufferPlane`/`CellBuffer` (a
   plane that keeps its own cells, the way a screen's planes do - drawing, moving,
   raising and hiding work on the plane, and `refresh()` composes the tree into a
-  grid of cells rendering as plain text or ANSI) with the gallery page
+  grid of cells rendering as plain text or ANSI; a plane's elevation,
+  `UIPlane::setElevation()`, adds to its parent's, and the tree is drawn lowest
+  first, planes of one height in tree order, so a popup floats over everything
+  below it wherever it sits in the tree - `Theme::elevation`'s steps, in cell
+  widths: panel, raised (the pattern editor's track headers), card (the clip
+  grid's clips), overlay for menus, pickers and popups, modal for a modal dialog and
+  its scrim; cells can stand above their plane too (`UIPlane::setLift()`, a
+  cell attribute, so a partial redraw keeps it: a run in a row is one piece,
+  joined to the one above only when asked) - and every frame tells the backend
+  the areas above the base, `FrameInfo::elevations`) with the gallery page
   (`Gallery.h`, a class that keeps its widgets' planes, `cellui_gallery`; its text is a golden file in
   `lib/cellui/tests/golden/`, rewritten with `CELLUI_UPDATE_GOLDEN=1`) (`HeatmapChart.h`, with the fixed hue and the HSV helper its
   renderers share). The old paths (`util/Utf8.h`, `ui/Markdown.h`,
@@ -1438,6 +1453,12 @@ would otherwise resume showing.
   `BufferPlane`. `Window` draws each layer as a texture (kept while a fingerprint of its cells
   and pictures is unchanged), then the stack so far again under a GSK blur node and a dim
   colour inside the backdrop's cells; it never makes the blur itself, whatever the renderer.
+  Over the frame it draws two GSK outset shadows around every area of `FrameInfo::elevations`
+  that no later backdrop covers (`ElevatedArea::layer`) - a key light from the upper left,
+  offset down by half the height and right by a little less, blurred by all of it, and a faint
+  ambient one - then, height by height, the cells
+  of every area as high or higher again over them, so a shadow falls only on what is lower, and
+  a light top and dark bottom edge on each area (`FrameStats::shadows`).
   The terminal cannot blur, so what it shows is made in its own backend: `term::BackdropEmulation`
   (`TerminalSession::present()`) - cells averaged over their neighbours with the glyphs
   faded out, or with pictures the cells drawn, blurred and stretched in tiles of 4 x 16

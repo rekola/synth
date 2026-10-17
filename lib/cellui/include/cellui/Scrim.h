@@ -7,9 +7,9 @@
 
 namespace cellui {
 
-// The layer a modal dialog sits on: it covers the screen and shows
-// everything below it through a backdrop, so what is behind reads as out of
-// reach. It draws nothing of its own; raise the dialog above it after show().
+// The layer a modal dialog sits on, at the theme's modal elevation: it
+// covers the screen and shows everything below it through a backdrop, so
+// what is behind reads as out of reach. It draws nothing of its own; raise the dialog above it after show().
 class Scrim {
  public:
   bool isOpen() const { return plane_ != nullptr; }
