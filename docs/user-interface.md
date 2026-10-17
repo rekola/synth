@@ -53,9 +53,8 @@ still used for messages and for prompts that ask for a name.
   C-g or a click outside cancels.
 
 The palette takes M-x and Tab completion of the name from Emacs, and from the
-command palettes of Sublime Text, Atom and Visual Studio Code the chord
-Ctrl+Shift+P, matching the typed letters in order, and showing each command's
-keybinding and description. There is no minibuffer: the status line only shows
+command palette of Sublime Text the chord Ctrl+Shift+P, matching the typed
+letters in order, and showing each command's keybinding and description. There is no minibuffer: the status line only shows
 messages and asks for names (a file, a buffer, a new name).
 
 ## Emacs keymap

@@ -51,10 +51,9 @@ The application draws on several traditions.
   editor by Guy Steele and Richard Stallman; GNU Emacs' first public release
   was in 1985) runs any command by name with M-x, completing the name with Tab.
   Jon Skinner added the command palette to Sublime Text 2 in 2011, opened with
-  Ctrl+Shift+P, and Atom and Visual Studio Code later took it up. The
-  application's palette is on the last rows of the screen and completes with
-  Tab like M-x, and matches the typed letters in order like the editor
-  palettes; M-x opens it with the terminal keybindings and Ctrl+Shift+P with
+  Ctrl+Shift+P. The application's palette is on the last rows of the screen
+  and completes with Tab like M-x, and matches the typed letters in order like
+  Sublime Text's; M-x opens it with the terminal keybindings and Ctrl+Shift+P with
   the GUI ones. See [docs/user-interface.md](docs/user-interface.md).
 
 ## Scales and Tunings
