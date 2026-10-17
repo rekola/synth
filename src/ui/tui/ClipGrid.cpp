@@ -865,8 +865,12 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
           row_fg = row_fg.blend(focus_, styles.highlight_fg_color);
           row_bg = row_bg.blend(0.5f * focus_, styles.cursor_tint_color);
         }
-        // A clip stands on the grid like a card.
-        if (has_real_clip) setLift(styles.theme.elevation.card);
+        // A clip stands on the grid like a card. The cursor stands as high,
+        // so no clip's shadow falls on it, but casts none of its own.
+        if (is_cursor_cell)
+          setLift(styles.theme.elevation.card, false, false);
+        else if (has_real_clip)
+          setLift(styles.theme.elevation.card);
         setFgColor(row_fg);
         setBgColor(row_bg);
         putstr(y, x, string(static_cast<size_t>(kColWidth), ' ')); // opaque row background first
@@ -979,12 +983,15 @@ ClipGrid::renderMasterColumn(const StyleProvider & styles, int x, int rows, bool
       auto tempo_text = tempo > 0 ? " ♩" + std::to_string(tempo) : std::string();
       if (signature.isSet()) tempo_text += " " + std::to_string(signature.numerator) + "/" + std::to_string(signature.denominator);
       auto name_width = kColWidth - 3 - Utf8::displayWidth(tempo_text);
+      // The cursor above the clips' shadows, as on a track's slots.
+      if (is_cursor_cell) setLift(styles.theme.elevation.card, false, false);
       putstr(y, x, Utf8::padToWidth(" ▸ " + Utf8::padToWidth(Utf8::truncateToWidth(song.getSceneName(physical_row), name_width), name_width) + tempo_text, kColWidth));
       auto state = scene_state(physical_row);
       if (state == ClipHighlight::PLAYING || state == ClipHighlight::QUEUED || state == ClipHighlight::PAUSED) {
         setFgColor(state == ClipHighlight::PAUSED ? styles.clip_paused_color : styles.clip_playing_color);
         putstr(y, x + 1, state == ClipHighlight::QUEUED ? "▹" : "▸");
       }
+      setLift(0);
       continue;
     }
 
