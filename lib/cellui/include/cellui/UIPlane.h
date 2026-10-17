@@ -135,9 +135,13 @@ class UIPlane {
   // How far the cells drawn next stand above the plane, in cell widths, like
   // a card on it (0: flat). A run of them in a row is one piece; with
   // `joins_above` it is one with the run of the same height and columns
-  // right above it. A display that shows height (shadows) shows them raised;
-  // elsewhere nothing changes. Default no-op.
-  virtual void setLift(float, bool joins_above = false) { (void)joins_above; }
+  // right above it. Without `casts_shadow` they only stand above the shadows
+  // of what is no higher (a cursor over raised cards). A display that shows
+  // height (shadows) shows them raised; elsewhere nothing changes. Default no-op.
+  virtual void setLift(float, bool joins_above = false, bool casts_shadow = true) {
+    (void)joins_above;
+    (void)casts_shadow;
+  }
   // Shows what the plane draws shifted up by `rows` and left by `cols`, each
   // a fraction of a cell (0 up to, not including, 1), clipped to the plane,
   // where DisplayInfo::smooth_scroll says the display can: a view scrolled by

@@ -155,17 +155,18 @@ void BufferPlane::collectLifts() {
     for (int c = 0; c < out.cols();) {
       const CellBuffer::Cell & first = out.at(r, c);
       int end = c + 1;
-      while (end < out.cols() && out.at(r, end).lift == first.lift && out.at(r, end).lift_joined == first.lift_joined) end++;
+      while (end < out.cols() && out.at(r, end).lift == first.lift && out.at(r, end).lift_joined == first.lift_joined &&
+             out.at(r, end).lift_shadow == first.lift_shadow) end++;
       if (first.lift > 0.0f) {
         auto above = std::find_if(open.begin(), open.end(), [&](const ElevatedArea & a) {
-          return first.lift_joined && a.col == c && a.cols == end - c && a.elevation == first.lift;
+          return first.lift_joined && a.col == c && a.cols == end - c && a.elevation == first.lift && a.shadow == first.lift_shadow;
         });
         if (above != open.end()) {
           above->rows++;
           next.push_back(*above);
           open.erase(above);
         } else {
-          next.push_back(ElevatedArea{ r, c, 1, end - c, first.lift, "", layers_.size() });
+          next.push_back(ElevatedArea{ r, c, 1, end - c, first.lift, "", layers_.size(), first.lift_shadow });
         }
       }
       c = end;
@@ -312,6 +313,7 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
         // A picture on a lifted cell stands with it.
         marked.lift = out.at(r, c).lift;
         marked.lift_joined = out.at(r, c).lift_joined;
+        marked.lift_shadow = out.at(r, c).lift_shadow;
         out.put(r, c, marked);
       }
     }

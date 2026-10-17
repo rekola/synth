@@ -408,7 +408,7 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top) {
     graphene_rect_t reach = GRAPHENE_RECT_INIT(0, 0, 0, 0);
     bool any = false;
     for (size_t k = i; k < level_end; k++) {
-      if (!shown(elevations[k])) continue;
+      if (!shown(elevations[k]) || !elevations[k].shadow) continue;
       graphene_rect_t rect = rectOf(elevations[k]);
       GskRoundedRect outline;
       gsk_rounded_rect_init_from_rect(&outline, &rect, 0);
@@ -433,7 +433,7 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top) {
       // A light top edge and a darker bottom one, so pieces side by side
       // or stacked read apart.
       for (size_t k = i; k < level_end; k++) {
-        if (!shown(elevations[k])) continue;
+        if (!shown(elevations[k]) || !elevations[k].shadow) continue;
         graphene_rect_t rect = rectOf(elevations[k]);
         graphene_rect_t top_edge = GRAPHENE_RECT_INIT(rect.origin.x, rect.origin.y, rect.size.width, 1);
         graphene_rect_t bottom_edge = GRAPHENE_RECT_INIT(rect.origin.x, rect.origin.y + rect.size.height - 1, rect.size.width, 1);
