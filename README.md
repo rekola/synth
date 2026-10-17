@@ -65,7 +65,7 @@ The application draws on several traditions.
   stood in Teylers Museum, Haarlem, from 1950 and is now in the Muziekgebouw
   aan 't IJ, Amsterdam. Drum tracks have no tuning: a
   note is a General MIDI drum. Notes are spelled with sharps, flats, double sharps and double flats
-  (plus arrows in 53-EDO, below), and a tuning can spell the same pitch in several ways. In 12-EDO, E♯ is F. In
+  (plus a comma `+`/`−` in 53-EDO, below), and a tuning can spell the same pitch in several ways. In 12-EDO, E♯ is F. In
   31-EDO, E♯ and F are different pitches, but D𝄪 and F𝄫 are the same one. Note numbers for each tuning
   are in `docs/`, for example [31edo_note_numbers.txt](docs/31edo_note_numbers.txt).
 - **Notation.** In 12, 19 and 31-EDO the note names are a chain of fifths: the seven
@@ -79,34 +79,26 @@ The application draws on several traditions.
   C♯ and D♭ differ by one step. In 12-EDO the sharp is 1 step and the chain
   closes on itself, which is why E♯ is F there. See Fokker, "Equal Temperament
   and the Thirty-one-keyed Organ", *The Scientific Monthly* 81 (1955).
-- **53-EDO notation.** 53-EDO is not a meantone tuning: four of its fifths
-  make the Pythagorean third 81:64 (18 steps), a comma above 5:4 (17 steps).
-  So that C-E is a 5:4 major third there as well, its note names follow Ben
-  Johnston's just-intonation notation instead of a chain of fifths. The
-  natural notes are the just major scale, made of the three major triads
-  F A C, C E G and G B D: C D E F G A B = 1/1 9/8 5/4 4/3 3/2 5/3 15/8 =
-  steps 0 9 17 22 31 39 48. A sharp or flat is the chromatic semitone 25:24
-  (3 steps), and an arrow raises or lowers by the syntonic comma 81:80
-  (1 step), where Johnston writes + and −. A double sharp or flat is 35:32
-  (7 steps), the interval 31-EDO's double sharp is, rather than two 25:24
-  sharps (6 steps): with it E𝄫 is 8:7 and B𝄫 12:7 in both tunings. Each
-  accidental is a single symbol: 𝄮 𝄯 (natural up/down), 𝄰 𝄱 (sharp up/down),
-  𝄬 𝄭 (flat up/down). D-A is therefore 40:27, a comma short of a fifth, and
-  the fifth above D is A𝄮. The other tunings have no separate comma step and
-  ignore the arrows, so a 53-EDO spelling still names the right note in
-  31-EDO. See John Fonville, "Ben Johnston's Extended Just
-  Intonation: A Guide for Interpreters", *Perspectives of New Music* 29/2
-  (1991); the table is [53edo_note_numbers.txt](docs/53edo_note_numbers.txt).
+- **53-EDO notation.** Four 53-EDO fifths make the Pythagorean third, a comma
+  above 5:4, so its names follow Ben Johnston's just-intonation notation
+  instead: the natural notes are the just major scale, a sharp or flat is
+  25:24 (3 steps) and a `+` or `−` after an accidental raises or lowers by the
+  syntonic comma 81:80 (1 step), as in A♯+ (the app draws these as single
+  glyphs). The other tunings ignore the `+`/`−`, so a 53-EDO spelling still
+  names the right note in 31-EDO. Details and the full table:
+  [53edo_note_numbers.txt](docs/53edo_note_numbers.txt); see John Fonville,
+  "Ben Johnston's Extended Just Intonation: A Guide for Interpreters",
+  *Perspectives of New Music* 29/2 (1991).
 - **Scales.** A song has a key and an optional scale: major (the Ionian
   mode), minor (the Aeolian mode), otonal or utonal. Each is written once as
   note names: major and minor come out meantone in 12, 19 and 31-EDO and just
   in 53-EDO. The scale decides which notes the Launchpad's step view steps
   through; it does not change the playing keyboard.
 - **Otonal and utonal.** Two 7-note scales that mirror each other around the
-  tonic. **Otonal** (C D♯ E F G A A𝄰 = 1/1 7/6 5/4 4/3 3/2 5/3 7/4): all seven
+  tonic. **Otonal** (C D♯ E F G A A♯+ = 1/1 7/6 5/4 4/3 3/2 5/3 7/4): all seven
   are harmonics (12, 14, 15, 16, 18, 20, 21) of one low F, which is what
   Harry Partch called otonal (*Genesis of a Music*, 1949). It holds the 4:5:6:7
-  chord C E G A𝄰 and pure major triads on C and F. **Utonal** (C E𝄫 E♭ F G A♭
+  chord C E G A♯+ and pure major triads on C and F. **Utonal** (C E𝄫 E♭ F G A♭
   B𝄫 = 1/1 8/7 6/5 4/3 3/2 8/5 12/7) is the otonal scale turned upside down:
   all seven are undertones of one high G. It holds the 1/7:1/6:1/5:1/4 chord
   E𝄫 F A♭ C and pure minor triads on C and F. Partch's own otonalities and
@@ -114,7 +106,7 @@ The application draws on several traditions.
   inspired by Kyle Gann's *The Arithmetic of Listening* (2019) and its account
   of the arithmetic and harmonic means. They are spelled so that 31 and 53-EDO
   both come within 6 cents of every ratio; 12 and 19-EDO only approximate the
-  septimal ones. The 7:4 is A𝄰 because 53-EDO's A♯ is 26:15; the other
+  septimal ones. The 7:4 is A♯+ because 53-EDO's A♯ is 26:15; the other
   tunings read it as A♯.
 
 ### Pianos and Just Intervals
