@@ -166,6 +166,14 @@ protected:
   // ClipboardEntry::track_tunings capture, see that struct's own comment.
   std::vector<Tuning> tuningsForTrackRange(const Song & song, const std::vector<int> & track_ids, int track_lo, int track_hi) const;
   void renderHeading(const StyleProvider & styles, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info, bool focused);
+  void renderHeadingOnPlane(const StyleProvider & styles, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info, bool focused);
+  // The headings (names, meters) are the widget's own plane, over a plane of
+  // its own for the rows, so the rows can move without the headings. While
+  // render() draws, the drawing helpers are on the rows' plane (see
+  // renderHeading(), which goes back to the widget's own).
+  std::unique_ptr<UIPlane> rows_plane_;
+  bool drawing_rows_ = false;
+  int rows_plane_rows_ = -1, rows_plane_cols_ = -1;
   void renderRow(const StyleProvider & styles, int heading_height, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info, int row, bool highlight, const SelectionBounds & sel_bounds, bool focused);
 
   // Opens the locator editor for the cursor's current row - called

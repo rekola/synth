@@ -1192,6 +1192,34 @@ bool
 PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) {
   last_styles_ = &styles; // see its own comment - startTrackNameEdit()'s only source of one
   bool render_all = refresh;
+  // The rows' plane is under the widget's own, which holds the headings.
+  if (!rows_plane_) {
+    rows_plane_ = getPlane().createChild();
+    getPlane().makeTransparent();
+    getPlane().moveToTop();
+  }
+  {
+    auto [pos_y, pos_x] = getPosition();
+    auto [plane_rows, plane_cols] = getDim();
+    rows_plane_->move(pos_y, pos_x);
+    if (plane_rows != rows_plane_rows_ || plane_cols != rows_plane_cols_) {
+      rows_plane_->resize(plane_rows, plane_cols);
+      rows_plane_rows_ = plane_rows;
+      rows_plane_cols_ = plane_cols;
+      render_all = true;
+    }
+  }
+  struct RowsPlane {
+    PatternEditor & editor;
+    explicit RowsPlane(PatternEditor & e) : editor(e) {
+      editor.swapPlane(editor.rows_plane_);
+      editor.drawing_rows_ = true;
+    }
+    ~RowsPlane() {
+      editor.swapPlane(editor.rows_plane_);
+      editor.drawing_rows_ = false;
+    }
+  } rows_guard(*this);
   auto & info = getController().getPlaybackInfo();
   auto & song = getController().getSong();
   syncCursorTrack(song);
@@ -2326,6 +2354,15 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 
 void
 PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & all_track_info, bool focused) {
+  // Back on the widget's own plane for the headings.
+  if (drawing_rows_) swapPlane(rows_plane_);
+  erase();
+  renderHeadingOnPlane(styles, track_ids, all_track_info, focused);
+  if (drawing_rows_) swapPlane(rows_plane_);
+}
+
+void
+PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & all_track_info, bool focused) {
   auto & song = getController().getSong();
   auto & info = getController().getPlaybackInfo();
 

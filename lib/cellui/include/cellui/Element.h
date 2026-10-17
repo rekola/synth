@@ -204,6 +204,10 @@ protected:
   // bindings tracks its own in-progress sequence independently.
   std::optional<uint64_t> pending_prefix_;
 
+  // Lets a widget with planes of its own draw on each through the ordinary
+  // drawing helpers: exchanges the plane the helpers draw on with `other`.
+  void swapPlane(std::unique_ptr<UIPlane> & other) { plane_.swap(other); }
+
 private:
   std::unique_ptr<UIPlane> plane_;
 };
