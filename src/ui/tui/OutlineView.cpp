@@ -483,7 +483,8 @@ OutlineView::tickCursor(double seconds) {
     cursor_y_ = std::clamp(target, -1.0, last + 1.0);
     return;
   }
-  if (!viewport_.rows.smooth()) {
+  if (!viewport_.rows.smooth() || snap_cursor_) {
+    snap_cursor_ = false;
     cursor_y_ = target;
     return;
   }
@@ -792,6 +793,8 @@ OutlineView::handleClick(const cellui::Input & input) {
     // The clicked row is already on screen by definition, so this never
     // needs to scroll the viewport the way moveCursorBy() does.
     new_cursor_row_ = target.data_row;
+    // The pressed row already showed where it lands, so the cursor appears there.
+    snap_cursor_ = true;
   }
   return true;
 }

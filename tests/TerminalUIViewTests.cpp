@@ -370,6 +370,34 @@ TEST(terminal_ui_smooth_scroll_keeps_the_outline_cursor_in_place_at_the_edge) {
   CHECK(moved);
 }
 
+// A click shows the pressed row; on release the cursor appears there instead
+// of easing in from where it was.
+TEST(terminal_ui_smooth_scroll_cursor_appears_on_the_clicked_row) {
+  cellui::DisplayInfo display;
+  display.smooth_scroll = true;
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, display);
+  auto band_row = [&]() {
+    for (const auto & layer : f.terminal.info().backdrops) {
+      if (layer.scroll && layer.scroll->band) return layer.scroll->row + layer.scroll->band->row;
+    }
+    return -1.0;
+  };
+  for (int i = 0; i < 4 && f.terminal.info().focus != "outline-view"; i++) f.otherWindow();
+  f.press(cellui::Key::Down);
+  for (int i = 0; i < 100; i++) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(8));
+    f.ui->step();
+  }
+  double before = band_row();
+  CHECK(before >= 0);
+  int y = static_cast<int>(before) + 6;
+  f.terminal.pushMouse(y, 5, cellui::Key::Button1);
+  f.ui->step();
+  f.terminal.pushMouse(y, 5, cellui::Key::Button1, 0, cellui::Input::Kind::RELEASE);
+  f.ui->step();
+  CHECK(std::abs(band_row() - y) < 0.01);
+}
+
 // The command prompt opens with M-x on the Emacs keymap and with
 // Ctrl+Shift+P on the desktop one, and each keymap ignores the other's chord.
 TEST(terminal_ui_command_prompt_chord_follows_the_keymap_profile) {
