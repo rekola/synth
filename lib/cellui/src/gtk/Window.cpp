@@ -109,6 +109,9 @@ struct Window::Impl {
   std::vector<ImagePlacement> images;
   std::vector<BackdropLayer> layers;
   std::vector<ElevatedArea> elevations;
+  // The areas planes asked a pointer shape for, and the one now set.
+  std::vector<CursorArea> mouse_cursors;
+  MouseCursor shown_cursor = MouseCursor::DEFAULT;
   // The texture made of each layer's cells, and of the frame's, kept while
   // what they show is unchanged (a texture that stays the same is not
   // uploaded again).
@@ -160,6 +163,7 @@ struct Window::Impl {
   bool keyEvent(guint keyval, GdkModifierType state, bool pressed, guint keycode);
   void buttonEvent(int button, double x, double y, bool pressed, GdkModifierType state);
   void motionEvent(double x, double y, GdkModifierType state);
+  void updateMouseCursor();
   bool scrollEvent(double dx, double dy, GdkModifierType state);
 };
 
@@ -595,6 +599,14 @@ void Window::Impl::buttonEvent(int button, double x, double y, bool pressed, Gdk
   push(BackendEvent::makeInput(input));
 }
 
+// Sets the widget's pointer to the shape asked for over the pointer's cell.
+void Window::Impl::updateMouseCursor() {
+  MouseCursor cursor = mouseCursorAt(mouse_cursors, last_row, last_col);
+  if (cursor == shown_cursor) return;
+  shown_cursor = cursor;
+  gtk_widget_set_cursor_from_name(view, mouseCursorName(cursor));
+}
+
 void Window::Impl::motionEvent(double x, double y, GdkModifierType state) {
   int row, col;
   cellAt(x, y, row, col);
@@ -602,6 +614,7 @@ void Window::Impl::motionEvent(double x, double y, GdkModifierType state) {
   // The pointer's cell, for the wheel to be sent to.
   last_row = row;
   last_col = col;
+  updateMouseCursor();
   if (!held_button) return;
   unsigned mods = modsFrom(state);
   // A drag repeats the press of the held button at the new cell.
@@ -744,6 +757,10 @@ void Window::present(const CellBuffer & frame, const CursorRequest & cursor, con
   impl_->elevations = info ? info->elevations : std::vector<ElevatedArea>();
   std::stable_sort(impl_->elevations.begin(), impl_->elevations.end(),
                    [](const ElevatedArea & a, const ElevatedArea & b) { return a.elevation < b.elevation; });
+  if (info) {
+    impl_->mouse_cursors = info->mouse_cursors;
+    impl_->updateMouseCursor();
+  }
   gtk_widget_queue_draw(impl_->view);
 }
 

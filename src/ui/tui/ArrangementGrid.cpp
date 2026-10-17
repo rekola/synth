@@ -39,6 +39,7 @@ ArrangementGrid::moveCursorBar(int delta) {
 }
 
 ArrangementGrid::ArrangementGrid(UIPlane & parent) : UIElement(parent) {
+  getPlane().setMouseCursor(cellui::MouseCursor::POINTER);
   // Deliberate no-ops, not left undefined: a Launchpad's CC91/92 ("move-
   // row-up"/"move-row-down") reach here via UI::executeCommand()'s
   // active-element-first dispatch while this widget has focus - without

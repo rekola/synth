@@ -18,6 +18,7 @@ InfoDialog::show(UIPlane & parent, const string & title, const string & source, 
   auto rows = std::min(static_cast<int>(lines.size()) + kChrome, std::max(kChrome + 1, max_rows));
   if (!plane_) {
     plane_ = parent.createChild();
+    plane_->setMouseCursor(MouseCursor::DEFAULT);
     plane_->setElevation(elevation_.value_or(plane_->getStyles().theme.elevation.overlay));
   }
   auto & styles = plane_->getStyles();
