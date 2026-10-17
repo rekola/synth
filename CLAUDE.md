@@ -443,7 +443,10 @@ the screen, where the status line is, with no scrim: the query on the last row
 ("M-x " on the Emacs keymap, "> " on the desktop one), the selected command's
 description above it, and above that the commands that `cellui::fuzzyMatch()`
 (`FuzzyMatch.h`) ranks best first, each with its binding, the list growing
-upward with the number of matches. The app gives it
+upward with the number of matches. Only the list is a raised panel
+(`picker_bg_color`); the description (quiet, italic) and the query sit on the
+display's own background like the status line they cover, so the description is
+not taken for a command. The app gives it
 `PaletteEntry`s: names from `commandCompletions("")`, descriptions from
 `commandDescription()` (`ui/CommandDescriptions.cpp`; a test fails for a command
 without one, so add a line there with a new command), bindings from

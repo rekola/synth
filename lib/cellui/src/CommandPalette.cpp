@@ -103,7 +103,12 @@ void CommandPalette::show(UIPlane & parent, int screen_rows, int screen_cols) {
   width_ = max(20, screen_cols);
   rows_ = list_rows + kChromeRows;
 
-  if (!plane_) plane_ = parent.createChild();
+  if (!plane_) {
+    plane_ = parent.createChild();
+    // Left alone, the two rows below the list show the display's own
+    // background, like the status line they replace.
+    plane_->makeTransparent();
+  }
   plane_->resize(rows_, width_);
   auto & styles = plane_->getStyles();
 
@@ -115,11 +120,20 @@ void CommandPalette::show(UIPlane & parent, int screen_rows, int screen_cols) {
     plane_->setBgColor(background.getRed(), background.getGreen(), background.getBlue());
   };
 
+  // Text on the display's own background, for the description and the query.
+  auto plain = [&](const Color & foreground) {
+    plane_->setBgDefault();
+    plane_->setFgColor(foreground.getRed(), foreground.getGreen(), foreground.getBlue());
+  };
+
   set(fg, bg);
   plane_->setBold(false);
   plane_->setItalic(false);
   plane_->setUnderline(false);
-  for (int row = 0; row < rows_; row++) plane_->putstr(row, 0, string(static_cast<size_t>(width_), ' '));
+  // The list is a raised panel; the description and the query are not.
+  for (int row = 0; row < list_rows; row++) plane_->putstr(row, 0, string(static_cast<size_t>(width_), ' '));
+  plain(fg);
+  for (int row = list_rows; row < rows_; row++) plane_->putstr(row, 0, string(static_cast<size_t>(width_), ' '));
   int inner = width_ - 2;
 
   int first = list_.firstVisible(visibleRows());
@@ -163,19 +177,23 @@ void CommandPalette::show(UIPlane & parent, int screen_rows, int screen_cols) {
   }
 
   // The selected command's description, or what the last Tab had to say.
-  set(quiet, bg);
+  // Quiet and italic on the display's background, so it is not taken for a
+  // command.
+  plain(quiet);
+  plane_->setItalic(true);
   if (!note_.empty()) plane_->putstr(rows_ - 2, 1, note_);
   else if (auto * entry = chosen()) plane_->putstr(rows_ - 2, 1, utf8::truncateToWidth(entry->description, inner));
+  plane_->setItalic(false);
 
   // The query on the last row, with a block where the next character goes
   // and the keys that matter at the right when there is room.
   string prompt = plane_->keymapProfile() == KeymapProfile::EMACS ? "M-x " : "> ";
   int prompt_width = utf8::displayWidth(prompt);
-  set(strong, bg);
+  plain(strong);
   plane_->setBold(true);
   plane_->putstr(rows_ - 1, 1, prompt);
   plane_->setBold(false);
-  set(fg, bg);
+  plain(fg);
   string shown_query = utf8::truncateToWidth(query_, inner - prompt_width - 1);
   int query_width = utf8::displayWidth(shown_query);
   plane_->putstr(rows_ - 1, 1 + prompt_width, shown_query);
@@ -183,7 +201,7 @@ void CommandPalette::show(UIPlane & parent, int screen_rows, int screen_cols) {
   plane_->putstr(rows_ - 1, 1 + prompt_width + query_width, " ");
   int hint_width = utf8::displayWidth(kHint);
   if (1 + prompt_width + query_width + 1 + hint_width + 2 <= width_) {
-    set(quiet, bg);
+    plain(quiet);
     plane_->putstr(rows_ - 1, width_ - 1 - hint_width, kHint);
   }
 
