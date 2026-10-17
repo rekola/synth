@@ -2675,7 +2675,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
             // std::max(0, ...): a narrow enough column (actual_width < 3) would
             // otherwise make text_width negative, and it's used below both as a
             // display-width budget and as a putstr() column offset.
-            // A track's header stands on the editor; a group's (below) lower.
+            // A track's header stands on the editor.
             if (is_color_eligible) setLift(styles.theme.elevation.raised);
             auto text_width = std::max(0, actual_width - (has_mute_solo ? 3 : 1) - toggle_width - chip_width);
 	    auto name_pos = current_pos + chip_width + toggle_width;
@@ -2859,9 +2859,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  bool show_dot = remaining >= 1 && track->getType() == TrackType::EFFECT;
 	  auto element_name_width = std::max(0, remaining - (show_dot ? 1 : 0));
 
-	  setBgColor(segment_color(track));
-          // A group's header: one piece over all its rows.
-          setLift(styles.theme.elevation.panel, true);
+          setBgColor(segment_color(track));
 
           // A track's own row shows up at every level from where its
 	  // subtree first starts merging up through getDepth() - 1, where
@@ -2903,10 +2901,9 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    setFgColor(0x00, 0x00, 0x00);
 	    putstr(heading_height - 2 - level, current_pos, string(static_cast<size_t>(actual_width - 1), ' '));
 	  }
-	  // Drawn last for both branches - see the level 0 branch's own
-	  // comment on why. At the segment's own last column regardless of
-	  // how the budget above split up the rest of it.
-          setLift(0);
+          // Drawn last for both branches - see the level 0 branch's own
+          // comment on why. At the segment's own last column regardless of
+          // how the budget above split up the rest of it.
           draw_divider(heading_height - 2 - level, current_pos + actual_width - 1, track, i);
 	}
       }

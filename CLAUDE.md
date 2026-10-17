@@ -1385,8 +1385,8 @@ would otherwise resume showing.
   `UIPlane::setElevation()`, adds to its parent's, and the tree is drawn lowest
   first, planes of one height in tree order, so a popup floats over everything
   below it wherever it sits in the tree - `Theme::elevation`'s steps, in cell
-  widths: panel (a group track's header), raised (a track's header), card (a
-  clip), overlay for menus, pickers and popups, modal for a modal dialog and
+  widths: panel, raised (the pattern editor's track headers), card (the clip
+  grid's clips), overlay for menus, pickers and popups, modal for a modal dialog and
   its scrim; cells can stand above their plane too (`UIPlane::setLift()`, a
   cell attribute, so a partial redraw keeps it: a run in a row is one piece,
   joined to the one above only when asked) - and every frame tells the backend

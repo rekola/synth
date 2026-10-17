@@ -159,7 +159,7 @@ struct Theme {
   // cell widths: what is higher is drawn over what is lower, and a display
   // with depth can show the difference.
   struct Elevation {
-    float panel = 0.25f;  // a group track's header
+    float panel = 0.25f;
     float raised = 0.5f;  // a track's header
     float card = 1;       // a clip
     float overlay = 2;    // menus, pickers, popups

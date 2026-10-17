@@ -111,7 +111,7 @@ Each item says what the terminal does with it; what the window does is in
   parent in cell widths (`UIPlane::setElevation()`, the theme's steps panel,
   raised, card, overlay and modal), which orders drawing (lowest first, ties
   in tree order), and a cell's lift above its plane (`UIPlane::setLift()`: the
-  clip grid's clips, the track headers), both handed to the backend as the
+  clip grid's clips, the pattern editor's track headers), both handed to the backend as the
   areas above the base (`FrameInfo::elevations`), for a display with depth to
   show (shadows, a height field).
 - **Cells.** A grapheme cluster (UTF-8; width from `util/Utf8.h`'s rules,

@@ -240,26 +240,23 @@ TEST(terminal_ui_choice_dialog_entries_show_over_the_raised_box) {
   CHECK(f.terminal.text().find("Beta entry") != std::string::npos);
 }
 
-// Live View: the clip grid's track headers stand half a cell above it and its
-// clips a whole one; the pattern editor's track headers half a cell, a
-// group's (the master's) a quarter.
+// Live View: the clip grid's clips stand a cell above it, its headers stay
+// flat; the pattern editor's track headers stand half a cell, its group
+// headers (the master's) flat.
 TEST(terminal_ui_clips_and_track_headers_stand_on_their_widgets) {
   UIFixture f(fixture("terminal_ui_live.xml"), UI::View::LIVE);
   const auto & elevation = cellui::Theme::dark().elevation;
-  std::vector<cellui::ElevatedArea> headers, groups, clips;
+  std::vector<cellui::ElevatedArea> headers, clips;
   for (const auto & area : f.terminal.info().elevations) {
+    CHECK(area.name.empty());
     if (area.elevation == elevation.raised) headers.push_back(area);
-    if (area.elevation == elevation.panel) groups.push_back(area);
-    if (area.elevation == elevation.card) clips.push_back(area);
+    else if (area.elevation == elevation.card)
+      clips.push_back(area);
+    else
+      CHECK(false);
   }
   // One populated clip of eight; the empty slots stay flat.
   CHECK(clips.size() == 1 && clips[0].rows == 1);
-  // The clip grid's one track header, and the pattern editor's: two lines,
-  // one piece.
-  CHECK(headers.size() == 2);
-  CHECK(std::any_of(headers.begin(), headers.end(), [](const cellui::ElevatedArea & a) { return a.rows == 2; }));
-  // The master's header in the clip grid, and its row over the tracks in the
-  // pattern editor.
-  CHECK(groups.size() == 2);
-  for (const auto & area : f.terminal.info().elevations) CHECK(area.name.empty());
+  // The pattern editor's one track header: two lines, one piece.
+  CHECK(headers.size() == 1 && headers[0].rows == 2);
 }

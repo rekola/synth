@@ -700,7 +700,6 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     // comment) - never a real physical_row inside the loop below, so this
     // is the header's one and only cursor check.
     bool header_is_cursor = focus_ > 0.0f && track_index == cursor_track_index_ && cursor_physical == -1;
-    setLift(styles.theme.elevation.raised);
     setFgColor(header_is_cursor ? styles.window_accent_fg_color.blend(focus_, styles.highlight_fg_color) : styles.window_accent_fg_color);
     setBgColor(header_is_cursor ? styles.heading_bg_color.blend(focus_, styles.highlight_bg_color) : styles.heading_bg_color);
     putstr(0, x, string(static_cast<size_t>(kColWidth), ' ')); // opaque header background first, across the whole column
@@ -734,7 +733,6 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     putstr(0, x + name_width + 3, "M");
     setFgColor(solo ? styles.solo_color : styles.window_border_color);
     putstr(0, x + name_width + 4, "S");
-    setLift(0);
 
     for (auto vr = 0; vr < visible_rows; vr++) {
       auto physical_row = scroll_row_ + vr;
@@ -948,12 +946,9 @@ ClipGrid::renderMasterColumn(const StyleProvider & styles, int x, int rows, bool
   auto track_ids = song.getPlayableTrackIds();
 
   // Header: the master has no Mute/Solo or Monitor - only leaf tracks do.
-  // The master is the group of every track, so its header stands lower.
-  setLift(styles.theme.elevation.panel);
   setFgColor(styles.window_accent_fg_color);
   setBgColor(styles.heading_bg_color);
   putstr(0, x, Utf8::padToWidth("Master", kColWidth));
-  setLift(0);
 
   for (auto vr = 0; vr + 1 < rows; vr++) {
     auto physical_row = scroll_row_ + vr;
