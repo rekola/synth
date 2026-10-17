@@ -230,6 +230,18 @@ class ClipGrid : public UIElement {
   bool handleMouse(const cellui::Input & input);
   // Between a press and its release - see handleMouse().
   bool mouse_down_ = false;
+  // The cell a held button is on, shown pressed: the release picks it. `column`
+  // is -1 when nothing is pressed, `physical` -1 for the header row and -2 for a
+  // row that only picks the track (a label, a divider).
+  struct Pressed {
+    int column = -1, logical_row = 0, physical = -2;
+    bool operator==(const Pressed & o) const { return column == o.column && logical_row == o.logical_row; }
+    bool operator!=(const Pressed & o) const { return !(*this == o); }
+  };
+  Pressed pressed_, current_pressed_;
+  // What is under the screen position, if it is a column.
+  Pressed hitTest(int screen_y, int screen_x, int num_tracks) const;
+  bool isPressed(int column, int physical) const { return pressed_.column == column && pressed_.physical == physical; }
   void startClipRename(const Song & song, const std::vector<int> & track_ids);
   // F2 on the master column's scene slot edits the scene's name.
   void startSceneRename();
