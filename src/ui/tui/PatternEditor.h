@@ -53,7 +53,7 @@ class PatternEditor : public UIElement {
   // toggle-playing, C-x C-c/quit, ...) steal a keystroke meant for it.
   bool isReaderActive() const { return inline_editor_.isOpen(); }
   // The focus level is still easing: the loop keeps drawing frames.
-  bool isAnimating() const { return fades_.active() || focus_fade_drawn_; }
+  bool isAnimating() const { return fades_.active() || focus_fade_drawn_ || row_offset_ != 0.0; }
 
   // Aborts the locator/track-name editor without committing anything -
   // used by StatusLine so opening M-x takes focus away from it rather than
@@ -177,6 +177,17 @@ protected:
   std::unique_ptr<UIPlane> rows_plane_;
   bool drawing_rows_ = false;
   int rows_plane_rows_ = -1, rows_plane_cols_ = -1;
+  // Where the display scrolls smoothly, the rows show a view that follows the
+  // logical top of the view (current_scroll_) with an animation: row_offset_
+  // is how many rows the shown top is from the logical one (0 at rest), the
+  // rows are drawn from draw_row0_ and the plane shifts by the fraction.
+  double row_offset_ = 0.0;
+  int draw_row0_ = 0;
+  RowAddress anim_top_{ 0, 0 };
+  bool anim_top_valid_ = false;
+  std::chrono::steady_clock::time_point row_anim_tick_;
+  bool row_anim_drawn_ = false;
+  static constexpr int kMaxSmoothScrollRows = 12;
   void renderRow(const StyleProvider & styles, int heading_height, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info, int row, bool highlight, const SelectionBounds & sel_bounds, bool focused);
 
   // Opens the locator editor for the cursor's current row - called

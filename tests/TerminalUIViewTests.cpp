@@ -535,3 +535,35 @@ TEST(terminal_ui_command_palette_query_row_keeps_the_display_background) {
   CHECK(frame.at(last - 3, 10).bg);  // the list is a raised panel
   f.press(cellui::Key::Escape);
 }
+
+// The pattern editor's rows scroll by parts of a row under the headings when
+// the view follows the cursor past its margin.
+TEST(terminal_ui_smooth_scroll_moves_the_pattern_editor_rows_under_their_headings) {
+  cellui::DisplayInfo display;
+  display.smooth_scroll = true;
+  UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT, display);
+  auto shift = [&]() -> std::optional<double> {
+    for (const auto & layer : f.terminal.info().backdrops) {
+      if (layer.scroll && layer.scroll->shift_rows > 0) return layer.scroll->shift_rows;
+    }
+    return std::nullopt;
+  };
+  for (int i = 0; i < 4 && f.terminal.info().focus != "pattern-editor"; i++) f.otherWindow();
+  CHECK(f.terminal.info().focus == "pattern-editor");
+  bool between = false;
+  for (int i = 0; i < 100; i++) {
+    f.press(cellui::Key::Down);
+    std::this_thread::sleep_for(std::chrono::milliseconds(8));
+    f.ui->step();
+    if (auto s = shift()) {
+      between = true;
+      CHECK(*s > 0.0 && *s < 1.0);
+    }
+  }
+  CHECK(between);
+  for (int i = 0; i < 100; i++) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(8));
+    f.ui->step();
+  }
+  CHECK(!shift());  // settled on a whole row
+}

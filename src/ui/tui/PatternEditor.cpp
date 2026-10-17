@@ -1352,6 +1352,32 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   new_scroll.row = new_row;
   if (!view_detached_) new_scroll = computeScrollPosition(current_scroll_, new_row, scroll_target_track, scroll_target_col, track_ids, track_info, cols, gutterWidth());
 
+  // Smooth scrolling: the shown top trails the logical one by an offset
+  // that eases to zero; a jump too far to follow just lands.
+  {
+    bool smooth = rows_plane_->smoothScroll();
+    auto now = std::chrono::steady_clock::now();
+    double seconds = std::min(0.1, std::chrono::duration<double>(now - row_anim_tick_).count());
+    row_anim_tick_ = now;
+    RowAddress top{ view_block_, new_row };
+    if (smooth && anim_top_valid_) {
+      int moved = source_->rowsBetween(anim_top_, top);
+      if (std::abs(moved) <= kMaxSmoothScrollRows) row_offset_ -= moved;
+      else row_offset_ = 0.0;
+    } else {
+      row_offset_ = 0.0;
+    }
+    anim_top_ = top;
+    anim_top_valid_ = true;
+    if (row_offset_ != 0.0) {
+      row_offset_ -= row_offset_ * (1.0 - std::exp(-seconds / 0.06));
+      if (std::abs(row_offset_) < 0.02) row_offset_ = 0.0;
+    }
+    int delta = static_cast<int>(std::floor(row_offset_));
+    if (delta != draw_row0_ - new_row) force_full_redraw_ = true;
+    draw_row0_ = new_row + delta;
+  }
+
   // GridPosition::operator!= already covers track/col/subcol/scope (.row
   // is never set on a cursor, only current_scroll_) - one comparison
   // instead of a field-by-field list that has to be remembered and kept
@@ -1399,6 +1425,9 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   fades_.sweep();
   if (focus_fading) force_full_redraw_ = true;
   if (fading || fading_drawn_) force_full_redraw_ = true;
+  // The rows move: every frame of the animation, and one more at its end.
+  if (row_offset_ != 0.0 || row_anim_drawn_) force_full_redraw_ = true;
+  row_anim_drawn_ = row_offset_ != 0.0;
   fading_drawn_ = fading;
   if (score_pattern != current_score_pattern ||
       song.getMajorVersion() != current_song_version ||
@@ -1430,10 +1459,13 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
     setFgColor(styles.window_border_color);
     setBgColor(styles.window_bg_color);
     fill();
+    rows_plane_->setScrollOffset(row_offset_ == 0.0 ? 0.0 : row_offset_ - std::floor(row_offset_), 0);
 
     renderHeading(styles, track_ids, track_info, focused);
-    for (auto row = 0; row < rows - heading_height; row++) {
-      auto address = source_->normalize(view_block_, row + current_scroll_.row);
+    // One row more than fits while the rows are between two positions.
+    int drawn_rows = rows - heading_height + (row_offset_ != 0.0 ? 1 : 0);
+    for (auto row = 0; row < drawn_rows; row++) {
+      auto address = source_->normalize(view_block_, row + draw_row0_);
       renderRow(styles, heading_height, track_ids, track_info, row, address.block == score_pattern && address.row == score_playing_row, sel_bounds, focused);
     }
     need_redraw = true;
@@ -1734,7 +1766,7 @@ PatternEditor::handleMouse(const cellui::Input & input) {
     } else if (source_->cursorLocked()) {
       if (fresh_press) reportLockedCursor();
     } else {
-      auto line = source_->rowsBetween({ view_block_, current_scroll_.row }, source_->cursor());
+      auto line = source_->rowsBetween({ view_block_, draw_row0_ }, source_->cursor());
       auto delta = (y - heading_height) - line;
       if (delta != 0) source_->moveCursor(limitToSelectionPattern(delta));
     }
@@ -2958,13 +2990,13 @@ void
 PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & all_track_info, int display_row, bool highlight, const SelectionBounds & sel_bounds, bool focused) {
   auto [rows, cols] = getDim();
 
-  if (display_row >= rows - heading_height) {
+  if (display_row >= rows - heading_height + (row_offset_ != 0.0 ? 1 : 0)) {
     return;
   }
     
   auto & song = getController().getSong();
   auto point = source_->cursor();
-  auto address = source_->normalize(view_block_, display_row + current_scroll_.row);
+  auto address = source_->normalize(view_block_, display_row + draw_row0_);
   auto pattern_idx = address.block, pattern_row = address.row;
   bool is_neighboring_pattern = point.block != pattern_idx || pattern_row < 0;
   auto grid = source_->readGrid(address);
