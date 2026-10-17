@@ -3,6 +3,7 @@
 #include "../../playback/InputEvent.h"
 #include "../../Controller.h"
 #include "../UIMenu.h"
+#include "../CommandDescriptions.h"
 #include "../HeatmapChart.h"
 #include "InfoLine.h"
 #include "StatusLine.h"
@@ -127,6 +128,7 @@ struct MenuItemSpec {
   const char * label;    // nullptr = separator
   const char * binding;  // human-readable keybinding shown next to label; "" = none
   const char * command;  // name passed to Controller::sendCommand() on activation
+  const char * desktop_binding = nullptr; // shown instead of `binding` on a display using the desktop keymap
 };
 struct MenuSectionSpec {
   const char * name;
@@ -143,21 +145,21 @@ struct MenuSectionSpec {
 static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
   vector<MenuSectionSpec> spec = {
       {"File", 'f', {
-                        {"Open...", "C-x C-f", "open-song"},
-                        {"Save", "C-x C-s", "save-song"},
-                        {"Save As...", "C-x C-w", "save-song-as"},
+                        {"Open...", "C-x C-f", "open-song", "C-o"},
+                        {"Save", "C-x C-s", "save-song", "C-s"},
+                        {"Save As...", "C-x C-w", "save-song-as", "C-S-S"},
                         {nullptr, nullptr, nullptr},
-                        {"Quit", "C-x C-c", "save-buffers-kill-terminal"},
+                        {"Quit", "C-x C-c", "save-buffers-kill-terminal", "C-q"},
                     }},
       {"Edit", 'e', {
-                        {"Undo", "C-x u", "undo"},
-                        {"Redo", "C-M-_", "undo-redo"},
+                        {"Undo", "C-x u", "undo", "C-z"},
+                        {"Redo", "C-M-_", "undo-redo", "C-S-Z"},
                         {nullptr, nullptr, nullptr},
                         {"Select All", "C-x h", "mark-whole-buffer"},
                         {"Set Mark", "C-SPC", "set-mark"},
-                        {"Kill Region", "C-w", "kill-region"},
-                        {"Copy", "M-w", "kill-ring-save"},
-                        {"Yank", "C-y", "yank"},
+                        {"Kill Region", "C-w", "kill-region", "C-x"},
+                        {"Copy", "M-w", "kill-ring-save", "C-c"},
+                        {"Yank", "C-y", "yank", "C-v"},
                         {"Cancel", "C-g", "keyboard-quit"},
                         {nullptr, nullptr, nullptr},
                         {"Transpose Up", "C-S-Up", "transpose-region-up"},
@@ -195,9 +197,9 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                         {"New Clip from Selection", "", "copy-to-clip"},
                         {"Merge Clip to Background", "C-x m", "merge-clip-to-background"},
                         {nullptr, nullptr, nullptr},
-                        {"Copy Clip", "M-w", "kill-ring-save"},
-                        {"Kill Clip", "C-w", "kill-region"},
-                        {"Yank Clip", "C-y", "yank"},
+                        {"Copy Clip", "M-w", "kill-ring-save", "C-c"},
+                        {"Kill Clip", "C-w", "kill-region", "C-x"},
+                        {"Yank Clip", "C-y", "yank", "C-v"},
                         {"Quantize Clip", "", "quantize-clip"},
                         {"Double Clip Length", "", "double-clip-length"},
                         {"Halve Clip Length", "", "halve-clip-length"},
@@ -334,6 +336,7 @@ private:
     // label.
     vector<cellui::MenuBar::Section> sections;
     commands_.clear();
+    bool desktop = parent_.keymapProfile() == cellui::KeymapProfile::DESKTOP;
     for (auto & section : spec) {
       size_t label_width = 0;
       for (auto & item : section.items) {
@@ -350,11 +353,12 @@ private:
 	  section_commands.emplace_back();
 	} else {
 	  entry.label = item.label;
-	  if (item.binding && item.binding[0]) {
-	    entry.label.append(label_width + 2 - static_cast<size_t>(Utf8::displayWidth(item.label)), ' ');
-	    entry.label += item.binding;
-	  }
-	  section_commands.emplace_back(item.command ? item.command : "");
+          const char * binding = desktop && item.desktop_binding ? item.desktop_binding : item.binding;
+          if (binding && binding[0]) {
+            entry.label.append(label_width + 2 - static_cast<size_t>(Utf8::displayWidth(item.label)), ' ');
+            entry.label += binding;
+          }
+          section_commands.emplace_back(item.command ? item.command : "");
 	}
 	out.items.push_back(std::move(entry));
       }
@@ -383,7 +387,11 @@ TerminalUI::TerminalUI(cellui::Backend & backend)
   // the next key shows it was no Alt prefix.
   key_reader_.takeEscape = [this](const cellui::Input & escape) {
     auto active = outline_view_ && outline_view_->isModal() ? outline_view_ : active_element_.lock();
-    if (choice_dialog_.isOpen()) {
+    if (command_palette_.isOpen()) {
+      command_palette_.close();
+      layoutModalScrim();
+      force_next_render_ = true;
+    } else if (choice_dialog_.isOpen()) {
       closeChoiceDialog();
     } else if (info_dialog_.isOpen()) {
       closeInfoDialog();
@@ -432,6 +440,7 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
   root_plane_->setDisplayScale(display.display_scale);
   root_plane_->setSextants(display.sextants);
   root_plane_->setSmoothScroll(display.smooth_scroll);
+  root_plane_->setKeymapProfile(display.keymap_profile);
   root_plane_->setFlatChildren(true);
   root_plane_->setThemedBases(true);
   if (use_pixel) root_plane_->setCellPixelSize(display.cell_px_height, display.cell_px_width);
@@ -481,6 +490,7 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
 void TerminalUI::raiseOverlays() {
   menu_->raiseToTop();
   modal_scrim_.raise();
+  command_palette_.raise();
   choice_dialog_.raise();
   info_dialog_.raise();
   // An info dialog takes no clicks: the terminal selects its text instead
@@ -517,6 +527,7 @@ TerminalUI::step() {
 
 std::string
 TerminalUI::focusName() const {
+  if (command_palette_.isOpen()) return "command-palette";
   if (choice_dialog_.isOpen()) return "choice-dialog";
   if (info_dialog_.isOpen()) return "info-dialog";
   if (outline_view_ && outline_view_->isModal()) return "outline-view";
@@ -557,6 +568,11 @@ TerminalUI::applyTheme(const Theme & theme) {
   clearLastRow();
   if (menu_) menu_->applyStyles(styles_);
   scopes_stale_ = true;
+  force_next_render_ = true;
+}
+
+void TerminalUI::setReducedMotion(bool reduced) {
+  styles_.reduced_motion = reduced;
   force_next_render_ = true;
 }
 
@@ -642,6 +658,7 @@ TerminalUI::initializeWidgets() {
   // See StatusLine::showPrompt()'s own comment: opening any StatusLine
   // reader (M-x included) must take focus away from any widget's own
   // inline editor rather than opening on top of it.
+  status_line_->setCommandPaletteCallback([this]() { showCommandPalette(); });
   status_line_->setBeforeShowPromptCallback([this]() {
     pattern_editor_->cancelReaderEdit();
     clip_grid_->cancelReaderEdit();
@@ -860,36 +877,45 @@ TerminalUI::initializeWidgets() {
   // more - see select-named-buffer's own comment above for why there's no
   // separate "New" command left to bind.
   auto ctrl_x = KeyChord::pack('x', true, false, false, false);
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('c', true, false, false, false), "save-buffers-kill-terminal");
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('s', true, false, false, false), "save-song");
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('f', true, false, false, false), "open-song");
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('w', true, false, false, false), "save-song-as");
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('x', true, false, false, false), "exchange-point-and-mark");
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('h', false, false, false, false), "mark-whole-buffer");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('c', true, false, false, false), "save-buffers-kill-terminal");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('s', true, false, false, false), "save-song");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('f', true, false, false, false), "open-song");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('w', true, false, false, false), "save-song-as");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('x', true, false, false, false), "exchange-point-and-mark");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('h', false, false, false, false), "mark-whole-buffer");
   // The buffer commands' own real Emacs bindings, unlike every C-x C-<letter>
   // above, hold Ctrl for the C-x prefix only, not the second key: kill-buffer
   // is C-x k (plain k), next-buffer/previous-buffer are C-x <right>/C-x
   // <left>, and select-named-buffer (switch-to-buffer) is C-x b.
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('k', false, false, false, false), "kill-buffer");
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack(Key::Right, false, false, false, false), "next-buffer");
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack(Key::Left, false, false, false, false), "previous-buffer");
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('b', false, false, false, false), "select-named-buffer");
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('o', false, false, false, false), "other-window");
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('m', false, false, false, false), "merge-clip-to-background");
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('r', false, false, false, false), "toggle-record-arm");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('k', false, false, false, false), "kill-buffer");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack(Key::Right, false, false, false, false), "next-buffer");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack(Key::Left, false, false, false, false), "previous-buffer");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('b', false, false, false, false), "select-named-buffer");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('o', false, false, false, false), "other-window");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('m', false, false, false, false), "merge-clip-to-background");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('r', false, false, false, false), "toggle-record-arm");
   // Emacs's own undo bindings: C-x u, plus C-_ and C-/ (a terminal sends the
   // same byte for both). undo-redo (Emacs 28) is on C-M-_.
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('u', false, false, false, false), "undo");
-  keymap_.bind(KeyChord::pack('_', true, false, false, false), "undo");
-  keymap_.bind(KeyChord::pack('/', true, false, false, false), "undo");
-  keymap_.bind(KeyChord::pack('_', true, true, false, false), "undo-redo");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('u', false, false, false, false), "undo");
+  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('_', true, false, false, false), "undo");
+  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('/', true, false, false, false), "undo");
+  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('_', true, true, false, false), "undo-redo");
   // What terminals actually send for them: the single control byte 0x1f
   // (older builds reported it as key 31, no modifiers; with Alt in front for
   // the redo; the parser now decodes it as Ctrl+_), and in the Kitty protocol Ctrl+Shift+- for C-_.
-  keymap_.bind(KeyChord::pack(31, false, false, false, false), "undo");
-  keymap_.bind(KeyChord::pack(31, false, true, false, false), "undo-redo");
-  keymap_.bind(KeyChord::pack('-', true, false, true, false), "undo");
-  keymap_.bind(KeyChord::pack('-', true, true, true, false), "undo-redo");
+  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack(31, false, false, false, false), "undo");
+  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack(31, false, true, false, false), "undo-redo");
+  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('-', true, false, true, false), "undo");
+  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('-', true, true, true, false), "undo-redo");
+  // The desktop ones.
+  // File commands, with the C-x prefix Emacs-only (Ctrl+X is cut here).
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('s', true, false, false, false), "save-song");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('s', true, false, true, false), "save-song-as");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('o', true, false, false, false), "open-song");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('q', true, false, false, false), "save-buffers-kill-terminal");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('z', true, false, false, false), "undo");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('z', true, false, true, false), "undo-redo");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('y', true, false, false, false), "undo-redo");
   keymap_.bind(KeyChord::pack(' ', false, false, false, false), "toggle-playing");
   keymap_.bind(KeyChord::pack('[', false, false, false, false), "octave-down");
   keymap_.bind(KeyChord::pack(']', false, false, false, false), "octave-up");
@@ -1332,6 +1358,10 @@ TerminalUI::offerInput(const cellui::Input & input) {
     clip_grid_->isReaderActive();
   // The choice dialog is modal too, and owns its keys until it is chosen
   // from or cancelled.
+  if (command_palette_.isOpen() && input.getId() != Key::Resize && !(input.hasCtrl() && input.getId() == 'l')) {
+    handleCommandPaletteInput(input);
+    return true;
+  }
   if (choice_dialog_.isOpen() && input.getId() != Key::Resize && !(input.hasCtrl() && input.getId() == 'l')) {
     handleChoiceDialogInput(input);
     return true;
@@ -1378,6 +1408,7 @@ TerminalUI::offerInput(const cellui::Input & input) {
     layout();
     layoutInfoDialog();
     layoutChoiceDialog();
+    layoutCommandPalette();
     // Deferred, not a direct renderComponents(true) call - see
     // force_next_render_'s own comment on TerminalUI.h: this runs from
     // inside input handling, before startUI()'s own main loop reaches its
@@ -1527,8 +1558,55 @@ void TerminalUI::showChoiceDialog(const std::string & title, std::vector<Choice>
   force_next_render_ = true;
 }
 
+// How the active widgets bind `command` on this display, the focused one first.
+std::string TerminalUI::bindingFor(const std::string & command) const {
+  if (auto active = active_element_.lock()) {
+    if (auto binding = active->bindingFor(command); !binding.empty()) return binding;
+  }
+  if (auto binding = pattern_editor_->bindingFor(command); !binding.empty()) return binding;
+  if (auto binding = clip_grid_->bindingFor(command); !binding.empty()) return binding;
+  return cellui::Element::bindingFor(command);
+}
+
+void TerminalUI::showCommandPalette() {
+  // Opening it aborts a widget's own half-typed edit, like any prompt.
+  pattern_editor_->cancelReaderEdit();
+  clip_grid_->cancelReaderEdit();
+  std::vector<cellui::PaletteEntry> entries;
+  for (auto & name : commandCompletions("")) {
+    entries.push_back({name, commandDescription(name), bindingFor(name)});
+  }
+  command_palette_.open(std::move(entries));
+  layoutCommandPalette();
+  force_next_render_ = true;
+}
+
+void TerminalUI::layoutCommandPalette() {
+  if (!command_palette_.isOpen()) return;
+  layoutModalScrim();
+  auto [screen_rows, screen_cols] = getDim();
+  command_palette_.show(getPlane(), screen_rows, screen_cols);
+}
+
+void TerminalUI::handleCommandPaletteInput(const cellui::Input & input) {
+  auto result = command_palette_.offerInput(input);
+  if (result == cellui::CommandPalette::Result::NONE) {
+    layoutCommandPalette(); // redraw with the new query or selection
+    force_next_render_ = true;
+    return;
+  }
+  std::string name;
+  if (result == cellui::CommandPalette::Result::CHOSEN && command_palette_.chosen()) name = command_palette_.chosen()->name;
+  // Closed before the command runs: it may open a prompt or a dialog of its
+  // own, and nothing should be left modal while it does.
+  command_palette_.close();
+  layoutModalScrim();
+  force_next_render_ = true;
+  if (!name.empty() && !getController().sendCommand(name)) setStatus("Invalid command");
+}
+
 void TerminalUI::layoutModalScrim() {
-  if (!choice_dialog_.isOpen() && info_dialog_title_.empty()) {
+  if (!command_palette_.isOpen() && !choice_dialog_.isOpen() && info_dialog_title_.empty()) {
     modal_scrim_.close();
     return;
   }
@@ -2093,6 +2171,10 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
         count("present");
         TerminalUI::render();
       }
+      // A colour still easing needs the next frame even if nothing else wakes
+      // the loop.
+      if ((getView() == View::LIVE && (clip_grid_->isAnimating() || outline_view_->isAnimating())) || pattern_editor_->isAnimating() ||
+          arrangement_grid_->isAnimating()) frame_pending = true;
     }
   });
 

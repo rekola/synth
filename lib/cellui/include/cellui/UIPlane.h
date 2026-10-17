@@ -3,6 +3,7 @@
 #include <cellui/Backdrop.h>
 #include <cellui/BackdropLayer.h>
 #include <cellui/Input.h>
+#include <cellui/KeymapProfile.h>
 #include <cellui/StyleProvider.h>
 
 #include <climits>
@@ -65,6 +66,8 @@ class UIPlane {
   // (icons, text, line widths; hairlines stay one pixel). A terminal
   // reports no DPI, so its backend guesses from the cell size.
   virtual double displayScale() const { return 1.0; }
+  // The family of key chords this display uses (widgets bind per profile).
+  virtual KeymapProfile keymapProfile() const { return KeymapProfile::EMACS; }
   // Whether setScrollOffset() shifts a plane here.
   virtual bool smoothScroll() const { return false; }
   // The plane's size in pixels, when the display can show pixels here;

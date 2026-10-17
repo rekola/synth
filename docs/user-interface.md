@@ -8,7 +8,38 @@ combinations the usual desktop shortcuts rely on (most Ctrl+Shift chords,
 and Ctrl-C, Ctrl-Z and Ctrl-S belong to the terminal itself), while Emacs's
 prefix keys work in any terminal. A graphical interface is planned with a
 second keymap following the usual desktop, DAW and tracker conventions; the
-command names, M-x and the Emacs keymap stay as they are there too. What the terminal
+command names stay the same in both. A display
+declares which keymap it uses: the terminal the Emacs one, the window the
+desktop one. A binding that has not been migrated works in both. The desktop
+keymap so far:
+
+| Command | Desktop chord | Emacs chord |
+| --- | --- | --- |
+| command prompt | Ctrl+Shift+P | M-x |
+| `undo` | Ctrl+Z | C-x u, C-/ |
+| `undo-redo` | Ctrl+Shift+Z, Ctrl+Y | C-M-_ |
+| `kill-region` (cut) | Ctrl+X | C-w |
+| `kill-ring-save` (copy) | Ctrl+C | M-w |
+| `yank` (paste) | Ctrl+V | C-y |
+| `open-song` | Ctrl+O | C-x C-f |
+| `save-song` | Ctrl+S | C-x C-s |
+| `save-song-as` | Ctrl+Shift+S | C-x C-w |
+| `save-buffers-kill-terminal` (quit) | Ctrl+Q | C-x C-c |
+
+Both open the command palette, a list of every command: type to narrow it by
+fuzzy matching (the letters in order, `tgv` finds `toggle-view`; a match at the
+start of a word or of the name ranks higher), Up/Down or C-n/C-p to move, Enter
+Tab to complete what is typed as far as every command starting with it agrees
+(as in the Emacs minibuffer; `[No match]` when none does), Enter to run the
+selected command, Escape or C-g to cancel. Each row shows the
+command's keybinding in the display's keymap, and the selected command's
+description is shown below the list.
+
+Ctrl+X is cut there, so the `C-x` prefix sequences are Emacs-only; the buffer
+commands (`next-buffer`, `kill-buffer`, ...) have no desktop chord yet and are
+in the menus and the prompt.
+
+What the terminal
 can't do is listed under [Terminal](#terminal) at the end.
 
 ## Emacs keymap

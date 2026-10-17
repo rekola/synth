@@ -46,13 +46,16 @@ The application draws on several traditions.
   modulation (1973). A few of them are approximations of individual factory
   voices of the Yamaha DX7 (1983), the synthesizer that made FM widespread,
   standing in for a handful of General MIDI programs. See
-  [docs/fm.md](docs/fm.md).
-- **Emacs.** The keymap the terminal interface uses follows Emacs: each song
-  is a buffer, several can be open and switched between, with mark and point
-  selection, kill and yank, and the M-x prompt for any command by name. A
-  graphical interface is planned that defaults to the usual desktop, DAW and
-  tracker keys, with the Emacs keymap still available. See
-  [docs/user-interface.md](docs/user-interface.md).
+  [docs/fm.md](docs/fm.md).  
+- **Command Palette.** Every command can be run by name from the command
+  palette, opened with M-x when using the terminal keybindings or with
+  Ctrl+Shift+P when using the standard GUI keybindings. Typing narrows the list
+  by fuzzy matching (`tgv` finds `toggle-view`), the best match comes first, Tab
+  completes a prefix the way the Emacs minibuffer does, and
+  each command shows its keybinding and, for the selected one, a short
+  description. The concept follows that of Emacs' M-x and its "Minibuffer"; the
+  status line at the bottom of the screen is still used for messages and for
+  prompts that ask for a name.
 
 ## Scales and Tunings
 
@@ -197,5 +200,3 @@ The major things that are missing are the following:
 * New recordings are initially drafts and can then be either merged or promoted to a clip
 * Ambient textures (waves, campfire, thunder, rain etc.)
 * Launch modes and Follow actions
-* Emacs features:
-    - Kill-ring rotation (yank-pop / M-y)

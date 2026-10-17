@@ -4,6 +4,7 @@
 #include <cellui/CommandRegistry.h>
 #include <cellui/Input.h>
 #include <cellui/KeyChord.h>
+#include <cellui/KeyChordNames.h>
 #include <cellui/Keymap.h>
 #include <cellui/UIPlane.h>
 
@@ -154,6 +155,34 @@ protected:
   virtual void onResize() { }
 
 public:
+  // How `command` is bound in this widget's keymap on the display's profile
+  // ("C-x C-s", "Ctrl+S"), the simplest of its bindings; "" if it has none.
+  std::string bindingFor(const std::string & command) const {
+    auto profile = keymapProfile();
+    std::vector<uint64_t> best;
+    auto simpler = [](const std::vector<uint64_t> & a, const std::vector<uint64_t> & b) {
+      auto mods = [](const std::vector<uint64_t> & seq) {
+        int n = 0;
+        for (auto chord : seq) n += (chord & 1u ? 1 : 0) + (chord & 2u ? 1 : 0) + (chord & 4u ? 1 : 0) + (chord & 8u ? 1 : 0);
+        return n;
+      };
+      if (a.size() != b.size()) return a.size() < b.size();
+      if (mods(a) != mods(b)) return mods(a) < mods(b);
+      return a < b;
+    };
+    for (auto & seq : keymap_.sequencesFor(command, profile)) {
+      // A raw control byte (a terminal's own spelling of a chord) reads as
+      // nothing; the chord it stands for is bound too.
+      bool printable = true;
+      for (auto chord : seq) {
+        int id = KeyChord::idOf(chord);
+        if (id < 0x20 && id != Key::Tab && id != Key::Escape) printable = false;
+      }
+      if (printable && (best.empty() || simpler(seq, best))) best = seq;
+    }
+    return best.empty() ? std::string() : KeyChord::describe(best, profile);
+  }
+
   // Whether this widget wants a bare Escape keypress delivered right away
   // (e.g. to close a popup), rather than only once the next key shows
   // whether it was the start of an Alt chord.
@@ -179,20 +208,24 @@ protected:
     // through to whatever it would otherwise have done (e.g. self-insert
     // in a text field) - a half-typed prefix should never silently do
     // something else instead.
+    auto profile = keymapProfile();
     if (pending_prefix_) {
       auto prefix = *pending_prefix_;
       pending_prefix_.reset();
-      if (auto name = keymap_.lookupPrefixed(prefix, chord)) return commands_.execute(*name);
+      if (auto name = keymap_.lookupPrefixed(prefix, chord, profile)) return commands_.execute(*name);
       return true;
     }
-    if (keymap_.isPrefix(chord)) {
+    if (keymap_.isPrefix(chord, profile)) {
       pending_prefix_ = chord;
       return true;
     }
 
-    if (auto name = keymap_.lookup(chord)) return commands_.execute(*name);
+    if (auto name = keymap_.lookup(chord, profile)) return commands_.execute(*name);
     return false;
   }
+
+  // The profile the display uses; bindings are looked up in it.
+  KeymapProfile keymapProfile() const { return plane_ ? plane_->keymapProfile() : KeymapProfile::EMACS; }
 
   // Call after populating keymap_/commands_ in a subclass constructor to
   // catch a typo'd command name immediately instead of as a silently dead

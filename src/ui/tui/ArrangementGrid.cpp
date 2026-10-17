@@ -309,6 +309,12 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   if (viewport_.detached() && (edit_position_moved || cursor_bar_ != current_cursor_bar_ ||
                                cursor_track_index_ != current_cursor_track_index_)) viewport_.attach();
   auto follow_cursor = !playback_info.isPlaying() && focused && !viewport_.detached();
+  // How focused the widget is, eased: its cursor fades between the focused and unfocused look.
+  focus_ = fades_.value(0, focused ? 1.0f : 0.0f, !styles.reduced_motion);
+  // One more frame after it ends draws the final state.
+  bool focus_fading = fades_.active() || focus_fade_drawn_;
+  focus_fade_drawn_ = fades_.active();
+  fades_.sweep();
   ensureCursorVisible(bar_count, visible_rows, visible_cols, num_tracks, follow_cursor);
 
   if (!follow_cursor && !viewport_.detached()) viewport_.rows.reveal(playing_bar);
@@ -330,7 +336,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
       cursor_bar_ == current_cursor_bar_ &&
       cursor_track_index_ == current_cursor_track_index_ &&
       viewport_.rows.shown() == current_shown_row_ && viewport_.cols.offset() == current_scroll_col_ &&
-      focused == current_focused_ && selected_track_id == current_selected_track_id_) {
+      focused == current_focused_ && !focus_fading && selected_track_id == current_selected_track_id_) {
     return false;
   }
   current_song_version_ = new_version;
@@ -510,11 +516,16 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
       // Focused, a colored cell brightens further rather than losing its
       // track color.
       auto is_cursor_cell = in_range && bar == cursor_bar_ && track_index == cursor_track_index_;
-      if (is_cursor_cell && focused) {
-        fg = styles.highlight_fg_color;
-        bg = cur_clip_index >= 0 ? bg.blend(0.5f, styles.cursor_tint_color) : styles.highlight_bg_color;
-      } else if (is_cursor_cell && cur_clip_index < 0) {
-        bg = styles.highlight_unfocused_bg_color;
+      if (is_cursor_cell) {
+        if (cur_clip_index >= 0) {
+          if (focus_ > 0.0f) {
+            fg = fg.blend(focus_, styles.highlight_fg_color);
+            bg = bg.blend(0.5f * focus_, styles.cursor_tint_color);
+          }
+        } else {
+          bg = styles.highlight_unfocused_bg_color.blend(focus_, styles.highlight_bg_color);
+          fg = fg.blend(focus_, styles.highlight_fg_color);
+        }
       }
 
       setFgColor(prev_bg);

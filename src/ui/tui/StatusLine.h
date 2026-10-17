@@ -20,6 +20,17 @@ class StatusLine : public UIElement {
     getPlane().setBgDefault();
   }
 
+  // The chord that opens the command prompt: Alt-x on the Emacs keymap
+  // (whether the terminal sent it as one event or as ESC then x, KeyReader
+  // folds either into a single Alt-modified event before it gets here),
+  // Ctrl+Shift+P on the desktop one.
+  bool isCommandPromptChord(const cellui::Input & input) {
+    if (keymapProfile() == cellui::KeymapProfile::DESKTOP) {
+      return input.hasCtrl() && input.hasShift() && !input.hasAlt() && !input.hasMeta() && input.getId() == 'p';
+    }
+    return (input.hasAlt() || input.hasMeta()) && (input.getId() == 'x' || input.getId() == 'X');
+  }
+
   bool isReaderActive() { return getPlane().readerActive(); }
 
   void setMessage(std::string s) {
@@ -58,25 +69,24 @@ class StatusLine : public UIElement {
     getPlane().showReader(prompt, 0, -1, -1, -1, initial_text);
   }
 
+  // What the command prompt chord opens: the command palette.
+  void setCommandPaletteCallback(std::function<void()> cb) { open_command_palette_ = std::move(cb); }
+
   void setBeforeShowPromptCallback(std::function<void()> cb) { before_show_prompt_ = std::move(cb); }
 
   // Like showPrompt() above, but with Tab-driven Emacs-style autocomplete
   // against `candidates_for(text)` - every full valid answer starting with
   // whatever's typed so far, the exact same contract
-  // Controller::commandCompletions() already uses for M-x (this is that
-  // same machinery, generalized so any flat-candidate-set completion
-  // domain can use it, not just M-x - buffer names being the other one).
-  // Enter always submits whatever's currently typed outright, matched or
-  // not: unlike M-x commands, a buffer name that doesn't exist yet is a
-  // perfectly good answer (Controller::switchToBuffer() creates a fresh
-  // buffer for it), so there's no "invalid input" to block here the way
-  // showMx() below needs to. See completeAgainstSet() for Tab's own
-  // behavior.
+  // Controller::commandCompletions() uses (so any flat-candidate-set
+  // completion domain can use it - buffer names, for one). Enter always
+  // submits whatever's currently typed outright, matched or not: a buffer
+  // name that doesn't exist yet is a perfectly good answer
+  // (Controller::switchToBuffer() creates a fresh buffer for it). See
+  // completeAgainstSet() for Tab's own behavior.
   void showPromptWithCompletion(const std::string & prompt, std::function<void(const std::string &)> on_submit,
 				  std::function<std::set<std::string>(const std::string &)> candidates_for,
 				  const std::string & initial_text = "") {
-    tab_completer_ = [this, candidates_for]() { completeAgainstSet(candidates_for, false); };
-    enter_completer_ = nullptr;
+    tab_completer_ = [this, candidates_for]() { completeAgainstSet(candidates_for); };
     indicator_shown_ = false;
     showPrompt(prompt, std::move(on_submit), initial_text);
   }
@@ -94,7 +104,6 @@ class StatusLine : public UIElement {
   void showFilePrompt(const std::string & prompt, std::function<void(const std::string &)> on_submit,
 		       const std::string & initial_text = "") {
     tab_completer_ = [this]() { completeFilePath(); };
-    enter_completer_ = nullptr;
     indicator_shown_ = false;
     showPrompt(prompt, std::move(on_submit), initial_text);
   }
@@ -104,32 +113,17 @@ class StatusLine : public UIElement {
     if (getPlane().readerActive() && input.getKind() == cellui::Input::Kind::RELEASE) return true;
     if (getPlane().readerActive()) {
       if (tab_completer_ && input.getId() == Key::Tab) {
-	// A local copy, not tab_completer_() directly - see the identical
-	// reasoning on the Enter branch below.
-	auto completer = tab_completer_;
+        // A local copy, not tab_completer_() directly: finishing the reader
+        // reassigns tab_completer_, which would destroy the std::function
+        // still executing if it were called through the member itself.
+        auto completer = tab_completer_;
 	completer();
 	return true;
       } else if (input.getId() == Key::Enter) {
-	if (enter_completer_) {
-	  // M-x only (the one strict completion domain - see showMx()):
-	  // submit if the typed text is already a real, exact command name,
-	  // otherwise extend/indicate exactly like Tab rather than running
-	  // whatever's half-typed. A local copy, not enter_completer_()
-	  // directly - its own submit path (completeAgainstSet() ->
-	  // submitReader() -> closeReader()) reassigns tab_completer_/
-	  // enter_completer_ to nullptr as part of finishing the reader
-	  // session, which would destroy the very std::function target
-	  // still executing if called through the member itself.
-	  auto completer = enter_completer_;
-	  completer();
-	} else {
-	  // No completer active, or a permissive one (buffer names, file
-	  // paths - see showPromptWithCompletion()/showFilePrompt()) where
-	  // Enter always accepts whatever's typed rather than only ever a
-	  // confirmed match.
-	  submitReader();
-	}
-	return true;
+        // Accepts whatever is typed, matched or not (buffer names, file
+        // paths: a name that doesn't exist yet is still worth trying).
+        submitReader();
+        return true;
       } else if (input.hasCtrl() && input.getId() == 'g') {
 	cancelReader();
 	return true;
@@ -140,13 +134,8 @@ class StatusLine : public UIElement {
 	showIndicator("");
 	return UIElement::offerInput(input);
       }
-    } else if ((input.hasAlt() || input.hasMeta()) && (input.getId() == 'x' || input.getId() == 'X')) {
-      // Whether the terminal sent physical Alt-x as one event directly, or
-      // ESC then, arbitrarily later, x - TerminalUI.cpp's
-      // KeyReader (cellui/KeyReader.h) already folds
-      // either into a single Alt-modified event before it ever reaches
-      // here, so there's exactly one path to check, not two.
-      showMx();
+    } else if (isCommandPromptChord(input)) {
+      if (open_command_palette_) open_command_palette_();
       return true;
     }
     return false;
@@ -154,7 +143,6 @@ class StatusLine : public UIElement {
 
   std::string closeReader() {
     tab_completer_ = nullptr;
-    enter_completer_ = nullptr;
     auto cmd = getPlane().closeReader();
     if (pending_message.empty()) {
       setMessage("");
@@ -177,19 +165,7 @@ class StatusLine : public UIElement {
     closeReader();
   }
 
-private:
-  // M-x itself is just showPromptWithCompletion()'s very first, default use
-  // plus a stricter Enter (see enter_completer_'s own comment) - kept as
-  // its own tiny wrapper so all three trigger paths above share one exact
-  // prompt string.
-  void showMx() {
-    auto candidates_for = [this](const std::string & prefix) { return getController().commandCompletions(prefix); };
-    tab_completer_ = [this, candidates_for]() { completeAgainstSet(candidates_for, false); };
-    enter_completer_ = [this, candidates_for]() { completeAgainstSet(candidates_for, true); };
-    indicator_shown_ = false;
-    showPrompt("M-x ", [this](const std::string & cmd) { getController().sendCommand(cmd); });
-  }
-
+ private:
   // Emacs-style autocomplete against a flat candidate set (M-x commands,
   // buffer names): extend the typed text as far as every candidate sharing
   // its prefix agrees, or flash "[No match]" if nothing shares the prefix
@@ -198,22 +174,12 @@ private:
   // progress press once the text already exactly matches the one
   // remaining candidate, the same way Emacs's own TAB behaves. Either way
   // this never submits by itself; the whole point is that only Enter ever
-  // runs/opens/switches anything. `submit_on_exact` is true only for the
-  // Enter-triggered call (see offerInput()) and only for M-x, the one
-  // domain where an unrecognized name truly can't be submitted - if the
-  // typed text is already a real, complete candidate, that's the one case
-  // Enter is allowed to act immediately on rather than just extending like
-  // Tab would. Never shows the full candidate list itself (a later phase's
-  // job) - just the furthest unambiguous extension plus the two
+  // runs/opens/switches anything. Never shows the full candidate list
+  // itself - just the furthest unambiguous extension plus the two
   // indicators above.
-  void completeAgainstSet(const std::function<std::set<std::string>(const std::string &)> & candidates_for,
-			   bool submit_on_exact) {
+  void completeAgainstSet(const std::function<std::set<std::string>(const std::string &)> & candidates_for) {
     auto text = getPlane().getReaderContents();
     auto matches = candidates_for(text);
-    if (submit_on_exact && matches.count(text)) {
-      submitReader();
-      return;
-    }
     if (matches.empty()) {
       showIndicator("[No match]");
       return;
@@ -237,9 +203,8 @@ private:
   // actually exists in its containing directory - completing into a
   // directory extends the typed text and keeps going (there's nothing to
   // "open" about a bare directory name), the same way Emacs's own
-  // find-file behaves. Always permissive (see showFilePrompt()) - there's
-  // no submit_on_exact variant here, Enter for a file path never routes
-  // through this method at all, only Tab does.
+  // find-file behaves. Always permissive (see showFilePrompt()); Enter for a
+  // file path never routes through this method, only Tab does.
   void completeFilePath() {
     namespace fs = std::filesystem;
     auto text = getPlane().getReaderContents();
@@ -347,19 +312,14 @@ private:
   std::string pending_message;
   std::function<void(const std::string &)> on_submit_;
   std::function<void()> before_show_prompt_;
-  // Set (via showPromptWithCompletion()/showFilePrompt()/showMx()) for the
-  // duration of a completing reader session, cleared by closeReader() -
-  // Tab always runs this instead of self-inserting a literal tab
-  // character. Never submits by itself (see completeAgainstSet()'s own
-  // comment on why "[Sole completion]" stops short of just picking it) -
-  // only enter_completer_/submitReader() ever close the reader.
+  std::function<void()> open_command_palette_;
+  // Set (via showPromptWithCompletion()/showFilePrompt()) for the duration
+  // of a completing reader session, cleared by closeReader() - Tab always
+  // runs this instead of self-inserting a literal tab character. Never
+  // submits by itself (see completeAgainstSet()'s own comment on why
+  // "[Sole completion]" stops short of just picking it) - only
+  // submitReader() ever closes the reader.
   std::function<void()> tab_completer_;
-  // Set only for the one strict completion domain (M-x, see showMx()) -
-  // left unset for permissive ones (buffer names, file paths), where
-  // Enter's plain submitReader() fallback in offerInput() already does the
-  // right thing (accept whatever's typed, matched or not) without needing
-  // a domain-specific check first.
-  std::function<void()> enter_completer_;
 };
 
 #endif

@@ -151,6 +151,9 @@ class BufferPlane : public UIPlane {
   // What canRenderSextants() reports, for the whole tree (root only).
   void setSextants(bool can) { sextants_ = can; }
   bool canRenderSextants() const override { return root().sextants_; }
+  // What keymapProfile() reports, for the whole tree (root only).
+  void setKeymapProfile(KeymapProfile profile) { keymap_profile_ = profile; }
+  KeymapProfile keymapProfile() const override { return root().keymap_profile_; }
   // What displayScale() reports, for the whole tree (root only).
   void setDisplayScale(double scale) { display_scale_ = scale; }
   double displayScale() const override { return root().display_scale_; }
@@ -214,6 +217,7 @@ class BufferPlane : public UIPlane {
   BufferPlane * active_reader_ = nullptr;
   Color default_fg_ = Color(255, 255, 255), default_bg_ = Color(0, 0, 0);
   double display_scale_ = 1.0;
+  KeymapProfile keymap_profile_ = KeymapProfile::EMACS;
   bool sextants_ = false;
   bool smooth_scroll_ = false;
   mutable std::vector<BackdropLayer> layers_;

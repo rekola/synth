@@ -38,6 +38,7 @@ struct UIFixture {
     else CHECK(controller->openSong(song));
     ui = std::make_unique<TerminalUI>(terminal);
     ui->setTheme("dark");
+    ui->setReducedMotion(true); // states change at once, so a test sees exact frames
     ui->setInitialView(view);
     ui->initialize(controller);
     ui->step();  // the loop's first frame is a full one

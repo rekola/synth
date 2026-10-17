@@ -9,6 +9,8 @@
 #include <cellui/VuMeterImage.h>
 
 #include <algorithm>
+#include <set>
+#include <utility>
 #include <vector>
 
 namespace cellui {
@@ -80,6 +82,7 @@ public:
 
     int px_h = 0, px_w = 0;
     if (!getPlane().pixelSize(px_h, px_w)) return;
+
     auto [plane_rows, plane_cols] = getDim();
     unsigned pxy = static_cast<unsigned>(px_h), pxx = static_cast<unsigned>(px_w);
     unsigned celldimy = std::max(1u, pxy / static_cast<unsigned>(std::max(1, plane_rows)));
@@ -127,11 +130,24 @@ protected:
       SpectrumMeter::drawBars(levels);
       return;
     }
+    // Pixels are made lazily: until a level is above zero, only the
+    // background, in cells.
+    if (!has_pixels_) {
+      if (std::all_of(levels.begin(), levels.end(), [](float v) { return v <= 0.0f; })) {
+        setBgColor(getPlane().getStyles().window_bg_color);
+        fill();
+        return;
+      }
+      has_pixels_ = true;
+    }
     // Opaque, so a pixel never composites against the raw terminal background.
     auto buffer = spectrum_image::render(levels, static_cast<unsigned>(pxx), static_cast<unsigned>(pxy), getPlane().getStyles(),
                                          static_cast<float>(getPlane().displayScale()));
     getPlane().drawImage(buffer, pxx, pxy);
   }
+
+ private:
+  bool has_pixels_ = false;
 };
 
 // The channel meter's bars as one image over its bar rows, two channels to
@@ -147,6 +163,17 @@ class PixelChannelMeter : public ChannelMeter {
       ChannelMeter::drawBars(bar_rows, cells);
       return;
     }
+    // Lazily, as the spectrum: the plane is already the background, which is
+    // all a silent meter is.
+    if (!has_pixels_) {
+      bool silent = true;
+      for (int i = 0; i < 2 * cells; i++) {
+        auto & channel = channels_[static_cast<size_t>(i)];
+        if (channel.fraction > 0.0f || channel.peak_fraction > 0.0f || channel.clipping) silent = false;
+      }
+      if (silent) return;
+      has_pixels_ = true;
+    }
     std::vector<std::optional<VuReading>> columns;
     for (int i = 0; i < 2 * cells; i++) {
       auto & channel = channels_[static_cast<size_t>(i)];
@@ -158,6 +185,9 @@ class PixelChannelMeter : public ChannelMeter {
                                          static_cast<float>(getPlane().displayScale()));
     getPlane().drawImageAt(0, 0, pixels, static_cast<int>(width), static_cast<int>(height));
   }
+
+ private:
+  bool has_pixels_ = false;
 };
 
 class PixelScopes : public Scopes {
@@ -176,12 +206,27 @@ class PixelScopes : public Scopes {
       drawCellVuMeter(plane, row, col, rows, reading, look, clip_top, clip_bottom);
       return;
     }
+    // Pixels are made lazily: a meter that has never sounded is only its
+    // background in text cells. Once it has pixels it keeps them, even at
+    // zero.
+    auto key = std::make_pair(&plane, id);
+    if (!drawn_.count(key)) {
+      if (reading.fraction <= 0.0f && reading.peak <= 0.0f && !reading.clipping) {
+        drawCellVuMeter(plane, row, col, rows, reading, look, clip_top, clip_bottom);
+        return;
+      }
+      drawn_.insert(key);
+    }
     // The whole meter, wherever it is scrolled to; the plane shows the rows
     // from clip_top to clip_bottom.
     unsigned width = static_cast<unsigned>(cell_w), height = static_cast<unsigned>(rows * cell_h);
     auto pixels = vu_meter_image::render({std::nullopt, reading}, look, width, height, plane.getStyles(), static_cast<float>(plane.displayScale()));
     plane.drawImageAt(row, col, pixels, static_cast<int>(width), static_cast<int>(height), id, clip_top, clip_bottom);
   }
+
+ private:
+  // The meters (plane, id) that have been drawn as pixels.
+  mutable std::set<std::pair<const UIPlane *, uint64_t>> drawn_;
 };
 
 }  // namespace
