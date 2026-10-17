@@ -15,6 +15,7 @@
 #include "MemoryParameterSource.h"
 #include "../model/SongStructure.h"
 #include "../util/constants.h"
+#include "../playback/PerformanceEffect.h"
 
 #include <algorithm>
 #include <cmath>
@@ -273,6 +274,7 @@ class SongState : public TrackState {
     track_snapshot.reserve(content.tracks->master->getChildren().size());
     for (auto & track : content.tracks->master->getChildren()) track_snapshot.push_back(track.get());
     for (auto * track : track_snapshot) track->getState(*this, song_structure_);
+    pushPerformance();
 
     // Set (never merely assigned - see below) the moment the transport
     // (re)starts (isPlaying() flips false -> true), and stays set across
@@ -604,6 +606,7 @@ class SongState : public TrackState {
             }
             if (from_clip) applyRowCommands(*active_pattern, effective_row, track_id, i);
           }
+	  scheduleRolls(i, row_idx);
 	}
 	
 	auto remaining = samplesUntilNextRow();
@@ -824,6 +827,55 @@ class SongState : public TrackState {
 
   struct LastNote { int column; Tuning tuning; float velocity; int note_value; int row; NoteOverride note_override; };
 
+  // What setPerformance() holds on a track.
+  struct HeldPerformance {
+    int roll_ticks = 0; // 0: no roll
+    int roll_phase = 0; // ticks into the row the next roll hit is due
+    float duck_gain = 1.0f;
+    float throw_a = 0.0f, throw_b = 0.0f;
+    float orbit_turns_per_bar = 0.0f;
+    bool isIdle() const { return roll_ticks == 0 && duck_gain == 1.0f && throw_a == 0.0f && throw_b == 0.0f && orbit_turns_per_bar == 0.0f; }
+  };
+
+  // Hands every held performance effect to its track, which glides to it;
+  // a released one is handed over once more, as idle, and then forgotten.
+  void pushPerformance() {
+    if (performance_.empty()) return;
+    const float bar_frames = static_cast<float>(barsAt(absolute_pos_).barRows()) * static_cast<float>(getChannelConfiguration().getSampleInterval(tempo_));
+    for (auto it = performance_.begin(); it != performance_.end(); ) {
+      auto & held = it->second;
+      if (auto * track_state = dynamic_cast<LeafTrackState *>(getChildByInternalId(it->first))) {
+	float orbit_rate = bar_frames > 0.0f ? held.orbit_turns_per_bar * 360.0f / bar_frames : 0.0f;
+	track_state->setPerformanceTargets(held.duck_gain, held.throw_a, held.throw_b, orbit_rate);
+      }
+      if (held.isIdle()) it = performance_.erase(it);
+      else ++it;
+    }
+  }
+
+  // Roll: re-fires every note a rolling track is playing on the roll's grid,
+  // across the row starting at block-relative frame `row_start`. A note that
+  // has just started on this row isn't fired again on top of itself.
+  void scheduleRolls(int row_start, int row_idx) {
+    if (performance_.empty()) return;
+    int row_samples = getChannelConfiguration().getSampleInterval(tempo_);
+    int tick_interval = std::max(1, row_samples / constants::TICKS_PER_ROW);
+    for (auto & [ track_id, held ] : performance_) {
+      if (held.roll_ticks <= 0) continue;
+      auto notes_it = last_notes_.find(track_id);
+      int tick = held.roll_phase;
+      for (; tick < constants::TICKS_PER_ROW; tick += held.roll_ticks) {
+	if (notes_it == last_notes_.end()) continue;
+	for (auto & [ column, last ] : notes_it->second) {
+	  if (tick == 0 && last.row == row_idx) continue;
+	  render_context_.addPendingEvent(track_id, row_start + tick * tick_interval, static_cast<short>(last.column), last.tuning, last.velocity, last.note_value,
+					  NoteCoordinate(song_structure_.getOrdinalFor(track_id), last.row, last.column), last.note_override);
+	}
+      }
+      held.roll_phase = tick - constants::TICKS_PER_ROW;
+    }
+  }
+
   // 0Rxy (Command::isRetrigger()) - re-fires every note still playing on
   // the track every `interval_ticks` ticks across the row starting at
   // block-relative sample offset `row_start`, velocity per `volume_code`.
@@ -931,6 +983,33 @@ class SongState : public TrackState {
   // The bars in force at `row` on this thread.
   BarGrid barsAt(int row) const { return ::barsAt(song_signature_, running_bars_, row); }
 
+  // A performance effect (PerformanceEffect.h) held on a track, at
+  // `pressure` (0-127), or released (performance::kRelease). Never touches
+  // the song: what is held lives here until it is released.
+  void setPerformance(int track_id, PerformanceEffect effect, int pressure) {
+    bool release = pressure < 0;
+    auto & held = performance_[track_id];
+    switch (effect) {
+    case PerformanceEffect::ROLL:
+      if (release) held.roll_ticks = 0;
+      else {
+	// A new roll starts on the next row; a change of rate keeps its place.
+	if (held.roll_ticks == 0) held.roll_phase = 0;
+	held.roll_ticks = performance::rollIntervalTicks(pressure);
+      }
+      break;
+    case PerformanceEffect::DUCK: held.duck_gain = release ? 1.0f : performance::duckGain(pressure); break;
+    case PerformanceEffect::THROW_A: held.throw_a = release ? 0.0f : 1.0f; break;
+    case PerformanceEffect::THROW_B: held.throw_b = release ? 0.0f : 1.0f; break;
+    case PerformanceEffect::ORBIT: held.orbit_turns_per_bar = release ? 0.0f : performance::orbitTurnsPerBar(pressure); break;
+    case PerformanceEffect::NONE: break;
+    }
+  }
+  bool isRolling(int track_id) const {
+    auto it = performance_.find(track_id);
+    return it != performance_.end() && it->second.roll_ticks > 0;
+  }
+
   // Stops every launched clip now, releasing its voices, and forgets
   // everything queued - on a transport stop too (seq -1 for that).
   void silenceLive(int seq) {
@@ -964,6 +1043,8 @@ private:
   int position_edit_seq_ = 0;
   // The notes still playing per track (last note-on per column), what 0Rxy retriggers.
   std::unordered_map<int, std::map<int, LastNote>> last_notes_; // track -> note column
+  // Performance effects held per track (setPerformance()).
+  std::unordered_map<int, HeldPerformance> performance_;
   bool pending_break_ = false; // ZBxx seen on the row currently completing
   int pending_break_row_ = 0;
   RenderContext render_context_;

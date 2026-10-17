@@ -166,6 +166,10 @@ UI::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
     launchpad_manager_->handleLivePadEvent(ev, getController());
     return;
   }
+  if (launchpad_manager_ && launchpad_manager_->gridMode(ev.getDeviceIndex()) == LaunchpadManager::GridMode::CUSTOM) {
+    launchpad_manager_->handlePerformancePadEvent(ev, getController());
+    return;
+  }
   if (!launchpad_manager_) return;
   // handlePadEvent() itself indexes song.getPlayableTrackIds() with this
   // - see indexOfTrack()'s own comment for why a real index, not the bare

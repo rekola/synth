@@ -1139,6 +1139,12 @@ Controller::setBusEffectKind(int slot, BusEffectKind kind) {
 }
 
 void
+Controller::setPerformanceEffect(int track_id, PerformanceEffect effect, int pressure) {
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_PERFORMANCE, getActiveBufferName(), track_id,
+                                                                 static_cast<int>(effect), pressure));
+}
+
+void
 Controller::setTrackAzimuth(int track_id, float value) {
   auto song = getCurrentSong();
   auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));

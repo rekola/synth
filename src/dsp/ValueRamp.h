@@ -56,6 +56,7 @@ public:
 
   bool isActive() const { return frames_remaining_ > 0; }
   float getCurrentValue() const { return current_; }
+  float getTargetValue() const { return target_; }
 
 private:
   float current_ = 0.0f;

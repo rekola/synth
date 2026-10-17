@@ -261,6 +261,15 @@ namespace {
   // static move-row-up/down utility buttons already use.
   constexpr Rgb LAUNCHPAD_SCENE_LAUNCH_BUTTON_COLOR { 30, 30, 30 };
 
+  // The performance grid's own rows (GridMode::CUSTOM); the send throws
+  // reuse the Send A/B colours.
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_ROLL_BRIGHT  { 127, 127, 127 };
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_ROLL_DIM     { 25, 25, 25 };
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_DUCK_BRIGHT  { 127, 0, 0 };
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_DUCK_DIM     { 35, 0, 0 };
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_ORBIT_BRIGHT { 127, 40, 0 };
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_ORBIT_DIM    { 40, 12, 0 };
+
   // Volume/Pan/Send A/Send B's own fader micro-values (FaderState::
   // micro_step) show as a lightness scale on just the fader's own top pad,
   // once one is actually active (micro_step > 0) - this is the floor at
@@ -1274,6 +1283,43 @@ LaunchpadManager::handleMixerFunctionRelease(int device_id, int cc_number, Contr
   state.grid_mode = state.mixer_hold_previous_grid_mode;
   state.track_picker_active = state.mixer_hold_previous_track_picker_active;
   state.track_picker_purpose = state.mixer_hold_previous_track_picker_purpose;
+}
+
+void
+LaunchpadManager::handlePerformancePadEvent(const LaunchpadPadEvent & ev, Controller & controller) {
+  int x = ev.getX(), y = ev.getY();
+  if (x < 0 || x >= 8 || y < 0 || y >= 8) return;
+  auto & state = deviceState(ev.getDeviceIndex());
+  auto i = static_cast<size_t>(x + y * 8);
+  auto effect = performance::effectForGridRow(y);
+
+  if (ev.getKind() == LaunchpadPadEvent::PRESS) {
+    // A held pad some units resend Note On for is not a new press.
+    if (state.performance_held[i] || effect == PerformanceEffect::NONE) return;
+    if (x >= static_cast<int>(live_.track_ids.size())) return; // no track behind this column
+    state.performance_held[i] = true;
+    state.performance_track[i] = live_.track_ids[static_cast<size_t>(x)];
+    state.performance_pressure[i] = 0;
+    controller.setPerformanceEffect(state.performance_track[i], effect, 0);
+  } else if (ev.getKind() == LaunchpadPadEvent::AFTERTOUCH) {
+    if (!state.performance_held[i] || !LaunchpadProtocol::getModelInfo(ev.getModel()).poly_aftertouch) return;
+    if (ev.getVelocity() == state.performance_pressure[i]) return;
+    state.performance_pressure[i] = ev.getVelocity();
+    controller.setPerformanceEffect(state.performance_track[i], effect, ev.getVelocity());
+  } else if (ev.getKind() == LaunchpadPadEvent::RELEASE) {
+    if (!state.performance_held[i]) return;
+    state.performance_held[i] = false;
+    controller.setPerformanceEffect(state.performance_track[i], effect, performance::kRelease);
+  }
+}
+
+void
+LaunchpadManager::releasePerformancePads(DeviceState & state, Controller & controller) {
+  for (size_t i = 0; i < state.performance_held.size(); i++) {
+    if (!state.performance_held[i]) continue;
+    state.performance_held[i] = false;
+    controller.setPerformanceEffect(state.performance_track[i], performance::effectForGridRow(static_cast<int>(i / 8)), performance::kRelease);
+  }
 }
 
 void
@@ -2532,9 +2578,24 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
       }
     }
   } else if (state.grid_mode == GridMode::CUSTOM) {
-    // Nothing built for CUSTOM yet (GridMode::CUSTOM's own comment).
+    // The performance grid: each effect's row in its own hue, bright where a
+    // pad holds it; dark where a row has no effect yet or a column no track.
     for (int y = 0; y < 8; y++) {
-      for (int x = 0; x < 8; x++) colors.push_back({LaunchpadProtocol::padToNoteNumber(x, y), 0, 0, 0});
+      auto effect = performance::effectForGridRow(y);
+      Rgb bright{0, 0, 0}, dim{0, 0, 0};
+      switch (effect) {
+      case PerformanceEffect::ROLL: bright = LAUNCHPAD_PERFORMANCE_ROLL_BRIGHT; dim = LAUNCHPAD_PERFORMANCE_ROLL_DIM; break;
+      case PerformanceEffect::DUCK: bright = LAUNCHPAD_PERFORMANCE_DUCK_BRIGHT; dim = LAUNCHPAD_PERFORMANCE_DUCK_DIM; break;
+      case PerformanceEffect::THROW_A: bright = LAUNCHPAD_MIXER_SEND_A_BRIGHT; dim = LAUNCHPAD_MIXER_SEND_A_DIM; break;
+      case PerformanceEffect::THROW_B: bright = LAUNCHPAD_MIXER_SEND_B_BRIGHT; dim = LAUNCHPAD_MIXER_SEND_B_DIM; break;
+      case PerformanceEffect::ORBIT: bright = LAUNCHPAD_PERFORMANCE_ORBIT_BRIGHT; dim = LAUNCHPAD_PERFORMANCE_ORBIT_DIM; break;
+      case PerformanceEffect::NONE: break;
+      }
+      for (int x = 0; x < 8; x++) {
+        bool has_track = x < static_cast<int>(live_.track_ids.size());
+        Rgb c = !has_track ? Rgb{0, 0, 0} : state.performance_held[static_cast<size_t>(x + y * 8)] ? bright : dim;
+        colors.push_back({LaunchpadProtocol::padToNoteNumber(x, y), c.r, c.g, c.b});
+      }
     }
   } else {
     // NOTES: the playing surface - the 4x4 GM kit on a percussion track, the
@@ -2923,6 +2984,9 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   // can never become relevant again.
   for (auto it = devices_.begin(); it != devices_.end(); ) {
     bool still_ready = find(ready_ids.begin(), ready_ids.end(), it->first) != ready_ids.end();
+    // Nothing is left held on the performance grid by a device that is gone
+    // or showing something else.
+    if (!still_ready || it->second.grid_mode != GridMode::CUSTOM) releasePerformancePads(it->second, controller);
     if (!still_ready) it = devices_.erase(it);
     else ++it;
   }
