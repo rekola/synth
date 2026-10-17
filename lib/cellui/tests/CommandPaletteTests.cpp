@@ -81,7 +81,7 @@ TEST(palette_shows_bindings_the_description_and_the_query) {
   Fixture f;
   f.feed("redo");
   auto text = f.buffer.toPlainText();
-  CHECK(text.find("> redo") != std::string::npos);
+  CHECK(text.find("M-x redo") != std::string::npos);
   CHECK(text.find("undo-redo") != std::string::npos);
   CHECK(text.find("Ctrl+Shift+Z") != std::string::npos);
   CHECK(text.find("Redo the last undone change") != std::string::npos);
@@ -126,9 +126,9 @@ TEST(palette_ignores_releases_and_modified_letters) {
 
 TEST(palette_click_on_a_row_chooses_it_and_outside_cancels) {
   Fixture f;
-  // The box is 80 wide at column 0 here, its list starts on row y + 3.
-  int top = (20 - (12 + 6)) / 2 + 3;
-  CHECK(f.palette.offerInput(click(top + 2, 10)) == CommandPalette::Result::CHOSEN);
+  // Five commands: the list is on rows 13-17, the description and the query
+  // below it.
+  CHECK(f.palette.offerInput(click(15, 10)) == CommandPalette::Result::CHOSEN);
   CHECK(f.palette.chosen()->name == "toggle-view");
   Fixture g;
   CHECK(g.palette.offerInput(click(0, 10)) == CommandPalette::Result::CANCELLED);
@@ -195,4 +195,22 @@ TEST(palette_tab_completion_ignores_case_and_runs_nothing) {
   f.feed("UN");
   CHECK(f.palette.offerInput(key(Key::Tab)) == CommandPalette::Result::NONE);
   CHECK(f.palette.query() == "undo");
+}
+
+TEST(palette_sits_on_the_bottom_rows_with_the_query_on_the_last) {
+  Fixture f;
+  f.feed("undo");
+  auto text = f.buffer.toPlainText();
+  std::vector<std::string> lines;
+  size_t from = 0;
+  for (size_t at; (at = text.find('\n', from)) != std::string::npos; from = at + 1) lines.push_back(text.substr(from, at - from));
+  lines.push_back(text.substr(from));
+  // Two matches: their rows, the description and the query are the last four
+  // of the twenty rows.
+  CHECK(lines.size() >= 20);
+  CHECK(lines[16].find("undo") == 1);
+  CHECK(lines[17].find("undo-redo") == 1);
+  CHECK(lines[18].find("Undo the last change") == 1);
+  CHECK(lines[19].find("M-x undo") == 1);
+  CHECK(lines[15].find("undo") == std::string::npos);  // nothing above the list
 }

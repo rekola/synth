@@ -12,13 +12,10 @@ using namespace std;
 
 namespace {
 
-constexpr int kMaxWidth = 80;
 constexpr int kMaxListRows = 12;
-constexpr const char * kHint = "Enter: run  Tab: complete  Esc: cancel";
-// A padding row, the query and a gap above the list.
-constexpr int kTopRows = 3;
-// Those, and below the list the description, the hint and a padding row.
-constexpr int kChromeRows = 6;
+constexpr const char * kHint = "Tab: complete  Esc: cancel";
+// The description and the query row, below the list.
+constexpr int kChromeRows = 2;
 
 }  // namespace
 
@@ -99,8 +96,12 @@ vector<string> CommandPalette::shownNames() const {
 void CommandPalette::show(UIPlane & parent, int screen_rows, int screen_cols) {
   if (!open_) return;
 
-  width_ = min(kMaxWidth, max(20, screen_cols - 2));
-  rows_ = min(kMaxListRows + kChromeRows, max(kChromeRows + 1, screen_rows - 2));
+  // As many list rows as there are matches (one for the "no match" note), up
+  // to a limit, and always leaving a row of the screen above.
+  int count = static_cast<int>(shown_.size());
+  int list_rows = max(1, min({count, kMaxListRows, screen_rows - kChromeRows - 1}));
+  width_ = max(20, screen_cols);
+  rows_ = list_rows + kChromeRows;
 
   if (!plane_) plane_ = parent.createChild();
   plane_->resize(rows_, width_);
@@ -121,22 +122,10 @@ void CommandPalette::show(UIPlane & parent, int screen_rows, int screen_cols) {
   for (int row = 0; row < rows_; row++) plane_->putstr(row, 0, string(static_cast<size_t>(width_), ' '));
   int inner = width_ - 2;
 
-  // The query, with a block where the next character goes.
-  set(strong, bg);
-  plane_->setBold(true);
-  plane_->putstr(1, 1, "> ");
-  plane_->setBold(false);
-  set(fg, bg);
-  string shown_query = utf8::truncateToWidth(query_, inner - 3);
-  plane_->putstr(1, 3, shown_query);
-  set(cursor_fg, cursor_bg);
-  plane_->putstr(1, 3 + utf8::displayWidth(shown_query), " ");
-
   int first = list_.firstVisible(visibleRows());
-  int count = static_cast<int>(shown_.size());
   if (count == 0) {
     set(quiet, bg);
-    plane_->putstr(kTopRows, 1, "No matching command");
+    plane_->putstr(0, 1, "No matching command");
   }
   for (int i = 0; i < visibleRows() && first + i < count; i++) {
     int index = first + i;
@@ -147,21 +136,21 @@ void CommandPalette::show(UIPlane & parent, int screen_rows, int screen_cols) {
     auto row_bg = selected ? cursor_bg : bg;
     auto binding_fg = selected ? cursor_fg : quiet;
     set(name_fg, row_bg);
-    plane_->putstr(kTopRows + i, 0, string(static_cast<size_t>(width_ - 1), ' '));
+    plane_->putstr(i, 0, string(static_cast<size_t>(width_ - 1), ' '));
     int binding_width = utf8::displayWidth(entry.binding);
     int name_room = inner - 1 - (binding_width > 0 ? binding_width + 2 : 0);
     string name = utf8::truncateToWidth(entry.name, name_room);
-    plane_->putstr(kTopRows + i, 1, name);
+    plane_->putstr(i, 1, name);
     // The characters the query matched.
     set(selected ? cursor_fg : strong, row_bg);
     plane_->setBold(true);
     for (int p : row.positions) {
-      if (p < utf8::displayWidth(name)) plane_->putstr(kTopRows + i, 1 + p, string(1, entry.name[static_cast<size_t>(p)]));
+      if (p < utf8::displayWidth(name)) plane_->putstr(i, 1 + p, string(1, entry.name[static_cast<size_t>(p)]));
     }
     plane_->setBold(false);
     if (binding_width > 0) {
       set(binding_fg, row_bg);
-      plane_->putstr(kTopRows + i, width_ - 1 - binding_width - 1, entry.binding);
+      plane_->putstr(i, width_ - 1 - binding_width - 1, entry.binding);
     }
     // The arrows ride the right margin.
     const char * arrow = nullptr;
@@ -169,18 +158,37 @@ void CommandPalette::show(UIPlane & parent, int screen_rows, int screen_cols) {
     else if (i == visibleRows() - 1 && first + visibleRows() < count) arrow = "▼";
     if (arrow) {
       set(quiet, bg);
-      plane_->putstr(kTopRows + i, width_ - 1, arrow);
+      plane_->putstr(i, width_ - 1, arrow);
     }
   }
 
-  // The selected command's description, then the hint.
+  // The selected command's description, or what the last Tab had to say.
   set(quiet, bg);
-  if (!note_.empty()) plane_->putstr(rows_ - 3, 1, note_);
-  else if (auto * entry = chosen()) plane_->putstr(rows_ - 3, 1, utf8::truncateToWidth(entry->description, inner));
-  plane_->putstr(rows_ - 2, 1, utf8::truncateToWidth(kHint, inner));
+  if (!note_.empty()) plane_->putstr(rows_ - 2, 1, note_);
+  else if (auto * entry = chosen()) plane_->putstr(rows_ - 2, 1, utf8::truncateToWidth(entry->description, inner));
 
-  x_ = (screen_cols - width_) / 2;
-  y_ = (screen_rows - rows_) / 2;
+  // The query on the last row, with a block where the next character goes
+  // and the keys that matter at the right when there is room.
+  string prompt = plane_->keymapProfile() == KeymapProfile::EMACS ? "M-x " : "> ";
+  int prompt_width = utf8::displayWidth(prompt);
+  set(strong, bg);
+  plane_->setBold(true);
+  plane_->putstr(rows_ - 1, 1, prompt);
+  plane_->setBold(false);
+  set(fg, bg);
+  string shown_query = utf8::truncateToWidth(query_, inner - prompt_width - 1);
+  int query_width = utf8::displayWidth(shown_query);
+  plane_->putstr(rows_ - 1, 1 + prompt_width, shown_query);
+  set(cursor_fg, cursor_bg);
+  plane_->putstr(rows_ - 1, 1 + prompt_width + query_width, " ");
+  int hint_width = utf8::displayWidth(kHint);
+  if (1 + prompt_width + query_width + 1 + hint_width + 2 <= width_) {
+    set(quiet, bg);
+    plane_->putstr(rows_ - 1, width_ - 1 - hint_width, kHint);
+  }
+
+  x_ = 0;
+  y_ = screen_rows - rows_;
   plane_->move(y_, x_);
   plane_->moveToTop();
 }
@@ -192,7 +200,7 @@ CommandPalette::Result CommandPalette::offerInput(const Input & input) {
   if (id == Key::Button1) {
     // Resolved on release, like every other click in the app.
     if (input.getKind() != Input::Kind::RELEASE) return Result::NONE;
-    int row = input.getY() - y_ - kTopRows, col = input.getX() - x_;
+    int row = input.getY() - y_, col = input.getX() - x_;
     int count = static_cast<int>(shown_.size());
     int index = list_.firstVisible(visibleRows()) + row;
     if (row >= 0 && row < visibleRows() && col >= 0 && col < width_ && index < count) {

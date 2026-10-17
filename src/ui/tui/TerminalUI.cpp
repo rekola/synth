@@ -389,7 +389,6 @@ TerminalUI::TerminalUI(cellui::Backend & backend)
     auto active = outline_view_ && outline_view_->isModal() ? outline_view_ : active_element_.lock();
     if (command_palette_.isOpen()) {
       command_palette_.close();
-      layoutModalScrim();
       force_next_render_ = true;
     } else if (choice_dialog_.isOpen()) {
       closeChoiceDialog();
@@ -1584,7 +1583,6 @@ void TerminalUI::showCommandPalette() {
 
 void TerminalUI::layoutCommandPalette() {
   if (!command_palette_.isOpen()) return;
-  layoutModalScrim();
   auto [screen_rows, screen_cols] = getDim();
   command_palette_.show(getPlane(), screen_rows, screen_cols);
 }
@@ -1601,13 +1599,12 @@ void TerminalUI::handleCommandPaletteInput(const cellui::Input & input) {
   // Closed before the command runs: it may open a prompt or a dialog of its
   // own, and nothing should be left modal while it does.
   command_palette_.close();
-  layoutModalScrim();
   force_next_render_ = true;
   if (!name.empty() && !getController().sendCommand(name)) setStatus("Invalid command");
 }
 
 void TerminalUI::layoutModalScrim() {
-  if (!command_palette_.isOpen() && !choice_dialog_.isOpen() && info_dialog_title_.empty()) {
+  if (!choice_dialog_.isOpen() && info_dialog_title_.empty()) {
     modal_scrim_.close();
     return;
   }

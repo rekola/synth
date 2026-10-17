@@ -499,6 +499,6 @@ TEST(terminal_ui_command_palette_tab_completes_a_prefix) {
   f.meta('x');
   f.type("toggle-v");
   f.press(cellui::Key::Tab);
-  CHECK(f.text().find("> toggle-view") != std::string::npos);
+  CHECK(f.text().find("M-x toggle-view") != std::string::npos);
   f.press(cellui::Key::Escape);
 }

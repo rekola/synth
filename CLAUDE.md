@@ -438,9 +438,12 @@ prefix (Emacs only, since Ctrl+X is cut on the desktop). `docs/user-interface.md
 the desktop chords.
 
 The command palette (`cellui::CommandPalette`, `cellui/CommandPalette.h`; opened by
-`TerminalUI::showCommandPalette()`) is a modal list like `ChoiceDialog`: a query
-line, the commands that `cellui::fuzzyMatch()` (`FuzzyMatch.h`) ranks best first,
-each with its binding, and the selected one's description below. The app gives it
+`TerminalUI::showCommandPalette()`) is a modal panel across the bottom rows of
+the screen, where the status line is, with no scrim: the query on the last row
+("M-x " on the Emacs keymap, "> " on the desktop one), the selected command's
+description above it, and above that the commands that `cellui::fuzzyMatch()`
+(`FuzzyMatch.h`) ranks best first, each with its binding, the list growing
+upward with the number of matches. The app gives it
 `PaletteEntry`s: names from `commandCompletions("")`, descriptions from
 `commandDescription()` (`ui/CommandDescriptions.cpp`; a test fails for a command
 without one, so add a line there with a new command), bindings from
