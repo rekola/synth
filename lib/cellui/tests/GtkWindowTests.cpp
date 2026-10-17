@@ -371,3 +371,41 @@ TEST(gtk_window_input_from_the_display) {
   for (auto & e : got) resized |= e.type == BackendEvent::Type::RESIZE && e.cols == 40 && e.rows == 10;
   CHECK(resized);
 }
+
+// A plane above the base casts a shadow, unless a backdrop above it blurs it
+// away.
+TEST(gtk_window_shadows_raised_planes_that_nothing_blurs) {
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  StyleProvider styles;
+  CellBuffer screen(w->rows(), w->cols());
+  BufferPlane root(screen, styles);
+  root.putstr(1, 2, "below the popup");
+  auto popup = root.createChild();
+  popup->resize(3, 10);
+  popup->move(2, 4);
+  popup->setElevation(8);
+  popup->setBgColor(40, 40, 60);
+  popup->putstr(1, 1, "popup");
+  root.refresh();
+  FrameInfo info;
+  info.elevations = root.takeElevations();
+  size_t before = w->stats().frames;
+  w->present(screen, {}, root.images(), &info);
+  CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+  CHECK(w->stats().shadows == 1);
+
+  auto scrim = root.createChild();
+  scrim->setElevation(16);
+  scrim->setBackdrop(Backdrop{ 2, 0.3f });
+  for (int r = 0; r < w->rows(); r++) scrim->putstr(r, 0, std::string(static_cast<size_t>(w->cols()), ' '));
+  root.refresh();
+  info.backdrops = root.takeBackdropLayers();
+  info.elevations = root.takeElevations();
+  before = w->stats().frames;
+  w->present(screen, {}, root.images(), &info);
+  CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+  // The scrim's own (a shadow around the whole window shows nothing), not
+  // the popup's under it.
+  CHECK(w->stats().shadows == 1);
+}
