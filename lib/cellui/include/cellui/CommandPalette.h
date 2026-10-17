@@ -18,9 +18,10 @@ struct PaletteEntry {
   std::string binding;
 };
 
-// A modal command prompt on a raised panel: a query line, the commands that
-// fuzzy-match it best first with their keybindings, and the selected one's
-// description below. Typing edits the query; Up/Down (and the Emacs-style
+// A modal command prompt anchored to the bottom of the screen, where the
+// status line is: the query on the last row, the selected command's
+// description above it, and above that the commands that fuzzy-match best
+// first with their keybindings, the list growing upward as more match. Typing edits the query; Up/Down (and the Emacs-style
 // next/previous-line keys) move; Tab completes the query as far as every
 // command starting with it agrees, as in the Emacs minibuffer; Enter or a
 // click chooses; Escape or a click outside cancels. The caller runs the chosen command.
@@ -39,8 +40,8 @@ class CommandPalette {
     if (plane_) plane_->moveToTop();
   }
 
-  // (Re)draws the box under `parent`, centred on a screen of the given size.
-  // Call again after a resize or any change.
+  // (Re)draws the panel under `parent`, across the bottom of a screen of the
+  // given size. Call again after a resize or any change.
   void show(UIPlane & parent, int screen_rows, int screen_cols);
 
   // Feeds one input event; the palette swallows everything, so the caller
@@ -62,7 +63,7 @@ class CommandPalette {
   };
   void refilter();
   void complete();
-  int visibleRows() const { return rows_ - 6; }
+  int visibleRows() const { return rows_ - 2; }
 
   bool open_ = false;
   std::unique_ptr<UIPlane> plane_;

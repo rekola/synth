@@ -26,7 +26,7 @@ keymap so far:
 | `save-song-as` | Ctrl+Shift+S | C-x C-w |
 | `save-buffers-kill-terminal` (quit) | Ctrl+Q | C-x C-c |
 
-Both open the command palette, a list of every command: type to narrow it by
+Both open the command palette, across the last rows of the screen with the query on the last row (where the status line is) and the commands above it: type to narrow it by
 fuzzy matching (the letters in order, `tgv` finds `toggle-view`; a match at the
 start of a word or of the name ranks higher), Up/Down or C-n/C-p to move, Enter
 Tab to complete what is typed as far as every command starting with it agrees
