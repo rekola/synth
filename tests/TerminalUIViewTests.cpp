@@ -502,3 +502,21 @@ TEST(terminal_ui_command_palette_tab_completes_a_prefix) {
   CHECK(f.text().find("M-x toggle-view") != std::string::npos);
   f.press(cellui::Key::Escape);
 }
+
+// The clip grid belongs to Live View: in Arrangement view its plane is hidden,
+// not just under the pattern editor.
+TEST(terminal_ui_switching_views_hides_the_clip_grid_in_arrangement_view) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);
+  auto clip_grid_visible = [&]() {
+    for (auto & plane : f.terminal.info().planes.children) {
+      if (plane.name == "clip-grid") return plane.visible;
+    }
+    return false;
+  };
+  CHECK(clip_grid_visible());
+  for (int i = 0; i < 4; i++) {
+    f.press(cellui::Key::Tab);
+    f.ui->step();
+    CHECK(clip_grid_visible() == (i % 2 == 1));
+  }
+}
