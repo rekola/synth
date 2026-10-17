@@ -381,8 +381,9 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top) {
   const Color & bg = *display_info.default_bg;
   bool dark = bg.getRed() + bg.getGreen() + bg.getBlue() < 384;
   stats.shadows = 0;
-  // Two shadows, as many design systems draw them: a key light from above,
-  // offset down by half the height and blurred by all of it, and a faint
+  // Two shadows, as many design systems draw them: a key light from the upper
+  // left, offset down by half the height (and right by a little less, so the
+  // corner below right is shaded too) and blurred by all of it, and a faint
   // ambient one all around. Height is in cell widths.
   GdkRGBA key = { 0, 0, 0, dark ? 0.65f : 0.18f };
   GdkRGBA ambient = { 0, 0, 0, dark ? 0.4f : 0.12f };
@@ -402,7 +403,7 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top) {
     size_t level_end = i;
     while (level_end < elevations.size() && elevations[level_end].elevation == e) level_end++;
     float px = e * static_cast<float>(cell_w);
-    float dy = 0.5f * px, blur = px, ambient_blur = std::max(2.0f, 0.25f * px);
+    float dx = 0.3f * px, dy = 0.5f * px, blur = px, ambient_blur = std::max(2.0f, 0.25f * px);
     graphene_rect_t reach = GRAPHENE_RECT_INIT(0, 0, 0, 0);
     bool any = false;
     for (size_t k = i; k < level_end; k++) {
@@ -411,9 +412,9 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top) {
       GskRoundedRect outline;
       gsk_rounded_rect_init_from_rect(&outline, &rect, 0);
       gtk_snapshot_append_outset_shadow(snap, &outline, &ambient, 0, 0, 0, ambient_blur);
-      gtk_snapshot_append_outset_shadow(snap, &outline, &key, 0, dy, 0, blur);
+      gtk_snapshot_append_outset_shadow(snap, &outline, &key, dx, dy, 0, blur);
       stats.shadows++;
-      graphene_rect_t r = GRAPHENE_RECT_INIT(rect.origin.x - 2 * blur, rect.origin.y - 2 * ambient_blur, rect.size.width + 4 * blur,
+      graphene_rect_t r = GRAPHENE_RECT_INIT(rect.origin.x - 2 * blur, rect.origin.y - 2 * ambient_blur, rect.size.width + 4 * blur + dx,
                                              rect.size.height + 2 * ambient_blur + dy + 2 * blur);
       if (any) graphene_rect_union(&reach, &r, &reach);
       else reach = r;
