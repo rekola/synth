@@ -108,6 +108,7 @@ struct Window::Impl {
   CursorRequest cursor;
   std::vector<ImagePlacement> images;
   std::vector<BackdropLayer> layers;
+  std::vector<ElevatedArea> elevations;
   // The texture made of each layer's cells, and of the frame's, kept while
   // what they show is unchanged (a texture that stays the same is not
   // uploaded again).
@@ -147,6 +148,7 @@ struct Window::Impl {
   void snapshot(GtkSnapshot * snapshot);
   const Painted & paint(size_t slot, const CellBuffer & cells, bool transparent, bool with_images = true);
   void appendTexture(GtkSnapshot * snapshot, const Painted & painted, int row = 0, int col = 0) const;
+  void appendShadows(GtkSnapshot * snap, const Painted & top);
   void forgetTextures() {
     for (Painted & p : painted) {
       if (p.texture) g_object_unref(p.texture);
@@ -372,6 +374,76 @@ void Window::Impl::appendTexture(GtkSnapshot * snap, const Painted & p, int row,
   gtk_snapshot_append_scaled_texture(snap, p.texture, GSK_SCALING_FILTER_NEAREST, &bounds);
 }
 
+// A soft shadow around every plane above the base that nothing blurs, the
+// higher the softer and the further down: drawn over the frame, outside the
+// plane, and under every plane higher than it, which is drawn again over it.
+void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top) {
+  const Color & bg = *display_info.default_bg;
+  bool dark = bg.getRed() + bg.getGreen() + bg.getBlue() < 384;
+  stats.shadows = 0;
+  // Two shadows, as many design systems draw them: a key light from the upper
+  // left, offset down by half the height (and right by a little less, so the
+  // corner below right is shaded too) and blurred by all of it, and a faint
+  // ambient one all around. Height is in cell widths.
+  GdkRGBA key = { 0, 0, 0, dark ? 0.65f : 0.18f };
+  GdkRGBA ambient = { 0, 0, 0, dark ? 0.4f : 0.12f };
+  GdkRGBA highlight = { 1, 1, 1, dark ? 0.14f : 0.55f };
+  GdkRGBA edge = { 0, 0, 0, dark ? 0.3f : 0.1f };
+  auto rectOf = [&](const ElevatedArea & a) {
+    return GRAPHENE_RECT_INIT(static_cast<float>(a.col * cell_w), static_cast<float>(a.row * cell_h), static_cast<float>(a.cols * cell_w),
+                              static_cast<float>(a.rows * cell_h));
+  };
+  auto shown = [&](const ElevatedArea & a) { return a.layer >= layers.size(); };
+  // Height by height, lowest first: each one's shadows, then everything as
+  // high or higher drawn again over them, so a shadow falls only on what is
+  // lower (neighbours of one height included).
+  size_t i = 0;
+  while (i < elevations.size()) {
+    float e = elevations[i].elevation;
+    size_t level_end = i;
+    while (level_end < elevations.size() && elevations[level_end].elevation == e) level_end++;
+    float px = e * static_cast<float>(cell_w);
+    float dx = 0.3f * px, dy = 0.5f * px, blur = px, ambient_blur = std::max(2.0f, 0.25f * px);
+    graphene_rect_t reach = GRAPHENE_RECT_INIT(0, 0, 0, 0);
+    bool any = false;
+    for (size_t k = i; k < level_end; k++) {
+      if (!shown(elevations[k])) continue;
+      graphene_rect_t rect = rectOf(elevations[k]);
+      GskRoundedRect outline;
+      gsk_rounded_rect_init_from_rect(&outline, &rect, 0);
+      gtk_snapshot_append_outset_shadow(snap, &outline, &ambient, 0, 0, 0, ambient_blur);
+      gtk_snapshot_append_outset_shadow(snap, &outline, &key, dx, dy, 0, blur);
+      stats.shadows++;
+      graphene_rect_t r = GRAPHENE_RECT_INIT(rect.origin.x - 2 * blur, rect.origin.y - 2 * ambient_blur, rect.size.width + 4 * blur + dx,
+                                             rect.size.height + 2 * ambient_blur + dy + 2 * blur);
+      if (any) graphene_rect_union(&reach, &r, &reach);
+      else reach = r;
+      any = true;
+    }
+    if (any) {
+      for (size_t j = i; j < elevations.size(); j++) {
+        if (!shown(elevations[j])) continue;
+        graphene_rect_t above = rectOf(elevations[j]), meet;
+        if (!graphene_rect_intersection(&above, &reach, &meet)) continue;
+        gtk_snapshot_push_clip(snap, &above);
+        appendTexture(snap, top);
+        gtk_snapshot_pop(snap);
+      }
+      // A light top edge and a darker bottom one, so pieces side by side
+      // or stacked read apart.
+      for (size_t k = i; k < level_end; k++) {
+        if (!shown(elevations[k])) continue;
+        graphene_rect_t rect = rectOf(elevations[k]);
+        graphene_rect_t top_edge = GRAPHENE_RECT_INIT(rect.origin.x, rect.origin.y, rect.size.width, 1);
+        graphene_rect_t bottom_edge = GRAPHENE_RECT_INIT(rect.origin.x, rect.origin.y + rect.size.height - 1, rect.size.width, 1);
+        gtk_snapshot_append_color(snap, &highlight, &top_edge);
+        gtk_snapshot_append_color(snap, &edge, &bottom_edge);
+      }
+    }
+    i = level_end;
+  }
+}
+
 void Window::Impl::snapshot(GtkSnapshot * snap) {
   auto start = Clock::now();
   int width = gtk_widget_get_width(view), height = gtk_widget_get_height(view);
@@ -386,7 +458,9 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
   if (frame.rows() > 0 && frame.cols() > 0 && rasterizer) {
     if (layers.empty()) {
       gtk_snapshot_append_color(snap, &background, &all);
-      appendTexture(snap, paint(0, frame, false));
+      const Painted & top = paint(0, frame, false);
+      appendTexture(snap, top);
+      appendShadows(snap, top);
     } else {
       // Each backdrop blurs and dims everything below it, on the GPU: what
       // is composed so far is a node, drawn as it is and again, blurred,
@@ -453,7 +527,9 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
       }
       gtk_snapshot_append_node(snap, below);
       gsk_render_node_unref(below);
-      appendTexture(snap, paint(layers.size(), frame, true));
+      const Painted & top = paint(layers.size(), frame, true);
+      appendTexture(snap, top);
+      appendShadows(snap, top);
     }
     // Layers that are gone leave their textures.
     size_t used = layers.size() + 1 + scrolls;
@@ -664,6 +740,9 @@ void Window::present(const CellBuffer & frame, const CursorRequest & cursor, con
   impl_->cursor = cursor;
   impl_->images = images;
   impl_->layers = info ? info->backdrops : std::vector<BackdropLayer>();
+  impl_->elevations = info ? info->elevations : std::vector<ElevatedArea>();
+  std::stable_sort(impl_->elevations.begin(), impl_->elevations.end(),
+                   [](const ElevatedArea & a, const ElevatedArea & b) { return a.elevation < b.elevation; });
   gtk_widget_queue_draw(impl_->view);
 }
 
