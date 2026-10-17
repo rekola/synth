@@ -4,3 +4,4 @@
 #include <cellui/Keymap.h>
 
 using cellui::Keymap;
+using cellui::KeymapProfile;

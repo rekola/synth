@@ -58,6 +58,9 @@ add_library(cellui STATIC
   src/CellBuffer.cpp
   src/ChannelMeter.cpp
   src/ChoiceDialog.cpp
+  src/CommandPalette.cpp
+  src/FuzzyMatch.cpp
+  src/KeyChordNames.cpp
   src/Gallery.cpp
   src/InfoDialog.cpp
   src/InlineEditor.cpp
@@ -144,9 +147,11 @@ add_executable(cellui_tests
   tests/CellBufferTests.cpp
   tests/ChoiceDialogTests.cpp
   tests/ChoiceListTests.cpp
+  tests/CommandPaletteTests.cpp
   tests/ColorTests.cpp
   tests/DiscoveryTests.cpp
   tests/ElementTests.cpp
+  tests/FadeTests.cpp
   tests/FrameEncoderTests.cpp
   tests/ImageEncoderTests.cpp
   tests/GalleryTests.cpp
