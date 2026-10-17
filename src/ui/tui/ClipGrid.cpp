@@ -864,8 +864,8 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
           row_fg = row_fg.blend(focus_, styles.highlight_fg_color);
           row_bg = row_bg.blend(0.5f * focus_, styles.cursor_tint_color);
         }
-        // A clip stands on the grid like a card.
-        if (has_real_clip) setLift(styles.theme.elevation.card);
+        // A clip stands on the grid like a card; the cursor stays flat on it.
+        if (has_real_clip && !is_cursor_cell) setLift(styles.theme.elevation.card);
         setFgColor(row_fg);
         setBgColor(row_bg);
         putstr(y, x, string(static_cast<size_t>(kColWidth), ' ')); // opaque row background first
