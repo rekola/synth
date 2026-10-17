@@ -36,6 +36,9 @@ class KeyReader {
 
   // Queues an input from the terminal.
   void push(const Input & input) { source_.queue.push_back(input); }
+  // Whether Escape can be an Alt prefix (on by default). A display that sends
+  // Alt as a modifier has no use for the wait, and Escape is just Escape.
+  void setEscapeAsMeta(bool on) { escape_as_meta_ = on; }
   // Text arriving as a paste is data: an Escape in it is no prefix.
   void setInPaste(bool in_paste) { coalescer_.setInPaste(in_paste); }
 
@@ -67,6 +70,8 @@ class KeyReader {
   std::deque<Input> out_;
   std::optional<Input> held_;  // the bare Escape waiting for its next input
   bool taken_ = false;         // takeEscape() took the held Escape
+  bool escape_as_meta_ = true;
+  bool escape_taken_ = false;  // without Escape as Meta: the press was taken
   std::optional<Clock::time_point> pending_since_;
 };
 
