@@ -502,3 +502,18 @@ TEST(terminal_ui_command_palette_tab_completes_a_prefix) {
   CHECK(f.text().find("M-x toggle-view") != std::string::npos);
   f.press(cellui::Key::Escape);
 }
+
+// The query row is on the display's own background, like the status line it
+// covers, and the description above it is not drawn like a command.
+TEST(terminal_ui_command_palette_query_row_keeps_the_display_background) {
+  UIFixture f;
+  f.meta('x');
+  f.type("undo");
+  auto & frame = f.terminal.frame();
+  int last = frame.rows() - 1;
+  for (int col : {0, 1, 10, frame.cols() - 1}) CHECK(!frame.at(last, col).bg);
+  for (int col : {0, 1, 10, frame.cols() - 1}) CHECK(!frame.at(last - 1, col).bg);
+  CHECK(frame.at(last - 1, 3).italic);
+  CHECK(frame.at(last - 3, 10).bg);  // the list is a raised panel
+  f.press(cellui::Key::Escape);
+}
