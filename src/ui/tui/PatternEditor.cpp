@@ -1355,7 +1355,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   // Smooth scrolling: the shown top trails the logical one by an offset
   // that eases to zero; a jump too far to follow just lands.
   {
-    bool smooth = rows_plane_->smoothScroll();
+    bool smooth = getPlane().smoothScroll();
     auto now = std::chrono::steady_clock::now();
     double seconds = std::min(0.1, std::chrono::duration<double>(now - row_anim_tick_).count());
     row_anim_tick_ = now;
@@ -1459,7 +1459,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
     setFgColor(styles.window_border_color);
     setBgColor(styles.window_bg_color);
     fill();
-    rows_plane_->setScrollOffset(row_offset_ == 0.0 ? 0.0 : row_offset_ - std::floor(row_offset_), 0);
+    getPlane().setScrollOffset(row_offset_ == 0.0 ? 0.0 : row_offset_ - std::floor(row_offset_), 0);
 
     renderHeading(styles, track_ids, track_info, focused);
     // One row more than fits while the rows are between two positions.
