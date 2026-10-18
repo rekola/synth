@@ -476,11 +476,11 @@ TEST(padsynth_voice_keeps_its_region_when_the_pitch_crosses_a_boundary) {
   params.samples_per_octave = 2; // regions a half octave apart
   auto table = std::make_shared<PadSynthTable>(kTableSampleRate, params);
 
-  // The boundary between two neighbouring regions.
-  float below = 100.0f;
-  float base = table->tableBaseFrequency(below);
-  float boundary = below;
-  while (table->tableBaseFrequency(boundary) == base) boundary *= 1.0001f;
+  // The boundary between the two regions: start in the lower one and climb.
+  float boundary = 60.0f;
+  float base = table->tableBaseFrequency(boundary);
+  while (table->tableBaseFrequency(boundary) == base && boundary < 1000.0f) boundary *= 1.0001f;
+  CHECK(boundary > 80.0f && boundary < 130.0f);
 
   ChannelConfiguration config(kTableSampleRate, 1);
   SphericalPosition position;
