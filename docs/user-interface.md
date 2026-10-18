@@ -227,9 +227,9 @@ The terminal interface does everything the program does, with these limits:
 - **Key releases.** Only terminals with the Kitty keyboard protocol (kitty,
   foot, WezTerm, Ghostty) report a key going up. Elsewhere keyboard note entry
   can't tell how long a note is held. Keys typed within about 0.1 s of the first
-  key of a chord still go on one row, in successive note columns, and the
-  repeats of a held key are ignored; the Launchpad and MIDI input are
-  unaffected.
+  key of a chord still go on one row, in successive note columns (a note
+  already in the chord starts a new one, so a held key's repeats each get a
+  row); the Launchpad and MIDI input are unaffected.
 - **Key combinations.** Without that protocol many combinations arrive as the
   same byte (C-_ and C-/, for example) or not at all (most Ctrl+Shift chords),
   so some commands have fewer bindings there, and M-x is always the way in.
