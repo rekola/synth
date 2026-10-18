@@ -160,6 +160,7 @@ OutlineView::render(const StyleProvider & styles, bool refresh, bool focused) {
   // scrolls by parts of a row.
   if (!tree_plane_) {
     tree_plane_ = getPlane().createChild();
+    getPlane().setMouseCursor(cellui::MouseCursor::POINTER);
     getPlane().makeTransparent();
     getPlane().moveToTop();
   }

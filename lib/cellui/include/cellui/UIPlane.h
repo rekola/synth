@@ -4,6 +4,7 @@
 #include <cellui/BackdropLayer.h>
 #include <cellui/Input.h>
 #include <cellui/KeymapProfile.h>
+#include <cellui/MouseCursor.h>
 #include <cellui/StyleProvider.h>
 
 #include <climits>
@@ -53,6 +54,12 @@ class UIPlane {
   // one height in tree order. Default no-op for a display with no layers.
   virtual void setElevation(float) {}
   virtual float elevation() const { return 0; }
+  // The pointer's shape over the plane's rectangle. A plane that leaves it
+  // at INHERIT shows what is below it, so a popup sets DEFAULT to say its
+  // area is not what lies under it. Default no-op for a display with no
+  // pointer.
+  virtual void setMouseCursor(MouseCursor) {}
+  virtual MouseCursor mouseCursor() const { return MouseCursor::INHERIT; }
   // A name for the plane in a test's or an inspector's view of the tree
   // (PlaneInfo); default no-op.
   virtual void setName(const std::string &) {}

@@ -398,6 +398,25 @@ TEST(terminal_ui_smooth_scroll_cursor_appears_on_the_clicked_row) {
   CHECK(std::abs(band_row() - y) < 0.01);
 }
 
+// A press in the clip grid shows the cell pressed without moving the cursor;
+// the release picks it.
+TEST(terminal_ui_clip_grid_click_shows_pressed_then_picks_on_release) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);
+  int x = kOutlineCols + 3, y = 5;
+  auto cursor_before = gridCursorRows(f);
+  auto bg_before = f.bg(y, x);
+  f.terminal.pushMouse(y, x, cellui::Key::Button1);
+  f.ui->step();
+  CHECK(f.bg(y, x) != bg_before);
+  auto marked = cursor_before;
+  marked.push_back(y); // the pressed cell is marked too, the cursor stays where it was
+  CHECK(gridCursorRows(f) == marked);
+  f.terminal.pushMouse(y, x, cellui::Key::Button1, 0, cellui::Input::Kind::RELEASE);
+  f.ui->step();
+  CHECK(f.bg(y, x) != bg_before);
+  CHECK(gridCursorRows(f) == std::vector<int>{y});
+}
+
 // The command prompt opens with M-x on the Emacs keymap and with
 // Ctrl+Shift+P on the desktop one, and each keymap ignores the other's chord.
 TEST(terminal_ui_command_prompt_chord_follows_the_keymap_profile) {

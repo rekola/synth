@@ -129,6 +129,7 @@ void BufferPlane::refresh() {
   top.placements_.clear();
   top.layers_.clear();
   top.elevations_.clear();
+  top.mouse_cursors_.clear();
   // Lower planes first, whatever their place in the tree; planes of one
   // height in tree order (a parent before its children).
   std::vector<Paint> paints;
@@ -136,11 +137,16 @@ void BufferPlane::refresh() {
   std::stable_sort(paints.begin(), paints.end(), [](const Paint & a, const Paint & b) { return a.elevation < b.elevation; });
   for (const Paint & p : paints) {
     p.plane->compose(*top.target_, p.row, p.col, p.clip_row, p.clip_col, p.clip_rows, p.clip_cols, p.elevation);
-    if (p.elevation <= 0.0f) continue;
+    bool elevated = p.elevation > 0.0f;
+    if (!elevated && p.plane->mouse_cursor_ == MouseCursor::INHERIT) continue;
     auto [rows, cols] = p.plane->getDim();
     int r0 = std::max(p.clip_row, p.row), r1 = std::min(p.clip_row + p.clip_rows, p.row + rows);
     int c0 = std::max(p.clip_col, p.col), c1 = std::min(p.clip_col + p.clip_cols, p.col + cols);
-    if (r0 < r1 && c0 < c1) top.elevations_.push_back(ElevatedArea{ r0, c0, r1 - r0, c1 - c0, p.elevation, p.plane->name_, top.layers_.size() });
+    if (r0 >= r1 || c0 >= c1) continue;
+    if (p.plane->mouse_cursor_ != MouseCursor::INHERIT) {
+      top.mouse_cursors_.push_back(CursorArea{ r0, c0, r1 - r0, c1 - c0, p.plane->mouse_cursor_ });
+    }
+    if (elevated) top.elevations_.push_back(ElevatedArea{ r0, c0, r1 - r0, c1 - c0, p.elevation, p.plane->name_, top.layers_.size() });
   }
   top.collectLifts();
 }
@@ -408,6 +414,7 @@ PlaneInfo BufferPlane::describe() const {
   std::tie(info.rows, info.cols) = getDim();
   info.visible = visible_;
   info.elevation = elevation_;
+  info.mouse_cursor = mouse_cursor_;
   info.reader = editor_ != nullptr;
   info.picker = picker_ != nullptr;
   for (const BufferPlane * child : children_) info.children.push_back(child->describe());
@@ -441,6 +448,7 @@ void BufferPlane::showReader(const std::string & prompt, int y, int x, int rows,
   int reader_cols = cols == -1 ? std::max(1, plane_cols - reader_x_) : std::max(1, cols);
   reader_color_ = text_color.value_or(getStyles().reader_text_color);
   reader_plane_ = makeChild();
+  reader_plane_->mouse_cursor_ = MouseCursor::TEXT;
   reader_plane_->move(y, reader_x_);
   reader_plane_->resize(std::max(1, reader_rows), reader_cols);
   editor_ = std::make_unique<LineEditor>();
@@ -513,6 +521,7 @@ void BufferPlane::showPicker(int y, int x, int rows, int cols, int item_count) {
   picker_ = std::make_unique<Picker>();
   picker_->plane = makeChild();
   picker_->plane->setElevation(getStyles().theme.elevation.overlay);
+  picker_->plane->mouse_cursor_ = MouseCursor::POINTER;
   picker_->y = y;
   picker_->x = x;
   picker_->plane->move(y, x);

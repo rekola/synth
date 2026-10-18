@@ -1146,8 +1146,9 @@ would otherwise resume showing.
   scrolls the widget under the mouse without moving focus, and scrolls its
   view, never its cursor (so never the transport); Shift scrolls tracks
   sideways, and the next cursor move brings the view back.
-  The left button picks cells: in `ClipGrid` a click moves the cursor
-  and presses the slot like Enter does (a clip launches, the master's
+  The left button picks cells: in `ClipGrid` a press shows the cell under
+  it pressed (`StyleProvider::row_pressed_bg_color`) and the release moves the
+  cursor and track there and presses the slot like Enter does (a clip launches, the master's
   scene/stop-all slots fire; Sends rows only select), in `ArrangementGrid`
   it moves the cursor to the bar and track (Enter still commits), and in
   `PatternEditor` it moves the cursor to the cell (a click in a heading
@@ -1464,7 +1465,15 @@ would otherwise resume showing.
   faded out, or with pictures the cells drawn, blurred and stretched in tiles of 4 x 16
   cells redrawn only when what they show changed. `TestBackend` stacks the layers
   unblurred (`info().backdrops` has them) and shows them as a terminal does after
-  `emulateBackdrops(true)`. Not done yet: per-plane render nodes, input methods, HiDPI, native
+  `emulateBackdrops(true)`.
+  The pointer's shape is a plane attribute (`UIPlane::setMouseCursor()`,
+  `MouseCursor`: `INHERIT` shows what is below, `DEFAULT`/`POINTER`/`TEXT`):
+  `refresh()` lists the rectangles of the planes that asked for one, in drawing
+  order, as `FrameInfo::mouse_cursors` (`takeMouseCursors()`, `mouseCursorAt()`),
+  and the backend shows the last one over the pointer's cell - the window with
+  `gtk_widget_set_cursor_from_name()`, the terminal with OSC 22 (so it asks for
+  any-motion mouse reporting and keeps hover moves to itself). A popup sets
+  `DEFAULT` so its area is not taken for what lies below it. Not done yet: per-plane render nodes, input methods, HiDPI, native
   dialogs and menus. `TestBackend` (`cellui/TestBackend.h`) has no tty or window: input is
   pushed by the test, and each presented frame is kept for the test to read
   directly (`text()`, `frame()` cells and their styles, `info()`: the plane tree from

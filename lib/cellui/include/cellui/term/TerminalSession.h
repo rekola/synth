@@ -87,6 +87,9 @@ class TerminalSession : public Backend {
   // Writes raw bytes, all of them.
   void write(const std::string & bytes);
 
+  // The pointer's shape the last frame asked for over the cell it is in.
+  MouseCursor mouseCursor() const { return shown_cursor_; }
+
   // Makes wakeFd() readable; any thread may call it, and so may a signal
   // handler.
   void wake();
@@ -126,6 +129,12 @@ class TerminalSession : public Backend {
   std::string setup_;
   std::string restore_;
   std::deque<TermEvent> pending_;
+  // The areas of the last frame that asked for a pointer shape, the cell the
+  // pointer is in, and the shape the terminal was told to show.
+  std::vector<CursorArea> cursor_areas_;
+  int pointer_row_ = -1, pointer_col_ = -1;
+  MouseCursor shown_cursor_ = MouseCursor::DEFAULT;
+  void updateMouseCursor();
   bool ended_ = false;
 };
 
