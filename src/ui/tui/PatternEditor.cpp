@@ -2327,22 +2327,23 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 	// state, but its keys arrive together: one that does goes onto the
 	// chord's row, in the next note column, and leaves the cursor where the
 	// chord's first key put it.
-	bool chord_follower = false;
-	if (midi_note >= 0 && !is_off && !is_delete && input.getKind() == InputEvent::Kind::UNKNOWN && !input.hasShift()) {
-	  if (auto slot = chord_.join(input.getTimestamp(), track_id)) {
-	    edit_target = source_->edit(track_id, slot->row);
-	    note_column = slot->column;
-	    chord_follower = true;
-	  } else {
-	    chord_.begin(input.getTimestamp(), track_id, point, note_column);
-	  }
-	}
+        bool chord_follower = false;
+        bool legacy_note_key = midi_note >= 0 && !is_off && !is_delete && input.getKind() == InputEvent::Kind::UNKNOWN && !input.hasShift();
+        if (legacy_note_key) {
+          if (auto slot = chord_.join(input.getTimestamp(), track_id, midi_note)) {
+            edit_target = source_->edit(track_id, slot->row);
+            note_column = slot->column;
+            chord_follower = true;
+          } else {
+            chord_.begin(input.getTimestamp(), track_id, point, note_column, midi_note);
+          }
+        }
 
-	// Whether this key's usual one-row step is left to someone else: an
-	// auto-started session lets the playing transport advance the rows, and a
-	// held key defers the step to the last release, so the rest of a chord
-	// lands on the same row.
-	bool hold_tracked_note = false;
+        // Whether this key's usual one-row step is left to someone else: an
+        // auto-started session lets the playing transport advance the rows, and a
+        // held key defers the step to the last release, so the rest of a chord
+        // lands on the same row.
+        bool hold_tracked_note = false;
 
 	// The group of a chord opens before the first write, not inside it.
 	if (midi_note >= 0 && !is_delete && !is_off && input.getKind() != InputEvent::Kind::UNKNOWN && active_keyboard_notes_.empty()) getController().setNoteHeld(true);
@@ -2430,8 +2431,8 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
             }
 	  }
 
-	  return true;
-	}
+          return true;
+        }
       }
     }
   }
