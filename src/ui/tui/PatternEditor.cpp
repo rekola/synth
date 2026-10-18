@@ -1355,7 +1355,8 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   // Smooth scrolling: the shown top trails the logical one by an offset
   // that eases to zero; a jump too far to follow just lands.
   {
-    bool smooth = getPlane().smoothScroll();
+    // Live View's columns each scroll by themselves, below.
+    bool smooth = getPlane().smoothScroll() && !isLiveMode();
     auto now = std::chrono::steady_clock::now();
     double seconds = std::min(0.1, std::chrono::duration<double>(now - row_anim_tick_).count());
     row_anim_tick_ = now;
@@ -1376,6 +1377,32 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
     int delta = static_cast<int>(std::floor(row_offset_));
     if (delta != draw_row0_ - new_row) force_full_redraw_ = true;
     draw_row0_ = new_row + delta;
+
+    columns_shifted_ = false;
+    bool columns = getPlane().smoothScroll() && isLiveMode();
+    auto top_address = source_->normalize(view_block_, new_row);
+    for (auto id : track_ids) {
+      auto & column = column_scroll_[id];
+      if (!columns) {
+        column = ColumnScroll();
+        continue;
+      }
+      long line = source_->trackLine(id, top_address);
+      if (column.valid && std::labs(line - column.line) <= kMaxSmoothScrollRows)
+        column.offset -= static_cast<double>(line - column.line);
+      else
+        column.offset = 0.0;
+      column.line = line;
+      column.valid = true;
+      if (column.offset != 0.0) {
+        column.offset -= column.offset * (1.0 - std::exp(-seconds / 0.06));
+        if (std::abs(column.offset) < 0.02) column.offset = 0.0;
+      }
+      int column_delta = static_cast<int>(std::floor(column.offset));
+      if (column_delta != column.delta) force_full_redraw_ = true;
+      column.delta = column_delta;
+      if (column.offset != 0.0) columns_shifted_ = true;
+    }
   }
 
   // GridPosition::operator!= already covers track/col/subcol/scope (.row
@@ -1426,8 +1453,8 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   if (focus_fading) force_full_redraw_ = true;
   if (fading || fading_drawn_) force_full_redraw_ = true;
   // The rows move: every frame of the animation, and one more at its end.
-  if (row_offset_ != 0.0 || row_anim_drawn_) force_full_redraw_ = true;
-  row_anim_drawn_ = row_offset_ != 0.0;
+  if (rowsShifted() || row_anim_drawn_) force_full_redraw_ = true;
+  row_anim_drawn_ = rowsShifted();
   fading_drawn_ = fading;
   if (score_pattern != current_score_pattern ||
       song.getMajorVersion() != current_song_version ||
@@ -1460,10 +1487,11 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
     setBgColor(styles.window_bg_color);
     fill();
     getPlane().setScrollOffset(row_offset_ == 0.0 ? 0.0 : row_offset_ - std::floor(row_offset_), 0);
+    syncColumnPlanes(track_ids);
 
     renderHeading(styles, track_ids, track_info, focused);
     // One row more than fits while the rows are between two positions.
-    int drawn_rows = rows - heading_height + (row_offset_ != 0.0 ? 1 : 0);
+    int drawn_rows = rows - heading_height + (rowsShifted() ? 1 : 0);
     for (auto row = 0; row < drawn_rows; row++) {
       auto address = source_->normalize(view_block_, row + draw_row0_);
       renderRow(styles, heading_height, track_ids, track_info, row, address.block == score_pattern && address.row == score_playing_row, sel_bounds, focused);
@@ -2411,6 +2439,35 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
   return false;
 }
 
+void PatternEditor::syncColumnPlanes(const std::vector<int> & track_ids) {
+  bool live = isLiveMode() && getPlane().smoothScroll();
+  auto [pos_y, pos_x] = getPosition();
+  auto [plane_rows, plane_cols] = getDim();
+  if (live) {
+    bool created = false;
+    while (column_planes_.size() < track_ids.size()) {
+      column_planes_.push_back(getPlane().createChild());
+      created = true;
+    }
+    // The headings' plane (held in rows_plane_ while drawing) stays on top.
+    if (created && rows_plane_) rows_plane_->moveToTop();
+  }
+  for (size_t i = 0; i < column_planes_.size(); i++) {
+    auto & plane = column_planes_[i];
+    plane->erase();
+    bool used = live && i < track_ids.size();
+    plane->setVisible(used);
+    if (!used) {
+      plane->setScrollOffset(0.0, 0);
+      continue;
+    }
+    plane->move(pos_y, pos_x);
+    if (plane->getDim() != std::make_pair(plane_rows, plane_cols)) plane->resize(plane_rows, plane_cols);
+    double offset = column_scroll_[track_ids[i]].offset;
+    plane->setScrollOffset(offset == 0.0 ? 0.0 : offset - std::floor(offset), 0);
+  }
+}
+
 void
 PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & all_track_info, bool focused) {
   // Back on the widget's own plane for the headings.
@@ -3005,16 +3062,21 @@ void
 PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & all_track_info, int display_row, bool highlight, const SelectionBounds & sel_bounds, bool focused) {
   auto [rows, cols] = getDim();
 
-  if (display_row >= rows - heading_height + (row_offset_ != 0.0 ? 1 : 0)) {
+  if (display_row >= rows - heading_height + (rowsShifted() ? 1 : 0)) {
     return;
   }
-    
+
   auto & song = getController().getSong();
   auto point = source_->cursor();
   auto address = source_->normalize(view_block_, display_row + draw_row0_);
   auto pattern_idx = address.block, pattern_row = address.row;
   bool is_neighboring_pattern = point.block != pattern_idx || pattern_row < 0;
   auto grid = source_->readGrid(address);
+  // Each Live View column may show a row of its own: see the track loop.
+  const auto base_address = address;
+  const bool base_highlight = highlight;
+  const int unshifted_row = display_row;
+  bool row_shifted = false;
 
   // Where this row's columns land, for mouse clicks (handleMouse()).
   auto row_index = static_cast<size_t>(std::max(display_row, 0));
@@ -3270,6 +3332,27 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     }
     if (i >= 0 && i < current_scroll_.track) continue;
     if (current_pos >= cols) break;
+
+    // A column that scrolls shows the rows its own offset has it at, on its
+    // own plane.
+    int column_delta = i >= 0 && isLiveMode() ? columnDelta(track_ids[static_cast<size_t>(i)]) : 0;
+    if (column_delta != 0 || row_shifted) {
+      row_shifted = column_delta != 0;
+      address = row_shifted ? source_->normalize(view_block_, unshifted_row + draw_row0_ + column_delta) : base_address;
+      pattern_idx = address.block, pattern_row = address.row;
+      grid = source_->readGrid(address);
+      highlight = row_shifted ? address.block == point.block && address.row == point.row : base_highlight;
+    }
+    struct ColumnPlane {
+      PatternEditor & editor;
+      std::unique_ptr<UIPlane> * plane;
+      ColumnPlane(PatternEditor & e, std::unique_ptr<UIPlane> * p) : editor(e), plane(p) {
+        if (plane) editor.swapPlane(*plane);
+      }
+      ~ColumnPlane() {
+        if (plane) editor.swapPlane(*plane);
+      }
+    } column_plane(*this, i >= 0 && static_cast<size_t>(i) < column_planes_.size() && column_planes_[static_cast<size_t>(i)] ? &column_planes_[static_cast<size_t>(i)] : nullptr);
 
     Color track_base_fg = row_base_fg, track_base_bg = row_base_bg;
     // Whether this column's own row is outside its current block - the
@@ -3900,6 +3983,11 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   }
 
   track_marked.reset();
+  if (row_shifted) {
+    address = base_address;
+    pattern_idx = address.block, pattern_row = address.row;
+    highlight = base_highlight;
+  }
 
   // Cache this row's locator on-screen position whenever it's the
   // cursor/playhead's own row - highlight is true exactly then, in every

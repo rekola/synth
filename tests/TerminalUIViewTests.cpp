@@ -606,10 +606,12 @@ TEST(terminal_ui_smooth_scroll_moves_the_pattern_editor_rows_under_their_heading
       CHECK(*s > 0.0 && *s < 1.0);
       // What shifts is the rows' plane: no heading text in it.
       for (const auto & layer : f.terminal.info().backdrops) {
-        if (!layer.scroll || layer.scroll->shift_rows <= 0) continue;
+        if (!layer.scroll) continue;
+        const auto & content = *layer.scroll;
+        if (content.shift_rows <= 0) continue;
         std::string text;
-        for (int r = 0; r < layer.scroll->cells.rows(); r++) {
-          for (int c = 0; c < layer.scroll->cells.cols(); c++) text += layer.scroll->cells.at(r, c).text;
+        for (int r = 0; r < content.cells.rows(); r++) {
+          for (int c = 0; c < content.cells.cols(); c++) text += content.cells.at(r, c).text;
         }
         CHECK(text.find("Pizzicato") == std::string::npos);
         CHECK(text.find("T0") == std::string::npos);
@@ -623,4 +625,50 @@ TEST(terminal_ui_smooth_scroll_moves_the_pattern_editor_rows_under_their_heading
     f.ui->step();
   }
   CHECK(!shift());  // settled on a whole row
+}
+
+// Live View's columns each scroll by themselves: every track's column is a
+// plane of its own with its own offset, and the headings stay put.
+TEST(terminal_ui_smooth_scroll_moves_live_view_pattern_columns_each_by_itself) {
+  cellui::DisplayInfo display;
+  display.smooth_scroll = true;
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, display);
+  for (int i = 0; i < 6 && f.terminal.info().focus != "pattern-editor"; i++) f.otherWindow();
+  CHECK(f.terminal.info().focus == "pattern-editor");
+  auto heading_line = [&]() {
+    for (size_t y = 0; y < 30; y++) {
+      if (f.line(y).find("Pizzicato") != std::string::npos) return static_cast<int>(y);
+    }
+    return -1;
+  };
+  int heading = heading_line();
+  CHECK(heading >= 0);
+  auto shifted = [&]() {
+    size_t count = 0;
+    for (const auto & layer : f.terminal.info().backdrops) {
+      if (!layer.scroll || layer.scroll->shift_rows <= 0 || layer.scroll->cols <= 60) continue;
+      CHECK(layer.scroll->shift_rows < 1.0);
+      std::string text;
+      for (int r = 0; r < layer.scroll->cells.rows(); r++) {
+        for (int c = 0; c < layer.scroll->cells.cols(); c++) text += layer.scroll->cells.at(r, c).text;
+      }
+      CHECK(text.find("Pizzicato") == std::string::npos);
+      count++;
+    }
+    return count;
+  };
+  size_t most = 0;
+  for (int i = 0; i < 150; i++) {
+    f.press(cellui::Key::Down);
+    std::this_thread::sleep_for(std::chrono::milliseconds(8));
+    f.ui->step();
+    most = std::max(most, shifted());
+    CHECK(heading_line() == heading);
+  }
+  CHECK(most > 1); // a plane per column
+  for (int i = 0; i < 100; i++) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(8));
+    f.ui->step();
+  }
+  CHECK(shifted() == 0); // settled on whole rows
 }
