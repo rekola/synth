@@ -501,3 +501,16 @@ TEST(padsynth_voice_keeps_its_region_when_the_pitch_crosses_a_boundary) {
   CHECK(biggest_step > 0.0f);
   CHECK(join_step < 2.0f * biggest_step); // no jump to a different table
 }
+
+TEST(padsynth_partials_stop_below_nyquist_by_half_a_region_spacing) {
+  std::vector<int> all;
+  for (int h = 1; h <= 255; h++) all.push_back(h);
+  PadSynthParams params = harmonicParams(all, 100.0f); // one region per octave
+  PadSynthTable table(kTableSampleRate, params);
+  float f0 = table.tableBaseFrequency(100.0f);
+  const auto & wave = table.getTable(100.0f);
+  // Limit: 22050 / sqrt(2) = 15.6 kHz.
+  double inside = harmonicAmplitude(wave, f0, static_cast<int>(14000.0f / f0));
+  CHECK(inside > 0.0);
+  CHECK(harmonicAmplitude(wave, f0, static_cast<int>(17000.0f / f0)) < 1e-3 * inside); // only rounding noise
+}

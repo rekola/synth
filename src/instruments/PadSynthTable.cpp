@@ -129,13 +129,18 @@ PadSynthTable::renderSample(int j) const {
   int S = L / 2;
   float SR = static_cast<float>(sample_rate_);
 
+  // A note is read up to half a region spacing faster than the table's own
+  // pitch, so partials stop that far below Nyquist to keep them from folding.
+  float spacing_octaves = 1.0f / static_cast<float>(params_.samples_per_octave);
+  float partial_limit = std::min(0.49999f * SR, 0.5f * SR / std::exp2(0.5f * spacing_octaves));
+
   std::vector<float> amplitude_spectrum(static_cast<size_t>(S), 0.0f);
 
   for (int h = 1; ; h++) {
     if (h >= static_cast<int>(shaped.size())) break; // no oscillator data beyond this - nothing further to place
     float g_h = partialPosition(h, params_.position);
     float phi_h = g_h * f_j;
-    if (phi_h > 0.49999f * SR || phi_h < 20.0f) break; // stop entirely
+    if (phi_h > partial_limit || phi_h < 20.0f) break; // stop entirely
     if (shaped[static_cast<size_t>(h)] < 1e-4f) continue; // skip
 
     placePartial(amplitude_spectrum, shaped[static_cast<size_t>(h)], phi_h, params_.bandwidth_cents, alpha, profile, SR);

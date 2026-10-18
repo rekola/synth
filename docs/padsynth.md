@@ -130,6 +130,11 @@ the bottom of the range) goes entirely into its nearest bin, with the same
 energy as a wider one, instead of being split over two bins that beat
 slowly against each other.
 
+Partials stop at `Nyquist / 2^(spacing / 2)` (`spacing` = `1/q` octave), since a
+note is read up to half a region spacing faster than its table's own pitch
+and higher partials would fold back. A note above the top region is read
+faster still and can alias.
+
 | Preset | `f_b` Hz | `O` | `q` | Regions | Table length | Lowest Hz | Highest Hz |
 |---|---|---|---|---|---|---|---|
 | `keyboard` | 392.4 | 5 | 2 | 12 | 131072 | 58.3 | 2640 |
