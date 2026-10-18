@@ -346,6 +346,11 @@ ScenePatternSource::trackAddress(int track_id, RowAddress address) const {
   return advance(position(track_id), rowsFromPosition(track_id, address));
 }
 
+long ScenePatternSource::trackLine(int track_id, RowAddress address) const {
+  if (isLooping(track_id)) return playheads_.at(track_id).elapsed + rowsFromPosition(track_id, address);
+  return PatternSource::trackLine(track_id, address);
+}
+
 namespace {
 constexpr std::chrono::milliseconds kPassFade(300);
 }

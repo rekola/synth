@@ -48,6 +48,9 @@ class PatternSource {
   // `address`, a row of the editor (the cursor track's), as `track_id`'s
   // own - the same row where every track shares one position.
   virtual RowAddress trackAddress(int, RowAddress address) const { return address; }
+  // Where `track_id`'s row for `address` sits on a line that never wraps, so
+  // the difference between two frames is how far its column scrolled.
+  virtual long trackLine(int track_id, RowAddress address) const { return rowsBetween({0, 0}, trackAddress(track_id, address)); }
   // How dimmed `address` (a row of the editor) is for `track_id`, 0 to 1:
   // another pass of the loop it's playing rather than the pass its own
   // position is in, fading as the playhead crosses into the next one.

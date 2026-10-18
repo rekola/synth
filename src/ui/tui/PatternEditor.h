@@ -170,6 +170,10 @@ protected:
   // ClipboardEntry::track_tunings capture, see that struct's own comment.
   std::vector<Tuning> tuningsForTrackRange(const Song & song, const std::vector<int> & track_ids, int track_lo, int track_hi) const;
   void renderHeading(const StyleProvider & styles, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info, bool focused);
+  // Live View's per-column planes (column_planes_), one per track, over the
+  // rows' plane and under the headings, each shifted by its own fraction.
+  // Called while the drawing helpers are on the rows' plane.
+  void syncColumnPlanes(const std::vector<int> & track_ids);
   void renderHeadingOnPlane(const StyleProvider & styles, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info, bool focused);
   // The headings (names, meters) are the widget's own plane, over a plane of
   // its own for the rows, so the rows can move without the headings. While
@@ -188,6 +192,22 @@ protected:
   bool anim_top_valid_ = false;
   std::chrono::steady_clock::time_point row_anim_tick_;
   bool row_anim_drawn_ = false;
+  // Live View: every track's column scrolls by itself (its playhead or the
+  // view moves it), so each has its own offset and a plane of its own.
+  struct ColumnScroll {
+    double offset = 0.0;
+    long line = 0;
+    bool valid = false;
+    int delta = 0;
+  };
+  std::unordered_map<int, ColumnScroll> column_scroll_;
+  std::vector<std::unique_ptr<UIPlane>> column_planes_;
+  bool columns_shifted_ = false;
+  bool rowsShifted() const { return row_offset_ != 0.0 || columns_shifted_; }
+  int columnDelta(int track_id) const {
+    auto it = column_scroll_.find(track_id);
+    return it == column_scroll_.end() ? 0 : it->second.delta;
+  }
   static constexpr int kMaxSmoothScrollRows = 12;
   void renderRow(const StyleProvider & styles, int heading_height, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info, int row, bool highlight, const SelectionBounds & sel_bounds, bool focused);
 

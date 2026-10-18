@@ -105,6 +105,7 @@ class ScenePatternSource : public PatternSource {
   // there is nothing), so its line carries on through the loop, the
   // passes either side of the one it's in shown dimmed.
   RowAddress trackAddress(int track_id, RowAddress address) const override;
+  long trackLine(int track_id, RowAddress address) const override;
   float loopPassDim(int track_id, RowAddress address) const override;
   bool isFading() const override;
   // How far the cursor track's position jumped back (or forward) as its
