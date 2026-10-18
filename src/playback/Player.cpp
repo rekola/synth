@@ -386,10 +386,8 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
                   note_override.detune_cents = static_cast<float>(*cents);
                 }
               }
-              int coordinate_row = live_note_counter_++;
               track_state->noteOn(column, *instrument, tuning, note.getVelocityAsFloat(), note.getValue(),
-                                  NoteCoordinate(state.getSongStructure().getOrdinalFor(*track), coordinate_row, column), note_override);
-              state.liveNoteStarted(track_id, column, tuning, note.getVelocityAsFloat(), note.getValue(), coordinate_row, note_override);
+                                  NoteCoordinate(state.getSongStructure().getOrdinalFor(*track), live_note_counter_++, column), note_override);
             } else {
 	      track_state->notePressure(column, midi_velocity / 127.0f);
 	    }
@@ -457,7 +455,6 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
   case PlaybackControlEvent::STOP_NOTE: {
     auto track_state = dynamic_cast<InstrumentTrackState *>(state.getChildByInternalId(ev.getParameter1()));
     if (track_state) track_state->noteOff(ev.getParameter2());
-    state.liveNoteStopped(ev.getParameter1(), ev.getParameter2());
   } break;
 
   case PlaybackControlEvent::STOP_ALL_NOTES:

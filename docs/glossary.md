@@ -85,7 +85,7 @@ showing each track's own clip; Tab switches to and from the arrangement
 view. The Launchpad's Live mode shows the same clip grid on the pads.
 
 **Performance effect**
-An effect held on a track from the Launchpad's Custom grid (roll, stutter,
+An effect held on a track from the Launchpad's Custom grid (stutter,
 erode, duck, a send throw, orbit): it lasts while the pad is held and never changes the song. See
 launchpad.md.
 

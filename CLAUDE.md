@@ -523,7 +523,7 @@ would otherwise resume showing.
   `CUSTOM` is the performance grid (`handlePerformancePadEvent()`,
   `playback/PerformanceEffect.h`): columns are Live View's tracks, rows
   effects (`performance::kGridRows`, the default set: Stutter, Erode and Duck
-  built, Shuffle/Shatter/Gate/Crush/Filter rows dark until they are; Roll,
+  built, Shuffle/Shatter/Gate/Crush/Filter rows dark until they are;
   Orbit and the Send A/B throws exist off the grid), held to apply, pressure
   deepening them; the right-hand button at the end of a row holds its effect
   on the master (`handlePerformanceMasterButton()`, `performance::
@@ -532,8 +532,7 @@ would otherwise resume showing.
   keeps what is held (never the song) and hands it to `LeafTrackState::
   setPerformanceTargets()`, which applies it to the voices only, so `sends_`/
   `position_` - what `TrackInfo` reports and the song mirrors - keep the
-  song's values. Roll re-fires each note that starts while held, pattern or
-  live (`SongState::startRoll()`), until it ends or the pad is released.
+  song's values.
   Stutter captures the track's whole rendered block (`TrackStutter`, applied
   by `LeafTrackState::applyPerformanceAudio()` before the level is reported)
   from the next row and loops it until released; Erode (`TrackErode`) records

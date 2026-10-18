@@ -321,8 +321,6 @@ class SongState : public TrackState {
     // bed has no pause-awareness of its own either. Instrument voices are
     // left as they are, a launched clip's included.
     if (!isPlaying() && was_playing_) {
-      // A paused pattern starts nothing, so it rolls nothing.
-      for (auto & rolled : rolled_notes_) stopPatternRolls(rolled.first);
       for (auto * track : track_snapshot) {
 	if (track->getType() == TrackType::SAMPLE) {
 	  render_context_.addPendingSampleStop(track->getInternalId(), 0, false);
@@ -488,7 +486,6 @@ class SongState : public TrackState {
 		if (is_sample_track) render_context_.addPendingSampleStop(track_id, i, false);
 		else render_context_.addPendingStopAll(track_id, i);
 		last_notes_.erase(track_id);
-		stopPatternRolls(track_id);
 	      }
 	      last_active_clip_index_by_track_[track_id] = active.clip_index;
 	    }
@@ -590,13 +587,10 @@ class SongState : public TrackState {
 		  }
 		}
 		render_context_.addPendingEvent(track_id, i + delay_samples, int(j), tuning, velocity, note_value, NoteCoordinate(song_structure_.getOrdinalFor(track_id), row_idx, int(j)), note_override);
-		if (note.isOff()) {
-		  last_notes_[track_id].erase(int(j));
-		  stopRoll(track_id, int(j));
-		} else if (note_value >= 0 && velocity > 0.0f) {
+		if (note.isOff()) last_notes_[track_id].erase(int(j));
+		else if (note_value >= 0 && velocity > 0.0f) {
 		  LastNote last { int(j), tuning, velocity, note_value, row_idx, note_override };
 		  last_notes_[track_id][int(j)] = last;
-		  startRoll(track_id, int(j), last, i + delay_samples);
 		  if (fx.isRetrigger()) scheduleNoteRetrigger(track_id, i + delay_samples, last, fx.getRetriggerIntervalTicks(), fx.getRetriggerVolumeCode());
 		}
 	      }
@@ -697,7 +691,6 @@ class SongState : public TrackState {
     // enforced *across* top-level tracks - an old per-track loop here
     // once accumulated every one of them into `mixer` unconditionally,
     // bypassing renderChildren()'s solo handling entirely.
-    scheduleRolls(frames);
     auto data = renderChildren(frames, *content.tracks->pool, render_context_, getChannelConfiguration());
     // The master's Send Main scales the dry mix, not the aux sends feeding
     // the send bus - its returns have their own levels (below).
@@ -862,7 +855,6 @@ class SongState : public TrackState {
 
   // What setPerformance() holds on a track.
   struct HeldPerformance {
-    int roll_ticks = 0; // 0: no roll
     float duck_gain = 1.0f;
     float throw_a = 0.0f, throw_b = 0.0f;
     float orbit_turns_per_bar = 0.0f;
@@ -871,7 +863,7 @@ class SongState : public TrackState {
     int stutter_delay = 0;
     float erode = -1.0f; // negative: no erosion
     bool isIdle() const {
-      return roll_ticks == 0 && duck_gain == 1.0f && throw_a == 0.0f && throw_b == 0.0f && orbit_turns_per_bar == 0.0f && stutter_rows == 0.0f &&
+      return duck_gain == 1.0f && throw_a == 0.0f && throw_b == 0.0f && orbit_turns_per_bar == 0.0f && stutter_rows == 0.0f &&
              erode < 0.0f;
     }
   };
@@ -907,7 +899,7 @@ class SongState : public TrackState {
   }
 
   // The master's share of pushPerformance(): Stutter, Erode and Duck on the
-  // whole mix (masterPerformance()); Roll on the master rolls every track.
+  // whole mix (masterPerformance()).
   void pushMasterPerformance(const HeldPerformance & held, int row_frames) {
     master_duck_target_ = held.duck_gain;
     const int slice = static_cast<int>(held.stutter_rows * static_cast<float>(row_frames));
@@ -937,65 +929,6 @@ class SongState : public TrackState {
     for (int i = 0; i < frames; i++) {
       master_duck_ = master_duck_ < master_duck_target_ ? std::min(master_duck_target_, master_duck_ + step) : std::max(master_duck_target_, master_duck_ - step);
       for (int c = 0; c < mix.regularChannelCount(); c++) mix.getChannelData(c)[i] *= master_duck_;
-    }
-  }
-
-  // Roll held on a track, or on the master for every track: its interval in
-  // ticks, 0 for none.
-  int rollTicksFor(int track_id) const {
-    int ticks = 0;
-    for (int id : { track_id, performance::kMasterTarget }) {
-      auto it = performance_.find(id);
-      if (it != performance_.end() && it->second.roll_ticks > 0) ticks = ticks > 0 ? std::min(ticks, it->second.roll_ticks) : it->second.roll_ticks;
-    }
-    return ticks;
-  }
-
-  // Roll: a note that starts on a rolling track re-fires every roll
-  // interval from its own start, until it ends or the roll is released.
-  // `start_frame` is block-relative. Live notes are keyed apart from the
-  // pattern's note columns.
-  static constexpr int kLiveRollKey = 1 << 16;
-  struct RolledNote { LastNote note; int next_frame; };
-  int rollIntervalFrames(int roll_ticks) const {
-    return roll_ticks * std::max(1, getChannelConfiguration().getSampleInterval(tempo_) / constants::TICKS_PER_ROW);
-  }
-  void startRoll(int track_id, int key, const LastNote & note, int start_frame) {
-    const int ticks = rollTicksFor(track_id);
-    if (ticks <= 0) return;
-    rolled_notes_[track_id][key] = { note, start_frame + rollIntervalFrames(ticks) };
-  }
-  void stopRoll(int track_id, int key) {
-    auto it = rolled_notes_.find(track_id);
-    if (it != rolled_notes_.end()) it->second.erase(key);
-  }
-  // The pattern's rolled notes on a track, when its pattern notes stop.
-  void stopPatternRolls(int track_id) {
-    auto it = rolled_notes_.find(track_id);
-    if (it == rolled_notes_.end()) return;
-    for (auto n = it->second.begin(); n != it->second.end(); ) {
-      if (n->first < kLiveRollKey) n = it->second.erase(n);
-      else ++n;
-    }
-  }
-  // Queues this block's roll hits.
-  void scheduleRolls(int frames) {
-    for (auto it = rolled_notes_.begin(); it != rolled_notes_.end(); ) {
-      const int ticks = rollTicksFor(it->first);
-      if (ticks <= 0) {
-	it = rolled_notes_.erase(it);
-	continue;
-      }
-      int interval = rollIntervalFrames(ticks);
-      for (auto & [ key, rolled ] : it->second) {
-	auto & last = rolled.note;
-	for (; rolled.next_frame < frames; rolled.next_frame += interval) {
-	  render_context_.addPendingEvent(it->first, rolled.next_frame, static_cast<short>(last.column), last.tuning, last.velocity, last.note_value,
-					  NoteCoordinate(song_structure_.getOrdinalFor(it->first), last.row, last.column), last.note_override);
-	}
-	rolled.next_frame -= frames;
-      }
-      ++it;
     }
   }
 
@@ -1113,10 +1046,6 @@ class SongState : public TrackState {
     bool release = pressure < 0;
     auto & held = performance_[track_id];
     switch (effect) {
-    case PerformanceEffect::ROLL:
-      held.roll_ticks = release ? 0 : performance::rollIntervalTicks(pressure);
-      if (release && track_id != performance::kMasterTarget) rolled_notes_.erase(track_id);
-      break;
     case PerformanceEffect::DUCK: held.duck_gain = release ? 1.0f : performance::duckGain(pressure); break;
     case PerformanceEffect::THROW_A: held.throw_a = release ? 0.0f : 1.0f; break;
     case PerformanceEffect::THROW_B: held.throw_b = release ? 0.0f : 1.0f; break;
@@ -1136,16 +1065,6 @@ class SongState : public TrackState {
     case PerformanceEffect::ERODE: held.erode = release ? -1.0f : performance::erodeAmount(pressure); break;
     case PerformanceEffect::NONE: break;
     }
-  }
-  // A note played live (not from the pattern) on a track, `column` its live
-  // note column: while Roll is held on the track it rolls until stopped.
-  void liveNoteStarted(int track_id, int column, Tuning tuning, float velocity, int note_value, int coordinate_row, const NoteOverride & note_override) {
-    startRoll(track_id, kLiveRollKey + column, LastNote{ column, tuning, velocity, note_value, coordinate_row, note_override }, 0);
-  }
-  void liveNoteStopped(int track_id, int column) { stopRoll(track_id, kLiveRollKey + column); }
-  int rollingNoteCount(int track_id) const {
-    auto it = rolled_notes_.find(track_id);
-    return it == rolled_notes_.end() ? 0 : static_cast<int>(it->second.size());
   }
 
   // Stops every launched clip now, releasing its voices, and forgets
@@ -1187,8 +1106,6 @@ private:
   TrackStutter master_stutter_;
   TrackErode master_erode_{ 0x6d617374u };
   float master_duck_ = 1.0f, master_duck_target_ = 1.0f;
-  // Notes rolling while Roll is held: track -> note column (or live key).
-  std::unordered_map<int, std::map<int, RolledNote>> rolled_notes_;
   bool pending_break_ = false; // ZBxx seen on the row currently completing
   int pending_break_row_ = 0;
   RenderContext render_context_;
@@ -1312,7 +1229,6 @@ private:
     last_active_clip_index_by_track_.erase(track_id);
     last_background_by_track_.erase(track_id);
     last_notes_.erase(track_id);
-    stopPatternRolls(track_id);
   }
 
   int song_structure_version_ = -1; // never equals a real song.getMajorVersion() until initialize()/renderBlock() runs

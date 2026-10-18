@@ -11,14 +11,15 @@ Stages, each tested on the hardware before the next starts.
 
 ## 1. The grid with existing machinery (built)
 
-Roll, Duck, Throw A, Throw B and Orbit (`playback/PerformanceEffect.h`,
+Duck, Throw A, Throw B and Orbit (`playback/PerformanceEffect.h`,
 `SongState::setPerformance()`, `LeafTrackState::setPerformanceTargets()`,
 `LaunchpadManager::handlePerformancePadEvent()`). User-facing description:
 `docs/launchpad.md`.
 
-Roll re-fires every note that starts while it is held, from the note's own
-start, until the note ends or the pad is released; notes already playing are
-left alone. It needs notes, so sample tracks don't roll.
+Roll (re-firing every note started while held) was built here and removed:
+every other effect works on the sound, Roll on the notes, and the pattern's
+`0Rxy` retrigger already covers it. Note-level effects (Pattern length,
+Pattern play mode) are out of the performance grid for the same reason.
 
 ## 2. Stutter and Erode (built)
 
@@ -35,19 +36,18 @@ cents of detune and a small turn about the vertical, silence between them;
 pressure thins the grains out. A tape-machine version (wow, dropouts, hiss)
 was tried and rejected.
 
-To try on the hardware: the fixed amounts (Duck -12 dB, Roll's rates, Orbit's
-speed, Stutter's slices, Erode's grains and sparseness), and whether Roll
-should also re-fire notes already playing when it is pressed.
+To try on the hardware: the fixed amounts (Duck -12 dB, Orbit's speed,
+Stutter's slices, Erode's grains and sparseness).
 
 ## 3. The default set and the master (built)
 
 Built with the effects that exist (Stutter, Erode, Duck); the other rows are
-dark until stage 4 and the Filter stage. On the master, Roll rolls every
-track; Orbit and the throws are not done there.
+dark until stage 4 and the Filter stage. Orbit and the throws are not done
+on the master.
 
 The rows are fixed in code for now (`performance::kGridRows`), as the
 **default set**, top to bottom: Stutter, Shuffle, Erode, Shatter, Gate,
-Crush, Filter, Duck. Roll, Orbit, Throw A and Throw B stay in the code but
+Crush, Filter, Duck. Orbit, Throw A and Throw B stay in the code but
 leave the grid; a song-level `<performance>` element choosing the rows comes
 later (below).
 
@@ -58,7 +58,6 @@ added, so reverb and delay tails are part of it:
 | Effect | On the master |
 |---|---|
 | Stutter, Shuffle, Grains, Gate, Crush, Filter, Duck | the same effect on the mix; Stutter and Shuffle can record the mix continuously there, so a grab is immediate from the last bar |
-| Roll | Roll on every track |
 | Orbit | turns the whole sound field |
 | Throw A/B | left out on the master: its Send A/B are the bus returns |
 
@@ -130,7 +129,7 @@ neither pitch bend nor controllers yet (`AlsaMidiInput.cpp`), so slide and
 glide wait for MPE input: one channel per note, controller 74 and
 per-channel pitch bend.
 
-Roll, Duck and Orbit keep their own meaning for pressure.
+Duck and Orbit keep their own meaning for pressure.
 
 ## 6. Recording performance
 
@@ -184,9 +183,8 @@ the song it lives in the document, so editing it is journaled.
 
 ## Later candidates
 
-Not in the default set, possible through the XML once built: Pattern length
-(loop the track's first rows while held), Pattern play mode (backwards /
-random), Reverse, Half speed; and a Stutter whose loop wears a little more on
+Not in the default set, possible through the XML once built: Reverse, Half
+speed; and a Stutter whose loop wears a little more on
 every pass, a tape loop disintegrating as it plays.
 
 ## Open

@@ -15,8 +15,7 @@ grid mode, so one can sit in Live View while another does note entry.
 - **Custom.** A grid of held, non-destructive per-track effects is the
   performance mode of hardware trackers (Polyend Tracker); the layout (a
   column per track, a row per effect, pressure for depth) and the effects
-  themselves are ours. Roll is the tracker retrigger command, applied to every
-  note that starts while it is held. Stutter is the buffer repeat of beat
+  themselves are ours. Stutter is the buffer repeat of beat
   repeaters and DJ loop rolls. Erode follows granular processors that grain
   their live input (Mutable Instruments Clouds), set sparse.
 
@@ -278,7 +277,7 @@ master - the whole mix, the reverb and delay returns included - in the row's
 colour. A button senses no pressure, so it always gives the plain press
 amount. With shift held the buttons keep their shift functions.
 
-Roll, Orbit and the Send A/B throws exist but are not on the grid at
+Orbit and the Send A/B throws exist but are not on the grid at
 present.
 
 ## Step grid

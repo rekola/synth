@@ -6,7 +6,7 @@
 // A performance effect: held on a track from the Launchpad's Custom grid, it
 // changes how the track sounds until released and is never written to the
 // song. `pressure` is 0 for a plain press and up to 127 with pad pressure.
-enum class PerformanceEffect { NONE, ROLL, DUCK, THROW_A, THROW_B, ORBIT, STUTTER, ERODE };
+enum class PerformanceEffect { NONE, DUCK, THROW_A, THROW_B, ORBIT, STUTTER, ERODE };
 
 namespace performance {
 
@@ -36,13 +36,6 @@ constexpr PerformanceEffect kGridRows[8] = {
 
 inline PerformanceEffect effectForGridRow(int y) {
   return y >= 0 && y < 8 ? kGridRows[y] : PerformanceEffect::NONE;
-}
-
-// Roll: every note the track is playing re-fires each this many ticks (12 per
-// row, a row being a sixteenth): a sixteenth, then a thirty-second and a
-// sixty-fourth as the pad is pressed harder.
-inline int rollIntervalTicks(int pressure) {
-  return pressure < 43 ? 12 : pressure < 86 ? 6 : 3;
 }
 
 // Stutter: the slice of the track's output it repeats, in rows - a quarter

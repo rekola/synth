@@ -263,8 +263,6 @@ namespace {
 
   // The performance grid's own rows (GridMode::CUSTOM); the send throws
   // reuse the Send A/B colours.
-  constexpr Rgb LAUNCHPAD_PERFORMANCE_ROLL_BRIGHT  { 127, 127, 127 };
-  constexpr Rgb LAUNCHPAD_PERFORMANCE_ROLL_DIM     { 25, 25, 25 };
   constexpr Rgb LAUNCHPAD_PERFORMANCE_DUCK_BRIGHT  { 127, 0, 0 };
   constexpr Rgb LAUNCHPAD_PERFORMANCE_DUCK_DIM     { 35, 0, 0 };
   constexpr Rgb LAUNCHPAD_PERFORMANCE_ORBIT_BRIGHT { 127, 40, 0 };
@@ -278,7 +276,6 @@ namespace {
   // with no effect.
   Rgb performanceColor(PerformanceEffect effect, bool held) {
     switch (effect) {
-    case PerformanceEffect::ROLL: return held ? LAUNCHPAD_PERFORMANCE_ROLL_BRIGHT : LAUNCHPAD_PERFORMANCE_ROLL_DIM;
     case PerformanceEffect::STUTTER: return held ? LAUNCHPAD_PERFORMANCE_STUTTER_BRIGHT : LAUNCHPAD_PERFORMANCE_STUTTER_DIM;
     case PerformanceEffect::ERODE: return held ? LAUNCHPAD_PERFORMANCE_ERODE_BRIGHT : LAUNCHPAD_PERFORMANCE_ERODE_DIM;
     case PerformanceEffect::DUCK: return held ? LAUNCHPAD_PERFORMANCE_DUCK_BRIGHT : LAUNCHPAD_PERFORMANCE_DUCK_DIM;

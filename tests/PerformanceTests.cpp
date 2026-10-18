@@ -91,12 +91,6 @@ TEST(performance_grid_rows_are_the_default_set) {
   CHECK(performance::effectForGridRow(8) == PerformanceEffect::NONE);
 }
 
-TEST(performance_roll_rate_rises_with_pressure) {
-  CHECK(performance::rollIntervalTicks(0) == 12);
-  CHECK(performance::rollIntervalTicks(60) == 6);
-  CHECK(performance::rollIntervalTicks(127) == 3);
-}
-
 // Duck lowers the dry signal while held and gives it back on release; the
 // song's own Send Main, which the UI mirrors from the track info, stays.
 TEST(performance_duck_lowers_the_dry_signal_until_released) {
@@ -149,56 +143,6 @@ TEST(performance_orbit_turns_the_sound_and_returns_it) {
   s.state.setPerformance(s.track_id, PerformanceEffect::ORBIT, performance::kRelease);
   s.renderPeak(44100 / 2); // past the turn back
   CHECK(s.renderPeak(2048, 1) < 1e-3f);
-}
-
-// Roll re-fires a note that starts while it is held, from the note's own
-// start, long after the note itself has died away.
-TEST(performance_roll_refires_a_note_started_while_held) {
-  InstrumentProvider provider;
-  Song song;
-  CHECK(song.open(string(TESTS_FIXTURES_DIR) + "/decaying_note.xml", provider));
-
-  // The peak of the last quarter of a second's render, with Roll pressed
-  // before the note (or after it, once it has started), or not at all.
-  enum class Press { NEVER, BEFORE_NOTE, AFTER_NOTE };
-  auto render_tail = [&](Press press) {
-    ChannelConfiguration config(44100, 1);
-    auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
-    SongState state(config);
-    state.initialize(song);
-    state.setIsPlaying(true);
-    int track_id = song.getPlayableTrackIds().front();
-    if (press == Press::BEFORE_NOTE) state.setPerformance(track_id, PerformanceEffect::ROLL, 0);
-    float tail_peak = 0.0f;
-    // One second; the note itself is gone after a tenth of one.
-    for (int done = 0; done < 44100; done += 256) {
-      state.renderBlock(256, song, *mixer);
-      if (done == 2048 && press == Press::AFTER_NOTE) state.setPerformance(track_id, PerformanceEffect::ROLL, 0);
-      auto & bus = mixer->getRawBus();
-      if (done < 44100 * 3 / 4 || !bus.hasChannel(Channel::Main)) continue;
-      auto * data = bus.getChannelData(0);
-      for (int i = 0; i < 256; i++) tail_peak = max(tail_peak, fabsf(data[i]));
-    }
-    return tail_peak;
-  };
-
-  CHECK(render_tail(Press::NEVER) < 1e-4f);
-  CHECK(render_tail(Press::BEFORE_NOTE) > 0.01f);
-  CHECK(render_tail(Press::AFTER_NOTE) < 1e-4f); // a note already playing isn't rolled
-}
-
-// A live note started while Roll is held rolls until it is stopped.
-TEST(performance_roll_refires_a_live_note_until_it_stops) {
-  SineSong s;
-  s.state.setPerformance(s.track_id, PerformanceEffect::ROLL, 0);
-  s.state.liveNoteStarted(s.track_id, 0, Tuning::EDO12, 0.8f, 60, 0, NoteOverride{});
-  s.state.renderBlock(256, s.song, *s.mixer);
-  CHECK(s.state.rollingNoteCount(s.track_id) == 1);
-  s.state.liveNoteStopped(s.track_id, 0);
-  CHECK(s.state.rollingNoteCount(s.track_id) == 0);
-  s.state.liveNoteStarted(s.track_id, 0, Tuning::EDO12, 0.8f, 60, 0, NoteOverride{});
-  s.state.setPerformance(s.track_id, PerformanceEffect::ROLL, performance::kRelease);
-  CHECK(s.state.rollingNoteCount(s.track_id) == 0);
 }
 
 // TrackStutter passes the live signal through while it captures, then
