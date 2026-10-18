@@ -3,39 +3,64 @@
 [![Linux x86-64](https://github.com/rekola/synth/actions/workflows/ci-linux-x86_64.yml/badge.svg)](https://github.com/rekola/synth/actions/workflows/ci-linux-x86_64.yml)
 [![Linux ARM64](https://github.com/rekola/synth/actions/workflows/ci-linux-arm64.yml/badge.svg)](https://github.com/rekola/synth/actions/workflows/ci-linux-arm64.yml)
 
-![Screenshot of Session View](https://private-user-images.githubusercontent.com/6755525/660292924-cc8e0c7f-6c65-4844-af52-765658d019a7.png?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3OTA1OTkzMDksIm5iZiI6MTc5MDU5OTAwOSwicGF0aCI6Ii82NzU1NTI1LzY2MDI5MjkyNC1jYzhlMGM3Zi02YzY1LTQ4NDQtYWY1Mi03NjU2NThkMDE5YTcucG5nP1gtQW16LUFsZ29yaXRobT1BV1M0LUhNQUMtU0hBMjU2JlgtQW16LUNyZWRlbnRpYWw9QUtJQVZDT0RZTFNBNTNQUUs0WkElMkYyMDI2MDkyOCUyRnVzLWVhc3QtMSUyRnMzJTJGYXdzNF9yZXF1ZXN0JlgtQW16LURhdGU9MjAyNjA5MjhUMTIzNjQ5WiZYLUFtei1FeHBpcmVzPTMwMCZYLUFtei1TaWduYXR1cmU9MzljOGExNTNhNTU3YjEyM2E2MDJlMzg5N2E1OTM0NGVkMjdhZWQyM2RhNzFhOWU2ODVlNzFiOGRlZWU1YTJmNyZYLUFtei1TaWduZWRIZWFkZXJzPWhvc3QmcmVzcG9uc2UtY29udGVudC10eXBlPWltYWdlJTJGcG5nIn0.lGIy1dEvSZTFJEUGGy3a8-BkllA8NvsiCE-IhXsz1NE)
-
 A microtonal multiparadigm music production system, which combines live sequencer with a traditional tracker.
 
-# Features
+## Features
 
-- Launchpad support and Live arrangement
+- Launchpad support and live arrangement
 - Sample and note based clips
 - Microtonal (12/19/31/53-EDO)
 - Emacs-style buffers and keybindings
 - SoundFont2
-- Headless mode (for art installations or escape rooms)
-- Ambisonic Bus
+- Headless mode (for art installations or escape rooms), see [docs/headless.md](docs/headless.md)
+- Ambisonic bus (binaural or stereo output)
 
-# Principles:
+## Principles
 
-## User can start creating music instantly:
+### The user can start creating music instantly
 
 - No low latency requirements
-- Basic instruments are immediately available
-    1. If there is no SoundFont, basic instruments (such as piano) are provided by the built in FM synthesis
-      
-## Keyboard driven
+- Basic instruments are immediately available: without a SoundFont, a
+  built-in fallback oscillator plays every instrument
 
-Everything can be done using keyboard without mouse
+### Keyboard driven
 
-# Launchpad support
+Everything can be done with the keyboard, without a mouse.
 
-A connected Novation Launchpad (Mini MK3 / X) becomes an isomorphic
+## Building
+
+Needs a C++17 compiler and CMake. On Ubuntu:
+
+```sh
+sudo apt install cmake g++ libnotcurses-dev libnotcurses++-dev libfmt-dev \
+  libsndfile1-dev libasound2-dev libunistring-dev libsoundtouch-dev
+cmake -B build
+cmake --build build -j
+```
+
+`libmysofa-dev` is optional (binaural decoding); `fluid-soundfont-gm`
+provides the preferred General MIDI SoundFont.
+
+## Running
+
+```sh
+./build/synth songs/demo3.xml                    # open a song
+./build/synth                                    # open songs/welcome.xml
+./build/synth --render out.wav songs/demo3.xml   # render to WAV, no terminal or audio device
+./build/synth --headless --autoplay songs/demo3.xml
+```
+
+The terminal UI needs a real terminal and an ALSA output device. Space
+toggles playback, C-x C-c quits and M-x opens the command prompt. Run the
+tests with `ctest --test-dir build --output-on-failure`.
+
+## Launchpad support
+
+A connected Novation Launchpad (Mini MK3 / X / Pro MK3) becomes an isomorphic
 note-entry grid and a Session-view clip launcher. See
 [docs/launchpad.md](docs/launchpad.md) for the layout, colors and every button.
 
-# Third-party code
+## Third-party code
 
 This project is MIT-licensed (`LICENSE`). It vendors a small amount of
 third-party source under `third_party/` (currently `tinyxml2`, zlib
@@ -44,7 +69,7 @@ license, and PocketFFT, BSD-3-Clause - the FFT backend behind
 permissively/LGPL-licensed system libraries. See `THIRD_PARTY_LICENSES.md`
 for the full picture, or run `synth --licenses` to print it.
 
-# Roadmap / missing functionality:
+## Roadmap / missing functionality
 
 The major things that are missing are the following:
 
@@ -52,10 +77,9 @@ The major things that are missing are the following:
 * GUI
 * Undo/redo
 * Lighting control (DMX/ArtNet)
-* Tempo control
 * Just tuning
 
-## Minor Missing Features
+### Minor missing features
 
 * DirAC heatmap marker overlay for every active spatial object, not just track positions — track azimuth/elevation markers, plus Granular Cloud grains and other shared-bus-effect taps (FDNReverb, MultiTapDelay)
 * DC Filter and Soft Clipping

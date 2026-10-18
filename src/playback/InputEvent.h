@@ -4,6 +4,8 @@
 #include "Event.h"
 #include "../instruments/Tuning.h"
 
+#include <chrono>
+
 #ifndef PRETERUNICODEBASE
 
 #define PRETERUNICODEBASE 1115000
@@ -81,10 +83,13 @@ class InputEvent : public Event {
   // which care about keybindings or note-entry at all) to ever receive a
   // genuine uppercase letter. getTrueCaseId() is what a reader is fed
   // instead - see UIPlane::offerInput()'s own use of it.
+  // `timestamp` is when the key was read; keys typed together arrive
+  // within a few milliseconds of each other, which is how a terminal with
+  // no key release still shows that they were a chord.
   InputEvent(int id, int y, int x, bool alt, bool shift, bool ctrl, bool meta, Kind kind = Kind::UNKNOWN,
-	     int true_case_id = -1)
+	     int true_case_id = -1, std::chrono::steady_clock::time_point timestamp = std::chrono::steady_clock::now())
     : id_(id), true_case_id_(true_case_id == -1 ? id : true_case_id),
-      y_(y), x_(x), alt_(alt), shift_(shift), ctrl_(ctrl), meta_(meta), kind_(kind) { }
+      y_(y), x_(x), alt_(alt), shift_(shift), ctrl_(ctrl), meta_(meta), kind_(kind), timestamp_(timestamp) { }
 
   void dispatch(EventHandler & evh) override { evh.handleInputEvent(*this); }
 
@@ -97,7 +102,8 @@ class InputEvent : public Event {
   bool hasCtrl() const { return ctrl_; }
   bool hasMeta() const { return meta_; }
   Kind getKind() const { return kind_; }
-  
+  std::chrono::steady_clock::time_point getTimestamp() const { return timestamp_; }
+
   int toMidiNote(int octave, Tuning tuning) const {
     if (tuning == Tuning::PERCUSSION) {
       switch (id_) {
@@ -249,6 +255,7 @@ class InputEvent : public Event {
   int id_, true_case_id_, y_, x_;
   bool alt_, shift_, ctrl_, meta_;
   Kind kind_;
+  std::chrono::steady_clock::time_point timestamp_;
 };
 
 #endif

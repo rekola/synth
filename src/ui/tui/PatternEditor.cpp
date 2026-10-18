@@ -1840,6 +1840,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	bool is_repeat = input.getKind() == InputEvent::Kind::REPEAT;
 
 	int midi_note = -1;
+	bool lane_mapped = false;
 	if (!is_off) {
 	  auto track = song.getMasterTrack().getChildByInternalId(track_id);
 	  auto tuning = track ? song.getTuningForTrack(*track) : song.getTuning();
@@ -1858,11 +1859,28 @@ PatternEditor::offerInput(const InputEvent & input) {
 	    auto & lanes = static_cast<PercussionTrack &>(*track).getLaneNotes();
 	    if (note_column >= 0 && note_column < static_cast<int>(lanes.size())) {
 	      midi_note = lanes[static_cast<size_t>(note_column)];
+	      lane_mapped = true;
 	    }
 	  }
 	}
 
 	if (is_repeat && midi_note >= 0) return true; // already sounding - nothing to redo
+
+	// Without key releases a chord can't be told from quick taps by hold
+	// state, but its keys arrive together: one that does goes onto the
+	// chord's row, in the next note column, and leaves the cursor where the
+	// chord's first key put it.
+	bool chord_follower = false;
+	bool legacy_note_key = midi_note >= 0 && !lane_mapped && !is_off && !is_delete && input.getKind() == InputEvent::Kind::UNKNOWN && !input.hasShift();
+	if (legacy_note_key) {
+	  if (auto slot = chord_.join(input.getTimestamp(), track_id)) {
+	    edit_target = source_->edit(track_id, slot->row);
+	    note_column = slot->column;
+	    chord_follower = true;
+	  } else {
+	    chord_.begin(input.getTimestamp(), track_id, point, note_column);
+	  }
+	}
 
 	if (is_delete || midi_note >= 0 || is_off) {
 	  if (is_delete) {
@@ -1940,7 +1958,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	    // entry would have made - unlike Delete, which deletes in place and
 	    // leaves the cursor where it was.
 	    if (input.getId() == NCKEY_BACKSPACE) n = -1;
-	    else if (input.getId() != NCKEY_DEL) n = 1;
+	    else if (input.getId() != NCKEY_DEL && !chord_follower) n = 1;
 	    if (n) {
 	      source_->moveCursor(n * edit_step_size);
 	    }
