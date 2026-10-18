@@ -1,0 +1,82 @@
+Cell UI gallery
+
+Text styles
+normal  bold   italic  underline  bold italic
+
+Surfaces and text
+ surface.base        secondary text      disabled text       #11161a
+ surface.panel       secondary text      disabled text       #1c2227
+ surface.raised      secondary text      disabled text       #2c3338
+ surface.overlay     secondary text      disabled text       #3e464c
+
+Accent and state
+ accent                  #75d4eb
+ accent.dim              #245560
+ focus                   #75d4eb
+ state.playing           #009722
+ state.playing.dim       #668666
+ state.recording         #e23532
+ state.recording.dim     #a46a64
+
+Level meter ramp
+████████████████████████████████
+
+Sub-cell glyphs
+quadrants  ░▘▝▀▖▌▞▛▗▚▐▜▄▙▟█
+sextants   🬀🬃🬆🬉🬌🬏🬒🬔🬗🬚🬝🬠🬣🬦🬨🬫🬮🬱🬴🬷🬺
+braille    ⠁⠘⠍⠖⠣⠺⠯⡀⡑⡌⡝⡢⡳⡮⡿⢐⢅⢜⢩⢲⢧⢾⣋⣄⣕⣨⣹⣦⣷
+
+Width and truncation
+plain text               10 columns, cut to 6: [plain ]
+café                     4 columns, cut to 6: [café]
+é (combining)            13 columns, cut to 6: [é (com]
+漢字 (wide)              11 columns, cut to 6: [漢字 (]
+𝄪 sharp                  7 columns, cut to 6: [𝄪 shar]
+
+Markdown
+Heading
+
+A paragraph with italic and bold
+words that wraps at the width of the
+box.
+
+Second
+
+And a second paragraph.
+
+Choice list
+ Device 3
+ Device 4
+ Device 5
+ Device 6
+entry 6 of 8
+
+Info dialog
+
+  About
+
+  Cell UI
+
+  A small toolkit for text interfaces,
+  drawn here from Markdown.
+
+
+Choice Devices
+         Built-in Audio
+       ● USB Interface (port 2-1)
+         HDMI Output
+         Bluetooth Speaker
+
+       Enter: choose  Esc: cancel
+
+Meters
+⣤⣤⣤⣀⣀⣀⣤⣤⣤⣤⣤⣤⣤⣤⣤⣄⣀⡀                          ⣆⢠⢸⡇
+⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣶⣤⣤⣤⣶⣿⣶⡀⣠⣦ ⣠ ⡀           ⣿⣾⢸⡇
+⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⣿⣷⣿⣾⣴⣰⣤⣄⡀     ⣿⣿⣾⡇
+⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿    ⣿⣿⣿⡇
+                                            W Y Z X
+
+Spin box and cover art
+Octave ◂ 4 ▸
+
+                                 🖼

@@ -8,6 +8,11 @@
 #include <windows.h>
 #else
 #include <unistd.h>
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+
+#include <cstdint>
+#endif
 #endif
 
 namespace fs = std::filesystem;
@@ -65,6 +70,14 @@ executableDir() {
   auto n = GetModuleFileNameW(nullptr, buffer, MAX_PATH);
   if (n == 0 || n >= MAX_PATH) return {};
   return fs::path(buffer).parent_path();
+#elif defined(__APPLE__)
+  uint32_t size = 0;
+  _NSGetExecutablePath(nullptr, &size);
+  std::string buffer(size, '\0');
+  if (_NSGetExecutablePath(buffer.data(), &size) != 0) return {};
+  std::error_code ec;
+  auto exe = fs::canonical(fs::path(buffer.c_str()), ec);
+  return ec ? fs::path() : exe.parent_path();
 #else
   std::error_code ec;
   auto exe = fs::read_symlink("/proc/self/exe", ec);

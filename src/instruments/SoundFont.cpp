@@ -1,6 +1,6 @@
 /* LICENSE (MIT)
 
-   Copyright (C) 2021, Mikael Rekola
+   Copyright (C) 2021-2026, Mikael Rekola
    Based on TinySoundFont, Copyright (C) 2017, 2018 Bernhard Schelling
    Based on SFZero, Copyright (C) 2012 Steve Folta (https://github.com/stevefolta/SFZero)
 

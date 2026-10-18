@@ -2,6 +2,7 @@
 #define _UI_H_
 
 #include "UIElement.h"
+#include "Theme.h"
 #include "../util/Logger.h"
 
 #include <functional>
@@ -50,6 +51,20 @@ class UI : public UIElement {
 
   // Shows a modal dialog with Markdown content (see Markdown.h) - what a
   // command like "about" calls, so each backend only renders the text.
+  // Switches the colours by name (dark, light, original); false if there is
+  // no such theme. Called before initialize() for the --theme option, or
+  // from the select-theme command.
+  bool setTheme(const std::string & name) {
+    Theme theme;
+    if (!Theme::byName(name, theme)) return false;
+    theme_name_ = name;
+    applyTheme(theme);
+    return true;
+  }
+  // The backend takes the colours and redraws.
+  virtual void applyTheme(const Theme & /*theme*/) { }
+  // Motion off (--reduced-motion): colours change at once and nothing pulses.
+  virtual void setReducedMotion(bool /*reduced*/) {}
   virtual void showInfoDialog(const std::string & title, const std::string & markdown) = 0;
 
   // One entry of a choice dialog: what the person sees, and what the command
@@ -90,6 +105,9 @@ class UI : public UIElement {
   // before the backend's initialize().
   void setInitialView(View view) { initial_view_ = view; }
   bool isOutlineVisible() const { return outline_visible_; }
+  // True once a backend's main loop should end: close_ui_ was set, or a
+  // shutdown signal (SIGINT/SIGTERM/SIGHUP) arrived.
+  bool shouldClose() const;
 
 protected:
   void setView(View view);
@@ -134,10 +152,6 @@ protected:
   // MIDI is read on the UI thread, so this connects it directly.
   void selectMidiInput(const std::string & spec, const std::string & label);
 
-  // True once a backend's main loop should end: close_ui_ was set, or a
-  // shutdown signal (SIGINT/SIGTERM/SIGHUP) arrived.
-  bool shouldClose() const;
-
   bool close_ui_ = false;
 
   // Set once in start(), before wireLaunchpad() runs - shared here (rather
@@ -159,6 +173,7 @@ protected:
   View view_ = View::ARRANGEMENT;
 protected:
   View initial_view_ = View::LIVE;
+  std::string theme_name_ = "dark";
 private:
   bool outline_visible_ = true;
 };

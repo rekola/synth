@@ -62,6 +62,7 @@ class AmbisonicMagLSDecoder : public Mixer {
   // construction from the solved filter length - same pattern as
   // AmbisonicBinauralMixer's own left_tail_/right_tail_.
   std::vector<float> left_tail_, right_tail_;
+  bool tail_silent_ = false; // every tail sample is zero
   std::vector<float> left_acc_, right_acc_;
 };
 

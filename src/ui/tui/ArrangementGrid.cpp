@@ -61,28 +61,22 @@ ArrangementGrid::ensureCursorVisible(int bar_count, int visible_rows, int visibl
 
   // Always kept in bounds (a shrunk song must never leave a stale
   // out-of-range scroll position behind), regardless of follow_cursor.
-  scroll_row_ = clamp(scroll_row_, 0, max(0, bar_count - visible_rows));
-  scroll_col_ = clamp(scroll_col_, 0, max(0, num_tracks - visible_cols));
+  viewport_.setExtent(bar_count, num_tracks, visible_rows, visible_cols);
 
   // Not focused - render() keeps the playhead in view instead (see its
   // own comment on why only one of the two ever drives the scroll
   // position in a given frame).
   if (!follow_cursor) return;
 
-  if (cursor_bar_ < scroll_row_) scroll_row_ = cursor_bar_;
-  if (visible_rows > 0 && cursor_bar_ >= scroll_row_ + visible_rows) scroll_row_ = cursor_bar_ - visible_rows + 1;
-  scroll_row_ = clamp(scroll_row_, 0, max(0, bar_count - visible_rows));
-
-  if (cursor_track_index_ < scroll_col_) scroll_col_ = cursor_track_index_;
-  if (visible_cols > 0 && cursor_track_index_ >= scroll_col_ + visible_cols) scroll_col_ = cursor_track_index_ - visible_cols + 1;
-  scroll_col_ = clamp(scroll_col_, 0, max(0, num_tracks - visible_cols));
+  viewport_.rows.reveal(cursor_bar_);
+  viewport_.cols.reveal(cursor_track_index_);
 }
 
 bool
-ArrangementGrid::offerInput(const InputEvent & input) {
+ArrangementGrid::offerInput(const cellui::Input & input) {
   // A left click picks the (bar, track) cell under it; Enter still commits it.
-  if (input.getId() == NCKEY_BUTTON1) {
-    if (input.getKind() == InputEvent::Kind::RELEASE) return true;
+  if (input.getId() == Key::Button1) {
+    if (input.getKind() == cellui::Input::Kind::RELEASE) return true;
     auto & song = getController().getSong();
     auto num_tracks = static_cast<int>(getVisibleTrackIds(song).size());
     auto [ pos_y, pos_x ] = getPosition();
@@ -90,30 +84,28 @@ ArrangementGrid::offerInput(const InputEvent & input) {
     auto y = input.getY() - pos_y, x = input.getX() - pos_x;
     if (y < 0 || y >= rows || x < 0 || x >= cols) return false;
     constexpr int kColWidth = 2; // see render()
-    auto track = scroll_col_ + x / kColWidth;
+    auto track = viewport_.cols.offset() + x / kColWidth;
     if (track >= num_tracks || x >= max(0, cols - 2) / kColWidth * kColWidth) return true; // the locator column, or past the last track
     auto playing_bar = song.getArrangementBars().barIndex(getController().getPlaybackInfo().getAbsolutePosition());
-    auto bar = scroll_row_ + y;
+    auto bar = viewport_.rows.indexAt(y);
     if (bar >= barCount(song, playing_bar)) return true; // below the last bar
     cursor_track_index_ = track;
     cursor_bar_ = bar;
-    view_detached_ = false;
+    viewport_.attach();
     return true;
   }
 
   // The mouse wheel scrolls the view (Shift: tracks), not the cursor, and
   // detaches it from the cursor/playhead until the cursor next moves.
-  if (input.getId() == NCKEY_BUTTON4 || input.getId() == NCKEY_BUTTON5) {
-    if (input.getKind() == InputEvent::Kind::RELEASE) return true;
-    int direction = input.getId() == NCKEY_BUTTON4 ? -1 : 1;
-    if (input.hasShift()) scroll_col_ += direction;
-    else scroll_row_ += direction;
-    view_detached_ = true;
+  if (input.getId() == Key::Button4 || input.getId() == Key::Button5) {
+    if (input.getKind() == cellui::Input::Kind::RELEASE) return true;
+    int direction = input.getId() == Key::Button4 ? -1 : 1;
+    viewport_.wheel(direction, input.hasShift());
     return true;
   }
 
   if (dispatchCommand(input)) return true;
-  if (input.getKind() == InputEvent::Kind::RELEASE) return false;
+  if (input.getKind() == cellui::Input::Kind::RELEASE) return false;
 
   auto & song = getController().getSong();
   auto track_ids = getVisibleTrackIds(song);
@@ -129,7 +121,7 @@ ArrangementGrid::offerInput(const InputEvent & input) {
     cursor_bar_ = clamp(cursor_bar_ + delta, 0, barCount(song, playing_bar) - 1);
   };
 
-  if (input.getId() == NCKEY_ENTER) {
+  if (input.getId() == Key::Enter) {
     // A bar past the arrangement's end is a valid target: it just moves
     // the playhead/track selection there - "look at/jump to this
     // position" and "put real content here" stay two separate actions.
@@ -139,16 +131,16 @@ ArrangementGrid::offerInput(const InputEvent & input) {
     return true;
   }
 
-  if (input.getId() == NCKEY_UP) move_cursor(-1);
-  else if (input.getId() == NCKEY_DOWN) move_cursor(1);
+  if (input.getId() == Key::Up) move_cursor(-1);
+  else if (input.getId() == Key::Down) move_cursor(1);
   // A full screenful at a time - same "jump by the viewport's own
   // height" reading Page Up/Down carry everywhere else in this app,
   // rather than PatternEditor's own fixed 16-row jump (which counts raw
   // pattern rows, not this grid's own bar rows, so a fixed count
   // wouldn't mean the same thing here).
-  else if (input.getId() == NCKEY_PGUP) move_cursor(-getDim().first);
-  else if (input.getId() == NCKEY_PGDOWN) move_cursor(getDim().first);
-  else if (input.getId() == NCKEY_BACKSPACE) {
+  else if (input.getId() == Key::PageUp) move_cursor(-getDim().first);
+  else if (input.getId() == Key::PageDown) move_cursor(getDim().first);
+  else if (input.getId() == Key::Backspace) {
     if (cursor_track_index_ < num_tracks) {
       auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
       auto bar_start_row = bar_row(cursor_bar_);
@@ -177,7 +169,7 @@ ArrangementGrid::offerInput(const InputEvent & input) {
       // duplicate the one that already does the job.
     }
   }
-  else if (input.getId() == NCKEY_DEL || (input.hasCtrl() && input.getId() == 'k')) {
+  else if (input.getId() == Key::Delete || (input.hasCtrl() && input.getId() == 'k')) {
     // Fully removes the clip itself (ArrangementOps.h's deleteClip()) -
     // every placement of it anywhere in the song, not just the one under
     // the cursor - unlike Backspace above, which only ends this one
@@ -217,8 +209,8 @@ ArrangementGrid::offerInput(const InputEvent & input) {
   }
   // Left/Right move across per-track columns, stopping at the grid's
   // own edges.
-  else if (input.getId() == NCKEY_LEFT) cursor_track_index_--;
-  else if (input.getId() == NCKEY_RIGHT) cursor_track_index_++;
+  else if (input.getId() == Key::Left) cursor_track_index_--;
+  else if (input.getId() == Key::Right) cursor_track_index_++;
   else return false;
 
   cursor_track_index_ = clamp(cursor_track_index_, 0, max(0, num_tracks - 1));
@@ -290,6 +282,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   auto visible_rows = rows;
   auto visible_cols = max(0, cols - kLocatorWidth - 1) / kColWidth;
   auto locators = song.getLocators();
+  viewport_.setSmooth(getPlane().smoothScroll());
 
   // Exactly one of the two ever drives the scroll position in a given
   // frame, never both (letting both run unconditionally, one after the
@@ -313,38 +306,58 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   // A moved cursor reattaches a view the mouse wheel detached - this
   // grid's own, or (while stopped) the edit position it follows unfocused.
   bool edit_position_moved = !playback_info.isPlaying() && playing_row != current_playing_row_;
-  if (view_detached_ && (edit_position_moved || cursor_bar_ != current_cursor_bar_ ||
-                         cursor_track_index_ != current_cursor_track_index_)) view_detached_ = false;
-  auto follow_cursor = !playback_info.isPlaying() && focused && !view_detached_;
+  if (viewport_.detached() && (edit_position_moved || cursor_bar_ != current_cursor_bar_ ||
+                               cursor_track_index_ != current_cursor_track_index_)) viewport_.attach();
+  auto follow_cursor = !playback_info.isPlaying() && focused && !viewport_.detached();
+  // How focused the widget is, eased: its cursor fades between the focused and unfocused look.
+  focus_ = fades_.value(0, focused ? 1.0f : 0.0f, !styles.reduced_motion);
+  // One more frame after it ends draws the final state.
+  bool focus_fading = fades_.active() || focus_fade_drawn_;
+  focus_fade_drawn_ = fades_.active();
+  fades_.sweep();
   ensureCursorVisible(bar_count, visible_rows, visible_cols, num_tracks, follow_cursor);
 
-  if (!follow_cursor && !view_detached_) {
-    if (playing_bar < scroll_row_) scroll_row_ = playing_bar;
-    if (visible_rows > 0 && playing_bar >= scroll_row_ + visible_rows) scroll_row_ = playing_bar - visible_rows + 1;
-    scroll_row_ = clamp(scroll_row_, 0, max(0, bar_count - visible_rows));
+  if (!follow_cursor && !viewport_.detached()) viewport_.rows.reveal(playing_bar);
+
+  // Where the transport is inside its bar, while it plays (0 to 255).
+  auto phase = playback_info.isPlaying() ? playback_info.getCurrentDelay() : 0;
+  // On a display that scrolls smoothly the playhead is a line of its own
+  // that moves through the bars, not a bar's tint that steps.
+  bool smooth_playhead = viewport_.rows.smooth() && playback_info.isPlaying();
+  auto new_version = song.getMajorVersion();
+  {
+    // The view follows where it was scrolled to.
+    auto now = std::chrono::steady_clock::now();
+    viewport_.tick(std::min(0.1, std::chrono::duration<double>(now - last_tick_).count()));
+    last_tick_ = now;
   }
 
-  auto new_version = song.getMajorVersion();
-
-  if (!refresh && new_version == current_song_version_ && playing_row == current_playing_row_ &&
+  if (!refresh && new_version == current_song_version_ && playing_row == current_playing_row_ && smooth_playhead == current_smooth_playhead_ && (!smooth_playhead || phase == current_phase_) &&
       cursor_bar_ == current_cursor_bar_ &&
       cursor_track_index_ == current_cursor_track_index_ &&
-      scroll_row_ == current_scroll_row_ && scroll_col_ == current_scroll_col_ &&
-      focused == current_focused_ && selected_track_id == current_selected_track_id_) {
+      viewport_.rows.shown() == current_shown_row_ && viewport_.cols.offset() == current_scroll_col_ &&
+      focused == current_focused_ && !focus_fading && selected_track_id == current_selected_track_id_) {
     return false;
   }
   current_song_version_ = new_version;
   current_playing_row_ = playing_row;
+  current_phase_ = phase;
+  current_smooth_playhead_ = smooth_playhead;
   current_cursor_bar_ = cursor_bar_;
   current_cursor_track_index_ = cursor_track_index_;
-  current_scroll_row_ = scroll_row_;
-  current_scroll_col_ = scroll_col_;
+  current_shown_row_ = viewport_.rows.shown();
+  current_scroll_col_ = viewport_.cols.offset();
   current_selected_track_id_ = selected_track_id;
   current_focused_ = focused;
 
   setFgColor(styles.window_fg_color);
   setBgColor(styles.window_bg_color);
   erase();
+  // The bars are drawn from the first one the view shows, with one more than
+  // fit, and the plane shifts them by the part of a bar the view is between.
+  auto first_bar = viewport_.rows.firstShown();
+  auto drawn_rows = visible_rows + (viewport_.rows.smooth() ? 1 : 0);
+  getPlane().setScrollOffset(viewport_.rows.fraction(), 0);
 
   // Every id in track_ids is already color-eligible (getVisibleTrackIds()
   // filtered out anything that isn't), so every column below has a real
@@ -360,7 +373,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   // cell's text already uses), uncolored on purpose, so a track's own
   // color never means anything but "a real instance is here."
   auto track_color = [&](int track_id) {
-    return structure.getBaselineInfo(track_id).getColor();
+    return structure.getBaselineInfo(track_id).getColor(styles.tracks);
   };
 
   // Per visible column, the active instance (if any) the previous bar row
@@ -376,18 +389,18 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   // it doesn't show its digit again.
   vector<int> prev_clip_index(static_cast<size_t>(visible_cols), Arrangement::kNoInstance);
   vector<int> prev_start_row(static_cast<size_t>(visible_cols), -1);
-  if (scroll_row_ > 0) {
-    for (auto vc = 0; vc < visible_cols && scroll_col_ + vc < num_tracks; vc++) {
-      auto above_row = bars.barStartRow(scroll_row_ - 1);
-      auto above = resolveInstanceForBar(song, track_ids[static_cast<size_t>(scroll_col_ + vc)], above_row, bars.nextBarStart(above_row) - above_row);
+  if (first_bar > 0) {
+    for (auto vc = 0; vc < visible_cols && viewport_.cols.offset() + vc < num_tracks; vc++) {
+      auto above_row = bars.barStartRow(first_bar - 1);
+      auto above = resolveInstanceForBar(song, track_ids[static_cast<size_t>(viewport_.cols.offset() + vc)], above_row, bars.nextBarStart(above_row) - above_row);
       prev_clip_index[static_cast<size_t>(vc)] = above.clip_index;
       prev_start_row[static_cast<size_t>(vc)] = above.start_row;
     }
   }
   auto arrangement = song.getArrangement();
 
-  for (auto vr = 0; vr < visible_rows; vr++) {
-    auto bar = scroll_row_ + vr;
+  for (auto vr = 0; vr < drawn_rows; vr++) {
+    auto bar = first_bar + vr;
     // Past the bars there are, nothing left to show - still painted
     // explicitly below rather than left to whatever an earlier frame drew
     // in this same screen cell.
@@ -404,7 +417,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
     Color prev_bg = styles.window_bg_color;
 
     for (auto vc = 0; vc < visible_cols; vc++) {
-      auto track_index = scroll_col_ + vc;
+      auto track_index = viewport_.cols.offset() + vc;
       // Each track is its own identifier cell (x = pad_x + 1) plus one
       // shared padding cell right before it (x = pad_x) - drawn as a
       // half-block ("▌", U+258C) whose left half paints in the previous
@@ -484,7 +497,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
       prev_clip_index[static_cast<size_t>(vc)] = cur_clip_index;
       prev_start_row[static_cast<size_t>(vc)] = cur_start_row;
 
-      if (is_playing_row) bg = styles.cursorRowTint(bg);
+      if (is_playing_row && !smooth_playhead) bg = styles.cursorRowTint(bg);
 
       // The shared/global track selection's own column - brightens an
       // active instance's own color (never the plain background, which
@@ -503,11 +516,16 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
       // Focused, a colored cell brightens further rather than losing its
       // track color.
       auto is_cursor_cell = in_range && bar == cursor_bar_ && track_index == cursor_track_index_;
-      if (is_cursor_cell && focused) {
-        fg = styles.highlight_fg_color;
-        bg = cur_clip_index >= 0 ? bg.blend(0.5f, styles.cursor_tint_color) : styles.highlight_bg_color;
-      } else if (is_cursor_cell && cur_clip_index < 0) {
-        bg = styles.highlight_unfocused_bg_color;
+      if (is_cursor_cell) {
+        if (cur_clip_index >= 0) {
+          if (focus_ > 0.0f) {
+            fg = fg.blend(focus_, styles.highlight_fg_color);
+            bg = bg.blend(0.5f * focus_, styles.cursor_tint_color);
+          }
+        } else {
+          bg = styles.highlight_unfocused_bg_color.blend(focus_, styles.highlight_bg_color);
+          fg = fg.blend(focus_, styles.highlight_fg_color);
+        }
       }
 
       setFgColor(prev_bg);
@@ -537,6 +555,18 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
     setFgColor(is_playing_row ? styles.cursor_tint_color : styles.locator_mark_color);
     setBgColor(styles.window_bg_color);
     putstr(vr, visible_cols * kColWidth + kLocatorWidth, has_locator ? "›" : " ");
+  }
+
+  if (smooth_playhead) {
+    // The playhead: a line through the playing bar, as far through it as the
+    // transport is, over the bars as they scroll.
+    auto bar_start = bars.barStartRow(playing_bar);
+    auto bar_rows = std::max(1, bars.nextBarStart(bar_start) - bar_start);
+    double bar_position = playing_bar + (playing_row - bar_start + phase / 256.0) / bar_rows;
+    constexpr double kLineRows = 0.12;
+    getPlane().setBand(cellui::Band{ bar_position - viewport_.rows.shown() - kLineRows / 2, kLineRows, 0, cols, styles.cursor_tint_color, 1.0f });
+  } else {
+    getPlane().clearBand();
   }
 
   return true;

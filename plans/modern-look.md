@@ -23,7 +23,9 @@ already a `StyleProvider` constant, which is the lever.
 1. **Group by surface, not by line.** A few background tones (elevation
    levels: base, panel, raised, overlay) separate areas. A line is used only
    where tone can't do it. A floating layer gets a shadow in the window and a
-   one-step lighter tone in the terminal.
+   one-step lighter tone in the terminal. The exception is the tracker view
+   (the pattern editor): it keeps its lines between tracks, as trackers
+   traditionally have, because tone alone leaves nothing dividing the tracks.
 2. **Neutrals plus one accent.** Slightly cool greys for surfaces and text in
    three emphasis levels (primary, secondary, disabled), one accent for focus
    and the cursor (the cursor is already cyan-leaning), and semantic colours
@@ -82,7 +84,8 @@ widgets use by role:
   uses these (pulse or flash, on the pads and on screen)
 - track colours (8 from the formula) and text.on-track, the same in every theme
 - meter ramp (already `meterColor()`)
-- grid lines: bar, beat (as tones, not lines, where possible)
+- grid lines: bar, beat (as tones, not lines, where possible); the track
+  dividers of the tracker view are lines (a token for their colour)
 
 Themes are data:
 
@@ -93,8 +96,12 @@ Themes are data:
 
 - True colour where available; elsewhere map each token to the nearest
   palette entry by perceptual distance, not by RGB distance.
-- Use box-drawing only for real containers (dialogs, popups). Rounded corners
-  (╭ ╮ ╰ ╯) for floating ones.
+- Modal dialogs have no border: a raised panel with a bold title and a dim
+  hint line, over the scrim's blurred and dimmed page. Menus (the bar's
+  dropdowns and the list picker) are the same: opaque raised panels with
+  padding, no border and no translucency. Use box-drawing for
+  other containers and for the tracker
+  view's lines between tracks. Rounded corners (╭ ╮ ╰ ╯) for floating ones.
 - One-cell gutters between widgets, filled with the base surface rather
   than drawn lines.
 - Half-block (▀ ▄) edges where a surface change needs a softer boundary than
@@ -108,20 +115,42 @@ Themes are data:
 1. **Audit:** screenshot every view and dialog in the terminal, list each
    colour, glyph and line used, and map each to a token or mark it for
    removal. Views done (`plans/modern-look-audit.md`, captured with
-   `tools/modern_look/capture.py`); dialogs still to do.
+   `tools/modern_look/capture.py`); the dialogs are audited last, after the
+   look is applied to the views.
 2. **Mock:** an HTML mock of Live View and Arrangement view in the proposed
    tokens, dark and light, to agree on the direction before code. This is
    also the reference for the window backend. Done:
    `plans/modern-look-mock.html`, with the token values and contrast checks in
-   `plans/modern-look-tokens.md`; the direction is still to be agreed.
+   `plans/modern-look-tokens.md`; the direction is agreed.
 3. **Tokens:** restructure `StyleProvider` into tokens, with the dark theme
-   matching today's look exactly. This step is pure refactoring.
+   matching today's look exactly. This step is pure refactoring. Done:
+   `Theme` holds every colour `StyleProvider` hands out (surfaces, text,
+   accent, state, the grid tones, and the cursor tints, command and reader
+   text, info bar, meter and spectrum ramps, track flags, locators, buttons,
+   master track), `Theme::dark()` has today's values, and `StyleProvider`
+   only derives from it. The track colours and the tracker-view line colour
+   get their tokens in step 4.
 4. **Apply in the terminal:**
-   - the new surfaces and neutrals;
-   - track colours from the formula;
-   - fewer lines;
+   - the new surfaces and neutrals; Done: `Theme::dark()`/`light()` hold
+     them, today's look is `Theme::original()`, `--theme` and the
+     `select-theme` command choose (dark by default);
+   - track colours; Done: `TrackPalette` in the theme. The first eight are a
+     table of hue and chroma picked so the closest two differ as much as
+     possible on the screen and as Launchpad pads, one colour per family
+     (orange, olive, cyan, blue, purple, pink) and two greys, without the
+     gamut's pure blue (the Launchpad takes the palette's hues and a
+     saturation from the chroma in every theme); later ones step the hue over
+     the arcs the clip state hues leave free;
+   - track headers: the raised surface with a slice of the track's colour at
+     the left instead of a block of it (`Theme::track_chips`, the clip grid's
+     header and the tracker's two heading lines); Done;
+   - fewer lines, but not between tracks in the tracker view;
    - the icon list;
-   - fades for state changes.
+   - fades for state changes: `cellui::Fades` eases a colour or a number over 160 ms by a
+     key; the clip grid, pattern editor, outline and arrangement grid ease their
+     cursor between the focused and unfocused look with it, and `--reduced-motion` (or
+     `SYNTH_REDUCED_MOTION=1`) turns it off and holds pulses steady. The other
+     in-place changes (flags, cursor to an undo place, panels) are next;
 5. **Light and high-contrast themes,** with a theme command and a setting.
 6. **Window backend:** the same tokens plus elevation shadows, radius,
    padding, the UI font and smooth motion, in `plans/cell-ui-window.md`'s

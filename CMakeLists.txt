@@ -9,15 +9,17 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(GNUInstallDirs)
 
-# The terminal UI, ALSA audio/MIDI, Launchpad and PipeWire exist only for
-# Linux today. Off elsewhere (Windows) the build is the engine, the tests and
-# a render-only `synth` (src/main_render.cpp); see plans/windows-port.md.
+# The full `synth` (--headless, the Launchpad, live MIDI and audio) builds
+# everywhere; OFF gives the engine, the tests and a render-only `synth`
+# (src/main_render.cpp). The terminal UI (lib/cellui's terminal backend) is
+# POSIX only today, so Windows gets the full program without it.
+option(SYNTH_BUILD_INTERACTIVE "Build the full synth (headless mode, Launchpad, live audio/MIDI)" ON)
 if(WIN32)
-  set(SYNTH_BUILD_INTERACTIVE_DEFAULT OFF)
+  set(SYNTH_BUILD_TERMINAL_UI_DEFAULT OFF)
 else()
-  set(SYNTH_BUILD_INTERACTIVE_DEFAULT ON)
+  set(SYNTH_BUILD_TERMINAL_UI_DEFAULT ON)
 endif()
-option(SYNTH_BUILD_INTERACTIVE "Build the interactive synth (terminal UI, ALSA, Launchpad)" ${SYNTH_BUILD_INTERACTIVE_DEFAULT})
+option(SYNTH_BUILD_TERMINAL_UI "Build the terminal UI" ${SYNTH_BUILD_TERMINAL_UI_DEFAULT})
 
 # Default to an optimized build when the generator supports build types (a
 # plain `cmake -B build` with no CMAKE_BUILD_TYPE otherwise applies no -O
@@ -43,6 +45,11 @@ set(SYNTH_MARCH "native" CACHE STRING "Value passed to -march (e.g. native, x86-
 option(SYNTH_FAST_MATH "Compile with -ffast-math (reassociation, finite-math-only, flush-to-zero at startup). Off keeps only -fno-math-errno." ON)
 if(SYNTH_FAST_MATH)
   set(SYNTH_FP_FLAGS "-ffast-math -fno-math-errno")
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    # Clang optimizes on -ffinite-math-only much harder than GCC does, and
+    # code here uses infinity (e.g. BusEffect::idleAfterSeconds()).
+    string(APPEND SYNTH_FP_FLAGS " -fno-finite-math-only")
+  endif()
 else()
   set(SYNTH_FP_FLAGS "-fno-math-errno")
 endif()
@@ -77,7 +84,7 @@ if(SYNTH_ENABLE_SANITIZERS)
 endif()
 
 # Engine library: song model, playback, instruments and effects. Has no
-# dependency on the terminal UI (notcurses) or audio device (ALSA), so it can
+# dependency on the terminal UI or audio device (ALSA), so it can
 # be linked into the test suite and any future offline tooling.
 add_library(synth_engine STATIC
 	src/doc/Document.cpp
@@ -192,33 +199,35 @@ if(WIN32)
     src/midi/WinMmMidiPorts.cpp)
 endif()
 
-# canvas (2D drawing for the scopes and meters). Its warnings are its own, so
-# it is built from a plain checkout outside this project's flag set.
-include(FetchContent)
-FetchContent_Declare(canvas
-  GIT_REPOSITORY https://github.com/rekola/canvas
-  GIT_TAG bbe8228a9c04be1ad677bf5c0486ec8ed1a72564)
-FetchContent_GetProperties(canvas)
-if(NOT canvas_POPULATED)
-  FetchContent_Populate(canvas)
-endif()
-set(CANVAS_CXX_FLAGS_SAVED "${CMAKE_CXX_FLAGS}")
-set(CMAKE_CXX_FLAGS "${SYNTH_CANVAS_BASE_FLAGS}")
-set(CANVAS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-if(WIN32)
-  set(CANVAS_BACKEND_CAIRO OFF CACHE BOOL "" FORCE)
-  set(CANVAS_BACKEND_GDIPLUS ON CACHE BOOL "" FORCE)
-endif()
-add_subdirectory(${canvas_SOURCE_DIR} ${canvas_BINARY_DIR} EXCLUDE_FROM_ALL)
-set(CMAKE_CXX_FLAGS "${CANVAS_CXX_FLAGS_SAVED}")
-# Its headers are reached as SYSTEM includes, like third_party/.
-target_include_directories(synth_engine SYSTEM PUBLIC ${canvas_SOURCE_DIR}/include)
-target_link_libraries(synth_engine PUBLIC canvas)
 target_include_directories(synth_engine PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 # Cell UI (lib/cellui): the UI library, which also owns the libunistring
 # dependency (grapheme-aware text width). Built with these same flags.
 enable_testing()  # before the subdirectory, so its tests register here too
+# It also brings canvas (2D drawing for the scopes' pixel versions), built
+# without our warning flags.
+set(CELLUI_CANVAS_CXX_FLAGS "${SYNTH_CANVAS_BASE_FLAGS}")
+# The window backend (cellui/gtk/, --ui window) is optional: GTK 4.10 or later,
+# Linux only, found with pkg-config, and without it the terminal is the only
+# UI (cmake says so).
+set(SYNTH_ENABLE_GTK_DEFAULT OFF)
+if(NOT WIN32 AND NOT APPLE)
+  find_package(PkgConfig QUIET)
+  if(PkgConfig_FOUND)
+    pkg_check_modules(SYNTH_GTK4 QUIET gtk4>=4.10)
+  endif()
+  if(SYNTH_GTK4_FOUND)
+    set(SYNTH_ENABLE_GTK_DEFAULT ON)
+  endif()
+endif()
+option(SYNTH_ENABLE_GTK "Build the GTK 4 window UI (--ui window)" ${SYNTH_ENABLE_GTK_DEFAULT})
+if(SYNTH_ENABLE_GTK AND NOT SYNTH_GTK4_FOUND)
+  message(FATAL_ERROR "SYNTH_ENABLE_GTK requested but GTK 4.10 or later was not found (install libgtk-4-dev)")
+endif()
+if(NOT SYNTH_ENABLE_GTK)
+  message(STATUS "Window UI: not built (GTK 4.10 or later not enabled or not found; --ui window unavailable)")
+endif()
+set(CELLUI_ENABLE_GTK ${SYNTH_ENABLE_GTK})
 add_subdirectory(lib/cellui)
 target_link_libraries(synth_engine PUBLIC cellui)
 
@@ -299,35 +308,51 @@ configure_file(
 )
 
 if(SYNTH_BUILD_INTERACTIVE)
-  # add the executable
-  add_executable(synth src/main.cpp
+  # The UI layer (the app-level UI, the Launchpad logic, the headless
+  # backend and, if built, the terminal UI) is a library of its own so the
+  # tests can drive the terminal UI on Cell UI's test terminal.
+  add_library(synth_ui STATIC
+  	src/ui/CommandDescriptions.cpp
   	src/ui/UI.cpp
-  	src/audio/AlsaAudio.cpp
-  	src/audio/AudioDevices.cpp
-  	src/midi/AlsaMidiInput.cpp
-  	src/midi/AlsaMidiPorts.cpp
   	src/launchpad/LaunchpadManager.cpp
   	src/ui/headless/HeadlessUI.cpp
+  )
+  target_link_libraries(synth_ui PUBLIC synth_engine)
+  if(SYNTH_BUILD_TERMINAL_UI)
+    target_sources(synth_ui PRIVATE
+      src/ui/tui/TerminalUI.cpp
+      src/ui/tui/OutlineView.cpp
+      src/ui/tui/PatternEditor.cpp
+      src/ui/tui/ArrangementGrid.cpp
+      src/ui/tui/ClipGrid.cpp)
+  endif()
+
+  # add the executable
+  add_executable(synth src/main.cpp
   	src/util/Daemon.cpp
-  	src/ui/tui/TerminalUI.cpp
-  	src/ui/tui/EscapeCoalescer.cpp
-  	src/ui/tui/NotcursesInputEventSource.cpp
-  	src/ui/tui/OutlineView.cpp
-  	src/ui/tui/InfoDialog.cpp
-  	src/ui/tui/ChoiceDialog.cpp
-  	src/ui/tui/PatternEditor.cpp
-  	src/ui/tui/ArrangementGrid.cpp
-  	src/ui/tui/InlineEditor.cpp
-  	src/ui/tui/ClipGrid.cpp
-  	src/ui/tui/ChannelMeter.cpp
-  	src/ui/tui/SpectrumMeter.cpp
-  	src/ui/SpectrumImage.cpp
-  	src/ui/HeatmapImage.cpp
   )
   target_include_directories(synth PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+  target_link_libraries(synth synth_ui)
 
-  target_link_libraries(synth synth_engine asound notcurses++ notcurses notcurses-core)
+  if(NOT WIN32)
+    # AudioDevices lists the choices UI's device pickers show.
+    target_sources(synth_ui PRIVATE src/audio/AudioDevices.cpp)
+    target_sources(synth PRIVATE
+      src/audio/AlsaAudio.cpp
+      src/midi/AlsaMidiPorts.cpp)
+    target_sources(synth_ui PRIVATE src/midi/AlsaMidiInput.cpp)
+    target_link_libraries(synth_ui PUBLIC asound)
+    target_link_libraries(synth asound)
+  endif()
 
+  if(SYNTH_BUILD_TERMINAL_UI)
+    target_compile_definitions(synth PRIVATE SYNTH_TERMINAL_UI)
+    if(SYNTH_ENABLE_GTK)
+      target_compile_definitions(synth PRIVATE SYNTH_GTK_UI)
+    endif()
+  endif()
+
+  if(NOT WIN32)
   # Optional PipeWire: lets the device pickers and --list-devices list the
   # audio server's own inputs and outputs (AudioDevices.cpp). Selection itself
   # goes through ALSA's pipewire plugin, so nothing else changes; without
@@ -351,8 +376,9 @@ if(SYNTH_BUILD_INTERACTIVE)
     if(NOT PIPEWIRE_FOUND)
       message(FATAL_ERROR "SYNTH_ENABLE_PIPEWIRE requested but libpipewire was not found (install libpipewire-0.3-dev)")
     endif()
-    target_compile_definitions(synth PRIVATE SYNTH_HAVE_PIPEWIRE)
-    target_link_libraries(synth PkgConfig::PIPEWIRE)
+    target_compile_definitions(synth_ui PRIVATE SYNTH_HAVE_PIPEWIRE)
+    target_link_libraries(synth_ui PUBLIC PkgConfig::PIPEWIRE)
+  endif()
   endif()
 
 else()

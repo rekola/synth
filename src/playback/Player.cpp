@@ -12,6 +12,7 @@
 #include "ThresholdRecordingTriggeredEvent.h"
 #include "PlaybackControlEvent.h"
 #include "AudioBlockEvent.h"
+#include "VisualizationThread.h"
 
 #include "../ambisonic/MixerFactory.h"
 #include "../state/LeafTrackState.h"
@@ -965,19 +966,25 @@ Player::play(AudioAPI & audio) {
 
 	    pushSnapshots();
 
-	    // Hand off to VisualizationThread - its own dedicated thread,
-	    // decoupled from both this real-time audio thread and the UI
-	    // thread (see VisualizationThread.h and AudioBlockEvent.h for
-	    // what each field means and why). master is moved, not copied
-	    // (it's already this block's own independently-owned AudioBuffer,
-	    // straight from mixer->encode() above, and VisualizationThread
-	    // only reads it as the empty-buffer shutdown sentinel now, not
-	    // for any real analysis); active_raw_bus/active_aux_a/
-	    // active_aux_b are moved too - each already an independently-
-	    // owned local computed fresh above, not a reference into any
-	    // mixer's or SongState's own persistent state.
-	    controller_->getVisualizationQueue().push(make_unique<AudioBlockEvent>(
-	      move(master), move(active_raw_bus), move(active_aux_a), move(active_aux_b)));
+            // Hand off to VisualizationThread - its own dedicated thread,
+            // decoupled from both this real-time audio thread and the UI
+            // thread (see VisualizationThread.h and AudioBlockEvent.h for
+            // what each field means and why). master is moved, not copied
+            // (it's already this block's own independently-owned AudioBuffer,
+            // straight from mixer->encode() above, and VisualizationThread
+            // only reads it as the empty-buffer shutdown sentinel now, not
+            // for any real analysis); active_raw_bus/active_aux_a/
+            // active_aux_b are moved too - each already an independently-
+            // owned local computed fresh above, not a reference into any
+            // mixer's or SongState's own persistent state.
+            // Silent blocks only until the scopes have settled: after that they
+            // would wake the visualization thread for nothing.
+            bool silent = !active_raw_bus.hasChannel(Channel::Main) && !active_aux_a.hasChannel(Channel::Main) && !active_aux_b.hasChannel(Channel::Main);
+            silent_frames_ = silent ? silent_frames_ + static_cast<long>(audio.getFrameCount()) : 0;
+            if (silent_frames_ <= static_cast<long>(VisualizationThread::kSettleSeconds + 1) * channel_config_.getAudioOutSampleRate()) {
+              controller_->getVisualizationQueue().push(make_unique<AudioBlockEvent>(
+                  move(master), move(active_raw_bus), move(active_aux_a), move(active_aux_b)));
+            }
           }
           if (ready.capture) {
             // Only reported while capture is wanted - checking again anyway

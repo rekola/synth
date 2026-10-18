@@ -1,12 +1,5 @@
 add_executable(synth_tests
 	test_main.cpp
-	# Compiled directly as an extra source here (mirroring how
-	# TerminalUI.cpp itself is only ever added straight to the `synth`
-	# executable, never into synth_engine) rather than folded into
-	# synth_engine's own library composition: EscapeCoalescer.h/.cpp only
-	# needs notcurses's headers (types, macros, static inline helpers), not
-	# the linked library, so this keeps that distinction visible at the
-	# build-system level too - see EscapeCoalescer.h's own top comment.
 	DocumentTests.cpp
 	SongEditTests.cpp
 	ContentPublishingTests.cpp
@@ -24,10 +17,10 @@ add_executable(synth_tests
 	FMTests.cpp
 	ControllerTests.cpp
 	DeviceSettingsTests.cpp
-	ThemeTests.cpp
 	DeviceLabelsTests.cpp
 	PatternBlockOpsTests.cpp
 	JustIntonationTests.cpp
+	KeyboardNotesTests.cpp
 	SpatialPlacementTests.cpp
 	TuningCorrectionOpsTests.cpp
 	PatternSourceTests.cpp
@@ -93,7 +86,6 @@ add_executable(synth_tests
 	TimeStretcherTests.cpp
 	RecordingRingBufferTests.cpp
 	MonoFifoTests.cpp
-	LevelMeterTests.cpp
 	LaunchpadPanTests.cpp
 	RhythmPatternLibraryTests.cpp
 	SwingTests.cpp
@@ -108,12 +100,12 @@ add_executable(synth_tests
 	AmbisonicStackEncoderTests.cpp
 )
 
-# Needs notcurses's headers, so only where the terminal UI is built.
-if(SYNTH_BUILD_INTERACTIVE)
-  target_sources(synth_tests PRIVATE ../src/ui/tui/EscapeCoalescer.cpp EscapeCoalescerTests.cpp)
-endif()
-
 target_link_libraries(synth_tests synth_engine)
+# The terminal UI, driven on Cell UI's test terminal.
+if(SYNTH_BUILD_INTERACTIVE AND SYNTH_BUILD_TERMINAL_UI)
+  target_sources(synth_tests PRIVATE TerminalUITests.cpp TerminalUIViewTests.cpp)
+  target_link_libraries(synth_tests synth_ui)
+endif()
 target_compile_definitions(synth_tests PRIVATE
 	TESTS_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
 	TESTS_SCRATCH_DIR="${CMAKE_CURRENT_BINARY_DIR}"
@@ -132,8 +124,3 @@ if(Python3_Interpreter_FOUND)
 	   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../tools/check_no_banned_randomness.py)
 endif()
 
-# Draws with canvas' Cairo backend; the GDI+ one joins when the terminal UI
-# reaches Windows.
-if(NOT WIN32)
-  target_sources(synth_tests PRIVATE ../src/ui/SpectrumImage.cpp SpectrumImageTests.cpp ../src/ui/HeatmapImage.cpp HeatmapImageTests.cpp)
-endif()

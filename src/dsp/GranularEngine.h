@@ -70,6 +70,9 @@ class GranularEngine {
   // is invoked - a command, a MIDI CC, ...) are out of scope here; this
   // is just the engine-level state toggle.
   void setFreeze(bool freeze) { freeze_ = freeze; }
+  // The longest a sample of input can still come out: the capture buffer
+  // plus one grain read from its far end.
+  static float memorySeconds();
   bool getFreeze() const { return freeze_; }
 
   // Read back setParameters()'s (clamped) values - used only for

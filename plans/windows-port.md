@@ -6,9 +6,9 @@ command-line binary that renders songs. Steps 1-5 make the platform layer
 (audio, MIDI, Launchpad, OS utilities) backend-neutral and add Windows
 backends, ending with `--headless` (playback + Launchpad performance) working
 on Windows; step 6 packages it. This runs alongside phase 1 of the Cell UI
-(`plans/cell-ui-terminal.md`), which replaces notcurses: once both are far
-enough, the terminal UI runs in a Windows console too. The graphical UI is
-phase 2 (`plans/cell-ui-window.md`) and not part of this plan.
+(`plans/cell-ui-terminal.md`), which replaces notcurses. Windows gets no
+terminal UI: its interactive UI is the graphical one, phase 2
+(`plans/cell-ui-window.md`), which is not part of this plan.
 
 ## Decisions
 
@@ -204,21 +204,24 @@ executable) is settled by step 6.
 - CI builds all of these; nothing can run against real devices there -
   `NullAudio` covers the `Player` loop.
 
-## Step 5 - `--headless` on Windows
+## Step 5 - `--headless` on Windows (built, not yet run with devices)
 
 With steps 1-4, `HeadlessUI` (no terminal) should work: play a song, MIDI
 input, sample recording, a Launchpad as the performance surface. This is the
 first Windows build a musician can use, and still needs no UI decision.
 Verify by hand with a Launchpad on Windows; document in `docs/headless.md`.
 
-## Step 6 - Installer
+## Step 6 - Installer (built on CI, not yet run by a person)
+
+Done: `release-windows.yml`, `tools/windows/` (see `docs/building.md`). Left:
+the SoundFont (needs a pinned URL and checksum), a SOFA file, signing,
+MSIX/winget.
 
 - **Inno Setup**, built on CI from tags.
   - It bundles the MSYS2 runtime DLLs the binary needs (collected with
     `ntldd`), the default song, a General MIDI SoundFont (FluidR3_GM, MIT),
     a SOFA file if its licence allows, and the licence texts.
-  - Start menu entries for the terminal UI (once it runs on Windows) and
-    `--headless`; the window gets one in phase 2.
+  - A Start menu entry for `--headless`; the window gets one in phase 2.
   - Later: an MSIX or winget manifest.
 - **Code signing:** an unsigned installer triggers SmartScreen warnings. A
   signing service (Azure Trusted Signing or similar) runs in the release

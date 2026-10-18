@@ -498,9 +498,23 @@ void transposeSong(Song & song, SongScope scope, bool up) {
   // The notes (and the key, when it moves) have changed place together; a
   // tuned note gets the correction for its new place in its chord.
   int new_key = move_key ? key + delta : key;
-  IntonationContext context{song.getTuning(), new_key, song.getArrangementBars()};
+  IntonationContext context{song.getTuning(), new_key, song.getArrangementBars(),
+                            just_intonation::scaleCorrectionsFor(song.getTuning(), song.getScale(), new_key)};
   tuneSongPatterns(song, scope, context, true);
   if (move_key) song.setKey(new_key);
+}
+
+int retuneSong(Song & song) {
+  auto context = intonationContextOf(song);
+  TuningSummary summary;
+  for (auto & entry : songPatterns(song)) {
+    if (isPercussionTrack(song, entry.track_id)) continue;
+    auto corrections = chordCorrections(entry.pattern, context);
+    set<int> rows;
+    for (auto & [position, cents] : corrections) rows.insert(position.first);
+    writeCorrections(entry.pattern, rows, corrections, 0, numeric_limits<int>::max(), true, summary);
+  }
+  return summary.notes;
 }
 
 void humanizeSong(Song & song, SongScope scope, const HumanizeAmount & amount, NoiseGenerator & rng) {

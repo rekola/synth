@@ -16,6 +16,9 @@
 #include "InlineEditor.h"
 #include "LevelMeter.h"
 
+#include <cellui/Fade.h>
+#include <cellui/Scopes.h>
+
 #include <chrono>
 #include <functional>
 #include <memory>
@@ -26,8 +29,8 @@
 #include <utility>
 
 class Synth;
-class InputEvent;
-class StyleProvider;
+#include <cellui/Input.h>
+#include "../StyleProvider.h"
 class Song;
 class VisibleTrackInfo;
 class Controller;
@@ -42,13 +45,15 @@ class PatternEditor : public UIElement {
   // playhead-row tint is transport state, not input focus - the same
   // either way.
   bool render(const StyleProvider & styles, bool refresh, bool focused);
-  bool offerInput(const InputEvent & input) override;
+  bool offerInput(const cellui::Input & input) override;
   void handleMidiEvent(MidiEvent & ev) override;
 
   // Mirrors StatusLine::isReaderActive(): while this widget's inline editor
   // is open, UI::offerInput() must not let a global keybinding (Space/
   // toggle-playing, C-x C-c/quit, ...) steal a keystroke meant for it.
   bool isReaderActive() const { return inline_editor_.isOpen(); }
+  // The focus level is still easing: the loop keeps drawing frames.
+  bool isAnimating() const { return fades_.active() || focus_fade_drawn_; }
 
   // Aborts the locator/track-name editor without committing anything -
   // used by StatusLine so opening M-x takes focus away from it rather than
@@ -84,6 +89,10 @@ class PatternEditor : public UIElement {
   // the transport as the cursor row; Live mode edits clips directly,
   // one scene at a time (ScenePatternSource).
   void setLiveMode(bool live);
+  // The tracks the editor has columns for: every track in Arrangement view,
+  // only the playable ones in Live View, where an effect's or the master's
+  // commands belong to no clip.
+  std::vector<int> trackIds(const Song & song) const;
   bool isLiveMode() const { return source_ == scene_source_.get(); }
   // Live mode: puts `track_id`'s position on `row` of scene `scene` (not while
   // that track plays). A no-op in Arrangement mode.
@@ -160,6 +169,14 @@ protected:
   // ClipboardEntry::track_tunings capture, see that struct's own comment.
   std::vector<Tuning> tuningsForTrackRange(const Song & song, const std::vector<int> & track_ids, int track_lo, int track_hi) const;
   void renderHeading(const StyleProvider & styles, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info, bool focused);
+  void renderHeadingOnPlane(const StyleProvider & styles, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info, bool focused);
+  // The headings (names, meters) are the widget's own plane, over a plane of
+  // its own for the rows, so the rows can move without the headings. While
+  // render() draws, the drawing helpers are on the rows' plane (see
+  // renderHeading(), which goes back to the widget's own).
+  std::unique_ptr<UIPlane> rows_plane_;
+  bool drawing_rows_ = false;
+  int rows_plane_rows_ = -1, rows_plane_cols_ = -1;
   void renderRow(const StyleProvider & styles, int heading_height, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info, int row, bool highlight, const SelectionBounds & sel_bounds, bool focused);
 
   // Opens the locator editor for the cursor's current row - called
@@ -213,12 +230,16 @@ protected:
   PendingNibbles pending_;
   // Asked for by an undo; applied in render(), where the track's columns are known.
   std::optional<Song::EditPlace> focus_cell_;
+  const cellui::Scopes * scopes_ = nullptr;
 public:
   // Writes a half-typed velocity or delay to the song.
   void commitPendingValue();
+  // The backend's scopes, which draw the VU meters; unset, they are drawn
+  // in cells.
+  void setScopes(const cellui::Scopes * scopes) { scopes_ = scopes; }
   void focusCell(const Song::EditPlace & place) { focus_cell_ = place; }
 private:
-  bool offerInputKey(const InputEvent & input);
+  bool offerInputKey(const cellui::Input & input);
   static bool anyMeterLive(const PlaybackInfo & info, const std::vector<int> & track_ids);
 
   int current_score_playing_row = 0;
@@ -398,7 +419,7 @@ private:
   // A left-button press picks a cell, dragging from it selects a region;
   // handleMouse() tells a drag from a fresh press by the button not having
   // been released in between.
-  bool handleMouse(const InputEvent & input);
+  bool handleMouse(const cellui::Input & input);
  public:
   bool isMouseDown() const { return mouse_down_; }
   void releaseMouse() { mouse_down_ = false; }
@@ -448,6 +469,9 @@ private:
   bool force_full_redraw_ = false;
   std::unordered_map<int, ScenePatternSource::Playhead> live_playheads_;
   bool fading_drawn_ = false;
+  float focus_ = 0.0f;
+  cellui::Fades fades_;
+  bool focus_fade_drawn_ = false;
 
   // The block at the top of the view - current_scroll_.row counts from
   // its start. Follows the cursor's own block, scrolled just far enough to

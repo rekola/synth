@@ -24,6 +24,7 @@
 #include "../model/SampleTrack.h"
 #include "../model/Song.h"
 #include "../model/ArrangementOps.h"
+#include "../model/PatternBlockOps.h"
 #include "../playback/RecordEvent.h"
 #include "../playback/RecordingLatencyEvent.h"
 #include "../playback/ThresholdRecordingTriggeredEvent.h"
@@ -430,7 +431,9 @@ UI::initializeCommands() {
     chooseDevice("MIDI input", std::move(choices), getController().getDeviceSettings().midi_input,
                  [this](const Choice & choice) { selectMidiInput(choice.value, choice.label); });
   });
-  // The song's scale: which degrees the step view steps through.
+  // The song's scale: which degrees the step view steps through, and the
+  // ratios of a just scale's notes, so the notes that carry a tuning
+  // correction are retuned for it in the same edit.
   commands_.define("set-song-scale", [this]() {
     static const Scale kScales[] = {Scale::NONE, Scale::MAJOR, Scale::MINOR, Scale::OTONAL, Scale::UTONAL};
     std::vector<Choice> choices;
@@ -445,7 +448,22 @@ UI::initializeCommands() {
       auto & song = getController().getSong();
       Song::Edit edit(song, "set scale");
       song.setScale(scale);
-      setStatus("Scale " + scaleLabel(scale));
+      int retuned = retuneSong(song);
+      setStatus("Scale " + scaleLabel(scale) + (retuned > 0 ? fmt::format(", {} tuned notes retuned", retuned) : ""));
+    });
+  });
+  // The colours: the modern look in dark or light, or the original one.
+  commands_.define("select-theme", [this]() {
+    static const char * const kNames[] = {"dark", "light", "original"};
+    std::vector<Choice> choices;
+    int current = -1;
+    for (auto name : kNames) {
+      if (theme_name_ == name) current = static_cast<int>(choices.size());
+      choices.push_back({name, name});
+    }
+    showChoiceDialog("Theme", std::move(choices), current, [this, current](int index) {
+      if (index == current || index < 0 || index >= static_cast<int>(std::size(kNames))) return;
+      if (setTheme(kNames[index])) setStatus(std::string("Theme ") + kNames[index]);
     });
   });
   commands_.define("next-buffer", [this]() {

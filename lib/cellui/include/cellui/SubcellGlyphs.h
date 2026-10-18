@@ -6,8 +6,8 @@ namespace cellui {
 
 // Unicode Block Elements (2x2, always-supported) and Symbols for Legacy
 // Computing sextant (2x3, capability-gated) sub-cell glyph tables - shared
-// by every widget that paints sub-character-resolution content (currently
-// TerminalHeatmapChart's 2D field and PatternEditor's own waveform boxes),
+// by every widget that paints sub-character-resolution content (a 2D field, waveform
+// boxes),
 // so the mask-to-codepoint mapping is declared exactly once.
 
 // Unicode Block Elements (U+2580-U+259F) quadrant glyphs, indexed by a
@@ -29,9 +29,8 @@ extern const unsigned int kQuadrantCodepoints[16];
 // mask 21 (0b010101, left column only) = LEFT HALF BLOCK U+258C, mask 42
 // (0b101010, right column only) = RIGHT HALF BLOCK U+2590. The remaining
 // 60 masks get consecutive new codepoints U+1FB00..U+1FB3B in mask order,
-// skipping 21/42. Only actually a real glyph on a terminal that reports
-// notcurses_cansextant() - checked once via UIPlane::canRenderSextants(),
-// not per call.
+// skipping 21/42. Only actually a real glyph on a terminal that has
+// sextants - checked once via UIPlane::canRenderSextants(), not per call.
 unsigned int sextantCodepoint(int mask);
 
 // Unicode Braille Patterns (U+2800-U+28FF) for an 8-bit mask over a
@@ -67,11 +66,9 @@ struct SubcellRgb { float r, g, b; };
 // rounding resolve to the lowest mask, so a uniform cell always lands on
 // mask 0 - every sample in the "off" group at its own true color, drawn
 // as a plain space - rather than an arbitrary split with two identical
-// group colors. Shared by TerminalHeatmapChart (its own
-// DirAC directional field) and PatternEditor's own waveform boxes (its
-// per-row antialiased coverage) - the same "best 2-color fit for a
-// handful of already-computed samples" problem either way, regardless of
-// what the samples themselves represent.
+// group colors. Shared by every widget that fits a
+// handful of already-computed samples to one cell - the same "best 2-color
+// fit" problem regardless of what the samples themselves represent.
 int quantizeToTwoColors(const std::vector<SubcellRgb> & samples, SubcellRgb & on_color, SubcellRgb & off_color);
 
 }  // namespace cellui

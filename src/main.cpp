@@ -1,4 +1,5 @@
 #ifdef _WIN32
+#include "ui/Theme.h"
 #include "audio/WasapiAudio.h"
 #else
 #include "audio/AlsaAudio.h"
@@ -10,7 +11,9 @@
 #include "midi/MidiInput.h"
 #include "midi/MidiPorts.h"
 #include "launchpad/LaunchpadManager.h"
+#ifdef SYNTH_TERMINAL_UI
 #include "ui/tui/TerminalUI.h"
+#endif
 #include "ui/headless/HeadlessUI.h"
 #include "util/Daemon.h"
 #include "util/ShutdownSignal.h"
@@ -24,10 +27,18 @@
 #include <cstring>
 #include <filesystem>
 #include <signal.h>
+#ifdef SYNTH_TERMINAL_UI
 #include <termios.h>
 #include <unistd.h>
+#endif
 
-#include <ncpp/NotCurses.hh>
+#ifdef SYNTH_TERMINAL_UI
+#include <cellui/term/TerminalSession.h>
+#ifdef SYNTH_GTK_UI
+#include <cellui/gtk/Window.h>
+#endif
+#endif
+#include <cellui/term/ImageEncoder.h>
 #include <fmt/core.h>
 
 using namespace std;
@@ -41,7 +52,15 @@ int main(int argc, char *argv[]) {
   // benefit. --samplerate still overrides this.
   ChannelConfiguration channel_config(48000, kAmbisonicOrder); // default to the highest supported order
   CommonOptions common;                                        // --stereo, --legacy-binaural, --licenses, --render
+  string theme_name = "dark"; // --theme dark|light|original: the terminal UI's colours
+  bool theme_given = false;
+  // --reduced-motion (or SYNTH_REDUCED_MOTION=1): no easing, no pulsing.
+  bool reduced_motion = getenv("SYNTH_REDUCED_MOTION") != nullptr && strcmp(getenv("SYNTH_REDUCED_MOTION"), "0") != 0;
+  bool window_ui = false;                 // --ui window|terminal: which backend the UI runs on
   UI::View initial_view = UI::View::LIVE; // --view live|arrangement: which view the UI starts in
+  // --dither nearest|ordered|floyd-steinberg: how what has to meet the
+  // terminal's palette (Sixel images) is dithered.
+  auto dither = cellui::term::Dither::Method::ORDERED;
   // The saved audio/MIDI device choices; --capture-device/--playback-device/
   // --midi-input override them for this run only (`devices`), never the file
   // (`saved_devices`, what the Controller persists from).
@@ -67,6 +86,33 @@ int main(int argc, char *argv[]) {
 	exit(1);
       }
       i++;
+    } else if (strcmp(argv[i], "--ui") == 0) {
+      if (i + 1 < argc && strcmp(argv[i + 1], "window") == 0)
+        window_ui = true;
+      else if (i + 1 < argc && strcmp(argv[i + 1], "terminal") == 0)
+        window_ui = false;
+      else {
+        fmt::print(stderr, "--ui requires 'window' or 'terminal'\n");
+        exit(1);
+      }
+      i++;
+    } else if (strcmp(argv[i], "--dither") == 0) {
+      if (i + 1 >= argc || !cellui::term::Dither::byName(argv[i + 1], dither)) {
+        fmt::print(stderr, "--dither requires 'nearest', 'ordered' or 'floyd-steinberg'\n");
+        exit(1);
+      }
+      i++;
+    } else if (strcmp(argv[i], "--theme") == 0) {
+      Theme probe;
+      if (i + 1 >= argc || !Theme::byName(argv[i + 1], probe)) {
+	fmt::print(stderr, "--theme requires 'dark', 'light' or 'original'\n");
+	exit(1);
+      }
+      theme_name = argv[i + 1];
+      theme_given = true;
+      i++;
+    } else if (strcmp(argv[i], "--reduced-motion") == 0) {
+      reduced_motion = true;
     } else if (strcmp(argv[i], "--headless") == 0) {
       headless = true;
     } else if (strcmp(argv[i], "--daemon") == 0) {
@@ -240,39 +286,74 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
-  // notcurses_options nopts{};
-  // nopts.flags = NCOPTION_INHIBIT_SETLOCALE;
-  auto nc = make_shared<ncpp::NotCurses>();
-  nc->mouse_enable(NCMICE_ALL_EVENTS);
-  nc->linesigs_disable();
-
-  // notcurses's own raw-mode setup leaves IXON (software flow control) on -
-  // confirmed via direct termios inspection, not just inferred - so Ctrl-S/
-  // Ctrl-Q (needed for the C-x C-s save binding, UI.cpp) get intercepted by
-  // the kernel tty driver as XOFF/XON (pausing/resuming terminal output)
-  // instead of ever reaching notcurses's input decoder as keystrokes, the
-  // same class of "a control character doesn't reach the app" problem
-  // linesigs_disable() above already solves for Ctrl-C/Ctrl-Z. Must run
-  // after NotCurses's own constructor, which does its own termios setup -
-  // doing this first would just get overwritten.
-  if (isatty(STDIN_FILENO)) {
-    struct termios t;
-    if (tcgetattr(STDIN_FILENO, &t) == 0) {
-      t.c_iflag &= ~(tcflag_t)(IXON | IXOFF);
-      tcsetattr(STDIN_FILENO, TCSANOW, &t);
+#ifndef SYNTH_TERMINAL_UI
+  (void)window_ui;
+  (void)initial_view;
+  (void)theme_name;
+  (void)theme_given;
+  (void)reduced_motion;
+  (void)dither;
+  fmt::print(stderr, "This build has no terminal UI; use --headless\n");
+  return 1;
+#else
+  std::string ui_error;
+  std::unique_ptr<cellui::Backend> backend;
+  // Without --theme, the colours follow the backend's own: light on a
+  // light background.
+  bool light = false;
+  if (window_ui) {
+#ifdef SYNTH_GTK_UI
+    backend = cellui::gtk::Window::open({}, &ui_error);
+    if (!backend) {
+      fmt::print(stderr, "Cannot start the window UI: {}\n", ui_error);
+      return 1;
     }
+    if (auto bg = backend->display().default_bg) light = bg->getRed() + bg->getGreen() + bg->getBlue() > 3 * 128;
+#else
+    fmt::print(stderr, "This build has no window UI (it needs GTK 4.10 or later; see SYNTH_ENABLE_GTK)\n");
+    return 1;
+#endif
+  } else {
+    cellui::term::SessionOptions session_options;
+    session_options.dither = dither;
+    auto session = cellui::term::TerminalSession::open(session_options, &ui_error);
+    if (!session) {
+      fmt::print(stderr, "Cannot start the terminal UI: {}\n", ui_error);
+      return 1;
+    }
+    light = session->capabilities().appearance == cellui::term::Appearance::LIGHT;
+    backend = std::move(session);
   }
-  
-  // After notcurses is up, so these replace the handlers it installed:
-  // a SIGTERM/SIGHUP then ends the main loop and unwinds normally (the
-  // terminal gets restored, Launchpad LEDs get cleared) instead of
-  // notcurses's handler killing the process.
+
+  // After the backend is up, so these replace its handlers for the
+  // termination signals: a SIGTERM/SIGHUP then ends the main loop and
+  // unwinds normally (the terminal gets restored, Launchpad LEDs get
+  // cleared) instead of the process being killed.
   installShutdownSignalHandlers();
 
-  TerminalUI ui(nc);
+  if (!theme_given) theme_name = light ? "light" : "dark";
+  TerminalUI ui(*backend);
   ui.setInitialView(initial_view);
+  ui.setTheme(theme_name);
+  ui.setReducedMotion(reduced_motion);
   ui.initialize(controller);
   ui.start(audio, *midi, launchpad_io, launchpad_manager);
 
+#ifdef SYNTH_GTK_UI
+  // SYNTH_WINDOW_STATS=<file>: how long the window's frames took to draw.
+  if (window_ui) {
+    if (const char * stats_path = getenv("SYNTH_WINDOW_STATS")) {
+      const auto & stats = static_cast<cellui::gtk::Window &>(*backend).stats();
+      if (FILE * f = fopen(stats_path, "a")) {
+        double n = static_cast<double>(std::max<size_t>(stats.frames, 1));
+        fprintf(f, "frames=%zu draw_ms_mean=%.2f draw_ms_max=%.2f raster_ms_mean=%.2f raster_ms_max=%.2f\n", stats.frames, stats.draw_ms_total / n,
+                stats.draw_ms_max, stats.raster_ms_total / n, stats.raster_ms_max);
+        fclose(f);
+      }
+    }
+  }
+#endif
+
   return 0;
+#endif
 }

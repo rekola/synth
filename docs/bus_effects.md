@@ -221,7 +221,7 @@ that's the parameter most tied to a preset's actual character).
 
 | Preset | grainSize | density | overlap | pitchScatter | Why |
 |---|---|---|---|---|---|
-| default | 60ms | 45/s | 2.7 | ±40¢ | Grain-like but not extreme in either direction; overlap comfortably above the floor without being dense; pitch scatter audible as gentle chorus-like detuning (±15¢ would be below the threshold of perception). |
+| default | 60ms | 45/s | 2.7 | ±40¢ | Grain-like but not extreme in either direction; overlap comfortably above the floor without being dense; pitch scatter audible as gentle chorus-like detuning. |
 | shimmer | 25ms | 100/s | 2.5 | ±60¢ | Shortest grain the density ceiling (100/s) allows while still clearing the overlap floor - "brisk clip" and brightness both want short+dense; scatter audible as sparkle without dominating. |
 | cloud | 70ms | 50/s | 3.5 | ±35¢ | Deliberately the densest preset - the one explicitly named for continuous envelopment; scatter stays gentle so the cloud reads as related to the source, not aggressively shifted. |
 | glitch | 25ms | 100/s | 2.5 | ±1000¢ | Same grain/density profile as shimmer (still respects the overlap floor - see below) - the "stuttery, digital" character comes entirely from a near-repeat scan window, dramatic pitch jumps, and uneven amplitude, not from gating. |

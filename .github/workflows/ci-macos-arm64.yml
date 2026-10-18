@@ -1,0 +1,62 @@
+name: macOS ARM64
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  # Build, test and render only: there is no macOS audio or MIDI backend yet
+  # (ALSA is Linux only, WASAPI/WinMM Windows only), so the interactive
+  # program is off (SYNTH_BUILD_INTERACTIVE=OFF, the render-only `synth`).
+  # Apple clang with Homebrew's libraries: the same toolchain as the system
+  # frameworks (canvas' Quartz 2D backend, which draws the pixel scopes, cannot
+  # be built by GCC) and the same C++ library as Homebrew's fmt and SoundTouch. -march is pinned to a fixed
+  # baseline; no ARM golden-render hash is captured (see the Linux ARM64 job).
+  build-and-test:
+    runs-on: macos-15
+
+    # Clang does not search /opt/homebrew on its own.
+    env:
+      CPATH: /opt/homebrew/include
+      LIBRARY_PATH: /opt/homebrew/lib
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: brew install cmake ninja pkg-config fmt libsndfile sound-touch libunistring
+
+      - name: Configure
+        run: |
+          cmake -G Ninja -B build \
+            -DSYNTH_MARCH=armv8-a \
+            -DSYNTH_BUILD_INTERACTIVE=OFF
+
+      # -k 0: report every compile error in one run, not just the first.
+      - name: Build
+        run: cmake --build build -- -k 0
+
+      - name: Test
+        run: |
+          # Passing tests print two lines each; show only the rest.
+          status=0
+          ctest --test-dir build --output-on-failure > ctest.log 2>&1 || status=$?
+          grep -vE '^\[PASS\]|^--- .* ---$' ctest.log || true
+          exit $status
+
+      - name: Render songs
+        run: |
+          mkdir -p rendered
+          for song in demo3 welcome; do
+            ./build/synth --render "rendered/$song.wav" "songs/$song.xml"
+            # A WAV header alone is 44+ bytes; a real render is far larger.
+            size=$(stat -f %z "rendered/$song.wav")
+            echo "$song.wav: $size bytes"
+            test "$size" -gt 100000
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rendered-wavs-macos
+          path: rendered/*.wav

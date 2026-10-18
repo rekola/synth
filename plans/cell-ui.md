@@ -7,10 +7,12 @@ shows them. There are two backends:
 
 - **Terminal** (`cellui::term`). It replaces notcurses, does the
   terminal-only work itself and keeps compatibility with every terminal.
-- **Window** (`cellui::window`). A GPU-rendered window on Linux (X11/Wayland)
-  and Windows, with real dialogs and menus.
+- **Window** (`cellui::window`). A window on Linux (X11/Wayland), a GTK
+  backend there, and on Windows, written directly against Win32 (Direct2D,
+  DirectWrite), with real dialogs and menus.
 
-The app can pick either one when a display server is running.
+On Linux the app can pick either one when a display server is running;
+Windows has only the window.
 
 The work comes in two phases, each with its own plan, while the Windows
 port (`plans/windows-port.md`) proceeds alongside:
@@ -105,7 +107,13 @@ Each item says what the terminal does with it; what the window does is in
 
 - **Planes (layers).** A grid of cells with z-order, visibility, opacity and
   a transform (a 4x4 matrix, so 3D placement stays possible). The terminal
-  honours z-order and visibility.
+  honours z-order and visibility. Done: elevation - a plane's height above its
+  parent in cell widths (`UIPlane::setElevation()`, the theme's steps panel,
+  raised, card, overlay and modal), which orders drawing (lowest first, ties
+  in tree order), and a cell's lift above its plane (`UIPlane::setLift()`: the
+  clip grid's clips, the pattern editor's track headers), both handed to the backend as the
+  areas above the base (`FrameInfo::elevations`), for a display with depth to
+  show (shadows, a height field).
 - **Cells.** A grapheme cluster (UTF-8; width from `util/Utf8.h`'s rules,
   which move into the library) plus fg, bg, bold, italic and underline, as
   `UIPlane` has now. On top of that comes a **style id** into a style table:
@@ -115,8 +123,9 @@ Each item says what the terminal does with it; what the window does is in
   characters only where the style asks for them, everything else dropped.
 - **Spans.** A rectangle of cells merged into one, for a label or a pixel
   region. A pixel region is drawn with canvas and re-rendered only when its
-  content changes. The terminal shows it with Kitty graphics or Sixel, or
-  quantized to braille or sextant cells.
+  content changes. The terminal shows it with Kitty graphics, iTerm2's
+  inline images or Sixel; without them a widget that has a pixel region
+  draws its own cell version instead (the scopes, `plans/cell-ui-terminal.md`).
 - **Geometry.** Per-plane column widths and row heights in pixels, so the
   app can say "this row is 1.5 rows high" (a scene header) or "this column
   has 4px of padding". The terminal rounds to whole cells. App code keeps

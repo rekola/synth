@@ -25,6 +25,9 @@ class Mixer;
 // computed.
 class VisualizationThread : public EventHandler {
  public:
+  // How long silent blocks take to bring every scope to rest (the meter's
+  // fall is the slowest); after that they change nothing.
+  static constexpr int kSettleSeconds = 4;
   // Both out-of-line (defined in VisualizationThread.cpp, where Mixer.h's
   // full definition is visible) - decode_mixer_ below is a
   // unique_ptr<Mixer>, and Mixer is only forward-declared here, so even
@@ -50,7 +53,7 @@ class VisualizationThread : public EventHandler {
     for (; size + frame_count <= sample_rate / 10; size += frame_count) { }
     spectrum_.setSize(size, sample_rate);
     dirac_ = std::make_unique<DiracAnalyzer>(sample_rate);
-    rest_results_limit_ = 4 * sample_rate / std::max(frame_count, 1);
+    rest_results_limit_ = kSettleSeconds * sample_rate / std::max(frame_count, 1);
   }
 
   void handleAudioBlockEvent(AudioBlockEvent & ev) override;

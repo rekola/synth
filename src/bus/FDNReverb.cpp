@@ -117,6 +117,11 @@ FDNReverb::getTapDirection(int i) const {
   return SphericalPosition{ d.azimuth, d.elevation, 1.0f };
 }
 
+float FDNReverb::idleAfterSeconds() const {
+  // The pre-delay, the input diffusers and the longest line at its widest.
+  return kMaxPreDelaySeconds + 0.05f + kBaseDelayMs[kNumLines - 1] * kMaxSize * 0.001f;
+}
+
 void
 FDNReverb::setParameters(float size, float decayRT60Seconds, float damping, float preDelaySeconds) {
   if (size < kMinSize) size = kMinSize;

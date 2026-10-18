@@ -61,10 +61,10 @@ static inline Scale scaleFromString(const std::string & text) {
 // (12/19/31/53-EDO) rather than needing one hardcoded interval set per
 // tuning. Empty for Scale::NONE - Song::getScaleDegreesWindow() reads that as
 // "use the plain chromatic scale instead" rather than calling this at
-// all. OTONAL/UTONAL are two fixed 7-note scales named after the otonal
-// (overtone) and utonal (undertone) series of just intonation (not the
-// longer scales of Partch, who coined the terms): 1/1 7/6 5/4 4/3 3/2 5/3 7/4
-// and 1/1 8/7 6/5 4/3 3/2 8/5 12/7. The septimal degrees are spelled to mean
+// all. OTONAL is 1/1 7/6 5/4 4/3 3/2 5/3 7/4, harmonics 12, 14, 15, 16, 18,
+// 20 and 21 of the note a fifth below the tonic; UTONAL, 1/1 8/7 6/5 4/3 3/2
+// 8/5 12/7, is its mirror image (Partch's terms; his otonalities are chords,
+// not these scales). The septimal degrees are spelled to mean
 // those ratios in both 31 and 53-EDO; 7:4 is A𝄰 because 53-EDO's A♯ is 26:15
 // and the other tunings ignore the arrow. In 12 and 19-EDO the septimal
 // degrees are approximations (in 12-EDO E𝄫 sounds identical to D).
@@ -81,9 +81,9 @@ static inline std::vector<std::string_view> scaleDegreeNames(Scale scale) {
 }
 
 // The exact ratio above the tonic of each of scaleDegreeNames()'s degrees, for
-// a scale that is a just scale: otonal is harmonics 12:14:15:16:18:20:21 of
-// the tonic, utonal its mirror. Empty for the others, whose notes have no one
-// ratio that suits every chord.
+// a scale that is a just scale: otonal's are in the proportion
+// 12:14:15:16:18:20:21, utonal's its mirror. Empty for the others, whose notes
+// have no one ratio that suits every chord.
 struct ScaleRatio {
   int num = 1, den = 1;
 };

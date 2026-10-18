@@ -22,6 +22,8 @@ class WaitSet {
   void add(Group group, Notifier & notifier);
 #ifndef _WIN32
   void addFd(Group group, int fd);
+  // The descriptors of a group, for a loop that waits on them itself.
+  std::vector<int> fds(Group group) const;
 #endif
 
   // Blocks up to timeout_ms (negative: for as long as it takes) for any

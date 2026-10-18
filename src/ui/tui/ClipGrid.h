@@ -4,6 +4,9 @@
 #include "../UIElement.h"
 #include "InlineEditor.h"
 #include "LevelMeter.h"
+
+#include <cellui/Fade.h>
+#include <cellui/Scopes.h>
 #include "../../launchpad/ClipHighlight.h"
 #include "../../model/Clip.h"
 #include "../../model/SendLevels.h"
@@ -16,8 +19,8 @@
 #include <unordered_map>
 #include <vector>
 
-class InputEvent;
-class StyleProvider;
+#include <cellui/Input.h>
+#include "../StyleProvider.h"
 class Song;
 
 // A per-track overview: one column per color-eligible leaf track (Song::
@@ -54,6 +57,10 @@ class ClipGrid : public UIElement {
 
   bool render(const StyleProvider & styles, bool refresh, bool focused);
 
+  // The backend's scopes, which draw the VU meters; unset, they are drawn
+  // in cells.
+  void setScopes(const cellui::Scopes * scopes) { scopes_ = scopes; }
+
   // A clip slot's transport/recording state (LaunchpadManager::
   // clipHighlight()), shown on its row the way a Launchpad pad shows it.
   // Unset, the grid shows no clip states.
@@ -61,9 +68,11 @@ class ClipGrid : public UIElement {
   // The clip each track is at (its position in the pattern editor below) -
   // marked, faintly, in that track's own column. Unset, nothing is.
   void setTrackClipSource(std::function<int(int track_id)> source) { track_clip_source_ = std::move(source); }
-  bool offerInput(const InputEvent & input) override;
+  bool offerInput(const cellui::Input & input) override;
   // See PatternEditor::isReaderActive()/cancelReaderEdit().
   bool isReaderActive() const { return inline_editor_.isOpen(); }
+  // The focus level is still easing: the loop keeps drawing frames.
+  bool isAnimating() const { return fades_.active() || focus_fade_drawn_; }
   void cancelReaderEdit() { inline_editor_.cancel(); }
 
   // Lets UI move the column cursor to the shared current track
@@ -175,13 +184,17 @@ class ClipGrid : public UIElement {
   // redraws.
   std::vector<int> current_track_clips_;
   // The visible clip slots' states at the last redraw - a change redraws.
+  // How focused the grid is, 0..1, eased over a few frames.
+  float focus_ = 0.0f;
+  cellui::Fades fades_;
+  bool focus_fade_drawn_ = false;
   std::vector<ClipHighlight> current_clip_states_;
 
   std::function<void(int track_id, int clip_index)> trigger_callback_;
   std::function<void(int clip_index)> scene_callback_;
   std::function<void()> stop_all_callback_;
-  // The visible meters' levels and peak markers at the last redraw, in bar
-  // steps (two entries per column) - a change redraws.
+  // The visible meters' levels and peak markers at the last redraw, in
+  // 1/256ths of the meter (two entries per column) - a change redraws.
   std::vector<int> current_meter_steps_;
   // What a column's meter shows now, and the smoothing behind it, by track
   // id (the master's included).
@@ -192,6 +205,7 @@ class ClipGrid : public UIElement {
     float peak_fraction = 0.0f;
   };
   std::unordered_map<int, MeterDisplay> meters_;
+  const cellui::Scopes * scopes_ = nullptr;
   std::chrono::steady_clock::time_point last_meter_update_;
 
   // Clip and track rename share one editor; only one can be open at a time.
@@ -206,13 +220,14 @@ class ClipGrid : public UIElement {
   // Edits the Send Main/A/B of the column under the cursor - a track's,
   // or the master's (the dry mix and the send bus's returns).
   void startSendEdit(int track_id, int send);
+  void putDivider(const StyleProvider & styles, int y, int x, bool header);
   void putSendValues(int y, int x, const SendLevels & sends, int highlighted, const StyleProvider & styles);
   // What Enter (or a click, which never opens the Sends editor) does on the
   // cell under the cursor.
   void activateCell(const Song & song, const std::vector<int> & track_ids, bool edit_sends);
   // A left-button press or release: picks the cell under it, and a clip
   // slot (or the master's scene/stop-all slots) acts as a button.
-  bool handleMouse(const InputEvent & input);
+  bool handleMouse(const cellui::Input & input);
   // Between a press and its release - see handleMouse().
   bool mouse_down_ = false;
   void startClipRename(const Song & song, const std::vector<int> & track_ids);
