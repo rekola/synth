@@ -417,6 +417,24 @@ TEST(terminal_ui_clip_grid_click_shows_pressed_then_picks_on_release) {
   CHECK(gridCursorRows(f) == std::vector<int>{y});
 }
 
+// A click on a Sends value opens its editor, on that value.
+TEST(terminal_ui_clip_grid_click_on_a_send_opens_its_editor) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);
+  int y = -1;
+  for (int i = 0; i < 40 && y < 0; i++) {
+    if (f.line(static_cast<size_t>(i)).find(" dB ", kOutlineCols) != std::string::npos) y = i;
+  }
+  CHECK(y > 0);
+  int x = kOutlineCols + 1 + 5 + 4; // the second value (Send A) of the first track
+  f.terminal.pushMouse(y, x, cellui::Key::Button1);
+  f.ui->step();
+  f.terminal.pushMouse(y, x, cellui::Key::Button1, 0, cellui::Input::Kind::RELEASE);
+  f.ui->step();
+  f.type("-6");
+  CHECK(f.line(static_cast<size_t>(y)).find("-6") != std::string::npos);
+  f.ctrl('g');
+}
+
 // The command prompt opens with M-x on the Emacs keymap and with
 // Ctrl+Shift+P on the desktop one, and each keymap ignores the other's chord.
 TEST(terminal_ui_command_prompt_chord_follows_the_keymap_profile) {

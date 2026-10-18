@@ -1149,7 +1149,7 @@ would otherwise resume showing.
   The left button picks cells: in `ClipGrid` a press shows the cell under
   it pressed (`StyleProvider::row_pressed_bg_color`) and the release moves the
   cursor and track there and presses the slot like Enter does (a clip launches, the master's
-  scene/stop-all slots fire; Sends rows only select), in `ArrangementGrid`
+  scene/stop-all slots fire; a Sends value opens its editor), in `ArrangementGrid`
   it moves the cursor to the bar and track (Enter still commits), and in
   `PatternEditor` it moves the cursor to the cell (a click in a heading
   picks the track, one past the last track the locator slot) and clears the
