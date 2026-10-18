@@ -261,18 +261,25 @@ everything it holds.
 
 | Row (top to bottom) | Effect | Holding it |
 | --- | --- | --- |
-| 8 | Roll | Every note that starts on the track while the pad is held repeats from its own start every sixteenth (a 32nd, then a 64th, pressing harder) until the note ends or the pad is released. Notes already playing when it is pressed are left alone. |
-| 7 | Stutter | From the next row, the track's own sound is captured and then repeated: a quarter note on a press, an eighth, a sixteenth and a 32nd pressing harder (a shorter loop repeats the start of what was captured). It repeats everything the track sends, sample tracks included, until the pad is released, when it fades back to the live track. With the transport stopped it starts capturing at once. |
+| 8 | Stutter | From the next row, the track's own sound is captured and then repeated: a quarter note on a press, an eighth, a sixteenth and a 32nd pressing harder (a shorter loop repeats the start of what was captured). It repeats everything the track sends, sample tracks included, until the pad is released, when it fades back to the live track. With the transport stopped it starts capturing at once. |
+| 7 | (Shuffle, not built) | dark |
 | 6 | Erode | The track is broken into large, patchy grains: pieces of 40-250 ms of its own recent sound, taken from up to 300 ms back, each at its own level, slightly off pitch and turned a little around the listener, with silence between them. A press leaves it grainy but mostly there; pressing harder thins the grains out until only fragments survive. Works on every track type. |
-| 5 | (filter, not built) | dark |
-| 4 | Duck | The track's dry signal drops by 12 dB, to silence at full pressure; its sends are untouched. |
-| 3 | Throw A | Send A rises to full, throwing the track into the Send A effect (the reverb by default). |
-| 2 | Throw B | The same for Send B (the delay by default). |
-| 1 | Orbit | The track's sound circles the listener, one turn a bar, up to four pressing harder; released, it turns back the short way. |
+| 5 | (Shatter, not built) | dark |
+| 4 | (Gate, not built) | dark |
+| 3 | (Crush, not built) | dark |
+| 2 | (Filter, not built) | dark |
+| 1 | Duck | The track's dry signal drops by 12 dB, to silence at full pressure; its sends are untouched. |
 
-Each row has its own colour, dim while idle and bright while held: white for
-Roll, cyan for Stutter, rust for Erode, red for Duck, the Send A and Send B colours for the throws, orange for
-Orbit. A column with no track is dark.
+Each row has its own colour, dim while idle and bright while held: cyan for
+Stutter, rust for Erode, red for Duck. A column with no track is dark.
+
+The right-hand button at the end of a row holds that row's effect on the
+master - the whole mix, the reverb and delay returns included - in the row's
+colour. A button senses no pressure, so it always gives the plain press
+amount. With shift held the buttons keep their shift functions.
+
+Roll, Orbit and the Send A/B throws exist but are not on the grid at
+present.
 
 ## Step grid
 

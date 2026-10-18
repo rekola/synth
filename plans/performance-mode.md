@@ -39,7 +39,11 @@ To try on the hardware: the fixed amounts (Duck -12 dB, Roll's rates, Orbit's
 speed, Stutter's slices, Erode's grains and sparseness), and whether Roll
 should also re-fire notes already playing when it is pressed.
 
-## 3. The default set and the master
+## 3. The default set and the master (built)
+
+Built with the effects that exist (Stutter, Erode, Duck); the other rows are
+dark until stage 4 and the Filter stage. On the master, Roll rolls every
+track; Orbit and the throws are not done there.
 
 The rows are fixed in code for now (`performance::kGridRows`), as the
 **default set**, top to bottom: Stutter, Shuffle, Erode, Shatter, Gate,

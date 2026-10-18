@@ -456,6 +456,11 @@ class LaunchpadManager {
   // deepening it on a model that senses pressure. A pad still held when the
   // device leaves CUSTOM, or is unplugged, is released for it (refresh()).
   void handlePerformancePadEvent(const LaunchpadPadEvent & ev, Controller & controller);
+  // GridMode::CUSTOM's right column: the button at the end of a row holds
+  // that row's effect on the master - the whole mix - until released (a
+  // button senses no pressure, so at the plain press amount). With shift held
+  // a press keeps its shift function. Returns whether it took the event.
+  bool handlePerformanceMasterButton(int device_id, int cc_number, bool is_press, Controller & controller);
 
   // Starts the transport for a Live View launch that writes into the
   // arrangement (ClipPlayer::setAssignPlaybackStarter()), recorded as
@@ -808,6 +813,9 @@ class LaunchpadManager {
     std::array<bool, 64> performance_held {};
     std::array<int, 64> performance_track {};
     std::array<int, 64> performance_pressure {};
+    // CUSTOM: which right-column buttons hold their row's effect on the
+    // master, by row.
+    std::array<bool, 8> performance_master_held {};
 
     // DRAW mode: each of the 64 pads' own index into the color palette
     // (see releaseDrawPad/refreshLeds), independent of Song/Track state

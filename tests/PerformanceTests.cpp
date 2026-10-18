@@ -79,12 +79,15 @@ struct SineSong {
 
 } // namespace
 
-TEST(performance_grid_rows_hold_roll_on_top_and_orbit_at_the_bottom) {
-  CHECK(performance::effectForGridRow(7) == PerformanceEffect::ROLL);
-  CHECK(performance::effectForGridRow(0) == PerformanceEffect::ORBIT);
-  CHECK(performance::effectForGridRow(6) == PerformanceEffect::STUTTER);
+// The default set, top to bottom: Stutter, Shuffle, Erode, Shatter, Gate,
+// Crush, Filter, Duck - the rows not built yet stay empty.
+TEST(performance_grid_rows_are_the_default_set) {
+  CHECK(performance::effectForGridRow(7) == PerformanceEffect::STUTTER);
+  CHECK(performance::effectForGridRow(6) == PerformanceEffect::NONE);
   CHECK(performance::effectForGridRow(5) == PerformanceEffect::ERODE);
   CHECK(performance::effectForGridRow(4) == PerformanceEffect::NONE);
+  CHECK(performance::effectForGridRow(1) == PerformanceEffect::NONE);
+  CHECK(performance::effectForGridRow(0) == PerformanceEffect::DUCK);
   CHECK(performance::effectForGridRow(8) == PerformanceEffect::NONE);
 }
 
@@ -339,6 +342,61 @@ TEST(performance_erode_reaches_the_track) {
   CHECK(std::isfinite(eroded));
   CHECK(fabsf(eroded - clean) > 1e-3f);
   s.state.setPerformance(s.track_id, PerformanceEffect::ERODE, performance::kRelease);
+  s.renderPeak(4096);
+  CHECK_NEAR(s.renderPeak(4096, 0), clean, 1e-4f);
+}
+
+// Duck held on the master dips the whole mix, and gives it back on release.
+TEST(performance_master_duck_dips_the_whole_mix) {
+  SineSong s;
+  float before = s.renderPeak(4096);
+  s.state.setPerformance(performance::kMasterTarget, PerformanceEffect::DUCK, 0);
+  s.renderPeak(1024);
+  CHECK_NEAR(s.renderPeak(4096) / before, 0.25f, 0.02f);
+  s.state.setPerformance(performance::kMasterTarget, PerformanceEffect::DUCK, performance::kRelease);
+  s.renderPeak(1024);
+  CHECK_NEAR(s.renderPeak(4096) / before, 1.0f, 0.02f);
+}
+
+// Stutter held on the master repeats the whole mix after its note has died
+// away, and Erode on the master breaks it up; neither leaves anything behind
+// once released.
+TEST(performance_master_stutter_and_erode_act_on_the_mix) {
+  InstrumentProvider provider;
+  Song song;
+  CHECK(song.open(string(TESTS_FIXTURES_DIR) + "/decaying_note.xml", provider));
+
+  auto render_tail = [&](PerformanceEffect effect) {
+    ChannelConfiguration config(44100, 1);
+    auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
+    SongState state(config);
+    state.initialize(song);
+    state.setIsPlaying(true);
+    if (effect != PerformanceEffect::NONE) state.setPerformance(performance::kMasterTarget, effect, 0);
+    float tail_peak = 0.0f;
+    bool finite = true;
+    for (int done = 0; done < 44100; done += 256) {
+      state.renderBlock(256, song, *mixer);
+      auto & bus = mixer->getRawBus();
+      if (!bus.hasChannel(Channel::Main)) continue;
+      auto * data = bus.getChannelData(0);
+      for (int i = 0; i < 256; i++) finite = finite && std::isfinite(data[i]);
+      if (done < 44100 * 3 / 4) continue;
+      for (int i = 0; i < 256; i++) tail_peak = max(tail_peak, fabsf(data[i]));
+    }
+    CHECK(finite);
+    return tail_peak;
+  };
+
+  CHECK(render_tail(PerformanceEffect::NONE) < 1e-4f);
+  CHECK(render_tail(PerformanceEffect::STUTTER) > 0.01f);
+  render_tail(PerformanceEffect::ERODE); // finite throughout
+
+  SineSong s;
+  float clean = s.renderPeak(4096, 0);
+  s.state.setPerformance(performance::kMasterTarget, PerformanceEffect::ERODE, 127);
+  s.renderPeak(44100 / 2);
+  s.state.setPerformance(performance::kMasterTarget, PerformanceEffect::ERODE, performance::kRelease);
   s.renderPeak(4096);
   CHECK_NEAR(s.renderPeak(4096, 0), clean, 1e-4f);
 }

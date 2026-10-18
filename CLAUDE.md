@@ -522,8 +522,13 @@ would otherwise resume showing.
   while another stays on ordinary note entry. Defaults to `LIVE`.
   `CUSTOM` is the performance grid (`handlePerformancePadEvent()`,
   `playback/PerformanceEffect.h`): columns are Live View's tracks, rows
-  effects (Roll, Stutter, Erode, Duck, Send A/B throws, Orbit), held to apply, pressure
-  deepening them. A pad sends `SET_PERFORMANCE`; `SongState::setPerformance()`
+  effects (`performance::kGridRows`, the default set: Stutter, Erode and Duck
+  built, Shuffle/Shatter/Gate/Crush/Filter rows dark until they are; Roll,
+  Orbit and the Send A/B throws exist off the grid), held to apply, pressure
+  deepening them; the right-hand button at the end of a row holds its effect
+  on the master (`handlePerformanceMasterButton()`, `performance::
+  kMasterTarget`; `SongState::masterPerformance()` runs Stutter/Erode/Duck
+  on the dry mix plus the bus returns, only while one is held). A pad sends `SET_PERFORMANCE`; `SongState::setPerformance()`
   keeps what is held (never the song) and hands it to `LeafTrackState::
   setPerformanceTargets()`, which applies it to the voices only, so `sends_`/
   `position_` - what `TrackInfo` reports and the song mirrors - keep the

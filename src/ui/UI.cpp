@@ -255,6 +255,10 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
     return;
   }
 
+  // Custom: the right column holds its row's performance effect on the
+  // master, press and release.
+  if (launchpad_manager_->handlePerformanceMasterButton(device_id, ev.getCCNumber(), ev.getKind() == LaunchpadButtonEvent::PRESS, getController())) return;
+
   // The mixer radio group's own ten CC numbers (Record Arm/Volume/Pan/
   // Send A/Send B/Stop Clip/Mute/Solo, Pro MK3's Mute/Solo twins -
   // LaunchpadManager::isMixerFunctionButton()) need release too, for their

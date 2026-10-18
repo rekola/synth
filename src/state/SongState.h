@@ -16,6 +16,8 @@
 #include "../model/SongStructure.h"
 #include "../util/constants.h"
 #include "../playback/PerformanceEffect.h"
+#include "TrackStutter.h"
+#include "TrackErode.h"
 
 #include <algorithm>
 #include <cmath>
@@ -700,7 +702,11 @@ class SongState : public TrackState {
     // The master's Send Main scales the dry mix, not the aux sends feeding
     // the send bus - its returns have their own levels (below).
     scaleRegularChannels(data, master_sends_.main);
-    mixer.accumulate(data);
+    // With a performance effect held on the master, the dry mix and the bus
+    // returns are summed here and go through it together; otherwise each
+    // goes straight to the mixer.
+    const bool master_effects = masterPerformanceActive();
+    if (!master_effects) mixer.accumulate(data);
 
     if (auto * a = data.getChannel(Channel::AuxA)) {
       auto dst = aux_a_sum_.getChannelData(0);
@@ -728,10 +734,31 @@ class SongState : public TrackState {
       // reverb tail/chorus modulation stay continuous across blocks (see
       // SendBusProcessor.h).
       send_bus_.process(aux_a_sum_, aux_b_sum_, frames, master_sends_.a, master_sends_.b);
-      if (send_bus_.isAudible()) mixer.accumulate(send_bus_.getBusAmbisonic());
+      if (send_bus_.isAudible() && !master_effects) mixer.accumulate(send_bus_.getBusAmbisonic());
     }
 
-    measureMasterOutput(data, frames);
+    if (master_effects) {
+      const bool bus = getChannelConfiguration().isAmbisonic() && send_bus_.isAudible();
+      const int regular = getChannelConfiguration().numberOfChannels();
+      AudioBuffer mix(data.hasChannel(Channel::Main) || bus ? regular : 0, false, false, frames);
+      mix.zero();
+      for (int c = 0; c < mix.regularChannelCount(); c++) {
+	float * dst = mix.getChannelData(c);
+	if (data.hasChannel(Channel::Main)) {
+	  const float * src = data.getChannelData(c);
+	  for (int i = 0; i < frames; i++) dst[i] += src[i];
+	}
+	if (bus) {
+	  const float * src = send_bus_.getBusAmbisonic().getChannelData(c);
+	  for (int i = 0; i < frames; i++) dst[i] += src[i];
+	}
+      }
+      masterPerformance(mix);
+      mixer.accumulate(mix);
+      measureMasterOutput(mix, frames, false);
+    } else {
+      measureMasterOutput(data, frames, true);
+    }
     render_context_.updateFrameOffset(-frames);
   }
 
@@ -857,7 +884,9 @@ class SongState : public TrackState {
     const float bar_frames = static_cast<float>(barsAt(absolute_pos_).barRows()) * static_cast<float>(row_frames);
     for (auto it = performance_.begin(); it != performance_.end(); ) {
       auto & held = it->second;
-      if (auto * track_state = dynamic_cast<LeafTrackState *>(getChildByInternalId(it->first))) {
+      if (it->first == performance::kMasterTarget) {
+	pushMasterPerformance(held, row_frames);
+      } else if (auto * track_state = dynamic_cast<LeafTrackState *>(getChildByInternalId(it->first))) {
 	float orbit_rate = bar_frames > 0.0f ? held.orbit_turns_per_bar * 360.0f / bar_frames : 0.0f;
 	track_state->setPerformanceTargets(held.duck_gain, held.throw_a, held.throw_b, orbit_rate);
 	const int slice = static_cast<int>(held.stutter_rows * static_cast<float>(row_frames));
@@ -877,6 +906,51 @@ class SongState : public TrackState {
     }
   }
 
+  // The master's share of pushPerformance(): Stutter, Erode and Duck on the
+  // whole mix (masterPerformance()); Roll on the master rolls every track.
+  void pushMasterPerformance(const HeldPerformance & held, int row_frames) {
+    master_duck_target_ = held.duck_gain;
+    const int slice = static_cast<int>(held.stutter_rows * static_cast<float>(row_frames));
+    const int fade = static_cast<int>(performance::kStutterFadeSeconds * static_cast<float>(getChannelConfiguration().getAudioOutSampleRate()));
+    if (held.stutter_start) {
+      const int capacity = static_cast<int>(performance::stutterSliceRows(0) * static_cast<float>(row_frames));
+      master_stutter_.start(held.stutter_delay, slice, capacity, getChannelConfiguration().numberOfChannels(), fade);
+    } else if (slice > 0) {
+      master_stutter_.setSlice(slice);
+    } else {
+      master_stutter_.release();
+    }
+    if (held.erode < 0.0f) master_erode_.release();
+    else if (master_erode_.isOff()) master_erode_.start(getChannelConfiguration().getAudioOutSampleRate(), getChannelConfiguration().numberOfChannels(), held.erode);
+    else master_erode_.setAmount(held.erode);
+  }
+  bool masterPerformanceActive() const {
+    return !master_stutter_.isOff() || !master_erode_.isOff() || master_duck_ != 1.0f || master_duck_target_ != 1.0f;
+  }
+  // The master's effects on the whole mix (regular channels only).
+  void masterPerformance(AudioBuffer & mix) {
+    master_stutter_.process(mix);
+    master_erode_.process(mix);
+    if (master_duck_ == 1.0f && master_duck_target_ == 1.0f) return;
+    const float step = 1.0f / (performance::kRampSeconds * static_cast<float>(getChannelConfiguration().getAudioOutSampleRate()));
+    const int frames = mix.numberOfFrames();
+    for (int i = 0; i < frames; i++) {
+      master_duck_ = master_duck_ < master_duck_target_ ? std::min(master_duck_target_, master_duck_ + step) : std::max(master_duck_target_, master_duck_ - step);
+      for (int c = 0; c < mix.regularChannelCount(); c++) mix.getChannelData(c)[i] *= master_duck_;
+    }
+  }
+
+  // Roll held on a track, or on the master for every track: its interval in
+  // ticks, 0 for none.
+  int rollTicksFor(int track_id) const {
+    int ticks = 0;
+    for (int id : { track_id, performance::kMasterTarget }) {
+      auto it = performance_.find(id);
+      if (it != performance_.end() && it->second.roll_ticks > 0) ticks = ticks > 0 ? std::min(ticks, it->second.roll_ticks) : it->second.roll_ticks;
+    }
+    return ticks;
+  }
+
   // Roll: a note that starts on a rolling track re-fires every roll
   // interval from its own start, until it ends or the roll is released.
   // `start_frame` is block-relative. Live notes are keyed apart from the
@@ -887,9 +961,9 @@ class SongState : public TrackState {
     return roll_ticks * std::max(1, getChannelConfiguration().getSampleInterval(tempo_) / constants::TICKS_PER_ROW);
   }
   void startRoll(int track_id, int key, const LastNote & note, int start_frame) {
-    auto it = performance_.find(track_id);
-    if (it == performance_.end() || it->second.roll_ticks <= 0) return;
-    rolled_notes_[track_id][key] = { note, start_frame + rollIntervalFrames(it->second.roll_ticks) };
+    const int ticks = rollTicksFor(track_id);
+    if (ticks <= 0) return;
+    rolled_notes_[track_id][key] = { note, start_frame + rollIntervalFrames(ticks) };
   }
   void stopRoll(int track_id, int key) {
     auto it = rolled_notes_.find(track_id);
@@ -907,12 +981,12 @@ class SongState : public TrackState {
   // Queues this block's roll hits.
   void scheduleRolls(int frames) {
     for (auto it = rolled_notes_.begin(); it != rolled_notes_.end(); ) {
-      auto held = performance_.find(it->first);
-      if (held == performance_.end() || held->second.roll_ticks <= 0) {
+      const int ticks = rollTicksFor(it->first);
+      if (ticks <= 0) {
 	it = rolled_notes_.erase(it);
 	continue;
       }
-      int interval = rollIntervalFrames(held->second.roll_ticks);
+      int interval = rollIntervalFrames(ticks);
       for (auto & [ key, rolled ] : it->second) {
 	auto & last = rolled.note;
 	for (; rolled.next_frame < frames; rolled.next_frame += interval) {
@@ -1041,7 +1115,7 @@ class SongState : public TrackState {
     switch (effect) {
     case PerformanceEffect::ROLL:
       held.roll_ticks = release ? 0 : performance::rollIntervalTicks(pressure);
-      if (release) rolled_notes_.erase(track_id);
+      if (release && track_id != performance::kMasterTarget) rolled_notes_.erase(track_id);
       break;
     case PerformanceEffect::DUCK: held.duck_gain = release ? 1.0f : performance::duckGain(pressure); break;
     case PerformanceEffect::THROW_A: held.throw_a = release ? 0.0f : 1.0f; break;
@@ -1109,6 +1183,10 @@ private:
   std::unordered_map<int, std::map<int, LastNote>> last_notes_; // track -> note column
   // Performance effects held per track (setPerformance()).
   std::unordered_map<int, HeldPerformance> performance_;
+  // Performance effects held on the master (pushMasterPerformance()).
+  TrackStutter master_stutter_;
+  TrackErode master_erode_{ 0x6d617374u };
+  float master_duck_ = 1.0f, master_duck_target_ = 1.0f;
   // Notes rolling while Roll is held: track -> note column (or live key).
   std::unordered_map<int, std::map<int, RolledNote>> rolled_notes_;
   bool pending_break_ = false; // ZBxx seen on the row currently completing
@@ -1134,9 +1212,10 @@ private:
 
   // The master's output on W: the dry mix plus, when there is one, the
   // send bus's returns - see getMasterMeterValue().
-  void measureMasterOutput(const AudioBuffer & dry, int frames) {
+  // `with_bus`: add the bus returns, which `dry` doesn't hold yet.
+  void measureMasterOutput(const AudioBuffer & dry, int frames, bool with_bus) {
     const float * w_dry = dry.getChannel(Channel::Main);
-    const float * w_bus = getChannelConfiguration().isAmbisonic() ? send_bus_.getBusAmbisonic().getChannelData(0) : nullptr;
+    const float * w_bus = with_bus && getChannelConfiguration().isAmbisonic() ? send_bus_.getBusAmbisonic().getChannelData(0) : nullptr;
     float sum_squares = 0.0f;
     bool clipping = false;
     for (int i = 0; i < frames; i++) {

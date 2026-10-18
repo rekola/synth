@@ -13,6 +13,9 @@ namespace performance {
 // The depth a release is sent with.
 constexpr int kRelease = -1;
 
+// The track id an effect held on the master - the whole mix - is sent with.
+constexpr int kMasterTarget = -2;
+
 // How long a depth change takes to reach the voices, so no press clicks.
 constexpr float kRampSeconds = 0.01f;
 // How long an orbit takes to turn back to where the song has the track.
@@ -21,14 +24,14 @@ constexpr float kOrbitReturnSeconds = 0.3f;
 // The Custom grid's rows, bottom (index 0) to top. NONE rows are not built
 // yet and stay dark.
 constexpr PerformanceEffect kGridRows[8] = {
-  PerformanceEffect::ORBIT,
-  PerformanceEffect::THROW_B,
-  PerformanceEffect::THROW_A,
   PerformanceEffect::DUCK,
   PerformanceEffect::NONE, // filter
+  PerformanceEffect::NONE, // crush
+  PerformanceEffect::NONE, // gate
+  PerformanceEffect::NONE, // shatter
   PerformanceEffect::ERODE,
+  PerformanceEffect::NONE, // shuffle
   PerformanceEffect::STUTTER,
-  PerformanceEffect::ROLL,
 };
 
 inline PerformanceEffect effectForGridRow(int y) {

@@ -274,6 +274,22 @@ namespace {
   constexpr Rgb LAUNCHPAD_PERFORMANCE_ERODE_BRIGHT   { 110, 45, 10 };
   constexpr Rgb LAUNCHPAD_PERFORMANCE_ERODE_DIM      { 30, 12, 3 };
 
+  // A performance effect's row colour, bright while held; dark for a row
+  // with no effect.
+  Rgb performanceColor(PerformanceEffect effect, bool held) {
+    switch (effect) {
+    case PerformanceEffect::ROLL: return held ? LAUNCHPAD_PERFORMANCE_ROLL_BRIGHT : LAUNCHPAD_PERFORMANCE_ROLL_DIM;
+    case PerformanceEffect::STUTTER: return held ? LAUNCHPAD_PERFORMANCE_STUTTER_BRIGHT : LAUNCHPAD_PERFORMANCE_STUTTER_DIM;
+    case PerformanceEffect::ERODE: return held ? LAUNCHPAD_PERFORMANCE_ERODE_BRIGHT : LAUNCHPAD_PERFORMANCE_ERODE_DIM;
+    case PerformanceEffect::DUCK: return held ? LAUNCHPAD_PERFORMANCE_DUCK_BRIGHT : LAUNCHPAD_PERFORMANCE_DUCK_DIM;
+    case PerformanceEffect::THROW_A: return held ? LAUNCHPAD_MIXER_SEND_A_BRIGHT : LAUNCHPAD_MIXER_SEND_A_DIM;
+    case PerformanceEffect::THROW_B: return held ? LAUNCHPAD_MIXER_SEND_B_BRIGHT : LAUNCHPAD_MIXER_SEND_B_DIM;
+    case PerformanceEffect::ORBIT: return held ? LAUNCHPAD_PERFORMANCE_ORBIT_BRIGHT : LAUNCHPAD_PERFORMANCE_ORBIT_DIM;
+    case PerformanceEffect::NONE: break;
+    }
+    return Rgb{ 0, 0, 0 };
+  }
+
   // Volume/Pan/Send A/Send B's own fader micro-values (FaderState::
   // micro_step) show as a lightness scale on just the fader's own top pad,
   // once one is actually active (micro_step > 0) - this is the floor at
@@ -1324,6 +1340,33 @@ LaunchpadManager::releasePerformancePads(DeviceState & state, Controller & contr
     state.performance_held[i] = false;
     controller.setPerformanceEffect(state.performance_track[i], performance::effectForGridRow(static_cast<int>(i / 8)), performance::kRelease);
   }
+  for (size_t y = 0; y < state.performance_master_held.size(); y++) {
+    if (!state.performance_master_held[y]) continue;
+    state.performance_master_held[y] = false;
+    controller.setPerformanceEffect(performance::kMasterTarget, performance::effectForGridRow(static_cast<int>(y)), performance::kRelease);
+  }
+}
+
+bool
+LaunchpadManager::handlePerformanceMasterButton(int device_id, int cc_number, bool is_press, Controller & controller) {
+  if (cc_number < 19 || cc_number > 89 || cc_number % 10 != 9) return false;
+  auto & state = deviceState(device_id);
+  const int y = (cc_number - 19) / 10;
+  auto & held = state.performance_master_held[static_cast<size_t>(y)];
+  const auto effect = performance::effectForGridRow(y);
+  if (is_press) {
+    // With shift held the button keeps its shift function.
+    if (state.grid_mode != GridMode::CUSTOM || state.row_up_shift_held) return false;
+    if (!held && effect != PerformanceEffect::NONE) {
+      held = true;
+      controller.setPerformanceEffect(performance::kMasterTarget, effect, 0);
+    }
+    return true;
+  }
+  if (!held) return false;
+  held = false;
+  controller.setPerformanceEffect(performance::kMasterTarget, effect, performance::kRelease);
+  return true;
 }
 
 void
@@ -2586,20 +2629,9 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
     // pad holds it; dark where a row has no effect yet or a column no track.
     for (int y = 0; y < 8; y++) {
       auto effect = performance::effectForGridRow(y);
-      Rgb bright{0, 0, 0}, dim{0, 0, 0};
-      switch (effect) {
-      case PerformanceEffect::ROLL: bright = LAUNCHPAD_PERFORMANCE_ROLL_BRIGHT; dim = LAUNCHPAD_PERFORMANCE_ROLL_DIM; break;
-      case PerformanceEffect::DUCK: bright = LAUNCHPAD_PERFORMANCE_DUCK_BRIGHT; dim = LAUNCHPAD_PERFORMANCE_DUCK_DIM; break;
-      case PerformanceEffect::THROW_A: bright = LAUNCHPAD_MIXER_SEND_A_BRIGHT; dim = LAUNCHPAD_MIXER_SEND_A_DIM; break;
-      case PerformanceEffect::THROW_B: bright = LAUNCHPAD_MIXER_SEND_B_BRIGHT; dim = LAUNCHPAD_MIXER_SEND_B_DIM; break;
-      case PerformanceEffect::ORBIT: bright = LAUNCHPAD_PERFORMANCE_ORBIT_BRIGHT; dim = LAUNCHPAD_PERFORMANCE_ORBIT_DIM; break;
-      case PerformanceEffect::STUTTER: bright = LAUNCHPAD_PERFORMANCE_STUTTER_BRIGHT; dim = LAUNCHPAD_PERFORMANCE_STUTTER_DIM; break;
-      case PerformanceEffect::ERODE: bright = LAUNCHPAD_PERFORMANCE_ERODE_BRIGHT; dim = LAUNCHPAD_PERFORMANCE_ERODE_DIM; break;
-      case PerformanceEffect::NONE: break;
-      }
       for (int x = 0; x < 8; x++) {
         bool has_track = x < static_cast<int>(live_.track_ids.size());
-        Rgb c = !has_track ? Rgb{0, 0, 0} : state.performance_held[static_cast<size_t>(x + y * 8)] ? bright : dim;
+        Rgb c = !has_track ? Rgb{0, 0, 0} : performanceColor(effect, state.performance_held[static_cast<size_t>(x + y * 8)]);
         colors.push_back({LaunchpadProtocol::padToNoteNumber(x, y), c.r, c.g, c.b});
       }
     }
@@ -2889,6 +2921,21 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
                               : state.track_picker_purpose == DeviceState::TrackPickerPurpose::SOLO      ? LAUNCHPAD_TRACK_PICKER_SOLO_BRIGHT
                                                                                                          : LAUNCHPAD_TRACK_PICKER_MUTE_BRIGHT;
   }
+  // Custom: each right-hand button holds its row's effect on the master, in
+  // the row's colour.
+  const bool performance_master = state.grid_mode == GridMode::CUSTOM &&
+    !(state.row_up_shift_held || state.duplicate_held || state.delete_held || state.quantize_held);
+  if (performance_master) {
+    auto master = [&](int y) { return performanceColor(performance::effectForGridRow(y), state.performance_master_held[static_cast<size_t>(y)]); };
+    record_arm_button_color = master(0);
+    solo_button_color = master(1);
+    mute_button_color = master(2);
+    stop_clip_button_color = master(3);
+    send_b_button_color = master(4);
+    send_a_button_color = master(5);
+    pan_button_color = master(6);
+    volume_button_color = master(7);
+  }
   colors.push_back({19, record_arm_button_color.r, record_arm_button_color.g, record_arm_button_color.b});
   colors.push_back({29, solo_button_color.r, solo_button_color.g, solo_button_color.b});
   colors.push_back({39, mute_button_color.r, mute_button_color.g, mute_button_color.b});
@@ -2897,8 +2944,11 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   colors.push_back({69, send_a_button_color.r, send_a_button_color.g, send_a_button_color.b});
   colors.push_back({79, pan_button_color.r, pan_button_color.g, pan_button_color.b});
   colors.push_back({89, volume_button_color.r, volume_button_color.g, volume_button_color.b});
-  colors.push_back({30, mute_button_color.r, mute_button_color.g, mute_button_color.b}); // Pro MK3 left column pos. 6 - same as CC39
-  colors.push_back({20, solo_button_color.r, solo_button_color.g, solo_button_color.b}); // Pro MK3 left column pos. 7 - same as CC29
+  // Pro MK3 left column pos. 6 and 7 - the same as CC39 and CC29, dark in
+  // Custom, where only the right column reaches the master.
+  Rgb twin_mute = performance_master ? Rgb{0, 0, 0} : mute_button_color, twin_solo = performance_master ? Rgb{0, 0, 0} : solo_button_color;
+  colors.push_back({30, twin_mute.r, twin_mute.g, twin_mute.b});
+  colors.push_back({20, twin_solo.r, twin_solo.g, twin_solo.b});
 
   // Only actually send when the computed colors changed since the last
   // send - continuous brightness fades mean refreshLeds() is now called
