@@ -293,7 +293,7 @@ PadSynthParams harmonicParams(const std::vector<int> & harmonics, float region_h
   for (int h : harmonics) params.oscillator.harmonics.push_back({ h, 1.0f });
   params.bandwidth_cents = 20.0f;
   params.base_frequency_hz = region_hz;
-  params.octaves = 0; // a single region, at region_hz
+  params.octaves = 1; // a single region, at region_hz
   params.samples_per_octave = 1;
   params.table_length = 1 << 16;
   return params;
@@ -418,22 +418,22 @@ TEST(padsynth_lowest_region_carries_partials_above_harmonic_255) {
   CHECK(harmonicAmplitude(wave, f0, 300) < harmonicAmplitude(wave, f0, 1));
 }
 
-TEST(padsynth_regions_span_octaves_plus_one_centred_on_the_base) {
+TEST(padsynth_regions_span_octaves_centred_on_the_base) {
   PadSynthParams params = harmonicParams({ 1 }, 261.6f);
   params.octaves = 6;
   params.samples_per_octave = 2;
   PadSynthTable table(kTableSampleRate, params);
 
-  // 7 octaves at 2 per octave: 14 regions, half an octave apart, from
-  // 27.5 Hz to 2489 Hz around the base.
-  CHECK_NEAR(table.tableBaseFrequency(1.0f), 27.5f, 0.4f); // within half a bin
-  CHECK_NEAR(table.tableBaseFrequency(100000.0f), 2488.9f, 0.4f);
+  // 6 octaves at 2 per octave: 12 regions, half an octave apart, from
+  // 38.9 Hz to 1760 Hz around the base.
+  CHECK_NEAR(table.tableBaseFrequency(1.0f), 38.9f, 0.4f); // within half a bin
+  CHECK_NEAR(table.tableBaseFrequency(100000.0f), 1760.0f, 1.0f);
   vector<float> regions;
   for (float f = 20.0f; f < 4000.0f; f *= 1.01f) {
     float r = table.tableBaseFrequency(f);
     if (regions.empty() || std::fabs(r - regions.back()) > 0.01f) regions.push_back(r);
   }
-  CHECK(regions.size() == 14);
+  CHECK(regions.size() == 12);
   for (size_t i = 1; i < regions.size(); i++) CHECK_NEAR(regions[i] / regions[i - 1], std::sqrt(2.0f), 0.02f);
   // A note picks the region nearest in pitch.
   CHECK_NEAR(table.tableBaseFrequency(261.6f * 1.1f), 261.6f * std::exp2(0.25f), 0.5f);

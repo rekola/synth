@@ -112,15 +112,15 @@ to represent brass specifically.
 ## Sample set
 
 One wavetable is built per pitch region. A preset gives a base frequency
-`f_b`, `octaves` `O`, `samples_per_octave` `q` and a `table_length`. The
-regions cover `O + 1` octaves: `(O + 1) * q` of them, `1/q` octave apart,
-centred on `f_b` (with an even count `f_b` falls between the two middle
-regions). Region `j` is built for the pitch `f_b * 2^((j - (M-1)/2) / q)`
-with `M = (O + 1) * q`. A note uses the region nearest to it in pitch, chosen
-at note-on and kept for the whole note (a pitch change across a boundary
-doesn't swap tables), so notes below the lowest region or above the highest
-one are resampled from the end region. The `octaves` values are the base instrument patch's own
-octave setting, which counts one fewer than the octaves the regions span.
+`f_b`, `octaves` `O`, `samples_per_octave` `q` and a `table_length`. There
+are `M = O * q` regions, `1/q` octave apart, centred on `f_b` (with an even
+count `f_b` falls between the two middle regions). Region `j` is built for
+the pitch `f_b * 2^((j - (M-1)/2) / q)`. A note uses the region nearest to it
+in pitch, chosen at note-on and kept for the whole note (a pitch change
+across a boundary doesn't swap tables), so notes below the lowest region or
+above the highest one are resampled from the end region. A preset's
+`octaves` is the octave count of its source patch plus one, the span the
+patch's regions cover.
 
 Each region's pitch is rounded to a whole number of FFT bins (the sample
 rate over the table length), so partials at whole multiples of it land
@@ -137,18 +137,18 @@ faster still and can alias.
 
 | Preset | `f_b` Hz | `O` | `q` | Regions | Table length | Lowest Hz | Highest Hz |
 |---|---|---|---|---|---|---|---|
-| `keyboard` | 392.4 | 5 | 2 | 12 | 131072 | 58.3 | 2640 |
-| `synth-piano-3-b` | 392.4 | 6 | 2 | 14 | 131072 | 41.2 | 3733 |
-| `church-organ` | 261.6 | 4 | 2 | 10 | 131072 | 55.0 | 1244 |
-| `bells` | 392.4 | 5 | 2 | 12 | 131072 | 58.3 | 2640 |
-| `bells-3` | 392.4 | 5 | 2 | 12 | 131072 | 58.3 | 2640 |
-| `strings` | 261.6 | 6 | 2 | 14 | 262144 | 27.5 | 2489 |
-| `dual-strings` | 261.6 | 6 | 2 | 14 | 262144 | 27.5 | 2489 |
-| `saw-piano` | 261.6 | 6 | 2 | 14 | 131072 | 27.5 | 2489 |
-| `saw-piano-wide` | 261.6 | 6 | 2 | 14 | 262144 | 27.5 | 2489 |
-| `soft-pad` | 261.6 | 3 | 2 | 8 | 131072 | 77.8 | 880 |
-| `choir-pad4` | 261.6 | 4 | 3 | 15 | 131072 | 51.9 | 1318 |
-| `long-spacechoir2` | 261.6 | 4 | 2 | 10 | 131072 | 55.0 | 1244 |
+| `keyboard` | 392.4 | 5 | 2 | 10 | 131072 | 82.4 | 1867 |
+| `synth-piano-3-b` | 392.4 | 6 | 2 | 12 | 131072 | 58.2 | 2640 |
+| `church-organ` | 261.6 | 4 | 2 | 8 | 131072 | 77.6 | 880 |
+| `bells` | 392.4 | 5 | 2 | 10 | 131072 | 82.4 | 1867 |
+| `bells-3` | 392.4 | 5 | 2 | 10 | 131072 | 82.4 | 1867 |
+| `strings` | 261.6 | 6 | 2 | 12 | 262144 | 38.8 | 1760 |
+| `dual-strings` | 261.6 | 6 | 2 | 12 | 262144 | 38.8 | 1760 |
+| `saw-piano` | 261.6 | 6 | 2 | 12 | 131072 | 38.8 | 1760 |
+| `saw-piano-wide` | 261.6 | 6 | 2 | 12 | 262144 | 38.8 | 1760 |
+| `soft-pad` | 261.6 | 3 | 2 | 6 | 131072 | 109.9 | 622 |
+| `choir-pad4` | 261.6 | 4 | 3 | 12 | 131072 | 73.2 | 932 |
+| `long-spacechoir2` | 261.6 | 4 | 2 | 8 | 131072 | 77.6 | 880 |
 
 ## Oscillator shape
 

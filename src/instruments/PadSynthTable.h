@@ -24,7 +24,7 @@
 // The sample set is the preset's own base note/octave span/samples-
 // per-octave/table-length layout (docs/padsynth.md's "Sample set"), not a
 // fixed C0-anchored octave scheme. getTable(f0) picks the nearest of the
-// preset's own (octaves + 1) * samples_per_octave regions by log-frequency
+// preset's own octaves * samples_per_octave regions by log-frequency
 // distance.
 struct PadSynthParams {
   OscillatorShaping::OscillatorChainParams oscillator;
@@ -35,7 +35,7 @@ struct PadSynthParams {
 
   // Sample set (docs/padsynth.md).
   float base_frequency_hz = 261.6f; // f_b
-  int octaves = 6;                  // O: the regions span O + 1 octaves
+  int octaves = 6;                  // O: the octaves the regions span
   int samples_per_octave = 2;       // q
   int table_length = 1 << 17;       // L
 
@@ -68,7 +68,7 @@ class PadSynthTable {
   int getSampleRate() const { return sample_rate_; }
 
  private:
-  int sampleCount() const { return (params_.octaves + 1) * params_.samples_per_octave; }
+  int sampleCount() const { return params_.octaves * params_.samples_per_octave; }
   float sampleFrequency(int j) const;
   int nearestSampleIndex(float f0) const;
   std::vector<float> renderSample(int j) const;
