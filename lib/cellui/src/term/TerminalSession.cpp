@@ -264,14 +264,15 @@ void TerminalSession::enterModes() {
   setup_ += "\x1b[?7l";    // no autowrap: the last cell never scrolls the screen
   setup_ += "\x1b[?25l";   // cursor hidden
   setup_ += "\x1b[?2004h"; // bracketed paste
-  if (mouse_) setup_ += "\x1b[?1002;1006h";
+  if (mouse_) setup_ += "\x1b[?1003;1006h";
   if (caps_.pixels == PixelProtocol::KITTY) setup_ += "\x1b_Ga=d,q=2\x1b\\";
   write(setup_);
   encoder_.invalidate();
 
   restore_ += "\x1b[?2026l";
   restore_ += "\x1b[0m";
-  if (mouse_) restore_ += "\x1b[?1002;1006l";
+  restore_ += "\x1b]22;default\x1b\\";
+  if (mouse_) restore_ += "\x1b[?1003;1006l";
   restore_ += "\x1b[?2004l\x1b[?7h\x1b[?12l\x1b[?25h";
   restore_ += caps_.kitty_keyboard ? "\x1b[<u" : "\x1b[<u\x1b[>4m\x1b[>2m";
   if (caps_.pixels == PixelProtocol::KITTY) restore_ += "\x1b_Ga=d,q=2\x1b\\";
@@ -315,7 +316,7 @@ void TerminalSession::setNativeSelection(bool native) {
   bool on = !native;
   if (!mouse_ || on == mouse_reporting_) return;
   mouse_reporting_ = on;
-  write(on ? "\x1b[?1002;1006h" : "\x1b[?1002;1006l");
+  write(on ? "\x1b[?1003;1006h" : "\x1b[?1003;1006l");
 }
 
 void TerminalSession::write(const std::string & bytes) {
@@ -342,6 +343,10 @@ void TerminalSession::present(const CellBuffer & frame, const CursorRequest & cu
                               const FrameInfo * info) {
   // A backdrop is made of what the terminal can show; the frame and its
   // pictures are copied only then.
+  if (info) {
+    cursor_areas_ = info->mouse_cursors;
+    updateMouseCursor();
+  }
   static const std::vector<BackdropLayer> kNoLayers;
   const std::vector<BackdropLayer> & layers = info ? info->backdrops : kNoLayers;
   if (!layers.empty() || backdrops_.holdsState()) {
@@ -363,9 +368,23 @@ void TerminalSession::wake() {
   (void)n;
 }
 
+void TerminalSession::updateMouseCursor() {
+  MouseCursor cursor = mouseCursorAt(cursor_areas_, pointer_row_, pointer_col_);
+  if (cursor == shown_cursor_) return;
+  shown_cursor_ = cursor;
+  write(std::string("\x1b]22;") + mouseCursorName(cursor) + "\x1b\\");
+}
+
 std::vector<BackendEvent> TerminalSession::poll() {
   std::vector<BackendEvent> out;
   for (const TermEvent & e : pollTerm()) {
+    if (e.type == TermEvent::Type::MOUSE) {
+      pointer_row_ = e.y;
+      pointer_col_ = e.x;
+      updateMouseCursor();
+      // Hovering is for the pointer's shape alone.
+      if (e.kind == TermEvent::Kind::MOVE) continue;
+    }
     if (auto event = toBackendEvent(e)) out.push_back(std::move(*event));
   }
   return out;

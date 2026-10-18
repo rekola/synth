@@ -507,6 +507,7 @@ TerminalUI::render() {
   cellui::FrameInfo info;
   info.backdrops = root_plane_->takeBackdropLayers();
   info.elevations = root_plane_->takeElevations();
+  info.mouse_cursors = root_plane_->takeMouseCursors();
   if (backend_.wantsFrameInfo()) {
     info.planes = root_plane_->describe();
     info.focus = focusName();
