@@ -1,18 +1,18 @@
 # User interface
 
 Everything the program does is a named command (`kill-region`, `launch-scene`,
-`undo`, ...). Every command can be run by name from the command palette (M-x or
-Ctrl+Shift+P, below), most are in the menus,
-and a keymap binds keys to them. The bindings below are the Emacs keymap, the
-one the terminal interface uses: a terminal can't send many of the key
-combinations the usual desktop shortcuts rely on (most Ctrl+Shift chords,
+`undo`, ...). Every command can be run by name from the
+[command palette](#command-palette), most are in the menus, and a keymap binds
+keys to them.
+
+There are two keymaps, and a display uses one of them: the terminal the Emacs
+keymap, the window the desktop one. The command names are the same in both.
+The terminal uses the Emacs keymap because a terminal can't send many of the
+key combinations the usual desktop shortcuts rely on (most Ctrl+Shift chords,
 and Ctrl-C, Ctrl-Z and Ctrl-S belong to the terminal itself), while Emacs's
-prefix keys work in any terminal. A graphical interface is planned with a
-second keymap following the usual desktop, DAW and tracker conventions; the
-command names stay the same in both. A display
-declares which keymap it uses: the terminal the Emacs one, the window the
-desktop one. A binding that has not been migrated works in both. The desktop
-keymap so far:
+prefix keys work in any terminal. The desktop keymap follows the usual desktop,
+DAW and tracker conventions. A binding that has not been given a desktop chord
+works in both. The commands that have one so far:
 
 | Command | Desktop chord | Emacs chord |
 | --- | --- | --- |
@@ -59,7 +59,7 @@ messages and asks for names (a file, a buffer, a new name).
 
 ## Emacs keymap
 
-Mark and point selection, kill and yank, M-x for any named command, ESC as the
+The rest of this page gives the Emacs keymap, unless it says otherwise. Mark and point selection, kill and yank, M-x for any named command, ESC as the
 Meta prefix, C-x C-c to quit and C-k to kill a row. Each open song is a buffer,
 as in Emacs, and `next-buffer` and `previous-buffer` switch between them. An
 operation that is a copy or a move is done with the kill ring rather than with
