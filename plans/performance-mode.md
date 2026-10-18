@@ -41,9 +41,8 @@ Stutter's slices, Erode's grains and sparseness).
 
 ## 3. The default set and the master (built)
 
-Built with the effects that exist (Stutter, Erode, Duck); the other rows are
-dark until stage 4 and the Filter stage. Orbit and the throws are not done
-on the master.
+Built with the effects that existed then (Stutter, Erode, Duck). Orbit and
+the throws are not done on the master.
 
 The rows are fixed in code for now (`performance::kGridRows`), as the
 **default set**, top to bottom: Stutter, Shuffle, Erode, Shatter, Gate,
@@ -61,7 +60,7 @@ added, so reverb and delay tails are part of it:
 | Orbit | turns the whole sound field |
 | Throw A/B | left out on the master: its Send A/B are the bus returns |
 
-## 4. New effects
+## 4. New effects (built)
 
 - **Shuffle**: the beat repeater's other half - the last bar, recorded
   continuously, played back as grid slices in a new order while held;
@@ -88,6 +87,18 @@ added, so reverb and delay tails are part of it:
 
 All of them keep the song clock running: while held the music underneath
 carries on unheard, and on release you are back in time with it.
+
+As built (`state/PerformanceAudio.h`, shared by a track and the master):
+Shuffle records from the next row rather than continuously, since recording
+every track all the time costs a bar of every channel per track; each slice
+is any part already recorded, the part being recorded included, so it
+starts as the live sound. Shatter's pitch spread is ±3 semitones on a press
+and ±12 at full pressure, its turn ±90° to the full circle, its density 2 to
+6 grains at once. Crush goes from a quarter of the rate and 8 bits to a 32nd
+and 4 bits. Gate is open for the first half of each period, synced to the bar
+every block, free-running with the transport stopped.
+
+To try on the hardware: all of these amounts, and Shuffle's slice lengths.
 
 ## 5. A filter in every voice, the expression axes, and the Filter row
 

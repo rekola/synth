@@ -16,8 +16,7 @@
 #include "../model/SongStructure.h"
 #include "../util/constants.h"
 #include "../playback/PerformanceEffect.h"
-#include "TrackStutter.h"
-#include "TrackErode.h"
+#include "PerformanceAudio.h"
 
 #include <algorithm>
 #include <cmath>
@@ -858,14 +857,8 @@ class SongState : public TrackState {
     float duck_gain = 1.0f;
     float throw_a = 0.0f, throw_b = 0.0f;
     float orbit_turns_per_bar = 0.0f;
-    float stutter_rows = 0.0f; // 0: no stutter
-    bool stutter_start = false; // a new stutter, still to be handed to the track
-    int stutter_delay = 0;
-    float erode = -1.0f; // negative: no erosion
-    bool isIdle() const {
-      return duck_gain == 1.0f && throw_a == 0.0f && throw_b == 0.0f && orbit_turns_per_bar == 0.0f && stutter_rows == 0.0f &&
-             erode < 0.0f;
-    }
+    PerformanceAudioTargets audio;
+    bool isIdle() const { return duck_gain == 1.0f && throw_a == 0.0f && throw_b == 0.0f && orbit_turns_per_bar == 0.0f && audio.isIdle(); }
   };
 
   // Hands every held performance effect to its track, which glides to it;
@@ -873,56 +866,36 @@ class SongState : public TrackState {
   void pushPerformance() {
     if (performance_.empty()) return;
     const int row_frames = getChannelConfiguration().getSampleInterval(tempo_);
-    const float bar_frames = static_cast<float>(barsAt(absolute_pos_).barRows()) * static_cast<float>(row_frames);
+    const BarGrid bars = barsAt(absolute_pos_);
+    PerformanceGrid grid;
+    grid.sample_rate = getChannelConfiguration().getAudioOutSampleRate();
+    grid.regular_channels = getChannelConfiguration().numberOfChannels();
+    grid.row_frames = row_frames;
+    grid.bar_frames = bars.barRows() * row_frames;
+    grid.bar_phase = isPlaying() ? bars.rowInBar(absolute_pos_) * row_frames + sample_pos_ : -1;
     for (auto it = performance_.begin(); it != performance_.end(); ) {
       auto & held = it->second;
       if (it->first == performance::kMasterTarget) {
-	pushMasterPerformance(held, row_frames);
+	master_duck_target_ = held.duck_gain;
+	master_audio_.update(held.audio, grid);
       } else if (auto * track_state = dynamic_cast<LeafTrackState *>(getChildByInternalId(it->first))) {
-	float orbit_rate = bar_frames > 0.0f ? held.orbit_turns_per_bar * 360.0f / bar_frames : 0.0f;
+	float orbit_rate = grid.bar_frames > 0 ? held.orbit_turns_per_bar * 360.0f / static_cast<float>(grid.bar_frames) : 0.0f;
 	track_state->setPerformanceTargets(held.duck_gain, held.throw_a, held.throw_b, orbit_rate);
-	const int slice = static_cast<int>(held.stutter_rows * static_cast<float>(row_frames));
-	if (held.stutter_start) {
-	  const int capacity = static_cast<int>(performance::stutterSliceRows(0) * static_cast<float>(row_frames));
-	  track_state->startStutter(held.stutter_delay, slice, capacity);
-	} else if (slice > 0) {
-	  track_state->setStutterSlice(slice);
-	} else {
-	  track_state->releaseStutter();
-	}
-	track_state->setErode(held.erode);
+	track_state->updatePerformanceAudio(held.audio, grid);
       }
-      held.stutter_start = false;
       if (held.isIdle()) it = performance_.erase(it);
       else ++it;
     }
   }
 
-  // The master's share of pushPerformance(): Stutter, Erode and Duck on the
-  // whole mix (masterPerformance()).
-  void pushMasterPerformance(const HeldPerformance & held, int row_frames) {
-    master_duck_target_ = held.duck_gain;
-    const int slice = static_cast<int>(held.stutter_rows * static_cast<float>(row_frames));
-    const int fade = static_cast<int>(performance::kStutterFadeSeconds * static_cast<float>(getChannelConfiguration().getAudioOutSampleRate()));
-    if (held.stutter_start) {
-      const int capacity = static_cast<int>(performance::stutterSliceRows(0) * static_cast<float>(row_frames));
-      master_stutter_.start(held.stutter_delay, slice, capacity, getChannelConfiguration().numberOfChannels(), fade);
-    } else if (slice > 0) {
-      master_stutter_.setSlice(slice);
-    } else {
-      master_stutter_.release();
-    }
-    if (held.erode < 0.0f) master_erode_.release();
-    else if (master_erode_.isOff()) master_erode_.start(getChannelConfiguration().getAudioOutSampleRate(), getChannelConfiguration().numberOfChannels(), held.erode);
-    else master_erode_.setAmount(held.erode);
-  }
+  // The master's effects on the whole mix: the sound effects
+  // (PerformanceAudio) and Duck.
   bool masterPerformanceActive() const {
-    return !master_stutter_.isOff() || !master_erode_.isOff() || master_duck_ != 1.0f || master_duck_target_ != 1.0f;
+    return !master_audio_.isOff() || master_duck_ != 1.0f || master_duck_target_ != 1.0f;
   }
   // The master's effects on the whole mix (regular channels only).
   void masterPerformance(AudioBuffer & mix) {
-    master_stutter_.process(mix);
-    master_erode_.process(mix);
+    master_audio_.process(mix);
     if (master_duck_ == 1.0f && master_duck_target_ == 1.0f) return;
     const float step = 1.0f / (performance::kRampSeconds * static_cast<float>(getChannelConfiguration().getAudioOutSampleRate()));
     const int frames = mix.numberOfFrames();
@@ -1051,20 +1024,29 @@ class SongState : public TrackState {
     case PerformanceEffect::THROW_B: held.throw_b = release ? 0.0f : 1.0f; break;
     case PerformanceEffect::ORBIT: held.orbit_turns_per_bar = release ? 0.0f : performance::orbitTurnsPerBar(pressure); break;
     case PerformanceEffect::STUTTER:
-      if (release) held.stutter_rows = 0.0f;
-      else {
-	// A new stutter starts capturing on the next row, so its repeats keep
-	// to the grid; with the transport stopped there is no grid to wait for.
-	if (held.stutter_rows == 0.0f) {
-	  held.stutter_start = true;
-	  held.stutter_delay = isPlaying() && getSamplePos() != 0 ? samplesUntilNextRow() : 0;
-	}
-	held.stutter_rows = performance::stutterSliceRows(pressure);
-      }
+      holdRecording(held.audio.stutter_rows, held.audio.stutter_start, held.audio.stutter_delay, release ? 0.0f : performance::stutterSliceRows(pressure));
       break;
-    case PerformanceEffect::ERODE: held.erode = release ? -1.0f : performance::erodeAmount(pressure); break;
+    case PerformanceEffect::SHUFFLE:
+      holdRecording(held.audio.shuffle_rows, held.audio.shuffle_start, held.audio.shuffle_delay, release ? 0.0f : performance::shuffleSliceRows(pressure));
+      break;
+    case PerformanceEffect::ERODE: held.audio.erode = release ? -1.0f : performance::depth(pressure); break;
+    case PerformanceEffect::SHATTER: held.audio.shatter = release ? -1.0f : performance::depth(pressure); break;
+    case PerformanceEffect::CRUSH: held.audio.crush = release ? -1.0f : performance::depth(pressure); break;
+    case PerformanceEffect::GATE: held.audio.gate_rows = release ? 0.0f : performance::gatePeriodRows(pressure); break;
     case PerformanceEffect::NONE: break;
     }
+  }
+
+  // Stutter and Shuffle: `rows` slices (0 released). A new one starts
+  // recording on the next row, so its slices keep to the grid; with the
+  // transport stopped there is no grid to wait for.
+  void holdRecording(float & held_rows, bool & start, int & delay, float rows) {
+    if (rows > 0.0f && held_rows == 0.0f) {
+      start = true;
+      delay = isPlaying() && getSamplePos() != 0 ? samplesUntilNextRow() : 0;
+    }
+    if (rows == 0.0f) start = false; // released before it started
+    held_rows = rows;
   }
 
   // Stops every launched clip now, releasing its voices, and forgets
@@ -1102,9 +1084,8 @@ private:
   std::unordered_map<int, std::map<int, LastNote>> last_notes_; // track -> note column
   // Performance effects held per track (setPerformance()).
   std::unordered_map<int, HeldPerformance> performance_;
-  // Performance effects held on the master (pushMasterPerformance()).
-  TrackStutter master_stutter_;
-  TrackErode master_erode_{ 0x6d617374u };
+  // Performance effects held on the master (masterPerformance()).
+  PerformanceAudio master_audio_{ 0x6d617374u };
   float master_duck_ = 1.0f, master_duck_target_ = 1.0f;
   bool pending_break_ = false; // ZBxx seen on the row currently completing
   int pending_break_row_ = 0;

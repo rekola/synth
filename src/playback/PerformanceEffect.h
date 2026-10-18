@@ -6,7 +6,7 @@
 // A performance effect: held on a track from the Launchpad's Custom grid, it
 // changes how the track sounds until released and is never written to the
 // song. `pressure` is 0 for a plain press and up to 127 with pad pressure.
-enum class PerformanceEffect { NONE, DUCK, THROW_A, THROW_B, ORBIT, STUTTER, ERODE };
+enum class PerformanceEffect { NONE, DUCK, THROW_A, THROW_B, ORBIT, STUTTER, ERODE, SHUFFLE, SHATTER, GATE, CRUSH };
 
 namespace performance {
 
@@ -26,11 +26,11 @@ constexpr float kOrbitReturnSeconds = 0.3f;
 constexpr PerformanceEffect kGridRows[8] = {
   PerformanceEffect::DUCK,
   PerformanceEffect::NONE, // filter
-  PerformanceEffect::NONE, // crush
-  PerformanceEffect::NONE, // gate
-  PerformanceEffect::NONE, // shatter
+  PerformanceEffect::CRUSH,
+  PerformanceEffect::GATE,
+  PerformanceEffect::SHATTER,
   PerformanceEffect::ERODE,
-  PerformanceEffect::NONE, // shuffle
+  PerformanceEffect::SHUFFLE,
   PerformanceEffect::STUTTER,
 };
 
@@ -46,9 +46,25 @@ inline float stutterSliceRows(int pressure) {
 // The fade at the stutter's seams.
 constexpr float kStutterFadeSeconds = 0.003f;
 
-// Erode: how broken the track is (0-1) - grainy but mostly there on a
-// press, mostly gaps at full pressure.
-inline float erodeAmount(int pressure) {
+// Shuffle: the slices it plays in a new order, in rows - an eighth note on
+// a press, then a sixteenth, a 32nd and a 64th pressing harder.
+inline float shuffleSliceRows(int pressure) {
+  return pressure < 32 ? 2.0f : pressure < 64 ? 1.0f : pressure < 96 ? 0.5f : 0.25f;
+}
+// The most a shuffle records, in rows.
+constexpr int kShuffleMaxRows = 32;
+
+// Gate: its period in rows (open for the first half) - an eighth note on a
+// press, a sixteenth and a 32nd pressing harder.
+inline float gatePeriodRows(int pressure) {
+  return pressure < 43 ? 2.0f : pressure < 86 ? 1.0f : 0.5f;
+}
+// The gate's edges.
+constexpr float kGateEdgeSeconds = 0.002f;
+
+// Erode, Shatter and Crush: how deep (0-1). Erode thins its grains out,
+// Shatter grows denser and wider, Crush loses rate and bits.
+inline float depth(int pressure) {
   return static_cast<float>(std::clamp(pressure, 0, 127)) / 127.0f;
 }
 

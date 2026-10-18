@@ -86,7 +86,7 @@ view. The Launchpad's Live mode shows the same clip grid on the pads.
 
 **Performance effect**
 An effect held on a track from the Launchpad's Custom grid (stutter,
-erode, duck, a send throw, orbit): it lasts while the pad is held and never changes the song. See
+shuffle, erode, shatter, gate, crush, duck, a send throw, orbit): it lasts while the pad is held and never changes the song. See
 launchpad.md.
 
 **Rhythm**

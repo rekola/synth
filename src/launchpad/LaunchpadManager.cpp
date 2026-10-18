@@ -271,6 +271,14 @@ namespace {
   constexpr Rgb LAUNCHPAD_PERFORMANCE_STUTTER_DIM    { 0, 30, 35 };
   constexpr Rgb LAUNCHPAD_PERFORMANCE_ERODE_BRIGHT   { 110, 45, 10 };
   constexpr Rgb LAUNCHPAD_PERFORMANCE_ERODE_DIM      { 30, 12, 3 };
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_SHUFFLE_BRIGHT { 10, 30, 127 };
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_SHUFFLE_DIM    { 3, 8, 35 };
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_SHATTER_BRIGHT { 100, 20, 127 };
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_SHATTER_DIM    { 28, 5, 35 };
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_GATE_BRIGHT    { 115, 100, 0 };
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_GATE_DIM       { 32, 28, 0 };
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_CRUSH_BRIGHT   { 40, 127, 0 };
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_CRUSH_DIM      { 10, 35, 0 };
 
   // A performance effect's row colour, bright while held; dark for a row
   // with no effect.
@@ -278,6 +286,10 @@ namespace {
     switch (effect) {
     case PerformanceEffect::STUTTER: return held ? LAUNCHPAD_PERFORMANCE_STUTTER_BRIGHT : LAUNCHPAD_PERFORMANCE_STUTTER_DIM;
     case PerformanceEffect::ERODE: return held ? LAUNCHPAD_PERFORMANCE_ERODE_BRIGHT : LAUNCHPAD_PERFORMANCE_ERODE_DIM;
+    case PerformanceEffect::SHUFFLE: return held ? LAUNCHPAD_PERFORMANCE_SHUFFLE_BRIGHT : LAUNCHPAD_PERFORMANCE_SHUFFLE_DIM;
+    case PerformanceEffect::SHATTER: return held ? LAUNCHPAD_PERFORMANCE_SHATTER_BRIGHT : LAUNCHPAD_PERFORMANCE_SHATTER_DIM;
+    case PerformanceEffect::GATE: return held ? LAUNCHPAD_PERFORMANCE_GATE_BRIGHT : LAUNCHPAD_PERFORMANCE_GATE_DIM;
+    case PerformanceEffect::CRUSH: return held ? LAUNCHPAD_PERFORMANCE_CRUSH_BRIGHT : LAUNCHPAD_PERFORMANCE_CRUSH_DIM;
     case PerformanceEffect::DUCK: return held ? LAUNCHPAD_PERFORMANCE_DUCK_BRIGHT : LAUNCHPAD_PERFORMANCE_DUCK_DIM;
     case PerformanceEffect::THROW_A: return held ? LAUNCHPAD_MIXER_SEND_A_BRIGHT : LAUNCHPAD_MIXER_SEND_A_DIM;
     case PerformanceEffect::THROW_B: return held ? LAUNCHPAD_MIXER_SEND_B_BRIGHT : LAUNCHPAD_MIXER_SEND_B_DIM;

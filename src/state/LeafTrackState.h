@@ -8,8 +8,7 @@
 #include "../model/SendLevels.h"
 #include "../dsp/ValueRamp.h"
 #include "../playback/PerformanceEffect.h"
-#include "TrackStutter.h"
-#include "TrackErode.h"
+#include "PerformanceAudio.h"
 
 #include <algorithm>
 #include <cmath>
@@ -361,32 +360,15 @@ public:
     adjustVoiceAzimuth(delta);
   }
 
+  // The held effects that work on the track's sound (PerformanceAudio).
+  void updatePerformanceAudio(PerformanceAudioTargets & held, const PerformanceGrid & grid) { perf_audio_.update(held, grid); }
+
   // Performance effects (PerformanceEffect.h, held on the Launchpad's Custom
   // grid) as targets the track glides to: a gain on Send Main, how far Send
   // A and B are raised toward unity (0-1), and how fast the track orbits the
   // listener (0 turns it back). They reach the voices only - sends_ and
   // position_ keep the song's values, which is what TrackInfo reports and
   // the song mirrors.
-  // Stutter (TrackStutter): capture this track's output `delay` frames from
-  // now and repeat `slice` frames of it until released.
-  void startStutter(int delay, int slice, int capacity) {
-    const int fade = static_cast<int>(performance::kStutterFadeSeconds * static_cast<float>(getChannelConfiguration().getAudioOutSampleRate()));
-    stutter_.start(delay, slice, capacity, getChannelConfiguration().numberOfChannels(), fade);
-  }
-  void setStutterSlice(int slice) { stutter_.setSlice(slice); }
-  void releaseStutter() { stutter_.release(); }
-
-  // Erode (TrackErode) at `amount` (0-1), or released with a negative amount.
-  void setErode(float amount) {
-    if (amount < 0.0f) {
-      erode_.release();
-    } else if (erode_.isOff()) {
-      erode_.start(getChannelConfiguration().getAudioOutSampleRate(), getChannelConfiguration().numberOfChannels(), amount);
-    } else {
-      erode_.setAmount(amount);
-    }
-  }
-
   void setPerformanceTargets(float duck_gain, float throw_a, float throw_b, float orbit_degrees_per_frame) {
     const int ramp_frames = static_cast<int>(performance::kRampSeconds * static_cast<float>(getChannelConfiguration().getAudioOutSampleRate()));
     if (perf_duck_.getTargetValue() != duck_gain) perf_duck_.glideTo(duck_gain, ramp_frames);
@@ -405,12 +387,9 @@ public:
   }
 
 protected:
- // Stutter and Erode on a track's whole rendered block, before it reports
- // its level.
- void applyPerformanceAudio(AudioBuffer & data) {
-   stutter_.process(data);
-   erode_.process(data);
- }
+ // The held sound effects on a track's whole rendered block, before it
+ // reports its level.
+ void applyPerformanceAudio(AudioBuffer & data) { perf_audio_.process(data); }
 
  // Read access to this track's own position/sends/id for a subclass that
  // needs to construct its own voices directly (e.g.
@@ -545,8 +524,7 @@ private:
   float orbit_rate_ = 0.0f; // degrees per frame
   float orbit_offset_ = 0.0f;
   dsp::ValueRamp orbit_return_;
-  TrackStutter stutter_;
-  TrackErode erode_{ static_cast<uint32_t>(track_id_) + 1u };
+  PerformanceAudio perf_audio_{ static_cast<uint32_t>(track_id_) + 1u };
 };
 
 #endif
