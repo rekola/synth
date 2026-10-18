@@ -1108,6 +1108,7 @@ TerminalUI::layout() {
     int outline_rows = live_scopes ? workspace_rows - live_scope_rows : workspace_rows;
     int right_cols = cols - outline_cols;
     clip_grid_->setVisible(true);
+    outline_view_->setVisible(true);
     clip_grid_->resize(strip_rows, right_cols).move(workspace_row, outline_cols);
     outline_view_->resize(outline_rows, outline_cols > 0 ? outline_cols - 1 : cols).move(workspace_row, 0);
     if (outline_cols > 0) {
@@ -1155,6 +1156,7 @@ TerminalUI::layout() {
     // Hidden, not only covered: whatever the pattern editor leaves blank
     // for a moment (or a picture its meters left) must not show it.
     clip_grid_->setVisible(false);
+    outline_view_->setVisible(false);
     clip_grid_->resize(workspace_rows, cols).move(workspace_row, 0);
     outline_view_->resize(workspace_rows, cols).move(workspace_row, 0);
     pattern_editor_->resize(workspace_rows, cols).move(workspace_row, 0);
