@@ -569,6 +569,15 @@ TEST(terminal_ui_smooth_scroll_moves_the_pattern_editor_rows_under_their_heading
   };
   for (int i = 0; i < 4 && f.terminal.info().focus != "pattern-editor"; i++) f.otherWindow();
   CHECK(f.terminal.info().focus == "pattern-editor");
+  // The headings are on a plane of their own, which does not move.
+  auto heading_line = [&]() {
+    for (size_t y = 0; y < 30; y++) {
+      if (f.line(y).find("Pizzicato") != std::string::npos) return static_cast<int>(y);
+    }
+    return -1;
+  };
+  int heading = heading_line();
+  CHECK(heading >= 0);
   bool between = false;
   for (int i = 0; i < 100; i++) {
     f.press(cellui::Key::Down);
@@ -577,7 +586,18 @@ TEST(terminal_ui_smooth_scroll_moves_the_pattern_editor_rows_under_their_heading
     if (auto s = shift()) {
       between = true;
       CHECK(*s > 0.0 && *s < 1.0);
+      // What shifts is the rows' plane: no heading text in it.
+      for (const auto & layer : f.terminal.info().backdrops) {
+        if (!layer.scroll || layer.scroll->shift_rows <= 0) continue;
+        std::string text;
+        for (int r = 0; r < layer.scroll->cells.rows(); r++) {
+          for (int c = 0; c < layer.scroll->cells.cols(); c++) text += layer.scroll->cells.at(r, c).text;
+        }
+        CHECK(text.find("Pizzicato") == std::string::npos);
+        CHECK(text.find("T0") == std::string::npos);
+      }
     }
+    CHECK(heading_line() == heading);
   }
   CHECK(between);
   for (int i = 0; i < 100; i++) {
