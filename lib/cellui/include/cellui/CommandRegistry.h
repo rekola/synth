@@ -10,7 +10,7 @@ namespace cellui {
 
 // A name -> callable table for Emacs-style named UI actions (e.g.
 // "set-mark", "kill-region"), invoked either via a Keymap (see Keymap.h) or
-// directly by name (e.g. from an M-x-style minibuffer). Not to be confused
+// directly by name (e.g. from an command palette). Not to be confused
 // with Command.h, the unrelated 4-character tracker effect-column
 // mini-language.
 class CommandRegistry {

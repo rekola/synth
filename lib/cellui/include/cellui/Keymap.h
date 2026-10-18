@@ -13,7 +13,7 @@ namespace cellui {
 
 // Maps key chords (see KeyChord.h) to command names, not directly to
 // callables - this indirection is what lets a bound command also be invoked
-// by name (e.g. from an M-x-style minibuffer), mirroring how Emacs keymaps
+// by name (e.g. from an command palette), mirroring how Emacs keymaps
 // bind keys to command symbols rather than to functions directly.
 //
 // Also supports two-key Emacs-style prefix sequences (C-x C-s, C-x C-c, ...)

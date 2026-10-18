@@ -47,24 +47,16 @@ The application draws on several traditions.
   voices of the Yamaha DX7 (1983), the synthesizer that made FM widespread,
   standing in for a handful of General MIDI programs. See
   [docs/fm.md](docs/fm.md).  
-- **Command Palette.** Every command can be run by name from the command
-  palette, opened with M-x when using the terminal keybindings or with
-  Ctrl+Shift+P when using the standard GUI keybindings. It sits on the last
-  rows of the screen, where the status line is, with the query on the very last
-  row and the matching commands listed above it. Typing narrows the list by
-  fuzzy matching (`tgv` finds `toggle-view`), the best match comes first, Tab
-  completes a prefix, and each command shows its keybinding and, for the
-  selected one, a short description. The status line is still used for messages
-  and for prompts that ask for a name.
-
-  The palette combines two traditions. From Emacs it takes M-x and the
-  minibuffer on the last row of the screen, with Tab completion of what has
-  been typed so far, and the list of candidates shown above the prompt as the
-  vertical completion packages for Emacs do. From the command palettes of
-  modern editors such as Visual Studio Code and Sublime Text it takes
-  Ctrl+Shift+P as the way in, fuzzy matching, and showing each command's
-  keybinding and description. The terminal keybindings follow the first, the
-  GUI keybindings the second; see [docs/user-interface.md](docs/user-interface.md).
+- **Command palette.** Every command can be run by typing its name into a
+  palette on the last rows of the screen, opened with M-x when using the
+  terminal keybindings and with Ctrl+Shift+P when using the GUI ones; the
+  list narrows as you type, and Tab completes the name. Running a command by
+  name goes back to Emacs (1976, first written as macros for the TECO editor
+  by Guy Steele and Richard Stallman; GNU Emacs' first public release was in
+  1985), where M-x asks for a name and completes it with Tab. The palette
+  itself, a list that matches the typed letters in order and is opened with
+  Ctrl+Shift+P, comes from Sublime Text 2 (Jon Skinner, 2011). See
+  [docs/user-interface.md](docs/user-interface.md).
 
 ## Scales and Tunings
 
