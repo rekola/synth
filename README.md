@@ -113,18 +113,19 @@ The application draws on several traditions.
   through; it does not change the playing keyboard.
 - **Otonal and utonal.** Two 7-note scales that mirror each other around the
   tonic. **Otonal** (C D♯ E F G A A𝄰 = 1/1 7/6 5/4 4/3 3/2 5/3 7/4): all seven
-  are harmonics (12, 14, 15, 16, 18, 20, 21) of one low F, which is what
-  Harry Partch called otonal (*Genesis of a Music*, 1949). It holds the 4:5:6:7
-  chord C E G A𝄰 and pure major triads on C and F. **Utonal** (C E𝄫 E♭ F G A♭
-  B𝄫 = 1/1 8/7 6/5 4/3 3/2 8/5 12/7) is the otonal scale turned upside down:
-  all seven are undertones of one high G. It holds the 1/7:1/6:1/5:1/4 chord
-  E𝄫 F A♭ C and pure minor triads on C and F. Partch's own otonalities and
-  utonalities are six-note chords; these scales are the application's own,
-  inspired by Kyle Gann's *The Arithmetic of Listening* (2019) and its account
-  of the arithmetic and harmonic means. They are spelled so that 31 and 53-EDO
-  both come within 6 cents of every ratio; 12 and 19-EDO only approximate the
-  septimal ones. The 7:4 is A𝄰 because 53-EDO's A♯ is 26:15; the other
-  tunings read it as A♯.
+  are harmonics (12, 14, 15, 16, 18, 20, 21) of one low F, which is what Harry
+  Partch called otonal (*Genesis of a Music*, 1949). It holds the 4:5:6:7
+  chords C E G A𝄰 and F A C D♯ and pure major triads on C and F. **Utonal** (C
+  E𝄫 E♭ F G A♭ B𝄫 = 1/1 8/7 6/5 4/3 3/2 8/5 12/7) is the otonal scale turned
+  upside down: all seven are undertones of one high G. It holds the
+  1/7:1/6:1/5:1/4 chords E𝄫 F A♭ C and B𝄫 C E♭ G and pure minor triads on C
+  and F. Partch's own otonalities and utonalities are six-note chords; these
+  scales are the application's own, inspired by Kyle Gann's *The Arithmetic of
+  Listening* (2019) and its account of the arithmetic and harmonic means. They
+  are spelled so that 31 and 53-EDO both come within 6 cents of every ratio;
+  12 and 19-EDO only approximate the septimal ones. The 7:4 is A𝄰 because
+  53-EDO's A♯ is 26:15; the other tunings read it as A♯.
+  [otonal-and-utonal.md](docs/otonal-and-utonal.md) lists the chords of both.
 
 ### Pianos and Just Intervals
 

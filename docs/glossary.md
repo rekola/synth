@@ -89,14 +89,15 @@ view. The Launchpad's Live mode shows the same clip grid on the pads.
 Two 7-note scales that mirror each other around the tonic. Otonal (C D♯ E F G
 A A𝄰 = 1/1 7/6 5/4 4/3 3/2 5/3 7/4): all seven are harmonics (12, 14, 15, 16,
 18, 20, 21) of one low F, which is what Harry Partch called otonal. It holds
-the 4:5:6:7 chord C E G A𝄰 and pure major triads on C and F. Utonal (C E𝄫 E♭ F
-G A♭ B𝄫 = 1/1 8/7 6/5 4/3 3/2 8/5 12/7) is the otonal scale turned upside
-down: all seven are undertones of one high G. It holds the 1/7:1/6:1/5:1/4
-chord E𝄫 F A♭ C and pure minor triads on C and F. Note that the otonal scale
-is not the harmonic series of its own tonic but of the note a fifth below it.
-Partch's otonalities and utonalities are six-note chords over the odd numbers
-1, 3, 5, 7, 9 and 11; these scales use 15 and 21 as well, and are the
-application's own.
+the 4:5:6:7 chords C E G A𝄰 and F A C D♯ and pure major triads on C and F.
+Utonal (C E𝄫 E♭ F G A♭ B𝄫 = 1/1 8/7 6/5 4/3 3/2 8/5 12/7) is the otonal scale
+turned upside down: all seven are undertones of one high G. It holds the
+1/7:1/6:1/5:1/4 chords E𝄫 F A♭ C and B𝄫 C E♭ G and pure minor triads on C and
+F. Note that the otonal scale is not the harmonic series of its own tonic but
+of the note a fifth below it. Partch's otonalities and utonalities are
+six-note chords over the odd numbers 1, 3, 5, 7, 9 and 11; these scales use 15
+and 21 as well, and are the application's own. Their chords are tabled in
+[otonal-and-utonal.md](otonal-and-utonal.md).
 
 **Rhythm**
 A pre-written drum pattern in the Library, such as Waltz, Funk or Bossa
