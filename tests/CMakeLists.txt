@@ -38,6 +38,7 @@ add_executable(synth_tests
 	ShutdownSignalTests.cpp
 	MidiNoteInputTests.cpp
 	ChordGrouperTests.cpp
+	KeyRepeatFilterTests.cpp
 	LaunchpadLayoutTests.cpp
 	LaunchpadProtocolTests.cpp
 	LaunchpadTimingTests.cpp

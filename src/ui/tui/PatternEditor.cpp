@@ -2299,22 +2299,40 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 	// state, but its keys arrive together: one that does goes onto the
 	// chord's row, in the next note column, and leaves the cursor where the
 	// chord's first key put it.
-	bool chord_follower = false;
-	if (midi_note >= 0 && !is_off && !is_delete && input.getKind() == InputEvent::Kind::UNKNOWN && !input.hasShift()) {
-	  if (auto slot = chord_.join(input.getTimestamp(), track_id)) {
-	    edit_target = source_->edit(track_id, slot->row);
-	    note_column = slot->column;
-	    chord_follower = true;
-	  } else {
-	    chord_.begin(input.getTimestamp(), track_id, point, note_column);
-	  }
-	}
+        bool chord_follower = false, stepped_cursor = false;
+        auto write_row = point;
+        bool legacy_note_key = midi_note >= 0 && !is_off && !is_delete && input.getKind() == InputEvent::Kind::UNKNOWN && !input.hasShift();
+        if (legacy_note_key) {
+          // Holding a key repeats it, and each repeat looks like a press: ignore
+          // them, and take back the first, which could not be told apart when it
+          // came.
+          auto verdict = repeat_.observe(input.getId(), input.getTimestamp());
+          if (verdict == KeyRepeatFilter::Verdict::FIRST_REPEAT && last_legacy_write_ && last_legacy_write_->key == input.getId()) {
+            auto write = *last_legacy_write_;
+            last_legacy_write_.reset();
+            Song::Edit edit(song, "enter note", Song::Edit::Kind::CONTENT, Song::Edit::Origin::USER, !song.document().inGroup());
+            auto target = source_->edit(write.track_id, write.row);
+            target.pattern->deleteNote(target.effective_row, write.column);
+            if (write.stepped_cursor) source_->moveCursor(limitToSelectionPattern(-edit_step_size));
+            row_edited = true;
+          }
+          if (verdict != KeyRepeatFilter::Verdict::PRESS) return true;
 
-	// Whether this key's usual one-row step is left to someone else: an
-	// auto-started session lets the playing transport advance the rows, and a
-	// held key defers the step to the last release, so the rest of a chord
-	// lands on the same row.
-	bool hold_tracked_note = false;
+          if (auto slot = chord_.join(input.getTimestamp(), track_id)) {
+            edit_target = source_->edit(track_id, slot->row);
+	    note_column = slot->column;
+            write_row = slot->row;
+            chord_follower = true;
+          } else {
+            chord_.begin(input.getTimestamp(), track_id, point, note_column);
+          }
+        }
+
+        // Whether this key's usual one-row step is left to someone else: an
+        // auto-started session lets the playing transport advance the rows, and a
+        // held key defers the step to the last release, so the rest of a chord
+        // lands on the same row.
+        bool hold_tracked_note = false;
 
 	// The group of a chord opens before the first write, not inside it.
 	if (midi_note >= 0 && !is_delete && !is_off && input.getKind() != InputEvent::Kind::UNKNOWN && active_keyboard_notes_.empty()) getController().setNoteHeld(true);
@@ -2399,11 +2417,14 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 	      if (!auto_started_playback_) pending_step_ = n * edit_step_size; // one step per chord, not per key
 	    } else if (n) {
               source_->moveCursor(limitToSelectionPattern(n * edit_step_size));
+              stepped_cursor = n > 0;
             }
 	  }
 
-	  return true;
-	}
+          if (legacy_note_key) last_legacy_write_ = LegacyNoteWrite{input.getId(), track_id, write_row, note_column, stepped_cursor};
+
+          return true;
+        }
       }
     }
   }

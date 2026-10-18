@@ -16,7 +16,7 @@ class ChordGrouper {
  public:
   using Clock = std::chrono::steady_clock;
 
-  static constexpr std::chrono::milliseconds kWindow{40};
+  static constexpr std::chrono::milliseconds kWindow{100};
 
   struct Slot {
     RowAddress row;

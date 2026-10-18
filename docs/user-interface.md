@@ -132,7 +132,7 @@ next, undo as one step. The run ends when you move the cursor or press any
 other command, edit something else, pause for two seconds, or reach 20 edits.
 
 The keys of a chord are one step, however long they are held (on a terminal
-that reports key releases; elsewhere, keys typed within about 40 ms of each
+that reports key releases; elsewhere, keys typed within about 0.1 s of each
 other). Held keys behave alike in both views: the cursor
 stays on the row and steps once when the last key lifts; nothing starts the
 transport. A live recording take is one step: its notes appear as they land, and
@@ -226,8 +226,9 @@ The terminal interface does everything the program does, with these limits:
 
 - **Key releases.** Only terminals with the Kitty keyboard protocol (kitty,
   foot, WezTerm, Ghostty) report a key going up. Elsewhere keyboard note entry
-  can't tell how long a note is held. Keys typed within about 40 ms of the first key of a chord still go
-  on one row, in successive note columns; the Launchpad and MIDI input are
+  can't tell how long a note is held. Keys typed within about 0.1 s of the first
+  key of a chord still go on one row, in successive note columns, and the
+  repeats of a held key are ignored; the Launchpad and MIDI input are
   unaffected.
 - **Key combinations.** Without that protocol many combinations arrive as the
   same byte (C-_ and C-/, for example) or not at all (most Ctrl+Shift chords),

@@ -13,6 +13,7 @@
 #include "../SelectionBounds.h"
 #include "../PatternSource.h"
 #include "../ChordGrouper.h"
+#include "../KeyRepeatFilter.h"
 #include "../ScenePatternSource.h"
 #include "InlineEditor.h"
 #include "LevelMeter.h"
@@ -297,6 +298,17 @@ private:
 
   // Keys typed together on a terminal that reports no key release.
   ChordGrouper chord_;
+  KeyRepeatFilter repeat_;
+
+  // The last note a terminal without key releases wrote, so that a repeat
+  // found out later can take it back.
+  struct LegacyNoteWrite {
+    int key, track_id;
+    RowAddress row;
+    int column;
+    bool stepped_cursor;
+  };
+  std::optional<LegacyNoteWrite> last_legacy_write_;
 
   // Which pattern column/row/track a currently-held computer-keyboard note
   // key landed on (keyed by InputEvent::getId(), the physical key - a key
