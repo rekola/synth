@@ -12,6 +12,7 @@
 #include "../../playback/MidiNoteInput.h"
 #include "../SelectionBounds.h"
 #include "../PatternSource.h"
+#include "../ChordGrouper.h"
 #include "../ScenePatternSource.h"
 #include "InlineEditor.h"
 #include "LevelMeter.h"
@@ -293,6 +294,9 @@ private:
   bool current_focused_ = true;
 
   MidiNoteInput midi_input_;
+
+  // Keys typed together on a terminal that reports no key release.
+  ChordGrouper chord_;
 
   // Which pattern column/row/track a currently-held computer-keyboard note
   // key landed on (keyed by InputEvent::getId(), the physical key - a key

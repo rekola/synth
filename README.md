@@ -161,8 +161,9 @@ in its `piano` preset).
 The terminal UI works in any terminal with xterm-style escape sequences, but a
 modern one is better. Terminals with the Kitty keyboard protocol (kitty, foot, WezTerm,
 Ghostty) report key releases, which keyboard note entry needs to know how long
-a note is held, so they can play musical chords (several notes at once); other
-terminals can't. Terminals with Kitty graphics or Sixels get pixel graphics:
+a note is held, so they can sustain several notes at once. Other terminals
+can't tell how long a note is held, but keys typed within about 40 ms of each
+other still form a chord, on one row. Terminals with Kitty graphics or Sixels get pixel graphics:
 the spectrum analyzer and the DirAC heatmap in the scopes are drawn as real
 pixels instead of braille cells, and without pixel support they fall back to
 braille. See [docs/user-interface.md](docs/user-interface.md#terminal) for terminal-specific setup.

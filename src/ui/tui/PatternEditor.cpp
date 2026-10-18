@@ -2295,6 +2295,21 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 
 	if (is_repeat && midi_note >= 0) return true; // already sounding - nothing to redo
 
+	// Without key releases a chord can't be told from quick taps by hold
+	// state, but its keys arrive together: one that does goes onto the
+	// chord's row, in the next note column, and leaves the cursor where the
+	// chord's first key put it.
+	bool chord_follower = false;
+	if (midi_note >= 0 && !is_off && !is_delete && input.getKind() == InputEvent::Kind::UNKNOWN && !input.hasShift()) {
+	  if (auto slot = chord_.join(input.getTimestamp(), track_id)) {
+	    edit_target = source_->edit(track_id, slot->row);
+	    note_column = slot->column;
+	    chord_follower = true;
+	  } else {
+	    chord_.begin(input.getTimestamp(), track_id, point, note_column);
+	  }
+	}
+
 	// Whether this key's usual one-row step is left to someone else: an
 	// auto-started session lets the playing transport advance the rows, and a
 	// held key defers the step to the last release, so the rest of a chord
@@ -2376,7 +2391,7 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 	    // entry would have made - unlike Delete, which deletes in place and
 	    // leaves the cursor where it was.
 	    if (input.getId() == Key::Backspace) n = -1;
-	    else if (input.getId() != Key::Delete) n = 1;
+	    else if (input.getId() != Key::Delete && !chord_follower) n = 1;
 	    if (n && hold_tracked_note) {
 	      // The transport moves the row itself once a session auto-started by
 	      // this chord is playing; otherwise the step waits for the last
