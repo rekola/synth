@@ -39,34 +39,13 @@ To try on the hardware: the fixed amounts (Duck -12 dB, Roll's rates, Orbit's
 speed, Stutter's slices, Erode's grains and sparseness), and whether Roll
 should also re-fire notes already playing when it is pressed.
 
-## 3. The effect set in the song, and the master
+## 3. The default set and the master
 
-**In the song.** The rows are the song's own `<performance>` element, one
-element per effect, rows top to bottom, in the style of the track effects
-(`<tapeDegradation preset="...">`): the element names the effect, `preset`
-picks a named set of its settings, and any attribute overrides one.
-
-```xml
-<performance>
-  <stutter/>
-  <shuffle/>
-  <grains preset="erode"/>
-  <grains preset="shatter"/>
-  <gate/>
-  <crush/>
-  <filter/>
-  <duck/>
-</performance>
-```
-
-Song-only: the effects are recorded into the song's automation (stage 6), so
-the set belongs with it. A song without `<performance>` gets the default set
-above. Like the rest of the song it lives in the document (`model/
-TrackNodes.h` style nodes), so editing it is journaled.
-
-**Default set**, top to bottom: Stutter, Shuffle, Erode, Shatter, Gate,
-Crush, Filter, Duck. Roll, Orbit, Throw A and Throw B stay available through
-the XML but are not in it.
+The rows are fixed in code for now (`performance::kGridRows`), as the
+**default set**, top to bottom: Stutter, Shuffle, Erode, Shatter, Gate,
+Crush, Filter, Duck. Roll, Orbit, Throw A and Throw B stay in the code but
+leave the grid; a song-level `<performance>` element choosing the rows comes
+later (below).
 
 **The master.** The right column's eight buttons (unused in Custom today)
 apply their row's effect to the whole mix, after the send bus returns are
@@ -175,11 +154,29 @@ Not decided yet; revisit once stages 2-4 have been played with.
 - Live audio input runs on the wall clock and would bypass varispeed; a
   sample take recorded across a stop would not line up.
 
-## 8. Note mode's right column
+## Later: the effect set in the song
 
-The right-column buttons hold effects on the note track. The Launchpad X has
-all eight free there; CC19 starts and stops note capture in Note mode today,
-which has to move or be given up first.
+The rows become the song's own `<performance>` element, one element per
+effect, rows top to bottom, in the style of the track effects
+(`<tapeDegradation preset="...">`): the element names the effect, `preset`
+picks a named set of its settings, and any attribute overrides one.
+
+```xml
+<performance>
+  <stutter/>
+  <shuffle/>
+  <grains preset="erode"/>
+  <grains preset="shatter"/>
+  <gate/>
+  <crush/>
+  <filter/>
+  <duck/>
+</performance>
+```
+
+Song-only: the effects are recorded into the song's automation, so the set
+belongs with it. A song without one gets the default set. Like the rest of
+the song it lives in the document, so editing it is journaled.
 
 ## Later candidates
 
