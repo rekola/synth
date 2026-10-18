@@ -735,15 +735,15 @@ class SongState : public TrackState {
       AudioBuffer mix(data.hasChannel(Channel::Main) || bus ? regular : 0, false, false, frames);
       mix.zero();
       for (int c = 0; c < mix.regularChannelCount(); c++) {
-	float * dst = mix.getChannelData(c);
-	if (data.hasChannel(Channel::Main)) {
-	  const float * src = data.getChannelData(c);
-	  for (int i = 0; i < frames; i++) dst[i] += src[i];
-	}
-	if (bus) {
-	  const float * src = send_bus_.getBusAmbisonic().getChannelData(c);
-	  for (int i = 0; i < frames; i++) dst[i] += src[i];
-	}
+        float * dst = mix.getChannelData(c);
+        if (data.hasChannel(Channel::Main)) {
+          const float * src = data.getChannelData(c);
+          for (int i = 0; i < frames; i++) dst[i] += src[i];
+        }
+        if (bus) {
+          const float * src = send_bus_.getBusAmbisonic().getChannelData(c);
+          for (int i = 0; i < frames; i++) dst[i] += src[i];
+        }
       }
       masterPerformance(mix);
       mixer.accumulate(mix);
@@ -873,18 +873,20 @@ class SongState : public TrackState {
     grid.row_frames = row_frames;
     grid.bar_frames = bars.barRows() * row_frames;
     grid.bar_phase = isPlaying() ? bars.rowInBar(absolute_pos_) * row_frames + sample_pos_ : -1;
-    for (auto it = performance_.begin(); it != performance_.end(); ) {
+    for (auto it = performance_.begin(); it != performance_.end();) {
       auto & held = it->second;
       if (it->first == performance::kMasterTarget) {
-	master_duck_target_ = held.duck_gain;
-	master_audio_.update(held.audio, grid);
+        master_duck_target_ = held.duck_gain;
+        master_audio_.update(held.audio, grid);
       } else if (auto * track_state = dynamic_cast<LeafTrackState *>(getChildByInternalId(it->first))) {
-	float orbit_rate = grid.bar_frames > 0 ? held.orbit_turns_per_bar * 360.0f / static_cast<float>(grid.bar_frames) : 0.0f;
-	track_state->setPerformanceTargets(held.duck_gain, held.throw_a, held.throw_b, orbit_rate);
-	track_state->updatePerformanceAudio(held.audio, grid);
+        float orbit_rate = grid.bar_frames > 0 ? held.orbit_turns_per_bar * 360.0f / static_cast<float>(grid.bar_frames) : 0.0f;
+        track_state->setPerformanceTargets(held.duck_gain, held.throw_a, held.throw_b, orbit_rate);
+        track_state->updatePerformanceAudio(held.audio, grid);
       }
-      if (held.isIdle()) it = performance_.erase(it);
-      else ++it;
+      if (held.isIdle())
+        it = performance_.erase(it);
+      else
+        ++it;
     }
   }
 
@@ -1019,21 +1021,38 @@ class SongState : public TrackState {
     bool release = pressure < 0;
     auto & held = performance_[track_id];
     switch (effect) {
-    case PerformanceEffect::DUCK: held.duck_gain = release ? 1.0f : performance::duckGain(pressure); break;
-    case PerformanceEffect::THROW_A: held.throw_a = release ? 0.0f : 1.0f; break;
-    case PerformanceEffect::THROW_B: held.throw_b = release ? 0.0f : 1.0f; break;
-    case PerformanceEffect::ORBIT: held.orbit_turns_per_bar = release ? 0.0f : performance::orbitTurnsPerBar(pressure); break;
-    case PerformanceEffect::STUTTER:
-      holdRecording(held.audio.stutter_rows, held.audio.stutter_start, held.audio.stutter_delay, release ? 0.0f : performance::stutterSliceRows(pressure));
-      break;
-    case PerformanceEffect::SHUFFLE:
-      holdRecording(held.audio.shuffle_rows, held.audio.shuffle_start, held.audio.shuffle_delay, release ? 0.0f : performance::shuffleSliceRows(pressure));
-      break;
-    case PerformanceEffect::ERODE: held.audio.erode = release ? -1.0f : performance::depth(pressure); break;
-    case PerformanceEffect::SHATTER: held.audio.shatter = release ? -1.0f : performance::depth(pressure); break;
-    case PerformanceEffect::CRUSH: held.audio.crush = release ? -1.0f : performance::depth(pressure); break;
-    case PerformanceEffect::GATE: held.audio.gate_rows = release ? 0.0f : performance::gatePeriodRows(pressure); break;
-    case PerformanceEffect::NONE: break;
+      case PerformanceEffect::DUCK:
+        held.duck_gain = release ? 1.0f : performance::duckGain(pressure);
+        break;
+      case PerformanceEffect::THROW_A:
+        held.throw_a = release ? 0.0f : 1.0f;
+        break;
+      case PerformanceEffect::THROW_B:
+        held.throw_b = release ? 0.0f : 1.0f;
+        break;
+      case PerformanceEffect::ORBIT:
+        held.orbit_turns_per_bar = release ? 0.0f : performance::orbitTurnsPerBar(pressure);
+        break;
+      case PerformanceEffect::STUTTER:
+        holdRecording(held.audio.stutter_rows, held.audio.stutter_start, held.audio.stutter_delay, release ? 0.0f : performance::stutterSliceRows(pressure));
+        break;
+      case PerformanceEffect::SHUFFLE:
+        holdRecording(held.audio.shuffle_rows, held.audio.shuffle_start, held.audio.shuffle_delay, release ? 0.0f : performance::shuffleSliceRows(pressure));
+        break;
+      case PerformanceEffect::ERODE:
+        held.audio.erode = release ? -1.0f : performance::depth(pressure);
+        break;
+      case PerformanceEffect::SHATTER:
+        held.audio.shatter = release ? -1.0f : performance::depth(pressure);
+        break;
+      case PerformanceEffect::CRUSH:
+        held.audio.crush = release ? -1.0f : performance::depth(pressure);
+        break;
+      case PerformanceEffect::GATE:
+        held.audio.gate_rows = release ? 0.0f : performance::gatePeriodRows(pressure);
+        break;
+      case PerformanceEffect::NONE:
+        break;
     }
   }
 
@@ -1085,7 +1104,7 @@ private:
   // Performance effects held per track (setPerformance()).
   std::unordered_map<int, HeldPerformance> performance_;
   // Performance effects held on the master (masterPerformance()).
-  PerformanceAudio master_audio_{ 0x6d617374u };
+  PerformanceAudio master_audio_{0x6d617374u};
   float master_duck_ = 1.0f, master_duck_target_ = 1.0f;
   bool pending_break_ = false; // ZBxx seen on the row currently completing
   int pending_break_row_ = 0;

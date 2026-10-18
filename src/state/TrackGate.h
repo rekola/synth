@@ -10,7 +10,7 @@
 // period, shut for the second - with short edges. The sound underneath
 // carries on, so it comes back wherever the song has got to.
 class TrackGate {
-public:
+ public:
   // Starts gating with `period` frames, the grid `phase` frames into one
   // (negative when there is no grid to follow: the transport is stopped).
   void start(int period, int phase, int edge) {
@@ -26,8 +26,10 @@ public:
   void setPeriod(int period, int phase) {
     releasing_ = false; // takes back a release still fading out
     period_ = std::max(2, period);
-    if (phase >= 0) pos_ = phase % period_;
-    else pos_ %= period_;
+    if (phase >= 0)
+      pos_ = phase % period_;
+    else
+      pos_ %= period_;
   }
 
   void release() { releasing_ = true; }
@@ -47,7 +49,7 @@ public:
     if (releasing_ && gain_ >= 1.0f) active_ = false;
   }
 
-private:
+ private:
   int period_ = 2, pos_ = 0, edge_ = 1;
   float gain_ = 1.0f;
   bool active_ = false, releasing_ = false;

@@ -810,12 +810,12 @@ class LaunchpadManager {
     // CUSTOM: which pads hold a performance effect (x + y*8), the track
     // each one holds it on (fixed at the press, so a release reaches the
     // same track) and the pressure last sent.
-    std::array<bool, 64> performance_held {};
-    std::array<int, 64> performance_track {};
-    std::array<int, 64> performance_pressure {};
+    std::array<bool, 64> performance_held{};
+    std::array<int, 64> performance_track{};
+    std::array<int, 64> performance_pressure{};
     // CUSTOM: which right-column buttons hold their row's effect on the
     // master, by row.
-    std::array<bool, 8> performance_master_held {};
+    std::array<bool, 8> performance_master_held{};
 
     // DRAW mode: each of the 64 pads' own index into the color palette
     // (see releaseDrawPad/refreshLeds), independent of Song/Track state

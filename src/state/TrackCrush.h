@@ -12,7 +12,7 @@
 // same for every channel, so the sound stays where it is; the bit reduction
 // is per channel and smears the image somewhat. Fades in and out.
 class TrackCrush {
-public:
+ public:
   static constexpr int kMaxChannels = 18; // third order plus both sends
   static constexpr float kFadeSeconds = 0.01f;
 
@@ -49,17 +49,17 @@ public:
       if (fresh) hold_phase_ -= std::floor(hold_phase_);
       mix_ = releasing_ ? std::max(0.0f, mix_ - mix_step) : std::min(1.0f, mix_ + mix_step);
       for (int c = 0; c < channels; c++) {
-	float & x = data.getChannelData(c)[f];
-	auto & held = held_[static_cast<size_t>(c)];
-	if (fresh) held = std::round(x * levels_) / levels_;
-	x = mix_ >= 1.0f ? held : x + (held - x) * mix_;
+        float & x = data.getChannelData(c)[f];
+        auto & held = held_[static_cast<size_t>(c)];
+        if (fresh) held = std::round(x * levels_) / levels_;
+        x = mix_ >= 1.0f ? held : x + (held - x) * mix_;
       }
     }
     if (releasing_ && mix_ <= 0.0f) active_ = false;
   }
 
-private:
-  std::array<float, kMaxChannels> held_ {};
+ private:
+  std::array<float, kMaxChannels> held_{};
   int sample_rate_ = 44100;
   float hold_step_ = 0.25f, hold_phase_ = 0.0f, levels_ = 128.0f, mix_ = 0.0f;
   bool active_ = false, releasing_ = false;

@@ -17,10 +17,10 @@
 // Every channel is recorded, so the slices stay where the source sits. A
 // slice that doesn't continue the one before crossfades from it.
 class TrackShuffle {
-public:
+ public:
   static constexpr int kMaxRegularChannels = 16; // third order
 
-  explicit TrackShuffle(uint32_t seed = 1) : random_(seed) { }
+  explicit TrackShuffle(uint32_t seed = 1) : random_(seed) {}
 
   // Starts recording `delay` frames from now, into room for `capacity`
   // frames, playing slices `slice` frames long.
@@ -63,7 +63,7 @@ public:
     if (phase_ == Phase::OFF) return;
     const int frames = data.numberOfFrames();
     const bool in_main = data.hasChannel(Channel::Main) && data.regularChannelCount() == regular_;
-    std::array<const float *, kMaxRegularChannels + 2> in {};
+    std::array<const float *, kMaxRegularChannels + 2> in{};
     if (in_main) {
       for (int c = 0; c < regular_; c++) in[static_cast<size_t>(c)] = data.getChannelData(c);
     }
@@ -76,7 +76,7 @@ public:
     AudioBuffer out(has_main_ ? regular_ : 0, has_aux_a_, has_aux_b_, frames, data.isSolo());
     out.setBpm(data.getBpm());
     out.zero();
-    std::array<float *, kMaxRegularChannels + 2> dst {};
+    std::array<float *, kMaxRegularChannels + 2> dst{};
     if (out.hasChannel(Channel::Main)) {
       for (int c = 0; c < regular_; c++) dst[static_cast<size_t>(c)] = out.getChannelData(c);
     }
@@ -86,20 +86,20 @@ public:
     const int planes = regular_ + 2;
     for (int f = 0; f < frames; f++) {
       if (phase_ == Phase::OFF || phase_ == Phase::WAITING) {
-	for (int p = 0; p < planes; p++) {
-	  auto * src = in[static_cast<size_t>(p)];
-	  auto * d = dst[static_cast<size_t>(p)];
-	  if (src && d) d[f] = src[f];
-	}
-	if (phase_ == Phase::WAITING && --wait_ <= 0) phase_ = Phase::PLAYING;
-	continue;
+        for (int p = 0; p < planes; p++) {
+          auto * src = in[static_cast<size_t>(p)];
+          auto * d = dst[static_cast<size_t>(p)];
+          if (src && d) d[f] = src[f];
+        }
+        if (phase_ == Phase::WAITING && --wait_ <= 0) phase_ = Phase::PLAYING;
+        continue;
       }
       if (captured_ < capacity_) {
-	for (int p = 0; p < planes; p++) {
-	  auto * src = in[static_cast<size_t>(p)];
-	  plane(p)[captured_] = src ? src[f] : 0.0f;
-	}
-	captured_++;
+        for (int p = 0; p < planes; p++) {
+          auto * src = in[static_cast<size_t>(p)];
+          plane(p)[captured_] = src ? src[f] : 0.0f;
+        }
+        captured_++;
       }
       if (cur_pos_ >= cur_len_) nextSlice();
       // Frames written before this one; the live slice reads the one just
@@ -109,25 +109,25 @@ public:
       float gain = 1.0f, tail_gain = 0.0f;
       int tail_at = -1;
       if (tail_ >= 0 && cur_pos_ < fade_) {
-	gain = static_cast<float>(cur_pos_ + 1) / static_cast<float>(fade_);
-	tail_gain = 1.0f - gain;
-	tail_at = tail_ + cur_pos_;
-	if (tail_at >= readable) tail_at = -1;
+        gain = static_cast<float>(cur_pos_ + 1) / static_cast<float>(fade_);
+        tail_gain = 1.0f - gain;
+        tail_at = tail_ + cur_pos_;
+        if (tail_at >= readable) tail_at = -1;
       }
       float live_gain = 0.0f;
       if (phase_ == Phase::RELEASING) {
-	live_gain = static_cast<float>(release_pos_) / static_cast<float>(fade_);
-	gain *= 1.0f - live_gain;
-	tail_gain *= 1.0f - live_gain;
+        live_gain = static_cast<float>(release_pos_) / static_cast<float>(fade_);
+        gain *= 1.0f - live_gain;
+        tail_gain *= 1.0f - live_gain;
       }
       for (int p = 0; p < planes; p++) {
-	auto * d = dst[static_cast<size_t>(p)];
-	if (!d) continue;
-	const float * r = plane(p);
-	float v = at < readable ? r[at] * gain : 0.0f;
-	if (tail_at >= 0) v += r[tail_at] * tail_gain;
-	if (auto * src = in[static_cast<size_t>(p)]) v += src[f] * live_gain;
-	d[f] = v;
+        auto * d = dst[static_cast<size_t>(p)];
+        if (!d) continue;
+        const float * r = plane(p);
+        float v = at < readable ? r[at] * gain : 0.0f;
+        if (tail_at >= 0) v += r[tail_at] * tail_gain;
+        if (auto * src = in[static_cast<size_t>(p)]) v += src[f] * live_gain;
+        d[f] = v;
       }
       cur_pos_++;
       if (phase_ == Phase::RELEASING && ++release_pos_ >= fade_) phase_ = Phase::OFF;
@@ -135,8 +135,11 @@ public:
     data = std::move(out);
   }
 
-private:
-  enum class Phase { OFF, WAITING, PLAYING, RELEASING };
+ private:
+  enum class Phase { OFF,
+                     WAITING,
+                     PLAYING,
+                     RELEASING };
 
   float uniform() { return 0.5f * (random_.next() + 1.0f); }
   float * plane(int p) { return buffer_.data() + static_cast<size_t>(p) * static_cast<size_t>(capacity_); }

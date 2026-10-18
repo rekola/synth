@@ -377,8 +377,10 @@ public:
     if (orbit_rate_ != 0.0f && orbit_degrees_per_frame == 0.0f) {
       // Back the shorter way round to where the song has the track.
       float offset = fmodf(orbit_offset_, 360.0f);
-      if (offset > 180.0f) offset -= 360.0f;
-      else if (offset <= -180.0f) offset += 360.0f;
+      if (offset > 180.0f)
+        offset -= 360.0f;
+      else if (offset <= -180.0f)
+        offset += 360.0f;
       orbit_offset_ = offset; // a whole number of turns away: nothing moves
       orbit_return_.snapTo(offset);
       orbit_return_.glideTo(0.0f, static_cast<int>(performance::kOrbitReturnSeconds * static_cast<float>(getChannelConfiguration().getAudioOutSampleRate())));
@@ -419,62 +421,75 @@ protected:
   std::unordered_map<int, std::vector<std::unique_ptr<VoiceState> > > voices_;
 
 private:
-  bool hasPerformanceOverlay() const {
-    return perf_duck_.getCurrentValue() != 1.0f || perf_throw_a_.getCurrentValue() != 0.0f || perf_throw_b_.getCurrentValue() != 0.0f ||
-           orbit_offset_ != 0.0f;
-  }
-  // The sends the voices get: the song's, under any held performance effect.
-  float effectiveSendMain() const { return sends_.main * perf_duck_.getCurrentValue(); }
-  static float thrown(float base, float amount) { return amount > 0.0f ? std::max(base, base + (1.0f - base) * amount) : base; }
-  float effectiveSendA() const { return thrown(sends_.a, perf_throw_a_.getCurrentValue()); }
-  float effectiveSendB() const { return thrown(sends_.b, perf_throw_b_.getCurrentValue()); }
+ bool hasPerformanceOverlay() const {
+   return perf_duck_.getCurrentValue() != 1.0f || perf_throw_a_.getCurrentValue() != 0.0f || perf_throw_b_.getCurrentValue() != 0.0f ||
+          orbit_offset_ != 0.0f;
+ }
+ // The sends the voices get: the song's, under any held performance effect.
+ float effectiveSendMain() const { return sends_.main * perf_duck_.getCurrentValue(); }
+ static float thrown(float base, float amount) { return amount > 0.0f ? std::max(base, base + (1.0f - base) * amount) : base; }
+ float effectiveSendA() const { return thrown(sends_.a, perf_throw_a_.getCurrentValue()); }
+ float effectiveSendB() const { return thrown(sends_.b, perf_throw_b_.getCurrentValue()); }
 
-  void advancePerformance(int frames) {
-    bool sends_moved = false;
-    if (perf_duck_.isActive()) { perf_duck_.advance(frames); sends_moved = true; }
-    if (perf_throw_a_.isActive()) { perf_throw_a_.advance(frames); sends_moved = true; }
-    if (perf_throw_b_.isActive()) { perf_throw_b_.advance(frames); sends_moved = true; }
-    if (sends_moved) {
-      pushSendMain();
-      pushSendA();
-      pushSendB();
-    }
-    float delta = 0.0f;
-    if (orbit_rate_ != 0.0f) {
-      delta = orbit_rate_ * static_cast<float>(frames);
-    } else if (orbit_return_.isActive()) {
-      delta = orbit_return_.advance(frames) - orbit_offset_;
-    }
-    if (delta != 0.0f) {
-      orbit_offset_ += delta;
-      if (orbit_rate_ == 0.0f && !orbit_return_.isActive()) orbit_offset_ = 0.0f;
-      adjustVoiceAzimuth(delta);
-    }
-  }
+ void advancePerformance(int frames) {
+   bool sends_moved = false;
+   if (perf_duck_.isActive()) {
+     perf_duck_.advance(frames);
+     sends_moved = true;
+   }
+   if (perf_throw_a_.isActive()) {
+     perf_throw_a_.advance(frames);
+     sends_moved = true;
+   }
+   if (perf_throw_b_.isActive()) {
+     perf_throw_b_.advance(frames);
+     sends_moved = true;
+   }
+   if (sends_moved) {
+     pushSendMain();
+     pushSendA();
+     pushSendB();
+   }
+   float delta = 0.0f;
+   if (orbit_rate_ != 0.0f) {
+     delta = orbit_rate_ * static_cast<float>(frames);
+   } else if (orbit_return_.isActive()) {
+     delta = orbit_return_.advance(frames) - orbit_offset_;
+   }
+   if (delta != 0.0f) {
+     orbit_offset_ += delta;
+     if (orbit_rate_ == 0.0f && !orbit_return_.isActive()) orbit_offset_ = 0.0f;
+     adjustVoiceAzimuth(delta);
+   }
+ }
 
-  void adjustVoiceAzimuth(float delta) {
-    for (auto & [ column, voices ] : voices_) {
-      for (auto & voice : voices) if (voice->isActive()) voice->adjustAzimuth(delta);
-    }
-  }
-  void pushSendMain() {
-    const float s = effectiveSendMain();
-    for (auto & [ column, voices ] : voices_) {
-      for (auto & voice : voices) if (voice->isActive()) voice->adjustSendMain(s);
-    }
-  }
-  void pushSendA() {
-    const float s = effectiveSendA();
-    for (auto & [ column, voices ] : voices_) {
-      for (auto & voice : voices) if (voice->isActive()) voice->adjustSendA(s);
-    }
-  }
-  void pushSendB() {
-    const float s = effectiveSendB();
-    for (auto & [ column, voices ] : voices_) {
-      for (auto & voice : voices) if (voice->isActive()) voice->adjustSendB(s);
-    }
-  }
+ void adjustVoiceAzimuth(float delta) {
+   for (auto & [column, voices] : voices_) {
+     for (auto & voice : voices)
+       if (voice->isActive()) voice->adjustAzimuth(delta);
+   }
+ }
+ void pushSendMain() {
+   const float s = effectiveSendMain();
+   for (auto & [column, voices] : voices_) {
+     for (auto & voice : voices)
+       if (voice->isActive()) voice->adjustSendMain(s);
+   }
+ }
+ void pushSendA() {
+   const float s = effectiveSendA();
+   for (auto & [column, voices] : voices_) {
+     for (auto & voice : voices)
+       if (voice->isActive()) voice->adjustSendA(s);
+   }
+ }
+ void pushSendB() {
+   const float s = effectiveSendB();
+   for (auto & [column, voices] : voices_) {
+     for (auto & voice : voices)
+       if (voice->isActive()) voice->adjustSendB(s);
+   }
+ }
 
   // setSendMain()/A()/B()'s own "store it, push it to every active voice"
   // half, factored out so advanceSendRamps() (already mid-advance() on its
@@ -524,7 +539,7 @@ private:
   float orbit_rate_ = 0.0f; // degrees per frame
   float orbit_offset_ = 0.0f;
   dsp::ValueRamp orbit_return_;
-  PerformanceAudio perf_audio_{ static_cast<uint32_t>(track_id_) + 1u };
+  PerformanceAudio perf_audio_{static_cast<uint32_t>(track_id_) + 1u};
 };
 
 #endif

@@ -214,7 +214,10 @@ namespace {
 // Runs a front-facing sine (first order: W and X equal, Y silent) through
 // TrackGrains for `seconds`, after a quarter second to settle, and returns the
 // share of frames where W is silent, the loudest W and the loudest Y.
-struct ErodeRun { float silent_share = 0.0f, peak_w = 0.0f, peak_y = 0.0f; bool finite = true; };
+struct ErodeRun {
+  float silent_share = 0.0f, peak_w = 0.0f, peak_y = 0.0f;
+  bool finite = true;
+};
 ErodeRun runErode(TrackGrains & erode, int & frame, float seconds) {
   const int rate = 44100, block = 256;
   ErodeRun run;
@@ -388,8 +391,10 @@ TEST(track_shuffle_plays_recorded_slices_in_a_new_order) {
       float v = data.getChannelData(0)[i];
       if (frame < slice) live_first = live_first && v == static_cast<float>(frame);
       past = past && v <= static_cast<float>(frame);
-      if (frame % slice == 0) slice_first = v;
-      else whole = whole && v - slice_first == static_cast<float>(frame % slice);
+      if (frame % slice == 0)
+        slice_first = v;
+      else
+        whole = whole && v - slice_first == static_cast<float>(frame % slice);
       shuffled = shuffled || v != static_cast<float>(frame);
     }
   }
@@ -449,25 +454,25 @@ TEST(track_crush_holds_and_quantizes) {
 // Each new sound effect, held on a track or on the master, changes what is
 // heard, and leaves nothing behind once released.
 TEST(performance_sound_effects_reach_the_track_and_the_master) {
-  for (int target : { 0, performance::kMasterTarget }) {
-    for (auto effect : { PerformanceEffect::SHUFFLE, PerformanceEffect::SHATTER, PerformanceEffect::GATE, PerformanceEffect::CRUSH }) {
+  for (int target : {0, performance::kMasterTarget}) {
+    for (auto effect : {PerformanceEffect::SHUFFLE, PerformanceEffect::SHATTER, PerformanceEffect::GATE, PerformanceEffect::CRUSH}) {
       SineSong held, clean;
       auto max_difference = [&](int frames) {
-	float diff = 0.0f;
-	bool finite = true;
-	for (int done = 0; done < frames; done += 256) {
-	  held.state.renderBlock(256, held.song, *held.mixer);
-	  clean.state.renderBlock(256, clean.song, *clean.mixer);
-	  auto & a = held.mixer->getRawBus();
-	  auto & b = clean.mixer->getRawBus();
-	  if (!a.hasChannel(Channel::Main) || !b.hasChannel(Channel::Main)) continue;
-	  for (int i = 0; i < 256; i++) {
-	    finite = finite && std::isfinite(a.getChannelData(0)[i]);
-	    diff = max(diff, fabsf(a.getChannelData(0)[i] - b.getChannelData(0)[i]));
-	  }
-	}
-	CHECK(finite);
-	return diff;
+        float diff = 0.0f;
+        bool finite = true;
+        for (int done = 0; done < frames; done += 256) {
+          held.state.renderBlock(256, held.song, *held.mixer);
+          clean.state.renderBlock(256, clean.song, *clean.mixer);
+          auto & a = held.mixer->getRawBus();
+          auto & b = clean.mixer->getRawBus();
+          if (!a.hasChannel(Channel::Main) || !b.hasChannel(Channel::Main)) continue;
+          for (int i = 0; i < 256; i++) {
+            finite = finite && std::isfinite(a.getChannelData(0)[i]);
+            diff = max(diff, fabsf(a.getChannelData(0)[i] - b.getChannelData(0)[i]));
+          }
+        }
+        CHECK(finite);
+        return diff;
       };
       const int track = target == 0 ? held.track_id : target;
       held.state.setPerformance(track, effect, 127);

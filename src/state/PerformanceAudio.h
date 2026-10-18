@@ -13,14 +13,14 @@
 
 // What is held of the performance effects that work on the sound itself.
 struct PerformanceAudioTargets {
-  float stutter_rows = 0.0f; // 0: none
+  float stutter_rows = 0.0f;  // 0: none
   bool stutter_start = false; // a new stutter, still to be started
   int stutter_delay = 0;      // frames to the row it starts capturing on
   float shuffle_rows = 0.0f;  // 0: none
   bool shuffle_start = false;
   int shuffle_delay = 0;
   float erode = -1.0f, shatter = -1.0f, crush = -1.0f; // negative: none
-  float gate_rows = 0.0f;     // 0: none
+  float gate_rows = 0.0f;                              // 0: none
   bool isIdle() const {
     return stutter_rows == 0.0f && shuffle_rows == 0.0f && erode < 0.0f && shatter < 0.0f && crush < 0.0f && gate_rows == 0.0f;
   }
@@ -38,9 +38,9 @@ struct PerformanceGrid {
 // The sound effects held on one track, or on the master: Stutter, Shuffle,
 // Erode, Shatter, Crush and Gate, run in that order over its whole output.
 class PerformanceAudio {
-public:
+ public:
   explicit PerformanceAudio(uint32_t seed)
-    : shuffle_(seed * 3u + 1u), erode_(grains::kErode, seed * 3u + 2u), shatter_(grains::kShatter, seed * 3u + 3u) { }
+      : shuffle_(seed * 3u + 1u), erode_(grains::kErode, seed * 3u + 2u), shatter_(grains::kShatter, seed * 3u + 3u) {}
 
   // Hands over what is held; clears the start flags it has acted on.
   void update(PerformanceAudioTargets & held, const PerformanceGrid & grid) {
@@ -69,16 +69,21 @@ public:
     setGrains(erode_, held.erode, grid);
     setGrains(shatter_, held.shatter, grid);
 
-    if (held.crush < 0.0f) crush_.release();
-    else if (crush_.isOff()) crush_.start(grid.sample_rate, held.crush);
-    else crush_.setAmount(held.crush);
+    if (held.crush < 0.0f)
+      crush_.release();
+    else if (crush_.isOff())
+      crush_.start(grid.sample_rate, held.crush);
+    else
+      crush_.setAmount(held.crush);
 
     if (held.gate_rows == 0.0f) {
       gate_.release();
     } else {
       const int period = frames(held.gate_rows);
-      if (gate_.isOff()) gate_.start(period, grid.bar_phase, static_cast<int>(performance::kGateEdgeSeconds * static_cast<float>(grid.sample_rate)));
-      else gate_.setPeriod(period, grid.bar_phase);
+      if (gate_.isOff())
+        gate_.start(period, grid.bar_phase, static_cast<int>(performance::kGateEdgeSeconds * static_cast<float>(grid.sample_rate)));
+      else
+        gate_.setPeriod(period, grid.bar_phase);
     }
   }
 
@@ -95,11 +100,14 @@ public:
     gate_.process(data);
   }
 
-private:
+ private:
   static void setGrains(TrackGrains & grains, float amount, const PerformanceGrid & grid) {
-    if (amount < 0.0f) grains.release();
-    else if (grains.isOff()) grains.start(grid.sample_rate, grid.regular_channels, amount);
-    else grains.setAmount(amount);
+    if (amount < 0.0f)
+      grains.release();
+    else if (grains.isOff())
+      grains.start(grid.sample_rate, grid.regular_channels, amount);
+    else
+      grains.setAmount(amount);
   }
 
   TrackStutter stutter_;

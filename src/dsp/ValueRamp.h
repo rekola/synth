@@ -58,7 +58,7 @@ public:
   float getCurrentValue() const { return current_; }
   float getTargetValue() const { return target_; }
 
-private:
+ private:
   float current_ = 0.0f;
   float target_ = 0.0f;
   float per_frame_delta_ = 0.0f;

@@ -263,40 +263,51 @@ namespace {
 
   // The performance grid's own rows (GridMode::CUSTOM); the send throws
   // reuse the Send A/B colours.
-  constexpr Rgb LAUNCHPAD_PERFORMANCE_DUCK_BRIGHT  { 127, 0, 0 };
-  constexpr Rgb LAUNCHPAD_PERFORMANCE_DUCK_DIM     { 35, 0, 0 };
-  constexpr Rgb LAUNCHPAD_PERFORMANCE_ORBIT_BRIGHT { 127, 40, 0 };
-  constexpr Rgb LAUNCHPAD_PERFORMANCE_ORBIT_DIM    { 40, 12, 0 };
-  constexpr Rgb LAUNCHPAD_PERFORMANCE_STUTTER_BRIGHT { 0, 110, 127 };
-  constexpr Rgb LAUNCHPAD_PERFORMANCE_STUTTER_DIM    { 0, 30, 35 };
-  constexpr Rgb LAUNCHPAD_PERFORMANCE_ERODE_BRIGHT   { 110, 45, 10 };
-  constexpr Rgb LAUNCHPAD_PERFORMANCE_ERODE_DIM      { 30, 12, 3 };
-  constexpr Rgb LAUNCHPAD_PERFORMANCE_SHUFFLE_BRIGHT { 10, 30, 127 };
-  constexpr Rgb LAUNCHPAD_PERFORMANCE_SHUFFLE_DIM    { 3, 8, 35 };
-  constexpr Rgb LAUNCHPAD_PERFORMANCE_SHATTER_BRIGHT { 100, 20, 127 };
-  constexpr Rgb LAUNCHPAD_PERFORMANCE_SHATTER_DIM    { 28, 5, 35 };
-  constexpr Rgb LAUNCHPAD_PERFORMANCE_GATE_BRIGHT    { 115, 100, 0 };
-  constexpr Rgb LAUNCHPAD_PERFORMANCE_GATE_DIM       { 32, 28, 0 };
-  constexpr Rgb LAUNCHPAD_PERFORMANCE_CRUSH_BRIGHT   { 40, 127, 0 };
-  constexpr Rgb LAUNCHPAD_PERFORMANCE_CRUSH_DIM      { 10, 35, 0 };
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_DUCK_BRIGHT{127, 0, 0};
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_DUCK_DIM{35, 0, 0};
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_ORBIT_BRIGHT{127, 40, 0};
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_ORBIT_DIM{40, 12, 0};
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_STUTTER_BRIGHT{0, 110, 127};
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_STUTTER_DIM{0, 30, 35};
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_ERODE_BRIGHT{110, 45, 10};
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_ERODE_DIM{30, 12, 3};
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_SHUFFLE_BRIGHT{10, 30, 127};
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_SHUFFLE_DIM{3, 8, 35};
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_SHATTER_BRIGHT{100, 20, 127};
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_SHATTER_DIM{28, 5, 35};
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_GATE_BRIGHT{115, 100, 0};
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_GATE_DIM{32, 28, 0};
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_CRUSH_BRIGHT{40, 127, 0};
+  constexpr Rgb LAUNCHPAD_PERFORMANCE_CRUSH_DIM{10, 35, 0};
 
   // A performance effect's row colour, bright while held; dark for a row
   // with no effect.
   Rgb performanceColor(PerformanceEffect effect, bool held) {
     switch (effect) {
-    case PerformanceEffect::STUTTER: return held ? LAUNCHPAD_PERFORMANCE_STUTTER_BRIGHT : LAUNCHPAD_PERFORMANCE_STUTTER_DIM;
-    case PerformanceEffect::ERODE: return held ? LAUNCHPAD_PERFORMANCE_ERODE_BRIGHT : LAUNCHPAD_PERFORMANCE_ERODE_DIM;
-    case PerformanceEffect::SHUFFLE: return held ? LAUNCHPAD_PERFORMANCE_SHUFFLE_BRIGHT : LAUNCHPAD_PERFORMANCE_SHUFFLE_DIM;
-    case PerformanceEffect::SHATTER: return held ? LAUNCHPAD_PERFORMANCE_SHATTER_BRIGHT : LAUNCHPAD_PERFORMANCE_SHATTER_DIM;
-    case PerformanceEffect::GATE: return held ? LAUNCHPAD_PERFORMANCE_GATE_BRIGHT : LAUNCHPAD_PERFORMANCE_GATE_DIM;
-    case PerformanceEffect::CRUSH: return held ? LAUNCHPAD_PERFORMANCE_CRUSH_BRIGHT : LAUNCHPAD_PERFORMANCE_CRUSH_DIM;
-    case PerformanceEffect::DUCK: return held ? LAUNCHPAD_PERFORMANCE_DUCK_BRIGHT : LAUNCHPAD_PERFORMANCE_DUCK_DIM;
-    case PerformanceEffect::THROW_A: return held ? LAUNCHPAD_MIXER_SEND_A_BRIGHT : LAUNCHPAD_MIXER_SEND_A_DIM;
-    case PerformanceEffect::THROW_B: return held ? LAUNCHPAD_MIXER_SEND_B_BRIGHT : LAUNCHPAD_MIXER_SEND_B_DIM;
-    case PerformanceEffect::ORBIT: return held ? LAUNCHPAD_PERFORMANCE_ORBIT_BRIGHT : LAUNCHPAD_PERFORMANCE_ORBIT_DIM;
-    case PerformanceEffect::NONE: break;
+      case PerformanceEffect::STUTTER:
+        return held ? LAUNCHPAD_PERFORMANCE_STUTTER_BRIGHT : LAUNCHPAD_PERFORMANCE_STUTTER_DIM;
+      case PerformanceEffect::ERODE:
+        return held ? LAUNCHPAD_PERFORMANCE_ERODE_BRIGHT : LAUNCHPAD_PERFORMANCE_ERODE_DIM;
+      case PerformanceEffect::SHUFFLE:
+        return held ? LAUNCHPAD_PERFORMANCE_SHUFFLE_BRIGHT : LAUNCHPAD_PERFORMANCE_SHUFFLE_DIM;
+      case PerformanceEffect::SHATTER:
+        return held ? LAUNCHPAD_PERFORMANCE_SHATTER_BRIGHT : LAUNCHPAD_PERFORMANCE_SHATTER_DIM;
+      case PerformanceEffect::GATE:
+        return held ? LAUNCHPAD_PERFORMANCE_GATE_BRIGHT : LAUNCHPAD_PERFORMANCE_GATE_DIM;
+      case PerformanceEffect::CRUSH:
+        return held ? LAUNCHPAD_PERFORMANCE_CRUSH_BRIGHT : LAUNCHPAD_PERFORMANCE_CRUSH_DIM;
+      case PerformanceEffect::DUCK:
+        return held ? LAUNCHPAD_PERFORMANCE_DUCK_BRIGHT : LAUNCHPAD_PERFORMANCE_DUCK_DIM;
+      case PerformanceEffect::THROW_A:
+        return held ? LAUNCHPAD_MIXER_SEND_A_BRIGHT : LAUNCHPAD_MIXER_SEND_A_DIM;
+      case PerformanceEffect::THROW_B:
+        return held ? LAUNCHPAD_MIXER_SEND_B_BRIGHT : LAUNCHPAD_MIXER_SEND_B_DIM;
+      case PerformanceEffect::ORBIT:
+        return held ? LAUNCHPAD_PERFORMANCE_ORBIT_BRIGHT : LAUNCHPAD_PERFORMANCE_ORBIT_DIM;
+      case PerformanceEffect::NONE:
+        break;
     }
-    return Rgb{ 0, 0, 0 };
+    return Rgb{0, 0, 0};
   }
 
   // Volume/Pan/Send A/Send B's own fader micro-values (FaderState::
@@ -1314,8 +1325,7 @@ LaunchpadManager::handleMixerFunctionRelease(int device_id, int cc_number, Contr
   state.track_picker_purpose = state.mixer_hold_previous_track_picker_purpose;
 }
 
-void
-LaunchpadManager::handlePerformancePadEvent(const LaunchpadPadEvent & ev, Controller & controller) {
+void LaunchpadManager::handlePerformancePadEvent(const LaunchpadPadEvent & ev, Controller & controller) {
   int x = ev.getX(), y = ev.getY();
   if (x < 0 || x >= 8 || y < 0 || y >= 8) return;
   auto & state = deviceState(ev.getDeviceIndex());
@@ -1342,8 +1352,7 @@ LaunchpadManager::handlePerformancePadEvent(const LaunchpadPadEvent & ev, Contro
   }
 }
 
-void
-LaunchpadManager::releasePerformancePads(DeviceState & state, Controller & controller) {
+void LaunchpadManager::releasePerformancePads(DeviceState & state, Controller & controller) {
   for (size_t i = 0; i < state.performance_held.size(); i++) {
     if (!state.performance_held[i]) continue;
     state.performance_held[i] = false;
@@ -1356,8 +1365,7 @@ LaunchpadManager::releasePerformancePads(DeviceState & state, Controller & contr
   }
 }
 
-bool
-LaunchpadManager::handlePerformanceMasterButton(int device_id, int cc_number, bool is_press, Controller & controller) {
+bool LaunchpadManager::handlePerformanceMasterButton(int device_id, int cc_number, bool is_press, Controller & controller) {
   if (cc_number < 19 || cc_number > 89 || cc_number % 10 != 9) return false;
   auto & state = deviceState(device_id);
   const int y = (cc_number - 19) / 10;
@@ -2933,7 +2941,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // Custom: each right-hand button holds its row's effect on the master, in
   // the row's colour.
   const bool performance_master = state.grid_mode == GridMode::CUSTOM &&
-    !(state.row_up_shift_held || state.duplicate_held || state.delete_held || state.quantize_held);
+                                  !(state.row_up_shift_held || state.duplicate_held || state.delete_held || state.quantize_held);
   if (performance_master) {
     auto master = [&](int y) { return performanceColor(performance::effectForGridRow(y), state.performance_master_held[static_cast<size_t>(y)]); };
     record_arm_button_color = master(0);
