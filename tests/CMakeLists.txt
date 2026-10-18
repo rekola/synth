@@ -32,6 +32,7 @@ add_executable(synth_tests
 	AzimuthSlideTests.cpp
 	SendSetCommandTests.cpp
 	SendLiveUpdateTests.cpp
+	PerformanceTests.cpp
 	SongTests.cpp
 	ScaleTests.cpp
 	ShutdownSignalTests.cpp

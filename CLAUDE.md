@@ -590,9 +590,29 @@ would otherwise resume showing.
   exclusive, purely per-device (`toggleGridMode()`), never tied to
   terminal UI focus - one connected Launchpad can sit in Live View
   while another stays on ordinary note entry. Defaults to `LIVE`.
-  `CUSTOM` is deliberately generic ("customize whatever's assigned to
-  this device") and has nothing built for it today - it shows a blank
-  grid. `SEND_MAIN`/`PAN`/`SEND_A`/`SEND_B`, plus the
+  `CUSTOM` is the performance grid (`handlePerformancePadEvent()`,
+  `playback/PerformanceEffect.h`): columns are Live View's tracks, rows
+  effects (`performance::kGridRows`, the default set, top to bottom: Filter
+  (dark until built), Stutter, Shuffle, Erode, Shatter, Gate, Crush, Duck; Orbit and the Send
+  A/B throws exist off the grid), held to apply, pressure
+  deepening them; the right-hand button at the end of a row holds its effect
+  on the master (`handlePerformanceMasterButton()`, `performance::
+  kMasterTarget`; `SongState::masterPerformance()` runs the sound effects and
+  Duck on the dry mix plus the bus returns, only while one is held). A pad sends `SET_PERFORMANCE`; `SongState::setPerformance()`
+  keeps what is held (never the song) and hands it to `LeafTrackState::
+  setPerformanceTargets()`, which applies it to the voices only, so `sends_`/
+  `position_` - what `TrackInfo` reports and the song mirrors - keep the
+  song's values.
+  The sound effects work on a track's whole rendered block (`state/
+  PerformanceAudio.h`, one per leaf track, applied by `LeafTrackState::
+  applyPerformanceAudio()` before the level is reported, and one on the
+  master): Stutter (`TrackStutter`) loops what it captured from the next row;
+  Shuffle (`TrackShuffle`) records up to a bar from the next row and plays
+  slices of it in a random order; Erode and Shatter are `TrackGrains` with the
+  `grains::kErode`/`kShatter` presets, grains of the recent past with silence
+  between them, each turned about the vertical; Gate (`TrackGate`) follows
+  the bar grid (`PerformanceGrid::bar_phase`); Crush (`TrackCrush`) holds
+  samples and drops bits. `SEND_MAIN`/`PAN`/`SEND_A`/`SEND_B`, plus the
   track-picker overlay's three purposes (Stop Clip/Mute/Solo - see its
   own bullet below), together form Live's own **mixer submode radio
   group** (`DeviceState::mixer_mode`, off by default) - see the

@@ -1138,6 +1138,11 @@ Controller::setBusEffectKind(int slot, BusEffectKind kind) {
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_BUS_EFFECT, getActiveBufferName(), slot, static_cast<int>(kind)));
 }
 
+void Controller::setPerformanceEffect(int track_id, PerformanceEffect effect, int pressure) {
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_PERFORMANCE, getActiveBufferName(), track_id,
+                                                                 static_cast<int>(effect), pressure));
+}
+
 void
 Controller::setTrackAzimuth(int track_id, float value) {
   auto song = getCurrentSong();
