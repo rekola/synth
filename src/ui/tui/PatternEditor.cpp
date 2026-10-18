@@ -1355,7 +1355,8 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   // Smooth scrolling: the shown top trails the logical one by an offset
   // that eases to zero; a jump too far to follow just lands.
   {
-    bool smooth = getPlane().smoothScroll();
+    // Live View columns each have their own position, so they cannot share one offset.
+    bool smooth = getPlane().smoothScroll() && !isLiveMode();
     auto now = std::chrono::steady_clock::now();
     double seconds = std::min(0.1, std::chrono::duration<double>(now - row_anim_tick_).count());
     row_anim_tick_ = now;

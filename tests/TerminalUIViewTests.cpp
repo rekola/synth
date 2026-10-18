@@ -606,10 +606,12 @@ TEST(terminal_ui_smooth_scroll_moves_the_pattern_editor_rows_under_their_heading
       CHECK(*s > 0.0 && *s < 1.0);
       // What shifts is the rows' plane: no heading text in it.
       for (const auto & layer : f.terminal.info().backdrops) {
-        if (!layer.scroll || layer.scroll->shift_rows <= 0) continue;
+        if (!layer.scroll) continue;
+        const auto & content = *layer.scroll;
+        if (content.shift_rows <= 0) continue;
         std::string text;
-        for (int r = 0; r < layer.scroll->cells.rows(); r++) {
-          for (int c = 0; c < layer.scroll->cells.cols(); c++) text += layer.scroll->cells.at(r, c).text;
+        for (int r = 0; r < content.cells.rows(); r++) {
+          for (int c = 0; c < content.cells.cols(); c++) text += content.cells.at(r, c).text;
         }
         CHECK(text.find("Pizzicato") == std::string::npos);
         CHECK(text.find("T0") == std::string::npos);
@@ -623,4 +625,22 @@ TEST(terminal_ui_smooth_scroll_moves_the_pattern_editor_rows_under_their_heading
     f.ui->step();
   }
   CHECK(!shift());  // settled on a whole row
+}
+
+// Live View's columns each have a position of their own, so no shared offset
+// may move them: none of them shows a shifted layer.
+TEST(terminal_ui_smooth_scroll_leaves_live_view_pattern_columns_alone) {
+  cellui::DisplayInfo display;
+  display.smooth_scroll = true;
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, display);
+  for (int i = 0; i < 6 && f.terminal.info().focus != "pattern-editor"; i++) f.otherWindow();
+  CHECK(f.terminal.info().focus == "pattern-editor");
+  for (int i = 0; i < 150; i++) {
+    f.press(cellui::Key::Down);
+    std::this_thread::sleep_for(std::chrono::milliseconds(8));
+    f.ui->step();
+    for (const auto & layer : f.terminal.info().backdrops) {
+      if (layer.scroll && layer.scroll->shift_rows > 0 && layer.scroll->cols > 60) CHECK(false);
+    }
+  }
 }
