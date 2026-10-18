@@ -167,6 +167,10 @@ UI::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
     launchpad_manager_->handleLivePadEvent(ev, getController());
     return;
   }
+  if (launchpad_manager_ && launchpad_manager_->gridMode(ev.getDeviceIndex()) == LaunchpadManager::GridMode::CUSTOM) {
+    launchpad_manager_->handlePerformancePadEvent(ev, getController());
+    return;
+  }
   if (!launchpad_manager_) return;
   // handlePadEvent() itself indexes song.getPlayableTrackIds() with this
   // - see indexOfTrack()'s own comment for why a real index, not the bare
@@ -251,6 +255,10 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
     launchpad_manager_->handleArrowRelease(device_id, 92);
     return;
   }
+
+  // Custom: the right column holds its row's performance effect on the
+  // master, press and release.
+  if (launchpad_manager_->handlePerformanceMasterButton(device_id, ev.getCCNumber(), ev.getKind() == LaunchpadButtonEvent::PRESS, getController())) return;
 
   // The mixer radio group's own ten CC numbers (Record Arm/Volume/Pan/
   // Send A/Send B/Stop Clip/Mute/Solo, Pro MK3's Mute/Solo twins -

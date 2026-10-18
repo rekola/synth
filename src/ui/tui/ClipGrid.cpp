@@ -82,6 +82,8 @@ constexpr int kHeaderFlagsWidth = 5;
 }
 
 ClipGrid::ClipGrid(UIPlane & parent) : UIElement(parent) {
+  getPlane().setName("clip-grid");
+  getPlane().setMouseCursor(cellui::MouseCursor::POINTER);
   // Mute/Solo apply to the cursor's own column (a per-track state, not
   // tied to any particular row), same as the 'l' loop toggle stays a
   // manual offerInput() branch below rather than a command - there's
@@ -376,7 +378,7 @@ ClipGrid::startTrackRename(const Song & song, const std::vector<int> & track_ids
 }
 
 void
-ClipGrid::activateCell(const Song & song, const std::vector<int> & track_ids, bool edit_sends) {
+ClipGrid::activateCell(const Song & song, const std::vector<int> & track_ids) {
   auto num_tracks = static_cast<int>(track_ids.size());
   // A clip row acts exactly like a Launchpad Live View pad press
   // landing on that same cell (ClipPlayer::triggerClip(), via
@@ -390,57 +392,77 @@ ClipGrid::activateCell(const Song & song, const std::vector<int> & track_ids, bo
     // edits the master's Send Main (the song's volume), the last row
     // stops every track.
     if (kind == RowKind::CLIP && scene_callback_) scene_callback_(physicalFor(cursor_row_));
-    else if (kind == RowKind::SENDS && edit_sends) startSendEdit(song.getMasterTrack().getInternalId(), cursor_send_);
+    else if (kind == RowKind::SENDS) startSendEdit(song.getMasterTrack().getInternalId(), cursor_send_);
     else if (kind == RowKind::DIRECTION && stop_all_callback_) stop_all_callback_();
     return;
   }
   if (cursor_track_index_ < 0 || cursor_track_index_ > num_tracks) return;
   if (kind == RowKind::SENDS) {
-    if (edit_sends) startSendEdit(track_ids[static_cast<size_t>(cursor_track_index_)], cursor_send_);
+    startSendEdit(track_ids[static_cast<size_t>(cursor_track_index_)], cursor_send_);
   } else if (kind == RowKind::CLIP && trigger_callback_) {
     trigger_callback_(track_ids[static_cast<size_t>(cursor_track_index_)], physicalFor(cursor_row_));
   }
   // DIRECTION: read-only for now - nothing to do.
 }
 
+ClipGrid::Pressed
+ClipGrid::hitTest(int screen_y, int screen_x, int num_tracks) const {
+  Pressed hit;
+  auto [ pos_y, pos_x ] = getPosition();
+  auto [ rows, cols ] = getDim();
+  auto y = screen_y - pos_y, x = screen_x - pos_x;
+  if (y < 0 || y >= rows || x < 0 || x >= cols) return hit;
+  auto column = scroll_col_ + x / (kColWidth + 1);
+  if (x % (kColWidth + 1) == kColWidth || column > num_tracks) return hit; // a divider, or past the last column
+
+  auto clip_rows = clipRowCount();
+  hit.column = column;
+  if (y == 0) {
+    hit.physical = -1;
+    return hit;
+  }
+  auto physical = scroll_row_ + y - 1;
+  if (physical < clip_rows) hit.logical_row = physical + 1;
+  else if (physical == clip_rows + kSendsValue) hit.logical_row = clip_rows + 1;
+  else if (physical == clip_rows + kDirectionValue) hit.logical_row = clip_rows + 2;
+  if (hit.logical_row > 0) hit.physical = physical;
+  if (physical == clip_rows + kSendsValue) hit.send = std::clamp((x % (kColWidth + 1) - kSendX) / kSendWidth, 0, 2);
+  return hit;
+}
+
 bool
 ClipGrid::handleMouse(const cellui::Input & input) {
-  if (input.getKind() == InputEvent::Kind::RELEASE) {
-    mouse_down_ = false;
-    return true;
-  }
   const Song & song = getController().getSong(); // see offerInput()'s own comment on why const
   auto track_ids = song.getPlayableTrackIds();
   auto num_tracks = static_cast<int>(track_ids.size());
-  auto [ pos_y, pos_x ] = getPosition();
-  auto [ rows, cols ] = getDim();
-  auto y = input.getY() - pos_y, x = input.getX() - pos_x;
-  if (y < 0 || y >= rows || x < 0 || x >= cols) return false;
+  auto target = hitTest(input.getY(), input.getX(), num_tracks);
 
-  // A held button repeating its press as the mouse moves isn't a new click.
-  bool fresh_press = !mouse_down_;
-  mouse_down_ = true;
-
-  auto column = scroll_col_ + x / (kColWidth + 1);
-  if (x % (kColWidth + 1) == kColWidth || column > num_tracks) return true; // a divider, or past the last column
-
-  auto clip_rows = clipRowCount();
-  int logical_row = 0;
-  if (y > 0) {
-    auto physical = scroll_row_ + y - 1;
-    if (physical < clip_rows) logical_row = physical + 1;
-    else if (physical == clip_rows + kSendsValue) logical_row = clip_rows + 1;
-    else if (physical == clip_rows + kDirectionValue) logical_row = clip_rows + 2;
+  // A press, and each drag while held (another press), shows the cell under
+  // the mouse as pressed; the release picks it.
+  if (input.getKind() != InputEvent::Kind::RELEASE) {
+    auto [ pos_y, pos_x ] = getPosition();
+    auto [ rows, cols ] = getDim();
+    auto y = input.getY() - pos_y, x = input.getX() - pos_x;
+    if (y < 0 || y >= rows || x < 0 || x >= cols) return false;
+    mouse_down_ = true;
+    pressed_ = target;
+    return true;
   }
+  auto pressed = pressed_;
+  mouse_down_ = false;
+  pressed_ = Pressed();
+  // Only what was shown pressed - a terminal that doesn't report drags
+  // never moved it here.
+  if (target.column < 0 || target != pressed) return true;
 
-  cursor_track_index_ = column;
-  if (logical_row == 0) return true; // the header, or a label/divider row: only the track is picked
-  cursor_send_ = std::clamp((x % (kColWidth + 1) - 5) / 4, 0, 2); // meaningful on the Sends row only
-  cursor_row_ = logical_row;
+  cursor_track_index_ = target.column;
+  if (target.logical_row == 0) return true; // the header, or a label/divider row: only the track is picked
+  cursor_send_ = std::max(0, target.send); // meaningful on the Sends row only
+  cursor_row_ = target.logical_row;
   view_detached_ = false;
-  if (column < num_tracks) getController().getSong().setCurrentTrackId(track_ids[static_cast<size_t>(column)]); // non-const, see offerInput()'s own `song` comment
+  if (target.column < num_tracks) getController().getSong().setCurrentTrackId(track_ids[static_cast<size_t>(target.column)]); // non-const, see offerInput()'s own `song` comment
 
-  if (fresh_press) activateCell(song, track_ids, false);
+  activateCell(song, track_ids);
   return true;
 }
 
@@ -530,7 +552,7 @@ ClipGrid::offerInput(const cellui::Input & input) {
     }
     return true;
   } else if (input.getId() == Key::Enter) {
-    activateCell(song, track_ids, true);
+    activateCell(song, track_ids);
     return true;
   }
   else return false;
@@ -636,10 +658,12 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   if (!refresh && !editor_redraw && !clip_states_changed && !meters_changed && !fading && new_version == current_song_version_ &&
       cursor_track_index_ == current_cursor_track_index_ && cursor_row_ == current_cursor_row_ &&
       scroll_col_ == current_scroll_col_ && scroll_row_ == current_scroll_row_ &&
-      focused == current_focused_ && focused_clip_id == current_focused_clip_id_) {
+      focused == current_focused_ && focused_clip_id == current_focused_clip_id_ && pressed_ == current_pressed_ &&
+      pressed_.physical == current_pressed_.physical) {
     return false;
   }
   current_focused_clip_id_ = focused_clip_id;
+  current_pressed_ = pressed_;
   current_song_version_ = new_version;
   current_cursor_track_index_ = cursor_track_index_;
   current_cursor_row_ = cursor_row_;
@@ -700,8 +724,13 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     // comment) - never a real physical_row inside the loop below, so this
     // is the header's one and only cursor check.
     bool header_is_cursor = focus_ > 0.0f && track_index == cursor_track_index_ && cursor_physical == -1;
-    setFgColor(header_is_cursor ? styles.window_accent_fg_color.blend(focus_, styles.highlight_fg_color) : styles.window_accent_fg_color);
-    setBgColor(header_is_cursor ? styles.heading_bg_color.blend(focus_, styles.highlight_bg_color) : styles.heading_bg_color);
+    bool header_pressed = isPressed(track_index, -1);
+    setFgColor(header_pressed ? styles.highlight_fg_color
+               : header_is_cursor ? styles.window_accent_fg_color.blend(focus_, styles.highlight_fg_color)
+                                  : styles.window_accent_fg_color);
+    setBgColor(header_pressed ? styles.row_pressed_bg_color
+               : header_is_cursor ? styles.heading_bg_color.blend(focus_, styles.highlight_bg_color)
+                                  : styles.heading_bg_color);
     putstr(0, x, string(static_cast<size_t>(kColWidth), ' ')); // opaque header background first, across the whole column
     auto prefix = "T" + std::to_string(structure.getBaselineInfo(track_id).color_ordinal_);
     auto friendly_name = (leaf && !leaf->getName().empty()) ? " " + leaf->getName() : string();
@@ -755,7 +784,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
           setItalic(true);
           putstr(y, x, " dB  "); // under "Sends" above it
           setItalic(false);
-          putSendValues(y, x, sends, is_cursor_cell ? cursor_send_ : -1, styles);
+          putSendValues(y, x, sends, is_cursor_cell ? cursor_send_ : -1, styles, pressedSend(track_index, physical_row));
         }
         continue;
       }
@@ -864,6 +893,10 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
           row_fg = row_fg.blend(focus_, styles.highlight_fg_color);
           row_bg = row_bg.blend(0.5f * focus_, styles.cursor_tint_color);
         }
+        if (isPressed(track_index, physical_row)) {
+          row_fg = styles.highlight_fg_color;
+          row_bg = styles.row_pressed_bg_color;
+        }
         // A clip stands on the grid like a card.
         if (has_real_clip) setLift(styles.theme.elevation.card);
         setFgColor(row_fg);
@@ -904,6 +937,10 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
       if (is_cursor_cell) {
         fg = fg.blend(focus_, styles.highlight_fg_color);
         bg = bg.blend(focus_, styles.highlight_bg_color);
+      }
+      if (isPressed(track_index, physical_row)) {
+        fg = styles.highlight_fg_color;
+        bg = styles.row_pressed_bg_color;
       }
       setFgColor(fg);
       setBgColor(bg);
@@ -960,6 +997,10 @@ ClipGrid::renderMasterColumn(const StyleProvider & styles, int x, int rows, bool
       fg = fg.blend(focus_, styles.highlight_fg_color);
       bg = bg.blend(focus_, styles.highlight_bg_color);
     }
+    if (isPressed(num_tracks, physical_row)) {
+      fg = styles.highlight_fg_color;
+      bg = styles.row_pressed_bg_color;
+    }
 
     if (physical_row < clip_rows) {
       // A scene slot: launches clip row k on every track, showing the
@@ -997,7 +1038,7 @@ ClipGrid::renderMasterColumn(const StyleProvider & styles, int x, int rows, bool
       setItalic(true);
       putstr(y, x, " dB  ");
       setItalic(false);
-      putSendValues(y, x, master.getSends(), is_cursor_cell ? cursor_send_ : -1, styles);
+      putSendValues(y, x, master.getSends(), is_cursor_cell ? cursor_send_ : -1, styles, pressedSend(num_tracks, physical_row));
       continue;
     }
     std::string text;
@@ -1032,13 +1073,14 @@ ClipGrid::putDivider(const StyleProvider & styles, int y, int x, bool header) {
 }
 
 void
-ClipGrid::putSendValues(int y, int x, const SendLevels & sends, int highlighted, const StyleProvider & styles) {
+ClipGrid::putSendValues(int y, int x, const SendLevels & sends, int highlighted, const StyleProvider & styles,
+                        int pressed) {
   float values[3] = { sends.main, sends.a, sends.b };
   for (int i = 0; i < 3; i++) {
     bool on = i == highlighted;
-    setFgColor(on ? styles.highlight_fg_color : styles.window_fg_color);
-    setBgColor(on ? styles.highlight_bg_color : styles.grid_bg_color);
-    putstr(y, x + 5 + i * 4, fmt::format("{:>4.0f}", sendDb(values[i])));
+    setFgColor(on || i == pressed ? styles.highlight_fg_color : styles.window_fg_color);
+    setBgColor(i == pressed ? styles.row_pressed_bg_color : on ? styles.highlight_bg_color : styles.grid_bg_color);
+    putstr(y, x + kSendX + i * kSendWidth, fmt::format("{:>4.0f}", sendDb(values[i])));
   }
 }
 
@@ -1055,8 +1097,8 @@ ClipGrid::startSendEdit(int track_id, int send) {
   // The one value under the cursor (M, A or B).
   InlineEditor::Field field;
   field.row = row;
-  field.col = column * (kColWidth + 1) + 5 + send * 4;
-  field.width = 4;
+  field.col = column * (kColWidth + 1) + kSendX + send * kSendWidth;
+  field.width = kSendWidth;
     // Empty: the typed number is the new value, Enter on nothing leaves it.
   inline_editor_.open(field, [this, track_id, send](std::string text) {
     char * end = nullptr;

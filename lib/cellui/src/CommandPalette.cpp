@@ -105,6 +105,7 @@ void CommandPalette::show(UIPlane & parent, int screen_rows, int screen_cols) {
 
   if (!plane_) {
     plane_ = parent.createChild();
+    plane_->setMouseCursor(MouseCursor::DEFAULT);
     // Left alone, the two rows below the list show the display's own
     // background, like the status line they replace.
     plane_->makeTransparent();

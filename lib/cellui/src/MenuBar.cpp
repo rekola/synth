@@ -106,6 +106,7 @@ void MenuBar::draw() {
   if (!panel_) {
     panel_ = plane_.createChild();
     panel_->setName("menu-section");
+    panel_->setMouseCursor(MouseCursor::POINTER);
     panel_->setElevation(panel_->getStyles().theme.elevation.overlay);
   }
   auto [bar_y, bar_x] = plane_.getPosition();

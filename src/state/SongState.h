@@ -15,6 +15,8 @@
 #include "MemoryParameterSource.h"
 #include "../model/SongStructure.h"
 #include "../util/constants.h"
+#include "../playback/PerformanceEffect.h"
+#include "PerformanceAudio.h"
 
 #include <algorithm>
 #include <cmath>
@@ -273,6 +275,7 @@ class SongState : public TrackState {
     track_snapshot.reserve(content.tracks->master->getChildren().size());
     for (auto & track : content.tracks->master->getChildren()) track_snapshot.push_back(track.get());
     for (auto * track : track_snapshot) track->getState(*this, song_structure_);
+    pushPerformance();
 
     // Set (never merely assigned - see below) the moment the transport
     // (re)starts (isPlaying() flips false -> true), and stays set across
@@ -691,7 +694,11 @@ class SongState : public TrackState {
     // The master's Send Main scales the dry mix, not the aux sends feeding
     // the send bus - its returns have their own levels (below).
     scaleRegularChannels(data, master_sends_.main);
-    mixer.accumulate(data);
+    // With a performance effect held on the master, the dry mix and the bus
+    // returns are summed here and go through it together; otherwise each
+    // goes straight to the mixer.
+    const bool master_effects = masterPerformanceActive();
+    if (!master_effects) mixer.accumulate(data);
 
     if (auto * a = data.getChannel(Channel::AuxA)) {
       auto dst = aux_a_sum_.getChannelData(0);
@@ -719,10 +726,31 @@ class SongState : public TrackState {
       // reverb tail/chorus modulation stay continuous across blocks (see
       // SendBusProcessor.h).
       send_bus_.process(aux_a_sum_, aux_b_sum_, frames, master_sends_.a, master_sends_.b);
-      if (send_bus_.isAudible()) mixer.accumulate(send_bus_.getBusAmbisonic());
+      if (send_bus_.isAudible() && !master_effects) mixer.accumulate(send_bus_.getBusAmbisonic());
     }
 
-    measureMasterOutput(data, frames);
+    if (master_effects) {
+      const bool bus = getChannelConfiguration().isAmbisonic() && send_bus_.isAudible();
+      const int regular = getChannelConfiguration().numberOfChannels();
+      AudioBuffer mix(data.hasChannel(Channel::Main) || bus ? regular : 0, false, false, frames);
+      mix.zero();
+      for (int c = 0; c < mix.regularChannelCount(); c++) {
+        float * dst = mix.getChannelData(c);
+        if (data.hasChannel(Channel::Main)) {
+          const float * src = data.getChannelData(c);
+          for (int i = 0; i < frames; i++) dst[i] += src[i];
+        }
+        if (bus) {
+          const float * src = send_bus_.getBusAmbisonic().getChannelData(c);
+          for (int i = 0; i < frames; i++) dst[i] += src[i];
+        }
+      }
+      masterPerformance(mix);
+      mixer.accumulate(mix);
+      measureMasterOutput(mix, frames, false);
+    } else {
+      measureMasterOutput(data, frames, true);
+    }
     render_context_.updateFrameOffset(-frames);
   }
 
@@ -823,6 +851,61 @@ class SongState : public TrackState {
   }
 
   struct LastNote { int column; Tuning tuning; float velocity; int note_value; int row; NoteOverride note_override; };
+
+  // What setPerformance() holds on a track.
+  struct HeldPerformance {
+    float duck_gain = 1.0f;
+    float throw_a = 0.0f, throw_b = 0.0f;
+    float orbit_turns_per_bar = 0.0f;
+    PerformanceAudioTargets audio;
+    bool isIdle() const { return duck_gain == 1.0f && throw_a == 0.0f && throw_b == 0.0f && orbit_turns_per_bar == 0.0f && audio.isIdle(); }
+  };
+
+  // Hands every held performance effect to its track, which glides to it;
+  // a released one is handed over once more, as idle, and then forgotten.
+  void pushPerformance() {
+    if (performance_.empty()) return;
+    const int row_frames = getChannelConfiguration().getSampleInterval(tempo_);
+    const BarGrid bars = barsAt(absolute_pos_);
+    PerformanceGrid grid;
+    grid.sample_rate = getChannelConfiguration().getAudioOutSampleRate();
+    grid.regular_channels = getChannelConfiguration().numberOfChannels();
+    grid.row_frames = row_frames;
+    grid.bar_frames = bars.barRows() * row_frames;
+    grid.bar_phase = isPlaying() ? bars.rowInBar(absolute_pos_) * row_frames + sample_pos_ : -1;
+    for (auto it = performance_.begin(); it != performance_.end();) {
+      auto & held = it->second;
+      if (it->first == performance::kMasterTarget) {
+        master_duck_target_ = held.duck_gain;
+        master_audio_.update(held.audio, grid);
+      } else if (auto * track_state = dynamic_cast<LeafTrackState *>(getChildByInternalId(it->first))) {
+        float orbit_rate = grid.bar_frames > 0 ? held.orbit_turns_per_bar * 360.0f / static_cast<float>(grid.bar_frames) : 0.0f;
+        track_state->setPerformanceTargets(held.duck_gain, held.throw_a, held.throw_b, orbit_rate);
+        track_state->updatePerformanceAudio(held.audio, grid);
+      }
+      if (held.isIdle())
+        it = performance_.erase(it);
+      else
+        ++it;
+    }
+  }
+
+  // The master's effects on the whole mix: the sound effects
+  // (PerformanceAudio) and Duck.
+  bool masterPerformanceActive() const {
+    return !master_audio_.isOff() || master_duck_ != 1.0f || master_duck_target_ != 1.0f;
+  }
+  // The master's effects on the whole mix (regular channels only).
+  void masterPerformance(AudioBuffer & mix) {
+    master_audio_.process(mix);
+    if (master_duck_ == 1.0f && master_duck_target_ == 1.0f) return;
+    const float step = 1.0f / (performance::kRampSeconds * static_cast<float>(getChannelConfiguration().getAudioOutSampleRate()));
+    const int frames = mix.numberOfFrames();
+    for (int i = 0; i < frames; i++) {
+      master_duck_ = master_duck_ < master_duck_target_ ? std::min(master_duck_target_, master_duck_ + step) : std::max(master_duck_target_, master_duck_ - step);
+      for (int c = 0; c < mix.regularChannelCount(); c++) mix.getChannelData(c)[i] *= master_duck_;
+    }
+  }
 
   // 0Rxy (Command::isRetrigger()) - re-fires every note still playing on
   // the track every `interval_ticks` ticks across the row starting at
@@ -931,6 +1014,60 @@ class SongState : public TrackState {
   // The bars in force at `row` on this thread.
   BarGrid barsAt(int row) const { return ::barsAt(song_signature_, running_bars_, row); }
 
+  // A performance effect (PerformanceEffect.h) held on a track, at
+  // `pressure` (0-127), or released (performance::kRelease). Never touches
+  // the song: what is held lives here until it is released.
+  void setPerformance(int track_id, PerformanceEffect effect, int pressure) {
+    bool release = pressure < 0;
+    auto & held = performance_[track_id];
+    switch (effect) {
+      case PerformanceEffect::DUCK:
+        held.duck_gain = release ? 1.0f : performance::duckGain(pressure);
+        break;
+      case PerformanceEffect::THROW_A:
+        held.throw_a = release ? 0.0f : 1.0f;
+        break;
+      case PerformanceEffect::THROW_B:
+        held.throw_b = release ? 0.0f : 1.0f;
+        break;
+      case PerformanceEffect::ORBIT:
+        held.orbit_turns_per_bar = release ? 0.0f : performance::orbitTurnsPerBar(pressure);
+        break;
+      case PerformanceEffect::STUTTER:
+        holdRecording(held.audio.stutter_rows, held.audio.stutter_start, held.audio.stutter_delay, release ? 0.0f : performance::stutterSliceRows(pressure));
+        break;
+      case PerformanceEffect::SHUFFLE:
+        holdRecording(held.audio.shuffle_rows, held.audio.shuffle_start, held.audio.shuffle_delay, release ? 0.0f : performance::shuffleSliceRows(pressure));
+        break;
+      case PerformanceEffect::ERODE:
+        held.audio.erode = release ? -1.0f : performance::depth(pressure);
+        break;
+      case PerformanceEffect::SHATTER:
+        held.audio.shatter = release ? -1.0f : performance::depth(pressure);
+        break;
+      case PerformanceEffect::CRUSH:
+        held.audio.crush = release ? -1.0f : performance::depth(pressure);
+        break;
+      case PerformanceEffect::GATE:
+        held.audio.gate_rows = release ? 0.0f : performance::gatePeriodRows(pressure);
+        break;
+      case PerformanceEffect::NONE:
+        break;
+    }
+  }
+
+  // Stutter and Shuffle: `rows` slices (0 released). A new one starts
+  // recording on the next row, so its slices keep to the grid; with the
+  // transport stopped there is no grid to wait for.
+  void holdRecording(float & held_rows, bool & start, int & delay, float rows) {
+    if (rows > 0.0f && held_rows == 0.0f) {
+      start = true;
+      delay = isPlaying() && getSamplePos() != 0 ? samplesUntilNextRow() : 0;
+    }
+    if (rows == 0.0f) start = false; // released before it started
+    held_rows = rows;
+  }
+
   // Stops every launched clip now, releasing its voices, and forgets
   // everything queued - on a transport stop too (seq -1 for that).
   void silenceLive(int seq) {
@@ -964,6 +1101,11 @@ private:
   int position_edit_seq_ = 0;
   // The notes still playing per track (last note-on per column), what 0Rxy retriggers.
   std::unordered_map<int, std::map<int, LastNote>> last_notes_; // track -> note column
+  // Performance effects held per track (setPerformance()).
+  std::unordered_map<int, HeldPerformance> performance_;
+  // Performance effects held on the master (masterPerformance()).
+  PerformanceAudio master_audio_{0x6d617374u};
+  float master_duck_ = 1.0f, master_duck_target_ = 1.0f;
   bool pending_break_ = false; // ZBxx seen on the row currently completing
   int pending_break_row_ = 0;
   RenderContext render_context_;
@@ -987,9 +1129,10 @@ private:
 
   // The master's output on W: the dry mix plus, when there is one, the
   // send bus's returns - see getMasterMeterValue().
-  void measureMasterOutput(const AudioBuffer & dry, int frames) {
+  // `with_bus`: add the bus returns, which `dry` doesn't hold yet.
+  void measureMasterOutput(const AudioBuffer & dry, int frames, bool with_bus) {
     const float * w_dry = dry.getChannel(Channel::Main);
-    const float * w_bus = getChannelConfiguration().isAmbisonic() ? send_bus_.getBusAmbisonic().getChannelData(0) : nullptr;
+    const float * w_bus = with_bus && getChannelConfiguration().isAmbisonic() ? send_bus_.getBusAmbisonic().getChannelData(0) : nullptr;
     float sum_squares = 0.0f;
     bool clipping = false;
     for (int i = 0; i < frames; i++) {

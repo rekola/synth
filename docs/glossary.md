@@ -98,6 +98,11 @@ Partch's otonalities and utonalities are six-note chords over the odd numbers
 1, 3, 5, 7, 9 and 11; these scales use 15 and 21 as well, and are the
 application's own.
 
+**Performance effect**
+An effect held on a track from the Launchpad's Custom grid (stutter,
+shuffle, erode, shatter, gate, crush, duck, a send throw, orbit): it lasts while the pad is held and never changes the song. See
+launchpad.md.
+
 **Rhythm**
 A pre-written drum pattern in the Library, such as Waltz, Funk or Bossa
 Nova. It is content (which drum hits fall on which rows), where swing is

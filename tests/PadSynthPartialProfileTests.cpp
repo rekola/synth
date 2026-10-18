@@ -158,6 +158,30 @@ TEST(placed_partial_energy_is_independent_of_bandwidth_wide_branch) {
   CHECK(std::fabs(e_a - e_b) / e_a < 0.01f);
 }
 
+TEST(partial_under_a_bin_and_a_half_goes_into_one_bin_with_the_same_energy) {
+  ProfileParams pp;
+  pp.type = ProfileType::Gaussian;
+  pp.beta = 6.258f;
+  auto profile = buildProfile(pp);
+  float alpha = computeProfileAlpha(profile, true);
+
+  int S = 1 << 16;
+  float bin_hz = 22050.0f / static_cast<float>(S);
+  std::vector<float> narrow(static_cast<size_t>(S), 0.0f);
+  std::vector<float> wide(static_cast<size_t>(S), 0.0f);
+  // 0.3 bins wide, centred 100.4 bins up: between two bins, nearer 100.
+  float centre_hz = 100.4f * bin_hz;
+  float cents = 1200.0f * std::log2(1.0f + 0.3f * alpha * bin_hz / centre_hz);
+  placePartial(narrow, 1.0f, centre_hz, cents, alpha, profile, 44100.0f);
+  placePartial(wide, 1.0f, 1000.0f, /* bandwidth_cents */ 90.0f, alpha, profile, 44100.0f);
+
+  int nonzero = 0;
+  for (float v : narrow) nonzero += v != 0.0f;
+  CHECK(nonzero == 1);
+  CHECK(narrow[100] > 0.0f);
+  CHECK(std::fabs(spectrumEnergy(narrow) - spectrumEnergy(wide)) / spectrumEnergy(wide) < 0.01f);
+}
+
 TEST(unsupported_position_type_is_rejected) {
   PositionParams p;
   p.type = static_cast<PositionType>(3); // past Stretch, the last valid value

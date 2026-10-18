@@ -657,6 +657,38 @@ TEST(bufferplane_reports_the_areas_above_the_base) {
   CHECK(root.takeElevations().empty());
 }
 
+// A plane asks for a pointer shape over its rectangle; a plane that does not
+// shows what is below it, and a later plane wins where they overlap.
+TEST(plane_mouse_cursor_covers_its_rectangle_and_the_last_plane_wins) {
+  CellBuffer buffer(10, 20);
+  StyleProvider styles;
+  BufferPlane root(buffer, styles);
+  auto grid = root.createChild();
+  grid->resize(6, 10);
+  grid->move(1, 1);
+  grid->setMouseCursor(MouseCursor::POINTER);
+  auto plain = root.createChild();
+  plain->resize(2, 2);
+  plain->move(2, 2);  // asks for nothing: the grid's shape shows through
+  auto dialog = root.createChild();
+  dialog->resize(2, 3);
+  dialog->move(4, 4);
+  dialog->setMouseCursor(MouseCursor::DEFAULT);
+  root.refresh();
+  auto areas = root.takeMouseCursors();
+  CHECK(areas.size() == 2);
+  CHECK(mouseCursorAt(areas, 0, 0) == MouseCursor::DEFAULT);
+  CHECK(mouseCursorAt(areas, 1, 1) == MouseCursor::POINTER);
+  CHECK(mouseCursorAt(areas, 2, 2) == MouseCursor::POINTER);
+  CHECK(mouseCursorAt(areas, 4, 5) == MouseCursor::DEFAULT);
+  CHECK(mouseCursorAt(areas, 6, 5) == MouseCursor::POINTER);
+  CHECK(mouseCursorAt(areas, 7, 5) == MouseCursor::DEFAULT);
+  CHECK(root.describe().children[0].mouse_cursor == MouseCursor::POINTER);
+  grid->setVisible(false);
+  root.refresh();
+  CHECK(root.takeMouseCursors().size() == 1);
+}
+
 // Lifted cells stand above their plane: each run in a row is a piece, joined
 // to the run above only when asked, and covered cells cast nothing.
 TEST(bufferplane_reports_lifted_cells_as_pieces) {

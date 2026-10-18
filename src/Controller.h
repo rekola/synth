@@ -8,6 +8,7 @@
 #include "instruments/InstrumentProvider.h"
 #include "playback/EventQueue.h"
 #include "playback/ClipPlayer.h"
+#include "playback/PerformanceEffect.h"
 #include "state/PlaybackInfo.h"
 #include "ambisonic/ChannelConfiguration.h"
 #include "ambisonic/MixerType.h"
@@ -799,6 +800,10 @@ class Controller {
   void setTrackSendB(int track_id, float value);
   void setTrackSendMain(int track_id, float value);
   void setTrackAzimuth(int track_id, float value);
+  // Holds a performance effect on a track, at `pressure` (0-127), or
+  // releases it (performance::kRelease). Only the audio thread's playback
+  // changes; the song is untouched.
+  void setPerformanceEffect(int track_id, PerformanceEffect effect, int pressure);
 
   // The server-side-glide counterpart of the three instant setters above -
   // value/duration_seconds in the same dB/wall-clock-seconds units

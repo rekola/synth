@@ -9,7 +9,10 @@ void Scrim::show(UIPlane & parent, int rows, int cols, const Backdrop & backdrop
     close();
     return;
   }
-  if (!plane_) plane_ = parent.createChild();
+  if (!plane_) {
+    plane_ = parent.createChild();
+    plane_->setMouseCursor(MouseCursor::DEFAULT);
+  }
   plane_->setName("scrim");
   // Under the modal dialog it is drawn for, which floats at the same height
   // and is raised above it.

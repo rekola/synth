@@ -59,6 +59,7 @@ void ChoiceDialog::show(UIPlane & parent, int screen_rows, int screen_cols) {
 
   if (!plane_) {
     plane_ = parent.createChild();
+    plane_->setMouseCursor(MouseCursor::DEFAULT);
     plane_->setElevation(elevation_.value_or(plane_->getStyles().theme.elevation.overlay));
   }
   plane_->resize(rows_, width_);
@@ -125,6 +126,7 @@ void ChoiceDialog::show(UIPlane & parent, int screen_rows, int screen_cols) {
 
   if (!list_plane_) {
     list_plane_ = parent.createChild();
+    list_plane_->setMouseCursor(MouseCursor::POINTER);
     // Over the box, at its height.
     list_plane_->setElevation(plane_->elevation());
   }

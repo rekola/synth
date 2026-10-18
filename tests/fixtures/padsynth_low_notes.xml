@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Low and middle register notes of the presets the remap and postprocess touch, one after another. -->
+<song temperament="31edo" tempo="160" timeSignature="1/4" volume="1.0">
+  <instruments>
+    <envelope id="i1" attack="0.02" hold="0" decay="1" sustain="0.8" release="0.3">
+      <padsynth preset="choir-pad4"/>
+    </envelope>
+    <envelope id="i2" attack="0.02" hold="0" decay="1" sustain="0.8" release="0.3">
+      <padsynth preset="long-spacechoir2"/>
+    </envelope>
+    <envelope id="i3" attack="0.02" hold="0" decay="1" sustain="0.8" release="0.3">
+      <padsynth preset="bells-3"/>
+    </envelope>
+    <envelope id="i4" attack="0.02" hold="0" decay="1" sustain="0.8" release="0.3">
+      <padsynth preset="synth-piano-3-b"/>
+    </envelope>
+    <envelope id="i5" attack="0.02" hold="0" decay="1" sustain="0.8" release="0.3">
+      <padsynth preset="strings" envelopeAnchor="233.2" envelopeTracking="0.634" envelopePostprocess="residue" envelopePostprocessN="2" envelopePostprocessR="1" envelopePostprocessAmount="0.646"/>
+    </envelope>
+  </instruments>
+  <tracks>
+    <track id="0" instrument="i1"/>
+    <track id="1" instrument="i2"/>
+    <track id="2" instrument="i3"/>
+    <track id="3" instrument="i4"/>
+    <track id="4" instrument="i5"/>
+  </tracks>
+  <arrangement>
+    <pattern track="0">
+      <note row="0" velocity="100" value="C-2" />
+      <note row="5" velocity="0" value="off" />
+      <note row="6" velocity="100" value="C-3" />
+      <note row="11" velocity="0" value="off" />
+    </pattern>
+    <pattern track="1">
+      <note row="12" velocity="100" value="C-2" />
+      <note row="17" velocity="0" value="off" />
+      <note row="18" velocity="100" value="C-3" />
+      <note row="23" velocity="0" value="off" />
+    </pattern>
+    <pattern track="2">
+      <note row="24" velocity="100" value="C-2" />
+      <note row="29" velocity="0" value="off" />
+      <note row="30" velocity="100" value="C-3" />
+      <note row="35" velocity="0" value="off" />
+    </pattern>
+    <pattern track="3">
+      <note row="36" velocity="100" value="C-2" />
+      <note row="41" velocity="0" value="off" />
+      <note row="42" velocity="100" value="C-3" />
+      <note row="47" velocity="0" value="off" />
+    </pattern>
+    <pattern track="4">
+      <note row="48" velocity="100" value="C-2" />
+      <note row="53" velocity="0" value="off" />
+      <note row="54" velocity="100" value="C-3" />
+      <note row="59" velocity="0" value="off" />
+    </pattern>
+  </arrangement>
+</song>

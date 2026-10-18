@@ -590,9 +590,29 @@ would otherwise resume showing.
   exclusive, purely per-device (`toggleGridMode()`), never tied to
   terminal UI focus - one connected Launchpad can sit in Live View
   while another stays on ordinary note entry. Defaults to `LIVE`.
-  `CUSTOM` is deliberately generic ("customize whatever's assigned to
-  this device") and has nothing built for it today - it shows a blank
-  grid. `SEND_MAIN`/`PAN`/`SEND_A`/`SEND_B`, plus the
+  `CUSTOM` is the performance grid (`handlePerformancePadEvent()`,
+  `playback/PerformanceEffect.h`): columns are Live View's tracks, rows
+  effects (`performance::kGridRows`, the default set, top to bottom: Filter
+  (dark until built), Stutter, Shuffle, Erode, Shatter, Gate, Crush, Duck; Orbit and the Send
+  A/B throws exist off the grid), held to apply, pressure
+  deepening them; the right-hand button at the end of a row holds its effect
+  on the master (`handlePerformanceMasterButton()`, `performance::
+  kMasterTarget`; `SongState::masterPerformance()` runs the sound effects and
+  Duck on the dry mix plus the bus returns, only while one is held). A pad sends `SET_PERFORMANCE`; `SongState::setPerformance()`
+  keeps what is held (never the song) and hands it to `LeafTrackState::
+  setPerformanceTargets()`, which applies it to the voices only, so `sends_`/
+  `position_` - what `TrackInfo` reports and the song mirrors - keep the
+  song's values.
+  The sound effects work on a track's whole rendered block (`state/
+  PerformanceAudio.h`, one per leaf track, applied by `LeafTrackState::
+  applyPerformanceAudio()` before the level is reported, and one on the
+  master): Stutter (`TrackStutter`) loops what it captured from the next row;
+  Shuffle (`TrackShuffle`) records up to a bar from the next row and plays
+  slices of it in a random order; Erode and Shatter are `TrackGrains` with the
+  `grains::kErode`/`kShatter` presets, grains of the recent past with silence
+  between them, each turned about the vertical; Gate (`TrackGate`) follows
+  the bar grid (`PerformanceGrid::bar_phase`); Crush (`TrackCrush`) holds
+  samples and drops bits. `SEND_MAIN`/`PAN`/`SEND_A`/`SEND_B`, plus the
   track-picker overlay's three purposes (Stop Clip/Mute/Solo - see its
   own bullet below), together form Live's own **mixer submode radio
   group** (`DeviceState::mixer_mode`, off by default) - see the
@@ -1146,9 +1166,10 @@ would otherwise resume showing.
   scrolls the widget under the mouse without moving focus, and scrolls its
   view, never its cursor (so never the transport); Shift scrolls tracks
   sideways, and the next cursor move brings the view back.
-  The left button picks cells: in `ClipGrid` a click moves the cursor
-  and presses the slot like Enter does (a clip launches, the master's
-  scene/stop-all slots fire; Sends rows only select), in `ArrangementGrid`
+  The left button picks cells: in `ClipGrid` a press shows the cell under
+  it pressed (`StyleProvider::row_pressed_bg_color`) and the release moves the
+  cursor and track there and presses the slot like Enter does (a clip launches, the master's
+  scene/stop-all slots fire; a Sends value opens its editor), in `ArrangementGrid`
   it moves the cursor to the bar and track (Enter still commits), and in
   `PatternEditor` it moves the cursor to the cell (a click in a heading
   picks the track, one past the last track the locator slot) and clears the
@@ -1382,7 +1403,7 @@ would otherwise resume showing.
   the app's `UIElement` adds the event handler and the controller), `UIMenu`, and the 2D grid chart contract
   `HeatmapChart`, the generic widgets (`ChoiceDialog`, `InlineEditor`, `SpinBox`, `CoverArt`, `ChannelMeter`,
   `SpectrumMeter` and `LevelMeter.h`'s one dB mapping, ballistics and glyph cells, plus
-  `Digit.h`, `Viewport.h`: the offset, `reveal()` margins and the wheel's detached state every scrolling widget shares; `ChoiceList` (so `ChoiceDialog`), `OutlineView` and `ArrangementGrid` use it; where `DisplayInfo::smooth_scroll` it also animates a shown position toward the offset, and a widget on a plane of its own draws one row more and calls `UIPlane::setScrollOffset()` with the fraction - the plane then composes as a `BackdropLayer::scroll` layer, which the window draws translated from a texture of its own, as `ChoiceDialog` (its entries on a plane of their own over the box, under the same kind of cursor band, easing to the selection), `ArrangementGrid` and `OutlineView` (its tree on a plane of its own, under the heading and the button bar, and its cursor, on a smoothly scrolling display, a translucent `setBand()` over the tree so the row shows through: it eases to its row in the view, so at the first or last row in view, with the keys going on, it stays in place and only the content moves (other displays highlight the row in the tree); the content extends the button bar's rows past the last row so that one can scroll clear of the bar) do; `UIPlane::setBand()` puts a translucent strip at a fractional row over such a plane, unshifted, which is the arrangement grid's playhead while the transport plays), `InfoDialog` (the cell rendering of a Markdown info box; a
+  `Digit.h`, `Viewport.h`: the offset, `reveal()` margins and the wheel's detached state every scrolling widget shares; `ChoiceList` (so `ChoiceDialog`), `OutlineView` and `ArrangementGrid` use it; where `DisplayInfo::smooth_scroll` it also animates a shown position toward the offset, and a widget on a plane of its own draws one row more and calls `UIPlane::setScrollOffset()` with the fraction - the plane then composes as a `BackdropLayer::scroll` layer, which the window draws translated from a texture of its own, as `PatternEditor` (its rows, on a plane under the one with the headings: the shown top trails the logical one by an offset that eases to zero, so a scroll of up to a few rows glides, and the cell-drawn cursor row moves with the content), `ChoiceDialog` (its entries on a plane of their own over the box, under the same kind of cursor band, easing to the selection), `ArrangementGrid` and `OutlineView` (its tree on a plane of its own, under the heading and the button bar, and its cursor, on a smoothly scrolling display, a translucent `setBand()` over the tree so the row shows through: it eases to its row in the view, so at the first or last row in view, with the keys going on, it stays in place and only the content moves (other displays highlight the row in the tree); the content extends the button bar's rows past the last row so that one can scroll clear of the bar) do; `UIPlane::setBand()` puts a translucent strip at a fractional row over such a plane, unshifted, which is the arrangement grid's playhead while the transport plays), `InfoDialog` (the cell rendering of a Markdown info box; a
   backend with richer text drawing lays out `markdown::parse()` itself instead,
   through `UI::showInfoDialog(title, markdown)`), and `BufferPlane`/`CellBuffer` (a
   plane that keeps its own cells, the way a screen's planes do - drawing, moving,
@@ -1464,7 +1485,15 @@ would otherwise resume showing.
   faded out, or with pictures the cells drawn, blurred and stretched in tiles of 4 x 16
   cells redrawn only when what they show changed. `TestBackend` stacks the layers
   unblurred (`info().backdrops` has them) and shows them as a terminal does after
-  `emulateBackdrops(true)`. Not done yet: per-plane render nodes, input methods, HiDPI, native
+  `emulateBackdrops(true)`.
+  The pointer's shape is a plane attribute (`UIPlane::setMouseCursor()`,
+  `MouseCursor`: `INHERIT` shows what is below, `DEFAULT`/`POINTER`/`TEXT`):
+  `refresh()` lists the rectangles of the planes that asked for one, in drawing
+  order, as `FrameInfo::mouse_cursors` (`takeMouseCursors()`, `mouseCursorAt()`),
+  and the backend shows the last one over the pointer's cell - the window with
+  `gtk_widget_set_cursor_from_name()`, the terminal with OSC 22 (so it asks for
+  any-motion mouse reporting and keeps hover moves to itself). A popup sets
+  `DEFAULT` so its area is not taken for what lies below it. Not done yet: per-plane render nodes, input methods, HiDPI, native
   dialogs and menus. `TestBackend` (`cellui/TestBackend.h`) has no tty or window: input is
   pushed by the test, and each presented frame is kept for the test to read
   directly (`text()`, `frame()` cells and their styles, `info()`: the plane tree from

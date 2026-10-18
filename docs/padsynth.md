@@ -70,7 +70,10 @@ An optional, independent postprocess stage shapes the result further:
 == r mod n` at full amplitude and scales every other harmonic by
 `(1 - amount)`; `"stretch"` (stretch-mix) mixes the spectrum with a copy
 of itself stretched by a factor of `n` along the harmonic axis
-(`out = (1-amount)*S + amount*S'`, `S'[n*h] = S[h]`).
+(`out = (1-amount)*S + amount*S'`, `S'[n*h] = S[h]`). Harmonics are counted
+from the fundamental as 1 in both stages. Residue `n=2, r=1` keeps the odd
+harmonics, `n=k, r=0` the multiples of `k`; stretch by `k` moves harmonic
+`h` to `k*h`.
 
 Partial positioning (`g(h)` - where a preset's partials actually sit,
 e.g. an explicit non-integer sequence or a fractional stiff-string-style
@@ -106,6 +109,47 @@ covers: `brass.synth`/`brass.synth.soft` use `saw-piano-wide`/`saw-piano`
 closest character to a synth-brass section) rather than a preset built
 to represent brass specifically.
 
+## Sample set
+
+One wavetable is built per pitch region. A preset gives a base frequency
+`f_b`, `octaves` `O`, `samples_per_octave` `q` and a `table_length`. There
+are `M = O * q` regions, `1/q` octave apart, centred on `f_b` (with an even
+count `f_b` falls between the two middle regions). Region `j` is built for
+the pitch `f_b * 2^((j - (M-1)/2) / q)`. A note uses the region nearest to it
+in pitch, chosen at note-on and kept for the whole note (a pitch change
+across a boundary doesn't swap tables), so notes below the lowest region or
+above the highest one are resampled from the end region. A preset's
+`octaves` is the octave count of its source patch plus one, the span the
+patch's regions cover.
+
+Each region's pitch is rounded to a whole number of FFT bins (the sample
+rate over the table length), so partials at whole multiples of it land
+exactly on bins; voices resample from the rounded value, so a note's own
+pitch is not affected. A partial narrower than 1.5 bins (a few cents wide at
+the bottom of the range) goes entirely into its nearest bin, with the same
+energy as a wider one, instead of being split over two bins that beat
+slowly against each other.
+
+Partials stop at `Nyquist / 2^(spacing / 2)` (`spacing` = `1/q` octave), since a
+note is read up to half a region spacing faster than its table's own pitch
+and higher partials would fold back. A note above the top region is read
+faster still and can alias.
+
+| Preset | `f_b` Hz | `O` | `q` | Regions | Table length | Lowest Hz | Highest Hz |
+|---|---|---|---|---|---|---|---|
+| `keyboard` | 392.4 | 5 | 2 | 10 | 131072 | 82.4 | 1867 |
+| `synth-piano-3-b` | 392.4 | 6 | 2 | 12 | 131072 | 58.2 | 2640 |
+| `church-organ` | 261.6 | 4 | 2 | 8 | 131072 | 77.6 | 880 |
+| `bells` | 392.4 | 5 | 2 | 10 | 131072 | 82.4 | 1867 |
+| `bells-3` | 392.4 | 5 | 2 | 10 | 131072 | 82.4 | 1867 |
+| `strings` | 261.6 | 6 | 2 | 12 | 262144 | 38.8 | 1760 |
+| `dual-strings` | 261.6 | 6 | 2 | 12 | 262144 | 38.8 | 1760 |
+| `saw-piano` | 261.6 | 6 | 2 | 12 | 131072 | 38.8 | 1760 |
+| `saw-piano-wide` | 261.6 | 6 | 2 | 12 | 262144 | 38.8 | 1760 |
+| `soft-pad` | 261.6 | 3 | 2 | 6 | 131072 | 109.9 | 622 |
+| `choir-pad4` | 261.6 | 4 | 3 | 12 | 131072 | 73.2 | 932 |
+| `long-spacechoir2` | 261.6 | 4 | 2 | 8 | 131072 | 77.6 | 880 |
+
 ## Oscillator shape
 
 Every preset is built from a specific instrument patch's oscillator shape: a
@@ -118,6 +162,10 @@ PADsynth's partial profile/placement stage (a windowed profile placed
 per partial, its window width and placement chosen so a partial's total
 energy stays the same regardless of how wide its band is) at that
 patch's base note, octave span, and sample layout.
+
+The shape is computed on a 1024-point oscillator, so it has harmonics 1 to
+511. A 39 Hz region therefore reaches about 20 kHz; a 255-harmonic shape
+stopped near 10 kHz there.
 
 This lets even a preset with a sparse explicit harmonic list (`bells`,
 `bells-3`) reproduce its much richer spectrum - the sparse list
@@ -142,8 +190,11 @@ pitch, not one voice with wider partials. Layer detuned copies in a
 `brass.synth` (`InstrumentLibrary.cpp`) are three-copy ensembles, and
 `songs/oscillator_demo.xml`'s choir is `<envelope><group><padsynth
 detune="-8"/><padsynth/><padsynth detune="8"/></group></envelope>`. Every
-copy reads the same shared wavetable at its own pitch, and a detuned copy
-starts at its own phase, so the copies don't start phase-locked. A plain
+copy reads the same shared wavetable at its own pitch. A note starts at a
+position anywhere in the table, hashed from its note coordinate (a detuned
+copy has its own), so chord notes and the copies of an ensemble read
+unrelated stretches of the table and don't start phase-locked. The same
+note always starts in the same place. A plain
 `<padsynth>` used directly (as most of `songs/oscillator_demo.xml`'s
 comparison tracks deliberately are, to isolate the preset itself) reads
 noticeably thinner and more static.

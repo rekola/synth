@@ -398,6 +398,43 @@ TEST(terminal_ui_smooth_scroll_cursor_appears_on_the_clicked_row) {
   CHECK(std::abs(band_row() - y) < 0.01);
 }
 
+// A press in the clip grid shows the cell pressed without moving the cursor;
+// the release picks it.
+TEST(terminal_ui_clip_grid_click_shows_pressed_then_picks_on_release) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);
+  int x = kOutlineCols + 3, y = 5;
+  auto cursor_before = gridCursorRows(f);
+  auto bg_before = f.bg(y, x);
+  f.terminal.pushMouse(y, x, cellui::Key::Button1);
+  f.ui->step();
+  CHECK(f.bg(y, x) != bg_before);
+  auto marked = cursor_before;
+  marked.push_back(y); // the pressed cell is marked too, the cursor stays where it was
+  CHECK(gridCursorRows(f) == marked);
+  f.terminal.pushMouse(y, x, cellui::Key::Button1, 0, cellui::Input::Kind::RELEASE);
+  f.ui->step();
+  CHECK(f.bg(y, x) != bg_before);
+  CHECK(gridCursorRows(f) == std::vector<int>{y});
+}
+
+// A click on a Sends value opens its editor, on that value.
+TEST(terminal_ui_clip_grid_click_on_a_send_opens_its_editor) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);
+  int y = -1;
+  for (int i = 0; i < 40 && y < 0; i++) {
+    if (f.line(static_cast<size_t>(i)).find(" dB ", kOutlineCols) != std::string::npos) y = i;
+  }
+  CHECK(y > 0);
+  int x = kOutlineCols + 1 + 5 + 4; // the second value (Send A) of the first track
+  f.terminal.pushMouse(y, x, cellui::Key::Button1);
+  f.ui->step();
+  f.terminal.pushMouse(y, x, cellui::Key::Button1, 0, cellui::Input::Kind::RELEASE);
+  f.ui->step();
+  f.type("-6");
+  CHECK(f.line(static_cast<size_t>(y)).find("-6") != std::string::npos);
+  f.ctrl('g');
+}
+
 // The command prompt opens with M-x on the Emacs keymap and with
 // Ctrl+Shift+P on the desktop one, and each keymap ignores the other's chord.
 TEST(terminal_ui_command_prompt_chord_follows_the_keymap_profile) {
@@ -503,6 +540,24 @@ TEST(terminal_ui_command_palette_tab_completes_a_prefix) {
   f.press(cellui::Key::Escape);
 }
 
+// The clip grid belongs to Live View: in Arrangement view its plane is hidden,
+// not just under the pattern editor.
+TEST(terminal_ui_switching_views_hides_the_clip_grid_in_arrangement_view) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);
+  auto clip_grid_visible = [&]() {
+    for (auto & plane : f.terminal.info().planes.children) {
+      if (plane.name == "clip-grid") return plane.visible;
+    }
+    return false;
+  };
+  CHECK(clip_grid_visible());
+  for (int i = 0; i < 4; i++) {
+    f.press(cellui::Key::Tab);
+    f.ui->step();
+    CHECK(clip_grid_visible() == (i % 2 == 1));
+  }
+}
+
 // The query row is on the display's own background, like the status line it
 // covers, and the description above it is not drawn like a command.
 TEST(terminal_ui_command_palette_query_row_keeps_the_display_background) {
@@ -516,4 +571,56 @@ TEST(terminal_ui_command_palette_query_row_keeps_the_display_background) {
   CHECK(frame.at(last - 1, 3).italic);
   CHECK(frame.at(last - 3, 10).bg);  // the list is a raised panel
   f.press(cellui::Key::Escape);
+}
+
+// The pattern editor's rows scroll by parts of a row under the headings when
+// the view follows the cursor past its margin.
+TEST(terminal_ui_smooth_scroll_moves_the_pattern_editor_rows_under_their_headings) {
+  cellui::DisplayInfo display;
+  display.smooth_scroll = true;
+  UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT, display);
+  auto shift = [&]() -> std::optional<double> {
+    for (const auto & layer : f.terminal.info().backdrops) {
+      if (layer.scroll && layer.scroll->shift_rows > 0) return layer.scroll->shift_rows;
+    }
+    return std::nullopt;
+  };
+  for (int i = 0; i < 4 && f.terminal.info().focus != "pattern-editor"; i++) f.otherWindow();
+  CHECK(f.terminal.info().focus == "pattern-editor");
+  // The headings are on a plane of their own, which does not move.
+  auto heading_line = [&]() {
+    for (size_t y = 0; y < 30; y++) {
+      if (f.line(y).find("Pizzicato") != std::string::npos) return static_cast<int>(y);
+    }
+    return -1;
+  };
+  int heading = heading_line();
+  CHECK(heading >= 0);
+  bool between = false;
+  for (int i = 0; i < 100; i++) {
+    f.press(cellui::Key::Down);
+    std::this_thread::sleep_for(std::chrono::milliseconds(8));
+    f.ui->step();
+    if (auto s = shift()) {
+      between = true;
+      CHECK(*s > 0.0 && *s < 1.0);
+      // What shifts is the rows' plane: no heading text in it.
+      for (const auto & layer : f.terminal.info().backdrops) {
+        if (!layer.scroll || layer.scroll->shift_rows <= 0) continue;
+        std::string text;
+        for (int r = 0; r < layer.scroll->cells.rows(); r++) {
+          for (int c = 0; c < layer.scroll->cells.cols(); c++) text += layer.scroll->cells.at(r, c).text;
+        }
+        CHECK(text.find("Pizzicato") == std::string::npos);
+        CHECK(text.find("T0") == std::string::npos);
+      }
+    }
+    CHECK(heading_line() == heading);
+  }
+  CHECK(between);
+  for (int i = 0; i < 100; i++) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(8));
+    f.ui->step();
+  }
+  CHECK(!shift());  // settled on a whole row
 }

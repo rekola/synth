@@ -1,5 +1,7 @@
 #pragma once
 
+#include <chrono>
+
 namespace cellui {
 
 // Modifier bits, in the kitty keyboard protocol's layout.
@@ -184,10 +186,14 @@ class Input {
   // (a name or command prompt, which cares about neither) to ever receive
   // a genuine uppercase letter. getTrueCaseId() is what a reader is fed
   // instead.
+  //
+  // `timestamp` is when the key was read: the keys of a chord arrive within
+  // a few milliseconds of each other, which is how a terminal that reports
+  // no key release still shows that they were typed together.
   Input(int id, int y, int x, bool alt, bool shift, bool ctrl, bool meta, Kind kind = Kind::UNKNOWN,
-	     int true_case_id = -1)
+	     int true_case_id = -1, std::chrono::steady_clock::time_point timestamp = std::chrono::steady_clock::now())
     : id_(id), true_case_id_(true_case_id == -1 ? id : true_case_id),
-      y_(y), x_(x), alt_(alt), shift_(shift), ctrl_(ctrl), meta_(meta), kind_(kind) { }
+      y_(y), x_(x), alt_(alt), shift_(shift), ctrl_(ctrl), meta_(meta), kind_(kind), timestamp_(timestamp) { }
 
   int getId() const { return id_; }
   int getTrueCaseId() const { return true_case_id_; }
@@ -198,12 +204,14 @@ class Input {
   bool hasCtrl() const { return ctrl_; }
   bool hasMeta() const { return meta_; }
   Kind getKind() const { return kind_; }
+  std::chrono::steady_clock::time_point getTimestamp() const { return timestamp_; }
   
 
  private:
   int id_, true_case_id_, y_, x_;
   bool alt_, shift_, ctrl_, meta_;
   Kind kind_;
+  std::chrono::steady_clock::time_point timestamp_;
 };
 
 // The Input for a key press: an upper-case ASCII letter becomes lower case

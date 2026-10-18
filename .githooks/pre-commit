@@ -4,6 +4,12 @@
 set -e
 cd "$(git rev-parse --show-toplevel)"
 
+# A merge stages the other branch's changes too; they were checked where
+# they were committed, and reformatting them here would rewrite them.
+if git rev-parse -q --verify MERGE_HEAD >/dev/null; then
+  exit 0
+fi
+
 cxx_re='^(src|tests)/.*\.(cpp|h)$'
 staged=$(git diff --cached --name-only --diff-filter=ACM | grep -E "$cxx_re" || true)
 [ -n "$staged" ] || exit 0
