@@ -2,15 +2,106 @@
 
 Terms with a specific meaning in this project.
 
+**Aftersound**
+The slow tail after a piano note's fast first decay, from the strings'
+out-of-phase motion draining the bridge more slowly.
+
+**Aftertouch**
+The pressure on a key or pad held down after its note has started, a control
+signal that changes while the note sounds (a pattern row of it carries the
+pressure as its velocity). Not the aftersound: that is a property of the
+sound of a piano note, aftertouch is something the player does.
+
+**Clip launcher**
+The grid of clips inside Live View: one column per track, one row per scene,
+each slot triggered on the next bar. On a Launchpad it is the pad grid in the
+Live mode (the device's Session button). See launchpad.md and scenes.md.
+
 **Groove**
 The general word for rhythmic feel: how a pattern's timing (and often
 accents) deviates from a rigid grid. Swing is the simplest groove. Other
 DAWs go further. Ableton's *Groove Pool* holds templates of per-position
 timing and velocity that you apply to clips. Renoise's *Groove* panel is
-closer to this project: four per-line amounts that repeat every four lines
-and apply song-wide at playback, without changing the pattern data. Here,
+closer to this project: four sliders, each delaying the second line of a pair,
+so the pattern repeats every eight lines (at four lines per beat), applied
+song-wide at playback without changing the pattern data. Here,
 "groove" means timing feel only, and for now that is just swing. The
 Library's drum patterns are not grooves in this sense; see Rhythm.
+
+**Just intonation**
+Tuning notes to simple whole-number frequency ratios (3/2 for a fifth, 5/4
+for a major third) instead of equal steps. Intervals tuned that way sound
+pure: for sounds whose partials are whole-number multiples of the fundamental,
+as most pitched instruments' nearly are, the partials two notes share coincide
+and do not beat. Every EDO approximates these ratios (only its octaves are
+exact), so a song's notes stay on its EDO grid and each one carries a
+small tuning correction, in cents, that nudges it toward the pure ratio; see
+user-interface.md.
+
+The simplest way to have it is to give every note one fixed ratio to the
+key. That works in any EDO, 12 included, and every interval between any two
+notes is then a whole-number ratio. What it cannot promise is that every chord
+comes out as simple as it could. In a major scale, the D that suits a G major
+chord is a little too high for a D minor chord, and one fixed D has to be a
+compromise.
+
+The otonal and utonal scales (below) are different. They have no D to argue
+over, so one fixed pitch per note serves: the scale gives it (otonal 1/1 7/6
+5/4 4/3 3/2 5/3 7/4, utonal 1/1 8/7 6/5 4/3 3/2 8/5 12/7), whatever the chord,
+and a song in either scale is tuned with both, so the two can be played
+together.
+
+**Adaptive just intonation**
+Just intonation that follows the music instead of returning to the key; also
+called adaptive tuning. It is for music where no single pitch per note suits
+every chord, such as the major scale above, where the D wants to differ
+between a G major chord and a D minor chord. Tuning each bar on its own against the key makes
+bars that are pure in themselves but do not fit their neighbours: a note shared
+by two chords, or one that moves by a step, lands on slightly different pitches
+each time. The adaptive kind tunes each note against what is sounding, or has
+only just sounded, in any track, so a melody over a bass line is pure against
+that bass line, and an arpeggio hangs together although its notes never sound
+at once. It is planned, not yet available. The otonal and utonal scales do not
+need it.
+
+The price is *drift*. A pure interval is exact only against its own reference,
+and the reference may itself have been tuned against an earlier note, so errors
+accumulate along a progression. Four pure fifths stacked from C reach an E about
+21.5 cents above the pure major third over C, and a song that keeps every chord
+pure can end up noticeably higher or lower than where it began. This is not a
+defect: pure fifths, pure thirds and a closed circle of keys cannot all be had
+at once. Drift is fine in an arrangement, where the music is free to wander.
+Tuning against the key every bar never drifts.
+
+**Live sequencer**
+A tool used to program, trigger and manipulate musical patterns, notes and
+rhythms in real time during a performance. Here that is Live View: clips are
+launched, stopped and recorded into while the transport runs, changes land on
+the next bar, and scenes launch a whole row of clips together. What is played
+can also be placed into the arrangement.
+
+**Live View**
+The view with the clip launcher, the outline panel and the pattern editor
+showing each track's own clip; Tab switches to and from the arrangement
+view. The Launchpad's Live mode shows the same clip grid on the pads.
+
+**Otonal and utonal**
+Two 7-note scales that mirror each other around the tonic. Otonal (C D♯ E F G
+A A𝄰 = 1/1 7/6 5/4 4/3 3/2 5/3 7/4): all seven are harmonics (12, 14, 15, 16,
+18, 20, 21) of one low F, which is what Harry Partch called otonal. It holds
+the 4:5:6:7 chord C E G A𝄰 and pure major triads on C and F. Utonal (C E𝄫 E♭ F
+G A♭ B𝄫 = 1/1 8/7 6/5 4/3 3/2 8/5 12/7) is the otonal scale turned upside
+down: all seven are undertones of one high G. It holds the 1/7:1/6:1/5:1/4
+chord E𝄫 F A♭ C and pure minor triads on C and F. Note that the otonal scale
+is not the harmonic series of its own tonic but of the note a fifth below it.
+Partch's otonalities and utonalities are six-note chords over the odd numbers
+1, 3, 5, 7, 9 and 11; these scales use 15 and 21 as well, and are the
+application's own.
+
+**Performance effect**
+An effect held on a track from the Launchpad's Custom grid (stutter,
+shuffle, erode, shatter, gate, crush, duck, a send throw, orbit): it lasts while the pad is held and never changes the song. See
+launchpad.md.
 
 **Rhythm**
 A pre-written drum pattern in the Library, such as Waltz, Funk or Bossa
@@ -21,16 +112,51 @@ heard when previewed and adopted by the song on Add to Song. Named Rhythm, not G
 groove above.
 
 **Row**
-This engine's grid step: one sixteenth note, so 4 rows per beat and
-`rowsPerBar` rows per bar (default 16). Notes sit on rows; a note's delay
+This engine's grid step: one sixteenth note, so a 4/4 bar is 16 rows and a
+beat 4 (other time signatures: see time_signatures.md). Notes sit on rows; a note's delay
 column shifts it by a fraction of a row.
+
+**Scene**
+A row of the clip grid: the clips at one position across every track's clip
+list, launched together. It has no object of its own beyond an optional
+name, tempo and time signature stored by position. See scenes.md.
+
+**Spatial mode**
+How a track places its notes around its position: `auto` (the instrument
+decides), `ring` (a spiral by note column) or `arc` (by pitch). See spatial.md.
+
+**Strike point**
+Where a hammer or pluck meets the string, as a fraction of its length. Modes
+with a node there are not excited: at 1/8, the 8th, 16th and 24th partials.
 
 **Swing**
 A timing feel that delays the second note of each eighth-note pair (4 rows),
 giving a long-short, lilting feel. Stored as a percentage of the pair taken
 by its first note: 50% is no swing (the second note falls exactly halfway
 through the pair), about 67% is triplet swing (jazz, shuffle, boogie), and
-75% is very heavy. Only the second note of a pair moves; on-beat notes
+75% is very heavy. The 50-75% range and what the percentage means follow the
+Akai MPC's swing. Only the second note of a pair moves; on-beat notes
 never do. A song-level setting (`Song::getSwing()`, `<song swing="">`)
 applied at playback time to everything scheduled against it, not baked into
 note data.
+
+**Tuning correction**
+A note's pitch offset in cents, stored in its fx as `+hh` or `-hh`
+(commands.md). Not the song's tuning, which always means the EDO
+(12/19/31/53 steps per octave).
+
+**Unison**
+Several sounds at the same pitch at once; as an interval, 1:1. Exactly alike
+they would only be louder, so a unison's character comes from small
+differences: a few cents of pitch, which beat slowly, and differences in
+timing and decay. Here it appears as:
+- instruments or tracks playing the same notes;
+- an `<oscillator>` with several `voices` at `ratio` 1, spread over `detune`
+  cents and each drifting on its own;
+- detuned copies of an instrument layered in a `<group>` (the `detune` of
+  `<fm>` and `<padsynth>`);
+- the strings struck together for one piano key (`unisonVoices` and
+  `unisonDetune` of `<additive>`), a cent or so apart on a real piano and
+  2.5 cents in the `piano` preset. Their beating and their slightly different
+  decay rates give a piano note its shimmer and its double decay; see
+  additive.md.

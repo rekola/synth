@@ -40,6 +40,13 @@ std::string readFile(const std::string & path) {
 
 } // namespace
 
+
+// The compiled track as it is now: an edit replaces a track's object, so a
+// reference taken before one is stale.
+static const LeafTrack & leafNow(Controller & controller, int track_id) {
+  return dynamic_cast<const LeafTrack &>(*controller.getSong().getMasterTrack().getChildByInternalId(track_id));
+}
+
 TEST(controller_save_song_writes_to_the_opened_path) {
   // save-song used to always write "tmp.xml" regardless of which song was
   // open; it must write back to the file that was actually opened.
@@ -173,9 +180,8 @@ TEST(receive_playback_snapshot_syncs_a_tracks_live_send_into_the_model) {
   controller.switchToBuffer(controller.freshBufferName());
   auto buffer_name = controller.getActiveBufferName();
 
-  auto & track = dynamic_cast<LeafTrack &>(controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0)));
-  auto track_id = track.getInternalId();
-  CHECK(track.getSends().a == 0.0f); // the track's own untouched default
+  auto track_id = controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0)).getInternalId();
+  CHECK(leafNow(controller, track_id).getSends().a == 0.0f); // the track's own untouched default
 
   std::unordered_map<int, TrackInfo> track_info;
   track_info[track_id] = TrackInfo(true, false, -1.0f, 1.0f, 0.42f, 1.0f); // live_send_a = 0.42f
@@ -184,7 +190,7 @@ TEST(receive_playback_snapshot_syncs_a_tracks_live_send_into_the_model) {
 
   controller.receivePlaybackSnapshot(buffer_name, snapshot);
 
-  CHECK_NEAR(track.getSends().a, 0.42f, 1e-6f);
+  CHECK_NEAR(leafNow(controller, track_id).getSends().a, 0.42f, 1e-6f);
 }
 
 // A track this session's live engine has never actually rendered (no
@@ -198,13 +204,13 @@ TEST(receive_playback_snapshot_leaves_a_track_with_no_live_data_untouched) {
   controller.switchToBuffer(controller.freshBufferName());
   auto buffer_name = controller.getActiveBufferName();
 
-  auto & track = dynamic_cast<LeafTrack &>(controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0)));
-  track.setSendA(0.7f); // a real, hand-set value - not the default
+  auto track_id = controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0)).getInternalId();
+  controller.getSong().editTrack(track_id, [](Track & track) { track.setSendA(0.7f); }); // a real, hand-set value - not the default
 
   PlaybackInfo snapshot; // no TrackInfo entries at all
   controller.receivePlaybackSnapshot(buffer_name, snapshot);
 
-  CHECK_NEAR(track.getSends().a, 0.7f, 1e-6f);
+  CHECK_NEAR(leafNow(controller, track_id).getSends().a, 0.7f, 1e-6f);
 }
 
 // syncLiveGlideStateIntoModel()'s own azimuth half - Pan's live glide
@@ -217,9 +223,8 @@ TEST(receive_playback_snapshot_syncs_a_tracks_live_azimuth_into_the_model) {
   controller.switchToBuffer(controller.freshBufferName());
   auto buffer_name = controller.getActiveBufferName();
 
-  auto & track = dynamic_cast<LeafTrack &>(controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0)));
-  auto track_id = track.getInternalId();
-  CHECK(track.getAzimuth() == 0.0f); // the track's own untouched default
+  auto track_id = controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0)).getInternalId();
+  CHECK(leafNow(controller, track_id).getAzimuth() == 0.0f); // the track's own untouched default
 
   std::unordered_map<int, TrackInfo> track_info;
   track_info[track_id] = TrackInfo(true, false, -1.0f, 1.0f, 1.0f, 1.0f, 42.0f, true); // live_azimuth = 42 degrees
@@ -228,7 +233,7 @@ TEST(receive_playback_snapshot_syncs_a_tracks_live_azimuth_into_the_model) {
 
   controller.receivePlaybackSnapshot(buffer_name, snapshot);
 
-  CHECK_NEAR(track.getAzimuth(), 42.0f, 1e-6f);
+  CHECK_NEAR(leafNow(controller, track_id).getAzimuth(), 42.0f, 1e-6f);
 }
 
 // TrackInfo::hasLiveAzimuth()'s own bool flag (unlike the three Sends'
@@ -241,13 +246,13 @@ TEST(receive_playback_snapshot_leaves_a_tracks_azimuth_untouched_with_no_live_da
   controller.switchToBuffer(controller.freshBufferName());
   auto buffer_name = controller.getActiveBufferName();
 
-  auto & track = dynamic_cast<LeafTrack &>(controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0)));
-  track.setAzimuth(15.0f); // a real, hand-set value - not the default
+  auto track_id = controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0)).getInternalId();
+  controller.getSong().editTrack(track_id, [](Track & track) { static_cast<LeafTrack &>(track).setAzimuth(15.0f); }); // a real, hand-set value - not the default
 
   PlaybackInfo snapshot; // no TrackInfo entries at all
   controller.receivePlaybackSnapshot(buffer_name, snapshot);
 
-  CHECK_NEAR(track.getAzimuth(), 15.0f, 1e-6f);
+  CHECK_NEAR(leafNow(controller, track_id).getAzimuth(), 15.0f, 1e-6f);
 }
 
 TEST(controller_disambiguates_buffers_sharing_a_basename) {
@@ -340,7 +345,7 @@ TEST(controller_command_completions_merges_literal_and_fallback_names) {
 }
 
 // A clip focus is a single, exclusive "what am I currently looking at to
-// edit" pointer, not Session-view style multi-track launching - setting a
+// edit" pointer, not Live-View style multi-track launching - setting a
 // new one must silence whatever the *previous* focus was actively
 // previewing (a plain STOP_ALL_NOTES, LaunchpadManager::
 // triggerAuditionStep()'s own target), even when that was on a different
@@ -460,7 +465,7 @@ TEST(begin_and_finish_sample_capture_creates_and_finalizes_a_real_clip) {
 
   CHECK(!controller.hasRecordingClip());
   CHECK(!controller.isRecording());
-  auto & clips = controller.getSong().getClips(track_id);
+  auto clips = controller.getSong().getClips(track_id);
   CHECK(clips.size() == 1);
   if (!clips.empty()) {
     auto & content = clips[0].getSampleContent();
@@ -484,7 +489,7 @@ TEST(armed_sample_capture_places_at_the_snapshotted_row_and_trims_the_measured_l
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
   controller.getSong().setTempo(120);
-  controller.getSong().setRowsPerBar(4);
+  controller.getSong().setTimeSignature(TimeSignature{1, 4});
 
   auto & track = controller.getSong().addTrack(std::make_unique<SampleTrack>());
   auto track_id = track.getInternalId();
@@ -502,7 +507,7 @@ TEST(armed_sample_capture_places_at_the_snapshotted_row_and_trims_the_measured_l
   controller.beginSampleCapture(track_id, 100); // 100 frames of measured round-trip latency
   CHECK(controller.hasRecordingClip());
 
-  auto & clips = controller.getSong().getClips(track_id);
+  auto clips = controller.getSong().getClips(track_id);
   CHECK(clips.size() == 1);
   if (!clips.empty()) {
     auto & content = clips[0].getSampleContent();
@@ -519,7 +524,7 @@ TEST(armed_sample_capture_places_at_the_snapshotted_row_and_trims_the_measured_l
   controller.finishSampleCapture();
   CHECK(!controller.isRecordingArmed()); // reset back to unarmed for the next take
 
-  auto & clips2 = controller.getSong().getClips(track_id);
+  auto clips2 = controller.getSong().getClips(track_id);
   if (!clips2.empty()) {
     // 800 captured frames, 100 of them the lead-in - post-trim length
     // covers 700, not the full 800.
@@ -528,12 +533,12 @@ TEST(armed_sample_capture_places_at_the_snapshotted_row_and_trims_the_measured_l
   }
 }
 
-// The SampleTrack twin of ensure_session_recording_clip_creates_and_
+// The SampleTrack twin of ensure_clip_recording_clip_creates_and_
 // grows_at_the_exact_pressed_index (ControllerTests.cpp above) - a
-// Session View take pressed at clip index 2 on a track with no clips at
+// clip take pressed at clip index 2 on a track with no clips at
 // all yet has to land exactly there, holes and all, not collapse to
 // wherever a fresh append would happen to land.
-TEST(session_recording_sample_capture_lands_at_the_exact_pressed_index_with_holes) {
+TEST(clip_recording_sample_capture_lands_at_the_exact_pressed_index_with_holes) {
   ChannelConfiguration config(8000, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
@@ -548,7 +553,7 @@ TEST(session_recording_sample_capture_lands_at_the_exact_pressed_index_with_hole
   // (LaunchpadManager/Controller::toggle-record-arm's own SampleTrack
   // carve-out) - done directly here to test beginSampleCapture() in
   // isolation, the same way the note-based test above does.
-  controller.armSessionTrackRecording(track_id, 2);
+  controller.armClipTrackRecording(track_id, 2);
 
   AudioBuffer block(1, 400);
   auto data = block.getChannelData(0);
@@ -557,7 +562,7 @@ TEST(session_recording_sample_capture_lands_at_the_exact_pressed_index_with_hole
   controller.beginSampleCapture(track_id);
   CHECK(controller.hasRecordingClip());
 
-  auto & clips = controller.getSong().getClips(track_id);
+  auto clips = controller.getSong().getClips(track_id);
   CHECK(clips.size() == 3);
   CHECK(clips[0].isEmpty()); // backfilled filler
   CHECK(clips[1].isEmpty()); // backfilled filler
@@ -570,7 +575,7 @@ TEST(session_recording_sample_capture_lands_at_the_exact_pressed_index_with_hole
   CHECK(clips[2].hasSample());
 }
 
-// A second Session View take recorded into the same, already-populated
+// A second clip take recorded into the same, already-populated
 // slot overdubs it - a new SampleContent layer alongside the first
 // (Clip.h's own sample_layers_ comment), not a replacement, and
 // finishSampleCapture() rebuilds getMixedContent()'s own cache so the
@@ -589,16 +594,16 @@ TEST(a_second_take_into_an_already_recorded_slot_overdubs_rather_than_replaces) 
   auto data = block.getChannelData(0);
   for (int i = 0; i < 400; i++) data[i] = 0.3f;
 
-  // First take - lands at index 0, exactly like any other fresh Session
+  // First take - lands at index 0, exactly like any other fresh Live
   // View recording.
   controller.startRecording();
-  controller.armSessionTrackRecording(track_id, 0);
+  controller.armClipTrackRecording(track_id, 0);
   controller.addToSample(block);
   controller.beginSampleCapture(track_id);
   controller.addToSample(block);
   controller.finishSampleCapture();
 
-  auto & clips = controller.getSong().getClips(track_id);
+  auto clips = controller.getSong().getClips(track_id);
   CHECK(clips.size() == 1);
   CHECK(clips[0].hasSample());
   CHECK(clips[0].getSampleLayers().size() == 1);
@@ -608,7 +613,7 @@ TEST(a_second_take_into_an_already_recorded_slot_overdubs_rather_than_replaces) 
   // own is_overdub detection (reuse_existing && clip.hasSample()) must
   // fire, appending rather than replacing.
   controller.startRecording();
-  controller.armSessionTrackRecording(track_id, 0);
+  controller.armClipTrackRecording(track_id, 0);
   controller.addToSample(block);
   controller.beginSampleCapture(track_id);
   CHECK(clips[0].getSampleLayers().size() == 2); // the overdub layer, appended immediately
@@ -644,7 +649,7 @@ TEST(sample_capture_creates_a_non_looping_clip_by_default) {
   controller.addToSample(block);
 
   controller.beginSampleCapture(track_id);
-  auto & clips = controller.getSong().getClips(track_id);
+  auto clips = controller.getSong().getClips(track_id);
   CHECK(clips.size() == 1);
   if (!clips.empty()) CHECK(!clips[0].isLooping());
 }
@@ -662,7 +667,7 @@ TEST(extend_recording_sample_clip_if_needed_grows_the_clip_and_clears_a_stale_st
   ChannelConfiguration config(8000, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
-  controller.getSong().setRowsPerBar(4);
+  controller.getSong().setTimeSignature(TimeSignature{1, 4});
 
   auto & track = controller.getSong().addTrack(std::make_unique<SampleTrack>());
   auto track_id = track.getInternalId();
@@ -681,7 +686,7 @@ TEST(extend_recording_sample_clip_if_needed_grows_the_clip_and_clears_a_stale_st
   controller.addToSample(block);
   controller.beginSampleCapture(track_id);
 
-  auto & clips = controller.getSong().getClips(track_id);
+  auto clips = controller.getSong().getClips(track_id);
   CHECK(clips.size() == 1);
   CHECK(clips[0].getLength() == 4); // one bar's worth, right away - not 0
 
@@ -732,7 +737,7 @@ TEST(unarmed_sample_capture_stays_unplaced) {
   CHECK(active.clip_index == Arrangement::kNoInstance); // never placed anywhere
 
   controller.finishSampleCapture();
-  auto & clips = controller.getSong().getClips(track_id);
+  auto clips = controller.getSong().getClips(track_id);
   if (!clips.empty()) CHECK(clips[0].getLength() == config.framesToRows(400, controller.getSong().getTempo())); // no latency to trim off
 }
 
@@ -926,7 +931,7 @@ TEST(toggle_playing_disarms_note_capture_when_transport_stops) {
   CHECK(!controller.isNoteCaptureArmed());
 }
 
-// Session View recording: arming with isClipGridFocused() true targets
+// Live View recording: arming with isClipGridFocused() true targets
 // whatever slot setClipGridCursor() names, never the shared track
 // cursor, and never auto-starts the transport (Player.cpp already starts
 // ALSA capture off isThresholdArmed() alone) - so the resulting take stays
@@ -940,15 +945,15 @@ TEST(toggle_record_arm_clip_grid_focused_arms_a_sample_track_without_arrangement
   auto & track = song.addTrack(std::make_unique<SampleTrack>());
   auto track_id = track.getInternalId();
   auto & other_track = song.addTrack(std::make_unique<SampleTrack>());
-  song.setCurrentTrackId(other_track.getInternalId()); // deliberately not the Session View target
+  song.setCurrentTrackId(other_track.getInternalId()); // deliberately not the Live View target
 
   controller.setClipGridFocused(true);
   controller.setClipGridCursor(track_id, 0);
 
   controller.sendCommand("toggle-record-arm");
   CHECK(controller.isThresholdArmed());
-  CHECK(controller.isSessionRecording(track_id));
-  CHECK(controller.getSessionRecordingClipIndex(track_id) == 0);
+  CHECK(controller.isClipRecording(track_id));
+  CHECK(controller.getClipRecordingClipIndex(track_id) == 0);
   CHECK(!controller.getPlaybackInfo().isPlaying()); // never auto-started
 
   controller.setRecordingTrackId(track_id);
@@ -959,129 +964,17 @@ TEST(toggle_record_arm_clip_grid_focused_arms_a_sample_track_without_arrangement
   CHECK(controller.hasRecordingClip());
   controller.finishSampleCapture();
 
-  auto & clips = song.getClips(track_id);
+  auto clips = song.getClips(track_id);
   CHECK(clips.size() == 1);
   CHECK(resolveInstanceAt(song, track_id, 0).clip_index == Arrangement::kNoInstance);
 
   controller.sendCommand("toggle-record-arm"); // disarm
-  CHECK(!controller.isSessionRecording(track_id));
-}
-
-// Record Arm on a PercussionTrack's own clip in Session View is repurposed
-// into "open this clip for editing on a Launchpad's step grid" (via
-// setFocusedClip()/setDrumEditRequestListener()) instead of ever arming a
-// take - a drum clip's own steps are never captured live. Reaches a
-// lane-less PercussionTrack's own clip exactly the same way
-// (toggle_record_arm_on_a_lane_less_percussion_clip_focuses_it_too below) -
-// its step grid just shows empty until a lane exists.
-TEST(toggle_record_arm_on_a_drum_machine_clip_focuses_it_instead_of_arming) {
-  ChannelConfiguration config(8000, 1);
-  Controller controller(config);
-  controller.switchToBuffer(controller.freshBufferName());
-  auto & song = controller.getSong();
-
-  auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(std::make_unique<PercussionTrack>()));
-  track.addLane(36); // step-sequenced - see this test's own header comment
-  auto track_id = track.getInternalId();
-  auto & existing = song.addClip(Clip(track_id));
-  existing.setName("Beat 1");
-  auto existing_id = existing.getId();
-
-  int requested_track_id = -1;
-  bool requested_opened = false;
-  controller.setDrumEditRequestListener([&](int id, bool opened) { requested_track_id = id; requested_opened = opened; });
-
-  controller.setClipGridFocused(true);
-  controller.setClipGridCursor(track_id, 0); // the occupied slot
-  controller.sendCommand("toggle-record-arm");
-
-  CHECK(!controller.isSessionRecording(track_id)); // never armed a take
-  CHECK(!controller.isNoteCaptureArmed());
-  CHECK(controller.getFocusedClipTrackId() == track_id);
-  CHECK(controller.getFocusedClip() == existing_id); // the existing clip, not a new one
-  CHECK(requested_track_id == track_id);
-  CHECK(requested_opened);
-  CHECK(song.getClips(track_id).size() == 1); // nothing created
-
-  // Pressing Record Arm again on the same already-focused clip closes it
-  // instead of doing nothing - the only way back to the track's own
-  // background pattern (or to a different clip) via this same gesture.
-  controller.sendCommand("toggle-record-arm");
-  CHECK(controller.getFocusedClipTrackId() == -1);
-  CHECK(controller.getFocusedClip().empty());
-  CHECK(requested_track_id == track_id);
-  CHECK(!requested_opened);
-}
-
-// A lane-less PercussionTrack is still a PercussionTrack -
-// toggleDrumClipFocus() doesn't gate on lane count at all (its own doc
-// comment), so Record Arm opens its own clip for step editing exactly the
-// same way a step-sequenced one does; LaunchpadManager::refreshLeds() is
-// what actually shows that empty (DeviceState::show_step_grid's own
-// comment) - nothing here to distinguish at the Controller level.
-TEST(toggle_record_arm_on_a_lane_less_percussion_clip_focuses_it_too) {
-  ChannelConfiguration config(8000, 1);
-  Controller controller(config);
-  controller.switchToBuffer(controller.freshBufferName());
-  auto & song = controller.getSong();
-
-  auto & track = song.addTrack(std::make_unique<PercussionTrack>()); // no lanes
-  auto track_id = track.getInternalId();
-  auto & existing = song.addClip(Clip(track_id)); // an occupied slot, not an empty one
-  auto existing_id = existing.getId();
-
-  controller.setClipGridFocused(true);
-  controller.setClipGridCursor(track_id, 0);
-  controller.sendCommand("toggle-record-arm");
-
-  CHECK(!controller.isTrackArmed(track_id)); // never armed a take
-  CHECK(controller.getFocusedClipTrackId() == track_id);
-  CHECK(controller.getFocusedClip() == existing_id);
-}
-
-// An empty slot lazily creates a fresh, looping clip rather than doing
-// nothing or requiring a separate "new clip" gesture first.
-TEST(toggle_record_arm_on_an_empty_drum_machine_slot_creates_a_clip) {
-  ChannelConfiguration config(8000, 1);
-  Controller controller(config);
-  controller.switchToBuffer(controller.freshBufferName());
-  auto & song = controller.getSong();
-  song.setRowsPerBar(16);
-
-  auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(std::make_unique<PercussionTrack>()));
-  track.addLane(36); // step-sequenced, so Record Arm repurposes instead of arming
-  auto track_id = track.getInternalId();
-
-  controller.setClipGridFocused(true);
-  controller.setClipGridCursor(track_id, 0); // empty - no clips exist yet
-  controller.sendCommand("toggle-record-arm");
-
-  auto & clips = song.getClips(track_id);
-  CHECK(clips.size() == 1);
-  CHECK(clips[0].isLooping());
-  // The song's own bar length, same as any other fresh clip - not clamped
-  // to the connected Launchpad's own fixed 8-column grid, which pages
-  // through a longer clip instead (LaunchpadManager's own
-  // DeviceState::drum_edit_page).
-  CHECK(clips[0].getLength() == 16);
-  CHECK(controller.getFocusedClipTrackId() == track_id);
-  CHECK(controller.getFocusedClip() == clips[0].getId());
-
-  // Regression: a freshly-created, never-written-to clip's own read-only
-  // auditioning (LaunchpadManager::triggerAuditionStep(), driven by
-  // getFocusedClip() the instant it's set) used to crash - Clip::getLeafPattern()'s
-  // const overload throws std::out_of_range on a Clip whose
-  // patterns_by_track_ has never had an entry created for this track,
-  // which a clip built only via addClip()+setters (no note ever written)
-  // never gets.
-  auto read_target = resolveReadTarget(song, track_id, 0, controller.getFocusedClip());
-  CHECK(read_target.is_focused_override);
-  CHECK(read_target.pattern != nullptr);
+  CHECK(!controller.isClipRecording(track_id));
 }
 
 // Controller::toggleDrumClipFocus() called directly with a (track_id,
 // clip_index) pair - the Launchpad's own CC91-held-as-shift gesture
-// (LaunchpadManager::handleSessionPadEvent()) reaches it this way, never
+// (LaunchpadManager::handleLivePadEvent()) reaches it this way, never
 // through clip_grid_focused_/setClipGridCursor() the way
 // "toggle-record-arm" above does - same underlying open/close behavior,
 // exercised through the other entry point.
@@ -1091,10 +984,9 @@ TEST(toggle_drum_clip_focus_direct_call_opens_and_closes_a_clip) {
   controller.switchToBuffer(controller.freshBufferName());
   auto & song = controller.getSong();
 
-  auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(std::make_unique<PercussionTrack>()));
-  track.addLane(36);
+  auto & track = song.addTrack(std::make_unique<PercussionTrack>());
   auto track_id = track.getInternalId();
-  auto & existing = song.addClip(Clip(track_id));
+  auto existing = song.addClip(Clip(track_id));
   existing.setName("Beat 1");
   auto existing_id = existing.getId();
 
@@ -1119,7 +1011,7 @@ TEST(toggle_drum_clip_focus_direct_call_opens_and_closes_a_clip) {
 // A no-op (false, nothing focused, no listener call) for anything that
 // isn't a PercussionTrack's or a pitched InstrumentTrack's own clip at
 // all (SampleTrack here - neither) - lets a caller like
-// LaunchpadManager::handleSessionPadEvent() fall back to its own ordinary
+// LaunchpadManager::handleLivePadEvent() fall back to its own ordinary
 // meaning for the gesture instead of silently swallowing the press.
 // Neither a PercussionTrack nor an InstrumentTrack is ever declined this
 // way (toggle_record_arm_on_a_lane_less_percussion_clip_focuses_it_too
@@ -1159,7 +1051,7 @@ TEST(toggle_drum_clip_focus_direct_call_opens_a_pitched_track_too) {
 
   auto & note_track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto note_track_id = note_track.getInternalId();
-  auto & existing = song.addClip(Clip(note_track_id));
+  auto existing = song.addClip(Clip(note_track_id));
   auto existing_id = existing.getId();
 
   CHECK(controller.toggleDrumClipFocus(note_track_id, 0));
@@ -1177,10 +1069,9 @@ TEST(close_drum_clip_focus_closes_whatever_is_open) {
   controller.switchToBuffer(controller.freshBufferName());
   auto & song = controller.getSong();
 
-  auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(std::make_unique<PercussionTrack>()));
-  track.addLane(36);
+  auto & track = song.addTrack(std::make_unique<PercussionTrack>());
   auto track_id = track.getInternalId();
-  auto & clip = song.addClip(Clip(track_id));
+  auto clip = song.addClip(Clip(track_id));
   clip.setName("Beat 1");
 
   int requested_track_id = -1;
@@ -1213,8 +1104,7 @@ TEST(close_drum_clip_focus_is_a_no_op_when_nothing_is_focused) {
   CHECK(!listener_called);
 }
 
-// Any other track type keeps Record Arm's ordinary behavior even while
-// Session View focused - the repurposing is drum-machine-only. Arming
+// Record Arm in the clip grid arms the track, whatever its type. Arming
 // itself starts nothing - it only marks the track ready; a take begins
 // once a pad on it is actually pressed (LaunchpadManager's own job).
 TEST(toggle_record_arm_on_a_non_drum_machine_track_arms_normally) {
@@ -1231,7 +1121,7 @@ TEST(toggle_record_arm_on_a_non_drum_machine_track_arms_normally) {
   controller.sendCommand("toggle-record-arm");
 
   CHECK(controller.isTrackArmed(track_id));
-  CHECK(!controller.isSessionRecording(track_id)); // arming alone starts no take
+  CHECK(!controller.isClipRecording(track_id)); // arming alone starts no take
   // untouched - guards against the step sequencer's own pitched-track
   // support (toggleDrumClipFocus() now accepts an InstrumentTrack too)
   // silently preempting multi-track Record Arm here; the "toggle-record-
@@ -1240,19 +1130,19 @@ TEST(toggle_record_arm_on_a_non_drum_machine_track_arms_normally) {
   CHECK(controller.getFocusedClipTrackId() == -1);
 }
 
-// ensureSessionRecordingClip()/extendSessionRecordingClipIfNeeded() are
-// LaunchpadManager's own note-write path for a Session View take - driven
+// ensureClipRecordingClip()/extendClipRecordingClipIfNeeded() are
+// LaunchpadManager's own note-write path for a clip take - driven
 // directly by a caller-supplied absolute step (the free-running audition
 // clock's own currentStep() in practice), never getPlaybackInfo(), and
 // never placing an instance. absolute_step 0 here lands exactly on a bar
 // boundary (rows_per_bar 4), so it becomes this take's own row 0 outright -
 // previousBarRow()'s own snapping isn't separately exercised by this test.
-TEST(ensure_session_recording_clip_creates_and_grows_at_the_exact_pressed_index) {
+TEST(ensure_clip_recording_clip_creates_and_grows_at_the_exact_pressed_index) {
   ChannelConfiguration config(8000, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
   auto & song = controller.getSong();
-  song.setRowsPerBar(4);
+  song.setTimeSignature(TimeSignature{1, 4});
 
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -1261,44 +1151,44 @@ TEST(ensure_session_recording_clip_creates_and_grows_at_the_exact_pressed_index)
   controller.setClipGridCursor(track_id, 2); // an empty slot past the (currently empty) clip list
   controller.sendCommand("toggle-record-arm");
   CHECK(controller.isTrackArmed(track_id));
-  CHECK(!controller.isSessionRecording(track_id)); // arming alone starts no take
+  CHECK(!controller.isClipRecording(track_id)); // arming alone starts no take
 
   // A pad press on the armed track is what starts the take -
   // LaunchpadManager's own job in practice, done directly here to test
-  // ensureSessionRecordingClip() in isolation.
-  controller.armSessionTrackRecording(track_id, 2);
-  CHECK(controller.isSessionRecording(track_id));
+  // ensureClipRecordingClip() in isolation.
+  controller.armClipTrackRecording(track_id, 2);
+  CHECK(controller.isClipRecording(track_id));
 
-  controller.ensureSessionRecordingClip(track_id, 0);
-  auto & clips = song.getClips(track_id);
+  controller.ensureClipRecordingClip(track_id, 0);
+  auto clips = song.getClips(track_id);
   // Lands at exactly the pressed index (2), not the next unused one -
   // holes are allowed, so scene 2 can be recorded into even while scenes
   // 0/1 stay genuinely empty on this track.
   CHECK(clips.size() == 3);
   CHECK(clips[0].isEmpty()); // backfilled filler
   CHECK(clips[1].isEmpty()); // backfilled filler
-  CHECK(controller.getSessionRecordingClipIndex(track_id) == 2);
+  CHECK(controller.getClipRecordingClipIndex(track_id) == 2);
   CHECK(clips[2].getLength() >= 1);
 
   clips[2].getLeafPattern().setNote(0, 0, Note(60, 100, 0));
-  controller.extendSessionRecordingClipIfNeeded(track_id, 5);
+  controller.extendClipRecordingClipIfNeeded(track_id, 5);
   CHECK(clips[2].getLength() > 4); // grew ahead of row 5, same growth shape as extendRecordingClipsIfNeeded()
 
   CHECK(resolveInstanceAt(song, track_id, 0).clip_index == Arrangement::kNoInstance);
 }
 
-// Arming into a Session View slot that already holds a clip overwrites it
+// Arming into a Live View slot that already holds a clip overwrites it
 // in place - same id, content reset.
-TEST(ensure_session_recording_clip_overwrites_an_occupied_slot_in_place) {
+TEST(ensure_clip_recording_clip_overwrites_an_occupied_slot_in_place) {
   ChannelConfiguration config(8000, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
   auto & song = controller.getSong();
-  song.setRowsPerBar(4);
+  song.setTimeSignature(TimeSignature{1, 4});
 
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
-  auto & existing = song.addClip(Clip(track_id));
+  auto existing = song.addClip(Clip(track_id));
   existing.setName("Old take");
   existing.setLength(8);
   existing.getLeafPattern().setNote(0, 0, Note(40, 100, 0));
@@ -1307,10 +1197,10 @@ TEST(ensure_session_recording_clip_overwrites_an_occupied_slot_in_place) {
   controller.setClipGridFocused(true);
   controller.setClipGridCursor(track_id, 0); // the occupied slot
   controller.sendCommand("toggle-record-arm");
-  controller.armSessionTrackRecording(track_id, 0);
+  controller.armClipTrackRecording(track_id, 0);
 
-  controller.ensureSessionRecordingClip(track_id, 0);
-  auto & clips = song.getClips(track_id);
+  controller.ensureClipRecordingClip(track_id, 0);
+  auto clips = song.getClips(track_id);
   CHECK(clips.size() == 1); // reused, not appended
   CHECK(clips[0].getId() == existing_id); // same clip identity preserved
   CHECK(clips[0].getName() == "Old take"); // name untouched by the reset
@@ -1320,12 +1210,12 @@ TEST(ensure_session_recording_clip_overwrites_an_occupied_slot_in_place) {
 // A take's own row 0 is the *bar* the first note arrives in, not the exact
 // step it lands on - a performer may deliberately skip the bar's first
 // beat and start playing on a later one.
-TEST(ensure_session_recording_clip_establishes_its_origin_from_the_containing_bar) {
+TEST(ensure_clip_recording_clip_establishes_its_origin_from_the_containing_bar) {
   ChannelConfiguration config(8000, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
   auto & song = controller.getSong();
-  song.setRowsPerBar(16); // 4 beats * 4 rows/beat
+  song.setTimeSignature(TimeSignature{4, 4}); // 4 beats * 4 rows/beat
 
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -1333,66 +1223,66 @@ TEST(ensure_session_recording_clip_establishes_its_origin_from_the_containing_ba
   controller.setClipGridFocused(true);
   controller.setClipGridCursor(track_id, 0);
   controller.sendCommand("toggle-record-arm");
-  controller.armSessionTrackRecording(track_id, 0);
+  controller.armClipTrackRecording(track_id, 0);
 
   // First note lands on the bar's second beat (step 20 = bar 1's row 4),
   // not its first (step 16) - the origin still snaps back to the bar's own
   // start (16), so this note is recorded at relative row 4, not row 0.
-  auto row = controller.ensureSessionRecordingClip(track_id, 20);
+  auto row = controller.ensureClipRecordingClip(track_id, 20);
   CHECK(row == 4);
 
   // A later call within the same take keeps measuring from that same
   // established origin, not re-snapping to whatever bar the new step is in.
-  row = controller.ensureSessionRecordingClip(track_id, 33);
+  row = controller.ensureClipRecordingClip(track_id, 33);
   CHECK(row == 17);
 }
 
-// primeSessionRecordingOrigin() is the overdub signal: it fixes row 0
-// outright *and* tells ensureSessionRecordingClip() this take is merging
+// primeClipRecordingOrigin() is the overdub signal: it fixes row 0
+// outright *and* tells ensureClipRecordingClip() this take is merging
 // into an already-live clip rather than starting a fresh one, so its
-// content is left completely undisturbed. ensureSessionRecordingClip()'s
+// content is left completely undisturbed. ensureClipRecordingClip()'s
 // own first call must respect the primed origin rather than deriving a
 // different one via previousBarRow(), which in general disagrees with an
 // arbitrary primed step not itself a multiple of rows_per_bar from
 // absolute row 0.
-TEST(ensure_session_recording_clip_respects_a_primed_origin) {
+TEST(ensure_clip_recording_clip_respects_a_primed_origin) {
   ChannelConfiguration config(8000, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
   auto & song = controller.getSong();
-  song.setRowsPerBar(16);
+  song.setTimeSignature(TimeSignature{4, 4});
 
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
-  auto & existing = song.addClip(Clip(track_id));
+  auto existing = song.addClip(Clip(track_id));
   existing.setLength(32); // long enough that row 8 below never wraps
   existing.getLeafPattern().setNote(0, 0, Note(40, 100, 0));
 
   controller.setClipGridFocused(true);
   controller.setClipGridCursor(track_id, 0);
   controller.sendCommand("toggle-record-arm");
-  controller.armSessionTrackRecording(track_id, 0);
+  controller.armClipTrackRecording(track_id, 0);
 
   // 21 isn't a multiple of rows_per_bar (16) - previousBarRow(29, 16) would
   // otherwise snap to 16, not 21.
-  controller.primeSessionRecordingOrigin(track_id, 21);
-  auto row = controller.ensureSessionRecordingClip(track_id, 29);
+  controller.primeClipRecordingOrigin(track_id, 21);
+  auto row = controller.ensureClipRecordingClip(track_id, 29);
   CHECK(row == 8);
   CHECK(existing.getLeafPattern().getNote(0, 0).isDefined()); // overdub - old content untouched
 }
 
-// extendSessionRecordingClipIfNeeded() grows a bar ahead of wherever the
+// extendClipRecordingClipIfNeeded() grows a bar ahead of wherever the
 // take currently is, regardless of how much of that actually ends up
-// holding a note - trimSessionRecordingClip() (toggle-record-arm's own
+// holding a note - trimClipRecordingClip() (toggle-record-arm's own
 // disarm path) is what cuts that growth back down to real content once a
 // take actually ends, quantized up to the last written note's own
 // containing bar rather than left at whatever the growth loop last reached.
-TEST(trim_session_recording_clip_cuts_growth_back_to_the_last_written_bar) {
+TEST(trim_clip_recording_clip_cuts_growth_back_to_the_last_written_bar) {
   ChannelConfiguration config(8000, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
   auto & song = controller.getSong();
-  song.setRowsPerBar(4);
+  song.setTimeSignature(TimeSignature{1, 4});
 
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -1400,17 +1290,17 @@ TEST(trim_session_recording_clip_cuts_growth_back_to_the_last_written_bar) {
   controller.setClipGridFocused(true);
   controller.setClipGridCursor(track_id, 0);
   controller.sendCommand("toggle-record-arm");
-  controller.armSessionTrackRecording(track_id, 0);
+  controller.armClipTrackRecording(track_id, 0);
 
-  auto row = controller.ensureSessionRecordingClip(track_id, 0);
-  auto & clips = song.getClips(track_id);
-  auto & clip = clips[static_cast<size_t>(controller.getSessionRecordingClipIndex(track_id))];
+  auto row = controller.ensureClipRecordingClip(track_id, 0);
+  auto clips = song.getClips(track_id);
+  auto clip = clips[static_cast<size_t>(controller.getClipRecordingClipIndex(track_id))];
   clip.getLeafPattern().setNote(row, 0, Note(60, 100, 0));
 
   // The take then idles for several more bars (the performer stopped
   // playing but hasn't disarmed yet) - the clock keeps growing the clip
   // ahead of itself regardless.
-  controller.extendSessionRecordingClipIfNeeded(track_id, 40);
+  controller.extendClipRecordingClipIfNeeded(track_id, 40);
   CHECK(clip.getLength() > 4); // grown well past the one real note
 
   controller.sendCommand("toggle-record-arm"); // disarm
@@ -1420,12 +1310,12 @@ TEST(trim_session_recording_clip_cuts_growth_back_to_the_last_written_bar) {
 // Disarming a take that never actually received a note (armed, then
 // disarmed with nothing played) leaves a fresh one-bar clip rather than a
 // zero-length one.
-TEST(trim_session_recording_clip_with_no_notes_leaves_one_bar) {
+TEST(trim_clip_recording_clip_with_no_notes_leaves_one_bar) {
   ChannelConfiguration config(8000, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
   auto & song = controller.getSong();
-  song.setRowsPerBar(4);
+  song.setTimeSignature(TimeSignature{1, 4});
 
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -1433,26 +1323,26 @@ TEST(trim_session_recording_clip_with_no_notes_leaves_one_bar) {
   controller.setClipGridFocused(true);
   controller.setClipGridCursor(track_id, 0);
   controller.sendCommand("toggle-record-arm");
-  controller.armSessionTrackRecording(track_id, 0);
-  controller.ensureSessionRecordingClip(track_id, 0); // clip created, but no note ever written into it
+  controller.armClipTrackRecording(track_id, 0);
+  controller.ensureClipRecordingClip(track_id, 0); // clip created, but no note ever written into it
   controller.sendCommand("toggle-record-arm"); // disarm
 
-  auto & clips = song.getClips(track_id);
+  auto clips = song.getClips(track_id);
   CHECK(clips.size() == 1);
   CHECK(clips[0].getLength() == 4);
 }
 
 // A take is meant to be heard right back the instant it finishes -
-// trimSessionRecordingClip() (toggle-record-arm's own disarm path) flips
+// trimClipRecordingClip() (toggle-record-arm's own disarm path) flips
 // the clip to looping and hands its identity to
-// takeCompletedSessionRecording() for LaunchpadManager to pick up, exactly
+// takeCompletedClipRecording() for LaunchpadManager to pick up, exactly
 // once.
-TEST(trim_session_recording_clip_loops_and_is_reported_exactly_once) {
+TEST(trim_clip_recording_clip_loops_and_is_reported_exactly_once) {
   ChannelConfiguration config(8000, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
   auto & song = controller.getSong();
-  song.setRowsPerBar(4);
+  song.setTimeSignature(TimeSignature{1, 4});
 
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -1460,25 +1350,27 @@ TEST(trim_session_recording_clip_loops_and_is_reported_exactly_once) {
   controller.setClipGridFocused(true);
   controller.setClipGridCursor(track_id, 0);
   controller.sendCommand("toggle-record-arm");
-  controller.armSessionTrackRecording(track_id, 0);
-  auto row = controller.ensureSessionRecordingClip(track_id, 0);
-  auto & clips = song.getClips(track_id);
-  clips[static_cast<size_t>(controller.getSessionRecordingClipIndex(track_id))].getLeafPattern().setNote(row, 0, Note(60, 100, 0));
-  auto clip_index = controller.getSessionRecordingClipIndex(track_id);
+  controller.armClipTrackRecording(track_id, 0);
+  auto row = controller.ensureClipRecordingClip(track_id, 0);
+  auto clips = song.getClips(track_id);
+  clips[static_cast<size_t>(controller.getClipRecordingClipIndex(track_id))].getLeafPattern().setNote(row, 0, Note(60, 100, 0));
+  auto clip_index = controller.getClipRecordingClipIndex(track_id);
   controller.sendCommand("toggle-record-arm"); // disarm
 
   CHECK(clips[static_cast<size_t>(clip_index)].isLooping());
 
-  auto completed = controller.takeCompletedSessionRecording();
+  auto completed = controller.takeCompletedClipRecording();
   CHECK(completed.has_value());
-  CHECK(completed->track_id == track_id);
-  CHECK(completed->clip_index == clip_index);
+  if (completed) {
+    CHECK(completed->track_id == track_id);
+    CHECK(completed->clip_index == clip_index);
+  }
 
-  CHECK(!controller.takeCompletedSessionRecording().has_value()); // consumed, not re-reported
+  CHECK(!controller.takeCompletedClipRecording().has_value()); // consumed, not re-reported
 }
 
 // armTrack()/disarmTrack()/toggleTrackArmed() are pure per-track bookkeeping,
-// with no dependency on Session View focus or any particular track type -
+// with no dependency on Live View focus or any particular track type -
 // the hardware-agnostic foundation a future per-track physical arm button
 // would call directly.
 TEST(track_armed_state_is_independent_per_track) {
@@ -1520,25 +1412,25 @@ TEST(disarm_track_stops_an_in_flight_take_immediately) {
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
   auto & song = controller.getSong();
-  song.setRowsPerBar(4);
+  song.setTimeSignature(TimeSignature{1, 4});
 
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
 
   controller.armTrack(track_id);
-  controller.armSessionTrackRecording(track_id, 0);
-  auto row = controller.ensureSessionRecordingClip(track_id, 0);
-  auto & clips = song.getClips(track_id);
-  clips[static_cast<size_t>(controller.getSessionRecordingClipIndex(track_id))].getLeafPattern().setNote(row, 0, Note(60, 100, 0));
-  CHECK(controller.isSessionRecording(track_id));
+  controller.armClipTrackRecording(track_id, 0);
+  auto row = controller.ensureClipRecordingClip(track_id, 0);
+  auto clips = song.getClips(track_id);
+  clips[static_cast<size_t>(controller.getClipRecordingClipIndex(track_id))].getLeafPattern().setNote(row, 0, Note(60, 100, 0));
+  CHECK(controller.isClipRecording(track_id));
 
   controller.disarmTrack(track_id);
   CHECK(!controller.isTrackArmed(track_id));
-  CHECK(!controller.isSessionRecording(track_id)); // the take is gone, not just the arm state
+  CHECK(!controller.isClipRecording(track_id)); // the take is gone, not just the arm state
   CHECK(clips[0].isLooping()); // trimmed and handed off, same as an explicit disarm via toggle-record-arm
-  auto completed = controller.takeCompletedSessionRecording();
+  auto completed = controller.takeCompletedClipRecording();
   CHECK(completed.has_value());
-  CHECK(completed->track_id == track_id);
+  if (completed) CHECK(completed->track_id == track_id);
 }
 
 // An overdub take's own row wraps around the target clip's fixed length
@@ -1549,58 +1441,58 @@ TEST(overdub_row_wraps_instead_of_growing_past_the_clip_length) {
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
   auto & song = controller.getSong();
-  song.setRowsPerBar(4);
+  song.setTimeSignature(TimeSignature{1, 4});
 
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
-  auto & existing = song.addClip(Clip(track_id));
+  auto existing = song.addClip(Clip(track_id));
   existing.setLength(4); // one bar - short enough to wrap well within this test
   existing.getLeafPattern().setNote(0, 0, Note(40, 100, 0));
 
   controller.armTrack(track_id);
-  controller.armSessionTrackRecording(track_id, 0);
-  controller.primeSessionRecordingOrigin(track_id, 0); // the overdub signal
+  controller.armClipTrackRecording(track_id, 0);
+  controller.primeClipRecordingOrigin(track_id, 0); // the overdub signal
 
-  CHECK(controller.ensureSessionRecordingClip(track_id, 0) == 0);
-  CHECK(controller.ensureSessionRecordingClip(track_id, 4) == 0); // one full loop later - wraps back to row 0
-  CHECK(controller.ensureSessionRecordingClip(track_id, 9) == 1); // 9 - 0 = 9, 9 % 4 == 1
+  CHECK(controller.ensureClipRecordingClip(track_id, 0) == 0);
+  CHECK(controller.ensureClipRecordingClip(track_id, 4) == 0); // one full loop later - wraps back to row 0
+  CHECK(controller.ensureClipRecordingClip(track_id, 9) == 1); // 9 - 0 = 9, 9 % 4 == 1
 
   // The clip's own length never grew to accommodate any of this.
   CHECK(existing.getLength() == 4);
-  controller.extendSessionRecordingClipIfNeeded(track_id, 9);
+  controller.extendClipRecordingClipIfNeeded(track_id, 9);
   CHECK(existing.getLength() == 4); // still a no-op - nothing to grow for an overdub
 }
 
-// trimSessionRecordingClip() is a pure no-op for an overdub take - the
+// trimClipRecordingClip() is a pure no-op for an overdub take - the
 // clip was already correct (already playing, already the right length)
 // throughout, so there's nothing to finalize and nothing new to report.
-TEST(trim_session_recording_clip_is_a_no_op_for_an_overdub) {
+TEST(trim_clip_recording_clip_is_a_no_op_for_an_overdub) {
   ChannelConfiguration config(8000, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
   auto & song = controller.getSong();
-  song.setRowsPerBar(4);
+  song.setTimeSignature(TimeSignature{1, 4});
 
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
-  auto & existing = song.addClip(Clip(track_id));
+  auto existing = song.addClip(Clip(track_id));
   existing.setLength(4);
   existing.setLooping(true);
   existing.getLeafPattern().setNote(0, 0, Note(40, 100, 0));
 
   controller.armTrack(track_id);
-  controller.armSessionTrackRecording(track_id, 0);
-  controller.primeSessionRecordingOrigin(track_id, 0);
-  controller.ensureSessionRecordingClip(track_id, 0);
-  controller.ensureSessionRecordingClip(track_id, 1); // merges a second note in without disturbing the first
+  controller.armClipTrackRecording(track_id, 0);
+  controller.primeClipRecordingOrigin(track_id, 0);
+  controller.ensureClipRecordingClip(track_id, 0);
+  controller.ensureClipRecordingClip(track_id, 1); // merges a second note in without disturbing the first
   existing.getLeafPattern().setNote(1, 0, Note(50, 100, 0));
 
-  controller.trimSessionRecordingClip(track_id);
+  controller.trimClipRecordingClip(track_id);
   CHECK(existing.getLength() == 4); // untouched
   CHECK(existing.isLooping()); // untouched (was already true)
   CHECK(existing.getLeafPattern().getNote(0, 0).isDefined()); // original content survives
   CHECK(existing.getLeafPattern().getNote(1, 0).isDefined()); // merged content survives
-  CHECK(!controller.takeCompletedSessionRecording().has_value()); // nothing to hand off
+  CHECK(!controller.takeCompletedClipRecording().has_value()); // nothing to hand off
 }
 
 // Several tracks can each have their own in-flight take at once - the
@@ -1610,7 +1502,7 @@ TEST(several_tracks_can_record_concurrently) {
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
   auto & song = controller.getSong();
-  song.setRowsPerBar(4);
+  song.setTimeSignature(TimeSignature{1, 4});
 
   auto & track_a = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto & track_b = song.addTrack(std::make_unique<InstrumentTrack>(0));
@@ -1619,22 +1511,22 @@ TEST(several_tracks_can_record_concurrently) {
 
   controller.armTrack(track_a_id);
   controller.armTrack(track_b_id);
-  controller.armSessionTrackRecording(track_a_id, 0);
-  controller.armSessionTrackRecording(track_b_id, 0);
-  CHECK(controller.isSessionRecording(track_a_id));
-  CHECK(controller.isSessionRecording(track_b_id));
+  controller.armClipTrackRecording(track_a_id, 0);
+  controller.armClipTrackRecording(track_b_id, 0);
+  CHECK(controller.isClipRecording(track_a_id));
+  CHECK(controller.isClipRecording(track_b_id));
 
-  auto ids = controller.getSessionRecordingTrackIds();
+  auto ids = controller.getClipRecordingTrackIds();
   CHECK(ids.size() == 2);
 
-  controller.ensureSessionRecordingClip(track_a_id, 0);
-  controller.ensureSessionRecordingClip(track_b_id, 0);
-  CHECK(controller.getSessionRecordingClipIndex(track_a_id) == 0);
-  CHECK(controller.getSessionRecordingClipIndex(track_b_id) == 0);
+  controller.ensureClipRecordingClip(track_a_id, 0);
+  controller.ensureClipRecordingClip(track_b_id, 0);
+  CHECK(controller.getClipRecordingClipIndex(track_a_id) == 0);
+  CHECK(controller.getClipRecordingClipIndex(track_b_id) == 0);
 
-  controller.trimSessionRecordingClip(track_a_id);
-  CHECK(!controller.isSessionRecording(track_a_id));
-  CHECK(controller.isSessionRecording(track_b_id)); // untouched by the other track's own finish
+  controller.trimClipRecordingClip(track_a_id);
+  CHECK(!controller.isClipRecording(track_a_id));
+  CHECK(controller.isClipRecording(track_b_id)); // untouched by the other track's own finish
 }
 
 // End-to-end: sendCommand("merge-clip-to-background") resolves its target
@@ -1657,7 +1549,7 @@ TEST(merge_clip_to_background_command_resolves_from_current_track_and_playhead) 
   shot.getLeafPattern().setNote(0, 0, Note(60, 100));
   song.addClip(std::move(shot)); // index 0
 
-  auto & arrangement = song.getArrangement();
+  auto arrangement = song.getArrangement();
   placeClipInstance(song, track_id, 5, 0); // covers rows 5-8
 
   song.setCurrentTrackId(track_id);
@@ -1711,7 +1603,7 @@ TEST(ensure_note_recording_clip_creates_and_places_a_real_clip_on_first_write) {
   std::unordered_map<int, std::string> clip_ids;
   controller.ensureNoteRecordingClip(clip_ids, track_id, 0);
 
-  auto & clips = controller.getSong().getClips(track_id);
+  auto clips = controller.getSong().getClips(track_id);
   CHECK(clips.size() == 1);
   CHECK(!clips.empty() && !clips[0].isLooping()); // non-looping by default - one specific take, not a pattern meant to auto-repeat
   CHECK(clip_ids.count(track_id) == 1);
@@ -1729,7 +1621,7 @@ TEST(ensure_note_recording_clip_places_the_clip_at_the_start_of_its_own_bar) {
   ChannelConfiguration config(44100, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
-  controller.getSong().setRowsPerBar(16);
+  controller.getSong().setTimeSignature(TimeSignature{4, 4});
 
   auto & track = controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -1808,7 +1700,7 @@ TEST(extend_recording_clips_if_needed_grows_the_clip_as_the_take_continues) {
   ChannelConfiguration config(44100, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
-  controller.getSong().setRowsPerBar(4);
+  controller.getSong().setTimeSignature(TimeSignature{1, 4});
 
   auto & track = controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -1850,7 +1742,7 @@ TEST(extend_recording_clips_if_needed_is_a_no_op_while_stopped_or_with_no_clips)
   controller.ensureNoteRecordingClip(clip_ids, track_id, 0);
 
   controller.extendRecordingClipsIfNeeded(clip_ids, { track_id }); // still stopped - PlaybackInfo defaults to not playing
-  CHECK(controller.getSong().getClips(track_id)[0].getLength() == 16); // unchanged from its own creation-time length (a full bar, default rowsPerBar)
+  CHECK(controller.getSong().getClips(track_id)[0].getLength() == 16); // unchanged from its own creation-time length (a full bar of the default time signature)
 
   std::unordered_map<int, std::string> empty_clip_ids;
   PlaybackInfo info;
@@ -1872,7 +1764,7 @@ TEST(extend_recording_clips_if_needed_does_not_grow_a_track_with_no_note_current
   ChannelConfiguration config(44100, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
-  controller.getSong().setRowsPerBar(4);
+  controller.getSong().setTimeSignature(TimeSignature{1, 4});
 
   auto & track = controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -1902,7 +1794,7 @@ TEST(extend_recording_clips_if_needed_keeps_growing_even_when_this_session_never
   ChannelConfiguration config(44100, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
-  controller.getSong().setRowsPerBar(4);
+  controller.getSong().setTimeSignature(TimeSignature{1, 4});
 
   auto & track = controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -1932,7 +1824,7 @@ TEST(extend_recording_clips_if_needed_overwrites_a_stop_it_grows_across) {
   ChannelConfiguration config(44100, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
-  controller.getSong().setRowsPerBar(4);
+  controller.getSong().setTimeSignature(TimeSignature{1, 4});
 
   auto & track = controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -1963,7 +1855,7 @@ TEST(extend_recording_clips_if_needed_overwrites_a_different_clip_it_grows_acros
   ChannelConfiguration config(44100, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
-  controller.getSong().setRowsPerBar(4);
+  controller.getSong().setTimeSignature(TimeSignature{1, 4});
 
   auto & track = controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -2009,12 +1901,12 @@ TEST(apply_note_pressure_writes_an_aftertouch_note) {
   auto track_id = track.getInternalId();
   song.setCurrentTrackId(track_id);
 
-  auto & arrangement = song.getArrangement();
+  auto arrangement = song.getArrangement();
   arrangement.setNote(0, track_id, 0, Note(60, 100));
 
   controller.applyNotePressure(2, track_id, 0, 90, 0);
 
-  auto & note = arrangement.getNote(2, track_id, 0);
+  auto note = arrangement.getNote(2, track_id, 0);
   CHECK(note.isAftertouch());
   CHECK(note.getVelocity() == 90);
 }
@@ -2029,7 +1921,7 @@ TEST(apply_note_pressure_writes_aftertouch_into_a_recording_clip) {
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
   auto & song = controller.getSong();
-  song.setRowsPerBar(16);
+  song.setTimeSignature(TimeSignature{4, 4});
 
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -2045,7 +1937,7 @@ TEST(apply_note_pressure_writes_aftertouch_into_a_recording_clip) {
   controller.applyNotePressure(4, track_id, 0, 90, 0);
 
   auto read_target = resolveReadTarget(song, track_id, 4, controller.getFocusedClip());
-  auto & note = read_target.pattern->getNote(read_target.effective_row, 0);
+  auto note = read_target.pattern->getNote(read_target.effective_row, 0);
   CHECK(read_target.is_instance); // landed in the recording clip, not the background
   CHECK(note.isAftertouch());
   CHECK(note.getVelocity() == 90);
@@ -2096,21 +1988,21 @@ TEST(monitor_in_and_off_override_arming_and_cycle_in_order) {
   auto & song = controller.getSong();
   auto & a = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto & b = song.addTrack(std::make_unique<InstrumentTrack>(0));
-  auto & leaf = dynamic_cast<LeafTrack &>(a);
+  auto a_id = a.getInternalId();
   controller.armTrack(b.getInternalId());
 
-  CHECK(leaf.getMonitor() == LeafTrack::Monitor::AUTO);
-  controller.cycleTrackMonitor(a.getInternalId());
-  CHECK(leaf.getMonitor() == LeafTrack::Monitor::IN);
-  CHECK(controller.isMonitoring(a.getInternalId())); // not armed, heard anyway
+  CHECK(leafNow(controller, a_id).getMonitor() == LeafTrack::Monitor::AUTO);
+  controller.cycleTrackMonitor(a_id);
+  CHECK(leafNow(controller, a_id).getMonitor() == LeafTrack::Monitor::IN);
+  CHECK(controller.isMonitoring(a_id)); // not armed, heard anyway
 
-  controller.cycleTrackMonitor(a.getInternalId());
-  CHECK(leaf.getMonitor() == LeafTrack::Monitor::OFF);
-  controller.armTrack(a.getInternalId());
-  CHECK(!controller.isMonitoring(a.getInternalId())); // armed, never heard
+  controller.cycleTrackMonitor(a_id);
+  CHECK(leafNow(controller, a_id).getMonitor() == LeafTrack::Monitor::OFF);
+  controller.armTrack(a_id);
+  CHECK(!controller.isMonitoring(a_id)); // armed, never heard
 
-  controller.cycleTrackMonitor(a.getInternalId());
-  CHECK(leaf.getMonitor() == LeafTrack::Monitor::AUTO);
+  controller.cycleTrackMonitor(a_id);
+  CHECK(leafNow(controller, a_id).getMonitor() == LeafTrack::Monitor::AUTO);
 }
 
 TEST(monitor_setting_round_trips_through_the_song_file) {
@@ -2133,7 +2025,7 @@ TEST(monitor_setting_round_trips_through_the_song_file) {
   Controller reopened(config);
   CHECK(reopened.openSong(scratch_path.string()));
   auto track_ids = reopened.getSong().getPlayableTrackIds();
-  auto * leaf = dynamic_cast<LeafTrack *>(reopened.getSong().getMasterTrack().getChildByInternalId(track_ids.front()));
+  auto * leaf = dynamic_cast<const LeafTrack *>(reopened.getSong().getMasterTrack().getChildByInternalId(track_ids.front()));
   CHECK(leaf && leaf->getMonitor() == LeafTrack::Monitor::IN);
   fs::remove(scratch_path);
 }

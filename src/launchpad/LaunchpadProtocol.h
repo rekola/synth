@@ -26,6 +26,11 @@ namespace LaunchpadProtocol {
     bool poly_aftertouch;
     int grid_width = 8, grid_height = 8; // the core pad grid; all 3 models today
     int max_led_colourspecs;  // per LED-lighting SysEx message
+    // The right column is seven scene-launch buttons plus a bottom button
+    // (CC19) that cycles the bottom pad row through Stop/Solo/Mute track
+    // controls; there is no mixer submode. False: eight buttons sharing the
+    // scene-launch/mixer-submode dispatch.
+    bool stop_solo_mute_cycle_button = false;
   };
 
   ModelInfo getModelInfo(Model model);
@@ -124,7 +129,7 @@ namespace LaunchpadProtocol {
   bool isProMk3OnlyLedIndex(int led_index);
 
   // The fixed set of LED indices outside the 8x8 grid this app ever
-  // addresses - move-row-up/down/prev-track/next-track (91-94), Session/
+  // addresses - move-row-up/down/pad-prev-track/pad-next-track (91-94), Session/
   // Note/Custom/Draw (95-98), the unused top-right corner (99), the
   // Track-control column (19/29/39/49/59/69/79/89), and Pro MK3's
   // left-column Mute/Solo twins (30/20, harmless to include for X/Mini

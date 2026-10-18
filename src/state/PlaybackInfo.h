@@ -3,8 +3,13 @@
 
 #include "TrackInfo.h"
 #include "ActiveVoiceInfo.h"
-#include "SessionTrackInfo.h"
+#include "LiveTrackInfo.h"
+#include "../model/BarGrid.h"
 
+#include <cmath>
+#include <cstdint>
+#include <initializer_list>
+#include <utility>
 #include <vector>
 #include <unordered_map>
 
@@ -67,26 +72,88 @@ class PlaybackInfo {
   }
   void setActiveVoices(std::unordered_map<int, std::vector<ActiveVoiceInfo> > voices) { active_voices_ = std::move(voices); }
 
-  // Session view's launched clips (SongState::getSessionTracks()) - the
+  // Live View's launched clips (SongState::getLiveTracks()) - the
   // tracks taken over from the arrangement and what's queued for them.
-  const SessionTracks & getSessionTracks() const { return session_tracks_; }
-  void setSessionTracks(SessionTracks tracks) { session_tracks_ = std::move(tracks); }
-  const SessionTrackInfo * getSessionTrack(int track_id) const {
-    auto it = session_tracks_.find(track_id);
-    return it != session_tracks_.end() ? &it->second : nullptr;
+  const LiveTracks & getLiveTracks() const { return live_tracks_; }
+  void setLiveTracks(LiveTracks tracks) { live_tracks_ = std::move(tracks); }
+  // Hashes of what a snapshot shows, by part: two snapshots with the same
+  // ones would draw the same, so the second need not be sent or redrawn.
+  // Levels are taken at the resolution a display can show, so a reading
+  // wandering in the far decimals (a faint tail) does not count as a change.
+  // Calls part(name, hash) for each part; allocates nothing (the audio
+  // thread hashes every snapshot).
+  template <class Part>
+  void forEachSignaturePart(Part part) const {
+    auto mix = [](uint64_t h, uint64_t v) { return (h ^ v) * 1099511628211ULL; };
+    auto level = [](float f) { return static_cast<uint64_t>(static_cast<int64_t>(std::lround(f * 4096.0f))); };
+    constexpr uint64_t kSeed = 14695981039346656037ULL;
+    auto scalars = [&](const char * name, std::initializer_list<uint64_t> values) {
+      uint64_t h = kSeed;
+      for (auto v : values) h = mix(h, v);
+      part(name, h);
+    };
+    scalars("transport", { static_cast<uint64_t>(is_playing_), static_cast<uint64_t>(absolute_pos_), static_cast<uint64_t>(sample_pos_), static_cast<uint64_t>(position_edit_seq_) });
+    scalars("voices", { static_cast<uint64_t>(voice_count_), static_cast<uint64_t>(allocated_voice_count_) });
+    scalars("live", { static_cast<uint64_t>(live_clock_), static_cast<uint64_t>(live_start_clock_), static_cast<uint64_t>(live_seq_), static_cast<uint64_t>(scene_seq_), static_cast<uint64_t>(tempo_) });
+    scalars("latency", { static_cast<uint64_t>(getRoundTripLatencyMs()), static_cast<uint64_t>(latency_is_nominal_) }); // as the info line shows it
+    // Maps are summed entry by entry, so their iteration order does not matter.
+    uint64_t tracks = 0;
+    for (auto & [ id, t ] : effect_info_) {
+      tracks += mix(mix(mix(mix(mix(static_cast<uint64_t>(id), level(t.getMeterValue())), static_cast<uint64_t>(t.isActive())), static_cast<uint64_t>(t.isClipping())),
+                        static_cast<uint64_t>(t.isRecording())),
+                    level(t.getLiveSendMain()) ^ (level(t.getLiveSendA()) << 1) ^ (level(t.getLiveSendB()) << 2) ^ (level(t.getLiveAzimuth() / 360.0f) << 3));
+    }
+    part("tracks", tracks);
+    uint64_t voices = 0;
+    for (auto & [ id, list ] : active_voices_) {
+      uint64_t v = static_cast<uint64_t>(id);
+      for (auto & voice : list) v = mix(mix(v, static_cast<uint64_t>(voice.note_value)), level(voice.loudness));
+      voices += v;
+    }
+    part("active-voices", voices);
+    uint64_t live = 0;
+    for (auto & [ id, t ] : live_tracks_) live += mix(mix(mix(static_cast<uint64_t>(id), static_cast<uint64_t>(t.clip_index)), static_cast<uint64_t>(t.launch_clock)), static_cast<uint64_t>(t.queued));
+    part("launched-clips", live);
   }
-  // The session clock at the current row - rows played, unaffected by
+
+  std::vector<std::pair<const char *, uint64_t>> signatureParts() const {
+    std::vector<std::pair<const char *, uint64_t>> parts;
+    forEachSignaturePart([&](const char * name, uint64_t h) { parts.emplace_back(name, h); });
+    return parts;
+  }
+
+  uint64_t signature() const {
+    uint64_t h = 14695981039346656037ULL;
+    forEachSignaturePart([&](const char *, uint64_t part) { h = (h ^ part) * 1099511628211ULL; });
+    return h;
+  }
+
+  const LiveTrackInfo * getLiveTrack(int track_id) const {
+    auto it = live_tracks_.find(track_id);
+    return it != live_tracks_.end() ? &it->second : nullptr;
+  }
+  // The live clock at the current row - rows played, unaffected by
   // seeks and pattern breaks - that launched clips advance on.
-  int getSessionClock() const { return session_clock_; }
-  void setSessionClock(int clock) { session_clock_ = clock; }
-  // The session clock when the transport last started - where a UI that
+  int getLiveClock() const { return live_clock_; }
+  void setLiveClock(int clock) { live_clock_ = clock; }
+  // The live clock when the transport last started - where a UI that
   // first sees the transport playing a few rows in picks up from.
-  int getSessionStartClock() const { return session_start_clock_; }
-  void setSessionStartClock(int clock) { session_start_clock_ = clock; }
-  // The last Session view change the audio thread had applied when this
-  // snapshot was taken - see SessionPlayer's own prediction of it.
-  int getSessionSeq() const { return session_seq_; }
-  void setSessionSeq(int seq) { session_seq_ = seq; }
+  int getLiveStartClock() const { return live_start_clock_; }
+  void setLiveStartClock(int clock) { live_start_clock_ = clock; }
+  // The tempo and the running time signature the audio thread is playing
+  // with (SongState::queueSceneChange() sets them), and how many scene
+  // changes it had applied when this snapshot was taken - what the UI
+  // mirrors into the song.
+  int getTempo() const { return tempo_; }
+  void setTempo(int tempo) { tempo_ = tempo; }
+  const RunningBars & getRunningBars() const { return running_bars_; }
+  void setRunningBars(RunningBars running) { running_bars_ = running; }
+  int getSceneSeq() const { return scene_seq_; }
+  void setSceneSeq(int seq) { scene_seq_ = seq; }
+  // The last Live View change the audio thread had applied when this
+  // snapshot was taken - see ClipPlayer's own prediction of it.
+  int getLiveSeq() const { return live_seq_; }
+  void setLiveSeq(int seq) { live_seq_ = seq; }
 
 private:
   // SongState::is_playing_ (the real, audio-thread-owned state this
@@ -107,10 +174,13 @@ private:
   int voice_count_ = 0, allocated_voice_count_ = 0;
   int round_trip_latency_frames_ = -1;
   bool latency_is_nominal_ = false;
-  SessionTracks session_tracks_;
-  int session_clock_ = 0;
-  int session_start_clock_ = 0;
-  int session_seq_ = 0;
+  LiveTracks live_tracks_;
+  int live_clock_ = 0;
+  int live_start_clock_ = 0;
+  int live_seq_ = 0;
+  int tempo_ = 0;
+  RunningBars running_bars_;
+  int scene_seq_ = 0;
 
   std::unordered_map<int, TrackInfo> effect_info_;
   std::unordered_map<int, std::vector<ActiveVoiceInfo> > active_voices_;

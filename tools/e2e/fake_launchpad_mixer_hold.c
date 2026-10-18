@@ -6,7 +6,7 @@
 // kMixerHoldPreviewThreshold) reverts back to whatever was showing right
 // before that press once released.
 //
-// Sequence: enters Session's own mixer submode (CC95 x2), quick-taps Send A
+// Sequence: enters Live's own mixer submode (CC95 x2), quick-taps Send A
 // (CC69) so it becomes the sticky selection, long-holds Mute (CC39, > the
 // threshold) and releases - expecting the display to land back on Send A,
 // not stay on Mute - then quick-taps Mute again as a control, expecting it
@@ -54,9 +54,9 @@ int main() {
   fprintf(stderr, "fake Launchpad X (mixer hold) ready as client %d port %d\n", snd_seq_client_id(seq), port);
 
   fake_wait_ready(seq, "at startup");
-  drain(seq, "idle - SESSION mode (the connect-time default)");
+  drain(seq, "idle - LIVE mode (the connect-time default)");
 
-  fprintf(stderr, "sending CC95 press+release (enters Session's own mixer submode)\n");
+  fprintf(stderr, "sending CC95 press+release (enters Live's own mixer submode)\n");
   send_cc(seq, port, 95, 127);
   usleep(200000);
   send_cc(seq, port, 95, 0);

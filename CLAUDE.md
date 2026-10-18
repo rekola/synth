@@ -1,13 +1,14 @@
 # synth — microtonal tracker / synthesizer
 
-Tracker-style music production system with microtonal notes (12/19/31/53-TET).
-Terminal UI (notcurses), ALSA audio output, songs stored as XML.
+Tracker-style music production system with microtonal notes (12/19/31/53-EDO).
+Terminal UI (Cell UI's own terminal backend, `lib/cellui`), ALSA audio
+output, songs stored as XML.
 Formerly developed as the `syna/` subdirectory of the private `personal` repo;
 full history was preserved when it was extracted into this repository.
 
 Conceived as an amalgam of Emacs (keybinding philosophy — mark/point
 selection, kill/yank, M-x), classic step-sequencer trackers (pattern-editor
-concepts, tracker workflow), and live sequencers (clip launching/session-
+concepts, tracker workflow), and live sequencers (clip launching/live-
 style performance), with microtonal features added. When a UI decision
 doesn't already have a clear precedent in this codebase, check how that
 lineage handles the equivalent situation before inventing something new -
@@ -26,16 +27,12 @@ cmake --build build -j
 
 Produces `build/synth`.
 
-Dependencies (Ubuntu): `libnotcurses-dev libnotcurses++-dev libfmt-dev
-libsndfile1-dev libasound2-dev libunistring-dev libsoundtouch-dev` plus
-CMake and a C++17 compiler. The C++ bindings (`ncpp/NotCurses.hh`, what
-`main.cpp`/`TerminalUI.cpp` include) ship in `libnotcurses++-dev`, a
-separate package `libnotcurses-dev` does not pull in as a dependency —
-both are required. `libunistring-dev` backs `src/util/Utf8.h`'s
-grapheme-cluster-aware UTF-8 truncation/width helpers — its runtime half
-(`libunistring5`) is already pulled in transitively by `libnotcurses-dev`,
-but the headers/link package isn't, so it still needs installing
-explicitly. `libsoundtouch-dev` backs `src/audio/TimeStretcher.h`'s
+Dependencies (Ubuntu): `libfmt-dev libsndfile1-dev libasound2-dev
+libunistring-dev libsoundtouch-dev libcairo2-dev` plus CMake, pkg-config,
+git and a C++17 compiler. The terminal UI needs no terminal library: Cell
+UI's terminal backend (`lib/cellui`, `cellui/term/`) writes escape
+sequences itself. `libunistring-dev` backs `lib/cellui`'s `cellui/Utf8.h`
+grapheme-cluster-aware UTF-8 truncation/width helpers. `libsoundtouch-dev` backs `src/audio/TimeStretcher.h`'s
 pitch-preserving time-stretch (a `SampleTrack` clip whose own recorded
 tempo disagrees with the song's current one, `SampleTrackState::
 triggerClip()`) — not optional the way `libmysofa-dev` is below, since a
@@ -43,9 +40,88 @@ degraded resample-based fallback would also shift pitch, a correctness
 defect this codebase won't ship. FFT support (the live spectrum analyzer,
 MagLS binaural precomputation) is via vendored PocketFFT
 (`third_party/pocketfft/`) — no separate FFT library package needed.
+canvas (`rekola/canvas`, 2D drawing for the scopes and meters, drawn as
+pixels with Cairo, or Quartz 2D on macOS) is a dependency of Cell UI, fetched at configure time at a
+pinned commit (`FetchContent` in `lib/cellui/CMakeLists.txt`, built with none
+of our warning flags, its headers reached as SYSTEM includes; GDI+ on
+Windows); bump the pin when canvas changes. The pixel versions make their
+drawing context through `cellui::nativeContext()` (`src/NativeContext.h`), the
+one place that names a canvas backend. The scopes - the spectrum, the
+DirAC heatmap, the channel meter - are Cell UI widgets in the versions each
+backend provides (`cellui::Scopes`, `cellui/Scopes.h`;
+`cellui::scopesFor(display)` picks the display's): the cell versions are
+drawn by hand (braille bars, a quadrant or sextant heatmap, labels in text,
+`src/Scopes.cpp`), never through canvas, and the pixel versions are images
+drawn with canvas (`cellui/SpectrumImage.h`, `cellui/HeatmapImage.h`,
+`src/PixelScopes.cpp`, the heatmap's axis labels drawn into the image). An `ImageData` handed to canvas to draw is RGB straight-alpha unless
+tagged otherwise (`setFormat(ChannelOrder::BGR, true)` for bytes B, G, R, A,
+premultiplied, as we build them); what is read back
+is the same layout, and the renderers return RGBA. The VU meters have pixel
+versions too: the channel meter's bars are one image over its bar rows, and
+the clip grid's and pattern editor's level meters are drawn through
+`Scopes::drawVuMeter()` into the widget's own plane (`cellui/VuMeterImage.h`;
+`drawCellVuMeter()` is the cell version), as images at cell positions
+(`UIPlane::drawImageAt()`: a plane holds one image per cell position, covering
+only the cells it reaches, and the same picture - an id given to `drawImageAt()`, or a hash of its pixels - drawn again, even after
+`erase()` and at another position, keeps its key and version, so it isn't sent again, only placed; a meter scrolled partly out of view is drawn whole at its real position with a row clip, so its pixels do not change with the scroll).
+`libpipewire-0.3-dev` is optional too (`SYNTH_ENABLE_PIPEWIRE`,
+auto-detected, and cmake says so when it isn't used): it only backs
+`src/audio/AudioDevices.cpp`'s listing of the audio server's own inputs and
+outputs for the device pickers (below); selecting one doesn't need it, and
+without it the lists fall back to the machine's sound cards (one entry per
+card input/output via the ALSA control API - not `snd_device_name_hint()`'s
+dozens of virtual PCMs per card); the dialog title always names which list
+it is, "(PipeWire)" or "(ALSA sound cards)".
+`libgtk-4-dev` is optional too (`SYNTH_ENABLE_GTK`, auto-detected, GTK 4.10 or
+later, Linux only, and cmake says so when it isn't used): it builds the window
+backend (`lib/cellui/src/gtk/`) and `--ui window`; without it the terminal is
+the only UI. `cellui_gtk_tests` needs a display, so ctest runs it under
+`xvfb-run` (and `xdotool`, which drives its input checks) and skips it where
+neither is there.
 `libmysofa-dev` is optional (binaural ambisonic decoding,
 `SYNTH_ENABLE_BINAURAL`, auto-detected) — without it, `--ambisonic` still
 works via the cardioid stereo decoder fallback.
+
+### Windows
+
+User-facing build instructions are in `docs/building.md`. Windows builds with MSYS2 UCRT64 (MinGW-w64 GCC; the DSP code needs GCC vector
+extensions), packages `mingw-w64-ucrt-x86_64-{gcc,cmake,ninja,fmt,libsndfile,
+soundtouch,libunistring,python}`. `SYNTH_BUILD_INTERACTIVE` (default ON) selects between the full `synth` and the render-only one
+(`src/main_render.cpp`: `--render`, `--help`, `--licenses` and the options
+`--render` honours, parsed by `src/cli/CommonOptions.*`, shared with
+`main.cpp`); `SYNTH_BUILD_TERMINAL_UI` (default ON, OFF on Windows) adds the
+terminal UI (`SYNTH_TERMINAL_UI` in `main.cpp`; Cell UI's terminal backend is POSIX only so far), so
+Windows has the full program run with `--headless` (`tools/smoke_headless.py`
+in CI); ALSA and PipeWire sources are Linux only. `.github/workflows/
+ci-windows-x86_64.yml` builds, runs ctest and renders songs. The `#ifdef
+_WIN32`s this needed live in small platform helpers: `util/Paths.h` (the
+config dir `%APPDATA%\synth`, the user and installed data dirs, the executable's
+dir and the installed default song - `DeviceSettings`, `findDefaultSoundFont()`
+and `findDefaultSofaFile()` only add sub-paths to these),
+`util/ThreadSupport.h` (thread names via `SetThreadDescription`;
+`AudioThreadPriority`, MMCSS "Pro Audio" on Windows and nothing on Linux, held
+by the audio thread), `ShutdownSignal.cpp` (a console control handler for
+Ctrl-C and the console closing), `Daemon.cpp` (`--daemon` says it is unsupported
+and exits), `Notifier.h` and `AudioBuffer.h` (aligned allocation). The Windows device backends sit in `synth_engine` behind the same interfaces: `audio/WasapiAudio` (shared-mode, event-driven WASAPI; `wasapi:<endpoint id>` names, `AudioDevicesWasapi.cpp` for the lists) and WinMM MIDI (`midi/WinMmMidiInput`, `WinMmMidiPorts`; `winmm::Watcher` polls the device list, as WinMM has no hotplug notice). They compile in CI but nothing there can run them against a device. The installer (Inno Setup) is built by `.github/workflows/release-windows.yml` from `tools/windows/` and described in `docs/building.md`. Files open by
+UTF-8 path through `util/FileOpen.h`.
+
+### macOS
+
+Builds with Apple clang (Xcode command line tools) and Homebrew: `brew install
+cmake ninja pkg-config fmt libsndfile sound-touch libunistring`. Not GCC:
+canvas' Quartz 2D backend includes Apple's framework headers (blocks syntax),
+and Homebrew's `fmt`/`sound-touch` are built against libc++, which GCC's
+libstdc++ cannot link. Clang does not search `/opt/homebrew`, so set
+`CPATH=/opt/homebrew/include` and `LIBRARY_PATH=/opt/homebrew/lib`. There is
+no audio or MIDI backend yet, so only `-DSYNTH_BUILD_INTERACTIVE=OFF` (the
+render-only `synth`, the engine and the tests) builds;
+`.github/workflows/ci-macos-arm64.yml` does that, runs ctest and renders
+songs. Clang optimizes on `-ffinite-math-only` harder than GCC, so
+`CMakeLists.txt` keeps `-fno-finite-math-only` with `-ffast-math` there. The
+pixel scopes draw through canvas' Quartz 2D backend (no Cairo or fontconfig);
+Core Text falls back to another font for a missing glyph by itself, so
+`CanvasRasterizer` has no fontconfig there. `Notifier` is a pipe (no eventfd)
+and `executableDir()` uses `_NSGetExecutablePath`.
 
 ## Run
 
@@ -62,6 +138,57 @@ lines to stderr, plays MIDI input live and records samples; `--autoplay` starts 
 mode's main loop cleanly (`util/ShutdownSignal.h`, `UI::shouldClose()`).
 See `docs/headless.md`; `tools/e2e/verify_headless.py` covers it.
 
+**Audio and MIDI devices** (`docs/devices.md`): the output, the input and one
+MIDI source are chosen at runtime (M-x `select-playback-device`/
+`select-capture-device`/`select-midi-input`, the Devices menu - each opens a
+modal list, `UI::showChoiceDialog()`, rendered by `tui/ChoiceDialog` over the
+toolkit-agnostic `ui/ChoiceList.h`; the commands live in `UI`, so a GUI
+backend only supplies the dialog) and saved in
+`~/.config/synth/devices.conf` (`audio/DeviceSettings.h`, machine-wide, never
+part of a song). `--playback-device`/`--capture-device`/`--midi-input`
+override one run without touching the file; `--list-devices` prints the
+choices. An audio name is `""`/`default`, `pw:<node.name>` (a PipeWire node -
+stable across sessions, unlike its numeric id) or a raw ALSA PCM name.
+A `pw:` device is opened through ALSA's own pipewire plugin with the node
+named in a private one-PCM config (`openPcm()`, `AlsaAudio.cpp`), so period
+sizes, polling, delay queries and xrun recovery stay the one ALSA path for
+every device. `Controller::setCaptureDevice()`/`setPlaybackDevice()` save the
+choice and push `SET_CAPTURE_DEVICE`/`SET_PLAYBACK_DEVICE`: the audio thread
+owns the PCM handles, so `Player` makes the switch (`devices_changed_`; the
+backend's `wait()` rebuilds its own set each call). A switch that can't happen - the node is gone, the
+rate or block size can't match the running song, capture is in use - logs why
+and keeps the current device. MIDI is read on the UI thread, so
+`UI::selectMidiInput()` connects it there instead, never through an event; a
+chosen source that is unplugged is reconnected when its port reappears
+(`AlsaMidiInput::readEvents()`). A saved device that is missing at startup falls
+back to the default, with the choice kept. A node name that doesn't exist is
+rejected up front (`playbackDeviceExists()`/`captureDeviceExists()`) because
+the server silently substitutes the default input for an unknown one.
+Capturing a sink's monitor isn't supported for the same reason (naming a sink
+also falls back to the default input). A missing ALSA sequencer no longer
+stops audio from starting - MIDI is just off.
+Identical labels are told apart by where the device is plugged in
+(`DeviceLabels.h`: a node's `device.bus-path`, looked up on its device object,
+cut down to the USB port; the node name if none), numbered as a last resort.
+`tools/e2e/verify_device_selection.py` drives the pickers against a real
+PipeWire (and skips without one).
+
+**Waiting.** Nothing outside a backend sees a file descriptor of the audio
+device: `Player` calls `AudioAPI::wait(notifier, want_capture, timeout)` and
+gets back which of woken/playback/capture is ready (`WaitResult`). The wakeup
+is `util/Notifier.h` (level-triggered; eventfd on Linux, an event on Windows, a pipe
+elsewhere), which `EventQueue` raises while it holds events. `AlsaAudio::wait()`
+polls the notifier's fd with its streams' own (capture's masked off while not
+wanted: an unstarted capture stream is "ready" forever). `NullAudio`
+(`--null-audio`) takes blocks at the pace of the clock with no device, so the
+real `Player` loop runs on machines without sound hardware (CI, tests). MIDI input
+is `midi/MidiInput.h` (`readEvents()` on the UI thread, `AlsaMidiInput`) and
+Launchpad I/O sits on a `midi/MidiPorts.h` `MidiPortBackend` (`AlsaMidiPorts`),
+neither part of `AudioAPI`. The UI loops block on a `util/WaitSet.h` (groups of
+`Notifier`s and, on POSIX, file descriptors) that each source adds itself to
+(`addTo()`), and read a source when its group is ready; `LaunchpadIO` is
+platform-neutral and tested against a fake backend.
+
 `--render` needs no terminal or audio device: it renders the song offline
 (plus the effect/release tail until silence, capped at 10 s) and exits — use
 it to verify audio changes and to regression-test songs.
@@ -70,7 +197,7 @@ With no file given, `main.cpp` opens `songs/welcome.xml` by default -
 resolved cwd-relative first (running from the source tree), then from
 wherever `make install` put it (`InstallPaths.h.in`, baked in at configure
 time from `CMAKE_INSTALL_PREFIX`), falling back to a fresh empty buffer if
-neither is there. The UI starts in Session view with the clip grid
+neither is there. The UI starts in Live View with the clip grid
 focused, not straight into note entry (`--view arrangement` starts in
 Arrangement view, on the arrangement overview), and a brand new buffer
 defaults to 31-EDO tuning.
@@ -83,7 +210,7 @@ ctest --test-dir build --output-on-failure
 ```
 
 `synth_engine` (song model, playback, instruments, effects — everything
-except the notcurses UI and ALSA output) is a separate static library so
+except the terminal UI and ALSA output) is a separate static library so
 `tests/synth_tests` can link it without a display or audio device. Tests are
 plain functions registered with `TEST(name) { ... }` (see
 `tests/TestFramework.h`) and use `CHECK`/`CHECK_NEAR`; no external test
@@ -106,9 +233,13 @@ Build with `-DSYNTH_ENABLE_SANITIZERS=ON` to enable ASan+UBSan for the whole
 project; useful for chasing memory bugs (e.g. `AudioBuffer`'s copy-assignment
 leak was confirmed this way).
 
-Needs a real terminal (notcurses full-screen UI) and an ALSA output device.
+Needs a real terminal (a full-screen UI) and an ALSA output device.
+`--ui window|terminal` chooses the backend (`cellui::gtk::Window` or
+`cellui::term::TerminalSession`; the terminal is the default, `TerminalUI` runs
+on either through `cellui::Backend`); `SYNTH_WINDOW_STATS=<file>` appends how
+long the window's frames took to draw when it exits.
 Options: `--samplerate N`, `--stereo`, `--ambisonic [order]`,
-`--legacy-binaural`, `--view session|arrangement`. Every song is always rendered through an
+`--legacy-binaural`, `--view live|arrangement`. Every song is always rendered through an
 ambisonic bus (ACN/SN3D, AmbiX convention) — there is no plain-stereo-pan
 mode at all any more, and `ChannelConfiguration::STEREO` doesn't exist as a
 type (see `ChannelConfiguration.h`); `--ambisonic [order]` just sets the
@@ -206,8 +337,7 @@ synonym for it (`Command::updateData()`); `docs/commands.md`'s own
 from - an existing tracker's own command reference, or this codebase's
 own choice - checked deliberately rather than invented blind.
 
-Pattern editor selection uses Emacs keybindings: **C-SPC** (or **C-b**, see
-below) sets the mark (selection start), **C-w** kills (cuts) the marked
+Pattern editor selection uses Emacs keybindings: **C-SPC** sets the mark (selection start), **C-w** kills (cuts) the marked
 block, **M-w** copies it, **C-y** yanks (pastes) the clipboard at the
 cursor, **C-g** cancels the selection. The selection is a rectangular
 row×track block; within a single track it's further scoped to note
@@ -246,7 +376,7 @@ instance) brightens toward `cursor_tint_color` instead of taking either
 grey. A marked row - the pattern editor's cursor row (in Arrangement
 view, the transport's row), the clip grid's scene row, the arrangement
 grid's playing row - takes one tint (`StyleProvider::cursorRowTint()`).
-In Session view each pattern editor column marks only its own position,
+In Live View each pattern editor column marks only its own position,
 in that tint, on its own line (`PatternSource::positionRow()`) - a
 playing track's playhead, a stopped one's position - so no column shows
 two marked rows. Every color lives in `StyleProvider`, so one color
@@ -291,19 +421,40 @@ permissive (any letter, not just hex `a-f`) since `docs/commands.md`'s
 two-character mnemonics (`0U`/`0D`/`0G`/`1V`/`1I`/`1O`/`1T`/`ZB`) use
 letters outside the hex range in their first two characters — only the
 velocity/delay nibble-entry path was tightened to strict `0-9a-f`; a
-mnemonic's own trailing hex-digit argument (e.g. `ZBxx`'s locator number)
+mnemonic's own trailing hex-digit argument (e.g. `YLxx`'s slide amount)
 stays permissive too, parsing a non-hex character as digit 0 rather than
-rejecting it (`Command::getBreakLocatorNumber()`).
+rejecting it (`Command::getAzimuthSlidePerTick()`).
 
-`C-SPC` doesn't register on every terminal: its legacy encoding is a
-literal NUL byte, which notcurses's input decoder silently drops instead of
-turning into a keystroke (confirmed with the `notcurses-input` diagnostic
-tool) — it only works via the modern Kitty keyboard protocol (kitty, foot,
-wezterm, ghostty, …). GNOME Terminal (Ubuntu's default) doesn't support
-that protocol, so `C-SPC` does nothing there. `C-@` doesn't help either —
-it's byte-for-byte identical to `C-SPC` (both mask down to NUL), not a
-distinct keystroke. Use **C-b** instead — an ordinary control byte that works on any
-terminal.
+Keymap profiles: a display declares its `cellui::KeymapProfile`
+(`DisplayInfo::keymap_profile`: the terminal `EMACS`, the GTK window `DESKTOP`),
+which reaches widgets through `UIPlane::keymapProfile()`. `Keymap::bind(chord,
+name)` works in both profiles; `bind(profile, chord, name)` only in one and wins
+over a shared binding of the same chord. A binding is migrated by making it
+profile-specific; one that is not works everywhere. Migrated so far: the command
+prompt (`StatusLine::isCommandPromptChord()`: M-x / Ctrl+Shift+P, either one opens the command palette), undo/redo,
+cut/copy/paste (`kill-region`/`kill-ring-save`/`yank`), save/open/save-as/quit
+(Ctrl+S/O/Shift+S/Q on the desktop; Ctrl+Q exists only there), and the `C-x`
+prefix (Emacs only, since Ctrl+X is cut on the desktop). `docs/user-interface.md` lists
+the desktop chords.
+
+The command palette (`cellui::CommandPalette`, `cellui/CommandPalette.h`; opened by
+`TerminalUI::showCommandPalette()`) is a modal panel across the bottom rows of
+the screen, where the status line is, with no scrim: the query on the last row
+("M-x " on the Emacs keymap, "> " on the desktop one), the selected command's
+description above it, and above that the commands that `cellui::fuzzyMatch()`
+(`FuzzyMatch.h`) ranks best first, each with its binding, the list growing
+upward with the number of matches. Only the list is a raised panel
+(`picker_bg_color`); the description (quiet, italic) and the query sit on the
+display's own background like the status line they cover, so the description is
+not taken for a command. The app gives it
+`PaletteEntry`s: names from `commandCompletions("")`, descriptions from
+`commandDescription()` (`ui/CommandDescriptions.cpp`; a test fails for a command
+without one, so add a line there with a new command), bindings from
+`Element::bindingFor()`, which reads the widget's `Keymap` for the display's
+profile (`Keymap::sequencesFor()`, spelled by `KeyChord::describe()`). Choosing
+runs `Controller::sendCommand()` after the palette has closed. Tab is
+Emacs-style completion (`CommandPalette::complete()`): the query becomes the
+longest prefix shared by every name starting with it.
 
 Keybinding dispatch is centralized, Emacs-style (v1, partial): `KeyChord.h`/
 `Keymap.h`/`CommandRegistry.h` provide a chord→command-name→callable lookup,
@@ -312,8 +463,7 @@ and `UIElement::dispatchCommand()` runs it. Widgets populate their own
 commands and `UI`'s `quit`/`new-song`/`toggle-playing`) and call
 `dispatchCommand(input)` early in their `offerInput()` override; anything
 not bound falls through to the widget's existing manual `offerInput` logic
-unchanged. `StatusLine`'s M-x minibuffer still calls
-`Controller::sendCommand()`, which now falls back (via
+unchanged. `Controller::sendCommand()` (what the command palette calls) falls back (via
 `Controller::setCommandFallback()`, wired once in `UI::initialize()`) to
 `UI::executeCommand()` — checks the active element's registry, then UI's own
 — for any name it doesn't recognize itself, so M-x can invoke both
@@ -321,9 +471,11 @@ Controller-level commands (`save-song`, `add-filter`) and the per-widget ones
 (`set-mark`, `kill-region`, `transpose-region-up`/`-down`, …) through the
 same path. Not yet migrated: `StatusLine`, `OutlineView`, and
 `InstrumentList` (dead code anyway). `StatusLine`'s M-x detection is down
-to a single check now, an Alt/Meta-modified `x` event - it no longer needs
-its own two-step `ESC`-then-`x` state machine, since `TerminalUI.cpp`'s
-`EscapeSequenceCoalescer` (`EscapeCoalescer.h`) already folds a bare `ESC`
+to a single check now, an Alt/Meta-modified `x` event (on the Emacs keymap) - it no longer needs
+its own two-step `ESC`-then-`x` state machine, since `TerminalUI`'s
+`cellui::KeyReader` (`cellui/KeyReader.h`, over `cellui/EscapeCoalescer.h`; it
+also holds a bare Escape until the next key decides it, asking the app's
+`takeEscape` hook whether something closes on it at once) already folds a bare `ESC`
 followed, arbitrarily later, by `x` into a single Alt-modified event
 before it ever reaches `StatusLine`, the same as a terminal that sends
 physical Alt-x as one event directly; see that header's own top comment
@@ -344,6 +496,35 @@ mark, so repeated presses keep working on the same block. To transpose a
 whole track or pattern, select it first — there's no separate "no mark"
 whole-pattern fallback anymore.
 
+**Select all and tuning corrections.** `mark-whole-buffer` selects the whole
+song by view (`SelectionScope::SCENES` in Live View: every clip, placed or
+not; `ARRANGEMENT` in Arrangement view: every track's background and the
+clips it places; `PatternEditor::whole_song_`): no mark, and
+any cursor movement or `keyboard-quit` ends it, because the single-block
+region model cannot express "every pattern of every track". Transpose,
+humanize and the tuning commands act on it through the `...Song()` functions in
+`PatternBlockOps.h`; kill, copy and yank refuse. A note's local fx can be a
+tuning correction, `+hh`/`-hh` cents (`Note::setTuningCorrection()`, played as
+`NoteOverride::detune_cents` -> the `detune` ratio of `playNote()`); the empty fx
+character is `.`, shown `·`, since `-` is a sign now. `apply-just-intonation-
+region` writes each pitched note's correction toward a just ratio
+(`model/JustIntonation.h`: the simplest ratio within half a step and 20 cents,
+primes up to 13): the notes that start in a bar of a track's pattern, plus the
+ones held into it, are one chord, tuned above its lowest note, which is tuned
+from the song key (`chordCorrections()` in `PatternBlockOps.cpp`, the context
+read from the whole pattern). In an otonal or utonal song a note of either
+scale instead gets its exact scale ratio (`scaleDegreeRatios()` in `Scale.h`,
+`just_intonation::ScaleCorrections`, both scales together, the song's own first
+where they share a step), whatever its chord; live notes sound with it
+(`SongScalars::scale_corrections`, read by `Player`'s `PLAY_NOTE`) and recorded
+or typed ones are written with it (`tuneNewNote()`). `+00` marks a note that needs none, and
+`clear-tuning-correction-region` removes them. A note that carries one is
+"tuned": transposing retunes it for its new pitch and place in its chord, changing the scale
+(`set-song-scale`) retunes every tuned note of the song for the new scale (`retuneSong()`), and `transposeSong()` moves
+the key with the notes when no pitched note is left outside its `SongScope`,
+so corrections stay valid. "Tuning" in this codebase
+stays the song's EDO; the offset is a tuning correction (`docs/glossary.md`).
+
 A track with multiple simultaneous note columns (chords/polyphony —
 `VisibleTrackInfo::num_subtracks_`, derived from however many notes
 actually appear in any visible row, not a fixed cap) can have its
@@ -356,13 +537,13 @@ functions used for this.
 
 The FFT spectrum (`SpectrumMeter`, `ui/tui/SpectrumMeter.h`) draws its
 log-frequency bars through `LevelMeter.h`'s braille sub-cell renderer, the
-same one the volume meters use. When `notcurses_check_pixel_support()`
-reports support (sixel/Kitty graphics/iTerm2, whichever the terminal
-negotiates), `TerminalUI.cpp`'s `TerminalPixelSpectrumMeter` overrides
-`barCount()`/`drawBars()` to blit one bar per pixel column onto the
-meter's own plane instead; the choice is made once at startup in
-`TerminalUI::initialize()`. Both the spectrum and the DirAC heatmap show in
-Arrangement view's scope row and in Session view's left column, stacked
+same one the volume meters use. When the terminal session found an image
+protocol (kitty graphics, iTerm2's inline images or Sixel) and the cell
+size in pixels, the pixel version (`cellui::pixelScopes()`) overrides
+`barCount()`/`drawBars()` to draw one bar per pixel column as the meter's
+plane's image (`UIPlane::pixelSize()`/`drawImage()`) instead; the choice is
+made once at startup in `TerminalUI::initialize()` (`cellui::scopesFor()`). Both the spectrum and the DirAC heatmap show in
+Arrangement view's scope row and in Live View's left column, stacked
 under the full-height outline panel, each below a title bar (only while the
 outline is shown and the terminal is tall enough); off-screen scopes are not updated.
 
@@ -390,39 +571,58 @@ sequencer client auto-detected by device name -
 `LaunchpadProtocol::modelFromDeviceName()`) - the terminal UI works fully
 without one connected. `LaunchpadIO` owns the raw MIDI I/O (connect/
 hotplug/SysEx); `LaunchpadManager` owns all per-device state and business
-logic (note entry, grid-mode dispatch, Session view, drum-machine step
+logic (note entry, grid-mode dispatch, Live View, drum-machine step
 grid) and is Song/Controller-aware but UI-agnostic - it works the same
 whether or not a terminal UI exists at all. `LaunchpadIO`'s own destructor
 blanks every LED on every connected device (`clearAllLeds()`, an
 all-black LED-lighting SysEx covering the grid plus every extra-button
 index - `LaunchpadProtocol::allExtraButtonLedIndices()`) before closing
 the ALSA connection, so quitting doesn't leave a Launchpad still showing
-whatever Session view/step grid/etc. happened to be lit - not a
+whatever Live View/step grid/etc. happened to be lit - not a
 Programmer Mode exit (this codebase never actually leaves Programmer
 Mode once entered), just going dark, a clearer and more predictable
 "we're done" signal than whatever a device's own standalone light show
 would otherwise resume showing.
 
 - **`GridMode`** (`LaunchpadManager::GridMode`) - one of `NOTES`/
-  `SEND_MAIN`/`PAN`/`SEND_A`/`SEND_B`/`DRAW`/`SESSION`/`CUSTOM`/`TEMPO`/
+  `SEND_MAIN`/`PAN`/`SEND_A`/`SEND_B`/`DRAW`/`LIVE`/`CUSTOM`/`TEMPO`/
   `SWING`, mutually
   exclusive, purely per-device (`toggleGridMode()`), never tied to
-  terminal UI focus - one connected Launchpad can sit in Session view
-  while another stays on ordinary note entry. Defaults to `SESSION`.
-  `CUSTOM` is deliberately generic ("customize whatever's assigned to
-  this device") even though only the percussion lane picker is built for
-  it today - a pitched `InstrumentTrack` assigned instead currently shows
-  nothing there. `SEND_MAIN`/`PAN`/`SEND_A`/`SEND_B`, plus the
+  terminal UI focus - one connected Launchpad can sit in Live View
+  while another stays on ordinary note entry. Defaults to `LIVE`.
+  `CUSTOM` is the performance grid (`handlePerformancePadEvent()`,
+  `playback/PerformanceEffect.h`): columns are Live View's tracks, rows
+  effects (`performance::kGridRows`, the default set, top to bottom: Filter
+  (dark until built), Stutter, Shuffle, Erode, Shatter, Gate, Crush, Duck; Orbit and the Send
+  A/B throws exist off the grid), held to apply, pressure
+  deepening them; the right-hand button at the end of a row holds its effect
+  on the master (`handlePerformanceMasterButton()`, `performance::
+  kMasterTarget`; `SongState::masterPerformance()` runs the sound effects and
+  Duck on the dry mix plus the bus returns, only while one is held). A pad sends `SET_PERFORMANCE`; `SongState::setPerformance()`
+  keeps what is held (never the song) and hands it to `LeafTrackState::
+  setPerformanceTargets()`, which applies it to the voices only, so `sends_`/
+  `position_` - what `TrackInfo` reports and the song mirrors - keep the
+  song's values.
+  The sound effects work on a track's whole rendered block (`state/
+  PerformanceAudio.h`, one per leaf track, applied by `LeafTrackState::
+  applyPerformanceAudio()` before the level is reported, and one on the
+  master): Stutter (`TrackStutter`) loops what it captured from the next row;
+  Shuffle (`TrackShuffle`) records up to a bar from the next row and plays
+  slices of it in a random order; Erode and Shatter are `TrackGrains` with the
+  `grains::kErode`/`kShatter` presets, grains of the recent past with silence
+  between them, each turned about the vertical; Gate (`TrackGate`) follows
+  the bar grid (`PerformanceGrid::bar_phase`); Crush (`TrackCrush`) holds
+  samples and drops bits. `SEND_MAIN`/`PAN`/`SEND_A`/`SEND_B`, plus the
   track-picker overlay's three purposes (Stop Clip/Mute/Solo - see its
-  own bullet below), together form Session's own **mixer submode radio
-  group** (`DeviceState::session_mixer_mode`, off by default) - see the
+  own bullet below), together form Live's own **mixer submode radio
+  group** (`DeviceState::mixer_mode`, off by default) - see the
   Extra-button layout bullet below for what the same seven buttons do
   while that submode is off, and how it's toggled; while it's on, only
   one of the seven is ever active at once (`toggleGridMode()`/
-  `toggleTrackPicker()`/`inSessionMixerFamily()` - pressing a different
+  `toggleTrackPicker()`/`inMixerFamily()` - pressing a different
   one always switches straight to it, even crossing between the fader-
   as-`GridMode` and picker-as-overlay mechanisms; pressing the one
-  already active closes back to the plain Session grid). A press that
+  already active closes back to the plain Live grid). A press that
   switches to a genuinely different member always applies immediately
   (never waits for release to decide anything), but a real hold (>= 600ms,
   `kMixerHoldPreviewThreshold`) reverts back to whatever was showing right
@@ -433,25 +633,25 @@ would otherwise resume showing.
   different member arms this - repressing the one already active (which
   closes it) never does, since there's nothing to preview-and-revert about
   turning the whole group off. Reachable only
-  from `GridMode::SESSION` (a no-op from `NOTES`/`CUSTOM`/`DRAW`) - this
+  from `GridMode::LIVE` (a no-op from `NOTES`/`CUSTOM`/`DRAW`) - this
   is what keeps the fader column mapping (the first 8 root tracks) from
   ever disagreeing with the track-picker overlay's own column mapping
-  (`session_.track_ids`, Session view's own filtered list); the two lists
+  (`live_.track_ids`, Live View's own filtered list); the two lists
   could differ, which used to read as the grid visibly "rotating"
   underneath the picker row whenever both happened to be showing
   together.
 - **Extra-button layout** (raw CC, intercepted directly in
   `LaunchpadManager::handleRawButton()`/`UI::handleLaunchpadButtonEvent()`
-  before any command-name resolution): 95/96/97 (Session/Note/Custom) plus DRAW are
+  before any command-name resolution): 95/96/97 (Live/Note/Custom; the device labels 95 "Session" and 98 "Session Record", names kept in user-facing text, while the code stays neutral) plus DRAW are
   a true four-member exclusive group, not independent toggles - each of
   95/96/97's presses selects that mode unconditionally, even pressing the
   one already active, so the only way to leave a mode is selecting a
   *different* one of the four; DRAW is the one member not reached by a
   plain press (see its own bullet below), and the only way out of it is
   selecting one of 95/96/97. 98 is Session Record (its own bullet
-  below). 91/92/93/94 are move-row-up/down/prev-track/next-track
+  below). 91/92/93/94 are move-row-up/down/pad-prev-track/pad-next-track
   (named commands, via `LaunchpadProtocol::commandForButton()`). 91 doubles
-  as a held shift modifier for opening a Session-view clip's own step
+  as a held shift modifier for opening a Live-View clip's own step
   grid directly (see the drum machine bullet below) - its own ordinary
   meaning still fires on a plain tap, just deferred to release rather
   than press (`LaunchpadManager::handleShiftButton()`, `DeviceState::
@@ -461,12 +661,12 @@ would otherwise resume showing.
   19/89/79/69/59/49/39/29 (Record Arm/Volume/Pan/Send A/Send B/Stop Clip/
   Mute/Solo, plus Pro MK3 left-column twins 30/20 for Mute/Solo) are the
   real Launchpad X's own right-column "Track control" group, all eight
-  sharing one dispatch, keyed on Session's own mixer submode (`GridMode`'s
+  sharing one dispatch, keyed on Live's own mixer submode (`GridMode`'s
   own comment): **off** (the default) - each launches a whole scene
   instead (`LaunchpadManager::triggerSceneRow()`, `row = (cc_number - 19)
   / 10` - the classic Launchpad right-column convention, matching every
   visible track's own clip at that row simultaneously, through the same
-  audition/assign (Record Arm) split an ordinary Session pad press
+  audition/assign (Record Arm) split an ordinary pad press in Live View
   already goes through) - **on** - each is the mixer radio group instead:
   Volume/Pan/SendA/SendB enter that fader `GridMode` (`toggleGridMode()`),
   Stop Clip/Mute/Solo/Record Arm open/retarget the track-picker overlay
@@ -476,29 +676,36 @@ would otherwise resume showing.
   reachable via keybinding/M-x) do, and Record Arm no longer reaches
   `Controller::isNoteCaptureArmed()`'s own per-current-track toggle at all
   - that's shift + CC98 instead (see its own bullet below), reachable
-  from any `GridMode`. **Shift** (CC91 held) turns all eight right-side
+  from any `GridMode`. In `GridMode::NOTES` (step grid not showing) CC19 itself
+  starts/stops note capture instead (red LED, bright while capturing; ends a
+  sample take through the same command). **Shift** (CC91 held) turns all eight right-side
   buttons into labelled alternate functions, in every `GridMode`
-  (`handleRawButton()`'s shift branch): Volume (CC89) is Duplicate, Pan (CC79) is the
-  metronome ("toggle-metronome", a click per beat while the transport plays,
-  accented on the bar - `Player::scheduleMetronome()`; its LED is amber, bright
-  while on), Send A (CC69) is Quantise (`endQuantize()`: held with a pad press,
+  (`handleRawButton()`'s shift branch), following the Launchpad Pro MK3's own
+  shift layer where it has one: Record Arm (CC19) is Undo and Mute (CC39, Pro
+  MK3 CC30) Redo ("undo"/"undo-redo", see Undo below), Solo
+  (CC29, Pro MK3 CC20) is the metronome click ("toggle-metronome", a click per
+  beat while the transport plays, accented on the bar -
+  `Player::scheduleMetronome()`; its LED is amber, bright while on), Volume
+  (CC89) is Duplicate, Pan (CC79) is Delete (its own bullet below), Send A
+  (CC69) is Quantise (`endQuantize()`: held with a pad press,
   `quantizeClip()` snaps that clip's notes to the nearest row; a tap with no
   pad toggles `Song::getRecordQuantize()`, "toggle-record-quantize", resolved
   on release; its LED is red/green for off/on), Send B (CC59) opens the Tempo
-  view and Stop Clip (CC49) the Swing view (their own bullet below), Mute
-  (CC39, Pro MK3 CC30) is Delete (its own bullet below), Solo (CC29, Pro MK3
-  CC20) is Draw, and the other one (Record Arm) does nothing rather than
-  launch or switch anything; their LEDs show only those functions while
-  shift is held (Duplicate cyan, Draw purple, metronome amber, Quantise
-  red/green, Tempo blue, Swing orange, Delete red, the rest dark).
+  view and Stop Clip (CC49) the Swing view (their own bullet below); every
+  button is taken. Draw is shift + CC97 instead. Their LEDs show only those
+  functions while shift is held (Duplicate cyan, Draw purple, metronome amber,
+  Quantise red/green, Tempo blue, Swing orange, Delete magenta - red is
+  Quantise's own off state - Undo white while there is something to undo, Redo
+  white only while an undo can be taken back, dim otherwise). Shift + pad selects a clip
+  without launching it (below).
   User-facing descriptions of every button live in `docs/launchpad.md`.
   95 ("Session") doubles as the
-  mixer-submode toggle: a repeat press while already at the plain Session
+  mixer-submode toggle: a repeat press while already at the plain Live
   grid with nothing from the radio group active flips
-  `session_mixer_mode`; any press otherwise just lands on (or stays on)
+  `mixer_mode`; any press otherwise just lands on (or stays on)
   that plain grid, closing an active fader/picker first if there was one.
-  Session's own LED (95) reflects this three ways: dim green when not
-  showing anything from the Session family at all, bright green while
+  Live's own LED (95) reflects this three ways: dim green when not
+  showing anything from the Live family at all, bright green while
   showing it in scene-launch (the default) submode, bright **orange**
   while showing it in mixer submode instead. While mixer submode is off,
   all eight of Record Arm/Volume/Pan/SendA/SendB/Stop Clip/Mute/Solo show
@@ -508,7 +715,7 @@ would otherwise resume showing.
   hue, bright only for whichever one is currently active.
 - **Session Record** (CC98, `handleRecordButton()`) - needs press and
   release, since the tap and the long hold mean unrelated things. A tap
-  is `SessionPlayer::toggleOverdub()`: from the next bar, each armed
+  is `ClipPlayer::toggleOverdub()`: from the next bar, each armed
   track's playing clip (the followed track's if none is armed) is
   overdubbed in place - the clip keeps looping and the take's rows line
   up with its loop - and while any take is in flight a tap instead stops
@@ -516,38 +723,42 @@ would otherwise resume showing.
   status message). A pad press never overdubs by accident: on an armed
   track a populated slot only launches, an empty one starts a fresh
   take. A take records raw timing - each note's sub-row offset goes in
-  its delay (`SessionPlayer::rawStep()`) - unless `Song::getRecordQuantize()`
+  its delay (`ClipPlayer::rawStep()`) - unless `Song::getRecordQuantize()`
   is on, which snaps presses/releases to the nearest row
   (`quantizedStep()`). A long hold is Capture MIDI, a stub that only says so. With shift
   held, CC98 is the arrangement's own Record Arm instead
   (`"toggle-record-arm"`, `Controller::isNoteCaptureArmed()`, which makes
-  a Session pad press write the clip into the arrangement). Its LED is
+  a pad press in Live View write the clip into the arrangement). Its LED is
   bright red while anything records (`record_arm_led_on`), dim red
   otherwise.
-- **DRAW mode** (shift + Solo) - a plain per-pad coloring toy,
-  independent of Song/Track state. Shift + Solo enters it from any
-  `GridMode` (same exclusive-group rule as Session/Note/Custom - only
+- **DRAW mode** (shift + Custom) - a plain per-pad coloring toy,
+  independent of Song/Track state. Shift + Custom enters it from any
+  `GridMode` (same exclusive-group rule as Live/Note/Custom - only
   one of 95/96/97 leaves it), or blanks the canvas if DRAW is already
   showing.
 - **Duplicate** (shift + Volume) - held for as long as Volume stays down:
-  in Session view a populated pad picks that clip as the source (lit
-  white) and a press on an empty slot of the same track column copies it
-  there (`duplicateClip()`, `ArrangementOps.h` - an independent copy
-  under a fresh id, never overwriting); the source stays picked, so one
-  hold can fill several slots. Releasing Volume with a source picked but
-  no destination copies to the next empty slot. The terminal's
-  `duplicate-clip` (clip grid) does the same.
-- **Delete** (shift + Mute) - held for as long as Mute stays down, like
-  Duplicate: a Session pad press deletes what its slot holds, one layer
+  a pad press in Live View on a populated slot copies that clip into the slot
+  below it, overwriting what is there (`duplicateClip()`,
+  `ArrangementOps.h` - an independent copy under a fresh id; an overwritten
+  clip's arrangement placements go with it). One hold can copy several
+  clips. There is no such command: a clip is duplicated by copying it in the clip grid and yanking it onto another slot (`docs/user-interface.md`).
+- **Select a clip** (shift + pad, `Controller::selectClipSlot()`) - moves the
+  shared track cursor and the clip grid's cursor onto that slot, empty ones
+  included, without launching or opening anything, so it is where the next
+  recording or paste lands. Shift + Note (CC96) then opens (or closes) the
+  selected clip for step editing, as the drum machine bullet below describes
+  (`LaunchpadManager::selected_track_id_`).
+- **Delete** (shift + Pan) - held for as long as Pan stays down, like
+  Duplicate: a pad press in Live View deletes what its slot holds, one layer
   per press (`Controller::deleteClipSlot()`, `deleteClipOrStopButton()` in
   `ArrangementOps.h`) - a populated slot loses its clip (leaving an empty
   hole in place, so scene rows stay aligned), an empty one its stop button.
   Instant with the transport stopped or when the clip isn't sounding; a
   clip that is playing (or queued) on its track while the transport runs
-  is never pulled out from under the playhead - `SessionPlayer::
+  is never pulled out from under the playhead - `ClipPlayer::
   deleteClip()` stops the track at the next bar and `tick()` removes the
-  clip once that has taken effect. The terminal's `delete-clip` goes
-  through it too. No undo or confirmation.
+  clip once that has taken effect. The terminal's clip-grid `kill-region` goes
+  through it too, after copying the clip to the clip grid's clipboard (the pad gesture never does). No undo or confirmation.
 - **Tempo and Swing views** (`GridMode::TEMPO`/`SWING`; shift + Send B /
   shift + Stop Clip; Novation's Launchpad Pro MK3 views) - the value is
   drawn as a number on the pads (`LaunchpadLayout::renderNumber()`): the
@@ -569,192 +780,60 @@ would otherwise resume showing.
   `-decrease` and `swing-increase`/`-decrease` commands. Library rhythms
   carry a swing of their own (previewed with it; adopted by the song on
   Add to Song).
-- **The drum machine** (`PercussionTrack`, up to `kMaxLanes` = 8 lanes,
-  `getLaneNotes()`) - the same track type as ordinary percussion note
-  entry, not a separate one: with no lanes it's a plain percussion track
-  (free note entry through the free-drumming percussion pad layout, a
-  fixed family/color arrangement of GM sounds, not an isomorphic pitched
-  grid); once it has at least one lane (`isStepSequenced()`) its grid
-  becomes a step sequencer instead. Its step data is a real
-  `Pattern` like any other track's (a step is a `Note`), not
-  track-global, so it's copy/paste-able through `PatternEditor`'s own
-  clipboard and renders as its compact one-cell-per-lane view. On a
-  Launchpad, the step grid (rows = lanes, columns = steps) only ever
-  edits a specific `Clip` actually open for editing on the assigned track
-  (`Controller::getFocusedClipTrackId()`) - never the track's own
-  background `Pattern`, which has no pagination and spans the whole
-  song, far more than this fixed grid (even split across several
-  connected devices) could ever show meaningfully. Opening a clip is
-  reachable two ways, both funneled through the same shared
-  `Controller::toggleDrumClipFocus(track_id, clip_index)`: the
-  terminal-driven one ("toggle-record-arm"/Ctrl-X r while the
-  `ClipGrid` widget has focus, `Controller.cpp`'s own drum-machine-
-  track repurposing), and a Launchpad-only gesture - holding CC91
-  ("move-row-up", printed with an up-arrow icon) as a shift modifier and
-  pressing a Session-view pad opens that pad's own clip instead of
-  triggering/assigning it. The pad half of that combo resolves on its own
-  release, not its press: pressing it while shift is held is recorded and
-  swallowed outright (never falls through to an ordinary trigger, even
-  for a clip that turns out not to be step-sequenced - a no-op then, not
-  a trigger), and only the matching release actually opens it
-  (`LaunchpadManager::handleShiftButton()`/`handleSessionPadEvent()`,
-  `DeviceState::row_up_shift_pending_pad`) - so an abandoned press (shift
-  released first, the pad dragged off) never has to be undone; it
-  completes on release regardless of whether shift is still held by
-  then. `toggleDrumClipFocus()` doesn't gate on lane count at all - a
-  lane-less `PercussionTrack` opens exactly the same way a step-sequenced
-  one does, its own step grid just showing empty (`DeviceState::
-  show_step_grid`'s own comment) rather than either doing nothing or
-  routing anywhere else (the lane picker included - a performer reaching
-  for "open editing" shouldn't land on a different surface than the one
-  they asked for); only some track type that isn't a `PercussionTrack` or
-  a pitched `InstrumentTrack` at all still declines outright, the same
-  silent no-op as before. Both halves light up full bright white while held - CC91 itself
-  (dim white beforehand, in every `GridMode` but the step grid, since it
-  has a real, Launchpad-visible meaning everywhere else) and whichever pad
-  it's currently combined with, so a performer sees the pair confirmed
-  before ever releasing (`LaunchpadManager::refreshLeds()`'s own
-  `GridMode::SESSION` branch). Opening forces every connected Launchpad
-  into `NOTES` mode showing that clip's own step grid automatically,
-  regardless of whatever `GridMode` each was in (`TerminalUI.cpp`'s own
-  drum-edit-request listener, `LaunchpadManager::
-  forceNotesModeOnAllDevices()`) - and gives each device its own default
-  page into the clip (`LaunchpadManager::resetStepGridView()`, "device i
-  shows page i" in whatever order they're currently ready), splitting a
-  clip longer than 8 steps across however many are connected without
-  anyone paging by hand first. The step grid isn't `PercussionTrack`-only
-  either - a pitched `InstrumentTrack`'s own clip opens exactly the same
-  way via the Launchpad's own shift+pad gesture (`Controller::
-  toggleDrumClipFocus()` accepts either track type now), its rows drawn
-  from the song's own scale (`Song::getScaleDegrees()`, up to 8 ascending
-  offsets from the tonic - deliberately never wrapped back into a single
-  octave's own pitch-class range, so the list keeps climbing past the
-  octave boundary rather than folding back below the tonic - resolved
-  from `Song::getScale()`'s own chosen `Scale` - `MAJOR`/`MINOR`/
-  `MICROTONAL_A`/`MICROTONAL_B`, each a fixed 7-name degree list in
-  `Note::stringToKey()`'s own note-name syntax so the exact same list is
-  correct under every tuning without hardcoding a separate interval set
-  per one - transposed to `Song::getKey()`; `Scale::NONE`, the default,
-  falls back to the plain chromatic scale) rather than a manually-picked
-  lane list - there's no per-track lane concept for a pitched track at
-  all, so nothing gates this the way lane count doesn't gate a
-  `PercussionTrack`'s own clip either. Every named scale here has exactly
-  7 degrees, one short of the step grid's own 8 rows - rather than
-  leaving the 8th row unused, `getScaleDegrees()` fills it by cycling
-  back to the first degree name (the tonic) one octave higher, so the
-  step grid's last row is always the tonic repeated an octave up, the
-  conventional way a scale's own degrees are shown (e.g. C D E F G A B
-  C). Each degree lands in this
-  device's own current octave register (`LaunchpadManager::
-  resolveStepGridLaneNotes()`, the same register formula `resolveNote()`
-  already uses for the ordinary isomorphic grid), so a step placed here
-  and a note played on that grid at the same octave are the identical
-  absolute value. "toggle-record-arm" itself is deliberately *not*
-  extended to a pitched track this way, even though `toggleDrumClipFocus()`
-  itself now accepts one - Record Arm there already means something real
-  (multi-track Session View recording, below), which opening the step
-  grid would silently preempt every time rather than only when actually
-  wanted; only the Launchpad's own shift+pad gesture reaches a pitched
-  track's step grid, `PercussionTrack` remaining reachable both ways.
-  Once the step grid is showing, every button
-  with no meaning left there goes fully dark rather than keeping its usual
-  out-of-Session color - Note (CC96, forced into already - pressing it
-  again is a true no-op), and Session Record's own idle color (CC98 - a
-  tap there would only say there is nothing to overdub; its recording/red
-  indicator stays lit regardless, since that's real track-global
-  recording state a performer still needs to see, not a per-mode
-  affordance). All
-  four of 91-94 are repurposed instead of going dark, together covering
-  everything a scale/chromatic run has that the fixed 8x8 grid alone
-  can't show at once, both scrolling `kStepGridScrollStep` (4) rows/steps
-  per press rather than jumping a whole 8-wide window at once, so
-  consecutive windows overlap and a performer can actually follow where a
-  press landed relative to before: prev-track/next-track (CC93/94) scroll
-  every connected device's own `DeviceState::drum_edit_step_offset`
-  together, in lockstep (never just the one device the press landed on,
-  which would otherwise drift devices onto overlapping or duplicate
-  windows), through the clip's own steps (columns); move-row-up/
-  move-row-down (CC91/92) scroll every connected device's own
-  `DeviceState::drum_edit_row_offset` instead, on a *pitched*
-  `InstrumentTrack`'s own step grid only (a `PercussionTrack`'s lanes are
-  a small, fixed, manually-curated list - never more than 8 - with
-  nothing to scroll to at all) - `Song::getScaleDegreesWindow()`'s own
-  `start_index`, reaching any row a scale/chromatic run's own unboundedly
-  long ascending sequence has, not just whichever 8 happened to be shown
-  when the clip was opened. Deliberately *not* an octave shift the way
-  this same button pair ordinarily is elsewhere (`octaveUp()`/
-  `octaveDown()`, still used for their own ordinary out-of-step-grid
-  meaning) - jumping a full octave (all 8 rows at once) left no overlap to
-  visually track, and tied the row window to a register concept that
-  assumes a scale repeats every single octave, which a future scale (more
-  than 7 degrees, or spanning more than one octave) need not
-  (`DeviceState::drum_edit_row_offset`'s own comment) - so this device's
-  own octave/note-entry register is left untouched by a step-grid row
-  scroll entirely now. Both loop over `readySessionIds()` the same way -
-  a press on any one device moves them all, not just the one physically
-  pressed. Unlike CC93/94's own step-lockstep, which preserves each
-  device's own relative offset from `resetStepGridView()`'s initial
-  per-device split (steps), CC91/92's own row-lockstep has no such
-  per-device offset to preserve - every device always starts a clip at
-  the identical row offset (`resetStepGridView()`, below), so a scroll
-  just applies the same delta to all of them uniformly. All four light the
-  same white rather than 93/94's own former blue, reading as one family of
-  step-grid navigation (row window vs. step window) once a clip's open,
-  except CC91/92 now go dark for a `PercussionTrack`'s own step grid
-  specifically (nothing to scroll to there), matching every other
-  "nothing a performer could see would happen" button here. CC93/94 still
-  go dark once scrolling would be a no-op: whenever the clip's own length
-  is already covered end-to-end by however many devices are connected
-  (`resetStepGridView()`'s own split already shows the whole clip at
-  once), a press would just re-clamp back to where it already is -
-  CC91/92 have no equivalent ceiling to go dark for on a pitched track,
-  since a scale/chromatic run's own row window can always keep scrolling
-  either direction without ever becoming a true no-op.
-  Opening a clip resets four things at once
-  (`resetStepGridView()`): every connected device's own step offset back
-  to its own device-order default (its existing per-device split, below);
-  every connected device's own row offset back to 0 (the tonic) - same
-  reasoning as the step offset, for a pitched track's own row window
-  instead of a clip's own columns; every connected device's own octave
-  register back to 0 - without this, opening the same clip twice could
-  start at a different, unpredictable octave depending on whatever
-  unrelated note entry had happened to leave a given device's own octave
-  at in between; and the step grid's own preview clock
-  (`LaunchpadManager`'s `preview_clock_`, separate from `SessionPlayer`'s)
-  - without this last one, a clip's
-  audition playhead resumed from wherever that clock's stale phase
-  already happened to be rather than row 0, so a freshly opened clip could
-  visibly start partway through instead of from its own beginning. Every
-  open now starts from the same known step window, row window, octave,
-  and playhead position. Closing it again is reachable two ways too: the same shift+pad combo on the same
-  pad (only from the plain Session grid - the step grid a successful open
-  switches every device to has no (track, clip index) addressing of its
-  own to shift-combine with, so this needs a CC95 press back to Session
-  first), or a lone CC95 ("Session") press by itself, from any grid mode
-  - Session's own button doubles as "leave the sequencer entirely"
-  (`Controller::closeDrumClipFocus()`, `LaunchpadManager::
-  handleRawButton()`'s own CC95 case) - the more direct route, not
-  requiring shift at all. Either closing route returns every connected
-  device to Session view. Merely navigating the shared cursor onto a
-  `PercussionTrack` or pitched `InstrumentTrack` (or recording into it -
-  see the Multi-track Record Arm bullet below) does *not* by itself show
-  the step grid - both fall through to ordinary free-drumming/chromatic
-  pad entry instead, same as a lane-less `PercussionTrack` always does.
-  Setting a fresh step
-  always auditions immediately (`handleStepGridPadEvent()`'s own
-  `suppress` check); pressing an already-lit step pad (removing it) never
-  auditions the sound that was just removed. CC97 ("Custom")
-  launches the lane picker directly (`GridMode::
-  CUSTOM`, gated on the assigned track being a `PercussionTrack` at
-  all, any lane count - this is how a lane-less track gains its first
-  lane): the free-drumming percussion layout doubles as a lane add/remove
-  surface, reachable straight from Session view without detouring through
-  Note mode first. A handful of named lane-subset presets beyond the
-  default ("rock") kit - Latin, electronic - are reconfigurable on an
-  existing `PercussionTrack` via M-x/the Track menu
-  (`apply-preset-rock`/`-latin`/`-electronic`,
-  `PercussionTrack::applyPreset()` - a full replace of the lane list, not
-  additive).
+- **Note mode and the step view** - `GridMode::NOTES` is the playing
+  surface, and what it shows follows the assigned track. A
+  `PercussionTrack` gets a fixed 4x4 General MIDI drum rack in the
+  bottom-left corner (`LaunchpadLayout::drumPadNoteForPad()`: notes 36-51 in
+  order, left to right then bottom to top, the usual sampler/drum-rack
+  default window - `docs/drums-and-sequencer.md`), the rest of the grid dark; there is no per-track drum list (lanes were removed - the
+  rack is the one kit). A pitched track gets the isomorphic keyboard
+  (`LaunchpadManager::resolveKeyboardNotes()`, `LaunchpadLayout::noteForPad()`):
+  the song's key at the anchor pad at this device's octave, pads colored by
+  consonance class from the tonic. The song's scale does not change the
+  playing keyboard; it picks the degrees the step view steps through.
+
+  While a clip is open for editing on a percussion or pitched track
+  (`Controller::getFocusedClipTrackId()`, nothing recording a Live View
+  take) the grid splits Push-style (`DeviceState::show_step_grid`): rows 0-3
+  stay the playing surface, rows 4-7 are 32 steps of the *selected* sound
+  (`LaunchpadLayout::stepForPad()`, left to right then bottom to top). The
+  selected sound is the last pad pressed on the playing surface
+  (`DeviceState::selected_step_note`, white; the first pad until one is
+  pressed, reset on every clip open), identified in the pattern by value like
+  any hit. A press on the surface selects and then falls through to ordinary
+  note entry, so it sounds and records exactly as with no clip open; a
+  press on a step toggles that sound there (`handleStepGridPadEvent()`),
+  writing to the focused clip's own (live-linked) `Pattern` only - never the
+  track's background Pattern, which has no pagination - and auditions what
+  it just set. A pitched step also writes a note-off in the same column one
+  row later, so it lasts a step. Several held notes (chords) are not
+  supported; one sound is selected at a time.
+
+  The window is `kStepWindow` (32) steps from `DeviceState::
+  drum_edit_step_offset`, 0 on open, and pad-prev-track/pad-next-track
+  scroll that device's window by `kStepGridScrollStep` (4). While the step view shows, move-row-up/-down move a pitched track's
+  selected sound one scale degree up/down instead
+  (`LaunchpadManager::neighbourScaleNote()`; a drum rack has nothing to step). The step view is opened
+  only from a Launchpad (the terminal edits clips its own way), by its
+  CC91-held-as-shift + pad gesture in Live View, funneled through
+  `Controller::toggleDrumClipFocus(track_id, clip_index)`
+  (`LaunchpadManager::handleShiftButton()`/
+  `handleLivePadEvent()`, `DeviceState::row_up_shift_pending_pad` - the
+  pad half resolves on its own release, so an abandoned press never has to be
+  undone); it reaches percussion and pitched tracks. Both halves light white
+  while held. Opening switches one device into `NOTES` mode
+  (`LaunchpadManager::openStepView()`: the device that opened it; the
+  others keep their mode) and resets its page, octave
+  and the preview clock (`preview_clock_`, separate from `ClipPlayer`'s), so
+  every open starts from the same window and playhead. A lone CC95 press, or the
+  same shift+pad on the same pad from the plain Live grid, closes it
+  (`Controller::closeDrumClipFocus()`) and returns that device to Live
+  View (`closeStepView()`). Merely navigating the cursor onto a track, or recording into it,
+  never shows the step view. In it, CC96 and the idle Session Record go
+  fully dark (nothing left for them to do); CC91/92 are dark on a
+  percussion track and CC93/94 go dark once the clip fits the devices
+  connected.
+
 - **Clips** (`Clip`, `src/model/Clip.h`; `Song::getClips(track_id)`/
   `addClip()`/`ensureClipAt()`, backed by `std::unordered_map<int,
   std::vector<Clip>> clips_by_track_`) - reusable, shareable content for
@@ -792,16 +871,16 @@ would otherwise resume showing.
   actually gives it real content (the same "assign one if it doesn't
   already have one" convention `addClip()` itself follows). Every "is
   this slot populated" check reads content, not just bounds
-  (`!clip.isEmpty()`), for exactly this reason - Session view's own
-  per-pad LED/row display, `SessionPlayer::triggerClip()`'s
+  (`!clip.isEmpty()`), for exactly this reason - Live View's own
+  per-pad LED/row display, `ClipPlayer::triggerClip()`'s
   fresh-take-vs-overdub decision, and `ClipGrid`'s own delete/rename/
   loop-toggle commands (a filler reads as "nothing here" the same as a
   genuinely out-of-bounds row - erasing one would shift every later
   clip's own index down, silently misaligning every other track's own
   scene rows against it). Persisted in a top-level `<clips>` element,
-  sibling to `<tracks>`/`<arrangement>` (`<trackClips track="..."><clip
-  id="..." name="..." loop="..." length="..."><pattern>...</pattern>
-  </clip></trackClips>`, one `<trackClips>` per track; an empty filler
+  sibling to `<tracks>`/`<arrangement>` (`<clip track="..." id="..."
+  name="..." loop="..." length="..."><pattern>...</pattern></clip>`, one
+  `<clip>` per clip, a track's own in order; an empty filler
   round-trips as a `<clip>` with no `<pattern>` child at all, carrying
   `stop="false"` when the slot's stop button was removed - see below). A
   `SampleTrack` clip's `<clip>` holds one `<sample file="...">` child per
@@ -812,7 +891,7 @@ would otherwise resume showing.
   each later overdub). Authored
   in-app via `PatternEditor::copyToClip()` (extracts the current
   pattern-editor selection into a new clip), not hand-edited-XML-only.
-- **Session view** (`GridMode::SESSION`, reached/left only via CC95/96/97/98,
+- **Live View** (`GridMode::LIVE`, reached/left only via CC95/96/97/98,
   decoupled from terminal UI focus): rows are a track's own clip list
   (`Song::getClips(track_id)`), columns are the one shared cursor track
   every connected device follows (`fallback_track_index`, from
@@ -824,38 +903,37 @@ would otherwise resume showing.
   arrangement (it plays the clip, looping or one-shot, while the other
   tracks follow the arrangement), a stop takes it over too (silent), and
   "back-to-arrangement"/"track-back-to-arrangement" hand it back. The
-  audio thread owns this (`SongState::queueSessionChange()`, per-track
-  `SessionTrackInfo`, `src/state/SessionTrackInfo.h`): each change is
+  audio thread owns this (`SongState::queueLaunch()`, per-track
+  `LiveTrackInfo`, `src/state/LiveTrackInfo.h`): each change is
   queued and applied on the first row of the transport's next bar
-  (`absolute_pos_ % rows_per_bar == 0`) - even the first launch into
+  (`Song::isBarStart(absolute_pos_)`) - even the first launch into
   silence waits for it, the live-sequencer convention; rewind to start
-  from the top. Launched clips advance on a session clock - rows played,
+  from the top. Launched clips advance on a live clock - rows played,
   which a seek or pattern break doesn't move - and a taken-over track
   ignores its arrangement content and automation (pattern breaks
   aside), playing its clip's own notes and commands. Launching while the
   transport is stopped starts it (resuming every other paused clip too).
-  The transport toggle only pauses - an interim choice (where an
-  arpeggiator resumes, and what becomes of sustained voices, are still
+  The transport toggle only pauses - an interim choice (what becomes of sustained voices is still
   open): launched clips keep their clip and row, queued changes
   and taken-over tracks stay, and play resumes them where they were;
   voices do what the arrangement's already do (a sample track's stop,
   an instrument's are left as they are), and a note take survives while
   a sample take ends. Stopping clips stays its own action (the stop pads,
-  the master column's stop row, back-to-arrangement). `SessionPlayer`
-  (`src/playback/SessionPlayer.h`, Controller-owned, `Controller::
-  getSessionPlayer()`) is the one place the Launchpad, the clip grid and
+  the master column's stop row, back-to-arrangement). `ClipPlayer`
+  (`src/playback/ClipPlayer.h`, Controller-owned, `Controller::
+  getClipPlayer()`) is the one place the Launchpad, the clip grid and
   the launch commands go through: it sends each change as a
-  `QUEUE_SESSION_CHANGE` event with a sequence number and predicts it in
+  `QUEUE_LAUNCH` event with a sequence number and predicts it in
   `PlaybackInfo` until a snapshot has caught up (the same stale-snapshot
-  rule as the edit position), and keeps the Session View takes, resolving
-  them on bar rows it sees in the snapshots (`SessionPlayer::tick()`,
+  rule as the edit position), and keeps the clip takes, resolving
+  them on bar rows it sees in the snapshots (`ClipPlayer::tick()`,
   once per UI frame). A finished take loops back on the bar its stop
   resolved on. Explicitly never the
   triggered clip's own loop length (that only decides where *it* loops,
   not when a pending change is allowed to interrupt it) and never
   immediate - an empty pad queues a stop (unless its stop button was
   removed - `Clip::hasStopButton()`: "toggle-stop-button" in the clip
-  grid, or "delete-clip" on an empty slot, which then shows no ⏹: launching that slot, alone or in its
+  grid, or `kill-region` on an empty slot in the clip grid, which then shows no ⏹: launching that slot, alone or in its
   scene, leaves the track alone, armed or not),
   while repressing the active pad relaunches its clip from row 0 at the
   next boundary (a launch never toggles - the live-sequencer convention;
@@ -866,11 +944,11 @@ would otherwise resume showing.
   ringing or hard-cut. Stopping
   a track this way (as opposed to a plain press retriggering/reassigning
   it) goes through the track-picker overlay - see its own bullet below.
-  A pad's own identity-hue static color (`DeviceState::session_colors`)
-  gets a transport-state overlay (`session_highlight`, `LaunchpadManager::
-  SessionPadHighlight`) matching the convention -
+  A pad's own identity-hue static color (`DeviceState::clip_colors`)
+  gets a transport-state overlay (`clip_highlight`, `LaunchpadManager::
+  ClipHighlight`) matching the convention -
   playing pulses and queued flashes a fixed green
-  (`LAUNCHPAD_SESSION_GREEN_PALETTE_BRIGHT`/`_DIM`) regardless of that
+  (`LAUNCHPAD_CLIP_GREEN_PALETTE_BRIGHT`/`_DIM`) regardless of that
   pad's own hue, via the LED-lighting SysEx's own hardware-driven
   flash/pulse lighting types (`LaunchpadProtocol::LightingType::FLASH`/
   `PULSE`) rather than a software brightness blend - the device animates
@@ -880,7 +958,7 @@ would otherwise resume showing.
   palette, not arbitrary RGB, which is why they're a fixed green rather
   than each pad's own hue. An armed track (`Controller::isTrackArmed()`), or one
   recording or about to, switches its whole column from this green overlay to a red one instead
-  (still `SessionPadHighlight`, four further states -
+  (still `ClipHighlight`, four further states -
   `ARMED_EMPTY`/`RECORD_QUEUED`/`RECORDING`/`RECORD_STOPPING` - reached
   instead of, never alongside, the plain three, since a pad is always
   exactly one or the other): an empty slot shows static dim red, a
@@ -894,44 +972,44 @@ would otherwise resume showing.
   out to other simultaneously-armed tracks the way note recording above
   is, since there's only one real input stream to route through it - a
   press on an armed `SampleTrack`'s own row arms (or retargets) real
-  capture right away (`SessionPlayer::triggerClip()`'s own
-  SampleTrack branch: `Controller::armSessionTrackRecording()`/
+  capture right away (`ClipPlayer::triggerClip()`'s own
+  SampleTrack branch: `Controller::armClipTrackRecording()`/
   `armThresholdRecording()`, mirroring "toggle-record-arm"'s own
-  Session-View-focused SampleTrack branch from the terminal), and
+  Live-View-focused SampleTrack branch from the terminal), and
   pressing that same pad again cancels a still-idle arm
   (`LaunchpadManager::stopSampleTrackRecording()`) - never
-  `Controller::trimSessionRecordingClip()`, the note-Pattern-specific
-  finalize note-based Session recording uses, which would misread a
+  `Controller::trimClipRecordingClip()`, the note-Pattern-specific
+  finalize note-based clip recording uses, which would misread a
   SampleTrack take's own empty Pattern as "nothing was ever recorded" and
   reset its real audio length back to one bar.
 - **Track-picker overlay** (`LaunchpadManager::toggleTrackPicker()`/
   `handleTrackPickerPadEvent()`/`isTrackPickerRow()`, `DeviceState::
   track_picker_active`/`track_picker_purpose`) - four purposes (Stop
   Clip/Mute/Solo/Record Arm, CC49/39/29/19 - see the Extra-button layout
-  bullet above), all four members of Session's own mixer submode radio
+  bullet above), all four members of Live's own mixer submode radio
   group (`GridMode`'s own comment covers the other four members, and the
   submode toggle itself); this bullet is about what those four purposes
   look like on the grid once the overlay is reachable at all.
-  Session-view-only: pressing Stop Clip (CC49), Mute (CC39/Pro MK3 30),
+  Live-View-only: pressing Stop Clip (CC49), Mute (CC39/Pro MK3 30),
   Solo (CC29/Pro MK3 20) or Record Arm (CC19) is a no-op from any other
   `grid_mode`, and every `grid_mode` reassignment site that moves off
-  `SESSION` closes the overlay if it was open, so it can never be showing
+  `LIVE` closes the overlay if it was open, so it can never be showing
   over anything else. This is what lets it light just the
   bottom grid row with one pad per selectable track and otherwise leave
-  Session view's own rendering completely untouched - no dimming, and
-  every row but the picker row still reaches Session view's own pad
+  Live View's own rendering completely untouched - no dimming, and
+  every row but the picker row still reaches Live View's own pad
   handling exactly as if the overlay weren't open (`isTrackPickerRow()`
   is what `UI::handleLaunchpadPadEvent()` uses to route only that one row
   here). Earlier revisions dimmed the rest of the grid and swallowed
   presses there, and could be opened from any `GridMode`; both were
   dropped once opening it over Send/Pan turned out to show the picker
-  row's own track-column order (`session_.track_ids`, Session view's
+  row's own track-column order (`live_.track_ids`, Live View's
   filtered list) alongside Send/Pan's *different* column order (the first
   8 root tracks) at once, which read as the grid "rotating" underneath
-  the picker row - restricting both to Session view removes the only
+  the picker row - restricting both to Live View removes the only
   situation where the two mappings could ever disagree.
   The picker row's own pad colors don't use per-track identity color the
-  way Session view's columns do: every pad in the row shares one hue
+  way Live View's columns do: every pad in the row shares one hue
   naming which action is about to happen (red/Stop Clip, blue/Solo,
   yellow/Mute, red again/Record Arm - reusing Stop Clip's own hue rather
   than inventing a fifth, since the two purposes never show at once and
@@ -943,7 +1021,7 @@ would otherwise resume showing.
   (Solo), "*not* already muted" (Mute - a muted channel reads as dark,
   not lit, the same way a fader bottoming out does), or "already armed"
   (Record Arm). Picking a track there performs that
-  button's own purpose (a Session-view-style quantized stop for Stop
+  button's own purpose (a Live-View-style quantized stop for Stop
   Clip; `Controller::toggleTrackMuted()`/`toggleTrackSolo()` for
   Mute/Solo; `Controller::toggleTrackArmed()` for Record Arm - pure
   per-track bookkeeping, the same for every track type) but deliberately
@@ -964,18 +1042,18 @@ would otherwise resume showing.
   (›) each bar that has a locator somewhere in it. A placed clip instance renders as
   a colored block (that track's own identity color) spanning its own
   active length in bars, its leading bar showing a single hex digit - its
-  ordinal position in that track's own clip list, the same index Session
-  view's own rows address - resolved the same way real playback does
+  ordinal position in that track's own clip list, the same index Live
+  View's own rows address - resolved the same way real playback does
   (`ArrangementOps.h`'s `resolveInstanceAt()`). A bar with no active
   instance falls back to a page/empty-page glyph showing whether the
   background has anything there. No per-cell copy/paste - placing/moving
   clip content is `copy-to-clip`'s own job, from `PatternEditor`. Track
-  selection is the one shared cursor Session view also follows; Enter
+  selection is the one shared cursor Live View also follows; Enter
   moves the transport to the cursor's bar.
-- **Views** (`UI::View`, `ARRANGEMENT`/`SESSION`) - how the active song is
+- **Views** (`UI::View`, `ARRANGEMENT`/`LIVE`) - how the active song is
   laid out, UI state independent of which buffer (song) is active; a
   buffer is just a song. Arrangement view: the scope row (with
-  `ArrangementGrid`) plus `PatternEditor`. Session view: `ClipGrid`
+  `ArrangementGrid`) plus `PatternEditor`. Live View: `ClipGrid`
   (`src/ui/tui/ClipGrid.h` - per-track clip slots, Sends, Direction), with
   `OutlineView` as a narrow panel on its left (shown by default,
   "toggle-outline"; the tree, with a button bar overlaid on its bottom rows
@@ -989,11 +1067,11 @@ would otherwise resume showing.
   with a pencil (✎) beside its loop icon (`ClipGrid::
   setTrackClipSource()`) - an icon, not a colour, so a Launchpad can show
   the same thing. The clip grid's cursor row is its own
-  (`TerminalUI::syncSessionView()` shares only the track): it never
+  (`TerminalUI::syncLiveView()` shares only the track): it never
   moves a track's position, nor follows one - a track's position moves
   only in the pattern editor, or when a clip launched on it starts
   playing. Each track header ends in "◆IMS" (the ◆ double width):
-  an orange ◆ while Session view has taken the track over from the
+  an orange ◆ while Live View has taken the track over from the
   arrangement, then Monitor (`LeafTrack::Monitor`, "cycle-monitor"), Mute, Solo. Monitor
   gates whether live-played input is heard (`Controller::
   isMonitoring()`): In always, Off never, Auto while the track is armed
@@ -1010,13 +1088,16 @@ would otherwise resume showing.
   effects, unaffected by a transport stop. Only the active buffer hears
   the input.
   Each clip slot shows its transport/recording state the way its
-  Launchpad pad does (`SessionPlayer::clipHighlight()`, the one
-  source for both, `SessionPadHighlight`): a colored glyph in its icon's
+  Launchpad pad does (`ClipPlayer::clipHighlight()`, the one
+  source for both, `ClipHighlight`): a colored glyph in its icon's
   place - green for playing (▸) or queued (▹), dim green (▸) while the
   transport is paused, red for recording (●) or
   queued to record (○), dim red for an armed track's empty slot (○) or a
-  take queued to stop (●). Terminal cells can't pulse, so the glyph's
-  shape tells queued from running.
+  take queued to stop (●) - and a clip's slot background takes the state
+  color too, pulsing like the pad (`statePulse()` in `ClipGrid.cpp`: playing
+  and recording pulse smoothly over a second between the color and a shade
+  60% darker, the queued states flash every 250 ms), so the glyph's shape is
+  what tells queued from running without motion.
   The last column is the master's, scrolling with the tracks: its slots
   launch a whole scene (`LaunchpadManager::launchScene()`), its last row
   stops every track, and its Sends row shows its Send Main/A/B. Sends
@@ -1025,8 +1106,10 @@ would otherwise resume showing.
   (`sendMain`/`sendA`/`sendB`, `Controller::setTrackSendMain()`/`A()`/
   `B()`): its Send Main is the song's dry mix level and its Send A/B the
   send bus's two returns, applied in `SongState::renderBlock()`; only
-  leaf tracks have Mute/Solo/Monitor and Direction. Enter on a Sends row
-  edits the three values. Every column has a vertical level meter
+  leaf tracks have Mute/Solo/Monitor and Direction. On the Sends row Left and
+  Right walk through the Main, A and B values (then on into the next column),
+  the cursor covers one value, and Enter edits just that one (a typed dB
+  number; empty leaves it). Every column has a vertical level meter
   beside its Sends/Direction rows (`LevelMeter.h`: one dB mapping, braille
   by default with sextants as an opt-in glyph set, `Ballistics` smoothing
   a block's RMS in the power domain so a low note doesn't ripple, bars
@@ -1040,12 +1123,12 @@ would otherwise resume showing.
   master's levels (`SongState::getMasterMeterValue()`) - which each
   playback snapshot reports as the master's `TrackInfo`.
   "toggle-view" (Tab) flips between them, the live-sequencer convention;
-  "arrangement-view"/"session-view"/"outline-view" select one directly
+  "arrangement-view"/"live-view"/"outline-view" select one directly
   (View menu). `PatternEditor` reads and writes through a `PatternSource`
   (`src/ui/PatternSource.h`): `ArrangementPatternSource` in Arrangement
   view (the arrangement's one timeline and placed clips, a single block of
   absolute rows, the transport as its cursor row),
-  `ScenePatternSource` in Session view (clips directly, no locators).
+  `ScenePatternSource` in Live View (clips directly, no locators).
   There each track has its own position - a clip (scene row) and a row
   in it: a playing track's is its playhead, which can't be moved (Up/Down
   say so on the status line), a stopped track's is wherever it was left,
@@ -1083,9 +1166,10 @@ would otherwise resume showing.
   scrolls the widget under the mouse without moving focus, and scrolls its
   view, never its cursor (so never the transport); Shift scrolls tracks
   sideways, and the next cursor move brings the view back.
-  The left button picks cells: in `ClipGrid` a click moves the cursor
-  and presses the slot like Enter does (a clip launches, the master's
-  scene/stop-all slots fire; Sends rows only select), in `ArrangementGrid`
+  The left button picks cells: in `ClipGrid` a press shows the cell under
+  it pressed (`StyleProvider::row_pressed_bg_color`) and the release moves the
+  cursor and track there and presses the slot like Enter does (a clip launches, the master's
+  scene/stop-all slots fire; a Sends value opens its editor), in `ArrangementGrid`
   it moves the cursor to the bar and track (Enter still commits), and in
   `PatternEditor` it moves the cursor to the cell (a click in a heading
   picks the track, one past the last track the locator slot) and clears the
@@ -1096,19 +1180,27 @@ would otherwise resume showing.
   and a fresh press look alike to the widgets (the held button repeats its
   press), so each tells them apart by the release in between; `TerminalUI`
   keeps focus on the widget the press started in until then.
-- **Defaults**: a fresh session opens in Session view on the clip grid
+- **Song file references.** A track names its pool instrument by the
+  instrument's `id` (`instrument="i1"`; every pool entry gets one), and the arrangement places a
+  clip with `<instance track="..." row="..." clip="..."/>`, a stop being an
+  instance with no `clip`. There is no reader for earlier forms: the project
+  has no files to keep, so a format change converts the repo's songs instead. The runtime still holds a pool
+  index; the id is what the file says.
+- **Scenes** (`Song::getSceneName()`/`getSceneTempo()`/`getSceneTimeSignature()`, `<scenes><scene name="" tempo="" timeSignature="3/4"/>...</scenes>`, by position like a track's clip list, no index stored) - a scene is a clip-list row shared by every track, with an optional name, tempo and time signature, shown in the clip grid's Master column and edited with F2 there; typed text goes through `scenename::extract()` (`SceneName.h`) ("Waltz 3/4 90 BPM" splits into name, signature and tempo, "0 BPM"/"0/4" clear them, text without one keeps the existing value). `ClipPlayer::launchScene()` sends them to the audio thread as one `QUEUE_SCENE_CHANGE` event, which `SongState::queueSceneChange()` applies on the bar the clips launch on (the first row played from a stopped transport): the tempo becomes the song tempo, the signature the running signature. Each rhythm-library template carries its signature (`RhythmPatternTemplate::time_numerator`/`time_denominator`), which Add to Song gives the scene the new clip lands in when that scene has none. Details and design decisions: `docs/scenes.md`.
+- **Bars and time signatures** (`TimeSignature.h`, `BarGrid.h`, `Song`'s bar API; `docs/time_signatures.md`) - a row is a sixteenth, a signature n/d is n*16/d rows per bar and 16/d per beat (denominator 1/2/4/8/16). The song has one signature (`Song::getTimeSignature()`, `<song timeSignature="3/4">`, 4/4 unless set, `set-time-signature`) that the arrangement counts its bars in (`Song::getArrangementBars()`, a `BarGrid`: a signature counted from an origin row). A launched scene's signature is the *running signature* (`RunningBars`: signature plus origin row, the launch bar, saved as `transportTimeSignature`/`transportBarOrigin`) that overrides the song's from the origin until another scene or Back to Arrangement for every track (`ClipPlayer::returnAllToArrangement()`). The audio thread owns the running signature and the tempo a scene sets (`SongState`'s `pending_scene_`/`running_bars_`/`barsAt()`, applied in `advanceLiveTracks()` on the bar, sample-exact with the clip launches; its bar test, pattern break and `Player::scheduleMetronome()` read `barsAt()`); the UI's `Song` copies are mirrored from the snapshot by `Controller::mirrorSceneChange()` (once per `PlaybackInfo::getSceneSeq()`, so an older snapshot never overwrites a tempo edited since; `SongState` applies the song's own tempo only when the song's value changed). UI-thread consumers (clip take quantization and length, the position display, the info line) read `Song::getBarsAt()`; the arrangement grid, arrangement recording and clip placement read `getArrangementBars()`. A bar number is never `row / rows_per_bar` (`Song::getRowsPerBar()` is gone): use `BarGrid`. Live View accents come from the scene's own signature (`PatternSource::startsBar()`/`startsBeat()`).
+- **Defaults**: a fresh session opens in Live View on the clip grid
   (`UI::setInitialView()`, the `--view` option) rather than straight into
-  note entry, and `GridMode` defaults to `SESSION` on every
+  note entry, and `GridMode` defaults to `LIVE` on every
   connected device - see the Run section above for the matching
   `songs/welcome.xml`/31-EDO startup defaults.
-- e2e coverage: `tools/e2e/verify_launchpad_session.py` (see that
-  directory's own `README.md`) covers Session view's basic trigger/assign
+- e2e coverage: `tools/e2e/verify_launchpad_live.py` (see that
+  directory's own `README.md`) covers Live View's basic trigger/assign
   path, arming Record Arm for it via shift + CC98 (the legacy global
   `toggle-record-arm` - CC19 no longer reaches it while looking at
-  Session view); `verify_launchpad_notecustom.py`/
+  Live View); `verify_launchpad_notecustom.py`/
   `verify_launchpad_draw_clear.py` cover CC96/CC97's own mode-switch
   and the shift + Solo gesture (DRAW mode entry/canvas-clear);
-  `verify_launchpad_record_arm_picker.py` covers CC19's own Session-view
+  `verify_launchpad_record_arm_picker.py` covers CC19's own Live-View
   meaning, the track-picker overlay's fourth purpose - presses CC95 a
   second time first to enter mixer submode (required before CC19 does
   anything at all, same as the other three), same reasoning as
@@ -1117,8 +1209,8 @@ would otherwise resume showing.
   staying open across a pick, and a playing clip's picker pad showing
   the picker's static red rather than its playing pulse);
   `verify_launchpad_mute_picker.py` covers
-  the CC39 purpose (bright/dim polarity, the overlay leaving Session
-  view's own rendering untouched outside the picker row), and also exercises Session's own
+  the CC39 purpose (bright/dim polarity, the overlay leaving Live
+  View's own rendering untouched outside the picker row), and also exercises Live's own
   mixer-submode toggle (a second CC95 press) and its green/orange LED,
   since CC39 means nothing at all until that submode is on; Solo's own
   CC29 purpose reuses the identical mechanism but has no dedicated e2e
@@ -1126,38 +1218,32 @@ would otherwise resume showing.
   scene-launch action the same eight buttons perform while mixer submode
   is off (`LaunchpadManager::triggerSceneRow()`, row = (cc_number - 19) /
   10) - every track's own clip at that row launches together off a single
-  press, not just the first track in `session_.track_ids` - every track
+  press, not just the first track in `live_.track_ids` - every track
   queues for the same next bar. `verify_launchpad_mixer_hold.py`
   covers the same eight buttons' own momentary hold-to-preview gesture
   (`armMixerHoldPreview()`/`handleMixerFunctionRelease()`) - a quick tap
   stays (sticky), a real hold reverts to whatever was showing before it
-  once released. `verify_launchpad_session_automation.py` covers a fader
-  move during a Session View take landing in the take's own clip
+  once released. `verify_launchpad_live_automation.py` covers a fader
+  move during a clip take landing in the take's own clip
   (`recordFaderAutomationIfArmed()`) rather than the arrangement, which a
   taken-over track ignores. `verify_launchpad_sampletrack_record_arm.py` covers the
   SampleTrack twin of `verify_launchpad_record_arm_holes.py` - a
-  Session-grid press on a SampleTrack armed via the track-picker overlay
+  Live-grid press on a SampleTrack armed via the track-picker overlay
   actually arming real audio capture, and a second press cancelling it -
   verified through the terminal `ClipGrid` widget's own text.
   `verify_launchpad_shift_stepgrid.py` covers
   CC91-held-as-shift's own gesture (see the drum machine bullet above) -
   opening a step-sequenced `PercussionTrack` clip's own step grid from
-  Session view, and a lone CC95 press closing it again - verified the
+  Live View, and a lone CC95 press closing it again - verified the
   same terminal-text way (the "*" focus marker).
   `verify_launchpad_tempo_swing.py` covers the Tempo and Swing views
   (open, arrows, switch, leave) through the pads' LEDs.
   `verify_launchpad_shift_highlight.py` covers the same
   gesture's own LED feedback while held (both CC91 and the target pad
-  lighting bright white before release). `verify_launchpad_paging_lockstep.py`
-  covers the step grid's own prev-track/next-track page-shift gesture
-  moving every connected device together rather than just whichever one
-  was pressed - two simulated devices open a 4-page clip, confirm
-  `resetStepGridView()`'s own device-order split put them on two
-  different pages, then one pages forward once and both are confirmed to
-  have scrolled together. `verify_launchpad_shift_no_lanes.py` covers the same
-  shift+pad gesture opening a *lane-less* `PercussionTrack`'s own clip -
-  showing the step grid completely empty rather than declining or routing
-  to the lane picker instead. `verify_launchpad_shift_stepgrid_pitched.py`
+  lighting bright white before release). `verify_launchpad_step_view_device.py`
+  covers the step view with two devices connected - only the device used to
+  open a 3-page clip shows it, from step 0, and pages forward once; the other
+  stays on the Live View grid. `verify_launchpad_shift_stepgrid_pitched.py`
   covers the same gesture opening a *pitched* `InstrumentTrack`'s own
   clip - same "*" focus-marker verification as `verify_launchpad_shift_
   stepgrid.py` above.
@@ -1191,15 +1277,15 @@ would otherwise resume showing.
     an independent copy unlike a `Clip`'s own shared content — and a
     `SampleTrack`'s own merged background audio bed), the song's
     locators (`Song::getLocators()`, named markers keyed by absolute row,
-    shown in Arrangement view's locator column; `ZBxx` jumps to one)
+    shown in Arrangement view's locator column)
     and their value types (`Note`, `Command`, `SendLevels`, …).
   - `src/state/` — the parallel, cheaply-resettable playback-state
     objects (`*State.h`) mirroring the model objects above.
   - `src/playback/` — `Player` (sequencer), the event vocabulary it
-    consumes/produces, and `SessionPlayer` (Session view clip launching).
+    consumes/produces, and `ClipPlayer` (Live View clip launching).
   - `src/instruments/` — synthesis and instrument resolution:
     `OscillatorVoice`/`GenericInstrument`/`SoundFont`, `Tuner`/`Tuning`
-    (microtonal pitch math), `LFO`, `Arpeggiator`.
+    (microtonal pitch math), `LFO`.
   `Oscillator` can be an array of members in one voice: `voices` members (up to 256),
     member k at `ratio`^k times the note's frequency and `falloff`^k times its
     level (ratio 1 = unison choir, 2 = octaves), with `detune` (cents) spread
@@ -1223,19 +1309,29 @@ would otherwise resume showing.
     age in samples, so it never depends on the block size; the kernel adds its
     exact phase integral per group of eight), keeping the array from settling
     into a repeating beat pattern; no detune, no drift. Other voice types aren't arrays.
+    Where a note sits around its track's position is the track's `spatial`
+    mode (`SpatialMode`, `LeafTrack::getSpatialMode()`, `docs/spatial.md`):
+    `InstrumentTrackState::noteOn()` passes the mode to `playNote()`, whose leaf
+    instruments place the note by its `NoteCoordinate` column (`NoteCoordinate` is
+    a required argument: every note has one, a live note's with a stand-in row).
+    The default is the golden-angle spiral by column
+    (`instruments/SpatialPlacement.h`), `SoundFontInstrument` adds the drum kit
+    table and the key-range arc, and a SoundFont region's own pan is always
+    folded in by the voice.
   - `src/ambisonic/` — spatial encode/decode math and the `Mixer`
     hierarchy (see the `AmbisonicEncoding.h` bullet below).
-  - `src/audio/` — `AlsaAudio` (device output), `AudioBuffer`,
-    `OfflineRenderer`.
-  - `src/ui/` — toolkit-agnostic UI plumbing with no notcurses
+  - `src/audio/` — `AlsaAudio` (device output and input, runtime device
+    switching), `DeviceSettings` (the saved device choices - in
+    `synth_engine`, so `Controller` and the tests use it), `AudioDevices`
+    (listing what can be chosen; executable-only, like `AlsaAudio`),
+    `AudioBuffer`, `OfflineRenderer`.
+  - `src/ui/` — toolkit-agnostic UI plumbing with no terminal
     dependency: `UI`/`UIElement`/`UIPlane`/`UIMenu` (abstract app/widget/
     render-surface interfaces a future non-terminal UI could implement
     against too - a concrete backend's real implementation, e.g.
-    `TerminalPlane`/`TerminalMenu`, lives entirely inside that backend's
-    own file, not alongside the interface), `Chart`/`HeatmapChart`
-    (same pattern - `TerminalChart`/`TerminalPixelChart`/
-    `TerminalHeatmapChart`/`TerminalPixelHeatmapChart` are
-    `TerminalUI.cpp`'s own concrete renderers), `StyleProvider` (a plain
+    `TerminalMenu`, lives entirely inside that backend's own file, not
+    alongside the interface), `HeatmapChart` (its versions are Cell UI's,
+    through `cellui::Scopes`), `StyleProvider` (a plain
     named-color theme struct, not terminal-specific itself), the
     Emacs-style keybinding dispatch (`KeyChord.h`/`Keymap.h`/
     `CommandRegistry.h`), and selection/clipboard data types
@@ -1245,14 +1341,13 @@ would otherwise resume showing.
     visualization threads, running until told to quit, reporting status)
     - a concrete subclass owns its own widget set, screen layout, and
     Launchpad callback wiring (`UI::wireLaunchpad()`'s hook). `src/ui/tui/`
-    — the concrete notcurses implementation built on those interfaces:
+    — the concrete terminal implementation built on those interfaces and
+    on Cell UI's terminal backend (`cellui::term::TerminalSession`, the
+    screen a root `cellui::BufferPlane` composes):
     `TerminalUI` (the sole such subclass today - owns every widget,
     `initializeWidgets()`/`layout()`/`renderComponents()`, every Emacs
     keybinding, and every `EventHandler` override), `PatternEditor`/
-    `OutlineView` and the rest of the terminal widgets, plus
-    notcurses-specific input handling (`NotcursesInputEventSource`,
-    `EscapeCoalescer`) and text-cell rendering helpers (`SubcellGlyphs.h`)
-    that wouldn't apply to a pixel-based UI.
+    `OutlineView` and the rest of the terminal widgets.
 
     Info dialogs (the outline panel's details popup, the About dialog) have
     their content written as Markdown, parsed by `ui/Markdown.h` - a tiny
@@ -1287,10 +1382,128 @@ would otherwise resume showing.
   - `src/launchpad/` — Launchpad hardware I/O and layout - see the
     Launchpad section above.
   - `src/util/` — small, dependency-free helpers (`constants.h`,
-    `Logger.h`, …) used from everywhere. `Utf8.h`/`.cpp` is the one
-    exception to "dependency-free" (it wraps libunistring, keeping its
-    header out of `Utf8.h` itself) - still dependency-free of every other
-    synth module, which is the property call sites actually rely on.
+    `Logger.h`, …) used from everywhere.
+- `lib/cellui/` — **Cell UI**, the UI library (plan: `plans/cell-ui.md`), its
+  own CMake project (`cmake -S lib/cellui -B build-cellui` builds and tests it
+  alone, which CI does) that includes nothing from `src/` - a ctest
+  (`cellui_includes_nothing_from_src`) fails on any include that leaves it.
+  Headers are `cellui/X.h`, in `namespace cellui`; the library owns the
+  libunistring dependency. So far it holds the leaves that never depended on
+  the app: `Color` (`#rgb` now means each digit doubled), `utf8` (grapheme-
+  aware width, truncation and padding), `markdown` (the tiny subset the info
+  dialogs use), `ChoiceList`, the sub-cell glyph tables and two-colour
+  quantizer (`SubcellGlyphs.h`), the Escape-as-Meta coalescer (`EscapeCoalescer.h`) and `KeyReader` (the inputs as widgets see them, Escape as Meta included, and when the "ESC-" indicator is due), and the input data (`Input.h`: key id, modifiers,
+  position, press/release kind, and the key ids `cellui::Key::Up` and so on, `Key::` in the app; the app's
+  `InputEvent` is an `Input` that is also an `Event`; the note-entry key mapping
+  is `keyToMidiNote()` in `playback/KeyboardNotes.h`), the key chord packing, `Keymap` and `CommandRegistry`, and the theme (`Theme`,
+  `StyleProvider`) and `UIPlane` (it carries the app's own object as an opaque
+  `getAppContext()`, which `UIElement::getController()` casts back; input is
+  `cellui::Input`), and the widget base `Element` (`Element.h`: the plane,
+  drawing, `offerInput(const Input &)`, the keymap and prefix-chord dispatch;
+  the app's `UIElement` adds the event handler and the controller), `UIMenu`, and the 2D grid chart contract
+  `HeatmapChart`, the generic widgets (`ChoiceDialog`, `InlineEditor`, `SpinBox`, `CoverArt`, `ChannelMeter`,
+  `SpectrumMeter` and `LevelMeter.h`'s one dB mapping, ballistics and glyph cells, plus
+  `Digit.h`, `Viewport.h`: the offset, `reveal()` margins and the wheel's detached state every scrolling widget shares; `ChoiceList` (so `ChoiceDialog`), `OutlineView` and `ArrangementGrid` use it; where `DisplayInfo::smooth_scroll` it also animates a shown position toward the offset, and a widget on a plane of its own draws one row more and calls `UIPlane::setScrollOffset()` with the fraction - the plane then composes as a `BackdropLayer::scroll` layer, which the window draws translated from a texture of its own, as `PatternEditor` (its rows, on a plane under the one with the headings: the shown top trails the logical one by an offset that eases to zero, so a scroll of up to a few rows glides, and the cell-drawn cursor row moves with the content), `ChoiceDialog` (its entries on a plane of their own over the box, under the same kind of cursor band, easing to the selection), `ArrangementGrid` and `OutlineView` (its tree on a plane of its own, under the heading and the button bar, and its cursor, on a smoothly scrolling display, a translucent `setBand()` over the tree so the row shows through: it eases to its row in the view, so at the first or last row in view, with the keys going on, it stays in place and only the content moves (other displays highlight the row in the tree); the content extends the button bar's rows past the last row so that one can scroll clear of the bar) do; `UIPlane::setBand()` puts a translucent strip at a fractional row over such a plane, unshifted, which is the arrangement grid's playhead while the transport plays), `InfoDialog` (the cell rendering of a Markdown info box; a
+  backend with richer text drawing lays out `markdown::parse()` itself instead,
+  through `UI::showInfoDialog(title, markdown)`), and `BufferPlane`/`CellBuffer` (a
+  plane that keeps its own cells, the way a screen's planes do - drawing, moving,
+  raising and hiding work on the plane, and `refresh()` composes the tree into a
+  grid of cells rendering as plain text or ANSI; a plane's elevation,
+  `UIPlane::setElevation()`, adds to its parent's, and the tree is drawn lowest
+  first, planes of one height in tree order, so a popup floats over everything
+  below it wherever it sits in the tree - `Theme::elevation`'s steps, in cell
+  widths: panel, raised (the pattern editor's track headers), card (the clip
+  grid's clips), overlay for menus, pickers and popups, modal for a modal dialog and
+  its scrim; cells can stand above their plane too (`UIPlane::setLift()`, a
+  cell attribute, so a partial redraw keeps it: a run in a row is one piece,
+  joined to the one above only when asked) - and every frame tells the backend
+  the areas above the base, `FrameInfo::elevations`) with the gallery page
+  (`Gallery.h`, a class that keeps its widgets' planes, `cellui_gallery`; its text is a golden file in
+  `lib/cellui/tests/golden/`, rewritten with `CELLUI_UPDATE_GOLDEN=1`) (`HeatmapChart.h`, with the fixed hue and the HSV helper its
+  renderers share). The old paths (`util/Utf8.h`, `ui/Markdown.h`,
+  `ui/ChoiceList.h`, `ui/tui/SubcellGlyphs.h`, `model/Color.h`, `ui/Keymap.h`, `ui/CommandRegistry.h`, `ui/KeyChord.h`, `ui/Theme.h`,
+  `ui/StyleProvider.h`, `ui/UIPlane.h`, `ui/HeatmapChart.h`, `ui/UIMenu.h`, `util/digit.h` and the headers of the widgets above in
+  `ui/tui/`) are forwarding
+  headers with aliases (`Utf8`, `markdown`, `Color`, ...), so call sites did not
+  change; what stays in the app is what knows the song or the controller (`PatternEditor`,
+  `ClipGrid`, `ArrangementGrid`, `OutlineView`, `InfoLine`, `StatusLine`, `PatternScroll`) and the
+  terminal UI's own glue (`TerminalMenu` on `MenuBar`, the pixel charts). The
+  terminal backend is `cellui/term/`: `InputParser` (keys, mouse, paste, focus,
+  query replies, a short grace for split sequences), `Discovery`/`Capabilities`
+  (start-up queries with a deadline; the display scale guessed from the cell
+  size, `estimateDisplayScale()`, and light or dark from the default colours,
+  `detectAppearance()`, which picks the default `--theme`), `FrameEncoder` (the
+  frame diff as escape sequences), `ImageEncoder` (kitty graphics, iTerm2 inline images, Sixel) and
+  `TerminalSession` (the tty, its modes, signals and restoration).
+  `cellui::Backend` (`cellui/Backend.h`, outside `term/`) is what the app needs of any
+  display - `DisplayInfo` (`cellui/DisplayInfo.h`: cell size in pixels, whether pictures
+  can be shown, default colours, display scale, sextants), size, `BackendEvent`s
+  (`cellui/BackendEvent.h`: input as `cellui::Input`, resize, paste, close), a frame to
+  show, and `setNativeSelection()` (the user selects text with the mouse instead of the
+  app getting the clicks) - which `TerminalSession` and `cellui::test::TestBackend`
+  implement. `TerminalSession` translates its `TermEvent`s (which stay inside `term/`,
+  `pollTerm()` for its own tests) and keeps the terminal-only `Capabilities` (image
+  protocol, kitty keyboard, query replies, dither) around the `DisplayInfo` it hands out.
+  `TerminalUI` and its tests use only `Backend`, `BackendEvent` and `DisplayInfo`.
+  The loop is the backend's too: `Backend::eventLoop()` gives an `EventLoop`
+  (`cellui/EventLoop.h`: `run()`, `quit()`, `iterate(block)`, sources that are file
+  descriptors, a before hook that returns how long the turn may wait and an after hook;
+  re-entrant, so a handler may `run()` a nested loop - a modal dialog waiting for its
+  answer - and `quit()` ends the innermost). `PollEventLoop` (poll(2)) serves the
+  terminal session and `TestBackend`; `TerminalUI::startUI()` registers the app's
+  `WaitSet` groups (`WaitSet::fds()`) as sources and does its per-turn work in the hooks.
+  The window backend is `cellui/gtk/`: `GlibEventLoop` (a turn is one
+  `g_main_context_iteration()`, the app's descriptors are GSources on the same
+  context as GTK's own) and `Window`, a `GtkWindow` with one custom widget whose
+  `snapshot()` rasterizes the presented frame (cells and the images over them) with
+  `canvasRasterizer()` at scale 1 into one `GdkTexture`, only when something was
+  presented (its text is drawn in the system's monospace font; a character that font
+  lacks, such as the musical accidentals of the 31- and 53-EDO note names, is drawn from
+  the best installed font that has it, found with fontconfig - the drawing library's own
+  text has no fallback - and shrunk to its cell if wider; fontconfig comes with
+  `libcairo2-dev`). It reports `DisplayInfo` with the cell size from the font's Pango metrics,
+  pictures always available and no sextants, and turns GTK's key (taken in the capture
+  phase, with real press/repeat/release), click, drag (the held button's press again at
+  each new cell), wheel (buttons 4-7) and paste (Ctrl+Shift+V, Shift+Insert) events into
+  `BackendEvent`s; a size change is a `RESIZE` in cells and closing the window a `CLOSE`.
+  Events wait in a queue behind an eventfd that is `inputFd()`. A backdrop is the
+  backend's to apply: `BufferPlane::refresh()` sets what is composed below each one aside as a
+  `BackdropLayer` (cells, blur, dim, tint and the rectangle it covers; `takeBackdropLayers()`,
+  handed to the backend in `FrameInfo::backdrops`, always given, bottom first) and leaves the
+  frame with only what is above it, so no backend's work shows in the application or in
+  `BufferPlane`. `Window` draws each layer as a texture (kept while a fingerprint of its cells
+  and pictures is unchanged), then the stack so far again under a GSK blur node and a dim
+  colour inside the backdrop's cells; it never makes the blur itself, whatever the renderer.
+  Over the frame it draws two GSK outset shadows around every area of `FrameInfo::elevations`
+  that no later backdrop covers (`ElevatedArea::layer`) - a key light from the upper left,
+  offset down by half the height and right by a little less, blurred by all of it, and a faint
+  ambient one - then, height by height, the cells
+  of every area as high or higher again over them, so a shadow falls only on what is lower, and
+  a light top and dark bottom edge on each area (`FrameStats::shadows`).
+  The terminal cannot blur, so what it shows is made in its own backend: `term::BackdropEmulation`
+  (`TerminalSession::present()`) - cells averaged over their neighbours with the glyphs
+  faded out, or with pictures the cells drawn, blurred and stretched in tiles of 4 x 16
+  cells redrawn only when what they show changed. `TestBackend` stacks the layers
+  unblurred (`info().backdrops` has them) and shows them as a terminal does after
+  `emulateBackdrops(true)`.
+  The pointer's shape is a plane attribute (`UIPlane::setMouseCursor()`,
+  `MouseCursor`: `INHERIT` shows what is below, `DEFAULT`/`POINTER`/`TEXT`):
+  `refresh()` lists the rectangles of the planes that asked for one, in drawing
+  order, as `FrameInfo::mouse_cursors` (`takeMouseCursors()`, `mouseCursorAt()`),
+  and the backend shows the last one over the pointer's cell - the window with
+  `gtk_widget_set_cursor_from_name()`, the terminal with OSC 22 (so it asks for
+  any-motion mouse reporting and keeps hover moves to itself). A popup sets
+  `DEFAULT` so its area is not taken for what lies below it. Not done yet: per-plane render nodes, input methods, HiDPI, native
+  dialogs and menus. `TestBackend` (`cellui/TestBackend.h`) has no tty or window: input is
+  pushed by the test, and each presented frame is kept for the test to read
+  directly (`text()`, `frame()` cells and their styles, `info()`: the plane tree from
+  `BufferPlane::describe()` and the focus `TerminalUI::focusName()` gives, `cursor()`,
+  `images()`), so `tests/TerminalUITests.cpp` drives the real
+  `TerminalUI` (`step()` is one loop turn without waiting) and asserts on what it
+  shows. It is named for the test, not the terminal, so a window backend's tests can use it too.
+  The UI sources are the `synth_ui` library for that reason.
+  `cellui_gallery --live` shows the gallery through it. Its tests are in `lib/cellui/tests/` with a copy of the tiny test
+  framework (no dependency on `tests/`).
 
   `src/effects/`, `src/bus/`, and `src/dsp/` (below) predate this split
   and already lived in their own directories before it; this list only
@@ -1397,6 +1610,34 @@ would otherwise resume showing.
   `Mixer`'s `encode()` deliberately never reads them — unprocessed aux
   content there would just sound bad without real bus DSP consuming it
   first.
+- **Silence is structural.** When nothing sounds, buffers on the way to the
+  scopes carry no channels instead of zeros, so no stage tests samples for
+  silence. A `Mixer` notes whether `accumulate()` added any regular channel
+  this block (`accumulated()`, cleared by `reset()`, which then has nothing
+  to zero); until it has, `getRawBus()` returns a frame-sized buffer with no
+  regular and no aux channels, so `hasChannel(Channel::Main)` is the test.
+  The decoders' `encode()` with nothing accumulated only drains the filter
+  tail (`left_tail_`/`right_tail_`, exactly as before) and still writes a
+  full stereo block of zeros: the device needs a continuous stream.
+  `SongState::getAuxASum()`/`getAuxBSum()` are likewise empty unless a track
+  sent, and `AudioBlockEvent` is built from those, sent every block either
+  way. Silence is made at the sources, so nothing downstream tests samples: a voice
+  ends once it falls below `constants::SILENCE_KILL_FLOOR_DB` in its release
+  or for good in its sustain (`SoundFontVoice::render()`,
+  `EnvelopeFilterDsp::applyEffect()`), and the send bus stops reaching the mix
+  once its output stays under `kBusAudibleFloor` (-100 dBFS). `VisualizationThread`
+  answers an empty raw bus with zero loudness and,
+  until the spectrum (`SpectrumAnalyzer::atRest()`) and DirAC
+  (`DiracAnalyzer::atRest()`) hold zeros and have said so, with real zero
+  blocks fed to them; after that a result carries only the meter reading and
+  nothing is decoded or analyzed, and once the meter has had time to fall
+  (`VisualizationThread::kSettleSeconds`) no result is sent at all, so an idle
+  UI sleeps; a second later `Player` stops sending it silent blocks, so it
+  sleeps too. `AmbisonicMagLSDecoder::encode()` with nothing accumulated and its
+  tail drained writes zeros without touching the tail. The UI
+  redraws nothing for an unchanged result, and blanks the scopes itself when
+  they come back on screen (`TerminalUI::scopes_stale_`, `blankScopes()` from
+  `renderComponents()`), since nothing more arrives to replace what they held.
 - That DSP lives in `src/bus/` (the shared send bus's own subsystem, depending
   on `src/dsp/` — reusable, dependency-free DSP building blocks, never the
   reverse) — `SongState`'s `SendBusProcessor` (`bus/SendBusProcessor.h`/
@@ -1406,12 +1647,21 @@ would otherwise resume showing.
   mono accumulators, and — only when its own `ChannelConfiguration` is
   `AMBISONIC` (skipped for the one synthetic top-level `MONO` config a
   Compressor regression test constructs directly, which has no sensible
-  ambisonic tap-encode target) — always runs them through
-  `SendBusProcessor::process()` (even when both are silent, so every
-  slot's internal tail/feedback/modulation state stays continuous across
-  blocks — the same reasoning as `AmbisonicBinauralMixer`'s overlap-add
-  tail), then accumulates the result directly into the mixer with a
-  single `mixer.accumulate()` call — no decode step happens in
+  ambisonic tap-encode target) — runs them through
+  `SendBusProcessor::process()` (silent input included, so every slot's
+  internal tail/feedback/modulation state stays continuous across blocks,
+  until input and output - the bus's and each effect's own before its return
+  scales it, `getChainSendSum()` - have stayed under `kBusAudibleFloor` for
+  longer than either effect keeps a sound, `BusEffect::idleAfterSeconds()`
+  (its longest delay, or a diffuse encoder's ring-down; never for an effect
+  that doesn't say, or a frozen granular cloud): nothing audible is left
+  inside then, and the effects aren't run until input returns), then accumulates the result directly into the mixer with a
+  single `mixer.accumulate()` call — but only while the bus is audible
+  (`SendBusProcessor::isAudible()`: its block peak reached
+  `kBusAudibleFloor` within the last `kBusAudibleHoldSeconds`; the floor
+  sits far above the effects' `kDenormalGuard`, which keeps a faint signal
+  flowing through an idle effect forever, and the hold keeps a decaying tail
+  from being cut) — no decode step happens in
   `SongState` itself, since the top-level mixer is always ambisonic-shaped
   too. `SendBusProcessor`'s own output (`getBusAmbisonic()`) is *always*
   ambisonic-shaped (`config.numberOfChannels()` — 4 at order 1, 9 at
@@ -1427,8 +1677,8 @@ would otherwise resume showing.
   `SongState::initialize()` installs the real ones, so `process()` is
   always safe to call even pre-load); any of the three real effects can
   occupy either slot. Every `BusEffect` shares the same shape:
-  `process(monoInput, frames)` always runs, even on silent input, so
-  internal state stays continuous; `getNumTaps()`/`getTap()`/
+  `process(monoInput, frames)` runs on silent input too (until the bus is
+  idle, above), so internal state stays continuous; `getNumTaps()`/`getTap()`/
   `getTapDirection()` expose its output as N independent spatial taps
   (`FDNReverb`: 8 feedback-delay lines at the cube-vertex directions from
   `AmbisonicEncoding.h`'s `cubeVertexDirections()`; `MultiTapDelay`: 4
@@ -1524,18 +1774,149 @@ would otherwise resume showing.
   separated from song model objects so playback state can be reset cheaply.
 - The build enables many `-Werror=` flags plus `-Wsign-conversion`; new code
   must compile warning-clean.
+- A command only a pad controller dispatches (nothing else registers it) is
+  named with a `pad-` prefix (`pad-next-track`), not `launchpad-`: other
+  devices can use it too. A pad gesture whose keyboard equivalent is
+  copy/kill/yank gets no command of its own (`docs/user-interface.md`).
+- Where a well-known convention exists in the lineage this project draws on,
+  prefer it to inventing something new, and where a document records the
+  lineage (`docs/drums-and-sequencer.md`, the README), keep it accurate. Add a
+  layout or number only when it is known exactly - leave it out rather than
+  add a subtly wrong version.
 - Comments: keep them short (a one-liner covers most cases). Don't point
   at something outside the code to explain the code - state the reasoning
   directly instead of citing: a `plans/*.md` file (they get deleted once
   done, leaving a dangling reference), `todo.txt` (being phased out, same
   reason), a specific third-party software product (describe the
-  convention/behavior generically instead - Emacs is the one exception,
-  cited by name throughout this codebase's own keybinding comments), or a
+  convention/behavior generically instead; open-source software, such as
+  Emacs, cited by name throughout this codebase's own keybinding comments,
+  and obsolete software may be named, and so may hardware), or a
   specific keybinding when the binding itself is declared elsewhere
   (`keymap_.bind()`/`commands_.define()` - a second source of truth that
   silently goes stale if the binding ever changes; name the command
   instead and let the actual binding site be the only place the key
   appears).
+- Song mutation: every write to the song model happens inside a
+  `Song::Edit` scope (`model/Song.h`), one per user action - a key press, a
+  command, a pad press, a whole live take's single note. The scope is the
+  only thing that bumps the version (`incVersion()` no longer exists), and it
+  publishes the audio thread's copy (below) when the outermost one closes, so
+  an action's writes become visible together. Scopes nest; `discard()` is for
+  a scope that wrote nothing. `CONTENT` edits (note/command/velocity/delay)
+  count in the minor version, everything else in the major one. A write
+  outside any scope is a bug that leaves the audio thread on stale content;
+  run with `SYNTH_VERIFY_CONTENT=1` to have the UI say so (once per buffer)
+  when the published content no longer matches the model.
+- Undo (`doc/UndoHistory.h`, `Song::undo()`/`redo()`, the `undo` and
+  `undo-redo` commands from `Controller`; bindings and the Launchpad's shift +
+  Record Arm / Mute in `docs/user-interface.md`/`docs/launchpad.md`): the Emacs
+  policy over the journal. An undo appends the inverse of an earlier entry, so
+  nothing is dropped and undoing an undo is a redo; the run of undos is broken
+  only by a tracked edit (cursor moves are not edits), and `Origin::SYNC`
+  entries are passed over and never undone. It does nothing while an undo group
+  (`Document::beginGroup`) is open, which is how a live take is one step:
+  `Controller::updateUndoGroup()` holds a group open while any clip take
+  (`isAnyClipRecording()`) or auto-record session is in flight, so its notes
+  land one by one but undo as a whole, once it has ended. Note capture
+  armed while the transport rolls counts as a take too. After an undo or redo
+  `Song::lastUndoPlace()` names the track (and, for an arrangement note or
+  placement, the row; for a clip, `clip_index` and the row in it) it changed,
+  and the commands move the current track there, the transport row while
+  stopped, and for a clip the clip grid and (in Live View) the pattern editor
+  (`Controller::setUndoFocusListener()`). Typing edits amalgamate: `Song::Edit`'s `typing` flag
+  appends a transaction's ops to the previous entry
+  (`Document::begin(..., amalgamate)`) while the run is unbroken
+  (`Song::breakTypingRun()` from `PatternEditor` on any non-typing key, an
+  idle gap, `kTypingRunLimit`), so velocity/delay digits and command
+  characters and typed notes undo together (the keys of a chord are a group, `Document::endGroup(typing_run, join)` /
+  `Song::endTypingGroup()`, that is one step of the run). An undo or redo whose change
+  is in a clip that is playing, queued or recording is refused
+  (`Song::nextUndoPlace()`/`nextRedoPlace()` say where it would land before it
+  does). Held note keys keep a group open
+  too (`Controller::setNoteHeld()`, from `PatternEditor`), so a chord is one
+  step.
+- The song's own state lives in a DOM (`src/doc/`, plan in
+  `plans/undo-document-model.md`): nodes with stable ids, four journaled
+  primitives, one append-only journal per song (`Song::document()`, capped at
+  `Song::kJournalLimit` edits). The song-level scalars (tempo, swing,
+  signatures, tuning, key, scale, the room), scenes and locators, the
+  whole score - patterns and notes, clips (with their sample layers) and the
+  arrangement's placements and beds - and the tracks, the instrument pool and
+  the send bus all live there; the scalars and the score are declared once
+  in `model/SongSchema.h`/`ScoreSchema.h`. `Song`'s accessors stay the API. The
+  score is edited through short-lived handles, `PatternView`, `ClipView`/
+  `ClipList` and `ArrangementView` (`Song::getArrangement()`/`getClips()`),
+  which read like the pointers they replaced (`->`, `if (x)`, `nullptr`) but
+  hold no content, so they cannot go stale or be copied apart from the
+  document; reads return values, never references into storage (so never bind
+  a reference to an element of one, `auto & n = view.getNotes(r)[0]`). An
+  invalid or default handle is inert: reads give defaults, writes go nowhere.
+  `Pattern`, `Clip` and `Arrangement` remain as plain value types - the
+  published copy, the clipboard, and what a loader builds before
+  `Song::addClip()`/`PatternView::assign()` puts it in the document. Sample
+  audio is not in the document: a "sample" node names an asset in
+  `SampleStore`, which also keeps the per-layer `SampleContent` (and the
+  audio thread's time-stretch work with it) and the overdub mix. Never change
+  an asset's audio in place once it is in a clip - history may bring it back. A `Song` setter - and a write through any view - opens its own
+  `Edit` if none is open (joining the caller's otherwise), so even a bare write
+  is journaled and published; a loop of them should sit in one `Edit`. An `Edit`
+  with `Origin::SYNC` is a mirror of the audio thread (scene-launch tempo,
+  glides, running bars): journaled but untracked, never undone on its own.
+  Opening a file or constructing a song leaves no history.
+  `SYNTH_VERIFY_DOCUMENT=1` replays every transaction against a copy to check
+  its undo record.
+- Tracks, instruments and bus effects are nodes whose type is the element
+  name they have in a song file and whose string properties are exactly the
+  attributes their `loadParameters()`/`storeParameters()` use
+  (`model/TrackNodes.h`), so those classes know nothing of the document
+  (the loader still builds objects from the XML and derives the nodes from
+  them, so an attribute no class knows is dropped on load, as before;
+  `Song::editTrack()` does leave alone any property a node holds that the
+  class does not store); a node's children are
+  its sub-tracks, and a `GenericInstrument`'s `<generator>` elements are
+  "generator" child nodes. What the rest of the program sees are immutable
+  `Track` objects (`Song::getMasterTrack()`, `getInstrumentPool()`,
+  `getBusSlot()`), compiled from the nodes by `TrackCompiler`
+  (`model/CompiledTracks.h`) when an `Edit` closes. Each node's compiled
+  object is kept with the newest revision under it (`Document::
+  subtreeRevision()`), so an edit rebuilds only the nodes that changed and
+  their ancestors, and every other track keeps its object (and a track
+  handed to `Song::addTrack()`/`addInstrument()` as an object stays that
+  object, prepared instrument and all). A reference to a `Track` is
+  therefore good until that track is edited: look it up again by internal id
+  afterwards (internal ids are kept in the node, so they survive a rebuild).
+  Change a track with `Song::editTrack(id, fn)` - `fn` runs on a scratch copy
+  and what it changed in the stored attributes is written to the node - and
+  add, remove and reorder with `addTrack()`/`removeTrack()`/`addInstrument()`/
+  `removeInstrument()`/`setBusSlotKind()`; never build a track's sub-tracks
+  after adding it.
+- The audio thread never reads the live arrangement, clips or tracks: it reads
+  `PlaybackContent` (`model/PlaybackContent.h`), an immutable copy of the
+  arrangement and clips, with the compiled tracks (`CompiledTracks`) attached
+  that `Song::publishContent()` builds (~30 us for the largest song here) and
+  `ContentPublisher` hands over without locks or reference counts, freeing
+  displaced copies on the UI thread only (`SongState::renderBlock()` holds
+  one `Song::readContent()` for the block and keeps no pointer into it past
+  it - compare `SampleContent::identity()`, not addresses, across blocks).
+  A song a `Controller` owns is in published mode; a song built and rendered
+  on one thread (the offline renderer, tests) copies on every read instead,
+  so a write needs no `Edit` there. State that outlives a block must not point
+  into the tracks (keep an internal id and any settings by value, and find
+  the instrument in the pool it is rendered with).
+- Cloud sessions: commit and push finished work to the session's branch
+  without being asked, including plans and changes the user wants to test
+  by ear - the cloud has no other way to show files, so an uncommitted
+  file can't be reviewed. A "don't commit" in a prompt means no pull
+  request and no merge; it never means leave work uncommitted in the
+  cloud. On a desktop session the user's own "don't commit" stands as
+  written.
+- Branches, cloud sessions only: once a branch's pull request is merged, it is
+  finished. You may, and must, start the next change on a new branch off the
+  latest default branch (a fresh name, e.g. `claude/<topic>`) - never push
+  more commits onto a merged branch, even when the session names it as the
+  one to develop on. Check whether the PR is merged before committing
+  follow-up work. On a desktop session the user creates and switches
+  branches; stay on the one that is checked out.
 - Never link to the chat/session that produced a change (no `Claude-Session:`
   trailer, no claude.ai/code URL) in commit messages, PR descriptions, or
   comments; the URL isn't useful to other readers and can't be fully removed

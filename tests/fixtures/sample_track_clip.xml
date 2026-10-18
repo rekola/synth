@@ -4,16 +4,12 @@
     <sampleTrack id="0"/>
   </tracks>
   <clips>
-    <trackClips track="0">
-      <clip id="c0" loop="0">
-        <sample file="sample_track_tone.wav"/>
-      </clip>
-    </trackClips>
+    <clip track="0" id="c0" loop="0">
+      <sample file="sample_track_tone.wav"/>
+    </clip>
   </clips>
   <arrangement>
-    <instances track="0">
-      <instance row="0">c0</instance>
-      <instance row="64">OFF</instance>
-    </instances>
+    <instance track="0" row="0" clip="c0"/>
+    <instance track="0" row="64"/>
   </arrangement>
 </song>

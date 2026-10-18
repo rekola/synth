@@ -97,8 +97,8 @@ rows_before_press = dump_pattern_rows(scr.screen)
 print("row 00 before any Launchpad input:", repr(rows_before_press.get("00")))
 
 # fake_launchpad_aftertouch_clip waits for this script's go(), sends
-# CC96 (NOTES grid mode - GridMode defaults to SESSION, where a plain
-# note-on would launch a Session View clip slot instead of entering a
+# CC96 (NOTES grid mode - GridMode defaults to LIVE, where a plain
+# note-on would launch a Live View clip slot instead of entering a
 # note), then arms Record Arm via a quick CC98 tap a second later, then
 # presses the pad.
 # Record Arm's own rising edge starts playback immediately (see

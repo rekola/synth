@@ -24,7 +24,8 @@
 // The sample set is the preset's own base note/octave span/samples-
 // per-octave/table-length layout (docs/padsynth.md's "Sample set"), not a
 // fixed C0-anchored octave scheme. getTable(f0) picks the nearest of the
-// preset's own M sample points by log-frequency distance.
+// preset's own octaves * samples_per_octave regions by log-frequency
+// distance.
 struct PadSynthParams {
   OscillatorShaping::OscillatorChainParams oscillator;
   PadSynthProfile::ProfileParams profile;
@@ -34,12 +35,9 @@ struct PadSynthParams {
 
   // Sample set (docs/padsynth.md).
   float base_frequency_hz = 261.6f; // f_b
-  int octaves = 6;                  // O
+  int octaves = 6;                  // O: the octaves the regions span
   int samples_per_octave = 2;       // q
   int table_length = 1 << 17;       // L
-
-  int edo_steps = 31;
-  bool tuning_matched = true;
 
   // Anchored spectral-envelope remap + postprocess (dsp/
   // SpectralEnvelopeRemap.h) - step 9 of the chain, shared with

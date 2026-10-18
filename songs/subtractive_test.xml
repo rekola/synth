@@ -1,21 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="150" volume="1.0">
   <instruments>
-    <envelope attack="0.1" hold="0.519" decay="1.35" sustain="0.0" release="0.015" >
+    <envelope id="i1" attack="0.1" hold="0.519" decay="1.35" sustain="0.0" release="0.015" >
       <biquadFilter name="biquad test" type="notch" fc="2000" Q="0.707" >
 	<oscillator type="saw"/>
       </biquadFilter>
     </envelope>
     
-    <resonantFilter name="sub test" cut="9000" res="0.9">
+    <resonantFilter id="i2" name="sub test" cut="9000" res="0.9">
       <oscillator type="triangle" voices="8" detune="10"/>
     </resonantFilter>
 
-    <distortion name="bass1" param="0.9" drive="1.5" type="hardclip">
+    <distortion id="i3" name="bass1" param="0.9" drive="1.5" type="hardclip">
       <instrument from="piano.electric.fm" />
     </distortion>
 
-    <distortion name="bass2" param="1.0" type="softclip" drive="15.0">
+    <distortion id="i4" name="bass2" param="1.0" type="softclip" drive="15.0">
       <envelope attack="0.02" hold="0.519" decay="1.35" sustain="0.0" release="0.015">	
 	<resonantFilter cut="2200" res="0.4">
 	  <oscillator type="saw" voices="8" detune="10"/>
@@ -23,35 +23,35 @@
       </envelope>
     </distortion>
 
-    <envelope name="bass3" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">	
+    <envelope id="i5" name="bass3" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">	
       <resonantFilter cutmin="1100" cutmax="11000" res="0.1" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">
 	<oscillator type="square" />
 	<oscillator type="triangle" harmonic="2" voices="8" detune="10"/>
       </resonantFilter>
     </envelope>
 
-    <instrument from="string.bowed.cello" />
+    <instrument id="i6" from="string.bowed.cello" />
     
-    <group name="group test">
+    <group id="i7" name="group test">
       <instrument from="guitar.acoustic.nylon" />
       <instrument from="piano.acoustic.grand" />
     </group>
 
-    <distortion name="distortion test" param="0.25">
+    <distortion id="i8" name="distortion test" param="0.25">
       <instrument from="piano.electric.tine" />
     </distortion>
     
-    <resonantFilter cut="2200" res="0.1">
+    <resonantFilter id="i9" cut="2200" res="0.1">
       <oscillator name="test1" type="saw" />
     </resonantFilter>
-    <resonantFilter cut="2200" res="0.1">
+    <resonantFilter id="i10" cut="2200" res="0.1">
       <oscillator name="test2" type="square" />
     </resonantFilter>
     
   </instruments>
   <tracks>
-    <track id="0" instrument="0" />
-    <track id="1" instrument="1" />
+    <track id="0" instrument="i1" />
+    <track id="1" instrument="i2" />
   </tracks>
   
   <arrangement>

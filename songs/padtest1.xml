@@ -1,27 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="100" volume="1.0">
   <instruments>
-    <instrument from="piano.acoustic.grand" />
+    <instrument id="i1" from="piano.acoustic.grand" />
 
-    <envelope attack="1" release="2" name="padtest2">
+    <envelope id="i2" attack="1" release="2" name="padtest2">
       <resonantFilter cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
 	<oscillator type="triangle" level="0.25" voices="16" detune="10"/>
       </resonantFilter>
     </envelope>
 
-    <envelope attack="1" release="2" name="simple">
+    <envelope id="i3" attack="1" release="2" name="simple">
       <resonantFilter cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
 	<oscillator type="saw" level="0.25" voices="32" detune="10" spread="7"/>
       </resonantFilter>
     </envelope>
 
-    <envelope attack="0.1" decay="0.5" sustain="0.9" release="0.5" name="fast">
+    <envelope id="i4" attack="0.1" decay="0.5" sustain="0.9" release="0.5" name="fast">
       <resonantFilter cut="11000" res="0.5">
 	<oscillator type="triangle" level="0.25" voices="32" detune="10" spread="7"/>
       </resonantFilter>
     </envelope>
    
-    <envelope attack="1" release="2" name="padtest (4th)">
+    <envelope id="i5" attack="1" release="2" name="padtest (4th)">
       <resonantFilter cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
 	<oscillator type="sine" level="0.75" />
 	<oscillator type="sine" level="0.3750" harmonic="2"/>
@@ -29,29 +29,29 @@
       </resonantFilter>
     </envelope>
 
-    <envelope attack="1" release="2" name="padtest (3rd)">
+    <envelope id="i6" attack="1" release="2" name="padtest (3rd)">
       <oscillator type="sine" level="0.75" />
       <resonantFilter cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
 	<oscillator type="saw" level="0.25" />
       </resonantFilter>
     </envelope>
 
-    <envelope attack="1" release="2" name="padtest (5th)">
+    <envelope id="i7" attack="1" release="2" name="padtest (5th)">
       <resonantFilter cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
 	<oscillator type="saw" level="0.25" voices="16" detune="5"/>
       </resonantFilter>
     </envelope>
 
-    <envelope attack="1" sustain="1" release="1" name="fm pad">
+    <envelope id="i8" attack="1" sustain="1" release="1" name="fm pad">
       <fm ratio="3" index="2" />
     </envelope>
 </instruments>
   
   <tracks>
-    <track id="0" instrument="0" sendA="-9.1186" distance="1" azimuth="-90" />
-    <track id="1" instrument="1" sendA="-9.1186" distance="1" azimuth="-45" />
-    <track id="2" instrument="2" sendA="-9.1186" distance="1" azimuth="45" extent="1.5" />
-    <track id="3" instrument="3" sendA="-9.1186" distance="1" azimuth="90" extent="1.5" />
+    <track id="0" instrument="i1" sendA="-9.1186" distance="1" azimuth="-90" />
+    <track id="1" instrument="i2" sendA="-9.1186" distance="1" azimuth="-45" />
+    <track id="2" instrument="i3" sendA="-9.1186" distance="1" azimuth="45" extent="1.5" />
+    <track id="3" instrument="i4" sendA="-9.1186" distance="1" azimuth="90" extent="1.5" />
   </tracks>
   
   <arrangement>

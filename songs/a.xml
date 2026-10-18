@@ -5,22 +5,22 @@
         <haze preset="air"/>
     </bus>
     <instruments>
-        <resonantFilter name="Chords" cut="2200" res="2" aftertouch="0" attack="0" hold="0" decay="0" sustain="1" release="0" keynumToHold="0" keynumToDecay="0">
+        <resonantFilter id="i1" name="Chords" cut="2200" res="2" aftertouch="0" attack="0" hold="0" decay="0" sustain="1" release="0" keynumToHold="0" keynumToDecay="0">
             <instrument from="guitar.acoustic.steel"/>
         </resonantFilter>
-        <instrument from="piano.acoustic.grand"/>
-        <envelope name="Pads" attack="0.050000001" hold="0" decay="0" sustain="1" release="2" keynumToHold="0" keynumToDecay="0">
+        <instrument id="i2" from="piano.acoustic.grand"/>
+        <envelope id="i3" name="Pads" attack="0.050000001" hold="0" decay="0" sustain="1" release="2" keynumToHold="0" keynumToDecay="0">
             <resonantFilter cut="2200" res="0.5" aftertouch="0" attack="0" hold="0" decay="0" sustain="1" release="0" keynumToHold="0" keynumToDecay="0">
                 <oscillator type="square" level="0.25" width="0.5" voices="4" detune="5" spread="1"/>
             </resonantFilter>
         </envelope>
-        <instrument from="bass.electric.pick"/>
+        <instrument id="i4" from="bass.electric.pick"/>
     </instruments>
     <tracks>
-        <track id="chords" instrument="1" azimuth="-30" distance="1" elevation="50" color="" sendA="-16.9020" sendB="-10.8814" noteColumns="7"/>
+        <track id="chords" instrument="i2" azimuth="-30" distance="1" elevation="50" color="" sendA="-16.9020" sendB="-10.8814" noteColumns="7"/>
         <percussionTrack id="perc" azimuth="-15" distance="0.89999998" elevation="0" color="" sendA="-7.3595" sendB="0.0000" noteColumns="2"/>
-        <track id="pad" instrument="2" azimuth="15" distance="5" elevation="0" extent="20" color="" sendA="-7.3595" sendB="0.0000" noteColumns="3"/>
-        <track id="bass" instrument="3" azimuth="60" distance="1" elevation="20" color="" noteColumns="2"/>
+        <track id="pad" instrument="i3" azimuth="15" distance="5" elevation="0" extent="20" color="" sendA="-7.3595" sendB="0.0000" noteColumns="3"/>
+        <track id="bass" instrument="i4" azimuth="60" distance="1" elevation="20" color="" noteColumns="2"/>
     </tracks>
     <locators>
         <locator row="0">C Minor</locator>

@@ -1,8 +1,16 @@
 #ifndef _ARRANGEMENTOPS_H_
 #define _ARRANGEMENTOPS_H_
 
+#include "ArrangementView.h"
+#include "BarGrid.h"
+#include "ClipView.h"
+#include "PatternView.h"
 #include <string>
 #include <vector>
+
+class Arrangement;
+class Clip;
+struct PlaybackContent;
 
 class Song;
 class Pattern;
@@ -10,13 +18,15 @@ class ChannelConfiguration;
 
 // Rounds `raw_row` up to the start of its own next bar (unchanged if
 // already exactly on one) - every real-time placement that must not claim
-// something had already started sounding before it actually did (Session-
+// something had already started sounding before it actually did (Live-
 // view's own clip-trigger/stop placement, LaunchpadManager.cpp) goes
 // through this. Forward, not back: snapping backward would place an event
 // as if it had taken effect from the start of a bar the performer hadn't
 // actually reached yet, disagreeing with what they actually heard at the
 // moment they pressed the pad.
 int quantizedBarRow(int raw_row, int rows_per_bar);
+// The same against a bar grid whose bars may change length.
+int quantizedBarRow(const BarGrid & bars, int raw_row);
 
 // The opposite direction, for a brand new clip's own placement
 // (Controller::ensureNoteRecordingClip()) rather than triggering one that
@@ -28,6 +38,7 @@ int quantizedBarRow(int raw_row, int rows_per_bar);
 // performer's actual first note, same as any other pattern's content
 // starting partway through it.
 int previousBarRow(int raw_row, int rows_per_bar);
+int previousBarRow(const BarGrid & bars, int raw_row);
 
 // Places a real-clip instance event (clip_index - the clip's own ordinal
 // position in track_id's own clip list, Song::getClips(track_id) - what
@@ -52,12 +63,19 @@ void placeClipInstance(Song & song, int track_id, int row, int clip_index);
 // stretch would do nothing a caller couldn't have skipped outright.
 void placeStopInstance(Song & song, int track_id, int row);
 
+// Removes the placement event at `row`. If an earlier looping clip would then
+// play on into that space, a stop takes the event's place instead, so the
+// space stays as silent as the removed clip left it; with nothing before it
+// the event is just removed. Returns true if a stop was left. The caller's
+// Song::Edit scope covers it, as with placeStopInstance().
+bool removeInstanceLeavingSilence(Song & song, int track_id, int row);
+
 // Merges the clip instance active at (track_id, row) into the track's own
 // background content in the arrangement, across every row this one
 // placement covers (a looping one up to the track's next event, or the
 // arrangement's end), then removes that one placement (placeStopInstance() above) -
 // not the clip itself, which may still be placed/reused elsewhere and
-// stays in the pool regardless. Never calls Song::incVersion() itself,
+// stays in the pool regardless. Never opens a Song::Edit itself,
 // same as placeClipInstance()/placeStopInstance() above - the caller's
 // job, gated on this function's own return value (true iff something was
 // actually merged) so a no-op call doesn't bump the song version or claim
@@ -109,14 +127,17 @@ void deleteClip(Song & song, int track_id, int clip_index);
 enum class SlotDelete { NOTHING, CLIP, STOP_BUTTON };
 SlotDelete deleteClipOrStopButton(Song & song, int track_id, int clip_index, std::string * deleted_clip_name = nullptr);
 
-// Copies the clip at `from_index` into slot `to_index` of the same track
+// Copies the clip at `from_index` into the slot below it on the same track
 // (an independent copy under a fresh id, its content and name as they are
-// now), returning the slot it landed in, or -1 when there's nothing to
-// copy or the destination is already populated - nothing is ever
-// overwritten. A negative `to_index` picks the first empty slot after
-// `from_index`, growing the list if every slot up to its end is taken.
-// Placed instances of the source keep pointing at the source.
-int duplicateClip(Song & song, int track_id, int from_index, int to_index = -1);
+// now), overwriting whatever is there, and returns that slot, or -1 when
+// there's nothing to copy. Placed instances of the source keep pointing at
+// the source; those of an overwritten clip are removed.
+int duplicateClip(Song & song, int track_id, int from_index);
+
+// Places an independent copy of `clip` (a fresh id, retargeted to
+// `track_id`) at `clip_index`, overwriting whatever is there, and returns
+// that slot, or -1 when the clip is empty or the index negative.
+int placeClipCopy(Song & song, int track_id, int clip_index, Clip clip);
 
 // Snaps every note of the clip at `clip_index` to its closest row (a row is
 // a sixteenth), using the sub-row delay a raw live take records, and clears
@@ -149,6 +170,11 @@ struct ActiveInstance {
 // nothing was ever placed on this track at or before `row` at all (or a
 // stored id no longer resolves to any real clip).
 ActiveInstance resolveInstanceAt(const Song & song, int track_id, int row);
+// The same lookup against content already copied for playback (what the audio
+// thread uses), or against any arrangement and clip list.
+ActiveInstance resolveInstanceAt(const PlaybackContent & content, int track_id, int row);
+ActiveInstance resolveInstanceAt(const Arrangement & arrangement, const std::vector<Clip> & clips, int track_id, int row);
+ActiveInstance resolveInstanceAt(const ArrangementView & arrangement, const ClipList & clips, int track_id, int row);
 
 // Bar-granularity counterpart to resolveInstanceAt(), for ArrangementGrid's
 // own overview - one cell per bar, sampled at each bar's own first row.
@@ -191,7 +217,7 @@ ActiveInstance resolveInstanceForBar(const Song & song, int track_id, int bar_st
 // clip on this track (stale/deleted - same resilience precedent
 // resolveInstanceAt() already has for a dangling instance reference).
 struct EditTarget {
-  Pattern * pattern;
+  PatternView pattern;
   int effective_row;
 };
 EditTarget resolveEditTarget(Song & song, int track_id, int row, const std::string & focused_clip_id = "");
@@ -205,7 +231,7 @@ EditTarget resolveEditTarget(Song & song, int track_id, int row, const std::stri
 // "always something to hand back" sentinel convention Arrangement::getNotes()/
 // getCommand() already use for the no-Pattern-at-all case.
 struct ReadTarget {
-  const Pattern * pattern;
+  PatternView pattern;
   int effective_row; // wrapped by pattern's own length - what to actually read
   int unwrapped_row; // row - (background: 0, a clip: the instance's own start_row) - for a caller that wants to tell a pattern's own real rows apart from a shorter one's repeat (row >= pattern->getLength()), which effective_row can't answer on its own once it's already wrapped
   bool is_instance; // true when `pattern` is a real clip's own Pattern, false for the background - for a caller that wants to show the difference (e.g. PatternEditor's own instance-tinted rows)
@@ -214,19 +240,5 @@ struct ReadTarget {
   int repeat_length = 0; // rows after which the content repeats when greater than pattern->getLength() says (a looping clip whose Pattern has no length of its own); 0 = use the Pattern's
 };
 ReadTarget resolveReadTarget(const Song & song, int track_id, int row, const std::string & focused_clip_id = "");
-
-// Which of `lane_values` are hit (a defined, sound-producing Note whose
-// own getValue() matches) at `pattern`'s own `effective_row` - the step
-// sequencer's shared by-value scan, generalized from PercussionTrack::
-// getHitNotesAtRow() (which still exists, unchanged, for its own existing
-// callers) so a pitched InstrumentTrack's own step grid (its lanes drawn
-// from Song::getScaleDegrees() rather than a per-track lane list) can use
-// the identical convention: a note left over from a lane no longer part
-// of the current set (a removed drum lane, or a scale/key change moving
-// which pitches are in scope) stays silently inert rather than firing or
-// erroring, the same way PercussionTrack.h's own header comment already
-// describes for its own lane list. Order matches `lane_values`' own
-// order, not row/column order.
-std::vector<int> getHitLaneValues(const Pattern & pattern, int effective_row, const std::vector<int> & lane_values);
 
 #endif

@@ -22,6 +22,8 @@ class ArrangementPatternSource : public PatternSource {
   RowAddress normalize(int block, int row) const override;
   int blockCount() const override { return 1; }
   int blockLength(int block) const override;
+  bool startsBar(int block, int row) const override;
+  bool startsBeat(int block, int row) const override;
 
   ReadTarget read(int track_id, RowAddress address) const override;
   EditTarget edit(int track_id, RowAddress address) override;

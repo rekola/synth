@@ -1,6 +1,5 @@
 #include "PadSynthTable.h"
 
-#include "SpectralBandProfile.h"
 #include "../dsp/HashField.h"
 #include "../dsp/RealFFT.h"
 
@@ -39,22 +38,28 @@ PadSynthTable::oscillatorMagnitudes() const {
 
 float
 PadSynthTable::sampleFrequency(int j) const {
-  int M = sampleCount();
-  float O = static_cast<float>(params_.octaves);
-  return params_.base_frequency_hz * std::exp2(
-    static_cast<float>(j) * O / static_cast<float>(M) - static_cast<float>(M - 1) * O / (2.0f * static_cast<float>(M)));
+  // Regions are 1/q octave apart and centred on the base frequency, so
+  // the base lies between the two middle regions when their count is even.
+  float q = static_cast<float>(params_.samples_per_octave);
+  float centre = static_cast<float>(sampleCount() - 1) * 0.5f;
+  float f = params_.base_frequency_hz * std::exp2((static_cast<float>(j) - centre) / q);
+
+  // Rounded to a whole number of FFT bins, so whole-number partials land
+  // exactly on bins instead of being split over two. Voices resample from
+  // tableBaseFrequency(), so the pitch of a note stays exact.
+  float bin_hz = static_cast<float>(sample_rate_) / static_cast<float>(params_.table_length);
+  return std::max(1.0f, std::round(f / bin_hz)) * bin_hz;
 }
 
 int
 PadSynthTable::nearestSampleIndex(float f0) const {
-  int M = sampleCount();
-  float O = static_cast<float>(params_.octaves);
+  float q = static_cast<float>(params_.samples_per_octave);
+  float centre = static_cast<float>(sampleCount() - 1) * 0.5f;
   float safe_f0 = f0 > 0.0f ? f0 : params_.base_frequency_hz;
-  // Invert sampleFrequency(j): j = (log2(f0/f_b) + (M-1)*O/(2M)) * M/O.
-  float target = (std::log2(safe_f0 / params_.base_frequency_hz) + static_cast<float>(M - 1) * O / (2.0f * static_cast<float>(M)))
-    * static_cast<float>(M) / O;
+  // Invert sampleFrequency(j).
+  float target = std::log2(safe_f0 / params_.base_frequency_hz) * q + centre;
   int j = static_cast<int>(std::lround(target));
-  return std::max(0, std::min(M - 1, j));
+  return std::max(0, std::min(sampleCount() - 1, j));
 }
 
 float
@@ -78,28 +83,32 @@ PadSynthTable::renderSample(int j) const {
   const std::vector<float> & prototype = oscillatorMagnitudes();
 
   // Step 9: anchored spectral-envelope remap + postprocess, evaluated at
-  // this sample's own base frequency f_j.
+  // this sample's own base frequency f_j. Those functions index from
+  // harmonic 1 at 0; the prototype has DC at 0, so hand them A[1..].
+  std::vector<float> body(prototype.begin() + 1, prototype.end());
   std::vector<float> remapped;
   if (params_.envelope_anchor_hz > 0.0f && params_.envelope_tracking != 0.0f) {
-    anchoredSpectralEnvelopeRemap(prototype, f_j, params_.envelope_anchor_hz, params_.envelope_tracking,
+    anchoredSpectralEnvelopeRemap(body, f_j, params_.envelope_anchor_hz, params_.envelope_tracking,
                                    /* accumulate_in_power */ true, remapped);
   } else {
-    remapped = prototype;
+    remapped = body;
   }
-  std::vector<float> shaped;
+  std::vector<float> post;
   switch (params_.postprocess_kind) {
     case SpectralPostprocessKind::ResidueClassWeighting:
-      shaped = remapped;
-      residueClassWeighting(shaped, params_.postprocess_n, params_.postprocess_r, params_.postprocess_amount);
+      post = remapped;
+      residueClassWeighting(post, params_.postprocess_n, params_.postprocess_r, params_.postprocess_amount);
       break;
     case SpectralPostprocessKind::StretchMix:
-      stretchMix(remapped, params_.postprocess_n, params_.postprocess_amount, shaped);
+      stretchMix(remapped, params_.postprocess_n, params_.postprocess_amount, post);
       break;
     case SpectralPostprocessKind::None:
     default:
-      shaped = remapped;
+      post = remapped;
       break;
   }
+  std::vector<float> shaped(post.size() + 1, 0.0f); // DC = 0 in front again
+  std::copy(post.begin(), post.end(), shaped.begin() + 1);
 
   // Step 10: normalize so the peak of A[h], h >= 1, is 1.
   float peak = 0.0f;
@@ -120,14 +129,18 @@ PadSynthTable::renderSample(int j) const {
   int S = L / 2;
   float SR = static_cast<float>(sample_rate_);
 
+  // A note is read up to half a region spacing faster than the table's own
+  // pitch, so partials stop that far below Nyquist to keep them from folding.
+  float spacing_octaves = 1.0f / static_cast<float>(params_.samples_per_octave);
+  float partial_limit = std::min(0.49999f * SR, 0.5f * SR / std::exp2(0.5f * spacing_octaves));
+
   std::vector<float> amplitude_spectrum(static_cast<size_t>(S), 0.0f);
 
   for (int h = 1; ; h++) {
     if (h >= static_cast<int>(shaped.size())) break; // no oscillator data beyond this - nothing further to place
     float g_h = partialPosition(h, params_.position);
-    g_h = tuningMatchedPartialPosition(g_h, params_.edo_steps, params_.tuning_matched);
     float phi_h = g_h * f_j;
-    if (phi_h > 0.49999f * SR || phi_h < 20.0f) break; // stop entirely
+    if (phi_h > partial_limit || phi_h < 20.0f) break; // stop entirely
     if (shaped[static_cast<size_t>(h)] < 1e-4f) continue; // skip
 
     placePartial(amplitude_spectrum, shaped[static_cast<size_t>(h)], phi_h, params_.bandwidth_cents, alpha, profile, SR);

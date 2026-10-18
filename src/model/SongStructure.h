@@ -37,6 +37,7 @@ class SongStructure {
  public:
   SongStructure() = default;
   explicit SongStructure(const Song & song);
+  explicit SongStructure(const Track & master);
 
   // -1 if `internal_id` never qualified for an ordinal (not expected for
   // anything that legitimately asks - see class comment above).

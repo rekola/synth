@@ -1,6 +1,6 @@
 // Simulated Launchpad X exercising the shift+pad combo's own LED
 // feedback while held, *before* release actually commits anything
-// (LaunchpadManager::refreshLeds()'s own GridMode::SESSION branch): CC91
+// (LaunchpadManager::refreshLeds()'s own GridMode::LIVE branch): CC91
 // ("move-row-up") lights full bright white the instant it's held, and the
 // pad it's combined with (DeviceState::row_up_shift_pending_pad) gets the
 // identical bright-white treatment the moment it's pressed, still held -

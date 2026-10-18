@@ -195,7 +195,7 @@ TEST(pattern_write_redirect_is_readable_from_both_the_written_and_repeated_row) 
 TEST(pattern_length_xml_round_trip) {
   Song song;
   song.addTrack(std::make_unique<InstrumentTrack>(0));
-  auto & arrangement = song.getArrangement();
+  auto arrangement = song.getArrangement();
   arrangement.setNote(0, song.getRootTrackIds()[0], 0, Note(60, 100));
   arrangement.getPatternsByTrack()[song.getRootTrackIds()[0]].setLength(16);
 
@@ -214,7 +214,7 @@ TEST(pattern_length_xml_round_trip) {
 TEST(pattern_length_absent_from_xml_when_unset) {
   Song song;
   song.addTrack(std::make_unique<InstrumentTrack>(0));
-  auto & arrangement = song.getArrangement();
+  auto arrangement = song.getArrangement();
   arrangement.setNote(0, song.getRootTrackIds()[0], 0, Note(60, 100)); // length_ left at its default (0)
 
   auto path = std::string(TESTS_SCRATCH_DIR) + "/pattern_length_absent.xml";

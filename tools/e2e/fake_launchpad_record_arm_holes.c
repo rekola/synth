@@ -1,10 +1,10 @@
 // Simulated Launchpad X exercising the per-track Record Arm mechanism's
 // actual *recording* gesture end to end - not just the arm/disarm picker
 // (already covered by fake_launchpad_record_arm_picker.c), but a real
-// NOTE-mode note landing in the exact Session-view clip index that was
+// NOTE-mode note landing in the exact Live-View clip index that was
 // pressed while armed, holes and all: arms the fixture's only track, picks
 // clip index 2 (note 61, pad x=0/y=5 - LaunchpadManager's own y-flip
-// convention, see handleSessionPadEvent()) on a track with no clips at all
+// convention, see handleLivePadEvent()) on a track with no clips at all
 // yet, switches to NOTE mode and plays one note, then disarms - all
 // through real MIDI CC/note events, the same as a person would press them.
 #include <alsa/asoundlib.h>
@@ -65,7 +65,7 @@ int main() {
   fake_wait_ready(seq, "at startup");
   drain(seq, 500, "at startup"); // the first LED frames
 
-  fprintf(stderr, "sending CC95 press+release (enters Session's own mixer submode)\n");
+  fprintf(stderr, "sending CC95 press+release (enters Live's own mixer submode)\n");
   send_cc(seq, port, 95, 127);
   send_cc(seq, port, 95, 0);
   drain(seq, 500, "mixer submode entered");
@@ -85,7 +85,7 @@ int main() {
   send_cc(seq, port, 19, 0);
   drain(seq, 500, "overlay closed");
 
-  fprintf(stderr, "sending press on pad (0,5) [note 61] - Session grid, clip index 2 (7-5) on a track with no clips yet\n");
+  fprintf(stderr, "sending press on pad (0,5) [note 61] - Live grid, clip index 2 (7-5) on a track with no clips yet\n");
   send_note(seq, port, 0x90, 61, 100);
   send_note(seq, port, 0x80, 61, 0);
   drain(seq, 3500, "take started at the next bar");
@@ -100,10 +100,10 @@ int main() {
   send_note(seq, port, 0x80, 11, 0);
   drain(seq, 500, "note recorded");
 
-  fprintf(stderr, "sending CC95 press+release (back to the plain Session grid, mixer submode still on)\n");
+  fprintf(stderr, "sending CC95 press+release (back to the plain Live grid, mixer submode still on)\n");
   send_cc(seq, port, 95, 127);
   send_cc(seq, port, 95, 0);
-  drain(seq, 500, "back on session grid");
+  drain(seq, 500, "back on Live grid");
 
   fprintf(stderr, "sending CC19 press+release - reopens the track-picker overlay\n");
   send_cc(seq, port, 19, 127);

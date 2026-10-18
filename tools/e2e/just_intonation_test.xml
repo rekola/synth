@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Purpose-built for verify_just_intonation.py: 31-EDO in C, one track with
+     C, D#, F on the first rows and a G (the key's fifth) on the fourth. -->
+<song temperament="31edo" key="C" tempo="120" timeSignature="1/4">
+  <instruments>
+    <instrument id="i1" from="string.bowed.ensemble.pizzicato" />
+  </instruments>
+  <tracks>
+    <track id="0" instrument="i1" />
+  </tracks>
+  <arrangement>
+    <pattern track="0">
+      <note row="0" velocity="80" value="C-4" />
+      <note row="1" velocity="80" value="D#4" />
+      <note row="2" velocity="80" value="F-4" />
+      <note row="3" velocity="80" value="G-4" />
+    </pattern>
+  </arrangement>
+</song>

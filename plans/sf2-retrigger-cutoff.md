@@ -62,7 +62,7 @@ track. Nothing here reaches across tracks.
 (percussion) - the same storage, disambiguated entirely by which
 `Tuning` the caller resolves for the track. `Tuner::getFrequency
 (Tuning::PERCUSSION, note)` (`Tuner.h:22`) treats the value as a literal
-MIDI note number; any pitched tuning (e.g. `Tuning::TET31`) converts it
+MIDI note number; any pitched tuning (e.g. `Tuning::EDO31`) converts it
 via that EDO's own step math instead.
 
 The percussion-vs-pitched choice is made **upstream of voice creation**,

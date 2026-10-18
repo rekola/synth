@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song key="C" temperament="31edo" tempo="100" volume="0.75">
   <instruments>
-    <instrument from="piano.acoustic.grand" />
+    <instrument id="i1" from="piano.acoustic.grand" />
 
-    <envelope attack="0.01" decay="1.0" sustain="0.0" release="3.0" name="padtest2">
+    <envelope id="i2" attack="0.01" decay="1.0" sustain="0.0" release="3.0" name="padtest2">
       <resonantFilter cut="1100" res="0.9">
 	<oscillator type="saw" level="0.25" voices="16" detune="10"/>
       </resonantFilter>
     </envelope>
 
-    <envelope attack="0.01" decay="1.0" sustain="0.0" release="0.0" name="padtest2">
+    <envelope id="i3" attack="0.01" decay="1.0" sustain="0.0" release="0.0" name="padtest2">
       <resonantFilter cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
 	<oscillator type="saw" level="0.25" voices="16" detune="10"/>
       </resonantFilter>
@@ -17,7 +17,7 @@
 </instruments>
   
   <tracks>
-    <track id="0" instrument="0" sendA="-6.9357" elevation="50" azimuth="30" />
+    <track id="0" instrument="i1" sendA="-6.9357" elevation="50" azimuth="30" />
   </tracks>
   
   <locators>

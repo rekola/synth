@@ -19,9 +19,15 @@ Launchpad LEDs cleared) with exit status 0.
 |---|---|
 | `--headless` | No terminal UI; status lines on stderr. |
 | `--autoplay` | Start the transport once running (headless only). |
+| `--null-audio` | No sound device: blocks are discarded at the pace of the clock. For machines without audio hardware and for tests. |
 | `--daemon` | `--headless`, detached from the terminal. |
 | `--log-file F` | With `--daemon`: where stderr goes (appended; default `/dev/null`). |
 | `--pid-file F` | With `--daemon`: write the daemon's pid here. |
+| `--playback-device N` / `--capture-device N` / `--midi-input N` | Use this audio output / audio input / MIDI source for this run instead of the saved choice. |
+| `--list-devices` | Print what can be chosen, with the option for each, and exit. |
+
+Headless mode has no pickers; it uses the saved choice (made from the terminal
+UI) unless one of the options above overrides it. See `docs/devices.md`.
 
 `--daemon` forks before any thread or audio handle exists. The launching
 process waits until the daemon is up and then exits 0; if startup fails (for
@@ -31,24 +37,28 @@ Stop a daemon with `kill $(cat F)`.
 
 If no song is given, `songs/welcome.xml` is used as in the terminal UI.
 
-## What works
+## Windows
 
-- Playback, Session view clip launching and everything else the engine does.
-- Launchpad input and LEDs (the same pad/button handling as the terminal UI).
-- MIDI input (`MidiNoteInput`, shared with the terminal UI): notes (with
-  release, note and channel pressure) play live on the current track, in the
-  song's tuning, one voice slot per held note; respects the track's Monitor
-  setting. While note capture is armed and the transport plays, notes are
-  also recorded at the playhead into a clip, the same rule as a Launchpad
-  take.
-- Sample recording from the audio input (armed, threshold-triggered and
-  Session view takes), shared with the terminal UI.
+Windows builds have no terminal UI, so `--headless` is how to run the program
+there (`synth.exe --headless --autoplay songs\demo3.xml`). Audio goes through
+WASAPI and MIDI and a Launchpad through WinMM. Ctrl-C and Ctrl-Break end the
+run cleanly. `--daemon` is not supported. With no pickers, choose devices with
+`--list-devices` and the `--playback-device`/`--capture-device`/`--midi-input`
+options, or write the choice to `%APPDATA%\synth\devices.conf` (the format
+is in `docs/devices.md`). Audio and MIDI have not been tried on real hardware
+yet; a Launchpad is not recognised on Windows until its port names are known.
 
-Not available: anything that needs the terminal UI (editing, M-x, the
-keyboard), and other peripherals. The "cursor" headless mode uses is the
+## Limitations
+
+Anything that needs the terminal UI is not available: editing, M-x and the
+keyboard, and other peripherals. The "cursor" headless mode uses is the
 song's current track plus the transport position, both held outside the UI.
 
 ## Testing
 
-`tools/e2e/verify_headless.py` runs the checks above against `build/synth`
+`tools/smoke_headless.py` runs headless mode with `--null-audio` for a few
+seconds, stops it as Ctrl-C would and checks that it played; the Windows CI
+job uses it.
+
+`tools/e2e/verify_headless.py` runs headless mode against `build/synth`
 using ALSA's `null` PCM, so it needs no sound card.

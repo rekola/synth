@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <limits>
 #include <string>
 #include <string_view>
@@ -16,7 +17,7 @@ class Note {
  public:  
   Note() : value(-1), velocity(0), delay(0) { }
   explicit Note(int _value, short _velocity = 0x28, short _delay = 0) : value(_value), velocity(_velocity), delay(_delay) { }
-  explicit Note(std::string_view input_value, short _velocity = 0x28, short _delay = 0, Tuning tuning = Tuning::TET12)
+  explicit Note(std::string_view input_value, short _velocity = 0x28, short _delay = 0, Tuning tuning = Tuning::EDO12)
     : value(stringToKey(tuning, std::move(input_value))),
       velocity(_velocity),
       delay(_delay) { }
@@ -31,6 +32,66 @@ class Note {
   short getVelocity() const { return velocity; }
   float getVelocityAsFloat() const { return velocity / 127.0f; }
   short getDelay() const { return delay; }
+
+  // The note's local effect: three characters, a mnemonic and a two-digit hex
+  // argument (`Command` without its leading chain digit), "..." when unset.
+  // Stored and edited like velocity/delay. A leading '+' or '-' is not a
+  // mnemonic but the sign of a tuning correction in cents (see below).
+  std::string_view getFx() const { return std::string_view(fx, 3); }
+  bool hasFx() const { return fx[0] != kFxEmpty || fx[1] != kFxEmpty || fx[2] != kFxEmpty; }
+  void clearFx() { std::fill(fx, fx + 3, kFxEmpty); }
+  // The placeholder for an unset fx character; shown as a middle dot.
+  static constexpr char kFxEmpty = '.';
+  // Whether `codepoint` may be typed at position `i` (0 = the mnemonic or
+  // sign, 1-2 the hex argument); a letter is stored uppercase. Returns the
+  // character to store, or 0 if it is not allowed.
+  static char fxCharFor(int i, int32_t codepoint) {
+    if (i < 0 || i >= 3) return 0;
+    if (codepoint >= 'a' && codepoint <= 'z') codepoint -= 'a' - 'A';
+    if (codepoint == kFxEmpty || (codepoint >= '0' && codepoint <= '9')) return static_cast<char>(codepoint);
+    if (i == 0 && (codepoint == '+' || codepoint == '-')) return static_cast<char>(codepoint);
+    if (codepoint >= 'A' && codepoint <= (i == 0 ? 'Z' : 'F')) return static_cast<char>(codepoint);
+    return 0;
+  }
+  // false (and unchanged) unless `text` is exactly three allowed characters.
+  bool setFx(std::string_view text) {
+    if (text.size() != 3) return false;
+    char parsed[3];
+    for (int i = 0; i < 3; i++) {
+      parsed[i] = fxCharFor(i, static_cast<unsigned char>(text[static_cast<size_t>(i)]));
+      if (!parsed[i]) return false;
+    }
+    std::copy(parsed, parsed + 3, fx);
+    return true;
+  }
+  bool setFxChar(int i, int32_t codepoint) {
+    auto c = fxCharFor(i, codepoint);
+    if (!c) return false;
+    fx[i] = c;
+    return true;
+  }
+
+  // A tuning correction is the fx `+hh` or `-hh`: a sign and two hex digits,
+  // whole cents added to the note's pitch. Whether a note carries one is the
+  // mark of it being tuned, so a tuned note with nothing to correct holds +00.
+  static constexpr int kMaxTuningCorrectionCents = 255;
+  bool hasTuningCorrection() const {
+    return (fx[0] == '+' || fx[0] == '-') && hexDigit(fx[1]) >= 0 && hexDigit(fx[2]) >= 0;
+  }
+  // 0 when the note carries none.
+  int getTuningCorrectionCents() const {
+    if (!hasTuningCorrection()) return 0;
+    int magnitude = hexDigit(fx[1]) * 16 + hexDigit(fx[2]);
+    return fx[0] == '-' ? -magnitude : magnitude;
+  }
+  // Replaces the whole fx (clamped to +-kMaxTuningCorrectionCents).
+  void setTuningCorrection(int cents) {
+    int magnitude = std::min(std::abs(cents), kMaxTuningCorrectionCents);
+    static const char kHex[] = "0123456789ABCDEF";
+    fx[0] = cents < 0 ? '-' : '+';
+    fx[1] = kHex[magnitude >> 4];
+    fx[2] = kHex[magnitude & 15];
+  }
   float getDelayAsFloat() const { return delay / 255.0f; }
   bool isDefined() const { return value >= 0 || velocity > 0; }
   bool isOff() const { return value >= 0 && velocity == 0; }
@@ -43,6 +104,7 @@ class Note {
     value = -1;
     velocity = 0;
     delay = 0;
+    clearFx();
   }
 
   // `delta` may be any size (positive up, negative down) - not just ±1 -
@@ -71,8 +133,8 @@ class Note {
 	auto key_name = keyToString(tuning, getValue());
 	if (tuning != Tuning::PERCUSSION) {
 	  if (key_name.size() == 1) key_name += '-';
-	  int period = tuning == Tuning::TET53 ? 53 : tuning == Tuning::TET31 ? 31
-	    : tuning == Tuning::TET19 ? 19 : 12;
+	  int period = tuning == Tuning::EDO53 ? 53 : tuning == Tuning::EDO31 ? 31
+	    : tuning == Tuning::EDO19 ? 19 : 12;
 	  int octave = (getValue() / period) - 1;
 	  // A C-spelled name at the top of the index range (C♭) belongs to
 	  // the next octave number, though its value is still below it.
@@ -166,11 +228,11 @@ class Note {
     if (tuning == Tuning::PERCUSSION) {
       if (value >= 27 && value <= 82) return percussion_names[value - 27];
       return "#" + std::to_string(value);
-    } else if (tuning == Tuning::TET53) {
+    } else if (tuning == Tuning::EDO53) {
       return note_names_53edo[value % 53];
-    } else if (tuning == Tuning::TET31) {
+    } else if (tuning == Tuning::EDO31) {
       return note_names_31edo[value % 31];
-    } else if (tuning == Tuning::TET19) {
+    } else if (tuning == Tuning::EDO19) {
       return note_names_19edo[value % 19];
     } else {
       return note_names_12edo[value % 12];
@@ -252,7 +314,7 @@ class Note {
 
       assert(letter >= 'A' && letter <= 'G');
       
-      if (tuning == Tuning::TET12) {
+      if (tuning == Tuning::EDO12) {
 	auto value = (octave + 1) * 12;
       
 	// C C# D D# E F F# G G# A A# B
@@ -273,12 +335,12 @@ class Note {
 	}
 
 	return value;
-      } else if (tuning == Tuning::TET19) {
+      } else if (tuning == Tuning::EDO19) {
 	auto value = (octave + 1) * 19;
 
 	// C C♯ D♭ D D♯ E♭ E E♯/F♭ F F♯ G♭ G G♯ A♭ A A♯ B♭ B B♯/C♭ -
 	// docs/19edo_note_numbers.txt is this table's own source of truth.
-	// W-W-H-W-W-W-H with W=3 steps, H=2 - unlike TET12/31/53's uniform
+	// W-W-H-W-W-W-H with W=3 steps, H=2 - unlike EDO12/31/53's uniform
 	// "+N per natural-letter run" shape, 19edo's own H falls in the
 	// middle of the {C,D,E}/{F,G,A} groups (E-F, not just B-C), so each
 	// letter's own base offset is spelled out directly instead.
@@ -294,15 +356,17 @@ class Note {
 	}
 
 	if (accidental == "x" || accidental == "𝄪") value += 2;
-	else if (accidental == "#" || accidental == "♯") value += 1;
+        else if (accidental == "#" || accidental == "♯" || accidental == "𝄱" || accidental == "𝄰")
+          value += 1;
 	else if (accidental == "bb" || accidental == "𝄫") value -= 2;
-	else if (accidental == "b" || accidental == "♭") value -= 1;
+        else if (accidental == "b" || accidental == "♭" || accidental == "𝄭" || accidental == "𝄬")
+          value -= 1;
 	else {
-	  assert(accidental.empty() || accidental == "-" || accidental == "♮");
+          assert(accidental.empty() || accidental == "-" || accidental == "♮" || accidental == "𝄮" || accidental == "𝄯");
 	}
 
 	return value;
-      } else if (tuning == Tuning::TET31) {
+      } else if (tuning == Tuning::EDO31) {
 	auto value = (octave + 1) * 31;
       
 	// C D𝄫 C♯ D♭ C𝄪 D E𝄫 D♯
@@ -383,6 +447,13 @@ class Note {
   int value; // sample position, note value or -1 for undefined note
   short velocity;
   short delay;
+  static int hexDigit(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+  }
+
+  char fx[3] = { kFxEmpty, kFxEmpty, kFxEmpty };
 };
 
 // The Note-taking overload of getFrequencyFor() (Tuning.h) lives here

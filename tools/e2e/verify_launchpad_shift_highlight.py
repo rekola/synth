@@ -1,7 +1,7 @@
 """Regression test for the shift+pad combo's own LED feedback while held,
 before release ever commits anything: CC91 ("move-row-up") lights full
 bright white the instant it's held (dim white beforehand - always lit in
-Session view now, never dark, since it has a real meaning there -
+Live View now, never dark, since it has a real meaning there -
 LaunchpadManager::refreshLeds()'s own comment), and the pad it's
 combined with gets the identical bright-white treatment the moment it's
 pressed, still held (DeviceState::row_up_shift_pending_pad) - so a
@@ -92,7 +92,7 @@ print("Pad (0,0) LED while held AND pad pressed:", pad_while_pending)
 print("CC91 LED while still held (with pad):    ", cc91_still_held)
 print("CC91 LED after release:                  ", cc91_after)
 
-check("CC91 shows dim white before ever being held (always lit in Session now, not dark)",
+check("CC91 shows dim white before ever being held (always lit in Live now, not dark)",
       cc91_before == ('1e', '1e', '1e'), cc91_before)
 check("CC91 lights full bright white the instant it's held",
       cc91_held == ('7f', '7f', '7f'), cc91_held)

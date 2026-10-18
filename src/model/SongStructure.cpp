@@ -8,6 +8,10 @@ SongStructure::SongStructure(const Song & song) {
   visit(song.getMasterTrack());
 }
 
+SongStructure::SongStructure(const Track & master) {
+  visit(master);
+}
+
 int
 SongStructure::getOrdinalFor(int internal_id) const {
   auto it = ordinal_by_id_.find(internal_id);
@@ -37,7 +41,7 @@ SongStructure::visit(const Track & track) {
     // Whether `track` gets a color at all is decided right here, once,
     // for every branch below that calls assign() - a LeafTrack (every
     // addressable leaf track type - InstrumentControl/PercussionControl/
-    // Sample/Arpeggiator - see LeafTrack.h) gets the next
+    // Sample - see LeafTrack.h) gets the next
     // sequential slot; anything else (Effect, Group) stays at
     // VisibleTrackInfo::color_ordinal_'s own default of -1. See that
     // field's own comment for why this must be its own counter, not
@@ -48,46 +52,23 @@ SongStructure::visit(const Track & track) {
     baseline_info_[id] = std::move(info);
   };
 
-  bool is_step_sequenced_percussion = track.getType() == TrackType::PERCUSSION_CONTROL
-    && dynamic_cast<const PercussionTrack &>(track).isStepSequenced();
-
-  if (track.getType() == TrackType::INSTRUMENT_CONTROL ||
-      (track.getType() == TrackType::PERCUSSION_CONTROL && !is_step_sequenced_percussion)) {
+  if (track.getType() == TrackType::INSTRUMENT_CONTROL || track.getType() == TrackType::PERCUSSION_CONTROL) {
     VisibleTrackInfo info;
     auto & leaf_track = dynamic_cast<const LeafTrack &>(track);
     info.has_note_column_ = leaf_track.showNoteColumn();
     info.num_velocity_columns_ = leaf_track.showVelocityColumn() ? 1 : 0;
     info.has_delay_column_ = leaf_track.showDelayColumn();
-    info.has_effect_column_ = leaf_track.showEffectsColumn();
+    info.has_local_fx_column_ = leaf_track.showLocalFxColumn();
+    info.has_track_fx_column_ = leaf_track.showTrackFxColumn();
     info.updateNumSubtracks(leaf_track.getMinNoteColumns());
     info.collapsed_ = leaf_track.isCollapsed();
-    assign(std::move(info));
-  } else if (is_step_sequenced_percussion) {
-    // Step-sequencer compact layout: one narrow NOTE-only cell per lane
-    // (PercussionTrack::getLaneNotes() order, same as the Launchpad step
-    // grid), never velocity/delay - a fixed, known set of up to
-    // PercussionTrack::kMaxLanes voices needs a column per lane, not a
-    // full NOTE/VEL/DEL triplet per lane the way an open-ended chord
-    // would (PatternEditor::renderRow()'s own step-sequenced-percussion
-    // branch reads this same shape to render/edit each cell). The per-row
-    // effect/command column still stays - a PercussionTrack's Pattern
-    // carries per-row Command data exactly like any other track's. A
-    // lane-less PercussionTrack takes the ordinary branch above instead.
-    VisibleTrackInfo info;
-    auto & drum_track = dynamic_cast<const PercussionTrack &>(track);
-    info.has_note_column_ = true;
-    info.num_velocity_columns_ = 0;
-    info.has_delay_column_ = false;
-    info.has_effect_column_ = drum_track.showEffectsColumn();
-    info.updateNumSubtracks(static_cast<int>(drum_track.getLaneNotes().size()));
-    info.collapsed_ = drum_track.isCollapsed();
     assign(std::move(info));
   } else if (track.getType() == TrackType::SAMPLE) {
     // Waveform placeholder column only - no command column, unlike every
     // other leaf track type: a SampleTrack's own clip content is raw
     // audio, not a Pattern, so there's no per-row Command data for one to
-    // ever hold (has_effect_column_ stays at its own default, false -
-    // deliberately not LeafTrack::showEffectsColumn(), since that toggle
+    // ever hold (has_track_fx_column_ stays at its own default, false -
+    // deliberately not LeafTrack::showTrackFxColumn(), since that toggle
     // is for a track that merely doesn't happen to use its command
     // column, not one that structurally can't have one at all). The
     // placeholder itself is much wider than an ordinary NOTE column
@@ -121,7 +102,7 @@ SongStructure::visit(const Track & track) {
     for (auto & child : track.getChildren()) visit(*child);
     VisibleTrackInfo info;
     info.has_note_column_ = false;
-    info.has_effect_column_ = true;
+    info.has_track_fx_column_ = true;
     // A real per-track user toggle (see Track::isCollapsed()) - effect
     // tracks just default to collapsed there, since there's rarely any
     // per-track command content worth showing at full width until the
@@ -146,7 +127,7 @@ SongStructure::visit(const Track & track) {
     for (auto & child : track.getChildren()) visit(*child);
     VisibleTrackInfo info;
     info.has_note_column_ = false;
-    info.has_effect_column_ = true;
+    info.has_track_fx_column_ = true;
     info.collapsed_ = track.isCollapsed();
     info.collapsed_content_width_ = 0;
     assign(std::move(info));

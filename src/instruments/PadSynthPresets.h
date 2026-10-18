@@ -24,13 +24,13 @@ using PositionParams = PadSynthProfile::PositionParams;
 using PositionType = PadSynthProfile::PositionType;
 
 // Builds a PadSynthParams - see PadSynth::loadParameters() for how
-// tuning_matched/envelope_*/postprocess_* still act as this preset's own
+// envelope_*/postprocess_* still act as this preset's own
 // default for the matching XML attribute (an explicit attribute always
-// overrides it); edo_steps/seed are filled in per-instance at table-build
+// overrides it); seed is filled in per-instance at table-build
 // time, not here.
 inline PadSynthParams preset(OCP oscillator, ProfileParams profile, PositionParams position,
                                       float bandwidth_cents, float base_frequency_hz, int octaves, int samples_per_octave,
-                                      int table_length, bool tuning_matched,
+                                      int table_length,
                                       float envelope_anchor_hz = 0.0f, float envelope_tracking = 0.0f,
                                       SpectralPostprocessKind postprocess_kind = SpectralPostprocessKind::None,
                                       int postprocess_n = 0, int postprocess_r = 0, float postprocess_amount = 0.0f) {
@@ -43,7 +43,6 @@ inline PadSynthParams preset(OCP oscillator, ProfileParams profile, PositionPara
   params.octaves = octaves;
   params.samples_per_octave = samples_per_octave;
   params.table_length = table_length;
-  params.tuning_matched = tuning_matched;
   params.envelope_anchor_hz = envelope_anchor_hz;
   params.envelope_tracking = envelope_tracking;
   params.postprocess_kind = postprocess_kind;
@@ -81,7 +80,7 @@ inline const PadSynthParams & getPadSynthPreset(const std::string & name) {
     ProfileParams{ ProfileType::Rectangular, 6.258f, true },
     PositionParams{ PositionType::Stretch, 0.00827269256f, 0.219607845f, 1.0f },
     /* bandwidth_cents */ 11.5f, /* base_frequency_hz */ 392.4f, /* octaves */ 5, /* samples_per_octave */ 2,
-    /* table_length */ 1 << 17, /* tuning_matched */ false,
+    /* table_length */ 1 << 17,
     /* envelope_anchor_hz */ 115.6f, /* envelope_tracking */ 0.980f);
 
   // "synth-piano-3-b" - a sibling of "keyboard": a Gaussian-pulse
@@ -103,7 +102,7 @@ inline const PadSynthParams & getPadSynthPreset(const std::string & name) {
     ProfileParams{ ProfileType::Gaussian, 6.258f, true },
     PositionParams{ PositionType::Stretch, 0.0120879561f, 0.219607845f, 1.0f },
     /* bandwidth_cents */ 32.5f, /* base_frequency_hz */ 392.4f, /* octaves */ 6, /* samples_per_octave */ 2,
-    /* table_length */ 1 << 17, /* tuning_matched */ false,
+    /* table_length */ 1 << 17,
     /* envelope_anchor_hz */ 233.2f, /* envelope_tracking */ 0.634f,
     /* postprocess_kind */ SpectralPostprocessKind::StretchMix, /* postprocess_n */ 2, /* postprocess_r */ 0, /* postprocess_amount */ 0.646f);
 
@@ -128,20 +127,15 @@ inline const PadSynthParams & getPadSynthPreset(const std::string & name) {
     ProfileParams{ ProfileType::Gaussian, 21.72f, true },
     PositionParams{},
     /* bandwidth_cents */ 5.2f, /* base_frequency_hz */ 261.6f, /* octaves */ 4, /* samples_per_octave */ 2,
-    /* table_length */ 1 << 17, /* tuning_matched */ true);
+    /* table_length */ 1 << 17);
 
   // "bells" - base_function "none" places 3 harmonics (1/2/4) directly,
   // then a logistic-sigmoid waveshaper reshapes that sparse set
   // nonlinearly, filling in the rest of the spectrum - the small handful
   // of dominant partials plus that reshaping is what actually makes this
   // read as a bell rather than a generic tone. Partial positions land at
-  // 1,2,4,5,7,9,11,13,... rather than a plain harmonic series - a real
-  // bell's strike-tone partials aren't simple integer multiples. The
-  // preset's own default is tuning-matched on; a song that wants the bare,
-  // untempered dissonance instead (exact-integer partials read as
-  // "out of tune" against the engine's own scale-quantized tuning the
-  // same way a real bell's non-integer partials read as dissonant against
-  // a fixed pitch) sets tuningMatched="false" explicitly.
+  // 1,2,4,5,7,9,11,13,...: snapped to whole numbers, so still harmonic,
+  // with gaps.
   static const PadSynthParams kBells = preset(
     []{
       OCP o;
@@ -154,7 +148,7 @@ inline const PadSynthParams & getPadSynthPreset(const std::string & name) {
     ProfileParams{ ProfileType::Gaussian, 6.258f, true },
     PositionParams{ PositionType::Stretch, 1.0f, 0.294117659f, 0.0f },
     /* bandwidth_cents */ 21.2f, /* base_frequency_hz */ 392.4f, /* octaves */ 5, /* samples_per_octave */ 2,
-    /* table_length */ 1 << 17, /* tuning_matched */ true,
+    /* table_length */ 1 << 17,
     /* envelope_anchor_hz */ 233.2f, /* envelope_tracking */ 0.634f,
     /* postprocess_kind */ SpectralPostprocessKind::ResidueClassWeighting,
     /* postprocess_n */ 2, /* postprocess_r */ 1, /* postprocess_amount */ 0.646f);
@@ -176,7 +170,7 @@ inline const PadSynthParams & getPadSynthPreset(const std::string & name) {
     ProfileParams{ ProfileType::Gaussian, 6.258f, true },
     PositionParams{},
     /* bandwidth_cents */ 57.3f, /* base_frequency_hz */ 261.6f, /* octaves */ 6, /* samples_per_octave */ 2,
-    /* table_length */ 1 << 18, /* tuning_matched */ true);
+    /* table_length */ 1 << 18);
 
   // "dual-strings" - the same power-ramp oscillator shape as "strings",
   // against just harmonic 1 and a wider bandwidth of its own.
@@ -191,7 +185,7 @@ inline const PadSynthParams & getPadSynthPreset(const std::string & name) {
     ProfileParams{ ProfileType::Gaussian, 6.258f, true },
     PositionParams{},
     /* bandwidth_cents */ 101.5f, /* base_frequency_hz */ 261.6f, /* octaves */ 6, /* samples_per_octave */ 2,
-    /* table_length */ 1 << 18, /* tuning_matched */ true);
+    /* table_length */ 1 << 18);
 
   // "saw-piano" - a power-ramp oscillator shape against 4 harmonics
   // (1/2/4/16), a narrow bandwidth for a clean-toned band. Its own
@@ -208,7 +202,7 @@ inline const PadSynthParams & getPadSynthPreset(const std::string & name) {
     ProfileParams{ ProfileType::Gaussian, 6.258f, true },
     PositionParams{},
     /* bandwidth_cents */ 1.3f, /* base_frequency_hz */ 261.6f, /* octaves */ 6, /* samples_per_octave */ 2,
-    /* table_length */ 1 << 17, /* tuning_matched */ true);
+    /* table_length */ 1 << 17);
 
   // "saw-piano-wide" - the same oscillator shape/harmonics 1/2/4 as
   // "saw-piano" (minus its own 16th harmonic), with a markedly wider
@@ -226,7 +220,7 @@ inline const PadSynthParams & getPadSynthPreset(const std::string & name) {
     ProfileParams{ ProfileType::Gaussian, 6.258f, true },
     PositionParams{},
     /* bandwidth_cents */ 21.6f, /* base_frequency_hz */ 261.6f, /* octaves */ 6, /* samples_per_octave */ 2,
-    /* table_length */ 1 << 18, /* tuning_matched */ true);
+    /* table_length */ 1 << 18);
 
   // "soft-pad" - a much steeper power-ramp oscillator shape than the
   // strings/piano family above, against just harmonic 1, plus a
@@ -247,7 +241,7 @@ inline const PadSynthParams & getPadSynthPreset(const std::string & name) {
     ProfileParams{ ProfileType::Gaussian, 6.258f, /* autoscale */ false },
     PositionParams{},
     /* bandwidth_cents */ 25.6f, /* base_frequency_hz */ 261.6f, /* octaves */ 3, /* samples_per_octave */ 2,
-    /* table_length */ 1 << 17, /* tuning_matched */ true);
+    /* table_length */ 1 << 17);
 
   // "choir-pad4" - a warped-half-sine oscillator shape with its own time
   // warp (k1=0.1671, phi=0.5039, k3=10), an exponential-lowpass filter,
@@ -266,7 +260,7 @@ inline const PadSynthParams & getPadSynthPreset(const std::string & name) {
     ProfileParams{ ProfileType::Gaussian, 21.72f, true },
     PositionParams{},
     /* bandwidth_cents */ 63.7f, /* base_frequency_hz */ 261.6f, /* octaves */ 4, /* samples_per_octave */ 3,
-    /* table_length */ 1 << 17, /* tuning_matched */ true,
+    /* table_length */ 1 << 17,
     /* envelope_anchor_hz */ 289.4f, /* envelope_tracking */ 0.782f);
 
   // "long-spacechoir2" - the same warped-half-sine/time-warp/lowpass-
@@ -290,7 +284,7 @@ inline const PadSynthParams & getPadSynthPreset(const std::string & name) {
     ProfileParams{ ProfileType::Gaussian, 21.72f, true },
     PositionParams{},
     /* bandwidth_cents */ 64.9f, /* base_frequency_hz */ 261.6f, /* octaves */ 4, /* samples_per_octave */ 2,
-    /* table_length */ 1 << 17, /* tuning_matched */ true,
+    /* table_length */ 1 << 17,
     /* envelope_anchor_hz */ 126.5f, /* envelope_tracking */ 0.782f,
     /* postprocess_kind */ SpectralPostprocessKind::ResidueClassWeighting,
     /* postprocess_n */ 2, /* postprocess_r */ 0, /* postprocess_amount */ 0.646f);
@@ -313,7 +307,7 @@ inline const PadSynthParams & getPadSynthPreset(const std::string & name) {
     ProfileParams{ ProfileType::Gaussian, 6.258f, true },
     PositionParams{ PositionType::Stretch, 1.0f, 0.419607848f, 0.0f },
     /* bandwidth_cents */ 15.9f, /* base_frequency_hz */ 392.4f, /* octaves */ 5, /* samples_per_octave */ 2,
-    /* table_length */ 1 << 17, /* tuning_matched */ true,
+    /* table_length */ 1 << 17,
     /* envelope_anchor_hz */ 392.9f, /* envelope_tracking */ 0.634f,
     /* postprocess_kind */ SpectralPostprocessKind::ResidueClassWeighting,
     /* postprocess_n */ 4, /* postprocess_r */ 0, /* postprocess_amount */ 0.646f);

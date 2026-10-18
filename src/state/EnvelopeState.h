@@ -2,7 +2,7 @@
 
 /* LICENSE (MIT)
 
-   Copyright (C) 2021, Mikael Rekola
+   Copyright (C) 2021-2026, Mikael Rekola
    Based on TinySoundFont, Copyright (C) 2017, 2018 Bernhard Schelling
    Based on SFZero, Copyright (C) 2012 Steve Folta (https://github.com/stevefolta/SFZero)
 
@@ -180,6 +180,7 @@ class EnvelopeState : public State {
   // SUSTAIN, and must never be killed while still held regardless of how
   // quiet it currently is.
   bool isReleasing() const { return segment == RELEASE; }
+  bool isSustaining() const { return segment == SUSTAIN; }
   float getLevel() const { return level; }
 
   Envelope parameters;

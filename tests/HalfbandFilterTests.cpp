@@ -3,6 +3,7 @@
 #include "../src/dsp/HalfbandFilter.h"
 #include "../src/dsp/RealFFT.h"
 
+#include <array>
 #include <cmath>
 #include <complex>
 #include <vector>
@@ -161,4 +162,87 @@ TEST(halfband_4x_cascade_attenuates_images_above_old_nyquist) {
   CHECK(wantedMag > 0.0f);
   CHECK(image1Mag < wantedMag / 100.0f);
   CHECK(image2Mag < wantedMag / 100.0f);
+}
+
+namespace {
+
+// The filter as it was before the polyphase rewrite: all 63 taps through a
+// circular history, one sample at a time.
+class ReferenceHalfband {
+ public:
+  ReferenceHalfband() {
+    constexpr int kTaps = 63, kCenter = 31;
+    double sum = 0.0;
+    std::array<double, kTaps> hd{};
+    for (int n = 0; n < kTaps; n++) {
+      int j = n - kCenter;
+      double ideal = j == 0 ? 0.5 : (j % 2 == 0 ? 0.0 : sin(M_PI * 0.5 * j) / (M_PI * j));
+      double phase = 2.0 * M_PI * n / (kTaps - 1);
+      double w = 0.35875 - 0.48829 * cos(phase) + 0.14128 * cos(2.0 * phase) - 0.01168 * cos(3.0 * phase);
+      hd[static_cast<size_t>(n)] = ideal * w;
+      sum += hd[static_cast<size_t>(n)];
+    }
+    for (int n = 0; n < kTaps; n++) h_[static_cast<size_t>(n)] = static_cast<float>(hd[static_cast<size_t>(n)] / sum);
+  }
+
+  void upsample(const float * in, int frames, float * out) {
+    for (int i = 0; i < frames; i++) {
+      out[2 * i] = push(in[i]) * 2.0f;
+      out[2 * i + 1] = push(0.0f) * 2.0f;
+    }
+  }
+
+  void downsample(const float * in, int frames, float * out) {
+    for (int i = 0; i < frames; i++) {
+      push(in[2 * i]);
+      out[i] = push(in[2 * i + 1]);
+    }
+  }
+
+ private:
+  float push(float x) {
+    hist_[static_cast<size_t>(pos_)] = x;
+    float acc = 0.0f;
+    for (int k = 0; k < 63; k++) {
+      int idx = pos_ - k;
+      if (idx < 0) idx += 63;
+      acc += h_[static_cast<size_t>(k)] * hist_[static_cast<size_t>(idx)];
+    }
+    if (++pos_ >= 63) pos_ = 0;
+    return acc;
+  }
+
+  std::array<float, 63> h_{}, hist_{};
+  int pos_ = 0;
+};
+
+vector<float> noise(size_t n, unsigned seed) {
+  vector<float> v(n);
+  for (auto & x : v) {
+    seed = seed * 1664525u + 1013904223u;
+    x = static_cast<float>(seed >> 8) / 8388608.0f - 1.0f;
+  }
+  return v;
+}
+
+}
+
+TEST(halfband_matches_the_direct_63_tap_filter_across_odd_block_sizes) {
+  HalfbandFilter up, down;
+  ReferenceHalfband ref_up, ref_down;
+  const int sizes[] = { 1, 7, 8, 9, 63, 64, 100, 5, 257 };
+  unsigned seed = 1;
+  for (int frames : sizes) {
+    auto in = noise(static_cast<size_t>(frames), seed++);
+    vector<float> a(static_cast<size_t>(frames) * 2), b(a.size());
+    up.upsample(in.data(), frames, a.data());
+    ref_up.upsample(in.data(), frames, b.data());
+    for (size_t i = 0; i < a.size(); i++) CHECK_NEAR(a[i], b[i], 1e-5f);
+
+    auto in2 = noise(static_cast<size_t>(frames) * 2, seed++);
+    vector<float> c(static_cast<size_t>(frames)), d(c.size());
+    down.downsample(in2.data(), frames, c.data());
+    ref_down.downsample(in2.data(), frames, d.data());
+    for (size_t i = 0; i < c.size(); i++) CHECK_NEAR(c[i], d[i], 1e-5f);
+  }
 }

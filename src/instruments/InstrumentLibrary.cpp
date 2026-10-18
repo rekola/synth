@@ -13,8 +13,8 @@
 #include "../ambisonic/ChannelConfiguration.h"
 
 #include <memory>
-#include <optional>
 #include <string>
+#include <vector>
 
 using namespace std;
 
@@ -32,14 +32,10 @@ unique_ptr<EnvelopeFilter> makeEnvelope(float attack, float hold, float decay, f
   return env;
 }
 
-// tuning_matched left unset (nullopt) means "keep the named preset's own
-// default" - only set it to actually differentiate a pad from another one
-// sharing the same base preset.
-unique_ptr<PadSynth> makePadSynth(const string & preset, optional<bool> tuning_matched = nullopt, float detune_cents = 0.0f) {
+unique_ptr<PadSynth> makePadSynth(const string & preset, float detune_cents = 0.0f) {
   auto pad = make_unique<PadSynth>();
   MemoryParameterSource params;
   params.set("preset", preset);
-  if (tuning_matched) params.set("tuningMatched", *tuning_matched);
   if (detune_cents != 0.0f) params.set("detune", detune_cents);
   pad->loadParameters(params);
   return pad;
@@ -50,10 +46,9 @@ unique_ptr<PadSynth> makePadSynth(const string & preset, optional<bool> tuning_m
 // directly in C++ via MemoryParameterSource rather than parsed from an
 // XML string, the same round-trip-without-XML technique SongState::
 // initialize() already uses for bus-slot effects.
-unique_ptr<Track> makeEnvelopePad(const string & padsynth_preset, float attack, float hold, float decay, float sustain, float release,
-                                   optional<bool> tuning_matched = nullopt) {
+unique_ptr<Track> makeEnvelopePad(const string & padsynth_preset, float attack, float hold, float decay, float sustain, float release) {
   auto env = makeEnvelope(attack, hold, decay, sustain, release);
-  env->addChild(makePadSynth(padsynth_preset, tuning_matched));
+  env->addChild(makePadSynth(padsynth_preset));
   return env;
 }
 
@@ -69,26 +64,72 @@ unique_ptr<Track> makeEnsemblePad(const string & padsynth_preset, int copies, fl
   auto group = make_unique<Group>();
   for (int k = 0; k < copies; k++) {
     float cents = copies > 1 ? -detune_cents / 2.0f + detune_cents * static_cast<float>(k) / static_cast<float>(copies - 1) : 0.0f;
-    group->addChild(makePadSynth(padsynth_preset, nullopt, cents));
+    group->addChild(makePadSynth(padsynth_preset, cents));
   }
   env->addChild(std::move(group));
   return env;
 }
 
+// Registers `instrument` at `path` under a display name; library instruments
+// have none of their own, so the UI would otherwise show the path's last
+// segment.
+void registerNamed(InstrumentProvider & provider, const string & path, const string & name, unique_ptr<Track> instrument) {
+  instrument->setName(name);
+  provider.registerPath(path, move(instrument));
+}
+
 // Registers `path` only when nothing (no SoundFont, no earlier library
 // registration) has already claimed that exact taxonomy leaf - the
-// "fallback when the SoundFont has no piano" half of the additive piano's
-// job. Deliberately an exact-key check (getTaxonomyPaths(), not
-// resolvePath()'s walk-up): resolvePath("piano.acoustic.grand") could
+// "fallback when the SoundFont has no such instrument" role. Deliberately an
+// exact-key check (getTaxonomyPaths(), not resolvePath()'s walk-up): resolvePath("piano.acoustic.grand") could
 // still find something via a shorter prefix or a kGmPathDefaults redirect
 // even with no exact SF2 registration at this leaf, and that's a real,
 // intentional fallback of its own - this function only cares whether this
 // exact leaf is unclaimed.
-void registerFallbackPath(InstrumentProvider & provider, const string & path, shared_ptr<Track> instrument) {
+void registerFallbackPath(InstrumentProvider & provider, const string & path, const string & name, shared_ptr<Track> instrument) {
   if (provider.getTaxonomyPaths().count(path)) return;
+  instrument->setName(name);
   provider.registerPath(path, move(instrument));
 }
 
+// One layer of an instrument after a DX7 voice: an <fm> pair in its own
+// <envelope>. Every index tracks the pitch, so low notes are as bright and
+// as loud as high ones, and the decays grow by about 1.4 an octave down, so
+// bass notes ring longer. `decay` is the time to -80 dB at middle C. A DX7
+// carrier off the note's pitch becomes a detune in cents, with the
+// modulator's ratio taken relative to that carrier.
+struct FMLayer {
+  float ratio, index, index_decay, detune_cents, level, decay, feedback = 0.0f;
+  float attack = 0.002f, sustain = 0.0f, release = 0.25f;
+};
+
+unique_ptr<Track> makeFMLayers(const vector<FMLayer> & layers) {
+  auto group = make_unique<Group>();
+  for (const auto & layer : layers) {
+    auto fm = make_unique<FM>();
+    MemoryParameterSource params;
+    params.set("ratio", layer.ratio);
+    params.set("index", layer.index);
+    params.set("indexDecay", layer.index_decay);
+    params.set("indexTracking", 1.0f);
+    params.set("indexDecayTracking", 0.5f);
+    params.set("feedback", layer.feedback);
+    params.set("detune", layer.detune_cents);
+    params.set("level", layer.level);
+    fm->loadParameters(params);
+    auto envelope = make_unique<EnvelopeFilter>();
+    MemoryParameterSource envelope_params;
+    envelope_params.set("attack", layer.attack);
+    envelope_params.set("decay", layer.decay);
+    envelope_params.set("sustain", layer.sustain);
+    envelope_params.set("release", layer.release);
+    envelope_params.set("keynumToDecay", 50.0f);
+    envelope->loadParameters(envelope_params);
+    envelope->addChild(move(fm));
+    group->addChild(move(envelope));
+  }
+  return group;
+}
 }
 
 void registerLibraryInstruments(InstrumentProvider & provider) {
@@ -101,12 +142,12 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // GM's own description for New Age is "a soft, airy new-age pad" -
   // "soft-pad" (a single pure partial, no upper harmonics) is a direct
   // semantic match. Warm uses "strings" (a simple, mellow base tone).
-  provider.registerPath("pad.new-age", makeEnvelopePad("soft-pad", 0.8f, 0.0f, 0.3f, 0.9f, 1.2f));
-  provider.registerPath("pad.warm", makeEnvelopePad("strings", 0.6f, 0.0f, 0.4f, 0.85f, 1.0f));
+  registerNamed(provider, "pad.new-age", "New Age Pad", makeEnvelopePad("soft-pad", 0.8f, 0.0f, 0.3f, 0.9f, 1.2f));
+  registerNamed(provider, "pad.warm", "Warm Pad", makeEnvelopePad("strings", 0.6f, 0.0f, 0.4f, 0.85f, 1.0f));
   // Poly: "dual-strings" is the brighter/wider of the two strings-family
   // presets, closest to a vintage poly synth; a 3-copy ensemble gives the
   // chorus motion its GM description calls for.
-  provider.registerPath("pad.poly", makeEnsemblePad("dual-strings", 3, 10.0f, 0.2f, 0.0f, 0.3f, 0.8f, 0.6f));
+  registerNamed(provider, "pad.poly", "Polysynth Pad", makeEnsemblePad("dual-strings", 3, 10.0f, 0.2f, 0.0f, 0.3f, 0.8f, 0.6f));
   // Choir: "pad.choir" is GM program 91's own literal taxonomy path
   // (GmInstrumentTable.h) - it has to exist under exactly that name for
   // the ordinary GM override behavior every other pad.* entry here relies
@@ -120,14 +161,17 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // pulled again (didn't actually read as a distinct vowel) - not
   // registered until a real one exists. A 3-copy ensemble gives the choir
   // its ensemble-of-singers motion.
-  provider.registerPath("pad.choir", makeEnsemblePad("choir-pad4", 3, 16.0f, 0.5f, 0.0f, 0.3f, 0.9f, 0.8f));
+  registerNamed(provider, "pad.choir", "Choir Pad", makeEnsemblePad("choir-pad4", 3, 16.0f, 0.5f, 0.0f, 0.3f, 0.9f, 0.8f));
   // Bowed: the "strings" preset's own simple base tone, as a 3-copy ensemble.
-  provider.registerPath("pad.bowed", makeEnsemblePad("strings", 3, 14.0f, 0.4f, 0.0f, 0.3f, 0.9f, 0.7f));
-  // Metallic: "bells", with tuningMatched=false - inharmonic (non-scale-
-  // step) overtones, which is what actually reads as "metallic"/bell-like
-  // dissonance (a real bell's overtones are famously non-integer) rather
-  // than a clean, consonant partial series.
-  provider.registerPath("pad.metallic", makeEnvelopePad("bells", 0.3f, 0.0f, 0.5f, 0.7f, 1.0f, /*tuningMatched*/ false));
+  registerNamed(provider, "pad.bowed", "Bowed Pad", makeEnsemblePad("strings", 3, 14.0f, 0.4f, 0.0f, 0.3f, 0.9f, 0.7f));
+  // Metallic, after the DX7's factory T.BL-EXPA: two 3.5:1 tubular-bell
+  // strikes over a 1:1 pad with feedback that swells in and holds (see the
+  // FM electric pianos below for the layering).
+  registerNamed(provider, "pad.metallic", "Metallic Pad", makeFMLayers({
+                                                              {3.5f, 1.45f, 0.7f, 1.0f, 0.25f, 20.0f},
+                                                              {3.5f, 0.8f, 4.0f, -2.0f, 0.25f, 4.0f},
+                                                              {1.002f, 1.5f, 0.0f, -1.0f, 0.3f, 0.0f, 0.4f, 1.5f, 1.0f, 2.5f},
+                                                          }));
   // Halo: "long-spacechoir2" is specifically a *phased* choir pad, so its
   // own envelope-remap character plus the wrapping <phaser> below together
   // give it its own shimmering motion. A slow rate (0.15Hz - one full
@@ -144,7 +188,7 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
     phaser_params.set("mix", 0.5f);
     phaser->loadParameters(phaser_params);
     phaser->addChild(makeEnvelopePad("long-spacechoir2", 1.0f, 0.0f, 0.4f, 0.9f, 1.5f));
-    provider.registerPath("pad.halo", move(phaser));
+    registerNamed(provider, "pad.halo", "Halo Pad", move(phaser));
   }
 
   // Sweep (pad.sweep) is a slow filter sweep: a <resonantFilter>'s own
@@ -162,7 +206,7 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
     filter_params.set("release", 1.2f);
     filter->loadParameters(filter_params);
     filter->addChild(makeEnvelopePad("strings", 0.3f, 0.0f, 0.4f, 0.85f, 1.2f));
-    provider.registerPath("pad.sweep", move(filter));
+    registerNamed(provider, "pad.sweep", "Sweep Pad", move(filter));
   }
 
   // A few PadSynth overrides outside the pad.* family - checked against
@@ -184,7 +228,7 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // rather than a sustained chorused pad - fast attack/release, no unison
   // layered on (a lead stays one focused voice; that's what tells it apart
   // from a choir pad using the identical spectral shape).
-  provider.registerPath("lead.voice", makeEnvelopePad("choir-pad4", 0.03f, 0.0f, 0.15f, 0.9f, 0.2f));
+  registerNamed(provider, "lead.voice", "Voice Lead", makeEnvelopePad("choir-pad4", 0.03f, 0.0f, 0.15f, 0.9f, 0.2f));
 
   // Church Organ (organ.pipe) - unlike lead.voice above (GM's own "Lead"
   // family is a synth-lead category by definition, so overriding it
@@ -195,8 +239,7 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // will always be more convincing than this resynthesis, and shouldn't
   // lose to it - registered as a fallback (registerFallbackPath(), the
   // same "only fill the leaf in if a SoundFont didn't already claim it"
-  // role piano.acoustic.grand/the additive piano use), not an
-  // unconditional override. See PadSynthPresets.h's own "organ-pipe"
+  // role), not an unconditional override. See PadSynthPresets.h's own "organ-pipe"
   // comment for why a pipe organ is nonetheless close to PADsynth's ideal
   // case *when nothing better is available*: a single organ pipe's own
   // tone is a steady, near-beat-free standing wave, not several
@@ -211,7 +254,7 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // the key/wind valve stays open, never decaying on its own the way a
   // struck/plucked/bowed instrument does), near-instant attack and a
   // quick release (no swell, no ring-on).
-  registerFallbackPath(provider, "organ.pipe", makeEnvelopePad("church-organ", 0.015f, 0.0f, 0.05f, 1.0f, 0.08f));
+  registerFallbackPath(provider, "organ.pipe", "Pipe Organ", makeEnvelopePad("church-organ", 0.015f, 0.0f, 0.05f, 1.0f, 0.08f));
 
   // Synth Strings 2 (string.synth.slow) - NOT String Ensemble 2
   // (string.bowed.ensemble.slow, under the string.bowed.* branch with
@@ -225,7 +268,7 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // "slow" naming already established for the acoustic side. "strings"
   // (real ported data, PadSynthPresets.h's own kStrings) replaces the
   // earlier invented "bowed-ensemble", dropped per explicit request.
-  provider.registerPath("string.synth.slow", makeEnsemblePad("strings", 3, 14.0f, 0.5f, 0.0f, 0.4f, 0.85f, 0.9f));
+  registerNamed(provider, "string.synth.slow", "Slow Synth Strings", makeEnsemblePad("strings", 3, 14.0f, 0.5f, 0.0f, 0.4f, 0.85f, 0.9f));
 
   // Synth Brass 1/2 (brass.synth/brass.synth.soft) - the same GM
   // "deliberately synthetic" distinction as lead.voice above, not the
@@ -241,69 +284,84 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
   // brass.synth.soft uses "saw-piano" instead - the same oscillator shape,
   // narrower/cleaner, a single voice - GM's own "softer, mellower"
   // description, closer to a sustained pad than a punchy stab.
-  provider.registerPath("brass.synth", makeEnsemblePad("saw-piano-wide", 3, 12.0f, 0.04f, 0.0f, 0.1f, 0.85f, 0.25f));
-  provider.registerPath("brass.synth.soft", makeEnvelopePad("saw-piano", 0.25f, 0.0f, 0.3f, 0.9f, 0.6f));
+  registerNamed(provider, "brass.synth", "Synth Brass", makeEnsemblePad("saw-piano-wide", 3, 12.0f, 0.04f, 0.0f, 0.1f, 0.85f, 0.25f));
+  registerNamed(provider, "brass.synth.soft", "Soft Synth Brass", makeEnvelopePad("saw-piano", 0.25f, 0.0f, 0.3f, 0.9f, 0.6f));
 
-  // Additive piano - <envelope>+<additive preset="struck-string">, with a
-  // few explicit overrides on top of the base preset rather than retuning
-  // "struck-string" itself (which stays the generic, guitar-reads-fine
-  // plucked-string starting point usable standalone). Heard by ear as
-  // reading more like a single plucked nylon string than a piano with the
-  // bare preset - three targeted differences a piano actually has against
-  // a guitar's single string per note:
-  //  - unisonVoices=3: a real piano doubles or triples each note's string
-  //    in the mid/treble register (a guitar has exactly one string per
-  //    note) - the base preset's 2 voices likely read as too subtly
-  //    chorused to sound like multiple strings at all.
-  //  - attackNoiseLevel lower (0.04 vs the base preset's 0.08): a felt
-  //    hammer strike is a softer, duller transient than a plucked/
-  //    fingerpicked nylon string's own sharper attack noise.
-  //  - tilt less negative (-6 vs -9 dB/octave): a hammer-struck string
-  //    reads brighter/fuller than a plucked one at the same register.
-  // Sustain 0 (a piano's own sound is entirely percussive/decaying, never
-  // a held plateau) with a long decay stage (8s, well past where the
-  // additive engine's own per-partial decay has already gone inaudible -
-  // see SinusoidBank's -90dB culling) so the envelope itself never audibly
-  // truncates the tail, and a short release (0.3s) so lifting the key ends
-  // the note promptly rather than ringing on indefinitely.
+  // Additive piano - <envelope>+<additive preset="piano">: three strings a
+  // cent apart, harmonic partials, so septimal chords stay
+  // in tune. Sustain 0 with a long decay stage (8s, past where the bank's own
+  // per-partial decay has gone inaudible - see SinusoidBank's -90dB culling)
+  // so the envelope never audibly truncates the tail, and a short release
+  // (0.3s) so lifting the key ends the note promptly.
   auto additive_piano_envelope = []() {
-    auto env = makeEnvelope(0.005f, 0.0f, 8.0f, 0.0f, 0.3f);
+    auto env = makeEnvelope(0.002f, 0.0f, 8.0f, 0.0f, 0.3f);
     auto additive = make_unique<Additive>();
     MemoryParameterSource additive_params;
-    additive_params.set("preset", string("struck-string"));
-    additive_params.set("unisonVoices", 3);
-    additive_params.set("attackNoiseLevel", 0.04f);
-    additive_params.set("tilt", -6.0f);
+    additive_params.set("preset", string("piano"));
     additive->loadParameters(additive_params);
     env->addChild(move(additive));
     return env;
   };
 
-  // Electric Piano 2 (piano.electric.fm) - a two-layer FM electric piano: a
-  // sine body whose modulation index decays like a struck tine's brightness,
-  // plus a brief high-ratio layer for the tine's own attack transient.
-  // Velocity scales the index, so harder notes are brighter.
-  {
-    auto fm_layer = [](float ratio, float index, float index_decay, float level) {
-      auto fm = make_unique<FM>();
-      MemoryParameterSource params;
-      params.set("ratio", ratio);
-      params.set("index", index);
-      params.set("indexDecay", index_decay);
-      params.set("level", level);
-      fm->loadParameters(params);
-      return fm;
-    };
-    auto envelope = makeEnvelope(0.003f, 0.0f, 2.0f, 0.0f, 0.25f);
-    envelope->addChild(fm_layer(1.0f, 2.5f, 0.6f, 0.8f));
-    envelope->addChild(fm_layer(14.0f, 1.2f, 0.06f, 0.2f));
-    provider.registerPath("piano.electric.fm", move(envelope));
-  }
+  // FM electric pianos after the DX7's factory voices, in place of whatever
+  // the SoundFont has at these paths: its sampled pianos can't play
+  // septimal intervals in tune. Each DX7 carrier and its modulators become
+  // parallel two-operator layers on carriers a cent or two apart. Every
+  // 1:1 layer's modulator runs a little sharp: a 1+e ratio puts partial n
+  // at n + (n-1)e, so shared partials of any just interval within the
+  // octave beat at most e times the fundamental, however high they are.
+  //
+  // Electric Piano 1 (piano.electric.tine), after E.PIANO 3: 2:1 and soft
+  // 1:1 pairs for a mellow body, a 3:1 pair with feedback whose index fades
+  // within a fraction of a second for the attack, and a barely audible 14:1
+  // tine.
+  registerNamed(provider, "piano.electric.tine", "Tine Electric Piano", makeFMLayers({
+                                                                            {1.001f, 1.6f, 4.0f, -2.0f, 0.3f, 20.0f},
+                                                                            {2.0f, 1.6f, 4.0f, 1.0f, 0.25f, 10.0f},
+                                                                            {3.0f, 2.0f, 0.3f, 0.0f, 0.2f, 12.0f, 0.4f},
+                                                                            {14.0f, 0.12f, 0.1f, 0.5f, 0.2f, 20.0f},
+                                                                        }));
+  // Electric Piano 2 (piano.electric.fm), after E.PIANO 2: a long 1:1 body
+  // whose modulator feeds back on itself, a brighter 1:1 pair that fades
+  // faster, a clangy 0.51:1 strike gone within a tenth of a second and a
+  // glassy 11:1 tine.
+  registerNamed(provider, "piano.electric.fm", "FM Electric Piano", makeFMLayers({
+                                                                        {1.002f, 1.6f, 2.2f, -1.0f, 0.25f, 20.0f, 0.8f},
+                                                                        {1.0f, 4.0f, 0.0f, 1.0f, 0.21f, 3.3f},
+                                                                        {0.51f, 5.0f, 0.03f, 0.5f, 0.1f, 0.4f},
+                                                                        {11.0f, 0.25f, 0.25f, 1.5f, 0.085f, 1.5f},
+                                                                    }));
+  // Electric Grand Piano (piano.electric.grand), after E.GRAND 2: two 1:1
+  // pairs, a 3:1 pair with feedback and a 5:1 pair, all fading together so
+  // the bright attack settles into a plain tone.
+  registerNamed(provider, "piano.electric.grand", "Electric Grand Piano", makeFMLayers({
+                                                                              {1.001f, 1.5f, 0.9f, 0.0f, 0.25f, 8.0f},
+                                                                              {1.002f, 2.0f, 0.9f, 1.0f, 0.25f, 8.0f},
+                                                                              {3.0f, 1.2f, 0.9f, -1.0f, 0.15f, 8.0f, 0.25f},
+                                                                              {5.0f, 0.6f, 0.9f, 0.5f, 0.08f, 8.0f},
+                                                                          }));
+  // FX 3 (crystal), after SHIMMER: a held tone whose modulator runs a
+  // little flat, a held 15.7:1 sparkle, and a decaying carrier a fifth up
+  // with feedback. The voice's lowest carriers play the written note.
+  registerNamed(provider, "texture.crystal", "Crystal", makeFMLayers({
+                                                            {0.995f, 0.5f, 0.0f, 0.0f, 0.3f, 3.0f, 0.0f, 0.01f, 0.2f, 0.8f},
+                                                            {15.71f, 0.3f, 0.0f, 0.5f, 0.25f, 3.0f, 0.0f, 0.01f, 0.2f, 0.8f},
+                                                            {1.0f, 0.56f, 0.0f, 698.4f, 0.25f, 20.0f, 0.14f, 0.01f, 0.0f, 0.8f},
+                                                        }));
+  // Tinkle Bell, after BELLS: a plain sine at the written note and two
+  // carriers 2.36 times higher, modulated at 2.67:1, for a bell's
+  // inharmonic partials. The voice's lowest carrier plays the written note.
+  registerNamed(provider, "percussion.pitched.metal.tinkle-bell", "Tinkle Bell", makeFMLayers({
+                                                                                     {1.0f, 0.0f, 0.0f, 0.0f, 0.26f, 16.0f},
+                                                                                     {2.669f, 1.33f, 1.7f, 1486.3f, 0.22f, 16.0f, 0.3f},
+                                                                                     {2.669f, 0.73f, 1.7f, 1483.0f, 0.13f, 25.0f},
+                                                                                 }));
 
   // Only takes over piano.acoustic.grand itself when nothing already
   // claimed that exact leaf - the "fallback when the SoundFont has no
-  // piano" role; a real SF2 grand piano always wins when one is loaded.
-  registerFallbackPath(provider, "piano.acoustic.grand", additive_piano_envelope());
+  // piano" role; a SoundFont's own grand piano always wins when one is
+  // loaded. A song asks for this one directly with <additive preset="piano">.
+  registerFallbackPath(provider, "piano.acoustic.grand", "Additive Grand Piano", additive_piano_envelope());
 
   // Mellotron - tapeDegradation(preset="mellotron") wrapping
   // envelope+padsynth(preset="strings") - a Mellotron "strings" tape is a
@@ -322,7 +380,7 @@ void registerLibraryInstruments(InstrumentProvider & provider) {
     tape_params.set("preset", string("mellotron"));
     tape->loadParameters(tape_params);
     tape->addChild(makeEnvelopePad("strings", 0.05f, 0.0f, 0.3f, 0.95f, 0.4f));
-    provider.registerPath("keyboard.tape.mellotron", move(tape));
+    registerNamed(provider, "keyboard.tape.mellotron", "Mellotron", move(tape));
   }
 }
 
@@ -335,10 +393,10 @@ namespace {
 // authored pitch.
 int centerNoteFor(Tuning tuning) {
   switch (tuning) {
-  case Tuning::TET12: return 69;
-  case Tuning::TET19: return 109;
-  case Tuning::TET31: return 178;
-  case Tuning::TET53: return 304;
+  case Tuning::EDO12: return 69;
+  case Tuning::EDO19: return 109;
+  case Tuning::EDO31: return 178;
+  case Tuning::EDO53: return 304;
   case Tuning::PERCUSSION: return 69;
   }
   return 178;

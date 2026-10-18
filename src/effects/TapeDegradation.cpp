@@ -411,7 +411,11 @@ public:
     auto reduced_config = reduceForEffect(getChannelConfiguration());
     auto raw = renderChildren(frames, instruments, context, reduced_config);
     bool had_real_audio = raw.hasChannel(Channel::Main);
-    auto data = ensureMainChannel(std::move(raw), frames);
+    // A send, like Main, keeps hearing the machine (its hiss) once it has
+    // carried audio, after the voices feeding it have ended.
+    seen_aux_a_ |= raw.hasChannel(Channel::AuxA);
+    seen_aux_b_ |= raw.hasChannel(Channel::AuxB);
+    auto data = ensureAuxChannels(ensureMainChannel(std::move(raw), frames), seen_aux_a_, seen_aux_b_, frames);
     dsp_.applyEffect(data, had_real_audio);
     setEffectActive(data.numberOfChannels() > 0);
     setTrackInfo(TrackInfo(isEffectActive(), data.isClipping()));
@@ -427,6 +431,7 @@ protected:
 private:
   SphericalPosition position_;
   TapeDegradationDsp dsp_;
+  bool seen_aux_a_ = false, seen_aux_b_ = false;
 };
 
 class TapeDegradationVoiceState : public EffectVoiceState {
@@ -568,7 +573,7 @@ TapeDegradation::createVoiceState(const ChannelConfiguration & channel_config) c
 }
 
 std::unique_ptr<VoiceState>
-TapeDegradation::playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune,
+TapeDegradation::playNote(const ChannelConfiguration & config, const SphericalPosition & position, SpatialMode spatial_mode, Tuning tuning, float detune,
                            float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const {
   // Mirrors Track::playNote()'s own default body (Track.h) exactly,
   // except the group node it builds is a real TapeDegradationVoiceState
@@ -579,7 +584,7 @@ TapeDegradation::playNote(const ChannelConfiguration & config, const SphericalPo
                                                         swoopTimeMs_, swoopStartCents_, spinDownMs_, droopDepthCents_, note_coord);
   auto child_config = getChildChannelConfiguration(config);
   for (auto & child : getChildren()) {
-    auto voice = child->playNote(child_config, position, tuning, detune, velocity, note_value, sends, note_coord);
+    auto voice = child->playNote(child_config, position, spatial_mode, tuning, detune, velocity, note_value, sends, note_coord);
     if (voice.get()) group->addChild(child->getInternalId(), std::move(voice));
   }
   return group;

@@ -1,4 +1,5 @@
 #include "Noise.h"
+#include "SpatialPlacement.h"
 
 using namespace std;
 
@@ -74,8 +75,9 @@ private:
 };
 
 std::unique_ptr<VoiceState>
-Noise::playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const {
-  auto voice = std::make_unique<NoiseVoice>(config, position, level_, color_, sends, note_coord);
+Noise::playNote(const ChannelConfiguration & config, const SphericalPosition & position, SpatialMode spatial_mode, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const {
+  auto placed = spatial::placeGeneric(position, spatial_mode, note_coord.getColumn(), tuning, note_value);
+  auto voice = std::make_unique<NoiseVoice>(config, placed, level_, color_, sends, note_coord);
   voice->playNote(getFrequencyFor(tuning, note_value), velocity, note_value);
   return voice;
 }

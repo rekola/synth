@@ -1,7 +1,7 @@
 """Regression test for the per-track Record Arm mechanism's actual
 *recording* gesture, end to end - not just the arm/disarm picker
 (verify_launchpad_record_arm_picker.py's own job), but a real NOTE-mode
-note landing in the exact Session-view clip index that was pressed while
+note landing in the exact Live-View clip index that was pressed while
 armed. Exercises "holes are allowed" directly: the fixture track starts
 with no clips at all, the fake device arms it and presses clip index 2
 (not 0), so a correct implementation has to backfill indices 0/1 with
@@ -10,7 +10,7 @@ whichever slot happens to be first unused - the exact regression this
 script exists to catch.
 
 Verifies the result via the terminal ClipGrid widget itself (opened
-with M-x session-view, EscapeSequenceCoalescer folding a bare ESC then
+with M-x live-view, EscapeSequenceCoalescer folding a bare ESC then
 'x' into one Alt-x event the same way a real terminal's own Alt-x would
 arrive - see StatusLine.h's own Alt/Meta check): row 0 and row 1 should
 show the plain empty-slot stop icon, row 2 should show a real, named
@@ -49,7 +49,7 @@ if not vk.wait_ready(scr):
 scr.wait_for_exit(fake, 16)
 scr.pump(0.5)
 
-# M-x session-view: switches to Session view (ClipGrid focused) for the
+# M-x live-view: switches to Live View (ClipGrid focused) for the
 # active song - StatusLine's own Alt-x detection is a single check on an
 # Alt/Meta-modified 'x' event, which EscapeSequenceCoalescer assembles
 # from a bare ESC followed, arbitrarily later, by 'x' (no deadline between
@@ -59,7 +59,7 @@ scr.send(b"\x1b")
 scr.pump(0.3)
 scr.send(b"x")
 scr.pump(0.3)
-scr.send(b"session-view\r")
+scr.send(b"live-view\r")
 scr.pump(1.0)
 vk.hide_outline(scr)
 

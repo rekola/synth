@@ -2,14 +2,17 @@
 #define _UI_H_
 
 #include "UIElement.h"
+#include "Theme.h"
 #include "../util/Logger.h"
 
+#include <functional>
 #include <string>
 #include <string_view>
 #include <vector>
 
 class AudioAPI;
 class LaunchpadIO;
+class MidiInput;
 class LaunchpadManager;
 class LaunchpadChannelPressureEvent;
 class LaunchpadPadEvent;
@@ -42,13 +45,40 @@ class UI : public UIElement {
   // Spawns the audio/visualization threads, hands off to startUI() (the
   // concrete backend's own main loop) until it returns, then signals both
   // threads to stop and joins them.
-  void start(AudioAPI & audio, LaunchpadIO & launchpad_io, LaunchpadManager & launchpad_manager);
+  void start(AudioAPI & audio, MidiInput & midi, LaunchpadIO & launchpad_io, LaunchpadManager & launchpad_manager);
 
   virtual void setStatus(std::string s) = 0;
 
   // Shows a modal dialog with Markdown content (see Markdown.h) - what a
   // command like "about" calls, so each backend only renders the text.
+  // Switches the colours by name (dark, light, original); false if there is
+  // no such theme. Called before initialize() for the --theme option, or
+  // from the select-theme command.
+  bool setTheme(const std::string & name) {
+    Theme theme;
+    if (!Theme::byName(name, theme)) return false;
+    theme_name_ = name;
+    applyTheme(theme);
+    return true;
+  }
+  // The backend takes the colours and redraws.
+  virtual void applyTheme(const Theme & /*theme*/) { }
+  // Motion off (--reduced-motion): colours change at once and nothing pulses.
+  virtual void setReducedMotion(bool /*reduced*/) {}
   virtual void showInfoDialog(const std::string & title, const std::string & markdown) = 0;
+
+  // One entry of a choice dialog: what the person sees, and what the command
+  // acts on.
+  struct Choice {
+    std::string label;
+    std::string value;
+  };
+  // Shows a modal list to pick one entry from. `current` is the entry in
+  // use, marked and where the selection starts (-1 for none). Calls
+  // `on_choose` with the chosen index once, or never if the dialog is
+  // cancelled. A backend with no such dialog says so on the status line.
+  virtual void showChoiceDialog(const std::string & title, std::vector<Choice> choices, int current,
+                                std::function<void(int)> on_choose) = 0;
 
   // Launchpad hardware input isn't tied to any one visual frontend, so its
   // event handling lives here rather than in a concrete backend - this one
@@ -67,14 +97,17 @@ class UI : public UIElement {
 
   // Which layout the active song is shown in - UI state, independent of
   // which buffer is active. Arrangement: the arrangement overview plus the
-  // pattern editor. Session: the clip grid (with the optional outline
+  // pattern editor. Live: the clip grid (with the optional outline
   // panel beside it) plus the pattern editor.
-  enum class View { ARRANGEMENT, SESSION };
+  enum class View { ARRANGEMENT, LIVE };
   View getView() const { return view_; }
-  // The view the UI starts in (the --view option) - Session unless set
+  // The view the UI starts in (the --view option) - Live unless set
   // before the backend's initialize().
   void setInitialView(View view) { initial_view_ = view; }
   bool isOutlineVisible() const { return outline_visible_; }
+  // True once a backend's main loop should end: close_ui_ was set, or a
+  // shutdown signal (SIGINT/SIGTERM/SIGHUP) arrived.
+  bool shouldClose() const;
 
 protected:
   void setView(View view);
@@ -83,7 +116,7 @@ protected:
   // backend re-lays out its widgets and moves focus here.
   virtual void viewChanged() { }
 
-  virtual void startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) = 0;
+  virtual void startUI(AudioAPI & audio, MidiInput & midi, LaunchpadIO & launchpad_io) = 0;
 
   // Hook for a concrete UI to wire up whatever per-widget Launchpad
   // callbacks it needs (session/track-move, drum-edit request, ...) -
@@ -110,9 +143,14 @@ protected:
 
   Logger & getLogger() { return logger_; }
 
-  // True once a backend's main loop should end: close_ui_ was set, or a
-  // shutdown signal (SIGINT/SIGTERM/SIGHUP) arrived.
-  bool shouldClose() const;
+  // Device selection shared by every backend; each runs the choice through
+  // the Controller (which persists it) and tells the user what happened on
+  // the status line. `name`/`spec` are DeviceSettings values; `label` is
+  // what the user picked it by.
+  void selectCaptureDevice(const std::string & name, const std::string & label);
+  void selectPlaybackDevice(const std::string & name, const std::string & label);
+  // MIDI is read on the UI thread, so this connects it directly.
+  void selectMidiInput(const std::string & spec, const std::string & label);
 
   bool close_ui_ = false;
 
@@ -122,13 +160,20 @@ protected:
   // device command resolution, handleLaunchpadChannelPressureEvent() above).
   LaunchpadManager * launchpad_manager_ = nullptr;
 
-private:
+  // Set once in start(). Only MIDI touches it from the UI thread
+  // (selectMidiInput()); every other audio change goes through the audio
+  // thread's own event queue.
+  AudioAPI * audio_ = nullptr;
+  MidiInput * midi_ = nullptr;
+
+ private:
   void initializeCommands();
 
   StatusLogger logger_;
   View view_ = View::ARRANGEMENT;
 protected:
-  View initial_view_ = View::SESSION;
+  View initial_view_ = View::LIVE;
+  std::string theme_name_ = "dark";
 private:
   bool outline_visible_ = true;
 };

@@ -33,15 +33,16 @@
 //    DirAC directional analysis (which only ever reads the first 4 -
 //    W/Y/Z/X, ACN order - via its own regularChannelCount() cap,
 //    DiracAnalyzer.cpp) and the raw-channel volume meter (which needs
-//    every channel). Empty (0 regular channels, but still correctly
-//    frame-sized) when the active buffer has no live SongState at all -
-//    nothing playing/auditioned on it yet.
+//    every channel). Structurally empty (0 regular channels, but still
+//    correctly frame-sized) whenever the mixer accumulated nothing that
+//    block - including when the active buffer has no live SongState at all.
 //  - aux_a/aux_b: the active buffer's own SongState::getAuxASum()/
 //    getAuxBSum() (each mono), for the volume meter's trailing AuxA/AuxB
 //    columns - not part of the ambisonic raw_bus at all (see
 //    AudioBuffer.h's own Channel/Aux distinction), so carried as two
-//    separate single-channel buffers. Silent (but correctly frame-sized)
-//    under the same no-live-SongState condition as raw_bus above.
+//    separate single-channel buffers. Structurally empty (no channels, but
+//    correctly frame-sized) when no track sent anything, and under the
+//    same no-live-SongState condition as raw_bus above.
 //  - master: the *true* combined decoded stereo output (every live
 //    buffer's own contribution, accumulated before a single decode - the
 //    actual signal audio.play() sends to the device) - kept here purely

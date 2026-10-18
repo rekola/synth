@@ -3,15 +3,16 @@
 
 #include "../model/Command.h"
 #include "../model/NoteCoordinate.h"
+#include "../model/SampleContent.h"
 #include "../ambisonic/ChannelConfiguration.h"
 #include "../instruments/Tuning.h"
 
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <unordered_map>
 #include <vector>
 
-class SampleContent;
 
 // Both TrackEvent and SampleTrackEvent below are queued entries on a
 // RenderContext timeline: something a track's own chunked render() must
@@ -24,13 +25,21 @@ class SampleContent;
 // producer should never need to know why or when it's being started or
 // stopped - that scheduling problem belongs entirely up here.
 
+// What a single note takes in place of its track's: an azimuth and/or an
+// ambisonic extent (the note's own fx Pxx / Wxx), and a pitch correction in
+// cents (a +hh / -hh fx).
+struct NoteOverride {
+  bool has_azimuth = false, has_extent = false, has_detune = false;
+  float azimuth = 0, extent = 0, detune_cents = 0;
+};
+
 // A pattern note's own on/off, resolved (tuning/velocity/note_value)
 // by the caller before queuing - see NoteCoordinate.h for why this stays
 // separate from the coordinate itself.
 class TrackEvent {
  public:
-  TrackEvent(short _id, Tuning _tuning, float _velocity, int _note_value = -1, const NoteCoordinate & _note_coord = {})
-    : id(_id), tuning(_tuning), velocity(_velocity), note_value(_note_value), note_coord(_note_coord) { }
+  TrackEvent(short _id, Tuning _tuning, float _velocity, int _note_value = -1, const NoteCoordinate & _note_coord = {}, const NoteOverride & _note_override = {})
+    : id(_id), tuning(_tuning), velocity(_velocity), note_value(_note_value), note_coord(_note_coord), note_override(_note_override) { }
 
   // A clip ending or giving way: every voice of the track released (no
   // column's id is negative).
@@ -49,6 +58,7 @@ class TrackEvent {
   float getVelocity() const { return velocity; }
   int getNoteValue() const { return note_value; }
   const NoteCoordinate & getNoteCoordinate() const { return note_coord; }
+  const NoteOverride & getNoteOverride() const { return note_override; }
 
  private:
   short id;
@@ -56,6 +66,7 @@ class TrackEvent {
   float velocity;
   int note_value;
   NoteCoordinate note_coord;
+  NoteOverride note_override;
 };
 
 // A SampleTrack content start or stop, due at a specific within-block
@@ -93,7 +104,10 @@ class TrackEvent {
 struct SampleTrackEvent {
   enum Kind { START, STOP };
   Kind kind;
-  const SampleContent * content = nullptr;
+  // Its own copy (sharing the audio): the event can outlive the block it was
+  // queued in, and the content it was made from belongs to a snapshot the
+  // UI thread may have retired by then.
+  std::shared_ptr<const SampleContent> content;
   int start_offset_frames = 0;
   bool is_background = false;
 };
@@ -102,17 +116,17 @@ class RenderContext {
  public:
   RenderContext(ChannelConfiguration config) : channel_config_(config) { }
 
-  void addPendingEvent(int track_id, int frame, short id, Tuning tuning, float velocity, int note_value = -1, const NoteCoordinate & note_coord = {}) {
-    pending_events_[track_id][frame].push_back(TrackEvent(id, tuning, velocity, note_value, note_coord));
+  void addPendingEvent(int track_id, int frame, short id, Tuning tuning, float velocity, int note_value = -1, const NoteCoordinate & note_coord = {}, const NoteOverride & note_override = {}) {
+    pending_events_[track_id][frame].push_back(TrackEvent(id, tuning, velocity, note_value, note_coord, note_override));
   }
   
   // Every voice of `track_id` released at `frame` - the transition's own
   // sample, like a note-off, not wherever its render block starts. The
   // tuning argument is never read for a stop-all event (isStopAll() short-
   // circuits straight to stopAllVoices() before anything looks at it) -
-  // any valid value works; TET31 is just this engine's own default.
+  // any valid value works; EDO31 is just this engine's own default.
   void addPendingStopAll(int track_id, int frame) {
-    pending_events_[track_id][frame].push_back(TrackEvent(TrackEvent::kStopAll, Tuning::TET31, 0.0f));
+    pending_events_[track_id][frame].push_back(TrackEvent(TrackEvent::kStopAll, Tuning::EDO31, 0.0f));
   }
 
   std::map<int, std::vector<TrackEvent> > & getPendingEvents(int track_id) {
@@ -144,8 +158,8 @@ class RenderContext {
   // just against this timeline instead of pending_events_) is what
   // actually calls it, precisely at this frame, the same way a pattern
   // note's own chunked render already does.
-  void addPendingSampleStart(int track_id, int frame, const SampleContent * content, int start_offset_frames = 0, bool is_background = false) {
-    pending_sample_events_[track_id][frame].push_back(SampleTrackEvent{SampleTrackEvent::START, content, start_offset_frames, is_background});
+  void addPendingSampleStart(int track_id, int frame, const SampleContent & content, int start_offset_frames = 0, bool is_background = false) {
+    pending_sample_events_[track_id][frame].push_back(SampleTrackEvent{SampleTrackEvent::START, std::make_shared<const SampleContent>(content), start_offset_frames, is_background});
   }
 
   // The stop side of the same timeline (SampleTrackEvent's own comment

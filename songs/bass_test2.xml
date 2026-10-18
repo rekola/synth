@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="150" volume="1.0">
   <instruments>
-    <group name="bass">
+    <group id="i1" name="bass">
       <envelope attack="0.0011" sustain="0" decay="0.2">
 	<amplifier gain="20">
 	  <resonantFilter res="3">
@@ -16,7 +16,7 @@
       </envelope>
     </group>
 
-    <envelope name="riser" attack="3" hold="0" sustain="0" decay="0" release="0">
+    <envelope id="i2" name="riser" attack="3" hold="0" sustain="0" decay="0" release="0">
       <resonantFilter cutmin="220" cutmax="20000" res="2" attack="3">
 	<noise />
       </resonantFilter>
@@ -24,12 +24,12 @@
   </instruments>
   <tracks>
     <amplifier gain="-10">
-	<track id="bass" instrument="0" />
+	<track id="bass" instrument="i1" />
     </amplifier>
     <amplifier gain="+10">
 	<percussionTrack id="perc" />
     </amplifier>
-    <track id="2" instrument="1" />
+    <track id="2" instrument="i2" />
   </tracks>
   
   <arrangement>

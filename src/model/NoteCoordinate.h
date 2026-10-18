@@ -17,7 +17,7 @@
 // eightbytes); anything larger is MEMORY-classified (passed via a hidden
 // pointer) regardless of field count. That only matters for places this
 // gets copied/returned *by value* (withInstance() below; a future
-// TrackEvent/ArpeggiatorState member) - playNote() itself still takes it
+// TrackEvent member) - playNote() itself still takes it
 // by const& either way, matching SphericalPosition.h's own identically-
 // sized (4 floats) convention.
 //
@@ -40,7 +40,7 @@ class NoteCoordinate {
     : track_id_(track_id), absolute_row_(absolute_row), column_(column) { }
 
   // Derives a child coordinate for a sub-voice generated from this note -
-  // an oscillator array's member index, an arpeggiator's step count, a future nested
+  // an oscillator array's member index, a future nested
   // generator's own local index. Combines (doesn't overwrite)
   // instance_id_, so two nesting levels can't collide on the same child
   // identity even though neither knows about the other - a cheap

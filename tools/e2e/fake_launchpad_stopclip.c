@@ -1,6 +1,6 @@
 // Simulated Launchpad X exercising the track-picker overlay Stop Clip
 // (CC49) opens: triggers pool index 7 for the fixture's only track (pad
-// (0,0)), confirms it's playing, then enters Session's own mixer submode
+// (0,0)), confirms it's playing, then enters Live's own mixer submode
 // (CC95 pressed a second time - see LaunchpadManager.h's own GridMode
 // comment; the seven mixer-submode buttons launch a whole scene instead
 // while it's off) and presses CC49 to open the overlay and picks that
@@ -73,7 +73,7 @@ int main() {
   send_note(seq, port, 0x80, 11, 0);
   drain(seq, 2500, "after trigger (the launch waits for the next bar)");
 
-  fprintf(stderr, "sending CC95 press+release (enters Session's own mixer submode)\n");
+  fprintf(stderr, "sending CC95 press+release (enters Live's own mixer submode)\n");
   send_cc(seq, port, 95, 127);
   send_cc(seq, port, 95, 0);
   drain(seq, 300, "mixer submode entered");

@@ -5,9 +5,8 @@
 #include <cstddef>
 #include <vector>
 
-// Shared between <padsynth> and <additive> - see each instrument's own
-// header for the identically-named XML attributes this selects between.
-// None means the postprocess stage is off (the default).
+// Used by <padsynth> - see its header for the XML attributes this selects
+// between. None means the postprocess stage is off (the default).
 enum class SpectralPostprocessKind { None, ResidueClassWeighting, StretchMix };
 
 // Anchored spectral-envelope resampling: resamples a harmonic-amplitude
@@ -20,12 +19,10 @@ enum class SpectralPostprocessKind { None, ResidueClassWeighting, StretchMix };
 //
 // Pure, allocation-free (beyond the caller's own output vector, which is
 // only resized, never grown/shrunk per call in the steady state), caller-
-// owns-the-array utilities - no engine/instrument-specific state. Two
-// distinct callers use these at two different times: PadSynthTable
-// evaluates them once per generated table (per pitch region, at that
-// region's own reference frequency); SinusoidBank evaluates them once per
-// note-on (at that note's real frequency) - see each file's own comment for
-// why re-evaluation under pitch bend isn't done.
+// owns-the-array utilities - no engine/instrument-specific state.
+// PadSynthTable evaluates them once per generated table (per pitch region,
+// at that region's own reference frequency); see its comment for why
+// re-evaluation under pitch bend isn't done.
 //
 // r = (f / f_a)^p (`f` = the note/sample's own frequency, `f_a` = the
 // anchor frequency, `p` = the tracking exponent, [0, 2]):

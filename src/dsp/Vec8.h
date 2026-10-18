@@ -56,6 +56,19 @@ inline void rampMix(float * dst, const float * src, float g0, float dg, int n) {
   for (; i < n; i++) dst[i] += (g0 + dg * static_cast<float>(i)) * src[i];
 }
 
+// dst[i] = (g0 + dg * i) * src[i] for i in [0, n): rampMix() that overwrites
+// instead of accumulating, for the first writer into a buffer nobody zeroed.
+inline void rampSet(float * dst, const float * src, float g0, float dg, int n) {
+  const v8f lane = iota();
+  const v8f g0v = splat(g0), dgv = splat(dg);
+  int i = 0;
+  for (; i + kLanes <= n; i += kLanes) {
+    v8f gain = g0v + dgv * (splat(static_cast<float>(i)) + lane);
+    storeu(dst + i, gain * loadu(src + i));
+  }
+  for (; i < n; i++) dst[i] = (g0 + dg * static_cast<float>(i)) * src[i];
+}
+
 // dst[i] += src[i] * gain.
 inline void addScaled(float * dst, const float * src, float gain, int n) {
   const v8f g = splat(gain);

@@ -26,7 +26,7 @@ jobs:
       - uses: actions/checkout@v4
 
       # synth_engine (everything ctest exercises) is a headless static
-      # library, deliberately decoupled from the notcurses UI/ALSA-device
+      # library, deliberately decoupled from the terminal UI/ALSA-device
       # runtime (see README/CLAUDE.md's own Build/Tests sections) - no
       # display or audio hardware is needed to build or run the test
       # suite, just the usual compile-time dev headers.
@@ -35,13 +35,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             cmake \
-            libnotcurses-dev \
-            libnotcurses++-dev \
             libfmt-dev \
             libsndfile1-dev \
             libasound2-dev \
             libunistring-dev \
             libsoundtouch-dev \
+            libcairo2-dev \
+            libgtk-4-dev \
+            xvfb \
+            xdotool \
+            pkg-config \
             fluid-soundfont-gm
 
       - name: Configure
@@ -52,3 +55,19 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build --output-on-failure
+
+      # The UI library builds and passes its own tests without the application.
+      - name: Cell UI on its own
+        run: |
+          cmake -S lib/cellui -B build-cellui
+          cmake --build build-cellui -j
+          ctest --test-dir build-cellui --output-on-failure
+          ./build-cellui/cellui_gallery --plain | head -5
+
+      # The real Player loop over a device-less backend: no sound hardware on
+      # the runner. Fails if the transport never reports playing.
+      - name: Headless smoke test
+        run: |
+          timeout -s INT 8 ./build/synth --headless --null-audio --autoplay songs/demo3.xml 2> headless.log || true
+          cat headless.log
+          grep -q "Playing" headless.log

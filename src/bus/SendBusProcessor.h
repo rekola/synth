@@ -44,6 +44,19 @@
 // directions are fixed, computed once" fast path any more (see
 // FDNReverb::getTapDirection(), which now owns what this class used to
 // hardcode for whichever effect happened to be in slot A).
+// Peak level (per sample, any ambisonic channel) below which the bus's
+// output counts as silent: -100 dBFS, inaudible next to any program
+// material, so a decayed tail stops reaching the mix (and the scopes) as
+// structural silence instead of half a minute more of it. Far above
+// kDenormalGuard (BusEffect.h), the only thing left flowing through an idle
+// effect. Judged per block, so a tail that merely dips between swells is
+// not mistaken for silence.
+inline constexpr float kBusAudibleFloor = 1e-5f;
+
+// How long the output keeps counting as audible after its peak last
+// reached kBusAudibleFloor, so a decaying tail is never cut mid-fade.
+inline constexpr float kBusAudibleHoldSeconds = 0.1f;
+
 class SendBusProcessor {
  public:
   explicit SendBusProcessor(const ChannelConfiguration & config);
@@ -66,15 +79,22 @@ class SendBusProcessor {
 
   // aux_a_mono/aux_b_mono: single-channel (mono) cross-track sums for
   // this block, feeding slot A/B's input respectively (before any chain
-  // send - see the class comment above). Always processes, even when both
-  // are silent, so every slot's internal tail/feedback/pattern state
-  // stays continuous across blocks (same reasoning as
-  // AmbisonicBinauralMixer's overlap-add tail). return_a/return_b scale
+  // send - see the class comment above). Processes silent input too, so
+  // every slot's internal tail/feedback/pattern state stays continuous
+  // across blocks, until input and output have both stayed under
+  // kBusAudibleFloor for longer than either effect keeps a sample
+  // (BusEffect::idleAfterSeconds()): nothing audible is left inside then,
+  // so the effects are not run again until input returns. return_a/return_b scale
   // each slot's output into the bus (the master track's Send A/B) - not
   // what slot B's chain send feeds slot A, which stays pre-return.
   void process(const AudioBuffer & aux_a_mono, const AudioBuffer & aux_b_mono, int frames, float return_a = 1.0f, float return_b = 1.0f);
 
   const AudioBuffer & getBusAmbisonic() const { return bus_ambisonic_; }
+
+  // Whether the last process() produced anything worth mixing in: its peak
+  // reached kBusAudibleFloor within the last kBusAudibleHoldSeconds. When
+  // false the caller leaves getBusAmbisonic() out of the mix.
+  bool isAudible() const { return hold_remaining_ > 0; }
 
  private:
   // Both default-constructed to NullBusEffect (BusEffectRegistry.h) in
@@ -97,6 +117,12 @@ class SendBusProcessor {
   // config is AMBISONIC, so that case never actually reaches this class's
   // process() method in practice. Fixed for this instance's lifetime.
   int ambisonic_channels_;
+
+  int hold_frames_;        // kBusAudibleHoldSeconds in frames
+  int hold_remaining_ = 0; // frames of audibility left, see isAudible()
+  int sample_rate_;
+  long quiet_frames_ = 0; // input and output under kBusAudibleFloor this long, see process()
+  bool idle_ = false;     // the effects were not run; bus_ambisonic_ holds zeros
 
   AudioBuffer bus_ambisonic_;    // always ambisonic_channels_ channels
   AudioBuffer direct_scratch_;   // one slot's encodeDirect() output, when its return isn't unity

@@ -1,13 +1,14 @@
 #ifndef _PATTERNGRID_H_
 #define _PATTERNGRID_H_
 
+#include "ArrangementView.h"
+#include "ClipView.h"
+#include "PatternView.h"
+
 #include <string>
 #include <utility>
 
-class Pattern;
-class Arrangement;
 class Song;
-class Clip;
 
 // Note/command content addressed by (track id, raw row) - what
 // PatternBlockOps reads and writes. Each implementation decides which
@@ -18,36 +19,32 @@ class PatternGrid {
  public:
   virtual ~PatternGrid() = default;
 
-  // The Pattern holding (track_id, row), or nullptr when nothing is stored
-  // for that track yet. `pattern_row` is set either way.
-  virtual const Pattern * find(int track_id, int row, int & pattern_row) const = 0;
-  virtual Pattern * find(int track_id, int row, int & pattern_row) = 0;
-  // Like find(), but creates the Pattern if needed. nullptr only when the
-  // cell can't be written at all.
-  virtual Pattern * obtain(int track_id, int row, int & pattern_row) = 0;
+  // The Pattern holding (track_id, row), or an invalid handle when nothing
+  // is stored for that track yet. `pattern_row` is set either way.
+  virtual PatternView find(int track_id, int row, int & pattern_row) const = 0;
+  // Like find(), but creates the Pattern if needed. Invalid only when the
+  // cell can't be written at all (a read-only grid).
+  virtual PatternView obtain(int track_id, int row, int & pattern_row) = 0;
 
   // Where the cell's effect command lives: the same Pattern as its notes,
   // unless an implementation keeps commands elsewhere.
-  virtual const Pattern * findCommands(int track_id, int row, int & pattern_row) const { return find(track_id, row, pattern_row); }
-  virtual Pattern * findCommands(int track_id, int row, int & pattern_row) { return find(track_id, row, pattern_row); }
-  virtual Pattern * obtainCommands(int track_id, int row, int & pattern_row) { return obtain(track_id, row, pattern_row); }
+  virtual PatternView findCommands(int track_id, int row, int & pattern_row) const { return find(track_id, row, pattern_row); }
+  virtual PatternView obtainCommands(int track_id, int row, int & pattern_row) { return obtain(track_id, row, pattern_row); }
 };
 
 // The arrangement's own background Patterns (never its clip instances).
-// Built over a const Arrangement, it's read-only: the writable find() and
-// obtain() return nullptr.
+// Built over a const Song it is read-only: obtain() returns an invalid
+// handle.
 class ArrangementBackgroundGrid : public PatternGrid {
  public:
-  explicit ArrangementBackgroundGrid(Arrangement & arrangement) : read_(arrangement), write_(&arrangement) { }
-  explicit ArrangementBackgroundGrid(const Arrangement & arrangement) : read_(arrangement), write_(nullptr) { }
+  explicit ArrangementBackgroundGrid(ArrangementView arrangement, bool writable = true) : arrangement_(arrangement), writable_(writable) { }
 
-  const Pattern * find(int track_id, int row, int & pattern_row) const override;
-  Pattern * find(int track_id, int row, int & pattern_row) override;
-  Pattern * obtain(int track_id, int row, int & pattern_row) override;
+  PatternView find(int track_id, int row, int & pattern_row) const override;
+  PatternView obtain(int track_id, int row, int & pattern_row) override;
 
  private:
-  const Arrangement & read_;
-  Arrangement * write_;
+  ArrangementView arrangement_;
+  bool writable_;
 };
 
 // The arrangement as the pattern editor shows it, anchored at
@@ -63,12 +60,10 @@ class ArrangementRegionGrid : public PatternGrid {
   ArrangementRegionGrid(Song & song, int anchor_row, std::string focused_clip_id);
   ArrangementRegionGrid(const Song & song, int anchor_row, std::string focused_clip_id);
 
-  const Pattern * find(int track_id, int row, int & pattern_row) const override;
-  Pattern * find(int track_id, int row, int & pattern_row) override;
-  Pattern * obtain(int track_id, int row, int & pattern_row) override;
-  const Pattern * findCommands(int track_id, int row, int & pattern_row) const override { return background_.find(track_id, row, pattern_row); }
-  Pattern * findCommands(int track_id, int row, int & pattern_row) override { return background_.find(track_id, row, pattern_row); }
-  Pattern * obtainCommands(int track_id, int row, int & pattern_row) override { return background_.obtain(track_id, row, pattern_row); }
+  PatternView find(int track_id, int row, int & pattern_row) const override;
+  PatternView obtain(int track_id, int row, int & pattern_row) override;
+  PatternView findCommands(int track_id, int row, int & pattern_row) const override { return background_.find(track_id, row, pattern_row); }
+  PatternView obtainCommands(int track_id, int row, int & pattern_row) override { return background_.obtain(track_id, row, pattern_row); }
 
   // The rows [first, last] around the anchor row over which `track_id`'s
   // notes keep coming from the same source.
@@ -82,9 +77,9 @@ class ArrangementRegionGrid : public PatternGrid {
     bool operator==(const Source & other) const { return kind == other.kind && clip_index == other.clip_index && start_row == other.start_row; }
   };
   Source sourceAt(int track_id, int row) const;
-  // The clip Pattern `source` supplies, and `row`'s row within it; nullptr
+  // The clip Pattern `source` supplies, and `row`'s row within it; invalid
   // for the background or a clip holding sample audio.
-  const Pattern * clipPattern(int track_id, const Source & source, int row, int & pattern_row) const;
+  PatternView clipPattern(int track_id, const Source & source, int row, int & pattern_row) const;
 
   const Song & read_song_;
   Song * write_song_;
@@ -107,16 +102,15 @@ class SceneGrid : public PatternGrid {
   SceneGrid(const Song & song, int scene, int length)
     : read_(song), write_(nullptr), scene_(scene), length_(length) { }
 
-  const Pattern * find(int track_id, int row, int & pattern_row) const override;
-  Pattern * find(int track_id, int row, int & pattern_row) override;
-  Pattern * obtain(int track_id, int row, int & pattern_row) override;
+  PatternView find(int track_id, int row, int & pattern_row) const override;
+  PatternView obtain(int track_id, int row, int & pattern_row) override;
 
   // The clip at this scene on `track_id` when it has content (notes or
-  // sample audio), else nullptr.
-  const Clip * clipFor(int track_id) const;
+  // sample audio), else an invalid handle.
+  ClipView clipFor(int track_id) const;
   // The row of `clip`'s own Pattern that plays at scene row `row`, or -1
   // past a one-shot's end.
-  static int clipRow(const Clip & clip, int row);
+  static int clipRow(const ClipView & clip, int row);
 
  private:
   const Song & read_;

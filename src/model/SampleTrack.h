@@ -96,7 +96,7 @@ void mixIntoSampleContent(SampleContent & dest, int output_rate, int64_t needed_
 // recording/loaded file (Clip::getSampleContent()) - the same clip-list
 // mechanism InstrumentTrack already uses for its own reusable Pattern
 // content, just with raw audio instead of notes. "Multiple audio files"
-// per track is multiple entries in that list, launched via Session view/
+// per track is multiple entries in that list, launched via Live View/
 // ArrangementGrid like any other track's clips - never addressed by a
 // pattern-row Note value.
 class SampleTrack : public LeafTrack {

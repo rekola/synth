@@ -3,7 +3,7 @@
      SampleTrack with no clips at all yet - the SampleTrack twin of
      launchpad_record_arm_holes_test.xml (see that fixture's own comment),
      just without the NOTE-mode note-entry step, since a SampleTrack's own
-     take is armed and cancelled from the Session grid alone. -->
+     take is armed and cancelled from the Live grid alone. -->
 <song temperament="12edo" tempo="120" patternRows="16">
   <tracks>
     <sampleTrack id="0"/>

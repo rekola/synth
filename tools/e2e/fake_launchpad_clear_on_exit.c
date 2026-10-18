@@ -3,7 +3,7 @@
 // confirm synth's final message, sent right as it quits
 // (LaunchpadIO::clearAllLeds(), its own destructor's last act), actually
 // blanks every LED rather than leaving the device showing whatever
-// Session view happened to be lit at the moment of quitting.
+// Live View happened to be lit at the moment of quitting.
 #include <alsa/asoundlib.h>
 #include <stdio.h>
 #include <unistd.h>

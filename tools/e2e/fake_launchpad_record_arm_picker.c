@@ -72,7 +72,7 @@ int main() {
   fake_wait_ready(seq, "at startup");
   drain(seq, 500, "at startup"); // the first LED frames
 
-  fprintf(stderr, "sending CC95 press+release (enters Session's own mixer submode)\n");
+  fprintf(stderr, "sending CC95 press+release (enters Live's own mixer submode)\n");
   send_cc(seq, port, 95, 127);
   send_cc(seq, port, 95, 0);
   drain(seq, 500, "mixer submode entered");

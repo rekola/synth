@@ -5,35 +5,51 @@
 #include "Track.h"
 #include "MasterTrack.h"
 #include "InstrumentPool.h"
+#include "CompiledTracks.h"
+#include "TrackCompiler.h"
 #include "Arrangement.h"
 #include "Clip.h"
+#include "ArrangementView.h"
+#include "ClipView.h"
+#include "PlaybackContent.h"
+#include "SampleStore.h"
+#include "SongSchema.h"
+#include "../doc/Document.h"
+#include "../doc/UndoHistory.h"
 #include "Scale.h"
+#include "BarGrid.h"
+#include "SceneName.h"
+#include "TimeSignature.h"
 #include "Swing.h"
 #include "Version.h"
 #include "../bus/BusEffectRegistry.h"
 #include "../util/constants.h"
 
 #include <algorithm>
+#include <chrono>
+#include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 class InstrumentProvider;
 class Mixer;
+class TrackCompiler;
 
 class Song : public SongObject {
  public:
-  Song(Tuning tuning = Tuning::TET31, short key = -1);
+  Song(Tuning tuning = Tuning::EDO31, short key = -1);
 
-  Tuning getTuning() const { return tuning_; }
-  void setTuning(Tuning tuning) { tuning_ = tuning; }
+  Tuning getTuning() const { return static_cast<Tuning>(read(songschema::kTuning)); }
+  void setTuning(Tuning tuning) { write("set tuning", songschema::kTuning, static_cast<int>(tuning)); }
 
   // What tuning a Note::getValue() on `track` actually means: a GM
   // percussion key for a PercussionTrack (resolves to raw GM note
-  // identity, not a pitch, whether or not it has any lanes - see
+  // identity, not a pitch - see
   // PercussionTrack.h), this song's own tuning otherwise. The single
   // shared definition of this check - Song.cpp's <pattern>
   // reader/writer and PatternEditor's own clipboard both need it
@@ -41,101 +57,131 @@ class Song : public SongObject {
   // cross-tuning copy/paste, since the same raw integer means a different
   // kind of value under a different tuning).
   Tuning getTuningForTrack(const Track & track) const {
-    return track.getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : tuning_;
+    return track.getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : getTuning();
   }
 
-  short getKey() const { return key_note_number_; }
-  void setKey(int key) { key_note_number_ = key; }
+  short getKey() const { return static_cast<short>(read(songschema::kKey)); }
+  void setKey(int key) { write("set key", songschema::kKey, static_cast<int>(static_cast<short>(key))); }
 
-  Scale getScale() const { return scale_; }
-  void setScale(Scale scale) { scale_ = scale; }
+  Scale getScale() const { return static_cast<Scale>(read(songschema::kScale)); }
+  void setScale(Scale scale) { write("set scale", songschema::kScale, static_cast<int>(scale)); }
 
-  // The pitched step sequencer's own lanes (LaunchpadManager.cpp) -
   // `count` ascending offsets from the tonic, starting at scale-degree
   // index `start_index` (0 = the tonic itself; negative or arbitrarily
   // large both work, descending/ascending into neighboring octaves as
-  // needed - the step grid's own row-scroll windows into this
-  // unboundedly long ascending run 8 rows at a time, `start_index`
-  // moving by a few rows per press rather than jumping a whole octave,
-  // LaunchpadManager.cpp's own comment). Register-agnostic - a caller
-  // with an actual register to place these at (the Launchpad's own
-  // per-device octave setting) adds that itself, the same way
-  // resolveNote() already turns a bare tonic pitch class into a real note
-  // value. Not wrapped into a single octave's own [0, edoStepsFor(
-  // getTuning())) pitch-class range: values keep climbing past the octave
-  // boundary rather than wrapping back below the tonic, so the returned
-  // list is always strictly ascending. getScale()'s own degrees (Scale.h's
-  // scaleDegreeNames(), in Note::stringToKey()'s note-name syntax) are
-  // each resolved via Note::stringToKey(getTuning(), name) - c_value,
-  // the interval from C under whatever tuning is actually active - then
-  // added to this song's own tonic pitch class (getKey(), the same
-  // extraction resolveNote() already does), so the same degree list is
-  // correct under every tuning without hardcoding a separate interval set
-  // per one. Every scale here has exactly 7 degrees - one short of the
-  // step grid's own 8 rows - so the degree list is treated as repeating
-  // one octave higher every full cycle through it (index 7 = index 0 one
-  // octave up, and so on both above and below index 0); this assumes
-  // each named scale spans exactly one octave before repeating, true of
-  // every scale here today, though a future scale spanning more than one
-  // octave (or one with more than 7 degrees) would need this widened.
-  // Scale::NONE (no scale chosen) falls back to the plain chromatic scale
-  // - every step ascending from the tonic - rather than an empty lane
-  // list. Empty only for Tuning::PERCUSSION (no interval structure to
-  // have degrees of at all - callers should never reach this for a
-  // PercussionTrack anyway, which has its own, unrelated
-  // PercussionTrack::getLaneNotes()).
-  std::vector<int> getScaleDegreesWindow(int start_index, int count) const;
+  // needed). Register-agnostic - a caller with an actual register to place
+  // these at (the Launchpad's own per-device octave setting) adds that
+  // itself. Values keep climbing past the octave boundary rather than
+  // wrapping back below the tonic, so the list is always strictly
+  // ascending. getScale()'s own degrees (Scale.h's scaleDegreeNames(), in
+  // Note::stringToKey()'s note-name syntax) are each resolved against the
+  // active tuning and added to the song's tonic pitch class (getKey()), so
+  // the same degree list is correct under every tuning. The degree list is
+  // treated as repeating one octave higher every full cycle through it;
+  // this assumes each named scale spans exactly one octave, true of every
+  // scale here today. Scale::NONE falls back to the plain chromatic scale
+  // - every step ascending from the tonic. Empty only for
+  // Tuning::PERCUSSION (no interval structure to have degrees of).
+  // With `major_if_none`, Scale::NONE reads as the major scale instead of
+  // chromatic.
+  std::vector<int> getScaleDegreesWindow(int start_index, int count, bool major_if_none = false) const;
 
-  // The step grid's own *default* 8-row window on first opening a clip
-  // (LaunchpadManager::resetStepGridView()) - the first 8 ascending
-  // offsets from the tonic, i.e. getScaleDegreesWindow(0, 8). See that
-  // method's own comment for the general, arbitrarily-windowed form the
-  // step grid's own row-scroll actually uses once a performer has
-  // scrolled away from this default.
-  std::vector<int> getScaleDegrees() const { return getScaleDegreesWindow(0, 8); }
+  short getTempo() const { return static_cast<short>(read(songschema::kTempo)); }
+  void setTempo(short bpm) { write("set tempo", songschema::kTempo, static_cast<int>(bpm)); }
 
-  short getTempo() const { return bpm_; }
-  void setTempo(short bpm) { bpm_ = bpm; }
+  // A scene is a row of every track's clip list, identified by its
+  // position there, with an optional name, tempo and time signature.
+  // Launching it sets the tempo as the song tempo and the time signature
+  // as the transport's bars (ClipPlayer::launchScene()).
+  const std::string & getSceneName(int scene) const;
+  // 0 for none.
+  int getSceneTempo(int scene) const;
+  // Numerator 0 for none.
+  TimeSignature getSceneTimeSignature(int scene) const;
+  // The bar and beat length the scene is shown and edited in: its own time
+  // signature, else the one the transport is counting in (which a scene
+  // without one plays in).
+  int getSceneBarRows(int scene) const {
+    auto signature = getSceneTimeSignature(scene);
+    return (signature.isSet() ? signature : getRunningTimeSignature()).rowsPerBar();
+  }
+  int getSceneBeatRows(int scene) const {
+    auto signature = getSceneTimeSignature(scene);
+    return (signature.isSet() ? signature : getRunningTimeSignature()).rowsPerBeat();
+  }
+  void setSceneName(int scene, std::string name);
+  void setSceneTempo(int scene, int bpm);
+  void setSceneTimeSignature(int scene, TimeSignature signature);
+  // Sets a scene from typed text: a "90 BPM" and a "3/4" in it become the
+  // tempo and time signature (the rest the name); with none, they stay as
+  // they were.
+  void setSceneFromText(int scene, const std::string & text) {
+    auto parsed = scenename::extract(text);
+    setSceneName(scene, parsed.name);
+    if (parsed.has_tempo) setSceneTempo(scene, parsed.tempo);
+    if (parsed.has_time_signature) setSceneTimeSignature(scene, {parsed.numerator, parsed.denominator});
+  }
 
   // How late the second eighth of every pair plays (swing.h), in percent of
   // the pair: 50 straight, about 67 triplet swing. Applied at playback to
   // everything scheduled, never baked into note data. Callers editing it
-  // live also call incVersion(), which is how the audio thread notices.
-  int getSwing() const { return swing_; }
-  void setSwing(int percent) { swing_ = swing::clamp(percent); }
+  // live do it inside a Song::Edit, which is how the audio thread notices.
+  int getSwing() const { return read(songschema::kSwing); }
+  void setSwing(int percent) { write("set swing", songschema::kSwing, swing::clamp(percent)); }
 
-  // The shared quantization grid (<song rowsPerBar="N">) both the
-  // Launchpad Session view (SessionPlayer::advanceToStep())
-  // and PatternEditor's own bar-boundary highlight measure against -
-  // (how many rows make one bar). Default 16 matches this
-  // codebase's own fixed "a row is a 16th note" convention
-  // (ChannelConfiguration::getRowDuration()), so the default is an
-  // ordinary 4/4 bar without inventing a second tempo-adjacent constant.
-  int getRowsPerBar() const { return rows_per_bar_; }
-  void setRowsPerBar(int rows) { rows_per_bar_ = rows > 0 ? rows : 1; }
-  // Whether a live Session take snaps each press and release to the nearest
+  // ---- Bars and time signatures. A row is a sixteenth note.
+  //
+  // The song's own time signature (<song timeSignature="3/4">, 4/4 unless
+  // set): the arrangement counts its bars in it from row 0 - its grid, bar
+  // accents, where a clip is placed. Callers editing it do it inside a
+  // Song::Edit.
+  TimeSignature getTimeSignature() const { return { read(songschema::kTimeNumerator), read(songschema::kTimeDenominator) }; }
+  void setTimeSignature(TimeSignature signature);
+  BarGrid getArrangementBars() const { return {getTimeSignature(), 0}; }
+
+  // The signature a launched scene set, counted from the bar it launched
+  // on (saved as transportTimeSignature/transportBarOrigin). The audio
+  // thread owns it (SongState::queueSceneChange()) and the UI thread's copy
+  // here is mirrored from its snapshots (Controller::
+  // receivePlaybackSnapshot()), so it can trail by a frame. What playback
+  // and Live launching count in (the bar a queued launch waits for, the
+  // metronome, take lengths) while it is active.
+  RunningBars getRunningBars() const;
+  void setRunningBars(RunningBars running);
+  void clearRunningBars() { setRunningBars({}); }
+  // The signature a scene without one plays in.
+  TimeSignature getRunningTimeSignature() const {
+    auto running = getRunningBars();
+    return running.isActive() ? running.signature : getTimeSignature();
+  }
+
+  // The bars in force at `row`, as the UI thread knows them.
+  BarGrid getBarsAt(int row) const { return barsAt(getTimeSignature(), getRunningBars(), row); }
+  int barStartAtOrBefore(int row) const { return getBarsAt(row).barStart(row); }
+  int rowInBar(int row) const { return getBarsAt(row).rowInBar(row); }
+  bool isBarStart(int row) const { return rowInBar(row) == 0; }
+  int barRowsAt(int row) const { return getBarsAt(row).barRows(); }
+  int beatRowsAt(int row) const { return getBarsAt(row).beatRows(); }
+  int nextBarStart(int row) const { return getBarsAt(row).nextBarStart(row); }
+
+  // Whether a live clip take snaps each press and release to the nearest
   // row as it's recorded. Off (the default) records the raw sub-row timing
   // in the note's delay instead; quantizeClip() can clean it up afterward.
-  bool getRecordQuantize() const { return record_quantize_; }
-  void setRecordQuantize(bool enabled) { record_quantize_ = enabled; }
+  bool getRecordQuantize() const { return read(songschema::kRecordQuantize); }
+  void setRecordQuantize(bool enabled) { write("set record quantize", songschema::kRecordQuantize, enabled); }
   // `absolute_row` as a musical position, "bar.beat.sixteenth", each
-  // 1-based - what the transport shows, and anything else that names a
-  // position. A row is a sixteenth (ChannelConfiguration::
-  // getRowDuration()), so a beat is 4 rows and a bar getRowsPerBar().
+  // 1-based, in the bars the transport counts in - what the transport
+  // shows, and anything else that names a position.
   std::string formatPosition(int absolute_row) const;
 
   // Locators: named moments of the whole song ("chorus starts here", a
   // chord's name) rather than of any one track's content, keyed by
-  // absolute row - shown in the pattern editor's locator column, and
-  // what ZBxx jumps to (<locators><locator row="N">name</locator>).
+  // absolute row - shown in the pattern editor's locator column
+  // (<locators><locator row="N">name</locator>).
   const std::string & getLocator(int row) const;
   // An empty name removes the locator.
   void setLocator(int row, std::string name);
-  const std::map<int, std::string> & getLocators() const { return locators_; }
-  // The row of locator `number` (1-based, in row order), or -1.
-  int getLocatorRow(int number) const;
-  // The first locator after `row`, wrapping to the first; -1 with none.
-  int getNextLocatorRow(int row) const;
+  std::map<int, std::string> getLocators() const;
 
   // Floor-reflection parameters (see InstrumentVoice.h) - fixed for the
   // whole song, not live-editable (no live control path exists for any
@@ -145,17 +191,17 @@ class Song : public SongObject {
   // listener turns the reflection into an increasingly obvious slapback/
   // canyon echo rather than a fusion cue - a legitimate, if unusual,
   // effect, not something to forbid outright).
-  float getEarHeight() const { return ear_height_; }
-  void setEarHeight(float h) { ear_height_ = h < 0.1f ? 0.1f : (h > 50.0f ? 50.0f : h); }
+  float getEarHeight() const { return read(songschema::kEarHeight); }
+  void setEarHeight(float h) { write("set ear height", songschema::kEarHeight, h < 0.1f ? 0.1f : (h > 50.0f ? 50.0f : h)); }
 
-  bool getFloorReflectionEnabled() const { return floor_reflection_enabled_; }
-  void setFloorReflectionEnabled(bool e) { floor_reflection_enabled_ = e; }
+  bool getFloorReflectionEnabled() const { return read(songschema::kFloorReflection); }
+  void setFloorReflectionEnabled(bool e) { write("set floor reflection", songschema::kFloorReflection, e); }
 
-  float getFloorReflectionStrength() const { return floor_reflection_strength_; }
-  void setFloorReflectionStrength(float s) { floor_reflection_strength_ = s; }
+  float getFloorReflectionStrength() const { return read(songschema::kFloorReflectionStrength); }
+  void setFloorReflectionStrength(float s) { write("set floor reflection strength", songschema::kFloorReflectionStrength, s); }
 
-  float getGroundAbsorption() const { return ground_absorption_; }
-  void setGroundAbsorption(float a) { ground_absorption_ = a; }
+  float getGroundAbsorption() const { return read(songschema::kGroundAbsorption); }
+  void setGroundAbsorption(float a) { write("set ground absorption", songschema::kGroundAbsorption, a); }
 
   // The shared 2-slot send bus (bus/SendBusProcessor.h) - slot 0 = A,
   // slot 1 = B, matching SendBusProcessor::kSlotA/kSlotB. Each slot's
@@ -174,35 +220,177 @@ class Song : public SongObject {
   // any <bus> element) - the compiled-in default bus, per the
   // project-file plan's "no <bus> element at all -> compiled defaults"
   // rule.
-  BusEffect & getBusSlot(int slot) { return slot == 0 ? *bus_slot_a_ : *bus_slot_b_; }
-  const BusEffect & getBusSlot(int slot) const { return slot == 0 ? *bus_slot_a_ : *bus_slot_b_; }
-  BusEffectKind getBusSlotKind(int slot) const { return slot == 0 ? bus_slot_a_kind_ : bus_slot_b_kind_; }
+  const BusEffect & getBusSlot(int slot) const { return *tracks_->bus[slot == 0 ? 0 : 1].effect; }
+  BusEffectKind getBusSlotKind(int slot) const { return tracks_->bus[slot == 0 ? 0 : 1].kind; }
 
-  // Replaces a slot's occupant entirely - constructs a fresh, default-
-  // valued instance of `kind` via the registry (at this Song's own
-  // placeholder sample rate). Used by the <bus> loading path in Song.cpp,
-  // and by Controller::setBusEffectKind() (the "Set Bus Effect A/B..."
-  // menu items, UI.cpp) - this only ever updates this model-side instance,
-  // never an already-initialize()'d SongState's own live one (see
-  // SongState::setBusEffectKind() for that half).
-  void setBusSlotKind(int slot, BusEffectKind kind);
+  // Replaces a slot's occupant with a default-valued `kind`, or with
+  // `parameters` (a loaded effect of that kind) when given. Only the
+  // model's half: an already-running SongState's own live effect is changed
+  // by SongState::setBusEffectKind().
+  void setBusSlotKind(int slot, BusEffectKind kind, const BusEffect * parameters = nullptr);
 
   void resetBusToDefaults() {
     setBusSlotKind(0, BusEffectKind::Reverb);
     setBusSlotKind(1, BusEffectKind::Delay);
   }
 
-  void incVersion() { version_.incMajor(); }
   // A consumer that only cares about *structural* change (SongStructure
   // rebuilds, PatternEditor's own full-grid redraw trigger) reads this
   // instead of getVersion(), so it doesn't pay for every keystroke.
   int getMajorVersion() const { return version_.getMajor(); }
 
-  // Note/command/velocity/delay content edits (PatternEditor.cpp's own
-  // row_edited sites) - kept apart from incVersion() so structural-only
-  // consumers aren't disturbed by them.
-  void incMinorVersion() { version_.incMinor(); }
+  // Note/command/velocity/delay content edits (Edit::Kind::CONTENT) are
+  // counted apart from structural ones, so structural-only consumers aren't
+  // disturbed by them.
   int getMinorVersion() const { return version_.getMinor(); }
+
+  // One user action's worth of mutations. Opens before the first write and
+  // bumps the version once, when the outermost scope closes (so the audio
+  // thread and the widgets see the finished edit, never half of it). Scopes
+  // nest freely: the inner ones only widen the outer one's kind. This is the
+  // only way to bump the version, so a write path without a scope is easy
+  // to spot.
+  //
+  // CONTENT is a note/command/velocity/delay edit (the minor counter);
+  // STRUCTURE is anything else (the major counter), and wins when scopes of
+  // both kinds nest.
+  // How many edits of history a song keeps.
+  static constexpr size_t kJournalLimit = 10000;
+  static constexpr size_t kJournalSlack = 2000;
+
+  class Edit {
+   public:
+    enum class Kind { CONTENT, STRUCTURE };
+    // USER is something the user did and can undo. SYNC follows the audio
+    // thread (a scene launch setting the tempo, a glide landing in the
+    // model): journaled, but never undone on its own.
+    enum class Origin { USER, SYNC };
+
+    // `typing`: one of a run of keystrokes that undo as a whole (see
+    // Song::joinTypingRun()).
+    Edit(Song & song, const char * label, Kind kind = Kind::STRUCTURE, Origin origin = Origin::USER, bool typing = false) : song_(song) {
+      if (song_.edit_depth_++ == 0) {
+	song_.edit_label_ = label;
+	song_.edit_kind_ = kind;
+	song_.edit_wrote_ = false;
+	if (typing) song_.joinTypingRun();
+	else if (!song_.doc_->inGroup()) song_.typing_count_ = 0; // the keys of a chord are steps of the run, not breaks in it
+	song_.doc_->begin(label, origin == Origin::USER, typing);
+      } else if (kind == Kind::STRUCTURE) {
+	song_.edit_kind_ = Kind::STRUCTURE;
+      }
+    }
+    ~Edit() {
+      if (!discarded_) song_.edit_wrote_ = true;
+      if (--song_.edit_depth_ > 0) return;
+      song_.doc_->commit();
+      // History is bounded; trimming in batches keeps the cost of freeing
+      // what falls off (Document::collectGarbage()) rare.
+      if (song_.doc_->journal().size() > kJournalLimit + kJournalSlack) {
+	song_.doc_->trimJournal(kJournalLimit);
+	song_.doc_->collectGarbage();
+      }
+      if (!song_.edit_wrote_) return;
+      song_.recompileTracksIfChanged();
+      // Published before the version moves, so a reader that sees the new
+      // version finds the new content.
+      if (song_.content_published_mode_) song_.publishContent();
+      if (song_.edit_kind_ == Kind::STRUCTURE) song_.version_.incMajor();
+      else song_.version_.incMinor();
+    }
+    Edit(const Edit &) = delete;
+    Edit & operator=(const Edit &) = delete;
+
+    // This scope wrote nothing after all (a no-op press): it adds nothing to
+    // the version bump. The outermost scope still bumps if any scope inside
+    // it wrote.
+    void discard() { discarded_ = true; }
+    // The write turned out to be structural.
+    void escalate() { song_.edit_kind_ = Kind::STRUCTURE; }
+
+   private:
+    Song & song_;
+    bool discarded_ = false;
+  };
+  bool inEdit() const { return edit_depth_ > 0; }
+
+  // Typing edits (digits of a velocity, delay or command) amalgamate into the
+  // previous one as Emacs does with typed characters: a run is one undo step
+  // until anything else is edited, `breakTypingRun()` is called (a cursor
+  // move), it pauses for kTypingIdle, or it reaches kTypingRunLimit edits.
+  static constexpr int kTypingRunLimit = 20;
+  static constexpr std::chrono::milliseconds kTypingIdle{2000};
+  void breakTypingRun() { typing_count_ = 0; doc_->breakAmalgamation(); }
+  // Ends an undo group that was one step of a typing run (the notes of one
+  // chord): it joins the open run, under the same idle and length limits as
+  // a typed edit, or starts a new one.
+  void endTypingGroup() {
+    auto now = std::chrono::steady_clock::now();
+    bool join = typing_count_ > 0 && typing_count_ < kTypingRunLimit && now - typing_time_ < kTypingIdle;
+    typing_time_ = now;
+    typing_count_ = join ? typing_count_ + 1 : 1;
+    doc_->endGroup(true, join);
+  }
+
+  // Undo and redo (doc/UndoHistory.h). Both return false when there is
+  // nothing to do, and always while a live take is open (the take is one
+  // undo step, taken when it ends).
+  bool canUndo() const { return !doc_->inGroup() && history_.canUndo(*doc_); }
+  bool canRedo() const { return !doc_->inGroup() && history_.canRedo(*doc_); }
+  bool undo();
+  // Where the last undo or redo changed the song: the track, and for an
+  // arrangement note or placement its row, so the cursor can follow. Empty
+  // fields (-1) when nothing it touched has a place.
+  // `clip_index` is the scene a clip edit was in (its row then being the row
+  // in the clip), -1 for anything outside a clip.
+  // `field` and `column` say which cell of the row changed (the note column).
+  enum class Field { NONE, NOTE, VELOCITY, DELAY, COMMAND };
+  struct EditPlace { int track_id = -1; int row = -1; int clip_index = -1; Field field = Field::NONE; int column = 0; };
+  EditPlace lastUndoPlace() const { return placeOf(history_.lastOps()); }
+  // Where the next undo or redo would change the song, before it does.
+  EditPlace nextUndoPlace() const { return placeOf(history_.peekUndo(*doc_)); }
+  EditPlace nextRedoPlace() const { return placeOf(history_.peekRedo(*doc_)); }
+  EditPlace placeOf(const std::vector<doc::Op> & ops) const;
+  bool redo();
+
+  // ---- What the audio thread reads (PlaybackContent.h).
+  //
+  // Published mode (a song a Controller owns, rendered by the real-time
+  // player): the content is rebuilt and published when an outermost
+  // Song::Edit closes, so the audio thread only ever sees finished edits.
+  // Otherwise (the default - a song built and rendered on one thread, as
+  // the offline renderer and tests do) readContent() copies the model
+  // fresh on every call, so a write needs no Edit to be heard.
+  void setContentPublished(bool published) {
+    content_published_mode_ = published;
+    if (published) publishContent();
+  }
+  bool isContentPublished() const { return content_published_mode_; }
+  // The document the song's state lives in (the undo layer's and tests' way
+  // in; application code goes through the accessors).
+  doc::Document & document() { bindImplicitScope(); return *doc_; }
+  const doc::Document & document() const { bindImplicitScope(); return *doc_; }
+  // The song-level values playback reads, as of now.
+  SongScalars scalars() const;
+  // Copies the arrangement and clips into a new PlaybackContent and
+  // publishes it. UI thread.
+  void publishContent() const;
+  // Audio thread: the latest published content, valid for the Reader's
+  // lifetime.
+  ContentPublisher::Reader readContent() const {
+    if (!content_published_mode_) publishContent();
+    return ContentPublisher::Reader(*content_publisher_);
+  }
+  // Fixes the content as it is now and stops rebuilding it per read; for a
+  // render that runs on one thread and does not edit the song meanwhile.
+  void pinContent() const {
+    publishContent();
+    content_published_mode_ = true;
+  }
+  // True if the published content matches the model - false means a write
+  // reached the model without closing a Song::Edit.
+  void unpinContent() const { content_published_mode_ = false; }
+  bool publishedContentIsCurrent() const;
 
   // Both counters together, for a consumer that needs to know "did
   // anything at all change" (Controller::hasUnsavedChanges()).
@@ -218,8 +406,8 @@ class Song : public SongObject {
   void setCurrentTrackId(int track_id) { current_track_id_ = track_id; }
 
   // The one timeline every track's arrangement content lives on.
-  const Arrangement & getArrangement() const { return arrangement_; }
-  Arrangement & getArrangement() { return arrangement_; }
+  // A handle on the document's arrangement (see ArrangementView.h).
+  ArrangementView getArrangement() const { return ArrangementView(context(), arrangement_node_); }
 
   // Rows the arrangement can address: row keys are 16-bit.
   static constexpr int kMaxArrangementRows = 65536;
@@ -237,7 +425,7 @@ class Song : public SongObject {
 
   // The song's own flat, per-track clip list - each track's own reusable
   // Clips, available to trigger live or place in the arrangement from the
-  // Launchpad's session/launch view, unconnected to any one position
+  // Launchpad's Live View, unconnected to any one position
   // (and, once actually placed as an instance, the shared
   // content behind that placement - editing it through any instance
   // updates every other one immediately). Every caller here still
@@ -247,51 +435,25 @@ class Song : public SongObject {
   // comment on why); Song::addClip() is what actually assigns one.
   // Grouped by track already (rather than one flat list filtered per
   // lookup) since "this track's own clips, in order" is the only way
-  // anything ever needs to read this back (Session view's own rows).
-  const std::vector<Clip> & getClips(int track_id) const {
-    auto it = clips_by_track_.find(track_id);
-    return it != clips_by_track_.end() ? it->second : empty_clips_;
-  }
+  // anything ever needs to read this back (Live View's own rows).
+  ClipList getClips(int track_id) const { return ClipList(context(), track_id); }
+
+  // Every track that has a clip list (empty or not), by id.
+  std::vector<int> clipTrackIds() const;
 
   // How many clip rows (scenes) are in use: the longest clip list across
   // tracks, not counting empty slots at its end.
-  int getUsedSceneCount() const {
-    size_t used = 0;
-    for (auto & [ track_id, clips ] : clips_by_track_) {
-      for (size_t i = clips.size(); i > used; i--) {
-        if (!clips[i - 1].isEmpty()) {
-          used = i;
-          break;
-        }
-      }
-    }
-    return static_cast<int>(used);
-  }
-
-  // Mutable counterpart, for editing a clip's own content in place
-  // (ArrangementOps.h's own resolveEditTarget()).
-  std::vector<Clip> & getClips(int track_id) {
-    return clips_by_track_[track_id];
-  }
+  int getUsedSceneCount() const;
 
   // Takes an already-built Clip (its own getLeafTrackId() says which
   // track's list it joins) rather than a bare Pattern - a clip's full/
   // eventual form is one Pattern per relevant track_id, not just the
   // leaf track's own (nested Effect automation, still unbuilt), so the
   // caller is the one place that needs to know how many Patterns went
-  // into it, not this method.
-  Clip & addClip(Clip clip) {
-    auto & clips = clips_by_track_[clip.getLeafTrackId()];
-    // Same "assign one if it doesn't already have one" convention
-    // addTrack() uses (see generateUniqueTrackId()) - a clip loaded from
-    // hand-written XML can already have picked its own id, same as a
-    // hand-written <track id="...">; one created here at runtime (or
-    // loaded from a song saved before clip ids existed at all) doesn't.
-    if (clip.getId().empty()) clip.setId(generateUniqueClipId());
-    clips.push_back(std::move(clip));
-    incVersion();
-    return clips.back();
-  }
+  // into it, not this method. A clip that has no id yet gets one (see
+  // generateUniqueTrackId()) - a clip loaded from hand-written XML can
+  // already have picked its own, one created here at runtime doesn't.
+  ClipView addClip(Clip clip);
 
   // Places (or reuses, if one already exists) a clip at exactly this
   // index within track_id's own clip list - never retargeted to
@@ -310,36 +472,16 @@ class Song : public SongObject {
   // itself already follows. Whichever clip already sits at `index`
   // (freshly padded or not) is returned as-is, content untouched -
   // resetting it for a fresh take is the caller's own job
-  // (Controller::ensureSessionRecordingClip()).
-  Clip & ensureClipAt(int track_id, int index) {
-    auto & clips = clips_by_track_[track_id];
-    while (static_cast<int>(clips.size()) <= index) clips.push_back(Clip(track_id));
-    incVersion();
-    return clips[static_cast<size_t>(index)];
-  }
+  // (Controller::ensureClipRecordingClip()).
+  ClipView ensureClipAt(int track_id, int index);
 
   // Mirrors generateUniqueTrackId() below - unique across every track's
   // own clip list, not just the one a new clip is about to join, same
   // "one id namespace for the whole song" convention a track's own id
   // already uses.
-  std::string generateUniqueClipId() const {
-    for (int n = 1; ; n++) {
-      auto candidate = "clip" + std::to_string(n);
-      bool taken = false;
-      for (auto & [ track_id, clips ] : clips_by_track_) {
-        for (auto & clip : clips) {
-          if (clip.getId() == candidate) { taken = true; break; }
-        }
-        if (taken) break;
-      }
-      if (!taken) return candidate;
-    }
-  }
+  std::string generateUniqueClipId() const;
 
-  void addInstrument(std::unique_ptr<Track> i) {
-    instrument_pool_.addInstrument(std::move(i));
-    incVersion();
-  }
+  void addInstrument(std::unique_ptr<Track> i);
 
   // Erases pool slot `index` (InstrumentPool::removeInstrument()) and
   // reindexes every InstrumentTrack::instrument_id_ in the tree that
@@ -359,60 +501,55 @@ class Song : public SongObject {
   // resolved default drum kit (InstrumentPool::getDefaultKitInstrument())
   // for the consumers that render an actual note and need both - see
   // InstrumentPool.h's own class comment.
-  const InstrumentPool & getInstrumentPool() const { return instrument_pool_; }
+  const InstrumentPool & getInstrumentPool() const { return *tracks_->pool; }
 
   bool open(const std::string & filename, const InstrumentProvider & provider);
   void save(const std::string & filename) const;
 
   // The tree parent of every top-level track - see this class's own
-  // header comment. Never null.
-  Track & getMasterTrack() { return *master_track_; }
-  const Track & getMasterTrack() const { return *master_track_; }
-
-  // See tracks_mutex_'s own comment - SongState::renderBlock() locks this to
-  // take a quick snapshot of the current tracks before rendering them.
-  std::mutex & getTracksMutex() const { return *tracks_mutex_; }
+  // header comment. Never null. The objects are the compiled form of the
+  // document's track nodes: read-only, shared with the audio thread, and
+  // replaced by new ones when a track is edited, so look one up again after
+  // an edit rather than keeping it (edits go through editTrack() and the
+  // other mutators below).
+  const Track & getMasterTrack() const { return *tracks_->master; }
+  // This thread's current compiled tracks, for something that has to keep
+  // them alive.
+  std::shared_ptr<const CompiledTracks> compiledTracks() const { return tracks_; }
 
   // after_track_id: if >= 0 and it names a track actually in the tree,
   // the new track lands as its immediate sibling (wherever that track's
-  // own real parent is - Track::insertChildAfter()), next to whatever the
-  // artist currently has selected rather than always at the very end.
-  // -1 (the default) keeps plain "append under the master" - what a
-  // caller with no cursor to speak of wants (LaunchpadManager's auto-
-  // grow-to-pressed-column loops, this Song's own initial construction).
-  Track & addTrack(std::unique_ptr<Track> track, int after_track_id = -1) {
-    if (track->getId().empty()) track->setId(generateUniqueTrackId());
-    std::lock_guard<std::mutex> guard(*tracks_mutex_);
-    auto * ref = track.get();
-    if (after_track_id < 0 || !master_track_->insertChildAfter(after_track_id, track)) {
-      master_track_->addChild(std::move(track));
-    }
-    incVersion();
-    return *ref;
-  }
+  // own real parent is), next to whatever the artist currently has
+  // selected rather than always at the very end. -1 (the default) keeps
+  // plain "append under the master" - what a caller with no cursor to
+  // speak of wants (LaunchpadManager's auto-grow-to-pressed-column loops,
+  // this Song's own initial construction). Returns the compiled track
+  // (the object that was passed in, now shared and read-only).
+  const Track & addTrack(std::unique_ptr<Track> track, int after_track_id = -1);
 
   // Removes the track (root, or nested inside a <group>) whose internal id
   // is `id`. Returns false, doing nothing, if `id` doesn't resolve to any
   // track any more - callers should treat "already gone" the same as
-  // "successfully gone", not as an error. Delegates to master_track_'s own
-  // removeChildByInternalId(), which only ever erases from a children_
-  // vector - the master itself is never anyone's child, so `id` naming the
-  // master can structurally never remove it; no separate guard needed.
-  // Does *not* guard against
-  // removing the last remaining root track - PatternEditor::render() and
-  // several sibling call sites index getRootTrackIds()[cursor.track] with
-  // no bounds check at all (docs/known_bugs.md's zero-root-tracks entry),
-  // so a caller that can reach zero root tracks this way must refuse
-  // before ever getting here, the way PatternEditor's "delete-track"
-  // command does.
-  bool removeTrack(int id) {
-    std::lock_guard<std::mutex> guard(*tracks_mutex_);
-    if (master_track_->removeChildByInternalId(id)) {
-      incVersion();
-      return true;
-    }
-    return false;
-  }
+  // "successfully gone", not as an error. The master itself is never
+  // anyone's child, so `id` naming it can structurally never remove it.
+  // Does *not* guard against removing the last remaining root track -
+  // PatternEditor::render() and several sibling call sites index
+  // getRootTrackIds()[cursor.track] with no bounds check at all
+  // (docs/known_bugs.md's zero-root-tracks entry), so a caller that can
+  // reach zero root tracks this way must refuse before ever getting here,
+  // the way PatternEditor's "delete-track" command does.
+  bool removeTrack(int id);
+
+  // Changes a track's own settings (mute, sends, position, name, ...): `edit`
+  // is run on a scratch copy of the track and whatever it changed is written
+  // to the track's node. Sub-tracks are not touched. False if `track_id`
+  // names no track.
+  bool editTrack(int track_id, const std::function<void(Track &)> & edit);
+
+  // Compiles the document's track nodes into new objects now, preparing
+  // instruments that need it with `provider`. An edit does this by itself
+  // when it closes; Song::open() calls it with the provider at hand.
+  void compileTracks(const InstrumentProvider * provider = nullptr);
 
   void loadParameters(const ParameterSource & input) override;
   void storeParameters(ParameterSource & output) const override;
@@ -440,32 +577,86 @@ class Song : public SongObject {
   std::vector<int> getPlayableTrackIds() const;
 
 private:
-  Tuning tuning_ = Tuning::TET31;
-  short key_note_number_ = 0;
-  Scale scale_ = Scale::NONE;
-  int bpm_ = 140;
-  int rows_per_bar_ = 16;
-  int swing_ = swing::kStraight;
-  bool record_quantize_ = false;
-  float ear_height_ = constants::DEFAULT_EAR_HEIGHT;
-  bool floor_reflection_enabled_ = constants::DEFAULT_FLOOR_REFLECTION_ENABLED;
-  float floor_reflection_strength_ = constants::DEFAULT_FLOOR_REFLECTION_STRENGTH;
-  float ground_absorption_ = constants::DEFAULT_GROUND_ABSORPTION;
-
-  std::unique_ptr<BusEffect> bus_slot_a_, bus_slot_b_;
-  BusEffectKind bus_slot_a_kind_ = BusEffectKind::Reverb;
-  BusEffectKind bus_slot_b_kind_ = BusEffectKind::Delay;
+  // The song-level state lives in the document, on the root node (scalars)
+  // and its scenes/locators slots; these accessors are the typed view of it.
+  // A write opens its own Edit, which joins the caller's if there is one.
+  template <typename T>
+  T read(const doc::Prop<T> & prop) const { return doc::get(*doc_, doc_->root(), prop); }
+  template <typename T>
+  void write(const char * label, const doc::Prop<T> & prop, T value) {
+    Edit edit(*this, label);
+    doc::set(*doc_, doc_->root(), prop, value);
+  }
+  int sceneCount() const;
+  void clearScenes();
+  doc::NodeId sceneNode(int scene) const;
+  doc::NodeId ensureSceneNode(int scene);  // kNoNode for a negative scene
+  size_t locatorIndex(int row) const;      // first locator at or after `row`
+  mutable std::unique_ptr<doc::Document> doc_ = std::make_unique<doc::Document>();
+  // The audio behind the score's "sample" nodes. A pointer so views can keep
+  // theirs when the Song moves.
+  mutable std::unique_ptr<SampleStore> samples_ = std::make_unique<SampleStore>();
+  doc::NodeId arrangement_node_ = doc::kNoNode;
+  // Makes a write that arrives with no Edit open an Edit of its own, so it
+  // is journaled and published like any other.
+  struct ImplicitEdit : doc::Document::ImplicitScope {
+    Song * song = nullptr;
+    std::optional<Edit> edit;
+    void begin() override { edit.emplace(*song, "edit"); }
+    void end() override { edit.reset(); }
+  };
+  doc::UndoHistory history_;
+  void joinTypingRun() {
+    auto now = std::chrono::steady_clock::now();
+    bool join = typing_count_ > 0 && typing_count_ < kTypingRunLimit && now - typing_time_ < kTypingIdle;
+    typing_time_ = now;
+    if (join) {
+      typing_count_++;
+    } else {
+      typing_count_ = 1;
+      doc_->breakAmalgamation();
+    }
+  }
+  int typing_count_ = 0;
+  std::chrono::steady_clock::time_point typing_time_;
+  mutable std::unique_ptr<ImplicitEdit> implicit_edit_ = std::make_unique<ImplicitEdit>();
+  // What the score's views are built from; also (re)binds the implicit
+  // edit to this Song, so a moved Song keeps working.
+  ScoreContext context() const {
+    bindImplicitScope();
+    return { doc_.get(), samples_.get() };
+  }
+  void bindImplicitScope() const {
+    implicit_edit_->song = const_cast<Song *>(this);
+    doc_->setImplicitScope(implicit_edit_.get());
+  }
+  // The arrangement and clips as plain values, for the published copy.
+  std::unique_ptr<PlaybackContent> compileContent() const;
 
   Version version_;
+  mutable bool content_published_mode_ = false;
+  mutable std::unique_ptr<ContentPublisher> content_publisher_ = std::make_unique<ContentPublisher>();
+  int edit_depth_ = 0;
+  const char * edit_label_ = "";
+  Edit::Kind edit_kind_ = Edit::Kind::STRUCTURE;
+  bool edit_wrote_ = false;
   int current_track_id_ = -1;
 
-  InstrumentPool instrument_pool_;
-  // The tree parent of every top-level track - see getMasterTrack()'s own
-  // comment. Never null; a track can no longer *not* have a parent, which
-  // is what makes "exactly one master, can't be removed" true by
-  // construction rather than by a guard check (see removeTrack()'s own
-  // comment).
-  std::unique_ptr<Track> master_track_ = std::make_unique<MasterTrack>();
+  // The tracks, instrument pool and bus live in the document as nodes
+  // (tracknodes::, TrackNodes.h); tracks_ is what they compile to, replaced
+  // whenever a node under these roots has changed.
+  // Where they sit under the root, read from the document each time (undo
+  // can put a different node in a slot).
+  doc::NodeId masterNode() const;
+  doc::NodeId poolNode() const;
+  doc::NodeId busNode(int slot) const;
+  std::shared_ptr<TrackCompiler> compiler_;
+  std::shared_ptr<const CompiledTracks> tracks_;
+  TrackCompiler::Stamp tracks_stamp_;
+  uint64_t tracks_generation_ = 0;
+  void recompileTracksIfChanged();
+  doc::NodeId trackNode(int track_id) const;  // kNoNode if there is no such track
+  doc::NodeId insertTrackNode(const std::shared_ptr<Track> & track, doc::NodeId parent, const std::string & slot, size_t index);
 
   // A track's own textual id (SongObject::getId()) is the only thing a
   // <note>/<command> element can reference it by that survives a
@@ -474,58 +665,16 @@ private:
   // so a note left referencing one is unresolvable the moment the file is
   // reopened (see Song.cpp's trackReferenceText()/resolveTrackReference()).
   // addTrack() above (the single place every track, new or loaded, enters
-  // master_track_'s own children) gives an id-less track this instead of
+  // the tree) gives an id-less track this instead of
   // leaving it to fall back to that same ugly, unstably-large raw internal
   // id in the pattern editor's own track heading. Tried in increasing
   // order starting from 1 rather than deriving straight from the track's
   // own internal id, so these actually read as a small, per-song sequence
   // instead of inheriting whatever arbitrary process-wide count
   // SongObject's shared id counter happens to be at. Never collides with
-  // master_track_'s own reserved "master" id (constructor, above).
-  std::string generateUniqueTrackId() const {
-    for (int n = 1; ; n++) {
-      auto candidate = "track" + std::to_string(n);
-      if (!master_track_->getChildById(candidate)) return candidate;
-    }
-  }
-
-  // The master's own parameters (currently just "collapsed") come from
-  // the <tracks> element itself - see MasterTrack.h's own comment on why
-  // it's never a discrete element of its own. loadParameters() resets the
-  // id along with everything else (SongObject::loadParameters()), so this
-  // re-asserts the reserved one every time - called both from the
-  // constructor (an empty source, for a track never loaded from a file at
-  // all) and from open() (the real <tracks> element).
-  void loadMasterTrackParameters(const ParameterSource & input) {
-    master_track_->loadParameters(input);
-    master_track_->setId("master");
-  }
-
-  // Guards master_track_'s own children (addTrack()/removeTrack() above
-  // are its only mutators) - SongState::renderBlock() runs on the audio
-  // thread and reads them concurrently with the UI thread calling
-  // addTrack() (PatternEditor/LaunchpadManager's various "add track"
-  // commands can fire at any time, including while playing), and a
-  // push_back can reallocate the vector's backing storage - a render()
-  // call mid-iteration when that happens would hold a dangling iterator
-  // into freed memory. Every other read of master_track_'s children is
-  // UI-thread-only, hence never concurrent with addTrack() (also always
-  // UI-thread) and needs no lock of its own - see SongState::renderBlock()'s
-  // own comment for the one call site that does. mutable so a const
-  // Song& (SongState::renderBlock()'s own parameter type) can still lock it.
-  // Heap-allocated (rather than a plain std::mutex member) solely so Song
-  // itself stays move-constructible - std::mutex has neither a copy nor a
-  // move constructor, which would otherwise implicitly delete Song's own
-  // (tests/RenderTests.cpp's loadFixture() and similar move a freshly-
-  // loaded Song out of a local variable); production code never moves a
-  // Song (Controller always holds one behind a shared_ptr), so a moved-
-  // from Song's now-null pointer is never dereferenced in practice.
-  mutable std::unique_ptr<std::mutex> tracks_mutex_ = std::make_unique<std::mutex>();
-  Arrangement arrangement_;
-  std::map<int, std::string> locators_;
-  std::unordered_map<int, std::vector<Clip> > clips_by_track_;
-
-  static inline std::vector<Clip> empty_clips_;
+  // the master track's own reserved "master" id.
+  std::string generateUniqueTrackId() const;
+  std::string generateUniqueInstrumentId() const;
 };
 
 // The sidecar .wav path one layer of a SampleTrack clip's own audio reads

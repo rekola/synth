@@ -81,7 +81,7 @@ TEST(send_glide_command_sets_send_a_over_the_row) {
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
 
-  auto & arrangement = song.getArrangement();
+  auto arrangement = song.getArrangement();
   arrangement.setNote(0, track_id, 0, Note(60, 100));
   arrangement.setCommand(0, track_id, Command("YAB0")); // about -21dB, fastest glide - Send A defaults to 0/silent otherwise
 
@@ -112,7 +112,7 @@ TEST(send_glide_command_fires_even_while_a_clip_supplies_the_row_notes) {
   clip.getLeafPattern().setNote(0, 0, Note(60, 100));
   auto clip_id = song.addClip(move(clip)).getId();
 
-  auto & arrangement = song.getArrangement();
+  auto arrangement = song.getArrangement();
   placeClipInstance(song, track_id, 0, 0);
   CHECK(arrangement.getInstance(track_id, 0) == clip_id);
   arrangement.setCommand(0, track_id, Command("YBB0")); // Send B - Send B defaults to 0/silent otherwise
@@ -146,7 +146,7 @@ TEST(glide_command_starts_a_real_glide_not_an_instant_jump) {
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
 
-  auto & arrangement = song.getArrangement();
+  auto arrangement = song.getArrangement();
   arrangement.setNote(0, track_id, 0, Note(60, 100));
   arrangement.setCommand(0, track_id, Command("YAF9")); // Send A -> 0dB/unity, over ~0.85s
 
@@ -184,7 +184,7 @@ TEST(azimuth_glide_command_starts_a_real_glide_not_an_instant_jump) {
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
 
-  auto & arrangement = song.getArrangement();
+  auto arrangement = song.getArrangement();
   arrangement.setNote(0, track_id, 0, Note(60, 100));
   arrangement.setCommand(0, track_id, Command("YZF9")); // azimuth -> +157.5 degrees, over ~0.85s
 

@@ -10,9 +10,9 @@ using namespace std;
 // chromatic scale, one degree per step ascending from the tonic, capped
 // at 8 (the step grid's own row count).
 TEST(scale_none_falls_back_to_chromatic) {
-  Song song(Tuning::TET12, -1); // no key set either - tonic defaults to C (pitch class 0)
+  Song song(Tuning::EDO12, -1); // no key set either - tonic defaults to C (pitch class 0)
   CHECK(song.getScale() == Scale::NONE);
-  auto degrees = song.getScaleDegrees();
+  auto degrees = song.getScaleDegreesWindow(0, 8);
   CHECK(degrees.size() == 8);
   for (int i = 0; i < 8; i++) CHECK(degrees[static_cast<size_t>(i)] == i);
 }
@@ -23,9 +23,9 @@ TEST(scale_none_falls_back_to_chromatic) {
 // step grid's full 8 rows even though the scale itself only has 7
 // distinct degrees.
 TEST(scale_major_12edo_no_key) {
-  Song song(Tuning::TET12, -1);
+  Song song(Tuning::EDO12, -1);
   song.setScale(Scale::MAJOR);
-  auto degrees = song.getScaleDegrees();
+  auto degrees = song.getScaleDegreesWindow(0, 8);
   vector<int> expected = {0, 2, 4, 5, 7, 9, 11, 12};
   CHECK(degrees.size() == expected.size());
   for (size_t i = 0; i < expected.size(); i++) CHECK(degrees[i] == expected[i]);
@@ -34,9 +34,9 @@ TEST(scale_major_12edo_no_key) {
 // Minor in 12-EDO, no key set: C D E♭ F G A♭ B♭ natural minor, plus the
 // same octave-up tonic repeat as the 8th row.
 TEST(scale_minor_12edo_no_key) {
-  Song song(Tuning::TET12, -1);
+  Song song(Tuning::EDO12, -1);
   song.setScale(Scale::MINOR);
-  auto degrees = song.getScaleDegrees();
+  auto degrees = song.getScaleDegreesWindow(0, 8);
   vector<int> expected = {0, 2, 3, 5, 7, 8, 10, 12};
   CHECK(degrees.size() == expected.size());
   for (size_t i = 0; i < expected.size(); i++) CHECK(degrees[i] == expected[i]);
@@ -48,53 +48,72 @@ TEST(scale_minor_12edo_no_key) {
 // degree, C#, genuinely falls a semitone above the octave point relative
 // to D), and the 8th row repeats the tonic (D) one octave up.
 TEST(scale_major_12edo_transposed_to_key) {
-  Song song(Tuning::TET12, static_cast<short>(Note::stringToKey(Tuning::TET12, "D4")));
+  Song song(Tuning::EDO12, static_cast<short>(Note::stringToKey(Tuning::EDO12, "D4")));
   song.setScale(Scale::MAJOR);
-  auto degrees = song.getScaleDegrees();
+  auto degrees = song.getScaleDegreesWindow(0, 8);
   // D major: D E F# G A B C# D
   vector<int> expected = {2, 4, 6, 7, 9, 11, 13, 14};
   CHECK(degrees.size() == expected.size());
   for (size_t i = 0; i < expected.size(); i++) CHECK(degrees[i] == expected[i]);
 }
 
-// The two special microtonal scales, exactly as specified: C D♯ E F G A
-// A♯ (MICROTONAL_A) and C E𝄫 E♭ F G A♭ B𝄫 (MICROTONAL_B) - both resolved
-// here in 12-EDO, where E𝄫 degrades to (sounds identical to) D but still
-// resolves to a real, correct pitch class rather than asserting/crashing
-// (Note::stringToKey()'s own double-flat support, added alongside this
-// feature). Each again gains an 8th row repeating the tonic an octave up.
-TEST(scale_microtonal_a_12edo) {
-  Song song(Tuning::TET12, -1);
-  song.setScale(Scale::MICROTONAL_A);
-  auto degrees = song.getScaleDegrees();
-  vector<int> expected = {0, 3, 4, 5, 7, 9, 10, 12}; // C D# E F G A A# C
+// The two septimal scales, 1/1 7/6 5/4 4/3 3/2 5/3 7/4 (OTONAL) and
+// 1/1 8/7 6/5 4/3 3/2 8/5 12/7 (UTONAL), in 31-EDO: C D♯ E F G A A♯ and
+// C E𝄫 E♭ F G A♭ B𝄫 (docs/31edo_note_numbers.txt); the 8th row is the tonic
+// an octave up.
+TEST(scale_otonal_31edo) {
+  Song song(Tuning::EDO31, -1);
+  song.setScale(Scale::OTONAL);
+  auto degrees = song.getScaleDegreesWindow(0, 8);
+  vector<int> expected = {0, 7, 10, 13, 18, 23, 25, 31};
   CHECK(degrees.size() == expected.size());
   for (size_t i = 0; i < expected.size(); i++) CHECK(degrees[i] == expected[i]);
 }
 
-TEST(scale_microtonal_b_12edo) {
-  Song song(Tuning::TET12, -1);
-  song.setScale(Scale::MICROTONAL_B);
-  auto degrees = song.getScaleDegrees();
-  vector<int> expected = {0, 2, 3, 5, 7, 8, 9, 12}; // C E𝄫(=D) E♭ F G A♭ B𝄫(=A) C
-  CHECK(degrees.size() == expected.size());
-  for (size_t i = 0; i < expected.size(); i++) CHECK(degrees[i] == expected[i]);
-}
-
-// The same MICROTONAL_B scale in 31-EDO, where E𝄫 and E♭ are genuinely
-// distinct pitches (not degenerate the way they are in 12-EDO) - the
-// whole reason these are called "microtonal" scales in the first place.
-// Values cross-checked directly against docs/31edo_note_numbers.txt's
-// own published table (steps 0/6/8/13/18/21/24 relative to that table's
-// own C-4 origin at step 155); the 8th row is the tonic 31 steps up (one
-// 31-EDO octave).
-TEST(scale_microtonal_b_31edo) {
-  Song song(Tuning::TET31, -1);
-  song.setScale(Scale::MICROTONAL_B);
-  auto degrees = song.getScaleDegrees();
+TEST(scale_utonal_31edo) {
+  Song song(Tuning::EDO31, -1);
+  song.setScale(Scale::UTONAL);
+  auto degrees = song.getScaleDegreesWindow(0, 8);
   vector<int> expected = {0, 6, 8, 13, 18, 21, 24, 31};
   CHECK(degrees.size() == expected.size());
   for (size_t i = 0; i < expected.size(); i++) CHECK(degrees[i] == expected[i]);
+}
+
+// The same spellings in 53-EDO land on the same ratios
+// (docs/53edo_note_numbers.txt): 7:4 is A𝄰, 43 steps (A♯ would be 42).
+TEST(scale_otonal_utonal_53edo) {
+  Song song(Tuning::EDO53, -1);
+  song.setScale(Scale::OTONAL);
+  vector<int> otonal = {0, 12, 17, 22, 31, 39, 43, 53};
+  CHECK(song.getScaleDegreesWindow(0, 8) == otonal);
+  song.setScale(Scale::UTONAL);
+  vector<int> utonal = {0, 10, 14, 22, 31, 36, 41, 53};
+  CHECK(song.getScaleDegreesWindow(0, 8) == utonal);
+}
+
+// 12- and 19-EDO have no steps of their own for the septimal ratios; the
+// spellings land on the nearest ones.
+TEST(scale_otonal_utonal_12edo_19edo) {
+  Song song12(Tuning::EDO12, -1);
+  song12.setScale(Scale::OTONAL);
+  CHECK(song12.getScaleDegreesWindow(0, 7) == (vector<int>{0, 3, 4, 5, 7, 9, 10}));
+  song12.setScale(Scale::UTONAL);
+  CHECK(song12.getScaleDegreesWindow(0, 7) == (vector<int>{0, 2, 3, 5, 7, 8, 9}));
+  Song song19(Tuning::EDO19, -1);
+  song19.setScale(Scale::OTONAL);
+  CHECK(song19.getScaleDegreesWindow(0, 7) == (vector<int>{0, 4, 6, 8, 11, 14, 15}));
+  song19.setScale(Scale::UTONAL);
+  CHECK(song19.getScaleDegreesWindow(0, 7) == (vector<int>{0, 4, 5, 8, 11, 13, 15}));
+}
+
+// 53-EDO's natural notes are the just major scale, so major and minor come
+// out just: 1/1 9/8 5/4 4/3 3/2 5/3 15/8 and 1/1 9/8 6/5 4/3 3/2 8/5 9/5.
+TEST(scale_major_minor_53edo_are_just) {
+  Song song(Tuning::EDO53, -1);
+  song.setScale(Scale::MAJOR);
+  CHECK(song.getScaleDegreesWindow(0, 7) == (vector<int>{0, 9, 17, 22, 31, 39, 48}));
+  song.setScale(Scale::MINOR);
+  CHECK(song.getScaleDegreesWindow(0, 7) == (vector<int>{0, 9, 14, 22, 31, 36, 45}));
 }
 
 // getScaleDegreesWindow() at a positive, mid-scale start_index - the step
@@ -103,7 +122,7 @@ TEST(scale_microtonal_b_31edo) {
 // C major should read F G A B C D E, continuing straight past the octave
 // boundary at C (index 7) without resetting back to a lower value.
 TEST(scale_degrees_window_positive_start) {
-  Song song(Tuning::TET12, -1);
+  Song song(Tuning::EDO12, -1);
   song.setScale(Scale::MAJOR);
   auto degrees = song.getScaleDegreesWindow(3, 7);
   vector<int> expected = {5, 7, 9, 11, 12, 14, 16}; // F G A B C D E
@@ -116,7 +135,7 @@ TEST(scale_degrees_window_positive_start) {
 // the octave below rather than clamping at 0 or wrapping around to the
 // top of the scale.
 TEST(scale_degrees_window_negative_start) {
-  Song song(Tuning::TET12, -1);
+  Song song(Tuning::EDO12, -1);
   song.setScale(Scale::MAJOR);
   auto degrees = song.getScaleDegreesWindow(-3, 3);
   vector<int> expected = {-5, -3, -1}; // G A B, one octave below C4 (index -3/-2/-1 = the scale's own last 3 degrees an octave down)
@@ -128,7 +147,7 @@ TEST(scale_degrees_window_negative_start) {
 // already do.
 TEST(scale_xml_round_trip) {
   MemoryParameterSource output;
-  Song song(Tuning::TET12, -1);
+  Song song(Tuning::EDO12, -1);
   song.setScale(Scale::MINOR);
   song.storeParameters(output);
   CHECK(output.get<string>("scale") == "minor");
@@ -144,7 +163,33 @@ TEST(scale_xml_round_trip) {
 // at all loads back as Scale::NONE, not some other default.
 TEST(scale_none_omitted_from_xml) {
   MemoryParameterSource output;
-  Song song(Tuning::TET12, -1);
+  Song song(Tuning::EDO12, -1);
   song.storeParameters(output);
   CHECK(output.get<string>("scale").empty());
+}
+
+// With no scale chosen, `major_if_none` reads it as major; three degrees up
+// from C is F.
+TEST(scale_none_reads_as_major_when_asked) {
+  Song song(Tuning::EDO12, -1);
+  auto degrees = song.getScaleDegreesWindow(0, 29, true);
+  CHECK(degrees.size() == 29);
+  CHECK(degrees[1] == 2);  // D
+  CHECK(degrees[3] == 5);  // F: one row up from C
+  CHECK(degrees[7] == 12); // the octave
+  CHECK(degrees[28] == 12 * 4); // four octaves up, still the tonic
+  song.setScale(Scale::MINOR);
+  CHECK(song.getScaleDegreesWindow(0, 3, true)[2] == 3); // a named scale is untouched
+}
+
+// The Launchpad steps the sound its step rows edit through a window that
+// reaches below the tonic: it must stay strictly ascending across index 0.
+TEST(scale_degrees_window_is_ascending_across_the_tonic) {
+  Song song(Tuning::EDO31, -1);
+  song.setScale(Scale::MAJOR);
+  auto degrees = song.getScaleDegreesWindow(-14, 28);
+  CHECK(degrees.size() == 28);
+  for (size_t i = 1; i < degrees.size(); i++) CHECK(degrees[i] > degrees[i - 1]);
+  CHECK(degrees[14] == 0); // index 0 is the tonic
+  CHECK(degrees[7] == -31); // a full octave below
 }

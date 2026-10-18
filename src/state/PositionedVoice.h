@@ -75,13 +75,15 @@ class PositionedVoice : public VoiceState {
   // from that one source.
   AudioBuffer encodePosition(const float * dry, int frames) {
     auto & sends = getSends();
-    AudioBuffer data = makeSendBuffer(frames);
+    // Every channel is written below (Main by the first encode, AuxA/AuxB
+    // by addAuxSends()), so the buffer needn't be zeroed first.
+    AudioBuffer data = makeSendBuffer(frames, /* zeroed */ false);
 
     if (sends.main > 0.0f) {
       auto gains = computeAmbisonicGains(getPosition());
       float main_gain = sends.main * getDistanceGain();
       for (auto & g : gains) g *= main_gain;
-      encoder_.encodeBlock(data, dry, frames, gains);
+      encoder_.encodeBlock(data, dry, frames, gains, /* overwrite */ true);
 
       addFloorReflection(data, dry, frames, main_gain);
     }
@@ -99,12 +101,13 @@ class PositionedVoice : public VoiceState {
 
   bool floorReflectionActive() const { return floor_reflection_active_; }
 
-  // A zeroed buffer shaped by the Send levels: Main only when Send Main > 0,
-  // AuxA/AuxB only when their sends are.
-  AudioBuffer makeSendBuffer(int frames) const {
+  // A buffer shaped by the Send levels: Main only when Send Main > 0,
+  // AuxA/AuxB only when their sends are. Zeroed unless the caller will
+  // write every channel itself.
+  AudioBuffer makeSendBuffer(int frames, bool zeroed = true) const {
     auto & sends = getSends();
     AudioBuffer data(sends.main > 0.0f ? getChannelConfiguration().numberOfChannels() : 0, sends.a > 0.0f, sends.b > 0.0f, frames);
-    data.zero();
+    if (zeroed) data.zero();
     return data;
   }
 

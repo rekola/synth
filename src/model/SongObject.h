@@ -11,6 +11,9 @@ class SongObject {
   virtual ~SongObject() { }
   
   int getInternalId() const { return internal_id_; }
+  // For rebuilding an object from its document node, which keeps the id the
+  // object had when it was first made.
+  void setInternalId(int id) { internal_id_ = id; }
   
   virtual void loadParameters(const ParameterSource & input) {
     id_ = input.get<std::string>("id");

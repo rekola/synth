@@ -5,10 +5,10 @@
      cell (section 1) to paste a same-tuning copy into. -->
 <song temperament="12edo" tempo="120" patternRows="8">
   <instruments>
-    <instrument from="string.bowed.ensemble.pizzicato" />
+    <instrument id="i1" from="string.bowed.ensemble.pizzicato" />
   </instruments>
   <tracks>
-    <track id="0" instrument="0" />
+    <track id="0" instrument="i1" />
     <percussionTrack id="1" />
   </tracks>
   <arrangement>

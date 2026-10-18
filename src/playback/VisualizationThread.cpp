@@ -5,8 +5,8 @@
 #include "../ambisonic/Mixer.h"
 #include "../ambisonic/MixerFactory.h"
 
+#include <algorithm>
 #include <array>
-#include <poll.h>
 #include <memory>
 
 using namespace std;
@@ -33,7 +33,12 @@ VisualizationThread::handleAudioBlockEvent(AudioBlockEvent & ev) {
   // always AuxA/AuxB last (see SongState::renderBlock()'s aux_a_sum_/
   // aux_b_sum_, and AudioBlockEvent.h for why they arrive as separate
   // fields from raw_bus).
-  auto channel_loudness = ev.getRawBus().calculateLoudness();
+  // An empty raw bus means the mixer accumulated nothing: silent by
+  // structure, so the meter reads zero without scanning anything.
+  const bool silent = !ev.getRawBus().hasChannel(Channel::Main);
+  auto channel_loudness = silent
+                              ? std::vector<float>(static_cast<size_t>(controller_->getChannelConfiguration().numberOfChannels()), 0.0f)
+                              : ev.getRawBus().calculateLoudness();
 
   // Meter legend - each *character* lines up with one meter *column* (2
   // samples/braille-column), so the label reads as an actual legend for
@@ -70,8 +75,9 @@ VisualizationThread::handleAudioBlockEvent(AudioBlockEvent & ev) {
   // ambisonic (4) are already even.
   if (channel_loudness.size() % 2 == 1) channel_loudness.push_back(0.0f);
 
-  auto aux_a = ev.getAuxA().calculateLoudness();
-  auto aux_b = ev.getAuxB().calculateLoudness();
+  // One column each, an absent aux channel (nothing sent) reading zero.
+  auto aux_a = ev.getAuxA().hasChannel(Channel::Main) ? ev.getAuxA().calculateLoudness() : std::vector<float>{0.0f};
+  auto aux_b = ev.getAuxB().hasChannel(Channel::Main) ? ev.getAuxB().calculateLoudness() : std::vector<float>{0.0f};
   channel_loudness.insert(channel_loudness.end(), aux_a.begin(), aux_a.end());
   channel_loudness.insert(channel_loudness.end(), aux_b.begin(), aux_b.end());
   result->setChannelLoudness(std::move(channel_loudness));
@@ -89,6 +95,20 @@ VisualizationThread::handleAudioBlockEvent(AudioBlockEvent & ev) {
     decode_mixer_legacy_binaural_ = controller_->getUseLegacyBinaural();
     decode_mixer_ = createMixer(controller_->getChannelConfiguration(), decode_mixer_type_, decode_mixer_legacy_binaural_);
   }
+  // With nothing on the bus the analyzers only have to be fed zeros until
+  // they hold zeros themselves (and have said so); after that there is
+  // nothing left to compute and the result carries just the meter.
+  if (silent && spectrum_.atRest() && dirac_zero_sent_) {
+    // Everything reads zero. The meter's bars need zeros for a while to fall
+    // to nothing; after that a repeat tells the UI nothing, so it is not sent
+    // and the UI sleeps until sound returns.
+    if (++rest_results_ > rest_results_limit_) return;
+    controller_->getUIEventQueue().push(move(result));
+    return;
+  }
+  rest_results_ = 0;
+  if (!silent) dirac_zero_sent_ = false;
+
   decode_mixer_->reset();
   decode_mixer_->accumulate(ev.getRawBus());
   auto active_master = decode_mixer_->encode();
@@ -111,6 +131,7 @@ VisualizationThread::handleAudioBlockEvent(AudioBlockEvent & ev) {
     for (int b = 0; b < DiracAnalyzer::kNumBands; b++) diffuse_energy[static_cast<size_t>(b)] = dirac_->getDiffuseEnergy(b);
 
     result->setDiracGrid(dirac_->getGrid(), diffuse_energy);
+    dirac_zero_sent_ = dirac_->atRest();
   }
 
   controller_->getUIEventQueue().push(move(result));
@@ -120,12 +141,8 @@ void
 VisualizationThread::run() {
   auto & queue = controller_->getVisualizationQueue();
 
-  pollfd descriptor;
-  descriptor.fd = queue.getPollFd();
-  descriptor.events = POLLIN;
-
   while (!terminate_) {
-    if (poll(&descriptor, 1, 1000) > 0 && descriptor.revents) {
+    if (queue.wait(1000)) {
       auto event = queue.pop();
       handleEvent(*event);
       while (queue.hasEvents()) {

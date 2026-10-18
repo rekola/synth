@@ -1,19 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="12edo" tempo="120" rowsPerBar="4" volume="1.0">
+<song temperament="12edo" tempo="120" timeSignature="1/4" volume="1.0">
   <tracks>
     <sampleTrack id="0"/>
   </tracks>
   <clips>
-    <trackClips track="0">
-      <clip id="c0" loop="1" length="4">
-        <sample file="sample_track_short_atmosphere.wav"/>
-      </clip>
-    </trackClips>
+    <clip track="0" id="c0" loop="1" length="4">
+      <sample file="sample_track_short_atmosphere.wav"/>
+    </clip>
   </clips>
   <arrangement>
-    <instances track="0">
-      <instance row="0">c0</instance>
-      <instance row="8">OFF</instance>
-    </instances>
+    <instance track="0" row="0" clip="c0"/>
+    <instance track="0" row="8"/>
   </arrangement>
 </song>

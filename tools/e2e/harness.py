@@ -3,13 +3,13 @@ scripts in this directory: forks the compiled `synth` binary under a
 pty and feeds its output through `pyte` so a script can screen-scrape the
 pattern editor exactly as a person would see it, without a real terminal.
 
-The only genuinely fiddly part is `Screen._respond`: notcurses probes an
-interactive terminal for its capabilities on startup (cursor position,
-pixel geometry, Kitty keyboard protocol support, etc.) and will hang
-waiting for a reply that a plain pty never sends on its own - `_respond`
-answers each of those queries with a plausible canned reply as soon as it
-sees one go out, exactly as a real terminal would, so `synth` starts
-up normally instead of stalling.
+The only genuinely fiddly part is `Screen._respond`: the terminal backend
+probes an interactive terminal for its capabilities on startup (cursor
+position, pixel geometry, Kitty keyboard protocol support, etc.) and waits
+up to a second for the replies a plain pty never sends on its own -
+`_respond` answers each of those queries with a plausible canned reply as
+soon as it sees one go out, exactly as a real terminal would, so `synth`
+starts up at once.
 
 Not part of the CMake/ctest build on purpose: these scripts drive real
 ALSA I/O (via the fake_launchpad_*.c simulators, see README.md), which
@@ -43,7 +43,7 @@ def set_winsize(fd, rows, cols, xpix, ypix):
 def spawn(song=SONG, view="arrangement"):
     """Starts synth on `song` in a pty. `view` is the --view it starts in:
     Arrangement by default, the view most scripts were written against,
-    though the app itself starts in Session view."""
+    though the app itself starts in Live View."""
     pid, master_fd = pty.fork()
     if pid == 0:
         os.environ["TERM"] = "xterm-256color"
@@ -52,7 +52,9 @@ def spawn(song=SONG, view="arrangement"):
         # one physically connected, synth would otherwise auto-connect to
         # both at once - see LaunchpadIO.h's own ignore_hardware_ comment.
         os.environ["SYNTH_LAUNCHPAD_NO_HARDWARE"] = "1"
-        os.execvp(BINARY, [BINARY, "--view", view, song])
+        # SYNTH_E2E_NULL_AUDIO=1 runs without a sound device (CI, containers).
+        extra = ["--null-audio"] if os.environ.get("SYNTH_E2E_NULL_AUDIO") else []
+        os.execvp(BINARY, [BINARY, *extra, "--view", view, song])
         os._exit(1)
     set_winsize(master_fd, ROWS, COLS, XPIX, YPIX)
     os.set_blocking(master_fd, False)
@@ -241,8 +243,8 @@ def has_defined_velocity(line):
 def note_columns(line):
     """Every note sub-column's own 3-char NOTE text on a pattern-row
     line, in order - a chord/multi-voice track packs NOTE(3)+space+
-    VELOCITY(2)+space+DELAY(2)+space into a fixed 10-char group per
-    column, followed by the row's own shared EFFECT(4) column (no
+    VELOCITY(2)+space+DELAY(2)+space+local FX(3)+space into a fixed
+    14-char group per column, followed by the row's own shared EFFECT(4) column (no
     trailing group of its own, so the walk below stops there
     naturally). Position-based rather than matching against note-name
     text, since a note's own accidental glyph varies by tuning (31-EDO's
@@ -254,17 +256,18 @@ def note_columns(line):
     content = line[line.index("│") + 1:]
     cols = []
     i = 0
-    while i + 10 <= len(content):
+    while i + 14 <= len(content):
         col = content[i:i + 3]
         # A genuine column is always "···" (undefined), "OFF", or a real
         # note's own text - never dashes: that's only ever a fragment of
         # the row's own trailing EFFECT(4) column, caught here when
-        # `content`'s length isn't an exact multiple of 10 (e.g. a
+        # `content`'s length isn't an exact multiple of 14 (e.g. a
         # shorter trailing divider glyph shifting everything by a
-        # character or two).
-        if col.strip("-") != "":
+        # character or two). The same goes for a trailing divider glyph
+        # ("│") caught in the window.
+        if col.strip("-") != "" and "│" not in col:
             cols.append(col)
-        i += 10
+        i += 14
     return cols
 
 
@@ -282,7 +285,7 @@ def other_window(scr):
 
 
 def hide_outline(scr):
-    """M-x toggle-outline: hides Session view's outline panel (shown by
+    """M-x toggle-outline: hides Live View's outline panel (shown by
     default, on the clip grid's left), so the clip grid starts at the
     screen's left edge - for scripts that read its rows from the start of
     each line."""

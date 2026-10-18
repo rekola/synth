@@ -9,6 +9,18 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(GNUInstallDirs)
 
+# The full `synth` (--headless, the Launchpad, live MIDI and audio) builds
+# everywhere; OFF gives the engine, the tests and a render-only `synth`
+# (src/main_render.cpp). The terminal UI (lib/cellui's terminal backend) is
+# POSIX only today, so Windows gets the full program without it.
+option(SYNTH_BUILD_INTERACTIVE "Build the full synth (headless mode, Launchpad, live audio/MIDI)" ON)
+if(WIN32)
+  set(SYNTH_BUILD_TERMINAL_UI_DEFAULT OFF)
+else()
+  set(SYNTH_BUILD_TERMINAL_UI_DEFAULT ON)
+endif()
+option(SYNTH_BUILD_TERMINAL_UI "Build the terminal UI" ${SYNTH_BUILD_TERMINAL_UI_DEFAULT})
+
 # Default to an optimized build when the generator supports build types (a
 # plain `cmake -B build` with no CMAKE_BUILD_TYPE otherwise applies no -O
 # flag at all - effectively -O0 - which is a real trap for an audio engine:
@@ -33,10 +45,21 @@ set(SYNTH_MARCH "native" CACHE STRING "Value passed to -march (e.g. native, x86-
 option(SYNTH_FAST_MATH "Compile with -ffast-math (reassociation, finite-math-only, flush-to-zero at startup). Off keeps only -fno-math-errno." ON)
 if(SYNTH_FAST_MATH)
   set(SYNTH_FP_FLAGS "-ffast-math -fno-math-errno")
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    # Clang optimizes on -ffinite-math-only much harder than GCC does, and
+    # code here uses infinity (e.g. BusEffect::idleAfterSeconds()).
+    string(APPEND SYNTH_FP_FLAGS " -fno-finite-math-only")
+  endif()
 else()
   set(SYNTH_FP_FLAGS "-fno-math-errno")
 endif()
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=${SYNTH_MARCH} -Wall -Wsuggest-override -Werror=return-local-addr -Werror=multichar -Werror=enum-compare -Werror=return-type -Werror=conversion-null -Werror=parentheses -Werror=switch -Werror=address -Werror=trigraphs -Werror=pointer-arith -Werror=cast-qual -Werror=non-virtual-dtor ${SYNTH_FP_FLAGS} -Werror=write-strings -Werror=return-local-addr -Wuninitialized -Wno-suggest-override -Werror=sign-conversion -Werror=sign-compare -Werror=sign-promo -Werror=duplicated-cond -Werror=duplicated-branches -Werror=logical-op -Werror=redundant-decls -Werror=cast-align -Wformat=2 -Werror=format -Werror=shadow -Werror=missing-declarations")
+# -Wno-psabi: without AVX the 32-byte vector types in dsp/Vec8.h are split by the
+# compiler, and GCC warns that passing one by value to a function that isn't
+# inlined would differ between units built with different -march. Everything
+# using them is inline and the whole project is built with one -march.
+# What canvas is built with: no warning flags of ours, and none of its own.
+set(SYNTH_CANVAS_BASE_FLAGS "${CMAKE_CXX_FLAGS} -march=${SYNTH_MARCH} -w")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=${SYNTH_MARCH} -Wall -Wno-psabi -Wsuggest-override -Werror=return-local-addr -Werror=multichar -Werror=enum-compare -Werror=return-type -Werror=conversion-null -Werror=parentheses -Werror=switch -Werror=address -Werror=trigraphs -Werror=pointer-arith -Werror=cast-qual -Werror=non-virtual-dtor ${SYNTH_FP_FLAGS} -Werror=write-strings -Werror=return-local-addr -Wuninitialized -Wno-suggest-override -Werror=sign-conversion -Werror=sign-compare -Werror=sign-promo -Werror=duplicated-cond -Werror=duplicated-branches -Werror=logical-op -Werror=redundant-decls -Werror=cast-align -Wformat=2 -Werror=format -Werror=shadow -Werror=missing-declarations")
 # -Wnull-dereference deliberately not enabled: at -O2 with heavy inlining it
 # produces false positives inside ordinary std::vector/std::unordered_map
 # iteration (GCC misattributes an optimizer-derived diagnostic through the
@@ -61,14 +84,17 @@ if(SYNTH_ENABLE_SANITIZERS)
 endif()
 
 # Engine library: song model, playback, instruments and effects. Has no
-# dependency on the terminal UI (notcurses) or audio device (ALSA), so it can
+# dependency on the terminal UI or audio device (ALSA), so it can
 # be linked into the test suite and any future offline tooling.
 add_library(synth_engine STATIC
+	src/doc/Document.cpp
+	src/doc/UndoHistory.cpp
 	src/instruments/Oscillator.cpp
 	src/instruments/PadSynth.cpp
 	src/instruments/Noise.cpp
 	src/instruments/FM.cpp
 	src/instruments/Additive.cpp
+	src/instruments/AdditiveModel.cpp
 	src/instruments/SinusoidBank.cpp
 	src/instruments/OscillatorShapingChain.cpp
 	src/instruments/PadSynthPartialProfile.cpp
@@ -79,12 +105,19 @@ add_library(synth_engine STATIC
 	src/instruments/SoundFont.cpp
 	src/instruments/SF2Modulator.cpp
 	src/model/Song.cpp
+	src/model/PlaybackContent.cpp
+	src/model/PatternView.cpp
+	src/model/SampleStore.cpp
+	src/model/ClipView.cpp
+	src/model/ArrangementView.cpp
 	src/model/Clip.cpp
 	src/model/SongObject.cpp
 	src/model/LeafTrack.cpp
 	src/model/InstrumentTrack.cpp
 	src/model/PercussionTrack.cpp
 	src/model/InstrumentPool.cpp
+	src/model/TrackNodes.cpp
+	src/model/TrackCompiler.cpp
 	src/model/SongStructure.cpp
 	src/model/RhythmPatternLibrary.cpp
 	third_party/tinyxml2/tinyxml2.cpp
@@ -111,32 +144,37 @@ add_library(synth_engine STATIC
 	src/effects/TapeDegradation.cpp
 	src/dsp/TapeTransport.cpp
 	src/playback/Player.cpp
-	src/playback/SessionPlayer.cpp
+	src/playback/ClipPlayer.cpp
 	src/playback/MidiNoteInput.cpp
 	src/playback/VisualizationThread.cpp
 	src/dsp/DiracAnalyzer.cpp
 	src/instruments/OscillatorKernel.cpp
-	src/instruments/Arpeggiator.cpp
-	src/state/ArpeggiatorState.cpp
+	src/audio/DeviceSettings.cpp
 	src/audio/OfflineRenderer.cpp
+	src/audio/NullAudio.cpp
 	src/audio/SampleFileLoader.cpp
 	src/audio/TimeStretcher.cpp
 	src/model/PatternBlockOps.cpp
+	src/model/JustIntonation.cpp
 	src/model/PatternGrid.cpp
 	src/model/ArrangementOps.cpp
 	src/ui/tui/PatternScroll.cpp
 	src/ui/ArrangementPatternSource.cpp
 	src/ui/ScenePatternSource.cpp
-	src/ui/Markdown.cpp
 	src/launchpad/LaunchpadLayout.cpp
 	src/launchpad/LaunchpadProtocol.cpp
-	src/instruments/DrumRankTable.cpp
 	src/model/SampleTrack.cpp
 	src/model/SampleContent.cpp
 	src/model/WaveformPeaks.cpp
 	src/ambisonic/MixerFactory.cpp
-	src/util/Utf8.cpp
 	src/util/ShutdownSignal.cpp
+	src/util/FileOpen.cpp
+	src/cli/CommonOptions.cpp
+	src/util/Notifier.cpp
+	src/util/Paths.cpp
+	src/util/ThreadSupport.cpp
+	src/util/WaitSet.cpp
+	src/launchpad/LaunchpadIO.cpp
 )
 target_include_directories(synth_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 # Vendored code (third_party/) as a SYSTEM include path: headers reached
@@ -148,27 +186,50 @@ target_include_directories(synth_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_include_directories(synth_engine SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 set_source_files_properties(third_party/tinyxml2/tinyxml2.cpp PROPERTIES COMPILE_OPTIONS "-w")
 target_link_libraries(synth_engine PUBLIC m sndfile fmt pthread)
-
-# libunistring backs src/util/Utf8.h's grapheme-cluster-aware UTF-8
-# truncation/width helpers (used by PatternEditor::renderHeading() to
-# truncate track/instrument names without corrupting a multi-byte
-# character or splitting a grapheme cluster - see docs/known_bugs.md's
-# history on this). Not optional the way libmysofa is: there's no
-# graceful fallback for "not UTF-8-aware" the way there is for binaural
-# vs. cardioid decoding, and its runtime half (libunistring5) is already
-# a hard dependency of notcurses itself (`apt-cache depends
-# libnotcurses-dev` lists it), so there's no real environment where this
-# project builds but libunistring is genuinely unavailable. No
-# pkg-config file ships with libunistring-dev on Ubuntu (confirmed), so
-# this uses the same find_library/find_path shape as libmysofa below
-# rather than find_package.
-find_library(UNISTRING_LIBRARY unistring)
-find_path(UNISTRING_INCLUDE_DIR unigbrk.h)
-if(NOT (UNISTRING_LIBRARY AND UNISTRING_INCLUDE_DIR))
-  message(FATAL_ERROR "libunistring not found (install libunistring-dev)")
+if(WIN32)
+  target_link_libraries(synth_engine PUBLIC avrt ole32 uuid winmm)
+  # The Windows audio and MIDI backends; the engine library holds them like
+  # the portable ones, and the interactive program picks them up from there.
+  target_sources(synth_engine PRIVATE
+    src/audio/AudioDevicesWasapi.cpp
+    src/audio/WasapiAudio.cpp
+    src/audio/WasapiEndpoints.cpp
+    src/midi/WinMmDevices.cpp
+    src/midi/WinMmMidiInput.cpp
+    src/midi/WinMmMidiPorts.cpp)
 endif()
-target_include_directories(synth_engine PRIVATE ${UNISTRING_INCLUDE_DIR})
-target_link_libraries(synth_engine PUBLIC ${UNISTRING_LIBRARY})
+
+target_include_directories(synth_engine PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+
+# Cell UI (lib/cellui): the UI library, which also owns the libunistring
+# dependency (grapheme-aware text width). Built with these same flags.
+enable_testing()  # before the subdirectory, so its tests register here too
+# It also brings canvas (2D drawing for the scopes' pixel versions), built
+# without our warning flags.
+set(CELLUI_CANVAS_CXX_FLAGS "${SYNTH_CANVAS_BASE_FLAGS}")
+# The window backend (cellui/gtk/, --ui window) is optional: GTK 4.10 or later,
+# Linux only, found with pkg-config, and without it the terminal is the only
+# UI (cmake says so).
+set(SYNTH_ENABLE_GTK_DEFAULT OFF)
+if(NOT WIN32 AND NOT APPLE)
+  find_package(PkgConfig QUIET)
+  if(PkgConfig_FOUND)
+    pkg_check_modules(SYNTH_GTK4 QUIET gtk4>=4.10)
+  endif()
+  if(SYNTH_GTK4_FOUND)
+    set(SYNTH_ENABLE_GTK_DEFAULT ON)
+  endif()
+endif()
+option(SYNTH_ENABLE_GTK "Build the GTK 4 window UI (--ui window)" ${SYNTH_ENABLE_GTK_DEFAULT})
+if(SYNTH_ENABLE_GTK AND NOT SYNTH_GTK4_FOUND)
+  message(FATAL_ERROR "SYNTH_ENABLE_GTK requested but GTK 4.10 or later was not found (install libgtk-4-dev)")
+endif()
+if(NOT SYNTH_ENABLE_GTK)
+  message(STATUS "Window UI: not built (GTK 4.10 or later not enabled or not found; --ui window unavailable)")
+endif()
+set(CELLUI_ENABLE_GTK ${SYNTH_ENABLE_GTK})
+add_subdirectory(lib/cellui)
+target_link_libraries(synth_engine PUBLIC cellui)
 
 # SoundTouch (pitch-preserving time-stretch, src/audio/TimeStretcher.cpp -
 # used by SampleTrackState::triggerClip() when a clip's own recorded tempo
@@ -246,30 +307,85 @@ configure_file(
 	@ONLY
 )
 
-# add the executable
-add_executable(synth src/main.cpp
-	src/ui/UI.cpp
-	src/audio/AlsaAudio.cpp
-	src/launchpad/LaunchpadIO.cpp
-	src/launchpad/LaunchpadManager.cpp
-	src/ui/headless/HeadlessUI.cpp
-	src/util/Daemon.cpp
-	src/ui/tui/TerminalUI.cpp
-	src/ui/tui/EscapeCoalescer.cpp
-	src/ui/tui/NotcursesInputEventSource.cpp
-	src/ui/tui/OutlineView.cpp
-	src/ui/tui/InfoDialog.cpp
-	src/ui/tui/PatternEditor.cpp
-	src/ui/tui/ArrangementGrid.cpp
-	src/ui/tui/InlineEditor.cpp
-	src/ui/tui/ClipGrid.cpp
-	src/ui/tui/ChannelMeter.cpp
-	src/ui/tui/SpectrumMeter.cpp
-	src/ui/tui/SubcellGlyphs.cpp
-)
-target_include_directories(synth PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+if(SYNTH_BUILD_INTERACTIVE)
+  # The UI layer (the app-level UI, the Launchpad logic, the headless
+  # backend and, if built, the terminal UI) is a library of its own so the
+  # tests can drive the terminal UI on Cell UI's test terminal.
+  add_library(synth_ui STATIC
+  	src/ui/CommandDescriptions.cpp
+  	src/ui/UI.cpp
+  	src/launchpad/LaunchpadManager.cpp
+  	src/ui/headless/HeadlessUI.cpp
+  )
+  target_link_libraries(synth_ui PUBLIC synth_engine)
+  if(SYNTH_BUILD_TERMINAL_UI)
+    target_sources(synth_ui PRIVATE
+      src/ui/tui/TerminalUI.cpp
+      src/ui/tui/OutlineView.cpp
+      src/ui/tui/PatternEditor.cpp
+      src/ui/tui/ArrangementGrid.cpp
+      src/ui/tui/ClipGrid.cpp)
+  endif()
 
-target_link_libraries(synth synth_engine asound notcurses++ notcurses notcurses-core)
+  # add the executable
+  add_executable(synth src/main.cpp
+  	src/util/Daemon.cpp
+  )
+  target_include_directories(synth PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+  target_link_libraries(synth synth_ui)
+
+  if(NOT WIN32)
+    # AudioDevices lists the choices UI's device pickers show.
+    target_sources(synth_ui PRIVATE src/audio/AudioDevices.cpp)
+    target_sources(synth PRIVATE
+      src/audio/AlsaAudio.cpp
+      src/midi/AlsaMidiPorts.cpp)
+    target_sources(synth_ui PRIVATE src/midi/AlsaMidiInput.cpp)
+    target_link_libraries(synth_ui PUBLIC asound)
+    target_link_libraries(synth asound)
+  endif()
+
+  if(SYNTH_BUILD_TERMINAL_UI)
+    target_compile_definitions(synth PRIVATE SYNTH_TERMINAL_UI)
+    if(SYNTH_ENABLE_GTK)
+      target_compile_definitions(synth PRIVATE SYNTH_GTK_UI)
+    endif()
+  endif()
+
+  if(NOT WIN32)
+  # Optional PipeWire: lets the device pickers and --list-devices list the
+  # audio server's own inputs and outputs (AudioDevices.cpp). Selection itself
+  # goes through ALSA's pipewire plugin, so nothing else changes; without
+  # libpipewire the lists fall back to ALSA's own PCM names, which on a
+  # PipeWire system show little more than "default".
+  find_package(PkgConfig QUIET)
+  if(PkgConfig_FOUND)
+    pkg_check_modules(PIPEWIRE IMPORTED_TARGET libpipewire-0.3)
+  endif()
+  if(PIPEWIRE_FOUND)
+    set(SYNTH_ENABLE_PIPEWIRE_DEFAULT ON)
+  else()
+    set(SYNTH_ENABLE_PIPEWIRE_DEFAULT OFF)
+  endif()
+  option(SYNTH_ENABLE_PIPEWIRE "Build with libpipewire for listing PipeWire devices" ${SYNTH_ENABLE_PIPEWIRE_DEFAULT})
+  if(NOT SYNTH_ENABLE_PIPEWIRE)
+    message(STATUS "libpipewire not used: the device pickers will list sound cards only"
+                   " (install libpipewire-0.3-dev and re-run cmake for the audio server's own list)")
+  endif()
+  if(SYNTH_ENABLE_PIPEWIRE)
+    if(NOT PIPEWIRE_FOUND)
+      message(FATAL_ERROR "SYNTH_ENABLE_PIPEWIRE requested but libpipewire was not found (install libpipewire-0.3-dev)")
+    endif()
+    target_compile_definitions(synth_ui PRIVATE SYNTH_HAVE_PIPEWIRE)
+    target_link_libraries(synth_ui PUBLIC PkgConfig::PIPEWIRE)
+  endif()
+  endif()
+
+else()
+  add_executable(synth src/main_render.cpp)
+  target_include_directories(synth PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+  target_link_libraries(synth synth_engine)
+endif()
 
 install(TARGETS synth RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES songs/welcome.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/synth/songs)

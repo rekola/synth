@@ -15,22 +15,22 @@
 // a small named base waveform, harmonic expansion, and optional waveshaper/
 // filter/warp/spectrum-adjustment/shift stages (docs/padsynth.md's own
 // "Oscillator shape" section). Produces A[h], h = 1 .. kHarmonicCount - 1
-// (kHarmonicCount-1 = 255 total harmonics, from a fixed N=512-point
+// (kHarmonicCount-1 = 511 total harmonics, from a fixed N=1024-point
 // oscillator table), the per-harmonic magnitude profile a PADsynth
 // preset's own oscillator shape actually has, before the anchored-
 // spectral-envelope remap (dsp/SpectralEnvelopeRemap.h) and PADsynth
 // rendering (PadSynthTable.h) run on top of it.
 //
 // Every stage here is deterministic and allocation-light (each call builds
-// its own small fixed-size (512-point) FFT plan via RealFFT - acceptable
+// its own small fixed-size (1024-point) FFT plan via RealFFT - acceptable
 // since this only ever runs at preset/table-build time, never per-sample
 // or per-note); "the importer must reject any other value" is enforced by
 // throwing std::invalid_argument for any enum field outside the values
 // this file actually implements, rather than silently guessing.
 namespace OscillatorShaping {
 
-constexpr int kSize = 512;               // N
-constexpr int kHarmonicCount = kSize / 2; // k = 0 .. kHarmonicCount-1 (255 = highest harmonic)
+constexpr int kSize = 1024;              // N
+constexpr int kHarmonicCount = kSize / 2; // k = 0 .. kHarmonicCount-1 (511 = highest harmonic)
 
 // base_function - only the values the presets here actually use.
 enum class BaseFunction {

@@ -4,7 +4,9 @@
 #include "../audio/AudioBuffer.h"
 #include "WaveformPeaks.h"
 
+#include <atomic>
 #include <cmath>
+#include <cstdint>
 #include <memory>
 
 class ParameterSource;
@@ -28,8 +30,41 @@ class ParameterSource;
 // buffer-holding leaf voice in this codebase already has.
 class SampleContent {
  public:
+  SampleContent() = default;
+  // A copy shares the audio buffer and the tempo-stretch cache (so a copy
+  // handed to the audio thread doesn't throw away work it has already done)
+  // and keeps the same identity(); the waveform cache is the UI's own and is
+  // rebuilt lazily by whoever needs it.
+  SampleContent(const SampleContent & other)
+      : buffer_(other.buffer_), in_point_(other.in_point_), out_point_(other.out_point_),
+        original_tempo_(other.original_tempo_), native_sample_rate_(other.native_sample_rate_),
+        identity_(other.identity_), stretch_cache_(other.sharedStretchCache()) { }
+  SampleContent & operator=(const SampleContent & other) {
+    if (this != &other) {
+      buffer_ = other.buffer_;
+      in_point_ = other.in_point_;
+      out_point_ = other.out_point_;
+      original_tempo_ = other.original_tempo_;
+      native_sample_rate_ = other.native_sample_rate_;
+      identity_ = other.identity_;
+      stretch_cache_ = other.sharedStretchCache();
+      waveform_peaks_ = WaveformPeaks();
+      waveform_peaks_dirty_ = true;
+      waveform_peaks_built_frame_count_ = -1;
+    }
+    return *this;
+  }
+  SampleContent(SampleContent &&) = default;
+  SampleContent & operator=(SampleContent &&) = default;
+
+  // Names this audio across copies: stable while the content is only copied,
+  // new whenever it is replaced or edited. 0 for content with no buffer.
+  // Playback compares these across blocks, where a pointer to a copy could
+  // not be compared.
+  uint64_t identity() const { return identity_; }
+
   const std::shared_ptr<AudioBuffer> & getBuffer() const { return buffer_; }
-  void setBuffer(std::shared_ptr<AudioBuffer> buffer) { buffer_ = std::move(buffer); waveform_peaks_dirty_ = true; stretched_dirty_ = true; }
+  void setBuffer(std::shared_ptr<AudioBuffer> buffer) { buffer_ = std::move(buffer); changed(); }
 
   // Rows the whole buffer spans at `tempo`, rounded up - a row is a
   // sixteenth, 4 * tempo rows a minute.
@@ -48,9 +83,9 @@ class SampleContent {
   // differently-sized buffer replaced this one. Hand-editable in the XML;
   // no in-app editing command in this pass.
   float getInPoint() const { return in_point_; }
-  void setInPoint(float seconds) { in_point_ = seconds; waveform_peaks_dirty_ = true; stretched_dirty_ = true; }
+  void setInPoint(float seconds) { in_point_ = seconds; changed(); }
   float getOutPoint() const { return out_point_; }
-  void setOutPoint(float seconds) { out_point_ = seconds; waveform_peaks_dirty_ = true; stretched_dirty_ = true; }
+  void setOutPoint(float seconds) { out_point_ = seconds; changed(); }
 
   // The tempo this audio was actually captured/authored at - 0 means
   // unknown/not set, the same "don't invent a number you can't actually
@@ -62,7 +97,7 @@ class SampleContent {
   // way playback can ever know whether (and how) to time-stretch this
   // audio to match the song's own current tempo.
   short getOriginalTempo() const { return original_tempo_; }
-  void setOriginalTempo(short bpm) { original_tempo_ = bpm; waveform_peaks_dirty_ = true; stretched_dirty_ = true; }
+  void setOriginalTempo(short bpm) { original_tempo_ = bpm; changed(); }
 
   // The sample rate getBuffer() is actually at - may differ from the
   // project's own *current* output rate (e.g. a song recorded at 192kHz,
@@ -77,7 +112,7 @@ class SampleContent {
   // just remembers whatever rate it was captured at for as long as this
   // object stays in memory.
   int getNativeSampleRate() const { return native_sample_rate_; }
-  void setNativeSampleRate(int rate) { native_sample_rate_ = rate; waveform_peaks_dirty_ = true; stretched_dirty_ = true; }
+  void setNativeSampleRate(int rate) { native_sample_rate_ = rate; changed(); }
 
   // Clip's own row-indexed RMS amplitude cache (WaveformPeaks.h) actually
   // lives here, alongside the buffer/trim points it's built from - every
@@ -136,13 +171,13 @@ class SampleContent {
   // *original* tempo would otherwise force a wasted rebuild even though
   // nothing about this clip's own audio actually changed).
   std::shared_ptr<AudioBuffer> getStretchedBuffer(int song_tempo) const {
-    if (stretched_dirty_ || stretched_song_tempo_ != song_tempo) return nullptr;
-    return stretched_buffer_;
+    if (!stretch_cache_ || stretch_cache_->song_tempo != song_tempo) return nullptr;
+    return stretch_cache_->buffer;
   }
   void setStretchedBuffer(std::shared_ptr<AudioBuffer> buffer, int song_tempo) const {
-    stretched_buffer_ = std::move(buffer);
-    stretched_song_tempo_ = song_tempo;
-    stretched_dirty_ = false;
+    auto cache = sharedStretchCache();
+    cache->buffer = std::move(buffer);
+    cache->song_tempo = song_tempo;
   }
 
   // Reads/writes in_point_/out_point_/original_tempo_ (<sample in="..."
@@ -174,12 +209,31 @@ class SampleContent {
   // first build (frame_count 0) doesn't read as already-cached.
   mutable int waveform_peaks_built_frame_count_ = -1;
 
-  // getStretchedBuffer()/setStretchedBuffer()'s own cache - mutable for
-  // the same reason as the waveform cache above, but this class never
-  // builds it itself (see getStretchedBuffer()'s own comment).
-  mutable std::shared_ptr<AudioBuffer> stretched_buffer_;
-  mutable int stretched_song_tempo_ = 0;
-  mutable bool stretched_dirty_ = true;
+  // getStretchedBuffer()/setStretchedBuffer()'s own cache - this class never
+  // builds it itself (see getStretchedBuffer()'s own comment). Shared by
+  // every copy of this content, and replaced (not cleared) when the content
+  // changes, so a copy made before the change keeps a cache that still
+  // matches its own audio.
+  struct StretchCache {
+    std::shared_ptr<AudioBuffer> buffer;
+    int song_tempo = 0;
+  };
+  std::shared_ptr<StretchCache> sharedStretchCache() const {
+    if (!stretch_cache_) stretch_cache_ = std::make_shared<StretchCache>();
+    return stretch_cache_;
+  }
+  void changed() {
+    waveform_peaks_dirty_ = true;
+    stretch_cache_.reset();
+    identity_ = buffer_ ? nextIdentity() : 0;
+  }
+  static uint64_t nextIdentity() {
+    static std::atomic<uint64_t> counter{1};
+    return counter.fetch_add(1);
+  }
+
+  uint64_t identity_ = 0;
+  mutable std::shared_ptr<StretchCache> stretch_cache_;
 };
 
 #endif

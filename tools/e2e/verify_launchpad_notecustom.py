@@ -2,11 +2,11 @@
 
 1. Note (CC96) previously had no active-state LED at all (always the
    same static dim white) - it now lights up (same convention as
-   Session/Custom) once GridMode::NOTES is actually selected.
+   Live/Custom) once GridMode::NOTES is actually selected.
 2. Custom (CC97) previously (as DRAW, before it moved to Capture MIDI/
    CC98) only switched GridMode on *release* - it now switches
    immediately on press (LaunchpadManager::handleRawButton()), matching
-   CC95's own instant Session switch. Verified by confirming Custom's
+   CC95's own instant Live switch. Verified by confirming Custom's
    own bright LED arrives while CC97 is still held down, before any
    release is ever sent."""
 import sys, os, subprocess, time
@@ -60,7 +60,7 @@ check("synth sent a Programmer-Mode-enter SysEx to the simulated device",
       "0e 01" in fake_output.replace(",", " "), fake_output)
 
 # CC96 (led index 0x60) bright white once NOTES is actually selected -
-# same (90,90,90) active-state color Session/Custom already use.
+# same (90,90,90) active-state color Live/Custom already use.
 check("CC96 (Note) LED lit up once NOTES mode was actually selected",
       "60 5a 5a 5a" in fake_output, fake_output)
 

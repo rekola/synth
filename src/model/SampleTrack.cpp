@@ -31,7 +31,7 @@ namespace {
 // by its own track creating a fresh voice each lap (SongState.h's
 // per-row scheduling, mirroring how a looping Pattern's own note re-fires
 // every time its row wraps around, and how LaunchpadManager::
-// fireOrTriggerClipStep() already does this for Session-view triggering)
+// fireOrTriggerClipStep() already does this for Live-View triggering)
 // rather than one voice looping internally - closer to how every other
 // track type already works, and it naturally gets both halves of "the
 // clip's own length is the loop, not the audio's" for free: a new
@@ -51,7 +51,7 @@ public:
       release_length_frames_(std::max(1, static_cast<int>(kReleaseSeconds * channel_config.getAudioOutSampleRate()))) {
     // Full velocity, unity gain, a fixed identity - triggerClip() always
     // fires a fresh voice at the same nominal strength (there's no
-    // performance-velocity input for a Session-view/transport-triggered
+    // performance-velocity input for a Live-View/transport-triggered
     // clip the way a played note has); note_value_ still gets a real
     // value (0, not -1) so getOwnLoudnessFactor()/getAllActiveVoices()
     // report this voice as genuinely active for LED/UI feedback.
@@ -368,7 +368,7 @@ SampleTrackState::triggerVoice(const SampleContent & content, int song_tempo, in
   }
 
   // Explicitly stops whatever this same voice was already playing first:
-  // a live Session-view swap between two different clips on this track
+  // a live Live-View swap between two different clips on this track
   // has no other mechanism to end the old one the way a transport-driven
   // transition already does via SongState.h's own stopAllVoices() call,
   // and a fresh background-bed trigger (a jump into it, a resume)

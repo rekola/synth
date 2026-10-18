@@ -1,4 +1,4 @@
-// Simulated Launchpad X that enters Session's own mixer submode (CC95
+// Simulated Launchpad X that enters Live's own mixer submode (CC95
 // pressed a second time - see LaunchpadManager.h's own GridMode comment),
 // toggles into Send A grid mode (CC69), presses a grid pad to change
 // track 0's Send A level, and releases - exercises
@@ -64,9 +64,9 @@ int main() {
   fprintf(stderr, "fake Launchpad X (send mode) ready as client %d port %d\n", snd_seq_client_id(seq), port);
 
   fake_wait_ready(seq, "at startup");
-  drain(seq, "idle - SESSION mode (the connect-time default)");
+  drain(seq, "idle - LIVE mode (the connect-time default)");
 
-  fprintf(stderr, "sending CC95 press+release (enters Session's own mixer submode)\n");
+  fprintf(stderr, "sending CC95 press+release (enters Live's own mixer submode)\n");
   send_cc(seq, port, 95, 127);
   usleep(200000);
   send_cc(seq, port, 95, 0);
@@ -87,7 +87,7 @@ int main() {
   sleep(1); // let the redraw tick pick up the new Send A value and repaint
   drain(seq, "after pad press - Send A changed");
 
-  fprintf(stderr, "sending CC69 press+release (closes Send A, back to Session view)\n");
+  fprintf(stderr, "sending CC69 press+release (closes Send A, back to Live View)\n");
   send_cc(seq, port, 69, 127);
   usleep(200000);
   send_cc(seq, port, 69, 0);

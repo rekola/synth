@@ -10,6 +10,7 @@
 #include "../dsp/Metronome.h"
 #include "../model/RhythmPatternLibrary.h"
 
+#include <deque>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -116,6 +117,10 @@ private:
   // active or playing - a release tail must keep sounding), dropped only
   // on BUFFER_KILLED.
   std::unordered_map<std::string, std::unique_ptr<SongState>> live_states_;
+  // The last snapshot sent per buffer (signature, sent at all).
+  std::unordered_map<std::string, std::pair<uint64_t, bool>> last_snapshot_signature_;
+  // How long the active buffer has been silent by structure, see play().
+  long silent_frames_ = 0;
 
   // Which live_states_ entry (empty when nothing is playing) actually has
   // its pattern position auto-advanced each block. A single name, not a
@@ -152,6 +157,10 @@ private:
   // freshly-built SongState's).
   struct PendingPosition { int row; int edit_seq; };
   std::unordered_map<std::string, PendingPosition> pending_positions_;
+  // Events between a BATCH_BEGIN and its BATCH_END, handled together at the end.
+  bool batch_open_ = false;
+  std::deque<std::unique_ptr<Event>> batch_events_;
+  void handleQueuedEvent(std::unique_ptr<Event> event);
 
   // Get-or-creates buffer `name`'s own live SongState against `song`,
   // constructing and initializing a fresh one the first time any event
@@ -172,12 +181,17 @@ private:
   // pool-slot Track) but otherwise start/retrigger preview_note_voice_
   // identically, including the fastRelease()-into-preview_voices_
   // retrigger handling preview_note_voice_'s own doc comment describes.
-  void startPreviewNote(const Track * instrument, const Song & song, int note_value, int velocity);
+  void startPreviewNote(const Track * instrument, Tuning tuning, int note_value, int velocity);
 
   ChannelConfiguration channel_config_;
   Controller * controller_;
   bool terminate_ = false;
   bool mixer_changed_ = false;
+  // Set by play() for the duration of the loop, so handlePlaybackControlEvent()
+  // can reach the device (SET_CAPTURE_DEVICE/SET_PLAYBACK_DEVICE).
+  AudioAPI * audio_ = nullptr;
+  // A device switch replaced poll descriptors; play() rebuilds its poll set.
+  bool devices_changed_ = false;
   // play()'s own poll loop - the previous iteration's Controller::
   // isRecording(), compared against the current one to detect recording
   // actually engaging (see play()'s own comment on why this is where the
@@ -226,7 +240,7 @@ private:
   dsp::Metronome metronome_click_;
   // Queues a click for each beat row the playing `state` starts within the
   // next `frames` frames.
-  void scheduleMetronome(const SongState & state, const Song & song, int frames);
+  void scheduleMetronome(const SongState & state, int frames);
   AudioBuffer renderMetronome(int frames);
 
   // Live input's round-trip latency (PlaybackInfo::setRoundTripLatency()),

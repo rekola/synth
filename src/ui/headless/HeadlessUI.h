@@ -27,6 +27,8 @@ class HeadlessUI : public UI {
   void setStatus(std::string s) override;
   // No dialogs here: the content goes to the log.
   void showInfoDialog(const std::string & title, const std::string & markdown) override;
+  void showChoiceDialog(const std::string & title, std::vector<Choice> choices, int current,
+                        std::function<void(int)> on_choose) override;
 
   void handlePlaybackEvent(PlaybackEvent & ev) override;
   void handleLogEvent(LogEvent & ev) override;
@@ -35,7 +37,7 @@ class HeadlessUI : public UI {
   void handleMidiEvent(MidiEvent & ev) override;
 
 protected:
-  void startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) override;
+  void startUI(AudioAPI & audio, MidiInput & midi, LaunchpadIO & launchpad_io) override;
   void wireLaunchpad(LaunchpadManager & launchpad_manager) override;
 
 private:

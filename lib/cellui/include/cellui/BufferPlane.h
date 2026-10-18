@@ -1,0 +1,252 @@
+#pragma once
+
+#include <cellui/BackdropLayer.h>
+#include <cellui/CellBuffer.h>
+#include <cellui/Image.h>
+#include <cellui/LineEditor.h>
+#include <cellui/PlaneInfo.h>
+#include <cellui/UIPlane.h>
+
+#include <memory>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
+namespace cellui {
+
+// A plane that keeps its own cells in memory instead of drawing on a screen,
+// the way a screen's planes do: drawing, moving, resizing, hiding and raising
+// a plane work on the plane, and refresh() on any plane of the tree composes
+// them into the root's CellBuffer - children over their parent in the order
+// they were created or raised, a cell nothing was written to showing what is
+// below it, every child clipped to its parent. A translucent cell
+// (setBgBlend()) averages its background with what is below, and a backdrop
+// cell (setBackdrop()) shows what is below blurred and dimmed, images
+// included: an image under one is shown filtered, whole.
+//
+// It is what the terminal backend draws: the terminal shows the composed
+// buffer. So it also has the reader (a one-line field over its own child
+// plane, edited with LineEditor's keys, its cursor reported by
+// cursorPosition()), the reader's indicator, and the picker (a boxed list
+// in a child plane, moved with the arrows, PgUp/PgDn, the wheel and a
+// click). Widgets can be laid out, drawn and read back in a test, or
+// printed by the gallery.
+class BufferPlane : public UIPlane {
+ public:
+  // The root plane covers the whole buffer.
+  BufferPlane(CellBuffer & target, const StyleProvider & styles, std::shared_ptr<void> app_context = nullptr);
+  ~BufferPlane() override;
+  BufferPlane(const BufferPlane &) = delete;
+  BufferPlane & operator=(const BufferPlane &) = delete;
+
+  void resize(int rows, int cols) override;
+  void moveToTop() override;
+  void setVisible(bool visible) override { visible_ = visible; }
+  void setElevation(float elevation) override { elevation_ = elevation; }
+  float elevation() const override { return elevation_; }
+  void setMouseCursor(MouseCursor cursor) override { mouse_cursor_ = cursor; }
+  MouseCursor mouseCursor() const override { return mouse_cursor_; }
+  bool isVisible() const { return visible_; }
+  void setName(const std::string & name) override { name_ = name; }
+  // This plane and the planes on it, as they are now.
+  PlaneInfo describe() const;
+
+  void setFgColor(int r, int g, int b) override { style_.fg = Color(r, g, b); }
+  void setBgColor(int r, int g, int b) override { style_.bg = Color(r, g, b); }
+  void setBgDefault() override {
+    style_.bg.reset();
+    base_bg_.reset();
+  }
+  // Where nothing is written the plane shows what is below it, glyph and
+  // colours alike, even with a themed base.
+  void makeTransparent() override { base_bg_.reset(); }
+  void setUnderline(bool b) override { style_.underline = b; }
+  void setBold(bool b) override { style_.bold = b; }
+  void setItalic(bool b) override { style_.italic = b; }
+  void setBgBlend(bool b) override { style_.bg_blend = b; }
+  void setFgContrast(bool b) override { style_.fg_contrast = b; }
+  void setBackdrop(const Backdrop & b) override { style_.backdrop = b; }
+  void setLift(float lift, bool joins_above) override {
+    style_.lift = lift;
+    style_.lift_joined = joins_above;
+  }
+  void setScrollOffset(double rows, double cols) override;
+  void setBand(const Band & band) override {
+    if (root().smooth_scroll_) band_ = band;
+  }
+  void clearBand() override { band_.reset(); }
+  // Whether the display can shift a plane by a fraction of a cell; planes
+  // are shown unshifted otherwise (root only).
+  void setSmoothScroll(bool smooth) { smooth_scroll_ = smooth; }
+  bool smoothScroll() const override { return root().smooth_scroll_; }
+  void erase() override {
+    local_.clear(0, 0, local_.rows(), local_.cols());
+    // Kept, so the same picture drawn again after erase() is not sent again.
+    erased_images_ = std::move(images_);
+    images_.clear();
+  }
+  void putstr(int y, int x, const std::string & s) override;
+  std::unique_ptr<UIPlane> createChild() override;
+  void drawBorder() override;
+  // Feeds the reader or the picker, whichever is open.
+  bool offerInput(const Input & input) override;
+  // Composes the whole tree into the root's buffer.
+  void refresh() override;
+
+  void showReader(const std::string & prompt, int y, int x, int rows, int cols, const std::string & initial_text,
+                  std::optional<Color> text_color) override;
+  std::string closeReader() override;
+  bool readerActive() const override { return editor_ != nullptr; }
+  std::string getReaderContents() const override { return editor_ ? editor_->text() : ""; }
+  void setReaderContents(const std::string & text) override;
+  // Inserts text at the reader's cursor (a paste).
+  void insertReaderText(const std::string & text);
+  // The same, into whichever reader of the tree is open; newlines become
+  // spaces, as a field is one line. Returns whether one was (root only).
+  bool insertIntoReader(const std::string & text);
+  void showReaderIndicator(int x, const std::string & s) override;
+  void hideReaderIndicator() override { indicator_.reset(); }
+
+  void showPicker(int y, int x, int rows, int cols, int item_count) override;
+  void addItem(const std::string & id, const std::string & description) override;
+  void selectPickerItem(int index) override;
+  bool pickerActive() const override { return picker_ != nullptr; }
+  std::string getPickerSelection() const override;
+  void closePicker() override;
+
+  // The colours a translucent cell over nothing blends with: the terminal's
+  // own (root only).
+  void setDefaultColors(Color fg, Color bg) {
+    default_fg_ = fg;
+    default_bg_ = bg;
+  }
+  bool pixelSize(int & height, int & width) const override;
+  bool cellPixelSize(int & height, int & width) const override;
+  void drawImage(const std::vector<uint32_t> & pixels, int width, int height, uint64_t id = 0) override;
+  void drawImageAt(int row, int col, const std::vector<uint32_t> & pixels, int width, int height, uint64_t id = 0, int clip_top = INT_MIN,
+                   int clip_bottom = INT_MAX) override;
+  // The cell size in pixels, 0 when pixels cannot be shown (root only).
+  void setCellPixelSize(int height, int width) {
+    cell_px_h_ = height;
+    cell_px_w_ = width;
+  }
+  // The images the last refresh() composed, bottom to top (root only).
+  const std::vector<ImagePlacement> & images() const { return placements_; }
+  // With flat children, createChild() on any plane of the tree makes a plane
+  // of the root's, placed in screen coordinates and stacked by creation
+  // order, not one nested in (and clipped to) the plane it was asked of -
+  // the model the terminal application's widgets were written for, where a
+  // widget's popup can rise above any other widget (root only).
+  void setFlatChildren(bool flat) { flat_ = flat; }
+  // With themed bases, a plane made by createChild() shows the theme's
+  // plane base background (under the glyph below) wherever it writes
+  // nothing, until makeTransparent() (root only).
+  void setThemedBases(bool themed) { themed_bases_ = themed; }
+  // The layers the last refresh() set aside, one for each backdrop: what was
+  // composed below it. A backdrop is the display's to apply, so the frame
+  // holds only what is above it (root only).
+  std::vector<BackdropLayer> takeBackdropLayers() { return std::move(layers_); }
+  // The planes above the base the last refresh() drew, lowest first (root
+  // only).
+  std::vector<ElevatedArea> takeElevations() { return std::move(elevations_); }
+  // The areas planes asked a pointer shape for in the last refresh(), lowest
+  // first (root only).
+  std::vector<CursorArea> takeMouseCursors() { return std::move(mouse_cursors_); }
+  // What canRenderSextants() reports, for the whole tree (root only).
+  void setSextants(bool can) { sextants_ = can; }
+  bool canRenderSextants() const override { return root().sextants_; }
+  // What keymapProfile() reports, for the whole tree (root only).
+  void setKeymapProfile(KeymapProfile profile) { keymap_profile_ = profile; }
+  KeymapProfile keymapProfile() const override { return root().keymap_profile_; }
+  // What displayScale() reports, for the whole tree (root only).
+  void setDisplayScale(double scale) { display_scale_ = scale; }
+  double displayScale() const override { return root().display_scale_; }
+  // Where the terminal's cursor goes: in the open reader, if any (root only).
+  std::optional<std::pair<int, int>> cursorPosition() const;
+  // This plane's top-left corner on the screen.
+  std::pair<int, int> screenPosition() const;
+  // The cells as written, before composition.
+  const CellBuffer & cells() const { return local_; }
+
+ private:
+  struct Picker;
+
+  explicit BufferPlane(BufferPlane & parent);
+  std::unique_ptr<BufferPlane> makeChild() { return std::unique_ptr<BufferPlane>(new BufferPlane(*this)); }
+
+  BufferPlane & root() { return parent_ ? parent_->root() : *this; }
+  const BufferPlane & root() const { return parent_ ? parent_->root() : *this; }
+  // Draws this plane (not its children) onto `out` with its top-left corner
+  // at (row, col), inside the clip rectangle.
+  // `height` is the plane's own above the base (its cells' lifts add to it).
+  void compose(CellBuffer & out, int row, int col, int clip_row, int clip_col, int clip_rows, int clip_cols, float height) const;
+  // A plane to draw, where, inside which clip, and how high: refresh() lists
+  // the shown tree in order, sorts it by height and composes each.
+  struct Paint {
+    const BufferPlane * plane;
+    int row, col, clip_row, clip_col, clip_rows, clip_cols;
+    float elevation;
+  };
+  void collectLifts();
+  void collect(std::vector<Paint> & paints, int row, int col, int clip_row, int clip_col, int clip_rows, int clip_cols, float base) const;
+  bool shown() const;
+  void drawReader();
+  void drawPicker();
+
+  CellBuffer local_;
+  CellBuffer * target_ = nullptr;  // the root's output
+  BufferPlane * parent_ = nullptr;
+  std::vector<BufferPlane *> children_;  // bottom to top
+  CellBuffer::Style style_;
+  // A plane that scrolls by fractions of a cell holds a row and a column
+  // more than its size (overscan_), and composes as a scroll layer while
+  // shifted.
+  double scroll_rows_ = 0, scroll_cols_ = 0;
+  std::optional<Band> band_;
+  bool overscan_ = false;
+  bool visible_ = true;
+  float elevation_ = 0;
+  MouseCursor mouse_cursor_ = MouseCursor::INHERIT;
+  std::string name_;
+
+  // The reader: the text, the plane it shows in, its colour and column.
+  std::unique_ptr<LineEditor> editor_;
+  std::unique_ptr<BufferPlane> reader_plane_;
+  Color reader_color_;
+  int reader_x_ = 0;
+  int reader_cursor_ = 0;
+  std::unique_ptr<BufferPlane> indicator_;
+  std::unique_ptr<Picker> picker_;
+
+  // Root only.
+  BufferPlane * active_reader_ = nullptr;
+  Color default_fg_ = Color(255, 255, 255), default_bg_ = Color(0, 0, 0);
+  double display_scale_ = 1.0;
+  KeymapProfile keymap_profile_ = KeymapProfile::EMACS;
+  bool sextants_ = false;
+  bool smooth_scroll_ = false;
+  mutable std::vector<BackdropLayer> layers_;
+  std::vector<ElevatedArea> elevations_;
+  std::vector<CursorArea> mouse_cursors_;
+  bool flat_ = false;
+  bool themed_bases_ = false;
+  int cell_px_h_ = 0, cell_px_w_ = 0;
+  mutable std::vector<ImagePlacement> placements_;
+  // The background of the cells nothing was written to; unset shows below.
+  std::optional<Color> base_bg_;
+  // The images shown over the plane's cells, by cell position, each under
+  // a key of its own so the backend can tell a moved or redrawn image apart.
+  struct PlacedImage {
+    int row = 0, col = 0;
+    std::shared_ptr<Image> image;
+    uint64_t key = 0;
+    uint64_t identity = 0;  // the caller's id, or a hash of the pixels
+    bool explicit_id = false;
+    int clip_top = INT_MIN, clip_bottom = INT_MAX;  // plane rows it shows in
+  };
+  std::vector<PlacedImage> images_;
+  std::vector<PlacedImage> erased_images_;  // what erase() last took away
+};
+
+}  // namespace cellui

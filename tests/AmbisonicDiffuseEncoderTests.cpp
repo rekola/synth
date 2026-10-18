@@ -180,3 +180,34 @@ TEST(diffuse_encoder_respects_lower_ambisonic_orders) {
   enc.encode(out, in.data(), frames, 1.0f, 1.0f);
   for (int c = 0; c < 4; c++) CHECK(rms(out.getChannelData(c), frames) > 0.0);
 }
+
+TEST(diffuse_encoder_output_does_not_depend_on_how_the_block_is_cut) {
+  // Longer than any chain's longest delay (20ms), so every stage wraps its
+  // circular buffer several times, and cut at lengths that are not multiples
+  // of the vector width.
+  constexpr int kFrames = 3000;
+  constexpr int kChannels = 16;
+  auto mono = whiteNoise(kFrames, 7);
+
+  AmbisonicDiffuseEncoder whole(44100, 0), cut(44100, 0);
+  auto a = makeAmbisonicAccumulator(kChannels, kFrames);
+  auto b = makeAmbisonicAccumulator(kChannels, kFrames);
+  a.zero();
+  b.zero();
+  whole.encode(a, mono.data(), kFrames, 1.0f, 0.5f);
+
+  const int cuts[] = { 1, 7, 8, 9, 100, 513, 1000, 1, 3, 1358 };
+  int at = 0;
+  for (int len : cuts) {
+    AudioBuffer piece(static_cast<short>(kChannels), len);
+    piece.zero();
+    cut.encode(piece, mono.data() + at, len, 1.0f, 0.5f);
+    for (int c = 0; c < kChannels; c++)
+      for (int i = 0; i < len; i++) b.getChannelData(c)[at + i] = piece.getChannelData(c)[i];
+    at += len;
+  }
+  CHECK(at == kFrames);
+
+  for (int c = 0; c < kChannels; c++)
+    for (int i = 0; i < kFrames; i++) CHECK_NEAR(a.getChannelData(c)[i], b.getChannelData(c)[i], 1e-6f);
+}

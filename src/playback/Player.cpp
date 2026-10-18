@@ -1,3 +1,4 @@
+#include <cstdio>
 #include "Player.h"
 #include "../audio/AudioAPI.h"
 #include "../Controller.h"
@@ -11,12 +12,12 @@
 #include "ThresholdRecordingTriggeredEvent.h"
 #include "PlaybackControlEvent.h"
 #include "AudioBlockEvent.h"
+#include "VisualizationThread.h"
 
 #include "../ambisonic/MixerFactory.h"
 #include "../state/LeafTrackState.h"
 #include "../state/InstrumentTrackState.h"
 #include "../state/SampleTrackState.h"
-#include "../state/NoteOrigin.h"
 #include "../model/NoteCoordinate.h"
 #include "../model/Clip.h"
 
@@ -76,14 +77,10 @@ Player::stateFor(const string & name, const Song & song) {
   // (see its own comment) - getState() itself is cheap (plain
   // construction, no real DSP work), so nothing here needs the lock held
   // any longer than the pointer copy takes.
-  std::vector<Track *> track_snapshot;
   {
-    std::lock_guard<std::mutex> guard(song.getTracksMutex());
-    track_snapshot.reserve(song.getMasterTrack().getChildren().size());
-    for (auto & track : song.getMasterTrack().getChildren()) track_snapshot.push_back(track.get());
+    auto content = song.readContent();
+    for (auto & track : content->tracks->master->getChildren()) track->getState(*state, state->getSongStructure());
   }
-  // Return value unused - getState() attaches the built state into *state as a side effect, which is all this loop is for.
-  for (auto * track : track_snapshot) track->getState(*state, state->getSongStructure());
 
   // Row navigation while this buffer was still stateless (see the
   // MOVE_POSITION/SET_POSITION cases in handlePlaybackControlEvent()) left
@@ -107,7 +104,7 @@ Player::stateFor(const string & name, const Song & song) {
 }
 
 void
-Player::startPreviewNote(const Track * instrument, const Song & song, int note_value, int velocity) {
+Player::startPreviewNote(const Track * instrument, Tuning tuning, int note_value, int velocity) {
   Note note(note_value, velocity);
   // Whatever was already occupying this slot gets its own natural
   // stopNote() release and moved into preview_voices_ to finish its own
@@ -122,7 +119,7 @@ Player::startPreviewNote(const Track * instrument, const Song & song, int note_v
     preview_note_voice_->stopNote();
     preview_voices_.push_back(std::move(preview_note_voice_));
   }
-  preview_note_voice_ = instrument->playNote(channel_config_, SphericalPosition{}, song.getTuning(), 1.0f,
+  preview_note_voice_ = instrument->playNote(channel_config_, SphericalPosition{}, SpatialMode::AUTO, tuning, 1.0f,
                                               note.getVelocityAsFloat(), note.getValue(), SendLevels{},
                                               NoteCoordinate(-1, live_note_counter_++, 0));
 }
@@ -142,6 +139,26 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     metronome_on_ = ev.getParameter1() != 0;
     return;
 
+  case PlaybackControlEvent::SET_CAPTURE_DEVICE:
+  case PlaybackControlEvent::SET_PLAYBACK_DEVICE: {
+    if (!audio_) return;
+    EventLogger logger(&controller_->getUIEventQueue());
+    bool capture = ev.getType() == PlaybackControlEvent::SET_CAPTURE_DEVICE;
+    // Controller refuses this up front, but a take can begin between that
+    // check and this event; the stream in use must not be swapped.
+    if (capture && (was_recording_ || was_threshold_armed_ || was_monitoring_)) {
+      logger.log("Can't change the capture device while recording or monitoring");
+      return;
+    }
+    auto & name = ev.getBufferName();
+    bool ok = capture ? audio_->setCaptureDevice(name, logger) : audio_->setPlaybackDevice(name, logger);
+    if (ok) {
+      logger.log(string(capture ? "Capture" : "Playback") + " device: " + (name.empty() ? "system default" : name));
+      devices_changed_ = true;
+    }
+  }
+    return;
+
   case PlaybackControlEvent::PREVIEW_NOTE:
     {
       // buffer_name is repurposed to carry the instrument's own literal/
@@ -155,7 +172,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
       std::shared_ptr<Track> instrument = provider.tryGetByLiteralName(ev.getBufferName());
       if (!instrument) instrument = provider.resolvePath(ev.getBufferName());
       auto song = controller_->getCurrentSong();
-      if (instrument && song) startPreviewNote(instrument.get(), *song, ev.getParameter1(), ev.getParameter2());
+      if (instrument && song) startPreviewNote(instrument.get(), song->readContent()->scalars.tuning, ev.getParameter1(), ev.getParameter2());
     }
     return;
 
@@ -168,8 +185,10 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
       // the song itself would play them, not the provider's generic entry
       // for whatever name that slot happens to be resolved `from`.
       auto song = controller_->getCurrentSong();
-      auto instrument = song ? song->getInstrumentPool().getByIndex(ev.getParameter1()) : nullptr;
-      if (instrument && song) startPreviewNote(instrument, *song, ev.getParameter2(), ev.getParameter3());
+      if (!song) return;
+      auto content = song->readContent();
+      auto instrument = content->tracks->pool->getByIndex(ev.getParameter1());
+      if (instrument) startPreviewNote(instrument, content->scalars.tuning, ev.getParameter2(), ev.getParameter3());
     }
     return;
 
@@ -327,7 +346,8 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
       auto midi_note = ev.getParameter3();
       auto midi_velocity = ev.getParameter4();
 
-      auto track = song.getMasterTrack().getChildByInternalId(track_id);
+      auto content = song.readContent();
+      auto track = content->tracks->master->getChildByInternalId(track_id);
       if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL ||
 		    track->getType() == TrackType::PERCUSSION_CONTROL
 		    )) {
@@ -341,32 +361,35 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	  // live-triggered note (Kitty-keyboard entry, Launchpad
 	  // NOTES/step-grid presses) resolves its instrument exactly the
 	  // same way a pattern note would.
-	  auto instrument = track_state->getInstrumentSource(song.getInstrumentPool());
+	  auto instrument = track_state->getInstrumentSource(*content->tracks->pool);
 
 	  if (instrument) {
-	    // InstrumentTrackState::noteOn()/notePressure() (PLAY_NOTE/
-	    // NOTE_PRESSURE handling, shared by Kitty-keyboard note entry and
-	    // Launchpad NOTES/step-grid presses) are virtual - a plain track
-	    // spawns/updates a voice directly, an ArpeggiatorState
-	    // (Arpeggiator.h's own track kind, reached the same way any other
-	    // InstrumentTrackState is) routes them into its stepper's held
-	    // chord instead - so this call site never needs to know which
-	    // kind of track it's talking to.
-	    if (ev.getType() == PlaybackControlEvent::PLAY_NOTE) {
-	      auto tuning = track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
+            // InstrumentTrackState::noteOn()/notePressure() (PLAY_NOTE/
+            // NOTE_PRESSURE handling, shared by Kitty-keyboard note entry and
+            // Launchpad NOTES/step-grid presses).
+            if (ev.getType() == PlaybackControlEvent::PLAY_NOTE) {
+	      auto tuning = track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : content->scalars.tuning;
 	      Note note(midi_note, midi_velocity);
 
-	      // A live note has no authored row to build a
-	      // real NoteCoordinate from - live_note_counter_ (this Player's
-	      // own, advanced once per live note-on) stands in for
-	      // absolute_row instead, so InstrumentVoice can still derive a
-	      // decorrelated start phase for it the same way a pattern note's
-	      // real coordinate does (see Player.h's own comment on why this
-	      // counter's monotonic growth is fine here, unlike everywhere
-	      // else this migration cares about reproducibility).
-	      track_state->noteOn(column, *instrument, tuning, note.getVelocityAsFloat(), note.getValue(), NoteOrigin::LIVE,
-				   NoteCoordinate(state.getSongStructure().getOrdinalFor(*track), live_note_counter_++, column));
-	    } else {
+              // A live note has no authored row to build a
+              // real NoteCoordinate from - live_note_counter_ (this Player's
+              // own, advanced once per live note-on) stands in for
+              // absolute_row instead, so InstrumentVoice can still derive a
+              // decorrelated start phase for it the same way a pattern note's
+              // real coordinate does (see Player.h's own comment on why this
+              // counter's monotonic growth is fine here, unlike everywhere
+              // else this migration cares about reproducibility).
+              // A note of a just scale sounds at its exact ratio, as it is written.
+              NoteOverride note_override;
+              if (tuning != Tuning::PERCUSSION) {
+                if (auto cents = content->scalars.scale_corrections.forNote(note.getValue())) {
+                  note_override.has_detune = true;
+                  note_override.detune_cents = static_cast<float>(*cents);
+                }
+              }
+              track_state->noteOn(column, *instrument, tuning, note.getVelocityAsFloat(), note.getValue(),
+                                  NoteCoordinate(state.getSongStructure().getOrdinalFor(*track), live_note_counter_++, column), note_override);
+            } else {
 	      track_state->notePressure(column, midi_velocity / 127.0f);
 	    }
 	  }
@@ -375,16 +398,28 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     }
     break;
 
-  case PlaybackControlEvent::QUEUE_SESSION_CHANGE:
-    state.queueSessionChange(ev.getParameter1(), ev.getParameter2(), ev.getParameter3());
+  case PlaybackControlEvent::QUEUE_LAUNCH:
+    state.queueLaunch(ev.getParameter1(), ev.getParameter2(), ev.getParameter3());
     break;
 
-  case PlaybackControlEvent::SHIFT_SESSION_POSITION:
-    state.shiftSession(ev.getParameter1(), ev.getParameter2());
+  case PlaybackControlEvent::QUEUE_SCENE_CHANGE:
+    state.queueSceneChange(ev.getParameter1(), {ev.getParameter2() / 100, ev.getParameter2() % 100}, (ev.getParameter3() & 1) != 0, (ev.getParameter3() & 2) != 0, ev.getParameter4());
     break;
 
-  case PlaybackControlEvent::SILENCE_SESSION:
-    state.silenceSession(ev.getParameter1());
+  case PlaybackControlEvent::SET_PERFORMANCE:
+    state.setPerformance(ev.getParameter1(), static_cast<PerformanceEffect>(ev.getParameter2()), ev.getParameter3());
+    break;
+
+  case PlaybackControlEvent::SHIFT_LIVE_POSITION:
+    state.shiftLive(ev.getParameter1(), ev.getParameter2());
+    break;
+
+  case PlaybackControlEvent::BATCH_BEGIN:
+  case PlaybackControlEvent::BATCH_END:
+    break; // handled by handleQueuedEvent()
+
+  case PlaybackControlEvent::SILENCE_LIVE:
+    state.silenceLive(ev.getParameter1());
     break;
 
   case PlaybackControlEvent::PLAY:
@@ -399,29 +434,17 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     if (!playing_buffer_name_.empty() && playing_buffer_name_ != ev.getBufferName()) {
       auto old_it = live_states_.find(playing_buffer_name_);
       if (old_it != live_states_.end()) {
-	old_it->second->setIsPlaying(false);
-	old_it->second->notePlaybackStopped();
-	old_it->second->silenceSession(-1);
+        old_it->second->setIsPlaying(false);
+        old_it->second->silenceLive(-1);
       }
     }
     playing_buffer_name_ = ev.getBufferName();
     state.setIsPlaying(true);
-
-    // Re-locks a track's own internal clock (e.g. ArpeggiatorState's step
-    // timer - see TrackState::resyncPlayhead()) to the transport every time
-    // playback actually (re-)starts *and* the position actually moved while
-    // stopped (SongState::resyncPlayheadAfterStop()'s own comment) - not on
-    // every SET_POSITION/MOVE_POSITION edit below, which also fires on
-    // plain cursor navigation while stopped (see that case's own comment)
-    // and would otherwise resync on every such keypress, and not on a
-    // plain pause/resume at the same row either, which needs no correction.
-    state.resyncPlayheadAfterStop();
     break;
 
   case PlaybackControlEvent::STOP:
     if (playing_buffer_name_ == ev.getBufferName()) playing_buffer_name_.clear();
     state.setIsPlaying(false);
-    state.notePlaybackStopped(); // snapshot for resyncPlayheadAfterStop() above, next PLAY
     // Only a pause: launched clips, queued changes and taken-over tracks
     // all stay, and play resumes them where they were.
     break;
@@ -430,21 +453,17 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     state.removeChild(ev.getParameter1());
     break;
 
-  case PlaybackControlEvent::STOP_NOTE:
-    {
-      // noteOff() is virtual for the same reason noteOn()/notePressure()
-      // above are - see that case's own comment.
-      auto track_state = dynamic_cast<InstrumentTrackState*>(state.getChildByInternalId(ev.getParameter1()));
-      if (track_state) track_state->noteOff(ev.getParameter2());
-    }
-    break;
+  case PlaybackControlEvent::STOP_NOTE: {
+    auto track_state = dynamic_cast<InstrumentTrackState *>(state.getChildByInternalId(ev.getParameter1()));
+    if (track_state) track_state->noteOff(ev.getParameter2());
+  } break;
 
   case PlaybackControlEvent::STOP_ALL_NOTES:
     {
       // stopAllVoices()'s own whole-track natural release, for a caller
-      // (Launchpad Session view's "stop this track") with no single
+      // (Launchpad Live View's "stop this track") with no single
       // column to target the way STOP_NOTE above has - dynamic_cast to the
-      // shared LeafTrackState base, not InstrumentTrackState, since Session
+      // shared LeafTrackState base, not InstrumentTrackState, since Live
       // view's "stop this track" reaches a SampleTrack's own clip the same
       // uniform way it reaches every other track type.
       auto track_state = dynamic_cast<LeafTrackState*>(state.getChildByInternalId(ev.getParameter1()));
@@ -500,7 +519,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
   // own levels (SongState::setMasterSendMain()'s comment).
   case PlaybackControlEvent::SET_TRACK_SEND_A:
     {
-      if (ev.getParameter1() == song.getMasterTrack().getInternalId()) {
+      if (ev.getParameter1() == song.readContent()->tracks->master->getInternalId()) {
         state.setMasterSendA(ev.getParameter2() / 1000.0f);
         break;
       }
@@ -511,7 +530,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 
   case PlaybackControlEvent::SET_TRACK_SEND_B:
     {
-      if (ev.getParameter1() == song.getMasterTrack().getInternalId()) {
+      if (ev.getParameter1() == song.readContent()->tracks->master->getInternalId()) {
         state.setMasterSendB(ev.getParameter2() / 1000.0f);
         break;
       }
@@ -522,7 +541,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 
   case PlaybackControlEvent::SET_TRACK_SEND_MAIN:
     {
-      if (ev.getParameter1() == song.getMasterTrack().getInternalId()) {
+      if (ev.getParameter1() == song.readContent()->tracks->master->getInternalId()) {
         state.setMasterSendMain(ev.getParameter2() / 1000.0f);
         break;
       }
@@ -631,12 +650,10 @@ Player::feedMonitoredInput(SongState * active_state, const std::string & active_
   }
 }
 
-void
-Player::scheduleMetronome(const SongState & state, const Song & song, int frames) {
+void Player::scheduleMetronome(const SongState & state, int frames) {
   if (!metronome_on_ || !state.isPlaying()) return;
   int interval = channel_config_.getSampleInterval(state.getTempo());
   if (interval <= 0) return;
-  int rows_per_bar = std::max(1, song.getRowsPerBar());
   // A row starts at frame 0 when the position sits on a row boundary,
   // otherwise once the current row has played out.
   int row = state.getAbsolutePosition();
@@ -647,7 +664,9 @@ Player::scheduleMetronome(const SongState & state, const Song & song, int frames
     row++;
   }
   for (; frame < frames; frame += interval, row++) {
-    if (row % 4 == 0) metronome_click_.addClick(frame, row % rows_per_bar == 0);
+    auto bars = state.barsAt(row);
+    auto in_bar = bars.rowInBar(row);
+    if (in_bar % bars.beatRows() == 0) metronome_click_.addClick(frame, in_bar == 0);
   }
 }
 
@@ -676,7 +695,7 @@ Player::renderPreview(int frames) {
     // live tempo change while a rhythm is previewing is reflected
     // immediately, the same as any other tempo-driven playback.
     auto song = controller_->getCurrentSong();
-    auto interval = song ? channel_config_.getSampleInterval(song->getTempo()) : 0;
+    auto interval = song ? channel_config_.getSampleInterval(song->readContent()->scalars.tempo) : 0;
     auto loop_frames = interval * preview_rhythm_pattern_->length;
     if (loop_frames > 0 && preview_rhythm_instrument_) {
       for (auto & hit : preview_rhythm_pattern_->hits) {
@@ -692,7 +711,7 @@ Player::renderPreview(int frames) {
         auto ahead = (hit_frame - preview_rhythm_frame_ + loop_frames) % loop_frames;
         if (ahead < frames) {
           Note note(hit.note, hit.velocity);
-          preview_voices_.push_back(preview_rhythm_instrument_->playNote(channel_config_, SphericalPosition{}, Tuning::PERCUSSION, 1.0f,
+          preview_voices_.push_back(preview_rhythm_instrument_->playNote(channel_config_, SphericalPosition{}, SpatialMode::AUTO, Tuning::PERCUSSION, 1.0f,
                                                                                  note.getVelocityAsFloat(), note.getValue(), SendLevels{},
                                                                                  NoteCoordinate(-1, live_note_counter_++, 0)));
         }
@@ -719,49 +738,29 @@ Player::renderPreview(int frames) {
   return data;
 }
 
+void Player::handleQueuedEvent(std::unique_ptr<Event> event) {
+  auto * control = dynamic_cast<PlaybackControlEvent *>(event.get());
+  auto type = control ? control->getType() : PlaybackControlEvent::Type();
+  if (type == PlaybackControlEvent::BATCH_BEGIN) {
+    batch_open_ = true;
+  } else if (type == PlaybackControlEvent::BATCH_END) {
+    batch_open_ = false;
+    for (auto & held : batch_events_) handleEvent(*held);
+    batch_events_.clear();
+  } else if (batch_open_) {
+    batch_events_.push_back(std::move(event));
+  } else {
+    handleEvent(*event);
+  }
+}
+
 void
 Player::play(AudioAPI & audio) {
   EventLogger logger(&(controller_->getUIEventQueue()));
 
   auto & event_queue = controller_->getPlaybackEventQueue();
 
-  size_t num_playback_desc = audio.getPlaybackDescriptors().size();
-  size_t num_capture_desc = audio.getCaptureDescriptors().size();
-
-  size_t num_descriptors = 1 + num_playback_desc + num_capture_desc;
-
-  auto descriptors = std::make_unique<pollfd[]>(num_descriptors);
-
-  descriptors[0].fd = event_queue.getPollFd();
-  descriptors[0].events = POLLIN;
-
-  for (size_t i = 0; i < num_playback_desc; i++) {
-    descriptors[1 + i] = audio.getPlaybackDescriptors()[i];
-  }
-
-  for (size_t i = 0; i < num_capture_desc; i++) {
-    descriptors[1 + num_playback_desc + i] = audio.getCaptureDescriptors()[i];
-  }
-
-  // Capture's own negotiated .events (POLLIN) - stashed so it can be
-  // restored below. The capture descriptors otherwise stay in the poll set
-  // with .events cleared to 0 (poll() then never reports on them, so they
-  // never contribute a spurious wakeup) until the user actually activates
-  // recording or threshold-arms one (Controller::isRecording()/
-  // isThresholdArmed(), both ultimately from "toggle-record-arm") -
-  // recording is no longer engaged automatically just because playback
-  // started. Clearing .events rather than dropping the capture fds from
-  // the array entirely also sidesteps a busy-loop risk: an ALSA capture
-  // stream that's open but never snd_pcm_start()ed (see
-  // AlsaAudio::startRecording(), and this same loop's own eager call to
-  // it below) sits with a frozen hw pointer, so its avail-derived "ready"
-  // condition would otherwise stay permanently true and poll() would
-  // never actually block on it.
-  auto capture_events = std::make_unique<short[]>(num_capture_desc);
-  for (size_t i = 0; i < num_capture_desc; i++) {
-    capture_events[i] = descriptors[1 + num_playback_desc + i].events;
-    descriptors[1 + num_playback_desc + i].events = 0;
-  }
+  audio_ = &audio;
 
   auto mixer = createMixer(controller_->getChannelConfiguration(), controller_->getMixerType(), controller_->getUseLegacyBinaural());
   // No eager SongState construction here (unlike the single-global-state_
@@ -780,7 +779,14 @@ Player::play(AudioAPI & audio) {
     for (auto & [ name, state ] : live_states_) {
       auto song_ptr = controller_->getSongByName(name);
       if (!song_ptr) continue; // shouldn't happen - BUFFER_KILLED already drops the entry synchronously; defensive only
-      controller_->getUIEventQueue().push(createPlaybackEvent(name, *song_ptr, *state));
+      // A snapshot that repeats the last one tells the UI nothing: a paused
+      // song with nothing changing sends none.
+      auto event = createPlaybackEvent(name, *song_ptr, *state);
+      auto signature = event->getInfo().signature();
+      auto & last = last_snapshot_signature_[name];
+      if (last.second && last.first == signature) continue;
+      last = { signature, true };
+      controller_->getUIEventQueue().push(std::move(event));
     }
   };
 
@@ -849,34 +855,29 @@ Player::play(AudioAPI & audio) {
     if (capture_needed && !capture_was_needed) audio.startRecording();
     else if (!capture_needed && capture_was_needed) audio.stopRecording();
 
-    for (size_t i = 0; i < num_capture_desc; i++) {
-      descriptors[1 + num_playback_desc + i].events = capture_needed ? capture_events[i] : 0;
-    }
-
-    if (poll(descriptors.get(), num_descriptors, 1000) > 0) {
-      for (size_t i = 0; i < num_descriptors; i++) {
-	auto & d = descriptors[i];
-	if (d.revents) {
-	  if (i == 0) {
-	    auto event = event_queue.pop();
-	    handleEvent(*event);
-	    while ( event_queue.hasEvents() ) {
-	      auto next_event = event_queue.pop();
-	      handleEvent(*next_event);
-	    }
-	    if (mixer_changed_) {
+    auto ready = audio.wait(event_queue.notifier(), capture_needed, 1000);
+          if (ready.woken) {
+            handleQueuedEvent(event_queue.pop());
+            while (event_queue.hasEvents()) handleQueuedEvent(event_queue.pop());
+            if (mixer_changed_) {
 	      mixer = createMixer(controller_->getChannelConfiguration(), controller_->getMixerType(), controller_->getUseLegacyBinaural());
 	      mixer_changed_ = false;
 	    }
 	    pushSnapshots();
-	  } else if (i - 1 < num_playback_desc) {
-	    // Every live buffer's own SongState renders and accumulates into
-	    // the same shared `mixer` this block - a single mixer->reset()
-	    // here, not one per renderBlock() call (reset_mixer=false below),
-	    // since a later buffer's own reset would otherwise wipe out an
-	    // earlier one's already-accumulated output (see SongState::
-	    // renderBlock()'s own comment on the reset_mixer parameter).
-	    mixer->reset();
+            if (devices_changed_) {
+              // What was just reported ready belongs to the old device.
+              devices_changed_ = false;
+              continue;
+            }
+          }
+          if (ready.playback) {
+            // Every live buffer's own SongState renders and accumulates into
+            // the same shared `mixer` this block - a single mixer->reset()
+            // here, not one per renderBlock() call (reset_mixer=false below),
+            // since a later buffer's own reset would otherwise wipe out an
+            // earlier one's already-accumulated output (see SongState::
+            // renderBlock()'s own comment on the reset_mixer parameter).
+            mixer->reset();
 	    if (live_states_.empty()) {
 	      // No live buffer this block (nothing has ever made a sound yet,
 	      // or every buffer that once did has since been killed) - still
@@ -898,31 +899,30 @@ Player::play(AudioAPI & audio) {
 	      mixer->accumulate(AudioBuffer(0, false, false, audio.getFrameCount()));
 	    }
 
-	    // The active buffer renders *first*, straight into the same
-	    // shared `mixer` every other live buffer accumulates into for the
-	    // real, true combined signal below - but its own raw ambisonic
-	    // contribution is snapshotted right after, while it's still the
-	    // only thing accumulated into `mixer` so far, purely for
-	    // AudioBlockEvent's own "one buffer, every scope" contract (see
-	    // its own comment) - this never touches how the real signal
-	    // itself is computed. Silent (but still correctly frame-sized -
-	    // see AudioBuffer's ChannelConfiguration constructor) when the
-	    // active buffer has no live SongState at all yet.
-	    auto active_buffer_name = controller_->getActiveBufferNameThreadSafe();
-	    AudioBuffer active_raw_bus(controller_->getChannelConfiguration(), audio.getFrameCount());
-	    active_raw_bus.zero();
-	    AudioBuffer active_aux_a(1, audio.getFrameCount()), active_aux_b(1, audio.getFrameCount());
-	    active_aux_a.zero();
-	    active_aux_b.zero();
-	    auto active_it = live_states_.find(active_buffer_name);
+            // The active buffer renders *first*, straight into the same
+            // shared `mixer` every other live buffer accumulates into for the
+            // real, true combined signal below - but its own raw ambisonic
+            // contribution is snapshotted right after, while it's still the
+            // only thing accumulated into `mixer` so far, purely for
+            // AudioBlockEvent's own "one buffer, every scope" contract (see
+            // its own comment) - this never touches how the real signal
+            // itself is computed. Structurally empty (but still correctly
+            // frame-sized) when the active buffer has no live SongState at
+            // all yet.
+            auto active_buffer_name = controller_->getActiveBufferNameThreadSafe();
+            // Structurally empty (no channels, still frame-sized) until the
+            // active buffer's mixer accumulated something - see Mixer::getRawBus().
+            AudioBuffer active_raw_bus(0, false, false, audio.getFrameCount());
+            AudioBuffer active_aux_a(0, false, false, audio.getFrameCount()), active_aux_b(0, false, false, audio.getFrameCount());
+            auto active_it = live_states_.find(active_buffer_name);
 	    feedMonitoredInput(active_it == live_states_.end() ? nullptr : active_it->second.get(), active_buffer_name, audio.getFrameCount());
 	    if (active_it != live_states_.end()) {
 	      auto active_song = controller_->getSongByName(active_buffer_name);
 	      if (active_song) { // defensive only - see pushSnapshots()'s own comment
-	        scheduleMetronome(*active_it->second, *active_song, audio.getFrameCount());
-		active_it->second->renderBlock(audio.getFrameCount(), *active_song, *mixer, false);
-		active_raw_bus = mixer->getRawBus();
-		active_aux_a = active_it->second->getAuxASum();
+                scheduleMetronome(*active_it->second, audio.getFrameCount());
+                active_it->second->renderBlock(audio.getFrameCount(), *active_song, *mixer, false);
+                active_raw_bus = mixer->getRawBus();
+                active_aux_a = active_it->second->getAuxASum();
 		active_aux_b = active_it->second->getAuxBSum();
 	      }
 	    }
@@ -966,29 +966,35 @@ Player::play(AudioAPI & audio) {
 
 	    pushSnapshots();
 
-	    // Hand off to VisualizationThread - its own dedicated thread,
-	    // decoupled from both this real-time audio thread and the UI
-	    // thread (see VisualizationThread.h and AudioBlockEvent.h for
-	    // what each field means and why). master is moved, not copied
-	    // (it's already this block's own independently-owned AudioBuffer,
-	    // straight from mixer->encode() above, and VisualizationThread
-	    // only reads it as the empty-buffer shutdown sentinel now, not
-	    // for any real analysis); active_raw_bus/active_aux_a/
-	    // active_aux_b are moved too - each already an independently-
-	    // owned local computed fresh above, not a reference into any
-	    // mixer's or SongState's own persistent state.
-	    controller_->getVisualizationQueue().push(make_unique<AudioBlockEvent>(
-	      move(master), move(active_raw_bus), move(active_aux_a), move(active_aux_b)));
-	  } else if (i - 1 - num_playback_desc < num_capture_desc) {
-	    // .events was cleared to 0 above whenever not recording, threshold-
-	    // armed or monitoring, so revents can't legitimately be set here in
-	    // that case - checking again anyway keeps this branch correct on
-	    // its own, without relying on that as the only guard.
-	    // Feeds SampleTrackState::setInputLoudness() (same-thread, this
-	    // audio thread owns both Player and live_states_) so the VU
-	    // meter shows real input level while armed-and-waiting or
-	    // actually recording, not just once a voice starts playing back.
-	    auto updateInputLoudness = [this](const AudioBuffer & data) {
+            // Hand off to VisualizationThread - its own dedicated thread,
+            // decoupled from both this real-time audio thread and the UI
+            // thread (see VisualizationThread.h and AudioBlockEvent.h for
+            // what each field means and why). master is moved, not copied
+            // (it's already this block's own independently-owned AudioBuffer,
+            // straight from mixer->encode() above, and VisualizationThread
+            // only reads it as the empty-buffer shutdown sentinel now, not
+            // for any real analysis); active_raw_bus/active_aux_a/
+            // active_aux_b are moved too - each already an independently-
+            // owned local computed fresh above, not a reference into any
+            // mixer's or SongState's own persistent state.
+            // Silent blocks only until the scopes have settled: after that they
+            // would wake the visualization thread for nothing.
+            bool silent = !active_raw_bus.hasChannel(Channel::Main) && !active_aux_a.hasChannel(Channel::Main) && !active_aux_b.hasChannel(Channel::Main);
+            silent_frames_ = silent ? silent_frames_ + static_cast<long>(audio.getFrameCount()) : 0;
+            if (silent_frames_ <= static_cast<long>(VisualizationThread::kSettleSeconds + 1) * channel_config_.getAudioOutSampleRate()) {
+              controller_->getVisualizationQueue().push(make_unique<AudioBlockEvent>(
+                  move(master), move(active_raw_bus), move(active_aux_a), move(active_aux_b)));
+            }
+          }
+          if (ready.capture) {
+            // Only reported while capture is wanted - checking again anyway
+            // keeps this branch correct on its own, without relying on that
+            // as the only guard.
+            // Feeds SampleTrackState::setInputLoudness() (same-thread, this
+            // audio thread owns both Player and live_states_) so the VU
+            // meter shows real input level while armed-and-waiting or
+            // actually recording, not just once a voice starts playing back.
+            auto updateInputLoudness = [this](const AudioBuffer & data) {
 	      auto buffer_name = controller_->getActiveBufferNameThreadSafe();
 	      auto state_it = live_states_.find(buffer_name);
 	      if (state_it == live_states_.end()) return;
@@ -1033,10 +1039,7 @@ Player::play(AudioAPI & audio) {
 		  controller_->getRecordingTrackId(), std::move(preroll), row));
 	      }
 	    }
-	  }
-	}
-      }
-    }
+          }
   }
 }
 
@@ -1049,17 +1052,20 @@ Player::createPlaybackEvent(const string & buffer_name, const Song & song, const
   info.setSamplePos(state.getSamplePos());
   info.setAbsolutePos(state.getAbsolutePosition());
   info.setPositionEditSeq(state.getPositionEditSeq());
-  info.setSessionTracks(state.getSessionTracks());
-  info.setSessionClock(state.getSessionClock());
-  info.setSessionStartClock(state.getSessionStartClock());
-  info.setSessionSeq(state.getSessionSeq());
+  info.setLiveTracks(state.getLiveTracks());
+  info.setLiveClock(state.getLiveClock());
+  info.setLiveStartClock(state.getLiveStartClock());
+  info.setLiveSeq(state.getLiveSeq());
+  info.setTempo(state.getTempo());
+  info.setRunningBars(state.getRunningBars());
+  info.setSceneSeq(state.getSceneSeq());
   info.setVoiceCount(state.getVoiceCount());
   info.setRoundTripLatency(latency_frames_, latency_nominal_);
   info.setAllocatedVoiceCount(state.getAllocatedVoiceCount());
 
   std::unordered_map<int, TrackInfo> effect_info;
   state.getAllTrackInfo(effect_info);
-  effect_info[song.getMasterTrack().getInternalId()] = TrackInfo(state.getMasterMeterValue() > 0.0f, state.isMasterClipping(), state.getMasterMeterValue());
+  effect_info[song.readContent()->tracks->master->getInternalId()] = TrackInfo(state.getMasterMeterValue() > 0.0f, state.isMasterClipping(), state.getMasterMeterValue());
   info.setTrackInfo(move(effect_info));
 
   std::unordered_map<int, std::vector<ActiveVoiceInfo> > active_voices;

@@ -22,7 +22,7 @@ class PadSynth : public Instrument {
   const char * getElementName() const override { return "padsynth"; }
   void loadParameters(const ParameterSource & input) override;
   void storeParameters(ParameterSource & output) const override;
-  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}) const override;
+  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, SpatialMode spatial_mode, Tuning tuning, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const override;
 
   // Forces the wavetable covering `note_value`'s own pitch region to
   // (re)build now, off any real-time audio thread, instead of leaving it
@@ -40,7 +40,7 @@ class PadSynth : public Instrument {
   void prewarm(const ChannelConfiguration & config, Tuning tuning, int note_value) const;
 
  private:
-  void ensureWavetable(const ChannelConfiguration & config, Tuning tuning) const;
+  void ensureWavetable(const ChannelConfiguration & config) const;
 
   // Built lazily on first playNote() (mutable, matching SampleContent.h's
   // own waveform_peaks_/stretched_buffer_ lazy-cache precedent) since
@@ -49,15 +49,11 @@ class PadSynth : public Instrument {
   // Instrument::prepare() only ever gets an InstrumentProvider, with no
   // sample rate of its own to build against. One instance is shared by
   // every voice/note played through this node - rebuilt if the output
-  // sample rate or the song's own tuning has changed since the table was
-  // built (e.g. --samplerate, or a song-tuning change, between one
-  // playNote() and the next) - neither happens mid-song in practice but
-  // both are checked rather than assumed.
+  // sample rate has changed since the table was built (e.g. --samplerate,
+  // between one playNote() and the next).
   mutable std::shared_ptr<PadSynthTable> wavetable_;
-  mutable Tuning wavetable_tuning_ = Tuning::TET31;
 
   std::string preset_ = "strings";
-  bool tuning_matched_ = true;
   // Detune in cents - 1200 doubles the pitch, an octave doubling.
   float detune_cents_ = 0.0f;
   float level_ = 1.0f;

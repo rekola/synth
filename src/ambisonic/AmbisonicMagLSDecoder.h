@@ -37,7 +37,7 @@ class AmbisonicMagLSDecoder : public Mixer {
   void accumulate(const AudioBuffer & input) override;
   AudioBuffer encode() override;
 
-  const AudioBuffer & getRawBus() const override { return buffer_; }
+  const AudioBuffer & getRawBus() const override { return rawBusOf(buffer_); }
 
   // Read-only access to the solved per-channel filter pairs, for the
   // Phase 1 validation suite (ITD/magnitude/symmetry/diffuse-gain checks)
@@ -62,6 +62,7 @@ class AmbisonicMagLSDecoder : public Mixer {
   // construction from the solved filter length - same pattern as
   // AmbisonicBinauralMixer's own left_tail_/right_tail_.
   std::vector<float> left_tail_, right_tail_;
+  bool tail_silent_ = false; // every tail sample is zero
   std::vector<float> left_acc_, right_acc_;
 };
 

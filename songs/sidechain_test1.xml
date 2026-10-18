@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="120" volume="1.0">
   <instruments>
-    <envelope attack="0.1" release="2" name="padtest2">
+    <envelope id="i1" attack="0.1" release="2" name="padtest2">
       <resonantFilter cut="20000" res="0">
 	<oscillator type="saw" level="0.25" voices="4" detune="5"/>
       </resonantFilter>
     </envelope>
 
-    <instrument from="piano.acoustic.grand" />   
+    <instrument id="i2" from="piano.acoustic.grand" />   
 
-    <envelope name="riser" attack="3" hold="0" sustain="0" decay="0" release="0">
+    <envelope id="i3" name="riser" attack="3" hold="0" sustain="0" decay="0" release="0">
       <resonantFilter cutmin="220" cutmax="20000" res="2" attack="3">
 	<noise/>
       </resonantFilter>
@@ -26,7 +26,7 @@
       </amplifier>
 
       <amplifier gain="-10" azimuth="60">
-	<track id="pad" instrument="0" />
+	<track id="pad" instrument="i1" />
       </amplifier>
     </compressor>
     
@@ -38,9 +38,9 @@
 
     <percussionTrack id="perc3" azimuth="+45" distance="1" />
 
-    <track id="chords" instrument="1" azimuth="-45" distance="1" />
+    <track id="chords" instrument="i2" azimuth="-45" distance="1" />
 
-    <track id="riser" instrument="2" />
+    <track id="riser" instrument="i3" />
   </tracks>
   
   <arrangement>

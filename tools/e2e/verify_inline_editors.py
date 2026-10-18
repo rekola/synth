@@ -13,7 +13,7 @@ import harness as vk
 
 F2 = b"\x1bOQ"
 UP, DOWN, CTRL_RIGHT = b"\x1b[A", b"\x1b[B", b"\x1b[1;5C"
-SESSION_SONG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "launchpad_session_test.xml")
+LIVE_SONG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "launchpad_live_test.xml")
 
 results = []
 
@@ -85,10 +85,10 @@ def arrangement_and_pattern_editor():
 
 
 def clip_grid():
-    pid, scr = start(SESSION_SONG)
+    pid, scr = start(LIVE_SONG)
     scr.send(b"\x1bx")
     scr.pump(0.4)
-    scr.send(b"session-view\r")
+    scr.send(b"live-view\r")
     scr.pump(0.8)
 
     # The fixture's only clip ("target") sits on the last of the 8 clip rows.
@@ -111,7 +111,7 @@ def clip_grid():
     type_text(scr, "Bass Y")
     scr.send(b"\r")
     scr.pump(0.5)
-    check("session track rename commits", "T0 Bass Y" in scr.dump(), scr)
+    check("live track rename commits", "T0 Bass Y" in scr.dump(), scr)
 
     os.kill(pid, 9)
 

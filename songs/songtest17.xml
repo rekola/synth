@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="120">
     <instruments>
-        <amplifier name="bass3" gain="-10">
+        <amplifier id="i1" name="bass3" gain="-10">
             <envelope attack="0.0099999998" hold="0" decay="1.17" sustain="0" release="0.23100001" keynumToHold="0" keynumToDecay="0">
                 <resonantFilter cutmin="1100" cutmax="11000" res="0.1" aftertouch="0" attack="0.0099999998" hold="0" decay="1.17" sustain="0" release="0.23100001" keynumToHold="0" keynumToDecay="0">
                     <oscillator harmonic="1" subharmonic="1" type="square" level="1" width="0.5"/>
@@ -11,7 +11,7 @@
         </amplifier>
     </instruments>
     <tracks>
-        <track id="bass" instrument="0" azimuth="-45" distance="1" elevation="0" color="" sendA="-20.0000"/>
+        <track id="bass" instrument="i1" azimuth="-45" distance="1" elevation="0" color="" sendA="-20.0000"/>
     </tracks>
     <arrangement>
         <pattern track="bass">

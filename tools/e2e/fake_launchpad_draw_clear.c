@@ -7,7 +7,7 @@
 //   - already lit + short release -> cycles to the next hue.
 //   - already lit + long hold -> hue stays exactly as it was (brightness-
 //     only adjustment).
-// Also exercises the shift + Solo gesture - entering DRAW mode, and, once
+// Also exercises the shift + Custom gesture - entering DRAW mode, and, once
 // already in DRAW, a further press clears the canvas (the replacement for
 // the CC99 corner "button", which isn't a real pressable control on real
 // Launchpad X hardware). Prints every SysEx it receives so the Python
@@ -73,12 +73,12 @@ int main() {
   fake_wait_ready(seq, "at startup");
   drain_sysex(seq);
 
-  fprintf(stderr, "STEP enter-draw-mode: shift (CC91) + Solo (CC29)\n");
+  fprintf(stderr, "STEP enter-draw-mode: shift (CC91) + Custom (CC97)\n");
   send_cc(seq, port, 91, 127);
   usleep(50 * 1000);
-  send_cc(seq, port, 29, 127);
+  send_cc(seq, port, 97, 127);
   usleep(100 * 1000);
-  send_cc(seq, port, 29, 0);
+  send_cc(seq, port, 97, 0);
   send_cc(seq, port, 91, 0);
   sleep(1);
   drain_sysex(seq);
@@ -112,12 +112,12 @@ int main() {
   sleep(1);
   drain_sysex(seq);
 
-  fprintf(stderr, "STEP clear-canvas: shift (CC91) + Solo (CC29)\n");
+  fprintf(stderr, "STEP clear-canvas: shift (CC91) + Custom (CC97)\n");
   send_cc(seq, port, 91, 127);
   usleep(50 * 1000);
-  send_cc(seq, port, 29, 127);
+  send_cc(seq, port, 97, 127);
   usleep(100 * 1000);
-  send_cc(seq, port, 29, 0);
+  send_cc(seq, port, 97, 0);
   send_cc(seq, port, 91, 0);
   sleep(1);
   drain_sysex(seq);

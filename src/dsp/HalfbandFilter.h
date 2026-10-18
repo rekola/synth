@@ -1,8 +1,13 @@
 #ifndef _HALFBANDFILTER_H_
 #define _HALFBANDFILTER_H_
 
+#include "Vec8.h"
+
+#include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstring>
+#include <vector>
 
 // Fixed-coefficient, linear-phase halfband FIR lowpass, used in cascade
 // (two instances for 4x, three for 8x) to build the oversampling stages
@@ -21,23 +26,52 @@
 // once into a shared, process-wide static table on first use (the design
 // has no parameters, so every instance reads the same table) rather than
 // per instance - only the delay-line state below is per-instance.
+//
+// Evaluated as a polyphase filter over whole blocks. Of the 63 taps only the
+// centre and the 32 at even indices are non-zero, so a zero-stuffed
+// upsample is one 32-tap FIR on the input (the even outputs) plus a single
+// delayed copy (the odd outputs), and a decimating downsample is the same
+// FIR on the odd input samples plus the delayed even ones - about a fifth of
+// the multiplies of running all 63 taps on every sample, in a layout that
+// vectorises eight outputs at a time.
 class HalfbandFilter {
  public:
-  HalfbandFilter() { history_.fill(0.0f); }
-
   // Doubles the sample rate: reads `frames` input samples, writes
   // `2*frames` output samples. Maintains its own delay-line state across
   // calls, so consecutive blocks stitch together seamlessly - safe to
   // call with any per-call frame count.
   void upsample(const float * in, int frames, float * out) {
-    for (int i = 0; i < frames; i++) {
-      // kInterpolationGain (2x) restores passband amplitude after
-      // zero-stuffing - see the class's own design note in
-      // plans/drum-bus-saturator.md: the filter's own DC gain is unity,
-      // so without this the interpolated signal would sit at half level.
-      out[2 * i]     = pushAndConvolve(in[i])   * kInterpolationGain;
-      out[2 * i + 1] = pushAndConvolve(0.0f)    * kInterpolationGain;
+    if (frames <= 0) return;
+    const auto & t = taps();
+    const size_t n = static_cast<size_t>(frames);
+    const size_t padded = paddedFor(n);
+
+    // [31 samples of history | this block | zero padding].
+    x_.resize(kHistory + padded);
+    std::memcpy(x_.data(), up_history_.data(), kHistory * sizeof(float));
+    std::memcpy(x_.data() + kHistory, in, n * sizeof(float));
+    std::fill(x_.begin() + static_cast<long>(kHistory + n), x_.end(), 0.0f);
+
+    even_.resize(padded);
+    fir(x_.data() + kHistory, padded, t.up, even_.data());
+
+    // kInterpolationGain (2x) restores passband amplitude after
+    // zero-stuffing: the filter's own DC gain is unity, so without it the
+    // interpolated signal would sit at half level. It is folded into the
+    // taps (an exact power-of-two scaling). The odd outputs are the centre
+    // tap alone: the input delayed by 15.
+    const float center = t.center * kInterpolationGain;
+    const float * delayed = x_.data() + kHistory - kCenterDelay;
+    mixed_.resize(2 * padded);
+    for (size_t i = 0; i < padded; i += dsp::kLanes) {
+      const dsp::v8f e = dsp::loadu(even_.data() + i);
+      const dsp::v8f o = dsp::splat(center) * dsp::loadu(delayed + i);
+      dsp::storeu(mixed_.data() + 2 * i, __builtin_shufflevector(e, o, 0, 8, 1, 9, 2, 10, 3, 11));
+      dsp::storeu(mixed_.data() + 2 * i + dsp::kLanes, __builtin_shufflevector(e, o, 4, 12, 5, 13, 6, 14, 7, 15));
     }
+    std::memcpy(out, mixed_.data(), 2 * n * sizeof(float));
+
+    std::memcpy(up_history_.data(), x_.data() + n, kHistory * sizeof(float));
   }
 
   // Halves the sample rate: reads `2*frames` input samples, writes
@@ -46,17 +80,63 @@ class HalfbandFilter {
   // (every other filtered sample kept, unscaled - no gain compensation
   // needed here, unlike upsample()).
   void downsample(const float * in, int frames, float * out) {
-    for (int i = 0; i < frames; i++) {
-      pushAndConvolve(in[2 * i]);
-      out[i] = pushAndConvolve(in[2 * i + 1]);
+    if (frames <= 0) return;
+    const auto & t = taps();
+    const size_t n = static_cast<size_t>(frames);
+    const size_t padded = paddedFor(n);
+
+    // Odd input samples carry the FIR; even ones, delayed by 15, the
+    // centre tap. Each is [history | this block | zero padding].
+    x_.resize(kHistory + padded);
+    even_.resize(kCenterDelay + padded);
+    std::memcpy(x_.data(), down_odd_history_.data(), kHistory * sizeof(float));
+    std::memcpy(even_.data(), down_even_history_.data(), kCenterDelay * sizeof(float));
+    for (size_t i = 0; i < n; i++) {
+      even_[kCenterDelay + i] = in[2 * i];
+      x_[kHistory + i] = in[2 * i + 1];
     }
+    std::fill(x_.begin() + static_cast<long>(kHistory + n), x_.end(), 0.0f);
+    std::fill(even_.begin() + static_cast<long>(kCenterDelay + n), even_.end(), 0.0f);
+
+    acc_.resize(padded);
+    fir(x_.data() + kHistory, padded, t.down, acc_.data());
+    const dsp::v8f center = dsp::splat(t.center);
+    for (size_t i = 0; i < padded; i += dsp::kLanes) {
+      dsp::storeu(acc_.data() + i, dsp::loadu(acc_.data() + i) + center * dsp::loadu(even_.data() + i));
+    }
+    std::memcpy(out, acc_.data(), n * sizeof(float));
+
+    std::memcpy(down_odd_history_.data(), x_.data() + n, kHistory * sizeof(float));
+    std::memcpy(down_even_history_.data(), even_.data() + n, kCenterDelay * sizeof(float));
   }
 
  private:
   static constexpr int kTaps = 63; // odd length, center index 31
+  static constexpr size_t kPhaseTaps = 32; // the non-zero taps at even indices
+  static constexpr size_t kHistory = kPhaseTaps - 1;
+  static constexpr size_t kCenterDelay = (kTaps - 1) / 2 / 2; // 15 samples at the lower rate
+  static constexpr float kInterpolationGain = 2.0f;
 
-  static const std::array<float, kTaps> & coefficients() {
-    static const std::array<float, kTaps> table = [] {
+  struct Taps {
+    std::array<float, kPhaseTaps> up{};   // h[2p] * kInterpolationGain
+    std::array<float, kPhaseTaps> down{}; // h[2p]
+    float center = 0.0f;                  // h[31]
+  };
+
+  static size_t paddedFor(size_t n) { return (n + dsp::kLanes - 1) / dsp::kLanes * dsp::kLanes; }
+
+  // out[i] = sum over p of c[p] * x[i - p], for i in [0, n), n a multiple
+  // of 8; x[-31 .. -1] must be readable (the history).
+  static void fir(const float * x, size_t n, const std::array<float, kPhaseTaps> & c, float * out) {
+    for (size_t i = 0; i < n; i += dsp::kLanes) {
+      dsp::v8f acc = dsp::splat(0.0f);
+      for (size_t p = 0; p < kPhaseTaps; p++) acc += dsp::splat(c[p]) * dsp::loadu(x + i - p);
+      dsp::storeu(out + i, acc);
+    }
+  }
+
+  static const Taps & taps() {
+    static const Taps table = [] {
       std::array<double, kTaps> hd{};
       constexpr int kCenter = (kTaps - 1) / 2;
       constexpr double kCutoff = 0.25; // quarter of the upsampled rate == halfband
@@ -79,33 +159,28 @@ class HalfbandFilter {
         hd[static_cast<size_t>(n)] = ideal * w;
         sum += hd[static_cast<size_t>(n)];
       }
-      std::array<float, kTaps> h{};
       // Renormalize so the window's tapering doesn't leave DC gain
       // slightly off unity.
-      for (int n = 0; n < kTaps; n++) h[static_cast<size_t>(n)] = static_cast<float>(hd[static_cast<size_t>(n)] / sum);
-      return h;
+      Taps t;
+      for (size_t p = 0; p < kPhaseTaps; p++) {
+        const float h = static_cast<float>(hd[2 * p] / sum);
+        t.down[p] = h;
+        t.up[p] = h * kInterpolationGain;
+      }
+      t.center = static_cast<float>(hd[kCenter] / sum);
+      return t;
     }();
     return table;
   }
 
-  float pushAndConvolve(float x) {
-    history_[static_cast<size_t>(pos_)] = x;
-    const auto & coeffs = coefficients();
-    float acc = 0.0f;
-    for (int k = 0; k < kTaps; k++) {
-      int idx = pos_ - k;
-      if (idx < 0) idx += kTaps;
-      acc += coeffs[static_cast<size_t>(k)] * history_[static_cast<size_t>(idx)];
-    }
-    pos_++;
-    if (pos_ >= kTaps) pos_ = 0;
-    return acc;
-  }
+  // The last 31 samples fed to each direction's FIR, and the last 15 of the
+  // even-phase stream the downsampler delays.
+  std::array<float, kHistory> up_history_{};
+  std::array<float, kHistory> down_odd_history_{};
+  std::array<float, kCenterDelay> down_even_history_{};
 
-  static constexpr float kInterpolationGain = 2.0f;
-
-  std::array<float, kTaps> history_{};
-  int pos_ = 0;
+  // Block scratch, grown on first use and reused.
+  std::vector<float> x_, even_, acc_, mixed_;
 };
 
 #endif

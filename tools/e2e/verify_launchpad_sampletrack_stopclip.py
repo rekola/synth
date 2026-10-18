@@ -1,8 +1,8 @@
-"""SampleTrack's own Session-view audition path, end to end: the
+"""SampleTrack's own Live-View audition path, end to end: the
 track-picker overlay Stop Clip (CC49) opens, triggering/stopping a
 raw-audio clip rather than a note-based one. Reuses fake_launchpad_stopclip.c
 unchanged (it's plain CC/pad events, no assumption about what the track
-holds) against launchpad_sampletrack_session_test.xml (see that fixture's
+holds) against launchpad_sampletrack_live_test.xml (see that fixture's
 own comment) - this is what actually proves a launched SampleTrack clip
 plays through the real ALSA + audio-thread path (SongState's own
 launched-clip scheduling), not just in-process the way
@@ -35,9 +35,9 @@ def last_led_state(text, led_index_hex):
     # Whichever lighting-type colourspec was last sent for this LED index -
     # static RGB (type 3, 3 data bytes), flashing (type 1, 2 data bytes) or
     # pulsing (type 2, 1 data byte). A plain pad only ever uses static RGB,
-    # but Session view's own triggered pad now pulses green instead of
+    # but Live View's own triggered pad now pulses green instead of
     # showing a brighter static color (LaunchpadManager::refreshLeds()'s
-    # own SESSION branch), so "did this pad's LED change" needs to compare
+    # own LIVE branch), so "did this pad's LED change" needs to compare
     # across lighting types, not just RGB triples.
     pattern = (rf"(03 {led_index_hex} [0-9a-f]{{2}} [0-9a-f]{{2}} [0-9a-f]{{2}}"
                rf"|02 {led_index_hex} [0-9a-f]{{2}}"
@@ -59,7 +59,7 @@ fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_stopclip")], s
 
 time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
-SONG = os.path.join(SCRIPT_DIR, "launchpad_sampletrack_session_test.xml")
+SONG = os.path.join(SCRIPT_DIR, "launchpad_sampletrack_live_test.xml")
 pid, fd = vk.spawn(SONG)
 scr = vk.Screen(fd)
 if not vk.wait_ready(scr):
@@ -113,13 +113,13 @@ print("pad (0,0) LED color after overlay closed: ", color_after_close)
 check("Pad (0,0)'s own LED changed once the sample clip was triggered",
       state_before is not None and state_playing is not None and state_before != state_playing,
       (state_before, state_playing))
-check("Pad (0,0) pulses green (Session view's own playing-clip highlight) once triggered",
+check("Pad (0,0) pulses green (Live View's own playing-clip highlight) once triggered",
       state_playing is not None and state_playing.startswith("02 0b 15"), state_playing)
 check("Picker row shows pad (0,0) as bright red once the overlay opened (a clip is playing)",
       color_picker_open == ('7f', '00', '00'), color_picker_open)
 check("Picker row dims pad (0,0) to dark red once the picker-queued stop took effect",
       color_after_stop == ('14', '00', '00'), color_after_stop)
-check("Pad (0,0)'s own LED reverted to plain Session view once the overlay closed",
+check("Pad (0,0)'s own LED reverted to plain Live View once the overlay closed",
       color_after_close is not None and color_after_close == color_before,
       (color_before, color_after_close))
 

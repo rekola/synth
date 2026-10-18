@@ -226,3 +226,7 @@ GranularCloud::storeParameters(ParameterSource & output) const {
   output.set("amplitudeJitter", getAmplitudeJitter(), d.amplitudeJitter);
   if (getFreeze()) output.set("freeze", 1);
 }
+
+float GranularCloud::idleAfterSeconds() const {
+  return getFreeze() ? std::numeric_limits<float>::infinity() : GranularEngine::memorySeconds();
+}

@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="120" volume="1.0">
   <instruments>
-    <amplifier name="Bell" gain="-10">
+    <amplifier id="i1" name="Bell" gain="-10">
       <envelope attack="0.01" hold="0" decay="1.17" sustain="0" release="0.231">
 	<oscillator type="sine"/>
       </envelope>
     </amplifier>
 
-    <amplifier name="bass3" gain="-10">
+    <amplifier id="i2" name="bass3" gain="-10">
       <envelope attack="0.01" hold="0" decay="1.17" sustain="0" release="0.231">	
 	<resonantFilter cutmin="1100" cutmax="11000" res="0.1" attack="0.01" hold="0" decay="1.17" sustain="0" release="0.231">
 	  <oscillator type="square" />
@@ -16,21 +16,21 @@
       </envelope>
     </amplifier>
 
-    <envelope name="riser" attack="3" hold="0" sustain="0" decay="0" release="0">
+    <envelope id="i3" name="riser" attack="3" hold="0" sustain="0" decay="0" release="0">
       <resonantFilter cutmin="220" cutmax="20000" res="2" attack="3">
 	<noise />
       </resonantFilter>
     </envelope>
 
-    <resonantFilter cut="2200" res="2" name="Chords1">
+    <resonantFilter id="i4" cut="2200" res="2" name="Chords1">
       <instrument from="guitar.acoustic.steel" />
     </resonantFilter>
 
-    <resonantFilter cut="9000" res="2" name="Chords2">
+    <resonantFilter id="i5" cut="9000" res="2" name="Chords2">
       <instrument from="Chateau Grand" />
     </resonantFilter>
 
-    <group name="Quartal Piano">
+    <group id="i6" name="Quartal Piano">
       <instrument from="piano.electric.fm" />
 
       <envelope attack="0.01" decay="1" sustain="0" release="0.8" keynumToDecay="50">
@@ -40,11 +40,11 @@
 
   </instruments>
   <tracks>
-    <track id="bell" instrument="0" sendA="-20.0000" azimuth="-80" distance="1"/>
-    <track id="bass" instrument="1" sendA="-20.0000" azimuth="-45" distance="1"/>
-    <track id="melody" instrument="1" sendA="-20.0000" sendB="-6.0206" azimuth="45" distance="1" />
-    <track id="riser" instrument="2" sendA="-20.0000" />
-    <track id="chords" instrument="3" sendA="-20.0000" azimuth="80" distance="1"/>
+    <track id="bell" instrument="i1" sendA="-20.0000" azimuth="-80" distance="1"/>
+    <track id="bass" instrument="i2" sendA="-20.0000" azimuth="-45" distance="1"/>
+    <track id="melody" instrument="i2" sendA="-20.0000" sendB="-6.0206" azimuth="45" distance="1" />
+    <track id="riser" instrument="i3" sendA="-20.0000" />
+    <track id="chords" instrument="i4" sendA="-20.0000" azimuth="80" distance="1"/>
   </tracks>
   
   <arrangement>

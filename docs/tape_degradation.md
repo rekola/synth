@@ -20,7 +20,7 @@ changes the instrument's *character*, not just its scope:
 <!-- Track-attached: a tape player in the corner -->
 <tracks>
   <tapeDegradation preset="tape" azimuth="-30" distance="2">
-    <track id="0" instrument="0"/>
+    <track id="0" instrument="i1"/>
   </tapeDegradation>
 </tracks>
 

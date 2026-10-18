@@ -11,10 +11,10 @@ using namespace std;
 using namespace LaunchpadLayout;
 
 TEST(edo_steps_matches_each_pitched_tuning_and_is_zero_for_unpitched_ones) {
-  CHECK(edoSteps(Tuning::TET12) == 12);
-  CHECK(edoSteps(Tuning::TET19) == 19);
-  CHECK(edoSteps(Tuning::TET31) == 31);
-  CHECK(edoSteps(Tuning::TET53) == 53);
+  CHECK(edoSteps(Tuning::EDO12) == 12);
+  CHECK(edoSteps(Tuning::EDO19) == 19);
+  CHECK(edoSteps(Tuning::EDO31) == 31);
+  CHECK(edoSteps(Tuning::EDO53) == 53);
   CHECK(edoSteps(Tuning::PERCUSSION) == 0);
 }
 
@@ -482,4 +482,35 @@ TEST(number_display_keeps_the_digits_in_fixed_slots_and_clamps) {
     CHECK(grid[6][static_cast<size_t>(x)] == NumberPixel::OFF);
     CHECK(grid[7][static_cast<size_t>(x)] == NumberPixel::OFF);
   }
+}
+
+TEST(drum_rack_is_a_4x4_block_of_distinct_gm_sounds_in_the_bottom_left) {
+  std::set<int> seen;
+  for (int y = 0; y < 8; y++) {
+    for (int x = 0; x < 8; x++) {
+      auto note = drumPadNoteForPad(x, y);
+      if (x < 4 && y < 4) {
+        CHECK(note >= 27 && note <= 82);
+        CHECK(percussionFamilyForNote(note) != PercussionFamily::UNUSED);
+        CHECK(seen.insert(note).second);
+      } else {
+        CHECK(note == -1);
+      }
+    }
+  }
+  CHECK(seen.size() == 16);
+  // Notes 36-51 in order, left to right then bottom to top.
+  for (int y = 0; y < 4; y++) {
+    for (int x = 0; x < 4; x++) CHECK(drumPadNoteForPad(x, y) == 36 + x + 4 * y);
+  }
+  CHECK(drumPadNoteForPad(-1, 0) == -1);
+}
+
+TEST(step_rows_cover_the_top_half_left_to_right_then_bottom_to_top) {
+  for (int y = 0; y < kPlayRows; y++) CHECK(stepForPad(3, y) == -1);
+  CHECK(stepForPad(0, kPlayRows) == 0);
+  CHECK(stepForPad(7, kPlayRows) == 7);
+  CHECK(stepForPad(0, kPlayRows + 1) == 8);
+  CHECK(stepForPad(7, 7) == kStepsPerView - 1);
+  CHECK(stepForPad(8, 5) == -1);
 }

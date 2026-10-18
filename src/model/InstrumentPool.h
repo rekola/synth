@@ -37,28 +37,24 @@ class InstrumentPool {
  public:
   InstrumentPool();
   ~InstrumentPool();
-  InstrumentPool(InstrumentPool &&) noexcept;
-  InstrumentPool & operator=(InstrumentPool &&) noexcept;
-  InstrumentPool(const InstrumentPool &) = delete;
-  InstrumentPool & operator=(const InstrumentPool &) = delete;
+  InstrumentPool(const InstrumentPool &);
+  InstrumentPool & operator=(const InstrumentPool &);
 
-  const std::vector<std::unique_ptr<Track> > & getInstruments() const { return instruments_; }
+  const std::vector<std::shared_ptr<Track> > & getInstruments() const { return instruments_; }
   const Track & getInstrument(int i) const { return *(instruments_[static_cast<size_t>(i)]); }
-  void addInstrument(std::unique_ptr<Track> i) { instruments_.push_back(std::move(i)); }
+  void addInstrument(std::shared_ptr<Track> i) { instruments_.push_back(std::move(i)); }
 
-  // Erases pool slot `index` outright - a no-op, not an assert, for an
-  // already out-of-range index (mirrors getByIndex()'s own soft-miss
-  // contract). Every later slot shifts down by one, so any
-  // InstrumentTrack::instrument_id_ pointing past `index` is now stale -
-  // Song::removeInstrument() is the real entry point, which reindexes the
-  // whole track tree against this shift before/after calling here; this
-  // method itself only ever touches the flat list, on purpose, so it stays
-  // usable on its own by a future caller that already knows no track
-  // references this pool (e.g. a fresh/import-only pool).
-  void removeInstrument(int index) {
-    if (index < 0 || index >= static_cast<int>(instruments_.size())) return;
-    instruments_.erase(instruments_.begin() + index);
-  }
+  // The pool entry (or the default kit) whose SongObject internal id is
+  // `id`, or null. What state that outlives a published copy of the song
+  // keeps instead of a pointer.
+  const Track * findByInternalId(int id) const;
+
+  // The kit to use, already prepared elsewhere (a compiled pool reuses the
+  // previous one while its `from` is unchanged), and the `from` text it
+  // was made from.
+  void setDefaultKit(std::shared_ptr<GenericInstrument> kit);
+  std::shared_ptr<GenericInstrument> getDefaultKit() const { return default_kit_; }
+  std::string getDefaultKitFrom() const;
 
   // Bounds-checked, nullptr-on-miss sibling of getInstrument() above - what
   // InstrumentTrackState::getInstrumentSource() resolves instrument_id_
@@ -108,8 +104,8 @@ class InstrumentPool {
   const Track * getDefaultKitInstrument() const;
 
  private:
-  std::vector<std::unique_ptr<Track> > instruments_;
-  std::unique_ptr<GenericInstrument> default_kit_;
+  std::vector<std::shared_ptr<Track> > instruments_;
+  std::shared_ptr<GenericInstrument> default_kit_;
 };
 
 #endif

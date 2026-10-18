@@ -19,18 +19,14 @@ class PositionedSceneGrid : public PatternGrid {
   PositionedSceneGrid(const ScenePatternSource & source, const Song & song, int anchor_block)
     : source_(source), read_(song), write_(nullptr), anchor_block_(anchor_block) { }
 
-  const Pattern * find(int track_id, int row, int & pattern_row) const override {
+  PatternView find(int track_id, int row, int & pattern_row) const override {
     pattern_row = row;
     auto address = trackRow(track_id, row);
     if (!address) return nullptr;
     const SceneGrid grid(read_, address->block, source_.blockLength(address->block));
     return grid.find(track_id, address->row, pattern_row);
   }
-  Pattern * find(int track_id, int row, int & pattern_row) override {
-    auto found = static_cast<const PositionedSceneGrid &>(*this).find(track_id, row, pattern_row);
-    return write_ ? const_cast<Pattern *>(found) : nullptr;
-  }
-  Pattern * obtain(int track_id, int row, int & pattern_row) override {
+  PatternView obtain(int track_id, int row, int & pattern_row) override {
     pattern_row = row;
     auto address = trackRow(track_id, row);
     if (!write_ || !address) return nullptr;
@@ -76,7 +72,15 @@ ScenePatternSource::blockLength(int block) const {
     if (auto clip = grid.clipFor(track_id)) length = std::max(length, clip->getLength());
   }
   if (length > 0) return length;
-  return s.getRowsPerBar() > 0 ? s.getRowsPerBar() : 1;
+  return s.getSceneBarRows(block);
+}
+
+bool ScenePatternSource::startsBar(int block, int row) const {
+  return row >= 0 && row % song().getSceneBarRows(block) == 0;
+}
+
+bool ScenePatternSource::startsBeat(int block, int row) const {
+  return row >= 0 && row % song().getSceneBeatRows(block) == 0;
 }
 
 RowAddress
@@ -97,9 +101,17 @@ ScenePatternSource::isPlaying(int track_id) const {
   return it != playheads_.end() && it->second.row >= 0;
 }
 
+bool
+ScenePatternSource::anyPlaying() const {
+  for (auto & [ track_id, playhead ] : playheads_) {
+    if (playhead.row >= 0) return true;
+  }
+  return false;
+}
+
 int
 ScenePatternSource::loopLength(int track_id, int scene) const {
-  auto & clips = song().getClips(track_id);
+  auto clips = song().getClips(track_id);
   if (scene < 0 || scene >= static_cast<int>(clips.size())) return 1;
   return std::max(1, clips[static_cast<size_t>(scene)].getLength());
 }
@@ -238,13 +250,33 @@ void
 ScenePatternSource::moveCursor(int delta_rows) {
   if (cursorLocked()) return;
   if (isPlaying(cursor_track_id_)) {
-    // Paused with a launched clip under the cursor: its playhead is the
-    // cursor, within the clip, and every other launched clip moves along.
+    // Paused with a clip under the cursor: its playhead is the cursor,
+    // within the clip. A launched clip's moves every other launched clip
+    // along; one the arrangement is playing moves the arrangement's position.
     auto & playhead = playheads_.at(cursor_track_id_);
-    auto & clips = song().getClips(cursor_track_id_);
+    auto clips = song().getClips(cursor_track_id_);
     if (playhead.scene < 0 || playhead.scene >= static_cast<int>(clips.size())) return;
-    auto length = std::max(1, clips[static_cast<size_t>(playhead.scene)].getLength());
-    controller_.getSessionPlayer().shiftLaunchedClips(std::clamp(playhead.row + delta_rows, 0, length - 1) - playhead.row);
+    auto clip = clips[static_cast<size_t>(playhead.scene)];
+    auto length = std::max(1, clip.getLength());
+    auto & clip_player = controller_.getClipPlayer();
+    if (clip_player.isTakenOver(cursor_track_id_) && clip.isLooping() && playhead.looping && playhead.elapsed >= 0) {
+      // A launched looping clip's playhead runs on through its loop, so the
+      // view moves with it the way it does while playing. Elapsed rows
+      // can't go below 0, so a step back past the start is a whole number
+      // of loops further on, which the view makes up for.
+      auto short_by = std::max(0, -(playhead.elapsed + delta_rows));
+      auto loops = (short_by + length - 1) / length;
+      clip_player.shiftLaunchedClips(delta_rows + loops * length);
+      cursor_jump_ += loops * length;
+      return;
+    }
+    // A looping clip wraps either way; a one-shot stops at its ends.
+    auto target = clip.isLooping() ? ((playhead.row + delta_rows) % length + length) % length
+                                   : std::clamp(playhead.row + delta_rows, 0, length - 1);
+    auto moved = target - playhead.row;
+    if (clip_player.isTakenOver(cursor_track_id_))
+      clip_player.shiftLaunchedClips(moved);
+    else if (moved != 0) controller_.setEditPosition(controller_.getPlaybackInfo().getAbsolutePosition() + moved);
     return;
   }
   auto old_cursor = cursor();
@@ -274,7 +306,13 @@ ScenePatternSource::moveStoppedTracks(int rows) {
 
 void
 ScenePatternSource::setTrackPosition(int track_id, RowAddress address) {
-  if (isPlaying(track_id)) return;
+  if (isPlaying(track_id)) {
+    // Paused with a clip under the cursor: the playhead is the position,
+    // so it is moved within its clip.
+    auto & playhead = playheads_.at(track_id);
+    if (track_id == cursor_track_id_ && playhead.scene == address.block) moveCursor(address.row - sceneRow(track_id, playhead));
+    return;
+  }
   positions()[track_id] = clamp(address);
 }
 
@@ -344,21 +382,20 @@ ScenePatternSource::loopPassDim(int track_id, RowAddress address) const {
 
 ReadTarget
 ScenePatternSource::read(int track_id, RowAddress address) const {
-  static const Pattern empty_pattern;
   const Song & s = song();
   address = trackAddress(track_id, address);
   // Rows before the first scene show nothing.
-  if (address.row < 0) return { &empty_pattern, 0, address.row, false, -1 };
+  if (address.row < 0) return { PatternView::empty(), 0, address.row, false, -1 };
   SceneGrid grid(s, address.block, 0);
   auto clip = grid.clipFor(track_id);
-  if (!clip) return { &empty_pattern, 0, address.row, false, -1 };
+  if (!clip) return { PatternView::empty(), 0, address.row, false, -1 };
   auto length = clip->getLength() > 0 ? clip->getLength() : 1;
   // A sample clip has no Pattern, but the waveform drawing still needs to
   // know which clip this is.
-  if (clip->hasSample()) return { &empty_pattern, 0, address.row, true, address.block, false, length };
-  auto clip_row = SceneGrid::clipRow(*clip, address.row);
-  if (clip_row < 0) return { &empty_pattern, 0, address.row, false, -1 };
-  return { &clip->getLeafPattern(), clip_row, address.row, true, address.block, false, length };
+  if (clip->hasSample()) return { PatternView::empty(), 0, address.row, true, address.block, false, length };
+  auto clip_row = SceneGrid::clipRow(clip, address.row);
+  if (clip_row < 0) return { PatternView::empty(), 0, address.row, false, -1 };
+  return { clip->getLeafPattern(), clip_row, address.row, true, address.block, false, length };
 }
 
 EditTarget
@@ -372,9 +409,7 @@ ScenePatternSource::edit(int track_id, RowAddress address) {
   // A slot holding sample audio has no Pattern to write notes into (and no
   // note columns to type them in), and there's no slot before the first
   // scene - writes land nowhere.
-  static Pattern discarded;
-  discarded = Pattern();
-  return { &discarded, 0 };
+  return { PatternView::discarded(), 0 };
 }
 
 std::unique_ptr<const PatternGrid>
@@ -388,19 +423,13 @@ ScenePatternSource::editGrid(RowAddress anchor, bool) {
   return std::make_unique<PositionedSceneGrid>(*this, song(), anchor.block);
 }
 
-void
-ScenePatternSource::collectTrackInfo(RowAddress first, int rows, std::unordered_map<int, VisibleTrackInfo> & track_info) const {
+void ScenePatternSource::collectTrackInfo(RowAddress, int, std::unordered_map<int, VisibleTrackInfo> & track_info) const {
+  // Every clip of the track, not just the visible rows: a playing track's
+  // window scrolls, and a width derived from it would change as it does.
   const Song & s = song();
-  auto count = blockCount();
   for (auto track_id : s.getRootTrackIds()) {
-    auto address = trackAddress(track_id, normalize(first.block, first.row));
-    // Rows before the first scene show nothing; scanning from its start
-    // instead only ever widens a column a little more than needed.
-    if (address.block < 0) address = { 0, 0 };
-    for (int covered = 0; covered < rows && address.block < count; address = { address.block + 1, 0 }) {
-      auto clip = SceneGrid(s, address.block, 0).clipFor(track_id);
-      if (clip && !clip->hasSample()) clip->getLeafPattern().updateSubtrackInfo(track_info[track_id]);
-      covered += blockLength(address.block) - address.row;
+    for (auto clip : s.getClips(track_id)) {
+      if (!clip.hasSample()) clip.getLeafPattern().updateSubtrackInfo(track_info[track_id]);
     }
   }
 }

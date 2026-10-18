@@ -8,9 +8,9 @@ than a fifth, distinct color. Deliberately avoids ever triggering
 playback, same reasoning as verify_launchpad_mute_picker.py - arming is
 pure bookkeeping with nothing to hear.
 
-Presses CC95 a second time first to enter Session's own mixer submode
+Presses CC95 a second time first to enter Live's own mixer submode
 (required before CC19 opens the overlay rather than launching a scene -
-also confirms Session's own LED turns orange), then presses CC19 to open the
+also confirms Live's own LED turns orange), then presses CC19 to open the
 overlay, confirms both CC19's own LED and the picker row's pad (0,0) (the
 fixture's only track, unarmed by default) show dim red before/bright red
 once armed, that pad (0,7) - outside the picker row - stays untouched,
@@ -48,7 +48,7 @@ fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_record_arm_pic
 
 time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
-SONG = os.path.join(SCRIPT_DIR, "launchpad_session_test.xml")
+SONG = os.path.join(SCRIPT_DIR, "launchpad_live_test.xml")
 pid, fd = vk.spawn(SONG)
 scr = vk.Screen(fd)
 if not vk.wait_ready(scr):
@@ -97,8 +97,8 @@ cc19_in_mixer = last_led_color(after_mixer, "13")
 cc19_open = last_led_color(after_open, "13")
 cc19_after_pick = last_led_color(after_pick, "13")
 cc19_after_close = last_led_color(after_close, "13")
-session_before_mixer = last_led_color(before_mixer, "5f")
-session_in_mixer = last_led_color(after_mixer, "5f")
+before_mixer = last_led_color(before_mixer, "5f")
+in_mixer = last_led_color(after_mixer, "5f")
 
 print("pad (0,0) LED before entering mixer submode:", color_before_mixer)
 print("pad (0,0) LED once the overlay opened:      ", color_after_open)
@@ -107,13 +107,13 @@ print("pad (0,0) LED once the overlay closed:      ", color_after_close)
 print("pad (0,7) LED before mixer/once overlay open:", row7_before_mixer, row7_after_open)
 print("CC19 LED before-mixer/in-mixer/open/after-pick/closed:",
       cc19_before_mixer, cc19_in_mixer, cc19_open, cc19_after_pick, cc19_after_close)
-print("CC95 (Session) LED before/in mixer submode:  ", session_before_mixer, session_in_mixer)
+print("CC95 (Session) LED before/in mixer submode:  ", before_mixer, in_mixer)
 
 check("CC19 (Record Arm) LED is a plain dim scene-launch white before entering mixer submode",
       cc19_before_mixer == ('1e', '1e', '1e'), cc19_before_mixer)
 check("CC95 (Session) LED turns orange once mixer submode is entered",
-      session_before_mixer == ('00', '7f', '00') and session_in_mixer == ('7f', '40', '00'),
-      (session_before_mixer, session_in_mixer))
+      before_mixer == ('00', '7f', '00') and in_mixer == ('7f', '40', '00'),
+      (before_mixer, in_mixer))
 check("CC19 (Record Arm) LED becomes dim red (its own idle hue) once in mixer submode, before opening",
       cc19_in_mixer == ('14', '00', '00'), cc19_in_mixer)
 check("CC19 (Record Arm) LED lit up bright red once the overlay opened",
@@ -129,7 +129,7 @@ check("CC19 (Record Arm) LED stayed lit after picking a track (overlay still ope
       cc19_after_pick == ('7f', '00', '00'), cc19_after_pick)
 check("CC19 (Record Arm) LED reverted to its dim mixer-submode hue once a second press closed the overlay",
       cc19_after_close == ('14', '00', '00'), cc19_after_close)
-check("Pad (0,0)'s own LED reverted to plain Session view once the overlay closed",
+check("Pad (0,0)'s own LED reverted to plain Live View once the overlay closed",
       color_after_close is not None and color_after_close == color_before_mixer,
       (color_before_mixer, color_after_close))
 

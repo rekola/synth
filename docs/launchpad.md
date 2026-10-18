@@ -2,50 +2,30 @@
 
 A connected Novation Launchpad (Mini MK3 / X) is optional; the
 terminal UI does everything without one. Each connected device has its own
-grid mode, so one can sit in Session view while another does note entry.
+grid mode, so one can sit in Live View while another does note entry.
 
-## Note entry layout
+## Where it comes from
 
-A connected Novation Launchpad (Mini MK3 / X) becomes an
-isomorphic note-entry grid, its layout generalizing the 12edo Wicki-Hayden
-keyboard to any EDO via a best-fifth generator (`src/launchpad/LaunchpadLayout.h`).
+- **Buttons.** The right-hand column carries the Launchpad X's own labels
+  (Record Arm, Volume, Pan, Send A, Send B, Stop Clip, Mute, Solo) and
+  launches a scene while mixer submode is off. In the shift layer, Undo, Redo
+  and the click sit where Novation's Launchpad Pro MK3 puts them, and the Tempo
+  and Swing views follow that device's views; the other shift functions are
+  ours.
+- **Custom.** A grid of held, non-destructive per-track effects is the
+  performance mode of hardware trackers (Polyend Tracker); the layout (a
+  column per track, a row per effect, pressure for depth) and the effects
+  themselves are ours. Stutter is the buffer repeat of beat
+  repeaters and DJ loop rolls, and Shuffle their slice rearranger. Erode and
+  Shatter follow granular processors that grain their live input (Mutable
+  Instruments Clouds), set sparse and dense. Gate is the trance gate, Crush
+  the bitcrusher.
 
-### Colors
+## Note mode
 
-LED coloring originally followed the notational convention of Adriaan
-Fokker's 31-EDO organ (built 1950 for Teylers Museum, Haarlem) and the
-later Archiphone: each pad was colored by its *distance from the song's
-diatonic scale* (tonic / diatonic degree / sharp / flat / diesis /
-accidental), generalizing the idea that 31-EDO's chromatic notes split
-into two musically distinct kinds (a full chromatic step vs. a
-quarter-tone-ish shading) that a simple black/white keyboard can't
-distinguish.
-
-That scheme was replaced with a different organizing principle: coloring
-by *consonance* rather than by scale-degree distance. Standard microtonal
-note names (sharps, flats, double-flats, ...) are built from a fixed,
-12-tone-shaped chain of fifths, which stops matching musical intuition
-well once an EDO is fine enough that the interesting structure is no
-longer "how many fifths from the tonic" but "how consonant is this
-interval, period." The new scheme instead recursively factors the octave
-the way classical interval theory does - `2/1 = 4/3 * 3/2` (the octave's
-simplest factor pair is the fourth and fifth), then `3/2 = 6/5 * 5/4` (the
-fifth's own simplest factor pair is the minor and major third), and so on
-- reusing that same factoring operation, approximated proportionally, at
-every deeper level. This reaches every pitch class (no leftover
-"everything else" bucket) within 4-6 levels for all four supported EDOs.
-
-Color encodes the resulting tree two ways: hue drifts away from a shared
-starting point by a shrinking amount at each level (so a pitch stays
-hue-close to its harmonic neighborhood, however deep the recursion goes),
-and saturation fades with depth (so more distant/complex notes read as
-more muted) - both channels survive the idle-brightness remap that only
-lightness gets overridden by; tonic keeps a fixed, deliberately dissimilar
-hue (yellow) so it always pops out.
-
-The classification is purely a function of the EDO and key (see
-`LaunchpadLayout::computeConsonanceLevels`), so it applies unchanged to
-12/19/31/53-EDO.
+Note mode (96) is the playing surface: a 4x4 drum rack on a percussion track,
+an isomorphic keyboard on a pitched one, and, with a clip open, 32 steps
+above it. It is described in [drums-and-sequencer.md](drums-and-sequencer.md).
 
 ## Grid modes
 
@@ -56,21 +36,34 @@ gesture).
 
 | Button | Mode |
 | --- | --- |
-| 95 | Session: the clip grid |
-| 96 | Note: isomorphic note entry (a step grid while a clip is open for editing) |
-| 97 | Custom: the percussion lane picker |
-| shift + Solo | Draw: a per-pad coloring toy, independent of the song |
+| 95 | Session: opens Live View's clip grid on the pads |
+| 96 | Note: the drum rack or isomorphic keyboard (plus the step rows while a clip is open for editing) |
+| 97 | Custom: the performance grid (below) |
+| shift + 97 | Draw: a per-pad coloring toy, independent of the song |
 | shift + Send B | Tempo: the song's tempo as a number on the pads |
 | shift + Stop Clip | Swing: the song's swing as a number on the pads |
 
-A second press of 95 while on the plain Session grid toggles **mixer submode**
-(see below). Its LED is dim green away from Session, bright green in Session,
-and orange in mixer submode.
+The button is labelled Session on the device; here it selects the Live mode,
+the pad view of Live View. The button's LED is dim green away from the clip
+grid, bright green on it, and orange in mixer submode.
+
+On the Launchpad X, a second press of 95 while on the plain clip grid toggles
+**mixer submode** (see below). The Mini has no mixer mode.
 
 ## Right-side buttons
 
+The right column differs per model. Pads, the top row and the shift
+functions below are the same on both. The Pro MK3 has no layout of its own and
+is untested.
+
+### Launchpad X
+
 Record Arm (19), Volume (89), Pan (79), Send A (69), Send B (59), Stop Clip
 (49), Mute (39) and Solo (29) share one dispatch.
+
+In Note mode, Record Arm (19) instead starts and stops capturing what is
+played into the arrangement; its LED is bright red while capturing, dim red
+otherwise.
 
 | Button | Mixer submode off (default) | Mixer submode on |
 | --- | --- | --- |
@@ -88,6 +81,34 @@ of the action: red for Stop Clip and Record Arm, yellow for Mute, blue for
 Solo. Picking a track toggles that action for it and leaves the picker open;
 the same button again closes it.
 
+### Launchpad Mini MK3
+
+The Mini's buttons are labelled differently: seven scene launch buttons, and
+the lowest one is Stop/Solo/Mute. The Mini has no mixer mode at all (no
+Volume/Pan/Send faders, and a second press of 95 does nothing special), but it
+keeps the shift actions below.
+
+| Button | Function |
+| --- | --- |
+| 89, 79, 69, 59, 49, 39, 29 (top to bottom) | launch the scene at that row (rows 1-7 from the top) |
+| 19 (Stop/Solo/Mute) | cycles the bottom pad row between clips, Stop, Solo and Mute |
+
+The bottom pad row starts out showing clips like the rest of the grid. Each
+press of the Stop/Solo/Mute button moves to the next function, and the press
+after Mute returns to clips:
+
+| Press | LED | Bottom row |
+| --- | --- | --- |
+| default / fourth | white | clips |
+| first | red | Stop: bright pad = a clip is playing on that track; pressing it stops the track |
+| second | blue | Solo: bright pad = the track is soloed; pressing it toggles solo |
+| third | yellow | Mute: bright pad = the track is audible; dim = muted; pressing it toggles mute |
+
+In Note mode the Stop/Solo/Mute button still starts and stops capture, as
+Record Arm does on the other models. While shift is held the right column
+shows the shift functions below by position (Volume, Pan, ... are the Mini's
+scene buttons 89, 79, ...).
+
 ### Shift
 
 Holding the up arrow (91) turns the eight right-side buttons into the
@@ -97,29 +118,40 @@ release so a combination never has to be undone.
 
 | Button | Action |
 | --- | --- |
+| Record Arm (19) | **Undo** (lit while there is something to undo) |
+| Mute (39) | **Redo** (lit only while an undo can be taken back) |
+| Solo (29) | **Metronome** click |
 | Volume (89) | **Duplicate** |
-| Pan (79) | **Metronome** |
+| Pan (79) | **Delete** |
 | Send A (69) | **Quantise** |
 | Send B (59) | **Tempo** view |
 | Stop Clip (49) | **Swing** view |
-| Mute (39, Pro MK3 30) | **Delete** |
-| Solo (29) | **Draw** |
+| 97 | **Draw** mode |
+| a clip pad | **Select** the clip without launching it |
+| 96 (Note) | **Step edit**: open or close the selected clip's step grid |
 
-Record Arm (19) does nothing under shift. Apart from Swing, which follows the
-Pro MK3's own view, the assignment is simply the next free button. It carries
-no meaning.
+Following the Pro MK3's own shift layer, Undo, Redo and the click sit where
+Novation puts them; the rest are ours. Undo and Redo are the `undo` and
+`undo-redo` commands (below). LEDs: Undo white while there is something to
+undo, Redo white only while an undo can be taken back (dim otherwise), Delete
+magenta (red is Quantise's off state).
+
+#### Select a clip
+
+Hold shift and press a clip pad to select it without launching it, empty slots
+included. The track and clip become the cursor, so the next recording or paste
+lands there. Nothing opens by itself: shift + Note (96) then opens the
+selected clip for step editing, as under the drum machine, and closes it again.
 
 #### Duplicate
 
-Hold shift and Volume, then press a populated clip pad to pick it as the
-source (white). Press an empty slot in the same track column to copy it there.
-The copy is independent and never overwrites. One hold can fill several slots.
-Releasing Volume with a source picked and no destination copies to the next
-empty slot.
+Hold shift and Volume, then press a populated clip pad to copy that clip into
+the slot below it, overwriting whatever is there (an overwritten clip's
+arrangement placements are removed). One hold can copy several clips.
 
 #### Metronome
 
-Press shift + Pan to toggle a click on every beat while the transport plays,
+Press shift + Solo to toggle a click on every beat while the transport plays,
 accented on the first beat of the bar. The same action is the
 `toggle-metronome` command. It is not saved with the song. The LED is amber,
 bright while on.
@@ -140,7 +172,7 @@ Here shift + Send A stands in for that button.
   the clip under the cursor in the clip grid.
 - **Record Quantise:** tap shift + Send A with no pad pressed to toggle it
   (`toggle-record-quantize`). The toggle happens on release, because the same
-  hold also quantises clips. With it off, the default, Session recording keeps
+  hold also quantises clips. With it off, the default, clip recording keeps
   the exact timing of every press and release. With it on, each press and
   release snaps to the nearest row as it is recorded. The setting is saved
   with the song.
@@ -149,17 +181,17 @@ Here shift + Send A stands in for that button.
 
 #### Delete
 
-Hold shift and Mute, then press a clip pad to delete what its slot holds, one
+Hold shift and Pan, then press a clip pad to delete what its slot holds, one
 layer per press: a populated slot loses its clip (leaving an empty slot in
 place, so the scene rows of every other track stay aligned), and an empty slot
-loses its stop button. Session view only. The terminal's `delete-clip` does the
-same.
+loses its stop button. Live View only. The terminal's `kill-region` in the clip grid
+does the same, but also puts the clip on the clipboard (see `user-interface.md`).
 
 With the transport stopped, or when the clip is not sounding, the delete is
 instant. A clip that is playing, or queued, on its track while the transport
 runs is never pulled out from under the playhead: its track is stopped at the
-next bar, and the clip is removed once that has taken effect. There is no undo
-or confirmation. The LED is red, bright while held.
+next bar, and the clip is removed once that has taken effect. There is no
+confirmation, but `undo` brings the clip back. The LED is red, bright while held.
 
 #### Tempo and Swing views
 
@@ -184,14 +216,14 @@ colour. 120 shows a blue 1, a white 2 and a blue 0, 50 a white 5 and an orange
   a press switches to.
 - **Tempo** is 20 to 300 bpm and takes effect immediately, also while playing
   (commands `tempo-increase` and `tempo-decrease`).
-- **Swing** is 50 to 75 per cent (commands `swing-increase` and
-  `swing-decrease`). 50 is straight; about 67 is triplet swing. The second
+- **Swing** is 50 to 75 per cent, the range of the Akai MPC's swing
+  (commands `swing-increase` and `swing-decrease`). 50 is straight; about 67 is triplet swing. The second
   note of every eighth-note pair plays late, applied at playback to everything,
   never changing the notes themselves. Library rhythms carry a swing of their
   own: it is heard when previewing one, and Add to Song sets the song's swing
   to it.
 
-## Session view
+## Live View
 
 Rows are a track's clip list, columns are the tracks. Every connected device
 follows one shared cursor track. Launching is quantized to the next bar and
@@ -210,18 +242,49 @@ A tap overdubs the playing clip of each armed track (the followed track's if
 none is armed) from the next bar. While any take is running, a tap stops them
 at the next bar and leaves the clips playing. A long hold is Capture MIDI,
 which is not implemented. Shift + 98 toggles the arrangement's own Record Arm,
-which makes a Session pad press write the clip into the arrangement. Its LED
+which makes a pad press in Live View write the clip into the arrangement. Its LED
 is bright red while anything records, dim red otherwise.
 
 Notes played on the grid during a take are recorded with their exact timing
 unless Record Quantise is on (see Quantise above).
 
-## Step grid and drum machine
+## Performance grid (Custom)
 
-A percussion track with lanes, or a pitched track's clip, can be edited as a
-step grid: rows are lanes or scale degrees, columns are steps. Hold 91 and press
-a Session pad to open that pad's clip; the pad resolves on release. Every
-device then switches to the step grid, each showing its own page. In the step
-grid, 93 and 94 scroll the steps, and on a pitched track 91 and 92 scroll the
-rows. A lone press of 95 closes it. 97 opens the lane picker for a percussion
-track, which is how a lane-less track gains its first lane.
+Custom (97) turns the grid into performance effects. Columns are the tracks,
+in the same order as Live View's. Rows are effects. Holding a pad applies that
+row's effect to that column's track, and releasing it ends the effect, which
+glides back over 10 ms so a press never clicks. Several pads can be held at
+once. Pressing harder deepens an effect on a Launchpad X or Pro MK3; the Mini
+MK3 senses no pressure, so it gets the plain press amount. Nothing is written
+to the song: the track's own sends and azimuth stay as they are, and the
+effects are not recorded. Leaving Custom, or unplugging the device, releases
+everything it holds.
+
+| Row (top to bottom) | Effect | Holding it |
+| --- | --- | --- |
+| 8 | (Filter, not built) | dark |
+| 7 | Stutter | From the next row, the track's own sound is captured and then repeated: a quarter note on a press, an eighth, a sixteenth and a 32nd pressing harder (a shorter loop repeats the start of what was captured). It repeats everything the track sends, sample tracks included, until the pad is released, when it fades back to the live track. With the transport stopped it starts capturing at once. |
+| 6 | Shuffle | From the next row, the track is recorded for up to a bar and played back as slices in a random order: each slice is any part already recorded, the part being recorded included, so it starts as the live track and scatters from there. Slices are an eighth note on a press, then a sixteenth, a 32nd and a 64th pressing harder. Released, it fades back to the live track. |
+| 5 | Erode | The track is broken into large, patchy grains: pieces of 40-250 ms of its own recent sound, taken from up to 300 ms back, each at its own level, slightly off pitch and turned a little around the listener, with silence between them. A press leaves it grainy but mostly there; pressing harder thins the grains out until only fragments survive. Works on every track type. |
+| 4 | Shatter | Erode's engine set the other way: a dense spray of tiny grains (5-30 ms) from up to a second back, pitched up to a few semitones off, half of them backwards, scattered all round the listener and fed back into themselves a little. Pressing harder makes it denser, up to an octave off and the full circle. |
+| 3 | Gate | The track is cut on and off on the beat grid - open for the first half of each period - while the song carries on underneath: eighth notes on a press, sixteenths and 32nds pressing harder. With the transport stopped it runs from the press. |
+| 2 | Crush | Lower sample rate and fewer bits: a quarter of the rate and 8 bits on a press, down to a 32nd and 4 bits at full pressure. |
+| 1 | Duck | The track's dry signal drops by 12 dB, to silence at full pressure; its sends are untouched. |
+
+Each row has its own colour, dim while idle and bright while held: cyan for
+Stutter, blue for Shuffle, rust for Erode, violet for Shatter, yellow for
+Gate, green for Crush, red for Duck. A column with no track is dark.
+
+The right-hand button at the end of a row holds that row's effect on the
+master - the whole mix, the reverb and delay returns included - in the row's
+colour. A button senses no pressure, so it always gives the plain press
+amount. With shift held the buttons keep their shift functions.
+
+Orbit and the Send A/B throws exist but are not on the grid at
+present.
+
+## Step grid
+
+In Live View, hold 91 and press a pad to open the corresponding clip for step editing; the
+steps and the playing surface are described in
+[drums-and-sequencer.md](drums-and-sequencer.md).

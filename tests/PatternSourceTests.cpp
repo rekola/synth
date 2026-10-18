@@ -29,7 +29,7 @@ struct Fixture {
     controller.switchToBuffer(controller.freshBufferName());
     auto & song = controller.getSong();
     track_id = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
-    rows = song.getRowsPerBar();
+    rows = song.getArrangementBars().barRows();
   }
   Song & song() { return controller.getSong(); }
 };
@@ -67,7 +67,7 @@ TEST(arrangement_source_notes_follow_a_placed_clip_but_commands_stay_on_the_back
   clip.setLooping(true);
   clip.getLeafPattern().setNote(0, 0, Note(60, 100));
   song.addClip(move(clip));
-  auto & arrangement = song.getArrangement();
+  auto arrangement = song.getArrangement();
   placeClipInstance(song, f.track_id, 0, 0);
   placeStopInstance(song, f.track_id, f.rows);
   arrangement.setNote(0, f.track_id, 0, Note(40, 100));
@@ -132,7 +132,7 @@ namespace {
 
 // Track `track_id` gets `clip` at clip-list index `index`.
 void placeClip(Song & song, int track_id, int index, int length, bool looping, int note_row = 0) {
-  auto & clip = song.ensureClipAt(track_id, index);
+  auto clip = song.ensureClipAt(track_id, index);
   clip.setId(song.generateUniqueClipId());
   clip.setLength(length);
   clip.setLooping(looping);
@@ -189,7 +189,7 @@ TEST(scene_source_editing_an_empty_slot_creates_a_looping_clip_of_the_scene_leng
   auto edit = source.edit(f.track_id, { 1, 3 });
   edit.pattern->setNote(edit.effective_row, 0, Note(64, 100));
 
-  auto & clips = song.getClips(f.track_id);
+  auto clips = song.getClips(f.track_id);
   CHECK(clips.size() == 2);
   CHECK(clips[0].isEmpty()); // the hole before it stays a hole
   CHECK(!clips[1].getId().empty());
@@ -209,7 +209,7 @@ TEST(scene_source_editing_past_a_one_shots_end_lengthens_it_to_the_bar) {
 
   auto edit = source.edit(f.track_id, { 0, f.rows + 1 });
   edit.pattern->setNote(edit.effective_row, 0, Note(65, 100));
-  auto & clip = song.getClips(f.track_id)[0];
+  auto clip = song.getClips(f.track_id)[0];
   CHECK(clip.getLength() == 2 * f.rows);
   CHECK(clip.getLeafPattern().getNote(f.rows + 1, 0).getValue() == 65);
 }
@@ -256,7 +256,7 @@ namespace {
 
 // `track_id` gets a looping clip at `index` whose row r plays note base+r.
 void placeCountingClip(Song & song, int track_id, int index, int length, int base) {
-  auto & clip = song.ensureClipAt(track_id, index);
+  auto clip = song.ensureClipAt(track_id, index);
   clip.setId(song.generateUniqueClipId());
   clip.setLength(length);
   clip.setLooping(true);
@@ -264,7 +264,7 @@ void placeCountingClip(Song & song, int track_id, int index, int length, int bas
 }
 
 int noteAt(const ReadTarget & target) {
-  auto & note = target.pattern->getNote(target.effective_row, 0);
+  auto note = target.pattern->getNote(target.effective_row, 0);
   return note.isDefined() ? note.getValue() : -1;
 }
 
@@ -387,19 +387,44 @@ TEST(scene_source_paused_cursor_moves_every_launched_playhead) {
 
   auto info = f.controller.getPlaybackInfo();
   info.setIsPlaying(false);
-  info.setSessionClock(10);
-  SessionTracks tracks;
+  info.setLiveClock(10);
+  LiveTracks tracks;
   tracks[other].clip_index = 1;
   tracks[other].launch_clock = 7; // row 3
-  info.setSessionTracks(tracks);
+  info.setLiveTracks(tracks);
   f.controller.setPlaybackInfo(info);
 
   CHECK(!source.cursorLocked());
   source.moveCursor(2);
-  CHECK(f.controller.getPlaybackInfo().getSessionTrack(other)->launch_clock == 5); // row 5
+  CHECK(f.controller.getPlaybackInfo().getLiveTrack(other)->launch_clock == 5); // row 5
   source.setPlayheads({ { other, { 1, 5 } } }); // the next frame's
-  source.moveCursor(-100); // clamped at the clip's first row
-  CHECK(f.controller.getPlaybackInfo().getSessionTrack(other)->launch_clock == 10);
+  source.moveCursor(-5);
+  CHECK(f.controller.getPlaybackInfo().getLiveTrack(other)->launch_clock == 10);
+  source.setPlayheads({{other, {1, 0}}});
+  source.moveCursor(-1); // a looping clip wraps backwards to its last row
+  CHECK(f.controller.getPlaybackInfo().getLiveTrack(other)->launch_clock == 10 - (f.rows - 1));
+}
+
+TEST(scene_source_set_position_moves_a_paused_playhead) {
+  Fixture f;
+  auto & song = f.song();
+  auto other = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
+  placeCountingClip(song, other, 1, f.rows, 80);
+  ScenePatternSource source(f.controller);
+  source.setCursorTrack(other);
+  source.setPlayheads({{other, {1, 3}}});
+
+  auto info = f.controller.getPlaybackInfo();
+  info.setIsPlaying(false);
+  info.setLiveClock(10);
+  LiveTracks tracks;
+  tracks[other].clip_index = 1;
+  tracks[other].launch_clock = 7; // row 3
+  info.setLiveTracks(tracks);
+  f.controller.setPlaybackInfo(info);
+
+  source.setTrackPosition(other, {1, 5});
+  CHECK(f.controller.getPlaybackInfo().getLiveTrack(other)->launch_clock == 5); // row 5
 }
 
 TEST(scene_source_playing_track_keeps_its_line_as_the_cursor_moves) {
@@ -473,8 +498,8 @@ TEST(scene_source_region_acts_on_each_track_at_its_own_position) {
   // Rows 0-1 of the cursor track's scene: rows 2-3 of the other track's.
   auto grid = source.editGrid({ 0, 0 }, false);
   clearPatternBlock(*grid, 0, 1, { f.track_id, other }, 0, 1);
-  auto & mine = song.getClips(f.track_id)[0].getLeafPattern();
-  auto & theirs = song.getClips(other)[1].getLeafPattern();
+  auto mine = song.getClips(f.track_id)[0].getLeafPattern();
+  auto theirs = song.getClips(other)[1].getLeafPattern();
   CHECK(!mine.getNote(0, 0).isDefined());
   CHECK(!mine.getNote(1, 0).isDefined());
   CHECK(mine.getNote(2, 0).getValue() == 42);
@@ -493,10 +518,10 @@ namespace {
 struct RegionFixture {
   Song song;
   int track_id;
-  Arrangement * arrangement;
+  ArrangementView arrangement;
   RegionFixture() {
     track_id = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
-    arrangement = &song.getArrangement();
+    arrangement = song.getArrangement();
     Clip clip(track_id);
     clip.setLength(4);
     clip.setLooping(false);
@@ -505,7 +530,7 @@ struct RegionFixture {
     placeClipInstance(song, track_id, 4, 0);
     for (int row = 0; row < 16; row++) arrangement->setNote(row, track_id, 0, Note(40, 100));
   }
-  const Pattern & clipPattern() const { return song.getClips(track_id)[0].getLeafPattern(); }
+  PatternView clipPattern() const { return song.getClips(track_id)[0].getLeafPattern(); }
 };
 
 }
@@ -553,7 +578,7 @@ TEST(region_grid_follows_a_focused_clip_across_the_whole_arrangement) {
   ArrangementRegionGrid grid(f.song, 0, focused);
   CHECK((grid.sourceRows(f.track_id) == make_pair(0, Song::kMaxArrangementRows - 1)));
   int row;
-  CHECK(grid.find(f.track_id, 1, row) == &f.clipPattern());
+  CHECK(grid.find(f.track_id, 1, row).node() == f.clipPattern().node());
 }
 
 TEST(arrangement_source_locator_rows_are_absolute_and_scene_source_has_none) {

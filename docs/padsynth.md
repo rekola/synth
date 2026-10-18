@@ -32,34 +32,11 @@ The numeric parameters behind each preset come from Paul Nasca's
 [PADsynth algorithm description](https://zynaddsubfx.sourceforge.io/doc/PADsynth/PADsynth.htm)
 and its example parameter files.
 
-## Tuning-matched partials
-
-Every oscillator that generates harmonic content (`<padsynth>`,
-`<additive>`) shares one rule: a partial can be snapped to the nearest
-step of the song's tuning instead of sitting at its plain harmonic
-ratio, so it doesn't beat against the tuning's notes. A partial is
-tuning-matched when the nearest integer harmonic's odd part (that
-harmonic number with every factor of 2 removed) is `<= 7` - so every
-octave-doubling of a small odd number gets matched (1-8, 10, 12, 14, 16,
-20, 24, 28, 32, ...), not just a fixed initial run of low partials. `N`
-(steps per octave) is read from the *song's current tuning* at play
-time, not a hardcoded constant - a song's temperament change is reflected
-the next time the instrument's table is (re)built. `Tuning::PERCUSSION`
-has no scale to snap to, so tuning-matching is always a no-op there.
-
-Resampling a table built for one pitch region to a different pitch within
-that region keeps every snapped partial locked to its scale step: the
-snap happens once, at generation time, in cents relative to the table's
-fixed reference fundamental, and resampling shifts every partial
-(snapped or not) by the same multiplicative ratio - it doesn't recompute
-or perturb the snap.
-
 ## Attributes
 
 | Attribute | Meaning |
 |---|---|
 | `preset` | Below. Supplies every other attribute's default; an explicit attribute always overrides its preset's value. |
-| `tuningMatched` | `false` disables tuning-matching entirely - every partial stays purely harmonic, for A/B comparison. Defaults to the preset's value (`true` unless a preset overrides it - e.g. `keyboard`/`synth-piano-3-b` default `false`, to keep their stretched partials intact). |
 | `level` | Output gain multiplier, matching `<oscillator>`'s `level`. Default 1.0. |
 | `detune` | Pitch offset in cents, default 0. The wavetable is read at the detuned pitch, so `1200` is an octave up and `-1200` an octave down. Layer two `<padsynth>` elements in a `<group>` (one detuned) for doubling or a slight detune. |
 | `seed` | Integer seed for the table's random phases (`dsp/HashField.h`) - deterministic across platforms for a fixed seed; change it to get a different (still fully deterministic) phase draw for the same preset. Default 1. |
@@ -86,14 +63,17 @@ harmonic's amplitude across its two neighboring output harmonics,
 several prototype harmonics converging on one output harmonic where they
 overlap (scatter) - accumulated in power (`sqrt(sum of squares)`), correct
 for independent-random-phase partials. Runs after the oscillator shape's
-shaping stages and before partial positioning/tuning-matching.
+shaping stages and before partial positioning.
 
 An optional, independent postprocess stage shapes the result further:
 `"residue"` (residue-class weighting) keeps harmonics `h` with `h mod n
 == r mod n` at full amplitude and scales every other harmonic by
 `(1 - amount)`; `"stretch"` (stretch-mix) mixes the spectrum with a copy
 of itself stretched by a factor of `n` along the harmonic axis
-(`out = (1-amount)*S + amount*S'`, `S'[n*h] = S[h]`).
+(`out = (1-amount)*S + amount*S'`, `S'[n*h] = S[h]`). Harmonics are counted
+from the fundamental as 1 in both stages. Residue `n=2, r=1` keeps the odd
+harmonics, `n=k, r=0` the multiples of `k`; stretch by `k` moves harmonic
+`h` to `k*h`.
 
 Partial positioning (`g(h)` - where a preset's partials actually sit,
 e.g. an explicit non-integer sequence or a fractional stiff-string-style
@@ -108,7 +88,7 @@ and its example parameter files.
 
 | Preset | Character |
 |---|---|
-| `keyboard` | A power-ramp oscillator shape, an arctangent waveshaper, an oscillator time warp, and fractional-stretch partial positions (partial 10 lands slightly sharp, at 10.04) - tuning matching is off by default so that stretch survives. |
+| `keyboard` | A power-ramp oscillator shape, an arctangent waveshaper, an oscillator time warp, and fractional-stretch partial positions (partial 10 lands slightly sharp, at 10.04). |
 | `synth-piano-3-b` | A sibling of `keyboard`: a Gaussian-pulse oscillator shape, an arctangent-plus-single-harmonic-boost filter chain (the same shaping family as `bells-3`), a slightly stronger partial-10 stretch (10.06), and its own stretch-mix postprocess. |
 | `saw-piano` | A power-ramp oscillator shape against 4 harmonics (1/2/4/16). Sustains at full level rather than decaying (not percussive like `keyboard`). |
 | `saw-piano-wide` | A wider-bandwidth sibling of `saw-piano`, the same oscillator shape against harmonics 1/2/4. |
@@ -116,8 +96,8 @@ and its example parameter files.
 | `strings` | A power-ramp oscillator shape against 2 harmonics. A simple base tone on its own - ensemble motion comes from layering detuned copies (`pad.bowed`/`string.synth.slow`). Also the generic "plain pad" tone (`pad.warm`, `pad.sweep`) and the base of the Mellotron (`keyboard.tape.mellotron` - a Mellotron "strings" tape *is* a recording of a bowed string ensemble, the same real-world instrument family, so its tape-machine wow/flutter/hiss/attack-swoop, `<tapeDegradation preset="mellotron">`, is what tells it apart from a live strings pad, not a different spectrum). |
 | `dual-strings` | The same power-ramp oscillator shape as `strings`, against just harmonic 1 and a wider bandwidth. Used at `pad.poly`. |
 | `church-organ` | A clipped-triangle oscillator shape against 8 harmonics, shaped by an exponential-lowpass filter - a drawbar-organ-style spectrum. Used as a fallback at `organ.pipe`. |
-| `bells` | 3 harmonics placed directly, then reshaped nonlinearly by a logistic-sigmoid waveshaper, with partials landing at 1,2,4,5,7,9,11,13,... rather than a plain harmonic series. The preset's default is tuning-matched on; used with `tuningMatched="false"` in some songs for a deliberately dissonant bell character (`pad.metallic`). |
-| `bells-3` | A Gaussian-pulse oscillator shape against harmonic 1, reshaped by an arctangent waveshaper and a single-harmonic boost filter - the same shaping family as `synth-piano-3-b`. Partials land at 1,3,5,8,12,16,21,27,... |
+| `bells` | 3 harmonics placed directly, then reshaped nonlinearly by a logistic-sigmoid waveshaper, with partials landing at 1,2,4,5,7,9,11,13,...: whole numbers, so a harmonic series with gaps rather than a real bell's inharmonic partials. The bell colour comes from which partials are there and how loud. |
+| `bells-3` | A Gaussian-pulse oscillator shape against harmonic 1, reshaped by an arctangent waveshaper and a single-harmonic boost filter - the same shaping family as `synth-piano-3-b`. Partials land at 1,3,5,8,12,16,21,27,..., again whole numbers. |
 | `choir-pad4` | A warped-half-sine oscillator shape with its time warp, an exponential-lowpass filter, and a harmonic shift of 7, plus its anchored-spectral-envelope-remap settings. Used at `pad.choir`/`lead.voice`. |
 | `long-spacechoir2` | The same warped-half-sine/warp/lowpass/shift-of-7 family as `choir-pad4`, with its own warp constants and a spectrum-adjustment stage. Used at `pad.halo`, wrapped in `<phaser>` for its slow, shimmering motion. |
 
@@ -128,6 +108,47 @@ covers: `brass.synth`/`brass.synth.soft` use `saw-piano-wide`/`saw-piano`
 (a power-ramp oscillator shape reads as a bright, sawtooth-like tone, the
 closest character to a synth-brass section) rather than a preset built
 to represent brass specifically.
+
+## Sample set
+
+One wavetable is built per pitch region. A preset gives a base frequency
+`f_b`, `octaves` `O`, `samples_per_octave` `q` and a `table_length`. There
+are `M = O * q` regions, `1/q` octave apart, centred on `f_b` (with an even
+count `f_b` falls between the two middle regions). Region `j` is built for
+the pitch `f_b * 2^((j - (M-1)/2) / q)`. A note uses the region nearest to it
+in pitch, chosen at note-on and kept for the whole note (a pitch change
+across a boundary doesn't swap tables), so notes below the lowest region or
+above the highest one are resampled from the end region. A preset's
+`octaves` is the octave count of its source patch plus one, the span the
+patch's regions cover.
+
+Each region's pitch is rounded to a whole number of FFT bins (the sample
+rate over the table length), so partials at whole multiples of it land
+exactly on bins; voices resample from the rounded value, so a note's own
+pitch is not affected. A partial narrower than 1.5 bins (a few cents wide at
+the bottom of the range) goes entirely into its nearest bin, with the same
+energy as a wider one, instead of being split over two bins that beat
+slowly against each other.
+
+Partials stop at `Nyquist / 2^(spacing / 2)` (`spacing` = `1/q` octave), since a
+note is read up to half a region spacing faster than its table's own pitch
+and higher partials would fold back. A note above the top region is read
+faster still and can alias.
+
+| Preset | `f_b` Hz | `O` | `q` | Regions | Table length | Lowest Hz | Highest Hz |
+|---|---|---|---|---|---|---|---|
+| `keyboard` | 392.4 | 5 | 2 | 10 | 131072 | 82.4 | 1867 |
+| `synth-piano-3-b` | 392.4 | 6 | 2 | 12 | 131072 | 58.2 | 2640 |
+| `church-organ` | 261.6 | 4 | 2 | 8 | 131072 | 77.6 | 880 |
+| `bells` | 392.4 | 5 | 2 | 10 | 131072 | 82.4 | 1867 |
+| `bells-3` | 392.4 | 5 | 2 | 10 | 131072 | 82.4 | 1867 |
+| `strings` | 261.6 | 6 | 2 | 12 | 262144 | 38.8 | 1760 |
+| `dual-strings` | 261.6 | 6 | 2 | 12 | 262144 | 38.8 | 1760 |
+| `saw-piano` | 261.6 | 6 | 2 | 12 | 131072 | 38.8 | 1760 |
+| `saw-piano-wide` | 261.6 | 6 | 2 | 12 | 262144 | 38.8 | 1760 |
+| `soft-pad` | 261.6 | 3 | 2 | 6 | 131072 | 109.9 | 622 |
+| `choir-pad4` | 261.6 | 4 | 3 | 12 | 131072 | 73.2 | 932 |
+| `long-spacechoir2` | 261.6 | 4 | 2 | 8 | 131072 | 77.6 | 880 |
 
 ## Oscillator shape
 
@@ -141,6 +162,10 @@ PADsynth's partial profile/placement stage (a windowed profile placed
 per partial, its window width and placement chosen so a partial's total
 energy stays the same regardless of how wide its band is) at that
 patch's base note, octave span, and sample layout.
+
+The shape is computed on a 1024-point oscillator, so it has harmonics 1 to
+511. A 39 Hz region therefore reaches about 20 kHz; a 255-harmonic shape
+stopped near 10 kHz there.
 
 This lets even a preset with a sparse explicit harmonic list (`bells`,
 `bells-3`) reproduce its much richer spectrum - the sparse list
@@ -165,8 +190,11 @@ pitch, not one voice with wider partials. Layer detuned copies in a
 `brass.synth` (`InstrumentLibrary.cpp`) are three-copy ensembles, and
 `songs/oscillator_demo.xml`'s choir is `<envelope><group><padsynth
 detune="-8"/><padsynth/><padsynth detune="8"/></group></envelope>`. Every
-copy reads the same shared wavetable at its own pitch, and a detuned copy
-starts at its own phase, so the copies don't start phase-locked. A plain
+copy reads the same shared wavetable at its own pitch. A note starts at a
+position anywhere in the table, hashed from its note coordinate (a detuned
+copy has its own), so chord notes and the copies of an ensemble read
+unrelated stretches of the table and don't start phase-locked. The same
+note always starts in the same place. A plain
 `<padsynth>` used directly (as most of `songs/oscillator_demo.xml`'s
 comparison tracks deliberately are, to isolate the preset itself) reads
 noticeably thinner and more static.

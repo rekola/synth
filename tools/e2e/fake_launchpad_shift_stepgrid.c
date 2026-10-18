@@ -1,10 +1,10 @@
 // Simulated Launchpad X exercising CC91 ("move-row-up") as a held shift
-// modifier: pressing a Session-view pad while it's held opens that pad's
+// modifier: pressing a Live-View pad while it's held opens that pad's
 // own clip for direct step-grid editing (LaunchpadManager::
-// handleSessionPadEvent()'s own comment) instead of triggering/assigning
+// handleLivePadEvent()'s own comment) instead of triggering/assigning
 // it - mirroring the terminal's own "toggle-record-arm" drum-machine
 // repurposing (Controller::toggleDrumClipFocus()), just reached from a
-// completely different physical gesture - and that CC95 ("Session") alone
+// completely different physical gesture - and that CC95 ("Live") alone
 // then closes it again outright (Controller::closeDrumClipFocus()), not
 // needing another shift+pad combo. Two phases, timed to let
 // verify_launchpad_shift_stepgrid.py read the terminal's own ClipGrid
@@ -73,9 +73,11 @@ int main() {
   send_cc(seq, port, 91, 127);
   drain(seq, 300, "shift held");
 
-  fprintf(stderr, "sending press+release on pad (0,0) [note 11] while shift held - opens clip index 7\n");
+  fprintf(stderr, "sending press+release on pad (0,0) [note 11] while shift held - selects clip index 7\n");
   send_note(seq, port, 0x90, 11, 100);
   send_note(seq, port, 0x80, 11, 0);
+  send_cc(seq, port, 96, 127); // shift + Note opens the selected clip
+  send_cc(seq, port, 96, 0);
   drain(seq, 300, "clip opened");
 
   fprintf(stderr, "sending CC91 release - move-row-up must NOT fire, it was combined with a pad\n");
@@ -93,7 +95,7 @@ int main() {
   // Opening a clip switches every connected device to NOTES mode to show
   // its own step grid (Controller::toggleDrumClipFocus()'s own "opened"
   // callback, TerminalUI.cpp's forceNotesModeOnAllDevices()) - CC95
-  // ("Session") closes it outright (Controller::closeDrumClipFocus(),
+  // ("Live") closes it outright (Controller::closeDrumClipFocus(),
   // LaunchpadManager::handleRawButton()'s own CC95 case), the same effect
   // as pressing shift+pad again on the pad that opened it, just without
   // needing to know which pad that was or holding shift at all.

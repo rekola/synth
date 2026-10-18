@@ -1,37 +1,37 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song key="C" temperament="31edo" tempo="150" volume="1.0">
   <instruments>
-    <instrument from="piano.acoustic.grand" />
+    <instrument id="i1" from="piano.acoustic.grand" />
 
-    <envelope attack="1" release="2" name="padtest2">
+    <envelope id="i2" attack="1" release="2" name="padtest2">
       <resonantFilter cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
 	<oscillator type="saw" level="0.25" voices="16" detune="10"/>
       </resonantFilter>
     </envelope>
 
-    <envelope attack="1" release="2" name="simple">
+    <envelope id="i3" attack="1" release="2" name="simple">
       <resonantFilter cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
 	<oscillator type="saw" level="0.25" voices="32" detune="10" spread="7"/>
       </resonantFilter>
     </envelope>
 
-    <envelope attack="0.5" release="2" name="simple a">
+    <envelope id="i4" attack="0.5" release="2" name="simple a">
       <resonantFilter cutmin="550" cutmax="20000" res="0.9">
 	<oscillator type="saw" level="0.25" voices="32" detune="10" spread="7"/>
       </resonantFilter>
     </envelope>
 
-    <instrument from="piano.acoustic.grand" name="Piano group" />
+    <instrument id="i5" from="piano.acoustic.grand" name="Piano group" />
 
-    <instrument from="piano.acoustic.grand" />
+    <instrument id="i6" from="piano.acoustic.grand" />
   </instruments>
   
   <tracks>
-    <track id="0" instrument="1" sendA="-13.9794" azimuth="-60" distance="1" />
-    <track id="1" instrument="1" sendA="-13.9794" azimuth="-30" distance="1" />
-    <track id="2" instrument="2" sendA="-13.9794" azimuth="0" distance="1" extent="1.5" />
-    <track id="3" instrument="3" sendA="-13.9794" azimuth="30" distance="1" extent="1.5" />
-    <track id="4" instrument="4" sendA="-13.9794" azimuth="60" distance="1" />
+    <track id="0" instrument="i2" sendA="-13.9794" azimuth="-60" distance="1" />
+    <track id="1" instrument="i2" sendA="-13.9794" azimuth="-30" distance="1" />
+    <track id="2" instrument="i3" sendA="-13.9794" azimuth="0" distance="1" extent="1.5" />
+    <track id="3" instrument="i4" sendA="-13.9794" azimuth="30" distance="1" extent="1.5" />
+    <track id="4" instrument="i5" sendA="-13.9794" azimuth="60" distance="1" />
   </tracks>
   
   <arrangement>

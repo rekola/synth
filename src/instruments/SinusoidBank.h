@@ -1,110 +1,68 @@
 #ifndef _SINUSOIDBANK_H_
 #define _SINUSOIDBANK_H_
 
-#include "../model/NoteCoordinate.h"
-#include "../dsp/SpectralEnvelopeRemap.h"
-
 #include <vector>
 #include <cstddef>
 
-// A bank of independently-decaying sinusoidal partials for one note event -
-// the core DSP behind the <additive> instrument (Additive.h/AdditiveVoice.h).
-// Genuinely per-voice (unlike PadSynth's shared/cached wavetable): each
-// note's own decay clock and per-partial starting phases are independent,
-// so a fresh SinusoidBank is built at note-on time from the resolved
-// frequency/timbre/decay parameters and lives exactly as long as the voice
-// that owns it.
+// One decaying sinusoid: the engine's input. `group` says which output row
+// it is summed into (a string, a body mode, ...).
+struct PartialSpec {
+  float frequency_hz;
+  float amplitude;
+  float alpha; // decay, nepers/second: amplitude(t) = amplitude * exp(-alpha * t)
+  float phase; // radians
+  int group;
+};
+
+// A bank of independently-decaying sinusoids for one note, the engine
+// behind <additive> (Additive.h/AdditiveVoice.h). What the partials are is
+// the model's business (AdditiveModel.h); this class only runs them. A fresh
+// bank is built at note-on and lives as long as its voice.
 //
-// Sine generation: the coupled-form ("magic circle"/digital-resonator)
-// recursion y[n] = coeff*y[n-1] - y[n-2] (coeff = 2*cos(w)), one instance
-// per partial, rather than a per-sample sinf() call or a shared wavetable.
-// Chosen over table-lookup for this specific use (PadSynth's own parallel
-// stage uses a table instead, appropriate there since it caches one
-// wavetable across many notes): a recursive oscillator has zero table/
-// interpolation cost and its per-sample state (coeff/y1/y2) is trivial to
-// lay out as flat parallel arrays, which is exactly the shape this bank
-// needs anyway for its two-tier (partial-count x unison-voice) structure.
-// The accepted tradeoff is slow numerical drift (phase/amplitude error
-// accumulates every sample) - negligible here because every partial's own
-// *amplitude* decays exponentially over the note's life (typically well
-// under a second before a partial is culled - see below), so the window in
-// which drift could become audible is always shorter than the partial's
-// own remaining lifetime. No periodic renormalization is implemented.
+// Each partial is a coupled-form recursive oscillator, y[n] = coeff*y[n-1] -
+// y[n-2] with coeff = 2*cos(w), so there is no table or per-sample sinf().
+// Its accumulated numerical drift is negligible because the partial's own
+// amplitude decays long before it could be heard. The state is flat parallel
+// arrays so the update is one auto-vectorizable pass.
 //
-// Data layout: every per-partial quantity lives in its own flat
-// std::vector (struct-of-arrays, not array-of-structs) - coeff_/y1_/y2_ for
-// the recursive oscillator state, amp_/decay_mult_/min_amp_ for the
-// exponential-decay envelope - so the per-sample update loop over active
-// partials in render() is a single, uniform, auto-vectorizable pass over
-// contiguous memory, not a scattered struct walk.
-//
-// Two performance rules keep an old, mostly-decayed note cheap even at high
-// polyphony: a partial whose post-inharmonicity/tuning-matched frequency
-// already exceeds Nyquist is never added in the first place (built once at
-// construction, in buildPartials()); a partial whose amplitude has decayed
-// below -90dB relative to its own starting amplitude is culled from the
-// active set (checked once per render() call, not per-sample) via a
-// swap-with-last-active removal - decay is monotonic (amplitude only ever
-// multiplies by a fixed sub-1 factor each sample), so once culled a partial
-// never needs to reappear, and a plain unordered swap-remove is sufficient.
+// Partials are stored grouped, each group padded to a whole number of lane
+// groups, and render() writes one row per group. A partial above Nyquist is
+// never added; one that has decayed 90 dB below its own start is culled from
+// its group (checked once per render() call, swap-with-last, since decay is
+// monotonic and a culled partial never returns).
 class SinusoidBank {
  public:
-  struct Params {
-    float frequency;           // fundamental, Hz
-    int partial_count;         // 1-indexed partials 1..partial_count
-    float spectral_tilt_db;    // dB/octave-ish rolloff on initial partial amplitude
-    float inharmonicity_b;     // stretched-partial coefficient B, 0 = pure harmonic;
-                               // only stretches partials above partial_limit
-                               // when tuning_matched - see SinusoidBank.cpp's
-                               // additivePartialRatio()
-    int edo_steps;             // 0 = no tuning structure (Tuning::PERCUSSION)
-    bool tuning_matched;
-    int partial_limit;         // only the first N partials get tuning-snapped
-    float decay_a, decay_b, decay_p; // alpha_n = decay_a + decay_b * f_n^decay_p (nepers/s)
-    int unison_voices;         // 1-3
-    float unison_detune_cents; // spread across unison_voices, meaningless when 1
-    float sample_rate;
+  SinusoidBank(const std::vector<PartialSpec> & specs, float sample_rate);
 
-    // Anchored spectral-envelope remap (dsp/SpectralEnvelopeRemap.h),
-    // evaluated once here at note-on against `frequency` - see
-    // AdditiveVoice.h's own trigger() doc comment for why no pitch-bend
-    // re-evaluation. envelope_anchor_hz <= 0 means off.
-    float envelope_anchor_hz = 0.0f;
-    float envelope_tracking = 0.0f;
-    SpectralPostprocessKind postprocess_kind = SpectralPostprocessKind::None;
-    int postprocess_n = 0;
-    int postprocess_r = 0;
-    float postprocess_amount = 0.0f;
-  };
+  // Adds the output of group g into rows[g * stride + 0 .. frames) (it mixes,
+  // never zeroes). `stride` is at least `frames`.
+  void render(float * rows, size_t stride, int frames);
 
-  SinusoidBank(const Params & params, const NoteCoordinate & note_coord);
+  int groupCount() const { return static_cast<int>(groups_.size()); }
+  bool isActive() const { return active_total_ > 0; }
 
-  // Adds this bank's output into out[0..frames) (mixes, does not zero
-  // out[] itself - the caller, AdditiveVoice, owns that). Culls
-  // fully-decayed partials once, at the end of the call.
-  void render(float * out, int frames);
-
-  bool isActive() const { return active_count_ > 0; }
-
-  // Test-only accessor - number of partials still being computed (post
-  // Nyquist-skip, post -90dB cull).
-  int getActivePartialCountForTest() const { return active_count_; }
-  // Test-only accessor - the current amplitude of the n-th (0-indexed, in
-  // construction order) partial still active, or 0 if out of range - used
-  // by SinusoidBankTests.cpp to measure per-partial decay envelopes.
+  // Test-only: partials still being computed (post Nyquist skip and cull).
+  int getActivePartialCountForTest() const { return active_total_; }
+  // Test-only: the current amplitude of the n-th still-active partial, in
+  // group order then construction order within a group, or 0 out of range.
   float getPartialAmplitudeForTest(int index) const;
 
  private:
-  void buildPartials(const Params & params, const NoteCoordinate & note_coord);
-  void addPartial(float freq_hz, float amplitude, float phase, float alpha_nepers_per_sec, float sample_rate);
+  struct Group {
+    size_t begin = 0;  // first slot, a multiple of the lane count
+    size_t padded = 0; // slots, a multiple of the lane count
+    int active = 0;
+  };
+
   void cullDecayedPartials();
 
-  std::vector<float> coeff_;      // 2*cos(2*pi*f/sr), per partial
-  std::vector<float> y1_, y2_;    // recursive oscillator state (y[n-1], y[n-2])
+  std::vector<Group> groups_;
+  std::vector<float> coeff_;      // 2*cos(2*pi*f/sr)
+  std::vector<float> y1_, y2_;    // y[n-1], y[n-2]
   std::vector<float> amp_;        // current envelope amplitude
-  std::vector<float> decay_mult_; // per-sample amplitude multiplier (exp(-alpha/sr))
+  std::vector<float> decay_mult_; // per-sample amplitude multiplier
   std::vector<float> min_amp_;    // -90dB-relative-to-start cull threshold
-  int active_count_ = 0;
+  int active_total_ = 0;
 };
 
 #endif

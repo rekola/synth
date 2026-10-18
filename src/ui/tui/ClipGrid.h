@@ -4,17 +4,23 @@
 #include "../UIElement.h"
 #include "InlineEditor.h"
 #include "LevelMeter.h"
-#include "../../launchpad/SessionPadHighlight.h"
+
+#include <cellui/Fade.h>
+#include <cellui/Scopes.h>
+#include "../../launchpad/ClipHighlight.h"
+#include "../../model/Clip.h"
+#include "../../model/SendLevels.h"
 
 #include <algorithm>
 #include <chrono>
 #include <functional>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
-class InputEvent;
-class StyleProvider;
+#include <cellui/Input.h>
+#include "../StyleProvider.h"
 class Song;
 
 // A per-track overview: one column per color-eligible leaf track (Song::
@@ -43,7 +49,7 @@ class Song;
 // (SongStructure::getBaselineInfo().getColor()) is reserved for its own
 // populated clip cells only, never washed across the whole column.
 //
-// Shown in Session view (UI::View), above PatternEditor - see
+// Shown in Live View (UI::View), above PatternEditor - see
 // TerminalUI::layout().
 class ClipGrid : public UIElement {
  public:
@@ -51,20 +57,26 @@ class ClipGrid : public UIElement {
 
   bool render(const StyleProvider & styles, bool refresh, bool focused);
 
+  // The backend's scopes, which draw the VU meters; unset, they are drawn
+  // in cells.
+  void setScopes(const cellui::Scopes * scopes) { scopes_ = scopes; }
+
   // A clip slot's transport/recording state (LaunchpadManager::
   // clipHighlight()), shown on its row the way a Launchpad pad shows it.
   // Unset, the grid shows no clip states.
-  void setClipStateSource(std::function<SessionPadHighlight(int track_id, int clip_index)> source) { clip_state_source_ = std::move(source); }
+  void setClipStateSource(std::function<ClipHighlight(int track_id, int clip_index)> source) { clip_state_source_ = std::move(source); }
   // The clip each track is at (its position in the pattern editor below) -
   // marked, faintly, in that track's own column. Unset, nothing is.
   void setTrackClipSource(std::function<int(int track_id)> source) { track_clip_source_ = std::move(source); }
-  bool offerInput(const InputEvent & input) override;
+  bool offerInput(const cellui::Input & input) override;
   // See PatternEditor::isReaderActive()/cancelReaderEdit().
   bool isReaderActive() const { return inline_editor_.isOpen(); }
+  // The focus level is still easing: the loop keeps drawing frames.
+  bool isAnimating() const { return fades_.active() || focus_fade_drawn_; }
   void cancelReaderEdit() { inline_editor_.cancel(); }
 
   // Lets UI move the column cursor to the shared current track
-  // (TerminalUI::syncSessionView()).
+  // (TerminalUI::syncLiveView()).
   void setCursorTrackIndex(int track_index) { cursor_track_index_ = track_index; }
 
   // Read-only counterparts, for Controller::setClipGridCursor() (kept
@@ -72,7 +84,7 @@ class ClipGrid : public UIElement {
   // among Song::getPlayableTrackIds() the cursor is currently on, and its
   // own clip-list index (Song::getClips(track_id)) when the cursor is on
   // a real clip row at all (-1 otherwise - the header, or the Sends/
-  // Direction rows, name no clip slot). Mirrors delete-clip's own
+  // Direction rows, name no clip slot). Mirrors kill-region's own
   // identical "a CLIP row's own physical offset doubles as its clip-list
   // index" resolution (see rowKindFor()/physicalFor()'s own comment).
   int getCursorTrackIndex() const { return cursor_track_index_; }
@@ -82,8 +94,8 @@ class ClipGrid : public UIElement {
   void setCursorClipIndex(int clip_index) { cursor_row_ = 1 + std::max(clip_index, 0); }
 
   // Called on Enter over a clip row (populated or not) with the row's own
-  // (track_id, clip_index) - Enter acts exactly like a Launchpad Session
-  // view pad press landing on that same cell (SessionPlayer::
+  // (track_id, clip_index) - Enter acts exactly like a Launchpad Live
+  // view pad press landing on that same cell (ClipPlayer::
   // triggerClip()), never a separate "focus for editing" gesture
   // of its own, the same callback-not-reaching-into-UI pattern
   // ArrangementGrid's own commit_callback_ already uses (this class has
@@ -112,6 +124,8 @@ class ClipGrid : public UIElement {
   // each. Shared between render() and startClipRename() so the reader's
   // own placement always lines up with what render() just drew.
   static constexpr int kColWidth = 18;
+  // A Sends row's values: the first one's offset in the column, each one's width.
+  static constexpr int kSendX = 5, kSendWidth = 4;
   // The level meter: a vertical bar in a column's last cell,
   // beside the Sends/Direction rows (kSendsLabel through kDirectionValue),
   // which leave that cell free.
@@ -143,6 +157,8 @@ class ClipGrid : public UIElement {
   RowKind rowKindFor(int logical_row) const;
 
   int cursor_track_index_ = 0;
+  // Which of a Sends row's Main/A/B values the cursor is on (0-2).
+  int cursor_send_ = 0;
   int cursor_row_ = 1; // logical row index - see physicalFor()'s own comment; starts on the first clip row, not the header
   int scroll_col_ = 0, scroll_row_ = 0; // scroll_row_ is in *physical* row space, like the on-screen content itself
 
@@ -154,24 +170,33 @@ class ClipGrid : public UIElement {
   bool view_detached_ = false;
   bool current_focused_ = false;
   std::string current_focused_clip_id_;
-  // Session recording arms/disarms with no song version bump of its own
+  // clip recording arms/disarms with no song version bump of its own
   // (nothing about the song's own data changes until a take actually
   // produces something) - tracked here so render()'s own dirty-check
   // still notices the record indicator (see its own drawing code) needing
   // to appear or disappear.
-  std::function<SessionPadHighlight(int track_id, int clip_index)> clip_state_source_;
+  std::function<ClipHighlight(int track_id, int clip_index)> clip_state_source_;
+  // The last clip killed or copied, and the kind of track it came from -
+  // a yank only lands on a track of the same kind (note values mean
+  // different things under different tunings, audio only fits audio).
+  std::optional<Clip> clip_clipboard_;
+  int clip_clipboard_track_type_ = -1;
   std::function<int(int track_id)> track_clip_source_;
   // Each track's clip (track_clip_source_) at the last redraw - a change
   // redraws.
   std::vector<int> current_track_clips_;
   // The visible clip slots' states at the last redraw - a change redraws.
-  std::vector<SessionPadHighlight> current_clip_states_;
+  // How focused the grid is, 0..1, eased over a few frames.
+  float focus_ = 0.0f;
+  cellui::Fades fades_;
+  bool focus_fade_drawn_ = false;
+  std::vector<ClipHighlight> current_clip_states_;
 
   std::function<void(int track_id, int clip_index)> trigger_callback_;
   std::function<void(int clip_index)> scene_callback_;
   std::function<void()> stop_all_callback_;
-  // The visible meters' levels and peak markers at the last redraw, in bar
-  // steps (two entries per column) - a change redraws.
+  // The visible meters' levels and peak markers at the last redraw, in
+  // 1/256ths of the meter (two entries per column) - a change redraws.
   std::vector<int> current_meter_steps_;
   // What a column's meter shows now, and the smoothing behind it, by track
   // id (the master's included).
@@ -182,6 +207,7 @@ class ClipGrid : public UIElement {
     float peak_fraction = 0.0f;
   };
   std::unordered_map<int, MeterDisplay> meters_;
+  const cellui::Scopes * scopes_ = nullptr;
   std::chrono::steady_clock::time_point last_meter_update_;
 
   // Clip and track rename share one editor; only one can be open at a time.
@@ -189,22 +215,40 @@ class ClipGrid : public UIElement {
 
   void ensureCursorVisible(int visible_rows, int visible_cols, int num_tracks);
   void renderMasterColumn(const StyleProvider & styles, int x, int rows, bool focused, int num_tracks,
-                          const std::function<SessionPadHighlight(int clip_row)> & scene_state);
+                          const std::function<ClipHighlight(int clip_row)> & scene_state);
   // A column's level meter and peak marker in its last cell, over
   // whichever of its kMeterRows rows are on screen.
   void renderMeter(const StyleProvider & styles, int x, int rows, int track_id, bool clipping);
   // Edits the Send Main/A/B of the column under the cursor - a track's,
   // or the master's (the dry mix and the send bus's returns).
-  void startSendsEdit(int track_id);
-  // What Enter (or a click, which never opens the Sends editor) does on the
+  void startSendEdit(int track_id, int send);
+  void putDivider(const StyleProvider & styles, int y, int x, bool header);
+  void putSendValues(int y, int x, const SendLevels & sends, int highlighted, const StyleProvider & styles,
+                     int pressed = -1);
+  // What Enter or a click does on the
   // cell under the cursor.
-  void activateCell(const Song & song, const std::vector<int> & track_ids, bool edit_sends);
+  void activateCell(const Song & song, const std::vector<int> & track_ids);
   // A left-button press or release: picks the cell under it, and a clip
   // slot (or the master's scene/stop-all slots) acts as a button.
-  bool handleMouse(const InputEvent & input);
+  bool handleMouse(const cellui::Input & input);
   // Between a press and its release - see handleMouse().
   bool mouse_down_ = false;
+  // The cell a held button is on, shown pressed: the release picks it. `column`
+  // is -1 when nothing is pressed, `physical` -1 for the header row and -2 for a
+  // row that only picks the track (a label, a divider).
+  struct Pressed {
+    int column = -1, logical_row = 0, physical = -2, send = -1; // send: the value on a Sends row
+    bool operator==(const Pressed & o) const { return column == o.column && logical_row == o.logical_row && send == o.send; }
+    bool operator!=(const Pressed & o) const { return !(*this == o); }
+  };
+  Pressed pressed_, current_pressed_;
+  // What is under the screen position, if it is a column.
+  Pressed hitTest(int screen_y, int screen_x, int num_tracks) const;
+  int pressedSend(int column, int physical) const { return isPressed(column, physical) ? pressed_.send : -1; }
+  bool isPressed(int column, int physical) const { return pressed_.column == column && pressed_.physical == physical; }
   void startClipRename(const Song & song, const std::vector<int> & track_ids);
+  // F2 on the master column's scene slot edits the scene's name.
+  void startSceneRename();
   // F2 on any row but a populated clip slot renames the track itself
   // instead (see offerInput()'s own F2 handling) - the header row has no
   // cursor-addressable slot of its own to trigger this from directly.

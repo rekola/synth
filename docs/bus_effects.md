@@ -6,7 +6,7 @@ Every song has one shared, always-on effects bus with two slots, **A** and
 by default):
 
 ```xml
-<track id="0" instrument="0" sendA="0.3" sendB="0.5"/>
+<track id="0" instrument="i1" sendA="0.3" sendB="0.5"/>
 ```
 
 Slot B is processed first each block, then whatever it produces can
@@ -213,15 +213,15 @@ at the trigger rate, not a texture at all. Between 1 and about 2.5, grains
 do overlap but not densely enough to hide the grain window's own shape,
 so the total level still ripples up and down at the trigger rate instead
 of staying smooth. Every preset below sits at 2.5 or above for exactly
-this reason - it's a measured threshold (from a real diagnosed case: a
-default that used to sit at overlap 0.9), not a stylistic choice, and
+this reason - it's a measured threshold (an overlap of 0.9 is clearly
+heard as a stutter), not a stylistic choice, and
 `density` is floored upward automatically if a combination would
 otherwise fall short (grain size is never shrunk to compensate, since
 that's the parameter most tied to a preset's actual character).
 
 | Preset | grainSize | density | overlap | pitchScatter | Why |
 |---|---|---|---|---|---|
-| default | 60ms | 45/s | 2.7 | ±40¢ | Grain-like but not extreme in either direction; overlap comfortably above the floor without being dense; pitch scatter audible as gentle chorus-like detuning (unlike an earlier ±15¢, which was below the threshold of perception). |
+| default | 60ms | 45/s | 2.7 | ±40¢ | Grain-like but not extreme in either direction; overlap comfortably above the floor without being dense; pitch scatter audible as gentle chorus-like detuning. |
 | shimmer | 25ms | 100/s | 2.5 | ±60¢ | Shortest grain the density ceiling (100/s) allows while still clearing the overlap floor - "brisk clip" and brightness both want short+dense; scatter audible as sparkle without dominating. |
 | cloud | 70ms | 50/s | 3.5 | ±35¢ | Deliberately the densest preset - the one explicitly named for continuous envelopment; scatter stays gentle so the cloud reads as related to the source, not aggressively shifted. |
 | glitch | 25ms | 100/s | 2.5 | ±1000¢ | Same grain/density profile as shimmer (still respects the overlap floor - see below) - the "stuttery, digital" character comes entirely from a near-repeat scan window, dramatic pitch jumps, and uneven amplitude, not from gating. |

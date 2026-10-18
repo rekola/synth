@@ -1,5 +1,5 @@
 // Simulated Launchpad X exercising the track-picker overlay Mute (CC39)
-// opens: enters Session's own mixer submode (CC95 pressed a second time -
+// opens: enters Live's own mixer submode (CC95 pressed a second time -
 // see LaunchpadManager.h's own GridMode comment; the seven mixer-submode
 // buttons launch a whole scene instead while it's off), then presses
 // CC39 to open the overlay (Mute purpose - the picker row shows bright
@@ -67,7 +67,7 @@ int main() {
   fake_wait_ready(seq, "at startup");
   drain(seq, 500, "at startup"); // the first LED frames
 
-  fprintf(stderr, "sending CC95 press+release (enters Session's own mixer submode)\n");
+  fprintf(stderr, "sending CC95 press+release (enters Live's own mixer submode)\n");
   send_cc(seq, port, 95, 127);
   send_cc(seq, port, 95, 0);
   drain(seq, 500, "mixer submode entered");

@@ -1,3 +1,4 @@
+#include "../../playback/KeyboardNotes.h"
 #include "OutlineView.h"
 
 #include "../../Controller.h"
@@ -43,6 +44,13 @@ string poolInstrumentDescription(const Track * instrument) {
 bool
 OutlineView::render(const StyleProvider & styles, bool refresh, bool focused) {
   bool render_all = refresh;
+  // How focused the widget is, eased: its cursor fades between the focused and unfocused look.
+  focus_ = fades_.value(0, focused ? 1.0f : 0.0f, !styles.reduced_motion);
+  // One more frame after it ends draws the final state.
+  bool focus_fading = fades_.active() || focus_fade_drawn_;
+  focus_fade_drawn_ = fades_.active();
+  fades_.sweep();
+  if (focus_fading) render_all = true;
   auto & song = getController().getSong();
   auto & instrument_provider = getController().getInstrumentProvider();
 
@@ -144,43 +152,56 @@ OutlineView::render(const StyleProvider & styles, bool refresh, bool focused) {
   // Focusing the panel puts the cursor on the first row in view - unless
   // a click did, which picks its own row.
   if (focused && new_cursor_row_ < 0 && !click_pending_ && !data_.empty()) {
-    new_cursor_row_ = std::min(new_scroll_pos_, static_cast<int>(data_.size()) - 1);
+    new_cursor_row_ = std::min(viewport_.rows.offset(), static_cast<int>(data_.size()) - 1);
   }
 
-  // The rows may have narrowed since the last scroll.
-  new_column_scroll_ = std::min(new_column_scroll_, maxColumnScroll());
+  // The tree is a plane of its own, under the panel's: the heading and the
+  // button bar are drawn on the panel's plane over it, and only the tree
+  // scrolls by parts of a row.
+  if (!tree_plane_) {
+    tree_plane_ = getPlane().createChild();
+    getPlane().setMouseCursor(cellui::MouseCursor::POINTER);
+    getPlane().makeTransparent();
+    getPlane().moveToTop();
+  }
+  tree_plane_->setVisible(true);
 
-  if (song.getMajorVersion() != current_song_version_ || new_scroll_pos_ != current_scroll_pos_ ||
-      new_column_scroll_ != current_column_scroll_ || focused != current_focused_) {
+  // The rows may have narrowed since the last scroll.
+  viewport_.rows.setSmooth(getPlane().smoothScroll());
+  syncViewport();
+  {
+    // The view follows where it was scrolled to.
+    auto now = std::chrono::steady_clock::now();
+    auto seconds = std::min(0.1, std::chrono::duration<double>(now - last_tick_).count());
+    viewport_.rows.tick(seconds);
+    tickCursor(seconds);
+    last_tick_ = now;
+  }
+
+  if (song.getMajorVersion() != current_song_version_ || viewport_.rows.shown() != current_shown_row_ ||
+      viewport_.cols.offset() != current_column_scroll_ || focused != current_focused_ ||
+      cursor_y_ != current_cursor_y_) {
     render_all = true;
   }
 
-  auto tree_rows = treeRows();
   bool cursor_changed = new_cursor_row_ != current_cursor_row_;
 
   bool need_refresh = false;
-  if (render_all) {
-    current_scroll_pos_ = new_scroll_pos_;
-    current_column_scroll_ = new_column_scroll_;
+  // The button bar overlays the tree and depends on which row the cursor is
+  // on (a different kind may show completely different actions, or none),
+  // so everything is drawn again whenever the cursor, the row's details
+  // (the target-track picker committing a choice, the popup opening or
+  // closing) or the view changed: rows the old bar covered come back.
+  if (render_all || cursor_changed || details_dirty_) {
+    current_shown_row_ = viewport_.rows.shown();
+    current_first_row_ = viewport_.rows.firstShown();
+    current_column_scroll_ = viewport_.cols.offset();
 
+    getPlane().erase();
     renderHeading(styles);
-    for (int i = 0; i < tree_rows; i++) {
-      renderRow(styles, i, i == new_cursor_row_ - current_scroll_pos_, focused);
-    }
-    renderButtonBar(styles);
-    renderInfoPopup(styles);
-    need_refresh = true;
-  } else if (cursor_changed || details_dirty_) {
-    // The button bar overlays the tree and depends on which row the cursor
-    // is now on (a different kind may show completely different actions, or
-    // none), so the whole tree is repainted underneath it: rows the old bar
-    // covered come back. Also redrawn (with the cursor itself untouched)
-    // whenever details_dirty_ says this row's own details changed without
-    // moving the cursor at all - the target-track picker committing a new
-    // choice, or the popup opening/closing.
-    for (int i = 0; i < tree_rows; i++) {
-      renderRow(styles, i, i == new_cursor_row_ - current_scroll_pos_, focused);
-    }
+    renderTree(styles, focused);
+    renderCursor(styles, focused);
+    current_cursor_y_ = cursor_y_;
     renderButtonBar(styles);
     renderInfoPopup(styles);
     need_refresh = true;
@@ -386,28 +407,48 @@ OutlineView::buildDetailsLines(const outline_row_s & row) const {
 }
 
 void
-OutlineView::renderRow(const StyleProvider & styles, int display_row, bool cursor, bool focused) {
+OutlineView::renderTree(const StyleProvider & styles, bool focused) {
+  auto [ pos_y, pos_x ] = getPosition();
   auto tree_rows = treeRows();
-  auto tree_width = getDim().second;
+  tree_plane_->move(pos_y + kTreeTop, pos_x);
+  tree_plane_->resize(tree_rows, getDim().second);
+  // One row more than fits, for the plane to shift into view.
+  tree_plane_->setScrollOffset(viewport_.rows.fraction(), 0);
+  tree_plane_->erase();
+  int drawn = tree_rows + (viewport_.rows.smooth() ? 1 : 0);
+  bool own_layer = cursorOnOwnLayer();
+  for (int i = 0; i < drawn; i++) {
+    renderRow(styles, i, !own_layer && i + current_first_row_ == new_cursor_row_, focused);
+  }
+}
 
-  if (display_row >= 0 && display_row < tree_rows) {
-    auto data_row = static_cast<size_t>(display_row + current_scroll_pos_);
+void
+OutlineView::renderRow(const StyleProvider & styles, int display_row, bool cursor, bool focused) {
+  if (display_row < 0 || display_row >= treeRows() + 1) return;
+  drawRow(styles, *tree_plane_, display_row, static_cast<size_t>(display_row + current_first_row_), cursor, focused);
+}
+
+void
+OutlineView::drawRow(const StyleProvider & styles, UIPlane & plane, int display_row, size_t data_row, bool cursor,
+                     bool focused) {
+  auto tree_width = getDim().second;
+  auto fg = [&](const Color & c) { plane.setFgColor(c.getRed(), c.getGreen(), c.getBlue()); };
+  auto bg = [&](const Color & c) { plane.setBgColor(c.getRed(), c.getGreen(), c.getBlue()); };
+
+  {
     if (pressed_.data_row >= 0 && static_cast<size_t>(pressed_.data_row) == data_row) {
-      setFgColor(styles.highlight_fg_color);
-      setBgColor(styles.row_pressed_bg_color);
-    } else if (cursor && focused) {
-      setFgColor(styles.highlight_fg_color);
-      setBgColor(styles.highlight_bg_color);
+      fg(styles.highlight_fg_color);
+      bg(styles.row_pressed_bg_color);
     } else if (cursor) {
-      setFgColor(styles.window_fg_color);
-      setBgColor(styles.highlight_unfocused_bg_color);
+      fg(styles.window_fg_color.blend(focus_, styles.highlight_fg_color));
+      bg(styles.highlight_unfocused_bg_color.blend(focus_, styles.highlight_bg_color));
     } else {
-      setFgColor(styles.window_fg_color);
-      setBgColor(styles.window_bg_color);
+      fg(styles.window_fg_color);
+      bg(styles.window_bg_color);
     }
 
     string padding(static_cast<size_t>(std::max(0, tree_width)), ' ');
-    putstr(kTreeTop + display_row, 0, padding);
+    plane.putstr(display_row, 0, padding);
 
     if (data_row < data_.size()) {
       auto & data = data_[data_row];
@@ -418,40 +459,90 @@ OutlineView::renderRow(const StyleProvider & styles, int display_row, bool curso
         label = Utf8::dropLeadingColumns(label, -x);
         x = 0;
       }
-      putstr(kTreeTop + display_row, x, Utf8::truncateToWidth(label, tree_width - x));
+      plane.putstr(display_row, x, Utf8::truncateToWidth(label, tree_width - x));
     }
   }
 }
 
+bool
+OutlineView::cursorOnOwnLayer() const {
+  return tree_plane_ && viewport_.rows.smooth();
+}
+
+double
+OutlineView::cursorTargetY() const {
+  return static_cast<double>(new_cursor_row_ - viewport_.rows.offset());
+}
+
+void
+OutlineView::tickCursor(double seconds) {
+  auto target = cursorTargetY();
+  auto last = static_cast<double>(std::max(0, treeRows() - 1));
+  // A cursor outside the view (the wheel scrolled it away) is not shown;
+  // it joins the view from the nearer edge.
+  if (target < 0 || target > last) {
+    cursor_y_ = std::clamp(target, -1.0, last + 1.0);
+    return;
+  }
+  if (!viewport_.rows.smooth() || snap_cursor_) {
+    snap_cursor_ = false;
+    cursor_y_ = target;
+    return;
+  }
+  cursor_y_ += (target - cursor_y_) * (1.0 - std::exp(-std::max(0.0, seconds) / cellui::ScrollAxis::kSettleSeconds));
+  if (std::abs(target - cursor_y_) < cellui::ScrollAxis::kSnap) cursor_y_ = target;
+  cursor_y_ = std::clamp(cursor_y_, 0.0, last);
+}
+
+void
+OutlineView::renderCursor(const StyleProvider & styles, bool focused) {
+  if (!tree_plane_) return;
+  auto last = static_cast<double>(std::max(0, treeRows() - 1));
+  bool show = cursorOnOwnLayer() && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size()) &&
+              cursor_y_ >= 0 && cursor_y_ <= last;
+  if (!show) {
+    tree_plane_->clearBand();
+    return;
+  }
+  // A translucent band over the tree, so the row shows through; it moves by
+  // parts of a row independently of the content.
+  const auto & color = focused ? styles.highlight_bg_color : styles.highlight_unfocused_bg_color;
+  tree_plane_->setBand(cellui::Band{ cursor_y_, 1.0, 0, getDim().second, color, focused ? 0.45f : 0.6f });
+}
+
 void
 OutlineView::moveCursorBy(int delta) {
-  auto tree_rows = cursorRows();
-
   new_cursor_row_ = std::clamp(new_cursor_row_ + delta, 0, std::max(0, static_cast<int>(data_.size()) - 1));
-  if (new_cursor_row_ < new_scroll_pos_) new_scroll_pos_ = new_cursor_row_;
-  if (new_cursor_row_ >= new_scroll_pos_ + tree_rows) new_scroll_pos_ = new_cursor_row_ - tree_rows + 1;
+  // Kept above the rows the button bar can cover.
+  syncViewport();
+  viewport_.rows.reveal(new_cursor_row_, 0, kButtonBarRows);
+}
+
+void
+OutlineView::syncViewport() {
+  // The last rows can scroll up out from under the button bar.
+  viewport_.setExtent(static_cast<int>(data_.size()) + kButtonBarRows, widestRow(), treeRows(), getDim().second);
 }
 
 void
 OutlineView::scrollBy(int delta) {
   // Never touches new_cursor_row_ - see this method's own doc comment on
-  // OutlineView.h for why that's deliberate. Clamped so the view can
-  // never scroll past the point where the last row is already fully
-  // visible at the bottom.
-  auto max_scroll = std::max(0, static_cast<int>(data_.size()) - treeRows());
-  new_scroll_pos_ = std::clamp(new_scroll_pos_ + delta, 0, max_scroll);
+  // OutlineView.h for why that's deliberate.
+  syncViewport();
+  viewport_.rows.scrollBy(delta);
 }
 
 void
 OutlineView::scrollColumnsBy(int delta) {
-  new_column_scroll_ = std::clamp(new_column_scroll_ + delta, 0, maxColumnScroll());
+  syncViewport();
+  viewport_.cols.scrollBy(delta);
 }
 
 int
-OutlineView::maxColumnScroll() const {
+OutlineView::widestRow() const {
   int widest = 0;
   for (auto & row : data_) widest = std::max(widest, row.level * kIndentPerLevel + Utf8::displayWidth(row.label));
-  return std::max(0, widest - getDim().second);
+  return widest;
 }
 
 void
@@ -506,7 +597,7 @@ OutlineView::openTargetPicker() {
   auto cols = getDim().second;
   auto candidates = compatibleTargetTrackRows();
   auto item_count = static_cast<int>(candidates.size()) + 1; // +1 for "New track"
-  // +2 for ncselector's own top/bottom border. Opens just above the button
+  // +2 for the picker's padding rows. Opens just above the button
   // bar, so it never covers the button that opened it, capped so it never
   // reaches above the tree's first row.
   auto wanted_rows = item_count + 2;
@@ -563,6 +654,7 @@ OutlineView::addSelectedLibraryRhythmToSong() {
   if (!pattern) return;
 
   auto & song = getController().getSong();
+  Song::Edit edit(song, "add rhythm to song");
 
   // The target track picker's own current choice (see this class's own
   // header comment) - an existing root PercussionTrack, or a freshly
@@ -570,7 +662,7 @@ OutlineView::addSelectedLibraryRhythmToSong() {
   // "add-percussion-track", PatternEditor.cpp, itself creates) if it
   // resolves to kNewTrackTargetId.
   auto target_id = resolveTargetTrackId();
-  Track * percussion_track = nullptr;
+  const Track * percussion_track = nullptr;
   if (target_id != kNewTrackTargetId) {
     for (auto & track : song.getMasterTrack().getChildren()) {
       if (track->getInternalId() == target_id) {
@@ -602,7 +694,13 @@ OutlineView::addSelectedLibraryRhythmToSong() {
     leaf_pattern.setNote(hit.row, column, Note(hit.note, hit.velocity));
     column++;
   }
+  // The clip lands in the scene at the end of the track's clip list; a
+  // scene with a time signature of its own keeps it.
+  auto scene = static_cast<int>(song.getClips(percussion_track->getInternalId()).size());
   song.addClip(std::move(clip));
+  if (!song.getSceneTimeSignature(scene).isSet()) {
+    song.setSceneTimeSignature(scene, {pattern->time_numerator, pattern->time_denominator});
+  }
 
   // A swung rhythm brings its swing along (overwriting the song's); a
   // straight one leaves the song's swing alone.
@@ -671,7 +769,7 @@ OutlineView::runDetailsAction(DetailsAction action) {
 }
 
 bool
-OutlineView::handleClick(const InputEvent & input) {
+OutlineView::handleClick(const cellui::Input & input) {
   // Resolved on release only, matching SpinBox's own click convention.
   // A press - and each drag while held, which arrives as another press -
   // shows what is under the mouse as pressed, and holds off placing a
@@ -694,8 +792,10 @@ OutlineView::handleClick(const InputEvent & input) {
     if (target == pressed) runDetailsAction(*target.action);
   } else if (target.data_row >= 0) {
     // The clicked row is already on screen by definition, so this never
-    // needs to touch new_scroll_pos_ the way moveCursorBy() does.
+    // needs to scroll the viewport the way moveCursorBy() does.
     new_cursor_row_ = target.data_row;
+    // The pressed row already showed where it lands, so the cursor appears there.
+    snap_cursor_ = true;
   }
   return true;
 }
@@ -710,7 +810,7 @@ OutlineView::hitTest(int screen_y, int screen_x) const {
 
   auto bar_row = y - buttonBarTop();
   if (bar_row < 0) {
-    auto data_row = y - kTreeTop + current_scroll_pos_;
+    auto data_row = viewport_.rows.indexAt(y - kTreeTop);
     if (data_row < static_cast<int>(data_.size())) target.data_row = data_row;
   } else if (new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size())) {
     // The exact same placements renderButtonBar() just drew.
@@ -725,14 +825,14 @@ OutlineView::hitTest(int screen_y, int screen_x) const {
 }
 
 bool
-OutlineView::offerInput(const InputEvent & input) {
+OutlineView::offerInput(const cellui::Input & input) {
   // The Info popup is modal: it closes on its own keys or a click, and
   // swallows everything else. A key's release still gets through, to stop
   // a preview note held when it opened.
   if (info_open_) {
-    bool is_click = input.getId() == NCKEY_BUTTON1;
+    bool is_click = input.getId() == Key::Button1;
     bool closes = is_click ? input.getKind() == InputEvent::Kind::RELEASE
-      : input.getKind() != InputEvent::Kind::RELEASE && (input.getId() == '?' || input.getId() == NCKEY_ESC || (input.hasCtrl() && input.getId() == 'g'));
+      : input.getKind() != InputEvent::Kind::RELEASE && (input.getId() == '?' || input.getId() == Key::Escape || (input.hasCtrl() && input.getId() == 'g'));
     if (closes) {
       runDetailsAction(DetailsAction::TOGGLE_INFO);
       return true;
@@ -750,7 +850,7 @@ OutlineView::offerInput(const InputEvent & input) {
   // PgDown) is just forwarded to the selector to navigate with, same as
   // ncselector_offer_input()'s own documented input set.
   if (getPlane().pickerActive()) {
-    if (input.getId() == NCKEY_ENTER) {
+    if (input.getId() == Key::Enter) {
       auto selection = getPlane().getPickerSelection();
       closeTargetPicker();
       applyTargetPickerSelection(selection);
@@ -758,7 +858,7 @@ OutlineView::offerInput(const InputEvent & input) {
     } else if (input.hasCtrl() && input.getId() == 'g') {
       closeTargetPicker();
       return true;
-    } else if (input.getId() == NCKEY_BUTTON1 && input.getKind() == InputEvent::Kind::RELEASE) {
+    } else if (input.getId() == Key::Button1 && input.getKind() == InputEvent::Kind::RELEASE) {
       if (getPlane().offerInput(input)) {
         // Landed on an item (or the scroll arrows) - ncselector_offer_input()
         // only reports a click as relevant when it actually lands inside
@@ -787,7 +887,7 @@ OutlineView::offerInput(const InputEvent & input) {
   // mouse-button release would otherwise be swallowed there, since it's
   // never the held preview-note key) - see handleClick()'s own comment
   // for why it resolves on release anyway.
-  if (input.getId() == NCKEY_BUTTON1) return handleClick(input);
+  if (input.getId() == Key::Button1) return handleClick(input);
   // A held preview-note key's RELEASE is handled once, up front, exactly
   // like PatternEditor's own live note entry (see its own comment on why
   // RELEASE needs this special early-return treatment) - it either matches
@@ -804,38 +904,38 @@ OutlineView::offerInput(const InputEvent & input) {
     // preview.
     runDetailsAction(DetailsAction::TOGGLE_INFO);
     return true;
-  } else if (((input.hasCtrl() && input.getId() == 'g') || input.getId() == NCKEY_ESC) && info_open_) {
+  } else if (((input.hasCtrl() && input.getId() == 'g') || input.getId() == Key::Escape) && info_open_) {
     runDetailsAction(DetailsAction::TOGGLE_INFO);
     return true;
-  } else if (input.getId() == NCKEY_UP) {
+  } else if (input.getId() == Key::Up) {
     moveCursorBy(-1);
     return true;
-  } else if (input.getId() == NCKEY_DOWN) {
+  } else if (input.getId() == Key::Down) {
     moveCursorBy(1);
     return true;
-  } else if (input.getId() == NCKEY_LEFT) {
+  } else if (input.getId() == Key::Left) {
     scrollColumnsBy(-kColumnScrollStep);
     return true;
-  } else if (input.getId() == NCKEY_RIGHT) {
+  } else if (input.getId() == Key::Right) {
     scrollColumnsBy(kColumnScrollStep);
     return true;
-  } else if (input.getId() == NCKEY_BUTTON4 || input.getId() == NCKEY_BUTTON5) {
+  } else if (input.getId() == Key::Button4 || input.getId() == Key::Button5) {
     // The wheel scrolls the view, not the cursor (see scrollBy()); Shift
     // scrolls sideways.
-    int direction = input.getId() == NCKEY_BUTTON4 ? -1 : 1;
+    int direction = input.getId() == Key::Button4 ? -1 : 1;
     if (input.hasShift()) scrollColumnsBy(direction * kColumnScrollStep);
     else scrollBy(direction);
     return true;
-  } else if (input.getId() == NCKEY_PGUP) {
+  } else if (input.getId() == Key::PageUp) {
     moveCursorBy(-cursorRows());
     return true;
-  } else if (input.getId() == NCKEY_PGDOWN) {
+  } else if (input.getId() == Key::PageDown) {
     moveCursorBy(cursorRows());
     return true;
-  } else if (input.getId() == NCKEY_ENTER) {
+  } else if (input.getId() == Key::Enter) {
     runDetailsAction(DetailsAction::ADD_TO_SONG);
     return true;
-  } else if (input.getId() == NCKEY_DEL || input.getId() == NCKEY_BACKSPACE) {
+  } else if (input.getId() == Key::Delete || input.getId() == Key::Backspace) {
     runDetailsAction(DetailsAction::DELETE);
     return true;
   } else if (input.getId() == 'p' && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size()) &&
@@ -880,7 +980,7 @@ OutlineView::offerInput(const InputEvent & input) {
     // PatternEditor's own identical guard.
     if (input.getKind() == InputEvent::Kind::REPEAT) return true;
 
-    auto midi_note = input.toMidiNote(getController().getGlobalOctave(), getController().getSong().getTuning());
+    auto midi_note = keyToMidiNote(input, getController().getGlobalOctave(), getController().getSong().getTuning());
     if (midi_note < 0) return false;
 
     auto & row = data_[static_cast<size_t>(new_cursor_row_)];

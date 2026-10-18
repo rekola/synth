@@ -161,8 +161,6 @@ Composition
  - auxiliary note
  - anticipatory note
 
-Add status line with dynamic tuner changes: D+1c Eb+42c (or better: D=10:9, Eb=6:5)
-
 C	1:1		C major		C-E-G
 C	1:1		C minor		C-Eb-G
 C	1:1		C q. major	C-D#-F
@@ -225,7 +223,6 @@ B	15:8 = 1+7:8	B q. minor	B-D♭-E
 
 - Renoise
   - Add Track headroom in desibels (default -6db)
-  - Left Ctrl & 1-0: Set the Edit Step number.
   - Home/End: Go to start/end line of pattern.
   - consider using tab:
     - tab => next note column

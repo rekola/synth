@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="100" volume="0.75">
   <instruments>
-    <group name="Melody blocks">
+    <group id="i1" name="Melody blocks">
       <instrument from="piano.electric.fm" />
 
       <envelope attack="0.01" decay="1" sustain="0" release="0.8" keynumToDecay="50">
@@ -11,7 +11,7 @@
   </instruments>
   
   <tracks>
-    <track id="0" instrument="0" />
+    <track id="0" instrument="i1" />
   </tracks>
   
   <arrangement>

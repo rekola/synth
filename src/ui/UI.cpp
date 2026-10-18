@@ -3,7 +3,10 @@
 
 #include "../audio/AudioAPI.h"
 #include "../audio/AudioBuffer.h"
+#include "../audio/AudioDevices.h"
 #include "../launchpad/LaunchpadIO.h"
+#include "../util/ThreadSupport.h"
+#include "../midi/MidiInput.h"
 #include "../launchpad/LaunchpadManager.h"
 #include "../launchpad/LaunchpadChannelPressureEvent.h"
 #include "../launchpad/LaunchpadPadEvent.h"
@@ -21,12 +24,14 @@
 #include "../model/SampleTrack.h"
 #include "../model/Song.h"
 #include "../model/ArrangementOps.h"
+#include "../model/PatternBlockOps.h"
 #include "../playback/RecordEvent.h"
 #include "../playback/RecordingLatencyEvent.h"
 #include "../playback/ThresholdRecordingTriggeredEvent.h"
 
 #include <algorithm>
-#include <fmt/core.h>
+#include <iterator>
+#include <fmt/format.h>
 #include <memory>
 #include <thread>
 
@@ -34,12 +39,16 @@ using namespace std;
 
 namespace {
 
+
 void audio_thread_func(Controller * controller, AudioAPI * audio) {
+  setCurrentThreadName("synth-audio");
+  AudioThreadPriority priority;
   Player player(controller->getChannelConfiguration(), controller);
   player.play(*audio);
 }
 
 void visualization_thread_func(Controller * controller, int sample_rate, int frame_count) {
+  setCurrentThreadName("synth-visual");
   VisualizationThread visualization_thread(controller);
   visualization_thread.configure(sample_rate, frame_count);
   visualization_thread.run();
@@ -58,8 +67,34 @@ UI::shouldClose() const {
   return close_ui_ || shutdownRequested();
 }
 
+void UI::selectCaptureDevice(const std::string & name, const std::string & label) {
+  auto change = getController().setCaptureDevice(name);
+  if (!change.applied)
+    setStatus(change.message);
+  else
+    setStatus("Switching capture device to " + label + (change.message.empty() ? "" : " (" + change.message + ")"));
+}
+
+void UI::selectPlaybackDevice(const std::string & name, const std::string & label) {
+  auto change = getController().setPlaybackDevice(name);
+  if (!change.applied)
+    setStatus(change.message);
+  else
+    setStatus("Switching playback device to " + label + (change.message.empty() ? "" : " (" + change.message + ")"));
+}
+
+void UI::selectMidiInput(const std::string & spec, const std::string & label) {
+  if (!midi_) return;
+  midi_->setSource(spec, getLogger());
+  auto change = getController().setMidiInput(spec);
+  if (!change.message.empty()) setStatus("MIDI input " + label + " (" + change.message + ")");
+}
+
 void
-UI::start(AudioAPI & audio, LaunchpadIO & launchpad_io, LaunchpadManager & launchpad_manager) {
+UI::start(AudioAPI & audio, MidiInput & midi, LaunchpadIO & launchpad_io, LaunchpadManager & launchpad_manager) {
+  audio_ = &audio;
+  midi_ = &midi;
+
   // AlsaAudio::initialize() already logged this to stderr, before this UI
   // (and its StatusLogger) even existed - a failed/missing capture device
   // would otherwise be silently invisible for the rest of the session,
@@ -73,10 +108,11 @@ UI::start(AudioAPI & audio, LaunchpadIO & launchpad_io, LaunchpadManager & launc
   launchpad_manager_ = &launchpad_manager;
   wireLaunchpad(launchpad_manager);
 
+  setCurrentThreadName("synth-ui");
   std::thread audio_thread(audio_thread_func, &(getController()), &audio);
   std::thread visualization_thread(visualization_thread_func, &(getController()), audio.getFrequency(), audio.getFrameCount());
 
-  startUI(audio, launchpad_io);
+  startUI(audio, midi, launchpad_io);
 
   getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::TERMINATE));
   getController().getVisualizationQueue().push(make_unique<AudioBlockEvent>(AudioBuffer(), AudioBuffer(), AudioBuffer(), AudioBuffer()));
@@ -95,9 +131,9 @@ void
 UI::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
   // Track-picker overlay (opened by CC49 "Stop Clip"/CC39 "Mute"/CC29
   // "Solo" - see LaunchpadManager::handleRawButton()'s own comment) -
-  // Session-view-only, so this only ever intercepts the picker row itself
-  // while it's open; every other row (Session view's own content) falls
-  // through to the normal SESSION handling below unchanged, staying fully
+  // Live-View-only, so this only ever intercepts the picker row itself
+  // while it's open; every other row (Live View's own content) falls
+  // through to the normal LIVE handling below unchanged, staying fully
   // interactive underneath the overlay.
   if (launchpad_manager_ && launchpad_manager_->isTrackPickerRow(ev.getDeviceIndex(), ev.getY())) {
     launchpad_manager_->handleTrackPickerPadEvent(ev, getController());
@@ -123,12 +159,16 @@ UI::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
                              launchpad_manager_->gridMode(ev.getDeviceIndex()) == LaunchpadManager::GridMode::SWING)) {
     return;
   }
-  // GridMode::SESSION: unlike DRAW above, this one does need Controller -
+  // GridMode::LIVE: unlike DRAW above, this one does need Controller -
   // an "assign" press writes into the Song directly, and either sub-mode
-  // (audition/assign - see handleSessionPadEvent()'s own comment) needs
+  // (audition/assign - see handleLivePadEvent()'s own comment) needs
   // the playback event queue.
-  if (launchpad_manager_ && launchpad_manager_->gridMode(ev.getDeviceIndex()) == LaunchpadManager::GridMode::SESSION) {
-    launchpad_manager_->handleSessionPadEvent(ev, getController());
+  if (launchpad_manager_ && launchpad_manager_->gridMode(ev.getDeviceIndex()) == LaunchpadManager::GridMode::LIVE) {
+    launchpad_manager_->handleLivePadEvent(ev, getController());
+    return;
+  }
+  if (launchpad_manager_ && launchpad_manager_->gridMode(ev.getDeviceIndex()) == LaunchpadManager::GridMode::CUSTOM) {
+    launchpad_manager_->handlePerformancePadEvent(ev, getController());
     return;
   }
   if (!launchpad_manager_) return;
@@ -162,7 +202,7 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
     // shared cursor's own track otherwise (see PatternEditor's constructor,
     // Controller::consumePendingCommandTrack). Harmless to set
     // unconditionally, even for commands that never consume it (octave-up,
-    // next-track, ...) - it's a one-shot value, overwritten or cleared by
+    // pad-next-track, ...) - it's a one-shot value, overwritten or cleared by
     // the very next dispatch either way, so it can never leak into a later,
     // unrelated command.
     auto track_ids = getController().getSong().getPlayableTrackIds();
@@ -196,7 +236,7 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
   }
 
   // CC91 ("move-row-up") doubles as a held shift modifier for opening a
-  // Session-view clip's own step grid directly instead of triggering it
+  // Live-View clip's own step grid directly instead of triggering it
   // (LaunchpadManager::handleShiftButton(), DeviceState::
   // row_up_shift_held's own comment) - needs press and release too, same
   // reasoning as CC98 above: nothing about a shift-combo can be decided
@@ -215,6 +255,10 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
     launchpad_manager_->handleArrowRelease(device_id, 92);
     return;
   }
+
+  // Custom: the right column holds its row's performance effect on the
+  // master, press and release.
+  if (launchpad_manager_->handlePerformanceMasterButton(device_id, ev.getCCNumber(), ev.getKind() == LaunchpadButtonEvent::PRESS, getController())) return;
 
   // The mixer radio group's own ten CC numbers (Record Arm/Volume/Pan/
   // Send A/Send B/Stop Clip/Mute/Solo, Pro MK3's Mute/Solo twins -
@@ -281,21 +325,21 @@ UI::handleThresholdRecordingTriggeredEvent(ThresholdRecordingTriggeredEvent & ev
 
   // This is where a threshold-triggered take actually begins, as if it
   // had been recording this whole time - startRecording() first (a fresh
-  // current_sample), then (for an ordinary, non-Session-View take - see
+  // current_sample), then (for an ordinary, non-Live-View take - see
   // below) a bar-quantized start row is derived and any gap it opens up
   // is filled with real silence, then the ring buffer's own already-
   // captured lead-in is appended, then the (possibly quantized) start
   // position is armed for beginSampleCapture() to place at.
   getController().startRecording();
 
-  // Never for a Session View take (isSessionRecording(track_id)) - that
+  // Never for a clip take (isClipRecording(track_id)) - that
   // populates a clip slot directly with no arrangement position at all,
   // so there's nothing here to quantize or snapshot; beginSampleCapture()
   // already treats recording_start_row_'s own untouched -1 default as
   // "stays unplaced."
-  bool is_session_recording_take = getController().isSessionRecording(ev.getTrackId());
+  bool is_clip_recording_take = getController().isClipRecording(ev.getTrackId());
   auto start_row = ev.getRow();
-  if (!is_session_recording_take) {
+  if (!is_clip_recording_take) {
     // Bar-quantized the same way ensureNoteRecordingClip() already
     // quantizes a brand-new live-recorded clip's own origin - rounded
     // back (previousBarRow()), never forward, so the take's own true
@@ -309,8 +353,7 @@ UI::handleThresholdRecordingTriggeredEvent(ThresholdRecordingTriggeredEvent & ev
     // it was actually performed rather than shifting the whole take
     // earlier to the bar.
     auto & song = getController().getSong();
-    auto rows_per_bar = std::max(1, song.getRowsPerBar());
-    auto quantized_row = previousBarRow(ev.getRow(), rows_per_bar);
+    auto quantized_row = previousBarRow(song.getArrangementBars(), ev.getRow());
     auto gap_rows = ev.getRow() - quantized_row;
     if (gap_rows > 0) {
       auto gap_frames = gap_rows * getController().getChannelConfiguration().getSampleInterval(song.getTempo());
@@ -324,7 +367,7 @@ UI::handleThresholdRecordingTriggeredEvent(ThresholdRecordingTriggeredEvent & ev
   }
 
   getController().addToSample(ev.getPreroll());
-  if (!is_session_recording_take) getController().armRecordingStart(start_row);
+  if (!is_clip_recording_take) getController().armRecordingStart(start_row);
   getController().beginSampleCapture(ev.getTrackId());
   getController().clearThresholdArmed();
 }
@@ -340,6 +383,89 @@ UI::initializeCommands() {
   // concrete widget, stays defined in that backend instead (e.g.
   // TerminalUI::initializeWidgets()).
   commands_.define("about", [this]() { showInfoDialog(kAboutTitle, kAboutMarkdown); });
+
+  // The device pickers list what is available right now (read fresh each
+  // time, so a device plugged in a moment ago shows) with the one in use
+  // marked. Choosing that one again changes nothing.
+  auto chooseDevice = [this](const std::string & title, std::vector<Choice> choices, const std::string & current,
+                             std::function<void(const Choice &)> apply) {
+    int current_index = -1;
+    for (size_t i = 0; i < choices.size(); i++) {
+      if (choices[i].value == current || (isDefaultDevice(choices[i].value) && isDefaultDevice(current))) {
+        current_index = static_cast<int>(i);
+        break;
+      }
+    }
+    auto list = choices;
+    showChoiceDialog(title, std::move(choices), current_index, [list, current_index, apply](int index) {
+      if (index == current_index || index < 0 || index >= static_cast<int>(list.size())) return;
+      apply(list[static_cast<size_t>(index)]);
+    });
+  };
+  // Names where the list comes from. The card list is much shorter than the
+  // audio server's own, so a missing device may just mean this build can't
+  // see the server.
+  auto deviceDialogTitle = [](const std::string & what) {
+#ifdef _WIN32
+    return what + " (Windows audio)";
+#else
+    return what + (pipeWireAvailable() ? " (PipeWire)" : " (ALSA sound cards)");
+#endif
+  };
+  commands_.define("select-capture-device", [this, chooseDevice, deviceDialogTitle]() {
+    std::vector<Choice> choices;
+    for (auto & device : listCaptureDevices()) choices.push_back({device.label, device.name});
+    chooseDevice(deviceDialogTitle("Audio input"), std::move(choices), getController().getDeviceSettings().capture,
+                 [this](const Choice & choice) { selectCaptureDevice(choice.value, choice.label); });
+  });
+  commands_.define("select-playback-device", [this, chooseDevice, deviceDialogTitle]() {
+    std::vector<Choice> choices;
+    for (auto & device : listPlaybackDevices()) choices.push_back({device.label, device.name});
+    chooseDevice(deviceDialogTitle("Audio output"), std::move(choices), getController().getDeviceSettings().playback,
+                 [this](const Choice & choice) { selectPlaybackDevice(choice.value, choice.label); });
+  });
+  commands_.define("select-midi-input", [this, chooseDevice]() {
+    std::vector<Choice> choices;
+    choices.push_back({"None", ""});
+    for (auto & source : listMidiSources()) choices.push_back({source.label, source.spec});
+    chooseDevice("MIDI input", std::move(choices), getController().getDeviceSettings().midi_input,
+                 [this](const Choice & choice) { selectMidiInput(choice.value, choice.label); });
+  });
+  // The song's scale: which degrees the step view steps through, and the
+  // ratios of a just scale's notes, so the notes that carry a tuning
+  // correction are retuned for it in the same edit.
+  commands_.define("set-song-scale", [this]() {
+    static const Scale kScales[] = {Scale::NONE, Scale::MAJOR, Scale::MINOR, Scale::OTONAL, Scale::UTONAL};
+    std::vector<Choice> choices;
+    int current = -1;
+    for (auto scale : kScales) {
+      if (scale == getController().getSong().getScale()) current = static_cast<int>(choices.size());
+      choices.push_back({scaleLabel(scale), to_string(scale)});
+    }
+    showChoiceDialog("Scale", std::move(choices), current, [this, current](int index) {
+      if (index == current || index < 0 || index >= static_cast<int>(std::size(kScales))) return;
+      auto scale = kScales[index];
+      auto & song = getController().getSong();
+      Song::Edit edit(song, "set scale");
+      song.setScale(scale);
+      int retuned = retuneSong(song);
+      setStatus("Scale " + scaleLabel(scale) + (retuned > 0 ? fmt::format(", {} tuned notes retuned", retuned) : ""));
+    });
+  });
+  // The colours: the modern look in dark or light, or the original one.
+  commands_.define("select-theme", [this]() {
+    static const char * const kNames[] = {"dark", "light", "original"};
+    std::vector<Choice> choices;
+    int current = -1;
+    for (auto name : kNames) {
+      if (theme_name_ == name) current = static_cast<int>(choices.size());
+      choices.push_back({name, name});
+    }
+    showChoiceDialog("Theme", std::move(choices), current, [this, current](int index) {
+      if (index == current || index < 0 || index >= static_cast<int>(std::size(kNames))) return;
+      if (setTheme(kNames[index])) setStatus(std::string("Theme ") + kNames[index]);
+    });
+  });
   commands_.define("next-buffer", [this]() {
     getController().cycleBuffer(true);
   });
@@ -348,26 +474,26 @@ UI::initializeCommands() {
   });
   // How the active song is shown - see UI::View. The live-sequencer
   // convention of one key flipping between the two is toggle-view; the
-  // outline panel only exists in Session view, so showing it switches
+  // outline panel only exists in Live View, so showing it switches
   // there.
   commands_.define("arrangement-view", [this]() { setView(View::ARRANGEMENT); });
-  commands_.define("session-view", [this]() { setView(View::SESSION); });
+  commands_.define("live-view", [this]() { setView(View::LIVE); });
   commands_.define("cycle-monitor", [this]() { getController().cycleTrackMonitor(getController().getSong().getCurrentTrackId()); });
-  commands_.define("toggle-view", [this]() { setView(view_ == View::SESSION ? View::ARRANGEMENT : View::SESSION); });
+  commands_.define("toggle-view", [this]() { setView(view_ == View::LIVE ? View::ARRANGEMENT : View::LIVE); });
   commands_.define("toggle-outline", [this]() {
-    bool show = !(outline_visible_ && view_ == View::SESSION);
+    bool show = !(outline_visible_ && view_ == View::LIVE);
     setOutlineVisible(show);
-    if (show) setView(View::SESSION);
+    if (show) setView(View::LIVE);
   });
   commands_.define("toggle-playing", [this]() {
     bool playing = getController().togglePlaying();
     setStatus(playing ? "Playing" : "Stopped");
   });
-  // Tracks Session view took over follow the arrangement again from the
+  // Tracks Live View took over follow the arrangement again from the
   // next bar - every one, or just the current track.
-  commands_.define("back-to-arrangement", [this]() { getController().getSessionPlayer().returnAllToArrangement(); });
+  commands_.define("back-to-arrangement", [this]() { getController().getClipPlayer().returnAllToArrangement(); });
   commands_.define("track-back-to-arrangement", [this]() {
-    getController().getSessionPlayer().returnToArrangement(getController().getSong().getCurrentTrackId());
+    getController().getClipPlayer().returnToArrangement(getController().getSong().getCurrentTrackId());
   });
   // Global, not any one widget's own - both computer-keyboard note entry
   // and every connected Launchpad's own octave read
@@ -384,17 +510,19 @@ UI::initializeCommands() {
   // works regardless of which UI widget currently has focus.
   commands_.define("merge-clip-to-background", [this]() { getController().sendCommand("merge-clip-to-background"); });
   commands_.define("toggle-record-arm", [this]() { getController().sendCommand("toggle-record-arm"); });
+  commands_.define("undo", [this]() { getController().sendCommand("undo"); });
+  commands_.define("undo-redo", [this]() { getController().sendCommand("undo-redo"); });
 
   // Clip menu entries not built yet - say so rather than failing as an
   // unknown command.
-  for (auto name : { "duplicate-clip", "double-clip-length", "halve-clip-length", "toggle-clip-loop", "rename-clip" }) {
+  for (auto name : {"double-clip-length", "halve-clip-length", "rename-clip"}) {
     commands_.define(name, [this, name]() { setStatus(std::string(name) + ": not implemented yet"); });
   }
 
   // Track commands act on Song::getCurrentTrackId(), the one current track
   // every widget keeps in sync, so they work the same from any widget and
   // from the menu. A new track lands right after the current one, under
-  // whatever its real parent is (Track::insertChildAfter()) - or at the
+  // whatever its real parent is (Song::addTrack()'s after_track_id) - or at the
   // very end when there's no current track. addTrack() bumps the version
   // itself.
   auto add_track = [this](std::unique_ptr<Track> track) {
@@ -405,8 +533,6 @@ UI::initializeCommands() {
   // Creating a SampleTrack and starting a take into one are separate
   // actions ("toggle-record-arm" is the latter).
   commands_.define("add-sample-track", [add_track]() { add_track(std::make_unique<SampleTrack>()); });
-  // Starts with no lanes - an ordinary percussion track; apply-preset-*
-  // is how it picks a kit.
   commands_.define("add-percussion-track", [add_track]() { add_track(std::make_unique<PercussionTrack>()); });
   // A plain container track with no audio of its own.
   commands_.define("add-group-track", [add_track]() { add_track(std::make_unique<Group>()); });
@@ -428,22 +554,6 @@ UI::initializeCommands() {
     ids = song.getRootTrackIds();
     if (!ids.empty()) song.setCurrentTrackId(ids[static_cast<size_t>(std::min<ptrdiff_t>(position, static_cast<ptrdiff_t>(ids.size()) - 1))]);
   });
-
-  // Replaces the current track's whole lane list with a named preset
-  // (PercussionTrack::applyPreset()'s own comment on why it replaces
-  // rather than adds) - a no-op on anything but a PercussionTrack.
-  auto apply_preset = [this](PercussionTrack::Preset preset) {
-    auto & song = getController().getSong();
-    auto track = song.getMasterTrack().getChildByInternalId(song.getCurrentTrackId());
-    if (!track || track->getType() != TrackType::PERCUSSION_CONTROL) return;
-    static_cast<PercussionTrack &>(*track).applyPreset(preset, song);
-    song.incVersion();
-  };
-  commands_.define("apply-preset-rock", [apply_preset]() { apply_preset(PercussionTrack::Preset::ROCK); });
-  commands_.define("apply-preset-latin", [apply_preset]() { apply_preset(PercussionTrack::Preset::LATIN); });
-  commands_.define("apply-preset-electronic", [apply_preset]() { apply_preset(PercussionTrack::Preset::ELECTRONIC); });
-  // The explicit way back to a plain, lane-less track.
-  commands_.define("apply-preset-none", [apply_preset]() { apply_preset(PercussionTrack::Preset::NONE); });
 }
 
 void

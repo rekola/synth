@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Purpose-built for verify_launchpad_step_view_device.py: a
+     PercussionTrack clip 96 rows long with BD hits at rows 5, 40 and 70 - the
+     set of lit steps in the 32-step view tells which window a device is
+     showing, with no need to read a playhead. -->
+<song temperament="12edo" tempo="120" patternRows="16">
+  <instruments>
+    <envelope id="i1" attack="0.001" hold="0.05" decay="0.05" sustain="0.0" release="0.05">
+      <oscillator type="saw"/>
+    </envelope>
+  </instruments>
+  <tracks>
+    <percussionTrack id="0" instrument="i1">
+    </percussionTrack>
+  </tracks>
+  <clips>
+    <clip track="0" name="p0" />
+    <clip track="0" name="p1" />
+    <clip track="0" name="p2" />
+    <clip track="0" name="p3" />
+    <clip track="0" name="p4" />
+    <clip track="0" name="p5" />
+    <clip track="0" name="p6" />
+    <clip track="0" name="Beat 1" loop="1" length="96">
+      <pattern>
+        <note row="5" velocity="80" value="BD" />
+        <note row="40" velocity="80" value="BD" />
+        <note row="70" velocity="80" value="BD" />
+      </pattern>
+    </clip>
+  </clips>
+  <arrangement>
+  </arrangement>
+</song>

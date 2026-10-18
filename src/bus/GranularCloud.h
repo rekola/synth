@@ -112,6 +112,8 @@ class GranularCloud : public BusEffect {
   void process(const float * monoInput, int frames) override;
 
   int getNumTaps() const override { return kMaxSimultaneousGrains; }
+  // The capture buffer and a grain read from its end; never while frozen.
+  float idleAfterSeconds() const override;
   const float * getTap(int i) const override { return engine_.getTap(i); }
   SphericalPosition getTapDirection(int i) const override { return directions_[static_cast<size_t>(i)]; }
 
