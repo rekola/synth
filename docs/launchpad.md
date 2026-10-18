@@ -262,13 +262,13 @@ everything it holds.
 
 | Row (top to bottom) | Effect | Holding it |
 | --- | --- | --- |
-| 8 | Stutter | From the next row, the track's own sound is captured and then repeated: a quarter note on a press, an eighth, a sixteenth and a 32nd pressing harder (a shorter loop repeats the start of what was captured). It repeats everything the track sends, sample tracks included, until the pad is released, when it fades back to the live track. With the transport stopped it starts capturing at once. |
-| 7 | Shuffle | From the next row, the track is recorded for up to a bar and played back as slices in a random order: each slice is any part already recorded, the part being recorded included, so it starts as the live track and scatters from there. Slices are an eighth note on a press, then a sixteenth, a 32nd and a 64th pressing harder. Released, it fades back to the live track. |
-| 6 | Erode | The track is broken into large, patchy grains: pieces of 40-250 ms of its own recent sound, taken from up to 300 ms back, each at its own level, slightly off pitch and turned a little around the listener, with silence between them. A press leaves it grainy but mostly there; pressing harder thins the grains out until only fragments survive. Works on every track type. |
-| 5 | Shatter | Erode's engine set the other way: a dense spray of tiny grains (5-30 ms) from up to a second back, pitched up to a few semitones off, half of them backwards, scattered all round the listener and fed back into themselves a little. Pressing harder makes it denser, up to an octave off and the full circle. |
-| 4 | Gate | The track is cut on and off on the beat grid - open for the first half of each period - while the song carries on underneath: eighth notes on a press, sixteenths and 32nds pressing harder. With the transport stopped it runs from the press. |
-| 3 | Crush | Lower sample rate and fewer bits: a quarter of the rate and 8 bits on a press, down to a 32nd and 4 bits at full pressure. |
-| 2 | (Filter, not built) | dark |
+| 8 | (Filter, not built) | dark |
+| 7 | Stutter | From the next row, the track's own sound is captured and then repeated: a quarter note on a press, an eighth, a sixteenth and a 32nd pressing harder (a shorter loop repeats the start of what was captured). It repeats everything the track sends, sample tracks included, until the pad is released, when it fades back to the live track. With the transport stopped it starts capturing at once. |
+| 6 | Shuffle | From the next row, the track is recorded for up to a bar and played back as slices in a random order: each slice is any part already recorded, the part being recorded included, so it starts as the live track and scatters from there. Slices are an eighth note on a press, then a sixteenth, a 32nd and a 64th pressing harder. Released, it fades back to the live track. |
+| 5 | Erode | The track is broken into large, patchy grains: pieces of 40-250 ms of its own recent sound, taken from up to 300 ms back, each at its own level, slightly off pitch and turned a little around the listener, with silence between them. A press leaves it grainy but mostly there; pressing harder thins the grains out until only fragments survive. Works on every track type. |
+| 4 | Shatter | Erode's engine set the other way: a dense spray of tiny grains (5-30 ms) from up to a second back, pitched up to a few semitones off, half of them backwards, scattered all round the listener and fed back into themselves a little. Pressing harder makes it denser, up to an octave off and the full circle. |
+| 3 | Gate | The track is cut on and off on the beat grid - open for the first half of each period - while the song carries on underneath: eighth notes on a press, sixteenths and 32nds pressing harder. With the transport stopped it runs from the press. |
+| 2 | Crush | Lower sample rate and fewer bits: a quarter of the rate and 8 bits on a press, down to a 32nd and 4 bits at full pressure. |
 | 1 | Duck | The track's dry signal drops by 12 dB, to silence at full pressure; its sends are untouched. |
 
 Each row has its own colour, dim while idle and bright while held: cyan for

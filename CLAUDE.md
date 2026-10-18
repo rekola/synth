@@ -522,8 +522,8 @@ would otherwise resume showing.
   while another stays on ordinary note entry. Defaults to `LIVE`.
   `CUSTOM` is the performance grid (`handlePerformancePadEvent()`,
   `playback/PerformanceEffect.h`): columns are Live View's tracks, rows
-  effects (`performance::kGridRows`, the default set: Stutter, Shuffle, Erode,
-  Shatter, Gate, Crush, (Filter, dark until built), Duck; Orbit and the Send
+  effects (`performance::kGridRows`, the default set, top to bottom: Filter
+  (dark until built), Stutter, Shuffle, Erode, Shatter, Gate, Crush, Duck; Orbit and the Send
   A/B throws exist off the grid), held to apply, pressure
   deepening them; the right-hand button at the end of a row holds its effect
   on the master (`handlePerformanceMasterButton()`, `performance::

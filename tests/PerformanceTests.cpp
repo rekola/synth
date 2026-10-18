@@ -85,13 +85,13 @@ struct SineSong {
 // The default set, top to bottom: Stutter, Shuffle, Erode, Shatter, Gate,
 // Crush, Filter, Duck - the rows not built yet stay empty.
 TEST(performance_grid_rows_are_the_default_set) {
-  CHECK(performance::effectForGridRow(7) == PerformanceEffect::STUTTER);
-  CHECK(performance::effectForGridRow(6) == PerformanceEffect::SHUFFLE);
-  CHECK(performance::effectForGridRow(5) == PerformanceEffect::ERODE);
-  CHECK(performance::effectForGridRow(4) == PerformanceEffect::SHATTER);
-  CHECK(performance::effectForGridRow(3) == PerformanceEffect::GATE);
-  CHECK(performance::effectForGridRow(2) == PerformanceEffect::CRUSH);
-  CHECK(performance::effectForGridRow(1) == PerformanceEffect::NONE); // filter
+  CHECK(performance::effectForGridRow(7) == PerformanceEffect::NONE); // filter
+  CHECK(performance::effectForGridRow(6) == PerformanceEffect::STUTTER);
+  CHECK(performance::effectForGridRow(5) == PerformanceEffect::SHUFFLE);
+  CHECK(performance::effectForGridRow(4) == PerformanceEffect::ERODE);
+  CHECK(performance::effectForGridRow(3) == PerformanceEffect::SHATTER);
+  CHECK(performance::effectForGridRow(2) == PerformanceEffect::GATE);
+  CHECK(performance::effectForGridRow(1) == PerformanceEffect::CRUSH);
   CHECK(performance::effectForGridRow(0) == PerformanceEffect::DUCK);
   CHECK(performance::effectForGridRow(8) == PerformanceEffect::NONE);
 }

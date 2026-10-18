@@ -32,16 +32,17 @@ constexpr float kRampSeconds = 0.01f;
 constexpr float kOrbitReturnSeconds = 0.3f;
 
 // The Custom grid's rows, bottom (index 0) to top. NONE rows are not built
-// yet and stay dark.
+// yet and stay dark. The Filter sits apart at the top: its pressure follows
+// each instrument's own expression settings rather than a fixed depth.
 constexpr PerformanceEffect kGridRows[8] = {
     PerformanceEffect::DUCK,
-    PerformanceEffect::NONE, // filter
     PerformanceEffect::CRUSH,
     PerformanceEffect::GATE,
     PerformanceEffect::SHATTER,
     PerformanceEffect::ERODE,
     PerformanceEffect::SHUFFLE,
     PerformanceEffect::STUTTER,
+    PerformanceEffect::NONE, // filter
 };
 
 inline PerformanceEffect effectForGridRow(int y) {

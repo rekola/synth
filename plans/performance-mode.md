@@ -45,8 +45,10 @@ Built with the effects that existed then (Stutter, Erode, Duck). Orbit and
 the throws are not done on the master.
 
 The rows are fixed in code for now (`performance::kGridRows`), as the
-**default set**, top to bottom: Stutter, Shuffle, Erode, Shatter, Gate,
-Crush, Filter, Duck. Orbit, Throw A and Throw B stay in the code but
+**default set**, top to bottom: Filter, Stutter, Shuffle, Erode, Shatter,
+Gate, Crush, Duck. The Filter has the top row to itself because it is the
+odd one out: its pressure follows each instrument's own expression settings
+(stage 5) rather than a fixed depth. Orbit, Throw A and Throw B stay in the code but
 leave the grid; a song-level `<performance>` element choosing the rows comes
 later (below).
 
@@ -177,13 +179,13 @@ picks a named set of its settings, and any attribute overrides one.
 
 ```xml
 <performance>
+  <filter/>
   <stutter/>
   <shuffle/>
   <grains preset="erode"/>
   <grains preset="shatter"/>
   <gate/>
   <crush/>
-  <filter/>
   <duck/>
 </performance>
 ```
