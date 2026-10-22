@@ -7,6 +7,10 @@ that lets any colour in the library be brighter than white or more saturated
 than sRGB, and the backend choice that lets one backend show it while the
 others clip it. That backend renders with Vulkan on both platforms.
 
+The lighting model and the effects themselves are specified elsewhere; this
+plan is the foundations they stand on (the colour model, the backend choice and
+the HDR output).
+
 Status: under discussion. Nothing is built. This is a green-field change:
 goldens that move are regenerated, not worked around.
 
@@ -361,19 +365,12 @@ native-toolkit window without effects; a saved default is a small addition.
    if not yet, `vulkan` keeps SDR output on Linux.
 9. **Windows HDR output** (`plans/cellui-window.md`): the swap chain and
    display queries, on real hardware.
-10. **Effects** (`plans/cellui-effects.md`): bloom first (wide colours and
-   the blur), then ambient occlusion and subsurface scattering, which need
-   the cube model's effect attributes (height or normal and a thickness per
-   cell, set through the plane API).
-11. **Scopes**: a plus, last. Their 8-bit canvas images stay; in `vulkan` a gain
+10. **Scopes**: a plus, last. Their 8-bit canvas images stay; in `vulkan` a gain
     on the image lights peaks and the clip red above 1 (`Image::gain`, applied
     by the sampler). Float images from `SpectrumImage`/`HeatmapImage`/
     `VuMeterImage` (hand-drawn already) only if 8 bits show banding in the
     heatmap's dark end.
-12. **Theme**: wide variants for the tokens that glow (playhead, the LED hues
-    shared with the Launchpad, the clip pulse's peak), written in the
-    notation above.
-13. **Adopt canvas's float colours**, last. canvas (`rekola/canvas`) gains a
+11. **Adopt canvas's float colours**, last. canvas (`rekola/canvas`) gains a
     float pixel format and float colours in a separate piece of work; this step
     waits for it. Then: bump the `FetchContent` pin; `ImageData` in float for
     `SpectrumImage`, `HeatmapImage` and `VuMeterImage` (taking `Color`'s linear
