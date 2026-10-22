@@ -672,3 +672,24 @@ TEST(terminal_ui_smooth_scroll_moves_live_view_pattern_columns_each_by_itself) {
   }
   CHECK(shifted() == 0); // settled on whole rows
 }
+
+// Switching from Live View to Arrangement view, on a display that scrolls
+// smoothly, still shows the pattern editor's rows.
+TEST(terminal_ui_smooth_scroll_pattern_editor_rows_show_after_leaving_live_view) {
+  cellui::DisplayInfo display;
+  display.smooth_scroll = true;
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, display);
+  for (int i = 0; i < 5; i++) {
+    f.ui->step();
+  }
+  f.press(cellui::Key::Tab);
+  for (int i = 0; i < 5; i++) {
+    f.press(cellui::Key::Down);
+    f.ui->step();
+  }
+  bool rows = false;
+  for (size_t y = 0; y < 40; y++) {
+    if (f.line(y).find("----") != std::string::npos) rows = true;
+  }
+  CHECK(rows);
+}

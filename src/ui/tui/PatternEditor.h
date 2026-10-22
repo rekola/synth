@@ -203,6 +203,8 @@ protected:
   std::unordered_map<int, ColumnScroll> column_scroll_;
   std::vector<std::unique_ptr<UIPlane>> column_planes_;
   bool columns_shifted_ = false;
+  // Whether the columns draw on their planes (Live View, smooth scrolling); else all on the rows' plane.
+  bool columns_planes_in_use_ = false;
   bool rowsShifted() const { return row_offset_ != 0.0 || columns_shifted_; }
   int columnDelta(int track_id) const {
     auto it = column_scroll_.find(track_id);
