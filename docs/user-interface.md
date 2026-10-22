@@ -34,8 +34,9 @@ under [Terminal](#terminal) at the end.
 
 ## Command palette
 
-M-x on the Emacs keymap and Ctrl+Shift+P on the desktop one open the command
-palette, which runs any command by name. It sits on the last rows of the
+M-x (Meta-x: the Alt key with x, or Escape and then x) on the Emacs keymap and
+Ctrl+Shift+P on the desktop one open the command palette, which runs any
+command by name. It sits on the last rows of the
 screen, where the status line is: the query on the last row (`M-x ` or `> `),
 the selected command's description above it, and the matching commands above
 that, best match first. The list is a raised panel; the description (quiet and
