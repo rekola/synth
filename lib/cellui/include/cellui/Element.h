@@ -38,7 +38,7 @@ class Element {
   // commands_ (typically in their constructor) and call dispatchCommand()
   // from their own offerInput() wherever a migrated binding should take
   // effect. executeCommand() is the public entry point used to invoke a
-  // command directly by name (e.g. from an M-x-style minibuffer).
+  // command directly by name (e.g. from an command palette).
   bool executeCommand(std::string_view name) { return commands_.execute(std::string(name)); }
 
   // Read-only counterpart to executeCommand() - every name in this

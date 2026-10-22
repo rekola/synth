@@ -137,7 +137,7 @@ class StyleProvider {
   // instance's digit).
   Color clip_text_color;
 
-  // Typed text in a reader (the M-x minibuffer, inline name editors).
+  // Typed text in a reader (the status line's name prompts, inline name editors).
   Color reader_text_color;
 
   // The info bar at the bottom, and the controls sitting inline in it.

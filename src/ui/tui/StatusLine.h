@@ -59,7 +59,7 @@ class StatusLine : public UIElement {
     // Opening this reader takes focus away from any other reader-owning
     // widget's own in-progress edit, same as UI::executeCommand()'s
     // StatusLine::cancelReader() use for the opposite direction (a menu
-    // click stealing focus from M-x) - mirrors real Emacs, where entering
+    // click stealing focus from a prompt) - mirrors real Emacs, where entering
     // the minibuffer aborts whatever else had keyboard focus rather than
     // opening on top of it. Wired in UI::initialize() (this class has no
     // reference to PatternEditor of its own); a no-op before that wiring
@@ -156,7 +156,7 @@ class StatusLine : public UIElement {
   // Aborts whatever's being read without ever running on_submit_ - Ctrl-g's
   // own behavior (below), also used by UI::executeCommand() so a command
   // reached some other way (a menu click, Launchpad-by-name dispatch) while
-  // M-x is still open takes focus away from it rather than running
+  // a prompt is still open takes focus away from it rather than running
   // underneath it - mirrors real Emacs, where clicking a menu item while
   // typing in the minibuffer just aborts the minibuffer and runs the
   // command.

@@ -139,7 +139,7 @@ mode's main loop cleanly (`util/ShutdownSignal.h`, `UI::shouldClose()`).
 See `docs/headless.md`; `tools/e2e/verify_headless.py` covers it.
 
 **Audio and MIDI devices** (`docs/devices.md`): the output, the input and one
-MIDI source are chosen at runtime (M-x `select-playback-device`/
+MIDI source are chosen at runtime (the command palette's `select-playback-device`/
 `select-capture-device`/`select-midi-input`, the Devices menu - each opens a
 modal list, `UI::showChoiceDialog()`, rendered by `tui/ChoiceDialog` over the
 toolkit-agnostic `ui/ChoiceList.h`; the commands live in `UI`, so a GUI
@@ -312,15 +312,18 @@ rather than asserting on it). `BasicMixer` (the old plain-stereo-pan/
 raw-N-channel mixer) was retired entirely along with `STEREO`; every mixer
 `MixerFactory` builds now is `AmbisonicStereoMixer` or
 `AmbisonicBinauralMixer`.
-**Space** toggles playback, **C-x C-c** quits (Emacs's own
-save-buffers-kill-terminal binding - there is no separate Ctrl-Q quit
-shortcut, deliberately: this codebase follows Emacs keybindings, not
-one-off shortcuts, wherever Emacs already has a convention for the
-action), Ctrl-N creates a new song, **Alt-x** opens the M-x command
-minibuffer (see below for the mechanism that makes it work reliably on
-any terminal, ESC-then-x included). Ctrl-K is `PatternEditor`'s own
-kill-row (Emacs's own C-k, kill-line, repurposed the same way), not an
-M-x trigger.
+**Space** toggles playback in both keymaps. Quit, save, open and the rest are
+bound per keymap (`docs/user-interface.md` has the table): on the Emacs keymap,
+used in the terminal, **C-x C-c** quits (Emacs's own
+save-buffers-kill-terminal binding; this codebase follows Emacs keybindings
+there, not one-off shortcuts, wherever Emacs already has a convention for the
+action, so Ctrl-Q is not bound) and **Alt-x** opens the command palette (see
+below for the mechanism that makes it work reliably on any terminal,
+ESC-then-x included); on the desktop keymap, used in the window, **Ctrl+Q**
+quits and **Ctrl+Shift+P** opens the palette. There is no new-song binding on
+either (`select-named-buffer` starts a new song by name). Ctrl-K is
+`PatternEditor`'s own kill-row (Emacs's own C-k, kill-line, repurposed the
+same way), not a palette trigger.
 `docs/commands.md` lists the pattern effect commands (slides, vibrato, …),
 split into **Implemented** (`ZBxx` pattern break; `0Pxx` azimuth set;
 `0Lxx` Volume set; the real-time
@@ -337,9 +340,11 @@ synonym for it (`Command::updateData()`); `docs/commands.md`'s own
 from - an existing tracker's own command reference, or this codebase's
 own choice - checked deliberately rather than invented blind.
 
-Pattern editor selection uses Emacs keybindings: **C-SPC** sets the mark (selection start), **C-w** kills (cuts) the marked
+Pattern editor selection uses the mark and point model on both keymaps. On the Emacs
+keymap **C-SPC** sets the mark (selection start), **C-w** kills (cuts) the marked
 block, **M-w** copies it, **C-y** yanks (pastes) the clipboard at the
-cursor, **C-g** cancels the selection. The selection is a rectangular
+cursor, **C-g** cancels the selection; on the desktop keymap cut, copy and
+paste are Ctrl+X, Ctrl+C and Ctrl+V, running the same commands. The selection is a rectangular
 row×track block; within a single track it's further scoped to note
 columns (voices) — see below.
 
@@ -486,8 +491,8 @@ now takes an optional prompt string and draws it *before* creating the
 reader's (opaque) child plane, offsetting the reader past it — the prompt
 used to be drawn via a separate `setMessage()` call *after* `showReader()`,
 which silently no-oped since `setMessage()` defers to `pending_message`
-whenever `readerActive()` is already true, so the "M-x " prompt was never
-actually visible even when the minibuffer genuinely opened and worked.
+whenever `readerActive()` is already true, so a status-line prompt was never
+actually visible even when its reader genuinely opened and worked.
 
 `transpose-region-up`/`transpose-region-down` (Ctrl+Shift+Up/Down) transpose
 the effective region (same "always something to act on, even unmarked"
@@ -1367,7 +1372,7 @@ would otherwise resume showing.
     binds them to - only the *binding* is backend-specific, not what the
     command does. A command stays in `TerminalUI` instead when it
     genuinely can't be shared yet - needs a prompt/dialog (`StatusLine`'s
-    minibuffer has no GUI equivalent today) or reaches directly into a
+    name prompts have no GUI equivalent today) or reaches directly into a
     concrete terminal widget pointer (`pattern_editor_`/
     `arrangement_grid_`) with no abstract stand-in to go through. The one
     deliberate, permanent exception is pattern-editor selection/copy-paste

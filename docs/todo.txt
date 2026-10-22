@@ -24,10 +24,6 @@ Convert volume meter to decibels. Maybe.
 
 Add better unit to keynum to hold and decay
 
-Let track have direct instruments built in to them
- - then use <instrument> as proxy for the predefined instruments
- - miten voi sit näyttää instrumentit tai vaihtaa?
-
 filter sweep is bad (must be exponential) (hz or note)
 
 could we create band filtered noise, with the filter tied to the key?
@@ -281,3 +277,4 @@ G'	P12					3:1
 	M13
 	m14
 	P15
+x
