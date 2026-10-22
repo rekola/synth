@@ -317,7 +317,7 @@ bound per keymap (`docs/user-interface.md` has the table): on the Emacs keymap,
 used in the terminal, **C-x C-c** quits (Emacs's own
 save-buffers-kill-terminal binding; this codebase follows Emacs keybindings
 there, not one-off shortcuts, wherever Emacs already has a convention for the
-action, so Ctrl-Q is not bound) and **Alt-x** opens the command palette (see
+action, so Ctrl-Q is not bound) and **Meta-x** (M-x) opens the command palette (see
 below for the mechanism that makes it work reliably on any terminal,
 ESC-then-x included); on the desktop keymap, used in the window, **Ctrl+Q**
 quits and **Ctrl+Shift+P** opens the palette. There is no new-song binding on
@@ -476,14 +476,14 @@ Controller-level commands (`save-song`, `add-filter`) and the per-widget ones
 (`set-mark`, `kill-region`, `transpose-region-up`/`-down`, …) through the
 same path. Not yet migrated: `StatusLine`, `OutlineView`, and
 `InstrumentList` (dead code anyway). `StatusLine`'s M-x detection is down
-to a single check now, an Alt/Meta-modified `x` event (on the Emacs keymap) - it no longer needs
+to a single check now, a Meta-x event (the `Input`'s Alt or Meta modifier with `x`, on the Emacs keymap) - it no longer needs
 its own two-step `ESC`-then-`x` state machine, since `TerminalUI`'s
 `cellui::KeyReader` (`cellui/KeyReader.h`, over `cellui/EscapeCoalescer.h`; it
 also holds a bare Escape until the next key decides it, asking the app's
 `takeEscape` hook whether something closes on it at once) already folds a bare `ESC`
-followed, arbitrarily later, by `x` into a single Alt-modified event
+followed, arbitrarily later, by `x` into a single Meta-modified event
 before it ever reaches `StatusLine`, the same as a terminal that sends
-physical Alt-x as one event directly; see that header's own top comment
+Meta-x as one event directly; see that header's own top comment
 for why the wait has no deadline (modeled on Emacs's own indefinite
 ESC-as-Meta-prefix behavior, "ESC-" indicator included) rather than a
 short timing window. `UIPlane::showReader()`

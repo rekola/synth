@@ -27,8 +27,8 @@ struct DisplayInfo {
   // The key chords the application binds commands to here: the terminal's
   // are Emacs's, a window's the usual desktop ones.
   KeymapProfile keymap_profile = KeymapProfile::EMACS;
-  // Whether a bare Escape may be the prefix of an Alt chord (a terminal sends
-  // Alt-x as ESC x). A backend that reports Alt as a modifier clears it, and
+  // Whether a bare Escape may be the prefix of a Meta chord (a terminal sends
+  // Meta-x as ESC x). A backend that reports Alt as a modifier clears it, and
   // Escape is then an ordinary key.
   bool escape_as_meta = true;
 };
