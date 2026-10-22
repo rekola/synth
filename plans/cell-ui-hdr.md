@@ -5,8 +5,7 @@ LED, light scattered through a translucent slab, ambient occlusion in a
 crease. Flat cells and text stay SDR in look. This plan is the colour model
 that lets any colour in the library be brighter than white or more saturated
 than sRGB, and the renderer choice that lets one renderer show it while the
-others clip it. The effects renderer uses Vulkan on Linux and Direct3D on
-Windows, because those are the APIs that can present HDR.
+others clip it. The advanced renderer uses Vulkan on both platforms.
 
 Status: under discussion. Nothing is built. This is a green-field change:
 goldens that move are regenerated, not worked around.
@@ -31,7 +30,7 @@ part of the model.
    in nits; the presenter turns relative into absolute.
 4. **The renderer is chosen once, at start, from what the machine can do.**
    No switching, no fallback inside a frame (below). Neither renderer is "the
-   SDR one": the effects renderer shows SDR displays too.
+   SDR one": the advanced renderer shows SDR displays too.
 
 ## The model
 
@@ -82,7 +81,7 @@ sRGB's gamut, bring the range into [0, 1], encode with the sRGB transfer.
 The placeholder is the plain version (matrix to Rec.709, pull chroma in
 along constant OKLCH hue until it fits, scale to `max <= 1`); the real
 mapping comes from the tone-mapping work and replaces the body without
-changing the signature. The effects renderer's own output stage (HDR out, or
+changing the signature. The advanced renderer's own output stage (HDR out, or
 tone-mapped for an SDR display) is a function of the same family, in the
 renderer, not here. In-gamut colours with every component at most 1 must map
 to themselves.
@@ -107,7 +106,7 @@ plane->setFgColor(Color), setBgColor(Color)   // new overloads; (int,int,int) st
 fields; `Color` is 12 bytes where it was 3, which is small beside the cell's
 `std::string`. The LED in the middle of a volumetric button is a cell with
 `bg = Color("oklch(0.8 0.2 25)") * 6`: the terminal and the basic window show
-a clipped, pale red cell; the effects renderer sees a value of 6 and its
+a clipped, pale red cell; the advanced renderer sees a value of 6 and its
 bloom pass lights the surroundings. No "emissive" attribute exists:
 *emissive is a colour above 1*, and bloom's threshold is 1.
 
@@ -116,7 +115,7 @@ bloom pass lights the surroundings. No "emissive" attribute exists:
 `BufferPlane::compose()` computes `bg_blend`, `fg_contrast`, backdrop dims
 and tints, and every blend in `Color` in linear light, for every backend,
 SDR included. One rule means one result: a blend that gave different answers
-for a terminal and for the effects renderer would make every effect depend on the
+for a terminal and for the advanced renderer would make every effect depend on the
 sink, and no clip could then be trusted to look like what composed it.
 Consequences, accepted:
 
@@ -134,7 +133,7 @@ Consequences, accepted:
 - Glyph anti-aliasing is not a `Color` operation. A rasteriser draws a glyph's
   outline as a *coverage* per pixel, 0 to 1 along the edge, and the pixel is
   `mix(bg, fg, coverage)`. canvas does that mix in 8-bit gamma-encoded sRGB
-  and that stays for the basic renderer. The effects renderer keeps the
+  and that stays for the basic renderer. The advanced renderer keeps the
   coverage mask in its glyph atlas and mixes in linear light, which makes
   light-on-dark text look bolder and dark-on-light thinner than the gamma mix
   does; a contrast adjustment on the coverage is tuned by eye if it shows.
@@ -150,26 +149,28 @@ Two renderers, named for what they are, not for the dynamic range they show:
 - **`basic`**: the platform's own drawing, 8-bit: GSK on Linux, Direct2D on
   Windows, cells in the terminal. It reads `fg`/`bg` through `toSrgb8()`, draws
   no effect attributes and knows nothing of HDR.
-- **`effects`**: the GPU renderer: Vulkan on Linux, Direct3D on Windows. A
-  float framebuffer, the cells and glyph atlas, the lighting model (ambient
-  occlusion, subsurface scattering, bloom) and an output stage. The output
-  stage is **HDR when the display reports HDR** and tone-mapped SDR when it
-  does not, so the effects look right on every display; HDR is its best
-  output, not a requirement for it.
+- **`advanced`**: the GPU renderer, in Vulkan. A float framebuffer, the cells
+  and glyph atlas, the lighting model (ambient occlusion, subsurface
+  scattering, bloom) and an output stage. The output stage is **HDR when the
+  display reports HDR** and tone-mapped SDR when it does not, so the effects
+  look right on every display; HDR is its best output, not a requirement for
+  it.
 
-Why those APIs: HDR reaches a display through the swap chain's colour space
-(Vulkan's `VK_EXT_swapchain_colorspace`, DXGI's colour spaces), which OpenGL
-has no portable way to ask for (on Linux, none in practice).
+Why Vulkan: HDR reaches a display as a float or 10-bit image tagged with a
+colour space, and OpenGL has no portable way to produce or tag one (a
+`GtkGLArea` is composited as SDR). Vulkan renders to any image format, can
+export it (as a dma-buf on Linux, a swap chain on Windows), and names the
+colour space (`VK_EXT_swapchain_colorspace`).
 
 At start, before any window is shown, the window backend probes and decides
-for the run: `--renderer basic|effects|auto`, `auto` by default.
+for the run: `--renderer basic|advanced|auto`, `auto` by default.
 
 ```
 auto: effects if
-        - a Vulkan device (Linux) / Direct3D device (Windows) can be created
-          with the features the renderer needs (floor to be fixed when the
-          shaders exist), and it is a hardware device (not lavapipe or
-          another CPU device, not WARP), and the driver is not on the
+        - a Vulkan device can be created with the features the renderer
+          needs (floor to be fixed when the shaders exist), it is a hardware
+          device (not lavapipe or another CPU device), on Linux it can export
+          images the host can import (below), and the driver is not on the
           known-bad list;
       else basic
 ```
@@ -179,27 +180,30 @@ auto: effects if
   fails after the choice (device lost, shader error), that is an error
   reported and the program exits, not a silent change of look; `--renderer
   basic` is the user's escape. A CPU device fails the probe in advance, so a
-  machine that would crawl is never given `effects`.
+  machine that would crawl is never given `advanced`.
 - **What can still change at run time is the display, not the renderer**:
-  HDR toggled in the OS, a window moved to another monitor. `effects` has
+  HDR toggled in the OS, a window moved to another monitor. `advanced` has
   both outputs, so it re-reads the display's capabilities on the change event
   and rebuilds its swap chain between frames, inside the renderer. If
   startup-only is simpler to ship, the first version logs "restart to apply".
 - **Blur.** The current blur (a GSK node, `term::BackdropEmulation`'s box
   passes) stays as it is for `basic` and the terminal; it blurs `Color`s
-  clipped at the end, nothing else. `effects` has its own separable blur on
+  clipped at the end, nothing else. `advanced` has its own separable blur on
   float textures, the same pass bloom uses (threshold at 1.0, downsample
   chain), so a blurred backdrop there keeps its highlights. The two are not
   made to look identical.
 - **Pixel regions** (the scopes, canvas images) stay 8-bit sRGB: canvas stays
-  SDR. In `effects` they are sampled as sRGB textures, linearised and may be
+  SDR. In `advanced` they are sampled as sRGB textures, linearised and may be
   multiplied by a gain.
-- **Two GPU back ends is a cost.** The renderer's shaders and passes are
-  written once, in one shading language, and compiled for both (SPIR-V for
-  Vulkan, DXIL or DXBC for Direct3D); a thin device layer hides the API.
-  Whether that layer is ours or SDL3's GPU API (which wraps both, exposes
-  HDR swap-chain compositions, and can be given a native window to draw into)
-  is decided by a spike; see Open questions.
+- **One GPU API, no abstraction layer.** The renderer talks to Vulkan
+  through a thin layer of our own: a function loader (volk), a memory
+  allocator (VMA), a handful of helpers for images, pipelines and frames in
+  flight. Shaders are one language (GLSL or Slang) compiled to SPIR-V at build
+  time and embedded. Direct3D is not a second back end; it stays a
+  contingency if Vulkan proves unreliable on Windows drivers in the field
+  (below), and the thin layer is the seam where it would go. SDL3's GPU API
+  was considered and rejected: it wraps Vulkan and Direct3D 12 but exposes
+  no external-memory export, which the Linux route below depends on.
 
 ### Capabilities, read in advance
 
@@ -238,47 +242,59 @@ composition produced.
   chroma); the sRGB8 round trip over all 2^24 values;
   `toSrgb8()` identity for in-gamut colours; the compose rule in linear light
   (the 50% black/white case); equality and hashing.
-- `effects` output is checked offscreen on a CPU device (lavapipe on Linux,
+- `advanced` output is checked offscreen on a CPU device (lavapipe on Linux,
   WARP on Windows, forced past the probe by a test-only flag), float read
   back, with a tolerance, in the gallery's golden style. CI cannot show HDR,
   only check the values.
 
-## Should GTK go?
+## GTK: staying, with a dma-buf texture
 
-Not decided; the Vulkan requirement narrows the question.
+GTK stays: the menu bar, dialogs, file choosers, input methods, the native
+text inputs and the accessibility tree are what it is there for, and the
+`advanced` renderer needs only to hand it a picture.
 
-**What GTK gives**: the menu bar, dialogs, file choosers, input methods and
-the accessibility tree on Linux (what `plans/cell-ui-window.md` chose it
-for). Replacing it means writing those ourselves or taking SDL3, which has
-none of them either.
+GTK has `GtkGLArea` and no Vulkan equivalent, so the `advanced` renderer
+**renders offscreen in Vulkan and gives GTK the image as a
+`GdkDmabufTexture`** (GTK 4.14 and later, zero copy on Linux). The widget
+shows that texture; GTK composites it with its own colour state, which is how
+HDR reaches the compositor once GTK's support settles (the groundwork landed
+in 4.16: `GdkColorState`, and a colour state on the dma-buf texture builder).
+(An earlier draft of this plan said the only route was a native child
+surface of ours; that was wrong, and it is now the contingency.)
 
-**What changed**: GTK 4 has no API for an application to put its own Vulkan
-swap chain in a widget (its Vulkan is internal to GSK, and `GtkGLArea` is
-OpenGL, which cannot present HDR). The only way to put the `effects`
-renderer in a GTK window is a **native child surface of ours**: on Wayland a
-`wl_subsurface` of the window's `wl_surface` (via `gdk_wayland_surface_
-get_wl_surface()`), with the Vulkan WSI on it and colour management set on it
-(`wp_color_management_v1`, through Mesa's WSI where it supports it); on X11 a
-child window, which gets Vulkan but never HDR. GTK keeps the menu bar,
-dialogs and input; our surface carries the whole grid. The cost: our surface
-and GTK's must stay in step (size, scale, focus, input routed from GTK's
-events or taken from our surface), and popups that must float over the grid
-are GTK's, not ours, so effects do not reach them.
+- **The frame:** the Vulkan image is allocated exportable
+  (`VK_EXT_external_memory_dma_buf`, with a DRM format modifier GTK can
+  import), drawn into, and wrapped per frame in a texture built with
+  `GdkDmabufTextureBuilder`: FP16 (`ABGR16161616F`) when the display is HDR,
+  10-bit or 8-bit otherwise, with the colour state set (linear Rec.2020, or
+  PQ for HDR10). A small ring of such images is in flight; the texture's
+  destroy notify returns the image to the ring once GTK is done with it, and
+  the draw is fenced before the texture is handed over.
+- **Graphics offload:** wrapping the widget in `GtkGraphicsOffload` lets GTK
+  put the texture on its own Wayland subsurface instead of composing it,
+  which is the cheapest path to scanout and to a compositor that does colour
+  management. It is an optimisation to try, not a dependency.
+- **The probe checks the host in advance:** the dma-buf formats and modifiers
+  GDK reports for the display (`gdk_display_get_dmabuf_formats()`) must
+  intersect what our Vulkan device can export; on a hybrid-GPU machine the
+  device chosen is the one GTK renders on. No FP16 format in common: `advanced`
+  runs with a 10-bit or 8-bit target and SDR output. No common format at all,
+  or GTK older than 4.14: `basic`.
+- **What is unknown, to be measured on a Wayland HDR setup before building on
+  it:** whether the GTK and compositor of the day pass an FP16 or PQ dma-buf
+  through as HDR or tone-map it to SDR; whether the colour state on the
+  texture reaches the compositor at all. If it does not, Linux has the
+  `advanced` renderer with SDR output until it does, which is the
+  design's normal case anyway. X11 has no HDR.
+- **Input and layout** are unchanged: the texture is a widget, so size, scale,
+  focus, popups, native text inputs and the pointer are GTK's, as they are for
+  `basic`; effects do not reach GTK's own popups.
+- **Contingency:** a `wl_subsurface` of ours with Vulkan WSI and colour
+  management set on it directly, only if the texture route cannot carry HDR
+  and Linux HDR is worth the cost of keeping a second surface in step. An
+  SDL3 host (own menus and dialogs) is not planned.
 
-So the spike has two arms, and the choice follows the measurement:
-
-1. **GTK window + Vulkan child surface** on a Wayland HDR setup (a current
-   GNOME or KDE). Succeeds if HDR presents, resizing and scale changes do not
-   tear or lag, and input and focus are clean. Linux HDR *output* depends on
-   the compositor's colour management; elsewhere `effects` runs with SDR
-   output.
-2. **SDL3 host** (SDL3 creates the Vulkan surface, exposes HDR window
-   properties, and its GPU API could be the device layer above), with Cell
-   UI's own menus, dialogs, file dialogs and accessibility on top. Taken only
-   if arm 1 fails or is too fragile **and** Linux HDR output is worth losing
-   GTK's chrome.
-
-Windows has no such question: the Win32 window owns its swap chain.
+Windows has no host question: the Win32 window owns its Vulkan swap chain.
 
 ## Steps
 
@@ -299,20 +315,23 @@ Windows has no such question: the Win32 window owns its swap chain.
    `setHdr()`/`sdrFrame()`; terminal and SDR window report none.
 5. **Renderer choice**: the probe, `--renderer`, the CPU-device and
    bad-driver tests; only `basic` exists, so the seam is proved.
-6. **Device layer spike**: one shading language compiled for Vulkan and
-   Direct3D, and ours versus SDL3's GPU API for the layer; a triangle in an
-   FP16 target presented on both. Decides the shape of step 7.
-7. **`effects` renderer, tone-mapped SDR out**: cell quads, glyph atlas,
+6. **Vulkan spike**: the thin layer, one shading language to SPIR-V, an FP16
+   target; on Linux exported as a dma-buf and shown in a GTK window as a
+   `GdkDmabufTexture` (formats, modifiers, fencing, the ring); on Windows
+   presented through a Vulkan swap chain in HDR10 and in scRGB on a real HDR
+   monitor. Decides whether Vulkan alone is enough on Windows.
+7. **`advanced` renderer, tone-mapped SDR out**: cell quads, glyph atlas,
    float framebuffer, the shared blur. The gallery renders through it
    offscreen on a CPU device.
-8. **Host spike on Linux** (above), then HDR output there if it passes.
+8. **Linux HDR output**: whether the texture carries HDR to the compositor
+   (above), on a Wayland HDR setup.
 9. **Windows HDR output** (`plans/cell-ui-window.md`): needs the Win32
    backend first.
 10. **Effects** (`plans/cell-ui-effects.md`): bloom first (wide colours and
    the blur), then ambient occlusion and subsurface scattering, which need
    the cube model's effect attributes (height or normal and a thickness per
    cell, set through the plane API).
-11. **Scopes**: a plus, last. Their 8-bit canvas images stay; in `effects` a gain
+11. **Scopes**: a plus, last. Their 8-bit canvas images stay; in `advanced` a gain
     on the image lights peaks and the clip red above 1 (`Image::gain`, applied
     by the sampler). Float images from `SpectrumImage`/`HeatmapImage`/
     `VuMeterImage` (hand-drawn already) only if 8 bits show banding in the
@@ -324,11 +343,13 @@ Windows has no such question: the Win32 window owns its swap chain.
 ## Open questions
 
 - The real `toSrgb8()` mapping (curve, gamut mapping), and whether the same
-  curve is the `effects` output stage on an SDR display: from the
+  curve is the `advanced` output stage on an SDR display: from the
   tone-mapping work. Only the signature (a pure function of one `Color`, no
   state) is needed in advance; the placeholder is enough until the gallery
   swatch page is looked at by eye. It does not block steps 1 to 5.
-- Direct3D 11 or 12 on Windows, and the Vulkan floor on Linux: decided with
-  the device layer spike. 11 is simpler; 12 is the one SDL3's GPU API wraps.
-- Whether `effects` follows display changes at run time or the first version
+- Whether Vulkan alone is reliable enough on Windows drivers (Intel in
+  particular) for HDR swap chains; the contingency is Direct3D 12 behind the
+  same thin layer. Decided by the Vulkan spike on real hardware.
+- The Vulkan floor (1.2 or 1.3) and the required extensions: with the shaders.
+- Whether `advanced` follows display changes at run time or the first version
   applies them at restart.
