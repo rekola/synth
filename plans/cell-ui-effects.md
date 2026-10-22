@@ -6,9 +6,9 @@ widget toolkit makes hard, and a look that is modern rather than dated
 (`plans/modern-look.md` covers the tokens; this covers the effects).
 
 Colour for effects that go beyond white (bloom, lit LEDs) and beyond sRGB is
-in `plans/cell-ui-hdr.md`: wide colours on cells, an SDR rendition kept for
-every renderer that does not know them, and a GL effects renderer that falls
-back to the current one.
+in `plans/cell-ui-hdr.md`: `Color` as linear float that holds any colour,
+clipped by the sinks that cannot show it, and a GL effects renderer chosen at
+start when the machine can run it.
 
 Status: under discussion. Steps 1 and 2 (backdrop blur under modal dialogs,
 in cells and in pixels) are built on `claude/cell-ui-backdrop-blur`.
