@@ -4,7 +4,7 @@ The graphical backend of cellui (`plans/cellui.md`). It starts once phase 1
 (`plans/cellui-terminal.md`) has separated the UI: the app then talks only
 to `cellui`, and this phase adds a backend without touching the widgets.
 Linux (X11/Wayland, whenever a display server is running) and Windows; on
-Linux the terminal stays selectable (`--ui auto|terminal|gtk|vulkan` (`win32` on Windows; `plans/cellui-hdr.md`), the default
+Linux the terminal stays selectable (`--ui auto|terminal|raster|vulkan` (`direct2d` on Windows; `plans/cellui-hdr.md`), the default
 chosen by whether a display is available), and Windows has only the window.
 
 Decided: on Linux the window backend is a **GTK** backend for cellui; on
@@ -68,13 +68,13 @@ or if accessibility on Windows is needed from the first release.
   waitable for vsync pacing; DirectWrite for text and font fallback, WIC
   for images. An idle UI presents nothing.
 - **HDR** (colour model and backend choice: `plans/cellui-hdr.md`). The
-  Direct2D `win32` backend above draws SDR only: it reads `Color`s through
-  `toSrgb8()` (a wide colour is clipped) and knows nothing of HDR. HDR is the
-  `vulkan` backend's, a window of its own hosted by SDL3 on Windows and Linux
-  alike (`plans/cellui-hdr.md`), chosen by `--ui vulkan` or by `--ui auto`'s
-  probe at start (never switched at run time, no fallback inside a frame).
-  Whether the `win32` backend is still built at all, given `vulkan`, is a
-  priority call: it is what has the native `HMENU` and UI Automation.
+  Direct2D backend above (`--ui direct2d`) draws SDR only: it reads `Color`s
+  through `toSrgb8()` (a wide colour is clipped) and knows nothing of HDR. HDR
+  is the `vulkan` backend's, hosted by SDL3 or the Win32 window directly
+  (`plans/cellui-hdr.md`), chosen by `--ui vulkan` or by `--ui auto`'s probe at
+  start (never switched at run time, no fallback inside a frame). Whether the
+  Direct2D backend is still built at all, given `vulkan`, is a priority call:
+  it is what has the native `HMENU` and UI Automation.
   - *The probe* (before the window is shown): a hardware Vulkan device with
     the features the backend needs, not on the known-bad list; see the HDR
     plan. A failure after the choice is an error, not a silent change.
@@ -210,9 +210,10 @@ needed.
 - **Pacing:** redraws and smooth scrolling follow `GdkFrameClock`, which is
   vsync-paced.
 - **Escape hatch:** `GtkGLArea` for a pane that needs its own shaders, used
-  only if a measurement shows GSK falls short. GTK has no Vulkan widget, so HDR and the
-  lighting effects (`plans/cellui-hdr.md`) are not done here: the `gtk`
-  backend draws SDR only, and the `vulkan` backend is a window of its own.
+  only if a measurement shows GSK falls short. GTK has no Vulkan widget, so the `raster`
+  backend (this one) draws SDR only; the `vulkan` backend
+  (`plans/cellui-hdr.md`) may be hosted in a GTK window by handing it its
+  image as a `GdkDmabufTexture`, or by SDL3, decided by a spike there.
 - **Measure first:** the pattern editor through the GTK backend at 4K and
   high refresh, checked for frame time and idle CPU, before the rest is
   built on it.
@@ -268,7 +269,7 @@ and Pango replace the rendering and text notes below.
    terminal's cell and picture blur is its backend's own
    (`term::BackdropEmulation`).
 2. Main window, cells, text, input, popups, dialogs, file dialogs, menus;
-   `--ui auto|terminal|gtk|vulkan` (`win32` on Windows; `plans/cellui-hdr.md`).
+   `--ui auto|terminal|raster|vulkan` (`direct2d` on Windows; `plans/cellui-hdr.md`).
 3. Styles beyond the terminal: geometry, spans, borders, gradients, radius,
    shadows, smooth scrolling; `plans/modern-look.md` step 6.
 4. Icons in the window and the menus.
