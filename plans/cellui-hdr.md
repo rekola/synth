@@ -145,16 +145,17 @@ equal colours; the composer is deterministic, so that is enough.
 ## Choosing the backend
 
 cellui has one switch for what draws the UI: `--ui auto|terminal|raster|vulkan`
-(on Windows `direct2d` joins them). It names a `cellui::Backend`
+It names a `cellui::Backend`
 implementation by how it draws, not by the window it happens to sit in
 (everything graphical runs in a window; the toolkit that provides it, GTK or
 SDL3, is a build and host matter below, not a name on the switch). There is no
 separate renderer switch and no "basic" or "advanced" tier. `window` is
 retired. The names are proposals and cheap to change.
 
-- **`terminal`, `raster` (the current GTK-hosted window: cells rasterised
-  on the CPU with canvas and shown as a texture) and `direct2d` (planned)**
-  happen to draw SDR only. They take every `Color` through `toSrgb8()`,
+- **`terminal` and `raster`** happen to draw SDR only. `raster` is the
+  platform's own 2D window: on Linux today's GTK-hosted window (cells
+  rasterised with canvas and shown as a texture), on Windows the planned
+  Direct2D one; the name is the same on both and picks the platform's. They take every `Color` through `toSrgb8()`,
   ignore effect attributes and know nothing of HDR.
 - **`vulkan`** renders both SDR and HDR: a float framebuffer, the cells and
   glyph atlas, the lighting model (ambient occlusion, subsurface scattering,
@@ -165,8 +166,7 @@ retired. The names are proposals and cheap to change.
   mode.
 - **`auto`** is the default and picks the best backend the system can handle,
   by probing **in advance**, before anything is shown, in this order:
-  `vulkan`, then the platform's 2D window backend (`raster` on Linux,
-  `direct2d` on Windows), then `terminal`.
+  `vulkan`, then `raster`, then `terminal`.
 
 ```
 vulkan  if - a display is available, and
@@ -315,7 +315,7 @@ code on both.
   `plans/cellui-window.md` gets bigger, not different.
 - *Packaging:* vendored SDL3 (Ubuntu 24.04 has only SDL2).
 - *Windows:* a Vulkan swap chain on the SDL3 window. Whether the planned
-  `direct2d` backend (native menus, UI Automation) is built as well is a
+  Direct2D `raster` backend (native menus, UI Automation) is built as well is a
   priority call in `plans/cellui-window.md`.
 
 **Deciding.** After the Vulkan spike: if the GTK texture reaches the compositor
@@ -373,17 +373,16 @@ native-toolkit window without effects; a saved default is a small addition.
 12. **Theme**: wide variants for the tokens that glow (playhead, the LED hues
     shared with the Launchpad, the clip pulse's peak), written in the
     notation above.
-13. **canvas gets float surfaces** (the `rekola/canvas` library, last; nothing
-    above waits for it): a float pixel format in `ImageData` and a float
-    colour in its drawing calls, taking cellui's linear Rec.2020 values
-    unchanged (canvas does not interpret the space; it blends what it is
-    given). Per backend: Cairo's image surface has float formats from 1.17.2
-    (`CAIRO_FORMAT_RGBA128F`; check Ubuntu 24.04's 1.18 has them), Quartz 2D
-    has float and extended-range bitmap contexts, and the planned Direct2D
-    backend that replaces GDI+ draws to FP16 targets. Then the scopes' and
-    meters' renderers, `CanvasRasterizer`'s text and cells, and the scopes
-    step above can produce HDR images directly, `Image::gain` is dropped, and
-    the `FetchContent` pin is bumped.
+13. **Adopt canvas's float colours**, last. canvas (`rekola/canvas`) gains a
+    float pixel format and float colours in a separate piece of work; this step
+    waits for it. Then: bump the `FetchContent` pin; `ImageData` in float for
+    `SpectrumImage`, `HeatmapImage` and `VuMeterImage` (taking `Color`'s linear
+    values unchanged, canvas not interpreting the space), `CanvasRasterizer`'s
+    text and cells for `raster` stay 8-bit sRGB and need nothing; the `vulkan`
+    backend samples the float images directly and `Image::gain` is dropped.
+    Cairo's image surface has the float formats (`CAIRO_FORMAT_RGBA128F`, in
+    1.17.2 and later; Ubuntu 24.04's 1.18 has them), Quartz 2D has float
+    bitmap contexts, and the planned Direct2D backend draws to FP16 targets.
 
 ## Open questions
 
@@ -399,7 +398,7 @@ native-toolkit window without effects; a saved default is a small addition.
   for effects, if the host turns out to be SDL3 (native menus and
   accessibility are what is given up): a saved default, or `auto` stays as it
   is.
-- The backend names (`raster`, `direct2d`).
+- The backend names (`raster`, `vulkan`).
 - The Vulkan floor (1.2 or 1.3) and the required extensions: with the shaders.
 - Whether `vulkan` follows display changes at run time or the first version
   applies them at restart.

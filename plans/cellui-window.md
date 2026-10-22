@@ -4,7 +4,7 @@ The graphical backend of cellui (`plans/cellui.md`). It starts once phase 1
 (`plans/cellui-terminal.md`) has separated the UI: the app then talks only
 to `cellui`, and this phase adds a backend without touching the widgets.
 Linux (X11/Wayland, whenever a display server is running) and Windows; on
-Linux the terminal stays selectable (`--ui auto|terminal|raster|vulkan` (`direct2d` on Windows; `plans/cellui-hdr.md`), the default
+Linux the terminal stays selectable (`--ui auto|terminal|raster|vulkan`, `raster` being this platform's 2D window (`plans/cellui-hdr.md`), the default
 chosen by whether a display is available), and Windows has only the window.
 
 Decided: on Linux the window backend is a **GTK** backend for cellui; on
@@ -68,7 +68,7 @@ or if accessibility on Windows is needed from the first release.
   waitable for vsync pacing; DirectWrite for text and font fallback, WIC
   for images. An idle UI presents nothing.
 - **HDR** (colour model and backend choice: `plans/cellui-hdr.md`). The
-  Direct2D backend above (`--ui direct2d`) draws SDR only: it reads `Color`s
+  Direct2D backend above (`--ui raster` on Windows) draws SDR only: it reads `Color`s
   through `toSrgb8()` (a wide colour is clipped) and knows nothing of HDR. HDR
   is the `vulkan` backend's, hosted by SDL3 or the Win32 window directly
   (`plans/cellui-hdr.md`), chosen by `--ui vulkan` or by `--ui auto`'s probe at
@@ -269,7 +269,7 @@ and Pango replace the rendering and text notes below.
    terminal's cell and picture blur is its backend's own
    (`term::BackdropEmulation`).
 2. Main window, cells, text, input, popups, dialogs, file dialogs, menus;
-   `--ui auto|terminal|raster|vulkan` (`direct2d` on Windows; `plans/cellui-hdr.md`).
+   `--ui auto|terminal|raster|vulkan`, `raster` being this platform's 2D window (`plans/cellui-hdr.md`).
 3. Styles beyond the terminal: geometry, spans, borders, gradients, radius,
    shadows, smooth scrolling; `plans/modern-look.md` step 6.
 4. Icons in the window and the menus.
