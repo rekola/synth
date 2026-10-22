@@ -118,8 +118,7 @@ static inline long long now() {
 // is a separator (MenuBar draws it as a divider); `binding` is the
 // human-readable keybinding shown right-aligned against the item box's
 // widest label, e.g. "Save    C-x C-s" - an item has no shortcut of its own
-// (see the display-constraints
-// note in plans/menu-bar-expansion.md: it renders as a single bare
+// (one would render as a single bare
 // character with no modifier indication, misleading for anything but a
 // plain unmodified key, which is nearly nothing real this app binds).
 // Section headers keep real single-letter Alt+<mnemonic> shortcuts - a
@@ -1766,7 +1765,7 @@ TerminalUI::handleVisualizationResultEvent(VisualizationResultEvent & ev) {
     }
 
     if (ev.hasDiracGrid()) {
-      // plans/dirac-heatmap-scope.md SS6: displayed[cell] = the grid's own
+      // displayed[cell] = the grid's own
       // directional energy plus the per-band diffuse haze, spread
       // uniformly across every cell (one shared scalar summed from all 8
       // bands, not a separate per-band-per-cell splat).
@@ -1787,7 +1786,7 @@ TerminalUI::handleVisualizationResultEvent(VisualizationResultEvent & ev) {
       // than derived fresh each time: jumps up immediately on a new peak
       // (so a loud transient doesn't clip the display), decays slowly
       // otherwise (~2s time constant at this event's ~28.7Hz delivery
-      // rate - plans/dirac-heatmap-scope.md SS1) so a quiet passage
+      // rate) so a quiet passage
       // doesn't suddenly wash the whole grid out to full brightness the
       // instant a loud part ends.
       if (frame_max > dirac_running_max_) dirac_running_max_ = frame_max;

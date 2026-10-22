@@ -19,7 +19,7 @@ constexpr float kBiasAmount = 1.5f; // how much DC (in the shaper's own working 
 
 float dbToLinear(float db) { return powf(10.0f, 0.05f * db); }
 
-// The four waveshaper curves - see plans/drum-bus-saturator.md. `bias`
+// The four waveshaper curves. `bias`
 // (0-1) adds DC into the curve before shaping, which is what generates
 // even-order harmonic content (an odd, symmetric curve plus a DC offset
 // demodulates into even harmonics - the standard waveshaping-distortion
@@ -90,8 +90,7 @@ constexpr uint32_t kDiffuseEncoderSalt = 0;
 // song that just writes `preset="hash"` with no further overrides
 // round-trips as exactly that, nothing more. What each preset is going
 // for is documented for the user in docs/bus_effects.md, not repeated
-// here - see plans/drum-bus-saturator.md for the full rationale behind
-// each preset's numbers.
+// here.
 struct SaturatorPresetValues {
   float driveDb, bias, hpfHz, lpfHz, tiltDb, diffusion;
   SaturatorShape shape;
@@ -125,8 +124,8 @@ SaturatorPresetValues presetValues(HazePreset preset) {
 // drive/bias, never on any instance state) by running a fixed reference
 // signal through the exact same shape/bias transfer function and
 // measuring how far its RMS moved from the reference's own (undriven)
-// RMS - see plans/drum-bus-saturator.md's "static curve integral, not a
-// running RMS" design decision. Deliberately computed WITHOUT
+// RMS: a static curve integral, not a
+// running RMS. Deliberately computed WITHOUT
 // oversampling: this is measuring the memoryless nonlinearity's own
 // average RMS transfer ratio for a fixed statistical input, which
 // oversampling (an anti-aliasing concern, not a level concern) doesn't
@@ -298,7 +297,7 @@ Haze::recomputePredelaySamples() {
   // designed around. As a fraction of a whole note, "1/64" reads the same
   // way a delay pedal's own tempo-synced note-division control would
   // (1/64-note, 1/128-note, ...), which is what actually lands in that
-  // window - see plans/drum-bus-saturator.md.
+  // window.
   constexpr float kRowsPerWholeNote = 16.0f;
   float seconds = fractionFor(predelayDivision_) * kRowsPerWholeNote * rowDurationSeconds_;
   if (seconds < kMinPredelaySeconds) seconds = kMinPredelaySeconds;

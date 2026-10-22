@@ -4,8 +4,7 @@
 #include <cstdint>
 
 // Stateless, hashed-coordinate value source - the replacement for every
-// TreeNode::getRandF()/rand()-based "musical randomization" call site (see
-// plans/deterministic-randomness.md for the full audit and migration).
+// TreeNode::getRandF()/rand()-based "musical randomization" call site.
 // Given a fixed compile-time salt (one per feature, declared next to the
 // code that uses it - the same convention SoundFont.cpp's
 // kPercussionJitterSeed and bus/GranularCloud.cpp's kDirectionScatterSeed

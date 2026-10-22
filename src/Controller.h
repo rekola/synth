@@ -355,9 +355,8 @@ class Controller {
   // separate flag that could disagree with the set. Toggled per-track by
   // both the Live-View-focused branch of "toggle-record-arm" (the
   // currently-selected track) and, eventually, the Launchpad track-picker's
-  // own RECORD_ARM purpose (any track, not just the selected one) - see
-  // plans/launchpad-novation-unification.md for the full design, including
-  // why arming itself starts nothing (ClipPlayer::triggerClip()
+  // own RECORD_ARM purpose (any track, not just the selected one). Arming
+  // itself starts nothing (ClipPlayer::triggerClip()
   // queues the actual record-start, the same way it already queues a plain
   // clip launch).
   void armTrack(int track_id) { armed_track_ids_.insert(track_id); }
@@ -398,8 +397,7 @@ class Controller {
   // Starts (or retargets) `track_id`'s own clip take, at clip slot
   // `clip_index` - several tracks can each have their own in-flight take
   // at once, unlike the SampleTrack-recording family above (still a
-  // single "what's currently being captured" concept - see
-  // plans/launchpad-novation-unification.md for why that's not unified
+  // single "what's currently being captured" concept, not unified
   // with this yet). `clip_ready`/`origin_step` start false/-1, the same
   // "not derived yet" state a fresh take always begins in -
   // ensureClipRecordingClip() below is what actually resolves them,
@@ -1355,8 +1353,7 @@ class Controller {
   ClipPlayer clip_player_{*this};
   // armClipTrackRecording()/isClipRecording()/
   // getClipRecordingClipIndex()'s own backing state - one entry per
-  // track currently mid-take, so several can be in flight at once (see
-  // plans/launchpad-novation-unification.md for why this replaced a
+  // track currently mid-take, so several can be in flight at once (replacing a
   // single-take set of fields). `clip_ready` is
   // ensureClipRecordingClip()'s own "have I already created/reset this
   // take's own clip" latch - the *first* call for a given take creates a

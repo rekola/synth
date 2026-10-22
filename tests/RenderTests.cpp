@@ -1741,7 +1741,7 @@ TEST(render_haze_produces_audible_diffuse_bed) {
   // haze_oscillator.xml is identical to center_note.xml except for
   // sendB="-6.0206" (dB, ~0.5 linear) on its one track and a <haze preset="crunch"/> occupying
   // slot B instead of the default delay - end-to-end coverage for
-  // plans/drum-bus-saturator.md's whole feature (drive/shape/bias/
+  // the whole Haze feature (drive/shape/bias/
   // bandpass/oversample/tilt/auto-gain/pre-delay/diffuse-encode), not a
   // re-check of any one stage's own already-covered math (see
   // HazeTests.cpp/AmbisonicDiffuseEncoderTests.cpp/HalfbandFilterTests.cpp

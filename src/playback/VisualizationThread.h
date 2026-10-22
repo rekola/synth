@@ -13,8 +13,7 @@ class Controller;
 class Mixer;
 
 // Runs real signal-analysis work (the spectrum-FFT feeding the terminal's
-// live chart, and DirAC directional analysis feeding the heatmap - see
-// plans/dirac-heatmap-scope.md) on its own dedicated thread, spawned by
+// live chart, and DirAC directional analysis feeding the heatmap) on its own dedicated thread, spawned by
 // UI::start() alongside the audio thread - deliberately neither the
 // real-time audio thread (which must never be blocked by FFT-sized work)
 // nor the UI/main thread (which must stay responsive to input). Receives

@@ -54,9 +54,7 @@ public:
   const std::string & getMeterLabel() const { return meter_label_; }
 
   // The DirAC directional heatmap's smoothed grid and per-band diffuse-haze
-  // scalars (DiracAnalyzer::getGrid()/getDiffuseEnergy() - see that class
-  // and plans/dirac-heatmap-scope.md SS6 for the rendering formula that
-  // combines them). Not yet consumed by anything (the heatmap widget
+  // scalars (DiracAnalyzer::getGrid()/getDiffuseEnergy()). Not yet consumed by anything (the heatmap widget
   // itself doesn't exist yet) - transmitted regardless, since
   // VisualizationThread's own throttling/computation is already complete
   // and tested independently of the widget that will eventually read it.

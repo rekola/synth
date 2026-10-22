@@ -67,8 +67,8 @@ public:
 
   // Combines this track's own currently-sounding voices_ into one buffer -
   // not an override of anything on TrackState (which has no voice-shaped
-  // render() any more - voices_ is VoiceState-typed, not TrackState-typed;
-  // see plans/trackstate-voicestate-split.md); named distinctly from
+  // render() any more - voices_ is VoiceState-typed, not TrackState-typed);
+  // named distinctly from
   // TrackState::render's 3-arg overload (rather than overloading render()
   // itself) so the two can't be mistaken for one hiding the other. Both
   // InstrumentTrackState::render() and SampleTrackState::render() call this

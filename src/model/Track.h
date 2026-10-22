@@ -29,7 +29,7 @@ class Track : public StatefulSongObject {
   // playNote() itself directly and never reaches this; only Group and the
   // Effect family are genuinely usable both as a persistent track (via
   // createState()/createStateTree()) and inside an instrument definition
-  // (via this) - see plans/trackstate-voicestate-split.md. Default mirrors
+  // (via this). Default mirrors
   // createState()'s own plain-passthrough default, which is exactly
   // correct for Group (a plain fan-out wrapper in either role); each
   // Effect subclass overrides this the same way it already overrides

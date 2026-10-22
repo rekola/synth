@@ -63,12 +63,11 @@ static inline const std::string to_string(HazePreset preset) {
 }
 
 // "Haze" - the ambisonic bus saturator, named for what it returns: a fully
-// diffuse, tempo-delayed bed rather than a localized source - see
-// plans/drum-bus-saturator.md for the full design. Unlike FDNReverb/
+// diffuse, tempo-delayed bed rather than a localized source. Unlike FDNReverb/
 // MultiTapDelay/GranularCloud (point-source tap producers), it reports
 // zero taps and instead uses BusEffect's direct-channel path
 // (encodeDirect()) via a private AmbisonicDiffuseEncoder instance (wired
-// in a later milestone - see the plan).
+// in a later milestone).
 //
 // DSP chain (process()): drive gain -> pre-distortion bandpass (HPF+LPF
 // biquads) -> oversample (HalfbandFilter cascade, 4x for tanh/asym/

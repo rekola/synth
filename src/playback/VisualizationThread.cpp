@@ -119,7 +119,7 @@ VisualizationThread::handleAudioBlockEvent(AudioBlockEvent & ev) {
   }
 
   dirac_->process(ev.getRawBus());
-  // plans/dirac-heatmap-scope.md SS1: deliver the DirAC grid at roughly
+  // Deliver the DirAC grid at roughly
   // every 3rd analysis frame (~28.7Hz), not every one (~86Hz) - terminal
   // redraw/color-mapping cost buys nothing above that. Diffed against a
   // saved frame count, not a fixed "did process() just fire" flag, so a

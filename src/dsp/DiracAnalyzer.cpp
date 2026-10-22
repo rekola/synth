@@ -5,7 +5,7 @@
 using namespace std;
 
 namespace {
-// The 8 log-spaced band edges in Hz (plans/dirac-heatmap-scope.md SS1) -
+// The 8 log-spaced band edges in Hz -
 // 9 edges bounding 8 bands.
 constexpr float kBandEdgesHz[DiracAnalyzer::kNumBands + 1] = {
   20.0f, 150.0f, 300.0f, 600.0f, 1200.0f, 2400.0f, 4800.0f, 9600.0f, 20000.0f

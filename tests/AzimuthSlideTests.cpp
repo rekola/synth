@@ -106,8 +106,7 @@ TEST(azimuth_slide_moves_the_track_over_the_row) {
 // actually supplying that row's notes - SongState.h's own per-row loop
 // reads commands from the track's own background pattern unconditionally,
 // never a Clip's own leaf pattern, so track-level automation (what a live
-// mixer-move recording is meant to write into - see
-// plans/launchpad-novation-unification.md) is never masked out just
+// mixer-move recording is meant to write into) is never masked out just
 // because a clip happens to be playing there too.
 TEST(azimuth_slide_command_fires_even_while_a_clip_supplies_the_row_notes) {
   Song song;

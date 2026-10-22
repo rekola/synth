@@ -13,7 +13,7 @@ using namespace std;
 namespace {
 
 // Minimal test-only BusEffect exercising only the direct-channel path
-// (BusEffect::encodeDirect(), see plans/drum-bus-saturator.md) - zero
+// (BusEffect::encodeDirect()) - zero
 // taps, so it would contribute nothing at all via the ordinary
 // point-source tap loop, the thing this test needs to distinguish from.
 class FakeDirectEffect : public BusEffect {

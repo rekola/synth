@@ -17,8 +17,7 @@ using namespace std;
 namespace {
 
 // Actual DSP, shared by ResonantFilterTrackState and
-// ResonantFilterVoiceState - see EffectTrackState.h/EffectVoiceState.h and
-// plans/trackstate-voicestate-split.md. `aftertouch_value` is passed in
+// ResonantFilterVoiceState - see EffectTrackState.h/EffectVoiceState.h. `aftertouch_value` is passed in
 // already resolved by the caller rather than read here via getAftertouch()
 // - that's a VoiceState-only concept (aftertouch never reaches a
 // persistent track-tree node - see InstrumentTrackState::applyAftertouch()),
