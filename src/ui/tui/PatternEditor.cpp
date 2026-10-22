@@ -2450,6 +2450,7 @@ void PatternEditor::syncColumnPlanes(const std::vector<int> & track_ids) {
     bool created = false;
     while (column_planes_.size() < track_ids.size()) {
       column_planes_.push_back(getPlane().createChild());
+      column_planes_.back()->makeTransparent(); // a column shows the columns below it around its own cells
       created = true;
     }
     // The headings' plane (held in rows_plane_ while drawing) stays on top.

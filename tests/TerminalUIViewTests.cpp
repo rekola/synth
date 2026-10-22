@@ -693,3 +693,22 @@ TEST(terminal_ui_smooth_scroll_pattern_editor_rows_show_after_leaving_live_view)
   }
   CHECK(rows);
 }
+
+// Live View's column planes show through each other: every track's column of
+// rows is on screen at once.
+TEST(terminal_ui_smooth_scroll_live_view_columns_do_not_blank_each_other) {
+  cellui::DisplayInfo display;
+  display.smooth_scroll = true;
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, display);
+  for (int i = 0; i < 5; i++) {
+    f.ui->step();
+  }
+  size_t widest = 0;
+  for (size_t y = 0; y < 40; y++) {
+    auto line = f.line(y);
+    size_t count = 0;
+    for (auto at = line.find("----"); at != std::string::npos; at = line.find("----", at + 1)) count++;
+    widest = std::max(widest, count);
+  }
+  CHECK(widest >= 3);
+}
