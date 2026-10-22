@@ -1,6 +1,6 @@
-# Cell UI
+# cellui
 
-The user interface becomes its own library, **Cell UI** (`cellui`, working
+The user interface becomes its own library, **cellui** (`cellui`, working
 name - check for a clash before it gets its own repository). The app draws
 grids of styled cells, plus pixel regions, and never knows which backend
 shows them. There are two backends:
@@ -17,16 +17,16 @@ Windows has only the window.
 The work comes in two phases, each with its own plan, while the Windows
 port (`plans/windows-port.md`) proceeds alongside:
 
-1. **Terminal Cell UI** (`plans/cellui-terminal.md`): the library is
+1. **Terminal cellui** (`plans/cellui-terminal.md`): the library is
    separated out with the terminal backend only, notcurses goes, and the
    modernizations a terminal can show (`plans/modern-look.md`) go in.
-2. **Window Cell UI** (`plans/cellui-window.md`): considered once the UI
+2. **Window cellui** (`plans/cellui-window.md`): considered once the UI
    is separated. It chooses a host and adds the graphical backend.
 
 This file is the shared design: why, what the library provides, keymaps
 and the long-term risks.
 
-"TUI" and "GUI" stay as the names of the two backends. "Cell UI" is the
+"TUI" and "GUI" stay as the names of the two backends. "cellui" is the
 approach: one cell-based UI with two renderings.
 
 ## Why this and not Qt, wxWidgets or Dear ImGui
@@ -35,7 +35,7 @@ What it costs us: we maintain a small toolkit. What it saves us is
 maintaining two UIs. The terminal UI has to stay either way, and with a
 toolkit UI every widget (about 6,400 lines today: `PatternEditor`,
 `ClipGrid`, `OutlineView`, `ArrangementGrid`) would be written twice, and
-every feature after that too. With Cell UI the widgets stay as they are,
+every feature after that too. With cellui the widgets stay as they are,
 already drawing only through `UIPlane` (notcurses is confined to
 `TerminalUI.cpp`).
 

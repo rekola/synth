@@ -1,7 +1,7 @@
 # synth — microtonal tracker / synthesizer
 
 Tracker-style music production system with microtonal notes (12/19/31/53-EDO).
-Terminal UI (Cell UI's own terminal backend, `lib/cellui`), ALSA audio
+Terminal UI (cellui's own terminal backend, `lib/cellui`), ALSA audio
 output, songs stored as XML.
 Formerly developed as the `syna/` subdirectory of the private `personal` repo;
 full history was preserved when it was extracted into this repository.
@@ -41,13 +41,13 @@ defect this codebase won't ship. FFT support (the live spectrum analyzer,
 MagLS binaural precomputation) is via vendored PocketFFT
 (`third_party/pocketfft/`) — no separate FFT library package needed.
 canvas (`rekola/canvas`, 2D drawing for the scopes and meters, drawn as
-pixels with Cairo, or Quartz 2D on macOS) is a dependency of Cell UI, fetched at configure time at a
+pixels with Cairo, or Quartz 2D on macOS) is a dependency of cellui, fetched at configure time at a
 pinned commit (`FetchContent` in `lib/cellui/CMakeLists.txt`, built with none
 of our warning flags, its headers reached as SYSTEM includes; GDI+ on
 Windows); bump the pin when canvas changes. The pixel versions make their
 drawing context through `cellui::nativeContext()` (`src/NativeContext.h`), the
 one place that names a canvas backend. The scopes - the spectrum, the
-DirAC heatmap, the channel meter - are Cell UI widgets in the versions each
+DirAC heatmap, the channel meter - are cellui widgets in the versions each
 backend provides (`cellui::Scopes`, `cellui/Scopes.h`;
 `cellui::scopesFor(display)` picks the display's): the cell versions are
 drawn by hand (braille bars, a quadrant or sextant heatmap, labels in text,
@@ -90,7 +90,7 @@ soundtouch,libunistring,python}`. `SYNTH_BUILD_INTERACTIVE` (default ON) selects
 (`src/main_render.cpp`: `--render`, `--help`, `--licenses` and the options
 `--render` honours, parsed by `src/cli/CommonOptions.*`, shared with
 `main.cpp`); `SYNTH_BUILD_TERMINAL_UI` (default ON, OFF on Windows) adds the
-terminal UI (`SYNTH_TERMINAL_UI` in `main.cpp`; Cell UI's terminal backend is POSIX only so far), so
+terminal UI (`SYNTH_TERMINAL_UI` in `main.cpp`; cellui's terminal backend is POSIX only so far), so
 Windows has the full program run with `--headless` (`tools/smoke_headless.py`
 in CI); ALSA and PipeWire sources are Linux only. `.github/workflows/
 ci-windows-x86_64.yml` builds, runs ctest and renders songs. The `#ifdef
@@ -1335,7 +1335,7 @@ would otherwise resume showing.
     render-surface interfaces a future non-terminal UI could implement
     against too - a concrete backend's real implementation, e.g.
     `TerminalMenu`, lives entirely inside that backend's own file, not
-    alongside the interface), `HeatmapChart` (its versions are Cell UI's,
+    alongside the interface), `HeatmapChart` (its versions are cellui's,
     through `cellui::Scopes`), `StyleProvider` (a plain
     named-color theme struct, not terminal-specific itself), the
     Emacs-style keybinding dispatch (`KeyChord.h`/`Keymap.h`/
@@ -1347,7 +1347,7 @@ would otherwise resume showing.
     - a concrete subclass owns its own widget set, screen layout, and
     Launchpad callback wiring (`UI::wireLaunchpad()`'s hook). `src/ui/tui/`
     — the concrete terminal implementation built on those interfaces and
-    on Cell UI's terminal backend (`cellui::term::TerminalSession`, the
+    on cellui's terminal backend (`cellui::term::TerminalSession`, the
     screen a root `cellui::BufferPlane` composes):
     `TerminalUI` (the sole such subclass today - owns every widget,
     `initializeWidgets()`/`layout()`/`renderComponents()`, every Emacs
@@ -1388,7 +1388,7 @@ would otherwise resume showing.
     Launchpad section above.
   - `src/util/` — small, dependency-free helpers (`constants.h`,
     `Logger.h`, …) used from everywhere.
-- `lib/cellui/` — **Cell UI**, the UI library (plan: `plans/cellui.md`), its
+- `lib/cellui/` — **cellui**, the UI library (plan: `plans/cellui.md`), its
   own CMake project (`cmake -S lib/cellui -B build-cellui` builds and tests it
   alone, which CI does) that includes nothing from `src/` - a ctest
   (`cellui_includes_nothing_from_src`) fails on any include that leaves it.

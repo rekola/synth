@@ -1,6 +1,6 @@
-# Cell UI, phase 1: the terminal
+# cellui, phase 1: the terminal
 
-Separate the UI into the Cell UI library (`plans/cellui.md`) with only the
+Separate the UI into the cellui library (`plans/cellui.md`) with only the
 terminal backend, replace notcurses with it, and put in the modernizations a
 terminal can show (`plans/modern-look.md`). The window backend
 (`plans/cellui-window.md`) is considered only once this is done. The
@@ -100,15 +100,15 @@ isn't ready to be a dependency yet. Before synth uses it:
   SYSTEM includes, as it does for `third_party/`.
 - **Text stays out.** Cairo's text path uses its basic font API, with no
   shaping or font fallback. Chart labels and axis numbers therefore stay
-  cell text, drawn by Cell UI. Text in canvas waits for phase 2, if it is
+  cell text, drawn by cellui. Text in canvas waits for phase 2, if it is
   needed at all.
 - **Not now:** a GPU backend, removing Cairo, or a DirectWrite path.
 
-### Scopes in Cell UI
+### Scopes in cellui
 
 The scopes - the spectrum, the DirAC heatmap and the VU meters (the scope
 row's channel meter and the level meters in the clip grid and the pattern
-editor) - are Cell UI widgets, and each backend provides its own versions of them through
+editor) - are cellui widgets, and each backend provides its own versions of them through
 a factory (`cellui::Scopes`), so the app asks for a scope and never knows
 how it is drawn:
 
@@ -153,7 +153,7 @@ Today each widget keeps its own scroll offset and draws only what shows, in
 whole cells, and repeats the wheel rules itself. A plane keys its images by
 cell position, so a scrolled meter is a new image and is uploaded again.
 
-- **Viewport.** Cell UI gets a shared viewport: a widget states its content
+- **Viewport.** cellui gets a shared viewport: a widget states its content
   size and draws the part it is given; the viewport owns the offset and the
   rules each widget repeats today - the wheel goes to the widget under the
   pointer without moving focus, it scrolls the view and not the cursor
@@ -185,9 +185,9 @@ cell position, so a scrolled meter is a new image and is uploaded again.
 ## Steps
 
 1. Canvas readiness, in the canvas repository (above). Independent.
-2. Scopes in Cell UI (above). Done: the scopes and both their versions are
-   in Cell UI behind `cellui::Scopes` (`cellScopes()`, `pixelScopes()`;
-   `cellui::scopesFor()` picks the display's), canvas is Cell UI's
+2. Scopes in cellui (above). Done: the scopes and both their versions are
+   in cellui behind `cellui::Scopes` (`cellScopes()`, `pixelScopes()`;
+   `cellui::scopesFor()` picks the display's), canvas is cellui's
    dependency, and the pixel spectrum and heatmap are drawn with it
    (`SpectrumImage`, `HeatmapImage`). The VU meters have pixel versions
    too (`VuMeterImage`, `Scopes::drawVuMeter()`), drawn into a widget's own
@@ -232,7 +232,7 @@ cell position, so a scrolled meter is a new image and is uploaded again.
    their keys, focus) and input taken from the test, so synth's own tests assert on
    what the UI shows - an image that moved told apart from a new one -
    without a pty or a terminal emulator. The terminal layer stays covered by
-   Cell UI's backend tests and a few pty smoke tests. Done except the image
+   cellui's backend tests and a few pty smoke tests. Done except the image
    keys: `cellui::Backend` is what `TerminalUI` needs of a display
    (`TerminalSession` implements it), `cellui::test::TestBackend` is the test one - input
    pushed by the test (`pushKey()`, `pushText()`, `pushMouse()`, `pushPaste()`,
@@ -268,5 +268,5 @@ cell position, so a scrolled meter is a new image and is uploaded again.
    terminal.
 11. Accessibility tree published by the widgets (the terminal uses only
    focus); strings through a catalog.
-12. A GTK backend for Cell UI on Linux, then the Win32 one
+12. A GTK backend for cellui on Linux, then the Win32 one
    (`plans/cellui-window.md`).
