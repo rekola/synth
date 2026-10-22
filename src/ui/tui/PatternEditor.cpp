@@ -1380,6 +1380,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
 
     columns_shifted_ = false;
     bool columns = getPlane().smoothScroll() && isLiveMode();
+    columns_planes_in_use_ = columns;
     auto top_address = source_->normalize(view_block_, new_row);
     for (auto id : track_ids) {
       auto & column = column_scroll_[id];
@@ -2442,6 +2443,7 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 
 void PatternEditor::syncColumnPlanes(const std::vector<int> & track_ids) {
   bool live = isLiveMode() && getPlane().smoothScroll();
+  columns_planes_in_use_ = live;
   auto [pos_y, pos_x] = getPosition();
   auto [plane_rows, plane_cols] = getDim();
   if (live) {
@@ -3353,7 +3355,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       ~ColumnPlane() {
         if (plane) editor.swapPlane(*plane);
       }
-    } column_plane(*this, i >= 0 && static_cast<size_t>(i) < column_planes_.size() && column_planes_[static_cast<size_t>(i)] ? &column_planes_[static_cast<size_t>(i)] : nullptr);
+    } column_plane(*this, columns_planes_in_use_ && i >= 0 && static_cast<size_t>(i) < column_planes_.size() && column_planes_[static_cast<size_t>(i)] ? &column_planes_[static_cast<size_t>(i)] : nullptr);
 
     Color track_base_fg = row_base_fg, track_base_bg = row_base_bg;
     // Whether this column's own row is outside its current block - the
