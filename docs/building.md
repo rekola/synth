@@ -31,7 +31,6 @@ ctest --test-dir build --output-on-failure
 ```
 
 CI builds this on every push and uploads the binary and some rendered songs.
-The plan is in [plans/windows-port.md](../plans/windows-port.md).
 
 ## macOS
 

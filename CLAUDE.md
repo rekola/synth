@@ -1388,7 +1388,7 @@ would otherwise resume showing.
     Launchpad section above.
   - `src/util/` — small, dependency-free helpers (`constants.h`,
     `Logger.h`, …) used from everywhere.
-- `lib/cellui/` — **cellui**, the UI library (plan: `plans/cellui.md`), its
+- `lib/cellui/` — **cellui**, the UI library, its
   own CMake project (`cmake -S lib/cellui -B build-cellui` builds and tests it
   alone, which CI does) that includes nothing from `src/` - a ctest
   (`cellui_includes_nothing_from_src`) fails on any include that leaves it.
