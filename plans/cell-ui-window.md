@@ -69,6 +69,62 @@ or if accessibility on Windows is needed from the first release.
   for images. An idle UI presents nothing.
 - **canvas:** gets a Direct2D/DirectWrite backend that replaces GDI+, so the
   pixel scopes and VU meters build on Windows too.
+- **HDR** (colour model and renderer split: `plans/cell-ui-hdr.md`). The
+  Direct2D renderer above is the SDR renderer and the fallback: it reads only
+  the cells' ordinary colours (the renditions of any wide ones), 8-bit, and
+  knows nothing of HDR. The effects renderer is OpenGL and sits beside it:
+  - *What it renders:* the cells and effects in an FP16 framebuffer in scRGB
+    (`WideColor`'s own space: linear Rec.709 primaries, 1.0 = SDR white).
+  - *Presenting it, in order of preference (a spike decides):*
+    1. **Interop into our swap chain.** Render with OpenGL into a texture
+       shared with Direct3D 11 (`WGL_NV_DX_interop2`) and present through the
+       same DXGI flip-model swap chain the Direct2D path uses, so frame pacing,
+       the waitable object, resize and colour space handling exist once. The
+       extension is NVIDIA's name but AMD and Intel drivers expose it.
+    2. **ANGLE** (OpenGL ES over Direct3D 11): its EGL surfaces take
+       `EGL_GL_COLORSPACE_SCRGB_LINEAR_EXT` and the PQ equivalent, and it
+       avoids Windows' native OpenGL drivers, the least reliable path (why the
+       SDL3 notes below preferred a D3D-based one). Costs a vendored library
+       the MSYS2 build must carry.
+    3. **A native WGL FP16 pixel format** straight to the window: the least
+       code, the least certain (desktop composition treats it as scRGB only on
+       some drivers).
+    The contract is the same for all three: the renderer produces an FP16
+    scRGB texture and a presenter shows it; the choice is one class.
+  - *The swap chain:* `DXGI_FORMAT_R16G16B16A16_FLOAT` with
+    `DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709` (scRGB) when the display is in
+    HDR mode, the 8-bit sRGB chain of today otherwise. HDR10
+    (`R10G10B10A2` with `DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020`, the
+    output stage doing the PQ encode) only if scRGB turns out wrong on some
+    hardware. No static HDR metadata is set (`SetHDRMetaData`); the display's
+    own tone mapping is left alone.
+  - *The display:* `IDXGIOutput6::GetDesc1` for the output's colour space and
+    its min/max/full-frame luminance (-> `DisplayInfo::hdr`: `available` is
+    `ColorSpace == G2084_P2020`, `peak` is `MaxLuminance` over the SDR
+    white level, `gamut` from `RedPrimary`...). The SDR white level is the
+    user's slider, from `DisplayConfigGetDeviceInfo` with
+    `DISPLAYCONFIG_SDR_WHITE_LEVEL` (1000 = 80 nits), and scales relative 1.0
+    to scRGB (`1.0 -> sdr_white_nits / 80`). All of it is read again on
+    `WM_DISPLAYCHANGE`, a move to another monitor (`WM_DPICHANGED` also
+    fires), and when DXGI reports the factory is no longer current
+    (`IDXGIFactory1::IsCurrent`), and sent to the application as the display
+    change event, so toggling HDR in Settings changes the output at once; a
+    window on an SDR monitor of an HDR system gets the SDR chain.
+  - *Fallback:* no GL (a remote session, a basic render driver, a context
+    that cannot be created or is lost), a driver on a known-bad list, a
+    second slow frame, or `--renderer sdr`: the Direct2D renderer draws the
+    frame from the renditions and the swap chain is the SDR one. Changing
+    renderer means rebuilding the swap chain, so it happens between frames.
+  - *Needs:* Windows 10 1709 for scRGB swap chains and the HDR display
+    queries; Windows 11 for auto colour management and the SDR white slider's
+    best behaviour. Older Windows is the SDR renderer only.
+  - *Testing:* CI (software GL, WARP) can render the FP16 output offscreen
+    and check values, but cannot show HDR; the display-query code is
+    exercised only on a real HDR monitor.
+- **canvas:** gets a Direct2D/DirectWrite backend that replaces GDI+, so the
+  pixel scopes and VU meters build on Windows too. It stays SDR; in the
+  effects renderer its images are sampled as sRGB textures and may carry a
+  gain.
 - **Main loop:** `MsgWaitForMultipleObjectsEx`; on Windows `Notifier` is an
   event handle, so the audio thread's wakeups, WinMM MIDI and window
   messages wake the same `WaitSet`.
@@ -80,7 +136,8 @@ or if accessibility on Windows is needed from the first release.
   grid) comes in the accessibility step, not the first release.
 - **Libraries:** `d2d1`, `dwrite`, `d3d11`, `dxgi`, `windowscodecs`,
   `ole32`, `uuid`, `imm32`, `dwmapi` - all in mingw-w64, all part of
-  Windows.
+  Windows. The effects renderer adds `opengl32` (WGL)
+  and, if taken, ANGLE's `libEGL`/`libGLESv2`.
 
 ## What the window does with the library's API
 
@@ -160,7 +217,11 @@ needed.
 - **Pacing:** redraws and smooth scrolling follow `GdkFrameClock`, which is
   vsync-paced.
 - **Escape hatch:** `GtkGLArea` for a pane that needs its own shaders, used
-  only if a measurement shows GSK falls short.
+  only if a measurement shows GSK falls short. The HDR effects
+  renderer (`plans/cell-ui-hdr.md`) is that escape hatch made a whole-frame
+  one: a GL renderer beside the GSK one, with the GSK frame as the fallback.
+  Whether GTK can present its FP16 output as HDR is a spike there, not a
+  reason to leave GTK.
 - **Measure first:** the pattern editor through the GTK backend at 4K and
   high refresh, checked for frame time and idle CPU, before the rest is
   built on it.
@@ -225,5 +286,8 @@ and Pango replace the rendering and text notes below.
 6. Accessibility adapters; input methods tested with a CJK input method.
 7. Start menu entry for the window in the Windows installer
    (`plans/windows-port.md`).
-8. Voice commands, layers in 3D and the rest of the ideas in
+8. HDR output (`plans/cell-ui-hdr.md`): the effects renderer's presenter on
+   Windows (swap chain, display queries, fallback) once the Win32 backend and
+   the OpenGL renderer exist; on Linux after the host spike.
+9. Voice commands, layers in 3D and the rest of the ideas in
    `plans/cell-ui.md`, as wanted.
