@@ -253,7 +253,7 @@ target_link_libraries(synth_engine PUBLIC ${SOUNDTOUCH_LIBRARY})
 # (SoundFont.cpp - injects a vibrato/filter-cutoff modulator for presets
 # that never authored their own channel-pressure connection). Off by
 # default: doesn't feel good to play without a pressure-floor fix that
-# hasn't landed yet (see plans/launchpad-pressure-floor.md), and isn't
+# hasn't landed yet, and isn't
 # part of the SF2 spec - real, file-authored channel-pressure modulators
 # (SF2Modulator.cpp) always work regardless of this setting. PUBLIC so
 # the same macro is visible to tests/SF2ModulatorTests.cpp too (linked

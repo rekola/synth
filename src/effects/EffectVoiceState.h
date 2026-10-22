@@ -4,8 +4,7 @@
 #include "../state/VoiceState.h"
 
 // Voice-chain half of the per-track-effect state contract - see
-// EffectTrackState.h (its track-tree sibling) and
-// plans/trackstate-voicestate-split.md for why every concrete effect needs
+// EffectTrackState.h (its track-tree sibling) for why every concrete effect needs
 // both.
 class EffectVoiceState : public VoiceState {
  public:

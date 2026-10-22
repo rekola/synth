@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The modern-look colour tokens (plans/modern-look-tokens.md): OKLCH values
+"""The modern-look colour tokens: OKLCH values
 for the dark and light themes, converted to sRGB hex and checked against the
 WCAG contrast rules. Prints a report; with an output path, also writes the
 hex values as JSON.

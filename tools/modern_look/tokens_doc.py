@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Writes plans/modern-look-tokens.md from tokens.py's output.
+"""Writes the colour-token document from tokens.py\'s output.
 
     python3 tools/modern_look/tokens.py tokens.json > report.txt
-    python3 tools/modern_look/tokens_doc.py tokens.json report.txt plans/modern-look-tokens.md"""
+    python3 tools/modern_look/tokens_doc.py tokens.json report.txt tokens.md"""
 import json, sys
 
 t = json.load(open(sys.argv[1]))

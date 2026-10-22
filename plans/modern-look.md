@@ -1,8 +1,8 @@
 # Modern look
 
 Make the UI look current rather than dated, in the terminal now (steps 1-5,
-part of `plans/cell-ui-terminal.md`) and in the window later (step 6,
-`plans/cell-ui-window.md`). Most of this is about decisions,
+part of the terminal phase of `plans/cellui.md`) and in the window later (step 6,
+`plans/cellui-window.md`). Most of this is about decisions,
 not rendering features, so it starts in the terminal. Every colour is
 already a `StyleProvider` constant, which is the lever.
 
@@ -114,7 +114,7 @@ Themes are data:
 
 1. **Audit:** screenshot every view and dialog in the terminal, list each
    colour, glyph and line used, and map each to a token or mark it for
-   removal. Views done (`plans/modern-look-audit.md`, captured with
+   removal. Views done (captured with
    `tools/modern_look/capture.py`); the dialogs are audited last, after the
    look is applied to the views.
 2. **Mock:** an HTML mock of Live View and Arrangement view in the proposed
@@ -153,7 +153,7 @@ Themes are data:
      in-place changes (flags, cursor to an undo place, panels) are next;
 5. **Light and high-contrast themes,** with a theme command and a setting.
 6. **Window backend:** the same tokens plus elevation shadows, radius,
-   padding, the UI font and smooth motion, in `plans/cell-ui-window.md`'s
+   padding, the UI font and smooth motion, in `plans/cellui-window.md`'s
    styles step.
 
 ## Open: switching a track's instrument

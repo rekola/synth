@@ -167,7 +167,8 @@ class EnvelopeState : public State {
       if (segmentIsExponential) level *= powf(slope, (float)numSamples);
       else level += (slope * numSamples);
     }
-    if ((samplesUntilNextSegment -= numSamples) <= 0) {
+    samplesUntilNextSegment -= numSamples;
+    if (samplesUntilNextSegment <= 0) {
       nextSegment(segment);
     }
   }

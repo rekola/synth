@@ -1,28 +1,28 @@
-# Cell UI, phase 2: the window
+# cellui, phase 2: the window
 
-The graphical backend of Cell UI (`plans/cell-ui.md`). It starts once phase 1
-(`plans/cell-ui-terminal.md`) has separated the UI: the app then talks only
+The graphical backend of cellui (`plans/cellui.md`). It starts once phase 1
+(built) has separated the UI: the app then talks only
 to `cellui`, and this phase adds a backend without touching the widgets.
 Linux (X11/Wayland, whenever a display server is running) and Windows; on
-Linux the terminal stays selectable (`--ui window|terminal`, the default
+Linux the terminal stays selectable (`--ui auto|terminal|raster|vulkan`, `raster` being this platform's 2D window (`plans/cellui-hdr.md`), the default
 chosen by whether a display is available), and Windows has only the window.
 
-Decided: on Linux the window backend is a **GTK** backend for Cell UI; on
+Decided: on Linux the window backend is a **GTK** backend for cellui; on
 Windows it is written directly against **Win32**, drawing with Direct2D and
 DirectWrite (below). No cross-platform toolkit sits under either.
 
 ## Host (decided: GTK on Linux, Win32 on Windows)
 
-Cell UI doesn't have to sit on SDL3. Its window backend can also be hosted by
+cellui doesn't have to sit on SDL3. Its window backend can also be hosted by
 an existing toolkit. The toolkit then only supplies windows, input, text,
 menus and dialogs, while the cells, styles, spans and icons are still drawn
 by our code into one surface. That is different from a Qt or wxWidgets UI:
-no widget is rewritten, the app still only sees Cell UI, and the terminal
+no widget is rewritten, the app still only sees cellui, and the terminal
 backend is unaffected.
 
 | Host | Gives us | Costs us |
 |---|---|---|
-| SDL3 (the plan above) | Small, simple, game-style rendering freedom (SDL_GPU) | Native menus, IME details, font fallback, accessibility adapters, i18n tooling are all ours (the "lack" table in `plans/cell-ui.md`) |
+| SDL3 (the plan above) | Small, simple, game-style rendering freedom (SDL_GPU) | Native menus, IME details, font fallback, accessibility adapters, i18n tooling are all ours (the "lack" table in `plans/cellui.md`) |
 | Qt 6 | Nearly the whole "lack" table: accessibility (UIA/AT-SPI through `QAccessibleInterface`, which we implement for the grid), IME, HarfBuzz shaping and font fallback, HiDPI, translation tooling, native menus on Windows and a native-looking menu bar on Linux (with KDE's global menu), modal dialogs, native file dialogs. Qt Quick's scene graph renders through Vulkan/D3D/Metal with custom shaders, so shadows, blur, layers and 3D transforms stay possible; Qt Quick 3D XR covers a headset later | Large runtime (tens of MB in the installer), Qt's build tooling, Qt's event loop on the main thread, LGPL obligations for an MIT project (dynamic linking, relinkable), and some modules (Qt Quick 3D among them) are GPL or commercial only, which rules them out unless the licence changes |
 | wxWidgets | Truly native menus and dialogs on every platform, GTK ones on Linux; lighter than Qt; a licence that allows static linking | A GPU surface (`wxGLCanvas`) inside native widgets is the weak spot, especially on Wayland; accessibility outside Windows is thin, and IME into a custom-drawn surface is ours again; effects need our own OpenGL anyway |
 | Dear ImGui | Fast tool and debug panels | Nothing on the "lack" table: it needs a platform layer (SDL3 itself), draws its own menus, and has no accessibility or real IME. Useful at most for developer panels inside the window backend, not as the host |
@@ -67,20 +67,70 @@ or if accessibility on Windows is needed from the first release.
 - **Drawing:** Direct2D into a DXGI flip-model swap chain on Direct3D 11,
   waitable for vsync pacing; DirectWrite for text and font fallback, WIC
   for images. An idle UI presents nothing.
+- **HDR** (colour model and backend choice: `plans/cellui-hdr.md`). The
+  Direct2D backend above (`--ui raster` on Windows) draws SDR only: it reads `Color`s
+  through `toSrgb8()` (a wide colour is clipped) and knows nothing of HDR. HDR
+  is the `vulkan` backend's, hosted by SDL3 or the Win32 window directly
+  (`plans/cellui-hdr.md`), chosen by `--ui vulkan` or by `--ui auto`'s probe at
+  start (never switched at run time, no fallback inside a frame). Whether the
+  Direct2D backend is still built at all, given `vulkan`, is a priority call:
+  it is what has the native `HMENU` and UI Automation.
+  - *The probe* (before the window is shown): a hardware Vulkan device with
+    the features the backend needs, not on the known-bad list; see the HDR
+    plan. A failure after the choice is an error, not a silent change.
+  - *What it renders:* the cells and effects in an FP16 target in linear
+    Rec.2020 (`Color`'s own space, 1.0 = SDR white).
+  - *The swap chain:* when the display is in HDR mode, either
+    `VK_FORMAT_A2B10G10R10_UNORM_PACK32` with
+    `VK_COLOR_SPACE_HDR10_ST2084_EXT` (HDR10: the output stage PQ-encodes
+    the Rec.2020 values, no gamut matrix) or `VK_FORMAT_R16G16B16A16_SFLOAT`
+    with `VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT` (scRGB: a matrix to
+    Rec.709, negatives allowed, 1.0 -> sdr_white_nits / 80). HDR10 first,
+    since it needs no gamut conversion; scRGB if the 10-bit chain bands in
+    dark gradients. On an SDR display: an 8-bit sRGB chain with the
+    tone-mapped output. No HDR metadata is set (`vkSetHdrMetadataEXT`); the
+    display's own tone mapping is left alone. Vulkan builds its swap chain on
+    DXGI's flip model underneath.
+  - *The display:* Vulkan can set a display's colour space but not query its
+    luminance, so the queries are the Windows ones: `IDXGIOutput6::GetDesc1`
+    for the colour space and min/max luminance -> `DisplayInfo::hdr`
+    (`available` is `ColorSpace == G2084_P2020`, `peak` is `MaxLuminance` over
+    the SDR white, `gamut` from the primaries). The SDR white level is the
+    user's slider, from `DisplayConfigGetDeviceInfo` with
+    `DISPLAYCONFIG_SDR_WHITE_LEVEL` (1000 = 80 nits); it sets what 1.0 is in
+    nits at the PQ encode. Read at start, and again on `WM_DISPLAYCHANGE`, a
+    move to another monitor, and when `IDXGIFactory1::IsCurrent` says no; the
+    change event reaches the application, and the output stage (swap-chain
+    rebuild included) follows between frames - or, in the first version,
+    "restart to apply".
+  - *Contingency:* if Vulkan HDR swap chains prove unreliable on some drivers
+    (to be seen on real hardware in the Vulkan spike), Direct3D 12 goes behind
+    the backend's thin device layer for Windows; nothing above it changes.
+  - *Needs:* Windows 10 1709 for the HDR colour spaces and display queries;
+    Windows 11 for the best SDR-white behaviour. Older Windows has the SDR
+    backends only.
+  - *Testing:* CI (a CPU Vulkan device, forced past the probe by a test-only
+    flag) renders the float output offscreen and checks values, but cannot
+    show HDR; the display-query and swap-chain code is exercised only on a
+    real HDR monitor.
 - **canvas:** gets a Direct2D/DirectWrite backend that replaces GDI+, so the
-  pixel scopes and VU meters build on Windows too.
+  pixel scopes and VU meters build on Windows too. It stays SDR; in the
+  `vulkan` backend its images are sampled as sRGB textures and may carry a
+  gain.
 - **Main loop:** `MsgWaitForMultipleObjectsEx`; on Windows `Notifier` is an
   event handle, so the audio thread's wakeups, WinMM MIDI and window
   messages wake the same `WaitSet`.
 - **Dialogs and menus:** native file dialogs and message boxes through
-  COM; the menu bar is an `HMENU`; Cell UI's own dialogs are separate
+  COM; the menu bar is an `HMENU`; cellui's own dialogs are separate
   owned windows.
 - **Accessibility:** the widget tree is kept describable, and a UI
   Automation provider (`IRawElementProviderSimple` and fragments for the
   grid) comes in the accessibility step, not the first release.
 - **Libraries:** `d2d1`, `dwrite`, `d3d11`, `dxgi`, `windowscodecs`,
   `ole32`, `uuid`, `imm32`, `dwmapi` - all in mingw-w64, all part of
-  Windows.
+  Windows. The `vulkan` backend adds SDL3 (vendored) and the Vulkan
+  loader (`vulkan-1.dll`, installed with the GPU driver; volk loads it at run
+  time, so nothing links against it) and a shader compiler at build time.
 
 ## What the window does with the library's API
 
@@ -89,8 +139,8 @@ or if accessibility on Windows is needed from the first release.
 - **Styles:** everything the style table holds - fonts, padding, borders,
   radius, gradients, shadows.
 - **Geometry and scrolling:** pixel row heights and column widths; smooth
-  scrolling and playheads, through Cell UI's viewport
-  (`plans/cell-ui-terminal.md`). Done for a widget with a plane of its own
+  scrolling and playheads, through cellui's viewport
+  (`plans/cellui.md`, "The terminal backend: what is left"). Done for a widget with a plane of its own
   (the arrangement grid, and the outline, whose tree has a plane of its own
   under its heading and button bar): `Viewport` keeps the offset the widget
   reasons with and a shown position that follows it (`DisplayInfo::
@@ -160,7 +210,10 @@ needed.
 - **Pacing:** redraws and smooth scrolling follow `GdkFrameClock`, which is
   vsync-paced.
 - **Escape hatch:** `GtkGLArea` for a pane that needs its own shaders, used
-  only if a measurement shows GSK falls short.
+  only if a measurement shows GSK falls short. GTK has no Vulkan widget, so the `raster`
+  backend (this one) draws SDR only; the `vulkan` backend
+  (`plans/cellui-hdr.md`) may be hosted in a GTK window by handing it its
+  image as a `GdkDmabufTexture`, or by SDL3, decided by a spike there.
 - **Measure first:** the pattern editor through the GTK backend at 4K and
   high refresh, checked for frame time and idle CPU, before the rest is
   built on it.
@@ -216,14 +269,17 @@ and Pango replace the rendering and text notes below.
    terminal's cell and picture blur is its backend's own
    (`term::BackdropEmulation`).
 2. Main window, cells, text, input, popups, dialogs, file dialogs, menus;
-   `--ui window|terminal`.
+   `--ui auto|terminal|raster|vulkan`, `raster` being this platform's 2D window (`plans/cellui-hdr.md`).
 3. Styles beyond the terminal: geometry, spans, borders, gradients, radius,
    shadows, smooth scrolling; `plans/modern-look.md` step 6.
 4. Icons in the window and the menus.
-5. The standard keymap (`plans/cell-ui.md`), the window's default, with the
+5. The standard keymap (`plans/cellui.md`), the window's default, with the
    emacs keymap selectable; `docs/user-interface.md` gets its table.
 6. Accessibility adapters; input methods tested with a CJK input method.
 7. Start menu entry for the window in the Windows installer
    (`plans/windows-port.md`).
-8. Voice commands, layers in 3D and the rest of the ideas in
-   `plans/cell-ui.md`, as wanted.
+8. HDR output (`plans/cellui-hdr.md`): the `vulkan` backend's swap chain and
+   display queries on Windows, once that backend exists; on Linux after the
+   Wayland colour-management check.
+9. Voice commands, layers in 3D and the rest of the ideas in
+   `plans/cellui.md`, as wanted.

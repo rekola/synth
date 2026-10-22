@@ -11,8 +11,7 @@ using namespace std;
 namespace {
 
 // Actual DSP, shared by TremoloTrackState and TremoloVoiceState - see
-// EffectTrackState.h/EffectVoiceState.h and
-// plans/trackstate-voicestate-split.md. `aftertouch_value` is passed in
+// EffectTrackState.h/EffectVoiceState.h. `aftertouch_value` is passed in
 // already resolved by the caller - see BiquadFilterDsp/ResonantFilterDsp's
 // own doc comment for why (aftertouch never reaches a persistent
 // track-tree node).

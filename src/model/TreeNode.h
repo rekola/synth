@@ -11,8 +11,7 @@
 
 // Shared tree-of-children infrastructure for both TrackState (the
 // persistent, per-block-rendered track tree) and VoiceState (the
-// ephemeral, per-note voice chain) - see
-// plans/trackstate-voicestate-split.md for why those are two distinct
+// ephemeral, per-note voice chain), two distinct
 // class hierarchies rather than one. Templated on `Derived` (always the
 // immediate subclass - TrackState or VoiceState, never any
 // further-derived leaf/wrapper type below it) purely so `children_` can

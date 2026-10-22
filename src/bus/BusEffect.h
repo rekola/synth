@@ -132,7 +132,7 @@ class BusEffect : public SongObject {
   virtual void setRowDuration(float rowDurationSeconds) { }
 
   // Second, parallel output path for effects whose output isn't a set of
-  // point-source taps - see plans/drum-bus-saturator.md. The tap
+  // point-source taps. The tap
   // path above (getNumTaps()/getTap()/getTapDirection(), consumed by
   // SendBusProcessor via computeAmbisonicGains()) can only ever produce
   // one mono signal broadcast into every channel at fixed relative gains

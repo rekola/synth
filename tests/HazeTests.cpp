@@ -101,8 +101,8 @@ TEST(haze_auto_gain_keeps_level_roughly_flat_across_drive) {
   // Amplitude 1.0 - matches the auto-gain LUT's own calibration reference
   // (Haze.cpp's compensationTable(), which scales its reference signal by
   // 1.0 too) - a static per-shape/drive/bias LUT is only ever calibrated
-  // against one assumed input level (see plans/drum-bus-saturator.md's
-  // "static curve integral, not a running RMS" decision), so testing
+  // against one assumed input level (a static curve integral, not a
+  // running RMS), so testing
   // flatness at a level other than the calibration reference isn't a fair
   // test of the mechanism itself.
   auto input = makePinkNoise(kWindow * 3, 0xBEEF, 1.0f);

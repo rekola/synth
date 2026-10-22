@@ -11,8 +11,7 @@
 // Mono-to-diffuse ambisonic encoder: routes a mono signal through 16
 // independent, mutually-decorrelated allpass chains - one per ACN channel
 // (order 0-3) - rather than gain-panning it toward any single direction.
-// See plans/drum-bus-saturator.md for the full derivation of why this is
-// a genuinely different operation from computeAmbisonicGains()-based
+// This is a genuinely different operation from computeAmbisonicGains()-based
 // point-source encoding (AmbisonicEncoding.h): every chain here carries
 // the *identical* spectrum (Schroeder allpasses are unity-magnitude at
 // every frequency, the same topology FDNReverb's own input diffusers use
@@ -38,7 +37,7 @@ class AmbisonicDiffuseEncoder {
   // instanceSalt: distinguishes this instance's delay-length draws from
   // every other instance's, so two instances (e.g. Haze, the bus
   // saturator, and a later reverb/granular-cloud port onto this same
-  // class - see plans/drum-bus-saturator.md's consolidation note) don't
+  // class) don't
   // return correlated, partially self-cancelling-or-reinforcing output
   // for the same input. Implemented as a cyclic shift into a shared
   // prime-length table (see delayLengthTable() in the .cpp) rather than

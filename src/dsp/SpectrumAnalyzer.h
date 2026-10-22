@@ -13,8 +13,8 @@
 // live UI spectrum chart (Player.cpp). This is domain-specific shaping
 // (raw-sample accumulation threshold, dB conversion) that used to live
 // directly inside dsp/FFT.h's own FFT class; it now sits here, on top of
-// the shared dsp/RealFFT.h wrapper, per the FFTW -> PocketFFT migration
-// plan's Phase 1 (plans/magical-wondering-engelbart.md) - the raw
+// the shared dsp/RealFFT.h wrapper (added when FFTW was
+// replaced by PocketFFT) - the raw
 // transform itself shouldn't own this shaping, since it's specific to this
 // one visualization, not something MagLS or a future DirAC analyzer needs.
 class SpectrumAnalyzer {

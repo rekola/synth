@@ -41,8 +41,7 @@ distribution.
 BSD-3-Clause. Vendored from https://github.com/mreineck/pocketfft, `cpp`
 branch, commit `c90e55b3d529f8efa40ed01a20de22405f45fc65`. This is the FFT
 backend behind `dsp/RealFFT.h` (the live spectrum analyzer and MagLS
-binaural precomputation), replacing FFTW (GPL-2-or-later) - see
-`plans/magical-wondering-engelbart.md` for the migration this was part of.
+binaural precomputation), replacing FFTW (GPL-2-or-later).
 
 ```
 This file is part of pocketfft.

@@ -7,8 +7,7 @@ on:
 
 jobs:
   # MSYS2 UCRT64 (MinGW-w64 GCC), not MSVC: the DSP code uses GCC vector
-  # extensions and the whole warning set in CMakeLists.txt is GCC syntax (see
-  # plans/windows-port.md). The full `synth` is built here without the
+  # extensions and the whole warning set in CMakeLists.txt is GCC syntax. The full `synth` is built here without the
   # terminal UI (SYNTH_BUILD_TERMINAL_UI is OFF on Windows); --headless is the
   # way to run it. x86-64-v2 and a pinned image for the same reason as the Linux
   # x86-64 job: every run must compile to the same instructions for the
