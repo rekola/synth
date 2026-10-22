@@ -10,9 +10,8 @@ others clip it. The advanced renderer uses Vulkan on both platforms.
 Status: under discussion. Nothing is built. This is a green-field change:
 goldens that move are regenerated, not worked around.
 
-"HCG" in the request is read as **WCG**, wide colour gamut (Display-P3,
-Rec.2020). HLG and PQ are output encodings the presenter picks; they are not
-part of the model.
+Transfer functions such as PQ are output encodings the presenter picks; they
+are not part of the model.
 
 ## Principles
 
