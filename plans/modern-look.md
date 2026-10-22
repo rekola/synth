@@ -1,7 +1,7 @@
 # Modern look
 
 Make the UI look current rather than dated, in the terminal now (steps 1-5,
-part of `plans/cellui-terminal.md`) and in the window later (step 6,
+part of the terminal phase of `plans/cellui.md`) and in the window later (step 6,
 `plans/cellui-window.md`). Most of this is about decisions,
 not rendering features, so it starts in the terminal. Every colour is
 already a `StyleProvider` constant, which is the lever.
@@ -114,7 +114,7 @@ Themes are data:
 
 1. **Audit:** screenshot every view and dialog in the terminal, list each
    colour, glyph and line used, and map each to a token or mark it for
-   removal. Views done (`plans/modern-look-audit.md`, captured with
+   removal. Views done (captured with
    `tools/modern_look/capture.py`); the dialogs are audited last, after the
    look is applied to the views.
 2. **Mock:** an HTML mock of Live View and Arrangement view in the proposed

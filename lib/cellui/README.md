@@ -1,7 +1,7 @@
 # cellui
 
 The UI library of synth: what a terminal (and later a window) interface is
-built from. Design and plan: `plans/cellui.md`, `plans/cellui-terminal.md`.
+built from. Design and plan: `plans/cellui.md`.
 
     cmake -S lib/cellui -B build-cellui
     cmake --build build-cellui -j

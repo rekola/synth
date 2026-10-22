@@ -1,7 +1,7 @@
 # cellui, phase 2: the window
 
 The graphical backend of cellui (`plans/cellui.md`). It starts once phase 1
-(`plans/cellui-terminal.md`) has separated the UI: the app then talks only
+(built) has separated the UI: the app then talks only
 to `cellui`, and this phase adds a backend without touching the widgets.
 Linux (X11/Wayland, whenever a display server is running) and Windows; on
 Linux the terminal stays selectable (`--ui auto|terminal|raster|vulkan`, `raster` being this platform's 2D window (`plans/cellui-hdr.md`), the default
@@ -140,7 +140,7 @@ or if accessibility on Windows is needed from the first release.
   radius, gradients, shadows.
 - **Geometry and scrolling:** pixel row heights and column widths; smooth
   scrolling and playheads, through cellui's viewport
-  (`plans/cellui-terminal.md`). Done for a widget with a plane of its own
+  (`plans/cellui.md`, "The terminal backend: what is left"). Done for a widget with a plane of its own
   (the arrangement grid, and the outline, whose tree has a plane of its own
   under its heading and button bar): `Viewport` keeps the offset the widget
   reasons with and a shown position that follows it (`DisplayInfo::

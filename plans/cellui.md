@@ -17,9 +17,10 @@ Windows has only the window.
 The work comes in two phases, each with its own plan, while the Windows
 port (`plans/windows-port.md`) proceeds alongside:
 
-1. **Terminal cellui** (`plans/cellui-terminal.md`): the library is
-   separated out with the terminal backend only, notcurses goes, and the
-   modernizations a terminal can show (`plans/modern-look.md`) go in.
+1. **Terminal cellui** (built; what is left is under "The terminal backend:
+   what is left" below): the library is separated out with the terminal
+   backend only, notcurses goes, and the modernizations a terminal can show
+   (`plans/modern-look.md`) go in.
 2. **Window cellui** (`plans/cellui-window.md`): considered once the UI
    is separated. It chooses a host and adds the graphical backend.
 
@@ -125,7 +126,8 @@ Each item says what the terminal does with it; what the window does is in
   region. A pixel region is drawn with canvas and re-rendered only when its
   content changes. The terminal shows it with Kitty graphics, iTerm2's
   inline images or Sixel; without them a widget that has a pixel region
-  draws its own cell version instead (the scopes, `plans/cellui-terminal.md`).
+  draws its own cell version instead (the scopes: hand-drawn braille bars, a quadrant or
+  sextant heatmap, labels in terminal text, never a canvas image quantized to cells).
 - **Geometry.** Per-plane column widths and row heights in pixels, so the
   app can say "this row is 1.5 rows high" (a scene header) or "this column
   has 4px of padding". The terminal rounds to whole cells. App code keeps
@@ -257,3 +259,52 @@ that bounded:
 - **Comparison:** a Qt UI is a full second front end (widgets ~6k lines
   now and growing with every feature), plus Qt's build and licence
   obligations. That is the cost being traded against.
+
+## The terminal backend: what is left
+
+The terminal phase is built (the library is its own project and includes
+nothing from `src/`, notcurses is gone, `TerminalUI` runs on `cellui/term/`,
+the scopes and VU meters have cell and pixel versions behind `cellui::Scopes`,
+a test backend drives the real UI). What it settled and what remains:
+
+- **Settled design.**
+  - The terminal keeps the emacs keymap only; the keymap layer holds named
+    profiles so the window adds the standard one without changing how commands
+    are bound (migrated in part; see `CLAUDE.md`).
+  - No Windows console support: Windows uses the graphical UI only.
+  - canvas stays a separate library that cellui depends on. It draws no text
+    (Cairo's text path has no shaping or font fallback): chart labels and axis
+    numbers stay cell text. A GPU backend, removing Cairo or a DirectWrite
+    path are not planned.
+  - Sixel and iTerm2 images have no ids, so every image in a scrolled pane is
+    sent again; accepted, since the images in scrolling panes are a cell or
+    two and the meters are resent every frame while audio plays anyway. kitty
+    only places a moved image again.
+  - The terminal's own scrolling (scroll regions, insert/delete line, margins)
+    is not used: regions span the full width while the panes sit side by
+    side, few terminals have left/right margins, and painted Sixel pixels
+    behave differently when they scroll.
+- **Icons (not built).** Pixel icons: the SVG rasterized at the cell size in
+  pixels, tinted with the cell's foreground and composited onto its
+  background (Sixel transparency is unreliable, so the background is filled
+  in). kitty uploads each (icon, colours, size) once under an image id and
+  places it by id; Sixel caches the encoded image and re-sends it whenever its
+  cell is redrawn, and the diff renderer treats an icon cell as changed when
+  its icon or colours change. The fallback is the icon's Unicode glyph (or the
+  generic one) when neither protocol is available, the cell size is unknown,
+  a multiplexer eats graphics, or the user turns pixel icons off. The SVG is
+  parsed with a small vendored parser or drawn with canvas; the window uses
+  the same rasterizer.
+- **Open.**
+  - `ClipGrid` and `PatternEditor` (with `PatternScroll`'s sideways policy)
+    onto `cellui::Viewport`.
+  - The accessibility tree published by the widgets (the terminal uses only
+    focus), and strings through a catalog.
+  - Real-terminal checks of foot, WezTerm, tmux and iTerm2 (xterm with Sixel,
+    kitty and VTE are confirmed).
+  - The Launchpad e2e scripts: four failed on a machine with an ALSA
+    sequencer, to be studied separately.
+  - The terminal's own font, for the pixel backdrop and scopes: kitty answers
+    through XTGETTCAP; elsewhere a user setting.
+  - Optional, later: kitty's Unicode placeholders (kitty, Ghostty), where an
+    image is written as text and moves with it.

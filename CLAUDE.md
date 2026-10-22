@@ -1840,8 +1840,7 @@ would otherwise resume showing.
   does). Held note keys keep a group open
   too (`Controller::setNoteHeld()`, from `PatternEditor`), so a chord is one
   step.
-- The song's own state lives in a DOM (`src/doc/`, plan in
-  `plans/undo-document-model.md`): nodes with stable ids, four journaled
+- The song's own state lives in a DOM (`src/doc/`): nodes with stable ids, four journaled
   primitives, one append-only journal per song (`Song::document()`, capped at
   `Song::kJournalLimit` edits). The song-level scalars (tempo, swing,
   signatures, tuning, key, scale, the room), scenes and locators, the

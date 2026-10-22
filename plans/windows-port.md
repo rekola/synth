@@ -6,7 +6,7 @@ command-line binary that renders songs. Steps 1-5 make the platform layer
 (audio, MIDI, Launchpad, OS utilities) backend-neutral and add Windows
 backends, ending with `--headless` (playback + Launchpad performance) working
 on Windows; step 6 packages it. This runs alongside phase 1 of the cellui
-(`plans/cellui-terminal.md`), which replaces notcurses. Windows gets no
+(the terminal backend, built), which replaced notcurses. Windows gets no
 terminal UI: its interactive UI is the graphical one, phase 2
 (`plans/cellui-window.md`), which is not part of this plan.
 
