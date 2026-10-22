@@ -1,9 +1,9 @@
 # Cell UI, phase 1: the terminal
 
-Separate the UI into the Cell UI library (`plans/cell-ui.md`) with only the
+Separate the UI into the Cell UI library (`plans/cellui.md`) with only the
 terminal backend, replace notcurses with it, and put in the modernizations a
 terminal can show (`plans/modern-look.md`). The window backend
-(`plans/cell-ui-window.md`) is considered only once this is done. The
+(`plans/cellui-window.md`) is considered only once this is done. The
 Windows port (`plans/windows-port.md`) runs alongside; Windows gets only the
 graphical UI, never the terminal one.
 
@@ -13,7 +13,7 @@ graphical UI, never the terminal one.
   own tests and a gallery app (every cell style, span, icon, dialog and menu
   as the terminal shows them).
 - notcurses is gone from the build; `TerminalUI` talks only to `cellui`.
-- The whole API in `plans/cell-ui.md` exists, including what the terminal
+- The whole API in `plans/cellui.md` exists, including what the terminal
   only degrades (style ids, geometry, fractional scroll, plane transforms,
   the accessibility tree), so phase 2 adds a backend without app changes.
 - The e2e scripts pass, the look is at least as good as today, and the
@@ -132,7 +132,7 @@ input.
 ## Keymaps
 
 The terminal keeps the emacs keymap only; the standard keymap needs key
-combinations a terminal can't send (`plans/cell-ui.md`). What this phase
+combinations a terminal can't send (`plans/cellui.md`). What this phase
 does is make the keymap layer hold named profiles, with emacs as the one
 the terminal uses, so phase 2 adds the standard profile without changing
 how commands are bound.
@@ -164,7 +164,7 @@ cell position, so a scrolled meter is a new image and is uploaded again.
   `ArrangementGrid` and `ChoiceDialog`/`ChoiceList` move onto it;
   `LineEditor`'s scrolling within one line stays its own. The terminal
   rounds the offset to whole cells; the window uses the same offset with a
-  fractional part (`plans/cell-ui-window.md`).
+  fractional part (`plans/cellui-window.md`).
 - **Image identity.** `drawImageAt()` takes a key - the widget's own id for
   the picture, or a hash of its pixels when none is given - and a plane
   keeps an image as it moves, so a move changes where it is placed, not
@@ -257,7 +257,7 @@ cell position, so a scrolled meter is a new image and is uploaded again.
    the wheel and its detached state) is in, and `ChoiceList`, `OutlineView`
    and `ArrangementGrid` use it. It also animates a shown position toward
    the offset where the display scrolls smoothly (the GTK window; see
-   `plans/cell-ui-window.md`). Open: `ClipGrid` and `PatternEditor` (with
+   `plans/cellui-window.md`). Open: `ClipGrid` and `PatternEditor` (with
    `PatternScroll`'s sideways policy) onto it.
 8. Icons: the app's icon list, Kitty graphics/Sixel/glyph fallback, menu
    icons, keyed so a static icon in a scrolling list costs nothing with
@@ -269,4 +269,4 @@ cell position, so a scrolled meter is a new image and is uploaded again.
 11. Accessibility tree published by the widgets (the terminal uses only
    focus); strings through a catalog.
 12. A GTK backend for Cell UI on Linux, then the Win32 one
-   (`plans/cell-ui-window.md`).
+   (`plans/cellui-window.md`).

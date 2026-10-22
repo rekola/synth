@@ -1,7 +1,7 @@
 # Cell UI, phase 2: the window
 
-The graphical backend of Cell UI (`plans/cell-ui.md`). It starts once phase 1
-(`plans/cell-ui-terminal.md`) has separated the UI: the app then talks only
+The graphical backend of Cell UI (`plans/cellui.md`). It starts once phase 1
+(`plans/cellui-terminal.md`) has separated the UI: the app then talks only
 to `cellui`, and this phase adds a backend without touching the widgets.
 Linux (X11/Wayland, whenever a display server is running) and Windows; on
 Linux the terminal stays selectable (`--ui window|terminal`, the default
@@ -22,7 +22,7 @@ backend is unaffected.
 
 | Host | Gives us | Costs us |
 |---|---|---|
-| SDL3 (the plan above) | Small, simple, game-style rendering freedom (SDL_GPU) | Native menus, IME details, font fallback, accessibility adapters, i18n tooling are all ours (the "lack" table in `plans/cell-ui.md`) |
+| SDL3 (the plan above) | Small, simple, game-style rendering freedom (SDL_GPU) | Native menus, IME details, font fallback, accessibility adapters, i18n tooling are all ours (the "lack" table in `plans/cellui.md`) |
 | Qt 6 | Nearly the whole "lack" table: accessibility (UIA/AT-SPI through `QAccessibleInterface`, which we implement for the grid), IME, HarfBuzz shaping and font fallback, HiDPI, translation tooling, native menus on Windows and a native-looking menu bar on Linux (with KDE's global menu), modal dialogs, native file dialogs. Qt Quick's scene graph renders through Vulkan/D3D/Metal with custom shaders, so shadows, blur, layers and 3D transforms stay possible; Qt Quick 3D XR covers a headset later | Large runtime (tens of MB in the installer), Qt's build tooling, Qt's event loop on the main thread, LGPL obligations for an MIT project (dynamic linking, relinkable), and some modules (Qt Quick 3D among them) are GPL or commercial only, which rules them out unless the licence changes |
 | wxWidgets | Truly native menus and dialogs on every platform, GTK ones on Linux; lighter than Qt; a licence that allows static linking | A GPU surface (`wxGLCanvas`) inside native widgets is the weak spot, especially on Wayland; accessibility outside Windows is thin, and IME into a custom-drawn surface is ours again; effects need our own OpenGL anyway |
 | Dear ImGui | Fast tool and debug panels | Nothing on the "lack" table: it needs a platform layer (SDL3 itself), draws its own menus, and has no accessibility or real IME. Useful at most for developer panels inside the window backend, not as the host |
@@ -67,7 +67,7 @@ or if accessibility on Windows is needed from the first release.
 - **Drawing:** Direct2D into a DXGI flip-model swap chain on Direct3D 11,
   waitable for vsync pacing; DirectWrite for text and font fallback, WIC
   for images. An idle UI presents nothing.
-- **HDR** (colour model and renderer choice: `plans/cell-ui-hdr.md`). The
+- **HDR** (colour model and renderer choice: `plans/cellui-hdr.md`). The
   Direct2D renderer above is the `basic` renderer: it reads `Color`s through
   `toSrgb8()` (a wide colour is clipped), 8-bit, and knows nothing of HDR.
   The `advanced` renderer, in Vulkan, is chosen instead of it at start by a
@@ -140,7 +140,7 @@ or if accessibility on Windows is needed from the first release.
   radius, gradients, shadows.
 - **Geometry and scrolling:** pixel row heights and column widths; smooth
   scrolling and playheads, through Cell UI's viewport
-  (`plans/cell-ui-terminal.md`). Done for a widget with a plane of its own
+  (`plans/cellui-terminal.md`). Done for a widget with a plane of its own
   (the arrangement grid, and the outline, whose tree has a plane of its own
   under its heading and button bar): `Viewport` keeps the offset the widget
   reasons with and a shown position that follows it (`DisplayInfo::
@@ -211,7 +211,7 @@ needed.
   vsync-paced.
 - **Escape hatch:** `GtkGLArea` for a pane that needs its own shaders, used
   only if a measurement shows GSK falls short. The `advanced` renderer
-  (`plans/cell-ui-hdr.md`) is that escape hatch made a whole-frame one: a
+  (`plans/cellui-hdr.md`) is that escape hatch made a whole-frame one: a
   Vulkan renderer, chosen at start instead of the GSK one by a probe. GTK has
   no Vulkan widget, so its image goes in as a `GdkDmabufTexture` (GTK 4.14+,
   zero copy), and GTK keeps the menus, dialogs and native text inputs.
@@ -274,13 +274,13 @@ and Pango replace the rendering and text notes below.
 3. Styles beyond the terminal: geometry, spans, borders, gradients, radius,
    shadows, smooth scrolling; `plans/modern-look.md` step 6.
 4. Icons in the window and the menus.
-5. The standard keymap (`plans/cell-ui.md`), the window's default, with the
+5. The standard keymap (`plans/cellui.md`), the window's default, with the
    emacs keymap selectable; `docs/user-interface.md` gets its table.
 6. Accessibility adapters; input methods tested with a CJK input method.
 7. Start menu entry for the window in the Windows installer
    (`plans/windows-port.md`).
-8. HDR output (`plans/cell-ui-hdr.md`): the effects renderer's presenter on
+8. HDR output (`plans/cellui-hdr.md`): the effects renderer's presenter on
    Windows (swap chain, display queries, fallback) once the Win32 backend and
    the `advanced` renderer exist; on Linux after the host spike.
 9. Voice commands, layers in 3D and the rest of the ideas in
-   `plans/cell-ui.md`, as wanted.
+   `plans/cellui.md`, as wanted.

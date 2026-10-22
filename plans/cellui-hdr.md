@@ -1,6 +1,6 @@
 # Cell UI: an HDR and wide-gamut colour model
 
-Effects (`plans/cell-ui-effects.md`) are where HDR comes from: bloom around an
+Effects (`plans/cellui-effects.md`) are where HDR comes from: bloom around an
 LED, light scattered through a translucent slab, ambient occlusion in a
 crease. Flat cells and text stay SDR in look. This plan is the colour model
 that lets any colour in the library be brighter than white or more saturated
@@ -317,7 +317,7 @@ choice is only the window.
   `InlineEditor`/`LineEditor` already draw them, with the IME events), the
   accessibility tree on Linux (SDL has none; AT-SPI would be ours to write),
   and on Windows a UI Automation provider would have to hook the window
-  through SDL's message hook. The accessibility step in `plans/cell-ui-
+  through SDL's message hook. The accessibility step in `plans/cellui-
   window.md` gets bigger, not different.
 - **Gained:** one window backend for Linux and Windows instead of GTK plus
   Win32, and a plain Vulkan swap chain on Linux: no dma-buf export, no
@@ -360,9 +360,9 @@ choice is only the window.
 8. **Linux HDR output**: whether the texture carries HDR to the compositor
    (above), on a Wayland HDR setup; if not, an SDL3 spike (swap chain, HDR
    properties, file dialogs, IME) on the same machine.
-9. **Windows HDR output** (`plans/cell-ui-window.md`): needs the Win32
+9. **Windows HDR output** (`plans/cellui-window.md`): needs the Win32
    backend first.
-10. **Effects** (`plans/cell-ui-effects.md`): bloom first (wide colours and
+10. **Effects** (`plans/cellui-effects.md`): bloom first (wide colours and
    the blur), then ambient occlusion and subsurface scattering, which need
    the cube model's effect attributes (height or normal and a thickness per
    cell, set through the plane API).

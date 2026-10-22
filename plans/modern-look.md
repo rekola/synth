@@ -1,8 +1,8 @@
 # Modern look
 
 Make the UI look current rather than dated, in the terminal now (steps 1-5,
-part of `plans/cell-ui-terminal.md`) and in the window later (step 6,
-`plans/cell-ui-window.md`). Most of this is about decisions,
+part of `plans/cellui-terminal.md`) and in the window later (step 6,
+`plans/cellui-window.md`). Most of this is about decisions,
 not rendering features, so it starts in the terminal. Every colour is
 already a `StyleProvider` constant, which is the lever.
 
@@ -153,7 +153,7 @@ Themes are data:
      in-place changes (flags, cursor to an undo place, panels) are next;
 5. **Light and high-contrast themes,** with a theme command and a setting.
 6. **Window backend:** the same tokens plus elevation shadows, radius,
-   padding, the UI font and smooth motion, in `plans/cell-ui-window.md`'s
+   padding, the UI font and smooth motion, in `plans/cellui-window.md`'s
    styles step.
 
 ## Open: switching a track's instrument

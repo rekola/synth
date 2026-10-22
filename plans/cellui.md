@@ -17,10 +17,10 @@ Windows has only the window.
 The work comes in two phases, each with its own plan, while the Windows
 port (`plans/windows-port.md`) proceeds alongside:
 
-1. **Terminal Cell UI** (`plans/cell-ui-terminal.md`): the library is
+1. **Terminal Cell UI** (`plans/cellui-terminal.md`): the library is
    separated out with the terminal backend only, notcurses goes, and the
    modernizations a terminal can show (`plans/modern-look.md`) go in.
-2. **Window Cell UI** (`plans/cell-ui-window.md`): considered once the UI
+2. **Window Cell UI** (`plans/cellui-window.md`): considered once the UI
    is separated. It chooses a host and adds the graphical backend.
 
 This file is the shared design: why, what the library provides, keymaps
@@ -103,7 +103,7 @@ the app.
 ### What the library provides
 
 Each item says what the terminal does with it; what the window does is in
-`plans/cell-ui-window.md`.
+`plans/cellui-window.md`.
 
 - **Planes (layers).** A grid of cells with z-order, visibility, opacity and
   a transform (a 4x4 matrix, so 3D placement stays possible). The terminal
@@ -125,7 +125,7 @@ Each item says what the terminal does with it; what the window does is in
   region. A pixel region is drawn with canvas and re-rendered only when its
   content changes. The terminal shows it with Kitty graphics, iTerm2's
   inline images or Sixel; without them a widget that has a pixel region
-  draws its own cell version instead (the scopes, `plans/cell-ui-terminal.md`).
+  draws its own cell version instead (the scopes, `plans/cellui-terminal.md`).
 - **Geometry.** Per-plane column widths and row heights in pixels, so the
   app can say "this row is 1.5 rows high" (a scene header) or "this column
   has 4px of padding". The terminal rounds to whole cells. App code keeps
@@ -244,7 +244,7 @@ that bounded:
   dialogs, popups. No general widget set, no layout engine beyond the
   grid. Anything else stays app code.
 - **Lean on mature libraries** for the hard platform parts: the window host
-  (`plans/cell-ui-window.md`), canvas (GDI+/Cairo).
+  (`plans/cellui-window.md`), canvas (GDI+/Cairo).
 - **Order:** the terminal backend first (phase 1). It replaces a dependency
   that's already broken, so that cost has to be paid anyway. The window
   backend comes second (phase 2), behind a flag, while the terminal stays
