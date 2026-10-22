@@ -289,12 +289,47 @@ surface of ours; that was wrong, and it is now the contingency.)
 - **Input and layout** are unchanged: the texture is a widget, so size, scale,
   focus, popups, native text inputs and the pointer are GTK's, as they are for
   `basic`; effects do not reach GTK's own popups.
-- **Contingency:** a `wl_subsurface` of ours with Vulkan WSI and colour
-  management set on it directly, only if the texture route cannot carry HDR
-  and Linux HDR is worth the cost of keeping a second surface in step. An
-  SDL3 host (own menus and dialogs) is not planned.
+- **Contingency:** an SDL3 host instead of GTK (next section). A
+  `wl_subsurface` of ours inside the GTK window is the lesser alternative.
 
 Windows has no host question: the Win32 window owns its Vulkan swap chain.
+
+## SDL3 as the only host (the option if the texture route cannot carry HDR)
+
+Dropping GTK for SDL3 is possible; this is what it covers and costs. The
+renderer, `Color` and the thin Vulkan layer are the same either way, so the
+choice is only the window.
+
+- **Covered by SDL3:** windows, input, text input with IME (events and a
+  candidate-window area to place), clipboard, drag and drop, HiDPI, cursors,
+  a Vulkan surface (`SDL_Vulkan_CreateSurface`), and HDR window properties
+  and a change event (HDR on, SDR white level, headroom), which would replace
+  the display queries of the Windows plan on both platforms. Wayland
+  colour-management support in SDL and in Mesa's Vulkan WSI is recent: check
+  the versions before relying on it.
+- **File picker: covered.** `SDL_ShowOpenFileDialog`, `SDL_ShowSaveFileDialog`
+  and `SDL_ShowOpenFolderDialog` are native: Windows' own dialogs, and on
+  Linux the desktop portal (with a fallback to a helper program where there is
+  no portal). Simple message boxes too (`SDL_ShowSimpleMessageBox`). They are
+  asynchronous (a callback), which the existing dialog code must be shaped
+  for; same as the portal-backed GTK ones.
+- **Lost:** native and native-looking menus (the menu bar is drawn by Cell
+  UI on both platforms, popup windows), native text fields (Cell UI's own
+  `InlineEditor`/`LineEditor` already draw them, with the IME events), the
+  accessibility tree on Linux (SDL has none; AT-SPI would be ours to write),
+  and on Windows a UI Automation provider would have to hook the window
+  through SDL's message hook. The accessibility step in `plans/cell-ui-
+  window.md` gets bigger, not different.
+- **Gained:** one window backend for Linux and Windows instead of GTK plus
+  Win32, and a plain Vulkan swap chain on Linux: no dma-buf export, no
+  dependence on GTK's colour state. The packaging is vendored SDL3 (Ubuntu
+  24.04 has only SDL2).
+- **When:** after the Vulkan spike. If the GTK texture reaches the compositor
+  as HDR, GTK stays on Linux. If it does not, SDL3 becomes the host for the
+  `advanced` renderer on Linux; and whether SDL3 should then also replace the
+  planned Win32 backend (one backend, against native menus and UI Automation,
+  which the Windows plan values) is decided separately, on the Windows
+  priorities.
 
 ## Steps
 
@@ -324,7 +359,8 @@ Windows has no host question: the Win32 window owns its Vulkan swap chain.
    float framebuffer, the shared blur. The gallery renders through it
    offscreen on a CPU device.
 8. **Linux HDR output**: whether the texture carries HDR to the compositor
-   (above), on a Wayland HDR setup.
+   (above), on a Wayland HDR setup; if not, an SDL3 spike (swap chain, HDR
+   properties, file dialogs, IME) on the same machine.
 9. **Windows HDR output** (`plans/cell-ui-window.md`): needs the Win32
    backend first.
 10. **Effects** (`plans/cell-ui-effects.md`): bloom first (wide colours and
