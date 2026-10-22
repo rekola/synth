@@ -6,8 +6,8 @@ widget toolkit makes hard, and a look that is modern rather than dated
 (`plans/modern-look.md` covers the tokens; this covers the effects).
 
 Colour for effects that go beyond white (bloom, lit LEDs) and beyond sRGB is
-in `plans/cell-ui-hdr.md`: `Color` as linear float that holds any colour,
-clipped by the sinks that cannot show it, and a GL effects renderer chosen at
+in `plans/cell-ui-hdr.md`: `Color` as linear float Rec.2020 that holds any colour,
+clipped by the sinks that cannot show it, and a GPU effects renderer (Vulkan, Direct3D) chosen at
 start when the machine can run it.
 
 Status: under discussion. Steps 1 and 2 (backdrop blur under modal dialogs,

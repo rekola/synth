@@ -70,6 +70,48 @@ or if accessibility on Windows is needed from the first release.
 - **canvas:** gets a Direct2D/DirectWrite backend that replaces GDI+, so the
   pixel scopes and VU meters build on Windows too.
 - **HDR** (colour model and renderer choice: `plans/cell-ui-hdr.md`). The
+  Direct2D renderer above is the `basic` renderer: it reads `Color`s through
+  `toSrgb8()` (a wide colour is clipped), 8-bit, and knows nothing of HDR.
+  The `effects` renderer, on Direct3D, is chosen instead of it at start by a
+  probe, never switched to or from at run time and with no fallback inside a
+  frame. Windows has no host question: the Win32 window owns its swap chain,
+  and Direct3D renders straight into it (no OpenGL interop, no ANGLE).
+  - *The probe* (before the window is shown): a hardware Direct3D device
+    (not WARP; feature level to be fixed with the device layer spike,
+    Direct3D 11 or 12) with the features the renderer needs, not on the
+    known-bad list. Otherwise `basic`; `--renderer basic|effects|auto`
+    overrides. A failure after the choice is an error, not a silent change.
+  - *What it renders:* the cells and effects in an FP16 target in linear
+    Rec.2020 (`Color`'s own space, 1.0 = SDR white).
+  - *The swap chain* (flip model, waitable): when the display is in HDR mode,
+    either `DXGI_FORMAT_R10G10B10A2_UNORM` with
+    `DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020` (HDR10: the output stage
+    PQ-encodes the Rec.2020 values, no matrix) or `R16G16B16A16_FLOAT` with
+    `DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709` (scRGB: a matrix to Rec.709,
+    negatives allowed in the chain, 1.0 -> sdr_white_nits / 80). HDR10 is the
+    first choice since it needs no conversion of gamut; scRGB if the 10-bit
+    chain bands in dark gradients. On an SDR display: an 8-bit sRGB chain with
+    the tone-mapped output. No static HDR metadata is set (`SetHDRMetaData`);
+    the display's own tone mapping is left alone.
+  - *The display:* `IDXGIOutput6::GetDesc1` for the output's colour space and
+    its min/max luminance -> `DisplayInfo::hdr` (`available` is
+    `ColorSpace == G2084_P2020`, `peak` is `MaxLuminance` over the SDR white,
+    `gamut` from the primaries). The SDR white level is the user's slider,
+    from `DisplayConfigGetDeviceInfo` with `DISPLAYCONFIG_SDR_WHITE_LEVEL`
+    (1000 = 80 nits); it sets what 1.0 is in nits at the PQ encode. Read at
+    start, and again on `WM_DISPLAYCHANGE`, a move to another monitor, and
+    when `IDXGIFactory1::IsCurrent` says no; the change event reaches the
+    application, and the output stage (swap-chain rebuild included) follows
+    between frames - or, in the first version, "restart to apply".
+  - *Needs:* Windows 10 1709 for the HDR swap chain colour spaces and display
+    queries; Windows 11 for the best SDR-white behaviour. Older Windows has
+    only the `basic` renderer.
+  - *Testing:* CI (WARP, forced past the probe by a test-only flag) renders
+    the float output offscreen and checks values, but cannot show HDR; the
+    display-query code is exercised only on a real HDR monitor.
+- **canvas:** gets a Direct2D/DirectWrite backend that replaces GDI+, so the
+  pixel scopes and VU meters build on Windows too.
+- **HDR** (colour model and renderer choice: `plans/cell-ui-hdr.md`). The
   Direct2D renderer above is the `sdr` renderer: it reads `Color`s through
   `toSrgb8()` (a wide colour is clipped), 8-bit, and knows nothing of HDR.
   The effects renderer (`gl`, OpenGL 4.x) is chosen instead of it at start,
@@ -178,7 +220,7 @@ or if accessibility on Windows is needed from the first release.
     exercised only on a real HDR monitor.
 - **canvas:** gets a Direct2D/DirectWrite backend that replaces GDI+, so the
   pixel scopes and VU meters build on Windows too. It stays SDR; in the
-  `gl` renderer its images are sampled as sRGB textures and may carry a
+  `effects` renderer its images are sampled as sRGB textures and may carry a
   gain.
 - **Main loop:** `MsgWaitForMultipleObjectsEx`; on Windows `Notifier` is an
   event handle, so the audio thread's wakeups, WinMM MIDI and window
@@ -274,9 +316,10 @@ needed.
 - **Escape hatch:** `GtkGLArea` for a pane that needs its own shaders, used
   only if a measurement shows GSK falls short. The HDR effects
   renderer (`plans/cell-ui-hdr.md`) is that escape hatch made a whole-frame
-  one: a GL renderer chosen at start instead of the GSK one, by a probe.
-  Whether GTK can present its FP16 output as HDR is a spike there, not a
-  reason to leave GTK.
+  one: a GPU renderer (Vulkan on Linux, Direct3D on Windows) chosen at start instead of the GSK one, by a probe.
+  GTK has no API for an application's own Vulkan swap chain, so
+  on Linux it takes a native child surface; whether that or an SDL3 host is
+  right is the spike there.
 - **Measure first:** the pattern editor through the GTK backend at 4K and
   high refresh, checked for frame time and idle CPU, before the rest is
   built on it.
@@ -343,6 +386,6 @@ and Pango replace the rendering and text notes below.
    (`plans/windows-port.md`).
 8. HDR output (`plans/cell-ui-hdr.md`): the effects renderer's presenter on
    Windows (swap chain, display queries, fallback) once the Win32 backend and
-   the `gl` renderer exist; on Linux after the host spike.
+   the `effects` renderer exist; on Linux after the host spike.
 9. Voice commands, layers in 3D and the rest of the ideas in
    `plans/cell-ui.md`, as wanted.
