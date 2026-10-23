@@ -1080,8 +1080,11 @@ ClipGrid::putSendValues(int y, int x, const SendLevels & sends, int highlighted,
   float values[3] = { sends.main, sends.a, sends.b };
   for (int i = 0; i < 3; i++) {
     bool on = i == highlighted;
-    setFgColor(on || i == pressed ? styles.highlight_fg_color : styles.window_fg_color);
-    setBgColor(i == pressed ? styles.row_pressed_bg_color : on ? styles.highlight_bg_color : styles.grid_bg_color);
+    // The cursor eases in and out with the grid's focus.
+    auto fg = i == pressed ? styles.highlight_fg_color : on ? styles.window_fg_color.blend(focus_, styles.highlight_fg_color) : styles.window_fg_color;
+    auto bg = i == pressed ? styles.row_pressed_bg_color : on ? styles.grid_bg_color.blend(focus_, styles.highlight_bg_color) : styles.grid_bg_color;
+    setFgColor(fg);
+    setBgColor(bg);
     putstr(y, x + kSendX + i * kSendWidth, fmt::format("{:>4.0f}", sendDb(values[i])));
   }
 }
