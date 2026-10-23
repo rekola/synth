@@ -2547,7 +2547,8 @@ void PatternEditor::updateCursorBands(const StyleProvider & styles, const std::v
     if (cell) {
       // The cursor inverts what is under it, text and all, like a cell drawn in
       // reversed colours; the selection under it is drawn in the rows.
-      Color color = styles.highlight_unfocused_bg_color.blend(focus_, styles.highlight_bg_color);
+      // Lightened while focused: the row's own tint under it takes some of the brightness away.
+      Color color = styles.highlight_unfocused_bg_color.blend(focus_, styles.highlight_bg_color).mix(Color(255, 255, 255), 0.5f * focus_);
       strip(*cursor_plane_, *cursor_line + cursor_phase, cursor_x0_, cursor_x1_ - cursor_x0_, color, 1.0f, cellui::BlendMode::DIFFERENCE);
     } else {
       cursor_plane_->clearBand();
