@@ -1067,22 +1067,25 @@ TerminalUI::layout() {
   int matrix_width = std::max(1, matrix_divider_x);
   arrangement_grid_->resize(scope_rows, matrix_width).move(scope_row, 0);
 
-  // Live View places the scopes in its own left column below.
-  int chart_rows = std::max(1, (scope_rows - 1) / 2);
-  int heatmap_rows = std::max(1, scope_rows - 1 - chart_rows);
+  // Each scope has a title bar over it, like Live View's; Live View places
+  // the scopes in its own left column below.
+  int band_chart_rows = std::max(1, (scope_rows - 2) / 2);
+  int band_heatmap_rows = std::max(1, scope_rows - 2 - band_chart_rows);
+  int band_chart_row = scope_row + 1;
+  int band_heatmap_row = band_chart_row + band_chart_rows + 1;
   if (getView() == View::ARRANGEMENT) {
     chart_->setVisible(show_scopes);
     heatmap_->setVisible(show_scopes);
-    chart_->resize(chart_rows, kHeatmapWidth).move(scope_row, heatmap_x);
-    heatmap_->resize(heatmap_rows, kHeatmapWidth).move(scope_row + chart_rows + 1, heatmap_x);
+    chart_->resize(band_chart_rows, kHeatmapWidth).move(band_chart_row, heatmap_x);
+    heatmap_->resize(band_heatmap_rows, kHeatmapWidth).move(band_heatmap_row, heatmap_x);
   }
-  volume_meter_->resize(scope_rows, 9).move(scope_row, meter_x);
+  volume_meter_->resize(scope_rows - 1, 9).move(scope_row + 1, meter_x);
 
-  // Single-column dividers between the grid, the scopes and the meter, and a
-  // row between the two scopes - drawn once here rather than per-frame,
-  // since these cells fall outside every scope's own resized rectangle, so
-  // nothing else ever repaints over them. (When hidden, the workspace below
-  // covers these rows instead.)
+  // Single-column dividers between the grid, the scopes and the meter, and
+  // the scopes' title bars - drawn once here rather than per-frame, since
+  // these cells fall outside every scope's own resized rectangle, so nothing
+  // else ever repaints over them. (When hidden, the workspace below covers
+  // these rows instead.)
   setFgColor(styles_.window_border_color);
   setBgColor(styles_.window_bg_color);
   const char * divider_glyph = styles_.grid_lines ? "│" : " ";
@@ -1091,7 +1094,20 @@ TerminalUI::layout() {
     putstr(scope_row + row, meter_x - 1, divider_glyph);
   }
   if (show_scopes) {
-    for (int x = heatmap_x; x < heatmap_x + kHeatmapWidth; x++) putstr(scope_row + chart_rows, x, styles_.grid_lines ? "─" : " ");
+    // The grid's own header rows use the same panel colour.
+    struct Title {
+      int row, col, width;
+      const char * text;
+    };
+    const Title titles[] = {{scope_row, heatmap_x, kHeatmapWidth, "Spectrum"},
+                            {band_heatmap_row - 1, heatmap_x, kHeatmapWidth, "DirAC"},
+                            {scope_row, meter_x, 9, "Level"}};
+    setFgColor(styles_.window_accent_fg_color);
+    setBgColor(styles_.window_accent_bg_color);
+    for (auto & title : titles) {
+      putstr(title.row, title.col, std::string(static_cast<size_t>(title.width), ' '));
+      putstr(title.row, title.col + 1, title.text);
+    }
   }
   // The workspace below the scope row. A widget the current view doesn't
   // show gets the same rect as a visible one instead of being shrunk to

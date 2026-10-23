@@ -767,6 +767,8 @@ TEST(terminal_ui_arrangement_grid_shows_bars_to_the_right_of_the_track_names) {
   UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT);
   CHECK(f.line(1).find("1   5   9") != std::string::npos); // the ruler
   CHECK(f.line(3).find("T0") != std::string::npos);        // the first track's name
+  CHECK(f.line(1).find("Spectrum") != std::string::npos);  // the scopes have title bars
+  CHECK(f.text().find("DirAC") != std::string::npos);
 }
 
 // A cursor shows only while the window has the focus, in the outline, the clip
