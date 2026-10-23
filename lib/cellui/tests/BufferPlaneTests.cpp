@@ -605,6 +605,31 @@ TEST(bufferplane_a_band_keeps_its_blend_mode) {
   CHECK(layers.size() == 1 && layers[0].scroll->band->blend == BlendMode::NORMAL);
 }
 
+// An outline needs a display that draws bands by parts of a cell: it reaches
+// the layer there, and leaves the cells alone otherwise.
+TEST(bufferplane_a_band_outline_is_for_smooth_displays_only) {
+  StyleProvider styles;
+  CellBuffer b(4, 8);
+  BufferPlane root(b, styles);
+  auto list = root.createChild();
+  list->resize(2, 4);
+  list->move(1, 2);
+  list->setBgColor(10, 20, 30);
+  list->putstr(0, 0, "abcd");
+  Band outline{ 0.0, 1.0, 0, 4, Color(255, 0, 0), 0.0f, BlendMode::NORMAL, Color(0, 255, 0), 1.0f, 2.0 };
+  root.refresh();
+  auto plain = b.at(1, 2);
+  list->setBand(outline);
+  root.refresh();
+  CHECK(root.takeBackdropLayers().empty());
+  CHECK(b.at(1, 2).bg == plain.bg && b.at(1, 2).fg == plain.fg);
+  root.setSmoothScroll(true);
+  root.refresh();
+  auto layers = root.takeBackdropLayers();
+  CHECK(layers.size() == 1 && layers[0].scroll && layers[0].scroll->band);
+  CHECK(layers[0].scroll->band->border_px == 2.0 && layers[0].scroll->band->border_color.getGreen() == 255);
+}
+
 // Where the display cannot draw a band by parts of a cell, it is laid over the
 // cells it reaches, blended: a difference with white inverts text and background.
 TEST(bufferplane_a_band_on_a_display_without_smooth_scrolling_blends_the_cells) {

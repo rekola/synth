@@ -312,7 +312,7 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
   }
   // A band the display cannot draw by parts of a cell is laid over the whole
   // cells it reaches: their colours blended, text included.
-  if (band_ && !top.smooth_scroll_) {
+  if (band_ && band_->alpha > 0.0f && !top.smooth_scroll_) {
     const Band & band = *band_;
     int band_r0 = row + static_cast<int>(std::lround(band.row)), band_r1 = row + static_cast<int>(std::lround(band.row + band.rows));
     int band_c0 = col + static_cast<int>(std::lround(band.col)), band_c1 = col + static_cast<int>(std::lround(band.col + band.cols));

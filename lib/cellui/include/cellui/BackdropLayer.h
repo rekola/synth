@@ -26,6 +26,12 @@ struct Band {
   Color color = Color(255, 255, 255);
   float alpha = 1.0f;
   BlendMode blend = BlendMode::NORMAL;
+  // An outline drawn inside the rectangle, `border_px` pixels wide, over the
+  // fill; only where the display draws bands by parts of a cell (the cell
+  // version has no room for one between two cells).
+  Color border_color = Color(255, 255, 255);
+  float border_alpha = 1.0f;
+  double border_px = 0;
 };
 
 struct ScrollContent {
