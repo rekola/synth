@@ -506,7 +506,8 @@ OutlineView::renderCursor(const StyleProvider & styles, bool focused) {
   // A translucent band over the tree, so the row shows through; it moves by
   // parts of a row independently of the content.
   const auto & color = focused ? styles.highlight_bg_color : styles.highlight_unfocused_bg_color;
-  tree_plane_->setBand(cellui::Band{cursor_y_, 1.0, 0.0, static_cast<double>(getDim().second), color, focused ? 0.45f : 0.6f});
+  tree_plane_->setBand(cellui::Band{cursor_y_, 1.0, 0.0, static_cast<double>(getDim().second), color, focused ? 0.45f : 0.6f,
+                                    cellui::BlendMode::NORMAL, styles.theme.elevation.card});
 }
 
 void
