@@ -2649,6 +2649,8 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
       // what's nested inside it - clamped so a very deep chain doesn't
       // run off into full white.
       auto step = std::min(t->getDepth(), 6);
+      // The new look: the raised surface, nudged toward the text colour per level.
+      if (styles.track_chips) return styles.heading_bg_color.blend(0.04f * static_cast<float>(step), styles.theme.text_primary);
       auto v = 0x30 + step * 0x10;
       return Color(v, v, std::min(v + 0x10, 255));
     };
@@ -3022,7 +3024,7 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
 	    // White, matching the heading text - a heading control, not a
 	    // status indicator (contrast the dot below, or the level-0 title
 	    // bar's own M/S glyphs).
-	    setFgColor(0xff, 0xff, 0xff);
+	    setFgColor(styles.track_chips ? styles.window_accent_fg_color : Color(0xff, 0xff, 0xff));
 	    putstr(heading_height - 2 - level, current_pos, track->isCollapsed() ? "▸ " : "◂ ");
 	    putstr(heading_height - 2 - level, current_pos + 2, name);
 
@@ -3045,7 +3047,7 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
 	      putstr(heading_height - 2 - level, current_pos + 2 + element_name_width, "•");
 	    }
 	  } else {
-	    setFgColor(0x00, 0x00, 0x00);
+	    setFgColor(styles.track_chips ? segment_color(track) : Color(0, 0, 0));
 	    putstr(heading_height - 2 - level, current_pos, string(static_cast<size_t>(actual_width - 1), ' '));
 	  }
           // Drawn last for both branches - see the level 0 branch's own
