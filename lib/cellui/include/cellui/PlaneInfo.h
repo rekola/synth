@@ -31,6 +31,8 @@ struct ElevatedArea {
   // How many of the frame's backdrop layers lie below it: one fewer than
   // FrameInfo::backdrops has means a later backdrop covers it.
   size_t layer = 0;
+  // False for lifted cells that only stand above lower shadows and cast none.
+  bool shadow = true;
 };
 
 // The part of the screen a plane asked a pointer shape for.

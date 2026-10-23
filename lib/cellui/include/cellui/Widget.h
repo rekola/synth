@@ -204,8 +204,8 @@ class Widget {
     if (plane_) plane_->setItalic(b);
     return *this;
   }
-  Widget & setLift(float lift, bool joins_above = false) {
-    if (plane_) plane_->setLift(lift, joins_above);
+  Widget & setLift(float lift, bool joins_above = false, bool casts_shadow = true) {
+    if (plane_) plane_->setLift(lift, joins_above, casts_shadow);
     return *this;
   }
 

@@ -69,9 +69,10 @@ class BufferPlane : public Plane {
   void setBgBlend(bool b) override { style_.bg_blend = b; }
   void setFgContrast(bool b) override { style_.fg_contrast = b; }
   void setBackdrop(const Backdrop & b) override { style_.backdrop = b; }
-  void setLift(float lift, bool joins_above) override {
+  void setLift(float lift, bool joins_above, bool casts_shadow) override {
     style_.lift = lift;
     style_.lift_joined = joins_above;
+    style_.lift_shadow = casts_shadow;
   }
   void setScrollOffset(double rows, double cols) override;
   void setBand(const Band & band) override {

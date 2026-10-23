@@ -452,6 +452,7 @@ void Window::Impl::drawShadows() {
     bool any = false;
     for (size_t k = i; k < level_end; k++) {
       if (elevations[k].layer < layers.size()) continue;  // a later backdrop covers it
+      if (!elevations[k].shadow) continue;                  // stands above lower shadows, casts none
       D2D1_RECT_F r = rectOf(elevations[k]);
       ring(r, 0, 0, std::max(2.0f, 0.25f * px), ambient_alpha);
       ring(r, dx, dy, px, key_alpha);
@@ -469,7 +470,7 @@ void Window::Impl::drawShadows() {
       }
       // A light top edge and a darker bottom one.
       for (size_t k = i; k < level_end; k++) {
-        if (elevations[k].layer < layers.size()) continue;
+        if (elevations[k].layer < layers.size() || !elevations[k].shadow) continue;
         D2D1_RECT_F r = rectOf(elevations[k]);
         brush->SetColor(D2D1::ColorF(1, 1, 1, dark ? 0.14f : 0.55f));
         rt_->FillRectangle(D2D1::RectF(r.left, r.top, r.right, r.top + 1), brush.get());

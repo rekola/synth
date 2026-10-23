@@ -44,6 +44,9 @@ class CellBuffer {
     float lift = 0.0f;
     // Part of one piece with the lifted cells right above it.
     bool lift_joined = false;
+    // A lifted cell that casts no shadow (a cursor): it only stands above
+    // the shadows of what is no higher.
+    bool lift_shadow = true;
   };
 
   struct Style {
@@ -56,6 +59,7 @@ class CellBuffer {
     Backdrop backdrop = {};
     float lift = 0.0f;
     bool lift_joined = false;
+    bool lift_shadow = true;
   };
 
   CellBuffer(int rows, int cols);

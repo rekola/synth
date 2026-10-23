@@ -734,6 +734,27 @@ TEST(bufferplane_reports_lifted_cells_as_pieces) {
   CHECK(at(4, 0, 1, 1, 2.0f));
 }
 
+// A lifted cell that casts no shadow is a piece of its own, and says so.
+TEST(bufferplane_reports_shadowless_lifted_cells) {
+  StyleProvider styles;
+  CellBuffer b(2, 10);
+  BufferPlane root(b, styles);
+  auto plane = root.createChild();
+  plane->setName("plane");
+  plane->resize(2, 10);
+  plane->setLift(1);
+  plane->putstr(0, 0, "aa");
+  plane->setLift(1, false, false);
+  plane->putstr(0, 2, "bb");
+  plane->setLift(0);
+  root.refresh();
+  std::vector<ElevatedArea> lifted;
+  for (const auto & area : root.takeElevations()) lifted.push_back(area);
+  CHECK(lifted.size() == 2);
+  CHECK(std::any_of(lifted.begin(), lifted.end(), [](const ElevatedArea & a) { return a.col == 0 && a.cols == 2 && a.shadow; }));
+  CHECK(std::any_of(lifted.begin(), lifted.end(), [](const ElevatedArea & a) { return a.col == 2 && a.cols == 2 && !a.shadow; }));
+}
+
 TEST(bufferplane_keeps_wide_colours_in_its_cells) {
   StyleProvider styles;
   CellBuffer b(1, 4);
