@@ -414,10 +414,12 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   }
 
   // The header: the ruler (a bar number every fourth bar) and the locators,
-  // each followed by its name.
-  setBgColor(styles.heading_bg_color);
+  // each followed by its name. Its panel colour keeps it apart from the menu
+  // bar above.
+  const auto header_bg = styles.window_accent_bg_color;
+  setBgColor(header_bg);
   for (int y = 0; y < kHeaderRows; y++) putstr(y, 0, string(static_cast<size_t>(kNameWidth), ' '));
-  bars_plane.setBgColor(styles.heading_bg_color);
+  bars_plane.setBgColor(header_bg);
   for (int y = 0; y < kHeaderRows; y++) bars_plane.putstr(y, 0, string(static_cast<size_t>(drawn_cols), ' '));
   vector<string> locator_text(static_cast<size_t>(drawn_cols));
   vector<bool> locator_head(static_cast<size_t>(drawn_cols), false);
@@ -436,7 +438,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   for (auto vc = 0; vc < drawn_cols; vc++) {
     auto bar = first_bar + vc;
     if (bar >= bar_count) break;
-    auto bg = styles.heading_bg_color;
+    auto bg = header_bg;
     if (bar == playing_bar && !smooth_playhead) bg = styles.cursorRowTint(bg);
     // The label of the fourth bar at or before this one, read at this offset.
     auto label_bar = bar - bar % 4;
@@ -446,7 +448,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
     bars_plane.setFgColor(bar == playing_bar ? styles.cursor_tint_color : styles.window_fg_color);
     bars_plane.putstr(0, vc, label.size() <= 3 && offset < label.size() ? label.substr(offset, 1) : " ");
     auto & text = locator_text[static_cast<size_t>(vc)];
-    bars_plane.setBgColor(styles.heading_bg_color);
+    bars_plane.setBgColor(bg);
     bars_plane.setFgColor(bar == playing_bar && locator_head[static_cast<size_t>(vc)] ? styles.cursor_tint_color : styles.locator_mark_color);
     bars_plane.putstr(1, vc, text.empty() ? " " : text);
   }
@@ -458,7 +460,8 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
     if (track_index >= num_tracks) break;
     auto track_id = track_ids[static_cast<size_t>(track_index)];
     auto y = kHeaderRows + vt;
-    bool selected = track_id == selected_track_id;
+    // Shown only while this grid has the focus.
+    bool selected = focused && track_id == selected_track_id;
     auto color = track_color(track_id);
 
     // The name, after a swatch in the track's color; the selected track's is
