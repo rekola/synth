@@ -1451,6 +1451,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   // for what used to be a hand-rolled diff of each of those pieces
   // separately (see SelectionBounds::operator==).
   // A pass fading in or out keeps redrawing, once more after it ends.
+  if (scene_source_) scene_source_->setReducedMotion(styles.reduced_motion);
   bool fading = isLiveMode() && scene_source_->isFading();
   // How focused the widget is, eased: its cursor fades between the focused and unfocused look.
   focus_ = fades_.value(0, focused ? 1.0f : 0.0f, !styles.reduced_motion);
@@ -2679,6 +2680,8 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
       if (level == 0 && vis_info && vis_info->color_ordinal_ >= 0) return styles.track_chips ? styles.heading_bg_color : vis_info->getColor(styles.tracks);
       // Fixed, not depth-shaded grey like every other ancestor box below -
       // there's only ever one master per song.
+      // The new look leaves non-leaf tracks flat on the window.
+      if (styles.track_chips && !(level == 0 && vis_info && vis_info->color_ordinal_ >= 0)) return styles.window_bg_color;
       if (t->getType() == TrackType::MASTER) return styles.master_track_color;
       // Each extra nesting level lightens the grey by one step, so an
       // outer wrapping effect's box reads visually "further out" than
@@ -3035,7 +3038,10 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
 	  // that can't be met); whatever's left goes to the name, with the
 	  // activity dot claiming the last cell of it first - so a
 	  // narrow segment drops the dot before it drops the toggle.
-	  auto remaining = actual_width - 3;
+	  // A flat box gets a blank column in front, so its toggle doesn't touch
+	  // the neighbour's edge.
+	  const int margin = styles.track_chips ? 1 : 0;
+	  auto remaining = actual_width - 3 - margin;
 	  // The dot reports whether a per-track effect is currently doing
 	  // anything - only ever meaningful for an actual Effect (a Group's
 	  // own box, or the master's, has no such per-instance on/off state).
@@ -3058,9 +3064,10 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
 	    // White, matching the heading text - a heading control, not a
 	    // status indicator (contrast the dot below, or the level-0 title
 	    // bar's own M/S glyphs).
-	    setFgColor(0xff, 0xff, 0xff);
-	    putstr(heading_height - 2 - level, current_pos, track->isCollapsed() ? "▸ " : "◂ ");
-	    putstr(heading_height - 2 - level, current_pos + 2, name);
+	    setFgColor(styles.track_chips ? styles.theme.text_primary : Color(0xff, 0xff, 0xff));
+	    putstr(heading_height - 2 - level, current_pos, std::string(static_cast<size_t>(margin), ' '));
+	    putstr(heading_height - 2 - level, current_pos + margin, track->isCollapsed() ? "▸ " : "◂ ");
+	    putstr(heading_height - 2 - level, current_pos + margin + 2, name);
 
 	    if (show_dot) {
 	      // Always draw the dot - faint when idle, full clip/active color
@@ -3076,18 +3083,23 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
 	      } else {
 		// Idle: faint_color() - see its own comment - rather than a
 		// fixed grey.
-		setFgColor(faint_color(track));
+		setFgColor(styles.track_chips ? styles.theme.text_disabled : faint_color(track));
 	      }
-	      putstr(heading_height - 2 - level, current_pos + 2 + element_name_width, "•");
+	      putstr(heading_height - 2 - level, current_pos + margin + 2 + element_name_width, "•");
 	    }
 	  } else {
-	    setFgColor(0x00, 0x00, 0x00);
+	    setFgColor(styles.track_chips ? segment_color(track) : Color(0, 0, 0));
 	    putstr(heading_height - 2 - level, current_pos, string(static_cast<size_t>(actual_width - 1), ' '));
 	  }
           // Drawn last for both branches - see the level 0 branch's own
           // comment on why. At the segment's own last column regardless of
           // how the budget above split up the rest of it.
-          draw_divider(heading_height - 2 - level, current_pos + actual_width - 1, track, i);
+          if (styles.track_chips) {
+            setBgColor(styles.window_bg_color);
+            putstr(heading_height - 2 - level, current_pos + actual_width - 1, " ");
+          } else {
+            draw_divider(heading_height - 2 - level, current_pos + actual_width - 1, track, i);
+          }
 	}
       }
       
