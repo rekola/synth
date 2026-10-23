@@ -229,6 +229,8 @@ struct Window::Impl {
   void drawCells(const CellBuffer & cells, bool transparent, int origin_row, int origin_col, double shift_x, double shift_y,
                  const CellRange * only = nullptr);
   void drawShadows();
+  void drawLayer(size_t i, const CellRange * only);
+  void drawLayerDim(size_t i);
   void blurRegion(Com<ID2D1BitmapRenderTarget> & below, const D2D1_RECT_F & region, float radius);
   ID2D1Bitmap * bitmapFor(const ImagePlacement & placement);
 
@@ -450,6 +452,26 @@ void Window::Impl::drawShadows() {
       rt_->DrawRectangle(D2D1::RectF(r.left + dx - grow, r.top + dy - grow, r.right + dx + grow, r.bottom + dy + grow), brush.get(), step);
     }
   };
+  // The lifted bands of scrolled planes, which are drawn in the layers below.
+  struct LiftedBand {
+    D2D1_RECT_F rect;
+    CellRange cells;
+    float elevation;
+  };
+  std::vector<LiftedBand> bands;
+  for (const BackdropLayer & layer : layers) {
+    if (!layer.scroll || !layer.scroll->band || layer.scroll->band->lift <= 0.0f) continue;
+    const ScrollContent & content = *layer.scroll;
+    const Band & band = *content.band;
+    float left = static_cast<float>(std::max(static_cast<double>(content.col), content.col + band.col) * cell_w);
+    float top = static_cast<float>(std::max(static_cast<double>(content.row), content.row + band.row) * cell_h);
+    float right = static_cast<float>(std::min(static_cast<double>(content.col + content.cols), content.col + band.col + band.cols) * cell_w);
+    float bottom = static_cast<float>(std::min(static_cast<double>(content.row + content.rows), content.row + band.row + band.rows) * cell_h);
+    if (right <= left || bottom <= top) continue;
+    int r0 = static_cast<int>(top) / cell_h, c0 = static_cast<int>(left) / cell_w;
+    int r1 = (static_cast<int>(std::ceil(bottom)) + cell_h - 1) / cell_h, c1 = (static_cast<int>(std::ceil(right)) + cell_w - 1) / cell_w;
+    bands.push_back(LiftedBand{ D2D1::RectF(left, top, right, bottom), { r0, c0, r1 - r0, c1 - c0 }, content.elevation + band.lift });
+  }
   size_t i = 0;
   while (i < elevations.size()) {
     float e = elevations[i].elevation;
@@ -467,6 +489,18 @@ void Window::Impl::drawShadows() {
       any = true;
     }
     if (any) {
+      // A lifted band again, with what lies below and above it (unblurred).
+      for (const LiftedBand & band : bands) {
+        if (band.elevation < e) continue;
+        rt_->PushAxisAlignedClip(band.rect, D2D1_ANTIALIAS_MODE_ALIASED);
+        rt_->Clear(colorOf(bg));
+        for (size_t k = 0; k < layers.size(); k++) {
+          drawLayer(k, &band.cells);
+          drawLayerDim(k);
+        }
+        drawCells(frame, !layers.empty(), 0, 0, 0, 0, &band.cells);
+        rt_->PopAxisAlignedClip();
+      }
       // Everything as high or higher is drawn again over the shadows.
       for (size_t j = i; j < elevations.size(); j++) {
         const ElevatedArea & a = elevations[j];
@@ -488,6 +522,38 @@ void Window::Impl::drawShadows() {
     }
     i = level_end;
   }
+}
+
+// A layer's cells and its scrolled plane with its band.
+void Window::Impl::drawLayer(size_t i, const CellRange * only) {
+  const BackdropLayer & layer = layers[i];
+  drawCells(layer.cells, i > 0, 0, 0, 0, 0, only);
+  if (!layer.scroll) return;
+  const ScrollContent & content = *layer.scroll;
+  D2D1_RECT_F shown = D2D1::RectF(static_cast<float>(content.col * cell_w), static_cast<float>(content.row * cell_h),
+                                  static_cast<float>((content.col + content.cols) * cell_w), static_cast<float>((content.row + content.rows) * cell_h));
+  rt_->PushAxisAlignedClip(shown, D2D1_ANTIALIAS_MODE_ALIASED);
+  // The content is shifted by up to a cell, so one more of it may show.
+  CellRange wider{};
+  if (only) wider = { only->row, only->col, only->rows + 1, only->cols + 1 };
+  drawCells(content.cells, true, content.row, content.col, content.shift_cols * cell_w, content.shift_rows * cell_h, only ? &wider : nullptr);
+  if (content.band) {
+    const Band & band = *content.band;
+    // Blend modes are not drawn here yet: a blended band is a plain tint.
+    brush->SetColor(colorOf(band.color, band.blend == BlendMode::NORMAL ? band.alpha : 0.45f));
+    float bx = static_cast<float>((content.col + band.col) * cell_w), by = static_cast<float>((content.row + band.row) * cell_h);
+    rt_->FillRectangle(D2D1::RectF(bx, by, bx + static_cast<float>(band.cols * cell_w), by + static_cast<float>(band.rows * cell_h)), brush.get());
+  }
+  rt_->PopAxisAlignedClip();
+}
+
+void Window::Impl::drawLayerDim(size_t i) {
+  const BackdropLayer & layer = layers[i];
+  if (layer.backdrop.dim <= 0.0f) return;
+  D2D1_RECT_F region = D2D1::RectF(static_cast<float>(layer.col * cell_w), static_cast<float>(layer.row * cell_h),
+                                   static_cast<float>((layer.col + layer.cols) * cell_w), static_cast<float>((layer.row + layer.rows) * cell_h));
+  brush->SetColor(colorOf(layer.backdrop.tint.value_or(*display_info.default_bg), layer.backdrop.dim));
+  rt_->FillRectangle(region, brush.get());
 }
 
 void Window::Impl::paint() {
@@ -514,32 +580,14 @@ void Window::Impl::paint() {
     // Each backdrop blurs and dims what is below it, over the cells it covers.
     for (size_t i = 0; i < layers.size(); i++) {
       const BackdropLayer & layer = layers[i];
-      drawCells(layer.cells, i > 0, 0, 0, 0, 0);
-      if (layer.scroll) {
-        const ScrollContent & content = *layer.scroll;
-        D2D1_RECT_F shown = D2D1::RectF(static_cast<float>(content.col * cell_w), static_cast<float>(content.row * cell_h),
-                                        static_cast<float>((content.col + content.cols) * cell_w), static_cast<float>((content.row + content.rows) * cell_h));
-        rt_->PushAxisAlignedClip(shown, D2D1_ANTIALIAS_MODE_ALIASED);
-        drawCells(content.cells, true, content.row, content.col, content.shift_cols * cell_w, content.shift_rows * cell_h);
-        if (content.band) {
-          const Band & band = *content.band;
-          // Blend modes are not drawn here yet: a blended band is a plain tint.
-          brush->SetColor(colorOf(band.color, band.blend == BlendMode::NORMAL ? band.alpha : 0.45f));
-          float bx = static_cast<float>((content.col + band.col) * cell_w), by = static_cast<float>((content.row + band.row) * cell_h);
-          rt_->FillRectangle(D2D1::RectF(bx, by, bx + static_cast<float>(band.cols * cell_w), by + static_cast<float>(band.rows * cell_h)), brush.get());
-        }
-        rt_->PopAxisAlignedClip();
-      }
-      D2D1_RECT_F region = D2D1::RectF(static_cast<float>(layer.col * cell_w), static_cast<float>(layer.row * cell_h),
-                                       static_cast<float>((layer.col + layer.cols) * cell_w), static_cast<float>((layer.row + layer.rows) * cell_h));
+      drawLayer(i, nullptr);
       if (blurs && layer.backdrop.blur > 0) {
+        D2D1_RECT_F region = D2D1::RectF(static_cast<float>(layer.col * cell_w), static_cast<float>(layer.row * cell_h),
+                                         static_cast<float>((layer.col + layer.cols) * cell_w), static_cast<float>((layer.row + layer.rows) * cell_h));
         double half_row = std::min(layer.backdrop.blur, Backdrop::kMaxBlur) * cell_h / 2.0;
         blurRegion(offscreen, region, static_cast<float>(2.0 * std::sqrt(2.0 * half_row * (half_row + 1.0) / 3.0)));
       }
-      if (layer.backdrop.dim > 0.0f) {
-        brush->SetColor(colorOf(layer.backdrop.tint.value_or(bg), layer.backdrop.dim));
-        rt_->FillRectangle(region, brush.get());
-      }
+      drawLayerDim(i);
     }
     drawCells(frame, !layers.empty(), 0, 0, 0, 0);
     drawShadows();

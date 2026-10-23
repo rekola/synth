@@ -187,7 +187,7 @@ struct Window::Impl {
     for (Painted & band : p.bands) release(band);
     p = {};
   }
-  void appendShadows(GtkSnapshot * snap, const Painted & top);
+  void appendShadows(GtkSnapshot * snap, const Painted & top, GskRenderNode * below);
   void forgetTextures() {
     for (Painted & p : painted) release(p);
   }
@@ -439,7 +439,7 @@ void Window::Impl::appendTexture(GtkSnapshot * snap, const Painted & p, int row,
 // A soft shadow around every plane above the base that nothing blurs, the
 // higher the softer and the further down: drawn over the frame, outside the
 // plane, and under every plane higher than it, which is drawn again over it.
-void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top) {
+void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top, GskRenderNode * below) {
   const Color & bg = *display_info.default_bg;
   bool dark = bg.luminance() < 0.21f;
   stats.shadows = 0;
@@ -456,6 +456,23 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top) {
                               static_cast<float>(a.rows * cell_h));
   };
   auto shown = [&](const ElevatedArea & a) { return a.layer >= layers.size(); };
+  // The lifted bands of scrolled planes, which are drawn in the layers below.
+  struct LiftedBand {
+    graphene_rect_t rect;
+    float elevation;
+  };
+  std::vector<LiftedBand> bands;
+  for (const BackdropLayer & layer : layers) {
+    if (!below || !layer.scroll || !layer.scroll->band || layer.scroll->band->lift <= 0.0f) continue;
+    const ScrollContent & content = *layer.scroll;
+    const Band & band = *content.band;
+    graphene_rect_t plane = GRAPHENE_RECT_INIT(static_cast<float>(content.col * cell_w), static_cast<float>(content.row * cell_h),
+                                               static_cast<float>(content.cols * cell_w), static_cast<float>(content.rows * cell_h));
+    graphene_rect_t strip = GRAPHENE_RECT_INIT(static_cast<float>((content.col + band.col) * cell_w), static_cast<float>((content.row + band.row) * cell_h),
+                                               static_cast<float>(band.cols * cell_w), static_cast<float>(band.rows * cell_h));
+    LiftedBand lifted{ {}, content.elevation + band.lift };
+    if (graphene_rect_intersection(&plane, &strip, &lifted.rect)) bands.push_back(lifted);
+  }
   // Height by height, lowest first: each one's shadows, then everything as
   // high or higher drawn again over them, so a shadow falls only on what is
   // lower (neighbours of one height included).
@@ -483,6 +500,15 @@ void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top) {
       any = true;
     }
     if (any) {
+      // A lifted band again, with what lies below and above it.
+      for (const LiftedBand & band : bands) {
+        graphene_rect_t meet;
+        if (band.elevation < e || !graphene_rect_intersection(&band.rect, &reach, &meet)) continue;
+        gtk_snapshot_push_clip(snap, &band.rect);
+        gtk_snapshot_append_node(snap, below);
+        appendTexture(snap, top);
+        gtk_snapshot_pop(snap);
+      }
       for (size_t j = i; j < elevations.size(); j++) {
         if (!shown(elevations[j])) continue;
         graphene_rect_t above = rectOf(elevations[j]), meet;
@@ -523,7 +549,7 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
       gtk_snapshot_append_color(snap, &background, &all);
       const Painted & top = paint(0, frame, false);
       appendTexture(snap, top);
-      appendShadows(snap, top);
+      appendShadows(snap, top, nullptr);
     } else {
       // Each backdrop blurs and dims everything below it, on the GPU: what
       // is composed so far is a node, drawn as it is and again, blurred,
@@ -629,10 +655,10 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
         below = gtk_snapshot_free_to_node(s);
       }
       gtk_snapshot_append_node(snap, below);
-      gsk_render_node_unref(below);
       const Painted & top = paint(layers.size(), frame, true);
       appendTexture(snap, top);
-      appendShadows(snap, top);
+      appendShadows(snap, top, below);
+      gsk_render_node_unref(below);
     }
     // Layers that are gone leave their textures.
     size_t used = layers.size() + 1 + scrolls;

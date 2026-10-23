@@ -1508,7 +1508,8 @@ would otherwise resume showing.
   that no later backdrop covers (`ElevatedArea::layer`) - a key light from the upper left,
   offset down by half the height and right by a little less, blurred by all of it, and a faint
   ambient one - then, height by height, the cells
-  of every area as high or higher again over them, so a shadow falls only on what is lower, and
+  of every area as high or higher again over them, and every band as high (`Band::lift`, which the
+  cursors and playheads take so a lower shadow does not fall on them), so a shadow falls only on what is lower, and
   a light top and dark bottom edge on each area (`FrameStats::shadows`).
   The terminal cannot blur, so what it shows is made in its own backend: `term::BackdropEmulation`
   (`TerminalSession::present()`) - cells averaged over their neighbours with the glyphs
