@@ -5,6 +5,9 @@
 
 #include <chrono>
 #include <functional>
+#include <memory>
+#include <tuple>
+#include <unordered_map>
 #include <vector>
 
 #include <cellui/Fade.h>
@@ -13,36 +16,33 @@
 #include "../StyleProvider.h"
 class Song;
 
-// Always-visible overview of the whole song: one row per bar of the
-// arrangement (Song::getRowsPerBar() rows each), running on one bar past
-// where its content ends (Song::getArrangementLength()). A "›" in the
-// rightmost column marks a bar with a locator in it (Song::getLocators()),
-// at whichever of its rows. Columns = tracks -
-// Song::getRootTrackIds() filtered down to only color-eligible ones (see
-// getVisibleTrackIds()). A clip instance renders as a colored capsule
-// (that track's own identity color, the same one PatternEditor's own
-// heading row uses) two cells wide - a full identifier cell showing a
-// single hex digit (its ordinal position in that track's own clip list,
-// the exact index Launchpad Live View's rows already address) flanked
-// by half-width padding cells shared with whichever neighboring
-// track/edge sits on the other side (see render()'s own half-block
-// drawing) - resolved the same way real playback does
-// (ArrangementOps.h's own resolveInstanceForBar(), once per bar); every
-// later bar it's still active through repeats the same capsule with a
-// blank identifier cell instead of the digit. A colored background is
-// reserved for an active instance - a bar with no active instance instead
-// falls back to a plain grey foreground glyph (uncolored on purpose - a
-// track's own identity color never means anything but "a real instance
-// is here"; ASCII rather than a wide Unicode glyph, since the identifier
-// cell only ever has room for one column) showing whether the background
-// has anything there at all - "*" for a real sounding note, "." for a bar
-// that's only non-empty from note-offs/commands.
+// Always-visible overview of the whole song, with time running to the right
+// like a composition: one column per bar of the arrangement, running on one
+// bar past where its content ends (Song::getArrangementLength()). Rows =
+// tracks - Song::getPlayableTrackIds(), each named at the left after a
+// swatch of its identity color (the same one PatternEditor's own heading row
+// uses). Above them two header rows: a bar ruler (the number of every
+// fourth bar) and the song's locators (Song::getLocators()), each a "›" at
+// its bar followed by its name. A clip instance renders as a colored block
+// (that track's own identity color) spanning its own active length in bars,
+// its leading bar showing a single hex digit - its ordinal position in that
+// track's own clip list, the exact index Launchpad Live View's rows already
+// address - resolved the same way real playback does (ArrangementOps.h's own
+// resolveInstanceForBar(), once per bar); every later bar it's still active
+// through repeats the same color with a blank cell instead of the digit. A
+// colored background is reserved for an active instance - a bar with no
+// active instance instead falls back to a plain grey foreground glyph
+// (uncolored on purpose - a track's own identity color never means anything
+// but "a real instance is here"; ASCII rather than a wide Unicode glyph,
+// since a cell only ever has room for one column) showing whether the
+// background has anything there at all - "*" for a real sounding note, "."
+// for a bar that's only non-empty from note-offs/commands.
 //
 // No per-cell copy/paste - placing/moving clip content is copy-to-clip's
 // own job, from PatternEditor; this widget is placement/overview only,
 // and an instantiated clip can only be edited by going to one of its own
 // (live-linked) instances in PatternEditor, never here directly. No
-// track-ordinal header row either.
+// track-ordinal header either.
 //
 // This class's own cursor is local and passive: moving it never touches
 // PatternEditor, the playhead, or any track selection - the one
@@ -60,6 +60,18 @@ class ArrangementGrid : public UIElement {
   bool isAnimating() const { return fades_.active() || focus_fade_drawn_; }
 
   ArrangementGrid(Plane & parent);
+
+  // The header's rows (bar ruler, locators) and the names' width, in cells.
+  static constexpr int kHeaderRows = 2;
+  static constexpr int kNameWidth = 10;
+
+  // The bars are a plane of their own (so they can shift by parts of a bar
+  // under the names); this shows or hides it with the grid.
+  void setShown(bool shown) {
+    shown_ = shown;
+    setVisible(shown);
+    if (bars_plane_) bars_plane_->setVisible(shown);
+  }
 
   // `focused` (whether this widget is UI::active_element_ - it has no way
   // to know that itself) gates the cursor-cell highlight only: distracting
@@ -125,7 +137,7 @@ class ArrangementGrid : public UIElement {
   int cursor_bar_ = 0;
   int cursor_track_index_ = 0;
 
-  // Top-left corner of the visible viewport, in bars and tracks - kept in
+  // Top-left corner of the visible viewport, in tracks (rows) and bars (cols) - kept in
   // sync with the cursor by ensureCursorVisible() rather than tracked
   // independently, so the cursor is always on screen.
   cellui::Viewport viewport_;
@@ -136,10 +148,13 @@ class ArrangementGrid : public UIElement {
   int current_song_version_ = -1;
   int current_playing_row_ = -1;
   int current_cursor_bar_ = -1, current_cursor_track_index_ = -1;
-  double current_shown_row_ = -1;
+  double current_shown_col_ = -1;
   int current_phase_ = -1;
+  bool shown_ = true, current_shown_ = true;
+  std::unique_ptr<Plane> bars_plane_;
+  std::tuple<int, int, int, int> laid_out_{-1, -1, -1, -1};
   bool current_smooth_playhead_ = false;
-  int current_scroll_col_ = -1;
+  int current_scroll_row_ = -1;
   std::chrono::steady_clock::time_point last_tick_ = std::chrono::steady_clock::now();
   bool current_focused_ = false;
   float focus_ = 0.0f;
