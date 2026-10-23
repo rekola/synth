@@ -120,3 +120,26 @@ TEST(win32_window_presents_a_frame_without_failing) {
   w->eventLoop().iterate(false);
   CHECK(IsWindow(static_cast<HWND>(w->nativeHandle())));
 }
+
+TEST(win32_window_reports_focus_and_lets_go_of_held_keys_on_losing_it) {
+  win32::Window * w = theWindow();
+  if (!w) return;
+  w->poll();
+  HWND hwnd = static_cast<HWND>(w->nativeHandle());
+  SendMessageW(hwnd, WM_SETFOCUS, 0, 0);
+  SendMessageW(hwnd, WM_KEYDOWN, VK_UP, 1);
+  SendMessageW(hwnd, WM_KILLFOCUS, 0, 0);
+  std::vector<BackendEvent> events = w->poll();
+  // focus in, the key down, the key let go, focus out
+  CHECK(events.size() == 4);
+  if (events.size() == 4) {
+    CHECK(events[0].type == BackendEvent::Type::FOCUS && events[0].focused);
+    CHECK(events[1].input.getId() == Key::Up && events[1].input.getKind() == Input::Kind::PRESS);
+    CHECK(events[2].input.getId() == Key::Up && events[2].input.getKind() == Input::Kind::RELEASE);
+    CHECK(events[3].type == BackendEvent::Type::FOCUS && !events[3].focused);
+  }
+  // Nothing is held any more, so the next loss lets go of nothing.
+  SendMessageW(hwnd, WM_KILLFOCUS, 0, 0);
+  events = w->poll();
+  CHECK(events.size() == 1);
+}

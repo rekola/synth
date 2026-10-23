@@ -616,6 +616,10 @@ TerminalUI::readInput() {
       case BackendEvent::Type::CLOSE:
         close_ui_ = true;
         break;
+      case BackendEvent::Type::FOCUS:
+        // Nothing shows the focus yet; the window has already let go of
+        // what was held.
+        break;
       default:
         break;
     }

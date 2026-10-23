@@ -188,6 +188,9 @@ struct Window::Impl {
   std::map<uint64_t, Bitmap> bitmaps;
 
   int held_button = 0;
+  // The keys that are down, by virtual key, with the id they were sent as,
+  // so losing the focus can let them go.
+  std::map<WPARAM, int> held_keys;
   int last_row = -1, last_col = -1;
   double wheel_x = 0, wheel_y = 0;
   bool tracking = false;
@@ -227,6 +230,7 @@ struct Window::Impl {
   void mouseMove(LPARAM lparam);
   void mouseWheel(bool horizontal, int delta, LPARAM lparam);
   void pasteClipboard();
+  void focusChanged(bool focused);
   void updateCursor();
   static LRESULT CALLBACK proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 };
@@ -592,8 +596,28 @@ bool Window::Impl::keyEvent(WPARAM vk, LPARAM lparam, bool pressed) {
     key = '0' + static_cast<int>(vk - VK_NUMPAD0);
   }
   Input::Kind kind = !pressed ? Input::Kind::RELEASE : ((lparam & (1 << 30)) ? Input::Kind::REPEAT : Input::Kind::PRESS);
+  if (pressed) held_keys[vk] = key;
+  else held_keys.erase(vk);
   push(BackendEvent::makeInput(keyInput(key, mods, kind)));
   return true;
+}
+
+// The release of a key or button that goes up while another window has the
+// focus is never seen, so on losing it everything held is let go: a note key
+// would otherwise sound until the window had the focus back.
+void Window::Impl::focusChanged(bool focused) {
+  if (!focused) {
+    for (const auto & held : held_keys) push(BackendEvent::makeInput(keyInput(held.second, 0, Input::Kind::RELEASE)));
+    held_keys.clear();
+    if (held_button) {
+      push(BackendEvent::makeInput(Input(Key::Button1 + held_button - 1, std::max(last_row, 0), std::max(last_col, 0), false, false, false, false,
+                                         Input::Kind::RELEASE)));
+      held_button = 0;
+      if (GetCapture() == hwnd) ReleaseCapture();
+    }
+    wheel_x = wheel_y = 0;
+  }
+  push(BackendEvent::makeFocus(focused));
 }
 
 void Window::Impl::mouseButton(int button, bool pressed, LPARAM lparam) {
@@ -680,6 +704,16 @@ LRESULT Window::Impl::message(UINT msg, WPARAM wparam, LPARAM lparam) {
       if (wparam != SIZE_MINIMIZED) resized(LOWORD(lparam), HIWORD(lparam));
       return 0;
     case WM_DPICHANGED: dpiChanged(HIWORD(wparam), reinterpret_cast<const RECT *>(lparam)); return 0;
+    case WM_SETFOCUS: focusChanged(true); return 0;
+    case WM_KILLFOCUS: focusChanged(false); return 0;
+    case WM_CAPTURECHANGED:
+      // Capture taken away (another window, a dialog) ends a drag.
+      if (held_button && reinterpret_cast<HWND>(lparam) != hwnd) {
+        push(BackendEvent::makeInput(Input(Key::Button1 + held_button - 1, std::max(last_row, 0), std::max(last_col, 0), false, false, false, false,
+                                           Input::Kind::RELEASE)));
+        held_button = 0;
+      }
+      return 0;
     case WM_CLOSE:
       // The application ends the window by ending.
       push(BackendEvent::makeClose());

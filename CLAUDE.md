@@ -1451,7 +1451,7 @@ would otherwise resume showing.
   display - `DisplayInfo` (`cellui/DisplayInfo.h`: cell size in pixels, whether pictures
   can be shown, default colours, display scale, sextants, `hdr` (unset for the terminal and
   the GTK window), size, `BackendEvent`s
-  (`cellui/BackendEvent.h`: input as `cellui::Input`, resize, paste, close, display changed), a frame to
+  (`cellui/BackendEvent.h`: input as `cellui::Input`, resize, paste, close, display changed, focus gained or lost - only the Win32 window sends it, which then lets go of the keys and button held), a frame to
   show, and `setNativeSelection()` (the user selects text with the mouse instead of the
   app getting the clicks) - which `TerminalSession` and `cellui::test::TestBackend`
   implement. `TerminalSession` translates its `TermEvent`s (which stay inside `term/`,
