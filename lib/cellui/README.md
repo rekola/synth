@@ -55,7 +55,7 @@ deliberate change, run the tests with `CELLUI_UPDATE_GOLDEN=1` to rewrite it.
 
 ## Events and signals
 
-*Implemented: `Signal` and `Connection` (`cellui/Signal.h`) and posted events on the widget tree (`cellui/EventTypes.h`, `Widget::attach`/`on`/`post`/`postToRoot`). input events and `InputDispatcher` (`cellui/InputEvents.h`, `cellui/InputDispatcher.h`). The queues and the loop additions are design, and their signatures may change in detail.*
+*Implemented: `Signal` and `Connection` (`cellui/Signal.h`) and posted events on the widget tree (`cellui/EventTypes.h`, `Widget::attach`/`on`/`post`/`postToRoot`), and input events and `InputDispatcher` (`cellui/InputEvents.h`, `cellui/InputDispatcher.h`). The queues and the loop additions are design, and their signatures may change in detail.*
 
 cellui has three ways to tell other code that something happened. They differ
 in how much the sender knows about the receiver and in which thread they run.
