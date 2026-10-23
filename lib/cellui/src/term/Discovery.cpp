@@ -305,7 +305,6 @@ Capabilities Discovery::result() const {
   caps.kitty_keyboard = kitty_keyboard_;
   caps.pixel_mouse = pixel_mouse_;
   caps.display.key_release = kitty_keyboard_;
-  caps.display.precise_mouse = pixel_mouse_;
   caps.display.hover = true;
 
   // Synchronized output: what the mode query says, except on kitty (long
