@@ -188,12 +188,20 @@ struct Window::Impl {
 
   int held_button = 0;
   int last_row = -1, last_col = -1;
+  // The pointer's position in cells, with the fraction.
+  float last_fy = -1, last_fx = -1;
   double wheel_x = 0, wheel_y = 0;
   bool tracking = false;
 
   void push(BackendEvent event) {
     queue.push_back(std::move(event));
     SetEvent(input_event);
+  }
+  // The position under a pixel in cells, with the fraction, clamped to the grid.
+  void cellPosition(int x, int y, float & fy, float & fx) const {
+    float max_x = std::max(0.0f, static_cast<float>(cols) - 0.001f), max_y = std::max(0.0f, static_cast<float>(rows) - 0.001f);
+    fx = std::clamp(static_cast<float>(x) / static_cast<float>(std::max(cell_w, 1)), 0.0f, max_x);
+    fy = std::clamp(static_cast<float>(y) / static_cast<float>(std::max(cell_h, 1)), 0.0f, max_y);
   }
   void cellAt(int x, int y, int & row, int & col) const {
     col = std::clamp(x / std::max(cell_w, 1), 0, std::max(0, cols - 1));
@@ -462,6 +470,8 @@ bool Window::Impl::keyEvent(WPARAM vk, LPARAM lparam, bool pressed) {
 void Window::Impl::mouseButton(int button, bool pressed, LPARAM lparam) {
   int row, col;
   cellAt(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam), row, col);
+  float fy, fx;
+  cellPosition(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam), fy, fx);
   unsigned mods = currentMods();
   if (pressed) {
     held_button = button;
@@ -473,8 +483,11 @@ void Window::Impl::mouseButton(int button, bool pressed, LPARAM lparam) {
   }
   last_row = row;
   last_col = col;
+  last_fy = fy;
+  last_fx = fx;
   push(BackendEvent::makeInput(Input(Key::Button1 + button - 1, row, col, mods & kModAlt, mods & kModShift, mods & kModCtrl, mods & (kModMeta | kModSuper),
-                                     pressed ? Input::Kind::PRESS : Input::Kind::RELEASE)));
+                                     pressed ? Input::Kind::PRESS : Input::Kind::RELEASE)
+                                   .withPosition(fy, fx)));
 }
 
 void Window::Impl::mouseMove(LPARAM lparam) {
@@ -485,15 +498,22 @@ void Window::Impl::mouseMove(LPARAM lparam) {
   }
   int row, col;
   cellAt(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam), row, col);
-  if (row == last_row && col == last_col) return;
+  float fy, fx;
+  cellPosition(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam), fy, fx);
+  if (fy == last_fy && fx == last_fx) return;
   last_row = row;
   last_col = col;
+  last_fy = fy;
+  last_fx = fx;
   updateCursor();
-  if (!held_button) return;
   unsigned mods = currentMods();
-  // A drag repeats the press of the held button at the new cell.
-  push(BackendEvent::makeInput(Input(Key::Button1 + held_button - 1, row, col, mods & kModAlt, mods & kModShift, mods & kModCtrl,
-                                     mods & (kModMeta | kModSuper), Input::Kind::PRESS)));
+  // A drag repeats the press of the held button at the new position; with
+  // no button the pointer is hovering.
+  Input input = held_button ? Input(Key::Button1 + held_button - 1, row, col, mods & kModAlt, mods & kModShift, mods & kModCtrl,
+                                    mods & (kModMeta | kModSuper), Input::Kind::PRESS)
+                            : Input(Key::Motion, row, col, mods & kModAlt, mods & kModShift, mods & kModCtrl, mods & (kModMeta | kModSuper),
+                                    Input::Kind::RELEASE);
+  push(BackendEvent::makeInput(input.withPosition(fy, fx)));
 }
 
 void Window::Impl::mouseWheel(bool horizontal, int delta, LPARAM lparam) {
@@ -502,13 +522,16 @@ void Window::Impl::mouseWheel(bool horizontal, int delta, LPARAM lparam) {
   ScreenToClient(hwnd, &p);
   int row, col;
   cellAt(p.x, p.y, row, col);
+  float fy, fx;
+  cellPosition(p.x, p.y, fy, fx);
   // Up/right is positive in Windows; the buttons are 4 up, 5 down, 6 left,
   // 7 right.
   double & accumulated = horizontal ? wheel_x : wheel_y;
   accumulated += static_cast<double>(delta) / WHEEL_DELTA;
   unsigned mods = currentMods();
   auto emit = [&](int button) {
-    push(BackendEvent::makeInput(Input(button, row, col, mods & kModAlt, mods & kModShift, mods & kModCtrl, mods & (kModMeta | kModSuper), Input::Kind::PRESS)));
+    push(BackendEvent::makeInput(
+        Input(button, row, col, mods & kModAlt, mods & kModShift, mods & kModCtrl, mods & (kModMeta | kModSuper), Input::Kind::PRESS).withPosition(fy, fx)));
   };
   while (accumulated >= 1.0) {
     emit(horizontal ? Key::Button7 : Key::Button4);
@@ -671,6 +694,7 @@ std::unique_ptr<Window> Window::open(const WindowOptions & options, std::string 
   impl.display_info.keymap_profile = KeymapProfile::DESKTOP;
   impl.display_info.escape_as_meta = false;
   impl.display_info.key_release = true;
+  impl.display_info.precise_mouse = true;
   impl.display_info.hover = true;
 
   // The window's outer size for the wanted client size.

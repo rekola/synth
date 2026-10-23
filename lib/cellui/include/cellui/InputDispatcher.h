@@ -112,7 +112,7 @@ class InputDispatcher {
     int id = input.getId();
     Modifiers mods{ input.hasShift(), input.hasCtrl(), input.hasAlt(), input.hasMeta() };
     int row = input.getY(), col = input.getX();
-    float x = static_cast<float>(col), y = static_cast<float>(row);
+    float x = input.getFx(), y = input.getFy();
     auto kind = input.getKind();
     if (id == Key::Motion) return mouseMove(MouseMove{ x, y, row, col, pressed_, mods });
     if (id >= Key::Button1 && id <= Key::Button11) {

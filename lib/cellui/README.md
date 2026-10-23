@@ -210,7 +210,11 @@ The dispatcher holds widgets only through their `Widget::life()` token, so a
 widget destroyed during a gesture, or by a handler, is skipped.
 
 What a display cannot report is a flag in `DisplayInfo`, never faked:
-`key_release`, `precise_mouse` and `hover`.
+`key_release`, `precise_mouse` and `hover`. A precise position reaches the
+dispatcher as `Input::getFx()` / `getFy()` (cells with the fraction; the whole
+cell where the display is not precise). The window backends report it always
+and send a hover `Key::Motion` for every position change; the terminal reports
+it while it has pixel mouse reporting on (mode 1016, once the cell size is known).
 
 ```cpp
 canvas_.on<cellui::MouseDown>([this](const cellui::MouseDown & m, cellui::EventContext &) {

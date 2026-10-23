@@ -382,3 +382,21 @@ TEST(a_handler_may_destroy_widgets_during_hover_changes) {
   CHECK(a == nullptr);
   s.dispatcher.mouseMove(move(8, 31));
 }
+
+TEST(offer_carries_the_fraction_of_a_precise_position) {
+  Screen s;
+  std::vector<MouseMove> moves;
+  s.keep.push_back(s.top.on<MouseMove>([&](const MouseMove & e, EventContext &) {
+    moves.push_back(e);
+    return Handled::no;
+  }));
+  Input precise(Key::Motion, 3, 7, false, false, false, false);
+  s.dispatcher.offer(precise.withPosition(3.25f, 7.5f));
+  s.dispatcher.offer(Input(Key::Motion, 4, 8, false, false, false, false));  // a whole cell
+  CHECK(moves.size() == 2);
+  CHECK(moves[0].row == 3 && moves[0].col == 7);
+  CHECK_NEAR(moves[0].y, 3.25f, 1e-6);
+  CHECK_NEAR(moves[0].x, 7.5f, 1e-6);
+  CHECK_NEAR(moves[1].y, 4.0f, 1e-6);
+  CHECK_NEAR(moves[1].x, 8.0f, 1e-6);
+}

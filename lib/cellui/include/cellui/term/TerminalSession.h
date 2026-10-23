@@ -114,6 +114,14 @@ class TerminalSession : public Backend {
   bool line_signals_ = false;
   bool mouse_ = true;
   bool mouse_reporting_ = true;
+  // Mouse positions are asked for in pixels (mode 1016): the terminal can,
+  // the cell size is known and the mouse is reported to the application.
+  bool pixel_mouse_on_ = false;
+  bool wantPixelMouse() const {
+    return mouse_ && mouse_reporting_ && caps_.pixel_mouse && caps_.display.cell_px_height > 0 && caps_.display.cell_px_width > 0;
+  }
+  // Brings mode 1016 and the parser in line with wantPixelMouse().
+  void updatePixelMouse();
   Dither::Method dither_ = Dither::Method::ORDERED;
   // The image encoder's profile for the capabilities, with the session's
   // dithering.
