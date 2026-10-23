@@ -1914,8 +1914,10 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
   // track's last column - see GridPosition::scope's own comment) but not
   // editing it yet: Enter is the explicit "start editing" trigger -
   // reaching the slot on its own must never start editing by itself.
+  // The release (or repeat) of the Enter that just committed an edit
+  // arrives after the field has closed and must not reopen it.
   if (new_cursor.isOnLocator() && input.getId() == Key::Enter) {
-    startLocatorEdit();
+    if (input.getKind() != InputEvent::Kind::RELEASE && input.getKind() != InputEvent::Kind::REPEAT) startLocatorEdit();
     return true;
   }
 
@@ -1926,7 +1928,8 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
   // toggle-track-collapse (Ctrl+Shift+C) is still the only way to
   // collapse a track, so Enter never surprises the user by hiding
   // something they just landed on.
-  if (!new_cursor.isOnLocator() && input.getId() == Key::Enter) {
+  if (!new_cursor.isOnLocator() && input.getId() == Key::Enter && input.getKind() != InputEvent::Kind::RELEASE &&
+      input.getKind() != InputEvent::Kind::REPEAT) {
     auto & song = getController().getSong();
     auto track_ids = trackIds(song);
     if (current_cursor.track < static_cast<int>(track_ids.size())) {
