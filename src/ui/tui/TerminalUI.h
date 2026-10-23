@@ -234,9 +234,10 @@ protected:
   // (20 * 1.5, rounded up to the nearest odd width) in Arrangement view.
   static constexpr int kScopeHeight = 5;
   static constexpr int kHeatmapWidth = 31;
-  // A scope's title bar: `width` cells from (row, col), the text one cell in;
-  // with `ends_in_divider` (lines between the columns on) it ends in a half
-  // block over the divider column to its right.
+  // A scope's title bar, the same in both views: `width` cells from (row, col)
+  // on the panel colour (apart from the menu bar's), the text one cell in; with
+  // `ends_in_divider` (lines between the columns on) it ends in a half block
+  // over the divider column to its right.
   void drawScopeTitle(int row, int col, int width, const std::string & text, bool ends_in_divider);
   // Arrangement view's top band height (see arrangementScopeRows()), as laid out.
   int arrangementScopeRows() const;
