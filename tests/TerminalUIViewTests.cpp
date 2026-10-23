@@ -293,7 +293,7 @@ TEST(terminal_ui_smooth_scroll_moves_the_outline_tree_under_its_heading) {
   UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, display);
   auto shift = [&]() -> std::optional<double> {
     for (const auto & layer : f.terminal.info().backdrops) {
-      if (layer.scroll) return layer.scroll->shift_rows;
+      if (layer.scroll && layer.scroll->shift_rows > 0) return layer.scroll->shift_rows;
     }
     return std::nullopt;
   };
@@ -711,4 +711,43 @@ TEST(terminal_ui_smooth_scroll_live_view_columns_do_not_blank_each_other) {
     widest = std::max(widest, count);
   }
   CHECK(widest >= 3);
+}
+
+// Live View's column lines are bands that hold still while the rows scroll
+// under them: past the margin the band stays on one row and the rows move.
+TEST(terminal_ui_smooth_scroll_live_view_line_band_holds_still_while_the_rows_scroll) {
+  cellui::DisplayInfo display;
+  display.smooth_scroll = true;
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, display);
+  for (int i = 0; i < 6 && f.terminal.info().focus != "pattern-editor"; i++) f.otherWindow();
+  CHECK(f.terminal.info().focus == "pattern-editor");
+  auto first_band_row = [&]() -> std::optional<double> {
+    for (const auto & layer : f.terminal.info().backdrops) {
+      if (layer.scroll && layer.scroll->cols > 60 && layer.scroll->band) return layer.scroll->band->row;
+    }
+    return std::nullopt;
+  };
+  for (int i = 0; i < 30; i++) {
+    f.press(cellui::Key::Down);
+    f.ui->step();
+  }
+  for (int i = 0; i < 100; i++) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(8));
+    f.ui->step();
+  }
+  auto settled = first_band_row();
+  CHECK(settled.has_value());
+  bool moved = false;
+  for (int i = 0; i < 20; i++) {
+    f.press(cellui::Key::Down);
+    for (int k = 0; k < 6; k++) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(8));
+      f.ui->step();
+      if (auto band = first_band_row()) CHECK(*band == *settled);
+      for (const auto & layer : f.terminal.info().backdrops) {
+        if (layer.scroll && layer.scroll->cols > 60 && layer.scroll->shift_rows > 0) moved = true;
+      }
+    }
+  }
+  CHECK(moved);
 }

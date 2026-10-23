@@ -50,6 +50,9 @@ class PatternSource {
   virtual RowAddress trackAddress(int, RowAddress address) const { return address; }
   // Where `track_id`'s row for `address` sits on a line that never wraps, so
   // the difference between two frames is how far its column scrolled.
+  // How many rows a second `track_id`'s column scrolls while its playhead
+  // drives it (0 when it does not), so the view can keep a constant speed.
+  virtual double trackScrollRate(int) const { return 0.0; }
   virtual long trackLine(int track_id, RowAddress address) const { return rowsBetween({0, 0}, trackAddress(track_id, address)); }
   // How dimmed `address` (a row of the editor) is for `track_id`, 0 to 1:
   // another pass of the loop it's playing rather than the pass its own

@@ -205,6 +205,10 @@ protected:
   bool columns_shifted_ = false;
   // Whether the columns draw on their planes (Live View, smooth scrolling); else all on the rows' plane.
   bool columns_planes_in_use_ = false;
+  // Where each track's column starts on the screen (-1 if not shown), and where the last ends.
+  std::vector<int> column_starts_;
+  int column_end_ = 0;
+  void updateColumnBands(const StyleProvider & styles, const std::vector<int> & track_ids, int heading_height, int rows);
   bool rowsShifted() const { return row_offset_ != 0.0 || columns_shifted_; }
   int columnDelta(int track_id) const {
     auto it = column_scroll_.find(track_id);

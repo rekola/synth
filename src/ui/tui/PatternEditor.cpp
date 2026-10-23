@@ -1396,8 +1396,15 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
       column.line = line;
       column.valid = true;
       if (column.offset != 0.0) {
-        column.offset -= column.offset * (1.0 - std::exp(-seconds / 0.06));
-        if (std::abs(column.offset) < 0.02) column.offset = 0.0;
+        double rate = source_->trackScrollRate(id);
+        if (rate > 0.0) {
+          // A playing column keeps one speed, a little faster the further it is behind.
+          double step = rate * std::max(0.2, std::abs(column.offset)) * seconds;
+          column.offset = std::abs(column.offset) <= step ? 0.0 : column.offset - std::copysign(step, column.offset);
+        } else {
+          column.offset -= column.offset * (1.0 - std::exp(-seconds / 0.06));
+          if (std::abs(column.offset) < 0.02) column.offset = 0.0;
+        }
       }
       int column_delta = static_cast<int>(std::floor(column.offset));
       if (column_delta != column.delta) force_full_redraw_ = true;
@@ -1492,11 +1499,13 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
 
     renderHeading(styles, track_ids, track_info, focused);
     // One row more than fits while the rows are between two positions.
+    column_starts_.assign(track_ids.size(), -1);
     int drawn_rows = rows - heading_height + (rowsShifted() ? 1 : 0);
     for (auto row = 0; row < drawn_rows; row++) {
       auto address = source_->normalize(view_block_, row + draw_row0_);
       renderRow(styles, heading_height, track_ids, track_info, row, address.block == score_pattern && address.row == score_playing_row, sel_bounds, focused);
     }
+    updateColumnBands(styles, track_ids, heading_height, rows);
     need_redraw = true;
   } else if (current_score_playing_row != score_playing_row) {
     renderHeading(styles, track_ids, track_info, focused);
@@ -2441,6 +2450,33 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
   return false;
 }
 
+void PatternEditor::updateColumnBands(const StyleProvider & styles, const std::vector<int> & track_ids, int heading_height, int rows) {
+  // Each column's own line is a translucent strip over its plane, which holds
+  // still while the rows scroll under it.
+  RowAddress top{view_block_, current_scroll_.row};
+  int visible = rows - heading_height;
+  for (size_t i = 0; i < column_planes_.size(); i++) {
+    auto & plane = column_planes_[i];
+    if (!columns_planes_in_use_ || i >= track_ids.size() || i >= column_starts_.size() || column_starts_[i] < 0) {
+      plane->clearBand();
+      continue;
+    }
+    int start = column_starts_[i], end = column_end_;
+    for (size_t j = i + 1; j < column_starts_.size(); j++) {
+      if (column_starts_[j] >= 0) {
+        end = column_starts_[j];
+        break;
+      }
+    }
+    int line = source_->rowsBetween(top, source_->trackCursor(track_ids[i]));
+    if (line < 0 || line >= visible || end - 1 <= start) {
+      plane->clearBand();
+      continue;
+    }
+    plane->setBand(cellui::Band{static_cast<double>(heading_height + line), 1.0, start, end - 1 - start, styles.cursor_row_tint_color, StyleProvider::kRowTintAlpha});
+  }
+}
+
 void PatternEditor::syncColumnPlanes(const std::vector<int> & track_ids) {
   bool live = isLiveMode() && getPlane().smoothScroll();
   columns_planes_in_use_ = live;
@@ -2462,6 +2498,7 @@ void PatternEditor::syncColumnPlanes(const std::vector<int> & track_ids) {
     bool used = live && i < track_ids.size();
     plane->setVisible(used);
     if (!used) {
+      plane->clearBand();
       plane->setScrollOffset(0.0, 0);
       continue;
     }
@@ -3332,6 +3369,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   auto current_pos = 0;
   for (int i = -1; i < static_cast<int>(track_ids.size()); i++) {
     if (i >= 0 && i < current_scroll_.track) continue;
+    if (i >= 0 && static_cast<size_t>(i) < column_starts_.size()) column_starts_[static_cast<size_t>(i)] = current_pos;
     if (current_pos >= cols) break;
 
     // A column that scrolls shows the rows its own offset has it at, on its
@@ -3348,7 +3386,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     track_marked.reset();
     if (isLiveMode()) {
       auto own_row = i >= 0 ? source_->positionRow(track_ids[static_cast<size_t>(i)], pattern_idx) : std::nullopt;
-      track_marked = own_row && *own_row == pattern_row;
+      // The columns' own lines are bands over their planes, not tints in the rows.
+      track_marked = !columns_planes_in_use_ && own_row && *own_row == pattern_row;
     }
     struct ColumnPlane {
       PatternEditor & editor;
@@ -3990,6 +4029,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   }
 
   track_marked.reset();
+  column_end_ = current_pos;
   if (row_shifted) {
     address = base_address;
     pattern_idx = address.block, pattern_row = address.row;
