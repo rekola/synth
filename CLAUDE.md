@@ -29,7 +29,7 @@ Produces `build/synth`.
 
 Dependencies (Ubuntu): `libfmt-dev libsndfile1-dev libasound2-dev
 libunistring-dev libsoundtouch-dev libcairo2-dev` plus CMake, pkg-config,
-git and a C++17 compiler. The terminal UI needs no terminal library: Cell
+git and a C++20 compiler. The terminal UI needs no terminal library: Cell
 UI's terminal backend (`lib/cellui`, `cellui/term/`) writes escape
 sequences itself. `libunistring-dev` backs `lib/cellui`'s `cellui/Utf8.h`
 grapheme-cluster-aware UTF-8 truncation/width helpers. `libsoundtouch-dev` backs `src/audio/TimeStretcher.h`'s
@@ -1785,7 +1785,7 @@ would otherwise resume showing.
 
 ## Conventions
 
-- C++17, no exceptions ethos in audio path; state objects (`*State.h`) are
+- C++20, no exceptions ethos in audio path; state objects (`*State.h`) are
   separated from song model objects so playback state can be reset cheaply.
 - The build enables many `-Werror=` flags plus `-Wsign-conversion`; new code
   must compile warning-clean.

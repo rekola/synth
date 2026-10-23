@@ -3453,8 +3453,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       setFgColor(in_selection ? fg : tintForPlayhead(fg));
       setBgColor(in_selection ? bg : tintForPlayhead(bg));
 
-      putstr(display_row, current_pos, pattern_row < 0 ? string(static_cast<size_t>(row_digits_ + 2), ' ') : format(" {:0{}x} ", pattern_row, row_digits_));
-	
+      putstr(display_row, current_pos, pattern_row < 0 ? string(static_cast<size_t>(row_digits_ + 2), ' ') : fmt::format(" {:0{}x} ", pattern_row, row_digits_));
+
       setFgColor(styles.window_border_color);
       setBgColor(styles.window_bg_color);
 	
@@ -3576,7 +3576,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
         auto own_row = own.block < 0 ? -1 : own.row;
         setFgColor(in_selection ? fg : tintForPlayhead(fg));
         setBgColor(in_selection ? bg : tintForPlayhead(bg));
-        auto number = own_row < 0 ? string() : format("{:02x}", own_row);
+        auto number = own_row < 0 ? string() : fmt::format("{:02x}", own_row);
         number.resize(static_cast<size_t>(track_info.row_number_width_), ' ');
         putstr(display_row, current_pos, number);
         current_pos += track_info.row_number_width_;
@@ -3885,13 +3885,13 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  auto own_address = source_->trackAddress(track_id, address);
 	  if (pending_.valid && pending_.track_id == track_id && pending_.note_column == l && pending_.type == column_type &&
 	      source_->trackAddress(track_id, pending_.at) == own_address) {
-	    s = format("{:02x}", pending_.value);
-	  } else if (note.isDefined()) {
+            s = fmt::format("{:02x}", pending_.value);
+          } else if (note.isDefined()) {
 	    if (column_type == ColumnType::VELOCITY && note.isOff()) {
 	      s = "  ";
 	    } else {
-	      s = format("{:02x}", column_type == ColumnType::VELOCITY ? note.getVelocity() : note.getDelay());
-	    }
+              s = fmt::format("{:02x}", column_type == ColumnType::VELOCITY ? note.getVelocity() : note.getDelay());
+            }
 	  } else {
 	    s = "--";
 	  }

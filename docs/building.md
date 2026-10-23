@@ -9,7 +9,7 @@ ctest --test-dir build --output-on-failure
 ```
 
 Produces `build/synth`. On Ubuntu the dependencies are `libfmt-dev libsndfile1-dev libasound2-dev libunistring-dev
-libsoundtouch-dev libcairo2-dev`, plus CMake, pkg-config, git and a C++17
+libsoundtouch-dev libcairo2-dev`, plus CMake, pkg-config, git and a C++20
 compiler. The 2D drawing library [canvas](https://github.com/rekola/canvas) is
 fetched at configure time, so the first `cmake -B build` needs network access. `libmysofa-dev` (binaural
 decoding), `libpipewire-0.3-dev` (PipeWire device lists) and `libgtk-4-dev` (GTK 4.10 or later: the window UI,
