@@ -11,6 +11,7 @@ namespace cellui::win32 {
 // waitable handles (events, in practice) added with addHandles().
 class Win32EventLoop : public EventLoop {
  public:
+  Win32EventLoop() { installWake(); }
   // Descriptors do not exist here: this does nothing. Use addHandles().
   void addSource(const std::vector<int> &, Handler) override { }
 
