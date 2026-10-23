@@ -106,6 +106,28 @@ class Widget {
     return root().dispatchRoot(typeKey<E>(), &event);
   }
 
+  // Only this widget's own handlers, capture and bubble alike, no ancestors:
+  // for events that do not travel, such as Enter and Leave.
+  template <class E>
+  Handled postDirect(const E & event) {
+    EventContext ctx;
+    ctx.source = this;
+    ctx.time = now();
+    ctx.phase = Phase::bubble;
+    auto table = table_;
+    if (!table->widget) return Handled::no;
+    Handled handled = table->run(typeKey<E>(), std::nullopt, &event, ctx);
+    return handled;
+  }
+
+  // Expires when the widget is destroyed: for whoever holds a Widget
+  // pointer across a time the widget may go.
+  std::weak_ptr<void> life() const { return alive_; }
+
+  // Whether the keyboard focus may rest here (InputDispatcher).
+  void setFocusable(bool focusable) { focusable_ = focusable; }
+  bool focusable() const { return focusable_; }
+
   // The loop clock the contexts of this tree's events carry; set on the
   // root. Defaults to seconds on a steady clock.
   void setEventClock(std::function<double()> clock) { clock_ = std::move(clock); }
@@ -204,8 +226,8 @@ class Widget {
     if (plane_) plane_->setItalic(b);
     return *this;
   }
-  Widget & setLift(float lift, bool joins_above = false) {
-    if (plane_) plane_->setLift(lift, joins_above);
+  Widget & setLift(float lift, bool joins_above = false, bool casts_shadow = true) {
+    if (plane_) plane_->setLift(lift, joins_above, casts_shadow);
     return *this;
   }
 
@@ -441,6 +463,8 @@ private:
   }
 
   std::unique_ptr<Plane> plane_;
+  std::shared_ptr<void> alive_ = std::make_shared<int>(0);
+  bool focusable_ = false;
   std::shared_ptr<detail::HandlerTable> table_ = std::make_shared<detail::HandlerTable>();
   Widget * parent_ = nullptr;
   std::vector<Widget *> children_;

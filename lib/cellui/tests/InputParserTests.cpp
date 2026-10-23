@@ -215,6 +215,23 @@ TEST(parser_sgr_mouse) {
   CHECK(same(run(px, {{0, "\x1b[<0;25;45M"}}), v({"Button1 press at 2,2"})));
 }
 
+TEST(parser_pixel_mouse_keeps_the_position_within_the_cell) {
+  InputParser px;
+  px.setPixelMouse(true, 20, 10);
+  px.feed("\x1b[<35;25;45M", InputParser::TimePoint{});  // pixel x 25, y 45: cell 2,2
+  CHECK(px.hasEvents());
+  TermEvent e = px.pop();
+  CHECK(e.y == 2 && e.x == 2);
+  CHECK_NEAR(e.fy, 2.225f, 1e-4);
+  CHECK_NEAR(e.fx, 2.45f, 1e-4);
+  // Cell reports have no fraction.
+  InputParser cells;
+  cells.feed("\x1b[<35;5;3M", InputParser::TimePoint{});
+  TermEvent c = cells.pop();
+  CHECK_NEAR(c.fy, 2.0f, 1e-6);
+  CHECK_NEAR(c.fx, 4.0f, 1e-6);
+}
+
 TEST(parser_x10_mouse) {
   CHECK(same(run("\x1b[M #$"), v({"Button1 press at 3,2"})));
   CHECK(same(run("\x1b[M##$"), v({"Button1 release at 3,2"})));

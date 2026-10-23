@@ -69,9 +69,10 @@ class BufferPlane : public Plane {
   void setBgBlend(bool b) override { style_.bg_blend = b; }
   void setFgContrast(bool b) override { style_.fg_contrast = b; }
   void setBackdrop(const Backdrop & b) override { style_.backdrop = b; }
-  void setLift(float lift, bool joins_above) override {
+  void setLift(float lift, bool joins_above, bool casts_shadow) override {
     style_.lift = lift;
     style_.lift_joined = joins_above;
+    style_.lift_shadow = casts_shadow;
   }
   void setScrollOffset(double rows, double cols) override;
   // Over a plane the display scrolls by parts of a cell it is drawn by the
@@ -159,6 +160,10 @@ class BufferPlane : public Plane {
   // The areas planes asked a pointer shape for in the last refresh(), lowest
   // first (root only).
   std::vector<CursorArea> takeMouseCursors() { return std::move(mouse_cursors_); }
+  // The areas of the planes that have an owner (Plane::owner()) in the last
+  // refresh(), lowest first: the last one over a cell is the topmost (root
+  // only).
+  std::vector<HitArea> takeHitAreas() { return std::move(hit_areas_); }
   // What canRenderSextants() reports, for the whole tree (root only).
   void setSextants(bool can) { sextants_ = can; }
   bool canRenderSextants() const override { return root().sextants_; }
@@ -238,6 +243,7 @@ class BufferPlane : public Plane {
   mutable std::vector<BackdropLayer> layers_;
   std::vector<ElevatedArea> elevations_;
   std::vector<CursorArea> mouse_cursors_;
+  std::vector<HitArea> hit_areas_;
   bool flat_ = false;
   bool themed_bases_ = false;
   int cell_px_h_ = 0, cell_px_w_ = 0;

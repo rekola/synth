@@ -421,20 +421,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   for (int y = 0; y < kHeaderRows; y++) putstr(y, 0, string(static_cast<size_t>(kNameWidth), ' '));
   bars_plane.setBgColor(header_bg);
   for (int y = 0; y < kHeaderRows; y++) bars_plane.putstr(y, 0, string(static_cast<size_t>(drawn_cols), ' '));
-  vector<string> locator_text(static_cast<size_t>(drawn_cols));
-  vector<bool> locator_head(static_cast<size_t>(drawn_cols), false);
-  for (auto & [locator_row, name] : locators) {
-    auto locator_bar = bars.barIndex(locator_row);
-    if (locator_bar >= first_bar + drawn_cols) break;
-    auto text = cellui::utf8::clusters("›" + name);
-    for (size_t i = 0; i < text.size(); i++) {
-      auto vc = locator_bar - first_bar + static_cast<int>(i);
-      if (vc < 0) continue;
-      if (vc >= drawn_cols) break;
-      locator_text[static_cast<size_t>(vc)] = text[i];
-      locator_head[static_cast<size_t>(vc)] = i == 0;
-    }
-  }
+  // The ruler and the locator row's background, the playing bar's tinted.
   for (auto vc = 0; vc < drawn_cols; vc++) {
     auto bar = first_bar + vc;
     if (bar >= bar_count) break;
@@ -447,10 +434,45 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
     bars_plane.setBgColor(bg);
     bars_plane.setFgColor(bar == playing_bar ? styles.cursor_tint_color : styles.window_fg_color);
     bars_plane.putstr(0, vc, label.size() <= 3 && offset < label.size() ? label.substr(offset, 1) : " ");
-    auto & text = locator_text[static_cast<size_t>(vc)];
-    bars_plane.setBgColor(bg);
-    bars_plane.setFgColor(bar == playing_bar && locator_head[static_cast<size_t>(vc)] ? styles.cursor_tint_color : styles.locator_mark_color);
-    bars_plane.putstr(1, vc, text.empty() ? " " : text);
+    bars_plane.putstr(1, vc, " ");
+  }
+  // Each locator is its mark and name written as a string from its bar, as
+  // many columns as are free before the next locator or the edge: the plane
+  // places wide characters, so nothing here counts characters as columns. A
+  // locator that begins left of the view drops the columns that are out of it.
+  int playing_col = smooth_playhead ? -1 : playing_bar - first_bar;
+  vector<pair<int, string>> locator_texts;
+  for (auto & [locator_row, name] : locators) {
+    auto locator_bar = bars.barIndex(locator_row);
+    if (locator_bar >= first_bar + drawn_cols) break;
+    locator_texts.emplace_back(locator_bar - first_bar, "›" + name);
+  }
+  for (size_t i = 0; i < locator_texts.size(); i++) {
+    auto [start, text] = locator_texts[i];
+    auto end = i + 1 < locator_texts.size() ? locator_texts[i + 1].first : drawn_cols;
+    if (start < 0) {
+      text = cellui::utf8::dropLeadingColumns(text, -start);
+      start = 0;
+    }
+    if (end <= start) continue;
+    text = cellui::utf8::truncateToWidth(text, end - start);
+    bars_plane.setBgColor(header_bg);
+    bars_plane.setFgColor(styles.locator_mark_color);
+    bars_plane.putstr(1, start, text);
+    // The playing bar's cell inside the text is written again on its tint.
+    if (playing_col >= start && playing_col < end) {
+      int col = start;
+      for (auto & cluster : cellui::utf8::clusters(text)) {
+        auto width = max(1, cellui::utf8::displayWidth(cluster));
+        if (playing_col < col + width) {
+          bars_plane.setBgColor(styles.cursorRowTint(header_bg));
+          bars_plane.setFgColor(styles.locator_mark_color);
+          bars_plane.putstr(1, col, cluster);
+          break;
+        }
+        col += width;
+      }
+    }
   }
 
   auto arrangement = song.getArrangement();

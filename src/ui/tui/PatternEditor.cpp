@@ -1914,8 +1914,10 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
   // track's last column - see GridPosition::scope's own comment) but not
   // editing it yet: Enter is the explicit "start editing" trigger -
   // reaching the slot on its own must never start editing by itself.
+  // The release (or repeat) of the Enter that just committed an edit
+  // arrives after the field has closed and must not reopen it.
   if (new_cursor.isOnLocator() && input.getId() == Key::Enter) {
-    startLocatorEdit();
+    if (input.getKind() != InputEvent::Kind::RELEASE && input.getKind() != InputEvent::Kind::REPEAT) startLocatorEdit();
     return true;
   }
 
@@ -1926,7 +1928,8 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
   // toggle-track-collapse (Ctrl+Shift+C) is still the only way to
   // collapse a track, so Enter never surprises the user by hiding
   // something they just landed on.
-  if (!new_cursor.isOnLocator() && input.getId() == Key::Enter) {
+  if (!new_cursor.isOnLocator() && input.getId() == Key::Enter && input.getKind() != InputEvent::Kind::RELEASE &&
+      input.getKind() != InputEvent::Kind::REPEAT) {
     auto & song = getController().getSong();
     auto track_ids = trackIds(song);
     if (current_cursor.track < static_cast<int>(track_ids.size())) {
@@ -2805,7 +2808,7 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
     auto segment_color = [&](const Track * t) -> Color {
       if (!t) return styles.window_bg_color;
       auto base = track_base_color(t);
-      return (focused && t->getInternalId() == selected_id) ? base.blend(0.22f, styles.cursor_tint_color) : base;
+      return t->getInternalId() == selected_id ? base.blend(0.22f * focus_, styles.cursor_tint_color) : base;
     };
     // A faint "transparent black" tint over whatever background is
     // actually drawn (segment_color() - selection brighten included, not
@@ -4259,18 +4262,18 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	// (a slightly darker shade, so it reads as a distinct thing within
 	// the row) gets the same one-character margin as every other case.
 	bool want_margin = !row_fully_filled;
-	const Color & locator_red = styles.locator_color;
+	const Color & locator_ink = styles.locator_color;
 
 	if (row_selected) {
 	  // The same reversed (dark-on-bright) highlight every other
 	  // selected cell uses - see the per-column loop above's own
 	  // column_selected handling - a selected cell still reads as
-	  // "selected" first, not locator-red - but nudged a little
-	  // toward this span's own red identity (both fg and bg), same as
+	  // "selected" first, not the locator colour - but nudged a little
+	  // toward this span's own colour (both fg and bg), same as
 	  // the playhead-only case below, so the locator's own span
-	  // still reads as red content even while selected/reversed.
-	  setFgColor(styles.highlight_fg_color.blend(0.2f, locator_red));
-	  setBgColor(styles.highlight_bg_color.blend(0.2f, locator_red));
+	  // still reads as its own span while selected/reversed.
+	  setFgColor(styles.highlight_fg_color.blend(0.2f, locator_ink));
+	  setBgColor(styles.highlight_bg_color.blend(0.2f, locator_ink));
 	} else if (highlight) {
 	  // Playhead row, nothing selected here specifically - the same
 	  // translucent tint the rest of the row uses (not red - the
@@ -4279,10 +4282,10 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  // if a translucent red wash sat over the gap's own already-tinted
 	  // fill - so the locator's own span still reads as red content,
 	  // not just a darker patch of the same row tint.
-	  setFgColor(tintForPlayhead(styles.window_fg_color).blend(0.2f, locator_red));
-	  setBgColor(tintForPlayhead(styles.window_bg_color).blend(0.2f, locator_red));
+	  setFgColor(tintForPlayhead(styles.window_fg_color).blend(0.2f, locator_ink));
+	  setBgColor(tintForPlayhead(styles.window_bg_color).blend(0.2f, locator_ink));
 	} else {
-	  setFgColor(locator_red);
+	  setFgColor(locator_ink);
 	  setBgColor(styles.locator_bg_color);
 	}
 

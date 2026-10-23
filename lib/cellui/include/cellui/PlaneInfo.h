@@ -3,10 +3,13 @@
 #include <cellui/BackdropLayer.h>
 #include <cellui/MouseCursor.h>
 
+#include <memory>
 #include <string>
 #include <vector>
 
 namespace cellui {
+
+class Widget;
 
 // What a plane is, as a test or an inspector sees it: its place inside its
 // parent, its size, whether it shows, and the planes on it, bottom to top.
@@ -31,12 +34,23 @@ struct ElevatedArea {
   // How many of the frame's backdrop layers lie below it: one fewer than
   // FrameInfo::backdrops has means a later backdrop covers it.
   size_t layer = 0;
+  // False for lifted cells that only stand above lower shadows and cast none.
+  bool shadow = true;
 };
 
 // The part of the screen a plane asked a pointer shape for.
 struct CursorArea {
   int row = 0, col = 0, rows = 0, cols = 0;
   MouseCursor cursor = MouseCursor::DEFAULT;
+};
+
+// The part of the screen a plane covers, with the widget that owns the plane:
+// what the input dispatcher tests a pointer position against. `life` expires
+// with the widget, so an area from an older frame never names a dead one.
+struct HitArea {
+  int row = 0, col = 0, rows = 0, cols = 0;
+  Widget * widget = nullptr;
+  std::weak_ptr<void> life;
 };
 
 // What an application tells a backend about a frame besides its cells.

@@ -353,9 +353,14 @@ TEST(gtk_window_input_from_the_display) {
   pumpUntil(*w, [] { return false; }, 200);
 
   std::vector<BackendEvent> got;
+  // The pointer moving is hover Motion; the checks below that count events
+  // leave it out.
   auto gather = [&](size_t count) {
     return pumpUntil(*w, [&] {
-      for (auto & e : w->poll()) got.push_back(e);
+      for (auto & e : w->poll()) {
+        if (e.type == BackendEvent::Type::INPUT && e.input.getId() == Key::Motion) continue;
+        got.push_back(e);
+      }
       return got.size() >= count;
     });
   };
@@ -421,6 +426,24 @@ TEST(gtk_window_input_from_the_display) {
   for (auto & e : got) {
     if (e.input.getId() == Key::Button5) CHECK(e.input.getY() == 6 && e.input.getX() == 9);
   }
+
+  // A move with no button is hover Motion, at the pointer's place within the cell.
+  got.clear();
+  xdotool("search --name cellui-test mousemove --window %1 " + std::to_string(cw * 7 + cw / 2) + " " + std::to_string(ch * 4 + ch / 2));
+  CHECK(pumpUntil(*w, [&] {
+    for (auto & e : w->poll()) got.push_back(e);
+    for (auto & e : got) {
+      if (e.input.getId() == Key::Motion && e.input.getY() == 4 && e.input.getX() == 7) return true;
+    }
+    return false;
+  }));
+  for (auto & e : got) {
+    if (e.input.getId() == Key::Motion && e.input.getY() == 4 && e.input.getX() == 7) {
+      CHECK(e.input.getFx() > 7.2f && e.input.getFx() < 7.8f);
+      CHECK(e.input.getFy() > 4.2f && e.input.getFy() < 4.8f);
+    }
+  }
+  CHECK(w->display().precise_mouse && w->display().hover);
 
   // A new window size is a resize in cells.
   got.clear();

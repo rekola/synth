@@ -785,13 +785,19 @@ void InputParser::dispatchX10Mouse() {
 
 void InputParser::mouse(int code, int px, int py, bool release, bool pixels) {
   int y, x;
+  float fy, fx;
   if (pixels) {
     if (cell_px_h_ <= 0 || cell_px_w_ <= 0) return;
     y = (py - 1) / cell_px_h_;
     x = (px - 1) / cell_px_w_;
+    // The middle of the reported pixel.
+    fy = (static_cast<float>(py) - 0.5f) / static_cast<float>(cell_px_h_);
+    fx = (static_cast<float>(px) - 0.5f) / static_cast<float>(cell_px_w_);
   } else {
     y = py - 1;
     x = px - 1;
+    fy = static_cast<float>(y);
+    fx = static_cast<float>(x);
   }
   if (y < 0 || x < 0) return;
   if (screen_rows_ > 0 && y >= screen_rows_) return;
@@ -813,6 +819,8 @@ void InputParser::mouse(int code, int px, int py, bool release, bool pixels) {
   e.type = TermEvent::Type::MOUSE;
   e.y = y;
   e.x = x;
+  e.fy = fy;
+  e.fx = fx;
   emit(std::move(e));
 }
 

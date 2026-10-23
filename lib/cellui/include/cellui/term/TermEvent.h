@@ -66,6 +66,8 @@ struct TermEvent {
   int base_key = 0;
   // Mouse cell, 0-based; -1 for anything else.
   int y = -1, x = -1;
+  // The same in cells with the fraction, when the terminal reports pixels.
+  float fy = -1, fx = -1;
   // The text a key produced, a paste's text, or an unknown sequence's or
   // a reply's string.
   std::string text;
