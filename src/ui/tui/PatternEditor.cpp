@@ -2470,7 +2470,7 @@ void PatternEditor::updateColumnBands(const StyleProvider & styles, const std::v
       }
     }
     int line = source_->rowsBetween(top, source_->trackCursor(track_ids[i]));
-    if (line < 0 || line >= visible || end - 1 <= start) {
+    if (line < 0 || line >= visible || end - 1 <= start || !(styles.window_focused || source_->trackHasPlayhead(track_ids[i]))) {
       plane->clearBand();
       continue;
     }
@@ -3129,6 +3129,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // Each Live View column may show a row of its own: see the track loop.
   const auto base_address = address;
   const bool base_highlight = highlight;
+  // The cursor shows only while the window has the focus; a playhead always.
+  const bool show_cursor = styles.window_focused;
   const int unshifted_row = display_row;
   bool row_shifted = false;
 
@@ -3399,7 +3401,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     if (isLiveMode()) {
       auto own_row = i >= 0 ? source_->positionRow(track_ids[static_cast<size_t>(i)], pattern_idx) : std::nullopt;
       // The columns' own lines are bands over their planes, not tints in the rows.
-      track_marked = !columns_planes_in_use_ && own_row && *own_row == pattern_row;
+      track_marked = !columns_planes_in_use_ && own_row && *own_row == pattern_row && (show_cursor || source_->trackHasPlayhead(track_ids[static_cast<size_t>(i)]));
     }
     struct ColumnPlane {
       PatternEditor & editor;
@@ -3429,9 +3431,9 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     // There's always an effective region to highlight, even with no mark
     // set - it degenerates to just the note under the cursor (see
     // getEffectiveSelectionBounds, computed once per render() call).
-    bool row_track_in_selection = pattern_idx == point.block &&
-      i >= sel_bounds.track_lo && i <= sel_bounds.track_hi &&
-      pattern_row >= sel_bounds.row_lo && pattern_row <= sel_bounds.row_hi;
+    bool row_track_in_selection = show_cursor && pattern_idx == point.block &&
+                                  i >= sel_bounds.track_lo && i <= sel_bounds.track_hi &&
+                                  pattern_row >= sel_bounds.row_lo && pattern_row <= sel_bounds.row_hi;
     // A single-track NOTE_COLUMN/COMMAND-scoped region is scoped to
     // specific columns (see set-mark/kill-region) - highlight per-column
     // inside the loop below instead of the whole track uniformly. TRACK
@@ -3604,8 +3606,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	// further down now (which numbers columns are highlighted right at
 	// the cursor's own row, unlike column_selected below) - a single-row,
 	// exact-cursor-position flag, not a region membership one.
-	bool column_highlighted = highlight && current_cursor.isHighlighted(i, k);
-	// Per-column override of the track-level fg/bg for a NOTE_COLUMN- or
+        bool column_highlighted = show_cursor && highlight && current_cursor.isHighlighted(i, k);
+        // Per-column override of the track-level fg/bg for a NOTE_COLUMN- or
 	// COMMAND-scoped region (see getEffectiveSelectionBounds()) - set
 	// across the *whole* selected row range, not just column_highlighted's
 	// single row.
@@ -4075,9 +4077,9 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     // `focused` parameter): these three feed row_selected/row_fully_filled
     // just below, the locator area's own share of the cursor/selection
     // highlight the per-column loop above already gates the same way.
-    bool row_on_locator_cursor = focused && highlight && current_cursor.isOnLocator();
-    bool row_in_everything_selection = focused && sel_bounds.scope == SelectionScope::EVERYTHING &&
-      pattern_idx == point.block && pattern_row >= sel_bounds.row_lo && pattern_row <= sel_bounds.row_hi;
+    bool row_on_locator_cursor = focused && show_cursor && highlight && current_cursor.isOnLocator();
+    bool row_in_everything_selection = focused && show_cursor && sel_bounds.scope == SelectionScope::EVERYTHING &&
+                                       pattern_idx == point.block && pattern_row >= sel_bounds.row_lo && pattern_row <= sel_bounds.row_hi;
     // A genuine multi-row LOCATOR-scoped selection (mark and point both
     // on the locator, on different rows - see kill-region/kill-ring-
     // save/yank's own LOCATOR handling). Guarded on row_lo != row_hi so
@@ -4085,9 +4087,9 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     // row's locator) keeps its existing single-row look below rather
     // than picking up the full-width selected fill meant for an actual
     // range.
-    bool row_in_locator_selection = focused && sel_bounds.scope == SelectionScope::LOCATOR &&
-      sel_bounds.row_lo != sel_bounds.row_hi &&
-      pattern_idx == point.block && pattern_row >= sel_bounds.row_lo && pattern_row <= sel_bounds.row_hi;
+    bool row_in_locator_selection = focused && show_cursor && sel_bounds.scope == SelectionScope::LOCATOR &&
+                                    sel_bounds.row_lo != sel_bounds.row_hi &&
+                                    pattern_idx == point.block && pattern_row >= sel_bounds.row_lo && pattern_row <= sel_bounds.row_hi;
     bool row_selected = row_on_locator_cursor || row_in_everything_selection || row_in_locator_selection;
     bool row_fully_filled = row_in_everything_selection || row_in_locator_selection;
 

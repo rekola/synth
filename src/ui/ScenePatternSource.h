@@ -107,6 +107,7 @@ class ScenePatternSource : public PatternSource {
   RowAddress trackAddress(int track_id, RowAddress address) const override;
   long trackLine(int track_id, RowAddress address) const override;
   double trackScrollRate(int track_id) const override;
+  bool trackHasPlayhead(int track_id) const override { return isPlaying(track_id); }
   float loopPassDim(int track_id, RowAddress address) const override;
   bool isFading() const override;
   void setReducedMotion(bool reduced) override { reduced_motion_ = reduced; }

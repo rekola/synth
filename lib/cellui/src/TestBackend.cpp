@@ -87,6 +87,10 @@ void TestBackend::resize(int rows, int cols) {
   push(BackendEvent::makeResize(rows, cols));
 }
 
+void TestBackend::pushWindowFocus(bool focused) {
+  push(BackendEvent::makeFocus(focused));
+}
+
 void TestBackend::pushEnd() {
   push(BackendEvent::makeClose());
 }

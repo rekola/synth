@@ -14,12 +14,14 @@ struct BackendEvent {
     PASTE,   // text holds the pasted text
     CLOSE,   // the backend is gone: end of input, hang-up or a closed window
     DISPLAY, // the display's description changed: display() has the new one
+    FOCUS,   // the window gained or lost the focus: focused holds which
   };
 
   Type type = Type::INPUT;
   Input input{ Key::Invalid, -1, -1, false, false, false, false };
   int rows = 0, cols = 0;
   std::string text;
+  bool focused = true;
 
   static BackendEvent makeInput(const Input & input) {
     BackendEvent e;
@@ -42,6 +44,12 @@ struct BackendEvent {
   static BackendEvent makeDisplay() {
     BackendEvent e;
     e.type = Type::DISPLAY;
+    return e;
+  }
+  static BackendEvent makeFocus(bool focused) {
+    BackendEvent e;
+    e.type = Type::FOCUS;
+    e.focused = focused;
     return e;
   }
   static BackendEvent makeClose() {

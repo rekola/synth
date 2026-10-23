@@ -573,6 +573,8 @@ ClipGrid::offerInput(const cellui::Input & input) {
 
 bool
 ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
+  // The cursor shows only while the window has the focus.
+  focused = focused && styles.window_focused;
   const Song & song = getController().getSong(); // see offerInput()'s own comment on why const
   auto track_ids = song.getPlayableTrackIds();
   auto num_tracks = static_cast<int>(track_ids.size());
