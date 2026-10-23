@@ -20,7 +20,12 @@ class WaitSet {
   Group group() { return next_group_++; }
 
   void add(Group group, Notifier & notifier);
-#ifndef _WIN32
+#ifdef _WIN32
+  // The handles of a group, for a loop that waits on them itself.
+  std::vector<void *> handles(Group group) const;
+  // Any waitable handle, such as a window's event.
+  void addHandle(Group group, void * handle);
+#else
   void addFd(Group group, int fd);
   // The descriptors of a group, for a loop that waits on them itself.
   std::vector<int> fds(Group group) const;

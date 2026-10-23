@@ -52,6 +52,7 @@ class Window : public Backend {
 
   // Manual-reset events (HANDLEs), signalled while poll() has events to
   // give and after wake(). poll() resets both.
+  std::vector<void *> inputHandles() const override { return { inputHandle(), wakeHandle() }; }
   void * inputHandle() const;
   void * wakeHandle() const;
   // Signals wakeHandle(); any thread may call it.

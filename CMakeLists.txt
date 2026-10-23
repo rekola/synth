@@ -11,15 +11,10 @@ include(GNUInstallDirs)
 
 # The full `synth` (--headless, the Launchpad, live MIDI and audio) builds
 # everywhere; OFF gives the engine, the tests and a render-only `synth`
-# (src/main_render.cpp). The terminal UI (lib/cellui's terminal backend) is
-# POSIX only today, so Windows gets the full program without it.
+# (src/main_render.cpp). The terminal backend of lib/cellui is POSIX only;
+# on Windows the same UI (TerminalUI) runs in cellui's Win32 window.
 option(SYNTH_BUILD_INTERACTIVE "Build the full synth (headless mode, Launchpad, live audio/MIDI)" ON)
-if(WIN32)
-  set(SYNTH_BUILD_TERMINAL_UI_DEFAULT OFF)
-else()
-  set(SYNTH_BUILD_TERMINAL_UI_DEFAULT ON)
-endif()
-option(SYNTH_BUILD_TERMINAL_UI "Build the terminal UI" ${SYNTH_BUILD_TERMINAL_UI_DEFAULT})
+option(SYNTH_BUILD_TERMINAL_UI "Build the interactive UI (TerminalUI: in the terminal, or on Windows in the window)" ON)
 
 # Default to an optimized build when the generator supports build types (a
 # plain `cmake -B build` with no CMAKE_BUILD_TYPE otherwise applies no -O

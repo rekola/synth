@@ -89,10 +89,12 @@ extensions), packages `mingw-w64-ucrt-x86_64-{gcc,cmake,ninja,fmt,libsndfile,
 soundtouch,libunistring,python}`. `SYNTH_BUILD_INTERACTIVE` (default ON) selects between the full `synth` and the render-only one
 (`src/main_render.cpp`: `--render`, `--help`, `--licenses` and the options
 `--render` honours, parsed by `src/cli/CommonOptions.*`, shared with
-`main.cpp`); `SYNTH_BUILD_TERMINAL_UI` (default ON, OFF on Windows) adds the
-terminal UI (`SYNTH_TERMINAL_UI` in `main.cpp`; cellui's terminal backend is POSIX only so far), so
-Windows has the full program run with `--headless` (`tools/smoke_headless.py`
-in CI); ALSA and PipeWire sources are Linux only. `.github/workflows/
+`main.cpp`); `SYNTH_BUILD_TERMINAL_UI` (default ON) adds the interactive UI
+(`SYNTH_TERMINAL_UI` in `main.cpp`). cellui's terminal backend is POSIX only, so
+on Windows `TerminalUI` runs on cellui's Win32 window (`--ui raster`, what `auto`
+picks; the loop waits on handles, `WaitSet::handles()`, `Backend::inputHandles()`,
+`EventLoop::addHandles()`; no stderr capture to the status line, no pixel scopes
+yet, never run on a desktop), and `--headless` is what CI runs (`tools/smoke_headless.py`); ALSA and PipeWire sources are Linux only. `.github/workflows/
 ci-windows-x86_64.yml` builds, runs ctest and renders songs. The `#ifdef
 _WIN32`s this needed live in small platform helpers: `util/Paths.h` (the
 config dir `%APPDATA%\synth`, the user and installed data dirs, the executable's

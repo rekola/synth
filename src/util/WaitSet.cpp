@@ -37,6 +37,20 @@ WaitSet::wait(int timeout_ms) {
   return any;
 }
 #else
+void
+WaitSet::addHandle(Group group, void * handle) {
+  slots_.push_back({ handle, group });
+}
+
+std::vector<void *>
+WaitSet::handles(Group group) const {
+  std::vector<void *> result;
+  for (auto & slot : slots_) {
+    if (slot.group == group) result.push_back(slot.handle);
+  }
+  return result;
+}
+
 bool
 WaitSet::wait(int timeout_ms) {
   for (auto & slot : slots_) slot.ready = false;

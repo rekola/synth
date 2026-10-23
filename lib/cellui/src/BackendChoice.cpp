@@ -25,7 +25,7 @@ bool parseBackendKind(std::string_view name, BackendKind & kind) {
 
 BackendEnvironment probeBackendEnvironment() {
   BackendEnvironment environment;
-#ifdef CELLUI_HAS_GTK
+#if defined(CELLUI_HAS_GTK) || defined(CELLUI_HAS_WIN32)
   environment.raster_built = true;
 #endif
 #if defined(_WIN32)
