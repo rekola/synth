@@ -89,7 +89,7 @@ int main(int argc, char *argv[]) {
       i++;
     } else if (strcmp(argv[i], "--ui") == 0) {
       if (i + 1 >= argc || !cellui::parseBackendKind(argv[i + 1], ui_kind)) {
-        fmt::print(stderr, "--ui requires 'auto', 'terminal' or 'raster' ('window' is now 'raster')\n");
+        fmt::print(stderr, "--ui requires 'auto', 'terminal' or 'raster'\n");
         exit(1);
       }
       i++;

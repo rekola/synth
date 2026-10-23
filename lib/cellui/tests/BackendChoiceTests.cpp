@@ -12,7 +12,6 @@ TEST(backend_names_parse_and_nothing_else_does) {
   CHECK(parseBackendKind("terminal", kind) && kind == BackendKind::TERMINAL);
   CHECK(parseBackendKind("raster", kind) && kind == BackendKind::RASTER);
   kind = BackendKind::RASTER;
-  // "window" was the raster backend's old name; every window is a window.
   CHECK(!parseBackendKind("window", kind) && kind == BackendKind::RASTER);
   CHECK(!parseBackendKind("", kind));
   CHECK(!parseBackendKind("Terminal", kind));
