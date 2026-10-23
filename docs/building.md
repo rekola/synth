@@ -56,16 +56,14 @@ backend, so Cairo is not needed.
 installer, `synth-<version>-windows-x86_64-setup.exe`, on every `v*` tag (it
 is attached to the release), on demand, and on changes to the files that make
 it. `tools/windows/stage.sh` lays out the program, the MSYS2 runtime DLLs it
-needs, the songs and the licence texts (and SoundFonts, below), and
+needs, the songs and the licence texts, and
 `tools/windows/synth.iss` packs that. The job then installs the result with no
 MSYS2 on the PATH and plays a song from it, which catches a missing DLL.
 
-To include a General MIDI SoundFont, set the repository variables
-`SYNTH_SOUNDFONT_URL` (a direct link to the `.sf2`), `SYNTH_SOUNDFONT_SHA256`
-and, for its licence text, `SYNTH_SOUNDFONT_LICENSE_URL`. Without them the
-installer has no SoundFont and instrument tracks use the built-in fallback
-instrument. Installed copies also read SoundFonts from
-`%LOCALAPPDATA%\synth\soundfonts`.
+The installer ships no SoundFont. Without one, instrument tracks use the
+built-in fallback instrument; a General MIDI SoundFont put in
+`%LOCALAPPDATA%\synth\soundfonts` (or `share\soundfonts` next to
+`synth.exe`) is found automatically.
 
 The installer is not signed, so Windows SmartScreen will warn when it is run.
 

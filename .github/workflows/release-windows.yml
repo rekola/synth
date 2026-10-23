@@ -58,28 +58,8 @@ jobs:
       - name: Build
         run: cmake --build build --target synth
 
-      # A General MIDI SoundFont makes the instrument tracks sound as they do
-      # on Linux. Without one the installer still works, with the built-in
-      # fallback instrument. Set the repository variables SYNTH_SOUNDFONT_URL
-      # (a direct link to the .sf2) and SYNTH_SOUNDFONT_SHA256 to include one;
-      # its licence text goes in SYNTH_SOUNDFONT_LICENSE_URL.
-      - name: SoundFont
-        env:
-          URL: ${{ vars.SYNTH_SOUNDFONT_URL }}
-          SHA256: ${{ vars.SYNTH_SOUNDFONT_SHA256 }}
-          LICENSE_URL: ${{ vars.SYNTH_SOUNDFONT_LICENSE_URL }}
-        run: |
-          mkdir -p soundfonts
-          if [ -z "$URL" ] || [ -z "$SHA256" ]; then
-            echo "No SoundFont configured; the installer will not include one."
-            exit 0
-          fi
-          curl -fsSL -o "soundfonts/$(basename "$URL")" "$URL"
-          echo "$SHA256  soundfonts/$(basename "$URL")" | sha256sum -c -
-          if [ -n "$LICENSE_URL" ]; then curl -fsSL -o soundfonts/LICENSE-soundfont.txt "$LICENSE_URL"; fi
-
       - name: Stage
-        run: tools/windows/stage.sh build stage soundfonts
+        run: tools/windows/stage.sh build stage
 
       - name: Installer
         shell: pwsh

@@ -214,12 +214,12 @@ Verify by hand with a Launchpad on Windows; document in `docs/headless.md`.
 ## Step 6 - Installer (built on CI, not yet run by a person)
 
 Done: `release-windows.yml`, `tools/windows/` (see `docs/building.md`). Left:
-the SoundFont (needs a pinned URL and checksum), a SOFA file, signing,
+a SOFA file, signing,
 MSIX/winget.
 
 - **Inno Setup**, built on CI from tags.
   - It bundles the MSYS2 runtime DLLs the binary needs (collected with
-    `ntldd`), the default song, a General MIDI SoundFont (FluidR3_GM, MIT),
+    `ntldd`), the default song (no SoundFont: the installer does not ship one),
     a SOFA file if its licence allows, and the licence texts.
   - A Start menu entry for `--headless`; the window gets one in phase 2.
   - Later: an MSIX or winget manifest.
