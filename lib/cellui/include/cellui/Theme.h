@@ -263,8 +263,8 @@ struct Theme {
     t.solo = Color("#e6ad00");
     t.monitor = t.accent;
     t.clip_override = Color("#e09036");
-    t.locator = Color("#e4312f");
-    t.locator_bg = Color("#4a2321");
+    t.locator = t.text_primary;
+    t.locator_bg = t.surface_raised;
     t.locator_mark = t.text_secondary;
     t.button_fg = t.text_on_accent;
     t.button_bg = t.accent;
@@ -314,8 +314,8 @@ struct Theme {
     t.solo = Color("#8a6400");
     t.monitor = t.accent;
     t.clip_override = Color("#a35a00");
-    t.locator = Color("#b3261e");
-    t.locator_bg = Color("#f0c4c0");
+    t.locator = t.text_primary;
+    t.locator_bg = t.surface_raised;
     t.locator_mark = t.text_secondary;
     t.button_fg = t.text_on_accent;
     t.button_bg = t.accent;
