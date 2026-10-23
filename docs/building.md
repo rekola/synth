@@ -67,5 +67,20 @@ installer has no SoundFont and instrument tracks use the built-in fallback
 instrument. Installed copies also read SoundFonts from
 `%LOCALAPPDATA%\synth\soundfonts`.
 
-The installer is not signed, so Windows SmartScreen will warn when it is run.
+The installer can add its folder to the PATH (an unchecked task in the setup;
+uninstalling removes it again), so that `synth` runs from any terminal.
 
+It also carries a SOFA file (`third_party/sofa/`, the MIT KEMAR head
+responses; the licence asks only that the authors are cited) in `share\sofa`,
+which binaural decoding uses. That needs libmysofa from MSYS2; the job builds
+without the decoder, and leaves the file out, if the package is not there.
+
+**Signing.** With the repository secrets `SIGN_PFX_BASE64` (a code signing
+certificate as a `.pfx` file, base64 encoded) and `SIGN_PFX_PASSWORD`, the
+release job signs `synth.exe` and the installer (`tools/windows/sign.ps1`,
+with a timestamp), and fails if the installer's signature is not valid.
+Without them the installer is unsigned and Windows SmartScreen warns when it
+is run. On pull requests a throwaway certificate stands in to test the
+signing. Many certificate authorities now keep the key on a hardware token or
+in their cloud, which cannot be exported to a `.pfx`; such a service needs its
+own signing step in place of `sign.ps1`.
