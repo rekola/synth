@@ -1058,7 +1058,7 @@ would otherwise resume showing.
   locators, each a `›` at its bar followed by its name. The band's height
   follows the track count (`TerminalUI::arrangementScopeRows()`, at most a
   third of the screen); the spectrum and DirAC heatmap are stacked in a narrow
-  column to the grid's right, then the channel meter, each under a title bar in the grid's header colour (`window_accent_bg_color`, apart from the menu bar's). The selected track shows in the grid only while it has the focus. The bars are a plane of
+  column to the grid's right, then the channel meter, each under the same title bar Live View's scopes have (`TerminalUI::drawScopeTitle()`), the scopes at Live View's size (`kScopeHeight`), so the band is at least `2 * kScopeHeight + 2` rows. A locator's name is written as a string, so wide characters keep their columns. The selected track shows in the grid only while it has the focus. The bars are a plane of
   their own (names and header stay put), scrolled sideways by parts of a bar
   on a smooth display, where the playhead is a vertical `Band`. Left/Right move the
   cursor along the bars, Up/Down across the tracks; the wheel scrolls the bars

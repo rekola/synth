@@ -1029,10 +1029,23 @@ TerminalUI::commandCompletions(std::string_view prefix) const {
   return result;
 }
 
+void TerminalUI::drawScopeTitle(int row, int col, int width, const std::string & text, bool ends_in_divider) {
+  setFgColor(styles_.window_accent_fg_color);
+  setBgColor(styles_.heading_bg_color);
+  putstr(row, col, std::string(static_cast<size_t>(width), ' '));
+  putstr(row, col + 1, text);
+  if (ends_in_divider && styles_.grid_lines) {
+    setFgColor(styles_.heading_bg_color);
+    setBgColor(styles_.window_bg_color);
+    putstr(row, col + width, "▌");
+  }
+}
+
 int TerminalUI::arrangementScopeRows() const {
-  // A header of two rows (bar ruler, locators), then a row per track; at least
-  // enough for the two scopes, and at most a third of the screen.
-  constexpr int kMinRows = 7;
+  // The two scopes at their Live View size under their title bars; more for a
+  // song with more tracks (a header of two rows, then a row per track), but at
+  // most a third of the screen.
+  constexpr int kMinRows = 2 * kScopeHeight + 2;
   auto num_tracks = static_cast<int>(getController().getSong().getPlayableTrackIds().size());
   int rows = getDim().first;
   return std::clamp(ArrangementGrid::kHeaderRows + num_tracks, kMinRows, std::max(kMinRows, rows / 3));
@@ -1043,8 +1056,6 @@ TerminalUI::layout() {
   auto [ rows, cols ] = getDim();
   outline_view_->setScreenSize(rows, cols);
 
-  constexpr int kHeatmapWidth = 31; // 20 * 1.5, rounded up to the nearest odd width
-  constexpr int kScopeHeight = 5;
   // Arrangement view shows the scope row unless toggle-scopes hid it
   // (Live View's own scopes sit in its left column, below). A hidden
   // row's widgets move below the screen rather than shrinking away (see
@@ -1080,17 +1091,14 @@ TerminalUI::layout() {
   int matrix_width = std::max(1, matrix_divider_x);
   arrangement_grid_->resize(scope_rows, matrix_width).move(scope_row, 0);
 
-  // Each scope has a title bar over it, like Live View's; Live View places
-  // the scopes in its own left column below.
-  int band_chart_rows = std::max(1, (scope_rows - 2) / 2);
-  int band_heatmap_rows = std::max(1, scope_rows - 2 - band_chart_rows);
+  // Each scope has a title bar over it, as in Live View, and its size there.
   int band_chart_row = scope_row + 1;
-  int band_heatmap_row = band_chart_row + band_chart_rows + 1;
+  int band_heatmap_row = band_chart_row + kScopeHeight + 1;
   if (getView() == View::ARRANGEMENT) {
     chart_->setVisible(show_scopes);
     heatmap_->setVisible(show_scopes);
-    chart_->resize(band_chart_rows, kHeatmapWidth).move(band_chart_row, heatmap_x);
-    heatmap_->resize(band_heatmap_rows, kHeatmapWidth).move(band_heatmap_row, heatmap_x);
+    chart_->resize(kScopeHeight, kHeatmapWidth).move(band_chart_row, heatmap_x);
+    heatmap_->resize(kScopeHeight, kHeatmapWidth).move(band_heatmap_row, heatmap_x);
   }
   volume_meter_->resize(scope_rows - 1, 9).move(scope_row + 1, meter_x);
 
@@ -1107,20 +1115,9 @@ TerminalUI::layout() {
     putstr(scope_row + row, meter_x - 1, divider_glyph);
   }
   if (show_scopes) {
-    // The grid's own header rows use the same panel colour.
-    struct Title {
-      int row, col, width;
-      const char * text;
-    };
-    const Title titles[] = {{scope_row, heatmap_x, kHeatmapWidth, "Spectrum"},
-                            {band_heatmap_row - 1, heatmap_x, kHeatmapWidth, "DirAC"},
-                            {scope_row, meter_x, 9, "Level"}};
-    setFgColor(styles_.window_accent_fg_color);
-    setBgColor(styles_.window_accent_bg_color);
-    for (auto & title : titles) {
-      putstr(title.row, title.col, std::string(static_cast<size_t>(title.width), ' '));
-      putstr(title.row, title.col + 1, title.text);
-    }
+    drawScopeTitle(scope_row, heatmap_x, kHeatmapWidth, "Spectrum", true);
+    drawScopeTitle(band_heatmap_row - 1, heatmap_x, kHeatmapWidth, "DirAC", true);
+    drawScopeTitle(scope_row, meter_x, 9, "Level", false);
   }
   // The workspace below the scope row. A widget the current view doesn't
   // show gets the same rect as a visible one instead of being shrunk to
@@ -1156,20 +1153,9 @@ TerminalUI::layout() {
       int scope_x_width = outline_cols - 1;
       int chart_row = workspace_row + outline_rows + 1;
       int heatmap_row = chart_row + kScopeHeight + 1;
-      // A title bar above each scope, like the outline's heading; with
-      // lines between the columns it ends in a half block over the divider.
-      const std::pair<int, const char *> titles[] = { { chart_row - 1, "Spectrum" }, { heatmap_row - 1, "DirAC" } };
-      for (auto & [ title_row, title ] : titles) {
-        setFgColor(styles_.window_accent_fg_color);
-        setBgColor(styles_.heading_bg_color);
-        putstr(title_row, 0, std::string(static_cast<size_t>(scope_x_width), ' '));
-        putstr(title_row, 1, title);
-        if (styles_.grid_lines) {
-          setFgColor(styles_.heading_bg_color);
-          setBgColor(styles_.window_bg_color);
-          putstr(title_row, scope_x_width, "▌");
-        }
-      }
+      // A title bar above each scope, like the outline's heading.
+      drawScopeTitle(chart_row - 1, 0, scope_x_width, "Spectrum", true);
+      drawScopeTitle(heatmap_row - 1, 0, scope_x_width, "DirAC", true);
       chart_->resize(kScopeHeight, scope_x_width).move(chart_row, 0);
       heatmap_->resize(kScopeHeight, scope_x_width).move(heatmap_row, 0);
     } else {
