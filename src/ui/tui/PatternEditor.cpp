@@ -2645,7 +2645,8 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
       if (track == own_leaf && own_leaf->getChildren().empty() && level > own_leaf->getDepth() - 1) {
 	auto pit = track_parents.find(own_leaf->getInternalId());
 	auto direct_parent = pit != track_parents.end() ? pit->second : nullptr;
-	track = (direct_parent && direct_parent->getType() == TrackType::MASTER) ? direct_parent : nullptr;
+	// The new look carries any wrapper's box down to its content.
+	track = (direct_parent && (direct_parent->getType() == TrackType::MASTER || styles.track_chips)) ? direct_parent : nullptr;
       }
       auto it = all_track_info.find(track_id);
       auto w = it != all_track_info.end() ? it->second.getTrackWidth() : 0;
@@ -2680,8 +2681,9 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
       if (level == 0 && vis_info && vis_info->color_ordinal_ >= 0) return styles.track_chips ? styles.heading_bg_color : vis_info->getColor(styles.tracks);
       // Fixed, not depth-shaded grey like every other ancestor box below -
       // there's only ever one master per song.
-      // The new look leaves non-leaf tracks flat on the window.
-      if (styles.track_chips && !(level == 0 && vis_info && vis_info->color_ordinal_ >= 0)) return styles.window_bg_color;
+      // The new look leaves non-leaf tracks flat, each level a step lighter
+      // than the one inside it, so a box's extent shows without raising it.
+      if (styles.track_chips) return styles.window_bg_color.blend(0.015f + 0.02f * static_cast<float>(std::min(t->getDepth(), 6)), styles.theme.text_primary);
       if (t->getType() == TrackType::MASTER) return styles.master_track_color;
       // Each extra nesting level lightens the grey by one step, so an
       // outer wrapping effect's box reads visually "further out" than
@@ -2741,12 +2743,17 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
     auto draw_edge = [&](int row, int col, const Color & left_color, const Color & right_color) {
       bool same = left_color.toSrgb8() == right_color.toSrgb8();
       if (same) {
-	if (styles.track_chips)
-          setFgColor(styles.window_border_color);
-	else
-          setFgColor(0x00, 0x00, 0x00);
-	setBgColor(right_color);
-	putstr(row, col, "│");
+	if (styles.track_chips) {
+	  // The groove between two boxes of one colour: half the cell is the
+	  // window showing through.
+	  setFgColor(left_color);
+	  setBgColor(styles.window_bg_color);
+	  putstr(row, col, "▌");
+	} else {
+	  setFgColor(0x00, 0x00, 0x00);
+	  setBgColor(right_color);
+	  putstr(row, col, "│");
+	}
       } else {
 	setFgColor(left_color);
 	setBgColor(right_color);
@@ -2754,6 +2761,15 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
       }
     };
     auto draw_divider = [&](int row, int col, const Track * left, int idx) {
+      // A flat box has no groove of its own to draw: a one-cell column of it
+      // (a wrapper's own column beside its content) is just more of the box.
+      auto left_info = left ? get_track_info(left) : nullptr;
+      if (styles.track_chips && left && level == 0 && !(left_info && left_info->color_ordinal_ >= 0)) {
+        setBgColor(segment_color(left));
+        putstr(row, col, " ");
+        putstr(row + 1, col, " ");
+        return;
+      }
       draw_edge(row, col, segment_color(left), next_segment_color(idx));
     };
     // The per-track VU meter next to a leaf's instrument name - a single
@@ -3094,12 +3110,7 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
           // Drawn last for both branches - see the level 0 branch's own
           // comment on why. At the segment's own last column regardless of
           // how the budget above split up the rest of it.
-          if (styles.track_chips) {
-            setBgColor(styles.window_bg_color);
-            putstr(heading_height - 2 - level, current_pos + actual_width - 1, " ");
-          } else {
-            draw_divider(heading_height - 2 - level, current_pos + actual_width - 1, track, i);
-          }
+          draw_divider(heading_height - 2 - level, current_pos + actual_width - 1, track, i);
 	}
       }
       
