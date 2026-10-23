@@ -59,6 +59,8 @@ class TestBackend : public Backend {
   void pushPaste(const std::string & text);
   // The terminal's size changes; the next poll() reports it.
   void resize(int rows, int cols);
+  // The window gains or loses the focus.
+  void pushWindowFocus(bool focused);
   // The terminal goes away (the end of input).
   void pushEnd();
   // Makes wakeFd() readable, as TerminalSession::wake().

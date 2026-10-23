@@ -53,6 +53,8 @@ class PatternSource {
   // How many rows a second `track_id`'s column scrolls while its playhead
   // drives it (0 when it does not), so the view can keep a constant speed.
   virtual double trackScrollRate(int) const { return 0.0; }
+  // Whether `track_id` has a playhead of its own, which stays shown when the cursor is not.
+  virtual bool trackHasPlayhead(int) const { return false; }
   virtual long trackLine(int track_id, RowAddress address) const { return rowsBetween({0, 0}, trackAddress(track_id, address)); }
   // How dimmed `address` (a row of the editor) is for `track_id`, 0 to 1:
   // another pass of the loop it's playing rather than the pass its own
