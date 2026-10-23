@@ -1548,7 +1548,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
     need_redraw = true;
   }
 
-  updateCursorBands(styles, track_ids, heading_height, rows, RowAddress{view_block_, new_row});
+  updateCursorBands(styles, track_ids, heading_height, rows, RowAddress{view_block_, new_row}, focused);
   if (bands_changed_) need_redraw = true;
 
   int new_tempo = song.getTempo();
@@ -2473,7 +2473,7 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
   return false;
 }
 
-void PatternEditor::updateCursorBands(const StyleProvider & styles, const std::vector<int> & track_ids, int heading_height, int rows, RowAddress top) {
+void PatternEditor::updateCursorBands(const StyleProvider & styles, const std::vector<int> & track_ids, int heading_height, int rows, RowAddress top, bool focused) {
   // The cursor and the playheads are translucent strips over planes that hold
   // still while the rows scroll under them.
   int visible = rows - heading_height;
@@ -2506,12 +2506,14 @@ void PatternEditor::updateCursorBands(const StyleProvider & styles, const std::v
         }
       }
       int line = source_->rowsBetween(top, source_->trackCursor(track_ids[i]));
-      double phase = column_scroll_[track_ids[i]].band_phase;
-      if (track_ids[i] == cursor_track && line >= 0 && line < visible) {
+      // A view the wheel scrolled carries the lines with its rows.
+      double phase = view_detached_ ? -column_scroll_[track_ids[i]].offset : column_scroll_[track_ids[i]].band_phase;
+      bool on_screen = line + phase > -1.0 && line + phase < visible;
+      if (track_ids[i] == cursor_track && on_screen) {
         cursor_line = line;
         cursor_phase = phase;
       }
-      if (line < 0 || line >= visible || end - 1 <= start || !(styles.window_focused || source_->trackHasPlayhead(track_ids[i]))) {
+      if (!on_screen || end - 1 <= start || !(styles.window_focused || source_->trackHasPlayhead(track_ids[i]))) {
         plane->clearBand();
         continue;
       }
@@ -2520,11 +2522,14 @@ void PatternEditor::updateCursorBands(const StyleProvider & styles, const std::v
     getPlane().clearBand();
   } else if (smooth_cursor_) {
     int line = source_->rowsBetween(top, source_->cursor());
-    if (line >= 0 && line < visible && !track_ids.empty()) {
+    double phase = view_detached_ ? -row_offset_ : row_band_phase_;
+    if (line + phase > -1.0 && line + phase < visible && !track_ids.empty()) {
       cursor_line = line;
-      cursor_phase = row_band_phase_;
+      cursor_phase = phase;
     }
-    if (cursor_line && (styles.window_focused || source_->trackHasPlayhead(track_ids.front())))
+    // Under the overview, an editor that is not the focus shows no cursor, only a playhead.
+    bool cursor_shown = styles.window_focused && focused;
+    if (cursor_line && !track_ids.empty() && (cursor_shown || source_->trackHasPlayhead(track_ids.front())))
       strip(getPlane(), *cursor_line + cursor_phase, 0.0, getDim().second, styles.cursor_row_tint_color, StyleProvider::kRowTintAlpha);
     else
       getPlane().clearBand();
@@ -2532,7 +2537,7 @@ void PatternEditor::updateCursorBands(const StyleProvider & styles, const std::v
     getPlane().clearBand();
   }
   if (cursor_plane_) {
-    bool cell = smooth_cursor_ && cursor_line && styles.window_focused && cursor_x0_ >= 0 && cursor_x1_ > cursor_x0_ && !current_cursor.isOnLocator();
+    bool cell = smooth_cursor_ && cursor_line && styles.window_focused && (focused || isLiveMode()) && cursor_x0_ >= 0 && cursor_x1_ > cursor_x0_ && !current_cursor.isOnLocator();
     if (cell) {
       bool region = whole_song_ || (selection_active_ && selection_start_pattern_ == source_->cursor().block);
       // Over a selection's own highlight the cursor takes the other tint.
@@ -4184,7 +4189,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     // `focused` parameter): these three feed row_selected/row_fully_filled
     // just below, the locator area's own share of the cursor/selection
     // highlight the per-column loop above already gates the same way.
-    bool row_on_locator_cursor = focused && show_cursor && highlight && current_cursor.isOnLocator();
+    bool row_on_locator_cursor = focused && show_cursor && !playing_now && highlight && current_cursor.isOnLocator();
     bool row_in_everything_selection = focused && show_cursor && sel_bounds.scope == SelectionScope::EVERYTHING &&
                                        pattern_idx == point.block && pattern_row >= sel_bounds.row_lo && pattern_row <= sel_bounds.row_hi;
     // A genuine multi-row LOCATOR-scoped selection (mark and point both

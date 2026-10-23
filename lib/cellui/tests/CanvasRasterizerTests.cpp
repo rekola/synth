@@ -150,3 +150,31 @@ TEST(canvas_rasterizer_keeps_the_cells_of_text_around_a_fallback_character) {
   // The third cell is the first one's twin.
   CHECK(lit(0) == lit(2));
 }
+
+// An underlined cell has a line across its bottom, and an italic one a slanted glyph.
+TEST(canvas_rasterizer_draws_underlines_and_italics) {
+  auto rasterizer = canvasRasterizer();
+  auto render = [&](bool underline, bool italic) {
+    CellBuffer cells(1, 1);
+    CellBuffer::Cell cell;
+    cell.text = "M";
+    cell.fg = Color(255, 255, 255);
+    cell.underline = underline;
+    cell.italic = italic;
+    cells.put(0, 0, cell);
+    return rasterizer->render(cells, {}, 0, 0, 1, 1, 40, 20, 1, Color(255, 255, 255), Color(0, 0, 0));
+  };
+  auto plain = render(false, false);
+  auto underlined = render(true, false);
+  auto italic = render(false, true);
+  // The whole width of a row near the bottom is lit.
+  int lit_row = 0;
+  for (int y = 0; y < underlined.height; y++) {
+    int lit = 0;
+    for (int x = 0; x < underlined.width; x++) lit += Image::red(pixelAt(underlined, x, y)) > 128;
+    if (lit == underlined.width) lit_row = y;
+  }
+  CHECK(lit_row > underlined.height / 2);
+  CHECK(plain.pixels != underlined.pixels);
+  CHECK(plain.pixels != italic.pixels);
+}

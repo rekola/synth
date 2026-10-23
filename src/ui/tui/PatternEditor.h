@@ -213,7 +213,7 @@ protected:
   // The cursor and the playheads are translucent bands over planes that hold
   // still while the rows scroll (smooth displays only); the selection stays in
   // the rows.
-  void updateCursorBands(const StyleProvider & styles, const std::vector<int> & track_ids, int heading_height, int rows, RowAddress top);
+  void updateCursorBands(const StyleProvider & styles, const std::vector<int> & track_ids, int heading_height, int rows, RowAddress top, bool focused);
   bool smoothCursor() const { return smooth_cursor_; }
   bool smooth_cursor_ = false;
   // Where a playing view's line is between two rows, 0 to 1 (Arrangement view).
