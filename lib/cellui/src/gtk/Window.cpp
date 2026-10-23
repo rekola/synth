@@ -131,6 +131,8 @@ struct Window::Impl {
   std::set<guint> held_keys;
   int held_button = 0;
   int last_row = -1, last_col = -1;
+  // The pointer's position in cells, with the fraction.
+  float last_fy = -1, last_fx = -1;
   double scroll_x = 0, scroll_y = 0;
 
   void signal(int fd) {
@@ -149,6 +151,13 @@ struct Window::Impl {
   void cellAt(double x, double y, int & row, int & col) const {
     col = std::clamp(static_cast<int>(std::floor(x / cell_w)), 0, std::max(0, cols - 1));
     row = std::clamp(static_cast<int>(std::floor(y / cell_h)), 0, std::max(0, rows - 1));
+  }
+
+  // The position under a pixel in cells, with the fraction, clamped to the grid.
+  void cellPosition(double x, double y, float & fy, float & fx) const {
+    float max_x = std::max(0.0f, static_cast<float>(cols) - 0.001f), max_y = std::max(0.0f, static_cast<float>(rows) - 0.001f);
+    fx = std::clamp(static_cast<float>(x / cell_w), 0.0f, max_x);
+    fy = std::clamp(static_cast<float>(y / cell_h), 0.0f, max_y);
   }
 
   void measure(const WindowOptions & options);
@@ -267,6 +276,9 @@ void Window::Impl::measure(const WindowOptions & options) {
   display_info.smooth_scroll = true;
   display_info.keymap_profile = KeymapProfile::DESKTOP;
   display_info.escape_as_meta = false;
+  display_info.key_release = true;
+  display_info.precise_mouse = true;
+  display_info.hover = true;
 }
 
 void Window::Impl::allocated(int width, int height) {
@@ -616,13 +628,17 @@ void Window::Impl::buttonEvent(int button, double x, double y, bool pressed, Gdk
   if (button < 1 || button > 3) return;
   int row, col;
   cellAt(x, y, row, col);
+  float fy, fx;
+  cellPosition(x, y, fy, fx);
   unsigned mods = modsFrom(state);
   held_button = pressed ? button : 0;
   last_row = row;
   last_col = col;
+  last_fy = fy;
+  last_fx = fx;
   Input input(Key::Button1 + button - 1, row, col, mods & kModAlt, mods & kModShift, mods & kModCtrl, mods & (kModMeta | kModSuper),
               pressed ? Input::Kind::PRESS : Input::Kind::RELEASE);
-  push(BackendEvent::makeInput(input));
+  push(BackendEvent::makeInput(input.withPosition(fy, fx)));
 }
 
 // Sets the widget's pointer to the shape asked for over the pointer's cell.
@@ -636,17 +652,23 @@ void Window::Impl::updateMouseCursor() {
 void Window::Impl::motionEvent(double x, double y, GdkModifierType state) {
   int row, col;
   cellAt(x, y, row, col);
-  if (row == last_row && col == last_col) return;
-  // The pointer's cell, for the wheel to be sent to.
+  float fy, fx;
+  cellPosition(x, y, fy, fx);
+  if (fy == last_fy && fx == last_fx) return;
+  // The pointer's place, for the wheel to be sent to.
   last_row = row;
   last_col = col;
+  last_fy = fy;
+  last_fx = fx;
   updateMouseCursor();
-  if (!held_button) return;
   unsigned mods = modsFrom(state);
-  // A drag repeats the press of the held button at the new cell.
-  Input input(Key::Button1 + held_button - 1, row, col, mods & kModAlt, mods & kModShift, mods & kModCtrl, mods & (kModMeta | kModSuper),
-              Input::Kind::PRESS);
-  push(BackendEvent::makeInput(input));
+  // A drag repeats the press of the held button at the new position; with
+  // no button the pointer is hovering.
+  Input input = held_button ? Input(Key::Button1 + held_button - 1, row, col, mods & kModAlt, mods & kModShift, mods & kModCtrl,
+                                    mods & (kModMeta | kModSuper), Input::Kind::PRESS)
+                            : Input(Key::Motion, row, col, mods & kModAlt, mods & kModShift, mods & kModCtrl, mods & (kModMeta | kModSuper),
+                                    Input::Kind::RELEASE);
+  push(BackendEvent::makeInput(input.withPosition(fy, fx)));
 }
 
 bool Window::Impl::scrollEvent(double dx, double dy, GdkModifierType state) {
@@ -655,7 +677,8 @@ bool Window::Impl::scrollEvent(double dx, double dy, GdkModifierType state) {
   unsigned mods = modsFrom(state);
   int row = std::max(last_row, 0), col = std::max(last_col, 0);
   auto emit = [&](int button) {
-    push(BackendEvent::makeInput(Input(button, row, col, mods & kModAlt, mods & kModShift, mods & kModCtrl, mods & (kModMeta | kModSuper), Input::Kind::PRESS)));
+    push(BackendEvent::makeInput(Input(button, row, col, mods & kModAlt, mods & kModShift, mods & kModCtrl, mods & (kModMeta | kModSuper), Input::Kind::PRESS)
+                                     .withPosition(std::max(last_fy, 0.0f), std::max(last_fx, 0.0f))));
   };
   while (scroll_y >= 1.0) { emit(Key::Button5); scroll_y -= 1.0; }
   while (scroll_y <= -1.0) { emit(Key::Button4); scroll_y += 1.0; }

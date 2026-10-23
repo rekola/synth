@@ -73,7 +73,7 @@ Input toInput(const TermEvent & e) {
     default: kind = Input::Kind::UNKNOWN; break;
   }
   if (e.type == TermEvent::Type::MOUSE) {
-    return Input(e.key, e.y, e.x, alt, shift, ctrl, meta, kind);
+    return Input(e.key, e.y, e.x, alt, shift, ctrl, meta, kind).withPosition(e.fy, e.fx);
   }
   if (e.type == TermEvent::Type::RESIZE) return Input(Key::Resize, -1, -1, false, false, false, false);
   if (e.type == TermEvent::Type::END) return Input(Key::Eof, -1, -1, false, false, false, false);

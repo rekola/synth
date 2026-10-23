@@ -266,6 +266,10 @@ void TerminalSession::enterModes() {
   setup_ += "\x1b[?2004h"; // bracketed paste
   setup_ += "\x1b[?1004h"; // focus reports
   if (mouse_) setup_ += "\x1b[?1003;1006h";
+  pixel_mouse_on_ = wantPixelMouse();
+  parser_.setPixelMouse(pixel_mouse_on_, caps_.display.cell_px_height, caps_.display.cell_px_width);
+  caps_.display.precise_mouse = pixel_mouse_on_;
+  if (pixel_mouse_on_) setup_ += "\x1b[?1016h";
   if (caps_.pixels == PixelProtocol::KITTY) setup_ += "\x1b_Ga=d,q=2\x1b\\";
   write(setup_);
   encoder_.invalidate();
@@ -273,7 +277,7 @@ void TerminalSession::enterModes() {
   restore_ += "\x1b[?2026l";
   restore_ += "\x1b[0m";
   restore_ += "\x1b]22;default\x1b\\";
-  if (mouse_) restore_ += "\x1b[?1003;1006l";
+  if (mouse_) restore_ += "\x1b[?1016l\x1b[?1003;1006l";
   restore_ += "\x1b[?1004l\x1b[?2004l\x1b[?7h\x1b[?12l\x1b[?25h";
   restore_ += caps_.kitty_keyboard ? "\x1b[<u" : "\x1b[<u\x1b[>4m\x1b[>2m";
   if (caps_.pixels == PixelProtocol::KITTY) restore_ += "\x1b_Ga=d,q=2\x1b\\";
@@ -317,7 +321,20 @@ void TerminalSession::setNativeSelection(bool native) {
   bool on = !native;
   if (!mouse_ || on == mouse_reporting_) return;
   mouse_reporting_ = on;
-  write(on ? "\x1b[?1003;1006h" : "\x1b[?1003;1006l");
+  write(on ? "\x1b[?1003;1006h" : "\x1b[?1016l\x1b[?1003;1006l");
+  // The write above left 1016 off either way.
+  pixel_mouse_on_ = false;
+  caps_.display.precise_mouse = false;
+  updatePixelMouse();
+}
+
+void TerminalSession::updatePixelMouse() {
+  bool want = wantPixelMouse();
+  parser_.setPixelMouse(want, caps_.display.cell_px_height, caps_.display.cell_px_width);
+  if (want == pixel_mouse_on_) return;
+  pixel_mouse_on_ = want;
+  caps_.display.precise_mouse = want;
+  write(want ? "\x1b[?1016h" : "\x1b[?1016l");
 }
 
 void TerminalSession::write(const std::string & bytes) {
@@ -441,7 +458,7 @@ std::vector<TermEvent> TerminalSession::pollTerm() {
         ImageEncoder::Profile profile = imageProfile();
         write(images_.clear());
         images_ = ImageEncoder(profile);
-        parser_.setPixelMouse(false, e.params[1], e.params[2]);
+        updatePixelMouse();
       }
       continue;
     }

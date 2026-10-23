@@ -58,6 +58,14 @@ struct DisplayInfo {
   // Meta-x as ESC x). A backend that reports Alt as a modifier clears it, and
   // Escape is then an ordinary key.
   bool escape_as_meta = true;
+  // What input the display reports. A widget that needs one of these
+  // checks the flag and offers another way when it is unset.
+  // Key releases (KeyUp); otherwise only presses arrive.
+  bool key_release = false;
+  // Pointer positions finer than a cell (MouseDown::x and y have fractions).
+  bool precise_mouse = false;
+  // The pointer moving with no button held (MouseMove, Enter and Leave).
+  bool hover = false;
 };
 
 }  // namespace cellui

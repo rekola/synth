@@ -193,12 +193,23 @@ class Input {
   Input(int id, int y, int x, bool alt, bool shift, bool ctrl, bool meta, Kind kind = Kind::UNKNOWN,
 	     int true_case_id = -1, std::chrono::steady_clock::time_point timestamp = std::chrono::steady_clock::now())
     : id_(id), true_case_id_(true_case_id == -1 ? id : true_case_id),
-      y_(y), x_(x), alt_(alt), shift_(shift), ctrl_(ctrl), meta_(meta), kind_(kind), timestamp_(timestamp) { }
+      y_(y), x_(x), alt_(alt), shift_(shift), ctrl_(ctrl), meta_(meta), kind_(kind), timestamp_(timestamp),
+      fy_(static_cast<float>(y)), fx_(static_cast<float>(x)) { }
 
   int getId() const { return id_; }
   int getTrueCaseId() const { return true_case_id_; }
   int getY() const { return y_; }
   int getX() const { return x_; }
+  // The pointer position in cells from the top left, with the fraction where
+  // the display reports finer than a cell (DisplayInfo::precise_mouse);
+  // otherwise the whole cell, as getY() and getX().
+  float getFy() const { return fy_; }
+  float getFx() const { return fx_; }
+  Input & withPosition(float fy, float fx) {
+    fy_ = fy;
+    fx_ = fx;
+    return *this;
+  }
   bool hasAlt() const { return alt_; }
   bool hasShift() const { return shift_; }
   bool hasCtrl() const { return ctrl_; }
@@ -212,6 +223,7 @@ class Input {
   bool alt_, shift_, ctrl_, meta_;
   Kind kind_;
   std::chrono::steady_clock::time_point timestamp_;
+  float fy_, fx_;
 };
 
 // The Input for a key press: an upper-case ASCII letter becomes lower case

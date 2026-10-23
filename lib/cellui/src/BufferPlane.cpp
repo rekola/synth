@@ -1,6 +1,7 @@
 #include <cellui/BufferPlane.h>
 
 #include <cellui/Utf8.h>
+#include <cellui/Widget.h>
 
 #include <algorithm>
 #include <array>
@@ -130,6 +131,7 @@ void BufferPlane::refresh() {
   top.layers_.clear();
   top.elevations_.clear();
   top.mouse_cursors_.clear();
+  top.hit_areas_.clear();
   // Lower planes first, whatever their place in the tree; planes of one
   // height in tree order (a parent before its children).
   std::vector<Paint> paints;
@@ -138,11 +140,13 @@ void BufferPlane::refresh() {
   for (const Paint & p : paints) {
     p.plane->compose(*top.target_, p.row, p.col, p.clip_row, p.clip_col, p.clip_rows, p.clip_cols, p.elevation);
     bool elevated = p.elevation > 0.0f;
-    if (!elevated && p.plane->mouse_cursor_ == MouseCursor::INHERIT) continue;
+    Widget * owner = p.plane->owner();
+    if (!owner && !elevated && p.plane->mouse_cursor_ == MouseCursor::INHERIT) continue;
     auto [rows, cols] = p.plane->getDim();
     int r0 = std::max(p.clip_row, p.row), r1 = std::min(p.clip_row + p.clip_rows, p.row + rows);
     int c0 = std::max(p.clip_col, p.col), c1 = std::min(p.clip_col + p.clip_cols, p.col + cols);
     if (r0 >= r1 || c0 >= c1) continue;
+    if (owner) top.hit_areas_.push_back(HitArea{ r0, c0, r1 - r0, c1 - c0, owner, owner->life() });
     if (p.plane->mouse_cursor_ != MouseCursor::INHERIT) {
       top.mouse_cursors_.push_back(CursorArea{ r0, c0, r1 - r0, c1 - c0, p.plane->mouse_cursor_ });
     }
