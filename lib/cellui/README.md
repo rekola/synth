@@ -55,7 +55,7 @@ deliberate change, run the tests with `CELLUI_UPDATE_GOLDEN=1` to rewrite it.
 
 ## Events and signals
 
-*`Signal` and `Connection` (`cellui/Signal.h`) are implemented. Posted events, input events, the queues and the loop additions are design, and their signatures may change in detail.*
+*Implemented: `Signal` and `Connection` (`cellui/Signal.h`) and posted events on the widget tree (`cellui/EventTypes.h`, `Widget::attach`/`on`/`post`/`postToRoot`). Input events, the queues and the loop additions are design, and their signatures may change in detail.*
 
 cellui has three ways to tell other code that something happened. They differ
 in how much the sender knows about the receiver and in which thread they run.
@@ -133,7 +133,7 @@ class TransportBar : public cellui::Widget {
   }
 };
 
-cellui::post(TransportToggled{ true });  // anywhere on the UI thread
+any_widget.postToRoot(TransportToggled{ true });  // from any widget of the tree, on the UI thread
 ```
 
 A handler returns `Handled::yes` to stop the event and `Handled::no` to let it
@@ -141,12 +141,14 @@ continue. The `EventContext` passed to a handler carries the source widget, the
 loop-clock timestamp, the phase and an accepted flag. It is made on the stack
 for each dispatch and never stored with the event.
 
-**Untargeted: `post(e)`.** The event goes to the root. The root's handlers run
-first, then every widget with a handler for that type, in tree pre-order
+**Untargeted: `widget.postToRoot(e)`.** The event goes to the root of the
+widget's tree. The root's handlers run first, then every widget with a
+handler for that type, in tree pre-order
 (ancestors before descendants, siblings in child order), until one returns
 `Handled::yes`. Handlers that return `Handled::no` let several widgets observe
 one notification. Cost is proportional to the number of handlers for the type,
-not the size of the tree.
+not the size of the tree. Capture and bubble handlers alike run, with the
+context's phase set to bubble.
 
 **Targeted: `widget.post(e)`.** Delivery has two phases:
 
@@ -157,6 +159,13 @@ not the size of the tree.
    `Handled::yes`.
 
 `on<E>` takes the phase as an optional second argument; the default is bubble.
+Both `post` and `postToRoot` return whether some handler took the event.
+
+The tree is links only: `child.attach(parent)` makes a widget the last child of
+another (leaving its old parent), `detach()` makes it a root, and a widget that
+is destroyed leaves its children as roots. The order of a root post follows the
+tree as it is when the event is posted, however handlers were installed, moved
+or removed before.
 
 ```cpp
 // While open, a dialog takes every key before the widgets under it.
@@ -284,8 +293,8 @@ tree, call `post`, and assert the order handlers ran in.
 TEST(capture_precedes_bubble) {
   std::vector<std::string> order;
   Widget root, panel, button;
-  panel.reparent(root);
-  button.reparent(panel);
+  panel.attach(root);
+  button.attach(panel);
   auto a = root.on<KeyDown>([&](auto &, auto &) { order.push_back("root capture"); return Handled::no; }, Phase::capture);
   auto b = button.on<KeyDown>([&](auto &, auto &) { order.push_back("button"); return Handled::no; });
   auto c = panel.on<KeyDown>([&](auto &, auto &) { order.push_back("panel bubble"); return Handled::no; });

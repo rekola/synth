@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cellui/Color.h>
+#include <cellui/EventTypes.h>
 #include <cellui/CommandRegistry.h>
 #include <cellui/Input.h>
 #include <cellui/KeyChord.h>
@@ -8,12 +9,16 @@
 #include <cellui/Keymap.h>
 #include <cellui/Plane.h>
 
+#include <algorithm>
 #include <cassert>
+#include <chrono>
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 namespace cellui {
@@ -22,13 +27,88 @@ namespace cellui {
 // named commands.
 class Widget {
  public:
-  explicit Widget() { }
+  explicit Widget() { table_->widget = this; }
   explicit Widget(Plane & parent) {
+    table_->widget = this;
     setPlane(parent.createChild());
   }
   virtual ~Widget() {
     if (plane_) plane_->setOwner(nullptr);
+    table_->kill();
+    detach();
+    // The children outlive it as roots of their own trees.
+    std::vector<Widget *> orphans = std::move(children_);
+    children_.clear();
+    for (Widget * child : orphans) {
+      child->parent_ = nullptr;
+      child->epoch_++;
+      registerSubtree(*child);
+    }
   }
+
+  // --- The widget tree. Links only: a widget does not own its children, and
+  // one that goes away leaves its children as roots of their own trees.
+  Widget * parent() const { return parent_; }
+  const std::vector<Widget *> & children() const { return children_; }
+  // Makes this the last child of `parent`, leaving its current parent.
+  void attach(Widget & parent) {
+    detach();
+    parent_ = &parent;
+    parent.children_.push_back(this);
+    root().epoch_++;
+    registerSubtree(*this);
+  }
+  void detach() {
+    if (!parent_) return;
+    Widget & old_root = root();
+    auto & siblings = parent_->children_;
+    siblings.erase(std::remove(siblings.begin(), siblings.end(), this), siblings.end());
+    parent_ = nullptr;
+    old_root.epoch_++;
+    epoch_++;
+    registerSubtree(*this);
+  }
+  Widget & root() {
+    Widget * widget = this;
+    while (widget->parent_) widget = widget->parent_;
+    return *widget;
+  }
+
+  // --- Posted events (see EventTypes.h). An event is any struct.
+
+  // Installs a handler for events of type E; it stays until the Connection
+  // is destroyed or disconnected (or this widget goes). A bubble handler
+  // also runs for a root post; `phase` only matters to a targeted one.
+  template <class E>
+  [[nodiscard]] Connection on(std::function<Handled(const E &, EventContext &)> fn, Phase phase = Phase::bubble) {
+    uint64_t id = table_->add(typeKey<E>(), phase, [fn = std::move(fn)](const void * event, EventContext & ctx) {
+      return fn(*static_cast<const E *>(event), ctx);
+    });
+    root().registry().add(typeKey<E>(), table_);
+    return detail::ConnectionAccess::make(table_, id);
+  }
+
+  // Targeted: capture handlers from the root down to this widget (each may
+  // intercept by returning Handled::yes), then bubble handlers from this
+  // widget up to the root, until one returns Handled::yes. Returns whether
+  // some handler did.
+  template <class E>
+  Handled post(const E & event) {
+    return dispatchTargeted(typeKey<E>(), &event);
+  }
+
+  // Untargeted: every handler for E in the tree, in tree pre-order
+  // (ancestors before descendants, siblings in child order, a widget's own
+  // in the order they were installed), until one returns Handled::yes.
+  // Capture and bubble handlers alike run, with the phase set to bubble.
+  template <class E>
+  Handled postToRoot(const E & event) {
+    return root().dispatchRoot(typeKey<E>(), &event);
+  }
+
+  // The loop clock the contexts of this tree's events carry; set on the
+  // root. Defaults to seconds on a steady clock.
+  void setEventClock(std::function<double()> clock) { clock_ = std::move(clock); }
 
   // Offers a key or mouse event to this widget; true when it was used. The
   // default passes it on to the plane.
@@ -251,7 +331,123 @@ protected:
   }
 
 private:
+  // The widgets of a tree that have a handler for each event type, kept on
+  // the root so a root post visits the handlers, not the tree. Entries are
+  // added when a handler is installed or a subtree is attached, and dropped
+  // when found stale (the widget gone, moved to another tree, or with no
+  // handler of that type left); each list is put in tree order only when the
+  // tree changed since it last was.
+  struct Registry {
+    struct Entry {
+      std::vector<std::shared_ptr<detail::HandlerTable>> tables;
+      uint64_t sorted_epoch = ~uint64_t(0);
+    };
+    std::unordered_map<TypeKey, Entry> by_type;
+    std::unordered_map<const detail::HandlerTable *, size_t> order;
+    uint64_t order_epoch = ~uint64_t(0);
+
+    void add(TypeKey type, const std::shared_ptr<detail::HandlerTable> & table) {
+      auto & entry = by_type[type];
+      if (std::find(entry.tables.begin(), entry.tables.end(), table) != entry.tables.end()) return;
+      entry.tables.push_back(table);
+      entry.sorted_epoch = ~uint64_t(0);
+    }
+  };
+
+  Registry & registry() {
+    if (!registry_) registry_ = std::make_unique<Registry>();
+    return *registry_;
+  }
+
+  static void collectInterest(Widget & widget, Registry & registry) {
+    for (TypeKey type : widget.table_->types()) registry.add(type, widget.table_);
+    for (Widget * child : widget.children_) collectInterest(*child, registry);
+  }
+  // After a subtree moved: its handlers are the new root's to visit.
+  static void registerSubtree(Widget & widget) { collectInterest(widget, widget.root().registry()); }
+
+  static void number(Widget & widget, size_t & next, std::unordered_map<const detail::HandlerTable *, size_t> & out) {
+    out[widget.table_.get()] = next++;
+    for (Widget * child : widget.children_) number(*child, next, out);
+  }
+
+  // The handler tables of this root's tree for `type`, in tree order.
+  std::vector<std::shared_ptr<detail::HandlerTable>> handlersInOrder(TypeKey type) {
+    Registry & reg = registry();
+    auto found = reg.by_type.find(type);
+    if (found == reg.by_type.end()) return {};
+    auto & entry = found->second;
+    entry.tables.erase(std::remove_if(entry.tables.begin(), entry.tables.end(),
+                                      [&](const std::shared_ptr<detail::HandlerTable> & table) {
+                                        return !table->widget || &table->widget->root() != this || !table->has(type);
+                                      }),
+                       entry.tables.end());
+    if (entry.sorted_epoch != epoch_) {
+      if (reg.order_epoch != epoch_) {
+        reg.order.clear();
+        size_t next = 0;
+        number(*this, next, reg.order);
+        reg.order_epoch = epoch_;
+      }
+      std::sort(entry.tables.begin(), entry.tables.end(), [&](const std::shared_ptr<detail::HandlerTable> & a, const std::shared_ptr<detail::HandlerTable> & b) {
+        return reg.order.at(a.get()) < reg.order.at(b.get());
+      });
+      entry.sorted_epoch = epoch_;
+    }
+    return entry.tables;
+  }
+
+  double now() {
+    Widget & top = root();
+    if (top.clock_) return top.clock_();
+    return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+  }
+
+  Handled dispatchTargeted(TypeKey type, const void * event) {
+    // Snapshots, so a handler may add or remove handlers and widgets.
+    std::vector<std::shared_ptr<detail::HandlerTable>> path;
+    for (Widget * widget = this; widget; widget = widget->parent_) path.push_back(widget->table_);
+    EventContext ctx;
+    ctx.source = this;
+    ctx.time = now();
+    ctx.phase = Phase::capture;
+    for (auto table = path.rbegin(); table != path.rend(); ++table) {
+      if ((*table)->widget && (*table)->run(type, Phase::capture, event, ctx) == Handled::yes) {
+        ctx.accepted = true;
+        return Handled::yes;
+      }
+    }
+    ctx.phase = Phase::bubble;
+    for (auto & table : path) {
+      if (table->widget && table->run(type, Phase::bubble, event, ctx) == Handled::yes) {
+        ctx.accepted = true;
+        return Handled::yes;
+      }
+    }
+    return Handled::no;
+  }
+
+  Handled dispatchRoot(TypeKey type, const void * event) {
+    auto tables = handlersInOrder(type);
+    EventContext ctx;
+    ctx.time = now();
+    for (auto & table : tables) {
+      if (table->widget && table->run(type, std::nullopt, event, ctx) == Handled::yes) {
+        ctx.accepted = true;
+        return Handled::yes;
+      }
+    }
+    return Handled::no;
+  }
+
   std::unique_ptr<Plane> plane_;
+  std::shared_ptr<detail::HandlerTable> table_ = std::make_shared<detail::HandlerTable>();
+  Widget * parent_ = nullptr;
+  std::vector<Widget *> children_;
+  // On a root: bumped whenever its tree changes shape.
+  uint64_t epoch_ = 0;
+  std::unique_ptr<Registry> registry_;
+  std::function<double()> clock_;
 };
 
 }  // namespace cellui
