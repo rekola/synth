@@ -39,6 +39,7 @@ ArrangementGrid::moveCursorBar(int delta) {
 }
 
 ArrangementGrid::ArrangementGrid(UIPlane & parent) : UIElement(parent) {
+  getPlane().setName("arrangement-grid");
   getPlane().setMouseCursor(cellui::MouseCursor::POINTER);
   // Deliberate no-ops, not left undefined: a Launchpad's CC91/92 ("move-
   // row-up"/"move-row-down") reach here via UI::executeCommand()'s
@@ -512,11 +513,12 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
         bg = bg.blend(0.35f, styles.cursor_tint_color);
       }
 
+      // The cursor shows only while the window has the focus.
       // Unfocused, the cursor cell shows faintly - a colored instance cell
       // already shows it through the selected column's brightening above.
       // Focused, a colored cell brightens further rather than losing its
       // track color.
-      auto is_cursor_cell = in_range && bar == cursor_bar_ && track_index == cursor_track_index_;
+      auto is_cursor_cell = styles.window_focused && in_range && bar == cursor_bar_ && track_index == cursor_track_index_;
       if (is_cursor_cell) {
         if (cur_clip_index >= 0) {
           if (focus_ > 0.0f) {
