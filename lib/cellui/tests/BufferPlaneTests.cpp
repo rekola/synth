@@ -585,6 +585,23 @@ TEST(bufferplane_a_band_over_a_plane_goes_with_its_scroll_layer) {
   CHECK(root.takeBackdropLayers().empty() && b.at(2, 1).text == "a");
 }
 
+// COLOR gives what is below the top's hue and keeps its brightness: an inverted
+// cell takes the highlight's hue back (the separable modes cannot do it).
+TEST(blend_color_keeps_the_brightness_of_what_is_below) {
+  auto lum = [](const Color & c) { return 0.3 * c.getRed() + 0.59 * c.getGreen() + 0.11 * c.getBlue(); };
+  Color below(40, 30, 20), top(60, 160, 200);
+  Color mixed = blendColors(BlendMode::COLOR, below, top, 1.0f);
+  CHECK(std::abs(lum(mixed) - lum(below)) < 3.0);
+  CHECK(mixed.getBlue() > mixed.getRed());  // the top's blue-ish hue
+  // LUMINOSITY is the other way round: the top's brightness, the hue below.
+  Color bright = blendColors(BlendMode::LUMINOSITY, below, top, 1.0f);
+  CHECK(std::abs(lum(bright) - lum(top)) < 3.0);
+  CHECK(bright.getRed() > bright.getBlue());
+  // Difference inverts each channel: a cyan-tinted dark cell comes out warm.
+  Color inverted = blendColors(BlendMode::DIFFERENCE, Color(10, 40, 50), Color(200, 200, 200), 1.0f);
+  CHECK(inverted.getRed() > inverted.getBlue());
+}
+
 TEST(bufferplane_a_band_keeps_its_blend_mode) {
   StyleProvider styles;
   CellBuffer b(6, 10);
