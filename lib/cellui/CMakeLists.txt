@@ -125,19 +125,23 @@ if(WIN32)
   target_link_libraries(cellui PRIVATE user32 gdi32 d2d1 dwrite dwmapi ole32 uuid)
   target_compile_definitions(cellui PUBLIC CELLUI_HAS_WIN32)
 endif()
-# The pixel versions draw with canvas' Cairo backend, or its Quartz 2D one on
-# Apple platforms; the GDI+ one joins with the window backend on Windows.
+# The pixel versions draw with canvas' Cairo backend, its Quartz 2D one on
+# Apple platforms or its GDI+ one on Windows. The cell rasterizer (the GTK
+# window's, the terminal's backdrops) is not built on Windows, whose window
+# draws cells itself.
+target_sources(cellui PRIVATE src/HeatmapImage.cpp src/NativeContext.cpp src/PixelScopes.cpp src/SpectrumImage.cpp src/VuMeterImage.cpp)
 if(NOT WIN32)
-  target_sources(cellui PRIVATE src/CanvasRasterizer.cpp src/HeatmapImage.cpp src/NativeContext.cpp src/PixelScopes.cpp src/SpectrumImage.cpp src/VuMeterImage.cpp)
-  if(NOT APPLE)
-    # Text in a font the one asked for lacks is found with fontconfig (Core
-    # Text falls back by itself).
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(CELLUI_FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig)
-    target_link_libraries(cellui PRIVATE PkgConfig::CELLUI_FONTCONFIG)
-  endif()
-  target_compile_definitions(cellui PRIVATE CELLUI_PIXEL_SCOPES)
+  target_sources(cellui PRIVATE src/CanvasRasterizer.cpp)
+  target_compile_definitions(cellui PRIVATE CELLUI_CANVAS_RASTERIZER)
 endif()
+if(NOT WIN32 AND NOT APPLE)
+  # Text in a font the one asked for lacks is found with fontconfig (Core
+  # Text falls back by itself).
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(CELLUI_FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig)
+  target_link_libraries(cellui PRIVATE PkgConfig::CELLUI_FONTCONFIG)
+endif()
+target_compile_definitions(cellui PRIVATE CELLUI_PIXEL_SCOPES)
 # canvas' headers are reached as SYSTEM includes.
 target_include_directories(cellui SYSTEM PUBLIC ${canvas_SOURCE_DIR}/include)
 target_link_libraries(cellui PUBLIC canvas)

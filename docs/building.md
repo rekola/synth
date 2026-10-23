@@ -19,8 +19,7 @@ decoding), `libpipewire-0.3-dev` (PipeWire device lists) and `libgtk-4-dev` (GTK
 
 The Windows build has no terminal UI; plain `synth` opens the window UI (a Win32
 window drawn with Direct2D and DirectWrite, written but not yet tried on a real
-desktop: no pixel scopes or blur yet, and stderr lines do not reach its status
-line). `synth --render out.wav song.xml` renders
+desktop). `synth --render out.wav song.xml` renders
 a song and `synth --headless` plays one (see [headless.md](headless.md)), with
 WASAPI audio, WinMM MIDI and a Launchpad, none of them tried on real hardware
 yet. The toolchain is MSYS2 UCRT64

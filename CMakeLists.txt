@@ -314,6 +314,9 @@ if(SYNTH_BUILD_INTERACTIVE)
   )
   target_link_libraries(synth_ui PUBLIC synth_engine)
   if(SYNTH_BUILD_TERMINAL_UI)
+    if(WIN32)
+      target_sources(synth_ui PRIVATE src/util/StderrCapture.cpp)
+    endif()
     target_sources(synth_ui PRIVATE
       src/ui/tui/TerminalUI.cpp
       src/ui/tui/OutlineView.cpp

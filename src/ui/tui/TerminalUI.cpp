@@ -65,6 +65,9 @@
 
 #include <sys/time.h>
 
+#ifdef _WIN32
+#include "../../util/StderrCapture.h"
+#endif
 #include <cellui/MenuBar.h>
 #include <cellui/KeyReader.h>
 #include <cellui/Scopes.h>
@@ -1978,9 +1981,7 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
   WaitSet waits;
   auto input_group = waits.group();
   auto events_group = waits.group();
-#ifndef _WIN32
   auto stderr_group = waits.group();
-#endif
   auto midi_group = waits.group();
   auto launchpad_group = waits.group();
 
@@ -1992,7 +1993,10 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
   waits.addFd(input_group, backend_.wakeFd());
 #endif
   waits.add(events_group, getController().getUIEventQueue().notifier());
-#ifndef _WIN32
+#ifdef _WIN32
+  StderrCapture stderr_capture;
+  if (stderr_capture.active()) waits.add(stderr_group, stderr_capture.notifier());
+#else
   waits.addFd(stderr_group, out_pipe[0]);
 #endif
   midi.addTo(waits, midi_group);
@@ -2001,9 +2005,7 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
 
   renderComponents(true);
 
-#ifndef _WIN32
   string waiting_stderr;
-#endif
   // Playback and visualization events arrive with every audio block (about
   // 190 a second); drawing for each of them would use far more of the
   // terminal than the eye can follow, so a frame is drawn at most every
@@ -2071,10 +2073,13 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
       if (next_event->needRedraw()) render = true;
     }
   });
-#ifndef _WIN32
   add_source(stderr_group, [&] {
     count("fd" + std::to_string(stderr_group));
     other_wake = true;
+#ifdef _WIN32
+    // Already mirrored to the caller's stderr by the capture.
+    waiting_stderr += stderr_capture.take();
+#else
     char buffer[4096];
     int r = read(out_pipe[0], buffer, 4096);
     if (real_stderr_fd >= 0 && r > 0) {
@@ -2093,6 +2098,7 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
       }
     }
     waiting_stderr += string(buffer, static_cast<size_t>(r));
+#endif
     while (1) {
       auto pos = waiting_stderr.find('\n');
       if (pos != string::npos) {
@@ -2103,7 +2109,6 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
       }
     }
   });
-#endif
   add_source(midi_group, [&] {
     count("fd" + std::to_string(midi_group));
     other_wake = true;

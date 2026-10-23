@@ -271,8 +271,10 @@ and Pango replace the rendering and text notes below.
    DirectWrite drawing the cells directly, not through canvas; keys (AltGr,
    F10/Alt kept from the system menu, Shift+Insert / Ctrl+Shift+V paste),
    mouse, wheel, pointer shapes, the scrolled planes, pictures and backdrop
-   dimming. Not done: backdrop blur, shadows, dead keys and input methods,
-   the swap chain, and the application's loop on Windows (`TerminalUI` and
+   dimming. Then: shadows, a blur by scaling down and up
+   offscreen, the pixel scopes through canvas' GDI+ backend and stderr on the
+   status line, and `TerminalUI` runs in it. Not done: dead keys and input methods,
+   the swap chain (and real effects with it), and the application's loop on Windows (`TerminalUI` and
    `WaitSet::fds()` are POSIX; `Window` gives `inputHandle()`/`wakeHandle()`
    for a `Win32EventLoop::addHandles()` source instead). Backdrops are blurred
    by GSK (a blur node over the layer below, `FrameInfo::backdrops`); the

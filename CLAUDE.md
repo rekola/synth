@@ -93,8 +93,9 @@ soundtouch,libunistring,python}`. `SYNTH_BUILD_INTERACTIVE` (default ON) selects
 (`SYNTH_TERMINAL_UI` in `main.cpp`). cellui's terminal backend is POSIX only, so
 on Windows `TerminalUI` runs on cellui's Win32 window (`--ui raster`, what `auto`
 picks; the loop waits on handles, `WaitSet::handles()`, `Backend::inputHandles()`,
-`EventLoop::addHandles()`; no stderr capture to the status line, no pixel scopes
-yet, never run on a desktop), and `--headless` is what CI runs (`tools/smoke_headless.py`); ALSA and PipeWire sources are Linux only. `.github/workflows/
+`EventLoop::addHandles()`; stderr reaches the status line through `util/StderrCapture.h`, a reader
+thread on a pipe, since a pipe cannot be waited on; the pixel scopes draw through canvas' GDI+ backend; never run
+on a desktop), and `--headless` is what CI runs (`tools/smoke_headless.py`); ALSA and PipeWire sources are Linux only. `.github/workflows/
 ci-windows-x86_64.yml` builds, runs ctest and renders songs. The `#ifdef
 _WIN32`s this needed live in small platform helpers: `util/Paths.h` (the
 config dir `%APPDATA%\synth`, the user and installed data dirs, the executable's
@@ -1479,9 +1480,10 @@ would otherwise resume showing.
   each new cell), wheel (buttons 4-7) and paste (Ctrl+Shift+V, Shift+Insert) events into
   `BackendEvent`s; a size change is a `RESIZE` in cells and closing the window a `CLOSE`.
   Events wait in a queue behind an eventfd that is `inputFd()`.
-  The Windows backend is `cellui/win32/` (built on Windows only, first slice, compiled but never run): `Window`
-  is a Win32 window drawn with Direct2D and DirectWrite (cells, pictures, scrolled planes, backdrop dimming; no
-  blur or shadows yet), and `Win32EventLoop` waits on the message queue and on handles
+  The Windows backend is `cellui/win32/` (built on Windows only, compiled but never run): `Window`
+  is a Win32 window drawn with Direct2D and DirectWrite (cells, pictures, scrolled planes, backdrop dimming, shadows as
+  fading rings, and a blur made by drawing the region small and large again offscreen, as the window's target has no
+  effects; it draws cells itself, so `canvasRasterizer()` is null there), and `Win32EventLoop` waits on the message queue and on handles
   (`addHandles()`; descriptors do not exist there, so `Window::inputFd()`/`wakeFd()` are -1 and
   `inputHandle()`/`wakeHandle()` are the events to wait on). A backdrop is the
   backend's to apply: `BufferPlane::refresh()` sets what is composed below each one aside as a
