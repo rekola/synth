@@ -89,7 +89,7 @@ Gallery::Gallery(UIPlane & plane, const Theme & theme) {
     }
   }
   Page page(plane, theme);
-  page.heading("Cell UI gallery");
+  page.heading("cellui gallery");
   page.skip();
 
   page.heading("Text styles");
@@ -136,6 +136,28 @@ Gallery::Gallery(UIPlane & plane, const Theme & theme) {
     page.text(0, utf8::padToWidth(std::string(" ") + name, 24));
     page.colors(theme.text_primary, theme.surface_base);
     page.text(25, hex(*color));
+    page.skip();
+  }
+  page.plain();
+  page.skip();
+
+  // A colour and what a display that only shows sRGB makes of it: the hue is
+  // kept, a colour above SDR white is scaled down.
+  page.heading("Wide colours and their clip");
+  const std::pair<const char *, Color> wide[] = {
+    {"srgb green", Color(0, 255, 0)},
+    {"display-p3 green", Color("color(display-p3 0 1 0)")},
+    {"rec2020 green", Color("color(rec2020 0 1 0)")},
+    {"red LED, 6x", Color("oklch(0.7 0.2 25)") * 6.0f},
+    {"white, 3x", Color(255, 255, 255) * 3.0f},
+  };
+  for (auto & [name, color] : wide) {
+    page.colors(readableOn(color), color);
+    page.text(0, utf8::padToWidth(std::string(" ") + name, 24));
+    page.colors(theme.text_primary, theme.surface_base);
+    char y[16];
+    std::snprintf(y, sizeof y, "Y %.2f", static_cast<double>(color.luminance()));
+    page.text(25, hex(color) + "  " + y);
     page.skip();
   }
   page.plain();
@@ -203,7 +225,7 @@ Gallery::Gallery(UIPlane & plane, const Theme & theme) {
 
   page.skip();
   page.heading("Info dialog");
-  dialog_.show(plane, "About", "# Cell UI\n\nA small *toolkit* for **text** interfaces, drawn here from Markdown.", 44, 10);
+  dialog_.show(plane, "About", "# cellui\n\nA small *toolkit* for **text** interfaces, drawn here from Markdown.", 44, 10);
   dialog_.move(page.row(), 0);
   page.skip(dialog_.rows());
 

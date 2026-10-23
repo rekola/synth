@@ -733,3 +733,53 @@ TEST(bufferplane_reports_lifted_cells_as_pieces) {
   CHECK(at(2, 2, 1, 1, 1.5f));
   CHECK(at(4, 0, 1, 1, 2.0f));
 }
+
+TEST(bufferplane_keeps_wide_colours_in_its_cells) {
+  StyleProvider styles;
+  CellBuffer b(1, 4);
+  BufferPlane root(b, styles);
+  Color led = Color("oklch(0.8 0.2 25)") * 6.0f;
+  Color green("color(rec2020 0 1 0)");
+  root.setFgColor(green);
+  root.setBgColor(led);
+  root.putstr(0, 0, "x");
+  root.refresh();
+  // Nothing clipped them on the way: the cell holds exactly what was set.
+  CHECK(*b.at(0, 0).fg == green);
+  CHECK(*b.at(0, 0).bg == led);
+  CHECK(b.at(0, 0).bg->luminance() > 1.0f);
+  // Changing the colour changes what the cell holds.
+  root.setBgColor(led * 0.5f);
+  root.putstr(0, 1, "y");
+  root.refresh();
+  CHECK(*b.at(0, 1).bg == led * 0.5f);
+}
+
+TEST(bufferplane_blends_a_wide_colour_in_linear_light) {
+  StyleProvider styles;
+  CellBuffer b(1, 4);
+  BufferPlane root(b, styles);
+  Color lit = Color(255, 255, 255) * 4.0f;
+  root.setBgColor(lit);
+  root.putstr(0, 0, "....");
+  auto top = root.createChild();
+  top->setBgColor(Color(0, 0, 0));
+  top->setBgBlend(true);
+  top->putstr(0, 0, "x");
+  root.refresh();
+  // Half of four times SDR white is twice SDR white.
+  CHECK_NEAR(b.at(0, 0).bg->luminance(), 2.0f, 1e-4f);
+}
+
+TEST(cellbuffer_ansi_shows_a_wide_colour_clipped_to_srgb) {
+  CellBuffer b(1, 2);
+  CellBuffer::Style style;
+  style.fg = Color("color(rec2020 0 1 0)");
+  style.bg = Color(255, 255, 255) * 3.0f;
+  b.write(0, 0, "x", style);
+  std::string ansi = b.toAnsi();
+  auto fg = style.fg->toSrgb8(), bg = style.bg->toSrgb8();
+  CHECK(ansi.find(";38;2;" + std::to_string(int{fg[0]}) + ";" + std::to_string(int{fg[1]}) + ";" + std::to_string(int{fg[2]})) != std::string::npos);
+  CHECK(ansi.find(";48;2;255;255;255") != std::string::npos);
+  CHECK(bg[0] == 255 && bg[1] == 255 && bg[2] == 255);
+}

@@ -1,4 +1,4 @@
-Cell UI gallery
+cellui gallery
 
 Text styles
 normal  bold   italic  underline  bold italic
@@ -17,6 +17,13 @@ Accent and state
  state.playing.dim       #668666
  state.recording         #e23532
  state.recording.dim     #a46a64
+
+Wide colours and their clip
+ srgb green              #00ff00  Y 0.72
+ display-p3 green        #00f74f  Y 0.69
+ rec2020 green           #00ed7e  Y 0.68
+ red LED, 6x             #ff5d5a  Y 1.86
+ white, 3x               #ffffff  Y 3.00
 
 Level meter ramp
 ████████████████████████████████
@@ -55,7 +62,7 @@ Info dialog
 
   About
 
-  Cell UI
+  cellui
 
   A small toolkit for text interfaces,
   drawn here from Markdown.
