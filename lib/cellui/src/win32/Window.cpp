@@ -514,7 +514,8 @@ void Window::Impl::paint() {
         drawCells(content.cells, true, content.row, content.col, content.shift_cols * cell_w, content.shift_rows * cell_h);
         if (content.band) {
           const Band & band = *content.band;
-          brush->SetColor(colorOf(band.color, band.alpha));
+          // Blend modes are not drawn here yet: a blended band is a plain tint.
+          brush->SetColor(colorOf(band.color, band.blend == BlendMode::NORMAL ? band.alpha : 0.45f));
           float bx = static_cast<float>((content.col + band.col) * cell_w), by = static_cast<float>((content.row + band.row) * cell_h);
           rt_->FillRectangle(D2D1::RectF(bx, by, bx + static_cast<float>(band.cols * cell_w), by + static_cast<float>(band.rows * cell_h)), brush.get());
         }

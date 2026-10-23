@@ -2479,15 +2479,15 @@ void PatternEditor::updateCursorBands(const StyleProvider & styles, const std::v
   // still while the rows scroll under them.
   int visible = rows - heading_height;
   std::vector<double> shown;
-  auto strip = [&](Plane & plane, double line, double col, double cols, const Color & color, float alpha) {
+  auto strip = [&](Plane & plane, double line, double col, double cols, const Color & color, float alpha, cellui::BlendMode blend = cellui::BlendMode::NORMAL) {
     double first = heading_height + line;
     double height = std::min(1.0, static_cast<double>(rows) - first);
     if (height <= 0.0 || cols <= 0.0) {
       plane.clearBand();
       return;
     }
-    plane.setBand(cellui::Band{first, height, col, cols, color, alpha});
-    for (double v : {first, height, col, cols, static_cast<double>(alpha)}) shown.push_back(v);
+    plane.setBand(cellui::Band{first, height, col, cols, color, alpha, blend});
+    for (double v : {first, height, col, cols, static_cast<double>(alpha), static_cast<double>(blend)}) shown.push_back(v);
   };
   auto cursor_track = current_cursor.track >= 0 && current_cursor.track < static_cast<int>(track_ids.size()) ? track_ids[static_cast<size_t>(current_cursor.track)] : -1;
   std::optional<double> cursor_line;
@@ -2540,11 +2540,10 @@ void PatternEditor::updateCursorBands(const StyleProvider & styles, const std::v
   if (cursor_plane_) {
     bool cell = smooth_cursor_ && cursor_line && styles.window_focused && (focused || isLiveMode()) && cursor_x0_ >= 0 && cursor_x1_ > cursor_x0_ && !current_cursor.isOnLocator();
     if (cell) {
-      bool region = whole_song_ || (selection_active_ && selection_start_pattern_ == source_->cursor().block);
-      // Over a selection's own highlight the cursor takes the other tint.
-      Color color = region ? styles.cursor_tint_color : styles.highlight_unfocused_bg_color.blend(focus_, styles.highlight_bg_color);
-      float alpha = region ? 0.5f : 0.6f - 0.15f * focus_;
-      strip(*cursor_plane_, *cursor_line + cursor_phase, cursor_x0_, cursor_x1_ - cursor_x0_, color, alpha);
+      // The cursor inverts what is under it, text and all, like a cell drawn in
+      // reversed colours; the selection under it is drawn in the rows.
+      Color color = styles.highlight_unfocused_bg_color.blend(focus_, styles.highlight_bg_color);
+      strip(*cursor_plane_, *cursor_line + cursor_phase, cursor_x0_, cursor_x1_ - cursor_x0_, color, 1.0f, cellui::BlendMode::DIFFERENCE);
     } else {
       cursor_plane_->clearBand();
     }
@@ -3230,7 +3229,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   const auto base_address = address;
   const bool base_highlight = highlight;
   // The cursor shows only while the window has the focus; a playhead always.
-  const bool show_cursor = styles.window_focused;
+  // In Arrangement view an editor that is not the focus shows no cursor, only the playhead.
+  const bool show_cursor = styles.window_focused && (focused || isLiveMode());
   // On a smooth display the cursor is a band over the rows (updateCursorBands()),
   // so only a real selection is drawn in them: it scrolls with the content.
   const bool cursor_only = smooth_cursor_ && !whole_song_ && !(selection_active_ && selection_start_pattern_ == point.block);
@@ -3312,13 +3312,13 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   float track_dim = 0.0f;
   auto tintForPlayhead = [&](Color base) -> Color {
     if (track_marked.has_value()) return *track_marked ? styles.cursorRowTint(base) : base;
-    return track_dim <= 0.0f && highlight && !smooth_cursor_ ? styles.cursorRowTint(base) : base;
+    return track_dim <= 0.0f && highlight && !smooth_cursor_ && (show_cursor || playing_now) ? styles.cursorRowTint(base) : base;
   };
   // The divider between two tracks belongs to neither, so it takes only
   // the row's own tint, never one track's playhead - none in session
   // mode, where tracks mark their own rows.
   auto tintForRow = [&](Color base) -> Color {
-    return highlight && !isLiveMode() && !smooth_cursor_ ? styles.cursorRowTint(base) : base;
+    return highlight && !isLiveMode() && !smooth_cursor_ && (show_cursor || playing_now) ? styles.cursorRowTint(base) : base;
   };
 
   // A clip instance's own identifier digit (below) - superscript, not a
@@ -3749,7 +3749,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	// tint, matching waveformFg()'s own playhead treatment.
 	auto waveformBg = [&]() -> Color {
 	  if (cell_is_selected) return cur_bg;
-          return highlight && !smooth_cursor_ ? tintForPlayhead(styles.window_bg_color) : cell_bg;
+          return highlight && !smooth_cursor_ && (show_cursor || playing_now) ? tintForPlayhead(styles.window_bg_color) : cell_bg;
 	};
 
 	setFgColor(styles.window_border_color);

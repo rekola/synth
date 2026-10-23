@@ -585,6 +585,26 @@ TEST(bufferplane_a_band_over_a_plane_goes_with_its_scroll_layer) {
   CHECK(root.takeBackdropLayers().empty() && b.at(2, 1).text == "a");
 }
 
+TEST(bufferplane_a_band_keeps_its_blend_mode) {
+  StyleProvider styles;
+  CellBuffer b(6, 10);
+  BufferPlane root(b, styles);
+  root.setSmoothScroll(true);
+  auto list = root.createChild();
+  list->resize(3, 6);
+  list->move(2, 1);
+  list->putstr(0, 0, "abcdef");
+  list->setBand(Band{ 1.0, 1.0, 0, 6, Color(255, 255, 255), 1.0f, BlendMode::DIFFERENCE });
+  root.refresh();
+  auto layers = root.takeBackdropLayers();
+  CHECK(layers.size() == 1 && layers[0].scroll && layers[0].scroll->band);
+  CHECK(layers[0].scroll->band->blend == BlendMode::DIFFERENCE);
+  list->setBand(Band{ 1.0, 1.0, 0, 6, Color(255, 255, 255), 1.0f });
+  root.refresh();
+  layers = root.takeBackdropLayers();
+  CHECK(layers.size() == 1 && layers[0].scroll->band->blend == BlendMode::NORMAL);
+}
+
 TEST(bufferplane_higher_planes_draw_over_lower_ones_wherever_they_are_in_the_tree) {
   StyleProvider styles;
   CellBuffer b(1, 6);

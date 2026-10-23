@@ -22,6 +22,20 @@ using Clock = std::chrono::steady_clock;
 
 double msSince(Clock::time_point t) { return std::chrono::duration<double, std::milli>(Clock::now() - t).count(); }
 
+GskBlendMode gskBlendMode(BlendMode mode) {
+  switch (mode) {
+    case BlendMode::MULTIPLY: return GSK_BLEND_MODE_MULTIPLY;
+    case BlendMode::SCREEN: return GSK_BLEND_MODE_SCREEN;
+    case BlendMode::OVERLAY: return GSK_BLEND_MODE_OVERLAY;
+    case BlendMode::DARKEN: return GSK_BLEND_MODE_DARKEN;
+    case BlendMode::LIGHTEN: return GSK_BLEND_MODE_LIGHTEN;
+    case BlendMode::DIFFERENCE: return GSK_BLEND_MODE_DIFFERENCE;
+    case BlendMode::EXCLUSION: return GSK_BLEND_MODE_EXCLUSION;
+    case BlendMode::NORMAL: break;
+  }
+  return GSK_BLEND_MODE_DEFAULT;
+}
+
 unsigned modsFrom(GdkModifierType state) {
   unsigned mods = 0;
   if (state & GDK_SHIFT_MASK) mods |= kModShift;
@@ -518,7 +532,7 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
           gtk_snapshot_translate(s, &shift);
           appendTexture(s, paint(layers.size() + 1 + scrolls++, content.cells, true, false), content.row, content.col);
           gtk_snapshot_restore(s);
-          if (content.band) {
+          if (content.band && content.band->blend == BlendMode::NORMAL) {
             const Band & band = *content.band;
             GdkRGBA tint = channel(band.color, band.alpha);
             graphene_rect_t strip = GRAPHENE_RECT_INIT(static_cast<float>((content.col + band.col) * cell_w), static_cast<float>((content.row + band.row) * cell_h),
@@ -526,6 +540,25 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
             gtk_snapshot_append_color(s, &tint, &strip);
           }
           gtk_snapshot_pop(s);
+          if (content.band && content.band->blend != BlendMode::NORMAL) {
+            // A blended band needs what is below it as a node: the strip is drawn
+            // blended with a copy of that, inside its own rectangle.
+            const Band & band = *content.band;
+            GdkRGBA tint = channel(band.color, band.alpha);
+            graphene_rect_t strip = GRAPHENE_RECT_INIT(static_cast<float>((content.col + band.col) * cell_w), static_cast<float>((content.row + band.row) * cell_h),
+                                                       static_cast<float>(band.cols * cell_w), static_cast<float>(band.rows * cell_h));
+            GskRenderNode * under = gtk_snapshot_free_to_node(s);
+            s = gtk_snapshot_new();
+            gtk_snapshot_append_node(s, under);
+            gtk_snapshot_push_clip(s, &strip);
+            gtk_snapshot_push_blend(s, gskBlendMode(band.blend));
+            gtk_snapshot_append_node(s, under);
+            gtk_snapshot_pop(s);
+            gtk_snapshot_append_color(s, &tint, &strip);
+            gtk_snapshot_pop(s);
+            gtk_snapshot_pop(s);
+            gsk_render_node_unref(under);
+          }
         }
         GskRenderNode * composed = gtk_snapshot_free_to_node(s);
         if (below) gsk_render_node_unref(below);
