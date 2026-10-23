@@ -893,7 +893,7 @@ TEST(terminal_ui_smooth_pattern_editor_cursor_is_a_band_over_the_rows) {
   for (int i = 0; i < 5; i++) f.ui->step();
   auto count = countBands(f);
   CHECK(count.wide == 1);
-  CHECK(count.narrow == 1);
+  CHECK(count.narrow == 2); // the cell: an inverting band and the hue over it
   f.terminal.pushWindowFocus(false);
   for (int i = 0; i < 5; i++) f.ui->step();
   count = countBands(f);
@@ -903,7 +903,7 @@ TEST(terminal_ui_smooth_pattern_editor_cursor_is_a_band_over_the_rows) {
   for (int i = 0; i < 5; i++) f.ui->step();
   count = countBands(f);
   CHECK(count.wide == 1);
-  CHECK(count.narrow == 1);
+  CHECK(count.narrow == 2); // the cell: an inverting band and the hue over it
 }
 
 // The selection is drawn in the rows, so it scrolls with them; the cursor is

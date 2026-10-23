@@ -31,6 +31,10 @@ GskBlendMode gskBlendMode(BlendMode mode) {
     case BlendMode::LIGHTEN: return GSK_BLEND_MODE_LIGHTEN;
     case BlendMode::DIFFERENCE: return GSK_BLEND_MODE_DIFFERENCE;
     case BlendMode::EXCLUSION: return GSK_BLEND_MODE_EXCLUSION;
+    case BlendMode::HUE: return GSK_BLEND_MODE_HUE;
+    case BlendMode::SATURATION: return GSK_BLEND_MODE_SATURATION;
+    case BlendMode::COLOR: return GSK_BLEND_MODE_COLOR;
+    case BlendMode::LUMINOSITY: return GSK_BLEND_MODE_LUMINOSITY;
     case BlendMode::NORMAL: break;
   }
   return GSK_BLEND_MODE_DEFAULT;
