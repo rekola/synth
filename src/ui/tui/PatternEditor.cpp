@@ -2758,14 +2758,16 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
     // ancestor for a level>0 row). Also what Mute/Solo's own OFF color
     // (below) darkens - the track's plain base color, never the
     // brightened-when-selected one.
+    const int master_depth = song.getMasterTrack().getDepth();
     auto track_base_color = [&](const Track * t) -> Color {
       auto vis_info = get_track_info(t);
       if (level == 0 && vis_info && vis_info->color_ordinal_ >= 0) return styles.track_chips ? styles.heading_bg_color : vis_info->getColor(styles.tracks);
       // Fixed, not depth-shaded grey like every other ancestor box below -
       // there's only ever one master per song.
-      // The new look leaves non-leaf tracks flat, each level a step lighter
-      // than the one inside it, so a box's extent shows without raising it.
-      if (styles.track_chips) return styles.window_bg_color.blend(0.015f + 0.02f * static_cast<float>(std::min(t->getDepth(), 6)), styles.theme.text_primary);
+      // The new look leaves non-leaf tracks flat, not raised.
+      // The master stays the window's own colour; each level inside it is a
+      // step brighter, toward the leaves.
+      if (styles.track_chips) return styles.window_bg_color.blend(0.02f * static_cast<float>(std::min(master_depth - t->getDepth(), 6)), styles.theme.text_primary);
       if (t->getType() == TrackType::MASTER) return styles.master_track_color;
       // Each extra nesting level lightens the grey by one step, so an
       // outer wrapping effect's box reads visually "further out" than
@@ -2823,19 +2825,18 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
     // seamless block with no visible seam at all, so a plain black "│"
     // takes its place instead, so there's still a border to see.
     auto draw_edge = [&](int row, int col, const Color & left_color, const Color & right_color) {
+      // The new look has elevation, so no half block: the groove between
+      // boxes is a whole cell of the window.
+      if (styles.track_chips) {
+	setBgColor(styles.window_bg_color);
+	putstr(row, col, " ");
+	return;
+      }
       bool same = left_color.toSrgb8() == right_color.toSrgb8();
       if (same) {
-	if (styles.track_chips) {
-	  // The groove between two boxes of one colour: half the cell is the
-	  // window showing through.
-	  setFgColor(left_color);
-	  setBgColor(styles.window_bg_color);
-	  putstr(row, col, "▌");
-	} else {
-	  setFgColor(0x00, 0x00, 0x00);
-	  setBgColor(right_color);
-	  putstr(row, col, "│");
-	}
+	setFgColor(0x00, 0x00, 0x00);
+	setBgColor(right_color);
+	putstr(row, col, "│");
       } else {
 	setFgColor(left_color);
 	setBgColor(right_color);
