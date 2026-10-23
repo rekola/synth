@@ -228,6 +228,22 @@ struct Window::Impl {
   ID2D1RenderTarget * rt_ = nullptr;
   void drawCells(const CellBuffer & cells, bool transparent, int origin_row, int origin_col, double shift_x, double shift_y,
                  const CellRange * only = nullptr);
+  // A blend laid over a region: the target has no blend modes, so what is
+  // below is drawn again there with every colour blended (blendRegion()).
+  struct Tint {
+    D2D1_RECT_F rect;
+    BlendMode mode;
+    Color color;
+    float alpha;
+    size_t layer;  // the layer it was laid over; only what is below it is blended
+  };
+  std::vector<Tint> tints_;
+  // Set while drawing again: the colours drawCells() blends, for layer tint_from_.
+  bool tinting_ = false;
+  size_t tint_from_ = 0;
+  Color tinted(const Color & c, float x, float y, float w, float h) const;
+  void drawLayerAgain(size_t index, const CellRange & range);
+  void blendRegion(size_t index, const D2D1_RECT_F & rect, BlendMode mode, const Color & color, float alpha);
   void drawShadows();
   void blurRegion(Com<ID2D1BitmapRenderTarget> & below, const D2D1_RECT_F & region, float radius);
   ID2D1Bitmap * bitmapFor(const ImagePlacement & placement);
@@ -353,7 +369,7 @@ void Window::Impl::drawCells(const CellBuffer & cells, bool transparent, int ori
       if (transparent && CellBuffer::isBlank(cell)) continue;
       float x = static_cast<float>((origin_col + c) * cell_w - shift_x), y = static_cast<float>((origin_row + r) * cell_h - shift_y);
       if (cell.bg) {
-        brush->SetColor(colorOf(*cell.bg));
+        brush->SetColor(colorOf(tinted(*cell.bg, x, y, w, h)));
         rt_->FillRectangle(D2D1::RectF(x, y, x + w, y + h), brush.get());
       }
       if (cell.image > 0 && static_cast<size_t>(cell.image) <= images.size()) {
@@ -380,7 +396,7 @@ void Window::Impl::drawCells(const CellBuffer & cells, bool transparent, int ori
         std::wstring text = widen(cell.text);
         IDWriteTextFormat * format = formats[(cell.bold ? 1 : 0) | (cell.italic ? 2 : 0)].get();
         if (format) {
-          brush->SetColor(colorOf(fg));
+          brush->SetColor(colorOf(tinted(fg, x, y, w, h)));
           D2D1_RECT_F box = D2D1::RectF(x, y, x + (wide ? 2 * w : w), y + h);
           rt_->PushAxisAlignedClip(box, D2D1_ANTIALIAS_MODE_ALIASED);
           rt_->DrawText(text.c_str(), static_cast<UINT32>(text.size()), format, D2D1::RectF(x, y, x + 4 * w, y + 2 * h), brush.get(),
@@ -390,12 +406,79 @@ void Window::Impl::drawCells(const CellBuffer & cells, bool transparent, int ori
       }
       if (cell.underline) {
         bool wide = c + 1 < cells.cols() && cells.at(r, c + 1).continuation;
-        brush->SetColor(colorOf(fg));
+        brush->SetColor(colorOf(tinted(fg, x, y, w, h)));
         float line = y + h - std::max(1.0f, h / 12.0f);
         rt_->FillRectangle(D2D1::RectF(x, line, x + (wide ? 2 * w : w), line + std::max(1.0f, h / 16.0f)), brush.get());
       }
     }
   }
+}
+
+// `c` as it shows under the blends laid over the cell at (x, y), in the order
+// they were laid.
+Color Window::Impl::tinted(const Color & c, float x, float y, float w, float h) const {
+  if (!tinting_) return c;
+  Color out = c;
+  float cx = x + w / 2, cy = y + h / 2;
+  for (const Tint & t : tints_) {
+    if (t.layer < tint_from_) continue;
+    if (cx < t.rect.left || cx >= t.rect.right || cy < t.rect.top || cy >= t.rect.bottom) continue;
+    out = blendColors(t.mode, out, t.color, t.alpha);
+  }
+  return out;
+}
+
+// Layer `index` drawn again inside `clip` (its cells, its scrolled plane, its
+// plain band and its dimming), without any blur and not its own blends.
+void Window::Impl::drawLayerAgain(size_t index, const CellRange & range) {
+  const BackdropLayer & layer = layers[index];
+  drawCells(layer.cells, index > 0, 0, 0, 0, 0, &range);
+  if (layer.scroll) {
+    const ScrollContent & content = *layer.scroll;
+    if (!content.blended()) {
+      D2D1_RECT_F shown = D2D1::RectF(static_cast<float>(content.col * cell_w), static_cast<float>(content.row * cell_h),
+                                      static_cast<float>((content.col + content.cols) * cell_w), static_cast<float>((content.row + content.rows) * cell_h));
+      rt_->PushAxisAlignedClip(shown, D2D1_ANTIALIAS_MODE_ALIASED);
+      drawCells(content.cells, true, content.row, content.col, content.shift_cols * cell_w, content.shift_rows * cell_h, &range);
+      if (content.band && content.band->blend == BlendMode::NORMAL) {
+        const Band & band = *content.band;
+        float bx = static_cast<float>((content.col + band.col) * cell_w), by = static_cast<float>((content.row + band.row) * cell_h);
+        float bw = static_cast<float>(band.cols * cell_w), bh = static_cast<float>(band.rows * cell_h);
+        brush->SetColor(colorOf(tinted(band.color, bx, by, bw, bh), band.alpha));
+        rt_->FillRectangle(D2D1::RectF(bx, by, bx + bw, by + bh), brush.get());
+      }
+      rt_->PopAxisAlignedClip();
+    }
+  }
+  if (layer.backdrop.dim > 0.0f) {
+    D2D1_RECT_F region = D2D1::RectF(static_cast<float>(layer.col * cell_w), static_cast<float>(layer.row * cell_h),
+                                     static_cast<float>((layer.col + layer.cols) * cell_w), static_cast<float>((layer.row + layer.rows) * cell_h));
+    brush->SetColor(colorOf(layer.backdrop.tint.value_or(*display_info.default_bg), layer.backdrop.dim));
+    rt_->FillRectangle(region, brush.get());
+  }
+}
+
+// `color` blended over `rect` with `mode`, on top of layers 0 to `index` as
+// drawn so far: the region is drawn again from the cells, every colour in it
+// run through the blends laid there (this one last).
+void Window::Impl::blendRegion(size_t index, const D2D1_RECT_F & rect, BlendMode mode, const Color & color, float alpha) {
+  tints_.push_back(Tint{rect, mode, color, alpha, index});
+  tinting_ = true;
+  // The cells the region touches, with a margin for a plane shifted by a part of a cell.
+  int r0 = static_cast<int>(std::floor(rect.top / static_cast<float>(cell_h))) - 1, c0 = static_cast<int>(std::floor(rect.left / static_cast<float>(cell_w))) - 1;
+  int r1 = static_cast<int>(std::ceil(rect.bottom / static_cast<float>(cell_h))) + 1, c1 = static_cast<int>(std::ceil(rect.right / static_cast<float>(cell_w))) + 1;
+  CellRange range = { std::max(r0, 0), std::max(c0, 0), r1 - std::max(r0, 0), c1 - std::max(c0, 0) };
+  rt_->PushAxisAlignedClip(rect, D2D1_ANTIALIAS_MODE_ALIASED);
+  const Color base = *display_info.default_bg;
+  brush->SetColor(colorOf(tinted(base, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top)));
+  rt_->FillRectangle(rect, brush.get());
+  for (size_t j = 0; j <= index && j < layers.size(); j++) {
+    tint_from_ = j;
+    drawLayerAgain(j, range);
+  }
+  tint_from_ = 0;
+  rt_->PopAxisAlignedClip();
+  tinting_ = false;
 }
 
 // What lies below a blurring backdrop, blurred: the region is drawn small
@@ -510,6 +593,7 @@ void Window::Impl::paint() {
   rt_->BeginDraw();
   rt_->SetTransform(D2D1::Matrix3x2F::Identity());
   rt_->Clear(colorOf(bg));
+  tints_.clear();
   if (frame.rows() > 0 && frame.cols() > 0) {
     // Each backdrop blurs and dims what is below it, over the cells it covers.
     for (size_t i = 0; i < layers.size(); i++) {
@@ -520,13 +604,44 @@ void Window::Impl::paint() {
         D2D1_RECT_F shown = D2D1::RectF(static_cast<float>(content.col * cell_w), static_cast<float>(content.row * cell_h),
                                         static_cast<float>((content.col + content.cols) * cell_w), static_cast<float>((content.row + content.rows) * cell_h));
         rt_->PushAxisAlignedClip(shown, D2D1_ANTIALIAS_MODE_ALIASED);
-        drawCells(content.cells, true, content.row, content.col, content.shift_cols * cell_w, content.shift_rows * cell_h);
+        if (content.blended()) {
+          // A plane laid over what is below with a blend: each cell that sets a
+          // background blends it over the cell's place, shifted as the plane is.
+          for (int r = 0; r < content.cells.rows(); r++) {
+            for (int c = 0; c < content.cells.cols();) {
+              const CellBuffer::Cell & cell = content.cells.at(r, c);
+              if (!cell.bg || cell.continuation) {
+                c++;
+                continue;
+              }
+              // A run of cells of one colour is one region.
+              auto key = cell.bg->toSrgb8();
+              int end = c + 1;
+              while (end < content.cells.cols() && content.cells.at(r, end).bg && !content.cells.at(r, end).continuation &&
+                     content.cells.at(r, end).bg->toSrgb8() == key) {
+                end++;
+              }
+              float x = static_cast<float>((content.col + c) * cell_w - content.shift_cols * cell_w);
+              float y = static_cast<float>((content.row + r) * cell_h - content.shift_rows * cell_h);
+              D2D1_RECT_F spot = D2D1::RectF(std::max(x, shown.left), std::max(y, shown.top), std::min(x + static_cast<float>((end - c) * cell_w), shown.right),
+                                             std::min(y + static_cast<float>(cell_h), shown.bottom));
+              if (spot.right > spot.left && spot.bottom > spot.top) blendRegion(i, spot, content.blend, *cell.bg, content.blend_alpha);
+              c = end;
+            }
+          }
+        } else {
+          drawCells(content.cells, true, content.row, content.col, content.shift_cols * cell_w, content.shift_rows * cell_h);
+        }
         if (content.band) {
           const Band & band = *content.band;
-          // Blend modes are not drawn here yet: a blended band is a plain tint.
-          brush->SetColor(colorOf(band.color, band.blend == BlendMode::NORMAL ? band.alpha : 0.45f));
           float bx = static_cast<float>((content.col + band.col) * cell_w), by = static_cast<float>((content.row + band.row) * cell_h);
-          rt_->FillRectangle(D2D1::RectF(bx, by, bx + static_cast<float>(band.cols * cell_w), by + static_cast<float>(band.rows * cell_h)), brush.get());
+          D2D1_RECT_F strip = D2D1::RectF(bx, by, bx + static_cast<float>(band.cols * cell_w), by + static_cast<float>(band.rows * cell_h));
+          if (band.blend == BlendMode::NORMAL) {
+            brush->SetColor(colorOf(band.color, band.alpha));
+            rt_->FillRectangle(strip, brush.get());
+          } else {
+            blendRegion(i, strip, band.blend, band.color, band.alpha);
+          }
         }
         rt_->PopAxisAlignedClip();
       }
