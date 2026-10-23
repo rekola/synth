@@ -126,3 +126,13 @@ bool ArrangementPatternSource::startsBeat(int, int row) const {
   auto bars = song().getArrangementBars();
   return bars.rowInBar(row) % bars.beatRows() == 0;
 }
+
+double ArrangementPatternSource::trackScrollRate(int) const {
+  if (!controller_.getPlaybackInfo().isPlaying()) return 0.0;
+  // A row is a sixteenth.
+  return song().getTempo() * 4.0 / 60.0;
+}
+
+bool ArrangementPatternSource::trackHasPlayhead(int) const {
+  return controller_.getPlaybackInfo().isPlaying();
+}
