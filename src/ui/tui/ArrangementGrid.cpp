@@ -12,6 +12,7 @@
 #include "../KeyChord.h"
 
 #include <algorithm>
+#include <cellui/Utf8.h>
 #include <fmt/format.h>
 
 using namespace std;
@@ -62,15 +63,15 @@ ArrangementGrid::ensureCursorVisible(int bar_count, int visible_rows, int visibl
 
   // Always kept in bounds (a shrunk song must never leave a stale
   // out-of-range scroll position behind), regardless of follow_cursor.
-  viewport_.setExtent(bar_count, num_tracks, visible_rows, visible_cols);
+  viewport_.setExtent(num_tracks, bar_count, visible_rows, visible_cols);
 
   // Not focused - render() keeps the playhead in view instead (see its
   // own comment on why only one of the two ever drives the scroll
   // position in a given frame).
   if (!follow_cursor) return;
 
-  viewport_.rows.reveal(cursor_bar_);
-  viewport_.cols.reveal(cursor_track_index_);
+  viewport_.rows.reveal(cursor_track_index_);
+  viewport_.cols.reveal(cursor_bar_);
 }
 
 bool
@@ -84,24 +85,31 @@ ArrangementGrid::offerInput(const cellui::Input & input) {
     auto [ rows, cols ] = getDim();
     auto y = input.getY() - pos_y, x = input.getX() - pos_x;
     if (y < 0 || y >= rows || x < 0 || x >= cols) return false;
-    constexpr int kColWidth = 2; // see render()
-    auto track = viewport_.cols.offset() + x / kColWidth;
-    if (track >= num_tracks || x >= max(0, cols - 2) / kColWidth * kColWidth) return true; // the locator column, or past the last track
+    // Left of the bars is the track names, above the first track the
+    // bar ruler: each picks only its own axis.
+    if (y < kHeaderRows && x < kNameWidth) return true;
     auto playing_bar = song.getArrangementBars().barIndex(getController().getPlaybackInfo().getAbsolutePosition());
-    auto bar = viewport_.rows.indexAt(y);
-    if (bar >= barCount(song, playing_bar)) return true; // below the last bar
-    cursor_track_index_ = track;
-    cursor_bar_ = bar;
+    if (y >= kHeaderRows) {
+      auto track = viewport_.rows.offset() + y - kHeaderRows;
+      if (track >= num_tracks) return true; // below the last track
+      cursor_track_index_ = track;
+    }
+    if (x >= kNameWidth) {
+      auto bar = viewport_.cols.indexAt(x - kNameWidth);
+      if (bar >= barCount(song, playing_bar)) return true; // past the last bar
+      cursor_bar_ = bar;
+    }
     viewport_.attach();
     return true;
   }
 
-  // The mouse wheel scrolls the view (Shift: tracks), not the cursor, and
-  // detaches it from the cursor/playhead until the cursor next moves.
+  // The mouse wheel scrolls the view along the bars (Shift: tracks), not the
+  // cursor, and detaches it from the cursor/playhead until the cursor next
+  // moves.
   if (input.getId() == Key::Button4 || input.getId() == Key::Button5) {
     if (input.getKind() == cellui::Input::Kind::RELEASE) return true;
     int direction = input.getId() == Key::Button4 ? -1 : 1;
-    viewport_.wheel(direction, input.hasShift());
+    viewport_.wheel(direction, !input.hasShift());
     return true;
   }
 
@@ -132,15 +140,21 @@ ArrangementGrid::offerInput(const cellui::Input & input) {
     return true;
   }
 
-  if (input.getId() == Key::Up) move_cursor(-1);
-  else if (input.getId() == Key::Down) move_cursor(1);
-  // A full screenful at a time - same "jump by the viewport's own
-  // height" reading Page Up/Down carry everywhere else in this app,
-  // rather than PatternEditor's own fixed 16-row jump (which counts raw
-  // pattern rows, not this grid's own bar rows, so a fixed count
-  // wouldn't mean the same thing here).
-  else if (input.getId() == Key::PageUp) move_cursor(-getDim().first);
-  else if (input.getId() == Key::PageDown) move_cursor(getDim().first);
+  // Time runs to the right: Left/Right move along the bars, Up/Down across
+  // the tracks, stopping at the grid's own edges.
+  if (input.getId() == Key::Left)
+    move_cursor(-1);
+  else if (input.getId() == Key::Right)
+    move_cursor(1);
+  // A full screenful of bars at a time - same "jump by the viewport's own
+  // width" reading Page Up/Down carry everywhere else in this app, rather
+  // than PatternEditor's own fixed 16-row jump (which counts raw pattern
+  // rows, not this grid's own bars, so a fixed count wouldn't mean the same
+  // thing here).
+  else if (input.getId() == Key::PageUp)
+    move_cursor(-max(1, getDim().second - kNameWidth));
+  else if (input.getId() == Key::PageDown)
+    move_cursor(max(1, getDim().second - kNameWidth));
   else if (input.getId() == Key::Backspace) {
     if (cursor_track_index_ < num_tracks) {
       auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
@@ -207,11 +221,10 @@ ArrangementGrid::offerInput(const cellui::Input & input) {
         getController().getUIEventQueue().push(make_unique<LogEvent>("Deleted stop"));
       }
     }
-  }
-  // Left/Right move across per-track columns, stopping at the grid's
-  // own edges.
-  else if (input.getId() == Key::Left) cursor_track_index_--;
-  else if (input.getId() == Key::Right) cursor_track_index_++;
+  } else if (input.getId() == Key::Up)
+    cursor_track_index_--;
+  else if (input.getId() == Key::Down)
+    cursor_track_index_++;
   else return false;
 
   cursor_track_index_ = clamp(cursor_track_index_, 0, max(0, num_tracks - 1));
@@ -272,18 +285,27 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   auto bars = song.getArrangementBars();
 
   auto [ rows, cols ] = getDim();
-  if (rows < 1 || cols < 1) return false;
-  // 2 columns per track - the identifier cell itself, plus one shared
-  // half-width padding cell (see the render loop's own draw_edge below) -
-  // one more standalone padding cell before the first track, for its own
-  // left edge, and a locator column last, where the pattern editor shows
-  // them too.
-  constexpr int kLocatorWidth = 1;
-  constexpr int kColWidth = 2;
-  auto visible_rows = rows;
-  auto visible_cols = max(0, cols - kLocatorWidth - 1) / kColWidth;
+  if (rows <= kHeaderRows || cols <= kNameWidth) return false;
+  auto visible_tracks = rows - kHeaderRows;
+  auto visible_cols = cols - kNameWidth;
   auto locators = song.getLocators();
-  viewport_.setSmooth(getPlane().smoothScroll());
+
+  // The bars are a plane of their own, right of the names, so that only they
+  // (and the ruler over them) shift by parts of a bar.
+  auto [pos_y, pos_x] = getPosition();
+  if (!bars_plane_) {
+    bars_plane_ = getPlane().createChild();
+    bars_plane_->setMouseCursor(cellui::MouseCursor::POINTER);
+  }
+  if (std::make_tuple(pos_y, pos_x, rows, cols) != laid_out_) {
+    laid_out_ = std::make_tuple(pos_y, pos_x, rows, cols);
+    bars_plane_->move(pos_y, pos_x + kNameWidth);
+    bars_plane_->resize(rows, visible_cols);
+    refresh = true;
+  }
+  bars_plane_->setVisible(shown_);
+  viewport_.rows.setSmooth(false);
+  viewport_.cols.setSmooth(getPlane().smoothScroll());
 
   // Exactly one of the two ever drives the scroll position in a given
   // frame, never both (letting both run unconditionally, one after the
@@ -316,15 +338,15 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   bool focus_fading = fades_.active() || focus_fade_drawn_;
   focus_fade_drawn_ = fades_.active();
   fades_.sweep();
-  ensureCursorVisible(bar_count, visible_rows, visible_cols, num_tracks, follow_cursor);
+  ensureCursorVisible(bar_count, visible_tracks, visible_cols, num_tracks, follow_cursor);
 
-  if (!follow_cursor && !viewport_.detached()) viewport_.rows.reveal(playing_bar);
+  if (!follow_cursor && !viewport_.detached()) viewport_.cols.reveal(playing_bar);
 
   // Where the transport is inside its bar, while it plays (0 to 255).
   auto phase = playback_info.isPlaying() ? playback_info.getCurrentDelay() : 0;
   // On a display that scrolls smoothly the playhead is a line of its own
   // that moves through the bars, not a bar's tint that steps.
-  bool smooth_playhead = viewport_.rows.smooth() && playback_info.isPlaying();
+  bool smooth_playhead = viewport_.cols.smooth() && playback_info.isPlaying();
   auto new_version = song.getMajorVersion();
   {
     // The view follows where it was scrolled to.
@@ -336,8 +358,9 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   if (!refresh && new_version == current_song_version_ && playing_row == current_playing_row_ && smooth_playhead == current_smooth_playhead_ && (!smooth_playhead || phase == current_phase_) &&
       cursor_bar_ == current_cursor_bar_ &&
       cursor_track_index_ == current_cursor_track_index_ &&
-      viewport_.rows.shown() == current_shown_row_ && viewport_.cols.offset() == current_scroll_col_ &&
-      focused == current_focused_ && !focus_fading && selected_track_id == current_selected_track_id_) {
+      viewport_.cols.shown() == current_shown_col_ && viewport_.rows.offset() == current_scroll_row_ &&
+      focused == current_focused_ && !focus_fading && selected_track_id == current_selected_track_id_ &&
+      shown_ == current_shown_) {
     return false;
   }
   current_song_version_ = new_version;
@@ -346,23 +369,25 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   current_smooth_playhead_ = smooth_playhead;
   current_cursor_bar_ = cursor_bar_;
   current_cursor_track_index_ = cursor_track_index_;
-  current_shown_row_ = viewport_.rows.shown();
-  current_scroll_col_ = viewport_.cols.offset();
+  current_shown_col_ = viewport_.cols.shown();
+  current_scroll_row_ = viewport_.rows.offset();
   current_selected_track_id_ = selected_track_id;
   current_focused_ = focused;
+  current_shown_ = shown_;
 
+  UIPlane & bars_plane = *bars_plane_;
   setFgColor(styles.window_fg_color);
   setBgColor(styles.window_bg_color);
   erase();
+  bars_plane.setFgColor(styles.window_fg_color);
+  bars_plane.setBgColor(styles.window_bg_color);
+  bars_plane.erase();
   // The bars are drawn from the first one the view shows, with one more than
   // fit, and the plane shifts them by the part of a bar the view is between.
-  auto first_bar = viewport_.rows.firstShown();
-  auto drawn_rows = visible_rows + (viewport_.rows.smooth() ? 1 : 0);
-  getPlane().setScrollOffset(viewport_.rows.fraction(), 0);
+  auto first_bar = viewport_.cols.firstShown();
+  auto drawn_cols = visible_cols + (viewport_.cols.smooth() ? 1 : 0);
+  bars_plane.setScrollOffset(0, viewport_.cols.fraction());
 
-  // Every id in track_ids is already color-eligible (getVisibleTrackIds()
-  // filtered out anything that isn't), so every column below has a real
-  // identity color to work with.
   SongStructure structure(song);
 
   // A track's real identity color (VisibleTrackInfo::getColor(), the same
@@ -377,148 +402,152 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
     return structure.getBaselineInfo(track_id).getColor(styles.tracks);
   };
 
-  // Per visible column, the active instance (if any) the previous bar row
-  // showed for that track - lets the per-track loop below tell "still the
-  // same instance, one bar further into it" apart from "a different
-  // instance just became active here" without needing to assume an
-  // instance's own start_row lands on a bar boundary at all (an instance
-  // placed off-grid, e.g. via hand-edited XML, only starts actually
-  // resolving on whichever bar's own leading row is the first at or past
-  // it - that bar is still its own leading bar for this grid's purposes,
-  // even though active.start_row itself doesn't equal that bar's raw_row).
-  // Seeded from the bar above the view, so an instance continuing into
-  // it doesn't show its digit again.
-  vector<int> prev_clip_index(static_cast<size_t>(visible_cols), Arrangement::kNoInstance);
-  vector<int> prev_start_row(static_cast<size_t>(visible_cols), -1);
-  if (first_bar > 0) {
-    for (auto vc = 0; vc < visible_cols && viewport_.cols.offset() + vc < num_tracks; vc++) {
-      auto above_row = bars.barStartRow(first_bar - 1);
-      auto above = resolveInstanceForBar(song, track_ids[static_cast<size_t>(viewport_.cols.offset() + vc)], above_row, bars.nextBarStart(above_row) - above_row);
-      prev_clip_index[static_cast<size_t>(vc)] = above.clip_index;
-      prev_start_row[static_cast<size_t>(vc)] = above.start_row;
+  // The names, as the outline shows them.
+  std::unordered_map<int, string> labels;
+  for (auto & track : song.getMasterTrack().getChildren()) {
+    auto & baseline = structure.getBaselineInfo(track->getInternalId());
+    if (baseline.color_ordinal_ < 0) continue;
+    auto label = "T" + to_string(baseline.color_ordinal_);
+    if (!track->getName().empty()) label += " " + track->getName();
+    labels[track->getInternalId()] = label;
+  }
+
+  // The header: the ruler (a bar number every fourth bar) and the locators,
+  // each followed by its name.
+  setBgColor(styles.heading_bg_color);
+  for (int y = 0; y < kHeaderRows; y++) putstr(y, 0, string(static_cast<size_t>(kNameWidth), ' '));
+  bars_plane.setBgColor(styles.heading_bg_color);
+  for (int y = 0; y < kHeaderRows; y++) bars_plane.putstr(y, 0, string(static_cast<size_t>(drawn_cols), ' '));
+  vector<string> locator_text(static_cast<size_t>(drawn_cols));
+  vector<bool> locator_head(static_cast<size_t>(drawn_cols), false);
+  for (auto & [locator_row, name] : locators) {
+    auto locator_bar = bars.barIndex(locator_row);
+    if (locator_bar >= first_bar + drawn_cols) break;
+    auto text = cellui::utf8::clusters("›" + name);
+    for (size_t i = 0; i < text.size(); i++) {
+      auto vc = locator_bar - first_bar + static_cast<int>(i);
+      if (vc < 0) continue;
+      if (vc >= drawn_cols) break;
+      locator_text[static_cast<size_t>(vc)] = text[i];
+      locator_head[static_cast<size_t>(vc)] = i == 0;
     }
   }
+  for (auto vc = 0; vc < drawn_cols; vc++) {
+    auto bar = first_bar + vc;
+    if (bar >= bar_count) break;
+    auto bg = styles.heading_bg_color;
+    if (bar == playing_bar && !smooth_playhead) bg = styles.cursorRowTint(bg);
+    // The label of the fourth bar at or before this one, read at this offset.
+    auto label_bar = bar - bar % 4;
+    auto label = to_string(label_bar + 1);
+    auto offset = static_cast<size_t>(bar - label_bar);
+    bars_plane.setBgColor(bg);
+    bars_plane.setFgColor(bar == playing_bar ? styles.cursor_tint_color : styles.window_fg_color);
+    bars_plane.putstr(0, vc, label.size() <= 3 && offset < label.size() ? label.substr(offset, 1) : " ");
+    auto & text = locator_text[static_cast<size_t>(vc)];
+    bars_plane.setBgColor(styles.heading_bg_color);
+    bars_plane.setFgColor(bar == playing_bar && locator_head[static_cast<size_t>(vc)] ? styles.cursor_tint_color : styles.locator_mark_color);
+    bars_plane.putstr(1, vc, text.empty() ? " " : text);
+  }
+
   auto arrangement = song.getArrangement();
 
-  for (auto vr = 0; vr < drawn_rows; vr++) {
-    auto bar = first_bar + vr;
-    // Past the bars there are, nothing left to show - still painted
-    // explicitly below rather than left to whatever an earlier frame drew
-    // in this same screen cell.
-    auto in_range = bar < bar_count;
-    auto raw_row = bars.barStartRow(bar);
-    auto rows_per_bar = bars.nextBarStart(raw_row) - raw_row; // this bar's own length
-    auto is_playing_row = in_range && bar == playing_bar;
+  for (auto vt = 0; vt < visible_tracks; vt++) {
+    auto track_index = viewport_.rows.offset() + vt;
+    if (track_index >= num_tracks) break;
+    auto track_id = track_ids[static_cast<size_t>(track_index)];
+    auto y = kHeaderRows + vt;
+    bool selected = track_id == selected_track_id;
+    auto color = track_color(track_id);
 
+    // The name, after a swatch in the track's color; the selected track's is
+    // marked like a row of the pattern editor.
+    auto name_bg = selected ? styles.cursorRowTint(styles.window_bg_color) : styles.window_bg_color;
+    setFgColor(color);
+    setBgColor(name_bg);
+    putstr(y, 0, "▌");
+    setFgColor(styles.window_fg_color);
+    putstr(y, 1, cellui::utf8::padToWidth(cellui::utf8::truncateToWidth(labels[track_id], kNameWidth - 2), kNameWidth - 1));
 
-    // The left edge of the whole row has no neighboring track to blend
-    // with, so its own half of the leading padding cell is plain
-    // window_bg_color, same as every other untouched cell - the right
-    // edge (after the loop below) uses the same reasoning.
-    Color prev_bg = styles.window_bg_color;
+    // The active instance the previous bar showed for this track - lets the
+    // loop below tell "still the same instance, one bar further into it"
+    // apart from "a different instance just became active here" without
+    // needing to assume an instance's own start_row lands on a bar boundary
+    // at all (an instance placed off-grid, e.g. via hand-edited XML, only
+    // starts actually resolving on whichever bar's own leading row is the
+    // first at or past it - that bar is still its own leading bar for this
+    // grid's purposes). Seeded from the bar left of the view, so an
+    // instance continuing into it doesn't show its digit again.
+    int prev_clip_index = Arrangement::kNoInstance, prev_start_row = -1;
+    if (first_bar > 0) {
+      auto left_row = bars.barStartRow(first_bar - 1);
+      auto left = resolveInstanceForBar(song, track_id, left_row, bars.nextBarStart(left_row) - left_row);
+      prev_clip_index = left.clip_index;
+      prev_start_row = left.start_row;
+    }
 
-    for (auto vc = 0; vc < visible_cols; vc++) {
-      auto track_index = viewport_.cols.offset() + vc;
-      // Each track is its own identifier cell (x = pad_x + 1) plus one
-      // shared padding cell right before it (x = pad_x) - drawn as a
-      // half-block ("▌", U+258C) whose left half paints in the previous
-      // track's own color and whose right half paints in this track's
-      // own color (the block glyph's foreground fills the left half, its
-      // background shows through the right half), so a clip instance
-      // reads as a two-cell-wide capsule - half padding, a full
-      // identifier cell, half padding - the same way PatternEditor's own
-      // renderHeading() draws a boundary between two adjacent heading
-      // colors (see its draw_edge()).
-      auto pad_x = vc * kColWidth;
-      auto digit_x = pad_x + 1;
+    for (auto vc = 0; vc < drawn_cols; vc++) {
+      auto bar = first_bar + vc;
+      // Past the bars there are, nothing left to show.
+      if (bar >= bar_count) break;
+      auto raw_row = bars.barStartRow(bar);
+      auto rows_per_bar = bars.nextBarStart(raw_row) - raw_row; // this bar's own length
 
       string glyph = " ";
       Color fg = styles.window_fg_color, bg = styles.window_bg_color;
-      int cur_clip_index = Arrangement::kNoInstance, cur_start_row = -1;
-
-      if (in_range && track_index < num_tracks) {
-        auto track_id = track_ids[static_cast<size_t>(track_index)];
-        // Bar-granularity, not resolveInstanceAt(raw_row) directly - a
-        // short one-shot instance that both starts and finishes again
-        // entirely inside this one bar's own row span would otherwise
-        // never touch any bar's plain per-row sample at all (see
-        // resolveInstanceForBar()'s own comment).
-        auto active = resolveInstanceForBar(song, track_id, raw_row, rows_per_bar);
-        cur_clip_index = active.clip_index;
-        cur_start_row = active.start_row;
-        if (active.clip_index >= 0) {
-          bg = track_color(track_id);
-          fg = styles.clip_text_color;
-          // Only this instance's own leading bar shows its hex digit -
-          // "leading" meaning the first bar row where it actually starts
-          // resolving as active for this track (compared against
-          // prev_clip_index/prev_start_row, not against active.start_row
-          // itself: an instance placed off a bar boundary only starts
-          // showing up here on whichever bar's own leading row is the
-          // first at or past it, which is still its own leading bar for
-          // this grid's purposes) - every later bar it's still active
-          // through is blank, the color alone (via bg, and the padding
-          // cells on either side) carrying the continuation.
-          if (cur_clip_index != prev_clip_index[static_cast<size_t>(vc)] || cur_start_row != prev_start_row[static_cast<size_t>(vc)]) {
-            glyph = fmt::format("{:x}", active.clip_index % 16);
-          }
-        } else if (active.clip_index == Arrangement::kStopInstance) {
-          // An explicit stop was previously indistinguishable from plain
-          // silence here - background left uncolored (there's nothing to
-          // tint it with, unlike a real instance's own identity color).
-          // The glyph itself is decided independently of `active` (which
-          // only says playback is currently stopped here, inherited from
-          // however many bars back the real stop event actually sits) -
-          // barHasOwnStop() checks this bar's own row span directly, so
-          // the marker is drawn purely because a stop is literally on this
-          // line, not because a stop from several bars back still governs
-          // it. Every real stop still shows, each on its own row, nothing
-          // hidden - a later bar simply has nothing of its own to draw.
-          fg = styles.window_fg_color;
-          if (barHasOwnStop(arrangement, track_id, raw_row, rows_per_bar)) {
-            // U+00D7 (multiplication sign), not the '*'/'.' glyphs above -
-            // an ordinary narrow character, unlike the circle glyphs those
-            // deliberately avoid, so no width-ambiguity risk of its own.
-            glyph = "×";
-          }
-        } else {
-          bool has_sounding_note = false;
-          if (barHasBackgroundContent(arrangement, track_id, raw_row, rows_per_bar, has_sounding_note)) {
-            // fg left at its plain default (styles.window_fg_color) - see
-            // track_color()'s own comment on why this stays uncolored.
-            // Plain ASCII, not a circle glyph (U+25CF/U+25CB) - those fall
-            // in Unicode's "ambiguous width" class, rendered double-wide
-            // by many terminal fonts, and this cell only ever has room
-            // for one column.
-            glyph = has_sounding_note ? "*" : ".";
-          }
+      // Bar-granularity, not resolveInstanceAt(raw_row) directly - a short
+      // one-shot instance that both starts and finishes again entirely
+      // inside this one bar's own row span would otherwise never touch any
+      // bar's plain per-row sample at all (see resolveInstanceForBar()'s
+      // own comment).
+      auto active = resolveInstanceForBar(song, track_id, raw_row, rows_per_bar);
+      if (active.clip_index >= 0) {
+        bg = color;
+        fg = styles.clip_text_color;
+        // Only this instance's own leading bar shows its hex digit -
+        // every later bar it's still active through is blank, the color
+        // alone carrying the continuation.
+        if (active.clip_index != prev_clip_index || active.start_row != prev_start_row) {
+          glyph = fmt::format("{:x}", active.clip_index % 16);
+        }
+      } else if (active.clip_index == Arrangement::kStopInstance) {
+        // `active` only says playback is currently stopped here, inherited
+        // from however many bars back the real stop event sits - the marker
+        // is drawn purely because a stop is literally on this bar.
+        if (barHasOwnStop(arrangement, track_id, raw_row, rows_per_bar)) {
+          // U+00D7 (multiplication sign): an ordinary narrow character, so
+          // no width-ambiguity risk of its own.
+          glyph = "×";
+        }
+      } else {
+        bool has_sounding_note = false;
+        if (barHasBackgroundContent(arrangement, track_id, raw_row, rows_per_bar, has_sounding_note)) {
+          // Plain ASCII, not a circle glyph (U+25CF/U+25CB) - those fall in
+          // Unicode's "ambiguous width" class, rendered double-wide by many
+          // terminal fonts, and this cell only ever has room for one column.
+          glyph = has_sounding_note ? "*" : ".";
         }
       }
+      prev_clip_index = active.clip_index;
+      prev_start_row = active.start_row;
 
-      prev_clip_index[static_cast<size_t>(vc)] = cur_clip_index;
-      prev_start_row[static_cast<size_t>(vc)] = cur_start_row;
+      if (bar == playing_bar && !smooth_playhead) bg = styles.cursorRowTint(bg);
 
-      if (is_playing_row && !smooth_playhead) bg = styles.cursorRowTint(bg);
-
-      // The shared/global track selection's own column - brightens an
-      // active instance's own color (never the plain background, which
-      // has no "selected" state of its own to show - no tint at all
-      // there) so the selected column stays visible regardless of which
-      // widget has focus, matching the one shared track cursor Launchpad
-      // Live View already follows - not gated on `focused` for that
-      // same reason, and not the full highlight below (that stays
-      // reserved for this widget's own exact cursor cell).
-      if (cur_clip_index >= 0 && track_index < num_tracks && track_ids[static_cast<size_t>(track_index)] == selected_track_id) {
-        bg = bg.blend(0.35f, styles.cursor_tint_color);
-      }
+      // The shared track selection's own row - brightens an active
+      // instance's own color (never the plain background, which has no
+      // "selected" state of its own to show) so the selected track stays
+      // visible regardless of which widget has focus, matching the one
+      // shared track cursor Launchpad Live View also follows - not gated
+      // on `focused` for that same reason, and not the full highlight below
+      // (that stays reserved for this widget's own exact cursor cell).
+      if (active.clip_index >= 0 && selected) bg = bg.blend(0.35f, styles.cursor_tint_color);
 
       // Unfocused, the cursor cell shows faintly - a colored instance cell
-      // already shows it through the selected column's brightening above.
+      // already shows it through the selected row's brightening above.
       // Focused, a colored cell brightens further rather than losing its
       // track color.
-      auto is_cursor_cell = in_range && bar == cursor_bar_ && track_index == cursor_track_index_;
-      if (is_cursor_cell) {
-        if (cur_clip_index >= 0) {
+      if (bar == cursor_bar_ && track_index == cursor_track_index_) {
+        if (active.clip_index >= 0) {
           if (focus_ > 0.0f) {
             fg = fg.blend(focus_, styles.highlight_fg_color);
             bg = bg.blend(0.5f * focus_, styles.cursor_tint_color);
@@ -529,33 +558,10 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
         }
       }
 
-      setFgColor(prev_bg);
-      setBgColor(bg);
-      putstr(vr, pad_x, "▌");
-
-      setFgColor(fg);
-      setBgColor(bg);
-      putstr(vr, digit_x, glyph);
-
-      prev_bg = bg;
+      bars_plane.setFgColor(fg);
+      bars_plane.setBgColor(bg);
+      bars_plane.putstr(y, vc, glyph);
     }
-
-    // The trailing padding cell after the last visible track, symmetric
-    // with prev_bg's own initial value above - nothing past this column
-    // either.
-    if (visible_cols > 0) {
-      setFgColor(prev_bg);
-      setBgColor(styles.window_bg_color);
-      putstr(vr, visible_cols * kColWidth, "▌");
-    }
-
-    // A locator anywhere in this bar - which row isn't shown. The playing
-    // bar brightens the mark itself rather than tinting its background.
-    auto locator = locators.lower_bound(raw_row);
-    bool has_locator = in_range && locator != locators.end() && locator->first < raw_row + rows_per_bar;
-    setFgColor(is_playing_row ? styles.cursor_tint_color : styles.locator_mark_color);
-    setBgColor(styles.window_bg_color);
-    putstr(vr, visible_cols * kColWidth + kLocatorWidth, has_locator ? "›" : " ");
   }
 
   if (smooth_playhead) {
@@ -564,10 +570,10 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
     auto bar_start = bars.barStartRow(playing_bar);
     auto bar_rows = std::max(1, bars.nextBarStart(bar_start) - bar_start);
     double bar_position = playing_bar + (playing_row - bar_start + phase / 256.0) / bar_rows;
-    constexpr double kLineRows = 0.12;
-    getPlane().setBand(cellui::Band{ bar_position - viewport_.rows.shown() - kLineRows / 2, kLineRows, 0, cols, styles.cursor_tint_color, 1.0f });
+    constexpr double kLineCols = 0.25;
+    bars_plane.setBand(cellui::Band{0.0, static_cast<double>(rows), bar_position - viewport_.cols.shown() - kLineCols / 2, kLineCols, styles.cursor_tint_color, 1.0f});
   } else {
-    getPlane().clearBand();
+    bars_plane.clearBand();
   }
 
   return true;

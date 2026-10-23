@@ -3,6 +3,7 @@
 #include "TestFramework.h"
 
 #include "TerminalUIFixture.h"
+#include "../src/model/ArrangementOps.h"
 #include "../src/ui/CommandDescriptions.h"
 
 #include <chrono>
@@ -257,15 +258,22 @@ TEST(terminal_ui_live_view_layout_and_the_clip_grid_cursor) {
 }
 
 // On a display that shifts planes by part of a cell, a wheel notch moves the
-// arrangement grid there over several frames: it is shown between bars, as a
-// plane shifted by a fraction, until it settles on the whole bar.
+// arrangement grid there (along the bars) over several frames: it is shown
+// between bars, as a plane shifted by a fraction, until it settles on the whole bar.
 TEST(terminal_ui_smooth_scroll_moves_the_arrangement_grid_between_bars) {
   cellui::DisplayInfo display;
   display.smooth_scroll = true;
   UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT, display);
+  {
+    // More bars than the grid is wide, so there is something to scroll to.
+    auto & song = f.controller->getSong();
+    Song::Edit edit(song, "long arrangement");
+    placeStopInstance(song, song.getPlayableTrackIds()[0], 16 * 300);
+  }
+  f.ui->step();
   auto shift = [&]() -> std::optional<double> {
     for (const auto & layer : f.terminal.info().backdrops) {
-      if (layer.scroll) return layer.scroll->shift_rows;
+      if (layer.scroll && layer.scroll->row == 1 && layer.scroll->shift_cols > 0) return layer.scroll->shift_cols;
     }
     return std::nullopt;
   };
@@ -750,4 +758,12 @@ TEST(terminal_ui_smooth_scroll_live_view_line_band_holds_still_while_the_rows_sc
     }
   }
   CHECK(moved);
+}
+
+// The arrangement grid has time running to the right: a bar ruler and the
+// locators over one row per track, each named at the left.
+TEST(terminal_ui_arrangement_grid_shows_bars_to_the_right_of_the_track_names) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT);
+  CHECK(f.line(1).find("1   5   9") != std::string::npos); // the ruler
+  CHECK(f.line(3).find("T0") != std::string::npos);        // the first track's name
 }

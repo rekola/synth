@@ -34,7 +34,6 @@ class PatternEditor;
 class ArrangementGrid;
 class ClipGrid;
 class OutlineView;
-#include "CoverArt.h"
 #include "SpinBox.h"
 
 class TerminalUI : public UI {
@@ -230,9 +229,9 @@ private:
   // Setting this instead defers the forced refresh to that one outer
   // call, so its own return value (and therefore the flush) reflects it.
   bool force_next_render_ = false;
-  // Square cover-art thumbnail, sharing the scope row immediately to the
-  // right of arrangement_grid_ - see CoverArt.h and layout().
-  std::shared_ptr<CoverArt> cover_art_;
+  // Arrangement view's top band height (see arrangementScopeRows()), as laid out.
+  int arrangementScopeRows() const;
+  int laid_out_scope_rows_ = 0;
   // The global octave stepper - see SpinBox.h and Controller::
   // getGlobalOctave(). Lives inline in the info bar's own row (see
   // layout()), always-on and click-activatable like pattern_editor_.

@@ -2473,7 +2473,7 @@ void PatternEditor::updateColumnBands(const StyleProvider & styles, const std::v
       plane->clearBand();
       continue;
     }
-    plane->setBand(cellui::Band{static_cast<double>(heading_height + line), 1.0, start, end - 1 - start, styles.cursor_row_tint_color, StyleProvider::kRowTintAlpha});
+    plane->setBand(cellui::Band{static_cast<double>(heading_height + line), 1.0, static_cast<double>(start), static_cast<double>(end - 1 - start), styles.cursor_row_tint_color, StyleProvider::kRowTintAlpha});
   }
 }
 
