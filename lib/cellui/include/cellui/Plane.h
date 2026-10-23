@@ -168,6 +168,12 @@ class Plane {
   // smoothly; it stays until cleared. Default no-op.
   virtual void setBand(const Band & band) { (void)band; }
   virtual void clearBand() { }
+  // How the plane combines with the planes below it: instead of replacing
+  // their cells, the colours its cells set (backgrounds; its text is not drawn)
+  // are laid over what is there with `mode`, `alpha` of the way, text below
+  // included. Any plane can; the display draws it blended or the cells are
+  // blended where it composes them. Default no-op.
+  virtual void setBlend(BlendMode mode, float alpha = 1.0f) { (void)mode; (void)alpha; }
   virtual void erase() = 0;
   virtual void putstr(int y, int x, const std::string & s) = 0;
   virtual std::unique_ptr<Plane> createChild() = 0;

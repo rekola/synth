@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cellui/Backdrop.h>
+#include <cellui/BlendMode.h>
 #include <cellui/CellBuffer.h>
 
 #include <optional>
@@ -24,6 +25,7 @@ struct Band {
   double col = 0, cols = 0;  // the same, in cells from the plane's left
   Color color = Color(255, 255, 255);
   float alpha = 1.0f;
+  BlendMode blend = BlendMode::NORMAL;
 };
 
 struct ScrollContent {
@@ -35,6 +37,10 @@ struct ScrollContent {
   double shift_rows = 0, shift_cols = 0;
   // Drawn over the content, inside the plane, not shifted.
   std::optional<Band> band;
+  // The plane is laid over what is below with this blend, `blend_alpha` of the way.
+  BlendMode blend = BlendMode::NORMAL;
+  float blend_alpha = 1.0f;
+  bool blended() const { return blend != BlendMode::NORMAL || blend_alpha < 1.0f; }
 };
 
 struct BackdropLayer {

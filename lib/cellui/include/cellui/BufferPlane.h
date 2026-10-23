@@ -75,10 +75,14 @@ class BufferPlane : public Plane {
     style_.lift_shadow = casts_shadow;
   }
   void setScrollOffset(double rows, double cols) override;
-  void setBand(const Band & band) override {
-    if (root().smooth_scroll_) band_ = band;
-  }
+  // Over a plane the display scrolls by parts of a cell it is drawn by the
+  // display; otherwise it is laid over the composed cells, on whole ones.
+  void setBand(const Band & band) override { band_ = band; }
   void clearBand() override { band_.reset(); }
+  void setBlend(BlendMode mode, float alpha = 1.0f) override {
+    blend_ = mode;
+    blend_alpha_ = alpha;
+  }
   // Whether the display can shift a plane by a fraction of a cell; planes
   // are shown unshifted otherwise (root only).
   void setSmoothScroll(bool smooth) { smooth_scroll_ = smooth; }
@@ -211,6 +215,9 @@ class BufferPlane : public Plane {
   // shifted.
   double scroll_rows_ = 0, scroll_cols_ = 0;
   std::optional<Band> band_;
+  BlendMode blend_ = BlendMode::NORMAL;
+  float blend_alpha_ = 1.0f;
+  bool blended() const { return blend_ != BlendMode::NORMAL || blend_alpha_ < 1.0f; }
   bool overscan_ = false;
   bool visible_ = true;
   float elevation_ = 0;

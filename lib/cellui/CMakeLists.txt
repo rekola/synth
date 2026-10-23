@@ -57,6 +57,7 @@ add_library(cellui STATIC
   src/BackendChoice.cpp
   src/BufferPlane.cpp
   src/CellBuffer.cpp
+  src/BlendMode.cpp
   src/Color.cpp
   src/ChannelMeter.cpp
   src/ChoiceDialog.cpp

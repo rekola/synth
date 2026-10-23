@@ -201,6 +201,67 @@ TEST(gtk_window_moves_a_band_without_rasterizing) {
   CHECK(w->stats().raster_ms_total == raster);
 }
 
+// A band that blends (an inverting cursor) is drawn too, still without
+// rasterizing the plane again.
+TEST(gtk_window_draws_a_blended_band) {
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  StyleProvider styles;
+  CellBuffer screen(w->rows(), w->cols());
+  BufferPlane root(screen, styles);
+  root.setSmoothScroll(true);
+  auto list = root.createChild();
+  list->resize(5, 20);
+  list->move(2, 1);
+  list->setBgColor(30, 30, 50);
+  for (int r = 0; r < 5; r++) list->putstr(r, 0, "row " + std::to_string(r) + std::string(10, ' '));
+  double raster = -1;
+  for (BlendMode mode : { BlendMode::DIFFERENCE, BlendMode::MULTIPLY, BlendMode::SCREEN, BlendMode::NORMAL }) {
+    list->setBand(Band{ 1.0, 1.0, 2, 8, Color(180, 200, 210), 1.0f, mode });
+    root.refresh();
+    FrameInfo info;
+    info.backdrops = root.takeBackdropLayers();
+    CHECK(info.backdrops.size() == 1 && info.backdrops[0].scroll && info.backdrops[0].scroll->band);
+    size_t before = w->stats().frames;
+    w->present(screen, {}, root.images(), &info);
+    CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+    if (raster < 0) raster = w->stats().raster_ms_total;
+  }
+  CHECK(w->stats().raster_ms_total == raster);
+}
+
+// A whole plane blended over the ones below is drawn by the window too.
+TEST(gtk_window_draws_a_blended_plane) {
+  gtk::Window * w = theWindow();
+  if (!w) return;
+  StyleProvider styles;
+  CellBuffer screen(w->rows(), w->cols());
+  BufferPlane root(screen, styles);
+  root.setSmoothScroll(true);
+  auto list = root.createChild();
+  list->resize(5, 20);
+  list->move(2, 1);
+  list->setBgColor(30, 30, 50);
+  for (int r = 0; r < 5; r++) list->putstr(r, 0, "row " + std::to_string(r) + std::string(10, ' '));
+  auto over = root.createChild();
+  over->resize(2, 8);
+  over->move(3, 3);
+  over->makeTransparent();
+  over->setBgColor(180, 200, 210);
+  over->putstr(0, 0, std::string(8, ' '));
+  over->putstr(1, 0, std::string(8, ' '));
+  for (BlendMode mode : { BlendMode::DIFFERENCE, BlendMode::SCREEN, BlendMode::NORMAL }) {
+    over->setBlend(mode, 0.8f);
+    root.refresh();
+    FrameInfo info;
+    info.backdrops = root.takeBackdropLayers();
+    CHECK(!info.backdrops.empty() && info.backdrops.back().scroll && info.backdrops.back().scroll->blended());
+    size_t before = w->stats().frames;
+    w->present(screen, {}, root.images(), &info);
+    CHECK(pumpUntil(*w, [&] { return w->stats().frames > before; }));
+  }
+}
+
 TEST(gtk_window_wake_is_its_own_fd) {
   gtk::Window * w = theWindow();
   if (!w) return;

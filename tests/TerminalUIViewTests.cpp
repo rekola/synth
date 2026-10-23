@@ -924,6 +924,41 @@ TEST(terminal_ui_smooth_pattern_editor_selection_stays_in_the_rows) {
   CHECK(new_colour);
 }
 
+
+// In Arrangement view an editor that is not the focus shows no cursor: the cursor row
+// looks like the other bar-start row until the editor has the focus.
+TEST(terminal_ui_arrangement_pattern_editor_shows_no_cursor_without_the_focus) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT);
+  for (int i = 0; i < 3; i++) f.ui->step();
+  auto row_of = [&](const std::string & number) {
+    auto lines = f.lines();
+    for (size_t r = 0; r < lines.size(); r++) {
+      if (lines[r].rfind(" " + number + " ", 0) == 0) return static_cast<int>(r);
+    }
+    return -1;
+  };
+  int first = row_of("00"), second = row_of("04");
+  CHECK(first >= 0 && second > first);
+  auto bg = [&](int row) { return f.terminal.frame().at(row, 10).bg; };
+  CHECK(bg(first) == bg(second));
+  f.otherWindow();
+  CHECK(bg(first) != bg(second));
+}
+
+// The cursor cell inverts what is under it: its band blends by difference.
+TEST(terminal_ui_smooth_pattern_editor_cursor_cell_band_inverts) {
+  cellui::DisplayInfo display;
+  display.smooth_scroll = true;
+  UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT, display);
+  f.otherWindow();
+  for (int i = 0; i < 3; i++) f.ui->step();
+  size_t inverting = 0;
+  for (const auto & layer : f.terminal.info().backdrops) {
+    if (layer.scroll && layer.scroll->band && layer.scroll->band->blend == cellui::BlendMode::DIFFERENCE) inverting++;
+  }
+  CHECK(inverting == 1);
+}
+
 // A locator's name is placed by the plane, so a wide character takes two
 // columns and the next locator's mark stays where its bar is.
 TEST(terminal_ui_arrangement_grid_locator_names_may_be_wide) {
