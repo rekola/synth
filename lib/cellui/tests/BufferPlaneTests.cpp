@@ -265,8 +265,9 @@ TEST(bufferplane_translucent_cells_blend_with_what_is_below) {
   top->setBgColor(0, 0, 0);
   top->putstr(0, 1, "y");
   root.refresh();
-  CHECK(b.at(0, 0).text == "x" && b.at(0, 0).bg->getRed() == 0xbf && b.at(0, 0).bg->getGreen() == 0x40);
-  CHECK(b.at(0, 1).fg->getRed() == (3 * 255 + 0x40) / 4);
+  // Half and half in linear light, and three parts white to one of the text.
+  CHECK(b.at(0, 0).text == "x" && b.at(0, 0).bg->toSrgb8() == Color(0xff, 0, 0).mix(Color(0x80, 0x80, 0x80), 0.5f).toSrgb8());
+  CHECK(b.at(0, 1).fg->toSrgb8() == Color(255, 255, 255).mix(Color(0x40, 0x40, 0x40), 0.25f).toSrgb8());
 }
 
 TEST(element_drawn_through_a_buffer_plane) {

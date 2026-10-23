@@ -56,6 +56,7 @@ endif()
 add_library(cellui STATIC
   src/BufferPlane.cpp
   src/CellBuffer.cpp
+  src/Color.cpp
   src/ChannelMeter.cpp
   src/ChoiceDialog.cpp
   src/CommandPalette.cpp

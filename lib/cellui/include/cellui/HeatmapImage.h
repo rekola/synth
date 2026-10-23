@@ -18,9 +18,10 @@ inline void cellColor(const Color & background, float saturation, float value, f
   value = std::clamp(value, 0.0f, 1.0f);
   uint8_t lr, lg, lb;
   heatmapHsvToRgb(kHeatmapHue, std::clamp(saturation, 0.0f, 1.0f), 1.0f, lr, lg, lb);
-  r = static_cast<float>(background.getRed()) * (1.0f - value) + static_cast<float>(lr) * value;
-  g = static_cast<float>(background.getGreen()) * (1.0f - value) + static_cast<float>(lg) * value;
-  b = static_cast<float>(background.getBlue()) * (1.0f - value) + static_cast<float>(lb) * value;
+  auto bg = background.toSrgb8();
+  r = static_cast<float>(bg[0]) * (1.0f - value) + static_cast<float>(lr) * value;
+  g = static_cast<float>(bg[1]) * (1.0f - value) + static_cast<float>(lg) * value;
+  b = static_cast<float>(bg[2]) * (1.0f - value) + static_cast<float>(lb) * value;
 }
 
 // The heatmap as pixels: `brightness`/`saturation` are cols*rows entries,

@@ -289,7 +289,10 @@ class Print {
   }
   void add(const std::optional<Color> & c) {
     uint64_t packed = 0;
-    if (c) packed = uint64_t{ 1 } << 32 | static_cast<uint64_t>(c->getRed()) << 16 | static_cast<uint64_t>(c->getGreen()) << 8 | static_cast<uint64_t>(c->getBlue());
+    if (c) {
+      auto rgb = c->toSrgb8();
+      packed = uint64_t{ 1 } << 32 | static_cast<uint64_t>(rgb[0]) << 16 | static_cast<uint64_t>(rgb[1]) << 8 | static_cast<uint64_t>(rgb[2]);
+    }
     add(packed);
   }
   uint64_t value() const { return value_; }
@@ -408,7 +411,7 @@ void Window::Impl::appendTexture(GtkSnapshot * snap, const Painted & p, int row,
 // plane, and under every plane higher than it, which is drawn again over it.
 void Window::Impl::appendShadows(GtkSnapshot * snap, const Painted & top) {
   const Color & bg = *display_info.default_bg;
-  bool dark = bg.getRed() + bg.getGreen() + bg.getBlue() < 384;
+  bool dark = bg.luminance() < 0.21f;
   stats.shadows = 0;
   // Two shadows, as many design systems draw them: a key light from the upper
   // left, offset down by half the height (and right by a little less, so the
@@ -477,7 +480,8 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
   auto start = Clock::now();
   int width = gtk_widget_get_width(view), height = gtk_widget_get_height(view);
   auto channel = [](const Color & c, float alpha = 1.0f) {
-    return GdkRGBA{ c.getRed() / 255.0f, c.getGreen() / 255.0f, c.getBlue() / 255.0f, alpha };
+    auto rgb = c.toSrgb8();
+    return GdkRGBA{ rgb[0] / 255.0f, rgb[1] / 255.0f, rgb[2] / 255.0f, alpha };
   };
   Color fg = *display_info.default_fg, bg = *display_info.default_bg;
 

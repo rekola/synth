@@ -134,6 +134,14 @@ Consequences, accepted:
   OKLab** (`Color::mix()` takes the space, default linear light; a
   `Gradient` says OKLab), since linear-light interpolation of two saturated
   hues is muddy. Compositing is physical, design interpolation is perceptual.
+- **A widget's tween of two theme colours stays where it was tuned.** The ~40
+  `Color::blend()` calls in the widgets (focus fades, row dimming, cursor
+  tints) were tuned in gamma-encoded sRGB and there is no way to retune them by
+  eye here, so `blend(f, other)` is `mix(other, f, MixSpace::SRGB)`: the same
+  look as before. Only what the compositor does (`bg_blend`, `fg_contrast`,
+  backdrop dim and tint, the emulated blur) is linear. If the widget tweens
+  should be physical too, `blend()` becomes `mix()` and the amounts are retuned
+  in one go.
 - Glyph anti-aliasing is not a `Color` operation. A rasteriser draws a glyph's
   outline as a *coverage* per pixel, 0 to 1 along the edge, and the pixel is
   `mix(bg, fg, coverage)`. canvas does that mix in 8-bit gamma-encoded sRGB

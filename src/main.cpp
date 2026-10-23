@@ -308,7 +308,7 @@ int main(int argc, char *argv[]) {
       fmt::print(stderr, "Cannot start the window UI: {}\n", ui_error);
       return 1;
     }
-    if (auto bg = backend->display().default_bg) light = bg->getRed() + bg->getGreen() + bg->getBlue() > 3 * 128;
+    if (auto bg = backend->display().default_bg) light = bg->luminance() > 0.2f;
 #else
     fmt::print(stderr, "This build has no window UI (it needs GTK 4.10 or later; see SYNTH_ENABLE_GTK)\n");
     return 1;

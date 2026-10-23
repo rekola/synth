@@ -43,7 +43,7 @@ bool widthRisky(const std::string & text) {
 
 bool sameColor(const std::optional<Color> & a, const std::optional<Color> & b) {
   if (a.has_value() != b.has_value()) return false;
-  return !a || (a->getRed() == b->getRed() && a->getGreen() == b->getGreen() && a->getBlue() == b->getBlue());
+  return !a || *a == *b || a->toSrgb8() == b->toSrgb8();
 }
 
 bool sameCell(const CellBuffer::Cell & a, const CellBuffer::Cell & b) {
@@ -54,7 +54,8 @@ bool sameCell(const CellBuffer::Cell & a, const CellBuffer::Cell & b) {
 }  // namespace
 
 int nearest256(const Color & c) {
-  int r = c.getRed(), g = c.getGreen(), b = c.getBlue();
+  auto rgb = c.toSrgb8();
+  int r = rgb[0], g = rgb[1], b = rgb[2];
   int ri = nearestLevel(r), gi = nearestLevel(g), bi = nearestLevel(b);
   int best = 16 + 36 * ri + 6 * gi + bi;
   int best_d = weightedDistance(r, g, b, kCubeLevels[ri], kCubeLevels[gi], kCubeLevels[bi]);
@@ -70,7 +71,8 @@ int nearest256(const Color & c) {
 }
 
 int nearest8(const Color & c) {
-  int r = c.getRed(), g = c.getGreen(), b = c.getBlue();
+  auto rgb = c.toSrgb8();
+  int r = rgb[0], g = rgb[1], b = rgb[2];
   if ((r >> 3) == (g >> 3) && (g >> 3) == (b >> 3)) return r < 64 ? 0 : 7;
   return (r >= 128 ? 1 : 0) | (g >= 128 ? 2 : 0) | (b >= 128 ? 4 : 0);
 }
@@ -104,10 +106,11 @@ FrameEncoder::Ink FrameEncoder::ink(const std::optional<Color> & c, bool backgro
       break;
   }
   k.kind = Ink::RGB;
-  k.value = (c->getRed() << 16) | (c->getGreen() << 8) | c->getBlue();
+  auto rgb = c->toSrgb8();
+  k.value = (rgb[0] << 16) | (rgb[1] << 8) | rgb[2];
   if (background && profile_.distinct_from) {
-    const Color & d = *profile_.distinct_from;
-    if (k.value == ((d.getRed() << 16) | (d.getGreen() << 8) | d.getBlue())) k.value ^= 1;
+    auto d = profile_.distinct_from->toSrgb8();
+    if (k.value == ((d[0] << 16) | (d[1] << 8) | d[2])) k.value ^= 1;
   }
   return k;
 }

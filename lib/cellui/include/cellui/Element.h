@@ -96,19 +96,15 @@ class Element {
     }
     return *this;
   }
-  Element & setFgColor(int r, int g, int b) {
-    if (plane_) plane_->setFgColor(r, g, b);
+  Element & setFgColor(int r, int g, int b) { return setFgColor(Color(r, g, b)); }
+  Element & setBgColor(int r, int g, int b) { return setBgColor(Color(r, g, b)); }
+  Element & setFgColor(const Color & color) {
+    if (plane_) plane_->setFgColor(color);
     return *this;
   }
-  Element & setBgColor(int r, int g, int b) {
-    if (plane_) plane_->setBgColor(r, g, b);
+  Element & setBgColor(const Color & color) {
+    if (plane_) plane_->setBgColor(color);
     return *this;
-  }
-  Element & setFgColor(Color color) {
-    return setFgColor(color.getRed(), color.getGreen(), color.getBlue());
-  }
-  Element & setBgColor(Color color) {
-    return setBgColor(color.getRed(), color.getGreen(), color.getBlue());
   }
   Element & setBgDefault() {
     if (plane_) plane_->setBgDefault();

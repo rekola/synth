@@ -117,14 +117,14 @@ void CommandPalette::show(UIPlane & parent, int screen_rows, int screen_cols) {
   auto quiet = styles.theme.text_secondary;
   auto cursor_fg = styles.highlight_fg_color, cursor_bg = styles.highlight_bg_color;
   auto set = [&](const Color & foreground, const Color & background) {
-    plane_->setFgColor(foreground.getRed(), foreground.getGreen(), foreground.getBlue());
-    plane_->setBgColor(background.getRed(), background.getGreen(), background.getBlue());
+    plane_->setFgColor(foreground);
+    plane_->setBgColor(background);
   };
 
   // Text on the display's own background, for the description and the query.
   auto plain = [&](const Color & foreground) {
     plane_->setBgDefault();
-    plane_->setFgColor(foreground.getRed(), foreground.getGreen(), foreground.getBlue());
+    plane_->setFgColor(foreground);
   };
 
   set(fg, bg);

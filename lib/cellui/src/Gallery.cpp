@@ -35,8 +35,8 @@ class Page {
   }
 
   void colors(const Color & fg, const Color & bg) {
-    plane_.setFgColor(fg.getRed(), fg.getGreen(), fg.getBlue());
-    plane_.setBgColor(bg.getRed(), bg.getGreen(), bg.getBlue());
+    plane_.setFgColor(fg);
+    plane_.setBgColor(bg);
   }
 
   void text(int col, const std::string & s) { plane_.putstr(row_, col, s); }
@@ -51,7 +51,7 @@ class Page {
   }
 
   void fillRow(const Color & bg) {
-    plane_.setBgColor(bg.getRed(), bg.getGreen(), bg.getBlue());
+    plane_.setBgColor(bg);
     text(0, std::string(static_cast<size_t>(plane_.getDim().second), ' '));
   }
 
@@ -63,14 +63,14 @@ class Page {
 
 std::string hex(const Color & c) {
   char buf[8];
-  std::snprintf(buf, sizeof buf, "#%02x%02x%02x", c.getRed(), c.getGreen(), c.getBlue());
+  auto rgb = c.toSrgb8();
+  std::snprintf(buf, sizeof buf, "#%02x%02x%02x", rgb[0], rgb[1], rgb[2]);
   return buf;
 }
 
 // Black or white, whichever reads better on `bg`.
 Color readableOn(const Color & bg) {
-  int luma = (299 * bg.getRed() + 587 * bg.getGreen() + 114 * bg.getBlue()) / 1000;
-  return luma > 140 ? Color(0, 0, 0) : Color(255, 255, 255);
+  return bg.luminance() > 0.26f ? Color(0, 0, 0) : Color(255, 255, 255);
 }
 
 }  // namespace
