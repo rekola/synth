@@ -118,3 +118,26 @@ TEST(element_offers_input_to_its_plane_by_default) {
   Widget none;
   CHECK(!none.offerInput(in));
 }
+
+TEST(plane_knows_the_widget_that_owns_it) {
+  StyleProvider styles;
+  RecordingPlane root(styles);
+  CHECK(root.owner() == nullptr);
+
+  struct Owned : Widget {
+    explicit Owned(Plane & parent) : Widget(parent) { }
+    Plane & plane() { return getPlane(); }
+    void swap(std::unique_ptr<Plane> & other) { swapPlane(other); }
+  };
+  Owned a(root);
+  Plane * first = &a.plane();
+  CHECK(first->owner() == &a);
+
+  // A plane swapped in takes the widget as its owner; the one swapped out
+  // keeps it, since the widget still draws on both.
+  auto spare = root.createChild();
+  CHECK(spare->owner() == nullptr);
+  a.swap(spare);
+  CHECK(a.plane().owner() == &a);
+  CHECK(spare.get() == first && first->owner() == &a);
+}

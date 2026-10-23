@@ -26,7 +26,9 @@ class Widget {
   explicit Widget(Plane & parent) {
     setPlane(parent.createChild());
   }
-  virtual ~Widget() { }
+  virtual ~Widget() {
+    if (plane_) plane_->setOwner(nullptr);
+  }
 
   // Offers a key or mouse event to this widget; true when it was used. The
   // default passes it on to the plane.
@@ -138,7 +140,11 @@ class Widget {
   }
   
 protected:
-  void setPlane(std::unique_ptr<Plane> plane) { plane_ = std::move(plane); }
+  void setPlane(std::unique_ptr<Plane> plane) {
+    if (plane_) plane_->setOwner(nullptr);
+    plane_ = std::move(plane);
+    if (plane_) plane_->setOwner(this);
+  }
   Plane & getPlane() { return *plane_; }
   const Plane & getPlane() const { return *plane_; }
   bool hasPlane() const { return plane_ != nullptr; }
@@ -239,7 +245,10 @@ protected:
 
   // Lets a widget with planes of its own draw on each through the ordinary
   // drawing helpers: exchanges the plane the helpers draw on with `other`.
-  void swapPlane(std::unique_ptr<Plane> & other) { plane_.swap(other); }
+  void swapPlane(std::unique_ptr<Plane> & other) {
+    plane_.swap(other);
+    if (plane_) plane_->setOwner(this);
+  }
 
 private:
   std::unique_ptr<Plane> plane_;
