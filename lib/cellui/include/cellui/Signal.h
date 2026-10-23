@@ -102,12 +102,12 @@ class Signal {
     // Handlers connected from here on wait for the next emission.
     size_t count = state.slots.size();
     state.depth++;
-    struct Leave {
+    struct DepthGuard {
       State & state;
-      ~Leave() {
+      ~DepthGuard() {
         if (--state.depth == 0 && state.dirty) state.compact();
       }
-    } leave{ state };
+    } guard{ state };
     for (size_t i = 0; i < count && i < state.slots.size(); i++) {
       // Holding the slot keeps its function alive while it runs, even if it
       // disconnects itself.

@@ -670,6 +670,8 @@ std::unique_ptr<Window> Window::open(const WindowOptions & options, std::string 
   impl.display_info.smooth_scroll = true;
   impl.display_info.keymap_profile = KeymapProfile::DESKTOP;
   impl.display_info.escape_as_meta = false;
+  impl.display_info.key_release = true;
+  impl.display_info.hover = true;
 
   // The window's outer size for the wanted client size.
   impl.rows = options.rows;

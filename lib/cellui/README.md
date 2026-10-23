@@ -55,7 +55,7 @@ deliberate change, run the tests with `CELLUI_UPDATE_GOLDEN=1` to rewrite it.
 
 ## Events and signals
 
-*Implemented: `Signal` and `Connection` (`cellui/Signal.h`) and posted events on the widget tree (`cellui/EventTypes.h`, `Widget::attach`/`on`/`post`/`postToRoot`). Input events, the queues and the loop additions are design, and their signatures may change in detail.*
+*Implemented: `Signal` and `Connection` (`cellui/Signal.h`) and posted events on the widget tree (`cellui/EventTypes.h`, `Widget::attach`/`on`/`post`/`postToRoot`). input events and `InputDispatcher` (`cellui/InputEvents.h`, `cellui/InputDispatcher.h`). The queues and the loop additions are design, and their signatures may change in detail.*
 
 cellui has three ways to tell other code that something happened. They differ
 in how much the sender knows about the receiver and in which thread they run.
@@ -179,36 +179,46 @@ capture_keys_ = on<cellui::KeyDown>(
 
 ### Input events
 
-The toolkit's input is ordinary events:
+The toolkit's input is ordinary events (`cellui/InputEvents.h`):
 
-- `KeyDown` / `KeyUp`: key code, modifiers, and the UTF-8 text the key produced,
-  kept separate from the key.
-- `MouseDown` / `MouseMove` / `MouseUp` / `Wheel`: position in float pixels and
-  in integer cells.
+- `KeyDown` / `KeyUp`: key id, modifiers, and the UTF-8 text the key produced,
+  kept separate from the key (empty for a chord with Ctrl, Alt or Meta).
+- `MouseDown` / `MouseMove` / `MouseUp` / `Wheel`: position in cells (fractional
+  where the display is precise) and the cell itself as `row`/`col`.
 - `Enter` / `Leave`, `FocusIn` / `FocusOut`.
-- `Resize`: the new size and the cell size in pixels.
+- `Resize`: the new size in cells.
 
-Backends turn native input into these and post them. The dispatcher chooses the
-target:
+`InputDispatcher` (`cellui/InputDispatcher.h`) is built over a root widget and
+chooses the target:
 
-- Keyboard events go to the focused widget; the dispatcher owns focus traversal.
-- Mouse events go to the topmost widget under the pointer. From `MouseDown` to
+- Keyboard events go to the focused widget, or the root when nothing has focus.
+  `focusNext()` / `focusPrev()` walk the widgets marked `setFocusable(true)` in
+  tree order, and a press focuses the nearest focusable widget it lands on.
+- Mouse events go to the topmost widget under the pointer. The dispatcher finds
+  it in the frame's hit areas: `BufferPlane::takeHitAreas()` lists the area of
+  every plane that has an owning widget, lowest first, and `setHitAreas()` hands
+  them over after each `refresh()`. From the first `MouseDown` to the last
   `MouseUp` the pointer is grabbed: every event in between goes to the widget the
   button went down on, wherever the pointer is.
-- `Enter` and `Leave` come from successive hit tests. Widgets never work out
-  hover themselves.
+- `Enter` and `Leave` come from successive hit tests (or the grabbing widget):
+  `Leave` for what the pointer left, deepest first, then `Enter` for what it
+  came onto, outermost first. They go to that widget only (`Widget::postDirect()`),
+  never to its ancestors. Widgets never work out hover themselves.
+- `offer(const Input &)` translates the backends' `Input` into these events.
 
-What a display cannot report is a flag in `DisplayInfo`, never faked: whether key
-release is reported, whether the mouse has pixel precision, whether hover is
-reported.
+The dispatcher holds widgets only through their `Widget::life()` token, so a
+widget destroyed during a gesture, or by a handler, is skipped.
+
+What a display cannot report is a flag in `DisplayInfo`, never faked:
+`key_release`, `precise_mouse` and `hover`.
 
 ```cpp
 canvas_.on<cellui::MouseDown>([this](const cellui::MouseDown & m, cellui::EventContext &) {
-  begin_stroke(m.pixel_x, m.pixel_y);
+  begin_stroke(m.x, m.y);
   return cellui::Handled::yes;
 });
 canvas_.on<cellui::MouseMove>([this](const cellui::MouseMove & m, cellui::EventContext &) {
-  extend_stroke(m.pixel_x, m.pixel_y);  // arrives for the whole drag
+  extend_stroke(m.x, m.y);  // arrives for the whole drag
   return cellui::Handled::yes;
 });
 ```
