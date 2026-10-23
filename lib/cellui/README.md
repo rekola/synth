@@ -55,7 +55,7 @@ deliberate change, run the tests with `CELLUI_UPDATE_GOLDEN=1` to rewrite it.
 
 ## Events and signals
 
-*Not implemented yet; this is the design, and signatures may change in detail.*
+*`Signal` and `Connection` (`cellui/Signal.h`) are implemented. Posted events, input events, the queues and the loop additions are design, and their signatures may change in detail.*
 
 cellui has three ways to tell other code that something happened. They differ
 in how much the sender knows about the receiver and in which thread they run.
@@ -106,6 +106,8 @@ class TempoPanel {
 - `emit` is synchronous. Handlers run in the order they were connected.
 - A handler may disconnect itself or others during an emission; one
   disconnected before its turn is not called.
+- A handler connected during an emission is first called by the next one. A handler may also emit the signal again or destroy the object that owns it.
+- A `Connection` outlives its signal safely. A `Signal` is not movable, since connections name it.
 - Signals belong to the UI thread. Other threads post events.
 - There is no routing, return value or "handled" flag. For those, use an event.
 
