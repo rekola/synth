@@ -54,6 +54,7 @@ if(NOT TARGET canvas)
 endif()
 
 add_library(cellui STATIC
+  src/BackendChoice.cpp
   src/BufferPlane.cpp
   src/CellBuffer.cpp
   src/Color.cpp
@@ -144,6 +145,7 @@ target_link_libraries(cellui_gallery PRIVATE cellui)
 # tests/test_main.cpp; no framework dependency.
 add_executable(cellui_tests
   tests/test_main.cpp
+  tests/BackendChoiceTests.cpp
   tests/BufferPlaneTests.cpp
   tests/CellBufferTests.cpp
   tests/ChoiceDialogTests.cpp
