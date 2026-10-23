@@ -199,6 +199,8 @@ protected:
     long line = 0;
     bool valid = false;
     int delta = 0;
+    // Where a playing column's line is between two rows, 0 to 1.
+    double band_phase = 0.0;
   };
   std::unordered_map<int, ColumnScroll> column_scroll_;
   std::vector<std::unique_ptr<UIPlane>> column_planes_;
@@ -208,7 +210,20 @@ protected:
   // Where each track's column starts on the screen (-1 if not shown), and where the last ends.
   std::vector<int> column_starts_;
   int column_end_ = 0;
-  void updateColumnBands(const StyleProvider & styles, const std::vector<int> & track_ids, int heading_height, int rows);
+  // The cursor and the playheads are translucent bands over planes that hold
+  // still while the rows scroll (smooth displays only); the selection stays in
+  // the rows.
+  void updateCursorBands(const StyleProvider & styles, const std::vector<int> & track_ids, int heading_height, int rows, RowAddress top);
+  bool smoothCursor() const { return smooth_cursor_; }
+  bool smooth_cursor_ = false;
+  // Where a playing view's line is between two rows, 0 to 1 (Arrangement view).
+  double row_band_phase_ = 0.0;
+  std::unique_ptr<UIPlane> cursor_plane_;
+  // The cursor's note column (with its velocity and delay) on the screen, -1 if not drawn.
+  int cursor_x0_ = -1, cursor_x1_ = -1;
+  // What the bands showed last, to tell when they moved.
+  std::vector<double> bands_shown_;
+  bool bands_changed_ = false;
   bool rowsShifted() const { return row_offset_ != 0.0 || columns_shifted_; }
   int columnDelta(int track_id) const {
     auto it = column_scroll_.find(track_id);

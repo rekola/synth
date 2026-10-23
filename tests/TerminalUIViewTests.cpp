@@ -1,3 +1,4 @@
+#include <set>
 #include <chrono>
 #include <thread>
 #include "TestFramework.h"
@@ -847,4 +848,76 @@ TEST(terminal_ui_arrangement_grid_cursor_is_hidden_while_the_window_is_not_focus
   f.terminal.pushWindowFocus(true);
   settle();
   CHECK(grid_cells() == focused_cells);
+}
+
+namespace {
+
+// The bands over the planes of a smooth display: the cursor row's (and the
+// playheads') strips are wide, the cursor cell's is narrower than the editor.
+struct BandCount {
+  size_t wide = 0, narrow = 0;
+};
+BandCount countBands(UIFixture & f) {
+  BandCount count;
+  for (const auto & layer : f.terminal.info().backdrops) {
+    if (!layer.scroll || !layer.scroll->band) continue;
+    (layer.scroll->band->cols > 60 ? count.wide : count.narrow)++;
+  }
+  return count;
+}
+
+std::set<std::string> backgrounds(UIFixture & f) {
+  std::set<std::string> out;
+  const auto & frame = f.terminal.frame();
+  for (int r = 0; r < frame.rows(); r++) {
+    for (int c = 0; c < frame.cols(); c++) {
+      const auto & cell = frame.at(r, c);
+      if (cell.bg) out.insert(std::to_string(cell.bg->getRed()) + "," + std::to_string(cell.bg->getGreen()) + "," + std::to_string(cell.bg->getBlue()));
+    }
+  }
+  return out;
+}
+
+} // namespace
+
+// On a smooth display the cursor is two bands over the rows, a line and a
+// cell, which hold still while the rows scroll; neither shows while the
+// window is not focused.
+TEST(terminal_ui_smooth_pattern_editor_cursor_is_a_band_over_the_rows) {
+  cellui::DisplayInfo display;
+  display.smooth_scroll = true;
+  UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT, display);
+  f.otherWindow();
+  for (int i = 0; i < 5; i++) f.ui->step();
+  auto count = countBands(f);
+  CHECK(count.wide == 1);
+  CHECK(count.narrow == 1);
+  f.terminal.pushWindowFocus(false);
+  for (int i = 0; i < 5; i++) f.ui->step();
+  count = countBands(f);
+  CHECK(count.wide == 0);
+  CHECK(count.narrow == 0);
+  f.terminal.pushWindowFocus(true);
+  for (int i = 0; i < 5; i++) f.ui->step();
+  count = countBands(f);
+  CHECK(count.wide == 1);
+  CHECK(count.narrow == 1);
+}
+
+// The selection is drawn in the rows, so it scrolls with them; the cursor is
+// not (there is no highlight in the rows without a mark).
+TEST(terminal_ui_smooth_pattern_editor_selection_stays_in_the_rows) {
+  cellui::DisplayInfo display;
+  display.smooth_scroll = true;
+  UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT, display);
+  f.otherWindow();
+  f.press(Key::Down);
+  auto without = backgrounds(f);
+  f.press(' ', cellui::kModCtrl);
+  f.press(Key::Down);
+  f.press(Key::Down);
+  auto with = backgrounds(f);
+  bool new_colour = false;
+  for (const auto & colour : with) new_colour = new_colour || !without.count(colour);
+  CHECK(new_colour);
 }
