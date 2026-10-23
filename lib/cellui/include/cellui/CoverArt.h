@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cellui/Element.h>
+#include <cellui/Widget.h>
 #include <cellui/StyleProvider.h>
 #include <cellui/Utf8.h>
 
@@ -12,9 +12,9 @@ namespace cellui {
 // loading or storage), so this always shows the same framed-
 // picture placeholder glyph; once a real per-song image exists, render()
 // is where it gets swapped in for the placeholder.
-class CoverArt : public Element {
+class CoverArt : public Widget {
  public:
-  explicit CoverArt(UIPlane & parent) : Element(parent) { }
+  explicit CoverArt(Plane & parent) : Widget(parent) { }
 
   // Terminal cells are roughly twice as tall as they are wide, so a
   // `rows`-tall widget needs about `rows * 2` columns to read as square on
@@ -32,7 +32,7 @@ class CoverArt : public Element {
     // Plain window background and no border of its own: a divider column
     // drawn on either side of this widget would only be doubled by a box. erase() alone
     // only resets cells back to the plane's own default base cell (set once
-    // at plane creation - see UIPlane::createChild()), not to whatever
+    // at plane creation - see Plane::createChild()), not to whatever
     // fg/bg was just set above - only a cell actually written via putstr()
     // picks that up, which is why fill() (paints every cell blank in the
     // current style) is what's needed here, not erase().

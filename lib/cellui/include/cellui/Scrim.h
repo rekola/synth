@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cellui/Backdrop.h>
-#include <cellui/UIPlane.h>
+#include <cellui/Plane.h>
 
 #include <memory>
 
@@ -15,14 +15,14 @@ class Scrim {
   bool isOpen() const { return plane_ != nullptr; }
   // (Re)covers a screen of `rows` x `cols` under `parent`; an inactive
   // backdrop shows nothing.
-  void show(UIPlane & parent, int rows, int cols, const Backdrop & backdrop);
+  void show(Plane & parent, int rows, int cols, const Backdrop & backdrop);
   void close() { plane_.reset(); }
   void raise() {
     if (plane_) plane_->moveToTop();
   }
 
  private:
-  std::unique_ptr<UIPlane> plane_;
+  std::unique_ptr<Plane> plane_;
 };
 
 }  // namespace cellui

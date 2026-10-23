@@ -2,7 +2,7 @@
 
 #include <cellui/ChoiceList.h>
 #include <cellui/Input.h>
-#include <cellui/UIPlane.h>
+#include <cellui/Plane.h>
 
 #include <memory>
 #include <string>
@@ -42,7 +42,7 @@ class CommandPalette {
 
   // (Re)draws the panel under `parent`, across the bottom of a screen of the
   // given size. Call again after a resize or any change.
-  void show(UIPlane & parent, int screen_rows, int screen_cols);
+  void show(Plane & parent, int screen_rows, int screen_cols);
 
   // Feeds one input event; the palette swallows everything, so the caller
   // only needs the result.
@@ -66,7 +66,7 @@ class CommandPalette {
   int visibleRows() const { return rows_ - 2; }
 
   bool open_ = false;
-  std::unique_ptr<UIPlane> plane_;
+  std::unique_ptr<Plane> plane_;
   std::vector<PaletteEntry> entries_;
   std::string query_;
   // "[No match]" or "[Sole completion]" after a Tab, until the next edit.

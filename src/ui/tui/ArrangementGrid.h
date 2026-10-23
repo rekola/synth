@@ -59,7 +59,7 @@ class ArrangementGrid : public UIElement {
   // The focus level is still easing: the loop keeps drawing frames.
   bool isAnimating() const { return fades_.active() || focus_fade_drawn_; }
 
-  ArrangementGrid(UIPlane & parent);
+  ArrangementGrid(Plane & parent);
 
   // `focused` (whether this widget is UI::active_element_ - it has no way
   // to know that itself) gates the cursor-cell highlight only: distracting

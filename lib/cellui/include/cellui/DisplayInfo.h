@@ -49,7 +49,7 @@ struct DisplayInfo {
   // monitor): BackendEvent::Type::DISPLAY says so.
   std::optional<HdrInfo> hdr;
   // Whether a plane's content can be shown shifted by a fraction of a cell
-  // (UIPlane::setScrollOffset()), so a view can scroll smoothly.
+  // (Plane::setScrollOffset()), so a view can scroll smoothly.
   bool smooth_scroll = false;
   // The key chords the application binds commands to here: the terminal's
   // are Emacs's, a window's the usual desktop ones.

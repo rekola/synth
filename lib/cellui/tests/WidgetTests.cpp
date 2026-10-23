@@ -1,6 +1,6 @@
 #include "TestFramework.h"
 
-#include <cellui/Element.h>
+#include <cellui/Widget.h>
 
 #include <string>
 
@@ -9,15 +9,15 @@ using namespace cellui;
 namespace {
 
 // Records what is drawn; every other plane operation does nothing.
-class RecordingPlane : public UIPlane {
+class RecordingPlane : public Plane {
  public:
-  explicit RecordingPlane(const StyleProvider & styles) : UIPlane(nullptr, styles) { }
+  explicit RecordingPlane(const StyleProvider & styles) : Plane(nullptr, styles) { }
 
   std::string drawn;
   int fg_red = -1;
 
-  using UIPlane::setFgColor;
-  using UIPlane::setBgColor;
+  using Plane::setFgColor;
+  using Plane::setBgColor;
   void setFgColor(const Color & color) override { fg_red = color.getRed(); }
   void setBgColor(const Color &) override { }
   void setUnderline(bool) override { }
@@ -25,7 +25,7 @@ class RecordingPlane : public UIPlane {
   void setItalic(bool) override { }
   void erase() override { drawn.clear(); }
   void putstr(int, int, const std::string & s) override { drawn += s; }
-  std::unique_ptr<UIPlane> createChild() override { return std::make_unique<RecordingPlane>(getStyles()); }
+  std::unique_ptr<Plane> createChild() override { return std::make_unique<RecordingPlane>(getStyles()); }
   void drawBorder() override { }
   int offered = 0;
   bool offerInput(const Input &) override { offered++; return true; }
@@ -45,9 +45,9 @@ class RecordingPlane : public UIPlane {
   void refresh() override { }
 };
 
-class Probe : public Element {
+class Probe : public Widget {
  public:
-  explicit Probe(UIPlane & parent) : Element(parent) {
+  explicit Probe(Plane & parent) : Widget(parent) {
     commands_.define("hello", [this] { hello++; });
     commands_.define("prefixed", [this] { prefixed++; });
     keymap_.bind(KeyChord::pack('h', false, false, false, false), "hello");
@@ -107,14 +107,14 @@ TEST(element_prefix_sequence_consumes_the_next_key) {
 TEST(element_offers_input_to_its_plane_by_default) {
   StyleProvider styles;
   RecordingPlane root(styles);
-  class Plain : public Element {
+  class Plain : public Widget {
    public:
-    explicit Plain(UIPlane & parent) : Element(parent) { }
+    explicit Plain(Plane & parent) : Widget(parent) { }
     RecordingPlane & plane() { return static_cast<RecordingPlane &>(getPlane()); }
   } e(root);
   Input in('a', 0, 0, false, false, false, false);
   CHECK(e.offerInput(in));
   CHECK(e.plane().offered == 1);
-  Element none;
+  Widget none;
   CHECK(!none.offerInput(in));
 }

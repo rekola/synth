@@ -38,7 +38,7 @@ ArrangementGrid::moveCursorBar(int delta) {
   cursor_bar_ = clamp(cursor_bar_ + delta, 0, Song::kMaxArrangementRows - 1);
 }
 
-ArrangementGrid::ArrangementGrid(UIPlane & parent) : UIElement(parent) {
+ArrangementGrid::ArrangementGrid(Plane & parent) : UIElement(parent) {
   getPlane().setMouseCursor(cellui::MouseCursor::POINTER);
   // Deliberate no-ops, not left undefined: a Launchpad's CC91/92 ("move-
   // row-up"/"move-row-down") reach here via UI::executeCommand()'s

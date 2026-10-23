@@ -13,7 +13,7 @@ namespace cellui {
 // what lies above the backdrop, blank where nothing is.
 //
 // The same layer holds a plane that is scrolled by a fraction of a cell
-// (UIPlane::setScrollOffset()) when the display scrolls smoothly: `cells` are
+// (Plane::setScrollOffset()) when the display scrolls smoothly: `cells` are
 // what is composed below it, `scroll` the plane's own, and `backdrop` is
 // then inactive.
 // A translucent rectangle over a scrolled plane, at a fractional position in

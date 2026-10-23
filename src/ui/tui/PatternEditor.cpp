@@ -45,10 +45,10 @@ static SongScope songScopeOf(SelectionScope scope) {
 // needs the exact same addressable-track list/order to resolve a device's
 // assigned track to a track_id, without PatternEditor being involved.
 
-PatternEditor::PatternEditor(UIPlane & parent)
-  : UIElement(parent),
-    arrangement_source_(std::make_unique<ArrangementPatternSource>(getController())),
-    scene_source_(std::make_unique<ScenePatternSource>(getController())) {
+PatternEditor::PatternEditor(Plane & parent)
+    : UIElement(parent),
+      arrangement_source_(std::make_unique<ArrangementPatternSource>(getController())),
+      scene_source_(std::make_unique<ScenePatternSource>(getController())) {
   source_ = arrangement_source_.get();
   // Whichever buffer is already active by construction time (main.cpp
   // always opens/creates one before the UI itself exists) - without this,
@@ -3216,7 +3216,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 
   // A sample clip's own waveform box (SAMPLE track placeholder, below):
   // sextants (2x3 sub-cells) when this terminal actually supports Unicode
-  // 13's sextant range (UIPlane::canRenderSextants()), else quadrants
+  // 13's sextant range (Plane::canRenderSextants()), else quadrants
   // (2x2, always supported) - the capability figured out once at
   // TerminalPlane construction, not re-queried per row. Reuses
   // SubcellGlyphs.h's exact tables rather than a second copy of them, the
@@ -3391,8 +3391,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     }
     struct ColumnPlane {
       PatternEditor & editor;
-      std::unique_ptr<UIPlane> * plane;
-      ColumnPlane(PatternEditor & e, std::unique_ptr<UIPlane> * p) : editor(e), plane(p) {
+      std::unique_ptr<Plane> * plane;
+      ColumnPlane(PatternEditor & e, std::unique_ptr<Plane> * p) : editor(e), plane(p) {
         if (plane) editor.swapPlane(*plane);
       }
       ~ColumnPlane() {

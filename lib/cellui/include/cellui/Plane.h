@@ -22,12 +22,12 @@ namespace cellui {
 // that putstr() writes with, and the places a backend can offer text entry
 // and a small list picker. A backend implements it for its screen; the
 // headless BufferPlane implements it over a CellBuffer.
-class UIPlane {
+class Plane {
  public:
   // `styles` is the application's theme, which outlives every plane; a child
   // plane shares its parent's.
-  UIPlane(std::shared_ptr<void> app_context, const StyleProvider & styles) : app_context_(std::move(app_context)), styles_(styles) { }
-  virtual ~UIPlane() { }
+  Plane(std::shared_ptr<void> app_context, const StyleProvider & styles) : app_context_(std::move(app_context)), styles_(styles) { }
+  virtual ~Plane() { }
 
   const StyleProvider & getStyles() const { return styles_; }
 
@@ -164,7 +164,7 @@ class UIPlane {
   virtual void clearBand() { }
   virtual void erase() = 0;
   virtual void putstr(int y, int x, const std::string & s) = 0;
-  virtual std::unique_ptr<UIPlane> createChild() = 0;
+  virtual std::unique_ptr<Plane> createChild() = 0;
   virtual void drawBorder() = 0;
   virtual bool offerInput(const Input & input) = 0;
 
