@@ -93,7 +93,7 @@ vector<string> CommandPalette::shownNames() const {
   return names;
 }
 
-void CommandPalette::show(UIPlane & parent, int screen_rows, int screen_cols) {
+void CommandPalette::show(Plane & parent, int screen_rows, int screen_cols) {
   if (!open_) return;
 
   // As many list rows as there are matches (one for the "no match" note), up

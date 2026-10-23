@@ -734,7 +734,7 @@ class LaunchpadManager {
     // comment), kStepGridScrollStep at a time so consecutive windows
     // overlap rather than jumping a whole 8-step page at once, reset to a
     // 0 (openStepView()) each time a fresh clip is opened for editing
-    // (Controller::setDrumEditRequestListener()'s own "opened" callback,
+    // (Controller::drum_edit_requested's own "opened" callback,
     // UI::start()) - out of range for whatever the clip's own current
     // length actually is gets clamped wherever this is read, not here,
     // since the clip can change length after this is set.

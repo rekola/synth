@@ -17,17 +17,19 @@
 
 namespace cellui {
 
+class Widget;
+
 // A rectangle of character cells that a widget draws into: its own position
 // and size under a parent plane, one current style (colours and attributes)
 // that putstr() writes with, and the places a backend can offer text entry
 // and a small list picker. A backend implements it for its screen; the
 // headless BufferPlane implements it over a CellBuffer.
-class UIPlane {
+class Plane {
  public:
   // `styles` is the application's theme, which outlives every plane; a child
   // plane shares its parent's.
-  UIPlane(std::shared_ptr<void> app_context, const StyleProvider & styles) : app_context_(std::move(app_context)), styles_(styles) { }
-  virtual ~UIPlane() { }
+  Plane(std::shared_ptr<void> app_context, const StyleProvider & styles) : app_context_(std::move(app_context)), styles_(styles) { }
+  virtual ~Plane() { }
 
   const StyleProvider & getStyles() const { return styles_; }
 
@@ -164,7 +166,7 @@ class UIPlane {
   virtual void clearBand() { }
   virtual void erase() = 0;
   virtual void putstr(int y, int x, const std::string & s) = 0;
-  virtual std::unique_ptr<UIPlane> createChild() = 0;
+  virtual std::unique_ptr<Plane> createChild() = 0;
   virtual void drawBorder() = 0;
   virtual bool offerInput(const Input & input) = 0;
 
@@ -224,12 +226,19 @@ class UIPlane {
   // The application's own object (opaque here), handed down to child planes.
   const std::shared_ptr<void> & getAppContext() const { return app_context_; }
 
+  // The widget that draws on this plane, or null for a plane no widget owns
+  // (a root, a scrim). Set by the widget; used to find the widget under a
+  // point from the plane that covers it.
+  Widget * owner() const { return owner_; }
+  void setOwner(Widget * widget) { owner_ = widget; }
+
 protected:
   void setDim(std::pair<int, int> dim) { plane_dim = dim; }
   void setPosition(std::pair<int, int> pos) { plane_pos = pos; }
   
 private:
   std::shared_ptr<void> app_context_;
+  Widget * owner_ = nullptr;
   const StyleProvider & styles_;
   std::pair<int, int> plane_dim, plane_pos;
 };

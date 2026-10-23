@@ -16,6 +16,8 @@
 #include "ui/CommandRegistry.h"
 #include "util/constants.h"
 
+#include <cellui/Signal.h>
+
 #include <algorithm>
 #include <functional>
 #include <deque>
@@ -207,35 +209,37 @@ class Controller {
     command_completer_ = std::move(fn);
   }
 
-  // Same IoC shape as the fallback/completer above: lets the UI layer
-  // learn whenever songs_/active_buffer_name_ changes (addBuffer()/
+  // What the UI layer learns of without Controller knowing it exists: a
+  // widget connects and keeps the Connection for as long as it wants to hear.
+
+  // The active buffer or a buffer's name changed (addBuffer()/
   // renameActiveBuffer()/switchToBuffer()/killActiveBuffer(), every path
-  // that can move which buffer is active or rename one - not just the
-  // ones UI.cpp itself calls directly, but also e.g. a Buffers-menu click
-  // straight on a buffer's own row, which resolves entirely inside
-  // Controller's own commands_ via refreshBufferCommands()'s
-  // "switch-to-buffer:<name>" entries and so never otherwise reaches UI).
-  // A single listener call site here beats one refreshBuffers() call
-  // scattered at every UI-side buffer command - the exact kind of call
-  // site that's easy to add a new path without remembering.
-  void setBufferChangeListener(std::function<void()> fn) { buffer_change_listener_ = std::move(fn); }
+  // that can move which buffer is active or rename one, including a
+  // Buffers-menu click on a buffer's own row, which resolves entirely inside
+  // Controller's commands_ and never otherwise reaches UI). One emit site
+  // beats a refresh call scattered at every UI-side buffer command.
+  cellui::Signal<> buffers_changed;
 
-  // Opening a clip for step editing on a Launchpad (toggleDrumClipFocus())
-  // calls this right after focusing the clip (setFocusedClip()) - `opened`
-  // true - or right after clearing it again (a second press on the clip
-  // already open for editing toggles it back off - clearFocusedClip()) - `opened`
-  // false. Lets UI move the shared track cursor and every connected
-  // Launchpad's own display to actually show that clip's own step grid
-  // (or hand it back to Live View once editing ends), the same
-  // callback-not-reaching-into-UI pattern setBufferChangeListener() above
-  // already uses (Controller has no idea PatternEditor/LaunchpadManager
-  // exist either). Wired in UI::start().
-  void setDrumEditRequestListener(std::function<void(int track_id, bool opened)> fn) { drum_edit_requested_ = std::move(fn); }
+  // A clip was opened for step editing on a Launchpad (toggleDrumClipFocus(),
+  // right after setFocusedClip(); `opened` true) or closed again (a second
+  // press on the clip already open, clearFocusedClip(); `opened` false). The
+  // UI moves the shared track cursor and every connected Launchpad's display
+  // to show that clip's step grid, or hands them back to Live View.
+  cellui::Signal<int, bool> drum_edit_requested; // track_id, opened
 
-  // Selecting a clip slot (a Launchpad's shift + pad) without launching it:
-  // the UI moves the shared track cursor and its clip cursor there, empty
-  // slots included, so the slot is where the next recording or paste lands.
-  void setClipSelectListener(std::function<void(int track_id, int clip_index)> fn) { clip_select_requested_ = std::move(fn); }
+  // A clip slot was selected without launching it (a Launchpad's shift +
+  // pad): the UI moves the shared track cursor and its clip cursor there,
+  // empty slots included, so the slot is where the next recording or paste
+  // lands.
+  cellui::Signal<int, int> clip_selected; // track_id, clip_index
+
+  // After an undo or redo changed a clip: the UI shows that clip's row (the
+  // clip grid's cursor and, in Live View, the pattern editor's position).
+  cellui::Signal<int, int, int> undo_clip_focused; // track_id, clip_index, row
+
+  // The cell an undo or redo changed: the pattern editor puts its cursor there.
+  cellui::Signal<const Song::EditPlace &> undo_cell_focused;
+
   // A note key (or pad) is down: the notes of one chord land in one undo step,
   // so a group stays open from the first key down to the last one up.
   void setNoteHeld(bool held) {
@@ -243,19 +247,14 @@ class Controller {
     note_held_ = held;
     updateUndoGroup();
   }
-  // After an undo or redo changed a clip: the UI shows that clip's row (the
-  // clip grid's cursor and, in Live View, the pattern editor's position).
-  void setUndoFocusListener(std::function<void(int track_id, int clip_index, int row)> fn) { undo_focus_requested_ = std::move(fn); }
-  // The cell an undo or redo changed: the pattern editor puts its cursor there.
-  void setUndoCellListener(std::function<void(const Song::EditPlace &)> fn) { undo_cell_requested_ = std::move(fn); }
   void focusUndoneCell(const Song::EditPlace & place) {
-    if (undo_cell_requested_) undo_cell_requested_(place);
+    undo_cell_focused.emit(place);
   }
   void focusUndoneClip(int track_id, int clip_index, int row) {
-    if (undo_focus_requested_) undo_focus_requested_(track_id, clip_index, row);
+    undo_clip_focused.emit(track_id, clip_index, row);
   }
   void selectClipSlot(int track_id, int clip_index) {
-    if (clip_select_requested_) clip_select_requested_(track_id, clip_index);
+    clip_selected.emit(track_id, clip_index);
   }
 
   std::shared_ptr<AudioBuffer> startRecording() {
@@ -744,7 +743,7 @@ class Controller {
     if (focused_clip_track_id_ < 0) return;
     auto track_id = focused_clip_track_id_;
     clearFocusedClip();
-    if (drum_edit_requested_) drum_edit_requested_(track_id, false);
+    drum_edit_requested.emit(track_id, false);
   }
 
   // Single, shared home for "mutate this track's mute/solo/send and keep
@@ -1390,11 +1389,6 @@ class Controller {
   CommandRegistry commands_;
   std::function<bool(std::string_view)> command_fallback_;
   std::function<std::set<std::string>(std::string_view)> command_completer_;
-  std::function<void()> buffer_change_listener_;
-  std::function<void(int track_id, bool opened)> drum_edit_requested_;
-  std::function<void(int track_id, int clip_index)> clip_select_requested_;
-  std::function<void(int track_id, int clip_index, int row)> undo_focus_requested_;
-  std::function<void(const Song::EditPlace &)> undo_cell_requested_;
   int pending_command_track_ = -1;
   // Live mirror of the active buffer's own focused_clip_ids_/
   // focused_clip_track_ids_ slots - see getFocusedClip()'s own comment.

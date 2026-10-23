@@ -31,11 +31,12 @@ def check(name, ok, extra=None):
         print("  ", extra)
 
 def arrangement_grid_area(screen):
-    # The scope row (ArrangementGrid always occupies its own leftmost
-    # columns - see UI::layout()) - rows 1-5, a generous column slice wide
-    # enough for the grid regardless of exactly how much space CoverArt
-    # claims first.
-    return "\n".join(line[:40] for line in screen.display[1:6])
+    # The bars of the arrangement grid (see TerminalUI::layout()): the rows
+    # under its two header rows and the columns right of the track names,
+    # which would otherwise put digits of their own in the way.
+    return "\n".join(line[ArrangementGrid_NAME_WIDTH:78] for line in screen.display[3:12])
+
+ArrangementGrid_NAME_WIDTH = 10
 
 fake_log = open(os.path.join(SCRIPT_DIR, "fake_launchpad_live.log"), "w")
 fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_live")], stderr=fake_log, stdout=fake_log)

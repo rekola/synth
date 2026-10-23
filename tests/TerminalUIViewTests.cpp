@@ -1,8 +1,10 @@
+#include <set>
 #include <chrono>
 #include <thread>
 #include "TestFramework.h"
 
 #include "TerminalUIFixture.h"
+#include "../src/model/ArrangementOps.h"
 #include "../src/ui/CommandDescriptions.h"
 
 #include <chrono>
@@ -257,15 +259,22 @@ TEST(terminal_ui_live_view_layout_and_the_clip_grid_cursor) {
 }
 
 // On a display that shifts planes by part of a cell, a wheel notch moves the
-// arrangement grid there over several frames: it is shown between bars, as a
-// plane shifted by a fraction, until it settles on the whole bar.
+// arrangement grid there (along the bars) over several frames: it is shown
+// between bars, as a plane shifted by a fraction, until it settles on the whole bar.
 TEST(terminal_ui_smooth_scroll_moves_the_arrangement_grid_between_bars) {
   cellui::DisplayInfo display;
   display.smooth_scroll = true;
   UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT, display);
+  {
+    // More bars than the grid is wide, so there is something to scroll to.
+    auto & song = f.controller->getSong();
+    Song::Edit edit(song, "long arrangement");
+    placeStopInstance(song, song.getPlayableTrackIds()[0], 16 * 300);
+  }
+  f.ui->step();
   auto shift = [&]() -> std::optional<double> {
     for (const auto & layer : f.terminal.info().backdrops) {
-      if (layer.scroll) return layer.scroll->shift_rows;
+      if (layer.scroll && layer.scroll->row == 1 && layer.scroll->shift_cols > 0) return layer.scroll->shift_cols;
     }
     return std::nullopt;
   };
@@ -293,7 +302,7 @@ TEST(terminal_ui_smooth_scroll_moves_the_outline_tree_under_its_heading) {
   UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, display);
   auto shift = [&]() -> std::optional<double> {
     for (const auto & layer : f.terminal.info().backdrops) {
-      if (layer.scroll) return layer.scroll->shift_rows;
+      if (layer.scroll && layer.scroll->shift_rows > 0) return layer.scroll->shift_rows;
     }
     return std::nullopt;
   };
@@ -711,4 +720,204 @@ TEST(terminal_ui_smooth_scroll_live_view_columns_do_not_blank_each_other) {
     widest = std::max(widest, count);
   }
   CHECK(widest >= 3);
+}
+
+// Live View's column lines are bands that hold still while the rows scroll
+// under them: past the margin the band stays on one row and the rows move.
+TEST(terminal_ui_smooth_scroll_live_view_line_band_holds_still_while_the_rows_scroll) {
+  cellui::DisplayInfo display;
+  display.smooth_scroll = true;
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, display);
+  for (int i = 0; i < 6 && f.terminal.info().focus != "pattern-editor"; i++) f.otherWindow();
+  CHECK(f.terminal.info().focus == "pattern-editor");
+  auto first_band_row = [&]() -> std::optional<double> {
+    for (const auto & layer : f.terminal.info().backdrops) {
+      if (layer.scroll && layer.scroll->cols > 60 && layer.scroll->band) return layer.scroll->band->row;
+    }
+    return std::nullopt;
+  };
+  for (int i = 0; i < 30; i++) {
+    f.press(cellui::Key::Down);
+    f.ui->step();
+  }
+  for (int i = 0; i < 100; i++) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(8));
+    f.ui->step();
+  }
+  auto settled = first_band_row();
+  CHECK(settled.has_value());
+  bool moved = false;
+  for (int i = 0; i < 20; i++) {
+    f.press(cellui::Key::Down);
+    for (int k = 0; k < 6; k++) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(8));
+      f.ui->step();
+      if (auto band = first_band_row()) CHECK(*band == *settled);
+      for (const auto & layer : f.terminal.info().backdrops) {
+        if (layer.scroll && layer.scroll->cols > 60 && layer.scroll->shift_rows > 0) moved = true;
+      }
+    }
+  }
+  CHECK(moved);
+}
+
+// The arrangement grid has time running to the right: a bar ruler and the
+// locators over one row per track, each named at the left.
+TEST(terminal_ui_arrangement_grid_shows_bars_to_the_right_of_the_track_names) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT);
+  CHECK(f.line(1).find("1   5   9") != std::string::npos); // the ruler
+  CHECK(f.line(3).find("T0") != std::string::npos);        // the first track's name
+}
+
+// A cursor shows only while the window has the focus, in the outline, the clip
+// grid and the pattern editor alike; the columns' lines hold on to nothing but
+// a playhead.
+TEST(terminal_ui_cursors_are_hidden_while_the_window_is_not_focused) {
+  cellui::DisplayInfo display;
+  display.smooth_scroll = true;
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, display);
+  for (int i = 0; i < 5; i++) f.ui->step();
+  auto bands = [&](bool wide) { // layers with a band: the columns' lines (wide) or any other
+    size_t count = 0;
+    for (const auto & layer : f.terminal.info().backdrops) {
+      if (!layer.scroll || !layer.scroll->band) continue;
+      if ((layer.scroll->cols > 60) == wide) count++;
+    }
+    return count;
+  };
+  auto cells = [&]() {
+    std::vector<std::string> out;
+    const auto & frame = f.terminal.frame();
+    for (int r = 0; r < frame.rows(); r++) {
+      for (int c = 0; c < frame.cols(); c++) {
+        const auto & cell = frame.at(r, c);
+        out.push_back(cell.bg ? std::to_string(cell.bg->getRed()) + "," + std::to_string(cell.bg->getGreen()) + "," + std::to_string(cell.bg->getBlue()) : std::string("-"));
+      }
+    }
+    return out;
+  };
+  auto settle = [&]() {
+    for (int i = 0; i < 12; i++) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(8));
+      f.ui->step();
+    }
+  };
+  settle();
+  auto focused_cells = cells();
+  CHECK(bands(true) >= 1); // the columns' lines
+  f.terminal.pushWindowFocus(false);
+  settle();
+  CHECK(bands(true) == 0); // no track plays: only cursors were shown
+  CHECK(cells() != focused_cells);
+  f.terminal.pushWindowFocus(true);
+  settle();
+  CHECK(bands(true) >= 1);
+  CHECK(cells() == focused_cells);
+}
+
+// The arrangement grid's cursor cell is hidden too; its playing row stays.
+TEST(terminal_ui_arrangement_grid_cursor_is_hidden_while_the_window_is_not_focused) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT);
+  for (int i = 0; i < 5; i++) f.ui->step();
+  auto grid_cells = [&]() {
+    std::vector<std::string> out;
+    for (auto & plane : f.terminal.info().planes.children) {
+      if (plane.name != "arrangement-grid" || !plane.visible) continue;
+      const auto & frame = f.terminal.frame();
+      for (int r = plane.y; r < plane.y + plane.rows; r++) {
+        for (int c = plane.x; c < plane.x + plane.cols; c++) {
+          const auto & cell = frame.at(r, c);
+          out.push_back(cell.bg ? std::to_string(cell.bg->getRed()) + "," + std::to_string(cell.bg->getGreen()) + "," + std::to_string(cell.bg->getBlue()) : std::string("-"));
+        }
+      }
+    }
+    return out;
+  };
+  auto settle = [&]() {
+    for (int i = 0; i < 12; i++) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(8));
+      f.ui->step();
+    }
+  };
+  settle();
+  auto focused_cells = grid_cells();
+  CHECK(!focused_cells.empty());
+  f.terminal.pushWindowFocus(false);
+  settle();
+  CHECK(grid_cells() != focused_cells);
+  f.terminal.pushWindowFocus(true);
+  settle();
+  CHECK(grid_cells() == focused_cells);
+}
+
+namespace {
+
+// The bands over the planes of a smooth display: the cursor row's (and the
+// playheads') strips are wide, the cursor cell's is narrower than the editor.
+struct BandCount {
+  size_t wide = 0, narrow = 0;
+};
+BandCount countBands(UIFixture & f) {
+  BandCount count;
+  for (const auto & layer : f.terminal.info().backdrops) {
+    if (!layer.scroll || !layer.scroll->band) continue;
+    (layer.scroll->band->cols > 60 ? count.wide : count.narrow)++;
+  }
+  return count;
+}
+
+std::set<std::string> backgrounds(UIFixture & f) {
+  std::set<std::string> out;
+  const auto & frame = f.terminal.frame();
+  for (int r = 0; r < frame.rows(); r++) {
+    for (int c = 0; c < frame.cols(); c++) {
+      const auto & cell = frame.at(r, c);
+      if (cell.bg) out.insert(std::to_string(cell.bg->getRed()) + "," + std::to_string(cell.bg->getGreen()) + "," + std::to_string(cell.bg->getBlue()));
+    }
+  }
+  return out;
+}
+
+} // namespace
+
+// On a smooth display the cursor is two bands over the rows, a line and a
+// cell, which hold still while the rows scroll; neither shows while the
+// window is not focused.
+TEST(terminal_ui_smooth_pattern_editor_cursor_is_a_band_over_the_rows) {
+  cellui::DisplayInfo display;
+  display.smooth_scroll = true;
+  UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT, display);
+  f.otherWindow();
+  for (int i = 0; i < 5; i++) f.ui->step();
+  auto count = countBands(f);
+  CHECK(count.wide == 1);
+  CHECK(count.narrow == 1);
+  f.terminal.pushWindowFocus(false);
+  for (int i = 0; i < 5; i++) f.ui->step();
+  count = countBands(f);
+  CHECK(count.wide == 0);
+  CHECK(count.narrow == 0);
+  f.terminal.pushWindowFocus(true);
+  for (int i = 0; i < 5; i++) f.ui->step();
+  count = countBands(f);
+  CHECK(count.wide == 1);
+  CHECK(count.narrow == 1);
+}
+
+// The selection is drawn in the rows, so it scrolls with them; the cursor is
+// not (there is no highlight in the rows without a mark).
+TEST(terminal_ui_smooth_pattern_editor_selection_stays_in_the_rows) {
+  cellui::DisplayInfo display;
+  display.smooth_scroll = true;
+  UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT, display);
+  f.otherWindow();
+  f.press(Key::Down);
+  auto without = backgrounds(f);
+  f.press(' ', cellui::kModCtrl);
+  f.press(Key::Down);
+  f.press(Key::Down);
+  auto with = backgrounds(f);
+  bool new_colour = false;
+  for (const auto & colour : with) new_colour = new_colour || !without.count(colour);
+  CHECK(new_colour);
 }

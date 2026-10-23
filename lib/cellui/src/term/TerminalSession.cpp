@@ -264,6 +264,7 @@ void TerminalSession::enterModes() {
   setup_ += "\x1b[?7l";    // no autowrap: the last cell never scrolls the screen
   setup_ += "\x1b[?25l";   // cursor hidden
   setup_ += "\x1b[?2004h"; // bracketed paste
+  setup_ += "\x1b[?1004h"; // focus reports
   if (mouse_) setup_ += "\x1b[?1003;1006h";
   if (caps_.pixels == PixelProtocol::KITTY) setup_ += "\x1b_Ga=d,q=2\x1b\\";
   write(setup_);
@@ -273,7 +274,7 @@ void TerminalSession::enterModes() {
   restore_ += "\x1b[0m";
   restore_ += "\x1b]22;default\x1b\\";
   if (mouse_) restore_ += "\x1b[?1003;1006l";
-  restore_ += "\x1b[?2004l\x1b[?7h\x1b[?12l\x1b[?25h";
+  restore_ += "\x1b[?1004l\x1b[?2004l\x1b[?7h\x1b[?12l\x1b[?25h";
   restore_ += caps_.kitty_keyboard ? "\x1b[<u" : "\x1b[<u\x1b[>4m\x1b[>2m";
   if (caps_.pixels == PixelProtocol::KITTY) restore_ += "\x1b_Ga=d,q=2\x1b\\";
   restore_ += "\x1b[?1049l";

@@ -43,6 +43,8 @@ class ArrangementPatternSource : public PatternSource {
   bool showsClipIndirection() const override { return true; }
   bool hasLocators() const override { return true; }
   bool cursorFollowsTransport() const override { return true; }
+  double trackScrollRate(int) const override;
+  bool trackHasPlayhead(int) const override;
 
  private:
   // Always the active buffer's song - it changes when the buffer does.

@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.10)
 # is under this directory.
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   project(cellui LANGUAGES CXX)
-  set(CMAKE_CXX_STANDARD 17)
+  set(CMAKE_CXX_STANDARD 20)
   set(CMAKE_CXX_STANDARD_REQUIRED True)
   if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release)
@@ -117,6 +117,46 @@ if(CELLUI_ENABLE_GTK)
   endif()
   set_tests_properties(cellui_gtk_tests PROPERTIES SKIP_REGULAR_EXPRESSION "SKIP: no display")
 endif()
+# The Vulkan layer (cellui/vulkan/): CELLUI_ENABLE_VULKAN, set by the
+# including project or, by default, on when the Vulkan headers and glslang are
+# found. The shaders are compiled to SPIR-V here and embedded as headers; the
+# loader is linked, so a machine without a Vulkan driver reports "no device"
+# instead of failing to start.
+if(NOT DEFINED CELLUI_ENABLE_VULKAN)
+  find_package(Vulkan QUIET)
+  find_program(CELLUI_GLSLANG glslangValidator)
+  if(Vulkan_FOUND AND CELLUI_GLSLANG)
+    set(CELLUI_ENABLE_VULKAN ON)
+  endif()
+endif()
+if(CELLUI_ENABLE_VULKAN)
+  find_package(Vulkan REQUIRED)
+  find_program(CELLUI_GLSLANG glslangValidator REQUIRED)
+  set(CELLUI_SHADER_DIR ${CMAKE_CURRENT_BINARY_DIR}/shaders)
+  file(MAKE_DIRECTORY ${CELLUI_SHADER_DIR})
+  set(CELLUI_SHADER_HEADERS)
+  foreach(shader solid.vert solid.frag)
+    string(REPLACE "." "_" shader_var ${shader})
+    set(header ${CELLUI_SHADER_DIR}/${shader}.h)
+    add_custom_command(OUTPUT ${header}
+      COMMAND ${CELLUI_GLSLANG} -V --target-env vulkan1.3 --vn ${shader_var}_spv -o ${header}
+              ${CMAKE_CURRENT_SOURCE_DIR}/src/vulkan/shaders/${shader}
+      DEPENDS src/vulkan/shaders/${shader}
+      COMMENT "SPIR-V ${shader}")
+    list(APPEND CELLUI_SHADER_HEADERS ${header})
+  endforeach()
+  add_library(cellui_vulkan STATIC src/vulkan/Context.cpp ${CELLUI_SHADER_HEADERS})
+  target_include_directories(cellui_vulkan PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include PRIVATE ${CELLUI_SHADER_DIR})
+  target_link_libraries(cellui_vulkan PRIVATE Vulkan::Vulkan)
+  target_compile_definitions(cellui_vulkan PUBLIC CELLUI_HAS_VULKAN)
+  # What the machine's Vulkan offers, for a person to run on real hardware.
+  add_executable(cellui_vulkan_probe tools/vulkan_probe.cpp)
+  target_link_libraries(cellui_vulkan_probe PRIVATE cellui_vulkan)
+  add_executable(cellui_vulkan_tests tests/test_main.cpp tests/VulkanTests.cpp)
+  target_link_libraries(cellui_vulkan_tests PRIVATE cellui_vulkan)
+  add_test(NAME cellui_vulkan_tests COMMAND cellui_vulkan_tests)
+  set_tests_properties(cellui_vulkan_tests PROPERTIES SKIP_REGULAR_EXPRESSION "SKIP: no Vulkan")
+endif()
 # The Windows window backend (cellui/win32/): a Win32 window drawn with
 # Direct2D and DirectWrite, on a loop that waits on the message queue. All of
 # it is part of Windows, so there is nothing to find.
@@ -165,7 +205,8 @@ add_executable(cellui_tests
   tests/CommandPaletteTests.cpp
   tests/ColorTests.cpp
   tests/DiscoveryTests.cpp
-  tests/ElementTests.cpp
+  tests/SignalTests.cpp
+  tests/WidgetTests.cpp
   tests/FadeTests.cpp
   tests/FrameEncoderTests.cpp
   tests/ImageEncoderTests.cpp

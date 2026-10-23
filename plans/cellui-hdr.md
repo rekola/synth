@@ -377,6 +377,14 @@ native-toolkit window without effects; a saved default is a small addition.
    first; on Windows an SDL3 window with a Vulkan swap chain, then HDR10 and
    scRGB on a real HDR monitor. Decides the host, and whether Vulkan alone is
    enough on Windows.
+   *Done so far* (`cellui/vulkan/`, optional, `cellui_vulkan`): the capability
+   query (`query()`: loader, device usability, dma-buf export and HDR metadata
+   extensions, swap chain colour spaces), a device context, and an FP16 target
+   drawn through GLSL compiled to SPIR-V at build time with additive blending
+   and read back; tested on a CPU device (`cellui_vulkan_tests`), and
+   `cellui_vulkan_probe` prints what a machine offers. *Not done, needs real
+   hardware*: both host arms, swap chains, HDR10/scRGB, so the host decision
+   is still open.
 7. **`vulkan` backend, tone-mapped SDR out**: cell quads, glyph atlas, float
    framebuffer, the shared blur, as a `cellui::Backend` on the chosen host;
    `--ui vulkan`, and `auto` starts picking it. The gallery renders through it

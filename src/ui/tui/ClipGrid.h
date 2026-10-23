@@ -53,7 +53,7 @@ class Song;
 // TerminalUI::layout().
 class ClipGrid : public UIElement {
  public:
-  ClipGrid(UIPlane & parent);
+  ClipGrid(Plane & parent);
 
   bool render(const StyleProvider & styles, bool refresh, bool focused);
 

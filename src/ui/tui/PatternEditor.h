@@ -38,7 +38,7 @@ class Controller;
 
 class PatternEditor : public UIElement {
  public:
-  PatternEditor(UIPlane & parent);
+  PatternEditor(Plane & parent);
 
   // `focused` (whether this widget is UI::active_element_ - it has no way
   // to know that itself) picks the region's highlight: bright while
@@ -54,7 +54,7 @@ class PatternEditor : public UIElement {
   // toggle-playing, C-x C-c/quit, ...) steal a keystroke meant for it.
   bool isReaderActive() const { return inline_editor_.isOpen(); }
   // The focus level is still easing: the loop keeps drawing frames.
-  bool isAnimating() const { return fades_.active() || focus_fade_drawn_ || row_offset_ != 0.0; }
+  bool isAnimating() const { return fades_.active() || focus_fade_drawn_ || rowsShifted(); }
 
   // Aborts the locator/track-name editor without committing anything -
   // used by StatusLine so opening M-x takes focus away from it rather than
@@ -129,7 +129,7 @@ class PatternEditor : public UIElement {
   // merely while the session is still nominally open.
   std::vector<int> getActiveNoteTrackIds() const;
 
-  // Called via Controller::setBufferChangeListener()'s UI.cpp fan-out
+  // Called via Controller::buffers_changed's UI.cpp fan-out
   // whenever the active buffer changes (switch, kill landing on a
   // different buffer, or a fresh buffer created) - saves the outgoing
   // buffer's own cursor/scroll/selection/live-note/locator-editing
@@ -179,7 +179,7 @@ protected:
   // its own for the rows, so the rows can move without the headings. While
   // render() draws, the drawing helpers are on the rows' plane (see
   // renderHeading(), which goes back to the widget's own).
-  std::unique_ptr<UIPlane> rows_plane_;
+  std::unique_ptr<Plane> rows_plane_;
   bool drawing_rows_ = false;
   int rows_plane_rows_ = -1, rows_plane_cols_ = -1;
   // Where the display scrolls smoothly, the rows show a view that follows the
@@ -199,12 +199,31 @@ protected:
     long line = 0;
     bool valid = false;
     int delta = 0;
+    // Where a playing column's line is between two rows, 0 to 1.
+    double band_phase = 0.0;
   };
   std::unordered_map<int, ColumnScroll> column_scroll_;
-  std::vector<std::unique_ptr<UIPlane>> column_planes_;
+  std::vector<std::unique_ptr<Plane>> column_planes_;
   bool columns_shifted_ = false;
   // Whether the columns draw on their planes (Live View, smooth scrolling); else all on the rows' plane.
   bool columns_planes_in_use_ = false;
+  // Where each track's column starts on the screen (-1 if not shown), and where the last ends.
+  std::vector<int> column_starts_;
+  int column_end_ = 0;
+  // The cursor and the playheads are translucent bands over planes that hold
+  // still while the rows scroll (smooth displays only); the selection stays in
+  // the rows.
+  void updateCursorBands(const StyleProvider & styles, const std::vector<int> & track_ids, int heading_height, int rows, RowAddress top);
+  bool smoothCursor() const { return smooth_cursor_; }
+  bool smooth_cursor_ = false;
+  // Where a playing view's line is between two rows, 0 to 1 (Arrangement view).
+  double row_band_phase_ = 0.0;
+  std::unique_ptr<Plane> cursor_plane_;
+  // The cursor's note column (with its velocity and delay) on the screen, -1 if not drawn.
+  int cursor_x0_ = -1, cursor_x1_ = -1;
+  // What the bands showed last, to tell when they moved.
+  std::vector<double> bands_shown_;
+  bool bands_changed_ = false;
   bool rowsShifted() const { return row_offset_ != 0.0 || columns_shifted_; }
   int columnDelta(int track_id) const {
     auto it = column_scroll_.find(track_id);

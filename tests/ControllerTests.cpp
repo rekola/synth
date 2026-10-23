@@ -972,6 +972,28 @@ TEST(toggle_record_arm_clip_grid_focused_arms_a_sample_track_without_arrangement
   CHECK(!controller.isClipRecording(track_id));
 }
 
+// The controller's UI signals take any number of listeners, and one that goes
+// away stops hearing them.
+TEST(controller_signals_reach_every_listener_until_it_disconnects) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto & song = controller.getSong();
+  auto & track = song.addTrack(std::make_unique<PercussionTrack>());
+  auto track_id = track.getInternalId();
+  song.addClip(Clip(track_id));
+
+  int first = 0, second = 0;
+  auto a = controller.drum_edit_requested.connect([&](int, bool) { first++; });
+  {
+    auto b = controller.drum_edit_requested.connect([&](int, bool) { second++; });
+    CHECK(controller.toggleDrumClipFocus(track_id, 0));
+    CHECK(first == 1 && second == 1);
+  }
+  CHECK(controller.toggleDrumClipFocus(track_id, 0)); // closes it again
+  CHECK(first == 2 && second == 1);
+}
+
 // Controller::toggleDrumClipFocus() called directly with a (track_id,
 // clip_index) pair - the Launchpad's own CC91-held-as-shift gesture
 // (LaunchpadManager::handleLivePadEvent()) reaches it this way, never
@@ -992,7 +1014,7 @@ TEST(toggle_drum_clip_focus_direct_call_opens_and_closes_a_clip) {
 
   int requested_track_id = -1;
   bool requested_opened = false;
-  controller.setDrumEditRequestListener([&](int id, bool opened) { requested_track_id = id; requested_opened = opened; });
+  auto drum_edit = controller.drum_edit_requested.connect([&](int id, bool opened) { requested_track_id = id; requested_opened = opened; });
 
   CHECK(controller.toggleDrumClipFocus(track_id, 0));
   CHECK(controller.getFocusedClipTrackId() == track_id);
@@ -1032,7 +1054,7 @@ TEST(toggle_drum_clip_focus_is_a_no_op_off_a_non_percussion_clip) {
   song.addClip(Clip(sample_track_id));
 
   bool listener_called = false;
-  controller.setDrumEditRequestListener([&](int, bool) { listener_called = true; });
+  auto drum_edit = controller.drum_edit_requested.connect([&](int, bool) { listener_called = true; });
 
   CHECK(!controller.toggleDrumClipFocus(sample_track_id, 0));
   CHECK(controller.getFocusedClipTrackId() == -1);
@@ -1076,7 +1098,7 @@ TEST(close_drum_clip_focus_closes_whatever_is_open) {
 
   int requested_track_id = -1;
   bool requested_opened = true;
-  controller.setDrumEditRequestListener([&](int id, bool opened) { requested_track_id = id; requested_opened = opened; });
+  auto drum_edit = controller.drum_edit_requested.connect([&](int id, bool opened) { requested_track_id = id; requested_opened = opened; });
 
   controller.toggleDrumClipFocus(track_id, 0); // opens it
   CHECK(controller.getFocusedClipTrackId() == track_id);
@@ -1097,7 +1119,7 @@ TEST(close_drum_clip_focus_is_a_no_op_when_nothing_is_focused) {
   controller.switchToBuffer(controller.freshBufferName());
 
   bool listener_called = false;
-  controller.setDrumEditRequestListener([&](int, bool) { listener_called = true; });
+  auto drum_edit = controller.drum_edit_requested.connect([&](int, bool) { listener_called = true; });
 
   controller.closeDrumClipFocus();
   CHECK(controller.getFocusedClipTrackId() == -1);

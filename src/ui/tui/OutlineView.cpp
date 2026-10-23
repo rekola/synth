@@ -418,7 +418,7 @@ OutlineView::renderTree(const StyleProvider & styles, bool focused) {
   int drawn = tree_rows + (viewport_.rows.smooth() ? 1 : 0);
   bool own_layer = cursorOnOwnLayer();
   for (int i = 0; i < drawn; i++) {
-    renderRow(styles, i, !own_layer && i + current_first_row_ == new_cursor_row_, focused);
+    renderRow(styles, i, styles.window_focused && !own_layer && i + current_first_row_ == new_cursor_row_, focused);
   }
 }
 
@@ -428,9 +428,8 @@ OutlineView::renderRow(const StyleProvider & styles, int display_row, bool curso
   drawRow(styles, *tree_plane_, display_row, static_cast<size_t>(display_row + current_first_row_), cursor, focused);
 }
 
-void
-OutlineView::drawRow(const StyleProvider & styles, UIPlane & plane, int display_row, size_t data_row, bool cursor,
-                     bool focused) {
+void OutlineView::drawRow(const StyleProvider & styles, Plane & plane, int display_row, size_t data_row, bool cursor,
+                          bool focused) {
   auto tree_width = getDim().second;
   auto fg = [&](const Color & c) { plane.setFgColor(c); };
   auto bg = [&](const Color & c) { plane.setBgColor(c); };
@@ -498,7 +497,7 @@ void
 OutlineView::renderCursor(const StyleProvider & styles, bool focused) {
   if (!tree_plane_) return;
   auto last = static_cast<double>(std::max(0, treeRows() - 1));
-  bool show = cursorOnOwnLayer() && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size()) &&
+  bool show = styles.window_focused && cursorOnOwnLayer() && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size()) &&
               cursor_y_ >= 0 && cursor_y_ <= last;
   if (!show) {
     tree_plane_->clearBand();
@@ -507,7 +506,7 @@ OutlineView::renderCursor(const StyleProvider & styles, bool focused) {
   // A translucent band over the tree, so the row shows through; it moves by
   // parts of a row independently of the content.
   const auto & color = focused ? styles.highlight_bg_color : styles.highlight_unfocused_bg_color;
-  tree_plane_->setBand(cellui::Band{ cursor_y_, 1.0, 0, getDim().second, color, focused ? 0.45f : 0.6f });
+  tree_plane_->setBand(cellui::Band{cursor_y_, 1.0, 0.0, static_cast<double>(getDim().second), color, focused ? 0.45f : 0.6f});
 }
 
 void
