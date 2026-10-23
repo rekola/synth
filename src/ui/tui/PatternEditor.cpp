@@ -2489,7 +2489,7 @@ void PatternEditor::updateCursorBands(const StyleProvider & styles, const std::v
       plane.clearBand();
       return;
     }
-    plane.setBand(cellui::Band{first, height, col, cols, color, alpha, blend});
+    plane.setBand(cellui::Band{first, height, col, cols, color, alpha, blend, styles.theme.elevation.card});
     for (double v : {first, height, col, cols, static_cast<double>(alpha), static_cast<double>(blend)}) shown.push_back(v);
   };
   auto cursor_track = current_cursor.track >= 0 && current_cursor.track < static_cast<int>(track_ids.size()) ? track_ids[static_cast<size_t>(current_cursor.track)] : -1;
