@@ -4,7 +4,9 @@
 #include "../UI.h"
 #include "../StyleProvider.h"
 
+#include <cellui/Signal.h>
 #include <memory>
+#include <vector>
 #include "../../playback/MidiNoteInput.h"
 
 #include <string>
@@ -50,6 +52,8 @@ private:
   MidiNoteInput midi_input_;
   // Clips this UI's own MIDI takes created (Controller::ensureNoteRecordingClip()).
   std::unordered_map<int, std::string> midi_record_clip_ids_;
+  // Declared last so the handlers disconnect before the members they use go.
+  std::vector<cellui::Connection> controller_connections_;
 };
 
 #endif
