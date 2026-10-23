@@ -281,7 +281,7 @@ TEST(undoing_a_clip_edit_asks_the_ui_to_show_that_clip_and_row) {
   song.getClips(track_id)[2].getLeafPattern().setNote(5, 0, Note(67, 100));
 
   int seen_track = -1, seen_clip = -1, seen_row = -1;
-  controller.setUndoFocusListener([&](int track, int clip, int row) { seen_track = track; seen_clip = clip; seen_row = row; });
+  auto undo_focus = controller.undo_clip_focused.connect([&](int track, int clip, int row) { seen_track = track; seen_clip = clip; seen_row = row; });
   controller.sendCommand("undo");
   CHECK(seen_track == track_id);
   CHECK(seen_clip == 2);

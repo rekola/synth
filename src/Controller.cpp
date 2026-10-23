@@ -470,7 +470,7 @@ Controller::toggleDrumClipFocus(int track_id, int clip_index) {
       // handles that once nothing's focused) or to open a different
       // clip's own slot instead.
       clearFocusedClip();
-      if (drum_edit_requested_) drum_edit_requested_(track_id, false);
+      drum_edit_requested.emit(track_id, false);
       return true;
     }
     setFocusedClip(track_id, existing.getId());
@@ -493,7 +493,7 @@ Controller::toggleDrumClipFocus(int track_id, int clip_index) {
     clip.setLength(song->getSceneBarRows(scene)); // a bar of the scene's own time signature
     setFocusedClip(track_id, clip.getId());
   }
-  if (drum_edit_requested_) drum_edit_requested_(track_id, true);
+  drum_edit_requested.emit(track_id, true);
   return true;
 }
 
@@ -510,7 +510,7 @@ Controller::addBuffer(std::shared_ptr<Song> song, const string & name, Version s
   }
   loadActiveBufferState(name);
   refreshBufferCommands();
-  if (buffer_change_listener_) buffer_change_listener_();
+  buffers_changed.emit();
 }
 
 void
@@ -538,7 +538,7 @@ Controller::renameActiveBuffer(const string & new_name, Version saved_version) {
   // survives any other buffer switch (see the per-buffer editing/
   // playback-state plan's Part B).
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::BUFFER_RENAMED, old_name, new_name));
-  if (buffer_change_listener_) buffer_change_listener_();
+  buffers_changed.emit();
 }
 
 // Keeps one CommandRegistry command per open buffer in sync with songs_'s
@@ -648,7 +648,7 @@ Controller::switchToBuffer(const string & name) {
   }
   loadActiveBufferState(song_id);
   if (created) refreshBufferCommands();
-  if (buffer_change_listener_) buffer_change_listener_();
+  buffers_changed.emit();
 }
 
 void
@@ -700,7 +700,7 @@ Controller::killActiveBuffer() {
   // happened to be the playing buffer, simply by no longer existing to
   // render at all, rather than needing a separate STOP first.
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::BUFFER_KILLED, song_id));
-  if (buffer_change_listener_) buffer_change_listener_();
+  buffers_changed.emit();
   return true;
 }
 

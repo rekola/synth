@@ -8,6 +8,7 @@
 #include "../StyleProvider.h"
 #include "../../playback/InputEvent.h"
 #include <cellui/KeyReader.h>
+#include <cellui/Signal.h>
 #include <cellui/Scrim.h>
 #include <cellui/Scopes.h>
 #include <chrono>
@@ -249,6 +250,8 @@ protected:
   cellui::KeyReader key_reader_;
   // Whether "ESC-" is on the status line for the current wait.
   bool escape_indicator_shown_ = false;
+  // Declared last so the handlers disconnect before the members they use go.
+  std::vector<cellui::Connection> controller_connections_;
 };
 
 #endif

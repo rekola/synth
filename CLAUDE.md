@@ -1849,7 +1849,7 @@ would otherwise resume showing.
   placement, the row; for a clip, `clip_index` and the row in it) it changed,
   and the commands move the current track there, the transport row while
   stopped, and for a clip the clip grid and (in Live View) the pattern editor
-  (`Controller::setUndoFocusListener()`). Typing edits amalgamate: `Song::Edit`'s `typing` flag
+  (`Controller::undo_clip_focused`). Typing edits amalgamate: `Song::Edit`'s `typing` flag
   appends a transaction's ops to the previous entry
   (`Document::begin(..., amalgamate)`) while the run is unbroken
   (`Song::breakTypingRun()` from `PatternEditor` on any non-typing key, an

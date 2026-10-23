@@ -129,7 +129,7 @@ class PatternEditor : public UIElement {
   // merely while the session is still nominally open.
   std::vector<int> getActiveNoteTrackIds() const;
 
-  // Called via Controller::setBufferChangeListener()'s UI.cpp fan-out
+  // Called via Controller::buffers_changed's UI.cpp fan-out
   // whenever the active buffer changes (switch, kill landing on a
   // different buffer, or a fresh buffer created) - saves the outgoing
   // buffer's own cursor/scroll/selection/live-note/locator-editing

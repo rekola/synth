@@ -951,7 +951,7 @@ TerminalUI::initializeWidgets() {
   // never otherwise reaches UI, so relying on each buffer command here to
   // separately call menu_->refreshBuffers() itself missed that path
   // entirely - one listener covers every path uniformly instead.
-  getController().setBufferChangeListener([this]() {
+  controller_connections_.push_back(getController().buffers_changed.connect([this]() {
     auto names = getController().getBufferNames();
     vector<string> display_names;
     display_names.reserve(names.size());
@@ -963,7 +963,7 @@ TerminalUI::initializeWidgets() {
     // View) is untouched: a buffer switch changes which song is shown, not
     // how.
     pattern_editor_->handleBufferChanged();
-  });
+  }));
 }
 
 bool
@@ -1899,7 +1899,7 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
   // Controller::clearFocusedClip()) hands that device back to Live View
   // instead, rather than leaving it stuck showing a step grid with nothing
   // left focused to edit there.
-  getController().setClipSelectListener([this](int track_id, int clip_index) {
+  controller_connections_.push_back(getController().clip_selected.connect([this](int track_id, int clip_index) {
     auto & song = getController().getSong();
     auto root_ids = pattern_editor_->trackIds(song);
     auto root = std::find(root_ids.begin(), root_ids.end(), track_id);
@@ -1908,9 +1908,9 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
     auto column = std::find(playable.begin(), playable.end(), track_id);
     if (column != playable.end()) clip_grid_->setCursorTrackIndex(static_cast<int>(column - playable.begin()));
     clip_grid_->setCursorClipIndex(clip_index);
-  });
-  getController().setUndoCellListener([this](const Song::EditPlace & place) { pattern_editor_->focusCell(place); });
-  getController().setUndoFocusListener([this](int track_id, int clip_index, int row) {
+  }));
+  controller_connections_.push_back(getController().undo_cell_focused.connect([this](const Song::EditPlace & place) { pattern_editor_->focusCell(place); }));
+  controller_connections_.push_back(getController().undo_clip_focused.connect([this](int track_id, int clip_index, int row) {
     auto & song = getController().getSong();
     auto root_ids = pattern_editor_->trackIds(song);
     auto root = std::find(root_ids.begin(), root_ids.end(), track_id);
@@ -1920,8 +1920,8 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
     if (column != playable.end()) clip_grid_->setCursorTrackIndex(static_cast<int>(column - playable.begin()));
     clip_grid_->setCursorClipIndex(clip_index);
     pattern_editor_->focusLiveRow(track_id, clip_index, row);
-  });
-  getController().setDrumEditRequestListener([this](int track_id, bool opened) {
+  }));
+  controller_connections_.push_back(getController().drum_edit_requested.connect([this](int track_id, bool opened) {
     if (opened) {
       auto & song = getController().getSong();
       auto track_ids = pattern_editor_->trackIds(song);
@@ -1939,7 +1939,7 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
     } else {
       launchpad_manager_->closeStepView();
     }
-  });
+  }));
 }
 
 void

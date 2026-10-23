@@ -161,7 +161,7 @@ HeadlessUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
     }
   });
   getController().getClipPlayer().setAssignPlaybackStarter([this]() { launchpad_manager_->startAssignPlayback(getController()); });
-  getController().setDrumEditRequestListener([this](int track_id, bool opened) {
+  controller_connections_.push_back(getController().drum_edit_requested.connect([this](int track_id, bool opened) {
     if (opened) {
       getController().getSong().setCurrentTrackId(track_id);
       launchpad_manager_->openStepView();
@@ -170,7 +170,7 @@ HeadlessUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
     } else {
       launchpad_manager_->closeStepView();
     }
-  });
+  }));
 }
 
 void
