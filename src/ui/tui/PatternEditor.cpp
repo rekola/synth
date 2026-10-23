@@ -3331,11 +3331,6 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 
   auto current_pos = 0;
   for (int i = -1; i < static_cast<int>(track_ids.size()); i++) {
-    track_marked.reset();
-    if (isLiveMode()) {
-      auto own_row = i >= 0 ? source_->positionRow(track_ids[static_cast<size_t>(i)], pattern_idx) : std::nullopt;
-      track_marked = own_row && *own_row == pattern_row;
-    }
     if (i >= 0 && i < current_scroll_.track) continue;
     if (current_pos >= cols) break;
 
@@ -3348,6 +3343,12 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       pattern_idx = address.block, pattern_row = address.row;
       grid = source_->readGrid(address);
       highlight = row_shifted ? address.block == point.block && address.row == point.row : base_highlight;
+    }
+    // The column's own line, at the row it shows here.
+    track_marked.reset();
+    if (isLiveMode()) {
+      auto own_row = i >= 0 ? source_->positionRow(track_ids[static_cast<size_t>(i)], pattern_idx) : std::nullopt;
+      track_marked = own_row && *own_row == pattern_row;
     }
     struct ColumnPlane {
       PatternEditor & editor;
