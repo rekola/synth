@@ -1913,8 +1913,10 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
   // track's last column - see GridPosition::scope's own comment) but not
   // editing it yet: Enter is the explicit "start editing" trigger -
   // reaching the slot on its own must never start editing by itself.
+  // The release (or repeat) of the Enter that just committed an edit
+  // arrives after the field has closed and must not reopen it.
   if (new_cursor.isOnLocator() && input.getId() == Key::Enter) {
-    startLocatorEdit();
+    if (input.getKind() != InputEvent::Kind::RELEASE && input.getKind() != InputEvent::Kind::REPEAT) startLocatorEdit();
     return true;
   }
 
