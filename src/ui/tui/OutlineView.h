@@ -89,8 +89,7 @@ class OutlineView : public UIElement {
   // The focus level is still easing: the loop keeps drawing frames.
   bool isAnimating() const { return fades_.active() || focus_fade_drawn_; }
 
-  OutlineView(UIPlane & parent) : UIElement(parent) {
-
+  OutlineView(Plane & parent) : UIElement(parent) {
   }
 
   bool offerInput(const cellui::Input & input) override;
@@ -119,7 +118,7 @@ protected:
   void renderRow(const StyleProvider & styles, int row, bool cursor, bool focused);
   void renderTree(const StyleProvider & styles, bool focused);
   // Draws one data row on `plane` at `display_row`.
-  void drawRow(const StyleProvider & styles, UIPlane & plane, int display_row, size_t data_row, bool cursor,
+  void drawRow(const StyleProvider & styles, Plane & plane, int display_row, size_t data_row, bool cursor,
                bool focused);
   // Where the smooth-scrolling display keeps the cursor: a plane of its own
   // over the tree, easing to its row in the view. At an edge of the view the
@@ -224,7 +223,7 @@ protected:
   // comment on why that's the exact text to reuse here.
   std::string targetTrackLabel(int track_id) const;
   // TOGGLE_TARGET_PICKER on an already-closed picker - creates the real
-  // floating plane (UIPlane::showPicker()), anchored directly under the
+  // floating plane (Plane::showPicker()), anchored directly under the
   // "[t] Target: ..." Details panel line (always that row's own fixed
   // screen position for a Library > Rhythms row - see buildDetailsLines()),
   // and populates it from compatibleTargetTrackRows() plus "New track".
@@ -237,7 +236,7 @@ protected:
   void closeTargetPicker();
   // Enter, or a click landing on an item, while the picker is open (see
   // offerInput()'s own pickerActive() handling) - `selection` is
-  // UIPlane::getPickerSelection()'s own return, read *before*
+  // Plane::getPickerSelection()'s own return, read *before*
   // closeTargetPicker() destroys the plane it comes from. Resolves back
   // to a real track id by matching against compatibleTargetTrackRows()'s
   // own labels (exactly what was handed to addItem() as each row's own
@@ -295,7 +294,7 @@ protected:
   double current_shown_row_ = -1;
   int current_first_row_ = 0;  // the first data row the tree plane was drawn from
   int current_column_scroll_ = 0;
-  std::unique_ptr<UIPlane> tree_plane_;
+  std::unique_ptr<Plane> tree_plane_;
   // The cursor's row in the view, a whole number except while it eases.
   double cursor_y_ = 0;
   // The cursor appears at its row instead of easing there (after a click).

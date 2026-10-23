@@ -259,14 +259,13 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
 // activated item to its command.
 class TerminalMenu : public UIMenu {
 public:
-  TerminalMenu(UIPlane & parent, vector<string> buffer_names, vector<string> buffer_display_names, string active_buffer_name)
-    : parent_(parent), plane_(parent.createChild()), bar_(*plane_), buffer_names_(std::move(buffer_names)),
-      buffer_display_names_(std::move(buffer_display_names)), active_buffer_name_(std::move(active_buffer_name)) {
-    // The plane spans the tallest section; below the bar and an open
-    // section the screen shows through.
-    plane_->makeTransparent();
-    rebuild();
-  }
+ TerminalMenu(Plane & parent, vector<string> buffer_names, vector<string> buffer_display_names, string active_buffer_name)
+     : parent_(parent), plane_(parent.createChild()), bar_(*plane_), buffer_names_(std::move(buffer_names)), buffer_display_names_(std::move(buffer_display_names)), active_buffer_name_(std::move(active_buffer_name)) {
+   // The plane spans the tallest section; below the bar and an open
+   // section the screen shows through.
+   plane_->makeTransparent();
+   rebuild();
+ }
 
   void applyStyles(const StyleProvider & styles) override {
     cellui::MenuBar::Colors colors;
@@ -368,8 +367,8 @@ private:
     bar_.layout(cols_);
   }
 
-  UIPlane & parent_;
-  unique_ptr<UIPlane> plane_;
+  Plane & parent_;
+  unique_ptr<Plane> plane_;
   cellui::MenuBar bar_;
   int cols_ = 0;
   vector<string> buffer_names_;
@@ -1304,7 +1303,7 @@ TerminalUI::syncLiveView() {
   return true;
 }
 
-std::vector<std::shared_ptr<cellui::Element>>
+std::vector<std::shared_ptr<cellui::Widget>>
 TerminalUI::focusableElements() const {
   if (getView() == View::ARRANGEMENT) {
     if (!scopes_visible_) return { pattern_editor_ };
@@ -1312,7 +1311,7 @@ TerminalUI::focusableElements() const {
   }
   // Screen order, the way Emacs cycles windows: the outline panel
   // (top-left), the clip grid beside it, then the pattern editor below.
-  std::vector<std::shared_ptr<cellui::Element>> elements;
+  std::vector<std::shared_ptr<cellui::Widget>> elements;
   if (isOutlineVisible()) elements.push_back(outline_view_);
   elements.push_back(clip_grid_);
   elements.push_back(pattern_editor_);
@@ -1352,8 +1351,7 @@ TerminalUI::viewChanged() {
   force_next_render_ = true;
 }
 
-bool
-TerminalUI::tryActivate(int y, int x, std::shared_ptr<cellui::Element> element) {
+bool TerminalUI::tryActivate(int y, int x, std::shared_ptr<cellui::Widget> element) {
   auto [pos_y, pos_x] = element->getPosition();
   auto [rows, cols] = element->getDim();
 
@@ -1584,7 +1582,7 @@ std::string TerminalUI::bindingFor(const std::string & command) const {
   }
   if (auto binding = pattern_editor_->bindingFor(command); !binding.empty()) return binding;
   if (auto binding = clip_grid_->bindingFor(command); !binding.empty()) return binding;
-  return cellui::Element::bindingFor(command);
+  return cellui::Widget::bindingFor(command);
 }
 
 void TerminalUI::showCommandPalette() {

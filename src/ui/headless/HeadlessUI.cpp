@@ -1,6 +1,6 @@
 #include "HeadlessUI.h"
 
-#include "../UIPlane.h"
+#include "../Plane.h"
 #include "../../launchpad/LaunchpadIO.h"
 #include "../../midi/MidiInput.h"
 #include "../../util/WaitSet.h"
@@ -28,12 +28,12 @@ namespace {
 
 // Draws nothing and takes no input; exists only because UIElement reaches
 // the Controller through its plane.
-class HeadlessPlane : public UIPlane {
+class HeadlessPlane : public Plane {
  public:
-  using UIPlane::UIPlane;
+  using Plane::Plane;
 
-  using UIPlane::setBgColor;
-  using UIPlane::setFgColor;
+  using Plane::setBgColor;
+  using Plane::setFgColor;
   void setFgColor(const Color &) override {}
   void setBgColor(const Color &) override {}
   void setUnderline(bool) override { }
@@ -41,7 +41,7 @@ class HeadlessPlane : public UIPlane {
   void setItalic(bool) override { }
   void erase() override { }
   void putstr(int, int, const std::string &) override { }
-  std::unique_ptr<UIPlane> createChild() override { return std::make_unique<HeadlessPlane>(getAppContext(), getStyles()); }
+  std::unique_ptr<Plane> createChild() override { return std::make_unique<HeadlessPlane>(getAppContext(), getStyles()); }
   void drawBorder() override { }
   bool offerInput(const cellui::Input &) override { return false; }
   void showReader(const std::string &, int, int, int, int, const std::string &, std::optional<Color>) override { }

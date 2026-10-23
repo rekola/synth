@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.10)
 # is under this directory.
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   project(cellui LANGUAGES CXX)
-  set(CMAKE_CXX_STANDARD 17)
+  set(CMAKE_CXX_STANDARD 20)
   set(CMAKE_CXX_STANDARD_REQUIRED True)
   if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release)
@@ -201,7 +201,7 @@ add_executable(cellui_tests
   tests/CommandPaletteTests.cpp
   tests/ColorTests.cpp
   tests/DiscoveryTests.cpp
-  tests/ElementTests.cpp
+  tests/WidgetTests.cpp
   tests/FadeTests.cpp
   tests/FrameEncoderTests.cpp
   tests/ImageEncoderTests.cpp

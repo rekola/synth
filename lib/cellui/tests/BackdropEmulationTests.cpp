@@ -12,7 +12,7 @@ int dimmed(int v, float dim) { return Color(v, v, v).mix(Color(0, 0, 0), dim).ge
 int dimmedTwice(int v, float dim) { return Color(v, v, v).mix(Color(0, 0, 0), dim).mix(Color(0, 0, 0), dim).getRed(); }
 
 // A plane over the whole screen made of nothing but backdrop cells.
-std::unique_ptr<UIPlane> scrimOver(BufferPlane & root, const Backdrop & backdrop) {
+std::unique_ptr<Plane> scrimOver(BufferPlane & root, const Backdrop & backdrop) {
   auto scrim = root.createChild();
   auto [rows, cols] = root.getDim();
   scrim->setBackdrop(backdrop);

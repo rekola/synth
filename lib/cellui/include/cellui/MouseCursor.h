@@ -2,7 +2,7 @@
 
 namespace cellui {
 
-// The shape of the mouse pointer over a plane (UIPlane::setMouseCursor()).
+// The shape of the mouse pointer over a plane (Plane::setMouseCursor()).
 enum class MouseCursor {
   INHERIT,  // not asked for: whatever is below the plane shows
   DEFAULT,  // the arrow

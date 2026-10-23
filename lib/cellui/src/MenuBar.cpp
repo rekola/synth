@@ -113,7 +113,7 @@ void MenuBar::draw() {
   panel_->move(bar_y + 1, bar_x + x0);
   panel_->resize(rows + 1, width);
   panel_->erase();
-  UIPlane & panel = *panel_;
+  Plane & panel = *panel_;
   auto panelInk = [&](const Color & fg, const Color & bg) {
     panel.setFgColor(fg);
     panel.setBgColor(bg);

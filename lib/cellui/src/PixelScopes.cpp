@@ -5,7 +5,7 @@
 #include <cellui/HeatmapImage.h>
 #include <cellui/SpectrumImage.h>
 #include <cellui/StyleProvider.h>
-#include <cellui/UIPlane.h>
+#include <cellui/Plane.h>
 #include <cellui/VuMeterImage.h>
 
 #include <algorithm>
@@ -65,7 +65,7 @@ void drawPixelLabel(std::vector<uint32_t> & buffer, unsigned pxx, unsigned pxy, 
 // in pixels.
 class PixelHeatmapChart : public HeatmapChart {
 public:
-  PixelHeatmapChart(UIPlane & parent, int grid_cols, int grid_rows)
+  PixelHeatmapChart(Plane & parent, int grid_cols, int grid_rows)
     : HeatmapChart(parent, grid_cols, grid_rows) { }
 
   void setGrid(const std::vector<float> & brightness, const std::vector<float> & saturation) override {
@@ -192,12 +192,12 @@ class PixelChannelMeter : public ChannelMeter {
 
 class PixelScopes : public Scopes {
  public:
-  std::shared_ptr<SpectrumMeter> spectrum(UIPlane & parent) const override { return std::make_shared<PixelSpectrumMeter>(parent); }
-  std::shared_ptr<HeatmapChart> heatmap(UIPlane & parent, int grid_cols, int grid_rows) const override {
+  std::shared_ptr<SpectrumMeter> spectrum(Plane & parent) const override { return std::make_shared<PixelSpectrumMeter>(parent); }
+  std::shared_ptr<HeatmapChart> heatmap(Plane & parent, int grid_cols, int grid_rows) const override {
     return std::make_shared<PixelHeatmapChart>(parent, grid_cols, grid_rows);
   }
-  std::shared_ptr<ChannelMeter> channelMeter(UIPlane & parent) const override { return std::make_shared<PixelChannelMeter>(parent); }
-  void drawVuMeter(UIPlane & plane, int row, int col, int rows, const VuReading & reading, const VuMeterLook & look, int clip_top,
+  std::shared_ptr<ChannelMeter> channelMeter(Plane & parent) const override { return std::make_shared<PixelChannelMeter>(parent); }
+  void drawVuMeter(Plane & plane, int row, int col, int rows, const VuReading & reading, const VuMeterLook & look, int clip_top,
                    int clip_bottom, uint64_t id) const override {
     int cell_h = 0, cell_w = 0;
     int top = std::max(row, clip_top), bottom = std::min(row + rows, clip_bottom);
@@ -226,7 +226,7 @@ class PixelScopes : public Scopes {
 
  private:
   // The meters (plane, id) that have been drawn as pixels.
-  mutable std::set<std::pair<const UIPlane *, uint64_t>> drawn_;
+  mutable std::set<std::pair<const Plane *, uint64_t>> drawn_;
 };
 
 }  // namespace

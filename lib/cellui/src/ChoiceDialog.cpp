@@ -44,7 +44,7 @@ void ChoiceDialog::close() {
   title_.clear();
 }
 
-void ChoiceDialog::show(UIPlane & parent, int screen_rows, int screen_cols) {
+void ChoiceDialog::show(Plane & parent, int screen_rows, int screen_cols) {
   if (labels_.empty()) return;
 
   // One column of padding each side of the text, and a column beside the
@@ -67,7 +67,7 @@ void ChoiceDialog::show(UIPlane & parent, int screen_rows, int screen_cols) {
 
   auto bg = styles.picker_bg_color, fg = styles.window_fg_color, strong = styles.window_accent_fg_color;
   auto cursor_fg = styles.highlight_fg_color, cursor_bg = styles.highlight_bg_color;
-  auto set_on = [](UIPlane & plane, const Color & foreground, const Color & background) {
+  auto set_on = [](Plane & plane, const Color & foreground, const Color & background) {
     plane.setFgColor(foreground);
     plane.setBgColor(background);
   };

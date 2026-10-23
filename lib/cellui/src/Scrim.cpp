@@ -4,7 +4,7 @@
 
 namespace cellui {
 
-void Scrim::show(UIPlane & parent, int rows, int cols, const Backdrop & backdrop) {
+void Scrim::show(Plane & parent, int rows, int cols, const Backdrop & backdrop) {
   if (!backdrop.active() || rows <= 0 || cols <= 0) {
     close();
     return;

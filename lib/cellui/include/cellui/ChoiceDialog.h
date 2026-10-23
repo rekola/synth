@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cellui/ChoiceList.h>
-#include <cellui/Element.h>
+#include <cellui/Widget.h>
 
 #include <chrono>
 #include <memory>
@@ -29,7 +29,7 @@ class ChoiceDialog {
   // starts, -1 for none. Nothing is drawn until show().
   void open(std::string title, std::vector<std::string> labels, int current);
   void close();
-  // How high it floats (UIPlane::setElevation()): the theme's overlay
+  // How high it floats (Plane::setElevation()): the theme's overlay
   // elevation unless set; a modal dialog is set to the modal one.
   void setElevation(float elevation) {
     elevation_ = elevation;
@@ -45,7 +45,7 @@ class ChoiceDialog {
 
   // (Re)draws the box under `parent`, centred on a screen of the given size.
   // Call again after a resize or any change of selection.
-  void show(UIPlane & parent, int screen_rows, int screen_cols);
+  void show(Plane & parent, int screen_rows, int screen_cols);
 
   // Feeds one input event; the dialog swallows everything, so the caller
   // only needs the result.
@@ -58,9 +58,9 @@ class ChoiceDialog {
 
   // The box with its title and hint; the entries are a plane of their own
   // over it, so they can scroll by parts of a row under a cursor band.
-  std::unique_ptr<UIPlane> plane_;
+  std::unique_ptr<Plane> plane_;
   std::optional<float> elevation_;
-  std::unique_ptr<UIPlane> list_plane_;
+  std::unique_ptr<Plane> list_plane_;
   // The cursor's row in the list: a whole number except while it eases.
   double cursor_y_ = 0;
   bool fresh_ = true;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cellui/Element.h>
+#include <cellui/Widget.h>
 #include <cellui/StyleProvider.h>
 
 #include <string>
@@ -8,7 +8,7 @@
 
 namespace cellui {
 
-class UIMenu : public Element {
+class UIMenu : public Widget {
  public:
   UIMenu() { }
 

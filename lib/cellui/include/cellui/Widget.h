@@ -6,7 +6,7 @@
 #include <cellui/KeyChord.h>
 #include <cellui/KeyChordNames.h>
 #include <cellui/Keymap.h>
-#include <cellui/UIPlane.h>
+#include <cellui/Plane.h>
 
 #include <cassert>
 #include <cstddef>
@@ -20,13 +20,15 @@ namespace cellui {
 
 // A widget: owns a plane, draws through it, and dispatches key chords to
 // named commands.
-class Element {
+class Widget {
  public:
-  explicit Element() { }
-  explicit Element(UIPlane & parent) {
+  explicit Widget() { }
+  explicit Widget(Plane & parent) {
     setPlane(parent.createChild());
   }
-  virtual ~Element() { }
+  virtual ~Widget() {
+    if (plane_) plane_->setOwner(nullptr);
+  }
 
   // Offers a key or mouse event to this widget; true when it was used. The
   // default passes it on to the plane.
@@ -48,11 +50,11 @@ class Element {
     return commands_.matching(std::string(prefix));
   }
 
-  Element & putstr(int y, int x, const std::string & s) {
+  Widget & putstr(int y, int x, const std::string & s) {
     if (plane_) plane_->putstr(y, x, s);
     return *this;
   }
-  Element & putstr(int y, int x, char c) {
+  Widget & putstr(int y, int x, char c) {
     if (plane_) {
       std::string s;
       s += c;
@@ -61,34 +63,34 @@ class Element {
     return *this;
   }
 #if 0
-  Element & putstrN(int y, int x, const std::string & s, int limit) {
+  Widget & putstrN(int y, int x, const std::string & s, int limit) {
     
   }
 #endif
-  Element & move(int y, int x) {
+  Widget & move(int y, int x) {
     if (plane_) plane_->move(y, x);
     return *this;
   }
-  // See UIPlane::moveToTop()'s own comment - raises this widget's plane
+  // See Plane::moveToTop()'s own comment - raises this widget's plane
   // above every sibling under the same parent.
-  Element & moveToTop() {
+  Widget & moveToTop() {
     if (plane_) plane_->moveToTop();
     return *this;
   }
-  Element & setVisible(bool visible) {
+  Widget & setVisible(bool visible) {
     if (plane_) plane_->setVisible(visible);
     return *this;
   }
-  Element & resize(int rows, int cols) {
+  Widget & resize(int rows, int cols) {
     if (plane_) plane_->resize(rows, cols);
     onResize();
     return *this;
   }
-  Element & erase() {
+  Widget & erase() {
     if (plane_) plane_->erase();
     return *this;
   }
-  Element & fill() {
+  Widget & fill() {
     if (plane_) {
       auto [rows, cols] = getDim();
       std::string s(static_cast<size_t>(cols), ' ');
@@ -96,33 +98,33 @@ class Element {
     }
     return *this;
   }
-  Element & setFgColor(int r, int g, int b) { return setFgColor(Color(r, g, b)); }
-  Element & setBgColor(int r, int g, int b) { return setBgColor(Color(r, g, b)); }
-  Element & setFgColor(const Color & color) {
+  Widget & setFgColor(int r, int g, int b) { return setFgColor(Color(r, g, b)); }
+  Widget & setBgColor(int r, int g, int b) { return setBgColor(Color(r, g, b)); }
+  Widget & setFgColor(const Color & color) {
     if (plane_) plane_->setFgColor(color);
     return *this;
   }
-  Element & setBgColor(const Color & color) {
+  Widget & setBgColor(const Color & color) {
     if (plane_) plane_->setBgColor(color);
     return *this;
   }
-  Element & setBgDefault() {
+  Widget & setBgDefault() {
     if (plane_) plane_->setBgDefault();
     return *this;
   }
-  Element & setUnderline(bool b) {
+  Widget & setUnderline(bool b) {
     if (plane_) plane_->setUnderline(b);
     return *this;
   }
-  Element & setBold(bool b) {
+  Widget & setBold(bool b) {
     if (plane_) plane_->setBold(b);
     return *this;
   }
-  Element & setItalic(bool b) {
+  Widget & setItalic(bool b) {
     if (plane_) plane_->setItalic(b);
     return *this;
   }
-  Element & setLift(float lift, bool joins_above = false) {
+  Widget & setLift(float lift, bool joins_above = false) {
     if (plane_) plane_->setLift(lift, joins_above);
     return *this;
   }
@@ -138,9 +140,13 @@ class Element {
   }
   
 protected:
-  void setPlane(std::unique_ptr<UIPlane> plane) { plane_ = std::move(plane); }
-  UIPlane & getPlane() { return *plane_; }
-  const UIPlane & getPlane() const { return *plane_; }
+  void setPlane(std::unique_ptr<Plane> plane) {
+    if (plane_) plane_->setOwner(nullptr);
+    plane_ = std::move(plane);
+    if (plane_) plane_->setOwner(this);
+  }
+  Plane & getPlane() { return *plane_; }
+  const Plane & getPlane() const { return *plane_; }
   bool hasPlane() const { return plane_ != nullptr; }
 
   // Called after every resize() (including the initial construction-time
@@ -239,10 +245,13 @@ protected:
 
   // Lets a widget with planes of its own draw on each through the ordinary
   // drawing helpers: exchanges the plane the helpers draw on with `other`.
-  void swapPlane(std::unique_ptr<UIPlane> & other) { plane_.swap(other); }
+  void swapPlane(std::unique_ptr<Plane> & other) {
+    plane_.swap(other);
+    if (plane_) plane_->setOwner(this);
+  }
 
 private:
-  std::unique_ptr<UIPlane> plane_;
+  std::unique_ptr<Plane> plane_;
 };
 
 }  // namespace cellui

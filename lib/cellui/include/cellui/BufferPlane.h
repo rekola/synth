@@ -5,7 +5,7 @@
 #include <cellui/Image.h>
 #include <cellui/LineEditor.h>
 #include <cellui/PlaneInfo.h>
-#include <cellui/UIPlane.h>
+#include <cellui/Plane.h>
 
 #include <memory>
 #include <optional>
@@ -32,7 +32,7 @@ namespace cellui {
 // in a child plane, moved with the arrows, PgUp/PgDn, the wheel and a
 // click). Widgets can be laid out, drawn and read back in a test, or
 // printed by the gallery.
-class BufferPlane : public UIPlane {
+class BufferPlane : public Plane {
  public:
   // The root plane covers the whole buffer.
   BufferPlane(CellBuffer & target, const StyleProvider & styles, std::shared_ptr<void> app_context = nullptr);
@@ -52,8 +52,8 @@ class BufferPlane : public UIPlane {
   // This plane and the planes on it, as they are now.
   PlaneInfo describe() const;
 
-  using UIPlane::setFgColor;
-  using UIPlane::setBgColor;
+  using Plane::setFgColor;
+  using Plane::setBgColor;
   void setFgColor(const Color & color) override { style_.fg = color; }
   void setBgColor(const Color & color) override { style_.bg = color; }
   void setBgDefault() override {
@@ -89,7 +89,7 @@ class BufferPlane : public UIPlane {
     images_.clear();
   }
   void putstr(int y, int x, const std::string & s) override;
-  std::unique_ptr<UIPlane> createChild() override;
+  std::unique_ptr<Plane> createChild() override;
   void drawBorder() override;
   // Feeds the reader or the picker, whichever is open.
   bool offerInput(const Input & input) override;

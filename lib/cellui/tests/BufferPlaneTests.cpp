@@ -1,7 +1,7 @@
 #include "TestFramework.h"
 
 #include <cellui/BufferPlane.h>
-#include <cellui/Element.h>
+#include <cellui/Widget.h>
 
 using namespace cellui;
 
@@ -274,7 +274,7 @@ TEST(element_drawn_through_a_buffer_plane) {
   StyleProvider styles;
   CellBuffer b(3, 12);
   BufferPlane root(b, styles);
-  Element e(root);
+  Widget e(root);
   e.resize(2, 5);
   e.move(1, 4);
   e.setBold(true).putstr(0, 0, "title").putstr(1, 0, "second line");
@@ -456,7 +456,7 @@ TEST(bufferplane_describe_gives_the_tree_in_stacking_order) {
 namespace {
 
 // A plane over the whole screen made of nothing but backdrop cells.
-std::unique_ptr<UIPlane> scrimOver(BufferPlane & root, const Backdrop & backdrop) {
+std::unique_ptr<Plane> scrimOver(BufferPlane & root, const Backdrop & backdrop) {
   auto scrim = root.createChild();
   auto [rows, cols] = root.getDim();
   scrim->setBackdrop(backdrop);

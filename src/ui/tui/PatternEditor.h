@@ -38,7 +38,7 @@ class Controller;
 
 class PatternEditor : public UIElement {
  public:
-  PatternEditor(UIPlane & parent);
+  PatternEditor(Plane & parent);
 
   // `focused` (whether this widget is UI::active_element_ - it has no way
   // to know that itself) picks the region's highlight: bright while
@@ -179,7 +179,7 @@ protected:
   // its own for the rows, so the rows can move without the headings. While
   // render() draws, the drawing helpers are on the rows' plane (see
   // renderHeading(), which goes back to the widget's own).
-  std::unique_ptr<UIPlane> rows_plane_;
+  std::unique_ptr<Plane> rows_plane_;
   bool drawing_rows_ = false;
   int rows_plane_rows_ = -1, rows_plane_cols_ = -1;
   // Where the display scrolls smoothly, the rows show a view that follows the
@@ -203,7 +203,7 @@ protected:
     double band_phase = 0.0;
   };
   std::unordered_map<int, ColumnScroll> column_scroll_;
-  std::vector<std::unique_ptr<UIPlane>> column_planes_;
+  std::vector<std::unique_ptr<Plane>> column_planes_;
   bool columns_shifted_ = false;
   // Whether the columns draw on their planes (Live View, smooth scrolling); else all on the rows' plane.
   bool columns_planes_in_use_ = false;
@@ -218,7 +218,7 @@ protected:
   bool smooth_cursor_ = false;
   // Where a playing view's line is between two rows, 0 to 1 (Arrangement view).
   double row_band_phase_ = 0.0;
-  std::unique_ptr<UIPlane> cursor_plane_;
+  std::unique_ptr<Plane> cursor_plane_;
   // The cursor's note column (with its velocity and delay) on the screen, -1 if not drawn.
   int cursor_x0_ = -1, cursor_x1_ = -1;
   // What the bands showed last, to tell when they moved.

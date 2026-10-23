@@ -50,13 +50,13 @@ struct BufferPlane::Picker {
 };
 
 BufferPlane::BufferPlane(CellBuffer & target, const StyleProvider & styles, std::shared_ptr<void> app_context)
-  : UIPlane(std::move(app_context), styles), local_(target.rows(), target.cols()), target_(&target) {
+  : Plane(std::move(app_context), styles), local_(target.rows(), target.cols()), target_(&target) {
   setDim(std::pair(target.rows(), target.cols()));
   setPosition(std::pair(0, 0));
 }
 
 BufferPlane::BufferPlane(BufferPlane & parent)
-  : UIPlane(parent.getAppContext(), parent.getStyles()),
+  : Plane(parent.getAppContext(), parent.getStyles()),
     local_(parent.getDim().first, parent.getDim().second), parent_(&parent) {
   setDim(parent.getDim());
   setPosition(std::pair(0, 0));
@@ -78,7 +78,7 @@ void BufferPlane::resize(int rows, int cols) {
     for (int c = 0; c < std::min(cols + extra, local_.cols()); c++) resized.put(r, c, local_.at(r, c));
   }
   local_ = std::move(resized);
-  UIPlane::resize(rows, cols);
+  Plane::resize(rows, cols);
 }
 
 void BufferPlane::setScrollOffset(double rows, double cols) {
@@ -102,7 +102,7 @@ void BufferPlane::putstr(int y, int x, const std::string & s) {
   local_.write(y, x, s, style_);
 }
 
-std::unique_ptr<UIPlane> BufferPlane::createChild() {
+std::unique_ptr<Plane> BufferPlane::createChild() {
   BufferPlane & parent = root().flat_ ? root() : *this;
   auto child = std::unique_ptr<BufferPlane>(new BufferPlane(parent));
   if (root().themed_bases_) child->base_bg_ = getStyles().plane_base_bg_color;
