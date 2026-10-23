@@ -89,10 +89,13 @@ extensions), packages `mingw-w64-ucrt-x86_64-{gcc,cmake,ninja,fmt,libsndfile,
 soundtouch,libunistring,python}`. `SYNTH_BUILD_INTERACTIVE` (default ON) selects between the full `synth` and the render-only one
 (`src/main_render.cpp`: `--render`, `--help`, `--licenses` and the options
 `--render` honours, parsed by `src/cli/CommonOptions.*`, shared with
-`main.cpp`); `SYNTH_BUILD_TERMINAL_UI` (default ON, OFF on Windows) adds the
-terminal UI (`SYNTH_TERMINAL_UI` in `main.cpp`; cellui's terminal backend is POSIX only so far), so
-Windows has the full program run with `--headless` (`tools/smoke_headless.py`
-in CI); ALSA and PipeWire sources are Linux only. `.github/workflows/
+`main.cpp`); `SYNTH_BUILD_TERMINAL_UI` (default ON) adds the interactive UI
+(`SYNTH_TERMINAL_UI` in `main.cpp`). cellui's terminal backend is POSIX only, so
+on Windows `TerminalUI` runs on cellui's Win32 window (`--ui raster`, what `auto`
+picks; the loop waits on handles, `WaitSet::handles()`, `Backend::inputHandles()`,
+`EventLoop::addHandles()`; stderr reaches the status line through `util/StderrCapture.h`, a reader
+thread on a pipe, since a pipe cannot be waited on; the pixel scopes draw through canvas' GDI+ backend; never run
+on a desktop), and `--headless` is what CI runs (`tools/smoke_headless.py`); ALSA and PipeWire sources are Linux only. `.github/workflows/
 ci-windows-x86_64.yml` builds, runs ctest and renders songs. The `#ifdef
 _WIN32`s this needed live in small platform helpers: `util/Paths.h` (the
 config dir `%APPDATA%\synth`, the user and installed data dirs, the executable's
@@ -1459,7 +1462,7 @@ would otherwise resume showing.
   display - `DisplayInfo` (`cellui/DisplayInfo.h`: cell size in pixels, whether pictures
   can be shown, default colours, display scale, sextants, `hdr` (unset for the terminal and
   the GTK window), size, `BackendEvent`s
-  (`cellui/BackendEvent.h`: input as `cellui::Input`, resize, paste, close, display changed), a frame to
+  (`cellui/BackendEvent.h`: input as `cellui::Input`, resize, paste, close, display changed, focus gained or lost; the Win32 window also lets go of the keys and button held when it loses the focus), a frame to
   show, and `setNativeSelection()` (the user selects text with the mouse instead of the
   app getting the clicks) - which `TerminalSession` and `cellui::test::TestBackend`
   implement. `TerminalSession` translates its `TermEvent`s (which stay inside `term/`,
@@ -1488,9 +1491,10 @@ would otherwise resume showing.
   each new cell), wheel (buttons 4-7) and paste (Ctrl+Shift+V, Shift+Insert) events into
   `BackendEvent`s; a size change is a `RESIZE` in cells and closing the window a `CLOSE`.
   Events wait in a queue behind an eventfd that is `inputFd()`.
-  The Windows backend is `cellui/win32/` (built on Windows only, first slice, compiled but never run): `Window`
-  is a Win32 window drawn with Direct2D and DirectWrite (cells, pictures, scrolled planes, backdrop dimming; no
-  blur or shadows yet), and `Win32EventLoop` waits on the message queue and on handles
+  The Windows backend is `cellui/win32/` (built on Windows only, compiled but never run): `Window`
+  is a Win32 window drawn with Direct2D and DirectWrite (cells, pictures, scrolled planes, backdrop dimming, shadows as
+  fading rings, and a blur made by drawing the region small and large again offscreen, as the window's target has no
+  effects; it draws cells itself, so `canvasRasterizer()` is null there), and `Win32EventLoop` waits on the message queue and on handles
   (`addHandles()`; descriptors do not exist there, so `Window::inputFd()`/`wakeFd()` are -1 and
   `inputHandle()`/`wakeHandle()` are the events to wait on). A backdrop is the
   backend's to apply: `BufferPlane::refresh()` sets what is composed below each one aside as a

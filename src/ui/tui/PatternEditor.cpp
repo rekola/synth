@@ -31,6 +31,7 @@
 #include <cmath>
 #include <limits>
 #include <fmt/core.h>
+#include <fmt/format.h>
 
 #include <iostream>
 

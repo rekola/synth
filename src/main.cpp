@@ -27,13 +27,17 @@
 #include <cstring>
 #include <filesystem>
 #include <signal.h>
-#ifdef SYNTH_TERMINAL_UI
+#if defined(SYNTH_TERMINAL_UI) && !defined(_WIN32)
 #include <termios.h>
 #include <unistd.h>
 #endif
 
 #ifdef SYNTH_TERMINAL_UI
+#ifdef _WIN32
+#include <cellui/win32/Window.h>
+#else
 #include <cellui/term/TerminalSession.h>
+#endif
 #ifdef SYNTH_GTK_UI
 #include <cellui/gtk/Window.h>
 #endif
@@ -306,7 +310,13 @@ int main(int argc, char *argv[]) {
     chosen = candidates[i];
     bool last = i + 1 == candidates.size();
     if (chosen == cellui::BackendKind::RASTER) {
-#ifdef SYNTH_GTK_UI
+#if defined(_WIN32)
+      backend = cellui::win32::Window::open({}, &ui_error);
+      if (backend) {
+        if (auto bg = backend->display().default_bg) light = bg->luminance() > 0.2f;
+        break;
+      }
+#elif defined(SYNTH_GTK_UI)
       backend = cellui::gtk::Window::open({}, &ui_error);
       if (backend) {
         if (auto bg = backend->display().default_bg) light = bg->luminance() > 0.2f;
@@ -316,6 +326,9 @@ int main(int argc, char *argv[]) {
       ui_error = "this build has no window UI (it needs GTK 4.10 or later; see SYNTH_ENABLE_GTK)";
 #endif
     } else {
+#ifdef _WIN32
+      ui_error = "Windows has the window UI only (--ui raster)";
+#else
       cellui::term::SessionOptions session_options;
       session_options.dither = dither;
       auto session = cellui::term::TerminalSession::open(session_options, &ui_error);
@@ -324,6 +337,7 @@ int main(int argc, char *argv[]) {
         backend = std::move(session);
         break;
       }
+#endif
     }
     if (last || ui_kind != cellui::BackendKind::AUTO) {
       fmt::print(stderr, "Cannot start the {} UI: {}\n", cellui::backendName(chosen), ui_error);

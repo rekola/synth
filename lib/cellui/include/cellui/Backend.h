@@ -33,6 +33,10 @@ class Backend {
   virtual EventLoop & eventLoop() = 0;
   virtual int inputFd() const = 0;
   virtual int wakeFd() const = 0;
+  // Where a platform without descriptors has them: the waitable handles
+  // (events) that are signalled while poll() has something to give. Empty
+  // elsewhere.
+  virtual std::vector<void *> inputHandles() const { return {}; }
   virtual std::optional<TimePoint> nextDeadline() const = 0;
   // Every event available now, without blocking.
   virtual std::vector<BackendEvent> poll() = 0;

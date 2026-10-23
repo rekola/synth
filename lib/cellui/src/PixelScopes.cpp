@@ -42,15 +42,15 @@ void drawPixelLabel(std::vector<uint32_t> & buffer, unsigned pxx, unsigned pxy, 
   for (unsigned c = 0; label.text[c]; c++) {
     const char * glyph = pixelGlyph(label.text[c]);
     if (!glyph) continue;
-    long x0 = static_cast<long>(label.col + static_cast<int>(c)) * cell_w + (cell_w > glyph_w ? (cell_w - glyph_w) / 2 : 0);
-    long y0 = static_cast<long>(label.row) * cell_h + (cell_h > glyph_h ? (cell_h - glyph_h) / 2 : 0);
+    int64_t x0 = static_cast<int64_t>(label.col + static_cast<int>(c)) * cell_w + (cell_w > glyph_w ? (cell_w - glyph_w) / 2 : 0);
+    int64_t y0 = static_cast<int64_t>(label.row) * cell_h + (cell_h > glyph_h ? (cell_h - glyph_h) / 2 : 0);
     for (unsigned gy = 0; gy < 7; gy++) {
       for (unsigned gx = 0; gx < 5; gx++) {
         if (glyph[gy * 5 + gx] != '#') continue;
         for (unsigned dy = 0; dy < sy; dy++) {
           for (unsigned dx = 0; dx < sx; dx++) {
-            long x = x0 + static_cast<long>(gx * sx + dx), y = y0 + static_cast<long>(gy * sy + dy);
-            if (x < 0 || y < 0 || x >= static_cast<long>(pxx) || y >= static_cast<long>(pxy)) continue;
+            int64_t x = x0 + static_cast<int64_t>(gx * sx + dx), y = y0 + static_cast<int64_t>(gy * sy + dy);
+            if (x < 0 || y < 0 || x >= static_cast<int64_t>(pxx) || y >= static_cast<int64_t>(pxy)) continue;
             uint32_t & pixel = buffer[static_cast<size_t>(y) * pxx + static_cast<size_t>(x)];
             auto mix = [](uint32_t channel) { return static_cast<uint32_t>(kLabelForegroundAlpha * 255.0f + (1.0f - kLabelForegroundAlpha) * static_cast<float>(channel)); };
             pixel = (0xffu << 24) | (mix((pixel >> 16) & 0xffu) << 16) | (mix((pixel >> 8) & 0xffu) << 8) | mix(pixel & 0xffu);

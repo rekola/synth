@@ -23,6 +23,10 @@ class EventLoop {
   // what made the descriptor ready: the sources are level-triggered.
   virtual void addSource(const std::vector<int> & fds, Handler handler) = 0;
 
+  // The same on a platform whose sources are waitable handles (HANDLEs)
+  // instead of descriptors; a loop that waits on descriptors ignores it.
+  virtual void addHandles(const std::vector<void *> &, Handler) { }
+
   // Called at the start of every turn; returns the longest the turn may
   // wait in milliseconds (negative: as long as it takes).
   void setBefore(std::function<int()> before) { before_ = std::move(before); }

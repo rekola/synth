@@ -176,6 +176,7 @@ struct Window::Impl {
   CursorRequest cursor;
   std::vector<ImagePlacement> images;
   std::vector<BackdropLayer> layers;
+  std::vector<ElevatedArea> elevations;
   std::vector<CursorArea> mouse_cursors;
 
   // The Direct2D bitmaps of pictures, by plane key, kept while the version
@@ -187,6 +188,9 @@ struct Window::Impl {
   std::map<uint64_t, Bitmap> bitmaps;
 
   int held_button = 0;
+  // The keys that are down, by virtual key, with the id they were sent as,
+  // so losing the focus can let them go.
+  std::map<WPARAM, int> held_keys;
   int last_row = -1, last_col = -1;
   double wheel_x = 0, wheel_y = 0;
   bool tracking = false;
@@ -207,7 +211,17 @@ struct Window::Impl {
   void dpiChanged(UINT new_dpi, const RECT * suggested);
 
   void paint();
-  void drawCells(const CellBuffer & cells, bool transparent, int origin_row, int origin_col, double shift_x, double shift_y);
+  // The cells drawing may be limited to (screen cells).
+  struct CellRange {
+    int row, col, rows, cols;
+  };
+  // What drawing goes to: the window's target, or an offscreen one while
+  // a backdrop blurs what is below it.
+  ID2D1RenderTarget * rt_ = nullptr;
+  void drawCells(const CellBuffer & cells, bool transparent, int origin_row, int origin_col, double shift_x, double shift_y,
+                 const CellRange * only = nullptr);
+  void drawShadows();
+  void blurRegion(Com<ID2D1BitmapRenderTarget> & below, const D2D1_RECT_F & region, float radius);
   ID2D1Bitmap * bitmapFor(const ImagePlacement & placement);
 
   LRESULT message(UINT msg, WPARAM wparam, LPARAM lparam);
@@ -216,6 +230,7 @@ struct Window::Impl {
   void mouseMove(LPARAM lparam);
   void mouseWheel(bool horizontal, int delta, LPARAM lparam);
   void pasteClipboard();
+  void focusChanged(bool focused);
   void updateCursor();
   static LRESULT CALLBACK proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 };
@@ -314,17 +329,24 @@ ID2D1Bitmap * Window::Impl::bitmapFor(const ImagePlacement & placement) {
   return b.bitmap.get();
 }
 
-void Window::Impl::drawCells(const CellBuffer & cells, bool transparent, int origin_row, int origin_col, double shift_x, double shift_y) {
+void Window::Impl::drawCells(const CellBuffer & cells, bool transparent, int origin_row, int origin_col, double shift_x, double shift_y, const CellRange * only) {
   const Color default_fg = *display_info.default_fg;
   const float w = static_cast<float>(cell_w), h = static_cast<float>(cell_h);
-  for (int r = 0; r < cells.rows(); r++) {
-    for (int c = 0; c < cells.cols(); c++) {
+  int r0 = 0, r1 = cells.rows(), c0 = 0, c1 = cells.cols();
+  if (only) {
+    r0 = std::max(r0, only->row - origin_row);
+    r1 = std::min(r1, only->row + only->rows - origin_row);
+    c0 = std::max(c0, only->col - origin_col);
+    c1 = std::min(c1, only->col + only->cols - origin_col);
+  }
+  for (int r = r0; r < r1; r++) {
+    for (int c = c0; c < c1; c++) {
       const CellBuffer::Cell & cell = cells.at(r, c);
       if (transparent && CellBuffer::isBlank(cell)) continue;
       float x = static_cast<float>((origin_col + c) * cell_w - shift_x), y = static_cast<float>((origin_row + r) * cell_h - shift_y);
       if (cell.bg) {
         brush->SetColor(colorOf(*cell.bg));
-        target->FillRectangle(D2D1::RectF(x, y, x + w, y + h), brush.get());
+        rt_->FillRectangle(D2D1::RectF(x, y, x + w, y + h), brush.get());
       }
       if (cell.image > 0 && static_cast<size_t>(cell.image) <= images.size()) {
         const ImagePlacement & p = images[static_cast<size_t>(cell.image - 1)];
@@ -334,7 +356,7 @@ void Window::Impl::drawCells(const CellBuffer & cells, bool transparent, int ori
           image.pixelSpan(origin_col + c - p.col, 1, cell_w, true, lo_x, hi_x);
           image.pixelSpan(origin_row + r - p.row, 1, cell_h, false, lo_y, hi_y);
           if (hi_x > lo_x && hi_y > lo_y) {
-            target->DrawBitmap(bitmap, D2D1::RectF(x, y, x + w, y + h), 1.0f,
+            rt_->DrawBitmap(bitmap, D2D1::RectF(x, y, x + w, y + h), 1.0f,
                                image.stretched() ? D2D1_BITMAP_INTERPOLATION_MODE_LINEAR : D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR,
                                D2D1::RectF(static_cast<float>(lo_x), static_cast<float>(lo_y), static_cast<float>(hi_x), static_cast<float>(hi_y)));
           }
@@ -352,31 +374,135 @@ void Window::Impl::drawCells(const CellBuffer & cells, bool transparent, int ori
         if (format) {
           brush->SetColor(colorOf(fg));
           D2D1_RECT_F box = D2D1::RectF(x, y, x + (wide ? 2 * w : w), y + h);
-          target->PushAxisAlignedClip(box, D2D1_ANTIALIAS_MODE_ALIASED);
-          target->DrawText(text.c_str(), static_cast<UINT32>(text.size()), format, D2D1::RectF(x, y, x + 4 * w, y + 2 * h), brush.get(),
+          rt_->PushAxisAlignedClip(box, D2D1_ANTIALIAS_MODE_ALIASED);
+          rt_->DrawText(text.c_str(), static_cast<UINT32>(text.size()), format, D2D1::RectF(x, y, x + 4 * w, y + 2 * h), brush.get(),
                            D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT);
-          target->PopAxisAlignedClip();
+          rt_->PopAxisAlignedClip();
         }
       }
       if (cell.underline) {
         bool wide = c + 1 < cells.cols() && cells.at(r, c + 1).continuation;
         brush->SetColor(colorOf(fg));
         float line = y + h - std::max(1.0f, h / 12.0f);
-        target->FillRectangle(D2D1::RectF(x, line, x + (wide ? 2 * w : w), line + std::max(1.0f, h / 16.0f)), brush.get());
+        rt_->FillRectangle(D2D1::RectF(x, line, x + (wide ? 2 * w : w), line + std::max(1.0f, h / 16.0f)), brush.get());
       }
     }
   }
 }
 
+// What lies below a blurring backdrop, blurred: the region is drawn small
+// and then drawn large again, which smooths it by about the factor. (The
+// window's target has no effects to blur with.) `below` is drawn on again
+// afterwards.
+void Window::Impl::blurRegion(Com<ID2D1BitmapRenderTarget> & below, const D2D1_RECT_F & region, float radius) {
+  float width = region.right - region.left, height = region.bottom - region.top;
+  if (width < 1 || height < 1) return;
+  float factor = std::clamp(radius / 2.0f, 2.0f, 16.0f);
+  UINT32 small_w = static_cast<UINT32>(std::max(1.0f, std::ceil(width / factor))), small_h = static_cast<UINT32>(std::max(1.0f, std::ceil(height / factor)));
+  below->EndDraw();
+  Com<ID2D1Bitmap> bitmap;
+  Com<ID2D1BitmapRenderTarget> small;
+  if (SUCCEEDED(below->GetBitmap(bitmap.put())) && SUCCEEDED(below->CreateCompatibleRenderTarget(D2D1::SizeF(static_cast<float>(small_w), static_cast<float>(small_h)),
+                                                                                                   D2D1::SizeU(small_w, small_h), small.put()))) {
+    small->BeginDraw();
+    small->DrawBitmap(bitmap.get(), D2D1::RectF(0, 0, static_cast<float>(small_w), static_cast<float>(small_h)), 1.0f, D2D1_BITMAP_INTERPOLATION_MODE_LINEAR, region);
+    small->EndDraw();
+    Com<ID2D1Bitmap> reduced;
+    if (SUCCEEDED(small->GetBitmap(reduced.put()))) {
+      below->BeginDraw();
+      below->DrawBitmap(reduced.get(), region, 1.0f, D2D1_BITMAP_INTERPOLATION_MODE_LINEAR);
+      return;
+    }
+  }
+  below->BeginDraw();
+}
+
+// A soft shadow around every plane above the base that nothing blurs, the
+// higher the softer and the further down: rings that fade outwards, drawn
+// over the frame outside the plane, and under every plane higher than it,
+// which is drawn again over it. Height is in cell widths.
+void Window::Impl::drawShadows() {
+  if (elevations.empty()) return;
+  const Color & bg = *display_info.default_bg;
+  bool dark = bg.luminance() < 0.2f;
+  float key_alpha = dark ? 0.65f : 0.18f, ambient_alpha = dark ? 0.4f : 0.12f;
+  auto rectOf = [&](const ElevatedArea & a) {
+    return D2D1::RectF(static_cast<float>(a.col * cell_w), static_cast<float>(a.row * cell_h), static_cast<float>((a.col + a.cols) * cell_w),
+                       static_cast<float>((a.row + a.rows) * cell_h));
+  };
+  auto ring = [&](const D2D1_RECT_F & r, float dx, float dy, float reach, float alpha) {
+    // Steps of about 1.5 px; the strength falls off as a smooth bell.
+    int steps = std::clamp(static_cast<int>(reach / 1.5f), 1, 40);
+    float step = reach / static_cast<float>(steps);
+    for (int j = steps; j >= 1; j--) {
+      float t = static_cast<float>(j - 1) / static_cast<float>(steps);
+      float a = alpha * (1.0f - t) * (1.0f - t) / static_cast<float>(steps) * 2.2f;
+      brush->SetColor(D2D1::ColorF(0, 0, 0, std::min(a, 1.0f)));
+      float grow = static_cast<float>(j) * step - step / 2;
+      rt_->DrawRectangle(D2D1::RectF(r.left + dx - grow, r.top + dy - grow, r.right + dx + grow, r.bottom + dy + grow), brush.get(), step);
+    }
+  };
+  size_t i = 0;
+  while (i < elevations.size()) {
+    float e = elevations[i].elevation;
+    size_t level_end = i;
+    while (level_end < elevations.size() && elevations[level_end].elevation == e) level_end++;
+    float px = e * static_cast<float>(cell_w);
+    float dx = 0.3f * px, dy = 0.5f * px;
+    bool any = false;
+    for (size_t k = i; k < level_end; k++) {
+      if (elevations[k].layer < layers.size()) continue;  // a later backdrop covers it
+      D2D1_RECT_F r = rectOf(elevations[k]);
+      ring(r, 0, 0, std::max(2.0f, 0.25f * px), ambient_alpha);
+      ring(r, dx, dy, px, key_alpha);
+      any = true;
+    }
+    if (any) {
+      // Everything as high or higher is drawn again over the shadows.
+      for (size_t j = i; j < elevations.size(); j++) {
+        const ElevatedArea & a = elevations[j];
+        if (a.layer < layers.size()) continue;
+        rt_->PushAxisAlignedClip(rectOf(a), D2D1_ANTIALIAS_MODE_ALIASED);
+        CellRange range = { a.row, a.col, a.rows, a.cols };
+        drawCells(frame, !layers.empty(), 0, 0, 0, 0, &range);
+        rt_->PopAxisAlignedClip();
+      }
+      // A light top edge and a darker bottom one.
+      for (size_t k = i; k < level_end; k++) {
+        if (elevations[k].layer < layers.size()) continue;
+        D2D1_RECT_F r = rectOf(elevations[k]);
+        brush->SetColor(D2D1::ColorF(1, 1, 1, dark ? 0.14f : 0.55f));
+        rt_->FillRectangle(D2D1::RectF(r.left, r.top, r.right, r.top + 1), brush.get());
+        brush->SetColor(D2D1::ColorF(0, 0, 0, dark ? 0.3f : 0.1f));
+        rt_->FillRectangle(D2D1::RectF(r.left, r.bottom - 1, r.right, r.bottom), brush.get());
+      }
+    }
+    i = level_end;
+  }
+}
+
 void Window::Impl::paint() {
   if (!target || !brush) return;
-  target->BeginDraw();
-  target->SetTransform(D2D1::Matrix3x2F::Identity());
   const Color bg = *display_info.default_bg;
-  target->Clear(colorOf(bg));
+  bool blurs = false;
+  for (const BackdropLayer & layer : layers) blurs |= layer.backdrop.blur > 0;
+
+  // With a blurring backdrop everything is drawn offscreen first, as the
+  // blur reads what is below it.
+  Com<ID2D1BitmapRenderTarget> offscreen;
+  if (blurs && SUCCEEDED(target->CreateCompatibleRenderTarget(D2D1::SizeF(static_cast<float>(client_w), static_cast<float>(client_h)),
+                                                              D2D1::SizeU(static_cast<UINT32>(std::max(client_w, 1)), static_cast<UINT32>(std::max(client_h, 1))),
+                                                              offscreen.put()))) {
+    rt_ = offscreen.get();
+  } else {
+    blurs = false;
+    rt_ = target.get();
+  }
+  rt_->BeginDraw();
+  rt_->SetTransform(D2D1::Matrix3x2F::Identity());
+  rt_->Clear(colorOf(bg));
   if (frame.rows() > 0 && frame.cols() > 0) {
-    // Each backdrop dims what is below it, over the cells it covers. (The
-    // blur is not done yet; the dimming and tint are.)
+    // Each backdrop blurs and dims what is below it, over the cells it covers.
     for (size_t i = 0; i < layers.size(); i++) {
       const BackdropLayer & layer = layers[i];
       drawCells(layer.cells, i > 0, 0, 0, 0, 0);
@@ -384,31 +510,46 @@ void Window::Impl::paint() {
         const ScrollContent & content = *layer.scroll;
         D2D1_RECT_F shown = D2D1::RectF(static_cast<float>(content.col * cell_w), static_cast<float>(content.row * cell_h),
                                         static_cast<float>((content.col + content.cols) * cell_w), static_cast<float>((content.row + content.rows) * cell_h));
-        target->PushAxisAlignedClip(shown, D2D1_ANTIALIAS_MODE_ALIASED);
+        rt_->PushAxisAlignedClip(shown, D2D1_ANTIALIAS_MODE_ALIASED);
         drawCells(content.cells, true, content.row, content.col, content.shift_cols * cell_w, content.shift_rows * cell_h);
         if (content.band) {
           const Band & band = *content.band;
           brush->SetColor(colorOf(band.color, band.alpha));
           float bx = static_cast<float>((content.col + band.col) * cell_w), by = static_cast<float>((content.row + band.row) * cell_h);
-          target->FillRectangle(D2D1::RectF(bx, by, bx + static_cast<float>(band.cols * cell_w), by + static_cast<float>(band.rows * cell_h)), brush.get());
+          rt_->FillRectangle(D2D1::RectF(bx, by, bx + static_cast<float>(band.cols * cell_w), by + static_cast<float>(band.rows * cell_h)), brush.get());
         }
-        target->PopAxisAlignedClip();
+        rt_->PopAxisAlignedClip();
+      }
+      D2D1_RECT_F region = D2D1::RectF(static_cast<float>(layer.col * cell_w), static_cast<float>(layer.row * cell_h),
+                                       static_cast<float>((layer.col + layer.cols) * cell_w), static_cast<float>((layer.row + layer.rows) * cell_h));
+      if (blurs && layer.backdrop.blur > 0) {
+        double half_row = std::min(layer.backdrop.blur, Backdrop::kMaxBlur) * cell_h / 2.0;
+        blurRegion(offscreen, region, static_cast<float>(2.0 * std::sqrt(2.0 * half_row * (half_row + 1.0) / 3.0)));
       }
       if (layer.backdrop.dim > 0.0f) {
         brush->SetColor(colorOf(layer.backdrop.tint.value_or(bg), layer.backdrop.dim));
-        target->FillRectangle(D2D1::RectF(static_cast<float>(layer.col * cell_w), static_cast<float>(layer.row * cell_h),
-                                          static_cast<float>((layer.col + layer.cols) * cell_w), static_cast<float>((layer.row + layer.rows) * cell_h)),
-                              brush.get());
+        rt_->FillRectangle(region, brush.get());
       }
     }
     drawCells(frame, !layers.empty(), 0, 0, 0, 0);
+    drawShadows();
+  }
+  if (blurs) {
+    rt_->EndDraw();
+    Com<ID2D1Bitmap> composed;
+    offscreen->GetBitmap(composed.put());
+    rt_ = target.get();
+    rt_->BeginDraw();
+    rt_->SetTransform(D2D1::Matrix3x2F::Identity());
+    if (composed) rt_->DrawBitmap(composed.get());
   }
   if (cursor.visible) {
     brush->SetColor(colorOf(*display_info.default_fg));
     float x = static_cast<float>(cursor.x * cell_w), y = static_cast<float>(cursor.y * cell_h);
-    target->FillRectangle(D2D1::RectF(x, y, x + 2.0f, y + static_cast<float>(cell_h)), brush.get());
+    rt_->FillRectangle(D2D1::RectF(x, y, x + 2.0f, y + static_cast<float>(cell_h)), brush.get());
   }
   HRESULT hr = target->EndDraw();
+  rt_ = nullptr;
   if (hr == static_cast<HRESULT>(D2DERR_RECREATE_TARGET)) {
     // The device was lost (a display driver reset): make it again.
     brush.reset();
@@ -416,9 +557,9 @@ void Window::Impl::paint() {
     bitmaps.clear();
     RECT client;
     GetClientRect(hwnd, &client);
-    D2D1_RENDER_TARGET_PROPERTIES rt = D2D1::RenderTargetProperties(D2D1_RENDER_TARGET_TYPE_DEFAULT, D2D1::PixelFormat(), 96.0f, 96.0f);
+    D2D1_RENDER_TARGET_PROPERTIES rtp = D2D1::RenderTargetProperties(D2D1_RENDER_TARGET_TYPE_DEFAULT, D2D1::PixelFormat(), 96.0f, 96.0f);
     D2D1_HWND_RENDER_TARGET_PROPERTIES hw = D2D1::HwndRenderTargetProperties(hwnd, D2D1::SizeU(static_cast<UINT32>(client.right), static_cast<UINT32>(client.bottom)));
-    if (SUCCEEDED(d2d->CreateHwndRenderTarget(rt, hw, target.put()))) target->CreateSolidColorBrush(D2D1::ColorF(0), brush.put());
+    if (SUCCEEDED(d2d->CreateHwndRenderTarget(rtp, hw, target.put()))) target->CreateSolidColorBrush(D2D1::ColorF(0), brush.put());
     InvalidateRect(hwnd, nullptr, FALSE);
   }
 }
@@ -455,8 +596,28 @@ bool Window::Impl::keyEvent(WPARAM vk, LPARAM lparam, bool pressed) {
     key = '0' + static_cast<int>(vk - VK_NUMPAD0);
   }
   Input::Kind kind = !pressed ? Input::Kind::RELEASE : ((lparam & (1 << 30)) ? Input::Kind::REPEAT : Input::Kind::PRESS);
+  if (pressed) held_keys[vk] = key;
+  else held_keys.erase(vk);
   push(BackendEvent::makeInput(keyInput(key, mods, kind)));
   return true;
+}
+
+// The release of a key or button that goes up while another window has the
+// focus is never seen, so on losing it everything held is let go: a note key
+// would otherwise sound until the window had the focus back.
+void Window::Impl::focusChanged(bool focused) {
+  if (!focused) {
+    for (const auto & held : held_keys) push(BackendEvent::makeInput(keyInput(held.second, 0, Input::Kind::RELEASE)));
+    held_keys.clear();
+    if (held_button) {
+      push(BackendEvent::makeInput(Input(Key::Button1 + held_button - 1, std::max(last_row, 0), std::max(last_col, 0), false, false, false, false,
+                                         Input::Kind::RELEASE)));
+      held_button = 0;
+      if (GetCapture() == hwnd) ReleaseCapture();
+    }
+    wheel_x = wheel_y = 0;
+  }
+  push(BackendEvent::makeFocus(focused));
 }
 
 void Window::Impl::mouseButton(int button, bool pressed, LPARAM lparam) {
@@ -543,6 +704,16 @@ LRESULT Window::Impl::message(UINT msg, WPARAM wparam, LPARAM lparam) {
       if (wparam != SIZE_MINIMIZED) resized(LOWORD(lparam), HIWORD(lparam));
       return 0;
     case WM_DPICHANGED: dpiChanged(HIWORD(wparam), reinterpret_cast<const RECT *>(lparam)); return 0;
+    case WM_SETFOCUS: focusChanged(true); return 0;
+    case WM_KILLFOCUS: focusChanged(false); return 0;
+    case WM_CAPTURECHANGED:
+      // Capture taken away (another window, a dialog) ends a drag.
+      if (held_button && reinterpret_cast<HWND>(lparam) != hwnd) {
+        push(BackendEvent::makeInput(Input(Key::Button1 + held_button - 1, std::max(last_row, 0), std::max(last_col, 0), false, false, false, false,
+                                           Input::Kind::RELEASE)));
+        held_button = 0;
+      }
+      return 0;
     case WM_CLOSE:
       // The application ends the window by ending.
       push(BackendEvent::makeClose());
@@ -737,6 +908,9 @@ void Window::present(const CellBuffer & frame, const CursorRequest & cursor, con
   impl_->cursor = cursor;
   impl_->images = images;
   impl_->layers = info ? info->backdrops : std::vector<BackdropLayer>();
+  impl_->elevations = info ? info->elevations : std::vector<ElevatedArea>();
+  std::stable_sort(impl_->elevations.begin(), impl_->elevations.end(),
+                   [](const ElevatedArea & a, const ElevatedArea & b) { return a.elevation < b.elevation; });
   if (info) impl_->mouse_cursors = info->mouse_cursors;
   InvalidateRect(impl_->hwnd, nullptr, FALSE);
 }

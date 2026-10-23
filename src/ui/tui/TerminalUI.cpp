@@ -48,7 +48,9 @@
 #include <cstdlib>
 #include <clocale>
 #include <cassert>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 #include <memory>
 #include <cmath>
 #include <algorithm>
@@ -62,12 +64,17 @@
 
 #include <sys/time.h>
 
+#ifdef _WIN32
+#include "../../util/StderrCapture.h"
+#endif
 #include <cellui/MenuBar.h>
 #include <cellui/KeyReader.h>
 #include <cellui/Scopes.h>
 #include <cellui/Backend.h>
 
+#ifndef _WIN32
 #include <poll.h>
+#endif
 
 
 using namespace std;
@@ -78,6 +85,7 @@ std::map<std::string, int> g_ui_stats;
 bool g_ui_stats_on = false;
 void statCount(const std::string & what) { if (g_ui_stats_on) g_ui_stats[what]++; }
 
+#ifndef _WIN32
 // Every thread's CPU time so far in clock ticks, by thread name.
 std::map<std::string, long> threadCpuTicks() {
   std::map<std::string, long> ticks;
@@ -98,6 +106,9 @@ std::map<std::string, long> threadCpuTicks() {
   }
   return ticks;
 }
+#else
+std::map<std::string, long> threadCpuTicks() { return {}; }
+#endif
 }
 using namespace fmt;
 
@@ -1960,6 +1971,7 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
 
 void
 TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
+#ifndef _WIN32
   int out_pipe[2];
 
   if (pipe(out_pipe) != 0) { // make a pipe
@@ -1981,6 +1993,7 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
 
   dup2(out_pipe[1], STDERR_FILENO); // redirect stderr to the pipe
   close(out_pipe[1]);
+#endif
 
   // In the order the loop handles them.
   WaitSet waits;
@@ -1990,10 +2003,20 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
   auto midi_group = waits.group();
   auto launchpad_group = waits.group();
 
+#ifdef _WIN32
+  // The window's events: handles, not descriptors.
+  for (void * handle : backend_.inputHandles()) waits.addHandle(input_group, handle);
+#else
   waits.addFd(input_group, backend_.inputFd());
   waits.addFd(input_group, backend_.wakeFd());
+#endif
   waits.add(events_group, getController().getUIEventQueue().notifier());
+#ifdef _WIN32
+  StderrCapture stderr_capture;
+  if (stderr_capture.active()) waits.add(stderr_group, stderr_capture.notifier());
+#else
   waits.addFd(stderr_group, out_pipe[0]);
+#endif
   midi.addTo(waits, midi_group);
   launchpad_io.addTo(waits, launchpad_group);
 
@@ -2034,7 +2057,11 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
   bool other_wake = false; // input, MIDI, Launchpad or stderr woke the loop, not just the event queue
   auto & loop = backend_.eventLoop();
   auto add_source = [&](WaitSet::Group group, cellui::EventLoop::Handler handler) {
+#ifdef _WIN32
+    loop.addHandles(waits.handles(group), std::move(handler));
+#else
     loop.addSource(waits.fds(group), std::move(handler));
+#endif
   };
   add_source(input_group, [&] {
     count("fd" + std::to_string(input_group));
@@ -2067,6 +2094,10 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
   add_source(stderr_group, [&] {
     count("fd" + std::to_string(stderr_group));
     other_wake = true;
+#ifdef _WIN32
+    // Already mirrored to the caller's stderr by the capture.
+    waiting_stderr += stderr_capture.take();
+#else
     char buffer[4096];
     int r = read(out_pipe[0], buffer, 4096);
     if (real_stderr_fd >= 0 && r > 0) {
@@ -2085,6 +2116,7 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
       }
     }
     waiting_stderr += string(buffer, static_cast<size_t>(r));
+#endif
     while (1) {
       auto pos = waiting_stderr.find('\n');
       if (pos != string::npos) {
@@ -2125,6 +2157,7 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
       clock_gettime(CLOCK_THREAD_CPUTIME_ID, &cpu_now);
       g_ui_stats["cpu_us"] = static_cast<int>((cpu_now.tv_sec - stats_cpu_since.tv_sec) * 1000000L + (cpu_now.tv_nsec - stats_cpu_since.tv_nsec) / 1000L);
       stats_cpu_since = cpu_now;
+#ifndef _WIN32
       // Every thread's share of a CPU over the second, in percent.
       auto thread_ticks = threadCpuTicks();
       for (auto & [name, t] : thread_ticks) {
@@ -2132,6 +2165,7 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
         if (it != stats_thread_ticks.end()) g_ui_stats["cpu%:" + name] = static_cast<int>(100 * (t - it->second) / std::max(1L, sysconf(_SC_CLK_TCK)));
       }
       stats_thread_ticks = std::move(thread_ticks);
+#endif
       if (FILE * f = fopen(stats_path, "a")) {
         for (auto & [what, n] : g_ui_stats) fprintf(f, "%s=%d ", what.c_str(), n);
         fputs("\n", f);

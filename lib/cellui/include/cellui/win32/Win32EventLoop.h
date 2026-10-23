@@ -17,7 +17,7 @@ class Win32EventLoop : public EventLoop {
   // `handler` runs, in a turn, when any of `handles` (HANDLEs) is signalled.
   // Like the descriptors of other loops they are level-triggered: the
   // handler must reset what it reads. At most 63 handles in all.
-  void addHandles(const std::vector<void *> & handles, Handler handler);
+  void addHandles(const std::vector<void *> & handles, Handler handler) override;
 
   bool iterate(bool block) override;
 
