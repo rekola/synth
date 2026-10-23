@@ -1927,7 +1927,8 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
   // toggle-track-collapse (Ctrl+Shift+C) is still the only way to
   // collapse a track, so Enter never surprises the user by hiding
   // something they just landed on.
-  if (!new_cursor.isOnLocator() && input.getId() == Key::Enter) {
+  if (!new_cursor.isOnLocator() && input.getId() == Key::Enter && input.getKind() != InputEvent::Kind::RELEASE &&
+      input.getKind() != InputEvent::Kind::REPEAT) {
     auto & song = getController().getSong();
     auto track_ids = trackIds(song);
     if (current_cursor.track < static_cast<int>(track_ids.size())) {
