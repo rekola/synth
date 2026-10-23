@@ -154,7 +154,7 @@ void ChoiceDialog::show(UIPlane & parent, int screen_rows, int screen_cols) {
   }
   if (list_.smooth()) {
     const auto & band = cursor_bg;
-    list_plane_->setBand(Band{ cursor_y_, 1.0, 0, width_ - 1, band, 0.45f });
+    list_plane_->setBand(Band{ cursor_y_, 1.0, 0.0, static_cast<double>(width_ - 1), band, 0.45f });
   } else {
     list_plane_->clearBand();
   }

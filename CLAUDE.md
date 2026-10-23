@@ -554,7 +554,7 @@ size in pixels, the pixel version (`cellui::pixelScopes()`) overrides
 `barCount()`/`drawBars()` to draw one bar per pixel column as the meter's
 plane's image (`UIPlane::pixelSize()`/`drawImage()`) instead; the choice is
 made once at startup in `TerminalUI::initialize()` (`cellui::scopesFor()`). Both the spectrum and the DirAC heatmap show in
-Arrangement view's scope row and in Live View's left column, stacked
+Arrangement view's top band (stacked in a narrow column beside the arrangement grid) and in Live View's left column, stacked
 under the full-height outline panel, each below a title bar (only while the
 outline is shown and the terminal is tall enough); off-screen scopes are not updated.
 
@@ -1047,24 +1047,33 @@ would otherwise resume showing.
   way - "toggle-mute"/"toggle-solo" (`PatternEditor`'s own `commands_`)
   are still reachable unchanged via keybinding/M-x.
 - **`ArrangementGrid`** (`src/ui/tui/ArrangementGrid.h`/`.cpp`) - the terminal-
-  side counterpart: an always-visible overview in the scope row - one row
-  per bar of the arrangement, running one bar past where its content ends
-  (`Song::getArrangementLength()`), columns = tracks, then one marking
-  (›) each bar that has a locator somewhere in it. A placed clip instance renders as
+  side counterpart: an always-visible overview in Arrangement view's top band, with
+  time running to the right like a composition: one column per bar of the
+  arrangement, running one bar past where its content ends
+  (`Song::getArrangementLength()`), rows = tracks, each named at the left
+  (`kNameWidth`), under two header rows (`kHeaderRows`): a bar ruler and the
+  locators, each a `›` at its bar followed by its name. The band's height
+  follows the track count (`TerminalUI::arrangementScopeRows()`, at most a
+  third of the screen); the spectrum and DirAC heatmap are stacked in a narrow
+  column to the grid's right, then the channel meter. The bars are a plane of
+  their own (names and header stay put), scrolled sideways by parts of a bar
+  on a smooth display, where the playhead is a vertical `Band`. Left/Right move the
+  cursor along the bars, Up/Down across the tracks; the wheel scrolls the bars
+  (Shift: tracks). A placed clip instance renders as
   a colored block (that track's own identity color) spanning its own
   active length in bars, its leading bar showing a single hex digit - its
   ordinal position in that track's own clip list, the same index Live
   View's own rows address - resolved the same way real playback does
   (`ArrangementOps.h`'s `resolveInstanceAt()`). A bar with no active
-  instance falls back to a page/empty-page glyph showing whether the
-  background has anything there. No per-cell copy/paste - placing/moving
+  instance falls back to a glyph (`*` sounding, `.` only note-offs or
+  commands) showing whether the background has anything there. No per-cell copy/paste - placing/moving
   clip content is `copy-to-clip`'s own job, from `PatternEditor`. Track
   selection is the one shared cursor Live View also follows; Enter
   moves the transport to the cursor's bar.
 - **Views** (`UI::View`, `ARRANGEMENT`/`LIVE`) - how the active song is
   laid out, UI state independent of which buffer (song) is active; a
-  buffer is just a song. Arrangement view: the scope row (with
-  `ArrangementGrid`) plus `PatternEditor`. Live View: `ClipGrid`
+  buffer is just a song. Arrangement view: the top band (`ArrangementGrid`
+  and the scopes) plus `PatternEditor`. Live View: `ClipGrid`
   (`src/ui/tui/ClipGrid.h` - per-track clip slots, Sends, Direction), with
   `OutlineView` as a narrow panel on its left (shown by default,
   "toggle-outline"; the tree, with a button bar overlaid on its bottom rows

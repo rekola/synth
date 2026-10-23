@@ -21,7 +21,7 @@ namespace cellui {
 // moves smoothly over rows that scroll.
 struct Band {
   double row = 0, rows = 0;  // cells from the plane's top, and how tall
-  int col = 0, cols = 0;
+  double col = 0, cols = 0;  // the same, in cells from the plane's left
   Color color = Color(255, 255, 255);
   float alpha = 1.0f;
 };

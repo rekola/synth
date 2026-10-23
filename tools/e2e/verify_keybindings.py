@@ -102,10 +102,10 @@ def main():
     check("Left past the pattern editor's first column keeps focus there",
           vk.has_note(pattern_row("00")), scr.dump())
     vk.other_window(scr)  # the arrangement grid
-    scr.send(b"\x1b[B")  # onto a bar row
+    scr.send(b"\x1b[C")  # onto a bar
     scr.pump(0.2)
-    for _ in range(10):
-        scr.send(b"\x1b[C")  # Right, past the grid's last track
+    for _ in range(20):
+        scr.send(b"\x1b[B")  # Down, past the grid's last track
         scr.pump(0.05)
     scr.send(b"w")  # would enter a note if focus had moved to the pattern editor
     scr.pump(0.5)

@@ -13,7 +13,6 @@
 #include "ChannelMeter.h"
 #include "SpectrumMeter.h"
 #include "OutlineView.h"
-#include "CoverArt.h"
 #include "SpinBox.h"
 #include "../../dsp/DiracAnalyzer.h"
 #include "../../audio/AudioAPI.h"
@@ -661,7 +660,6 @@ TerminalUI::initializeWidgets() {
   // see that method for the equivalent Launchpad wiring), so that half of
   // commitOverviewCell()'s callers is wired there instead.
   arrangement_grid_->setCommitCallback([this](int track_id, int row) { commitOverviewCell(track_id, row); });
-  cover_art_ = make_shared<CoverArt>(getPlane());
   info_line_ = make_shared<InfoLine>(getPlane());
   status_line_ = make_shared<StatusLine>(getPlane());
   // See StatusLine::showPrompt()'s own comment: opening any StatusLine
@@ -860,7 +858,7 @@ TerminalUI::initializeWidgets() {
   commands_.define("stop-all-clips", [this]() {
     getController().getClipPlayer().stopAllTracks();
   });
-  // Arrangement view's scope row (cover art, ArrangementGrid, charts), and
+  // Arrangement view's top band (ArrangementGrid, charts), and
   // Live View's spectrum/heatmap under the outline panel.
   commands_.define("toggle-scopes", [this]() {
     scopes_visible_ = !scopes_visible_;
@@ -1019,6 +1017,15 @@ TerminalUI::commandCompletions(std::string_view prefix) const {
   return result;
 }
 
+int TerminalUI::arrangementScopeRows() const {
+  // A header of two rows (bar ruler, locators), then a row per track; at least
+  // enough for the two scopes, and at most a third of the screen.
+  constexpr int kMinRows = 7;
+  auto num_tracks = static_cast<int>(getController().getSong().getPlayableTrackIds().size());
+  int rows = getDim().first;
+  return std::clamp(ArrangementGrid::kHeaderRows + num_tracks, kMinRows, std::max(kMinRows, rows / 3));
+}
+
 void
 TerminalUI::layout() {
   auto [ rows, cols ] = getDim();
@@ -1033,8 +1040,7 @@ TerminalUI::layout() {
   // plane, so the next one is built there too, off screen.
   bool show_scopes = getView() == View::ARRANGEMENT && scopes_visible_;
   int scope_row = 1;
-  cover_art_->setVisible(show_scopes);
-  arrangement_grid_->setVisible(show_scopes);
+  arrangement_grid_->setShown(show_scopes);
   volume_meter_->setVisible(show_scopes);
 
   constexpr int kOutlineWidth = 30;
@@ -1050,61 +1056,48 @@ TerminalUI::layout() {
   scopes_on_screen_ = show_scopes || live_scopes;
   if (scopes_on_screen_ && !scopes_were_on_screen) scopes_stale_ = true;
 
-  // cover_art_ claims the scope row's own leftmost columns first (the
-  // literal top-left corner) - square-looking, sized off the row height
-  // alone (see CoverArt::widthForHeight()), not the song's track count.
-  // arrangement_grid_ sits immediately right of it, sized off the song's
-  // own track count but capped, since its own internal scrolling handles
-  // anything past that rather than this widget ever needing to be as wide
-  // as the track list is long. chart_ gives up exactly that much width
-  // (plus two divider columns) to make room; heatmap_/volume_meter_ are
-  // untouched - a terminal too narrow for all five just clamps chart_ down
-  // toward 1 column rather than a fuller "drop the least-used scope first"
-  // rebalance, deferred for now.
-  int cover_art_width = CoverArt::widthForHeight(kScopeHeight);
-  int cover_art_divider_x = cover_art_width;
-  cover_art_->resize(kScopeHeight, cover_art_width).move(scope_row, 0);
+  // Arrangement view's top band: the arrangement grid takes the width, with
+  // the spectrum stacked over the DirAC heatmap in a narrow column beside
+  // it and the channel meter at the far right. The grid's height follows the
+  // song's track count (see arrangementScopeRows()); the scopes share it.
+  int scope_rows = arrangementScopeRows();
+  laid_out_scope_rows_ = scope_rows;
+  int meter_x = cols - 9;
+  int heatmap_x = meter_x - 1 - kHeatmapWidth;
+  int matrix_divider_x = heatmap_x - 1;
+  int matrix_width = std::max(1, matrix_divider_x);
+  arrangement_grid_->resize(scope_rows, matrix_width).move(scope_row, 0);
 
-  auto num_tracks = static_cast<int>(getController().getSong().getPlayableTrackIds().size());
-  // ArrangementGrid spends 2 columns per track (its own identifier cell
-  // plus a shared padding cell - see ArrangementGrid.cpp's own
-  // kColWidth), 1 for the leading padding cell before the first track
-  // and 1 for its locator column, so its width is doubled plus two here
-  // to actually fit the same track count this clamp implies.
-  int matrix_width = std::clamp(num_tracks, 4, 24) * 2 + 2;
-  int matrix_x = cover_art_divider_x + 1;
-  int matrix_divider_x = matrix_x + matrix_width;
-  arrangement_grid_->resize(kScopeHeight, matrix_width).move(scope_row, matrix_x);
-
-  int chart_x = matrix_divider_x + 1;
-  int chart_width = std::max(1, cols - chart_x - 9 - kHeatmapWidth - 2); // -2 for the single-column dividers on either side of the heatmap
-  int divider1_x = chart_x + chart_width, divider2_x = divider1_x + 1 + kHeatmapWidth;
-  // Live View places these in its own left column below.
+  // Live View places the scopes in its own left column below.
+  int chart_rows = std::max(1, (scope_rows - 1) / 2);
+  int heatmap_rows = std::max(1, scope_rows - 1 - chart_rows);
   if (getView() == View::ARRANGEMENT) {
     chart_->setVisible(show_scopes);
     heatmap_->setVisible(show_scopes);
-    chart_->resize(kScopeHeight, chart_width).move(scope_row, chart_x);
-    heatmap_->resize(kScopeHeight, kHeatmapWidth).move(scope_row, divider1_x + 1);
+    chart_->resize(chart_rows, kHeatmapWidth).move(scope_row, heatmap_x);
+    heatmap_->resize(heatmap_rows, kHeatmapWidth).move(scope_row + chart_rows + 1, heatmap_x);
   }
-  volume_meter_->resize(kScopeHeight, 9).move(scope_row, divider2_x + 1);
+  volume_meter_->resize(scope_rows, 9).move(scope_row, meter_x);
 
-  // Single-column dividers between the five scopes - drawn once here
-  // rather than per-frame, since these columns fall outside every scope's
-  // own resized rectangle, so nothing else ever repaints over them. (When
-  // hidden, the workspace below covers these rows instead.)
+  // Single-column dividers between the grid, the scopes and the meter, and a
+  // row between the two scopes - drawn once here rather than per-frame,
+  // since these cells fall outside every scope's own resized rectangle, so
+  // nothing else ever repaints over them. (When hidden, the workspace below
+  // covers these rows instead.)
   setFgColor(styles_.window_border_color);
   setBgColor(styles_.window_bg_color);
   const char * divider_glyph = styles_.grid_lines ? "│" : " ";
-  for (int row = 0; show_scopes && row < kScopeHeight; row++) {
-    putstr(scope_row + row, cover_art_divider_x, divider_glyph);
+  for (int row = 0; show_scopes && row < scope_rows; row++) {
     putstr(scope_row + row, matrix_divider_x, divider_glyph);
-    putstr(scope_row + row, divider1_x, divider_glyph);
-    putstr(scope_row + row, divider2_x, divider_glyph);
+    putstr(scope_row + row, meter_x - 1, divider_glyph);
+  }
+  if (show_scopes) {
+    for (int x = heatmap_x; x < heatmap_x + kHeatmapWidth; x++) putstr(scope_row + chart_rows, x, styles_.grid_lines ? "─" : " ");
   }
   // The workspace below the scope row. A widget the current view doesn't
   // show gets the same rect as a visible one instead of being shrunk to
   // nothing, and moveToTop() raises the visible ones above it.
-  int workspace_row = show_scopes ? 1 + kScopeHeight : 1;
+  int workspace_row = show_scopes ? 1 + scope_rows : 1;
   int workspace_rows = std::max(2, rows - 2 - workspace_row);
   if (getView() == View::LIVE) {
     // Live View: the left column (outline panel, with the scopes under
@@ -1191,6 +1184,10 @@ TerminalUI::renderComponents(bool refresh) {
   // render() gate), not at whichever earlier, input-handling call site
   // actually requested it.
   if (getView() == View::LIVE && syncLiveView()) force_next_render_ = true;
+  if (getView() == View::ARRANGEMENT && scopes_visible_ && arrangementScopeRows() != laid_out_scope_rows_) {
+    layout();
+    force_next_render_ = true;
+  }
   refresh = refresh || force_next_render_;
   force_next_render_ = false;
   bool render = false;
@@ -1255,8 +1252,10 @@ TerminalUI::renderComponents(bool refresh) {
     if (isOutlineVisible()) if (outline_view_->render(styles_, refresh, active == outline_view_)) { render = true; statCount("render:outline_view_"); }
   }
   if (pattern_editor_->render(styles_, refresh, active == pattern_editor_)) { render = true; statCount("render:pattern_editor_"); }
-  if (arrangement_grid_->render(styles_, refresh, active == arrangement_grid_, selected_track_id)) { render = true; statCount("render:arrangement_grid_"); }
-  if (cover_art_->render(styles_, refresh)) { render = true; statCount("render:cover_art_"); }
+  if (arrangement_grid_->render(styles_, refresh, active == arrangement_grid_, selected_track_id)) {
+    render = true;
+    statCount("render:arrangement_grid_");
+  }
   if (info_line_->render(styles_, refresh)) { render = true; statCount("render:info_line_"); }
   if (octave_control_->render(styles_, refresh)) { render = true; statCount("render:octave_control_"); }
 
