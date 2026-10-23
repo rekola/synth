@@ -11,7 +11,7 @@ namespace cellui {
 
 
 void
-InfoDialog::show(UIPlane & parent, const string & title, const string & source, int width, int max_rows) {
+InfoDialog::show(Plane & parent, const string & title, const string & source, int width, int max_rows) {
   auto lines = markdown::layout(markdown::parse(source), width - 4);
   // A padding row, the title, a gap, the text and a padding row.
   constexpr int kTopRows = 3, kChrome = 4;

@@ -59,7 +59,7 @@ class ArrangementGrid : public UIElement {
   // The focus level is still easing: the loop keeps drawing frames.
   bool isAnimating() const { return fades_.active() || focus_fade_drawn_; }
 
-  ArrangementGrid(UIPlane & parent);
+  ArrangementGrid(Plane & parent);
 
   // The header's rows (bar ruler, locators) and the names' width, in cells.
   static constexpr int kHeaderRows = 2;
@@ -151,7 +151,7 @@ class ArrangementGrid : public UIElement {
   double current_shown_col_ = -1;
   int current_phase_ = -1;
   bool shown_ = true, current_shown_ = true;
-  std::unique_ptr<UIPlane> bars_plane_;
+  std::unique_ptr<Plane> bars_plane_;
   std::tuple<int, int, int, int> laid_out_{-1, -1, -1, -1};
   bool current_smooth_playhead_ = false;
   int current_scroll_row_ = -1;

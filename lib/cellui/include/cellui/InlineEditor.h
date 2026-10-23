@@ -6,7 +6,7 @@
 #include <optional>
 #include <string>
 
-#include <cellui/UIPlane.h>
+#include <cellui/Plane.h>
 #include <cellui/Input.h>
 
 namespace cellui {
@@ -31,7 +31,7 @@ class InlineEditor {
     Color backdrop = Color(0, 0, 0);
   };
 
-  explicit InlineEditor(UIPlane & plane) : plane_(plane) { }
+  explicit InlineEditor(Plane & plane) : plane_(plane) { }
 
   // A no-op returning false if a reader is already open on the owner's plane.
   bool open(const Field & field, std::function<void(std::string)> commit);
@@ -50,7 +50,7 @@ class InlineEditor {
  private:
   void close();
 
-  UIPlane & plane_;
+  Plane & plane_;
   Field field_;
   std::function<void(std::string)> commit_;
   bool open_ = false;

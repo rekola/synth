@@ -15,7 +15,7 @@ class StatusLine : public UIElement {
  public:
   // No background of its own: the display cannot draw the last cell of the
   // last row, so a coloured row would end in a different one.
-  StatusLine(UIPlane & parent) : UIElement(parent) {
+  StatusLine(Plane & parent) : UIElement(parent) {
     getPlane().makeTransparent();
     getPlane().setBgDefault();
   }
@@ -285,7 +285,7 @@ class StatusLine : public UIElement {
   // completion]") immediately after whatever's currently typed (Emacs
   // shows its own equivalent messages the same way, right after point in
   // the minibuffer, not off in a fixed spot on the row) - see
-  // UIPlane::showReaderIndicator()'s own comment for why this needs its
+  // Plane::showReaderIndicator()'s own comment for why this needs its
   // own dedicated plane rather than being drawn onto the reader's. `text
   // == ""` clears it - a no-op outside a completing session (no
   // tab_completer_ set), and (when clearing) a no-op when nothing is

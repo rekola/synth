@@ -29,7 +29,7 @@ Produces `build/synth`.
 
 Dependencies (Ubuntu): `libfmt-dev libsndfile1-dev libasound2-dev
 libunistring-dev libsoundtouch-dev libcairo2-dev` plus CMake, pkg-config,
-git and a C++17 compiler. The terminal UI needs no terminal library: Cell
+git and a C++20 compiler. The terminal UI needs no terminal library: Cell
 UI's terminal backend (`lib/cellui`, `cellui/term/`) writes escape
 sequences itself. `libunistring-dev` backs `lib/cellui`'s `cellui/Utf8.h`
 grapheme-cluster-aware UTF-8 truncation/width helpers. `libsoundtouch-dev` backs `src/audio/TimeStretcher.h`'s
@@ -61,7 +61,7 @@ versions too: the channel meter's bars are one image over its bar rows, and
 the clip grid's and pattern editor's level meters are drawn through
 `Scopes::drawVuMeter()` into the widget's own plane (`cellui/VuMeterImage.h`;
 `drawCellVuMeter()` is the cell version), as images at cell positions
-(`UIPlane::drawImageAt()`: a plane holds one image per cell position, covering
+(`Plane::drawImageAt()`: a plane holds one image per cell position, covering
 only the cells it reaches, and the same picture - an id given to `drawImageAt()`, or a hash of its pixels - drawn again, even after
 `erase()` and at another position, keeps its key and version, so it isn't sent again, only placed; a meter scrolled partly out of view is drawn whole at its real position with a row clip, so its pixels do not change with the scroll).
 `libpipewire-0.3-dev` is optional too (`SYNTH_ENABLE_PIPEWIRE`,
@@ -392,7 +392,7 @@ in that tint, on its own line (`PatternSource::positionRow()`) - a
 playing track's playhead, a stopped one's position - so no column shows
 two marked rows. Every color lives in `StyleProvider`, so one color
 is one constant. The theme is `TerminalUI`'s own `styles_`: widgets get
-it in `render()`, and every `UIPlane` carries it too (`getStyles()`,
+it in `render()`, and every `Plane` carries it too (`getStyles()`,
 handed down to child planes), so plane-level drawing - the charts, the
 M-x selector, readers - uses the same instance. The per-character underline for
 EFFECT/VELOCITY/DELAY columns (indicating which hex digit `C-+`/`C--`-style
@@ -438,7 +438,7 @@ rejecting it (`Command::getAzimuthSlidePerTick()`).
 
 Keymap profiles: a display declares its `cellui::KeymapProfile`
 (`DisplayInfo::keymap_profile`: the terminal `EMACS`, the GTK window `DESKTOP`),
-which reaches widgets through `UIPlane::keymapProfile()`. `Keymap::bind(chord,
+which reaches widgets through `Plane::keymapProfile()`. `Keymap::bind(chord,
 name)` works in both profiles; `bind(profile, chord, name)` only in one and wins
 over a shared binding of the same chord. A binding is migrated by making it
 profile-specific; one that is not works everywhere. Migrated so far: the command
@@ -461,7 +461,7 @@ not taken for a command. The app gives it
 `PaletteEntry`s: names from `commandCompletions("")`, descriptions from
 `commandDescription()` (`ui/CommandDescriptions.cpp`; a test fails for a command
 without one, so add a line there with a new command), bindings from
-`Element::bindingFor()`, which reads the widget's `Keymap` for the display's
+`Widget::bindingFor()`, which reads the widget's `Keymap` for the display's
 profile (`Keymap::sequencesFor()`, spelled by `KeyChord::describe()`). Choosing
 runs `Controller::sendCommand()` after the palette has closed. Tab is
 Emacs-style completion (`CommandPalette::complete()`): the query becomes the
@@ -492,7 +492,7 @@ before it ever reaches `StatusLine`, the same as a terminal that sends
 Meta-x as one event directly; see that header's own top comment
 for why the wait has no deadline (modeled on Emacs's own indefinite
 ESC-as-Meta-prefix behavior, "ESC-" indicator included) rather than a
-short timing window. `UIPlane::showReader()`
+short timing window. `Plane::showReader()`
 now takes an optional prompt string and draws it *before* creating the
 reader's (opaque) child plane, offsetting the reader past it — the prompt
 used to be drawn via a separate `setMessage()` call *after* `showReader()`,
@@ -552,7 +552,7 @@ same one the volume meters use. When the terminal session found an image
 protocol (kitty graphics, iTerm2's inline images or Sixel) and the cell
 size in pixels, the pixel version (`cellui::pixelScopes()`) overrides
 `barCount()`/`drawBars()` to draw one bar per pixel column as the meter's
-plane's image (`UIPlane::pixelSize()`/`drawImage()`) instead; the choice is
+plane's image (`Plane::pixelSize()`/`drawImage()`) instead; the choice is
 made once at startup in `TerminalUI::initialize()` (`cellui::scopesFor()`). Both the spectrum and the DirAC heatmap show in
 Arrangement view's top band (stacked in a narrow column beside the arrangement grid) and in Live View's left column, stacked
 under the full-height outline panel, each below a title bar (only while the
@@ -1346,7 +1346,7 @@ would otherwise resume showing.
     (listing what can be chosen; executable-only, like `AlsaAudio`),
     `AudioBuffer`, `OfflineRenderer`.
   - `src/ui/` — toolkit-agnostic UI plumbing with no terminal
-    dependency: `UI`/`UIElement`/`UIPlane`/`UIMenu` (abstract app/widget/
+    dependency: `UI`/`UIElement`/`Plane`/`UIMenu` (abstract app/widget/
     render-surface interfaces a future non-terminal UI could implement
     against too - a concrete backend's real implementation, e.g.
     `TerminalMenu`, lives entirely inside that backend's own file, not
@@ -1416,25 +1416,25 @@ would otherwise resume showing.
   position, press/release kind, and the key ids `cellui::Key::Up` and so on, `Key::` in the app; the app's
   `InputEvent` is an `Input` that is also an `Event`; the note-entry key mapping
   is `keyToMidiNote()` in `playback/KeyboardNotes.h`), the key chord packing, `Keymap` and `CommandRegistry`, and the theme (`Theme`,
-  `StyleProvider`) and `UIPlane` (it carries the app's own object as an opaque
+  `StyleProvider`) and `Plane` (it carries the app's own object as an opaque
   `getAppContext()`, which `UIElement::getController()` casts back; input is
-  `cellui::Input`), and the widget base `Element` (`Element.h`: the plane,
+  `cellui::Input`), and the widget base `Widget` (`Widget.h`: the plane,
   drawing, `offerInput(const Input &)`, the keymap and prefix-chord dispatch;
   the app's `UIElement` adds the event handler and the controller), `UIMenu`, and the 2D grid chart contract
   `HeatmapChart`, the generic widgets (`ChoiceDialog`, `InlineEditor`, `SpinBox`, `CoverArt`, `ChannelMeter`,
   `SpectrumMeter` and `LevelMeter.h`'s one dB mapping, ballistics and glyph cells, plus
-  `Digit.h`, `Viewport.h`: the offset, `reveal()` margins and the wheel's detached state every scrolling widget shares; `ChoiceList` (so `ChoiceDialog`), `OutlineView` and `ArrangementGrid` use it; where `DisplayInfo::smooth_scroll` it also animates a shown position toward the offset, and a widget on a plane of its own draws one row more and calls `UIPlane::setScrollOffset()` with the fraction - the plane then composes as a `BackdropLayer::scroll` layer, which the window draws translated from a texture of its own, as `PatternEditor` (its rows, on a plane under the one with the headings; in Live View each track's column has a plane of its own and an offset of its own, `ColumnScroll`, measured from how far `PatternSource::trackLine()` of the top row moved, so a playing column glides while the still ones stay put, each column's own line is a `setBand()` over its plane that holds still while the rows scroll under it, and a playing column scrolls at the tempo's constant speed (`PatternSource::trackScrollRate()`) instead of easing to each row: the shown top trails the logical one by an offset that eases to zero, so a scroll of up to a few rows glides, and the cell-drawn cursor row moves with the content), `ChoiceDialog` (its entries on a plane of their own over the box, under the same kind of cursor band, easing to the selection), `ArrangementGrid` and `OutlineView` (its tree on a plane of its own, under the heading and the button bar, and its cursor, on a smoothly scrolling display, a translucent `setBand()` over the tree so the row shows through: it eases to its row in the view, so at the first or last row in view, with the keys going on, it stays in place and only the content moves (other displays highlight the row in the tree); the content extends the button bar's rows past the last row so that one can scroll clear of the bar) do; `UIPlane::setBand()` puts a translucent strip at a fractional row over such a plane, unshifted, which is the arrangement grid's playhead while the transport plays), `InfoDialog` (the cell rendering of a Markdown info box; a
+  `Digit.h`, `Viewport.h`: the offset, `reveal()` margins and the wheel's detached state every scrolling widget shares; `ChoiceList` (so `ChoiceDialog`), `OutlineView` and `ArrangementGrid` use it; where `DisplayInfo::smooth_scroll` it also animates a shown position toward the offset, and a widget on a plane of its own draws one row more and calls `Plane::setScrollOffset()` with the fraction - the plane then composes as a `BackdropLayer::scroll` layer, which the window draws translated from a texture of its own, as `PatternEditor` (its rows, on a plane under the one with the headings; in Live View each track's column has a plane of its own and an offset of its own, `ColumnScroll`, measured from how far `PatternSource::trackLine()` of the top row moved, so a playing column glides while the still ones stay put, each column's own line is a `setBand()` over its plane that holds still while the rows scroll under it, and a playing column scrolls at the tempo's constant speed (`PatternSource::trackScrollRate()`) instead of easing to each row: the shown top trails the logical one by an offset that eases to zero, so a scroll of up to a few rows glides, and the cell-drawn cursor row moves with the content), `ChoiceDialog` (its entries on a plane of their own over the box, under the same kind of cursor band, easing to the selection), `ArrangementGrid` and `OutlineView` (its tree on a plane of its own, under the heading and the button bar, and its cursor, on a smoothly scrolling display, a translucent `setBand()` over the tree so the row shows through: it eases to its row in the view, so at the first or last row in view, with the keys going on, it stays in place and only the content moves (other displays highlight the row in the tree); the content extends the button bar's rows past the last row so that one can scroll clear of the bar) do; `Plane::setBand()` puts a translucent strip at a fractional row over such a plane, unshifted, which is the arrangement grid's playhead while the transport plays), `InfoDialog` (the cell rendering of a Markdown info box; a
   backend with richer text drawing lays out `markdown::parse()` itself instead,
   through `UI::showInfoDialog(title, markdown)`), and `BufferPlane`/`CellBuffer` (a
   plane that keeps its own cells, the way a screen's planes do - drawing, moving,
   raising and hiding work on the plane, and `refresh()` composes the tree into a
   grid of cells rendering as plain text or ANSI; a plane's elevation,
-  `UIPlane::setElevation()`, adds to its parent's, and the tree is drawn lowest
+  `Plane::setElevation()`, adds to its parent's, and the tree is drawn lowest
   first, planes of one height in tree order, so a popup floats over everything
   below it wherever it sits in the tree - `Theme::elevation`'s steps, in cell
   widths: panel, raised (the pattern editor's track headers), card (the clip
   grid's clips), overlay for menus, pickers and popups, modal for a modal dialog and
-  its scrim; cells can stand above their plane too (`UIPlane::setLift()`, a
+  its scrim; cells can stand above their plane too (`Plane::setLift()`, a
   cell attribute, so a partial redraw keeps it: a run in a row is one piece,
   joined to the one above only when asked) - and every frame tells the backend
   the areas above the base, `FrameInfo::elevations`) with the gallery page
@@ -1442,7 +1442,7 @@ would otherwise resume showing.
   `lib/cellui/tests/golden/`, rewritten with `CELLUI_UPDATE_GOLDEN=1`) (`HeatmapChart.h`, with the fixed hue and the HSV helper its
   renderers share). The old paths (`util/Utf8.h`, `ui/Markdown.h`,
   `ui/ChoiceList.h`, `ui/tui/SubcellGlyphs.h`, `model/Color.h`, `ui/Keymap.h`, `ui/CommandRegistry.h`, `ui/KeyChord.h`, `ui/Theme.h`,
-  `ui/StyleProvider.h`, `ui/UIPlane.h`, `ui/HeatmapChart.h`, `ui/UIMenu.h`, `util/digit.h` and the headers of the widgets above in
+  `ui/StyleProvider.h`, `ui/Plane.h`, `ui/HeatmapChart.h`, `ui/UIMenu.h`, `util/digit.h` and the headers of the widgets above in
   `ui/tui/`) are forwarding
   headers with aliases (`Utf8`, `markdown`, `Color`, ...), so call sites did not
   change; what stays in the app is what knows the song or the controller (`PatternEditor`,
@@ -1512,7 +1512,7 @@ would otherwise resume showing.
   cells redrawn only when what they show changed. `TestBackend` stacks the layers
   unblurred (`info().backdrops` has them) and shows them as a terminal does after
   `emulateBackdrops(true)`.
-  The pointer's shape is a plane attribute (`UIPlane::setMouseCursor()`,
+  The pointer's shape is a plane attribute (`Plane::setMouseCursor()`,
   `MouseCursor`: `INHERIT` shows what is below, `DEFAULT`/`POINTER`/`TEXT`):
   `refresh()` lists the rectangles of the planes that asked for one, in drawing
   order, as `FrameInfo::mouse_cursors` (`takeMouseCursors()`, `mouseCursorAt()`),
@@ -1796,7 +1796,7 @@ would otherwise resume showing.
 
 ## Conventions
 
-- C++17, no exceptions ethos in audio path; state objects (`*State.h`) are
+- C++20, no exceptions ethos in audio path; state objects (`*State.h`) are
   separated from song model objects so playback state can be reset cheaply.
 - The build enables many `-Werror=` flags plus `-Wsign-conversion`; new code
   must compile warning-clean.

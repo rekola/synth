@@ -45,10 +45,10 @@ static SongScope songScopeOf(SelectionScope scope) {
 // needs the exact same addressable-track list/order to resolve a device's
 // assigned track to a track_id, without PatternEditor being involved.
 
-PatternEditor::PatternEditor(UIPlane & parent)
-  : UIElement(parent),
-    arrangement_source_(std::make_unique<ArrangementPatternSource>(getController())),
-    scene_source_(std::make_unique<ScenePatternSource>(getController())) {
+PatternEditor::PatternEditor(Plane & parent)
+    : UIElement(parent),
+      arrangement_source_(std::make_unique<ArrangementPatternSource>(getController())),
+      scene_source_(std::make_unique<ScenePatternSource>(getController())) {
   source_ = arrangement_source_.get();
   // Whichever buffer is already active by construction time (main.cpp
   // always opens/creates one before the UI itself exists) - without this,
@@ -3230,7 +3230,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 
   // A sample clip's own waveform box (SAMPLE track placeholder, below):
   // sextants (2x3 sub-cells) when this terminal actually supports Unicode
-  // 13's sextant range (UIPlane::canRenderSextants()), else quadrants
+  // 13's sextant range (Plane::canRenderSextants()), else quadrants
   // (2x2, always supported) - the capability figured out once at
   // TerminalPlane construction, not re-queried per row. Reuses
   // SubcellGlyphs.h's exact tables rather than a second copy of them, the
@@ -3405,8 +3405,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     }
     struct ColumnPlane {
       PatternEditor & editor;
-      std::unique_ptr<UIPlane> * plane;
-      ColumnPlane(PatternEditor & e, std::unique_ptr<UIPlane> * p) : editor(e), plane(p) {
+      std::unique_ptr<Plane> * plane;
+      ColumnPlane(PatternEditor & e, std::unique_ptr<Plane> * p) : editor(e), plane(p) {
         if (plane) editor.swapPlane(*plane);
       }
       ~ColumnPlane() {
@@ -3467,8 +3467,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       setFgColor(in_selection ? fg : tintForPlayhead(fg));
       setBgColor(in_selection ? bg : tintForPlayhead(bg));
 
-      putstr(display_row, current_pos, pattern_row < 0 ? string(static_cast<size_t>(row_digits_ + 2), ' ') : format(" {:0{}x} ", pattern_row, row_digits_));
-	
+      putstr(display_row, current_pos, pattern_row < 0 ? string(static_cast<size_t>(row_digits_ + 2), ' ') : fmt::format(" {:0{}x} ", pattern_row, row_digits_));
+
       setFgColor(styles.window_border_color);
       setBgColor(styles.window_bg_color);
 	
@@ -3590,7 +3590,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
         auto own_row = own.block < 0 ? -1 : own.row;
         setFgColor(in_selection ? fg : tintForPlayhead(fg));
         setBgColor(in_selection ? bg : tintForPlayhead(bg));
-        auto number = own_row < 0 ? string() : format("{:02x}", own_row);
+        auto number = own_row < 0 ? string() : fmt::format("{:02x}", own_row);
         number.resize(static_cast<size_t>(track_info.row_number_width_), ' ');
         putstr(display_row, current_pos, number);
         current_pos += track_info.row_number_width_;
@@ -3899,13 +3899,13 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  auto own_address = source_->trackAddress(track_id, address);
 	  if (pending_.valid && pending_.track_id == track_id && pending_.note_column == l && pending_.type == column_type &&
 	      source_->trackAddress(track_id, pending_.at) == own_address) {
-	    s = format("{:02x}", pending_.value);
-	  } else if (note.isDefined()) {
+            s = fmt::format("{:02x}", pending_.value);
+          } else if (note.isDefined()) {
 	    if (column_type == ColumnType::VELOCITY && note.isOff()) {
 	      s = "  ";
 	    } else {
-	      s = format("{:02x}", column_type == ColumnType::VELOCITY ? note.getVelocity() : note.getDelay());
-	    }
+              s = fmt::format("{:02x}", column_type == ColumnType::VELOCITY ? note.getVelocity() : note.getDelay());
+            }
 	  } else {
 	    s = "--";
 	  }

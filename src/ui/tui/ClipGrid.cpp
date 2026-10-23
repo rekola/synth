@@ -81,7 +81,7 @@ constexpr int kHeaderFlagsWidth = 5;
 
 }
 
-ClipGrid::ClipGrid(UIPlane & parent) : UIElement(parent) {
+ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
   getPlane().setName("clip-grid");
   getPlane().setMouseCursor(cellui::MouseCursor::POINTER);
   // Mute/Solo apply to the cursor's own column (a per-track state, not
@@ -678,7 +678,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   erase();
   // erase() alone leaves this plane's own base cell showing through
   // wherever nothing below explicitly writes a cell (its own semi-
-  // transparent debug base, UIPlane::createChild()) - this widget shares
+  // transparent debug base, Plane::createChild()) - this widget shares
   // its exact screen rect with pattern_editor_ (see UI::layout()), so
   // any such gap would show pattern_editor_'s last real content bleeding
   // through underneath rather than a plain blank. fill() (plain spaces,

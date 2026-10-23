@@ -1,5 +1,5 @@
 #include <cellui/InlineEditor.h>
-#include <cellui/UIPlane.h>
+#include <cellui/Plane.h>
 #include <cellui/Input.h>
 
 #include <utility>

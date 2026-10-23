@@ -39,7 +39,7 @@ ArrangementGrid::moveCursorBar(int delta) {
   cursor_bar_ = clamp(cursor_bar_ + delta, 0, Song::kMaxArrangementRows - 1);
 }
 
-ArrangementGrid::ArrangementGrid(UIPlane & parent) : UIElement(parent) {
+ArrangementGrid::ArrangementGrid(Plane & parent) : UIElement(parent) {
   getPlane().setName("arrangement-grid");
   getPlane().setMouseCursor(cellui::MouseCursor::POINTER);
   // Deliberate no-ops, not left undefined: a Launchpad's CC91/92 ("move-
@@ -376,7 +376,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   current_focused_ = focused;
   current_shown_ = shown_;
 
-  UIPlane & bars_plane = *bars_plane_;
+  Plane & bars_plane = *bars_plane_;
   setFgColor(styles.window_fg_color);
   setBgColor(styles.window_bg_color);
   erase();

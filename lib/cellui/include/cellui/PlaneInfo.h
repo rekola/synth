@@ -11,12 +11,12 @@ namespace cellui {
 // What a plane is, as a test or an inspector sees it: its place inside its
 // parent, its size, whether it shows, and the planes on it, bottom to top.
 struct PlaneInfo {
-  std::string name;  // set by the application (UIPlane::setName()), may be empty
+  std::string name;  // set by the application (Plane::setName()), may be empty
   int y = 0, x = 0;  // relative to the parent
   int rows = 0, cols = 0;
   bool visible = true;
-  float elevation = 0;  // above the parent (UIPlane::setElevation())
-  MouseCursor mouse_cursor = MouseCursor::INHERIT;  // UIPlane::setMouseCursor()
+  float elevation = 0;  // above the parent (Plane::setElevation())
+  MouseCursor mouse_cursor = MouseCursor::INHERIT;  // Plane::setMouseCursor()
   bool reader = false;  // a text field is open on this plane
   bool picker = false;  // a picker is open on this plane
   std::vector<PlaneInfo> children;

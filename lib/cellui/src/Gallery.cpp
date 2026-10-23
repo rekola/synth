@@ -18,7 +18,7 @@ namespace {
 
 class Page {
  public:
-  Page(UIPlane & plane, const Theme & theme) : plane_(plane), theme_(theme) { }
+  Page(Plane & plane, const Theme & theme) : plane_(plane), theme_(theme) { }
 
   int row() const { return row_; }
   void skip(int rows = 1) { row_ += rows; }
@@ -56,7 +56,7 @@ class Page {
   }
 
  private:
-  UIPlane & plane_;
+  Plane & plane_;
   const Theme & theme_;
   int row_ = 0;
 };
@@ -75,7 +75,7 @@ Color readableOn(const Color & bg) {
 
 }  // namespace
 
-Gallery::Gallery(UIPlane & plane, const Theme & theme) {
+Gallery::Gallery(Plane & plane, const Theme & theme) {
   const StyleProvider & styles = plane.getStyles();
   int width = plane.getDim().second;
 

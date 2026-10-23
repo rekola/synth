@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cellui/Element.h>
+#include <cellui/Widget.h>
 #include <cellui/LevelMeter.h>
 
 #include <vector>
@@ -9,9 +9,9 @@ namespace cellui {
 
 // The scope row's live spectrum: log-frequency bars drawn with the same
 // sub-cell renderer as the volume meters, two bins per cell. No peak hold.
-class SpectrumMeter : public Element {
+class SpectrumMeter : public Widget {
 public:
-  explicit SpectrumMeter(UIPlane & parent) : Element(parent) { }
+  explicit SpectrumMeter(Plane & parent) : Widget(parent) { }
   ~SpectrumMeter() override = default;
 
   // A fresh spectrum, dBFS per linear frequency bin `bin_hz` apart from DC.

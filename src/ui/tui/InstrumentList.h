@@ -7,8 +7,7 @@
 
 class InstrumentList : public UIElement {
  public:
-  InstrumentList(UIPlane & parent) : UIElement(parent) {
-
+  InstrumentList(Plane & parent) : UIElement(parent) {
   }
 
   bool offerInput(const cellui::Input & input) override;

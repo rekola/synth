@@ -5,7 +5,7 @@
 #include "HeatmapGrid.h"
 
 #include <cellui/StyleProvider.h>
-#include <cellui/UIPlane.h>
+#include <cellui/Plane.h>
 #include <cellui/Utf8.h>
 
 #include <algorithm>
@@ -21,7 +21,7 @@ namespace {
 
 // The heatmap in cells, no pixel graphics needed: paints one Unicode block glyph per character cell - a sextant
 // (2x3 sub-cells, SubcellGlyphs.h's sextantCodepoint()) when
-// UIPlane::canRenderSextants() confirms the terminal supports Unicode
+// Plane::canRenderSextants() confirms the terminal supports Unicode
 // 13's sextant range, else a quadrant (2x2 sub-cells, kQuadrantCodepoints),
 // read once at construction (the terminal's capabilities don't change
 // mid-session) - tripling (sextants) or doubling (quadrants) the
@@ -38,7 +38,7 @@ namespace {
 // 3x or 2x vertically depending on sextant support).
 class CellHeatmapChart : public HeatmapChart {
 public:
-  CellHeatmapChart(UIPlane & parent, int grid_cols, int grid_rows)
+  CellHeatmapChart(Plane & parent, int grid_cols, int grid_rows)
     : HeatmapChart(parent, grid_cols, grid_rows) {
     use_sextants_ = getPlane().canRenderSextants();
   }
@@ -148,7 +148,7 @@ private:
 
 }  // namespace
 
-void drawCellVuMeter(UIPlane & plane, int row, int col, int rows, const VuReading & reading, const VuMeterLook & look, int clip_top,
+void drawCellVuMeter(Plane & plane, int row, int col, int rows, const VuReading & reading, const VuMeterLook & look, int clip_top,
                      int clip_bottom) {
   if (rows <= 0) return;
   auto & styles = plane.getStyles();
@@ -170,12 +170,12 @@ namespace {
 
 class CellScopes : public Scopes {
  public:
-  std::shared_ptr<SpectrumMeter> spectrum(UIPlane & parent) const override { return std::make_shared<SpectrumMeter>(parent); }
-  std::shared_ptr<HeatmapChart> heatmap(UIPlane & parent, int grid_cols, int grid_rows) const override {
+  std::shared_ptr<SpectrumMeter> spectrum(Plane & parent) const override { return std::make_shared<SpectrumMeter>(parent); }
+  std::shared_ptr<HeatmapChart> heatmap(Plane & parent, int grid_cols, int grid_rows) const override {
     return std::make_shared<CellHeatmapChart>(parent, grid_cols, grid_rows);
   }
-  std::shared_ptr<ChannelMeter> channelMeter(UIPlane & parent) const override { return std::make_shared<ChannelMeter>(parent); }
-  void drawVuMeter(UIPlane & plane, int row, int col, int rows, const VuReading & reading, const VuMeterLook & look, int clip_top,
+  std::shared_ptr<ChannelMeter> channelMeter(Plane & parent) const override { return std::make_shared<ChannelMeter>(parent); }
+  void drawVuMeter(Plane & plane, int row, int col, int rows, const VuReading & reading, const VuMeterLook & look, int clip_top,
                    int clip_bottom, uint64_t) const override {
     drawCellVuMeter(plane, row, col, rows, reading, look, clip_top, clip_bottom);
   }
