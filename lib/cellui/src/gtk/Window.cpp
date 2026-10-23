@@ -527,6 +527,26 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
           graphene_rect_t shown = GRAPHENE_RECT_INIT(static_cast<float>(content.col * cell_w), static_cast<float>(content.row * cell_h),
                                                      static_cast<float>(content.cols * cell_w), static_cast<float>(content.rows * cell_h));
           graphene_point_t shift = GRAPHENE_POINT_INIT(static_cast<float>(-content.shift_cols * cell_w), static_cast<float>(-content.shift_rows * cell_h));
+          if (content.blended()) {
+            // A plane laid over what is below with a blend: that as a node, the
+            // plane's texture blended with a copy of it inside the plane.
+            GskRenderNode * under = gtk_snapshot_free_to_node(s);
+            s = gtk_snapshot_new();
+            gtk_snapshot_append_node(s, under);
+            gtk_snapshot_push_clip(s, &shown);
+            gtk_snapshot_push_blend(s, gskBlendMode(content.blend));
+            gtk_snapshot_append_node(s, under);
+            gtk_snapshot_pop(s);
+            gtk_snapshot_push_opacity(s, content.blend_alpha);
+            gtk_snapshot_save(s);
+            gtk_snapshot_translate(s, &shift);
+            appendTexture(s, paint(layers.size() + 1 + scrolls++, content.cells, true, false), content.row, content.col);
+            gtk_snapshot_restore(s);
+            gtk_snapshot_pop(s);
+            gtk_snapshot_pop(s);
+            gtk_snapshot_pop(s);
+            gsk_render_node_unref(under);
+          } else {
           gtk_snapshot_push_clip(s, &shown);
           gtk_snapshot_save(s);
           gtk_snapshot_translate(s, &shift);
@@ -558,6 +578,7 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
             gtk_snapshot_pop(s);
             gtk_snapshot_pop(s);
             gsk_render_node_unref(under);
+          }
           }
         }
         GskRenderNode * composed = gtk_snapshot_free_to_node(s);

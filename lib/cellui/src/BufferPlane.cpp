@@ -208,7 +208,7 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
   int col_lo = std::max(clip_col, col), col_hi = std::min(clip_col + clip_cols, col + plane_cols);
   // A plane shifted by a fraction of a cell is the display's to draw: what is
   // composed below it is set aside, with the plane's cells, as a layer.
-  if ((scroll_rows_ > 0 || scroll_cols_ > 0 || (band_ && top.smooth_scroll_)) && row_lo < row_hi && col_lo < col_hi && row_lo == row && col_lo == col && row_hi == row + plane_rows &&
+  if ((scroll_rows_ > 0 || scroll_cols_ > 0 || ((band_ || blended()) && top.smooth_scroll_)) && row_lo < row_hi && col_lo < col_hi && row_lo == row && col_lo == col && row_hi == row + plane_rows &&
       col_hi == col + plane_cols) {
     ScrollContent content;
     content.cells = local_;
@@ -229,6 +229,8 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
     content.shift_rows = scroll_rows_;
     content.shift_cols = scroll_cols_;
     content.band = band_;
+    content.blend = blend_;
+    content.blend_alpha = blend_alpha_;
     top.layers_.push_back(BackdropLayer{ out, Backdrop{}, row, col, plane_rows, plane_cols, std::move(content) });
     out.clear(0, 0, out.rows(), out.cols());
     return;
@@ -273,6 +275,17 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
           below.lift = 0.0f;
           out.put(r, c, below);
         }
+        continue;
+      }
+      // A blended plane tints what is below with the colour its cell sets.
+      if (blended()) {
+        if (!cell.bg || cell.continuation) continue;
+        CellBuffer::Cell tinted = out.at(r, c);
+        if (tinted.image > 0) continue;
+        tinted.bg = blendColors(blend_, tinted.bg.value_or(top.default_bg_), *cell.bg, blend_alpha_);
+        tinted.fg = blendColors(blend_, tinted.fg.value_or(top.default_fg_), *cell.bg, blend_alpha_);
+        tinted.bg_blend = tinted.fg_contrast = false;
+        out.put(r, c, tinted);
         continue;
       }
       // A double-width character is drawn whole or not at all.

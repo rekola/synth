@@ -37,6 +37,10 @@ struct ScrollContent {
   double shift_rows = 0, shift_cols = 0;
   // Drawn over the content, inside the plane, not shifted.
   std::optional<Band> band;
+  // The plane is laid over what is below with this blend, `blend_alpha` of the way.
+  BlendMode blend = BlendMode::NORMAL;
+  float blend_alpha = 1.0f;
+  bool blended() const { return blend != BlendMode::NORMAL || blend_alpha < 1.0f; }
 };
 
 struct BackdropLayer {

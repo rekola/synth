@@ -635,6 +635,56 @@ TEST(bufferplane_a_band_on_a_display_without_smooth_scrolling_blends_the_cells) 
   CHECK(is(b.at(2, 2).bg, 255, 0, 0) && is(b.at(1, 2).bg, 10, 20, 30));
 }
 
+// Any plane can lay itself over the planes below with a blend: the colours its
+// cells set tint what is there, text below included; its own text is not drawn.
+TEST(bufferplane_a_blended_plane_tints_what_is_below) {
+  StyleProvider styles;
+  CellBuffer b(3, 6);
+  BufferPlane root(b, styles);
+  root.setDefaultColors(Color(255, 255, 255), Color(0, 0, 0));
+  auto below = root.createChild();
+  below->resize(3, 6);
+  below->setFgColor(200, 100, 50);
+  below->setBgColor(10, 20, 30);
+  below->putstr(1, 0, "abcdef");
+  auto over = root.createChild();
+  over->resize(1, 2);
+  over->move(1, 2);
+  over->makeTransparent();
+  over->setBgColor(255, 255, 255);
+  over->setFgColor(0, 255, 0);
+  over->putstr(0, 0, "xy");
+  over->setBlend(BlendMode::DIFFERENCE);
+  root.refresh();
+  auto is = [](const std::optional<Color> & c, int r, int g, int bl) { return c && c->getRed() == r && c->getGreen() == g && c->getBlue() == bl; };
+  CHECK(b.at(1, 2).text == "c" && is(b.at(1, 2).bg, 245, 235, 225) && is(b.at(1, 2).fg, 55, 155, 205));
+  CHECK(is(b.at(1, 3).bg, 245, 235, 225));
+  CHECK(is(b.at(1, 1).bg, 10, 20, 30) && is(b.at(1, 4).bg, 10, 20, 30));
+  over->setBlend(BlendMode::NORMAL, 1.0f);
+  root.refresh();
+  CHECK(b.at(1, 2).text == "x");
+}
+
+// On a display that scrolls by parts of a cell, a blended plane is a layer for
+// the display to blend.
+TEST(bufferplane_a_blended_plane_is_a_layer_on_a_smooth_display) {
+  StyleProvider styles;
+  CellBuffer b(3, 6);
+  BufferPlane root(b, styles);
+  root.setSmoothScroll(true);
+  auto over = root.createChild();
+  over->resize(1, 3);
+  over->move(1, 1);
+  over->makeTransparent();
+  over->setBgColor(255, 255, 255);
+  over->putstr(0, 0, "   ");
+  over->setBlend(BlendMode::MULTIPLY, 0.5f);
+  root.refresh();
+  auto layers = root.takeBackdropLayers();
+  CHECK(layers.size() == 1 && layers[0].scroll && layers[0].scroll->blended());
+  CHECK(layers[0].scroll->blend == BlendMode::MULTIPLY && layers[0].scroll->blend_alpha == 0.5f);
+}
+
 TEST(bufferplane_higher_planes_draw_over_lower_ones_wherever_they_are_in_the_tree) {
   StyleProvider styles;
   CellBuffer b(1, 6);
