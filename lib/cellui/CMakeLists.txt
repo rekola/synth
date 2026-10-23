@@ -205,6 +205,7 @@ add_executable(cellui_tests
   tests/CommandPaletteTests.cpp
   tests/ColorTests.cpp
   tests/DiscoveryTests.cpp
+  tests/EventTests.cpp
   tests/SignalTests.cpp
   tests/WidgetTests.cpp
   tests/FadeTests.cpp
