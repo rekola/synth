@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cellui/BackdropLayer.h>
+#include <cellui/MouseCursor.h>
 
 #include <string>
 #include <vector>
@@ -10,11 +11,12 @@ namespace cellui {
 // What a plane is, as a test or an inspector sees it: its place inside its
 // parent, its size, whether it shows, and the planes on it, bottom to top.
 struct PlaneInfo {
-  std::string name;  // set by the application (UIPlane::setName()), may be empty
+  std::string name;  // set by the application (Plane::setName()), may be empty
   int y = 0, x = 0;  // relative to the parent
   int rows = 0, cols = 0;
   bool visible = true;
-  float elevation = 0;  // above the parent (UIPlane::setElevation())
+  float elevation = 0;  // above the parent (Plane::setElevation())
+  MouseCursor mouse_cursor = MouseCursor::INHERIT;  // Plane::setMouseCursor()
   bool reader = false;  // a text field is open on this plane
   bool picker = false;  // a picker is open on this plane
   std::vector<PlaneInfo> children;
@@ -33,6 +35,12 @@ struct ElevatedArea {
   bool shadow = true;
 };
 
+// The part of the screen a plane asked a pointer shape for.
+struct CursorArea {
+  int row = 0, col = 0, rows = 0, cols = 0;
+  MouseCursor cursor = MouseCursor::DEFAULT;
+};
+
 // What an application tells a backend about a frame besides its cells.
 struct FrameInfo {
   PlaneInfo planes;
@@ -45,6 +53,18 @@ struct FrameInfo {
   // Every shown plane above the base, in the order they are drawn (lowest
   // first). Always given.
   std::vector<ElevatedArea> elevations;
+  // The areas planes asked a pointer shape for, in the order they are drawn
+  // (lowest first): the last one over a cell sets its shape, and a cell none
+  // covers has the arrow. Always given.
+  std::vector<CursorArea> mouse_cursors;
 };
+
+// The pointer's shape over a cell.
+inline MouseCursor mouseCursorAt(const std::vector<CursorArea> & areas, int row, int col) {
+  for (auto a = areas.rbegin(); a != areas.rend(); ++a) {
+    if (row >= a->row && row < a->row + a->rows && col >= a->col && col < a->col + a->cols) return a->cursor;
+  }
+  return MouseCursor::DEFAULT;
+}
 
 }  // namespace cellui

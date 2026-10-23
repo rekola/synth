@@ -10,8 +10,7 @@
 #include <memory>
 
 // Root of the ephemeral, per-note voice chain (as opposed to TrackState,
-// the persistent, per-block-rendered track tree) - see
-// plans/trackstate-voicestate-split.md for the full rationale. Built fresh
+// the persistent, per-block-rendered track tree). Built fresh
 // by Track::playNote() for every note-on (Oscillator/Noise/
 // SoundFontInstrument/GenericInstrument each construct
 // their own leaf/group VoiceState directly; Group and the

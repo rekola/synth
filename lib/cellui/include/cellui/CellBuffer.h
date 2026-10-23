@@ -40,7 +40,7 @@ class CellBuffer {
     // colours of its own the cell is just that.
     Backdrop backdrop = {};
     // How far the cell stands above its plane, in cell widths
-    // (UIPlane::setLift()); once composed, its height above the base.
+    // (Plane::setLift()); once composed, its height above the base.
     float lift = 0.0f;
     // Part of one piece with the lifted cells right above it.
     bool lift_joined = false;

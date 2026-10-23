@@ -145,3 +145,39 @@ TEST(testbackend_frame_reports_the_cursor_and_images) {
   // The reader is open on the plane showReader() was called on.
   CHECK(t.info().planes.reader);
 }
+
+TEST(testbackend_reports_no_hdr_until_told_and_says_when_it_changes) {
+  TestBackend t(4, 10);
+  CHECK(!t.display().hdr);
+  HdrInfo hdr;
+  hdr.available = true;
+  hdr.peak = 4.0f;
+  hdr.sdr_white_nits = 203.0f;
+  hdr.gamut = Gamut::REC2020;
+  t.setHdr(hdr);
+  auto e = t.poll();
+  CHECK(e.size() == 1 && e[0].type == BackendEvent::Type::DISPLAY);
+  CHECK(t.display().hdr && *t.display().hdr == hdr);
+  t.setHdr(std::nullopt);
+  e = t.poll();
+  CHECK(e.size() == 1 && e[0].type == BackendEvent::Type::DISPLAY);
+  CHECK(!t.display().hdr);
+}
+
+TEST(testbackend_sdr_frame_is_the_frame_clipped_to_srgb) {
+  TestBackend t(2, 6);
+  CellBuffer f(2, 6);
+  CellBuffer::Style led;
+  led.fg = Color("color(rec2020 0 1 0)");
+  led.bg = Color(200, 30, 30) * 6.0f;
+  f.write(0, 0, "x", led);
+  t.present(f);
+  // The frame holds what was drawn; the clipped copy what a terminal shows.
+  CHECK(*t.frame().at(0, 0).bg == *led.bg);
+  CellBuffer sdr = t.sdrFrame();
+  CHECK(sdr.at(0, 0).text == "x");
+  CHECK(*sdr.at(0, 0).bg == Color(255, 41, 41));
+  auto fg = led.fg->toSrgb8();
+  CHECK(*sdr.at(0, 0).fg == Color(fg[0], fg[1], fg[2]));
+  CHECK(!sdr.at(1, 3).fg && !sdr.at(1, 3).bg);
+}

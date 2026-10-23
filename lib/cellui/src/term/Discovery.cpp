@@ -86,11 +86,8 @@ namespace {
 
 // WCAG relative luminance, 0 (black) to 1 (white).
 double luminance(const Color & c) {
-  auto linear = [](int v) {
-    double s = v / 255.0;
-    return s <= 0.04045 ? s / 12.92 : std::pow((s + 0.055) / 1.055, 2.4);
-  };
-  return 0.2126 * linear(c.getRed()) + 0.7152 * linear(c.getGreen()) + 0.0722 * linear(c.getBlue());
+  auto l = c.linearSrgb();
+  return 0.2126 * l[0] + 0.7152 * l[1] + 0.0722 * l[2];
 }
 
 }  // namespace

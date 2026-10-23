@@ -16,7 +16,7 @@
 // cells. Where the display scrolls smoothly the view follows it with an
 // animation: shown() is the position now, the widget draws from firstShown()
 // with one cell more than the view holds, and the plane shifts that by
-// fraction() (UIPlane::setScrollOffset()). Where it does not, shown() is the
+// fraction() (Plane::setScrollOffset()). Where it does not, shown() is the
 // offset itself and fraction() is 0.
 namespace cellui {
 

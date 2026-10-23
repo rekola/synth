@@ -1,21 +1,22 @@
 # User interface
 
 Everything the program does is a named command (`kill-region`, `launch-scene`,
-`undo`, ...). Every command can be run by name from M-x, most are in the menus,
-and a keymap binds keys to them. The bindings below are the Emacs keymap, the
-one the terminal interface uses: a terminal can't send many of the key
-combinations the usual desktop shortcuts rely on (most Ctrl+Shift chords,
+`undo`, ...). Every command can be run by name from the
+[command palette](#command-palette), most are in the menus, and a keymap binds
+keys to them.
+
+There are two keymaps, and a display uses one of them: the terminal the Emacs
+keymap, the window the desktop one. The command names are the same in both.
+The terminal uses the Emacs keymap because a terminal can't send many of the
+key combinations the usual desktop shortcuts rely on (most Ctrl+Shift chords,
 and Ctrl-C, Ctrl-Z and Ctrl-S belong to the terminal itself), while Emacs's
-prefix keys work in any terminal. A graphical interface is planned with a
-second keymap following the usual desktop, DAW and tracker conventions; the
-command names stay the same in both. A display
-declares which keymap it uses: the terminal the Emacs one, the window the
-desktop one. A binding that has not been migrated works in both. The desktop
-keymap so far:
+prefix keys work in any terminal. The desktop keymap follows the usual desktop,
+DAW and tracker conventions. A binding that has not been given a desktop chord
+works in both. The commands that have one so far:
 
 | Command | Desktop chord | Emacs chord |
 | --- | --- | --- |
-| command prompt | Ctrl+Shift+P | M-x |
+| command palette | Ctrl+Shift+P | M-x |
 | `undo` | Ctrl+Z | C-x u, C-/ |
 | `undo-redo` | Ctrl+Shift+Z, Ctrl+Y | C-M-_ |
 | `kill-region` (cut) | Ctrl+X | C-w |
@@ -26,25 +27,40 @@ keymap so far:
 | `save-song-as` | Ctrl+Shift+S | C-x C-w |
 | `save-buffers-kill-terminal` (quit) | Ctrl+Q | C-x C-c |
 
-Both open the command palette, across the last rows of the screen with the query on the last row (where the status line is) and the commands above it: type to narrow it by
-fuzzy matching (the letters in order, `tgv` finds `toggle-view`; a match at the
-start of a word or of the name ranks higher), Up/Down or C-n/C-p to move, Enter
-Tab to complete what is typed as far as every command starting with it agrees
-(as in the Emacs minibuffer; `[No match]` when none does), Enter to run the
-selected command, Escape or C-g to cancel. Each row shows the
-command's keybinding in the display's keymap, and the selected command's
-description is shown below the list.
-
 Ctrl+X is cut there, so the `C-x` prefix sequences are Emacs-only; the buffer
 commands (`next-buffer`, `kill-buffer`, ...) have no desktop chord yet and are
-in the menus and the prompt.
+in the menus and the command palette. What the terminal can't do is listed
+under [Terminal](#terminal) at the end.
 
-What the terminal
-can't do is listed under [Terminal](#terminal) at the end.
+## Command palette
+
+M-x (Meta-x: the Alt key with x, or Escape and then x) on the Emacs keymap and
+Ctrl+Shift+P on the desktop one open the command palette, which runs any
+command by name. It sits on the last rows of the
+screen, where the status line is: the query on the last row (`M-x ` or `> `),
+the selected command's description above it, and the matching commands above
+that, best match first. The list is a raised panel; the description (quiet and
+italic) and the query are on the display's own background. The status line is
+still used for messages and for prompts that ask for a name.
+
+- Typing narrows the list by fuzzy matching: the letters in order, not
+  adjacent (`tgv` finds `toggle-view`); an exact name ranks first, then a
+  prefix, then matches at the start of words, then scattered letters.
+- Tab completes what is typed as far as every command starting with it agrees,
+  the way Emacs completes a command name; `[No match]` shows when none does. It never runs
+  anything.
+- Each row shows the command's keybinding in the display's keymap.
+- Up/Down or C-n/C-p move, Enter or a click runs the selected command, Escape,
+  C-g or a click outside cancels.
+
+The palette takes M-x and Tab completion of the name from Emacs, and from the
+command palette of Sublime Text the chord Ctrl+Shift+P, matching the typed
+letters in order, and showing each command's keybinding and description. There is no minibuffer: the status line only shows
+messages and asks for names (a file, a buffer, a new name).
 
 ## Emacs keymap
 
-Mark and point selection, kill and yank, M-x for any named command, ESC as the
+The rest of this page gives the Emacs keymap, unless it says otherwise. Mark and point selection, kill and yank, M-x for any named command, ESC as the
 Meta prefix, C-x C-c to quit and C-k to kill a row. Each open song is a buffer,
 as in Emacs, and `next-buffer` and `previous-buffer` switch between them. An
 operation that is a copy or a move is done with the kill ring rather than with
@@ -132,7 +148,8 @@ next, undo as one step. The run ends when you move the cursor or press any
 other command, edit something else, pause for two seconds, or reach 20 edits.
 
 The keys of a chord are one step, however long they are held (on a terminal
-that reports key releases). Held keys behave alike in both views: the cursor
+that reports key releases; elsewhere, keys typed within about 0.1 s of each
+other). Held keys behave alike in both views: the cursor
 stays on the row and steps once when the last key lifts; nothing starts the
 transport. A live recording take is one step: its notes appear as they land, and
 `undo` takes the whole take back once it has ended. Undo and redo do nothing
@@ -225,8 +242,10 @@ The terminal interface does everything the program does, with these limits:
 
 - **Key releases.** Only terminals with the Kitty keyboard protocol (kitty,
   foot, WezTerm, Ghostty) report a key going up. Elsewhere keyboard note entry
-  can't tell how long a note is held, so it can't play chords; the Launchpad and
-  MIDI input are unaffected.
+  can't tell how long a note is held. Keys typed within about 0.1 s of the first
+  key of a chord still go on one row, in successive note columns (a note
+  already in the chord starts a new one, so a held key's repeats each get a
+  row); the Launchpad and MIDI input are unaffected.
 - **Key combinations.** Without that protocol many combinations arrive as the
   same byte (C-_ and C-/, for example) or not at all (most Ctrl+Shift chords),
   so some commands have fewer bindings there, and M-x is always the way in.

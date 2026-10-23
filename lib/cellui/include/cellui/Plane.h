@@ -4,6 +4,7 @@
 #include <cellui/BackdropLayer.h>
 #include <cellui/Input.h>
 #include <cellui/KeymapProfile.h>
+#include <cellui/MouseCursor.h>
 #include <cellui/StyleProvider.h>
 
 #include <climits>
@@ -16,17 +17,19 @@
 
 namespace cellui {
 
+class Widget;
+
 // A rectangle of character cells that a widget draws into: its own position
 // and size under a parent plane, one current style (colours and attributes)
 // that putstr() writes with, and the places a backend can offer text entry
 // and a small list picker. A backend implements it for its screen; the
 // headless BufferPlane implements it over a CellBuffer.
-class UIPlane {
+class Plane {
  public:
   // `styles` is the application's theme, which outlives every plane; a child
   // plane shares its parent's.
-  UIPlane(std::shared_ptr<void> app_context, const StyleProvider & styles) : app_context_(std::move(app_context)), styles_(styles) { }
-  virtual ~UIPlane() { }
+  Plane(std::shared_ptr<void> app_context, const StyleProvider & styles) : app_context_(std::move(app_context)), styles_(styles) { }
+  virtual ~Plane() { }
 
   const StyleProvider & getStyles() const { return styles_; }
 
@@ -53,6 +56,12 @@ class UIPlane {
   // one height in tree order. Default no-op for a display with no layers.
   virtual void setElevation(float) {}
   virtual float elevation() const { return 0; }
+  // The pointer's shape over the plane's rectangle. A plane that leaves it
+  // at INHERIT shows what is below it, so a popup sets DEFAULT to say its
+  // area is not what lies under it. Default no-op for a display with no
+  // pointer.
+  virtual void setMouseCursor(MouseCursor) {}
+  virtual MouseCursor mouseCursor() const { return MouseCursor::INHERIT; }
   // A name for the plane in a test's or an inspector's view of the tree
   // (PlaneInfo); default no-op.
   virtual void setName(const std::string &) {}
@@ -112,8 +121,14 @@ class UIPlane {
     (void)width;
     (void)height;
   }
-  virtual void setFgColor(int r, int g, int b) = 0;
-  virtual void setBgColor(int r, int g, int b) = 0;
+  // The colours of what is drawn from now on. A colour may be wide (outside
+  // sRGB, or above SDR white); a display that cannot show that takes
+  // Color::toSrgb8().
+  virtual void setFgColor(const Color & color) = 0;
+  virtual void setBgColor(const Color & color) = 0;
+  // 8-bit sRGB.
+  void setFgColor(int r, int g, int b) { setFgColor(Color(r, g, b)); }
+  void setBgColor(int r, int g, int b) { setBgColor(Color(r, g, b)); }
   // The terminal's own background for what is drawn from now on, and for
   // what the plane shows where it draws nothing: a row the display cannot
   // always draw to its end (the last cell of the last row) must not differ
@@ -155,7 +170,7 @@ class UIPlane {
   virtual void clearBand() { }
   virtual void erase() = 0;
   virtual void putstr(int y, int x, const std::string & s) = 0;
-  virtual std::unique_ptr<UIPlane> createChild() = 0;
+  virtual std::unique_ptr<Plane> createChild() = 0;
   virtual void drawBorder() = 0;
   virtual bool offerInput(const Input & input) = 0;
 
@@ -215,12 +230,19 @@ class UIPlane {
   // The application's own object (opaque here), handed down to child planes.
   const std::shared_ptr<void> & getAppContext() const { return app_context_; }
 
+  // The widget that draws on this plane, or null for a plane no widget owns
+  // (a root, a scrim). Set by the widget; used to find the widget under a
+  // point from the plane that covers it.
+  Widget * owner() const { return owner_; }
+  void setOwner(Widget * widget) { owner_ = widget; }
+
 protected:
   void setDim(std::pair<int, int> dim) { plane_dim = dim; }
   void setPosition(std::pair<int, int> pos) { plane_pos = pos; }
   
 private:
   std::shared_ptr<void> app_context_;
+  Widget * owner_ = nullptr;
   const StyleProvider & styles_;
   std::pair<int, int> plane_dim, plane_pos;
 };

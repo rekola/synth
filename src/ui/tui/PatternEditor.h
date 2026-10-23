@@ -12,6 +12,7 @@
 #include "../../playback/MidiNoteInput.h"
 #include "../SelectionBounds.h"
 #include "../PatternSource.h"
+#include "../ChordGrouper.h"
 #include "../ScenePatternSource.h"
 #include "InlineEditor.h"
 #include "LevelMeter.h"
@@ -37,7 +38,7 @@ class Controller;
 
 class PatternEditor : public UIElement {
  public:
-  PatternEditor(UIPlane & parent);
+  PatternEditor(Plane & parent);
 
   // `focused` (whether this widget is UI::active_element_ - it has no way
   // to know that itself) picks the region's highlight: bright while
@@ -53,7 +54,7 @@ class PatternEditor : public UIElement {
   // toggle-playing, C-x C-c/quit, ...) steal a keystroke meant for it.
   bool isReaderActive() const { return inline_editor_.isOpen(); }
   // The focus level is still easing: the loop keeps drawing frames.
-  bool isAnimating() const { return fades_.active() || focus_fade_drawn_; }
+  bool isAnimating() const { return fades_.active() || focus_fade_drawn_ || rowsShifted(); }
 
   // Aborts the locator/track-name editor without committing anything -
   // used by StatusLine so opening M-x takes focus away from it rather than
@@ -128,7 +129,7 @@ class PatternEditor : public UIElement {
   // merely while the session is still nominally open.
   std::vector<int> getActiveNoteTrackIds() const;
 
-  // Called via Controller::setBufferChangeListener()'s UI.cpp fan-out
+  // Called via Controller::buffers_changed's UI.cpp fan-out
   // whenever the active buffer changes (switch, kill landing on a
   // different buffer, or a fresh buffer created) - saves the outgoing
   // buffer's own cursor/scroll/selection/live-note/locator-editing
@@ -169,14 +170,66 @@ protected:
   // ClipboardEntry::track_tunings capture, see that struct's own comment.
   std::vector<Tuning> tuningsForTrackRange(const Song & song, const std::vector<int> & track_ids, int track_lo, int track_hi) const;
   void renderHeading(const StyleProvider & styles, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info, bool focused);
+  // Live View's per-column planes (column_planes_), one per track, over the
+  // rows' plane and under the headings, each shifted by its own fraction.
+  // Called while the drawing helpers are on the rows' plane.
+  void syncColumnPlanes(const std::vector<int> & track_ids);
   void renderHeadingOnPlane(const StyleProvider & styles, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info, bool focused);
   // The headings (names, meters) are the widget's own plane, over a plane of
   // its own for the rows, so the rows can move without the headings. While
   // render() draws, the drawing helpers are on the rows' plane (see
   // renderHeading(), which goes back to the widget's own).
-  std::unique_ptr<UIPlane> rows_plane_;
+  std::unique_ptr<Plane> rows_plane_;
   bool drawing_rows_ = false;
   int rows_plane_rows_ = -1, rows_plane_cols_ = -1;
+  // Where the display scrolls smoothly, the rows show a view that follows the
+  // logical top of the view (current_scroll_) with an animation: row_offset_
+  // is how many rows the shown top is from the logical one (0 at rest), the
+  // rows are drawn from draw_row0_ and the plane shifts by the fraction.
+  double row_offset_ = 0.0;
+  int draw_row0_ = 0;
+  RowAddress anim_top_{ 0, 0 };
+  bool anim_top_valid_ = false;
+  std::chrono::steady_clock::time_point row_anim_tick_;
+  bool row_anim_drawn_ = false;
+  // Live View: every track's column scrolls by itself (its playhead or the
+  // view moves it), so each has its own offset and a plane of its own.
+  struct ColumnScroll {
+    double offset = 0.0;
+    long line = 0;
+    bool valid = false;
+    int delta = 0;
+    // Where a playing column's line is between two rows, 0 to 1.
+    double band_phase = 0.0;
+  };
+  std::unordered_map<int, ColumnScroll> column_scroll_;
+  std::vector<std::unique_ptr<Plane>> column_planes_;
+  bool columns_shifted_ = false;
+  // Whether the columns draw on their planes (Live View, smooth scrolling); else all on the rows' plane.
+  bool columns_planes_in_use_ = false;
+  // Where each track's column starts on the screen (-1 if not shown), and where the last ends.
+  std::vector<int> column_starts_;
+  int column_end_ = 0;
+  // The cursor and the playheads are translucent bands over planes that hold
+  // still while the rows scroll (smooth displays only); the selection stays in
+  // the rows.
+  void updateCursorBands(const StyleProvider & styles, const std::vector<int> & track_ids, int heading_height, int rows, RowAddress top, bool focused);
+  bool smoothCursor() const { return smooth_cursor_; }
+  bool smooth_cursor_ = false;
+  // Where a playing view's line is between two rows, 0 to 1 (Arrangement view).
+  double row_band_phase_ = 0.0;
+  std::unique_ptr<Plane> cursor_plane_;
+  // The cursor's note column (with its velocity and delay) on the screen, -1 if not drawn.
+  int cursor_x0_ = -1, cursor_x1_ = -1;
+  // What the bands showed last, to tell when they moved.
+  std::vector<double> bands_shown_;
+  bool bands_changed_ = false;
+  bool rowsShifted() const { return row_offset_ != 0.0 || columns_shifted_; }
+  int columnDelta(int track_id) const {
+    auto it = column_scroll_.find(track_id);
+    return it == column_scroll_.end() ? 0 : it->second.delta;
+  }
+  static constexpr int kMaxSmoothScrollRows = 12;
   void renderRow(const StyleProvider & styles, int heading_height, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info, int row, bool highlight, const SelectionBounds & sel_bounds, bool focused);
 
   // Opens the locator editor for the cursor's current row - called
@@ -282,6 +335,9 @@ private:
   bool current_focused_ = true;
 
   MidiNoteInput midi_input_;
+
+  // Keys typed together on a terminal that reports no key release.
+  ChordGrouper chord_;
 
   // Which pattern column/row/track a currently-held computer-keyboard note
   // key landed on (keyed by InputEvent::getId(), the physical key - a key
@@ -443,12 +499,10 @@ private:
   // setCursorTrack()), once per change.
   void syncCursorTrack(const Song & song);
   int synced_cursor_track_id_ = -1;
-  // The row-number gutter left of the first track: a margin only where
-  // each track shows its own row numbers (VisibleTrackInfo::
-  // row_number_width_, kTrackRowNumberWidth wide).
   // The row-number gutter: " 1f │" in Arrangement view, as many hex
-  // digits as its rows need (row_digits_); a margin in Live View.
-  int gutterWidth() const { return isLiveMode() ? 1 : row_digits_ + 3; }
+  // digits as its rows need (row_digits_); none in Live View, where each
+  // track shows its own row numbers (VisibleTrackInfo::row_number_width_).
+  int gutterWidth() const { return isLiveMode() ? 0 : row_digits_ + 3; }
   // Hex digits the arrangement's row numbers take - at least 2, enough
   // for its content and the cursor. Updated once per render().
   int row_digits_ = 2;

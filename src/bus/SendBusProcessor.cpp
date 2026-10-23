@@ -82,8 +82,8 @@ SendBusProcessor::process(const AudioBuffer & aux_a_mono, const AudioBuffer & au
 
   // Direct-channel path (BusEffect.h) - a second, parallel output kind
   // alongside the point-source taps above, for effects whose output can't
-  // be expressed as one mono signal gain-panned to a single direction
-  // (see plans/drum-bus-saturator.md). Uniform for both slots, same "no
+  // be expressed as one mono signal gain-panned to a single direction.
+  // Uniform for both slots, same "no
   // per-type branching" convention as the tap loop above; a no-op for
   // every effect that doesn't override it.
   for (auto * slot : { &slot_a, &slot_b }) {

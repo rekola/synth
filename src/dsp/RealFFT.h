@@ -29,8 +29,8 @@
 #include <vector>
 
 // Real-signal <-> frequency-domain FFT wrapper, backed by PocketFFT
-// (third_party/pocketfft/, BSD-3-Clause) - see plans/magical-wondering-
-// engelbart.md for the full FFTW -> PocketFFT migration plan. Single
+// (third_party/pocketfft/, BSD-3-Clause), which replaced
+// FFTW. Single
 // shared interface for every current/planned call site (the live
 // spectrum analyzer via dsp/SpectrumAnalyzer.h, MagLS's precomputation in
 // AmbisonicMagLSDecoder, and the future DirAC STFT).

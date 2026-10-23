@@ -346,6 +346,18 @@ ScenePatternSource::trackAddress(int track_id, RowAddress address) const {
   return advance(position(track_id), rowsFromPosition(track_id, address));
 }
 
+double
+ScenePatternSource::trackScrollRate(int track_id) const {
+  if (!isPlaying(track_id) || !controller_.getPlaybackInfo().isPlaying()) return 0.0;
+  // A row is a sixteenth.
+  return song().getTempo() * 4.0 / 60.0;
+}
+
+long ScenePatternSource::trackLine(int track_id, RowAddress address) const {
+  if (isLooping(track_id)) return playheads_.at(track_id).elapsed + rowsFromPosition(track_id, address);
+  return PatternSource::trackLine(track_id, address);
+}
+
 namespace {
 constexpr std::chrono::milliseconds kPassFade(300);
 }
@@ -353,7 +365,7 @@ constexpr std::chrono::milliseconds kPassFade(300);
 float
 ScenePatternSource::fadeProgress(int track_id) const {
   auto it = pass_changed_.find(track_id);
-  if (it == pass_changed_.end()) return 1.0f;
+  if (it == pass_changed_.end() || reduced_motion_) return 1.0f;
   auto elapsed = std::chrono::duration<float>(std::chrono::steady_clock::now() - it->second);
   return std::min(1.0f, elapsed / std::chrono::duration<float>(kPassFade));
 }

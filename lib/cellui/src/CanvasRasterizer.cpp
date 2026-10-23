@@ -114,10 +114,11 @@ class Pixels {
   Pixels(int width, int height, const Color & fill)
     : width_(width), height_(height),
       rgb_(static_cast<size_t>(width) * static_cast<size_t>(height) * 3) {
+    auto rgb = fill.toSrgb8();
     for (size_t i = 0; i < rgb_.size(); i += 3) {
-      rgb_[i] = static_cast<float>(fill.getRed());
-      rgb_[i + 1] = static_cast<float>(fill.getGreen());
-      rgb_[i + 2] = static_cast<float>(fill.getBlue());
+      rgb_[i] = static_cast<float>(rgb[0]);
+      rgb_[i + 1] = static_cast<float>(rgb[1]);
+      rgb_[i + 2] = static_cast<float>(rgb[2]);
     }
   }
 
@@ -125,21 +126,25 @@ class Pixels {
   void fill(double x, double y, double w, double h, const Color & color, float alpha = 1.0f) {
     int px0 = std::max(0, static_cast<int>(std::floor(x))), px1 = std::min(width_, static_cast<int>(std::ceil(x + w)));
     int py0 = std::max(0, static_cast<int>(std::floor(y))), py1 = std::min(height_, static_cast<int>(std::ceil(y + h)));
+    auto rgb = color.toSrgb8();
     for (int py = py0; py < py1; py++) {
       double cover_y = std::min(y + h, py + 1.0) - std::max(y, static_cast<double>(py));
       for (int px = px0; px < px1; px++) {
         double cover_x = std::min(x + w, px + 1.0) - std::max(x, static_cast<double>(px));
-        blend(px, py, color, static_cast<float>(cover_x * cover_y) * alpha);
+        blendRgb(px, py, rgb, static_cast<float>(cover_x * cover_y) * alpha);
       }
     }
   }
   // One pixel, `alpha` of `color`.
-  void blend(int px, int py, const Color & color, float alpha) {
+  void blend(int px, int py, const Color & color, float alpha) { blendRgb(px, py, color.toSrgb8(), alpha); }
+  // The same with the colour already as 8-bit sRGB. The picture holds
+  // encoded values: a shape's edge coverage mixes in that space.
+  void blendRgb(int px, int py, const std::array<uint8_t, 3> & rgb, float alpha) {
     if (alpha <= 0.0f) return;
     float * p = &rgb_[(static_cast<size_t>(py) * static_cast<size_t>(width_) + static_cast<size_t>(px)) * 3];
-    p[0] += (static_cast<float>(color.getRed()) - p[0]) * alpha;
-    p[1] += (static_cast<float>(color.getGreen()) - p[1]) * alpha;
-    p[2] += (static_cast<float>(color.getBlue()) - p[2]) * alpha;
+    p[0] += (static_cast<float>(rgb[0]) - p[0]) * alpha;
+    p[1] += (static_cast<float>(rgb[1]) - p[1]) * alpha;
+    p[2] += (static_cast<float>(rgb[2]) - p[2]) * alpha;
   }
   // As canvas reads an image: bytes R, G, B, A.
   std::vector<unsigned char> rgba() const {
@@ -265,8 +270,10 @@ class CanvasRasterizer : public CellRasterizer {
           continue;
         }
         Color fg = first.fg.value_or(default_fg);
-        ctx.fillStyle = canvas::Color(fg.getRed() / 255.0f, fg.getGreen() / 255.0f, fg.getBlue() / 255.0f, 1.0f);
+        auto fg8 = fg.toSrgb8();
+        ctx.fillStyle = canvas::Color(fg8[0] / 255.0f, fg8[1] / 255.0f, fg8[2] / 255.0f, 1.0f);
         ctx.font.weight = first.bold ? "bold" : "normal";
+        ctx.font.style = first.italic ? canvas::Font::ITALIC : canvas::Font::NORMAL_STYLE;
         auto draw = [&](const std::string & text, int at, const std::string & family) {
           if (text.empty()) return;
           ctx.font.family = family;
@@ -276,8 +283,7 @@ class CanvasRasterizer : public CellRasterizer {
           const CellBuffer::Cell & cell = cells.at(r, c);
           if (cell.continuation) continue;
           Color cell_fg = cell.fg.value_or(default_fg);
-          if (cell.image > 0 || cell.bold != first.bold || cell_fg.getRed() != fg.getRed() || cell_fg.getGreen() != fg.getGreen() ||
-              cell_fg.getBlue() != fg.getBlue() || drawShape(none, cell, 0, 0, 1, 1, Color()))
+          if (cell.image > 0 || cell.bold != first.bold || cell.italic != first.italic || cell_fg.toSrgb8() != fg8 || drawShape(none, cell, 0, 0, 1, 1, Color()))
             break;
           const std::string & other = fonts_.familyFor(firstCodepoint(cell.text));
           if (!other.empty()) {
@@ -295,6 +301,10 @@ class CanvasRasterizer : public CellRasterizer {
           // One cell at a time, so the glyphs sit on the grid whatever the
           // font's advances are (a space is not always as wide as a letter).
           if (cell.text != " ") draw(cell.text, c, family_);
+          if (cell.underline) {
+            double thickness = std::max(1.0, cell_h / 14.0);
+            ctx.fillRect((c - col) * cell_w, (r - row) * cell_h + cell_h - 2.0 * thickness, cell_w, thickness);
+          }
         }
       }
     }

@@ -9,8 +9,7 @@ namespace {
 
 // Actual DSP, shared by AmplifierTrackState (a persistent track-tree
 // wrapper) and AmplifierVoiceState (an ephemeral per-note wrapper) - see
-// EffectTrackState.h/EffectVoiceState.h and
-// plans/trackstate-voicestate-split.md for why Amplifier (like every
+// EffectTrackState.h/EffectVoiceState.h for why Amplifier (like every
 // effects/ class) needs both.
 class AmplifierDsp {
 public:

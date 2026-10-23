@@ -21,12 +21,7 @@ struct Backdrop {
   std::optional<Color> tint = std::nullopt;  // unset: the display's own background
 
   bool active() const { return blur > 0 || dim > 0.0f; }
-  bool operator==(const Backdrop & o) const {
-    auto same = [](const Color & a, const Color & b) {
-      return a.getRed() == b.getRed() && a.getGreen() == b.getGreen() && a.getBlue() == b.getBlue();
-    };
-    return blur == o.blur && dim == o.dim && tint.has_value() == o.tint.has_value() && (!tint || same(*tint, *o.tint));
-  }
+  bool operator==(const Backdrop & o) const { return blur == o.blur && dim == o.dim && tint == o.tint; }
   bool operator!=(const Backdrop & o) const { return !(*this == o); }
 };
 

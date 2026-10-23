@@ -12,15 +12,15 @@ namespace cellui {
 
 namespace {
 
-Color average(const Color & a, const Color & b) {
-  return Color((a.getRed() + b.getRed()) / 2, (a.getGreen() + b.getGreen()) / 2, (a.getBlue() + b.getBlue()) / 2);
-}
+// Half and half, in linear light.
+Color average(const Color & a, const Color & b) { return a.mix(b, 0.5f); }
 
 // Three parts white or black (whichever stands out against `bg`) to one
-// part `fg`.
+// part `fg`, in linear light.
 Color contrasting(const Color & fg, const Color & bg) {
-  int c = bg.getRed() + bg.getGreen() + bg.getBlue() < 320 ? 255 : 0;
-  return Color((3 * c + fg.getRed()) / 4, (3 * c + fg.getGreen()) / 4, (3 * c + fg.getBlue()) / 4);
+  constexpr float kDarkBackground = 0.15f;
+  Color extreme = bg.luminance() < kDarkBackground ? Color(255, 255, 255) : Color(0, 0, 0);
+  return extreme.mix(fg, 0.25f);
 }
 
 // Wide enough for the longest status the reader's indicator shows.
@@ -50,13 +50,13 @@ struct BufferPlane::Picker {
 };
 
 BufferPlane::BufferPlane(CellBuffer & target, const StyleProvider & styles, std::shared_ptr<void> app_context)
-  : UIPlane(std::move(app_context), styles), local_(target.rows(), target.cols()), target_(&target) {
+  : Plane(std::move(app_context), styles), local_(target.rows(), target.cols()), target_(&target) {
   setDim(std::pair(target.rows(), target.cols()));
   setPosition(std::pair(0, 0));
 }
 
 BufferPlane::BufferPlane(BufferPlane & parent)
-  : UIPlane(parent.getAppContext(), parent.getStyles()),
+  : Plane(parent.getAppContext(), parent.getStyles()),
     local_(parent.getDim().first, parent.getDim().second), parent_(&parent) {
   setDim(parent.getDim());
   setPosition(std::pair(0, 0));
@@ -78,7 +78,7 @@ void BufferPlane::resize(int rows, int cols) {
     for (int c = 0; c < std::min(cols + extra, local_.cols()); c++) resized.put(r, c, local_.at(r, c));
   }
   local_ = std::move(resized);
-  UIPlane::resize(rows, cols);
+  Plane::resize(rows, cols);
 }
 
 void BufferPlane::setScrollOffset(double rows, double cols) {
@@ -102,7 +102,7 @@ void BufferPlane::putstr(int y, int x, const std::string & s) {
   local_.write(y, x, s, style_);
 }
 
-std::unique_ptr<UIPlane> BufferPlane::createChild() {
+std::unique_ptr<Plane> BufferPlane::createChild() {
   BufferPlane & parent = root().flat_ ? root() : *this;
   auto child = std::unique_ptr<BufferPlane>(new BufferPlane(parent));
   if (root().themed_bases_) child->base_bg_ = getStyles().plane_base_bg_color;
@@ -129,6 +129,7 @@ void BufferPlane::refresh() {
   top.placements_.clear();
   top.layers_.clear();
   top.elevations_.clear();
+  top.mouse_cursors_.clear();
   // Lower planes first, whatever their place in the tree; planes of one
   // height in tree order (a parent before its children).
   std::vector<Paint> paints;
@@ -136,11 +137,16 @@ void BufferPlane::refresh() {
   std::stable_sort(paints.begin(), paints.end(), [](const Paint & a, const Paint & b) { return a.elevation < b.elevation; });
   for (const Paint & p : paints) {
     p.plane->compose(*top.target_, p.row, p.col, p.clip_row, p.clip_col, p.clip_rows, p.clip_cols, p.elevation);
-    if (p.elevation <= 0.0f) continue;
+    bool elevated = p.elevation > 0.0f;
+    if (!elevated && p.plane->mouse_cursor_ == MouseCursor::INHERIT) continue;
     auto [rows, cols] = p.plane->getDim();
     int r0 = std::max(p.clip_row, p.row), r1 = std::min(p.clip_row + p.clip_rows, p.row + rows);
     int c0 = std::max(p.clip_col, p.col), c1 = std::min(p.clip_col + p.clip_cols, p.col + cols);
-    if (r0 < r1 && c0 < c1) top.elevations_.push_back(ElevatedArea{ r0, c0, r1 - r0, c1 - c0, p.elevation, p.plane->name_, top.layers_.size() });
+    if (r0 >= r1 || c0 >= c1) continue;
+    if (p.plane->mouse_cursor_ != MouseCursor::INHERIT) {
+      top.mouse_cursors_.push_back(CursorArea{ r0, c0, r1 - r0, c1 - c0, p.plane->mouse_cursor_ });
+    }
+    if (elevated) top.elevations_.push_back(ElevatedArea{ r0, c0, r1 - r0, c1 - c0, p.elevation, p.plane->name_, top.layers_.size() });
   }
   top.collectLifts();
 }
@@ -410,6 +416,7 @@ PlaneInfo BufferPlane::describe() const {
   std::tie(info.rows, info.cols) = getDim();
   info.visible = visible_;
   info.elevation = elevation_;
+  info.mouse_cursor = mouse_cursor_;
   info.reader = editor_ != nullptr;
   info.picker = picker_ != nullptr;
   for (const BufferPlane * child : children_) info.children.push_back(child->describe());
@@ -443,6 +450,7 @@ void BufferPlane::showReader(const std::string & prompt, int y, int x, int rows,
   int reader_cols = cols == -1 ? std::max(1, plane_cols - reader_x_) : std::max(1, cols);
   reader_color_ = text_color.value_or(getStyles().reader_text_color);
   reader_plane_ = makeChild();
+  reader_plane_->mouse_cursor_ = MouseCursor::TEXT;
   reader_plane_->move(y, reader_x_);
   reader_plane_->resize(std::max(1, reader_rows), reader_cols);
   editor_ = std::make_unique<LineEditor>();
@@ -515,6 +523,7 @@ void BufferPlane::showPicker(int y, int x, int rows, int cols, int item_count) {
   picker_ = std::make_unique<Picker>();
   picker_->plane = makeChild();
   picker_->plane->setElevation(getStyles().theme.elevation.overlay);
+  picker_->plane->mouse_cursor_ = MouseCursor::POINTER;
   picker_->y = y;
   picker_->x = x;
   picker_->plane->move(y, x);

@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.10)
 # set the project name
 project(synth VERSION 0.1)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -11,15 +11,10 @@ include(GNUInstallDirs)
 
 # The full `synth` (--headless, the Launchpad, live MIDI and audio) builds
 # everywhere; OFF gives the engine, the tests and a render-only `synth`
-# (src/main_render.cpp). The terminal UI (lib/cellui's terminal backend) is
-# POSIX only today, so Windows gets the full program without it.
+# (src/main_render.cpp). The terminal backend of lib/cellui is POSIX only;
+# on Windows the same UI (TerminalUI) runs in cellui's Win32 window.
 option(SYNTH_BUILD_INTERACTIVE "Build the full synth (headless mode, Launchpad, live audio/MIDI)" ON)
-if(WIN32)
-  set(SYNTH_BUILD_TERMINAL_UI_DEFAULT OFF)
-else()
-  set(SYNTH_BUILD_TERMINAL_UI_DEFAULT ON)
-endif()
-option(SYNTH_BUILD_TERMINAL_UI "Build the terminal UI" ${SYNTH_BUILD_TERMINAL_UI_DEFAULT})
+option(SYNTH_BUILD_TERMINAL_UI "Build the interactive UI (TerminalUI: in the terminal, or on Windows in the window)" ON)
 
 # Default to an optimized build when the generator supports build types (a
 # plain `cmake -B build` with no CMAKE_BUILD_TYPE otherwise applies no -O
@@ -253,7 +248,7 @@ target_link_libraries(synth_engine PUBLIC ${SOUNDTOUCH_LIBRARY})
 # (SoundFont.cpp - injects a vibrato/filter-cutoff modulator for presets
 # that never authored their own channel-pressure connection). Off by
 # default: doesn't feel good to play without a pressure-floor fix that
-# hasn't landed yet (see plans/launchpad-pressure-floor.md), and isn't
+# hasn't landed yet, and isn't
 # part of the SF2 spec - real, file-authored channel-pressure modulators
 # (SF2Modulator.cpp) always work regardless of this setting. PUBLIC so
 # the same macro is visible to tests/SF2ModulatorTests.cpp too (linked
@@ -319,6 +314,9 @@ if(SYNTH_BUILD_INTERACTIVE)
   )
   target_link_libraries(synth_ui PUBLIC synth_engine)
   if(SYNTH_BUILD_TERMINAL_UI)
+    if(WIN32)
+      target_sources(synth_ui PRIVATE src/util/StderrCapture.cpp)
+    endif()
     target_sources(synth_ui PRIVATE
       src/ui/tui/TerminalUI.cpp
       src/ui/tui/OutlineView.cpp

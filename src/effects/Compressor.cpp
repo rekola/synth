@@ -114,8 +114,7 @@ using namespace std;
 namespace {
 
 // Actual DSP, shared by CompressorTrackState and CompressorVoiceState -
-// see EffectTrackState.h/EffectVoiceState.h and
-// plans/trackstate-voicestate-split.md.
+// see EffectTrackState.h/EffectVoiceState.h.
 class CompressorDsp {
 public:
   CompressorDsp(const ChannelConfiguration & channel_config,

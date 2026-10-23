@@ -5,7 +5,7 @@
 #include <cellui/Image.h>
 #include <cellui/LineEditor.h>
 #include <cellui/PlaneInfo.h>
-#include <cellui/UIPlane.h>
+#include <cellui/Plane.h>
 
 #include <memory>
 #include <optional>
@@ -32,7 +32,7 @@ namespace cellui {
 // in a child plane, moved with the arrows, PgUp/PgDn, the wheel and a
 // click). Widgets can be laid out, drawn and read back in a test, or
 // printed by the gallery.
-class BufferPlane : public UIPlane {
+class BufferPlane : public Plane {
  public:
   // The root plane covers the whole buffer.
   BufferPlane(CellBuffer & target, const StyleProvider & styles, std::shared_ptr<void> app_context = nullptr);
@@ -45,13 +45,17 @@ class BufferPlane : public UIPlane {
   void setVisible(bool visible) override { visible_ = visible; }
   void setElevation(float elevation) override { elevation_ = elevation; }
   float elevation() const override { return elevation_; }
+  void setMouseCursor(MouseCursor cursor) override { mouse_cursor_ = cursor; }
+  MouseCursor mouseCursor() const override { return mouse_cursor_; }
   bool isVisible() const { return visible_; }
   void setName(const std::string & name) override { name_ = name; }
   // This plane and the planes on it, as they are now.
   PlaneInfo describe() const;
 
-  void setFgColor(int r, int g, int b) override { style_.fg = Color(r, g, b); }
-  void setBgColor(int r, int g, int b) override { style_.bg = Color(r, g, b); }
+  using Plane::setFgColor;
+  using Plane::setBgColor;
+  void setFgColor(const Color & color) override { style_.fg = color; }
+  void setBgColor(const Color & color) override { style_.bg = color; }
   void setBgDefault() override {
     style_.bg.reset();
     base_bg_.reset();
@@ -86,7 +90,7 @@ class BufferPlane : public UIPlane {
     images_.clear();
   }
   void putstr(int y, int x, const std::string & s) override;
-  std::unique_ptr<UIPlane> createChild() override;
+  std::unique_ptr<Plane> createChild() override;
   void drawBorder() override;
   // Feeds the reader or the picker, whichever is open.
   bool offerInput(const Input & input) override;
@@ -149,6 +153,9 @@ class BufferPlane : public UIPlane {
   // The planes above the base the last refresh() drew, lowest first (root
   // only).
   std::vector<ElevatedArea> takeElevations() { return std::move(elevations_); }
+  // The areas planes asked a pointer shape for in the last refresh(), lowest
+  // first (root only).
+  std::vector<CursorArea> takeMouseCursors() { return std::move(mouse_cursors_); }
   // What canRenderSextants() reports, for the whole tree (root only).
   void setSextants(bool can) { sextants_ = can; }
   bool canRenderSextants() const override { return root().sextants_; }
@@ -203,6 +210,7 @@ class BufferPlane : public UIPlane {
   bool overscan_ = false;
   bool visible_ = true;
   float elevation_ = 0;
+  MouseCursor mouse_cursor_ = MouseCursor::INHERIT;
   std::string name_;
 
   // The reader: the text, the plane it shows in, its colour and column.
@@ -223,6 +231,7 @@ class BufferPlane : public UIPlane {
   bool smooth_scroll_ = false;
   mutable std::vector<BackdropLayer> layers_;
   std::vector<ElevatedArea> elevations_;
+  std::vector<CursorArea> mouse_cursors_;
   bool flat_ = false;
   bool themed_bases_ = false;
   int cell_px_h_ = 0, cell_px_w_ = 0;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cellui/UIPlane.h>
+#include <cellui/Plane.h>
 
 #include <memory>
 #include <optional>
@@ -18,7 +18,7 @@ class InfoDialog {
 
   // (Re)draws the box under `parent`, `width` columns wide and at most
   // `max_rows` tall (extra text is cut). Call move() after it to place it.
-  void show(UIPlane & parent, const std::string & title, const std::string & source, int width, int max_rows);
+  void show(Plane & parent, const std::string & title, const std::string & source, int width, int max_rows);
   // Screen position of the box's top-left corner.
   void move(int y, int x);
   // Centers the box on a screen of `screen_rows` x `screen_cols`.
@@ -26,7 +26,7 @@ class InfoDialog {
     move((screen_rows - rows_) / 2, (screen_cols - width_) / 2);
   }
   void close() { plane_.reset(); }
-  // How high it floats (UIPlane::setElevation()): the theme's overlay
+  // How high it floats (Plane::setElevation()): the theme's overlay
   // elevation unless set; a modal dialog is set to the modal one.
   void setElevation(float elevation) {
     elevation_ = elevation;
@@ -41,7 +41,7 @@ class InfoDialog {
   int width() const { return width_; }
 
  private:
-  std::unique_ptr<UIPlane> plane_;
+  std::unique_ptr<Plane> plane_;
   std::optional<float> elevation_;
   int rows_ = 0, width_ = 0;
 };

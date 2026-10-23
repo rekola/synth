@@ -5,10 +5,10 @@ own, without deciding the graphical UI yet. Step 0 gets a CI-built
 command-line binary that renders songs. Steps 1-5 make the platform layer
 (audio, MIDI, Launchpad, OS utilities) backend-neutral and add Windows
 backends, ending with `--headless` (playback + Launchpad performance) working
-on Windows; step 6 packages it. This runs alongside phase 1 of the Cell UI
-(`plans/cell-ui-terminal.md`), which replaces notcurses. Windows gets no
+on Windows; step 6 packages it. This runs alongside phase 1 of the cellui
+(the terminal backend, built), which replaced notcurses. Windows gets no
 terminal UI: its interactive UI is the graphical one, phase 2
-(`plans/cell-ui-window.md`), which is not part of this plan.
+(`plans/cellui-window.md`), which is not part of this plan.
 
 ## Decisions
 
@@ -230,7 +230,7 @@ MSIX/winget.
 
 ## After this plan
 
-The graphical UI: `plans/cell-ui-window.md`, once the Cell UI's terminal
+The graphical UI: `plans/cellui-window.md`, once the cellui's terminal
 phase has separated the UI.
 
 Step 4 notes: the backends are in `synth_engine` on Windows (`WasapiAudio`,

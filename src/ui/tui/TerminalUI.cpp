@@ -13,7 +13,6 @@
 #include "ChannelMeter.h"
 #include "SpectrumMeter.h"
 #include "OutlineView.h"
-#include "CoverArt.h"
 #include "SpinBox.h"
 #include "../../dsp/DiracAnalyzer.h"
 #include "../../audio/AudioAPI.h"
@@ -49,7 +48,9 @@
 #include <cstdlib>
 #include <clocale>
 #include <cassert>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 #include <memory>
 #include <cmath>
 #include <algorithm>
@@ -63,12 +64,17 @@
 
 #include <sys/time.h>
 
+#ifdef _WIN32
+#include "../../util/StderrCapture.h"
+#endif
 #include <cellui/MenuBar.h>
 #include <cellui/KeyReader.h>
 #include <cellui/Scopes.h>
 #include <cellui/Backend.h>
 
+#ifndef _WIN32
 #include <poll.h>
+#endif
 
 
 using namespace std;
@@ -79,6 +85,7 @@ std::map<std::string, int> g_ui_stats;
 bool g_ui_stats_on = false;
 void statCount(const std::string & what) { if (g_ui_stats_on) g_ui_stats[what]++; }
 
+#ifndef _WIN32
 // Every thread's CPU time so far in clock ticks, by thread name.
 std::map<std::string, long> threadCpuTicks() {
   std::map<std::string, long> ticks;
@@ -99,6 +106,9 @@ std::map<std::string, long> threadCpuTicks() {
   }
   return ticks;
 }
+#else
+std::map<std::string, long> threadCpuTicks() { return {}; }
+#endif
 }
 using namespace fmt;
 
@@ -118,8 +128,7 @@ static inline long long now() {
 // is a separator (MenuBar draws it as a divider); `binding` is the
 // human-readable keybinding shown right-aligned against the item box's
 // widest label, e.g. "Save    C-x C-s" - an item has no shortcut of its own
-// (see the display-constraints
-// note in plans/menu-bar-expansion.md: it renders as a single bare
+// (one would render as a single bare
 // character with no modifier indication, misleading for anything but a
 // plain unmodified key, which is nearly nothing real this app binds).
 // Section headers keep real single-letter Alt+<mnemonic> shortcuts - a
@@ -261,14 +270,13 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
 // activated item to its command.
 class TerminalMenu : public UIMenu {
 public:
-  TerminalMenu(UIPlane & parent, vector<string> buffer_names, vector<string> buffer_display_names, string active_buffer_name)
-    : parent_(parent), plane_(parent.createChild()), bar_(*plane_), buffer_names_(std::move(buffer_names)),
-      buffer_display_names_(std::move(buffer_display_names)), active_buffer_name_(std::move(active_buffer_name)) {
-    // The plane spans the tallest section; below the bar and an open
-    // section the screen shows through.
-    plane_->makeTransparent();
-    rebuild();
-  }
+ TerminalMenu(Plane & parent, vector<string> buffer_names, vector<string> buffer_display_names, string active_buffer_name)
+     : parent_(parent), plane_(parent.createChild()), bar_(*plane_), buffer_names_(std::move(buffer_names)), buffer_display_names_(std::move(buffer_display_names)), active_buffer_name_(std::move(active_buffer_name)) {
+   // The plane spans the tallest section; below the bar and an open
+   // section the screen shows through.
+   plane_->makeTransparent();
+   rebuild();
+ }
 
   void applyStyles(const StyleProvider & styles) override {
     cellui::MenuBar::Colors colors;
@@ -276,6 +284,8 @@ public:
     colors.header_bg = styles.menu_bg_color;
     colors.section_fg = styles.menu_section_fg_color;
     colors.section_bg = styles.menu_section_bg_color;
+    colors.selected_fg = styles.highlight_fg_color;
+    colors.selected_bg = styles.highlight_bg_color;
     bar_.setColors(colors);
     bar_.draw();
   }
@@ -370,8 +380,8 @@ private:
     bar_.layout(cols_);
   }
 
-  UIPlane & parent_;
-  unique_ptr<UIPlane> plane_;
+  Plane & parent_;
+  unique_ptr<Plane> plane_;
   cellui::MenuBar bar_;
   int cols_ = 0;
   vector<string> buffer_names_;
@@ -507,6 +517,7 @@ TerminalUI::render() {
   cellui::FrameInfo info;
   info.backdrops = root_plane_->takeBackdropLayers();
   info.elevations = root_plane_->takeElevations();
+  info.mouse_cursors = root_plane_->takeMouseCursors();
   if (backend_.wantsFrameInfo()) {
     info.planes = root_plane_->describe();
     info.focus = focusName();
@@ -598,6 +609,15 @@ TerminalUI::readInput() {
         // typed as keys, which would play it as notes and commands.
         root_plane_->insertIntoReader(event.text);
         break;
+      case BackendEvent::Type::DISPLAY:
+        // What a colour looks like depends on the display.
+        force_next_render_ = true;
+        break;
+      case BackendEvent::Type::FOCUS:
+        // A cursor shows only while the window has the focus.
+        styles_.window_focused = event.focused;
+        force_next_render_ = true;
+        break;
       case BackendEvent::Type::CLOSE:
         close_ui_ = true;
         break;
@@ -652,7 +672,6 @@ TerminalUI::initializeWidgets() {
   // see that method for the equivalent Launchpad wiring), so that half of
   // commitOverviewCell()'s callers is wired there instead.
   arrangement_grid_->setCommitCallback([this](int track_id, int row) { commitOverviewCell(track_id, row); });
-  cover_art_ = make_shared<CoverArt>(getPlane());
   info_line_ = make_shared<InfoLine>(getPlane());
   status_line_ = make_shared<StatusLine>(getPlane());
   // See StatusLine::showPrompt()'s own comment: opening any StatusLine
@@ -851,7 +870,7 @@ TerminalUI::initializeWidgets() {
   commands_.define("stop-all-clips", [this]() {
     getController().getClipPlayer().stopAllTracks();
   });
-  // Arrangement view's scope row (cover art, ArrangementGrid, charts), and
+  // Arrangement view's top band (ArrangementGrid, charts), and
   // Live View's spectrum/heatmap under the outline panel.
   commands_.define("toggle-scopes", [this]() {
     scopes_visible_ = !scopes_visible_;
@@ -945,7 +964,7 @@ TerminalUI::initializeWidgets() {
   // never otherwise reaches UI, so relying on each buffer command here to
   // separately call menu_->refreshBuffers() itself missed that path
   // entirely - one listener covers every path uniformly instead.
-  getController().setBufferChangeListener([this]() {
+  controller_connections_.push_back(getController().buffers_changed.connect([this]() {
     auto names = getController().getBufferNames();
     vector<string> display_names;
     display_names.reserve(names.size());
@@ -957,14 +976,14 @@ TerminalUI::initializeWidgets() {
     // View) is untouched: a buffer switch changes which song is shown, not
     // how.
     pattern_editor_->handleBufferChanged();
-  });
+  }));
 }
 
 bool
 TerminalUI::executeCommand(std::string_view name) {
   // A command reached here other than through M-x's own submission (a menu
   // click, Launchpad-by-name dispatch) always takes focus away from
-  // whatever M-x was reading, same as StatusLine::cancelReader()'s own
+  // whatever a status-line prompt was reading, same as StatusLine::cancelReader()'s own
   // Ctrl-g - mirrors real Emacs, where clicking a menu item while typing
   // in the minibuffer just aborts the minibuffer read and runs the
   // command, rather than the command running while the minibuffer keeps
@@ -1010,6 +1029,15 @@ TerminalUI::commandCompletions(std::string_view prefix) const {
   return result;
 }
 
+int TerminalUI::arrangementScopeRows() const {
+  // A header of two rows (bar ruler, locators), then a row per track; at least
+  // enough for the two scopes, and at most a third of the screen.
+  constexpr int kMinRows = 7;
+  auto num_tracks = static_cast<int>(getController().getSong().getPlayableTrackIds().size());
+  int rows = getDim().first;
+  return std::clamp(ArrangementGrid::kHeaderRows + num_tracks, kMinRows, std::max(kMinRows, rows / 3));
+}
+
 void
 TerminalUI::layout() {
   auto [ rows, cols ] = getDim();
@@ -1024,8 +1052,7 @@ TerminalUI::layout() {
   // plane, so the next one is built there too, off screen.
   bool show_scopes = getView() == View::ARRANGEMENT && scopes_visible_;
   int scope_row = 1;
-  cover_art_->setVisible(show_scopes);
-  arrangement_grid_->setVisible(show_scopes);
+  arrangement_grid_->setShown(show_scopes);
   volume_meter_->setVisible(show_scopes);
 
   constexpr int kOutlineWidth = 30;
@@ -1041,61 +1068,64 @@ TerminalUI::layout() {
   scopes_on_screen_ = show_scopes || live_scopes;
   if (scopes_on_screen_ && !scopes_were_on_screen) scopes_stale_ = true;
 
-  // cover_art_ claims the scope row's own leftmost columns first (the
-  // literal top-left corner) - square-looking, sized off the row height
-  // alone (see CoverArt::widthForHeight()), not the song's track count.
-  // arrangement_grid_ sits immediately right of it, sized off the song's
-  // own track count but capped, since its own internal scrolling handles
-  // anything past that rather than this widget ever needing to be as wide
-  // as the track list is long. chart_ gives up exactly that much width
-  // (plus two divider columns) to make room; heatmap_/volume_meter_ are
-  // untouched - a terminal too narrow for all five just clamps chart_ down
-  // toward 1 column rather than a fuller "drop the least-used scope first"
-  // rebalance, deferred for now.
-  int cover_art_width = CoverArt::widthForHeight(kScopeHeight);
-  int cover_art_divider_x = cover_art_width;
-  cover_art_->resize(kScopeHeight, cover_art_width).move(scope_row, 0);
+  // Arrangement view's top band: the arrangement grid takes the width, with
+  // the spectrum stacked over the DirAC heatmap in a narrow column beside
+  // it and the channel meter at the far right. The grid's height follows the
+  // song's track count (see arrangementScopeRows()); the scopes share it.
+  int scope_rows = arrangementScopeRows();
+  laid_out_scope_rows_ = scope_rows;
+  int meter_x = cols - 9;
+  int heatmap_x = meter_x - 1 - kHeatmapWidth;
+  int matrix_divider_x = heatmap_x - 1;
+  int matrix_width = std::max(1, matrix_divider_x);
+  arrangement_grid_->resize(scope_rows, matrix_width).move(scope_row, 0);
 
-  auto num_tracks = static_cast<int>(getController().getSong().getPlayableTrackIds().size());
-  // ArrangementGrid spends 2 columns per track (its own identifier cell
-  // plus a shared padding cell - see ArrangementGrid.cpp's own
-  // kColWidth), 1 for the leading padding cell before the first track
-  // and 1 for its locator column, so its width is doubled plus two here
-  // to actually fit the same track count this clamp implies.
-  int matrix_width = std::clamp(num_tracks, 4, 24) * 2 + 2;
-  int matrix_x = cover_art_divider_x + 1;
-  int matrix_divider_x = matrix_x + matrix_width;
-  arrangement_grid_->resize(kScopeHeight, matrix_width).move(scope_row, matrix_x);
-
-  int chart_x = matrix_divider_x + 1;
-  int chart_width = std::max(1, cols - chart_x - 9 - kHeatmapWidth - 2); // -2 for the single-column dividers on either side of the heatmap
-  int divider1_x = chart_x + chart_width, divider2_x = divider1_x + 1 + kHeatmapWidth;
-  // Live View places these in its own left column below.
+  // Each scope has a title bar over it, like Live View's; Live View places
+  // the scopes in its own left column below.
+  int band_chart_rows = std::max(1, (scope_rows - 2) / 2);
+  int band_heatmap_rows = std::max(1, scope_rows - 2 - band_chart_rows);
+  int band_chart_row = scope_row + 1;
+  int band_heatmap_row = band_chart_row + band_chart_rows + 1;
   if (getView() == View::ARRANGEMENT) {
     chart_->setVisible(show_scopes);
     heatmap_->setVisible(show_scopes);
-    chart_->resize(kScopeHeight, chart_width).move(scope_row, chart_x);
-    heatmap_->resize(kScopeHeight, kHeatmapWidth).move(scope_row, divider1_x + 1);
+    chart_->resize(band_chart_rows, kHeatmapWidth).move(band_chart_row, heatmap_x);
+    heatmap_->resize(band_heatmap_rows, kHeatmapWidth).move(band_heatmap_row, heatmap_x);
   }
-  volume_meter_->resize(kScopeHeight, 9).move(scope_row, divider2_x + 1);
+  volume_meter_->resize(scope_rows - 1, 9).move(scope_row + 1, meter_x);
 
-  // Single-column dividers between the five scopes - drawn once here
-  // rather than per-frame, since these columns fall outside every scope's
-  // own resized rectangle, so nothing else ever repaints over them. (When
-  // hidden, the workspace below covers these rows instead.)
+  // Single-column dividers between the grid, the scopes and the meter, and
+  // the scopes' title bars - drawn once here rather than per-frame, since
+  // these cells fall outside every scope's own resized rectangle, so nothing
+  // else ever repaints over them. (When hidden, the workspace below covers
+  // these rows instead.)
   setFgColor(styles_.window_border_color);
   setBgColor(styles_.window_bg_color);
   const char * divider_glyph = styles_.grid_lines ? "│" : " ";
-  for (int row = 0; show_scopes && row < kScopeHeight; row++) {
-    putstr(scope_row + row, cover_art_divider_x, divider_glyph);
+  for (int row = 0; show_scopes && row < scope_rows; row++) {
     putstr(scope_row + row, matrix_divider_x, divider_glyph);
-    putstr(scope_row + row, divider1_x, divider_glyph);
-    putstr(scope_row + row, divider2_x, divider_glyph);
+    putstr(scope_row + row, meter_x - 1, divider_glyph);
+  }
+  if (show_scopes) {
+    // The grid's own header rows use the same panel colour.
+    struct Title {
+      int row, col, width;
+      const char * text;
+    };
+    const Title titles[] = {{scope_row, heatmap_x, kHeatmapWidth, "Spectrum"},
+                            {band_heatmap_row - 1, heatmap_x, kHeatmapWidth, "DirAC"},
+                            {scope_row, meter_x, 9, "Level"}};
+    setFgColor(styles_.window_accent_fg_color);
+    setBgColor(styles_.window_accent_bg_color);
+    for (auto & title : titles) {
+      putstr(title.row, title.col, std::string(static_cast<size_t>(title.width), ' '));
+      putstr(title.row, title.col + 1, title.text);
+    }
   }
   // The workspace below the scope row. A widget the current view doesn't
   // show gets the same rect as a visible one instead of being shrunk to
   // nothing, and moveToTop() raises the visible ones above it.
-  int workspace_row = show_scopes ? 1 + kScopeHeight : 1;
+  int workspace_row = show_scopes ? 1 + scope_rows : 1;
   int workspace_rows = std::max(2, rows - 2 - workspace_row);
   if (getView() == View::LIVE) {
     // Live View: the left column (outline panel, with the scopes under
@@ -1107,6 +1137,7 @@ TerminalUI::layout() {
     int outline_rows = live_scopes ? workspace_rows - live_scope_rows : workspace_rows;
     int right_cols = cols - outline_cols;
     clip_grid_->setVisible(true);
+    outline_view_->setVisible(true);
     clip_grid_->resize(strip_rows, right_cols).move(workspace_row, outline_cols);
     outline_view_->resize(outline_rows, outline_cols > 0 ? outline_cols - 1 : cols).move(workspace_row, 0);
     if (outline_cols > 0) {
@@ -1154,6 +1185,7 @@ TerminalUI::layout() {
     // Hidden, not only covered: whatever the pattern editor leaves blank
     // for a moment (or a picture its meters left) must not show it.
     clip_grid_->setVisible(false);
+    outline_view_->setVisible(false);
     clip_grid_->resize(workspace_rows, cols).move(workspace_row, 0);
     outline_view_->resize(workspace_rows, cols).move(workspace_row, 0);
     pattern_editor_->resize(workspace_rows, cols).move(workspace_row, 0);
@@ -1180,6 +1212,10 @@ TerminalUI::renderComponents(bool refresh) {
   // render() gate), not at whichever earlier, input-handling call site
   // actually requested it.
   if (getView() == View::LIVE && syncLiveView()) force_next_render_ = true;
+  if (getView() == View::ARRANGEMENT && scopes_visible_ && arrangementScopeRows() != laid_out_scope_rows_) {
+    layout();
+    force_next_render_ = true;
+  }
   refresh = refresh || force_next_render_;
   force_next_render_ = false;
   bool render = false;
@@ -1244,8 +1280,10 @@ TerminalUI::renderComponents(bool refresh) {
     if (isOutlineVisible()) if (outline_view_->render(styles_, refresh, active == outline_view_)) { render = true; statCount("render:outline_view_"); }
   }
   if (pattern_editor_->render(styles_, refresh, active == pattern_editor_)) { render = true; statCount("render:pattern_editor_"); }
-  if (arrangement_grid_->render(styles_, refresh, active == arrangement_grid_, selected_track_id)) { render = true; statCount("render:arrangement_grid_"); }
-  if (cover_art_->render(styles_, refresh)) { render = true; statCount("render:cover_art_"); }
+  if (arrangement_grid_->render(styles_, refresh, active == arrangement_grid_, selected_track_id)) {
+    render = true;
+    statCount("render:arrangement_grid_");
+  }
   if (info_line_->render(styles_, refresh)) { render = true; statCount("render:info_line_"); }
   if (octave_control_->render(styles_, refresh)) { render = true; statCount("render:octave_control_"); }
 
@@ -1294,7 +1332,7 @@ TerminalUI::syncLiveView() {
   return true;
 }
 
-std::vector<std::shared_ptr<cellui::Element>>
+std::vector<std::shared_ptr<cellui::Widget>>
 TerminalUI::focusableElements() const {
   if (getView() == View::ARRANGEMENT) {
     if (!scopes_visible_) return { pattern_editor_ };
@@ -1302,7 +1340,7 @@ TerminalUI::focusableElements() const {
   }
   // Screen order, the way Emacs cycles windows: the outline panel
   // (top-left), the clip grid beside it, then the pattern editor below.
-  std::vector<std::shared_ptr<cellui::Element>> elements;
+  std::vector<std::shared_ptr<cellui::Widget>> elements;
   if (isOutlineVisible()) elements.push_back(outline_view_);
   elements.push_back(clip_grid_);
   elements.push_back(pattern_editor_);
@@ -1342,8 +1380,7 @@ TerminalUI::viewChanged() {
   force_next_render_ = true;
 }
 
-bool
-TerminalUI::tryActivate(int y, int x, std::shared_ptr<cellui::Element> element) {
+bool TerminalUI::tryActivate(int y, int x, std::shared_ptr<cellui::Widget> element) {
   auto [pos_y, pos_x] = element->getPosition();
   auto [rows, cols] = element->getDim();
 
@@ -1359,7 +1396,7 @@ bool
 TerminalUI::offerInput(const cellui::Input & input) {
   bool handled = false;
 
-  // No open reader (StatusLine's M-x minibuffer, any widget's inline
+  // No open reader (a StatusLine prompt, any widget's inline
   // editor - see PatternEditor::isReaderActive()'s own comment) may let a
   // global keybinding (Space/toggle-playing, C-x C-c/quit, ...) steal a
   // keystroke meant for it.
@@ -1380,7 +1417,7 @@ TerminalUI::offerInput(const cellui::Input & input) {
   // while it is open (raiseOverlays()), so its text can be selected.
   if (info_dialog_.isOpen() && input.getId() != Key::Resize && !(input.hasCtrl() && input.getId() == 'l')) {
     auto id = input.getId();
-    // Not a release: the Enter that opened it, from the minibuffer, is
+    // Not a release: the Enter that opened it, from the command palette, is
     // released after it is open.
     if (input.getKind() != InputEvent::Kind::RELEASE &&
         (id == Key::Escape || id == Key::Enter || id == 'q' || (input.hasCtrl() && id == 'g'))) {
@@ -1574,7 +1611,7 @@ std::string TerminalUI::bindingFor(const std::string & command) const {
   }
   if (auto binding = pattern_editor_->bindingFor(command); !binding.empty()) return binding;
   if (auto binding = clip_grid_->bindingFor(command); !binding.empty()) return binding;
-  return cellui::Element::bindingFor(command);
+  return cellui::Widget::bindingFor(command);
 }
 
 void TerminalUI::showCommandPalette() {
@@ -1763,7 +1800,7 @@ TerminalUI::handleVisualizationResultEvent(VisualizationResultEvent & ev) {
     }
 
     if (ev.hasDiracGrid()) {
-      // plans/dirac-heatmap-scope.md SS6: displayed[cell] = the grid's own
+      // displayed[cell] = the grid's own
       // directional energy plus the per-band diffuse haze, spread
       // uniformly across every cell (one shared scalar summed from all 8
       // bands, not a separate per-band-per-cell splat).
@@ -1784,7 +1821,7 @@ TerminalUI::handleVisualizationResultEvent(VisualizationResultEvent & ev) {
       // than derived fresh each time: jumps up immediately on a new peak
       // (so a loud transient doesn't clip the display), decays slowly
       // otherwise (~2s time constant at this event's ~28.7Hz delivery
-      // rate - plans/dirac-heatmap-scope.md SS1) so a quiet passage
+      // rate) so a quiet passage
       // doesn't suddenly wash the whole grid out to full brightness the
       // instant a loud part ends.
       if (frame_max > dirac_running_max_) dirac_running_max_ = frame_max;
@@ -1891,7 +1928,7 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
   // Controller::clearFocusedClip()) hands that device back to Live View
   // instead, rather than leaving it stuck showing a step grid with nothing
   // left focused to edit there.
-  getController().setClipSelectListener([this](int track_id, int clip_index) {
+  controller_connections_.push_back(getController().clip_selected.connect([this](int track_id, int clip_index) {
     auto & song = getController().getSong();
     auto root_ids = pattern_editor_->trackIds(song);
     auto root = std::find(root_ids.begin(), root_ids.end(), track_id);
@@ -1900,9 +1937,9 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
     auto column = std::find(playable.begin(), playable.end(), track_id);
     if (column != playable.end()) clip_grid_->setCursorTrackIndex(static_cast<int>(column - playable.begin()));
     clip_grid_->setCursorClipIndex(clip_index);
-  });
-  getController().setUndoCellListener([this](const Song::EditPlace & place) { pattern_editor_->focusCell(place); });
-  getController().setUndoFocusListener([this](int track_id, int clip_index, int row) {
+  }));
+  controller_connections_.push_back(getController().undo_cell_focused.connect([this](const Song::EditPlace & place) { pattern_editor_->focusCell(place); }));
+  controller_connections_.push_back(getController().undo_clip_focused.connect([this](int track_id, int clip_index, int row) {
     auto & song = getController().getSong();
     auto root_ids = pattern_editor_->trackIds(song);
     auto root = std::find(root_ids.begin(), root_ids.end(), track_id);
@@ -1912,8 +1949,8 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
     if (column != playable.end()) clip_grid_->setCursorTrackIndex(static_cast<int>(column - playable.begin()));
     clip_grid_->setCursorClipIndex(clip_index);
     pattern_editor_->focusLiveRow(track_id, clip_index, row);
-  });
-  getController().setDrumEditRequestListener([this](int track_id, bool opened) {
+  }));
+  controller_connections_.push_back(getController().drum_edit_requested.connect([this](int track_id, bool opened) {
     if (opened) {
       auto & song = getController().getSong();
       auto track_ids = pattern_editor_->trackIds(song);
@@ -1931,11 +1968,12 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
     } else {
       launchpad_manager_->closeStepView();
     }
-  });
+  }));
 }
 
 void
 TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
+#ifndef _WIN32
   int out_pipe[2];
 
   if (pipe(out_pipe) != 0) { // make a pipe
@@ -1957,6 +1995,7 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
 
   dup2(out_pipe[1], STDERR_FILENO); // redirect stderr to the pipe
   close(out_pipe[1]);
+#endif
 
   // In the order the loop handles them.
   WaitSet waits;
@@ -1966,10 +2005,20 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
   auto midi_group = waits.group();
   auto launchpad_group = waits.group();
 
+#ifdef _WIN32
+  // The window's events: handles, not descriptors.
+  for (void * handle : backend_.inputHandles()) waits.addHandle(input_group, handle);
+#else
   waits.addFd(input_group, backend_.inputFd());
   waits.addFd(input_group, backend_.wakeFd());
+#endif
   waits.add(events_group, getController().getUIEventQueue().notifier());
+#ifdef _WIN32
+  StderrCapture stderr_capture;
+  if (stderr_capture.active()) waits.add(stderr_group, stderr_capture.notifier());
+#else
   waits.addFd(stderr_group, out_pipe[0]);
+#endif
   midi.addTo(waits, midi_group);
   launchpad_io.addTo(waits, launchpad_group);
 
@@ -2010,7 +2059,11 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
   bool other_wake = false; // input, MIDI, Launchpad or stderr woke the loop, not just the event queue
   auto & loop = backend_.eventLoop();
   auto add_source = [&](WaitSet::Group group, cellui::EventLoop::Handler handler) {
+#ifdef _WIN32
+    loop.addHandles(waits.handles(group), std::move(handler));
+#else
     loop.addSource(waits.fds(group), std::move(handler));
+#endif
   };
   add_source(input_group, [&] {
     count("fd" + std::to_string(input_group));
@@ -2043,6 +2096,10 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
   add_source(stderr_group, [&] {
     count("fd" + std::to_string(stderr_group));
     other_wake = true;
+#ifdef _WIN32
+    // Already mirrored to the caller's stderr by the capture.
+    waiting_stderr += stderr_capture.take();
+#else
     char buffer[4096];
     int r = read(out_pipe[0], buffer, 4096);
     if (real_stderr_fd >= 0 && r > 0) {
@@ -2061,6 +2118,7 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
       }
     }
     waiting_stderr += string(buffer, static_cast<size_t>(r));
+#endif
     while (1) {
       auto pos = waiting_stderr.find('\n');
       if (pos != string::npos) {
@@ -2101,6 +2159,7 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
       clock_gettime(CLOCK_THREAD_CPUTIME_ID, &cpu_now);
       g_ui_stats["cpu_us"] = static_cast<int>((cpu_now.tv_sec - stats_cpu_since.tv_sec) * 1000000L + (cpu_now.tv_nsec - stats_cpu_since.tv_nsec) / 1000L);
       stats_cpu_since = cpu_now;
+#ifndef _WIN32
       // Every thread's share of a CPU over the second, in percent.
       auto thread_ticks = threadCpuTicks();
       for (auto & [name, t] : thread_ticks) {
@@ -2108,6 +2167,7 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
         if (it != stats_thread_ticks.end()) g_ui_stats["cpu%:" + name] = static_cast<int>(100 * (t - it->second) / std::max(1L, sysconf(_SC_CLK_TCK)));
       }
       stats_thread_ticks = std::move(thread_ticks);
+#endif
       if (FILE * f = fopen(stats_path, "a")) {
         for (auto & [what, n] : g_ui_stats) fprintf(f, "%s=%d ", what.c_str(), n);
         fputs("\n", f);

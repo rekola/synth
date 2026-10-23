@@ -105,8 +105,12 @@ class ScenePatternSource : public PatternSource {
   // there is nothing), so its line carries on through the loop, the
   // passes either side of the one it's in shown dimmed.
   RowAddress trackAddress(int track_id, RowAddress address) const override;
+  long trackLine(int track_id, RowAddress address) const override;
+  double trackScrollRate(int track_id) const override;
+  bool trackHasPlayhead(int track_id) const override { return isPlaying(track_id); }
   float loopPassDim(int track_id, RowAddress address) const override;
   bool isFading() const override;
+  void setReducedMotion(bool reduced) override { reduced_motion_ = reduced; }
   // How far the cursor track's position jumped back (or forward) as its
   // loop wrapped, beyond the rows it played; reset by the call. The view
   // moves by the same so the line carries on down the screen.
@@ -143,6 +147,7 @@ class ScenePatternSource : public PatternSource {
   // When each looping track's playhead last crossed into its next pass.
   std::unordered_map<int, std::chrono::steady_clock::time_point> pass_changed_;
   float fadeProgress(int track_id) const;
+  bool reduced_motion_ = false;
   int cursor_jump_ = 0;
   // Stopped tracks' positions, per buffer name.
   mutable std::unordered_map<std::string, std::unordered_map<int, RowAddress>> positions_;

@@ -9,6 +9,10 @@ using namespace std;
 
 namespace PadSynthProfile {
 
+namespace {
+constexpr float kNarrowPartialBins = 1.5f;
+} // namespace
+
 std::array<float, kProfileSize> buildProfile(const ProfileParams & params) {
   constexpr int kSupersample = 16;
   std::array<float, kProfileSize> profile{};
@@ -70,8 +74,22 @@ void placePartial(std::vector<float> & amplitude_spectrum, float amplitude, floa
   float nyquist_half = sample_rate * 0.5f;
   float bandwidth_ratio = std::exp2(bandwidth_cents / 1200.0f) - 1.0f;
 
-  int omega = static_cast<int>(std::floor(bandwidth_ratio * partial_frequency_hz / alpha / nyquist_half * static_cast<float>(S))) + 1;
+  float width_bins = bandwidth_ratio * partial_frequency_hz / alpha / nyquist_half * static_cast<float>(S);
+  int omega = static_cast<int>(std::floor(width_bins)) + 1;
   float center = partial_frequency_hz / nyquist_half * static_cast<float>(S);
+
+  // A partial under about a bin and a half wide would be split over two
+  // neighbouring bins, which beat slowly against each other. Put all of its
+  // energy in the nearest bin instead: the profile's own energy, the same
+  // total the wider windows below keep.
+  if (width_bins < kNarrowPartialBins) {
+    int bin = static_cast<int>(std::lround(center));
+    if (bin <= 0 || bin >= S) return;
+    float energy = 0.0f;
+    for (float v : profile) energy += v * v;
+    amplitude_spectrum[static_cast<size_t>(bin)] += amplitude * std::sqrt(energy);
+    return;
+  }
 
   if (omega > kProfileSize) {
     float r = std::sqrt(static_cast<float>(kProfileSize) / static_cast<float>(omega));

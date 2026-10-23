@@ -4,12 +4,15 @@
 
 namespace cellui {
 
-void Scrim::show(UIPlane & parent, int rows, int cols, const Backdrop & backdrop) {
+void Scrim::show(Plane & parent, int rows, int cols, const Backdrop & backdrop) {
   if (!backdrop.active() || rows <= 0 || cols <= 0) {
     close();
     return;
   }
-  if (!plane_) plane_ = parent.createChild();
+  if (!plane_) {
+    plane_ = parent.createChild();
+    plane_->setMouseCursor(MouseCursor::DEFAULT);
+  }
   plane_->setName("scrim");
   // Under the modal dialog it is drawn for, which floats at the same height
   // and is raised above it.

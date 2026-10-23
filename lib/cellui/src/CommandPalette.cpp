@@ -93,7 +93,7 @@ vector<string> CommandPalette::shownNames() const {
   return names;
 }
 
-void CommandPalette::show(UIPlane & parent, int screen_rows, int screen_cols) {
+void CommandPalette::show(Plane & parent, int screen_rows, int screen_cols) {
   if (!open_) return;
 
   // As many list rows as there are matches (one for the "no match" note), up
@@ -105,6 +105,7 @@ void CommandPalette::show(UIPlane & parent, int screen_rows, int screen_cols) {
 
   if (!plane_) {
     plane_ = parent.createChild();
+    plane_->setMouseCursor(MouseCursor::DEFAULT);
     // Left alone, the two rows below the list show the display's own
     // background, like the status line they replace.
     plane_->makeTransparent();
@@ -116,14 +117,14 @@ void CommandPalette::show(UIPlane & parent, int screen_rows, int screen_cols) {
   auto quiet = styles.theme.text_secondary;
   auto cursor_fg = styles.highlight_fg_color, cursor_bg = styles.highlight_bg_color;
   auto set = [&](const Color & foreground, const Color & background) {
-    plane_->setFgColor(foreground.getRed(), foreground.getGreen(), foreground.getBlue());
-    plane_->setBgColor(background.getRed(), background.getGreen(), background.getBlue());
+    plane_->setFgColor(foreground);
+    plane_->setBgColor(background);
   };
 
   // Text on the display's own background, for the description and the query.
   auto plain = [&](const Color & foreground) {
     plane_->setBgDefault();
-    plane_->setFgColor(foreground.getRed(), foreground.getGreen(), foreground.getBlue());
+    plane_->setFgColor(foreground);
   };
 
   set(fg, bg);

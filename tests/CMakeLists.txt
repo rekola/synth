@@ -32,10 +32,12 @@ add_executable(synth_tests
 	AzimuthSlideTests.cpp
 	SendSetCommandTests.cpp
 	SendLiveUpdateTests.cpp
+	PerformanceTests.cpp
 	SongTests.cpp
 	ScaleTests.cpp
 	ShutdownSignalTests.cpp
 	MidiNoteInputTests.cpp
+	ChordGrouperTests.cpp
 	LaunchpadLayoutTests.cpp
 	LaunchpadProtocolTests.cpp
 	LaunchpadTimingTests.cpp
@@ -100,8 +102,8 @@ add_executable(synth_tests
 )
 
 target_link_libraries(synth_tests synth_engine)
-# The terminal UI, driven on Cell UI's test terminal.
-if(SYNTH_BUILD_INTERACTIVE AND SYNTH_BUILD_TERMINAL_UI)
+# The terminal UI, driven on Cell UI's test terminal (which Windows lacks).
+if(SYNTH_BUILD_INTERACTIVE AND SYNTH_BUILD_TERMINAL_UI AND NOT WIN32)
   target_sources(synth_tests PRIVATE TerminalUITests.cpp TerminalUIViewTests.cpp)
   target_link_libraries(synth_tests synth_ui)
 endif()

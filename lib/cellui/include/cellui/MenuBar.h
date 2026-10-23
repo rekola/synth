@@ -2,7 +2,7 @@
 
 #include <cellui/Color.h>
 #include <cellui/Input.h>
-#include <cellui/UIPlane.h>
+#include <cellui/Plane.h>
 
 #include <memory>
 #include <optional>
@@ -43,10 +43,12 @@ class MenuBar {
     Color header_fg = Color(255, 255, 255), header_bg = Color(0x7f, 0x34, 0x7f);
     Color section_fg = Color(255, 255, 255), section_bg = Color(0, 0, 0);
     Color disabled_fg = Color(0xdd, 0xdd, 0xdd);
+    // The highlighted item.
+    Color selected_fg = Color(0, 0, 0), selected_bg = Color(255, 255, 255);
   };
 
-  explicit MenuBar(UIPlane & plane) : plane_(plane) { }
-  MenuBar(UIPlane & plane, Colors colors) : plane_(plane), colors_(colors) { }
+  explicit MenuBar(Plane & plane) : plane_(plane) { }
+  MenuBar(Plane & plane, Colors colors) : plane_(plane), colors_(colors) { }
 
   // Replaces the sections; nothing stays open.
   void setSections(std::vector<Section> sections);
@@ -80,8 +82,8 @@ class MenuBar {
   int boxColumn() const;
   int bodyWidth(int section) const;
 
-  UIPlane & plane_;
-  std::unique_ptr<UIPlane> panel_;  // the open section's
+  Plane & plane_;
+  std::unique_ptr<Plane> panel_;  // the open section's
   Colors colors_;
   std::vector<Section> sections_;
   int cols_ = 0;

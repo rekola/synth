@@ -27,7 +27,7 @@ class WaveformPeaks {
   int rowCount() const { return subrows_per_row_ > 0 ? static_cast<int>(peaks_.size()) / subrows_per_row_ : 0; }
   // How many independent time-buckets each pattern row was actually built
   // with - whatever build()'s own caller (PatternEditor, driven by
-  // UIPlane::canRenderSextants()) asked for at the time, not a fixed
+  // Plane::canRenderSextants()) asked for at the time, not a fixed
   // constant: quadrant glyphs need 2 (the universally-supported
   // fallback), sextants need 3 (when the terminal actually supports
   // them) - a terminal's own capabilities don't change mid-session, but

@@ -53,7 +53,7 @@ class Song;
 // TerminalUI::layout().
 class ClipGrid : public UIElement {
  public:
-  ClipGrid(UIPlane & parent);
+  ClipGrid(Plane & parent);
 
   bool render(const StyleProvider & styles, bool refresh, bool focused);
 
@@ -124,6 +124,8 @@ class ClipGrid : public UIElement {
   // each. Shared between render() and startClipRename() so the reader's
   // own placement always lines up with what render() just drew.
   static constexpr int kColWidth = 18;
+  // A Sends row's values: the first one's offset in the column, each one's width.
+  static constexpr int kSendX = 5, kSendWidth = 4;
   // The level meter: a vertical bar in a column's last cell,
   // beside the Sends/Direction rows (kSendsLabel through kDirectionValue),
   // which leave that cell free.
@@ -221,15 +223,29 @@ class ClipGrid : public UIElement {
   // or the master's (the dry mix and the send bus's returns).
   void startSendEdit(int track_id, int send);
   void putDivider(const StyleProvider & styles, int y, int x, bool header);
-  void putSendValues(int y, int x, const SendLevels & sends, int highlighted, const StyleProvider & styles);
-  // What Enter (or a click, which never opens the Sends editor) does on the
+  void putSendValues(int y, int x, const SendLevels & sends, int highlighted, const StyleProvider & styles,
+                     int pressed = -1);
+  // What Enter or a click does on the
   // cell under the cursor.
-  void activateCell(const Song & song, const std::vector<int> & track_ids, bool edit_sends);
+  void activateCell(const Song & song, const std::vector<int> & track_ids);
   // A left-button press or release: picks the cell under it, and a clip
   // slot (or the master's scene/stop-all slots) acts as a button.
   bool handleMouse(const cellui::Input & input);
   // Between a press and its release - see handleMouse().
   bool mouse_down_ = false;
+  // The cell a held button is on, shown pressed: the release picks it. `column`
+  // is -1 when nothing is pressed, `physical` -1 for the header row and -2 for a
+  // row that only picks the track (a label, a divider).
+  struct Pressed {
+    int column = -1, logical_row = 0, physical = -2, send = -1; // send: the value on a Sends row
+    bool operator==(const Pressed & o) const { return column == o.column && logical_row == o.logical_row && send == o.send; }
+    bool operator!=(const Pressed & o) const { return !(*this == o); }
+  };
+  Pressed pressed_, current_pressed_;
+  // What is under the screen position, if it is a column.
+  Pressed hitTest(int screen_y, int screen_x, int num_tracks) const;
+  int pressedSend(int column, int physical) const { return isPressed(column, physical) ? pressed_.send : -1; }
+  bool isPressed(int column, int physical) const { return pressed_.column == column && pressed_.physical == physical; }
   void startClipRename(const Song & song, const std::vector<int> & track_ids);
   // F2 on the master column's scene slot edits the scene's name.
   void startSceneRename();

@@ -31,6 +31,7 @@
 #include <cmath>
 #include <limits>
 #include <fmt/core.h>
+#include <fmt/format.h>
 
 #include <iostream>
 
@@ -45,10 +46,10 @@ static SongScope songScopeOf(SelectionScope scope) {
 // needs the exact same addressable-track list/order to resolve a device's
 // assigned track to a track_id, without PatternEditor being involved.
 
-PatternEditor::PatternEditor(UIPlane & parent)
-  : UIElement(parent),
-    arrangement_source_(std::make_unique<ArrangementPatternSource>(getController())),
-    scene_source_(std::make_unique<ScenePatternSource>(getController())) {
+PatternEditor::PatternEditor(Plane & parent)
+    : UIElement(parent),
+      arrangement_source_(std::make_unique<ArrangementPatternSource>(getController())),
+      scene_source_(std::make_unique<ScenePatternSource>(getController())) {
   source_ = arrangement_source_.get();
   // Whichever buffer is already active by construction time (main.cpp
   // always opens/creates one before the UI itself exists) - without this,
@@ -1193,6 +1194,11 @@ PatternEditor::getEffectiveSelectionBounds(const Song & song, const vector<int> 
   return b;
 }
 
+// How far into its row the playhead is, 0 up to 1.
+static double playPhase(const PlaybackInfo & info) {
+  return std::min(info.getCurrentDelay() / 256.0, 0.999);
+}
+
 bool
 PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) {
   last_styles_ = &styles; // see its own comment - startTrackNameEdit()'s only source of one
@@ -1352,6 +1358,81 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   new_scroll.row = new_row;
   if (!view_detached_) new_scroll = computeScrollPosition(current_scroll_, new_row, scroll_target_track, scroll_target_col, track_ids, track_info, cols, gutterWidth());
 
+  // Smooth scrolling: the shown top trails the logical one by an offset
+  // that eases to zero; a jump too far to follow just lands.
+  {
+    // Live View's columns each scroll by themselves, below.
+    bool smooth = getPlane().smoothScroll() && !isLiveMode();
+    auto now = std::chrono::steady_clock::now();
+    double seconds = std::min(0.1, std::chrono::duration<double>(now - row_anim_tick_).count());
+    row_anim_tick_ = now;
+    RowAddress top{ view_block_, new_row };
+    if (smooth && anim_top_valid_) {
+      int moved = source_->rowsBetween(anim_top_, top);
+      if (std::abs(moved) <= kMaxSmoothScrollRows) row_offset_ -= moved;
+      else row_offset_ = 0.0;
+    } else {
+      row_offset_ = 0.0;
+    }
+    anim_top_ = top;
+    anim_top_valid_ = true;
+    if (row_offset_ != 0.0) {
+      row_offset_ -= row_offset_ * (1.0 - std::exp(-seconds / 0.06));
+      if (std::abs(row_offset_) < 0.02) row_offset_ = 0.0;
+    }
+    smooth_cursor_ = getPlane().smoothScroll();
+    row_band_phase_ = 0.0;
+    if (smooth && !isLiveMode() && !view_detached_ && !track_ids.empty() && source_->trackScrollRate(track_ids.front()) > 0.0) {
+      // A playing view keeps up with the playhead exactly: the line moves down
+      // the screen until it reaches the margin, then holds still while the
+      // rows scroll under it.
+      auto top_line = source_->rowsBetween(top, point);
+      bool pinned = top_line >= rows - heading_height - 1 - (pointer_scroll_ ? 0 : std::min(kScrollMargin, (std::max(rows - heading_height, 1) - 1) / 2));
+      row_offset_ = pinned ? playPhase(info) : 0.0;
+      row_band_phase_ = pinned ? 0.0 : playPhase(info);
+    }
+    int delta = static_cast<int>(std::floor(row_offset_));
+    if (delta != draw_row0_ - new_row) force_full_redraw_ = true;
+    draw_row0_ = new_row + delta;
+
+    columns_shifted_ = false;
+    bool columns = getPlane().smoothScroll() && isLiveMode();
+    columns_planes_in_use_ = columns;
+    auto top_address = source_->normalize(view_block_, new_row);
+    for (auto id : track_ids) {
+      auto & column = column_scroll_[id];
+      if (!columns) {
+        column = ColumnScroll();
+        continue;
+      }
+      long line = source_->trackLine(id, top_address);
+      if (column.valid && std::labs(line - column.line) <= kMaxSmoothScrollRows)
+        column.offset -= static_cast<double>(line - column.line);
+      else
+        column.offset = 0.0;
+      column.line = line;
+      column.valid = true;
+      column.band_phase = 0.0;
+      if (source_->trackScrollRate(id) > 0.0 && !view_detached_) {
+        // A playing column keeps up with its playhead exactly: its line moves
+        // down the screen until it reaches the margin, then holds still while
+        // the column scrolls under it.
+        int visible = std::max(rows - heading_height, 1);
+        int margin = pointer_scroll_ ? 0 : std::min(kScrollMargin, (visible - 1) / 2);
+        bool pinned = source_->rowsBetween(RowAddress{view_block_, new_row}, source_->trackCursor(id)) >= visible - 1 - margin;
+        column.offset = pinned ? playPhase(info) : 0.0;
+        column.band_phase = pinned ? 0.0 : playPhase(info);
+      } else if (column.offset != 0.0) {
+        column.offset -= column.offset * (1.0 - std::exp(-seconds / 0.06));
+        if (std::abs(column.offset) < 0.02) column.offset = 0.0;
+      }
+      int column_delta = static_cast<int>(std::floor(column.offset));
+      if (column_delta != column.delta) force_full_redraw_ = true;
+      column.delta = column_delta;
+      if (column.offset != 0.0) columns_shifted_ = true;
+    }
+  }
+
   // GridPosition::operator!= already covers track/col/subcol/scope (.row
   // is never set on a cursor, only current_scroll_) - one comparison
   // instead of a field-by-field list that has to be remembered and kept
@@ -1390,6 +1471,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   // for what used to be a hand-rolled diff of each of those pieces
   // separately (see SelectionBounds::operator==).
   // A pass fading in or out keeps redrawing, once more after it ends.
+  if (scene_source_) scene_source_->setReducedMotion(styles.reduced_motion);
   bool fading = isLiveMode() && scene_source_->isFading();
   // How focused the widget is, eased: its cursor fades between the focused and unfocused look.
   focus_ = fades_.value(0, focused ? 1.0f : 0.0f, !styles.reduced_motion);
@@ -1399,6 +1481,9 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   fades_.sweep();
   if (focus_fading) force_full_redraw_ = true;
   if (fading || fading_drawn_) force_full_redraw_ = true;
+  // The rows move: every frame of the animation, and one more at its end.
+  if (rowsShifted() || row_anim_drawn_) force_full_redraw_ = true;
+  row_anim_drawn_ = rowsShifted();
   fading_drawn_ = fading;
   if (score_pattern != current_score_pattern ||
       song.getMajorVersion() != current_song_version ||
@@ -1430,10 +1515,16 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
     setFgColor(styles.window_border_color);
     setBgColor(styles.window_bg_color);
     fill();
+    getPlane().setScrollOffset(row_offset_ == 0.0 ? 0.0 : row_offset_ - std::floor(row_offset_), 0);
+    syncColumnPlanes(track_ids);
 
     renderHeading(styles, track_ids, track_info, focused);
-    for (auto row = 0; row < rows - heading_height; row++) {
-      auto address = source_->normalize(view_block_, row + current_scroll_.row);
+    // One row more than fits while the rows are between two positions.
+    column_starts_.assign(track_ids.size(), -1);
+    cursor_x0_ = cursor_x1_ = -1;
+    int drawn_rows = rows - heading_height + (rowsShifted() ? 1 : 0);
+    for (auto row = 0; row < drawn_rows; row++) {
+      auto address = source_->normalize(view_block_, row + draw_row0_);
       renderRow(styles, heading_height, track_ids, track_info, row, address.block == score_pattern && address.row == score_playing_row, sel_bounds, focused);
     }
     need_redraw = true;
@@ -1457,6 +1548,9 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
     renderHeading(styles, track_ids, track_info, focused);
     need_redraw = true;
   }
+
+  updateCursorBands(styles, track_ids, heading_height, rows, RowAddress{view_block_, new_row}, focused);
+  if (bands_changed_) need_redraw = true;
 
   int new_tempo = song.getTempo();
   
@@ -1734,7 +1828,7 @@ PatternEditor::handleMouse(const cellui::Input & input) {
     } else if (source_->cursorLocked()) {
       if (fresh_press) reportLockedCursor();
     } else {
-      auto line = source_->rowsBetween({ view_block_, current_scroll_.row }, source_->cursor());
+      auto line = source_->rowsBetween({ view_block_, draw_row0_ }, source_->cursor());
       auto delta = (y - heading_height) - line;
       if (delta != 0) source_->moveCursor(limitToSelectionPattern(delta));
     }
@@ -1820,8 +1914,10 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
   // track's last column - see GridPosition::scope's own comment) but not
   // editing it yet: Enter is the explicit "start editing" trigger -
   // reaching the slot on its own must never start editing by itself.
+  // The release (or repeat) of the Enter that just committed an edit
+  // arrives after the field has closed and must not reopen it.
   if (new_cursor.isOnLocator() && input.getId() == Key::Enter) {
-    startLocatorEdit();
+    if (input.getKind() != InputEvent::Kind::RELEASE && input.getKind() != InputEvent::Kind::REPEAT) startLocatorEdit();
     return true;
   }
 
@@ -1832,7 +1928,8 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
   // toggle-track-collapse (Ctrl+Shift+C) is still the only way to
   // collapse a track, so Enter never surprises the user by hiding
   // something they just landed on.
-  if (!new_cursor.isOnLocator() && input.getId() == Key::Enter) {
+  if (!new_cursor.isOnLocator() && input.getId() == Key::Enter && input.getKind() != InputEvent::Kind::RELEASE &&
+      input.getKind() != InputEvent::Kind::REPEAT) {
     auto & song = getController().getSong();
     auto track_ids = trackIds(song);
     if (current_cursor.track < static_cast<int>(track_ids.size())) {
@@ -2263,11 +2360,27 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 
 	if (is_repeat && midi_note >= 0) return true; // already sounding - nothing to redo
 
-	// Whether this key's usual one-row step is left to someone else: an
-	// auto-started session lets the playing transport advance the rows, and a
-	// held key defers the step to the last release, so the rest of a chord
-	// lands on the same row.
-	bool hold_tracked_note = false;
+	// Without key releases a chord can't be told from quick taps by hold
+	// state, but its keys arrive together: one that does goes onto the
+	// chord's row, in the next note column, and leaves the cursor where the
+	// chord's first key put it.
+        bool chord_follower = false;
+        bool legacy_note_key = midi_note >= 0 && !is_off && !is_delete && input.getKind() == InputEvent::Kind::UNKNOWN && !input.hasShift();
+        if (legacy_note_key) {
+          if (auto slot = chord_.join(input.getTimestamp(), track_id, midi_note)) {
+            edit_target = source_->edit(track_id, slot->row);
+            note_column = slot->column;
+            chord_follower = true;
+          } else {
+            chord_.begin(input.getTimestamp(), track_id, point, note_column, midi_note);
+          }
+        }
+
+        // Whether this key's usual one-row step is left to someone else: an
+        // auto-started session lets the playing transport advance the rows, and a
+        // held key defers the step to the last release, so the rest of a chord
+        // lands on the same row.
+        bool hold_tracked_note = false;
 
 	// The group of a chord opens before the first write, not inside it.
 	if (midi_note >= 0 && !is_delete && !is_off && input.getKind() != InputEvent::Kind::UNKNOWN && active_keyboard_notes_.empty()) getController().setNoteHeld(true);
@@ -2344,7 +2457,7 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 	    // entry would have made - unlike Delete, which deletes in place and
 	    // leaves the cursor where it was.
 	    if (input.getId() == Key::Backspace) n = -1;
-	    else if (input.getId() != Key::Delete) n = 1;
+	    else if (input.getId() != Key::Delete && !chord_follower) n = 1;
 	    if (n && hold_tracked_note) {
 	      // The transport moves the row itself once a session auto-started by
 	      // this chord is playing; otherwise the step waits for the last
@@ -2355,13 +2468,137 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
             }
 	  }
 
-	  return true;
-	}
+          return true;
+        }
       }
     }
   }
   
   return false;
+}
+
+void PatternEditor::updateCursorBands(const StyleProvider & styles, const std::vector<int> & track_ids, int heading_height, int rows, RowAddress top, bool focused) {
+  // The cursor and the playheads are translucent strips over planes that hold
+  // still while the rows scroll under them.
+  int visible = rows - heading_height;
+  std::vector<double> shown;
+  auto strip = [&](Plane & plane, double line, double col, double cols, const Color & color, float alpha) {
+    double first = heading_height + line;
+    double height = std::min(1.0, static_cast<double>(rows) - first);
+    if (height <= 0.0 || cols <= 0.0) {
+      plane.clearBand();
+      return;
+    }
+    plane.setBand(cellui::Band{first, height, col, cols, color, alpha});
+    for (double v : {first, height, col, cols, static_cast<double>(alpha)}) shown.push_back(v);
+  };
+  auto cursor_track = current_cursor.track >= 0 && current_cursor.track < static_cast<int>(track_ids.size()) ? track_ids[static_cast<size_t>(current_cursor.track)] : -1;
+  std::optional<double> cursor_line;
+  double cursor_phase = 0.0;
+  if (smooth_cursor_ && columns_planes_in_use_) {
+    for (size_t i = 0; i < column_planes_.size(); i++) {
+      auto & plane = column_planes_[i];
+      if (i >= track_ids.size() || i >= column_starts_.size() || column_starts_[i] < 0) {
+        plane->clearBand();
+        continue;
+      }
+      int start = column_starts_[i], end = column_end_;
+      for (size_t j = i + 1; j < column_starts_.size(); j++) {
+        if (column_starts_[j] >= 0) {
+          end = column_starts_[j];
+          break;
+        }
+      }
+      int line = source_->rowsBetween(top, source_->trackCursor(track_ids[i]));
+      // A view the wheel scrolled carries the lines with its rows.
+      double phase = view_detached_ ? -column_scroll_[track_ids[i]].offset : column_scroll_[track_ids[i]].band_phase;
+      bool on_screen = line + phase > -1.0 && line + phase < visible;
+      if (track_ids[i] == cursor_track && on_screen) {
+        cursor_line = line;
+        cursor_phase = phase;
+      }
+      if (!on_screen || end - 1 <= start || !(styles.window_focused || source_->trackHasPlayhead(track_ids[i]))) {
+        plane->clearBand();
+        continue;
+      }
+      strip(*plane, line + phase, start, end - 1 - start, styles.cursor_row_tint_color, StyleProvider::kRowTintAlpha);
+    }
+    getPlane().clearBand();
+  } else if (smooth_cursor_) {
+    int line = source_->rowsBetween(top, source_->cursor());
+    double phase = view_detached_ ? -row_offset_ : row_band_phase_;
+    if (line + phase > -1.0 && line + phase < visible && !track_ids.empty()) {
+      cursor_line = line;
+      cursor_phase = phase;
+    }
+    // Under the overview, an editor that is not the focus shows no cursor, only a playhead.
+    bool cursor_shown = styles.window_focused && focused;
+    if (cursor_line && !track_ids.empty() && (cursor_shown || source_->trackHasPlayhead(track_ids.front())))
+      strip(getPlane(), *cursor_line + cursor_phase, 0.0, getDim().second, styles.cursor_row_tint_color, StyleProvider::kRowTintAlpha);
+    else
+      getPlane().clearBand();
+  } else {
+    getPlane().clearBand();
+  }
+  if (cursor_plane_) {
+    bool cell = smooth_cursor_ && cursor_line && styles.window_focused && (focused || isLiveMode()) && cursor_x0_ >= 0 && cursor_x1_ > cursor_x0_ && !current_cursor.isOnLocator();
+    if (cell) {
+      bool region = whole_song_ || (selection_active_ && selection_start_pattern_ == source_->cursor().block);
+      // Over a selection's own highlight the cursor takes the other tint.
+      Color color = region ? styles.cursor_tint_color : styles.highlight_unfocused_bg_color.blend(focus_, styles.highlight_bg_color);
+      float alpha = region ? 0.5f : 0.6f - 0.15f * focus_;
+      strip(*cursor_plane_, *cursor_line + cursor_phase, cursor_x0_, cursor_x1_ - cursor_x0_, color, alpha);
+    } else {
+      cursor_plane_->clearBand();
+    }
+  }
+  bands_changed_ = shown != bands_shown_;
+  bands_shown_ = std::move(shown);
+}
+
+void PatternEditor::syncColumnPlanes(const std::vector<int> & track_ids) {
+  bool live = isLiveMode() && getPlane().smoothScroll();
+  columns_planes_in_use_ = live;
+  auto [pos_y, pos_x] = getPosition();
+  auto [plane_rows, plane_cols] = getDim();
+  if (live) {
+    bool created = false;
+    while (column_planes_.size() < track_ids.size()) {
+      column_planes_.push_back(getPlane().createChild());
+      column_planes_.back()->makeTransparent(); // a column shows the columns below it around its own cells
+      created = true;
+    }
+    // The cursor's plane is above the columns, the headings' (held in
+    // rows_plane_ while drawing) above all.
+    if (created && cursor_plane_) cursor_plane_->moveToTop();
+    if (created && rows_plane_) rows_plane_->moveToTop();
+  }
+  if (smooth_cursor_ && !cursor_plane_) {
+    cursor_plane_ = getPlane().createChild();
+    cursor_plane_->makeTransparent();
+    if (rows_plane_) rows_plane_->moveToTop();
+  }
+  if (cursor_plane_) {
+    cursor_plane_->setVisible(smooth_cursor_);
+    cursor_plane_->move(pos_y, pos_x);
+    if (cursor_plane_->getDim() != std::make_pair(plane_rows, plane_cols)) cursor_plane_->resize(plane_rows, plane_cols);
+    if (!smooth_cursor_) cursor_plane_->clearBand();
+  }
+  for (size_t i = 0; i < column_planes_.size(); i++) {
+    auto & plane = column_planes_[i];
+    plane->erase();
+    bool used = live && i < track_ids.size();
+    plane->setVisible(used);
+    if (!used) {
+      plane->clearBand();
+      plane->setScrollOffset(0.0, 0);
+      continue;
+    }
+    plane->move(pos_y, pos_x);
+    if (plane->getDim() != std::make_pair(plane_rows, plane_cols)) plane->resize(plane_rows, plane_cols);
+    double offset = column_scroll_[track_ids[i]].offset;
+    plane->setScrollOffset(offset == 0.0 ? 0.0 : offset - std::floor(offset), 0);
+  }
 }
 
 void
@@ -2499,7 +2736,8 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
       if (track == own_leaf && own_leaf->getChildren().empty() && level > own_leaf->getDepth() - 1) {
 	auto pit = track_parents.find(own_leaf->getInternalId());
 	auto direct_parent = pit != track_parents.end() ? pit->second : nullptr;
-	track = (direct_parent && direct_parent->getType() == TrackType::MASTER) ? direct_parent : nullptr;
+	// The new look carries any wrapper's box down to its content.
+	track = (direct_parent && (direct_parent->getType() == TrackType::MASTER || styles.track_chips)) ? direct_parent : nullptr;
       }
       auto it = all_track_info.find(track_id);
       auto w = it != all_track_info.end() ? it->second.getTrackWidth() : 0;
@@ -2529,11 +2767,16 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
     // ancestor for a level>0 row). Also what Mute/Solo's own OFF color
     // (below) darkens - the track's plain base color, never the
     // brightened-when-selected one.
+    const int master_depth = song.getMasterTrack().getDepth();
     auto track_base_color = [&](const Track * t) -> Color {
       auto vis_info = get_track_info(t);
       if (level == 0 && vis_info && vis_info->color_ordinal_ >= 0) return styles.track_chips ? styles.heading_bg_color : vis_info->getColor(styles.tracks);
       // Fixed, not depth-shaded grey like every other ancestor box below -
       // there's only ever one master per song.
+      // The new look leaves non-leaf tracks flat, not raised.
+      // The master stays the window's own colour; each level inside it is a
+      // step brighter, toward the leaves.
+      if (styles.track_chips) return styles.window_bg_color.blend(0.02f * static_cast<float>(std::min(master_depth - t->getDepth(), 6)), styles.theme.text_primary);
       if (t->getType() == TrackType::MASTER) return styles.master_track_color;
       // Each extra nesting level lightens the grey by one step, so an
       // outer wrapping effect's box reads visually "further out" than
@@ -2591,11 +2834,16 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
     // seamless block with no visible seam at all, so a plain black "│"
     // takes its place instead, so there's still a border to see.
     auto draw_edge = [&](int row, int col, const Color & left_color, const Color & right_color) {
-      bool same = left_color.getRed() == right_color.getRed() && left_color.getGreen() == right_color.getGreen() &&
-	left_color.getBlue() == right_color.getBlue();
+      // The new look has elevation, so no half block: the groove between
+      // boxes is a whole cell of the window.
+      if (styles.track_chips) {
+	setBgColor(styles.window_bg_color);
+	putstr(row, col, " ");
+	return;
+      }
+      bool same = left_color.toSrgb8() == right_color.toSrgb8();
       if (same) {
-	if (styles.track_chips) setFgColor(styles.window_border_color);
-	else setFgColor(0x00, 0x00, 0x00);
+	setFgColor(0x00, 0x00, 0x00);
 	setBgColor(right_color);
 	putstr(row, col, "│");
       } else {
@@ -2605,6 +2853,15 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
       }
     };
     auto draw_divider = [&](int row, int col, const Track * left, int idx) {
+      // A flat box has no groove of its own to draw: a one-cell column of it
+      // (a wrapper's own column beside its content) is just more of the box.
+      auto left_info = left ? get_track_info(left) : nullptr;
+      if (styles.track_chips && left && level == 0 && !(left_info && left_info->color_ordinal_ >= 0)) {
+        setBgColor(segment_color(left));
+        putstr(row, col, " ");
+        putstr(row + 1, col, " ");
+        return;
+      }
       draw_edge(row, col, segment_color(left), next_segment_color(idx));
     };
     // The per-track VU meter next to a leaf's instrument name - a single
@@ -2654,7 +2911,7 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
 	// column 4, not column 5, so the heading content actually drawn
 	// below still starts exactly where it always has.
 	// With a colour slice the header needs no marker before it.
-	if (!styles.track_chips) draw_edge(heading_height - 2 - level, gutterWidth() - 1, styles.window_bg_color, segment_color(track));
+	if (!styles.track_chips && gutterWidth() > 0) draw_edge(heading_height - 2 - level, gutterWidth() - 1, styles.window_bg_color, segment_color(track));
 	drew_left_edge = true;
       }
 
@@ -2889,7 +3146,10 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
 	  // that can't be met); whatever's left goes to the name, with the
 	  // activity dot claiming the last cell of it first - so a
 	  // narrow segment drops the dot before it drops the toggle.
-	  auto remaining = actual_width - 3;
+	  // A flat box gets a blank column in front, so its toggle doesn't touch
+	  // the neighbour's edge.
+	  const int margin = styles.track_chips ? 1 : 0;
+	  auto remaining = actual_width - 3 - margin;
 	  // The dot reports whether a per-track effect is currently doing
 	  // anything - only ever meaningful for an actual Effect (a Group's
 	  // own box, or the master's, has no such per-instance on/off state).
@@ -2912,9 +3172,10 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
 	    // White, matching the heading text - a heading control, not a
 	    // status indicator (contrast the dot below, or the level-0 title
 	    // bar's own M/S glyphs).
-	    setFgColor(0xff, 0xff, 0xff);
-	    putstr(heading_height - 2 - level, current_pos, track->isCollapsed() ? "▸ " : "◂ ");
-	    putstr(heading_height - 2 - level, current_pos + 2, name);
+	    setFgColor(styles.track_chips ? styles.theme.text_primary : Color(0xff, 0xff, 0xff));
+	    putstr(heading_height - 2 - level, current_pos, std::string(static_cast<size_t>(margin), ' '));
+	    putstr(heading_height - 2 - level, current_pos + margin, track->isCollapsed() ? "▸ " : "◂ ");
+	    putstr(heading_height - 2 - level, current_pos + margin + 2, name);
 
 	    if (show_dot) {
 	      // Always draw the dot - faint when idle, full clip/active color
@@ -2930,12 +3191,12 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
 	      } else {
 		// Idle: faint_color() - see its own comment - rather than a
 		// fixed grey.
-		setFgColor(faint_color(track));
+		setFgColor(styles.track_chips ? styles.theme.text_disabled : faint_color(track));
 	      }
-	      putstr(heading_height - 2 - level, current_pos + 2 + element_name_width, "•");
+	      putstr(heading_height - 2 - level, current_pos + margin + 2 + element_name_width, "•");
 	    }
 	  } else {
-	    setFgColor(0x00, 0x00, 0x00);
+	    setFgColor(styles.track_chips ? segment_color(track) : Color(0, 0, 0));
 	    putstr(heading_height - 2 - level, current_pos, string(static_cast<size_t>(actual_width - 1), ' '));
 	  }
           // Drawn last for both branches - see the level 0 branch's own
@@ -2958,16 +3219,27 @@ void
 PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & all_track_info, int display_row, bool highlight, const SelectionBounds & sel_bounds, bool focused) {
   auto [rows, cols] = getDim();
 
-  if (display_row >= rows - heading_height) {
+  if (display_row >= rows - heading_height + (rowsShifted() ? 1 : 0)) {
     return;
   }
-    
+
   auto & song = getController().getSong();
   auto point = source_->cursor();
-  auto address = source_->normalize(view_block_, display_row + current_scroll_.row);
+  auto address = source_->normalize(view_block_, display_row + draw_row0_);
   auto pattern_idx = address.block, pattern_row = address.row;
   bool is_neighboring_pattern = point.block != pattern_idx || pattern_row < 0;
   auto grid = source_->readGrid(address);
+  // Each Live View column may show a row of its own: see the track loop.
+  const auto base_address = address;
+  const bool base_highlight = highlight;
+  // The cursor shows only while the window has the focus; a playhead always.
+  const bool show_cursor = styles.window_focused;
+  // On a smooth display the cursor is a band over the rows (updateCursorBands()),
+  // so only a real selection is drawn in them: it scrolls with the content.
+  const bool cursor_only = smooth_cursor_ && !whole_song_ && !(selection_active_ && selection_start_pattern_ == point.block);
+  const bool playing_now = getController().getPlaybackInfo().isPlaying();
+  const int unshifted_row = display_row;
+  bool row_shifted = false;
 
   // Where this row's columns land, for mouse clicks (handleMouse()).
   auto row_index = static_cast<size_t>(std::max(display_row, 0));
@@ -3043,13 +3315,13 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   float track_dim = 0.0f;
   auto tintForPlayhead = [&](Color base) -> Color {
     if (track_marked.has_value()) return *track_marked ? styles.cursorRowTint(base) : base;
-    return track_dim <= 0.0f && highlight ? styles.cursorRowTint(base) : base;
+    return track_dim <= 0.0f && highlight && !smooth_cursor_ ? styles.cursorRowTint(base) : base;
   };
   // The divider between two tracks belongs to neither, so it takes only
   // the row's own tint, never one track's playhead - none in session
   // mode, where tracks mark their own rows.
   auto tintForRow = [&](Color base) -> Color {
-    return highlight && !isLiveMode() ? styles.cursorRowTint(base) : base;
+    return highlight && !isLiveMode() && !smooth_cursor_ ? styles.cursorRowTint(base) : base;
   };
 
   // A clip instance's own identifier digit (below) - superscript, not a
@@ -3065,7 +3337,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 
   // A sample clip's own waveform box (SAMPLE track placeholder, below):
   // sextants (2x3 sub-cells) when this terminal actually supports Unicode
-  // 13's sextant range (UIPlane::canRenderSextants()), else quadrants
+  // 13's sextant range (Plane::canRenderSextants()), else quadrants
   // (2x2, always supported) - the capability figured out once at
   // TerminalPlane construction, not re-queried per row. Reuses
   // SubcellGlyphs.h's exact tables rather than a second copy of them, the
@@ -3113,8 +3385,9 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // fg/bg pair for the whole row.
   auto renderWaveformRow = [&](const WaveformPeaks & peaks, int row, int width, Color fg_color, Color bg_color, int start_col) {
     if (width <= 0) return;
-    SubcellRgb bg_rgb{static_cast<float>(bg_color.getRed()), static_cast<float>(bg_color.getGreen()), static_cast<float>(bg_color.getBlue())};
-    SubcellRgb fg_rgb{static_cast<float>(fg_color.getRed()), static_cast<float>(fg_color.getGreen()), static_cast<float>(fg_color.getBlue())};
+    auto bg8 = bg_color.toSrgb8(), fg8 = fg_color.toSrgb8();
+    SubcellRgb bg_rgb{static_cast<float>(bg8[0]), static_cast<float>(bg8[1]), static_cast<float>(bg8[2])};
+    SubcellRgb fg_rgb{static_cast<float>(fg8[0]), static_cast<float>(fg8[1]), static_cast<float>(fg8[2])};
     auto total_slots = width * 2;
     auto slotCoverage = [&](float value, int gc) {
       value = std::clamp(value, 0.0f, 1.0f);
@@ -3216,13 +3489,37 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 
   auto current_pos = 0;
   for (int i = -1; i < static_cast<int>(track_ids.size()); i++) {
+    if (i >= 0 && i < current_scroll_.track) continue;
+    if (i >= 0 && static_cast<size_t>(i) < column_starts_.size()) column_starts_[static_cast<size_t>(i)] = current_pos;
+    if (current_pos >= cols) break;
+
+    // A column that scrolls shows the rows its own offset has it at, on its
+    // own plane.
+    int column_delta = i >= 0 && isLiveMode() ? columnDelta(track_ids[static_cast<size_t>(i)]) : 0;
+    if (column_delta != 0 || row_shifted) {
+      row_shifted = column_delta != 0;
+      address = row_shifted ? source_->normalize(view_block_, unshifted_row + draw_row0_ + column_delta) : base_address;
+      pattern_idx = address.block, pattern_row = address.row;
+      grid = source_->readGrid(address);
+      highlight = row_shifted ? address.block == point.block && address.row == point.row : base_highlight;
+    }
+    // The column's own line, at the row it shows here.
     track_marked.reset();
     if (isLiveMode()) {
       auto own_row = i >= 0 ? source_->positionRow(track_ids[static_cast<size_t>(i)], pattern_idx) : std::nullopt;
-      track_marked = own_row && *own_row == pattern_row;
+      // The columns' own lines are bands over their planes, not tints in the rows.
+      track_marked = !columns_planes_in_use_ && own_row && *own_row == pattern_row && (show_cursor || source_->trackHasPlayhead(track_ids[static_cast<size_t>(i)]));
     }
-    if (i >= 0 && i < current_scroll_.track) continue;
-    if (current_pos >= cols) break;
+    struct ColumnPlane {
+      PatternEditor & editor;
+      std::unique_ptr<Plane> * plane;
+      ColumnPlane(PatternEditor & e, std::unique_ptr<Plane> * p) : editor(e), plane(p) {
+        if (plane) editor.swapPlane(*plane);
+      }
+      ~ColumnPlane() {
+        if (plane) editor.swapPlane(*plane);
+      }
+    } column_plane(*this, columns_planes_in_use_ && i >= 0 && static_cast<size_t>(i) < column_planes_.size() && column_planes_[static_cast<size_t>(i)] ? &column_planes_[static_cast<size_t>(i)] : nullptr);
 
     Color track_base_fg = row_base_fg, track_base_bg = row_base_bg;
     // Whether this column's own row is outside its current block - the
@@ -3241,9 +3538,9 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     // There's always an effective region to highlight, even with no mark
     // set - it degenerates to just the note under the cursor (see
     // getEffectiveSelectionBounds, computed once per render() call).
-    bool row_track_in_selection = pattern_idx == point.block &&
-      i >= sel_bounds.track_lo && i <= sel_bounds.track_hi &&
-      pattern_row >= sel_bounds.row_lo && pattern_row <= sel_bounds.row_hi;
+    bool row_track_in_selection = show_cursor && !cursor_only && pattern_idx == point.block &&
+                                  i >= sel_bounds.track_lo && i <= sel_bounds.track_hi &&
+                                  pattern_row >= sel_bounds.row_lo && pattern_row <= sel_bounds.row_hi;
     // A single-track NOTE_COLUMN/COMMAND-scoped region is scoped to
     // specific columns (see set-mark/kill-region) - highlight per-column
     // inside the loop below instead of the whole track uniformly. TRACK
@@ -3277,8 +3574,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       setFgColor(in_selection ? fg : tintForPlayhead(fg));
       setBgColor(in_selection ? bg : tintForPlayhead(bg));
 
-      putstr(display_row, current_pos, pattern_row < 0 ? string(static_cast<size_t>(row_digits_ + 2), ' ') : format(" {:0{}x} ", pattern_row, row_digits_));
-	
+      putstr(display_row, current_pos, pattern_row < 0 ? string(static_cast<size_t>(row_digits_ + 2), ' ') : fmt::format(" {:0{}x} ", pattern_row, row_digits_));
+
       setFgColor(styles.window_border_color);
       setBgColor(styles.window_bg_color);
 	
@@ -3400,7 +3697,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
         auto own_row = own.block < 0 ? -1 : own.row;
         setFgColor(in_selection ? fg : tintForPlayhead(fg));
         setBgColor(in_selection ? bg : tintForPlayhead(bg));
-        auto number = own_row < 0 ? string() : format("{:02x}", own_row);
+        auto number = own_row < 0 ? string() : fmt::format("{:02x}", own_row);
         number.resize(static_cast<size_t>(track_info.row_number_width_), ' ');
         putstr(display_row, current_pos, number);
         current_pos += track_info.row_number_width_;
@@ -3412,12 +3709,13 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	// The first column also claims the row number (and, for the last, the
 	// identifier cell and divider after it fall to it as well).
 	spans.columns.push_back({ k == first_col ? track_start_x : current_pos, current_pos, i, k });
-	// Only drives the active-character underline for numeric columns
+        const int cell_x0 = current_pos;
+        // Only drives the active-character underline for numeric columns
 	// further down now (which numbers columns are highlighted right at
 	// the cursor's own row, unlike column_selected below) - a single-row,
 	// exact-cursor-position flag, not a region membership one.
-	bool column_highlighted = highlight && current_cursor.isHighlighted(i, k);
-	// Per-column override of the track-level fg/bg for a NOTE_COLUMN- or
+        bool column_highlighted = show_cursor && highlight && !playing_now && !rowsShifted() && current_cursor.isHighlighted(i, k);
+        // Per-column override of the track-level fg/bg for a NOTE_COLUMN- or
 	// COMMAND-scoped region (see getEffectiveSelectionBounds()) - set
 	// across the *whole* selected row range, not just column_highlighted's
 	// single row.
@@ -3454,7 +3752,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	// tint, matching waveformFg()'s own playhead treatment.
 	auto waveformBg = [&]() -> Color {
 	  if (cell_is_selected) return cur_bg;
-	  return highlight ? tintForPlayhead(styles.window_bg_color) : cell_bg;
+          return highlight && !smooth_cursor_ ? tintForPlayhead(styles.window_bg_color) : cell_bg;
 	};
 
 	setFgColor(styles.window_border_color);
@@ -3709,13 +4007,13 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  auto own_address = source_->trackAddress(track_id, address);
 	  if (pending_.valid && pending_.track_id == track_id && pending_.note_column == l && pending_.type == column_type &&
 	      source_->trackAddress(track_id, pending_.at) == own_address) {
-	    s = format("{:02x}", pending_.value);
-	  } else if (note.isDefined()) {
+            s = fmt::format("{:02x}", pending_.value);
+          } else if (note.isDefined()) {
 	    if (column_type == ColumnType::VELOCITY && note.isOff()) {
 	      s = "  ";
 	    } else {
-	      s = format("{:02x}", column_type == ColumnType::VELOCITY ? note.getVelocity() : note.getDelay());
-	    }
+              s = fmt::format("{:02x}", column_type == ColumnType::VELOCITY ? note.getVelocity() : note.getDelay());
+            }
 	  } else {
 	    s = "--";
 	  }
@@ -3741,6 +4039,14 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  }
 	  current_pos += 2;
 	}
+        // The cursor's note, with its velocity and delay (or its effect command).
+        if (smooth_cursor_ && i == current_cursor.track && current_cursor.col < track_info.getColumnCount()) {
+          bool cursor_fx = track_info.isTrackFxColumn(current_cursor.col);
+          if (track_info.isTrackFxColumn(k) == cursor_fx && (cursor_fx || track_info.getNoteNumber(k) == track_info.getNoteNumber(current_cursor.col))) {
+            cursor_x0_ = cursor_x0_ < 0 ? cell_x0 : std::min(cursor_x0_, cell_x0);
+            cursor_x1_ = std::max(cursor_x1_, current_pos);
+          }
+        }
       }
 
       // The track's own trailing identifier cell (VisibleTrackInfo::
@@ -3853,6 +4159,12 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   }
 
   track_marked.reset();
+  column_end_ = current_pos;
+  if (row_shifted) {
+    address = base_address;
+    pattern_idx = address.block, pattern_row = address.row;
+    highlight = base_highlight;
+  }
 
   // Cache this row's locator on-screen position whenever it's the
   // cursor/playhead's own row - highlight is true exactly then, in every
@@ -3881,9 +4193,9 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     // `focused` parameter): these three feed row_selected/row_fully_filled
     // just below, the locator area's own share of the cursor/selection
     // highlight the per-column loop above already gates the same way.
-    bool row_on_locator_cursor = focused && highlight && current_cursor.isOnLocator();
-    bool row_in_everything_selection = focused && sel_bounds.scope == SelectionScope::EVERYTHING &&
-      pattern_idx == point.block && pattern_row >= sel_bounds.row_lo && pattern_row <= sel_bounds.row_hi;
+    bool row_on_locator_cursor = focused && show_cursor && !playing_now && highlight && current_cursor.isOnLocator();
+    bool row_in_everything_selection = focused && show_cursor && sel_bounds.scope == SelectionScope::EVERYTHING &&
+                                       pattern_idx == point.block && pattern_row >= sel_bounds.row_lo && pattern_row <= sel_bounds.row_hi;
     // A genuine multi-row LOCATOR-scoped selection (mark and point both
     // on the locator, on different rows - see kill-region/kill-ring-
     // save/yank's own LOCATOR handling). Guarded on row_lo != row_hi so
@@ -3891,9 +4203,9 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     // row's locator) keeps its existing single-row look below rather
     // than picking up the full-width selected fill meant for an actual
     // range.
-    bool row_in_locator_selection = focused && sel_bounds.scope == SelectionScope::LOCATOR &&
-      sel_bounds.row_lo != sel_bounds.row_hi &&
-      pattern_idx == point.block && pattern_row >= sel_bounds.row_lo && pattern_row <= sel_bounds.row_hi;
+    bool row_in_locator_selection = focused && show_cursor && sel_bounds.scope == SelectionScope::LOCATOR &&
+                                    sel_bounds.row_lo != sel_bounds.row_hi &&
+                                    pattern_idx == point.block && pattern_row >= sel_bounds.row_lo && pattern_row <= sel_bounds.row_hi;
     bool row_selected = row_on_locator_cursor || row_in_everything_selection || row_in_locator_selection;
     bool row_fully_filled = row_in_everything_selection || row_in_locator_selection;
 

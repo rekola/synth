@@ -15,14 +15,14 @@ class StatusLine : public UIElement {
  public:
   // No background of its own: the display cannot draw the last cell of the
   // last row, so a coloured row would end in a different one.
-  StatusLine(UIPlane & parent) : UIElement(parent) {
+  StatusLine(Plane & parent) : UIElement(parent) {
     getPlane().makeTransparent();
     getPlane().setBgDefault();
   }
 
-  // The chord that opens the command prompt: Alt-x on the Emacs keymap
+  // The chord that opens the command prompt: Meta-x on the Emacs keymap
   // (whether the terminal sent it as one event or as ESC then x, KeyReader
-  // folds either into a single Alt-modified event before it gets here),
+  // folds either into a single Meta-modified event before it gets here),
   // Ctrl+Shift+P on the desktop one.
   bool isCommandPromptChord(const cellui::Input & input) {
     if (keymapProfile() == cellui::KeymapProfile::DESKTOP) {
@@ -59,7 +59,7 @@ class StatusLine : public UIElement {
     // Opening this reader takes focus away from any other reader-owning
     // widget's own in-progress edit, same as UI::executeCommand()'s
     // StatusLine::cancelReader() use for the opposite direction (a menu
-    // click stealing focus from M-x) - mirrors real Emacs, where entering
+    // click stealing focus from a prompt) - mirrors real Emacs, where entering
     // the minibuffer aborts whatever else had keyboard focus rather than
     // opening on top of it. Wired in UI::initialize() (this class has no
     // reference to PatternEditor of its own); a no-op before that wiring
@@ -156,7 +156,7 @@ class StatusLine : public UIElement {
   // Aborts whatever's being read without ever running on_submit_ - Ctrl-g's
   // own behavior (below), also used by UI::executeCommand() so a command
   // reached some other way (a menu click, Launchpad-by-name dispatch) while
-  // M-x is still open takes focus away from it rather than running
+  // a prompt is still open takes focus away from it rather than running
   // underneath it - mirrors real Emacs, where clicking a menu item while
   // typing in the minibuffer just aborts the minibuffer and runs the
   // command.
@@ -285,7 +285,7 @@ class StatusLine : public UIElement {
   // completion]") immediately after whatever's currently typed (Emacs
   // shows its own equivalent messages the same way, right after point in
   // the minibuffer, not off in a fixed spot on the row) - see
-  // UIPlane::showReaderIndicator()'s own comment for why this needs its
+  // Plane::showReaderIndicator()'s own comment for why this needs its
   // own dedicated plane rather than being drawn onto the reader's. `text
   // == ""` clears it - a no-op outside a completing session (no
   // tab_completer_ set), and (when clearing) a no-op when nothing is

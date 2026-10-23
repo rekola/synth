@@ -8,6 +8,7 @@
 #include "../StyleProvider.h"
 #include "../../playback/InputEvent.h"
 #include <cellui/KeyReader.h>
+#include <cellui/Signal.h>
 #include <cellui/Scrim.h>
 #include <cellui/Scopes.h>
 #include <chrono>
@@ -34,7 +35,6 @@ class PatternEditor;
 class ArrangementGrid;
 class ClipGrid;
 class OutlineView;
-#include "CoverArt.h"
 #include "SpinBox.h"
 
 class TerminalUI : public UI {
@@ -120,76 +120,76 @@ protected:
   // ArrangementGrid.h's own comment on why ArrangementGrid itself never
   // calls this directly.
   void commitOverviewCell(int track_id, int row);
-  bool tryActivate(int y, int x, std::shared_ptr<cellui::Element> element);
+  bool tryActivate(int y, int x, std::shared_ptr<cellui::Widget> element);
   // The widgets the current view shows that can take focus, in C-x o
   // (other-window) order.
-  std::vector<std::shared_ptr<cellui::Element>> focusableElements() const;
+  std::vector<std::shared_ptr<cellui::Widget>> focusableElements() const;
 
-private:
- cellui::Backend & backend_;
- // What the planes compose into, the size of the terminal; the root plane
- // covers it.
- cellui::CellBuffer screen_;
- cellui::BufferPlane * root_plane_ = nullptr;
- // Sizes the screen and the root plane to the terminal.
- void resizeScreen();
+ private:
+  cellui::Backend & backend_;
+  // What the planes compose into, the size of the terminal; the root plane
+  // covers it.
+  cellui::CellBuffer screen_;
+  cellui::BufferPlane * root_plane_ = nullptr;
+  // Sizes the screen and the root plane to the terminal.
+  void resizeScreen();
 
- std::shared_ptr<UIMenu> menu_;
- std::shared_ptr<SpectrumMeter> chart_;
- std::shared_ptr<ChannelMeter> volume_meter_;
- std::shared_ptr<HeatmapChart> heatmap_;
- // The scopes in the versions this terminal shows.
- std::unique_ptr<cellui::Scopes> scopes_;
- std::shared_ptr<StatusLine> status_line_;
+  std::shared_ptr<UIMenu> menu_;
+  std::shared_ptr<SpectrumMeter> chart_;
+  std::shared_ptr<ChannelMeter> volume_meter_;
+  std::shared_ptr<HeatmapChart> heatmap_;
+  // The scopes in the versions this terminal shows.
+  std::unique_ptr<cellui::Scopes> scopes_;
+  std::shared_ptr<StatusLine> status_line_;
 
- StyleProvider styles_;
+  StyleProvider styles_;
 
- // Auto-scaling brightness reference for the DirAC heatmap - see
- // handleVisualizationResultEvent()'s own comment on why this needs to
- // persist across events rather than being derived fresh each time.
- float dirac_running_max_ = 0.0f;
- // What the scopes last drew, and when anything last moved: a silent,
- // unchanged display needs no redraw (a pixel blit is the costly part).
- std::vector<float> last_fft_, last_loudness_;
- std::vector<int> last_brightness_, last_saturation_;
- std::vector<uint64_t> last_playback_parts_; // SYNTH_UI_STATS only
- uint64_t last_playback_signature_ = 0;      // of the last playback snapshot that was drawn
+  // Auto-scaling brightness reference for the DirAC heatmap - see
+  // handleVisualizationResultEvent()'s own comment on why this needs to
+  // persist across events rather than being derived fresh each time.
+  float dirac_running_max_ = 0.0f;
+  // What the scopes last drew, and when anything last moved: a silent,
+  // unchanged display needs no redraw (a pixel blit is the costly part).
+  std::vector<float> last_fft_, last_loudness_;
+  std::vector<int> last_brightness_, last_saturation_;
+  std::vector<uint64_t> last_playback_parts_; // SYNTH_UI_STATS only
+  uint64_t last_playback_signature_ = 0;      // of the last playback snapshot that was drawn
 
- std::shared_ptr<InfoLine> info_line_;
- std::shared_ptr<PatternEditor> pattern_editor_;
- // Always visible in the scope row's leftmost columns (see layout()),
- // sharing that row's real estate with chart_/heatmap_/volume_meter_.
- std::shared_ptr<ArrangementGrid> arrangement_grid_;
- // Shown only in Live View (UI::View), above pattern_editor_, with
- // outline_view_ as an optional panel on its left (see layout()/
- // renderComponents()) - both stay real, constructed objects the whole
- // time; only which ones are on screen changes.
- std::shared_ptr<ClipGrid> clip_grid_;
- std::shared_ptr<OutlineView> outline_view_;
- // The modal dialog showInfoDialog() opens (About, ...); it takes all
- // input until closed. Its source is kept to re-center it on resize.
- InfoDialog info_dialog_;
- std::string info_dialog_title_, info_dialog_markdown_;
- void layoutInfoDialog();
+  std::shared_ptr<InfoLine> info_line_;
+  std::shared_ptr<PatternEditor> pattern_editor_;
+  // Always visible in the scope row's leftmost columns (see layout()),
+  // sharing that row's real estate with chart_/heatmap_/volume_meter_.
+  std::shared_ptr<ArrangementGrid> arrangement_grid_;
+  // Shown only in Live View (UI::View), above pattern_editor_, with
+  // outline_view_ as an optional panel on its left (see layout()/
+  // renderComponents()) - both stay real, constructed objects the whole
+  // time; only which ones are on screen changes.
+  std::shared_ptr<ClipGrid> clip_grid_;
+  std::shared_ptr<OutlineView> outline_view_;
+  // The modal dialog showInfoDialog() opens (About, ...); it takes all
+  // input until closed. Its source is kept to re-center it on resize.
+  InfoDialog info_dialog_;
+  std::string info_dialog_title_, info_dialog_markdown_;
+  void layoutInfoDialog();
 
- // The modal list showChoiceDialog() opens (the device pickers, ...); like
- // the info dialog it takes all input until it is chosen from or cancelled.
- // The command palette M-x and its desktop chord open: modal, across the
- // bottom of the screen where the status line is.
- cellui::CommandPalette command_palette_;
- void showCommandPalette();
- void layoutCommandPalette();
- void handleCommandPaletteInput(const cellui::Input & input);
- std::string bindingFor(const std::string & command) const;
- ChoiceDialog choice_dialog_;
- std::function<void(int)> choice_callback_;
- void layoutChoiceDialog();
- void handleChoiceDialogInput(const cellui::Input & input);
- void closeChoiceDialog() {
-   choice_dialog_.close();
-   choice_callback_ = nullptr;
-   layoutModalScrim();
-   force_next_render_ = true;
+  // The modal list showChoiceDialog() opens (the device pickers, ...); like
+  // the info dialog it takes all input until it is chosen from or cancelled.
+  // The command palette M-x and its desktop chord open: modal, across the
+  // bottom of the screen where the status line is.
+  cellui::CommandPalette command_palette_;
+  void showCommandPalette();
+  void layoutCommandPalette();
+  void handleCommandPaletteInput(const cellui::Input & input);
+  std::string bindingFor(const std::string & command) const;
+  ChoiceDialog choice_dialog_;
+  std::function<void(int)> choice_callback_;
+  void layoutChoiceDialog();
+  void handleChoiceDialogInput(const cellui::Input & input);
+  void closeChoiceDialog() {
+    choice_dialog_.close();
+    choice_callback_ = nullptr;
+    layoutModalScrim();
+    force_next_render_ = true;
   }
   void closeInfoDialog() {
     info_dialog_.close();
@@ -230,14 +230,14 @@ private:
   // Setting this instead defers the forced refresh to that one outer
   // call, so its own return value (and therefore the flush) reflects it.
   bool force_next_render_ = false;
-  // Square cover-art thumbnail, sharing the scope row immediately to the
-  // right of arrangement_grid_ - see CoverArt.h and layout().
-  std::shared_ptr<CoverArt> cover_art_;
+  // Arrangement view's top band height (see arrangementScopeRows()), as laid out.
+  int arrangementScopeRows() const;
+  int laid_out_scope_rows_ = 0;
   // The global octave stepper - see SpinBox.h and Controller::
   // getGlobalOctave(). Lives inline in the info bar's own row (see
   // layout()), always-on and click-activatable like pattern_editor_.
   std::shared_ptr<SpinBox> octave_control_;
-  std::weak_ptr<cellui::Element> active_element_;
+  std::weak_ptr<cellui::Widget> active_element_;
 
   // launchpad_manager_ itself is UI's own now (set once in UI::start(),
   // before wireLaunchpad() runs) - the Launchpad command-dispatch path
@@ -250,6 +250,8 @@ private:
   cellui::KeyReader key_reader_;
   // Whether "ESC-" is on the status line for the current wait.
   bool escape_indicator_shown_ = false;
+  // Declared last so the handlers disconnect before the members they use go.
+  std::vector<cellui::Connection> controller_connections_;
 };
 
 #endif

@@ -210,3 +210,19 @@ TEST(encoder_sends_a_glyph_in_its_own_background_as_a_space) {
   f.write(0, 1, "▌", same);
   CHECK(e.encode(f).find("▌") != std::string::npos);
 }
+
+TEST(encoder_sends_a_wide_colour_as_its_srgb_clip_and_only_when_the_clip_changes) {
+  FrameEncoder e(profile(ColorDepth::TRUECOLOR));
+  CellBuffer f(2, 20);
+  e.encode(f);
+  CellBuffer::Style lit;
+  lit.fg = Color(200, 30, 30) * 6.0f;
+  auto clip = lit.fg->toSrgb8();
+  f.write(0, 0, "J", lit);
+  CHECK(same(e.encode(f), "\x1b[38;2;" + std::to_string(int{clip[0]}) + ";" + std::to_string(int{clip[1]}) + ";" + std::to_string(int{clip[2]}) + "mJ"));
+  // Lit further, it clips to the same colour: nothing to send.
+  lit.fg = Color(200, 30, 30) * 9.0f;
+  CHECK(lit.fg->toSrgb8() == clip);
+  f.write(0, 0, "J", lit);
+  CHECK(e.encode(f).empty());
+}

@@ -58,6 +58,7 @@ TEST(gtk_window_reports_its_display_and_size) {
   if (!w) return;
   CHECK(w->rows() == 20 && w->cols() == 60);
   const DisplayInfo & d = w->display();
+  CHECK(!d.hdr);  // the window is drawn in sRGB
   CHECK(d.pictures);
   CHECK(d.cell_px_height >= 8 && d.cell_px_width >= 4);
   CHECK(d.default_fg && d.default_bg);

@@ -406,6 +406,10 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     state.queueSceneChange(ev.getParameter1(), {ev.getParameter2() / 100, ev.getParameter2() % 100}, (ev.getParameter3() & 1) != 0, (ev.getParameter3() & 2) != 0, ev.getParameter4());
     break;
 
+  case PlaybackControlEvent::SET_PERFORMANCE:
+    state.setPerformance(ev.getParameter1(), static_cast<PerformanceEffect>(ev.getParameter2()), ev.getParameter3());
+    break;
+
   case PlaybackControlEvent::SHIFT_LIVE_POSITION:
     state.shiftLive(ev.getParameter1(), ev.getParameter2());
     break;

@@ -41,8 +41,7 @@ distribution.
 BSD-3-Clause. Vendored from https://github.com/mreineck/pocketfft, `cpp`
 branch, commit `c90e55b3d529f8efa40ed01a20de22405f45fc65`. This is the FFT
 backend behind `dsp/RealFFT.h` (the live spectrum analyzer and MagLS
-binaural precomputation), replacing FFTW (GPL-2-or-later) - see
-`plans/magical-wondering-engelbart.md` for the migration this was part of.
+binaural precomputation), replacing FFTW (GPL-2-or-later).
 
 ```
 This file is part of pocketfft.
@@ -86,6 +85,21 @@ LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
 ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+### MIT KEMAR HRTF data (`third_party/sofa/MIT_KEMAR_normal_pinna.sofa`)
+
+Head-related transfer functions of the KEMAR dummy head, used for binaural
+decoding where the system has no SOFA file of its own (the Windows installer
+ships it). Not source code; the terms are those of the data:
+
+```
+Copyright 1994 Bill Gardner, Keith Martin, MIT Media Lab Machine Listening
+Group.
+
+This data is Copyright 1994 by the MIT Media Laboratory. It is provided free
+with no restrictions on use, provided the authors are cited when the data is
+used in any research or commercial application.
 ```
 
 ## Adapted source (not under `third_party/`)

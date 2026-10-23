@@ -91,8 +91,7 @@ TEST(dirac_decorrelated_eight_directions_is_near_full_diffuseness) {
   // excluded here: at N=1024/44.1kHz they cover only 3 and 4 FFT bins
   // respectively, so few independent bins are being averaged per analysis
   // frame - band 0 can swing as low as ~0.76 by pure statistical variance,
-  // not a real bias (the same few-bin unreliability plans/dirac-heatmap-
-  // scope.md SS4 already documents for band 0 specifically). Bands 2-7
+  // not a real bias. Bands 2-7
   // (7+ bins each) reliably stay above 0.9.
   for (int b = 2; b < DiracAnalyzer::kNumBands; b++) {
     CHECK(analyzer.getBandResult(b).diffuseness > 0.9f);
@@ -102,8 +101,8 @@ TEST(dirac_decorrelated_eight_directions_is_near_full_diffuseness) {
 TEST(dirac_w_only_is_also_near_full_diffuseness) {
   // W-only (X=Y=Z=0, e.g. an unpositioned/distance<=0 track - see
   // computeAmbisonicGains) reads the same high diffuseness as genuinely
-  // diffuse content (the test above) - a real, documented ambiguity
-  // (plans/dirac-heatmap-scope.md SS4), not a bug, checked in here as an
+  // diffuse content (the test above) - a real ambiguity, not a bug,
+  // checked in here as an
   // expected result rather than a surprise.
   AudioBuffer data(1, kFrames); // regularChannelCount()==1: only W present
   auto w = data.getChannelData(0);

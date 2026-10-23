@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Runs `synth --headless --null-audio --autoplay [SONG]` for a few seconds,
 asks it to stop the way Ctrl-C would, and checks that it played and exited
-cleanly. Usage: smoke_headless.py BINARY SONG|- [SECONDS]
+cleanly. Usage: smoke_headless.py BINARY SONG|- [SECONDS [TEXT]]
+TEXT, if given, must also appear in the output.
 "-" gives no song, so the default one is used."""
 import os
 import signal
@@ -13,6 +14,7 @@ import time
 def main():
     binary, song = sys.argv[1], sys.argv[2]
     seconds = float(sys.argv[3]) if len(sys.argv) > 3 else 8
+    expected = sys.argv[4] if len(sys.argv) > 4 else None
     kwargs = {}
     if os.name == "nt":
         # Ctrl-Break goes to the child's own process group only.
@@ -34,6 +36,8 @@ def main():
     print(log)
     if "Playing" not in log:
         sys.exit("synth never started playing")
+    if expected and expected not in log:
+        sys.exit("expected %r in the output" % expected)
     if proc.returncode != 0:
         sys.exit("synth exited with status %d" % proc.returncode)
 

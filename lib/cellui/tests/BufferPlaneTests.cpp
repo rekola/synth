@@ -1,7 +1,7 @@
 #include "TestFramework.h"
 
 #include <cellui/BufferPlane.h>
-#include <cellui/Element.h>
+#include <cellui/Widget.h>
 
 using namespace cellui;
 
@@ -265,15 +265,16 @@ TEST(bufferplane_translucent_cells_blend_with_what_is_below) {
   top->setBgColor(0, 0, 0);
   top->putstr(0, 1, "y");
   root.refresh();
-  CHECK(b.at(0, 0).text == "x" && b.at(0, 0).bg->getRed() == 0xbf && b.at(0, 0).bg->getGreen() == 0x40);
-  CHECK(b.at(0, 1).fg->getRed() == (3 * 255 + 0x40) / 4);
+  // Half and half in linear light, and three parts white to one of the text.
+  CHECK(b.at(0, 0).text == "x" && b.at(0, 0).bg->toSrgb8() == Color(0xff, 0, 0).mix(Color(0x80, 0x80, 0x80), 0.5f).toSrgb8());
+  CHECK(b.at(0, 1).fg->toSrgb8() == Color(255, 255, 255).mix(Color(0x40, 0x40, 0x40), 0.25f).toSrgb8());
 }
 
 TEST(element_drawn_through_a_buffer_plane) {
   StyleProvider styles;
   CellBuffer b(3, 12);
   BufferPlane root(b, styles);
-  Element e(root);
+  Widget e(root);
   e.resize(2, 5);
   e.move(1, 4);
   e.setBold(true).putstr(0, 0, "title").putstr(1, 0, "second line");
@@ -455,7 +456,7 @@ TEST(bufferplane_describe_gives_the_tree_in_stacking_order) {
 namespace {
 
 // A plane over the whole screen made of nothing but backdrop cells.
-std::unique_ptr<UIPlane> scrimOver(BufferPlane & root, const Backdrop & backdrop) {
+std::unique_ptr<Plane> scrimOver(BufferPlane & root, const Backdrop & backdrop) {
   auto scrim = root.createChild();
   auto [rows, cols] = root.getDim();
   scrim->setBackdrop(backdrop);
@@ -657,6 +658,38 @@ TEST(bufferplane_reports_the_areas_above_the_base) {
   CHECK(root.takeElevations().empty());
 }
 
+// A plane asks for a pointer shape over its rectangle; a plane that does not
+// shows what is below it, and a later plane wins where they overlap.
+TEST(plane_mouse_cursor_covers_its_rectangle_and_the_last_plane_wins) {
+  CellBuffer buffer(10, 20);
+  StyleProvider styles;
+  BufferPlane root(buffer, styles);
+  auto grid = root.createChild();
+  grid->resize(6, 10);
+  grid->move(1, 1);
+  grid->setMouseCursor(MouseCursor::POINTER);
+  auto plain = root.createChild();
+  plain->resize(2, 2);
+  plain->move(2, 2);  // asks for nothing: the grid's shape shows through
+  auto dialog = root.createChild();
+  dialog->resize(2, 3);
+  dialog->move(4, 4);
+  dialog->setMouseCursor(MouseCursor::DEFAULT);
+  root.refresh();
+  auto areas = root.takeMouseCursors();
+  CHECK(areas.size() == 2);
+  CHECK(mouseCursorAt(areas, 0, 0) == MouseCursor::DEFAULT);
+  CHECK(mouseCursorAt(areas, 1, 1) == MouseCursor::POINTER);
+  CHECK(mouseCursorAt(areas, 2, 2) == MouseCursor::POINTER);
+  CHECK(mouseCursorAt(areas, 4, 5) == MouseCursor::DEFAULT);
+  CHECK(mouseCursorAt(areas, 6, 5) == MouseCursor::POINTER);
+  CHECK(mouseCursorAt(areas, 7, 5) == MouseCursor::DEFAULT);
+  CHECK(root.describe().children[0].mouse_cursor == MouseCursor::POINTER);
+  grid->setVisible(false);
+  root.refresh();
+  CHECK(root.takeMouseCursors().size() == 1);
+}
+
 // Lifted cells stand above their plane: each run in a row is a piece, joined
 // to the run above only when asked, and covered cells cast nothing.
 TEST(bufferplane_reports_lifted_cells_as_pieces) {
@@ -720,4 +753,54 @@ TEST(bufferplane_reports_shadowless_lifted_cells) {
   CHECK(lifted.size() == 2);
   CHECK(std::any_of(lifted.begin(), lifted.end(), [](const ElevatedArea & a) { return a.col == 0 && a.cols == 2 && a.shadow; }));
   CHECK(std::any_of(lifted.begin(), lifted.end(), [](const ElevatedArea & a) { return a.col == 2 && a.cols == 2 && !a.shadow; }));
+}
+
+TEST(bufferplane_keeps_wide_colours_in_its_cells) {
+  StyleProvider styles;
+  CellBuffer b(1, 4);
+  BufferPlane root(b, styles);
+  Color led = Color("oklch(0.8 0.2 25)") * 6.0f;
+  Color green("color(rec2020 0 1 0)");
+  root.setFgColor(green);
+  root.setBgColor(led);
+  root.putstr(0, 0, "x");
+  root.refresh();
+  // Nothing clipped them on the way: the cell holds exactly what was set.
+  CHECK(*b.at(0, 0).fg == green);
+  CHECK(*b.at(0, 0).bg == led);
+  CHECK(b.at(0, 0).bg->luminance() > 1.0f);
+  // Changing the colour changes what the cell holds.
+  root.setBgColor(led * 0.5f);
+  root.putstr(0, 1, "y");
+  root.refresh();
+  CHECK(*b.at(0, 1).bg == led * 0.5f);
+}
+
+TEST(bufferplane_blends_a_wide_colour_in_linear_light) {
+  StyleProvider styles;
+  CellBuffer b(1, 4);
+  BufferPlane root(b, styles);
+  Color lit = Color(255, 255, 255) * 4.0f;
+  root.setBgColor(lit);
+  root.putstr(0, 0, "....");
+  auto top = root.createChild();
+  top->setBgColor(Color(0, 0, 0));
+  top->setBgBlend(true);
+  top->putstr(0, 0, "x");
+  root.refresh();
+  // Half of four times SDR white is twice SDR white.
+  CHECK_NEAR(b.at(0, 0).bg->luminance(), 2.0f, 1e-4f);
+}
+
+TEST(cellbuffer_ansi_shows_a_wide_colour_clipped_to_srgb) {
+  CellBuffer b(1, 2);
+  CellBuffer::Style style;
+  style.fg = Color("color(rec2020 0 1 0)");
+  style.bg = Color(255, 255, 255) * 3.0f;
+  b.write(0, 0, "x", style);
+  std::string ansi = b.toAnsi();
+  auto fg = style.fg->toSrgb8(), bg = style.bg->toSrgb8();
+  CHECK(ansi.find(";38;2;" + std::to_string(int{fg[0]}) + ";" + std::to_string(int{fg[1]}) + ";" + std::to_string(int{fg[2]})) != std::string::npos);
+  CHECK(ansi.find(";48;2;255;255;255") != std::string::npos);
+  CHECK(bg[0] == 255 && bg[1] == 255 && bg[2] == 255);
 }

@@ -58,8 +58,8 @@ void MenuBar::draw() {
   plane_.erase();
   if (cols_ <= 0) return;
   auto ink = [&](const Color & fg, const Color & bg) {
-    plane_.setFgColor(fg.getRed(), fg.getGreen(), fg.getBlue());
-    plane_.setBgColor(bg.getRed(), bg.getGreen(), bg.getBlue());
+    plane_.setFgColor(fg);
+    plane_.setBgColor(bg);
   };
 
   // The header row, filled across, each name with its mnemonic marked.
@@ -106,16 +106,17 @@ void MenuBar::draw() {
   if (!panel_) {
     panel_ = plane_.createChild();
     panel_->setName("menu-section");
+    panel_->setMouseCursor(MouseCursor::POINTER);
     panel_->setElevation(panel_->getStyles().theme.elevation.overlay);
   }
   auto [bar_y, bar_x] = plane_.getPosition();
   panel_->move(bar_y + 1, bar_x + x0);
   panel_->resize(rows + 1, width);
   panel_->erase();
-  UIPlane & panel = *panel_;
+  Plane & panel = *panel_;
   auto panelInk = [&](const Color & fg, const Color & bg) {
-    panel.setFgColor(fg.getRed(), fg.getGreen(), fg.getBlue());
-    panel.setBgColor(bg.getRed(), bg.getGreen(), bg.getBlue());
+    panel.setFgColor(fg);
+    panel.setBgColor(bg);
   };
   panelInk(colors_.section_fg, colors_.section_bg);
   for (int y = 0; y <= rows; y++) panel.putstr(y, 0, std::string(static_cast<size_t>(width), ' '));
@@ -131,8 +132,8 @@ void MenuBar::draw() {
     }
     std::string text = std::string(kPad, ' ') + utf8::padToWidth(item.label, body) + std::string(kPad, ' ');
     if (i == selected_) {
-      // The highlighted item: the section's colours swapped, across the panel.
-      panelInk(colors_.section_bg, colors_.section_fg);
+      // The highlighted item, across the panel.
+      panelInk(colors_.selected_fg, colors_.selected_bg);
     } else {
       panelInk(item.enabled ? colors_.section_fg : colors_.disabled_fg, colors_.section_bg);
     }

@@ -109,7 +109,7 @@ class Fades {
   }
 
   static bool same(const Color & a, const Color & b) {
-    return a.getRed() == b.getRed() && a.getGreen() == b.getGreen() && a.getBlue() == b.getBlue();
+    return a == b;
   }
 
   static Color shown(const Entry & e, Clock::time_point now) {

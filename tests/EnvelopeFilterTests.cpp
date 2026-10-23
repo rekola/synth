@@ -10,7 +10,7 @@
 // header declaration) - constructed here the same way SF2ModulatorTests.cpp
 // reaches SoundFontVoice, through the public Track/VoiceState API only:
 // build an EnvelopeFilter, load its envelope parameters, createVoiceState()
-// (the voice-role factory - see plans/trackstate-voicestate-split.md; the
+// (the voice-role factory; the
 // note-lifecycle behavior these tests exercise - stopNote()/fastRelease()/
 // isActive() after render() - only exists on that role, not
 // EnvelopeFilterTrackState's). With attack=hold=decay=0 the envelope is
@@ -19,7 +19,7 @@
 // (EnvelopeState's own constructor already walks NONE->...->SUSTAIN based
 // on the envelope's own timing).
 //
-// See plans/silence-kill-threshold.md - these mirror the SF2 side's
+// These mirror the SF2 side's
 // tests in tests/SF2ModulatorTests.cpp for the same threshold, applied to
 // EnvelopeFilterVoiceState's own (simpler - no separate static gain term,
 // no modenv_) envelope instead of SoundFontVoice's ampenv_.

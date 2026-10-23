@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cellui/Element.h>
+#include <cellui/Widget.h>
 #include <cellui/LevelMeter.h>
 
 #include <algorithm>
@@ -15,12 +15,12 @@ namespace cellui {
 // channel, two channels sharing each cell (one per dot column), each with
 // its own smoothing and peak marker. A legend lines up with the cells
 // along the bottom row.
-class ChannelMeter : public Element {
+class ChannelMeter : public Widget {
 public:
   // The channels the meter has room for: order-3 ambisonic plus AuxA/AuxB.
   static constexpr size_t kMaxChannels = 18;
 
-  explicit ChannelMeter(UIPlane & parent) : Element(parent) { }
+  explicit ChannelMeter(Plane & parent) : Widget(parent) { }
   ~ChannelMeter() override = default;
 
   // A fresh reading, one linear RMS per channel (missing ones are

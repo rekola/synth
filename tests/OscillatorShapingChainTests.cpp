@@ -140,3 +140,15 @@ TEST(oscillator_chain_is_deterministic) {
   CHECK(a.size() == b.size());
   for (size_t i = 0; i < a.size(); i++) CHECK(a[i] == b[i]);
 }
+
+TEST(oscillator_chain_reaches_harmonic_511) {
+  OscillatorChainParams p;
+  p.base_function = BaseFunction::PowerRamp;
+  p.base_shape_param = 0.3766f;
+  p.harmonics = { { 1, 0.984f } };
+  auto A = computeOscillatorMagnitudes(p);
+  CHECK(A.size() == 512);
+  CHECK(A[0] == 0.0f);
+  CHECK(A[300] > 0.0f);
+  CHECK(A[511] > 0.0f);
+}
