@@ -601,6 +601,11 @@ TerminalUI::readInput() {
         // What a colour looks like depends on the display.
         force_next_render_ = true;
         break;
+      case BackendEvent::Type::FOCUS:
+        // A cursor shows only while the window has the focus.
+        styles_.window_focused = event.focused;
+        force_next_render_ = true;
+        break;
       case BackendEvent::Type::CLOSE:
         close_ui_ = true;
         break;

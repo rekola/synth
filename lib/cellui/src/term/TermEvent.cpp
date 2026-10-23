@@ -93,6 +93,8 @@ std::optional<BackendEvent> toBackendEvent(const TermEvent & e) {
     case TermEvent::Type::MOUSE: return BackendEvent::makeInput(toInput(e));
     case TermEvent::Type::PASTE: return BackendEvent::makePaste(e.text);
     case TermEvent::Type::RESIZE: return BackendEvent::makeResize(e.rows, e.cols);
+    case TermEvent::Type::FOCUS_IN: return BackendEvent::makeFocus(true);
+    case TermEvent::Type::FOCUS_OUT: return BackendEvent::makeFocus(false);
     case TermEvent::Type::END: return BackendEvent::makeClose();
     default: return std::nullopt;
   }

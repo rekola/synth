@@ -113,6 +113,8 @@ class StyleProvider {
   // row and playheads (in Arrangement view the transport's row, in
   // Live View each track's own), the clip grid's scene row and the
   // arrangement grid's playing row.
+  // Whether the window has the focus; cursors are hidden while it has not.
+  bool window_focused = true;
   Color cursor_row_tint_color;
   static constexpr float kRowTintAlpha = 0.35f;
   Color cursorRowTint(Color base) const { return base.blend(kRowTintAlpha, cursor_row_tint_color); }

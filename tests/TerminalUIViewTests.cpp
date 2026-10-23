@@ -767,3 +767,84 @@ TEST(terminal_ui_arrangement_grid_shows_bars_to_the_right_of_the_track_names) {
   CHECK(f.line(1).find("1   5   9") != std::string::npos); // the ruler
   CHECK(f.line(3).find("T0") != std::string::npos);        // the first track's name
 }
+
+// A cursor shows only while the window has the focus, in the outline, the clip
+// grid and the pattern editor alike; the columns' lines hold on to nothing but
+// a playhead.
+TEST(terminal_ui_cursors_are_hidden_while_the_window_is_not_focused) {
+  cellui::DisplayInfo display;
+  display.smooth_scroll = true;
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE, display);
+  for (int i = 0; i < 5; i++) f.ui->step();
+  auto bands = [&](bool wide) { // layers with a band: the columns' lines (wide) or any other
+    size_t count = 0;
+    for (const auto & layer : f.terminal.info().backdrops) {
+      if (!layer.scroll || !layer.scroll->band) continue;
+      if ((layer.scroll->cols > 60) == wide) count++;
+    }
+    return count;
+  };
+  auto cells = [&]() {
+    std::vector<std::string> out;
+    const auto & frame = f.terminal.frame();
+    for (int r = 0; r < frame.rows(); r++) {
+      for (int c = 0; c < frame.cols(); c++) {
+        const auto & cell = frame.at(r, c);
+        out.push_back(cell.bg ? std::to_string(cell.bg->getRed()) + "," + std::to_string(cell.bg->getGreen()) + "," + std::to_string(cell.bg->getBlue()) : std::string("-"));
+      }
+    }
+    return out;
+  };
+  auto settle = [&]() {
+    for (int i = 0; i < 12; i++) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(8));
+      f.ui->step();
+    }
+  };
+  settle();
+  auto focused_cells = cells();
+  CHECK(bands(true) >= 1); // the columns' lines
+  f.terminal.pushWindowFocus(false);
+  settle();
+  CHECK(bands(true) == 0); // no track plays: only cursors were shown
+  CHECK(cells() != focused_cells);
+  f.terminal.pushWindowFocus(true);
+  settle();
+  CHECK(bands(true) >= 1);
+  CHECK(cells() == focused_cells);
+}
+
+// The arrangement grid's cursor cell is hidden too; its playing row stays.
+TEST(terminal_ui_arrangement_grid_cursor_is_hidden_while_the_window_is_not_focused) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT);
+  for (int i = 0; i < 5; i++) f.ui->step();
+  auto grid_cells = [&]() {
+    std::vector<std::string> out;
+    for (auto & plane : f.terminal.info().planes.children) {
+      if (plane.name != "arrangement-grid" || !plane.visible) continue;
+      const auto & frame = f.terminal.frame();
+      for (int r = plane.y; r < plane.y + plane.rows; r++) {
+        for (int c = plane.x; c < plane.x + plane.cols; c++) {
+          const auto & cell = frame.at(r, c);
+          out.push_back(cell.bg ? std::to_string(cell.bg->getRed()) + "," + std::to_string(cell.bg->getGreen()) + "," + std::to_string(cell.bg->getBlue()) : std::string("-"));
+        }
+      }
+    }
+    return out;
+  };
+  auto settle = [&]() {
+    for (int i = 0; i < 12; i++) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(8));
+      f.ui->step();
+    }
+  };
+  settle();
+  auto focused_cells = grid_cells();
+  CHECK(!focused_cells.empty());
+  f.terminal.pushWindowFocus(false);
+  settle();
+  CHECK(grid_cells() != focused_cells);
+  f.terminal.pushWindowFocus(true);
+  settle();
+  CHECK(grid_cells() == focused_cells);
+}
