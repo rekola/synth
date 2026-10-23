@@ -18,6 +18,8 @@ class SignalCore {
   virtual void disconnect(uint64_t id) = 0;
 };
 
+struct ConnectionAccess;
+
 }  // namespace detail
 
 // A handler's place on a Signal. Move-only; disconnects when destroyed.
@@ -53,11 +55,21 @@ class Connection {
  private:
   template <class...>
   friend class Signal;
+  friend struct detail::ConnectionAccess;
   Connection(std::weak_ptr<detail::SignalCore> core, uint64_t id) : core_(std::move(core)), id_(id) { }
 
   std::weak_ptr<detail::SignalCore> core_;
   uint64_t id_ = 0;
 };
+
+namespace detail {
+
+// For the classes that hand out Connections to handlers they keep.
+struct ConnectionAccess {
+  static Connection make(std::weak_ptr<SignalCore> core, uint64_t id) { return Connection(std::move(core), id); }
+};
+
+}  // namespace detail
 
 // A point-to-point observer: the object that changes owns one, and whoever
 // holds that object connects a handler. Emission is synchronous, in
