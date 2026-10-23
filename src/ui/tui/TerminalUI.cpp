@@ -273,6 +273,8 @@ public:
     colors.header_bg = styles.menu_bg_color;
     colors.section_fg = styles.menu_section_fg_color;
     colors.section_bg = styles.menu_section_bg_color;
+    colors.selected_fg = styles.highlight_fg_color;
+    colors.selected_bg = styles.highlight_bg_color;
     bar_.setColors(colors);
     bar_.draw();
   }
