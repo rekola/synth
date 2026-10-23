@@ -117,6 +117,14 @@ if(CELLUI_ENABLE_GTK)
   endif()
   set_tests_properties(cellui_gtk_tests PROPERTIES SKIP_REGULAR_EXPRESSION "SKIP: no display")
 endif()
+# The Windows window backend (cellui/win32/): a Win32 window drawn with
+# Direct2D and DirectWrite, on a loop that waits on the message queue. All of
+# it is part of Windows, so there is nothing to find.
+if(WIN32)
+  target_sources(cellui PRIVATE src/win32/Win32EventLoop.cpp src/win32/Window.cpp)
+  target_link_libraries(cellui PRIVATE user32 gdi32 d2d1 dwrite dwmapi ole32 uuid)
+  target_compile_definitions(cellui PUBLIC CELLUI_HAS_WIN32)
+endif()
 # The pixel versions draw with canvas' Cairo backend, or its Quartz 2D one on
 # Apple platforms; the GDI+ one joins with the window backend on Windows.
 if(NOT WIN32)
@@ -178,6 +186,9 @@ add_executable(cellui_tests
 if(NOT WIN32)
   target_sources(cellui_tests PRIVATE tests/BackdropEmulationTests.cpp tests/CanvasRasterizerTests.cpp tests/EventLoopTests.cpp tests/TerminalSessionTests.cpp tests/TestBackendTests.cpp tests/HeatmapImageTests.cpp tests/SpectrumImageTests.cpp
     tests/VuMeterTests.cpp)
+endif()
+if(WIN32)
+  target_sources(cellui_tests PRIVATE tests/Win32Tests.cpp)
 endif()
 target_link_libraries(cellui_tests PRIVATE cellui)
 if(NOT WIN32 AND NOT APPLE)

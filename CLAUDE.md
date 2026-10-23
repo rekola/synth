@@ -1476,7 +1476,12 @@ would otherwise resume showing.
   phase, with real press/repeat/release), click, drag (the held button's press again at
   each new cell), wheel (buttons 4-7) and paste (Ctrl+Shift+V, Shift+Insert) events into
   `BackendEvent`s; a size change is a `RESIZE` in cells and closing the window a `CLOSE`.
-  Events wait in a queue behind an eventfd that is `inputFd()`. A backdrop is the
+  Events wait in a queue behind an eventfd that is `inputFd()`.
+  The Windows backend is `cellui/win32/` (built on Windows only, first slice, compiled but never run): `Window`
+  is a Win32 window drawn with Direct2D and DirectWrite (cells, pictures, scrolled planes, backdrop dimming; no
+  blur or shadows yet), and `Win32EventLoop` waits on the message queue and on handles
+  (`addHandles()`; descriptors do not exist there, so `Window::inputFd()`/`wakeFd()` are -1 and
+  `inputHandle()`/`wakeHandle()` are the events to wait on). A backdrop is the
   backend's to apply: `BufferPlane::refresh()` sets what is composed below each one aside as a
   `BackdropLayer` (cells, blur, dim, tint and the rectangle it covers; `takeBackdropLayers()`,
   handed to the backend in `FrameInfo::backdrops`, always given, bottom first) and leaves the

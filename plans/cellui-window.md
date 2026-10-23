@@ -264,7 +264,17 @@ and Pango replace the rendering and text notes below.
    cores) on a playing Live View: 15 ms a frame at 1200x760, 30 ms at
    1600x1000 - all of it the rasterizer, so the per-plane render nodes
    (below) or rasterizing only the rows that changed come first. Not done:
-   render nodes, input methods, HiDPI, dialogs, menus. Backdrops are blurred
+   render nodes, input methods, HiDPI, dialogs, menus.
+   Windows first slice written (`cellui::win32::Window`, `Win32EventLoop`;
+   compiled with mingw, not yet run): a Win32 window with per-monitor DPI,
+   Direct2D `HwndRenderTarget` (not yet the DXGI flip-model swap chain) and
+   DirectWrite drawing the cells directly, not through canvas; keys (AltGr,
+   F10/Alt kept from the system menu, Shift+Insert / Ctrl+Shift+V paste),
+   mouse, wheel, pointer shapes, the scrolled planes, pictures and backdrop
+   dimming. Not done: backdrop blur, shadows, dead keys and input methods,
+   the swap chain, and the application's loop on Windows (`TerminalUI` and
+   `WaitSet::fds()` are POSIX; `Window` gives `inputHandle()`/`wakeHandle()`
+   for a `Win32EventLoop::addHandles()` source instead). Backdrops are blurred
    by GSK (a blur node over the layer below, `FrameInfo::backdrops`); the
    terminal's cell and picture blur is its backend's own
    (`term::BackdropEmulation`).
