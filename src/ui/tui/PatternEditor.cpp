@@ -2907,7 +2907,7 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
 	// column 4, not column 5, so the heading content actually drawn
 	// below still starts exactly where it always has.
 	// With a colour slice the header needs no marker before it.
-	if (!styles.track_chips) draw_edge(heading_height - 2 - level, gutterWidth() - 1, styles.window_bg_color, segment_color(track));
+	if (!styles.track_chips && gutterWidth() > 0) draw_edge(heading_height - 2 - level, gutterWidth() - 1, styles.window_bg_color, segment_color(track));
 	drew_left_edge = true;
       }
 

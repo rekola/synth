@@ -499,12 +499,10 @@ private:
   // setCursorTrack()), once per change.
   void syncCursorTrack(const Song & song);
   int synced_cursor_track_id_ = -1;
-  // The row-number gutter left of the first track: a margin only where
-  // each track shows its own row numbers (VisibleTrackInfo::
-  // row_number_width_, kTrackRowNumberWidth wide).
   // The row-number gutter: " 1f │" in Arrangement view, as many hex
-  // digits as its rows need (row_digits_); a margin in Live View.
-  int gutterWidth() const { return isLiveMode() ? 1 : row_digits_ + 3; }
+  // digits as its rows need (row_digits_); none in Live View, where each
+  // track shows its own row numbers (VisibleTrackInfo::row_number_width_).
+  int gutterWidth() const { return isLiveMode() ? 0 : row_digits_ + 3; }
   // Hex digits the arrangement's row numbers take - at least 2, enough
   // for its content and the cursor. Updated once per render().
   int row_digits_ = 2;
