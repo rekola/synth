@@ -374,7 +374,9 @@ Because the effective region always exists, it's also always shown —
 `PatternEditor::renderRow` has no separate "current column" highlight;
 the region highlight is the cursor, so the degenerate (unmarked) case is
 a single-cell cursor and a real/widened mark shows the same color across
-its whole extent. Every widget's cursor uses the same colors
+its whole extent. A cursor shows only while the window has the focus
+(`StyleProvider::window_focused`, set from `BackendEvent::FOCUS`: the window's
+active state, or the terminal's focus reports); a playhead is always shown. Every widget's cursor uses the same colors
 (`StyleProvider`), all leaning cyan so they never read as the neutral
 grey bar/beat highlighting: dark on bright grey (`highlight_fg_color`/
 `highlight_bg_color`) while focused, plain text on a faint grey

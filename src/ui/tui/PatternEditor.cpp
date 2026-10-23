@@ -1451,6 +1451,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   // for what used to be a hand-rolled diff of each of those pieces
   // separately (see SelectionBounds::operator==).
   // A pass fading in or out keeps redrawing, once more after it ends.
+  if (scene_source_) scene_source_->setReducedMotion(styles.reduced_motion);
   bool fading = isLiveMode() && scene_source_->isFading();
   // How focused the widget is, eased: its cursor fades between the focused and unfocused look.
   focus_ = fades_.value(0, focused ? 1.0f : 0.0f, !styles.reduced_motion);
@@ -2469,7 +2470,7 @@ void PatternEditor::updateColumnBands(const StyleProvider & styles, const std::v
       }
     }
     int line = source_->rowsBetween(top, source_->trackCursor(track_ids[i]));
-    if (line < 0 || line >= visible || end - 1 <= start) {
+    if (line < 0 || line >= visible || end - 1 <= start || !(styles.window_focused || source_->trackHasPlayhead(track_ids[i]))) {
       plane->clearBand();
       continue;
     }
@@ -2679,6 +2680,8 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
       if (level == 0 && vis_info && vis_info->color_ordinal_ >= 0) return styles.track_chips ? styles.heading_bg_color : vis_info->getColor(styles.tracks);
       // Fixed, not depth-shaded grey like every other ancestor box below -
       // there's only ever one master per song.
+      // The new look leaves non-leaf tracks flat on the window.
+      if (styles.track_chips && !(level == 0 && vis_info && vis_info->color_ordinal_ >= 0)) return styles.window_bg_color;
       if (t->getType() == TrackType::MASTER) return styles.master_track_color;
       // Each extra nesting level lightens the grey by one step, so an
       // outer wrapping effect's box reads visually "further out" than
@@ -3035,7 +3038,10 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
 	  // that can't be met); whatever's left goes to the name, with the
 	  // activity dot claiming the last cell of it first - so a
 	  // narrow segment drops the dot before it drops the toggle.
-	  auto remaining = actual_width - 3;
+	  // A flat box gets a blank column in front, so its toggle doesn't touch
+	  // the neighbour's edge.
+	  const int margin = styles.track_chips ? 1 : 0;
+	  auto remaining = actual_width - 3 - margin;
 	  // The dot reports whether a per-track effect is currently doing
 	  // anything - only ever meaningful for an actual Effect (a Group's
 	  // own box, or the master's, has no such per-instance on/off state).
@@ -3058,9 +3064,10 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
 	    // White, matching the heading text - a heading control, not a
 	    // status indicator (contrast the dot below, or the level-0 title
 	    // bar's own M/S glyphs).
-	    setFgColor(0xff, 0xff, 0xff);
-	    putstr(heading_height - 2 - level, current_pos, track->isCollapsed() ? "▸ " : "◂ ");
-	    putstr(heading_height - 2 - level, current_pos + 2, name);
+	    setFgColor(styles.track_chips ? styles.theme.text_primary : Color(0xff, 0xff, 0xff));
+	    putstr(heading_height - 2 - level, current_pos, std::string(static_cast<size_t>(margin), ' '));
+	    putstr(heading_height - 2 - level, current_pos + margin, track->isCollapsed() ? "▸ " : "◂ ");
+	    putstr(heading_height - 2 - level, current_pos + margin + 2, name);
 
 	    if (show_dot) {
 	      // Always draw the dot - faint when idle, full clip/active color
@@ -3076,18 +3083,23 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
 	      } else {
 		// Idle: faint_color() - see its own comment - rather than a
 		// fixed grey.
-		setFgColor(faint_color(track));
+		setFgColor(styles.track_chips ? styles.theme.text_disabled : faint_color(track));
 	      }
-	      putstr(heading_height - 2 - level, current_pos + 2 + element_name_width, "•");
+	      putstr(heading_height - 2 - level, current_pos + margin + 2 + element_name_width, "•");
 	    }
 	  } else {
-	    setFgColor(0x00, 0x00, 0x00);
+	    setFgColor(styles.track_chips ? segment_color(track) : Color(0, 0, 0));
 	    putstr(heading_height - 2 - level, current_pos, string(static_cast<size_t>(actual_width - 1), ' '));
 	  }
           // Drawn last for both branches - see the level 0 branch's own
           // comment on why. At the segment's own last column regardless of
           // how the budget above split up the rest of it.
-          draw_divider(heading_height - 2 - level, current_pos + actual_width - 1, track, i);
+          if (styles.track_chips) {
+            setBgColor(styles.window_bg_color);
+            putstr(heading_height - 2 - level, current_pos + actual_width - 1, " ");
+          } else {
+            draw_divider(heading_height - 2 - level, current_pos + actual_width - 1, track, i);
+          }
 	}
       }
       
@@ -3117,6 +3129,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // Each Live View column may show a row of its own: see the track loop.
   const auto base_address = address;
   const bool base_highlight = highlight;
+  // The cursor shows only while the window has the focus; a playhead always.
+  const bool show_cursor = styles.window_focused;
   const int unshifted_row = display_row;
   bool row_shifted = false;
 
@@ -3387,7 +3401,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     if (isLiveMode()) {
       auto own_row = i >= 0 ? source_->positionRow(track_ids[static_cast<size_t>(i)], pattern_idx) : std::nullopt;
       // The columns' own lines are bands over their planes, not tints in the rows.
-      track_marked = !columns_planes_in_use_ && own_row && *own_row == pattern_row;
+      track_marked = !columns_planes_in_use_ && own_row && *own_row == pattern_row && (show_cursor || source_->trackHasPlayhead(track_ids[static_cast<size_t>(i)]));
     }
     struct ColumnPlane {
       PatternEditor & editor;
@@ -3417,9 +3431,9 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     // There's always an effective region to highlight, even with no mark
     // set - it degenerates to just the note under the cursor (see
     // getEffectiveSelectionBounds, computed once per render() call).
-    bool row_track_in_selection = pattern_idx == point.block &&
-      i >= sel_bounds.track_lo && i <= sel_bounds.track_hi &&
-      pattern_row >= sel_bounds.row_lo && pattern_row <= sel_bounds.row_hi;
+    bool row_track_in_selection = show_cursor && pattern_idx == point.block &&
+                                  i >= sel_bounds.track_lo && i <= sel_bounds.track_hi &&
+                                  pattern_row >= sel_bounds.row_lo && pattern_row <= sel_bounds.row_hi;
     // A single-track NOTE_COLUMN/COMMAND-scoped region is scoped to
     // specific columns (see set-mark/kill-region) - highlight per-column
     // inside the loop below instead of the whole track uniformly. TRACK
@@ -3592,8 +3606,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	// further down now (which numbers columns are highlighted right at
 	// the cursor's own row, unlike column_selected below) - a single-row,
 	// exact-cursor-position flag, not a region membership one.
-	bool column_highlighted = highlight && current_cursor.isHighlighted(i, k);
-	// Per-column override of the track-level fg/bg for a NOTE_COLUMN- or
+        bool column_highlighted = show_cursor && highlight && current_cursor.isHighlighted(i, k);
+        // Per-column override of the track-level fg/bg for a NOTE_COLUMN- or
 	// COMMAND-scoped region (see getEffectiveSelectionBounds()) - set
 	// across the *whole* selected row range, not just column_highlighted's
 	// single row.
@@ -4063,9 +4077,9 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     // `focused` parameter): these three feed row_selected/row_fully_filled
     // just below, the locator area's own share of the cursor/selection
     // highlight the per-column loop above already gates the same way.
-    bool row_on_locator_cursor = focused && highlight && current_cursor.isOnLocator();
-    bool row_in_everything_selection = focused && sel_bounds.scope == SelectionScope::EVERYTHING &&
-      pattern_idx == point.block && pattern_row >= sel_bounds.row_lo && pattern_row <= sel_bounds.row_hi;
+    bool row_on_locator_cursor = focused && show_cursor && highlight && current_cursor.isOnLocator();
+    bool row_in_everything_selection = focused && show_cursor && sel_bounds.scope == SelectionScope::EVERYTHING &&
+                                       pattern_idx == point.block && pattern_row >= sel_bounds.row_lo && pattern_row <= sel_bounds.row_hi;
     // A genuine multi-row LOCATOR-scoped selection (mark and point both
     // on the locator, on different rows - see kill-region/kill-ring-
     // save/yank's own LOCATOR handling). Guarded on row_lo != row_hi so
@@ -4073,9 +4087,9 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     // row's locator) keeps its existing single-row look below rather
     // than picking up the full-width selected fill meant for an actual
     // range.
-    bool row_in_locator_selection = focused && sel_bounds.scope == SelectionScope::LOCATOR &&
-      sel_bounds.row_lo != sel_bounds.row_hi &&
-      pattern_idx == point.block && pattern_row >= sel_bounds.row_lo && pattern_row <= sel_bounds.row_hi;
+    bool row_in_locator_selection = focused && show_cursor && sel_bounds.scope == SelectionScope::LOCATOR &&
+                                    sel_bounds.row_lo != sel_bounds.row_hi &&
+                                    pattern_idx == point.block && pattern_row >= sel_bounds.row_lo && pattern_row <= sel_bounds.row_hi;
     bool row_selected = row_on_locator_cursor || row_in_everything_selection || row_in_locator_selection;
     bool row_fully_filled = row_in_everything_selection || row_in_locator_selection;
 

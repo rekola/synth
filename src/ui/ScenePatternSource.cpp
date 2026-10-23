@@ -365,7 +365,7 @@ constexpr std::chrono::milliseconds kPassFade(300);
 float
 ScenePatternSource::fadeProgress(int track_id) const {
   auto it = pass_changed_.find(track_id);
-  if (it == pass_changed_.end()) return 1.0f;
+  if (it == pass_changed_.end() || reduced_motion_) return 1.0f;
   auto elapsed = std::chrono::duration<float>(std::chrono::steady_clock::now() - it->second);
   return std::min(1.0f, elapsed / std::chrono::duration<float>(kPassFade));
 }

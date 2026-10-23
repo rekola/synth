@@ -270,6 +270,18 @@ int noteAt(const ReadTarget & target) {
 
 }
 
+TEST(scene_source_loop_pass_fade_is_skipped_with_reduced_motion) {
+  for (bool reduced : { false, true }) {
+    Fixture f;
+    placeCountingClip(f.song(), f.track_id, 0, 4, 60);
+    ScenePatternSource source(f.controller);
+    source.setReducedMotion(reduced);
+    source.setPlayheads({ { f.track_id, { 0, 3, 3, true } } });
+    source.setPlayheads({ { f.track_id, { 0, 0, 4, true } } });
+    CHECK(source.isFading() == !reduced);
+  }
+}
+
 TEST(scene_source_each_track_is_shown_at_its_own_position) {
   Fixture f;
   auto & song = f.song();

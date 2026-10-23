@@ -737,6 +737,10 @@ std::unique_ptr<Window> Window::open(const WindowOptions & options, std::string 
                    self);
   gtk_widget_add_controller(impl.view, scroll);
 
+  g_signal_connect(impl.window, "notify::is-active", G_CALLBACK(+[](GObject * window, GParamSpec *, gpointer data) {
+                     static_cast<Impl *>(data)->push(BackendEvent::makeFocus(gtk_window_is_active(GTK_WINDOW(window))));
+                   }),
+                   self);
   g_signal_connect(impl.window, "close-request", G_CALLBACK(+[](GtkWindow *, gpointer data) -> gboolean {
                      static_cast<Impl *>(data)->push(BackendEvent::makeClose());
                      return TRUE;  // the application ends the window by ending

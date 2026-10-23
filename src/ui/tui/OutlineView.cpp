@@ -418,7 +418,7 @@ OutlineView::renderTree(const StyleProvider & styles, bool focused) {
   int drawn = tree_rows + (viewport_.rows.smooth() ? 1 : 0);
   bool own_layer = cursorOnOwnLayer();
   for (int i = 0; i < drawn; i++) {
-    renderRow(styles, i, !own_layer && i + current_first_row_ == new_cursor_row_, focused);
+    renderRow(styles, i, styles.window_focused && !own_layer && i + current_first_row_ == new_cursor_row_, focused);
   }
 }
 
@@ -497,7 +497,7 @@ void
 OutlineView::renderCursor(const StyleProvider & styles, bool focused) {
   if (!tree_plane_) return;
   auto last = static_cast<double>(std::max(0, treeRows() - 1));
-  bool show = cursorOnOwnLayer() && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size()) &&
+  bool show = styles.window_focused && cursorOnOwnLayer() && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size()) &&
               cursor_y_ >= 0 && cursor_y_ <= last;
   if (!show) {
     tree_plane_->clearBand();
