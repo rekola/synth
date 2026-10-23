@@ -45,6 +45,10 @@ class TestBackend : public Backend {
   void setNativeSelection(bool on) override { native_selection_ = on; }
   bool nativeSelection() const { return native_selection_; }
 
+  // The display reports `hdr` from now on (unset: a backend with no HDR
+  // path), and the next poll() tells the application so.
+  void setHdr(std::optional<HdrInfo> hdr);
+
   // Input.
   void push(const BackendEvent & event);
   // `mods` are the kMod bits (Input.h).
@@ -64,6 +68,9 @@ class TestBackend : public Backend {
   size_t frameCount() const { return frames_; }
   size_t redrawCount() const { return redraws_; }
   const CellBuffer & frame() const { return frame_; }
+  // The last frame as a display that shows only sRGB draws it: every colour
+  // through Color::toSrgb8().
+  CellBuffer sdrFrame() const;
   // The last frame's cells as text, one line per row.
   std::string text() const { return frame_.toPlainText(); }
   const CursorRequest & cursor() const { return cursor_; }

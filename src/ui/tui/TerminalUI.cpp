@@ -598,6 +598,10 @@ TerminalUI::readInput() {
         // typed as keys, which would play it as notes and commands.
         root_plane_->insertIntoReader(event.text);
         break;
+      case BackendEvent::Type::DISPLAY:
+        // What a colour looks like depends on the display.
+        force_next_render_ = true;
+        break;
       case BackendEvent::Type::CLOSE:
         close_ui_ = true;
         break;

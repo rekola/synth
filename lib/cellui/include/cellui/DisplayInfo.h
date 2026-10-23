@@ -7,6 +7,28 @@
 
 namespace cellui {
 
+// The primaries of a display: sRGB's, Display-P3's or Rec.2020's.
+enum class Gamut { SRGB, DISPLAY_P3, REC2020 };
+
+// What a display that shows HDR says of itself. Luminances are relative to
+// SDR white (1.0 is what a Color of 1 shows), so the application never deals
+// in nits.
+struct HdrInfo {
+  // The display shows HDR right now.
+  bool available = false;
+  // Its peak luminance, in SDR whites.
+  float peak = 1.0f;
+  // What SDR white is in nits, 0 when unknown.
+  float sdr_white_nits = 0.0f;
+  // The display's primaries.
+  Gamut gamut = Gamut::SRGB;
+
+  bool operator==(const HdrInfo & o) const {
+    return available == o.available && peak == o.peak && sdr_white_nits == o.sdr_white_nits && gamut == o.gamut;
+  }
+  bool operator!=(const HdrInfo & o) const { return !(*this == o); }
+};
+
 // What a backend tells the application about the display it draws on,
 // whatever the backend is.
 struct DisplayInfo {
@@ -21,6 +43,11 @@ struct DisplayInfo {
   double display_scale = 1.0;
   // Whether the sextant glyphs can be drawn.
   bool sextants = false;
+  // Unset for a backend with no HDR path at all (the terminal, a window drawn
+  // in sRGB): it clips every colour with Color::toSrgb8(). It changes while
+  // the program runs (HDR toggled in the OS, a window moved to another
+  // monitor): BackendEvent::Type::DISPLAY says so.
+  std::optional<HdrInfo> hdr;
   // Whether a plane's content can be shown shifted by a fraction of a cell
   // (UIPlane::setScrollOffset()), so a view can scroll smoothly.
   bool smooth_scroll = false;
