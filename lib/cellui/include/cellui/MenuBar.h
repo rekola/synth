@@ -43,6 +43,8 @@ class MenuBar {
     Color header_fg = Color(255, 255, 255), header_bg = Color(0x7f, 0x34, 0x7f);
     Color section_fg = Color(255, 255, 255), section_bg = Color(0, 0, 0);
     Color disabled_fg = Color(0xdd, 0xdd, 0xdd);
+    // The highlighted item.
+    Color selected_fg = Color(0, 0, 0), selected_bg = Color(255, 255, 255);
   };
 
   explicit MenuBar(Plane & plane) : plane_(plane) { }

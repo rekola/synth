@@ -132,8 +132,8 @@ void MenuBar::draw() {
     }
     std::string text = std::string(kPad, ' ') + utf8::padToWidth(item.label, body) + std::string(kPad, ' ');
     if (i == selected_) {
-      // The highlighted item: the section's colours swapped, across the panel.
-      panelInk(colors_.section_bg, colors_.section_fg);
+      // The highlighted item, across the panel.
+      panelInk(colors_.selected_fg, colors_.selected_bg);
     } else {
       panelInk(item.enabled ? colors_.section_fg : colors_.disabled_fg, colors_.section_bg);
     }

@@ -19,14 +19,14 @@ BLOCKS = set("▀▄█▌▐░▒▓▖▗▘▝▚▞▙▛▜▟")
 BRAILLE = {chr(c) for c in range(0x2800, 0x2900)}
 
 
-def spawn(song, view):
+def spawn(song, view, theme=None):
     """harness.spawn() with --null-audio, so no sound card is needed."""
     import pty
     pid, master_fd = pty.fork()
     if pid == 0:
         os.environ["TERM"] = "xterm-256color"; os.environ["COLORTERM"] = "truecolor"
         os.environ["SYNTH_LAUNCHPAD_NO_HARDWARE"] = "1"
-        os.execvp(harness.BINARY, [harness.BINARY, "--null-audio", "--view", view, song])
+        os.execvp(harness.BINARY, [harness.BINARY, "--null-audio", "--view", view] + (["--theme", theme] if theme else []) + [song])
         os._exit(1)
     harness.set_winsize(master_fd, harness.ROWS, harness.COLS, harness.XPIX, harness.YPIX)
     os.set_blocking(master_fd, False)
@@ -69,6 +69,7 @@ def summarize(rows):
 def main():
     out = sys.argv[1]
     song = sys.argv[2] if len(sys.argv) > 2 else harness.SONG
+    theme = sys.argv[3] if len(sys.argv) > 3 else None
     os.makedirs(out, exist_ok=True)
     summary = {}
 
@@ -79,7 +80,7 @@ def main():
         summary[name] = summarize(rows)
 
     for view in ("live", "arrangement"):
-        pid, fd = spawn(song, view)
+        pid, fd = spawn(song, view, theme)
         scr = harness.Screen(fd)
         if not harness.wait_ready(scr, 15.0):
             scr.wait(2.0)
@@ -91,6 +92,14 @@ def main():
             grab("live_minibuffer", scr)
             scr.send(b"\x07")                   # C-g
             scr.wait(0.3)
+            for name, keys in (("about", b"\x1bxabout\r"), ("devices", b"\x1bxselect-playback-device\r"), ("menu", b"\x1bf")):
+                scr.send(keys)
+                scr.wait(0.8)
+                grab(name, scr)
+                scr.send(b"\x1b")
+                scr.wait(0.4)
+                scr.send(b"\x07")
+                scr.wait(0.3)
         os.kill(pid, 15)
         os.waitpid(pid, 0)
     json.dump(summary, open(os.path.join(out, "summary.json"), "w"), indent=1)
