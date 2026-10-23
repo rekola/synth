@@ -208,7 +208,7 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
   int col_lo = std::max(clip_col, col), col_hi = std::min(clip_col + clip_cols, col + plane_cols);
   // A plane shifted by a fraction of a cell is the display's to draw: what is
   // composed below it is set aside, with the plane's cells, as a layer.
-  if ((scroll_rows_ > 0 || scroll_cols_ > 0 || band_) && row_lo < row_hi && col_lo < col_hi && row_lo == row && col_lo == col && row_hi == row + plane_rows &&
+  if ((scroll_rows_ > 0 || scroll_cols_ > 0 || (band_ && top.smooth_scroll_)) && row_lo < row_hi && col_lo < col_hi && row_lo == row && col_lo == col && row_hi == row + plane_rows &&
       col_hi == col + plane_cols) {
     ScrollContent content;
     content.cells = local_;
@@ -290,6 +290,23 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
       }
       put.lift = cell.lift > 0.0f ? height + cell.lift : 0.0f;
       out.put(r, c, put);
+    }
+  }
+  // A band the display cannot draw by parts of a cell is laid over the whole
+  // cells it reaches: their colours blended, text included.
+  if (band_ && !top.smooth_scroll_) {
+    const Band & band = *band_;
+    int band_r0 = row + static_cast<int>(std::lround(band.row)), band_r1 = row + static_cast<int>(std::lround(band.row + band.rows));
+    int band_c0 = col + static_cast<int>(std::lround(band.col)), band_c1 = col + static_cast<int>(std::lround(band.col + band.cols));
+    for (int r = std::max(row_lo, band_r0); r < std::min(row_hi, band_r1); r++) {
+      for (int c = std::max(col_lo, band_c0); c < std::min(col_hi, band_c1); c++) {
+        CellBuffer::Cell cell = out.at(r, c);
+        if (cell.image > 0 || cell.continuation) continue;
+        cell.bg = blendColors(band.blend, cell.bg.value_or(top.default_bg_), band.color, band.alpha);
+        cell.fg = blendColors(band.blend, cell.fg.value_or(top.default_fg_), band.color, band.alpha);
+        cell.bg_blend = cell.fg_contrast = false;
+        out.put(r, c, cell);
+      }
     }
   }
   // An image shows its pixels in place of the cells it covers: they are

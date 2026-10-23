@@ -74,9 +74,9 @@ class BufferPlane : public Plane {
     style_.lift_joined = joins_above;
   }
   void setScrollOffset(double rows, double cols) override;
-  void setBand(const Band & band) override {
-    if (root().smooth_scroll_) band_ = band;
-  }
+  // Over a plane the display scrolls by parts of a cell it is drawn by the
+  // display; otherwise it is laid over the composed cells, on whole ones.
+  void setBand(const Band & band) override { band_ = band; }
   void clearBand() override { band_.reset(); }
   // Whether the display can shift a plane by a fraction of a cell; planes
   // are shown unshifted otherwise (root only).

@@ -2535,10 +2535,15 @@ void PatternEditor::updateCursorBands(const StyleProvider & styles, const std::v
     else
       getPlane().clearBand();
   } else {
+    // Cells here move by whole rows: the cursor is where its row is drawn.
     getPlane().clearBand();
+    if (!track_ids.empty()) {
+      int line = source_->rowsBetween(top, isLiveMode() && cursor_track >= 0 ? source_->trackCursor(cursor_track) : source_->cursor());
+      if (line >= 0 && line < visible) cursor_line = line;
+    }
   }
   if (cursor_plane_) {
-    bool cell = smooth_cursor_ && cursor_line && styles.window_focused && (focused || isLiveMode()) && cursor_x0_ >= 0 && cursor_x1_ > cursor_x0_ && !current_cursor.isOnLocator();
+    bool cell = cursor_line && styles.window_focused && (focused || isLiveMode()) && cursor_x0_ >= 0 && cursor_x1_ > cursor_x0_ && !current_cursor.isOnLocator();
     if (cell) {
       // The cursor inverts what is under it, text and all, like a cell drawn in
       // reversed colours; the selection under it is drawn in the rows.
@@ -2569,16 +2574,15 @@ void PatternEditor::syncColumnPlanes(const std::vector<int> & track_ids) {
     if (created && cursor_plane_) cursor_plane_->moveToTop();
     if (created && rows_plane_) rows_plane_->moveToTop();
   }
-  if (smooth_cursor_ && !cursor_plane_) {
+  if (!cursor_plane_) {
     cursor_plane_ = getPlane().createChild();
     cursor_plane_->makeTransparent();
     if (rows_plane_) rows_plane_->moveToTop();
   }
   if (cursor_plane_) {
-    cursor_plane_->setVisible(smooth_cursor_);
+    cursor_plane_->setVisible(true);
     cursor_plane_->move(pos_y, pos_x);
     if (cursor_plane_->getDim() != std::make_pair(plane_rows, plane_cols)) cursor_plane_->resize(plane_rows, plane_cols);
-    if (!smooth_cursor_) cursor_plane_->clearBand();
   }
   for (size_t i = 0; i < column_planes_.size(); i++) {
     auto & plane = column_planes_[i];
@@ -3231,9 +3235,9 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // The cursor shows only while the window has the focus; a playhead always.
   // In Arrangement view an editor that is not the focus shows no cursor, only the playhead.
   const bool show_cursor = styles.window_focused && (focused || isLiveMode());
-  // On a smooth display the cursor is a band over the rows (updateCursorBands()),
-  // so only a real selection is drawn in them: it scrolls with the content.
-  const bool cursor_only = smooth_cursor_ && !whole_song_ && !(selection_active_ && selection_start_pattern_ == point.block);
+  // The cursor is a band over the rows (updateCursorBands()), so only a real
+  // selection is drawn in them: it scrolls with the content.
+  const bool cursor_only = !whole_song_ && !(selection_active_ && selection_start_pattern_ == point.block);
   const bool playing_now = getController().getPlaybackInfo().isPlaying();
   const int unshifted_row = display_row;
   bool row_shifted = false;
@@ -4037,7 +4041,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  current_pos += 2;
 	}
         // The cursor's note, with its velocity and delay (or its effect command).
-        if (smooth_cursor_ && i == current_cursor.track && current_cursor.col < track_info.getColumnCount()) {
+        if (i == current_cursor.track && current_cursor.col < track_info.getColumnCount()) {
           bool cursor_fx = track_info.isTrackFxColumn(current_cursor.col);
           if (track_info.isTrackFxColumn(k) == cursor_fx && (cursor_fx || track_info.getNoteNumber(k) == track_info.getNoteNumber(current_cursor.col))) {
             cursor_x0_ = cursor_x0_ < 0 ? cell_x0 : std::min(cursor_x0_, cell_x0);

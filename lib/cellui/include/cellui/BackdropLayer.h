@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cellui/Backdrop.h>
+#include <cellui/BlendMode.h>
 #include <cellui/CellBuffer.h>
 
 #include <optional>
@@ -19,11 +20,6 @@ namespace cellui {
 // A translucent rectangle over a scrolled plane, at a fractional position in
 // the plane's own cells (it does not shift with the content): a playhead that
 // moves smoothly over rows that scroll.
-// How a band's colour combines with what is below it (the usual compositing
-// blend modes). DIFFERENCE with a light colour inverts what lies under it, as a
-// cell drawn in reversed colours does.
-enum class BlendMode { NORMAL, MULTIPLY, SCREEN, OVERLAY, DARKEN, LIGHTEN, DIFFERENCE, EXCLUSION };
-
 struct Band {
   double row = 0, rows = 0;  // cells from the plane's top, and how tall
   double col = 0, cols = 0;  // the same, in cells from the plane's left

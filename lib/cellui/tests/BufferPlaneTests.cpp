@@ -605,6 +605,36 @@ TEST(bufferplane_a_band_keeps_its_blend_mode) {
   CHECK(layers.size() == 1 && layers[0].scroll->band->blend == BlendMode::NORMAL);
 }
 
+// Where the display cannot draw a band by parts of a cell, it is laid over the
+// cells it reaches, blended: a difference with white inverts text and background.
+TEST(bufferplane_a_band_on_a_display_without_smooth_scrolling_blends_the_cells) {
+  StyleProvider styles;
+  CellBuffer b(4, 8);
+  BufferPlane root(b, styles);
+  root.setDefaultColors(Color(255, 255, 255), Color(0, 0, 0));
+  auto list = root.createChild();
+  list->resize(2, 4);
+  list->move(1, 2);
+  list->setFgColor(200, 100, 50);
+  list->setBgColor(10, 20, 30);
+  list->putstr(0, 0, "abcd");
+  list->putstr(1, 0, "efgh");
+  auto is = [](const std::optional<Color> & c, int r, int g, int bl) { return c && c->getRed() == r && c->getGreen() == g && c->getBlue() == bl; };
+  list->setBand(Band{ 0.0, 1.0, 1.0, 2.0, Color(255, 255, 255), 1.0f, BlendMode::DIFFERENCE });
+  root.refresh();
+  CHECK(root.takeBackdropLayers().empty());
+  // Inside the band: inverted; beside it and below it: as drawn.
+  CHECK(b.at(1, 3).text == "b" && is(b.at(1, 3).bg, 245, 235, 225) && is(b.at(1, 3).fg, 55, 155, 205));
+  CHECK(is(b.at(1, 4).bg, 245, 235, 225));
+  CHECK(is(b.at(1, 2).bg, 10, 20, 30) && is(b.at(1, 5).bg, 10, 20, 30));
+  CHECK(is(b.at(2, 3).bg, 10, 20, 30));
+  // A half-transparent normal band tints; the fractional position snaps to the nearest cell.
+  list->setBand(Band{ 0.6, 1.0, 0.0, 1.0, Color(255, 0, 0), 1.0f, BlendMode::NORMAL });
+  root.refresh();
+  root.takeBackdropLayers();
+  CHECK(is(b.at(2, 2).bg, 255, 0, 0) && is(b.at(1, 2).bg, 10, 20, 30));
+}
+
 TEST(bufferplane_higher_planes_draw_over_lower_ones_wherever_they_are_in_the_tree) {
   StyleProvider styles;
   CellBuffer b(1, 6);
