@@ -1444,6 +1444,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   // for what used to be a hand-rolled diff of each of those pieces
   // separately (see SelectionBounds::operator==).
   // A pass fading in or out keeps redrawing, once more after it ends.
+  if (scene_source_) scene_source_->setReducedMotion(styles.reduced_motion);
   bool fading = isLiveMode() && scene_source_->isFading();
   // How focused the widget is, eased: its cursor fades between the focused and unfocused look.
   focus_ = fades_.value(0, focused ? 1.0f : 0.0f, !styles.reduced_motion);

@@ -57,6 +57,8 @@ class PatternSource {
   virtual float loopPassDim(int, RowAddress) const { return 0.0f; }
   // Whether any such fade is still running, so the view keeps redrawing.
   virtual bool isFading() const { return false; }
+  // Motion off: a pass fades in or out at once.
+  virtual void setReducedMotion(bool) { }
 
   // `row` rows past the start of `block`, carried across block boundaries.
   // A block of blockCount() or more means past the end.
