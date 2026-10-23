@@ -139,4 +139,29 @@ void TestBackend::present(const CellBuffer & frame, const CursorRequest & cursor
   frames_++;
 }
 
+
+void TestBackend::setHdr(std::optional<HdrInfo> hdr) {
+  display_.hdr = hdr;
+  push(BackendEvent::makeDisplay());
+}
+
+CellBuffer TestBackend::sdrFrame() const {
+  CellBuffer out = frame_;
+  auto clip = [](std::optional<Color> & c) {
+    if (c) {
+      auto rgb = c->toSrgb8();
+      c = Color(rgb[0], rgb[1], rgb[2]);
+    }
+  };
+  for (int r = 0; r < out.rows(); r++) {
+    for (int c = 0; c < out.cols(); c++) {
+      CellBuffer::Cell cell = out.at(r, c);
+      clip(cell.fg);
+      clip(cell.bg);
+      out.put(r, c, cell);
+    }
+  }
+  return out;
+}
+
 }  // namespace cellui::test

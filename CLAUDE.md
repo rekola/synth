@@ -74,7 +74,7 @@ dozens of virtual PCMs per card); the dialog title always names which list
 it is, "(PipeWire)" or "(ALSA sound cards)".
 `libgtk-4-dev` is optional too (`SYNTH_ENABLE_GTK`, auto-detected, GTK 4.10 or
 later, Linux only, and cmake says so when it isn't used): it builds the window
-backend (`lib/cellui/src/gtk/`) and `--ui window`; without it the terminal is
+backend (`lib/cellui/src/gtk/`) and `--ui raster`; without it the terminal is
 the only UI. `cellui_gtk_tests` needs a display, so ctest runs it under
 `xvfb-run` (and `xdotool`, which drives its input checks) and skips it where
 neither is there.
@@ -234,10 +234,14 @@ project; useful for chasing memory bugs (e.g. `AudioBuffer`'s copy-assignment
 leak was confirmed this way).
 
 Needs a real terminal (a full-screen UI) and an ALSA output device.
-`--ui window|terminal` chooses the backend (`cellui::gtk::Window` or
-`cellui::term::TerminalSession`; the terminal is the default, `TerminalUI` runs
-on either through `cellui::Backend`); `SYNTH_WINDOW_STATS=<file>` appends how
-long the window's frames took to draw when it exits.
+`--ui auto|terminal|raster` chooses the backend (`cellui::term::TerminalSession`
+or `cellui::gtk::Window`, the platform's 2D window, `raster`; `TerminalUI` runs
+on either through `cellui::Backend`). `auto`, the default, tries `raster` when
+the build has GTK and a display is there (`WAYLAND_DISPLAY` or `DISPLAY`), and
+the terminal when that cannot start; a named backend that cannot start is an
+error, and the choice is made once, at start (`cellui/BackendChoice.h`).
+`SYNTH_WINDOW_STATS=<file>` appends how long the window's frames took to draw
+when it exits. The e2e scripts pass `--ui terminal`.
 Options: `--samplerate N`, `--stereo`, `--ambisonic [order]`,
 `--legacy-binaural`, `--view live|arrangement`. Every song is always rendered through an
 ambisonic bus (ACN/SN3D, AmbiX convention) — there is no plain-stereo-pan
@@ -1394,7 +1398,7 @@ would otherwise resume showing.
   (`cellui_includes_nothing_from_src`) fails on any include that leaves it.
   Headers are `cellui/X.h`, in `namespace cellui`; the library owns the
   libunistring dependency. So far it holds the leaves that never depended on
-  the app: `Color` (`#rgb` now means each digit doubled), `utf8` (grapheme-
+  the app: `Color` (linear Rec.2020 light as floats, 1.0 = SDR white, never negative, above 1 is HDR; built from `#rgb`/`#rrggbb` (each digit doubled), `oklch()`, `color(srgb|srgb-linear|display-p3|rec2020 ...)`, HSL or linear values; a backend that shows only sRGB takes `toSrgb8()`, which maps the gamut in and scales the range; `mix()` is in linear light and the compositor, `bg_blend` and the backdrops use it, while `blend()` is a widget's tween in encoded sRGB, where the theme was tuned), `utf8` (grapheme-
   aware width, truncation and padding), `markdown` (the tiny subset the info
   dialogs use), `ChoiceList`, the sub-cell glyph tables and two-colour
   quantizer (`SubcellGlyphs.h`), the Escape-as-Meta coalescer (`EscapeCoalescer.h`) and `KeyReader` (the inputs as widgets see them, Escape as Meta included, and when the "ESC-" indicator is due), and the input data (`Input.h`: key id, modifiers,
@@ -1442,8 +1446,9 @@ would otherwise resume showing.
   `TerminalSession` (the tty, its modes, signals and restoration).
   `cellui::Backend` (`cellui/Backend.h`, outside `term/`) is what the app needs of any
   display - `DisplayInfo` (`cellui/DisplayInfo.h`: cell size in pixels, whether pictures
-  can be shown, default colours, display scale, sextants), size, `BackendEvent`s
-  (`cellui/BackendEvent.h`: input as `cellui::Input`, resize, paste, close), a frame to
+  can be shown, default colours, display scale, sextants, `hdr` (unset for the terminal and
+  the GTK window), size, `BackendEvent`s
+  (`cellui/BackendEvent.h`: input as `cellui::Input`, resize, paste, close, display changed), a frame to
   show, and `setNativeSelection()` (the user selects text with the mouse instead of the
   app getting the clicks) - which `TerminalSession` and `cellui::test::TestBackend`
   implement. `TerminalSession` translates its `TermEvent`s (which stay inside `term/`,
@@ -1503,7 +1508,7 @@ would otherwise resume showing.
   pushed by the test, and each presented frame is kept for the test to read
   directly (`text()`, `frame()` cells and their styles, `info()`: the plane tree from
   `BufferPlane::describe()` and the focus `TerminalUI::focusName()` gives, `cursor()`,
-  `images()`), so `tests/TerminalUITests.cpp` drives the real
+  `images()`, `setHdr()` for the display's HDR report, `sdrFrame()` for the frame clipped to sRGB), so `tests/TerminalUITests.cpp` drives the real
   `TerminalUI` (`step()` is one loop turn without waiting) and asserts on what it
   shows. It is named for the test, not the terminal, so a window backend's tests can use it too.
   The UI sources are the `synth_ui` library for that reason.

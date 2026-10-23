@@ -119,8 +119,14 @@ class UIPlane {
     (void)width;
     (void)height;
   }
-  virtual void setFgColor(int r, int g, int b) = 0;
-  virtual void setBgColor(int r, int g, int b) = 0;
+  // The colours of what is drawn from now on. A colour may be wide (outside
+  // sRGB, or above SDR white); a display that cannot show that takes
+  // Color::toSrgb8().
+  virtual void setFgColor(const Color & color) = 0;
+  virtual void setBgColor(const Color & color) = 0;
+  // 8-bit sRGB.
+  void setFgColor(int r, int g, int b) { setFgColor(Color(r, g, b)); }
+  void setBgColor(int r, int g, int b) { setBgColor(Color(r, g, b)); }
   // The terminal's own background for what is drawn from now on, and for
   // what the plane shows where it draws nothing: a row the display cannot
   // always draw to its end (the last cell of the last row) must not differ

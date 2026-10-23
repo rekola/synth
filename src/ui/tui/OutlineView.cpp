@@ -432,8 +432,8 @@ void
 OutlineView::drawRow(const StyleProvider & styles, UIPlane & plane, int display_row, size_t data_row, bool cursor,
                      bool focused) {
   auto tree_width = getDim().second;
-  auto fg = [&](const Color & c) { plane.setFgColor(c.getRed(), c.getGreen(), c.getBlue()); };
-  auto bg = [&](const Color & c) { plane.setBgColor(c.getRed(), c.getGreen(), c.getBlue()); };
+  auto fg = [&](const Color & c) { plane.setFgColor(c); };
+  auto bg = [&](const Color & c) { plane.setBgColor(c); };
 
   {
     if (pressed_.data_row >= 0 && static_cast<size_t>(pressed_.data_row) == data_row) {

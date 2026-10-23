@@ -44,7 +44,7 @@ struct TrackPalette {
   }
   Color color(int ordinal) const {
     return model == Model::GOLDEN_HSL ? Color::fromHSL(hue(ordinal), saturation_or_chroma, lightness)
-                                      : Color::fromOklch(lightness, chroma(ordinal), hue(ordinal));
+                                      : Color::fromOklchClipped(lightness, chroma(ordinal), hue(ordinal));
   }
   // The same colour's HSL hue, and the saturation a pad shows it with: a pad
   // has only its primaries, so a muted colour is shown less saturated.

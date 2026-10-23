@@ -153,7 +153,7 @@ void drawCellVuMeter(UIPlane & plane, int row, int col, int rows, const VuReadin
   if (rows <= 0) return;
   auto & styles = plane.getStyles();
   auto cells = level_meter::verticalBar(reading.fraction, rows, reading.peak);
-  plane.setBgColor(look.background.getRed(), look.background.getGreen(), look.background.getBlue());
+  plane.setBgColor(look.background);
   for (int i = 0; i < rows; i++) {
     int y = row + i;
     if (y < clip_top || y >= clip_bottom) continue;
@@ -161,7 +161,7 @@ void drawCellVuMeter(UIPlane & plane, int row, int col, int rows, const VuReadin
     Color fg = reading.clipping ? styles.meter_clip_color
                : look.color     ? *look.color
                                 : styles.meterColor((static_cast<float>(rows - i) - 0.5f) / static_cast<float>(rows));
-    plane.setFgColor(fg.getRed(), fg.getGreen(), fg.getBlue());
+    plane.setFgColor(fg);
     plane.putstr(y, col, cells[static_cast<size_t>(i)]);
   }
 }

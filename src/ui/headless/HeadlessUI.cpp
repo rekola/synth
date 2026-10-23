@@ -32,8 +32,10 @@ class HeadlessPlane : public UIPlane {
  public:
   using UIPlane::UIPlane;
 
-  void setFgColor(int, int, int) override { }
-  void setBgColor(int, int, int) override { }
+  using UIPlane::setBgColor;
+  using UIPlane::setFgColor;
+  void setFgColor(const Color &) override {}
+  void setBgColor(const Color &) override {}
   void setUnderline(bool) override { }
   void setBold(bool) override { }
   void setItalic(bool) override { }

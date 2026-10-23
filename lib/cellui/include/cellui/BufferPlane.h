@@ -52,8 +52,10 @@ class BufferPlane : public UIPlane {
   // This plane and the planes on it, as they are now.
   PlaneInfo describe() const;
 
-  void setFgColor(int r, int g, int b) override { style_.fg = Color(r, g, b); }
-  void setBgColor(int r, int g, int b) override { style_.bg = Color(r, g, b); }
+  using UIPlane::setFgColor;
+  using UIPlane::setBgColor;
+  void setFgColor(const Color & color) override { style_.fg = color; }
+  void setBgColor(const Color & color) override { style_.bg = color; }
   void setBgDefault() override {
     style_.bg.reset();
     base_bg_.reset();

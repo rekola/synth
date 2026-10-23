@@ -16,8 +16,10 @@ class RecordingPlane : public UIPlane {
   std::string drawn;
   int fg_red = -1;
 
-  void setFgColor(int r, int, int) override { fg_red = r; }
-  void setBgColor(int, int, int) override { }
+  using UIPlane::setFgColor;
+  using UIPlane::setBgColor;
+  void setFgColor(const Color & color) override { fg_red = color.getRed(); }
+  void setBgColor(const Color &) override { }
   void setUnderline(bool) override { }
   void setBold(bool) override { }
   void setItalic(bool) override { }

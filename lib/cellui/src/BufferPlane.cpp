@@ -12,15 +12,15 @@ namespace cellui {
 
 namespace {
 
-Color average(const Color & a, const Color & b) {
-  return Color((a.getRed() + b.getRed()) / 2, (a.getGreen() + b.getGreen()) / 2, (a.getBlue() + b.getBlue()) / 2);
-}
+// Half and half, in linear light.
+Color average(const Color & a, const Color & b) { return a.mix(b, 0.5f); }
 
 // Three parts white or black (whichever stands out against `bg`) to one
-// part `fg`.
+// part `fg`, in linear light.
 Color contrasting(const Color & fg, const Color & bg) {
-  int c = bg.getRed() + bg.getGreen() + bg.getBlue() < 320 ? 255 : 0;
-  return Color((3 * c + fg.getRed()) / 4, (3 * c + fg.getGreen()) / 4, (3 * c + fg.getBlue()) / 4);
+  constexpr float kDarkBackground = 0.15f;
+  Color extreme = bg.luminance() < kDarkBackground ? Color(255, 255, 255) : Color(0, 0, 0);
+  return extreme.mix(fg, 0.25f);
 }
 
 // Wide enough for the longest status the reader's indicator shows.

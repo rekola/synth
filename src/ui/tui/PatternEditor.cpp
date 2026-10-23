@@ -2699,11 +2699,12 @@ PatternEditor::renderHeadingOnPlane(const StyleProvider & styles, const std::vec
     // seamless block with no visible seam at all, so a plain black "│"
     // takes its place instead, so there's still a border to see.
     auto draw_edge = [&](int row, int col, const Color & left_color, const Color & right_color) {
-      bool same = left_color.getRed() == right_color.getRed() && left_color.getGreen() == right_color.getGreen() &&
-	left_color.getBlue() == right_color.getBlue();
+      bool same = left_color.toSrgb8() == right_color.toSrgb8();
       if (same) {
-	if (styles.track_chips) setFgColor(styles.window_border_color);
-	else setFgColor(0x00, 0x00, 0x00);
+	if (styles.track_chips)
+          setFgColor(styles.window_border_color);
+	else
+          setFgColor(0x00, 0x00, 0x00);
 	setBgColor(right_color);
 	putstr(row, col, "│");
       } else {
@@ -3226,8 +3227,9 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // fg/bg pair for the whole row.
   auto renderWaveformRow = [&](const WaveformPeaks & peaks, int row, int width, Color fg_color, Color bg_color, int start_col) {
     if (width <= 0) return;
-    SubcellRgb bg_rgb{static_cast<float>(bg_color.getRed()), static_cast<float>(bg_color.getGreen()), static_cast<float>(bg_color.getBlue())};
-    SubcellRgb fg_rgb{static_cast<float>(fg_color.getRed()), static_cast<float>(fg_color.getGreen()), static_cast<float>(fg_color.getBlue())};
+    auto bg8 = bg_color.toSrgb8(), fg8 = fg_color.toSrgb8();
+    SubcellRgb bg_rgb{static_cast<float>(bg8[0]), static_cast<float>(bg8[1]), static_cast<float>(bg8[2])};
+    SubcellRgb fg_rgb{static_cast<float>(fg8[0]), static_cast<float>(fg8[1]), static_cast<float>(fg8[2])};
     auto total_slots = width * 2;
     auto slotCoverage = [&](float value, int gc) {
       value = std::clamp(value, 0.0f, 1.0f);

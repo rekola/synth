@@ -7,6 +7,10 @@ using namespace cellui;
 
 namespace {
 
+// A grey level dimmed toward black in linear light, once and twice.
+int dimmed(int v, float dim) { return Color(v, v, v).mix(Color(0, 0, 0), dim).getRed(); }
+int dimmedTwice(int v, float dim) { return Color(v, v, v).mix(Color(0, 0, 0), dim).mix(Color(0, 0, 0), dim).getRed(); }
+
 // A plane over the whole screen made of nothing but backdrop cells.
 std::unique_ptr<UIPlane> scrimOver(BufferPlane & root, const Backdrop & backdrop) {
   auto scrim = root.createChild();
@@ -67,8 +71,8 @@ TEST(backdropemulation_dims_toward_its_tint_and_keeps_the_text) {
   std::vector<ImagePlacement> images;
   show(root, b, emulation, {}, images);
   CHECK(b.toPlainText() == "ab\n");
-  CHECK(b.at(0, 0).fg->getRed() == 100);
-  CHECK(b.at(0, 0).bg->getRed() == 50);
+  CHECK(b.at(0, 0).fg->getRed() == dimmed(200, 0.5f));
+  CHECK(b.at(0, 0).bg->getRed() == dimmed(100, 0.5f));
   CHECK(!b.at(0, 0).backdrop.active());
 }
 
@@ -248,6 +252,6 @@ TEST(backdropemulation_a_layer_between_two_backdrops_is_dimmed_by_the_upper_one)
   std::vector<ImagePlacement> images;
   show(root, b, emulation, {}, images);
   CHECK(b.toPlainText() == "bottom  mid\n");
-  CHECK(b.at(0, 0).fg->getRed() == 50);  // dimmed by both
-  CHECK(b.at(0, 8).fg->getRed() == 100);  // by the upper one only
+  CHECK(b.at(0, 0).fg->getRed() == dimmedTwice(200, 0.5f));  // dimmed by both
+  CHECK(b.at(0, 8).fg->getRed() == dimmed(200, 0.5f));  // by the upper one only
 }

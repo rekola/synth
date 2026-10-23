@@ -13,6 +13,7 @@ struct BackendEvent {
     RESIZE,  // rows, cols hold the new size
     PASTE,   // text holds the pasted text
     CLOSE,   // the backend is gone: end of input, hang-up or a closed window
+    DISPLAY, // the display's description changed: display() has the new one
   };
 
   Type type = Type::INPUT;
@@ -36,6 +37,11 @@ struct BackendEvent {
     BackendEvent e;
     e.type = Type::PASTE;
     e.text = std::move(text);
+    return e;
+  }
+  static BackendEvent makeDisplay() {
+    BackendEvent e;
+    e.type = Type::DISPLAY;
     return e;
   }
   static BackendEvent makeClose() {

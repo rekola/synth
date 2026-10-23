@@ -58,8 +58,8 @@ void MenuBar::draw() {
   plane_.erase();
   if (cols_ <= 0) return;
   auto ink = [&](const Color & fg, const Color & bg) {
-    plane_.setFgColor(fg.getRed(), fg.getGreen(), fg.getBlue());
-    plane_.setBgColor(bg.getRed(), bg.getGreen(), bg.getBlue());
+    plane_.setFgColor(fg);
+    plane_.setBgColor(bg);
   };
 
   // The header row, filled across, each name with its mnemonic marked.
@@ -115,8 +115,8 @@ void MenuBar::draw() {
   panel_->erase();
   UIPlane & panel = *panel_;
   auto panelInk = [&](const Color & fg, const Color & bg) {
-    panel.setFgColor(fg.getRed(), fg.getGreen(), fg.getBlue());
-    panel.setBgColor(bg.getRed(), bg.getGreen(), bg.getBlue());
+    panel.setFgColor(fg);
+    panel.setBgColor(bg);
   };
   panelInk(colors_.section_fg, colors_.section_bg);
   for (int y = 0; y <= rows; y++) panel.putstr(y, 0, std::string(static_cast<size_t>(width), ' '));

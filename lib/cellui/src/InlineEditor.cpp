@@ -63,8 +63,8 @@ void
 InlineEditor::paintBackdrop() {
   if (!open_) return;
   auto text_color = field_.text_color.value_or(plane_.getStyles().reader_text_color);
-  plane_.setFgColor(text_color.getRed(), text_color.getGreen(), text_color.getBlue());
-  plane_.setBgColor(field_.backdrop.getRed(), field_.backdrop.getGreen(), field_.backdrop.getBlue());
+  plane_.setFgColor(text_color);
+  plane_.setBgColor(field_.backdrop);
   plane_.putstr(field_.row, field_.col, std::string(static_cast<size_t>(field_.width), ' '));
 }
 

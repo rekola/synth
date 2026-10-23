@@ -11,7 +11,7 @@ The lighting model and the effects themselves are specified elsewhere; this
 plan is the foundations they stand on (the colour model, the backend choice and
 the HDR output).
 
-Status: under discussion. Nothing is built. This is a green-field change:
+Status: steps 1 to 5 are built (below); the Vulkan backend and the rest are not. This is a green-field change:
 goldens that move are regenerated, not worked around.
 
 Transfer functions such as PQ are output encodings the presenter picks; they
@@ -134,6 +134,14 @@ Consequences, accepted:
   OKLab** (`Color::mix()` takes the space, default linear light; a
   `Gradient` says OKLab), since linear-light interpolation of two saturated
   hues is muddy. Compositing is physical, design interpolation is perceptual.
+- **A widget's tween of two theme colours stays where it was tuned.** The ~40
+  `Color::blend()` calls in the widgets (focus fades, row dimming, cursor
+  tints) were tuned in gamma-encoded sRGB and there is no way to retune them by
+  eye here, so `blend(f, other)` is `mix(other, f, MixSpace::SRGB)`: the same
+  look as before. Only what the compositor does (`bg_blend`, `fg_contrast`,
+  backdrop dim and tint, the emulated blur) is linear. If the widget tweens
+  should be physical too, `blend()` becomes `mix()` and the amounts are retuned
+  in one go.
 - Glyph anti-aliasing is not a `Color` operation. A rasteriser draws a glyph's
   outline as a *coverage* per pixel, 0 to 1 along the edge, and the pixel is
   `mix(bg, fg, coverage)`. canvas does that mix in 8-bit gamma-encoded sRGB
@@ -336,20 +344,33 @@ native-toolkit window without effects; a saved default is a small addition.
    conversions, `toSrgb8()` with the placeholder clip, notation, `*gain`,
    `mix`. The `getRed()` family kept as the sRGB8 view; the grep of callers
    that compute with them, each moved over. Unit tests above. Every goldens
-   that moves is regenerated and eyeballed.
+   that moves is regenerated and eyeballed. Done. The placeholder mapping keeps
+   the hue (OKLCH chroma reduction at constant lightness) and scales a colour
+   above 1 down; `Rec.2020` green therefore shows as a spring green, not sRGB
+   green. The theme's track colours keep their tuned look through
+   `Color::fromOklchClipped()` (each channel clipped into sRGB, as before).
+   Conversions run through tables: about 25 ns for `toSrgb8()`, and about 40 ns
+   more for an encoded-space `blend()`.
 2. **Linear compositing** in `BufferPlane`, `Backdrop`, `Band` and
    `term::BackdropEmulation`; theme amounts retuned on the gallery; goldens
-   regenerated.
+   regenerated. Done, except that the widgets' ~40 `blend()` tweens stay in
+   encoded sRGB (see Compositing) and so need no retuning.
 3. **Cells take wide colours**: `setFgColor(Color)`/`setBgColor(Color)`,
    `describe()`, hashing; every sink (`FrameEncoder`, `toAnsi()`, the
    window's rasteriser, the canvas rasteriser) goes through `toSrgb8()`; the
    gallery gets a swatch page (a colour and its clip, side by side, including
-   the Rec.2020 green and a `*6` LED).
+   the Rec.2020 green and a 6x LED). Done: `UIPlane::setFgColor(const Color &)`
+   (the `int, int, int` form stays), no extra fields, and a gallery page.
 4. **`DisplayInfo::hdr`**, the display-change event, `TestBackend`
-   `setHdr()`/`sdrFrame()`; terminal and SDR window report none.
+   `setHdr()`/`sdrFrame()`; terminal and SDR window report none. Done
+   (`BackendEvent::Type::DISPLAY`; `TerminalUI` redraws on it).
 5. **Backend choice**: `--ui auto|terminal|raster` with the probe and `auto`
    as the default (`window` retired), the probe's tests (no display, CPU device,
-   bad driver); `vulkan` does not exist yet, so the seam is proved.
+   bad driver); `vulkan` does not exist yet, so the seam is proved. Done
+   (`cellui/BackendChoice.h`; `main.cpp` tries the candidates in order, an
+   explicit choice that cannot start is an error). The e2e harness passes
+   `--ui terminal`. Not done: the CPU-device and bad-driver checks, which
+   wait for the Vulkan probe.
 6. **Vulkan spike**: the thin layer, one shading language to SPIR-V, an FP16
    target; on Linux both host arms (the dma-buf texture in a GTK window; an
    SDL3 window with a Vulkan swap chain, its file dialogs and IME), in SDR

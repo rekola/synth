@@ -14,7 +14,8 @@ namespace spectrum_image {
 namespace {
 
 canvas::Color toCanvas(const Color & c, float alpha = 1.0f) {
-  return canvas::Color(static_cast<float>(c.getRed()) / 255.0f, static_cast<float>(c.getGreen()) / 255.0f, static_cast<float>(c.getBlue()) / 255.0f, alpha);
+  auto rgb = c.toSrgb8();
+  return canvas::Color(static_cast<float>(rgb[0]) / 255.0f, static_cast<float>(rgb[1]) / 255.0f, static_cast<float>(rgb[2]) / 255.0f, alpha);
 }
 
 }  // namespace
