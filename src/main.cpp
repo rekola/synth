@@ -61,7 +61,7 @@ int main(int argc, char *argv[]) {
   bool theme_given = false;
   // --reduced-motion (or SYNTH_REDUCED_MOTION=1): no easing, no pulsing.
   bool reduced_motion = getenv("SYNTH_REDUCED_MOTION") != nullptr && strcmp(getenv("SYNTH_REDUCED_MOTION"), "0") != 0;
-  cellui::BackendKind ui_kind = cellui::BackendKind::AUTO; // --ui auto|terminal|raster: which backend the UI runs on
+  cellui::BackendKind ui_kind = cellui::BackendKind::AUTO; // --ui auto|terminal|raster|headless: which backend the UI runs on
   UI::View initial_view = UI::View::LIVE; // --view live|arrangement: which view the UI starts in
   // --dither nearest|ordered|floyd-steinberg: how what has to meet the
   // terminal's palette (Sixel images) is dithered.
@@ -74,8 +74,8 @@ int main(int argc, char *argv[]) {
   auto devices = saved_devices;
   bool list_devices = false; // --list-devices: print what can be selected and exit
   vector<string> input;
-  bool headless = false; // --headless: no terminal UI, status lines on stderr
-  bool daemon = false; // --daemon: --headless, detached from the terminal
+  bool headless = false; // --ui headless: no screen, status lines on stderr
+  bool daemon = false;   // --daemon: --ui headless, detached from the terminal
   bool autoplay = false; // --autoplay: start the transport once running
   bool null_audio = false; // --null-audio: no sound device, blocks paced by the clock
   string log_file; // --log-file: where a daemon's stderr goes
@@ -92,8 +92,10 @@ int main(int argc, char *argv[]) {
       }
       i++;
     } else if (strcmp(argv[i], "--ui") == 0) {
-      if (i + 1 >= argc || !cellui::parseBackendKind(argv[i + 1], ui_kind)) {
-        fmt::print(stderr, "--ui requires 'auto', 'terminal' or 'raster'\n");
+      if (i + 1 < argc && strcmp(argv[i + 1], "headless") == 0) {
+        headless = true;
+      } else if (i + 1 >= argc || !cellui::parseBackendKind(argv[i + 1], ui_kind)) {
+        fmt::print(stderr, "--ui requires 'auto', 'terminal', 'raster' or 'headless'\n");
         exit(1);
       }
       i++;
@@ -114,8 +116,6 @@ int main(int argc, char *argv[]) {
       i++;
     } else if (strcmp(argv[i], "--reduced-motion") == 0) {
       reduced_motion = true;
-    } else if (strcmp(argv[i], "--headless") == 0) {
-      headless = true;
     } else if (strcmp(argv[i], "--daemon") == 0) {
       headless = daemon = true;
     } else if (strcmp(argv[i], "--autoplay") == 0) {
@@ -193,7 +193,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (autoplay && !headless) {
-    fmt::print(stderr, "--autoplay requires --headless\n");
+    fmt::print(stderr, "--autoplay requires --ui headless\n");
     exit(1);
   }
 
@@ -294,7 +294,7 @@ int main(int argc, char *argv[]) {
   (void)theme_given;
   (void)reduced_motion;
   (void)dither;
-  fmt::print(stderr, "This build has no terminal UI; use --headless\n");
+  fmt::print(stderr, "This build has no terminal UI; use --ui headless\n");
   return 1;
 #else
   std::unique_ptr<cellui::Backend> backend;

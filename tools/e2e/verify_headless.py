@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""End-to-end check of `synth --headless` and `--daemon`: starts playing,
+"""End-to-end check of `synth --ui headless` and `--daemon`: starts playing,
 logs status on stderr, and shuts down cleanly on SIGTERM/SIGINT.
 
 Needs no terminal and no sound card: ALSA's "default" PCM is redirected to
@@ -59,8 +59,8 @@ with tempfile.TemporaryDirectory() as tmp:
     for sig, name in ((signal.SIGTERM, "SIGTERM"), (signal.SIGINT, "SIGINT")):
         log = os.path.join(tmp, name + ".log")
         with open(log, "w") as err:
-            p = subprocess.Popen([BINARY, "--headless", "--autoplay", SONG], env=env, stderr=err, stdin=subprocess.DEVNULL)
-        check(wait_for(log, "Playing"), "%s: --headless --autoplay reports Playing on stderr" % name)
+            p = subprocess.Popen([BINARY, "--ui", "headless", "--autoplay", SONG], env=env, stderr=err, stdin=subprocess.DEVNULL)
+        check(wait_for(log, "Playing"), "%s: --ui headless --autoplay reports Playing on stderr" % name)
         p.send_signal(sig)
         try:
             rc = p.wait(timeout=10)
@@ -72,7 +72,7 @@ with tempfile.TemporaryDirectory() as tmp:
     # Without --autoplay the transport stays stopped.
     log = os.path.join(tmp, "noauto.log")
     with open(log, "w") as err:
-        p = subprocess.Popen([BINARY, "--headless", SONG], env=env, stderr=err, stdin=subprocess.DEVNULL)
+        p = subprocess.Popen([BINARY, "--ui", "headless", SONG], env=env, stderr=err, stdin=subprocess.DEVNULL)
     check(wait_for(log, "Capture device"), "no autoplay: started")
     time.sleep(1)
     check("Playing" not in open(log).read(), "no autoplay: stays stopped")
@@ -94,8 +94,8 @@ with tempfile.TemporaryDirectory() as tmp:
 
     # Flag validation.
     r = subprocess.run([BINARY, "--autoplay", SONG], env=env, timeout=30, stderr=subprocess.DEVNULL)
-    check(r.returncode != 0, "--autoplay without --headless is rejected")
-    r = subprocess.run([BINARY, "--headless", "--log-file", os.path.join(tmp, "x.log"), SONG], env=env, timeout=30, stderr=subprocess.DEVNULL)
+    check(r.returncode != 0, "--autoplay without --ui headless is rejected")
+    r = subprocess.run([BINARY, "--ui", "headless", "--log-file", os.path.join(tmp, "x.log"), SONG], env=env, timeout=30, stderr=subprocess.DEVNULL)
     check(r.returncode != 0, "--log-file without --daemon is rejected")
 
 sys.exit(1 if failures else 0)
