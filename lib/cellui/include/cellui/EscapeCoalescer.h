@@ -6,16 +6,16 @@ namespace cellui {
 
 // Coalesces the legacy Meta/Alt-key encoding - a plain Escape followed by
 // the modified key, with no guarantee they arrive close together in time -
-// into a single Alt-modified input, the same input as a physical Alt chord.
+// into a single Alt-modified input, the same input as a physical Alt shortcut.
 // It applies under every keyboard protocol: a terminal that reports Alt
-// chords directly still sends Escape as a key of its own, and Escape then a
+// shortcuts directly still sends Escape as a key of its own, and Escape then a
 // key is Meta in Emacs there too. Modeled on Emacs's own
 // ESC-as-Meta-prefix behavior (pressing Escape, waiting indefinitely -
 // seconds, not milliseconds - then pressing a key still produces the
 // Meta-modified command; Emacs shows "ESC-" in the echo area the whole time
 // it's waiting) rather than on a short timing window: a bare Escape arms an
 // indefinite wait for the next real keyboard event, which becomes this
-// chord's Alt modifier whenever it can be. There is deliberately no timeout
+// shortcut's Alt modifier whenever it can be. There is deliberately no timeout
 // - see EscapeSequenceCoalescer::escapePending()'s own comment for how a
 // caller shows the waiting state without one. (The terminal backend's own
 // parser already folds an Escape and a key that arrive together, and
@@ -33,7 +33,7 @@ public:
   virtual bool next(Input * input) = 0;
 };
 
-// Coalesces a standalone Escape with a later Alt-chordable keystroke into a
+// Coalesces a standalone Escape with a later Alt-modifiable keystroke into a
 // single Alt-modified input - see this header's top comment.
 class EscapeSequenceCoalescer {
 public:
@@ -53,7 +53,7 @@ public:
   // keystroke and leaves this true; any other real keyboard event ends the
   // wait, successfully or not). Callers use this to show an Emacs-style "ESC-" indicator.
   bool escapePending() const { return pending_; }
-  // Whether the input next() returned last was folded into an Alt chord
+  // Whether the input next() returned last was folded into an Alt shortcut
   // (its press; the key's release carries the Alt too).
   bool lastFolded() const { return last_folded_; }
 

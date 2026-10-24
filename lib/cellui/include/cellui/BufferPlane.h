@@ -237,7 +237,7 @@ class BufferPlane : public Plane {
   BufferPlane * active_reader_ = nullptr;
   Color default_fg_ = Color(255, 255, 255), default_bg_ = Color(0, 0, 0);
   double display_scale_ = 1.0;
-  KeymapProfile keymap_profile_ = KeymapProfile::EMACS;
+  KeymapProfile keymap_profile_ = KeymapProfile::TERMINAL;
   bool sextants_ = false;
   bool smooth_scroll_ = false;
   mutable std::vector<BackdropLayer> layers_;

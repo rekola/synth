@@ -5,16 +5,18 @@ Everything the program does is a named command (`kill-region`, `launch-scene`,
 [command palette](#command-palette), most are in the menus, and a keymap binds
 keys to them.
 
-There are two keymaps, and a display uses one of them: the terminal the Emacs
-keymap, the window the desktop one. The command names are the same in both.
-The terminal uses the Emacs keymap because a terminal can't send many of the
-key combinations the usual desktop shortcuts rely on (most Ctrl+Shift chords,
+There are two keymaps, and a display uses one of them: the terminal the
+terminal keymap, the window the desktop one. The command names are the same in
+both. The terminal keymap is based on Emacs's keybindings (mark and point, kill
+and yank, M-x, the C-x prefix), but it is this program's own and not Emacs's:
+it adds shortcuts Emacs has no counterpart for. It is used in the terminal because a terminal can't send many of the
+key combinations the usual desktop shortcuts rely on (most Ctrl+Shift shortcuts,
 and Ctrl-C, Ctrl-Z and Ctrl-S belong to the terminal itself), while Emacs's
 prefix keys work in any terminal. The desktop keymap follows the usual desktop,
-DAW and tracker conventions. A binding that has not been given a desktop chord
+DAW and tracker conventions. A binding that has not been given a desktop shortcut
 works in both. The commands that have one so far:
 
-| Command | Desktop chord | Emacs chord |
+| Command | Desktop shortcut | Terminal shortcut |
 | --- | --- | --- |
 | command palette | Ctrl+Shift+P | M-x |
 | `undo` | Ctrl+Z | C-x u, C-/ |
@@ -22,19 +24,42 @@ works in both. The commands that have one so far:
 | `kill-region` (cut) | Ctrl+X | C-w |
 | `kill-ring-save` (copy) | Ctrl+C | M-w |
 | `yank` (paste) | Ctrl+V | C-y |
-| `open-song` | Ctrl+O | C-x C-f |
-| `save-song` | Ctrl+S | C-x C-s |
-| `save-song-as` | Ctrl+Shift+S | C-x C-w |
+| `rename` (scene, clip or track, in the clip grid) | Ctrl+R | C-c r |
+| `add-sample-track` | Ctrl+T | C-c t |
+| `add-instrument-track` | Ctrl+Shift+T | C-c T |
+| `add-group-track` | Ctrl+G | C-c g |
+| `add-percussion-track` | Ctrl+Shift+D | C-c d |
+| `keyboard-quit` (cancel the selection) | Escape | C-g |
+| `mark-whole-buffer` (select all) | Ctrl+A | C-x h |
+| `toggle-stop-button` (clip grid) | Ctrl+E | |
+| `stop-track-clips` (the cursor track's clips, not the others) | Ctrl+Enter | |
+| `back-to-arrangement` | F10 | F10 |
+| `toggle-record-arm` (record) | F9 | F9 |
+| `quantize-clip` (the clip under the cursor in the clip grid; in the pattern editor the same shortcut is `quantize-region`, below) | Ctrl+U | |
+| `quantize-region` (the pattern editor's selection) — **not built yet**, shortcut reserved | Ctrl+U | |
+| `insert-scene` (an empty scene below the cursor's, shifting the later ones down) — **not built yet**, shortcut reserved | Ctrl+I | |
+| `duplicate` — **not built yet**, shortcut reserved | Ctrl+D | |
+| `double-clip-length` — **not built yet**, shortcut reserved | Ctrl+Up | |
+| `halve-clip-length` — **not built yet**, shortcut reserved | Ctrl+Down | |
+| `capture-midi` — **not built yet**, shortcut reserved | Ctrl+Shift+C | |
+| `find-file` | Ctrl+O | C-x C-f |
+| `save-buffer` | Ctrl+S | C-x C-s |
+| `save-buffer-as` | Ctrl+Shift+S | C-x C-w |
 | `save-buffers-kill-terminal` (quit) | Ctrl+Q | C-x C-c |
 
-Ctrl+X is cut there, so the `C-x` prefix sequences are Emacs-only; the buffer
-commands (`next-buffer`, `kill-buffer`, ...) have no desktop chord yet and are
+The desktop shortcuts follow Ableton Live's shortcuts where this program has the
+same thing; an empty Terminal cell means the Emacs keybindings it is based on have no obvious counterpart, so the
+shortcut is left free. `toggle-track-collapse` therefore has its shortcut (Ctrl+Shift+C) on
+the terminal keymap only, as Capture MIDI has it on the desktop one.
+
+Ctrl+X is cut there, so the `C-x` prefix sequences are terminal-only; the buffer
+commands (`next-buffer`, `kill-buffer`, ...) have no desktop shortcut yet and are
 in the menus and the command palette. What the terminal can't do is listed
 under [Terminal](#terminal) at the end.
 
 ## Command palette
 
-M-x (Meta-x: the Alt key with x, or Escape and then x) on the Emacs keymap and
+M-x (Meta-x: the Alt key with x, or Escape and then x) on the terminal keymap and
 Ctrl+Shift+P on the desktop one open the command palette, which runs any
 command by name. It sits on the last rows of the
 screen, where the status line is: the query on the last row (`M-x ` or `> `),
@@ -54,13 +79,13 @@ still used for messages and for prompts that ask for a name.
   C-g or a click outside cancels.
 
 The palette takes M-x and Tab completion of the name from Emacs, and from the
-command palette of Sublime Text the chord Ctrl+Shift+P, matching the typed
+command palette of Sublime Text the shortcut Ctrl+Shift+P, matching the typed
 letters in order, and showing each command's keybinding and description. There is no minibuffer: the status line only shows
 messages and asks for names (a file, a buffer, a new name).
 
-## Emacs keymap
+## Terminal keymap
 
-The rest of this page gives the Emacs keymap, unless it says otherwise. Mark and point selection, kill and yank, M-x for any named command, ESC as the
+The rest of this page gives the terminal keymap, unless it says otherwise. Mark and point selection, kill and yank, M-x for any named command, ESC as the
 Meta prefix, C-x C-c to quit and C-k to kill a row. Each open song is a buffer,
 as in Emacs, and `next-buffer` and `previous-buffer` switch between them. An
 operation that is a copy or a move is done with the kill ring rather than with
@@ -247,7 +272,7 @@ The terminal interface does everything the program does, with these limits:
   already in the chord starts a new one, so a held key's repeats each get a
   row); the Launchpad and MIDI input are unaffected.
 - **Key combinations.** Without that protocol many combinations arrive as the
-  same byte (C-_ and C-/, for example) or not at all (most Ctrl+Shift chords),
+  same byte (C-_ and C-/, for example) or not at all (most Ctrl+Shift shortcuts),
   so some commands have fewer bindings there, and M-x is always the way in.
 - **Pixel graphics.** Terminals with Kitty graphics or Sixels draw the spectrum
   analyzer and the DirAC heatmap as real pixels; the rest get braille cells.

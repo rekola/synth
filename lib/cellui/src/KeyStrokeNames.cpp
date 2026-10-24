@@ -1,11 +1,11 @@
-#include <cellui/KeyChordNames.h>
+#include <cellui/KeyStrokeNames.h>
 
 #include <cellui/Utf8.h>
 
 #include <cctype>
 
 namespace cellui {
-namespace KeyChord {
+namespace KeyStroke {
 
 namespace {
 
@@ -38,27 +38,27 @@ std::string keyName(int id, bool emacs, bool upper) {
 }  // namespace
 
 std::string describe(const std::vector<uint64_t> & sequence, KeymapProfile profile) {
-  bool emacs = profile == KeymapProfile::EMACS;
+  bool emacs = profile == KeymapProfile::TERMINAL;
   std::string out;
-  for (uint64_t chord : sequence) {
+  for (uint64_t stroke : sequence) {
     if (!out.empty()) out += ' ';
-    int id = idOf(chord);
+    int id = idOf(stroke);
     bool letter = id < 0x80 && std::isalpha(id);
     if (emacs) {
-      if (hasCtrl(chord)) out += "C-";
-      if (hasAlt(chord) || hasMeta(chord)) out += "M-";
-      if (hasShift(chord)) out += "S-";
-      out += keyName(id, true, hasShift(chord) && letter);
+      if (hasCtrl(stroke)) out += "C-";
+      if (hasAlt(stroke) || hasMeta(stroke)) out += "M-";
+      if (hasShift(stroke)) out += "S-";
+      out += keyName(id, true, hasShift(stroke) && letter);
     } else {
-      if (hasCtrl(chord)) out += "Ctrl+";
-      if (hasAlt(chord)) out += "Alt+";
-      if (hasShift(chord)) out += "Shift+";
-      if (hasMeta(chord)) out += "Meta+";
+      if (hasCtrl(stroke)) out += "Ctrl+";
+      if (hasAlt(stroke)) out += "Alt+";
+      if (hasShift(stroke)) out += "Shift+";
+      if (hasMeta(stroke)) out += "Meta+";
       out += keyName(id, false, true);
     }
   }
   return out;
 }
 
-}  // namespace KeyChord
+}  // namespace KeyStroke
 }  // namespace cellui

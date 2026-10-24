@@ -3,7 +3,7 @@
 #include "../ScenePatternSource.h"
 
 #include "../../playback/InputEvent.h"
-#include "../KeyChord.h"
+#include "../KeyStroke.h"
 #include "../StyleProvider.h"
 #include "../../Controller.h"
 #include "../../model/Song.h"
@@ -79,6 +79,7 @@ ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
   // tied to any particular row), same as the 'l' loop toggle stays a
   // manual offerInput() branch below rather than a command - there's
   // nothing else in this app either binding is likely to collide with.
+  commands_.define("rename", [this]() { startRename(); });
   commands_.define("rename-track", [this]() {
     const Song & song = getController().getSong();
     startTrackRename(song, song.getPlayableTrackIds());
@@ -108,11 +109,11 @@ ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
   // 'm'/'s' are this view's own shortcuts; backslash/Ctrl-backslash match
   // PatternEditor's own toggle-mute/toggle-solo bindings, so either works
   // regardless of which of the two views is currently focused.
-  keymap_.bind(KeyChord::pack('m', false, false, false, false), "toggle-mute");
-  keymap_.bind(KeyChord::pack('s', false, false, false, false), "toggle-solo");
-  keymap_.bind(KeyChord::pack('i', false, false, false, false), "cycle-monitor");
-  keymap_.bind(KeyChord::pack('\\', false, false, false, false), "toggle-mute");
-  keymap_.bind(KeyChord::pack('\\', true, false, false, false), "toggle-solo");
+  keymap_.bind(KeyStroke::pack('m', false, false, false, false), "toggle-mute");
+  keymap_.bind(KeyStroke::pack('s', false, false, false, false), "toggle-solo");
+  keymap_.bind(KeyStroke::pack('i', false, false, false, false), "cycle-monitor");
+  keymap_.bind(KeyStroke::pack('\\', false, false, false, false), "toggle-mute");
+  keymap_.bind(KeyStroke::pack('\\', true, false, false, false), "toggle-solo");
 
   // The slot under the cursor, when it's a clip row on a real track.
   auto cursor_slot = [this]() -> std::optional<std::pair<int, int>> {
@@ -175,6 +176,12 @@ ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
     auto done = quantizeClip(song, track_ids[static_cast<size_t>(cursor_track_index_)], physicalFor(cursor_row_));
     getController().log(done ? "Quantised clip" : "Quantise: nothing to quantise there");
   });
+  // Stops the cursor track's clips on the next bar, leaving the other tracks.
+  commands_.define("stop-track-clips", [this]() {
+    auto track_ids = getController().getSong().getPlayableTrackIds();
+    if (cursor_track_index_ < 0 || cursor_track_index_ >= static_cast<int>(track_ids.size())) return;
+    getController().getClipPlayer().stopTrack(track_ids[static_cast<size_t>(cursor_track_index_)]);
+  });
   // Adds or removes the stop button of the empty slot under the cursor -
   // a no-op on a slot with a clip, same as kill-region on an empty one.
   commands_.define("toggle-stop-button", [this]() {
@@ -194,18 +201,24 @@ ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
   // app already treats as "delete something at the cursor" elsewhere
   // (Backspace/Del clearing note content, Ctrl-K placing a stop instance,
   // both in PatternEditor; ArrangementGrid's own Backspace doing the
-  // same) - rather than a dedicated modifier chord of its own.
-  keymap_.bind(KeyChord::pack(Key::Delete, false, false, false, false), "kill-region");
-  keymap_.bind(KeyChord::pack(Key::Backspace, false, false, false, false), "kill-region");
-  keymap_.bind(KeyChord::pack('k', true, false, false, false), "kill-region");
-  // Cut, copy and paste: the Emacs chords in the terminal, the usual
+  // same) - rather than a dedicated modifier shortcut of its own.
+  keymap_.bind(KeyStroke::pack(Key::Delete, false, false, false, false), "kill-region");
+  keymap_.bind(KeyStroke::pack(Key::Backspace, false, false, false, false), "kill-region");
+  keymap_.bind(KeyStroke::pack('k', true, false, false, false), "kill-region");
+  // Cut, copy and paste: the terminal keymap's shortcuts, the usual
   // desktop ones elsewhere.
-  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('w', true, false, false, false), "kill-region");
-  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('w', false, true, false, false), "kill-ring-save");
-  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('y', true, false, false, false), "yank");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('x', true, false, false, false), "kill-region");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('c', true, false, false, false), "kill-ring-save");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('v', true, false, false, false), "yank");
+  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack('w', true, false, false, false), "kill-region");
+  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack('w', false, true, false, false), "kill-ring-save");
+  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack('y', true, false, false, false), "yank");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('x', true, false, false, false), "kill-region");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('c', true, false, false, false), "kill-ring-save");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('v', true, false, false, false), "yank");
+  // The terminal shortcut is TerminalUI's: its C-c prefix is global, so a widget's
+  // own C-c sequence would never be reached.
+  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('r', true, false, false, false), "rename");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('u', true, false, false, false), "quantize-clip");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('e', true, false, false, false), "toggle-stop-button");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack(Key::Enter, true, false, false, false), "stop-track-clips");
   assertCommandBindingsValid();
 }
 
@@ -563,6 +576,29 @@ ClipGrid::handleMouse(const cellui::Input & input) {
   return true;
 }
 
+// Renames the clip under the cursor, or the track when there's no clip there
+// (the cursor never sits on the header row itself); on the master column's
+// scene slot, the scene.
+void ClipGrid::startRename() {
+  const Song & song = getController().getSong();
+  auto track_ids = song.getPlayableTrackIds();
+  auto num_tracks = static_cast<int>(track_ids.size());
+  if (cursor_track_index_ == num_tracks && rowKindFor(cursor_row_) == RowKind::CLIP) {
+    startSceneRename();
+    return;
+  }
+  auto clip_index = getCursorClipIndex();
+  bool on_clip = false;
+  if (clip_index >= 0 && cursor_track_index_ >= 0 && cursor_track_index_ < num_tracks) {
+    auto clips = song.getClips(track_ids[static_cast<size_t>(cursor_track_index_)]);
+    on_clip = clip_index < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(clip_index)].isEmpty();
+  }
+  if (on_clip)
+    startClipRename(song, track_ids);
+  else
+    startTrackRename(song, track_ids);
+}
+
 bool
 ClipGrid::offerInput(const cellui::Input & input) {
   // const - Song::getClips() has a non-const overload that inserts an
@@ -614,8 +650,8 @@ ClipGrid::offerInput(const cellui::Input & input) {
   if (input.getKind() == InputEvent::Kind::RELEASE) return false;
 
   // Navigation, plus the manual (non-command) part of this widget's own
-  // input handling: Enter (clip focus toggle, on a clip row), F2 (rename
-  // the clip under the cursor), 'l' (toggle its own loop flag) - Mute/
+  // input handling: Enter (clip focus toggle, on a clip row),
+  // 'l' (toggle its own loop flag) - Mute/
   // Solo are dispatchCommand()'s job now, handled above via this
   // constructor's own toggle-mute/toggle-solo bindings.
   if (input.getId() == Key::Up) cursor_row_--;
@@ -634,24 +670,7 @@ ClipGrid::offerInput(const cellui::Input & input) {
   }
   else if (input.getId() == Key::PageUp) cursor_row_ -= getDim().first;
   else if (input.getId() == Key::PageDown) cursor_row_ += getDim().first;
-  else if (input.getId() == Key::F2) {
-    // Renames the clip under the cursor, or the track when there's no
-    // clip there (the cursor never sits on the header row itself); on the
-    // master column's scene slot, the scene.
-    if (cursor_track_index_ == num_tracks && rowKindFor(cursor_row_) == RowKind::CLIP) {
-      startSceneRename();
-      return true;
-    }
-    auto clip_index = getCursorClipIndex();
-    bool on_clip = false;
-    if (clip_index >= 0 && cursor_track_index_ >= 0 && cursor_track_index_ < num_tracks) {
-      auto clips = song.getClips(track_ids[static_cast<size_t>(cursor_track_index_)]);
-      on_clip = clip_index < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(clip_index)].isEmpty();
-    }
-    if (on_clip) startClipRename(song, track_ids);
-    else startTrackRename(song, track_ids);
-    return true;
-  } else if (input.getId() == 'l' && !input.hasCtrl() && !input.hasAlt()) {
+  else if (input.getId() == 'l' && !input.hasCtrl() && !input.hasAlt()) {
     // Loop toggle - only meaningful on a clip row that actually has a
     // clip; a no-op (but still consumed) anywhere else.
     if (rowKindFor(cursor_row_) == RowKind::CLIP && cursor_track_index_ >= 0 && cursor_track_index_ < num_tracks) {
@@ -669,8 +688,8 @@ ClipGrid::offerInput(const cellui::Input & input) {
   } else if (input.getId() == Key::Enter) {
     activateCell(song, track_ids);
     return true;
-  }
-  else return false;
+  } else
+    return false;
 
   cursor_track_index_ = clamp(cursor_track_index_, 0, num_tracks); // num_tracks: the master column
   cursor_row_ = clamp(cursor_row_, 1, logicalRowCount() - 1); // never the header row

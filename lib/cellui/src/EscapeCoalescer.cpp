@@ -8,7 +8,7 @@ void
 EscapeSequenceCoalescer::setInPaste(bool in_paste) {
   in_paste_ = in_paste;
   if (in_paste_) {
-    pending_ = false; // a paste's first character isn't retroactively Alt-chorded
+    pending_ = false; // a paste's first character isn't retroactively Alt-modified
     folded_id_ = -1;
   }
 }
@@ -30,8 +30,8 @@ isSequenceIntroducer(const Input & in) {
 
 // A keystroke that already carries Ctrl, Shift or Meta is never folded: with
 // no deadline, an incidental Escape followed by ordinary continued use
-// (Ctrl-G, a Shift-modified note starting a chord column) is a real
-// scenario, and nothing binds a Ctrl+Alt or Shift+Alt chord.
+// (Ctrl-G, a Shift-modified note starting a shortcut column) is a real
+// scenario, and nothing binds a Ctrl+Alt or Shift+Alt shortcut.
 bool
 isAlreadyModified(const Input & in) {
   return in.hasCtrl() || in.hasShift() || in.hasMeta();
@@ -69,7 +69,7 @@ EscapeSequenceCoalescer::next(Input * input) {
     return true;
   }
 
-  // The release of a key whose press was folded is part of the same chord.
+  // The release of a key whose press was folded is part of the same shortcut.
   if (input->getKind() == Input::Kind::RELEASE && input->getId() == folded_id_) {
     folded_id_ = -1;
     if (!input->hasAlt()) *input = withAlt(*input);

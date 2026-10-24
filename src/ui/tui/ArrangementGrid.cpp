@@ -8,7 +8,7 @@
 #include "../../model/Clip.h"
 #include "../../model/ArrangementOps.h"
 #include "../../model/SongStructure.h"
-#include "../KeyChord.h"
+#include "../KeyStroke.h"
 
 #include <algorithm>
 #include <cellui/Utf8.h>

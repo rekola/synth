@@ -653,9 +653,9 @@ TEST(terminal_ui_clip_grid_left_right_walks_the_two_dials) {
   f.ctrl('g');
 }
 
-// The command prompt opens with M-x on the Emacs keymap and with
+// The command prompt opens with M-x on the terminal keymap and with
 // Ctrl+Shift+P on the desktop one, and each keymap ignores the other's chord.
-TEST(terminal_ui_command_prompt_chord_follows_the_keymap_profile) {
+TEST(terminal_ui_command_prompt_shortcut_follows_the_keymap_profile) {
   auto opens = [](UIFixture & f, int key, unsigned mods) {
     f.press(key, mods);
     bool open = f.terminal.info().focus == "command-palette";
@@ -680,7 +680,7 @@ TEST(terminal_ui_desktop_ctrl_x_is_not_a_prefix) {
   desktop_display.keymap_profile = cellui::KeymapProfile::DESKTOP;
   UIFixture f("", UI::View::LIVE, desktop_display);
   f.press('x', kModCtrl);
-  f.press('b'); // C-x b would open the buffer prompt on the Emacs keymap
+  f.press('b'); // C-x b would open the buffer prompt on the terminal keymap
   CHECK(lastLine(f).find("buffer") == std::string::npos);
 
   UIFixture emacs;

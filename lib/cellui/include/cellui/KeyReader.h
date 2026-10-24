@@ -12,19 +12,19 @@ namespace cellui {
 
 // What widgets see of the keyboard and mouse: the terminal's inputs, with
 // Escape as Meta (EscapeCoalescer.h). A bare Escape press is held until the
-// next input shows whether it began an Alt chord: if it did, only the chord
+// next input shows whether it began an Alt shortcut: if it did, only the shortcut
 // is delivered; if not, the Escape goes first and then that input. Releases
 // (Escape's own included) and mouse events don't decide it.
 //
 // Something on screen may want a bare Escape at once rather than when the
 // next key arrives, to close a popup: takeEscape() is asked on every bare
 // Escape press, and when it takes it the Escape is never delivered again,
-// though it can still become an Alt chord's prefix.
+// though it can still become an Alt shortcut's prefix.
 class KeyReader {
  public:
   using Clock = std::chrono::steady_clock;
   // How long a pending Escape waits before an "ESC-" indicator is worth
-  // showing: long enough that an ordinary Alt chord never flashes it.
+  // showing: long enough that an ordinary Alt shortcut never flashes it.
   static constexpr std::chrono::milliseconds kIndicatorDelay{300};
 
   KeyReader() : coalescer_(source_) { }

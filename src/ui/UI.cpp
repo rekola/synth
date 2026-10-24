@@ -402,7 +402,7 @@ UI::initializeCommands() {
   // Every command defined here has no widget-specific dependency (a plain
   // Controller call, or setStatus() - already virtual) - shared between
   // every UI backend, so each backend's own keybindings (Emacs-style
-  // chords here, whatever a future GUI uses there) just need to bind a key
+  // shortcuts here, whatever a future GUI uses there) just need to bind a key
   // to one of these names rather than redefine what it does. A command
   // that does need a backend-specific dialog/prompt, or reaches into a
   // concrete widget, stays defined in that backend instead (e.g.
@@ -526,8 +526,8 @@ UI::initializeCommands() {
   // which widget currently has focus.
   commands_.define("octave-up", [this]() { getController().octaveUp(); });
   commands_.define("octave-down", [this]() { getController().octaveDown(); });
-  commands_.define("save-song", [this]() {
-    getController().sendCommand("save-song");
+  commands_.define("save-buffer", [this]() {
+    getController().sendCommand("save-buffer");
     setStatus("Saved " + getController().getActiveBufferName());
   });
   // Controller-level command (Controller.cpp's own definition) - targets
@@ -540,7 +540,7 @@ UI::initializeCommands() {
 
   // Clip menu entries not built yet - say so rather than failing as an
   // unknown command.
-  for (auto name : {"double-clip-length", "halve-clip-length", "rename-clip"}) {
+  for (auto name : {"double-clip-length", "halve-clip-length", "rename-clip", "duplicate", "capture-midi", "quantize-region", "insert-scene"}) {
     commands_.define(name, [this, name]() { setStatus(std::string(name) + ": not implemented yet"); });
   }
 

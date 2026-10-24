@@ -20,11 +20,11 @@ class StatusLine : public UIElement {
     getPlane().setBgDefault();
   }
 
-  // The chord that opens the command prompt: Meta-x on the Emacs keymap
+  // The shortcut that opens the command prompt: Meta-x on the terminal keymap
   // (whether the terminal sent it as one event or as ESC then x, KeyReader
   // folds either into a single Meta-modified event before it gets here),
   // Ctrl+Shift+P on the desktop one.
-  bool isCommandPromptChord(const cellui::Input & input) {
+  bool isCommandPromptShortcut(const cellui::Input & input) {
     if (keymapProfile() == cellui::KeymapProfile::DESKTOP) {
       return input.hasCtrl() && input.hasShift() && !input.hasAlt() && !input.hasMeta() && input.getId() == 'p';
     }
@@ -69,7 +69,7 @@ class StatusLine : public UIElement {
     getPlane().showReader(prompt, 0, -1, -1, -1, initial_text);
   }
 
-  // What the command prompt chord opens: the command palette.
+  // What the command prompt shortcut opens: the command palette.
   void setCommandPaletteCallback(std::function<void()> cb) { open_command_palette_ = std::move(cb); }
 
   void setBeforeShowPromptCallback(std::function<void()> cb) { before_show_prompt_ = std::move(cb); }
@@ -99,7 +99,7 @@ class StatusLine : public UIElement {
   // same reasoning as showPromptWithCompletion() above: a filename that
   // doesn't exist yet is still worth trying (openSong() reports "could not
   // open" itself if it's actually wrong), so there's nothing for this
-  // class to block. "Find file:" (UI.cpp's open-song command) is the one
+  // class to block. "Find file:" (UI.cpp's find-file command) is the one
   // caller.
   void showFilePrompt(const std::string & prompt, std::function<void(const std::string &)> on_submit,
 		       const std::string & initial_text = "") {
@@ -134,7 +134,7 @@ class StatusLine : public UIElement {
 	showIndicator("");
 	return UIElement::offerInput(input);
       }
-    } else if (isCommandPromptChord(input)) {
+    } else if (isCommandPromptShortcut(input)) {
       if (open_command_palette_) open_command_palette_();
       return true;
     }

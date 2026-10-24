@@ -8,7 +8,7 @@
 // used directly as an unordered_map key (see Keymap.h) with no custom
 // hash/equality specialization needed.
 namespace cellui {
-namespace KeyChord {
+namespace KeyStroke {
 
 inline uint64_t pack(int id, bool ctrl, bool alt, bool shift, bool meta) {
   return (static_cast<uint64_t>(id) << 4) |
@@ -19,12 +19,12 @@ inline uint64_t pack(const Input & input) {
   return pack(input.getId(), input.hasCtrl(), input.hasAlt(), input.hasShift(), input.hasMeta());
 }
 
-// The bits of pack(), for reading a chord back.
-inline int idOf(uint64_t chord) { return static_cast<int>(chord >> 4); }
-inline bool hasCtrl(uint64_t chord) { return chord & 1u; }
-inline bool hasAlt(uint64_t chord) { return chord & 2u; }
-inline bool hasShift(uint64_t chord) { return chord & 4u; }
-inline bool hasMeta(uint64_t chord) { return chord & 8u; }
+// The bits of pack(), for reading a shortcut back.
+inline int idOf(uint64_t stroke) { return static_cast<int>(stroke >> 4); }
+inline bool hasCtrl(uint64_t stroke) { return stroke & 1u; }
+inline bool hasAlt(uint64_t stroke) { return stroke & 2u; }
+inline bool hasShift(uint64_t stroke) { return stroke & 4u; }
+inline bool hasMeta(uint64_t stroke) { return stroke & 8u; }
 
-}  // namespace KeyChord
+}  // namespace KeyStroke
 }  // namespace cellui

@@ -12,7 +12,7 @@ struct Modifiers {
 };
 
 // A key went down. `key` is a Key:: id; `text` is what typing it inserts, in
-// UTF-8, empty for a key that inserts nothing (arrows, or any chord with
+// UTF-8, empty for a key that inserts nothing (arrows, or any shortcut with
 // Ctrl, Alt or Meta).
 struct KeyDown {
   int key = 0;

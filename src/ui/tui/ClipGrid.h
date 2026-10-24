@@ -27,7 +27,7 @@ class Song;
 
 // A per-track overview: one column per color-eligible leaf track (Song::
 // getPlayableTrackIds()), each headed by that track's own ordinal number
-// and name (F2 renames it - see startTrackRename()) plus its Mute/Solo
+// and name (the rename command renames it - see startTrackRename()) plus its Mute/Solo
 // state (an "M"/"S" pair at the header row's own right edge - dim when
 // off, colored when on; there's no dedicated Mute/Solo row any more, see
 // physicalFor()'s own comment), on its own dark grey backdrop
@@ -147,7 +147,7 @@ class ClipGrid : public UIElement {
   // non-addressable divider/label rows in between. Mute/Solo aren't part
   // of this row axis at all - they're shown inline on the header row
   // instead (see this class's own header comment). The header row is
-  // logical row 0 but never holds the cursor; F2 away from a clip renames
+  // logical row 0 but never holds the cursor; rename away from a clip renames
   // the track instead (see offerInput()).
   enum class RowKind { HEADER,
                        CLIP,
@@ -288,11 +288,13 @@ class ClipGrid : public UIElement {
   // What is under the screen position, if it is a column.
   Pressed hitTest(int screen_y, int screen_x, int num_tracks) const;
   bool isPressed(int column, int physical) const { return pressed_.column == column && pressed_.physical == physical; }
+  // The "rename" command: the scene, clip or track under the cursor.
+  void startRename();
   void startClipRename(const Song & song, const std::vector<int> & track_ids);
-  // F2 on the master column's scene slot edits the scene's name.
+  // "rename" on the master column's scene slot edits the scene's name.
   void startSceneRename();
-  // F2 on any row but a populated clip slot renames the track itself
-  // instead (see offerInput()'s own F2 handling) - the header row has no
+  // "rename" on any row but a populated clip slot renames the track itself
+  // instead (see startRename()) - the header row has no
   // cursor-addressable slot of its own to trigger this from directly.
   void startTrackRename(const Song & song, const std::vector<int> & track_ids);
 };

@@ -12,6 +12,12 @@ signal that changes while the note sounds (a pattern row of it carries the
 pressure as its velocity). Not the aftersound: that is a property of the
 sound of a piano note, aftertouch is something the player does.
 
+**Chord**
+Three or more notes sounding together, such as a triad (a root with its third
+and fifth, like C E G). Not to be confused with a keyboard
+*shortcut* (a key with its modifiers, `KeyStroke` in the code) or a *key
+sequence* (several shortcuts in a row, such as `C-x C-s`).
+
 **Clip launcher**
 The grid of clips inside Live View: one column per track, one row per scene,
 each slot triggered on the next bar. On a Launchpad it is the pad grid in the
