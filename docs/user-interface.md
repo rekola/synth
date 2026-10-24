@@ -41,7 +41,7 @@ works in both. The commands that have one so far:
 | `double-clip-length` — **not built yet**, chord reserved | Ctrl+Up | |
 | `halve-clip-length` — **not built yet**, chord reserved | Ctrl+Down | |
 | `capture-midi` — **not built yet**, chord reserved | Ctrl+Shift+C | |
-| `open-song` | Ctrl+O | C-x C-f |
+| `find-file` | Ctrl+O | C-x C-f |
 | `save-buffer` | Ctrl+S | C-x C-s |
 | `save-buffer-as` | Ctrl+Shift+S | C-x C-w |
 | `save-buffers-kill-terminal` (quit) | Ctrl+Q | C-x C-c |

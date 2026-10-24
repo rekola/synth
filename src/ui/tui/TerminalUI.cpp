@@ -155,7 +155,7 @@ struct MenuSectionSpec {
 static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
   vector<MenuSectionSpec> spec = {
       {"File", 'f', {
-                        {"Open...", "C-x C-f", "open-song", "C-o"},
+                        {"Open...", "C-x C-f", "find-file", "C-o"},
                         {"Save", "C-x C-s", "save-buffer", "C-s"},
                         {"Save As...", "C-x C-w", "save-buffer-as", "C-S-S"},
                         {nullptr, nullptr, nullptr},
@@ -719,7 +719,7 @@ TerminalUI::initializeWidgets() {
   // already an open buffer just switches to it (Controller::openSong()),
   // and opening a new one adds a buffer rather than replacing the current
   // one.
-  commands_.define("open-song", [this]() {
+  commands_.define("find-file", [this]() {
     auto dir = std::filesystem::path(getController().getActiveBufferName()).parent_path().string();
     if (!dir.empty()) dir += "/";
     status_line_->showFilePrompt("Find file: ", [this](const std::string & filename) {
@@ -897,7 +897,7 @@ TerminalUI::initializeWidgets() {
   // Quit/save/open/save-as use Emacs's own C-x C-c/C-x C-s/C-x C-f/C-x C-w
   // bindings and command names (save-buffers-kill-terminal/save-buffer/
   // find-file/write-file, the first three shortened to save-buffer/
-  // open-song/save-buffer-as here to match this codebase's own pre-existing
+  // find-file/save-buffer-as here to match this codebase's own pre-existing
   // M-x command naming - see Controller::sendCommand()) rather than
   // one-off single-key shortcuts or made-up names - see
   // Keymap::bindPrefixed()/UIElement::dispatchCommand() for the two-key
@@ -907,7 +907,7 @@ TerminalUI::initializeWidgets() {
   auto ctrl_x = KeyChord::pack('x', true, false, false, false);
   keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyChord::pack('c', true, false, false, false), "save-buffers-kill-terminal");
   keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyChord::pack('s', true, false, false, false), "save-buffer");
-  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyChord::pack('f', true, false, false, false), "open-song");
+  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyChord::pack('f', true, false, false, false), "find-file");
   keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyChord::pack('w', true, false, false, false), "save-buffer-as");
   keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyChord::pack('x', true, false, false, false), "exchange-point-and-mark");
   keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyChord::pack('h', false, false, false, false), "mark-whole-buffer");
@@ -939,7 +939,7 @@ TerminalUI::initializeWidgets() {
   // File commands, with the C-x prefix Emacs-only (Ctrl+X is cut here).
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('s', true, false, false, false), "save-buffer");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('s', true, false, true, false), "save-buffer-as");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('o', true, false, false, false), "open-song");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('o', true, false, false, false), "find-file");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('q', true, false, false, false), "save-buffers-kill-terminal");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('z', true, false, false, false), "undo");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('z', true, false, true, false), "undo-redo");

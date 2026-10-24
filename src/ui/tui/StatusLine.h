@@ -99,7 +99,7 @@ class StatusLine : public UIElement {
   // same reasoning as showPromptWithCompletion() above: a filename that
   // doesn't exist yet is still worth trying (openSong() reports "could not
   // open" itself if it's actually wrong), so there's nothing for this
-  // class to block. "Find file:" (UI.cpp's open-song command) is the one
+  // class to block. "Find file:" (UI.cpp's find-file command) is the one
   // caller.
   void showFilePrompt(const std::string & prompt, std::function<void(const std::string &)> on_submit,
 		       const std::string & initial_text = "") {

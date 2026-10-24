@@ -41,7 +41,7 @@ commandDescription(std::string_view name) {
       {"next-buffer", "Switch to the next open song"},
       {"octave-down", "Play and enter notes an octave lower"},
       {"octave-up", "Play and enter notes an octave higher"},
-      {"open-song", "Open a song file"},
+      {"find-file", "Open a file in a new buffer"},
       {"other-window", "Move focus to the next panel"},
       {"outline-view", "Show and focus the outline panel"},
       {"previous-buffer", "Switch to the previous open song"},
