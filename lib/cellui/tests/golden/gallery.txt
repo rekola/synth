@@ -87,3 +87,11 @@ Spin box and cover art
 Octave ◂ 4 ▸
 
                                  🖼
+
+
+
+Dials
+idle      selected  pressed   off
+╭────╮    ╭────╮    ╭────╮    ╭────╮
+│-20 │    │-10 │    │ -6 │    │off │
+╰─A──╯    ╰─B──╯    ╰─M──╯    ╰─A──╯

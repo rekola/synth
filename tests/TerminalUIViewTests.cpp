@@ -168,8 +168,15 @@ constexpr int kOutlineCols = 30;  // the outline panel, including its divider co
 // marked row.
 std::vector<int> markedRows(const UIFixture & f, int x) {
   std::vector<int> rows;
-  std::string plain = f.bg(13, x);
-  for (int y = 2; y < 13; y++) {
+  // The slots' own colour is the commonest one in the column.
+  std::map<std::string, int> counts;
+  for (int y = 2; y < 10; y++) counts[f.bg(y, x)]++;
+  std::string plain;
+  int most = 0;
+  for (auto & [color, count] : counts) {
+    if (count > most) most = count, plain = color;
+  }
+  for (int y = 2; y < 10; y++) { // the clip slots' rows
     if (f.bg(y, x) != plain) rows.push_back(y);
   }
   return rows;
@@ -556,6 +563,54 @@ TEST(terminal_ui_clip_grid_wheel_over_a_dial_turns_it) {
   f.wheel(y, x, true);
   f.wheel(y, x, true);
   CHECK_NEAR(sendDbOfFirstTrack(f, 1), start - 1.0f, 0.05f);
+}
+
+// Escape closes a dial's editor, even as a bare Escape in the terminal, and
+// the value stays.
+TEST(terminal_ui_clip_grid_escape_closes_the_dial_editor) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);
+  auto rows = dialRows(f);
+  CHECK(rows.caption > 0);
+  int column = kOutlineCols + 1;
+  auto start = sendDbOfFirstTrack(f, 1);
+  clickCell(f, rows.a_bottom(), column + 2);
+  CHECK(f.line(static_cast<size_t>(rows.a_bottom())).find("dB") != std::string::npos);
+  f.press(cellui::Key::Escape);
+  CHECK(f.line(static_cast<size_t>(rows.a_bottom())).find("dB") == std::string::npos);
+  CHECK_NEAR(sendDbOfFirstTrack(f, 1), start, 0.001f);
+  // And the keys go back to the grid.
+  f.press(cellui::Key::Right);
+}
+
+// Moving the focus away closes the editor too.
+TEST(terminal_ui_clip_grid_losing_focus_closes_the_dial_editor) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);
+  auto rows = dialRows(f);
+  CHECK(rows.caption > 0);
+  int column = kOutlineCols + 1;
+  clickCell(f, rows.a_bottom(), column + 2);
+  CHECK(f.line(static_cast<size_t>(rows.a_bottom())).find("dB") != std::string::npos);
+  clickCell(f, rows.a_bottom() + 12, column + 10); // a click in the pattern editor takes the focus
+  CHECK(f.line(static_cast<size_t>(rows.a_bottom())).find("dB") == std::string::npos);
+}
+
+// A drag goes on turning the dial when the pointer leaves the clip grid.
+TEST(terminal_ui_clip_grid_drag_continues_outside_the_grid) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);
+  auto rows = dialRows(f);
+  CHECK(rows.caption > 0);
+  int x = kOutlineCols + 1 + 2, y = rows.a_bottom();
+  float start = sendDbOfFirstTrack(f, 1);
+  f.terminal.pushMouse(y, x, cellui::Key::Button1);
+  f.ui->step();
+  // Down into the pattern editor below, and out to the right.
+  f.terminal.pushMouse(y + 12, x + 30, cellui::Key::Button1);
+  f.ui->step();
+  float lowered = sendDbOfFirstTrack(f, 1);
+  CHECK(lowered < start);
+  f.terminal.pushMouse(y + 12, x + 30, cellui::Key::Button1, 0, cellui::Input::Kind::RELEASE);
+  f.ui->step();
+  CHECK_NEAR(sendDbOfFirstTrack(f, 1), lowered, 0.001f);
 }
 
 // On the Sends row Left and Right walk through the two dials before moving

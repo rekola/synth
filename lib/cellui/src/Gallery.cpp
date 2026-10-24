@@ -270,6 +270,34 @@ Gallery::Gallery(Plane & plane, const Theme & theme) {
   cover_->render(plane.getStyles(), true);
   page.skip(5);
 
+  page.skip();
+  page.heading("Dials");
+  {
+    // Each in a look of its own: idle, under the cursor, pressed, and below its lowest step.
+    struct Sample { const char * name; const char * letter; float value; float selected; bool pressed; };
+    const Sample dial_samples[] = {
+      {"idle", "A", -20.0f, 0.0f, false}, {"selected", "B", -10.5f, 1.0f, false},
+      {"pressed", "M", -6.0f, 0.0f, true}, {"off", "A", -100.0f, 0.0f, false},
+    };
+    int col = 0;
+    for (auto & sample : dial_samples) {
+      page.plain();
+      page.text(col, sample.name);
+      DialSpec spec;
+      spec.letter = sample.letter;
+      auto dial = std::make_unique<Dial>(plane, spec);
+      dial->setPosition(page.row() + 1, col);
+      dial->setLook(theme.text_primary, theme.surface_base);
+      dial->setValue(sample.value);
+      dial->setSelected(sample.selected);
+      dial->setPressed(sample.pressed);
+      dial->draw();
+      dials_.push_back(std::move(dial));
+      col += 10;
+    }
+    page.skip(1 + Dial::kRows);
+  }
+
   rows_ = page.row();
 }
 

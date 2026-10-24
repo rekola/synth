@@ -4,6 +4,9 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <map>
 #include <tuple>
 
@@ -68,6 +71,109 @@ void drawDial(Plane & plane, int row, int col, int rows, int cols, const DialRea
     return;
   }
   plane.drawImageAt(row, col, found->second, static_cast<int>(width), static_cast<int>(height), id, clip_top, clip_bottom);
+}
+
+float Dial::fraction() const { return std::clamp((value_ - spec_.min) / (spec_.max - spec_.min), 0.0f, 1.0f); }
+
+std::string Dial::valueText() const {
+  if (value_ < spec_.min - 1.0f) return "off";
+  char buf[32];
+  std::snprintf(buf, sizeof buf, "%.0f", static_cast<double>(value_));
+  return buf;
+}
+
+void Dial::draw() {
+  const StyleProvider & styles = plane_.getStyles();
+  Color fg = foreground_.blend(std::clamp(selected_, 0.0f, 1.0f), styles.highlight_bg_color), bg = background_;
+  if (pressed_) {
+    fg = styles.highlight_bg_color;
+    bg = styles.row_pressed_bg_color;
+  }
+  drawDial(plane_, row_, col_, kRows, kCols, DialReading{spec_.letter, fraction(), valueText()}, DialLook{bg, fg}, clip_top_,
+           clip_bottom_, id_);
+}
+
+bool Dial::contains(int screen_y, int screen_x) const {
+  int y = screen_y - plane_.getPosition().first, x = screen_x - plane_.getPosition().second;
+  return y >= row_ && y < row_ + kRows && x >= col_ && x < col_ + kCols && y >= clip_top_ && y < clip_bottom_;
+}
+
+void Dial::turn(float base, float delta) {
+  // A value above the arc's top stays where it is rather than dropping to it.
+  float top = std::max(spec_.max, base);
+  float value = std::clamp(base + delta, spec_.min - 1.0f, top);
+  if (value < spec_.min) value = spec_.off;
+  if (std::abs(value - value_) < 0.001f) return;
+  value_ = value;
+  if (on_change) on_change(value);
+}
+
+void Dial::startEdit() {
+  InlineEditor::Field field;
+  field.row = row_ + kRows / 2;
+  field.col = col_;
+  field.width = kEditWidth;
+  if (value_ < spec_.off + 1.0f) {
+    field.initial_text = "-inf " + spec_.unit;
+  } else {
+    char buf[32];
+    std::snprintf(buf, sizeof buf, "%g", std::round(static_cast<double>(value_) * 10.0) / 10.0);
+    field.initial_text = buf + std::string(" ") + spec_.unit;
+  }
+  field.replace_on_type = true;
+  editor_.open(field, [this](std::string text) {
+    char * end = nullptr;
+    float value = std::strtof(text.c_str(), &end);
+    if (end == text.c_str()) return;  // not a number: the value stays
+    value = std::clamp(value, spec_.typed_min, spec_.typed_max);
+    value_ = value;
+    if (on_change) on_change(value);
+  });
+}
+
+bool Dial::offerInput(const Input & input) { return editor_.offerInput(input); }
+
+bool Dial::offerMouse(const Input & input) {
+  if (editor_.isOpen()) return false;
+  bool fine = input.hasShift();
+  if (input.getId() == Key::Button4 || input.getId() == Key::Button5) {
+    if (input.getKind() == Input::Kind::RELEASE || !contains(input.getY(), input.getX())) return false;
+    float up = input.getId() == Key::Button4 ? 1.0f : -1.0f;
+    turn(std::max(value_, spec_.min), up * spec_.wheel_step * (fine ? spec_.fine : 1.0f));
+    return true;
+  }
+  if (input.getId() != Key::Button1) return false;
+  if (input.getKind() == Input::Kind::RELEASE) {
+    if (!down_) return false;
+    bool dragged = moved_;
+    down_ = pressed_ = moved_ = false;
+    if (dragged) {
+      if (on_turn_end) on_turn_end();
+    } else {
+      if (on_click) on_click();
+      startEdit();
+    }
+    return true;
+  }
+  float y = input.getFy() - static_cast<float>(plane_.getPosition().first);
+  if (!down_) {
+    // A fresh press, over the dial.
+    if (!contains(input.getY(), input.getX())) return false;
+    down_ = pressed_ = true;
+    moved_ = false;
+    start_y_ = y;
+    start_value_ = std::max(value_, spec_.min);
+    if (value_ > spec_.max) start_value_ = value_;
+    return true;
+  }
+  // The press again, at a new position: a drag, up raising the value.
+  float rows_up = start_y_ - y;
+  if (!moved_ && std::abs(rows_up) >= 0.5f) {
+    moved_ = true;
+    if (on_turn_begin) on_turn_begin();
+  }
+  if (moved_) turn(start_value_, rows_up * spec_.drag_per_row * (fine ? spec_.fine : 1.0f));
+  return true;
 }
 
 }  // namespace cellui
