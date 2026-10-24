@@ -2482,15 +2482,15 @@ void PatternEditor::updateCursorBands(const StyleProvider & styles, const std::v
   // still while the rows scroll under them.
   int visible = rows - heading_height;
   std::vector<double> shown;
-  auto strip = [&](Plane & plane, double line, double col, double cols, const Color & color, float alpha, cellui::BlendMode blend = cellui::BlendMode::NORMAL, double border_px = 0.0) {
+  auto strip = [&](Plane & plane, double line, double col, double cols, const Color & color, float alpha, cellui::BlendMode blend = cellui::BlendMode::NORMAL, double border_px = 0.0, double skip_col = 0.0, double skip_cols = 0.0) {
     double first = heading_height + line;
     double height = std::min(1.0, static_cast<double>(rows) - first);
     if (height <= 0.0 || cols <= 0.0) {
       plane.clearBand();
       return;
     }
-    plane.setBand(cellui::Band{first, height, col, cols, color, alpha, blend, styles.theme.elevation.card, color, 1.0f, border_px});
-    for (double v : {first, height, col, cols, static_cast<double>(alpha), static_cast<double>(blend), border_px}) shown.push_back(v);
+    plane.setBand(cellui::Band{first, height, col, cols, color, alpha, blend, styles.theme.elevation.card, color, 1.0f, border_px, skip_col, skip_cols});
+    for (double v : {first, height, col, cols, static_cast<double>(alpha), static_cast<double>(blend), border_px, skip_col, skip_cols}) shown.push_back(v);
   };
   auto cursor_track = current_cursor.track >= 0 && current_cursor.track < static_cast<int>(track_ids.size()) ? track_ids[static_cast<size_t>(current_cursor.track)] : -1;
   std::optional<double> cursor_line;
@@ -2545,22 +2545,22 @@ void PatternEditor::updateCursorBands(const StyleProvider & styles, const std::v
       if (line >= 0 && line < visible) cursor_line = line;
     }
   }
-  if (cursor_outline_plane_ && cursor_plane_ && cursor_hue_plane_) {
+  if (cursor_border_plane_ && cursor_plane_ && cursor_hue_plane_) {
     bool cell = cursor_line && styles.window_focused && focused && cursor_x0_ >= 0 && cursor_x1_ > cursor_x0_ && !current_cursor.isOnLocator();
     if (cell) {
       double at = *cursor_line + cursor_phase;
       bool sub = cursor_sub_x0_ >= 0 && cursor_sub_x1_ > cursor_sub_x0_;
       double sub_cols = cursor_sub_x1_ - cursor_sub_x0_;
-      // The note is outlined where the display can, else tinted. The field under
+      // The note gets a border where the display can draw one, else a tint. The field under
       // it inverts what is under it, text and all, like a cell drawn in reversed
       // colours; the selection under it is drawn in the rows. White inverts the
       // brightness, then the highlight's own hue is put back over it (inverting
       // colours alone turns the hue round).
-      // The outline leaves out the field, which stands alone as the inverted block.
+      // The border leaves out the field, which stands alone as the inverted block.
       if (smooth_cursor_)
-        strip(*cursor_outline_plane_, at, cursor_x0_, cursor_x1_ - cursor_x0_, styles.highlight_bg_color, 0.0f, cellui::BlendMode::NORMAL, 1.0, sub ? cursor_sub_x0_ : 0.0, sub ? sub_cols : 0.0);
+        strip(*cursor_border_plane_, at, cursor_x0_, cursor_x1_ - cursor_x0_, styles.highlight_bg_color, 0.0f, cellui::BlendMode::NORMAL, 1.0, sub ? cursor_sub_x0_ : 0.0, sub ? sub_cols : 0.0);
       else
-        strip(*cursor_outline_plane_, at, cursor_x0_, cursor_x1_ - cursor_x0_, styles.highlight_bg_color, 0.25f);
+        strip(*cursor_border_plane_, at, cursor_x0_, cursor_x1_ - cursor_x0_, styles.highlight_bg_color, 0.25f);
       if (sub) {
         Color invert = styles.highlight_unfocused_bg_color.blend(focus_, Color(255, 255, 255));
         strip(*cursor_plane_, at, cursor_sub_x0_, sub_cols, invert, 1.0f, cellui::BlendMode::DIFFERENCE);
@@ -2570,7 +2570,7 @@ void PatternEditor::updateCursorBands(const StyleProvider & styles, const std::v
         cursor_hue_plane_->clearBand();
       }
     } else {
-      cursor_outline_plane_->clearBand();
+      cursor_border_plane_->clearBand();
       cursor_plane_->clearBand();
       cursor_hue_plane_->clearBand();
     }
@@ -2593,12 +2593,12 @@ void PatternEditor::syncColumnPlanes(const std::vector<int> & track_ids) {
     }
     // The cursor's plane is above the columns, the headings' (held in
     // rows_plane_ while drawing) above all.
-    if (created && cursor_outline_plane_) cursor_outline_plane_->moveToTop();
+    if (created && cursor_border_plane_) cursor_border_plane_->moveToTop();
     if (created && cursor_plane_) cursor_plane_->moveToTop();
     if (created && cursor_hue_plane_) cursor_hue_plane_->moveToTop();
     if (created && rows_plane_) rows_plane_->moveToTop();
   }
-  for (auto * cursor : {&cursor_outline_plane_, &cursor_plane_, &cursor_hue_plane_}) {
+  for (auto * cursor : {&cursor_border_plane_, &cursor_plane_, &cursor_hue_plane_}) {
     if (!*cursor) {
       *cursor = getPlane().createChild();
       (*cursor)->makeTransparent();

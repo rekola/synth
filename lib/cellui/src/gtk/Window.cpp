@@ -539,7 +539,7 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
     auto rgb = c.toSrgb8();
     return GdkRGBA{ rgb[0] / 255.0f, rgb[1] / 255.0f, rgb[2] / 255.0f, alpha };
   };
-  // A band's outline, inside its rectangle.
+  // A band's border, inside its rectangle.
   auto appendBandBorder = [&](GtkSnapshot * target, const Band & band, const ScrollContent & content, double w, double h) {
     if (band.border_px <= 0) return;
     GdkRGBA edge = channel(band.border_color, band.border_alpha);

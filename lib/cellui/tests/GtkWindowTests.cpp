@@ -230,8 +230,8 @@ TEST(gtk_window_draws_a_blended_band) {
   CHECK(w->stats().raster_ms_total == raster);
 }
 
-// A band's outline is drawn too, on a plain and on a blended band.
-TEST(gtk_window_draws_a_band_outline) {
+// A band's border is drawn too, on a plain and on a blended band.
+TEST(gtk_window_draws_a_band_border) {
   gtk::Window * w = theWindow();
   if (!w) return;
   StyleProvider styles;

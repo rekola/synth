@@ -622,9 +622,9 @@ TEST(bufferplane_a_band_keeps_its_blend_mode) {
   CHECK(layers.size() == 1 && layers[0].scroll->band->blend == BlendMode::NORMAL);
 }
 
-// An outline needs a display that draws bands by parts of a cell: it reaches
+// A border needs a display that draws bands by parts of a cell: it reaches
 // the layer there, and leaves the cells alone otherwise.
-TEST(bufferplane_a_band_outline_is_for_smooth_displays_only) {
+TEST(bufferplane_a_band_border_is_for_smooth_displays_only) {
   StyleProvider styles;
   CellBuffer b(4, 8);
   BufferPlane root(b, styles);
@@ -633,10 +633,10 @@ TEST(bufferplane_a_band_outline_is_for_smooth_displays_only) {
   list->move(1, 2);
   list->setBgColor(10, 20, 30);
   list->putstr(0, 0, "abcd");
-  Band outline{ 0.0, 1.0, 0, 4, Color(255, 0, 0), 0.0f, BlendMode::NORMAL, 0.0f, Color(0, 255, 0), 1.0f, 2.0 };
+  Band bordered{ 0.0, 1.0, 0, 4, Color(255, 0, 0), 0.0f, BlendMode::NORMAL, 0.0f, Color(0, 255, 0), 1.0f, 2.0 };
   root.refresh();
   auto plain = b.at(1, 2);
-  list->setBand(outline);
+  list->setBand(bordered);
   root.refresh();
   CHECK(root.takeBackdropLayers().empty());
   CHECK(b.at(1, 2).bg == plain.bg && b.at(1, 2).fg == plain.fg);
@@ -647,9 +647,9 @@ TEST(bufferplane_a_band_outline_is_for_smooth_displays_only) {
   CHECK(layers[0].scroll->band->border_px == 2.0 && layers[0].scroll->band->border_color.getGreen() == 255);
 }
 
-// The outline leaves out the span of something drawn inside it: along the top
+// The border leaves out the span of something drawn inside it: along the top
 // and bottom, and at a side the span reaches.
-TEST(band_outline_leaves_out_a_skipped_span) {
+TEST(band_border_leaves_out_a_skipped_span) {
   Band band{ 0.0, 1.0, 2, 10, Color(255, 0, 0), 0.0f, BlendMode::NORMAL, 0.0f, Color(0, 255, 0), 1.0f, 1.0 };
   auto whole = bandBorderRects(band, 20, 0, 0, 10, 20);
   CHECK(whole.size() == 4);
