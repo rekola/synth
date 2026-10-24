@@ -181,7 +181,7 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                     }},
       {"Track", 't', {
                          {"Add Instrument Track", "C-c T", "add-instrument-track", "C-S-T"},
-                         {"Add Percussion Track", "C-c d", "add-percussion-track", "C-S-D"},
+                         {"Add Percussion Track", "C-c p", "add-percussion-track", "C-S-D"},
                          {"Add Sample Track", "C-c t", "add-sample-track", "C-t"},
                          {"Add Group Track", "C-c g", "add-group-track", "C-g"},
                          {"Rename Track...", "C-c r", "rename-track", "C-r"},
@@ -960,7 +960,7 @@ TerminalUI::initializeWidgets() {
   keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_c, KeyChord::pack('T', false, false, false, false), "add-instrument-track");
   keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_c, KeyChord::pack('T', false, false, true, false), "add-instrument-track");
   keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_c, KeyChord::pack('g', false, false, false, false), "add-group-track");
-  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_c, KeyChord::pack('d', false, false, false, false), "add-percussion-track");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_c, KeyChord::pack('p', false, false, false, false), "add-percussion-track");
   assertCommandBindingsValid();
 
   // Lets StatusLine's M-x path (Controller::sendCommand, which only reaches

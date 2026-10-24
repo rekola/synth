@@ -26,7 +26,7 @@ works in both. The commands that have one so far:
 | `add-sample-track` | Ctrl+T | C-c t |
 | `add-instrument-track` | Ctrl+Shift+T | C-c T |
 | `add-group-track` | Ctrl+G | C-c g |
-| `add-percussion-track` | Ctrl+Shift+D | C-c d |
+| `add-percussion-track` | Ctrl+Shift+D | C-c p |
 | `keyboard-quit` (cancel the selection) | Escape | C-g |
 | `open-song` | Ctrl+O | C-x C-f |
 | `save-song` | Ctrl+S | C-x C-s |
