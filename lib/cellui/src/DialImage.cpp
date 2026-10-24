@@ -43,6 +43,8 @@ std::vector<uint32_t> render(const DialReading & reading, const DialLook & look,
   const float radius = outer - ring / 2.0f;  // the ring's centre line
 
   // The ring: canvas angles run clockwise from the right, so straight down is pi/2.
+  // While typing, the dial is dimmed under what is typed.
+  if (reading.editing) ctx.globalAlpha = 0.3f;
   const double start = kPi / 2.0 + kGapHalfAngle;
   const double sweep = 2.0 * kPi - 2.0 * kGapHalfAngle;
   ctx.strokeStyle = toCanvas(look.foreground);
@@ -77,6 +79,33 @@ std::vector<uint32_t> render(const DialReading & reading, const DialLook & look,
     ctx.textBaseline = canvas::TextBaseline::MIDDLE;
     ctx.textAlign = canvas::TextAlign::CENTER;
     ctx.fillText(reading.letter, cx, cy + radius);
+  }
+
+  // What is being typed, in a translucent box over the middle of the dial,
+  // with a caret.
+  if (reading.editing) {
+    ctx.globalAlpha = 1.0f;
+    const float box_w = w * 0.9f, box_h = std::max(h * 0.34f, 12.0f);
+    ctx.fillStyle = toCanvas(look.background);
+    ctx.globalAlpha = 0.8f;
+    ctx.fillRect(cx - box_w / 2.0f, cy - box_h / 2.0f, box_w, box_h);
+    ctx.globalAlpha = 1.0f;
+    ctx.fillStyle = toCanvas(look.foreground);
+    ctx.font.family = "sans-serif";
+    ctx.font.weight = "bold";
+    ctx.font.size = std::max(8.0f, box_h * 0.7f);
+    ctx.textBaseline = canvas::TextBaseline::MIDDLE;
+    ctx.textAlign = canvas::TextAlign::LEFT;
+    // Left-aligned so the caret follows the text; the tail if it is too wide.
+    std::string text = reading.edit_text;
+    float text_w = static_cast<float>(ctx.measureText(text).width);
+    while (text_w > box_w - 8.0f && !text.empty()) {
+      text.erase(0, 1);
+      text_w = static_cast<float>(ctx.measureText(text).width);
+    }
+    const float x0 = cx - box_w / 2.0f + 4.0f;
+    ctx.fillText(text, x0, cy);
+    ctx.fillRect(x0 + text_w + 1.0f, cy - box_h * 0.35f, std::max(1.0f, std::round(scale)), box_h * 0.7f);
   }
 
   // The surface holds premultiplied B, G, R, A; everything is opaque, so

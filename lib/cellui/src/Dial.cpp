@@ -35,7 +35,16 @@ void drawCellDial(Plane & plane, int row, int col, int rows, int cols, const Dia
     std::string text;
     if (i == 0) text = line("╭", centred("", "─"), "╮");
     else if (i == rows - 1) text = line("╰", centred(reading.letter, "─"), "╯");
-    else if (i == rows / 2) text = line("│", centred(reading.text, " "), "│");
+    else if (i == rows / 2) {
+      if (reading.editing) {
+        // The tail of what is typed, with the caret, if it is too long.
+        std::string shown = reading.edit_text + "▏";
+        while (utf8::displayWidth(shown) > inner && shown.size() > 3) shown.erase(0, 1);
+        text = line("│", centred(shown, " "), "│");
+      } else {
+        text = line("│", centred(reading.text, " "), "│");
+      }
+    }
     else text = line("│", centred("", " "), "│");
     plane.putstr(y, col, text);
   }
@@ -53,11 +62,12 @@ void drawDial(Plane & plane, int row, int col, int rows, int cols, const DialRea
   float scale = static_cast<float>(plane.displayScale());
   // The frame redraws far more often than a dial changes: keep the last
   // pictures by what they show.
-  using Key = std::tuple<std::string, int, uint32_t, uint32_t, uint32_t, unsigned, unsigned, int>;
+  using Key = std::tuple<std::string, int, uint32_t, uint32_t, uint32_t, unsigned, unsigned, int, std::string>;
   auto quantized = static_cast<int>(std::clamp(reading.fraction, 0.0f, 1.0f) * 1024.0f + 0.5f);
   auto fg = look.foreground.toSrgb8(), bg = look.background.toSrgb8();
   auto pack = [](const std::array<uint8_t, 3> & c) { return static_cast<uint32_t>(c[0]) << 16 | static_cast<uint32_t>(c[1]) << 8 | c[2]; };
-  Key key{reading.letter, quantized, pack(fg), pack(bg), 0, width, height, static_cast<int>(scale * 100.0f)};
+  Key key{reading.letter, quantized, pack(fg), pack(bg), reading.editing ? 1u : 0u, width, height, static_cast<int>(scale * 100.0f),
+          reading.editing ? reading.edit_text : std::string()};
   static thread_local std::map<Key, std::vector<uint32_t>> cache;
   auto found = cache.find(key);
   if (found == cache.end()) {
@@ -84,13 +94,13 @@ std::string Dial::valueText() const {
 
 void Dial::draw() {
   const StyleProvider & styles = plane_.getStyles();
-  Color fg = foreground_.blend(std::clamp(selected_, 0.0f, 1.0f), styles.highlight_bg_color), bg = background_;
-  if (pressed_) {
-    fg = styles.highlight_bg_color;
-    bg = styles.row_pressed_bg_color;
-  }
-  drawDial(plane_, row_, col_, kRows, kCols, DialReading{spec_.letter, fraction(), valueText()}, DialLook{bg, fg}, clip_top_,
-           clip_bottom_, id_);
+  // Only the lines change colour: the cursor colour while selected, a brighter one while pressed.
+  Color fg = foreground_.blend(std::clamp(selected_, 0.0f, 1.0f), styles.highlight_bg_color);
+  if (pressed_) fg = styles.highlight_bg_color.blend(0.45f, Color(255, 255, 255));
+  DialReading reading{spec_.letter, fraction(), valueText()};
+  reading.editing = editing_;
+  reading.edit_text = edit_text_;
+  drawDial(plane_, row_, col_, kRows, kCols, reading, DialLook{background_, fg}, clip_top_, clip_bottom_, id_);
 }
 
 bool Dial::contains(int screen_y, int screen_x) const {
@@ -109,32 +119,56 @@ void Dial::turn(float base, float delta) {
 }
 
 void Dial::startEdit() {
-  InlineEditor::Field field;
-  field.row = row_ + kRows / 2;
-  field.col = col_;
-  field.width = kEditWidth;
+  if (editing_) return;
+  editing_ = replaceable_ = true;
   if (value_ < spec_.off + 1.0f) {
-    field.initial_text = "-inf " + spec_.unit;
+    edit_text_ = "-inf";
   } else {
     char buf[32];
     std::snprintf(buf, sizeof buf, "%g", std::round(static_cast<double>(value_) * 10.0) / 10.0);
-    field.initial_text = buf + std::string(" ") + spec_.unit;
+    edit_text_ = buf;
   }
-  field.replace_on_type = true;
-  editor_.open(field, [this](std::string text) {
-    char * end = nullptr;
-    float value = std::strtof(text.c_str(), &end);
-    if (end == text.c_str()) return;  // not a number: the value stays
-    value = std::clamp(value, spec_.typed_min, spec_.typed_max);
-    value_ = value;
-    if (on_change) on_change(value);
-  });
+  version_++;
 }
 
-bool Dial::offerInput(const Input & input) { return editor_.offerInput(input); }
+void Dial::cancelEdit() {
+  if (!editing_) return;
+  editing_ = false;
+  version_++;
+}
+
+void Dial::commitEdit() {
+  editing_ = false;
+  version_++;
+  char * end = nullptr;
+  float value = std::strtof(edit_text_.c_str(), &end);
+  if (end == edit_text_.c_str()) return;  // not a number: the value stays
+  value_ = std::clamp(value, spec_.typed_min, spec_.typed_max);
+  if (on_change) on_change(value_);
+}
+
+bool Dial::offerInput(const Input & input) {
+  if (!editing_) return false;
+  if (input.getKind() == Input::Kind::RELEASE) return true;
+  int id = input.getId();
+  if (id == Key::Enter) {
+    commitEdit();
+  } else if (id == Key::Escape || (input.hasCtrl() && id == 'g')) {
+    cancelEdit();
+  } else {
+    bool printable = id >= 32 && id < 127 && !input.hasCtrl() && !input.hasAlt();
+    if (replaceable_ && (printable || id == Key::Backspace || id == Key::Delete)) edit_text_.clear();
+    replaceable_ = false;
+    if (printable) edit_text_ += static_cast<char>(id);
+    else if (id == Key::Backspace && !edit_text_.empty()) edit_text_.pop_back();
+    else if (id == Key::Delete) edit_text_.clear();
+    version_++;
+  }
+  return true;
+}
 
 bool Dial::offerMouse(const Input & input) {
-  if (editor_.isOpen()) return false;
+  if (editing_) return false;
   bool fine = input.hasShift();
   if (input.getId() == Key::Button4 || input.getId() == Key::Button5) {
     if (input.getKind() == Input::Kind::RELEASE || !contains(input.getY(), input.getX())) return false;

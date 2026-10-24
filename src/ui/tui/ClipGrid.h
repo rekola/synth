@@ -279,7 +279,7 @@ class ClipGrid : public UIElement {
   // cellui::Dial that turns, types and draws itself; the grid places them, gives
   // them their values and passes on the mouse and keys.
   std::unordered_map<uint64_t, std::unique_ptr<cellui::Dial>> dials_;
-  bool current_dials_pressed_ = false;
+  uint64_t current_dials_state_ = 0;
   cellui::Dial & dialAt(int track_id, int send);
   void selectDial(int track_id, int send);
   cellui::Dial * cursorDial();
