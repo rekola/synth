@@ -192,5 +192,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release view $env:GITHUB_REF_NAME 2>$null
-          if ($LASTEXITCODE -ne 0) { gh release create $env:GITHUB_REF_NAME --title $env:GITHUB_REF_NAME --notes "Windows installer: run it, then use the Start menu entries, or synth.exe --headless from a terminal. Audio and MIDI on Windows are new." }
+          if ($LASTEXITCODE -ne 0) { gh release create $env:GITHUB_REF_NAME --title $env:GITHUB_REF_NAME --notes "Windows installer: run it, then use the Start menu entries, or synth.exe --ui headless from a terminal. Audio and MIDI on Windows are new." }
           gh release upload $env:GITHUB_REF_NAME (Get-ChildItem installer\*-setup.exe).FullName --clobber

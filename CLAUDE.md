@@ -95,7 +95,7 @@ on Windows `TerminalUI` runs on cellui's Win32 window (`--ui raster`, what `auto
 picks; the loop waits on handles, `WaitSet::handles()`, `Backend::inputHandles()`,
 `EventLoop::addHandles()`; stderr reaches the status line through `util/StderrCapture.h`, a reader
 thread on a pipe, since a pipe cannot be waited on; the pixel scopes draw through canvas' GDI+ backend; never run
-on a desktop), and `--headless` is what CI runs (`tools/smoke_headless.py`); ALSA and PipeWire sources are Linux only. `.github/workflows/
+on a desktop), and `--ui headless` is what CI runs (`tools/smoke_headless.py`); ALSA and PipeWire sources are Linux only. `.github/workflows/
 ci-windows-x86_64.yml` builds, runs ctest and renders songs. The `#ifdef
 _WIN32`s this needed live in small platform helpers: `util/Paths.h` (the
 config dir `%APPDATA%\synth`, the user and installed data dirs, the executable's
@@ -134,7 +134,7 @@ and `executableDir()` uses `_NSGetExecutablePath`.
 ./build/synth --render out.wav songs/demo3.xml   # headless render to WAV
 ```
 
-`--headless` runs without the terminal UI (`HeadlessUI`, `src/ui/headless/`):
+`--ui headless` runs without the terminal UI (`HeadlessUI`, `src/ui/headless/`):
 it plays the song, keeps a Launchpad working, and prints timestamped status
 lines to stderr, plays MIDI input live and records samples; `--autoplay` starts the transport, `--daemon` (with optional
 `--log-file`/`--pid-file`) detaches it. SIGINT/SIGTERM/SIGHUP end any UI
@@ -236,7 +236,7 @@ project; useful for chasing memory bugs (e.g. `AudioBuffer`'s copy-assignment
 leak was confirmed this way).
 
 Needs a real terminal (a full-screen UI) and an ALSA output device.
-`--ui auto|terminal|raster` chooses the backend (`cellui::term::TerminalSession`
+`--ui auto|terminal|raster|headless` chooses the backend (`headless` is no cellui backend at all, see below) (`cellui::term::TerminalSession`
 or `cellui::gtk::Window`, the platform's 2D window, `raster`; `TerminalUI` runs
 on either through `cellui::Backend`). `auto`, the default, tries `raster` when
 the build has GTK and a display is there (`WAYLAND_DISPLAY` or `DISPLAY`), and
