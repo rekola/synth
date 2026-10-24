@@ -27,6 +27,9 @@ class InlineEditor {
   struct Field {
     int row = 0, col = 0, width = 1;
     std::string initial_text;
+    // The initial text stands for the whole value: the first character typed
+    // (or Backspace) replaces it, any other key keeps it to edit.
+    bool replace_on_type = false;
     std::optional<Color> text_color; // the theme's reader_text_color if unset
     Color backdrop = Color(0, 0, 0);
   };
@@ -54,6 +57,7 @@ class InlineEditor {
   Field field_;
   std::function<void(std::string)> commit_;
   bool open_ = false;
+  bool replaceable_ = false; // the initial text has not been touched yet
   bool redraw_requested_ = false;
 };
 

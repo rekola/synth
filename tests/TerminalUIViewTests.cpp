@@ -496,6 +496,68 @@ TEST(terminal_ui_clip_grid_dial_edit_sets_the_send_it_is_on) {
   CHECK_NEAR(sendLinearToDb(sends().a), -6.0f, 0.01f);
 }
 
+namespace {
+float sendDbOfFirstTrack(UIFixture & f, int send) {
+  auto & song = f.controller->getSong();
+  auto sends = dynamic_cast<const LeafTrack &>(*song.getMasterTrack().getChildByInternalId(song.getPlayableTrackIds()[0])).getSends();
+  return sendLinearToDb(send == 0 ? sends.main : send == 1 ? sends.a
+                                                           : sends.b);
+}
+} // namespace
+
+// A click opens the editor on the current value with its unit; typing replaces it.
+TEST(terminal_ui_clip_grid_dial_editor_shows_the_value_and_typing_replaces_it) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);
+  auto rows = dialRows(f);
+  CHECK(rows.caption > 0);
+  int column = kOutlineCols + 1;
+  clickCell(f, rows.a_bottom(), column + 2);
+  CHECK(f.line(static_cast<size_t>(rows.a_bottom())).find("dB") != std::string::npos);
+  f.type("-7");
+  f.press(cellui::Key::Enter);
+  CHECK_NEAR(sendDbOfFirstTrack(f, 1), -7.0f, 0.01f);
+}
+
+// Dragging a dial up raises it and down lowers it (to off below the lowest
+// step), and ending the drag does not open the editor.
+TEST(terminal_ui_clip_grid_dragging_a_dial_turns_it) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);
+  auto rows = dialRows(f);
+  CHECK(rows.caption > 0);
+  int x = kOutlineCols + 1 + 2, y = rows.a_bottom();
+  float start = sendDbOfFirstTrack(f, 1);
+  auto drag = [&](int to_y) {
+    f.terminal.pushMouse(y, x, cellui::Key::Button1);
+    f.ui->step();
+    f.terminal.pushMouse(to_y, x, cellui::Key::Button1);
+    f.ui->step();
+    f.terminal.pushMouse(to_y, x, cellui::Key::Button1, 0, cellui::Input::Kind::RELEASE);
+    f.ui->step();
+  };
+  drag(y - 2);
+  CHECK(sendDbOfFirstTrack(f, 1) > start);
+  CHECK(f.line(static_cast<size_t>(y)).find("dB") == std::string::npos); // no editor
+  drag(y + 3);
+  CHECK(sendDbOfFirstTrack(f, 1) < -5.0f);
+  for (int i = 0; i < 5; i++) drag(y + 3);
+  CHECK(sendDbOfFirstTrack(f, 1) < -99.0f);
+  CHECK(f.line(static_cast<size_t>(y)).find("dB") == std::string::npos);
+}
+
+// The wheel over a dial turns it instead of scrolling the grid.
+TEST(terminal_ui_clip_grid_wheel_over_a_dial_turns_it) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);
+  auto rows = dialRows(f);
+  CHECK(rows.caption > 0);
+  int x = kOutlineCols + 1 + 2, y = rows.a_bottom();
+  float start = sendDbOfFirstTrack(f, 1);
+  f.wheel(y, x, false);
+  CHECK_NEAR(sendDbOfFirstTrack(f, 1), start + 1.0f, 0.05f);
+  f.wheel(y, x, true);
+  f.wheel(y, x, true);
+  CHECK_NEAR(sendDbOfFirstTrack(f, 1), start - 1.0f, 0.05f);
+}
+
 // On the Sends row Left and Right walk through the two dials before moving
 // on to the next column.
 TEST(terminal_ui_clip_grid_left_right_walks_the_two_dials) {

@@ -1143,8 +1143,12 @@ would otherwise resume showing.
   position is the send's dB over the Launchpad faders' range
   (`model/SendFader.h`: -36 dB to unity, below that off). On the Sends row Left
   and Right walk through the A and B dials (then on into the next column),
-  Main is a stop of its own below, and Enter or a click edits just that one (a
-  typed dB number, up to +12; empty leaves it). Every column has a vertical
+  Main is a stop of its own below. Enter or a click opens an editor over that one
+  dial (`InlineEditor`, `replace_on_type`: it shows the current value with its unit, the first
+  key typed replaces it, a number with or without "dB", up to +12; empty leaves it), dragging a dial up
+  or down turns it (`ClipGrid::turnDial()`, 3 dB a row, Shift 0.3, one undo step per drag, below the
+  lowest step off, a release after a drag does not open the editor) and so does the wheel over it (1 dB a
+  step, Shift 0.1, instead of scrolling). Every column has a vertical
   level meter beside its Main and Direction rows, not the Sends (`LevelMeter.h`: one dB mapping, braille
   by default with sextants as an opt-in glyph set, `Ballistics` smoothing
   a block's RMS in the power domain so a low note doesn't ripple, bars
