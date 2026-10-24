@@ -16,8 +16,7 @@ sound of a piano note, aftertouch is something the player does.
 Three or more notes sounding together, such as a triad (a root with its third
 and fifth, like C E G). Not to be confused with a keyboard
 *shortcut* (a key with its modifiers, `KeyStroke` in the code) or a *key
-sequence* (several shortcuts in a row, such as `C-x C-s`); this project does
-not call those chords.
+sequence* (several shortcuts in a row, such as `C-x C-s`).
 
 **Clip launcher**
 The grid of clips inside Live View: one column per track, one row per scene,
