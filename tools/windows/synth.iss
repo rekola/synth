@@ -41,7 +41,7 @@ Source: "{#StageDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdir
 
 [Icons]
 ; The program runs in a console window until it has a window of its own.
-Name: "{group}\synth (play the welcome song)"; Filename: "{app}\synth.exe"; Parameters: "--headless --autoplay"; WorkingDir: "{app}"
+Name: "{group}\synth (play the welcome song)"; Filename: "{app}\synth.exe"; Parameters: "--ui headless --autoplay"; WorkingDir: "{app}"
 Name: "{group}\synth (list audio and MIDI devices)"; Filename: "{cmd}"; Parameters: "/k ""{app}\synth.exe"" --list-devices"; WorkingDir: "{app}"
 Name: "{group}\Songs"; Filename: "{app}\share\synth\songs"
 Name: "{group}\Licences"; Filename: "{app}\THIRD_PARTY_LICENSES.md"

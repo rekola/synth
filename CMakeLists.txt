@@ -9,7 +9,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(GNUInstallDirs)
 
-# The full `synth` (--headless, the Launchpad, live MIDI and audio) builds
+# The full `synth` (--ui headless, the Launchpad, live MIDI and audio) builds
 # everywhere; OFF gives the engine, the tests and a render-only `synth`
 # (src/main_render.cpp). The terminal backend of lib/cellui is POSIX only;
 # on Windows the same UI (TerminalUI) runs in cellui's Win32 window.

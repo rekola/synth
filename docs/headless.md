@@ -1,12 +1,12 @@
 # Headless mode
 
-`synth --headless` runs without a terminal UI: it opens the song, plays it
+`synth --ui headless` runs without a terminal UI: it opens the song, plays it
 through the audio device and keeps a connected Launchpad working. It is meant
 for unattended setups (installations, escape rooms) and for watching debug
 output from a plain shell.
 
 ```sh
-./build/synth --headless --autoplay songs/demo3.xml
+./build/synth --ui headless --autoplay songs/demo3.xml
 ```
 
 Status and error lines go to stderr with a timestamp (`[12:00:01.234]
@@ -17,10 +17,10 @@ Launchpad LEDs cleared) with exit status 0.
 
 | Option | Meaning |
 |---|---|
-| `--headless` | No terminal UI; status lines on stderr. |
+| `--ui headless` | No terminal UI; status lines on stderr. |
 | `--autoplay` | Start the transport once running (headless only). |
 | `--null-audio` | No sound device: blocks are discarded at the pace of the clock. For machines without audio hardware and for tests. |
-| `--daemon` | `--headless`, detached from the terminal. |
+| `--daemon` | `--ui headless`, detached from the terminal. |
 | `--log-file F` | With `--daemon`: where stderr goes (appended; default `/dev/null`). |
 | `--pid-file F` | With `--daemon`: write the daemon's pid here. |
 | `--playback-device N` / `--capture-device N` / `--midi-input N` | Use this audio output / audio input / MIDI source for this run instead of the saved choice. |
@@ -39,8 +39,8 @@ If no song is given, `songs/welcome.xml` is used as in the terminal UI.
 
 ## Windows
 
-Windows builds have no terminal UI, so `--headless` is how to run the program
-there (`synth.exe --headless --autoplay songs\demo3.xml`). Audio goes through
+Windows builds have no terminal UI, so `--ui headless` is how to run the program
+there (`synth.exe --ui headless --autoplay songs\demo3.xml`). Audio goes through
 WASAPI and MIDI and a Launchpad through WinMM. Ctrl-C and Ctrl-Break end the
 run cleanly. `--daemon` is not supported. With no pickers, choose devices with
 `--list-devices` and the `--playback-device`/`--capture-device`/`--midi-input`

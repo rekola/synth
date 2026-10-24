@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Runs `synth --headless --null-audio --autoplay [SONG]` for a few seconds,
+"""Runs `synth --ui headless --null-audio --autoplay [SONG]` for a few seconds,
 asks it to stop the way Ctrl-C would, and checks that it played and exited
 cleanly. Usage: smoke_headless.py BINARY SONG|- [SECONDS [TEXT]]
 TEXT, if given, must also appear in the output.
@@ -19,7 +19,7 @@ def main():
     if os.name == "nt":
         # Ctrl-Break goes to the child's own process group only.
         kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
-    command = [binary, "--headless", "--null-audio", "--autoplay"]
+    command = [binary, "--ui", "headless", "--null-audio", "--autoplay"]
     if song != "-":
         command.append(song)
     proc = subprocess.Popen(command,

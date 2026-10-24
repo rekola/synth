@@ -68,6 +68,6 @@ jobs:
       # the runner. Fails if the transport never reports playing.
       - name: Headless smoke test
         run: |
-          timeout -s INT 8 ./build/synth --headless --null-audio --autoplay songs/demo3.xml 2> headless.log || true
+          timeout -s INT 8 ./build/synth --ui headless --null-audio --autoplay songs/demo3.xml 2> headless.log || true
           cat headless.log
           grep -q "Playing" headless.log
