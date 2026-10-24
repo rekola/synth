@@ -2517,7 +2517,7 @@ void PatternEditor::updateCursorBands(const StyleProvider & styles, const std::v
         cursor_line = line;
         cursor_phase = phase;
       }
-      if (!on_screen || end - 1 <= start || !(styles.window_focused || source_->trackHasPlayhead(track_ids[i]))) {
+      if (!on_screen || end - 1 <= start || !((styles.window_focused && focused) || source_->trackHasPlayhead(track_ids[i]))) {
         plane->clearBand();
         continue;
       }
@@ -3261,8 +3261,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   const auto base_address = address;
   const bool base_highlight = highlight;
   // The cursor shows only while the window has the focus; a playhead always.
-  // In Arrangement view an editor that is not the focus shows no cursor, only the playhead.
-  const bool show_cursor = styles.window_focused && (focused || isLiveMode());
+  // An editor that is not the focus shows no cursor, only the playheads.
+  const bool show_cursor = styles.window_focused && focused;
   // The cursor is a band over the rows (updateCursorBands()), so only a real
   // selection is drawn in them: it scrolls with the content.
   const bool cursor_only = !whole_song_ && !(selection_active_ && selection_start_pattern_ == point.block);
