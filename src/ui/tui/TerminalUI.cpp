@@ -896,9 +896,9 @@ TerminalUI::initializeWidgets() {
 
   // Quit/save/open/save-as use Emacs's own C-x C-c/C-x C-s/C-x C-f/C-x C-w
   // bindings and command names (save-buffers-kill-terminal/save-buffer/
-  // find-file/write-file, the first three shortened to save-buffer/
-  // find-file/save-buffer-as here to match this codebase's own pre-existing
-  // M-x command naming - see Controller::sendCommand()) rather than
+  // find-file; save-buffer-as for write-file, which is a buffer's save-as
+  // under the name this codebase's M-x already used - see
+  // Controller::sendCommand()) rather than
   // one-off single-key shortcuts or made-up names - see
   // Keymap::bindPrefixed()/UIElement::dispatchCommand() for the two-key
   // prefix-sequence machinery this needs. No Ctrl-N/"New" binding any
