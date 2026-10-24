@@ -42,7 +42,9 @@ float inkCoverage(const std::string & text) {
   return 0.2f;
 }
 
-// One pixel in linear light (Rec.709), and its alpha as 0..255.
+// One pixel as encoded sRGB levels (0..255), and its alpha as 0..255. Blurring
+// and dimming work on the encoded values, as the window's blur does, so a
+// backdrop looks the same on every backend.
 using Texel = std::array<float, 4>;
 
 // One pass of a box blur along rows or columns, the window shrinking at the
@@ -85,13 +87,12 @@ int boxRadius(int blur, int cell_h, int scale) {
   return std::max(1, static_cast<int>(std::lround((std::sqrt(1 + 4 * variance * 3 / kBlurPasses) - 1) / 2)));
 }
 
-// Blurs the pixels over `radius` and dims them toward `tint`, all in linear
-// light.
+// Blurs the pixels over `radius` and dims them toward `tint`, on encoded levels.
 void filterPixels(Image & image, const Backdrop & backdrop, int radius, const Color & tint) {
   std::vector<Texel> texels(image.pixels.size());
   for (size_t i = 0; i < texels.size(); i++) {
     uint32_t px = image.pixels[i];
-    texels[i] = {Color::srgb8ToLinear(Image::red(px)), Color::srgb8ToLinear(Image::green(px)), Color::srgb8ToLinear(Image::blue(px)),
+    texels[i] = {static_cast<float>(Image::red(px)), static_cast<float>(Image::green(px)), static_cast<float>(Image::blue(px)),
                  static_cast<float>(Image::alpha(px))};
   }
   if (radius > 0) {
@@ -101,14 +102,14 @@ void filterPixels(Image & image, const Backdrop & backdrop, int radius, const Co
     }
   }
   if (backdrop.dim > 0.0f) {
-    auto t = tint.linearSrgb();
+    auto t = tint.toSrgb8();
     for (Texel & texel : texels)
-      for (size_t k = 0; k < 3; k++) texel[k] += (t[k] - texel[k]) * backdrop.dim;
+      for (size_t k = 0; k < 3; k++) texel[k] += (static_cast<float>(t[k]) - texel[k]) * backdrop.dim;
   }
   for (size_t i = 0; i < texels.size(); i++) {
     const Texel & t = texels[i];
-    image.pixels[i] = Image::pack(Color::linearToSrgb8(t[0]), Color::linearToSrgb8(t[1]), Color::linearToSrgb8(t[2]),
-                                  static_cast<uint8_t>(std::clamp(t[3] + 0.5f, 0.0f, 255.0f)));
+    auto level = [](float v) { return static_cast<uint8_t>(std::clamp(v + 0.5f, 0.0f, 255.0f)); };
+    image.pixels[i] = Image::pack(level(t[0]), level(t[1]), level(t[2]), level(t[3]));
   }
 }
 
@@ -149,11 +150,11 @@ class BackdropSource {
     // lookups.
     for (int r = 0; r < below.rows(); r++) {
       for (int c = 0; c < below.cols(); c++) {
-        Color tone = toneOf(r, c);
+        auto tone = toneOf(r, c).toSrgb8();
         auto & s = sum(r + 1, c + 1);
         const auto & up = sum(r, c + 1), & left = sum(r + 1, c), & diag = sum(r, c);
-        s = {up[0] + left[0] - diag[0] + static_cast<double>(tone.r()), up[1] + left[1] - diag[1] + static_cast<double>(tone.g()),
-             up[2] + left[2] - diag[2] + static_cast<double>(tone.b())};
+        s = {up[0] + left[0] - diag[0] + static_cast<double>(tone[0]), up[1] + left[1] - diag[1] + static_cast<double>(tone[1]),
+             up[2] + left[2] - diag[2] + static_cast<double>(tone[2])};
       }
     }
   }
@@ -176,8 +177,8 @@ class BackdropSource {
     }
     if (b.dim > 0.0f) {
       Color tint = b.tint.value_or(default_bg_);
-      fg = fg.mix(tint, b.dim);
-      bg = bg.mix(tint, b.dim);
+      fg = fg.blend(b.dim, tint);
+      bg = bg.blend(b.dim, tint);
     }
     cell.fg = fg;
     cell.bg = bg;
@@ -200,7 +201,7 @@ class BackdropSource {
     if (n <= 0) return default_bg_;
     double ch[3];
     for (size_t k = 0; k < 3; k++) ch[k] = (sum(r1, c1)[k] - sum(r0, c1)[k] - sum(r1, c0)[k] + sum(r0, c0)[k]) / static_cast<double>(n);
-    return Color::linear(static_cast<float>(ch[0]), static_cast<float>(ch[1]), static_cast<float>(ch[2]));
+    return Color::srgb(static_cast<float>(ch[0] / 255), static_cast<float>(ch[1] / 255), static_cast<float>(ch[2] / 255));
   }
 
   // A cell's colour as the eye averages it: its background with its glyph's
@@ -215,23 +216,23 @@ class BackdropSource {
       img.pixelSpan(r - p.row, 1, cell_h_, false, y0, y1);
       img.pixelSpan(c - p.col, 1, cell_w_, true, x0, x1);
       if (y0 >= y1 || x0 >= x1) return default_bg_;
-      // The pixels over the display's background, in linear light.
-      auto under = default_bg_.linearSrgb();
+      // The pixels over the display's background, on encoded levels.
+      auto under = default_bg_.toSrgb8();
       double ch[3] = {0, 0, 0};
       for (int y = y0; y < y1; y++) {
         for (int x = x0; x < x1; x++) {
           uint32_t px = img.pixels[static_cast<size_t>(y) * static_cast<size_t>(img.width) + static_cast<size_t>(x)];
           double a = Image::alpha(px) / 255.0;
-          ch[0] += Color::srgb8ToLinear(Image::red(px)) * a + static_cast<double>(under[0]) * (1 - a);
-          ch[1] += Color::srgb8ToLinear(Image::green(px)) * a + static_cast<double>(under[1]) * (1 - a);
-          ch[2] += Color::srgb8ToLinear(Image::blue(px)) * a + static_cast<double>(under[2]) * (1 - a);
+          ch[0] += Image::red(px) * a + under[0] * (1 - a);
+          ch[1] += Image::green(px) * a + under[1] * (1 - a);
+          ch[2] += Image::blue(px) * a + under[2] * (1 - a);
         }
       }
       double n = static_cast<double>(y1 - y0) * (x1 - x0);
-      return Color::fromLinearSrgb(static_cast<float>(ch[0] / n), static_cast<float>(ch[1] / n), static_cast<float>(ch[2] / n));
+      return Color::srgb(static_cast<float>(ch[0] / n / 255), static_cast<float>(ch[1] / n / 255), static_cast<float>(ch[2] / n / 255));
     }
     float ink = inkCoverage(cell.text);
-    return ink > 0.0f ? bg.mix(cell.fg.value_or(default_fg_), ink) : bg;
+    return ink > 0.0f ? bg.blend(ink, cell.fg.value_or(default_fg_)) : bg;
   }
 
   CellBuffer below_;

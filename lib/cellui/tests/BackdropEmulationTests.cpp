@@ -7,9 +7,9 @@ using namespace cellui;
 
 namespace {
 
-// A grey level dimmed toward black in linear light, once and twice.
-int dimmed(int v, float dim) { return Color(v, v, v).mix(Color(0, 0, 0), dim).getRed(); }
-int dimmedTwice(int v, float dim) { return Color(v, v, v).mix(Color(0, 0, 0), dim).mix(Color(0, 0, 0), dim).getRed(); }
+// A grey level dimmed toward black on encoded levels, once and twice.
+int dimmed(int v, float dim) { return Color(v, v, v).blend(dim, Color(0, 0, 0)).getRed(); }
+int dimmedTwice(int v, float dim) { return Color(v, v, v).blend(dim, Color(0, 0, 0)).blend(dim, Color(0, 0, 0)).getRed(); }
 
 // A plane over the whole screen made of nothing but backdrop cells.
 std::unique_ptr<Plane> scrimOver(BufferPlane & root, const Backdrop & backdrop) {
