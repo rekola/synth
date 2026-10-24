@@ -140,7 +140,7 @@ class Controller {
   // (which would silently discard any in-memory edits the open copy has
   // that the file itself doesn't).
   bool openSong(const std::string & filename);
-  // "Save As": like sendCommand("save-song") (saves the current song, and
+  // "Save As": like sendCommand("save-buffer") (saves the current song, and
   // resets hasUnsavedChanges()'s baseline the same way), but to `filename`
   // rather than whatever filename the song was opened/created with - and,
   // standard Save As semantics, subsequent plain saves target `filename`
@@ -1407,7 +1407,7 @@ class Controller {
   // See getGlobalOctave()'s own comment - deliberately global, unlike the
   // per-buffer state above.
   int global_octave_ = 4;
-  // Controller's own named commands ("save-song", ...) - sendCommand()
+  // Controller's own named commands ("save-buffer", ...) - sendCommand()
   // tries this first, then command_fallback_; commandCompletions() reads
   // its prefix index the same way.
   CommandRegistry commands_;

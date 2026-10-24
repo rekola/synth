@@ -48,7 +48,7 @@ static const LeafTrack & leafNow(Controller & controller, int track_id) {
 }
 
 TEST(controller_save_song_writes_to_the_opened_path) {
-  // save-song used to always write "tmp.xml" regardless of which song was
+  // save-buffer used to always write "tmp.xml" regardless of which song was
   // open; it must write back to the file that was actually opened.
   namespace fs = std::filesystem;
   auto scratch_path = fs::path(TESTS_SCRATCH_DIR) / "controller_save_song_scratch.xml";
@@ -64,7 +64,7 @@ TEST(controller_save_song_writes_to_the_opened_path) {
   // mutate the song so the saved file is distinguishable from the original
   controller.getSong().setTempo(200);
 
-  CHECK(controller.sendCommand("save-song"));
+  CHECK(controller.sendCommand("save-buffer"));
 
   auto saved = readFile(scratch_path.string());
   CHECK(saved.find("tempo=\"200\"") != std::string::npos);
@@ -327,16 +327,16 @@ TEST(controller_command_completions_merges_literal_and_fallback_names) {
 
   controller.setCommandCompleter([](std::string_view prefix) {
     std::set<std::string> result;
-    for (std::string_view name : { "set-mark", "save-song-as" }) {
+    for (std::string_view name : {"set-mark", "save-buffer-as"}) {
       if (name.substr(0, prefix.size()) == prefix) result.emplace(name);
     }
     return result;
   });
 
-  auto matches = controller.commandCompletions("save-song");
-  CHECK(matches.count("save-song") == 1); // Controller's own literal command
-  CHECK(matches.count("save-song-as") == 1); // reached via the fallback completer
-  CHECK(matches.count("set-mark") == 0); // doesn't share the "save-song" prefix
+  auto matches = controller.commandCompletions("save-buffer");
+  CHECK(matches.count("save-buffer") == 1);    // Controller's own literal command
+  CHECK(matches.count("save-buffer-as") == 1); // reached via the fallback completer
+  CHECK(matches.count("set-mark") == 0);       // doesn't share the "save-buffer" prefix
 
   auto all = controller.commandCompletions("");
   CHECK(all.count("add-filter") == 1);
@@ -2040,7 +2040,7 @@ TEST(monitor_setting_round_trips_through_the_song_file) {
     auto track_ids = controller.getSong().getPlayableTrackIds();
     CHECK(!track_ids.empty());
     controller.cycleTrackMonitor(track_ids.front()); // In
-    CHECK(controller.sendCommand("save-song"));
+    CHECK(controller.sendCommand("save-buffer"));
   }
   CHECK(readFile(scratch_path.string()).find("monitor=\"in\"") != std::string::npos);
 

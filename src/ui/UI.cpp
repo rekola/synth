@@ -520,8 +520,8 @@ UI::initializeCommands() {
   // which widget currently has focus.
   commands_.define("octave-up", [this]() { getController().octaveUp(); });
   commands_.define("octave-down", [this]() { getController().octaveDown(); });
-  commands_.define("save-song", [this]() {
-    getController().sendCommand("save-song");
+  commands_.define("save-buffer", [this]() {
+    getController().sendCommand("save-buffer");
     setStatus("Saved " + getController().getActiveBufferName());
   });
   // Controller-level command (Controller.cpp's own definition) - targets

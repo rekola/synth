@@ -480,7 +480,7 @@ unchanged. `Controller::sendCommand()` (what the command palette calls) falls ba
 `Controller::setCommandFallback()`, wired once in `UI::initialize()`) to
 `UI::executeCommand()` — checks the active element's registry, then UI's own
 — for any name it doesn't recognize itself, so M-x can invoke both
-Controller-level commands (`save-song`, `add-filter`) and the per-widget ones
+Controller-level commands (`save-buffer`, `add-filter`) and the per-widget ones
 (`set-mark`, `kill-region`, `transpose-region-up`/`-down`, …) through the
 same path. Not yet migrated: `StatusLine`, `OutlineView`, and
 `InstrumentList` (dead code anyway). `StatusLine`'s M-x detection is down
