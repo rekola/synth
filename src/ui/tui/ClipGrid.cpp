@@ -3,7 +3,6 @@
 #include "../ScenePatternSource.h"
 
 #include "../../playback/InputEvent.h"
-#include "../../playback/LogEvent.h"
 #include "../KeyChord.h"
 #include "../StyleProvider.h"
 #include "../../Controller.h"
@@ -98,7 +97,7 @@ ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
     if (cursor_track_index_ < 0 || cursor_track_index_ >= static_cast<int>(track_ids.size())) return;
     auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
     bool now_muted = getController().toggleTrackMuted(track_id);
-    getController().getUIEventQueue().push(std::make_unique<LogEvent>(now_muted ? "Muted" : "Unmuted"));
+    getController().log(now_muted ? "Muted" : "Unmuted");
   });
   commands_.define("cycle-monitor", [this]() {
     auto & song = getController().getSong();
@@ -112,7 +111,7 @@ ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
     if (cursor_track_index_ < 0 || cursor_track_index_ >= static_cast<int>(track_ids.size())) return;
     auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
     bool now_solo = getController().toggleTrackSolo(track_id);
-    getController().getUIEventQueue().push(std::make_unique<LogEvent>(now_solo ? "Solo on" : "Solo off"));
+    getController().log(now_solo ? "Solo on" : "Solo off");
   });
   // 'm'/'s' are this view's own shortcuts; backslash/Ctrl-backslash match
   // PatternEditor's own toggle-mute/toggle-solo bindings, so either works
@@ -144,7 +143,7 @@ ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
   };
   // Copies the clip under the cursor into the clipboard.
   commands_.define("kill-ring-save", [this, copy_clip]() {
-    getController().getUIEventQueue().push(std::make_unique<LogEvent>(copy_clip() ? "Copied clip" : "No clip to copy"));
+    getController().log(copy_clip() ? "Copied clip" : "No clip to copy");
   });
   // Cuts the clip under the cursor into the clipboard and removes it from
   // its slot; on an empty slot it removes the slot's stop button instead,
@@ -163,15 +162,14 @@ ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
   commands_.define("yank", [this, cursor_slot]() {
     auto slot = cursor_slot();
     if (!slot) return;
-    auto & log = getController().getUIEventQueue();
     if (!clip_clipboard_) {
-      log.push(std::make_unique<LogEvent>("Nothing to yank"));
+      getController().log("Nothing to yank");
       return;
     }
     auto & song = getController().getSong();
     auto track = song.getMasterTrack().getChildByInternalId(slot->first);
     if (!track || static_cast<int>(track->getType()) != clip_clipboard_track_type_) {
-      log.push(std::make_unique<LogEvent>("Yank: that clip came from a different kind of track"));
+      getController().log("Yank: that clip came from a different kind of track");
       return;
     }
     placeClipCopy(song, slot->first, slot->second, *clip_clipboard_);
@@ -183,7 +181,7 @@ ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
     auto track_ids = song.getPlayableTrackIds();
     if (cursor_track_index_ < 0 || cursor_track_index_ >= static_cast<int>(track_ids.size())) return;
     auto done = quantizeClip(song, track_ids[static_cast<size_t>(cursor_track_index_)], physicalFor(cursor_row_));
-    getController().getUIEventQueue().push(std::make_unique<LogEvent>(done ? "Quantised clip" : "Quantise: nothing to quantise there"));
+    getController().log(done ? "Quantised clip" : "Quantise: nothing to quantise there");
   });
   // Adds or removes the stop button of the empty slot under the cursor -
   // a no-op on a slot with a clip, same as kill-region on an empty one.

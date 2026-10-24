@@ -220,6 +220,12 @@ class Controller {
   // beats a refresh call scattered at every UI-side buffer command.
   cellui::Signal<> buffers_changed;
 
+  // A message for the status line, from UI-thread code (a command, a widget,
+  // the Launchpad). The audio thread's own messages cross over in the UI
+  // event queue instead (LogEvent), as nothing off the UI thread may emit.
+  cellui::Signal<const std::string &> status_message;
+  void log(const std::string & text) { status_message.emit(text); }
+
   // A clip was opened for step editing on a Launchpad (toggleDrumClipFocus(),
   // right after setFocusedClip(); `opened` true) or closed again (a second
   // press on the clip already open, clearFocusedClip(); `opened` false). The

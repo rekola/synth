@@ -964,6 +964,7 @@ TerminalUI::initializeWidgets() {
   // never otherwise reaches UI, so relying on each buffer command here to
   // separately call menu_->refreshBuffers() itself missed that path
   // entirely - one listener covers every path uniformly instead.
+  controller_connections_.push_back(getController().status_message.connect([this](const std::string & text) { setStatus(text); }));
   controller_connections_.push_back(getController().buffers_changed.connect([this]() {
     auto names = getController().getBufferNames();
     vector<string> display_names;

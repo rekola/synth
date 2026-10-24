@@ -17,7 +17,6 @@
 #include "../../playback/MidiEvent.h"
 #include "../../playback/MidiNoteInput.h"
 #include "../../playback/PlaybackControlEvent.h"
-#include "../../playback/LogEvent.h"
 #include "../KeyChord.h"
 #include "PatternScroll.h"
 #include "../../model/ArrangementOps.h"
@@ -81,7 +80,7 @@ PatternEditor::PatternEditor(Plane & parent)
     selection_start_col_ = current_cursor.col;
     selection_start_scope_ = current_cursor.scope;
     setSelectionActive(true);
-    getController().getUIEventQueue().push(make_unique<LogEvent>("Mark set"));
+    getController().log("Mark set");
   });
 
   // Emacs's own C-x C-x: swaps mark and point, keeping the region's two
@@ -96,7 +95,7 @@ PatternEditor::PatternEditor(Plane & parent)
   // definition) - the C-x prefix itself is recognized at that level.
   commands_.define("exchange-point-and-mark", [this]() {
     if (!selection_active_) {
-      getController().getUIEventQueue().push(make_unique<LogEvent>("No mark set"));
+      getController().log("No mark set");
       return;
     }
     auto old_point_row = source_->cursor().row;
@@ -115,7 +114,7 @@ PatternEditor::PatternEditor(Plane & parent)
     selection_start_col_ = old_point_col;
     selection_start_scope_ = old_point_scope;
 
-    getController().getUIEventQueue().push(make_unique<LogEvent>("Mark and point exchanged"));
+    getController().log("Mark and point exchanged");
   });
 
   // Both commands below always have a region to act on, even with no mark
@@ -123,7 +122,7 @@ PatternEditor::PatternEditor(Plane & parent)
   // (see getEffectiveSelectionBounds) - there's no "No selection" case.
   commands_.define("kill-region", [this]() {
     if (whole_song_) {
-      getController().getUIEventQueue().push(make_unique<LogEvent>("Not supported for the whole song"));
+      getController().log("Not supported for the whole song");
       return;
     }
     auto & song = getController().getSong();
@@ -214,12 +213,12 @@ PatternEditor::PatternEditor(Plane & parent)
     // track/note-column layout at all, and the cursor is already parked on
     // the locator slot (track/col pinned to the last track's last
     // column - see GridPosition::scope's own comment).
-    getController().getUIEventQueue().push(make_unique<LogEvent>("Region killed"));
+    getController().log("Region killed");
   });
 
   commands_.define("kill-ring-save", [this]() {
     if (whole_song_) {
-      getController().getUIEventQueue().push(make_unique<LogEvent>("Not supported for the whole song"));
+      getController().log("Not supported for the whole song");
       return;
     }
     auto & song = getController().getSong();
@@ -257,7 +256,7 @@ PatternEditor::PatternEditor(Plane & parent)
       clipboard_.track_tunings = tuningsForTrackRange(song, track_ids, b.track_lo, b.track_hi);
     }
     setSelectionActive(false);
-    getController().getUIEventQueue().push(make_unique<LogEvent>("Region copied"));
+    getController().log("Region copied");
   });
 
   // Named after Emacs's own register commands (copy-to-register/
@@ -297,7 +296,7 @@ PatternEditor::PatternEditor(Plane & parent)
       // below); every other scope targets current_cursor.track.
       auto target_track_start = clipboard_.scope == SelectionScope::EVERYTHING ? 0 : current_cursor.track;
       if (!tuning_ok_for_range(target_track_start)) {
-        getController().getUIEventQueue().push(make_unique<LogEvent>("Cannot paste: incompatible tuning"));
+        getController().log("Cannot paste: incompatible tuning");
         return;
       }
 
@@ -328,9 +327,9 @@ PatternEditor::PatternEditor(Plane & parent)
         pastePatternBlock(*grid, clipboard_.cells, context_length, point.row, track_ids, 0);
         if (locator_base) pastePatternBlockLocators(song, *locator_base, clipboard_.locators, context_length, point.row);
       }
-      getController().getUIEventQueue().push(make_unique<LogEvent>("Yanked"));
+      getController().log("Yanked");
     } else {
-      getController().getUIEventQueue().push(make_unique<LogEvent>("Clipboard empty"));
+      getController().log("Clipboard empty");
     }
   });
 
@@ -374,7 +373,7 @@ PatternEditor::PatternEditor(Plane & parent)
 
     Song::Edit edit(song, "kill row");
     if (source_->stopInstance(cursor_track_id, point)) {
-      getController().getUIEventQueue().push(make_unique<LogEvent>("Clip stopped"));
+      getController().log("Clip stopped");
       return;
     }
 
@@ -386,16 +385,16 @@ PatternEditor::PatternEditor(Plane & parent)
     clipboard_.track_tunings = tuningsForTrackRange(song, track_ids, current_cursor.track, current_cursor.track);
 
     clearPatternBlock(*grid, row, row, track_ids, current_cursor.track, current_cursor.track);
-    getController().getUIEventQueue().push(make_unique<LogEvent>("Row killed"));
+    getController().log("Row killed");
   });
 
   commands_.define("keyboard-quit", [this]() {
     if (whole_song_) {
       whole_song_ = false;
-      getController().getUIEventQueue().push(make_unique<LogEvent>("Selection cancelled"));
+      getController().log("Selection cancelled");
     } else if (selection_active_) {
       setSelectionActive(false);
-      getController().getUIEventQueue().push(make_unique<LogEvent>("Mark deactivated"));
+      getController().log("Mark deactivated");
     }
   });
 
@@ -494,7 +493,7 @@ PatternEditor::PatternEditor(Plane & parent)
     setSelectionActive(false);
     whole_song_ = true;
     whole_song_anchor_ = wholeSongAnchorNow();
-    getController().getUIEventQueue().push(make_unique<LogEvent>(isLiveMode() ? "All scenes selected" : "Whole arrangement selected"));
+    getController().log(isLiveMode() ? "All scenes selected" : "Whole arrangement selected");
   });
 
   // Gives every pitched note in the region its just-intonation correction
@@ -525,7 +524,7 @@ PatternEditor::PatternEditor(Plane & parent)
     // COMMAND/LOCATOR/EVERYTHING: no notes to tune, same as transpose.
     auto text = "Tuned " + std::to_string(summary.notes) + (summary.notes == 1 ? " note" : " notes");
     if (summary.replaced > 0) text += ", replaced the fx of " + std::to_string(summary.replaced);
-    getController().getUIEventQueue().push(make_unique<LogEvent>(text));
+    getController().log(text);
   });
 
   // Takes the tuning correction off every note in the region, whatever put
@@ -545,7 +544,7 @@ PatternEditor::PatternEditor(Plane & parent)
     } else if (b.scope == SelectionScope::NOTE_COLUMN) {
       cleared = clearTuningCorrectionBlockNotes(*grid, b.row_lo, b.row_hi, track_ids[static_cast<size_t>(b.track_lo)], b.note_lo, b.note_hi);
     }
-    getController().getUIEventQueue().push(make_unique<LogEvent>("Cleared " + std::to_string(cleared) + (cleared == 1 ? " tuning correction" : " tuning corrections")));
+    getController().log("Cleared " + std::to_string(cleared) + (cleared == 1 ? " tuning correction" : " tuning corrections"));
   });
 
   // Row navigation while stopped (playback owns the row while playing -
@@ -791,7 +790,7 @@ PatternEditor::changeEditStep(int delta) {
 void
 PatternEditor::setEditStep(int step) {
   edit_step_size = std::clamp(step, 0, kMaxEditStep);
-  getController().getUIEventQueue().push(make_unique<LogEvent>("Edit step: " + std::to_string(edit_step_size)));
+  getController().log("Edit step: " + std::to_string(edit_step_size));
 }
 
 int PatternEditor::limitToSelectionPattern(int delta_rows) {
@@ -806,14 +805,14 @@ int PatternEditor::limitToSelectionPattern(int delta_rows) {
   if (target.block >= source_->blockCount() && block == source_->blockCount() - 1) return delta_rows;
   RowAddress edge = delta_rows < 0 ? RowAddress{block, 0} : RowAddress{block, source_->blockLength(block) - 1};
   auto limited = source_->rowsBetween(here, edge);
-  if (limited == 0) getController().getUIEventQueue().push(make_unique<LogEvent>("Selection can't cross a pattern boundary"));
+  if (limited == 0) getController().log("Selection can't cross a pattern boundary");
   return limited;
 }
 
 bool
 PatternEditor::reportLockedCursor() {
   if (!source_->cursorLocked()) return false;
-  getController().getUIEventQueue().push(make_unique<LogEvent>("This track is playing - its row follows the playhead"));
+  getController().log("This track is playing - its row follows the playhead");
   return true;
 }
 
@@ -827,7 +826,7 @@ PatternEditor::syncCursorTrack(const Song & song) {
   // position is in another is refused, the cursor staying where it was.
   if (selection_active_ && synced_cursor_track_id_ >= 0 && source_->trackCursor(track_id).block != selection_start_pattern_) {
     new_cursor = current_cursor;
-    getController().getUIEventQueue().push(make_unique<LogEvent>("Selection can't cross a pattern boundary"));
+    getController().log("Selection can't cross a pattern boundary");
     return;
   }
   // The cursor row moves to where the new track's position is already
@@ -1059,7 +1058,7 @@ PatternEditor::startTrackNameEdit() {
 void
 PatternEditor::copyToClip() {
   if (whole_song_) {
-    getController().getUIEventQueue().push(make_unique<LogEvent>("Not supported for the whole song"));
+    getController().log("Not supported for the whole song");
     return;
   }
   auto & song = getController().getSong();
@@ -1086,7 +1085,7 @@ PatternEditor::copyToClip() {
   auto clip = extractClip(*grid, track_id, b.row_lo, b.row_hi, bars);
   song.addClip(std::move(clip));
   setSelectionActive(false);
-  getController().getUIEventQueue().push(make_unique<LogEvent>("Copied to clip"));
+  getController().log("Copied to clip");
 }
 
 RowAddress
@@ -1256,10 +1255,10 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   // constraining where the playhead goes.
   if (selection_active_ && info.isPlaying() && source_->cursorFollowsTransport()) {
     setSelectionActive(false);
-    getController().getUIEventQueue().push(make_unique<LogEvent>("Selection cleared: playback started"));
+    getController().log("Selection cleared: playback started");
   } else if (selection_active_ && selection_start_pattern_ != score_pattern) {
     setSelectionActive(false);
-    getController().getUIEventQueue().push(make_unique<LogEvent>("Selection cleared: crossed pattern boundary"));
+    getController().log("Selection cleared: crossed pattern boundary");
   }
 
   auto [rows, cols] = getDim();
@@ -2294,8 +2293,8 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 	    // A delay or velocity needs a note (or aftertouch) to belong to: a
 	    // delay alone would be stored but never shown or heard.
 	    if (column_type == ColumnType::DELAY && !note.isDefined()) {
-	      getController().getUIEventQueue().push(make_unique<LogEvent>("No note here - enter a velocity first"));
-	      return true;
+              getController().log("No note here - enter a velocity first");
+              return true;
 	    }
 	    pending_ = PendingNibbles();
 	    pending_.valid = true;
