@@ -529,10 +529,6 @@ TerminalUI::render() {
 void
 TerminalUI::step() {
   readInput();
-  while (getController().getUIEventQueue().hasEvents()) {
-    auto event = getController().getUIEventQueue().pop();
-    handleEvent(*event);
-  }
   renderComponents();
   render();
 }
@@ -1760,8 +1756,7 @@ TerminalUI::blankScopes() {
   dirac_running_max_ = 0.0f;
 }
 
-void
-TerminalUI::handleVisualizationResultEvent(VisualizationResultEvent & ev) {
+void TerminalUI::handleVisualizationResultEvent(const VisualizationResultEvent & ev) {
   // If a newer event is already queued behind this one, this one's visual
   // result is about to be immediately overwritten - skip the
   // comparatively expensive chart/meter update work for it. Doesn't
@@ -1769,7 +1764,7 @@ TerminalUI::handleVisualizationResultEvent(VisualizationResultEvent & ev) {
   // always wins anyway, via plain overwrite); it only avoids redoing that
   // work once per superseded event during a catch-up burst, so the app
   // catches up faster instead of falling further behind.
-  bool superseded = getController().getUIEventQueue().hasEvents();
+  bool superseded = eventsPending();
   bool changed = superseded; // a superseded event is redrawn by the one behind it
   // Scopes that are off screen aren't updated at all.
   if (!superseded && scopes_on_screen_) {
@@ -1857,11 +1852,10 @@ TerminalUI::handleVisualizationResultEvent(VisualizationResultEvent & ev) {
     }
   }
 
-  if (changed) ev.redraw();
+  if (changed) redraw_requested_ = true;
 }
 
-void
-TerminalUI::handleMidiEvent(MidiEvent & ev) {
+void TerminalUI::handleMidiEvent(const MidiEvent & ev) {
   pattern_editor_->handleMidiEvent(ev);
 }
 
@@ -1989,7 +1983,6 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
   // In the order the loop handles them.
   WaitSet waits;
   auto input_group = waits.group();
-  auto events_group = waits.group();
   auto stderr_group = waits.group();
   auto midi_group = waits.group();
   auto launchpad_group = waits.group();
@@ -2001,7 +1994,6 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
   waits.addFd(input_group, backend_.inputFd());
   waits.addFd(input_group, backend_.wakeFd());
 #endif
-  waits.add(events_group, getController().getUIEventQueue().notifier());
 #ifdef _WIN32
   StderrCapture stderr_capture;
   if (stderr_capture.active()) waits.add(stderr_group, stderr_capture.notifier());
@@ -2045,7 +2037,7 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
   // A turn: what the handlers below set, then the frame logic in the after
   // hook. The loop is the backend's own.
   bool render = false;
-  bool other_wake = false; // input, MIDI, Launchpad or stderr woke the loop, not just the event queue
+  bool other_wake = false; // input, MIDI, Launchpad or stderr woke the loop, not just a posted event
   auto & loop = backend_.eventLoop();
   auto add_source = [&](WaitSet::Group group, cellui::EventLoop::Handler handler) {
     addWaitGroup(loop, waits, group, std::move(handler));
@@ -2054,29 +2046,6 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
     count("fd" + std::to_string(input_group));
     other_wake = true;
     render |= readInput();
-  });
-  add_source(events_group, [&] {
-    count("fd" + std::to_string(events_group));
-    auto event = getController().getUIEventQueue().pop();
-    auto t0 = std::chrono::steady_clock::now();
-    handleEvent(*event);
-    if (stats_path) g_ui_stats["us:" + std::string(typeid(*event).name())] += static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - t0).count());
-    if (stats_path) {
-      count(typeid(*event).name());
-      if (event->needRedraw()) count("redraw:" + std::string(typeid(*event).name()));
-    }
-    if (event->needRedraw()) render = true;
-    while (getController().getUIEventQueue().hasEvents()) {
-      auto next_event = getController().getUIEventQueue().pop();
-      auto t1 = std::chrono::steady_clock::now();
-      handleEvent(*next_event);
-      if (stats_path) g_ui_stats["us:" + std::string(typeid(*next_event).name())] += static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - t1).count());
-      if (stats_path) {
-        count(typeid(*next_event).name());
-        if (next_event->needRedraw()) count("redraw:" + std::string(typeid(*next_event).name()));
-      }
-      if (next_event->needRedraw()) render = true;
-    }
   });
   add_source(stderr_group, [&] {
     count("fd" + std::to_string(stderr_group));
@@ -2120,20 +2089,14 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
     auto evs = midi.readEvents();
     // setStatus("got midi events: " + to_string(evs.size()));
 
-    for (auto & ev : evs) {
-      handleEvent(ev);
-      if (ev.needRedraw()) render = true;
-    }
+    for (auto & ev : evs) deliver(ev);
   });
   add_source(launchpad_group, [&] {
     count("fd" + std::to_string(launchpad_group));
     other_wake = true;
     auto evs = launchpad_io.pollEvents();
 
-    for (auto & ev : evs) {
-      handleEvent(*ev);
-      if (ev->needRedraw()) render = true;
-    }
+    for (auto & ev : evs) deliver(ev);
   });
 
   loop.setBefore([&]() -> int {

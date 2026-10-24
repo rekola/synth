@@ -541,7 +541,6 @@ class Controller {
     if (ui_inbox_) ui_inbox_->post(std::move(event));
   }
 
-  EventQueue & getUIEventQueue() { return ui_event_queue; }
   EventQueue & getPlaybackEventQueue() { return playback_event_queue; }
 
   // Live View clip launching and its clock - see ClipPlayer.h.
@@ -550,7 +549,7 @@ class Controller {
 
   // Audio thread -> VisualizationThread only (see VisualizationThread.h) -
   // carries raw AudioBlockEvents, never anything UI-facing; results come
-  // back the other way via ui_event_queue (VisualizationResultEvent).
+  // back the other way via postToUI() (VisualizationResultEvent).
   EventQueue & getVisualizationQueue() { return visualization_queue; }
 
   // Plain overwrite - used by togglePlaying()/moveEditPosition()/
@@ -1291,7 +1290,7 @@ class Controller {
   std::set<std::string> registered_buffer_commands_;
   std::shared_ptr<AudioBuffer> current_sample;
   InstrumentProvider instrument_provider;
-  EventQueue ui_event_queue, playback_event_queue, visualization_queue;
+  EventQueue playback_event_queue, visualization_queue;
   std::mutex ui_inbox_mutex_;
   cellui::ThreadInbox * ui_inbox_ = nullptr;
   // playback_info/recording_track_id/local_position_edit_seq_/

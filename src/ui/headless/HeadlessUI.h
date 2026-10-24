@@ -36,9 +36,10 @@ class HeadlessUI : public UI {
   void handlePlaybackEvent(const PlaybackEvent & ev) override;
   // Plays incoming MIDI live on the current track; while note capture is
   // armed and the transport plays, also records it at the playhead.
-  void handleMidiEvent(MidiEvent & ev) override;
+  void handleMidiEvent(const MidiEvent & ev) override;
+  void handleVisualizationResultEvent(const VisualizationResultEvent &) override {}
 
-protected:
+ protected:
   void startUI(AudioAPI & audio, MidiInput & midi, LaunchpadIO & launchpad_io) override;
   cellui::EventLoop & eventLoop() override { return loop_; }
   void wireLaunchpad(LaunchpadManager & launchpad_manager) override;

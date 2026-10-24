@@ -26,6 +26,8 @@
 #include "../model/ArrangementOps.h"
 #include "../model/PatternBlockOps.h"
 #include "../playback/LogEvent.h"
+#include "../playback/MidiEvent.h"
+#include "../playback/VisualizationResultEvent.h"
 #include "../playback/PlaybackEvent.h"
 #include "../playback/RecordEvent.h"
 #include "../playback/RecordingLatencyEvent.h"
@@ -128,6 +130,12 @@ UI::start(AudioAPI & audio, MidiInput & midi, LaunchpadIO & launchpad_io, Launch
   subscriptions.push_back(subscribe<RecordEvent>(*this, [this](const RecordEvent & ev) { handleRecordEvent(ev); }));
   subscriptions.push_back(subscribe<RecordingLatencyEvent>(*this, [this](const RecordingLatencyEvent & ev) { handleRecordingLatencyEvent(ev); }));
   subscriptions.push_back(subscribe<ThresholdRecordingTriggeredEvent>(*this, [this](const ThresholdRecordingTriggeredEvent & ev) { handleThresholdRecordingTriggeredEvent(ev); }));
+  subscriptions.push_back(subscribe<VisualizationResultEvent>(*this, [this](const VisualizationResultEvent & ev) { handleVisualizationResultEvent(ev); }));
+  subscriptions.push_back(subscribe<MidiEvent>(*this, [this](const MidiEvent & ev) { handleMidiEvent(ev); }));
+  subscriptions.push_back(subscribe<LaunchpadPadEvent>(*this, [this](const LaunchpadPadEvent & ev) { handleLaunchpadPadEvent(ev); }));
+  subscriptions.push_back(subscribe<LaunchpadButtonEvent>(*this, [this](const LaunchpadButtonEvent & ev) { handleLaunchpadButtonEvent(ev); }));
+  subscriptions.push_back(subscribe<LaunchpadChannelPressureEvent>(*this, [this](const LaunchpadChannelPressureEvent & ev) { handleLaunchpadChannelPressureEvent(ev); }));
+  inbox_ = &inbox;
   getController().setUIInbox(&inbox);
 
   std::thread audio_thread(audio_thread_func, &(getController()), &audio);
@@ -141,16 +149,15 @@ UI::start(AudioAPI & audio, MidiInput & midi, LaunchpadIO & launchpad_io, Launch
   audio_thread.join();
   visualization_thread.join();
   getController().setUIInbox(nullptr);
+  inbox_ = nullptr;
 }
 
-void
-UI::handleLaunchpadChannelPressureEvent(LaunchpadChannelPressureEvent & ev) {
+void UI::handleLaunchpadChannelPressureEvent(const LaunchpadChannelPressureEvent & ev) {
   if (!launchpad_manager_) return;
   launchpad_manager_->handleChannelPressureEvent(ev, getController());
 }
 
-void
-UI::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
+void UI::handleLaunchpadPadEvent(const LaunchpadPadEvent & ev) {
   // Track-picker overlay (opened by CC49 "Stop Clip"/CC39 "Mute"/CC29
   // "Solo" - see LaunchpadManager::handleRawButton()'s own comment) -
   // Live-View-only, so this only ever intercepts the picker row itself
@@ -202,8 +209,7 @@ UI::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
     indexOfTrack(track_ids, getController().getSong().getCurrentTrackId()), launchpadEditStepSize());
 }
 
-void
-UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
+void UI::handleLaunchpadButtonEvent(const LaunchpadButtonEvent & ev) {
   if (!launchpad_manager_) return;
 
   auto device_id = ev.getDeviceIndex();

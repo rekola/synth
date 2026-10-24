@@ -11,6 +11,7 @@
 #include "../../audio/AudioAPI.h"
 #include "../../playback/LogEvent.h"
 #include "../../playback/MidiEvent.h"
+#include "../../playback/VisualizationResultEvent.h"
 #include "../../playback/PlaybackControlEvent.h"
 #include "../../instruments/Tuning.h"
 #include "../../playback/PlaybackEvent.h"
@@ -105,8 +106,7 @@ void HeadlessUI::showChoiceDialog(const std::string & title, std::vector<Choice>
   setStatus(title + ": choosing needs the terminal UI (see --list-devices)");
 }
 
-void
-HeadlessUI::handleMidiEvent(MidiEvent & ev) {
+void HeadlessUI::handleMidiEvent(const MidiEvent & ev) {
   auto & controller = getController();
   auto & song = controller.getSong();
   int track_id = song.getCurrentTrackId();
@@ -191,24 +191,16 @@ HeadlessUI::tick() {
 void
 HeadlessUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
   WaitSet waits;
-  auto events_group = waits.group();
   auto midi_group = waits.group();
   auto launchpad_group = waits.group();
-  waits.add(events_group, getController().getUIEventQueue().notifier());
   midi.addTo(waits, midi_group);
   launchpad_io.addTo(waits, launchpad_group);
 
-  addWaitGroup(loop_, waits, events_group, [this] {
-    while (getController().getUIEventQueue().hasEvents()) {
-      auto event = getController().getUIEventQueue().pop();
-      handleEvent(*event);
-    }
-  });
   addWaitGroup(loop_, waits, midi_group, [&] {
-    for (auto & ev : midi.readEvents()) handleEvent(ev);
+    for (auto & ev : midi.readEvents()) deliver(ev);
   });
   addWaitGroup(loop_, waits, launchpad_group, [&] {
-    for (auto & ev : launchpad_io.pollEvents()) handleEvent(*ev);
+    for (auto & ev : launchpad_io.pollEvents()) deliver(ev);
   });
   // A turn ends at least every tick (a shutdown signal ends the wait early).
   loop_.setBefore([] { return kTickIntervalMs; });

@@ -126,6 +126,10 @@ class ThreadInbox {
     return true;
   }
 
+  // How many posted events wait to be dispatched (the ones a drain has not
+  // taken yet; rings not counted). Any thread.
+  size_t pending() const { return size_.load(std::memory_order_relaxed); }
+
   // At most this many events wait in post()'s queue; 0, the default, is no
   // limit.
   void setHighWater(size_t limit) {

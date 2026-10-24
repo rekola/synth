@@ -103,7 +103,7 @@ VisualizationThread::handleAudioBlockEvent(AudioBlockEvent & ev) {
     // to nothing; after that a repeat tells the UI nothing, so it is not sent
     // and the UI sleeps until sound returns.
     if (++rest_results_ > rest_results_limit_) return;
-    controller_->getUIEventQueue().push(move(result));
+    controller_->postToUI(move(*result));
     return;
   }
   rest_results_ = 0;
@@ -134,7 +134,7 @@ VisualizationThread::handleAudioBlockEvent(AudioBlockEvent & ev) {
     dirac_zero_sent_ = dirac_->atRest();
   }
 
-  controller_->getUIEventQueue().push(move(result));
+  controller_->postToUI(move(*result));
 }
 
 void

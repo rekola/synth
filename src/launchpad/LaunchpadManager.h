@@ -424,7 +424,7 @@ class LaunchpadManager {
   // any UI cursor state (see UI::handleLaunchpadPadEvent, which passes
   // PatternEditor's own getCursorTrackIndex()/getEditStepSize() when a UI
   // happens to be present).
-  void handlePadEvent(LaunchpadPadEvent & ev, Controller & controller, int fallback_track_index, int edit_step_size);
+  void handlePadEvent(const LaunchpadPadEvent & ev, Controller & controller, int fallback_track_index, int edit_step_size);
 
   // GridMode::LIVE's own pad-press handling - mirrors DRAW mode's own
   // separate entry point (pressDrawPad()) rather than living inside
@@ -475,7 +475,7 @@ class LaunchpadManager {
   // "one shared pressure value, not per-note" semantics
   // InstrumentTrackState::broadcastChannelPressure() already gives poly
   // pressure once aggregated up to channel level.
-  void handleChannelPressureEvent(LaunchpadChannelPressureEvent & ev, Controller & controller);
+  void handleChannelPressureEvent(const LaunchpadChannelPressureEvent & ev, Controller & controller);
 
   // Called whenever the UI thread learns of a new playhead position (see
   // UI::handlePlaybackEvent, right after Controller::receivePlaybackSnapshot() -
@@ -914,7 +914,7 @@ class LaunchpadManager {
   // unconditionally, since "the arm flag gates performance capture, not
   // editing" - and auditions it when it was just set, at a fixed velocity.
   // A pitched note also gets a note-off one row later so it lasts a step.
-  void handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & controller, int note, int track_id, bool pitched);
+  void handleStepGridPadEvent(const LaunchpadPadEvent & ev, Controller & controller, int note, int track_id, bool pitched);
 
   // The sound the step rows edit for this device: its selected pad, or the
   // first pad until one has been pressed. -1 if the track has no pad there.

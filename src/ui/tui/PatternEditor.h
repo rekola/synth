@@ -47,7 +47,7 @@ class PatternEditor : public UIElement {
   // either way.
   bool render(const StyleProvider & styles, bool refresh, bool focused);
   bool offerInput(const cellui::Input & input) override;
-  void handleMidiEvent(MidiEvent & ev) override;
+  void handleMidiEvent(const MidiEvent & ev);
 
   // Mirrors StatusLine::isReaderActive(): while this widget's inline editor
   // is open, UI::offerInput() must not let a global keybinding (Space/

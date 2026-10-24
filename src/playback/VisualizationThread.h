@@ -19,7 +19,7 @@ class Mixer;
 // nor the UI/main thread (which must stay responsive to input). Receives
 // raw audio as AudioBlockEvents (Controller::getVisualizationQueue(), audio
 // thread -> here) and sends results back as VisualizationResultEvents
-// (Controller::getUIEventQueue(), here -> UI thread) - the UI thread does
+// (Controller::postToUI(), here -> UI thread) - the UI thread does
 // no analysis of its own, it only displays whatever this thread already
 // computed.
 class VisualizationThread : public EventHandler {

@@ -5,11 +5,15 @@
 #include "Theme.h"
 #include "../util/Logger.h"
 
+#include "../launchpad/LaunchpadInput.h"
+
 #include <cellui/EventLoop.h>
+#include <cellui/ThreadPosts.h>
 
 #include <functional>
 #include <string>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 class AudioAPI;
@@ -23,6 +27,8 @@ class ThresholdRecordingTriggeredEvent;
 class LaunchpadChannelPressureEvent;
 class LaunchpadPadEvent;
 class LaunchpadButtonEvent;
+class MidiEvent;
+class VisualizationResultEvent;
 class UI;
 
 class StatusLogger : public Logger {
@@ -92,7 +98,7 @@ class UI : public UIElement {
   // its own. Pad and button events are shared too; the two hooks below
   // (launchpadEditStepSize()/executeLaunchpadCommand()) are the only
   // backend-specific parts.
-  void handleLaunchpadChannelPressureEvent(LaunchpadChannelPressureEvent & ev) override;
+  void handleLaunchpadChannelPressureEvent(const LaunchpadChannelPressureEvent & ev);
   // Sample recording (live mic takes) is pure Controller bookkeeping, so
   // every backend shares it.
   void handleRecordEvent(const RecordEvent & ev);
@@ -100,8 +106,19 @@ class UI : public UIElement {
   void handleThresholdRecordingTriggeredEvent(const ThresholdRecordingTriggeredEvent & ev);
   // A playback snapshot from the audio thread.
   virtual void handlePlaybackEvent(const PlaybackEvent & ev) = 0;
-  void handleLaunchpadPadEvent(LaunchpadPadEvent & ev) override;
-  void handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) override;
+  void handleLaunchpadPadEvent(const LaunchpadPadEvent & ev);
+  void handleLaunchpadButtonEvent(const LaunchpadButtonEvent & ev);
+  // MIDI input and analysis results: what each backend does with them.
+  virtual void handleMidiEvent(const MidiEvent & ev) = 0;
+  virtual void handleVisualizationResultEvent(const VisualizationResultEvent & ev) = 0;
+  // Events the UI thread read itself (MIDI, Launchpad) go to the same
+  // handlers as the posted ones.
+  void deliver(const MidiEvent & ev) { postToRoot(ev); }
+  void deliver(const LaunchpadInput & ev) {
+    std::visit([this](const auto & e) { postToRoot(e); }, ev);
+  }
+  // True while posted events wait behind the one being handled.
+  bool eventsPending() const { return inbox_ && inbox_->pending() > 0; }
 
   // Which layout the active song is shown in - UI state, independent of
   // which buffer is active. Arrangement: the arrangement overview plus the
@@ -176,6 +193,7 @@ protected:
   // thread's own event queue.
   AudioAPI * audio_ = nullptr;
   MidiInput * midi_ = nullptr;
+  cellui::ThreadInbox * inbox_ = nullptr;
 
  private:
   void initializeCommands();
