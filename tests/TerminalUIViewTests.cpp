@@ -5,6 +5,7 @@
 
 #include "TerminalUIFixture.h"
 #include "../src/model/ArrangementOps.h"
+#include "../src/model/LeafTrack.h"
 #include "../src/ui/CommandDescriptions.h"
 
 #include <chrono>
@@ -426,21 +427,93 @@ TEST(terminal_ui_clip_grid_click_shows_pressed_then_picks_on_release) {
   CHECK(gridCursorRows(f) == std::vector<int>{y});
 }
 
-// A click on a Sends value opens its editor, on that value.
-TEST(terminal_ui_clip_grid_click_on_a_send_opens_its_editor) {
-  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);
-  int y = -1;
-  for (int i = 0; i < 40 && y < 0; i++) {
-    if (f.line(static_cast<size_t>(i)).find(" dB ", kOutlineCols) != std::string::npos) y = i;
+// The text version of the dials (a display without pictures): the caption
+// stands on the Sends group's first row, with the A dial's three rows from there
+// and the B dial's one row lower, and the Main dial three rows below the group's
+// last.
+namespace {
+struct DialRows {
+  int caption = -1;
+  int a_bottom() const { return caption + 2; }
+  int b_bottom() const { return caption + 3; }
+  int main_bottom() const { return caption + 7; }
+};
+
+DialRows dialRows(UIFixture & f) {
+  DialRows rows;
+  for (int i = 0; i < 40 && rows.caption < 0; i++) {
+    if (f.line(static_cast<size_t>(i)).find("Sends", kOutlineCols) != std::string::npos) rows.caption = i;
   }
-  CHECK(y > 0);
-  int x = kOutlineCols + 1 + 5 + 4; // the second value (Send A) of the first track
+  return rows;
+}
+
+void clickCell(UIFixture & f, int y, int x) {
   f.terminal.pushMouse(y, x, cellui::Key::Button1);
   f.ui->step();
   f.terminal.pushMouse(y, x, cellui::Key::Button1, 0, cellui::Input::Kind::RELEASE);
   f.ui->step();
+}
+} // namespace
+
+// A click on a dial opens its editor, on that dial.
+TEST(terminal_ui_clip_grid_click_on_a_send_opens_its_editor) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);
+  auto rows = dialRows(f);
+  CHECK(rows.caption > 0);
+  int column = kOutlineCols + 1;
+  // The B dial of the first track.
+  clickCell(f, rows.b_bottom(), column + 1 + 7 + 1);
   f.type("-6");
-  CHECK(f.line(static_cast<size_t>(y)).find("-6") != std::string::npos);
+  CHECK(f.line(static_cast<size_t>(rows.b_bottom())).find("-6") != std::string::npos);
+  f.ctrl('g');
+  // The Main dial has its own row.
+  clickCell(f, rows.main_bottom(), column + 5);
+  f.type("-3");
+  CHECK(f.line(static_cast<size_t>(rows.main_bottom())).find("-3") != std::string::npos);
+  f.ctrl('g');
+}
+
+// Typing a dB value into a dial sets that send, and only that one.
+TEST(terminal_ui_clip_grid_dial_edit_sets_the_send_it_is_on) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);
+  auto rows = dialRows(f);
+  CHECK(rows.caption > 0);
+  int column = kOutlineCols + 1;
+  auto sends = [&]() {
+    auto & song = f.controller->getSong();
+    return dynamic_cast<const LeafTrack &>(*song.getMasterTrack().getChildByInternalId(song.getPlayableTrackIds()[0])).getSends();
+  };
+  auto before = sends();
+  clickCell(f, rows.a_bottom(), column + 2);
+  f.type("-6");
+  f.press(cellui::Key::Enter);
+  CHECK_NEAR(sendLinearToDb(sends().a), -6.0f, 0.01f);
+  CHECK(sends().b == before.b && sends().main == before.main);
+  clickCell(f, rows.main_bottom(), column + 5);
+  f.type("-12");
+  f.press(cellui::Key::Enter);
+  CHECK_NEAR(sendLinearToDb(sends().main), -12.0f, 0.01f);
+  CHECK_NEAR(sendLinearToDb(sends().a), -6.0f, 0.01f);
+}
+
+// On the Sends row Left and Right walk through the two dials before moving
+// on to the next column.
+TEST(terminal_ui_clip_grid_left_right_walks_the_two_dials) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);
+  auto rows = dialRows(f);
+  CHECK(rows.caption > 0);
+  int column = kOutlineCols + 1;
+  clickCell(f, rows.a_bottom(), column + 2); // the A dial: opens its editor
+  f.ctrl('g');
+  f.press(cellui::Key::Right); // to B
+  f.press(cellui::Key::Enter);
+  f.type("-9");
+  CHECK(f.line(static_cast<size_t>(rows.b_bottom())).find("-9") != std::string::npos);
+  f.ctrl('g');
+  f.press(cellui::Key::Left); // back to A
+  f.press(cellui::Key::Enter);
+  f.type("-9");
+  CHECK(f.line(static_cast<size_t>(rows.a_bottom())).find("-9") != std::string::npos);
   f.ctrl('g');
 }
 

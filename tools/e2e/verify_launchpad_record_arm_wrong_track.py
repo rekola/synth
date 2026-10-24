@@ -96,7 +96,7 @@ if header_y is not None:
     x1, xm = header.index("T1"), header.index("Master")
     for y in range(header_y + 1, scr.screen.lines):
         row = cells(y)
-        if row.startswith("Sends"):
+        if "Sends" in row:
             break
         if "▸" in row[:x1]:
             track0_populated.append(row)

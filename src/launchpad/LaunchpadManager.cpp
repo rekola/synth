@@ -1,4 +1,5 @@
 #include "LaunchpadManager.h"
+#include "../model/SendFader.h"
 #include "../playback/EventHandler.h"
 
 #include "LaunchpadIO.h"
@@ -463,11 +464,12 @@ Color padTrackColor(int ordinal) {
   constexpr float kPanBarScale = 0.55f;
   constexpr float kPanCenterScale = 0.25f;
 
-  // Send A/B/Main fader curve: row 1 is this many dB below unity (row 7);
-  // 6dB/step is a standard, easily-perceived mixing-console increment. Row
-  // 0 is a hard off (see sendRowToDb()), not a further 6dB step, since a
-  // real fader's bottom position is true silence, not just very quiet.
-  constexpr float SEND_ROW_FLOOR_DB = -36.0f;
+  // Send A/B/Main fader curve: row 1 is kSendFloorDb (SendFader.h) below
+  // unity (row 7); 6dB/step is a standard, easily-perceived mixing-console
+  // increment. Row 0 is a hard off (see sendRowToDb()), not a further 6dB
+  // step, since a real fader's bottom position is true silence, not just
+  // very quiet.
+  constexpr float SEND_ROW_FLOOR_DB = kSendFloorDb;
 
   // Self-contained (not TreeNode::gainToDecibels(), only reachable from
   // TreeNode<Derived> subclasses - VoiceState/TrackState, neither of which
