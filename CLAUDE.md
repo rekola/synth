@@ -1363,7 +1363,7 @@ would otherwise resume showing.
     app-level lifecycle every backend needs (spawning the audio/
     visualization threads, running until told to quit, reporting status)
     - a concrete subclass owns its own widget set, screen layout, and
-    Launchpad callback wiring (`UI::wireLaunchpad()`'s hook). `src/ui/tui/`
+    Launchpad callback wiring (`UI::wireLaunchpad()`'s hook). A status message from UI-thread code is `Controller::log()` (the `status_message` signal, shown at once); only the audio thread's messages cross to the UI in the UI event queue, as a `LogEvent`. `src/ui/tui/`
     — the concrete terminal implementation built on those interfaces and
     on cellui's terminal backend (`cellui::term::TerminalSession`, the
     screen a root `cellui::BufferPlane` composes):

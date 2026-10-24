@@ -72,6 +72,7 @@ HeadlessUI::initialize(std::shared_ptr<Controller> & controller) {
   // Controller-level commands that name something it doesn't know itself
   // (shared UI commands like "toggle-playing") land here.
   controller->setCommandFallback([this](std::string_view name) { return executeCommand(name); });
+  controller_connections_.push_back(controller->status_message.connect([this](const std::string & text) { setStatus(text); }));
 }
 
 void

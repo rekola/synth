@@ -1,7 +1,6 @@
 #include "ArrangementGrid.h"
 
 #include "../../playback/InputEvent.h"
-#include "../../playback/LogEvent.h"
 #include "../StyleProvider.h"
 #include "../../Controller.h"
 #include "../../model/Song.h"
@@ -206,7 +205,7 @@ ArrangementGrid::offerInput(const cellui::Input & input) {
         }
         deleteClip(song, track_id, active.clip_index);
         auto text = "Deleted clip: " + (name.empty() ? string("(unnamed)") : name);
-        getController().getUIEventQueue().push(make_unique<LogEvent>(std::move(text)));
+        getController().log(std::move(text));
       } else if (active.clip_index == Arrangement::kStopInstance) {
         // No clip to delete - just the stop event itself
         // (Arrangement::clearInstance(), not placeStopInstance() with some
@@ -219,7 +218,7 @@ ArrangementGrid::offerInput(const cellui::Input & input) {
         // already has.
         Song::Edit edit(song, "delete stop");
         song.getArrangement().clearInstance(track_id, active.start_row);
-        getController().getUIEventQueue().push(make_unique<LogEvent>("Deleted stop"));
+        getController().log("Deleted stop");
       }
     }
   } else if (input.getId() == Key::Up)
