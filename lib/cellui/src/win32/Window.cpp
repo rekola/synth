@@ -544,11 +544,9 @@ void Window::Impl::drawLayer(size_t i, const CellRange * only) {
     float bx = static_cast<float>((content.col + band.col) * cell_w), by = static_cast<float>((content.row + band.row) * cell_h);
     rt_->FillRectangle(D2D1::RectF(bx, by, bx + static_cast<float>(band.cols * cell_w), by + static_cast<float>(band.rows * cell_h)), brush.get());
     if (band.border_px > 0) {
-      // Inside the rectangle: a stroke is centred on its path.
-      float half = static_cast<float>(band.border_px) / 2.0f;
       brush->SetColor(colorOf(band.border_color, band.border_alpha));
-      rt_->DrawRectangle(D2D1::RectF(bx + half, by + half, bx + static_cast<float>(band.cols * cell_w) - half, by + static_cast<float>(band.rows * cell_h) - half), brush.get(),
-                         static_cast<float>(band.border_px));
+      for (const BandBorderRect & r : bandBorderRects(band, bx, by, (content.col + band.border_skip_col) * cell_w, cell_w, cell_h))
+        rt_->FillRectangle(D2D1::RectF(static_cast<float>(r.x), static_cast<float>(r.y), static_cast<float>(r.x + r.w), static_cast<float>(r.y + r.h)), brush.get());
     }
   }
   rt_->PopAxisAlignedClip();

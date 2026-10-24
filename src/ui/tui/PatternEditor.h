@@ -219,10 +219,10 @@ protected:
   // Where a playing view's line is between two rows, 0 to 1 (Arrangement view).
   double row_band_phase_ = 0.0;
   // The cursor has two levels: the note with its velocity and delay (or the
-  // effect command) outlined on cursor_outline_plane_ (tinted where bands cannot be
-  // outlined), and the field under it: cursor_plane_ inverts what is under it, the
+  // effect command) bordered on cursor_border_plane_ (tinted where bands cannot be
+  // a border), and the field under it: cursor_plane_ inverts what is under it, the
   // plane above gives the result the highlight's hue.
-  std::unique_ptr<Plane> cursor_outline_plane_, cursor_plane_, cursor_hue_plane_;
+  std::unique_ptr<Plane> cursor_border_plane_, cursor_plane_, cursor_hue_plane_;
   // The cursor's note column (with its velocity and delay) on the screen, -1 if not drawn.
   int cursor_x0_ = -1, cursor_x1_ = -1;
   // The field the cursor is on (note, velocity, delay, local fx or command).
