@@ -1817,7 +1817,7 @@ would otherwise resume showing.
   separated from song model objects so playback state can be reset cheaply.
 - The build enables many `-Werror=` flags plus `-Wsign-conversion`; new code
   must compile warning-clean.
-- A chord is several notes sounding together. A key with its modifiers is a
+- A chord is three or more notes sounding together. A key with its modifiers is a
   *shortcut* (`KeyStroke` in code), several in a row a *key sequence*, never
   a chord (`docs/glossary.md`).
 - A command only a pad controller dispatches (nothing else registers it) is
