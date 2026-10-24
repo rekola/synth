@@ -13,9 +13,10 @@ pressure as its velocity). Not the aftersound: that is a property of the
 sound of a piano note, aftertouch is something the player does.
 
 **Chord**
-Only the musical kind: several notes sounding together. The keyboard kind is a
-*shortcut* (a key with its modifiers, `KeyStroke` in the code) or, for several
-in a row such as `C-x C-s`, a *key sequence*.
+Several notes sounding together. Not to be confused with a keyboard
+*shortcut* (a key with its modifiers, `KeyStroke` in the code) or a *key
+sequence* (several shortcuts in a row, such as `C-x C-s`); this project does
+not call those chords.
 
 **Clip launcher**
 The grid of clips inside Live View: one column per track, one row per scene,

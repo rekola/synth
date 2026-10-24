@@ -1817,9 +1817,9 @@ would otherwise resume showing.
   separated from song model objects so playback state can be reset cheaply.
 - The build enables many `-Werror=` flags plus `-Wsign-conversion`; new code
   must compile warning-clean.
-- "Chord" means the musical kind only. A key with its modifiers is a
-  *shortcut* (`KeyStroke` in code), several in a row a *key sequence*
-  (`docs/glossary.md`).
+- A chord is several notes sounding together. A key with its modifiers is a
+  *shortcut* (`KeyStroke` in code), several in a row a *key sequence*, never
+  a chord (`docs/glossary.md`).
 - A command only a pad controller dispatches (nothing else registers it) is
   named with a `pad-` prefix (`pad-next-track`), not `launchpad-`: other
   devices can use it too. A pad gesture whose keyboard equivalent is
