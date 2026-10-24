@@ -1112,11 +1112,10 @@ void ClipGrid::renderDials(const StyleProvider & styles, int x, int rows, int co
   };
   for (int i = 0; i < 3; i++) {
     auto & dial = dials[i];
-    auto bg = dial.pressed ? styles.row_pressed_bg_color
-              : dial.on    ? styles.grid_bg_color.blend(focus_, styles.highlight_bg_color)
-                           : styles.grid_bg_color;
-    auto fg = dial.pressed ? styles.highlight_fg_color
-              : dial.on    ? styles.window_accent_fg_color.blend(focus_, styles.highlight_fg_color)
+    // The selection recolours the dial itself and leaves its slot's background alone.
+    auto bg = styles.grid_bg_color;
+    auto fg = dial.pressed ? styles.highlight_bg_color
+              : dial.on    ? styles.window_accent_fg_color.blend(focus_, styles.highlight_bg_color)
                            : styles.window_accent_fg_color;
     auto db = sendDb(dial.level);
     cellui::DialReading reading{dial.letter, sendDbToFraction(db), fmt::format("{:.0f}", db)};

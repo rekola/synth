@@ -87,7 +87,10 @@ TEST(terminal_ui_clip_grid_sends_highlight_follows_the_cursor) {
       std::string out;
       const auto & frame = f.terminal.frame();
       for (int y = 0; y < frame.rows(); y++) {
-        for (int x = 0; x < frame.cols(); x++) out += frame.at(y, x).text + f.bg(y, x) + ';';
+        for (int x = 0; x < frame.cols(); x++) {
+          const auto & cell = frame.at(y, x);
+          out += cell.text + f.bg(y, x) + (cell.fg ? std::to_string(cell.fg->getRed() + 256 * cell.fg->getGreen() + 65536 * cell.fg->getBlue()) : "") + ';';
+        }
       }
       return out;
     };
