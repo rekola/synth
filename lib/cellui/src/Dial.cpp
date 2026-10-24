@@ -84,12 +84,10 @@ std::string Dial::valueText() const {
 
 void Dial::draw() {
   const StyleProvider & styles = plane_.getStyles();
-  Color fg = foreground_.blend(std::clamp(selected_, 0.0f, 1.0f), styles.highlight_bg_color), bg = background_;
-  if (pressed_) {
-    fg = styles.highlight_bg_color;
-    bg = styles.row_pressed_bg_color;
-  }
-  drawDial(plane_, row_, col_, kRows, kCols, DialReading{spec_.letter, fraction(), valueText()}, DialLook{bg, fg}, clip_top_,
+  // Only the lines change colour: the cursor colour while selected, a brighter one while pressed.
+  Color fg = foreground_.blend(std::clamp(selected_, 0.0f, 1.0f), styles.highlight_bg_color);
+  if (pressed_) fg = styles.highlight_bg_color.blend(0.45f, Color(255, 255, 255));
+  drawDial(plane_, row_, col_, kRows, kCols, DialReading{spec_.letter, fraction(), valueText()}, DialLook{background_, fg}, clip_top_,
            clip_bottom_, id_);
 }
 

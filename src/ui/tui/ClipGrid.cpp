@@ -678,10 +678,9 @@ bool
 ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   // The cursor shows only while the window has the focus.
   focused = focused && styles.window_focused;
-  // Losing the focus closes a dial's editor; the dials are placed again below.
-  for (auto & [key, dial] : dials_) {
-    if (!focused && dial->isEditing()) dial->cancelEdit();
-    dial->setClip(0, 0);
+  // Losing the focus closes a dial's editor.
+  if (!focused) {
+    for (auto & [key, dial] : dials_) dial->cancelEdit();
   }
   const Song & song = getController().getSong(); // see offerInput()'s own comment on why const
   auto track_ids = song.getPlayableTrackIds();
@@ -788,6 +787,10 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   current_scroll_col_ = scroll_col_;
   current_scroll_row_ = scroll_row_;
   current_focused_ = focused;
+
+  // The dials are placed again below; one that is not (scrolled out of view,
+  // or past the last column) takes no input.
+  for (auto & [key, dial] : dials_) dial->setClip(0, 0);
 
   setFgColor(styles.window_fg_color);
   setBgColor(styles.window_bg_color);

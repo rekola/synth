@@ -558,11 +558,14 @@ TEST(terminal_ui_clip_grid_wheel_over_a_dial_turns_it) {
   CHECK(rows.caption > 0);
   int x = kOutlineCols + 1 + 2, y = rows.a_bottom();
   float start = sendDbOfFirstTrack(f, 1);
+  for (int i = 0; i < 3; i++) f.ui->step(); // frames with nothing to redraw
+  auto before = f.line(static_cast<size_t>(rows.caption));
   f.wheel(y, x, false);
   CHECK_NEAR(sendDbOfFirstTrack(f, 1), start + 1.0f, 0.05f);
   f.wheel(y, x, true);
   f.wheel(y, x, true);
   CHECK_NEAR(sendDbOfFirstTrack(f, 1), start - 1.0f, 0.05f);
+  CHECK(f.line(static_cast<size_t>(rows.caption)) == before); // the grid did not scroll
 }
 
 // Escape closes a dial's editor, even as a bare Escape in the terminal, and
