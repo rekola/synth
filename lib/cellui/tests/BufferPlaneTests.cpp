@@ -647,6 +647,24 @@ TEST(bufferplane_a_band_outline_is_for_smooth_displays_only) {
   CHECK(layers[0].scroll->band->border_px == 2.0 && layers[0].scroll->band->border_color.getGreen() == 255);
 }
 
+// The outline leaves out the span of something drawn inside it: along the top
+// and bottom, and at a side the span reaches.
+TEST(band_outline_leaves_out_a_skipped_span) {
+  Band band{ 0.0, 1.0, 2, 10, Color(255, 0, 0), 0.0f, BlendMode::NORMAL, 0.0f, Color(0, 255, 0), 1.0f, 1.0 };
+  auto whole = bandBorderRects(band, 20, 0, 0, 10, 20);
+  CHECK(whole.size() == 4);
+  // The span starts at the left edge: no left side, and the top and bottom start after it.
+  band.border_skip_col = 2;
+  band.border_skip_cols = 3;
+  auto left = bandBorderRects(band, 20, 0, 20, 10, 20);
+  CHECK(left.size() == 3);
+  for (const auto & r : left) CHECK(r.x >= 20 + 30 - 0.001 || r.x == 20 + 100 - 1);
+  // In the middle: both sides stay and the top and bottom are cut in two.
+  band.border_skip_col = 5;
+  auto middle = bandBorderRects(band, 20, 0, 50, 10, 20);
+  CHECK(middle.size() == 6);
+}
+
 // Where the display cannot draw a band by parts of a cell, it is laid over the
 // cells it reaches, blended: a difference with white inverts text and background.
 TEST(bufferplane_a_band_on_a_display_without_smooth_scrolling_blends_the_cells) {
