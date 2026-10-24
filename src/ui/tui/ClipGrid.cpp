@@ -580,7 +580,19 @@ ClipGrid::offerInput(const cellui::Input & input) {
   // While a rename editor is open it owns every key.
   if (inline_editor_.offerInput(input)) return true;
   for (auto & [key, dial] : dials_) {
-    if (dial->isEditing()) return dial->offerInput(input);
+    if (!dial->isEditing()) continue;
+    // A click anywhere else closes the editor (and then does what it would);
+    // the other mouse input is ignored while one is open, every key is its own.
+    if (input.getId() == Key::Button1) {
+      if (input.getKind() != InputEvent::Kind::RELEASE && !dial->contains(input.getY(), input.getX()))
+        dial->cancelEdit();
+      else
+        return true;
+    } else if (input.getId() == Key::Button4 || input.getId() == Key::Button5) {
+      return true;
+    } else {
+      return dial->offerInput(input);
+    }
   }
 
   if (input.getId() == Key::Button1) return handleMouse(input);
@@ -711,13 +723,11 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   fades_.sweep();
   auto new_version = song.getMajorVersion();
   bool editor_redraw = inline_editor_.consumeRedrawRequest();
-  bool dials_pressed = false;
-  for (auto & [key, dial] : dials_) {
-    editor_redraw = dial->consumeRedrawRequest() || editor_redraw;
-    dials_pressed = dials_pressed || dial->isPressed();
-  }
-  bool dials_changed = dials_pressed != current_dials_pressed_;
-  current_dials_pressed_ = dials_pressed;
+  // What the dials show: pressed or not, and what is being typed.
+  uint64_t dials_state = 0;
+  for (auto & [key, dial] : dials_) dials_state += dial->version() + (dial->isPressed() ? 1u << 20 : 0u);
+  bool dials_changed = dials_state != current_dials_state_;
+  current_dials_state_ = dials_state;
   auto clip_rows = clipRowCount();
   auto clipState = [&](int track_index, int clip_row) {
     if (!clip_state_source_ || track_index >= num_tracks || clip_row >= clip_rows) return ClipHighlight::NONE;
@@ -1076,7 +1086,6 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   }
 
   inline_editor_.paintBackdrop();
-  for (auto & [key, dial] : dials_) dial->paintBackdrop();
   return true;
 }
 

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cellui/Color.h>
-#include <cellui/InlineEditor.h>
 #include <cellui/Input.h>
 #include <cellui/Plane.h>
 
@@ -21,6 +20,10 @@ struct DialReading {
   // What the dial's slot shows where no picture can be: the value, in the
   // middle of a rounded box with the letter in its bottom border.
   std::string text;
+  // While a value is being typed: what has been typed, shown over the dial
+  // (dimmed in the picture) with a caret after it.
+  bool editing = false;
+  std::string edit_text;
 };
 
 // The ring and pointer in `foreground`, on `background` (which the pointer's
@@ -59,24 +62,22 @@ struct DialSpec {
   float min = -36.0f, max = 0.0f;  // the arc, from its bottom-left end to its bottom-right one
   float off = -100.0f;             // what a turn below `min` sets
   float typed_min = -100.0f, typed_max = 12.0f;  // what may be typed
-  std::string unit = "dB";
   float drag_per_row = 3.0f;  // a row dragged
   float wheel_step = 1.0f;    // a wheel step
   float fine = 0.1f;          // the factor Shift puts on both
 };
 
 // A dial that handles itself: the picture or the text version (drawDial()),
-// dragging up and down to turn it, the wheel, a click to type a value in an
-// editor over it (Enter commits, Escape or losing focus closes it), and the
-// selected and pressed looks. The host places it (setPosition()), gives it the
+// dragging up and down to turn it, the wheel, a click to type a value over it
+// (Enter commits, Escape or losing focus closes it), and the selected and
+// pressed looks. The host places it (setPosition()), gives it the
 // value, draws it and passes it the mouse and keys; it owns none of the value
 // and none of the gestures.
 class Dial {
  public:
   static constexpr int kRows = 3, kCols = 6;
-  static constexpr int kEditWidth = 8;  // the editor, wide enough for "-12.5 dB"
 
-  Dial(Plane & plane, DialSpec spec) : plane_(plane), spec_(std::move(spec)), editor_(plane) {}
+  Dial(Plane & plane, DialSpec spec) : plane_(plane), spec_(std::move(spec)) {}
 
   // The slot's top-left cell in the plane, and the plane rows it may draw in.
   void setPosition(int row, int col) { row_ = row, col_ = col; }
@@ -109,11 +110,12 @@ class Dial {
   // While the editor is open, every key.
   bool offerInput(const Input & input);
   bool isDragging() const { return down_; }
-  bool isEditing() const { return editor_.isOpen(); }
+  bool isEditing() const { return editing_; }
+  // Starts typing a value: the current one is shown and the first key replaces it.
   void startEdit();
-  void cancelEdit() { editor_.cancel(); }
-  bool consumeRedrawRequest() { return editor_.consumeRedrawRequest(); }
-  void paintBackdrop() { editor_.paintBackdrop(); }
+  void cancelEdit();
+  // Changes with everything that needs the dial drawn again.
+  uint64_t version() const { return version_; }
 
   // The position of a value on the arc, 0..1.
   float fraction() const;
@@ -122,9 +124,13 @@ class Dial {
   void turn(float base, float delta);
   std::string valueText() const;
 
+  void commitEdit();
+
   Plane & plane_;
   DialSpec spec_;
-  InlineEditor editor_;
+  bool editing_ = false, replaceable_ = false;
+  std::string edit_text_;
+  uint64_t version_ = 0;
   int row_ = 0, col_ = 0, clip_top_ = 0, clip_bottom_ = 1 << 20;
   uint64_t id_ = 0;
   Color foreground_ = Color(255, 255, 255), background_ = Color(0, 0, 0);

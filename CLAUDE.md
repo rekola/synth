@@ -1144,10 +1144,11 @@ would otherwise resume showing.
   (`model/SendFader.h`: -36 dB to unity, below that off). On the Sends row Left
   and Right walk through the A and B dials (then on into the next column),
   Main is a stop of its own below. The gestures belong to the widget, `cellui::Dial`
-  (`Dial.h`, shown in the gallery in its idle, selected, pressed and off looks): a click opens an
-  editor over the dial (`InlineEditor`, `replace_on_type`: the current value with its unit, the first
-  key typed replaces it, a number with or without "dB", up to +12; empty leaves it; Enter commits, Escape
-  - a bare one in the terminal too, `wantsBareEscape()` - or losing the focus closes it), dragging up or down
+  (`Dial.h`, shown in the gallery in its idle, selected, pressed and off looks): a click starts typing a
+  value over the dial (the dial's own, not an `InlineEditor`, which cannot show over a picture: the dial
+  dimmed under the typed text and a caret, or in the text version the box's middle row; the current value
+  is shown, the first key typed replaces it, a number up to +12, no unit; Enter commits, Escape - a bare one in the
+  terminal too, `wantsBareEscape()` - losing the focus, or a click anywhere else closes it, the grid doing the last), dragging up or down
   turns it (3 dB a row, Shift 0.3, one undo step per drag, below the lowest step off, a drag goes on
   wherever the pointer is and its release does not open the editor), the wheel over it turns it
   (1 dB a step, Shift 0.1, instead of scrolling), and the pressed look (the lines in a brighter cursor colour) and

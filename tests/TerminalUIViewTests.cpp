@@ -512,14 +512,14 @@ float sendDbOfFirstTrack(UIFixture & f, int send) {
 }
 } // namespace
 
-// A click opens the editor on the current value with its unit; typing replaces it.
+// A click opens the editor on the current value (with a caret); typing replaces it.
 TEST(terminal_ui_clip_grid_dial_editor_shows_the_value_and_typing_replaces_it) {
   UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);
   auto rows = dialRows(f);
   CHECK(rows.caption > 0);
   int column = kOutlineCols + 1;
   clickCell(f, rows.a_bottom(), column + 2);
-  CHECK(f.line(static_cast<size_t>(rows.a_bottom())).find("dB") != std::string::npos);
+  CHECK(f.line(static_cast<size_t>(rows.a_bottom())).find("▏") != std::string::npos);
   f.type("-7");
   f.press(cellui::Key::Enter);
   CHECK_NEAR(sendDbOfFirstTrack(f, 1), -7.0f, 0.01f);
@@ -543,12 +543,12 @@ TEST(terminal_ui_clip_grid_dragging_a_dial_turns_it) {
   };
   drag(y - 2);
   CHECK(sendDbOfFirstTrack(f, 1) > start);
-  CHECK(f.line(static_cast<size_t>(y)).find("dB") == std::string::npos); // no editor
+  CHECK(f.line(static_cast<size_t>(y)).find("▏") == std::string::npos); // no editor
   drag(y + 3);
   CHECK(sendDbOfFirstTrack(f, 1) < -5.0f);
   for (int i = 0; i < 5; i++) drag(y + 3);
   CHECK(sendDbOfFirstTrack(f, 1) < -99.0f);
-  CHECK(f.line(static_cast<size_t>(y)).find("dB") == std::string::npos);
+  CHECK(f.line(static_cast<size_t>(y)).find("▏") == std::string::npos);
 }
 
 // The wheel over a dial turns it instead of scrolling the grid.
@@ -577,9 +577,9 @@ TEST(terminal_ui_clip_grid_escape_closes_the_dial_editor) {
   int column = kOutlineCols + 1;
   auto start = sendDbOfFirstTrack(f, 1);
   clickCell(f, rows.a_bottom(), column + 2);
-  CHECK(f.line(static_cast<size_t>(rows.a_bottom())).find("dB") != std::string::npos);
+  CHECK(f.line(static_cast<size_t>(rows.a_bottom())).find("▏") != std::string::npos);
   f.press(cellui::Key::Escape);
-  CHECK(f.line(static_cast<size_t>(rows.a_bottom())).find("dB") == std::string::npos);
+  CHECK(f.line(static_cast<size_t>(rows.a_bottom())).find("▏") == std::string::npos);
   CHECK_NEAR(sendDbOfFirstTrack(f, 1), start, 0.001f);
   // And the keys go back to the grid.
   f.press(cellui::Key::Right);
@@ -592,9 +592,25 @@ TEST(terminal_ui_clip_grid_losing_focus_closes_the_dial_editor) {
   CHECK(rows.caption > 0);
   int column = kOutlineCols + 1;
   clickCell(f, rows.a_bottom(), column + 2);
-  CHECK(f.line(static_cast<size_t>(rows.a_bottom())).find("dB") != std::string::npos);
+  CHECK(f.line(static_cast<size_t>(rows.a_bottom())).find("▏") != std::string::npos);
   clickCell(f, rows.a_bottom() + 12, column + 10); // a click in the pattern editor takes the focus
-  CHECK(f.line(static_cast<size_t>(rows.a_bottom())).find("dB") == std::string::npos);
+  CHECK(f.line(static_cast<size_t>(rows.a_bottom())).find("▏") == std::string::npos);
+}
+
+// Clicking another dial closes the open editor (and opens that dial's own).
+TEST(terminal_ui_clip_grid_clicking_another_dial_closes_the_editor) {
+  UIFixture f(repoSong("demo3.xml"), UI::View::LIVE);
+  auto rows = dialRows(f);
+  CHECK(rows.caption > 0);
+  int column = kOutlineCols + 1;
+  clickCell(f, rows.a_bottom(), column + 2); // A
+  CHECK(f.line(static_cast<size_t>(rows.a_bottom())).find("▏") != std::string::npos);
+  clickCell(f, rows.main_bottom(), column + 5); // Main
+  CHECK(f.line(static_cast<size_t>(rows.a_bottom())).find("▏") == std::string::npos);
+  CHECK(f.line(static_cast<size_t>(rows.main_bottom())).find("▏") != std::string::npos);
+  // A click on the dial being edited keeps it open.
+  clickCell(f, rows.main_bottom(), column + 5);
+  CHECK(f.line(static_cast<size_t>(rows.main_bottom())).find("▏") != std::string::npos);
 }
 
 // A drag goes on turning the dial when the pointer leaves the clip grid.

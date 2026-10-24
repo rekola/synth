@@ -182,3 +182,20 @@ TEST(dial_widget_pressed_and_selected_look_different_from_idle) {
   CHECK(!(idle.fg == selected.fg) && idle.bg == selected.bg);
   CHECK(!(pressed.fg == idle.fg) && !(pressed.fg == selected.fg) && pressed.bg == idle.bg);
 }
+
+TEST(dial_widget_shows_what_is_typed_with_a_caret_and_closing_removes_it) {
+  DialFixture f;
+  f.dial.startEdit();
+  f.dial.offerInput(keyInput('7', 0));
+  f.dial.draw();
+  f.plane.refresh();
+  std::string row;
+  for (int c = 3; c < 9; c++) row += f.buffer.at(3, c).text;
+  CHECK(row.find("7") != std::string::npos && row.find("▏") != std::string::npos);
+  f.dial.cancelEdit();
+  f.dial.draw();
+  f.plane.refresh();
+  row.clear();
+  for (int c = 3; c < 9; c++) row += f.buffer.at(3, c).text;
+  CHECK(row.find("▏") == std::string::npos);
+}
