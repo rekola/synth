@@ -857,13 +857,14 @@ namespace {
 // The bands over the planes of a smooth display: the cursor row's (and the
 // playheads') strips are wide, the cursor cell's is narrower than the editor.
 struct BandCount {
-  size_t wide = 0, narrow = 0;
+  size_t wide = 0, narrow = 0, outlined = 0;
 };
 BandCount countBands(UIFixture & f) {
   BandCount count;
   for (const auto & layer : f.terminal.info().backdrops) {
     if (!layer.scroll || !layer.scroll->band) continue;
     (layer.scroll->band->cols > 60 ? count.wide : count.narrow)++;
+    if (layer.scroll->band->border_px > 0) count.outlined++;
   }
   return count;
 }
@@ -882,9 +883,9 @@ std::set<std::string> backgrounds(UIFixture & f) {
 
 } // namespace
 
-// On a smooth display the cursor is two bands over the rows, a line and a
-// cell, which hold still while the rows scroll; neither shows while the
-// window is not focused.
+// On a smooth display the cursor is four bands over the rows, a line, the
+// outline of the note and the field under it inverted and given its hue, which hold still while
+// the rows scroll; none shows while the window is not focused.
 TEST(terminal_ui_smooth_pattern_editor_cursor_is_a_band_over_the_rows) {
   cellui::DisplayInfo display;
   display.smooth_scroll = true;
@@ -893,17 +894,20 @@ TEST(terminal_ui_smooth_pattern_editor_cursor_is_a_band_over_the_rows) {
   for (int i = 0; i < 5; i++) f.ui->step();
   auto count = countBands(f);
   CHECK(count.wide == 1);
-  CHECK(count.narrow == 2); // the cell: an inverting band and the hue over it
+  CHECK(count.narrow == 3); // the outline, and the field: an inverting band and the hue over it
+  CHECK(count.outlined == 1);
   f.terminal.pushWindowFocus(false);
   for (int i = 0; i < 5; i++) f.ui->step();
   count = countBands(f);
   CHECK(count.wide == 0);
   CHECK(count.narrow == 0);
+  CHECK(count.outlined == 0);
   f.terminal.pushWindowFocus(true);
   for (int i = 0; i < 5; i++) f.ui->step();
   count = countBands(f);
   CHECK(count.wide == 1);
-  CHECK(count.narrow == 2); // the cell: an inverting band and the hue over it
+  CHECK(count.narrow == 3); // the outline, and the field: an inverting band and the hue over it
+  CHECK(count.outlined == 1);
 }
 
 // The selection is drawn in the rows, so it scrolls with them; the cursor is
