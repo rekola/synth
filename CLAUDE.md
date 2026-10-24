@@ -187,8 +187,7 @@ wanted: an unstarted capture stream is "ready" forever). `NullAudio`
 real `Player` loop runs on machines without sound hardware (CI, tests). MIDI input
 is `midi/MidiInput.h` (`readEvents()` on the UI thread, `AlsaMidiInput`) and
 Launchpad I/O sits on a `midi/MidiPorts.h` `MidiPortBackend` (`AlsaMidiPorts`),
-neither part of `AudioAPI`. The UI loops block on a `util/WaitSet.h` (groups of
-`Notifier`s and, on POSIX, file descriptors) that each source adds itself to
+neither part of `AudioAPI`. The UI loops are cellui `EventLoop`s (`TerminalUI`'s from its backend, `HeadlessUI`'s a `cellui::PlatformEventLoop`: poll, or handles on Windows) with the groups of a `util/WaitSet.h` (`Notifier`s and, on POSIX, file descriptors) as sources (`addWaitGroup()`, `ui/WaitSources.h`) that each source adds itself to
 (`addTo()`), and read a source when its group is ready; `LaunchpadIO` is
 platform-neutral and tested against a fake backend.
 

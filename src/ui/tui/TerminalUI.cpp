@@ -32,6 +32,7 @@
 #include "../../playback/Player.h"
 #include "../../playback/PlaybackEvent.h"
 #include "../../playback/LogEvent.h"
+#include "../WaitSources.h"
 #include "../../playback/RecordEvent.h"
 #include "../../playback/RecordingLatencyEvent.h"
 #include "../../model/ArrangementOps.h"
@@ -2048,11 +2049,7 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
   bool other_wake = false; // input, MIDI, Launchpad or stderr woke the loop, not just the event queue
   auto & loop = backend_.eventLoop();
   auto add_source = [&](WaitSet::Group group, cellui::EventLoop::Handler handler) {
-#ifdef _WIN32
-    loop.addHandles(waits.handles(group), std::move(handler));
-#else
-    loop.addSource(waits.fds(group), std::move(handler));
-#endif
+    addWaitGroup(loop, waits, group, std::move(handler));
   };
   add_source(input_group, [&] {
     count("fd" + std::to_string(input_group));

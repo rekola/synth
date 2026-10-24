@@ -4,6 +4,9 @@
 #include "../../launchpad/LaunchpadIO.h"
 #include "../../midi/MidiInput.h"
 #include "../../util/WaitSet.h"
+#include "../WaitSources.h"
+
+#include <cellui/PlatformEventLoop.h>
 #include "../../launchpad/LaunchpadManager.h"
 #include "../../audio/AudioAPI.h"
 #include "../../playback/LogEvent.h"
@@ -201,27 +204,30 @@ HeadlessUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
   midi.addTo(waits, midi_group);
   launchpad_io.addTo(waits, launchpad_group);
 
+  cellui::PlatformEventLoop loop;
+  addWaitGroup(loop, waits, events_group, [this] {
+    while (getController().getUIEventQueue().hasEvents()) {
+      auto event = getController().getUIEventQueue().pop();
+      handleEvent(*event);
+    }
+  });
+  addWaitGroup(loop, waits, midi_group, [&] {
+    for (auto & ev : midi.readEvents()) handleEvent(ev);
+  });
+  addWaitGroup(loop, waits, launchpad_group, [&] {
+    for (auto & ev : launchpad_io.pollEvents()) handleEvent(*ev);
+  });
+  // A turn ends at least every tick (a shutdown signal ends the wait early).
+  loop.setBefore([] { return kTickIntervalMs; });
+  loop.setAfter([this, &loop](bool) {
+    tick();
+    if (shouldClose()) loop.quit();
+  });
+
   if (autoplay_) {
     getController().togglePlaying();
     setStatus("Autoplay");
   }
 
-  while (!shouldClose()) {
-    // The wait returns early when a shutdown signal arrives.
-    if (waits.wait(kTickIntervalMs)) {
-      if (waits.ready(events_group)) {
-	while (getController().getUIEventQueue().hasEvents()) {
-	  auto event = getController().getUIEventQueue().pop();
-	  handleEvent(*event);
-	}
-      }
-      if (waits.ready(midi_group)) {
-	for (auto & ev : midi.readEvents()) handleEvent(ev);
-      }
-      if (waits.ready(launchpad_group)) {
-	for (auto & ev : launchpad_io.pollEvents()) handleEvent(*ev);
-      }
-    }
-    tick();
-  }
+  if (!shouldClose()) loop.run();
 }
