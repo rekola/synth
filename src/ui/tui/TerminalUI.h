@@ -78,8 +78,8 @@ class TerminalUI : public UI {
   // same name.
   std::set<std::string> commandCompletions(std::string_view prefix) const;
 
-  void handlePlaybackEvent(PlaybackEvent & ev) override;
-  void handleLogEvent(LogEvent & ev) override;
+  void handlePlaybackEvent(const PlaybackEvent & ev) override;
+  cellui::EventLoop & eventLoop() override;
   void handleMidiEvent(MidiEvent & ev) override;
   // handleLaunchpadChannelPressureEvent() is UI's own now - a pure
   // LaunchpadManager passthrough, with no widget dependency to override
@@ -127,6 +127,8 @@ protected:
 
  private:
   cellui::Backend & backend_;
+  // A handler of something another thread posted wants the screen redrawn.
+  bool redraw_requested_ = false;
   // What the planes compose into, the size of the terminal; the root plane
   // covers it.
   cellui::CellBuffer screen_;

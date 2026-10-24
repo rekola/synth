@@ -4,6 +4,7 @@
 #include "../UI.h"
 #include "../StyleProvider.h"
 
+#include <cellui/PlatformEventLoop.h>
 #include <cellui/Signal.h>
 #include <memory>
 #include <vector>
@@ -32,20 +33,21 @@ class HeadlessUI : public UI {
   void showChoiceDialog(const std::string & title, std::vector<Choice> choices, int current,
                         std::function<void(int)> on_choose) override;
 
-  void handlePlaybackEvent(PlaybackEvent & ev) override;
-  void handleLogEvent(LogEvent & ev) override;
+  void handlePlaybackEvent(const PlaybackEvent & ev) override;
   // Plays incoming MIDI live on the current track; while note capture is
   // armed and the transport plays, also records it at the playhead.
   void handleMidiEvent(MidiEvent & ev) override;
 
 protected:
   void startUI(AudioAPI & audio, MidiInput & midi, LaunchpadIO & launchpad_io) override;
+  cellui::EventLoop & eventLoop() override { return loop_; }
   void wireLaunchpad(LaunchpadManager & launchpad_manager) override;
 
 private:
   // The once-per-frame work a visual backend does in renderComponents().
   void tick();
 
+  cellui::PlatformEventLoop loop_;
   StyleProvider styles_;
   bool autoplay_ = false;
   bool was_playing_ = false;
