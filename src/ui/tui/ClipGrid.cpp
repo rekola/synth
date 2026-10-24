@@ -214,8 +214,11 @@ ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('x', true, false, false, false), "kill-region");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('c', true, false, false, false), "kill-ring-save");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('v', true, false, false, false), "yank");
-  // F2 (a manual branch of offerInput()) renames on both keymaps; Emacs has
-  // no rename chord of its own, so the desktop gets Ctrl+R as well.
+  // F2 (a manual branch of offerInput()) renames on both keymaps. The grid is
+  // a list of things, so the Emacs keymap takes the list-editing buffer's
+  // plain R (rename); the desktop gets Ctrl+R.
+  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('R', false, false, false, false), "rename");
+  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('R', false, false, true, false), "rename");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('r', true, false, false, false), "rename");
   assertCommandBindingsValid();
 }

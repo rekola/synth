@@ -182,9 +182,9 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
       {"Track", 't', {
                          {"Add Instrument Track", "C-t", "add-instrument-track"},
                          {"Add Percussion Track", "C-S-D", "add-percussion-track"},
-                         {"Add Sample Track", "C-r", "add-sample-track", "C-S-R"},
+                         {"Add Sample Track", "C-c s", "add-sample-track", "C-S-R"},
                          {"Add Group Track", "", "add-group-track"},
-                         {"Rename Track...", "F2", "rename-track", "C-r"},
+                         {"Rename Track...", "R", "rename-track", "C-r"},
                          {"Delete Track", "", "delete-track"},
                          {nullptr, nullptr, nullptr},
                          {nullptr, nullptr, nullptr},
@@ -943,8 +943,10 @@ TerminalUI::initializeWidgets() {
   // Track creation works from every widget, the same as its Track menu
   // entries. Ctrl+Shift+D ("Drum") because plain Ctrl-D is taken.
   keymap_.bind(KeyChord::pack('t', true, false, false, false), "add-instrument-track");
-  // Ctrl+R is rename on the desktop keymap.
-  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('r', true, false, false, false), "add-sample-track");
+  // Ctrl+R is rename on the desktop keymap, and C-r is incremental search in
+  // Emacs, so neither keymap gives it to a new track; C-c followed by a
+  // letter is the chord Emacs leaves to the application.
+  keymap_.bindPrefixed(KeymapProfile::EMACS, KeyChord::pack('c', true, false, false, false), KeyChord::pack('s', false, false, false, false), "add-sample-track");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('r', true, false, true, false), "add-sample-track");
   keymap_.bind(KeyChord::pack('d', true, false, true, false), "add-percussion-track");
 
