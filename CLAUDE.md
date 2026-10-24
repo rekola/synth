@@ -319,7 +319,7 @@ raw-N-channel mixer) was retired entirely along with `STEREO`; every mixer
 `MixerFactory` builds now is `AmbisonicStereoMixer` or
 `AmbisonicBinauralMixer`.
 **Space** toggles playback in both keymaps. Quit, save, open and the rest are
-bound per keymap (`docs/user-interface.md` has the table): on the Emacs keymap,
+bound per keymap (`docs/user-interface.md` has the table): on the terminal keymap,
 used in the terminal, **C-x C-c** quits (Emacs's own
 save-buffers-kill-terminal binding; this codebase follows Emacs keybindings
 there, not one-off shortcuts, wherever Emacs already has a convention for the
@@ -439,7 +439,7 @@ stays permissive too, parsing a non-hex character as digit 0 rather than
 rejecting it (`Command::getAzimuthSlidePerTick()`).
 
 Keymap profiles: a display declares its `cellui::KeymapProfile`
-(`DisplayInfo::keymap_profile`: the terminal `EMACS`, the GTK window `DESKTOP`),
+(`DisplayInfo::keymap_profile`: the terminal `TERMINAL`, the GTK window `DESKTOP`),
 which reaches widgets through `Plane::keymapProfile()`. `Keymap::bind(chord,
 name)` works in both profiles; `bind(profile, chord, name)` only in one and wins
 over a shared binding of the same chord. A binding is migrated by making it
@@ -453,7 +453,7 @@ the desktop chords.
 The command palette (`cellui::CommandPalette`, `cellui/CommandPalette.h`; opened by
 `TerminalUI::showCommandPalette()`) is a modal panel across the bottom rows of
 the screen, where the status line is, with no scrim: the query on the last row
-("M-x " on the Emacs keymap, "> " on the desktop one), the selected command's
+("M-x " on the terminal keymap, "> " on the desktop one), the selected command's
 description above it, and above that the commands that `cellui::fuzzyMatch()`
 (`FuzzyMatch.h`) ranks best first, each with its binding, the list growing
 upward with the number of matches. Only the list is a raised panel
@@ -484,7 +484,7 @@ Controller-level commands (`save-song`, `add-filter`) and the per-widget ones
 (`set-mark`, `kill-region`, `transpose-region-up`/`-down`, …) through the
 same path. Not yet migrated: `StatusLine`, `OutlineView`, and
 `InstrumentList` (dead code anyway). `StatusLine`'s M-x detection is down
-to a single check now, a Meta-x event (the `Input`'s Alt or Meta modifier with `x`, on the Emacs keymap) - it no longer needs
+to a single check now, a Meta-x event (the `Input`'s Alt or Meta modifier with `x`, on the terminal keymap) - it no longer needs
 its own two-step `ESC`-then-`x` state machine, since `TerminalUI`'s
 `cellui::KeyReader` (`cellui/KeyReader.h`, over `cellui/EscapeCoalescer.h`; it
 also holds a bare Escape until the next key decides it, asking the app's
@@ -1398,7 +1398,7 @@ would otherwise resume showing.
     M-x) default to living in `UI::initializeCommands()` (`ui/UI.cpp`),
     not `TerminalUI`, since a future GUI backend shares the same command
     names/behavior even though its own keybindings (or menu items, or
-    toolbar buttons) will look nothing like the Emacs chords `TerminalUI`
+    toolbar buttons) will look nothing like the terminal chords `TerminalUI`
     binds them to - only the *binding* is backend-specific, not what the
     command does. A command stays in `TerminalUI` instead when it
     genuinely can't be shared yet - needs a prompt/dialog (`StatusLine`'s

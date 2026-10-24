@@ -139,26 +139,26 @@ TEST(keymap_finds_the_sequences_for_a_command_per_profile) {
   Keymap map;
   auto cx = KeyChord::pack('x', true, false, false, false);
   auto cs = KeyChord::pack('s', true, false, false, false);
-  map.bindPrefixed(P::EMACS, cx, cs, "save");
+  map.bindPrefixed(P::TERMINAL, cx, cs, "save");
   map.bind(P::DESKTOP, cs, "save");
-  auto emacs = map.sequencesFor("save", P::EMACS);
+  auto emacs = map.sequencesFor("save", P::TERMINAL);
   CHECK(emacs.size() == 1 && emacs[0] == std::vector<uint64_t>({cx, cs}));
   auto desktop = map.sequencesFor("save", P::DESKTOP);
   CHECK(desktop.size() == 1 && desktop[0] == std::vector<uint64_t>({cs}));
-  CHECK(map.sequencesFor("nothing", P::EMACS).empty());
+  CHECK(map.sequencesFor("nothing", P::TERMINAL).empty());
 }
 
 TEST(chords_are_described_per_profile) {
   using P = KeymapProfile;
   auto cx = KeyChord::pack('x', true, false, false, false);
   auto cs = KeyChord::pack('s', true, false, false, false);
-  CHECK(KeyChord::describe({cx, cs}, P::EMACS) == "C-x C-s");
+  CHECK(KeyChord::describe({cx, cs}, P::TERMINAL) == "C-x C-s");
   CHECK(KeyChord::describe({cs}, P::DESKTOP) == "Ctrl+S");
-  CHECK(KeyChord::describe({KeyChord::pack('w', false, true, false, false)}, P::EMACS) == "M-w");
-  CHECK(KeyChord::describe({KeyChord::pack(Key::Up, true, false, true, false)}, P::EMACS) == "C-S-Up");
-  CHECK(KeyChord::describe({KeyChord::pack('d', true, false, true, false)}, P::EMACS) == "C-S-D");
+  CHECK(KeyChord::describe({KeyChord::pack('w', false, true, false, false)}, P::TERMINAL) == "M-w");
+  CHECK(KeyChord::describe({KeyChord::pack(Key::Up, true, false, true, false)}, P::TERMINAL) == "C-S-Up");
+  CHECK(KeyChord::describe({KeyChord::pack('d', true, false, true, false)}, P::TERMINAL) == "C-S-D");
   CHECK(KeyChord::describe({KeyChord::pack('z', true, false, true, false)}, P::DESKTOP) == "Ctrl+Shift+Z");
-  CHECK(KeyChord::describe({KeyChord::pack(' ', false, false, false, false)}, P::EMACS) == "SPC");
+  CHECK(KeyChord::describe({KeyChord::pack(' ', false, false, false, false)}, P::TERMINAL) == "SPC");
   CHECK(KeyChord::describe({KeyChord::pack(Key::F2, false, false, false, false)}, P::DESKTOP) == "F2");
 }
 

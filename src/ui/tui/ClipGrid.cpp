@@ -212,15 +212,15 @@ ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
   keymap_.bind(KeyChord::pack(Key::Delete, false, false, false, false), "kill-region");
   keymap_.bind(KeyChord::pack(Key::Backspace, false, false, false, false), "kill-region");
   keymap_.bind(KeyChord::pack('k', true, false, false, false), "kill-region");
-  // Cut, copy and paste: the Emacs chords in the terminal, the usual
+  // Cut, copy and paste: the terminal chords in the terminal, the usual
   // desktop ones elsewhere.
-  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('w', true, false, false, false), "kill-region");
-  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('w', false, true, false, false), "kill-ring-save");
-  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('y', true, false, false, false), "yank");
+  keymap_.bind(KeymapProfile::TERMINAL, KeyChord::pack('w', true, false, false, false), "kill-region");
+  keymap_.bind(KeymapProfile::TERMINAL, KeyChord::pack('w', false, true, false, false), "kill-ring-save");
+  keymap_.bind(KeymapProfile::TERMINAL, KeyChord::pack('y', true, false, false, false), "yank");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('x', true, false, false, false), "kill-region");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('c', true, false, false, false), "kill-ring-save");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('v', true, false, false, false), "yank");
-  // The Emacs chord is TerminalUI's: its C-c prefix is global, so a widget's
+  // The terminal chord is TerminalUI's: its C-c prefix is global, so a widget's
   // own C-c sequence would never be reached.
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('r', true, false, false, false), "rename");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('u', true, false, false, false), "quantize-clip");

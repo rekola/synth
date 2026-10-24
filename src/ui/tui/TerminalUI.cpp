@@ -905,36 +905,36 @@ TerminalUI::initializeWidgets() {
   // more - see select-named-buffer's own comment above for why there's no
   // separate "New" command left to bind.
   auto ctrl_x = KeyChord::pack('x', true, false, false, false);
-  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('c', true, false, false, false), "save-buffers-kill-terminal");
-  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('s', true, false, false, false), "save-song");
-  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('f', true, false, false, false), "open-song");
-  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('w', true, false, false, false), "save-song-as");
-  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('x', true, false, false, false), "exchange-point-and-mark");
-  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('h', false, false, false, false), "mark-whole-buffer");
+  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyChord::pack('c', true, false, false, false), "save-buffers-kill-terminal");
+  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyChord::pack('s', true, false, false, false), "save-song");
+  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyChord::pack('f', true, false, false, false), "open-song");
+  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyChord::pack('w', true, false, false, false), "save-song-as");
+  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyChord::pack('x', true, false, false, false), "exchange-point-and-mark");
+  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyChord::pack('h', false, false, false, false), "mark-whole-buffer");
   // The buffer commands' own real Emacs bindings, unlike every C-x C-<letter>
   // above, hold Ctrl for the C-x prefix only, not the second key: kill-buffer
   // is C-x k (plain k), next-buffer/previous-buffer are C-x <right>/C-x
   // <left>, and select-named-buffer (switch-to-buffer) is C-x b.
-  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('k', false, false, false, false), "kill-buffer");
-  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack(Key::Right, false, false, false, false), "next-buffer");
-  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack(Key::Left, false, false, false, false), "previous-buffer");
-  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('b', false, false, false, false), "select-named-buffer");
-  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('o', false, false, false, false), "other-window");
-  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('m', false, false, false, false), "merge-clip-to-background");
-  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('r', false, false, false, false), "toggle-record-arm");
+  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyChord::pack('k', false, false, false, false), "kill-buffer");
+  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyChord::pack(Key::Right, false, false, false, false), "next-buffer");
+  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyChord::pack(Key::Left, false, false, false, false), "previous-buffer");
+  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyChord::pack('b', false, false, false, false), "select-named-buffer");
+  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyChord::pack('o', false, false, false, false), "other-window");
+  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyChord::pack('m', false, false, false, false), "merge-clip-to-background");
+  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyChord::pack('r', false, false, false, false), "toggle-record-arm");
   // Emacs's own undo bindings: C-x u, plus C-_ and C-/ (a terminal sends the
   // same byte for both). undo-redo (Emacs 28) is on C-M-_.
-  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_x, KeyChord::pack('u', false, false, false, false), "undo");
-  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('_', true, false, false, false), "undo");
-  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('/', true, false, false, false), "undo");
-  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('_', true, true, false, false), "undo-redo");
+  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_x, KeyChord::pack('u', false, false, false, false), "undo");
+  keymap_.bind(KeymapProfile::TERMINAL, KeyChord::pack('_', true, false, false, false), "undo");
+  keymap_.bind(KeymapProfile::TERMINAL, KeyChord::pack('/', true, false, false, false), "undo");
+  keymap_.bind(KeymapProfile::TERMINAL, KeyChord::pack('_', true, true, false, false), "undo-redo");
   // What terminals actually send for them: the single control byte 0x1f
   // (older builds reported it as key 31, no modifiers; with Alt in front for
   // the redo; the parser now decodes it as Ctrl+_), and in the Kitty protocol Ctrl+Shift+- for C-_.
-  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack(31, false, false, false, false), "undo");
-  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack(31, false, true, false, false), "undo-redo");
-  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('-', true, false, true, false), "undo");
-  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('-', true, true, true, false), "undo-redo");
+  keymap_.bind(KeymapProfile::TERMINAL, KeyChord::pack(31, false, false, false, false), "undo");
+  keymap_.bind(KeymapProfile::TERMINAL, KeyChord::pack(31, false, true, false, false), "undo-redo");
+  keymap_.bind(KeymapProfile::TERMINAL, KeyChord::pack('-', true, false, true, false), "undo");
+  keymap_.bind(KeymapProfile::TERMINAL, KeyChord::pack('-', true, true, true, false), "undo-redo");
   // The desktop ones.
   // File commands, with the C-x prefix Emacs-only (Ctrl+X is cut here).
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('s', true, false, false, false), "save-song");
@@ -951,26 +951,29 @@ TerminalUI::initializeWidgets() {
   // Track creation works from every widget, the same as its Track menu
   // entries. The desktop chords are the usual DAW ones (an audio track is a
   // sample track, a MIDI track an instrument track; Ctrl+Shift+D "Drum" has
-  // no such counterpart). The Emacs keymap uses the same letters after C-c,
+  // no such counterpart). The terminal keymap uses the same letters after C-c,
   // the chord Emacs leaves to the application; Shift is the capital letter.
   auto ctrl_c = KeyChord::pack('c', true, false, false, false);
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('t', true, false, false, false), "add-sample-track");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('t', true, false, true, false), "add-instrument-track");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('g', true, false, false, false), "add-group-track");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('d', true, false, true, false), "add-percussion-track");
-  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_c, KeyChord::pack('r', false, false, false, false), "rename");
-  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_c, KeyChord::pack('t', false, false, false, false), "add-sample-track");
-  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_c, KeyChord::pack('T', false, false, false, false), "add-instrument-track");
-  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_c, KeyChord::pack('T', false, false, true, false), "add-instrument-track");
-  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_c, KeyChord::pack('g', false, false, false, false), "add-group-track");
-  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_c, KeyChord::pack('d', false, false, false, false), "add-percussion-track");
+  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_c, KeyChord::pack('r', false, false, false, false), "rename");
+  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_c, KeyChord::pack('t', false, false, false, false), "add-sample-track");
+  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_c, KeyChord::pack('T', false, false, false, false), "add-instrument-track");
+  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_c, KeyChord::pack('T', false, false, true, false), "add-instrument-track");
+  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_c, KeyChord::pack('g', false, false, false, false), "add-group-track");
+  keymap_.bindPrefixed(KeymapProfile::TERMINAL, ctrl_c, KeyChord::pack('d', false, false, false, false), "add-percussion-track");
   // The Ableton chords (docs/user-interface.md): function keys on both keymaps,
-  // the rest on the desktop one only, where the Emacs keymap has no obvious
+  // the rest on the desktop one only, where the terminal keymap has no obvious
   // counterpart. Duplicate and Capture MIDI are reserved, not built yet.
   keymap_.bind(KeyChord::pack(Key::F9, false, false, false, false), "toggle-record-arm");
   keymap_.bind(KeyChord::pack(Key::F10, false, false, false, false), "back-to-arrangement");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('a', true, false, false, false), "mark-whole-buffer");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('d', true, false, false, false), "duplicate");
+  // The clip grid binds the same chord to quantize-clip; everywhere else it
+  // quantizes the region.
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('u', true, false, false, false), "quantize-region");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('c', true, false, true, false), "capture-midi");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack(Key::Up, true, false, false, false), "double-clip-length");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack(Key::Down, true, false, false, false), "halve-clip-length");

@@ -38,7 +38,7 @@ std::string keyName(int id, bool emacs, bool upper) {
 }  // namespace
 
 std::string describe(const std::vector<uint64_t> & sequence, KeymapProfile profile) {
-  bool emacs = profile == KeymapProfile::EMACS;
+  bool emacs = profile == KeymapProfile::TERMINAL;
   std::string out;
   for (uint64_t chord : sequence) {
     if (!out.empty()) out += ' ';

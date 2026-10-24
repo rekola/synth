@@ -27,7 +27,7 @@ slot in it is empty.
 ## 2. Typing it in
 
 In the clip grid, put the cursor on a scene slot in the **Master** column
-and press **Ctrl+R** (**C-c r** on the Emacs keymap). The slot shows `▸ name ♩tempo n/d` (tempo and signature at
+and press **Ctrl+R** (**C-c r** on the terminal keymap). The slot shows `▸ name ♩tempo n/d` (tempo and signature at
 the right; a long name is cut to fit).
 
 The text you type is split by `scenename::extract()` (`src/model/SceneName.h`):

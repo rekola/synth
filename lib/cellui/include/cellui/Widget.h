@@ -329,7 +329,7 @@ protected:
   }
 
   // The profile the display uses; bindings are looked up in it.
-  KeymapProfile keymapProfile() const { return plane_ ? plane_->keymapProfile() : KeymapProfile::EMACS; }
+  KeymapProfile keymapProfile() const { return plane_ ? plane_->keymapProfile() : KeymapProfile::TERMINAL; }
 
   // Call after populating keymap_/commands_ in a subclass constructor to
   // catch a typo'd command name immediately instead of as a silently dead

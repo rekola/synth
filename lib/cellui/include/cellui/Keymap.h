@@ -13,7 +13,7 @@ namespace cellui {
 
 // Maps key chords (see KeyChord.h) to command names, not directly to
 // callables - this indirection is what lets a bound command also be invoked
-// by name (e.g. from an command palette), mirroring how Emacs keymaps
+// by name (e.g. from an command palette), mirroring how terminal keymaps
 // bind keys to command symbols rather than to functions directly.
 //
 // Also supports two-key Emacs-style prefix sequences (C-x C-s, C-x C-c, ...)
@@ -87,8 +87,8 @@ class Keymap {
     std::unordered_map<uint64_t, Chords> prefixed;
   };
 
-  Table & table(KeymapProfile profile) { return profile == KeymapProfile::EMACS ? emacs_ : desktop_; }
-  const Table & table(KeymapProfile profile) const { return profile == KeymapProfile::EMACS ? emacs_ : desktop_; }
+  Table & table(KeymapProfile profile) { return profile == KeymapProfile::TERMINAL ? emacs_ : desktop_; }
+  const Table & table(KeymapProfile profile) const { return profile == KeymapProfile::TERMINAL ? emacs_ : desktop_; }
 
   static const std::string * find(const Chords & chords, uint64_t chord) {
     auto it = chords.find(chord);

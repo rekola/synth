@@ -35,10 +35,10 @@ TEST(keymap_binds_prefixes_and_checks_names) {
   auto cx = KeyChord::pack('x', true, false, false, false);
   auto cc = KeyChord::pack('c', true, false, false, false);
   map.bindPrefixed(cx, cc, "quit");
-  CHECK(map.isPrefix(cx, KeymapProfile::EMACS));
-  CHECK(!map.isPrefix(cc, KeymapProfile::EMACS));
-  CHECK(map.lookup(cx, KeymapProfile::EMACS) == nullptr);
-  CHECK(map.lookupPrefixed(cx, cc, KeymapProfile::EMACS) && *map.lookupPrefixed(cx, cc, KeymapProfile::EMACS) == "quit");
+  CHECK(map.isPrefix(cx, KeymapProfile::TERMINAL));
+  CHECK(!map.isPrefix(cc, KeymapProfile::TERMINAL));
+  CHECK(map.lookup(cx, KeymapProfile::TERMINAL) == nullptr);
+  CHECK(map.lookupPrefixed(cx, cc, KeymapProfile::TERMINAL) && *map.lookupPrefixed(cx, cc, KeymapProfile::TERMINAL) == "quit");
   CHECK(map.allBoundIn(reg));
   map.bind(cc, "typo");
   CHECK(!map.allBoundIn(reg));
@@ -51,17 +51,17 @@ TEST(keymap_profiles_keep_their_own_bindings) {
   auto cx = KeyChord::pack('x', true, false, false, false);
   auto cs = KeyChord::pack('s', true, false, false, false);
   map.bind(cy, "shared");
-  map.bind(P::EMACS, cy, "yank");
+  map.bind(P::TERMINAL, cy, "yank");
   map.bind(P::DESKTOP, cx, "cut");
-  map.bindPrefixed(P::EMACS, cx, cs, "save");
+  map.bindPrefixed(P::TERMINAL, cx, cs, "save");
   // A profile's own binding wins over a shared one; the other profile still
   // sees the shared one.
-  CHECK(*map.lookup(cy, P::EMACS) == "yank");
+  CHECK(*map.lookup(cy, P::TERMINAL) == "yank");
   CHECK(*map.lookup(cy, P::DESKTOP) == "shared");
   // A chord bound for one profile is unbound in the other, prefixes included.
-  CHECK(map.lookup(cx, P::EMACS) == nullptr);
+  CHECK(map.lookup(cx, P::TERMINAL) == nullptr);
   CHECK(*map.lookup(cx, P::DESKTOP) == "cut");
-  CHECK(map.isPrefix(cx, P::EMACS));
+  CHECK(map.isPrefix(cx, P::TERMINAL));
   CHECK(!map.isPrefix(cx, P::DESKTOP));
   CHECK(map.lookupPrefixed(cx, cs, P::DESKTOP) == nullptr);
 }

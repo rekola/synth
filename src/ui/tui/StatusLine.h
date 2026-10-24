@@ -20,7 +20,7 @@ class StatusLine : public UIElement {
     getPlane().setBgDefault();
   }
 
-  // The chord that opens the command prompt: Meta-x on the Emacs keymap
+  // The chord that opens the command prompt: Meta-x on the terminal keymap
   // (whether the terminal sent it as one event or as ESC then x, KeyReader
   // folds either into a single Meta-modified event before it gets here),
   // Ctrl+Shift+P on the desktop one.

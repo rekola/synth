@@ -188,7 +188,7 @@ void CommandPalette::show(Plane & parent, int screen_rows, int screen_cols) {
 
   // The query on the last row, with a block where the next character goes
   // and the keys that matter at the right when there is room.
-  string prompt = plane_->keymapProfile() == KeymapProfile::EMACS ? "M-x " : "> ";
+  string prompt = plane_->keymapProfile() == KeymapProfile::TERMINAL ? "M-x " : "> ";
   int prompt_width = utf8::displayWidth(prompt);
   plain(strong);
   plane_->setBold(true);

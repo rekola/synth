@@ -657,25 +657,25 @@ PatternEditor::PatternEditor(Plane & parent)
   keymap_.bind(KeyChord::pack('+', true, false, false, false), "edit-step-increase");
   keymap_.bind(KeyChord::pack('-', true, false, false, false), "edit-step-decrease");
   keymap_.bind(KeyChord::pack(' ', true, false, false, false), "set-mark");  // Ctrl-Space
-  // Cut, copy and paste: the Emacs chords in the terminal, the usual
+  // Cut, copy and paste: the terminal chords in the terminal, the usual
   // desktop ones elsewhere.
-  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('w', true, false, false, false), "kill-region");
-  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('w', false, true, false, false), "kill-ring-save"); // Alt-W
-  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('y', true, false, false, false), "yank");
+  keymap_.bind(KeymapProfile::TERMINAL, KeyChord::pack('w', true, false, false, false), "kill-region");
+  keymap_.bind(KeymapProfile::TERMINAL, KeyChord::pack('w', false, true, false, false), "kill-ring-save"); // Alt-W
+  keymap_.bind(KeymapProfile::TERMINAL, KeyChord::pack('y', true, false, false, false), "yank");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('x', true, false, false, false), "kill-region");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('c', true, false, false, false), "kill-ring-save");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('v', true, false, false, false), "yank");
   keymap_.bind(KeyChord::pack('k', true, false, false, false), "kill-row"); // Ctrl-K
   keymap_.bind(KeyChord::pack(Key::Insert, false, false, false, false), "insert-row"); // plain Insert (was inline handling)
   // Ctrl+G is Group Tracks on the desktop, so cancelling is Escape there.
-  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('g', true, false, false, false), "keyboard-quit");
+  keymap_.bind(KeymapProfile::TERMINAL, KeyChord::pack('g', true, false, false, false), "keyboard-quit");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack(Key::Escape, false, false, false, false), "keyboard-quit");
   keymap_.bind(KeyChord::pack(Key::Up, true, false, true, false), "transpose-region-up");    // Ctrl+Shift+Up
   keymap_.bind(KeyChord::pack(Key::Down, true, false, true, false), "transpose-region-down"); // Ctrl+Shift+Down
   keymap_.bind(KeyChord::pack('\\', true, false, false, false), "toggle-solo");  // Ctrl-\ (was Ctrl-only inline handling)
   keymap_.bind(KeyChord::pack('\\', false, false, false, false), "toggle-mute"); // backslash key
   // Ctrl+Shift+C is Capture MIDI on the desktop keymap.
-  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('c', true, false, true, false), "toggle-track-collapse"); // Ctrl+Shift+C ("Collapse")
+  keymap_.bind(KeymapProfile::TERMINAL, KeyChord::pack('c', true, false, true, false), "toggle-track-collapse"); // Ctrl+Shift+C ("Collapse")
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('r', true, false, false, false), "rename");
   keymap_.bind(KeyChord::pack(Key::Up, false, false, false, false), "move-row-up");     // plain Up (was inline handling)
   keymap_.bind(KeyChord::pack(Key::Down, false, false, false, false), "move-row-down"); // plain Down

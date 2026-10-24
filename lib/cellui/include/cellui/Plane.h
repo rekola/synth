@@ -76,7 +76,7 @@ class Plane {
   // reports no DPI, so its backend guesses from the cell size.
   virtual double displayScale() const { return 1.0; }
   // The family of key chords this display uses (widgets bind per profile).
-  virtual KeymapProfile keymapProfile() const { return KeymapProfile::EMACS; }
+  virtual KeymapProfile keymapProfile() const { return KeymapProfile::TERMINAL; }
   // Whether setScrollOffset() shifts a plane here.
   virtual bool smoothScroll() const { return false; }
   // The plane's size in pixels, when the display can show pixels here;

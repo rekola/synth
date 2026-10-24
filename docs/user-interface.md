@@ -5,16 +5,18 @@ Everything the program does is a named command (`kill-region`, `launch-scene`,
 [command palette](#command-palette), most are in the menus, and a keymap binds
 keys to them.
 
-There are two keymaps, and a display uses one of them: the terminal the Emacs
-keymap, the window the desktop one. The command names are the same in both.
-The terminal uses the Emacs keymap because a terminal can't send many of the
+There are two keymaps, and a display uses one of them: the terminal the
+terminal keymap, the window the desktop one. The command names are the same in
+both. The terminal keymap is based on Emacs's keybindings (mark and point, kill
+and yank, M-x, the C-x prefix), but it is this program's own and not Emacs's:
+it adds chords Emacs has no counterpart for. It is used in the terminal because a terminal can't send many of the
 key combinations the usual desktop shortcuts rely on (most Ctrl+Shift chords,
 and Ctrl-C, Ctrl-Z and Ctrl-S belong to the terminal itself), while Emacs's
 prefix keys work in any terminal. The desktop keymap follows the usual desktop,
 DAW and tracker conventions. A binding that has not been given a desktop chord
 works in both. The commands that have one so far:
 
-| Command | Desktop chord | Emacs chord |
+| Command | Desktop chord | Terminal chord |
 | --- | --- | --- |
 | command palette | Ctrl+Shift+P | M-x |
 | `undo` | Ctrl+Z | C-x u, C-/ |
@@ -33,7 +35,8 @@ works in both. The commands that have one so far:
 | `stop-track-clips` (the cursor track's clips, not the others) | Ctrl+Enter | |
 | `back-to-arrangement` | F10 | F10 |
 | `toggle-record-arm` (record) | F9 | F9 |
-| `quantize-clip` (the clip under the cursor in the clip grid; nothing else yet) | Ctrl+U | |
+| `quantize-clip` (the clip under the cursor in the clip grid; in the pattern editor the same chord is `quantize-region`, below) | Ctrl+U | |
+| `quantize-region` (the pattern editor's selection) — **not built yet**, chord reserved | Ctrl+U | |
 | `duplicate` — **not built yet**, chord reserved | Ctrl+D | |
 | `double-clip-length` — **not built yet**, chord reserved | Ctrl+Up | |
 | `halve-clip-length` — **not built yet**, chord reserved | Ctrl+Down | |
@@ -44,18 +47,18 @@ works in both. The commands that have one so far:
 | `save-buffers-kill-terminal` (quit) | Ctrl+Q | C-x C-c |
 
 The desktop chords follow Ableton Live's shortcuts where this program has the
-same thing; an empty Emacs cell means Emacs has no obvious counterpart, so the
+same thing; an empty Terminal cell means the Emacs keybindings it is based on have no obvious counterpart, so the
 chord is left free. `toggle-track-collapse` therefore has its chord (Ctrl+Shift+C) on
-the Emacs keymap only, as Capture MIDI has it on the desktop one.
+the terminal keymap only, as Capture MIDI has it on the desktop one.
 
-Ctrl+X is cut there, so the `C-x` prefix sequences are Emacs-only; the buffer
+Ctrl+X is cut there, so the `C-x` prefix sequences are terminal-only; the buffer
 commands (`next-buffer`, `kill-buffer`, ...) have no desktop chord yet and are
 in the menus and the command palette. What the terminal can't do is listed
 under [Terminal](#terminal) at the end.
 
 ## Command palette
 
-M-x (Meta-x: the Alt key with x, or Escape and then x) on the Emacs keymap and
+M-x (Meta-x: the Alt key with x, or Escape and then x) on the terminal keymap and
 Ctrl+Shift+P on the desktop one open the command palette, which runs any
 command by name. It sits on the last rows of the
 screen, where the status line is: the query on the last row (`M-x ` or `> `),
@@ -79,9 +82,9 @@ command palette of Sublime Text the chord Ctrl+Shift+P, matching the typed
 letters in order, and showing each command's keybinding and description. There is no minibuffer: the status line only shows
 messages and asks for names (a file, a buffer, a new name).
 
-## Emacs keymap
+## Terminal keymap
 
-The rest of this page gives the Emacs keymap, unless it says otherwise. Mark and point selection, kill and yank, M-x for any named command, ESC as the
+The rest of this page gives the terminal keymap, unless it says otherwise. Mark and point selection, kill and yank, M-x for any named command, ESC as the
 Meta prefix, C-x C-c to quit and C-k to kill a row. Each open song is a buffer,
 as in Emacs, and `next-buffer` and `previous-buffer` switch between them. An
 operation that is a copy or a move is done with the kill ring rather than with
