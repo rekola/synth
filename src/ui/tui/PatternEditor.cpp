@@ -625,6 +625,7 @@ PatternEditor::PatternEditor(Plane & parent)
   // Opens the in-place editor for whatever track the cursor's column
   // belongs to - see startTrackNameEdit()'s own comment for why it's a
   // no-op on a track with no name field at all.
+  commands_.define("rename", [this]() { startTrackNameEdit(); });
   commands_.define("rename-track", [this]() { startTrackNameEdit(); });
 
   // Manual note-column add/remove (see Controller::addNoteColumn/
@@ -672,7 +673,7 @@ PatternEditor::PatternEditor(Plane & parent)
   keymap_.bind(KeyChord::pack('\\', true, false, false, false), "toggle-solo");  // Ctrl-\ (was Ctrl-only inline handling)
   keymap_.bind(KeyChord::pack('\\', false, false, false, false), "toggle-mute"); // backslash key
   keymap_.bind(KeyChord::pack('c', true, false, true, false), "toggle-track-collapse"); // Ctrl+Shift+C ("Collapse")
-  keymap_.bind(KeyChord::pack(Key::F2, false, false, false, false), "rename-track"); // F2
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('r', true, false, false, false), "rename");
   keymap_.bind(KeyChord::pack(Key::Up, false, false, false, false), "move-row-up");     // plain Up (was inline handling)
   keymap_.bind(KeyChord::pack(Key::Down, false, false, false, false), "move-row-down"); // plain Down
   keymap_.bind(KeyChord::pack(Key::Right, true, false, true, false), "add-note-column");   // Ctrl+Shift+Right

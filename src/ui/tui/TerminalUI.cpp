@@ -180,11 +180,11 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                         {"Clear Tuning Corrections", "", "clear-tuning-correction-region"},
                     }},
       {"Track", 't', {
-                         {"Add Instrument Track", "C-t", "add-instrument-track"},
-                         {"Add Percussion Track", "C-S-D", "add-percussion-track"},
+                         {"Add Instrument Track", "C-c i", "add-instrument-track", "C-t"},
+                         {"Add Percussion Track", "C-c d", "add-percussion-track", "C-S-D"},
                          {"Add Sample Track", "C-c s", "add-sample-track", "C-S-R"},
                          {"Add Group Track", "", "add-group-track"},
-                         {"Rename Track...", "R", "rename-track", "C-r"},
+                         {"Rename Track...", "C-c r", "rename-track", "C-r"},
                          {"Delete Track", "", "delete-track"},
                          {nullptr, nullptr, nullptr},
                          {nullptr, nullptr, nullptr},
@@ -836,6 +836,11 @@ TerminalUI::initializeWidgets() {
   // level (dispatchCommand() below checks *this* registry, not
   // PatternEditor's - unlike the M-x path, which does go through that
   // fallback chain).
+  // Rename is the focused widget's (the pattern editor when that has none).
+  commands_.define("rename", [this]() {
+    auto el = active_element_.lock();
+    if (!(el && el->executeCommand("rename"))) pattern_editor_->executeCommand("rename");
+  });
   commands_.define("exchange-point-and-mark", [this]() { pattern_editor_->executeCommand("exchange-point-and-mark"); });
   // Same reasoning: the C-x prefix is only recognized here, but the whole
   // song is selected in the pattern editor.
@@ -941,14 +946,18 @@ TerminalUI::initializeWidgets() {
   keymap_.bind(KeyChord::pack(']', false, false, false, false), "octave-up");
   keymap_.bind(KeyChord::pack('\t', false, false, false, false), "toggle-view");
   // Track creation works from every widget, the same as its Track menu
-  // entries. Ctrl+Shift+D ("Drum") because plain Ctrl-D is taken.
-  keymap_.bind(KeyChord::pack('t', true, false, false, false), "add-instrument-track");
-  // Ctrl+R is rename on the desktop keymap, and C-r is incremental search in
-  // Emacs, so neither keymap gives it to a new track; C-c followed by a
-  // letter is the chord Emacs leaves to the application.
-  keymap_.bindPrefixed(KeymapProfile::EMACS, KeyChord::pack('c', true, false, false, false), KeyChord::pack('s', false, false, false, false), "add-sample-track");
+  // entries. On the desktop keymap Ctrl+Shift+D is "Drum" because plain
+  // Ctrl-D is taken, and Ctrl+R is rename, so a sample track is Ctrl+Shift+R.
+  // On the Emacs keymap C-c followed by a letter is the chord Emacs leaves to
+  // the application (C-t and C-r are transpose and search there).
+  auto ctrl_c = KeyChord::pack('c', true, false, false, false);
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('t', true, false, false, false), "add-instrument-track");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('r', true, false, true, false), "add-sample-track");
-  keymap_.bind(KeyChord::pack('d', true, false, true, false), "add-percussion-track");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('d', true, false, true, false), "add-percussion-track");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_c, KeyChord::pack('r', false, false, false, false), "rename");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_c, KeyChord::pack('i', false, false, false, false), "add-instrument-track");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_c, KeyChord::pack('s', false, false, false, false), "add-sample-track");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_c, KeyChord::pack('d', false, false, false, false), "add-percussion-track");
 
   assertCommandBindingsValid();
 

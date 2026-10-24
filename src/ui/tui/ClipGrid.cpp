@@ -214,11 +214,8 @@ ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('x', true, false, false, false), "kill-region");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('c', true, false, false, false), "kill-ring-save");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('v', true, false, false, false), "yank");
-  // F2 (a manual branch of offerInput()) renames on both keymaps. The grid is
-  // a list of things, so the Emacs keymap takes the list-editing buffer's
-  // plain R (rename); the desktop gets Ctrl+R.
-  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('R', false, false, false, false), "rename");
-  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('R', false, false, true, false), "rename");
+  // The Emacs chord is TerminalUI's: its C-c prefix is global, so a widget's
+  // own C-c sequence would never be reached.
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('r', true, false, false, false), "rename");
   assertCommandBindingsValid();
 }
@@ -542,8 +539,8 @@ ClipGrid::offerInput(const cellui::Input & input) {
   if (input.getKind() == InputEvent::Kind::RELEASE) return false;
 
   // Navigation, plus the manual (non-command) part of this widget's own
-  // input handling: Enter (clip focus toggle, on a clip row), F2 (rename
-  // the clip under the cursor), 'l' (toggle its own loop flag) - Mute/
+  // input handling: Enter (clip focus toggle, on a clip row),
+  // 'l' (toggle its own loop flag) - Mute/
   // Solo are dispatchCommand()'s job now, handled above via this
   // constructor's own toggle-mute/toggle-solo bindings.
   if (input.getId() == Key::Up) cursor_row_--;
@@ -562,10 +559,7 @@ ClipGrid::offerInput(const cellui::Input & input) {
   }
   else if (input.getId() == Key::PageUp) cursor_row_ -= getDim().first;
   else if (input.getId() == Key::PageDown) cursor_row_ += getDim().first;
-  else if (input.getId() == Key::F2) {
-    startRename();
-    return true;
-  } else if (input.getId() == 'l' && !input.hasCtrl() && !input.hasAlt()) {
+  else if (input.getId() == 'l' && !input.hasCtrl() && !input.hasAlt()) {
     // Loop toggle - only meaningful on a clip row that actually has a
     // clip; a no-op (but still consumed) anywhere else.
     if (rowKindFor(cursor_row_) == RowKind::CLIP && cursor_track_index_ >= 0 && cursor_track_index_ < num_tracks) {
@@ -583,8 +577,8 @@ ClipGrid::offerInput(const cellui::Input & input) {
   } else if (input.getId() == Key::Enter) {
     activateCell(song, track_ids);
     return true;
-  }
-  else return false;
+  } else
+    return false;
 
   cursor_track_index_ = clamp(cursor_track_index_, 0, num_tracks); // num_tracks: the master column
   cursor_row_ = clamp(cursor_row_, 1, logicalRowCount() - 1); // never the header row

@@ -11,7 +11,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import harness as vk
 
-F2 = b"\x1bOQ"
+RENAME = vk.ctrl("c") + b"r"
 UP, DOWN, CTRL_RIGHT = b"\x1b[A", b"\x1b[B", b"\x1b[1;5C"
 LIVE_SONG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "launchpad_live_test.xml")
 
@@ -46,7 +46,7 @@ def arrangement_and_pattern_editor():
 
     # Initial focus is the ArrangementGrid.
     vk.other_window(scr)
-    scr.send(F2)
+    scr.send(RENAME)
     scr.pump(0.4)
     type_text(scr, "Zed Q")
     scr.send(b"\r")
@@ -54,7 +54,7 @@ def arrangement_and_pattern_editor():
     check("track rename commits", "T0 Zed Q" in scr.dump(), scr)
     check("space in track name does not start playback", not vk.is_playing(scr), scr)
 
-    scr.send(F2)
+    scr.send(RENAME)
     scr.pump(0.4)
     type_text(scr, "NOPE")
     scr.send(vk.ctrl('g'))
@@ -62,7 +62,7 @@ def arrangement_and_pattern_editor():
     d = scr.dump()
     check("Ctrl-g cancels track rename", "NOPE" not in d and "T0 Zed Q" in d, scr)
 
-    scr.send(F2)
+    scr.send(RENAME)
     scr.pump(0.4)
     type_text(scr, "ALSO")
     scr.send(b"\x1bx")
@@ -95,7 +95,7 @@ def clip_grid():
     for _ in range(7):
         scr.send(DOWN)
         scr.pump(0.15)
-    scr.send(F2)
+    scr.send(RENAME)
     scr.pump(0.4)
     type_text(scr, " B")
     scr.send(b"\r")
@@ -106,7 +106,7 @@ def clip_grid():
     for _ in range(8):
         scr.send(UP)
         scr.pump(0.15)
-    scr.send(F2)
+    scr.send(RENAME)
     scr.pump(0.4)
     type_text(scr, "Bass Y")
     scr.send(b"\r")
