@@ -211,6 +211,7 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                         {"Copy Clip", "M-w", "kill-ring-save", "C-c"},
                         {"Kill Clip", "C-w", "kill-region", "C-x"},
                         {"Yank Clip", "C-y", "yank", "C-v"},
+                        {"Insert Scene", "", "insert-scene", "C-i"},
                         {"Duplicate", "", "duplicate", "C-d"},
                         {"Capture MIDI", "", "capture-midi", "C-S-C"},
                         {"Quantize Clip", "", "quantize-clip", "C-u"},
@@ -971,6 +972,7 @@ TerminalUI::initializeWidgets() {
   keymap_.bind(KeyChord::pack(Key::F10, false, false, false, false), "back-to-arrangement");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('a', true, false, false, false), "mark-whole-buffer");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('d', true, false, false, false), "duplicate");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('i', true, false, false, false), "insert-scene");
   // The clip grid binds the same chord to quantize-clip; everywhere else it
   // quantizes the region.
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('u', true, false, false, false), "quantize-region");

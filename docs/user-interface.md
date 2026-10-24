@@ -37,6 +37,7 @@ works in both. The commands that have one so far:
 | `toggle-record-arm` (record) | F9 | F9 |
 | `quantize-clip` (the clip under the cursor in the clip grid; in the pattern editor the same chord is `quantize-region`, below) | Ctrl+U | |
 | `quantize-region` (the pattern editor's selection) — **not built yet**, chord reserved | Ctrl+U | |
+| `insert-scene` (an empty scene below the cursor's, shifting the later ones down) — **not built yet**, chord reserved | Ctrl+I | |
 | `duplicate` — **not built yet**, chord reserved | Ctrl+D | |
 | `double-clip-length` — **not built yet**, chord reserved | Ctrl+Up | |
 | `halve-clip-length` — **not built yet**, chord reserved | Ctrl+Down | |

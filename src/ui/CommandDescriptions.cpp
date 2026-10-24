@@ -48,6 +48,7 @@ commandDescription(std::string_view name) {
       {"quantize-clip", "Snap the clip's notes to the nearest row"},
       {"remove-note-column", "Remove the track's last note column"},
       {"quantize-region", "Snap the notes of the selection to the nearest row (not built yet)"},
+      {"insert-scene", "Insert an empty scene below the cursor's (not built yet)"},
       {"duplicate", "Duplicate the selection (not built yet)"},
       {"capture-midi", "Capture the notes just played (not built yet)"},
       {"stop-track-clips", "Stop the cursor track's clips on the next bar"},
