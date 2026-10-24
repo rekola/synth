@@ -106,11 +106,6 @@ void HeadlessUI::showChoiceDialog(const std::string & title, std::vector<Choice>
 }
 
 void
-HeadlessUI::handleLogEvent(LogEvent & ev) {
-  setStatus(ev.getText());
-}
-
-void
 HeadlessUI::handleMidiEvent(MidiEvent & ev) {
   auto & controller = getController();
   auto & song = controller.getSong();
@@ -131,8 +126,7 @@ HeadlessUI::handleMidiEvent(MidiEvent & ev) {
   });
 }
 
-void
-HeadlessUI::handlePlaybackEvent(PlaybackEvent & ev) {
+void HeadlessUI::handlePlaybackEvent(const PlaybackEvent & ev) {
   getController().receivePlaybackSnapshot(ev.getBufferName(), ev.getInfo());
   if (ev.getBufferName() != getController().getActiveBufferName()) return;
 
@@ -204,24 +198,23 @@ HeadlessUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
   midi.addTo(waits, midi_group);
   launchpad_io.addTo(waits, launchpad_group);
 
-  cellui::PlatformEventLoop loop;
-  addWaitGroup(loop, waits, events_group, [this] {
+  addWaitGroup(loop_, waits, events_group, [this] {
     while (getController().getUIEventQueue().hasEvents()) {
       auto event = getController().getUIEventQueue().pop();
       handleEvent(*event);
     }
   });
-  addWaitGroup(loop, waits, midi_group, [&] {
+  addWaitGroup(loop_, waits, midi_group, [&] {
     for (auto & ev : midi.readEvents()) handleEvent(ev);
   });
-  addWaitGroup(loop, waits, launchpad_group, [&] {
+  addWaitGroup(loop_, waits, launchpad_group, [&] {
     for (auto & ev : launchpad_io.pollEvents()) handleEvent(*ev);
   });
   // A turn ends at least every tick (a shutdown signal ends the wait early).
-  loop.setBefore([] { return kTickIntervalMs; });
-  loop.setAfter([this, &loop](bool) {
+  loop_.setBefore([] { return kTickIntervalMs; });
+  loop_.setAfter([this](bool) {
     tick();
-    if (shouldClose()) loop.quit();
+    if (shouldClose()) loop_.quit();
   });
 
   if (autoplay_) {
@@ -229,5 +222,5 @@ HeadlessUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
     setStatus("Autoplay");
   }
 
-  if (!shouldClose()) loop.run();
+  if (!shouldClose()) loop_.run();
 }

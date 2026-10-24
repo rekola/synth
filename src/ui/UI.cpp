@@ -25,6 +25,8 @@
 #include "../model/Song.h"
 #include "../model/ArrangementOps.h"
 #include "../model/PatternBlockOps.h"
+#include "../playback/LogEvent.h"
+#include "../playback/PlaybackEvent.h"
 #include "../playback/RecordEvent.h"
 #include "../playback/RecordingLatencyEvent.h"
 #include "../playback/ThresholdRecordingTriggeredEvent.h"
@@ -39,6 +41,14 @@ using namespace std;
 
 namespace {
 
+// A handler of E on `root` that always takes the event.
+template <class E, class F>
+cellui::Connection subscribe(cellui::Widget & root, F fn) {
+  return root.on<E>([fn](const E & ev, cellui::EventContext &) {
+    fn(ev);
+    return cellui::Handled::yes;
+  });
+}
 
 void audio_thread_func(Controller * controller, AudioAPI * audio) {
   setCurrentThreadName("synth-audio");
@@ -109,6 +119,17 @@ UI::start(AudioAPI & audio, MidiInput & midi, LaunchpadIO & launchpad_io, Launch
   wireLaunchpad(launchpad_manager);
 
   setCurrentThreadName("synth-ui");
+  // What the audio and visualization threads post to the UI arrives here,
+  // on this thread, through the loop startUI() runs.
+  cellui::ThreadInbox inbox(eventLoop(), *this);
+  std::vector<cellui::Connection> subscriptions;
+  subscriptions.push_back(subscribe<PlaybackEvent>(*this, [this](const PlaybackEvent & ev) { handlePlaybackEvent(ev); }));
+  subscriptions.push_back(subscribe<LogEvent>(*this, [this](const LogEvent & ev) { setStatus(ev.getText()); }));
+  subscriptions.push_back(subscribe<RecordEvent>(*this, [this](const RecordEvent & ev) { handleRecordEvent(ev); }));
+  subscriptions.push_back(subscribe<RecordingLatencyEvent>(*this, [this](const RecordingLatencyEvent & ev) { handleRecordingLatencyEvent(ev); }));
+  subscriptions.push_back(subscribe<ThresholdRecordingTriggeredEvent>(*this, [this](const ThresholdRecordingTriggeredEvent & ev) { handleThresholdRecordingTriggeredEvent(ev); }));
+  getController().setUIInbox(&inbox);
+
   std::thread audio_thread(audio_thread_func, &(getController()), &audio);
   std::thread visualization_thread(visualization_thread_func, &(getController()), audio.getFrequency(), audio.getFrameCount());
 
@@ -119,6 +140,7 @@ UI::start(AudioAPI & audio, MidiInput & midi, LaunchpadIO & launchpad_io, Launch
 
   audio_thread.join();
   visualization_thread.join();
+  getController().setUIInbox(nullptr);
 }
 
 void
@@ -286,8 +308,7 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
   dispatch_named_command(ev.getCCNumber());
 }
 
-void
-UI::handleRecordEvent(RecordEvent & ev) {
+void UI::handleRecordEvent(const RecordEvent & ev) {
   if (getController().isRecording()) {
     setStatus(fmt::format("recorded {} frames", ev.getData().size()));
     getController().addToSample(ev.getData());
@@ -303,8 +324,7 @@ UI::handleRecordEvent(RecordEvent & ev) {
   }
 }
 
-void
-UI::handleRecordingLatencyEvent(RecordingLatencyEvent & ev) {
+void UI::handleRecordingLatencyEvent(const RecordingLatencyEvent & ev) {
   // Both guards defensive - Player.cpp only ever pushes this once per
   // take (the false -> true edge of Controller::isRecording()), and
   // hasRecordingClip() being already true would mean a second, spurious
@@ -316,8 +336,7 @@ UI::handleRecordingLatencyEvent(RecordingLatencyEvent & ev) {
   }
 }
 
-void
-UI::handleThresholdRecordingTriggeredEvent(ThresholdRecordingTriggeredEvent & ev) {
+void UI::handleThresholdRecordingTriggeredEvent(const ThresholdRecordingTriggeredEvent & ev) {
   // Defensive, same reasoning as handleRecordingLatencyEvent() above -
   // Player.cpp only ever pushes this once per arm cycle (its own
   // threshold_triggered_this_arm_cycle_ latch).

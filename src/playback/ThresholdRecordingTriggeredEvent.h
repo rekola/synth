@@ -1,8 +1,6 @@
 #ifndef _THRESHOLDRECORDINGTRIGGEREDEVENT_H_
 #define _THRESHOLDRECORDINGTRIGGEREDEVENT_H_
 
-#include "Event.h"
-#include "EventHandler.h"
 #include "../audio/AudioBuffer.h"
 
 // Pushed by Player.cpp's poll loop the instant captured input crosses the
@@ -18,12 +16,10 @@
 // way it owns every other recording-position field - see Controller::
 // armRecordingStart()'s own comment on why that crossing always goes
 // through an event, never a direct cross-thread field write).
-class ThresholdRecordingTriggeredEvent : public Event {
-public:
+class ThresholdRecordingTriggeredEvent {
+ public:
   ThresholdRecordingTriggeredEvent(int track_id, AudioBuffer preroll, int row)
     : track_id_(track_id), preroll_(std::move(preroll)), row_(row) { }
-
-  void dispatch(EventHandler & evh) override { evh.handleThresholdRecordingTriggeredEvent(*this); }
 
   int getTrackId() const { return track_id_; }
   const AudioBuffer & getPreroll() const { return preroll_; }

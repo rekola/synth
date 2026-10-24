@@ -1681,8 +1681,12 @@ TerminalUI::layoutInfoDialog() {
   info_dialog_.center(screen_rows, screen_cols);
 }
 
-void
-TerminalUI::handlePlaybackEvent(PlaybackEvent & ev) {
+cellui::EventLoop &
+TerminalUI::eventLoop() {
+  return backend_.eventLoop();
+}
+
+void TerminalUI::handlePlaybackEvent(const PlaybackEvent & ev) {
   // Reconciled, not a plain setPlaybackInfo() - see Controller::
   // receivePlaybackSnapshot()'s own comment: this snapshot's own
   // edit-position fields can be stale relative to a more recent local
@@ -1736,7 +1740,7 @@ TerminalUI::handlePlaybackEvent(PlaybackEvent & ev) {
   }
   if (signature != last_playback_signature_) {
     last_playback_signature_ = signature;
-    ev.redraw();
+    redraw_requested_ = true;
   }
 }
 
@@ -1854,11 +1858,6 @@ TerminalUI::handleVisualizationResultEvent(VisualizationResultEvent & ev) {
   }
 
   if (changed) ev.redraw();
-}
-
-void
-TerminalUI::handleLogEvent(LogEvent & ev) {
-  setStatus(ev.getText());
 }
 
 void
@@ -2198,6 +2197,8 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
     count(woken ? "wake" : "timeout");
 
     if (woken || frame_pending) {
+      if (redraw_requested_) render = true;
+      redraw_requested_ = false;
       render_pending |= render;
       auto now = std::chrono::steady_clock::now();
       if (!other_wake && !render_pending && !frame_pending && now - last_frame < kIdleFrameInterval) {

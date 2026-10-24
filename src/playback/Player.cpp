@@ -39,14 +39,14 @@ float dbToLinear(float db) { return db > -100.0f ? powf(10.0f, db * 0.05f) : 0.0
 
 class EventLogger : public Logger {
  public:
-  EventLogger(EventQueue * _event_queue) : event_queue(_event_queue) { }
+  EventLogger(Controller * _controller) : controller(_controller) {}
 
   void log(std::string s) override {
-    event_queue->push(make_unique<LogEvent>(std::move(s)));
+    controller->postToUI(LogEvent(std::move(s)));
   }
 
 private:
-  EventQueue * event_queue;
+ Controller * controller;
 };
 
 SongState &
@@ -142,7 +142,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
   case PlaybackControlEvent::SET_CAPTURE_DEVICE:
   case PlaybackControlEvent::SET_PLAYBACK_DEVICE: {
     if (!audio_) return;
-    EventLogger logger(&controller_->getUIEventQueue());
+    EventLogger logger(controller_);
     bool capture = ev.getType() == PlaybackControlEvent::SET_CAPTURE_DEVICE;
     // Controller refuses this up front, but a take can begin between that
     // check and this event; the stream in use must not be swapped.
@@ -756,7 +756,7 @@ void Player::handleQueuedEvent(std::unique_ptr<Event> event) {
 
 void
 Player::play(AudioAPI & audio) {
-  EventLogger logger(&(controller_->getUIEventQueue()));
+  EventLogger logger(controller_);
 
   auto & event_queue = controller_->getPlaybackEventQueue();
 
@@ -786,7 +786,7 @@ Player::play(AudioAPI & audio) {
       auto & last = last_snapshot_signature_[name];
       if (last.second && last.first == signature) continue;
       last = { signature, true };
-      controller_->getUIEventQueue().push(std::move(event));
+      controller_->postToUI(std::move(*event));
     }
   };
 
@@ -822,7 +822,7 @@ Player::play(AudioAPI & audio) {
       auto active_it = live_states_.find(controller_->getActiveBufferNameThreadSafe());
       if (active_it != live_states_.end() && active_it->second->isPlaying()) {
 	auto latency_frames = audio.getPlaybackDelayFrames() + audio.getCaptureDelayFrames();
-	controller_->getUIEventQueue().push(make_unique<RecordingLatencyEvent>(latency_frames));
+        controller_->postToUI(RecordingLatencyEvent(latency_frames));
       }
     }
     was_recording_ = recording;
@@ -1007,8 +1007,8 @@ Player::play(AudioAPI & audio) {
 	    if (monitoring) pushMonitoredInput(data, audio.getFrameCount());
 	    if (recording) {
 	      updateInputLoudness(data);
-	      controller_->getUIEventQueue().push(make_unique<RecordEvent>(data));
-	    } else if (threshold_armed) {
+              controller_->postToUI(RecordEvent(data));
+            } else if (threshold_armed) {
 	      updateInputLoudness(data);
 	      threshold_ring_buffer_.push(data);
 	      if (!threshold_triggered_this_arm_cycle_ && dbToLinear(kThresholdRecordTriggerDB) <= data.calculateMainRMS()) {
@@ -1035,9 +1035,9 @@ Player::play(AudioAPI & audio) {
 		  auto preroll_rows = channel_config_.framesToRows(preroll.numberOfFrames(), state.getTempo());
 		  row = std::max(0, state.getAbsolutePosition() - preroll_rows);
 		}
-		controller_->getUIEventQueue().push(make_unique<ThresholdRecordingTriggeredEvent>(
-		  controller_->getRecordingTrackId(), std::move(preroll), row));
-	      }
+                controller_->postToUI(ThresholdRecordingTriggeredEvent(
+                    controller_->getRecordingTrackId(), std::move(preroll), row));
+              }
 	    }
           }
   }

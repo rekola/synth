@@ -2,6 +2,7 @@
 #define _PLAYER_H_
 
 #include "EventHandler.h"
+#include "PlaybackEvent.h"
 #include "../state/SongState.h"
 #include "../state/VoiceState.h"
 #include "../ambisonic/MixerType.h"
