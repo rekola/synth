@@ -1509,7 +1509,7 @@ would otherwise resume showing.
   Events wait in a queue behind an eventfd that is `inputFd()`.
   The Windows backend is `cellui/win32/` (built on Windows only, compiled but never run): `Window`
   is a Win32 window drawn with Direct2D and DirectWrite (cells, pictures, scrolled planes, backdrop dimming, shadows as
-  fading rings, and a blur made by drawing the region small and large again offscreen, as the window's target has no
+  fading rings, blended bands and planes (its target has no blend modes: the region under one is drawn again from the cells with every colour blended, `Window::blendRegion()`, so only the cells and scrolled planes below show the blend, not images or blurs), and a blur made by drawing the region small and large again offscreen, as the window's target has no
   effects; it draws cells itself, so `canvasRasterizer()` is null there), and `Win32EventLoop` waits on the message queue and on handles
   (`addHandles()`; descriptors do not exist there, so `Window::inputFd()`/`wakeFd()` are -1 and
   `inputHandle()`/`wakeHandle()` are the events to wait on). A backdrop is the
