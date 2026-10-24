@@ -3,6 +3,7 @@
 #include "../src/playback/VisualizationThread.h"
 #include "../src/playback/AudioBlockEvent.h"
 #include "../src/playback/VisualizationResultEvent.h"
+#include "UICatcher.h"
 #include "../src/Controller.h"
 #include "../src/dsp/DiracAnalyzer.h"
 
@@ -10,6 +11,7 @@
 
 TEST(visualization_thread_audio_block_event_produces_fft_result) {
   Controller controller{ChannelConfiguration()};
+  UICatcher ui(controller);
   VisualizationThread thread(&controller);
 
   // sample_rate/10 = 300, so configure()'s "largest whole multiple of
@@ -37,9 +39,8 @@ TEST(visualization_thread_audio_block_event_produces_fft_result) {
   AudioBlockEvent ev(std::move(master), std::move(raw_bus), AudioBuffer(), AudioBuffer());
   thread.handleAudioBlockEvent(ev);
 
-  CHECK(controller.getUIEventQueue().hasEvents());
-  auto result_event = controller.getUIEventQueue().pop();
-  auto * result = dynamic_cast<VisualizationResultEvent *>(result_event.get());
+  auto result_event = ui.take<VisualizationResultEvent>();
+  auto * result = result_event ? &*result_event : nullptr;
   CHECK(result != nullptr);
   if (result) {
     CHECK(!result->getFFT().empty());
@@ -48,6 +49,7 @@ TEST(visualization_thread_audio_block_event_produces_fft_result) {
 
 TEST(visualization_thread_dirac_grid_delivered_after_throttle_threshold) {
   Controller controller{ChannelConfiguration()};
+  UICatcher ui(controller);
   VisualizationThread thread(&controller);
   thread.configure(44100, 256); // FFT size ~4352 - far bigger than this test's own master, so it never fires here
 
@@ -66,8 +68,8 @@ TEST(visualization_thread_dirac_grid_delivered_after_throttle_threshold) {
   AudioBlockEvent ev(std::move(master), std::move(raw_bus), AudioBuffer(), AudioBuffer());
   thread.handleAudioBlockEvent(ev);
 
-  auto result_event = controller.getUIEventQueue().pop();
-  auto * result = dynamic_cast<VisualizationResultEvent *>(result_event.get());
+  auto result_event = ui.take<VisualizationResultEvent>();
+  auto * result = result_event ? &*result_event : nullptr;
   CHECK(result != nullptr);
   if (result) CHECK(result->hasDiracGrid());
 }
@@ -79,6 +81,7 @@ TEST(visualization_thread_computes_channel_loudness_and_meter_label) {
   // whatever AudioBlockEvent actually carries, or accumulate() hits a
   // regular-channel-count mismatch (AudioBuffer::mixNamed()'s own assert).
   Controller controller{ChannelConfiguration(44100, 1)};
+  UICatcher ui(controller);
   VisualizationThread thread(&controller);
   // A tiny block (well under both the FFT window and DiracAnalyzer's own
   // 1024-sample accumulation threshold) isolates the loudness path from
@@ -102,8 +105,8 @@ TEST(visualization_thread_computes_channel_loudness_and_meter_label) {
   AudioBlockEvent ev(std::move(master), std::move(raw_bus), std::move(aux_a), std::move(aux_b));
   thread.handleAudioBlockEvent(ev);
 
-  auto result_event = controller.getUIEventQueue().pop();
-  auto * result = dynamic_cast<VisualizationResultEvent *>(result_event.get());
+  auto result_event = ui.take<VisualizationResultEvent>();
+  auto * result = result_event ? &*result_event : nullptr;
   CHECK(result != nullptr);
   if (!result) return;
 
@@ -125,6 +128,7 @@ TEST(visualization_thread_channel_loudness_pads_odd_regular_count_before_aux) {
   // Order 2 (9 regular channels), matching raw_bus below - see the
   // identical fix's own comment above for why this has to agree with it.
   Controller controller{ChannelConfiguration(44100, 2)};
+  UICatcher ui(controller);
   VisualizationThread thread(&controller);
   thread.configure(3000, 256);
 
@@ -145,8 +149,8 @@ TEST(visualization_thread_channel_loudness_pads_odd_regular_count_before_aux) {
   AudioBlockEvent ev(std::move(master), std::move(raw_bus), std::move(aux_a), std::move(aux_b));
   thread.handleAudioBlockEvent(ev);
 
-  auto result_event = controller.getUIEventQueue().pop();
-  auto * result = dynamic_cast<VisualizationResultEvent *>(result_event.get());
+  auto result_event = ui.take<VisualizationResultEvent>();
+  auto * result = result_event ? &*result_event : nullptr;
   CHECK(result != nullptr);
   if (!result) return;
 
@@ -164,11 +168,12 @@ TEST(visualization_thread_terminate_sentinel_produces_no_result) {
   // see AudioBlockEvent.h) must not be treated as real audio data - no
   // VisualizationResultEvent should come out of it.
   Controller controller{ChannelConfiguration()};
+  UICatcher ui(controller);
   VisualizationThread thread(&controller);
   thread.configure(3000, 256);
 
   AudioBlockEvent terminate_ev{AudioBuffer(), AudioBuffer(), AudioBuffer(), AudioBuffer()};
   thread.handleAudioBlockEvent(terminate_ev);
 
-  CHECK(!controller.getUIEventQueue().hasEvents());
+  CHECK(ui.pending() == 0);
 }

@@ -1,6 +1,7 @@
 #ifndef _LAUNCHPADIO_H_
 #define _LAUNCHPADIO_H_
 
+#include "LaunchpadInput.h"
 #include "LaunchpadProtocol.h"
 #include "../midi/MidiPorts.h"
 
@@ -39,10 +40,9 @@ class LaunchpadIO {
 
   // Drains and decodes all currently-pending events (LaunchpadPadEvent for
   // grid presses/aftertouch, LaunchpadButtonEvent for the extra CC-numbered
-  // buttons) into a common Event vector - the consumer (TerminalUI) only
-  // ever needs Event& to dispatch, via EventHandler::handleEvent. Must only
+  // buttons) into a LaunchpadInput vector for the UI to post. Must only
   // be called after the wait group added by addTo() was reported ready.
-  std::vector<std::unique_ptr<Event>> pollEvents();
+  std::vector<LaunchpadInput> pollEvents();
 
   // Stable ids (see Session::session_id below) of every currently-ready
   // connected device - what a caller wanting per-device state (assigned

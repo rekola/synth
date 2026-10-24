@@ -80,13 +80,13 @@ class TerminalUI : public UI {
 
   void handlePlaybackEvent(const PlaybackEvent & ev) override;
   cellui::EventLoop & eventLoop() override;
-  void handleMidiEvent(MidiEvent & ev) override;
+  void handleMidiEvent(const MidiEvent & ev) override;
   // handleLaunchpadChannelPressureEvent() is UI's own now - a pure
   // LaunchpadManager passthrough, with no widget dependency to override
   // here.
-  void handleVisualizationResultEvent(VisualizationResultEvent & ev) override;
+  void handleVisualizationResultEvent(const VisualizationResultEvent & ev) override;
 
-protected:
+ protected:
   void startUI(AudioAPI & audio, MidiInput & midi, LaunchpadIO & launchpad_io) override;
   int launchpadEditStepSize() const override;
   bool executeLaunchpadCommand(std::string_view name) override { return executeCommand(name); }

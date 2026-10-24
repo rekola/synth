@@ -407,3 +407,20 @@ TEST(delete_later_keeps_the_opener_of_a_run_until_its_turn_is_over) {
   loop.run();
   CHECK(log == "A B after2 A-resumed(dialog) after1 dialog-destroyed ");
 }
+
+TEST(inbox_pending_counts_what_waits_behind_the_handler) {
+  PollEventLoop loop;
+  Widget root;
+  ThreadInbox inbox(loop, root);
+  std::vector<size_t> seen;
+  Connection c = root.on<Number>([&](const Number &, EventContext &) {
+    seen.push_back(inbox.pending());
+    return Handled::no;
+  });
+  CHECK(inbox.pending() == 0);
+  for (int i = 0; i < 3; i++) inbox.post(Number{ i });
+  CHECK(inbox.pending() == 3);
+  inbox.drain();
+  CHECK(inbox.pending() == 0);
+  CHECK(seen.size() == 3 && seen[0] == 2 && seen[1] == 1 && seen[2] == 0);
+}

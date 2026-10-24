@@ -1643,8 +1643,7 @@ LaunchpadManager::resolveKeyboardNotes(const Song & song, int device_id) const {
   return notes;
 }
 
-void
-LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller, int fallback_track_index, int edit_step_size) {
+void LaunchpadManager::handlePadEvent(const LaunchpadPadEvent & ev, Controller & controller, int fallback_track_index, int edit_step_size) {
   last_active_device_ = ev.getDeviceIndex();
   auto & song = controller.getSong();
   auto & info = controller.getPlaybackInfo();
@@ -2279,8 +2278,7 @@ LaunchpadManager::stepEditNote(const Song & song, int device_id, int track_id) c
   return resolveNote(song, device_id, track_id, 0, 0); // the first pad: the kick, or the tonic
 }
 
-void
-LaunchpadManager::handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & controller, int note, int track_id, bool pitched) {
+void LaunchpadManager::handleStepGridPadEvent(const LaunchpadPadEvent & ev, Controller & controller, int note, int track_id, bool pitched) {
   auto step = LaunchpadLayout::stepForPad(ev.getX(), ev.getY());
   if (step < 0 || note < 0) return;
 
@@ -2389,8 +2387,7 @@ LaunchpadManager::triggerAuditionStep(const Song & song, int track_id, Controlle
   }
 }
 
-void
-LaunchpadManager::handleChannelPressureEvent(LaunchpadChannelPressureEvent & ev, Controller & controller) {
+void LaunchpadManager::handleChannelPressureEvent(const LaunchpadChannelPressureEvent & ev, Controller & controller) {
   auto device_id = ev.getDeviceIndex();
   auto * state = findDeviceState(device_id);
   if (!state || state->active_notes.empty()) return;

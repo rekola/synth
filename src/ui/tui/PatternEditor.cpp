@@ -1585,8 +1585,7 @@ PatternEditor::anyMeterLive(const PlaybackInfo & info, const std::vector<int> & 
   return false;
 }
 
-void
-PatternEditor::handleMidiEvent(MidiEvent & ev) {
+void PatternEditor::handleMidiEvent(const MidiEvent & ev) {
   auto track_ids = trackIds(getController().getSong());
   int track_id = track_ids[static_cast<size_t>(new_cursor.track)];
 

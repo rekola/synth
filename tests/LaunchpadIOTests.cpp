@@ -1,8 +1,7 @@
 #include "TestFramework.h"
 
 #include "../src/launchpad/LaunchpadIO.h"
-#include "../src/launchpad/LaunchpadButtonEvent.h"
-#include "../src/launchpad/LaunchpadPadEvent.h"
+#include "../src/launchpad/LaunchpadInput.h"
 #include "../src/util/StderrLogger.h"
 
 #include <cstdlib>
@@ -205,22 +204,22 @@ TEST(launchpad_io_decodes_messages_from_a_connected_device_only) {
   auto events = rig.io->pollEvents();
   CHECK(events.size() == 5);
 
-  auto * press = dynamic_cast<LaunchpadPadEvent *>(events[0].get());
+  auto * press = std::get_if<LaunchpadPadEvent>(&events[0]);
   CHECK(press != nullptr);
   CHECK(press->getKind() == LaunchpadPadEvent::PRESS);
   CHECK(press->getX() == 3 && press->getY() == 2);
   CHECK(press->getVelocity() == 90);
   CHECK(press->getDeviceIndex() == session);
 
-  auto * release = dynamic_cast<LaunchpadPadEvent *>(events[1].get());
+  auto * release = std::get_if<LaunchpadPadEvent>(&events[1]);
   CHECK(release != nullptr && release->getKind() == LaunchpadPadEvent::RELEASE); // velocity 0
-  auto * aftertouch = dynamic_cast<LaunchpadPadEvent *>(events[2].get());
+  auto * aftertouch = std::get_if<LaunchpadPadEvent>(&events[2]);
   CHECK(aftertouch != nullptr && aftertouch->getKind() == LaunchpadPadEvent::AFTERTOUCH);
   CHECK(aftertouch->getVelocity() == 40);
 
-  auto * button_down = dynamic_cast<LaunchpadButtonEvent *>(events[3].get());
+  auto * button_down = std::get_if<LaunchpadButtonEvent>(&events[3]);
   CHECK(button_down != nullptr && button_down->getCCNumber() == 95 && button_down->getKind() == LaunchpadButtonEvent::PRESS);
-  auto * button_up = dynamic_cast<LaunchpadButtonEvent *>(events[4].get());
+  auto * button_up = std::get_if<LaunchpadButtonEvent>(&events[4]);
   CHECK(button_up != nullptr && button_up->getKind() == LaunchpadButtonEvent::RELEASE);
 }
 
