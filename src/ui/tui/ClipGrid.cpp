@@ -183,6 +183,12 @@ ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
     auto done = quantizeClip(song, track_ids[static_cast<size_t>(cursor_track_index_)], physicalFor(cursor_row_));
     getController().log(done ? "Quantised clip" : "Quantise: nothing to quantise there");
   });
+  // Stops the cursor track's clips on the next bar, leaving the other tracks.
+  commands_.define("stop-track-clips", [this]() {
+    auto track_ids = getController().getSong().getPlayableTrackIds();
+    if (cursor_track_index_ < 0 || cursor_track_index_ >= static_cast<int>(track_ids.size())) return;
+    getController().getClipPlayer().stopTrack(track_ids[static_cast<size_t>(cursor_track_index_)]);
+  });
   // Adds or removes the stop button of the empty slot under the cursor -
   // a no-op on a slot with a clip, same as kill-region on an empty one.
   commands_.define("toggle-stop-button", [this]() {
@@ -217,6 +223,9 @@ ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
   // The Emacs chord is TerminalUI's: its C-c prefix is global, so a widget's
   // own C-c sequence would never be reached.
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('r', true, false, false, false), "rename");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('u', true, false, false, false), "quantize-clip");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('e', true, false, false, false), "toggle-stop-button");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack(Key::Enter, true, false, false, false), "stop-track-clips");
   assertCommandBindingsValid();
 }
 

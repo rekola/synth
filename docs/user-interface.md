@@ -26,12 +26,27 @@ works in both. The commands that have one so far:
 | `add-sample-track` | Ctrl+T | C-c t |
 | `add-instrument-track` | Ctrl+Shift+T | C-c T |
 | `add-group-track` | Ctrl+G | C-c g |
-| `add-percussion-track` | Ctrl+Shift+D | C-c p |
+| `add-percussion-track` | Ctrl+Shift+D | C-c d |
 | `keyboard-quit` (cancel the selection) | Escape | C-g |
+| `mark-whole-buffer` (select all) | Ctrl+A | C-x h |
+| `toggle-stop-button` (clip grid) | Ctrl+E | |
+| `stop-track-clips` (the cursor track's clips, not the others) | Ctrl+Enter | |
+| `back-to-arrangement` | F10 | F10 |
+| `toggle-record-arm` (record) | F9 | F9 |
+| `quantize-clip` (the clip under the cursor in the clip grid; nothing else yet) | Ctrl+U | |
+| `duplicate` — **not built yet**, chord reserved | Ctrl+D | |
+| `double-clip-length` — **not built yet**, chord reserved | Ctrl+Up | |
+| `halve-clip-length` — **not built yet**, chord reserved | Ctrl+Down | |
+| `capture-midi` — **not built yet**, chord reserved | Ctrl+Shift+C | |
 | `open-song` | Ctrl+O | C-x C-f |
 | `save-song` | Ctrl+S | C-x C-s |
 | `save-song-as` | Ctrl+Shift+S | C-x C-w |
 | `save-buffers-kill-terminal` (quit) | Ctrl+Q | C-x C-c |
+
+The desktop chords follow Ableton Live's shortcuts where this program has the
+same thing; an empty Emacs cell means Emacs has no obvious counterpart, so the
+chord is left free. `toggle-track-collapse` therefore has its chord (Ctrl+Shift+C) on
+the Emacs keymap only, as Capture MIDI has it on the desktop one.
 
 Ctrl+X is cut there, so the `C-x` prefix sequences are Emacs-only; the buffer
 commands (`next-buffer`, `kill-buffer`, ...) have no desktop chord yet and are

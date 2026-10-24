@@ -165,7 +165,7 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                         {"Undo", "C-x u", "undo", "C-z"},
                         {"Redo", "C-M-_", "undo-redo", "C-S-Z"},
                         {nullptr, nullptr, nullptr},
-                        {"Select All", "C-x h", "mark-whole-buffer"},
+                        {"Select All", "C-x h", "mark-whole-buffer", "C-a"},
                         {"Set Mark", "C-SPC", "set-mark"},
                         {"Kill Region", "C-w", "kill-region", "C-x"},
                         {"Copy", "M-w", "kill-ring-save", "C-c"},
@@ -181,7 +181,7 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                     }},
       {"Track", 't', {
                          {"Add Instrument Track", "C-c T", "add-instrument-track", "C-S-T"},
-                         {"Add Percussion Track", "C-c p", "add-percussion-track", "C-S-D"},
+                         {"Add Percussion Track", "C-c d", "add-percussion-track", "C-S-D"},
                          {"Add Sample Track", "C-c t", "add-sample-track", "C-t"},
                          {"Add Group Track", "C-c g", "add-group-track", "C-g"},
                          {"Rename Track...", "C-c r", "rename-track", "C-r"},
@@ -200,8 +200,9 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
       {"Clip", 'c', {
                         {"Launch Clip", "", "launch-clip"},
                         {"Launch Scene", "", "launch-scene"},
+                        {"Stop Track Clips", "", "stop-track-clips", "C-Enter"},
                         {"Stop All Clips", "", "stop-all-clips"},
-                        {"Back to Arrangement", "", "back-to-arrangement"},
+                        {"Back to Arrangement", "F10", "back-to-arrangement"},
                         {"Track Back to Arrangement", "", "track-back-to-arrangement"},
                         {nullptr, nullptr, nullptr},
                         {"New Clip from Selection", "", "copy-to-clip"},
@@ -210,10 +211,12 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                         {"Copy Clip", "M-w", "kill-ring-save", "C-c"},
                         {"Kill Clip", "C-w", "kill-region", "C-x"},
                         {"Yank Clip", "C-y", "yank", "C-v"},
-                        {"Quantize Clip", "", "quantize-clip"},
-                        {"Double Clip Length", "", "double-clip-length"},
-                        {"Halve Clip Length", "", "halve-clip-length"},
-                        {"Toggle Stop Button", "", "toggle-stop-button"},
+                        {"Duplicate", "", "duplicate", "C-d"},
+                        {"Capture MIDI", "", "capture-midi", "C-S-C"},
+                        {"Quantize Clip", "", "quantize-clip", "C-u"},
+                        {"Double Clip Length", "", "double-clip-length", "C-Up"},
+                        {"Halve Clip Length", "", "halve-clip-length", "C-Down"},
+                        {"Toggle Stop Button", "", "toggle-stop-button", "C-e"},
                         {"Rename Clip...", "", "rename-clip"},
                     }},
       // Song-wide settings.
@@ -960,7 +963,18 @@ TerminalUI::initializeWidgets() {
   keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_c, KeyChord::pack('T', false, false, false, false), "add-instrument-track");
   keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_c, KeyChord::pack('T', false, false, true, false), "add-instrument-track");
   keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_c, KeyChord::pack('g', false, false, false, false), "add-group-track");
-  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_c, KeyChord::pack('p', false, false, false, false), "add-percussion-track");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_c, KeyChord::pack('d', false, false, false, false), "add-percussion-track");
+  // The Ableton chords (docs/user-interface.md): function keys on both keymaps,
+  // the rest on the desktop one only, where the Emacs keymap has no obvious
+  // counterpart. Duplicate and Capture MIDI are reserved, not built yet.
+  keymap_.bind(KeyChord::pack(Key::F9, false, false, false, false), "toggle-record-arm");
+  keymap_.bind(KeyChord::pack(Key::F10, false, false, false, false), "back-to-arrangement");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('a', true, false, false, false), "mark-whole-buffer");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('d', true, false, false, false), "duplicate");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('c', true, false, true, false), "capture-midi");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack(Key::Up, true, false, false, false), "double-clip-length");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack(Key::Down, true, false, false, false), "halve-clip-length");
+
   assertCommandBindingsValid();
 
   // Lets StatusLine's M-x path (Controller::sendCommand, which only reaches
