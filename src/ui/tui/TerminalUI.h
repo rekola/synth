@@ -176,7 +176,7 @@ protected:
 
   // The modal list showChoiceDialog() opens (the device pickers, ...); like
   // the info dialog it takes all input until it is chosen from or cancelled.
-  // The command palette M-x and its desktop chord open: modal, across the
+  // The command palette M-x and its desktop shortcut open: modal, across the
   // bottom of the screen where the status line is.
   cellui::CommandPalette command_palette_;
   void showCommandPalette();

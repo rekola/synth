@@ -50,9 +50,9 @@ class Probe : public Widget {
   explicit Probe(Plane & parent) : Widget(parent) {
     commands_.define("hello", [this] { hello++; });
     commands_.define("prefixed", [this] { prefixed++; });
-    keymap_.bind(KeyChord::pack('h', false, false, false, false), "hello");
-    auto ctrl_x = KeyChord::pack('x', true, false, false, false);
-    keymap_.bindPrefixed(ctrl_x, KeyChord::pack('p', false, false, false, false), "prefixed");
+    keymap_.bind(KeyStroke::pack('h', false, false, false, false), "hello");
+    auto ctrl_x = KeyStroke::pack('x', true, false, false, false);
+    keymap_.bindPrefixed(ctrl_x, KeyStroke::pack('p', false, false, false, false), "prefixed");
     assertCommandBindingsValid();
   }
   bool press(int id, bool ctrl = false) {
@@ -78,7 +78,7 @@ TEST(element_draws_through_its_plane_and_chains) {
   CHECK(p.resized == 1);
 }
 
-TEST(element_dispatches_bound_chords_but_not_releases) {
+TEST(element_dispatches_bound_shortcuts_but_not_releases) {
   StyleProvider styles;
   RecordingPlane root(styles);
   Probe p(root);

@@ -440,15 +440,15 @@ rejecting it (`Command::getAzimuthSlidePerTick()`).
 
 Keymap profiles: a display declares its `cellui::KeymapProfile`
 (`DisplayInfo::keymap_profile`: the terminal `TERMINAL`, the GTK window `DESKTOP`),
-which reaches widgets through `Plane::keymapProfile()`. `Keymap::bind(chord,
-name)` works in both profiles; `bind(profile, chord, name)` only in one and wins
-over a shared binding of the same chord. A binding is migrated by making it
+which reaches widgets through `Plane::keymapProfile()`. `Keymap::bind(stroke,
+name)` works in both profiles; `bind(profile, stroke, name)` only in one and wins
+over a shared binding of the same shortcut. A binding is migrated by making it
 profile-specific; one that is not works everywhere. Migrated so far: the command
-prompt (`StatusLine::isCommandPromptChord()`: M-x / Ctrl+Shift+P, either one opens the command palette), undo/redo,
+prompt (`StatusLine::isCommandPromptShortcut()`: M-x / Ctrl+Shift+P, either one opens the command palette), undo/redo,
 cut/copy/paste (`kill-region`/`kill-ring-save`/`yank`), save/open/save-as/quit
 (Ctrl+S/O/Shift+S/Q on the desktop; Ctrl+Q exists only there), and the `C-x`
 prefix (Emacs only, since Ctrl+X is cut on the desktop). `docs/user-interface.md` lists
-the desktop chords.
+the desktop shortcuts.
 
 The command palette (`cellui::CommandPalette`, `cellui/CommandPalette.h`; opened by
 `TerminalUI::showCommandPalette()`) is a modal panel across the bottom rows of
@@ -464,13 +464,13 @@ not taken for a command. The app gives it
 `commandDescription()` (`ui/CommandDescriptions.cpp`; a test fails for a command
 without one, so add a line there with a new command), bindings from
 `Widget::bindingFor()`, which reads the widget's `Keymap` for the display's
-profile (`Keymap::sequencesFor()`, spelled by `KeyChord::describe()`). Choosing
+profile (`Keymap::sequencesFor()`, spelled by `KeyStroke::describe()`). Choosing
 runs `Controller::sendCommand()` after the palette has closed. Tab is
 Emacs-style completion (`CommandPalette::complete()`): the query becomes the
 longest prefix shared by every name starting with it.
 
-Keybinding dispatch is centralized, Emacs-style (v1, partial): `KeyChord.h`/
-`Keymap.h`/`CommandRegistry.h` provide a chord→command-name→callable lookup,
+Keybinding dispatch is centralized, Emacs-style (v1, partial): `KeyStroke.h`/
+`Keymap.h`/`CommandRegistry.h` provide a key stroke→command-name→callable lookup,
 and `UIElement::dispatchCommand()` runs it. Widgets populate their own
 `keymap_`/`commands_` in their constructor (see `PatternEditor`'s 5 selection
 commands and `UI`'s `quit`/`new-song`/`toggle-playing`) and call
@@ -1368,7 +1368,7 @@ would otherwise resume showing.
     alongside the interface), `HeatmapChart` (its versions are cellui's,
     through `cellui::Scopes`), `StyleProvider` (a plain
     named-color theme struct, not terminal-specific itself), the
-    Emacs-style keybinding dispatch (`KeyChord.h`/`Keymap.h`/
+    Emacs-style keybinding dispatch (`KeyStroke.h`/`Keymap.h`/
     `CommandRegistry.h`), and selection/clipboard data types
     (`SelectionBounds.h`/`SelectionScope.h`/`ClipboardEntry.h`/
     `GridPosition.h`). `UI` itself owns nothing widget-shaped - just the
@@ -1398,7 +1398,7 @@ would otherwise resume showing.
     M-x) default to living in `UI::initializeCommands()` (`ui/UI.cpp`),
     not `TerminalUI`, since a future GUI backend shares the same command
     names/behavior even though its own keybindings (or menu items, or
-    toolbar buttons) will look nothing like the terminal chords `TerminalUI`
+    toolbar buttons) will look nothing like the terminal shortcuts `TerminalUI`
     binds them to - only the *binding* is backend-specific, not what the
     command does. A command stays in `TerminalUI` instead when it
     genuinely can't be shared yet - needs a prompt/dialog (`StatusLine`'s
@@ -1430,11 +1430,11 @@ would otherwise resume showing.
   quantizer (`SubcellGlyphs.h`), the Escape-as-Meta coalescer (`EscapeCoalescer.h`) and `KeyReader` (the inputs as widgets see them, Escape as Meta included, and when the "ESC-" indicator is due), and the input data (`Input.h`: key id, modifiers,
   position, press/release kind, and the key ids `cellui::Key::Up` and so on, `Key::` in the app; the app's
   `InputEvent` is an `Input` that is also an `Event`; the note-entry key mapping
-  is `keyToMidiNote()` in `playback/KeyboardNotes.h`), the key chord packing, `Keymap` and `CommandRegistry`, and the theme (`Theme`,
+  is `keyToMidiNote()` in `playback/KeyboardNotes.h`), the key stroke packing, `Keymap` and `CommandRegistry`, and the theme (`Theme`,
   `StyleProvider`) and `Plane` (it carries the app's own object as an opaque
   `getAppContext()`, which `UIElement::getController()` casts back; input is
   `cellui::Input`), and the widget base `Widget` (`Widget.h`: the plane,
-  drawing, `offerInput(const Input &)`, the keymap and prefix-chord dispatch;
+  drawing, `offerInput(const Input &)`, the keymap and prefix-key dispatch;
   the app's `UIElement` adds the event handler and the controller), `UIMenu`, and the 2D grid chart contract
   `HeatmapChart`, the generic widgets (`ChoiceDialog`, `InlineEditor`, `SpinBox`, `CoverArt`, `Dial` (`Dial.h`: `drawDial()`, a send's knob, a picture or text by what the plane shows), `ChannelMeter`,
   `SpectrumMeter` and `LevelMeter.h`'s one dB mapping, ballistics and glyph cells, plus
@@ -1456,7 +1456,7 @@ would otherwise resume showing.
   (`Gallery.h`, a class that keeps its widgets' planes, `cellui_gallery`; its text is a golden file in
   `lib/cellui/tests/golden/`, rewritten with `CELLUI_UPDATE_GOLDEN=1`) (`HeatmapChart.h`, with the fixed hue and the HSV helper its
   renderers share). The old paths (`util/Utf8.h`, `ui/Markdown.h`,
-  `ui/ChoiceList.h`, `ui/tui/SubcellGlyphs.h`, `model/Color.h`, `ui/Keymap.h`, `ui/CommandRegistry.h`, `ui/KeyChord.h`, `ui/Theme.h`,
+  `ui/ChoiceList.h`, `ui/tui/SubcellGlyphs.h`, `model/Color.h`, `ui/Keymap.h`, `ui/CommandRegistry.h`, `ui/KeyStroke.h`, `ui/Theme.h`,
   `ui/StyleProvider.h`, `ui/Plane.h`, `ui/HeatmapChart.h`, `ui/UIMenu.h`, `util/digit.h` and the headers of the widgets above in
   `ui/tui/`) are forwarding
   headers with aliases (`Utf8`, `markdown`, `Color`, ...), so call sites did not
@@ -1817,6 +1817,9 @@ would otherwise resume showing.
   separated from song model objects so playback state can be reset cheaply.
 - The build enables many `-Werror=` flags plus `-Wsign-conversion`; new code
   must compile warning-clean.
+- "Chord" means the musical kind only. A key with its modifiers is a
+  *shortcut* (`KeyStroke` in code), several in a row a *key sequence*
+  (`docs/glossary.md`).
 - A command only a pad controller dispatches (nothing else registers it) is
   named with a `pad-` prefix (`pad-next-track`), not `launchpad-`: other
   devices can use it too. A pad gesture whose keyboard equivalent is

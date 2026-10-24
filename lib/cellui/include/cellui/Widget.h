@@ -4,8 +4,8 @@
 #include <cellui/EventTypes.h>
 #include <cellui/CommandRegistry.h>
 #include <cellui/Input.h>
-#include <cellui/KeyChord.h>
-#include <cellui/KeyChordNames.h>
+#include <cellui/KeyStroke.h>
+#include <cellui/KeyStrokeNames.h>
 #include <cellui/Keymap.h>
 #include <cellui/Plane.h>
 
@@ -23,7 +23,7 @@
 
 namespace cellui {
 
-// A widget: owns a plane, draws through it, and dispatches key chords to
+// A widget: owns a plane, draws through it, and dispatches key shortcuts to
 // named commands.
 class Widget {
  public:
@@ -267,7 +267,7 @@ public:
     auto simpler = [](const std::vector<uint64_t> & a, const std::vector<uint64_t> & b) {
       auto mods = [](const std::vector<uint64_t> & seq) {
         int n = 0;
-        for (auto chord : seq) n += (chord & 1u ? 1 : 0) + (chord & 2u ? 1 : 0) + (chord & 4u ? 1 : 0) + (chord & 8u ? 1 : 0);
+        for (auto stroke : seq) n += (stroke & 1u ? 1 : 0) + (stroke & 2u ? 1 : 0) + (stroke & 4u ? 1 : 0) + (stroke & 8u ? 1 : 0);
         return n;
       };
       if (a.size() != b.size()) return a.size() < b.size();
@@ -275,21 +275,21 @@ public:
       return a < b;
     };
     for (auto & seq : keymap_.sequencesFor(command, profile)) {
-      // A raw control byte (a terminal's own spelling of a chord) reads as
-      // nothing; the chord it stands for is bound too.
+      // A raw control byte (a terminal's own spelling of a shortcut) reads as
+      // nothing; the shortcut it stands for is bound too.
       bool printable = true;
-      for (auto chord : seq) {
-        int id = KeyChord::idOf(chord);
+      for (auto stroke : seq) {
+        int id = KeyStroke::idOf(stroke);
         if (id < 0x20 && id != Key::Tab && id != Key::Escape) printable = false;
       }
       if (printable && (best.empty() || simpler(seq, best))) best = seq;
     }
-    return best.empty() ? std::string() : KeyChord::describe(best, profile);
+    return best.empty() ? std::string() : KeyStroke::describe(best, profile);
   }
 
   // Whether this widget wants a bare Escape keypress delivered right away
   // (e.g. to close a popup), rather than only once the next key shows
-  // whether it was the start of an Alt chord.
+  // whether it was the start of an Alt shortcut.
   virtual bool wantsBareEscape() const { return false; }
 
 protected:
@@ -303,7 +303,7 @@ protected:
     // repeating, unlike a widget's own raw note-entry keys, which
     // suppress repeat themselves.
     if (input.getKind() == Input::Kind::RELEASE) return false;
-    auto chord = KeyChord::pack(input);
+    auto stroke = KeyStroke::pack(input);
 
     // Two-key Emacs-style prefix sequences (C-x C-s, C-x C-c, ...) - a
     // pending prefix always consumes the very next keystroke one way or
@@ -316,15 +316,15 @@ protected:
     if (pending_prefix_) {
       auto prefix = *pending_prefix_;
       pending_prefix_.reset();
-      if (auto name = keymap_.lookupPrefixed(prefix, chord, profile)) return commands_.execute(*name);
+      if (auto name = keymap_.lookupPrefixed(prefix, stroke, profile)) return commands_.execute(*name);
       return true;
     }
-    if (keymap_.isPrefix(chord, profile)) {
-      pending_prefix_ = chord;
+    if (keymap_.isPrefix(stroke, profile)) {
+      pending_prefix_ = stroke;
       return true;
     }
 
-    if (auto name = keymap_.lookup(chord, profile)) return commands_.execute(*name);
+    if (auto name = keymap_.lookup(stroke, profile)) return commands_.execute(*name);
     return false;
   }
 
@@ -340,7 +340,7 @@ protected:
   CommandRegistry commands_;
 
   // Set by dispatchCommand() when the previous keystroke was a bound
-  // prefix chord (e.g. C-x) - unset (no pending sequence) the rest of the
+  // prefix shortcut (e.g. C-x) - unset (no pending sequence) the rest of the
   // time. Per-instance, not shared - each widget that adopts prefix
   // bindings tracks its own in-progress sequence independently.
   std::optional<uint64_t> pending_prefix_;

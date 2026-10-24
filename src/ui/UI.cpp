@@ -396,7 +396,7 @@ UI::initializeCommands() {
   // Every command defined here has no widget-specific dependency (a plain
   // Controller call, or setStatus() - already virtual) - shared between
   // every UI backend, so each backend's own keybindings (Emacs-style
-  // chords here, whatever a future GUI uses there) just need to bind a key
+  // shortcuts here, whatever a future GUI uses there) just need to bind a key
   // to one of these names rather than redefine what it does. A command
   // that does need a backend-specific dialog/prompt, or reaches into a
   // concrete widget, stays defined in that backend instead (e.g.

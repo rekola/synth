@@ -3,7 +3,7 @@
 #include "../ScenePatternSource.h"
 
 #include "../../playback/InputEvent.h"
-#include "../KeyChord.h"
+#include "../KeyStroke.h"
 #include "../StyleProvider.h"
 #include "../../Controller.h"
 #include "../../model/Song.h"
@@ -116,11 +116,11 @@ ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
   // 'm'/'s' are this view's own shortcuts; backslash/Ctrl-backslash match
   // PatternEditor's own toggle-mute/toggle-solo bindings, so either works
   // regardless of which of the two views is currently focused.
-  keymap_.bind(KeyChord::pack('m', false, false, false, false), "toggle-mute");
-  keymap_.bind(KeyChord::pack('s', false, false, false, false), "toggle-solo");
-  keymap_.bind(KeyChord::pack('i', false, false, false, false), "cycle-monitor");
-  keymap_.bind(KeyChord::pack('\\', false, false, false, false), "toggle-mute");
-  keymap_.bind(KeyChord::pack('\\', true, false, false, false), "toggle-solo");
+  keymap_.bind(KeyStroke::pack('m', false, false, false, false), "toggle-mute");
+  keymap_.bind(KeyStroke::pack('s', false, false, false, false), "toggle-solo");
+  keymap_.bind(KeyStroke::pack('i', false, false, false, false), "cycle-monitor");
+  keymap_.bind(KeyStroke::pack('\\', false, false, false, false), "toggle-mute");
+  keymap_.bind(KeyStroke::pack('\\', true, false, false, false), "toggle-solo");
 
   // The slot under the cursor, when it's a clip row on a real track.
   auto cursor_slot = [this]() -> std::optional<std::pair<int, int>> {
@@ -208,24 +208,24 @@ ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
   // app already treats as "delete something at the cursor" elsewhere
   // (Backspace/Del clearing note content, Ctrl-K placing a stop instance,
   // both in PatternEditor; ArrangementGrid's own Backspace doing the
-  // same) - rather than a dedicated modifier chord of its own.
-  keymap_.bind(KeyChord::pack(Key::Delete, false, false, false, false), "kill-region");
-  keymap_.bind(KeyChord::pack(Key::Backspace, false, false, false, false), "kill-region");
-  keymap_.bind(KeyChord::pack('k', true, false, false, false), "kill-region");
-  // Cut, copy and paste: the terminal chords in the terminal, the usual
+  // same) - rather than a dedicated modifier shortcut of its own.
+  keymap_.bind(KeyStroke::pack(Key::Delete, false, false, false, false), "kill-region");
+  keymap_.bind(KeyStroke::pack(Key::Backspace, false, false, false, false), "kill-region");
+  keymap_.bind(KeyStroke::pack('k', true, false, false, false), "kill-region");
+  // Cut, copy and paste: the terminal keymap's shortcuts, the usual
   // desktop ones elsewhere.
-  keymap_.bind(KeymapProfile::TERMINAL, KeyChord::pack('w', true, false, false, false), "kill-region");
-  keymap_.bind(KeymapProfile::TERMINAL, KeyChord::pack('w', false, true, false, false), "kill-ring-save");
-  keymap_.bind(KeymapProfile::TERMINAL, KeyChord::pack('y', true, false, false, false), "yank");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('x', true, false, false, false), "kill-region");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('c', true, false, false, false), "kill-ring-save");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('v', true, false, false, false), "yank");
-  // The terminal chord is TerminalUI's: its C-c prefix is global, so a widget's
+  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack('w', true, false, false, false), "kill-region");
+  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack('w', false, true, false, false), "kill-ring-save");
+  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack('y', true, false, false, false), "yank");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('x', true, false, false, false), "kill-region");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('c', true, false, false, false), "kill-ring-save");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('v', true, false, false, false), "yank");
+  // The terminal shortcut is TerminalUI's: its C-c prefix is global, so a widget's
   // own C-c sequence would never be reached.
-  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('r', true, false, false, false), "rename");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('u', true, false, false, false), "quantize-clip");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('e', true, false, false, false), "toggle-stop-button");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack(Key::Enter, true, false, false, false), "stop-track-clips");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('r', true, false, false, false), "rename");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('u', true, false, false, false), "quantize-clip");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('e', true, false, false, false), "toggle-stop-button");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack(Key::Enter, true, false, false, false), "stop-track-clips");
   assertCommandBindingsValid();
 }
 

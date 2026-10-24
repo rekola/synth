@@ -519,7 +519,7 @@ TEST(terminal_ui_clip_grid_left_right_walks_the_two_dials) {
 
 // The command prompt opens with M-x on the terminal keymap and with
 // Ctrl+Shift+P on the desktop one, and each keymap ignores the other's chord.
-TEST(terminal_ui_command_prompt_chord_follows_the_keymap_profile) {
+TEST(terminal_ui_command_prompt_shortcut_follows_the_keymap_profile) {
   auto opens = [](UIFixture & f, int key, unsigned mods) {
     f.press(key, mods);
     bool open = f.terminal.info().focus == "command-palette";

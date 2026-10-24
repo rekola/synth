@@ -3,7 +3,7 @@
 #include <cellui/BufferPlane.h>
 #include <cellui/CommandPalette.h>
 #include <cellui/FuzzyMatch.h>
-#include <cellui/KeyChordNames.h>
+#include <cellui/KeyStrokeNames.h>
 #include <cellui/Keymap.h>
 
 using namespace cellui;
@@ -137,8 +137,8 @@ TEST(palette_click_on_a_row_chooses_it_and_outside_cancels) {
 TEST(keymap_finds_the_sequences_for_a_command_per_profile) {
   using P = KeymapProfile;
   Keymap map;
-  auto cx = KeyChord::pack('x', true, false, false, false);
-  auto cs = KeyChord::pack('s', true, false, false, false);
+  auto cx = KeyStroke::pack('x', true, false, false, false);
+  auto cs = KeyStroke::pack('s', true, false, false, false);
   map.bindPrefixed(P::TERMINAL, cx, cs, "save");
   map.bind(P::DESKTOP, cs, "save");
   auto emacs = map.sequencesFor("save", P::TERMINAL);
@@ -148,18 +148,18 @@ TEST(keymap_finds_the_sequences_for_a_command_per_profile) {
   CHECK(map.sequencesFor("nothing", P::TERMINAL).empty());
 }
 
-TEST(chords_are_described_per_profile) {
+TEST(shortcuts_are_described_per_profile) {
   using P = KeymapProfile;
-  auto cx = KeyChord::pack('x', true, false, false, false);
-  auto cs = KeyChord::pack('s', true, false, false, false);
-  CHECK(KeyChord::describe({cx, cs}, P::TERMINAL) == "C-x C-s");
-  CHECK(KeyChord::describe({cs}, P::DESKTOP) == "Ctrl+S");
-  CHECK(KeyChord::describe({KeyChord::pack('w', false, true, false, false)}, P::TERMINAL) == "M-w");
-  CHECK(KeyChord::describe({KeyChord::pack(Key::Up, true, false, true, false)}, P::TERMINAL) == "C-S-Up");
-  CHECK(KeyChord::describe({KeyChord::pack('d', true, false, true, false)}, P::TERMINAL) == "C-S-D");
-  CHECK(KeyChord::describe({KeyChord::pack('z', true, false, true, false)}, P::DESKTOP) == "Ctrl+Shift+Z");
-  CHECK(KeyChord::describe({KeyChord::pack(' ', false, false, false, false)}, P::TERMINAL) == "SPC");
-  CHECK(KeyChord::describe({KeyChord::pack(Key::F2, false, false, false, false)}, P::DESKTOP) == "F2");
+  auto cx = KeyStroke::pack('x', true, false, false, false);
+  auto cs = KeyStroke::pack('s', true, false, false, false);
+  CHECK(KeyStroke::describe({cx, cs}, P::TERMINAL) == "C-x C-s");
+  CHECK(KeyStroke::describe({cs}, P::DESKTOP) == "Ctrl+S");
+  CHECK(KeyStroke::describe({KeyStroke::pack('w', false, true, false, false)}, P::TERMINAL) == "M-w");
+  CHECK(KeyStroke::describe({KeyStroke::pack(Key::Up, true, false, true, false)}, P::TERMINAL) == "C-S-Up");
+  CHECK(KeyStroke::describe({KeyStroke::pack('d', true, false, true, false)}, P::TERMINAL) == "C-S-D");
+  CHECK(KeyStroke::describe({KeyStroke::pack('z', true, false, true, false)}, P::DESKTOP) == "Ctrl+Shift+Z");
+  CHECK(KeyStroke::describe({KeyStroke::pack(' ', false, false, false, false)}, P::TERMINAL) == "SPC");
+  CHECK(KeyStroke::describe({KeyStroke::pack(Key::F2, false, false, false, false)}, P::DESKTOP) == "F2");
 }
 
 TEST(palette_tab_completes_to_the_longest_shared_prefix) {

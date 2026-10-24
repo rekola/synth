@@ -17,7 +17,7 @@
 #include "../../playback/MidiEvent.h"
 #include "../../playback/MidiNoteInput.h"
 #include "../../playback/PlaybackControlEvent.h"
-#include "../KeyChord.h"
+#include "../KeyStroke.h"
 #include "PatternScroll.h"
 #include "../../model/ArrangementOps.h"
 #include "../../model/Clip.h"
@@ -263,7 +263,7 @@ PatternEditor::PatternEditor(Plane & parent)
   // insert-register) rather than the kill-ring/yank family above - a
   // clip is persistent, repeatedly-retrievable stored content, unlike
   // the kill ring's single transient slot. No keybinding yet (M-x only)
-  // - candidate chord still TBD.
+  // - candidate shortcut still TBD.
   commands_.define("copy-to-clip", [this]() { copyToClip(); });
 
   commands_.define("yank", [this]() {
@@ -562,7 +562,7 @@ PatternEditor::PatternEditor(Plane & parent)
     auto name = "set-edit-step-" + std::to_string(n);
     commands_.define(name, [this, n]() { setEditStep(n); });
     int digit = '0' + n;
-    keymap_.bind(KeyChord::pack(digit, true, false, false, false), name);
+    keymap_.bind(KeyStroke::pack(digit, true, false, false, false), name);
   }
 
   commands_.define("move-row-up", [this]() {
@@ -654,33 +654,33 @@ PatternEditor::PatternEditor(Plane & parent)
   // handleCommand handles them directly, synchronously, with the
   // device_id it's already given - see UI::handleLaunchpadButtonEvent.
 
-  keymap_.bind(KeyChord::pack('+', true, false, false, false), "edit-step-increase");
-  keymap_.bind(KeyChord::pack('-', true, false, false, false), "edit-step-decrease");
-  keymap_.bind(KeyChord::pack(' ', true, false, false, false), "set-mark");  // Ctrl-Space
-  // Cut, copy and paste: the terminal chords in the terminal, the usual
+  keymap_.bind(KeyStroke::pack('+', true, false, false, false), "edit-step-increase");
+  keymap_.bind(KeyStroke::pack('-', true, false, false, false), "edit-step-decrease");
+  keymap_.bind(KeyStroke::pack(' ', true, false, false, false), "set-mark"); // Ctrl-Space
+  // Cut, copy and paste: the terminal keymap's shortcuts, the usual
   // desktop ones elsewhere.
-  keymap_.bind(KeymapProfile::TERMINAL, KeyChord::pack('w', true, false, false, false), "kill-region");
-  keymap_.bind(KeymapProfile::TERMINAL, KeyChord::pack('w', false, true, false, false), "kill-ring-save"); // Alt-W
-  keymap_.bind(KeymapProfile::TERMINAL, KeyChord::pack('y', true, false, false, false), "yank");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('x', true, false, false, false), "kill-region");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('c', true, false, false, false), "kill-ring-save");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('v', true, false, false, false), "yank");
-  keymap_.bind(KeyChord::pack('k', true, false, false, false), "kill-row"); // Ctrl-K
-  keymap_.bind(KeyChord::pack(Key::Insert, false, false, false, false), "insert-row"); // plain Insert (was inline handling)
+  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack('w', true, false, false, false), "kill-region");
+  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack('w', false, true, false, false), "kill-ring-save"); // Alt-W
+  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack('y', true, false, false, false), "yank");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('x', true, false, false, false), "kill-region");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('c', true, false, false, false), "kill-ring-save");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('v', true, false, false, false), "yank");
+  keymap_.bind(KeyStroke::pack('k', true, false, false, false), "kill-row");            // Ctrl-K
+  keymap_.bind(KeyStroke::pack(Key::Insert, false, false, false, false), "insert-row"); // plain Insert (was inline handling)
   // Ctrl+G is Group Tracks on the desktop, so cancelling is Escape there.
-  keymap_.bind(KeymapProfile::TERMINAL, KeyChord::pack('g', true, false, false, false), "keyboard-quit");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack(Key::Escape, false, false, false, false), "keyboard-quit");
-  keymap_.bind(KeyChord::pack(Key::Up, true, false, true, false), "transpose-region-up");    // Ctrl+Shift+Up
-  keymap_.bind(KeyChord::pack(Key::Down, true, false, true, false), "transpose-region-down"); // Ctrl+Shift+Down
-  keymap_.bind(KeyChord::pack('\\', true, false, false, false), "toggle-solo");  // Ctrl-\ (was Ctrl-only inline handling)
-  keymap_.bind(KeyChord::pack('\\', false, false, false, false), "toggle-mute"); // backslash key
+  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack('g', true, false, false, false), "keyboard-quit");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack(Key::Escape, false, false, false, false), "keyboard-quit");
+  keymap_.bind(KeyStroke::pack(Key::Up, true, false, true, false), "transpose-region-up");     // Ctrl+Shift+Up
+  keymap_.bind(KeyStroke::pack(Key::Down, true, false, true, false), "transpose-region-down"); // Ctrl+Shift+Down
+  keymap_.bind(KeyStroke::pack('\\', true, false, false, false), "toggle-solo");               // Ctrl-\ (was Ctrl-only inline handling)
+  keymap_.bind(KeyStroke::pack('\\', false, false, false, false), "toggle-mute");              // backslash key
   // Ctrl+Shift+C is Capture MIDI on the desktop keymap.
-  keymap_.bind(KeymapProfile::TERMINAL, KeyChord::pack('c', true, false, true, false), "toggle-track-collapse"); // Ctrl+Shift+C ("Collapse")
-  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('r', true, false, false, false), "rename");
-  keymap_.bind(KeyChord::pack(Key::Up, false, false, false, false), "move-row-up");     // plain Up (was inline handling)
-  keymap_.bind(KeyChord::pack(Key::Down, false, false, false, false), "move-row-down"); // plain Down
-  keymap_.bind(KeyChord::pack(Key::Right, true, false, true, false), "add-note-column");   // Ctrl+Shift+Right
-  keymap_.bind(KeyChord::pack(Key::Left, true, false, true, false), "remove-note-column"); // Ctrl+Shift+Left
+  keymap_.bind(KeymapProfile::TERMINAL, KeyStroke::pack('c', true, false, true, false), "toggle-track-collapse"); // Ctrl+Shift+C ("Collapse")
+  keymap_.bind(KeymapProfile::DESKTOP, KeyStroke::pack('r', true, false, false, false), "rename");
+  keymap_.bind(KeyStroke::pack(Key::Up, false, false, false, false), "move-row-up");        // plain Up (was inline handling)
+  keymap_.bind(KeyStroke::pack(Key::Down, false, false, false, false), "move-row-down");    // plain Down
+  keymap_.bind(KeyStroke::pack(Key::Right, true, false, true, false), "add-note-column");   // Ctrl+Shift+Right
+  keymap_.bind(KeyStroke::pack(Key::Left, true, false, true, false), "remove-note-column"); // Ctrl+Shift+Left
 
   assertCommandBindingsValid();
 }
@@ -2041,7 +2041,7 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
       return true;
     } else if (input.getId() == Key::KpDivide || input.getId() == Key::KpMultiply) {
       // Instrument selection - moved here from Ctrl+Left/Right (now "move
-      // cursor to the neighboring track", see below) to free that chord
+      // cursor to the neighboring track", see below) to free that shortcut
       // up. Numpad Divide/Multiply rather than a modifier combo on
       // ordinary keys since every other candidate (Ctrl+Up/Down,
       // Alt+PageUp/PageDown, ...) either collided with something else or
@@ -2228,18 +2228,18 @@ PatternEditor::offerInputKey(const cellui::Input & input) {
 	  return true;
 	}
 
-	// In effect command, column 0/1 (mnemonic) accepts [A-Za-z0-9-] and
-	// column 2/3 (hex argument) accepts [A-Fa-f0-9-] - Command::
-	// updateData() (see its own comment) validates and reports
-	// success/failure itself, so this call site doesn't need to
-	// pre-classify input.getId() at all before attempting it - without
-	// updateData()'s own validation, every unbound non-printable key
-	// (arrows/F-keys/Insert/PageUp/... not already intercepted by an
-	// earlier else-if branch above, or Ctrl/Alt chords with no keymap
-	// entry) is a synthesized key code far outside any printable range,
-	// and would otherwise get silently written into the command as if
-	// it were a typed character.
-	int command_row;
+        // In effect command, column 0/1 (mnemonic) accepts [A-Za-z0-9-] and
+        // column 2/3 (hex argument) accepts [A-Fa-f0-9-] - Command::
+        // updateData() (see its own comment) validates and reports
+        // success/failure itself, so this call site doesn't need to
+        // pre-classify input.getId() at all before attempting it - without
+        // updateData()'s own validation, every unbound non-printable key
+        // (arrows/F-keys/Insert/PageUp/... not already intercepted by an
+        // earlier else-if branch above, or Ctrl/Alt shortcuts with no keymap
+        // entry) is a synthesized key code far outside any printable range,
+        // and would otherwise get silently written into the command as if
+        // it were a typed character.
+        int command_row;
 	auto existing = command_grid->findCommands(track_id, point.row, command_row);
 	auto command = existing ? existing->getCommand(command_row) : Command();
 	if (command.updateData(new_cursor.subcol, input.getId())) {

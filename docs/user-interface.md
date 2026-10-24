@@ -9,14 +9,14 @@ There are two keymaps, and a display uses one of them: the terminal the
 terminal keymap, the window the desktop one. The command names are the same in
 both. The terminal keymap is based on Emacs's keybindings (mark and point, kill
 and yank, M-x, the C-x prefix), but it is this program's own and not Emacs's:
-it adds chords Emacs has no counterpart for. It is used in the terminal because a terminal can't send many of the
-key combinations the usual desktop shortcuts rely on (most Ctrl+Shift chords,
+it adds shortcuts Emacs has no counterpart for. It is used in the terminal because a terminal can't send many of the
+key combinations the usual desktop shortcuts rely on (most Ctrl+Shift shortcuts,
 and Ctrl-C, Ctrl-Z and Ctrl-S belong to the terminal itself), while Emacs's
 prefix keys work in any terminal. The desktop keymap follows the usual desktop,
-DAW and tracker conventions. A binding that has not been given a desktop chord
+DAW and tracker conventions. A binding that has not been given a desktop shortcut
 works in both. The commands that have one so far:
 
-| Command | Desktop chord | Terminal chord |
+| Command | Desktop shortcut | Terminal shortcut |
 | --- | --- | --- |
 | command palette | Ctrl+Shift+P | M-x |
 | `undo` | Ctrl+Z | C-x u, C-/ |
@@ -35,25 +35,25 @@ works in both. The commands that have one so far:
 | `stop-track-clips` (the cursor track's clips, not the others) | Ctrl+Enter | |
 | `back-to-arrangement` | F10 | F10 |
 | `toggle-record-arm` (record) | F9 | F9 |
-| `quantize-clip` (the clip under the cursor in the clip grid; in the pattern editor the same chord is `quantize-region`, below) | Ctrl+U | |
-| `quantize-region` (the pattern editor's selection) — **not built yet**, chord reserved | Ctrl+U | |
-| `insert-scene` (an empty scene below the cursor's, shifting the later ones down) — **not built yet**, chord reserved | Ctrl+I | |
-| `duplicate` — **not built yet**, chord reserved | Ctrl+D | |
-| `double-clip-length` — **not built yet**, chord reserved | Ctrl+Up | |
-| `halve-clip-length` — **not built yet**, chord reserved | Ctrl+Down | |
-| `capture-midi` — **not built yet**, chord reserved | Ctrl+Shift+C | |
+| `quantize-clip` (the clip under the cursor in the clip grid; in the pattern editor the same shortcut is `quantize-region`, below) | Ctrl+U | |
+| `quantize-region` (the pattern editor's selection) — **not built yet**, shortcut reserved | Ctrl+U | |
+| `insert-scene` (an empty scene below the cursor's, shifting the later ones down) — **not built yet**, shortcut reserved | Ctrl+I | |
+| `duplicate` — **not built yet**, shortcut reserved | Ctrl+D | |
+| `double-clip-length` — **not built yet**, shortcut reserved | Ctrl+Up | |
+| `halve-clip-length` — **not built yet**, shortcut reserved | Ctrl+Down | |
+| `capture-midi` — **not built yet**, shortcut reserved | Ctrl+Shift+C | |
 | `find-file` | Ctrl+O | C-x C-f |
 | `save-buffer` | Ctrl+S | C-x C-s |
 | `save-buffer-as` | Ctrl+Shift+S | C-x C-w |
 | `save-buffers-kill-terminal` (quit) | Ctrl+Q | C-x C-c |
 
-The desktop chords follow Ableton Live's shortcuts where this program has the
+The desktop shortcuts follow Ableton Live's shortcuts where this program has the
 same thing; an empty Terminal cell means the Emacs keybindings it is based on have no obvious counterpart, so the
-chord is left free. `toggle-track-collapse` therefore has its chord (Ctrl+Shift+C) on
+shortcut is left free. `toggle-track-collapse` therefore has its shortcut (Ctrl+Shift+C) on
 the terminal keymap only, as Capture MIDI has it on the desktop one.
 
 Ctrl+X is cut there, so the `C-x` prefix sequences are terminal-only; the buffer
-commands (`next-buffer`, `kill-buffer`, ...) have no desktop chord yet and are
+commands (`next-buffer`, `kill-buffer`, ...) have no desktop shortcut yet and are
 in the menus and the command palette. What the terminal can't do is listed
 under [Terminal](#terminal) at the end.
 
@@ -79,7 +79,7 @@ still used for messages and for prompts that ask for a name.
   C-g or a click outside cancels.
 
 The palette takes M-x and Tab completion of the name from Emacs, and from the
-command palette of Sublime Text the chord Ctrl+Shift+P, matching the typed
+command palette of Sublime Text the shortcut Ctrl+Shift+P, matching the typed
 letters in order, and showing each command's keybinding and description. There is no minibuffer: the status line only shows
 messages and asks for names (a file, a buffer, a new name).
 
@@ -272,7 +272,7 @@ The terminal interface does everything the program does, with these limits:
   already in the chord starts a new one, so a held key's repeats each get a
   row); the Launchpad and MIDI input are unaffected.
 - **Key combinations.** Without that protocol many combinations arrive as the
-  same byte (C-_ and C-/, for example) or not at all (most Ctrl+Shift chords),
+  same byte (C-_ and C-/, for example) or not at all (most Ctrl+Shift shortcuts),
   so some commands have fewer bindings there, and M-x is always the way in.
 - **Pixel graphics.** Terminals with Kitty graphics or Sixels draw the spectrum
   analyzer and the DirAC heatmap as real pixels; the rest get braille cells.

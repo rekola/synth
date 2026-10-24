@@ -411,7 +411,7 @@ TEST(gtk_window_input_from_the_display) {
     CHECK(got[4].input.getId() == Key::Up);
   }
 
-  // Alt comes with the key as the Alt modifier, for the M-x chord.
+  // Alt comes with the key as the Alt modifier, for the M-x shortcut.
   got.clear();
   xdotool("key alt+x");
   CHECK(gather(2));

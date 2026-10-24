@@ -132,7 +132,7 @@ TEST(ctrl_modified_keystroke_after_pending_escape_is_not_folded) {
   // one's mind mid-command, ...) followed by ordinary continued use -
   // Ctrl-G's own keyboard-quit included - must not have Alt silently
   // tacked onto it: nothing in this codebase binds a genuine Ctrl+Alt
-  // chord, so folding here would just make Ctrl-G (and every other
+  // shortcut, so folding here would just make Ctrl-G (and every other
   // Ctrl-modified binding) stop working until some later unmodified
   // keypress happened to absorb the fold instead.
   Fixture f;
@@ -151,7 +151,7 @@ TEST(ctrl_modified_keystroke_after_pending_escape_is_not_folded) {
 
 TEST(shift_modified_keystroke_after_pending_escape_is_not_folded) {
   // Same reasoning as the Ctrl case above: raw note entry uses a bare
-  // Shift+letter to start a new chord column (PatternEditor.cpp) - Alt
+  // Shift+letter to start a new shortcut column (PatternEditor.cpp) - Alt
   // arriving alongside it unasked would divert into the Alt-Left/Right
   // track-move branch instead and silently drop the note.
   Fixture f;

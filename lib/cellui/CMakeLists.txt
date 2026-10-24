@@ -63,7 +63,7 @@ add_library(cellui STATIC
   src/ChoiceDialog.cpp
   src/CommandPalette.cpp
   src/FuzzyMatch.cpp
-  src/KeyChordNames.cpp
+  src/KeyStrokeNames.cpp
   src/Gallery.cpp
   src/InfoDialog.cpp
   src/InlineEditor.cpp
