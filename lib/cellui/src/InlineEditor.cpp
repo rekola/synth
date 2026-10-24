@@ -13,6 +13,7 @@ InlineEditor::open(const Field & field, std::function<void(std::string)> commit)
   if (field_.width < 1) field_.width = 1;
   commit_ = std::move(commit);
   open_ = true;
+  replaceable_ = field_.replace_on_type && !field_.initial_text.empty();
   plane_.showReader("", field_.row, field_.col, 1, field_.width, field_.initial_text, field_.text_color);
   paintBackdrop();
   // Opening erases from the field to the plane's right edge, which may
@@ -40,6 +41,11 @@ InlineEditor::offerInput(const cellui::Input & input) {
   } else if (input.hasCtrl() && input.getId() == 'g') {
     cancel();
   } else {
+    if (replaceable_) {
+      replaceable_ = false;
+      bool printable = input.getId() >= 32 && input.getId() < 127 && !input.hasCtrl() && !input.hasAlt();
+      if (printable || input.getId() == Key::Backspace || input.getId() == Key::Delete) plane_.setReaderContents("");
+    }
     plane_.offerInput(input);
   }
   return true;

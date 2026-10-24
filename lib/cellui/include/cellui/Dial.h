@@ -15,7 +15,8 @@ namespace cellui {
 struct DialReading {
   std::string letter;
   float fraction = 0.0f;  // 0..1
-  // What the dial's slot shows where no picture can be: under the letter.
+  // What the dial's slot shows where no picture can be: the value, in the
+  // middle of a rounded box with the letter in its bottom border.
   std::string text;
 };
 
@@ -39,7 +40,7 @@ std::vector<uint32_t> render(const DialReading & reading, const DialLook & look,
 // Draws a dial in the `rows` x `cols` cells from (row, col), only in the plane
 // rows from clip_top up to clip_bottom. A plane that shows pictures
 // (Plane::cellPixelSize()) gets the picture, with no number; any other gets
-// the letter over `reading.text` in the same cells. `id` names the dial for
+// the rounded box with `reading.text` in the same cells. `id` names the dial for
 // the plane's images (see Plane::drawImageAt()).
 void drawDial(Plane & plane, int row, int col, int rows, int cols, const DialReading & reading, const DialLook & look, int clip_top,
               int clip_bottom, uint64_t id = 0);

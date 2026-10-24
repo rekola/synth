@@ -11,23 +11,29 @@ namespace cellui {
 
 void drawCellDial(Plane & plane, int row, int col, int rows, int cols, const DialReading & reading, const DialLook & look, int clip_top,
                   int clip_bottom) {
-  if (rows <= 0 || cols <= 0) return;
+  if (rows < 3 || cols < 3) return;
   plane.setFgColor(look.foreground);
   plane.setBgColor(look.background);
-  // The letter centred over the value, the value at the right.
+  // A rounded box: the value in the middle, the letter in the bottom border.
+  auto inner = cols - 2;
+  auto centred = [&](const std::string & text, const char * fill) {
+    auto shown = utf8::truncateToWidth(text, inner);
+    int left = (inner - utf8::displayWidth(shown)) / 2, right = inner - utf8::displayWidth(shown) - left;
+    std::string out;
+    for (int i = 0; i < left; i++) out += fill;
+    out += shown;
+    for (int i = 0; i < right; i++) out += fill;
+    return out;
+  };
+  auto line = [&](const char * left, const std::string & middle, const char * right) { return std::string(left) + middle + right; };
   for (int i = 0; i < rows; i++) {
     int y = row + i;
     if (y < clip_top || y >= clip_bottom) continue;
     std::string text;
-    if (i == 0) {
-      int pad = std::max(0, (cols - utf8::displayWidth(reading.letter)) / 2);
-      text = utf8::padToWidth(std::string(static_cast<size_t>(pad), ' ') + reading.letter, cols);
-    } else if (i == rows - 1) {
-      auto shown = utf8::truncateToWidth(reading.text, cols);
-      text = std::string(static_cast<size_t>(std::max(0, cols - utf8::displayWidth(shown))), ' ') + shown;
-    } else {
-      text = std::string(static_cast<size_t>(cols), ' ');
-    }
+    if (i == 0) text = line("╭", centred("", "─"), "╮");
+    else if (i == rows - 1) text = line("╰", centred(reading.letter, "─"), "╯");
+    else if (i == rows / 2) text = line("│", centred(reading.text, " "), "│");
+    else text = line("│", centred("", " "), "│");
     plane.putstr(y, col, text);
   }
 }

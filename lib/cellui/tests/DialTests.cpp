@@ -46,24 +46,25 @@ TEST(dial_draws_a_picture_where_the_plane_shows_pictures_and_text_otherwise) {
   StyleProvider styles;
   DialLook look{styles.grid_bg_color, styles.window_accent_fg_color};
   DialReading reading{"A", 0.5f, "-12"};
-  CellBuffer pictured(4, 8);
+  CellBuffer pictured(4, 9);
   BufferPlane with_pictures(pictured, styles);
   with_pictures.setCellPixelSize(16, 8);
-  drawDial(with_pictures, 1, 2, 2, 4, reading, look, 0, 4, 7);
+  drawDial(with_pictures, 0, 2, 3, 6, reading, look, 0, 4, 7);
   with_pictures.refresh();
   if (with_pictures.images().empty()) return;  // no pixel backend in this build
   CHECK(with_pictures.images().size() == 1);
-  CHECK(with_pictures.images()[0].row == 1 && with_pictures.images()[0].col == 2);
-  CHECK(with_pictures.images()[0].image->width == 4 * 8 && with_pictures.images()[0].image->height == 2 * 16);
+  CHECK(with_pictures.images()[0].row == 0 && with_pictures.images()[0].col == 2);
+  CHECK(with_pictures.images()[0].image->width == 6 * 8 && with_pictures.images()[0].image->height == 3 * 16);
 
-  // The same cells in text: the letter over the value, and no number in the picture.
-  CellBuffer plain(4, 8);
+  // The same cells in text: a rounded box with the value, the letter in its bottom border.
+  CellBuffer plain(4, 9);
   BufferPlane text(plain, styles);
-  drawDial(text, 1, 2, 2, 4, reading, look, 0, 4, 7);
+  drawDial(text, 0, 2, 3, 6, reading, look, 0, 4, 7);
   text.refresh();
   CHECK(text.images().empty());
-  CHECK(plain.at(1, 3).text == "A" || plain.at(1, 2).text == "A");
-  CHECK(plain.at(2, 4).text == "1" && plain.at(2, 5).text == "2");
+  CHECK(plain.at(0, 2).text == "╭" && plain.at(0, 7).text == "╮");
+  CHECK(plain.at(1, 2).text == "│" && plain.at(1, 3).text == "-" && plain.at(1, 4).text == "1" && plain.at(1, 5).text == "2");
+  CHECK(plain.at(2, 2).text == "╰" && plain.at(2, 4).text == "A" && plain.at(2, 7).text == "╯");
 }
 
 TEST(dial_text_version_is_clipped_to_the_plane_rows_it_is_given) {
@@ -71,8 +72,9 @@ TEST(dial_text_version_is_clipped_to_the_plane_rows_it_is_given) {
   DialLook look{styles.grid_bg_color, styles.window_accent_fg_color};
   CellBuffer plain(3, 6);
   BufferPlane text(plain, styles);
-  drawDial(text, 0, 0, 2, 4, DialReading{"B", 0.0f, "off"}, look, 1, 3);
+  drawDial(text, 0, 0, 3, 6, DialReading{"B", 0.0f, "off"}, look, 1, 3);
   text.refresh();
-  CHECK(plain.at(0, 1).text != "B" && plain.at(0, 2).text != "B");
+  CHECK(plain.at(0, 0).text != "╭"); // above the rows it is given
   CHECK(plain.at(1, 1).text == "o");
+  CHECK(plain.at(2, 2).text == "B" || plain.at(2, 3).text == "B");
 }

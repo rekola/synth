@@ -77,6 +77,9 @@ float sendDb(float linear) { return std::max(sendLinearToDb(linear), -99.0f); }
 // glyph), Monitor, Mute, Solo.
 constexpr int kHeaderFlagsWidth = 5;
 
+// How far a dial turns: per row dragged, and per wheel step, each also finely.
+constexpr float kDragDbPerRow = 3.0f, kFineDragDbPerRow = 0.3f;
+constexpr float kWheelDb = 1.0f, kFineWheelDb = 0.1f;
 }
 
 ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
@@ -442,6 +445,50 @@ ClipGrid::hitTest(int screen_y, int screen_x, int num_tracks) const {
   return hit;
 }
 
+bool ClipGrid::dialFor(const Pressed & hit, int num_tracks, const std::vector<int> & track_ids, int & track_id, int & send) const {
+  if (hit.column < 0 || hit.column > num_tracks) return false;
+  auto clip_rows = clipRowCount();
+  if (hit.logical_row == clip_rows + 1)
+    send = 1 + std::max(0, hit.send);
+  else if (hit.logical_row == clip_rows + 2)
+    send = 0;
+  else
+    return false;
+  track_id = hit.column < num_tracks ? track_ids[static_cast<size_t>(hit.column)] : getController().getSong().getMasterTrack().getInternalId();
+  return true;
+}
+
+float ClipGrid::sendDbOf(int track_id, int send) const {
+  auto * track = getController().getSong().getMasterTrack().getChildByInternalId(track_id);
+  if (!track) return 0.0f;
+  auto sends = track->getSends();
+  return sendLinearToDb(send == 0 ? sends.main : send == 1 ? sends.a
+                                                           : sends.b);
+}
+
+void ClipGrid::setSendDb(int track_id, int send, float db) {
+  auto & controller = getController();
+  if (send == 0)
+    controller.setTrackSendMain(track_id, db);
+  else if (send == 1)
+    controller.setTrackSendA(track_id, db);
+  else
+    controller.setTrackSendB(track_id, db);
+}
+
+void ClipGrid::turnDial(int track_id, int send, float base, float delta) {
+  // A level above the dial's top stays where it is rather than jumping down to it.
+  float top = std::max(0.0f, base);
+  float db = std::clamp(base + delta, kSendFloorDb - 1.0f, top);
+  if (db < kSendFloorDb) db = -100.0f; // below the lowest step is off
+  if (std::abs(db - sendDbOf(track_id, send)) > 0.001f) setSendDb(track_id, send, db);
+}
+
+void ClipGrid::endDialDrag() {
+  if (drag_.group_open) getController().getSong().document().endGroup();
+  drag_ = DialDrag();
+}
+
 bool
 ClipGrid::handleMouse(const cellui::Input & input) {
   const Song & song = getController().getSong(); // see offerInput()'s own comment on why const
@@ -456,10 +503,48 @@ ClipGrid::handleMouse(const cellui::Input & input) {
     auto [ rows, cols ] = getDim();
     auto y = input.getY() - pos_y, x = input.getX() - pos_x;
     if (y < 0 || y >= rows || x < 0 || x >= cols) return false;
+    int dial_track = 0, dial_send = 0;
+    bool on_dial = dialFor(target, num_tracks, track_ids, dial_track, dial_send);
+    if (!mouse_down_) {
+      // A fresh press: on a dial it may turn into a drag.
+      endDialDrag();
+      if (on_dial) {
+        drag_.active = true;
+        drag_.pressed = target;
+        drag_.track_id = dial_track;
+        drag_.send = dial_send;
+        drag_.start_y = input.getFy();
+        drag_.start_db = std::max(sendDbOf(dial_track, dial_send), kSendFloorDb);
+        if (sendDbOf(dial_track, dial_send) > 0.0f) drag_.start_db = sendDbOf(dial_track, dial_send);
+      }
+    } else if (drag_.active) {
+      // The button still held and the pointer elsewhere: a drag, up raises the level.
+      float rows_up = drag_.start_y - input.getFy();
+      if (!drag_.moved && std::abs(rows_up) >= 0.5f) {
+        drag_.moved = true;
+        getController().getSong().document().beginGroup("turn dial");
+        drag_.group_open = true;
+      }
+      if (drag_.moved) turnDial(drag_.track_id, drag_.send, drag_.start_db, rows_up * (input.hasShift() ? kFineDragDbPerRow : kDragDbPerRow));
+      target = drag_.pressed;
+    }
     mouse_down_ = true;
     pressed_ = target;
     return true;
   }
+  if (drag_.active && drag_.moved) {
+    // A drag ends on its dial: select it, without opening the editor.
+    cursor_track_index_ = drag_.pressed.column;
+    cursor_send_ = std::max(0, drag_.pressed.send);
+    cursor_row_ = drag_.pressed.logical_row;
+    view_detached_ = false;
+    if (drag_.pressed.column < num_tracks) getController().getSong().setCurrentTrackId(track_ids[static_cast<size_t>(drag_.pressed.column)]);
+    endDialDrag();
+    mouse_down_ = false;
+    pressed_ = Pressed();
+    return true;
+  }
+  endDialDrag();
   auto pressed = pressed_;
   mouse_down_ = false;
   pressed_ = Pressed();
@@ -502,6 +587,13 @@ ClipGrid::offerInput(const cellui::Input & input) {
   if (input.getId() == Key::Button4 || input.getId() == Key::Button5) {
     if (input.getKind() == InputEvent::Kind::RELEASE) return true;
     int direction = input.getId() == Key::Button4 ? -1 : 1;
+    // Over a dial the wheel turns it (Shift: finely), up raising the level.
+    int dial_track = 0, dial_send = 0;
+    if (dialFor(hitTest(input.getY(), input.getX(), num_tracks), num_tracks, track_ids, dial_track, dial_send)) {
+      auto current = sendDbOf(dial_track, dial_send);
+      turnDial(dial_track, dial_send, std::max(current, kSendFloorDb), -direction * (input.hasShift() ? kFineWheelDb : kWheelDb));
+      return true;
+    }
     if (input.hasShift()) scroll_col_ += direction;
     else scroll_row_ += direction;
     view_detached_ = true;
@@ -1112,11 +1204,10 @@ void ClipGrid::renderDials(const StyleProvider & styles, int x, int rows, int co
   };
   for (int i = 0; i < 3; i++) {
     auto & dial = dials[i];
-    auto bg = dial.pressed ? styles.row_pressed_bg_color
-              : dial.on    ? styles.grid_bg_color.blend(focus_, styles.highlight_bg_color)
-                           : styles.grid_bg_color;
-    auto fg = dial.pressed ? styles.highlight_fg_color
-              : dial.on    ? styles.window_accent_fg_color.blend(focus_, styles.highlight_fg_color)
+    // The selection recolours the dial itself and leaves its slot's background alone.
+    auto bg = styles.grid_bg_color;
+    auto fg = dial.pressed ? styles.highlight_bg_color
+              : dial.on    ? styles.window_accent_fg_color.blend(focus_, styles.highlight_bg_color)
                            : styles.window_accent_fg_color;
     auto db = sendDb(dial.level);
     cellui::DialReading reading{dial.letter, sendDbToFraction(db), fmt::format("{:.0f}", db)};
@@ -1129,9 +1220,9 @@ void ClipGrid::renderDials(const StyleProvider & styles, int x, int rows, int co
 void
 ClipGrid::startSendEdit(int track_id, int send) {
   if (inline_editor_.isOpen()) return;
-  // The field covers the dial's bottom row.
-  auto row = clipRowCount() + (send == 0 ? kMainBottom : send == 1 ? kSendsMiddle
-                                                                   : kSendsBottom) -
+  // The field covers the dial's middle row, where its text version shows the value.
+  auto row = clipRowCount() + (send == 0 ? kMainMiddle : send == 1 ? kSendsBTop
+                                                                   : kSendsMiddle) -
              scroll_row_ + 1; // +1 for the header row
   auto column = cursor_track_index_ - scroll_col_;
   if (row < 1 || row >= getDim().first || column < 0) return;
@@ -1139,13 +1230,17 @@ ClipGrid::startSendEdit(int track_id, int send) {
   if (!track) return;
   send = std::clamp(send, 0, 2);
 
-  // The one value under the cursor (M, A or B).
+  // The one value under the cursor (M, A or B), over the dial's middle row,
+  // wide enough for "-12.5 dB".
   InlineEditor::Field field;
   field.row = row;
   field.col = column * (kColWidth + 1) + (send == 2 ? kDialX + kDialStride : send == 1 ? kDialX
                                                                                        : kMainX);
-  field.width = kDialWidth;
-  // Empty: the typed number is the new value, Enter on nothing leaves it.
+  field.width = kEditWidth;
+  auto level = sendDbOf(track_id, send);
+  field.initial_text = level < -99.0f ? "-inf dB" : fmt::format("{:g} dB", std::round(level * 10.0f) / 10.0f);
+  field.replace_on_type = true;
+  // A number, with or without the unit; Enter on nothing leaves the send.
   inline_editor_.open(field, [this, track_id, send](std::string text) {
     char * end = nullptr;
     float db = std::strtof(text.c_str(), &end);
