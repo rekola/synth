@@ -2,7 +2,7 @@
 
 #include "../src/Controller.h"
 
-#include <cellui/PollEventLoop.h>
+#include <cellui/PlatformEventLoop.h>
 #include <cellui/ThreadPosts.h>
 
 #include <optional>
@@ -32,7 +32,7 @@ class UICatcher {
 
  private:
   Controller & controller_;
-  cellui::PollEventLoop loop_;
+  cellui::PlatformEventLoop loop_;
   cellui::Widget root_;
   cellui::ThreadInbox inbox_{loop_, root_};
 };
