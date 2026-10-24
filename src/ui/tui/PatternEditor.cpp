@@ -2517,7 +2517,7 @@ void PatternEditor::updateCursorBands(const StyleProvider & styles, const std::v
         cursor_line = line;
         cursor_phase = phase;
       }
-      if (!on_screen || end - 1 <= start || !(styles.window_focused || source_->trackHasPlayhead(track_ids[i]))) {
+      if (!on_screen || end - 1 <= start || !((styles.window_focused && focused) || source_->trackHasPlayhead(track_ids[i]))) {
         plane->clearBand();
         continue;
       }
@@ -2546,15 +2546,15 @@ void PatternEditor::updateCursorBands(const StyleProvider & styles, const std::v
     }
   }
   if (cursor_plane_ && cursor_hue_plane_) {
-    bool cell = cursor_line && styles.window_focused && (focused || isLiveMode()) && cursor_x0_ >= 0 && cursor_x1_ > cursor_x0_ && !current_cursor.isOnLocator();
+    // Fading out with the focus, not cut off.
+    bool cell = cursor_line && styles.window_focused && focus_ > 0.01f && cursor_x0_ >= 0 && cursor_x1_ > cursor_x0_ && !current_cursor.isOnLocator();
     if (cell) {
       // The cursor inverts what is under it, text and all, like a cell drawn in
       // reversed colours; the selection under it is drawn in the rows. White
       // inverts the brightness, then the highlight's own hue is put back over it
       // (inverting colours alone turns the hue round).
-      Color invert = styles.highlight_unfocused_bg_color.blend(focus_, Color(255, 255, 255));
       double at = *cursor_line + cursor_phase;
-      strip(*cursor_plane_, at, cursor_x0_, cursor_x1_ - cursor_x0_, invert, 1.0f, cellui::BlendMode::DIFFERENCE);
+      strip(*cursor_plane_, at, cursor_x0_, cursor_x1_ - cursor_x0_, Color(255, 255, 255), focus_, cellui::BlendMode::DIFFERENCE);
       strip(*cursor_hue_plane_, at, cursor_x0_, cursor_x1_ - cursor_x0_, styles.highlight_bg_color, focus_, cellui::BlendMode::COLOR);
     } else {
       cursor_plane_->clearBand();
@@ -3242,8 +3242,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   const auto base_address = address;
   const bool base_highlight = highlight;
   // The cursor shows only while the window has the focus; a playhead always.
-  // In Arrangement view an editor that is not the focus shows no cursor, only the playhead.
-  const bool show_cursor = styles.window_focused && (focused || isLiveMode());
+  // An editor that is not the focus shows no cursor, only the playheads.
+  const bool show_cursor = styles.window_focused && focused;
   // The cursor is a band over the rows (updateCursorBands()), so only a real
   // selection is drawn in them: it scrolls with the content.
   const bool cursor_only = !whole_song_ && !(selection_active_ && selection_start_pattern_ == point.block);
