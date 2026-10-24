@@ -26,6 +26,9 @@ struct Band {
   Color color = Color(255, 255, 255);
   float alpha = 1.0f;
   BlendMode blend = BlendMode::NORMAL;
+  // Stands this high above its plane, casting no shadow, so a lower one's
+  // shadow does not fall on it (a cursor, a playhead).
+  float lift = 0.0f;
   // An outline drawn inside the rectangle, `border_px` pixels wide, over the
   // fill; only where the display draws bands by parts of a cell (the cell
   // version has no room for one between two cells).
@@ -43,6 +46,8 @@ struct ScrollContent {
   double shift_rows = 0, shift_cols = 0;
   // Drawn over the content, inside the plane, not shifted.
   std::optional<Band> band;
+  // The plane's height.
+  float elevation = 0.0f;
   // The plane is laid over what is below with this blend, `blend_alpha` of the way.
   BlendMode blend = BlendMode::NORMAL;
   float blend_alpha = 1.0f;

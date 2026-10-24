@@ -598,7 +598,8 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
     auto bar_rows = std::max(1, bars.nextBarStart(bar_start) - bar_start);
     double bar_position = playing_bar + (playing_row - bar_start + phase / 256.0) / bar_rows;
     constexpr double kLineCols = 0.25;
-    bars_plane.setBand(cellui::Band{0.0, static_cast<double>(rows), bar_position - viewport_.cols.shown() - kLineCols / 2, kLineCols, styles.cursor_tint_color, 1.0f});
+    bars_plane.setBand(cellui::Band{0.0, static_cast<double>(rows), bar_position - viewport_.cols.shown() - kLineCols / 2, kLineCols, styles.cursor_tint_color, 1.0f,
+                                    cellui::BlendMode::NORMAL, styles.theme.elevation.card});
   } else {
     bars_plane.clearBand();
   }

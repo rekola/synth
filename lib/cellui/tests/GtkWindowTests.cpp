@@ -245,7 +245,7 @@ TEST(gtk_window_draws_a_band_outline) {
   for (int r = 0; r < 5; r++) list->putstr(r, 0, "row " + std::to_string(r) + std::string(10, ' '));
   double raster = -1;
   for (BlendMode mode : { BlendMode::NORMAL, BlendMode::DIFFERENCE }) {
-    list->setBand(Band{ 1.0, 1.0, 2, 8, Color(180, 200, 210), mode == BlendMode::NORMAL ? 0.0f : 1.0f, mode, Color(0, 255, 0), 1.0f, 2.0 });
+    list->setBand(Band{ 1.0, 1.0, 2, 8, Color(180, 200, 210), mode == BlendMode::NORMAL ? 0.0f : 1.0f, mode, 0.0f, Color(0, 255, 0), 1.0f, 2.0 });
     root.refresh();
     FrameInfo info;
     info.backdrops = root.takeBackdropLayers();

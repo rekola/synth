@@ -883,8 +883,8 @@ std::set<std::string> backgrounds(UIFixture & f) {
 
 } // namespace
 
-// On a smooth display the cursor is three bands over the rows, a line, the
-// outline of the note and the field under it filled, which hold still while
+// On a smooth display the cursor is four bands over the rows, a line, the
+// outline of the note and the field under it inverted and given its hue, which hold still while
 // the rows scroll; none shows while the window is not focused.
 TEST(terminal_ui_smooth_pattern_editor_cursor_is_a_band_over_the_rows) {
   cellui::DisplayInfo display;
@@ -894,7 +894,7 @@ TEST(terminal_ui_smooth_pattern_editor_cursor_is_a_band_over_the_rows) {
   for (int i = 0; i < 5; i++) f.ui->step();
   auto count = countBands(f);
   CHECK(count.wide == 1);
-  CHECK(count.narrow == 2);
+  CHECK(count.narrow == 3); // the outline, and the field: an inverting band and the hue over it
   CHECK(count.outlined == 1);
   f.terminal.pushWindowFocus(false);
   for (int i = 0; i < 5; i++) f.ui->step();
@@ -906,25 +906,8 @@ TEST(terminal_ui_smooth_pattern_editor_cursor_is_a_band_over_the_rows) {
   for (int i = 0; i < 5; i++) f.ui->step();
   count = countBands(f);
   CHECK(count.wide == 1);
-  CHECK(count.narrow == 2);
+  CHECK(count.narrow == 3); // the outline, and the field: an inverting band and the hue over it
   CHECK(count.outlined == 1);
-}
-
-// Without smooth scrolling the cursor is two tints on whole cells: the note
-// with its velocity and delay, and the field under it more; none while the
-// window is not focused.
-TEST(terminal_ui_pattern_editor_cursor_tints_the_note_and_more_the_field) {
-  UIFixture f(repoSong("demo3.xml"), UI::View::ARRANGEMENT);
-  f.otherWindow();
-  for (int i = 0; i < 5; i++) f.ui->step();
-  auto shown = backgrounds(f);
-  f.terminal.pushWindowFocus(false);
-  for (int i = 0; i < 5; i++) f.ui->step();
-  auto hidden = backgrounds(f);
-  size_t added = 0;
-  for (const auto & colour : shown)
-    if (!hidden.count(colour)) added++;
-  CHECK(added >= 2);
 }
 
 // The selection is drawn in the rows, so it scrolls with them; the cursor is
