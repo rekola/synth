@@ -1129,9 +1129,9 @@ void ClipGrid::renderDials(const StyleProvider & styles, int x, int rows, int co
 void
 ClipGrid::startSendEdit(int track_id, int send) {
   if (inline_editor_.isOpen()) return;
-  // The field covers the dial's bottom row.
-  auto row = clipRowCount() + (send == 0 ? kMainBottom : send == 1 ? kSendsMiddle
-                                                                   : kSendsBottom) -
+  // The field covers the dial's middle row, where its text version shows the value.
+  auto row = clipRowCount() + (send == 0 ? kMainMiddle : send == 1 ? kSendsBTop
+                                                                   : kSendsMiddle) -
              scroll_row_ + 1; // +1 for the header row
   auto column = cursor_track_index_ - scroll_col_;
   if (row < 1 || row >= getDim().first || column < 0) return;
@@ -1143,8 +1143,9 @@ ClipGrid::startSendEdit(int track_id, int send) {
   InlineEditor::Field field;
   field.row = row;
   field.col = column * (kColWidth + 1) + (send == 2 ? kDialX + kDialStride : send == 1 ? kDialX
-                                                                                       : kMainX);
-  field.width = kDialWidth;
+                                                                                       : kMainX) +
+              1; // inside the border
+  field.width = kDialWidth - 2;
   // Empty: the typed number is the new value, Enter on nothing leaves it.
   inline_editor_.open(field, [this, track_id, send](std::string text) {
     char * end = nullptr;

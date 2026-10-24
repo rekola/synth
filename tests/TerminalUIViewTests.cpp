@@ -434,9 +434,9 @@ TEST(terminal_ui_clip_grid_click_shows_pressed_then_picks_on_release) {
 namespace {
 struct DialRows {
   int caption = -1;
-  int a_bottom() const { return caption + 2; }
-  int b_bottom() const { return caption + 3; }
-  int main_bottom() const { return caption + 7; }
+  int a_bottom() const { return caption + 1; } // the middle row, which shows the value
+  int b_bottom() const { return caption + 2; }
+  int main_bottom() const { return caption + 6; }
 };
 
 DialRows dialRows(UIFixture & f) {
