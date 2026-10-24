@@ -7,6 +7,7 @@ namespace cellui {
 // An EventLoop that waits with poll(2).
 class PollEventLoop : public EventLoop {
  public:
+  PollEventLoop() { installWake(); }
   void addSource(const std::vector<int> & fds, Handler handler) override;
   bool iterate(bool block) override;
 

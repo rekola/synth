@@ -55,7 +55,7 @@ deliberate change, run the tests with `CELLUI_UPDATE_GOLDEN=1` to rewrite it.
 
 ## Events and signals
 
-*Implemented: `Signal` and `Connection` (`cellui/Signal.h`) and posted events on the widget tree (`cellui/EventTypes.h`, `Widget::attach`/`on`/`post`/`postToRoot`), and input events and `InputDispatcher` (`cellui/InputEvents.h`, `cellui/InputDispatcher.h`). The queues and the loop additions are design, and their signatures may change in detail.*
+*Implemented: `Signal` and `Connection` (`cellui/Signal.h`) and posted events on the widget tree (`cellui/EventTypes.h`, `Widget::attach`/`on`/`post`/`postToRoot`), input events and `InputDispatcher` (`cellui/InputEvents.h`, `cellui/InputDispatcher.h`), the cross-thread queues (`cellui/ThreadPosts.h`) and the loop additions (`cellui/EventLoop.h`).*
 
 cellui has three ways to tell other code that something happened. They differ
 in how much the sender knows about the receiver and in which thread they run.
@@ -232,42 +232,47 @@ a `KeyDown` handler is where a widget consults its keymap.
 
 ### Events from other threads
 
-Other threads never call widgets or emit signals. They post to the root, and the
-event is dispatched on the UI thread like an untargeted `post`, with a fresh
+Other threads never call widgets or emit signals. They post to a `ThreadInbox`
+(`cellui/ThreadPosts.h`) made over the loop and the root widget, and the event
+is dispatched on the UI thread like an untargeted `postToRoot`, with a fresh
 `EventContext`. There are two queues because the producers differ. Both are
-drained at the start of every loop iteration, nested loops included. An event
-whose handlers have all been destroyed is dropped.
+drained at the start of every loop turn, nested runs included, and in the turn
+a post woke the loop (so the turn's after hook sees what they changed). An
+event whose handlers have all been destroyed is dropped.
 
-**Real-time ring**, for a producer that must not allocate, lock or block (the
-audio thread):
+**Real-time ring** (`RealtimeRing`), for a producer that must not allocate,
+lock or block (the audio thread):
 
 ```cpp
+cellui::ThreadInbox inbox(loop, root);
+cellui::RealtimeRing & ring = inbox.addRing(256);  // UI thread, before the producer starts
+
 struct XrunReported {
   int frames;
 };  // trivially copyable, at most 64 bytes
 
-if (!ring.post_from_thread(XrunReported{ n })) ++dropped;  // full: the producer decides
+if (!ring.post(XrunReported{ n })) /* full: the producer decides; ring.dropped() counts */;
 ```
 
 - A bounded single-producer single-consumer ring of fixed-size slots, one ring
-  per real-time producer.
+  per real-time producer; the size is rounded up to a power of two.
 - The payload must be trivially copyable and at most 64 bytes (`static_assert`).
   A slot holds the payload bytes and a plain function pointer that dispatches
   that type.
 - It never allocates, locks or blocks, returns `false` when full, and calls
-  `wake()` after pushing.
+  `EventLoop::wake()` after pushing.
 
-**General queue**, for worker threads, I/O and timers:
+**General queue** (`ThreadInbox::post`), for worker threads, I/O and timers:
 
 ```cpp
-cellui::post_from_thread(FileLoaded{ path, std::move(contents) });
+inbox.post(FileLoaded{ path, std::move(contents) });
 ```
 
 - Multiple producers, one consumer; any movable payload.
-- It may allocate and take a short producer-side lock, and never blocks the UI
+- It may allocate and takes a short producer-side lock, and never blocks the UI
   thread.
-- Unbounded by default; an optional high-water mark makes `post_from_thread`
-  return `false`.
+- Unbounded by default; `setHighWater(n)` makes `post` return `false` while `n`
+  events wait.
 - The payload is destroyed on the UI thread, after dispatch.
 
 | | Real-time ring | General queue |
@@ -277,25 +282,31 @@ cellui::post_from_thread(FileLoaded{ path, std::move(contents) });
 | Producer allocates | never | may |
 | Producer blocks | never | only for a short lock |
 | When full | returns `false`, event not sent | unbounded, or `false` at the high-water mark |
-| Delivered exactly once | if `post_from_thread` returned `true` | if `post_from_thread` returned `true` |
+| Delivered exactly once | if `post` returned `true` | if `post` returned `true` |
 | Payload destroyed on | nothing to destroy | the UI thread |
-| Delivered | next loop iteration | next loop iteration |
+| Delivered | the turn it wakes, or the next | the turn it wakes, or the next |
 
 Neither queue promises that a handler still exists when the event is drained, or
 any order between events sent through different queues. Events that must stay in
-order go through the same queue.
+order go through the same queue. The inbox and the root must outlive the
+producers.
 
 ### The loop
 
-- `wake()` can be called from any thread, allocates nothing, and starts a loop
-  iteration (an eventfd or self-pipe on Linux, an event handle on Windows). The
-  queues call it.
-- `on_frame(fn)` registers a function that runs once per iteration before input
-  is read, in nested loops too.
-- A modal dialog may run a nested loop (`show_modal`); queues, frame hooks and
-  redraws keep working inside it. A widget destroyed during a nested loop is
-  destroyed when that loop unwinds, and the widget that opened the loop is kept
-  alive while it runs.
+- `wake()` can be called from any thread, allocates nothing, and ends the wait of
+  the turn in progress or starts the next (an eventfd, or a pipe where there is
+  none, on POSIX; an event handle on Windows). A wake sent before the loop
+  waits is not lost. The queues call it.
+- `onFrame(fn)` registers a function that runs at the start of every turn,
+  before the turn waits, in nested runs too; `onWake(fn)` one that runs in the
+  turn a `wake()` ended the wait of, before the other sources. Both return a
+  `Connection`.
+- A modal dialog may run a nested loop (`run(opener)`); queues, frame hooks and
+  redraws keep working inside it. `deleteLater(std::unique_ptr<T>)` is how a
+  handler gives up a widget it, or a handler further out, may still be using:
+  it is destroyed when the turn it was given up in is over, and, if it is the
+  `opener` of a `run()` still active, only once that run has ended and the turn
+  that called it too. Outside any `run()` it is destroyed at once.
 
 ### Testing
 

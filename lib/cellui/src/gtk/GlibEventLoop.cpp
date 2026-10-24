@@ -67,6 +67,7 @@ GlibEventLoop::GlibEventLoop() : impl_(new Impl) {
   impl_->timer = reinterpret_cast<TimerSource *>(g_source_new(&timer_funcs, sizeof(TimerSource)));
   impl_->timer->timeout_ms = -1;
   g_source_attach(&impl_->timer->base, nullptr);
+  installWake();
 }
 
 GlibEventLoop::~GlibEventLoop() {
