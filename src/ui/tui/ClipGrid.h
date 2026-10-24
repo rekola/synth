@@ -163,7 +163,7 @@ class ClipGrid : public UIElement {
   int scroll_col_ = 0, scroll_row_ = 0; // scroll_row_ is in *physical* row space, like the on-screen content itself
 
   int current_song_version_ = -1;
-  int current_cursor_track_index_ = -1, current_cursor_row_ = -1;
+  int current_cursor_track_index_ = -1, current_cursor_row_ = -1, current_cursor_send_ = -1;
   int current_scroll_col_ = -1, current_scroll_row_ = -1;
   // Set by the mouse wheel, which scrolls the view without the cursor;
   // cleared when the cursor next moves.
