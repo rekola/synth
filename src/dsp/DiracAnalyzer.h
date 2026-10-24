@@ -31,7 +31,7 @@ class DiracAnalyzer {
   // (kHeatmapWidth*2 = 62, UI.cpp) regardless of terminal size, and 36
   // source bins upsampled to 62 destination columns hit a real,
   // confirmed asymmetric-rounding bug in that resampling (see
-  // TerminalUI.cpp's axisRange()) - widening the source grid past the
+  // InteractiveUI.cpp's axisRange()) - widening the source grid past the
   // display's own resolution avoids upsampling altogether, the more
   // robust fix (axisRange() still handles upsampling correctly too, but
   // not needing to is simpler and matches elevation's own comfortably-

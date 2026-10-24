@@ -1,8 +1,8 @@
 #pragma once
 
 // The implementation lives in lib/cellui; this keeps the old name.
-#include "../UIElement.h"
+#include "UIElement.h"
 
-#include <cellui/InfoDialog.h>
+#include <cellui/ChannelMeter.h>
 
-using cellui::InfoDialog;
+using cellui::ChannelMeter;

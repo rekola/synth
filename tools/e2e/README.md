@@ -94,7 +94,7 @@ you're changing.
   clip) draw blank.
 - The scroll margin, the clip grid's stop buttons, `set-song-scale`, the mouse
   wheel, Live View's layout and the keybindings' effects are unit tests on the
-  test backend now (`tests/TerminalUITests.cpp`, `TerminalUIViewTests.cpp`),
+  test backend now (`tests/InteractiveUITests.cpp`, `InteractiveUIViewTests.cpp`),
   not scripts here.
 
 - **`verify_arrangement_clip_region.py`** (fixture

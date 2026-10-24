@@ -31,7 +31,7 @@ def check(name, ok, extra=None):
         print("  ", extra)
 
 def arrangement_grid_area(screen):
-    # The bars of the arrangement grid (see TerminalUI::layout()): the rows
+    # The bars of the arrangement grid (see InteractiveUI::layout()): the rows
     # under its two header rows and the columns right of the track names,
     # which would otherwise put digits of their own in the way.
     return "\n".join(line[ArrangementGrid_NAME_WIDTH:78] for line in screen.display[3:12])

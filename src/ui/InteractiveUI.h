@@ -4,9 +4,9 @@
 #include "ChoiceDialog.h"
 #include <cellui/CommandPalette.h>
 #include "InfoDialog.h"
-#include "../UI.h"
-#include "../StyleProvider.h"
-#include "../../playback/InputEvent.h"
+#include "UI.h"
+#include "StyleProvider.h"
+#include "../playback/InputEvent.h"
 #include <cellui/KeyReader.h>
 #include <cellui/Signal.h>
 #include <cellui/Scrim.h>
@@ -25,9 +25,9 @@ namespace cellui {
 class Backend;
 }
 
-#include "../UIMenu.h"
+#include "UIMenu.h"
 #include "SpectrumMeter.h"
-#include "../HeatmapChart.h"
+#include "HeatmapChart.h"
 #include "ChannelMeter.h"
 class InfoLine;
 class StatusLine;
@@ -37,12 +37,12 @@ class ClipGrid;
 class OutlineView;
 #include "SpinBox.h"
 
-class TerminalUI : public UI {
+class InteractiveUI : public UI {
  public:
   // Draws on, and reads from, `backend`: a terminal session, or a
   // TestBackend in a test.
-  explicit TerminalUI(cellui::Backend & backend);
-  ~TerminalUI();
+  explicit InteractiveUI(cellui::Backend & backend);
+  ~InteractiveUI();
 
   void initialize(std::shared_ptr<Controller> & controller);
 

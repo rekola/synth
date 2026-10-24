@@ -3,7 +3,7 @@
 #include <thread>
 #include "TestFramework.h"
 
-#include "TerminalUIFixture.h"
+#include "InteractiveUIFixture.h"
 #include "../src/model/ArrangementOps.h"
 #include "../src/model/LeafTrack.h"
 #include "../src/ui/CommandDescriptions.h"

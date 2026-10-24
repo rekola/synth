@@ -42,11 +42,11 @@ private:
 };
 
 // Toolkit-agnostic top-level application UI - owns nothing widget-shaped
-// itself (a concrete subclass, e.g. TerminalUI, owns its own widget set and
+// itself (a concrete subclass, e.g. InteractiveUI, owns its own widget set and
 // screen layout), just the app-level lifecycle every backend needs:
 // spawning the audio/visualization threads, running until told to quit,
 // and reporting status. A future non-terminal UI would subclass this
-// directly rather than TerminalUI.
+// directly rather than InteractiveUI.
 class UI : public UIElement {
  public:
   explicit UI() : logger_(this) { initializeCommands(); }
@@ -184,7 +184,7 @@ protected:
 
   // Set once in start(), before wireLaunchpad() runs - shared here (rather
   // than duplicated per backend) since any UI frontend, GUI included, reads
-  // it just as much as TerminalUI does today (device-state toggles, per-
+  // it just as much as InteractiveUI does today (device-state toggles, per-
   // device command resolution, handleLaunchpadChannelPressureEvent() above).
   LaunchpadManager * launchpad_manager_ = nullptr;
 

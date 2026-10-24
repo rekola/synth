@@ -1,6 +1,6 @@
 #include "TestFramework.h"
 
-#include "TerminalUIFixture.h"
+#include "InteractiveUIFixture.h"
 
 #include <filesystem>
 #include <fstream>
