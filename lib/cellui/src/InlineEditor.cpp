@@ -38,7 +38,7 @@ InlineEditor::offerInput(const cellui::Input & input) {
     auto commit = std::move(commit_);
     close();
     if (commit) commit(std::move(text));
-  } else if (input.hasCtrl() && input.getId() == 'g') {
+  } else if (input.getId() == Key::Escape || (input.hasCtrl() && input.getId() == 'g')) {
     cancel();
   } else {
     if (replaceable_) {

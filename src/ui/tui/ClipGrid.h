@@ -5,6 +5,7 @@
 #include "InlineEditor.h"
 #include "LevelMeter.h"
 
+#include <cellui/Dial.h>
 #include <cellui/Fade.h>
 #include <cellui/Scopes.h>
 #include "../../launchpad/ClipHighlight.h"
@@ -14,6 +15,7 @@
 #include <algorithm>
 #include <chrono>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -70,10 +72,15 @@ class ClipGrid : public UIElement {
   void setTrackClipSource(std::function<int(int track_id)> source) { track_clip_source_ = std::move(source); }
   bool offerInput(const cellui::Input & input) override;
   // See PatternEditor::isReaderActive()/cancelReaderEdit().
-  bool isReaderActive() const { return inline_editor_.isOpen(); }
+  bool isReaderActive() const { return inline_editor_.isOpen() || isDialEditing(); }
+  // A bare Escape closes an open editor at once.
+  bool wantsBareEscape() const override { return isReaderActive(); }
   // The focus level is still easing: the loop keeps drawing frames.
   bool isAnimating() const { return fades_.active() || focus_fade_drawn_; }
-  void cancelReaderEdit() { inline_editor_.cancel(); }
+  void cancelReaderEdit() {
+    inline_editor_.cancel();
+    for (auto & [key, dial] : dials_) dial->cancelEdit();
+  }
 
   // Lets UI move the column cursor to the shared current track
   // (TerminalUI::syncLiveView()).
@@ -130,8 +137,6 @@ class ClipGrid : public UIElement {
   // meter's.
   static constexpr int kDialX = 1, kDialStride = 7, kDialWidth = 6, kDialRows = 3;
   static constexpr int kMainX = (kColWidth - 1 - kDialWidth) / 2;
-  // The editor over a dial: wide enough for "-12.5 dB".
-  static constexpr int kEditWidth = 8;
   // The level meter: a vertical bar in a column's last cell, beside the Main
   // and Direction rows (kMainTop through kDirectionValue); the Sends rows
   // above leave that cell free.
@@ -245,13 +250,13 @@ class ClipGrid : public UIElement {
   void renderDials(const StyleProvider & styles, int x, int rows, int column, int track_id, const SendLevels & sends);
   // One row of the Sends or Main group (`offset` rows below the clip rows):
   // its background, and the Sends caption.
+  std::string dividerLine(const StyleProvider & styles, int offset) const;
   void putDialGroupRow(const StyleProvider & styles, int y, int x, int offset);
   // A column's level meter and peak marker in its last cell, over
   // whichever of its kMeterRows rows are on screen.
   void renderMeter(const StyleProvider & styles, int x, int rows, int track_id, bool clipping);
   // Edits the send of the column under the cursor - 0: Main, 1: A, 2: B - a
   // track's, or the master's (the dry mix and the send bus's returns).
-  void startSendEdit(int track_id, int send);
   void putDivider(const StyleProvider & styles, int y, int x, bool header);
   // What Enter or a click does on the
   // cell under the cursor.
@@ -270,23 +275,16 @@ class ClipGrid : public UIElement {
     bool operator!=(const Pressed & o) const { return !(*this == o); }
   };
   Pressed pressed_, current_pressed_;
-  // A dial held with the button: dragging up and down turns it, and a release
-  // without a drag edits it as a click does.
-  struct DialDrag {
-    bool active = false, moved = false, group_open = false;
-    Pressed pressed;
-    int track_id = 0, send = 0; // send: 0 Main, 1 A, 2 B
-    float start_y = 0.0f, start_db = 0.0f;
-  };
-  DialDrag drag_;
-  // The dial under a hit, as a track id and send (0 Main, 1 A, 2 B); false if it is not on one.
-  bool dialFor(const Pressed & hit, int num_tracks, const std::vector<int> & track_ids, int & track_id, int & send) const;
-  float sendDbOf(int track_id, int send) const;
-  // Sets a dial's send, the lowest end being off.
-  void setSendDb(int track_id, int send, float db);
-  // Moves a dial by `delta` dB from `base`, within the dial's range (a level above it stays).
-  void turnDial(int track_id, int send, float base, float delta);
-  void endDialDrag();
+  // The dials of every column, by track id and send (0 Main, 1 A, 2 B): each a
+  // cellui::Dial that turns, types and draws itself; the grid places them, gives
+  // them their values and passes on the mouse and keys.
+  std::unordered_map<uint64_t, std::unique_ptr<cellui::Dial>> dials_;
+  bool current_dials_pressed_ = false;
+  cellui::Dial & dialAt(int track_id, int send);
+  void selectDial(int track_id, int send);
+  cellui::Dial * cursorDial();
+  bool isDialEditing() const;
+  bool dialMouse(const cellui::Input & input);
   // What is under the screen position, if it is a column.
   Pressed hitTest(int screen_y, int screen_x, int num_tracks) const;
   bool isPressed(int column, int physical) const { return pressed_.column == column && pressed_.physical == physical; }
