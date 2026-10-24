@@ -47,6 +47,7 @@ commandDescription(std::string_view name) {
       {"previous-buffer", "Switch to the previous open song"},
       {"quantize-clip", "Snap the clip's notes to the nearest row"},
       {"remove-note-column", "Remove the track's last note column"},
+      {"rename", "Rename the scene, clip or track under the cursor"},
       {"rename-clip", "Rename the clip under the cursor"},
       {"rename-track", "Rename the current track"},
       {"save-buffers-kill-terminal", "Quit, asking first if any song has unsaved changes"},

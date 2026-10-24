@@ -22,6 +22,8 @@ works in both. The commands that have one so far:
 | `kill-region` (cut) | Ctrl+X | C-w |
 | `kill-ring-save` (copy) | Ctrl+C | M-w |
 | `yank` (paste) | Ctrl+V | C-y |
+| `rename` (scene, clip or track, in the clip grid) | Ctrl+R, F2 | F2 |
+| `add-sample-track` | Ctrl+Shift+R | C-r |
 | `open-song` | Ctrl+O | C-x C-f |
 | `save-song` | Ctrl+S | C-x C-s |
 | `save-song-as` | Ctrl+Shift+S | C-x C-w |

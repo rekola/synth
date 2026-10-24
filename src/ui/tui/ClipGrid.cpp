@@ -86,6 +86,7 @@ ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
   // tied to any particular row), same as the 'l' loop toggle stays a
   // manual offerInput() branch below rather than a command - there's
   // nothing else in this app either binding is likely to collide with.
+  commands_.define("rename", [this]() { startRename(); });
   commands_.define("rename-track", [this]() {
     const Song & song = getController().getSong();
     startTrackRename(song, song.getPlayableTrackIds());
@@ -213,6 +214,9 @@ ClipGrid::ClipGrid(Plane & parent) : UIElement(parent) {
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('x', true, false, false, false), "kill-region");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('c', true, false, false, false), "kill-ring-save");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('v', true, false, false, false), "yank");
+  // F2 (a manual branch of offerInput()) renames on both keymaps; Emacs has
+  // no rename chord of its own, so the desktop gets Ctrl+R as well.
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('r', true, false, false, false), "rename");
   assertCommandBindingsValid();
 }
 
@@ -478,6 +482,29 @@ ClipGrid::handleMouse(const cellui::Input & input) {
   return true;
 }
 
+// Renames the clip under the cursor, or the track when there's no clip there
+// (the cursor never sits on the header row itself); on the master column's
+// scene slot, the scene.
+void ClipGrid::startRename() {
+  const Song & song = getController().getSong();
+  auto track_ids = song.getPlayableTrackIds();
+  auto num_tracks = static_cast<int>(track_ids.size());
+  if (cursor_track_index_ == num_tracks && rowKindFor(cursor_row_) == RowKind::CLIP) {
+    startSceneRename();
+    return;
+  }
+  auto clip_index = getCursorClipIndex();
+  bool on_clip = false;
+  if (clip_index >= 0 && cursor_track_index_ >= 0 && cursor_track_index_ < num_tracks) {
+    auto clips = song.getClips(track_ids[static_cast<size_t>(cursor_track_index_)]);
+    on_clip = clip_index < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(clip_index)].isEmpty();
+  }
+  if (on_clip)
+    startClipRename(song, track_ids);
+  else
+    startTrackRename(song, track_ids);
+}
+
 bool
 ClipGrid::offerInput(const cellui::Input & input) {
   // const - Song::getClips() has a non-const overload that inserts an
@@ -533,21 +560,7 @@ ClipGrid::offerInput(const cellui::Input & input) {
   else if (input.getId() == Key::PageUp) cursor_row_ -= getDim().first;
   else if (input.getId() == Key::PageDown) cursor_row_ += getDim().first;
   else if (input.getId() == Key::F2) {
-    // Renames the clip under the cursor, or the track when there's no
-    // clip there (the cursor never sits on the header row itself); on the
-    // master column's scene slot, the scene.
-    if (cursor_track_index_ == num_tracks && rowKindFor(cursor_row_) == RowKind::CLIP) {
-      startSceneRename();
-      return true;
-    }
-    auto clip_index = getCursorClipIndex();
-    bool on_clip = false;
-    if (clip_index >= 0 && cursor_track_index_ >= 0 && cursor_track_index_ < num_tracks) {
-      auto clips = song.getClips(track_ids[static_cast<size_t>(cursor_track_index_)]);
-      on_clip = clip_index < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(clip_index)].isEmpty();
-    }
-    if (on_clip) startClipRename(song, track_ids);
-    else startTrackRename(song, track_ids);
+    startRename();
     return true;
   } else if (input.getId() == 'l' && !input.hasCtrl() && !input.hasAlt()) {
     // Loop toggle - only meaningful on a clip row that actually has a

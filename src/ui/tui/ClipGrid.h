@@ -271,6 +271,8 @@ class ClipGrid : public UIElement {
   // What is under the screen position, if it is a column.
   Pressed hitTest(int screen_y, int screen_x, int num_tracks) const;
   bool isPressed(int column, int physical) const { return pressed_.column == column && pressed_.physical == physical; }
+  // The "rename" command and F2: the scene, clip or track under the cursor.
+  void startRename();
   void startClipRename(const Song & song, const std::vector<int> & track_ids);
   // F2 on the master column's scene slot edits the scene's name.
   void startSceneRename();
