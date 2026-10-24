@@ -123,14 +123,17 @@ class ClipGrid : public UIElement {
   // Content width of one track's own column; one divider column follows
   // each. Shared between render() and startClipRename() so the reader's
   // own placement always lines up with what render() just drew.
-  static constexpr int kColWidth = 18;
-  // A Sends row's values: the first one's offset in the column, each one's width.
-  static constexpr int kSendX = 5, kSendWidth = 4;
-  // The level meter: a vertical bar in a column's last cell,
-  // beside the Sends/Direction rows (kSendsLabel through kDirectionValue),
-  // which leave that cell free.
-  static constexpr int kMeterRows = 5;
-  static constexpr int kSendsTextWidth = kColWidth - 1;
+  static constexpr int kColWidth = 16;
+  // A dial's slot: kDialWidth cells by kDialRows rows, about square. A and B
+  // stand side by side, A at kDialX in the column and B kDialStride cells
+  // further on; Main is centred, at kMainX. The column's last cell is the
+  // meter's.
+  static constexpr int kDialX = 1, kDialStride = 7, kDialWidth = 6, kDialRows = 3;
+  static constexpr int kMainX = (kColWidth - 1 - kDialWidth) / 2;
+  // The level meter: a vertical bar in a column's last cell, beside the Main
+  // and Direction rows (kMainTop through kDirectionValue); the Sends rows
+  // above leave that cell free.
+  static constexpr int kMeterRows = 6;
 
   // The row-axis kind a given *logical* row is - physicalFor() maps
   // between this and the actual on-screen row, which also includes
@@ -139,31 +142,50 @@ class ClipGrid : public UIElement {
   // instead (see this class's own header comment). The header row is
   // logical row 0 but never holds the cursor; F2 away from a clip renames
   // the track instead (see offerInput()).
-  enum class RowKind { HEADER, CLIP, SENDS, DIRECTION };
+  enum class RowKind { HEADER,
+                       CLIP,
+                       SENDS,
+                       MAIN,
+                       DIRECTION };
   // logical row index -> physical row offset (0 = the row right after the
   // header; -1 is the header row itself, always drawn at screen row 0
   // regardless of scroll_row_ - see ensureCursorVisible()'s own handling
   // of a negative cursor_physical) - the layout this class always draws:
   // the header, clipRowCount() clip rows, then (as offsets from there,
-  // SendsDirectionRow) divider, Sends label + Sends value, divider,
-  // Direction label + Direction value. Only the *value* row of
-  // Sends/Direction is cursor-addressable - the label row above it (the
-  // "description above each value" this class's own header comment
-  // mentions) is purely decorative, matching how a divider row is.
-  enum SendsDirectionRow { kSendsDivider, kSendsLabel, kSendsValue, kDirectionDivider, kDirectionLabel, kDirectionValue, kSendsDirectionRows };
+  // SendsDirectionRow) a divider and the four rows of the Sends group (the
+  // A dial on its first three, the B dial on its last three, one row lower,
+  // the caption above B), a divider, the three rows of the Main dial, a
+  // divider, and the Direction label and value. A group is one cursor stop, standing on its
+  // last row (physicalFor()); the dividers and the Direction label are
+  // decorative.
+  enum SendsDirectionRow {
+    kSendsDivider,
+    kSendsTop,
+    kSendsBTop,
+    kSendsMiddle,
+    kSendsBottom,
+    kMainDivider,
+    kMainTop,
+    kMainMiddle,
+    kMainBottom,
+    kDirectionDivider,
+    kDirectionLabel,
+    kDirectionValue,
+    kSendsDirectionRows
+  };
   int physicalFor(int logical_row) const;
-  int logicalRowCount() const { return clipRowCount() + 3; }
+  int logicalRowCount() const { return clipRowCount() + 4; }
   int physicalRowCount() const { return clipRowCount() + kSendsDirectionRows; } // every row below the header
   RowKind rowKindFor(int logical_row) const;
 
   int cursor_track_index_ = 0;
-  // Which of a Sends row's Main/A/B values the cursor is on (0-2).
+  // Which of the Sends row's dials the cursor is on (0: A, 1: B).
   int cursor_send_ = 0;
   int cursor_row_ = 1; // logical row index - see physicalFor()'s own comment; starts on the first clip row, not the header
   int scroll_col_ = 0, scroll_row_ = 0; // scroll_row_ is in *physical* row space, like the on-screen content itself
 
   int current_song_version_ = -1;
-  int current_cursor_track_index_ = -1, current_cursor_row_ = -1;
+  int current_cursor_track_index_ = -1, current_cursor_row_ = -1, current_cursor_send_ = -1;
   int current_scroll_col_ = -1, current_scroll_row_ = -1;
   // Set by the mouse wheel, which scrolls the view without the cursor;
   // cleared when the cursor next moves.
@@ -216,15 +238,19 @@ class ClipGrid : public UIElement {
   void ensureCursorVisible(int visible_rows, int visible_cols, int num_tracks);
   void renderMasterColumn(const StyleProvider & styles, int x, int rows, bool focused, int num_tracks,
                           const std::function<ClipHighlight(int clip_row)> & scene_state);
+  // A column's Sends and Main dials, from the track's (or the master's) send
+  // levels.
+  void renderDials(const StyleProvider & styles, int x, int rows, int column, int track_id, const SendLevels & sends);
+  // One row of the Sends or Main group (`offset` rows below the clip rows):
+  // its background, and the Sends caption.
+  void putDialGroupRow(const StyleProvider & styles, int y, int x, int offset);
   // A column's level meter and peak marker in its last cell, over
   // whichever of its kMeterRows rows are on screen.
   void renderMeter(const StyleProvider & styles, int x, int rows, int track_id, bool clipping);
-  // Edits the Send Main/A/B of the column under the cursor - a track's,
-  // or the master's (the dry mix and the send bus's returns).
+  // Edits the send of the column under the cursor - 0: Main, 1: A, 2: B - a
+  // track's, or the master's (the dry mix and the send bus's returns).
   void startSendEdit(int track_id, int send);
   void putDivider(const StyleProvider & styles, int y, int x, bool header);
-  void putSendValues(int y, int x, const SendLevels & sends, int highlighted, const StyleProvider & styles,
-                     int pressed = -1);
   // What Enter or a click does on the
   // cell under the cursor.
   void activateCell(const Song & song, const std::vector<int> & track_ids);
@@ -237,14 +263,13 @@ class ClipGrid : public UIElement {
   // is -1 when nothing is pressed, `physical` -1 for the header row and -2 for a
   // row that only picks the track (a label, a divider).
   struct Pressed {
-    int column = -1, logical_row = 0, physical = -2, send = -1; // send: the value on a Sends row
+    int column = -1, logical_row = 0, physical = -2, send = -1; // send: the dial on a Sends row
     bool operator==(const Pressed & o) const { return column == o.column && logical_row == o.logical_row && send == o.send; }
     bool operator!=(const Pressed & o) const { return !(*this == o); }
   };
   Pressed pressed_, current_pressed_;
   // What is under the screen position, if it is a column.
   Pressed hitTest(int screen_y, int screen_x, int num_tracks) const;
-  int pressedSend(int column, int physical) const { return isPressed(column, physical) ? pressed_.send : -1; }
   bool isPressed(int column, int physical) const { return pressed_.column == column && pressed_.physical == physical; }
   void startClipRename(const Song & song, const std::vector<int> & track_ids);
   // F2 on the master column's scene slot edits the scene's name.

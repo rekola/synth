@@ -32,6 +32,7 @@
 #include "../../playback/Player.h"
 #include "../../playback/PlaybackEvent.h"
 #include "../../playback/LogEvent.h"
+#include "../WaitSources.h"
 #include "../../playback/RecordEvent.h"
 #include "../../playback/RecordingLatencyEvent.h"
 #include "../../model/ArrangementOps.h"
@@ -964,6 +965,7 @@ TerminalUI::initializeWidgets() {
   // never otherwise reaches UI, so relying on each buffer command here to
   // separately call menu_->refreshBuffers() itself missed that path
   // entirely - one listener covers every path uniformly instead.
+  controller_connections_.push_back(getController().status_message.connect([this](const std::string & text) { setStatus(text); }));
   controller_connections_.push_back(getController().buffers_changed.connect([this]() {
     auto names = getController().getBufferNames();
     vector<string> display_names;
@@ -1030,12 +1032,13 @@ TerminalUI::commandCompletions(std::string_view prefix) const {
 }
 
 void TerminalUI::drawScopeTitle(int row, int col, int width, const std::string & text, bool ends_in_divider) {
+  const auto & bg = styles_.window_accent_bg_color;
   setFgColor(styles_.window_accent_fg_color);
-  setBgColor(styles_.heading_bg_color);
+  setBgColor(bg);
   putstr(row, col, std::string(static_cast<size_t>(width), ' '));
   putstr(row, col + 1, text);
   if (ends_in_divider && styles_.grid_lines) {
-    setFgColor(styles_.heading_bg_color);
+    setFgColor(bg);
     setBgColor(styles_.window_bg_color);
     putstr(row, col + width, "▌");
   }
@@ -1079,45 +1082,46 @@ TerminalUI::layout() {
   scopes_on_screen_ = show_scopes || live_scopes;
   if (scopes_on_screen_ && !scopes_were_on_screen) scopes_stale_ = true;
 
-  // Arrangement view's top band: the arrangement grid takes the width, with
-  // the spectrum stacked over the DirAC heatmap in a narrow column beside
-  // it and the channel meter at the far right. The grid's height follows the
-  // song's track count (see arrangementScopeRows()); the scopes share it.
+  // Arrangement view's top band: the arrangement grid takes the width, with a
+  // column of scopes beside it: the spectrum across the whole column, and
+  // under it the DirAC heatmap with the channel meter to its right. The
+  // grid's height follows the song's track count (see arrangementScopeRows()).
   int scope_rows = arrangementScopeRows();
   laid_out_scope_rows_ = scope_rows;
-  int meter_x = cols - 9;
-  int heatmap_x = meter_x - 1 - kHeatmapWidth;
-  int matrix_divider_x = heatmap_x - 1;
+  constexpr int kMeterWidth = 9;
+  int column_x = cols - kHeatmapWidth - 1 - kMeterWidth;
+  int meter_x = column_x + kHeatmapWidth + 1;
+  int matrix_divider_x = column_x - 1;
   int matrix_width = std::max(1, matrix_divider_x);
   arrangement_grid_->resize(scope_rows, matrix_width).move(scope_row, 0);
 
-  // Each scope has a title bar over it, as in Live View, and its size there.
+  // Each scope has a title bar over it, as in Live View, and its height there.
   int band_chart_row = scope_row + 1;
   int band_heatmap_row = band_chart_row + kScopeHeight + 1;
   if (getView() == View::ARRANGEMENT) {
     chart_->setVisible(show_scopes);
     heatmap_->setVisible(show_scopes);
-    chart_->resize(kScopeHeight, kHeatmapWidth).move(band_chart_row, heatmap_x);
-    heatmap_->resize(kScopeHeight, kHeatmapWidth).move(band_heatmap_row, heatmap_x);
+    chart_->resize(kScopeHeight, cols - column_x).move(band_chart_row, column_x);
+    heatmap_->resize(kScopeHeight, kHeatmapWidth).move(band_heatmap_row, column_x);
   }
-  volume_meter_->resize(scope_rows - 1, 9).move(scope_row + 1, meter_x);
+  volume_meter_->resize(kScopeHeight, kMeterWidth).move(band_heatmap_row, meter_x);
 
-  // Single-column dividers between the grid, the scopes and the meter, and
-  // the scopes' title bars - drawn once here rather than per-frame, since
-  // these cells fall outside every scope's own resized rectangle, so nothing
-  // else ever repaints over them. (When hidden, the workspace below covers
-  // these rows instead.)
+  // Single-column dividers between the grid and the scopes and between the
+  // heatmap and the meter, and the scopes' title bars - drawn once here
+  // rather than per-frame, since these cells fall outside every scope's own
+  // resized rectangle, so nothing else ever repaints over them. (When hidden,
+  // the workspace below covers these rows instead.)
   setFgColor(styles_.window_border_color);
   setBgColor(styles_.window_bg_color);
   const char * divider_glyph = styles_.grid_lines ? "│" : " ";
-  for (int row = 0; show_scopes && row < scope_rows; row++) {
-    putstr(scope_row + row, matrix_divider_x, divider_glyph);
-    putstr(scope_row + row, meter_x - 1, divider_glyph);
+  for (int row = 0; show_scopes && row < scope_rows; row++) putstr(scope_row + row, matrix_divider_x, divider_glyph);
+  for (int row = band_heatmap_row - 1; show_scopes && row <= band_heatmap_row + kScopeHeight - 1; row++) {
+    putstr(row, meter_x - 1, divider_glyph);
   }
   if (show_scopes) {
-    drawScopeTitle(scope_row, heatmap_x, kHeatmapWidth, "Spectrum", true);
-    drawScopeTitle(band_heatmap_row - 1, heatmap_x, kHeatmapWidth, "DirAC", true);
-    drawScopeTitle(scope_row, meter_x, 9, "Level", false);
+    drawScopeTitle(scope_row, column_x, cols - column_x, "Spectrum", false);
+    drawScopeTitle(band_heatmap_row - 1, column_x, kHeatmapWidth, "DirAC", true);
+    drawScopeTitle(band_heatmap_row - 1, meter_x, kMeterWidth, "Level", false);
   }
   // The workspace below the scope row. A widget the current view doesn't
   // show gets the same rect as a visible one instead of being shrunk to
@@ -1677,8 +1681,12 @@ TerminalUI::layoutInfoDialog() {
   info_dialog_.center(screen_rows, screen_cols);
 }
 
-void
-TerminalUI::handlePlaybackEvent(PlaybackEvent & ev) {
+cellui::EventLoop &
+TerminalUI::eventLoop() {
+  return backend_.eventLoop();
+}
+
+void TerminalUI::handlePlaybackEvent(const PlaybackEvent & ev) {
   // Reconciled, not a plain setPlaybackInfo() - see Controller::
   // receivePlaybackSnapshot()'s own comment: this snapshot's own
   // edit-position fields can be stale relative to a more recent local
@@ -1732,7 +1740,7 @@ TerminalUI::handlePlaybackEvent(PlaybackEvent & ev) {
   }
   if (signature != last_playback_signature_) {
     last_playback_signature_ = signature;
-    ev.redraw();
+    redraw_requested_ = true;
   }
 }
 
@@ -1850,11 +1858,6 @@ TerminalUI::handleVisualizationResultEvent(VisualizationResultEvent & ev) {
   }
 
   if (changed) ev.redraw();
-}
-
-void
-TerminalUI::handleLogEvent(LogEvent & ev) {
-  setStatus(ev.getText());
 }
 
 void
@@ -2045,11 +2048,7 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
   bool other_wake = false; // input, MIDI, Launchpad or stderr woke the loop, not just the event queue
   auto & loop = backend_.eventLoop();
   auto add_source = [&](WaitSet::Group group, cellui::EventLoop::Handler handler) {
-#ifdef _WIN32
-    loop.addHandles(waits.handles(group), std::move(handler));
-#else
-    loop.addSource(waits.fds(group), std::move(handler));
-#endif
+    addWaitGroup(loop, waits, group, std::move(handler));
   };
   add_source(input_group, [&] {
     count("fd" + std::to_string(input_group));
@@ -2198,6 +2197,8 @@ TerminalUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
     count(woken ? "wake" : "timeout");
 
     if (woken || frame_pending) {
+      if (redraw_requested_) render = true;
+      redraw_requested_ = false;
       render_pending |= render;
       auto now = std::chrono::steady_clock::now();
       if (!other_wake && !render_pending && !frame_pending && now - last_frame < kIdleFrameInterval) {

@@ -5,6 +5,8 @@
 #include "Theme.h"
 #include "../util/Logger.h"
 
+#include <cellui/EventLoop.h>
+
 #include <functional>
 #include <string>
 #include <string_view>
@@ -14,6 +16,10 @@ class AudioAPI;
 class LaunchpadIO;
 class MidiInput;
 class LaunchpadManager;
+class PlaybackEvent;
+class RecordEvent;
+class RecordingLatencyEvent;
+class ThresholdRecordingTriggeredEvent;
 class LaunchpadChannelPressureEvent;
 class LaunchpadPadEvent;
 class LaunchpadButtonEvent;
@@ -89,9 +95,11 @@ class UI : public UIElement {
   void handleLaunchpadChannelPressureEvent(LaunchpadChannelPressureEvent & ev) override;
   // Sample recording (live mic takes) is pure Controller bookkeeping, so
   // every backend shares it.
-  void handleRecordEvent(RecordEvent & ev) override;
-  void handleRecordingLatencyEvent(RecordingLatencyEvent & ev) override;
-  void handleThresholdRecordingTriggeredEvent(ThresholdRecordingTriggeredEvent & ev) override;
+  void handleRecordEvent(const RecordEvent & ev);
+  void handleRecordingLatencyEvent(const RecordingLatencyEvent & ev);
+  void handleThresholdRecordingTriggeredEvent(const ThresholdRecordingTriggeredEvent & ev);
+  // A playback snapshot from the audio thread.
+  virtual void handlePlaybackEvent(const PlaybackEvent & ev) = 0;
   void handleLaunchpadPadEvent(LaunchpadPadEvent & ev) override;
   void handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) override;
 
@@ -117,6 +125,9 @@ protected:
   virtual void viewChanged() { }
 
   virtual void startUI(AudioAPI & audio, MidiInput & midi, LaunchpadIO & launchpad_io) = 0;
+  // The loop startUI() runs; other threads post to the UI through it
+  // (Controller::postToUI()).
+  virtual cellui::EventLoop & eventLoop() = 0;
 
   // Hook for a concrete UI to wire up whatever per-widget Launchpad
   // callbacks it needs (session/track-move, drum-edit request, ...) -

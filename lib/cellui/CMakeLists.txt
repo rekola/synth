@@ -69,6 +69,8 @@ add_library(cellui STATIC
   src/InlineEditor.cpp
   src/EscapeCoalescer.cpp
   src/EventLoop.cpp
+  src/Wakeup.cpp
+  src/ThreadPosts.cpp
   src/KeyReader.cpp
   src/LineEditor.cpp
   src/Markdown.cpp
@@ -170,7 +172,7 @@ endif()
 # Apple platforms or its GDI+ one on Windows. The cell rasterizer (the GTK
 # window's, the terminal's backdrops) is not built on Windows, whose window
 # draws cells itself.
-target_sources(cellui PRIVATE src/HeatmapImage.cpp src/NativeContext.cpp src/PixelScopes.cpp src/SpectrumImage.cpp src/VuMeterImage.cpp)
+target_sources(cellui PRIVATE src/Dial.cpp src/DialImage.cpp src/HeatmapImage.cpp src/NativeContext.cpp src/PixelScopes.cpp src/SpectrumImage.cpp src/VuMeterImage.cpp)
 if(NOT WIN32)
   target_sources(cellui PRIVATE src/CanvasRasterizer.cpp)
   target_compile_definitions(cellui PRIVATE CELLUI_CANVAS_RASTERIZER)
@@ -232,8 +234,8 @@ add_executable(cellui_tests
   tests/MeterTests.cpp
   tests/Utf8Tests.cpp)
 if(NOT WIN32)
-  target_sources(cellui_tests PRIVATE tests/BackdropEmulationTests.cpp tests/CanvasRasterizerTests.cpp tests/EventLoopTests.cpp tests/TerminalSessionTests.cpp tests/TestBackendTests.cpp tests/HeatmapImageTests.cpp tests/SpectrumImageTests.cpp
-    tests/VuMeterTests.cpp)
+  target_sources(cellui_tests PRIVATE tests/BackdropEmulationTests.cpp tests/CanvasRasterizerTests.cpp tests/EventLoopTests.cpp tests/ThreadPostsTests.cpp tests/TerminalSessionTests.cpp tests/TestBackendTests.cpp tests/HeatmapImageTests.cpp tests/SpectrumImageTests.cpp
+    tests/VuMeterTests.cpp tests/DialTests.cpp)
 endif()
 if(WIN32)
   target_sources(cellui_tests PRIVATE tests/Win32Tests.cpp)

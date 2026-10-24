@@ -17,6 +17,7 @@
 #include "util/constants.h"
 
 #include <cellui/Signal.h>
+#include <cellui/ThreadPosts.h>
 
 #include <algorithm>
 #include <functional>
@@ -219,6 +220,12 @@ class Controller {
   // Controller's commands_ and never otherwise reaches UI). One emit site
   // beats a refresh call scattered at every UI-side buffer command.
   cellui::Signal<> buffers_changed;
+
+  // A message for the status line, from UI-thread code (a command, a widget,
+  // the Launchpad). The audio thread's own messages cross over in the UI
+  // event queue instead (LogEvent), as nothing off the UI thread may emit.
+  cellui::Signal<const std::string &> status_message;
+  void log(const std::string & text) { status_message.emit(text); }
 
   // A clip was opened for step editing on a Launchpad (toggleDrumClipFocus(),
   // right after setFocusedClip(); `opened` true) or closed again (a second
@@ -518,6 +525,21 @@ class Controller {
   // to unarmed so a later take that's never armed at all doesn't
   // accidentally inherit this one's position.
   void finishSampleCapture();
+
+  // The UI's end of the other threads' posts, set by the UI while it runs
+  // (UI::start()) and null before and after. The UI thread only.
+  void setUIInbox(cellui::ThreadInbox * inbox) {
+    std::lock_guard<std::mutex> lock(ui_inbox_mutex_);
+    ui_inbox_ = inbox;
+  }
+  // Sends `event` to the UI, handled on the UI thread by the handler the UI
+  // installed for E (a snapshot, a log message, a recorded block). Any
+  // thread. Dropped while no UI is running (a test with no UI).
+  template <class E>
+  void postToUI(E event) {
+    std::lock_guard<std::mutex> lock(ui_inbox_mutex_);
+    if (ui_inbox_) ui_inbox_->post(std::move(event));
+  }
 
   EventQueue & getUIEventQueue() { return ui_event_queue; }
   EventQueue & getPlaybackEventQueue() { return playback_event_queue; }
@@ -1270,6 +1292,8 @@ class Controller {
   std::shared_ptr<AudioBuffer> current_sample;
   InstrumentProvider instrument_provider;
   EventQueue ui_event_queue, playback_event_queue, visualization_queue;
+  std::mutex ui_inbox_mutex_;
+  cellui::ThreadInbox * ui_inbox_ = nullptr;
   // playback_info/recording_track_id/local_position_edit_seq_/
   // focused_clip_id_ below are each a live mirror of whichever buffer is
   // currently active; these maps

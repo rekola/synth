@@ -585,6 +585,23 @@ TEST(bufferplane_a_band_over_a_plane_goes_with_its_scroll_layer) {
   CHECK(root.takeBackdropLayers().empty() && b.at(2, 1).text == "a");
 }
 
+// COLOR gives what is below the top's hue and keeps its brightness: an inverted
+// cell takes the highlight's hue back (the separable modes cannot do it).
+TEST(blend_color_keeps_the_brightness_of_what_is_below) {
+  auto lum = [](const Color & c) { return 0.3 * c.getRed() + 0.59 * c.getGreen() + 0.11 * c.getBlue(); };
+  Color below(40, 30, 20), top(60, 160, 200);
+  Color mixed = blendColors(BlendMode::COLOR, below, top, 1.0f);
+  CHECK(std::abs(lum(mixed) - lum(below)) < 3.0);
+  CHECK(mixed.getBlue() > mixed.getRed());  // the top's blue-ish hue
+  // LUMINOSITY is the other way round: the top's brightness, the hue below.
+  Color bright = blendColors(BlendMode::LUMINOSITY, below, top, 1.0f);
+  CHECK(std::abs(lum(bright) - lum(top)) < 3.0);
+  CHECK(bright.getRed() > bright.getBlue());
+  // Difference inverts each channel: a cyan-tinted dark cell comes out warm.
+  Color inverted = blendColors(BlendMode::DIFFERENCE, Color(10, 40, 50), Color(200, 200, 200), 1.0f);
+  CHECK(inverted.getRed() > inverted.getBlue());
+}
+
 TEST(bufferplane_a_band_keeps_its_blend_mode) {
   StyleProvider styles;
   CellBuffer b(6, 10);
@@ -603,6 +620,49 @@ TEST(bufferplane_a_band_keeps_its_blend_mode) {
   root.refresh();
   layers = root.takeBackdropLayers();
   CHECK(layers.size() == 1 && layers[0].scroll->band->blend == BlendMode::NORMAL);
+}
+
+// A border needs a display that draws bands by parts of a cell: it reaches
+// the layer there, and leaves the cells alone otherwise.
+TEST(bufferplane_a_band_border_is_for_smooth_displays_only) {
+  StyleProvider styles;
+  CellBuffer b(4, 8);
+  BufferPlane root(b, styles);
+  auto list = root.createChild();
+  list->resize(2, 4);
+  list->move(1, 2);
+  list->setBgColor(10, 20, 30);
+  list->putstr(0, 0, "abcd");
+  Band bordered{ 0.0, 1.0, 0, 4, Color(255, 0, 0), 0.0f, BlendMode::NORMAL, 0.0f, Color(0, 255, 0), 1.0f, 2.0 };
+  root.refresh();
+  auto plain = b.at(1, 2);
+  list->setBand(bordered);
+  root.refresh();
+  CHECK(root.takeBackdropLayers().empty());
+  CHECK(b.at(1, 2).bg == plain.bg && b.at(1, 2).fg == plain.fg);
+  root.setSmoothScroll(true);
+  root.refresh();
+  auto layers = root.takeBackdropLayers();
+  CHECK(layers.size() == 1 && layers[0].scroll && layers[0].scroll->band);
+  CHECK(layers[0].scroll->band->border_px == 2.0 && layers[0].scroll->band->border_color.getGreen() == 255);
+}
+
+// The border leaves out the span of something drawn inside it: along the top
+// and bottom, and at a side the span reaches.
+TEST(band_border_leaves_out_a_skipped_span) {
+  Band band{ 0.0, 1.0, 2, 10, Color(255, 0, 0), 0.0f, BlendMode::NORMAL, 0.0f, Color(0, 255, 0), 1.0f, 1.0 };
+  auto whole = bandBorderRects(band, 20, 0, 0, 10, 20);
+  CHECK(whole.size() == 4);
+  // The span starts at the left edge: no left side, and the top and bottom start after it.
+  band.border_skip_col = 2;
+  band.border_skip_cols = 3;
+  auto left = bandBorderRects(band, 20, 0, 20, 10, 20);
+  CHECK(left.size() == 3);
+  for (const auto & r : left) CHECK(r.x >= 20 + 30 - 0.001 || r.x == 20 + 100 - 1);
+  // In the middle: both sides stay and the top and bottom are cut in two.
+  band.border_skip_col = 5;
+  auto middle = bandBorderRects(band, 20, 0, 50, 10, 20);
+  CHECK(middle.size() == 6);
 }
 
 // Where the display cannot draw a band by parts of a cell, it is laid over the

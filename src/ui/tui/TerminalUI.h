@@ -78,8 +78,8 @@ class TerminalUI : public UI {
   // same name.
   std::set<std::string> commandCompletions(std::string_view prefix) const;
 
-  void handlePlaybackEvent(PlaybackEvent & ev) override;
-  void handleLogEvent(LogEvent & ev) override;
+  void handlePlaybackEvent(const PlaybackEvent & ev) override;
+  cellui::EventLoop & eventLoop() override;
   void handleMidiEvent(MidiEvent & ev) override;
   // handleLaunchpadChannelPressureEvent() is UI's own now - a pure
   // LaunchpadManager passthrough, with no widget dependency to override
@@ -127,6 +127,8 @@ protected:
 
  private:
   cellui::Backend & backend_;
+  // A handler of something another thread posted wants the screen redrawn.
+  bool redraw_requested_ = false;
   // What the planes compose into, the size of the terminal; the root plane
   // covers it.
   cellui::CellBuffer screen_;
@@ -234,9 +236,10 @@ protected:
   // (20 * 1.5, rounded up to the nearest odd width) in Arrangement view.
   static constexpr int kScopeHeight = 5;
   static constexpr int kHeatmapWidth = 31;
-  // A scope's title bar: `width` cells from (row, col), the text one cell in;
-  // with `ends_in_divider` (lines between the columns on) it ends in a half
-  // block over the divider column to its right.
+  // A scope's title bar, the same in both views: `width` cells from (row, col)
+  // on the panel colour (apart from the menu bar's), the text one cell in; with
+  // `ends_in_divider` (lines between the columns on) it ends in a half block
+  // over the divider column to its right.
   void drawScopeTitle(int row, int col, int width, const std::string & text, bool ends_in_divider);
   // Arrangement view's top band height (see arrangementScopeRows()), as laid out.
   int arrangementScopeRows() const;

@@ -234,6 +234,7 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
     content.shift_rows = scroll_rows_;
     content.shift_cols = scroll_cols_;
     content.band = band_;
+    content.elevation = height;
     content.blend = blend_;
     content.blend_alpha = blend_alpha_;
     top.layers_.push_back(BackdropLayer{ out, Backdrop{}, row, col, plane_rows, plane_cols, std::move(content) });
@@ -312,7 +313,7 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
   }
   // A band the display cannot draw by parts of a cell is laid over the whole
   // cells it reaches: their colours blended, text included.
-  if (band_ && !top.smooth_scroll_) {
+  if (band_ && band_->alpha > 0.0f && !top.smooth_scroll_) {
     const Band & band = *band_;
     int band_r0 = row + static_cast<int>(std::lround(band.row)), band_r1 = row + static_cast<int>(std::lround(band.row + band.rows));
     int band_c0 = col + static_cast<int>(std::lround(band.col)), band_c1 = col + static_cast<int>(std::lround(band.col + band.cols));
@@ -323,6 +324,11 @@ void BufferPlane::compose(CellBuffer & out, int row, int col, int clip_row, int 
         cell.bg = blendColors(band.blend, cell.bg.value_or(top.default_bg_), band.color, band.alpha);
         cell.fg = blendColors(band.blend, cell.fg.value_or(top.default_fg_), band.color, band.alpha);
         cell.bg_blend = cell.fg_contrast = false;
+        if (band.lift > 0.0f && cell.lift < height + band.lift) {
+          cell.lift = height + band.lift;
+          cell.lift_joined = true;
+          cell.lift_shadow = false;
+        }
         out.put(r, c, cell);
       }
     }

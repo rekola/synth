@@ -1,6 +1,6 @@
 #include "LaunchpadManager.h"
+#include "../model/SendFader.h"
 #include "../playback/EventHandler.h"
-#include "../playback/LogEvent.h"
 
 #include "LaunchpadIO.h"
 #include "LaunchpadLayout.h"
@@ -464,11 +464,12 @@ Color padTrackColor(int ordinal) {
   constexpr float kPanBarScale = 0.55f;
   constexpr float kPanCenterScale = 0.25f;
 
-  // Send A/B/Main fader curve: row 1 is this many dB below unity (row 7);
-  // 6dB/step is a standard, easily-perceived mixing-console increment. Row
-  // 0 is a hard off (see sendRowToDb()), not a further 6dB step, since a
-  // real fader's bottom position is true silence, not just very quiet.
-  constexpr float SEND_ROW_FLOOR_DB = -36.0f;
+  // Send A/B/Main fader curve: row 1 is kSendFloorDb (SendFader.h) below
+  // unity (row 7); 6dB/step is a standard, easily-perceived mixing-console
+  // increment. Row 0 is a hard off (see sendRowToDb()), not a further 6dB
+  // step, since a real fader's bottom position is true silence, not just
+  // very quiet.
+  constexpr float SEND_ROW_FLOOR_DB = kSendFloorDb;
 
   // Self-contained (not TreeNode::gainToDecibels(), only reachable from
   // TreeNode<Derived> subclasses - VoiceState/TrackState, neither of which
@@ -1035,11 +1036,10 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
     // Shift + Note opens (or closes) the selected clip for step editing.
     if (state.row_up_shift_held) {
       state.row_up_shift_combined = true;
-      auto & ui_events = controller.getUIEventQueue();
       if (selected_track_id_ < 0) {
-        ui_events.push(std::make_unique<LogEvent>("Step edit: select a clip first (shift + pad)"));
+        controller.log("Step edit: select a clip first (shift + pad)");
       } else if (!controller.toggleDrumClipFocus(selected_track_id_, selected_clip_index_)) {
-        ui_events.push(std::make_unique<LogEvent>("Step edit: that track has no step grid"));
+        controller.log("Step edit: that track has no step grid");
       }
       return true;
     }
@@ -1127,16 +1127,15 @@ LaunchpadManager::handleRecordButton(int device_id, Controller & controller, boo
     return true;
   }
   auto held = std::chrono::steady_clock::now() - state.record_button_press_time;
-  auto & ui_events = controller.getUIEventQueue();
   if (held >= kCaptureHoldThreshold) {
-    ui_events.push(std::make_unique<LogEvent>("Capture MIDI: not implemented yet"));
+    controller.log("Capture MIDI: not implemented yet");
     return true;
   }
   auto track_ids = controller.getSong().getPlayableTrackIds();
   auto followed = cursor_track_index_ >= 0 && cursor_track_index_ < static_cast<int>(track_ids.size()) ?
     track_ids[static_cast<size_t>(cursor_track_index_)] : -1;
   if (!controller.getClipPlayer().toggleOverdub(followed)) {
-    ui_events.push(std::make_unique<LogEvent>("Session Record: no playing clip to overdub"));
+    controller.log("Session Record: no playing clip to overdub");
   }
   return true;
 }
@@ -2200,9 +2199,9 @@ LaunchpadManager::handleLivePadEvent(const LaunchpadPadEvent & ev, Controller & 
     if (column < 0 || column >= static_cast<int>(live_.track_ids.size())) return;
     auto track_id = live_.track_ids[static_cast<size_t>(column)];
     if (quantizeClip(controller.getSong(), track_id, 7 - ev.getY())) {
-      controller.getUIEventQueue().push(std::make_unique<LogEvent>("Quantised clip"));
+      controller.log("Quantised clip");
     } else {
-      controller.getUIEventQueue().push(std::make_unique<LogEvent>("Quantise: nothing to quantise there"));
+      controller.log("Quantise: nothing to quantise there");
     }
     return;
   }
@@ -2213,7 +2212,7 @@ LaunchpadManager::handleLivePadEvent(const LaunchpadPadEvent & ev, Controller & 
     auto column = ev.getX();
     if (column < 0 || column >= static_cast<int>(live_.track_ids.size())) return;
     auto slot = duplicateClip(controller.getSong(), live_.track_ids[static_cast<size_t>(column)], 7 - ev.getY());
-    if (slot < 0) controller.getUIEventQueue().push(std::make_unique<LogEvent>("Duplicate: nothing to copy there"));
+    if (slot < 0) controller.log("Duplicate: nothing to copy there");
     return;
   }
   if (ev.getKind() == LaunchpadPadEvent::PRESS && state.row_up_shift_held) {

@@ -4,6 +4,9 @@
 #include "../../launchpad/LaunchpadIO.h"
 #include "../../midi/MidiInput.h"
 #include "../../util/WaitSet.h"
+#include "../WaitSources.h"
+
+#include <cellui/PlatformEventLoop.h>
 #include "../../launchpad/LaunchpadManager.h"
 #include "../../audio/AudioAPI.h"
 #include "../../playback/LogEvent.h"
@@ -72,6 +75,7 @@ HeadlessUI::initialize(std::shared_ptr<Controller> & controller) {
   // Controller-level commands that name something it doesn't know itself
   // (shared UI commands like "toggle-playing") land here.
   controller->setCommandFallback([this](std::string_view name) { return executeCommand(name); });
+  controller_connections_.push_back(controller->status_message.connect([this](const std::string & text) { setStatus(text); }));
 }
 
 void
@@ -102,11 +106,6 @@ void HeadlessUI::showChoiceDialog(const std::string & title, std::vector<Choice>
 }
 
 void
-HeadlessUI::handleLogEvent(LogEvent & ev) {
-  setStatus(ev.getText());
-}
-
-void
 HeadlessUI::handleMidiEvent(MidiEvent & ev) {
   auto & controller = getController();
   auto & song = controller.getSong();
@@ -127,8 +126,7 @@ HeadlessUI::handleMidiEvent(MidiEvent & ev) {
   });
 }
 
-void
-HeadlessUI::handlePlaybackEvent(PlaybackEvent & ev) {
+void HeadlessUI::handlePlaybackEvent(const PlaybackEvent & ev) {
   getController().receivePlaybackSnapshot(ev.getBufferName(), ev.getInfo());
   if (ev.getBufferName() != getController().getActiveBufferName()) return;
 
@@ -200,27 +198,29 @@ HeadlessUI::startUI(AudioAPI &, MidiInput & midi, LaunchpadIO & launchpad_io) {
   midi.addTo(waits, midi_group);
   launchpad_io.addTo(waits, launchpad_group);
 
+  addWaitGroup(loop_, waits, events_group, [this] {
+    while (getController().getUIEventQueue().hasEvents()) {
+      auto event = getController().getUIEventQueue().pop();
+      handleEvent(*event);
+    }
+  });
+  addWaitGroup(loop_, waits, midi_group, [&] {
+    for (auto & ev : midi.readEvents()) handleEvent(ev);
+  });
+  addWaitGroup(loop_, waits, launchpad_group, [&] {
+    for (auto & ev : launchpad_io.pollEvents()) handleEvent(*ev);
+  });
+  // A turn ends at least every tick (a shutdown signal ends the wait early).
+  loop_.setBefore([] { return kTickIntervalMs; });
+  loop_.setAfter([this](bool) {
+    tick();
+    if (shouldClose()) loop_.quit();
+  });
+
   if (autoplay_) {
     getController().togglePlaying();
     setStatus("Autoplay");
   }
 
-  while (!shouldClose()) {
-    // The wait returns early when a shutdown signal arrives.
-    if (waits.wait(kTickIntervalMs)) {
-      if (waits.ready(events_group)) {
-	while (getController().getUIEventQueue().hasEvents()) {
-	  auto event = getController().getUIEventQueue().pop();
-	  handleEvent(*event);
-	}
-      }
-      if (waits.ready(midi_group)) {
-	for (auto & ev : midi.readEvents()) handleEvent(ev);
-      }
-      if (waits.ready(launchpad_group)) {
-	for (auto & ev : launchpad_io.pollEvents()) handleEvent(*ev);
-      }
-    }
-    tick();
-  }
+  if (!shouldClose()) loop_.run();
 }
