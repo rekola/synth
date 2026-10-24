@@ -773,7 +773,7 @@ TEST(terminal_ui_arrangement_grid_shows_bars_to_the_right_of_the_track_names) {
 
 // A cursor shows only while the window has the focus, in the outline, the clip
 // grid and the pattern editor alike; the columns' lines hold on to nothing but
-// a playhead.
+// a playhead; an editor without the focus shows none.
 TEST(terminal_ui_cursors_are_hidden_while_the_window_is_not_focused) {
   cellui::DisplayInfo display;
   display.smooth_scroll = true;
@@ -806,14 +806,14 @@ TEST(terminal_ui_cursors_are_hidden_while_the_window_is_not_focused) {
   };
   settle();
   auto focused_cells = cells();
-  CHECK(bands(true) >= 1); // the columns' lines
+  CHECK(bands(true) == 0); // the clip grid has the focus: the editor's columns show no cursor line
   f.terminal.pushWindowFocus(false);
   settle();
   CHECK(bands(true) == 0); // no track plays: only cursors were shown
   CHECK(cells() != focused_cells);
   f.terminal.pushWindowFocus(true);
   settle();
-  CHECK(bands(true) >= 1);
+  CHECK(bands(true) == 0);
   CHECK(cells() == focused_cells);
 }
 
