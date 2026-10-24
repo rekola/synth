@@ -180,10 +180,10 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
                         {"Clear Tuning Corrections", "", "clear-tuning-correction-region"},
                     }},
       {"Track", 't', {
-                         {"Add Instrument Track", "C-c i", "add-instrument-track", "C-t"},
+                         {"Add Instrument Track", "C-c T", "add-instrument-track", "C-S-T"},
                          {"Add Percussion Track", "C-c d", "add-percussion-track", "C-S-D"},
-                         {"Add Sample Track", "C-c s", "add-sample-track", "C-S-R"},
-                         {"Add Group Track", "", "add-group-track"},
+                         {"Add Sample Track", "C-c t", "add-sample-track", "C-t"},
+                         {"Add Group Track", "C-c g", "add-group-track", "C-g"},
                          {"Rename Track...", "C-c r", "rename-track", "C-r"},
                          {"Delete Track", "", "delete-track"},
                          {nullptr, nullptr, nullptr},
@@ -946,19 +946,21 @@ TerminalUI::initializeWidgets() {
   keymap_.bind(KeyChord::pack(']', false, false, false, false), "octave-up");
   keymap_.bind(KeyChord::pack('\t', false, false, false, false), "toggle-view");
   // Track creation works from every widget, the same as its Track menu
-  // entries. On the desktop keymap Ctrl+Shift+D is "Drum" because plain
-  // Ctrl-D is taken, and Ctrl+R is rename, so a sample track is Ctrl+Shift+R.
-  // On the Emacs keymap C-c followed by a letter is the chord Emacs leaves to
-  // the application (C-t and C-r are transpose and search there).
+  // entries. The desktop chords are the usual DAW ones (an audio track is a
+  // sample track, a MIDI track an instrument track; Ctrl+Shift+D "Drum" has
+  // no such counterpart). The Emacs keymap uses the same letters after C-c,
+  // the chord Emacs leaves to the application; Shift is the capital letter.
   auto ctrl_c = KeyChord::pack('c', true, false, false, false);
-  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('t', true, false, false, false), "add-instrument-track");
-  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('r', true, false, true, false), "add-sample-track");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('t', true, false, false, false), "add-sample-track");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('t', true, false, true, false), "add-instrument-track");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('g', true, false, false, false), "add-group-track");
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('d', true, false, true, false), "add-percussion-track");
   keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_c, KeyChord::pack('r', false, false, false, false), "rename");
-  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_c, KeyChord::pack('i', false, false, false, false), "add-instrument-track");
-  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_c, KeyChord::pack('s', false, false, false, false), "add-sample-track");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_c, KeyChord::pack('t', false, false, false, false), "add-sample-track");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_c, KeyChord::pack('T', false, false, false, false), "add-instrument-track");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_c, KeyChord::pack('T', false, false, true, false), "add-instrument-track");
+  keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_c, KeyChord::pack('g', false, false, false, false), "add-group-track");
   keymap_.bindPrefixed(KeymapProfile::EMACS, ctrl_c, KeyChord::pack('d', false, false, false, false), "add-percussion-track");
-
   assertCommandBindingsValid();
 
   // Lets StatusLine's M-x path (Controller::sendCommand, which only reaches

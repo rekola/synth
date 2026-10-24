@@ -667,7 +667,9 @@ PatternEditor::PatternEditor(Plane & parent)
   keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack('v', true, false, false, false), "yank");
   keymap_.bind(KeyChord::pack('k', true, false, false, false), "kill-row"); // Ctrl-K
   keymap_.bind(KeyChord::pack(Key::Insert, false, false, false, false), "insert-row"); // plain Insert (was inline handling)
-  keymap_.bind(KeyChord::pack('g', true, false, false, false), "keyboard-quit");
+  // Ctrl+G is Group Tracks on the desktop, so cancelling is Escape there.
+  keymap_.bind(KeymapProfile::EMACS, KeyChord::pack('g', true, false, false, false), "keyboard-quit");
+  keymap_.bind(KeymapProfile::DESKTOP, KeyChord::pack(Key::Escape, false, false, false, false), "keyboard-quit");
   keymap_.bind(KeyChord::pack(Key::Up, true, false, true, false), "transpose-region-up");    // Ctrl+Shift+Up
   keymap_.bind(KeyChord::pack(Key::Down, true, false, true, false), "transpose-region-down"); // Ctrl+Shift+Down
   keymap_.bind(KeyChord::pack('\\', true, false, false, false), "toggle-solo");  // Ctrl-\ (was Ctrl-only inline handling)

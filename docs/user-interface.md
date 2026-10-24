@@ -23,7 +23,11 @@ works in both. The commands that have one so far:
 | `kill-ring-save` (copy) | Ctrl+C | M-w |
 | `yank` (paste) | Ctrl+V | C-y |
 | `rename` (scene, clip or track, in the clip grid) | Ctrl+R | C-c r |
-| `add-sample-track` | Ctrl+Shift+R | C-c s |
+| `add-sample-track` | Ctrl+T | C-c t |
+| `add-instrument-track` | Ctrl+Shift+T | C-c T |
+| `add-group-track` | Ctrl+G | C-c g |
+| `add-percussion-track` | Ctrl+Shift+D | C-c d |
+| `keyboard-quit` (cancel the selection) | Escape | C-g |
 | `open-song` | Ctrl+O | C-x C-f |
 | `save-song` | Ctrl+S | C-x C-s |
 | `save-song-as` | Ctrl+Shift+S | C-x C-w |
