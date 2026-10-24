@@ -76,6 +76,28 @@ TEST(terminal_ui_clip_grid_stop_button_is_removed_and_restored) {
   CHECK(has_stop());
 }
 
+// Left/Right on the Sends row walk the cursor between the A and B dials, and
+// the highlight follows.
+TEST(terminal_ui_clip_grid_sends_highlight_follows_the_cursor) {
+  // From the first column, each row in turn: a Right press changes the picture
+  // (on the Sends row it moves between the dials, not the column).
+  for (int down = 1; down < 24; down++) {
+    UIFixture f(fixture("terminal_ui_live.xml"), UI::View::LIVE);
+    auto snapshot = [&] {
+      std::string out;
+      const auto & frame = f.terminal.frame();
+      for (int y = 0; y < frame.rows(); y++) {
+        for (int x = 0; x < frame.cols(); x++) out += frame.at(y, x).text + f.bg(y, x) + ';';
+      }
+      return out;
+    };
+    for (int i = 0; i < down; i++) f.press(cellui::Key::Down);
+    auto before = snapshot();
+    f.press(cellui::Key::Right);
+    CHECK(snapshot() != before);
+  }
+}
+
 // set-song-scale lists the scales, choosing Otonal says so on the status line,
 // and saving writes it to the song file.
 TEST(terminal_ui_set_song_scale_lists_scales_and_saves_the_choice) {

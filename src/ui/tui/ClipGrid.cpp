@@ -671,7 +671,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   current_meter_steps_ = std::move(meter_steps);
 
   if (!refresh && !editor_redraw && !clip_states_changed && !meters_changed && !fading && new_version == current_song_version_ &&
-      cursor_track_index_ == current_cursor_track_index_ && cursor_row_ == current_cursor_row_ &&
+      cursor_track_index_ == current_cursor_track_index_ && cursor_row_ == current_cursor_row_ && cursor_send_ == current_cursor_send_ &&
       scroll_col_ == current_scroll_col_ && scroll_row_ == current_scroll_row_ &&
       focused == current_focused_ && focused_clip_id == current_focused_clip_id_ && pressed_ == current_pressed_ &&
       pressed_.physical == current_pressed_.physical) {
@@ -682,6 +682,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   current_song_version_ = new_version;
   current_cursor_track_index_ = cursor_track_index_;
   current_cursor_row_ = cursor_row_;
+  current_cursor_send_ = cursor_send_;
   current_scroll_col_ = scroll_col_;
   current_scroll_row_ = scroll_row_;
   current_focused_ = focused;
