@@ -1134,9 +1134,9 @@ would otherwise resume showing.
   the letter and a pointer from the centre over the ring's arc, the ring 4 px
   thick and the pointer in a notch of background so it stays apart from it, in the
   theme's primary text colour (white, black on a light theme). Each dial is
-  an identical, separate slot of 4x2 cells: A on the first two rows of the
-  3-row Sends group, B on its last two, the "Sends" caption in the corner above
-  B, then the Main dial in a 2-row group of its own (`SendsDirectionRow`). A
+  an identical, separate slot of 6x3 cells (about square): A on the first three rows of the
+  4-row Sends group, B on its last three, the "Sends" caption in the corner above
+  B, then the Main dial, centred, in a 3-row group of its own (`SendsDirectionRow`). A
   display that shows pictures (`Plane::cellPixelSize()`) gets a picture with no
   number (`dial_image::render()`; the last renders are kept by what they show);
   any other gets the same slot in text, the letter over the dB value - the

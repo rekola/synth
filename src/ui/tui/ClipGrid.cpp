@@ -932,10 +932,10 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
         text = string(static_cast<size_t>(kColWidth), styles.grid_lines ? '-' : ' ');
         fg = styles.window_border_color;
       } else if (physical_row == clip_rows + kDirectionLabel) { // Direction label (decorative)
-        text = fmt::format("{:>5}{:>6}{:>6}", "Az", "El", "Dist");
+        text = fmt::format("{:>4}{:>5}{:>6}", "Az", "El", "Dist");
         fg = styles.window_accent_fg_color;
       } else if (physical_row == clip_rows + kDirectionValue && leaf) { // Direction value, azimuth/elevation/distance on one line
-        text = fmt::format("{:>5.0f}{:>6.0f}{:>6.1f}", leaf->getAzimuth(), leaf->getElevation(), leaf->getDistance());
+        text = fmt::format("{:>4.0f}{:>5.0f}{:>6.1f}", leaf->getAzimuth(), leaf->getElevation(), leaf->getDistance());
       }
       text = Utf8::padToWidth(Utf8::truncateToWidth(text, kColWidth), kColWidth);
 
@@ -1106,8 +1106,8 @@ void ClipGrid::renderDials(const StyleProvider & styles, int x, int rows, int co
   auto kind = rowKindFor(cursor_row_);
   Dial dials[] = {
       {"A", sends.a, kSendsTop, kDialX, cursor_column && kind == RowKind::SENDS && cursor_send_ == 0, pressed(kSendsBottom, 0)},
-      {"B", sends.b, kSendsMiddle, kDialX + kDialStride, cursor_column && kind == RowKind::SENDS && cursor_send_ == 1, pressed(kSendsBottom, 1)},
-      {"M", sends.main, kMainTop, kDialX, cursor_column && kind == RowKind::MAIN, pressed(kMainBottom, -1)},
+      {"B", sends.b, kSendsBTop, kDialX + kDialStride, cursor_column && kind == RowKind::SENDS && cursor_send_ == 1, pressed(kSendsBottom, 1)},
+      {"M", sends.main, kMainTop, kMainX, cursor_column && kind == RowKind::MAIN, pressed(kMainBottom, -1)},
   };
   for (int i = 0; i < 3; i++) {
     auto & dial = dials[i];
@@ -1141,7 +1141,8 @@ ClipGrid::startSendEdit(int track_id, int send) {
   // The one value under the cursor (M, A or B).
   InlineEditor::Field field;
   field.row = row;
-  field.col = column * (kColWidth + 1) + (send == 2 ? kDialX + kDialStride : kDialX);
+  field.col = column * (kColWidth + 1) + (send == 2 ? kDialX + kDialStride : send == 1 ? kDialX
+                                                                                       : kMainX);
   field.width = kDialWidth;
   // Empty: the typed number is the new value, Enter on nothing leaves it.
   inline_editor_.open(field, [this, track_id, send](std::string text) {

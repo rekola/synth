@@ -428,14 +428,15 @@ TEST(terminal_ui_clip_grid_click_shows_pressed_then_picks_on_release) {
 }
 
 // The text version of the dials (a display without pictures): the caption
-// stands on the group's first row, the A dial under it and the B dial one row
-// further down, and the Main dial two rows below the group's last.
+// stands on the Sends group's first row, with the A dial's three rows from there
+// and the B dial's one row lower, and the Main dial three rows below the group's
+// last.
 namespace {
 struct DialRows {
   int caption = -1;
-  int a_bottom() const { return caption + 1; }
-  int b_bottom() const { return caption + 2; }
-  int main_bottom() const { return caption + 5; }
+  int a_bottom() const { return caption + 2; }
+  int b_bottom() const { return caption + 3; }
+  int main_bottom() const { return caption + 7; }
 };
 
 DialRows dialRows(UIFixture & f) {
@@ -461,12 +462,12 @@ TEST(terminal_ui_clip_grid_click_on_a_send_opens_its_editor) {
   CHECK(rows.caption > 0);
   int column = kOutlineCols + 1;
   // The B dial of the first track.
-  clickCell(f, rows.b_bottom(), column + 1 + 5 + 1);
+  clickCell(f, rows.b_bottom(), column + 1 + 7 + 1);
   f.type("-6");
   CHECK(f.line(static_cast<size_t>(rows.b_bottom())).find("-6") != std::string::npos);
   f.ctrl('g');
   // The Main dial has its own row.
-  clickCell(f, rows.main_bottom(), column + 2);
+  clickCell(f, rows.main_bottom(), column + 5);
   f.type("-3");
   CHECK(f.line(static_cast<size_t>(rows.main_bottom())).find("-3") != std::string::npos);
   f.ctrl('g');
@@ -488,7 +489,7 @@ TEST(terminal_ui_clip_grid_dial_edit_sets_the_send_it_is_on) {
   f.press(cellui::Key::Enter);
   CHECK_NEAR(sendLinearToDb(sends().a), -6.0f, 0.01f);
   CHECK(sends().b == before.b && sends().main == before.main);
-  clickCell(f, rows.main_bottom(), column + 2);
+  clickCell(f, rows.main_bottom(), column + 5);
   f.type("-12");
   f.press(cellui::Key::Enter);
   CHECK_NEAR(sendLinearToDb(sends().main), -12.0f, 0.01f);

@@ -123,14 +123,17 @@ class ClipGrid : public UIElement {
   // Content width of one track's own column; one divider column follows
   // each. Shared between render() and startClipRename() so the reader's
   // own placement always lines up with what render() just drew.
-  static constexpr int kColWidth = 18;
-  // A dial's slot: kDialWidth cells by kDialRows rows. The first one is at
-  // kDialX in the column, the next kDialStride cells further on.
-  static constexpr int kDialX = 1, kDialStride = 5, kDialWidth = 4, kDialRows = 2;
+  static constexpr int kColWidth = 16;
+  // A dial's slot: kDialWidth cells by kDialRows rows, about square. A and B
+  // stand side by side, A at kDialX in the column and B kDialStride cells
+  // further on; Main is centred, at kMainX. The column's last cell is the
+  // meter's.
+  static constexpr int kDialX = 1, kDialStride = 7, kDialWidth = 6, kDialRows = 3;
+  static constexpr int kMainX = (kColWidth - 1 - kDialWidth) / 2;
   // The level meter: a vertical bar in a column's last cell, beside the Main
   // and Direction rows (kMainTop through kDirectionValue); the Sends rows
   // above leave that cell free.
-  static constexpr int kMeterRows = 5;
+  static constexpr int kMeterRows = 6;
 
   // The row-axis kind a given *logical* row is - physicalFor() maps
   // between this and the actual on-screen row, which also includes
@@ -149,19 +152,21 @@ class ClipGrid : public UIElement {
   // regardless of scroll_row_ - see ensureCursorVisible()'s own handling
   // of a negative cursor_physical) - the layout this class always draws:
   // the header, clipRowCount() clip rows, then (as offsets from there,
-  // SendsDirectionRow) a divider and the three rows of the Sends group (the
-  // A dial on its first two, the B dial on its last two, the caption beside
-  // A), a divider, the two rows of the Main dial, a divider, and the
-  // Direction label and value. A group is one cursor stop, standing on its
+  // SendsDirectionRow) a divider and the four rows of the Sends group (the
+  // A dial on its first three, the B dial on its last three, one row lower,
+  // the caption above B), a divider, the three rows of the Main dial, a
+  // divider, and the Direction label and value. A group is one cursor stop, standing on its
   // last row (physicalFor()); the dividers and the Direction label are
   // decorative.
   enum SendsDirectionRow {
     kSendsDivider,
     kSendsTop,
+    kSendsBTop,
     kSendsMiddle,
     kSendsBottom,
     kMainDivider,
     kMainTop,
+    kMainMiddle,
     kMainBottom,
     kDirectionDivider,
     kDirectionLabel,
