@@ -178,6 +178,7 @@ TEST(dial_widget_pressed_and_selected_look_different_from_idle) {
   f.dial.draw();
   f.plane.refresh();
   auto pressed = f.buffer.at(2, 3);
-  CHECK(!(idle.fg == selected.fg) && idle.bg == selected.bg);  // the ring, not the slot
-  CHECK(!(pressed.bg == idle.bg));                              // the pressed slot
+  // Each changes the lines, not the slot, and differently.
+  CHECK(!(idle.fg == selected.fg) && idle.bg == selected.bg);
+  CHECK(!(pressed.fg == idle.fg) && !(pressed.fg == selected.fg) && pressed.bg == idle.bg);
 }
