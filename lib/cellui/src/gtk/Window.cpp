@@ -539,6 +539,18 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
     auto rgb = c.toSrgb8();
     return GdkRGBA{ rgb[0] / 255.0f, rgb[1] / 255.0f, rgb[2] / 255.0f, alpha };
   };
+  // A band's outline, inside its rectangle.
+  auto appendBandBorder = [&](GtkSnapshot * target, const Band & band, const ScrollContent & content, double w, double h) {
+    if (band.border_px <= 0) return;
+    graphene_rect_t rect = GRAPHENE_RECT_INIT(static_cast<float>((content.col + band.col) * w), static_cast<float>((content.row + band.row) * h),
+                                              static_cast<float>(band.cols * w), static_cast<float>(band.rows * h));
+    GskRoundedRect rounded;
+    gsk_rounded_rect_init_from_rect(&rounded, &rect, 0);
+    float widths[4] = { static_cast<float>(band.border_px), static_cast<float>(band.border_px), static_cast<float>(band.border_px), static_cast<float>(band.border_px) };
+    GdkRGBA edge = channel(band.border_color, band.border_alpha);
+    GdkRGBA colors[4] = { edge, edge, edge, edge };
+    gtk_snapshot_append_border(target, &rounded, widths, colors);
+  };
   Color fg = *display_info.default_fg, bg = *display_info.default_bg;
 
   graphene_rect_t all = GRAPHENE_RECT_INIT(0, 0, static_cast<float>(width), static_cast<float>(height));
@@ -600,6 +612,7 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
             graphene_rect_t strip = GRAPHENE_RECT_INIT(static_cast<float>((content.col + band.col) * cell_w), static_cast<float>((content.row + band.row) * cell_h),
                                                        static_cast<float>(band.cols * cell_w), static_cast<float>(band.rows * cell_h));
             gtk_snapshot_append_color(s, &tint, &strip);
+            appendBandBorder(s, band, content, cell_w, cell_h);
           }
           gtk_snapshot_pop(s);
           if (content.band && content.band->blend != BlendMode::NORMAL) {
@@ -618,6 +631,7 @@ void Window::Impl::snapshot(GtkSnapshot * snap) {
             gtk_snapshot_pop(s);
             gtk_snapshot_append_color(s, &tint, &strip);
             gtk_snapshot_pop(s);
+            appendBandBorder(s, band, content, cell_w, cell_h);
             gtk_snapshot_pop(s);
             gsk_render_node_unref(under);
           }

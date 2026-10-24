@@ -29,6 +29,12 @@ struct Band {
   // Stands this high above its plane, casting no shadow, so a lower one's
   // shadow does not fall on it (a cursor, a playhead).
   float lift = 0.0f;
+  // An outline drawn inside the rectangle, `border_px` pixels wide, over the
+  // fill; only where the display draws bands by parts of a cell (the cell
+  // version has no room for one between two cells).
+  Color border_color = Color(255, 255, 255);
+  float border_alpha = 1.0f;
+  double border_px = 0;
 };
 
 struct ScrollContent {

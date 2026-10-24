@@ -1521,7 +1521,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
     renderHeading(styles, track_ids, track_info, focused);
     // One row more than fits while the rows are between two positions.
     column_starts_.assign(track_ids.size(), -1);
-    cursor_x0_ = cursor_x1_ = -1;
+    cursor_x0_ = cursor_x1_ = cursor_sub_x0_ = cursor_sub_x1_ = -1;
     int drawn_rows = rows - heading_height + (rowsShifted() ? 1 : 0);
     for (auto row = 0; row < drawn_rows; row++) {
       auto address = source_->normalize(view_block_, row + draw_row0_);
@@ -2482,15 +2482,15 @@ void PatternEditor::updateCursorBands(const StyleProvider & styles, const std::v
   // still while the rows scroll under them.
   int visible = rows - heading_height;
   std::vector<double> shown;
-  auto strip = [&](Plane & plane, double line, double col, double cols, const Color & color, float alpha, cellui::BlendMode blend = cellui::BlendMode::NORMAL) {
+  auto strip = [&](Plane & plane, double line, double col, double cols, const Color & color, float alpha, cellui::BlendMode blend = cellui::BlendMode::NORMAL, double border_px = 0.0) {
     double first = heading_height + line;
     double height = std::min(1.0, static_cast<double>(rows) - first);
     if (height <= 0.0 || cols <= 0.0) {
       plane.clearBand();
       return;
     }
-    plane.setBand(cellui::Band{first, height, col, cols, color, alpha, blend, styles.theme.elevation.card});
-    for (double v : {first, height, col, cols, static_cast<double>(alpha), static_cast<double>(blend)}) shown.push_back(v);
+    plane.setBand(cellui::Band{first, height, col, cols, color, alpha, blend, styles.theme.elevation.card, color, 1.0f, border_px});
+    for (double v : {first, height, col, cols, static_cast<double>(alpha), static_cast<double>(blend), border_px}) shown.push_back(v);
   };
   auto cursor_track = current_cursor.track >= 0 && current_cursor.track < static_cast<int>(track_ids.size()) ? track_ids[static_cast<size_t>(current_cursor.track)] : -1;
   std::optional<double> cursor_line;
@@ -2545,18 +2545,36 @@ void PatternEditor::updateCursorBands(const StyleProvider & styles, const std::v
       if (line >= 0 && line < visible) cursor_line = line;
     }
   }
-  if (cursor_plane_ && cursor_hue_plane_) {
-    // Fading out with the focus, not cut off.
-    bool cell = cursor_line && styles.window_focused && focus_ > 0.01f && cursor_x0_ >= 0 && cursor_x1_ > cursor_x0_ && !current_cursor.isOnLocator();
+  if (cursor_outline_plane_ && cursor_plane_ && cursor_hue_plane_) {
+    bool cell = cursor_line && styles.window_focused && focused && cursor_x0_ >= 0 && cursor_x1_ > cursor_x0_ && !current_cursor.isOnLocator();
     if (cell) {
-      // The cursor inverts what is under it, text and all, like a cell drawn in
-      // reversed colours; the selection under it is drawn in the rows. White
-      // inverts the brightness, then the highlight's own hue is put back over it
-      // (inverting colours alone turns the hue round).
       double at = *cursor_line + cursor_phase;
-      strip(*cursor_plane_, at, cursor_x0_, cursor_x1_ - cursor_x0_, Color(255, 255, 255), focus_, cellui::BlendMode::DIFFERENCE);
-      strip(*cursor_hue_plane_, at, cursor_x0_, cursor_x1_ - cursor_x0_, styles.highlight_bg_color, focus_, cellui::BlendMode::COLOR);
+      bool sub = cursor_sub_x0_ >= 0 && cursor_sub_x1_ > cursor_sub_x0_;
+      double sub_cols = cursor_sub_x1_ - cursor_sub_x0_;
+      if (smooth_cursor_) {
+        // The note is outlined, over the rows. The field under it inverts what
+        // is under it, text and all, like a cell drawn in reversed colours; the
+        // selection under it is drawn in the rows. White inverts the brightness,
+        // then the highlight's own hue is put back over it (inverting colours
+        // alone turns the hue round).
+        strip(*cursor_outline_plane_, at, cursor_x0_, cursor_x1_ - cursor_x0_, styles.highlight_bg_color, 0.0f, cellui::BlendMode::NORMAL, 2.0);
+        if (sub) {
+          Color invert = styles.highlight_unfocused_bg_color.blend(focus_, Color(255, 255, 255));
+          strip(*cursor_plane_, at, cursor_sub_x0_, sub_cols, invert, 1.0f, cellui::BlendMode::DIFFERENCE);
+          strip(*cursor_hue_plane_, at, cursor_sub_x0_, sub_cols, styles.highlight_bg_color, focus_, cellui::BlendMode::COLOR);
+        } else {
+          cursor_plane_->clearBand();
+          cursor_hue_plane_->clearBand();
+        }
+      } else {
+        // Whole cells cannot be outlined: the note is tinted, the field more.
+        strip(*cursor_outline_plane_, at, cursor_x0_, cursor_x1_ - cursor_x0_, styles.highlight_bg_color, 0.25f);
+        if (sub) strip(*cursor_plane_, at, cursor_sub_x0_, sub_cols, styles.highlight_bg_color, 0.3f);
+        else cursor_plane_->clearBand();
+        cursor_hue_plane_->clearBand();
+      }
     } else {
+      cursor_outline_plane_->clearBand();
       cursor_plane_->clearBand();
       cursor_hue_plane_->clearBand();
     }
@@ -2579,11 +2597,12 @@ void PatternEditor::syncColumnPlanes(const std::vector<int> & track_ids) {
     }
     // The cursor's plane is above the columns, the headings' (held in
     // rows_plane_ while drawing) above all.
+    if (created && cursor_outline_plane_) cursor_outline_plane_->moveToTop();
     if (created && cursor_plane_) cursor_plane_->moveToTop();
     if (created && cursor_hue_plane_) cursor_hue_plane_->moveToTop();
     if (created && rows_plane_) rows_plane_->moveToTop();
   }
-  for (auto * cursor : {&cursor_plane_, &cursor_hue_plane_}) {
+  for (auto * cursor : {&cursor_outline_plane_, &cursor_plane_, &cursor_hue_plane_}) {
     if (!*cursor) {
       *cursor = getPlane().createChild();
       (*cursor)->makeTransparent();
@@ -4051,6 +4070,10 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	}
         // The cursor's note, with its velocity and delay (or its effect command).
         if (i == current_cursor.track && current_cursor.col < track_info.getColumnCount()) {
+          if (k == current_cursor.col) {
+            cursor_sub_x0_ = cell_x0;
+            cursor_sub_x1_ = current_pos;
+          }
           bool cursor_fx = track_info.isTrackFxColumn(current_cursor.col);
           if (track_info.isTrackFxColumn(k) == cursor_fx && (cursor_fx || track_info.getNoteNumber(k) == track_info.getNoteNumber(current_cursor.col))) {
             cursor_x0_ = cursor_x0_ < 0 ? cell_x0 : std::min(cursor_x0_, cell_x0);

@@ -218,10 +218,15 @@ protected:
   bool smooth_cursor_ = false;
   // Where a playing view's line is between two rows, 0 to 1 (Arrangement view).
   double row_band_phase_ = 0.0;
-  // The cursor cell's bands: one inverts what is under it, the one above gives the result the highlight's hue.
-  std::unique_ptr<Plane> cursor_plane_, cursor_hue_plane_;
+  // The cursor has two levels: the note with its velocity and delay (or the
+  // effect command) outlined on cursor_outline_plane_ (tinted where bands cannot be
+  // outlined), and the field under it: cursor_plane_ inverts what is under it, the
+  // plane above gives the result the highlight's hue.
+  std::unique_ptr<Plane> cursor_outline_plane_, cursor_plane_, cursor_hue_plane_;
   // The cursor's note column (with its velocity and delay) on the screen, -1 if not drawn.
   int cursor_x0_ = -1, cursor_x1_ = -1;
+  // The field the cursor is on (note, velocity, delay, local fx or command).
+  int cursor_sub_x0_ = -1, cursor_sub_x1_ = -1;
   // What the bands showed last, to tell when they moved.
   std::vector<double> bands_shown_;
   bool bands_changed_ = false;
