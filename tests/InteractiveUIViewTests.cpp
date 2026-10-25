@@ -469,7 +469,7 @@ TEST(terminal_ui_clip_grid_click_on_a_send_opens_its_editor) {
   CHECK(rows.caption > 0);
   int column = kOutlineCols + 1;
   // The B dial of the first track.
-  clickCell(f, rows.b_bottom(), column + 1 + 7 + 1);
+  clickCell(f, rows.b_bottom(), column + 1 + 8 + 1);
   f.type("-6");
   CHECK(f.line(static_cast<size_t>(rows.b_bottom())).find("-6") != std::string::npos);
   f.ctrl('g');

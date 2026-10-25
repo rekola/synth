@@ -131,11 +131,11 @@ class ClipGrid : public UIElement {
   // each. Shared between render() and startClipRename() so the reader's
   // own placement always lines up with what render() just drew.
   static constexpr int kColWidth = 16;
-  // A dial's slot: kDialWidth cells by kDialRows rows, about square. A and B
+  // A dial's slot: kDialWidth cells by kDialRows rows. A and B
   // stand side by side, A at kDialX in the column and B kDialStride cells
   // further on; Main is centred, at kMainX. The column's last cell is the
   // meter's.
-  static constexpr int kDialX = 1, kDialStride = 7, kDialWidth = 6, kDialRows = 3;
+  static constexpr int kDialX = 1, kDialStride = 8, kDialWidth = 5, kDialRows = 3;
   static constexpr int kMainX = (kColWidth - 1 - kDialWidth) / 2;
   // The level meter: a vertical bar in a column's last cell, beside the Main
   // and Direction rows (kMainTop through kDirectionValue); the Sends rows

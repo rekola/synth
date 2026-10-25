@@ -75,7 +75,7 @@ struct DialSpec {
 // and none of the gestures.
 class Dial {
  public:
-  static constexpr int kRows = 3, kCols = 6;
+  static constexpr int kRows = 3, kCols = 5;
 
   Dial(Plane & plane, DialSpec spec) : plane_(plane), spec_(std::move(spec)) {}
 
