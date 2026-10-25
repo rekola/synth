@@ -1133,7 +1133,7 @@ would otherwise resume showing.
   the letter and a pointer from the centre over the ring's arc, the ring 4 px
   thick and the pointer in a notch of background so it stays apart from it, in the
   theme's primary text colour (white, black on a light theme). Each dial is
-  an identical, separate slot of 6x3 cells (about square): A on the first three rows of the
+  an identical, separate slot of 5x3 cells, the letter in the middle of the bottom border: A on the first three rows of the
   4-row Sends group, B on its last three, the "Sends" caption in the corner above
   B, then the Main dial, centred, in a 3-row group of its own (`SendsDirectionRow`). A
   display that shows pictures (`Plane::cellPixelSize()`) gets a picture with no
