@@ -1141,7 +1141,7 @@ would otherwise resume showing.
   any other gets the same slot in text, the letter over the dB value - the
   plane decides, so a backend without pictures needs nothing. The pointer's
   position is the send's dB over the Launchpad faders' range
-  (`model/SendFader.h`: -36 dB to unity, below that off). On the Sends row Left
+  (`model/SendFader.h`: -36 dB to unity, below that off; the arc starts a 6 dB step lower, where off is drawn, so the two lowest fader rows point apart). On the Sends row Left
   and Right walk through the A and B dials (then on into the next column),
   Main is a stop of its own below. The gestures belong to the widget, `cellui::Dial`
   (`Dial.h`, shown in the gallery in its idle, selected, pressed and off looks): a click starts typing a
