@@ -13,7 +13,7 @@ Agreed so far: a generator that reads real chord notes from the clip and
 writes the bass notes into it as ordinary notes - no track type and no
 live machinery - never baked scale-degree/chord-quality data, since the
 chord-construction rules for the project's own microtonal system
-(quartal chords, interval-splitting) aren't finalized, and reading the
+(narrow triads, interval-splitting) aren't finalized, and reading the
 notes actually entered sidesteps needing them at all: it is correct by
 construction in any key, tuning, or chord shape.
 

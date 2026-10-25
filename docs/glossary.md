@@ -91,23 +91,50 @@ The view with the clip launcher, the outline panel and the pattern editor
 showing each track's own clip; Tab switches to and from the arrangement
 view. The Launchpad's Live mode shows the same clip grid on the pads.
 
+**Narrow major and narrow minor**
+Two triads that divide the perfect fourth the way major and minor
+divide the fifth. A major triad (4:5:6) places its third at the
+arithmetic mean of the fifth, a minor triad (10:12:15 = 1/6:1/5:1/4)
+at the harmonic mean; a narrow major triad (6:7:8) places its middle
+note at the arithmetic mean of the fourth, a narrow minor triad
+(21:24:28 = 1/8:1/7:1/6) at the harmonic mean. Both consist of a
+subminor third (7/6) and a supermajor second (8/7), with the larger
+interval on the bottom in narrow major and on top in narrow minor, as
+with major and minor. Neither has a fifth: the outer interval is a
+fourth, so they cannot be mistaken for incomplete seventh chords. In
+the otonal and utonal scales they fill the degrees that have no major
+or minor triad. C otonal has narrow major on C (C D♯ F) and G (G A♯ C)
+and narrow minor on A♯ (A♯ C D♯); C utonal mirrors this with narrow
+minor on C (C E𝄫 G) and F (F B𝄫 C) and narrow major on B𝄫 (B𝄫 C
+E𝄫). Narrow major is otonal and narrow minor utonal, in Partch’s
+sense. The names are the author’s own; the chords have no settled
+name in the just-intonation literature. See otonal and utonal.
+
 **Otonal and utonal**
-Two 7-note scales that mirror each other around the tonic. Otonal (C D♯ E F G
-A A𝄰 = 1/1 7/6 5/4 4/3 3/2 5/3 7/4): all seven are harmonics (12, 14, 15, 16,
-18, 20, 21) of one low F, which is what Harry Partch called otonal. It holds
-the 4:5:6:7 chords C E G A𝄰 and F A C D♯ and pure major triads on C and F.
-Utonal (C E𝄫 E♭ F G A♭ B𝄫 = 1/1 8/7 6/5 4/3 3/2 8/5 12/7) is the otonal scale
-turned upside down: all seven are undertones of one high G. It holds the
-1/7:1/6:1/5:1/4 chords E𝄫 F A♭ C and B𝄫 C E♭ G and pure minor triads on C and
-F. Note that the otonal scale is not the harmonic series of its own tonic but
-of the note a fifth below it. Partch's otonalities and utonalities are
-six-note chords over the odd numbers 1, 3, 5, 7, 9 and 11; these scales use 15
-and 21 as well, and are the application's own. Their chords are tabled in
+Two 7-note scales that mirror each other around the tonic. Both are
+given here on C. Otonal (1/1 7/6 5/4 4/3 3/2 5/3 7/4, on C: C D♯ E F G
+A A♯): all seven are harmonics (12, 14, 15, 16, 18, 20, 21) of one low
+fundamental, so the scale is otonal in Harry Partch’s sense. Note that
+the fundamental is not the tonic but the note a fifth below it (F for
+C otonal): the tonic sits on identity 3, not 1. It holds the 4:5:6:7
+chords C E G A♯ and F A C D♯, pure major triads on C and F, and a pure
+minor triad on A. Utonal (1/1 8/7 6/5 4/3 3/2 8/5 12/7, on C: C E𝄫 E♭
+F G A♭ B𝄫) is the otonal scale turned upside down: all seven are
+undertones of one high fundamental, a twelfth above the tonic (G for C
+utonal). It holds the 1/7:1/6:1/5:1/4 chords E𝄫 F A♭ C and B𝄫 C E♭ G,
+pure minor triads on C and F, and a pure major triad on A♭. Neither
+scale has a major or minor triad on every degree, but the gaps are
+filled by narrow triads (see narrow major and narrow minor), which
+divide the fourth instead of the fifth. Partch’s Otonalities and
+Utonalities are six-note chords over the odd identities 1, 3, 5, 7, 9
+and 11; these scales drop 11 and add 15 and 21, and are the
+author’s own. Their chords are tabled in
 [otonal-and-utonal.md](otonal-and-utonal.md).
 
 **Performance effect**
 An effect held on a track from the Launchpad's Custom grid (stutter,
-shuffle, erode, shatter, gate, crush, duck, a send throw, orbit): it lasts while the pad is held and never changes the song. See
+shuffle, erode, shatter, gate, crush, duck, a send throw, orbit): it
+lasts while the pad is held and never changes the song. See
 launchpad.md.
 
 **Rhythm**

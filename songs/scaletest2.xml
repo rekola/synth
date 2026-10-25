@@ -9,10 +9,10 @@
   </tracks>
   
   <locators>
-    <locator row="32">C quartal major</locator>
+    <locator row="32">C narrow major</locator>
     <locator row="36">D# ?</locator>
-    <locator row="40">G quartal major</locator>
-    <locator row="44">A#4 quartal minor</locator>
+    <locator row="40">G narrow major</locator>
+    <locator row="44">A#4 narrow minor</locator>
   </locators>
   <arrangement>
     <pattern track="0">

@@ -9,16 +9,16 @@
   </tracks>
   
   <locators>
-    <locator row="42">C quartal major</locator>
-    <locator row="46">Db quartal minor aug</locator>
+    <locator row="42">C narrow major</locator>
+    <locator row="46">Db narrow minor aug</locator>
     <locator row="50">D minor</locator>
     <locator row="54">D# ?</locator>
     <locator row="58">E minor</locator>
     <locator row="62">F major</locator>
     <locator row="66">G major</locator>
     <locator row="70">A minor</locator>
-    <locator row="74">A#4 quartal minor</locator>
-    <locator row="78">B quartal minor</locator>
+    <locator row="74">A#4 narrow minor</locator>
+    <locator row="78">B narrow minor</locator>
   </locators>
   <arrangement>
     <pattern track="0">

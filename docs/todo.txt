@@ -75,7 +75,7 @@ G B D
 Ab C Eb
 A C E
  Bb D F
- B Db E (quartal minor)
+ B Db E (narrow minor)
 
 Extended major 7 limit:
 
@@ -87,13 +87,13 @@ C E G		C E G		C major
   D# C' A#'	D# C'' A𝄰'	D# septimal minor
   E C' A'	E C' A'		
  F A C'				F major
- G A# C'	G A𝄰 C'		G quartal major
+ G A# C'	G A𝄰 C'		G narrow major
   A C' E'			A minor
-  A# C' D#'	A𝄰 C' D♯	A# quartal minor
+  A# C' D#'	A𝄰 C' D♯	A# narrow minor
    Bb D' F' C''	B𝄭 D𝄯' F' C''	Bb major
    		B𝄭 C' D𝄮	?
 		B E A D𝄯	B w. stacked 4ths
-   		B D𝄬 E		quartal major
+   		B D𝄬 E		narrow major
 
 C => D#		7:6
 D# => E		15:14
@@ -112,7 +112,7 @@ C E♭ G			C E♭ G		C minor
   E𝄫 C' B𝄫'		E𝄫 ..
   E♭ C' Ab'		E♭ ..
  F A♭ C'		F A♭ C'
- G Bbb C'		G A𝄱 C'		G quartal minor
+ G Bbb C'		G A𝄱 C'		G narrow minor
   A♭ C' E♭'		A♭ C' E♭'	A♭ major
   Bbb C' Ebb'		A𝄱 C' E𝄫'
    B♭ D♭' F' C''	B𝄭 D𝄭 F' C''	B𝄭 minor ...

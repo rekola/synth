@@ -104,7 +104,7 @@ The application draws on several traditions.
   scale turned upside down: all seven are undertones of one high G. It holds
   the 1/7:1/6:1/5:1/4 chords E𝄫 F A♭ C and B𝄫 C E♭ G and pure minor triads on
   C and F. Partch's own otonalities and utonalities are six-note chords; these
-  scales are the application's own, inspired by Kyle Gann's *The Arithmetic of
+  scales are the author's own, inspired by Kyle Gann's *The Arithmetic of
   Listening* (2019) and its account of the arithmetic and harmonic means. They
   are spelled so that 31 and 53-EDO both come within 6 cents of every ratio;
   12 and 19-EDO only approximate the septimal ones. The 7:4 is A♯+ because
