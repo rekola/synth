@@ -2,6 +2,9 @@
 
 #include "InteractiveUIFixture.h"
 
+#include "../src/instruments/Oscillator.h"
+#include "../src/model/InstrumentTrack.h"
+
 #include <filesystem>
 #include <fstream>
 
@@ -24,6 +27,7 @@ TEST(terminal_ui_tab_switches_view_and_moves_focus) {
   CHECK(f.terminal.frameCount() > before);
   CHECK(f.terminal.text().find(" master") != std::string::npos);
   CHECK(f.terminal.text().find("00 │") != std::string::npos);
+  if (f.terminal.info().focus != "pattern-editor") f.otherWindow();
   CHECK(f.terminal.info().focus == "pattern-editor");
 }
 
@@ -233,4 +237,21 @@ TEST(terminal_ui_choice_dialog_entries_show_over_the_raised_box) {
   CHECK(f.terminal.text().find("Pick one") != std::string::npos);
   CHECK(f.terminal.text().find("Alpha entry") != std::string::npos);
   CHECK(f.terminal.text().find("Beta entry") != std::string::npos);
+}
+
+TEST(terminal_ui_ctrl_keypad_operators_change_the_track_instrument) {
+  UIFixture f(fixture("center_note.xml"), UI::View::ARRANGEMENT);
+  f.controller->getSong().addInstrument(std::make_unique<Oscillator>(WaveformType::SINE));
+  auto instrument_id = [&] {
+    auto & song = f.controller->getSong();
+    auto track = song.getMasterTrack().getChildren().front();
+    return dynamic_cast<const InstrumentTrack &>(*track).getInstrumentId();
+  };
+  if (f.terminal.info().focus != "pattern-editor") f.otherWindow();
+  CHECK(f.terminal.info().focus == "pattern-editor");
+  int before = instrument_id();
+  f.press(cellui::Key::KpMultiply, kModCtrl);
+  CHECK(instrument_id() == before + 1);
+  f.press(cellui::Key::KpDivide, kModCtrl);
+  CHECK(instrument_id() == before);
 }
