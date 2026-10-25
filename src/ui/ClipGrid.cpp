@@ -454,7 +454,7 @@ cellui::Dial & ClipGrid::dialAt(int track_id, int send) {
     cellui::DialSpec spec;
     spec.letter = send == 0 ? "M" : send == 1 ? "A"
                                               : "B";
-    spec.min = kSendFloorDb;
+    spec.min = kSendArcBottomDb;
     spec.max = 0.0f;
     slot = std::make_unique<cellui::Dial>(getPlane(), spec);
     slot->setId((uint64_t{1} << 32) | key);
